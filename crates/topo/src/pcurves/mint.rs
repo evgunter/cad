@@ -2182,13 +2182,10 @@ mod not_owed_rows {
             })),
             "a dual owes no fitted row"
         );
-        for defect in [PcurveCertifyError::IntervalNotForward] {
-            let shown = format!("{defect:?}");
-            assert!(
-                !not_owed::<Dual64>(&of(defect)),
-                "a defective image is owed its refusal at a dual: {shown}"
-            );
-        }
+        assert!(
+            !not_owed::<Dual64>(&of(PcurveCertifyError::IntervalNotForward)),
+            "a defective image is owed its refusal at a dual"
+        );
         assert!(
             !not_owed::<f64>(&of(PcurveCertifyError::FittedLaneUnsupported {
                 scalar: "f64"

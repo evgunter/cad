@@ -2739,7 +2739,13 @@ fn plan_edge<'s, T: Decide>(
             self_shared || {
                 // A pending neighbour holds nothing: its section refuses below.
                 body.proven_face(other).surface().is_ok_and(|held| {
-                    crate::offset_derive::holds_the_move(old_surface, held, Some((axis, at)), d, band)
+                    crate::offset_derive::holds_the_move(
+                        old_surface,
+                        held,
+                        Some((axis, at)),
+                        d,
+                        band,
+                    )
                 })
             }
         });
@@ -2923,7 +2929,9 @@ fn plan_edge<'s, T: Decide>(
     // Whether the section of the moved chart and an untouched neighbour
     // is one this kernel can state.
     let neighbour_section = |other: SurfaceKey| -> Result<(), ReplaceFaceError<T>> {
-        let other_surface = body.get_surface(other).unwrap_or_else(|miss| described_link(edge, other, miss));
+        let other_surface = body
+            .get_surface(other)
+            .unwrap_or_else(|miss| described_link(edge, other, miss));
         let other_kind = other_surface.kind();
         let kind = new_surface.kind();
         if !geom_brep::intersect::route(kind, other_kind).implemented {
@@ -3039,7 +3047,9 @@ fn plan_edge<'s, T: Decide>(
         // now stands.
         EdgeDescription::OnPair { pair } if let Some(other) = pair.other(old_key) => {
             neighbour_section(other)?;
-            let held = body.get_surface(other).unwrap_or_else(|miss| described_link(edge, other, miss));
+            let held = body
+                .get_surface(other)
+                .unwrap_or_else(|miss| described_link(edge, other, miss));
             crate::offset_restate::re_ask_on_pair(
                 edge,
                 [(old_key, new_surface), (other, held)],
@@ -3184,7 +3194,11 @@ fn held_surface<T: Real>(
         }
         Err(SurfaceMiss::Pending) => {
             let [a, b] = crate::edge_faces(body, edge);
-            let face = if body.proven_face(a).record().surface == key { a } else { b };
+            let face = if body.proven_face(a).record().surface == key {
+                a
+            } else {
+                b
+            };
             Err(ReplaceFaceError::PlaceholderSurface { face })
         }
     }

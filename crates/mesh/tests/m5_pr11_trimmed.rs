@@ -265,7 +265,7 @@ fn a_wall_wound_against_its_sense_refuses_typed() {
         .find(|(fk, _)| {
             matches!(
                 above.face_surface(*fk),
-                Some(geom::Surface::Cylinder { .. })
+                Ok(geom::Surface::Cylinder { .. })
             )
         })
         .map(|(k, _)| k)

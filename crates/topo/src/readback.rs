@@ -415,9 +415,10 @@ pub fn face_stored_surface<T: Real>(
 ///
 /// # Errors
 ///
-/// [`ReadbackError::Dangling`] for a stale face key — the
-/// only refusal: every carrier, NURBS and approximating included,
-/// has a kind.
+/// [`ReadbackError::Dangling`] for a stale face key, and
+/// [`ReadbackError::NoCanonicalFrame`] for a face whose surface is still
+/// pending: every carrier, NURBS and approximating included, has a
+/// kind, and a pending face has no carrier.
 ///
 /// ```
 /// use geom::SurfaceKind;

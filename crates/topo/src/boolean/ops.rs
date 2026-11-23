@@ -5782,10 +5782,8 @@ impl OneRecordTokens {
                     // preserve them); B bridges through the graft.
                     let ka = fa.surface;
                     let kb = graft.surfaces.get(fb.record().surface).copied()?;
-                    (ka != kb
-                        && result.get_surface(ka).is_ok()
-                        && result.get_surface(kb).is_ok())
-                    .then_some(())?;
+                    (ka != kb && result.get_surface(ka).is_ok() && result.get_surface(kb).is_ok())
+                        .then_some(())?;
                     let census = pair.census(a, b, &decided);
                     let (kept, other) = match census.kept {
                         Operand::A => (ka, kb),
@@ -6261,7 +6259,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
     // surface, a refusal.
     for body in [a, b] {
         for face in body.face_views() {
-            let _ = face.described();
+            let _ = face.slot();
         }
     }
     let pad = boxes::sweep_pad(band);
@@ -9259,8 +9257,12 @@ mod tests {
         // fallback entry carrying a NURBS face whose box may meet a face
         // of the other operand refuses BEFORE a vertex is probed. A
         // placeholder's net is poison, so its box meets every face, far
-        // or not. `sweep`'s `s16_box_soundness` pins the re-gate end to
+        // or not (the fixture's pending slots are described as an
+        // all-poison net here). `sweep`'s `s16_box_soundness` pins the re-gate end to
         // end on a lofted operand.
+        let (mut a, mut b) = (a, b);
+        crate::fixtures::describe_pending_as_poison(&mut a);
+        crate::fixtures::describe_pending_as_poison(&mut b);
         let band = Band::linear(Tol::witness()).unwrap();
         let Err(err) = super::sphere_extent_scan(&a, &b, &super::Evidence::NONE, band) else {
             panic!("the NURBS fallback must be re-gated, never vertex-probed");
@@ -10621,7 +10623,8 @@ mod tests {
                 },
             )
             .unwrap();
-        let &geom::Surface::Sphere { frame, radius, .. } = capped.proven_face(top).described() else {
+        let &geom::Surface::Sphere { frame, radius, .. } = capped.proven_face(top).described()
+        else {
             panic!("the cap's carrier is the sphere");
         };
         let center = frame.origin();

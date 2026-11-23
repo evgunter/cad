@@ -160,7 +160,7 @@ fn census(b: &topo::Body<f64>) -> GraftCensus {
         edges: b.edges().count(),
         vertices: b.vertices().count(),
         points: b.points().count(),
-        surfaces: b.surfaces().count(),
+        surfaces: b.surface_slots().count(),
         shell_refs: b.solids().map(|(_, s)| s.shells.len()).sum(),
     }
 }

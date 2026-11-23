@@ -8028,9 +8028,10 @@ pub(crate) fn tier3_local_checks_marked<
         };
         let (f_plus, fs_plus) = (sides.plus.face, sides.plus.surface);
         let (f_minus, fs_minus) = (sides.minus.face, sides.minus.surface);
-        let (Some(s_plus), Some(s_minus)) =
-            (body.get_surface(fs_plus).ok(), body.get_surface(fs_minus).ok())
-        else {
+        let (Some(s_plus), Some(s_minus)) = (
+            body.get_surface(fs_plus).ok(),
+            body.get_surface(fs_minus).ok(),
+        ) else {
             continue;
         };
         let (t0, t1) = curve.params();
@@ -15680,11 +15681,8 @@ mod tests {
         for (name, b) in [("nested", &body), ("inverted", &inverted)] {
             let mut c = b.clone();
             let sense = c.get_face(face).unwrap().sense;
-            c.set_face_surface(
-                face,
-                crate::construction::FaceSurface::Pending { sense },
-            )
-            .unwrap();
+            c.set_face_surface(face, crate::construction::FaceSurface::Pending { sense })
+                .unwrap();
             let got = nesting_words(&c, tol);
             assert!(got.is_empty(), "non-planar {name}: not silent: {got:?}");
         }

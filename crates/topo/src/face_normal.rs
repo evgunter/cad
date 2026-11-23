@@ -820,7 +820,9 @@ pub(crate) fn spline_outward_normal_at<T: Decide>(
 ) -> Result<OutwardNormal<T>, SplineNormalError> {
     use geom_brep::ChartPointRefusal;
     let f = body.face(face).ok_or(SplineNormalError::StaleFace)?;
-    let surface = f.surface().map_err(|_| SplineNormalError::PlaceholderChart)?;
+    let surface = f
+        .surface()
+        .map_err(|_| SplineNormalError::PlaceholderChart)?;
     let chart = surface.spline_chart().ok_or(SplineNormalError::NotSpline)?;
     let uv = (T::from_computed(u), T::from_computed(v));
     let net = geom::cover::Cover::net(chart.control().to_vec());

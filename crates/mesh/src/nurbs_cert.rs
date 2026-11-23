@@ -132,8 +132,9 @@
 //! convex-combination licence), C⁰ creases (the Taylor remainder
 //! needs C¹ — for the standard multi-arc rational quadratic that
 //! means split at the double knots), degree-0 directions, and
-//! refused/non-finite hulls. The placeholder refuses
-//! [`TessellateError::UnsupportedSurface`] upstream in `trimmed`.
+//! refused/non-finite hulls. A pending face refuses
+//! [`TessellateError::UnsupportedSurface`] upstream, at the
+//! tessellator's surface door.
 
 use geom::NurbsSurface;
 use geom_brep::patch_bound::{self, PatchBoundError};
@@ -2218,7 +2219,7 @@ pub(crate) mod tests {
         let body = sweep::test_support::lofted_cylinder(1.0, Tol::witness());
         let mut walls = 0;
         for (fk, _) in body.faces() {
-            let Some(geom::Surface::Nurbs(wall)) = body.face_surface(fk) else {
+            let Ok(geom::Surface::Nurbs(wall)) = body.face_surface(fk) else {
                 continue;
             };
             walls += 1;
@@ -2864,7 +2865,7 @@ pub(crate) mod tests {
             .expect("the rational pie lofts")
             .body;
         for (fk, _) in body.faces() {
-            if let Some(geom::Surface::Nurbs(p)) = body.face_surface(fk)
+            if let Ok(geom::Surface::Nurbs(p)) = body.face_surface(fk)
                 && p.constant_weight().is_none()
             {
                 return (**p).clone();

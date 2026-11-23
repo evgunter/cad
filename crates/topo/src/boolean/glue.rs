@@ -316,7 +316,7 @@ pub(super) fn overlapping_pairs<T: Decide + Bounds>(
     let pad = boxes::sweep_pad(band);
     let boxed = |body: &Body<T>| -> Result<Vec<(FaceKey, bvh::Aabb)>, BooleanError> {
         body.face_views()
-            .filter(|face| keep(face.described()))
+            .filter(|face| face.surface().is_ok_and(&keep))
             .map(|face| Ok((face.key(), boxes::face_box(body, face.key(), pad, band))))
             .collect()
     };

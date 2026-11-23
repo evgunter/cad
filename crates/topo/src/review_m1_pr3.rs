@@ -555,7 +555,7 @@ fn independent_genus_one_and_two_builds_with_hand_ledger() {
     assert_eq!(l.genus(), Ok(2));
     assert_eq!(body.loops().count(), 17); // 13 outer + 4 rings
     assert_eq!(body.half_edges().count(), 66);
-    assert_eq!(body.surfaces().count(), 1);
+    assert_eq!(body.surface_slots().count(), 1);
     assert_eq!(body.curves().count(), 33);
     // No vertex is ever killed (kemr strands the strut tip as the ring
     // anchor), so points == vertices.
@@ -1496,7 +1496,7 @@ fn kfmrh_reaps_private_surfaces_and_keeps_shared_ones() {
     let shared = body.kfmrh(seed.face, split.face).unwrap();
     assert_eq!(validate(&body), Ok(()));
     assert_eq!(shared.killed_surface, None);
-    assert_eq!(body.surfaces().count(), 1);
+    assert_eq!(body.surface_slots().count(), 1);
 
     // Private case: same construction, but give the mef face its OWN
     // surface first (public mutation; body stays tier-1-valid since
@@ -1519,7 +1519,7 @@ fn kfmrh_reaps_private_surfaces_and_keeps_shared_ones() {
     assert_eq!(validate(&body2), Ok(()));
     assert_eq!(reaped.killed_surface, Some(private));
     assert!(body2.get_surface(private).is_err());
-    assert_eq!(body2.surfaces().count(), 1);
+    assert_eq!(body2.surface_slots().count(), 1);
 }
 
 // ---------------------------------------------------------------------

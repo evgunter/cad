@@ -756,7 +756,10 @@ pub(super) fn gate_maximal_faces<T: Decide>(
             // exactly what a maximal-faced curved operand looks like
             // (the cosurface merge itself KEEPS such a cut). Only the
             // PLANAR same-key pair is the F7 defect.
-            let planar = matches!(body.proven_face(f1).described(), geom::Surface::Plane { .. });
+            let planar = matches!(
+                body.proven_face(f1).described(),
+                geom::Surface::Plane { .. }
+            );
             if planar {
                 return Err(BooleanError::NonMaximalFaces {
                     operand,
@@ -1212,7 +1215,8 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     // from the offset along the OUTWARD normal only by the
                     // face's sense bit, so whether an end is ON the plane
                     // reads the same either way.
-                    let &geom::Surface::Plane { frame, .. } = y.proven_face(face).described() else {
+                    let &geom::Surface::Plane { frame, .. } = y.proven_face(face).described()
+                    else {
                         return Err(BooleanError::ClassificationInvariant {
                             what: "planar lane: the face's plane resolved above",
                         });

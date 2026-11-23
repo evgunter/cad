@@ -4270,7 +4270,10 @@ impl<T: Decide> IslandReading<T> {
         body: &Body<T>,
         face: FaceKey,
     ) -> Result<(&geom::Surface<T>, Carrier<T>), JoinError> {
-        let surface = body.face(face).ok_or_else(|| corrupt_face(face))?.described();
+        let surface = body
+            .face(face)
+            .ok_or_else(|| corrupt_face(face))?
+            .described();
         let carrier = Carrier::of(surface).ok_or_else(|| ring_island_unread(face, surface))?;
         Ok((surface, carrier))
     }
@@ -5249,7 +5252,10 @@ pub(crate) fn loop_holds_outer<T: Decide + crate::props::AtRestPolicy>(
 ) -> Result<bool, JoinError> {
     let invariant = |what| JoinError::SectionInvariant { face: oldf, what };
     let escalated = |diag| JoinError::Escalated { face: oldf, diag };
-    let surface = body.face(oldf).ok_or_else(|| corrupt_face(oldf))?.described();
+    let surface = body
+        .face(oldf)
+        .ok_or_else(|| corrupt_face(oldf))?
+        .described();
     match LoopSide::of(surface).ok_or_else(|| ring_island_unread(oldf, surface))? {
         LoopSide::Planar => {
             let face_data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;

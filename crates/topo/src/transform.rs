@@ -531,11 +531,13 @@ fn mapped_image<T: Real>(
     match hand {
         Hand::Proper => Ok(image.clone()),
         Hand::Improper => {
-            let class = body.get_surface(surface).ok().map(OrientationClass::of).ok_or(
-                TransformError::Corrupt {
+            let class = body
+                .get_surface(surface)
+                .ok()
+                .map(OrientationClass::of)
+                .ok_or(TransformError::Corrupt {
                     found: "a chart image lies on a missing surface",
-                },
-            )?;
+                })?;
             reflected_image(image, class)
         }
     }

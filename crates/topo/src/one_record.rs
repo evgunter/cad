@@ -264,7 +264,10 @@ impl<T: Decide> Body<T> {
         };
         let planes = matches!(
             (s1, s2),
-            (Some(geom::Surface::Plane { .. }), Some(geom::Surface::Plane { .. }))
+            (
+                Some(geom::Surface::Plane { .. }),
+                Some(geom::Surface::Plane { .. })
+            )
         );
         let one_carrier = match verdict {
             geom_brep::WedgeClass::Seam {

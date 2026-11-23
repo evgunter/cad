@@ -62,9 +62,9 @@ fn infinite_delta_is_refused() {
 }
 
 #[test]
-fn nurbs_surface_is_refused() {
-    // The mvfs seed face carries `Surface::Nurbs` (the honest
-    // no-description placeholder) — tessellation refuses it typed.
+fn a_pending_face_is_refused() {
+    // The mvfs seed face's surface is still pending — tessellation
+    // refuses it typed.
     let mut body = topo::Body::<f64>::new();
     body.mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
         .unwrap();
@@ -183,7 +183,7 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
         ),
         (
             TessellateError::UnsupportedSurface { face },
-            vec!["placeholder", "surface"],
+            vec!["pending", "surface"],
         ),
         (
             TessellateError::UnsupportedNurbsFace {
@@ -491,7 +491,7 @@ fn two_faces_refusing_differently_report_the_first_in_arena_order() {
     }
     // Two surfaces a washer's face cannot be. Both refuse INSIDE a
     // lane, which is the point: a poison the chord pass refuses (a
-    // placeholder NURBS, say) never reaches the map and would test the
+    // pending face, say) never reaches the map and would test the
     // order of a pass that is still serial. So both poisoned faces are
     // ringless: a curved face with a ring is the trimmed lane's, whose
     // lattice the chord pass reads, and a plane's half-edges store no

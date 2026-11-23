@@ -159,8 +159,7 @@ impl<'a> ChartRow<'a> {
     ///
     /// # Errors
     ///
-    /// [`TessellateError::UnsupportedSurface`] for a NURBS face with no
-    /// description yet; [`TessellateError::MissingEntity`] for a plane,
+    /// [`TessellateError::MissingEntity`] for a plane,
     /// which has no chart row, and for a spline face whose cell table the
     /// chord pass did not leave; the window readers' errors.
     pub(crate) fn of(

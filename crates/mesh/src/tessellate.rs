@@ -137,7 +137,7 @@ impl Patch {
 /// The input is expected to be a closed solid at rest (tier 2, with
 /// tier-3 geometry); tessellation does not re-validate — corrupt input
 /// surfaces as typed errors where cheaply detectable (dangling keys,
-/// `Nurbs` placeholders, certificate failures) and is otherwise
+/// pending faces, certificate failures) and is otherwise
 /// garbage-in/garbage-out on the mesh *values*.
 /// [`crate::validate::check_mesh`] is the backstop for that, and
 /// **this function does not call it**: it is available to a caller,
@@ -148,8 +148,8 @@ impl Patch {
 ///
 /// # Errors
 ///
-/// [`TessellateError`] (closed enum): invalid δ, the `Nurbs`
-/// placeholder, described NURBS faces outside the trimmed-NURBS
+/// [`TessellateError`] (closed enum): invalid δ, a pending face, NURBS
+/// faces outside the trimmed-NURBS
 /// inventory (illegal-rational / C⁰-creased — `nurbs_cert`), unsupported
 /// carriers, a curved face whose loops have no reading in one sheet of
 /// its chart, a curved face whose iso domain is not its own UV
@@ -236,9 +236,8 @@ pub(crate) enum Lane {
 /// refusal, whose record is on
 /// [`TessellateError::UnsupportedSurface`]): a NURBS face has no
 /// swept-rectangle chart, so the pcurve-driven walk is its only lane.
-/// The placeholder still refuses typed inside the lane;
-/// illegal-rational/C⁰ classes refuse
-/// [`TessellateError::UnsupportedNurbsFace`] there too. An
+/// Illegal-rational/C⁰ classes refuse
+/// [`TessellateError::UnsupportedNurbsFace`] there. An
 /// approximating surface meshes through the SAME lane, on its fit: the
 /// fit is the geometry, so the triangles it produces are the face's
 /// own. The certificate's bound is deliberately NOT folded into the

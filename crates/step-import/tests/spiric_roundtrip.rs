@@ -211,7 +211,7 @@ fn a_spiric_rim_exports_as_a_spline_and_reimports_at_its_volume() {
     assert!(
         native
             .faces()
-            .all(|(fk, _)| native.face_surface(fk).is_some_and(|s| matches!(
+            .all(|(fk, _)| native.face_surface(fk).is_ok_and(|s| matches!(
                 s,
                 geom::Surface::Plane { .. }
                     | geom::Surface::Cylinder { .. }

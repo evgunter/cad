@@ -39,8 +39,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use geom::SurfaceKind;
 use geom::Surface;
+use geom::SurfaceKind;
 use geom_brep::recourse::{Reading, RefusedArm, RefusedSide, SizedDecision, SizedPass, Unsized};
 use geom_core::{Band, BandError, Decided, Indeterminate, Tol};
 use slotmap::SecondaryMap;
@@ -4445,11 +4445,8 @@ mod tests {
             .map(|(k, _)| k)
             .last()
             .expect("a cube has faces");
-        body.set_face_surface(
-            side,
-            crate::euler::FaceSurface::Pending { sense: true },
-        )
-        .expect("a live face takes a surface");
+        body.set_face_surface(side, crate::euler::FaceSurface::Pending { sense: true })
+            .expect("a live face takes a surface");
         let outcome = body
             .merge_coplanar_faces(tol)
             .expect("a recorded skip beside a set-aside face is not a refusal");
@@ -6063,7 +6060,7 @@ mod declared_reach_rows {
                     .expect("live")
             };
             let (pa, pc) = (at(&body, a), at(&body, c));
-            let flat = body.proven_face(top).surface().unwrap().clone();
+            let flat = body.proven_face(top).described().clone();
             let he1 = leaving(&body, top, a).expect("A is on the top");
             let he2 = leaving(&body, top, c).expect("C is on the top");
             // Lifts RechartStrandsDescriptions: the half on a key of its own is the declared pair; its rim's descriptions are not the row.

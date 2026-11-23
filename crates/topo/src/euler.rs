@@ -5279,13 +5279,14 @@ mod tests {
         let s_plus = body.get_face(split.face).unwrap().surface;
         let seed_face = body.face_of_half_edge(split.he_plus).unwrap();
         let s_seed = body.get_face(seed_face).unwrap().surface;
-        *body.surface_mut(s_seed).unwrap() = geom::Surface::Plane {
+        body.surfaces[s_seed] = geom::Surface::Plane {
             frame: geom::Frame::new(
                 Point3::new(0.0, 0.0, 0.0),
                 geom_core::Vec3::unit_z(),
                 geom_core::Vec3::unit_x(),
             ),
-        };
+        }
+        .into();
         *body.surface_mut(s_plus).unwrap() = geom::Surface::Plane {
             frame: geom::Frame::new(
                 Point3::new(0.0, 0.0, 0.0),

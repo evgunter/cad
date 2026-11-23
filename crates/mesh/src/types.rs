@@ -796,9 +796,9 @@ impl TessellateError {
                  ask for a real sag budget",
             ),
             Self::UnsupportedSurface { .. } => f.write_str(
-                "tessellate: a face's NURBS surface is still the mvfs \
-                 placeholder — there is no description to tessellate against; \
-                 give the face its surface before meshing the body",
+                "tessellate: a face's surface is still pending — there is no \
+                 description to tessellate against; give the face its surface \
+                 before meshing the body",
             ),
             Self::UnsupportedNurbsFace { note, .. } => write!(
                 f,

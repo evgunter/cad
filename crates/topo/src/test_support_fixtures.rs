@@ -2612,9 +2612,9 @@ mod tests {
             "the two families agree on every arena length"
         );
 
-        // Surfaces: six certified Newell planes against six NURBS
-        // placeholders.
-        assert_eq!(euler.body.surfaces().count(), 6);
+        // Surfaces: six certified Newell planes against six pending
+        // slots.
+        assert_eq!(euler.body.surface_slots().count(), 6);
         assert!(
             euler
                 .body
@@ -2625,12 +2625,10 @@ mod tests {
         // The count is asserted on this side too: `ArenaCounts` covers
         // the seven TOPOLOGY arenas, so nothing above pins the surface
         // arena, and `all` over an empty one is vacuously true.
-        assert_eq!(raw.body.surfaces().count(), 6);
+        assert_eq!(raw.body.surface_slots().count(), 6);
         assert!(
-            raw.body
-                .surfaces()
-                .all(|(_, s)| !matches!(s, geom::Surface::Plane { .. })),
-            "the raw family carries no plane at all"
+            raw.body.surface_slots().all(|(_, s)| s.is_pending()),
+            "the raw family carries no surface at all"
         );
 
         // Carriers: every edge described as the intersection its two

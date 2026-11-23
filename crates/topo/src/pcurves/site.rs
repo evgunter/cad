@@ -737,7 +737,12 @@ pub(crate) fn site_rows_owed<T: Decide>(
     face: &SiteFace<T>,
     from: &SiteFrom,
 ) -> Result<bool, SiteRowRefusal> {
-    let Some(chart) = face.surface.described().ok().and_then(DescribedChart::minting) else {
+    let Some(chart) = face
+        .surface
+        .described()
+        .ok()
+        .and_then(DescribedChart::minting)
+    else {
         return Ok(false);
     };
     Ok(!site_walks(body, chart, face, from)?.is_empty())
@@ -882,7 +887,12 @@ pub(crate) fn site_rows<T: Decide>(
     curves: SiteCarriers<'_, T>,
     band: Band,
 ) -> Result<SiteRows<T>, SiteRowRefusal> {
-    let Some(chart) = face.surface.described().ok().and_then(DescribedChart::minting) else {
+    let Some(chart) = face
+        .surface
+        .described()
+        .ok()
+        .and_then(DescribedChart::minting)
+    else {
         return Ok(SiteRows::Leave);
     };
     let walks = site_walks(body, chart, face, from)?;

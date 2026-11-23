@@ -1309,7 +1309,8 @@ fn world_carrier<T: Decide + Bounds>(
 /// a stale face key (the caller's argument) or a pending surface
 /// [`ChartRegionError::Corrupt`].
 fn face_surface<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<&Surface<T>, ChartRegionError> {
-    body.face_surface(face).map_err(|_| ChartRegionError::Corrupt)
+    body.face_surface(face)
+        .map_err(|_| ChartRegionError::Corrupt)
 }
 
 /// A face's plane description as `(origin, unit normal)`; the CHART

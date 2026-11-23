@@ -357,7 +357,11 @@ fn the_finiteness_ladder_decides_check_1s_verdict() {
             .control()
             .iter()
             .all(|p| p.x.is_finite() && p.y.is_finite() && p.z.is_finite());
-        assert_eq!(payload.is_finite(), finite, "{name}: the predicate reads every channel");
+        assert_eq!(
+            payload.is_finite(),
+            finite,
+            "{name}: the predicate reads every channel"
+        );
         let (errs, face) = pillow_on(surface.clone(), tol);
         let placeholder = errs.contains(&ValidationError::UncertifiableSurface { face });
         let poisoned = errs.contains(&ValidationError::PoisonedSurfaceDescription { face });

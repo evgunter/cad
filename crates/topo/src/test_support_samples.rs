@@ -587,6 +587,7 @@ fn certify_errors() -> Vec<CertifyError> {
             Some(geom_brep::OffMargin::InBand(MarginDiag::value(4e-10))),
         )),
         CertifyError::UnresolvedSurface { key },
+        CertifyError::PendingSurface { key },
         CertifyError::Unimplemented,
         CertifyError::PlaneNurbs(PlaneNurbsRefusal::ArcRim(geom_brep::ArcRimRefusal {
             iso: None,
@@ -3058,6 +3059,7 @@ mod tests {
             matches!(
                 e,
                 CertifyError::UnresolvedSurface { .. }
+                    | CertifyError::PendingSurface { .. }
                     | CertifyError::Unimplemented
                     | CertifyError::IntersectionSameSurface { .. }
                     | CertifyError::WrapOnNonPeriodic

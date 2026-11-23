@@ -328,7 +328,7 @@ mod tests {
             dst.edges().count(),
             dst.vertices().count(),
             dst.points().count(),
-            dst.surfaces().count(),
+            dst.surface_slots().count(),
         );
         let key = graft_disjoint(&mut dst, &src).expect("a single-solid graft");
         assert_eq!(dst.solids().count(), before.0 + 1, "one more solid");
@@ -337,7 +337,10 @@ mod tests {
         assert_eq!(dst.edges().count(), before.3 + src.edges().count());
         assert_eq!(dst.vertices().count(), before.4 + src.vertices().count());
         assert_eq!(dst.points().count(), before.5 + src.points().count());
-        assert_eq!(dst.surfaces().count(), before.6 + src.surfaces().count());
+        assert_eq!(
+            dst.surface_slots().count(),
+            before.6 + src.surface_slots().count()
+        );
 
         // Every shell's back-pointer names the solid that lists it, and
         // no face is claimed by two solids.
@@ -379,12 +382,12 @@ mod tests {
         }
         // Distinct surface keys, equal surface values: the copy is a
         // copy, not a share.
-        let src_surfaces: Vec<_> = src.surfaces().map(|(_, s)| format!("{s:?}")).collect();
+        let src_surfaces: Vec<_> = src.surface_slots().map(|(_, s)| format!("{s:?}")).collect();
         let new_surfaces: Vec<_> = grafted
             .iter()
             .map(|&f| {
                 let k = dst.get_face(f).unwrap().surface;
-                (k, format!("{:?}", dst.get_surface(k).unwrap()))
+                (k, format!("{:?}", dst.surface_slot(k).unwrap()))
             })
             .collect();
         for (k, s) in &new_surfaces {

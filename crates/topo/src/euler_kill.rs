@@ -2756,7 +2756,7 @@ mod tests {
             .unwrap()
             .surface;
         assert_ne!(elsewhere.surface, own);
-        assert!(body.get_surface(elsewhere.surface).is_ok());
+        assert!(body.surface_slot(elsewhere.surface).is_some());
         let before = deep_snapshot(&body);
         let mut spec = EdgeCurveSpec::line_between(p(0.0), p(2.0));
         spec.description = geom_brep::EdgeDescriptionSpec::chart(elsewhere.surface);

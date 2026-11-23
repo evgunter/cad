@@ -9217,7 +9217,10 @@ impl<T: Decide> FaceSector<T> {
         // a defect (tier 1 admits none); a lone-vertex loop is no ring of
         // the polygon; a face that resolves off a plane is curved.
         let face = body.face(f).ok_or(TouchUnread::Corrupt)?;
-        let surface = face.surface().map_err(|_| TouchUnread::Curved(CurvedUnread::Unreadable))?.clone();
+        let surface = face
+            .surface()
+            .map_err(|_| TouchUnread::Curved(CurvedUnread::Unreadable))?
+            .clone();
         let fg = planar_face(geo, f).ok_or(TouchUnread::Curved(CurvedUnread::Unreadable))?;
         fg.walked?;
         // A planar face at rest has an outward normal: none is a defect.
@@ -9502,7 +9505,9 @@ fn tangent_sectors<T: Decide>(
     let surface = match body.get_surface(face.surface) {
         Ok(surface) => surface.clone(),
         Err(crate::SurfaceMiss::Stale) => return Err(TouchUnread::Corrupt),
-        Err(crate::SurfaceMiss::Pending) => return Err(TouchUnread::Curved(CurvedUnread::Unreadable)),
+        Err(crate::SurfaceMiss::Pending) => {
+            return Err(TouchUnread::Curved(CurvedUnread::Unreadable));
+        }
     };
     let corner = |v: VertexKey| holds.contains(&Held::Corner(v));
     // A lone-vertex loop has no sector to give but at a corner held.
@@ -9864,7 +9869,10 @@ impl<T: Decide> Link<T> {
             }
             let clear = clear.ok_or(TouchUnread::Corrupt)?;
             let ruled = Ruled {
-                surface: face.surface().map_err(|_| TouchUnread::Curved(CurvedUnread::Unreadable))?.clone(),
+                surface: face
+                    .surface()
+                    .map_err(|_| TouchUnread::Curved(CurvedUnread::Unreadable))?
+                    .clone(),
                 sense: face.sense(),
                 outward: foot_normal(body, f, p, band)?,
                 along,
@@ -13783,8 +13791,9 @@ mod tests {
     /// **A `(vertex, edge)` record on a circle edge is witnessed by the
     /// curved lane**: a vertex off the rim's carrier reads stale, as it
     /// would against a line. The record ties the vertex to the rim for the
-    /// self-touch sweep too, where the sheet's corner face there has no
-    /// sector arm: the point refuses undecided, naming that. Red when the
+    /// self-touch sweep too, where the sheet's corner face there is still
+    /// pending, so it has no surface to read: the point refuses undecided,
+    /// naming that. Red when the
     /// arm skips the record or still refuses the circle as unsupported, or
     /// when the self-touch point passes unread.
     #[test]
@@ -13842,11 +13851,11 @@ mod tests {
             errors.iter().any(|e| matches!(
                 e,
                 ValidationError::BoundaryCrossesItselfUndecided {
-                    why: TouchUnread::Curved(CurvedUnread::NoSectorArm),
+                    why: TouchUnread::Curved(CurvedUnread::Unreadable),
                     ..
                 }
             )),
-            "the self-touch point refuses, no sector arm: {errors:?}"
+            "the self-touch point refuses, the pending face unread: {errors:?}"
         );
     }
 
@@ -15265,7 +15274,10 @@ mod tests {
     fn swap_placeholders(body: &mut Body<f64>, surface: &Surface<f64>) -> Vec<FaceKey> {
         let seeds: Vec<FaceKey> = body
             .faces()
-            .filter(|(_, f)| body.surface_slot(f.surface).is_some_and(crate::SurfaceSlot::is_pending))
+            .filter(|(_, f)| {
+                body.surface_slot(f.surface)
+                    .is_some_and(crate::SurfaceSlot::is_pending)
+            })
             .map(|(k, _)| k)
             .collect();
         for &f in &seeds {

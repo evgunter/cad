@@ -3461,9 +3461,8 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
         let d = geom::Line { origin, dir }.param(extent);
         (d.lo(), d.hi())
     };
-    match stored {
-        Surface::Approx(_) => return unsupported(APPROXIMATED),
-        _ => {}
+    if let Surface::Approx(_) = stored {
+        return unsupported(APPROXIMATED);
     }
     let Some(charted) = certified_lift(|lift| stored.map_scalar(|x| lift.of(x))) else {
         return unsupported("a face whose carrier does not certify");

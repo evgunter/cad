@@ -553,7 +553,8 @@ mod tests {
             ),
             radius: 1.0,
         };
-        let cube = declined_cube::<f64>(Tol::witness()).body;
+        let mut cube = declined_cube::<f64>(Tol::witness()).body;
+        crate::fixtures::describe_pending_as_poison(&mut cube);
         assert!(
             cube.face_views()
                 .all(|face| matches!(face.surface().unwrap(), geom::Surface::Nurbs(_))),

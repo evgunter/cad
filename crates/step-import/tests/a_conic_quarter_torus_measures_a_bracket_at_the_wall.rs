@@ -422,7 +422,7 @@ fn solid(text: &str, tol: Tol) -> (topo::AtRestBody<f64>, StepImport) {
 /// The body's faces whose surface `kind` accepts.
 fn faces_where(body: &topo::AtRestBody<f64>, kind: impl Fn(&geom::Surface<f64>) -> bool) -> usize {
     body.faces()
-        .filter(|(fk, _)| body.face_surface(*fk).is_some_and(&kind))
+        .filter(|(fk, _)| body.face_surface(*fk).is_ok_and(&kind))
         .count()
 }
 

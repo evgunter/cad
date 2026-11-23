@@ -3103,7 +3103,9 @@ mod tests {
             coincident: None,
         };
         let mut a = crate::test_support_fixtures::declined_cube::<f64>(Tol::witness()).body;
+        crate::fixtures::describe_pending_as_poison(&mut a);
         let mut b = crate::test_support_fixtures::declined_cube::<f64>(Tol::witness()).body;
+        crate::fixtures::describe_pending_as_poison(&mut b);
         let contact = VvContact {
             a: VertexKey::default(),
             b: VertexKey::default(),
@@ -3269,8 +3271,10 @@ mod tests {
     fn as_runs_go_forward_between_consecutive_germs_and_two_as_the_orbit_allows() {
         use SideCode::{In, Out};
         let band = geom_core::Band::linear(Tol::witness()).unwrap();
-        let abody = crate::test_support_fixtures::declined_cube::<f64>(Tol::witness()).body;
-        let bbody = crate::test_support_fixtures::declined_cube::<f64>(Tol::witness()).body;
+        let mut abody = crate::test_support_fixtures::declined_cube::<f64>(Tol::witness()).body;
+        crate::fixtures::describe_pending_as_poison(&mut abody);
+        let mut bbody = crate::test_support_fixtures::declined_cube::<f64>(Tol::witness()).body;
+        crate::fixtures::describe_pending_as_poison(&mut bbody);
         // `laps` times round the orbit, and with `twin` a last entry
         // bisecting the last physical sector.
         // Entry `k`'s sector holds its record's germ: `+y` where A's codes
@@ -3454,8 +3458,10 @@ mod tests {
     fn a_whole_orbit_run_of_four_survivors_is_spelled_as_its_strut() {
         use SideCode::{In, Out};
         let band = geom_core::Band::linear(Tol::witness()).unwrap();
-        let abody = crate::test_support_fixtures::declined_cube::<f64>(Tol::witness()).body;
-        let bbody = crate::test_support_fixtures::declined_cube::<f64>(Tol::witness()).body;
+        let mut abody = crate::test_support_fixtures::declined_cube::<f64>(Tol::witness()).body;
+        crate::fixtures::describe_pending_as_poison(&mut abody);
+        let mut bbody = crate::test_support_fixtures::declined_cube::<f64>(Tol::witness()).body;
+        crate::fixtures::describe_pending_as_poison(&mut bbody);
         let v3 = geom_core::Vec3::new;
         let sector = |body: &Body<f64>, he, start, end, normal: geom_core::Vec3<f64>| BoolSector {
             he,
@@ -3958,7 +3964,9 @@ mod tests {
             coincident: None,
         };
         let mut abody = crate::test_support_fixtures::declined_cube::<f64>(Tol::witness()).body;
+        crate::fixtures::describe_pending_as_poison(&mut abody);
         let mut bbody = crate::test_support_fixtures::declined_cube::<f64>(Tol::witness()).body;
+        crate::fixtures::describe_pending_as_poison(&mut bbody);
         // A and B sector fans on NON-parallel face planes (the germ
         // direction z×x = +y is uniquely within both — `germ_dir`
         // refuses coplanar sector pairs by design).

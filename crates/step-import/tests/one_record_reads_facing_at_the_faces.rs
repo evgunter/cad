@@ -50,7 +50,7 @@ fn planes(imported: &StepImport) -> usize {
     for (_, face) in body.faces() {
         if matches!(
             body.get_surface(face.surface),
-            Some(geom::Surface::Plane { .. })
+            Ok(geom::Surface::Plane { .. })
         ) {
             planes.insert(face.surface);
         }

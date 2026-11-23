@@ -561,15 +561,15 @@ fn loft_prism_descriptions_land_in_the_native_classes() {
         match body.get_curve_geom(edge.curve) {
             Some(topo::CurveGeom::Certified(curve)) => match curve.description() {
                 geom_brep::EdgeDescription::Chart(chart) => match body.get_surface(chart.surface) {
-                    Some(topo::Surface::Nurbs(_)) => on_wall_chart += 1,
-                    Some(topo::Surface::Plane { .. }) => on_cap_plane += 1,
+                    Ok(topo::Surface::Nurbs(_)) => on_wall_chart += 1,
+                    Ok(topo::Surface::Plane { .. }) => on_cap_plane += 1,
                     other => panic!("a chart image on neither wall nor cap: {other:?}"),
                 },
                 geom_brep::EdgeDescription::Intersection { pair, .. } => {
                     if pair
                         .keys()
                         .iter()
-                        .any(|k| matches!(body.get_surface(*k), Some(topo::Surface::Nurbs(_))))
+                        .any(|k| matches!(body.get_surface(*k), Ok(topo::Surface::Nurbs(_))))
                     {
                         on_spline_wall += 1;
                     } else {

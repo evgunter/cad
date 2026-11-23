@@ -130,7 +130,7 @@ pub(crate) fn arena_snapshot(body: &Body<f64>) -> ArenaSnapshot {
         counts: body.arena_counts(),
         points: body.points().count(),
         curves: body.curves().count(),
-        surfaces: body.surfaces().count(),
+        surfaces: body.surface_slots().count(),
     }
 }
 
@@ -1763,6 +1763,17 @@ mod tests {
     }
 }
 
+/// Every pending slot of `body` described as [`poisoned_net`] with every
+/// point poisoned: a spline chart with no locus, for a row that hands a
+/// mid-build fixture to a reader of finished bodies.
+pub(crate) fn describe_pending_as_poison(body: &mut crate::Body<f64>) {
+    for (_, slot) in body.surfaces.iter_mut() {
+        if slot.is_pending() {
+            *slot = crate::SurfaceSlot::Described(poisoned_net(|_| true));
+        }
+    }
+}
+
 /// A NURBS surface whose net is not finite: bilinear on `[0, 1]²`,
 /// control point `i` at `(i, i, 2)` with its `x` NaN wherever
 /// `poisoned(i)`.
@@ -1776,12 +1787,6 @@ pub(crate) fn poisoned_net(poisoned: impl Fn(usize) -> bool) -> geom::Surface<f6
         })
         .collect();
     geom::Surface::Nurbs(std::sync::Arc::new(
-        geom::NurbsSurface::new(
-            unit(),
-            unit(),
-            control,
-            vec![1.0; 4],
-        )
-        .unwrap(),
+        geom::NurbsSurface::new(unit(), unit(), control, vec![1.0; 4]).unwrap(),
     ))
 }

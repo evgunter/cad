@@ -4239,11 +4239,8 @@ mod tests {
             "{refused:?}"
         );
         let sense = sense(&body, top);
-        body.set_face_surface(
-            top,
-            FaceSurface::Pending { sense },
-        )
-        .unwrap();
+        body.set_face_surface(top, FaceSurface::Pending { sense })
+            .unwrap();
         let fused = body.kef(killed).unwrap();
         assert_eq!(fused.killed_face, front);
     }
@@ -4637,10 +4634,7 @@ mod tests {
         let (mut body, top, _, he) = half_cap_on_own_key();
         let sense = sense(&body, top);
         body.lifting_rechart_refusals_for_tests(|b| {
-            b.set_face_surface(
-                top,
-                FaceSurface::Pending { sense },
-            )
+            b.set_face_surface(top, FaceSurface::Pending { sense })
         })
         .unwrap();
         assert!(body.wears_no_chart(surf(&body, top)));

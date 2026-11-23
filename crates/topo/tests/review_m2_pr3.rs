@@ -210,7 +210,7 @@ fn e2e_mini_extrude_triangle_prism_passes_tiers_and_upgrades() {
     assert_eq!(body.vertices().count(), 6);
     assert_eq!(body.edges().count(), 9);
     assert_eq!(body.faces().count(), 5);
-    assert_eq!(body.surfaces().count(), 5);
+    assert_eq!(body.surface_slots().count(), 5);
     assert_eq!(validate(&body), Ok(()));
     assert_eq!(validate_closed(&body), Ok(()));
     // At rest the un-upgraded body names all nine chords, once each by

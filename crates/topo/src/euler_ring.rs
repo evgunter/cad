@@ -3102,7 +3102,7 @@ mod tests {
         // Shared surface (every mef face shares mvfs's): kept, and the
         // op reports it kept it.
         assert_eq!(result.killed_surface, None);
-        assert_eq!(body.surfaces().count(), 1);
+        assert_eq!(body.surface_slots().count(), 1);
         // The loop SURVIVES — repointed and demoted, with its birth
         // record intact (kfmrh mints nothing and rewrites no records).
         let ring = body.get_loop(split.r#loop).unwrap();

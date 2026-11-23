@@ -1155,7 +1155,9 @@ impl<T: Real> Body<T> {
     ///
     /// The two misses above.
     pub fn get_surface(&self, key: SurfaceKey) -> Result<&Surface<T>, SurfaceMiss> {
-        self.surface_slot(key).ok_or(SurfaceMiss::Stale)?.described()
+        self.surface_slot(key)
+            .ok_or(SurfaceMiss::Stale)?
+            .described()
     }
 
     /// The surface slot at `key`, described or pending, or `None` if the
@@ -2013,7 +2015,7 @@ mod tests {
         assert_eq!(body.vertices().count(), 0);
         assert_eq!(body.points().count(), 0);
         assert_eq!(body.curves().count(), 0);
-        assert_eq!(body.surfaces().count(), 0);
+        assert_eq!(body.surface_slots().count(), 0);
     }
 
     #[test]

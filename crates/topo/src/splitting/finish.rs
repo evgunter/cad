@@ -2556,7 +2556,8 @@ mod smooth_arm_rows {
     /// section's: the two faces' outward normals opposed at the contact.
     fn opposed_wall(r: f64) -> (SectionEdge, FaceKey) {
         let mut edge = section_edge();
-        *edge.body.surface_mut(edge.s_other).unwrap() = cylinder_of_radius_under(edge.mid, edge.along, r);
+        *edge.body.surface_mut(edge.s_other).unwrap() =
+            cylinder_of_radius_under(edge.mid, edge.along, r);
         let wall = edge
             .body
             .faces()

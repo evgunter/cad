@@ -58,7 +58,7 @@ fn cert10r1_one_assembly_per_described_nurbs_face() {
         .filter(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(geom::Surface::Nurbs(_) | geom::Surface::Approx(_))
+                Ok(geom::Surface::Nurbs(_) | geom::Surface::Approx(_))
             )
         })
         .count();

@@ -1196,7 +1196,12 @@ pub(crate) mod tests {
         let want = face_box(&unit, face, pad(), witness_band());
         let long = with_axis(Vec3::new(0.0, 0.0, 2.0));
         let key = long.get_face(face).unwrap().surface;
-        let stored = long.get_surface(key).unwrap().frame().map(|f| f.axis()).unwrap();
+        let stored = long
+            .get_surface(key)
+            .unwrap()
+            .frame()
+            .map(|f| f.axis())
+            .unwrap();
         assert_eq!(
             [stored.x, stored.y, stored.z].map(f64::to_bits),
             [0.0, 0.0, 1.0].map(f64::to_bits),

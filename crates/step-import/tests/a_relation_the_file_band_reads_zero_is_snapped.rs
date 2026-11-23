@@ -483,7 +483,7 @@ fn a_slot_end_between_parallel_planes_takes_half_their_spacing() {
     let radii: Vec<f64> = body
         .faces()
         .filter_map(|(_, f)| match body.get_surface(f.surface) {
-            Some(geom::Surface::Cylinder { radius, .. }) => Some(*radius),
+            Ok(geom::Surface::Cylinder { radius, .. }) => Some(*radius),
             _ => None,
         })
         .collect();

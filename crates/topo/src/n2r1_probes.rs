@@ -58,7 +58,9 @@ fn probe_class9_tier3_stops_refusing_the_poisoned_face() {
     };
     let with_placeholder = {
         let mut st = crate::fixtures::mvfs_state();
-        st.body.set_face_surface(st.face, FaceSurface::Pending { sense: true }).unwrap();
+        st.body
+            .set_face_surface(st.face, FaceSurface::Pending { sense: true })
+            .unwrap();
         let mut marks = slotmap::SecondaryMap::new();
         crate::validate::tier3_local_checks_marked::<f64>(
             &st.body,

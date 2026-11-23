@@ -215,7 +215,7 @@ fn holed_box_validates_with_minimal_counts_at_genus_one() {
     // membrane shared mvfs's surface, so kfmrh kept it).
     assert_eq!(body.points().count(), 16);
     assert_eq!(body.curves().count(), 24);
-    assert_eq!(body.surfaces().count(), 1);
+    assert_eq!(body.surface_slots().count(), 1);
     assert_eq!(b.plug.killed_surface, None);
 
     // The Euler–Poincaré ledger at genus 1, through the census door:

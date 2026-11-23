@@ -497,7 +497,7 @@ fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
                 .flat_map(|(_, e)| [e.he_plus, e.he_minus])
                 .filter(|&he| {
                     body.face_of_half_edge(he)
-                        .and_then(|f| body.face_surface(f))
+                        .and_then(|f| body.face_surface(f).ok())
                         .and_then(rational)
                         .is_some()
                 })

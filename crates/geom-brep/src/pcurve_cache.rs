@@ -2328,7 +2328,7 @@ pub enum PcurveCertifyError {
     },
     /// An iso image was offered outside the iso lane's certified
     /// inventory, with the exact boundary named. The refused set is:
-    /// a chart that is still the mvfs placeholder; a non-boundary ROW
+    /// a non-boundary ROW
     /// under the arc-rim class (the seam class certifies an interior
     /// COLUMN by the de Boor collapse, `crate::nurbs_iso`, the cap class
     /// an interior row the same way on the transposed chart, and both
@@ -8573,8 +8573,7 @@ pub fn chart_stretch_sup<T: Real>(
 /// cone's `v` is a SLANT LENGTH along the ruling, so `|S_v| = 1`
 /// exactly, everywhere. The tag is minted here because here it is
 /// true. Every other kind answers the pair's second component, which
-/// is where that answer lives — and the placeholder, which has no
-/// second channel either, refuses here exactly as it does there.
+/// is where that answer lives.
 ///
 /// The direction argument is [`chart_stretch_sup`]'s in every
 /// respect: this is the escape side, unsafe for a positive-extent

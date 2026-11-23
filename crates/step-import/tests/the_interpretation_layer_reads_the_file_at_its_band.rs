@@ -191,7 +191,7 @@ fn two_records_of_one_plane_become_one() {
     for (_, face) in body.faces() {
         if matches!(
             body.get_surface(face.surface),
-            Some(geom::Surface::Plane { .. })
+            Ok(geom::Surface::Plane { .. })
         ) {
             planes.insert(face.surface);
         }

@@ -765,9 +765,7 @@ fn parent_loop_chain_confusion_is_caught() {
 fn empty_loop_vertex_with_incidence_is_caught() {
     let tol = Tol::witness();
     let mut c = build_cube(tol);
-    let surface = c
-        .body
-        .add_pending_surface();
+    let surface = c.body.add_pending_surface();
     let lp = c.body.add_loop(
         Loop {
             boundary: LoopBoundary::Empty { vertex: c.t[0] },

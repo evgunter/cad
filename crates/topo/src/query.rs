@@ -599,6 +599,7 @@ mod tests {
     /// Nurbs everywhere else) and circle-certified carriers.
     fn mixed() -> Body<f64> {
         let mut p = raw_prism(4, Tol::witness()).body;
+        crate::fixtures::describe_pending_as_poison(&mut p);
         let face = all_faces(&p)[0];
         let plane = p.add_surface(plane_surface(
             Point3::origin(),

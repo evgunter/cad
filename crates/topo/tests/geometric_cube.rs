@@ -32,7 +32,7 @@ fn geometric_cube_passes_all_three_tiers() {
     assert_eq!(t.body.vertices().count(), 8);
     assert_eq!(t.body.edges().count(), 12);
     assert_eq!(t.body.faces().count(), 6);
-    assert_eq!(t.body.surfaces().count(), 6);
+    assert_eq!(t.body.surface_slots().count(), 6);
     assert!(
         t.body
             .surfaces()
@@ -129,11 +129,8 @@ fn without_the_top_cap_tier3_rejects_the_nurbs_seed() {
     let t = geometric_cube::<f64>(Tol::witness());
     let mut body = t.body;
     let seed_face = t.seed.face;
-    body.set_face_surface(
-        seed_face,
-        FaceSurface::Pending { sense: true },
-    )
-    .unwrap();
+    body.set_face_surface(seed_face, FaceSurface::Pending { sense: true })
+        .unwrap();
     assert_eq!(validate_closed(&body), Ok(()));
     let errs = validate_geometric(&body, Tol::witness()).unwrap_err();
     assert!(

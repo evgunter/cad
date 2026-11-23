@@ -31,7 +31,7 @@ fn wall_kind(name: &str) -> geom::SurfaceKind {
     };
     let kinds: Vec<_> = body
         .faces()
-        .filter_map(|(fk, _)| body.face_surface(fk).map(geom::Surface::kind))
+        .filter_map(|(fk, _)| body.face_surface(fk).ok().map(geom::Surface::kind))
         .filter(|k| *k != geom::SurfaceKind::Plane)
         .collect();
     assert_eq!(kinds.len(), 1, "{name}: one curved wall: {kinds:?}");
