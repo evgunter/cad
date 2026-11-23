@@ -819,6 +819,40 @@ mod tests {
         );
     }
 
+    /// **A step by a ratio that rounds to a power of two holds its
+    /// drift**: `t = (1 − a)/(2 − a)` for `a = 2⁻⁶⁰` rounds to the exact
+    /// `0.5` (both differences round to `1` and `2`), so the product by it
+    /// is exact while `t` itself is off the true ratio. The step by
+    /// [`Tracked::ratio`] of it, judged against the true ratio in exact
+    /// arithmetic (`|v·(2 − a) − x·(2 − a) − (y − x)·(1 − a)|` over
+    /// `2 − a`), holds its drift: the product charges nothing, and `t`'s
+    /// rounding is still charged.
+    #[test]
+    fn a_step_by_a_ratio_rounded_to_a_power_of_two_holds_its_drift() {
+        use crate::exact::Expansion;
+        let a = 2f64.powi(-60);
+        let t = (1.0 - a) / (2.0 - a);
+        assert_eq!(t, 0.5, "the fixture's ratio rounds to the half");
+        let mut next = draws(0x5eed_7a71);
+        let mut worst = 0.0f64;
+        for _ in 0..2000 {
+            let (x, y) = (next() * 1e6, next() * 1e6);
+            let v = Tracked::exact(x).step(Tracked::exact(y), Tracked::ratio(t));
+            let mut n = Expansion::product(v.value(), 2.0);
+            n.add_expansion(&Expansion::product(v.value(), -a));
+            n.add_expansion(&Expansion::product(x, -2.0));
+            n.add_expansion(&Expansion::product(x, a));
+            for (c, s) in [(y, 1.0), (-x, 1.0), (y, -a), (-x, -a)] {
+                n.add_expansion(&Expansion::product(c, -s));
+            }
+            let drift = n.components().iter().sum::<f64>().abs() / (2.0 - a);
+            let r = drift / v.rounding();
+            assert!(r <= 1.0, "{x} → {y}: drifts {r} of its bound {v:?}");
+            worst = worst.max(r);
+        }
+        assert!(worst > 0.0, "no step drifted");
+    }
+
     /// **A point out of homogeneous form holds its drift**
     /// ([`dehomogenized`]): homogeneous points whose coordinates are of
     /// `1e-3` to `1e6`, some all but cancelling, and whose weight is a
