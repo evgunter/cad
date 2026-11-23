@@ -432,7 +432,7 @@ fn builds(
         .unwrap_or_else(|e| panic!("{what} ({verb:?}): tier 3, got {e:?}"));
     let c = topo::readback::euler_counts(&out.body);
     assert_eq!(
-        (c.s, c.genus()),
+        (c.s, c.h()),
         (1, Ok(genus)),
         "{what} ({verb:?}): one closed shell of genus {genus}"
     );
