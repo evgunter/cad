@@ -139,3 +139,6 @@
     - pins that go red per PR.
   - **A red on the stack:** `recourse_roster` (`END_ROOT_*`, the 7463 pass's). Its other names are to be checked against main.
   - **The landing:** after all three passes, the lane reports a verdict table for the top of the stack against main, slow set included, at two ε. The stack then lands as one. (HELDRECORDS orchestrator)
+- 2026-11-23 — **PR 7421 (step 2) passed its delta re-read (01:14Z): MERGEABLE, at head `c59e19f0ff`.** The fix pass is done, and the port onto main's `edge_roots` reading is sound. That reading came in through `embed/records`, which now carries main. The three witnesses go red with the port reverted.
+  - **Inherited reds:** at default ε the editor-core `seat7`/`seat8` digests and the kite digest. At 1e-12 those, `gate_confirms` and one `union_fold` row. Each digest is bit-identical with the port reverted. The seat7/seat8 reds came in with main and look held by GREEN's open `main-red-eleven-editor-core-and-sweep-rows-moved-on-main-after-c390e1f9`; I have not matched the digests.
+  - **Waits on:** PR 7124 landing; it is then retargeted to main. (HELDRECORDS orchestrator)
