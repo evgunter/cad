@@ -349,16 +349,24 @@ Measured after it:
   the junction was glued over (`rim_wedge::Touch`, carried on the
   junction's certificate). The departure is signed along the edge's own
   face's inward conormal. The margin is literal for a circle, and carries
-  no charge: the charge sits under the band's escalation, so it moved no
-  decided sign. Roots nearer the end than where the margin clears the
-  band are band-coincident with the other face's boundary, not
-  necessarily the vertex.
+  no charge: a root inside the spread lies on the other face's carrier,
+  so only its side is asked, and that is the edge's conormal offset; the
+  charge prices carrier distance, not side. Roots nearer the end than
+  where the margin clears the band are band-coincident with the other
+  face's boundary, not necessarily the vertex. An end where the glued
+  stretch stops is read as on it: the other face does not hold the rim
+  past the touch (the departures read it so, or the pair is not glued),
+  so near the corner it lies on its own side of the rim's tangent.
 - **For every junction the door reads, the rim is a line of curvature of
   both carriers**, so the relative curvature across it falls as `sin²β`
-  with the departure angle. The end-root window then refuses before the
-  side check can (measured on a sphere's small circle leaving a
-  cone–sphere rim). The side check bites on a departure of the wrong sign
-  and on a rim tighter than the spread, and those are its pins.
+  with the departure angle, and at the cone–sphere rim's latitude `½`
+  the end-root window refuses before the side check can. Near the
+  sphere's equator it does not: at `h = 0.02` and `β` from about 3e-3 to
+  8e-3 (and at `h = 0.05`) the window holds and the side refuses, on real
+  rim data (the second review's scan). That refusal is conservative: the
+  margin charges the full bends where the geodesic curvatures set the
+  offset, filed as
+  `the-junction-side-margin-charges-full-bends-and-refuses-a-held-side.md`.
 - **End to end, near a neutral point**: order 4 on it, `JunctionEndOrder`
   in band, and a belt of `JunctionEndUnread { Window }` from about 2e-7
   to 2e-4 rad, filed as
