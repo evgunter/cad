@@ -1021,25 +1021,26 @@ impl<'a, T: Decide> OnSurface<'a, T> {
 
     /// **The plane the edge's carrier lies in**, as a frame whose axis is
     /// its unit normal: a circle's own frame, at its stored centre; an
-    /// ellipse's axes as stored, standing at the edge's point at the middle
-    /// of its span, which lies on the curve it states; a spiric's cutting
+    /// ellipse's stored axis (its direction door, kept bit for bit) and its
+    /// seam squared to it, standing at the edge's point at the middle of
+    /// its span, which lies on the curve it states; a spiric's cutting
     /// plane with the spiric's `u_ref` kept bit for bit as its axis. A line
     /// lies in no one plane (`None`).
     #[expect(
         clippy::disallowed_methods,
-        reason = "a circle's centre frame, which a circle stores, and an ellipse's stored axes with the frame's origin replaced by a point of the edge: a circle's datum (work/oneround/a-circles-centre-is-read-as-a-datum-under-the-conic-gate.md)"
+        reason = "a circle's centre frame, which a circle stores: a circle's datum (work/oneround/a-circles-centre-is-read-as-a-datum-under-the-conic-gate.md)"
     )]
     pub fn plane(&self) -> Option<Frame<T>> {
         match *self.carrier {
-            Curve3::Circle(_) | Curve3::Ellipse(_) => {
-                let frame = self.carrier.frame()?;
-                match *self.carrier {
-                    Curve3::Ellipse(e) => {
-                        let (t0, t1) = self.span;
-                        Some(frame.with_origin(geom::Conic::point_at(&e, geom::mid_param(t0, t1))))
-                    }
-                    _ => Some(frame),
-                }
+            Curve3::Circle(_) => self.carrier.frame(),
+            Curve3::Ellipse(e) => {
+                let (t0, t1) = self.span;
+                let at = geom::Conic::point_at(&e, geom::mid_param(t0, t1));
+                Some(Frame::of_motion(&geom_core::RigidMotion::squared_about(
+                    at,
+                    geom::Conic::axis_unit(&e),
+                    geom::Conic::u_ref(&e),
+                )))
             }
             Curve3::Spiric { frame, offset, .. } => {
                 let (center, u_ref) = (frame.origin(), frame.u_ref());
