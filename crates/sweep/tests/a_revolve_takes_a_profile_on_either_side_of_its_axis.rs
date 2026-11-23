@@ -171,7 +171,7 @@ fn faces(body: &topo::Body<f64>) -> Vec<FaceRead> {
 }
 
 /// **The left body is the right body turned half a turn**, face for
-/// face: every face of `right`, turned, has a face of `left` of the
+/// face: every face of `right`, turned, has its own face of `left` of the
 /// same kind and size, at the turned origin where `anchored`, whose
 /// outward normal is the turned one; a revolution wall's chart axis is
 /// the authored heading on both, and its sense the same.
@@ -184,21 +184,28 @@ fn assert_turned_faces(
 ) {
     let (rf, lf) = (faces(right), faces(left));
     assert_eq!(rf.len(), lf.len(), "{row}: face counts");
+    // Each left face answers one right face at most: a bijection.
+    let mut taken = vec![false; lf.len()];
     for r in &rf {
         let (origin, outward) = (
             half_turn(r.origin),
             half_turn_vec(if r.sense { r.axis } else { -r.axis }),
         );
-        let found = lf.iter().any(|l| {
-            l.kind == r.kind
+        let found = (0..lf.len()).find(|&i| {
+            let l = &lf[i];
+            !taken[i]
+                && l.kind == r.kind
                 && (l.size - r.size).abs() <= 1e-12
                 && (!anchored || near(l.origin, origin))
                 && near_vec(if l.sense { l.axis } else { -l.axis }, outward)
                 && (l.kind == geom::SurfaceKind::Plane
                     || (near_vec(l.axis, r.axis) && l.sense == r.sense))
         });
+        if let Some(i) = found {
+            taken[i] = true;
+        }
         assert!(
-            found,
+            found.is_some(),
             "{row}: no face of the left body is {r:?} turned half a turn; left: {lf:?}"
         );
         if r.kind != geom::SurfaceKind::Plane {

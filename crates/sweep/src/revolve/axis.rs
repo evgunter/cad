@@ -223,7 +223,7 @@ impl<T: Real> AxisFrame<T> {
             unreachable!("u and v are two axes")
         };
         Self {
-            dir_sk: Vec2::new(T::zero() - self.dir_sk.x, T::zero() - self.dir_sk.y),
+            dir_sk: -self.dir_sk,
             azimuth: geom::Frame::of_motion(&azimuth),
             axis: -self.axis,
             reflected: !self.reflected,
