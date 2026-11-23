@@ -13,7 +13,7 @@ use geom::{PieceWalkRefusal, SurfaceKind};
 use geom_brep::recourse::Reading;
 use geom_brep::{
     CarryError, CarryErrorKind, CarryRefusal, CarryRefusalKind, LoopTubeRefusal, NoCarrier,
-    WindsRefusal,
+    PadsStop, WindsRefusal,
 };
 use strum::{IntoEnumIterator as _, VariantArray as _};
 use test_utils::refusal::Admission;
@@ -58,9 +58,12 @@ fn carried(kind: CarryRefusalKind) -> Vec<(String, SectionUnbuilt)> {
             LoopTubeRefusal::VARIANTS,
             CarryRefusal::TubeUnread,
         ),
-        CarryRefusalKind::PadsMeet => one(CarryRefusal::PadsMeet {
-            pads: [0.05, 0.06],
-            gap: 0.09,
+        CarryRefusalKind::PadsMeet => each("PadsMeet", PadsStop::VARIANTS, |stop| {
+            CarryRefusal::PadsMeet {
+                pads: [0.05, 0.06],
+                gap: 0.09,
+                stop,
+            }
         }),
         CarryRefusalKind::Unwalked => each(
             "Unwalked",

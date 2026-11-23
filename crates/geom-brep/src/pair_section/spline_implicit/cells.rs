@@ -24,25 +24,27 @@ use geom::NurbsSurface;
 use geom_core::{Band, Bounds as _, Interval, Point3, Real};
 
 use super::super::{
-    CarriedComponent, CarryError, CarryRefusal, ComponentShape, LoopTubeRefusal, PadBox, TubeRun,
-    farthest, parts,
+    CarriedComponent, CarryError, CarryRefusal, ComponentShape, LoopTubeRefusal, NoCarrier, PadBox,
+    PadsStop, TubeRun, farthest, parts, witness_reach,
 };
-use super::{Bracketed, box_gap};
-use crate::descent::{Descent, Work};
-use crate::ssi::enclose::{Box3, NurbsBoxes, UvWindow};
+use super::Bracketed;
+use crate::descent::{Descent, Stop, Work};
+use crate::ssi::enclose::{Box3, NurbsBoxes};
+use crate::ssi::exhaust::UvRect;
 use crate::ssi::{SsiBranch, SsiTube};
 
 #[cfg(test)]
 mod rows;
 
-/// A chart rectangle `[u0, u1] × [v0, v1]`, as `(u0, u1, v0, v1)`.
-type Rect = (f64, f64, f64, f64);
-
-/// How many rungs wide a cell's image is read at first, at most. A
-/// cell that is not cleared holds a point within the band of the
-/// partner, up to its enclosure's slack, so its farthest point stands
-/// within its diagonal of the section: at one rung wide, within two
-/// rungs.
+/// How many rungs wide a cell's image is read at first, at most. A cell
+/// that is not cleared holds a point of the wall its enclosure does not
+/// put past the band of the partner; that is a point near the section,
+/// not on it, and how near is the enclosure's slack. Its farthest point
+/// stands within its diagonal of that point, so at one rung wide the
+/// first reading's pad is about a rung and a half of the section, plus
+/// that slack and half the spacing of the carrier's points
+/// ([`SAMPLES_PER_RUNG`]). The carry rows hold it within two rungs as a
+/// measurement, not a bound.
 const FIRST_CELL_RUNGS: f64 = 1.0;
 
 /// How many times the first reading halves a window, at most, toward
@@ -63,14 +65,27 @@ const SAMPLES: (usize, usize) = (17, 1025);
 /// first.
 const SAMPLE_STRIDES: [usize; 4] = [64, 16, 4, 1];
 
-/// How many times the carrier point nearest a cell is settled between
-/// its neighbours, by golden section.
-const SETTLE_STEPS: u32 = 12;
+/// **How many rounds make one cycle of [`apart`]'s halvings**: a cell is
+/// halved along the chart axis it is longer along, so two rounds halve
+/// it along both. The stall is read once a cycle: a round that halves
+/// along the arcs clears nothing, and says nothing.
+const CYCLE: u32 = 2;
 
-/// **The work bound of [`apart`]'s refinement** (`crate::descent`'s
-/// cumulative budget): the cells it halves, over every round and every
-/// arc of one section.
-const REFINE_CELLS: usize = 1 << 11;
+/// **The work bound of [`apart`]'s refinement, per cell of the section's
+/// first reading** (`crate::descent`'s cumulative budget, in cells
+/// halved over every round and arc). A section whose meeting cells are
+/// all kept, round after round, stalls after two idle cycles, four
+/// rounds, having halved `1 + 2 + 4 + 8 = 15` times the cells it began
+/// with. Sixteen a cell lets that stall speak before the bound, so the
+/// bound ends only a refinement that is still narrowing, and it grows
+/// with the section: a long arc of many cells is given the rounds a
+/// short one is.
+const REFINE_PER_CELL: usize = 16;
+
+/// The least [`apart`]'s work bound is, in cells halved: a section of a
+/// few cells narrows a round at a time for as long as one of a hundred
+/// and twenty-eight does at [`REFINE_PER_CELL`].
+const REFINE_FLOOR: usize = 1 << 11;
 
 /// One cell of an arc: a chart rectangle inside a cut window of its
 /// tube, an enclosure of its image on the wall, the farthest that stands
@@ -78,7 +93,7 @@ const REFINE_CELLS: usize = 1 << 11;
 /// it is.
 #[derive(Clone, Copy)]
 struct Cell {
-    rect: Rect,
+    rect: UvRect,
     image: Box3,
     pad: f64,
     /// The carrier point its pad was read nearest, by index.
@@ -87,18 +102,31 @@ struct Cell {
     node: Option<usize>,
 }
 
+/// `rect` halved along the chart axis it is longer along, measured in
+/// `pads` (the tube's, a rung over each axis's chart speed, so in metres
+/// at the wall's fastest); `None` where neither axis has a midpoint
+/// strictly inside.
+fn halves_of(rect: UvRect, pads: (f64, f64)) -> Option<[UvRect; 2]> {
+    let ((u0, u1), (v0, v1)) = (rect.u, rect.v);
+    let (um, vm) = (geom::mid_param(u0, u1), geom::mid_param(v0, v1));
+    let across_u = [(u0, um), (um, u1)].map(|u| UvRect { u, v: rect.v });
+    let across_v = [(v0, vm), (vm, v1)].map(|v| UvRect { u: rect.u, v });
+    match (u0 < um && um < u1, v0 < vm && vm < v1) {
+        (true, true) if (u1 - u0) / pads.0 >= (v1 - v0) / pads.1 => Some(across_u),
+        (true, false) => Some(across_u),
+        (_, true) => Some(across_v),
+        (false, false) => None,
+    }
+}
+
 /// What a cell is imaged, cleared and read by.
 struct Reader<'a> {
     boxes: NurbsBoxes<'a, f64>,
     partner: Bracketed<'a>,
-    /// The distance from the partner past which a cell is cleared: the
-    /// band's escalation.
-    cut: f64,
-    carrier: geom::NurbsCurve3<Interval>,
-    span: (f64, f64),
+    /// The band's escalation: with the partner's lift, the distance from
+    /// the partner past which a cell is cleared.
+    escalate: f64,
     samples: Vec<Point3<Interval>>,
-    /// The widest two consecutive carrier points stand apart.
-    spacing: f64,
     /// The tube's pads along `u` and `v`, in chart units.
     pads: (f64, f64),
 }
@@ -107,36 +135,80 @@ fn unread(why: LoopTubeRefusal) -> CarryError {
     CarryError::Refused(CarryRefusal::TubeUnread(why))
 }
 
-impl Reader<'_> {
+impl<'a> Reader<'a> {
+    /// The reader of the branch `b`'s cells on `net` against `partner`
+    /// at `band`, its tube's rung `rung` and pads `pads`, with the
+    /// carrier lifted: its points stand evenly over the branch's span,
+    /// [`SAMPLES_PER_RUNG`] a rung of the control polygon's length, which
+    /// is no shorter than the carrier.
+    fn new(
+        b: &SsiBranch,
+        carrier: &geom::NurbsCurve3<f64>,
+        net: &'a NurbsSurface<f64>,
+        partner: Bracketed<'a>,
+        (rung, pads): (f64, (f64, f64)),
+        band: Band,
+    ) -> (Self, geom::NurbsCurve3<Interval>) {
+        let lift = <Interval as Real>::from_computed;
+        let lifted = carrier.map_scalar(lift);
+        let length: f64 = carrier
+            .control()
+            .windows(2)
+            .map(|p| (p[1] - p[0]).norm())
+            .sum();
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let count =
+            ((SAMPLES_PER_RUNG * length / rung).ceil() as usize + 1).clamp(SAMPLES.0, SAMPLES.1);
+        let samples = (0..count)
+            .map(|k| {
+                let t = if k + 1 == count {
+                    b.params.1
+                } else {
+                    #[allow(clippy::cast_precision_loss)]
+                    let share = k as f64 / (count - 1) as f64;
+                    b.params.0 + (b.params.1 - b.params.0) * share
+                };
+                lifted.eval(lift(t))
+            })
+            .collect();
+        let reader = Self {
+            boxes: NurbsBoxes::new(net),
+            partner,
+            escalate: band.escalate(),
+            samples,
+            pads,
+        };
+        (reader, lifted)
+    }
+
     /// Whether the partner's form, in metres over `image`, lies wholly
-    /// past the cut: no point of `image` stands within the band of the
-    /// partner. A refused enclosure clears nothing.
+    /// past the band: no point of `image` stands within the band's
+    /// escalation of the partner. The form's own `f` is read, the band
+    /// padded by its lift (`ImplicitForm::plus_lift`'s rule for a
+    /// distance). A refused enclosure, or a lift that is no number,
+    /// clears nothing.
     fn clears(&self, image: Box3) -> bool {
         let form = self.partner.form;
         let q = form.framed(image);
-        let metres = form.floor_metres(form.plus_lift(form.value(q)), q);
-        metres.is_certified() && (metres.lo() > self.cut || metres.hi() < -self.cut)
+        let metres = form.floor_metres(form.value(q), q);
+        let cut = self.escalate + form.lift().abs().hi();
+        metres.is_certified() && (metres.lo() > cut || metres.hi() < -cut)
     }
 
-    /// The image of `rect` on the wall, met with `within`, an enclosure
-    /// of a rectangle holding it; `None` where it is cleared.
-    fn image(
-        &self,
-        (u0, u1, v0, v1): Rect,
-        within: Option<Box3>,
-    ) -> Result<Option<Box3>, CarryError> {
-        let uv = UvWindow::new(u0, u1, v0, v1).ok_or_else(|| unread(LoopTubeRefusal::NotFinite))?;
+    /// An enclosure of `rect`'s image on the wall, met with `within`, an
+    /// enclosure of a rectangle holding it.
+    fn enclosed(&self, rect: UvRect, within: Option<Box3>) -> Result<Box3, CarryError> {
+        let uv = rect
+            .window()
+            .ok_or_else(|| unread(LoopTubeRefusal::NotFinite))?;
         let image = self.boxes.rect_box(uv);
-        let image = within.map_or(image, |w| image.meet_enclosure(w));
-        Ok((!self.clears(image)).then_some(image))
+        Ok(within.map_or(image, |w| image.meet_enclosure(w)))
     }
 
-    /// The carrier's parameter at its `k`th point.
-    fn param(&self, k: usize) -> f64 {
-        let last = self.samples.len() - 1;
-        #[allow(clippy::cast_precision_loss)]
-        let share = k as f64 / last as f64;
-        self.span.0 + (self.span.1 - self.span.0) * share
+    /// [`Self::enclosed`], `None` where the image is cleared.
+    fn image(&self, rect: UvRect, within: Option<Box3>) -> Result<Option<Box3>, CarryError> {
+        let image = self.enclosed(rect, within)?;
+        Ok((!self.clears(image)).then_some(image))
     }
 
     /// A carrier point near `b` in the farthest-point sense, by index,
@@ -169,73 +241,27 @@ impl Reader<'_> {
         best
     }
 
-    /// A carrier point between the neighbours of the `k`th, settled
-    /// toward the one `b` reaches least from, by golden section.
-    fn settled(&self, b: Box3, k: usize) -> Point3<Interval> {
-        let lift = <Interval as Real>::from_computed;
-        let last = self.samples.len() - 1;
-        let (mut lo, mut hi) = (
-            self.param(k.saturating_sub(1)),
-            self.param((k + 1).min(last)),
-        );
-        let at = |t: f64| {
-            let p = self.carrier.eval(lift(t));
-            (farthest(b, p), p)
-        };
-        let g = 0.5 * (5f64.sqrt() - 1.0);
-        let mut best = (farthest(b, self.samples[k]), self.samples[k]);
-        for _ in 0..SETTLE_STEPS {
-            let (x1, x2) = (hi - g * (hi - lo), lo + g * (hi - lo));
-            let (f1, f2) = (at(x1), at(x2));
-            if f1.0 < f2.0 {
-                hi = x2;
-            } else {
-                lo = x1;
-            }
-            for f in [f1, f2] {
-                if f.0 < best.0 {
-                    best = f;
-                }
-            }
-        }
-        best.1
-    }
-
-    /// **The farthest `image` stands from the carrier**, in metres, and
-    /// the carrier point it was read nearest: the image is halved into
-    /// parts (`pair_section::parts`), and a part's every point is no
-    /// farther from the carrier than from any one carrier point, one
-    /// walked to from the `hint`th and, for an image no wider than the
-    /// carrier's points stand apart, one settled between them: a wider
-    /// image stands farther off than their spacing can matter to.
-    fn pad(&self, image: Box3, hint: usize) -> Result<(f64, usize), CarryError> {
+    /// The cell of `rect` imaged in `image`, a part of `window`. Its pad
+    /// is **the farthest `image` stands from the carrier**, in metres:
+    /// the image is halved into parts (`pair_section::parts`), and a
+    /// part's every point is no farther from the carrier than from any
+    /// one carrier point, here one walked to from the `hint`th.
+    fn cell(
+        &self,
+        (rect, image): (UvRect, Box3),
+        hint: usize,
+        window: usize,
+        node: Option<usize>,
+    ) -> Result<Cell, CarryError> {
         let (near, _) = self.nearest(image, hint);
-        let settled = (image.width() <= self.spacing).then(|| self.settled(image, near));
         let pad = parts(image).into_iter().try_fold(0.0f64, |acc, part| {
-            let mut far = self.nearest(part, near).1;
-            if let Some(p) = settled {
-                far = far.min(farthest(part, p));
-            }
+            let far = self.nearest(part, near).1;
             if far.is_finite() {
                 Ok(acc.max(far))
             } else {
                 Err(unread(LoopTubeRefusal::of(part, &self.samples)))
             }
         })?;
-        Ok((pad, near))
-    }
-
-    /// The cell of `rect` imaged in `image`, a part of `window`, its pad
-    /// read from the `hint`th carrier point.
-    fn cell(
-        &self,
-        rect: Rect,
-        image: Box3,
-        hint: usize,
-        window: usize,
-        node: Option<usize>,
-    ) -> Result<Cell, CarryError> {
-        let (pad, near) = self.pad(image, hint)?;
         Ok(Cell {
             rect,
             image,
@@ -246,21 +272,14 @@ impl Reader<'_> {
         })
     }
 
-    /// `rect` halved along the chart axis it is longer along, measured in
-    /// the tube's pads (a rung over each axis's chart speed, so in metres
-    /// at the wall's fastest), each half with its image, the cleared halves dropped; `None` where neither
-    /// axis has a midpoint strictly inside.
-    fn halves(&self, rect: Rect, image: Box3) -> Result<Option<Vec<(Rect, Box3)>>, CarryError> {
-        let (u0, u1, v0, v1) = rect;
-        let (um, vm) = (geom::mid_param(u0, u1), geom::mid_param(v0, v1));
-        let across_u = [(u0, um, v0, v1), (um, u1, v0, v1)];
-        let across_v = [(u0, u1, v0, vm), (u0, u1, vm, v1)];
-        let (splits_u, splits_v) = (u0 < um && um < u1, v0 < vm && vm < v1);
-        let cut = match (splits_u, splits_v) {
-            (true, true) if (u1 - u0) / self.pads.0 >= (v1 - v0) / self.pads.1 => across_u,
-            (true, false) => across_u,
-            (_, true) => across_v,
-            (false, false) => return Ok(None),
+    /// `rect`'s halves ([`halves_of`]), each with its image, the cleared
+    /// ones dropped; `None` where it has none.
+    fn halves(
+        &self,
+        (rect, image): (UvRect, Box3),
+    ) -> Result<Option<Vec<(UvRect, Box3)>>, CarryError> {
+        let Some(cut) = halves_of(rect, self.pads) else {
+            return Ok(None);
         };
         let mut out = Vec::with_capacity(2);
         for r in cut {
@@ -275,6 +294,7 @@ impl Reader<'_> {
 /// **A fitted arc's cells** (module docs), with what reads them.
 pub(super) struct Enclosure<'a> {
     reader: Reader<'a>,
+    carrier: geom::NurbsCurve3<Interval>,
     /// Each window's span of the carrier, in the windows' order.
     spans: Vec<(f64, f64)>,
     /// Which windows are a node's box.
@@ -341,63 +361,15 @@ impl<'a> Enclosure<'a> {
         }
         let windows = crate::ssi::certify::chart_tube(pcurve, (pad_u, pad_v), nodes)
             .ok_or_else(|| unread(LoopTubeRefusal::Uncertified))?;
-        let lift = <Interval as Real>::from_computed;
-        let lifted = carrier.map_scalar(lift);
-        let boxes = NurbsBoxes::new(net);
-        let domain = boxes.domain();
-        let mut reader = Reader {
-            boxes,
-            partner,
-            cut: band.escalate(),
-            carrier: lifted,
-            span: b.params,
-            samples: Vec::new(),
-            spacing: 0.0,
-            pads: (pad_u, pad_v),
-        };
-        // The control polygon is no shorter than the carrier.
-        let length: f64 = carrier
-            .control()
-            .windows(2)
-            .map(|p| (p[1] - p[0]).norm())
-            .sum();
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-        let count =
-            ((SAMPLES_PER_RUNG * length / rung).ceil() as usize + 1).clamp(SAMPLES.0, SAMPLES.1);
-        reader.samples = (0..count)
-            .map(|k| {
-                let t = if k + 1 == count {
-                    b.params.1
-                } else {
-                    #[allow(clippy::cast_precision_loss)]
-                    let share = k as f64 / (count - 1) as f64;
-                    b.params.0 + (b.params.1 - b.params.0) * share
-                };
-                reader.carrier.eval(lift(t))
-            })
-            .collect();
-        // A refused point reads `NaN`, which settles every cell.
-        reader.spacing = reader
-            .samples
-            .windows(2)
-            .map(|p| {
-                farthest(
-                    Box3 {
-                        x: p[0].x,
-                        y: p[0].y,
-                        z: p[0].z,
-                    },
-                    p[1],
-                )
-            })
-            .fold(0.0, f64::max);
+        let (reader, carrier) = Reader::new(b, carrier, net, partner, (rung, (pad_u, pad_v)), band);
+        let domain = reader.boxes.domain();
+        let last_sample = reader.samples.len() - 1;
         let last = windows.len() - 1;
         let mut cells = Vec::new();
         for (k, w) in windows.iter().enumerate() {
-            let cut = crate::ssi::one_arc::meet(w.rect, domain).ok_or(CarryError::Desync(
+            let whole = crate::ssi::one_arc::meet(w.rect, domain).ok_or(CarryError::Desync(
                 "a window of a certified chart tube lies off the wall's knot rectangle",
             ))?;
-            let whole = (cut.u.0, cut.u.1, cut.v.0, cut.v.1);
             // The carrier point at the middle of the window's span.
             #[allow(
                 clippy::cast_possible_truncation,
@@ -405,41 +377,40 @@ impl<'a> Enclosure<'a> {
                 clippy::cast_precision_loss
             )]
             let hint = (((w.mid - b.params.0) / (b.params.1 - b.params.0)).clamp(0.0, 1.0)
-                * (count - 1) as f64) as usize;
+                * last_sample as f64) as usize;
             if w.node {
                 let node = match k {
                     0 => ends[0],
                     _ if k == last => ends[1],
                     _ => None,
                 };
-                let uv = UvWindow::new(whole.0, whole.1, whole.2, whole.3)
-                    .ok_or_else(|| unread(LoopTubeRefusal::NotFinite))?;
-                let image = reader.boxes.rect_box(uv);
-                cells.push(reader.cell(whole, image, hint, k, node)?);
+                let image = reader.enclosed(whole, None)?;
+                cells.push(reader.cell((whole, image), hint, k, node)?);
                 continue;
             }
             let Some(image) = reader.image(whole, None)? else {
                 continue;
             };
-            let mut open = vec![(whole, image, 0u32)];
-            while let Some((rect, image, depth)) = open.pop() {
+            let mut open = vec![((whole, image), 0u32)];
+            while let Some((cell, depth)) = open.pop() {
                 // A cell no wider than `FIRST_CELL_RUNGS` rungs, or one
                 // cut as often as a window is, is read as it stands.
-                let narrow = image.width().partial_cmp(&(FIRST_CELL_RUNGS * rung))
+                let narrow = cell.1.width().partial_cmp(&(FIRST_CELL_RUNGS * rung))
                     != Some(core::cmp::Ordering::Greater);
                 let halves = if narrow || depth == FIRST_CUTS {
                     None
                 } else {
-                    reader.halves(rect, image)?
+                    reader.halves(cell)?
                 };
                 match halves {
-                    Some(halves) => open.extend(halves.into_iter().map(|(r, i)| (r, i, depth + 1))),
-                    None => cells.push(reader.cell(rect, image, hint, k, None)?),
+                    Some(halves) => open.extend(halves.into_iter().map(|h| (h, depth + 1))),
+                    None => cells.push(reader.cell(cell, hint, k, None)?),
                 }
             }
         }
         Ok(Self {
             reader,
+            carrier,
             spans: windows.iter().map(|w| w.ends).collect(),
             node_windows: windows.iter().map(|w| w.node).collect(),
             cells,
@@ -449,47 +420,48 @@ impl<'a> Enclosure<'a> {
         })
     }
 
-    /// The cells with those marked in `meets` halved, a node's box
-    /// excepted, and the cleared halves dropped; beside them the indices
-    /// of the halves and of the cells marked in `near`, and whether any
-    /// cell was halved.
-    fn halved(
-        &self,
-        meets: &[bool],
-        near: &[bool],
-    ) -> Result<(Vec<Cell>, Vec<usize>, bool), CarryError> {
+    /// Whether `c` can be halved: it is no node's box, kept whole, and
+    /// its rectangle has a midpoint strictly inside along an axis.
+    fn halves(&self, c: &Cell) -> bool {
+        c.node.is_none() && halves_of(c.rect, self.reader.pads).is_some()
+    }
+
+    /// The cells with those marked in `meets` that can be halved halved,
+    /// the cleared halves dropped; beside them the indices of the halves
+    /// and of the cells marked in `near`, which stay in the next round's
+    /// scan whether or not they were halved.
+    fn halved(&self, meets: &[bool], near: &[bool]) -> Result<(Vec<Cell>, Vec<usize>), CarryError> {
         let mut cells = Vec::with_capacity(self.cells.len() + meets.len());
         let mut active = Vec::new();
-        let mut any = false;
-        for (k, &c) in self.cells.iter().enumerate() {
-            let halves = if meets[k] && c.node.is_none() {
-                self.reader.halves(c.rect, c.image)?
+        for (k, c) in self.cells.iter().enumerate() {
+            let halves = if meets[k] && self.halves(c) {
+                self.reader.halves((c.rect, c.image))?
             } else {
                 None
             };
             match halves {
                 Some(halves) => {
-                    any = true;
-                    for (rect, image) in halves {
+                    for half in halves {
                         active.push(cells.len());
-                        cells.push(self.reader.cell(rect, image, c.near, c.window, c.node)?);
+                        cells.push(self.reader.cell(half, c.near, c.window, c.node)?);
                     }
                 }
                 None => {
                     if near[k] {
                         active.push(cells.len());
                     }
-                    cells.push(c);
+                    cells.push(*c);
                 }
             }
         }
-        Ok((cells, active, any))
+        Ok((cells, active))
     }
 
     /// A cell's pad as a site reads it: the farthest its image stands
     /// from the carrier, and no less than the carrier's limb-2 bound, so
-    /// the carrier lies within it of each surface too.
-    fn pad_of(&self, c: &Cell) -> f64 {
+    /// the carrier lies within it of each surface too
+    /// ([`CarriedComponent::pad`], closeness).
+    fn site_pad(&self, c: &Cell) -> f64 {
         c.pad.max(self.hull_sup)
     }
 
@@ -497,11 +469,11 @@ impl<'a> Enclosure<'a> {
     /// branch's certified carrier over its span, its certificate, its
     /// witness `carrier(mid)`, its cells as the boxes a site is read in
     /// ([`CarriedComponent::boxes`]) and, hulled window by window, the
-    /// runs its foot is read over ([`CarriedComponent::runs`]), its pad the widest of theirs, and
-    /// its reach: the farthest the cells of a window whose span holds
-    /// the witness's parameter stand from the witness, the least over
-    /// such windows. It claims no winding: an open arc winds about
-    /// neither surface.
+    /// runs its foot is read over ([`CarriedComponent::runs`]), its pad
+    /// the widest of theirs, and its reach: the farthest the cells of a
+    /// window whose span holds the witness's parameter stand from the
+    /// witness, the least over such windows (`pair_section::witness_reach`).
+    /// It claims no winding: an open arc winds about neither surface.
     ///
     /// # Errors
     ///
@@ -509,20 +481,24 @@ impl<'a> Enclosure<'a> {
     /// limb 3 puts a piece of the arc in it, or where no window's span
     /// holds the witness; [`CarryRefusal::PadShort`] where the limb-2
     /// bound is no number; [`CarryRefusal::TubeUnread`] where the
-    /// witness does not read.
+    /// witness or a cell's image does not read.
     pub(super) fn carried(
         &self,
         b: &SsiBranch,
         shape: ComponentShape,
     ) -> Result<CarriedComponent<f64>, CarryError> {
-        let mut held = vec![false; self.spans.len()];
-        for c in &self.cells {
-            held[c.window] = true;
-        }
-        if held
+        let of_window = |k: usize| -> Vec<Box3> {
+            self.cells
+                .iter()
+                .filter(|c| c.window == k)
+                .map(|c| c.image)
+                .collect()
+        };
+        let windows: Vec<Vec<Box3>> = (0..self.spans.len()).map(of_window).collect();
+        if windows
             .iter()
             .zip(&self.node_windows)
-            .any(|(&h, &node)| !h && !node)
+            .any(|(cells, &node)| cells.is_empty() && !node)
         {
             return Err(CarryError::Desync(
                 "a window of a rim arc's tube holds no cell the partner's form does not clear",
@@ -531,7 +507,7 @@ impl<'a> Enclosure<'a> {
         let pad = self
             .cells
             .iter()
-            .map(|c| self.pad_of(c))
+            .map(|c| self.site_pad(c))
             .fold(0.0, f64::max);
         if self.hull_sup.is_nan() {
             return Err(CarryError::Refused(CarryRefusal::PadShort {
@@ -540,67 +516,25 @@ impl<'a> Enclosure<'a> {
             }));
         }
         let lift = <Interval as Real>::from_computed;
-        let witness = self.reader.carrier.eval(lift(self.at));
-        let holding: Vec<usize> = (0..self.spans.len())
+        let holding: Vec<&[Box3]> = (0..self.spans.len())
             .filter(|&k| self.spans[k].0 <= self.at && self.at <= self.spans[k].1)
+            .map(|k| windows[k].as_slice())
             .collect();
-        if holding.is_empty() {
-            return Err(CarryError::Desync(
-                "no piece of a tube holds its witness, though the pieces tile its span",
-            ));
-        }
-        let reach = holding
-            .iter()
-            .map(|&k| {
-                self.cells
-                    .iter()
-                    .filter(|c| c.window == k)
-                    .map(|c| farthest(c.image, witness))
-                    .fold(
-                        0.0f64,
-                        |acc, r| if r.is_finite() { acc.max(r) } else { f64::NAN },
-                    )
-            })
-            .filter(|r| r.is_finite())
-            .fold(f64::INFINITY, f64::min);
-        if !reach.is_finite() {
-            // Every cell read against the carrier, so it is the witness
-            // that does not.
-            return Err(unread(LoopTubeRefusal::of(
-                self.cells[0].image,
-                core::slice::from_ref(&witness),
-            )));
-        }
-        // A cell's pad read finite, which `farthest` gives only where
-        // every side of its image certifies.
+        let reach = witness_reach(self.carrier.eval(lift(self.at)), &holding)?;
+        let not_finite = || unread(LoopTubeRefusal::NotFinite);
         let boxes = self
             .cells
             .iter()
-            .map(|c| {
-                let side = |i: Interval| (i.lo(), i.hi());
-                let [x, y, z] = [side(c.image.x), side(c.image.y), side(c.image.z)];
-                PadBox {
-                    lo: [x.0, y.0, z.0],
-                    hi: [x.1, y.1, z.1],
-                    pad: self.pad_of(c),
-                    node: c.node,
-                }
-            })
-            .collect();
+            .map(|c| PadBox::of(c.image, self.site_pad(c), c.node).ok_or_else(not_finite))
+            .collect::<Result<Vec<_>, CarryError>>()?;
         // Each window's cells hulled, with the carrier's span over the
         // window: where on the carrier a site in them lies.
-        let runs = self
-            .spans
+        let runs = windows
             .iter()
-            .enumerate()
-            .filter_map(|(k, &span)| {
-                let hull = self
-                    .cells
-                    .iter()
-                    .filter(|c| c.window == k)
-                    .map(|c| c.image)
-                    .reduce(Box3::hull)?;
-                Some(TubeRun::of(hull, span).ok_or_else(|| unread(LoopTubeRefusal::NotFinite)))
+            .zip(&self.spans)
+            .filter_map(|(cells, &span)| {
+                let hull = cells.iter().copied().reduce(Box3::hull)?;
+                Some(TubeRun::of(hull, span).ok_or_else(not_finite))
             })
             .collect::<Result<Vec<_>, CarryError>>()?;
         Ok(CarriedComponent {
@@ -618,88 +552,110 @@ impl<'a> Enclosure<'a> {
     }
 }
 
+/// Whether the enclosures `a` and `b`, each widened by `by` along every
+/// axis, share no point: along some axis the one's widened end falls
+/// short of the other's. It is the complement of two boxes both holding
+/// one site (`pair_section::box_holds`, the same sums), so cells apart
+/// by it are read apart. A refused enclosure is apart from nothing.
+fn widened_apart(a: Box3, b: Box3, by: f64) -> bool {
+    let apart = |s: Interval, t: Interval| {
+        s.is_certified()
+            && t.is_certified()
+            && (s.hi() + by < t.lo() - by || t.hi() + by < s.lo() - by)
+    };
+    apart(a.x, b.x) || apart(a.y, b.y) || apart(a.z, b.z)
+}
+
+/// How far `a` and `b` stand apart along the axis they stand farthest
+/// apart on, zero where they share a point; `NaN` where either is
+/// refused.
+fn axis_gap(a: Box3, b: Box3) -> f64 {
+    let gap = |s: Interval, t: Interval| {
+        if s.is_certified() && t.is_certified() {
+            (s.lo() - t.hi()).max(t.lo() - s.hi()).max(0.0)
+        } else {
+            f64::NAN
+        }
+    };
+    [gap(a.x, b.x), gap(a.y, b.y), gap(a.z, b.z)]
+        .into_iter()
+        .fold(0.0, |acc, g| if g.is_nan() { g } else { acc.max(g) })
+}
+
 /// How two cells of two arcs stand to each other.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) enum Stand {
-    /// Farther apart than the reach.
+    /// Widened by the band's escalation, they share no point.
     Apart,
-    /// Within the reach, one of them meeting the box of a node both arcs
+    /// They share one, and one of them meets the box of a node both arcs
     /// end at.
     AtNode,
-    /// Within the reach, by this gap in metres: `NaN` where a box is
-    /// refused, which holds nothing apart.
+    /// They share one, standing this far apart along the axis they stand
+    /// farthest apart on, in metres: `NaN` where a box is refused, which
+    /// holds nothing apart.
     Meet(f64),
 }
 
-/// How the cells imaged in `a` and `b` stand at `reach`, `node_boxes`
-/// the boxes of the nodes both their arcs end at.
-pub(super) fn stand(a: Box3, b: Box3, node_boxes: &[Box3], reach: f64) -> Stand {
-    let gap = box_gap(a, b);
-    if gap.partial_cmp(&reach) == Some(core::cmp::Ordering::Greater) {
+/// How the cells imaged in `a` and `b` stand, each widened by `by` (the
+/// band's escalation, as a site's read widens them), `node_boxes` the
+/// boxes of the nodes both their arcs end at.
+pub(super) fn stand(a: Box3, b: Box3, node_boxes: &[Box3], by: f64) -> Stand {
+    if widened_apart(a, b, by) {
         return Stand::Apart;
     }
     if [a, b]
         .iter()
-        .any(|&r| node_boxes.iter().any(|&n| box_gap(r, n) <= 0.0))
+        .any(|&r| node_boxes.iter().any(|&n| !widened_apart(r, n, 0.0)))
     {
         return Stand::AtNode;
     }
-    Stand::Meet(gap)
+    Stand::Meet(axis_gap(a, b))
 }
 
-/// A listed component's cells: `None` for one that is no fitted arc.
-pub(super) type Arc<'a> = Option<Result<Enclosure<'a>, CarryError>>;
+/// **A listed component as the carry reads it**: a fitted arc's cells,
+/// or their refusal, or why the component has no carrier.
+pub(super) enum Listed<'a> {
+    /// A rim arc to mint.
+    Arc(Result<Enclosure<'a>, CarryError>),
+    /// A component that carries none.
+    Bare(NoCarrier),
+}
 
-/// **The section's arcs held apart, cell by cell, or carrying neither**
-/// ([`CarryRefusal::PadsMeet`], per arc, `None` for an arc that stands
-/// apart). A site is read on an arc where it stands in one of the arc's
-/// cells, each widened by the band's escalation
-/// ([`CarriedComponent::reads`]). A point read on two arcs that share no
-/// node is a desync, and one read on two that share a node escalates on
-/// its distance from it (`CarriedSection::site`), so each pair of arcs'
-/// cells stand farther apart than twice that escalation, except where one
-/// of the two meets the box of a node both arcs end at: there the arcs
-/// meet, and a site escalates.
-///
-/// **Refined until that resolves**: the cells of two arcs that stand
-/// within that reach of each other are halved, the cleared halves
-/// dropped, round by round, until no pair is left, so an arc with no
-/// close neighbour keeps its first reading. Short of that the loop stops
-/// as `crate::descent` stops one: where two rounds running have not
-/// narrowed the widest pad among the cells still meeting or no such cell
-/// halves (a stall), or where the next round would pass
-/// [`REFINE_CELLS`] (the wall). The arcs still meeting then carry
-/// neither.
-///
-/// An arc whose cell does not read in a round carries that refusal, and
-/// is held apart from none.
-pub(super) fn apart(arcs: &mut [Arc<'_>], band: Band) -> Vec<Option<CarryRefusal>> {
-    let reach = 2.0 * band.escalate();
-    let mut active: Vec<Vec<usize>> = arcs
-        .iter()
-        .map(|a| match a {
-            Some(Ok(e)) => (0..e.cells.len()).collect(),
-            _ => Vec::new(),
-        })
-        .collect();
-    let mut work = Work::new(REFINE_CELLS);
-    let mut descent: Option<Descent<()>> = None;
-    loop {
-        let flags = |on: bool| -> Vec<Vec<bool>> {
+impl<'a> Listed<'a> {
+    /// The arc's cells, where it is an arc whose cells read.
+    fn cells(&self) -> Option<&Enclosure<'a>> {
+        match self {
+            Self::Arc(Ok(e)) => Some(e),
+            _ => None,
+        }
+    }
+}
+
+/// One round's scan of the section's active cells.
+struct Scan {
+    /// Per arc and cell: within reach of another arc's cell, at a shared
+    /// node or not.
+    near: Vec<Vec<bool>>,
+    /// Per arc and cell: meeting another arc's cell.
+    meets: Vec<Vec<bool>>,
+    /// Each arc's nearest meeting: the gap, and the two cells' pads.
+    worst: Vec<Option<(f64, [f64; 2])>>,
+}
+
+impl Scan {
+    /// How every two arcs' `active` cells stand, each widened by `by`.
+    fn of(arcs: &[Listed<'_>], active: &[Vec<usize>], by: f64) -> Self {
+        let flags = || -> Vec<Vec<bool>> {
             arcs.iter()
-                .map(|a| match a {
-                    Some(Ok(e)) => vec![on; e.cells.len()],
-                    _ => Vec::new(),
-                })
+                .map(|a| vec![false; a.cells().map_or(0, |e| e.cells.len())])
                 .collect()
         };
-        let (mut near, mut meets) = (flags(false), flags(false));
-        // Each arc's nearest meeting: the gap, and the two cells' pads.
+        let (mut near, mut meets) = (flags(), flags());
         let mut worst: Vec<Option<(f64, [f64; 2])>> = vec![None; arcs.len()];
         for (i, a) in arcs.iter().enumerate() {
-            let Some(Ok(a)) = a else { continue };
+            let Some(a) = a.cells() else { continue };
             for (j, b) in arcs.iter().enumerate().skip(i + 1) {
-                let Some(Ok(b)) = b else { continue };
+                let Some(b) = b.cells() else { continue };
                 let shared =
                     |n: Option<usize>| n.is_some() && a.ends.contains(&n) && b.ends.contains(&n);
                 // The boxes of the nodes both arcs end at: a cell meeting
@@ -723,16 +679,16 @@ pub(super) fn apart(arcs: &mut [Arc<'_>], band: Band) -> Vec<Option<CarryRefusal
                 let within = |e: &Enclosure<'_>, live: &[usize], other: Box3| -> Vec<usize> {
                     live.iter()
                         .copied()
-                        .filter(|&k| stand(e.cells[k].image, other, &[], reach) != Stand::Apart)
+                        .filter(|&k| !widened_apart(e.cells[k].image, other, by))
                         .collect()
                 };
-                let (live_a, live_b) =
-                    (within(a, &active[i], hull_b), within(b, &active[j], hull_a));
+                let live_a = within(a, &active[i], hull_b);
+                let live_b = within(b, &active[j], hull_a);
                 for &ka in &live_a {
                     let ca = &a.cells[ka];
                     for &kb in &live_b {
                         let cb = &b.cells[kb];
-                        let gap = match stand(ca.image, cb.image, &node_boxes, reach) {
+                        let gap = match stand(ca.image, cb.image, &node_boxes, by) {
                             Stand::Apart => continue,
                             Stand::AtNode => None,
                             Stand::Meet(gap) => Some(gap),
@@ -742,7 +698,7 @@ pub(super) fn apart(arcs: &mut [Arc<'_>], band: Band) -> Vec<Option<CarryRefusal
                         let Some(gap) = gap else { continue };
                         meets[i][ka] = true;
                         meets[j][kb] = true;
-                        let pads = [a.pad_of(ca), b.pad_of(cb)];
+                        let pads = [a.site_pad(ca), b.site_pad(cb)];
                         for k in [i, j] {
                             if worst[k].is_none_or(|(g, _)| {
                                 gap.partial_cmp(&g) != Some(core::cmp::Ordering::Greater)
@@ -754,50 +710,105 @@ pub(super) fn apart(arcs: &mut [Arc<'_>], band: Band) -> Vec<Option<CarryRefusal
                 }
             }
         }
-        let refusals = |worst: &[Option<(f64, [f64; 2])>]| {
-            worst
+        Self { near, meets, worst }
+    }
+
+    /// How many meeting cells can be halved.
+    fn halvable(&self, arcs: &[Listed<'_>]) -> usize {
+        arcs.iter()
+            .zip(&self.meets)
+            .filter_map(|(a, m)| Some((a.cells()?, m)))
+            .map(|(a, m)| {
+                a.cells
+                    .iter()
+                    .zip(m)
+                    .filter(|&(c, &m)| m && a.halves(c))
+                    .count()
+            })
+            .sum()
+    }
+}
+
+/// **The section's arcs held apart, cell by cell, or carrying neither**
+/// ([`CarryRefusal::PadsMeet`], per component, `None` for one that
+/// stands apart or is no arc). A site is read on an arc where it stands
+/// in one of the arc's cells, each widened by the band's escalation
+/// along every axis ([`CarriedComponent::reads`]). A point read on two
+/// arcs that share no node is a desync, and one read on two that share
+/// a node escalates on its distance from it (`CarriedSection::site`), so
+/// every two arcs' cells, widened so, share no point ([`stand`]), except
+/// where one of the two meets the box of a node both arcs end at: there
+/// the arcs meet, and a site escalates.
+///
+/// **Refined until that resolves**: the cells of two arcs that meet are
+/// halved, the cleared halves dropped, round by round, until no pair is
+/// left, so an arc with no close neighbour keeps its first reading.
+/// Short of that the loop stops through `crate::descent`
+/// ([`crate::descent::Descent::stop`]), and the arcs still meeting carry
+/// neither, the refusal naming the stop:
+///
+/// - **the stall** ([`PadsStop::Stall`]): the pair has stopped
+///   narrowing. What is watched is the share of the halves still
+///   meeting, the meeting cells that can be halved over `2^round`, read
+///   once a [`CYCLE`]. It falls whenever a half is cleared or parts from
+///   the other arc, and holds where every half is kept. Two cycles
+///   running that do not lower it stall, as does a round in which no
+///   meeting cell can be halved (a node's box is kept whole, and is not
+///   counted);
+/// - **the work bound** ([`PadsStop::Work`]): the next round would pass
+///   [`REFINE_PER_CELL`] halvings a cell of the section's first reading
+///   ([`REFINE_FLOOR`] at least).
+///
+/// An arc whose cell does not read in a round carries that refusal and
+/// is held apart from none. The carry takes no section one of whose
+/// components refuses (`PairSection::carry` collects every component's
+/// result), so no arc is carried on an apartness that arc was left out
+/// of.
+pub(super) fn apart(arcs: &mut [Listed<'_>], band: Band) -> Vec<Option<CarryRefusal>> {
+    let by = band.escalate();
+    let count = |a: &Listed<'_>| a.cells().map_or(0, |e| e.cells.len());
+    let mut active: Vec<Vec<usize>> = arcs.iter().map(|a| (0..count(a)).collect()).collect();
+    let first: usize = arcs.iter().map(count).sum();
+    let mut work = Work::new(REFINE_FLOOR.max(REFINE_PER_CELL.saturating_mul(first)));
+    let mut descent: Option<Descent<()>> = None;
+    for round in 0u32.. {
+        let scan = Scan::of(arcs, &active, by);
+        if scan.worst.iter().all(Option::is_none) {
+            break;
+        }
+        let cost = scan.halvable(arcs);
+        if round % CYCLE == 0 {
+            #[allow(clippy::cast_precision_loss)]
+            let share = cost as f64 * 0.5f64.powi(i32::try_from(round).unwrap_or(i32::MAX));
+            descent = Some(Descent::after(descent.take(), share, ()));
+        }
+        let wall = (!work.admits(cost)).then_some(PadsStop::Work);
+        let stop = descent.as_ref().and_then(|d| d.stop(cost == 0, wall));
+        if let Some(stop) = stop {
+            let stop = match stop {
+                Stop::Stall => PadsStop::Stall,
+                Stop::Wall(wall) => wall,
+            };
+            return scan
+                .worst
                 .iter()
-                .map(|w| w.map(|(gap, pads)| CarryRefusal::PadsMeet { pads, gap }))
-                .collect()
-        };
-        if worst.iter().all(Option::is_none) {
-            return refusals(&worst);
+                .map(|w| w.map(|(gap, pads)| CarryRefusal::PadsMeet { pads, gap, stop }))
+                .collect();
         }
-        // The cells still meeting: the widest pad among them, and how
-        // many of them halve.
-        let (mut bound, mut cost) = (0.0f64, 0usize);
-        for (a, m) in arcs.iter().zip(&meets) {
-            let Some(Ok(a)) = a else { continue };
-            for (c, _) in a.cells.iter().zip(m).filter(|&(_, &m)| m) {
-                bound = bound.max(c.pad);
-                cost += usize::from(c.node.is_none());
-            }
-        }
-        let round = Descent::after(descent.take(), bound, ());
-        let wall = (!work.admits(cost)).then_some(());
-        if round.stop(cost == 0, wall).is_some() {
-            return refusals(&worst);
-        }
-        descent = Some(round);
         work.spend(cost);
-        let mut moved = false;
         for (i, arc) in arcs.iter_mut().enumerate() {
-            let Some(Ok(e)) = arc else { continue };
-            match e.halved(&meets[i], &near[i]) {
-                Ok((cells, live, any)) => {
+            let Listed::Arc(Ok(e)) = arc else { continue };
+            match e.halved(&scan.meets[i], &scan.near[i]) {
+                Ok((cells, live)) => {
                     e.cells = cells;
                     active[i] = live;
-                    moved |= any;
                 }
                 Err(refusal) => {
-                    *arc = Some(Err(refusal));
+                    *arc = Listed::Arc(Err(refusal));
                     active[i].clear();
-                    moved = true;
                 }
             }
         }
-        if !moved {
-            return refusals(&worst);
-        }
     }
+    vec![None; arcs.len()]
 }

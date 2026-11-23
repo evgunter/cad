@@ -551,22 +551,6 @@ impl Bracketed<'_> {
     }
 }
 
-/// A lower bound on the distance between any point of `a` and any
-/// point of `b`: the diagonal of the per-axis gaps, rounded down by a
-/// relative `1e-12`, far past its few roundings. `NaN` where either box
-/// is refused.
-fn box_gap(a: Box3, b: Box3) -> f64 {
-    let gap = |s: Interval, t: Interval| {
-        if s.is_certified() && t.is_certified() {
-            (s.lo() - t.hi()).max(t.lo() - s.hi()).max(0.0)
-        } else {
-            f64::NAN
-        }
-    };
-    let [x, y, z] = [gap(a.x, b.x), gap(a.y, b.y), gap(a.z, b.z)];
-    x.hypot(y).hypot(z) * (1.0 - 1e-12)
-}
-
 /// **A branch's witness and how far it may stand from its arc**: the
 /// wall's point `q = S(P(mid))` at the middle of the branch's pcurve on
 /// the wall, bracketed on the section within the tube window of the
@@ -1167,28 +1151,27 @@ fn listed(
     }
     // Each arc's cells, the section's arcs held apart on them, then each
     // arc carried on the cells it was held apart by.
-    let mut arcs: Vec<cells::Arc<'_>> = read
+    let mut arcs: Vec<cells::Listed<'_>> = read
         .iter()
-        .map(|(b, _, minted)| {
-            let ends = *minted.as_ref().ok()?;
-            Some(cells::Enclosure::first(b, pose.net(), partner, ends, band))
+        .map(|(b, _, minted)| match minted {
+            Ok(ends) => {
+                cells::Listed::Arc(cells::Enclosure::first(b, pose.net(), partner, *ends, band))
+            }
+            Err(why) => cells::Listed::Bare(*why),
         })
         .collect();
     let meets = cells::apart(&mut arcs, band);
     let mut components = Vec::with_capacity(read.len() + out.boundary.len());
-    for (((b, shape, minted), arc), meet) in read.iter().zip(arcs).zip(meets) {
+    for (((b, shape, _), arc), meet) in read.iter().zip(arcs).zip(meets) {
         let witness = witness(b, pose.net(), partner);
-        let carrier = match (arc, meet, minted) {
-            (Some(Ok(_)), Some(refusal), _) => {
+        let carrier = match (arc, meet) {
+            (cells::Listed::Bare(why), _) => ClassCarrier::Unminted(why),
+            (cells::Listed::Arc(Ok(_)), Some(refusal)) => {
                 ClassCarrier::Fitted(Box::new(Err(super::CarryError::Refused(refusal))))
             }
-            (Some(arc), ..) => {
+            (cells::Listed::Arc(arc), _) => {
                 ClassCarrier::Fitted(Box::new(arc.and_then(|cells| cells.carried(b, *shape))))
             }
-            (None, _, Err(why)) => ClassCarrier::Unminted(*why),
-            (None, _, Ok(_)) => ClassCarrier::Fitted(Box::new(Err(super::CarryError::Desync(
-                "a rim arc to mint was read no cells",
-            )))),
         };
         components.push(SectionComponent {
             shape: *shape,

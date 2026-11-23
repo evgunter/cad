@@ -2835,11 +2835,30 @@ fn pad_and_reach(
             hull_sup,
         }));
     }
-    let witness = lifted.eval(lift(at));
-    let holding: Vec<&TubePiece> = pieces
+    let holding: Vec<&[crate::ssi::enclose::Box3]> = pieces
         .iter()
         .filter(|piece| piece.span.0 <= at && at <= piece.span.1)
+        .map(|piece| piece.boxes.as_slice())
         .collect();
+    let reach = witness_reach(lifted.eval(lift(at)), &holding)?;
+    Ok(TubeRead { pad, reach })
+}
+
+/// **How far a witness may stand from its component**
+/// ([`CarriedComponent::reach`]): `holding` is the boxes of each piece of
+/// the tube whose span holds the witness's parameter. Each such piece
+/// holds a piece of the component, so the farthest its boxes reach from
+/// the witness bounds the distance; the least over the pieces.
+///
+/// # Errors
+///
+/// A desync where no piece holds the witness, though the pieces tile
+/// the span; [`CarryRefusal::TubeUnread`] where every piece holding it
+/// reads some box unread.
+fn witness_reach(
+    witness: Point3<geom_core::Interval>,
+    holding: &[&[crate::ssi::enclose::Box3]],
+) -> Result<f64, CarryError> {
     let Some(first) = holding.first() else {
         return Err(CarryError::Desync(
             "no piece of a tube holds its witness, though the pieces tile its span",
@@ -2847,9 +2866,8 @@ fn pad_and_reach(
     };
     let reach = holding
         .iter()
-        .map(|piece| {
-            piece
-                .boxes
+        .map(|boxes| {
+            boxes
                 .iter()
                 .map(|&b| farthest(b, witness))
                 .fold(
@@ -2859,24 +2877,19 @@ fn pad_and_reach(
         })
         .filter(|r| r.is_finite())
         .fold(f64::INFINITY, f64::min);
-    if !reach.is_finite() {
-        // Every piece holding `at` read some box unread: the first's.
-        let Some(b) = first
-            .boxes
-            .iter()
-            .copied()
-            .find(|&b| !farthest(b, witness).is_finite())
-        else {
-            return Err(CarryError::Desync(
-                "a tube's reach read unread with every box read",
-            ));
-        };
-        return Err(unread(LoopTubeRefusal::of(
-            b,
-            core::slice::from_ref(&witness),
-        )));
+    if reach.is_finite() {
+        return Ok(reach);
     }
-    Ok(TubeRead { pad, reach })
+    // Every piece holding the witness read some box unread: the first's,
+    // or the first has no box at all.
+    let unread = first
+        .iter()
+        .copied()
+        .find(|&b| !farthest(b, witness).is_finite())
+        .map_or(LoopTubeRefusal::Empty, |b| {
+            LoopTubeRefusal::of(b, core::slice::from_ref(&witness))
+        });
+    Err(CarryError::Refused(CarryRefusal::TubeUnread(unread)))
 }
 
 /// What [`pad_and_reach`] reads of a tube: the pad and the witness's
@@ -2966,9 +2979,12 @@ pub enum CarryRefusal {
     PadsMeet {
         /// The pads of the two arcs' nearest cells, in metres.
         pads: [f64; 2],
-        /// The least the two arcs' cells stand apart, in metres; `NaN`
-        /// where a cell did not read.
+        /// The least the two arcs' cells stand apart along the axis
+        /// they stand farthest apart on, in metres; `NaN` where a cell
+        /// did not read.
         gap: f64,
+        /// Which stop ended their refinement.
+        stop: PadsStop,
     },
     /// A spline component's piece walk could not run
     /// ([`SiteRefusal::Unwalked`]), standing as the walk's refusal does
@@ -3022,11 +3038,16 @@ impl CarryRefusal {
                 why.sentence(),
                 why.recourse()
             ),
-            Self::PadsMeet { pads: [a, b], gap } => write!(
+            Self::PadsMeet {
+                pads: [a, b],
+                gap,
+                stop,
+            } => write!(
                 f,
                 "two arcs of the section are read in regions {gap:e} m apart, each within \
-                 {a:e} m and {b:e} m of its arc, so a point near both could not be read on one. \
-                 {}",
+                 {a:e} m and {b:e} m of its arc, {}, so a point near both could not be read \
+                 on one. {}",
+                stop.sentence(),
                 geom_core::move_recourse!("so the section's arcs stand farther apart")
             ),
             Self::Unwalked(why) => write!(
@@ -3091,6 +3112,31 @@ impl CarryError {
 }
 
 crate::ended_by_write!(CarryError);
+
+/// **Which stop ended two arcs' refinement** ([`CarryRefusal::PadsMeet`],
+/// `spline_implicit::cells::apart`): the two a refining loop stops on
+/// short of its target (`crate::descent`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(any(test, feature = "test-support"), derive(strum::VariantArray))]
+pub enum PadsStop {
+    /// Halving stopped narrowing the regions the arcs meet in: over two
+    /// cycles of halvings running no half was cleared and none parted,
+    /// or no cell still meeting can be halved.
+    Stall,
+    /// The next round would pass the bound on the cells halved.
+    Work,
+}
+
+impl PadsStop {
+    /// **The clause this stop is rendered by.**
+    #[must_use]
+    pub const fn sentence(self) -> &'static str {
+        match self {
+            Self::Stall => "which halving no longer narrows",
+            Self::Work => "at the bound on the work spent narrowing them",
+        }
+    }
+}
 
 /// **Why a marched loop's uniqueness tube could not be read**
 /// ([`CarryRefusal::TubeUnread`]).
@@ -3187,9 +3233,9 @@ pub struct CarriedComponent<T: Real> {
     /// the certificate's W3 rests on it. A marched loop's is
     /// [`pad_and_reach`]'s over its chain boxes ([`Tube::of`]). A fitted
     /// spline × implicit arc's is the widest of its cells'
-    /// ([`Self::boxes`]): the farthest its carrier stands from the cells
-    /// of its chart tube's windows, cut to the knot rectangle, that the
-    /// partner's form does not clear of the band, imaged on the wall,
+    /// ([`Self::boxes`]): the farthest from its carrier that the cells of
+    /// its chart tube's windows stand, cut to the knot rectangle, less
+    /// those the partner's form clears of the band, imaged on the wall,
     /// each read against the whole carrier (`spline_implicit::cells`).
     /// Two facts make it the pad, each a limb of the C2 certificate.
     ///
@@ -3200,10 +3246,16 @@ pub struct CarriedComponent<T: Real> {
     ///   point of the tube's distance from the carrier, or every point of
     ///   it the partner's form does not clear, which the section's points
     ///   are among. And limbs 1 and 2 put the carrier within `hull_sup`
-    ///   of each surface, which the pad holds: a marched loop's is
-    ///   checked to ([`CarryRefusal::PadShort`]), and a cell's is no less
-    ///   than it. So a point of the carrier lies within the pad of each
-    ///   surface too.
+    ///   of each surface, which the pad holds, so a point of the carrier
+    ///   lies within the pad of each surface too. A marched loop's pad
+    ///   is read once off its whole tube and is at least the tube's
+    ///   radius, so a limb-2 bound past it is a certificate outrunning
+    ///   its own tube, and refuses ([`CarryRefusal::PadShort`]). A
+    ///   cell's is read off what the partner's form leaves of the tube
+    ///   and narrows as the cell is halved, so it can fall under a
+    ///   limb-2 bound that is sound and merely loose (the bound is on
+    ///   the carrier's distance from the surfaces, not on the section's
+    ///   from the carrier): a cell reads the larger of the two.
     /// - **Uniqueness**: limb 3's tube holds this component's arc alone,
     ///   but a point is read on an arc by its cells, not by its tube. Two
     ///   fitted spline × implicit arcs' cells are refined until they
@@ -3275,6 +3327,25 @@ impl PadBox {
     }
 }
 
+/// The least and greatest corners of the enclosure `b`, `None` where a
+/// side of it is not a certified interval.
+fn box_corners(b: crate::ssi::enclose::Box3) -> Option<([f64; 3], [f64; 3])> {
+    use geom_core::Bounds;
+    let side = |i: geom_core::Interval| i.is_certified().then(|| (i.lo(), i.hi()));
+    let [x, y, z] = [side(b.x)?, side(b.y)?, side(b.z)?];
+    Some(([x.0, y.0, z.0], [x.1, y.1, z.1]))
+}
+
+impl PadBox {
+    /// The box of an enclosure `b` whose points stand within `pad` of
+    /// the carrier, `None` where a side of `b` is not a certified
+    /// interval.
+    fn of(b: crate::ssi::enclose::Box3, pad: f64, node: Option<usize>) -> Option<Self> {
+        let (lo, hi) = box_corners(b)?;
+        Some(Self { lo, hi, pad, node })
+    }
+}
+
 /// Whether `p` lies in the box `(lo, hi)` widened by `by` along each
 /// axis ([`PadBox::holds`], [`TubeRun::holds`]).
 fn box_holds<T: Decide>(
@@ -3314,14 +3385,8 @@ impl TubeRun {
     /// The run of a piece whose enclosure is `b`, `None` where a side of
     /// it is not a certified interval.
     fn of(b: crate::ssi::enclose::Box3, run: (f64, f64)) -> Option<Self> {
-        use geom_core::Bounds;
-        let side = |i: geom_core::Interval| i.is_certified().then(|| (i.lo(), i.hi()));
-        let ([x, y, z], run) = ([side(b.x)?, side(b.y)?, side(b.z)?], run);
-        Some(Self {
-            lo: [x.0, y.0, z.0],
-            hi: [x.1, y.1, z.1],
-            run,
-        })
+        let (lo, hi) = box_corners(b)?;
+        Some(Self { lo, hi, run })
     }
 
     /// Whether `p` lies in the piece widened by `by` along each axis.
