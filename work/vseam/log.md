@@ -538,3 +538,12 @@ row's last section says what moved.
     - **VERSIONS** is opened (`work/versions/`, `ready`, no orchestrator) with one P0 X row, `the-store-keeps-every-version-and-history-undoes-without-destroying` (30 points, design), carrying the designers' converged recommendation as evidence;
     - `document-seam-no-in-session-change-detection` moved there by `git mv`, parked on that row.
   - The §3 split (`the-part-chooser-calls-every-document-a-part`) stays here. Fork-log row 301 records Ev's decision. (VSEAM)
+- 2026-11-23 — **Ev on CI, in chat:** "if you have any PRs which only touch docs, comments, or work items, then (if applicable) just run the work lint locally and don't wait for ci. also, as always, you can do whatever tests you want to feel comfortable with merging something locally and skip ci". Applied from here on: PR 7462's state commits merged on local `work.py lint`, and PR 7466 merges on a local battery instead of its queued run.
+- 2026-11-23 — **The retirement closes** (PR 7466, which carries PR 7465). It closes:
+  - `on-the-picked-face-draws-the-profile-there`;
+  - `doc-sketch-on-face-retires-for-a-profile-drawn-on-the-face`;
+  - the parent issue `on-the-picked-face-makes-a-profile-and-extrudes-it-in-one-checkbox`, Ev's 2026-11-02 report.
+
+  `SessionOp::SketchOnFace`, `Doc.sketch_on_face`, pncad's re-exports and editor-core's fused act are gone. A sketch on a face is a profile drawn on the face's chart, and the extrude and the combine are their own acts.
+  - **A semantic conflict with main was caught at the merge.** `7661fad` (2026-11-22) added `intent_s6_e_traced_on_a_face::a_boss_traced_across_two_cylinders_coaxial_only_at_zero_tilt_is_not_proved`, a new caller of `editor_core::sketch_on_face`. The textual merge was clean, and only a grep of the merged tree found it. It is ported to `draw_on_face` plus an extrude of 2.0, the same place the fused act put the upright cylinder.
+  - **Class finding:** a deletion PR that waits in a queue can be met by a new caller on main, and a text merge cannot see it. The deletion's own sweep has to be re-run on the merged tree (discipline §5: "a sweep is accurate as of your merge base"). (VSEAM)
