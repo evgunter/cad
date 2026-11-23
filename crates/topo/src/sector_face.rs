@@ -358,7 +358,11 @@ pub(crate) fn resolve<T: Decide>(
             carrier,
         })
     };
-    let surface = view.surface();
+    // A pending face has no arm, refused as the spline kind it stands in.
+    let surface = view.surface().map_err(|_| SectorFaceError::Unsupported {
+        face,
+        kind: SurfaceKind::Nurbs,
+    })?;
     if let Some(chart) = surface.spline_chart() {
         let kind = surface.kind();
         let normal = spline_normal(body, point(), into, (face, sense), (chart, kind), band)?;
@@ -466,9 +470,6 @@ fn spline_normal<T: Decide>(
     (chart, kind): (&geom::NurbsSurface<T>, SurfaceKind),
     band: Band,
 ) -> Result<OutwardNormal<T>, SectorFaceError> {
-    if chart.is_placeholder() {
-        return Err(SectorFaceError::Unsupported { face, kind });
-    }
     let unplaced = SectorFaceError::Unplaced { face, kind };
     // The sector's two bounding edges in this face's loop: `into`,
     // ending at the vertex, and the half-edge after it, leaving it. Each

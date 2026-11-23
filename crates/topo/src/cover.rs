@@ -746,7 +746,7 @@ fn torn_outer_loop<T: Decide>(
     f: FaceView<'_, T>,
     refusal: impl core::fmt::Debug,
 ) -> ! {
-    f.surface();
+    f.slot();
     let (outer, outer_loop) = f.outer();
     for member in body.loop_members_linked(outer, outer_loop) {
         if let BoundaryMember::Edge { he, half, ek, edge } = member {

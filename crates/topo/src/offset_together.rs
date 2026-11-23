@@ -213,7 +213,9 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
             let data = body
                 .face(face)
                 .ok_or(ReplaceFaceError::StaleFace { face })?;
-            let surface = data.surface();
+            let surface = data
+                .surface()
+                .map_err(|_| ReplaceFaceError::PlaceholderSurface { face })?;
             let Surface::Plane { frame, .. } = surface else {
                 return Err(ReplaceFaceError::TogetherNonPlanar {
                     face,
@@ -437,7 +439,7 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
         };
         // The edge's two planes as the door leaves them.
         let moved = |p: &MovedPlane<T>| match body.get_surface(p.old_key) {
-            Some(&Surface::Plane {
+            Ok(&Surface::Plane {
                 frame: carrier_frame,
             }) => Surface::Plane {
                 frame: carrier_frame.with_origin(carrier_frame.origin() + p.delta),
@@ -511,7 +513,7 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
         let Surface::Plane {
             frame: carrier_frame,
             ..
-        } = face.surface().clone()
+        } = face.described().clone()
         else {
             unreachable!("{first:?}'s chart was read a plane in this call's plan phase")
         };

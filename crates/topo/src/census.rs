@@ -2014,8 +2014,9 @@ fn placed<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) -> Option<Option<FaceContainment>> {
     let plane = body.face(f).and_then(|view| {
-        held.check(view.surface(), band);
-        match *view.surface() {
+        let surface = view.surface().ok()?;
+        held.check(surface, band);
+        match *surface {
             geom::Surface::Plane { frame, .. } => {
                 let normal = frame.axis();
                 Some(normal)
@@ -2348,7 +2349,7 @@ fn pair_contact<T: Decide>(
     // a sphere and a plane, or two spheres. A sphere against any other
     // carrier (a ball seated in a bore meets it along a circle) is the
     // line lane's, which derives no line for it.
-    let kind = |f: FaceKey| body.face(f).map(|d| d.surface().kind());
+    let kind = |f: FaceKey| body.face(f).and_then(|d| Some(d.surface().ok()?.kind()));
     match (kind(fx), kind(fy)) {
         (
             Some(geom::SurfaceKind::Sphere),
@@ -4703,7 +4704,7 @@ fn curved_overlap_cells<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Vec<Point3<T>> {
-    let Some(surface) = body.face(f).map(|f| f.surface()) else {
+    let Some(Ok(surface)) = body.face(f).map(|f| f.surface()) else {
         return Vec::new();
     };
     match line_on_quadric_carrier(surface, e.p0, e.p1, "pm_census_ef_curved_residual", band) {
@@ -7200,7 +7201,7 @@ fn sweep_same_solid_tangent_lines<T: Decide>(
             face,
             solid: body.solid_of_face(face)?,
             surface: f.record().surface,
-            kind: f.surface().kind(),
+            kind: f.surface().ok()?.kind(),
             edges: body
                 .unchecked_face_boundary(f.record())
                 .filter_map(|read| match read {
@@ -9216,7 +9217,7 @@ impl<T: Decide> FaceSector<T> {
         // a defect (tier 1 admits none); a lone-vertex loop is no ring of
         // the polygon; a face that resolves off a plane is curved.
         let face = body.face(f).ok_or(TouchUnread::Corrupt)?;
-        let surface = face.surface().clone();
+        let surface = face.surface().map_err(|_| TouchUnread::Curved(CurvedUnread::Unreadable))?.clone();
         let fg = planar_face(geo, f).ok_or(TouchUnread::Curved(CurvedUnread::Unreadable))?;
         fg.walked?;
         // A planar face at rest has an outward normal: none is a defect.
@@ -9498,10 +9499,11 @@ fn tangent_sectors<T: Decide>(
 ) -> Result<Vec<crate::link::TangentPiece<T>>, TouchUnread> {
     use crate::link::{Bound, TangentFan};
     let face = body.get_face(f).ok_or(TouchUnread::Corrupt)?;
-    let surface = body
-        .get_surface(face.surface)
-        .cloned()
-        .ok_or(TouchUnread::Corrupt)?;
+    let surface = match body.get_surface(face.surface) {
+        Ok(surface) => surface.clone(),
+        Err(crate::SurfaceMiss::Stale) => return Err(TouchUnread::Corrupt),
+        Err(crate::SurfaceMiss::Pending) => return Err(TouchUnread::Curved(CurvedUnread::Unreadable)),
+    };
     let corner = |v: VertexKey| holds.contains(&Held::Corner(v));
     // A lone-vertex loop has no sector to give but at a corner held.
     let mut cycles = Vec::new();
@@ -9862,7 +9864,7 @@ impl<T: Decide> Link<T> {
             }
             let clear = clear.ok_or(TouchUnread::Corrupt)?;
             let ruled = Ruled {
-                surface: face.surface().clone(),
+                surface: face.surface().map_err(|_| TouchUnread::Curved(CurvedUnread::Unreadable))?.clone(),
                 sense: face.sense(),
                 outward: foot_normal(body, f, p, band)?,
                 along,
@@ -9909,7 +9911,9 @@ fn round_face<T: Decide>(
     p: Point3<T>,
 ) -> Result<Option<(crate::link::Round<T>, T)>, TouchUnread> {
     let face = body.face(f).ok_or(TouchUnread::Corrupt)?;
-    let surface = face.surface();
+    let Ok(surface) = face.surface() else {
+        return Ok(None);
+    };
     let Some(round) = crate::link::Round::of(surface, face.sense()) else {
         return Ok(None);
     };
@@ -10305,25 +10309,26 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
         .map(|f| (f, false))
         .chain(planar_keys.iter().map(|f| (f, true)))
     {
-        // A placeholder surface is "no description yet" (mid-surgery
+        // A pending surface is "no description yet" (mid-surgery
         // scaffolding): there is no geometry to be within reach OF —
         // excluded from the backstop. What licenses the exclusion is a
         // named check, not an accident: the census's only production
         // caller is [`crate::validate::validate_pseudomanifold`], and
         // it runs `census_and_certify` ONLY when `tier3_local_checks`
         // came back empty, whose check 1 pushes `UncertifiableSurface`
-        // for every placeholder face. So no body reaching this arm
+        // for every pending face. So no body reaching this arm
         // through the public door carries one. The unsound direction is
         // a SECOND caller of `census_and_certify` that does not gate on
         // tier 3 — this skip would go quiet on faces the arm can say
         // nothing about. (The in-src rows below are exactly that
         // caller, deliberately: they run open euler scaffolds below
-        // tier 3's bar, and their seed faces still carry the mvfs
-        // placeholder. They are why this line is reachable at all.)
-        if matches!(
-            body.get_face(f).and_then(|d| body.get_surface(d.surface).ok()),
-            Some(geom::Surface::Nurbs(p)) if p.is_placeholder()
-        ) {
+        // tier 3's bar, and their seed faces are still pending. They are
+        // why this line is reachable at all.)
+        if body
+            .get_face(f)
+            .and_then(|d| body.surface_slot(d.surface))
+            .is_some_and(crate::SurfaceSlot::is_pending)
+        {
             continue;
         }
         let Some(solid) = solid_of(f) else { continue };
@@ -12164,7 +12169,7 @@ fn flush_pairs<T: crate::props::AtRestPolicy>(
     band: Band,
     region: Option<T::RegionLane>,
 ) -> FlushAtRest {
-    let kind = |f: FaceKey| Some(body.face(f)?.surface().kind());
+    let kind = |f: FaceKey| Some(body.face(f)?.surface().ok()?.kind());
     let group_of = |f: FaceKey| body.solid_of_face(f).and_then(group);
     let edges: Vec<BTreeSet<EdgeKey>> = faces
         .iter()
@@ -12278,7 +12283,7 @@ fn flush_pairs<T: crate::props::AtRestPolicy>(
 /// decides exactly ([`geom_brep::carrier_eq::exact_curved`]).
 fn exact_curved_face<T: Real>(body: &Body<T>, f: FaceKey) -> bool {
     body.face(f)
-        .map(|f| f.surface())
+        .and_then(|f| f.surface().ok())
         .is_some_and(geom_brep::carrier_eq::exact_curved)
 }
 
