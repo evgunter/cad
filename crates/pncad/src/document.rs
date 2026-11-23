@@ -98,22 +98,23 @@ pub use editor_core::{
     Recorded, Recording, SectionId, SectionIdFault, SlotValue, StepId, StepIdFault, Took, apply,
     apply_replayed, slot_admits,
 };
+// `OperandRead` is the element of `Doc::operand_reads`, and `ReadIndex`
+// what `Doc::read_index` answers: what a node reads, and what reads it.
 pub use editor_core::{
     ArcShape, AuthoredStep, PenRun, PenStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
     pen_run, shape_of_recorded, step_kernel,
 };
+pub use editor_core::{OperandRead, ReadIndex};
 // The delete door's companion query: which nodes a delete of one node
 // must take with it, in an order the door accepts. A GUI both states
 // the cost of the button and builds the sequence behind it from this.
 pub use editor_core::cascade_delete_order;
-// "Sketch on this face" (DM1): the profile, its extrude, the copy placed
-// on the face and the union, as one action (`Recording::sketch_on_face`
-// composes it into a longer one).
-pub use editor_core::{SketchOutcome, SketchedOnFace, sketch_on_face};
 // A profile drawn on a face (DM1): one profile node on the face's chart,
 // in the face's body's space, where the library and the viewer draw on a
 // face (`Recording::draw_on_face` composes it into a longer action), and
 // the chart it draws on, for a reader that reads it before drawing there.
+// A sketch on a face is this profile, an extrude of it by a signed depth
+// and a combine with the face's body.
 pub use editor_core::{
     DrawnOnFace, FaceUnread, OnFace, chart_on_face, draw_on_face, nearest_to_face,
 };
@@ -495,8 +496,8 @@ pub use editor_core::{
 // between two copies' material is an `InterferenceFinding`: its copies
 // (`CopyRef`), its `Overlap` (the bounding faces as `FaceSite`s, or
 // `Unlocalized` with why), the assertion that quiets it, if any, and
-// whether one could (`quietable`): one no assertion could quiet refuses
-// at no severity. A pair the census could not look at is an
+// the faces one would be written over (`quieting`): one no assertion
+// could quiet refuses at no severity. A pair the census could not look at is an
 // `AtRestEvidence`, loud and never refusing. A part's own findings cross the seam with it, each
 // reported once, as the part's: `CarriedInterference`,
 // `CarriedAtRestFinding` and `CarriedCoincidence`, each with the `Route`
@@ -509,6 +510,12 @@ pub use editor_core::{
     CarriedFindings, CarriedInterference, CopyRef, FaceSite, InterferenceFinding, Overlap,
     PinnedDoc, Route, Unlocalized,
 };
+// What a finding's assertion recourse determines, as data: the
+// `Quieting` an unproven coincidence carries (a `Gap` or `Distance`
+// over two `QuietingRef`s, `= 0`, with the edits that author it), and
+// the `OpposedPair` of faces an interference's quieting `Gap` is
+// written over.
+pub use editor_core::{OpposedPair, Quieting, QuietingRef};
 
 // Split, inline and flatten: the first-class
 // recorded refactorings. `split` cuts a closed node set out into a new

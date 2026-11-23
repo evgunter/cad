@@ -2061,6 +2061,7 @@ fn node_error_tags_are_the_published_words() {
         NotFinished => "not_finished",
         UnfinishedLeaf => "unfinished_leaf",
         EmptyHalf => "empty_half",
+        HalfOfAFamily => "half_of_a_family",
         MemberOutOfRange => "member_out_of_range",
         MemberRefused => "member_refused",
         TwoBinders => "two_binders",
@@ -3579,7 +3580,7 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
         }),
         recourse: pncad::document::coincide::Recourse::OneConstruction,
         restated: Vec::new(),
-        quietable: false,
+        quieting: None,
     };
     // One fold row reported with it: the payload counts it.
     let unproven = {
@@ -3587,7 +3588,7 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
             row,
             residual,
             recourse,
-            quietable,
+            quieting,
             ..
         } = &unproven
         else {
@@ -3602,7 +3603,7 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
             residual: residual.clone(),
             recourse: *recourse,
             restated: vec![(fold, (**residual).clone(), *recourse)],
-            quietable: *quietable,
+            quieting: quieting.clone(),
         }
     };
     carries(&unproven, &["reason", "relation", "site", "restated"]);
@@ -4440,7 +4441,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "ball_does_not_fit",
             "band",
             "body_not_intact",
-            "certify",
             "chain_not_connected",
             "chain_not_g1",
             "chamfer_arm_unsupported",
@@ -4453,6 +4453,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "not_finished",
             "oblique_mixed_corner",
             "op",
+            "pcurve_mint",
             "radius_headroom",
             "repeated_edge",
             "ring_clearance",
@@ -5257,6 +5258,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "expr",
             "extrude",
             "fillet",
+            "half_of_a_family",
             "index_count",
             "index_count_out_of_range",
             "loft",
@@ -6246,7 +6248,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "chart_singularity_undecided",
             "coincident_wedges_overlap",
             "coincident_wedges_overlap_undecided",
-            "component_euler_violation",
             "contact_contradicted",
             "curve_datum_undecided",
             "curved_sense_inverted",

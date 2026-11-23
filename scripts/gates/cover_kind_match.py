@@ -651,8 +651,17 @@ def walk(seq, bound, out, flat, skip):
         i = max(j, i + 1)
 
 
+CALLED_DISTANCE = re.compile(r'(?<![A-Za-z0-9_])(?:norm|distance)(?![A-Za-z0-9_])')
+
+
 def balls(text):
     """Each ball's position: the start of the sum it is read in."""
+    # A ball pairs a `major` leaf with a `minor` one, or a `distance` leaf
+    # (a called `norm` or `distance`) with a radius; text spelling neither
+    # pair's first half has none, and the walk below is the gate's cost.
+    low = text.lower()
+    if not ('major' in low and 'minor' in low) and not CALLED_DISTANCE.search(text):
+        return []
     bound = set(re.findall(r'\blet\s+(?:mut\s+)?([a-z_]\w*)\s*=[^;=]*?(?:radius|speed_hi)\b[^;]*;', text))
     out = []
     walk(nest(tokens(text)), bound, out, set(), set())

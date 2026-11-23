@@ -384,22 +384,38 @@ fn the_doors_refuse_an_index_where_no_family_is_read() {
         doc.node_reach(xs).chain(),
         "the member read at its binder's key carries its index to the reader"
     );
-    // A family argument carries no index.
-    assert!(
-        matches!(
-            insert_refused(
-                &doc,
-                Node::Union {
-                    members: Bodies::Family(member(xs, 0)),
-                },
-            ),
-            EditError::IndexedRead {
-                fault: editor_core::InputFault::IndexedFamily,
-                ..
-            }
+    // A family argument carries no index, at every list seat alike.
+    for (seat, node) in [
+        (
+            "union",
+            Node::Union {
+                members: Bodies::Family(member(xs, 0)),
+            },
         ),
-        "a family argument reads every member"
-    );
+        (
+            "intersect",
+            Node::Intersect {
+                members: Bodies::Family(member(xs, 0)),
+            },
+        ),
+        (
+            "assemble",
+            Node::Assemble {
+                members: Bodies::Family(member(xs, 0)),
+            },
+        ),
+    ] {
+        assert!(
+            matches!(
+                insert_refused(&doc, node),
+                EditError::IndexedRead {
+                    fault: editor_core::InputFault::IndexedFamily,
+                    ..
+                }
+            ),
+            "{seat}: a family argument reads every member"
+        );
+    }
     // A family is read by one value per index it is keyed by.
     let two = BodyRead::indexed(xs, vec![Formula::count(0), Formula::count(1)]);
     assert!(

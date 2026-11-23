@@ -2874,19 +2874,6 @@ class VarName:
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 
-class SketchedOnFace:
-    """What `Doc.sketch_on_face` inserted."""
-
-    @property
-    def profile(self) -> NodeId: ...
-    @property
-    def extrude(self) -> NodeId: ...
-    @property
-    def placement(self) -> NodeId: ...
-    @property
-    def union(self) -> NodeId: ...
-    def __repr__(self) -> str: ...
-
 class Measured:
     """What `Doc.measure` inserted: the measures, one per primitive in
     order, and their outputs in the same order."""
@@ -4043,6 +4030,14 @@ class Doc:
 
         Exactly `insert(Node.measure(p))` per primitive, recorded as one
         action and answered with the outputs."""
+    def assert_quieting(self, quieting: Quieting) -> NodeId:
+        """Author the assertion a check carries (`CheckEvidence.quieting`)
+        as one action: a split's unnamed tool named first, the measure,
+        then the assertion, `= 0` over its output; all land or none does.
+        Answers the assertion's id, the node the quieted finding names.
+        A `quieting` the checks of another document found raises
+        `EditError` with variant `evaluation_of_another_document`; a
+        refusal of the insert door raises its own `EditError`."""
     def place(
         self,
         source: _BodyArg,
@@ -4151,31 +4146,45 @@ class Doc:
         it, a split of it) carries the same names, and answers them
         too."""
 
-    def sketch_on_face(
+    def draw_on_face(
         self,
         body: _BodyArg,
         face: str,
-        outline: ClosedLoop | list[ClosedLoop],
-        distance: _LengthArg,
-        spin: Optional[_AngleArg] = None,
+        outline: ClosedLoop | Chain | list[ClosedLoop | Chain],
         *,
         orient: Optional[Orientation] = None,
+        spin: Optional[_AngleArg] = None,
+        slides: Optional[tuple[_LengthArg, _LengthArg]] = None,
+        traced: Optional[list[tuple[_BodyArg, str]]] = None,
         label: Optional[str] = None,
-    ) -> SketchedOnFace:
-        """"Sketch on this face": `outline` drawn on its own plane and
-        extruded `distance` up its own `z`, the copy placed against
-        `face` of `body` (its start cap resting on the face's plane,
-        looking out along the outward normal, its origin over the face
-        body's own, turned `spin` about the normal; zero when `None`),
-        and `body` and the copy fused. `face` is opaque name text from
+        resolver: Optional[Workspace] = None,
+    ) -> NodeId:
+        """A profile drawn on a face: `outline` drawn on the chart of
+        `face` of `body`, the frame a plane placement onto the face
+        gives, as one profile node in `body`'s space; nothing is
+        placed. `outline` is a `ClosedLoop` (as `Node.profile` takes
+        one) or a traced `Chain` (as `Node.drawn_profile` takes one),
+        or a list of them, outer first; `traced` is the faces of that
+        space a chain reads the trace of, each `(body, name)`, by its
+        place in the list. `face` is opaque name text from
         `Evaluation.all_faces` / `select`; on one member of a family,
-        `body` is `xs[i]` and `face` the member's own name
-        (`Evaluation.select(xs[i], ...)`), and the copy fuses with the
-        whole family. `orient=` is the mate's
-        `Orientation`; when `None`, the one nearest where the copy
-        stands, the profile's `z` along the face's outward normal. One
-        putting `z` opposite the normal is written backwards
-        (`mate_backwards`). One action; `label=` labels the union."""
+        `body` is `xs[i]` and `face` the member's own name.
+
+        The chart's `z` is the face's outward normal; its `x` and
+        origin are the space's under `orient`, carried onto the face by
+        the least turn, then turned `spin` about the normal and moved
+        by the two `slides`, each zero when `None`. The slides run
+        along the space's own axes: the two other than the one `orient`
+        puts the chart's `z` most along, in `x`, `y`, `z` order.
+        `orient=None` writes the orientation nearest the face, read off
+        it as it evaluates under `resolver=`; one putting `z` opposite
+        the normal refuses at `evaluate` (`pose_degenerate`,
+        `face_chart_backwards`), naming the orientation to write. A face
+        that is no plane refuses there too.
+
+        One action, answering the profile's id; `label=` labels it. A
+        boss is `Node.extrude(profile, d)` united with `body`; a pocket
+        is the same profile extruded `-d` and subtracted from it."""
 
     @property
     def node_count(self) -> int: ...
@@ -6538,6 +6547,52 @@ class CarriedInterference:
     @property
     def via(self) -> list[NodeId]: ...
 
+class QuietingRef:
+    """One reference of a `Quieting`'s measure, as the measure reads it:
+    the entity `name` names in the body `read` reads, read as that cell
+    or as the pose `pose` read off it; or, with no `name`, the variable
+    `read` itself (the plane a split cuts with). Equal where all three
+    are."""
+
+    @property
+    def read(self) -> Var:
+        """The variable read: the body the entity is selected in, or the
+        variable the measure reads as it is."""
+
+    @property
+    def name(self) -> Optional[str]:
+        """The entity's name in that body's table, as opaque text; `None`
+        for a variable read as it is."""
+
+    @property
+    def pose(self) -> Optional[str]:
+        """The kind of the pose read off the cell, `axis` or `point`;
+        `None` for the cell itself."""
+
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
+class Quieting:
+    """The assertion that would quiet an unproven coincidence:
+    `measure(references) = 0`, a `gap` or a `distance` over the row's
+    two cells as that measure reads them, in the document the checks ran
+    over. The kernel mints it only where the rule that decides which
+    holding assertion quiets the row takes it, so the row is quiet once
+    `Doc.assert_quieting` has authored it. `str()` is the claim in words.
+    Equal where the claim and the document are."""
+
+    @property
+    def measure(self) -> str:
+        """The measure related to zero: `gap` or `distance`."""
+
+    @property
+    def references(self) -> tuple[QuietingRef, QuietingRef]:
+        """The measure's two references, in its order: a `gap`'s outer
+        then inner."""
+
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
 class CarriedCoincidence:
     """A coincidence a document BELOW this one leaves unproven, with the
     route it arrived by: an `unproven_coincidence` finding's
@@ -6642,11 +6697,19 @@ class InterferenceFinding:
     @property
     def loud(self) -> bool: ...
     @property
-    def quietable(self) -> bool:
-        """Whether an assertion the quieting rule accepts could quiet it,
-        as the rule itself answers: some holding `gap` assertion over two
-        of its bounding faces would quiet it. One no assertion could
-        quiet refuses at no severity."""
+    def quieting(self) -> tuple[FaceSite, FaceSite] | None:
+        """The two faces a `gap` that would quiet it is written over,
+        outer then inner, as the quieting rule itself answers: a holding
+        `gap(outer, inner)` related to a negative bound by `<=` or `=`
+        quiets it, and the bound is the author's. `None` where no
+        assertion could quiet it, which refuses at no severity."""
+    @property
+    def quieting_references(self) -> tuple[QuietingRef, QuietingRef] | None:
+        """The two references an author writes that `gap` over, outer
+        then inner, each a selection of one name in its copy's read: a
+        family member's face by the name its member wraps, so the
+        assertion reaches the family's index and each member reads its
+        own face. `None` exactly where `quieting` is."""
 
 # --- the recorded refactorings ----------------------------------------
 # Both are PURE: they hand back the new document VALUES plus the
@@ -7055,6 +7118,13 @@ class CheckEvidence:
     def coincidence(self) -> Optional[Coincidence]: ...
     @property
     def restated(self) -> Optional[list[Coincidence]]: ...
+    @property
+    def quieting(self) -> Optional[Quieting]:
+        """The assertion that would quiet an unproven coincidence, on
+        `unproven_coincidence` alone, and `None` where no assertion says
+        the row: then the finding names the construction alone and
+        `enforce_checks` refuses it at no severity."""
+
     @property
     def interference(self) -> Optional[InterferenceFinding]: ...
     @property

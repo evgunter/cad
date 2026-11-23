@@ -2568,8 +2568,10 @@ impl<P> Node<P> {
         P: crate::ProfilePayload,
     {
         // An indexed read carries its family's rank of indices, and a
-        // family argument none.
-        if let Node::Union { members, .. } | Node::Intersect { members, .. } = self
+        // family argument none: at every list seat alike.
+        if let Node::Union { members, .. }
+        | Node::Intersect { members, .. }
+        | Node::Assemble { members, .. } = self
             && let crate::Bodies::Family(read) = members
             && read.is_member()
         {

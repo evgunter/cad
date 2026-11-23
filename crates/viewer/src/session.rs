@@ -2356,7 +2356,6 @@ impl DocSession {
                 ids,
             } => self.edit_profile(node, &base, loops, ids),
             op @ (SessionOp::AddProfile { .. }
-            | SessionOp::SketchOnFace { .. }
             | SessionOp::DrawOnFace { .. }
             | SessionOp::AddExtrude { .. }
             | SessionOp::AddRevolve { .. }
@@ -2414,12 +2413,6 @@ impl DocSession {
     fn creation_door(&self, op: SessionOp) -> Result<Creating, Refusal> {
         match op {
             SessionOp::AddProfile { loops } => self.add_profile(loops),
-            SessionOp::SketchOnFace {
-                face,
-                loops,
-                distance,
-                spin,
-            } => self.sketch_on_face(&face, loops, distance, spin),
             SessionOp::DrawOnFace {
                 face,
                 traced,
@@ -3458,6 +3451,9 @@ impl DocSession {
         // History ids are arena positions of the outgoing history.
         self.inserts.clear();
         self.forget_priced_delete();
+        // A bundle's scratch solve names a placement of the outgoing
+        // document, which the incoming one may hold by the same id.
+        self.landing = None;
     }
 
     /// Drop the kept delete rehearsal (`DocSession::priced`).
@@ -3483,53 +3479,6 @@ impl DocSession {
                 ids: Vec::new(),
                 on: None,
             }))
-        }))
-    }
-
-    /// **"Sketch on this face"** ([`SessionOp::SketchOnFace`]): the
-    /// kernel's one gesture (`Recording::sketch_on_face`) over the body
-    /// the face is on, and the union taking over what read that body
-    /// ([`Takeover`]), in one action. The node made is the profile, the
-    /// piece the gesture adds.
-    fn sketch_on_face(
-        &self,
-        face: &FaceSelection,
-        loops: Vec<LoopProgram<Formula>>,
-        distance: Formula,
-        spin: Formula,
-    ) -> Result<Creating, Refusal> {
-        let doc = self.committed_doc();
-        let (body, name) =
-            picked_body(doc, self.evaluation(), face).ok_or_else(|| Refusal::PickedMember {
-                node: doc.spoken(face.node),
-            })?;
-        self.require_read(&body.read, NodeKindWanted::Body)?;
-        let opts = self.eval_options();
-        let takeover = self.takeover(&body.read)?;
-        Ok(taking_over(takeover, move |run| {
-            let sketched = run.sketch_on_face(
-                body,
-                name,
-                ProfileProgram {
-                    loops,
-                    ids: Vec::new(),
-                    on: None,
-                },
-                distance,
-                spin,
-                None,
-                &opts,
-                &pncad::document::CancelToken::new(),
-            )?;
-            // The made node is the added piece's root (the profile), so
-            // deleting it collapses the union back to the body
-            // (`editor_core::continuation::splice`); the union replaces the body.
-            Ok(Wrote {
-                made: sketched.profile,
-                replacement: sketched.union,
-                whole: None,
-                intact: Vec::new(),
-            })
         }))
     }
 
@@ -3759,13 +3708,21 @@ impl DocSession {
                 })
                 .collect(),
         );
+        // A union's and an intersect's members are a list seat, which
+        // takes a family whole as well as one body (D10 `[repetition]`).
+        let list = matches!(spec, BooleanSpec::Union(_) | BooleanSpec::Intersect(_));
         for seat in spec.operands() {
             let wanted = if seat.is_indexed() {
                 NodeKindWanted::Instances
             } else {
                 NodeKindWanted::Body
             };
-            self.require_read(&seat.read, wanted)?;
+            let family = list
+                && !seat.is_indexed()
+                && admits_read(doc, &seat.read, NodeKindWanted::Instances);
+            if !family {
+                self.require_read(&seat.read, wanted)?;
+            }
         }
         // A node spelled twice is not refused: a repeated read glues
         // (A∪A = A∩A = A, A−A the typed empty body), so it is a
@@ -4275,10 +4232,14 @@ impl DocSession {
         // the body it defines: a revolve's body, not its axis.
         let doc = self.committed_doc();
         let read = as_body(doc, target.into());
-        match read {
-            // A node with no body output: the kind gate's own refusal.
-            Operand::Node(node) => self.require_kind(node, NodeKindWanted::Body)?,
-            _ => self.require_read(&read, NodeKindWanted::Body)?,
+        // A family is read at the one member the picks name
+        // (`picked_selection`), so the gate takes a family here too.
+        if !admits_read(doc, &read, NodeKindWanted::Instances) {
+            match read {
+                // A node with no body output: the kind gate's own refusal.
+                Operand::Node(node) => self.require_kind(node, NodeKindWanted::Body)?,
+                _ => self.require_read(&read, NodeKindWanted::Body)?,
+            }
         }
         let takeover = self.takeover(&read)?;
         let (body, selection) = picked_selection(doc, self.evaluation(), read, selection)
@@ -4351,8 +4312,7 @@ impl DocSession {
     /// **The takeover of the body `read` names**, in the committed
     /// document ([`Takeover::of`]), refused where it would strand a pick
     /// ([`Takeover::stranded_pick`]): the takeover a gesture whose result
-    /// holds no pieces makes (a feature, a mirror's or a sketch's union,
-    /// a pattern).
+    /// holds no pieces makes (a feature, a mirror's union, a pattern).
     fn takeover(&self, read: &Operand) -> Result<Takeover, Refusal> {
         let takeover = self.unchecked_takeover(read);
         takeover.stranded_pick(self.committed_doc())?;
@@ -5583,7 +5543,8 @@ impl ProductDoor {
                 }),
             };
         }
-        let world_copies: Vec<(RecipeNodeId, VarId)> = crate::world::placements_of_var(doc, var)
+        let world_copies: Vec<(RecipeNodeId, VarId)> = doc
+            .placements_of_var(var)
             .into_iter()
             .filter(|&copy| doc.node_space(copy) == Some(VarId::WORLD))
             .filter_map(|copy| Some((copy, doc.output(copy, 0)?)))
@@ -5693,7 +5654,7 @@ impl Takeover {
     /// pick reads through — a copy of the body that is the pick's own
     /// placement, or a `⊔` whose operand is the piece the pick names,
     /// read by the pick's placement or along its path. A feature's
-    /// result, a mirror's or a sketch's union, a combine and a pattern
+    /// result, a mirror's union, a combine and a pattern
     /// hold no pieces, and a pick is never re-pointed, so re-pointing
     /// that reader would leave the pick naming a piece its copy no
     /// longer holds.
@@ -5715,7 +5676,7 @@ impl Takeover {
         let copies = self
             .sources
             .iter()
-            .flat_map(|&source| crate::world::placements_of_var(doc, source));
+            .flat_map(|&source| doc.placements_of_var(source));
         for copy in copies {
             let outputs = doc.outputs(copy);
             if let Some(&(pick, _)) = picks

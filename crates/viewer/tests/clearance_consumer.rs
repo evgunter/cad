@@ -51,7 +51,7 @@ fn scene(
 
 /// The world placement that draws `block`.
 fn drawn(session: &DocSession, block: RecipeNodeId) -> RecipeNodeId {
-    let [placement] = viewer::world::placements_of(session.committed_doc(), block)[..] else {
+    let [placement] = session.committed_doc().placements_of(block)[..] else {
         panic!("each block is placed once");
     };
     placement
@@ -712,10 +712,10 @@ fn a_body_drawn_twice_is_refused_at_the_pick_in_the_tools_words() {
     assert_eq!(tool.body(0), None, "the seat is untouched");
 }
 
-/// **A requirement over a pattern's family is refused by kind, in
-/// words**: a clearance seat takes one body, so a family there refuses
-/// at the door (D10 `[repetition]`), saying to write the binder,
-/// `{k in xs: op(xs[k])}`; nothing reaches the certify door. A face of
+/// **A requirement over a pattern's family is refused**: a clearance
+/// seat takes one body, so a family there refuses at the body gate, as
+/// the door refuses it by kind (D10 `[repetition]`); nothing reaches the
+/// certify door. A face of
 /// one drawn member, picked in the picture, seats that member alone, and
 /// is certified.
 ///
@@ -745,23 +745,17 @@ fn a_requirement_over_a_patterns_family_is_refused_by_kind() {
         right,
         ClearanceBounds::AtLeast(len(0.02)),
     ));
-    let Some(viewer::session::Refusal::Edit(said)) = &refused.refusal else {
-        panic!(
-            "a family at a clearance seat refuses: {:?}",
-            refused.refusal
-        )
-    };
     assert!(
         matches!(
-            said.as_ref(),
-            pncad::document::EditError::SlotVarKind {
-                found: pncad::document::VarKind::Bodies,
+            &refused.refusal,
+            Some(viewer::session::Refusal::WrongNodeKind {
+                wanted: viewer::session::NodeKindWanted::Body,
                 ..
-            }
+            })
         ),
-        "{said:?}"
+        "a family at a clearance seat refuses at the body gate: {:?}",
+        refused.refusal
     );
-    assert!(said.to_string().contains("write a binder"), "{said}");
     // A face of the second member, picked where the picture draws it.
     // The family stands in the world and is drawn as itself.
     let drawn = pattern;
@@ -851,7 +845,9 @@ fn member_scene(
     }
     // A pattern moved into the world is drawn by its own node; a copy
     // of one, by the copy.
-    let drawn = viewer::world::placements_of(session.committed_doc(), pattern)
+    let drawn = session
+        .committed_doc()
+        .placements_of(pattern)
         .first()
         .copied()
         .unwrap_or(pattern);
