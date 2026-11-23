@@ -48,3 +48,7 @@ Measure first: find a step given a pair on a shell its own scan
 re-charts. Then translate the declarations through the re-chart's
 graft rows, or refuse them typed at the re-entry, stating the turned
 shell.
+
+## Evidence (2026-11-23, `orbit/one-sphere-escape-cut`)
+
+That branch retires the re-chart, so the first two arms above go: no shell is carved out and grafted back under new keys, and no key is kept at a turned place. The re-entry now runs on operands that only the cut-ins changed (`apply_cut_ins`). A declared face that a cut divides keeps its key on one piece, and the cut mints the other piece under a new key that no declaration names. Whether a step is ever given a pair on a face its own scan cuts is still unmeasured, so the row stays open on that arm. The pin is renamed `a_verdict_on_a_cut_member_face_reaches_the_next_step` (`crates/sweep/tests/the_nary_door_reads_a_cut_in_accumulation_through_its_pieces.rs`); its step now cuts the crossing ball in, and it still refuses `CoincidentShell` given the judgement's verdict.

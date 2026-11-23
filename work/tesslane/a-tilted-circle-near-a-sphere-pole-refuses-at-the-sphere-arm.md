@@ -101,3 +101,7 @@ ringed ops (both unions, ball ∖ tube) refuse `FoldedTriangle` at
 δ `2·10⁻²` and mesh at `5·10⁻³` and `10⁻³`; turned 0 about `z`, they mesh
 at every δ. Pinned by
 `reach_probes::ringed_curved_faces_that_still_refuse_answer_by_cause`.
+
+## Evidence (2026-11-23, ORBIT `orbit/one-sphere-escape-cut`)
+
+That branch retires the boolean's re-chart of a closed ball: every sphere escape is now cut in on the ball's own chart, so a section circle that lies beside the ball's own pole stays there. Before, the re-chart turned the pole onto the centre line, away from the circle. `crates/sweep/tests/spheres_crossing_off_every_edge.rs` `a_circle_beside_a_pole_builds` moves onto this row. Every op of the unit ball against a radius-0.01 ball whose circle passes 1e-5 rad from the unit ball's pole builds at its closed form, tier-3 valid. Both unions and the unit ball's difference then refuse `FoldedTriangle` at δ 5e-3, and the other three draw. At 1e-7 rad all six ops build and then refuse `SphereTrimShape { ChordBudget }`. Those poses drew before. The re-chart had been keeping such poses off this arm, and now nothing does, which may bear on this row's band.
