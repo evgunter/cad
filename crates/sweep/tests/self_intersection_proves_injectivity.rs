@@ -3555,17 +3555,13 @@ fn a_body_that_does_not_pass_is_told_one_finding_or_another_and_never_that_it_ho
             [900.0, -900.0, 900.0],
             [0.1, 0.0, 0.0],
         ] {
-            // Measured at ε = 1e-12: `f64` asks every placement. At
-            // `Interval` the body 100 off the origin panics in the region
-            // door, a station of a face's own chart reading indeterminate
-            // against its carrier, and the body 900 off does not build
-            // (`newell_plane` escalates in the fixture). At ε = 1e-9 and
-            // 1e-6 both scalars ask every placement.
-            // (`work/charttail/a-station-far-from-the-origin-reads-indeterminate-on-its-own-carrier-and-panics.md`)
-            let unread_at_interval = o == [100.0; 3] || o == [900.0, -900.0, 900.0];
-            if T::NAME == Interval::NAME && tol().eps() < 1e-9 && unread_at_interval {
+            // At `Interval` below ε = 1e-9 the body 900 off does not
+            // build: `newell_plane` escalates in the fixture
+            // (`work/oneround/a-planar-body-two-hundred-off-the-origin-does-not-finish-at-interval-at-1e-12.md`).
+            let unbuilt_at_interval = o == [900.0, -900.0, 900.0];
+            if T::NAME == Interval::NAME && tol().eps() < 1e-9 && unbuilt_at_interval {
                 println!(
-                    "SKIPPED at Interval, eps {}: the placement {o:?} off the origin is not asked",
+                    "SKIPPED at Interval, eps {}: the placement {o:?} off the origin does not build",
                     tol().eps()
                 );
                 continue;
@@ -3604,6 +3600,24 @@ fn a_body_that_does_not_pass_is_told_one_finding_or_another_and_never_that_it_ho
     let both = BTreeSet::from(["crosses", "refused"]);
     assert_eq!(at::<f64>(), both, "f64");
     assert_eq!(at::<Interval>(), both, "Interval");
+}
+
+/// **The plate built 100 off the origin is told a finding at
+/// `Interval`, at every ε.** Its void's walls are Newell planes whose
+/// frames are enclosures about 1e-12 wide there, so a station of a wall's
+/// own chart reads its residual undecided at ε = 1e-12, centred on zero.
+/// Red, a panic in the region door's held check, where that check asks a
+/// constructed point's enclosure to read `Zero`.
+#[test]
+fn the_plate_built_far_off_the_origin_is_told_a_finding_at_interval() {
+    use topo::clearance::Embedding;
+    let body = void_touching_plate_at::<Interval>([100.0; 3], false, 0).into_body();
+    let report = door(&body, DEFAULT_MAX_CELL_DEPTH, BUDGET);
+    assert!(
+        !matches!(report.verdict, Embedding::Embedded),
+        "the plate 100 off is not embedded: {:?}",
+        report.verdict
+    );
 }
 
 /// **A refusal for a budget names the two faces it was made on, and

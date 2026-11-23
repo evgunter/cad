@@ -64,3 +64,45 @@ does not ask, at `Interval` below ε = 1e-9, the two placements of its
 list measured unread there (100 off: the panic; 900 off: the fixture
 does not build), printing that it did not; `f64` asks every placement
 at every ε.
+
+## Measured and cured (`charttail/held-station`, 2026-11-23)
+
+**Which station.** An env-gated probe at `Held::check` (not for merge)
+over the plate at `Interval`, ε = 1e-12, `from = 0`: 306 checks per
+placement, all in `cell_region::place`. The six brick faces' residuals
+are exact (width 0) at every offset. The three slanted walls of the void
+(Newell planes; axis `x` ≈ 0.860, −0.591, −0.135) carry frames that are
+enclosures (about 1.8e-12 wide on a normal component at 100 off), and a
+station of their chart reads:
+
+| offset | worst half-width | worst centre | checks undecided |
+|---|---|---|---|
+| origin, `(0.1, 0, 0)` | 4.6e-14, 6.0e-14 | 1.9e-16 | 0 |
+| `(1,1,1)` | 1.0e-13 | 3.7e-16 | 0 |
+| `(3,3,3)` | 1.9e-13 | 6.4e-16 | 0 |
+| `(10,0,0)`, `(10,10,10)` | 2.8e-13, 5.3e-13 | 1.3e-15 | 0 |
+| `(30,30,30)` | 1.06e-12 | 3.8e-15 | 1 |
+| `(100,0,0)` | 1.08e-12 | 6.7e-15 | 2 |
+| `(100,100,100)` | 4.96e-12 | 8.4e-15 | 66 of 94 wall checks |
+
+The width grows about linearly with the offset (≈3e-14 per metre of
+`|o|`), and every enclosure is centred on zero to under 1e-14, about a
+thousandth of its width: the station is on its carrier, and only the
+enclosure is wide. It is the residual's dependency width: station and
+carrier are one frame enclosure carried two ways, and the residual's
+evaluation forgets that they move together. With the check suppressed,
+every placement to 150 off reads `Refused(Budget { Depth, 1v1, 7v1 })`,
+the finding it reads at the origin. From 200 off the fixture itself does
+not finish at `Interval` (filed:
+`work/oneround/a-planar-body-two-hundred-off-the-origin-does-not-finish-at-interval-at-1e-12.md`).
+
+**Cure: (a), sharpened.** `topo::held::Held::check` now reads a
+definite sign as the defect at every premise, and asks a constructed or
+decided point for `Zero` only where its read is a point margin (`f64`,
+whose rounding the session box bounds below the zero band). An
+undecided enclosure is consistent with the construction: it holds the
+true offset, zero. No `Held` premise, constructor or ONECOPY decision
+moves: held points stay trusted and debug-checked. The ONECOPY ruling's
+flip clause ("any trusting site reads a point non-`Zero` … i.e. a
+construction stops holding its point on the carrier") is met here in
+its letter and not its substance; the check now panics on the substance.
