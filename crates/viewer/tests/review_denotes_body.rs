@@ -1,7 +1,8 @@
-//! **A family the body gate admits, at the doors that take it**: a
-//! pattern read whole at the boolean seats, and split at the split
-//! door beside the readers a split's takeover re-points, each
-//! evaluated and its geometry read.
+//! **A family at the doors** (D10 `[repetition]`): a pattern read whole
+//! at the list seats (union, intersect) is every member, and at a seat
+//! for one body (a subtract's tool until it is a list seat, a split's
+//! target, a mirror's body) it refuses by kind, saying to write the
+//! binder `{k in xs: op(xs[k])}`.
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
@@ -12,9 +13,7 @@ use pncad::document::{
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::ValuePayload;
-use viewer::session::{
-    BooleanSpec, DocSession, FaceSelection, NodeKindWanted, PatternRuleSpec, SessionOp,
-};
+use viewer::session::{BooleanSpec, DocSession, FaceSelection, PatternRuleSpec, SessionOp};
 
 /// The box every family repeats: x, y in [-0.01, 0.01], z in [0, 0.01].
 const BOX: [f64; 3] = [0.02, 0.02, 0.01];
@@ -144,11 +143,23 @@ fn a_pattern_read_whole_at_the_boolean_seats() {
     );
 }
 
-/// The box, a two-member pattern of it through the pattern door, and
-/// `reader` (given the pattern) inserted beside them.
-fn split_of_a_read_pattern(
-    reader: impl FnOnce(&mut DocSession, RecipeNodeId),
-) -> Result<String, String> {
+/// The refusal of a family at a seat for one body: the body gate's,
+/// before the door (which refuses it by kind, `SlotVarKind`).
+fn assert_refused_by_kind(refusal: &Option<viewer::session::Refusal>) {
+    assert!(
+        matches!(
+            refusal,
+            Some(viewer::session::Refusal::WrongNodeKind {
+                wanted: viewer::session::NodeKindWanted::Body,
+                ..
+            })
+        ),
+        "a family at a seat for one body refuses at the gate: {refusal:?}"
+    );
+}
+
+/// The box and a two-member pattern of it through the pattern door.
+fn boxed_pattern() -> (DocSession, RecipeNodeId, RecipeNodeId) {
     let tol = Tol::witness();
     let mut session =
         common::inline_without_door(Doc::empty_derived("review-split-pattern", tol), tol);
@@ -164,94 +175,40 @@ fn split_of_a_read_pattern(
             },
         },
     );
-    reader(&mut session, pattern);
-    assert!(viewer::session::admits(
-        session.committed_doc(),
-        pattern,
-        NodeKindWanted::Body
-    ));
+    (session, body, pattern)
+}
+
+/// **A split and a mirror of a pattern refuse by kind**, whether or not
+/// something reads the pattern: each takes one body, so "each member"
+/// is written as a binder.
+#[test]
+fn a_split_and_a_mirror_of_a_pattern_refuse_by_kind() {
+    let (mut session, body, pattern) = boxed_pattern();
     let plane = common::cut_across(&session, body, 0.0025);
-    let out = session.perform(SessionOp::AddSplit {
+    let split = session.perform(SessionOp::AddSplit {
         target: pattern.into(),
         plane,
     });
-    assert!(out.refusal.is_none(), "{:?}", out.refusal);
-    for edit in &out.committed {
-        if let pncad::document::DocEdit::InsertNode { node, .. } = edit {
-            eprintln!(
-                "split door inserted: {}",
-                format!("{node:?}").chars().take(200).collect::<String>()
-            );
-        } else {
-            eprintln!(
-                "split door edit: {}",
-                format!("{edit:?}").chars().take(200).collect::<String>()
-            );
-        }
-    }
-    let split = out.made.expect("a split");
-    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        session.pump();
-        let eval = session.evaluation().expect("landed");
-        format!("{:?}", eval.node_error(split).map(|e| &e.kind))
-    }))
-    .map_err(|p| {
-        p.downcast_ref::<&str>()
-            .map(|s| s.to_string())
-            .or_else(|| p.downcast_ref::<String>().cloned())
-            .unwrap_or_default()
-    })
-}
-
-/// **A split of a pattern something reads evaluates**: the split door
-/// admits the pattern at its target seat (the body gate says it is a
-/// body), the commit lands, and the takeover re-points what read the
-/// pattern onto the split's `above ⊔ below`.
-#[test]
-fn a_split_of_a_pattern_a_union_reads_evaluates() {
-    let got = split_of_a_read_pattern(|session, pattern| {
-        let doc = session.committed_doc().clone();
-        let mut doc = doc;
-        common::insert_into(
-            &mut doc,
-            Node::Union {
-                members: Bodies::Family(BodyRead::plain(Operand::from(pattern))),
-            },
-            Tol::witness(),
-        );
-        *session = common::inline_without_door(doc, Tol::witness());
+    assert_refused_by_kind(&split.refusal);
+    let mirror = session.perform(SessionOp::AddMirror {
+        body: pattern.into(),
+        plane: viewer::session::ToolPlane::Face(cap_end(body)),
     });
-    assert!(got.is_ok(), "the evaluation panicked: {got:?}");
-}
-
-/// The same, the pattern read by nothing: lands and evaluates.
-#[test]
-fn a_split_of_a_pattern_nothing_reads_evaluates() {
-    let got = split_of_a_read_pattern(|_, _| {});
-    assert_eq!(got, Ok("None".to_string()));
-}
-
-/// The same, the pattern made a symmetric part by the mirror door
-/// first (a union of the pattern and its image reads it).
-#[test]
-fn a_split_of_a_mirrored_pattern_evaluates() {
-    let got = split_of_a_read_pattern(|session, pattern| {
-        let body = {
-            let doc = session.committed_doc();
-            match doc.node(pattern) {
-                Some(Node::Place { .. }) => {}
-                other => panic!("{other:?}"),
-            }
-            common::authored_ids(doc)
-                .into_iter()
-                .find(|&id| matches!(doc.node(id), Some(Node::Extrude { .. })))
-                .expect("the box")
-        };
-        let out = session.perform(SessionOp::AddMirror {
-            body: pattern.into(),
-            plane: viewer::session::ToolPlane::Face(cap_end(body)),
-        });
-        assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    assert_refused_by_kind(&mirror.refusal);
+    // Read whole by a union first, the pattern still refuses at a split.
+    let mut doc = session.committed_doc().clone();
+    common::insert_into(
+        &mut doc,
+        Node::Union {
+            members: Bodies::Family(BodyRead::plain(Operand::from(pattern))),
+        },
+        Tol::witness(),
+    );
+    let mut session = common::inline_without_door(doc, Tol::witness());
+    let plane = common::cut_across(&session, body, 0.0025);
+    let split = session.perform(SessionOp::AddSplit {
+        target: pattern.into(),
+        plane,
     });
-    assert!(got.is_ok(), "the evaluation panicked: {got:?}");
+    assert_refused_by_kind(&split.refusal);
 }

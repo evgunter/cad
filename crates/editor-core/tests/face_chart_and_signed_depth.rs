@@ -261,7 +261,7 @@ fn a_bottom_caps_chart_is_the_identity_least_turn_and_a_boss_stands_outward() {
     let (doc, whole) = fixture::insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![body.into(), boss.into()]),
+            members: editor_core::Bodies::spelled(vec![body.into(), boss.into()]),
         },
     );
     let ev = eval(&doc);

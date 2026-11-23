@@ -2,12 +2,11 @@
 id: viewer-pane-lines-spell-their-nodes-as-text
 kind: issue
 title: viewer: a pane's tool lines, panel refusals and hover texts spell the nodes they name as text, so none is a link
-status: dispatched
+status: open
 opened: 2026-11-23
 priority: P2
 cost: M
 refs: [a-node-name-the-viewer-shows-is-not-a-link-to-it, some-spoken-causes-and-reports-are-still-text]
-branch: offer/pane-lines-are-sentences
 ---
 
 Left by `a-node-name-the-viewer-shows-is-not-a-link-to-it`, which made the status line, the Checks window's findings, the feature tree's failure and carried lines, the Properties headings, relation entries and `range?` readings, the picked-entity header, the placement editor's "copy of" and the View pane's names draw a kernel `Sentence` through `widgets::sentence` (which takes a `frame::Tone`), each mention a link. Its sweep (implementer discipline §5) found these sites still flattening a sentence that names nodes to text before it is drawn, so their mentions are words:

@@ -443,6 +443,23 @@ pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
             none(),
             none(),
         ),
+        // An index written before binders: where it stands, and no more.
+        E::IndexBeforeBinders { line: l, column: c } => (
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            int(*l),
+            int(*c),
+            none(),
+            none(),
+        ),
         E::Unreadable {
             line: l,
             column: c,
@@ -1014,7 +1031,7 @@ impl MembersArg {
         match self {
             Self::One(read) => d::Bodies::one(read.read()),
             Self::Spelled(reads) => {
-                d::Bodies::Spelled(reads.into_iter().map(BodyArg::read).collect())
+                d::Bodies::spelled(reads.into_iter().map(BodyArg::read).collect())
             }
         }
     }
@@ -4047,15 +4064,16 @@ impl VarDecl {
     /// family of `count` members. `count` is a count (an `int`, a count
     /// `Formula`, or a variable read as one).
     ///
-    /// `within` names another index this one is declared within, by
-    /// its `Var` or its `VarName`: a reader of both is a family indexed
-    /// by both, the outer first (a grid). Two indices neither of which
-    /// is within the other meet in no reader, which refuses
-    /// `indices_unrelated` where one node reads both.
+    /// `within` names the index this one follows in one binder
+    /// `{a in 0..M, b in 0..N: …}`, by its `Var` or its `VarName`: a
+    /// reader of both is a family indexed by both, the first first (a
+    /// grid). An index `within` none opens a binder of its own; one
+    /// node reading the indices of two binders refuses `two_binders`.
     ///
-    /// `declare_var` refuses a count of another dimension and a
-    /// `within` that is no index of the document (`index`, with
-    /// `inner_variant` `count_not_count` or `within_no_index`).
+    /// `declare_var` refuses a count of another dimension, a `within`
+    /// that is no index of the document, and one another index already
+    /// follows (`index`, with `inner_variant` `count_not_count`,
+    /// `after_no_index` or `after_taken`).
     #[staticmethod]
     #[pyo3(signature = (count, within=None))]
     fn index(
@@ -4065,7 +4083,7 @@ impl VarDecl {
     ) -> PyResult<Self> {
         Ok(Self(d::VarDecl::Index {
             count: count.formula(py, d::Dimension::Count)?,
-            within: within.map(|w| match w {
+            after: within.map(|w| match w {
                 VarArg::Id(var) => d::Formula::var(var.0, d::Dimension::Count),
                 VarArg::Name(name) => d::Formula::named(name.0, d::Dimension::Count),
             }),
@@ -4116,7 +4134,7 @@ impl VarDecl {
     #[getter]
     fn within(&self) -> Option<super::expr::Formula> {
         match &self.0 {
-            d::VarDecl::Index { within, .. } => within.clone().map(super::expr::Formula),
+            d::VarDecl::Index { after, .. } => after.clone().map(super::expr::Formula),
             d::VarDecl::Free(_) | d::VarDecl::Defined(_) | d::VarDecl::Source(_) => None,
         }
     }
@@ -4129,9 +4147,9 @@ impl VarDecl {
             d::VarDecl::Defined(expr) => {
                 format!("VarDecl.defined({})", d::unparse(expr, &|_| None))
             }
-            d::VarDecl::Index { count, within } => {
+            d::VarDecl::Index { count, after } => {
                 let count = d::unparse(count, &|_| None);
-                match within {
+                match after {
                     None => format!("VarDecl.index({count})"),
                     Some(w) => format!(
                         "VarDecl.index({count}, within={})",
@@ -4953,6 +4971,30 @@ impl DocEdit {
     fn delete_var(var: VarArg) -> Self {
         Self {
             inner: d::DocEdit::DeleteVar { var: var.var_ref() },
+        }
+    }
+
+    /// **Write what a binder yields** (D10 `[repetition]`), whole and in
+    /// order: `binder` is the binder's first index, and each of `yields`
+    /// a variable inside it — a pattern's copy, `Doc.output(row, 0)` —
+    /// that every reader outside reads as a family, one member per value
+    /// of the binder's indices. A binder that yields nothing refuses at
+    /// evaluation (`yields_nothing`).
+    ///
+    /// Refuses typed (`yields`) an index that opens no binder
+    /// (`not_a_binder`), a yield that is an index (`yield_is_index`), is
+    /// listed twice (`yield_twice`), is another binder's
+    /// (`yield_elsewhere`) or reads none of the binder's indices
+    /// (`yield_outside`), and empty yields (`no_yields`); and, as every
+    /// edit does, one that leaves a
+    /// reader reading a family at a seat for one body (`slot_var_kind`).
+    #[staticmethod]
+    fn set_yields(binder: VarArg, yields: Vec<VarArg>) -> Self {
+        Self {
+            inner: d::DocEdit::SetYields {
+                binder: binder.var_ref(),
+                yields: yields.into_iter().map(|y| y.var_ref()).collect(),
+            },
         }
     }
 

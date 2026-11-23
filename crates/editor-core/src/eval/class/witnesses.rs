@@ -62,10 +62,10 @@ all_classes! {
     NotFinished,
     UnfinishedLeaf,
     EmptyHalf,
-    HalfOfAFamily,
     MemberOutOfRange,
     MemberRefused,
-    IndicesUnrelated,
+    TwoBinders,
+    YieldsNothing,
     IndexCount,
     IndexCountOutOfRange,
     NoSuchPiece,
@@ -300,11 +300,6 @@ fn witness(class: C, tol: Tol) -> K {
             input: n(3),
             half: crate::SplitHalf::Above,
         },
-        C::HalfOfAFamily => K::HalfOfAFamily {
-            read: crate::VarId::new(2, 0),
-            input: n(3),
-            half: crate::SplitHalf::Below,
-        },
         C::MemberOutOfRange => K::MemberOutOfRange {
             input: n(3),
             at: vec![7],
@@ -313,9 +308,12 @@ fn witness(class: C, tol: Tol) -> K {
             at: vec![(crate::VarId::new(2, 0), 3)],
             source: Box::new(K::UnschedulableCycle),
         },
-        C::IndicesUnrelated => K::IndicesUnrelated {
+        C::TwoBinders => K::TwoBinders {
             a: crate::VarId::new(2, 0),
             b: crate::VarId::new(3, 0),
+        },
+        C::YieldsNothing => K::YieldsNothing {
+            binder: crate::VarId::new(2, 0),
         },
         C::IndexCount => K::IndexCount {
             index: crate::VarId::new(2, 0),

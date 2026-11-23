@@ -351,7 +351,7 @@ fn pipped_node(a: &mut Author, cube: RecipeNodeId, tol: Tol) -> RecipeNodeId {
         .collect();
     let tool = a.insert(
         Node::Union {
-            members: Bodies::Spelled(members.into_iter().map(Into::into).collect()),
+            members: Bodies::spelled(members.into_iter().map(Into::into).collect()),
         },
         tol,
     );
