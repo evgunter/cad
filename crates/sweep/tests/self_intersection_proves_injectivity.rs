@@ -7398,3 +7398,97 @@ fn two_thin_slabs_through_each_other_cross() {
         );
     }
 }
+
+// MEASUREMENT ONLY (H): whole cut cones on the scratch merge with
+// `embed/conic-symmetry`.
+
+fn h_ball<T: Scalar>(shape: Frustum, cut: Cut, above: bool, at: Point3<f64>, rho: f64) -> Body<T> {
+    let mut body = cone_cut::<T>(shape, cut, above).into_body();
+    let p = |y: f64, bulge: f64| (Point2::new(T::zero(), T::from_f64(y)), T::from_f64(bulge));
+    let ball = topo::transform_rigid(
+        &revolved_about_y_at::<T>(vec![p(-rho, 1.0), p(rho, 0.0)], Revolution::Full, tol()),
+        &geom_core::RigidMotion::translation(
+            geom_core::Vec3::new(at.x, at.y, at.z).map(T::from_f64),
+        )
+        .expect("a translation"),
+    )
+    .expect("the ball moves");
+    topo::graft_disjoint_all_keyed(&mut body, &ball).expect("the ball grafts");
+    body
+}
+
+#[test]
+fn h_probe_whole_bodies() {
+    use Placed::{AsBuilt, Mirrored, Out, Turned};
+    let mut bodies: Vec<(String, Body<f64>)> = Vec::new();
+    for (what, shape, cut, above, placements) in [
+        ("wall cut on grid", ON_GRID, (0.5, 0.25, 0.0), true, vec![AsBuilt]),
+        ("wall cut toward ruling", OFF_GRID, (0.43, 0.3, 0.0), true, vec![AsBuilt, Turned, Out, Mirrored]),
+        ("wall cut generic", OFF_GRID, (0.43, 0.3, 0.7), true, vec![AsBuilt, Turned, Out, Mirrored]),
+        ("wall cut lower side", ON_GRID, (0.5, 0.25, 0.7), false, vec![AsBuilt]),
+        ("cap cut", OFF_GRID, (0.86, 0.3, 0.0), false, vec![AsBuilt, Turned, Out, Mirrored]),
+        ("cap cut generic", OFF_GRID, (0.86, 0.3, 0.7), false, vec![AsBuilt]),
+        ("cap cut on grid", ON_GRID, (0.9375, 0.25, 0.0), false, vec![AsBuilt]),
+    ] {
+        for placed in placements {
+            bodies.push((format!("{what} {placed:?}"), placed_cut::<f64>(shape, cut, above, placed)));
+        }
+    }
+    bodies.push(("needle".into(), cone_cut::<f64>((0.05, 0.02, 2.0), (1.0, 0.3, 0.0), true).into_body()));
+    bodies.push(("near-flat".into(), cone_cut::<f64>((2.0, 0.5, 0.1), (0.05, 0.03, 0.0), true).into_body()));
+    for cut in [(0.5, 0.3, 0.0), (0.5, 0.3, 0.7), (0.8, 0.2, 0.7)] {
+        bodies.push((format!("apex cut {cut:?}"), apex_cut::<f64>(0.7, 1.0, cut).expect("splits")));
+    }
+    for (name, body) in &bodies {
+        eprintln!("[H] BODY {name}");
+        let c = door_class(body);
+        eprintln!("[H] VERDICT {name}: {c}");
+    }
+    // Interval, a few.
+    for (what, shape, cut, above) in [
+        ("wall cut toward ruling", OFF_GRID, (0.43, 0.3, 0.0), true),
+        ("wall cut generic", OFF_GRID, (0.43, 0.3, 0.7), true),
+    ] {
+        let twin = placed_cut::<Interval>(shape, cut, above, AsBuilt);
+        eprintln!("[H] BODY Interval {what}");
+        eprintln!("[H] VERDICT Interval {what}: {}", door_class(&twin));
+    }
+}
+
+#[test]
+fn h_probe_negatives() {
+    // A ball of radius 0.02 (and 0.01) through the wall, its centre on the
+    // wall `up` inside the kept face beside the section, whole body asked.
+    let shape = OFF_GRID;
+    let on_wall = |theta: f64, y: f64| {
+        let (r0, r1, h) = shape;
+        let r = r0 + (r1 - r0) / h * y;
+        Point3::new(r * theta.cos(), y, r * theta.sin())
+    };
+    let mut classes = std::collections::BTreeMap::<String, usize>::new();
+    for cut in [(0.43, 0.3, 0.7), (0.43, 0.3, 0.0), (0.43, -0.3, 2.5)] {
+        for above in [true, false] {
+            for k in 0..12 {
+                let theta = f64::from(k) * TAU / 12.0 + if k % 6 == 0 { 0.0 } else { 0.11 };
+                for (up, rho) in [(0.0, 0.02), (0.012, 0.02), (0.03, 0.02), (0.012, 0.01), (0.03, 0.01)] {
+                    let y = on_section(shape, cut, theta).y + if above { up } else { -up };
+                    let body = h_ball::<f64>(shape, cut, above, on_wall(theta, y), rho);
+                    let class = door_class(&body);
+                    let key = class.split(' ').next().unwrap_or("").to_string();
+                    if key == "Embedded" {
+                        eprintln!("[H] WRONG EMBEDDED cut {cut:?} above {above} theta {theta} up {up} rho {rho}");
+                    }
+                    *classes.entry(key).or_default() += 1;
+                }
+            }
+        }
+    }
+    eprintln!("[H] NEGATIVES {classes:?}");
+    // Interval, a few.
+    let cut = (0.43, 0.3, 0.7);
+    for theta in [0.0, 0.7, 2.0, core::f64::consts::PI] {
+        let y = on_section(shape, cut, theta).y + 0.012;
+        let twin = h_ball::<Interval>(shape, cut, true, on_wall(theta, y), 0.02);
+        eprintln!("[H] NEG Interval theta {theta}: {}", door_class(&twin));
+    }
+}
