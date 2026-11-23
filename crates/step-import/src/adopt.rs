@@ -343,7 +343,7 @@ fn adopt_edges(
             ),
             Description::Tangent => {
                 let surface = |k| {
-                    body.get_surface(k).unwrap_or_else(|| {
+                    body.get_surface(k).unwrap_or_else(|_| {
                         unreachable!("{k:?} names a face's surface `attach_surfaces` attached")
                     })
                 };

@@ -360,7 +360,7 @@ fn plane_of<T: Decide>(
     k: topo::entity::FaceKey,
 ) -> Option<(Point3<T>, Vec3<T>, OutwardNormal<T>)> {
     let face = seat.body().get_face(k)?;
-    match seat.surface(seat.body().face_surface(k)?)? {
+    match seat.surface(seat.body().face_surface(k).ok()?)? {
         Surface::Plane { frame, .. } => {
             let (origin, normal) = (frame.origin(), frame.axis());
             Some((
@@ -406,7 +406,7 @@ pub(crate) fn carrier_of<'b, T: Decide>(
             let Some(face) = body.get_face(k) else {
                 return Carrier::Other("an unreadable face");
             };
-            let own = body.face_surface(k);
+            let own = body.face_surface(k).ok();
             // The reach is a distance, read about the datum's own point.
             let reach = |about: fn(&Surface<T>) -> Option<Point3<T>>| {
                 own.and_then(about)

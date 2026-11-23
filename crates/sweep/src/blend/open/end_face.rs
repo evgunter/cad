@@ -129,7 +129,7 @@ impl<T: Decide + Bounds> EndCut<T> {
         let (rim_a, rim_b, face) = end_rims(body, vertex, crease, face_a, face_b)?;
         // The end plane, from the STORED surface — the battery's
         // classification read the same one.
-        let stored = body.face_surface(face).ok_or_else(|| {
+        let stored = body.face_surface(face).map_err(|_| {
             unresolved(
                 EntityId::Face(face),
                 "a cut-off's end face's stored surface",

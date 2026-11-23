@@ -1138,7 +1138,7 @@ fn resolve_rim<'a, T: Decide + Bounds>(
 ) -> Result<RimPlan<'a, T>, BlendError> {
     let link0 = chain.first();
     let is_plane = |f: FaceKey| -> Option<bool> {
-        Some(matches!(body.face_surface(f)?, Surface::Plane { .. }))
+        Some(matches!(body.face_surface(f).ok()?, Surface::Plane { .. }))
     };
     // Links on different supports are the MIXED rim, one band face per
     // link; links all on one support pair are one torus band.
@@ -1446,7 +1446,7 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
     let is_plane_surface = |k: SurfaceKey| -> Result<bool, BlendError> {
         let s = body
             .get_surface(k)
-            .ok_or_else(|| unresolved(EntityId::Face(link0.face_a), "a rim support's surface"))?;
+            .map_err(|_| unresolved(EntityId::Face(link0.face_a), "a rim support's surface"))?;
         Ok(matches!(s, Surface::Plane { .. }))
     };
     let host_surface = if second_support_is_host(is_plane_surface(ka)?, is_plane_surface(kb)?) {
@@ -3520,8 +3520,8 @@ impl<T: Decide + Bounds> StripLevel<T> {
                 .get_face(face)
                 .ok_or_else(|| unresolved(EntityId::Face(face), "a rim's support"))?;
             match body.get_surface(fd.surface) {
-                Some(Surface::Plane { .. }) => (ci, None, si, rim_circle.radius()),
-                Some(Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Sphere { .. }) => {
+                Ok(Surface::Plane { .. }) => (ci, None, si, rim_circle.radius()),
+                Ok(Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Sphere { .. }) => {
                     let u = rim_circle.frame.axis();
                     (
                         ci,
@@ -3530,14 +3530,14 @@ impl<T: Decide + Bounds> StripLevel<T> {
                         (rim_circle.frame.origin() - ci).dot(u),
                     )
                 }
-                Some(_) => {
+                Ok(_) => {
                     return Err(unbuilt_geometry(
                         EntityId::Face(face),
                         "a rim's support is not a plane, cylinder, cone or sphere, whose \
                          latitudes the support-boundary meter reads",
                     ));
                 }
-                None => return Err(unresolved(EntityId::Face(face), "a rim support's surface")),
+                Err(_) => return Err(unresolved(EntityId::Face(face), "a rim support's surface")),
             }
         } else {
             let (o, m, across) = strip_frame(body, l, face)?;
@@ -6236,7 +6236,7 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
         }
         EdgeDescriptionSpec::wrap(s1)
     } else if is_section {
-        let (Some(surf1), Some(surf2)) = (body.get_surface(s1), body.get_surface(s2)) else {
+        let (Ok(surf1), Ok(surf2)) = (body.get_surface(s1), body.get_surface(s2)) else {
             return Err(unresolved(EntityId::Edge(edge), "a section's two surfaces"));
         };
         let pair = SurfacePair::new(s1, s2);
@@ -6289,7 +6289,7 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
         // a transverse station refutes this branch's smooth premise,
         // refused as the invariant it breaks.
         let witness = curve.mid_point(t0, t1);
-        let (Some(surf1), Some(surf2)) = (body.get_surface(s1), body.get_surface(s2)) else {
+        let (Ok(surf1), Ok(surf2)) = (body.get_surface(s1), body.get_surface(s2)) else {
             return Err(unresolved(
                 EntityId::Edge(edge),
                 "a described edge's two surfaces",

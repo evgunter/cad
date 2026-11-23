@@ -903,7 +903,7 @@ fn normal_at<T: Decide>(
 fn surface_of<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<Surface<T>, BlendError> {
     body.face_surface(face)
         .cloned()
-        .ok_or_else(|| unresolved(EntityId::Face(face), "a face's stored surface"))
+        .map_err(|_| unresolved(EntityId::Face(face), "a face's stored surface"))
 }
 
 fn surface_key<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<SurfaceKey, BlendError> {

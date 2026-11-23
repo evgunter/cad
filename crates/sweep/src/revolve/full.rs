@@ -39,7 +39,6 @@
 //! handles map each run's wall and meridians back onto every canonical
 //! segment it holds.
 
-use geom::Surface;
 use geom_brep::EdgeCurveSpec;
 use geom_core::{Band, Decide, Margin, Point2, Point3, Real, Sign};
 use topo::construction::Construct;

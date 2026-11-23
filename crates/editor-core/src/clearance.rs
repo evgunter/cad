@@ -2048,7 +2048,7 @@ pub(crate) fn closest_pair(
 ) -> Result<GeometryWitness, String> {
     // Each face's carrier in the frame the pair is decided in.
     let surface_at = |seat: topo::Seat<'_, f64>, face: FaceKey| -> Option<Surface<f64>> {
-        seat.surface(seat.body().face_surface(face)?)
+        seat.surface(seat.body().face_surface(face).ok()?)
     };
     let (Some(sa), Some(sb)) = (surface_at(bx, face_a), surface_at(by, face_b)) else {
         return Err(

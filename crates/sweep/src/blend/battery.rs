@@ -549,7 +549,7 @@ pub(crate) struct MixedVertex {
 /// both consumers read it as geometry (a dot, a mean).
 pub(super) fn outward<T: Decide>(body: &Body<T>, face: FaceKey, p: Point3<T>) -> Option<Vec3<T>> {
     let f = body.get_face(face)?;
-    let s = body.face_surface(face)?;
+    let s = body.face_surface(face).ok()?;
     Some(geom_brep::implicit_outward_normal(s, f.sense, p).vec())
 }
 
@@ -650,7 +650,7 @@ pub fn radius_headroom<T: Decide + Bounds>(
             "a link's support face, for the curvature headroom predicate",
         ));
     };
-    let Some(s) = body.face_surface(face) else {
+    let Ok(s) = body.face_surface(face) else {
         return Err(unresolved(
             EntityId::Face(face),
             "a link's support face, for the curvature headroom predicate",
@@ -1105,8 +1105,8 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
     let extent = extent_of(&carrier, t0, t1);
     let mid = geom::mid_param(t0, t1);
     let (p, tau) = carrier.ders1(mid);
-    let sa = body.face_surface(face_a).ok_or_else(broken)?.clone();
-    let sb = body.face_surface(face_b).ok_or_else(broken)?.clone();
+    let sa = body.face_surface(face_a).map_err(|_| broken())?.clone();
+    let sb = body.face_surface(face_b).map_err(|_| broken())?.clone();
     // Predicate 5 first at the link level: the arm's side depends on
     // the convexity, so the sign is established before any geometry.
     // It is the edge's wedge read whole, as tier 3 reads it: every
@@ -3102,7 +3102,7 @@ fn corner_at<T: Decide + Bounds>(
                 "a ruled link's end, whose three faces do not meet as a cap",
             ));
         };
-        let Some(Surface::Plane {
+        let Ok(Surface::Plane {
             frame: carrier_frame,
             ..
         }) = body.face_surface(cap)
@@ -3197,7 +3197,7 @@ fn corner_at<T: Decide + Bounds>(
                 "a chain end's three faces do not meet as two supports and an end face",
             ));
         };
-        let Some(Surface::Plane { frame, .. }) = body.face_surface(end) else {
+        let Ok(Surface::Plane { frame, .. }) = body.face_surface(end) else {
             return refuse(UnbuiltEnd::CurvedEndFace { vertex });
         };
         let normal = frame.axis();
