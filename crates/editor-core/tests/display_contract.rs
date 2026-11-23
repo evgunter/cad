@@ -2892,6 +2892,7 @@ test_utils::f6_variants! {
         ProductOutsideWorld,
         ValueDropped,
         AnonymousVarRemoved,
+        YieldRemoved,
     ];
 }
 
@@ -3035,6 +3036,16 @@ fn maintenance_display_says_what_the_edit_did() {
             vec![
                 "nothing reading #0:0000000000070000",
                 "the tolerance it carried went with it",
+            ],
+        ),
+        (
+            Maintenance::YieldRemoved {
+                binder: editor_core::SpokenVar::new(editor_core::VarId::new(0, tagged(3)), None),
+                var: editor_core::SpokenVar::new(editor_core::VarId::new(0, tagged(7)), None),
+            },
+            vec![
+                "the edit removed #0:0000000000070000",
+                "yields it no more",
             ],
         ),
     ];

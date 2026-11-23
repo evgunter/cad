@@ -1530,12 +1530,7 @@ pub fn assemble_world_copies_edits(
         .collect();
     // A family the binder yields is spliced in whole.
     let entry = |doc: &ProfileDoc, copy: crate::VarId| {
-        let read = crate::BodyRead::plain(crate::Operand::Var(copy));
-        if doc.yielding(copy).is_some() {
-            crate::Spell::All(read)
-        } else {
-            crate::Spell::One(read)
-        }
+        doc.spell(copy, crate::BodyRead::plain(crate::Operand::Var(copy)))
     };
     let spelled = |copies: &[crate::VarId]| {
         crate::Bodies::Spelled(

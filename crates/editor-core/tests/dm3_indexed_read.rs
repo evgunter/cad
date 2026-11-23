@@ -360,13 +360,27 @@ fn the_doors_refuse_an_index_where_no_family_is_read() {
         ),
         "only a family is indexed"
     );
-    // A family read plainly at a body seat makes its reader a family
-    // under the same index: the subtract is evaluated once per member.
-    let (per_member, cut) = fixture::insert(doc.clone(), subtract(BodyRead::plain(xs), xs));
+    // A family read plainly at a body seat refuses by kind: "each
+    // member" is written, `{k in xs: xs[k] − xs[0]}`.
+    assert!(
+        matches!(
+            insert_refused(&doc, subtract(BodyRead::plain(xs), xs)),
+            EditError::SlotVarKind {
+                slot: SlotId::Operand(OperandSlot::From),
+                found: editor_core::VarKind::Bodies,
+                ..
+            }
+        ),
+        "a family at a seat for one body"
+    );
+    // The member at the binder's own key is read inside the binder: the
+    // subtract is evaluated once per member.
+    let (per_member, cut) =
+        fixture::insert(doc.clone(), subtract(fixture::member_here(&doc, xs.into()), xs));
     assert_eq!(
         per_member.node_reach(cut).chain(),
         doc.node_reach(xs).chain(),
-        "a plain read of a family carries its index to the reader"
+        "the member read at its binder's key carries its index to the reader"
     );
     // A family argument carries no index.
     assert!(

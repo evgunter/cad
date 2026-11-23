@@ -1254,6 +1254,8 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
             pncad::document::YieldsFault::Index { .. } => "yield_is_index",
             pncad::document::YieldsFault::Twice { .. } => "yield_twice",
             pncad::document::YieldsFault::Elsewhere { .. } => "yield_elsewhere",
+            pncad::document::YieldsFault::Nothing => "no_yields",
+            pncad::document::YieldsFault::Outside { .. } => "yield_outside",
         }),
         EditError::SourceRead { fault, .. } => Some(match fault {
             pncad::document::SourceFault::Unresolved { .. } => "unresolved",
@@ -2133,6 +2135,7 @@ pub fn persist_error_tag(err: &PersistError) -> &'static str {
         // [`expr_dimension_error_tag`] — the same map the text door
         // draws `ParseError.kind` from. One vocabulary, three doors.
         PersistError::Dimension { .. } => "dimension",
+        PersistError::IndexBeforeBinders { .. } => "index_before_binders",
         PersistError::Snapshot(_) => "snapshot",
         PersistError::ToleranceConflict { .. } => "tolerance_conflict",
         PersistError::ToleranceInvalid { .. } => "tolerance_invalid",
@@ -3428,6 +3431,7 @@ pub fn maintenance_tag(maintenance: &Maintenance) -> &'static str {
         Maintenance::ProductOutsideWorld { .. } => "product_outside_world",
         Maintenance::ValueDropped { .. } => "value_dropped",
         Maintenance::AnonymousVarRemoved { .. } => "anonymous_var_removed",
+        Maintenance::YieldRemoved { .. } => "yield_removed",
     }
 }
 

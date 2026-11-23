@@ -4063,9 +4063,7 @@ impl DocSession {
                 .output(row, 0)
                 .unwrap_or_else(|| unreachable!("a placement defines its copy"));
             let binder = inner.unwrap_or(index);
-            let mut yields = run.doc().yields(binder).to_vec();
-            yields.push(copy);
-            run.apply(pncad::pattern::yields_edit(binder, &yields))?;
+            run.apply(DocEdit::yielding_more(run.doc(), binder, &[copy]))?;
             match output {
                 // Several bodies, the family itself: a reader of one
                 // body reads them through a `⊔`.
@@ -5500,18 +5498,16 @@ fn write_product(
             // A family a binder yields is spliced in whole (D10
             // `[repetition]`).
             let entry = |read: Operand| {
-                let yielded = match &read {
+                let var = match &read {
                     Operand::Var(var) => Some(*var),
                     Operand::Node(id) => run.doc().outputs(*id).first().copied(),
                     Operand::Output { node, port } => run.doc().output(*node, *port),
                     _ => None,
-                }
-                .is_some_and(|var| run.doc().family_through_sources(var));
+                };
                 let read = pncad::document::BodyRead::plain(read);
-                if yielded {
-                    pncad::document::Spell::All(read)
-                } else {
-                    pncad::document::Spell::One(read)
+                match var {
+                    Some(var) => run.doc().spell(var, read),
+                    None => pncad::document::Spell::One(read),
                 }
             };
             let members =

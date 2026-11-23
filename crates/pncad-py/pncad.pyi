@@ -3787,8 +3787,10 @@ class DocEdit:
 
         Refuses typed (`yields`) an index that opens no binder
         (`not_a_binder`), a yield that is an index (`yield_is_index`), is
-        listed twice (`yield_twice`) or is another binder's
-        (`yield_elsewhere`), and one that leaves a reader reading a
+        listed twice (`yield_twice`), is another binder's
+        (`yield_elsewhere`) or reads none of the binder's indices
+        (`yield_outside`), empty yields (`no_yields`), and one that
+        leaves a reader reading a
         family at a seat for one body (`slot_var_kind`)."""
     @staticmethod
     def bind_v_degree_param(node: NodeId, name: VarName) -> DocEdit:

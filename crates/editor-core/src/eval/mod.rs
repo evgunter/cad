@@ -4616,7 +4616,7 @@ where
             }
             _ => 0,
         };
-        let listed = match chains.get(&id).and_then(crate::repetition::Reached::chain) {
+        let listed = match chains.get(&id).and_then(Chained::chain) {
             Some(chain) if !chain.is_empty() => {
                 members::listing_steps(doc, &nominal_env, chain, remaining - parted, cancel)?
             }
@@ -4802,12 +4802,35 @@ where
     }
 }
 
+/// **What evaluation makes of a node's reach** ([`chains_of`]): the
+/// indices it reaches, as [`crate::repetition::Reach`] reads them, or
+/// the binder it stands in yielding nothing, which the evaluation
+/// refuses and the reach itself never says.
+#[derive(Debug, Clone)]
+enum Chained {
+    /// The reach as read.
+    Reached(crate::repetition::Reached),
+    /// The node stands in the binder, by its first index, which yields
+    /// nothing and holds no assertion.
+    YieldsNothing(crate::VarId),
+}
+
+impl Chained {
+    /// The chain, `None` where the node is refused.
+    fn chain(&self) -> Option<&[crate::VarId]> {
+        match self {
+            Self::Reached(reached) => reached.chain(),
+            Self::YieldsNothing(_) => None,
+        }
+    }
+}
+
 /// **Which indices each node of `order` reaches**, read off `doc`'s
 /// recipe: what a node is evaluated once per member of ([`members`]).
 fn chains_of(
     doc: &Doc<ProfileProgram>,
     order: &[RecipeNodeId],
-) -> BTreeMap<RecipeNodeId, crate::repetition::Reached> {
+) -> BTreeMap<RecipeNodeId, Chained> {
     if !doc.declares_index() {
         return BTreeMap::new();
     }
@@ -4833,9 +4856,9 @@ fn chains_of(
         .iter()
         .map(|(&id, reached)| match binder_of(reached) {
             Some(binder) if doc.yields(binder).is_empty() && !asserting.contains(&binder) => {
-                (id, crate::repetition::Reached::YieldsNothing(binder))
+                (id, Chained::YieldsNothing(binder))
             }
-            _ => (id, reached.clone()),
+            _ => (id, Chained::Reached(reached.clone())),
         })
         .collect()
 }
@@ -4856,7 +4879,7 @@ fn own_steps(
     for id in &order {
         if let Some(chain) = chains
             .get(id)
-            .and_then(crate::repetition::Reached::chain)
+            .and_then(Chained::chain)
             .filter(|chain| !chain.is_empty())
         {
             match members::listing_steps(doc, &nominal, chain, remaining - held, cancel)? {
@@ -5149,7 +5172,7 @@ fn eval_any<T>(
     doc: &Doc<ProfileProgram>,
     env: &crate::expr::VarEnv<T>,
     id: RecipeNodeId,
-    chains: &BTreeMap<RecipeNodeId, crate::repetition::Reached>,
+    chains: &BTreeMap<RecipeNodeId, Chained>,
     results: &BTreeMap<RecipeNodeId, NodeResult<T>>,
     prior: Option<&Evaluation<T>>,
     cancel: &CancelToken,
@@ -5170,7 +5193,7 @@ where
         })
         .and_then(|p| p.value(id));
     let step = match chains.get(&id) {
-        Some(crate::repetition::Reached::TwoBinders(a, b)) => NodeStep {
+        Some(Chained::Reached(crate::repetition::Reached::TwoBinders(a, b))) => NodeStep {
             result: NodeResult::Failed(NodeError {
                 node: id,
                 kind: NodeErrorKind::TwoBinders { a: *a, b: *b },
@@ -5178,7 +5201,7 @@ where
             }),
             reused: false,
         },
-        Some(crate::repetition::Reached::YieldsNothing(binder)) => NodeStep {
+        Some(Chained::YieldsNothing(binder)) => NodeStep {
             result: NodeResult::Failed(NodeError {
                 node: id,
                 kind: NodeErrorKind::YieldsNothing { binder: *binder },
@@ -5186,7 +5209,7 @@ where
             }),
             reused: false,
         },
-        Some(crate::repetition::Reached::Chain(chain)) if !chain.is_empty() => {
+        Some(Chained::Reached(crate::repetition::Reached::Chain(chain))) if !chain.is_empty() => {
             members::eval_family(
                 doc,
                 env,

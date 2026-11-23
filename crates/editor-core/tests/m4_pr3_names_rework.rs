@@ -308,6 +308,7 @@ fn a_family_of_a_split_port_is_the_family_of_its_half() {
             editor_core::SplitHalf::Above.port(),
         )),
     );
+    let doc = crate::fixture::yielded(doc, by_port);
     let ev = run(&doc);
     let copies = ev
         .table_at(by_port)

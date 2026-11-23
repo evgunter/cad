@@ -705,11 +705,7 @@ fn fate<P: crate::ProfilePayload + Clone>(
                         (
                             *var,
                             splice || !read.at.is_empty(),
-                            if splice {
-                                crate::Spell::All(read)
-                            } else {
-                                crate::Spell::One(read)
-                            },
+                            crate::Spell::of(read, splice),
                         )
                     }
                     _ => (

@@ -262,6 +262,9 @@ fn build_doc(tol: Tol, seat: Seat) -> Recipe {
         .expect("the pitch is a length"),
         tol,
     );
+    // GAP (work/formwords/the-tours-pattern-scenes-write-their-yields-by-hand.md):
+    // the yield and the splice are written by hand until the pattern
+    // writers write the binder whole.
     // The fins are the binder's yield: what every reader outside
     // `{k in 0..5: …}` reads whole.
     doc = apply(

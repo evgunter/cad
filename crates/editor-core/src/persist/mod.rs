@@ -419,6 +419,17 @@ pub enum PersistError {
         /// The document layer's own refusal.
         error: crate::expr::DimensionError,
     },
+    /// The body holds an index written before binders: `index(N)` with
+    /// no seat in a binder (D10 `[repetition]`). A free index outside a
+    /// binder retired with them, so the file is no document this build
+    /// reads, and regenerating it cannot help: its pattern is rewritten
+    /// as a binder that yields what reads the index.
+    IndexBeforeBinders {
+        /// Line within the body (serde_json's 1-based position).
+        line: usize,
+        /// Column within the line.
+        column: usize,
+    },
     /// The snapshot violates a document invariant — a parsed one on
     /// load, or an in-memory one at save (which would have written an
     /// unloadable file; shared-validator check).
@@ -512,6 +523,14 @@ impl Staged for PersistError {
                 f,
                 "body line {line} column {column}: refused by the document \
                  layer's dimension checker: {error}"
+            ),
+            Self::IndexBeforeBinders { line, column } => write!(
+                f,
+                "body line {line} column {column}: an index written before binders \
+                 (`index(N)` with no seat): a free index outside a binder is retired. {}",
+                crate::sentence::Recourse(
+                    "rewrite its pattern as a binder `{k in 0..N: …}` that yields what reads `k`"
+                )
             ),
             Self::Snapshot(e) => write!(f, "invalid snapshot: {e}"),
             Self::ToleranceConflict { process, document } => write!(
@@ -743,7 +762,7 @@ fn parse_err(
     line: usize,
     column: usize,
     words: String,
-    refused: Option<crate::expr::DimensionError>,
+    refused: Option<refusal::Recorded>,
 ) -> PersistError {
     use serde_json::error::Category;
     // The reporter's words are rendered per arm rather than up front:
@@ -751,11 +770,14 @@ fn parse_err(
     // sentence, which is the whole point of it.
     match category {
         Category::Data => match refused {
-            Some(error) => PersistError::Dimension {
+            Some(refusal::Recorded::Dimension(error)) => PersistError::Dimension {
                 line,
                 column,
                 error,
             },
+            Some(refusal::Recorded::IndexBeforeBinders) => {
+                PersistError::IndexBeforeBinders { line, column }
+            }
             None => PersistError::Unreadable {
                 line,
                 column,

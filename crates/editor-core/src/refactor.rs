@@ -556,24 +556,24 @@ fn carry<E>(
                     .map_err(&edit)?;
             }
             // A yield crosses with its node (D10 `[repetition]`): the
-            // carried binder yields the new output too.
+            // carried binder yields the new output too, where the output
+            // still repeats in it there. One whose reads of the binder
+            // stayed behind (its family read crossing as an input) is
+            // one body in the part, and no yield.
             if let Some(binder) = source
                 .yielding(output)
                 .and_then(|binder| vars.map.get(&binder).copied())
+                .filter(|&binder| {
+                    let indices = target.doc().binder_indices(binder);
+                    target
+                        .doc()
+                        .var_reach(minted)
+                        .chain()
+                        .is_some_and(|chain| chain.iter().any(|k| indices.contains(k)))
+                })
             {
-                let mut yields: Vec<crate::VarRef> = target
-                    .doc()
-                    .yields(binder)
-                    .iter()
-                    .map(|&y| y.into())
-                    .collect();
-                yields.push(minted.into());
-                target
-                    .apply(DocEdit::SetYields {
-                        binder: binder.into(),
-                        yields,
-                    })
-                    .map_err(&edit)?;
+                let more = DocEdit::yielding_more(target.doc(), binder, &[minted]);
+                target.apply(more).map_err(&edit)?;
             }
         }
         if let (Node::Profile(from), Some(Node::Profile(to))) = (node, target.doc().node(new)) {
@@ -3867,12 +3867,8 @@ pub fn split(
             let members = several
                 .iter()
                 .map(|&copy| {
-                    let read = crate::BodyRead::plain(crate::Operand::Var(copy));
-                    if part.doc().yielding(copy).is_some() {
-                        crate::Spell::All(read)
-                    } else {
-                        crate::Spell::One(read)
-                    }
+                    part.doc()
+                        .spell(copy, crate::BodyRead::plain(crate::Operand::Var(copy)))
                 })
                 .collect();
             let node = part
@@ -4862,19 +4858,8 @@ pub fn inline(
         .output(placement, 0)
         .unwrap_or_else(|| unreachable!("a placement defines its copy"));
     if let Some(binder) = yielding {
-        let mut yields: Vec<crate::VarRef> = current
-            .doc()
-            .yields(binder)
-            .iter()
-            .map(|&y| y.into())
-            .collect();
-        yields.push(placed.into());
-        current
-            .apply(DocEdit::SetYields {
-                binder: binder.into(),
-                yields,
-            })
-            .map_err(refused)?;
+        let more = DocEdit::yielding_more(current.doc(), binder, &[placed]);
+        current.apply(more).map_err(refused)?;
     }
     // Witness data copies VERBATIM while ids remap — the same
     // invariant as split's copy: a witness datum is sketch-self-
@@ -5697,10 +5682,12 @@ fn seat_write(
             members
                 .into_iter()
                 .enumerate()
-                .map(|(at, (_, written))| match (at == i, family) {
-                    (true, true) => crate::Spell::All(entry.clone()),
-                    (true, false) => crate::Spell::One(entry.clone()),
-                    (false, _) => written,
+                .map(|(at, (_, written))| {
+                    if at == i {
+                        crate::Spell::of(entry.clone(), family)
+                    } else {
+                        written
+                    }
                 })
                 .collect(),
         ),

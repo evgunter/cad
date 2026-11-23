@@ -720,6 +720,28 @@ pub enum DocEdit<P: crate::ProfilePayload> {
 }
 
 impl<P: crate::ProfilePayload> DocEdit<P> {
+    /// **The edit giving the binder `binder` also the yields `more`**,
+    /// after what it yields in `doc` ([`DocEdit::SetYields`]): the one
+    /// spelling of "this binder yields one more", a yield it already
+    /// writes kept once.
+    #[must_use]
+    pub fn yielding_more<Q: crate::ProfilePayload>(
+        doc: &Doc<Q>,
+        binder: VarId,
+        more: &[VarId],
+    ) -> Self {
+        let mut yields: Vec<VarId> = doc.yields(binder).to_vec();
+        for &var in more {
+            if !yields.contains(&var) {
+                yields.push(var);
+            }
+        }
+        Self::SetYields {
+            binder: binder.into(),
+            yields: yields.into_iter().map(VarRef::from).collect(),
+        }
+    }
+
     /// **The edit removing the constraint `at`**
     /// ([`DocEdit::RemoveConstraint`]), which writes the bundle whole
     /// again without it. Empty where `at` names no constraint `doc`
@@ -2294,6 +2316,15 @@ pub enum YieldsFault {
         var: Box<SpokenVar>,
         /// The binder yielding it.
         binder: Box<SpokenVar>,
+    },
+    /// The yields are empty: a binder yields what repeats in it, and one
+    /// that yields nothing is refused (an assertion inside is its own
+    /// yield, and needs none written).
+    Nothing,
+    /// A yield reads none of the binder's indices, so it repeats nothing.
+    Outside {
+        /// The yield.
+        var: Box<SpokenVar>,
     },
 }
 
@@ -4574,7 +4605,20 @@ impl EditError {
                         slot.label(),
                         crate::sentence::article(&found.to_string()),
                     )?;
-                    tail.recourse(f, format_args!("read {expected} there"))
+                    let one_body = matches!(expected, crate::SlotKind::Is(VarKind::Body));
+                    match (found, slot) {
+                        // A yield in a spelled list is spliced in whole.
+                        (VarKind::Bodies, SlotId::Operand(crate::OperandSlot::Member(_))) => {
+                            tail.recourse(f, format_args!("splice it, `…{var}`"))
+                        }
+                        // A family at a seat for one body: write the
+                        // binder, one node per member.
+                        (VarKind::Bodies, _) if one_body => tail.recourse(
+                            f,
+                            format_args!("write a binder, `{{k in {var}: op({var}[k])}}`"),
+                        ),
+                        _ => tail.recourse(f, format_args!("read {expected} there")),
+                    }
                 }
             },
             Self::SlotUnresolvedVar { var, node, slot } => {
@@ -4778,28 +4822,48 @@ impl EditError {
             }
             Self::Yields { binder, fault } => {
                 match fault {
-                    YieldsFault::NotABinder => write!(
-                        f,
-                        "{binder} is no binder's first index, and a binder's yields are \
-                         written on its first index"
-                    )?,
-                    YieldsFault::Index { var } => write!(
-                        f,
-                        "{binder} would yield {var}, which is an index: a binder mints its \
-                         indices and yields what reads them"
-                    )?,
+                    YieldsFault::NotABinder => {
+                        write!(
+                            f,
+                            "{binder} is no binder's first index, and a binder's yields are \
+                             written on its first index"
+                        )?;
+                        tail.recourse(f, format_args!("write the yields on the binder's first index"))
+                    }
+                    YieldsFault::Index { var } => {
+                        write!(
+                            f,
+                            "{binder} would yield {var}, which is an index: a binder mints its \
+                             indices and yields what reads them"
+                        )?;
+                        tail.recourse(f, format_args!("yield a variable that reads {var}, not {var}"))
+                    }
                     YieldsFault::Twice { var } => {
                         write!(f, "{binder} would yield {var} twice")?;
+                        tail.recourse(f, format_args!("name {var} once"))
                     }
-                    YieldsFault::Elsewhere { var, binder: other } => write!(
-                        f,
-                        "{binder} would yield {var}, which {other} already yields"
-                    )?,
+                    YieldsFault::Elsewhere { var, binder: other } => {
+                        write!(f, "{binder} would yield {var}, which {other} already yields")?;
+                        tail.recourse(
+                            f,
+                            format_args!("yield {var} from {other}, the binder it stands in"),
+                        )
+                    }
+                    YieldsFault::Nothing => {
+                        write!(f, "{binder} would yield nothing, and a binder yields what repeats in it")?;
+                        tail.recourse(f, format_args!("name what {binder}'s binder yields"))
+                    }
+                    YieldsFault::Outside { var } => {
+                        write!(
+                            f,
+                            "{binder} would yield {var}, which reads none of the binder's indices"
+                        )?;
+                        tail.recourse(
+                            f,
+                            format_args!("yield a variable that reads the binder's index, or read {var} outside the binder"),
+                        )
+                    }
                 }
-                tail.recourse(
-                    f,
-                    format_args!("name each yield once, a variable inside the binder"),
-                )
             }
             Self::Index { var, fault } => {
                 match fault {
@@ -5503,6 +5567,19 @@ pub enum Maintenance {
         /// the document is shown ([`Maintenance::is_silent_retirement`]).
         distribution: Option<Distribution>,
     },
+    /// **A yield this edit removed from its binder** (D10
+    /// `[repetition]`): the edit removed the variable (its node was
+    /// deleted, or the variable itself), so the binder yields it no
+    /// more. Its readers outside the binder are stranded, and say so
+    /// where they read it.
+    YieldRemoved {
+        /// The binder, by its first index, spoken from the document the
+        /// edit entered.
+        binder: SpokenVar,
+        /// The yield that went, spoken from the document the edit
+        /// entered.
+        var: SpokenVar,
+    },
 }
 
 impl Maintenance {
@@ -5533,7 +5610,8 @@ impl Maintenance {
             | Self::StrandedSpace { .. }
             | Self::ProductOutsideWorld { .. }
             | Self::ValueDropped { .. }
-            | Self::AnonymousVarRemoved { .. } => None,
+            | Self::AnonymousVarRemoved { .. }
+            | Self::YieldRemoved { .. } => None,
         }
     }
 
@@ -5800,6 +5878,10 @@ impl core::fmt::Display for Maintenance {
                 }
                 Ok(())
             }
+            Self::YieldRemoved { binder, var } => write!(
+                f,
+                "the edit removed {var}, so {binder}'s binder yields it no more"
+            ),
         }
     }
 }
@@ -6311,7 +6393,9 @@ impl MaintenanceNet {
                 Maintenance::ProductOutsideWorld { read, .. } => {
                     end.product() == Some(read.id()) && product_fault(end, read.id()).is_some()
                 }
-                Maintenance::ValueDropped { .. } | Maintenance::AnonymousVarRemoved { .. } => true,
+                Maintenance::ValueDropped { .. }
+                | Maintenance::AnonymousVarRemoved { .. }
+                | Maintenance::YieldRemoved { .. } => true,
             })
             .collect()
     }
@@ -8240,7 +8324,8 @@ fn door<P: Clone + crate::ProfilePayload, T>(
             distribution: doc.free(var).and_then(FreeVar::distribution).copied(),
         });
     }
-    // D10 `[repetition]`, on EVERY arm: a yield goes with its variable.
+    // D10 `[repetition]`, on EVERY arm: a yield goes with its variable,
+    // and the edit reports it (`Maintenance::YieldRemoved`).
     let gone: Vec<(VarId, crate::Index)> = new
         .vars
         .iter()
@@ -8257,6 +8342,12 @@ fn door<P: Clone + crate::ProfilePayload, T>(
         .collect();
     for (id, mut index) in gone {
         if let crate::IndexSeat::Binder { yields } = &mut index.seat {
+            for &y in yields.iter().filter(|y| !new.vars.contains_key(y)) {
+                reported.push(Maintenance::YieldRemoved {
+                    binder: doc.spoken_var(id),
+                    var: doc.spoken_var(y),
+                });
+            }
             yields.retain(|y| new.vars.contains_key(y));
         }
         new.vars
@@ -9918,7 +10009,18 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                         binder: Box::new(doc.spoken_var(other)),
                     }));
                 }
+                let indices = doc.binder_indices(first);
+                if !doc
+                    .var_reach(var)
+                    .chain()
+                    .is_some_and(|chain| chain.iter().any(|k| indices.contains(k)))
+                {
+                    return Err(refused(YieldsFault::Outside { var: spoken() }));
+                }
                 written.push(var);
+            }
+            if written.is_empty() {
+                return Err(refused(YieldsFault::Nothing));
             }
             let index = crate::Index {
                 count: index.count.clone(),

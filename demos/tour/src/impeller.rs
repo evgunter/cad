@@ -313,6 +313,9 @@ fn build_doc(tol: Tol) -> Recipe {
     )
     .expect("a count and a length");
     let group = insert(&mut doc, Box::new(ring));
+    // GAP (work/formwords/the-tours-pattern-scenes-write-their-yields-by-hand.md):
+    // the yield and the splice are written by hand until the pattern
+    // writers write the binder whole.
     // The blades are the binder's yield: what the union outside
     // `{k in 0..blades: …}` reads whole.
     let blades = doc.var_named("k").expect("the blade index");

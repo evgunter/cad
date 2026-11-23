@@ -629,8 +629,6 @@ pub enum MemberFault {
     /// It reads the indices of two binders, which no member binds
     /// together.
     Unrelated(VarId, VarId),
-    /// It reads an index of a binder that yields nothing.
-    YieldsNothing(VarId),
     /// An index's count did not evaluate, or is no count an index admits.
     Count(MemberCountFault),
 }
@@ -642,7 +640,6 @@ impl MemberFault {
     pub fn node_error(self) -> NodeErrorKind {
         match self {
             Self::Unrelated(a, b) => NodeErrorKind::TwoBinders { a, b },
-            Self::YieldsNothing(binder) => NodeErrorKind::YieldsNothing { binder },
             Self::Count(fault) => fault.node_error(),
         }
     }
@@ -1023,9 +1020,6 @@ fn reading(
         }
         Reached::Chain(chain) => chain,
         Reached::TwoBinders(a, b) => return Err(MemberFault::Unrelated(a, b).slot_fault(doc)),
-        Reached::YieldsNothing(binder) => {
-            return Err(MemberFault::YieldsNothing(binder).slot_fault(doc));
-        }
     };
     let members = doc
         .member_envs::<f64>(&chain)

@@ -510,6 +510,13 @@ pub enum Spell<R> {
 }
 
 impl<R> Spell<R> {
+    /// **The entry for `read`**: the splice `…read` where `splice`, the
+    /// read itself otherwise. The one spelling of "a yield is spliced,
+    /// anything else is read" ([`crate::Doc::spell`] decides `splice`).
+    pub fn of(read: R, splice: bool) -> Self {
+        if splice { Self::All(read) } else { Self::One(read) }
+    }
+
     /// The read, whichever entry it is.
     pub fn read(&self) -> &R {
         match self {

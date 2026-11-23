@@ -277,13 +277,36 @@ pub enum VarDef {
 
 /// **What an index ranges over** ([`VarDef::Index`]): `0..count`, the
 /// count any `Count` expression, and its seat in its binder.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct Index {
     /// How many values it takes.
     pub count: Expr,
     /// Where it sits in its binder.
     pub seat: IndexSeat,
+}
+
+/// An index read as a file spells it. An index with no seat was
+/// written before binders and refuses typed
+/// ([`crate::persist::PersistError::IndexBeforeBinders`]).
+impl<'de> serde::Deserialize<'de> for Index {
+    fn deserialize<D: serde::Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
+        #[derive(serde::Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Written {
+            count: Expr,
+            seat: Option<IndexSeat>,
+        }
+        let Written { count, seat } = Written::deserialize(de)?;
+        match seat {
+            Some(seat) => Ok(Self { count, seat }),
+            None => {
+                crate::persist::refusal::record_index_before_binders();
+                Err(serde::de::Error::custom(
+                    "an index written before binders has no seat",
+                ))
+            }
+        }
+    }
 }
 
 impl Index {

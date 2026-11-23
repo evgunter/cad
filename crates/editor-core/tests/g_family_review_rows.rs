@@ -304,8 +304,9 @@ fn a_count_below_zero_refuses_typed() {
     assert_eq!(members, Some(0), "{:?}", ev.result(row));
 }
 
-/// **One node reading one family twice**: plainly at `from` (a reader of
-/// the same index: the member) and by an indexed read at `tool` (whole).
+/// **One node reading one family twice**: at its own key at `from`
+/// (`row[k]` inside the row's binder: the member) and by an indexed read
+/// at `tool` (`row[1]`), the cut yielded beside the row.
 /// Rows of three blocks 1 wide, pitch 0.75 (each overlaps its neighbour);
 /// `F[k] − F[1]`: member 0 keeps the 0.75 below member 1, member 1 is
 /// empty, and member 2 keeps the 0.75 above it.
@@ -314,13 +315,15 @@ fn one_node_reads_a_family_plainly_at_one_seat_and_indexed_at_another() {
     let doc = ProfileDoc::empty_derived("r1-twice", Tol::witness());
     let (doc, b) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, _, row) = fixture::row(doc, b, ("k", 3), TargetAxis::X, 0.75);
+    let from = fixture::member_here(&doc, Operand::Node(row));
     let (doc, cut) = insert(
         doc,
         Node::Subtract {
-            from: BodyRead::plain(Operand::Node(row)),
+            from,
             tool: BodyRead::indexed(row, vec![Formula::count(1)]),
         },
     );
+    let doc = fixture::yielded(doc, cut);
     let ev = run(&doc);
     let value = ev
         .value(cut)
@@ -484,12 +487,15 @@ fn per_member_assembles(reversed: bool) -> (ProfileDoc, RecipeNodeId, RecipeNode
     let (doc, sq) = insert(
         doc,
         Node::Assemble {
+            // Inside the binder the copy is the member itself.
             members: Bodies::spelled(vec![
-                BodyRead::indexed(tall, vec![Formula::var(k, Dimension::Count)]),
+                BodyRead::plain(Operand::Node(tall)),
                 BodyRead::plain(Operand::Node(lid)),
             ]),
         },
     );
+    // Each member's `⊔` is the binder's yield, `{k: tall ⊔ lid}`.
+    let doc = fixture::yielded(doc, sq);
     (doc, tall, sq)
 }
 
@@ -547,6 +553,7 @@ fn a_count_edit_serves_the_first_members_from_the_memo() {
             distance: depth,
         },
     );
+    let doc = fixture::yielded(doc, tall);
     let first = fixture::run(&doc, &Default::default());
     let grown = fixture::recount(doc, k, Formula::count(6));
     let after = fixture::run_with_prior(&grown, &first);

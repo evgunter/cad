@@ -13,7 +13,7 @@ use crate::blocks::block;
 use crate::fixture;
 use editor_core::{
     Bodies, BodyRead, DocEdit, EditError, Formula, Node, Operand, ProfileDoc, RecipeNodeId,
-    RoleSeg, Spell, VarDecl, VarId, VarName, VarRef, YieldsFault,
+    Spell, VarDecl, VarId, VarName, VarRef, YieldsFault,
 };
 use geom_core::Tol;
 

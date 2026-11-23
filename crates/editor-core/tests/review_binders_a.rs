@@ -468,8 +468,14 @@ fn an_index_written_before_binders_refuses_at_load() {
     let _ = kj;
     eprintln!("stripped {found} seats");
     let loaded = editor_core::persist::load(&format!("{head}\n{}\n", serde_json::to_string(&v).unwrap()), Tol::witness());
-    eprintln!("old index: {:?}", loaded.as_ref().map(|_| "LOADED").map_err(|e| format!("{e:?}")));
-    assert!(found == 1 && loaded.is_err());
+    assert_eq!(found, 1, "the document holds one index");
+    match loaded {
+        Err(err @ editor_core::persist::PersistError::IndexBeforeBinders { .. }) => assert!(
+            err.to_string().contains("rewrite its pattern as a binder"),
+            "the refusal says how to rewrite it: {err}"
+        ),
+        other => panic!("an index without a seat refuses typed, got {:?}", other.map(|_| "a document")),
+    }
 }
 
 /// Claim 5: binders save and load byte-equal, a grid's two indices and

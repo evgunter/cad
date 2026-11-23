@@ -65,10 +65,12 @@ pub(crate) fn along_y(
         Vec::new(),
         fixture::slides_along(by, [0.0, 1.0, 0.0], 2.0),
     );
-    insert(
+    let (doc, row) = insert(
         doc,
         Node::place(source, editor_core::Operand::Var(target), placed.bundle()),
-    )
+    );
+    // The row is its binder's yield (D10 `[repetition]`).
+    (fixture::yielded(doc, row), row)
 }
 
 /// **The nested document**: a cube, an inner row of `M` along x over
@@ -87,7 +89,9 @@ pub(crate) fn nested_doc(
     let (doc, cube) = cube_doc(label);
     let (doc, i, inner) = fixture::linear(doc, cube, [1.0, 0.0, 0.0], 2.0, M);
     let (doc, j) = fixture::index_of(doc, "j", Formula::count(N), Some(i));
-    let read = BodyRead::plain(fixture::body_read(&doc, inner.into()));
+    // The outer row stands in the binder `{i, j}` and reads the inner
+    // row's member there, `inner[i, j]`.
+    let read = fixture::member_here(&doc, inner.into());
     let (doc, outer) = along_y(doc, (inner, read), j);
     (doc, cube, inner, outer, i, j)
 }
@@ -360,7 +364,10 @@ fn the_placers_admit_a_body_or_a_family_and_a_union_reads_a_family_whole() {
     let (doc, both) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::spelled(vec![row.into(), cube.into()]),
+            members: editor_core::Bodies::Spelled(vec![
+                editor_core::Spell::All(row.into()),
+                editor_core::Spell::One(cube.into()),
+            ]),
         },
     );
     let ev = run(&doc, &opts());

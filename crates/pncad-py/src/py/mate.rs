@@ -1110,7 +1110,8 @@ impl Maintenance {
             }
             d::Maintenance::StrandedAppearance { .. }
             | d::Maintenance::ProductOutsideWorld { .. }
-            | d::Maintenance::AnonymousVarRemoved { .. } => None,
+            | d::Maintenance::AnonymousVarRemoved { .. }
+            | d::Maintenance::YieldRemoved { .. } => None,
         }
     }
 
@@ -1135,7 +1136,8 @@ impl Maintenance {
             | d::Maintenance::StrandedSpace { .. }
             | d::Maintenance::ProductOutsideWorld { .. }
             | d::Maintenance::ValueDropped { .. }
-            | d::Maintenance::AnonymousVarRemoved { .. } => Ok(None),
+            | d::Maintenance::AnonymousVarRemoved { .. }
+            | d::Maintenance::YieldRemoved { .. } => Ok(None),
         }
     }
 

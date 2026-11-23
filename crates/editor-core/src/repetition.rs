@@ -29,9 +29,6 @@ pub enum Reached {
     Chain(Vec<VarId>),
     /// Two indices reached together that are of two binders.
     TwoBinders(VarId, VarId),
-    /// Indices of a binder that yields nothing and holds no assertion,
-    /// by its first index: what the evaluation refuses.
-    YieldsNothing(VarId),
 }
 
 impl Reached {
@@ -40,7 +37,7 @@ impl Reached {
     pub fn chain(&self) -> Option<&[VarId]> {
         match self {
             Self::Chain(chain) => Some(chain),
-            Self::TwoBinders(..) | Self::YieldsNothing(_) => None,
+            Self::TwoBinders(..) => None,
         }
     }
 
@@ -355,12 +352,15 @@ impl<P: crate::ProfilePayload> Doc<P> {
     /// yield: a family to every reader (D10 `[repetition]`).
     #[must_use]
     pub fn yielding(&self, var: VarId) -> Option<VarId> {
-        self.vars
-            .iter()
-            .find_map(|(&id, v)| match &v.def().index()?.seat {
-                crate::IndexSeat::Binder { yields } if yields.contains(&var) => Some(id),
-                _ => None,
-            })
+        Binders::of(self).yielding(var)
+    }
+
+    /// **The list entry reading `var` as `read`**: spliced in whole,
+    /// `…var`, where `var` is through its sources a family a binder
+    /// yields, and read as one body otherwise (D10 `[repetition]`).
+    #[must_use]
+    pub fn spell<R>(&self, var: VarId, read: R) -> crate::Spell<R> {
+        crate::Spell::of(read, self.family_through_sources(var))
     }
 
     /// **Whether `var` is, through its sources, a family a binder
@@ -375,17 +375,7 @@ impl<P: crate::ProfilePayload> Doc<P> {
     /// for a variable that is no index.
     #[must_use]
     pub fn binder_of(&self, index: VarId) -> Option<VarId> {
-        let mut at = self.var(index)?.def().index()?;
-        let mut first = index;
-        let mut seen = BTreeSet::from([index]);
-        while let Some(before) = at.after() {
-            if !seen.insert(before) {
-                return None;
-            }
-            first = before;
-            at = self.var(before)?.def().index()?;
-        }
-        Some(first)
+        Binders::of(self).seat(index).map(|(binder, _)| binder)
     }
 
     /// **The binder's indices**, outermost first, from its first index
@@ -483,15 +473,18 @@ impl<P: crate::ProfilePayload> Doc<P> {
             .into_iter()
             .filter_map(|id| match reach.node(id) {
                 Reached::TwoBinders(a, b) => Some((id, a, b)),
-                Reached::Chain(_) | Reached::YieldsNothing(_) => None,
+                Reached::Chain(_) => None,
             })
             .collect()
     }
 }
 
-/// **A read whose kind a yield decides, refused** (D10 `[repetition]`):
-/// a yield at a seat that takes one body, or a member read of a variable
-/// no binder yields. A source is no such reader: it is what it reads.
+/// **A seat handed a yield where it takes one body, refused** (D10
+/// `[repetition]`): what every edit's door diffs before and after
+/// ([`Doc::family_read_faults`]), so an edit that makes a read a family
+/// at a one-body seat (a redefinition, a new yield) refuses by kind. A
+/// source is no such reader: it is what it reads, and its readers are
+/// asked instead.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum FamilyReadFault {
     /// An operation's seat.
@@ -518,12 +511,15 @@ impl<P: crate::ProfilePayload> Doc<P> {
         if !self.declares_index() {
             return Vec::new();
         }
+        // The binders, read once: a seat is asked only where it reads a
+        // yield, which is the one family a reader can meet.
+        let binders = Binders::of(self);
         let mut out = Vec::new();
         for (&id, node) in &self.nodes {
             let own = self.outputs(id);
             for (slot, var) in node.operand_rows() {
                 // A placement's mate reads its own copy, one member.
-                if own.contains(&var) {
+                if own.contains(&var) || binders.yielding(self.through_sources(var).read).is_none() {
                     continue;
                 }
                 let Some(held) = self.var(var) else { continue };

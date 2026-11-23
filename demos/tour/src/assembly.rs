@@ -675,6 +675,9 @@ fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeI
         .expect("the pitch is a length"),
         tol,
     );
+    // GAP (work/formwords/the-tours-pattern-scenes-write-their-yields-by-hand.md):
+    // the yield and the splice are written by hand until the pattern
+    // writers write the binder whole.
     // The posts are the binder's yield: the world reads each member.
     let row = doc.var_named("k").expect("the row's index");
     let outputs = doc.outputs(pattern);

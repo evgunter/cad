@@ -63,6 +63,8 @@ pub(crate) fn ring(n: i64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         placed.bundle(),
     );
     let (doc, ring) = insert(doc, node);
+    // The ring is the binder's yield (D10 `[repetition]`).
+    let doc = fixture::yielded(doc, ring);
     (doc, the_block, ring)
 }
 
@@ -420,6 +422,8 @@ fn a_construction_reading_the_index_is_built_per_member() {
             distance: depth(0),
         },
     );
+    // Both extrusions are the binder's yields.
+    let doc = fixture::yielded(fixture::yielded(doc, tall), flat);
     let ev = run(&doc);
     let members = ev
         .value(tall)
@@ -701,6 +705,8 @@ fn a_profile_reading_the_index_is_a_family_named_by_its_pieces() {
             distance: fixture::len(1.0),
         },
     );
+    // The extrusion is the binder's yield.
+    let doc = fixture::yielded(doc, ext);
     let ev = run(&doc);
     let profiles = ev.value(profile).unwrap().members.as_ref();
     assert_eq!(
@@ -820,6 +826,8 @@ fn a_members_own_values_decide_which_pieces_it_names() {
             distance: fixture::len(1.0),
         },
     );
+    // The extrusion is the binder's yield.
+    let doc = fixture::yielded(doc, ext);
     let ev = run(&doc);
     assert_eq!(bodies(&ev, ext), 3, "one extruded body per member");
     let Some(Node::Profile(program)) = doc.node(profile) else {
@@ -888,6 +896,8 @@ fn a_profile_member_that_refuses_refuses_the_family() {
             distance: fixture::len(1.0),
         },
     );
+    // The extrusion is the binder's yield.
+    let doc = fixture::yielded(doc, ext);
     let ev = run(&doc);
     match ev.result(profile).and_then(|r| r.error()).map(|e| &e.kind) {
         Some(editor_core::NodeErrorKind::MemberRefused { at, source }) => {

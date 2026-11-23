@@ -104,10 +104,21 @@ use core::mem::ManuallyDrop;
 
 use crate::expr::DimensionError;
 
+/// **What a rebuild refusal records**: the document layer's dimension
+/// checker's refusal, or an index written before binders (an
+/// `index(N)` with no seat in a binder, D10 `[repetition]`).
+#[derive(Debug, Clone)]
+pub(crate) enum Recorded {
+    /// The dimension checker refused a value on rebuild.
+    Dimension(DimensionError),
+    /// An index carries no seat: it was written before binders.
+    IndexBeforeBinders,
+}
+
 thread_local! {
     /// One frame per open [`Parse`] on this thread, innermost last.
     /// A frame holds the first refusal its parse recorded, if any.
-    static FRAMES: RefCell<Vec<Option<DimensionError>>> = const { RefCell::new(Vec::new()) };
+    static FRAMES: RefCell<Vec<Option<Recorded>>> = const { RefCell::new(Vec::new()) };
 }
 
 /// The refusal channel for ONE body parse: a guard whose lifetime is
@@ -141,7 +152,7 @@ impl Parse {
 
     /// Closes the frame and answers the refusal it holds. Consumes the
     /// guard, so a frame is harvested at most once.
-    pub(super) fn finish(self) -> Option<DimensionError> {
+    pub(super) fn finish(self) -> Option<Recorded> {
         // `Drop` would close the frame a second time; skipping it is
         // the whole reason for the wrapper.
         let this = ManuallyDrop::new(self);
@@ -165,7 +176,7 @@ impl Drop for Parse {
 /// the out-of-order case DEFINED anyway — an inner frame still open is
 /// discarded with the outer one, and a `depth` no longer on the stack
 /// answers `None` and touches nothing.
-fn close(depth: usize) -> Option<DimensionError> {
+fn close(depth: usize) -> Option<Recorded> {
     FRAMES.with_borrow_mut(|frames| {
         let refused = frames.get_mut(depth).and_then(Option::take);
         frames.truncate(depth);
@@ -179,11 +190,22 @@ fn close(depth: usize) -> Option<DimensionError> {
 /// does nothing at all when no [`Parse`] is open — a `Deserialize`
 /// impl driven from anywhere else leaves no trace.
 pub(crate) fn record(err: &DimensionError) {
+    keep(Recorded::Dimension(err.clone()));
+}
+
+/// Records an index written before binders on its way out through
+/// `Error::custom` ([`record`]'s rules).
+pub(crate) fn record_index_before_binders() {
+    keep(Recorded::IndexBeforeBinders);
+}
+
+/// Keeps `refused` as the open frame's first refusal.
+fn keep(refused: Recorded) {
     FRAMES.with_borrow_mut(|frames| {
         if let Some(frame) = frames.last_mut()
             && frame.is_none()
         {
-            *frame = Some(err.clone());
+            *frame = Some(refused);
         }
     });
 }
