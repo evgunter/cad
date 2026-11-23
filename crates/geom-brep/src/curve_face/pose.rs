@@ -683,13 +683,14 @@ pub(super) fn plane_conic<T: Decide>(
         Sign::Zero => {
             // The graze's one root is the extremum nearest the plane: the
             // crest where it is nearer than the trough (the conic below the
-            // plane), the trough where farther. Its side is read off the
-            // nearer extreme moved back by the swing, `hi − R` or `lo + R`,
-            // the height's level between them, signed as the far extreme.
+            // plane), the trough where farther. Its side is the sign of the
+            // far extreme, the trough's `lo` below the plane or the crest's
+            // `hi` above it, a reading of the height at its own magnitude
+            // (about the diameter's reach, `2R`).
             let crest = height.crest();
             let at = match decide_nonzero(
                 "curve_face_pose_graze_side",
-                Margin::of((hi.abs() - lo.abs()).select_le_zero(hi - r, lo + r)),
+                Margin::of((hi.abs() - lo.abs()).select_le_zero(lo, hi)),
                 band,
             )
             .map_err(PoseRefusal::in_band(PoseRung::BellyGraze))?

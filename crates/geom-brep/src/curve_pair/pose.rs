@@ -2420,15 +2420,18 @@ impl<T: Decide> Level<'_, T> {
 
     /// A bound on `|F⁗|` over every angle. Each of `X` and `Y` is
     /// `x₀ + ρ·cos(θ − φ)`, so `X²`'s first and second harmonics have
-    /// amplitudes `2|x₀|ρ` and `ρ²/2`, and `|(X²)⁗| ≤ 2|x₀|ρ + 8ρ²`. `x₀`,
-    /// `a`'s centre in `b`'s frame, is read with no centre: `X` at `a(0)`
-    /// from the point `b` stores ([`Conic::level_at`]'s gradient `2X/A²`)
-    /// plus `P″(0)·û_b`, `a(0)`'s offset from its centre negated, which
-    /// reads no position. A sum of non-negative terms, raised past its
-    /// roundings ([`up`]): `x₀`'s sixteen (the level's gradient nine, its
-    /// rescaling two, the second derivative's dot five), `ρ`'s fourteen
-    /// (two dot products, two squares, a sum, a root), each side's five
-    /// and the sum's one: 36.
+    /// amplitudes `2|x₀|ρ` and `ρ²/2`, and `|(X²)⁗| ≤ 2|x₀|ρ + 8ρ²`. `x₀`
+    /// is `a`'s centre in `b`'s centre frame, read through the gated
+    /// [`Conic::center`] of each (a datum of the whole conic), its
+    /// magnitude raised by the derived centres' rounding at their
+    /// semi-axes' scale ([`geom_core::rounding_charge`] of the two larger
+    /// semi-axes). A sum of non-negative terms, raised past its roundings
+    /// ([`up`]): `|x₀|`'s eleven (the centres' difference three, its dot
+    /// five, the charge's two and its sum one), `ρ`'s fourteen (two dot
+    /// products, two squares, a sum, a root), each side's seven (the
+    /// square `A²` one, the two products by `|x₀|` and `ρ`, `ρ²`, its
+    /// factor eight, the sum and the quotient) and the sides' sum one:
+    /// 33.
     pub(super) fn fourth(&self) -> T {
         self.fourth
     }
@@ -2447,34 +2450,31 @@ pub(super) fn up<const N: u32, T: Decide>(x: T) -> T {
 }
 
 /// [`Level`] of `kb` along `ka`.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "the fourth-derivative bound's x₀, a's centre in b's centre frame: two conics' centres, a datum of each whole conic, the derived one's rounding charged at the semi-axes' scale (work/conic/two-conics-are-compared-through-three-doors.md)"
+)]
 pub(super) fn level_on<'k, T: Decide>(ka: &'k dyn Conic<T>, kb: &'k dyn Conic<T>) -> Level<'k, T> {
     let (big_a, big_b) = kb.semi_axes();
     let (ub, vb) = (kb.u_ref(), kb.v_ref());
     let (ua, va) = (ka.u_ref() * ka.semi_axes().0, ka.v_ref() * ka.semi_axes().1);
-    // `a`'s centre in `b`'s frame with no centre read: `b`'s coordinates
-    // of `a(0)`, read from the point `b` stores as its level's gradient
-    // `(2X/A², 2Y/B²)`, less `a(0)`'s offset from its own centre, which is
-    // `−P″(0)` and reads no position.
-    let p0 = ka.point_at(T::zero());
-    let (_, (gx, gy)) = kb.level_at(p0);
-    let ddp = ka.second_derivative_at(T::zero());
     let squares = (big_a.powi(2), big_b.powi(2));
-    let half = T::from_f64(0.5);
-    let x0 = (
-        gx * squares.0 * half + ddp.dot(ub),
-        gy * squares.1 * half + ddp.dot(vb),
-    );
+    let d = ka.center() - kb.center();
+    // A derived centre rounds at its semi-axes' scale: charged on each
+    // `|x₀|` as `one_curve_gap` charges the same two centres.
+    let charge = geom_core::rounding_charge(ka.speed_hi() + kb.speed_hi());
+    let x0 = (d.dot(ub).abs() + charge, d.dot(vb).abs() + charge);
     let (two, eight) = (T::from_f64(2.0), T::from_f64(8.0));
     let side = |axis: Vec3<T>, x0: T, square: T| {
         let rho = (ua.dot(axis).powi(2) + va.dot(axis).powi(2)).sqrt();
-        (two * x0.abs() * rho + eight * rho.powi(2)) / square
+        (two * x0 * rho + eight * rho.powi(2)) / square
     };
     Level {
         a: ka,
         b: kb,
         axes: (ub, vb),
         squares,
-        fourth: up::<36, _>(side(ub, x0.0, squares.0) + side(vb, x0.1, squares.1)),
+        fourth: up::<33, _>(side(ub, x0.0, squares.0) + side(vb, x0.1, squares.1)),
     }
 }
 

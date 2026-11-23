@@ -1427,4 +1427,55 @@ mod rows {
             }
         }
     }
+
+    /// **The level's fourth-derivative bound holds where `a`'s centre
+    /// stands far from `b`'s**, so its `2|x₀|ρ` term is most of it: a
+    /// small ellipse 40 m from the centre of a large one, `b` held at its
+    /// centre and on its arc. The truth is the closed form along `a`,
+    /// `F⁗ = Σ (2x₀·X₁ + 8(X₁² − X₁′²))/A²` over `b`'s two axes, `X₁` the
+    /// harmonic part of `a`'s coordinate, formed from the centres and
+    /// semi-axis vectors the row states, at 720 angles. Red where the
+    /// `|x₀|` term is dropped (the review's N5).
+    #[test]
+    fn the_level_fourth_bound_holds_with_the_centres_far_apart() {
+        let (ca, cb) = (Point3::new(40.0, 3.0, 0.5), Point3::new(0.0, 0.0, 0.0));
+        let axis = Vec3::new(0.05, -0.02, 1.0).normalize();
+        let (ua, va) = {
+            let u = axis.cross(Vec3::new(0.3, 1.0, 0.0)).normalize();
+            (u, axis.cross(u))
+        };
+        let (ub, vb) = {
+            let u = axis.cross(Vec3::new(1.0, 0.2, 0.0)).normalize();
+            (u, axis.cross(u))
+        };
+        let (sa, sb) = ((2.0, 1.0), (60.0, 45.0));
+        let a = Curve3::Ellipse(geom::Ellipse::new(geom::Frame::new(ca, axis, ua), sa.0, sa.1));
+        let centred = geom::Ellipse::new(geom::Frame::new(cb, axis, ub), sb.0, sb.1);
+        let anchored = geom::Ellipse::anchored(cb + ub * sb.0, axis, ub, sb.0, sb.1);
+        let ka = a.conic().unwrap();
+        // The truth, from the stated numbers alone.
+        let (a1, a2) = (ua * sa.0, va * sa.1);
+        let truth = (0..720)
+            .map(|i| {
+                let t = f64::from(i) * core::f64::consts::TAU / 720.0;
+                let (s, c) = t.sin_cos();
+                [(ub, sb.0), (vb, sb.1)]
+                    .iter()
+                    .map(|&(w, big)| {
+                        let x0 = (ca - cb).dot(w);
+                        let (x1, dx1) = (a1.dot(w) * c + a2.dot(w) * s, a2.dot(w) * c - a1.dot(w) * s);
+                        (2.0 * x0 * x1 + 8.0 * (x1.powi(2) - dx1.powi(2))) / big.powi(2)
+                    })
+                    .sum::<f64>()
+                    .abs()
+            })
+            .fold(0.0_f64, f64::max);
+        for b in [Curve3::Ellipse(centred), Curve3::Ellipse(anchored)] {
+            let kb = b.conic().unwrap();
+            let bound = super::level_on(&ka, &kb).fourth();
+            assert!(bound >= truth, "{b:?}: the fourth bound {bound:e} below the true {truth:e}");
+            // And not vacuous: within a few times the truth.
+            assert!(bound <= 4.0 * truth, "{b:?}: the fourth bound {bound:e} past 4× the true {truth:e}");
+        }
+    }
 }

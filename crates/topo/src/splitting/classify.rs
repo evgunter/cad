@@ -699,38 +699,64 @@ mod tests {
         );
     }
 
-    /// **A graze's side decided zero keeps its margin, and each door that
-    /// reads the fault ends on it.** A circle of radius 2ε in a plane
-    /// square to the query plane, its centre ε off it, at K = 2: the
-    /// parallel gate passes `R = 2ε`, the belly decides the graze
-    /// (`R − |D| = ε`), and the graze's side `D = ±ε` decides zero, which
-    /// only K ≤ 2 reaches. The nonzero gate rejects it carrying `D`, at
-    /// every ε a run at K = 2 admits, either side, either normal. Read as a margin, it ends as
-    /// one: the split's lever; the Boolean's edge-on-plane gap with
-    /// its tighter tolerance; the census's coincidence menu, not the
-    /// defect ending a poisoned margin takes.
+
+    /// **A graze's side is read on its far extreme, and a belly in the
+    /// gap keeps its margin, each door that reads the fault ending on it.**
+    /// A circle in a plane square to the query plane, at K = 2.
+    ///
+    /// - Radius 2ε, its centre ε off: the parallel gate passes `R = 2ε`,
+    ///   the belly decides the graze (`R − |D| = ε`), and its side is the
+    ///   far extreme's sign, `±3ε`, past the band: one touch at the
+    ///   nearer extreme, `ε` the other side of the plane. (Read until
+    ///   PR 7543's fix pass on the centre's height `D = ±ε`, which decided
+    ///   zero and refused; the far extreme stands at least `R` past the
+    ///   plane, and the parallel gate passed `R`, so the side no longer
+    ///   escalates.)
+    /// - Radius 4ε, its centre 2.5ε off: the belly `R − |D| = 1.5ε` lies in
+    ///   the gap and refuses, carrying it. Read as a margin, it ends as one:
+    ///   the split's lever; the Boolean's edge-on-plane gap with its
+    ///   tighter tolerance; the census's coincidence menu, not the defect
+    ///   ending a poisoned margin takes.
+    ///
+    /// At every ε a run at K = 2 admits, either side, either normal.
     #[test]
-    fn a_graze_side_decided_zero_keeps_its_margin() {
+    fn a_graze_side_is_read_on_its_far_extreme_and_a_belly_in_the_gap_keeps_its_margin() {
         use crate::boolean::refusal_routes::{BooleanDecision, DeclarationRead};
+        let circle = |radius: f64, centre: f64| {
+            geom::Curve3::Ellipse(geom::Ellipse::new(
+                geom::Frame::new(Point3::new(0.0, 0.0, centre), Vec3::unit_x(), Vec3::unit_z()),
+                radius,
+                radius,
+            ))
+        };
         for e in [1e-3, 1e-6, 1e-9, 1e-11] {
             let band = Band::new(e, 2.0 * e).unwrap();
             for (off, nz) in [(1.0, 1.0), (-1.0, 1.0), (1.0, -1.0), (-1.0, -1.0)] {
                 let label = format!("ε = {e:e}, centre {off}·ε, normal {nz}·z");
-                let conic = geom::Ellipse::new(
-                    geom::Frame::new(
-                        Point3::new(0.0, 0.0, off * e),
-                        Vec3::unit_x(),
-                        Vec3::unit_z(),
-                    ),
-                    2.0 * e,
-                    2.0 * e,
-                );
                 let plane = crate::test_support_fixtures::split_plane(
                     Point3::origin(),
                     Vec3::new(0.0, 0.0, nz),
                     geom_core::Tol::witness(),
                 );
-                let carrier = geom::Curve3::Ellipse(conic);
+                // The graze: one touch, at the extreme nearer the plane.
+                let carrier = circle(2.0 * e, off * e);
+                let got = cross(
+                    &Span::new(&carrier, (0.0, core::f64::consts::TAU)),
+                    &plane.surface(),
+                    band,
+                )
+                .unwrap_or_else(|r| panic!("{label}: the graze refused, {:?}", r.windows[0].why));
+                let [touch] = got.meetings.as_slice() else {
+                    panic!("{label}: {got:?}");
+                };
+                assert!(
+                    (touch.point.z + off * e).abs() <= 1e-6 * e,
+                    "{label}: the touch at {:?}, not at the nearer extreme {:e}",
+                    touch.point,
+                    -off * e
+                );
+                // The belly in the gap.
+                let carrier = circle(4.0 * e, 2.5 * off * e);
                 let got = cross(
                     &Span::new(&carrier, (0.0, core::f64::consts::TAU)),
                     &plane.surface(),
@@ -749,29 +775,25 @@ mod tests {
                 };
                 assert_eq!(
                     diag.predicate,
-                    Some("curve_face_pose_graze_side"),
+                    Some("curve_face_pose_belly_graze"),
                     "{label}"
                 );
-                assert_eq!(
-                    diag.margin.rejected_sign(),
-                    Some(geom_core::Sign::Zero),
-                    "{label}"
-                );
-                assert_eq!(
-                    diag.margin.diagnostic_f64_for_error_text(),
-                    geom_core::ErrorTextReading::Value(off * nz * e),
-                    "{label}: the centre's offset"
-                );
+                let geom_core::ErrorTextReading::Value(belly) =
+                    diag.margin.diagnostic_f64_for_error_text()
+                else {
+                    panic!("{label}: {diag:?}");
+                };
+                assert!((belly - 1.5 * e).abs() <= 1e-6 * e, "{label}: the belly {belly:e}");
                 let split = crate::SplitReduceError::CrossingEscalated {
                     edge: crate::EdgeKey::default(),
                     fault,
                 }
                 .render(geom_brep::recourse::Reading::Build);
                 assert!(
-                    split.contains("within the zero band")
+                    split.contains("inside the ambiguity band")
                         && split.ends_with(&format!(
                             ". Recourse: {}",
-                            super::super::SPLIT_COINCIDENCE_RECOURSE
+                            geom_core::SPLIT_PLANE_RECOURSE
                         )),
                     "{label}: the split's lever: {split}"
                 );
