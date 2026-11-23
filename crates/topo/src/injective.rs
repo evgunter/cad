@@ -11633,6 +11633,64 @@ mod presentation_rows {
         );
     }
 
+    /// **Two stored ellipses are one only where stated alike**
+    /// ([`one_stated_conic`]): an ellipse is one with itself restated;
+    /// two held on their arcs, anchored `2⁻⁶⁰` apart with a semi-axis of
+    /// 100 toward the centre, derive one centre to the bit and one frame
+    /// there, yet are two ellipses (their centres `2⁻⁶⁰` apart), and are
+    /// not one; two stated alike but for `v`, which the stated-content
+    /// comparison does not read, are not one. Red if the frames at the
+    /// derived centre are compared, or `v` is not.
+    #[test]
+    fn two_stored_ellipses_are_one_only_where_stated_alike() {
+        let (x, y, z) = (
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        );
+        let rim = |e: geom::Ellipse<f64>| {
+            let c = Curve3::Ellipse(e);
+            Rim {
+                key: edge(1),
+                arc: Some((c.map_scalar(Interval::from_f64), (iv0(0.0), iv0(1.0)))),
+                stated: Some(c),
+                ends: [vertex(1), vertex(2)],
+                uses: Vec::new(),
+            }
+        };
+        let near = geom::Ellipse::anchored(Point3::origin(), z, x, 100.0, 1.0);
+        let off = 2f64.powi(-60);
+        let far = geom::Ellipse::anchored(Point3::new(off, 0.0, 0.0), z, x, 100.0, 1.0);
+        assert!(
+            one_stated_plane(&near.frame(), &far.frame()),
+            "one frame at one derived centre: {:?} {:?}",
+            near.frame(),
+            far.frame()
+        );
+        assert!(one_conic(&rim(near), &rim(near)), "restated alike");
+        assert!(
+            !one_conic(&rim(near), &rim(far)),
+            "anchored apart is another ellipse"
+        );
+        let frame = |v: Vec3<f64>| {
+            let map = geom_core::Affine3 {
+                linear: geom_core::Mat3::from_cols(x, v, z),
+                translation: Vec3::new(0.3, -1.1, 2.9),
+            };
+            geom::Frame::of_motion(
+                &geom_core::RigidMotion::check_rigid(&map).expect("rigid within its rounding"),
+            )
+        };
+        let tilted_v = Vec3::new(y.x, y.y, y.z + 1e-17);
+        assert!(
+            !one_conic(
+                &rim(geom::Ellipse::new(frame(y), 2.0, 1.0)),
+                &rim(geom::Ellipse::new(frame(tilted_v), 2.0, 1.0))
+            ),
+            "v a rounding off is another ellipse"
+        );
+    }
+
     /// **A plane through a line edge answers nothing at a shared vertex
     /// off the line** ([`planes_through`], [`sign_on`]): the pair shares
     /// the edge and the vertex `(2, 1, 0)` apart from it, and the plane,
