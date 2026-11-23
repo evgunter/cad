@@ -507,6 +507,37 @@ fn ladder_roots<T: Decide>(
             two * s1 - four * s2,
             c0 - c1 + c2,
         ];
+        // SCRATCH (probe, M3): the quartic's coefficients about this
+        // anchor from the door's local jet. Variant 4 re-bases only the
+        // constant, so `a[0]` is `F(anchor)` as the jet reads it; variant
+        // 5 forms all five from the jet at the anchor and at its pole.
+        let a = match (geom::probe::variant(), frame.jet) {
+            (4, Some(local)) => {
+                let c0 = (local.at)(anchor)[0].value - c1 - c2;
+                [
+                    c0 + c1 + c2,
+                    two * s1 + four * s2,
+                    two * c0 - six * c2,
+                    two * s1 - four * s2,
+                    c0 - c1 + c2,
+                ]
+            }
+            (5, Some(local)) => {
+                let (at, pole) = ((local.at)(anchor), (local.at)(anchor + T::pi()));
+                [
+                    at[0].value,
+                    two * at[1].value,
+                    at[0].value + pole[0].value + at[2].value + pole[2].value,
+                    T::zero() - two * pole[1].value,
+                    pole[0].value,
+                ]
+            }
+            _ => a,
+        };
+        geom::probe::log(format!(
+            "ladder-quartic anchor {anchor:?} a {:?} {:?} {:?} {:?} {:?}",
+            a[0], a[1], a[2], a[3], a[4]
+        ));
         let lead = a[4];
         // A pole conditioned past the floor goes on; one at or under it
         // passes.
@@ -538,6 +569,7 @@ fn ladder_roots<T: Decide>(
         // through the anchor rotation, pole division and rescale, whose
         // rounding nothing meters (module docs), and the module docs
         // record it disagreeing across definite crossings.
+        geom::probe::log(format!("ladder-depressed p {p:?} q {q:?} s {s:?} lever {lever:?}"));
         Rung::Answers(
             match depressed_quartic_roots(p, q, s, lever, rows.quartic(), band) {
                 Err(RootRefusal::Escalated(diag)) => Err(diag),

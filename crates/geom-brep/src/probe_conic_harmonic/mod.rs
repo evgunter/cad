@@ -10,6 +10,7 @@ use geom_core::{Band, Point3, Tol, Vec3};
 
 mod m1;
 mod m2;
+mod m3;
 
 pub(crate) fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
