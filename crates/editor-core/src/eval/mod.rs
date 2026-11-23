@@ -3693,6 +3693,13 @@ impl crate::mate::SolveScalar for geom_core::Interval {
         self.lo() == 0.0 && self.hi() == 0.0
     }
 
+    /// The point enclosure `[0, 0]`, as [`Self::exactly_zero`]: an
+    /// enclosure's midpoint rounds to zero for `[−5e−324, 0]`, which is no
+    /// zero everywhere it stands for.
+    fn zero_everywhere(self) -> bool {
+        self.exactly_zero()
+    }
+
     fn solve_atan2(y: Self, x: Self) -> Self {
         crate::mate::solve::box_atan2(y, x)
     }
