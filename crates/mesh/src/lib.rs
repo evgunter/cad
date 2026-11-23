@@ -93,8 +93,10 @@
 //! fresh one takes, so its mesh is byte-identical to [`fn@tessellate`]'s.
 //! A neighbour enters a face's inputs only as that list says: through
 //! the shared chord points, which the one chord rule in [`chords`] sizes
-//! from both faces, and on the trimmed lane as the identity of the face
-//! across each edge, never as the neighbour's own geometry.
+//! from both faces, never as the neighbour's identity or its geometry. A
+//! patch is a function of its face and δ, and the join adds the split
+//! points: a side two patches both have inside is split in each where
+//! they join (`join`), at a point of that face's own surface.
 
 //! # Structure kept, structure dropped
 //!

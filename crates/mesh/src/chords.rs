@@ -94,41 +94,17 @@ pub(crate) struct ChordPass {
     pub params: HashMap<EdgeKey, Vec<f64>>,
     /// **The faces holding each edge's chord points**: the face its
     /// `he_plus` bounds, then the face its `he_minus` bounds (one face
-    /// twice on an edge one face's loops use twice, a seam). Read once
-    /// per body, here, and through [`ChordPass::across`] only: the
-    /// trimmed lane's shared-side rule reads it
-    /// (`trimmed::faces_across`), and so the memo key folds it
-    /// (`memo::EdgeInputs::across`), off this one copy.
+    /// twice on an edge one face's loops use twice, a seam). Read once per
+    /// body, here, for the census where the patches join: a face holding a
+    /// chord that carries a side keeps it (`crate::join::census`).
     holders: HashMap<EdgeKey, [FaceKey; 2]>,
 }
 
 impl ChordPass {
-    /// **The face across edge `ek` from face `fk`**, off
-    /// [`ChordPass::holders`]: the holder that is not `fk`, or `None`
-    /// where `fk` holds both halves (a seam, whose sides between its
-    /// points are `fk`'s own).
-    ///
-    /// # Errors
-    ///
-    /// `MissingEntity` where the pass holds no such edge.
     /// The two faces holding edge `ek`'s chord points ([`Self::holders`]'s
     /// entry), `None` for an edge the pass did not chord.
     pub(crate) fn holders(&self, ek: EdgeKey) -> Option<[FaceKey; 2]> {
         self.holders.get(&ek).copied()
-    }
-
-    pub(crate) fn across(
-        &self,
-        ek: EdgeKey,
-        fk: FaceKey,
-    ) -> Result<Option<FaceKey>, TessellateError> {
-        let holders = self
-            .holders
-            .get(&ek)
-            .ok_or(TessellateError::MissingEntity {
-                what: "the faces holding an edge",
-            })?;
-        Ok(holders.iter().copied().find(|&f| f != fk))
     }
 }
 

@@ -892,16 +892,15 @@ fn chord_face_split(body: &Body<f64>, wall: FaceKey) -> Body<f64> {
     body
 }
 
-/// **The trimmed lane misses when only the face across an edge changes**
-/// (`memo`'s docs, the trimmed lane's list; `trimmed::faces_across`).
-/// The wall's two straight edges have one face across them, then two:
-/// its surface, loops, carriers, chord points, parameters and pcurves
-/// are the same bits, and only which face lies across moved. Its
-/// shared-side rule reads that, so the wall misses, and the
-/// memo-assisted mesh of the split body is the fresh one
-/// (`misses_between`).
+/// **The trimmed lane hits when only the face across an edge changes**
+/// (`memo`'s docs, the trimmed lane's list). The wall's two straight edges
+/// have one face across them, then two: its surface, loops, carriers,
+/// chord points, parameters and pcurves are the same bits, and only which
+/// face lies across moved. No lane reads that, so the wall is answered
+/// from the memo, and the memo-assisted mesh of the split body is the
+/// fresh one (`misses_between`).
 #[test]
-fn the_trimmed_lane_misses_when_only_the_face_across_an_edge_changes() {
+fn the_trimmed_lane_hits_when_only_the_face_across_an_edge_changes() {
     let base = shallow_segment();
     let wall = face_where(&base, |s| matches!(s, Surface::Cylinder { .. }));
     let split = chord_face_split(&base, wall);
@@ -938,8 +937,8 @@ fn the_trimmed_lane_misses_when_only_the_face_across_an_edge_changes() {
 
     let missed = misses_between(&base, &split);
     assert!(
-        missed.contains(&position_of(&split, wall)),
-        "the wall misses: only its faces across moved (missed {missed:?})"
+        !missed.contains(&position_of(&split, wall)),
+        "the wall hits: only its faces across moved (missed {missed:?})"
     );
 }
 
