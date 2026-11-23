@@ -110,6 +110,39 @@ fn one_members_yielded_half_reads_by_index() {
     );
 }
 
+/// A row of three of a unit box placed in the world, two apart along
+/// `axis`, each member split by the world plane a quarter up, the binder
+/// yielding both halves and the product set to `half`. The document, its
+/// evaluation and the row's index.
+fn world_product(
+    axis: TargetAxis,
+    half: SplitHalf,
+) -> (ProfileDoc, editor_core::Evaluation<f64>, VarId) {
+    let doc = ProfileDoc::empty_derived("binder-split-halves-product", Tol::witness());
+    let (doc, the_box) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, placed) =
+        fixture::in_world(doc, the_box, &editor_core::Frame::translation([0.0, 0.0, 0.0]));
+    let (doc, k, row) = fixture::row(doc, placed, ("k", 3), axis, 2.0);
+    let tool = fixture::plane_on(&doc, placed, [0.0, 0.0, 0.25], [0.0, 0.0, 1.0]);
+    let target = fixture::member_here(&doc, row.into());
+    let (doc, split) = insert(doc, Node::Split { target, tool });
+    let doc = fixture::yielded(doc, split);
+    let read = doc
+        .output(split, half.port())
+        .expect("a split defines a port per half");
+    let doc = doc
+        .apply(
+            &editor_core::DocEdit::SetProduct {
+                product: Some(Operand::Var(read)),
+            },
+            Tol::witness(),
+        )
+        .expect("a yielded half is a family of bodies in the world")
+        .doc;
+    let ev = fixture::run(&doc, &Default::default());
+    (doc, ev, k)
+}
+
 /// **The product of a yielded half is that half of every member**, as a
 /// reader of it reads it: a world product set to the upper halves is
 /// three bodies of three quarters each, each named at its member's
@@ -120,30 +153,7 @@ fn one_members_yielded_half_reads_by_index() {
 /// other than per member.
 #[test]
 fn the_product_of_a_yielded_half_is_that_half_of_every_member() {
-    // The row of a copy placed in the world, each member split a quarter
-    // up and the binder yielding both halves.
-    let doc = ProfileDoc::empty_derived("binder-split-halves-product", Tol::witness());
-    let (doc, the_box) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
-    let (doc, placed) =
-        fixture::in_world(doc, the_box, &editor_core::Frame::translation([0.0, 0.0, 0.0]));
-    let (doc, _k, row) = fixture::row(doc, placed, ("k", 3), TargetAxis::X, 2.0);
-    let tool = fixture::plane_on(&doc, placed, [0.0, 0.0, 0.25], [0.0, 0.0, 1.0]);
-    let target = fixture::member_here(&doc, row.into());
-    let (doc, split) = insert(doc, Node::Split { target, tool });
-    let doc = fixture::yielded(doc, split);
-    let above = doc
-        .output(split, SplitHalf::Above.port())
-        .expect("a split defines a port per half");
-    let doc = doc
-        .apply(
-            &editor_core::DocEdit::SetProduct {
-                product: Some(Operand::Var(above)),
-            },
-            Tol::witness(),
-        )
-        .expect("a yielded half is a family of bodies in the world")
-        .doc;
-    let ev = fixture::run(&doc, &Default::default());
+    let (doc, ev, _) = world_product(TargetAxis::X, SplitHalf::Above);
     let product = editor_core::product_recorded(&doc, &ev, Tol::witness())
         .unwrap_or_else(|e| panic!("the product of the yielded half gathers: {e}"));
     let body = product.body.clone().into_body();
@@ -168,5 +178,45 @@ fn the_product_of_a_yielded_half_is_that_half_of_every_member() {
         places.len(),
         3,
         "every name is a member's, one place per member: {places:?}"
+    );
+}
+
+/// **A yielded half one member of which is empty refuses the product,
+/// naming that member**, in the words the evaluator refuses a reader of
+/// it with: a row stacked along z above the plane a quarter up leaves the
+/// lower half of members 1 and 2 empty, and the read refuses at the
+/// first, `k = 1`.
+///
+/// *Breaks if* the gather skips an empty member's half (a second rule
+/// beside the evaluator's), or refuses without naming the member.
+#[test]
+fn a_yielded_half_with_an_empty_member_refuses_the_product_naming_it() {
+    let (doc, ev, k) = world_product(TargetAxis::Z, SplitHalf::Below);
+    let refused = editor_core::product_recorded(&doc, &ev, Tol::witness())
+        .map(|_| ())
+        .expect_err("an empty member's half refuses the product");
+    let editor_core::ProductError::ReadRefused { kind, .. } = &refused else {
+        panic!("the read refuses: {refused:?}");
+    };
+    match kind.as_ref() {
+        editor_core::NodeErrorKind::MemberRefused { at, source } => {
+            assert_eq!(at, &vec![(k, 1)], "the first member with no lower half");
+            assert!(
+                matches!(
+                    source.as_ref(),
+                    editor_core::NodeErrorKind::EmptyHalf {
+                        half: SplitHalf::Below,
+                        ..
+                    }
+                ),
+                "its half is empty: {source:?}"
+            );
+        }
+        other => panic!("the member's refusal, named: {other:?}"),
+    }
+    assert_eq!(
+        refused.kind(),
+        editor_core::ProductErrorKind::ReadRefused,
+        "its class"
     );
 }

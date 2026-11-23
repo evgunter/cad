@@ -3651,7 +3651,8 @@ fn split_halves<T: topo::AtRestPolicy + Decide>(
 /// projected as one split's half is ([`projected`]), then gathered as
 /// any family of bodies is ([`super::members::family_value`]), each
 /// half named at its member's place. A member whose half is empty
-/// refuses the family ([`NodeErrorKind::EmptyHalf`]).
+/// refuses the family, naming the member
+/// ([`NodeErrorKind::MemberRefused`] over [`NodeErrorKind::EmptyHalf`]).
 fn half_of_each<T: topo::AtRestPolicy + Decide>(
     split: RecipeNodeId,
     port: u8,
@@ -3665,7 +3666,19 @@ fn half_of_each<T: topo::AtRestPolicy + Decide>(
             let ValuePayload::Split { above, below } = &member.payload else {
                 return Err(wrong_operand(member, split, super::family::SPLIT));
             };
-            let body = split_side(split, half, above, below)?;
+            // A member whose half is empty refuses the family, naming
+            // the member, as a member that refuses does.
+            let body = split_side(split, half, above, below).map_err(|source| {
+                NodeErrorKind::MemberRefused {
+                    at: members
+                        .over
+                        .iter()
+                        .copied()
+                        .zip(at.iter().map(|&v| i64::from(v)))
+                        .collect(),
+                    source: Box::new(source),
+                }
+            })?;
             let names = member.output(port).cloned().unwrap_or_else(|| {
                 unreachable!("a member of split {split:?} names its {half:?} half (port {port})")
             });
