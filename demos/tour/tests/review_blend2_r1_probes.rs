@@ -61,7 +61,7 @@ fn vase() -> Body<f64> {
 }
 
 /// A ball of radius `rad` centred at `(x, y, 0)`, authored as a
-/// pole-touching revolve (its equator is two half-walls), finished as a
+/// pole-touching revolve (one face, its equator one closed edge), finished as a
 /// boolean operand.
 fn ball(x: f64, y: f64, rad: f64) -> AtRestBody<f64> {
     let t = tol();

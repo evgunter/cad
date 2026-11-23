@@ -4726,9 +4726,9 @@ pub(super) mod tests {
                 }
             }
         }
-        // Three walls (one on the vessel, two on the elbow) and two cone
-        // faces a half, at three δ.
-        assert_eq!(faces, 3 * (3 + 2 * 4), "the bodies' cone and torus faces");
+        // Three walls (one on the vessel, two on the elbow) and one cone
+        // face a half (a full revolve's wall is one face), at three δ.
+        assert_eq!(faces, 3 * (3 + 4), "the bodies' cone and torus faces");
     }
 
     /// The form of a stored chart image, for a row's report.
