@@ -1,0 +1,14 @@
+== eps 1e-9   cells: right / refused / WRONG, by family and truth
+  fix none D APART: 96/0/0  D MEETS: 126/0/18  E APART: 288/0/0  E MEETS: 168/54/66  F APART: 14/82/0  F MEETS: 73/98/21  G-across MEETS: 28/10/10  G-coplanar MEETS: 30/11/7
+  fix a    D APART: 96/0/0  D MEETS: 126/0/18  E APART: 288/0/0  E MEETS: 168/54/66  F APART: 14/82/0  F MEETS: 73/98/21  G-across MEETS: 28/11/9  G-coplanar MEETS: 30/11/7
+  fix b    D APART: 96/0/0  D MEETS: 126/0/18  E APART: 288/0/0  E MEETS: 176/56/56  F APART: 14/82/0  F MEETS: 73/98/21  G-across MEETS: 31/11/6  G-coplanar MEETS: 30/11/7
+  fix ab   D APART: 96/0/0  D MEETS: 126/0/18  E APART: 288/0/0  E MEETS: 176/56/56  F APART: 14/82/0  F MEETS: 73/98/21  G-across MEETS: 31/11/6  G-coplanar MEETS: 30/11/7
+  fix c    D APART: 96/0/0  D MEETS: 128/0/16  E APART: 288/0/0  E MEETS: 168/54/66  F APART: 17/79/0  F MEETS: 73/94/25  G-across MEETS: 28/10/10  G-coplanar MEETS: 30/11/7
+  fix abc  D APART: 96/0/0  D MEETS: 128/0/16  E APART: 288/0/0  E MEETS: 180/60/48  F APART: 17/79/0  F MEETS: 73/94/25  G-across MEETS: 31/12/5  G-coplanar MEETS: 30/11/7
+== eps 1e-12   cells: right / refused / WRONG, by family and truth
+  fix none D APART: 96/0/0  D MEETS: 80/1/63  E APART: 288/0/0  E MEETS: 108/0/180  F APART: 45/51/0  F MEETS: 41/64/87  G-across MEETS: 20/2/26  G-coplanar MEETS: 14/11/23
+  fix a    D APART: 96/0/0  D MEETS: 80/1/63  E APART: 288/0/0  E MEETS: 108/0/180  F APART: 45/51/0  F MEETS: 41/64/87  G-across MEETS: 19/3/26  G-coplanar MEETS: 14/11/23
+  fix b    D APART: 96/0/0  D MEETS: 80/1/63  E APART: 288/0/0  E MEETS: 110/14/164  F APART: 45/51/0  F MEETS: 41/64/87  G-across MEETS: 23/5/20  G-coplanar MEETS: 14/11/23
+  fix ab   D APART: 96/0/0  D MEETS: 80/1/63  E APART: 288/0/0  E MEETS: 110/12/166  F APART: 45/51/0  F MEETS: 41/64/87  G-across MEETS: 22/3/23  G-coplanar MEETS: 14/11/23
+  fix c    D APART: 96/0/0  D MEETS: 83/1/60  E APART: 288/0/0  E MEETS: 108/6/174  F APART: 50/46/0  F MEETS: 41/61/90  G-across MEETS: 20/1/27  G-coplanar MEETS: 14/10/24
+  fix abc  D APART: 96/0/0  D MEETS: 83/1/60  E APART: 288/0/0  E MEETS: 108/10/170  F APART: 50/46/0  F MEETS: 41/61/90  G-across MEETS: 23/2/23  G-coplanar MEETS: 14/10/24

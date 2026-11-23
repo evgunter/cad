@@ -1,3 +1,55 @@
+diff --git a/crates/geom-brep/src/curve_pair/pose.rs b/crates/geom-brep/src/curve_pair/pose.rs
+index af4187a4e..164f711bc 100644
+--- a/crates/geom-brep/src/curve_pair/pose.rs
++++ b/crates/geom-brep/src/curve_pair/pose.rs
+@@ -1892,8 +1892,10 @@ fn conic_conic<T: Decide>(
+     let (ka, kb) = (conic_of(a.carrier())?, conic_of(b.carrier())?);
+     let ball = |c: &Curve3<T>| crate::ExtentBall::of_covered(c.cover().as_ref().ok());
+     let arm = ball(a.carrier()).lever().max(ball(b.carrier()).lever());
+-    let ha = height(&ka, kb.frame().origin(), kb.frame().axis());
+-    let hb = height(&kb, ka.frame().origin(), ka.frame().axis());
++    // SCRATCH intervention (never merges): each conic's plane stated through a point of its arc
++    let on = |k: &dyn Conic<T>| if std::env::var("SUSPECT_FIX").is_ok_and(|v| v.contains('c')) { k.point_at(T::zero()) } else { k.frame().origin() };
++    let ha = height(&ka, on(&kb), kb.frame().axis());
++    let hb = height(&kb, on(&ka), ka.frame().axis());
+     let swing = |(_, cp, sp): (T, T, T)| (cp.powi(2) + sp.powi(2)).sqrt();
+     let (swing_a, swing_b) = (swing(ha), swing(hb));
+     let sides = [(swing_a, ha), (swing_b, hb)];
+diff --git a/crates/geom-brep/src/curve_pair/pose/window.rs b/crates/geom-brep/src/curve_pair/pose/window.rs
+index 0e4532135..fdf33cd06 100644
+--- a/crates/geom-brep/src/curve_pair/pose/window.rs
++++ b/crates/geom-brep/src/curve_pair/pose/window.rs
+@@ -195,6 +195,8 @@ impl<T: Decide> Window<'_, T> {
+     /// `P″ = −(P − c)` and `P‴ = −P′`.
+     fn height_jet(&self, theta: T) -> [T; 4] {
+         let (n, centre) = (self.b.frame().axis(), self.b.frame().origin());
++        // SCRATCH intervention (never merges): b's plane stated through a point of b's arc
++        let centre = if std::env::var("SUSPECT_FIX").is_ok_and(|v| v.contains('a')) { self.b.point_at(T::zero()) } else { centre };
+         let (p, dp) = self.a.jet_at(theta);
+         let slope = dp.dot(n);
+         let bend = (self.a.frame().origin() - p).dot(n);
+@@ -356,6 +358,11 @@ impl<T: Decide> Window<'_, T> {
+             .carrier()
+             .clearance(self.a.point_at(m))
+             .unwrap_or_else(T::zero);
++        // SCRATCH intervention (never merges): the clearance term dropped
++        let clear = if std::env::var("SUSPECT_FIX").is_ok_and(|v| v.contains('b')) { T::zero() } else { clear };
++        if std::env::var_os("SUSPECT_WIN").is_some() {
++            println!("{{\"door\":\"off_by\",\"l\":{:?},\"r\":{:?},\"h_lo\":{:?},\"clear\":{:?},\"reach\":{:?},\"z\":{:?},\"H_mid\":{:?}}}", l, r, h_lo, clear, self.a.speed_hi() * w, z, self.height_jet(m)[0]);
++        }
+         positive(
+             "curve_pair_window_off",
+             h_lo.max(clear - self.a.speed_hi() * w) - z,
+@@ -537,6 +544,9 @@ impl<T: Decide> Window<'_, T> {
+     /// span of at most a turn, wherever its parameters lie. A span longer
+     /// than `MAX_TURNS` turns is not read (`false`).
+     pub(super) fn holds_only(&self, (lo, hi): (T, T), joints: &[Joint<T>], band: Band) -> bool {
++        if std::env::var_os("SUSPECT_WIN").is_some() {
++            println!("{{\"door\":\"win\",\"lo\":{:?},\"hi\":{:?},\"a_speed\":{:?},\"b_speed\":{:?},\"joints\":{}}}", lo, hi, self.a.speed_hi(), self.b.speed_hi(), joints.len());
++        }
+         let two = T::from_f64(2.0);
+         if !positive("curve_pair_window_width", T::pi() / two - (hi - lo) / two) {
+             return false;
 diff --git a/crates/geom/src/curves/conic.rs b/crates/geom/src/curves/conic.rs
 index 7019cd873..cf3552ebf 100644
 --- a/crates/geom/src/curves/conic.rs
