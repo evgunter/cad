@@ -631,9 +631,15 @@ impl<'a> AnalyticRow<'a> {
     }
 
     /// **Whether the trimmed lane's arm on this chart chords its boundary
-    /// to its lattice** (`chords::tighten`): every arm's but the
-    /// cylinder's, which chords at its target alone
+    /// to its lattice** (`chords::tighten`): whether the chord pass bounds
+    /// a boundary edge's chart steps by the arm's steps ([`Self::steps`]),
+    /// so its points fall no farther apart than the lattice's. Every arm's
+    /// but the cylinder's, whose boundary is chorded at its target alone
     /// (`work/tesslane/the-trimmed-cylinder-arm-chords-its-boundary-to-no-lattice.md`).
+    /// This is not [`Self::lattice_rows`]' "no row": it decides the
+    /// boundary's points, not the interior's, held while the cylinder still
+    /// laid rows, and is read by the chord pass, which runs before any
+    /// window is known.
     pub(crate) fn chorded_to_lattice(&self) -> bool {
         match self.kind() {
             Analytic::Cylinder { .. } => false,

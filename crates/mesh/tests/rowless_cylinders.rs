@@ -130,8 +130,11 @@ fn a_notched_wall_with_split_rulings_is_its_boundary_points_alone() {
 /// target's columns, and its certificate refuses; the lane puts a point
 /// inside each refused triangle and triangulates again. The cells are
 /// those that refuse with the correction off, at three scales, and the
-/// two that refuse on the lane's former rows (`r = 10`, δ 0.1), which mesh
-/// here at the first attempt. Measured: one round, four points, on every
+/// two of the first probe that refuse on the lane's former rows (`r =
+/// 10`, δ 0.1), which mesh here at the first attempt. Main refuses cells
+/// of the class at `r = 10`: those 2 of the first probe, and 10 of 108 of
+/// a second that PR 7526's review ran (gap 1.5 to 1.6, two and three
+/// holes). Measured: one round, four points, on every
 /// refusing cell, after which the worst certificate reads 0.48·δ to
 /// 0.49·δ. Every cell builds and meshes at every ε the suite runs.
 #[test]
