@@ -104,7 +104,8 @@ of that, never more; each bound is argued at its site
 
 The spec's item 1 says "the pair's extent" per edge. Each face's run is
 kept instead and the lesser taken where the two are read: the spanned
-bound below is read on the question's side and needs each face's own.
+bound below is read on the question's side, in enclosures, and raises
+one face's run alone.
 
 `AtRestBody` holds the facts beside its sign certificate and carries
 them through an isometry. `topo::geometric(&Body, tol)` runs tier 2,
@@ -133,14 +134,23 @@ ends and its middle, and each lone vertex: points of its boundary.
   along a spline edge past an end still counts: more than the
   definition, stated at the door;
 - shared vertex: the station's distance from it.
-- **the spanned bound (R, 8a)**: a face whose whole boundary is one
-  loop on one closed planar curve with a centre (a circle, an ellipse,
-  a spiric oval) spans it, so it meets the line through the centre
-  square to the curve's plane, and runs at least as far from the curve
-  as that line stands from it. One edge is one curve; several edges
-  are one conic by `injective::one_conic` and no second equality. The
-  run from the edge's middle reads a disc at its diameter, past its
-  true run, and is no lower bound.
+- **the spanned bound (R, 8a)**: a face that meets the centre line of
+  the closed curve one of its edges lies on (a circle, an ellipse, a
+  spiric oval; the line through the curve's centre square to its
+  plane) runs at least as far from the curve as that line stands from
+  it. The face meets the line where its boundary crosses a half-plane
+  the line bounds an odd number of times
+  (`injective::crosses_oddly`): a disc's rim once, however it is cut
+  into arcs; an annulus's two rims once each. No arc is compared with
+  another, so the bound needs no reading of how carriers are stored
+  and holds alike at a point and a box scalar. (The ruling took "one
+  stored conic" from `injective::one_conic`; that reading admits only
+  carriers stored as points at a box scalar, and `revolve` cuts every
+  rim in two, so ten of the suite's rows held at `f64` and refused at
+  `Interval`, and the shell's cavity gate refused revolved bodies
+  there. The crossing count replaces it.) The run from the edge's
+  middle reads a disc at its diameter, past its true run, and is no
+  lower bound.
 
 Every distance is a cover's reading (`Cover::range_about`,
 `Cover::distance_range`); the door takes carriers and spans and places

@@ -318,18 +318,102 @@ pub(crate) struct Facts {
     singular: BTreeSet<VertexKey>,
 }
 
-/// The least run of a face whose whole boundary, `edges`, lies on one
-/// closed curve ([`Facts::of`]); `None` for any other face.
-fn spanned(edges: &[Rim]) -> Option<Lever<Interval>> {
-    let (first, rest) = edges.split_first()?;
-    if !rest.iter().all(|o| one_conic(first, o)) {
+/// The funnel site of a side of the half-plane a face's boundary is
+/// counted across ([`crosses_oddly`]): a point's or a cover's signed
+/// height off it, read for its sign alone.
+pub(crate) const SELF_INTERSECTION_SPANS: &str = "self_intersection_spans";
+
+/// The side `x` is decided on by its enclosure alone, or `None`.
+fn enclosure_side(x: Interval) -> Option<Sign> {
+    match decide(
+        SELF_INTERSECTION_SPANS,
+        Margin::sign_of(x),
+        Band::enclosure_sign(),
+    ) {
+        Ok(s @ (Sign::Positive | Sign::Negative)) => Some(s),
+        _ => None,
+    }
+}
+
+/// **Whether a face's boundary, `edges`, crosses a half-plane bounded
+/// by `line` an odd number of times**: then the face meets the line.
+///
+/// A face is a compact surface whose boundary is its loops, and the
+/// number of points a line meets a surface in has the parity of the
+/// number of times the surface's boundary winds about the line, which
+/// is the parity of its crossings of any half-plane the line bounds. A
+/// disc's rim crosses such a half-plane once, whatever arcs it is cut
+/// into; an annulus's two rims once each, and it does not meet its
+/// axis. No arc is compared with another, so nothing is asked of how
+/// the carriers are stored: the count is of the curves themselves, and
+/// at a box scalar it holds for every member, each side being decided
+/// by an enclosure that excludes zero.
+///
+/// The half-plane is the part of a plane through `line` on one side of
+/// it, the plane's normal the line's direction crossed with a fixed
+/// vector no modelling direction is likely to be along. Each edge is
+/// read in pieces ([`geom_brep::span_pieces`]). A piece whose cover is
+/// decided on one side of the plane does not cross it. One whose cover
+/// is decided on the half-plane's side of the line crosses the plane
+/// only in the half-plane, an odd number of times where its two ends
+/// are decided on opposite sides and an even number where on one. One
+/// decided on the line's other side crosses the half-plane nowhere. A
+/// seam, which the face lies on both sides of, is its boundary twice
+/// and counts for nothing.
+///
+/// `None` where a side is not decided (a piece near the line, an end on
+/// the plane, a piece with no cover) or an edge has no carrier: no
+/// crossing is counted that was not shown.
+fn crosses_oddly(edges: &[Rim], line: &geom::Line<Interval>) -> Option<bool> {
+    let normal = line
+        .dir
+        .cross(Vec3::new(at(0.5377), at(-0.2913), at(0.7896)));
+    let toward = normal.cross(line.dir);
+    let height = |n: Vec3<Interval>, p: Point3<Interval>| n.dot(p - line.origin);
+    let floor = |n: Vec3<Interval>| n.dot(line.origin - Point3::origin());
+    let mut odd = false;
+    for e in edges {
+        let (carrier, span) = e.arc.as_ref()?;
+        if e.uses.len() % 2 == 0 {
+            continue;
+        }
+        for ((t0, t1), cover) in geom_brep::span_pieces(carrier, *span) {
+            let cover = cover?;
+            let side_of = |n: Vec3<Interval>| {
+                let (lo, hi) = cover.range_along(n);
+                match (enclosure_side(lo - floor(n)), enclosure_side(hi - floor(n))) {
+                    (Some(Sign::Positive), _) => Some(Sign::Positive),
+                    (_, Some(Sign::Negative)) => Some(Sign::Negative),
+                    _ => None,
+                }
+            };
+            if side_of(normal).is_some() {
+                continue;
+            }
+            if side_of(toward)? == Sign::Positive {
+                let a = enclosure_side(height(normal, carrier.eval(t0)))?;
+                let b = enclosure_side(height(normal, carrier.eval(t1)))?;
+                odd ^= a != b;
+            }
+        }
+    }
+    Some(odd)
+}
+
+/// **The least run from `shared` of a face that spans its curve**
+/// ([`Facts::of`]): where `shared` lies on a closed curve with a centre
+/// and the face's boundary, `edges`, crosses a half-plane bounded by
+/// that curve's centre line an odd number of times, the face meets the
+/// line ([`crosses_oddly`]), and runs from the curve at least as far as
+/// the line stands from it ([`geom_brep::centre_line`], which argues
+/// it). `None` for any other face.
+fn spanned(edges: &[Rim], shared: &Rim) -> Option<Lever<Interval>> {
+    let (carrier, _) = shared.arc.as_ref()?;
+    let line = geom_brep::centre_line(carrier)?;
+    if !crosses_oddly(edges, &line)? {
         return None;
     }
-    let arcs: Option<Vec<_>> = edges
-        .iter()
-        .map(|e| e.arc.as_ref().map(|(carrier, span)| (carrier, *span)))
-        .collect();
-    geom_brep::spanned_curve_run(arcs?)
+    geom_brep::oval_clearance(carrier, line)
 }
 
 impl Facts {
@@ -337,14 +421,11 @@ impl Facts {
     /// (a length that does not cross is not kept, so its reading decides
     /// nothing), over the face's lifted `edges` and `vertices`.
     ///
-    /// **A face whose whole boundary lies on one closed curve** runs
-    /// from each of its edges at least that curve's least radius
-    /// ([`geom_brep::spanned_curve_run`], whose argument is there): its
-    /// stations all lie on the curve, so tier 3's run from them is a
-    /// rounding. A face of one edge is on one curve; that several edges
-    /// are one conic is [`one_conic`]'s reading, of every edge against
-    /// the first. At a box scalar it admits only carriers stored as
-    /// points, and a face it does not admit keeps the run tier 3 read.
+    /// **A face that spans the curve one of its edges lies on** (a disc
+    /// on its rim, a cap, a tilted cut) has its stations on that curve,
+    /// so tier 3's run from them is a rounding; its run is then at least
+    /// the curve's distance from its own centre line ([`spanned`]), and
+    /// the greater of the two lower bounds is kept.
     pub(crate) fn of<T: Real>(
         kept: &crate::Tier3Facts<T>,
         face: FaceKey,
@@ -356,7 +437,6 @@ impl Facts {
             let run = run.crossed(&cross);
             run.length().is_certified().then_some(run)
         };
-        let spanned = spanned(edges);
         Self {
             classes: edges
                 .iter()
@@ -366,7 +446,7 @@ impl Facts {
                 .iter()
                 .filter_map(|e| {
                     let run = lever(kept.edge_run(face, e.key)?)?;
-                    Some((e.key, spanned.map_or(run, |least| run.max(least))))
+                    Some((e.key, spanned(edges, e).map_or(run, |least| run.max(least))))
                 })
                 .collect(),
             vertex_runs: vertices
@@ -405,7 +485,7 @@ impl Boundary {
                     let run = stations.run_from_edge(carrier, *span);
                     Some((
                         e.key,
-                        spanned(&self.edges).map_or(run, |least| run.max(least)),
+                        spanned(&self.edges, e).map_or(run, |least| run.max(least)),
                     ))
                 })
                 .collect(),
@@ -14346,6 +14426,80 @@ mod margin_reach_rows {
             read(fixture_lever(iv0(1.0))).is_some(),
             "signed at the plane's metre, which no extent reads"
         );
+    }
+
+    /// An arc of the circle of radius `r` about the origin in the `xy`
+    /// plane over `span`, used once by its face, its carrier held as the
+    /// enclosures `r ± slack` so that it is no stored point.
+    fn arc(k: u64, ends: [u64; 2], r: f64, slack: f64, span: (f64, f64)) -> Rim {
+        Rim {
+            key: key(k),
+            arc: Some((
+                Curve3::Circle(geom::Circle::new(
+                    geom::Frame::new(p3([0.0; 3]), v3([0.0, 0.0, 1.0]), v3([1.0, 0.0, 0.0])),
+                    Interval::from_bounds(r - slack, r + slack),
+                )),
+                (iv0(span.0), iv0(span.1)),
+            )),
+            stated: None,
+            ends: ends.map(key),
+            uses: vec![Use {
+                plus: true,
+                image: None,
+                iso: None,
+                harmonic: None,
+                wall: None,
+            }],
+        }
+    }
+
+    /// **A face spans its rim where its boundary crosses a half-plane on
+    /// the rim's axis an odd number of times, however the rim is cut and
+    /// stored.**
+    /// - a disc's rim in two half circles, each carrier an enclosure a
+    ///   nanometre wide (no stored point, so no two arcs are one value):
+    ///   it crosses once, and the disc runs the radius from each arc;
+    /// - an annulus's outer rim with its inner: each crosses once, twice
+    ///   in all, and the annulus does not meet its axis;
+    /// - a rim the face lies on both sides of counts for nothing;
+    /// - a line edge has no centre line.
+    ///
+    /// Red if a half-plane's far half is counted (the disc then crosses
+    /// twice), if an even count spans, or if the arcs must be one stored
+    /// conic.
+    #[test]
+    fn a_face_spans_its_rim_by_an_odd_crossing_of_its_axis_half_plane() {
+        use core::f64::consts::{PI, TAU};
+        let halves = [
+            arc(1, [1, 2], 2.0, 1e-9, (0.0, PI)),
+            arc(2, [2, 1], 2.0, 1e-9, (PI, TAU)),
+        ];
+        for shared in &halves {
+            let run = spanned(&halves, shared).expect("the disc spans its rim");
+            assert!(
+                run.length().lo() > 1.99 && run.length().hi() <= 2.0 + 1e-8,
+                "the radius, from below: {:?}",
+                run.length()
+            );
+        }
+        let annulus = [
+            arc(1, [1, 1], 2.0, 0.0, (0.0, TAU)),
+            arc(2, [2, 2], 1.0, 0.0, (0.0, TAU)),
+        ];
+        assert!(
+            spanned(&annulus, &annulus[0]).is_none(),
+            "an annulus crosses twice"
+        );
+        let mut seamed = [arc(1, [1, 1], 2.0, 0.0, (0.0, TAU))];
+        assert!(spanned(&seamed, &seamed[0]).is_some(), "a whole rim");
+        let twin = seamed[0].uses[0].clone();
+        seamed[0].uses.push(twin);
+        assert!(
+            spanned(&seamed, &seamed[0]).is_none(),
+            "a rim the face lies on both sides of"
+        );
+        let straight = [line(1, [1, 2], [0.0; 3], [1.0, 0.0, 0.0])];
+        assert!(spanned(&straight, &straight[0]).is_none(), "a line");
     }
 
     /// **A sine that changes sign over the rectangle decides nothing.** A

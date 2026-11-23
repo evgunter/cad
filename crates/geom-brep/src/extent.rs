@@ -1138,8 +1138,8 @@ impl<T: Real> Reach<T> {
 ///   face's boundary, so of the face, and its distance from the locus
 ///   read from below ([`locus_distance_below`]) is a distance the face
 ///   reaches;
-/// - **the spanned curve** ([`spanned_curve_run`]), for a face whose
-///   stations all lie on the shared closed curve.
+/// - **the spanned curve** ([`centre_line`], [`oval_clearance`]), for a
+///   face whose stations all lie on the shared closed curve.
 ///
 /// The door takes the boundary's geometry (each edge's carrier and
 /// span, a lone vertex's point) and places the stations itself, so no
@@ -1192,18 +1192,9 @@ impl<T: SpanLocate> BoundaryStations<T> {
     }
 }
 
-/// **The run of a face that spans a closed curve**: where `edges`, the
-/// face's whole boundary, are one loop lying on one closed planar curve
-/// with a centre (a circle, an ellipse, a spiric oval), the nearest that
-/// curve stands to the line through its centre square to its plane;
-/// `None` for any other first carrier, or where a piece has no cover.
-///
-/// Such a face spans the curve: the loop is the curve, which winds once
-/// about that line, so the face, a surface bounded by it, meets the
-/// line. Every point of the line stands at least the line's distance
-/// from the curve away from it. So the face reaches at least that far
-/// from the curve: a lower bound of its run from each of its edges,
-/// where its stations, all on the curve, read none.
+/// **The line a closed planar curve with a centre winds once about**:
+/// through the centre of a circle, an ellipse or a spiric oval, square
+/// to its plane; `None` for any other carrier.
 ///
 /// The line is through the middle of the curve's points at parameters
 /// `0` and `π`, along its tangent at `0` crossed with the chord between
@@ -1211,42 +1202,52 @@ impl<T: SpanLocate> BoundaryStations<T> {
 /// axis of symmetry the tangent at `0` is square to, so the line is
 /// square to the curve's plane through a point inside it (a conic's
 /// centre; on a spiric oval, between its two crossings of its axis of
-/// symmetry). The distance is the edges' covers' own, in pieces
-/// ([`halved`]), about that line: a cover holds its piece, so the
-/// nearest any cover stands is never past the curve's.
+/// symmetry).
 ///
-/// That the boundary is one loop on this one curve is the caller's to
-/// have read.
+/// **What it is for.** A face that meets this line runs from the curve
+/// at least as far as the line stands from it ([`oval_clearance`]):
+/// every point of the line is at least that far from every point of the
+/// curve. That is a lower bound of the face's run from an edge on the
+/// curve, for a face whose stations, all on the curve, read none: a
+/// disc on its rim, a cap, a tilted cut. Whether the face meets the
+/// line is the caller's to show.
 ///
 /// The face's run from the edge's middle, which reads a disc at its
 /// diameter, is past the disc's true run, its radius, and so is no bound
 /// from below.
-pub fn spanned_curve_run<'a, T: SpanLocate + 'a>(
-    edges: impl IntoIterator<Item = (&'a Curve3<T>, (T, T))>,
-) -> Option<Lever<T>> {
-    let edges: Vec<_> = edges.into_iter().collect();
-    let (first, _) = edges.first()?;
-    if !is_centred_oval(first) {
+pub fn centre_line<T: SpanLocate>(carrier: &Curve3<T>) -> Option<Line<T>> {
+    if !is_centred_oval(carrier) {
         return None;
     }
-    let (near, far) = (first.eval(T::zero()), first.eval(T::pi()));
-    let through = Line {
+    let (near, far) = (carrier.eval(T::zero()), carrier.eval(T::pi()));
+    Some(Line {
         origin: near + (far - near) * T::from_f64(0.5),
-        dir: first.deriv(T::zero()).cross(far - near),
-    };
-    edges
-        .iter()
-        .flat_map(|&(carrier, span)| halved(carrier, span))
-        .map(|cover| Some(cover?.range_about(&Around::Line(through)).0))
+        dir: carrier.deriv(T::zero()).cross(far - near),
+    })
+}
+
+/// **How far a closed curve stands from `line`**, from below: the
+/// nearest any cover of its whole turn, in pieces ([`span_pieces`]),
+/// stands to the line. A cover holds its piece, so that is never past
+/// the curve's own distance. `None` for a carrier that is no closed
+/// curve of one turn ([`centre_line`]'s kinds), or where a piece has no
+/// cover.
+pub fn oval_clearance<T: SpanLocate>(carrier: &Curve3<T>, line: Line<T>) -> Option<Lever<T>> {
+    if !is_centred_oval(carrier) {
+        return None;
+    }
+    span_pieces(carrier, (T::zero(), T::tau()))
+        .into_iter()
+        .map(|(_, cover)| Some(cover?.range_about(&Around::Line(line)).0))
         .reduce(|a, b| Some(a?.min(b?)))?
         .map(Lever::of_consumed_extent)
 }
 
 /// **Whether a carrier is a closed planar curve its points at `0` and
 /// `π` are the ends of an axis of symmetry of**, with its tangent at `0`
-/// square to that axis: a circle, an ellipse, a spiric oval. A statement
-/// about the kind's shape, which the kinds are matched for; no region is
-/// read here.
+/// square to that axis, closing over one turn of its parameter: a
+/// circle, an ellipse, a spiric oval. A statement about the kind's
+/// shape, which the kinds are matched for; no region is read here.
 fn is_centred_oval<T: Real>(carrier: &Curve3<T>) -> bool {
     match carrier {
         Curve3::Circle(_) | Curve3::Ellipse(_) | Curve3::Spiric { .. } => true,
@@ -1254,9 +1255,12 @@ fn is_centred_oval<T: Real>(carrier: &Curve3<T>) -> bool {
     }
 }
 
-/// `carrier`'s covers over `span` in `2^` [`LOCUS_HALVINGS`] equal
-/// pieces; `None` for a piece with no cover.
-fn halved<T: SpanLocate>(carrier: &Curve3<T>, span: (T, T)) -> Vec<Option<Cover<T>>> {
+/// **A carrier over `span` in `2^` [`LOCUS_HALVINGS`] equal pieces**:
+/// each piece's span and its cover, `None` for a piece with none.
+pub fn span_pieces<T: SpanLocate>(
+    carrier: &Curve3<T>,
+    span: (T, T),
+) -> Vec<((T, T), Option<Cover<T>>)> {
     let mut spans = vec![span];
     for _ in 0..LOCUS_HALVINGS {
         spans = spans
@@ -1269,12 +1273,11 @@ fn halved<T: SpanLocate>(carrier: &Curve3<T>, span: (T, T)) -> Vec<Option<Cover<
     }
     spans
         .into_iter()
-        .map(|(t0, t1)| carrier.cover_over(ParamWindow::new(t0, t1)).ok())
+        .map(|(t0, t1)| ((t0, t1), carrier.cover_over(ParamWindow::new(t0, t1)).ok()))
         .collect()
 }
 
-/// How many times a carrier with no closed distance is halved over the
-/// edge's span ([`Locus::Pieces`]): `2^6` pieces.
+/// How many times a span is halved into pieces ([`span_pieces`]).
 const LOCUS_HALVINGS: u32 = 6;
 
 /// **A shared edge's locus, as a distance from below is read from it**
@@ -1320,7 +1323,12 @@ impl<T: SpanLocate> Locus<T> {
         } else {
             span
         };
-        Self::Pieces(halved(carrier, span))
+        Self::Pieces(
+            span_pieces(carrier, span)
+                .into_iter()
+                .map(|(_, cover)| cover)
+                .collect(),
+        )
     }
 
     /// A distance `p` stands from the locus, never past the true one.
@@ -2261,29 +2269,36 @@ mod tests {
     }
 
     /// **A face on one closed curve reads no run from its stations, and
-    /// the curve's distance from its centre line where it spans it.** A
-    /// disc's rim, whole or in two arcs; an ellipse of semi-axes 3 and 1
-    /// in two arcs, read whole (a station on its other half is on it); a
-    /// spiric oval. A line and a pair whose first carrier is no oval
-    /// have no such bound.
+    /// the curve stands off its own centre line.** A disc's rim reads
+    /// nothing from the disc's stations; its centre line is its axis,
+    /// which it stands its radius from. An ellipse of semi-axes 3 and 1
+    /// stands its lesser semi-axis from its centre line, and is read
+    /// whole as a locus (a station on its other half is on it). A spiric
+    /// oval stands about its minor radius from its. A line and a spline
+    /// have no centre line.
     #[test]
-    fn a_face_on_one_closed_curve_runs_at_least_that_curves_distance_from_its_centre_line() {
+    fn a_closed_curve_stands_off_its_centre_line() {
         use core::f64::consts::{PI, TAU};
         let rim = [(circle(2.0), (0.0, TAU))];
         let run = stations(&rim).run_from_edge(&rim[0].0, rim[0].1).length();
         assert!(run < 1e-12, "a disc's stations lie on its rim: {run}");
-        let spanned =
-            |edges: &[(Curve3<f64>, (f64, f64))]| spanned_curve_run(edges.iter().map(|(c, s)| (c, *s)));
-        let near = |got: Option<Lever<f64>>, want: f64, slack: f64, what: &str| {
-            let got = got.unwrap_or_else(|| panic!("{what}: a bound")).length();
+        let clearance = |c: &Curve3<f64>| {
+            oval_clearance(c, centre_line(c).expect("a centre line"))
+                .expect("a clearance")
+                .length()
+        };
+        let near = |got: f64, want: f64, slack: f64, what: &str| {
             assert!(
                 got <= want + 1e-12 && got >= want - slack,
                 "{what}: {got}, not within {slack} below {want}"
             );
         };
-        near(spanned(&rim), 2.0, 1e-9, "a whole rim");
-        let halves = [(circle(2.0), (0.0, PI)), (circle(2.0), (PI, TAU))];
-        near(spanned(&halves), 2.0, 1e-9, "two half rims");
+        near(clearance(&circle(2.0)), 2.0, 1e-9, "a circle");
+        let axis = centre_line(&circle(2.0)).unwrap();
+        assert!(
+            axis.distance(p(0.0, 0.0, 7.0)) < 1e-12 && axis.dir.z.abs() > 0.0,
+            "a circle's centre line is its axis: {axis:?}"
+        );
         let ellipse = Curve3::ellipse(
             p(0.0, 0.0, 0.0),
             v(0.0, 0.0, 1.0),
@@ -2293,9 +2308,16 @@ mod tests {
             band(),
         )
         .unwrap();
+        near(
+            clearance(&ellipse),
+            1.0,
+            0.05,
+            "an ellipse's lesser semi-axis",
+        );
         let arcs = [(ellipse.clone(), (0.0, PI)), (ellipse.clone(), (PI, TAU))];
-        near(spanned(&arcs), 1.0, 0.05, "an ellipse's lesser semi-axis");
-        let on_it = stations(&arcs).run_from_edge(&arcs[0].0, arcs[0].1).length();
+        let on_it = stations(&arcs)
+            .run_from_edge(&arcs[0].0, arcs[0].1)
+            .length();
         assert!(
             on_it < 1e-9,
             "an ellipse is read whole, so its other half is on it: {on_it}"
@@ -2310,16 +2332,17 @@ mod tests {
             band(),
         )
         .unwrap();
-        let got = spanned(&[(oval, (0.0, TAU))])
-            .expect("a spiric oval")
-            .length();
+        let got = clearance(&oval);
         assert!(
             (0.4..=0.5 + 1e-9).contains(&got),
             "a spiric oval stands about its minor radius from its centre line: {got}"
         );
-        let line = segment(p(0.0, 0.0, 0.0), p(1.0, 0.0, 0.0));
-        assert!(spanned(&[line]).is_none(), "a line spans nothing");
-        assert!(spanned(&[]).is_none(), "no edge");
+        let (line, _) = segment(p(0.0, 0.0, 0.0), p(1.0, 0.0, 0.0));
+        assert!(centre_line(&line).is_none(), "a line has no centre line");
+        assert!(
+            oval_clearance(&line, axis).is_none(),
+            "a line is no closed curve"
+        );
+        assert_eq!(span_pieces(&circle(1.0), (0.0, TAU)).len(), 64);
     }
-
 }

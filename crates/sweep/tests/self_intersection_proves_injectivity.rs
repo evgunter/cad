@@ -1776,7 +1776,10 @@ fn a_seam_crossing_cylinder_pierced_by_a_face_on_its_edge_is_not_asked() {
             .err()
             .expect("tier 3's local battery refuses the pierced sheet")
     }
-    for (scalar, findings) in [("f64", refused::<f64>()), ("Interval", refused::<Interval>())] {
+    for (scalar, findings) in [
+        ("f64", refused::<f64>()),
+        ("Interval", refused::<Interval>()),
+    ] {
         assert!(
             findings
                 .iter()
@@ -2018,13 +2021,19 @@ fn rod_less_a_tilted_slab<T: Scalar>(z: (f64, f64)) -> topo::AtRestBody<T> {
 #[test]
 fn a_rod_less_a_tilted_slab_holds_across_its_curved_corners() {
     let z = (-3.0, 3.0);
-    for report in holds_at_both(
+    let [float, interval] = holds_at_both(
         "the rod less the tilted slab",
         rod_less_a_tilted_slab(z).into_body(),
         rod_less_a_tilted_slab(z).into_body(),
-    ) {
-        assert_eq!(report.cornered, 14, "the corners are read through");
-    }
+    );
+    // How many certificates read a face through a corner. The two
+    // scalars split their cells alike and certify at different depths
+    // beside the cut's vertices, so the counts differ; each is pinned.
+    assert_eq!(
+        (float.cornered, interval.cornered),
+        (16, 18),
+        "the corners are read through"
+    );
 }
 
 /// **A rod taller than a turn holds too** ([`rod_less_a_tilted_slab`]
