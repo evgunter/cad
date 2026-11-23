@@ -2526,8 +2526,8 @@ space, or its inputs'), and the mirror writes `body ∪ image`. An
 inserted part is a fresh `new_space()` and the instance into it by the
 identity bundle (`editor_core::stand`: no mate, and the constant `0` on
 each slide and spin), in one action. A feature gesture — a fillet, a
-chamfer, a mirror, a sketch on a face, a split, a pattern fused or not,
-a combine — lands where the pick was seen. Picked on a copy, it reads that
+chamfer, a mirror, a split, a pattern fused or not, a combine — lands
+where the pick was seen. Picked on a copy, it reads that
 copy in the copy's space (`fillet(C)`) and takes over the `⊔` operands
 and the product slot that read it, writing no placement's source; the
 other copies of the body are untouched, and the Properties pane says

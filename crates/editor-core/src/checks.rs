@@ -63,6 +63,7 @@ use crate::node::RecipeNodeId;
 use crate::product;
 
 pub mod at_rest;
+pub mod quieting;
 
 /// The closed set of checks. A new check = a new variant; every match
 /// over this enum is a site the compiler then walks you to.
@@ -376,13 +377,12 @@ pub enum CheckEvidence {
             crate::coincide::Residual,
             crate::coincide::Recourse,
         )>,
-        /// Whether an assertion could quiet the row
-        /// ([`at_rest::row_quietable`]): some measure says what it
-        /// decided, and that measure over its two cells reads zero. A
-        /// row no assertion could quiet never refuses
-        /// ([`Self::never_refuses`]), and its recourse names the
-        /// construction alone.
-        quietable: bool,
+        /// The assertion that would quiet the row
+        /// ([`at_rest::quieting`]): some measure says what it decided,
+        /// and that measure over its two cells reads zero. A row with
+        /// none never refuses ([`Self::never_refuses`]), and its
+        /// recourse names the construction alone.
+        quieting: Option<quieting::Quieting>,
     },
     /// An overlap of two arrivals' material at rest, quiet or loud
     /// ([`at_rest::InterferenceFinding`]).
@@ -431,19 +431,19 @@ impl CheckEvidence {
     /// **Whether this finding is outside what the document can yet say**
     /// (CHECKS DS6): a pair the census could not look at
     /// ([`Self::could_not_look`]), an overlap no assertion could quiet
-    /// ([`at_rest::InterferenceFinding::quietable`]): one the kernel
+    /// ([`at_rest::InterferenceFinding::quieting`]): one the kernel
     /// could not intersect, or one whose bounding faces offer no pair an
     /// assertion the quieting rule accepts could be written over; or a
     /// coincidence no assertion could quiet
-    /// ([`at_rest::row_quietable`]). Loud, and refused by
+    /// ([`at_rest::quieting`]). Loud, and refused by
     /// [`enforce_checks`] at no severity: a refusal there would have no
     /// recourse but changing geometry.
     #[must_use]
     pub fn never_refuses(&self) -> bool {
         match self {
-            Self::UnprovenCoincidence { quietable, .. } => !quietable,
-            Self::Interference { finding } => !finding.quietable,
-            Self::CarriedInterference { finding } => !finding.finding.quietable,
+            Self::UnprovenCoincidence { quieting, .. } => quieting.is_none(),
+            Self::Interference { finding } => finding.quieting.is_none(),
+            Self::CarriedInterference { finding } => finding.finding.quieting.is_none(),
             Self::CarriedCoincidence { finding } => finding.finding.evidence.never_refuses(),
             other => other.could_not_look(),
         }
@@ -528,6 +528,8 @@ fn copy_said(
 // - StaleExpectation's pinned prose ends in its own ". Recourse:".
 // - CarriedInterference and CarriedCoincidence end in the part's
 //   recourse, naming the part, since only the part can act on it.
+// And a quiet finding, interference or coincidence, carried or not,
+// offers nothing: an assertion already says it.
 impl crate::finding::Finding for SaidFinding<'_> {
     fn subject(&self, f: &mut crate::Sentence) -> fmt::Result {
         write!(f, "check {}: ", self.0.check)?;
@@ -559,17 +561,31 @@ impl crate::finding::Finding for SaidFinding<'_> {
                 )
             }
         }?;
-        // A part's finding is acted on in the part: its recourse, there.
+        // A part's finding is acted on in the part: its recourse, there,
+        // where it is loud.
+        if finding.quiet.is_some() {
+            return Ok(());
+        }
         match &finding.evidence {
-            CheckEvidence::CarriedInterference { finding } => write!(
+            // A carried finding holds no part document to speak its
+            // faces by, so they are said by their tags.
+            CheckEvidence::CarriedInterference { finding } => say!(
                 f,
-                " — the overlap is the part's, so act in document {}: {INTERFERENCE_RECOURSE}",
-                finding.route.of
+                format_args!(
+                    " — the overlap is the part's, so act in document {}: ",
+                    finding.route.of
+                ),
+                interference_recourse(
+                    finding.finding.quieting.as_ref(),
+                    crate::spoken::Speaker::TAG
+                )
             ),
-            CheckEvidence::CarriedCoincidence { finding } => write!(
+            CheckEvidence::CarriedCoincidence { finding } => say!(
                 f,
-                " — the row is the part's, so act in document {}: {}",
-                finding.route.of,
+                format_args!(
+                    " — the row is the part's, so act in document {}: ",
+                    finding.route.of
+                ),
                 SaidFinding(
                     &finding.finding,
                     crate::spoken::Speaker::of(&**finding.doc.get())
@@ -580,16 +596,30 @@ impl crate::finding::Finding for SaidFinding<'_> {
         }
     }
 
-    fn recourse(&self) -> &str {
+    fn recourse(&self) -> crate::Sentence {
         self.recourse_words()
     }
 }
 
-/// What to do about an overlap of two arrivals, in the document whose
-/// arrivals they are.
-const INTERFERENCE_RECOURSE: &str = "Recourse: move the two apart, combine them with a boolean \
-     if they are one body, or, for a fit meant to interfere, assert a negative Gap between the \
-     two faces that bound the overlap";
+/// **What to do about an overlap of two arrivals**, in the document
+/// whose arrivals they are, rendered from the pair an assertion would
+/// quiet it over ([`quieting::OpposedPair`]): the assertion is offered,
+/// over those two faces, only where the finding carries them.
+fn interference_recourse(
+    pair: Option<&quieting::OpposedPair>,
+    by: crate::spoken::Speaker<'_>,
+) -> crate::Sentence {
+    match pair {
+        Some(pair) => crate::sentence!(
+            "Recourse: move the two apart, combine them with a boolean if they are one body, \
+             or, for a fit meant to interfere, assert a negative Gap between ",
+            pair.said(by)
+        ),
+        None => crate::Sentence::from(
+            "Recourse: move the two apart, or combine them with a boolean if they are one body",
+        ),
+    }
+}
 
 impl SaidFinding<'_> {
     /// What the finding is about, by the speaker.
@@ -743,31 +773,40 @@ impl SaidFinding<'_> {
         }
     }
 
-    fn recourse_words(&self) -> &'static str {
+    fn recourse_words(&self) -> crate::Sentence {
+        let by = self.1;
+        let told = crate::Sentence::from;
         match &self.0.evidence {
-            CheckEvidence::Connectedness { .. } => {
+            CheckEvidence::Connectedness { .. } => told(
                 "Recourse: a stray component usually means a boolean that missed its operand \
                  or an instance placed nowhere; if it is deliberate, state the expected count \
-                 in ChecksConfig::expected_components"
+                 in ChecksConfig::expected_components",
+            ),
+            // A quiet finding is one an assertion already says: it
+            // offers nothing.
+            CheckEvidence::Interference { .. } | CheckEvidence::UnprovenCoincidence { .. }
+                if self.0.quiet.is_some() =>
+            {
+                told("")
             }
-            CheckEvidence::Interference { .. } => INTERFERENCE_RECOURSE,
-            CheckEvidence::Unused { .. } => "Recourse: use it, or delete it",
+            CheckEvidence::Interference { finding } => {
+                interference_recourse(finding.quieting.as_ref(), by)
+            }
+            CheckEvidence::Unused { .. } => told("Recourse: use it, or delete it"),
             CheckEvidence::UnprovenCoincidence {
-                recourse,
-                quietable,
-                ..
-            } => recourse.words(*quietable),
+                recourse, quieting, ..
+            } => recourse.words(quieting.as_ref(), by),
             // The story ends in the part's own recourse, in the part.
             CheckEvidence::CarriedInterference { .. }
-            | CheckEvidence::CarriedCoincidence { .. } => "",
+            | CheckEvidence::CarriedCoincidence { .. } => told(""),
             // The first finding's own sentence carries its recourse.
             CheckEvidence::NotAtRest { .. }
             | CheckEvidence::Escalated { .. }
             | CheckEvidence::Unsupported { .. }
-            | CheckEvidence::StaleExpectation { .. } => "",
+            | CheckEvidence::StaleExpectation { .. } => told(""),
             // The kernel's verdict, the gather's refusal and the part's
             // row each end in their own recourse.
-            CheckEvidence::AtRest { .. } => "",
+            CheckEvidence::AtRest { .. } => told(""),
         }
     }
 }
@@ -1566,8 +1605,8 @@ pub(crate) struct DoorRow {
     /// The assertion that quiets it ([`at_rest::quiet_row`]), if one
     /// does.
     pub quiet: Option<RecipeNodeId>,
-    /// Whether one could ([`at_rest::row_quietable`]).
-    pub quietable: bool,
+    /// The assertion that would ([`at_rest::quieting`]).
+    pub quieting: Option<quieting::Quieting>,
 }
 
 /// **The rows the `unproven-coincidence` resident asks the door
@@ -1618,7 +1657,7 @@ pub(crate) fn door_rows<P: crate::ProfilePayload, T: crate::mate::SolveScalar + 
     let judged = |row: &crate::coincide::NamedCoincidence| DoorRow {
         row: row.clone(),
         quiet: at_rest::quiet_row(doc, ev, row, tol),
-        quietable: at_rest::row_quietable(doc, ev, row, tol),
+        quieting: at_rest::quieting(doc, ev, row, tol),
     };
     ev.order
         .iter()
@@ -1736,7 +1775,7 @@ fn door_findings<P: crate::ProfilePayload>(
                     residual: Box::new(residual.clone()),
                     recourse: *recourse,
                     restated: Vec::new(),
-                    quietable: asked.quietable,
+                    quieting: asked.quieting.clone(),
                 },
                 quiet: asked.quiet,
             });
@@ -1959,7 +1998,7 @@ fn at_rest<P: crate::ProfilePayload, T: at_rest::LocalizeLane>(
                 continue;
             }
         };
-        let reading = at_rest::reading(product, tol);
+        let reading = at_rest::reading(doc, product, tol);
         for interference in reading.interference {
             let quiet = interference.quiet;
             let evidence = CheckEvidence::Interference {

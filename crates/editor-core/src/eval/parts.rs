@@ -1170,7 +1170,7 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
             reading: seam,
             carried_interference,
             carried_at_rest,
-        } = crate::checks::at_rest::whole_reading(&product, tol);
+        } = crate::checks::at_rest::whole_reading(doc, &product, tol);
         Ok(PartValue {
             interference: Arc::new(
                 seam.interference

@@ -795,7 +795,7 @@ test_utils::f6_variants! {
         Expr, Profile, ProfileReplay, ProfileLaneReplay, Trace, Extrude, Revolve, Tube, Split, ContactCarry, Blend,
         Boolean, Transform, Mirror, Motion, Skin, Loft, CurvedSolidFrontier, MissingInput, UnresolvedRead, SelectResolve,
         ToleranceConflict, ParamBox, Seed, RecordRefused, RecordMispaired, WrongOperand, EmptyOperand, EmptyMember,
-        NotFinished, UnfinishedLeaf, EmptyHalf, MemberOutOfRange, MemberRefused, IndicesUnrelated,
+        NotFinished, UnfinishedLeaf, EmptyHalf, HalfOfAFamily, MemberOutOfRange, MemberRefused, IndicesUnrelated,
         IndexCount, IndexCountOutOfRange, NoSuchPiece, PieceShape,
         DegenerateDirection, NonFiniteDirection, UnderflowedDirection, Band, MissingSlot,
         Escalated, MeasureEscalated, PlacementAxisEscalated, PoseDirectionEscalated,
@@ -1266,6 +1266,7 @@ fn forward(kind: &NodeErrorKind) -> Forward {
         | NodeErrorKind::EmptyOperand { .. }
         | NodeErrorKind::EmptyMember { .. }
         | NodeErrorKind::EmptyHalf { .. }
+        | NodeErrorKind::HalfOfAFamily { .. }
         | NodeErrorKind::ContactCarry { .. }
         | NodeErrorKind::MemberOutOfRange { .. }
         | NodeErrorKind::IndicesUnrelated { .. }
@@ -1826,6 +1827,14 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             NodeErrorKind::EmptyHalf {
                 input: RecipeNodeId::new(0, tagged(3)),
                 half: editor_core::SplitHalf::Above,
+            },
+        ),
+        row(
+            "HalfOfAFamily",
+            NodeErrorKind::HalfOfAFamily {
+                read: editor_core::VarId::new(0, tagged(2)),
+                input: RecipeNodeId::new(0, tagged(3)),
+                half: editor_core::SplitHalf::Below,
             },
         ),
         row(
@@ -6508,7 +6517,7 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
         overlap,
         quiet: None,
         quiet_at: Vec::new(),
-        quietable: true,
+        quieting: None,
     };
     let finding = |check, evidence| CheckFinding {
         check,

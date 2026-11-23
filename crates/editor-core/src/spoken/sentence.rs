@@ -521,6 +521,14 @@ impl Put for Sentence {
     }
 }
 
+/// A borrowed sentence, its runs copied in: a value said into more than
+/// one sentence (a claim offered twice) keeps its mentions in each.
+impl Put for &Sentence {
+    fn put(self, out: &mut Sentence) {
+        out.append(self.clone());
+    }
+}
+
 /// `Recourse: ` and the recourse, its mentions kept.
 impl Put for geom_core::Recourse<Sentence> {
     fn put(self, out: &mut Sentence) {

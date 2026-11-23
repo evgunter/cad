@@ -994,8 +994,6 @@ fn square_drawn_on(session: &mut DocSession, body: RecipeNodeId, on: RecipeNodeI
             })
             .expect("a wall")
     };
-    let point =
-        |x: f64, y: f64| pncad::document::ProgramTarget::Point([common::len(x), common::len(y)]);
     landed(
         session,
         SessionOp::DrawOnFace {
@@ -1008,13 +1006,7 @@ fn square_drawn_on(session: &mut DocSession, body: RecipeNodeId, on: RecipeNodeI
                 node: on,
                 body: 0,
             }],
-            chains: vec![
-                pncad::trace::Chain::at(common::len(-0.002), common::len(-0.002))
-                    .line_to(point(0.002, -0.002))
-                    .line_to(point(0.002, 0.002))
-                    .line_to(point(-0.002, 0.002))
-                    .line_to(pncad::document::ProgramTarget::Start),
-            ],
+            chains: vec![common::rectangle_chain([-0.002, -0.002], 0.004, 0.004)],
         },
     )
 }
