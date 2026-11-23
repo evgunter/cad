@@ -48,10 +48,10 @@ fn cone_full_revolve_has_an_apex_and_certifies() {
     let base = t.walls()[0][0].expect("base wall");
     assert!(matches!(
         t.body.face_surface(base),
-        Some(Surface::Plane { .. })
+        Ok(Surface::Plane { .. })
     ));
     let slant = t.walls()[0][1].expect("slant wall");
-    let Some(&Surface::Cone {
+    let Ok(&Surface::Cone {
         frame, half_angle, ..
     }) = t.body.face_surface(slant)
     else {

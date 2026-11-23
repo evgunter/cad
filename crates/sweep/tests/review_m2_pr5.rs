@@ -656,7 +656,7 @@ fn survives_four_arc_donut_wrap_run_single_torus() {
     assert!(keys.windows(2).all(|w| w[0] == w[1]), "{keys:?}");
     assert!(matches!(
         t.body.get_surface(keys[0]),
-        Some(Surface::Torus { .. })
+        Ok(Surface::Torus { .. })
     ));
     // All rims conventional — one torus on both sides under-determines
     // the locus, so each rim is an image in that chart declared by the
@@ -1095,7 +1095,7 @@ fn survives_tight_but_definite_torus_clearance_is_accepted() {
         .filter(|w| {
             matches!(
                 t.body.get_surface(wall_key(&t.body, w.unwrap())),
-                Some(Surface::Torus { .. })
+                Ok(Surface::Torus { .. })
             )
         })
         .count();
@@ -1419,7 +1419,7 @@ fn survives_forged_seam_on_a_plane_annulus_edge_is_refused() {
     let plane_key = wall_key(&body, annulus);
     assert!(matches!(
         body.get_surface(plane_key),
-        Some(Surface::Plane { .. })
+        Ok(Surface::Plane { .. })
     ));
     // The annulus's outer circle: its whole outer cycle.
     let face = body.get_face(annulus).unwrap();
@@ -1480,7 +1480,7 @@ fn survives_wire_cosurface_pair_at_segment_zero() {
     assert_eq!(pi_walls[0], pi_walls[1], "one band-2 wall over the run");
     let k0 = wall_key(&t.body, walls[0][0].unwrap());
     assert_eq!(wall_key(&t.body, pi_walls[0].unwrap()), k0);
-    assert!(matches!(t.body.get_surface(k0), Some(Surface::Cone { .. })));
+    assert!(matches!(t.body.get_surface(k0), Ok(Surface::Cone { .. })));
     assert!(
         t.rims[0][1].is_none() && pi_rims[1].is_none(),
         "the split vertex has no rim"
@@ -1582,7 +1582,7 @@ fn survives_wire_quarter_arc_sphere_cap_with_tangent_join() {
     let sphere_key = wall_key(&t.body, t.walls()[0][2].unwrap());
     assert!(matches!(
         t.body.get_surface(sphere_key),
-        Some(Surface::Sphere { .. })
+        Ok(Surface::Sphere { .. })
     ));
     assert_eq!(wall_key(&t.body, pi_walls[2].unwrap()), sphere_key);
     // Transverse base join: Intersection in both bands.

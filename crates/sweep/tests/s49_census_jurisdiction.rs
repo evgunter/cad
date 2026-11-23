@@ -59,7 +59,7 @@ fn assembly(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
 
 fn is_planar(body: &Body<f64>, f: FaceKey) -> bool {
     body.face_surface(f)
-        .is_some_and(|s| matches!(s, Surface::Plane { .. }))
+        .is_ok_and(|s| matches!(s, Surface::Plane { .. }))
 }
 
 /// The planar faces whose plane is `z = h`. In these fixtures that is
@@ -69,7 +69,7 @@ fn faces_in_plane(body: &Body<f64>, h: f64) -> Vec<FaceKey> {
     query::all_faces(body)
         .into_iter()
         .filter(|&f| match body.face_surface(f) {
-            Some(Surface::Plane { frame, .. }) => {
+            Ok(Surface::Plane { frame, .. }) => {
                 let (origin, normal) = (frame.origin(), frame.axis());
                 normal.x.abs() < 1e-12 && normal.y.abs() < 1e-12 && (origin.z - h).abs() < 1e-12
             }
@@ -258,7 +258,7 @@ fn face_pair_refusals(errors: &[ValidationError]) -> Vec<(FaceKey, FaceKey)> {
 fn walls_by_vertex(body: &Body<f64>, v: topo::VertexKey) -> (Vec<FaceKey>, Vec<FaceKey>) {
     let around = body.faces_of_vertex(v).expect("the vertex's orbit walks");
     body.faces()
-        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Cylinder { .. })))
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Ok(Surface::Cylinder { .. })))
         .map(|(f, _)| f)
         .partition(|f| around.contains(f))
 }

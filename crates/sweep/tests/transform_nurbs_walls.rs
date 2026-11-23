@@ -117,7 +117,7 @@ fn check_walls(
 ) -> (usize, usize) {
     let (mut walls, mut rational) = (0usize, 0usize);
     for (key, b) in before.surfaces() {
-        let (Surface::Nurbs(b), Some(Surface::Nurbs(a))) = (b, after.get_surface(key)) else {
+        let (Surface::Nurbs(b), Ok(Surface::Nurbs(a))) = (b, after.get_surface(key)) else {
             continue;
         };
         walls += 1;

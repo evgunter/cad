@@ -110,7 +110,7 @@ fn area(rounded_corners: f64) -> f64 {
 }
 
 fn is_cylinder(body: &Body<f64>, f: topo::FaceKey) -> bool {
-    matches!(body.face_surface(f), Some(geom::Surface::Cylinder { .. }))
+    matches!(body.face_surface(f), Ok(geom::Surface::Cylinder { .. }))
 }
 
 fn volume(body: &Body<f64>) -> f64 {

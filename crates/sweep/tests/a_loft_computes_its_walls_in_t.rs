@@ -455,7 +455,7 @@ fn point_inputs_loft_as_the_lifted_f64_skin_at_interval() {
         if zs.len() > degree + 1 {
             // The case's hypothesis: the body's walls carry the computed
             // interior knot.
-            let Some(Surface::Nurbs(net)) = nominal.body.face_surface(nominal.side_faces[0][0][0])
+            let Ok(Surface::Nurbs(net)) = nominal.body.face_surface(nominal.side_faces[0][0][0])
             else {
                 panic!("{what}: a lofted wall is a NURBS surface")
             };

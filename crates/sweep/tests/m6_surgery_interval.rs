@@ -170,7 +170,7 @@ mod certified {
                 let kind = |he| {
                     let h = blanked.get_half_edge(he)?;
                     let f = blanked.get_loop(h.parent_loop)?.face;
-                    blanked.face_surface(f).map(|s| match s {
+                    blanked.face_surface(f).ok().map(|s| match s {
                         Surface::Plane { .. } => 0u8,
                         Surface::Sphere { .. } => 1,
                         _ => 2,

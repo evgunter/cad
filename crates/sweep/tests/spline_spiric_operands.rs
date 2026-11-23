@@ -388,11 +388,11 @@ fn the_lofted_cylinders_unions_refuse_at_its_own_rims() {
             );
             assert_eq!(
                 own,
-                [Some(SurfaceKind::Nurbs), Some(SurfaceKind::Plane)],
+                [Ok(SurfaceKind::Nurbs), Ok(SurfaceKind::Plane)],
                 "the arc bounds a spline wall and a cap"
             );
             assert!(
-                kind(face) == Some(SurfaceKind::Nurbs) && face != fa && face != fb,
+                kind(face) == Ok(SurfaceKind::Nurbs) && face != fa && face != fb,
                 "the face is the cylinder's other spline wall"
             );
             let (a, b) = cyl.edge_vertices(edge).expect("the arc");

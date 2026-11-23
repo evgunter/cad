@@ -316,7 +316,7 @@ fn offsetting_the_mitred_wall_refuses_typed() {
         .filter(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(geom::Surface::Cylinder { frame, .. }) if frame.axis().z.abs() > 0.9
+                Ok(geom::Surface::Cylinder { frame, .. }) if frame.axis().z.abs() > 0.9
             )
         })
         .map(|(k, _)| k)

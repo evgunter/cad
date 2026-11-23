@@ -77,7 +77,7 @@ pub(crate) fn halves_of(body: &Body<f64>) -> Vec<Half> {
     let mut halves: Vec<Half> = Vec::new();
     for f in topo::query::all_faces(body) {
         let surface = body.face_surface(f);
-        let Some(Surface::Plane { frame, .. }) = surface else {
+        let Ok(Surface::Plane { frame, .. }) = surface else {
             panic!("a convex polytope's face is a plane, got {surface:?}")
         };
         let (origin, normal) = (frame.origin(), frame.axis());

@@ -133,7 +133,7 @@ pub fn ring_on_cap(body: &mut Body<f64>, h: f64, r: f64, rr: f64) {
         .faces()
         .find(|(fk, _)| {
             matches!(body.face_surface(*fk),
-                Some(Surface::Plane { frame, .. }) if (frame.origin().y - h).abs() <= 1e-12)
+                Ok(Surface::Plane { frame, .. }) if (frame.origin().y - h).abs() <= 1e-12)
         })
         .expect("the cap")
         .0;
@@ -325,7 +325,7 @@ pub fn two_arc_sphere() -> Body<f64> {
     );
     let sphere = body
         .faces()
-        .find(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Sphere { .. })))
+        .find(|(fk, _)| matches!(body.face_surface(*fk), Ok(Surface::Sphere { .. })))
         .expect("the sphere")
         .1
         .surface;
@@ -413,7 +413,7 @@ pub fn plane_images(body: &Body<f64>) -> Vec<(EdgeKey, Pcurve<f64>)> {
         .filter_map(|(k, e)| {
             let curve = body.get_curve_geom(e.curve)?.certified()?;
             let c = curve.description().chart()?;
-            matches!(body.get_surface(c.surface), Some(Surface::Plane { .. }))
+            matches!(body.get_surface(c.surface), Ok(Surface::Plane { .. }))
                 .then(|| (k, c.pcurve.clone()))
         })
         .collect()

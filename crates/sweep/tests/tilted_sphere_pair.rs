@@ -374,7 +374,7 @@ fn a_flipped_tilted_face_is_refused_by_name() {
         for (k, _) in body.faces() {
             let on_b = matches!(
                 body.face_surface(k),
-                Some(geom::Surface::Sphere { frame, .. })
+                Ok(geom::Surface::Sphere { frame, .. })
                     if (frame.origin() - geom_core::Point3::new(b_centre.x, b_centre.y, b_centre.z)).norm() < 1e-12
             );
             if on_b_only && !on_b {

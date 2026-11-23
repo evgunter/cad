@@ -67,7 +67,7 @@ fn the_band_faces_sense_bit_folds_the_stored_verdict_on_both_sides() {
         };
         let face = out.body.get_face(band).unwrap();
         assert!(
-            matches!(out.body.face_surface(band), Some(Surface::Torus { .. })),
+            matches!(out.body.face_surface(band), Ok(Surface::Torus { .. })),
             "{name}: the band is a torus"
         );
         assert_eq!(
@@ -118,7 +118,7 @@ fn the_boss_union_is_valid_at_rest_and_its_band_is_the_ladder() {
         .faces()
         .find(|(fk, _)| {
             matches!(boss.face_surface(*fk),
-                Some(Surface::Plane { frame, .. }) if (frame.origin().z - SLAB).abs() < 1e-12 && frame.axis().z > 0.5)
+                Ok(Surface::Plane { frame, .. }) if (frame.origin().z - SLAB).abs() < 1e-12 && frame.axis().z > 0.5)
         })
         .map(|(k, _)| k)
         .expect("the top face");
@@ -140,7 +140,7 @@ fn the_boss_union_is_valid_at_rest_and_its_band_is_the_ladder() {
     for f in &around {
         let fd = out.body.get_face(*f).unwrap();
         match out.body.face_surface(*f) {
-            Some(Surface::Plane { .. }) => {
+            Ok(Surface::Plane { .. }) => {
                 planes += 1;
                 assert_eq!(
                     *f, top,
@@ -148,7 +148,7 @@ fn the_boss_union_is_valid_at_rest_and_its_band_is_the_ladder() {
                 );
                 assert_eq!(fd.rings.len(), 1, "the top face keeps exactly one ring");
             }
-            Some(Surface::Sphere { .. }) => {
+            Ok(Surface::Sphere { .. }) => {
                 spheres += 1;
                 assert!(fd.rings.is_empty(), "a half-cap is ring-free");
             }

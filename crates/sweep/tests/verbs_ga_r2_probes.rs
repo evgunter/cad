@@ -291,7 +291,7 @@ fn r2_the_transient_chord_mev_certifies_on_a_wall() {
     // Find a cylinder wall face and its outer loop's anchor half-edge.
     let mut wall = None;
     for (fk, f) in body.faces() {
-        if matches!(body.face_surface(fk), Some(geom::Surface::Cylinder { .. })) {
+        if matches!(body.face_surface(fk), Ok(geom::Surface::Cylinder { .. })) {
             wall = Some((fk, f.outer));
         }
     }

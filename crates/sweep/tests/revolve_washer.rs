@@ -81,7 +81,7 @@ fn washer_full_revolve_is_genus_one_and_tier_valid() {
     for (m, w) in meridians.iter().zip(&t.walls()[0]) {
         let plane = matches!(
             t.body.face_surface(w.expect("no on-axis segments")),
-            Some(Surface::Plane { .. })
+            Ok(Surface::Plane { .. })
         );
         match (m, plane) {
             (Some(e), false) => {
@@ -125,10 +125,7 @@ fn donut_two_arc_profile_shares_one_torus() {
     let k0 = t.body.get_face(t.walls()[0][0].unwrap()).unwrap().surface;
     let k1 = t.body.get_face(t.walls()[0][1].unwrap()).unwrap().surface;
     assert_eq!(k0, k1);
-    assert!(matches!(
-        t.body.get_surface(k0),
-        Some(Surface::Torus { .. })
-    ));
+    assert!(matches!(t.body.get_surface(k0), Ok(Surface::Torus { .. })));
     // Full-period rims stay conventional (same surface key each side,
     // so the surfaces under-determine the locus): images in that one
     // torus chart, declared by the profile's revolved vertex — never

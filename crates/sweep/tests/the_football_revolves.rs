@@ -89,7 +89,7 @@ fn holds_by(
         .body
         .faces()
         .filter_map(|(fk, _)| match built.body.face_surface(fk) {
-            Some(geom::Surface::Spindle { major_radius, .. }) => Some(*major_radius),
+            Ok(geom::Surface::Spindle { major_radius, .. }) => Some(*major_radius),
             _ => None,
         })
         .collect();
@@ -222,7 +222,7 @@ fn a_football_restored_on_the_other_sheet_is_refused_at_its_edges() {
             .collect();
         assert!(!keys.is_empty(), "{what}: no sheet");
         for key in keys {
-            let Some(geom::Surface::Spindle {
+            let Ok(geom::Surface::Spindle {
                 frame: carrier_frame,
                 major_radius,
                 minor_radius,
@@ -685,7 +685,7 @@ fn near_the_horn_the_drawn_ends_say_which_sheet() {
         )
         .unwrap_or_else(|e| panic!("R = 1 − {d:e}: {e}"));
         for (fk, _) in built.body.faces() {
-            if let Some(geom::Surface::Spindle { major_radius, .. }) = built.body.face_surface(fk) {
+            if let Ok(geom::Surface::Spindle { major_radius, .. }) = built.body.face_surface(fk) {
                 assert!(
                     (major_radius - big).abs() <= 1e-15,
                     "R = 1 − {d:e}: stored {major_radius}"

@@ -83,11 +83,11 @@ fn face_on<T: Real>(body: &Body<T>, surface: SurfaceKey) -> FaceKey {
 fn seam_keys() -> (EdgeKey, FaceKey, FaceKey, HalfEdgeKey) {
     let body = prism::<f64>();
     let flat = |k| {
-        matches!(body.get_surface(k), Some(Surface::Nurbs(n))
+        matches!(body.get_surface(k), Ok(Surface::Nurbs(n))
             if n.control().iter().all(|p| p.y == -SCALE))
     };
     let bowed = |k| {
-        matches!(body.get_surface(k), Some(Surface::Nurbs(n))
+        matches!(body.get_surface(k), Ok(Surface::Nurbs(n))
             if n.control().iter().any(|p| p.y != -SCALE)
                 && n.control().iter().any(|p| p.x.abs() == SCALE))
     };
@@ -192,7 +192,7 @@ fn general_seam_at_rest<T: AtRestPolicy>() -> (Body<T>, HalfEdgeKey, EdgeKey, Su
         .expect("the exactly-planar wall restates as a plane");
     let bowed = body.get_face(bowed_face).unwrap().surface;
     describe(&mut body, edge, plane, bowed);
-    let Some(Surface::Nurbs(net)) = body.get_surface(bowed).cloned() else {
+    let Ok(Surface::Nurbs(net)) = body.get_surface(bowed).cloned() else {
         panic!("the bowed wall is a described NURBS chart")
     };
     let chart = body

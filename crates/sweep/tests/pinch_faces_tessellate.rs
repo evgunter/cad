@@ -366,7 +366,7 @@ fn a_face_through_two_vertices_on_one_point_tessellates() {
         if bb
             .body
             .faces()
-            .all(|(fk, _)| matches!(bb.body.face_surface(fk), Some(geom::Surface::Plane { .. })))
+            .all(|(fk, _)| matches!(bb.body.face_surface(fk), Ok(geom::Surface::Plane { .. })))
         {
             let (got, want) = (
                 mesh::validate::signed_volume(&mesh),

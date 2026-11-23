@@ -139,7 +139,7 @@ fn tube_minor_radius_is_stored_bit_exact() {
     let rev_minor = rev
         .faces()
         .find_map(|(fk, _)| match rev.face_surface(fk) {
-            Some(Surface::Torus { minor_radius, .. }) => Some(*minor_radius),
+            Ok(Surface::Torus { minor_radius, .. }) => Some(*minor_radius),
             _ => None,
         })
         .expect("the revolve donut stores a torus");

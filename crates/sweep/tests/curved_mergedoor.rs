@@ -115,7 +115,7 @@ fn union_honest(label: &str, a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> Boolea
 
 fn is_cylinder(body: &Body<f64>, face: topo::FaceKey) -> bool {
     body.face_surface(face)
-        .is_some_and(|s| matches!(s, geom::Surface::Cylinder { .. }))
+        .is_ok_and(|s| matches!(s, geom::Surface::Cylinder { .. }))
 }
 
 /// The merge records of a boolean result: each is a curved run's
@@ -390,7 +390,7 @@ fn d_prism_with_split_keys() -> (
     let y0_walls: Vec<_> = body
         .faces()
         .filter(|(fk, _)| match body.face_surface(*fk) {
-            Some(geom::Surface::Plane { frame, .. }) => {
+            Ok(geom::Surface::Plane { frame, .. }) => {
                 let (origin, normal) = (frame.origin(), frame.axis());
                 origin.y.abs() < 1e-12 && normal.y < -0.5
             }
@@ -526,7 +526,7 @@ fn a_surface_with_no_live_face_glues_nothing() {
         .unwrap();
     }
     assert!(
-        body.get_surface(pk).is_some(),
+        body.get_surface(pk).is_ok(),
         "{pk:?} stays live with zero faces (held by an edge description) — if the \
          orphan rule changed, re-pin this row on another construction"
     );
@@ -626,7 +626,7 @@ fn axis_y() -> RevolveAxis<f64> {
 fn two_keys_of(body: &mut Body<f64>, kind: SurfaceKind) -> (topo::SurfaceKey, topo::SurfaceKey) {
     let faces: Vec<_> = body
         .faces()
-        .filter(|(fk, _)| body.face_surface(*fk).map(geom::Surface::kind) == Some(kind))
+        .filter(|(fk, _)| body.face_surface(*fk).map(geom::Surface::kind) == Ok(kind))
         .map(|(k, _)| k)
         .collect();
     assert!(faces.len() >= 2, "{kind:?}: need two faces, got {faces:?}");

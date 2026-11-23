@@ -496,7 +496,7 @@ pub fn seams(body: &Body<f64>) -> (usize, usize, usize) {
             body.get_face(f2).unwrap().surface,
         );
         let plane = |k| match body.get_surface(k) {
-            Some(geom::Surface::Plane { frame, .. }) => {
+            Ok(geom::Surface::Plane { frame, .. }) => {
                 let (origin, normal) = (frame.origin(), frame.axis());
                 Some((origin, normal))
             }

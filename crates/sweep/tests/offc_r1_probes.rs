@@ -189,9 +189,7 @@ fn the_twisted_walls_are_not_planar() {
     let body = twisted_loft(0.05);
     let mut spline_walls = 0;
     for (fk, _) in body.faces() {
-        if let Some(Surface::Nurbs(p)) = body.face_surface(fk)
-            && !p.is_placeholder()
-        {
+        if let Ok(Surface::Nurbs(p)) = body.face_surface(fk) {
             spline_walls += 1;
             // A bilinear saddle: the mixed partial is nonzero, so the
             // normal varies. Compare corner normals.
@@ -304,7 +302,7 @@ fn a_curved_approx_walled_body_validates_at_tier_three() {
             }
         };
         assert!(
-            matches!(body.face_surface(faces[0]), Some(Surface::Approx(_))),
+            matches!(body.face_surface(faces[0]), Ok(Surface::Approx(_))),
             "d = {d}: the wall carries the approximating surface"
         );
         assert_eq!(
@@ -323,7 +321,7 @@ fn a_degraded_curved_fit_goes_red_at_tier_three() {
         return;
     };
     let face = faces[0];
-    let Some(Surface::Approx(live)) = body.face_surface(face) else {
+    let Ok(Surface::Approx(live)) = body.face_surface(face) else {
         panic!("the wall carries an approximating surface")
     };
     let geom::SurfaceDescription::Offset { base, .. } = live.description();
@@ -484,9 +482,7 @@ fn a_skinned_base_approx_face_earns_the_germ_pair_refusal() {
 fn diag_spline_spaces() {
     let body = twisted_loft(0.05);
     for (fk, _) in body.faces() {
-        if let Some(Surface::Nurbs(p)) = body.face_surface(fk)
-            && !p.is_placeholder()
-        {
+        if let Ok(Surface::Nurbs(p)) = body.face_surface(fk) {
             let base = Arc::new(pulled_back(p, D));
             let approx = geom_brep::approx_offset_surface_at(
                 Arc::clone(&base),

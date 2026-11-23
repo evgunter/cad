@@ -125,7 +125,7 @@ fn edge_ends(body: &Body<f64>, e: topo::EdgeKey) -> Option<String> {
 /// A planar face's plane and loops, every loop's vertex points in walk
 /// order.
 fn face_geo(body: &Body<f64>, f: topo::FaceKey) -> Option<String> {
-    let (origin, normal) = match body.face_surface(f)? {
+    let (origin, normal) = match body.face_surface(f).ok()? {
         geom::Surface::Plane { frame, .. } => {
             let (origin, normal) = (frame.origin(), frame.axis());
             (origin, normal)

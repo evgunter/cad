@@ -275,7 +275,7 @@ fn lune_slit_plate() -> (Body<f64>, EdgeKey, EdgeKey) {
         let (a, b) = topo::readback::edge_sides(&body, e).unwrap().faces();
         [a, b]
             .iter()
-            .all(|&f| matches!(body.face_surface(f), Some(geom::Surface::Cylinder { .. })))
+            .all(|&f| matches!(body.face_surface(f), Ok(geom::Surface::Cylinder { .. })))
     };
     let edges = query::all_edges(&body);
     let kiss = *edges

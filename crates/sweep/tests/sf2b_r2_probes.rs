@@ -67,14 +67,14 @@ fn frustum_wall(r0: f64, r1: f64, h: f64) -> f64 {
 
 fn cone_faces(body: &Body<f64>) -> Vec<topo::FaceKey> {
     body.faces()
-        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Cone { .. })))
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Ok(Surface::Cone { .. })))
         .map(|(k, _)| k)
         .collect()
 }
 
 fn describe_cones(what: &str, body: &Body<f64>) {
     for (k, f) in body.faces() {
-        if let Some(Surface::Cone {
+        if let Ok(Surface::Cone {
             frame, half_angle, ..
         }) = body.face_surface(k)
         {
@@ -465,7 +465,7 @@ fn r2_the_carried_azimuth_survives_both_surfaces_moving() {
         .faces()
         .filter(|(fk, _)| {
             matches!(pot.face_surface(*fk),
-                Some(Surface::Plane { frame, .. }) if (frame.origin().y - y_mouth).abs() < 1e-15)
+                Ok(Surface::Plane { frame, .. }) if (frame.origin().y - y_mouth).abs() < 1e-15)
         })
         .map(|(k, _)| k)
         .collect();
@@ -518,7 +518,7 @@ fn r2_stepped_vase_lift_branch() {
         .faces()
         .filter(|(fk, _)| {
             matches!(body.face_surface(*fk),
-                Some(Surface::Plane { frame, .. }) if (frame.origin().y - 8.0 / 64.0).abs() < 1e-15)
+                Ok(Surface::Plane { frame, .. }) if (frame.origin().y - 8.0 / 64.0).abs() < 1e-15)
         })
         .map(|(k, _)| k)
         .collect();

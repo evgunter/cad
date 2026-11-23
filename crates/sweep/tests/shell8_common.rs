@@ -155,7 +155,7 @@ pub(crate) fn cap(body: &Body<f64>, shell: ShellKey, axis: Vec3<f64>, value: f64
     let data = body.get_shell(shell).unwrap();
     for &face in &data.faces {
         let f = body.get_face(face).unwrap();
-        let Some(geom::Surface::Plane {
+        let Ok(geom::Surface::Plane {
             frame: carrier_frame,
             ..
         }) = body.face_surface(face)
@@ -187,7 +187,7 @@ pub(crate) fn wearers(body: &Body<f64>, solid: SolidKey, chart: topo::SurfaceKey
 pub(crate) fn top_chart(body: &Body<f64>, solid: SolidKey, z: f64) -> Vec<FaceKey> {
     for face in faces_of(body, solid) {
         let f = body.get_face(face).unwrap();
-        let Some(geom::Surface::Plane { frame, .. }) = body.face_surface(face) else {
+        let Ok(geom::Surface::Plane { frame, .. }) = body.face_surface(face) else {
             continue;
         };
         let (origin, normal) = (frame.origin(), frame.axis());

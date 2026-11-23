@@ -262,7 +262,7 @@ fn the_walls_join_along_their_carried_rulings() {
                 let cylinders = pair
                     .keys()
                     .iter()
-                    .all(|&k| matches!(body.get_surface(k), Some(geom::Surface::Cylinder { .. })));
+                    .all(|&k| matches!(body.get_surface(k), Ok(geom::Surface::Cylinder { .. })));
                 if !cylinders {
                     continue;
                 }

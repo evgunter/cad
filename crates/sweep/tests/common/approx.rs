@@ -171,7 +171,7 @@ pub fn top_face(body: &Body<f64>) -> FaceKey {
         .find(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(Surface::Plane { frame, .. })
+                Ok(Surface::Plane { frame, .. })
                     if frame.axis().z.abs() > 0.5 && frame.origin().z > 0.5
             )
         })
@@ -280,6 +280,7 @@ pub fn box_with_spline_cap(chart: Surface<f64>) -> (Body<f64>, FaceKey) {
 
     let fit = body
         .get_surface(surface)
+        .ok()
         .and_then(Surface::spline_chart)
         .expect("the cap wears a spline chart")
         .clone();
@@ -362,13 +363,11 @@ pub fn box_with_bumped_cap(bump: f64) -> (Body<f64>, FaceKey) {
     box_with_spline_cap(Surface::Nurbs(Arc::new(cap)))
 }
 
-/// Every non-placeholder spline wall of `body`, keyed.
+/// Every NURBS wall of `body`, keyed.
 pub fn nurbs_walls(body: &Body<f64>) -> Vec<(FaceKey, Arc<NurbsSurface<f64>>)> {
     body.faces()
         .filter_map(|(key, _)| match body.face_surface(key) {
-            Some(Surface::Nurbs(payload)) if !payload.is_placeholder() => {
-                Some((key, Arc::clone(payload)))
-            }
+            Ok(Surface::Nurbs(payload)) => Some((key, Arc::clone(payload))),
             _ => None,
         })
         .collect()
@@ -416,7 +415,7 @@ fn iso_residual(body: &Body<f64>, spec: &EdgeCurveSpec<f64>) -> Option<f64> {
         p0.y + pl.y * spec.param_start,
         p0.y + pl.y * spec.param_end,
     );
-    let s = body.get_surface(surface)?;
+    let s = body.get_surface(surface).ok()?;
     let n = f64::from(geom_brep::CERT_SAMPLES - 1);
     let mut worst = 0.0_f64;
     for i in 0..geom_brep::CERT_SAMPLES {

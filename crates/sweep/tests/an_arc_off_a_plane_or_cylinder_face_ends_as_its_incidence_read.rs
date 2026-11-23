@@ -89,7 +89,7 @@ fn edge_at<T: Decide + Bounds>(
     let surface = body
         .faces()
         .map(|(_, f)| f.surface)
-        .find(|&k| body.get_surface(k).is_some_and(&chart))
+        .find(|&k| body.get_surface(k).is_ok_and(&chart))
         .expect("the row's chart");
     (edge, start, end, surface)
 }

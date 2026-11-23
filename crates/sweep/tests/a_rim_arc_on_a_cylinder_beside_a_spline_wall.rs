@@ -144,7 +144,7 @@ fn the_tube_walls_u_joint_is_tangent_continuous() {
     let t = tube(Point3::new(1.5, 0.0, 3.0));
     let mut walls = 0;
     for (k, _) in t.faces() {
-        let Some(geom::Surface::Nurbs(s)) = t.face_surface(k) else {
+        let Ok(geom::Surface::Nurbs(s)) = t.face_surface(k) else {
             continue;
         };
         walls += 1;

@@ -82,7 +82,7 @@ fn the_chamfered_cube() {
     // Every face is a plane — the whole claim of the analytic case.
     for (k, _) in out_body.faces() {
         assert!(
-            matches!(out_body.face_surface(k), Some(Surface::Plane { .. })),
+            matches!(out_body.face_surface(k), Ok(Surface::Plane { .. })),
             "a chamfered cube carries planes only; face {k:?} does not"
         );
     }
@@ -274,7 +274,7 @@ fn a_circular_prisms_rims_chamfer_as_frustums() {
     assert_eq!(out.band_faces.len(), 2, "a frustum per rim");
     for f in &out.band_faces {
         assert!(
-            matches!(out.body.face_surface(*f), Some(Surface::Cone { .. })),
+            matches!(out.body.face_surface(*f), Ok(Surface::Cone { .. })),
             "a frustum band is a cone"
         );
     }

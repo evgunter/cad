@@ -20,7 +20,7 @@ fn plane_face_at_z(body: &Body<f64>, z: f64) -> FaceKey {
         .find(|(fk, _)| {
             matches!(
                 body.face_surface(*fk),
-                Some(geom::Surface::Plane { frame, .. })
+                Ok(geom::Surface::Plane { frame, .. })
                     if (frame.origin().z - z).abs() < 1e-9 && frame.axis().x.abs() < 1e-9 && frame.axis().y.abs() < 1e-9
             )
         })

@@ -77,7 +77,7 @@ fn chart_of(body: &Body<f64>, face: FaceKey) -> Vec<FaceKey> {
 fn z_chart(body: &Body<f64>, at: f64) -> Vec<FaceKey> {
     let mut found: Vec<FaceKey> = Vec::new();
     for (k, _) in body.faces() {
-        let Some(geom::Surface::Plane { frame, .. }) = body.face_surface(k) else {
+        let Ok(geom::Surface::Plane { frame, .. }) = body.face_surface(k) else {
             continue;
         };
         let (origin, normal) = (frame.origin(), frame.axis());
@@ -386,7 +386,7 @@ fn r2_subset_pass_leaves_a_retired_half_edges_row_and_the_whole_pass_drops_it() 
                 b.get_face(fa).unwrap().surface,
                 b.get_face(fb).unwrap().surface,
             );
-            fa != fb && sa == sb && !matches!(b.get_surface(sa), Some(geom::Surface::Plane { .. }))
+            fa != fb && sa == sb && !matches!(b.get_surface(sa), Ok(geom::Surface::Plane { .. }))
         })
         .map(|(_, e)| e.he_plus)
         .expect("a wall seam");

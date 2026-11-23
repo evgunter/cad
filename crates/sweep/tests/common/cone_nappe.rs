@@ -84,7 +84,7 @@ pub fn coned_tube() -> Body<f64> {
 /// bands over ONE surface key, so a cone chart is a group.
 pub fn cone_faces(body: &Body<f64>) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Cone { .. })))
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Ok(Surface::Cone { .. })))
         .map(|(k, _)| k)
         .collect()
 }

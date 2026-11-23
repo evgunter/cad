@@ -35,7 +35,7 @@ fn shaft_wall_records(body: &Body<f64>) -> Vec<topo::SurfaceKey> {
         .filter(|(_, f)| {
             matches!(
                 body.get_surface(f.surface),
-                Some(Surface::Cylinder { radius, .. }) if (*radius - 1.0).abs() < 1e-9
+                Ok(Surface::Cylinder { radius, .. }) if (*radius - 1.0).abs() < 1e-9
             )
         })
         .map(|(_, f)| f.surface)

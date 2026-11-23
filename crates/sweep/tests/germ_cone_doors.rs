@@ -95,7 +95,7 @@ fn quarter_cone() -> Body<f64> {
 
 fn faces_where(body: &Body<f64>, pred: impl Fn(&geom::Surface<f64>) -> bool) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(fk, _)| body.face_surface(*fk).is_some_and(&pred))
+        .filter(|(fk, _)| body.face_surface(*fk).is_ok_and(&pred))
         .map(|(k, _)| k)
         .collect()
 }
@@ -443,7 +443,7 @@ fn an_offset_axis_normal_cap_passes_the_pose_gate() {
     )[..] else {
         panic!("one base disc");
     };
-    let Some(geom::Surface::Plane { frame, .. }) = body.face_surface(disc).cloned() else {
+    let Ok(geom::Surface::Plane { frame, .. }) = body.face_surface(disc).cloned() else {
         unreachable!("the disc is a plane")
     };
     let (origin, normal) = (frame.origin(), frame.axis());

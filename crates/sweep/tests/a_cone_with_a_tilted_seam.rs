@@ -60,11 +60,11 @@ fn tilted_cone(tilt: f64) -> (Result<AtRestBody<f64>, String>, String) {
     let mut cones: Vec<_> = body
         .faces()
         .map(|(_, f)| f.surface)
-        .filter(|&k| matches!(body.get_surface(k), Some(Surface::Cone { .. })))
+        .filter(|&k| matches!(body.get_surface(k), Ok(Surface::Cone { .. })))
         .collect();
     cones.dedup();
     assert_eq!(cones.len(), 1, "one cone carrier: {cones:?}");
-    let Some(&Surface::Cone {
+    let Ok(&Surface::Cone {
         frame: carrier_frame,
         half_angle,
     }) = body.get_surface(cones[0])

@@ -414,10 +414,7 @@ fn a_ringed_support_refuses_at_the_ruled_plan_when_curved_and_carves_past_it_whe
             panic!("{what}: exactly one face carries the pocket as a ring, got {ringed:?}")
         };
         assert_eq!(
-            !matches!(
-                source.get_surface(surface),
-                Some(geom::Surface::Plane { .. })
-            ),
+            !matches!(source.get_surface(surface), Ok(geom::Surface::Plane { .. })),
             curved,
             "{what}: the ring is on the support named"
         );

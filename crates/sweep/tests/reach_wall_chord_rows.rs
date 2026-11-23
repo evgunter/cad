@@ -401,9 +401,7 @@ fn a_vertex_on_a_curved_face_is_confirmed_by_its_trim() {
             .unwrap();
         let walls: Vec<_> = body
             .faces()
-            .filter(|(fk, _)| {
-                matches!(body.face_surface(*fk), Some(geom::Surface::Cylinder { .. }))
-            })
+            .filter(|(fk, _)| matches!(body.face_surface(*fk), Ok(geom::Surface::Cylinder { .. })))
             .map(|(k, _)| k)
             .collect();
         assert_eq!(walls.len(), 2, "δ {delta}: the drum's two wall faces");
@@ -454,7 +452,7 @@ fn a_vertex_on_a_curved_face_is_confirmed_by_its_trim() {
     let elbow = sweep::test_support::swept_elbow(tol);
     let (face, vertex) = elbow
         .faces()
-        .filter(|(fk, _)| matches!(elbow.face_surface(*fk), Some(geom::Surface::Nurbs(_))))
+        .filter(|(fk, _)| matches!(elbow.face_surface(*fk), Ok(geom::Surface::Nurbs(_))))
         .find_map(|(face, _)| {
             elbow
                 .vertex_points()

@@ -170,7 +170,7 @@ fn plane_chart_at_y(body: &Body<f64>, y: f64) -> Vec<topo::FaceKey> {
     body.faces()
         .filter(|(fk, _)| {
             matches!(body.face_surface(*fk),
-                Some(geom::Surface::Plane { frame, .. }) if (frame.origin().y - y).abs() < 1e-12)
+                Ok(geom::Surface::Plane { frame, .. }) if (frame.origin().y - y).abs() < 1e-12)
         })
         .map(|(k, _)| k)
         .collect()
@@ -195,7 +195,7 @@ pub fn f64_only_corpus() -> Vec<(String, Body<f64>)> {
         let mouth = plane_chart_at_y(&sealed, y);
         let counterpart = plane_chart_at_y(&sealed, y - t);
         let plane_of = |b: &Body<f64>, f: topo::FaceKey| match b.face_surface(f) {
-            Some(geom::Surface::Plane { frame, .. }) => {
+            Ok(geom::Surface::Plane { frame, .. }) => {
                 let (origin, normal) = (frame.origin(), frame.axis());
                 (origin, normal)
             }

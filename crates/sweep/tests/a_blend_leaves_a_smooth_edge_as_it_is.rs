@@ -29,7 +29,7 @@ fn struts(body: &Body<f64>) -> Vec<EdgeKey> {
     let on_cylinder = |he| {
         body.get_half_edge(he)
             .and_then(|h| body.get_loop(h.parent_loop))
-            .and_then(|l| body.face_surface(l.face))
+            .and_then(|l| body.face_surface(l.face).ok())
             .is_some_and(|s| matches!(s, geom::Surface::Cylinder { .. }))
     };
     let mut struts: Vec<EdgeKey> = body

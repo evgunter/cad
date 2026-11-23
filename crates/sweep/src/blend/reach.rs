@@ -3538,7 +3538,7 @@ mod tests {
         let (wall, stored) = faces
             .into_iter()
             .find_map(|f| {
-                let s = body.face_surface(f)?;
+                let s = body.face_surface(f).ok()?;
                 matches!(s, geom::Surface::Cylinder { .. }).then(|| (f, s.clone()))
             })
             .expect("the rod's wall");
@@ -3595,7 +3595,7 @@ mod tests {
             .into_iter()
             .find(|&f| {
                 body.face_surface(f)
-                    .is_some_and(|s| matches!(s, geom::Surface::Sphere { .. }))
+                    .is_ok_and(|s| matches!(s, geom::Surface::Sphere { .. }))
             })
             .expect("the cap's sphere face");
         (body, face)
@@ -3623,7 +3623,7 @@ mod tests {
             .map(|(k, _)| k)
             .find(|&f| {
                 body.face_surface(f)
-                    .is_some_and(|s| matches!(s, geom::Surface::Sphere { .. }))
+                    .is_ok_and(|s| matches!(s, geom::Surface::Sphere { .. }))
             })
             .expect("the pip's bowl");
         let t = 0.2_f64;
@@ -3665,7 +3665,7 @@ mod tests {
                     .into_iter()
                     .filter(|&f| {
                         body.face_surface(f)
-                            .is_some_and(|s| matches!(s, geom::Surface::Plane { .. }))
+                            .is_ok_and(|s| matches!(s, geom::Surface::Plane { .. }))
                     })
                     .map(|f| {
                         sheet_clip(&body, f, axis, band).map(|[r0, r1, _, _]| (r0.lo(), r1.hi()))

@@ -68,7 +68,7 @@ fn pin(r: f64, x: f64, y0: f64, y1: f64) -> Body<f64> {
 }
 
 fn is_cone(body: &Body<f64>, face: FaceKey) -> bool {
-    matches!(body.face_surface(face), Some(geom::Surface::Cone { .. }))
+    matches!(body.face_surface(face), Ok(geom::Surface::Cone { .. }))
 }
 
 /// The pass's verdict on every pair of `a`'s cone face with a face of

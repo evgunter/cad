@@ -122,7 +122,7 @@ fn assert_crossing_rows(rows: &[topo::Coincidence], (a, b): (&Body<f64>, &Body<f
     // one of each operand, and both relations are recorded for each.
     let wall = |body: &Body<f64>, f| {
         body.face_surface(f)
-            .is_some_and(|s| matches!(s, topo::Surface::Cylinder { radius, .. } if *radius == 1.0))
+            .is_ok_and(|s| matches!(s, topo::Surface::Cylinder { radius, .. } if *radius == 1.0))
     };
     for r in &crossing {
         let (fa, fb) = r.face_pair().expect("checked above");

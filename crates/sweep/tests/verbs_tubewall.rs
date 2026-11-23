@@ -227,7 +227,7 @@ struct TorusWall {
 fn tori(body: &Body<f64>) -> Vec<TorusWall> {
     let mut out = Vec::new();
     for (fk, _) in body.faces() {
-        if let Some(Surface::Torus {
+        if let Ok(Surface::Torus {
             frame,
             major_radius,
             minor_radius,

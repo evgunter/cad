@@ -67,7 +67,7 @@ fn frustum(r0: f64, r1: f64) -> Body<f64> {
 
 fn cone_faces(body: &Body<f64>) -> Vec<FaceKey> {
     body.faces()
-        .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(Surface::Cone { .. })))
+        .filter(|(fk, _)| matches!(body.face_surface(*fk), Ok(Surface::Cone { .. })))
         .map(|(k, _)| k)
         .collect()
 }

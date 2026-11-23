@@ -58,7 +58,7 @@ fn filleted() -> (Body<f64>, topo::SurfaceKey, Surface<f64>, Vec<HalfEdgeKey>) {
     let (face, key, cylinder) = body
         .faces()
         .find_map(|(k, f)| match body.face_surface(k) {
-            Some(s @ Surface::Cylinder { .. }) => Some((k, f.surface, s.clone())),
+            Ok(s @ Surface::Cylinder { .. }) => Some((k, f.surface, s.clone())),
             _ => None,
         })
         .expect("the fillet is a cylinder");

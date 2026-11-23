@@ -102,7 +102,7 @@ fn findings<T: Decide + AtRestPolicy + Bounds + CertifiedBounds>(
     let key = body
         .faces()
         .map(|(_, f)| f.surface)
-        .find(|&s| body.get_surface(s).is_some_and(&pick))
+        .find(|&s| body.get_surface(s).is_ok_and(&pick))
         .expect("the row's face");
     let surface = moved(body.get_surface(key).unwrap().clone());
     let body = body.with_surface_moved_for_tests(key, surface).unwrap();

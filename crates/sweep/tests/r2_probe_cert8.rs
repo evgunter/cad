@@ -29,12 +29,7 @@ use topo::{Body, FaceKey};
 
 fn nurbs_wall(body: &Body<f64>) -> FaceKey {
     body.faces()
-        .find(|(fk, _)| {
-            matches!(
-                body.face_surface(*fk),
-                Some(Surface::Nurbs(payload)) if !payload.is_placeholder()
-            )
-        })
+        .find(|(fk, _)| matches!(body.face_surface(*fk), Ok(Surface::Nurbs(_))))
         .map(|(key, _)| key)
         .expect("a loft has described NURBS walls")
 }
@@ -136,10 +131,7 @@ fn probe_sampled_bounds_hold_on_the_acceptance_walls() {
     .expect("builds")
     .body;
     for (fk, _) in body.faces() {
-        if let Some(s @ Surface::Nurbs(p)) = body.face_surface(fk) {
-            if p.is_placeholder() {
-                continue;
-            }
+        if let Ok(s @ Surface::Nurbs(p)) = body.face_surface(fk) {
             let w = p.weights();
             let rational = w.iter().any(|x| (x - w[0]).abs() > 1e-15);
             sample_check(if rational { "RATIONAL" } else { "poly" }, s);

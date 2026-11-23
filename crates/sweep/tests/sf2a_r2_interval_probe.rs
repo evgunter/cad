@@ -48,7 +48,7 @@ fn interval_offset_planes_together_box() {
     let centroid = (1.0, 1.5, 2.0);
     let mut moves: Vec<ChartMove<Interval>> = Vec::new();
     for (k, _) in body.faces() {
-        let Some(Surface::Plane { frame, .. }) = body.face_surface(k) else {
+        let Ok(Surface::Plane { frame, .. }) = body.face_surface(k) else {
             panic!("a box is planes");
         };
         let (origin, normal) = (frame.origin(), frame.axis());
@@ -98,7 +98,7 @@ fn interval_offset_planes_together_hexagon() {
     let mut body = prism(&hex, 0.25);
     let mut moves: Vec<ChartMove<Interval>> = Vec::new();
     for (k, _) in body.faces() {
-        let Some(Surface::Plane { frame, .. }) = body.face_surface(k) else {
+        let Ok(Surface::Plane { frame, .. }) = body.face_surface(k) else {
             panic!("a hexagonal prism is planes");
         };
         let (origin, normal) = (frame.origin(), frame.axis());

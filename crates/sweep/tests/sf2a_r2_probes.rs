@@ -183,7 +183,7 @@ fn r2a_valence4_concurring_corner_builds_in_closed_form() {
     };
     let mut moves: Vec<ChartMove<f64>> = Vec::new();
     for (k, _) in chamfered.faces() {
-        let Some(Surface::Plane { frame, .. }) = chamfered.face_surface(k) else {
+        let Ok(Surface::Plane { frame, .. }) = chamfered.face_surface(k) else {
             panic!("a chamfered cube carries planes only");
         };
         let (origin, normal) = (frame.origin(), frame.axis());
@@ -295,7 +295,7 @@ fn r2a_a_face_named_twice_across_moves() {
     let centroid = (1.0, 1.5, 2.0);
     let mut moves: Vec<ChartMove<f64>> = Vec::new();
     for (k, _) in body.faces() {
-        let Some(Surface::Plane { frame, .. }) = body.face_surface(k) else {
+        let Ok(Surface::Plane { frame, .. }) = body.face_surface(k) else {
             panic!("a box is planes");
         };
         let (origin, normal) = (frame.origin(), frame.axis());
@@ -350,7 +350,7 @@ fn r2a_one_move_spanning_two_planes() {
     let centroid = (1.0, 1.5, 2.0);
     let mut per_face: Vec<(FaceKey, f64)> = Vec::new();
     for (k, _) in body.faces() {
-        let Some(Surface::Plane { frame, .. }) = body.face_surface(k) else {
+        let Ok(Surface::Plane { frame, .. }) = body.face_surface(k) else {
             panic!("a box is planes");
         };
         let (origin, normal) = (frame.origin(), frame.axis());
@@ -423,7 +423,7 @@ fn r2a_one_curved_face_among_oblique_planes_takes_the_axial_door() {
     );
     let curved = body
         .faces()
-        .filter(|(fk, _)| !matches!(body.face_surface(*fk), Some(Surface::Plane { .. })))
+        .filter(|(fk, _)| !matches!(body.face_surface(*fk), Ok(Surface::Plane { .. })))
         .count();
     assert_eq!(curved, 1, "the bulged side is the one curved chart");
     assert!(

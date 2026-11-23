@@ -608,7 +608,7 @@ fn across_a_wall(
         let (fp, fm) = (face(edge.he_plus), face(edge.he_minus));
         let surface = |f| body.get_face(f).unwrap().surface;
         let (sp, sm) = (surface(fp), surface(fm));
-        let cylinder = |k| matches!(body.get_surface(k), Some(Surface::Cylinder { .. }));
+        let cylinder = |k| matches!(body.get_surface(k), Ok(Surface::Cylinder { .. }));
         let c = body
             .get_curve_geom(edge.curve)
             .and_then(topo::CurveGeom::certified)
@@ -733,7 +733,7 @@ fn a_half_rods_rim_across_a_rods_wall_moves_with_its_flat_face() {
         }
         // The plane `y = 0`, read within a tolerance on its stored data.
         let on_flat = |k| match bb.body.get_surface(k) {
-            Some(Surface::Plane { frame, .. }) => {
+            Ok(Surface::Plane { frame, .. }) => {
                 let (origin, normal) = (frame.origin(), frame.axis());
                 normal.dot(Vec3::unit_y()).abs() >= 1.0 - 1e-12 && origin.y.abs() <= 1e-12
             }

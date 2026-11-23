@@ -630,7 +630,7 @@ fn profile_cap(body: &Body<f64>) -> geom_brep::SurfaceKey {
     body.faces()
         .map(|(_, f)| f.surface)
         .find(|&k| {
-            matches!(body.get_surface(k), Some(Surface::Plane { frame, .. })
+            matches!(body.get_surface(k), Ok(Surface::Plane { frame, .. })
                 if frame.axis().z.abs() > 0.5)
         })
         .expect("the quarter revolve has a cap in the profile plane")

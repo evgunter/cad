@@ -101,7 +101,7 @@ fn p2_all_twelve_cavity_edges_are_concave_and_the_eight_corners_trivalent() {
 
     let outward = |face: topo::FaceKey| -> Vec3<f64> {
         let f = body.get_face(face).expect("a support face");
-        let Some(Surface::Plane { frame, .. }) = body.face_surface(face) else {
+        let Ok(Surface::Plane { frame, .. }) = body.face_surface(face) else {
             panic!("a cavity support face is a plane");
         };
         let normal = frame.axis();

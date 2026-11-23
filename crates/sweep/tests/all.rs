@@ -360,8 +360,6 @@ mod pipeline_null_edge_rows;
 mod pis_arc_capped_poses;
 #[path = "pis_cut_cavity.rs"]
 mod pis_cut_cavity;
-#[path = "placeholder_loop_windings.rs"]
-mod placeholder_loop_windings;
 #[path = "planar_ring_arc_closure.rs"]
 mod planar_ring_arc_closure;
 #[path = "pocket_ring_steep_ellipse.rs"]

@@ -50,7 +50,7 @@ fn blade(tol: Tol) -> topo::AtRestBody<f64> {
 fn ridge(b: &topo::Body<f64>) -> (FaceKey, Point3<f64>) {
     b.faces()
         .filter_map(|(f, _)| match b.face_surface(f) {
-            Some(geom::Surface::Nurbs(n)) => {
+            Ok(geom::Surface::Nurbs(n)) => {
                 let (u0, u1) = n.knot_values_u().domain();
                 let (v0, v1) = n.knot_values_v().domain();
                 Some((f, n.eval(0.5 * (u0 + u1), 0.5 * (v0 + v1))))

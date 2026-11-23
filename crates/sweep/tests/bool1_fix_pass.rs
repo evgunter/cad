@@ -101,7 +101,7 @@ fn a_coplanar_split_leaves_no_edge_between_two_coplanar_records() {
         .filter(|&(k, _)| {
             let (fa, fb) = faces_of(below, k);
             let plane_y1 = |f: FaceKey| {
-                matches!(below.get_surface(surf(f)), Some(geom::Surface::Plane { frame, .. })
+                matches!(below.get_surface(surf(f)), Ok(geom::Surface::Plane { frame, .. })
                     if frame.origin().y == 1.0 && frame.axis().x == 0.0 && frame.axis().z == 0.0)
             };
             plane_y1(fa) && plane_y1(fb)
