@@ -4615,6 +4615,7 @@ fn volume_refusal(
         M::Corrupt { .. } | M::NullScaffoldEdge { .. } => {
             PointInSolidError::CorruptFace { face: first }
         }
+        M::PendingFace { face } => PointInSolidError::PendingFace { face },
         M::Band { .. }
         | M::RingOnCurvedFace { .. }
         | M::Face { .. }

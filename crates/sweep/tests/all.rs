@@ -1485,7 +1485,7 @@ mod a_loops_lift_runs_through_its_poles;
 mod a_partner_across_a_lofted_wall_is_joined_on_its_section_value;
 #[path = "a_peg_in_a_two_segment_bore_moves_only_its_wall.rs"]
 mod a_peg_in_a_two_segment_bore_moves_only_its_wall;
+#[path = "a_pending_end_face_is_refused_as_scaffolding.rs"]
+mod a_pending_end_face_is_refused_as_scaffolding;
 #[path = "a_station_frame_is_minted_to_its_floor.rs"]
 mod a_station_frame_is_minted_to_its_floor;
-#[path = "probe_pending_blend.rs"]
-mod probe_pending_blend;

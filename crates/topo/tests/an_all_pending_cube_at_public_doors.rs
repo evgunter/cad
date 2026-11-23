@@ -319,3 +319,109 @@ fn no_public_door_panics_on_an_all_pending_cube() {
     let _ = cube;
     assert!(panics.is_empty(), "doors that panicked: {panics:#?}");
 }
+
+/// **Every refusal a public door gives on the all-pending cube names a
+/// pending face**: its typed pending arm, check 1's
+/// `UncertifiableSurface`, or `ReplaceFaceError::PlaceholderSurface`
+/// (the arm `pending-face-refusals-keep-the-placeholder-name` renames).
+/// A door that answers rather than refuses answers what a pending face
+/// honestly is: nothing to move, no normal, no kind. Red on a door that
+/// reads a pending face as a NURBS kind, a poisoned net, a corrupt body
+/// or a curved face.
+#[test]
+fn every_refusal_on_an_all_pending_cube_names_pending() {
+    use topo::readback::ReadbackError;
+    use topo::{ChartMove, ChartRegionError, PointInSolidError, ReplaceFaceError};
+    let mut body = Body::<f64>::new();
+    let _ = build_cube(&mut body);
+    let tol = Tol::witness();
+    let band = Band::linear(tol).unwrap();
+    let faces = topo::query::all_faces(&body);
+    let f0 = faces[0];
+    let pending_finding =
+        |e: &topo::ValidationError| matches!(e, topo::ValidationError::UncertifiableSurface { .. });
+
+    let errors = topo::validate::validate_geometric(&body, tol).expect_err("pending at rest");
+    assert_eq!(
+        errors.iter().filter(|e| pending_finding(e)).count(),
+        faces.len(),
+        "check 1 names every face: {errors:?}"
+    );
+    assert!(matches!(
+        topo::solid_contain::point_in_solid(&body, Point3::new(0.5, 0.5, 0.5), band, tol),
+        Err(PointInSolidError::PendingFace { .. })
+    ));
+    for door in [
+        topo::readback::face_pose(&body, f0).map(|_| ()),
+        topo::readback::face_stored_surface(&body, f0).map(|_| ()),
+        topo::readback::face_carrier_kind(&body, f0).map(|_| ()),
+    ] {
+        assert_eq!(door, Err(ReadbackError::PendingSurface { face: f0 }));
+    }
+    assert!(
+        topo::cover::face_cover(&body, f0, band).is_err_and(|why| why.is_pending()),
+        "face_cover names pending"
+    );
+    assert!(matches!(
+        topo::chart_region_overlap(&body, faces[0], &body, faces[1], band),
+        Err(ChartRegionError::PendingFace { .. })
+    ));
+    assert!(matches!(
+        topo::face_azimuth_window_traces(&body, f0, band),
+        Err(topo::ChartWindowError::PendingFace(f)) if f == f0
+    ));
+    assert!(matches!(
+        topo::offset_axial::is_axial(&body, band),
+        Err(ReplaceFaceError::PlaceholderSurface { .. })
+    ));
+    let all = || {
+        vec![ChartMove {
+            faces: faces.clone(),
+            distance: 0.1,
+        }]
+    };
+    for (door, got) in [
+        ("offset_planes_together", {
+            let mut b = body.clone();
+            topo::offset_planes_together(&mut b, &all(), band, tol).map(|_| ())
+        }),
+        ("offset_charts_together", {
+            let mut b = body.clone();
+            topo::offset_axial::offset_charts_together(&mut b, &all(), band, tol).map(|_| ())
+        }),
+        ("offset_surfaces_together", {
+            let mut b = body.clone();
+            topo::offset_general::offset_surfaces_together(&mut b, &all(), band, tol).map(|_| ())
+        }),
+    ] {
+        assert!(
+            matches!(got, Err(ReplaceFaceError::PlaceholderSurface { .. })),
+            "{door} names the pending face: {got:?}"
+        );
+    }
+    let not_finished = topo::finish(body.clone(), tol).expect_err("pending at rest");
+    assert!(
+        format!("{not_finished:?}").contains("UncertifiableSurface"),
+        "finish names check 1's pending finding: {not_finished:?}"
+    );
+    // Raw door: the measured body has pending faces, which tier 3 refuses (UncertifiableSurface).
+    let measured = topo::test_support::classify_unvalidated(&body, tol).map(|_| ());
+    assert!(
+        format!("{measured:?}").contains("Pending"),
+        "the measure names a pending face: {measured:?}"
+    );
+    // The answering doors: nothing to move, no normal, no kind.
+    assert!(topo::face_normal::face_outward_normal(&body, f0).is_none());
+    assert!(topo::face_normal::face_plane(&body, f0).is_none());
+    assert!(topo::query::face_surface_kind(&body, f0).is_none());
+    let moved = topo::transform::transform_rigid(
+        &body,
+        &geom_core::RigidMotion::translation(Vec3::new(1.0, 0.0, 0.0)).unwrap(),
+    )
+    .expect("a pending slot moves as pending");
+    let mf = topo::query::all_faces(&moved)[0];
+    assert_eq!(
+        topo::readback::face_carrier_kind(&moved, mf),
+        Err(ReadbackError::PendingSurface { face: mf })
+    );
+}

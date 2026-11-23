@@ -3115,10 +3115,13 @@ fn corner_at<T: Decide + Bounds>(
                 "a ruled link's end, whose three faces do not meet as a cap",
             ));
         };
-        let Ok(Surface::Plane {
+        let cap_surface = body
+            .face_surface(cap)
+            .map_err(|miss| super::surgery::surface_missed(cap, "a ruled link's end face", miss))?;
+        let Surface::Plane {
             frame: carrier_frame,
             ..
-        }) = body.face_surface(cap)
+        } = cap_surface
         else {
             return refuse(UnbuiltEnd::CurvedEndFace { vertex });
         };
@@ -3211,7 +3214,10 @@ fn corner_at<T: Decide + Bounds>(
                 "a chain end's three faces do not meet as two supports and an end face",
             ));
         };
-        let Ok(Surface::Plane { frame, .. }) = body.face_surface(end) else {
+        let end_surface = body
+            .face_surface(end)
+            .map_err(|miss| super::surgery::surface_missed(end, "a chain end's end face", miss))?;
+        let Surface::Plane { frame, .. } = end_surface else {
             return refuse(UnbuiltEnd::CurvedEndFace { vertex });
         };
         let normal = frame.axis();

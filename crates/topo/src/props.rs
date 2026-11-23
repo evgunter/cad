@@ -271,6 +271,13 @@ pub enum MassPropsError {
         /// The scaffolding edge.
         edge: crate::entity::EdgeKey,
     },
+    /// A face has no surface yet ([`crate::SurfaceMiss::Pending`]): the
+    /// body is mid-construction, and mass properties are defined on
+    /// at-rest bodies only (tier 3 refuses a pending face).
+    PendingFace {
+        /// The pending face.
+        face: FaceKey,
+    },
     /// The caller's [`Settle::Resolution`] is finer than ε: the model
     /// defines its measures only to ε of boundary displacement, so no
     /// finer resolution is offered.
@@ -342,6 +349,11 @@ impl MassPropsError {
                 "an edge is a placeholder a construction leaves while it is under way, which a \
                  body at rest never carries. {}",
                 geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+            ),
+            Self::PendingFace { face } => write!(
+                f,
+                "face {face:?} has no surface yet, which a body at rest never carries. {}",
+                crate::pcurves::PLACEHOLDER_RECOURSE
             ),
             Self::ResolutionFinerThanEps { resolution, eps } => write!(
                 f,
@@ -5307,13 +5319,11 @@ fn face_flux_about<T: Decide>(
         face: face_key,
         source,
     };
-    // Every run is minted here, so a run's face is described.
-    let surface = face.surface().map_err(|_| {
-        wrap(PropsError::QuadratureUnsupported {
-            what: "a face whose surface is still pending reached the measure — a \
-                   mid-surgery body has no mass properties (tier 3 refuses it at rest)",
-        })
-    })?;
+    // Every run is minted here, so a run past this read is on a
+    // described face.
+    let surface = face
+        .surface()
+        .map_err(|_| MassPropsError::PendingFace { face: face_key })?;
     let mut flux_pad = 0.0f64;
     let mut area_pad = 0.0f64;
     let mut enclosure = None;

@@ -3551,7 +3551,7 @@ impl<T: Decide + Bounds> StripLevel<T> {
                          latitudes the support-boundary meter reads",
                     ));
                 }
-                Err(_) => return Err(unresolved(EntityId::Face(face), "a rim support's surface")),
+                Err(miss) => return Err(surface_missed(face, "a rim support's surface", miss)),
             }
         } else {
             let (o, m, across) = strip_frame(body, l, face)?;

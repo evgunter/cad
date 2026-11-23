@@ -503,9 +503,9 @@ mod r2_mesh7_probes;
 #[path = "r2_sense_e2e.rs"]
 mod r2_sense_e2e;
 
+#[path = "a_pending_face_is_refused_before_meshing.rs"]
+mod a_pending_face_is_refused_before_meshing;
 #[path = "route_rows.rs"]
 mod route_rows;
 #[path = "the_one_slit_band.rs"]
 mod the_one_slit_band;
-#[path = "probe_pending_mesh.rs"]
-mod probe_pending_mesh;

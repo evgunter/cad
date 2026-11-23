@@ -4038,6 +4038,10 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
         M::Corrupt { .. } | M::NullScaffoldEdge { .. } => {
             reading("its structure is incomplete", DEFECT.into())
         }
+        M::PendingFace { .. } => reading(
+            geom_brep::PENDING_SURFACE,
+            crate::pcurves::PLACEHOLDER_RECOURSE.into(),
+        ),
         M::ResolutionFinerThanEps { .. } => reading(
             "a measurement was asked for finer than the tolerance",
             "Recourse: ask for a resolution of at least the tolerance".into(),

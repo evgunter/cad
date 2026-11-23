@@ -2395,7 +2395,8 @@ fn beyond(
         Ok(topo::Surface::Plane { frame, .. } | topo::Surface::Cylinder { frame, .. }) => {
             frame.u_ref()
         }
-        _ => return Err("the carrier's surface is unreadable".to_owned()),
+        Ok(_) => unreachable!("the carrier was matched a plane or a cylinder above"),
+        Err(miss) => return Err(format!("the carrier's surface is unreadable: {miss}")),
     };
     let frame =
         RigidMotion::from_axis_and_reference(base, normal, reference, AT_REST_BEYOND_FRAME, band)
