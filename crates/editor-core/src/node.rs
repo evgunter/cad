@@ -2791,6 +2791,13 @@ impl OutputPort {
 }
 
 impl<P, S: Slot> Node<P, S> {
+    /// **Whether this is a datum** (D10 `[placement.datums]`): a
+    /// placement whose source is nothing, placing a bare frame.
+    #[must_use]
+    pub fn is_datum(&self) -> bool {
+        matches!(self, Self::Datum { .. })
+    }
+
     /// **The bundle this node holds as a placement** (D10
     /// `[placement.datums]`: a placement's source is a body or nothing):
     /// a `Place`'s, an instance's or a datum's constraints, `None` for a

@@ -3880,7 +3880,7 @@ pub fn bound_pose<T: EvalScalar>(
     read: impl Into<crate::pose::RoleRead<crate::VarId>>,
     tol: Tol,
 ) -> Result<PoseValue<T>, NodeErrorKind> {
-    wire::pose::eval_pose(doc, &ev.nodes, slot, read.into(), &ev.env, tol)
+    wire::pose::eval_pose(doc, &ev.nodes, slot, read.into(), &probe_env(doc, ev), tol)
 }
 
 /// **The faces `program` traces, read against an evaluation** as its
@@ -3930,12 +3930,25 @@ fn traced_faces_in<T: EvalScalar + crate::mate::SolveScalar>(
     decided: Option<&wire::trace::DrawnFrame<T>>,
     tol: Tol,
 ) -> Result<Vec<crate::trace::TracedFace<T>>, NodeErrorKind> {
-    // `doc` may be `ev`'s document with a probe lowered into it, whose
-    // member reads mint their indices as counts `ev` never bound, and
-    // whose values (a face's chart's spin and slides) are definitions it
-    // never bound. They are bound in the run's order: each count as the
-    // document holds it (`edit::written_count`), then the definitions
-    // over them (`Doc::bind_definitions`).
+    let env = probe_env(doc, ev);
+    Ok(
+        wire::trace::drawn_in(doc, &ev.nodes, program, decided, &env, tol)?
+            .map_or_else(Vec::new, |d| d.faces),
+    )
+}
+
+/// **`ev`'s environment, with what a probe lowered into `doc` reads
+/// bound**: `doc` may be `ev`'s document with a probe lowered into it
+/// (a draft's bundle, a profile's program), whose member reads mint
+/// their indices as counts `ev` never bound, and whose values (a face's
+/// chart's spin and slides, a mate's typed offset) are definitions it
+/// never bound. They are bound in the run's order: each count as the
+/// document holds it (`edit::written_count`), then the definitions over
+/// them (`Doc::bind_definitions`). `ev`'s own where nothing is unbound.
+fn probe_env<'e, T: EvalScalar>(
+    doc: &crate::ProfileDoc,
+    ev: &'e Evaluation<T>,
+) -> std::borrow::Cow<'e, crate::expr::VarEnv<T>> {
     let unbound: Vec<crate::VarId> = doc
         .var_ids()
         .into_iter()
@@ -3947,29 +3960,37 @@ fn traced_faces_in<T: EvalScalar + crate::mate::SolveScalar>(
             Some(crate::var::VarDef::Defined(_))
         )
     });
-    let counts: Vec<(crate::VarId, i64)> = unbound
+    let counts: Vec<(crate::VarId, crate::expr::ParamValue<T>)> = unbound
         .into_iter()
-        .filter_map(|var| Some((var, crate::edit::written_count(doc, var)?)))
+        .filter_map(|var| {
+            // A free variable the probe minted (a typed offset) at its
+            // nominal, as the run binds every free one (`Doc::var_env`).
+            let value = match doc.free(var) {
+                Some(&crate::doc::FreeVar::Continuous { dim, value, .. }) => {
+                    crate::expr::ParamValue::Continuous {
+                        dim,
+                        value: T::from_f64(value),
+                    }
+                }
+                Some(&crate::doc::FreeVar::Count { value }) => {
+                    crate::expr::ParamValue::Count(value)
+                }
+                None => crate::expr::ParamValue::Count(crate::edit::written_count(doc, var)?),
+            };
+            Some((var, value))
+        })
         .collect();
-    let env = match (defined, counts.is_empty()) {
+    match (defined, counts.is_empty()) {
         (false, true) => std::borrow::Cow::Borrowed(&ev.env),
         _ => {
             let mut env = ev.env.clone();
-            env.bindings.extend(
-                counts
-                    .into_iter()
-                    .map(|(var, value)| (var, crate::expr::ParamValue::Count(value))),
-            );
+            env.bindings.extend(counts);
             if defined {
                 doc.bind_definitions(&mut env);
             }
             std::borrow::Cow::Owned(env)
         }
-    };
-    Ok(
-        wire::trace::drawn_in(doc, &ev.nodes, program, decided, &env, tol)?
-            .map_or_else(Vec::new, |d| d.faces),
-    )
+    }
 }
 
 /// **[`crate::mate::solve_document`] at a run's own scalar** — a box

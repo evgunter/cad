@@ -450,6 +450,20 @@ impl PoseRole {
         }
     }
 
+    /// **The frame axis normal to this coordinate plane**: `z` for `xy`,
+    /// `x` for `yz`, `y` for `zx` — the axis a frame's coordinate plane
+    /// is read about ([`Self::read`]), and the one it stands off along.
+    /// `None` for a role that is no coordinate plane.
+    #[must_use]
+    pub fn normal_axis(self) -> Option<Self> {
+        match self {
+            Self::Xy => Some(Self::Z),
+            Self::Yz => Some(Self::X),
+            Self::Zx => Some(Self::Y),
+            Self::X | Self::Y | Self::Z | Self::Origin | Self::Normal | Self::Direction => None,
+        }
+    }
+
     /// **`value` read through this role**, `None` where its kind offers
     /// no such role (a read the door refuses).
     #[must_use]
@@ -461,17 +475,9 @@ impl PoseRole {
             (PoseValue::Frame(f), Self::Origin) => PoseValue::Point {
                 position: f.origin(),
             },
-            (PoseValue::Frame(f), Self::Xy | Self::Yz | Self::Zx) => PoseValue::plane_through(
-                f.origin(),
-                Self::frame_axis(
-                    f,
-                    match self {
-                        Self::Xy => Self::Z,
-                        Self::Yz => Self::X,
-                        _ => Self::Y,
-                    },
-                ),
-            ),
+            (PoseValue::Frame(f), Self::Xy | Self::Yz | Self::Zx) => {
+                PoseValue::plane_through(f.origin(), Self::frame_axis(f, self.normal_axis()?))
+            }
             (PoseValue::Plane { normal: dir, .. }, Self::Normal) => {
                 PoseValue::Direction { dir: *dir }
             }
