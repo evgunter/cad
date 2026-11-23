@@ -27,7 +27,7 @@ Three decisions consume it:
 - `transverse`'s `Range` (`Range::first_harmonic(.., noise)`), through:
   - `band_arc`'s `e = escalate + noise`;
   - `harmonic_roots`' `extreme_sign(row::EXTREME, r.lo | r.hi, r.noise, band)`;
-  - `least`, the rule that roots the noise alone puts apart read as a touch: `cross · past_noise(size, noise) / size.max(noise)`.
+  - `least`, the rule that roots the noise alone puts apart read as a touch: `cross · (size − noise).max(0) / size.max(noise)`.
 
 The bare-rounding gate counts the mint as one site in `pose.rs`'s row. It cannot see the three consumers, because a charge carried in a variable is a stated gap of the gate.
 

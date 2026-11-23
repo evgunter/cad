@@ -164,7 +164,8 @@ class TestTheDialsAreRecorded(unittest.TestCase):
         for line in numbered:
             self.assertIn("ADVISORY", line)
             self.assertIn("32 samples", line)
-            self.assertIn('Measure "height" (', line)
+            # The label and tag open the line: no kind word before them.
+            self.assertRegex(line, r'^  "height" \([0-9a-f]{12}\): mean')
         self.assertIn("ADVISORY", repr(monte_carlo(doc, box, config)))
 
 
@@ -377,7 +378,7 @@ class TestTheThreeRefusals(unittest.TestCase):
         self.assertEqual(refusal.node, prism)
         # The message speaks the node with its label; the payload keeps
         # the full id.
-        self.assertIn('(Extrude "plinth" ', str(refusal))
+        self.assertIn('("plinth" (', str(refusal))
         self.assertIsNone(refusal.param)
         self.assertTrue(refusal.cause)
         # The same refusal an ordinary evaluation of that document

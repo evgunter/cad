@@ -112,7 +112,9 @@
 
 use geom::Surface;
 use geom::{Curve3, EllipseInvalid, Frame, SpiricInvalid, SquareFrame, SurfaceKind};
-use geom_core::{Band, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, Vec3};
+use geom_core::{
+    Band, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Rounded, Sign, Vec3,
+};
 
 use geom_core::k_stats::{decide_across, decide_across_reported};
 
@@ -1055,8 +1057,8 @@ fn closed_form_shown<T: Decide>(
 ///    the axis' angle off the plane levered over `reach` from the
 ///    rulings' hinge, the line through the foot's projection on the
 ///    plane: the consumed region's axial distance from the hinge's
-///    station ([`Reach::hinge_lever`]), plus its distance across the
-///    wall from the hinge at second order ([`Reach::turn_lever`]): Zero
+///    station (`hinge_lever`), plus its distance across the
+///    wall from the hinge at second order (`turn_lever`): Zero
 ///    ⇒ the axis lies in the plane
 ///    (the parallel degenerate lane, step 2); definite ⇒ a bounded cut
 ///    (step 3).
@@ -1201,7 +1203,7 @@ pub(crate) enum RuledSection<T: Real> {
 }
 
 /// Steps 1–2 of [`plane_cylinder_section`]: the axis-in-plane lane, at
-/// `reach`'s frame ([`ruled_frame`]): the tilt row
+/// `reach`'s frame ([`Reach::ruled_pivot_lever`]): the tilt row
 /// ([`ruled_parallel`]), then, with the axis in the plane, the gap row
 /// ([`ruled_section`]). The tangent-locus lane reads its ruling
 /// tangency through the same two rows on the same frame, so the
@@ -1211,7 +1213,7 @@ fn plane_cylinder_ruled_read<T: Decide>(
     reach: &Reach<T>,
     band: Band,
 ) -> Result<(Decided, Option<RuledSection<T>>), Indeterminate> {
-    let frame = ruled_frame(pc, reach);
+    let frame = reach.ruled_pivot_lever(pc);
     let parallel = ruled_parallel(&frame, band)?;
     Ok((parallel, ruled_section(pc, &frame, parallel, band)?))
 }
@@ -1278,34 +1280,15 @@ pub(crate) fn ruled_section<T: Decide>(
     }))
 }
 
-/// The axis-in-plane lane's frame: `reach`'s pivot on the axis
-/// ([`Reach::foot_on`]), the axis' normal component `c`, the foot's signed height over
-/// the plane, and the lever the tilt is read at.
+/// The axis-in-plane lane's frame ([`Reach::ruled_pivot_lever`]):
+/// `reach`'s pivot on the axis, the axis' normal component `c`, the
+/// pivot's signed height over the plane, and the lever the tilt is read
+/// at.
 pub(crate) struct RuledFrame<T: Real> {
     pub(crate) o: Point3<T>,
     pub(crate) c: T,
     pub(crate) gap_signed: T,
     pub(crate) lever: geom_core::Lever<T>,
-}
-
-/// [`RuledFrame`] of the pair at `reach`.
-pub(crate) fn ruled_frame<T: Decide>(pc: &PlaneCylinder<T>, reach: &Reach<T>) -> RuledFrame<T> {
-    let &PlaneCylinder { q, n, o, a, .. } = pc;
-    let o = reach.foot_on(geom::Line { origin: o, dir: a });
-    let c = a.dot(n);
-    let gap_signed = (o - q).dot(n);
-    // The rulings this lane mints stand on the hinge through `o − n·gap`,
-    // `−gap·c` along the axis from the foot; the reach is levered from
-    // there (`geom_brep::extent`'s module docs).
-    let hinge = o - n * gap_signed;
-    let cos = (T::one() - c.powi(2)).max(T::zero()).sqrt();
-    let lever = reach.ruled_lever((o, -(gap_signed * c)), hinge, (n, a), (c, cos));
-    RuledFrame {
-        o,
-        c,
-        gap_signed,
-        lever,
-    }
 }
 
 /// **The axis-in-plane lane's gap row**, `pc_parallel_gap`: a consumed
@@ -2508,7 +2491,11 @@ pub fn plane_cone_section<T: Decide>(
         let rounding = |x: Vec3<T>, y: Vec3<T>, per_unit: T| {
             per_unit * (x.x.abs() * y.x.abs() + x.y.abs() * y.y.abs() + x.z.abs() * y.z.abs())
         };
-        let gap_err = rounding(apex - q, n, T::from_f64(2.5 * f64::EPSILON));
+        let gap = Rounded {
+            value: apex_gap,
+            error: rounding(apex - q, n, T::from_f64(2.5 * f64::EPSILON)),
+        };
+        let size = gap.magnitude();
         const PN_APEX_PAIR_REACH: &str = "pn_apex_pair_reach";
         const PN_APEX_TANGENT_REACH: &str = "pn_apex_tangent_reach";
         const PN_APEX_POINT_REACH: &str = "pn_apex_point_reach";
@@ -2517,23 +2504,20 @@ pub fn plane_cone_section<T: Decide>(
                 PN_APEX_PAIR_REACH,
                 pair_bound(
                     reach,
-                    (apex, a, cos_a, sin_a, seam_width),
+                    (apex, a, half_angle, seam_width),
                     (discr, steep, s),
-                    (apex_gap, gap_err),
-                    (
-                        c,
-                        rounding(a, n, T::from_f64(2.0 * f64::EPSILON))
+                    gap,
+                    Rounded {
+                        value: c,
+                        error: rounding(a, n, T::from_f64(2.0 * f64::EPSILON))
                             + T::from_f64(0.5 * f64::EPSILON) * s,
-                    ),
+                    },
                 ),
             ),
-            Sign::Zero => (
-                PN_APEX_TANGENT_REACH,
-                Margin::of(apex_start((apex_gap, gap_err), steep)),
-            ),
+            Sign::Zero => (PN_APEX_TANGENT_REACH, Margin::of(apex_start(size, steep))),
             Sign::Negative => (
                 PN_APEX_POINT_REACH,
-                Margin::of(apex_start((apex_gap, gap_err), discr.abs())),
+                Margin::of(apex_start(size, discr.abs())),
             ),
         };
         if decide_magnitude(name, bound, band).map_err(SectionError::Escalated)? == Magnitude::Zero
@@ -2624,13 +2608,18 @@ pub fn plane_cone_section<T: Decide>(
                     // off the zero band, so the minor direction is
                     // defined.
                     let u_major = tilted_section_major(n, s_vec);
-                    // The centre is the apex's foot on the plane moved
-                    // along the major axis: in the plane by
-                    // construction, where `apex − (c·a − sin²α·n)·δ/K`
-                    // reads a vector that cancels to K along the normal
-                    // and then divides it by K.
-                    let center = apex - n * apex_gap + u_major * tilt.centre(apex_gap);
-                    let e = Curve3::ellipse(center, n, major, minor, u_major, band)?;
+                    // The ellipse is held on its arc at its vertex nearer
+                    // the apex's foot, read where the plane meets that
+                    // ruling (`ConeTilt::near_vertex`, finite toward the
+                    // parabola): the apex's foot on the plane moved along
+                    // the major axis, in the plane by construction. The
+                    // arc there is stored at its own scale however far
+                    // the centre lies; the centre lies from it along
+                    // `δσ·û` and is not computed here.
+                    let delta_sigma = apex_gap * tilt.c.unit_sign();
+                    let vertex = apex - n * apex_gap + u_major * tilt.near_vertex(delta_sigma);
+                    let toward = u_major * (T::zero() - delta_sigma.unit_sign());
+                    let e = Curve3::ellipse_anchored(vertex, n, toward, (major, minor), band)?;
                     Ok(PlaneConeSection::TiltedEllipse(e))
                 }
                 verdict @ (Sign::Zero | Sign::Positive) => {
@@ -2652,13 +2641,13 @@ pub fn plane_cone_section<T: Decide>(
 }
 
 /// **Where the real plane's section starts from the apex** along a
-/// direction whose sine against the plane is `sine`: the plane's
-/// stand-off from the apex, read as `|δ̂| + e_δ` (step 2), over that
-/// sine. `sine` is positive on the arm that asks: the steepest
-/// generator's `M`, and the discriminant `D` or `|D|` on the side of
-/// the apex outcome it was decided definite on.
-fn apex_start<T: geom_core::Real>((gap, gap_err): (T, T), sine: T) -> T {
-    (gap.abs() + gap_err) / sine
+/// direction whose sine against the plane is `sine`: `size`, the
+/// plane's stand-off from the apex read as `|δ̂| + e_δ` (step 2, the
+/// rounded gap's magnitude), over that sine. `sine` is positive on the
+/// arm that asks: the steepest generator's `M`, and the discriminant `D`
+/// or `|D|` on the side of the apex outcome it was decided definite on.
+fn apex_start<T: geom_core::Real>(size: T, sine: T) -> T {
+    size / sine
 }
 
 /// **How far [`PlaneConeSection::ApexLinePair`] stands from the real
@@ -2749,26 +2738,36 @@ fn apex_start<T: geom_core::Real>((gap, gap_err): (T, T), sine: T) -> T {
 #[allow(clippy::many_single_char_names)] // the derivation's own symbols
 fn pair_bound<T: geom_core::spline::SpanLocate>(
     reach: &Reach<T>,
-    (apex, a, cos_a, sin_a, seam_width): (Point3<T>, Vec3<T>, T, T, T),
+    (apex, a, half_angle, seam_width): (Point3<T>, Vec3<T>, T, T),
     (d, m, s): (T, T, T),
-    (gap, gap_err): (T, T),
-    (c, c_err): (T, T),
+    gap: Rounded<T>,
+    c: Rounded<T>,
 ) -> Margin<T> {
     let zero = T::zero();
-    let size = gap.abs() + gap_err;
-    let far = apex_start((gap, gap_err), d);
-    let near = apex_start((gap, gap_err), m);
-    let (lo, hi) = reach.range_along(apex, a);
+    let size = gap.magnitude();
+    let far = apex_start(size, d);
+    let near = apex_start(size, m);
+    let crate::extent::GeneratorReach {
+        window: (lo, hi),
+        sin_cos: (sin_a, cos_a),
+        lever: generator,
+    } = reach.generator_lever(
+        geom::Line {
+            origin: apex,
+            dir: a,
+        },
+        half_angle,
+    );
     let rho = lo.max(zero - hi).max(zero) / cos_a;
     // `δ·c < 0` puts the near start on `+a`; read only where both signs
     // clear their rounding (step 4).
-    let undecided = (gap.abs() - gap_err).min(c.abs() - c_err);
+    let undecided = gap.room().min(c.room());
     let unlike = |when_unlike: T, when_like: T| {
         undecided.select_le_zero(
             far,
-            gap.select_le_zero(
-                c.select_le_zero(when_like, when_unlike),
-                c.select_le_zero(when_unlike, when_like),
+            gap.value.select_le_zero(
+                c.value.select_le_zero(when_like, when_unlike),
+                c.value.select_le_zero(when_unlike, when_like),
             ),
         )
     };
@@ -2789,11 +2788,7 @@ fn pair_bound<T: geom_core::spline::SpanLocate>(
         + (T::from_f64(6.0) + tau) * sin_a / s
         + (T::from_f64(12.0) + tau) * sin_a
         + T::from_f64(4.0);
-    let azimuth = Margin::levered(
-        T::from_f64(0.5 * f64::EPSILON) * turn,
-        reach.generator_lever(apex, a, cos_a),
-    )
-    .value();
+    let azimuth = Margin::levered(T::from_f64(0.5 * f64::EPSILON) * turn, generator).value();
     Margin::of(far.min(start + offset) + azimuth)
 }
 

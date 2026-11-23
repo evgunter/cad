@@ -403,6 +403,7 @@ fn edge_names_refused_forwards_its_first_refusal() {
         &EdgeNameFault::Unnamed(first),
         Speaker::TAG.about(RecipeNodeId::new(0, tagged(4))),
     )
+    .sentence()
     .to_string();
     assert_eq!(
         said,

@@ -108,9 +108,10 @@ fn arc_station(s: f64) -> Result<Body<f64>, topo::EulerOpError> {
         .edges()
         .find_map(|(e, d)| {
             let c = body.get_curve_geom(d.curve)?.certified()?;
-            let Curve3::Circle(geom::Circle { frame, .. }) = *c.carrier() else {
+            let Curve3::Circle(circle @ geom::Circle { .. }) = *c.carrier() else {
                 return None;
             };
+            let frame = circle.frame();
             let center = frame.origin();
             (center.z.abs() < 1e-9).then(|| {
                 let (t0, t1) = c.params();

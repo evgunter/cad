@@ -77,3 +77,5 @@ Two designers weighed it independently and converged: the two (in fact four) doo
 ## Decided (Ev, 2026-11-22, PR 7423)
 
 "cool. yes it seems good to have some kind of 'in progress surface' enum that can be a real surface or a placeholder." The enum is the body's surface SLOT in `topo` (described `Surface` | pending), not a variant of geom's `Surface`: one typed refusal where a face's surface is handed to geometry; `NetState`, `net_state`, both `is_placeholder`s, `is_placeholder_chart` and the placeholder constructors retire; one finiteness predicate (NaN and ±∞) is the only question asked of a net.
+
+- 2026-11-23 — `walks/curve-placeholder` (PR 7433) takes the curve half: `NurbsCurve3::placeholder`, `NurbsCurve3::is_placeholder` and `Curve3::nurbs_placeholder` are deleted with every reader arm (`topo::transform`'s `map_carrier`, `step-export`'s carrier gate). The surface slot Ev decided above is still to build, so the row stays open for it.

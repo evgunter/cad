@@ -490,3 +490,58 @@ pub fn check_mesh_acceptance(body: &Body<f64>, delta: f64, exact: Option<(f64, f
 
     mesh
 }
+
+/// The plate `[−1, 1]² × [0, 1]` with a hole of radius `hole` drawn as
+/// `arcs` equal arcs, its bottom rim filleted at `r` through
+/// `sweep::blend::fillet_edges`: the band is one face with one slit.
+pub fn filleted_plate(hole: f64, r: f64, arcs: usize) -> Body<f64> {
+    let square = bulge_loop(vec![
+        (Point2::new(-1.0, -1.0), 0.0),
+        (Point2::new(1.0, -1.0), 0.0),
+        (Point2::new(1.0, 1.0), 0.0),
+        (Point2::new(-1.0, 1.0), 0.0),
+    ]);
+    #[allow(clippy::cast_precision_loss)]
+    let n = arcs as f64;
+    let rim = bulge_loop(
+        (0..arcs)
+            .map(|k| {
+                #[allow(clippy::cast_precision_loss)]
+                let a = core::f64::consts::TAU * k as f64 / n;
+                (
+                    Point2::new(hole * a.cos(), -hole * a.sin()),
+                    -(core::f64::consts::PI / (2.0 * n)).tan(),
+                )
+            })
+            .collect(),
+    );
+    let vp = Profile::new(SketchPlane::xy(), vec![square, rim])
+        .validate(Tol::witness())
+        .expect("the holed plate validates");
+    let extrusion = sweep::Extrusion::Distance {
+        depth: 1.0,
+        side: sweep::ExtrudeSide::Along,
+    };
+    let body = sweep::extrude(&vp, extrusion, Tol::witness())
+        .expect("the plate extrudes")
+        .body
+        .into_body();
+    let bottom_rim: Vec<topo::EdgeKey> = body
+        .edges()
+        .filter(|(_, e)| {
+            matches!(
+                body.get_curve_geom(e.curve)
+                    .and_then(|g| g.certified())
+                    .map(|c| c.carrier()),
+                Some(geom::Curve3::Circle(c)) if c.frame().origin().z == 0.0
+            )
+        })
+        .map(|(k, _)| k)
+        .collect();
+    assert_eq!(bottom_rim.len(), arcs, "the bottom rim is the hole's arcs");
+    let at_rest = sweep::test_support::at_rest(&body, Tol::witness());
+    sweep::blend::fillet_edges(&at_rest, &bottom_rim, r, Tol::witness())
+        .expect("the rim fillets")
+        .body
+        .into_body()
+}

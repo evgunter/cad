@@ -575,3 +575,91 @@ fn a_past_band_rejection_offers_no_declaration() {
     let text = rejected.to_string();
     assert!(text.contains("move the geometry"), "{text}");
 }
+
+/// **A row read across a swing offers the tolerance its floor decides
+/// at, or none.** In a band of `1e-9`:
+///
+/// - a reading of `6e-9` beside a fixed swing of `2e-9`: the far row,
+///   `8e-9`, is in band, and its refusal quotes the floor, `4e-9`. At
+///   the offered band the row decides; at the band the far reading
+///   itself would offer (`8e-10`) it refuses again, on its floor;
+/// - a reading of zero beside a swing of `9.9` bands, a swing that
+///   scales with the band: the bracket holds zero, and the refusal
+///   offers no tolerance;
+/// - a reading of `3e-9` beside `0.8` bands: the offer, off the floor
+///   `2.2e-9`, decides the row at the smaller band, where the swing has
+///   shrunk with it;
+/// - on the `Interval` lane the floor's enclosure is quoted: its nearer
+///   end where it is wholly positive, none where it holds zero.
+#[test]
+fn a_row_across_a_swing_offers_what_its_floor_decides_at() {
+    use geom_core::k_stats::decide_across;
+    use geom_core::{Band, ErrorTextReading, Interval, Sign};
+    const NAMES: [&str; 2] = ["row", "row_floor"];
+    let band = Band::new(1e-9, 1e-8).unwrap();
+    let k = band.escalate() / band.zero();
+
+    let fixed = decide_across(NAMES, 6e-9, 2e-9, band).unwrap_err();
+    assert_eq!(fixed.predicate, Some("row"));
+    assert_eq!(
+        fixed.margin.diagnostic_f64_for_error_text(),
+        ErrorTextReading::Value(6e-9 - 2e-9),
+        "the floor is quoted"
+    );
+    let offered = fixed.offered_band().unwrap();
+    assert_eq!(offered.zero(), band.offer_deciding(6e-9 - 2e-9).unwrap());
+    assert_eq!(
+        decide_across(NAMES, 6e-9, 2e-9, offered),
+        Ok(Sign::Positive)
+    );
+    assert_eq!(
+        decide_across(NAMES, -6e-9, 2e-9, offered),
+        Ok(Sign::Negative)
+    );
+    let far_offer = Band::new(8e-9 / k, 8e-9).unwrap();
+    assert_eq!(
+        decide_across(NAMES, 6e-9, 2e-9, far_offer)
+            .unwrap_err()
+            .predicate,
+        Some("row_floor"),
+        "the far reading's own offer leaves the floor in band"
+    );
+
+    let scaled =
+        |datum: f64, bands: f64, band: Band| decide_across(NAMES, datum, bands * band.zero(), band);
+    let tie = scaled(0.0, 9.9, band).unwrap_err();
+    assert_eq!(tie.predicate, Some("row"));
+    assert!(!tie.offers_tolerance(), "a reading that is its own swing");
+    assert_eq!(tie.offered_band(), None);
+    let within = scaled(3e-10, 9.9, band).unwrap_err();
+    assert!(!within.offers_tolerance(), "a floor of no size");
+
+    let sized = scaled(3e-9, 0.8, band).unwrap_err();
+    assert_eq!(sized.predicate, Some("row"));
+    let smaller = sized.offered_band().unwrap();
+    assert_eq!(
+        smaller.zero(),
+        band.offer_deciding(3e-9 - 0.8 * band.zero()).unwrap()
+    );
+    assert_eq!(scaled(3e-9, 0.8, smaller), Ok(Sign::Positive));
+
+    let boxed = |lo: f64, hi: f64, swing: f64| {
+        decide_across(
+            NAMES,
+            Interval::from_bounds(lo, hi),
+            Interval::from_bounds(swing, swing),
+            band,
+        )
+        .unwrap_err()
+    };
+    let positive = boxed(5.5e-9, 6e-9, 2e-9);
+    assert_eq!(
+        positive.offered_band().map(Band::zero),
+        band.offer_deciding(5.5e-9 - 2e-9),
+        "the floor's nearer end"
+    );
+    assert!(
+        !boxed(-1e-10, 3e-10, 9.9e-9).offers_tolerance(),
+        "an enclosure whose bracket holds zero"
+    );
+}

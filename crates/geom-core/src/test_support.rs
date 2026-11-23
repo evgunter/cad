@@ -75,7 +75,100 @@ pub fn told(told: &Told) -> f64 {
 /// offer by this rather than by the offer rule's own answer.
 #[must_use]
 pub fn is_told_offer_of(offered: f64, exact: f64) -> bool {
-    offered <= exact && exact - offered <= 1e-3 * exact
+    offered <= exact && exact - offered <= OFFER_GRID_STEP * exact
+}
+
+/// The band at tolerance `eps` and the default `K`: the band an
+/// executed-offer case's first raise runs at (`test_utils::offer::DESIGN_EPS`),
+/// whatever the running process's own tolerance is. Panics where `eps`
+/// forms no band.
+#[must_use]
+#[allow(clippy::panic)]
+pub fn default_k_band(eps: f64) -> Band {
+    match Band::new(eps, crate::tolerance::DEFAULT_K * eps) {
+        Ok(band) => band,
+        Err(e) => panic!("the default-K band at {eps:e}: {e:?}"),
+    }
+}
+
+/// The widest relative step of the grid an offered bound is told on:
+/// four significant figures.
+const OFFER_GRID_STEP: f64 = 1e-3;
+
+/// Whether `offered`, a tolerance read off a refusal's sentence, is the
+/// offer `band` makes for a margin known only to within `slack` of
+/// `margin`, by two checks that answer apart:
+///
+/// - **against the margin itself**, as [`is_told_offer_of`] is: at most
+///   `(|m| + slack)/K`, and no more than the grid's step below
+///   `(|m| − slack)/K`. A rule that rounds up, drops a figure or
+///   misplaces a decade fails here whatever the sentence says.
+/// - **against the rule's own answer** ([`Band::offer_deciding`]) at
+///   the window's two ends: no lower than its offer at the low end and
+///   no higher than its offer at the high end, so a sentence that does
+///   not quote the rule fails here. A quote between two grid points
+///   inside the window passes this half.
+#[must_use]
+pub fn is_offer_of_a_margin_within(band: Band, offered: f64, margin: f64, slack: f64) -> bool {
+    let k = band.escalate() / band.zero();
+    let (lo, hi) = (margin.abs() - slack, margin.abs() + slack);
+    let independent =
+        offered > 0.0 && offered <= hi / k && offered >= (1.0 - OFFER_GRID_STEP) * lo / k;
+    let rule = band.offer_deciding(lo).is_none_or(|y| y <= offered)
+        && band.offer_deciding(hi).is_some_and(|y| offered <= y);
+    independent && rule
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod offer_tests {
+    use super::{Band, is_offer_of_a_margin_within};
+
+    /// **The offer check answers false on a quote the margin does not
+    /// make**, and true on the one the rule makes. A margin of 5.5e-9 at
+    /// the design band (ε 1e-9, K 10) offers 5.5e-10; one of 5.756955e-10
+    /// offers 5.756e-11.
+    #[test]
+    fn the_offer_check_refuses_a_quote_the_margin_does_not_make() {
+        let band = Band::new(1e-9, 1e-8).expect("the design band");
+        let at = |v: f64, m: f64| is_offer_of_a_margin_within(band, v, m, 0.0);
+        // The rule's own offer passes at every scale the suites raise at:
+        // a quote equal to the rule's answer, so only the bound by |m|/K
+        // can refuse it.
+        for m in [
+            3.0000000000031634e-10,
+            9.999999999999951e-11,
+            5.5e-9,
+            1.234567e-7,
+            4.2e-6,
+        ] {
+            let offered = band.offer_deciding(m).expect("an offer above the floor");
+            assert!(at(offered, m), "the rule's offer {offered:e} for {m:e}");
+        }
+        assert!(at(5.5e-10, 5.5e-9), "the told offer of 5.5e-9");
+        assert!(
+            at(5.756e-11, 5.756955e-10),
+            "the told offer of 5.756955e-10"
+        );
+        assert!(!at(5.757e-11, 5.756955e-10), "rounded up, above |m|/K");
+        assert!(!at(5.75e-11, 5.756955e-10), "a figure dropped");
+        assert!(!at(5.756e-12, 5.756955e-10), "a tenth");
+        assert!(!at(5.756e-10, 5.756955e-10), "ten times");
+        assert!(
+            !at(5.7565e-11, 5.756955e-10),
+            "off the grid, between two points"
+        );
+        // A margin known to a slack accepts either grid point it straddles.
+        let straddle = 1.1e-12 * 3e-10;
+        assert!(is_offer_of_a_margin_within(band, 3e-11, 3e-10, straddle));
+        assert!(is_offer_of_a_margin_within(
+            band, 2.999e-11, 3e-10, straddle
+        ));
+        assert!(
+            !is_offer_of_a_margin_within(band, 2.998e-11, 3e-10, straddle),
+            "a step below both"
+        );
+    }
 }
 
 /// The tolerance a refusal's sentence offers to tighten below, where it

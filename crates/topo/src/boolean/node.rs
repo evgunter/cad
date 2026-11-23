@@ -400,10 +400,7 @@ mod tests {
         p: Point3<f64>,
     ) -> Result<Option<Vec3<f64>>, crate::boolean::BooleanError> {
         let (planes, walls) = pair();
-        let pierced = match piercing {
-            Operand::A => &walls[1],
-            Operand::B => &walls[0],
-        };
+        let pierced = &walls[piercing.other().index()];
         let &geom::Surface::Cylinder { frame, .. } = pierced else {
             unreachable!()
         };

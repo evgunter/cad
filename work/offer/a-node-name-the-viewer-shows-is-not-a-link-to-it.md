@@ -2,11 +2,13 @@
 id: a-node-name-the-viewer-shows-is-not-a-link-to-it
 kind: unit
 title: viewer: a node's name shown in a pane, a notice or a refusal is plain text rather than a link to the node
-status: parked
+status: closed
 opened: 2026-11-22
 priority: P1
 cost: M
-blocked_on: [the-viewer-spells-a-node-as-its-kind-before-its-name]
+branch: offer/a-mention-is-a-link
+pr: 7557
+closed: 2026-11-23
 ---
 
 **Ev reported this** (in chat, 2026-11-22): "any time it says something like 'Revolve 3', you should be able to click it to take you to it".

@@ -119,11 +119,12 @@ raw `cargo` invocations yourself.
   that looks identical to success from outside.
 - **A CONFLICTING PR gets NO CI run — silently, and none retroactively
   once resolved.** GitHub skips the pull_request trigger while a PR is
-  CONFLICTING; pushes during that window produce nothing, and merging
-  main afterwards doesn't fire one either. After resolving, force a
-  run: push a new commit or close/reopen the PR (the `reopened`
-  trigger). Always CONFIRM a run started after any push that followed
-  a main-moved conflict. (TESSFOLD fix pass, 2026-08-26.) Second face
+  CONFLICTING; pushes during that window produce nothing, and none is
+  run for them later. The push that resolves the conflict (merging the
+  PR's base in) does get a run of its own (measured 2026-11-22, run
+  45063131261), and a red `merge ref` check names the silence while it
+  lasts (`.github/workflows/merge-ref.yml`). Always CONFIRM a run
+  started after any push that followed a moved base. (TESSFOLD fix pass, 2026-08-26.) Second face
   of the class (OFF-D PR-2, 2026-08-27): a run can queue with ZERO
   jobs behind a superseded run — `mergeable: CLEAN`, never starts,
   and cancelling the superseded run does not release it; an
@@ -195,7 +196,7 @@ helps until Ev raises the limit: hold, then re-run the dead head's
 failed jobs once (they died pre-step, so the re-run is legitimate).
 A PR that is CONFLICTING against
 main gets no USABLE check runs (bullet above) — pushes during that window produce
-nothing and merging main afterwards fires nothing retroactively. A run
+nothing, and only the push that resolves the conflict gets a run. A run
 can also queue with ZERO jobs behind a superseded run, `mergeable:
 CLEAN`, and never start. And a green job NAME can sit over a SKIPPED
 step. A step can also

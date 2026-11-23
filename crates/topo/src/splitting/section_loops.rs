@@ -21,6 +21,7 @@ use super::containment::{LoopContainment, point_in_loop};
 use crate::body::Body;
 use crate::chord_join::ring_representative;
 use crate::entity::{EntityId, LoopBoundary, LoopKey};
+use crate::live::{CycleLoop, EdgeMember, NoCycle};
 use crate::unresolved::Unresolved;
 use crate::validate::definitely_positive as positive;
 use crate::validate::{RingOuterVerdict, ring_outer_contact_about_as};
@@ -30,12 +31,34 @@ use crate::validate::{RingOuterVerdict, ring_outer_contact_about_as};
 #[derive(Clone, Copy, Debug)]
 pub(super) struct Torn(pub(super) Unresolved);
 
+/// Whether `side`'s section faces face against the split plane's
+/// normal: above (module docs). The one statement of the sign rule
+/// [`section_normal`] and [`section_frame`] read.
+fn faces_against_normal(side: PlaneSide) -> bool {
+    matches!(side, PlaneSide::Above)
+}
+
 /// The outward normal of `side`'s section face, for the split plane's
-/// normal `n` (module docs): `−n` above, `+n` below.
+/// normal `n`: `−n` above, `+n` below ([`faces_against_normal`]).
 pub(super) fn section_normal<T: Real>(n: Vec3<T>, side: PlaneSide) -> Vec3<T> {
-    match side {
-        PlaneSide::Above => -n,
-        _ => n,
+    if faces_against_normal(side) { -n } else { n }
+}
+
+/// The split plane `plane` (its frame, [`super::SplitPlane::frame`]) as
+/// `side`'s section faces' plane, its axis their outward normal
+/// ([`faces_against_normal`]).
+///
+/// [`point_in_loop`] is blind to which of a plane's two frames it is
+/// handed, so a containment read alone takes the split plane's frame as
+/// it is. [`nest`] takes this one: it also runs the contact arms
+/// ([`outlines_disjoint`]), whose `lines_meet` margin is signed along
+/// the axis, and handing them the side's outward normal keeps the sign
+/// they have always read.
+pub(super) fn section_frame<T: Real>(plane: geom::Frame<T>, side: PlaneSide) -> geom::Frame<T> {
+    if faces_against_normal(side) {
+        plane.reversed()
+    } else {
+        plane
     }
 }
 
@@ -113,16 +136,16 @@ fn whole_conic_principal<T: Real>(
 ) -> Option<Vec3<T>> {
     let he = body.get_half_edge(first)?;
     let curve = body
-        .get_edge(he.edge)
-        .and_then(|e| body.get_curve_geom(e.curve))
-        .and_then(crate::null::CurveGeom::certified)?;
+        .linked_edge(he.edge, crate::entity::EntityId::HalfEdge(first), "edge")
+        .certified()?;
     let end = body.half_edge_end(first)?;
     if he.next != first || crate::chord_join::lone_site_placeholder(he.start, end, curve) {
         return None;
     }
     match *curve.carrier() {
-        geom::Curve3::Circle(geom::Circle { frame, .. })
-        | geom::Curve3::Ellipse(geom::Ellipse { frame, .. }) => Some(frame.u_ref()),
+        ref conic @ (geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_)) => {
+            conic.frame().map(|frame| frame.u_ref())
+        }
         _ => None,
     }
 }
@@ -217,16 +240,19 @@ pub(super) fn nest<T: Decide, O, H>(
     body: &Body<T>,
     outlines: Vec<(O, LoopKey)>,
     holes: Vec<(H, LoopKey)>,
-    normal: Vec3<T>,
+    plane: geom::Frame<T>,
     band: geom_core::Band,
 ) -> Result<Nesting<O, H>, NestFault<H>> {
+    // Disjointness is proved first, so the two loops are nested or apart
+    // and one point of `inner` reads which: not a containment reading
+    // ([`crate::loop_side`]'s module docs).
     let encloses = |outer: LoopKey, inner: LoopKey| -> Result<bool, Torn> {
-        if !outlines_disjoint(body, outer, inner, normal, band)? {
+        if !outlines_disjoint(body, outer, inner, plane.axis(), band)? {
             return Ok(false);
         }
         let q = ring_representative(body, inner).map_err(Torn)?;
         Ok(matches!(
-            point_in_loop(body, outer, normal, q, band),
+            point_in_loop(body, outer, plane, q, band),
             Ok(LoopContainment::In)
         ))
     };
@@ -296,7 +322,17 @@ pub(super) fn outlines_disjoint<T: Decide>(
     ) {
         return Ok(false);
     }
-    let (ea, eb) = (loop_edges(body, a)?, loop_edges(body, b)?);
+    // A lone-vertex loop bounds nothing a contact reading could clear.
+    let cycle = |l: LoopKey| match body.cycle_loop(l) {
+        Ok(lp) => Ok(Some(lp)),
+        Err(NoCycle::Lone(_)) => Ok(None),
+        Err(NoCycle::Stale) => Err(Torn(Unresolved::Record(EntityId::Loop(l)))),
+        Err(NoCycle::Torn) => Err(Torn(Unresolved::Walk(EntityId::Loop(l)))),
+    };
+    let (Some(a), Some(b)) = (cycle(a)?, cycle(b)?) else {
+        return Ok(false);
+    };
+    let (ea, eb) = (loop_edges(a), loop_edges(b));
     for x in &ea {
         for y in &eb {
             let separated = match (x, y) {
@@ -336,55 +372,40 @@ fn conic<T: Real>(carrier: &geom::Curve3<T>) -> &dyn Conic<T> {
         .unwrap_or_else(|| unreachable!("an outline conic is a circle or an ellipse"))
 }
 
-/// Loop `l`'s edges in walk order, as [`outlines_disjoint`] reads them.
-/// [`Torn`] where a record on the walk does not resolve, except an
-/// edge's curve: the section's body is mid-operation, where that is a
-/// link ([`crate::live::OPERATORS_KEEP_LINKS`]), so a torn curve panics
-/// where null scaffolding reads [`OutlineEdge::Undecided`].
-fn loop_edges<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<OutlineEdge<T>>, Torn> {
-    let record = |entity| Torn(Unresolved::Record(entity));
-    // A lone-vertex loop bounds nothing a contact reading could clear.
-    let first = match body.get_loop(l).ok_or(record(EntityId::Loop(l)))?.boundary {
-        LoopBoundary::Cycle { first } => first,
-        LoopBoundary::Empty { .. } => return Ok(vec![OutlineEdge::Undecided]),
-    };
-    let mut out = Vec::new();
-    for he in body
-        .loop_cycle(first)
-        .ok_or(Torn(Unresolved::Walk(EntityId::Loop(l))))?
-    {
-        let h = body
-            .get_half_edge(he)
-            .ok_or(record(EntityId::HalfEdge(he)))?;
-        let edge = body
-            .get_edge(h.edge)
-            .ok_or(record(EntityId::Edge(h.edge)))?;
-        let Some(curve) = body.edge_curve_linked(h.edge, edge).certified() else {
-            out.push(OutlineEdge::Undecided);
-            continue;
-        };
-        out.push(match *curve.carrier() {
-            geom::Curve3::Line(_) => {
-                let end = body
-                    .half_edge_end(he)
-                    .ok_or(Torn(Unresolved::Walk(EntityId::HalfEdge(he))))?;
-                let point = |v| -> Result<Point3<T>, Torn> {
-                    let p = body.get_vertex(v).ok_or(record(EntityId::Vertex(v)))?.point;
-                    body.get_point(p)
-                        .copied()
-                        .ok_or(Torn(Unresolved::Geometry(EntityId::Vertex(v))))
+/// A cycle's edges in walk order, as [`outlines_disjoint`] reads them:
+/// null scaffolding, or a carrier nothing here decides, reads
+/// [`OutlineEdge::Undecided`]. The walk is the [`CycleLoop`]'s proven
+/// one; an edge's curve is a link ([`crate::live::OPERATORS_KEEP_LINKS`]).
+fn loop_edges<T: Decide>(lp: CycleLoop<'_, T>) -> Vec<OutlineEdge<T>> {
+    let body = lp.body();
+    lp.edges()
+        .iter()
+        .map(
+            |&EdgeMember {
+                 he, edge, point, ..
+             }| {
+                let Some(curve) = edge.certified() else {
+                    return OutlineEdge::Undecided;
                 };
-                OutlineEdge::Line(point(h.start)?, point(end)?)
-            }
-            geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_) => {
-                OutlineEdge::Conic(curve.carrier().clone())
-            }
-            geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) | geom::Curve3::Periodic(_) => {
-                OutlineEdge::Undecided
-            }
-        });
-    }
-    Ok(out)
+                match *curve.carrier() {
+                    geom::Curve3::Line(_) => OutlineEdge::Line(
+                        point,
+                        body.linked_vertex_point(
+                            body.proven_half_edge_end(he),
+                            EntityId::HalfEdge(he),
+                            "next",
+                        ),
+                    ),
+                    geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_) => {
+                        OutlineEdge::Conic(curve.carrier().clone())
+                    }
+                    geom::Curve3::Spiric { .. }
+                    | geom::Curve3::Nurbs(_)
+                    | geom::Curve3::Periodic(_) => OutlineEdge::Undecided,
+                }
+            },
+        )
+        .collect()
 }
 
 /// The conic's whole carrier lies definitely on one side of the line

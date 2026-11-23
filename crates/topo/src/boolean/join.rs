@@ -1038,8 +1038,7 @@ fn one_site_segments<T: crate::props::AtRestPolicy>(
                     ));
                 }
                 if let Some((x, _)) = pierced
-                    && component_winds(red, &g0, section, f0.component)?
-                        [usize::from(x == Operand::B)]
+                    && component_winds(red, &g0, section, f0.component)?[x.index()]
                 {
                     return Err(winds_round());
                 }
@@ -1223,13 +1222,12 @@ fn stands_on<T: crate::props::AtRestPolicy>(
         return Ok(false);
     };
     let edge = x
-        .get_edge(e)
+        .edge(e)
         .ok_or(desync("a germ's closed edge no longer resolves"))?;
-    let curve = x
-        .edge_curve_linked(e, edge)
+    let curve = edge
         .certified()
         .ok_or(desync("a germ's closed edge is scaffolding"))?;
-    for h in [edge.he_plus, edge.he_minus] {
+    for h in [edge.record().he_plus, edge.record().he_minus] {
         let face = x
             .face_of_half_edge(h)
             .ok_or(desync("a germ's closed edge has a half with no face"))?;
@@ -1282,10 +1280,9 @@ fn site_cell<T: Decide>(
         super::Locus::InFace(face) => face,
         super::Locus::OnEdge(e) => {
             let edge = body
-                .get_edge(e)
+                .edge(e)
                 .ok_or(desync("a germ's closed edge no longer resolves"))?;
-            let copied = body
-                .edge_curve_linked(e, edge)
+            let copied = edge
                 .certified()
                 .is_some_and(|c| crate::chord_join::copies_closed_edge(c.carrier()));
             return Ok(SiteCell::Closed(copied.then_some(e)));
@@ -1304,12 +1301,12 @@ fn site_cell<T: Decide>(
     for v in site {
         for k in body.edges_of_vertex_linked(v) {
             let e = body
-                .get_edge(k)
+                .edge(k)
                 .ok_or(desync("a site edge no longer resolves"))?;
-            if body.edge_curve_linked(k, e).null_scaffold().is_some() {
+            if e.curve().null_scaffold().is_some() {
                 continue;
             }
-            for h in [e.he_plus, e.he_minus] {
+            for h in [e.record().he_plus, e.record().he_minus] {
                 if body.face_of_half_edge(h) != Some(face) {
                     return Ok(SiteCell::Other(face));
                 }
@@ -1538,9 +1535,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                 Operand::A => &gb,
                 Operand::B => &ga,
             };
-            let (geom::Curve3::Circle(geom::Circle { frame, .. })
-            | geom::Curve3::Ellipse(geom::Ellipse { frame, .. })) = along.carrier
-            else {
+            let Some(frame) = along.carrier.conic().map(geom::Conic::frame) else {
                 return Err(no_arm());
             };
             let (center, axis) = (frame.origin(), frame.axis());
@@ -1815,8 +1810,8 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         let mut curve_b = curve_b;
         curve_b.keep(minted.first().and_then(|&chord| {
             red.a
-                .stored_curve_as(chord, crate::live::Arg("chord"))
-                .ok()
+                .proven_edge(chord)
+                .certified()
                 .and_then(|curve| curve.locus_certificate().cloned())
         }));
         sb.join(&mut red.b, b_roles, &plan_b, &curve_b, seg_b, tol)?;
@@ -2789,9 +2784,8 @@ fn along_edge_conic<T: Decide>(
         _ => return Ok(None),
     };
     let carrier = body
-        .get_edge(edge)
-        .and_then(|e| body.get_curve_geom(e.curve))
-        .and_then(crate::null::CurveGeom::certified)
+        .edge(edge)
+        .and_then(crate::live::EdgeView::certified)
         .ok_or(desync("an OnEdge germ's edge carries no certified curve"))?
         .carrier()
         .clone();
@@ -2864,10 +2858,9 @@ fn germ_section_loops<T: crate::props::AtRestPolicy>(
     if let Some(along) = along_edge_conic((a, b), germ)? {
         return match along.carrier {
             geom::Curve3::Line(_) => Ok(None),
-            geom::Curve3::Circle(geom::Circle { frame, .. })
-            | geom::Curve3::Ellipse(geom::Ellipse { frame, .. }) => {
-                Ok(Some(SectionLoops::conic(frame.axis_line())))
-            }
+            ref conic @ (geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_)) => Ok(conic
+                .frame()
+                .map(|frame| SectionLoops::conic(frame.axis_line()))),
             geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) | geom::Curve3::Periodic(_) => {
                 Err(BooleanError::EdgeCarrierUnsupported {
                     operand: along.on,
@@ -3494,9 +3487,8 @@ pub(super) fn germ_branch<T: crate::props::AtRestPolicy>(
                 body_b
             };
             let straight = body
-                .get_edge(edge)
-                .and_then(|e| body.get_curve_geom(e.curve))
-                .and_then(crate::null::CurveGeom::certified)
+                .edge(edge)
+                .and_then(crate::live::EdgeView::certified)
                 .ok_or(BooleanError::JoinDesync {
                     what: "an OnEdge germ's edge carries no certified curve",
                 })?
@@ -4212,15 +4204,14 @@ pub(super) fn pk_section<T: Decide>(
     };
     match geom_brep::plane_cone_section(plane, cone, reach, band) {
         Ok(
-            geom_brep::PlaneConeSection::TiltedEllipse(geom::Curve3::Ellipse(geom::Ellipse {
-                frame,
-                ..
-            }))
-            | geom_brep::PlaneConeSection::AxisNormalCircle(geom::Curve3::Circle(geom::Circle {
-                frame,
-                ..
-            })),
-        ) => Ok(PkSection::Loop(frame.axis_line())),
+            geom_brep::PlaneConeSection::TiltedEllipse(conic @ geom::Curve3::Ellipse(_))
+            | geom_brep::PlaneConeSection::AxisNormalCircle(conic @ geom::Curve3::Circle(_)),
+        ) => {
+            let frame = conic
+                .frame()
+                .unwrap_or_else(|| unreachable!("a circle and an ellipse have a frame"));
+            Ok(PkSection::Loop(frame.axis_line()))
+        }
         Ok(geom_brep::PlaneConeSection::ApexLinePair { l1, l2 }) => {
             let geom::Surface::Cone {
                 frame: carrier_frame,
@@ -4323,10 +4314,13 @@ fn pt_germ_frame<T: Decide>(
     let (c, a) = (torus_frame.origin(), torus_frame.axis());
     let carried = || FrameError::Desync("plane×torus classification carried another carrier");
     let circle = |curve: geom::Curve3<T>| match curve {
-        geom::Curve3::Circle(geom::Circle { frame, .. }) => Ok(SectionLoop {
-            axis: frame.axis_line(),
-            ball: None,
-        }),
+        geom::Curve3::Circle(the_circle @ geom::Circle { .. }) => {
+            let frame = the_circle.frame();
+            Ok(SectionLoop {
+                axis: frame.axis_line(),
+                ball: None,
+            })
+        }
         _ => Err(carried()),
     };
     let section = geom_brep::plane_torus_section(plane, torus, lever, band);
@@ -5066,15 +5060,13 @@ fn run_spline_edge<T: Decide>(
             .get_half_edge(he)
             .ok_or(desync("ring-run half no longer resolves"))?
             .edge;
-        let curve = body
-            .get_edge(edge)
-            .and_then(|e| body.get_curve_geom(e.curve))
-            .ok_or(desync("a ring-run edge carries no curve"))?;
+        let view = body
+            .edge(edge)
+            .ok_or(desync("a ring-run half's edge no longer resolves"))?;
         // A null edge is scaffolding, wound as its chord.
-        let spline = match curve {
-            crate::null::CurveGeom::Certified(c) => matches!(c.carrier(), geom::Curve3::Nurbs(_)),
-            crate::null::CurveGeom::NullScaffold(_) => false,
-        };
+        let spline = view
+            .certified()
+            .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Nurbs(_)));
         if spline {
             return body
                 .split_root(edge, |_| false)
@@ -5186,7 +5178,7 @@ fn slit_tip_on<T: crate::props::AtRestPolicy>(
                 .into_iter()
                 .chain(paired)
                 .find_map(|(operand, w)| {
-                    red.slit_tips[usize::from(operand == Operand::B)]
+                    red.slit_tips[operand.index()]
                         .face_at(w)
                         .map(|face| (operand, face))
                 })
@@ -5647,14 +5639,10 @@ fn seam_germ_side<T: Decide>(
                 let m = body
                     .get_half_edge(mate)
                     .ok_or(desync("section mate no longer resolves"))?;
-                let edge = body
-                    .get_edge(m.edge)
-                    .ok_or(desync("section mate's edge no longer resolves"))?;
-                let curve = body
-                    .get_curve_geom(edge.curve)
-                    .ok_or(desync("section mate's edge carries no curve"))?
-                    .certified();
-                Ok((edge.he_plus, curve))
+                let edge =
+                    body.linked_edge(m.edge, crate::entity::EntityId::HalfEdge(mate), "edge");
+                let curve = edge.certified();
+                Ok((edge.record().he_plus, curve))
             })();
             let (he_plus, curve) = match resolved {
                 Ok(read) => read,
@@ -6390,12 +6378,19 @@ mod travel_rows {
     /// [`germ_arm`] of the germ at `t = −π/4` turning clockwise and a
     /// partner `bands` bands of arc past its antipode, on lane `T`.
     fn half_turn_arm_on<T: geom_core::Decide>(k: f64, bands: f64) -> Result<GermArm, BooleanError> {
+        half_turn_arm_in::<T>(k, bands * band().zero(), band())
+    }
+
+    /// [`germ_arm`] in `band` of the germ at `t = −π/4` turning
+    /// clockwise and a partner `arc` metres past its antipode.
+    fn half_turn_arm_in<T: geom_core::Decide>(
+        k: f64,
+        arc: f64,
+        band: Band,
+    ) -> Result<GermArm, BooleanError> {
         let (germ, dir) = at(k, -FRAC_PI_4);
         let speed = (k * k * 0.5 + 0.5).sqrt();
-        let (site, tangent) = at(
-            k,
-            -FRAC_PI_4 + core::f64::consts::PI + bands * band().zero() / speed,
-        );
+        let (site, tangent) = at(k, -FRAC_PI_4 + core::f64::consts::PI + arc / speed);
         let turn = Turn::<T>::facing(
             geom::Line {
                 origin: Point3::origin(),
@@ -6403,11 +6398,11 @@ mod travel_rows {
             },
             (germ.map(T::from_f64), (dir * -1.0).map(T::from_f64)),
             (site.map(T::from_f64), tangent.map(T::from_f64)),
-            band(),
+            band,
         )
         .unwrap();
         assert!(turn.is_some(), "the germ and its partner face");
-        germ_arm(turn, band())
+        germ_arm(turn, band)
     }
 
     /// [`half_turn_arm_on`] at `f64`.
@@ -6433,6 +6428,50 @@ mod travel_rows {
             ),
             "k = 10: {:?}",
             arm(10.0).err()
+        );
+    }
+
+    /// **A tie the sites' slack hides offers a tolerance only where
+    /// one decides it.** The slack is the band's own zero times
+    /// `2·cot ψ`, so it shrinks with the tolerance and the bracket
+    /// about the reading shrinks with it:
+    ///
+    /// - at aspect 10 (`cot ψ` 4.95) a partner at the half-turn reads
+    ///   zero, and the slack is all there is: no tolerance decides it,
+    ///   and the refusal offers none;
+    /// - at aspect `0.4 + √1.16` (`cot ψ` 0.4) a partner `3e-9 m` past
+    ///   the half-turn reads `3.8e-9` across its slack in a band of
+    ///   `1e-9`: the refusal offers the tolerance its floor, `2.2e-9`,
+    ///   decides at, and the same pair read in that band is ordered.
+    #[test]
+    fn a_tie_across_the_slack_offers_only_a_tolerance_that_orders_the_pair() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let refused = |k: f64, arc: f64| match half_turn_arm_in::<f64>(k, arc, band) {
+            Err(BooleanError::Escalated { diag, .. })
+                if diag.predicate == Some("bool_join_arc_ahead") =>
+            {
+                diag
+            }
+            other => panic!("k = {k}, {arc:e} m: {:?}", other.err()),
+        };
+        assert!(
+            !refused(10.0, 0.0).offers_tolerance(),
+            "a reading that is all slack: {}",
+            refused(10.0, 0.0)
+        );
+        let k = 0.4 + 1.16_f64.sqrt();
+        let offered = refused(k, 3e-9)
+            .offered_band()
+            .expect("a floor with a size");
+        assert!(
+            (offered.zero() - 2.2e-10).abs() < 1e-12,
+            "the floor's size over K: {:e}",
+            offered.zero()
+        );
+        assert!(
+            half_turn_arm_in::<f64>(k, 3e-9, offered).is_ok(),
+            "read in the offered band: {:?}",
+            half_turn_arm_in::<f64>(k, 3e-9, offered).err()
         );
     }
 
@@ -6980,19 +7019,13 @@ mod frame_dispatch_tests {
             for sign in [1.0_f64, -1.0] {
                 let pinch = p + n * (sign * r);
                 for (name, e) in [("e1", &e1), ("e2", &e2)] {
-                    let geom::Curve3::Ellipse(
-                        conic_k @ geom::Ellipse {
-                            frame: carrier_frame_4,
-                            ..
-                        },
-                    ) = *e
-                    else {
+                    let geom::Curve3::Ellipse(conic_k) = *e else {
                         panic!("{deg}°, {name}: the section carried a non-ellipse");
                     };
                     let (center, axis, u_ref) = (
-                        carrier_frame_4.origin(),
-                        carrier_frame_4.axis(),
-                        carrier_frame_4.u_ref(),
+                        conic_k.frame().origin(),
+                        conic_k.frame().axis(),
+                        conic_k.frame().u_ref(),
                     );
                     let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
                     // The eccentric anomaly of the pinch point, read

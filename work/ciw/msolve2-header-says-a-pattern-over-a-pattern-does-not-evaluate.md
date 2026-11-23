@@ -2,9 +2,10 @@
 id: msolve2-header-says-a-pattern-over-a-pattern-does-not-evaluate
 kind: issue
 title: msolve2_member_chain's module header states 'a pattern OVER a pattern does not evaluate', which is false since ruling 2137
-status: open
+status: closed
 opened: 2026-09-21
 priority: P4
+closed: 2026-11-22
 ---
 
 
@@ -51,3 +52,9 @@ a `git mv`. The viewer-side sibling is on VDOC's slate as
 - `crates/editor-core/tests/msolve2_member_chain.rs` — the `//!` header, first paragraph
 
 Moved from TINT to CIW on 2026-11-20, by `git mv`, when TINT merged into CIW: TINT held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CIW carries.
+
+## Closed
+
+2026-11-22, CIW triage (stale). The header was rewritten: `crates/editor-core/tests/msolve2_member_chain.rs:1-12` now
+opens "Nested copies as a mate's target" and the phrase "does not evaluate" / "OVER a pattern"
+occurs nowhere in the file (last touched by PR 7017's merge 714efc6239, 2026-11-15).

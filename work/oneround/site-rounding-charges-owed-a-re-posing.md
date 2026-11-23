@@ -55,6 +55,11 @@ re-posing that empties a file lowers or drops its row in the same change.
 - `geom_brep::curve_face::conic_quadric`, `ellipse_torus`, `circle_torus`,
   `reduce` (harmonic rungs): `rounding_charge(h.terms) / h.per`, a
   harmonic residual's noise over its per-metre rate.
+- `geom_brep::curve_face::pose` (the first-harmonic lane, moved there
+  from `conic_quadric`): `fn conic_quadric`'s circle × sphere extremes
+  charged the frame's defect (`lo`/`hi.with_charge(h.frame_error)`),
+  and `lane`'s first-harmonic extremes, each within the harmonics'
+  noise plus the second harmonic's amplitude (`extreme`).
 - `geom_brep::pair_section::gap` (`e_r1`, `e_r2` over `rho`) and
   `pair_section::ruling` (`tilt`).
 
@@ -74,6 +79,16 @@ re-posing that empties a file lowers or drops its row in the same change.
   and `window`'s polynomials read locally since PR 6525),
   `geom_brep::half_angle`,
   `geom_brep::chart_singularity`, `topo::sector_shape`.
+- `geom_brep::curve_pair::pose::Level::jet_at`: the level `X²/A² + Y²/B² − 1`
+  is read exact by `pose::window` and by the coplanar subdivision. It
+  charges nothing, but it is the same debt: it divides by the squared
+  semi-axes, so its rounding as a length grows with the aspect, which
+  the admission rule does not cover. Measured under PR 7221 at 0.77
+  (height) and 1.5 (level times `L`) zero bands on the far needle; the
+  thin far `b` pose is unbuilt; PR 6565's touch arm reads the same jet.
+  Whether a definite verdict goes wrong at an admitted (ε, K) is not
+  known without a probe. So it has its own row at P1:
+  `the-windows-level-jet-is-read-exact-where-its-rounding-grows-with-the-aspect`.
 - `geom_brep::props::curved::require_turn_read`: a sign of an exact norm
   of two cancelling tangents, which a charge holds off zero; owed a
   decision at the band, levered.
@@ -180,18 +195,19 @@ re-posing that empties a file lowers or drops its row in the same change.
 
 - Moved to ONEROUND (`work/oneround/`) by `git mv`, id and body unchanged. ONEHOME measured 78 budget points against 35 after PRs 6371 and 6380 landed, and split along its seams (`work/README.md` Track size): the rows on f64 rounding, levers and the consumed extent that PR 6380 and PR 6391 filed went to ONEROUND.
 
-## The apex start's `gap_err` is pinned by no per-PR row (2026-11-22, `oneround/readings-not-levers`)
+## The apex start's `gap_err` (2026-11-23, `oneround/readings-not-levers`)
 
 `geom_brep::intersect`'s `apex_start` reads the plane's stand-off from
-the cone's apex as `|δ̂| + e_δ` over a sine (`pn_apex_tangent_reach`,
-`pn_apex_point_reach`, and `pair_bound`'s far and near starts). A mutant
-that drops `e_δ` there (`|δ̂| / sine`) passes every geom-brep test of
-the `ci` profile at the default ε (2474 run). The rows that read the
-gap's rounding (`pn_apex_pair_over_a_span`'s
-`a_plane_through_the_apex_reads_its_gaps_sign_to_its_rounding` and its
-sibling) pin `e_δ` where it decides the gap's sign, not where it is
-added to the start. The term goes with this row's re-posing of
-`plane_cone_section`'s gap charge; until then nothing holds it in place.
+the cone's apex as `|δ̂| + e_δ` (the rounded gap's magnitude) over a
+sine. Dropping `e_δ` passed every geom-brep test of the `ci` profile
+when the unit first measured it. Two rows hold it now:
+`pn_apex_tangent_generator::a_far_stated_grazing_plane_is_read_to_its_gaps_rounding`
+(a needle cone, `α = 1e-4`, and its grazing plane stated 900 m from the
+apex: the gap reads exactly zero and its rounding over `sin 2α` is
+`3.5e-9 m`, in a band of `1e-9`) and
+`pn_apex_pair_over_a_span::a_plane_through_the_apex_reads_its_reach_on_its_gaps_rounding`.
+The term itself still goes with this row's re-posing of
+`plane_cone_section`'s gap charge.
 
 ## A sweep for a tolerance inside the reading (2026-11-22, `oneround/readings-not-levers`)
 
@@ -207,8 +223,15 @@ family above, not named there before). Four are near it and are
 scheduled: `census::span_reach` and `pcurve_cache::incidence_at`'s
 charge fraction (here), `pair_section::torus_arms::parallel_torus_arm`'s
 neck (here, with `torus_arms`), and `curve_pair::pose::route`'s arm
-`length + 2Kε`, a pinned `Lever::unsourced` of the sibling units. The
-rest are windows, brackets, pads and additive stand-offs. Not seen by
+`length + 2Kε`, a pinned `Lever::unsourced` of the sibling units. One
+more has the shape and is this unit's own:
+`topo::boolean::join::off_conic_slack`, `2ε·cot ψ`, the band's zero
+scaled by a pure number and summed into the far row `travel` decides in
+that band. It is no rounding charge but a stand-off of the sites, kept
+as `decide_across`'s swing by the design (`docs/DESIGN-FORK-LOG.md` row
+303) and removed by
+`work/oneround/the-joins-sites-are-read-on-the-conic-so-the-travel-carries-no-swing.md`.
+The rest are windows, brackets, pads and additive stand-offs. Not seen by
 this pattern: a threshold that reaches a reading through a record field
 or a helper's return (`ruling`'s `before`), and `f64`-typed arithmetic
 that never passes `from_f64`.

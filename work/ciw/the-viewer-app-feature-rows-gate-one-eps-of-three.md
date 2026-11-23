@@ -4,7 +4,7 @@ kind: issue
 title: The viewer's app-feature rows run at the default eps only, per-PR and nightly, and the red that sat in the gap was found by hand, not by CI
 status: open
 opened: 2026-09-21
-priority: P2
+priority: P3
 cost: E
 ---
 
@@ -112,3 +112,10 @@ eps-sensitive.
 
 `.github/workflows/nightly.yml` is CIW's. The red row itself is chrome's
 and view's, filed there.
+
+- 2026-11-22 — **Re-banded P2 → P3 by CIW triage.** - Still true. `nightly.yml:158-164` runs viewer `--features app` at the
+default ε only.
+- One instance, in September, closed by CHROME. The 11-11 `door_at_rest`
+red was at the default ε.
+- The fix is nightly-only, so it neither costs nor saves PR latency, and
+P2 overstates it.

@@ -136,7 +136,7 @@ impl fmt::Debug for Read {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
             Self::Value(_) => "Value(..)",
-            Self::Enclosure { .. } => "Enclosure(..)",
+            Self::Enclosure { lo: _, hi: _ } => "Enclosure(..)",
             Self::Unreadable => "Unreadable",
         })
     }
@@ -472,6 +472,11 @@ fn write_spelled(spelled: Option<Spelled>, f: &mut fmt::Formatter<'_>) -> fmt::R
 /// tell them apart.
 impl PartialEq for Quantity {
     fn eq(&self, other: &Self) -> bool {
+        let Self {
+            held: _,
+            dimension,
+            canonical_only,
+        } = self;
         let bits = |spelled: Option<Spelled>| {
             spelled.map(|spelled| {
                 let (lo, hi) = spelled.extent(false);
@@ -482,8 +487,8 @@ impl PartialEq for Quantity {
                 )
             })
         };
-        self.dimension == other.dimension
-            && self.canonical_only == other.canonical_only
+        *dimension == other.dimension
+            && *canonical_only == other.canonical_only
             && self.role() == other.role()
             && bits(self.spelled(0)) == bits(other.spelled(0))
     }

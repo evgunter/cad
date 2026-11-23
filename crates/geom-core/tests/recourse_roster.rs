@@ -13,8 +13,7 @@
 //! not declare, an indirect site not in [`INDIRECT`] (keyed by the `fn`
 //! it stands in, `<file>: <fn>: <head>`, so each forwarder is an entry
 //! by name and a new one reds until it is declared), a spelling it does
-//! not know, a file it does not walk, and a declared carrier that no
-//! longer matches anything.
+//! not know, and a file it does not walk.
 //!
 //! A funnel that hands on the name its caller gives it is spelled so no
 //! other call shares its token — `*_as`, "decided as" the row it is

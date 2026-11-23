@@ -1210,16 +1210,11 @@ fn a_circles_projected_envelope_covers_its_residual() {
         let offset = Vec3::new(s.range(-1.0, 1.0), s.range(-1.0, 1.0), s.range(-1.0, 1.0))
             * (0.3 * b.zero() * f64::from(u8::from(s.below(2) == 0)));
         let (carrier, t0, t1) = match carrier {
-            Curve3::Circle(
-                conic_k @ geom::Circle {
-                    frame: carrier_frame_35,
-                    ..
-                },
-            ) => {
+            Curve3::Circle(conic_k) => {
                 let (center, n, x) = (
-                    carrier_frame_35.origin(),
-                    carrier_frame_35.axis(),
-                    carrier_frame_35.u_ref(),
+                    conic_k.frame().origin(),
+                    conic_k.frame().axis(),
+                    conic_k.frame().u_ref(),
                 );
                 let radius = conic_k.radius();
                 let t0 = s.range(-4.0, 4.0);
@@ -1512,16 +1507,11 @@ fn turned(carrier: &Curve3<f64>, surface: &Surface<f64>, angle: f64) -> Curve3<f
     let (s, c) = angle.sin_cos();
     let turn = |v: Vec3<f64>| v * c + k.cross(v) * s + k * (k.dot(v) * (1.0 - c));
     match *carrier {
-        Curve3::Circle(
-            conic_k @ geom::Circle {
-                frame: carrier_frame_34,
-                ..
-            },
-        ) => {
+        Curve3::Circle(conic_k) => {
             let (centre, n, x) = (
-                carrier_frame_34.origin(),
-                carrier_frame_34.axis(),
-                carrier_frame_34.u_ref(),
+                conic_k.frame().origin(),
+                conic_k.frame().axis(),
+                conic_k.frame().u_ref(),
             );
             let radius = conic_k.radius();
             Curve3::circle(o + turn(centre - o), turn(n), radius, turn(x))

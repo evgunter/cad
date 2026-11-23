@@ -763,14 +763,13 @@ impl Band {
     /// **The band one K-step finer**, `(ε/K, ε)` for this band's
     /// `(ε, K·ε)`: a length decided Zero in it lies within the `ε/K`
     /// share of this band's zero, and one decided past it reaches that
-    /// zero itself.
-    ///
-    /// # Errors
-    ///
-    /// [`Band::new`]'s, where `ε/K` is no positive number below `ε`: a
-    /// subnormal band, which no run's is.
-    pub fn a_step_finer(self) -> Result<Self, BandError> {
-        Self::new(self.zero / (self.escalate / self.zero), self.zero)
+    /// zero itself. Where `ε/K` underflows to zero (a subnormal band or
+    /// an unbounded `K`, which no run's is) it is [`Band::least`], the
+    /// finest band there is: a length decided Zero there is zero to the
+    /// last subnormal.
+    #[must_use]
+    pub fn a_step_finer(self) -> Self {
+        Self::new(self.zero / (self.escalate / self.zero), self.zero).unwrap_or(Self::least())
     }
 }
 
@@ -3468,7 +3467,16 @@ impl Indeterminate {
     /// which only an escalation with a tolerance to offer can be.
     #[must_use]
     pub fn offers_tolerance(&self) -> bool {
-        matches!(self.margin.shows(self.band, self.passes()), Shows::Offer(_))
+        self.offer().is_some()
+    }
+
+    /// The tolerance [`Indeterminate::ending`] offers, as it tells it:
+    /// the one reading of whether this refusal offers one.
+    fn offer(&self) -> Option<Told> {
+        match self.margin.shows(self.band, self.passes()) {
+            Shows::Offer(offer) => Some(offer),
+            _ => None,
+        }
     }
 
     /// **The band at the tolerance this refusal offers**: `(ε′, K·ε′)`,
@@ -3480,11 +3488,8 @@ impl Indeterminate {
     /// offers no tolerance ([`Indeterminate::offers_tolerance`]).
     #[must_use]
     pub fn offered_band(&self) -> Option<Band> {
-        let Shows::Offer(offer) = self.margin.shows(self.band, self.passes()) else {
-            return None;
-        };
         let k = self.band.escalate / self.band.zero;
-        offer.spelled().map(|eps| {
+        self.offer()?.spelled().map(|eps| {
             Band::from_thresholds(eps, k).unwrap_or_else(|e| {
                 unreachable!("an offered tolerance is above the least a run admits: {e:?}")
             })
@@ -3852,21 +3857,33 @@ mod tests {
     }
 
     /// **The band one K-step finer is `(ε/K, ε)`**, its escalation the
-    /// coarser band's zero to the bit, and a band with no positive
-    /// `ε/K` has none.
+    /// coarser band's zero to the bit, and a band whose `ε/K` underflows
+    /// gets the least band.
     #[test]
     fn a_step_finer_ends_at_the_bands_own_zero() {
         let band = Band::new(1e-9, 7e-9).unwrap();
-        let finer = band.a_step_finer().unwrap();
+        let finer = band.a_step_finer();
         assert_eq!(finer.zero(), 1e-9 / (7e-9 / 1e-9));
         assert_eq!(finer.escalate(), 1e-9);
-        assert!(matches!(
-            Band::least().a_step_finer(),
-            Err(BandError::InvalidValue {
-                field: BandField::Zero,
-                ..
-            })
-        ));
+        // `ε/K` underflows to zero: the least band, in which only a zero
+        // to the last subnormal reads Zero.
+        let wide = Band::new(1e-300, 1e300).unwrap();
+        for underflowing in [Band::least(), wide] {
+            assert_eq!(
+                underflowing.a_step_finer(),
+                Band::least(),
+                "{underflowing:?}"
+            );
+        }
+        assert_eq!(
+            f64::from_bits(1).sign_within(Band::least()).map(|d| d.sign),
+            Ok(Sign::Zero)
+        );
+        assert!(
+            f64::from_bits(2)
+                .sign_within(Band::least())
+                .is_ok_and(|d| d.sign == Sign::Positive)
+        );
     }
 
     /// The fixed band used by the boundary table: exactly the default
