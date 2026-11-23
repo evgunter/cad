@@ -2,7 +2,7 @@
 id: an-arc-held-ellipses-readers-decide-apart-from-its-derived-centre
 kind: unit
 title: curve_pair::meet answers no meeting for a line or circle through a point of an arc-held ellipse
-status: spec
+status: dispatched
 opened: 2026-11-23
 priority: P0
 cost: H
