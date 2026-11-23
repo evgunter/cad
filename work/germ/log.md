@@ -1881,3 +1881,15 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - The spec also finds consumers that U3's table missed, and two more cancelling formulas: `pose::arc`'s `acos(1 − z/bend)` and `plane_conic`'s `acos(−d₀/R)`.
   - **U4a, dispatched now:** letter **H**, tier **dual**. It fixes the answer shape that U4b–U4d and U5 build on. Logged before its draw. It is stacked on `germ/u4-spec`; the spec's U4a–U4c stages are faithful elaborations of ratified C5.
 - 2026-11-23 13:05 — **U4a dispatched** in cloud session `session_01BJC3B22anXfC4i4rZjepZv`, branch `germ/u4a-local-windows`, stacked on `germ/u4-spec`. The implementer arm was drawn and recorded on the analysis branch. The brief is arm-free.
+- 2026-11-23 13:45 — **The U4 spline-lane fork has gone to Ev as PR 7565** (`[ev]`, subscribed).
+  - Two designers (labels A and B) agreed on the final state in their first reports, so no reconciliation round was run:
+    - the lane is read off the scalar through a per-scalar trait in geom-brep, with `AtRestPolicy` as a supertrait;
+    - a dual's spline door answers a typed window;
+    - the policy's `Option` doors and `classify`'s fallback go.
+  - They split on ratified text, and that is the question to Ev: A would add a sentence to `[unrepresentable]`; B says it stands as written.
+  - C5 gains a sentence either way.
+  - The recommendation half of fork log row 304 is committed on the PR. The label mapping is on `analysis/design-fork/germ-u4-spline-lane`.
+  - **For the orchestrator, acted on:**
+    - U4d's spec owes the arm's own windows, not whole refusals, and a field for the `ChartMeeting` chart point.
+    - The `classify` fallback goes with U4d.
+    - `AtRestPolicy`'s doc door count is stale ("nine" against "ten").
