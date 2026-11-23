@@ -346,12 +346,10 @@ fn a_seam_pattern_may_constrain_either_side_in_either_order() {
         NamePat::of_kind(EntityKind::Edge).seg(SegPat::tag(SegTag::Seam).of(sides))
     };
     let bands = |sides: &dyn Fn(NamePat) -> Vec<NamePat>| {
-        Selector::any_of(
-            [SegTag::Band, SegTag::BandPi].map(|t| seam(sides(carried(SegPat::tag(t))))),
-        )
+        Selector::of(seam(sides(carried(SegPat::tag(SegTag::Band)))))
     };
     let rim = editor_core::select(&ev, pipped, &bands(&|band| vec![cap(), band]));
-    assert_eq!(rim.len(), 2, "the pip rim is two arcs");
+    assert_eq!(rim.len(), 1, "the pip rim is one circle");
     for (what, sel) in [
         ("the cap's side alone", Selector::of(seam(vec![cap()]))),
         ("the band's side alone", bands(&|band| vec![band])),

@@ -138,8 +138,6 @@ pub(super) enum RoleSeg {
 
     Band(PieceRun),
     BandRim(ProfileVertexRef),
-    BandRimPi(ProfileVertexRef),
-    BandPi(PieceRun),
     Meridian(MeridianEnd, PieceRun),
     MeridianVertex(MeridianEnd, ProfileVertexRef),
     RevolveCap(MeridianEnd),
