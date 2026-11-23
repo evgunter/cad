@@ -350,11 +350,10 @@ pub(super) fn rod_arcs(w: &Surface<f64>, s: f64, r: f64) -> [Vec<Point3<f64>>; 2
 /// cannot decide its limb 2 there, before any carry (asserted, with the
 /// scale it is allowed at).
 ///
-/// Red against: the carry holding no arcs apart, with a pad the window's
-/// whole image, which reaches across to the other arc (a witness on two
-/// components); a pad read off cells the rod's form is not asked to
-/// clear, a rung and more wide, where the arcs two rungs apart refuse
-/// `PadsMeet` (`r = 0.045, 0.09, 0.095`).
+/// Red against: arcs held apart by their pads about their carriers'
+/// hulls, each pad a rung and more, where the arcs two rungs apart
+/// refuse `PadsMeet` (`r = 0.045, 0.09, 0.095`); a refinement that
+/// drops a half holding a point of the arc (the point reads on none).
 #[test]
 fn each_point_of_two_close_rim_arcs_reads_on_its_own_arc_alone() {
     use crate::pair_section::{SiteReading, SiteRefusal};
@@ -450,8 +449,8 @@ fn quickening(s: f64) -> Surface<f64> {
 /// at the side; at `ε = 1e-12` the wall at `s = 100`, where the march
 /// settles no state finer than the tolerance.
 ///
-/// Red against: a pad read off the windows' whole images, some `0.07·s`
-/// each side, where the two arcs refuse `PadsMeet`.
+/// Red against: arcs held apart by their pads about their carriers'
+/// hulls, some `0.07·s` each, where the two arcs refuse `PadsMeet`.
 #[test]
 fn two_arcs_a_ninth_of_a_rung_apart_on_a_quickening_wall_are_carried() {
     use crate::pair_section::SiteReading;

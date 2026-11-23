@@ -1123,7 +1123,7 @@ whole carrier. The cells of two arcs that stand within the band of each
 other are halved, the cleared halves dropped, until none do; where
 halving stops narrowing them, or at a work bound, the two arcs carry
 neither (`CarryRefusal::PadsMeet`). An arc with no close neighbour
-keeps its first reading. A pair traced
+keeps its first reading, cells a rung wide. A pair traced
 in ℝ³ is read over its own ball where its pose proves one, cut by one
 region per operation, as at one band:
 the ball about the overlap of the two operands' boxes, padded, which

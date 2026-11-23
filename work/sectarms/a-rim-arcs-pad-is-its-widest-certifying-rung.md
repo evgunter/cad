@@ -2,7 +2,7 @@
 id: a-rim-arcs-pad-is-its-widest-certifying-rung
 kind: issue
 title: A spline x implicit rim arc's pad is its chart window's whole image, so two arcs within about two rungs carry neither
-status: dispatched
+status: review
 opened: 2026-11-12
 priority: P1
 cost: M
@@ -119,3 +119,31 @@ Ev took designer A's answer ("let's do (A)").
 Two rim arcs 1.2 rungs apart are carried, each point reading on its
 own arc alone, and a bending one-span arc's pad stands within two
 rungs.
+
+## Built (`sectarms/rim-pad-cells`)
+
+The carry reads a fitted arc on its cells
+(`pair_section::spline_implicit::cells`): each tube window cut to the
+knot rectangle, halved to cells a rung wide, the cells the partner's
+form clears of the band dropped, each read against the whole carrier.
+The section's arcs are held apart on those cells, and the cells of two
+arcs within the band of each other are halved until none are, or the
+loop stops as `crate::descent` stops one (a stall, or a work bound of
+`2¹¹` halved cells), where the pair refuses `PadsMeet`. A site is read
+in the same cells (`CarriedComponent::boxes`).
+
+- The witnesses moved to later stops. The rods of radius `0.09` and
+  `0.095` are carried, as is every rod from `0.045` up, two rungs apart
+  at the nearest. The prism and ball complete the join and stop at the
+  inside/outside test (at `ε = 1e-12`, at the chord's image). The wavy
+  loft stops at its chord's image at rest. Each is carried on its first
+  reading: no witness on record needs a refinement round.
+- On a wall whose chart quickens, arcs `0.11` rung apart are carried.
+- A bending one-span arc's pad reads `0.88` rung.
+- The certifying rung follows the gap on a wall of even speed, so its
+  arcs stand two rungs apart or more; refinement is exercised by a row
+  at a band the row names.
+
+Left open, each filed: the overlapping windows' sweep
+(`a-rim-arcs-overlapping-tube-windows-are-each-cut-to-cells`) and the
+marched-loop door (`a-marched-loops-pad-is-read-off-its-chain-boxes-whole`).

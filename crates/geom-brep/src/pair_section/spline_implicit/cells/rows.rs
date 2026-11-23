@@ -178,10 +178,15 @@ fn two_arcs_are_refined_until_they_read_apart_and_a_point_reads_as_it_does_alone
 /// window over the arc's whole bend, nineteen rungs across at a rung of
 /// `0.02`. The cells the cylinder's form does not clear lie along the
 /// arc, so the pad stands within two rungs, and each point of the circle
-/// reads on the arc.
+/// reads on the arc. The window overhangs the sides `u = 0` and `u = 1`
+/// by its pad, and is cut to the knot rectangle first, so no cell is a
+/// sliver of a side. Each cell's pad is no less than the carrier's
+/// limb-2 bound, shown on the same arc with a bound of a metre.
 ///
 /// Red against: a window's cells kept whether or not the partner's form
-/// clears them (a pad of the window's width, some seventeen rungs).
+/// clears them (a pad of the window's width, some seventeen rungs); a
+/// window halved as it stands past the rectangle (cells of no width on
+/// the sides); a cell's pad left under the limb-2 bound.
 #[test]
 fn a_bending_one_span_arcs_pad_stands_within_two_rungs() {
     let k = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
@@ -226,15 +231,15 @@ fn a_bending_one_span_arcs_pad_stands_within_two_rungs() {
         weights,
     )
     .unwrap();
-    let branch = SsiBranch {
+    let branch = |hull_sup: f64| SsiBranch {
         witness: carrier.eval(0.5),
-        carrier: geom::Curve3::Nurbs(std::sync::Arc::new(carrier)),
+        carrier: geom::Curve3::Nurbs(std::sync::Arc::new(carrier.clone())),
         params: (0.0, 1.0),
         end: crate::ssi::BranchEnd::Closed,
         certificate: crate::ssi::certify::SsiCertificate {
             samples: 0,
             on_locus_max: 0.0,
-            hull_sup: 1e-12,
+            hull_sup,
             tube: SsiTube::Chart {
                 rung,
                 pad_u: rung,
@@ -245,7 +250,7 @@ fn a_bending_one_span_arcs_pad_stands_within_two_rungs() {
             tube_boxes: 1,
         },
         pcurve_a: None,
-        pcurve_b: Some(pcurve),
+        pcurve_b: Some(pcurve.clone()),
         march_tol: 1e-9,
     };
     let form = ImplicitForm::of(&p).expect("a cylinder has a form");
@@ -253,19 +258,31 @@ fn a_bending_one_span_arcs_pad_stands_within_two_rungs() {
         surface: &p,
         form: &form,
     };
-    let mut arcs: Vec<Arc<'_>> = vec![Some(Enclosure::first(
-        &branch,
-        &net,
-        partner,
-        [None, None],
-        band(),
-    ))];
-    assert!(apart(&mut arcs, band()).iter().all(Option::is_none));
-    let comp = carried(&arcs[0], &branch);
+    let read = |branch: &SsiBranch| {
+        let mut arcs: Vec<Arc<'_>> = vec![Some(Enclosure::first(
+            branch,
+            &net,
+            partner,
+            [None, None],
+            band(),
+        ))];
+        assert!(apart(&mut arcs, band()).iter().all(Option::is_none));
+        carried(&arcs[0], branch)
+    };
+    let comp = read(&branch(1e-12));
     assert!(
         comp.pad <= 2.0 * rung,
         "the pad {} stands within two rungs ({rung}) of an arc that bends 0.15",
         comp.pad
+    );
+    assert!(
+        comp.boxes.iter().all(|b| b.hi[0] - b.lo[0] > 1e-3 * rung),
+        "every cell has width on the wall: none is a sliver of a side"
+    );
+    let loose = read(&branch(1.0));
+    assert!(
+        loose.pad >= 1.0 && loose.boxes.iter().all(|b| b.pad >= 1.0),
+        "a cell's pad holds the carrier's limb-2 bound"
     );
     for i in 0..=40 {
         let u = f64::from(i) / 40.0;
