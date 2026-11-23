@@ -4,7 +4,7 @@
 //! runs (`topo::BooleanNaming::recharted`), so the accumulation's turned
 //! faces carry keys the re-chart minted. The fold's member lineage reads
 //! each such face as every face of the input shell it was turned over
-//! (`topo::FaceDescent::input_faces`), as the step's holdings do.
+//! (`topo::FaceSource::inputs`), as the step's holdings do.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -107,4 +107,47 @@ fn a_fold_over_balls_a_step_re_charts_builds_at_its_closed_form() {
             "{what}: volume {got}, closed form {want}"
         );
     }
+}
+
+/// **A turned face of the joining member enters the lineage as its input
+/// shell's faces**: a ball, then a member of two balls one of which
+/// crosses it, so the step joining that member turns the member's
+/// crossing ball (operand B) under a key the graft mints, then a ball
+/// coincident with that crossing ball. The pairwise judgement's verdict
+/// on the coincident pair is routed to the last step through the member
+/// faces the accumulation's faces descend from; read through the turned
+/// key alone it reaches no face, the last step meets the coincident
+/// sphere ungiven and refuses another way. The coincident shell is a
+/// typed refusal of its own.
+#[test]
+fn a_verdict_on_a_turned_member_face_reaches_the_next_step() {
+    let pair = nary(topo::NaryOp::Union, &[ball(0.9, 0.9), ball(0.5, 0.5 + D)]);
+    assert!(
+        matches!(pair.end, topo::NaryEnd::Built),
+        "two apart: the pair builds: {:?}",
+        pair.end
+    );
+    let two_shells = finished(
+        "two shells",
+        pair.steps.last().unwrap().body.body.clone(),
+        tol(),
+    );
+    let run = nary(
+        topo::NaryOp::Union,
+        &[ball(0.5, 0.5), two_shells, ball(0.5, 0.5 + D)],
+    );
+    assert!(
+        !run.steps[0].body.naming.recharted[1].is_empty(),
+        "the step joining the two-shell member turns its crossing ball"
+    );
+    assert!(
+        matches!(
+            &run.end,
+            topo::NaryEnd::Refused(topo::NaryRefusal::Step { member: 2, error })
+                if matches!(**error, topo::BooleanError::CoincidentShell { .. })
+        ),
+        "the step joining the coincident ball refuses the coincident shell, given the \
+         judgement's verdict: {:?}",
+        run.end
+    );
 }

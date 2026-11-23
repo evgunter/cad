@@ -256,6 +256,7 @@ failure-output = "immediate-final"
 # local run):
 #   16.94 s  editor-core::all the_tours_die_with_two_pips_run_together_refuses_their_turned_seam::each_pip_moved_into_its_neighbour_refuses_at_the_unions_turned_seam
 #    0.50 s  sweep::all the_nary_door_reads_a_re_charted_accumulation_through_its_shell::a_fold_over_balls_a_step_re_charts_builds_at_its_closed_form
+#    0.43 s  sweep::all the_nary_door_reads_a_re_charted_accumulation_through_its_shell::a_verdict_on_a_turned_member_face_reaches_the_next_step
 # The half disc turned about its chord, built and measured at the pinned
 # resolution (its mass properties are most of the cost; PR 7325's gate,
 # run 45073621726):
@@ -264,7 +265,7 @@ failure-output = "immediate-final"
 default-filter = """
 not (
   (binary_id(editor-core::all) & test(=the_tours_die_with_two_pips_run_together_refuses_their_turned_seam::each_pip_moved_into_its_neighbour_refuses_at_the_unions_turned_seam)) |
-  (binary_id(sweep::all) & test(=the_nary_door_reads_a_re_charted_accumulation_through_its_shell::a_fold_over_balls_a_step_re_charts_builds_at_its_closed_form)) |
+  (binary_id(sweep::all) & (test(=the_nary_door_reads_a_re_charted_accumulation_through_its_shell::a_fold_over_balls_a_step_re_charts_builds_at_its_closed_form) | test(=the_nary_door_reads_a_re_charted_accumulation_through_its_shell::a_verdict_on_a_turned_member_face_reaches_the_next_step))) |
   (binary_id(sweep::all) & (test(=pinned_corners_build::a_half_disc_turned_about_its_chord_builds_a_lune) | test(=pinned_corners_build::a_half_disc_turned_in_the_last_slab_builds_a_lune_on_a_straight_slab))) |
   (binary_id(sweep::all) & (test(=band_planar_cut_off_meters::a_far_side_arc_with_no_vertex_in_the_tube_is_clear_of_the_strip) | test(=band_planar_mitre::a_frustum_top_rim_mitres_at_leaning_walls) | test(=join_pierce_runs_sweep::six_crossing_corners_build_every_op))) |
   (binary_id(mesh::all) & test(=sizing_theorem_rows::cone_frusta_mesh_within_delta)) |

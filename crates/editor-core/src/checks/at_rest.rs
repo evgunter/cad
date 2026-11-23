@@ -1768,12 +1768,14 @@ fn components<T: topo::AtRestPolicy + Decide>(
             let alone = [face];
             let held = merged.get(&face).map_or(&alone[..], Vec::as_slice);
             for &piece in held {
-                let (operand, root) = descent.result_face(piece);
-                let copy = match operand {
+                let source = descent.source(piece);
+                let copy = match source.operand {
                     topo::Operand::A => a,
                     topo::Operand::B => b,
                 };
-                sources.insert((copy, product.copies[copy].keys.face(root)?));
+                for input in source.inputs {
+                    sources.insert((copy, product.copies[copy].keys.face(input)?));
+                }
             }
         }
         out.push(Component { solid, sources });
@@ -1883,11 +1885,14 @@ fn crossing(
     for (solid, _) in kept.body.solids() {
         let mut named = false;
         for f in kept.body.faces_of_solid(solid).unwrap_or_default() {
-            if let (topo::Operand::A, root) = descent.result_face(f)
-                && let Some(&i) = result
-                    .body
-                    .solid_of_face(root)
-                    .and_then(|s| of_solid.get(&s))
+            let source = descent.source(f);
+            if source.operand == topo::Operand::A
+                && let Some(&i) = source.inputs.iter().find_map(|&input| {
+                    result
+                        .body
+                        .solid_of_face(input)
+                        .and_then(|s| of_solid.get(&s))
+                })
             {
                 out.insert(i);
                 named = true;

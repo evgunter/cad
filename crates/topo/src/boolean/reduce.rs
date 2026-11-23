@@ -5706,6 +5706,20 @@ pub(super) fn esc(e: ContainError, operand: Operand, face: FaceKey) -> BooleanEr
 }
 
 impl Operand {
+    /// Both operands, A then B: the order every per-operand pair
+    /// (`[_; 2]`) holds them in, so `Operand::BOTH[i]` is the operand at
+    /// place `i`.
+    pub const BOTH: [Self; 2] = [Self::A, Self::B];
+
+    /// This operand's place in a per-operand pair ([`Self::BOTH`]).
+    #[must_use]
+    pub const fn index(self) -> usize {
+        match self {
+            Self::A => 0,
+            Self::B => 1,
+        }
+    }
+
     /// The other operand.
     pub fn other(self) -> Self {
         match self {
