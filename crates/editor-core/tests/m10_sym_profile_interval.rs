@@ -486,11 +486,11 @@ const PLATE_MAX_TERMS: usize = 38;
 /// The pinned lines are main's reading; each move of them, with its
 /// cause, is recorded on the work row that re-pinned it.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 979 forms 33088 frozen 36 digest 2e82fe8fa43fb62fa0d4e6e57e62412f\n\
-     Plain/Assertion calls 1047 forms 12224 frozen 0 digest 60d5dc286b65a810dedda6cba84213dc\n\
-     Early/Decision calls 308 forms 22928 frozen 0 digest a0bc99f42c355fffd211b273bb594e1f\n\
-     Early/Assertion calls 1047 forms 12674 frozen 0 digest 39cefb42a8a949bb6fc643ee9c474a35\n\
-     Door/Decision calls 550 forms 12366 frozen 0 digest 75aa7cd508fc1005ee274141b4e539c1";
+     Plain/Decision calls 979 forms 34632 frozen 36 digest 433fc03c0f5957c9e47a83569f7077bf\n\
+     Plain/Assertion calls 1047 forms 12240 frozen 0 digest 1df13d00edff949dfcec34ed0bfeae9d\n\
+     Early/Decision calls 308 forms 24472 frozen 0 digest 0450052d72af4d8f3ed73d0bfac63d36\n\
+     Early/Assertion calls 1047 forms 12690 frozen 0 digest e5e7c6d0b9c2d6bb9cdb8b77e88e5868\n\
+     Door/Decision calls 550 forms 12382 frozen 0 digest b06cc46d6bf89ec472798c06d08651aa";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)
@@ -663,12 +663,15 @@ fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
         // The two sets without the canonical root render the blocked
         // residuals of the certificate's reads; the shipped sets none.
         // ONEHOME's moved copy (`Held::moved`): the holes are not
-        // re-certified in the plate's frame, so 94 -> 64 of them.
+        // re-certified in the plate's frame, so 94 -> 64 of them. The
+        // wall distance read through the rationalized gap asks for no
+        // root's square, so 16 of the incidence reads are no longer
+        // blocked with the canonical root shut: 64 -> 48, in both sets.
         ("shipped", SymRules::shipped(), None),
         (
             "without_canonical_root",
             SymRules::without_canonical_root(),
-            Some(64),
+            Some(48),
         ),
         ("without_the_reads", SymRules::without_the_reads(), None),
         (
@@ -677,7 +680,7 @@ fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
                 decision_read: false,
                 ..SymRules::without_canonical_root()
             },
-            Some(64),
+            Some(48),
         ),
     ];
     let mut seen: Option<(&str, Vec<String>)> = None;

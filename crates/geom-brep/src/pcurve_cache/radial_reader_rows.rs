@@ -282,7 +282,7 @@ fn ivp(p: Point3<f64>) -> Point3<Interval> {
 /// it is up to five times the direct one's width, a rounding of the
 /// offset still.
 ///
-/// Red with [`super::wall_distance`] handing the gap the radius's
+/// Red with [`super::wall_gap`] handing the gap the radius's
 /// square for the radius (run by hand: no site in `mutants`).
 #[test]
 fn the_distance_is_the_measured_norm_less_the_radius_to_its_rounding() {
@@ -453,7 +453,7 @@ fn a_rulings_direction_reads_the_angle_of_its_offset_to_its_rounding() {
 /// a finite quotient of two roundings, which decides off; it never
 /// decides on.
 ///
-/// Red with [`super::wall_distance`] taking the `abs` of the numerator
+/// Red with [`super::wall_gap`] taking the `abs` of the numerator
 /// alone (run by hand: no site in `mutants`): a point inside the mirror
 /// wall reads a negative distance, which decides as on the chart.
 #[test]

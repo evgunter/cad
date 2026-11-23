@@ -733,12 +733,17 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     // the ladder or without it, numeric +1 on the plate and the bracket,
     // each two placements where one measure asked, and unmoved on the
     // rest, one for one; no symbolic row moves and the recovery holds at 6.
+    // Then a carrier's distance from its own wall was read through the
+    // rationalized gap (`geom_core::radius_gap`): with the ladder or
+    // without it, the boss 8 and the link 16 incidence readings numeric
+    // -> symbolic (half `pcurve_cylinder_chart_incident`, half
+    // `pcurve_line_chart_incident`), totals unmoved, the recovery at 6.
     let expected: [(&str, [u64; 2], [u64; 2], u64); 5] = [
         ("two_hole_plate", [979, 1047], [979, 1047], 0),
         ("r1_annulus", [511, 548], [511, 548], 0),
-        ("r1_segment_boss", [489, 572], [489, 572], 0),
+        ("r1_segment_boss", [497, 564], [497, 564], 0),
         ("r2_filleted_bracket", [1361, 1541], [1367, 1535], 6),
-        ("r2_link", [786, 943], [786, 943], 0),
+        ("r2_link", [802, 927], [802, 927], 0),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {

@@ -336,7 +336,12 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // at limb 2's stall against the cylinder rather than at
             // `pcurve_envelope`, after (709, 585), where it read (722, 702).
             without_the_registry: Some(((696, 843), Some("Stalled { operand: Cylinder"))),
-            symbolic: [786, 786, 786],
+            // 786 -> 802: sixteen incidence readings of carriers on
+            // their own walls (8 `pcurve_cylinder_chart_incident`, 8
+            // `pcurve_line_chart_incident`) are theorems through the
+            // rationalized gap (`geom_core::radius_gap`), where they
+            // were numeric Zeros; the total is unmoved.
+            symbolic: [802, 802, 802],
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
         Study {
@@ -969,8 +974,10 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
     // (PR 7088), so the count does not move. Then the carriers held their
     // frames as rigid motions, minted from the sketch frame and read as
     // stored: 2773 -> 1967 frozen, the decisions holding
-    // (`sym11_exact_channel_rows`' `PAST_THE_CEILING`).
-    assert_eq!(got[0], (1483, 1709, 1967), "rule F shut: the pad's receipt");
+    // (`sym11_exact_channel_rows`' `PAST_THE_CEILING`). Then the wall
+    // distance read through the rationalized gap: 1967 -> 1947 frozen,
+    // the decisions holding.
+    assert_eq!(got[0], (1483, 1709, 1947), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],
         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"
