@@ -27,8 +27,8 @@ cylinder–sphere, cylinder–plane(⊥), sphere–sphere; the two ruled arms
 carve between transverse caps (FILLET-H7); closed rims covered since
 VERBS-ARMS-1 — the N-link ladder rim and the ANNULUS rim of a full
 solid of revolution, the latter for annular profiles and for the
-AS-REVOLVED pole-touching ones since the seam-split rim's multi-link
-band; **convex rims only** among closed chains, while open
+AS-REVOLVED pole-touching ones, whose walls are one face each, and for
+a seam-split rim's several arcs since its multi-link band; **convex rims only** among closed chains, while open
 plane–plane chains carve on EITHER material side since S-BLEND
 BLEND-4 — the concave rolling ball, its corner octant included; a
 pole-touching body that has been
@@ -135,9 +135,10 @@ the table.
   **The bound on that unlock, stated:** it originally covered profiles
   that are ANNULAR (off the axis); the multi-link closed-rim door
   (#1022, BLEND-1) lifted it. A profile that touches the axis mints
-  HALF-walls — two seam azimuths — so its equator arrives as two arcs
-  over two half-disc supports, and the annulus band now takes that rim
-  WHOLE, walking through the seam vertices
+  each wall as one face reaching the axis by its wrap edge, so its
+  equator arrives as one closed edge, and the annulus band takes that
+  rim WHOLE; a rim that arrives as several arcs over half-band supports
+  (an import's half-turn pair) is walked through its seam vertices
   (`verbs_arms1_r1_probes::the_unbored_hemisphere_equator_carves_as_one_band`).
   Two annulus rims sharing a SUPPORT FACE carve in ONE call (#935,
   BLEND-2) — a revolution wall or a full-revolve plane cap, whose

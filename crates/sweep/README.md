@@ -540,8 +540,9 @@ the crescent its tangent faces open, and a rim's rolls in a wedge.
 
 **A3-2 — a valence-4 seam vertex is not a corner.** Where a chart seam
 (the `u = 0` meridian of a revolved wall) crosses an otherwise smooth
-latitude rim, the vertex has valence four: two rim arcs carrying one
-support pair and two co-surface seam meridians with dihedral zero. The
+latitude rim, the vertex has valence four: the rim's two ends there
+(one closed edge's, or two arcs') carrying one support pair, and two
+co-surface seam meridians with dihedral zero. The
 surface is smooth through it, with no wedge and no ball-rest
 configuration, so no end rule applies. A chain ending there refuses
 `BlendError::UnbuiltEnd(UnbuiltEnd::Seam { vertex })`, whose recourse is

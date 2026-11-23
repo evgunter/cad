@@ -80,12 +80,12 @@
 //!
 //! The **ANNULUS** rim (a full solid of revolution's latitude rim):
 //! ONE closed edge — or SEVERAL arcs of one rim meeting at chart-seam
-//! vertices, on a pole-touching revolve whose walls are half-bands —
-//! with no ladder to walk either way. The MATE side is a revolution
-//! WALL — a curved full-revolve wall is one face whose single cycle
-//! carries two closed latitude rims and a doubly-traversed seam
-//! meridian; a pole-touching revolve mints two half-band faces per
-//! segment, each traversing each seam once. The HOST side is such a
+//! vertices, on a body whose walls are half-bands of one surface (an
+//! import's half-turn pair, `geom::pole_form`) — with no ladder to walk
+//! either way. The MATE side is a revolution WALL — a curved
+//! full-revolve wall is one face whose single cycle carries its closed
+//! latitude rims and a doubly-traversed seam meridian; a half-band wall
+//! traverses each seam once. The HOST side is such a
 //! wall too, or a PLANE: a full revolve mints each plane wall as one
 //! face with no seam, a disc or an annulus whose circles are its outer
 //! cycle and its ring. The band is minted as one more wall of the
@@ -390,8 +390,8 @@ enum RimShape {
     /// wall or a plane. The band is minted as one more wall of the
     /// same shape.
     ///
-    /// A pole-touching profile's revolve splits every wall into
-    /// half-bands, so the rim arrives as SEVERAL arcs meeting at
+    /// A body whose walls are half-bands of one surface (an import's
+    /// half-turn pair) brings the rim as SEVERAL arcs meeting at
     /// chart-seam vertices. The band is still one annulus: the surface
     /// is smooth through such a vertex (the seam is a chart artifact,
     /// and the two extra edges there are co-surface meridians whose

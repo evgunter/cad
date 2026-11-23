@@ -1386,8 +1386,8 @@ pub fn lofted_cylinder(h: f64, tol: Tol) -> Body<f64> {
 
 /// The faces across the edges of `face`'s outer cycle, deduplicated —
 /// a band's NEIGHBOURS, which is how a door is proved rather than
-/// inferred: the ladder's band sits between one plane face and two
-/// ring-free half-caps, the annulus's between the two half-band walls.
+/// inferred: the ladder's band sits between one plane face and the
+/// ring-free cap, the annulus's between the two walls.
 pub fn faces_around<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<FaceKey> {
     let LoopBoundary::Cycle { first } = body
         .get_loop(body.get_face(face).unwrap().outer)
@@ -1991,7 +1991,7 @@ pub fn domed_boss(a: f64, tol: Tol) -> Body<f64> {
 /// `(d, 0)` with its two vertices on the `x` axis. Extruded 1 along `z`.
 ///
 /// Its top cap is one plane face whose OUTER cycle is the top rim (a
-/// hostless annulus, mate the outer wall's two half-bands) and whose one
+/// hostless annulus, mate the outer wall's two faces) and whose one
 /// RING is the bore's top rim (a ladder rim inside a circular outer
 /// boundary). The bore's closest approach to the outer rim is its vertex
 /// at `(d + a, 0)`, and with `outer_phi` off the outer rim's own sample

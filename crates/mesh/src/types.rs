@@ -528,7 +528,7 @@ pub enum TessellateError {
     /// restates as a band bounded by two meridians on DIFFERENT columns
     /// meeting at the pole or apex — the form this lane meshes, which
     /// `mesh/tests/loops_with_no_rim.rs` pins on the rimless lune and
-    /// the ball's two bands. A cylinder or torus chart has no
+    /// a ball's two lunes. A cylinder or torus chart has no
     /// singularity for a meridian to end on, so no meridian pair bounds
     /// anything there and the face needs a RIM.
     ///
