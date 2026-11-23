@@ -234,9 +234,7 @@ pub(crate) enum Lane {
     Walked,
     /// The chart lane on a cylinder or sphere face that is no rectangle
     /// and whose loops run on iso lines alone
-    /// (`walk::runs_on_iso_lines`): sized at `trimmed::ISO_BOUNDED_SHARE`
-    /// of δ, no lattice rows on the cylinder, and a refusing triangle
-    /// split and the face rebuilt (`trimmed::TrimmedFace::attempt`).
+    /// (`walk::runs_on_iso_lines`): on the cylinder, no lattice rows.
     IsoBounded,
 }
 
@@ -338,8 +336,10 @@ pub(crate) fn route_of(
             // Fact 5: a cylinder or sphere face whose loops run on iso
             // lines alone, here or where the doors decide it no rectangle.
             let iso_bounded = || -> Result<bool, TessellateError> {
-                Ok(matches!(surface, Surface::Cylinder { .. } | Surface::Sphere { .. })
-                    && crate::walk::runs_on_iso_lines(body, fk, face)?)
+                Ok(
+                    matches!(surface, Surface::Cylinder { .. } | Surface::Sphere { .. })
+                        && crate::walk::runs_on_iso_lines(body, fk, face)?,
+                )
             };
             if crate::walk::pinches(body, face.outer)? {
                 return Ok((Route::Trimmed(Trim::Structural), None));

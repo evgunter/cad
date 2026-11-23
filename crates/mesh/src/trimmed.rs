@@ -20,12 +20,10 @@
 //! its two rows in order of angle, a side shared with a neighbour that may
 //! make it cut at its midpoint ([`may_make`]), and each triangle read by
 //! the row's certificate. Its target is δ ([`face_target`]), by the
-//! theorems at `sizing::sagitta_step` and `sizing::cone_grid_step`. A
-//! cylinder or sphere face bounded by iso lines alone
-//! (`tessellate::Lane::IsoBounded`) sizes at [`ISO_BOUNDED_SHARE`] of δ,
-//! lays no rows on the cylinder, and splits a triangle whose certificate
-//! refuses ([`Refinement::WidestSide`]); every other analytic face here
-//! sizes at [`UNPROVED_HEADROOM`] of δ.
+//! theorems at `sizing::sagitta_step` and `sizing::cone_grid_step`; every
+//! other analytic face here sizes at [`UNPROVED_HEADROOM`] of δ. A
+//! cylinder face bounded by iso lines alone (`tessellate::Lane::IsoBounded`)
+//! lays no lattice rows.
 //!
 //! # Watertightness is inherited, not re-derived
 //!
@@ -354,13 +352,6 @@ use crate::types::{SphereTrimCause, TessellateError};
 /// splits — and it is a typed-refusal backstop rather than a tuning
 /// knob: exhausting it raises [`TessellateError`], it never coarsens or
 /// accepts a mesh. The loop reads it through [`last_attempt`].
-///
-/// A face bounded by iso lines alone (`tessellate::Lane::IsoBounded`)
-/// refines under it too ([`Refinement::WidestSide`]). Measured over the
-/// notched and holed pipe walls and the wedged balls at δ `10⁻¹` to
-/// `10⁻³` and three ε: one round clears every cell that refuses, and
-/// only cylinder walls ask for it (no sphere face's triangle refuses at
-/// δ).
 const MAX_GRID_RETRIES: usize = 6;
 
 /// The retry loop's last attempt: [`MAX_GRID_RETRIES`], or under
@@ -435,30 +426,20 @@ pub(crate) const MAX_SPHERE_EDGE_CHORDS: usize = 1 << 16;
 /// lane takes its clearance as a value ([`TrimmedFace::clearance`]).
 pub(crate) const BOUNDARY_CLEARANCE: f64 = 1.0 / 16.0;
 
-/// **The share of δ a face bounded by iso lines alone sizes at**
-/// (`tessellate::Lane::IsoBounded`): δ itself. The one site where that
-/// class's target differs from the rest of the lane's ([`face_target`]).
-///
-/// No theorem bounds the worst triangle of such a face's triangulation;
-/// what holds it to δ is the certificate, with the refinement in
-/// [`TrimmedFace::attempt`] where a triangle refuses. Sized at
-/// [`UNPROVED_HEADROOM`] instead, no cell of the measured corpus asks
-/// for a refinement.
-pub(crate) const ISO_BOUNDED_SHARE: f64 = 1.0;
-
 /// **A face's deviation target**: [`UNPROVED_HEADROOM`]·δ for a face
 /// this lane meshes on an analytic chart (one whose surface has no spline
-/// chart), [`ISO_BOUNDED_SHARE`]·δ for a face bounded by iso lines alone,
-/// δ for every other face, a face it walks among them
+/// chart), a face bounded by iso lines alone among them, δ for every
+/// other face, a face it walks among them
 /// (`tessellate::Lane::Walked`). The one statement those arms size
 /// their lattices at and the chord pass chords the face's boundary at
 /// (`chords::edge_target`), each reading the face's lane from the run's
 /// route (`tessellate::Routes`).
 pub(crate) fn face_target(surface: &Surface<f64>, lane: Lane, delta: f64) -> f64 {
     match lane {
-        Lane::IsoBounded => delta * ISO_BOUNDED_SHARE,
-        Lane::Trimmed if surface.spline_chart().is_none() => delta * UNPROVED_HEADROOM,
-        Lane::Planar | Lane::Curved | Lane::Trimmed | Lane::Walked => delta,
+        Lane::Trimmed | Lane::IsoBounded if surface.spline_chart().is_none() => {
+            delta * UNPROVED_HEADROOM
+        }
+        Lane::Planar | Lane::Curved | Lane::Trimmed | Lane::IsoBounded | Lane::Walked => delta,
     }
 }
 
@@ -676,9 +657,14 @@ pub(crate) fn tessellate_trimmed(
             // and the lattice the row lays from them.
             let (hu, hv) = a.lattice_steps(arm_steps(a, face_target(surface, lane, tol.delta)));
             let nu = pole_side_columns(&polygon, &singular, (u0, u1), ceil_count(u1 - u0, hu)?)?;
-            // A cylinder face bounded by iso lines alone lays no rows: its
-            // every boundary point is on a rim or a ruling, and a row adds
-            // triangles there and moves no certificate.
+            // A cylinder face bounded by iso lines alone lays no rows (and
+            // so no node): its boundary points lie on rims and rulings, and
+            // its triangulation is held by the certificate alone. Measured
+            // over notched and holed pipe walls at δ `10⁻¹` to `10⁻³`: no
+            // triangle refuses at this target, the worst certifies at
+            // 0.69·δ, and the face takes 1 to 1.5 times the rectangle
+            // lane's triangles over the iso-rectangles it divides into,
+            // where the rows made 4 to 220 times.
             let rows = if lane == Lane::IsoBounded && crate::chart_table::ruled(surface) {
                 Vec::new()
             } else {
@@ -773,13 +759,6 @@ pub(crate) fn tessellate_trimmed(
     })?;
     let trimmed = TrimmedFace {
         fk,
-        refines: if spline {
-            Refinement::Centroid
-        } else if lane == Lane::IsoBounded {
-            Refinement::WidestSide
-        } else {
-            Refinement::None
-        },
         sense: face.sense,
         orientation,
         metric,
@@ -934,27 +913,9 @@ enum Next {
     Accept(Patch),
 }
 
-/// **How a face refines a triangle whose certificate refuses**
-/// ([`TrimmedFace::attempt`]): a point inside it, the face rebuilt.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Refinement {
-    /// It refuses ([`cert::FaceVerdict::refusal`]).
-    None,
-    /// The spline arm: the point inside the triangle where the CDT runs
-    /// ([`TrimmedFace::inside_point`]).
-    Centroid,
-    /// A face bounded by iso lines alone (`tessellate::Lane::IsoBounded`):
-    /// the midpoint of the triangle's longest side where the CDT runs
-    /// that is no constraint, which splits both triangles on it; the
-    /// centroid where every side is a constraint ([`widest_free_side`]).
-    WidestSide,
-}
-
 /// What every attempt on one face reads and none changes.
 struct TrimmedFace<'a> {
     fk: FaceKey,
-    /// What a refusing triangle asks ([`Refinement`]).
-    refines: Refinement,
     /// How far the face's lattice keeps from its boundary, in a node's
     /// own steps ([`lay`]): [`BOUNDARY_CLEARANCE`] from `tessellate`.
     clearance: f64,
@@ -1195,12 +1156,6 @@ impl TrimmedFace<'_> {
         // Appending keeps every existing candidate index (the `dropped`
         // set stays valid).
         if !refine.is_empty() && !measure.verdict.worst().is_nan() && attempt < last_attempt() {
-            // Two refusing triangles across one side ask for its midpoint
-            // twice, and a location entered twice refuses
-            // (`insert_points`): one point each, by its bits.
-            let mut refine = refine;
-            refine.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.total_cmp(&b.1)));
-            refine.dedup_by(|a, b| a.0.to_bits() == b.0.to_bits() && a.1.to_bits() == b.1.to_bits());
             candidates.extend(refine);
             return Ok(Next::Rebuild);
         }
@@ -1514,10 +1469,12 @@ impl TrimmedFace<'_> {
             None
         };
         let mut triangles = Vec::new();
-        // CERT-DRIVEN REFINEMENT (TESS-SPAN; module docs): a triangle
-        // certifying above δ queues the point its face's `Refinement`
-        // asks for the next round.
+        // CERT-DRIVEN REFINEMENT (TESS-SPAN; module docs): NURBS
+        // triangles certifying above the per-face sizing target get
+        // their UV centroid queued as a new candidate for the next
+        // round.
         let mut refine: Vec<(f64, f64)> = Vec::new();
+        let refine_lane = matches!(self.row, ChartRow::Spline { .. });
         let (mut folded_grid, mut folded_boundary) = (Vec::new(), false);
         // Each boundary handle's places in the trim polygon (a pinch
         // handle holds several), for the shared-side test below.
@@ -1761,13 +1718,8 @@ impl TrimmedFace<'_> {
                         }
                     }
                 }
-                if verdict == cert::Verdict::Exceeded {
-                    match self.refines {
-                        Refinement::None => {}
-                        Refinement::Centroid => refine.push(inside_point()),
-                        Refinement::WidestSide => refine
-                            .push(widest_free_side(cdt, meta, f).unwrap_or_else(inside_point)),
-                    }
+                if refine_lane && verdict == cert::Verdict::Exceeded {
+                    refine.push(inside_point());
                 }
                 triangles.push(if flip { [ids[0], ids[2], ids[1]] } else { ids });
             }
@@ -5897,7 +5849,15 @@ pub(super) mod tests {
                 .then(|| {
                     let lift = super::face_domain(body, fk, tol.band).unwrap();
                     let answer = super::tessellate_trimmed(
-                        body, fk, surface, &chords, &positions, &tol, &bounds, &lift, clearance,
+                        body,
+                        fk,
+                        surface,
+                        &chords,
+                        &positions,
+                        &tol,
+                        &bounds,
+                        &lift,
+                        clearance,
                         crate::tessellate::Lane::Trimmed,
                     );
                     (fk, answer.map(|patch| patch.triangles.len()))
@@ -6758,31 +6718,4 @@ pub(super) mod tests {
             assert_eq!(cause(&both), Some(SphereTrimCause::BothNappes));
         }
     }
-}
-
-/// **The midpoint, in the chart, of triangle `f`'s longest side where the
-/// CDT runs that is no constraint** ([`Refinement::WidestSide`]); `None`
-/// where every side is one. A side that is no constraint has an inside
-/// triangle on both sides of it (the even-odd flags change only across a
-/// constraint), so the point is inside the polygon, and it splits both.
-/// It is called only on the lattice plane, where the CDT's map from the
-/// chart is linear, so the chart midpoint is the side's midpoint there.
-fn widest_free_side(
-    cdt: &ConstrainedDelaunayTriangulation<SpadePoint<f64>>,
-    meta: &[(f64, f64, Slot)],
-    f: spade::handles::FaceHandle<'_, spade::handles::InnerTag, SpadePoint<f64>, (), spade::CdtEdge<()>, ()>,
-) -> Option<(f64, f64)> {
-    let mut widest: Option<(f64, (f64, f64))> = None;
-    for side in f.adjacent_edges() {
-        if cdt.is_constraint_edge(side.as_undirected().fix()) {
-            continue;
-        }
-        let (a, b) = (side.from(), side.to());
-        let length = a.position().distance_2(b.position());
-        let ((ua, va, _), (ub, vb, _)) = (meta[a.fix().index()], meta[b.fix().index()]);
-        if widest.is_none_or(|(w, _)| length > w) {
-            widest = Some((length, (0.5 * (ua + ub), 0.5 * (va + vb))));
-        }
-    }
-    widest.map(|(_, mid)| mid)
 }

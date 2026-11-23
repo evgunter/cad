@@ -686,7 +686,8 @@ pub(crate) fn pinches(body: &Body<f64>, lk: LoopKey) -> Result<bool, TessellateE
 /// term), or an iso line or arc by its variant. On a cylinder that is a
 /// rim or a ruling, on a sphere a parallel or a meridian. A half-edge with
 /// no stored image, or one whose image moves in both channels (a tilted
-/// section's sinusoid, a projected or fitted image), answers no.
+/// section's sinusoid, a projected or fitted image), or a loop that is one
+/// vertex, answers no.
 ///
 /// It reads the images the mints stored and decides nothing: no band, no
 /// tolerance. The route asks it of a cylinder or sphere face the doors
@@ -704,6 +705,14 @@ pub(crate) fn runs_on_iso_lines(
         Channel::Free { a, b, l, .. } => a == 0.0 && b == 0.0 && l == 0.0,
     };
     for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+        // A loop that is one vertex runs on no line; the lane's domain
+        // read answers it.
+        let one_vertex = body
+            .get_loop(lk)
+            .is_some_and(|lp| !matches!(lp.boundary, LoopBoundary::Cycle { .. }));
+        if one_vertex {
+            return Ok(false);
+        }
         for (hek, _, _) in loop_half_edges(body, lk, fk)? {
             let on_an_iso_line = body.pcurve(hek).is_some_and(|row| match row.pcurve() {
                 Pcurve::Harmonic { u, v } => still(u) || still(v),
