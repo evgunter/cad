@@ -384,10 +384,28 @@ fn the_capped_vessel_opens_its_cap_into_a_seamed_band() {
         EntityKind::Face,
         RoleSeg::Rim(editor_core::band(pot, cap).into()),
     );
+    let Some(editor_core::Entry::Unique(named)) = table.lookup(&rim) else {
+        panic!("the cap is named as the band, got {:?}", table.lookup(&rim))
+    };
+    let editor_core::EntityKey::Face(band) = named.key else {
+        panic!("the band's name resolves to a face, got {named:?}")
+    };
     assert!(
-        matches!(table.lookup(&rim), Some(editor_core::Entry::Unique(_))),
-        "the cap is named as the band"
+        matches!(body.face_surface(band), Some(geom::Surface::Sphere { .. })),
+        "the band is the cap's sphere face, got {:?}",
+        body.face_surface(band)
     );
+    for (face, _) in body.faces() {
+        let entity = editor_core::EntityRef {
+            body: named.body,
+            key: editor_core::EntityKey::Face(face),
+        };
+        assert!(
+            table.name_of(&entity).is_some(),
+            "{face:?} is named ({:?})",
+            body.face_surface(face)
+        );
+    }
 }
 
 /// **A planar void designation opens from a document.** The cup shelled

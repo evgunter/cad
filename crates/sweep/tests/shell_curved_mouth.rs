@@ -54,10 +54,12 @@ fn cap_volume(rho: f64, h: f64) -> f64 {
 /// the sphere.
 #[test]
 fn a_spherical_cap_opens_to_a_seamed_band() {
-    let (body, _, _) = capped_vessel(0.5, 0.6, 60.0);
+    let (r, h) = (0.5, 0.6);
+    let (body, rho, centre) = capped_vessel(r, h, 60.0);
     let cap = faces_on(&body, geom::SurfaceKind::Sphere);
     assert_eq!(cap.len(), 1, "the revolve wears the cap as one face");
-    opens_to_a_seamed_band(&body, &cap);
+    let vessel = CappedVessel { r, h, rho, centre };
+    opens_to_a_seamed_band(&body, &cap, &vessel, 0.05);
 }
 
 /// **A cap of two branches opens to a seamed band too**: the capped
@@ -68,18 +70,30 @@ fn a_spherical_cap_opens_to_a_seamed_band() {
 /// dies and the volume is the same closed form.
 #[test]
 fn a_cap_of_two_branches_opens_to_a_seamed_band() {
-    let (body, cap) = split_cap();
+    let (r, h) = (0.5, 0.6);
+    let (body, cap, rho, centre) = split_cap(r, h, 60.0);
     assert_eq!(cap.len(), 2, "the cap is split in two");
-    opens_to_a_seamed_band(&body, &cap);
+    let vessel = CappedVessel { r, h, rho, centre };
+    opens_to_a_seamed_band(&body, &cap, &vessel, 0.05);
 }
 
-/// `capped_vessel(0.5, 0.6, 60)` opened at `cap`, its sphere's faces,
-/// at `t = 0.05`: the rim is the band between the wall's junction and
-/// the cavity's, every face of `cap` surviving ring-free under its key.
-fn opens_to_a_seamed_band(body: &Body<f64>, cap: &[FaceKey]) {
+/// The measures of a [`capped_vessel`] that its closed forms read: the
+/// foot's radius `r` and height `h`, and the cap sphere's radius `rho`
+/// and centre height `centre`, as `capped_vessel` returns them.
+struct CappedVessel {
+    r: f64,
+    h: f64,
+    rho: f64,
+    centre: f64,
+}
+
+/// `body`, a capped vessel measuring `vessel`, opened at `cap`, its
+/// sphere's faces, at `t`: the rim is the band between the wall's
+/// junction and the cavity's, every face of `cap` surviving ring-free
+/// under its key.
+fn opens_to_a_seamed_band(body: &Body<f64>, cap: &[FaceKey], vessel: &CappedVessel, t: f64) {
     let tol = Tol::witness();
-    let (r, h, t) = (0.5, 0.6, 0.05);
-    let (_, rho, centre) = capped_vessel(r, h, 60.0);
+    let &CappedVessel { r, h, rho, centre } = vessel;
     let shelled = open(body, cap, t).expect("the cap opens");
     let cup = topo::test_support::finished("cup", topo::Body::clone(&shelled.body), tol);
 
@@ -135,12 +149,13 @@ fn opens_to_a_seamed_band(body: &Body<f64>, cap: &[FaceKey]) {
     }
 }
 
-/// `capped_vessel(0.5, 0.6, 60)` with its cap SPLIT along the meridian
-/// at `u = π` into two faces whose seams meet at the pole, and those two
-/// faces. Built through the public Euler doors, then minted.
-fn split_cap() -> (Body<f64>, Vec<FaceKey>) {
+/// `capped_vessel(r, h, deg)` with its cap SPLIT along the meridian at
+/// `u = π` into two faces whose seams meet at the pole: the body, those
+/// two faces, and the sphere's radius and centre as `capped_vessel`
+/// returns them. Built through the public Euler doors, then minted.
+fn split_cap(r: f64, h: f64, deg: f64) -> (Body<f64>, Vec<FaceKey>, f64, f64) {
     let tol = Tol::witness();
-    let (mut body, _, _) = capped_vessel(0.5, 0.6, 60.0);
+    let (mut body, rho, centre) = capped_vessel(r, h, deg);
     let [cap] = faces_on(&body, geom::SurfaceKind::Sphere)[..] else {
         panic!("the revolve wears the cap as one face")
     };
@@ -226,7 +241,7 @@ fn split_cap() -> (Body<f64>, Vec<FaceKey>) {
     body.set_edge_curve(seam, chart(carrier), tol).unwrap();
     topo::mint_pcurves(&mut body, tol).unwrap();
     let cap = faces_on(&body, geom::SurfaceKind::Sphere);
-    (body, cap)
+    (body, cap, rho, centre)
 }
 
 /// **A void's cap opens to a seamed band too, with the roles swapped.**
@@ -284,7 +299,16 @@ fn a_bulging_cap_whose_cavity_meets_the_sphere_below_the_wall_refuses_typed() {
     let (body, _, _) = capped_vessel(0.5, 0.6, 120.0);
     let cap = faces_on(&body, geom::SurfaceKind::Sphere);
     match open(&body, &cap, 0.05) {
-        Err(ShellError::OpenFaceRimNotExpressible { face, .. }) => assert_eq!(face, cap[0]),
+        Err(ShellError::OpenFaceRimNotExpressible { face, what }) => {
+            assert_eq!(face, cap[0]);
+            assert!(
+                what.starts_with(
+                    "the cavity counterpart's corner does not project onto the designated \
+                     chart's seam between its boundary and the pole"
+                ),
+                "the refusal is the seam projection's, got {what:?}"
+            );
+        }
         other => panic!("expected the rim's shape refusal, got {other:?}"),
     }
 }
