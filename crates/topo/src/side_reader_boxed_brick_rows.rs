@@ -715,5 +715,6 @@ fn no_own_aim_of_a_random_boxed_brick_reads_the_side_no_member_has() {
     );
 }
 
+#[cfg(test)]
 #[path = "side_reader_tilted_cap_rows.rs"]
 mod tilted_cap_rows;
