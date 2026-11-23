@@ -948,7 +948,7 @@ mod kernel {
     test_utils::f6_variants! {
         /// `TraceFault`'s arms, for the `Trace/Carrier/` rows.
         pub(super) const TRACE_FAULT: TraceFault = [
-            Unsupported, Unbounded, Grazing, Apex, OnCarrier, Escalated, Unsettled, Torus,
+            Unsupported, Unbounded, Grazing, Apex, OnCarrier, Escalated, Unsettled, Torus, Frame,
         ];
     }
 
@@ -4895,6 +4895,13 @@ fn trace() -> Vec<(String, NodeErrorKind)> {
                 )
                 .expect("a half the band left undecided refuses"),
             )),
+        ),
+        (
+            "Carrier/Frame",
+            F::Carrier(TraceFault::Frame(geom_core::OrthonormalizeError {
+                axis: geom_core::OrthoAxis::V,
+                error: geom_core::UnitVec3Error::Degenerate,
+            })),
         ),
         ("Uncovered", F::Uncovered(uncovered_face())),
     ];

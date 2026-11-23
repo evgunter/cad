@@ -421,8 +421,12 @@ mod tests {
             apex: Point3::new(0.0, 0.0, 0.0),
             axis: geom_core::UnitVec3::exact_z(),
             half_angle: core::f64::consts::FRAC_PI_4,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
             sense: true,
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
         };
         let across = Vec3::new(0.3, 1.0, -0.2);
         let read = |own, next, bounds| apex_corner_shape((own, next), &apex, bounds, band());

@@ -661,7 +661,7 @@ fn arc_to<T: Decide>(
 ) -> Result<(Point2<T>, Vec3<T>), TraceStepFault> {
     let surface = traced(face, band)?;
     let radial = pen - centre;
-    let (radial_hat, radius) = radial.direction_and_length();
+    let radius = radial.norm();
     let up = match winding {
         ArcSweep::Ccw => T::one(),
         ArcSweep::Cw => T::zero() - T::one(),
@@ -671,7 +671,10 @@ fn arc_to<T: Decide>(
         map.transform_point(lift(centre)),
         map.transform_vec(Vec3::new(T::zero(), T::zero(), up)),
         radius,
-        map.transform_vec(lift_vec(radial_hat)),
+        // The seam is the radial as drawn, not its direction: the
+        // kernel decides it a direction where it mints the circle's
+        // frame, so a pen on the centre refuses there.
+        map.transform_vec(lift_vec(radial)),
     );
     let crossings = kernel::circle_crossings_to(surface, face.sense, circle, band, taken(crossing))
         .map_err(carrier_fault)?;

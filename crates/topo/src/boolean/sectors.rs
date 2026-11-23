@@ -3144,13 +3144,13 @@ mod tests {
         let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
         let o = Point3::new(0.0, 1.0, 0.0);
         let h = core::f64::consts::FRAC_PI_4;
-        let apex = ConeApex {
-            apex: o,
-            axis: geom_core::UnitVec3::exact_y(),
-            half_angle: h,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-            sense: true,
-        };
+        let apex = ConeApex::stated(
+            o,
+            geom_core::UnitVec3::exact_y(),
+            h,
+            Vec3::new(1.0, 0.0, 0.0),
+            true,
+        );
         let start = Vec3::new(h.sin(), -h.cos(), 0.0);
         for turn in [0.25, 0.45, 0.75] {
             let azimuth = turn * core::f64::consts::TAU;

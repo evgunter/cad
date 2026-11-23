@@ -137,17 +137,38 @@ pub(crate) struct ConeApex<T: geom_core::Real> {
     pub axis: UnitVec3<T>,
     /// The half-angle between a ruling and the axis.
     pub half_angle: T,
-    /// The cone's seam direction, which places azimuth zero.
-    pub u_ref: Vec3<T>,
     /// The face's `sense` bit.
     pub sense: bool,
+    /// The cone's frame, as its surface holds it: placed at `apex`.
+    pub frame: geom::Frame<T>,
+}
+
+#[cfg(test)]
+impl<T: geom_core::Real> ConeApex<T> {
+    /// A fixture's cone at `apex`, its frame stated by `axis` and the seam
+    /// `u_ref` and squared ([`geom::Frame::new`]).
+    pub(crate) fn stated(
+        apex: Point3<T>,
+        axis: UnitVec3<T>,
+        half_angle: T,
+        u_ref: geom_core::Vec3<T>,
+        sense: bool,
+    ) -> Self {
+        Self {
+            apex,
+            axis,
+            half_angle,
+            sense,
+            frame: geom::Frame::new(apex, axis.get(), u_ref),
+        }
+    }
 }
 
 impl<T: Decide> ConeApex<T> {
-    /// The cone as a surface.
+    /// The cone as a surface, on the frame its surface holds.
     pub(crate) fn surface(&self) -> geom::Surface<T> {
         geom::Surface::Cone {
-            frame: geom::Frame::new(self.apex, self.axis.get(), self.u_ref),
+            frame: self.frame,
             half_angle: self.half_angle,
         }
     }
@@ -397,7 +418,7 @@ pub(crate) fn resolve<T: Decide>(
         // included, everywhere off its axis. On the axis it is `0/0`, and
         // the axis point of the surface is the apex, read as its rulings.
         s @ &geom::Surface::Cone { frame, half_angle } => {
-            let (apex, axis, u_ref) = (frame.origin(), frame.axis_unit(), frame.u_ref());
+            let (apex, axis) = (frame.origin(), frame.axis_unit());
             let p = point();
             match crate::face_normal::cone_point(
                 geom::Line {
@@ -426,8 +447,8 @@ pub(crate) fn resolve<T: Decide>(
                         // The frame's axis, re-squared as it was read.
                         axis: UnitVec3::squared(axis.get()),
                         half_angle,
-                        u_ref,
                         sense,
+                        frame,
                     }),
                     carrier: SectorCarrier::Cone,
                 }),

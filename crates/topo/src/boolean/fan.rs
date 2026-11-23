@@ -670,13 +670,13 @@ mod rows {
         let o = Point3::new(0.0, 1.0, 0.0);
         let start = Vec3::new(h.sin(), -h.cos(), 0.0);
         for sense in [true, false] {
-            let apex = ConeApex {
-                apex: o,
-                axis: geom_core::UnitVec3::exact_y(),
-                half_angle: h,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            let apex = ConeApex::stated(
+                o,
+                geom_core::UnitVec3::exact_y(),
+                h,
+                Vec3::new(1.0, 0.0, 0.0),
                 sense,
-            };
+            );
             let unit = geom_core::test_support::fixture_lever(1.0);
             let sector = BoolSector {
                 he: HalfEdgeKey::from(key(1)),
@@ -727,13 +727,13 @@ mod rows {
         let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
         let side = down.cross(Vec3::new(0.0, 0.0, 1.0)).normalize();
         let start = down * half.cos() + side * half.sin();
-        let apex = ConeApex {
-            apex: Point3::new(0.0, 1.0, 0.0),
-            axis: geom_core::UnitVec3::checked(down * -1.0),
-            half_angle: half,
-            u_ref: side,
-            sense: true,
-        };
+        let apex = ConeApex::stated(
+            Point3::new(0.0, 1.0, 0.0),
+            geom_core::UnitVec3::checked(down * -1.0),
+            half,
+            side,
+            true,
+        );
         let arm = geom_core::test_support::fixture_lever(arm);
         BoolSector {
             he: HalfEdgeKey::from(key(face)),

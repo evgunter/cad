@@ -6403,9 +6403,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                 let foot = center - normal * s;
                                 let rho = ((radius - s.abs()) * (radius + s.abs())).sqrt();
                                 let circle = crate::separating::Circle {
-                                    center: foot,
-                                    u_ref,
-                                    v_ref: normal.cross(u_ref),
+                                    frame: frame.with_origin(foot),
                                     radius: rho,
                                 };
                                 if face_boundary_meets(
@@ -7262,17 +7260,30 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         // Re-read once, not a minimum (`scripts/gates/argmin-folds.tsv`,
         // recompute): a foot on the axis takes the circle's own point
         // instead, and no two candidates are compared.
-        let mut k = toward(cut.foot - cut.center);
-        if sign_as("bool_sphere_cut_meridian", Margin::of(k.norm()))? == Sign::Zero {
-            k = toward(cut.foot + cut.u_ref * cut.rho - cut.center);
-            if sign_as("bool_sphere_cut_meridian", Margin::of(k.norm()))? == Sign::Zero {
-                return Err(refuse_at(
-                    cut.face,
-                    "the section circle has no meridian of the face's chart",
-                ));
+        // The meridian plane's normal is decided a direction where it is
+        // minted ([`geom_core::UnitVec3::new`]): a normal decided zero takes
+        // the fallback, and one in the band escalates.
+        let meridian =
+            |d: Vec3<T>| geom_core::UnitVec3::new(toward(d), "bool_sphere_cut_meridian", band);
+        let k_unit = match meridian(cut.foot - cut.center) {
+            Err(geom_core::UnitVec3Error::Degenerate) => {
+                meridian(cut.foot + cut.u_ref * cut.rho - cut.center)
             }
+            read => read,
         }
-        let k = k.normalize();
+        .map_err(|refusal| match refusal {
+            geom_core::UnitVec3Error::Escalated(diag) => esc(diag),
+            geom_core::UnitVec3Error::Degenerate => refuse_at(
+                cut.face,
+                "the section circle has no meridian of the face's chart",
+            ),
+            geom_core::UnitVec3Error::NonFiniteLength
+            | geom_core::UnitVec3Error::UnderflowedLength => refuse_at(
+                cut.face,
+                "the section circle's meridian normal is not a finite direction",
+            ),
+        })?;
+        let k = k_unit.get();
         let h = k.cross(axis);
         // The cut's half-meridian, a curve on the face's sphere: its chart
         // framed on `h`, its meridian at azimuth `0`. A boundary arc lies
@@ -7674,7 +7685,10 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         let span = w.dot(u_arc.cross(to_hi)).abs().atan2(u_arc.dot(to_hi));
         let carrier = geom::Curve3::circle(cut.center, w, r, u_arc);
         let plane = body.add_surface(geom::Surface::Plane {
-            frame: geom::Frame::new(cut.center, k, h),
+            // On the decided normal `k` and `h` square to it, the frame
+            // they state ([`geom_core::RigidMotion::squared`], its
+            // stated-point read at an enclosure scalar kept).
+            frame: geom::Frame::of_motion(&geom_core::RigidMotion::squared(cut.center, k, h)),
         });
         let created = body.mef(
             crate::euler::MefSite::Chords {
@@ -10773,9 +10787,11 @@ mod torn_hop_rows {
             max_z: 11.0,
         };
         let circle = crate::separating::Item::Circle(crate::separating::Circle {
-            center: Point3::new(10.5, 10.5, 10.5),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-            v_ref: Vec3::new(0.0, 1.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(10.5, 10.5, 10.5),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 0.5,
         });
         let band = Band::linear(Tol::witness()).unwrap();
