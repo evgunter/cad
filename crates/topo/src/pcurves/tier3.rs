@@ -537,7 +537,10 @@ pub(crate) fn pcurve_pass<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Pcurve
                         elements[i] = Some(element);
                         if let Some((edge, tip)) = tip_at(he) {
                             let reading = match singular_at(chart, entry_vertex(body, he), band) {
-                                Singular::On(_) | Singular::Sides(_) | Singular::Collapsed => {
+                                Singular::On(_)
+                                | Singular::SheetApex
+                                | Singular::Sides(_)
+                                | Singular::Collapsed => {
                                     continue;
                                 }
                                 Singular::Off if has_singular_points => TipReading::Off,

@@ -97,6 +97,7 @@ fn holds_by(
         sheets.len() == faces && sheets.iter().all(|&m| (m - sheet).abs() <= 1e-15),
         "{what}: the sheet faces' major radii {sheets:?}, not {faces} of {sheet}"
     );
+    lifts_close(what, &built.body);
     let delta = 1e-2;
     let mesh = mesh::tessellate(&built.body, delta, tol)
         .unwrap_or_else(|e| panic!("{what}: tessellate: {e:?}"));
@@ -121,6 +122,26 @@ fn holds_by(
         got.surface_area,
         got.area_pad
     );
+}
+
+/// Every curved face's outer loop's stored lift closes in its chart
+/// (`topo::Lift::closes_in_chart`): a sheet face whose loop reaches an
+/// apex takes the turn there on its own side, so the chain winds no
+/// period. A plane stores no rows.
+fn lifts_close(what: &str, body: &topo::Body<f64>) {
+    for (fk, face) in body.faces() {
+        if matches!(body.face_surface(fk), Some(geom::Surface::Plane { .. })) {
+            continue;
+        }
+        let lift = body
+            .loop_lift(face.outer)
+            .unwrap_or_else(|e| panic!("{what}: face {fk:?}'s lift: {e:?}"));
+        assert!(
+            lift.closes_in_chart(),
+            "{what}: face {fk:?}'s lift winds {:?}",
+            lift.winding()
+        );
+    }
 }
 
 /// **The football and the apple build through the revolve door** with
@@ -401,6 +422,7 @@ fn meshes_and_measures(
     let tol = Tol::witness();
     let built = revolve(&validated(vec![lp.clone()]), ax, Revolution::Full, tol)
         .unwrap_or_else(|e| panic!("{what}: {e}"));
+    lifts_close(what, &built.body);
     let delta = 1e-2;
     let mesh = mesh::tessellate(&built.body, delta, tol)
         .unwrap_or_else(|e| panic!("{what}: tessellate: {e:?}"));
@@ -787,6 +809,70 @@ fn a_horns_cusp_revolved_part_way_is_its_lune() {
             Revolution::Partial(theta),
             (faces, 1.0),
             (share * volume, share * (sheet + disc) + 2.0 * profile),
+        );
+    }
+}
+
+/// **A horn's cusp turns on the face's side, from above and from
+/// below**: the needle's lune reaches the cusp at `v = π`, the lower
+/// needle's at `v = −π`, both revolved through `θ = 2`. The joint at the
+/// cusp turns the face's own sector, so it stores no period, and the
+/// stored lift's azimuth window is the lune's `θ`, not the complement
+/// `τ − θ` on the far side of the cusp.
+#[test]
+fn a_horns_cusp_turns_on_the_faces_side_from_above_and_below() {
+    let quarter = -(PI / 8.0).tan();
+    let theta = 2.0_f64;
+    for (what, lp) in [
+        (
+            "from above",
+            bulge_loop(vec![
+                (Point2::new(0.0, 0.0), quarter),
+                (Point2::new(1.0, 1.0), 0.0),
+                (Point2::new(0.0, 1.0), 0.0),
+            ]),
+        ),
+        (
+            "from below",
+            bulge_loop(vec![
+                (Point2::new(0.0, -1.0), 0.0),
+                (Point2::new(1.0, -1.0), quarter),
+                (Point2::new(0.0, 0.0), 0.0),
+            ]),
+        ),
+    ] {
+        let body = revolve(
+            &validated(vec![lp]),
+            y_axis(),
+            Revolution::Partial(theta),
+            Tol::witness(),
+        )
+        .unwrap_or_else(|e| panic!("{what}: {e}"))
+        .body;
+        let (_, face) = body
+            .faces()
+            .find(|&(fk, _)| matches!(body.face_surface(fk), Some(geom::Surface::Spindle { .. })))
+            .unwrap_or_else(|| panic!("{what}: a sheet face"));
+        let lift = body.loop_lift(face.outer).unwrap();
+        let cusp = lift
+            .rows()
+            .iter()
+            .map(|row| row.half_edge)
+            .find(|&he| {
+                let start = body.get_half_edge(he).unwrap().start;
+                body.vertex_points()
+                    .any(|(v, p)| v == start && p.x.hypot(p.y).hypot(p.z) < 1e-12)
+            })
+            .unwrap_or_else(|| panic!("{what}: the loop leaves the cusp"));
+        assert_eq!(
+            body.joint(cusp).map(topo::JointElement::deck),
+            Some(topo::Deck::IDENTITY),
+            "{what}: the cusp's joint"
+        );
+        let (lo, hi) = lift.azimuth_window().unwrap();
+        assert!(
+            ((hi - lo) - theta).abs() < 1e-12,
+            "{what}: the lift's azimuth window ({lo}, {hi})"
         );
     }
 }

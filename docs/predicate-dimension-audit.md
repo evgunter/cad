@@ -785,6 +785,7 @@ which is what actually moves the number.
 | pcurves/decision.rs (`singular_turn`) | pcurve_singular_turn | (azimuth gap ± τ/2, against its whole-period marks) × the faces' extent, the shorter of the two edges' wedge reaches (`topo::wedge_reach`, `JointSides::lever`) | m | OK |
 | pcurves/decision.rs (`half_turn_off`) | pcurve_singular_sheet | (the unit direction an edge's carrier leaves the singular point along, its chord over an eighth of the span taken across the chart's axis) · (the unit direction of its image's azimuth there) × the faces' extent (`JointSides::lever`) | m | OK |
 | pcurves/decision.rs (`apex_nappe`) | pcurve_singular_nappe | an edge's height off the apex's normal plane, at its far end or mid-span | m | OK |
+| pcurves/decision.rs (`apex_reached`) | pcurve_sheet_apex_copy | a joint end's `v` at a spindle sheet's apex × the polar radius (`v_meter`) | m | OK |
 | splitting/join.rs:377 | split_section_area | 2·\|A\|/P mean width | m | FIXED (factor-2 doc/code mismatch; dimension was already m) |
 | splitting/join.rs (`spur_tips`, retired) | split_section_spur (retired: a slit is read from topology, by its halves' point keys, `Tree::slit`) | — | — | retired |
 | splitting/finish.rs:414 | classify_dihedral arm | edge extents (m) | m | OK |
