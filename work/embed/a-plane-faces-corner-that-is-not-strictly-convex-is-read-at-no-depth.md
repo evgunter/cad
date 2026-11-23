@@ -427,3 +427,108 @@ straight corner read through the `[e]` arm's half-plane at a vertex
 alone needs a separator of its own there: one through the corner's
 line, leaning off the partner, which the one-line arm builds only
 where the line is a shared edge.
+
+## Built: the two pieces (embed/corner-pieces, 2026-11-23)
+
+Built on `origin/embed/wave3-land` at `fdbcd20d8d`, the landing branch,
+which holds PR 7329's margin (`embed/remeter` `7667c455e`) and PR
+7318's separator. It needs both.
+
+**What the code reads.** `present_plane`'s two-line arm cuts the
+corner's sector on the ray `m`, the sum of the two edges' unit
+toward-face normals, into two pieces, the cones of `(a, m)` and
+`(b, m)`, each presented as a convex corner with its own zero
+(`Presentation::Pair`). `ray_inside` decides `m` strictly on the face
+side of each edge at `SELF_INTERSECTION_CORNER`, a length times a sine
+at a cell-scale lever, as the lean it replaces was; a spike or a slit
+in the band refuses. The lean gate and the one quadrant are gone.
+`departure` reads a face in two pieces piece by piece: a carrier parts
+the pair only where it signs every piece of the other face; the planes
+and the graph are asked of every piece pair; `one_shared_vertex`'s path
+(PR 7329) asks every piece pair of the two presentations against the
+vertex alone; the pair is certified only where all piece pairs are.
+
+**Where the build departs from the design above.**
+
+- **No near of its own per piece pair.** A separator through a shared
+  edge lists the edge's ends, so it holds the corner of a piece off
+  that edge, and the filleted corner (a plane's off-edge piece against
+  a tangent cylinder whose side is on the edge) is parted by exactly
+  that plane: `a_filleted_corners_ball_holds_against_a_face_at_its_pole`
+  refused with the per-pair near. Where the plane through a shared edge
+  is zero along the off-edge piece too (a straight corner), a valid
+  plane/plane pair is closed by the carrier arm: the second edge would
+  have to lie in both planes, that is on the shared line.
+- **A shared edge's end is the off-edge piece's corner**, whether or not
+  the partner's cell is near the vertex: the shared cell holds its
+  edges' ends.
+- **It needs PR 7329's margin.** On main's metering (a derivative times
+  the rectangle's span) four of the acceptance rows refused: the flush
+  union built at `(0.1, 0.2, 0.3)`, with sides 0.7, moved by
+  `(1/3, 10.1, −7.7)`, and at the session box's wall (there `f64` held
+  and `Interval` refused). Traced on the side-0.7 body: the L-shaped
+  top face's cell lying just across a shared edge from the face is
+  presented by the one-edge arm as a strip 2e-16 wide (at a non-dyadic
+  placement its chart coordinate and the cell's bound are each an ulp
+  wide), and against the straight wall's off-edge piece neither carrier
+  signs it: the top's is zero along that piece's edge, the wall's reads
+  the strip's departure times 2e-16. One quadrant, as the wall was
+  before, is signed by the top's carrier. With 7329's sine at the
+  faces' reach all nine body rows hold at both scalars. Two things
+  tried on main's metering and dropped once stacked, each because its
+  mutant survived: pieces overlapping past `m`, and a rule not to
+  present a piece the other covers.
+- **A self pair** (`certify_self`, the carrier arm off) cannot reach
+  the pieces: a plane face's own identification at a vertex is its loop
+  passing the vertex twice, four edges in the cell, which is not this
+  arm. Stated, not pinned.
+
+**Census, before and after** (`cp-measure-before` / `cp-measure-after`:
+the gate harness `origin/embed/remeter-measure` merged onto
+`embed/remeter` `7667c455e`, without and with this unit at
+`84a3108e8`; taken before the landing branch's lune and pole came in).
+Population: the census's 215 plane/plane departure tests.
+
+| | before | after |
+|---|---|---|
+| pass with the gate asking | 28 | 77 |
+| first refusal departure, vertex, plane/plane | 79 | 17 |
+| first refusal departure, edge, plane/plane | 89 | 73 |
+| `Crosses` | 13 | 32 |
+| `Budget` | 6 | 11 |
+| departure, cylinder/plane | 2 | 6 |
+
+No test that passed before fails after. By the classes the stopgap's
+probe gave the 179 tests it left refusing:
+
+| class | tests | pass before | pass after | the rest, after |
+|---|---|---|---|---|
+| straight only to rounding | 32 | 5 | 20 | 8 `Crosses`, 3 `Budget`, 1 edge |
+| reflex exits only | 78 | 21 | 29 | 20 edge, 7 vertex, 9 `Crosses`, 7 `Budget`, 4 cylinder/plane |
+| no two-line exit | 66 | 2 | 4 | 52 edge, 9 vertex, 1 `Budget` |
+| exact leans, another condition | 3 | 0 | 2 | 1 vertex |
+
+So the pieces close the straight corner (15 of the 27 left, the rest
+reaching a recorded contact or a budget) and little of the reflex one:
+21 of those 78 already pass on the base without this unit, and the
+pieces add 8. That agrees with `embed/iso-end`'s reading that a reflex
+pair is closed through its partner. Which of the 8 the carrier arm
+alone would close once the partner is presented was not separated out.
+The 72 that still refuse at an edge exit elsewhere (a thin face, more
+than two edges in the cell).
+
+**Pins.** Unit, `injective::presentation_rows`:
+`a_two_line_corner_is_two_pieces_that_cover_its_sector`,
+`a_spike_or_a_slit_within_the_band_is_not_cut`,
+`faces_sharing_a_vertex_alone_are_parted_piece_by_piece`,
+`faces_sharing_an_edge_of_the_corner_are_parted_or_refused`, and
+`a_planes_reflex_corner_of_two_lines_is_not_its_wedge` re-pinned. Body,
+each at both scalars: the flush union on the dyadic grid, built at
+`(0.1, 0.2, 0.3)`, with sides 0.7, moved by `(1/3, 10.1, −7.7)`, a
+hundred units out, at the session box's wall, turned about a generic
+axis, mirrored by the mirror door across a generic plane, its mirror
+image built and turned, and with its profiles turned in their sketch
+plane; a flap through a run at its vertex stays `Violated`. One row is
+tied to an ε: at 1e-12 the `Interval` union at the wall does not build
+(`work/contacthold/a-flush-union-at-the-session-boxs-wall-does-not-build-at-interval-at-the-tightest-eps.md`),
+and the row asserts the `f64` body there.
