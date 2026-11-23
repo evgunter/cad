@@ -858,19 +858,25 @@ impl<T: Decide + Bounds> CapSliver<T> {
         let (center, round) = match curve {
             EndCurve::Chord => (foot_a.mid(foot_b), None),
             EndCurve::Round(arc) => {
-                // The carrier's frame with the major semi-axis first
-                // (`Ellipse::quarter_turned_where`, as `Curve3::major_frame`
-                // reads it).
-                let (carrier, major, minor) = match *arc {
+                // The frame with the major semi-axis first
+                // (`Curve3::major_frame`).
+                let (center, axis, major, minor, u) = match *arc {
                     Curve3::Circle(circle) => {
+                        let (center, axis, u_ref) = (
+                            circle.frame().origin(),
+                            circle.frame().axis(),
+                            circle.frame().u_ref(),
+                        );
                         let radius = circle.radius();
-                        (circle.frame(), radius, radius)
+                        (center, axis, radius, radius, u_ref)
                     }
-                    Curve3::Ellipse(the_ellipse) => {
-                        let (semi_u, semi_v) = the_ellipse.semi_axes();
-                        let turned = the_ellipse.quarter_turned_where(semi_v - semi_u);
-                        let (major, minor) = turned.semi_axes();
-                        (turned.frame(), major, minor)
+                    ref ellipse @ Curve3::Ellipse(the_ellipse @ geom::Ellipse { .. }) => {
+                        let carrier_frame = the_ellipse.frame();
+                        let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
+                        let Some(f) = ellipse.major_frame() else {
+                            unreachable!("an Ellipse carrier has a major frame")
+                        };
+                        (center, axis, f.major, f.minor, f.major_dir)
                     }
                     Curve3::Line(_)
                     | Curve3::Spiric { .. }
@@ -894,9 +900,13 @@ impl<T: Decide + Bounds> CapSliver<T> {
                     return Err(backward());
                 }
                 let frame = SectionFrame {
-                    shape: geom::Ellipse::new(carrier.with_origin(Point3::origin()), major, minor),
+                    shape: geom::Ellipse::new(
+                        geom::Frame::new(Point3::origin(), axis, u),
+                        major,
+                        minor,
+                    ),
                 };
-                (carrier.origin(), Some((frame, carrier.axis())))
+                (center, Some((frame, axis)))
             }
         };
         let toward = (pv - center).normalize();
