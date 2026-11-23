@@ -457,10 +457,11 @@ fn conic_arc_segments(
 }
 
 /// The unit cylinder cut by the plane `y = 0.5 + 0.3·z`, its lower half:
-/// a planar elliptic top bounded by two half-ellipses that meet at the
-/// seam points `(±1, 0.5, 0)`, and the half on `z < 0`, which dips to
-/// `y = 0.2` between them: an edge between a plane face and a cylinder
-/// face, both armed.
+/// a planar elliptic top bounded by one ellipse through the wall's seam
+/// at `(1, 0.5, 0)`, split by hand at its antipode `(−1, 0.5, 0)` into
+/// two half-ellipses (construction state), and the half on `z < 0`,
+/// which dips to `y = 0.2` between them: an edge between a plane face
+/// and a cylinder face, both armed.
 fn tilted_cut_rim() -> (Body<f64>, Rim) {
     let cyl = revolved(vec![
         (Point2::new(0.0, 0.0), 0.0),
@@ -475,6 +476,18 @@ fn tilted_cut_rim() -> (Body<f64>, Rim) {
     let SplitPart::Body(body) = split(&cyl, &tilt, Tol::witness()).unwrap().below else {
         panic!("the tilted cut leaves material below");
     };
+    // The section is one closed ellipse through the wall's seam at
+    // `(1, 0.5, 0)`; split at its antipode it is the two half-ellipses.
+    let mut body = body.into_body();
+    let (whole, (t0, t1)) = body
+        .edges()
+        .find_map(|(k, e)| {
+            let c = body.get_curve_geom(e.curve)?.certified()?;
+            matches!(c.carrier(), geom::Curve3::Ellipse(..)).then(|| (k, c.params()))
+        })
+        .expect("the tilted section is one ellipse");
+    body.split_edge(whole, 0.5 * (t0 + t1), Tol::witness())
+        .expect("the ellipse splits at its antipode");
     let rim = body
         .edges()
         .find_map(|(k, e)| {
@@ -496,7 +509,7 @@ fn tilted_cut_rim() -> (Body<f64>, Rim) {
             })
         })
         .expect("the tilted section has a half-ellipse on z < 0");
-    (body.into_body(), rim)
+    (body, rim)
 }
 
 /// [`tilted_cut_rim`]'s half-ellipse: its edge, carrier, interval and
@@ -590,8 +603,9 @@ fn cylinder_with_a_spline_rim() -> (Body<f64>, topo::EdgeKey) {
 /// left rowless for a closing mint, and the at-rest gate reads it
 /// `Unminted`; the mint stores its projected rows
 /// (`work/pcert/site-rows-derive-through-chart-pcurve-bypassing-the-routed-arm.md`).
-/// The body is not a finished body and no split door takes it; the row
-/// reads the carrier gate past the door.
+/// The hand split that leaves the half-ellipse is a station the gate
+/// reads too. The body is not a finished body and no split door takes
+/// it; the row reads the carrier gate past the door.
 #[test]
 fn a_spline_edge_whose_belly_crosses_the_plane_refuses() {
     let (body, edge) = cylinder_with_a_spline_rim();
@@ -608,8 +622,12 @@ fn a_spline_edge_whose_belly_crosses_the_plane_refuses() {
                 topo::ValidationError::Pcurve {
                     finding: topo::pcurves::PcurveMintError::Unminted { face },
                 } if face == &rim_faces.0 || face == &rim_faces.1
+            ) || matches!(
+                e,
+                topo::ValidationError::JoinableVertexAtRest { .. }
             )),
-        "the at-rest gate reads the face the spline bounds as owed rows it lacks: {errors:?}"
+        "the at-rest gate reads the face the spline bounds as owed rows it lacks, and the \
+         hand split's station: {errors:?}"
     );
     let mut minted = body.clone();
     topo::mint_pcurves(&mut minted, Tol::witness()).expect("the closing mint");
