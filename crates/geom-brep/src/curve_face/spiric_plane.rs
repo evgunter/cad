@@ -491,6 +491,80 @@ mod tests {
         );
     }
 
+    /// The oracle's gap: the least `|height|` off the plane among the
+    /// local extremes of the oval's height over the span, each found on a
+    /// fine sampling and narrowed by ternary search on the oval's own
+    /// evaluation.
+    fn oracle_gap(curve: &Curve3<f64>, origin: Point3<f64>, normal: Vec3<f64>) -> f64 {
+        let normal = normal.normalize();
+        let f = |v: f64| (curve.eval(v) - origin).dot(normal);
+        let n = 20_000;
+        let at = |i: i32| SPAN.0 + (SPAN.1 - SPAN.0) * f64::from(i) / f64::from(n);
+        let mut gap = f64::INFINITY;
+        for i in 1..n {
+            let (below, here, above) = (f(at(i - 1)), f(at(i)), f(at(i + 1)));
+            let sense = if here <= below && here <= above {
+                1.0
+            } else if here >= below && here >= above {
+                -1.0
+            } else {
+                continue;
+            };
+            let (mut a, mut b) = (at(i - 1), at(i + 1));
+            for _ in 0..200 {
+                let (p, q) = (a + (b - a) / 3.0, b - (b - a) / 3.0);
+                if sense * f(p) < sense * f(q) {
+                    b = q;
+                } else {
+                    a = p;
+                }
+            }
+            gap = gap.min(f(0.5 * (a + b)).abs());
+        }
+        gap
+    }
+
+    /// **A near miss is a height off the cutting plane, at any lean**
+    /// (`[simple.conditioned]`): the plane through the oval's tangent line
+    /// at a point of it, leaned so the planes' tilt sine is `s`, then moved
+    /// by δ along its own normal either way, so the oval misses it or dips
+    /// through it by δ. The oracle reads that gap off the oval's own
+    /// evaluation. A gap inside the band's escalation refuses at every
+    /// lean; a gap of twice the escalation or more answers the oracle's
+    /// count, each meeting on the plane.
+    #[test]
+    fn a_leaned_plane_missing_the_oval_by_less_than_the_band_refuses() {
+        let curve = oval();
+        let escalate = band().escalate();
+        let mut wrong = Vec::new();
+        for s in [1.0_f64, 0.2, 0.05, 0.01] {
+            let (mut refused, mut answered) = (0, 0);
+            for v in [0.0, 0.7, 2.3, -1.1] {
+                let across = Vec3::unit_x().cross(curve.deriv(v).normalize());
+                let normal = Vec3::unit_x() * (1.0 - s * s).sqrt() + across * s;
+                for side in [1.0, -1.0] {
+                    for k in [1e-3, 1e-2, 0.1, 0.3, 0.6, 0.9, 2.0, 3.0, 10.0, 100.0] {
+                        let origin = curve.eval(v) + normal * (side * k * escalate);
+                        let gap = oracle_gap(&curve, origin, normal);
+                        let label = format!("s {s}, v {v}, δ {}·escalate", side * k);
+                        if (gap - k * escalate).abs() > 1e-3 * k * escalate {
+                            wrong.push(format!("{label}: the oracle's gap {gap}"));
+                            continue;
+                        }
+                        match (gap < escalate, read_against_oracle(origin, normal)) {
+                            (true, Ok(None)) => refused += 1,
+                            (false, Ok(Some(_))) => answered += 1,
+                            (true, got) => wrong.push(format!("{label}: in band, read {got:?}")),
+                            (false, got) => wrong.push(format!("{label}: past it, read {got:?}")),
+                        }
+                    }
+                }
+            }
+            eprintln!("s {s}: {refused} in band refused, {answered} past it answered");
+        }
+        assert!(wrong.is_empty(), "{} wrong: {wrong:#?}", wrong.len());
+    }
+
     /// **A graze of the other oval refuses**: the plane square to the
     /// oval's plane through the mirror oval's outermost point misses this
     /// oval, but the line × torus ladder reads the whole line, which
