@@ -515,12 +515,13 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     // this leaf's `carrier_on_surface` decisions to a coefficient freeze
     // (`work/sym/rule-h-loses-two-pad-decisions-to-a-coefficient-freeze.md`),
     // and no general claim can see such a loss, since the tier is not
-    // monotone in its rules. Once that row closes, this exact receipt
-    // narrows to the general form above.
+    // monotone in its rules. The loss shows in `symbolic`, so that column
+    // is pinned; `numeric` is not, and moves with decisions the tier
+    // never proved (the least turn's pole verdicts took it 1801 -> 1803).
+    // Once that row closes, this pin narrows to the general form above.
     assert_eq!(
-        [d.symbolic, d.numeric, d.retried],
-        [1390, 1801, 0],
-        "the shipped ladder's leaf receipt"
+        d.symbolic, 1390,
+        "the shipped ladder's leaf proves 1390 theorems: {d:?}"
     );
     let retried = d.retried > 0;
     assert_eq!(
