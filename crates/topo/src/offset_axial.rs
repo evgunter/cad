@@ -2157,11 +2157,10 @@ fn mint_carrier<T: Decide>(
     // sphere's great circle, a torus's meridian circle — and each
     // certifies its own posture.
     if ca.old_key == cb.old_key {
-        if let Curve3::Circle(geom::Circle {
-            frame: seam_frame, ..
-        }) = old
-            && latitude_posture(frame, seam_frame.axis_line(), band)?.is_none()
+        if let Curve3::Circle(seam) = old
+            && latitude_posture(frame, seam.frame().axis_line(), band)?.is_none()
         {
+            let seam_frame = seam.frame();
             let (axis, u_ref) = (seam_frame.axis(), seam_frame.u_ref());
             return Ok(latitude_circle(frame, p_start, axis, u_ref));
         }
@@ -2201,12 +2200,9 @@ fn mint_carrier<T: Decide>(
                     frame: sphere_frame,
                     ..
                 },
-                Curve3::Circle(
-                    circle @ geom::Circle {
-                        frame: seam_frame, ..
-                    },
-                ),
+                Curve3::Circle(circle),
             ) => {
+                let seam_frame = &circle.frame();
                 let cc = seam_frame.origin();
                 let center = sphere_frame.origin();
                 let radius = circle.radius();
@@ -2237,12 +2233,9 @@ fn mint_carrier<T: Decide>(
                     major_radius,
                     ..
                 },
-                Curve3::Circle(
-                    circle @ geom::Circle {
-                        frame: seam_frame, ..
-                    },
-                ),
+                Curve3::Circle(circle),
             ) => {
+                let seam_frame = &circle.frame();
                 let cc = seam_frame.origin();
                 let center = torus_frame.origin();
                 let radius = circle.radius();
@@ -2462,8 +2455,9 @@ fn mint_carrier<T: Decide>(
         // the two normals says whether the parameter runs the old way.
         // A cosine of unit vectors, levered at the body's extent.
         let normal_of = |c: &Curve3<T>| match c {
-            Curve3::Circle(geom::Circle { frame, .. })
-            | Curve3::Ellipse(geom::Ellipse { frame, .. }) => Some(frame.axis().normalize()),
+            Curve3::Circle(_) | Curve3::Ellipse(_) => {
+                c.frame().map(|frame| frame.axis().normalize())
+            }
             Curve3::Spiric { frame, .. } => {
                 let u_ref = frame.u_ref();
                 Some(u_ref.normalize())
@@ -2520,10 +2514,9 @@ fn mint_carrier<T: Decide>(
             .offset(p_start);
             Ok(Curve3::line(*origin + delta, *dir))
         }
-        Curve3::Circle(geom::Circle {
-            frame: circle @ carrier_frame,
-            ..
-        }) => {
+        Curve3::Circle(circle_5) => {
+            let circle = circle_5.frame();
+            let carrier_frame = circle;
             let (axis, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
             // A LATITUDE circle: coaxial with the body, so its centre
             // stays on the axis and its radius is the corner's own.
@@ -2551,10 +2544,9 @@ fn uncertified_arc<T: Real>(
 ) -> ReplaceFaceError<T> {
     let ReplaceFaceError::Op {
         error:
-            crate::EulerOpError::RechartFalsifies {
-                edge,
+            crate::EulerOpError::DescriptionUncertified {
+                edge: crate::EdgeSubject::Keyed(edge),
                 error: geom_brep::CertifyError::AnalyticRung3(refusal),
-                ..
             },
         ..
     } = &error
@@ -2838,7 +2830,8 @@ fn param_on<T: Decide>(
     let t = match carrier {
         // A circle's motion is the angle between the two points' rays
         // about its own centre, read off the points themselves.
-        Curve3::Circle(geom::Circle { frame, .. }) => {
+        Curve3::Circle(the_circle @ geom::Circle { .. }) => {
+            let frame = the_circle.frame();
             let (center, axis) = (frame.origin(), frame.axis());
             let n = axis.normalize();
             let axis_line = geom::Line {
@@ -3098,11 +3091,12 @@ fn reauthor<T: Decide>(
                         geom_brep::SketchSegment::Line { a, b }
                     }
                     geom_brep::SketchSegment::Arc { arc: was, .. } => {
-                        let Curve3::Circle(circle @ geom::Circle { frame, .. }) = carrier else {
+                        let Curve3::Circle(circle) = carrier else {
                             return Err(refuse(
                                 "a sketch arc with no moved circle to be redrawn about",
                             ));
                         };
+                        let frame = circle.frame();
                         let center = frame.origin();
                         let radius = circle.radius();
                         let centre = flat(center);
@@ -3429,9 +3423,8 @@ mod tests {
         for (name, refusal, conic) in rows {
             let refused = |edge| ReplaceFaceError::<f64>::Op {
                 edge: None,
-                error: crate::EulerOpError::RechartFalsifies {
-                    door: crate::euler::RechartDoor::SetFaceSurface,
-                    edge,
+                error: crate::EulerOpError::DescriptionUncertified {
+                    edge: crate::EdgeSubject::Keyed(edge),
                     error: geom_brep::CertifyError::AnalyticRung3(refusal),
                 },
             };
@@ -3445,9 +3438,8 @@ mod tests {
         let other = uncertified_arc(
             ReplaceFaceError::<f64>::Op {
                 edge: None,
-                error: crate::EulerOpError::RechartFalsifies {
-                    door: crate::euler::RechartDoor::SetFaceSurface,
-                    edge: EdgeKey::default(),
+                error: crate::EulerOpError::DescriptionUncertified {
+                    edge: crate::EdgeSubject::Keyed(EdgeKey::default()),
                     error: geom_brep::CertifyError::AnalyticRung3(A::NoTubeEnclosure {
                         operand: SurfaceKind::Cone,
                     }),

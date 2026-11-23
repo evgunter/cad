@@ -106,6 +106,15 @@ pub trait SolveScalar: Decide {
     fn exactly_zero(self) -> bool {
         false
     }
+
+    /// **Whether this scalar is zero at every point it stands for**: an
+    /// `f64` (or `Probe`) of either sign's zero, an interval `[0, 0]`, a
+    /// dual whose value and derivative both are; at `Sym`, its box
+    /// lane's point zero alone (never at `Sym<f64>`, whose symbols range
+    /// over every value).
+    fn zero_everywhere(self) -> bool {
+        self.quoted() == 0.0 && self.upper() == 0.0
+    }
 }
 
 /// **The spin angle of `(x, y)` at a box scalar, or one recording its
