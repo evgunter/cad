@@ -995,7 +995,11 @@ fn point_in_loop_trilean() {
     let body = &fx.body;
     let top = body.get_face(fx.top_face).unwrap();
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
-    let n = Vec3::new(0.0, 0.0, 1.0);
+    let n = geom::Frame::new(
+        Point3::origin(),
+        Vec3::new(0.0, 0.0, 1.0),
+        Vec3::new(1.0, 0.0, 0.0),
+    );
     let q = |x: f64, y: f64| Point3::new(x, y, 1.0);
     assert_eq!(
         point_in_loop(body, top.outer, n, q(1.0, 1.0), band).unwrap(),
