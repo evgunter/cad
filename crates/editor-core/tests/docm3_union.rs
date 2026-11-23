@@ -139,13 +139,13 @@ fn the_fold_and_the_pairwise_chain_are_the_same_body() {
     let (doc, ab) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![boxes[0].into(), boxes[1].into()]),
+            members: editor_core::Bodies::spelled(vec![boxes[0].into(), boxes[1].into()]),
         },
     );
     let (doc, abc) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![ab.into(), boxes[2].into()]),
+            members: editor_core::Bodies::spelled(vec![ab.into(), boxes[2].into()]),
         },
     );
     let ev = run(&doc);
@@ -224,13 +224,13 @@ fn a_repeated_input_glues_at_the_insert_door() {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![x.into(), x.into()]),
+            members: editor_core::Bodies::spelled(vec![x.into(), x.into()]),
         },
     );
     let (doc, meet) = insert(
         doc,
         Node::Intersect {
-            members: editor_core::Bodies::Spelled(vec![x.into(), x.into()]),
+            members: editor_core::Bodies::spelled(vec![x.into(), x.into()]),
         },
     );
     let (doc, cut) = insert(
@@ -266,7 +266,7 @@ fn set_members_accepts_a_repeated_member_and_glues_it() {
         .apply(
             &DocEdit::SetMembers {
                 node: u,
-                members: editor_core::Bodies::Spelled(vec![
+                members: editor_core::Bodies::spelled(vec![
                     boxes[0].into(),
                     boxes[1].into(),
                     boxes[0].into(),
@@ -340,7 +340,7 @@ fn a_snapshot_carrying_a_repeated_or_single_member_loads() {
         .apply(
             &DocEdit::SetMembers {
                 node: u,
-                members: editor_core::Bodies::Spelled(vec![boxes[0].into()]),
+                members: editor_core::Bodies::spelled(vec![boxes[0].into()]),
             },
             tol,
         )
@@ -364,7 +364,7 @@ fn set_members_refuses_a_node_with_no_list_input() {
         .apply(
             &DocEdit::SetMembers {
                 node: pair,
-                members: editor_core::Bodies::Spelled(vec![boxes[0].into(), boxes[2].into()]),
+                members: editor_core::Bodies::spelled(vec![boxes[0].into(), boxes[2].into()]),
             },
             Tol::witness(),
         )
@@ -384,7 +384,7 @@ fn set_members_refuses_a_member_that_is_not_live() {
         .apply(
             &DocEdit::SetMembers {
                 node: u,
-                members: editor_core::Bodies::Spelled(vec![boxes[0].into(), ghost.into()]),
+                members: editor_core::Bodies::spelled(vec![boxes[0].into(), ghost.into()]),
             },
             Tol::witness(),
         )
@@ -403,14 +403,14 @@ fn set_members_refuses_a_cycle() {
     let (doc, downstream) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![u.into(), boxes[0].into()]),
+            members: editor_core::Bodies::spelled(vec![u.into(), boxes[0].into()]),
         },
     );
     let err = doc
         .apply(
             &DocEdit::SetMembers {
                 node: u,
-                members: editor_core::Bodies::Spelled(vec![boxes[1].into(), downstream.into()]),
+                members: editor_core::Bodies::spelled(vec![boxes[1].into(), downstream.into()]),
             },
             Tol::witness(),
         )
@@ -428,7 +428,7 @@ fn set_members_accepts_one_member_and_none() {
         doc.apply(
             &DocEdit::SetMembers {
                 node: u,
-                members: editor_core::Bodies::Spelled(
+                members: editor_core::Bodies::spelled(
                     members.into_iter().map(Into::into).collect(),
                 ),
             },
@@ -482,12 +482,12 @@ fn a_union_and_a_set_members_replay_bit_identically() {
         });
     }
     let u = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(boxes.iter().map(|&b| b.into()).collect()),
+        members: editor_core::Bodies::spelled(boxes.iter().map(|&b| b.into()).collect()),
     });
     let mut edits = r.edits;
     edits.push(DocEdit::SetMembers {
         node: u,
-        members: editor_core::Bodies::Spelled(vec![boxes[2].into(), boxes[0].into()]),
+        members: editor_core::Bodies::spelled(vec![boxes[2].into(), boxes[0].into()]),
     });
     edits.push(DocEdit::DeleteNode { id: boxes[1] });
     let mut replayed = empty.clone();
@@ -530,7 +530,7 @@ fn dropping_a_member_leaves_the_others_names_alone() {
         .apply(
             &DocEdit::SetMembers {
                 node: u,
-                members: editor_core::Bodies::Spelled(vec![boxes[1].into(), boxes[2].into()]),
+                members: editor_core::Bodies::spelled(vec![boxes[1].into(), boxes[2].into()]),
             },
             Tol::witness(),
         )
@@ -574,7 +574,7 @@ fn two_placements_of_one_prototype_are_two_members() {
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![left.into(), right.into()]),
+            members: editor_core::Bodies::spelled(vec![left.into(), right.into()]),
         },
     );
     let ev = run(&doc);
@@ -704,7 +704,7 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
             .apply(
                 &DocEdit::SetMembers {
                     node: union,
-                    members: editor_core::Bodies::Spelled(
+                    members: editor_core::Bodies::spelled(
                         kept.into_iter().map(Into::into).collect(),
                     ),
                 },
@@ -831,7 +831,7 @@ fn the_dies_union_is_the_chain_it_replaced() {
             insert(
                 doc,
                 Node::Union {
-                    members: editor_core::Bodies::Spelled(vec![acc.into(), (*pip).into()]),
+                    members: editor_core::Bodies::spelled(vec![acc.into(), (*pip).into()]),
                 },
             )
         },
@@ -991,13 +991,13 @@ fn a_later_fold_step_glues_a_flush_member_as_the_pair_does() {
     let (bare, u) = insert(
         doc.clone(),
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into(), d.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into(), d.into()]),
         },
     );
     let (bare, pair) = insert(
         bare,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), d.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), d.into()]),
         },
     );
     let ev = run(&bare);
@@ -1126,7 +1126,7 @@ fn set_members_refuses_an_unknown_node() {
         .apply(
             &DocEdit::SetMembers {
                 node: RecipeNodeId::new(0, 9999),
-                members: editor_core::Bodies::Spelled(vec![boxes[0].into(), boxes[1].into()]),
+                members: editor_core::Bodies::spelled(vec![boxes[0].into(), boxes[1].into()]),
             },
             Tol::witness(),
         )
@@ -1167,7 +1167,7 @@ fn list_input_and_set_list_input_agree_on_every_node_kind() {
                 &DocEdit::SetMembers {
                     node: id,
                     members: list.unwrap_or_else(|| {
-                        editor_core::Bodies::Spelled(
+                        editor_core::Bodies::spelled(
                             doc.ids()[..2].iter().map(Into::into).collect(),
                         )
                     }),
@@ -1210,7 +1210,7 @@ fn list_input(
                 })
                 .unwrap_or_else(|never| match never {}),
         ),
-        Node::Loft { first, then, .. } => Some(editor_core::Bodies::Spelled(
+        Node::Loft { first, then, .. } => Some(editor_core::Bodies::spelled(
             std::iter::once(*first)
                 .chain(then.iter().map(|s| s.profile))
                 .map(editor_core::BodyRead::plain)
