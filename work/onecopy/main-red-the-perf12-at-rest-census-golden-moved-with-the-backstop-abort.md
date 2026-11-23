@@ -2,7 +2,8 @@
 id: main-red-the-perf12-at-rest-census-golden-moved-with-the-backstop-abort
 kind: issue
 title: Main red (slow set): perf12's at-rest census verdicts drift from their golden at line 75 since PR 6757's backstop abort
-status: open
+status: closed
+closed: 2026-11-23
 opened: 2026-11-11
 priority: P1
 cost: E
@@ -22,3 +23,7 @@ Read the diff (`PERF12_BLESS_CENSUS=1` writes the new golden), decide whether th
 ## Pinned (GREEN, `green/goldens`, 2026-11-14)
 
 Still red at line 75 at every ε row in nightly 43371638371 and on main `b363f5fa1`, and at every commit measured from `9a256348` to main. GREEN PINNED the three goldens at what main reads (written with `PERF12_BLESS_CENSUS=1`), unjudged, so the row is green and reds on the next move; the test's doc names this row. The diff of the goldens is in that PR. Still owed here: whether PR 6757's verdict at line 75 is right.
+
+## Closed (CIW, 2026-11-23)
+
+The golden this row asked about is gone. PR 7501 (`ciw/census-digest-goldens`) deletes editor-core's `perf12_census_goldens`. Its stated claim, that a candidate pre-filter leaves the census byte-identical, is now asserted directly by `perf12_census_bvh_diff`: realized against idealized, bit-equal errors, superset and order. That runs on the corpus and on the heat sink at 10, 40 and 160 fins. The six findings in question changed their sentence, but not their pairs or `MayOverlap`. No census verdict moved, so no defect is suspected and no witness pin is kept. The re-pin did change one thing: the stated cause of three pairs, from "another finding left their boundaries unchecked" to a curved-face touch the check cannot yet side. So the deferral was lifted, and the backstop abort now names what it could not read.

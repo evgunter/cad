@@ -265,11 +265,10 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// moves none of these counts: the copy's stated images are carried with
 /// its certificates, so none is metered again where it is placed.
 ///
-/// **The decided least-turn mint** (fork 270): a pair that is one
-/// direction exactly turns by the identity with no pole verdict, its
-/// chord being 2, and this copy's mated directions agree exactly, so
-/// `mate_chart_pole` 0/1 decides nothing. Nothing else moved; deciding
-/// the pole at the identity again puts back the row.
+/// **The decided least-turn mint** (fork 270) reads no exactness off the
+/// nominal: this copy's mated directions agree, and their identity turn
+/// decides its pole verdict and its conditioning like any other pair,
+/// `mate_chart_pole` 0/1 and `least_turn_conditioning` 0/1.
 ///
 /// **An adjacent line pair's shared vertex is not read**
 /// (`profile::seg`'s `line_line`): the tab's two straight corners each
@@ -306,7 +305,9 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("extrusion_normal_component", [0, 2]),
     ("interval_span_forward", [0, 36]),
     ("interval_span_winding", [0, 12]),
+    ("least_turn_conditioning", [0, 1]),
     ("line_span", [2, 4]),
+    ("mate_chart_pole", [0, 1]),
     ("path_circle_radius", [0, 1]),
     ("path_junction_turn", [0, 11]),
     ("pcurve_chart_cut_side", [0, 26]),
@@ -495,11 +496,10 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
 /// 126/0, `pcurve_chart_radial_moving` 22/20 -> 14/12, the other
 /// `pcurve_*` rows about four in ten, `ssi_hull_sup` 28/0 -> 20/0.
 ///
-/// **The decided least-turn mint** (fork 270): a pair that is one
-/// direction exactly turns by the identity with no pole verdict, its
-/// chord being 2, and this copy's mated directions agree exactly, so
-/// `mate_chart_pole` 0/1 decides nothing. Nothing else moved; deciding
-/// the pole at the identity again puts back the row.
+/// **The decided least-turn mint** (fork 270) reads no exactness off the
+/// nominal: this copy's mated directions agree, and their identity turn
+/// decides its pole verdict and its conditioning like any other pair,
+/// `mate_chart_pole` 0/1 and `least_turn_conditioning` 0/1.
 #[test]
 fn m10_bulge_the_bosss_split_at_the_nominal() {
     let tol = Tol::witness();
@@ -530,7 +530,9 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("extrusion_normal_component", [0, 2]),
             ("interval_span_forward", [0, 24]),
             ("interval_span_winding", [0, 12]),
+            ("least_turn_conditioning", [0, 1]),
             ("line_span", [2, 0]),
+            ("mate_chart_pole", [0, 1]),
             ("path_circle_radius", [0, 1]),
             ("path_junction_turn", [0, 5]),
             ("pcurve_chart_cut_side", [0, 26]),

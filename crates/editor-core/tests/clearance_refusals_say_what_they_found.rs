@@ -15,7 +15,7 @@ use std::collections::BTreeMap;
 
 use editor_core::analysis::ParamBox;
 use editor_core::clearance::{
-    CertificateArm, ClearanceRefusal, ClearanceVerdict, EngineRefusal, FaceScope,
+    CellBudget, CertificateArm, ClearanceRefusal, ClearanceVerdict, EngineRefusal, FaceScope,
     MinSeparationRefusal, Selection, SelectionRefusal, SharedCell, Which,
 };
 use editor_core::{EntityKind, Entry, EvalOptions, Node, ProfileDoc, RecipeNodeId, StableName};
@@ -155,6 +155,65 @@ fn a_refused_report_renders_the_refusal_in_words() {
              there is nothing to measure"
         ),
         "the refused line names the second scope: {rendered}"
+    );
+}
+
+/// **A refusal made on a cell pair names the pair's two faces**: a
+/// budget, a sliver and a witness the verifier declined are each one
+/// finding on two faces, said with the sides like every other pair's.
+#[test]
+fn a_budget_a_sliver_and_a_declined_witness_name_their_two_faces() {
+    let k = FaceKey::default();
+    let budget = |stop| EngineRefusal::Budget { stop, a: k, b: k };
+    assert_eq!(
+        budget(CellBudget::Depth { max_cell_depth: 40 }).to_string(),
+        "a cell pair of face FaceKey(null) of the first side and face FaceKey(null) of the \
+         second side was split 40 times, the depth budget, and is still undecided"
+    );
+    assert_eq!(
+        budget(CellBudget::Pairs { max_cell_pairs: 7 }).to_string(),
+        "the query examined 7 cell pairs, its budget, with pairs still undecided, the first of \
+         them of face FaceKey(null) of the first side and face FaceKey(null) of the second side"
+    );
+    assert_eq!(
+        budget(CellBudget::Resolution).to_string(),
+        "a cell pair of face FaceKey(null) of the first side and face FaceKey(null) of the \
+         second side could not be bisected: its midpoint lands on an endpoint, so the f64 grid \
+         itself is the bound"
+    );
+    assert_eq!(
+        budget(CellBudget::Resolution).payload(),
+        "Resolution first=FaceKey(null) second=FaceKey(null)"
+    );
+    let sliver = EngineRefusal::Sliver {
+        predicate: "clearance_margin",
+        a: k,
+        b: k,
+    };
+    assert_eq!(
+        sliver.to_string(),
+        "the separation of face FaceKey(null) of the first side and face FaceKey(null) of the \
+         second side sits wholly inside clearance_margin's ambiguity band, so no refinement can \
+         decide it"
+    );
+    assert_eq!(
+        sliver.payload(),
+        "clearance_margin first=FaceKey(null) second=FaceKey(null)"
+    );
+    let declined = EngineRefusal::WitnessUnverified {
+        what: "the closest station pair is 1 apart".to_owned(),
+        a: k,
+        b: k,
+    };
+    assert_eq!(
+        declined.to_string(),
+        "a pair of face FaceKey(null) of the first side and face FaceKey(null) of the second \
+         side the interval pass found below the lower bound or within the upper one was not \
+         confirmed by the verifier: the closest station pair is 1 apart"
+    );
+    assert_eq!(
+        declined.payload(),
+        "first=FaceKey(null) second=FaceKey(null) the closest station pair is 1 apart"
     );
 }
 

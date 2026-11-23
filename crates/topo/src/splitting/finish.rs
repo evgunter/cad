@@ -656,7 +656,7 @@ pub(super) fn end_maximal<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     side: PlaneSide,
     naming: &mut SplitNaming,
-    normal: Vec3<T>,
+    plane: geom::Frame<T>,
     tol: Tol,
 ) -> Result<(), SplitFinishError> {
     // Taken before the kills, which drop it (`SplitNaming::joined_lineage`).
@@ -697,7 +697,7 @@ pub(super) fn end_maximal<T: Decide + crate::props::AtRestPolicy>(
         .merge_skipped
         .extend(merged.skipped.into_iter().map(|s| (side, s)));
     naming.record_joins(side, &split_from, merged.joins);
-    record_islands(body, side, naming, normal, tol)
+    record_islands(body, side, naming, plane, tol)
 }
 
 /// Records which ring of `side`'s finished plane pieces holds which
@@ -715,7 +715,7 @@ fn record_islands<T: Decide>(
     body: &Body<T>,
     side: PlaneSide,
     naming: &mut SplitNaming,
-    normal: Vec3<T>,
+    plane: geom::Frame<T>,
     tol: Tol,
 ) -> Result<(), SplitFinishError> {
     let pieces = naming.plane_pieces(side, body).faces;
@@ -730,8 +730,8 @@ fn record_islands<T: Decide>(
         return Ok(());
     }
     let band = geom_core::Band::linear(tol).map_err(SplitFinishError::Band)?;
-    let side_normal = section_loops::section_normal(normal, side);
-    let nesting = section_loops::nest(body, rings, outlines, side_normal, band).map_err(
+    let side_plane = section_loops::section_frame(plane, side);
+    let nesting = section_loops::nest(body, rings, outlines, side_plane, band).map_err(
         |fault| match fault {
             section_loops::NestFault::Torn(key) => {
                 SplitFinishError::Desync(FinishDesync::Unresolved(key))
@@ -1545,20 +1545,12 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
         &mut body,
         &mut section_side,
         &mut naming,
-        red.plane.normal.get(),
+        red.plane.frame(),
         band,
         tol,
     )?;
     for (slit, side) in slits {
-        nest_slit(
-            &mut body,
-            slit,
-            side,
-            &naming,
-            red.plane.normal.get(),
-            band,
-            tol,
-        )?;
+        nest_slit(&mut body, slit, side, &naming, red.plane.frame(), band, tol)?;
     }
 
     // ---- D6 (M3 PR 6a): honest descriptions on the section boundary,
@@ -1675,7 +1667,7 @@ fn nest_hole_sections<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     section_side: &mut SecondaryMap<FaceKey, PlaneSide>,
     naming: &mut SplitNaming,
-    normal: Vec3<T>,
+    plane: geom::Frame<T>,
     band: geom_core::Band,
     tol: Tol,
 ) -> Result<(), SplitFinishError> {
@@ -1693,9 +1685,9 @@ fn nest_hole_sections<T: Decide + crate::props::AtRestPolicy>(
                 holes.push(((face, data.outer), data.outer));
             }
         }
-        let side_normal = section_loops::section_normal(normal, side);
+        let side_plane = section_loops::section_frame(plane, side);
         let nesting =
-            section_loops::nest(body, outlines, holes, side_normal, band).map_err(|fault| {
+            section_loops::nest(body, outlines, holes, side_plane, band).map_err(|fault| {
                 match fault {
                     section_loops::NestFault::Torn(key) => {
                         SplitFinishError::Desync(FinishDesync::Unresolved(key))
@@ -1711,10 +1703,16 @@ fn nest_hole_sections<T: Decide + crate::props::AtRestPolicy>(
                 let mut clear = true;
                 for &r in &rings {
                     clear = clear
-                        && section_loops::outlines_disjoint(body, r, hole_loop, side_normal, band)
-                            .map_err(|section_loops::Torn(key)| {
-                                SplitFinishError::Desync(FinishDesync::Unresolved(key))
-                            })?;
+                        && section_loops::outlines_disjoint(
+                            body,
+                            r,
+                            hole_loop,
+                            side_plane.axis(),
+                            band,
+                        )
+                        .map_err(|section_loops::Torn(key)| {
+                            SplitFinishError::Desync(FinishDesync::Unresolved(key))
+                        })?;
                 }
                 if clear {
                     rings.push(hole_loop);
@@ -1804,7 +1802,7 @@ fn nest_slit<T: Decide + crate::props::AtRestPolicy>(
     slit: FaceKey,
     side: PlaneSide,
     naming: &SplitNaming,
-    normal: Vec3<T>,
+    plane: geom::Frame<T>,
     band: geom_core::Band,
     tol: Tol,
 ) -> Result<(), SplitFinishError> {
@@ -1817,9 +1815,8 @@ fn nest_slit<T: Decide + crate::props::AtRestPolicy>(
             .map_err(|key| SplitFinishError::Desync(FinishDesync::Unresolved(key)))
     };
     let q = at(slit_loop)?;
-    let side_normal = section_loops::section_normal(normal, side);
     let read = |l, p| {
-        point_in_loop(body, l, side_normal, p, band)
+        point_in_loop(body, l, plane, p, band)
             .map_err(|error| SplitFinishError::SlitHoming { slit, error })
     };
     let unplaced = |in_hole| Err(SplitFinishError::SlitUnplaced { slit, in_hole });

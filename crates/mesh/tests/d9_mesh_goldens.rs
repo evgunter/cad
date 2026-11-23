@@ -46,6 +46,12 @@
 //!   by an oblique plane — the cut rim is an ellipse, whose stored image
 //!   is no iso line of the chart, so the route sends the wall through
 //!   the pcurve-driven lane with `cert::cert_cylinder` certificates.
+//!   `notched_wall` and `holed_wall` (`common::rowless::walls`: a pipe
+//!   notched across its seam, and one with a bar through it) are walls
+//!   bounded by rims and rulings, with a ring on the second; the lane lays
+//!   no rows on a cylinder, so these and the tilted halves are its
+//!   boundary-point triangulations, and their digests at the three ε are
+//!   that triangulation's bytes, which no ε moves.
 //! - trimmed on NURBS: `loft_prism` (walls of degree 1×2) and
 //!   `swept_elbow` (1×3), the described-NURBS lane with its
 //!   hull-derived certificate and its cert-driven refinement;
@@ -186,6 +192,12 @@ fn corpus() -> Vec<(&'static str, Body<f64>, [f64; 2])> {
         ("washer", washer(), [0.05, 0.15]),
         ("tilted_above", tilted_halves().0, [0.1, 0.01]),
         ("tilted_below", tilted_halves().1, [0.1, 0.01]),
+        (
+            "notched_wall",
+            rowless_wall("a notch across the seam"),
+            [0.1, 0.01],
+        ),
+        ("holed_wall", rowless_wall("a bar through"), [0.1, 0.01]),
         ("keyway", witness_bodies::keyway().0, [0.05, 0.15]),
         ("slit", witness_bodies::slit().0, [0.05, 0.15]),
         (
@@ -246,6 +258,15 @@ fn corpus() -> Vec<(&'static str, Body<f64>, [f64; 2])> {
             [3e-3, 1e-3],
         ),
     ]
+}
+
+/// One of `common::rowless::walls`, by name.
+fn rowless_wall(what: &str) -> Body<f64> {
+    rowless::walls()
+        .into_iter()
+        .find(|(w, _)| *w == what)
+        .unwrap()
+        .1
 }
 
 /// The oblique cut of a cylinder, whose two halves carry an elliptical
@@ -365,12 +386,17 @@ const GOLDEN: &[(&str, [u64; 2])] = &[
     ("washer", [0x965c_cafc_821b_7545, 0x569e_8f0f_f9a7_3ad5]),
     (
         "tilted_above",
-        [0xaaf9_faf2_d0ec_0e1d, 0xba02_b78e_8918_a902],
+        [0x6466_4bd0_261a_bdbe, 0xcad3_6378_e4a6_6b22],
     ),
     (
         "tilted_below",
-        [0x9406_eeca_b61e_b3d7, 0xadd5_1c61_1c66_25d6],
+        [0x9236_cb96_aa8e_253d, 0x6846_9195_68cc_ec82],
     ),
+    (
+        "notched_wall",
+        [0xd6d3_dbb7_1e3f_5f8f, 0xe61d_4386_75ed_2af5],
+    ),
+    ("holed_wall", [0xc6e1_d324_8da0_118f, 0xcbed_4748_98f9_7e0e]),
     ("keyway", [0xe457_7191_dbec_3540, 0xe457_7191_dbec_3540]),
     ("slit", [0xaed6_09ed_f923_833b, 0xaed6_09ed_f923_833b]),
     (

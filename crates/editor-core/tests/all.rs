@@ -311,6 +311,8 @@ mod rv_matehead_probes;
 
 #[path = "a_boxed_rectangle_certifies_over_its_box.rs"]
 mod a_boxed_rectangle_certifies_over_its_box;
+#[path = "a_pipe_unions_with_its_elbow.rs"]
+mod a_pipe_unions_with_its_elbow;
 #[path = "a_taken_slab_over_a_box_is_never_refused_as_a_flip.rs"]
 mod a_taken_slab_over_a_box_is_never_refused_as_a_flip;
 #[path = "gui1_pick.rs"]
@@ -608,8 +610,6 @@ mod part_depth_bound;
 mod parts_entered_before_the_map;
 #[path = "perf12_census_bvh_diff.rs"]
 mod perf12_census_bvh_diff;
-#[path = "perf12_census_goldens.rs"]
-mod perf12_census_goldens;
 #[path = "perf2_name_keying_differential.rs"]
 mod perf2_name_keying_differential;
 #[path = "pick3_early_out.rs"]

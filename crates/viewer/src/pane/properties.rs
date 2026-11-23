@@ -32,7 +32,7 @@ use crate::widgets::{
 pub(crate) const NEW_VARIABLE: &str = "New variable…";
 
 /// What the product door's button says ([`SessionOp::AddToProduct`]).
-pub(crate) const ADD_TO_THE_PRODUCT: &str = "Add to the product";
+pub(crate) use crate::recourse::ADD_TO_THE_PRODUCT;
 
 /// What the button taking a copy out of the product says.
 pub(crate) const TAKE_OUT_OF_THE_PRODUCT: &str = "Take out of the product";
@@ -647,7 +647,9 @@ impl ViewerBehavior<'_> {
                 // copy placed into the world is given a space of its
                 // own, which the probe then moves.
                 if matches!(fault, crate::display::AdmissionFault::InTheWorld { .. })
-                    && doc.placements().contains(&node)
+                    && doc
+                        .node(node)
+                        .is_some_and(pncad::document::Node::makes_a_copy)
                     && ui.button("Into a space of its own").clicked()
                 {
                     self.ops.push(SessionOp::IntoOwnSpace { placement: node });

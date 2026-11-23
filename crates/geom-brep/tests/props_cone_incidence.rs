@@ -131,7 +131,7 @@ impl Cone {
     }
 
     fn generator(&self, dir: V) -> Curve3<f64> {
-        Curve3::line(pt(self.apex), vt(dir))
+        Curve3::line(pt(self.apex), geom::stated_direction(vt(dir)))
     }
 
     /// The azimuth of `p` in the chart frame.
@@ -167,7 +167,9 @@ fn lift<T: Real>(e: &Curve3<f64>) -> Curve3<T> {
     let p = |q: geom_core::Point3<f64>| pt::<T>([q.x, q.y, q.z]);
     let v = |q: geom_core::Vec3<f64>| vt::<T>([q.x, q.y, q.z]);
     match *e {
-        Curve3::Line(geom::Line { origin, dir }) => Curve3::line(p(origin), v(dir)),
+        Curve3::Line(geom::Line { origin, dir }) => {
+            Curve3::line(p(origin), dir.map_scalar(T::from_f64))
+        }
         Curve3::Circle(conic_k) => {
             let (center, axis, u_ref) = (
                 conic_k.frame().origin(),
@@ -335,7 +337,7 @@ fn generator_off_apex(c: &Cone, d: f64) -> Spec {
     let radial = unit(add(g, c.a, -co));
     let normal = add(add([0.0; 3], radial, co), c.a, -s);
     let mut spec = generator_turned(c, 0.0);
-    spec[0].0 = Curve3::line(pt(add(c.apex, normal, d)), vt(g));
+    spec[0].0 = Curve3::line(pt(add(c.apex, normal, d)), geom::stated_direction(vt(g)));
     spec
 }
 
