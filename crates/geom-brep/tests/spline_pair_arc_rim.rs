@@ -425,7 +425,8 @@ fn an_in_band_closed_form_gives_way_to_the_measured_row_at_interval() {
 /// clear of the seam reads its row over the branch the edge lies on, and
 /// clears limbs 1 and 2; one across the seam lies on no single arc of
 /// the row, so no image holds it, and the fitted image, whose foot path
-/// stops at the seam it cannot cross, refuses on its own miss.
+/// stops at the seam it cannot cross, refuses on its own miss (past the
+/// band, or at a coarse ε in it).
 #[test]
 fn a_closed_ring_reads_the_arc_its_rim_lies_on() {
     let tau = core::f64::consts::TAU;
@@ -446,6 +447,9 @@ fn a_closed_ring_reads_the_arc_its_rim_lies_on() {
         matches!(
             across,
             Err(PlaneNurbsRefusal::Limb {
+                limb: geom_brep::SsiLimb::ImageMiss,
+                ..
+            } | PlaneNurbsRefusal::Escalated {
                 limb: geom_brep::SsiLimb::ImageMiss,
                 ..
             })
