@@ -3577,6 +3577,42 @@ mod tests {
         );
     }
 
+    /// **Where the profile curve is wider than the edges, the tangent
+    /// foot answers a corner four zero bands off both roots**
+    /// (`axial-corner-tangent-foot-answers-several-bands-off-its-roots`,
+    /// the review's band). The station line `ρ = 11 − δ`, `δ = 8·10⁻¹²`,
+    /// against the unit profile circle, at an arm of `0.2` under the band
+    /// `(10⁻⁶, 10⁻⁵)`: the transversality `4·10⁻⁶` reads Zero over the
+    /// arm, and the pair answers its foot `(11 − δ, 0)`. The true roots
+    /// are `(11 − δ, ±√(2δ − δ²))`, each `4·10⁻⁶ = 4ε` from the foot. The
+    /// foot lies on the station line and `δ` off the circle, inside the
+    /// band of both curves. The row pins what is served; the issue holds
+    /// what is owed.
+    #[test]
+    fn a_wide_profiles_tangent_foot_stands_four_bands_off_its_roots() {
+        let band = Band::new(1e-6, 1e-5).unwrap();
+        let delta: f64 = 8e-12;
+        let pair = [station(11.0 - delta), CIRCLE];
+        let arm = [LeverBounds::Exact(geom_core::test_support::fixture_lever(
+            0.2,
+        ))];
+        let foot = solve_pairs(&pair, &arm, (11.0, 4e-6), VertexKey::default(), band)
+            .unwrap()
+            .expect("the tangent pair answers its foot");
+        let h = (2.0 * delta - delta * delta).sqrt();
+        let off = |root: (f64, f64)| (foot.0 - root.0).hypot(foot.1 - root.1) / band.zero();
+        let (up, down) = (off((11.0 - delta, h)), off((11.0 - delta, -h)));
+        assert!(
+            (3.9..4.1).contains(&up) && (3.9..4.1).contains(&down),
+            "the foot {foot:?} stands {up}ε and {down}ε off the roots"
+        );
+        let off_circle = ((foot.0 - 10.0).hypot(foot.1) - 1.0).abs();
+        assert!(
+            (foot.0 - (11.0 - delta)).abs() < 1e-12 && off_circle < band.zero(),
+            "the foot within the band of both curves: {foot:?}, {off_circle} off the circle"
+        );
+    }
+
     const CIRCLE: Profile<f64> = Profile::Circle {
         rho_c: 10.0,
         h_c: 0.0,
