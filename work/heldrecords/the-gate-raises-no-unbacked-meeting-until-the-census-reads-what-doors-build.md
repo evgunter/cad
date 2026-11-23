@@ -74,3 +74,16 @@ at three ε with the slow set.
 The flip itself is `AtRestBody::validate` running the whole census
 (`census::census_and_certify`) where it runs `census::confirm_only`
 today, and refusing on every finding.
+
+**`finish(Built::of(Body::clone(&finished)))` drops true records,
+silently** (PR 7124's reviews, 2026-11-23). A finished body's clone
+handed back to the gate bare finishes with no record though the body
+it was cloned from held some, and the result reads `Bar::Tier3` like
+any body with none
+(`topo review_7124_delta_probes::probe_d3_ways_round`: a corner kiss's
+clone, one record held, none after). Nothing refuses it because no
+gate searches a body for a meeting its records do not state, which is
+this row; when the gate is flipped, that call refuses
+`UnrecordedContact`, and until then it rests on every door spelling
+what it hands (`Built::of` is greppable) and on the mutants in PR
+7124's body.

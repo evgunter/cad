@@ -1,7 +1,7 @@
 ---
 id: two-readers-of-a-vertex-on-a-faces-boundary-vertex-disagree
 kind: issue
-title: The carry's record confirm and the gate's confirm-only read one vertex-on-face pair on one result to opposite answers where the vertex sits on a boundary vertex of the face
+title: The carry's record confirm and the gate's confirm-only were seen to answer oppositely on one recorded vertex-on-face pair; whether they read one body is not separated
 status: open
 opened: 2026-11-23
 priority: P1
@@ -9,8 +9,12 @@ cost: M
 ---
 
 
-Found by PR 7124's review fix pass (`embed/records`, 2026-11-23),
-tracing the cut filed at
+Two readers of one recorded pair were observed to give opposite
+answers. It is NOT yet separated whether they disagree on one body or
+the body changes between the carry and the gate, each being right
+about its own; that separation is the first step, and until it is
+made no cause is known. Found by PR 7124's review fix pass
+(`embed/records`, 2026-11-23), tracing the cut filed at
 `work/heldrecords/a-cut-that-trims-a-kept-face-leaves-a-record-on-it-stale.md`
 (P0), which cites this row.
 
@@ -58,7 +62,9 @@ y − x" and "continuing the lying pyramid's face, y − x" in
 `ResultInvalid` in its `REFUSING` table. The gate's answer is the
 pinned refusal; the carry's answer needs the pair read in `landings`.
 
-**Owed.** One answer for a vertex on a face's boundary vertex in both
-readings. If `meets` is the one that moves, every divided-cell carry
-reads by it, so its rows move with it.
+**Owed.** The separation first. If the two do disagree on one body:
+one answer for a vertex on a face's boundary vertex in both readings,
+and if `meets` is the one that moves, every divided-cell carry reads
+by it, so its rows move with it. If the body changes between them: the
+carry reads the body the gate will read.
 

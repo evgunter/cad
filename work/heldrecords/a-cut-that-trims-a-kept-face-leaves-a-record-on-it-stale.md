@@ -19,24 +19,28 @@ pyramid's face", op `y − x`, all five poses of each (and the variant
 with the pyramid lying 0.5ε off the top). `y` is the plate united with
 a pyramid lying on its top, holding `VertexOnFace` of the pyramid's
 touching vertex on the plate's top, confirmed at `y`'s own gate. `x`
-is a pyramid under that ray. The cut carves the top away under the
-vertex.
+is a pyramid hanging below the top whose apex is at that vertex's
+point.
 
-**What happens.** Both the vertex and the top survive under their
-keys (the top is trimmed, not replaced), so the cut's lineage states
-neither, the carry lands the record unread as on kept cells
-(`topo::Lineage`: "relying on each image being on its input cell's
-carrier and holding its old interior"), and the result's gate reads
-it: `StaleContactDeclaration { VertexOnFace }`, `BooleanError::ResultInvalid`.
-On main the cut builds and ships the record. The record is false on
-the result, so the refusal is true; the op is valid, so the defect is
-the carry's.
+**What happens.** No division touches the top: the join logs no
+fragment of it. The finish's zip puts the cutter's apex on the top's
+boundary, so on the result a second vertex sits on the recorded
+vertex's point and the top's boundary runs through it. Both recorded
+cells survive under their keys, the cut's lineage states both as
+kept, the carry lands the record as on kept cells (`topo::Lineage`:
+"relying on each image being on its input cell's carrier and holding
+its old interior"), and the result's gate reads it:
+`StaleContactDeclaration { VertexOnFace }`,
+`BooleanError::ResultInvalid`. On main the cut builds and ships the
+record. The record is false on the result (the touch is on the face's
+boundary now, where the true record is the vertex pair), so the
+refusal is true; the op is valid, so the defect is the carry's.
 
-**Owed.** A face that keeps its key and loses part of its region does
-not hold its old interior. The Boolean's lineage states it (as a
-divided cell is stated), so the carry reads the record against the
-trimmed face and retires it where the touch is gone, and the cut
-builds without it. With
+**Owed.** A face whose boundary the zip ran through a recorded touch
+does not hold its old interior there. The Boolean's lineage states
+the seam cells the zip put on it, so the carry reads the record
+against them: it re-lands as the vertex pair, or is retired, and the
+cut builds. What stopped a first attempt is below. With
 `a-stale-carried-record-meets-three-different-ends`, which asks for
 one rule for a record a carry finds stale.
 
@@ -61,9 +65,10 @@ pyramid's ray", `y − x`:
   second vertex sits on the recorded vertex's point, and the top's
   boundary passes through it. `Descendants::fragments` has no row for
   the top (its own text: the zip's divisions are in no row of it), so
-  `operand_fate` answers `Kept` and "The shape" above is wrong to call
-  it a carved region: the record is false because the touch is now on
-  the face's boundary, where the true record is the vertex pair.
+  `operand_fate` answers `Kept`: the record is false because the
+  touch is now on the face's boundary, where the true record is the
+  vertex pair. (This row first said the cut carves the top away under
+  the vertex; it does not.)
 - Stating the top as divided (one piece, remainder removed) wherever a
   row of the reduction's own names it makes the carry read the pair,
   as asked. `RecordConfirm::meets` then answers that the vertex and the
@@ -83,3 +88,7 @@ re-lands as the vertex pair or is retired. The ten cells stay pinned.
 
 The two readings' disagreement has its own row:
 `work/contacthold/two-readers-of-a-vertex-on-a-faces-boundary-vertex-disagree.md`.
+
+The pins name the finding since PR 7124's second fix pass: the ten
+cells refuse on `StaleContactDeclaration { VertexOnFace }` alone, so a
+change in either reader's answer reddens them.

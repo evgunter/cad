@@ -228,3 +228,61 @@ fn probe_d4_true_touches_through_the_join_and_then_the_plain_gate() {
         }
     }
 }
+
+/// A join's bar is tier 3 wherever its census left a finding between
+/// two arrivals, with no gap involved: four curved joins that touch (a
+/// rod standing on a plate, two rods end to end, two rods side by
+/// side, a rod against a block's side), whose census hands back
+/// unrecorded or undecided meetings. Red on a join that names its bar
+/// before its census runs: each was named `Tier3Prime`.
+#[test]
+fn a_joins_bar_is_tier_3_beside_a_finding_on_curved_arrivals() {
+    let plate = finished(
+        "plate",
+        brick::<f64>((-2.0, 2.0), (-2.0, 2.0), (-1.0, 0.0), tol()),
+        tol(),
+    );
+    let side = finished(
+        "side",
+        brick::<f64>((0.5, 1.5), (-1.0, 1.0), (0.0, 1.0), tol()),
+        tol(),
+    );
+    let scenes: Vec<(&str, AtRestBody<f64>, AtRestBody<f64>)> = vec![
+        (
+            "a rod standing on a plate",
+            rod(0.0, 0.0, 0.5, 0.0, 1.0),
+            plate,
+        ),
+        (
+            "two rods end to end",
+            rod(0.0, 0.0, 0.5, 0.0, 1.0),
+            rod(0.0, 0.0, 0.5, 1.0, 1.0),
+        ),
+        (
+            "two rods side by side",
+            rod(0.0, 0.0, 0.5, 0.0, 1.0),
+            rod(1.0, 0.0, 0.5, 0.0, 1.0),
+        ),
+        (
+            "a rod against a block's side",
+            rod(0.0, 0.0, 0.5, 0.0, 1.0),
+            side,
+        ),
+    ];
+    for (what, a, b) in scenes {
+        let mut join = Assembled::<f64>::new();
+        join.graft_finished(&a, None, tol()).unwrap();
+        join.graft_finished(&b, None, tol()).unwrap();
+        let done = topo::finish_assembled(join, tol()).unwrap();
+        assert!(
+            !done.findings.is_empty(),
+            "{what}: the census leaves a finding"
+        );
+        assert_eq!(
+            done.body.bar(),
+            topo::Bar::Tier3,
+            "{what}: named tier 3' beside {:?}",
+            names(&done.findings)
+        );
+    }
+}

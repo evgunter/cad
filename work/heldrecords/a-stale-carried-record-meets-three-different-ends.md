@@ -59,3 +59,13 @@ refusing; the door is where it is fixed (a kept-key cell the op trimmed
 is "divided" for that record, read by the carry and retired where it no
 longer touches). Its own row:
 `work/heldrecords/a-cut-that-trims-a-kept-face-leaves-a-record-on-it-stale.md`.
+
+**A second landing site beside the carry** (PR 7124, 2026-11-23). In
+the Boolean, `carry_rows` places every carried vertex-on-face row
+again through `place_found` with `found: None`, which lands it by
+lineage, unread, whatever `carried()` read of it
+(`crates/topo/src/boolean/ops.rs`). So a rule for a record the carry
+reads and finds stale has two places to hold: fixing the divided-cell
+reading alone would not retire the record if the second placement
+lands it again
+(`work/contacthold/two-readers-of-a-vertex-on-a-faces-boundary-vertex-disagree.md`).

@@ -34,6 +34,16 @@ enum Reading {
 /// deciding door's gate runs this over the records it is handed
 /// (`[topology.tiers]`); it searches for no meeting, so it pays nothing
 /// for the body's other cells.
+///
+/// **What it can still hand back as held, unconfirmed**
+/// ([`Confirmation::no_lane`]): a record of a kind whose lane says no
+/// reading speaks to it ([`crate::contact::ContactReach::NoLane`]) and
+/// whose two cells [`apart`] does not decide apart. Such a record may
+/// be false, a caller's [`crate::Built::recording`] reaches this gate
+/// with one, and nothing here reads what it cites: the end state is a
+/// census lane for every kind a door records
+/// (`work/heldrecords/a-recorded-tangency-past-the-certifiers-set-is-held-on-its-citation.md`,
+/// which names the test that holds one).
 pub(crate) fn confirm_only<T: crate::props::AtRestPolicy + geom_core::Bounds>(
     body: &Body<T>,
     contacts: &ContactRecords,

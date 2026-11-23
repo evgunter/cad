@@ -144,15 +144,18 @@ fn probe_d3_ways_round() {
 
 /// A join names tier 3′ only where its census decided every meeting
 /// between two arrivals (`Bar::Tier3Prime`'s own sentence). RED on
-/// `bbb6955172`: two cubes whose facing faces stand 1e-9 apart, each an
-/// arrival; the census hands back `CensusUndecidable` on that pair and
-/// the body is named `Tier3Prime`.
+/// `bbb6955172`: two cubes whose facing faces stand in the band apart
+/// (its midpoint, at whichever ε the suite runs), each an arrival; the
+/// census hands back `CensusUndecidable` on that pair and the body was
+/// named `Tier3Prime`.
 #[test]
 fn red_a_joins_bar_is_not_tier_3_prime_where_its_census_left_a_meeting_undecided() {
+    let band = geom_core::Band::linear(tol()).unwrap();
+    let gap = 0.5 * (band.zero() + band.escalate());
     let mut join = Assembled::<f64>::new();
     join.graft_finished(&cube(0.0, 0.0, 0.0), None, tol())
         .unwrap();
-    join.graft_finished(&cube(1.0 + 1e-9, 0.0, 0.0), None, tol())
+    join.graft_finished(&cube(1.0 + gap, 0.0, 0.0), None, tol())
         .unwrap();
     let done = finish_assembled(join, tol()).unwrap();
     assert!(
