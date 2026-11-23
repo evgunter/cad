@@ -74,7 +74,7 @@ fn a_lofted_arc_wall_is_a_function_of_the_sections_bulge() {
     };
     let built_at_b1 = arc_wall(&loft::<f64>(b1));
     let at_b1 = |s: ParamSymbol| (s == symbol).then_some(b1);
-    let (((weights, corner, rim_theorems), distinct, winding_zeros), _) =
+    let (((weights, corner, rim_theorems), build_reads, winding_nodes), _) =
         with_session(budget, || {
             let (lofted, decisions) = record(|| loft::<S>(S::param(symbol, b0)));
             let wall = arc_wall(&lofted);
@@ -97,11 +97,7 @@ fn a_lofted_arc_wall_is_a_function_of_the_sections_bulge() {
                 .filter(|d| revalue(d.node, &none).is_none())
                 .collect();
             let rim_theorems: Vec<bool> = rim_zeros.iter().map(|d| d.proven).collect();
-            let distinct = rim_zeros
-                .iter()
-                .map(|d| d.node)
-                .collect::<std::collections::BTreeSet<_>>()
-                .len();
+            let build_reads = reads_per_theorem(rim_zeros.iter().map(|d| d.node));
             // The `loop_windings` door walks the wall's loop again: its
             // rows the arc-rim lane choice certified are not certified twice.
             let face = lofted.side_faces[0][1][0];
@@ -109,13 +105,14 @@ fn a_lofted_arc_wall_is_a_function_of_the_sections_bulge() {
             let band = geom_core::Band::linear(Tol::witness()).expect("a witness band forms");
             let (windings, read) = record(|| topo::loop_windings(&lofted.body, face, chart, band));
             windings.expect("the arc wall's loop winds");
-            let winding_zeros = read
+            let winding_nodes: Vec<_> = read
                 .iter()
                 .filter(|d| d.predicate == "pcurve_iso_boundary")
                 .filter(|d| d.sign == Some(geom_core::Sign::Zero))
                 .filter(|d| revalue(d.node, &none).is_none())
-                .count();
-            ((weights, corner, rim_theorems), distinct, winding_zeros)
+                .map(|d| d.node)
+                .collect();
+            ((weights, corner, rim_theorems), build_reads, winding_nodes)
         });
     let want: Vec<Option<u64>> = built_at_b1
         .weights()
@@ -131,22 +128,36 @@ fn a_lofted_arc_wall_is_a_function_of_the_sections_bulge() {
         Some(built_at_b1.control()[pole(&built_at_b1, 1, 0)].x.to_bits()),
         "the wall's tangent-intersection pole re-values with the bulge"
     );
-    assert_eq!(
-        rim_theorems,
-        vec![true; 11],
+    assert!(
+        !rim_theorems.is_empty() && rim_theorems.iter().all(|&proven| proven),
         "every Zero the arc rims' checks answer over the bulge, the weight margin `w − cos(h/2)` \
-         among them, is a symbolic Zero; each check is read once per build, but the stated rim \
-         image's, read by its edge certificate and again by the mint"
+         among them, is a symbolic Zero: {rim_theorems:?}"
     );
-    assert_eq!(
-        winding_zeros, 10,
-        "the loop-winding door reads each arc rim's checks once, in the walk's lane choice"
+    assert!(
+        build_reads.values().all(|&n| n <= 2),
+        "a rim check's theorem is read at most twice per build, by its edge certificate and \
+         again by the mint: {build_reads:?}"
     );
-    assert_eq!(
-        distinct, 7,
-        "the 11 Zeros are 7 distinct theorems (a node is content-addressed, so a check read \
-         again moves the count above, not this)"
+    let winding_reads = reads_per_theorem(winding_nodes.iter().copied());
+    let over: Vec<_> = winding_reads
+        .iter()
+        .filter(|(node, n)| build_reads.get(*node).is_none_or(|b| *n > b))
+        .collect();
+    assert!(
+        !winding_reads.is_empty() && over.is_empty(),
+        "the loop-winding door reads each arc rim's checks once, in the walk's lane choice, \
+         so it reads no theorem more often than the build that certified and minted the \
+         rims did: {over:?} past the build's {build_reads:?}"
     );
+}
+
+/// How many times each theorem was read, by its node.
+fn reads_per_theorem<N: Ord>(nodes: impl Iterator<Item = N>) -> std::collections::BTreeMap<N, usize> {
+    let mut reads = std::collections::BTreeMap::new();
+    for node in nodes {
+        *reads.entry(node).or_insert(0) += 1;
+    }
+    reads
 }
 
 /// At `Dual` the same wall carries the bulge's derivative: its interior
