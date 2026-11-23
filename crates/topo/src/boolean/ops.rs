@@ -1469,7 +1469,7 @@ pub(super) enum Joined<T: crate::props::AtRestPolicy> {
         red: Box<BooleanReduction<T>>,
         /// The completed polygons and the fragments the join made.
         connected: Box<super::join::Connected>,
-        /// [`interior_loop_verdict`]'s answer, not yet raised.
+        /// The interior-loop guard's answer ([`guard_refusal`]), not yet raised.
         interior_loops: Result<(), BooleanError>,
         /// The declarations the pipeline ran on: the caller's, and the
         /// pairs the glue door decided ([`super::glue`]).
@@ -1559,24 +1559,60 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
         // entity's key (`crate::carve::carve`), so those
         // names still hold on `a2` and `b2`.
         let cuts = apply_cut_ins(&mut a2, &mut b2, &recuts.cut_in, band, tol)?;
-        let result = reenter_recut(op, (&a2, &b2), decls, strategy, cuts, recharted, tol)?;
+        let survives = |plane: &CutPlane<T>| BooleanError::FallbackExtentUnsupported {
+            operand: plane.operand,
+            face: plane.face,
+            what: "the meridian the sphere face was cut in along survives the output merge, \
+                   which glues it away only where the face's pieces merge back into one face",
+        };
+        let result = reenter_recut(
+            op,
+            (&a2, &b2),
+            decls,
+            strategy,
+            cuts,
+            recharted,
+            survives,
+            tol,
+        )?;
         return Ok(Joined::Answered(Box::new(result)));
     }
 
-    let interior_loops = interior_loop_verdict(op, a, b, &red, &glued, band);
+    let pairs = crossings_section_pairs(a, b, &red, &glued, band);
+    let first_refusing = |pairs: &[PairVerdict]| pairs.iter().position(|p| p.verdict.is_err());
     // An interior loop the guard proves on a sphere face is cut in as
     // the no-crossings path cuts one in ([`interior_cuts`]), and the
-    // pipeline re-enters once on the cut operands.
-    if recut && interior_loops.is_err() {
-        let pairs = crossings_section_pairs(a, b, &red, &glued, band, false)?;
-        if let Some(cut_ins) = interior_cuts::cut_ins(a, b, &pairs, band)? {
-            let (mut a2, mut b2) = (a.clone(), b.clone());
-            let cuts = apply_cut_ins(&mut a2, &mut b2, &cut_ins, band, tol)?;
+    // pipeline re-enters once on the cut operands. Where the cut-in
+    // cannot be made the pipeline goes on, and the guard's refusal is
+    // raised on the built body as it would be; where the re-entered
+    // op's output merge leaves a cut behind, the op refuses with the
+    // guard's refusal.
+    if recut
+        && let Ok(pairs) = &pairs
+        && let Some(guard) = first_refusing(pairs).map(|i| &pairs[i])
+        && let Ok(Some(cut_ins)) = interior_cuts::cut_ins(a, b, pairs, band)
+    {
+        let (mut a2, mut b2) = (a.clone(), b.clone());
+        if let Ok(cuts) = apply_cut_ins(&mut a2, &mut b2, &cut_ins, band, tol) {
             let recharted = RechartsPerOperand::default();
-            return reenter_recut(op, (&a2, &b2), decls, strategy, cuts, recharted, tol)
-                .map(|result| Joined::Answered(Box::new(result)));
+            let survives = |_: &CutPlane<T>| guard_refusal(op, guard);
+            return reenter_recut(
+                op,
+                (&a2, &b2),
+                decls,
+                strategy,
+                cuts,
+                recharted,
+                survives,
+                tol,
+            )
+            .map(|result| Joined::Answered(Box::new(result)));
         }
     }
+    let interior_loops = pairs.and_then(|pairs| match first_refusing(&pairs) {
+        None => Ok(()),
+        Some(i) => Err(guard_refusal(op, &pairs[i])),
+    });
     // The join carves both reduction operands through the Euler
     // operators; one scope per operand body, and what certifies the
     // result is `gate` below, over the body they are finished into.
@@ -1618,13 +1654,15 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// # Errors
 ///
 /// The re-entered op's refusals, and the respelling's.
+#[allow(clippy::too_many_arguments)]
 fn reenter_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     (a2, b2): (&Body<T>, &Body<T>),
     decls: &Glue<T>,
     strategy: SweepStrategy,
-    cuts: CutsPerOperand,
+    (cuts, planes): (CutsPerOperand, Vec<CutPlane<T>>),
     recharted: RechartsPerOperand,
+    survives: impl Fn(&CutPlane<T>) -> BooleanError,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
     // The re-entry's operands are not finished (the cut-ins leave
@@ -1641,6 +1679,13 @@ fn reenter_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     }
     let mut result = boolean_op_recut(op, a2, b2, decls, strategy, false, tol)?;
     if let BooleanResult::Body(out) = &mut result {
+        // The cuts are the op's own, glued away with the pieces they
+        // divided; one the output merge left is a cut the result's
+        // operands never carried, and the op refuses rather than answer
+        // a face that is not maximal.
+        if let Some(plane) = surviving_cut(&out.body, &planes, Band::linear(tol)?)? {
+            return Err(survives(plane));
+        }
         // A row names the cells of the op's inputs, not of the
         // cut operands ([`crate::coincidence`]), through the one
         // door ([`spell`]).
@@ -1667,7 +1712,8 @@ fn reenter_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
 
 /// **The crossings path's guard for the interior-loop class: the
 /// section certificate, per pair** ([`super::section_cert`], whose
-/// module docs carry the argument).
+/// module docs carry the argument), raised on the first refusing pair
+/// `p` of [`crossings_section_pairs`].
 ///
 /// Every undeclared cross-operand pair whose certified boxes overlap,
 /// where either face is not a plane, is classified and certified. A GLUED pair is exempt: its contact is
@@ -1682,42 +1728,28 @@ fn reenter_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// so every refusal the join and the build meet first stands verbatim.
 /// It is raised after `gate`, whose tiers hold for a correct surgery
 /// whatever the classification.
-fn interior_loop_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
-    op: BooleanOp,
-    a: &Body<T>,
-    b: &Body<T>,
-    red: &BooleanReduction<T>,
-    decls: &Glue<T>,
-    band: Band,
-) -> Result<(), BooleanError> {
-    let pairs = crossings_section_pairs(a, b, red, decls, band, true)?;
-    match pairs.iter().find(|p| p.verdict.is_err()) {
-        None => Ok(()),
-        Some(p) => {
-            let (operand, face, kind, other_face, other_kind) = p.named();
-            Err(BooleanError::CurvedPairUnsupported {
-                op: Some(op),
-                site: super::PairRefusalSite::InteriorLoopGuard,
-                operand,
-                face,
-                kind,
-                other_face,
-                other_kind,
-            })
-        }
+fn guard_refusal(op: BooleanOp, p: &PairVerdict) -> BooleanError {
+    let (operand, face, kind, other_face, other_kind) = p.named();
+    BooleanError::CurvedPairUnsupported {
+        op: Some(op),
+        site: super::PairRefusalSite::InteriorLoopGuard,
+        operand,
+        face,
+        kind,
+        other_face,
+        other_kind,
     }
 }
 
 /// **The crossings path's section pairs**, as the interior-loop guard
 /// reads them: the reduction's sections and events, the glued pairs
-/// exempt. With `stop` the walk returns at the first refusing pair.
+/// exempt, every pair walked.
 fn crossings_section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     red: &BooleanReduction<T>,
     decls: &Glue<T>,
     band: Band,
-    stop: bool,
 ) -> Result<Vec<PairVerdict>, BooleanError> {
     let events = event_pairs(red);
     let glued: Vec<(FaceKey, FaceKey)> = decls.pairs.iter().map(|d| (d.a, d.b)).collect();
@@ -1729,7 +1761,7 @@ fn crossings_section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
         SectionPath::Crossings,
         Exempt::Glued(&glued),
         |fa, fb| events.contains(&(fa, fb)),
-        stop,
+        false,
     )
 }
 
@@ -2691,7 +2723,7 @@ pub(crate) fn section_report(
     tol: Tol,
 ) -> Result<Vec<PairVerdict>, BooleanError> {
     let (red, glued, band) = reduced_as_the_op_does(op, a, b, tol)?;
-    crossings_section_pairs(a, b, &red, &glued, band, false)
+    crossings_section_pairs(a, b, &red, &glued, band)
 }
 
 /// **The glue door and the reduction, run as the op runs them** on
@@ -2792,8 +2824,10 @@ pub(crate) fn no_crossings_certificates(
 /// normal's own norm widens `s` and moves the scan's escalations):
 /// `Negative` is a ball definitely clear of the carrier, `Zero` a
 /// tangency, `Positive` a ball the carrier cuts in a circle of radius
-/// `√((r − |s|)(r + |s|))` about `centre − n̂·s`. Returns the sign and
-/// `s`. Read by the no-crossings sphere scan ([`sphere_extent_scan`]).
+/// `√((r − |s|)(r + |s|))` about `centre − n̂·s` ([`plane_section`]).
+/// Returns the sign and `s`. Read by the no-crossings sphere scan
+/// ([`sphere_extent_scan`]) and the crossings path's cut-in
+/// ([`interior_cuts`]).
 fn ball_against_plane<T: Decide>(
     center: Point3<T>,
     radius: T,
@@ -2808,6 +2842,17 @@ fn ball_against_plane<T: Decide>(
         band,
     )?;
     Ok((sign, s))
+}
+
+/// **The circle a plane cuts a ball in, the one home of it**: about the
+/// foot `centre − n̂·s` of the centre on the plane, of radius
+/// `√((r − |s|)(r + |s|))`, where `s` is [`ball_against_plane`]'s
+/// signed distance along the stored normal `n̂`. Its foot and radius.
+fn plane_section<T: Real>(center: Point3<T>, radius: T, normal: Vec3<T>, s: T) -> (Point3<T>, T) {
+    (
+        center - normal * s,
+        ((radius - s.abs()) * (radius + s.abs())).sqrt(),
+    )
 }
 
 /// The (A face, B face) pairs the reduction recorded an event on: a
@@ -6199,6 +6244,97 @@ struct SphereCutIn<T: Real> {
     u_ref: Vec3<T>,
 }
 
+/// **The half-meridian a cut-in ran along** ([`apply_cut_ins`]), which
+/// the re-entered op's output merge glues away with the two pieces it
+/// divided ([`surviving_cut`] reads whether it did).
+pub(super) struct CutPlane<T: Real> {
+    /// The operand holding the cut face.
+    operand: Operand,
+    /// The face the scan cut.
+    face: FaceKey,
+    /// The sphere's centre.
+    center: Point3<T>,
+    /// The unit normal of the meridian's plane.
+    normal: Vec3<T>,
+    /// The unit direction across the axis to the cut's half of that
+    /// plane.
+    half: Vec3<T>,
+}
+
+/// **A cut-in's meridian left in `body`**, the re-entered op's result:
+/// an edge whose faces both lie on a sphere and whose carrier is a
+/// circle about a cut's sphere's centre, in that cut's meridian plane,
+/// its middle on the cut's half of the plane. `None` where the output
+/// merge glued every cut away.
+///
+/// # Errors
+///
+/// A decision of the reading in band escalates as the cut-in's own
+/// ([`SphereQuestion::CutIn`]).
+fn surviving_cut<'p, T: Decide + crate::props::AtRestPolicy>(
+    body: &Body<T>,
+    planes: &'p [CutPlane<T>],
+    band: Band,
+) -> Result<Option<&'p CutPlane<T>>, BooleanError> {
+    let esc = |diag| BooleanError::Escalated {
+        decision: BooleanDecision::Sphere(SphereQuestion::CutIn),
+        diag,
+    };
+    let sphere = |f: FaceKey| matches!(body.proven_face(f).surface(), geom::Surface::Sphere { .. });
+    for (edge, e) in body.edges() {
+        let sides = crate::readback::edge_sides_of(body, edge, e);
+        let (f1, f2) = sides.faces();
+        if !sphere(f1) || !sphere(f2) {
+            continue;
+        }
+        let Some(curve) = body.edge_curve_linked(edge, e).certified() else {
+            continue;
+        };
+        let &geom::Curve3::Circle(circle) = curve.carrier() else {
+            continue;
+        };
+        let (t0, t1) = curve.params();
+        let mid = curve.carrier().mid_point(t0, t1);
+        for plane in planes {
+            let lever = |m: T| {
+                Margin::levered(
+                    m,
+                    geom_brep::uniform_curvature_arm(body.proven_face(f1).surface()),
+                )
+            };
+            let at_centre = decide(
+                "bool_sphere_cut_survives",
+                Margin::of((circle.frame.origin() - plane.center).norm()),
+                band,
+            )
+            .map_err(esc)?;
+            if at_centre != Sign::Zero {
+                continue;
+            }
+            let in_plane = decide(
+                "bool_sphere_cut_survives",
+                lever(circle.frame.axis().normalize().cross(plane.normal).norm()),
+                band,
+            )
+            .map_err(esc)?;
+            if in_plane != Sign::Zero {
+                continue;
+            }
+            if decide(
+                "bool_sphere_cut_survives",
+                Margin::of(plane.half.dot(mid - plane.center)),
+                band,
+            )
+            .map_err(esc)?
+                == Sign::Positive
+            {
+                return Ok(Some(plane));
+            }
+        }
+    }
+    Ok(None)
+}
+
 /// One sphere group the extent scan wants re-cut: rigidly re-charted
 /// about `align` (the first escape plane's normal) so its seam
 /// meridians run pole-to-pole TRANSVERSE to the escape planes and the
@@ -6438,8 +6574,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                 // of every boundary-edge box cannot
                                 // cross the boundary, so one exact
                                 // witness extends to the whole circle.
-                                let foot = center - normal * s;
-                                let rho = ((radius - s.abs()) * (radius + s.abs())).sqrt();
+                                let (foot, rho) = plane_section(center, radius, normal, s);
                                 let circle = crate::separating::Circle {
                                     center: foot,
                                     u_ref,
@@ -7265,12 +7400,13 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
     cut_ins: &[SphereCutIn<T>],
     band: Band,
     tol: Tol,
-) -> Result<CutsPerOperand, BooleanError> {
+) -> Result<(CutsPerOperand, Vec<CutPlane<T>>), BooleanError> {
     let corrupt = |what| BooleanError::ClassificationInvariant { what };
     // The faces each scanned face has been cut into so far, beside its
     // own key: `(operand, scanned face, piece)`.
     let mut pieces: Vec<(Operand, FaceKey, FaceKey)> = Vec::new();
     let mut made: CutsPerOperand = Default::default();
+    let mut planes: Vec<CutPlane<T>> = Vec::new();
     for cut in cut_ins {
         let body = match cut.operand {
             Operand::A => &mut *a,
@@ -7762,6 +7898,13 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
             tol,
         )?;
         pieces.push((cut.operand, cut.face, created.face));
+        planes.push(CutPlane {
+            operand: cut.operand,
+            face: cut.face,
+            center: cut.center,
+            normal: k,
+            half: h,
+        });
         let side = &mut made[usize::from(cut.operand == Operand::B)];
         side.divisions.push((created.face, face));
         side.edges.push(created.edge);
@@ -7771,7 +7914,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         crate::pcurves::mint_pcurves(body, tol)
             .map_err(|source| BooleanError::Pcurves { source })?;
     }
-    Ok(made)
+    Ok((made, planes))
 }
 
 /// **The recut's rows read through the cut-ins and the re-charts**

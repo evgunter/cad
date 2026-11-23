@@ -1,6 +1,6 @@
 //! **An interior loop on the crossings path, cut in.**
 //!
-//! The interior-loop guard ([`super::interior_loop_verdict`]) refuses a
+//! The interior-loop guard ([`super::guard_refusal`]) refuses a
 //! pair whose section has a component inside both faces with no event on
 //! it (the section certificate's R-loop): the join cuts only along what
 //! the crossing layer saw, so the loop would go unbuilt. Where the pair
@@ -11,10 +11,14 @@
 //! [`super::apply_cut_ins`]), and the pipeline re-enters once. The
 //! re-entered crossing layer meets the circle where it crosses the cut,
 //! and the output stage glues the cut away with the two pieces it
-//! divided, so the result carries no cut the operands did not.
+//! divided. Where it leaves one, the op refuses with the guard's
+//! refusal rather than answer a face that is not maximal
+//! ([`super::reenter_recut`]).
 //!
 //! A refusing pair of any other kind, or of any other refusal, keeps the
-//! guard's refusal for the whole op.
+//! guard's refusal for the whole op, and so does a cut-in that cannot
+//! be made: the pipeline goes on, and the guard raises its refusal on
+//! the built body as it would have.
 
 use geom_core::{Band, Decide, NonzeroSign};
 
@@ -87,16 +91,19 @@ fn cut_in<T: Decide>(
         &geom::Surface::Plane { frame: plane } => {
             let normal = plane.axis();
             match super::ball_against_plane(center, radius, plane.origin(), normal, band) {
-                Ok((NonzeroSign::Positive, s)) => Some(SphereCutIn {
-                    operand,
-                    face,
-                    center,
-                    radius,
-                    foot: center - normal * s,
-                    rho: ((radius - s.abs()) * (radius + s.abs())).sqrt(),
-                    normal,
-                    u_ref: plane.u_ref(),
-                }),
+                Ok((NonzeroSign::Positive, s)) => {
+                    let (foot, rho) = super::plane_section(center, radius, normal, s);
+                    Some(SphereCutIn {
+                        operand,
+                        face,
+                        center,
+                        radius,
+                        foot,
+                        rho,
+                        normal,
+                        u_ref: plane.u_ref(),
+                    })
+                }
                 Ok((NonzeroSign::Negative, _)) | Err(_) => None,
             }
         }

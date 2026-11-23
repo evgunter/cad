@@ -7,29 +7,35 @@
 //! inside both faces, which no event marks: the interior-loop guard
 //! proves it, the crossings path cuts the sphere face in along the
 //! meridian of its chart through the circle and re-enters, and the output
-//! merge glues the cut away, the face keeping one wrap edge into each
-//! pole it holds. The rows:
+//! merge glues the cut away. On a sphere every same-face edge the cut
+//! leaves that is no spur is a bridge, whatever the face holds: a pole
+//! and its wrap edge (a band), the seam from rim to rim (a zone), or no
+//! seam at all (an annulus clear of it). The rows:
 //!
 //! - the unit ball poled on `y`, its seam on `+x`, against the slab
 //!   `x ∈ (−0.5, 0.5)`: the circle `x = −0.5` misses the seam;
 //! - the same ball against the box `x < 0.8, z > −0.7`, whose circle
 //!   `z = −0.7` lies parallel to the seam's plane beside one crossing it;
 //! - the same ball less the cap `x > 0.5` (a trimmed one-band face)
-//!   against the slab `x ∈ (−0.5, 0.3)` and the half-space `x < −0.5`.
+//!   against the slab `x ∈ (−0.5, 0.3)`, the half-space `x < −0.5`, and
+//!   the slab `x ∈ (−0.8, −0.5)`, whose ∩ is an annulus holding neither
+//!   a pole nor the seam;
+//! - the zone `|y| < 0.5` of the ball, its seam running rim to rim and no
+//!   pole in it, against `x < −0.9`, `x > −0.9`, and the box
+//!   `x > −0.9, y < 0.45` (on the crossings path): the cut runs rim to
+//!   rim too, into no tip.
 //!
 //! Each runs ∪, ∩ and both differences in both operand orders, read
 //! through `differential::outcome` (tiers, certificate, legal operand,
-//! closed-form volume). The trace reading: no merge was skipped, no edge
-//! separates two faces on one sphere record, every edge with one sphere
-//! face both sides runs on the authored seam's half-meridian
-//! (`z = 0, x > 0`), never on the cut's (`x < 0`).
+//! closed-form volume), and through `cut_trace::assert_no_cut_trace`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Tol, Vec3};
 use sweep::test_support::{ball_poled, brick, finished};
-use topo::{AtRestBody, Body, BooleanResult};
+use topo::{AtRestBody, Body};
 
+use crate::common::cut_trace::assert_no_cut_trace;
 use crate::common::differential::{every_op_both_orders, outcome};
 use crate::common::oracles::{ball_volume, cap_volume};
 
@@ -47,11 +53,21 @@ fn ball() -> AtRestBody<f64> {
     )
 }
 
+/// The brick `xs × ys × zs`.
+fn brick_of(xs: (f64, f64), ys: (f64, f64), zs: (f64, f64)) -> AtRestBody<f64> {
+    finished("the brick", brick::<f64>(xs, ys, zs, tol()), tol())
+}
+
 /// The brick `x ∈ xs` across the whole ball in `y` and `z`.
 fn slab(xs: (f64, f64)) -> AtRestBody<f64> {
+    brick_of(xs, (-2.0, 2.0), (-2.0, 2.0))
+}
+
+/// The built body of an op, at rest.
+fn built(r: Result<topo::BooleanResult<f64>, topo::BooleanError>) -> AtRestBody<f64> {
     finished(
-        "the slab",
-        brick::<f64>(xs, (-2.0, 2.0), (-2.0, 2.0), tol()),
+        "the operand",
+        Body::clone(&r.unwrap().body().unwrap().body),
         tol(),
     )
 }
@@ -59,56 +75,24 @@ fn slab(xs: (f64, f64)) -> AtRestBody<f64> {
 /// The ball less its cap `x > 0.5`: a trimmed one-band sphere face, its
 /// wrap edge cut where the cap's circle crosses it.
 fn trimmed() -> AtRestBody<f64> {
-    let cut = topo::subtract(&ball(), &slab((0.5, 2.0)), tol()).unwrap();
-    finished(
-        "the trimmed ball",
-        Body::clone(&cut.body().unwrap().body),
-        tol(),
-    )
+    built(topo::subtract(&ball(), &slab((0.5, 2.0)), tol()))
 }
 
-/// The trace reading (module docs), of one built result.
-fn assert_no_trace(label: &str, r: &BooleanResult<f64>) {
-    let Some(out) = r.body() else {
-        return;
-    };
-    assert!(
-        out.naming.merge_skipped.is_empty(),
-        "{label}: the output merge skipped {:?}",
-        out.naming.merge_skipped
-    );
-    let body = &*out.body;
-    let point = |v| topo::readback::vertex_point(body, v).unwrap();
-    for (e, _) in body.edges() {
-        let sides = topo::readback::edge_sides(body, e).unwrap();
-        let (f1, f2) = sides.faces();
-        let (k1, k2) = sides.surfaces();
-        let sphere = matches!(
-            topo::query::face_surface_kind(body, f1),
-            Some(geom::SurfaceKind::Sphere)
-        );
-        if !sphere || k1 != k2 {
-            continue;
-        }
-        assert_eq!(
-            f1, f2,
-            "{label}: {e:?} divides two faces of one sphere: a cut survives"
-        );
-        let (u, v) = body.edge_vertices(e).unwrap();
-        let ends = [point(u), point(v)];
-        assert!(
-            ends.iter().all(|p| p.z.abs() < 1e-9 && p.x > -1e-9) && ends.iter().any(|p| p.x > 0.25),
-            "{label}: {e:?} inside its sphere face runs off the authored seam's half-meridian: \
-             {ends:?}"
-        );
-    }
+/// The zone `|y| < 0.5` of the ball: one sphere face, its seam from rim
+/// to rim, no pole in it.
+fn zone() -> AtRestBody<f64> {
+    built(topo::intersect(
+        &ball(),
+        &brick_of((-2.0, 2.0), (-0.5, 0.5), (-2.0, 2.0)),
+        tol(),
+    ))
 }
 
 /// Runs every op both ways and reads each line and its trace.
 fn every_op_sound(a: &AtRestBody<f64>, b: &AtRestBody<f64>, v: (f64, f64, f64)) {
     for (op, r, want) in every_op_both_orders(a, b, v, tol()) {
         if let Ok(built) = &r {
-            assert_no_trace(op, built);
+            assert_no_cut_trace(op, built);
         }
         let line = outcome(r, want, tol());
         assert!(line.starts_with("OK SOUND"), "{op}: {line}");
@@ -121,21 +105,19 @@ fn every_op_sound(a: &AtRestBody<f64>, b: &AtRestBody<f64>, v: (f64, f64, f64)) 
 fn a_ball_and_a_slab_whose_far_circle_misses_the_seam() {
     let (b, s) = (ball(), slab((-0.5, 0.5)));
     let v = ball_volume(1.0);
-    let both = v - 2.0 * cap_volume(1.0, 0.5);
-    every_op_sound(&b, &s, (v, 16.0, both));
-    let band = topo::intersect(&b, &s, tol()).unwrap();
-    let body = &*band.body().unwrap().body;
-    let spheres = body
-        .faces()
-        .filter(|&(f, _)| {
-            matches!(
-                topo::query::face_surface_kind(body, f),
-                Some(geom::SurfaceKind::Sphere)
-            )
-        })
-        .count();
-    assert_eq!(spheres, 1, "the band is one face");
-    assert_eq!(body.faces().count(), 3, "the band and the two discs");
+    every_op_sound(&b, &s, (v, 16.0, v - 2.0 * cap_volume(1.0, 0.5)));
+}
+
+/// The ball against the box `x < 0.8, z > −0.7`: the circle `x = 0.8`
+/// crosses the seam, so the op takes the crossings path, and the circle
+/// `z = −0.7` lies in a plane parallel to the seam's, missing every
+/// meridian of that plane, the class a ball cut in two lunes met too.
+#[test]
+fn a_circle_parallel_to_the_seams_plane_beside_a_crossing_one() {
+    let (b, x) = (ball(), brick_of((-2.0, 0.8), (-2.0, 2.0), (-0.7, 2.0)));
+    let v = ball_volume(1.0);
+    let both = v - cap_volume(1.0, 0.2) - cap_volume(1.0, 0.3);
+    every_op_sound(&b, &x, (v, 2.8 * 4.0 * 2.7, both));
 }
 
 /// The ball less its cap `x > 0.5` against the slab `x ∈ (−0.5, 0.3)`:
@@ -159,21 +141,32 @@ fn a_trimmed_ball_and_a_far_half_space() {
     every_op_sound(&t, &h, (vt, 1.5 * 16.0, cap_volume(1.0, 0.5)));
 }
 
-/// The ball against the box `x < 0.8, z > −0.7`: the circle `x = 0.8`
-/// crosses the seam, so the op takes the crossings path, and the circle
-/// `z = −0.7` lies in a plane parallel to the seam's, missing every
-/// meridian of that plane, the class a ball cut in two lunes met too.
+/// The ball less its cap `x > 0.5` against the slab `x ∈ (−0.8, −0.5)`:
+/// the ∩ is an annulus about `−x` holding neither a pole nor the seam,
+/// its cut running from rim to rim, which the merge leaves seamless.
 #[test]
-fn a_circle_parallel_to_the_seams_plane_beside_a_crossing_one() {
-    let (b, x) = (
-        ball(),
-        finished(
-            "the box",
-            brick::<f64>((-2.0, 0.8), (-2.0, 2.0), (-0.7, 2.0), tol()),
-            tol(),
-        ),
+fn a_trimmed_ball_and_a_slab_cutting_an_annulus_off_its_seam() {
+    let (t, s) = (trimmed(), slab((-0.8, -0.5)));
+    let vt = ball_volume(1.0) - cap_volume(1.0, 0.5);
+    let both = cap_volume(1.0, 0.5) - cap_volume(1.0, 0.2);
+    every_op_sound(&t, &s, (vt, 0.3 * 16.0, both));
+}
+
+/// The zone `|y| < 0.5` against `x < −0.9`, `x > −0.9` and the box
+/// `x > −0.9, y < 0.45`: the cap `x < −0.9` (radius `0.436`) lies inside
+/// the zone, the box's face `y = 0.45` cuts it in a circle crossing the
+/// seam, and each cut runs from rim to rim into no tip.
+#[test]
+fn a_zone_against_planes_whose_circles_miss_its_seam() {
+    let z = zone();
+    let vz = ball_volume(1.0) - 2.0 * cap_volume(1.0, 0.5);
+    let tip = cap_volume(1.0, 0.1);
+    every_op_sound(&z, &slab((-2.0, -0.9)), (vz, 1.1 * 16.0, tip));
+    every_op_sound(&z, &slab((-0.9, 2.0)), (vz, 2.9 * 16.0, vz - tip));
+    let below = ball_volume(1.0) - cap_volume(1.0, 0.5) - cap_volume(1.0, 0.55) - tip;
+    every_op_sound(
+        &z,
+        &brick_of((-0.9, 2.0), (-2.0, 0.45), (-2.0, 2.0)),
+        (vz, 2.9 * 2.45 * 4.0, below),
     );
-    let v = ball_volume(1.0);
-    let both = v - cap_volume(1.0, 0.2) - cap_volume(1.0, 0.3);
-    every_op_sound(&b, &x, (v, 2.8 * 4.0 * 2.7, both));
 }

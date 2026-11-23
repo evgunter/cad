@@ -378,7 +378,13 @@ fn the_die_slab_cutting_the_ball_in_its_top_builds_at_its_closed_form() {
         ),
     ] {
         let body = match r {
-            Ok(topo::BooleanResult::Body(b)) => b.body,
+            Ok(r @ topo::BooleanResult::Body(_)) => {
+                crate::common::cut_trace::assert_no_cut_trace(op, &r);
+                match r {
+                    topo::BooleanResult::Body(b) => b.body,
+                    topo::BooleanResult::Empty => unreachable!("matched a body"),
+                }
+            }
             other => panic!("{op}: {other:?}"),
         };
         holds(op, &body, want, &region, lattice, 9);

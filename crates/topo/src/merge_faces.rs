@@ -56,6 +56,12 @@ use crate::loop_winding::{LoopWinding, WINDING_PREDICATE};
 use crate::validate::{ValidationError, validate_closed};
 use geom_brep::{CarrierEqError, CarrierRelation, PlaneRung, oriented_plane_eq};
 
+/// Whether `surface` is simply connected, so that no closed curve on it
+/// winds: a sphere or a spindle sheet.
+fn simply_connected<T: geom_core::Real>(surface: &Surface<T>) -> bool {
+    matches!(surface, Surface::Sphere { .. } | Surface::Spindle { .. })
+}
+
 /// One merged run: the surviving face and what was consumed into it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MergedGroup {
@@ -433,18 +439,15 @@ pub enum MergeCoplanarError {
         /// The edge the op cannot safely kill.
         edge: EdgeKey,
     },
-    /// A CURVED cosurface run would close its chart's full period
-    /// (M5 PR 9, C12.5): killing the last shared edge leaves either a
-    /// ring on a curved face or a full-wrap seam-form loop — shapes
-    /// the exact-B-rep props cannot integrate yet, so the run refuses
-    /// here and the driver records a loud skip (the operands'
-    /// cut-carrying canonical form stays; sub-period re-merges — the
-    /// through-cut case — commit normally). FLIP NOTE: every
-    /// closed-form flux lane now integrates the region its loops bound
-    /// (the chart Green forms, the cone's vector area, the sphere's
-    /// Gauss–Bonnet), so the kept-cut seam form may already be
-    /// integrable; re-evaluating this skip belongs to the curved-face
-    /// props owner.
+    /// A CURVED cosurface run's absorption left a same-face edge the
+    /// merge does not glue (M5 PR 9, C12.5): on a carrier that is not
+    /// simply connected (a cylinder, a cone, a torus) any duplicate,
+    /// which may be the cut that keeps the face's period open; on a
+    /// sphere or a spindle sheet a strut (deleting one from a curved
+    /// face is unbuilt), an edge joining two loops, or a run whose
+    /// outline the face's lift does not single out. The driver records
+    /// a loud skip, and the operands' cut-carrying form stays;
+    /// sub-period re-merges (the through-cut case) commit normally.
     PeriodClosure {
         /// The shared edge whose kill would close the period.
         edge: EdgeKey,
@@ -2633,24 +2636,6 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         Ok(())
     }
 
-    /// Whether `vertex` sits at a singular point of `face`'s chart (a
-    /// sphere's pole, a cone's apex, a spindle sheet's apex), decided at
-    /// `tol`'s band; an undecided reading or a chart with no closed
-    /// inverse is no.
-    fn at_chart_singularity(&self, face: FaceKey, vertex: VertexKey, tol: Tol) -> bool {
-        use geom_brep::chart_singularity::{singular_points, vertex_at_singular_point};
-        let (Ok(band), Ok(chart)) = (
-            Band::linear(tol),
-            geom::ChartInverse::of(self.proven_face(face).surface()),
-        ) else {
-            return false;
-        };
-        let p = self.resolve_vertex_point(vertex, crate::live::Proven);
-        singular_points(&chart)
-            .iter()
-            .any(|&(_, q)| matches!(vertex_at_singular_point(p, q, band), Ok(true)))
-    }
-
     /// Merges one group into `rep`, its survivor (see the
     /// public op's docs for order and refusals). Runs on the staged
     /// clone.
@@ -2693,23 +2678,24 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
             killed_vertices: Vec::new(),
         };
         let in_group = |f: FaceKey| f == rep || rest.contains(&f);
-        // A curved run on a chart with a singular point (a sphere's
-        // poles, a cone's apex) closes through its wrap edges: each such
-        // edge is the face's seam kept to its tip (DESIGN `[topology]`).
-        // Every other curved run keeps the period-closure skip.
-        let tipped = kind == MergeKind::Curved
-            && geom::ChartInverse::of(self.proven_face(rep).surface()).is_ok_and(|chart| {
-                !geom_brep::chart_singularity::singular_points(&chart).is_empty()
-            });
+        // A curved run whose carrier is simply connected (a sphere, a
+        // spindle sheet) closes through its same-face edges: on such a
+        // carrier no closed curve winds, so a same-face edge inside the
+        // survivor's loop that is no spur is a bridge, and its kill
+        // moves no region. Its wrap edges are the seam the author wrote
+        // (DESIGN `[topology]`) and stay. On any other curved carrier a
+        // same-face edge may be the cut that keeps the face's period
+        // open, and the run keeps the period-closure skip.
+        let bridges =
+            kind == MergeKind::Curved && simply_connected(self.proven_face(rep).surface());
         // Absorption: repeatedly kill the first (edge-arena order)
-        // edge shared between rep and another group member. A tipped
-        // run kills a wrap edge last: another edge the run shares into
-        // the wrap edge's tip is the one the survivor can lose.
+        // edge shared between rep and another group member, on a
+        // bridging run a wrap edge last.
         loop {
             let mut found = None;
             for wrap_pass in [false, true] {
                 for (edge_key, edge) in self.edges() {
-                    if tipped && crate::validate::wraps(self, edge_key) != wrap_pass {
+                    if bridges && crate::validate::wraps(self, edge_key) != wrap_pass {
                         continue;
                     }
                     let (hp, hm) = self.edge_halves(edge_key, edge);
@@ -2722,7 +2708,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
                         break;
                     }
                 }
-                if found.is_some() || !tipped {
+                if found.is_some() || !bridges {
                     break;
                 }
             }
@@ -2820,17 +2806,19 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
             }
         }
         // Intra-face duplicates: edges now occurring twice within the
-        // survivor's loops. On a CURVED survivor (C12.5, M5 PR 9) a
-        // same-face duplicate means the cosurface run CLOSED THE FULL
-        // PERIOD — a shape outside the merge's inventory (neither the
-        // ring form nor the kept-cut seam form is integrable by the
-        // exact-B-rep props yet), refused typed here; the driver
-        // records it as a LOUD skip, so sub-period re-merges (the C12.5
-        // through-cut case) proceed and full closures stay unmerged
-        // exactly as the operands arrived.
+        // survivor's loops, a bridging run's wrap edges aside. On a
+        // curved survivor whose carrier is not simply connected (C12.5,
+        // M5 PR 9) a same-face duplicate may be the cut that keeps the
+        // face's period open, which the merge does not tell from a
+        // bridge: refused typed here, and the driver records a LOUD
+        // skip, so sub-period re-merges (the C12.5 through-cut case)
+        // proceed and full closures stay unmerged as the operands
+        // arrived.
         //
-        // On a PLANAR survivor every duplicate is one of two things,
-        // told apart by topology alone:
+        // On a PLANAR survivor, and on a sphere's or a spindle sheet's,
+        // every duplicate is one of two things, told apart by topology
+        // alone (a curved strut refuses `PeriodClosure` at its plan,
+        // deleting one from a curved face being unbuilt):
         //
         // - **A dangling seam edge** — one end has no other edge (a
         //   valence-one vertex). It encloses no area: deleting it and
@@ -2855,25 +2843,11 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         //   something.
         loop {
             let mut duplicates = Vec::new();
-            // The survivor's wrap edges' tips, on a tipped run: the
-            // ends of its wrap edges at a singular point of its chart (a
-            // pole, an apex). A wrap edge has the face on both sides by
-            // construction, its seam, and is no duplicate the
-            // absorption made.
-            let mut wrap_tips = BTreeSet::new();
             for (edge_key, edge) in self.edges() {
                 let (hp, hm) = self.edge_halves(edge_key, edge);
                 if hp.face == rep && hm.face == rep {
-                    if tipped && crate::validate::wraps(self, edge_key) {
-                        let ends = self
-                            .edge_vertices(edge_key)
-                            .into_iter()
-                            .flat_map(|(u, v)| [u, v]);
-                        for v in ends {
-                            if self.at_chart_singularity(rep, v, tol) {
-                                wrap_tips.insert(v);
-                            }
-                        }
+                    // A bridging run's wrap edge is its seam.
+                    if bridges && crate::validate::wraps(self, edge_key) {
                         continue;
                     }
                     duplicates.push((edge_key, (edge.he_plus, hp), (edge.he_minus, hm)));
@@ -2882,31 +2856,8 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
             let Some(&(first_key, _, _)) = duplicates.first() else {
                 break;
             };
-            if kind == MergeKind::Curved && !tipped {
+            if kind == MergeKind::Curved && !bridges {
                 return Err(MergeCoplanarError::PeriodClosure { edge: first_key });
-            }
-            if tipped {
-                // A duplicate running into its own wrap edge's tip is a
-                // second cut into that chart singularity: the seam is a property of the face, its place
-                // conventional, and the face keeps one. It lies inside
-                // the face, so its kill moves no region: `kemr`, the
-                // side it walls off a ring. Any other duplicate closes
-                // the run's period.
-                let Some(&(edge_key, (he_plus, hp), (he_minus, hm))) =
-                    duplicates.iter().find(|&&(edge_key, _, _)| {
-                        self.edge_vertices(edge_key)
-                            .is_some_and(|(u, v)| wrap_tips.contains(&u) || wrap_tips.contains(&v))
-                    })
-                else {
-                    return Err(MergeCoplanarError::PeriodClosure { edge: first_key });
-                };
-                if hp.r#loop != hm.r#loop {
-                    return Err(MergeCoplanarError::PeriodClosure { edge: edge_key });
-                }
-                let result = self.kemr(he_plus, he_minus)?;
-                group.killed_edges.push(edge_key);
-                group.rings_made.push(result.ring);
-                continue;
             }
             // The first dangling edge in edge-arena order, deleted with
             // its free end (`crate::strut`); one with BOTH ends free is
@@ -2938,7 +2889,11 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
             }
             let (edge_key, (he_plus, hp), (he_minus, hm)) = duplicates[0];
             if hp.r#loop != hm.r#loop {
-                return Err(MergeCoplanarError::UnsupportedConfiguration { edge: edge_key });
+                return Err(if bridges {
+                    MergeCoplanarError::PeriodClosure { edge: edge_key }
+                } else {
+                    MergeCoplanarError::UnsupportedConfiguration { edge: edge_key }
+                });
             }
             // The fact `kemr` could contradict, re-read at the call.
             debug_assert!(
@@ -2982,7 +2937,12 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
                 let survivor = self.proven_face(rep).record().clone();
                 tear_before_role_pass(self, &survivor);
             }
-            if let Some(i) = self.merged_outline_ring(rep, tol)? {
+            let outline = if bridges {
+                self.curved_outline_ring(rep, &group, tol)?
+            } else {
+                self.merged_outline_ring(rep, tol)?
+            };
+            if let Some(i) = outline {
                 let Some(fm) = self.faces.get_mut(rep) else {
                     unreachable!(
                         "merge_group: `rep` resolved a few lines above and the winding \
@@ -2993,6 +2953,70 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
             }
         }
         Ok(group)
+    }
+
+    /// **Which of a bridging survivor's rings is its outline**
+    /// ([`Self::merge_group`]'s role pass on a sphere or a spindle
+    /// sheet), each loop asked in the outline slot in turn as the
+    /// face's lift reads it ([`Body::face_lift`], the reading the mesh
+    /// places rings by): the one slot whose lift places every ring, or
+    /// failing one, the one slot left once every slot whose lift places
+    /// a ring decidedly nowhere or decidedly twice is struck out. A
+    /// face has one outline, so a slot struck out is not it, and the
+    /// last one standing is, whether or not its own reading settles (a
+    /// row whose boxes do not tighten reads a ring undecided).
+    /// `Some(i)` is ring `i`; `None` the loop already there.
+    ///
+    /// # Errors
+    ///
+    /// [`MergeCoplanarError::PeriodClosure`], naming the last edge the
+    /// run killed, where no slot or more than one is left: the run is
+    /// left unmerged.
+    fn curved_outline_ring(
+        &mut self,
+        face: FaceKey,
+        group: &MergedGroup,
+        tol: Tol,
+    ) -> Result<Option<usize>, MergeCoplanarError> {
+        let band = Band::linear(tol).map_err(|error| MergeCoplanarError::Band { error })?;
+        let rings = self.proven_face(face).record().rings.len();
+        // A face has one outline. The slot whose lift places every ring
+        // is it; failing one, the slot left standing once every slot
+        // whose lift places a ring decidedly nowhere, or decidedly in
+        // two places, is struck out, whether its own reading settles or
+        // not.
+        let (mut placed, mut standing) = (Vec::new(), Vec::new());
+        for slot in core::iter::once(None).chain((0..rings).map(Some)) {
+            let swap = |body: &mut Self| {
+                if let (Some(i), Some(fm)) = (slot, body.faces.get_mut(face)) {
+                    core::mem::swap(&mut fm.outer, &mut fm.rings[i]);
+                }
+            };
+            swap(self);
+            let lift = self.face_lift(face, band);
+            swap(self);
+            match lift {
+                Ok(_) => placed.push(slot),
+                Err(
+                    crate::pcurves::RingPlacementError::NoShift { .. }
+                    | crate::pcurves::RingPlacementError::Shifts { .. },
+                ) => {}
+                Err(_) => standing.push(slot),
+            }
+        }
+        if let [slot] = placed[..] {
+            return Ok(slot);
+        }
+        standing.extend(placed);
+        match standing[..] {
+            [slot] => Ok(slot),
+            _ => Err(MergeCoplanarError::PeriodClosure {
+                edge: *group
+                    .killed_edges
+                    .last()
+                    .unwrap_or_else(|| unreachable!("a role pass runs after a kemr")),
+            }),
+        }
     }
 
     /// [`Body::planar_loop_winding_decided`], in this door's error
@@ -3303,6 +3327,12 @@ mod tests {
     /// the way the door asks it.
     fn contract_of(body: &Body<f64>) -> GroupContract {
         let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
+        contract_over(body, &faces)
+    }
+
+    /// The contract of the group holding `faces`, asked the way the
+    /// door asks it.
+    fn contract_over(body: &Body<f64>, faces: &[FaceKey]) -> GroupContract {
         let kinds = body
             .kind_census()
             .expect("the fixture's faces resolve")
@@ -3333,6 +3363,28 @@ mod tests {
             .surfaces
             .get_mut(key)
             .expect("the placeholder resolves") = unit_cylinder();
+    }
+
+    /// Re-describes the fixture's shared key as the unit sphere, in
+    /// place, as [`describe_shared_key_curved`] does.
+    /// The record is the one two faces wear.
+    fn describe_shared_key_sphere(body: &mut Body<f64>) {
+        let records: Vec<_> = body.faces().map(|(_, f)| f.surface).collect();
+        let key = *records
+            .iter()
+            .find(|&&k| records.iter().filter(|&&j| j == k).count() == 2)
+            .expect("two faces share a record");
+        *body
+            .surfaces
+            .get_mut(key)
+            .expect("the placeholder resolves") = Surface::Sphere {
+            frame: geom::Frame::new(
+                geom_core::Point3::new(0.0, 0.0, 0.0),
+                geom_core::Vec3::new(0.0, 0.0, 1.0),
+                geom_core::Vec3::new(1.0, 0.0, 0.0),
+            ),
+            radius: 1.0,
+        };
     }
 
     /// Re-describes the fixture's one shared placeholder key as a
@@ -3700,11 +3752,14 @@ mod tests {
     /// regime, each with the [`EstablishedFact`] the re-check before
     /// that call proves.
     ///
-    /// Only the absorption's four: a curved survivor refuses
+    /// The absorption's four, and `kemr`'s on a sphere: a curved
+    /// survivor on a carrier that is not simply connected refuses
     /// `PeriodClosure` at its first same-face duplicate, before either
-    /// intra-face operator runs, so `kev` and `kemr` are reached only
-    /// by planar runs — which refuse the call whatever they raise.
-    const RECORDING_FACTS: [(TearPoint, EstablishedFact); 4] = [
+    /// intra-face operator runs, and a sphere's refuses it at its first
+    /// strut, before `kev`; so `kev` is reached only by planar runs,
+    /// which refuse the call whatever they raise, and `kemr` by planar
+    /// runs and a sphere's bridges, which record.
+    const RECORDING_FACTS: [(TearPoint, EstablishedFact); 5] = [
         (
             TearPoint::RingBecomesItsFacesOuter,
             EstablishedFact::RingIsNotItsFacesOuter,
@@ -3721,6 +3776,10 @@ mod tests {
             TearPoint::DrainedFaceRegainsARing,
             EstablishedFact::AbsorbedFaceIsRingFree,
         ),
+        (
+            TearPoint::DuplicateHalvesPartCompany,
+            EstablishedFact::DuplicateHalvesShareALoop,
+        ),
     ];
 
     /// Every fact the surgery re-checks, each reached by a planar run
@@ -3734,10 +3793,7 @@ mod tests {
             TearPoint::StrutBecomesASelfLoop,
             EstablishedFact::StrutHalvesHaveDistinctEnds,
         ),
-        (
-            TearPoint::DuplicateHalvesPartCompany,
-            EstablishedFact::DuplicateHalvesShareALoop,
-        ),
+        RECORDING_FACTS[4],
     ];
 
     /// **A refusal that contradicts a re-checked fact escapes under
@@ -3759,8 +3815,25 @@ mod tests {
         let tol = Tol::witness();
         for (point, want) in RECORDING_FACTS {
             let mut body = fixture_for(point, tol);
-            describe_shared_key_curved(&mut body);
-            assert_eq!(contract_of(&body), CURVED, "{point:?}");
+            // `kemr` is reached on a curved run only by a sphere's,
+            // whose group is the two faces on the sphere.
+            let contract = if point == TearPoint::DuplicateHalvesPartCompany {
+                describe_shared_key_sphere(&mut body);
+                let kinds = body
+                    .kind_census()
+                    .expect("the fixture's faces resolve")
+                    .kinds;
+                let curved: Vec<FaceKey> = body
+                    .faces()
+                    .map(|(k, _)| k)
+                    .filter(|&k| kinds.get(k) == Some(&MergeKind::Curved))
+                    .collect();
+                contract_over(&body, &curved)
+            } else {
+                describe_shared_key_curved(&mut body);
+                contract_of(&body)
+            };
+            assert_eq!(contract, CURVED, "{point:?}");
             let error = escaped_refusal(point, &mut body, &[], tol);
             assert_eq!(
                 OpPlacement::of(&error),

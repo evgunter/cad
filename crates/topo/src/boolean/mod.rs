@@ -3885,7 +3885,7 @@ pub enum BooleanError {
     /// **Two sites raise it, and [`PairRefusalSite`] says which.** The
     /// operand gate refuses UP FRONT, on the operands' kinds and boxes.
     /// The crossings path's interior-loop
-    /// guard (`ops::interior_loop_verdict`) refuses AFTER the pipeline
+    /// guard (`ops::guard_refusal`) refuses AFTER the pipeline
     /// would have answered: a face pair, one of them not a plane, that
     /// the section certificate cannot clear of a loop no edge event
     /// marks (the reduction saw crossings elsewhere, and the join and
