@@ -665,7 +665,7 @@ impl Piece {
             r.u = (r.u.0.min(x), r.u.1.max(x));
             r.v = (r.v.0.min(y), r.v.1.max(y));
             // The box holds the piece only where every weight is positive.
-            if !(control[2].value > 0.0) {
+            if control[2].value.partial_cmp(&0.0) != Some(core::cmp::Ordering::Greater) {
                 return None;
             }
             let point = dehomogenized(*control, SPLINE_TRIM_WEIGHT)?;

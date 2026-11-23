@@ -863,7 +863,7 @@ mod tests {
     #[test]
     fn a_dehomogenized_points_bound_holds_its_drift() {
         use crate::exact::Expansion;
-        let mut next = draws(0x5eed_d40);
+        let mut next = draws(0x05ee_dd40);
         let (mut worst, mut refused) = (0.0f64, 0usize);
         for case in 0..4000 {
             let scale = [1e-3, 1.0, 1e3, 1e6][case % 4];
