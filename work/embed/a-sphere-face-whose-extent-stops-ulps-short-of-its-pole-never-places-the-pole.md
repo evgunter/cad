@@ -269,3 +269,13 @@ receipt unchanged from `ae076e050`; tour walk 78 of 85; the injectivity
 suite 64 of 64 at the default ε, 1e-6 and 1e-12; 119 unit rows; the
 review's 120 hold, its turned set 46 hold and 22 refuse, its far probe
 23 of 24, each refusal at the receipt it had on `ae076e050`.
+
+**On the landing train** (`origin/embed/wave3-land` at `f06547ccf`,
+merged in on 2026-11-23, with `embed/apex-separator`'s plane through a
+pair's one shared vertex): the turned balls and the sixteen turned
+ice-creams hold, so the turned-ball refusal pin is a holding assertion
+now; the review's turned set reads 62 holding and 6 refusing (the six
+cone cases of the P0 row), its far probe 23 of 24. The mirrored cone
+wedges that needed this PR's run-on and that plane together are
+embedded in thirteen of fourteen poses at both scalars
+(`work/embed/a-mirrored-cone-wedge-refuses-departure-at-its-apex-off-the-plain-frame.md`).

@@ -50,6 +50,19 @@ the small cone's were read at the default ε alone.
 On main `a3d5ce89c` (2026-11-22, 577 commits on) every case in the
 last column reads the same, at the same receipt.
 
+On the landing train (`origin/embed/wave3-land` at `f06547ccf`, merged
+into PR 7115 on 2026-11-23) the same six cone cases refuse and no other
+of the review's 68 turned cases does: the sixteen turned ice-creams
+hold there, by the plane through the pair's one shared vertex
+(`embed/apex-separator`), which does not part these half-cones. The
+splits are unchanged; the receipts count one refusal, since the ask
+ends at its first finding (turned 1: 6,567 / 1 / 6,681; turned 2:
+`Budget(Pairs)`, 47,039 / 1 / 65,530; turned 3: 25,153 / 1 / 50,652,
+25,154 / 1 / 50,667, 24,925 / 1 / 50,428, 24,795 / 1 / 50,283). The far
+probe's one refuser is still `Budget(Depth { 40 })`, at 1,040 / 1 / 1,065.
+The turned-3 unit cone, which held until PR 7120, has a row of its own:
+`work/embedwalk/the-unit-cone-on-a-turned-plane-held-until-the-windows-came-from-covers-and-refuses-departure-since.md`.
+
 **The verdict moved with ε too, on an earlier main.** On `c3ffedeb2`
 the unit cone on the first turned plane held at the default ε and at
 1e-12 after 10,507 splits and refused at 1e-6

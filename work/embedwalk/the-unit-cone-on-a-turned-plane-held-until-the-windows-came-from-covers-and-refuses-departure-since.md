@@ -57,3 +57,9 @@ is not known either.
 Pinned as a refusal, with the pair and the shared edge, by
 `self_intersection_proves_injectivity::the_unit_cone_on_the_third_turned_plane_refuses_departure_at_its_apex`.
 Red when it holds.
+
+**On the landing train** (`origin/embed/wave3-land` at `f06547ccf`,
+merged into PR 7115, 2026-11-23): the four refuse as before, the same
+pairs and edges, at the same splits (50,652, 50,667, 50,428, 50,283).
+The receipts read 25,153 / 1 / 50,652 and alike, since the ask now ends
+at its first finding.
