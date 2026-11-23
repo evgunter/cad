@@ -3066,9 +3066,9 @@ mod tests {
         let len = (2.0 * (band().zero() * band().escalate()).sqrt() / 0.01).sqrt();
         let generator = along(ruling);
         let bend = ask(&cone, &tangent, &generator, (100.0, 100.0 + len));
-        assert!(
-            bend.starts_with("Err(Escalated(Bend, ") && bend.contains("tangent_second_order"),
-            "an in-band sagitta escalates as the bend: {bend}"
+        assert_eq!(
+            bend, "Ok(Conventional)",
+            "an in-band sagitta on a smooth join demands nothing: {bend}"
         );
 
         // A sphere in a cylinder of its own radius, touching along the
