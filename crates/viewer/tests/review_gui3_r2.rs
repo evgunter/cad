@@ -636,15 +636,15 @@ fn failed_and_poisoned_badges_carry_the_payloads_own_text_and_nothing_else() {
 
     let failed = common::row_of(&rows, bad);
     let expected = match evaluation.result(bad).expect("the node has a result") {
-        pncad::document::NodeResult::Failed(error) => {
-            error.spoken(session.committed_doc(), evaluation)
-        }
+        pncad::document::NodeResult::Failed(error) => error
+            .spoken(session.committed_doc(), evaluation)
+            .to_string(),
         other => panic!("expected a failure, got {other:?}"),
     };
     assert_eq!(
         failed.status,
         viewer::tree::RowStatus::Failed {
-            message: expected.clone(),
+            message: expected.clone().to_string(),
             carried: Vec::new(),
         },
         "the badge is NodeError's own Display, not a sentence the panel wrote"
@@ -676,7 +676,7 @@ fn failed_and_poisoned_badges_carry_the_payloads_own_text_and_nothing_else() {
             let allowed = match &row.status {
                 viewer::tree::RowStatus::Poisoned { through, .. } => format!(
                     "upstream failure at {} — that row carries the cause",
-                    session.doc().spoken(*through)
+                    viewer::tree::spelled(&session.doc().spoken(*through))
                 ),
                 _ => expected.clone(),
             };

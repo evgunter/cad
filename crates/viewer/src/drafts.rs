@@ -801,8 +801,11 @@ impl ProfileEdit {
                     let why = match &found.value {
                         Ok(props::Reading::One(_)) => continue,
                         Ok(props::Reading::PerMember(members)) => {
-                            let indices: Vec<String> =
-                                members.over().iter().map(ToString::to_string).collect();
+                            let indices: Vec<String> = members
+                                .over()
+                                .iter()
+                                .map(crate::tree::spelled_var)
+                                .collect();
                             format!(
                                 "it reads index {}, so it has a value per member and the editor \
                                  holds one",
@@ -1291,7 +1294,8 @@ impl Drafts {
                 };
                 self.let_go(why);
                 let base = sketch::held_written(doc, node)?;
-                let mut loaded = ProfileEdit::load(node, base, doc.spoken(node).to_string());
+                let mut loaded =
+                    ProfileEdit::load(node, base, crate::tree::spelled(&doc.spoken(node)));
                 if !deferred.is_empty() {
                     loaded.offer = Offer::Deferred(deferred);
                 }
@@ -1927,7 +1931,7 @@ pub(crate) fn latch(slot: &mut Option<HeldPick>, doc: &Doc<ProfileProgram>, face
 pub(crate) fn latch_said(held: Option<&HeldPick>, by: Speaker<'_>) -> String {
     held.map_or_else(
         || crate::seats::NONE_PICKED.to_owned(),
-        |held| pncad::document::Said(held, by).to_string(),
+        |held| pncad::document::Said(held, by).sentence().to_string(),
     )
 }
 

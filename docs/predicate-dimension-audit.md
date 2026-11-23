@@ -92,9 +92,10 @@ seam by `geom_core::k_stats::decide_flagged(name, margin, band, row)`
 — the finding lane: no `Margin` is constructed, the row id is a
 compile-time argument at the site, and grepping `decide_flagged`
 enumerates the clause-(i) debt exactly (F13 ×1, F14 ×1, F16 ×1,
-F42 ×1, F44 ×1, F45 ×1 — 6 shipped sites, tracked as issue #214 and pinned by
-`geom-core/tests/flagged_census.rs`: no new site ships without a row
-here, and the count only moves together with this section).
+F42 ×1, F44 ×1, F45 ×1 — 6 shipped sites, tracked as issue #214 and held by
+`geom-core/tests/flagged_census.rs`: no new site ships without citing a
+row that exists here. The count is this prose's, not a pin: a site
+added under an existing row reds nothing).
 
 **The metric door is two doors, and the rate carries its own bound
 direction.** `Margin::metered(span, rate)` takes an
@@ -368,8 +369,8 @@ Not "it is guarded" and not "dating it is enough": a gate would have to
 fix the family-matching convention in code, and that convention is the
 judgement this section is careful to expose rather than freeze. A green
 gate would assert a reading, not a fact. What *is* mechanical is
-already elsewhere — `geom-core/tests/flagged_census.rs` pins the
-`decide_flagged` count, and the K sweep recomputes the emitted-name set
+already elsewhere — `geom-core/tests/flagged_census.rs` holds every
+`decide_flagged` site to an existing row, and the K sweep recomputes the emitted-name set
 on every merge. The 25 are scheduled as their own unit (§D's **D46**),
 which is what actually moves the number.
 
@@ -772,7 +773,6 @@ which is what actually moves the number.
 | ring_path.rs (`Quadric::torus_circle_arc`) | split_ring_torus_crest | the height along the axis of the centre of the tube's top or bottom circle (a parallel of radius `R`), `±r` on the torus | m | OK (GERM) |
 | ring_path.rs (`path_parity`) | split_ring_path_crest_graze | a parallel piece's radius less `R`: whether it runs along the cylinder `ρ = R` the top and bottom circles are read across, shrunk toward zero by the reading's resolution (its points' spread about its own first point; `ring_path::resolution`) (`charge`, `resolution`) | m | OK (GERM) |
 | ring_path.rs (`path_parity`) | split_ring_path_crest_side | `ρ − R` at a segment piece's end: its side of the cylinder `ρ = R`, shrunk toward zero by the reading's resolution (its points' spread about its own first point; `ring_path::resolution`) (`charge`, `resolution`) | m | OK (GERM) |
-| ring_path.rs (`path_parity`) | split_ring_path_meets_plane | the gap `r·√(A² + B²) − \|D\|`: a circle piece's reach across a loop conic's plane less its centre's offset from it, the plane's displacement that flips the meeting, shrunk toward zero by the reading's resolution (its points' spread about its own first point; `ring_path::resolution`) (`charge`, `resolution`) | m | OK (TANG) |
 | ring_path.rs (`path_parity`) | split_ring_path_segment_side | a ruling segment's end's offset from a loop conic's plane, `n̂·(p − c)`, shrunk toward zero by the reading's resolution (its points' spread about its own first point; `ring_path::resolution`) (`charge`, `resolution`) | m | OK (TANG) |
 | ring_path.rs (`segment_misses`) | split_ring_path_segment_apart | where a segment's end lies on a loop conic's plane: the segment's midpoint's distance from the arc (from the arc of the circle of radius `b` over the conic's span, less `\|a − b\|`), less half its length, shrunk toward zero by the path's resolution (its points' spread, and its conic arcs' far-carrier charge through `carrier_resolution`) (`charge`, `path_resolution`); decided positive, the segment misses the arc | m | OK (GERM) |
 | ring_path.rs (`misses_in_plane`) | split_ring_path_coplanar_apart | where a circle piece's meeting with a loop conic's plane is in the band: the gap between the piece's circle and the annulus `min(a, b)..max(a, b)` about the conic's centre, by the centres' distance (`max(d − r − max, min − r − d, r − max − d)`), shrunk toward zero by the path's resolution (its points' spread, and its conic arcs' far-carrier charge through `carrier_resolution`) (`charge`, `path_resolution`); decided positive, the two miss whatever their planes | m | OK (GERM) |
@@ -1158,7 +1158,7 @@ Flagged, NOT fixed here (dispositions):
   the executed evidence for why the shape mattered — and because
   `flagged_census.rs` reads these headings and would call a citation to
   a vanished row a string. Nothing cites it now: the count above went
-  from 8 to 7, and `LEDGER_FLAGGED_SITES` with it.
+  from 8 to 7.
 - **F14** (added by the clause-(i) migration)
   `editor-core/eval/wire.rs` `turns_off`: `|θ| − k·τ` is **radians**
   against the linear band. The revolve's full-circle coincidence check
@@ -1232,7 +1232,7 @@ Flagged, NOT fixed here (dispositions):
   requested clearance, in METRES against the linear band; the second is
   the same shape at `c = 0`. Honest metres on both sides, so **neither
   site is flagged** and neither takes `decide_flagged` — this row is
-  the disposition, and `LEDGER_FLAGGED_SITES` does not move. It is
+  the disposition. It is
   written here rather than left implicit because the two sites are new
   names in the K roster and a reader asking "what dimension is a
   clearance margin" should find the answer in the ledger.

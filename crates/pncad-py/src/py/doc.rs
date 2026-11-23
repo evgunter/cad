@@ -337,7 +337,7 @@ pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
             word(crate::tags::distribution_fault_tag(fault)),
             none(),
             none(),
-            text(&p.to_string()),
+            text(&pncad::document::sentence!(pncad::document::Speaker::TAG.var(p)).to_string()),
             none(),
             none(),
             none(),
@@ -357,7 +357,7 @@ pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
             none(),
             none(),
             none(),
-            text(&p.to_string()),
+            text(&pncad::document::sentence!(pncad::document::Speaker::TAG.var(p)).to_string()),
             dim(*measures),
             dim(*was),
             none(),
@@ -649,7 +649,7 @@ fn profile_of<'d>(doc: &'d d::ProfileDoc, node: &NodeId) -> PyResult<&'d d::Prof
         Some(d::Node::Profile(program)) => Ok(program),
         _ => Err(pyo3::exceptions::PyValueError::new_err(format!(
             "{} is not a profile",
-            doc.spoken(node.0)
+            pncad::document::sentence!(pncad::document::Speaker::TAG.mention(&doc.spoken(node.0)))
         ))),
     }
 }
@@ -706,7 +706,7 @@ pub(crate) fn name_from_text(text: &str) -> PyResult<pncad::prelude::StableName>
 /// the rest of each address holds
 /// an integer the word does not carry, so each refuses in its own
 /// sentence rather than as a misspelling.
-fn slot_from_text(word: &str) -> PyResult<d::SlotId> {
+pub(crate) fn slot_from_text(word: &str) -> PyResult<d::SlotId> {
     if let Some(slot) = crate::slot_word::slot_from_word(word) {
         return Ok(slot);
     }
@@ -1086,7 +1086,9 @@ impl Doc {
                 {
                     return Err(pyo3::exceptions::PyTypeError::new_err(format!(
                         "{} is an operation's output of kind {}, which no expression reads",
-                        self.inner.spoken_var(var),
+                        pncad::document::sentence!(
+                            pncad::document::Speaker::TAG.var(&self.inner.spoken_var(var))
+                        ),
                         held.kind()
                     )));
                 }
@@ -1347,7 +1349,9 @@ impl Doc {
                 .collect()),
             None => Err(pyo3::exceptions::PyValueError::new_err(format!(
                 "{} is not a loft",
-                self.inner.spoken(loft.0)
+                pncad::document::sentence!(
+                    pncad::document::Speaker::TAG.mention(&self.inner.spoken(loft.0))
+                )
             ))),
         }
     }
@@ -1420,7 +1424,9 @@ impl Doc {
             .map_err(|refusal| {
                 pyo3::exceptions::PyValueError::new_err(format!(
                     "{} has no pieces under the current values: {refusal}",
-                    self.inner.spoken(profile.0)
+                    pncad::document::sentence!(
+                        pncad::document::Speaker::TAG.mention(&self.inner.spoken(profile.0))
+                    )
                 ))
             })?;
         pieces
@@ -1656,7 +1662,7 @@ impl Doc {
                 };
                 let message = format!(
                     "{}. Recourse: ask for the kind of a node this document holds",
-                    err.problem()
+                    pncad::document::Said(&err.problem(), pncad::document::Speaker::TAG).sentence()
                 );
                 edit_err_saying(py, &err, message)
             })
@@ -1709,6 +1715,45 @@ impl Doc {
                 .map(|out| Var::of(&self.inner, out))
                 .collect(),
         })
+    }
+
+    /// **Author the assertion a check carries** (`CheckEvidence.quieting`),
+    /// as one action: a split's unnamed tool named first (a variable two
+    /// readers share is named), the measure, whose insert mints each
+    /// reference's selection and pose, then the assertion, `= 0` over its
+    /// output; all land or none does. Answers the assertion's id, the
+    /// node the quieted finding names.
+    ///
+    /// `quieting` must be one the checks of this document found; one of
+    /// another document raises `EditError` with variant
+    /// `evaluation_of_another_document` before anything is applied, and a
+    /// refusal of the insert door raises its own `EditError`. A later
+    /// version of this document is fine: the claim is spelled for this
+    /// one as it stands, and a name it no longer resolves refuses.
+    fn assert_quieting(
+        &mut self,
+        py: Python<'_>,
+        quieting: &super::checks::Quieting,
+    ) -> PyResult<NodeId> {
+        let (claim, found) = quieting.minted();
+        if found.id() != self.inner.id() {
+            let foreign = d::EditError::EvaluationOfAnotherDocument {
+                expected: self.inner.id(),
+                found: found.id(),
+            };
+            return Err(edit_err(py, &foreign));
+        }
+        let done = claim
+            .edits(&self.inner, Tol::witness())
+            .map_err(|err| edit_err(py, &err))?;
+        let assertion = done
+            .minted
+            .last()
+            .copied()
+            .flatten()
+            .unwrap_or_else(|| unreachable!("the last edit inserts the assertion"));
+        self.take_up(done.doc, done.maintenance);
+        Ok(NodeId(assertion))
     }
 
     /// **A profile drawn on a face** (DM1): `outline` drawn on the chart
@@ -2119,7 +2164,7 @@ impl Doc {
             };
             let message = format!(
                 "{}. Recourse: ask for the label of a node this document holds",
-                err.problem()
+                pncad::document::Said(&err.problem(), pncad::document::Speaker::TAG).sentence()
             );
             return Err(edit_err_saying(py, &err, message));
         }
@@ -2242,7 +2287,9 @@ impl Doc {
             Some(var) => Ok(Some(Var::of(&self.inner, var))),
             None => Err(pyo3::exceptions::PyValueError::new_err(format!(
                 "{} defines {} port(s), so it has no port {port}",
-                self.inner.spoken(node.0),
+                pncad::document::sentence!(
+                    pncad::document::Speaker::TAG.mention(&self.inner.spoken(node.0))
+                ),
                 signature.len()
             ))),
         }

@@ -2,10 +2,11 @@
 id: no-ci-row-runs-the-suite-at-a-non-default-k
 kind: issue
 title: No CI row runs the suite at a non-default K — the eps axis runs at three values nightly and the K axis at one
-status: open
+status: closed
 opened: 2026-09-11
 priority: P3
 cost: E
+closed: 2026-11-22
 ---
 
 (FIX orchestrator) From the `literal-k-where-the-runs-k-belongs` lane,
@@ -53,3 +54,7 @@ it by hand, which is the same shape as the doc-link red that sat on
 A considered answer, and its home is the nightly, not the per-PR gate
 (`work/ciw/latency-cut.md`): a `full-suite` step at one or more
 non-default K, or a written argument that K = 10 alone suffices.
+
+## Closed
+
+2026-11-22, CIW triage (not worth its latency). All three K-dependent defects date from PR 2346 (September), two were repaired there, and nothing has been recorded since. A nightly full-suite at another K adds a whole-suite row to a job that already overruns: per GREEN's log of 2026-11-02, its 1e-12 row alone runs 40 min and the three eps rows outgrow 180 min. It would also add a new class of red nightly for GREEN to triage.
