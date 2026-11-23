@@ -247,13 +247,16 @@ failure-output = "immediate-final"
 #    0.61 s  sweep::all pinned_corners_build::a_half_disc_turned_in_the_last_slab_builds_a_lune_on_a_straight_slab
 #    0.51 s  sweep::all pinned_corners_build::a_half_disc_turned_about_its_chord_builds_a_lune
 # The loft's collapsed-side walls, nine bodies meshed at three δ down to
-# 1e-3, and a pinned wall's side against its unpinned twin's strut at
-# three δ (a local run at the gate's build):
+# 1e-3, a pinned wall's side against its unpinned twin's strut at three
+# δ, the lune's two sides at 1e-3 and the v-degree-2 wall at two δ (a
+# local run at the gate's build):
 #    6.03 s  mesh trimmed::collapsed_rows::every_collapsed_side_the_loft_builds_meshes_at_a_fine_chordal
 #    0.57 s  mesh trimmed::collapsed_rows::a_collapsed_side_is_walked_as_its_unpinned_twins_strut_is_chorded
+#    0.95 s  mesh trimmed::collapsed_rows::a_lune_walks_both_its_collapsed_sides
+#    0.33 s  mesh trimmed::collapsed_rows::the_wall_pinned_through_three_sections_meshes_only_with_its_side_walked
 default-filter = """
 not (
-  (binary_id(mesh) & (test(=trimmed::collapsed_rows::every_collapsed_side_the_loft_builds_meshes_at_a_fine_chordal) | test(=trimmed::collapsed_rows::a_collapsed_side_is_walked_as_its_unpinned_twins_strut_is_chorded))) |
+  (binary_id(mesh) & (test(=trimmed::collapsed_rows::every_collapsed_side_the_loft_builds_meshes_at_a_fine_chordal) | test(=trimmed::collapsed_rows::a_collapsed_side_is_walked_as_its_unpinned_twins_strut_is_chorded) | test(=trimmed::collapsed_rows::a_lune_walks_both_its_collapsed_sides) | test(=trimmed::collapsed_rows::the_wall_pinned_through_three_sections_meshes_only_with_its_side_walked))) |
   (binary_id(sweep::all) & (test(=pinned_corners_build::a_half_disc_turned_about_its_chord_builds_a_lune) | test(=pinned_corners_build::a_half_disc_turned_in_the_last_slab_builds_a_lune_on_a_straight_slab))) |
   (binary_id(sweep::all) & (test(=band_planar_cut_off_meters::a_far_side_arc_with_no_vertex_in_the_tube_is_clear_of_the_strip) | test(=band_planar_mitre::a_frustum_top_rim_mitres_at_leaning_walls) | test(=join_pierce_runs_sweep::six_crossing_corners_build_every_op))) |
   (binary_id(mesh::all) & test(=sizing_theorem_rows::cone_frusta_mesh_within_delta)) |

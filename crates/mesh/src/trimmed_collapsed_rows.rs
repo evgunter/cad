@@ -317,3 +317,166 @@ fn a_walked_side_holds_its_pieces_between_its_copies() {
     let (got, _) = walk.along((points.clone(), edges)).unwrap();
     assert_eq!(got, points, "nothing to walk");
 }
+
+/// **The witness of why the side is walked**: the corner pinned through
+/// three sections at v-degree 2, one wall over the three, collapsed at
+/// the corner over its whole span. Holding the vertex's copy alone (the
+/// analytic arms' pole shape) leaves a triangle beside the side whose
+/// chart box spans the column, and that bound does not fall with δ: it
+/// sits near 0.06 from δ = 3·10⁻² down, so the face refuses there. Walked,
+/// it meshes.
+#[test]
+fn the_wall_pinned_through_three_sections_meshes_only_with_its_side_walked() {
+    let body = loft(
+        4,
+        &[
+            Affine3::identity(),
+            about_corner(0.3, 0.0),
+            about_corner(0.6, 0.0),
+        ],
+        2,
+    );
+    for delta in [3e-2, 1e-2] {
+        let mesh = crate::tessellate(&body, delta, Tol::witness())
+            .unwrap_or_else(|e| panic!("δ = {delta}: the v-degree-2 wall meshes, got {e:?}"));
+        crate::validate::check_mesh(&mesh).unwrap();
+    }
+}
+
+/// **Two collapsed sides on one face, each walked**: the lune, the half
+/// disc's arc wall turned about its chord, is collapsed at both ends of
+/// its chart's `u`, each at its own vertex. The polygon holds each
+/// vertex's copies down its own column, ⌈1/h_v⌉ pieces on each.
+#[test]
+fn a_lune_walks_both_its_collapsed_sides() {
+    let band = geom_core::predicate::Band::linear(Tol::witness()).unwrap();
+    let body = loft(
+        2,
+        &[
+            Affine3::identity(),
+            turn_about([0.0; 3], [1.0, 0.0, 0.0], 0.8),
+        ],
+        1,
+    );
+    let delta = 1e-3;
+    let (chords, shared, bounds) = chord_pass(&body, delta);
+    let walls = collapsed(&body);
+    assert_eq!(walls.len(), 1, "the lune is one wall");
+    let fk = walls[0];
+    let surface = body.face_surface(fk).unwrap();
+    let row = ChartRow::of(&body, fk, surface, &bounds).unwrap();
+    let lift = body.face_lift(fk, band).unwrap();
+    let (singular, polygon) = super::face_polygon(
+        &body,
+        fk,
+        (surface, &row),
+        &lift,
+        &chords,
+        &shared,
+        band,
+        delta,
+        None,
+    )
+    .unwrap();
+    assert_eq!(singular.len(), 2, "one vertex per side");
+    let (_, hv) = row.steps(super::face_target(
+        surface,
+        crate::tessellate::Lane::Trimmed,
+        delta,
+    ));
+    let want = crate::sizing::ceil_count(1.0, hv).unwrap() + 1;
+    for id in &singular {
+        let copies: Vec<(f64, f64)> = polygon
+            .points
+            .iter()
+            .filter(|p| p.2 == *id)
+            .map(|&(u, v, _)| (u, v))
+            .collect();
+        assert!(
+            copies.len() == want && copies.iter().all(|&(u, _)| u == copies[0].0),
+            "vertex {id}: {want} copies down one column, got {copies:?}"
+        );
+    }
+    let mut columns: Vec<u64> = polygon
+        .points
+        .iter()
+        .filter(|p| singular.contains(&p.2))
+        .map(|p| p.0.to_bits())
+        .collect();
+    columns.sort_unstable();
+    columns.dedup();
+    assert_eq!(
+        columns.len(),
+        2,
+        "the two sides are the chart's two columns"
+    );
+}
+
+/// **A vertex in the band of a collapsed side but not its stored point**:
+/// the lift decides the vertex on the side at the band and turns the face
+/// there, while the polygon reads the side's point exactly and holds the
+/// vertex once, its side across the column, as at any vertex beside the
+/// side. That shape is sound and coarse: the wedge, its vertices restated
+/// an ulp up, meshes at δ = 0.1 and refuses `CertificateExceeded` at
+/// 10⁻², as every collapsed-side wall did before its side was walked. No
+/// door builds it: the loft writes a pinned corner as its section's
+/// point (`work/tesslane/a-collapsed-sides-vertex-a-hair-off-its-point-meshes-only-at-a-coarse-chordal.md`).
+#[test]
+fn a_vertex_in_a_sides_band_but_not_its_point_holds_one_copy_and_meshes_coarse() {
+    let band = geom_core::predicate::Band::linear(Tol::witness()).unwrap();
+    let hinge = turn_about([-1.0, 0.0, 0.0], [0.0, -1.0, 0.0], 0.5);
+    let mut body = loft(4, &[Affine3::identity(), hinge], 1);
+    topo::test_support::restate_geometry(&mut body, |at, x| match at {
+        topo::test_support::Stored::Point => x.next_up(),
+        _ => x,
+    });
+    let fk = collapsed(&body)[0];
+    let surface = body.face_surface(fk).unwrap();
+    let sides = CollapsedSides::of(surface);
+    let (_, side_point) = sides.0[0];
+    let (vertex, _) = body
+        .vertex_points()
+        .map(|(_, p)| (p, (p - side_point).norm()))
+        .min_by(|a, b| a.1.total_cmp(&b.1))
+        .unwrap();
+    assert!(
+        geom_brep::chart_singularity::vertex_at_singular_point(vertex, side_point, band)
+            == Ok(true)
+            && !sides.holds(vertex),
+        "the vertex is in the side's band and not its point"
+    );
+    let (chords, shared, bounds) = chord_pass(&body, 1e-2);
+    let row = ChartRow::of(&body, fk, surface, &bounds).unwrap();
+    let lift = body.face_lift(fk, band).unwrap();
+    let (singular, polygon) = super::face_polygon(
+        &body,
+        fk,
+        (surface, &row),
+        &lift,
+        &chords,
+        &shared,
+        band,
+        1e-2,
+        None,
+    )
+    .unwrap();
+    assert!(singular.is_empty(), "no singular vertex read");
+    let id = (0..shared.len())
+        .find(|&i| geom_core::bit_identity::one_stored_point(&shared[i], &vertex))
+        .map(|i| u32::try_from(i).unwrap())
+        .unwrap();
+    assert_eq!(
+        polygon.points.iter().filter(|p| p.2 == id).count(),
+        1,
+        "the vertex held once"
+    );
+    crate::tessellate(&body, 0.1, Tol::witness())
+        .map(|m| crate::validate::check_mesh(&m).unwrap())
+        .unwrap_or_else(|e| panic!("δ = 0.1 meshes, got {e:?}"));
+    let fine = crate::tessellate(&body, 1e-2, Tol::witness());
+    assert!(
+        matches!(fine, Err(crate::TessellateError::CertificateExceeded { face, .. }) if face == fk || collapsed(&body).contains(&face)),
+        "δ = 10⁻² refuses typed at a collapsed-side wall, got {:?}",
+        fine.map(|m| m.patches.len())
+    );
+}
