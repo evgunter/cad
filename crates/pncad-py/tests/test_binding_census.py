@@ -4002,6 +4002,7 @@ MEMBERS_BOUND_AS = {
     "ProductError::ProductInvalid": "ProductError.variant",
     "ProductError::ContactLineage": "ProductError.variant",
     "ProductError::Frame": "ProductError.variant",
+    "ProductError::ReadRefused": "ProductError.variant",
     "ReadbackError::Dangling": "ReadbackError.variant",
     "ReadbackError::NoCanonicalFrame": "ReadbackError.variant",
     "ReadbackError::NoCarrier": "ReadbackError.variant",
