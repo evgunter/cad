@@ -221,7 +221,7 @@ fn a_mate_on_unplaced_operands_states_nothing_of_the_world() {
     let (doc, fused) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![
+            members: editor_core::Bodies::spelled(vec![
                 fixture::copy(a, body),
                 fixture::copy(b, body),
             ]),

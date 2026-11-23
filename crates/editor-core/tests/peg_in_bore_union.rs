@@ -114,7 +114,7 @@ fn a_peg_in_a_bore_of_its_own_radius_unions() {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![peg.into(), block.into()]),
+            members: editor_core::Bodies::spelled(vec![peg.into(), block.into()]),
         },
     );
     let ev = eval(&doc);

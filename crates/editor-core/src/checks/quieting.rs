@@ -104,17 +104,32 @@ impl QuietingRef {
         }
     }
 
-    /// The reference as an author writes it at a measure's seat: a
-    /// selection of the one name in the body read plainly, a pose
-    /// defined off that selection, or the variable.
+    /// The reference as an author writes it at a measure's seat in
+    /// `doc`: a selection of the one name in the body read, a pose
+    /// defined off that selection, or the variable. A body a binder
+    /// yields is read at the binder's own key, `xs[k]`: the measure stands
+    /// in the binder and reads its member (D10 `[repetition]`); any other
+    /// body is read plainly.
     #[must_use]
-    pub fn operand(&self) -> Operand {
+    pub fn operand<P: crate::ProfilePayload>(&self, doc: &Doc<P>) -> Operand {
         use crate::pose::PoseDef;
         match &self.0 {
             Reference::Read(var) => Operand::Var(*var),
             Reference::Entity { read, name, pose } => {
+                let at = doc
+                    .yielding(*read)
+                    .map(|binder| {
+                        doc.binder_indices(binder)
+                            .into_iter()
+                            .map(|index| Formula::var(index, crate::Dimension::Count))
+                            .collect()
+                    })
+                    .unwrap_or_default();
                 let of = Operand::Select {
-                    body: Box::new(BodyRead::plain(Operand::Var(*read))),
+                    body: Box::new(BodyRead {
+                        read: Operand::Var(*read),
+                        at,
+                    }),
                     names: vec![name.clone()],
                 };
                 let pose = match pose {
@@ -190,12 +205,12 @@ impl Quieting {
         super::at_rest::asserted(doc, self)
     }
 
-    /// The measure over its references, each as an author writes it
-    /// ([`QuietingRef::operand`]).
+    /// The measure over its references, each as an author writes it in
+    /// `doc` ([`QuietingRef::operand`]).
     #[must_use]
-    pub fn primitive(&self) -> MeasurePrimitive<Operand> {
+    pub fn primitive<P: crate::ProfilePayload>(&self, doc: &Doc<P>) -> MeasurePrimitive<Operand> {
         let [a, b] = &self.references;
-        let (a, b) = (a.operand(), b.operand());
+        let (a, b) = (a.operand(doc), b.operand(doc));
         match self.measure {
             MeasureVerb::Gap => MeasurePrimitive::Gap { outer: a, inner: b },
             MeasureVerb::Distance => MeasurePrimitive::Distance { a, b },
@@ -268,7 +283,8 @@ impl Quieting {
                 })?;
             }
         }
-        let measured = action.measure(&[self.primitive()])?;
+        let primitive = self.primitive(action.doc());
+        let measured = action.measure(&[primitive])?;
         action.insert(Node::Assertion(self.claim(measured.outputs[0])))
     }
 

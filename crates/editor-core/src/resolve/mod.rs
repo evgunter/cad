@@ -2733,6 +2733,7 @@ pub fn apply_with_names<T: topo::AtRestPolicy + Decide>(
         | DocEdit::RemoveConstraints { .. }
         | DocEdit::SetLabel { .. }
         | DocEdit::SetProduct { .. }
+        | DocEdit::SetYields { .. }
         | DocEdit::UpdateReference { .. } => {}
     }
     for name in names {

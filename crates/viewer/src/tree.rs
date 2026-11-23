@@ -1545,7 +1545,6 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::EmptyOperand { .. }
         | NodeErrorKind::EmptyMember { .. }
         | NodeErrorKind::EmptyHalf { .. }
-        | NodeErrorKind::HalfOfAFamily { .. }
         | NodeErrorKind::MemberOutOfRange { .. } => None,
         // Names an id no live node holds, so there is no row to go to.
         NodeErrorKind::MissingInput { .. } => None,
@@ -1613,7 +1612,8 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::PlacementAxisEscalated { .. }
         | NodeErrorKind::PoseDirectionEscalated { .. }
         | NodeErrorKind::CountOutOfRange { .. }
-        | NodeErrorKind::IndicesUnrelated { .. }
+        | NodeErrorKind::TwoBinders { .. }
+        | NodeErrorKind::YieldsNothing { .. }
         | NodeErrorKind::IndexCount { .. }
         | NodeErrorKind::IndexCountOutOfRange { .. }
         | NodeErrorKind::UnschedulableCycle
@@ -1813,7 +1813,7 @@ mod picked_name {
         let (doc, union) = insert(
             &doc,
             Node::Union {
-                members: Bodies::Spelled(vec![read(block_copy), read(place)]),
+                members: Bodies::spelled(vec![read(block_copy), read(place)]),
             },
         );
         let (doc, subtract) = insert(

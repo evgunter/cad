@@ -80,7 +80,7 @@ pub fn document() -> CorpusDoc {
         copies.push(placed);
     }
     let both = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(copies.iter().map(|&c| c.into()).collect()),
+        members: editor_core::Bodies::spelled(copies.iter().map(|&c| c.into()).collect()),
     });
     r.place_part(floor);
     r.place_part(both);

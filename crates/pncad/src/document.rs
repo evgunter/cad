@@ -136,12 +136,13 @@ pub use editor_core::{Answered, Moved, TakeOverOutcome, Taken, TakenOver, take_o
 // the indices an expression reaches (`Doc::expr_reach`) and each member's
 // environment (`Doc::member_envs`) are what a reader of one evaluates in.
 pub use editor_core::{
-    Axis3, Bodies, BodyRead, ConstraintId, InputFault, ListFault, LoftSection, MintId, Node,
-    Operand, OperandSlot, OutputPort, PortKind, RecipeNodeId, SlotId, SlotKind, StationMove,
-    TubeWindow, VectorSlot,
+    Axis3, Binders, Bodies, BodyRead, ConstraintId, InputFault, ListFault, LoftSection, MintId,
+    Node, Operand, OperandSlot, OutputPort, PortKind, RecipeNodeId, SlotId, SlotKind, Spell,
+    StationMove, TubeWindow, VectorSlot,
 };
 pub use editor_core::{
-    Index, IndexFault, MemberAt, MemberCountFault, MemberEnv, Reached, SourceFault,
+    Index, IndexFault, IndexSeat, MemberAt, MemberCountFault, MemberEnv, Reached, SourceFault,
+    YieldsFault,
 };
 
 // How a sentence names a node: a sentence of words and mentions, the
