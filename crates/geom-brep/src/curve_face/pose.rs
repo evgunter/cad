@@ -1231,6 +1231,44 @@ fn conic_quadric<T: Decide>(
     }
 }
 
+/// SCRATCH (probe): a sphere's or a wall's residual along `conic` in the
+/// offsets about its stored point, where its second harmonic is in band
+/// (its projection off the axis a circle): `F ≈ f + fk·(cos θ − k_c) +
+/// fs·(sin θ − k_s)`, with a rounding charge on `f`.
+pub(super) fn probe_quadric_offsets<T: Decide>(
+    conic: &dyn geom::Conic<T>,
+    surface: &geom::Surface<T>,
+) -> Option<(T, T, T, (T, T), T)> {
+    let (o, axis, r) = match *surface {
+        geom::Surface::Sphere { frame, radius, .. } => (frame.origin(), None, radius),
+        geom::Surface::Cylinder { frame, radius, .. } => {
+            (frame.origin(), Some(frame.axis()), radius)
+        }
+        _ => return None,
+    };
+    let perp = |x: geom_core::Vec3<T>| match axis {
+        Some(w) => {
+            let along = w.dot(x);
+            x - w * along
+        }
+        None => x,
+    };
+    let two = T::from_f64(2.0);
+    let (stored, (kc, ks)) = conic.probe_stored();
+    let (a, b) = conic.semi_axes();
+    let es = perp(stored - o);
+    let (up, vp) = (perp(conic.u_ref()), perp(conic.v_ref()));
+    let per = two * r;
+    let rho2 = (a.powi(2) * up.norm_squared() + b.powi(2) * vp.norm_squared()) / two;
+    let k2 = kc.powi(2) + ks.powi(2);
+    let dist = es.norm();
+    let f = ((dist - r) * (dist + r) + rho2 * (T::one() - k2)) / per;
+    let fk = (two * a * es.dot(up) - two * rho2 * kc) / per;
+    let fs = (two * b * es.dot(vp) - two * rho2 * ks) / per;
+    let noise = geom_core::rounding_charge(es.norm_squared() + r.powi(2)) / per;
+    Some((f, fk, fs, (kc, ks), noise))
+}
+
 /// **The lane choice** (`[verdicts.consumers]`, C5's conic × quadric
 /// rule): `A₂ = |(c₂, s₂)|` in the zero band takes the first-harmonic
 /// lane, with `A₂` charged to the extremes' noise; definite takes the
@@ -1252,6 +1290,13 @@ fn lane<T: Decide>(
     match decide("curve_face_pose_second_harmonic", Margin::of(second), band) {
         Ok(Sign::Zero) if !ladder_lane::forced() => {
             let (a1, noise) = (hypot(h.c1, h.s1), noise + second);
+            // SCRATCH (probe): under a variant the constant is read from
+            // the stored point.
+            let c0 = match probe_quadric_offsets(conic, surface) {
+                Some((f, fk, fs, (kc, ks), _)) if geom::probe::variant() >= 1 => f - fk * kc - fs * ks,
+                _ => h.c0,
+            };
+            let h = &crate::ConicHarmonics { c0, ..*h };
             let first = super::circle_roots::FirstHarmonic {
                 lo: h.c0 - a1,
                 hi: h.c0 + a1,

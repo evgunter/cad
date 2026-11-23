@@ -339,6 +339,12 @@ pub(super) fn conic_quadric_method<T: Decide>(
     let (t0, t1) = span.params();
     let conic = carrier.conic().ok_or(DoorRefusal::Invariant(DESYNC))?;
     let found = match form {
+        Formed::FirstHarmonic(_)
+            if geom::probe::variant() == 2
+                && let Some(found) = probe_offset_first_roots(span, &conic, surface, band) =>
+        {
+            found.map(Roots::widen)
+        }
         Formed::FirstHarmonic(h) => door_refusal(super::circle_roots::harmonic_roots_as(
             &h,
             conic.speed_hi(),
@@ -383,6 +389,54 @@ pub(super) fn conic_quadric_method<T: Decide>(
             found.and_then(|roots| off_the_apex(&conic, apex, roots, band))
         }
         _ => found,
+    })
+}
+
+/// SCRATCH (probe): the first-harmonic lane's two roots posed about the
+/// stored point of a conic held on its arc, with a slack of its own:
+/// the form's rounding at each root over its slope there, and the
+/// angle's rounding at the root's own distance from the anchor.
+fn probe_offset_first_roots<T: Decide>(
+    span: &crate::curve_pair::Span<'_, T>,
+    conic: &dyn geom::Conic<T>,
+    surface: &geom::Surface<T>,
+    band: Band,
+) -> Option<Result<super::circle_roots::FirstHarmonicRoots<T>, Unsettled>> {
+    let (f, fk, fs, phase, noise) = super::pose::probe_quadric_offsets(conic, surface)?;
+    let (t0, t1) = span.params();
+    let mid = geom::mid_param(t0, t1);
+    let [ra, rb] = crate::curve_pair::pose::probe_offset_angles((f, fk, fs, phase), mid)?;
+    let ladder = quadric_ladder(conic, surface, (t0, t1))?;
+    let second = (ladder.h.c2.powi(2) + ladder.h.s2.powi(2)).sqrt();
+    let anchor = geom::Azimuth::of(phase.1, phase.0).near(mid);
+    let speed = conic.speed_hi();
+    let slack_at = |t: T| {
+        let (s, c) = t.sin_cos();
+        let (ku, kv) = (c - phase.0, s - phase.1);
+        let eval = noise + second + rounding_charge((fk * ku).abs() + (fs * kv).abs());
+        let slope = (fs * c - fk * s).abs();
+        speed * (eval / slope + rounding_charge((t - anchor).abs()))
+    };
+    // Each root is decided on its own slack: the one far round the turn
+    // from the anchor carries the angle's rounding at the semi-axis.
+    let held = |t: T| {
+        matches!(
+            decide("conic_quadric_first_root_slack", Margin::of(slack_at(t)), band),
+            Ok(Sign::Zero | Sign::Negative)
+        )
+    };
+    geom::probe::log(format!(
+        "offset_first_roots roots {ra:?} {rb:?} slack {:?} {:?}",
+        slack_at(ra),
+        slack_at(rb)
+    ));
+    let kept: Vec<T> = [ra, rb].into_iter().filter(|&t| held(t)).collect();
+    Some(if kept.is_empty() {
+        Err(Unsettled::Meter {
+            row: "conic_quadric_first_root_slack",
+        })
+    } else {
+        Ok(Roots::of(&kept).unwrap_or_else(|| unreachable!("one or two roots")))
     })
 }
 

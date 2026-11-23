@@ -245,6 +245,11 @@ pub fn harmonic_roots_as<T: Decide>(
     let at_root = (hi_value * lo_noise - lo_value * hi_noise) / swing;
     let phase = phase_noise / (cos_part.powi(2) + sin_part.powi(2)).sqrt();
     let slack = speed * (at_root / slope + phase + geom_core::rounding_charge(T::tau()));
+    geom::probe::log(format!(
+        "harmonic_roots_as slack {slack:?} = speed {speed:?} * (at_root/slope {:?} + phase {phase:?} + turn {:?})",
+        at_root / slope,
+        geom_core::rounding_charge(T::tau())
+    ));
     match decide(root_slack, Margin::of(slack), band) {
         Ok(Sign::Zero | Sign::Negative) => {}
         Ok(Sign::Positive) | Err(_) => {

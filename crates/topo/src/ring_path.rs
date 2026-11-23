@@ -971,7 +971,13 @@ impl<T: Decide> LoopArc<T> {
     fn plane(&self) -> Option<SectionArc<T>> {
         match self {
             Self::Conic(c) => Some(SectionArc {
-                origin: c.conic().frame().origin(),
+                // SCRATCH (probe): under a variant the plane is stated
+                // through the conic's stored point.
+                origin: if geom::probe::variant() >= 1 {
+                    c.conic().probe_stored().0
+                } else {
+                    c.conic().frame().origin()
+                },
                 normal: c.conic().axis(),
                 span: c.span,
                 speed: c.conic().speed_lo(),
@@ -2260,6 +2266,9 @@ fn plane_roots<T: Decide>(
             .collect(),
     ))
 }
+
+#[cfg(test)]
+mod probe_conic_harmonic;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
