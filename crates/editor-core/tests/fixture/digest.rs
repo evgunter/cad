@@ -48,7 +48,9 @@
 //! Geometry enters as its values: a carrier's or a curve's `Debug`
 //! read through [`canonical`], which keeps every value — numbers, bools,
 //! `None`, type and variant names — and drops field names, so a renamed
-//! field moves no digest. An `f64`'s `Debug` is the shortest round-tripping
+//! field moves no digest. A stored diagnostic magnitude (an edge
+//! certificate's `max_residual`) is read only as finite or not, so a
+//! change to a check's arithmetic moves no digest either. An `f64`'s `Debug` is the shortest round-tripping
 //! decimal: a bijection with the bits for every finite value, `-0.0`
 //! included. Nothing rendered from a classification band enters, so the
 //! constants are eps-independent.
@@ -105,9 +107,19 @@ pub fn fnv(bytes: &[u8]) -> u64 {
 
 /// **A value by its values**: a `Debug` rendering with each field name
 /// dropped and every value — number, bool, `None`, type and variant
-/// name — kept in order. A field renamed reads the same; a value that
+/// name — kept in order, but a [`DIAGNOSTIC`] field's value read only as
+/// finite or not. A field renamed reads the same; a value that
 /// moves, a flag that flips (`PeriodicNurbs3`'s `flipped`: a loop and
 /// its reverse) and an `Option` that fills do not.
+/// **Fields that hold a diagnostic magnitude, not geometry**: a stored
+/// measurement of how close a check came, which any change to the
+/// arithmetic of the check moves at rounding size. [`canonical`] reads
+/// such a field by what it decides — finite or not — and never by its
+/// value. Every field of the corpus's carriers, curves and contacts was
+/// listed and read: an edge certificate's `max_residual` is the only one;
+/// its `samples` is the schedule's count, kept.
+const DIAGNOSTIC: &[&str] = &["max_residual"];
+
 pub fn canonical(debug: &str) -> String {
     let chars: Vec<char> = debug.chars().collect();
     let word = |c: char| c.is_alphanumeric() || "_.-#".contains(c);
@@ -128,7 +140,21 @@ pub fn canonical(debug: &str) -> String {
             next += 1;
         }
         let field = chars.get(next) == Some(&':') && chars.get(next + 1) != Some(&':');
-        if !field {
+        if field && DIAGNOSTIC.contains(&token.as_str()) {
+            // Its value is the next word: read it as finite or not, and
+            // skip it.
+            i = next + 1;
+            while i < chars.len() && !word(chars[i]) {
+                i += 1;
+            }
+            let start = i;
+            while i < chars.len() && word(chars[i]) {
+                i += 1;
+            }
+            let value: String = chars[start..i].iter().collect();
+            let finite = value.parse::<f64>().is_ok_and(f64::is_finite);
+            out.push(if finite { "finite" } else { "not-finite" }.to_owned());
+        } else if !field {
             out.push(token);
         }
     }

@@ -150,10 +150,9 @@ fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
         // Re-cut: PR 7299 places the x = -0.5 seam's split vertex at cross's root, z one ulp up onto the rounded crossing.
-        ("cut_cylinder", 0xce1e_6b75_f9c5_1b5f_u64),
-        ("part_select", 0x1379_2943_a0d4_92f1),
-        // Re-cut: PR 7411's `plane_offset` reads `difference_dot`, which moves edge certificates' stored residuals by rounding (points held).
-        ("kitchen_sink", 0x381d_27db_f166_bf65),
+        ("cut_cylinder", 0x578d_6718_4b8b_6b9f_u64),
+        ("part_select", 0xa89f_95cc_00c7_a63b),
+        ("kitchen_sink", 0x0027_ff77_60b2_466b),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
@@ -318,7 +317,7 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat8 empty_side: {got:#018x}");
     assert_eq!(
-        got, 0x2076_a45a_5def_d383,
+        got, 0x7b5c_023e_2261_485f,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }
