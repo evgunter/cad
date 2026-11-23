@@ -312,6 +312,36 @@ impl<T: Decide> ConeTorusPose<T> {
         self.stance
     }
 
+    /// **The parallel a coaxial nappe touches the tube along**, the near
+    /// nappe's (`far` false: the one the cone's axis points into) or the
+    /// far one's: in the meridian half-plane about the apex, the foot on
+    /// the nappe's generator of the tube centre `(R, z)`, swept about the
+    /// axis. Read where that nappe's tube row decided `Zero`: the tube
+    /// circle then touches the generator there, and lies in `ρ > 0`, so
+    /// the foot does too. `None` off the coaxial pose.
+    #[must_use]
+    pub fn tangent_parallel(&self, far: bool) -> Option<geom::Curve3<T>> {
+        let KtStance::Coaxial { .. } = self.stance else {
+            return None;
+        };
+        let &Surface::Cone {
+            frame, half_angle, ..
+        } = &self.cone
+        else {
+            return None;
+        };
+        let ring = self.ring;
+        let ([big_r, _], center, a) = (ring.radii(), ring.center(), ring.axis());
+        let (apex, k) = (frame.origin(), frame.axis().normalize());
+        let (s, co) = half_angle.sin_cos();
+        let z = (center - apex).dot(k);
+        let nappe = if far { -T::one() } else { T::one() };
+        // The generator's direction is (sin α, ±cos α) in (ρ, along k).
+        let along = big_r * s + nappe * z * co;
+        let (rho, y) = (along * s, along * nappe * co);
+        Some(ring.parallel(rho, (apex - center).dot(a) + y * k.dot(a)))
+    }
+
     /// **Why the pose is not marched**, if it is not (module docs, the
     /// section): coaxial, or the apex on the torus.
     pub fn unmarched(&self) -> Option<Unmarched> {

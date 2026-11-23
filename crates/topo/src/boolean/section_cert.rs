@@ -403,6 +403,7 @@ use crate::contain::FaceContainment;
 use crate::validate::decide;
 use geom_brep::pair_section::{Pinch, signs_across, signs_as};
 use geom_brep::{AxisPose, ExtentBall, Reach, axis_pose};
+use geom_brep::{Critical, near_band_admits};
 
 /// Which face of the pair a statement is about.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -881,8 +882,8 @@ fn torus_pair<T: Decide>(t: &geom::Surface<T>, p: &geom::Surface<T>, band: Band)
                 geom::Line { origin: c, dir: a },
                 big_r,
                 r,
-                origin,
-                normal.normalize(),
+                (origin, normal.normalize()),
+                || geom_brep::plane_torus_axis_normal(p, t, band),
                 band,
             )
         }
@@ -927,35 +928,57 @@ fn cone_torus<T: crate::props::AtRestPolicy>(
     // line reaches.
     let (s, co) = half_angle.sin_cos();
     let z = (ring.center() - frame.origin()).dot(frame.axis().normalize());
-    match signs_across(
-        [
-            (
-                "section_torus_coaxial_cone_near",
-                "section_torus_coaxial_cone_near_floor",
-                r - (big_r * co - z * s).abs(),
-            ),
-            (
-                "section_torus_coaxial_cone_far",
-                "section_torus_coaxial_cone_far_floor",
-                r - (big_r * co + z * s).abs(),
-            ),
-        ],
-        slack,
-        band,
-    ) {
+    let rows = [
+        (
+            "section_torus_coaxial_cone_near",
+            "section_torus_coaxial_cone_near_floor",
+            r - (big_r * co - z * s).abs(),
+        ),
+        (
+            "section_torus_coaxial_cone_far",
+            "section_torus_coaxial_cone_far_floor",
+            r - (big_r * co + z * s).abs(),
+        ),
+    ];
+    match signs_across(rows, slack, band) {
         Ok([false, false]) => none(),
         Ok(_) => essential_pair(true, true),
+        // A nappe tangent to the tube along a parallel, a circle of the
+        // extremes of its generator's distance in each meridian
+        // half-plane, is a touch there, with the other nappe decided
+        // clear of the torus: one nappe crossing it would put a band of
+        // the cone's other sheet beside the touch's.
+        Err(tan) if tan.undecided.is_none() && tan.index < 2 => {
+            let clear = matches!(
+                signs_across([rows[1 - tan.index]], slack, band),
+                Ok([false])
+            );
+            match pose
+                .tangent_parallel(tan.index == 1)
+                .filter(|_| clear && near_band_admits(Critical::Extreme))
+            {
+                Some(parallel) => Section::Touch(Touch {
+                    name: tan.name,
+                    at: geom_brep::TouchLocus::Parallel(parallel).at(),
+                    apex: false,
+                }),
+                None => tan.into(),
+            }
+        }
         Err(tan) => tan.into(),
     }
 }
 
-/// **Torus × plane**, the plane through `p0` with unit normal `n`.
+/// **Torus × plane**, the plane through `p0` with unit normal `n`;
+/// `axis_normal` is geom-brep's reading of it as normal to the axis
+/// ([`geom_brep::plane_torus_axis_normal`]), read at a tangency only.
 fn torus_plane<T: Decide>(
     axis: geom::Line<T>,
     big_r: T,
     r: T,
-    p0: Point3<T>,
-    n: Vec3<T>,
+    (p0, n): (Point3<T>, Vec3<T>),
+    axis_normal: impl FnOnce()
+        -> Result<Option<geom_brep::PlaneTorusSection<T>>, geom_brep::SectionError>,
     band: Band,
 ) -> Section<T> {
     let geom::Line { origin: c, dir: a } = axis;
@@ -968,26 +991,52 @@ fn torus_plane<T: Decide>(
     // plane's offset from T_σ's centre and `(σR + d·s, d·n_a)` its foot.
     let offset = |sigma: T| h - sigma * s * big_r;
     match plane_cut(big_r, r, h, s, band) {
-        // Tangent to T_σ at the foot, an elliptic point when the foot
-        // stands on the tube's outer half: the extreme `σ(sR + r)` of
-        // the height `n·(x − c)`, whose other critical values `±(sR − r)`
-        // stand `2·min(sR, r) ≥ 2·σ·d·s` away.
-        PlaneCut::Pinch(tan) if tan.name == NEAR || tan.name == FAR => {
-            let sigma = if tan.name == NEAR {
-                T::one()
-            } else {
-                -T::one()
+        // Tangent to T_σ. The plane's height `n·(x − c)` has only the
+        // forced critical points over the torus: on a plane normal to the
+        // axis its top and bottom parallels, which geom-brep's reading
+        // names, and otherwise `±(sR + r)`, the extremes on the tube's
+        // outer half, and `±(sR − r)`, the saddles on its inner. So the
+        // foot is an extreme where `σ·d` is positive, `|d|` being `r`
+        // there. `Π` is read only past that reading: its direction is
+        // `n`'s part square to the axis over `s`.
+        PlaneCut::Pinch(tan)
+            if tan.undecided.is_none() && (tan.name == NEAR || tan.name == FAR) =>
+        {
+            let at = match axis_normal() {
+                Ok(None) => {
+                    let sigma = if tan.name == NEAR {
+                        T::one()
+                    } else {
+                        -T::one()
+                    };
+                    let d = offset(sigma);
+                    let critical = match sign_as(
+                        "section_torus_plane_touch_side",
+                        Margin::of(sigma * d),
+                        band,
+                    ) {
+                        Some(Sign::Positive) => Critical::Extreme,
+                        Some(Sign::Negative) => Critical::Saddle,
+                        _ => return tan.into(),
+                    };
+                    near_band_admits(critical).then(|| in_pi(sigma * big_r + d * s, d * na))
+                }
+                Ok(Some(geom_brep::PlaneTorusSection::TangentCircle(parallel))) => {
+                    near_band_admits(Critical::Extreme)
+                        .then(|| geom_brep::TouchLocus::Parallel(parallel).at())
+                }
+                Ok(Some(_)) | Err(_) => None,
             };
-            let d = offset(sigma);
-            if sign_as(
-                "section_torus_plane_touch_elliptic",
-                Margin::of(sigma * d * s),
-                band,
-            ) != Some(Sign::Positive)
-            {
-                return tan.into();
-            }
-            touch(tan, &[NEAR, FAR], || in_pi(sigma * big_r + d * s, d * na))
+            at.map_or_else(
+                || tan.into(),
+                |at| {
+                    Section::Touch(Touch {
+                        name: tan.name,
+                        at,
+                        apex: false,
+                    })
+                },
+            )
         }
         PlaneCut::Pinch(tan) => tan.into(),
         PlaneCut::AroundAxis | PlaneCut::AroundTube => essential_pair(true, false),
@@ -1808,9 +1857,9 @@ pub(super) fn of_pair_section<T: Decide>(
     // A tangency the section still crosses is read through its
     // components: a node whose arcs all have carriers, and a tangent
     // ruling the region cuts, an unbounded component W1 clears however it
-    // touches. Any other tangency is R-tan, or a touch at one point: the
-    // pinch among them, whose node the value does not list while its
-    // lobes mint no carrier.
+    // touches. Any other tangency is R-tan, or a touch where the value
+    // claims its near band one piece: the pinch among them, whose node
+    // the value does not list while its lobes mint no carrier.
     let pinched = matches!(
         section.pose(),
         geom_brep::PairPose::CylinderCylinder(pose) if pose.pinched()
@@ -1825,14 +1874,16 @@ pub(super) fn of_pair_section<T: Decide>(
         && components.iter().all(|c| ends(c).cut);
     if let (Some(zero), false) = (section.tangency(), crossed || unbounded) {
         return match components.as_slice() {
-            [c] if c.shape == ComponentShape::Point => match c.witness {
-                Some(at) => Section::Touch(Touch {
-                    name: zero.decision.name(),
-                    at,
-                    apex: false,
-                }),
-                None => Section::Tangent(zero.decision.name()),
-            },
+            [c] => c.locus.as_ref().map_or_else(
+                || Section::Tangent(zero.decision.name()),
+                |locus| {
+                    Section::Touch(Touch {
+                        name: zero.decision.name(),
+                        at: locus.at(),
+                        apex: false,
+                    })
+                },
+            ),
             _ => Section::Tangent(zero.decision.name()),
         };
     }

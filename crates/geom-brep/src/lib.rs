@@ -225,8 +225,8 @@ pub use intersect::{
     cone_cylinder_section, cone_plane_apex_extrema, cone_sphere_section, cone_torus_section,
     cylinder_axes_coplanar, cylinder_axes_parallel, cylinder_cylinder_section, parallel_axes_at,
     plane_cone_apex_extrema, plane_cone_section, plane_cylinder_section,
-    plane_cylinder_section_read, plane_sphere_section, plane_torus_section, route, route_pose,
-    sphere_sphere_section, tilted_section_major,
+    plane_cylinder_section_read, plane_sphere_section, plane_torus_axis_normal,
+    plane_torus_section, route, route_pose, sphere_sphere_section, tilted_section_major,
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey, SurfacePair};
 pub use locus::{
@@ -252,17 +252,17 @@ pub use offset_meters::ChartArmRefusal;
 pub use pair_section::{
     ApexContact, ArcPlace, AxisPose, CarriedComponent, CarriedSection, CarryError, CarryRefusal,
     CcDecision, CcNode, CcStance, ChartReach, ClassCarrier, Coincident, ComponentEnds,
-    ComponentShape, Components, ConeTorusPose, ConeTorusRefusal, CsDecision, CsStance, CtStance,
-    CylinderCylinderPose, CylinderSpherePose, CylinderTorusPose, FittedCarrier, Gap, KnownPair,
-    KnownRow, KtQuestion, KtStance, LoopTubeRefusal, NoCarrier, NodeEnd, NodeEnds, NodeLine,
-    NodeSet, PadBox, PairPose, PairSection, PairSide, PoseRefusal, RaySense, Reached,
+    ComponentShape, Components, ConeTorusPose, ConeTorusRefusal, Critical, CsDecision, CsStance,
+    CtStance, CylinderCylinderPose, CylinderSpherePose, CylinderTorusPose, FittedCarrier, Gap,
+    KnownPair, KnownRow, KtQuestion, KtStance, LoopTubeRefusal, NoCarrier, NodeEnd, NodeEnds,
+    NodeLine, NodeSet, PadBox, PairPose, PairSection, PairSide, PoseRefusal, RaySense, Reached,
     RegionPlacement, Ring, SectionComponent, SectionDecision, SectionNode, SectionPick,
     SectionRead, SiteFoot, SiteReading, SiteRefusal, SpanEnd, SphereTorusPose, SplineImplicitPose,
     SplinePairPose, SquareWall, SsiLane, SsiLaneOf, StStance, TT_COINCIDENT, TT_COINCIDENT_FLOOR,
     TorusCoincidence, TorusData, TorusDatum, TorusDisplacement, TorusGap, TorusPoseRefusal,
-    TorusQuestion, TorusTorusPose, TtStance, Turn, Winding, WindsRefusal, ZeroKind, ZeroVerdict,
-    axis_pose, coaxial_tangent_circle, line_tilt, pair_section, spline_pair_section, square_part,
-    tori_coincide,
+    TorusQuestion, TorusTorusPose, TouchLocus, TtStance, Turn, Winding, WindsRefusal, ZeroKind,
+    ZeroVerdict, axis_pose, coaxial_tangent_circle, line_tilt, near_band_admits, pair_section,
+    spline_pair_section, square_part, tori_coincide,
 };
 /// [`CarryError`]'s and [`CarryRefusal`]'s compiler-derived kinds, for a
 /// roster that samples every arm.

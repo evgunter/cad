@@ -3011,7 +3011,7 @@ fn plane_torus_read<T: Decide>(
     else {
         return Err(wrong());
     };
-    let (c, a, tor_u) = (frame.origin(), frame.axis(), frame.u_ref());
+    let (c, a) = (frame.origin(), frame.axis());
 
     let ring = TorusRefusal::require(big_r, r, band).map_err(SectionError::DegenerateTorus)?;
 
@@ -3096,65 +3096,118 @@ fn plane_torus_read<T: Decide>(
             }
         }
         false => {
-            let tilt = Margin::levered(
-                a.cross(n).norm(),
-                ExtentBall::of_covered(torus.cover().as_ref().ok()).lever(),
-            );
-            match class
-                .shown("pt_axis_normal", tilt, band)
-                .map_err(SectionError::Escalated)?
-            {
-                true => {
-                    // The plane is perpendicular to the axis: the
-                    // concentric-circle lane, by the depth `h` of the
-                    // plane's crossing of the axis, wherever its origin
-                    // is stored. The circles are minted there, so a
-                    // circle of radius `ρ ≤ R + r` stands at most
-                    // `ρ·‖a×n‖`, under the levered tilt, off the plane,
-                    // and the plane's depth into the tube moves by at
-                    // most as much across them: the cap gap is decided
-                    // beside it.
-                    let h = n.dot(q - c) / a.dot(n);
-                    let center = c + a * h;
-                    match decide_across(
-                        ["pt_cap_gap", "pt_cap_gap_floor"],
-                        r - h.abs(),
-                        tilt.value(),
-                        band,
-                    )
-                    .map_err(SectionError::Escalated)?
-                    {
-                        Sign::Positive => {
-                            // The interval-square tripwire does not
-                            // bite: both factors are definitely
-                            // positive after the trilean (never a
-                            // spuriously negative bracket under a
-                            // sqrt).
-                            let w = ((r - h.abs()) * (r + h.abs())).sqrt();
-                            let circle_at = |radius: T| Curve3::circle(center, a, radius, tor_u);
-                            Ok(PlaneTorusSection::ConcentricCircles {
-                                c1: circle_at(big_r + w),
-                                c2: circle_at(big_r - w),
-                            })
-                        }
-                        Sign::Zero => Ok(PlaneTorusSection::TangentCircle(Curve3::circle(
-                            center, a, big_r, tor_u,
-                        ))),
-                        Sign::Negative => Ok(PlaneTorusSection::Empty),
-                    }
-                }
-                false => Err(SectionError::RoutesToGeneralRung {
-                    pair: "plane×torus",
-                    why: "generic tilt cuts a spiric quartic — the bitangent \
-                          (Villarceau) two-circle configuration is deliberately \
-                          unclassified, a third classification no consumer \
-                          configuration reaches — and the pair's general-rung arm \
-                          has not retired (arms retire one at a time, each with its \
-                          proof)",
-                }),
-            }
+            axis_normal((q, n), torus, band, class)?.ok_or(SectionError::RoutesToGeneralRung {
+                pair: "plane×torus",
+                why: "generic tilt cuts a spiric quartic — the bitangent \
+                  (Villarceau) two-circle configuration is deliberately \
+                  unclassified, a third classification no consumer \
+                  configuration reaches — and the pair's general-rung arm \
+                  has not retired (arms retire one at a time, each with its \
+                  proof)",
+            })
         }
     }
+}
+
+/// **The plane × torus section where the plane is normal to the axis**
+/// ([`plane_torus_section`]'s step 3, read as `class` reads it): `None`
+/// where `pt_axis_normal` shows the plane not normal to the axis.
+fn axis_normal<T: Decide>(
+    (q, n): (Point3<T>, Vec3<T>),
+    torus: &Surface<T>,
+    band: Band,
+    class: ClassRead,
+) -> Result<Option<PlaneTorusSection<T>>, SectionError> {
+    let &Surface::Torus {
+        frame,
+        major_radius: big_r,
+        minor_radius: r,
+    } = torus
+    else {
+        return Err(SectionError::WrongLane {
+            expected: "plane×torus",
+        });
+    };
+    let (c, a, tor_u) = (frame.origin(), frame.axis(), frame.u_ref());
+    let tilt = Margin::levered(
+        a.cross(n).norm(),
+        ExtentBall::of_covered(torus.cover().as_ref().ok()).lever(),
+    );
+    if !class
+        .shown("pt_axis_normal", tilt, band)
+        .map_err(SectionError::Escalated)?
+    {
+        return Ok(None);
+    }
+    // The plane is perpendicular to the axis: the concentric-circle
+    // lane, by the depth `h` of the plane's crossing of the axis,
+    // wherever its origin is stored. The circles are minted there, so a
+    // circle of radius `ρ ≤ R + r` stands at most `ρ·‖a×n‖`, under the
+    // levered tilt, off the plane, and the plane's depth into the tube
+    // moves by at most as much across them: the cap gap is decided
+    // beside it.
+    let h = n.dot(q - c) / a.dot(n);
+    let center = c + a * h;
+    Ok(Some(
+        match decide_across(
+            ["pt_cap_gap", "pt_cap_gap_floor"],
+            r - h.abs(),
+            tilt.value(),
+            band,
+        )
+        .map_err(SectionError::Escalated)?
+        {
+            Sign::Positive => {
+                // The interval-square tripwire does not bite: both
+                // factors are definitely positive after the trilean
+                // (never a spuriously negative bracket under a sqrt).
+                let w = ((r - h.abs()) * (r + h.abs())).sqrt();
+                let circle_at = |radius: T| Curve3::circle(center, a, radius, tor_u);
+                PlaneTorusSection::ConcentricCircles {
+                    c1: circle_at(big_r + w),
+                    c2: circle_at(big_r - w),
+                }
+            }
+            Sign::Zero => PlaneTorusSection::TangentCircle(Curve3::circle(center, a, big_r, tor_u)),
+            Sign::Negative => PlaneTorusSection::Empty,
+        },
+    ))
+}
+
+/// **A plane against a torus, read on the axis-normal reading alone**
+/// ([`plane_torus_section`]'s step 3, its rows structural as a tangency
+/// reader takes them, `plane_torus_tangency`): `Ok(None)` where the
+/// plane's tilt off the axis-normal is decided definite, and otherwise
+/// the axis-normal section: two concentric circles, the tangent circle
+/// of a plane on the tube's top or bottom, or nothing. The section
+/// certificate reads a tangency's parallel here.
+///
+/// # Errors
+///
+/// As [`plane_torus_section`]: the ring guard, and the tilt or the cap
+/// gap in band.
+pub fn plane_torus_axis_normal<T: Decide>(
+    plane: &impl SectionPlane<T>,
+    torus: &Surface<T>,
+    band: Band,
+) -> Result<Option<PlaneTorusSection<T>>, SectionError> {
+    let wrong = || SectionError::WrongLane {
+        expected: "plane×torus",
+    };
+    let (
+        Some(site),
+        &Surface::Torus {
+            major_radius,
+            minor_radius,
+            ..
+        },
+    ) = (plane.site(), torus)
+    else {
+        return Err(wrong());
+    };
+    TorusRefusal::require(major_radius, minor_radius, band)
+        .map_err(SectionError::DegenerateTorus)?;
+    axis_normal(site, torus, band, ClassRead::Structural)
 }
 
 // ---------------------------------------------------------------------

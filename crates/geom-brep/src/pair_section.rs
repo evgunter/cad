@@ -653,6 +653,61 @@ impl ComponentShape {
     }
 }
 
+/// **Where a touch's carriers meet in the exact pose**: one point, or a
+/// whole parallel of a torus (the circle [`coaxial_tangent_circle`]
+/// builds for the tangent edge, C7). A component carrying one claims
+/// that its tangency's **near band** is one piece: the points of either
+/// carrier where the other stands within the decided margin, in every
+/// pose the margin admits, form one connected region holding the locus
+/// and every section component (the section certificate's "A touch").
+#[derive(Clone, Debug)]
+pub enum TouchLocus<T: Real> {
+    /// One point.
+    Point(Point3<T>),
+    /// A parallel of the torus, its seam at the torus frame's own
+    /// reference direction.
+    Parallel(Curve3<T>),
+}
+
+impl<T: Decide> TouchLocus<T> {
+    /// **One point of the locus**: the point, or the parallel's point at
+    /// the torus frame's reference direction (its parameter zero), never
+    /// one read off the coordinate axes or a tilt.
+    #[must_use]
+    pub fn at(&self) -> Point3<T> {
+        match self {
+            Self::Point(p) => *p,
+            Self::Parallel(c) => c.eval(T::zero()),
+        }
+    }
+}
+
+/// **The critical point of the partner's level function a torus
+/// tangency stands at** (the partner read over the torus: a plane's
+/// height, the distance from a sphere's centre, a wall's axis or a
+/// coaxial partner's core).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Critical {
+    /// Its minimum or maximum: a point, or a circle of them.
+    Extreme,
+    /// One of its saddles.
+    Saddle,
+}
+
+/// **Which tangencies on a level function with only the forced critical
+/// points are touches**: the one place that says. On a torus such a
+/// function has one minimum, one maximum and two saddles, or a minimum
+/// circle and a maximum circle, and the band about any of its critical
+/// levels is one piece: a disc at an extreme, an annulus about a
+/// parallel, a band about a figure eight at a saddle.
+#[must_use]
+pub const fn near_band_admits(critical: Critical) -> bool {
+    match critical {
+        Critical::Extreme => true,
+        Critical::Saddle => false,
+    }
+}
+
 /// **Where an open component ends**: the sides of each surface's
 /// parameter rectangle it reaches (rim ends, in the order the section was
 /// asked of), whether it reaches the operation's region (a cut end), and
@@ -1124,11 +1179,16 @@ pub struct SectionComponent<T: Real> {
     /// march ends at, each the end of exactly one marched branch, the
     /// same one ([`PairSection::carry`]).
     pub cut_ends: Option<[Point3<T>; 2]>,
+    /// **Its locus, where the arm claims its tangency's near band one
+    /// piece** ([`TouchLocus`]): a point component's own point, or the
+    /// parallel a torus tangency runs along. `None` claims nothing.
+    pub locus: Option<TouchLocus<T>>,
 }
 
 impl<T: Real> SectionComponent<T> {
     /// A component a closed form reads: its witness, where it has one,
-    /// on the component.
+    /// on the component. A point with a witness is a touch there
+    /// ([`TouchLocus::Point`]).
     pub(crate) fn closed_form(
         shape: ComponentShape,
         winds: [bool; 2],
@@ -1142,8 +1202,19 @@ impl<T: Real> SectionComponent<T> {
             pad: 0.0,
             carrier,
             cut_ends: None,
+            locus: point_locus(shape, witness),
         }
     }
+}
+
+/// A point component's locus: the point it is, where it names one.
+pub(crate) fn point_locus<T: Real>(
+    shape: ComponentShape,
+    witness: Option<Point3<T>>,
+) -> Option<TouchLocus<T>> {
+    witness
+        .filter(|_| shape == ComponentShape::Point)
+        .map(TouchLocus::Point)
 }
 
 /// **A section's components, as classified** (module docs).
