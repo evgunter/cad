@@ -274,7 +274,10 @@ fn a_cancelled_evaluation_leaves_its_row_saying_certifying_stopped() {
     assert!(!session.certifying(), "the premise: nothing is certifying");
     let row = cleared(&session, id);
     assert_eq!(row.state(), "not certified");
-    assert_eq!(row.sentence(), Some(viewer::tree::CERTIFY_STOPPED));
+    assert_eq!(
+        row.sentence().map(|said| said.to_string()).as_deref(),
+        Some(viewer::tree::CERTIFY_STOPPED)
+    );
 }
 
 /// **Each verdict reads as its equation**, the seats in the document's
@@ -451,12 +454,12 @@ fn a_refused_bound_reads_as_the_kernels_sentence_and_recourse() {
         assert_eq!(*got, name);
         assert_eq!(row.state(), "Refused");
         assert_eq!(
-            row.sentence(),
-            Some(sentence.as_str()),
+            row.sentence().as_ref(),
+            Some(sentence),
             "the sentence is drawn as said"
         );
         assert!(
-            sentence.contains("Recourse:"),
+            sentence.to_string().contains("Recourse:"),
             "{name} says what to do: {sentence}"
         );
     }

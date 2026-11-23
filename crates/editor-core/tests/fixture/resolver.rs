@@ -117,7 +117,7 @@ impl PartResolver for PartStore {
     fn resolve(&self, doc_ref: &DocRef, _tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
         let fail = |fault, message: &str| ResolveFailure {
             fault,
-            message: message.to_string(),
+            message: message.into(),
         };
         let doc = self
             .docs

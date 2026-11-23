@@ -150,9 +150,9 @@ pub use editor_core::{
 // said by, the nodes a door kept beside a refusal it carries whole, and
 // the full-width id a machine channel prints.
 pub use editor_core::{
-    FullId, HeldNodes, Mention, Mentioned, NameTables, Put, Run, Said, SaidName, SaidNode, SaidVar,
-    Say, Sentence, Speaker, SpokenName, SpokenNode, SpokenSpace, SpokenVar, display_said, held_by,
-    node_kind_noun, node_text, say, sentence, spoken_by, spoken_within, var_text,
+    FullId, HeldNodes, Lines, Mention, Mentioned, NameTables, Put, Run, Said, SaidName, SaidNode,
+    SaidVar, Say, Sentence, Speaker, SpokenName, SpokenNode, SpokenSpace, SpokenVar, display_said,
+    held_by, node_kind_noun, node_text, say, sentence, spoken_by, spoken_within, var_text,
 };
 
 // A node's label (DESIGN.md Band 1, "Node labels"): document data the
@@ -379,7 +379,7 @@ pub use editor_core::{
 // ([`Staged::sentence`]); the recourse label, and what an API door
 // given no part resolver says to do.
 pub use editor_core::{
-    Labelled, Labels, PASS_A_RESOLVER, RAISE_THE_MEMBER_BUDGET, Recourse, Staged,
+    Labelled, LabelledBy, Labels, PASS_A_RESOLVER, RAISE_THE_MEMBER_BUDGET, Recourse, Staged,
 };
 
 // Document identity and content pins.
