@@ -543,14 +543,14 @@ impl<T: Decide> Touch<T> {
     ) -> Result<Option<geom_core::Sign>, Indeterminate> {
         let tau = geom::conic_period::<T>().length();
         let at = locus_param(Locus::Rim(rim), p);
-        let decide = |m: T| {
+        let meter = |m: T| {
             crate::validate::decide("junction_end_in_extent", Margin::of(m * rim.radius), band)
         };
         let mut sign = None;
         for &(lo, hi, rides) in &self.pieces {
             let past = at - lo - tau * ((at - lo) / tau).floor();
-            let within = !matches!(decide(hi - lo - past)?, geom_core::Sign::Negative)
-                || matches!(decide(tau - past)?, geom_core::Sign::Zero);
+            let within = !matches!(meter(hi - lo - past)?, geom_core::Sign::Negative)
+                || matches!(meter(tau - past)?, geom_core::Sign::Zero);
             if within {
                 match sign {
                     Some(s) if s != rides => return Ok(None),
