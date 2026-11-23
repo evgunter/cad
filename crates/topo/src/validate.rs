@@ -8863,19 +8863,18 @@ pub(crate) fn tier3_local_checks_marked<
     // that point inside the region the outer loop bounds? A
     // definitely-outside vertex is the witness the report names. One
     // instrument answers it, and it is not minted here:
-    // [`crate::splitting::containment::point_in_loop`], the
-    // crate's in-plane parity walk that reads each edge on its own
-    // carrier — a line as its segment, a circle or ellipse arc on its
-    // conic inside its window — so its region IS the loop's region on
-    // every outer loop of lines, arcs, or both, at any vertex count:
-    // the polygon, the one circle's disc, the slot, the D-shaped cap
-    // whose arc bows past the chord its vertices span, the half-disc
-    // whose vertices are two. On a loop of lines it walks the vertex
-    // polygon, whose K rows are `point_in_loop_*` and which this arm
-    // pools as a fourth consumer the way `boolean::contfp` and the
-    // solid-containment sweep already pool; an arc-bearing loop's rows are
-    // `point_in_arc_loop_*`, pooled with `boolean::contfp` and
-    // `solid_contain`'s in-face walk.
+    // [`crate::contain::loop_placement`], the face door's (`contfp`)
+    // boundary pass and in-plane parity walk on the outer loop alone,
+    // which read each edge on its own carrier — a line as its segment, a
+    // circle or ellipse arc on its conic inside its window — so its
+    // region IS the loop's region on every outer loop of lines, arcs, or
+    // both, at any vertex count: the polygon, the one circle's disc, the
+    // slot, the D-shaped cap whose arc bows past the chord its vertices
+    // span, the half-disc whose vertices are two. Its boundary rows are
+    // the face door's `bool_contact_*`, and its walk's are the walk's own
+    // (`point_in_loop_*` on a loop of lines, `point_in_arc_loop_*` on an
+    // arc-bearing one), pooled with `contfp` and `solid_contain`'s
+    // in-face walk.
     //
     // The queries are the ring's VERTICES, exact whatever curve joins
     // them, so an arc-bearing RING is decided as readily as a
@@ -16527,7 +16526,7 @@ mod tests {
                 "in the spiric's band" => matches!(
                     verdict,
                     RingNestingVerdict::Undecided(ContainError::Escalated { diag: ref d, .. })
-                        if d.predicate.is_some_and(|p| p.starts_with("point_in_arc_loop_spiric"))
+                        if d.predicate == Some("bool_contact_spiric")
                 ),
                 _ => matches!(
                     verdict,
