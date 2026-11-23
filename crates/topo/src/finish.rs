@@ -122,7 +122,6 @@ impl MoveError {
             Self::NotFinished(findings) => return findings,
             Self::Map(E::Pcurve { .. }) => "a re-minted pcurve row",
             Self::Map(E::NullScaffold { .. }) => "a null-scaffold edge",
-            Self::Map(E::NurbsPlaceholder) => "a placeholder net",
             Self::Map(E::Corrupt { found }) => found,
         };
         NotFinished::new(vec![ValidationError::Unmovable { found }])
@@ -907,7 +906,6 @@ impl ValidationError {
             | Self::SolidWithoutShells { .. }
             | Self::ShellWithoutFaces { .. }
             | Self::EdgeAcrossShells { .. }
-            | Self::ComponentEulerViolation { .. }
             | Self::MissingProvenance { .. }
             | Self::LeakedProvenance { .. }
             | Self::NullScaffoldShared { .. }

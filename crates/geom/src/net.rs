@@ -123,19 +123,10 @@ pub(crate) fn validate_counts(
     geom_core::spline::check_weight_values(weights)
 }
 
-/// The all-poison point (every coordinate the scalar's poison) — the
-/// control point a placeholder net is filled with, and the
+/// The all-poison point (every coordinate the scalar's poison): the
 /// degenerate-combination result of the knot-algebra plans.
 pub(crate) fn poison_point<T: Real, P: ControlPoint<T>>() -> P {
     P::splat(T::from_f64(f64::NAN))
-}
-
-/// Is every channel of every control point poison: the curve
-/// placeholder's discriminator (`NurbsCurve3::is_placeholder`)?
-pub(crate) fn is_placeholder<T: Real, P: ControlPoint<T>>(control: &[P]) -> bool {
-    control
-        .iter()
-        .all(|p| p.channels().into_iter().all(Real::is_poison))
 }
 
 /// **Is every channel of every control point a finite number**, at the

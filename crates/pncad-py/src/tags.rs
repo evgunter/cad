@@ -1481,7 +1481,7 @@ pub fn blend_error_tag(err: &BlendError) -> &'static str {
         BlendError::SurgeryInvariant { .. } => "surgery_invariant",
         BlendError::RingClearance { .. } => "ring_clearance",
         BlendError::WhollyInside { .. } => "wholly_inside",
-        BlendError::Certify { .. } => "certify",
+        BlendError::PcurveMint { .. } => "pcurve_mint",
         BlendError::Op { .. } => "op",
         BlendError::Join { refusal } => join_refusal_tag(refusal),
     }
@@ -1615,7 +1615,6 @@ pub fn transform_error_tag(err: &TransformError) -> &'static str {
     match err {
         TransformError::Pcurve { .. } => "pcurve",
         TransformError::NullScaffold { .. } => "null_scaffold",
-        TransformError::NurbsPlaceholder => "nurbs_placeholder",
         TransformError::Corrupt { .. } => "corrupt",
     }
 }
@@ -3243,7 +3242,6 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::SolidWithoutShells { .. } => "solid_without_shells",
         ValidationError::ShellWithoutFaces { .. } => "shell_without_faces",
         ValidationError::EdgeAcrossShells { .. } => "edge_across_shells",
-        ValidationError::ComponentEulerViolation { .. } => "component_euler_violation",
         ValidationError::MissingProvenance { .. } => "missing_provenance",
         ValidationError::LeakedProvenance { .. } => "leaked_provenance",
         ValidationError::ScaffoldingEmptyLoop { .. } => "scaffolding_empty_loop",

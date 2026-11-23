@@ -574,8 +574,8 @@ mod tests {
                 edge: None,
             },
             C::Boolean => K::Boolean(topo::BooleanError::UnrepresentableResult),
-            C::Transform => K::Transform(topo::TransformError::NurbsPlaceholder),
-            C::Mirror => K::Mirror(topo::TransformError::NurbsPlaceholder),
+            C::Transform => K::Transform(topo::TransformError::Corrupt { found: "" }),
+            C::Mirror => K::Mirror(topo::TransformError::Corrupt { found: "" }),
             C::Motion => K::Motion(geom_core::RigidMotionError::NonFinite(
                 geom_core::MotionPart::Angle,
             )),

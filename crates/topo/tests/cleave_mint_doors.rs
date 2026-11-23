@@ -293,7 +293,7 @@ where
 }
 
 /// `kev_describing` runs every edge it re-bases through the scalar's
-/// edge door: at `f64` the unlisted member the kill moves is certified
+/// edge door: at `f64` the listed member the kill moves is certified
 /// and its start pin refuses, and at the dual the same member is minted,
 /// which reads no endpoint (DL3: the dual's evaluation is read against
 /// the `f64` one, which refused).
@@ -303,7 +303,7 @@ fn kev_describing_runs_the_class_through_the_scalars_door() {
     assert!(
         matches!(
             f,
-            Err(EulerOpError::RebasedCarrier {
+            Err(EulerOpError::DescriptionUncertified {
                 error: geom_brep::CertifyError::ResidualExceeded {
                     check: geom_brep::CertCheck::EndpointStart,
                     ..

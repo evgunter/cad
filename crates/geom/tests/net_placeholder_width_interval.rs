@@ -1,12 +1,11 @@
-//! The placeholder discriminator's width at the interval scalar, where
-//! poison is NaI or the empty interval rather than NaN.
+//! The finiteness question at the interval scalar, where poison is NaI
+//! or the empty interval rather than NaN.
 //!
 //! The default lane's twin (`net_placeholder_width.rs`) carries the
-//! argument; this lane exists because the widening has to SEE the
-//! interval scalar's poison through the same `Real::is_poison` door,
-//! and because every consumer of the discriminator compiles in both
-//! lanes. A poisoned channel here is `Interval::from_f64(f64::NAN)`,
-//! whose enclosure stands for no real number at all.
+//! argument; this lane exists because `NurbsSurface::is_finite` has to
+//! see the interval scalar's poison and its unbounded enclosures. A
+//! poisoned channel here is `Interval::from_f64(f64::NAN)`, whose
+//! enclosure stands for no real number at all.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -35,28 +34,8 @@ fn poison() -> Interval {
 /// The masquerade at the interval scalar: every control point's `x`
 /// enclosure is poison, `y`/`z` are point brackets of finite values.
 #[test]
-fn a_net_poisoned_in_one_channel_is_described_at_the_interval_scalar() {
+fn a_net_poisoned_in_one_channel_is_not_finite_at_the_interval_scalar() {
     assert!(poison().is_poison(), "the interval lane's poison, named");
-    let control: Vec<Point3<Interval>> = (0..5)
-        .map(|i| {
-            Point3::new(
-                poison(),
-                Interval::from_f64(1.0),
-                Interval::from_f64(f64::from(i)),
-            )
-        })
-        .collect();
-    let c = NurbsCurve3::new(
-        Knots::from(knots5()).lift(geom_core::Real::from_f64),
-        control,
-        vec![Real::one(); 5],
-    )
-    .unwrap();
-    assert!(
-        !c.is_placeholder(),
-        "a described net corrupt in one channel must not read as the benign placeholder \
-         at the scalar every certified consumer runs at"
-    );
     let s_control: Vec<Point3<Interval>> = (0..4)
         .map(|i| {
             Point3::new(
@@ -75,24 +54,16 @@ fn a_net_poisoned_in_one_channel_is_described_at_the_interval_scalar() {
     .unwrap();
     assert!(
         !s.is_finite(),
-        "a surface net poisoned in one channel is not finite"
+        "a net corrupt in one channel is not finite at the scalar every certified \
+         consumer runs at"
     );
 }
 
-/// The state the predicate names still answers it at this scalar, and
-/// the f64 placeholder still lifts to it.
-#[test]
-fn the_minted_placeholder_still_reads_as_the_placeholder_at_interval() {
-    assert!(NurbsCurve3::<Interval>::placeholder().is_placeholder());
-    let lifted = Curve3::<f64>::nurbs_placeholder().map_scalar(Interval::from_f64);
-    assert!(matches!(&lifted, Curve3::Nurbs(n) if n.is_placeholder()));
-}
-
-/// The masquerade lifts from `f64` to the interval scalar as a
-/// described net, and its enclosures show the shape: the poisoned
+/// A carrier poisoned in `x` lifts from `f64` to the interval scalar
+/// channel by channel, and its enclosures show the shape: the poisoned
 /// channel encloses nothing, the others bracket their finite values.
 #[test]
-fn the_masquerade_lifts_to_a_described_interval_net() {
+fn the_masquerade_lifts_to_the_interval_scalar_channel_by_channel() {
     let control: Vec<Point3<f64>> = (0..5)
         .map(|i| Point3::new(f64::NAN, 1.0, f64::from(i)))
         .collect();
@@ -102,13 +73,8 @@ fn the_masquerade_lifts_to_a_described_interval_net() {
         vec![Real::one(); 5],
     )
     .unwrap();
-    assert!(!c.is_placeholder());
     let e = Curve3::Nurbs(Arc::new(c));
     let ei: Curve3<Interval> = e.map_scalar(Interval::from_f64);
-    assert!(
-        matches!(&ei, Curve3::Nurbs(n) if !n.is_placeholder()),
-        "the lift neither narrows nor widens the rule"
-    );
     let p = ei.eval(Interval::from_f64(0.5));
     assert!(p.x.is_poison(), "the poisoned channel encloses no real");
     assert!(
@@ -151,31 +117,34 @@ fn a_net_poisoned_in_one_channel_yields_the_poison_box_at_interval() {
     assert!(b.overlaps(&elsewhere), "the poison box never prunes");
 }
 
-/// The interval scalar's poison is NaI **or** the empty interval, so a
-/// net of empties reads as the placeholder here and its `f64` shadow
-/// would not — the extension difference the crate doc names, executed.
+/// The interval scalar's poison is NaI **or** the empty interval, and a
+/// net carrying an empty enclosure in any one channel is not finite.
 #[test]
-fn an_all_empty_net_reads_as_the_placeholder_at_interval() {
+fn a_net_with_an_empty_enclosure_is_not_finite_at_interval() {
     // `sqrt` of a wholly negative enclosure is empty (its own doc).
     let empty = Interval::from_f64(-4.0).sqrt();
     assert!(
         empty.is_poison(),
         "the empty interval is this scalar's poison"
     );
-    let c = NurbsCurve3::new(
-        Knots::from(knots5()).lift(geom_core::Real::from_f64),
-        vec![Point3::new(empty, empty, empty); 5],
-        vec![Real::one(); 5],
-    )
-    .unwrap();
-    assert!(c.is_placeholder());
-    // And one empty channel over finite ones is a described net, the
-    // same masquerade the row above pins with NaI.
-    let mixed = NurbsCurve3::new(
-        Knots::from(knots5()).lift(geom_core::Real::from_f64),
-        vec![Point3::new(empty, Interval::from_f64(1.0), Interval::from_f64(2.0)); 5],
-        vec![Real::one(); 5],
-    )
-    .unwrap();
-    assert!(!mixed.is_placeholder());
+    let bilinear = |control: Vec<Point3<Interval>>| {
+        NurbsSurface::new(
+            Knots::from(knots2()).lift(geom_core::Real::from_f64),
+            Knots::from(knots2()).lift(geom_core::Real::from_f64),
+            control,
+            vec![Real::one(); 4],
+        )
+        .unwrap()
+    };
+    assert!(!bilinear(vec![Point3::new(empty, empty, empty); 4]).is_finite());
+    // And one empty channel over finite ones is not finite either.
+    let mixed = bilinear(vec![
+        Point3::new(
+            empty,
+            Interval::from_f64(1.0),
+            Interval::from_f64(2.0)
+        );
+        4
+    ]);
+    assert!(!mixed.is_finite());
 }

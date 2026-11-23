@@ -2289,6 +2289,10 @@ fn coplanar_ellipses<T: Decide>(
         f_per_metre_hi: ceiling,
         residual_reach: Some(reach),
     };
+    // Read exact, as the window reads it: the level divides by the squared
+    // semi-axes, which the admission rule does not cover, and is owed a
+    // re-posing as a length
+    // (`work/conic/the-windows-level-jet-is-read-exact-where-its-rounding-grows-with-the-aspect.md`).
     let jet = |theta: T| level.jet_at(theta).map(geom_core::Rounded::exact);
     let local = Local {
         at: &jet,
@@ -2310,10 +2314,14 @@ fn coplanar_ellipses<T: Decide>(
 /// in `b`'s frame ([`Level::jet_at`]), never from its global harmonics.
 /// Posed about `b`'s centre those carry rounding of order `((|w| + R)/s)²`,
 /// `w` the centres' offset, `R` `a`'s size and `s` `b`'s smaller
-/// semi-axis, which at a far or thin pair reaches the band's zero; the
-/// local form's rounding is that of `F`'s own few terms. A reading over a
-/// piece takes the jet at its middle and [`Level::fourth`] for Taylor's
-/// remainder, a bound that needs no precision.
+/// semi-axis, which at a far or thin pair reaches the band's zero. The
+/// local form drops the far centre's share, but not the thin pair's: its
+/// terms still divide by `A²` and `B²`, so its rounding as a length grows
+/// with `b`'s aspect, which the admission rule does not cover
+/// (`work/conic/the-windows-level-jet-is-read-exact-where-its-rounding-grows-with-the-aspect.md`).
+/// A reading over a piece takes the jet at its middle and
+/// [`Level::fourth`] for Taylor's remainder, a bound that needs no
+/// precision.
 pub(super) struct Level<'k, T: geom_core::Real> {
     a: &'k dyn Conic<T>,
     centre: Point3<T>,

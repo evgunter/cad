@@ -133,9 +133,6 @@ fn multi_shell_lifecycle_roundtrip() {
     let (_, solid) = body.solids().next().unwrap();
     assert_eq!(solid.shells.len(), 2);
     assert_eq!(body.get_face(inner).unwrap().shell, shells[1]);
-    // Component-aware E–P on the multi-shell solid: both shells are
-    // closed genus-0 pieces — the validator's pass 11 accepts each
-    // (already implied by tier 2 above, asserted for the record).
     assert_eq!(body.shells().count(), 2);
     // Fuse back: cross-shell kfmrh re-homes the inner box's faces and
     // demotes its promoted face to a ring of the top face again.

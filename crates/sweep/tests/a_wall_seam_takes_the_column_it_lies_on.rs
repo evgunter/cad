@@ -245,7 +245,10 @@ fn a_circle_stated_as_an_iso_line_on_a_spline_chart_is_refused_at_the_door() {
     let before = format!("{body:?}");
     let refused = body.set_edge_curve(edge, spec, tol());
     assert!(
-        matches!(refused, Err(topo::EulerOpError::Certification { .. })),
+        matches!(
+            refused,
+            Err(topo::EulerOpError::DescriptionUncertified { .. })
+        ),
         "a circle is no iso line of a rational chart: {refused:?}"
     );
     assert_eq!(format!("{body:?}"), before, "the body is untouched");

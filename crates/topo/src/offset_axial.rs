@@ -2556,10 +2556,9 @@ fn uncertified_arc<T: Real>(
 ) -> ReplaceFaceError<T> {
     let ReplaceFaceError::Op {
         error:
-            crate::EulerOpError::RechartFalsifies {
-                edge,
+            crate::EulerOpError::DescriptionUncertified {
+                edge: crate::EdgeSubject::Keyed(edge),
                 error: geom_brep::CertifyError::AnalyticRung3(refusal),
-                ..
             },
         ..
     } = &error
@@ -3436,9 +3435,8 @@ mod tests {
         for (name, refusal, conic) in rows {
             let refused = |edge| ReplaceFaceError::<f64>::Op {
                 edge: None,
-                error: crate::EulerOpError::RechartFalsifies {
-                    door: crate::euler::RechartDoor::SetFaceSurface,
-                    edge,
+                error: crate::EulerOpError::DescriptionUncertified {
+                    edge: crate::EdgeSubject::Keyed(edge),
                     error: geom_brep::CertifyError::AnalyticRung3(refusal),
                 },
             };
@@ -3452,9 +3450,8 @@ mod tests {
         let other = uncertified_arc(
             ReplaceFaceError::<f64>::Op {
                 edge: None,
-                error: crate::EulerOpError::RechartFalsifies {
-                    door: crate::euler::RechartDoor::SetFaceSurface,
-                    edge: EdgeKey::default(),
+                error: crate::EulerOpError::DescriptionUncertified {
+                    edge: crate::EdgeSubject::Keyed(EdgeKey::default()),
                     error: geom_brep::CertifyError::AnalyticRung3(A::NoTubeEnclosure {
                         operand: SurfaceKind::Cone,
                     }),

@@ -180,7 +180,7 @@ fn a_curved_spline_cap_moves_with_its_sides_where_its_certificates_hold_row() {
             matches!(
                 &moved,
                 Err(ReplaceFaceError::Op {
-                    error: topo::EulerOpError::RechartFalsifies {
+                    error: topo::EulerOpError::DescriptionUncertified {
                         error: geom_brep::CertifyError::PlaneNurbs(
                             geom_brep::PlaneNurbsRefusal::Limb {
                                 limb: geom_brep::ssi::SsiLimb::HullSupChart

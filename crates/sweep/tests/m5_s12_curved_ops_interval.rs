@@ -260,8 +260,9 @@ mod certified {
                      check, got {cut:?}"
                 );
             };
-            let topo::EulerOpError::Certification {
+            let topo::EulerOpError::DescriptionUncertified {
                 error: geom_brep::CertifyError::Escalated { check, cause, .. },
+                ..
             } = source
             else {
                 panic!("the refusal must be a certification escalation, got {source:?}");

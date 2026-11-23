@@ -2162,8 +2162,10 @@ fn inner_arm_tags_are_stable() {
         ("extrude", Some("oblique_extrusion"))
     );
     assert_eq!(
-        pair(&NodeErrorKind::Transform(TransformError::NurbsPlaceholder)),
-        ("transform", Some("nurbs_placeholder"))
+        pair(&NodeErrorKind::Transform(TransformError::NullScaffold {
+            edge: pncad::prelude::EdgeKey::default()
+        })),
+        ("transform", Some("null_scaffold"))
     );
     assert_eq!(
         pair(&NodeErrorKind::Shell(Box::new(ShellError::Thickness {
@@ -4439,7 +4441,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "ball_does_not_fit",
             "band",
             "body_not_intact",
-            "certify",
             "chain_not_connected",
             "chain_not_g1",
             "chamfer_arm_unsupported",
@@ -4452,6 +4453,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "not_finished",
             "oblique_mixed_corner",
             "op",
+            "pcurve_mint",
             "radius_headroom",
             "repeated_edge",
             "ring_clearance",
@@ -6161,7 +6163,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "transform_error_tag",
-        values: &["corrupt", "null_scaffold", "nurbs_placeholder", "pcurve"],
+        values: &["corrupt", "null_scaffold", "pcurve"],
         delegates: &[],
     },
     TagEntry {
@@ -6233,7 +6235,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "chart_singularity_undecided",
             "coincident_wedges_overlap",
             "coincident_wedges_overlap_undecided",
-            "component_euler_violation",
             "contact_contradicted",
             "curve_datum_undecided",
             "curved_sense_inverted",

@@ -212,11 +212,8 @@ pub fn pulled_back(wall: &NurbsSurface<f64>, d: f64) -> NurbsSurface<f64> {
 /// on its own chart** — the `Approx`-faced body with ANALYTIC carriers
 /// throughout, and the only shape of one this tree can build today.
 ///
-/// The lofted [`prism`] cannot be moved by `topo::transform_rigid` and
-/// never could: its four vertical wall seams carry `Curve3::Nurbs`,
-/// which that pass refuses (`NurbsPlaceholder`) whether or not any face
-/// is `Approx`. A box's carriers are all `Line`, so this fixture is
-/// what reaches the map's `Approx` arm.
+/// A box's carriers are all `Line`, so this fixture reaches the map's
+/// `Approx` arm with nothing else under test.
 ///
 /// The surgery is the M6-1 order, one face wide: the cap's surface
 /// becomes the certified `Approx` of the cap plane pulled back by `d`

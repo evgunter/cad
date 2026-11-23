@@ -267,7 +267,7 @@ fn the_filleted_cavity() {
     );
     assert_eq!(counts.r, 2, "the vent mouth's two ringed faces");
     assert_eq!(
-        (counts.s, counts.genus()),
+        (counts.s, counts.h()),
         (1, Ok(0)),
         "Euler–Poincaré, corrected for the vent mouth's two ringed faces"
     );
