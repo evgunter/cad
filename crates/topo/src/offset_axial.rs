@@ -1042,10 +1042,7 @@ fn axial_frame<T: Real>(
             continue;
         }
         let Ok(surface) = f.surface() else {
-            return Err(ReplaceFaceError::TogetherAxialUnsupported {
-                face,
-                kind: geom::SurfaceKind::Nurbs,
-            });
+            return Err(ReplaceFaceError::PlaceholderSurface { face });
         };
         let found = match surface {
             // A torus carries `center` + `axis` exactly as a sphere

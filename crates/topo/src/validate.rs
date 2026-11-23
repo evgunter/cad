@@ -4321,6 +4321,10 @@ pub(crate) fn classify_point_in_solid(
             (GRAZED.into(), geom_core::MOVE_RECOURSE.into())
         }
         S::Loop(L::CorruptLoop { .. }) => (UNWALKABLE.into(), DEFECT.into()),
+        S::PendingFace { .. } => (
+            geom_brep::PENDING_SURFACE.into(),
+            crate::pcurves::PLACEHOLDER_RECOURSE.into(),
+        ),
         S::Loop(L::LoneLoop { .. }) => (LONE_LOOP.into(), DEFECT.into()),
         S::Loop(L::Uncrossable(u)) | S::EdgeCarrierUnsupported { cause: u, .. } => {
             (uncrossable(u), NOT_YET_ENDING.into())
@@ -4446,6 +4450,10 @@ fn classify_chart_region(e: &ChartRegionError) -> (Cow<'static, str>, Cow<'stati
         ChartRegionError::MissingCache { .. } | ChartRegionError::Corrupt => {
             ("a face's stored boundary is incomplete", DEFECT)
         }
+        ChartRegionError::PendingFace { .. } => (
+            geom_brep::PENDING_SURFACE,
+            crate::pcurves::PLACEHOLDER_RECOURSE,
+        ),
         ChartRegionError::FaceUncovered(_) => (
             "a face's region cannot be bounded (its carrier or a boundary edge has no cover)",
             DEFECT,

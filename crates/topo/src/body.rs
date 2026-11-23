@@ -388,6 +388,16 @@ impl<T: Real> Body<T> {
         }
     }
 
+    /// Describes the slot at `key` as `surface`, pending or not: a test's
+    /// stand-in for a describing door. Returns whether `key` was live.
+    #[cfg(test)]
+    pub(crate) fn describe_slot_for_tests(&mut self, key: SurfaceKey, surface: Surface<T>) -> bool {
+        self.surfaces
+            .get_mut(key)
+            .map(|slot| *slot = SurfaceSlot::Described(surface))
+            .is_some()
+    }
+
     /// Inserts a vertex with its birth provenance (D5), returning its key.
     ///
     /// Crate-internal raw insertion: no validity promises (the referenced

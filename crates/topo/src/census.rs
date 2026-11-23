@@ -2802,6 +2802,14 @@ fn wedges_overlap<P, W, D>(
     }
 }
 
+/// Whether `face`'s surface slot is pending: the reading the normal doors'
+/// `None` folds in with a spline chart's, told apart where a refusal
+/// names its cause.
+fn is_pending<T: Real>(body: &Body<T>, face: FaceKey) -> bool {
+    body.face(face)
+        .is_some_and(|f| f.slot().is_pending())
+}
+
 /// `e`'s material wedge ([`line_wedges`]), its sheets read at `at`, a
 /// point of the edge.
 fn wedge<T: Decide>(
@@ -2812,6 +2820,9 @@ fn wedge<T: Decide>(
 ) -> Result<Wedge<T>, WedgeRefusal> {
     let normal =
         |face: FaceKey| match crate::face_normal::face_outward_normal_at(body, face, at, band) {
+            Ok(_) if is_pending(body, face) => {
+                Err(WedgeRefusal::Unread(e.key, TouchUnread::PendingFace))
+            }
             Ok(Some(n)) => Ok(n),
             Err(crate::face_normal::NormalAtError::Escalated { diag, .. }) => {
                 Err(WedgeRefusal::Undecided(diag))
@@ -4780,6 +4791,7 @@ fn edge_in_curved_face<T: Decide>(
         why,
     };
     let floor = match crate::face_normal::face_outward_normal_at(body, f, p, band) {
+        Ok(_) if is_pending(body, f) => return Some(undecided(TouchUnread::PendingFace)),
         Ok(Some(n)) => n.vec(),
         Err(crate::face_normal::NormalAtError::Escalated { .. }) => {
             return Some(undecided(TouchUnread::InBand));
@@ -7569,6 +7581,8 @@ pub(crate) enum Undecided {
     VolumeUncertified,
     /// Arm 2: an instance with a face kind the door does not serve.
     FaceKindUnsupported,
+    /// Arm 2: an instance with a face that has no surface yet.
+    PendingFace,
     /// Arm 2: an instance whose topology the door could not walk.
     CorruptInstance,
     /// Arm 2: an instance with a lone-vertex loop where the reading
@@ -7709,6 +7723,10 @@ impl Undecided {
                  is not a flat cut) the check cannot yet test a point against. Recourse: move the parts until \
                  their bounding boxes no longer overlap"
             }
+            Self::PendingFace => {
+                "one part has a face with no surface yet. Recourse: describe every face's \
+                 surface before checking the parts"
+            }
             Self::CorruptInstance => concat!(
                 "one part's topology could not be walked. ",
                 geom_core::kernel_or_file_defect_ending!()
@@ -7744,6 +7762,7 @@ impl Undecided {
             | E::EdgeCarrierUnsupported { .. }
             | E::WallOutlineUnsupported { .. }
             | E::Loop(L::Uncrossable(_)) => Self::FaceKindUnsupported,
+            E::PendingFace { .. } => Self::PendingFace,
             E::CorruptFace { .. } | E::NoSuchSolid { .. } | E::Loop(L::CorruptLoop { .. }) => {
                 Self::CorruptInstance
             }
@@ -8115,6 +8134,7 @@ impl TouchUnread {
             | Self::NormalFault(_) => Undecided::Touch(self),
             Self::Corrupt => Undecided::CorruptInstance,
             Self::LoneLoop => Undecided::LoneLoop,
+            Self::PendingFace => Undecided::PendingFace,
         }
     }
 
@@ -8209,6 +8229,7 @@ impl TouchUnread {
             ),
             Self::Corrupt => Undecided::CorruptInstance.what(),
             Self::LoneLoop => Undecided::LoneLoop.what(),
+            Self::PendingFace => Undecided::PendingFace.what(),
         }
     }
 
@@ -8326,6 +8347,10 @@ impl TouchUnread {
                  does not read. ",
                 geom_core::kernel_or_file_defect_ending!()
             ),
+            Self::PendingFace => {
+                "a face of the part there has no surface yet. Recourse: describe every \
+                 face's surface first"
+            }
         };
         said.into()
     }
@@ -9234,7 +9259,7 @@ impl<T: Decide> FaceSector<T> {
         let face = body.face(f).ok_or(TouchUnread::Corrupt)?;
         let surface = face
             .surface()
-            .map_err(|_| TouchUnread::Curved(CurvedUnread::Unreadable))?
+            .map_err(|_| TouchUnread::PendingFace)?
             .clone();
         let fg = planar_face(geo, f).ok_or(TouchUnread::Curved(CurvedUnread::Unreadable))?;
         fg.walked?;
@@ -9520,9 +9545,7 @@ fn tangent_sectors<T: Decide>(
     let surface = match body.get_surface(face.surface) {
         Ok(surface) => surface.clone(),
         Err(crate::SurfaceMiss::Stale) => return Err(TouchUnread::Corrupt),
-        Err(crate::SurfaceMiss::Pending) => {
-            return Err(TouchUnread::Curved(CurvedUnread::Unreadable));
-        }
+        Err(crate::SurfaceMiss::Pending) => return Err(TouchUnread::PendingFace),
     };
     let corner = |v: VertexKey| holds.contains(&Held::Corner(v));
     // A lone-vertex loop has no sector to give but at a corner held.
@@ -9709,6 +9732,7 @@ fn corner_cause(why: &crate::sector_face::SectorFaceError) -> TouchUnread {
         // may hold both sides of a fold, and refuses by the crease's own
         // standing: in band, or a limit where decided.
         SectorFaceError::Crease { reading, .. } => TouchUnread::kept(Refusal::of_crease(*reading)),
+        SectorFaceError::Pending { .. } => TouchUnread::PendingFace,
         SectorFaceError::Unsupported { .. } => TouchUnread::Curved(CurvedUnread::NoSectorArm),
         SectorFaceError::Unplaced { .. } => TouchUnread::Curved(CurvedUnread::Unplaced),
     }
@@ -9886,7 +9910,7 @@ impl<T: Decide> Link<T> {
             let ruled = Ruled {
                 surface: face
                     .surface()
-                    .map_err(|_| TouchUnread::Curved(CurvedUnread::Unreadable))?
+                    .map_err(|_| TouchUnread::PendingFace)?
                     .clone(),
                 sense: face.sense(),
                 outward: foot_normal(body, f, p, band)?,
@@ -9934,9 +9958,7 @@ fn round_face<T: Decide>(
     p: Point3<T>,
 ) -> Result<Option<(crate::link::Round<T>, T)>, TouchUnread> {
     let face = body.face(f).ok_or(TouchUnread::Corrupt)?;
-    let Ok(surface) = face.surface() else {
-        return Ok(None);
-    };
+    let surface = face.surface().map_err(|_| TouchUnread::PendingFace)?;
     let Some(round) = crate::link::Round::of(surface, face.sense()) else {
         return Ok(None);
     };
@@ -13866,11 +13888,11 @@ mod tests {
             errors.iter().any(|e| matches!(
                 e,
                 ValidationError::BoundaryCrossesItselfUndecided {
-                    why: TouchUnread::Curved(CurvedUnread::Unreadable),
+                    why: TouchUnread::PendingFace,
                     ..
                 }
             )),
-            "the self-touch point refuses, the pending face unread: {errors:?}"
+            "the self-touch point refuses, naming the pending face: {errors:?}"
         );
     }
 

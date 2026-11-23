@@ -688,6 +688,10 @@ pub enum TouchUnread {
     /// Its standing is the crate's one lone-loop standing
     /// (`live::LONE_LOOP_REFUSAL`).
     LoneLoop,
+    /// A face around the touch has no surface yet
+    /// ([`SurfaceMiss::Pending`](crate::SurfaceMiss::Pending)): a body
+    /// mid-construction, which tier 3 refuses at rest. An abort.
+    PendingFace,
 }
 
 /// **Which cause left a curved face or edge unread**
@@ -741,9 +745,11 @@ impl TouchUnread {
             Self::Unanalysed | Self::Degenerate | Self::ChordScale => Ok(Refusal::Limit),
             Self::LoneLoop => Ok(crate::live::LONE_LOOP_REFUSAL),
             Self::EdgeTangent(why) => Ok(why.refusal()),
-            Self::Curved(_) | Self::OffInterior | Self::NormalFault(_) | Self::Corrupt => {
-                Err(Aborts)
-            }
+            Self::Curved(_)
+            | Self::OffInterior
+            | Self::NormalFault(_)
+            | Self::Corrupt
+            | Self::PendingFace => Err(Aborts),
         }
     }
 

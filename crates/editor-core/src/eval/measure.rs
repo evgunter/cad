@@ -1307,6 +1307,9 @@ fn link_reads<T: Decide>(
             LinkRefusal::Unread(TouchUnread::LoneLoop) => {
                 "a cell on a face with a loop that is a lone vertex"
             }
+            LinkRefusal::Unread(TouchUnread::PendingFace) => {
+                "a cell on a face that has no surface yet"
+            }
         };
         unsupported_as("gap", class, read.class())
     })

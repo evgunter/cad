@@ -388,6 +388,10 @@ impl SectorFaceError {
     /// walk could not resolve.
     pub(crate) fn boolean_refusal(self, operand: Operand, band: Band) -> BooleanError {
         match self {
+            Self::Pending { face } => unreachable!(
+                "{face:?} is pending in a boolean operand: operands are finished bodies, and \
+                 tier 3 refuses a pending face at rest"
+            ),
             Self::Unsupported { face, kind } => BooleanError::CurvedBooleanUnsupported {
                 operand,
                 face,

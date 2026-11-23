@@ -385,6 +385,13 @@ pub enum ChartRegionError {
     /// its carrier gates have no region to read: the carrier's own refusal
     /// and each boundary entity that left its boundary unread.
     FaceUncovered(crate::cover::FaceUncovered),
+    /// A face of the pair has no surface yet
+    /// ([`crate::SurfaceMiss::Pending`]): a body mid-construction, which
+    /// tier 3 refuses at rest.
+    PendingFace {
+        /// The pending face.
+        face: FaceKey,
+    },
     /// The topology could not be walked, or the crossing walk
     /// contradicted itself (fail-loud kernel-invariant class).
     Corrupt,
@@ -425,7 +432,8 @@ impl ChartRegionError {
     ///   [`Self::EdgeScale`] (an edge length no ordinary number holds).
     /// - An abort: [`Self::MissingCache`] (a body that must re-mint, row
     ///   1(a)); [`Self::CarrierTilt`] (the declaration's carriers
-    ///   definitely apart, row 1(a)); [`Self::Corrupt`] (row 4);
+    ///   definitely apart, row 1(a)); [`Self::PendingFace`] (a body
+    ///   mid-construction, row 1(a)); [`Self::Corrupt`] (row 4);
     ///   [`Self::TrimOffFace`] where its read is a decided miss (a trim
     ///   its own plane contradicts, row 4 at a build); and
     ///   [`Self::ShortLoop`], which mixes classes (a loop collapsed in its
@@ -461,6 +469,7 @@ impl ChartRegionError {
             | Self::FaceUncovered(_) => Ok(Refusal::Limit),
             Self::MissingCache { .. }
             | Self::CarrierTilt
+            | Self::PendingFace { .. }
             | Self::Corrupt
             | Self::ShortLoop { .. } => Err(Aborts),
         }
@@ -619,6 +628,12 @@ impl ChartRegionError {
                 f,
                 "chart-region: a face of the pair has no region to read its carriers over: \
                  {why}"
+            ),
+            Self::PendingFace { face } => write!(
+                f,
+                "chart-region: face {face:?}: {}. {}",
+                geom_brep::PENDING_SURFACE,
+                crate::pcurves::PLACEHOLDER_RECOURSE
             ),
             Self::Corrupt => write!(
                 f,
@@ -1305,12 +1320,15 @@ fn world_carrier<T: Decide + Bounds>(
     }
 }
 
-/// **A face's surface, as this module refuses it**: [`Body::face`]'s [`crate::live::FaceView::surface`],
-/// a stale face key (the caller's argument) or a pending surface
-/// [`ChartRegionError::Corrupt`].
+/// **A face's surface, as this module refuses it**: [`Body::face`]'s
+/// [`crate::live::FaceView::surface`], a stale face key (the caller's
+/// argument) [`ChartRegionError::Corrupt`] and a pending surface
+/// [`ChartRegionError::PendingFace`].
 fn face_surface<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<&Surface<T>, ChartRegionError> {
-    body.face_surface(face)
-        .map_err(|_| ChartRegionError::Corrupt)
+    body.face(face)
+        .ok_or(ChartRegionError::Corrupt)?
+        .surface()
+        .map_err(|_| ChartRegionError::PendingFace { face })
 }
 
 /// A face's plane description as `(origin, unit normal)`; the CHART
@@ -2568,11 +2586,15 @@ fn declared_chart<T: Decide + Bounds>(
 ) -> Result<Surface<T>, ChartRegionError> {
     let fa = body_a.face(face_a).ok_or(ChartRegionError::Corrupt)?;
     let fb = body_b.face(face_b).ok_or(ChartRegionError::Corrupt)?;
-    let s_a = fa.surface().map_err(|_| ChartRegionError::Corrupt)?;
+    let s_a = fa
+        .surface()
+        .map_err(|_| ChartRegionError::PendingFace { face: face_a })?;
     if std::ptr::eq(body_a, body_b) && fa.record().surface == fb.record().surface {
         return Ok(s_a.clone());
     }
-    let s_b = fb.surface().map_err(|_| ChartRegionError::Corrupt)?;
+    let s_b = fb
+        .surface()
+        .map_err(|_| ChartRegionError::PendingFace { face: face_b })?;
     if surface_bits_equal(s_a, s_b) {
         Ok(s_a.clone())
     } else {
@@ -4006,6 +4028,9 @@ mod tests {
                     geom::cover::Unknown::Unbounded,
                 )),
             ),
+            ChartRegionErrorKind::PendingFace => ChartRegionError::PendingFace {
+                face: FaceKey::default(),
+            },
             ChartRegionErrorKind::Corrupt => ChartRegionError::Corrupt,
         }
     }
@@ -4039,6 +4064,7 @@ mod tests {
                 | ChartRegionErrorKind::FaceUncovered => Ok(Refusal::Limit),
                 ChartRegionErrorKind::MissingCache
                 | ChartRegionErrorKind::CarrierTilt
+                | ChartRegionErrorKind::PendingFace
                 | ChartRegionErrorKind::Corrupt
                 | ChartRegionErrorKind::ShortLoop => Err(Aborts),
             };

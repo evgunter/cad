@@ -115,6 +115,7 @@ fn a_ruled_face_on_a_lone_vertex_has_no_cover() {
         assert!(
             matches!(&got, Err(why) if why
                 .carrier()
+                .expect("a described face's carrier")
                 .unknowns()
                 .iter()
                 .all(|&(_, what)| what == geom::cover::Unknown::Unbounded)),

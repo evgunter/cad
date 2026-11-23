@@ -288,7 +288,7 @@ pub enum FaceSurface<T: Real> {
         sense: bool,
     },
     /// Mint a pending surface slot for the new face
-    /// ([`SurfaceSlot::Pending`](crate::SurfaceSlot::Pending)): the face
+    /// ([`crate::SurfaceSlot::Pending`]): the face
     /// waits for a describing door to give it a surface (a sweep's
     /// transient disc, killed before the body finishes).
     Pending {
@@ -5767,7 +5767,7 @@ mod tests {
         let weights = vec![1.0; control.len()];
         let patch = geom::NurbsSurface::new(k.clone(), k, control, weights).unwrap();
         assert!(patch.is_finite());
-        *body.surface_mut(s_seed).unwrap() = geom::Surface::Nurbs(std::sync::Arc::new(patch));
+        assert!(body.describe_slot_for_tests(s_seed, geom::Surface::Nurbs(std::sync::Arc::new(patch))));
         *body.surface_mut(s_plus).unwrap() = geom::Surface::Plane {
             frame: geom::Frame::new(
                 Point3::new(0.0, 0.0, 0.0),

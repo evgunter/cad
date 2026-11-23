@@ -1438,7 +1438,8 @@ pub mod test_support {
     /// # Errors
     ///
     /// The walk's own [`crate::PointInSolidError`]; a face that is not
-    /// planar is `KindUnsupported`.
+    /// planar is `KindUnsupported`, and one with no surface yet
+    /// `PendingFace`.
     pub fn point_in_face<T: geom_core::Decide>(
         body: &Body<T>,
         face: crate::FaceKey,
@@ -1447,12 +1448,12 @@ pub mod test_support {
     ) -> Result<Option<bool>, crate::PointInSolidError> {
         let Some(geom_brep::PlaneDesc { normal, .. }) = crate::face_normal::face_plane(body, face)
         else {
-            let f = body.proven_face(face);
+            let Ok(surface) = body.proven_face(face).surface() else {
+                return Err(crate::PointInSolidError::PendingFace { face });
+            };
             return Err(crate::PointInSolidError::KindUnsupported {
                 face,
-                kind: f
-                    .surface()
-                    .map_or(geom::SurfaceKind::Nurbs, geom::Surface::kind),
+                kind: surface.kind(),
             });
         };
         crate::solid_contain::point_in_face(body, face, normal, p, band)

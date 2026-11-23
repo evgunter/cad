@@ -330,6 +330,12 @@ pub enum PointInSolidError {
         /// Its kind — the row the arm is missing for.
         kind: geom::SurfaceKind,
     },
+    /// A face has no surface yet ([`crate::SurfaceMiss::Pending`]): the
+    /// body is mid-construction, and a ray has nothing to cross there.
+    PendingFace {
+        /// The face.
+        face: FaceKey,
+    },
     /// The at-infinity side could be read neither off the sign of the
     /// body's signed volume, which the props lane did not certify, nor
     /// off a ray aimed at one of its planar faces.
@@ -572,6 +578,9 @@ impl PointInSolidError {
                 "the instance carries a face kind the point-in-solid door does not serve \
                  (a spline surface), so its material cannot be probed"
             }
+            Self::PendingFace { .. } => {
+                "a face of the instance has no surface yet, so its material cannot be probed"
+            }
             Self::VolumeUncertified => {
                 "the instance's at-infinity side could not be read — the sign of its \
                  signed volume is uncertified, and no ray aimed at a flat face of it \
@@ -664,6 +673,11 @@ impl PointInSolidError {
                  solid itself is fine. Recourse: build the solid so no spline (NURBS) \
                  face bounds it",
                 kind.word()
+            ),
+            Self::PendingFace { .. } => write!(
+                f,
+                "cannot tell what is inside the solid: one of its faces has no surface \
+                 yet. Recourse: describe every face's surface first"
             ),
             Self::VolumeUncertified => write!(
                 f,
@@ -956,12 +970,8 @@ fn face_geo_arms<T: Decide>(
     band: Band,
 ) -> Result<FaceGeo<T>, PointInSolidError> {
     let f = body.proven_face(face);
-    // A pending face is refused as the spline kind is: no ray arm.
     let Ok(surface) = f.surface() else {
-        return Err(PointInSolidError::KindUnsupported {
-            face,
-            kind: geom::SurfaceKind::Nurbs,
-        });
+        return Err(PointInSolidError::PendingFace { face });
     };
     match surface {
         Surface::Plane { frame, .. } => {
@@ -1147,10 +1157,10 @@ pub(crate) const fn ray_crosses(kind: geom::SurfaceKind) -> bool {
 ///
 /// Where `face`, a face of the selection, does not resolve.
 pub(crate) fn uncrossable<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<PointInSolidError> {
-    let kind = body
-        .proven_face(face)
-        .surface()
-        .map_or(geom::SurfaceKind::Nurbs, Surface::kind);
+    let Ok(surface) = body.proven_face(face).surface() else {
+        return Some(PointInSolidError::PendingFace { face });
+    };
+    let kind = surface.kind();
     (!ray_crosses(kind)).then_some(PointInSolidError::KindUnsupported { face, kind })
 }
 

@@ -2431,7 +2431,7 @@ impl<T: geom_core::Certifies + geom_core::CertifiedBounds> EdgeCurve<T> {
     ///     band: Band,
     ///     lane: NurbsLane<T>,
     /// ) {
-    ///     let _ = EdgeCurve::<T>::certify(spec, p, p, |_| None, geom_brep::ExtentBall::point(p).lever(), band, lane);
+    ///     let _ = EdgeCurve::<T>::certify(spec, p, p, |_| Err(geom_brep::SurfaceMiss::Stale), geom_brep::ExtentBall::point(p).lever(), band, lane);
     /// }
     /// ```
     ///
@@ -2726,7 +2726,7 @@ pub struct StatedImage<T: Real> {
 /// fn forge(
 ///     spec: EdgeCurveSpec<f64>,
 ///     ends: (Point3<f64>, Point3<f64>),
-///     surfaces: impl Fn(geom_brep::keys::SurfaceKey) -> Option<Surface<f64>>,
+///     surfaces: impl Fn(geom_brep::keys::SurfaceKey) -> Result<Surface<f64>, geom_brep::SurfaceMiss>,
 ///     band: Band,
 /// ) {
 ///     // Honest limbs for some other pair, with the two limbs a door
@@ -2761,7 +2761,7 @@ pub struct StatedImage<T: Real> {
 /// fn forge(
 ///     spec: EdgeCurveSpec<f64>,
 ///     ends: (Point3<f64>, Point3<f64>),
-///     surfaces: impl Fn(geom_brep::keys::SurfaceKey) -> Option<Surface<f64>>,
+///     surfaces: impl Fn(geom_brep::keys::SurfaceKey) -> Result<Surface<f64>, geom_brep::SurfaceMiss>,
 ///     band: Band,
 /// ) {
 ///     // Honest limbs for some other pair, with the two limbs a door

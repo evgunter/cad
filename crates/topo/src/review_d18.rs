@@ -3625,9 +3625,9 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
         };
         use crate::face_normal::face_carrier_desc;
         let outside = || match body.get_surface(data.surface) {
-            Some(_) => Ok(false),
-            None => Err(format!(
-                "{} reads as outside the inventory over a surface that does not resolve",
+            Ok(_) => Ok(false),
+            Err(miss) => Err(format!(
+                "{} reads as outside the inventory over a surface it cannot read: {miss}",
                 crate::entity::EntityId::Face(face)
             )),
         };
@@ -3828,7 +3828,7 @@ fn revert_reads_whole(body: &Body<f64>) -> bool {
     });
     let charts = body
         .faces()
-        .all(|(_, f)| body.get_surface(f.surface).is_some())
+        .all(|(_, f)| body.get_surface(f.surface).is_ok())
         && body.curves.values().all(|geom| {
             let crate::null::CurveGeom::Certified(curve) = geom else {
                 return true;
@@ -3836,7 +3836,7 @@ fn revert_reads_whole(body: &Body<f64>) -> bool {
             curve
                 .description()
                 .chart()
-                .is_none_or(|chart| body.get_surface(chart.surface).is_some())
+                .is_none_or(|chart| body.get_surface(chart.surface).is_ok())
         });
     halves && anchors && rows && charts
 }

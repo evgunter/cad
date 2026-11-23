@@ -246,6 +246,11 @@ impl<T: Decide> ConeApex<T> {
 /// `Operand`, which is why the adaptation stays with the callers.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum SectorFaceError {
+    /// The face has no surface yet.
+    Pending {
+        /// The pending face.
+        face: FaceKey,
+    },
     /// The face's surface has no wired sector arm.
     Unsupported {
         /// The face whose carrier has no arm.
@@ -358,11 +363,9 @@ pub(crate) fn resolve<T: Decide>(
             carrier,
         })
     };
-    // A pending face has no arm, refused as the spline kind it stands in.
-    let surface = view.surface().map_err(|_| SectorFaceError::Unsupported {
-        face,
-        kind: SurfaceKind::Nurbs,
-    })?;
+    let surface = view
+        .surface()
+        .map_err(|_| SectorFaceError::Pending { face })?;
     if let Some(chart) = surface.spline_chart() {
         let kind = surface.kind();
         let normal = spline_normal(body, point(), into, (face, sense), (chart, kind), band)?;
