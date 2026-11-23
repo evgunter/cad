@@ -307,9 +307,8 @@ impl PcurveMintError {
             Self::Band(e) => write!(f, "{e}"),
             Self::PlaceholderChart { face } => write!(
                 f,
-                "the chart offered for face {face:?}: {}, so nothing on it can be metred. \
-                 {PLACEHOLDER_RECOURSE}",
-                geom::PLACEHOLDER_SURFACE
+                "face {face:?}: {}, so nothing on it can be metred. {PLACEHOLDER_RECOURSE}",
+                geom_brep::PENDING_SURFACE
             ),
         }
     }
@@ -1763,12 +1762,7 @@ pub(super) fn v_meter<T: Real>(chart: DescribedChart<'_, T>) -> SupSpeed<T> {
         // included (its `v` is a slant length, so the rate is exactly
         // 1), which is why this reads the `v`-only door rather than
         // the pair.
-        None => geom_brep::chart_stretch_sup_v(chart.surface()).unwrap_or_else(|_| {
-            unreachable!(
-                "chart_stretch_sup_v refuses only the placeholder, which \
-                 DescribedChart::of excludes"
-            )
-        }),
+        None => geom_brep::chart_stretch_sup_v(chart.surface()),
     }
 }
 

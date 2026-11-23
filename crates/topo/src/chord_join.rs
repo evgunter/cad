@@ -3925,11 +3925,6 @@ fn run_lift_refusal<T: Decide>(
                    the two images name no common branch",
         },
         LiftRefusal::Joint(PinMiss::Singular(miss)) => JoinError::SingularTurn { face, miss },
-        LiftRefusal::Placeholder => JoinError::SectionInvariant {
-            face,
-            what: "a divided face's chart is the placeholder — it has no lever to decide a \
-                   branch by",
-        },
         LiftRefusal::NotClosed => {
             unreachable!("an open run checks no closure")
         }

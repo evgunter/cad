@@ -252,14 +252,6 @@ pub enum PlaneNurbsRefusal {
     /// of its interval: the carrier-enclosure door's refusal, naming
     /// the carrier's kind and the span.
     CarrierEnclosure(crate::CarrierEnclosureRefusal),
-    /// The wall is the placeholder ([`geom::PLACEHOLDER_SURFACE`]): it
-    /// has no description to project onto, so the lane derives no foot
-    /// path. Told apart from [`Unsupported`](Self::Unsupported) because
-    /// describing the surface is a way through
-    /// ([`crate::pcurve_cache::PLACEHOLDER_RECOURSE`], the pcurve door's
-    /// lever for the same wall), where a shape outside the inventory
-    /// has none yet.
-    PlaceholderWall,
     /// The (carrier, operand) shape is outside the lane's certified
     /// inventory, named exactly ([`SsiError::UnsupportedCertificate`]).
     Unsupported {
@@ -657,7 +649,6 @@ impl PlaneNurbsRefusal {
             Self::FootPointInconclusive { .. } => Decision::Fitted(FittedEnding::FootUnsettled),
             Self::PcurveFit => Decision::Fitted(FittedEnding::Defect),
             Self::CarrierDomain(_) => Decision::Lever(Lever::CarrierDomain),
-            Self::PlaceholderWall => Decision::Lever(Lever::Placeholder),
             // The SSI door's refusals the lane carries, ended there.
             Self::CarrierEnclosure(r) => Decision::Ssi(SsiError::CarrierEnclosure(*r)),
             Self::Unsupported { what } => Decision::Ssi(SsiError::UnsupportedCertificate { what }),
@@ -803,11 +794,6 @@ impl core::fmt::Display for PlaneNurbsRefusal {
             Self::CarrierEnclosure(r) => write!(
                 f,
                 "limb 2 could not enclose the declared carrier between samples: {r}"
-            ),
-            Self::PlaceholderWall => write!(
-                f,
-                "{}, so the lane has no described wall to project the carrier onto",
-                geom::PLACEHOLDER_SURFACE
             ),
             Self::Unsupported { what } => {
                 write!(f, "outside the spline Intersection lane: {what}")
@@ -2803,7 +2789,6 @@ impl AnalyticRung3Refusal {
             | crate::PcurveCertifyError::ChartWindingUnsupported
             | crate::PcurveCertifyError::ChannelKindMismatch { .. }
             | crate::PcurveCertifyError::WindingMismatch { .. }
-            | crate::PcurveCertifyError::PlaceholderChart
             | crate::PcurveCertifyError::AzimuthPeriodExceeded
             | crate::PcurveCertifyError::PlacementTurnsExceeded
             | crate::PcurveCertifyError::TubePeriodExceeded

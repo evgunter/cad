@@ -1869,8 +1869,7 @@ fn walk_certify_refusal(error: &geom_brep::PcurveCertifyError) -> WalkRefusal {
         // margin that could not be read) is torn, a read in band unread.
         C::Incidence(refusal) if refusal.read().is_definite() => WalkRefusal::Torn,
         C::Incidence(_) => WalkRefusal::Unread,
-        C::PlaceholderChart
-        | C::ChartRow { .. }
+        C::ChartRow { .. }
         | C::ImageMismatch { .. }
         | C::ChannelKindMismatch { .. }
         | C::WindingMismatch { .. }

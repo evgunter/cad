@@ -2448,10 +2448,6 @@ pub enum PcurveCertifyError {
         /// The derivation's.
         derived: [Option<i32>; 2],
     },
-    /// The chart is the placeholder ([`Surface::is_placeholder_chart`]):
-    /// it has no locus, so no lane can image a pcurve on it or meter a
-    /// margin through it. Every lane refuses it with this, at check 1.
-    PlaceholderChart,
     /// The pcurve's azimuth extent definitely exceeds one full period —
     /// the chart-side counterpart of
     /// [`crate::certify::CertifyError::WindingExceeded`].
@@ -2662,11 +2658,6 @@ impl PcurveCertifyError {
                 "pcurve certification: the row winds {stored:?} times, and its carrier \
                  winds {derived:?} times on this chart"
             ),
-            Self::PlaceholderChart => write!(
-                f,
-                "pcurve certification: {}, so nothing can be imaged on its chart",
-                geom::PLACEHOLDER_SURFACE
-            ),
             Self::SectorRefused { piece, channel } => write!(
                 f,
                 "pcurve certification: piece {piece} of the projected image is not in one \
@@ -2823,7 +2814,6 @@ impl PcurveCertifyError {
             Self::CarrierDomain(_) => Decision::Lever(Lever::CarrierDomain),
             Self::FittedLaneUnsupported { .. } => Decision::Lever(Lever::FittedDoor),
             Self::FittedGradeAtClosedFormDoor { .. } => Decision::Lever(Lever::FittedGradeDoor),
-            Self::PlaceholderChart => Decision::Lever(Lever::Placeholder),
             // The run's linear band: K·ε overflowed or rounded back onto
             // ε (`Band::linear`), so a smaller tolerance; a lever arm is
             // no linear band's, so a band its caller built, by its own.
@@ -3445,9 +3435,6 @@ pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::Cert
         // solves.
         P::PcurveFit => certificate(crate::edge_nurbs::PCURVE_FIT_REFUSAL, FittedEnding::Defect),
         P::CarrierDomain(refusal) => PcurveCertifyError::CarrierDomain(refusal),
-        // The wall this door was handed, as the foot producer refuses it
-        // (`chart_foot_lane`): one lever at both doors.
-        P::PlaceholderWall => PcurveCertifyError::PlaceholderChart,
         other @ (P::NotTransverse { .. }
         | P::TransversalityEscalated { .. }
         | P::Limb { .. }
@@ -3485,12 +3472,8 @@ pub(crate) fn chart_foot_lane<T: Decide + geom_core::Bounds + geom_core::Certifi
             magnitude: Some(FittedMagnitude::EndpointFootDistance { last_distance }),
             ending: FittedEnding::FootUnsettled,
         }),
-        Err(crate::edge_nurbs::PlaneNurbsRefusal::PlaceholderWall) => {
-            Err(PcurveCertifyError::PlaceholderChart)
-        }
         Err(other) => unreachable!(
-            "the chart foot producer refuses an unsettled foot or the placeholder wall \
-             alone: {other:?}"
+            "the chart foot producer refuses an unsettled foot alone: {other:?}"
         ),
     }
 }
@@ -7470,7 +7453,7 @@ fn placement_terms<T: Decide>(
     if period_u.is_none() && period_v.is_none() {
         return Ok((T::zero(), T::zero()));
     }
-    let (arm_u, arm_v) = chart_sup_arms_at(surface, &stored.chart_box(t0, t1))?;
+    let (arm_u, arm_v) = chart_sup_arms_at(surface, &stored.chart_box(t0, t1));
     // A row read off a pole end is placed against the image derived off
     // that same end, at the parameter the row stores.
     let pole = match stored {
@@ -7594,7 +7577,7 @@ fn fidelity<T: Decide>(
         harmonic_span_box(p0, pa, pb, pl, t0, t1)
             .v_reach()
             .min(harmonic_span_box(q0, qa, qb, ql, t0, t1).v_reach())
-    })?;
+    });
     // The stored row is placed as its derivation is (C4: the mint and
     // check 4 place one image over one span, `Placement`), so its
     // constants ARE the derived ones, or on a sphere those of the
@@ -8496,12 +8479,6 @@ pub enum NoChartSup {
     /// supplies (`v_sup·sin α`). The `v` channel still has an exact
     /// answer and [`chart_stretch_sup_v`] is the door for it.
     ConeAzimuthGrowsWithV,
-    /// The chart is the placeholder ([`Surface::is_placeholder_chart`]):
-    /// its control net is all-poison, so every evaluation of it is
-    /// poison and there is no locus for either arm to be an arm of.
-    /// Both channels refuse, [`chart_stretch_sup_v`] included — the
-    /// sup-side twin of [`chart_stretch_inf`]'s all-zero answer.
-    Placeholder,
 }
 
 /// **`(sup |S_u|, sup |S_v|)`** — the chart's UPPER stretch bounds:
@@ -8515,9 +8492,7 @@ pub enum NoChartSup {
 /// every `(u, v)` of the chart's domain. That is what a [`SupSpeed`]
 /// asserts, so the kind that cannot honour it **refuses**: a cone has
 /// no surface-level azimuth arm and this door answers
-/// [`NoChartSup::ConeAzimuthGrowsWithV`] rather than a number, and the
-/// placeholder has no locus at all and answers
-/// [`NoChartSup::Placeholder`]. A cone
+/// [`NoChartSup::ConeAzimuthGrowsWithV`] rather than a number. A cone
 /// caller goes through [`chart_sup_arms_at`], which supplies
 /// `v_sup·sin α` from the row's own box, or through
 /// [`chart_stretch_sup_v`] for the `v` channel alone, which is exact
@@ -8605,15 +8580,10 @@ pub fn chart_stretch_sup<T: Real>(
 /// respect: this is the escape side, unsafe for a positive-extent
 /// claim.
 ///
-/// # Errors
-///
-/// [`NoChartSup::Placeholder`] for the placeholder chart, and nothing
-/// else.
-pub fn chart_stretch_sup_v<T: Real>(surface: &Surface<T>) -> Result<SupSpeed<T>, NoChartSup> {
+pub fn chart_stretch_sup_v<T: Real>(surface: &Surface<T>) -> SupSpeed<T> {
     match chart_stretch_sup(surface) {
-        Ok((_, v)) => Ok(v),
-        Err(NoChartSup::ConeAzimuthGrowsWithV) => Ok(SupSpeed::new(T::one())),
-        Err(NoChartSup::Placeholder) => Err(NoChartSup::Placeholder),
+        Ok((_, v)) => v,
+        Err(NoChartSup::ConeAzimuthGrowsWithV) => SupSpeed::new(T::one()),
     }
 }
 
@@ -8623,15 +8593,10 @@ pub fn chart_stretch_sup_v<T: Real>(surface: &Surface<T>) -> Result<SupSpeed<T>,
 /// (dominating the local arm everywhere in the window — the safe
 /// direction); every other kind answers as [`chart_stretch_sup`], a
 /// sup over the whole chart and so over any window of it.
-///
-/// # Errors
-///
-/// [`PcurveCertifyError::PlaceholderChart`] for the placeholder chart,
-/// which has arms nowhere, and nothing else.
 pub fn chart_sup_arms_at<T: Real>(
     surface: &Surface<T>,
     window: &ChartWindow<T>,
-) -> Result<(SupSpeed<T>, SupSpeed<T>), PcurveCertifyError> {
+) -> (SupSpeed<T>, SupSpeed<T>) {
     chart_sup_arms_over(surface, || window.v_reach())
 }
 
@@ -8640,14 +8605,13 @@ pub fn chart_sup_arms_at<T: Real>(
 fn chart_sup_arms_over<T: Real>(
     surface: &Surface<T>,
     v_sup: impl FnOnce() -> T,
-) -> Result<(SupSpeed<T>, SupSpeed<T>), PcurveCertifyError> {
+) -> (SupSpeed<T>, SupSpeed<T>) {
     match chart_stretch_sup(surface) {
-        Ok(pair) => Ok(pair),
-        Err(NoChartSup::ConeAzimuthGrowsWithV) => Ok((
+        Ok(pair) => pair,
+        Err(NoChartSup::ConeAzimuthGrowsWithV) => (
             SupSpeed::new(azimuth_lever(surface, v_sup())),
             SupSpeed::new(T::one()),
-        )),
-        Err(NoChartSup::Placeholder) => Err(PcurveCertifyError::PlaceholderChart),
+        ),
     }
 }
 

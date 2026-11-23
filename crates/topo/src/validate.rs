@@ -3652,9 +3652,6 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             "its curve's parameter range cannot carry the curve's image on its spline face"
         }
         CertifyError::PlaneNurbs(P::ChartSpeed(r)) => chart_speed_reason(*r),
-        CertifyError::PlaneNurbs(P::PlaceholderWall) => {
-            "its face has no real surface yet, only the placeholder a construction starts from"
-        }
         CertifyError::PlaneNurbs(P::CarrierEnclosure(_))
         | CertifyError::AnalyticRung3(A::CarrierEnclosure(_)) => CARRIER_ENCLOSURE,
         CertifyError::Unimplemented
@@ -4163,10 +4160,10 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
         // Never produced at rest: the pass takes no key from a caller,
         // so a key it named that did not resolve would be its own.
         M::Stale { .. } => ("a key the boundary names does not resolve", DEFECT),
-        // Never produced at rest (the pass skips a placeholder face);
+        // Never produced at rest (the pass skips a pending face);
         // classified as its Display states it.
         M::PlaceholderChart { .. } => (
-            geom::PLACEHOLDER_SURFACE,
+            geom_brep::PENDING_SURFACE,
             crate::pcurves::PLACEHOLDER_RECOURSE,
         ),
         M::Certify { error, .. } => {
@@ -4177,7 +4174,6 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
                 | C::IsoUnsupported { .. }
                 | C::ChartWindingUnsupported
                 | C::NoGeneralLane { .. } => KIND,
-                C::PlaceholderChart => geom::PLACEHOLDER_SURFACE,
                 C::SectorRefused { .. } => {
                     "a stored boundary image runs into its chart's singular set (a pole, the \
                      apex or the tube's core), where it has no one branch"

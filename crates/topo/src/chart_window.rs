@@ -90,8 +90,7 @@ impl ChartWindowError {
             LiftRefusal::Joint(PinMiss::Singular(miss)) => Self::Singular(miss),
             LiftRefusal::NotClosed => Self::NotClosed(face),
             LiftRefusal::Image(_)
-            | LiftRefusal::Joint(PinMiss::Discontinuity)
-            | LiftRefusal::Placeholder => Self::Unread,
+            | LiftRefusal::Joint(PinMiss::Discontinuity) => Self::Unread,
         }
     }
 }

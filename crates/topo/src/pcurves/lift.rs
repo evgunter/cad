@@ -730,10 +730,6 @@ impl<T: Decide> Lift<T> {
 /// Why [`Lift::decided`] decided no lift.
 #[derive(Debug)]
 pub(crate) enum LiftRefusal {
-    /// The face is pending: it has no chart to decide a joint on.
-    /// Produced by no door here; each caller refuses a pending face
-    /// before it asks.
-    Placeholder,
     /// A half-edge's closed-form image refused.
     Image(PcurveCertifyError),
     /// A joint of the chain decided no element.

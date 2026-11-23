@@ -2032,10 +2032,7 @@ impl<T: Decide> Body<T> {
         let before = self.arena_counts();
         let created = self.mfkrh_with(
             ring,
-            FaceSurface::New {
-                surface: geom::Surface::nurbs_placeholder(),
-                sense,
-            },
+            FaceSurface::Pending { sense },
             ParentSide::Against,
             None,
             RechartDoor::MfkrhPlug,

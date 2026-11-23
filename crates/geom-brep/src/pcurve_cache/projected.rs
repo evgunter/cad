@@ -3304,7 +3304,7 @@ pub(super) fn projected_envelope<T: Decide>(
         Surface::Cylinder { .. }
         | Surface::Cone { .. }
         | Surface::Sphere { .. }
-        | Surface::Torus { .. } => super::chart_sup_arms_at(surface, boxed)?,
+        | Surface::Torus { .. } => super::chart_sup_arms_at(surface, boxed),
     };
     // Consecutive branch centres on one branch: each piece holds its
     // sector at the break it shares with the next, so their centres are
@@ -3618,7 +3618,7 @@ pub(super) fn run_projected_checks<T: Decide>(
         // torus's tube), bounded where it varies over the box (the
         // sphere's, torus's and cone's azimuth: `azimuth_lever_inf` to
         // the sup arm).
-        let (u_arm, _) = super::chart_sup_arms_at(surface, &boxed)?;
+        let (u_arm, _) = super::chart_sup_arms_at(surface, &boxed);
         let swept = image.sweep_box(t0, t1);
         let one_turn = Period::angle();
         let azimuth = Extent::between(swept.u_min, swept.u_max);

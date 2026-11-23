@@ -4888,7 +4888,6 @@ fn stated_refusal<T: Real>(
         | PcurveCertifyError::ImageMismatch { .. }
         | PcurveCertifyError::FittedGradeAtClosedFormDoor { .. }
         | PcurveCertifyError::ChartRow { .. }
-        | PcurveCertifyError::PlaceholderChart
         | PcurveCertifyError::IntervalNotForward
         | PcurveCertifyError::Band(_) => mint_refusal(e, surface, carrier),
     }
@@ -5036,7 +5035,6 @@ fn mint_refusal<T: Real>(
         | PcurveCertifyError::ChartWindingUnsupported
         | PcurveCertifyError::ChannelKindMismatch { .. }
         | PcurveCertifyError::WindingMismatch { .. }
-        | PcurveCertifyError::PlaceholderChart
         | PcurveCertifyError::AzimuthPeriodExceeded
         | PcurveCertifyError::PlacementTurnsExceeded
         | PcurveCertifyError::TubePeriodExceeded
