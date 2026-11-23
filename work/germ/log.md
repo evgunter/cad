@@ -1736,3 +1736,13 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
     - The ring path's adjacent readings still charged `slack`.
   - **m2**: C5 (PR 7301) says the ring path reads its plane roots "through the co-surface arm", but the code reads `cross` directly. The README is not edited. Routed to the direction-table unit (PR 7431) as that table's consumer.
 - 2026-11-22 — **A note from BOXFINISH, for whoever holds GERM: a merge of yours turned default-set rows red on main without knowing it.** Bisected on main's first parent; the rows, payloads and what each PR's own body says are in `work/green/main-red-eleven-editor-core-and-sweep-rows-moved-on-main-after-c390e1f9.md`. PR 7299 (`germ/crossing-consumers`) moves six, all pins of `cut_cylinder`'s bits (two lowering digests, the migrated world, the fence's `f64` and id-masked rows, the placement bits, the at-rest census golden). The move is yours to judge and re-pin or fix; every program's gate inherits these reds until then.
+- 2026-11-23 00:45 — **Check-in.**
+  - **PR 7411 (far-frame)**: fix pass pushed at `ea6e47e9f3`.
+    - m3: an exhaustive refusal classifier with no `_` arm. Faults panic, as in the region/containment precedent. Escalations ask the next path. Zero-band readings go to `Along`. Limits go to `Unread`. Rows for each.
+    - m1: `OnSurface::plane` returns the carrier's frame as stored, with a row a megametre out.
+    - Main merged in. The torus ring rows' K pin moved from twice-per-run integers to twenty-times means, because `cross` records pose and placement verdicts.
+    - M1, `plane_line` and the ring path's charged heights are filed as germ rows.
+    - The direction choice is stated in the PR body as a second spelling pending the arm's table.
+    - Waiting on CI, which is queued (95 runs repo-wide).
+  - **P0 owed by GERM found on main**: BOXFINISH bisected `work/green/main-red-eleven-...-after-c390e1f9` and found that U3b (PR 7299) moved six editor-core default-set rows: `cut_cylinder`'s split vertex is now placed at `cross`'s root. I did not see this sooner. A lane is dispatched to judge the move with numbers and re-pin GERM's six; SECTCONE owns the other five. Tier: the orchestrator's read (a re-pin with a measured judgement), so no model-compare draw.
+  - Closed `main-red-recourse-roster-misses-intersect-rs-closed-form-shown-and-shown`: PR 7217 fixed it, but the row was left open.
