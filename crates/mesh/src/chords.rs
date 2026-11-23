@@ -216,7 +216,7 @@ pub(crate) fn compute_chords(
     // The coincident-end floor (module docs), after the short-loop floor,
     // whose raised counts it reads.
     for ek in coincident_end_floors(body, &counts)? {
-        let curve = certified(body, ek)?;
+        let curve = crate::walk::edge_curve(body, ek)?;
         let n = tighten(body, routes, curve, ek, delta, bounds, &mut lattices, 2)?;
         counts.insert(ek, n);
     }
@@ -911,7 +911,7 @@ fn coincident_end_floors(
     for (ek, _) in body.edges() {
         if let Some(pair) = ends(ek)?
             && one_chord[&pair] >= 2
-            && !matches!(*certified(body, ek)?.carrier(), Curve3::Line(_))
+            && !matches!(*crate::walk::edge_curve(body, ek)?.carrier(), Curve3::Line(_))
         {
             raised.push(ek);
         }
