@@ -55,18 +55,9 @@
 //! edge between two of them that are not neighbours on the polygon: a
 //! sphere or torus face round a bore holds both of the bore's rims, and
 //! where it lays no point between them (δ past the shell's thickness) its
-//! own triangles join the rims as the walk does. So the chart lane cuts
-//! a walked side whose two ends one neighbouring face holds
-//! (`trimmed::faces_across`, the fact the cone arm's shared-side rule
-//! reads) and which that face may make (`trimmed::may_make`: the side's
-//! midpoint not farther than `δ·(1 + ALLOWANCE_SHARE)` from its surface
-//! by more than the certificate's rounding, past which no triangle it
-//! certifies holds the side; no ε is read): a surface point at the side's
-//! chart midpoint, between the same two rulings, makes each triangle on it
-//! two. The rule reads where the neighbour lies, not how it is meshed, so
-//! it also cuts a side a neighbour on the same surface would not make (the
-//! corners of a one-chord face beside a wider face of its cylinder), at
-//! two triangles each.
+//! own triangles join the rims as the walk does. Such a side is split in
+//! both patches where they join (`crate::join`): the walk reads nothing
+//! about the faces across.
 
 use std::collections::HashSet;
 

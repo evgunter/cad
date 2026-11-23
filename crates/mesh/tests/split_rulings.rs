@@ -204,14 +204,12 @@ fn interior_points(mesh: &mesh::Mesh, face: topo::FaceKey) -> usize {
     inside.len()
 }
 
-/// [`holds_the_count_relation`] where the walk cuts `cuts` sides: a side
-/// whose two ends one neighbouring face holds and which that face may also
-/// make (`trimmed::may_make`), cut at a point between its ends. The split
-/// ruled faces hold `cuts` interior points between them
-/// ([`interior_points`]) and each has two triangles past the relation per
-/// point it holds; every other face holds the relation exactly. So a cut
-/// the rule does not ask for, and one it asks for and does not make, are
-/// both red.
+/// [`holds_the_count_relation`] where the split ruled faces gain `cuts`
+/// points between them where the patches join (`mesh::join`): a side
+/// that face and a face across both make, split at a point between its
+/// ends ([`interior_points`]), two triangles past the relation per point;
+/// every other face holds the relation exactly. So a split the join does
+/// not make, and one it makes that the pin does not ask for, are both red.
 ///
 /// A face's points inside it in either body, cut or split where the
 /// patches join (`mesh::join`), count two triangles each against the
@@ -657,15 +655,11 @@ fn is_line(body: &Body<f64>, ek: topo::EdgeKey) -> bool {
 
 /// **No walked triangle has an edge a neighbouring face also makes**, on
 /// the tightest bodies with a neighbour holding both of a walked face's
-/// sides. A walked side joining two polygon points that are not neighbours
-/// on it, and that one neighbouring face holds both of, is cut at a point
-/// between its ends where that face may make it (`trimmed::walk_face`); on
-/// these bodies that is a side between the corners of a one-chord face.
-/// Each cell passes `check_mesh` (an edge of four triangles fails it), is
-/// the body's, and holds the count relation but for the cuts it pins
-/// ([`holds_the_relation`]): the band's, at δ 1 and 0.1, two to seven a
-/// cell, and none elsewhere. None is needed (with the cut off every cell
-/// is manifold); they are the over-cut. The bored ball
+/// sides: a side between the corners of a one-chord face, which its
+/// neighbour holds both ends of. No neighbour here makes such a side, so
+/// nothing is split where the patches join: each cell passes `check_mesh`
+/// (an edge of four triangles fails it), is the body's, and holds the
+/// count relation exactly ([`holds_the_count_relation`]). The bored ball
 /// ([`a_walked_face_whose_neighbour_holds_both_rims_shares_no_edge`]) is
 /// the case of a neighbour holding both rims.
 ///
@@ -723,23 +717,6 @@ fn no_walked_triangle_has_an_edge_a_neighbour_makes() {
             every,
         ),
     ];
-    // The sides the walk cuts: only the band's, where the face of one rim
-    // chord and the wide face each hold both of the other's sides, at δ 1
-    // and 0.1. None is needed (with the cut off every cell meshes and is
-    // manifold): they are the over-cut, and this pin bounds it.
-    let cuts = |name: &str, which: &str, fracs: &[f64], delta: f64| match (name, which) {
-        ("a band of 0.5 rad", "line edge 1" | "line edge 2") if delta >= 0.1 => {
-            if fracs.len() == 1 { 2 } else { 4 }
-        }
-        ("a band of 0.5 rad", "every line edge") if delta >= 0.1 => {
-            if fracs.len() == 1 {
-                3
-            } else {
-                7
-            }
-        }
-        _ => 0,
-    };
     let mut cells = 0usize;
     for (name, body, deltas) in &bodies {
         let solid = split_and_placed(body, &[], &[]);
@@ -755,13 +732,7 @@ fn no_walked_triangle_has_an_edge_a_neighbour_makes() {
                 let what = format!("{name}, {which} split at {fracs:?}");
                 let split = split_and_placed(body, edges, fracs);
                 for &delta in *deltas {
-                    holds_the_relation(
-                        &what,
-                        &split,
-                        &solid,
-                        delta,
-                        cuts(name, which, fracs, delta),
-                    );
+                    holds_the_count_relation(&what, &split, &solid, delta);
                 }
                 cells += deltas.len();
             }
@@ -1329,55 +1300,31 @@ fn bored_ball_of(r: f64, sign: f64) -> Body<f64> {
 }
 
 /// **A walked face whose neighbour holds both of its rims makes no edge
-/// of four triangles, and is cut only where the neighbour may make the
-/// edge.** A ball of radius 1.05 bored by a coaxial cylinder of radius 1
-/// ([`bored_ball`]), its bore's seam split at its middle and at five
+/// of four triangles, and gains a point only where the neighbour makes the
+/// same side.** A ball of radius 1.05 bored by a coaxial cylinder of radius
+/// 1 ([`bored_ball`]), its bore's seam split at its middle and at five
 /// points, placed obliquely, with a sphere face round the bore and with a
-/// torus face. The neighbour holds every point of both rims, so every
-/// rim-to-rim side of the bore is one it holds both ends of
-/// (`TrimPolygon::faces_holding_side`). Its midpoint stands about the
-/// shell's thickness (0.05) from the neighbour's surface: at δ 0.04 and
-/// coarser that is within `δ·(1 + ALLOWANCE_SHARE)` and the certificate's
-/// rounding, the neighbour may make the side (`trimmed::may_make`), and
-/// the walk cuts it; at δ 0.035 and finer it is past it, and the bore
-/// keeps the count relation exactly. Each cell pins the number of sides cut ([`holds_the_relation`]).
-///
-/// The cut is needed where the neighbour does make the side: with it off,
-/// sign +1 at δ 3, 1 and 0.3 and sign −1 at δ 3 to 0.1 refuse
-/// `OverusedSide` (main's census), the cells where main refuses the
-/// unsplit ball too, which the relation then reads without an unsplit
-/// count. The rest (sign +1 at δ 0.1 and 0.04, sign −1 at δ 0.04) is the
-/// over-cut, pinned: a rule that cut only what the neighbour does make
-/// would read the neighbour's mesh, which the walk does not. A second,
-/// thicker ball (radius 1.3, a shell of 0.3) pins the over-cut off this
-/// one thickness: its unsplit body meshes at every δ, so the census needs
-/// no cut there, and the walk cuts 7 to 29 sides a cell at δ 3 to 0.25 and
-/// none at δ 0.2 and 0.1, its threshold falling between. Every cell
-/// passes `check_mesh` and is the body's
+/// torus face. The neighbour holds every point of both rims, and where it
+/// lays no point between them (δ past the shell's thickness, 0.05) its own
+/// triangles join the rims as the walk does; each such side is split in
+/// both patches where they join (`mesh::join`). Each cell pins the points
+/// the bore's patch gained there ([`holds_the_relation`]): 13 to 20 a cell
+/// at δ 3 to 0.3 (and 17 at δ 0.1 for sign −1), none at δ 0.04, where the
+/// neighbour lays a row between the rims and makes no rim-to-rim side. A
+/// second, thicker ball (radius 1.3, a shell of 0.3) gains none at any δ:
+/// its neighbour never makes the bore's sides. Every cell passes
+/// `check_mesh` and is the body's
 /// (`work/tesslane/a-strip-against-a-neighbour-holding-both-rims-makes-an-edge-of-four-triangles.md`).
 ///
 /// **By ε.** The same at the default, `10⁻⁶` and `10⁻¹²`.
 #[test]
 fn a_walked_face_whose_neighbour_holds_both_rims_shares_no_edge() {
-    // The sides the walk cuts, per (ball's radius, sign, δ), the same for
-    // either split. The 1.05 ball: where the cut is off, sign +1 at δ 3 to
-    // 0.3 and sign −1 at δ 3 to 0.1 refuse `OverusedSide`; its other cuts
-    // are over-cuts. The 1.3 ball (a shell of 0.3): its unsplit body meshes
-    // at every δ, so every cut here is an over-cut; its threshold falls
-    // between δ 0.25 and 0.2. This pin bounds both.
+    // The points the bore's patch gains where the patches join, per (ball's
+    // radius, sign, δ), the same for either split.
     let cuts = |r: f64, sign: f64, delta: f64| match (r == 1.05, sign > 0.0, delta) {
-        (true, true, 3.0 | 1.0) => 15,
-        (true, true, 0.3) => 25,
-        (true, true, 0.1) => 43,
-        (true, true, 0.04) => 69,
-        (true, false, 3.0 | 1.0 | 0.3) => 15,
-        (true, false, 0.1) => 21,
-        (true, false, 0.04) => 16,
-        (false, true, 3.0) => 15,
-        (false, true, 0.5) => 21,
-        (false, true, 0.25) => 29,
-        (false, false, 3.0 | 0.5) => 15,
-        (false, false, 0.25) => 7,
+        (true, _, 3.0 | 1.0) | (true, false, 0.3) => 13,
+        (true, true, 0.3) => 20,
+        (true, false, 0.1) => 17,
         _ => 0,
     };
     let mut cells = 0usize;
@@ -1423,6 +1370,13 @@ fn a_walked_face_whose_neighbour_holds_both_rims_shares_no_edge() {
 /// edge of four triangles the census passes as two chords' and
 /// `check_mesh` refuses. They take two chords each (`chords`' coincident-
 /// end floor), and every cell passes.
+///
+/// **The volume's sign.** Where both faces lay the same chords the mesh is
+/// one sheet counted twice; a split point of each face's own surface moves
+/// each sheet toward its own face, so the wall reopens with its sign. On
+/// every cell here the signed volume is positive (measured 0.078 to 0.117
+/// against the body's 0.137): a relation measured on these cells, not a
+/// promise of the mesher's.
 #[test]
 fn a_shell_thinner_than_delta_meshes_split_or_unsplit() {
     let mut cells = 0usize;
@@ -1440,6 +1394,8 @@ fn a_shell_thinner_than_delta_meshes_split_or_unsplit() {
                     .unwrap_or_else(|e| panic!("{what}: meshes, got {e:?}"));
                 mesh::validate::check_mesh(&mesh)
                     .unwrap_or_else(|e| panic!("{what}: a closed manifold, got {e:?}"));
+                let volume = mesh::validate::signed_volume(&mesh);
+                assert!(volume > 0.0, "{what}: a positive volume, got {volume:e}");
                 cells += 1;
             }
         }
@@ -1732,20 +1688,16 @@ fn a_thin_d_prism_split_on_every_line_edge_refuses_as_its_split_caps_do() {
     }
 }
 
-/// **The cut is a function of the body and δ: no ε moves it.** DESIGN
-/// `[tolerance.chordal]`: an ε flip never moves emitted coordinates with
-/// δ held fixed. The bored ball of sign +1 ([`bored_ball`]), its seam split
-/// at its middle, placed obliquely, at the two δ either side of its cut
-/// threshold (`trimmed::may_make`; the first cut falls at δ
-/// 0.036 955 758, where the first rim-to-rim side's midpoint stands
-/// `δ·(1 + ALLOWANCE_SHARE)` and the certificate's rounding from the
-/// neighbour's surface): just below it the walk cuts no side, just above
-/// it cuts 36, and the mesh's bytes are the same pinned digest at ε
-/// `10⁻⁹`, `10⁻⁶` and `10⁻¹²` alike. An ε read put back into the decision
-/// (a band's undecided width, which cuts) moves the threshold down by
-/// about `8ε`, and at `10⁻⁶` cuts the cell below it: red.
+/// **The split where the patches join is a function of the body and δ:
+/// no ε moves it.** DESIGN `[tolerance.chordal]`: an ε flip never moves
+/// emitted coordinates with δ held fixed. The bored ball of sign +1
+/// ([`bored_ball`]), its seam split at its middle, placed obliquely, at δ
+/// 0.3, where its bore's patch gains 20 points, and at 0.04, where it gains
+/// none: the census reads shared ids and the split the face's chart and
+/// certificate, and the mesh's bytes are the same pinned digest at ε
+/// `10⁻⁹`, `10⁻⁶` and `10⁻¹²` alike.
 #[test]
-fn the_walks_cut_is_the_same_at_every_eps() {
+fn the_join_splits_the_same_at_every_eps() {
     use crate::route_rows::mesh_digest;
     let body = bored_ball(1.0);
     let [seam] = rulings(&body)[..] else {
@@ -1754,10 +1706,10 @@ fn the_walks_cut_is_the_same_at_every_eps() {
     let split = split_and_placed(&body, &[seam], &[0.5]);
     let solid = split_and_placed(&body, &[], &[]);
     for (delta, cuts, digest) in [
-        (0.036_955, 0, 0x5fdc_3103_244e_21ec_u64),
-        (0.036_957, 36, 0x5942_fa6e_f91c_0eb2),
+        (0.3, 20, 0x215f_b7d8_f2d0_5ba7_u64),
+        (0.04, 0, 0x882f_0997_46ad_3e90),
     ] {
-        let what = "the ball bored with sign 1, its seam split at [0.5], beside its threshold";
+        let what = "the ball bored with sign 1, its seam split at [0.5]";
         holds_the_relation(what, &split, &solid, delta, cuts);
         assert_eq!(
             mesh_digest(&split, delta),

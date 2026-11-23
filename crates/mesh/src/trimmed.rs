@@ -17,9 +17,8 @@
 //! side (`walk::splits_a_straight_side`), whose loop is the walk's
 //! ([`walkable`]), is **walked** (`tessellate::Lane::Walked`,
 //! `crate::ruled_walk`): no lattice and no CDT, its triangles written along
-//! its two rows in order of angle, a side shared with a neighbour that may
-//! make it cut at its midpoint ([`may_make`]), and each triangle read by
-//! the row's certificate. Its target is δ ([`face_target`]), by the
+//! its two rows in order of angle, each triangle read by the row's
+//! certificate. Its target is δ ([`face_target`]), by the
 //! theorems at `sizing::sagitta_step` and `sizing::cone_grid_step`; every
 //! other analytic face here sizes at [`UNPROVED_HEADROOM`] of δ.
 //!
@@ -203,9 +202,8 @@
 //!   certificate reads the flat triangle in space through its chart
 //!   corners, which is neither the chart's box nor the development. The
 //!   fold census reads the triangle's 3-D normal against the surface's.
-//!   The shared-side test reads the polygon's order, and the polygon's
-//!   orientation and the creases the chart. A point the shared-side cure
-//!   inserts is the developed centroid read back to the chart
+//!   The polygon's orientation and the creases read the chart. A point
+//!   the fold census inserts is the developed centroid read back to the chart
 //!   ([`TrimmedFace::inside_point`]), strictly inside its triangle where
 //!   the CDT runs.
 //! - **Replay.** `sin` and `cos` are [`geom_core::Real`]'s, the pure-Rust
@@ -265,8 +263,7 @@
 //!   every one; its triangles then stand on its boundary points, and the
 //!   per-triangle certificate bounds each as it does any other.
 //!
-//! A point the lane places later (a shared side's or a refinement's,
-//! below) is inside a kept triangle ([`TrimmedFace::inside_point`] says how far
+//! A point the lane places later (a fold's or a refinement's, below) is inside a kept triangle ([`TrimmedFace::inside_point`] says how far
 //! down f64 holds that) and is not held to the clearance. A
 //! point of the mesher's that still enters at an existing vertex, or
 //! that a side or a crease link is realised through, refuses typed
@@ -612,7 +609,7 @@ pub(crate) fn tessellate_trimmed(
                  means the route and the row read two surfaces"
             );
         };
-        return walk_face(body, fk, a, &polygon, &singular, chords, shared, tol);
+        return walk_face(body, fk, a, &polygon, &singular, shared, tol);
     }
     // A CHART WITH SINGULAR POINTS keeps its polygon to the shape
     // `singular_row_shape` admits, so the duplicate-id skip in the emit
@@ -752,8 +749,7 @@ pub(crate) fn tessellate_trimmed(
     };
     // The lattice the face lays: every node clear of the boundary
     // (`TrimmedFace::lay`), decided once, here. The retry loop appends
-    // shared-side and refinement points, each strictly inside a kept
-    // triangle.
+    // fold and refinement points, each strictly inside a kept triangle.
     let mut candidates = trimmed.lay(&lattice);
     let mut rounds = Rounds::default();
     for _ in 0..=budget(MAX_FOLD_ROUNDS) + budget(MAX_GRID_RETRIES) {
@@ -972,7 +968,7 @@ impl TrimmedFace<'_> {
         cdt_point(self.plane(), u, v, false)
     }
 
-    /// **The point a kept triangle's refinement or shared-side cure
+    /// **The point a kept triangle's refinement or fold split
     /// inserts**, inside the triangle where the CDT runs, in exact arithmetic: in
     /// the chart, the centroid of its corners. In the development, the centroid of its
     /// developed corners (`at`), read back to the chart: its angle by
@@ -1243,7 +1239,7 @@ impl TrimmedFace<'_> {
         {
             // A point of the mesher's at an existing vertex. Nothing is
             // merged: the lattice keeps clear of the polygon (`lay`), and
-            // a shared side's or a refinement's point is inside its triangle.
+            // a fold's or a refinement's point is inside its triangle.
             if h.index() != meta.len() {
                 return Err(TessellateError::Triangulation { face: fk });
             }
@@ -1292,7 +1288,7 @@ impl TrimmedFace<'_> {
                 // point there is the trim loop touching itself on this
                 // segment. A point of the mesher's there is refused, not
                 // moved: the lattice keeps clear of every side (`lay`),
-                // and a shared side's or a refinement's point is inside its
+                // and a fold's or a refinement's point is inside its
                 // triangle.
                 for e in &realised {
                     let e = cdt.directed_edge(*e);
@@ -1537,7 +1533,7 @@ impl TrimmedFace<'_> {
                 // (`validate::resolved_normal`, `[mesh.winding]`): its normal
                 // is noise, so it is neither outward nor a fold, and no retry
                 // of this lane is built to resolve it (a fold's drop and a
-                // shared side's split answer other causes). The join reads the same
+                // split answers another cause). The join reads the same
                 // definition for every lane; reading it here is what keeps
                 // the sign below a resolved normal's.
                 let normal = crate::validate::resolved_normal(wound).map_err(|unresolved| {
@@ -1749,55 +1745,6 @@ impl Corner {
     fn is_singular(&self, singular: &HashSet<u32>) -> bool {
         matches!(self.id, PatchVertex::Shared(id) if singular.contains(&id))
     }
-}
-
-/// **The faces across the edges of face `fk`'s loops (its outer loop and
-/// its rings) at each boundary mesh id**: for every edge of a loop, the
-/// face across it ([`ChordPass::across`], a view over the chord pass's
-/// [`ChordPass::holders`]), at each of the edge's chord ids
-/// (`crate::chords`), ends included, so a vertex's id holds the faces
-/// across both edges meeting there. Two polygon points that one face here
-/// holds both of are two points that face's own triangulation may join.
-/// A face meeting `fk` at a corner alone is not here; a side it and `fk`
-/// both make is the census's (`tessellate::overused_side`).
-///
-/// An edge a loop uses twice (a seam) has `fk` across it, and `fk` is
-/// left out: a side between two of its points is this face's own, made
-/// once by this one triangulation. A one-face full-turn cone wall
-/// reaches that arm: its development holds the seam's two copies on the
-/// sector's two rays ([`singular_row_shape`]).
-///
-/// This is an input of the face, and the memo key folds it: each edge's
-/// face across, renumbered by first appearance along the walk
-/// (`memo::EdgeInputs::across`), read off the same holders.
-fn faces_across(
-    body: &Body<f64>,
-    fk: FaceKey,
-    chords: &ChordPass,
-) -> Result<HashMap<u32, Vec<FaceKey>>, TessellateError> {
-    let mut out: HashMap<u32, Vec<FaceKey>> = HashMap::new();
-    let face = body
-        .face(fk)
-        .ok_or(TessellateError::MissingEntity { what: "face" })?;
-    let mut sides = Vec::new();
-    for (lk, _, _) in face.loops() {
-        sides.extend(crate::walk::loop_half_edges(body, lk, fk)?);
-    }
-    for (_, ek, _) in sides {
-        let Some(other) = chords.across(ek, fk)? else {
-            continue;
-        };
-        let ids = chords.ids.get(&ek).ok_or(TessellateError::MissingEntity {
-            what: "edge chords",
-        })?;
-        for &id in ids {
-            let at = out.entry(id).or_default();
-            if !at.contains(&other) {
-                at.push(other);
-            }
-        }
-    }
-    Ok(out)
 }
 
 /// `(u, v)` as the CDT sees it on `plane`, `singular` where the point
@@ -2356,7 +2303,7 @@ fn significant(x: f64, bits: u32) -> f64 {
     f64::from_bits(x.to_bits() & !((1u64 << (53 - bits)) - 1))
 }
 
-/// A triangle's centroid in UV: the point both the shared-side cure and the
+/// A triangle's centroid in UV: the point both the fold split and the
 /// certificate refinement insert in the chart, strictly inside the
 /// triangle and so inside the trim polygon.
 fn uv_centroid(uv: &[[f64; 2]; 3]) -> (f64, f64) {
@@ -3471,35 +3418,6 @@ impl TrimPolygon {
         if i + 1 == self.ends[k] { start } else { i + 1 }
     }
 
-    /// **The one test of a shared side**: the faces across this
-    /// polygon's loops ([`faces_across`]) that hold both ends of a side
-    /// joining boundary ids `a` and `b`, which sit at polygon places `at_a`
-    /// and `at_b` (a pinch or a singular point's copies sit at several).
-    /// None where the two are neighbours on their loop (the side is a
-    /// boundary chord) or no one face holds both. A face listed may make
-    /// the side in its own triangulation, so a triangle of this face that
-    /// has it can be an edge of four: the CDT arms cure it by inserting a
-    /// point (`TrimmedFace::emit`), the walk by cutting the side
-    /// ([`walk_face`]), which first asks whether the face can reach it
-    /// ([`may_make`]).
-    fn faces_holding_side(
-        &self,
-        across: &HashMap<u32, Vec<FaceKey>>,
-        (at_a, a): (&[usize], u32),
-        (at_b, b): (&[usize], u32),
-    ) -> Vec<FaceKey> {
-        let neighbours = at_a
-            .iter()
-            .any(|&i| at_b.iter().any(|&j| self.next(i) == j || self.next(j) == i));
-        if neighbours {
-            return Vec::new();
-        }
-        match (across.get(&a), across.get(&b)) {
-            (Some(fa), Some(fb)) => fa.iter().filter(|f| fb.contains(f)).copied().collect(),
-            _ => Vec::new(),
-        }
-    }
-
     /// Point `i`'s predecessor along its own loop.
     fn prev(&self, i: usize) -> usize {
         let k = self.ends.partition_point(|&e| e <= i);
@@ -3732,74 +3650,10 @@ impl Creases {
     }
 }
 
-/// **Whether a neighbouring face on `neighbour` may make the side `a–b`**
-/// in a mesh at `delta`, read where it provably cannot, as a function of
-/// the body and δ alone: no ε is read (DESIGN `[tolerance.chordal]`, an ε
-/// flip never moves emitted coordinates with δ held fixed; `[mesh.winding]`).
-///
-/// A triangle the neighbour emits passes its certificate
-/// (`cert::verdict`): its computed bound is within δ, or past δ by no more
-/// than the certificate's own rounding allowance
-/// (`cert::rounding_allowance`, 8 ulps of the coordinates' magnitude) while
-/// that allowance is small beside δ (`ALLOWANCE_SHARE`). The true bound is
-/// within that allowance of the computed one, so a passed triangle lies
-/// within `δ·(1 + ALLOWANCE_SHARE)` plus one allowance of its surface. This
-/// test computes the side's midpoint's distance from the neighbour's
-/// surface (`geom::Surface::foot`, in closed form on every analytic kind)
-/// and keeps the side uncut only where that distance exceeds
-/// `δ·(1 + ALLOWANCE_SHARE)` by more than TWO allowances at the magnitude
-/// of the points it reads: one for the neighbour's bound, one for this
-/// distance's own rounding (a midpoint, a closed-form foot, a difference
-/// and a norm: a chain of the certificate's kind, which its 8 ulps bound
-/// with room, `cert::ROUNDING_ULPS`). Past that, no triangle the neighbour
-/// passes holds the side. Everything else cuts: a distance within it, a
-/// surface with no foot, a point where the foot is not one point.
-///
-/// **A planar neighbour** has no certificate: its triangles lie in its
-/// plane, so it holds a side only where the side's midpoint is in the
-/// plane, and there the distance is within rounding of zero, never past
-/// the reach; the walk cuts such a side.
-///
-/// **The magnitude read.** The allowance is taken at the side's two ends
-/// and the midpoint's foot. The neighbour's verdict reads its own
-/// triangle's third corner and its chart's anchor too
-/// (`cert::position_scale`); where those stand farther from the origin,
-/// its allowance is larger than the one read here (by at most
-/// `δ·ALLOWANCE_SHARE`, past which the verdict does not pass the
-/// triangle). A side excluded on that difference, which no body built here
-/// reaches, is the census's (`tessellate::overused_side`) to refuse.
-///
-/// Every face of one run is meshed at its one δ (the run's `SizingTols`),
-/// and a face sized finer than δ is still within it.
-fn may_make(neighbour: &Surface<f64>, a: Point3<f64>, b: Point3<f64>, delta: f64) -> bool {
-    let mid = Point3::new(0.5 * (a.x + b.x), 0.5 * (a.y + b.y), 0.5 * (a.z + b.z));
-    let Some(foot) = neighbour.foot(mid) else {
-        return true;
-    };
-    let allowance = cert::rounding_allowance(cert::coordinate_scale([a, b, foot]));
-    (mid - foot).norm() <= delta * (1.0 + cert::ALLOWANCE_SHARE) + 2.0 * allowance
-}
-
 /// **A walked face's patch** (`crate::ruled_walk`): the walk of its two
-/// rows, each side a neighbouring face may also make cut at a point of the
-/// surface between its ends, then each triangle read as every triangle of
-/// this lane is: its winding resolved and outward, its certificate within
-/// δ.
-///
-/// **The shared side**, the polygon's one test
-/// ([`TrimPolygon::faces_holding_side`], which the CDT arms read too): a
-/// side joining two polygon points that are not neighbours on their loop
-/// and that one face across the loop's edges holds both of is a side that
-/// face's own triangulation may make, an edge of four triangles. A
-/// neighbour holding both of this face's rims (a sphere or a torus face
-/// round a bore, at a δ past the shell's thickness) makes rim-to-rim sides
-/// exactly as the walk does. The walk has no triangulation to rebuild
-/// round an inserted point, as the CDT arms do: it cuts the side, where
-/// the face across may reach it ([`may_make`]), at the surface point at
-/// its chart midpoint (the apex's `u` left out), and each triangle on it
-/// becomes two. That point lies between the same two rulings, so the two
-/// keep the walk's bound, and each cut adds two triangles to the face's
-/// count.
+/// rows, each triangle read as every triangle of this lane is: its winding
+/// resolved and outward, its certificate within δ. A side this face and a
+/// face across both make is split where the patches join (`crate::join`).
 ///
 /// # Errors
 ///
@@ -3814,7 +3668,6 @@ fn walk_face(
     row: &AnalyticRow<'_>,
     polygon: &TrimPolygon,
     singular: &HashSet<u32>,
-    chords: &ChordPass,
     shared: &[Point3<f64>],
     tol: &SizingTols,
 ) -> Result<Patch, TessellateError> {
@@ -3859,29 +3712,9 @@ fn walk_face(
             points.len()
         );
     };
-    let across = faces_across(body, fk, chords)?;
-    // Each boundary id's places on the polygon: the apex's copies are one
-    // point, and so are a full turn's seam ends.
-    let mut places: HashMap<u32, Vec<usize>> = HashMap::new();
-    for (i, point) in points.iter().enumerate() {
-        places.entry(point.2).or_default().push(i);
-    }
-    // A side one face across holds both ends of (the polygon's one test,
-    // `TrimPolygon::faces_holding_side`), which that face may also make
-    // ([`may_make`]).
-    let shares = |p: u32, q: u32| {
-        let at = |id: u32| places.get(&id).map_or(&[][..], Vec::as_slice);
-        for f in polygon.faces_holding_side(&across, (at(p), p), (at(q), q)) {
-            let neighbour = crate::tessellate::face_surface(body, f)?;
-            if may_make(neighbour, shared[p as usize], shared[q as usize], tol.delta) {
-                return Ok(true);
-            }
-        }
-        Ok::<bool, TessellateError>(false)
-    };
     // Each corner: its mesh vertex, its chart point, and whether it is the
     // apex.
-    let mut corners: Vec<[(PatchVertex, [f64; 2], bool); 3]> = rows
+    let corners: Vec<[(PatchVertex, [f64; 2], bool); 3]> = rows
         .walk(points)
         .into_iter()
         .map(|t| {
@@ -3891,52 +3724,7 @@ fn walk_face(
             })
         })
         .collect();
-    // The shared sides, in the order the walk meets them.
-    let mut split: Vec<(u32, u32)> = Vec::new();
-    for c in &corners {
-        for q in 0..3 {
-            if let (PatchVertex::Shared(p), PatchVertex::Shared(r)) = (c[q].0, c[(q + 1) % 3].0)
-                && !split.contains(&(p.min(r), p.max(r)))
-                && shares(p, r)?
-            {
-                split.push((p.min(r), p.max(r)));
-            }
-        }
-    }
-    // Each shared side is cut at the surface point at its chart midpoint
-    // (the apex's `u` left out), and each triangle on it made two.
-    let mut interior: Vec<Point3<f64>> = Vec::new();
-    for (p, r) in split {
-        let mut cut = None;
-        let mut next = Vec::with_capacity(corners.len() + 2);
-        for c in corners {
-            let at = (0..3).find(|&q| {
-                let (x, y) = (c[q].0, c[(q + 1) % 3].0);
-                (x, y) == (PatchVertex::Shared(p), PatchVertex::Shared(r))
-                    || (x, y) == (PatchVertex::Shared(r), PatchVertex::Shared(p))
-            });
-            let Some(q) = at else {
-                next.push(c);
-                continue;
-            };
-            let (x, y, z) = (c[q], c[(q + 1) % 3], c[(q + 2) % 3]);
-            let mid = *cut.get_or_insert_with(|| {
-                let u = match (x.2, y.2) {
-                    (true, _) => y.1[0],
-                    (_, true) => x.1[0],
-                    _ => 0.5 * (x.1[0] + y.1[0]),
-                };
-                let v = 0.5 * (x.1[1] + y.1[1]);
-                interior.push(row.surface().eval(u, v));
-                #[allow(clippy::cast_possible_truncation)]
-                let id = PatchVertex::Local(interior.len() as u32 - 1);
-                (id, [u, v], false)
-            });
-            next.push([x, mid, z]);
-            next.push([mid, y, z]);
-        }
-        corners = next;
-    }
+    let interior: Vec<Point3<f64>> = Vec::new();
     let mut triangles = Vec::with_capacity(corners.len());
     let mut verdict = cert::FaceVerdict::new();
     let mut book = crate::join::Book::default();
