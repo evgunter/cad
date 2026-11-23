@@ -253,3 +253,18 @@ figures are the first head's; the fix pass's are below.)
   read 578 three-edge cells `Vacuous` where main read every
   three-edge cell `Local`, and all 578 are sound.
 
+
+**Landing pass (merged with `embed/wave3-land` `8d34076a9e`).**
+- The 61 census tests of this cause were run through the gate on this
+  unit's final `present_plane` (`embed/strip-measure` `25095ebaff`):
+  42 pass and 19 fail, each test's verdict identical to the reviewed
+  fix pass's. This replaces the argued claim that the last pass's
+  removals cannot move them.
+- `contact9_side_codes`' sector-sliver meet read `Budget(Pairs)` with
+  its millimetre faces unread. This unit presents the wall's end, so it
+  now reads `Embedded`, an in-band pair certified by the reach lever.
+  That is not the ratified reading (`[topology.tiers]` levers at the
+  narrower face's run). It is re-pinned at what it reads, as
+  `the_sector_slivers_meet_is_certified_by_the_reach_lever_once_its_faces_are_read`,
+  and `the-embedding-question-reads-tier-3s-class-and-the-pairs-extent-from-the-verdict`
+  owes the flip to the refusal.
