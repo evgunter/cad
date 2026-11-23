@@ -1070,6 +1070,11 @@ fn a_boss_over_two_holes_tangent_outside_with_no_vertex_at_either_touch() {
 ///   (`B ∖ A`), the op may refuse `EdgeInFaceGap::CurvedFace` rather
 ///   than carry the ruling as one edge lying in the partner's wall where
 ///   the crescent's two cusps owe two ([`one_shell_or_gap_at`]).
+/// - With both vertices at the touch, `B ∖ A` joins `B`'s seam whole
+///   through `A`'s floor rim vertex, which rests inside it, and tier 3′
+///   reads that self-touch undecided
+///   (`work/atrest/a-vertex-inside-an-edge-its-face-is-tangent-along-reads-unreadable.md`,
+///   [`sound_or_unread_self_touch`]).
 ///
 /// With `A`'s vertex elsewhere the sweep splits its rim at `B`'s
 /// vertex, and the cut along it in `B`'s dropped top ends at that
@@ -1102,6 +1107,8 @@ fn a_rim_flush_in_its_partners_top_tangent_inside_builds_or_meets_a_pinned_limit
                         "{row}: {:?}",
                         r.map(|_| ())
                     );
+                } else if a_az == 0.0 && b_az == 0.0 && op == "B ∖ A" {
+                    sound_or_unread_self_touch(&row, r, want);
                 } else {
                     let seam = a_az == 0.0 || (b_az == 0.0 && op == "B ∖ A");
                     one_shell_or_gap_at(&row, r, want, seam);
@@ -1109,6 +1116,44 @@ fn a_rim_flush_in_its_partners_top_tangent_inside_builds_or_meets_a_pinned_limit
             }
         }
     }
+}
+
+/// `r` holds its closed form `want` in one shell, sound
+/// (`differential::outcome`), or meets the self-touch limit: every
+/// check passes but tier 3′, whose one finding is the self-touch at a
+/// vertex resting inside an edge read `Unreadable`
+/// (`work/atrest/a-vertex-inside-an-edge-its-face-is-tangent-along-reads-unreadable.md`).
+fn sound_or_unread_self_touch(row: &str, r: Result<BooleanResult<f64>, BooleanError>, want: f64) {
+    let Ok(BooleanResult::Body(b)) = &r else {
+        panic!("{row}: a body, got {:?}", r.map(|_| ()));
+    };
+    assert_eq!(b.body.shells().count(), 1, "{row}: shells");
+    let findings = topo::validate_pseudomanifold(&b.body, &b.contacts, tol()).err();
+    let line = outcome(r, want, tol());
+    if findings.is_none() {
+        assert!(line.starts_with("OK SOUND"), "{row}: {line}");
+        return;
+    }
+    assert!(
+        matches!(
+            findings.as_deref(),
+            Some([ValidationError::BoundaryCrossesItselfUndecided {
+                why: topo::TouchUnread::Curved(topo::CurvedUnread::Unreadable),
+                ..
+            }])
+        ),
+        "{row}: the self-touch alone, got {findings:?}"
+    );
+    assert!(
+        line.starts_with("OK BAD t2=true t3p=false cert=true operand=true"),
+        "{row}: every other check passes: {line}"
+    );
+    let [v, w] = ["v=", "want="].map(|k| {
+        line.split_whitespace()
+            .find_map(|t| t.strip_prefix(k))
+            .unwrap_or_else(|| panic!("{row}: no {k} in {line}"))
+    });
+    assert_eq!(v, w, "{row}: the closed form's volume");
 }
 
 /// `r` holds its closed form `want` (`differential::outcome`) in one
