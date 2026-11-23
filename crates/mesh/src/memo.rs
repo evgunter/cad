@@ -246,7 +246,10 @@ impl PatchKeys {
     /// one out of range is a bug.
     pub(crate) fn unstore(&mut self, i: usize) {
         let Some(row) = self.0.get_mut(i) else {
-            panic!("face {i} of {}: the join names only faces it placed", self.0.len());
+            unreachable!(
+                "face {i} of {}: the join names only faces it placed",
+                self.0.len()
+            );
         };
         row.stored = None;
     }

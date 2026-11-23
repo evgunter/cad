@@ -230,7 +230,11 @@ pub fn brick<T: Decide + topo::AtRestPolicy>(
 pub fn rod_sliver(tol: Tol) -> Body<f64> {
     let disc = Profile::new(
         SketchPlane::xy(),
-        vec![profile::circle(Point2::new(0.0, 0.0), 1.0, tol).expect("a unit circle").into()],
+        vec![
+            profile::circle(Point2::new(0.0, 0.0), 1.0, tol)
+                .expect("a unit circle")
+                .into(),
+        ],
     )
     .validate(tol)
     .expect("a disc");
@@ -238,7 +242,14 @@ pub fn rod_sliver(tol: Tol) -> Body<f64> {
         depth: 2.0,
         side: crate::ExtrudeSide::Along,
     };
-    let rod = finished("the rod", extrude(&disc, depth, tol).expect("the rod").body.into_body(), tol);
+    let rod = finished(
+        "the rod",
+        extrude(&disc, depth, tol)
+            .expect("the rod")
+            .body
+            .into_body(),
+        tol,
+    );
     let pose = Affine3::translation(Vec3::new(0.99, 0.0, 1.0))
         * Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 1.0, 0.0), 0.05);
     let slab = finished(

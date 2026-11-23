@@ -242,7 +242,10 @@ fn holds_the_relation(what: &str, split: &Body<f64>, solid: &Body<f64>, delta: f
         eprintln!("CUTS\t{what}\t{delta}\t{cut}");
         return;
     }
-    assert_eq!(cut, cuts, "{what}, δ {delta}: the sides the join split in the walked faces");
+    assert_eq!(
+        cut, cuts,
+        "{what}, δ {delta}: the sides the join split in the walked faces"
+    );
     let base = mesh::tessellate(solid, delta, tol())
         .unwrap_or_else(|e| panic!("{what}, δ {delta}: the unsplit body refuses {e:?}"));
     for patch in &mesh.patches {

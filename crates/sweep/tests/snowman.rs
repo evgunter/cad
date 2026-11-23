@@ -1332,18 +1332,36 @@ fn a_cap_thinner_than_delta_encloses_its_volume() {
     );
     let carve = run(BooleanOp::Subtract, &ball(1.0, 0.0), &box_);
     let cap = |lat: f64, az: f64, h: f64| {
-        run(BooleanOp::Intersect, &carve, &brick_toward(dir(lat, az), 1.0 - h, 3.0, 1.0))
+        run(
+            BooleanOp::Intersect,
+            &carve,
+            &brick_toward(dir(lat, az), 1.0 - h, 3.0, 1.0),
+        )
     };
     let enclosed = |what: &str, body: &AtRestBody<f64>, delta: f64| {
         let m = mesh::tessellate(body, delta, Tol::witness())
             .unwrap_or_else(|e| panic!("{what}, δ {delta}: meshes, got {e:?}"));
-        assert_eq!(mesh::validate::check_mesh(&m), Ok(()), "{what}, δ {delta}: a closed manifold");
+        assert_eq!(
+            mesh::validate::check_mesh(&m),
+            Ok(()),
+            "{what}, δ {delta}: a closed manifold"
+        );
         mesh::validate::signed_volume(&m) / crate::common::differential::body_volume(body)
     };
     let mut cells = 0usize;
     for (h, lats, azs, deltas) in [
-        (1e-3, [60.0, -60.0], &[30.0][..], &[1e9, 1.0, 4e-2, 2e-2, 1e-2, 5e-3, 4e-3][..]),
-        (3e-2, [75.0, -75.0], &[30.0, 300.0][..], &[0.3, 0.09, 0.03, 9e-3][..]),
+        (
+            1e-3,
+            [60.0, -60.0],
+            &[30.0][..],
+            &[1e9, 1.0, 4e-2, 2e-2, 1e-2, 5e-3, 4e-3][..],
+        ),
+        (
+            3e-2,
+            [75.0, -75.0],
+            &[30.0, 300.0][..],
+            &[0.3, 0.09, 0.03, 9e-3][..],
+        ),
     ] {
         for lat in lats {
             for &az in azs {

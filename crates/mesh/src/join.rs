@@ -224,9 +224,8 @@ pub(crate) fn census(
         }
         return split;
     }
-    let inside = |fk: FaceKey, s: &Side| {
-        own.get(&fk).and_then(|u| u.get(s)) == Some(&2) && !held(s, fk)
-    };
+    let inside =
+        |fk: FaceKey, s: &Side| own.get(&fk).and_then(|u| u.get(s)) == Some(&2) && !held(s, fk);
     let mut split: HashMap<FaceKey, Vec<Side>> = HashMap::new();
     let mut users: HashMap<Side, (usize, Vec<FaceKey>)> = HashMap::new();
     for (fk, uses) in &own {
@@ -352,7 +351,10 @@ pub(crate) fn split(
             };
             [a, b].map(|id| {
                 let Some(q) = (0..3).find(|&q| triangles[i][q] == id) else {
-                    unreachable!("face {face:?}: a triangle on side {:?} has both its ends", (a, b));
+                    unreachable!(
+                        "face {face:?}: a triangle on side {:?} has both its ends",
+                        (a, b)
+                    );
                 };
                 (uv[q], singular[q])
             })
@@ -383,7 +385,10 @@ pub(crate) fn split(
         let point = surface.eval(m[0], m[1]);
         cut(face, (a, b), positions, point, triangles, |i, q| {
             let Some((uv, s)) = charts[i] else {
-                unreachable!("face {face:?}: a triangle on side {:?} is noted, read above", (a, b));
+                unreachable!(
+                    "face {face:?}: a triangle on side {:?} is noted, read above",
+                    (a, b)
+                );
             };
             let (x, y, z) = (q, (q + 1) % 3, (q + 2) % 3);
             // `cut` keeps the half on the side's first end at the
@@ -500,33 +505,38 @@ fn point_at(
         0.5 * (pa.z + pb.z),
     );
     let foot = match surface {
-        Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Sphere { .. } | Surface::Torus { .. } => {
-            surface.foot(mid)
-        }
+        Surface::Cylinder { .. }
+        | Surface::Cone { .. }
+        | Surface::Sphere { .. }
+        | Surface::Torus { .. } => surface.foot(mid),
         _ => None,
     };
     let (Some(foot), Some(frame)) = (foot, surface.frame()) else {
         return chart;
     };
     let turn = geom_core::period::Period::<f64>::angle().length();
-    let near = |x: f64, to: f64| x + turn * ((to - x) / turn).round();
+    let copy = |x: f64, to: f64| x + turn * ((to - x) / turn).round();
     let d = foot - frame.origin();
-    let (x, y, h) = (d.dot(frame.u_ref()), d.dot(frame.v_ref()), d.dot(frame.axis()));
+    let (x, y, h) = (
+        d.dot(frame.u_ref()),
+        d.dot(frame.v_ref()),
+        d.dot(frame.axis()),
+    );
     let rho = Real::sqrt(x.powi(2) + y.powi(2));
     match *surface {
-        Surface::Cylinder { .. } => [near(Real::atan2(y, x), chart[0]), h],
+        Surface::Cylinder { .. } => [copy(Real::atan2(y, x), chart[0]), h],
         Surface::Cone { .. } => {
             // The mirror nappe (`v < 0`) runs along −radial(u).
             let nappe = if h < 0.0 { -1.0 } else { 1.0 };
             [
-                near(Real::atan2(nappe * y, nappe * x), chart[0]),
+                copy(Real::atan2(nappe * y, nappe * x), chart[0]),
                 nappe * Real::sqrt(rho.powi(2) + h.powi(2)),
             ]
         }
-        Surface::Sphere { .. } => [near(Real::atan2(y, x), chart[0]), Real::atan2(h, rho)],
+        Surface::Sphere { .. } => [copy(Real::atan2(y, x), chart[0]), Real::atan2(h, rho)],
         Surface::Torus { major_radius, .. } => [
-            near(Real::atan2(y, x), chart[0]),
-            near(Real::atan2(h, rho - major_radius), chart[1]),
+            copy(Real::atan2(y, x), chart[0]),
+            copy(Real::atan2(h, rho - major_radius), chart[1]),
         ],
         _ => chart,
     }
@@ -607,15 +617,32 @@ mod tests {
     #[test]
     fn a_side_splits_at_the_foot_of_its_straight_midpoint() {
         let mut surfaces = vec![
-            Surface::Cylinder { frame: frame(), radius: 2.0 },
-            Surface::Sphere { frame: frame(), radius: 1.5 },
-            Surface::Torus { frame: frame(), major_radius: 2.0, minor_radius: 0.5 },
+            Surface::Cylinder {
+                frame: frame(),
+                radius: 2.0,
+            },
+            Surface::Sphere {
+                frame: frame(),
+                radius: 1.5,
+            },
+            Surface::Torus {
+                frame: frame(),
+                major_radius: 2.0,
+                minor_radius: 0.5,
+            },
         ];
         for half_angle in [0.1, 0.5, 1.2] {
-            surfaces.push(Surface::Cone { frame: frame(), half_angle });
+            surfaces.push(Surface::Cone {
+                frame: frame(),
+                half_angle,
+            });
         }
         for surface in &surfaces {
-            let nappes: &[f64] = if matches!(surface, Surface::Cone { .. }) { &[1.0, -1.0] } else { &[1.0] };
+            let nappes: &[f64] = if matches!(surface, Surface::Cone { .. }) {
+                &[1.0, -1.0]
+            } else {
+                &[1.0]
+            };
             for &nappe in nappes {
                 for (a, b) in [
                     ([0.1, 0.4], [0.9, 1.0]),
@@ -625,7 +652,11 @@ mod tests {
                     let (a, b) = ([a[0], nappe * a[1]], [b[0], nappe * b[1]]);
                     let (pa, pb) = (surface.eval(a[0], a[1]), surface.eval(b[0], b[1]));
                     let m = point_at(surface, (pa, pb), (a, false), (b, false));
-                    let mid = Point3::new(0.5 * (pa.x + pb.x), 0.5 * (pa.y + pb.y), 0.5 * (pa.z + pb.z));
+                    let mid = Point3::new(
+                        0.5 * (pa.x + pb.x),
+                        0.5 * (pa.y + pb.y),
+                        0.5 * (pa.z + pb.z),
+                    );
                     let at = surface.eval(m[0], m[1]);
                     let chart = surface.eval(0.5 * (a[0] + b[0]), 0.5 * (a[1] + b[1]));
                     let foot = surface.foot(mid).unwrap();
@@ -657,7 +688,11 @@ mod tests {
                 "{surface:?}: from the singular point, the other end's u at half its slant or latitude: {m:?}"
             );
         }
-        let spindle = Surface::Spindle { frame: frame(), major_radius: 0.4, minor_radius: 1.0 };
+        let spindle = Surface::Spindle {
+            frame: frame(),
+            major_radius: 0.4,
+            minor_radius: 1.0,
+        };
         let (a, b) = ([0.1, 0.4], [0.9, 1.0]);
         let ends = (spindle.eval(a[0], a[1]), spindle.eval(b[0], b[1]));
         assert_eq!(
@@ -754,12 +789,23 @@ mod tests {
         let on = |a: u32, b: u32| [Some(a), Some(b), None];
         let faces = vec![
             (f, vec![on(2, 1), on(1, 2)]),
-            (g, vec![on(1, 2), on(2, 1), on(5, 7), on(7, 5), on(8, 9), on(9, 8)]),
+            (
+                g,
+                vec![on(1, 2), on(2, 1), on(5, 7), on(7, 5), on(8, 9), on(9, 8)],
+            ),
             (h, vec![on(5, 7), on(7, 5)]),
         ];
         let split = census(&faces, &[(side(2, 1), [f, f])]);
-        assert_eq!(split.get(&g), Some(&vec![side(1, 2), side(5, 7)]), "g splits both");
-        assert_eq!(split.get(&h), Some(&vec![side(5, 7)]), "h splits the free side");
+        assert_eq!(
+            split.get(&g),
+            Some(&vec![side(1, 2), side(5, 7)]),
+            "g splits both"
+        );
+        assert_eq!(
+            split.get(&h),
+            Some(&vec![side(5, 7)]),
+            "h splits the free side"
+        );
         assert_eq!(split.get(&f), None, "f keeps its boundary chord");
     }
 
@@ -783,14 +829,25 @@ mod tests {
             (g, vec![t(1, 0, 3), t(1, 3, 2)]),
         ];
         let split = census(&faces, &chords);
-        assert_eq!(split.get(&f), Some(&vec![side(0, 2)]), "f splits its diagonal");
-        assert_eq!(split.get(&g), Some(&vec![side(1, 3)]), "g splits its diagonal");
+        assert_eq!(
+            split.get(&f),
+            Some(&vec![side(0, 2)]),
+            "f splits its diagonal"
+        );
+        assert_eq!(
+            split.get(&g),
+            Some(&vec![side(1, 3)]),
+            "g splits its diagonal"
+        );
         let own = |a, b| [Some(a), Some(b), None];
         let faces = vec![
             (f, vec![t(0, 1, 2), t(0, 2, 3)]),
             (g, vec![own(1, 0), own(2, 1), own(3, 2), own(0, 3)]),
         ];
-        assert!(census(&faces, &chords).is_empty(), "g lays a point of its own: no trigger");
+        assert!(
+            census(&faces, &chords).is_empty(),
+            "g lays a point of its own: no trigger"
+        );
         // Point 3 shared with `k` only: `f`'s triangles reach two faces.
         let chords = vec![
             (side(0, 1), [f, g]),
@@ -798,11 +855,11 @@ mod tests {
             (side(2, 3), [f, k]),
             (side(3, 0), [f, k]),
         ];
-        let faces = vec![
-            (f, vec![t(0, 1, 3), t(1, 2, 3)]),
-            (g, vec![t(1, 0, 2)]),
-        ];
-        assert!(census(&faces, &chords).is_empty(), "corners shared with two faces: no trigger");
+        let faces = vec![(f, vec![t(0, 1, 3), t(1, 2, 3)]), (g, vec![t(1, 0, 2)])];
+        assert!(
+            census(&faces, &chords).is_empty(),
+            "corners shared with two faces: no trigger"
+        );
     }
 
     /// The pieces `held` reads while `body` meshes at δ with every side
@@ -812,15 +869,21 @@ mod tests {
         HELD.with(|n| n.set(0));
         let mesh = crate::tessellate(body, delta, Tol::witness());
         FORCED.with(|f| f.set(false));
-        let mesh = mesh.unwrap_or_else(|e| panic!("δ {delta}: meshes with every inside side split, got {e:?}"));
-        crate::validate::check_mesh(&mesh).unwrap_or_else(|e| panic!("δ {delta}: closed manifold, got {e:?}"));
+        let mesh = mesh.unwrap_or_else(|e| {
+            panic!("δ {delta}: meshes with every inside side split, got {e:?}")
+        });
+        crate::validate::check_mesh(&mesh)
+            .unwrap_or_else(|e| panic!("δ {delta}: closed manifold, got {e:?}"));
         (HELD.with(core::cell::Cell::get), mesh)
     }
 
     /// A ball (`r` 1) or a cylinder, cone or torus about `y`, revolved.
     fn revolved(profile: Vec<((f64, f64), f64)>) -> topo::Body<f64> {
         sweep::test_support::revolved_about_y(
-            profile.into_iter().map(|((x, y), b)| (geom_core::Point2::new(x, y), b)).collect(),
+            profile
+                .into_iter()
+                .map(|((x, y), b)| (geom_core::Point2::new(x, y), b))
+                .collect(),
             sweep::Revolution::Full,
             Tol::witness(),
         )
@@ -830,7 +893,11 @@ mod tests {
     fn less_box(body: topo::Body<f64>) -> topo::Body<f64> {
         use sweep::test_support::{brick, finished};
         let tol = Tol::witness();
-        let x = finished("the box", brick::<f64>((0.5, 2.0), (-2.0, 2.0), (-2.0, 2.0), tol), tol);
+        let x = finished(
+            "the box",
+            brick::<f64>((0.5, 2.0), (-2.0, 2.0), (-2.0, 2.0), tol),
+            tol,
+        );
         let out = topo::boolean::subtract(&finished("the body", body, tol), &x, tol).unwrap();
         topo::Body::clone(&out.body().expect("a body is left").body)
     }
@@ -850,10 +917,22 @@ mod tests {
         let ball = vec![((0.0, -1.0), 1.0), ((0.0, 1.0), 0.0)];
         let torus = vec![((1.0, -0.25), 1.0), ((1.0, 0.25), 1.0)];
         for (what, body) in [
-            ("the bored ball: the walk and the rectangle lane", revolved(vec![((1.0, -h), 0.0), ((1.0, h), bulge)])),
-            ("the rod sliver: the trimmed cylinder arm", crate::trimmed::tests::a_rod_sliver()),
-            ("a ball less a box: the trimmed sphere arm", less_box(revolved(ball))),
-            ("a torus less a box: the trimmed torus arm", less_box(revolved(torus))),
+            (
+                "the bored ball: the walk and the rectangle lane",
+                revolved(vec![((1.0, -h), 0.0), ((1.0, h), bulge)]),
+            ),
+            (
+                "the rod sliver: the trimmed cylinder arm",
+                crate::trimmed::tests::a_rod_sliver(),
+            ),
+            (
+                "a ball less a box: the trimmed sphere arm",
+                less_box(revolved(ball)),
+            ),
+            (
+                "a torus less a box: the trimmed torus arm",
+                less_box(revolved(torus)),
+            ),
         ] {
             for delta in [1e9, 0.3] {
                 let (held, _) = forced(&body, delta);
@@ -868,7 +947,10 @@ mod tests {
         crate::tessellate_with(&sliver, 0.3, Tol::witness(), &mut memo).unwrap();
         FORCED.with(|f| f.set(false));
         assert!(memo.hits() > 0, "the second run is answered by the memo");
-        assert!(HELD.with(core::cell::Cell::get) > 0, "a memo hit's split pieces are read");
+        assert!(
+            HELD.with(core::cell::Cell::get) > 0,
+            "a memo hit's split pieces are read"
+        );
     }
 
     /// **A side from a cone's apex splits on the rectangle lane** (the fix
@@ -879,7 +961,11 @@ mod tests {
     /// a closed manifold, and the apex's triangles take split points.
     #[test]
     fn a_side_from_a_cones_apex_splits_on_the_rectangle_lane() {
-        let cone = revolved(vec![((0.0, -1.0), 0.0), ((1.0, 0.5), 0.0), ((0.0, 0.5), 0.0)]);
+        let cone = revolved(vec![
+            ((0.0, -1.0), 0.0),
+            ((1.0, 0.5), 0.0),
+            ((0.0, 0.5), 0.0),
+        ]);
         for delta in [1e9, 0.3, 0.05] {
             let unsplit = crate::tessellate(&cone, delta, Tol::witness()).unwrap();
             let (held, mesh) = forced(&cone, delta);
@@ -926,12 +1012,25 @@ mod tests {
         let mut triangles = vec![[0, 1, 2], [1, 0, 3]];
         let splits = super::Splits {
             noted: vec![
-                super::Noted { tri: 0, uv: [uv[0], uv[1], uv[2]], singular: [false; 3] },
-                super::Noted { tri: 1, uv: [uv[1], uv[0], uv[3]], singular: [false; 3] },
+                super::Noted {
+                    tri: 0,
+                    uv: [uv[0], uv[1], uv[2]],
+                    singular: [false; 3],
+                },
+                super::Noted {
+                    tri: 1,
+                    uv: [uv[1], uv[0], uv[3]],
+                    singular: [false; 3],
+                },
             ],
         };
         let bounds = FaceBounds::new();
-        let run = Run { body: &body, bounds: &bounds, delta: 1e9, eps: Eps::at(Tol::witness()) };
+        let run = Run {
+            body: &body,
+            bounds: &bounds,
+            delta: 1e9,
+            eps: Eps::at(Tol::witness()),
+        };
         let sense = body.get_face(face).unwrap().sense;
         let row = ChartRow::of(&body, face, surface, &bounds).unwrap();
         let ChartRow::Analytic(analytic) = &row else {
@@ -941,13 +1040,23 @@ mod tests {
             let p = t.map(|i: u32| positions[i as usize]);
             let n = (p[1] - p[0]).cross(p[2] - p[0]);
             assert!(
-                !crate::validate::wound_against(n, analytic.outward(sense, crate::validate::centroid(p)).vec()),
+                !crate::validate::wound_against(
+                    n,
+                    analytic.outward(sense, crate::validate::centroid(p)).vec()
+                ),
                 "each triangle is wound with the face"
             );
         }
         assert!(
             matches!(
-                super::split(face, &[side(0, 1)], &splits, &run, &mut positions, &mut triangles),
+                super::split(
+                    face,
+                    &[side(0, 1)],
+                    &splits,
+                    &run,
+                    &mut positions,
+                    &mut triangles
+                ),
                 Err(TessellateError::FoldedTriangle { .. })
             ),
             "a folded piece refuses the face"

@@ -400,17 +400,26 @@ fn a_lens_of_two_short_arcs_meshes_at_a_coarse_delta() {
             Ok(()),
             "δ = {delta:e}: a closed manifold by vertex id"
         );
-        let on_edges: std::collections::HashSet<u32> =
-            mesh.boundaries.iter().flat_map(|b| b.points.iter().copied()).collect();
+        let on_edges: std::collections::HashSet<u32> = mesh
+            .boundaries
+            .iter()
+            .flat_map(|b| b.points.iter().copied())
+            .collect();
         assert_eq!(on_edges.len(), 4, "δ = {delta:e}: two chord points an arc");
         let split: Vec<_> = (0..mesh.positions.len())
             .filter(|i| !on_edges.contains(&u32::try_from(*i).unwrap()))
             .map(|i| mesh.positions[i])
             .collect();
         assert_eq!(split.len(), 2, "δ = {delta:e}: one split point a face");
-        assert_eq!(split[0].to_array(), split[1].to_array(), "δ = {delta:e}: one sheet, one foot");
+        assert!(
+            split[0].same_bits(split[1]),
+            "δ = {delta:e}: one sheet, one foot"
+        );
         assert_eq!(
-            mesh.patches.iter().map(|p| p.triangles.len()).collect::<Vec<_>>(),
+            mesh.patches
+                .iter()
+                .map(|p| p.triangles.len())
+                .collect::<Vec<_>>(),
             [4, 4],
             "δ = {delta:e}: each face's two triangles, one side split"
         );
