@@ -871,7 +871,7 @@ pub(crate) enum FaceGeo<T: geom_core::Real> {
     /// that region could matter: `q` on the double cone within the
     /// face's apex ball, or a ray that may meet the cone ahead within it
     /// — the sweep then tries the next ray, and the query refuses
-    /// `PartialConeFace` only when every ray does ([`partial_reach`]).
+    /// `PartialConeFace` only when every ray does ([`partial_ball`]).
     PartialCone {
         /// The axis line from the apex, its direction unit.
         axis: geom::Line<T>,
