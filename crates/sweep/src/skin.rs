@@ -933,11 +933,16 @@ fn chord_length_parameters<T: SpanLocate>(
         // this is `f64`'s `Sum` (which starts at `-0`) bit for bit.
         let total = chords.iter().fold(T::zero(), |acc, c| acc + *c);
         // A row that never moves carries no parameterization
-        // information and abstains from the average. Read here, that is
-        // an exact compare, unbanded: a row that moves only by rounding
-        // counts as moving. A row that moves for some values its bracket
-        // stands for and not others would abstain for some members only,
-        // so it refuses.
+        // information and abstains from the average: a row of one
+        // stored point (a corner the loft's door decided pinned, and
+        // wrote as one point), or one whose chords sum to zero. Read
+        // here, that is an exact compare, unbanded: a row that moves only
+        // by rounding counts as moving. A row that moves for some values
+        // its bracket stands for and not others would abstain for some
+        // members only, so it refuses.
+        if geom_brep::chart_singularity::one_stored_row(&row) {
+            continue;
+        }
         if !total.structure_positive() {
             if total.point_value().is_none() && !total.is_poison() {
                 return Err(SkinError::RowMotionUndecided { row: index });
@@ -1202,21 +1207,34 @@ fn skin_with<T: SpanLocate>(
         .collect();
     let (knots_v, solved) = interpolate_columns_in(params, v_degree, &rows)
         .map_err(|e| SkinError::Fit(Built::new(e)))?;
-    // Into the surface's u-major layout, `idx = iu · nv + iv`.
+    // Into the surface's u-major layout, `idx = iu · nv + iv`. A lane
+    // whose sections all hold one stored point (a pinned corner) is that
+    // point in every row, passed through unsolved, so a corner the loft
+    // wrote as one point is a collapsed side of the net exactly (DESIGN
+    // `[extensibility]`).
     let nv = solved.len();
     let mut control = Vec::with_capacity(n * nv);
     let mut weights = Vec::with_capacity(n * nv);
     let mut at = 0;
-    for lane in &constant {
+    for (i, lane) in constant.iter().enumerate() {
+        let first = sections[0].control()[i];
+        let one_point = geom_brep::chart_singularity::one_stored_row(
+            &sections.iter().map(|c| c.control()[i]).collect::<Vec<_>>(),
+        );
         for row in &solved {
-            if let Some(c) = lane {
-                control.push(Point3::new(row[at], row[at + 1], row[at + 2]));
-                weights.push(*c);
+            let (point, weight) = if let Some(c) = lane {
+                (Point3::new(row[at], row[at + 1], row[at + 2]), *c)
             } else {
                 let (x, y, z, w) = (row[at], row[at + 1], row[at + 2], row[at + 3]);
-                control.push(Point3::new(x / w, y / w, z / w));
-                weights.push(w);
-            }
+                (Point3::new(x / w, y / w, z / w), w)
+            };
+            let (point, weight) = if one_point {
+                (first, weight)
+            } else {
+                (point, weight)
+            };
+            control.push(point);
+            weights.push(weight);
         }
         at += if lane.is_some() { 3 } else { 4 };
     }
@@ -1679,6 +1697,47 @@ fn skin_strips<T: SpanLocate>(
     })
 }
 
+/// **The loft door's pinned corners, written as one point**: where
+/// `pinned(l, j, s)`, corner `j` of loop `l` (the start of strip `j`'s
+/// curves and the end of strip `j − 1`'s) holds in section `s + 1` the
+/// point it holds in section `s`, slab after slab, so a run of pinned
+/// slabs holds its first section's point throughout; and in each section
+/// of the run strip `j − 1` ends on the point strip `j` starts on.
+///
+/// # Errors
+///
+/// [`SkinError::Structure`] where a curve rebuilt with the point is refused,
+/// which a curve of the counts it was read from cannot be.
+fn pin_strips<T: SpanLocate>(
+    strips: &mut [Vec<Vec<NurbsCurve3<T>>>],
+    pinned: &dyn Fn(usize, usize, usize) -> bool,
+) -> Result<(), SkinError> {
+    let with_point = |c: &NurbsCurve3<T>, at: usize, p: Point3<T>| {
+        let mut control = c.control().to_vec();
+        control[at] = p;
+        NurbsCurve3::new(c.knot_values().clone(), control, c.weights().to_vec()).map_err(built)
+    };
+    for (l, lp) in strips.iter_mut().enumerate() {
+        let n = lp.len();
+        let k = lp.first().map_or(0, Vec::len);
+        for j in 0..n {
+            let prev = (j + n - 1) % n;
+            for s in 0..k.saturating_sub(1) {
+                if !pinned(l, j, s) {
+                    continue;
+                }
+                let point = lp[j][s].control()[0];
+                for section in [s, s + 1] {
+                    lp[j][section] = with_point(&lp[j][section], 0, point)?;
+                    let last = lp[prev][section].control().len() - 1;
+                    lp[prev][section] = with_point(&lp[prev][section], last, point)?;
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 /// The v each section sits at: `shares` where the caller states them (a
 /// path sweep's station shares `i / (stations − 1)`, structure, the same
 /// constants at every scalar) and otherwise [`loft_parameters`]' answer
@@ -1711,17 +1770,24 @@ fn section_parameters<T: SpanLocate>(
 /// knot: the parameters still say where along the stack the skin puts
 /// each section ([`loft_geometry`]'s walls hold them).
 ///
+/// `pinned(l, j, s)` is the loft door's verdict that loop `l`'s corner
+/// `j` is one world point in sections `s` and `s + 1`: every section of
+/// such a run holds the corner as its first section's stored point
+/// ([`pin_strips`]), so each wall beside it has a collapsed side.
+///
 /// # Errors
 ///
-/// [`skin_on`]'s past its parameter check, and
+/// [`skin_on`]'s past its parameter check, and [`pin_strips`]';
 /// [`compatible_strips`]' answer is the caller's to have taken.
 #[allow(clippy::type_complexity)]
 pub(crate) fn body_walls<T: SpanLocate>(
-    strips: &[Vec<Vec<NurbsCurve3<T>>>],
+    mut strips: Vec<Vec<Vec<NurbsCurve3<T>>>>,
     v_degree: usize,
     shares: Option<&[f64]>,
+    pinned: &dyn Fn(usize, usize, usize) -> bool,
 ) -> Result<(Vec<Vec<Vec<Arc<NurbsSurface<T>>>>>, Vec<T>), SkinError> {
-    let params = section_parameters(strips, shares)?;
+    pin_strips(&mut strips, pinned)?;
+    let params = section_parameters(&strips, shares)?;
     let walls = strips
         .iter()
         .map(|lp| {
@@ -1793,9 +1859,11 @@ fn section_slab<T: SpanLocate>(pair: &[NurbsCurve3<T>]) -> Result<Arc<NurbsSurfa
 /// sections that cross, all of which [`loft_body`](crate::loft_body)
 /// refuses; two sections that coincide reach it as
 /// [`SkinError::NoParameterStep`]. Every control row is read as
-/// [`skin_parameters`] reads one, unbanded; the body's door refuses
-/// every loft with a corner it decides pinned before the skin, so the
-/// two answers are one wherever the body builds.
+/// [`skin_parameters`] reads one, unbanded. The body's door writes a
+/// corner it decides pinned as one point before the skin, where its row
+/// abstains; this door reads no band, so a corner whose placements
+/// differ by rounding counts here as moving, and on such a loft the two
+/// answers differ.
 ///
 /// # Errors
 ///

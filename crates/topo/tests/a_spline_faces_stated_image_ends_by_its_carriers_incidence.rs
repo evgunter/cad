@@ -190,7 +190,7 @@ fn at_build<T: AtRestPolicy + Bounds>(place: Place) -> Result<(), CertifyError> 
     let (edge, spec) = stated(&body, face, row, false);
     match body.set_edge_curve(edge, spec, Tol::witness()) {
         Ok(_) => Ok(()),
-        Err(EulerOpError::Certification { error }) => Err(error),
+        Err(EulerOpError::DescriptionUncertified { error, .. }) => Err(error),
         Err(other) => {
             panic!("{place:?}: the stated route refuses through certification: {other:?}")
         }

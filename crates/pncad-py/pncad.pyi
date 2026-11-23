@@ -2874,19 +2874,6 @@ class VarName:
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 
-class SketchedOnFace:
-    """What `Doc.sketch_on_face` inserted."""
-
-    @property
-    def profile(self) -> NodeId: ...
-    @property
-    def extrude(self) -> NodeId: ...
-    @property
-    def placement(self) -> NodeId: ...
-    @property
-    def union(self) -> NodeId: ...
-    def __repr__(self) -> str: ...
-
 class Measured:
     """What `Doc.measure` inserted: the measures, one per primitive in
     order, and their outputs in the same order."""
@@ -4135,31 +4122,45 @@ class Doc:
         it, a split of it) carries the same names, and answers them
         too."""
 
-    def sketch_on_face(
+    def draw_on_face(
         self,
         body: _BodyArg,
         face: str,
-        outline: ClosedLoop | list[ClosedLoop],
-        distance: _LengthArg,
-        spin: Optional[_AngleArg] = None,
+        outline: ClosedLoop | Chain | list[ClosedLoop | Chain],
         *,
         orient: Optional[Orientation] = None,
+        spin: Optional[_AngleArg] = None,
+        slides: Optional[tuple[_LengthArg, _LengthArg]] = None,
+        traced: Optional[list[tuple[_BodyArg, str]]] = None,
         label: Optional[str] = None,
-    ) -> SketchedOnFace:
-        """"Sketch on this face": `outline` drawn on its own plane and
-        extruded `distance` up its own `z`, the copy placed against
-        `face` of `body` (its start cap resting on the face's plane,
-        looking out along the outward normal, its origin over the face
-        body's own, turned `spin` about the normal; zero when `None`),
-        and `body` and the copy fused. `face` is opaque name text from
+        resolver: Optional[Workspace] = None,
+    ) -> NodeId:
+        """A profile drawn on a face: `outline` drawn on the chart of
+        `face` of `body`, the frame a plane placement onto the face
+        gives, as one profile node in `body`'s space; nothing is
+        placed. `outline` is a `ClosedLoop` (as `Node.profile` takes
+        one) or a traced `Chain` (as `Node.drawn_profile` takes one),
+        or a list of them, outer first; `traced` is the faces of that
+        space a chain reads the trace of, each `(body, name)`, by its
+        place in the list. `face` is opaque name text from
         `Evaluation.all_faces` / `select`; on one member of a family,
-        `body` is `xs[i]` and `face` the member's own name
-        (`Evaluation.select(xs[i], ...)`), and the copy fuses with the
-        whole family. `orient=` is the mate's
-        `Orientation`; when `None`, the one nearest where the copy
-        stands, the profile's `z` along the face's outward normal. One
-        putting `z` opposite the normal is written backwards
-        (`mate_backwards`). One action; `label=` labels the union."""
+        `body` is `xs[i]` and `face` the member's own name.
+
+        The chart's `z` is the face's outward normal; its `x` and
+        origin are the space's under `orient`, carried onto the face by
+        the least turn, then turned `spin` about the normal and moved
+        by the two `slides`, each zero when `None`. The slides run
+        along the space's own axes: the two other than the one `orient`
+        puts the chart's `z` most along, in `x`, `y`, `z` order.
+        `orient=None` writes the orientation nearest the face, read off
+        it as it evaluates under `resolver=`; one putting `z` opposite
+        the normal refuses at `evaluate` (`pose_degenerate`,
+        `face_chart_backwards`), naming the orientation to write. A face
+        that is no plane refuses there too.
+
+        One action, answering the profile's id; `label=` labels it. A
+        boss is `Node.extrude(profile, d)` united with `body`; a pocket
+        is the same profile extruded `-d` and subtracted from it."""
 
     @property
     def node_count(self) -> int: ...

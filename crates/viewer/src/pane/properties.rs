@@ -76,6 +76,15 @@ impl ViewerBehavior<'_> {
                     );
                 }
                 self.feature_rows_ui(ui, node, &groups);
+                let doc = self.session.doc();
+                let related = crate::relations::relations(
+                    doc,
+                    &doc.read_index(),
+                    node,
+                    self.session.part_files(),
+                );
+                relation_rows(ui, Direction::Reads, &related.reads, self.ops);
+                relation_rows(ui, Direction::ReadBy, &related.read_by, self.ops);
             }
             // Slot rows for the feature that MADE the picked entity —
             // the node `slot_groups` itself answered for, so the rows
@@ -790,9 +799,8 @@ impl ViewerBehavior<'_> {
         // two operations. What a slot contributes is what the field
         // shows and what its edit opens on ([`slot_showing`]): a
         // number typed over a driven slot's reading is no echo of
-        // anything, so the driven slot's refusal stays reachable and
-        // is owed its affordance even when the number happens to
-        // match.
+        // anything, so it replaces the expression even when the number
+        // happens to match.
         value_field_ops(
             ui,
             slot_showing(row, draft, *self.notation),
@@ -1342,6 +1350,86 @@ fn selected_node_heading(
     }
 }
 
+/// **Which way a relation row reads**: what the node reads, or what
+/// reads the node.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Direction {
+    /// `profile: Profile 1`.
+    Reads,
+    /// `profile of: Revolve 3`.
+    ReadBy,
+}
+
+impl Direction {
+    /// The heading over the rows.
+    pub(crate) fn heading(self) -> &'static str {
+        match self {
+            Self::Reads => "reads",
+            Self::ReadBy => "read by",
+        }
+    }
+
+    /// A row's seat, as its line opens.
+    pub(crate) fn seat(self, seat: crate::relations::Seat) -> String {
+        match self {
+            Self::Reads => format!("{}:", seat.label()),
+            Self::ReadBy => format!("{} of:", seat.label()),
+        }
+    }
+}
+
+/// **A node's relation rows, drawn** ([`crate::relations::Relations`]):
+/// under the direction's heading, each row its seat, then its entries,
+/// then `through` and the named variable read, where there is one. Each
+/// entry is a link that selects what it names, or words where it names
+/// nothing this document holds. Nothing at all for no rows.
+pub(crate) fn relation_rows(
+    ui: &mut egui::Ui,
+    direction: Direction,
+    rows: &[crate::relations::RelationRow],
+    ops: &mut Vec<SessionOp>,
+) {
+    if rows.is_empty() {
+        return;
+    }
+    ui.weak(direction.heading());
+    for row in rows {
+        ui.horizontal_wrapped(|ui| {
+            ui.label(direction.seat(row.seat));
+            for entry in &row.entries {
+                related_entry(ui, entry, ops);
+            }
+            if let Some(through) = &row.through {
+                ui.label(THROUGH);
+                related_entry(ui, through, ops);
+            }
+        });
+    }
+}
+
+/// The word between what a read reaches and the named variable it
+/// reads it through; the placement editor's "copy of" row says it too.
+pub(crate) const THROUGH: &str = "through";
+
+/// One [`crate::relations::Related`], drawn: a link pushing its
+/// selection, or its words.
+pub(crate) fn related_entry(
+    ui: &mut egui::Ui,
+    entry: &crate::relations::Related,
+    ops: &mut Vec<SessionOp>,
+) {
+    match &entry.selects {
+        Some(selection) => {
+            if crate::widgets::message_link(ui, entry.said.as_str()).clicked() {
+                ops.push(SessionOp::Select(selection.clone()));
+            }
+        }
+        None => {
+            crate::widgets::message(ui, entry.said.as_str());
+        }
+    }
+}
+
 /// **A picked entity's header**: the pick as the chrome says one
 /// ([`PickedName`]), and the node its Delete deletes — the feature the
 /// words name ([`PickedName::feature`]), so the button deletes what the
@@ -1483,11 +1571,11 @@ pub(crate) fn slot_showing(row: &SlotRow, draft: Option<&str>, notation: Notatio
         // which says `no … reading` where the working notation cannot
         // name the value), and the field under that text is its door
         // to the expression. The number the field holds is never
-        // written: a drag or a typed number over a driven slot is
-        // refused by the session's driven-slot guard, so a zero held
-        // there lands nowhere — the same zero held under the text of a
-        // slot with no one value: one that did not evaluate, or one
-        // with a value per member.
+        // written: a drag over a driven slot is refused by the
+        // session's driven-slot guard, and a typed number writes what
+        // was typed, so a zero held there lands nowhere — the same zero
+        // held under the text of a slot with no one value: one that did
+        // not evaluate, or one with a value per member.
         Err(_) if row.driver.is_driven() => Ok(0.0),
         number => number,
     };
@@ -1596,8 +1684,8 @@ pub(crate) fn variable_doors(
 }
 
 /// **The two doors a slot's field has**: a bare number through
-/// `SessionOp::SetSlot` (refused on a driven slot, with the
-/// affordance), anything else through `SessionOp::SetSlotExpression`.
+/// `SessionOp::SetSlot`, which replaces an expression as it replaces a
+/// literal, anything else through `SessionOp::SetSlotExpression`.
 pub(crate) fn slot_doors(
     node: RecipeNodeId,
     slot: SlotId,
@@ -2236,7 +2324,7 @@ mod tests {
         // home; this line does not.
         assert_eq!(
             rendered,
-            "driven by an expression over thickness (currently 4 mm) — edit the expression?"
+            "driven by an expression over thickness (currently 4 mm) — edit the expression, or type a number over it"
         );
     }
 
