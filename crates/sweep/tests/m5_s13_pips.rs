@@ -12,10 +12,10 @@
 //! circle in a horizontal plane), so no edge of either operand crosses
 //! the other — the S12 finding's poking-but-not-crossing shape. Every
 //! row here therefore exercises §1's re-cut end to end: the extent scan
-//! certifies the escape, the group is rigidly re-charted about the
-//! escape normal (a rotation about the sphere's own center — the same
-//! point set), and the re-entered pipeline finds the section circles
-//! with the ordinary crossing layer and joins them through §2's arm.
+//! certifies the escape, the face holding each section circle is cut
+//! along its chart's meridian through the circle, and the re-entered
+//! pipeline finds the section circles with the ordinary crossing layer
+//! and joins them through §2's arm.
 //!
 //! **Tolerance shape.** Volume slack derives from the resolved band;
 //! the in-band escalation row PLACES its fixture from the resolved
@@ -112,8 +112,8 @@ fn both_lanes(op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
 const PIP_R: f64 = 0.5;
 const PIP_H: f64 = 0.3;
 
-/// The pip's ball, y-poled: its poles lie on a horizontal axis, which
-/// is the chart the §1 re-cut must re-align.
+/// The pip's ball, y-poled: its poles lie on a horizontal axis, so its
+/// seam stays clear of the slab and only the §1 re-cut meets the circle.
 fn pip_ball(x: f64, y: f64) -> AtRestBody<f64> {
     let ball = ball_poled_y(PIP_R, Vec3::new(x, y, 1.0 + PIP_R - PIP_H), Tol::witness());
     finished("the pip ball", ball, Tol::witness())
@@ -400,8 +400,8 @@ fn certified_disjoint_and_contained_shells_keep_their_answers() {
 /// direction is not a depth choice: a seam great circle lies in the
 /// plane `z = c_z` with the ball's own radius, so a Z-offset seam is
 /// equidistant from the other centre all the way round and never
-/// crosses it. The scan re-charts each ball with its pole on the centre
-/// line, and the re-entered pipeline joins the circle their seams now
+/// crosses it. The scan cuts each ball's face along a meridian through
+/// the circle, and the re-entered pipeline joins the circle those cuts
 /// cross: the union is two balls less their lens, and it meshes.
 #[test]
 fn overlapping_sphere_pair_builds_through_the_scan() {
@@ -429,14 +429,11 @@ fn overlapping_sphere_pair_builds_through_the_scan() {
 /// the scan: the extent certificate `center ± r` is the whole group's,
 /// so it was only spent for a CLOSED group.
 ///
-/// That certificate is asked WHERE IT IS USED now, not on arrival, and
-/// the trimmed group is served for everything it does not need: a box
-/// that proves the whole sphere clear proves the trimmed subset clear,
-/// because the face is a subset of the sphere and over-claiming is the
-/// sound direction for a SEPARATION test. What still needs closedness
-/// is the plane arm's ESCAPE conclusion — whole-circle membership is
-/// the carrier's, and the re-chart it feeds rotates a closed group
-/// about its centre — and that arm keeps the refusal.
+/// A box that proves the whole sphere clear proves the trimmed subset
+/// clear, because the face is a subset of the sphere and over-claiming
+/// is the sound direction for a SEPARATION test; an ESCAPE is read off
+/// the group's faces by the section certificate, closed or trimmed
+/// alike, and cut in where it places the circle inside one.
 ///
 /// So this pair assembles: two shells, volumes add, and sequential pip
 /// authoring has its live route.

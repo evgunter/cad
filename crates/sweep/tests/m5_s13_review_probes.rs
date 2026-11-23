@@ -205,7 +205,7 @@ fn probe_flipped_row_replays_bit_identical() {
 }
 
 /// PROBE 5: a TILTED ball chart (axis 0.3 rad off vertical, seam kept
-/// clear of the slab) — the re-cut handles an arbitrary source chart,
+/// clear of the slab) — the cut-in serves an arbitrary source chart,
 /// not just the perpendicular fixture: green with the exact cap volume.
 #[test]
 fn probe_tilted_chart_recut_still_cuts_exact() {
@@ -223,7 +223,7 @@ fn probe_tilted_chart_recut_still_cuts_exact() {
         SweepStrategy::Realized,
         Tol::witness(),
     )
-    .expect("the re-cut re-charts any tilted source chart")
+    .expect("the cut-in serves any tilted source chart")
     .body()
     .unwrap()
     .body
@@ -235,7 +235,7 @@ fn probe_tilted_chart_recut_still_cuts_exact() {
     );
 }
 
-/// PROBE 6: NEAR-PARALLEL chart (axis 0.05 rad off the escape normal):
+/// PROBE 6: NEAR-PARALLEL chart (axis 0.05 rad off the slab's normal):
 /// the seam then crosses the slab, so the pipeline goes through the
 /// crossing layer and the tilted-section frontier — a typed refusal or
 /// an exact answer are both honest; a wrong volume is not.
