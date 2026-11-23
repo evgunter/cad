@@ -2,10 +2,13 @@
 id: perp-unit-takes-an-unchecked-unit-axis
 kind: issue
 title: blend/arms.rs perp_unit takes a unit axis it does not check — the Meridian's stored axis, so no caller holds the witness yet
-status: open
+status: closed
 opened: 2026-09-15
 priority: P3
 cost: E
+closed: 2026-11-23
+branch: onehome/mints-sweep
+parent: carrier-frames-the-production-mints
 ---
 
 ## Where this came from
@@ -68,3 +71,11 @@ actually wants — the second is now one call
 Found by FRAME-WITNESS's review sweep, whose pattern (a doc-word match
 plus a `Vec3` parameter) could not see it: the premise is in the
 arithmetic, not in prose.
+
+## Moved to ONEHOME and closed (2026-11-23)
+
+Claimed by `carrier-frames-the-production-mints` (branch
+`onehome/mints-sweep`, group G1). `Meridian` now holds its decided frame
+(`Meridian::new`), so its axis is a witness, and `perp_unit` takes
+`UnitVec3`: its two remaining callers hand it a stored frame's
+`axis_unit()`. `Meridian::radial` and `sheet_normal` read the frame.
