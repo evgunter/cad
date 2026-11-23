@@ -5373,6 +5373,16 @@ impl<T: Real> Real for Sym<T> {
         self.unary(self.value.sqrt(), SymOp::Sqrt, 0)
     }
 
+    /// The plain formula's form, carrying `T`'s value
+    /// ([`Real::difference_dot`]): the same real, read to its digits.
+    fn difference_dot(q: [Self; 3], o: [Self; 3], n: [Self; 3]) -> Self {
+        let plain = crate::real::plain_difference_dot(q, o, n);
+        Sym {
+            value: T::difference_dot(q.map(|x| x.value), o.map(|x| x.value), n.map(|x| x.value)),
+            node: plain.node,
+        }
+    }
+
     fn abs(self) -> Self {
         self.unary(self.value.abs(), SymOp::Abs, 0)
     }
