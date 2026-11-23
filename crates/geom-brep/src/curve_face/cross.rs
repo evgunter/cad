@@ -302,8 +302,8 @@ pub fn cross<T: Decide>(
                 super::circle_torus::torus_method(span, surface, form.0, band).unwrap_or_else(fault)
             }
             Door::SpiricPlane => match form.0 {
-                Formed::SpiricPlane { line, across } => {
-                    super::spiric_plane::spiric_plane_method(span, (line, across), band)
+                Formed::SpiricPlane { line, across, sine } => {
+                    super::spiric_plane::spiric_plane_method(span, (line, across, sine), band)
                         .unwrap_or_else(fault)
                 }
                 _ => desync(),

@@ -2,11 +2,13 @@
 id: a-refusal-offers-no-action-in-the-viewer
 kind: issue
 title: viewer: a kernel refusal is shown as prose with no action the viewer can take on it
-status: dispatched
+status: closed
 opened: 2026-09-17
 priority: P1
 cost: H
+pr: 7562
 branch: offer/one-offers-function
+closed: 2026-11-23
 ---
 
 **Ev reported this** (in chat, 2026-09-17), from the same failed union

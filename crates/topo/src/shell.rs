@@ -331,8 +331,8 @@
 //!   [`ShellError::NotValid`] as the boolean's does, and a ringed cone
 //!   or cylinder wall — which props reads — at the mesh.
 //!
-//! Every nesting question the rim stage asks is read in the chart
-//! ([`encloses`]); check 9's contact arm reads only planes, so a curved
+//! Every concentric pair the rim stage orders is read in the chart
+//! ([`is_inner_of_concentric_pair`]); check 9's contact arm reads only planes, so a curved
 //! ring's contact with its outer loop is not decided here.
 //!
 //! # Why step 3 exists, and what the arm is expressible over
@@ -2805,26 +2805,27 @@ fn canonicalize_chart<T: Decide>(
         );
         let chart = body.proven_face(anchor).surface().clone();
         let escalated = |source| ShellError::Escalated { source };
-        let ring_first = if encloses(&chart, &p1, &p2, band).map_err(escalated)? {
-            true
-        } else if encloses(&chart, &p2, &p1, band).map_err(escalated)? {
-            false
-        } else if wraps && band_seam(&chart, body, [&side1, &side2], band)? {
-            // Neither side is a hole, and each winds the period once: the
-            // slit is a band's seam, joining the band's two boundaries,
-            // and the band's surgery cuts it. A wrapping chart whose sides
-            // do not both wind (a hole whose nesting misreads) is no band
-            // and refuses below as the slit it is; `Chart` reads to
-            // just short of the period, so no verb path reaches that
-            // misread today and no row pins it.
-            band_seams.push(proven(&body.half_edges, he1, EntityId::HalfEdge).edge);
-            continue;
-        } else {
-            return Err(not_expressible(
-                "the chart's slit loop splits into two sides neither of which encloses the \
+        let ring_first =
+            if is_inner_of_concentric_pair(&chart, &p1, &p2, band).map_err(escalated)? {
+                true
+            } else if is_inner_of_concentric_pair(&chart, &p2, &p1, band).map_err(escalated)? {
+                false
+            } else if wraps && band_seam(&chart, body, [&side1, &side2], band)? {
+                // Neither side is a hole, and each winds the period once: the
+                // slit is a band's seam, joining the band's two boundaries,
+                // and the band's surgery cuts it. A wrapping chart whose sides
+                // do not both wind (a hole whose nesting misreads) is no band
+                // and refuses below as the slit it is; `Chart` reads to
+                // just short of the period, so no verb path reaches that
+                // misread today and no row pins it.
+                band_seams.push(proven(&body.half_edges, he1, EntityId::HalfEdge).edge);
+                continue;
+            } else {
+                return Err(not_expressible(
+                    "the chart's slit loop splits into two sides neither of which encloses the \
                  other, so neither is the hole",
-            ));
-        };
+                ));
+            };
         let (a, b) = if ring_first { (he1, he2) } else { (he2, he1) };
         let made = body.kemr(a, b).map_err(|error| ShellError::Rim {
             face: anchor,
@@ -2837,7 +2838,7 @@ fn canonicalize_chart<T: Decide>(
             let (outer, _) = body.proven_face(anchor).outer();
             (loop_points(body, made.ring), loop_points(body, outer))
         };
-        if !encloses(&chart, &ring_pts, &outer_pts, band)
+        if !is_inner_of_concentric_pair(&chart, &ring_pts, &outer_pts, band)
             .map_err(|source| ShellError::Escalated { source })?
         {
             return Err(not_expressible(
@@ -3948,7 +3949,7 @@ fn pair_rings<T: Decide>(
     match (&rim_rings[..], &source_rings[..]) {
         ([], []) => Ok(Vec::new()),
         ([rim_ring], [source_ring]) => {
-            if encloses(
+            if is_inner_of_concentric_pair(
                 &chart,
                 &loop_points(body, *source_ring),
                 &loop_points(body, *rim_ring),
@@ -3959,7 +3960,7 @@ fn pair_rings<T: Decide>(
                 Err(not_expressible(
                     "the designated face's hole does not sit inside the cavity counterpart's",
                 ))
-            } else if encloses(
+            } else if is_inner_of_concentric_pair(
                 &chart,
                 &loop_points(body, *rim_ring),
                 &loop_points(body, *source_ring),
@@ -4096,9 +4097,12 @@ fn loop_points<T: Decide>(
     half_edge_points(body, &body.loop_walk(first).closed("loop", first))
 }
 
-/// Whether `inner` is the ENCLOSED one of two nested loops on the
+/// Whether `inner` is the inner of a CONCENTRIC pair of loops on the
 /// chart `surface`, by mean radius about the pair's common centroid,
-/// read in that chart ([`chart_read`]).
+/// read in that chart ([`chart_read`]). An ordering of two loops known
+/// nested, not a containment statement ([`crate::loop_side`]'s module
+/// docs): a ring threading one arm of a thin cross is nested in it and
+/// reads un-nested here.
 ///
 /// The comparison is a mean radius and not a containment proof, and
 /// that is exactly the claim the callers need: the loops compared here
@@ -4109,7 +4113,7 @@ fn loop_points<T: Decide>(
 /// being read off this. One margin, one decide, metered as the length
 /// it is; a read that cannot be decided escalates rather than answering
 /// "not enclosed".
-fn encloses<T: Decide>(
+fn is_inner_of_concentric_pair<T: Decide>(
     surface: &geom::Surface<T>,
     inner: &[geom_core::Point3<T>],
     outer: &[geom_core::Point3<T>],
@@ -4191,7 +4195,7 @@ fn chart_read<T: Decide>(
                 T::zero()
             }
             // A whole number of periods bringing this run's mean within
-            // half a period of the first run's. The pairs `encloses` exists
+            // half a period of the first run's. The pairs `is_inner_of_concentric_pair` exists
             // for are concentric by construction (its doc), so the inner's
             // mean lies inside the outer's span and no tie arises. It is
             // also asked of pairs not known to nest: both orders before a
@@ -6616,12 +6620,12 @@ mod tests {
         }
         for (i, (inner, outer)) in pairs.iter().enumerate() {
             assert_eq!(
-                encloses(&cylinder, inner, outer, band),
+                is_inner_of_concentric_pair(&cylinder, inner, outer, band),
                 Ok(true),
                 "pair {i}: in"
             );
             assert_eq!(
-                encloses(&cylinder, outer, inner, band),
+                is_inner_of_concentric_pair(&cylinder, outer, inner, band),
                 Ok(false),
                 "pair {i}: out"
             );

@@ -105,7 +105,7 @@ pub use op::{
 pub use range::{RangeReading, RangeTarget};
 pub use refuse::{
     BundleRefusal, GestureFrameFault, NodeKindWanted, ParseRefusal, Refusal, SaveChoice, Step,
-    VersionOffer, admits, admits_read,
+    admits, admits_read,
 };
 pub use select::{
     EdgeSelection, FaceSelection, Holds, HoldsNothing, Hovered, Selection, Standing,
@@ -763,6 +763,72 @@ impl core::fmt::Debug for Derived {
             .field("names", names)
             .field("verdict", verdict)
             .finish()
+    }
+}
+
+/// **A landed run that is the committed document's run** — the one
+/// value a document-editing offer is read off
+/// ([`crate::recourse::Failure::Run`]). Only [`DocSession::current`]
+/// makes one, and only while the landed and the committed generations
+/// match, so what the run reports describes the document the offer's op
+/// acts on. It lives no longer than the borrow of the session.
+#[derive(Clone, Copy)]
+pub struct Current<'a> {
+    run: &'a LandedRun,
+}
+
+impl<'a> Current<'a> {
+    /// The document the run answers: the committed one.
+    pub fn doc(self) -> &'a Doc<ProfileProgram> {
+        &self.run.doc
+    }
+
+    /// The run's advisory-check report ([`DocSession::checks`]).
+    pub fn checks(self) -> Option<&'a ChecksReport> {
+        self.run.checks.as_ref()
+    }
+
+    /// **`finding`, as a failure this run reports**
+    /// ([`crate::recourse::Ran`]): `None` unless it is one of this run's
+    /// own findings, the value itself and not an equal one from another
+    /// run's report.
+    pub fn finding(
+        self,
+        finding: &pncad::document::CheckFinding,
+    ) -> Option<crate::recourse::Ran<'a>> {
+        let own = self
+            .checks()?
+            .findings
+            .iter()
+            .find(|own| core::ptr::eq(*own, finding))?;
+        Some(crate::recourse::Ran::finding(self, own))
+    }
+
+    /// Every finding of this run's report, as failures it reports.
+    pub fn findings(self) -> impl Iterator<Item = crate::recourse::Ran<'a>> {
+        self.checks()
+            .into_iter()
+            .flat_map(|report| report.findings.iter())
+            .map(move |finding| crate::recourse::Ran::finding(self, finding))
+    }
+
+    /// **The run's gather refusal, as a failure it reports**: `None`
+    /// where the product gathers.
+    pub fn gather_refusal(self) -> Option<crate::recourse::Ran<'a>> {
+        let fault = self.run.gather.as_ref().err()?;
+        Some(crate::recourse::Ran::gather_refusal(self, fault))
+    }
+
+    /// **The node `id`'s own failure, as a failure this run reports**:
+    /// `None` where the node did not fail itself (`tree::own_error`).
+    pub fn node(self, id: RecipeNodeId) -> Option<crate::recourse::Ran<'a>> {
+        let error = tree::own_error(id, &self.run.evaluation)?;
+        Some(crate::recourse::Ran::node(self, &error.kind))
+    }
+
+    /// The part files the run's resolver could name ([`PartFiles`]).
+    pub fn files(self) -> &'a PartFiles {
+        &self.run.files
     }
 }
 
@@ -1689,6 +1755,19 @@ impl DocSession {
         }
     }
 
+    /// **The landed run, while it is the committed document's**
+    /// ([`Current`]): `None` while a run of a newer document is
+    /// outstanding, a gesture's scratch preview is shown, or nothing has
+    /// landed.
+    pub fn current(&self) -> Option<Current<'_>> {
+        // A gesture's preview is a scratch document the history does not
+        // hold, and a run of it describes no committed document.
+        if self.busy() || self.derived.scratch.is_some() {
+            return None;
+        }
+        self.derived.landed.as_ref().map(|run| Current { run })
+    }
+
     /// The generation the session is waiting for a result on.
     pub fn generation(&self) -> Generation {
         self.generation
@@ -1816,14 +1895,24 @@ impl DocSession {
                         }
                     }
                 }
-                // An offer acts on the COMMITTED document, so one read
-                // off a run of an older document is withheld until the
-                // current one lands: the accept it made may already be
-                // the edit that run is answering.
-                if self.busy() {
-                    for row in &mut rows {
-                        row.version_offer = None;
-                    }
+                // An offer acts on the COMMITTED document, so it is read
+                // only off a run of that document: one read off an older
+                // run could be the edit that run is still answering.
+                // Words answer the failure, not the document, so they are
+                // read off any run.
+                let current = self.current();
+                for row in &mut rows {
+                    row.offers = match current.and_then(|current| current.node(row.id)) {
+                        Some(ran) => {
+                            crate::recourse::offers(crate::recourse::Failure::Run(ran)).drawn
+                        }
+                        None => tree::own_error(row.id, &run.evaluation)
+                            .map(|error| crate::recourse::node_words(&error.kind))
+                            .into_iter()
+                            .flatten()
+                            .map(crate::recourse::Offer::Unoffered)
+                            .collect(),
+                    };
                 }
                 rows
             }
@@ -2396,6 +2485,7 @@ impl DocSession {
             | SessionOp::AddSplit { .. }
             | SessionOp::AddMirror { .. }
             | SessionOp::AddAssertion { .. }
+            | SessionOp::AssertQuieting { .. }
             | SessionOp::Place { .. }
             | SessionOp::AddPattern { .. }
             | SessionOp::AddFusedPattern { .. }
@@ -2468,6 +2558,7 @@ impl DocSession {
             SessionOp::AddSplit { target, plane } => self.add_split(target, &plane),
             SessionOp::AddMirror { body, plane } => self.add_mirror(body, &plane),
             SessionOp::AddAssertion { a, b, claim } => self.add_assertion(a, b, claim),
+            SessionOp::AssertQuieting { quieting } => self.assert_quieting(quieting),
             SessionOp::Place { body, target, name } => self.place(body, target, name),
             SessionOp::AddPattern { input, count, rule } => {
                 self.add_pattern(input, count, rule, PatternOutputChoice::Instances)
@@ -3941,7 +4032,7 @@ impl DocSession {
                             })?;
                     Ok(Operand::select(body, names))
                 }
-                AssertedSeat::Read(read) => Ok(read),
+                AssertedSeat::Minted(reference) => Ok(reference.operand()),
             }
         };
         let (a, b) = (read(a)?, read(b)?);
@@ -3976,6 +4067,23 @@ impl DocSession {
                 })
             }
         })
+    }
+
+    /// **Author a finding's assertion** ([`SessionOp::AssertQuieting`]):
+    /// the kernel's own edits for it (`Quieting::record`), one action.
+    /// **Its own check**: a document that already holds an assertion
+    /// saying the claim (`Quieting::held_in`) refuses
+    /// [`Refusal::ClaimHeld`], so the same offer taken twice authors one
+    /// assertion. A read the claim names that the document no longer
+    /// holds is the insert door's to refuse, in its own words.
+    fn assert_quieting(&self, quieting: pncad::document::Quieting) -> Result<Creating, Refusal> {
+        let doc = self.committed_doc();
+        if let Some(held) = quieting.held_in(doc) {
+            return Err(Refusal::ClaimHeld {
+                assertion: doc.spoken(held),
+            });
+        }
+        Ok(creating(move |run| quieting.record(run)))
     }
 
     /// Insert one pattern of an existing body, fused or not
