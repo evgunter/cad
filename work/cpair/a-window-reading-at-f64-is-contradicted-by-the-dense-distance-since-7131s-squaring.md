@@ -38,3 +38,5 @@ So the draw's circle now carries a frame squared at `f64` (7131's `RigidMotion::
 
 The row is counted in ONEHOME's `pr-7131s-frame-cost-at-1e-12-is-larger-than-it-counted` (on PR 7402's branch until that merges) as one of the frame cost's two `f64`-squaring rows. Unlike the rest of that count, it is a finding and not a cost. It is not pinned; GREEN greens nothing until Ev rules on the count.
 (GREEN, U12)
+
+**Pinned red (GREEN U13, 2026-11-23, PR 7558).** Ev ruled on PR 7505 that PR 7131's frame cost stands. This row is a wrong answer, not that cost, and is pinned as one. `a_window_reading_the_dense_distance_contradicts_is_pinned_red` (`oracle.rs`) replays the sweep on `CONTRADICTED_SEED` with a fixed replay text and pins the whole failure text: the count and draw 7's reading. The oracle's bands are its own, so the seed stops at **every** ε row (default, 1e-6 and 1e-12, measured), not only at 1e-12. The pin goes red when the reading holds (mutant F1F) or a different one is contradicted.
