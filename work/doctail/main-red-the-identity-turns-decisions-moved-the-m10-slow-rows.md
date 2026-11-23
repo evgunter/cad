@@ -54,6 +54,16 @@ left as main) puts back every editor-core pin below. So
 
 These readings are the same at the default ε, 1e-6 and 1e-12.
 
+**After PR 7264.** That PR merged while this one was open. It re-pinned
+the same rows for validation no longer reading an adjacent line pair's
+shared vertex, and it measured them on a base without 7434's move. Its
+moves are symbolic and frozen; 7434's are numeric. The two compose
+without interaction: the pins here are 7264's symbolic and frozen
+columns with the numeric moves above. The plate ledger moves by the
+same lines as before 7264: `*/Assertion` and `Door/Decision` +4 calls
+and +146 forms, `Door/Decision`'s digest identical, and `Early/Decision`
+unmoved. Measured on the merged tree at all three ε.
+
 ## Not 7434's: red on its first parent with the same reading
 
 - **`m10_p_fence::the_corpus_evaluation_is_bit_identical_at_interval`.**

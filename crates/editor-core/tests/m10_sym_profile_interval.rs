@@ -499,11 +499,11 @@ const PLATE_MAX_TERMS: usize = 38;
 /// 12247, `Early/Assertion` 12674 -> 12684), and those digests;
 /// `Door/Decision` does not move. The same at every ε row.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 955 forms 33009 frozen 36 digest ed0a1960b7099e367a313c33b8620489\n\
-     Plain/Assertion calls 1047 forms 12247 frozen 0 digest c977d4ea3ceb0fe8c179872ce239dddc\n\
+     Plain/Decision calls 955 forms 33009 frozen 36 digest 4360038c9b6706150f07cfe6f4d6734f\n\
+     Plain/Assertion calls 1051 forms 12393 frozen 0 digest 5dac0599add857dd9695b52ffbd29f3a\n\
      Early/Decision calls 300 forms 22890 frozen 0 digest cef7831681d7200d44eeba5ff785c322\n\
-     Early/Assertion calls 1047 forms 12684 frozen 0 digest d7412816fab752f51b11276a242f167d\n\
-     Door/Decision calls 550 forms 12366 frozen 0 digest 75aa7cd508fc1005ee274141b4e539c1";
+     Early/Assertion calls 1051 forms 12830 frozen 0 digest b0f88fcd65961bf1caf3f5f1e427f647\n\
+     Door/Decision calls 554 forms 12512 frozen 0 digest 7676d62b73fb5a8e8ecd562fd618cd29";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)
