@@ -2,11 +2,13 @@
 id: a-made-body-does-not-show-the-profile-it-was-made-from
 kind: issue
 title: viewer: a revolve's or extrude's Properties do not show or link the profile it was made from
-status: open
+status: review
 opened: 2026-11-22
 priority: P1
 cost: E
 rides_with: a-placement-and-its-part-do-not-link-to-each-other
+pr: 7356
+branch: offer/a-node-shows-what-it-reads-and-what-reads-it
 ---
 
 **Ev reported this** (in chat, 2026-11-22): "you should be able to go from a revolve to the profile it was made from".
