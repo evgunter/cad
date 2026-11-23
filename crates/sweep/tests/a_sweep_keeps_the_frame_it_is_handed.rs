@@ -1129,7 +1129,7 @@ fn wide_box() -> f64 {
 /// stage and a word its refusal carries.
 const VERB_SLABS: [(&str, [&str; 2], [&str; 2]); 12] = [
     ("circle", ["finished", ""], ["finish", "VolumeUncomputable"]),
-    ("split circle", ["finished", ""], ["door", "EndpointEnd"]),
+    ("split circle", ["finished", ""], ["door", "MappedSource"]),
     ("bulge", ["finished", ""], ["validation", "gate: ArcSpan"]),
     (
         "bulge cw",
@@ -1179,10 +1179,9 @@ const VERB_SLABS: [(&str, [&str; 2], [&str; 2]); 12] = [
 /// Over a wide box the circle alone passes the door, and its
 /// finish stops at the volume reading's rim premise
 /// (`work/boxfinish/the-volume-readings-interval-re-derivation-re-asks-a-closed-forms-premises-on-the-value-channel.md`).
-/// The split circle's door refuses a minted edge's description at its
-/// far end (its recorded radials are rounded sines and cosines, a unit
-/// to rounding and not through the tier), and every verb drawn beside a
-/// line stops
+/// The split circle's door refuses its mapped-source residual (its
+/// recorded radials are rounded sines and cosines, a unit to rounding
+/// and not through the tier), and every verb drawn beside a line stops
 /// in validation's span readers
 /// (`work/boxfinish/a-bulge-arc-beside-a-line-stops-in-validations-span-readers-over-a-box.md`),
 /// the onto arc in its first leg's direction.
@@ -1193,7 +1192,10 @@ const VERB_SLABS: [(&str, [&str; 2], [&str; 2]); 12] = [
 /// arm turned onto the start vertex's normalized offset in place of the
 /// recorded radial (`sweep::swept::sketch_direction`): both circles'
 /// doors refuse over the wide box at the carrier's start, and over the
-/// narrow one the clockwise via arc's door refuses.
+/// narrow one the clockwise via arc's door refuses. Red under
+/// `Arc2::register_radials` without its turned pair (the start radial
+/// turned by the sweep lands on the far vertex): the split circle's door
+/// refuses over the wide box at its far end.
 #[test]
 fn each_arc_verbs_slab_over_a_box_reaches_its_pinned_stage() {
     let band = geom_core::Band::linear(tol()).unwrap();
