@@ -42,7 +42,7 @@ fn block(doc: ProfileDoc, x: f64) -> (ProfileDoc, RecipeNodeId) {
 
 fn union(a: impl Into<Operand>, b: impl Into<Operand>) -> editor_core::AuthoredNode {
     Node::Union {
-        members: Bodies::Spelled(vec![a.into().into(), b.into().into()]),
+        members: Bodies::spelled(vec![a.into().into(), b.into().into()]),
     }
 }
 
@@ -289,7 +289,7 @@ fn a_re_point_across_two_spaces_refuses_at_the_door() {
     refused(
         DocEdit::SetParam {
             node: cut,
-            slot: SlotId::Operand(OperandSlot::Cut),
+            slot: SlotId::Operand(OperandSlot::Cut(0)),
             value: SlotValue::Read(Operand::from(b)),
             fresh: Vec::new(),
         },
@@ -298,7 +298,7 @@ fn a_re_point_across_two_spaces_refuses_at_the_door() {
     refused(
         DocEdit::SetMembers {
             node: joined,
-            members: Bodies::Spelled(vec![Operand::from(a).into(), Operand::from(b).into()]),
+            members: Bodies::spelled(vec![Operand::from(a).into(), Operand::from(b).into()]),
         },
         joined,
     );

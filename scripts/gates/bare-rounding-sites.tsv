@@ -44,7 +44,7 @@ crates/geom-brep/src/extent.rs	prod	1	re-pose
 crates/geom-brep/src/extent.rs	test	1	oracle
 crates/geom-brep/src/half_angle.rs	prod	1	re-pose
 crates/geom-brep/src/half_angle.rs	test	8	oracle
-crates/geom-brep/src/implicit.rs	prod	67	re-pose,far-centre
+crates/geom-brep/src/implicit.rs	prod	65	re-pose,far-centre
 crates/geom-brep/src/implicit.rs	test	5	oracle
 crates/geom-brep/src/intersect.rs	prod	8	re-pose
 crates/geom-brep/src/intersect.rs	test	1	oracle
@@ -101,6 +101,7 @@ crates/geom-brep/tests/offset_mint.rs	test	2	oracle
 crates/geom-brep/tests/onb_wall_frame_interval.rs	test	2	oracle
 crates/geom-brep/tests/patch_distance_sup_fuzz.rs	test	1	oracle
 crates/geom-brep/tests/pcurve_cone_section.rs	test	4	oracle
+crates/geom-brep/tests/pcurve_frame_premise_rows.rs	test	1	oracle
 crates/geom-brep/tests/pcurve_villarceau.rs	test	3	oracle
 crates/geom-brep/tests/plane_cone_arc.rs	test	8	oracle
 crates/geom-brep/tests/pn_apex_pair_over_a_span.rs	test	1	oracle
@@ -119,6 +120,7 @@ crates/geom/src/curves/conic.rs	prod	14	far-centre
 crates/geom/src/curves/conic.rs	test	9	oracle
 crates/geom/src/curves/fit.rs	test	1	oracle
 crates/geom/src/frame.rs	prod	4	re-pose
+crates/geom/src/frame.rs	test	1	oracle
 crates/geom/src/pole_form.rs	test	2	oracle
 crates/geom/src/surfaces/nurbs.rs	test	1	oracle
 crates/geom/tests/curves/arc_window_adversarial.rs	test	6	oracle
@@ -235,7 +237,6 @@ crates/topo/src/ring_path/graze_rows.rs	test	4	oracle
 crates/topo/src/separating.rs	test	1	oracle
 crates/topo/src/separation.rs	prod	1	re-pose
 crates/topo/src/spline_trim.rs	prod	8	re-pose
-crates/topo/src/splitting/section_loops.rs	prod	1	re-pose
 crates/topo/src/test_support_samples.rs	test	1	oracle
 crates/topo/src/transform.rs	test	1	oracle
 crates/topo/src/vertex_section.rs	prod	6	re-pose

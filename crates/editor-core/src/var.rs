@@ -268,32 +268,85 @@ pub enum VarDef {
     /// that body and adds no name segment, so a copy's names are the
     /// body's. Redefining it re-points every placement reading it.
     Source(crate::BodyRead<VarId>),
-    /// **An index** (D10 `[repetition]`): a `Count` over `0..count`. A
-    /// definition or operation whose reads reach it is evaluated once
-    /// per value, and its outputs are families.
+    /// **An index** (D10 `[repetition]`): a `Count` over `0..count`,
+    /// minted by its binder. Inside the binder, a definition or
+    /// operation whose reads reach it is evaluated once per value, and
+    /// the binder's yields are families.
     Index(Index),
 }
 
 /// **What an index ranges over** ([`VarDef::Index`]): `0..count`, the
-/// count any `Count` expression, and the index it is declared within,
-/// if any. One that reads another index in its count is within it
-/// whether or not `within` says so ([`crate::Doc::index_within`]).
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
+/// count any `Count` expression, and its seat in its binder.
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct Index {
     /// How many values it takes.
     pub count: Expr,
-    /// The index it is declared within.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub within: Option<VarId>,
+    /// Where it sits in its binder.
+    pub seat: IndexSeat,
+}
+
+/// An index read as a file spells it. An index with no seat, bare or
+/// nested `within` another, was written before binders and refuses typed
+/// ([`crate::persist::PersistError::IndexBeforeBinders`]).
+impl<'de> serde::Deserialize<'de> for Index {
+    fn deserialize<D: serde::Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
+        #[derive(serde::Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Written {
+            count: Expr,
+            seat: Option<IndexSeat>,
+            /// The nested index of before binders, `index(N) within k`.
+            within: Option<serde::de::IgnoredAny>,
+        }
+        let Written {
+            count,
+            seat,
+            within,
+        } = Written::deserialize(de)?;
+        match (seat, within) {
+            (Some(seat), None) => Ok(Self { count, seat }),
+            _ => {
+                crate::persist::refusal::record_index_before_binders();
+                Err(serde::de::Error::custom(
+                    "an index written before binders has no seat",
+                ))
+            }
+        }
+    }
 }
 
 impl Index {
     /// Bit-semantic equality.
     #[must_use]
     pub fn bit_eq(&self, other: &Self) -> bool {
-        self.within == other.within && self.count.bit_eq(&other.count)
+        self.seat == other.seat && self.count.bit_eq(&other.count)
     }
+
+    /// The index before it in its binder, `None` for a binder's first.
+    #[must_use]
+    pub fn after(&self) -> Option<VarId> {
+        match self.seat {
+            IndexSeat::Binder { .. } => None,
+            IndexSeat::After(before) => Some(before),
+        }
+    }
+}
+
+/// **An index's seat in its binder** (D10 `[repetition]`). A binder
+/// `{i in 0..R, j in 0..C(i): …}` is its first index, which holds the
+/// names it yields, then each further index after the one before it,
+/// outermost first; a later index's count may read an earlier one.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum IndexSeat {
+    /// The binder's first index, and the names the binder yields: each
+    /// a family to every reader, one member per value of the binder's
+    /// indices.
+    Binder {
+        /// The yields, in the order written.
+        yields: Vec<VarId>,
+    },
+    /// A further index of the binder, after the index named.
+    After(VarId),
 }
 
 /// **What a pick names** ([`VarDef::Pick`]): one piece of a placement's
@@ -776,14 +829,17 @@ pub enum VarDecl {
     Free(FreeVar),
     /// A variable defined by an expression over other variables.
     Defined(crate::Formula),
-    /// **An index** over `0..count` ([`VarDef::Index`]), `within` the
-    /// index it is declared within.
+    /// **An index** over `0..count` ([`VarDef::Index`]): a new binder's
+    /// first index, or with `after` a further index of the binder that
+    /// index is in, after it. A binder's yields are written by
+    /// [`crate::DocEdit::SetYields`].
     Index {
         /// How many values it takes, a `Count`.
         count: crate::Formula,
-        /// The index it is declared within, read as a lone variable.
+        /// The index of the same binder it comes after, read as a lone
+        /// variable.
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        within: Option<crate::Formula>,
+        after: Option<crate::Formula>,
     },
     /// **A source** ([`VarDef::Source`]): a read of one body.
     Source(crate::BodyRead<crate::Formula>),
@@ -875,9 +931,11 @@ impl VarDecl {
         match def {
             VarDef::Free(free) => Some(Self::Free(free)),
             VarDef::Defined(expr) => Some(Self::Defined(crate::Formula::from(expr))),
-            VarDef::Index(Index { count, within }) => Some(Self::Index {
-                count: crate::Formula::from(count),
-                within: within.map(|within| crate::Formula::var(within, Dimension::Count)),
+            VarDef::Index(index) => Some(Self::Index {
+                after: index
+                    .after()
+                    .map(|before| crate::Formula::var(before, Dimension::Count)),
+                count: crate::Formula::from(index.count),
             }),
             VarDef::Source(body) => Some(Self::Source(crate::BodyRead {
                 read: crate::Operand::Var(body.read),

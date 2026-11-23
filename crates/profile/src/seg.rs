@@ -747,8 +747,8 @@ fn check_direction<T: Decide>(
 ) -> Result<(), SegIssue<T>> {
     // The one reading, and what "unit" means here: a miss within the
     // band bounds both the turn and the stretch, (|d| − 1)·ℓ ≤ miss by
-    // the triangle inequality, which is check 1's `Length` measure for a
-    // unit datum at arm ℓ (`geom::convention::frame_margins`).
+    // the triangle inequality: the direction is a unit to within ε at
+    // arm ℓ.
     let miss = (o + d * len).distance(p);
     let read = decide_reported(Gate::SegmentDirection, Margin::of(miss), band)
         .map_err(SegIssue::escalated)?;
@@ -1005,7 +1005,7 @@ impl ArcRead {
 /// door's read-back ([`read_back_arc`]).
 fn sagitta<T: Real>(bow: T, len: T) -> Margin<T> {
     // Unsourced lever: the chord `|b − a|`, a length of the consumed segment, but `profile`
-    // has no extent home (`geom_brep` is not its dependency) to read it through.
+    // has no 2D point door (`work/oneround/profile-has-no-lever-door-a-2d-crate-can-call.md`).
     Margin::levered(bow * T::from_f64(0.5), geom_core::Lever::unsourced(len))
 }
 
@@ -1454,7 +1454,8 @@ pub(crate) fn junction_reverses<T: Decide>(
         decide(
             Gate::PathJunctionSide,
             // Unsourced lever: the leg's arm ([`Seg::arm`]: a line's length, an arc's lesser of
-            // radius and chord), a length of the consumed leg with no extent home in `profile`.
+            // radius and chord), a length of the consumed leg with no 2D door
+            // (`work/oneround/profile-has-no-lever-door-a-2d-crate-can-call.md`).
             Margin::levered(arriving.dot(departing), geom_core::Lever::unsourced(arm)),
             band
         )?,
@@ -1579,8 +1580,8 @@ pub(crate) fn junction_turn<T: Decide>(
         decide_reported(
             gate,
             // Unsourced lever: the shorter leg's arm ([`Seg::arm`]: a line's length, an arc's
-            // lesser of radius and chord), a length of the consumed legs with no extent home in
-            // `profile`.
+            // lesser of radius and chord), a length of the consumed legs with no 2D door
+            // (`work/oneround/profile-has-no-lever-door-a-2d-crate-can-call.md`).
             Margin::levered(read, geom_core::Lever::unsourced(arm)),
             band,
         )?,

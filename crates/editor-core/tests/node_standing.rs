@@ -504,7 +504,8 @@ const READERS: [(&str, &str); 14] = [
     ),
     (
         "crates/editor-core/src/eval/mod.rs",
-        "the home: the evaluator writes every result, and `usable_in` is the one ladder; the \
+        "the home: the evaluator writes every result, and `usable_in` is the one ladder; \
+         `chains_of` reads each node's reach (`Reach::node`), no result; the \
          test-support hand-built evaluation takes its result map whole; the solve reads each \
          placement's answer off the evaluation (`SolvedPoses::of`): its value's motion, or the \
          mate fault a FAILED placement carries, a standing and not a value (a node's space is \

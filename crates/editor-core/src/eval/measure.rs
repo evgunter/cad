@@ -598,8 +598,9 @@ fn parallel<T: Decide>(
     arm: T,
     band: Band,
 ) -> Result<bool, PrimitiveRefusal> {
-    // Unsourced lever: [`arm`], the two operands' reaches summed with their reference
-    // points' separation, a sum no extent read spells in this order.
+    // Unsourced lever: [`arm`], each operand's stored reach summed with their reference
+    // points' separation; the union's read needs each `Carrier` to hold its region
+    // (`work/oneround/stored-reach-scalars-a-union-cannot-be-read-from.md`).
     geom_brep::directions_parallel(what, u, v, geom_core::Lever::unsourced(arm), band)
         .map_err(PrimitiveRefusal::Escalated)
 }
@@ -1046,8 +1047,9 @@ fn face_pose<T: Decide>(
 ) -> Option<Result<geom_brep::CarrierPose<T>, PrimitiveRefusal>> {
     use geom_brep::CarrierPoseRefusal as R;
     let (a, b) = (posed(outer)?, posed(inner)?);
-    // Unsourced lever: [`arm`], the two operands' reaches summed with their reference
-    // points' separation, a sum no extent read spells in this order.
+    // Unsourced lever: [`arm`], each operand's stored reach summed with their reference
+    // points' separation; the union's read needs each `Carrier` to hold its region
+    // (`work/oneround/stored-reach-scalars-a-union-cannot-be-read-from.md`).
     let lever = geom_core::Lever::unsourced(arm(outer, inner));
     let (first, second) = match (outer, inner) {
         (Carrier::Sphere { .. } | Carrier::Cylinder { .. }, Carrier::Plane { .. }) => {

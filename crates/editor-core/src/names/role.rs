@@ -1289,7 +1289,8 @@ pub enum RoleSeg {
     /// **An entity an operation carries in from an input** (DM4; N1):
     /// `read` is the variable the input slot holds and `of` the
     /// entity's name in that variable's table. One segment serves a
-    /// union's and an intersect's members, a subtract's two seats and a
+    /// union's and an intersect's members, a subtract's body kept and
+    /// each of its tools, and a
     /// one-input operation's input (a shell's, a blend's); which seat a
     /// read sits in is the node's to say, never the name's.
     ///

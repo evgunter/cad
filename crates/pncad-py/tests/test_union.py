@@ -172,7 +172,7 @@ class TestTheUnion(unittest.TestCase):
         """A row of two copies of `a` in its own space under the index
         `k = index(2)`, member `k` slid `k` times B's offset."""
         doc.apply(DocEdit.declare_var(VarName("k"), VarDecl.index(2)))
-        return doc.insert(
+        row = doc.insert(
             Node.linear_pattern(
                 VarName("k"),
                 a,
@@ -180,6 +180,8 @@ class TestTheUnion(unittest.TestCase):
                 [("x", Formula.length_in(1.0, m)), ("y", Formula.length_in(0.5, m)), ("z", Formula.length_in(0.25, m))],
             )
         )
+        doc.apply(DocEdit.set_yields(VarName("k"), [doc.output(row)]))
+        return row
 
     def test_one_read_of_a_family_is_its_members(self):
         """A single operand, not a list, reads a family whole: a
@@ -259,15 +261,14 @@ class TestSetMembers(unittest.TestCase):
         self.assertEqual(doc.node_kind(union), "union")
 
     def test_a_node_with_no_list_refuses(self):
-        """A subtract's operands are two NAMED slots, not a list, so
-        there is nothing here for this edit to replace."""
+        """A box's inputs are NAMED slots, not a list, so there is
+        nothing here for this edit to replace."""
         doc, a, b, _c, _union = self.build()
-        pair = doc.insert(Node.subtract(a, b))
         with self.assertRaises(EditError) as caught:
-            doc.apply(DocEdit.set_members(pair, [a, b]))
+            doc.apply(DocEdit.set_members(b, [a]))
         refusal = caught.exception
         self.assertEqual(refusal.variant, "set_members_on_non_list")
-        self.assertEqual(refusal.node, pair)
+        self.assertEqual(refusal.node, b)
         self.assertIsNone(refusal.input)
         self.assertIsNone(refusal.count)
 

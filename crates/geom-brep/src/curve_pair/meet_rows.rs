@@ -2831,7 +2831,7 @@ fn a_crossing_off_an_arcs_span_reads_no_window() {
 /// foot on the circle is `(r, 0, 0)`, `2.84` rad of arc (`2.84·10⁻⁴` m)
 /// from the arc. In metres the arc's end is `1.14r` from the crossing,
 /// inside the ball of `ℓ + e` about it.
-fn over_an_arcs_far_side(
+pub(super) fn over_an_arcs_far_side(
     (d, ell): (f64, f64),
     band: Band,
 ) -> [Result<Meetings<f64>, super::MeetRefusal<f64>>; 2] {
