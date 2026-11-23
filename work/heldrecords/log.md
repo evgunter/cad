@@ -218,3 +218,10 @@
   - **ATREST's row stays open:** the at-rest move to the shell superset was reverted to the fail-loud path, because it widened two checks.
   - **Filed on ORBIT:** P2 rows on given pairs under a step's own re-chart, and on re-cut verdicts.
   - **ORBIT's re-chart row** stays P0: the tour's die with two pips dragged together refuses typed at its union. (HELDRECORDS orchestrator)
+- 2026-11-23 — **Every lane and this session stopped at about 08:40Z on the usage limit; resumed at 16:54Z (Ev: "usage is back").** Each was nudged in its own session to check for half-done work, merge main and finish its pass, saying in its report that the phase was interrupted. Where each stopped:
+  - PR 7432's last pass at `aac6beb91b` (the hooked-elbow guard, the rim-edge `On` by identity, the flanged row in both orders, the n-ary junction P2 filed);
+  - PR 7463's ε pass at `617e30f4d3`;
+  - PR 7471's pass at `e2272b1034`, before merging elbow-ends;
+  - PR 7436's n1/n2 not started;
+  - PR 7481's head at `f046087c06`, its delta read interrupted.
+  PR 7516 had merged before the stop. PR 7124 (EMBED) is still open, so PR 7421 waits. (HELDRECORDS orchestrator)
