@@ -72,3 +72,57 @@ node reads against what its key hashes; by reading unless said):
   a process-wide count: unique, and not the same in two runs.
 - **`SymOp::Free`** has one name for every mint (`INDET_FREE`), by
   design: the identity over it holds for every value.
+
+## Built and measured (the unit's lane, 2026-11-23)
+
+**The census, and each piece's owner** (`geom_core::sym::Session`'s
+doc states it in the code):
+
+- **the drive's** (`sym::memo`, `DriveMemo`): the expression table,
+  the plain forms, the atom records, the frozen set; the dials and the
+  witness kind are the same for every leaf of a drive;
+- **the leaf's input**: the parameter brackets; **caches valid for the
+  leaf**: the early memo, the reduction memo, rule D's closed forms,
+  the budget-frozen set;
+- **a node's** (`sym::NodeState`, opened by `MintScope::node`, left as
+  a `NodeRecord` on `NodeValue::sym`): the registry, the counts, the
+  retry memos and so `SymRetry::max_forms`, the door memo, the plain
+  roots;
+- **left as it was**: the deferring session's list (`sym::deferred`),
+  which is the lint's replay and never a drive's; its entries are
+  named process-wide and it takes no prior.
+
+**Does a node's answer depend on its predecessors (item 2).** Two
+mechanisms constructed at the tier's door, red before and green after,
+each with its mutant run
+(`geom-core/tests/a_nodes_answer_at_the_symbolic_scalar_is_its_own.rs`):
+an identity registered by a node that does not feed the asker, and the
+retry guard spent by an earlier node's forms. A third, the atom
+table's one unrecorded id (rule B's `cos` twin), was not made to
+change an answer: under the shipped rules rule H takes `sin²` before
+rule B sees it. The twin is recorded with the form that carries it
+all the same, because a drive-wide atom table would otherwise make
+rule H's reading of it depend on other leaves, and that is a row
+(`sym::tests::rule_bs_cos_twin_is_recorded_with_the_form_that_carries_it`).
+No document in `geom-core`'s or `editor-core`'s suites held either
+mechanism: head against the base at the default ε, no pinned receipt,
+frozen count, walk-ledger digest or `serialize()` line moved.
+
+**One key, one result (item 3)**, where the ladder runs (R2's bracket
+at ten ε: 52 keys, 38 repeats, 54 retried decisions) and where
+identities are registered (the plate), and a leaf's receipt equal to
+the sum of its nodes' records
+(`editor-core/tests/a_nodes_result_at_the_symbolic_scalar_is_its_keys.rs`).
+
+**The teardown (item 4)** did not move: the finding is
+`a-leaf-rebuilds-and-drops-its-early-forms-though-most-read-no-bracket`.
+The drive's table on the tour's 512-leaf study: 75,915 nodes, 34,546
+plain forms, 1,036 atoms, 36 frozen, 25.4 MB by the table's own
+estimate (19.3 MB for the forms and atoms before); one leaf of the
+same document holds 72,691 nodes, so the table does not grow with the
+leaf count there. Peak resident memory of the run 705 MB before and
+after.
+
+**The taint and unrecorded branches (item 6)** are removed; the row
+they were filed under is closed with the list of the rows that pinned
+them (`work/sym/a-taint-induced-freeze-under-a-hit-still-reads-by-order`).

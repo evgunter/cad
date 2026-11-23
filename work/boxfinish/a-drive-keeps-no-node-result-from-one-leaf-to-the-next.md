@@ -34,3 +34,26 @@ the simpler final state (Ev was told on PR 7368 it would be taken and
 logged).
 
 After `a-nodes-result-at-the-symbolic-scalar-reads-per-replay-session-state`.
+
+**From the session-state unit, for whoever builds the store**
+(`geom_core::sym::NodeRecord`, `NodeValue::sym`, `NodeError::sym`):
+
+- A node's record (the identities it registered, its counts, its plain
+  roots) rides its value. A served node's counts are not counted by
+  the session, which counts what ran: the store adds the record's
+  counts to the leaf's receipt, and the record's roots to the roots
+  the leaf's `frozen` column is read over (`sym::leaf_need` reads the
+  root scope's, which holds the roots of the nodes that ran).
+- A node's scope is opened over its upstream nodes' records
+  (`eval::upstream_records`, by node id). A served upstream node's
+  record is read the same way, so nothing else is owed there.
+- The parameter brackets stay the leaf's input (`Sym::param_over`,
+  recorded as the environment is built, before any node). A node's
+  decision read takes the brackets of the parameters its forms reach,
+  and the content key hashes no bracket (the node-key unit's evidence
+  on the session-state row): a served node is the leaf's own only
+  where the leaf's box agrees on those parameters.
+- A value built in one leaf resolves in another through the drive's
+  table (`sym_drive_memo::a_value_built_in_one_leaf_means_the_same_in_another`).
+  With `DriveConfig::plain_memo` off the table serves nothing, so the
+  store has to be off with it or keep its own table.
