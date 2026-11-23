@@ -340,7 +340,7 @@ impl<T: Real> MappedSource<T> {
                 angle,
             } => {
                 let p = place_point(place, point);
-                Affine3::rotate_point_about_axis(axis.origin, axis.dir, u * angle, p)
+                Affine3::rotate_point_about_axis(axis.origin, axis.dir.get(), u * angle, p)
             }
         }
     }
@@ -438,7 +438,7 @@ mod tests {
             place: Affine3::identity(),
             axis: geom::Line {
                 origin: Point3::origin(),
-                dir: Vec3::unit_y(),
+                dir: geom_core::UnitVec3::exact_y(),
             },
             angle: PI,
         });

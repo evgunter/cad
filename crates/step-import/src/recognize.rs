@@ -433,9 +433,12 @@ fn try_cylinder(
     let pa = sample(3.0 / 8.0);
     let pb = sample(6.0 / 8.0);
     // Project ⊥ axis into the plane through p0.
+    let Some(axis_unit) = geom_core::UnitVec3::stated(axis) else {
+        return Ok(None);
+    };
     let plane = geom::Line {
         origin: p0,
-        dir: axis,
+        dir: axis_unit,
     };
     let proj = |p: Point3<f64>| plane.square_foot(p);
     let (q0, qa, qb) = (proj(p0), proj(pa), proj(pb));
@@ -444,6 +447,9 @@ fn try_cylinder(
     // (the near-flat patch; D7's ambiguity class).
     let chord = qb - q0;
     let Some((chord_dir, _)) = chord.checked_direction().ok() else {
+        return Ok(None);
+    };
+    let Some(chord_dir) = geom_core::UnitVec3::stated(chord_dir) else {
         return Ok(None);
     };
     let off = geom::Line {
@@ -829,11 +835,7 @@ fn estimate_torus(patch: &NurbsSurface<f64>, file: FileBand) -> Option<Surface<f
     let c = s.map(CurvatureSample::centre);
     // A core whose three points are collinear at the band is a straight
     // spine — a cylinder's limit, `R` running off to infinity: no torus.
-    let sagitta = geom::Line {
-        origin: c[0],
-        dir: c[2] - c[0],
-    }
-    .distance(c[1]);
+    let sagitta = geom::Line::chord(c[0], c[2]).0.distance(c[1]);
     if !sagitta.is_finite() || file.read(STEP_RECOGNIZED_CONDITIONING, sagitta) == Read::Zero {
         return None;
     }

@@ -44,7 +44,7 @@
 //! set: a PR runs it only when the PR names it, and the nightly runs it
 //! every night. A PR that adds a name or a site without touching this
 //! file meets it at the nightly, not at its own gate
-//! (`work/ciw/tree-wide-source-censuses-in-the-slow-set-run-on-no-pr-that-moves-a-site.md`).
+//! (`work/ciw/a-stored-data-change-runs-none-of-the-slow-rows-that-read-it.md`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -262,6 +262,10 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SECTION_PIN_RESOLUTION"),
     NameCarrier::Const("CROSS_TURN"),
     NameCarrier::Const("ARM_INF"),
+    // `offset_axial::classify`'s two `(name, straddle)` pairs, handed to
+    // its sine closure and on to `validate::decide_levered`.
+    NameCarrier::Const("ALIGNMENT"),
+    NameCarrier::Const("AXIS_PARALLEL"),
     // The forwarders a `FORWARDS` line names, declared so their callers'
     // names are read (`roster_violations` holds each line to one).
     NameCarrier::Call("advance_as"),
@@ -364,7 +368,6 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("REGION_SLOPE"),
     NameCarrier::Const("RIDER_HULL_OFF"),
     NameCarrier::Const("RIDER_ON_CURVED"),
-    NameCarrier::Const("RIDER_SPIRIC_PLANE"),
     NameCarrier::Const("RIDER_WALL_BEND_ACROSS"),
     NameCarrier::Const("ROW"),
     NameCarrier::Const("RULINGS"),
@@ -477,10 +480,12 @@ const CARRIER_CALL: &str = "a declared carrier's call holding no literal name: t
 const NOT_A_NAME: &str = "another type's `decide*` method, whose first argument is not a name";
 const SAME_NAMED: &str = "census.rs's point filter `bounded`, which shares the declared \
                           `ConicRows::bounded` carrier's token and takes no name";
-const SAME_NAMED_TRAVEL: &str = "a spline wall piece's `travel()`, its chord and direction of \
-                                 travel, which shares the declared `travel` carrier's token and \
-                                 takes no name";
+const SAME_NAMED_TRAVEL: &str = "a spline wall piece's `travel()`, its extent from below and \
+                                 direction of travel, which shares the declared `travel` carrier's \
+                                 token and takes no name";
 
+const PAIRED: &str = "a row and its floor handed on as an array: its literals are read, the rest \
+                      forwards its caller's name";
 const CLOSURE_FORWARDS: &str = "a closure bound in this `fn` hands on its callers' names, read where \
                                 its callers call it (a declared carrier, or a `decide*` spelling); \
                                 keyed by its `fn` until the census keys a closure by its binding \
@@ -516,7 +521,10 @@ const INDIRECT: &[(&str, &str)] = &[
     ),
     ("contain.rs: face_placement: on_plane", FORWARDS),
     ("boolean/join.rs: line_of: name", CLOSURE_FORWARDS),
-    ("boolean/join.rs: travel: name", FORWARDS),
+    (
+        "boolean/join.rs: travel: [name, \"bool_join_arc_clear\"]",
+        PAIRED,
+    ),
     (
         "boolean/offer_rows.rs: -: Vec3::new(1.0, 0.0, 0.0)",
         NOT_A_NAME,
@@ -718,6 +726,7 @@ const INDIRECT: &[(&str, &str)] = &[
     ("injective.rs: definite_as: row", FORWARDS),
     ("injective.rs: interval_sign_as: row", FORWARDS),
     ("injective.rs: of: carrier", CARRIER_CALL),
+    ("injective.rs: present_plane: x", CLOSURE_FORWARDS),
     (
         "link.rs: a_corner_off_the_point_by_its_tie_reads_nothing_in_band: band",
         CARRIER_CALL,
@@ -748,7 +757,7 @@ const INDIRECT: &[(&str, &str)] = &[
     ("link.rs: winds: p", CARRIER_CALL),
     ("link.rs: zero_refused: name", FORWARDS),
     ("offset_axial.rs: azimuth_turn_as: name", FORWARDS),
-    ("offset_axial.rs: classify: what", CLOSURE_FORWARDS),
+    ("offset_axial.rs: classify: names", CLOSURE_FORWARDS),
     ("offset_axial.rs: reauthor: name", CLOSURE_FORWARDS),
     ("offset_derive.rs: held_zero_as: name", FORWARDS),
     ("offset_derive.rs: holds_the_move: name", CLOSURE_FORWARDS),
@@ -895,6 +904,10 @@ const INDIRECT: &[(&str, &str)] = &[
     ("ring_path.rs: spline_crossings: ", SAME_NAMED_TRAVEL),
     ("ring_path/spline_wall.rs: paths: ", SAME_NAMED_TRAVEL),
     ("ring_path/spline_wall.rs: reach: ", SAME_NAMED_TRAVEL),
+    (
+        "ring_path/spline_wall_rows.rs: an_iso_pieces_arm_reaches_across_the_turn_its_chord_does_not: ",
+        SAME_NAMED_TRAVEL,
+    ),
     ("rows.rs: line: self.line", ROW_FIELD),
     ("rows.rs: names: ", ACCESSOR_LIKE_A_DOOR),
     ("rows.rs: segment_rows: segment: self.segment", ROW_FIELD),

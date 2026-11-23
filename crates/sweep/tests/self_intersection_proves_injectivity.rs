@@ -1095,7 +1095,7 @@ fn in_pose<T: Scalar>(body: topo::AtRestBody<T>, pose: &str) -> topo::AtRestBody
 }
 
 /// The poses a body row is read in.
-const POSES: [&str; 4] = [
+const FOUR_POSES: [&str; 4] = [
     "as built",
     "turned about a generic axis",
     "mirrored",
@@ -1113,7 +1113,7 @@ const POSES: [&str; 4] = [
 /// read off coordinates would move with a placement.
 #[test]
 fn a_stepped_ring_holds_in_every_pose_on_its_carried_facts() {
-    for pose in POSES {
+    for pose in FOUR_POSES {
         for (scalar, report) in [
             (
                 "f64",
@@ -1204,7 +1204,7 @@ fn stepped_drum_off_the_grid<T: Scalar>() -> topo::AtRestBody<T> {
 #[test]
 fn bodies_built_off_the_dyadic_grid_hold_in_every_pose_but_one() {
     use topo::clearance::Embedding;
-    for pose in POSES {
+    for pose in FOUR_POSES {
         for (what, scalar, report) in [
             (
                 "ring",
@@ -1260,7 +1260,7 @@ fn bodies_built_off_the_dyadic_grid_hold_in_every_pose_but_one() {
 /// the cone's own cell.
 #[test]
 fn a_cone_cut_through_its_axis_holds_at_its_apex_in_every_pose() {
-    for pose in POSES {
+    for pose in FOUR_POSES {
         for (scalar, report) in [
             (
                 "f64",
@@ -3006,8 +3006,11 @@ fn envelope_at_the_tightest_eps(refusal: &str) -> bool {
 /// share, `Uncertified` on the departure arm, the tangent seam of
 /// `work/embed/the-filleted-drum-at-interval-refuses-on-a-straddling-rate-at-its-tangent-seam.md`,
 /// which the band's sliver closed until the sliver retired. It is asked
-/// of the body as built; the other poses' twins are built and not asked
-/// (each refuses at the same seam, a minute a pose). The pin flips to
+/// of the body as built; the other poses' twins are built and not asked,
+/// as each spends its budget refusing at the same seam (95 s for the
+/// three). Measured once on this tree: turned and a hundred units off
+/// read the same `Uncertified` at the plane against the band, and the
+/// mirrored twin exhausts the pair budget on that pair. The pin flips to
 /// holding the day a tangent seam is read at `Interval`. At ε = 1e-12
 /// the twin's pcurve envelope escalates
 /// ([`envelope_at_the_tightest_eps`]) and that half is skipped, said.
@@ -3106,7 +3109,9 @@ fn is_ellipse<T: Real>(body: &Body<T>, e: topo::EdgeKey) -> bool {
 /// `b` moved rigidly by `m`, at rest.
 fn moved<T: Scalar>(b: &topo::AtRestBody<T>, m: &geom_core::Affine3<f64>) -> topo::AtRestBody<T> {
     use sweep::test_support::finished;
-    let rigid = geom_core::test_support::rigid(&m.map(T::from_f64), tol());
+    // The motion stated at `f64` and lifted as the type lifts a stated
+    // frame (its polar enclosure at `Interval`).
+    let rigid = geom_core::test_support::rigid(m, tol()).map_scalar(T::from_f64);
     finished("moved", topo::transform_rigid(b, &rigid).unwrap(), tol())
 }
 
@@ -6690,6 +6695,240 @@ fn a_roof_folded_across_a_blocks_corner_crosses_it() {
         assert!(
             matches!(verdict, topo::clearance::Embedding::Crosses(_)),
             "the folded roof at {scalar}: {verdict:?}"
+        );
+    }
+}
+
+// ------------------------------------------------------ thin plane faces
+
+/// `topo::clearance::embedded`'s verdict on `body`, every face, at the
+/// default depth and budget.
+fn embedded_verdict<T: Scalar + geom_core::Certifies>(
+    body: &Body<T>,
+) -> topo::clearance::Embedding {
+    let budgets = Budgets {
+        max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+        max_cell_pairs: BUDGET,
+    };
+    topo::clearance::embedded(
+        &geometric(body),
+        body.faces().map(|(k, _)| k).collect(),
+        band(),
+        budgets,
+    )
+    .verdict
+}
+
+/// An embedding verdict's class: `Embedded`, `Crosses`, or the
+/// refusal's arm and the kind of cell it shares, or its kind.
+fn embedding_class(verdict: &topo::clearance::Embedding) -> String {
+    use topo::clearance::Embedding;
+    match verdict {
+        Embedding::Embedded => "Embedded".to_owned(),
+        Embedding::Crosses(_) => "Crosses".to_owned(),
+        Embedding::Refused(refusal) => class::<()>(&BoundVerdict::Refused(refusal.clone())),
+    }
+}
+
+/// A pose of a body row: the plain sketch plane, a rigid turn about a
+/// generic axis, and another turn a hundred units from the origin.
+fn thin_pose(k: usize) -> SketchPlane<f64> {
+    use geom_core::{Affine3, Mat3, Vec3};
+    let Some((ax, th, off)) = [
+        None,
+        Some(((1.0, 2.0, 3.0), 0.7, (0.0, 0.0, 0.0))),
+        Some(((-0.4, 0.1, 0.9), 2.3, (100.0, 0.0, 0.0))),
+    ][k] else {
+        return SketchPlane::xy();
+    };
+    let a = Vec3::new(ax.0, ax.1, ax.2) * (1.0 / (ax.0 * ax.0 + ax.1 * ax.1 + ax.2 * ax.2).sqrt());
+    let (c, s) = (f64::cos(th), f64::sin(th));
+    let col = |e: Vec3<f64>| e * c + a.cross(e) * s + a * (a.dot(e) * (1.0 - c));
+    let m = Mat3::from_cols(
+        col(Vec3::new(1.0, 0.0, 0.0)),
+        col(Vec3::new(0.0, 1.0, 0.0)),
+        col(Vec3::new(0.0, 0.0, 1.0)),
+    );
+    SketchPlane::from_frame(geom_core::test_support::rigid(
+        &Affine3::from_parts(m, Vec3::new(off.0, off.1, off.2)),
+        tol(),
+    ))
+}
+
+/// The prism over the polygon `pts` on `place`, extruded `d` along its
+/// normal.
+fn prism<T: Scalar>(place: &SketchPlane<f64>, pts: &[(f64, f64)], d: f64) -> Body<T> {
+    let profile = Profile::new(
+        plane_at::<T>(place),
+        lifted(&[ProfileLoop::polygon(
+            pts.iter().map(|&(x, y)| Point2::new(x, y)),
+        )]),
+    )
+    .validate(tol())
+    .expect("the polygon validates");
+    Body::clone(
+        &extrude(&profile, to_offset(d), tol())
+            .expect("the prism extrudes")
+            .body,
+    )
+}
+
+/// The box `[0, w] × [0, h]` on `place`, extruded `d` along its normal.
+fn block<T: Scalar>(place: &SketchPlane<f64>, (w, h, d): (f64, f64, f64)) -> Body<T> {
+    prism(place, &rectangle(w, h), d)
+}
+
+/// The rectangle `w × h` from the origin.
+fn rectangle(w: f64, h: f64) -> Vec<(f64, f64)> {
+    vec![(0.0, 0.0), (w, 0.0), (w, h), (0.0, h)]
+}
+
+/// The poses of a thin body row: plain; turned about a generic axis;
+/// turned a hundred units out; extruded the other way; mirrored in its
+/// sketch's `x`; turned by 0.3 and by 0.785 in its sketch plane, so its
+/// thin faces' sides lie off their charts' axes; and at half the session
+/// box's extent and two units inside its wall. A face turned in its own
+/// chart is pinned by `injective`'s
+/// `a_strip_end_turned_in_its_chart_presents_its_short_side`; the turns
+/// here read it through whole bodies.
+const POSES: [&str; 9] = [
+    "plain",
+    "turned",
+    "a hundred units out",
+    "extruded the other way",
+    "mirrored",
+    "turned 0.3 in its plane",
+    "turned 0.785 in its plane",
+    "at half the session box",
+    "at the session box's wall",
+];
+
+/// The profile `pts` extruded `d` in pose `k` of [`POSES`]: its sketch
+/// plane, its points and its depth.
+fn thin_posed(k: usize, pts: &[(f64, f64)], d: f64) -> (SketchPlane<f64>, Vec<(f64, f64)>, f64) {
+    use geom_core::{Affine3, Vec3};
+    let turn = |th: f64| {
+        let (c, s) = (th.cos(), th.sin());
+        pts.iter()
+            .map(|&(x, y)| (c * x - s * y, s * x + c * y))
+            .collect()
+    };
+    let at = |off: f64| {
+        SketchPlane::from_frame(geom_core::test_support::rigid(
+            &Affine3::translation(Vec3::new(off, off, off)),
+            tol(),
+        ))
+    };
+    let extent = geom_core::tolerance::SESSION_BOX_EXTENT;
+    match k {
+        0..=2 => (thin_pose(k), pts.to_vec(), d),
+        3 => (SketchPlane::xy(), pts.to_vec(), -d),
+        4 => (
+            SketchPlane::xy(),
+            pts.iter().rev().map(|&(x, y)| (-x, y)).collect(),
+            d,
+        ),
+        5 => (SketchPlane::xy(), turn(0.3), d),
+        6 => (SketchPlane::xy(), turn(0.785), d),
+        7 => (at(0.5 * extent), pts.to_vec(), d),
+        _ => (at(extent - 2.0), pts.to_vec(), d),
+    }
+}
+
+/// Each prism `(what, profile)`, extruded a unit, reads `Embedded` at
+/// `f64` and at `Interval` in every pose of [`POSES`].
+fn thin_prisms_embedded(prisms: &[(&str, Vec<(f64, f64)>)]) {
+    for (what, pts) in prisms {
+        for (k, pose) in POSES.iter().enumerate() {
+            let (place, pts, d) = thin_posed(k, pts, 1.0);
+            let float = embedded_verdict(&prism::<f64>(&place, &pts, d));
+            let interval = embedded_verdict(&prism::<Interval>(&place, &pts, d));
+            println!(
+                "[thin] {what}, {pose}: f64 {float:?} | Interval {}",
+                embedding_class(&interval)
+            );
+            assert_eq!(
+                embedding_class(&float),
+                "Embedded",
+                "{what}, {pose}: embedded at f64: {float:?}"
+            );
+            assert_eq!(
+                embedding_class(&interval),
+                "Embedded",
+                "{what}, {pose}: embedded at Interval: {interval:?}"
+            );
+        }
+    }
+}
+
+/// The plain sketch plane moved by `(x, y, 0)`.
+fn shifted(x: f64, y: f64) -> SketchPlane<f64> {
+    use geom_core::{Affine3, Vec3};
+    SketchPlane::from_frame(geom_core::test_support::rigid(
+        &Affine3::translation(Vec3::new(x, y, 0.0)),
+        tol(),
+    ))
+}
+
+/// **A thin slab is embedded**, a unit square `t` thick at `2Kε` and at
+/// `20Kε`: its four thin faces meet in pairs at edges `t` long, where
+/// the metric split cuts a cell's length a few dozen times before its
+/// width, and each pair is read at the thin faces' ends. In every pose of
+/// [`POSES`]. Red on a planar arm that reads a cell holding a thin face's
+/// whole end as `Local`: the slab refuses `Departure` at an edge there.
+#[test]
+fn a_thin_slab_is_embedded_across_its_ends_in_every_pose() {
+    let k_eps = band().escalate();
+    thin_prisms_embedded(&[
+        ("a slab 2Kε thick", rectangle(1.0, 2.0 * k_eps)),
+        ("a slab 20Kε thick", rectangle(1.0, 20.0 * k_eps)),
+    ]);
+}
+
+/// **A needle is embedded**, a unit length `t` square at `20Kε` and at
+/// `1000Kε`. Its long faces are thin rectangles, and the first split of
+/// each leaves two halves that each hold an end, so every cell the
+/// certificate asks is read at a thin face's end: a slab's reading. In
+/// every pose of [`POSES`]. Red on a planar arm that reads a cell
+/// holding an end as `Local`: the needle then spends the pair budget.
+#[test]
+fn a_needle_is_embedded_along_its_sides_in_every_pose() {
+    let k_eps = band().escalate();
+    thin_prisms_embedded(&[
+        (
+            "a needle 20Kε square",
+            rectangle(20.0 * k_eps, 20.0 * k_eps),
+        ),
+        (
+            "a needle 1000Kε square",
+            rectangle(1e3 * k_eps, 1e3 * k_eps),
+        ),
+    ]);
+}
+
+/// **Two thin slabs through each other cross**: a slab `20Kε` thick
+/// along `y` and one along `x`, grafted as two solids, pass through each
+/// other in a column `20Kε` square, at both scalars. Their faces share
+/// nothing, so the crossing is found by distance and no presentation is
+/// on its path: the row pins that thin faces' cells reach the distance
+/// test, not any reading of a strip.
+#[test]
+fn two_thin_slabs_through_each_other_cross() {
+    fn crossed<T: Scalar>(t: f64) -> Body<T> {
+        let mut along = block::<T>(&SketchPlane::xy(), (1.0, t, 1.0));
+        let across = block::<T>(&shifted(0.5 - 0.5 * t, -0.5), (t, 1.0, 1.0));
+        topo::graft_disjoint(&mut along, &across).expect("the slab grafts");
+        along
+    }
+    let t = 20.0 * band().escalate();
+    let float = embedded_verdict(&crossed::<f64>(t));
+    let interval = embedded_verdict(&crossed::<Interval>(t));
+    println!("[thin] crossed slabs: f64 {float:?} | Interval {interval:?}");
+    for (scalar, verdict) in [("f64", &float), ("Interval", &interval)] {
+        assert_eq!(
+            embedding_class(verdict),
+            "Crosses",
+            "{scalar}: the slabs cross: {verdict:?}"
         );
     }
 }

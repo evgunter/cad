@@ -16,7 +16,7 @@
 //! sliver. A control beside each poses the same dip under 1 m edges,
 //! where both readings agree. A dip inside the band still reads On, and
 //! the pose is a touch. The splitting lane's twin reads a line edge the
-//! same way, through the same reader (`geom::plane_offset`).
+//! same way, through `geom::plane_offset_rounded`.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
@@ -342,30 +342,31 @@ fn a_sector_parallel_at_a_short_arm_is_coplanar_only_if_its_bounds_read_on() {
 }
 
 /// The embedding ask on the `∩` of
-/// [`a_sector_parallel_at_a_short_arm_is_coplanar_only_if_its_bounds_read_on`]
-/// runs out of its pairs: a sliver 10 m long and 1 mm wide whose top
-/// (a piece of the block's `z = 0`) and bottom (the wedge's tilted
-/// face) share its 1 mm tip edge and part at 5e-8 rad, so they are
-/// within ε of each other for about 20 mm from it and 500ε apart at
-/// the far end.
+/// [`a_sector_parallel_at_a_short_arm_is_coplanar_only_if_its_bounds_read_on`]:
+/// a sliver 10 m long and 1 mm wide whose top (a piece of the block's
+/// `z = 0`) and bottom (the wedge's tilted face) share its 1 mm tip
+/// edge and part at 5e-8 rad, so they are within ε of each other for
+/// about 20 mm from it and 500ε apart at the far end.
 ///
-/// **Pinned at its refusal and at the pair it names**: `Budget(Pairs)`
-/// on the top against one of the two long side walls, a face 10 m long
-/// and at most 500ε tall, with no crossing found. That wall is a face
-/// thinner than any cell reaches at this depth, which no presentation
-/// reads (EMBED's
-/// `a-plane-cell-holding-both-sides-of-a-thin-face-is-read-only-below-its-width`).
-/// Traced by PR 7329's review and not visible to this row: every
-/// departure the ask does read is decided (295 reads on that head, at
-/// arms of 5.03 and 10.05 m), so the margin is not what refuses. The
-/// count of pairs certified is not pinned: it moves with the walk's
-/// order (295 on PR 7329's own head, 273 with `embed/first-finding`).
-/// Once those faces are presented, the departure across the tip edge
-/// is the faces' 5e-8 rad at their lever, which is
-/// `the-embedding-question-reads-tier-3s-class-and-the-pairs-extent-from-the-verdict`'s
-/// to say. Red the day the ask answers, or stops on another pair.
+/// **This pins a reading known to be wrong.** It reads `Embedded`: an
+/// in-band pair certified by the reach lever. `[topology.tiers]` levers
+/// a departure at how far the narrower face runs from what the two
+/// share, which is the 20 mm these faces run within ε of each other, so
+/// the ratified reading is a refusal. The code still levers at the
+/// pair's reach (PR 7329's step), which over-reads a face inside the
+/// band. The row goes red when
+/// `the-embedding-question-reads-tier-3s-class-and-the-pairs-extent-from-the-verdict`
+/// levers at the narrower run, and that unit flips it to the refusal;
+/// `the-verifier-reads-a-separation-inside-the-band-as-a-coincidence-where-the-tiers-clause-says-ambiguous`
+/// holds the same move.
+///
+/// Before `a-plane-cell-holding-both-sides-of-a-thin-face-is-read-only-below-its-width`
+/// it read `Budget(Pairs)` on the top against a long side wall, a face
+/// 10 m long and at most 500ε tall that no presentation read. That row
+/// presents the wall's end, so the walk now finishes, and its pair
+/// counts are pinned: they are the same at 1e-9, 1e-6 and 1e-12.
 #[test]
-fn the_sector_slivers_meet_runs_out_of_pairs_with_its_millimetre_faces_unread() {
+fn the_sector_slivers_meet_is_certified_by_the_reach_lever_once_its_faces_are_read() {
     let tol = Tol::witness();
     let dip = DIP * tol.eps();
     let block = common::finished(
@@ -388,24 +389,24 @@ fn the_sector_slivers_meet_runs_out_of_pairs_with_its_millimetre_faces_unread() 
             max_cell_pairs: 65_536,
         },
     );
-    let topo::clearance::Embedding::Refused(topo::clearance::EngineRefusal::Budget {
-        stop: topo::clearance::CellBudget::Pairs { .. },
-        a,
-        b,
-    }) = report.verdict
-    else {
-        panic!("the sector's sliver runs out of its pairs: {report:?}");
-    };
-    let top = face_with_normal(&meet, [0.0, 0.0, 1.0]);
-    let wall = |k: FaceKey| {
-        matches!(face_carrier_desc(&meet, k), Some(CarrierDesc::Plane(geom_brep::PlaneDesc { normal, .. }))
-            if normal.z == 0.0 && normal.y.abs() > 0.9)
-    };
     assert!(
-        (a == top && wall(b)) || (b == top && wall(a)),
-        "the pair is the top against a long side wall: {report:?}"
+        matches!(report.verdict, topo::clearance::Embedding::Embedded),
+        "the sector's sliver reads Embedded by the reach lever: {report:?}"
     );
-    assert_eq!(report.receipt.violated, 0, "no crossing: {report:?}");
+    let r = report.receipt;
+    assert_eq!(
+        (
+            r.candidates,
+            r.discharged,
+            r.violated,
+            r.within,
+            r.refused,
+            r.splits,
+            r.certified
+        ),
+        (15, 24, 0, 0, 0, 9, 13),
+        "the sector's sliver's receipt: {report:?}"
+    );
 }
 
 /// The plane arm's lever, on a 10 m wedge resting at the origin on a

@@ -28,7 +28,7 @@ These rows, raised through `ShellError` (`crates/topo/src/shell.rs`) and the rep
 by exact id, under the comment naming this file:
 
 - `crates/editor-core/tests/refusal_concision_chains.rs`, `FILED_NO_RECOURSE`:
-  7 feature-tree rows.
+  its feature-tree rows.
 
 Families: `Shell`.
 

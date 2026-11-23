@@ -4,7 +4,7 @@ kind: issue
 title: A closed sphere group's escape is re-charted by rotating the group while a trimmed face's is cut along its meridian: two answers to one escape
 status: open
 opened: 2026-10-05
-priority: P1
+priority: P0
 cost: H
 refs: [4044]
 ---
@@ -85,3 +85,7 @@ them by key, so ball minus brick publishes the ball's (0, 1, 0) pole at
 and refuses at a turned pole
 (`work/borders/a-whole-ball-cut-by-a-tilted-brick-refuses-an-unclassified-member-edge-side.md`,
 `design: true`, which recommends this row's single answer).
+
+## Re-banded P0 (2026-11-23, HELDRECORDS orchestrator)
+
+HELDRECORDS PR 7516 (`heldrecords/nary-lineage`) fixed an n-ary door panic. The panic was reached by editing one pip-centre variable of the corpus document `die_composed_tour` by 30%, which puts one pip's ball 0.08 from a neighbour's (r = 0.09), so two dimples run together: a valid part a user gets by dragging a pip. The eight edits that panicked now end in one typed refusal, at the `Node::Union`: `Naming(UnsupportedTurnedCell { cell: Edge })`, the turned-seam refusal this row's re-chart owns. The pin is `editor-core::all the_tours_die_with_two_pips_run_together_refuses_their_turned_seam`; its rows flip to building when this row lands. A normal verb refusing on normal geometry is P0 (`work/README.md`, Priority), and this row is what stands in the way, so it takes that band. The trace is on `work/heldrecords/the-nary-door-panics-on-an-accumulation-face-with-no-member-lineage.md` (on `heldrecords/nary-lineage`).

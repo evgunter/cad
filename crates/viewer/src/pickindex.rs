@@ -69,6 +69,7 @@
 //! Module kind: **vocabulary** (`crates/viewer/README.md`, Module
 //! boundaries). It names no driver type and no `app`-only crate.
 
+use pncad::document::say;
 use std::collections::{BTreeMap, BTreeSet};
 
 use editor_core::resolve::RimNameFault;
@@ -192,6 +193,9 @@ crate::vocab::vocabulary! {
         /// Faces only: the edge test is not run, so the answer is the
         /// ray path's face or nothing.
         FacesOnly,
+        /// Faces and datums' squares: what a seat reading a plane picks
+        /// with — a face's, or a datum's through its role.
+        FacesAndDatums,
         /// Edges only: the edge test runs, and a cursor that no edge wins
         /// answers NOTHING rather than the face the ray met.
         EdgesOnly,
@@ -221,6 +225,10 @@ crate::vocab::vocabulary! {
         Vertex,
         /// A committed profile, by its outline.
         Profile,
+        /// A datum, by its drawn square (D10 `[placement.datums]`): a
+        /// mate's far side of any kind but a direction, and a mirror's or
+        /// a split's plane, read it through a role of its frame.
+        Datum,
     }
 
     /// Every kind.
@@ -250,15 +258,17 @@ impl PickKinds {
     pub fn admits(self, kind: PickedKind) -> bool {
         use PickedKind as K;
         match (self, kind) {
-            (Self::Any, K::Face | K::Edge | K::Profile)
-            | (Self::FacesAndEdges, K::Face | K::Edge)
+            (Self::Any, K::Face | K::Edge | K::Profile | K::Datum)
+            | (Self::FacesAndEdges, K::Face | K::Edge | K::Datum)
             | (Self::FacesOnly, K::Face)
+            | (Self::FacesAndDatums, K::Face | K::Datum)
             | (Self::EdgesOnly, K::Edge)
-            | (Self::WithVertices, K::Face | K::Edge | K::Vertex) => true,
+            | (Self::WithVertices, K::Face | K::Edge | K::Vertex | K::Datum) => true,
             (Self::Any, K::Vertex)
             | (Self::FacesAndEdges, K::Vertex | K::Profile)
-            | (Self::FacesOnly, K::Edge | K::Vertex | K::Profile)
-            | (Self::EdgesOnly, K::Face | K::Vertex | K::Profile)
+            | (Self::FacesOnly, K::Edge | K::Vertex | K::Profile | K::Datum)
+            | (Self::FacesAndDatums, K::Edge | K::Vertex | K::Profile)
+            | (Self::EdgesOnly, K::Face | K::Vertex | K::Profile | K::Datum)
             | (Self::WithVertices, K::Profile) => false,
         }
     }
@@ -271,6 +281,7 @@ impl PickKinds {
         match self {
             Self::Any | Self::FacesAndEdges | Self::WithVertices => "nothing",
             Self::FacesOnly => "no face",
+            Self::FacesAndDatums => "no face or datum",
             Self::EdgesOnly => "no edge",
         }
     }
@@ -451,13 +462,13 @@ pub enum PickIndexError {
 }
 
 impl Say for IdMapError {
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         match self {
-            Self::Duplicate { key } => write!(
+            Self::Duplicate { key } => say!(
                 f,
-                "patch {} of {} was offered twice; an id assignment is a bijection",
-                key.patch,
-                Said(&DrawnBody::new(key.node, key.body), by)
+                format_args!("patch {} of ", key.patch),
+                Said(&DrawnBody::new(key.node, key.body), by),
+                " was offered twice; an id assignment is a bijection"
             ),
             Self::TooManyPatches { patches } => write!(
                 f,
@@ -470,7 +481,7 @@ impl Say for IdMapError {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for IdMapError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.say(f, Speaker::TAG)
+        pncad::document::display_said(self, Speaker::TAG, f)
     }
 }
 
@@ -481,13 +492,13 @@ impl Say for PickIndexError {
     /// `Display`: the layer that raised a failure names it, and this
     /// one does not restate it. The layout arm is this layer's own
     /// finding and says so itself.
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::Ids(error) => error.say(f, by),
-            Self::DrawnTwice { node, body } => write!(
+            Self::DrawnTwice { node, body } => say!(
                 f,
-                "{} is drawn by two parts; one drawn body is one part",
-                Said(&DrawnBody::new(*node, *body), by)
+                Said(&DrawnBody::new(*node, *body), by),
+                " is drawn by two parts; one drawn body is one part"
             ),
             Self::Names(error) => error.say(f, by),
         }
@@ -497,7 +508,7 @@ impl Say for PickIndexError {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for PickIndexError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.say(f, Speaker::TAG)
+        pncad::document::display_said(self, Speaker::TAG, f)
     }
 }
 
@@ -532,11 +543,11 @@ impl UndrawnBody {
 impl Say for UndrawnBody {
     /// The node is this layer's contribution; why is the payload's to
     /// say.
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
-        write!(
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
+        say!(
             f,
-            "{} is not drawn: {}",
             by.node_as(self.node, "node"),
+            " is not drawn: ",
             Said(&self.error, by.about(self.node))
         )
     }
@@ -545,7 +556,7 @@ impl Say for UndrawnBody {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for UndrawnBody {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.say(f, Speaker::TAG)
+        pncad::document::display_said(self, Speaker::TAG, f)
     }
 }
 
@@ -1109,6 +1120,10 @@ impl Rims {
     }
 }
 
+/// **One outline the picture draws**: its node, whether it is a datum's
+/// square, and its loops in world coordinates.
+type DrawnOutline<'a> = (RecipeNodeId, bool, &'a [Vec<Point3<f64>>]);
+
 /// **A committed profile's drawn outline**: the loops
 /// [`crate::sketch::committed`] draws for one profile node, each as
 /// [`crate::sketch::PreviewLoop::drawn_on`] places it, at the picture's
@@ -1122,6 +1137,9 @@ impl Rims {
 struct Outline {
     node: RecipeNodeId,
     loops: Vec<Vec<Point3<f64>>>,
+    /// Whether the outline is a datum's square ([`PickedKind::Datum`])
+    /// rather than a profile's.
+    datum: bool,
 }
 
 impl Outline {
@@ -1134,6 +1152,7 @@ impl Outline {
         Self {
             node: profile.node,
             loops,
+            datum: profile.datum,
         }
     }
 }
@@ -1146,6 +1165,8 @@ struct Lines<'a> {
     front: &'a [PickHit],
     edges: bool,
     outlines: bool,
+    /// Whether datums' squares are in the contest.
+    datums: bool,
 }
 
 /// A chord point and its pixel, or `None` where it has no pixel.
@@ -1164,6 +1185,7 @@ enum Line {
 enum Near {
     Edge(EdgePick),
     Profile(RecipeNodeId),
+    Datum(RecipeNodeId),
 }
 
 /// **What a picture IS**: the landed generation an index describes,
@@ -2137,11 +2159,12 @@ impl PickIndex {
             front: &front,
             edges: true,
             outlines: false,
+            datums: false,
         };
         Ok(
             match self.near(eval, camera, viewport, cursor, display, edges)? {
                 Some(Near::Edge(edge)) => Some(edge),
-                Some(Near::Profile(_)) | None => None,
+                Some(Near::Profile(_) | Near::Datum(_)) | None => None,
             },
         )
     }
@@ -2299,8 +2322,9 @@ impl PickIndex {
             front: &front,
             edges: kinds.admits(PickedKind::Edge),
             outlines: kinds.admits(PickedKind::Profile),
+            datums: kinds.admits(PickedKind::Datum),
         };
-        if front.is_empty() && !lines.outlines {
+        if front.is_empty() && !lines.outlines && !lines.datums {
             return Ok(None);
         }
         match self.near(eval, camera, viewport, cursor, display, lines)? {
@@ -2314,6 +2338,7 @@ impl PickIndex {
                 return Ok(Some(Hovered::Edge(edge.selection())));
             }
             Some(Near::Profile(node)) => return Ok(Some(Hovered::Profile(node))),
+            Some(Near::Datum(node)) => return Ok(Some(Hovered::Datum(node))),
             None => {}
         }
         if front.is_empty() {
@@ -2472,8 +2497,11 @@ impl PickIndex {
         // the eye is not something a cursor is aiming at.
         let mut candidates: Vec<(Line, Candidate)> = Vec::new();
         let outlines = self.drawn_outlines(display);
-        if lines.outlines {
-            for (rank, (_, loops)) in outlines.iter().enumerate() {
+        if lines.outlines || lines.datums {
+            for (rank, &(_, datum, loops)) in outlines.iter().enumerate() {
+                if !(if datum { lines.datums } else { lines.outlines }) {
+                    continue;
+                }
                 let mut best: Option<Candidate> = None;
                 for (lp, points) in loops.iter().enumerate() {
                     let projected = points
@@ -2595,7 +2623,10 @@ impl PickIndex {
                 continue;
             }
             return Ok(Some(match line {
-                Line::Outline(rank) => Near::Profile(outlines[rank].0),
+                Line::Outline(rank) => match outlines[rank] {
+                    (node, true, _) => Near::Datum(node),
+                    (node, false, _) => Near::Profile(node),
+                },
                 Line::Edge(rank) => {
                     let part = bodies[rank];
                     let id = EdgeId {
@@ -2653,19 +2684,24 @@ impl PickIndex {
     /// ([`PickIndex::drawn_outline`]): the committed ones in document
     /// order, the previewed node's in its committed one's place, or
     /// last where the index holds no committed outline of it.
-    fn drawn_outlines<'a>(
-        &'a self,
-        display: &'a DisplayView,
-    ) -> Vec<(RecipeNodeId, &'a [Vec<Point3<f64>>])> {
-        let mut drawn: Vec<(RecipeNodeId, &[Vec<Point3<f64>>])> = self
+    fn drawn_outlines<'a>(&'a self, display: &'a DisplayView) -> Vec<DrawnOutline<'a>> {
+        // Each committed outline is its own drawing: a profile or datum
+        // shown through two copies is drawn, and picked, at both.
+        let mut drawn: Vec<DrawnOutline<'a>> = self
             .outlines
             .iter()
-            .map(|outline| (outline.node, self.drawn_outline(outline.node, display)))
+            .map(|outline| {
+                let loops = match &display.previewed_profile {
+                    Some(previewed) if previewed.node == outline.node => &previewed.outline,
+                    _ => &outline.loops,
+                };
+                (outline.node, outline.datum, loops.as_slice())
+            })
             .collect();
         if let Some(previewed) = &display.previewed_profile
-            && !drawn.iter().any(|(node, _)| *node == previewed.node)
+            && !drawn.iter().any(|(node, _, _)| *node == previewed.node)
         {
-            drawn.push((previewed.node, previewed.outline.as_slice()));
+            drawn.push((previewed.node, false, previewed.outline.as_slice()));
         }
         drawn
     }
@@ -3196,24 +3232,22 @@ fn segment_distance_px(cursor: [f64; 2], a: [f64; 2], b: [f64; 2]) -> (f64, [f64
 /// same magnitude, so the guard fires where the arithmetic actually
 /// stops meaning anything.
 fn ray_segment_closest(ray: &Ray, a: Point3<f64>, b: Point3<f64>) -> (f64, Point3<f64>) {
-    let segment = pncad::geom::Line {
-        origin: a,
-        dir: b - a,
-    };
+    let (segment, length) = pncad::geom::Line::chord(a, b);
     let pair = segment.closest_params(&pncad::geom::Line {
         origin: ray.origin,
-        dir: ray.dir,
+        dir: pncad::geom_core::UnitVec3::squared(ray.dir),
     });
     // A pick's policy, not the kernel's: a segment within PARALLEL_REL of
     // the ray's direction (or of no length, NaN) answers its own start,
     // since any end will do.
+    // The segment's own fraction: the chord's parameter is in metres.
     let t_segment = if pair.sin2 > PARALLEL_REL {
-        pair.s
+        pair.s / length
     } else {
         0.0
     }
     .clamp(0.0, 1.0);
-    (t_segment, segment.at(t_segment))
+    (t_segment, segment.at(t_segment * length))
 }
 
 /// Why a cursor produced no answer (closed enum, D4 ¶3).
@@ -3244,12 +3278,23 @@ pub enum VertexNameFault {
     Unnamed(UnnamedEntity),
 }
 
-impl core::fmt::Display for VertexNameFault {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl pncad::document::Say for VertexNameFault {
+    fn say(
+        &self,
+        f: &mut pncad::document::Sentence,
+        by: pncad::document::Speaker<'_>,
+    ) -> core::fmt::Result {
         match self {
             Self::Lookup(error) => write!(f, "{error}"),
-            Self::Unnamed(error) => write!(f, "{error}"),
+            Self::Unnamed(error) => pncad::document::say!(f, Said(error, by)),
         }
+    }
+}
+
+/// Its sentence, each node said by tag.
+impl core::fmt::Display for VertexNameFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        pncad::document::display_said(self, pncad::document::Speaker::TAG, f)
     }
 }
 
@@ -3281,12 +3326,12 @@ pub enum PatchNameFault {
 impl Say for PatchNameFault {
     /// The `Unnamed` arm forwards the carried value's own sentence:
     /// the naming layer named that failure.
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::Nothing => f.write_str("nothing"),
             Self::Unassigned { id } => write!(f, "id {id}, which this index never assigned"),
             Self::Unnamed { id, error } => {
-                write!(f, "id {id}, a drawn patch: {}", Said(error, by))
+                say!(f, format_args!("id {id}, a drawn patch: "), Said(error, by))
             }
         }
     }
@@ -3295,7 +3340,7 @@ impl Say for PatchNameFault {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for PatchNameFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.say(f, Speaker::TAG)
+        pncad::document::display_said(self, Speaker::TAG, f)
     }
 }
 
@@ -3334,25 +3379,29 @@ pub enum EdgeNameFault {
 impl Say for EdgeNameFault {
     /// The `Unnamed` arm forwards the carried value's own sentence:
     /// the naming layer named that failure.
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         match self {
-            Self::NotDrawn { node, body } => write!(
+            Self::NotDrawn { node, body } => say!(
                 f,
-                "this picture draws no {}, so it draws none of its edges",
-                Said(&DrawnBody::new(*node, *body), by)
+                "this picture draws no ",
+                Said(&DrawnBody::new(*node, *body), by),
+                ", so it draws none of its edges"
             ),
             Self::OutOfRange {
                 node,
                 body,
                 boundary,
                 drawn,
-            } => write!(
+            } => say!(
                 f,
-                "edge {boundary} of {}: that body draws {drawn} edges, so this address was not \
-                 one this index handed out",
-                Said(&DrawnBody::new(*node, *body), by)
+                format_args!("edge {boundary} of "),
+                Said(&DrawnBody::new(*node, *body), by),
+                format_args!(
+                    ": that body draws {drawn} edges, so this address was not \
+                 one this index handed out"
+                )
             ),
-            Self::Unnamed(error) => write!(f, "a drawn edge has no name: {}", Said(error, by)),
+            Self::Unnamed(error) => say!(f, "a drawn edge has no name: ", Said(error, by)),
         }
     }
 }
@@ -3360,7 +3409,7 @@ impl Say for EdgeNameFault {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for EdgeNameFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.say(f, Speaker::TAG)
+        pncad::document::display_said(self, Speaker::TAG, f)
     }
 }
 
@@ -3401,7 +3450,7 @@ pub struct EdgeNamesRefused {
 
 impl Say for EdgeNamesRefused {
     /// The refusal itself is [`EdgeNameFault::Unnamed`]'s sentence.
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         let Self {
             node,
             body,
@@ -3409,11 +3458,14 @@ impl Say for EdgeNamesRefused {
             named,
             refused,
         } = self;
-        write!(
+        say!(
             f,
-            "the index names {named} of the {} edges it draws on {}; the first it cannot: {}",
-            named.saturating_add(*refused),
+            format_args!(
+                "the index names {named} of the {} edges it draws on ",
+                named.saturating_add(*refused)
+            ),
             Said(&DrawnBody::new(*node, *body), by),
+            "; the first it cannot: ",
             Said(&EdgeNameFault::Unnamed(*first), by.about(*node))
         )
     }
@@ -3422,7 +3474,7 @@ impl Say for EdgeNamesRefused {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for EdgeNamesRefused {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.say(f, Speaker::TAG)
+        pncad::document::display_said(self, Speaker::TAG, f)
     }
 }
 
@@ -3448,7 +3500,7 @@ pub struct VertexNamesRefused {
 
 impl Say for VertexNamesRefused {
     /// The refusal itself is the naming layer's sentence.
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         let Self {
             node,
             body,
@@ -3456,11 +3508,14 @@ impl Say for VertexNamesRefused {
             named,
             refused,
         } = self;
-        write!(
+        say!(
             f,
-            "the index names {named} of the {} vertices it draws on {}; the first it cannot: {}",
-            named.saturating_add(*refused),
+            format_args!(
+                "the index names {named} of the {} vertices it draws on ",
+                named.saturating_add(*refused)
+            ),
             Said(&DrawnBody::new(*node, *body), by),
+            "; the first it cannot: ",
             Said(first, by.about(*node))
         )
     }
@@ -3469,7 +3524,7 @@ impl Say for VertexNamesRefused {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for VertexNamesRefused {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.say(f, Speaker::TAG)
+        pncad::document::display_said(self, Speaker::TAG, f)
     }
 }
 
@@ -3481,14 +3536,16 @@ impl Say for PickError {
     /// else's refusal. Every arm forwards its payload's own sentence —
     /// [`CameraError`], `editor-core`'s `HitTestError`, and
     /// [`EdgeNameFault`] each name their own failure.
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::Camera(error) => write!(f, "the cursor names no ray: {error}"),
-            Self::HitTest(error) => write!(f, "the hit test refused: {}", Said(error, by)),
+            Self::HitTest(error) => say!(f, "the hit test refused: ", Said(error, by)),
             Self::EdgeName(fault) => {
-                write!(f, "the picked edge has no name: {}", Said(fault, by))
+                say!(f, "the picked edge has no name: ", Said(fault, by))
             }
-            Self::VertexName(fault) => write!(f, "the picked vertex has no name: {fault}"),
+            Self::VertexName(fault) => {
+                say!(f, "the picked vertex has no name: ", Said(fault, by))
+            }
         }
     }
 }
@@ -3496,7 +3553,7 @@ impl Say for PickError {
 /// The sentence where no document is at hand: each node by its tag.
 impl core::fmt::Display for PickError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.say(f, Speaker::TAG)
+        pncad::document::display_said(self, Speaker::TAG, f)
     }
 }
 
@@ -3547,7 +3604,7 @@ mod tests {
                 copy.to_string(),
                 format!(
                     "node 000000000007 is not drawn: {}",
-                    Said(&error, Speaker::TAG.about(node))
+                    Said(&error, Speaker::TAG.about(node)).sentence()
                 ),
                 "the copy's sentence for {error:?}"
             );
@@ -3601,11 +3658,14 @@ mod tests {
                     },
                     Speaker::of(&doc).within(&eval)
                 )
+                .sentence()
             ),
             "the copy, by name, in the build's own words"
         );
         assert!(
-            badge.label().contains(&doc.spoken(copy).to_string()),
+            badge
+                .label()
+                .contains(&crate::tree::spelled(&doc.spoken(copy))),
             "the label names the copy: {}",
             badge.label()
         );

@@ -181,7 +181,7 @@ pub(crate) fn one_record(
         // sense restated so its material side is unchanged: its facing
         // read against the kept record's normal.
         for face in solid.faces.iter_mut().filter(|f| f.record == group.record) {
-            let facing = if face.sense { from_n } else { -from_n };
+            let facing = geom_brep::OutwardNormal::from_chart(from_n, face.sense).vec();
             face.sense = one_way(to_n, facing);
             face.record = to;
         }
@@ -291,17 +291,17 @@ fn round(surface: &Surface<f64>) -> bool {
 /// or two cones whose axes point opposite ways (two nappes, never one
 /// locus).
 fn round_gap(a: &Surface<f64>, b: &Surface<f64>, reach: &crate::reach::Reach) -> Option<f64> {
-    let (la, lb) = (a.axis_line()?.unit(), b.axis_line()?.unit());
+    let (la, lb) = (a.axis_line()?, b.axis_line()?);
     let Datums {
         radii,
         on_axis,
         turns,
         half_angles,
     } = datums(a, b)?;
-    if !on_axis && la.dir.dot(lb.dir) <= 0.0 && half_angles.is_some() {
+    if !on_axis && la.dir.get().dot(lb.dir.get()) <= 0.0 && half_angles.is_some() {
         return None;
     }
-    let tilt = la.dir.cross(lb.dir).norm();
+    let tilt = la.dir.get().cross(lb.dir.get()).norm();
     let apart = if on_axis {
         reach.axes_apart(la, lb)
     } else {
@@ -508,9 +508,9 @@ mod tests {
                     crate::entities::EdgeSpec {
                         start: v + i,
                         end: v + (i + 1) % 4,
-                        carrier: geom::Curve3::line(a, b - a),
+                        carrier: geom::Curve3::Line(geom::Line::chord(a, b).0),
                         t0: 0.0,
-                        t1: 1.0,
+                        t1: (b - a).norm(),
                         reversed: false,
                         curve: None,
                     },

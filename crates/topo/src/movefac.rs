@@ -1093,12 +1093,20 @@ mod tests {
     /// the label [`claimed_components`] reads off the half-edges' `edge`
     /// and `parent_loop` claims, numbered the same way, with no hop
     /// leaving the shell, and `movefac` partitions the shell exactly as
-    /// those records do. An enumeration, not a sample.
+    /// those records do; and the per-component Euler–Poincaré theorem
+    /// ([`crate::euler_theorem`]) holds before and after. An enumeration,
+    /// not a sample.
     #[test]
     fn valid_fixtures_partition_as_their_records_do() {
+        use crate::euler_theorem::check_component_theorem;
         let mut most = 0;
         for (fixture, body) in valid_fixtures() {
             assert_eq!(validate(&body), Ok(()), "{fixture} is valid");
+            assert_eq!(
+                check_component_theorem(&body),
+                Ok(()),
+                "{fixture}: per-component Euler–Poincaré"
+            );
             for (shell, _) in body.shells() {
                 let components = claimed_count(&body, shell);
                 most = most.max(components);
@@ -1145,6 +1153,11 @@ mod tests {
                         validate(&trial),
                         Ok(()),
                         "{fixture}: tier 1 after movefac (reversed {reversed})"
+                    );
+                    assert_eq!(
+                        check_component_theorem(&trial),
+                        Ok(()),
+                        "{fixture}: per-component Euler–Poincaré after movefac (reversed {reversed})"
                     );
                 }
             }

@@ -27,6 +27,4 @@ The convention the other rosters follow (`crates/geom/tests/recourse_roster.rs` 
 
 ## Owed
 
-`crates/step-import/tests/recourse_roster.rs` on `test_utils::source::roster_violations`, registered in `tests/all.rs` (the crate is `autotests = false`), with the name-forwarding funnels spelled so the census reads their callers' names, and their `STEP_*` consts declared `NameCarrier::Const`. Then take step-import out of `KNOWN_MISSING`. The ratchet already fails the coverage row once the roster runs. If the roster costs 0.5 s or more, add it to the slow set (`.config/nextest.toml`'s `ci` filter, beside the other rosters). Check it with:
-
-    cargo nextest run -p test-utils --all-features --ignore-default-filter -E 'test(predicate_name_coverage)'
+`crates/step-import/tests/recourse_roster.rs` now runs (CIW, PR 7496): it declares the `STEP_*` consts and the forwarders `read`, `agree`, `agree_at`, `not_apart` and `on_as` (renamed from `on`, whose token matched `if on {`) as carriers, and the harness reds any forwarder of a parameter that is not declared. `KNOWN_MISSING` is gone: the coverage row derives which crates must run a roster. What stays IMPORTGATE's: `read` and `agree` are common tokens, so declaring them reads every call that shares them (today none hands a non-name); spelling them `*_as`, and deciding which label-taking refusal builders (`touching`, `apart_in_band`, `ambiguous`, `in_band`, `prove`) are references, is the band layer's call.

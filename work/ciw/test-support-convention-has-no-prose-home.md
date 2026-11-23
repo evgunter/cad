@@ -4,7 +4,7 @@ kind: issue
 title: The test-support feature convention is restated in four manifests and has no prose home
 status: open
 opened: 2026-09-17
-priority: P3
+priority: P4
 cost: E
 ---
 
@@ -79,3 +79,5 @@ manifests under different owners.
 Moved from `work/issues/` to `work/tint/` on 2026-11-03, when the `work/issues/` bucket was retired (Ev's direction, in chat); id and body unchanged.
 
 Moved from TINT to CIW on 2026-11-20, by `git mv`, when TINT merged into CIW: TINT held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CIW carries.
+
+- 2026-11-22 — **Re-banded P3 → P4 by CIW triage.** Prose consolidation across four manifests.

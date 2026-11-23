@@ -48,7 +48,7 @@ fn own_line(doc: &ProfileDoc, node: RecipeNodeId, dir: &Path, tol: Tol) -> Strin
     };
     let evaluation = evaluate::<f64>(doc, None, &CancelToken::new(), &opts, tol);
     match evaluation.result(node) {
-        Some(NodeResult::Failed(error)) => error.spoken(doc, &evaluation),
+        Some(NodeResult::Failed(error)) => error.spoken(doc, &evaluation).to_string(),
         other => panic!("{node:?} fails in its own document: {other:?}"),
     }
 }
@@ -73,7 +73,26 @@ fn opened(path: std::path::PathBuf, instance: RecipeNodeId, tol: Tol) -> (TreeRo
 /// node's own refusal, whose recourse the refusal roster holds
 /// (`editor-core/tests/refusal_concision_chains.rs`, with its filed
 /// admissions), so it is not held to one here a second time.
-fn hold_to_the_standard(message: &str, carried: &[CarriedLine]) {
+/// **A carried level as its text**: what these rows read, the
+/// document's label and the line spelled.
+#[derive(Debug, PartialEq)]
+struct Text {
+    document: String,
+    line: String,
+}
+
+/// Each carried level of a failed row, as [`Text`].
+fn texts(carried: &[CarriedLine]) -> Vec<Text> {
+    carried
+        .iter()
+        .map(|level| Text {
+            document: level.document.clone(),
+            line: level.line.to_string(),
+        })
+        .collect()
+}
+
+fn hold_to_the_standard(message: &str, carried: &[Text]) {
     let not_a_recourse_check = |name: &str| {
         let lost = format!("{name} states no recourse");
         move |p: &String| !p.starts_with(&lost)
@@ -184,6 +203,7 @@ fn a_nested_part_failure_draws_one_line_per_document_within_the_budget() {
     let RowStatus::Failed { message, carried } = &row.status else {
         panic!("the instance's own operation failed: {:?}", row.status);
     };
+    let (message, carried) = (&message.to_string(), &texts(carried));
     eprintln!("DRAWN\n{message}");
     for (level, carried) in carried.iter().enumerate() {
         let indent = "  ".repeat(level + 1);
@@ -193,11 +213,11 @@ fn a_nested_part_failure_draws_one_line_per_document_within_the_budget() {
     assert_eq!(
         carried,
         &vec![
-            CarriedLine {
+            Text {
                 document: "bracket.pncad".to_owned(),
                 line: own_line(&bracket, bracket_piece, &dir, tol),
             },
-            CarriedLine {
+            Text {
                 document: "boss.pncad".to_owned(),
                 line: own_line(&boss, boss_piece, &dir, tol),
             },
@@ -207,22 +227,32 @@ fn a_nested_part_failure_draws_one_line_per_document_within_the_budget() {
     );
     let (bracket_node, boss_node) = (bracket.spoken(bracket_piece), boss.spoken(boss_piece));
     assert!(
-        message.contains(&format!("repair {bracket_node}"))
-            && carried[0].line.contains(&format!("repair {boss_node}")),
+        message.contains(&format!(
+            "repair {bracket_node}",
+            bracket_node = viewer::tree::spelled(&bracket_node)
+        )) && carried[0].line.contains(&format!(
+            "repair {boss_node}",
+            boss_node = viewer::tree::spelled(&boss_node)
+        )),
         "each carrying line points at the node the level under it names, by the label its \
          part holds: {message} / {}",
         carried[0].line
     );
     assert!(
-        message.contains(&format!("the part's {bracket_node} failed"))
-            && !message.contains("host twin")
+        message.contains(&format!(
+            "the part's {bracket_node} failed",
+            bracket_node = viewer::tree::spelled(&bracket_node)
+        )) && !message.contains("host twin")
             && carried.iter().all(|c| !c.line.contains("host twin")),
         "the bracket's node is said with the bracket's label, never the assembly's for the \
          same id: {message} / {carried:?}"
     );
     let refusal = carried[1]
         .line
-        .strip_prefix(&format!("{boss_node} failed: "))
+        .strip_prefix(&format!(
+            "{boss_node} failed: ",
+            boss_node = viewer::tree::spelled(&boss_node)
+        ))
         .expect("the boss's line opens with its node");
     for line in [message, &carried[0].line] {
         assert!(
@@ -286,6 +316,7 @@ fn a_poisoned_part_product_draws_the_failure_that_poisoned_it() {
     let RowStatus::Failed { message, carried } = &row.status else {
         panic!("the instance's own operation failed: {:?}", row.status);
     };
+    let (message, carried) = (&message.to_string(), &texts(carried));
     eprintln!("DRAWN\n{message}");
     for (level, carried) in carried.iter().enumerate() {
         let indent = "  ".repeat(level + 1);
@@ -295,11 +326,11 @@ fn a_poisoned_part_product_draws_the_failure_that_poisoned_it() {
     assert_eq!(
         carried,
         &vec![
-            CarriedLine {
+            Text {
                 document: "bracket.pncad".to_owned(),
                 line: own_line(&bracket, inner, &dir, tol),
             },
-            CarriedLine {
+            Text {
                 document: "broken.pncad".to_owned(),
                 line: own_line(&broken, extrude, &dir, tol),
             },
@@ -312,16 +343,24 @@ fn a_poisoned_part_product_draws_the_failure_that_poisoned_it() {
     // placement (A10) — it names the piece it cost too.
     let inner_said = bracket.spoken(inner);
     assert!(
-        message.contains(&format!("the part's {inner_said} failed"))
-            && message.contains(&format!("repair {inner_said}")),
+        message.contains(&format!(
+            "the part's {inner_said} failed",
+            inner_said = viewer::tree::spelled(&inner_said)
+        )) && message.contains(&format!(
+            "repair {inner_said}",
+            inner_said = viewer::tree::spelled(&inner_said)
+        )),
         "the top line points at the bracket's failed instance: {message}"
     );
     let (piece, failed) = (broken.spoken(broken_piece), broken.spoken(extrude));
     assert!(
-        carried[0]
-            .line
-            .contains(&format!("poisoned {piece}, which its product reads"))
-            && carried[0].line.contains(&format!("repair {failed}")),
+        carried[0].line.contains(&format!(
+            "poisoned {piece}, which its product reads",
+            piece = viewer::tree::spelled(&piece)
+        )) && carried[0].line.contains(&format!(
+            "repair {failed}",
+            failed = viewer::tree::spelled(&failed)
+        )),
         "the broken part's line names the piece it cost and points at the node that failed: \
          {}",
         carried[0].line
@@ -459,6 +498,7 @@ fn a_mates_carried_level_inside_a_part_is_labelled_with_the_part() {
     let RowStatus::Failed { message, carried } = &row.status else {
         panic!("the instance fails: {:?}", row.status);
     };
+    let (message, carried) = (&message.to_string(), &texts(carried));
     assert_eq!(
         carried
             .iter()
@@ -473,7 +513,10 @@ fn a_mates_carried_level_inside_a_part_is_labelled_with_the_part() {
         "the level is sub.pncad's own line for the pattern"
     );
     assert!(
-        message.contains(&format!("repair {}", sub.spoken(pattern))),
+        message.contains(&format!(
+            "repair {}",
+            viewer::tree::spelled(&sub.spoken(pattern))
+        )),
         "the instance's line points at the pattern: {message}"
     );
     hold_to_the_standard(message, carried);

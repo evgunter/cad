@@ -1120,7 +1120,7 @@ pub(crate) fn joint_arm<T: Real>(
 /// stored latitude. `None` on a plane or a spline chart, which has no
 /// axis.
 fn axis_distance<T: Real>(chart: DescribedChart<'_, T>, vertex: geom_core::Point3<T>) -> Option<T> {
-    let off_axis = |origin: geom_core::Point3<T>, axis: geom_core::Vec3<T>| {
+    let off_axis = |origin: geom_core::Point3<T>, axis: geom_core::UnitVec3<T>| {
         geom::Line { origin, dir: axis }.distance(vertex)
     };
     match *chart.surface() {
@@ -1128,11 +1128,11 @@ fn axis_distance<T: Real>(chart: DescribedChart<'_, T>, vertex: geom_core::Point
         Surface::Sphere { frame, .. }
         | Surface::Torus { frame, .. }
         | Surface::Spindle { frame, .. } => {
-            let (center, axis) = (frame.origin(), frame.axis());
+            let (center, axis) = (frame.origin(), frame.axis_unit());
             Some(off_axis(center, axis))
         }
         Surface::Cone { frame, .. } => {
-            let (apex, axis) = (frame.origin(), frame.axis());
+            let (apex, axis) = (frame.origin(), frame.axis_unit());
             Some(off_axis(apex, axis))
         }
         Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => None,
@@ -1724,8 +1724,13 @@ pub(super) fn decide_plain_joint<T: Decide>(
         }
         Err(_) => geom_core::Vec3::unit_x(),
     };
-    let arrived = geom::Curve3::line(vertex, along(prev.x));
-    let leaving = geom::Curve3::line(vertex, along(image.eval(entry_t).x));
+    // `u_ref·cos + v_ref·sin` over the chart's orthonormal frame, or `x̂`:
+    // unit over the reals.
+    let arrived = geom::Curve3::line(vertex, geom_core::UnitVec3::checked(along(prev.x)));
+    let leaving = geom::Curve3::line(
+        vertex,
+        geom_core::UnitVec3::checked(along(image.eval(entry_t).x)),
+    );
     let reach = || Some(geom_core::Lever::curvature_radius(T::one()));
     decide_joint(
         chart,
@@ -2029,19 +2034,21 @@ fn spline_gap_closes<T: Decide>(
 /// ([`decide_joint`]): half a period on a cylinder, cone or torus, a
 /// quarter on a sphere. A mark can name another orbit point than the
 /// joint's own only where the joint's two chart ends lie at least that
-/// half step apart in azimuth. Each end is within `2ε` of the vertex in
-/// 3-D (its row's envelope and the edge certificate's pin), so its
-/// distance from the axis is at least `d − 2ε` at the vertex's own
-/// distance `d`, and two such points half a step apart are at least the
-/// chord `2·(d − 2ε)·sin(step/4)` apart. Where that chord exceeds the
-/// joint bound `4ε` no such pair exists, and the integer is the
-/// joint's own. So the fence decides the chord in the same quantity
-/// as the bound: a quarter of it, `(d − 2ε)·sin(step/4)/2`, must
-/// decide definitely past the band's escalation (`loop_windings_joint_room`),
-/// which puts the chord past `4·K·ε > 4ε` at every admitted `K > 1`.
-/// Anything else refuses — the conservative side. On a sphere that
-/// admits `d > 2ε + 2√2·K·ε`; on a cylinder, cone or torus,
-/// `d > 2ε + 2·K·ε`.
+/// half step apart in azimuth. Two points of the vertex's parallel,
+/// radius `d`, half a step apart are the chord `2·d·sin(step/4)` apart;
+/// where that chord exceeds the joint bound `4ε` no such pair exists, and
+/// the integer is the joint's own. So the fence decides the chord in the
+/// same quantity as the bound: a quarter of it, `d·sin(step/4)/2`, a
+/// length (the step is a fixed half or whole period, so the sine is a
+/// constant factor, not a turn), must decide definitely past the band's
+/// escalation (`loop_windings_joint_room`), which puts
+/// the chord past `4·K·ε > 4ε` at every admitted `K > 1`. The ends are
+/// each within `2ε` of the vertex in 3-D (its row's envelope and the edge
+/// certificate's pin), which moves their parallel's radius by as much and
+/// the quarter chord, whose factor is at most `1/2`, by at most `ε`: the
+/// band is read padded by that `ε`. Anything else refuses — the
+/// conservative side. On a sphere that admits `d > 2√2·(K + 1)·ε`; on a
+/// cylinder, cone or torus, `d > 2·(K + 1)·ε`.
 ///
 /// A chart with no period decides no integer. A spline chart is exempt:
 /// each of its joints already decided its lifted chart-space gap within
@@ -2065,21 +2072,12 @@ pub(super) fn joint_has_room<T: Decide>(
     };
     // The step the walk decided this joint's integer in.
     let step = orbit.step(period).length();
-    // The ends' least distance from the axis, and a quarter of the
-    // chord between two of them half a step apart.
-    let lever = distance - T::from_f64(2.0 * band.zero());
-    let quarter_chord = (step * T::from_f64(0.25)).sin() * T::from_f64(0.5);
+    let quarter_chord = distance * ((step * T::from_f64(0.25)).sin() * T::from_f64(0.5));
+    let ends = band
+        .padded(band.zero())
+        .unwrap_or_else(|e| unreachable!("a band's own ε pads it: {e:?}"));
     matches!(
-        decide(
-            "loop_windings_joint_room",
-            Margin::levered(
-                quarter_chord,
-                // Unsourced lever: the joint ends' least distance from the axis, `d − 2ε`, a
-                // band-deflated radius of revolution; no extent read or curvature arm states it.
-                geom_core::Lever::unsourced(lever),
-            ),
-            band,
-        ),
+        decide("loop_windings_joint_room", Margin::of(quarter_chord), ends),
         Ok(Sign::Positive)
     )
 }

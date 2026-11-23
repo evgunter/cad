@@ -734,7 +734,6 @@ test_utils::f6_variants! {
         DrivenByExpression,
         NoSuchSlot,
         NoSuchVariable,
-        VariableIsDefined,
         NotOffered,
         OfferIsNamed,
         ConstantRefused,
@@ -754,6 +753,7 @@ test_utils::f6_variants! {
         NothingToDo,
         Display,
         SlotUnit,
+        Range,
         NoDocumentDirectory,
         Workspace,
         SelfInstance,
@@ -770,6 +770,7 @@ test_utils::f6_variants! {
         PlacementFails,
         StrandedPick,
         InTheProduct,
+        ClaimHeld,
     ];
 }
 

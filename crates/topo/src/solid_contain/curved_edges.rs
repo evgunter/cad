@@ -226,7 +226,7 @@ pub(super) fn read<T: Decide>(
             let mut found: Vec<(T, Result<Gap, Indeterminate>)> = Vec::new();
             let (mut decided, mut clear) = (true, true);
             for &(_, t) in ca.iter().chain(&cb) {
-                match passes(&span, ray, q + d * t, band) {
+                match passes(&span, ray, q + d.get() * t, band) {
                     Passes::Inside(s, gap) => found.push((s, gap)),
                     Passes::End(s) => {
                         clear = false;
@@ -320,7 +320,7 @@ fn narrow<T: Decide>(
                 };
                 let faces = [face, fe.across];
                 for seed in [m.span.0, m.span.1] {
-                    match passes(&span, ray, q + d * seed, band) {
+                    match passes(&span, ray, q + d.get() * seed, band) {
                         Passes::Inside(s, gap) => {
                             // A second edge by a gap nothing placed is no
                             // wedge shown: both are marked where no
@@ -488,7 +488,7 @@ mod straddle_rows {
         let through = EdgeSpan::of(ellipse.clone(), (-0.5, 0.5));
         assert!(
             matches!(
-                passes(&through, &geom::Ray::new(q, d), at, band),
+                passes(&through, &geom::Ray::new(q, geom::stated_direction(d)), at, band),
                 Passes::Inside(_, Err(diag)) if diag.predicate == Some("curve_carrier_straddle")
             ),
             "an arc through the vertex"
@@ -509,7 +509,12 @@ mod straddle_rows {
         let past = EdgeSpan::of(ellipse, (t0, t1));
         assert!(
             matches!(
-                passes(&past, &geom::Ray::new(q, d), at, band),
+                passes(
+                    &past,
+                    &geom::Ray::new(q, geom::stated_direction(d)),
+                    at,
+                    band
+                ),
                 Passes::Clear
             ),
             "an arc past the closest approach"
@@ -533,7 +538,7 @@ mod straddle_rows {
         use geom_core::k_stats::Magnitude;
         let band = Band::new(ZERO, 10.0 * ZERO).unwrap();
         let rows = crate::rows::AIMED_RAY;
-        let ray = geom::Ray::new(Point3::origin(), Vec3::unit_x());
+        let ray = geom::Ray::new(Point3::origin(), geom_core::UnitVec3::exact_x());
         let met = super::Reach::of(Ok(Magnitude::Zero)).met().unwrap();
         let unplaced = Err(geom_core::Indeterminate {
             margin: geom_core::MarginDiag::enclosure(0.0, 0.4),
@@ -580,7 +585,12 @@ mod straddle_rows {
         let radial = (at - centre).normalize();
         assert!(
             matches!(
-                passes(&arc, &geom::Ray::new(at - radial, radial), at, band),
+                passes(
+                    &arc,
+                    &geom::Ray::new(at - radial, geom::stated_direction(radial)),
+                    at,
+                    band
+                ),
                 Passes::End(_)
             ),
             "the ray grazes the arc's start"

@@ -452,14 +452,10 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/geom-brep/src/pcurve_cache/projected.rs", 2, 2, ""),
     (
         "crates/geom-brep/src/pcurve_cache/speed.rs",
-        41,
+        38,
         4,
-        "not yet dispositioned: 34 of the 37 that do not ask are \
-         `work/tesslane/the-chart-speed-bounds-endpoint-reads-are-undispositioned`. \
-         `pole_azimuth_speed`'s three (`fa3cd6593`, `0593c7cfb`) are safe at the site: `det M`'s \
-         sign and low end are read off products and sums of exact points, which no quotient or \
-         power decorates, and the quotient's high end only behind `det.lo() > 0`, its divisor \
-         proven off zero",
+        "not yet dispositioned: the 34 that do not ask are \
+         `work/tesslane/the-chart-speed-bounds-endpoint-reads-are-undispositioned`",
     ),
     ("crates/geom-brep/src/props/bracket.rs", 8, 8, ""),
     (
@@ -772,26 +768,30 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/topo/src/injective.rs",
-        210,
-        97,
-        "the 97 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
+        211,
+        98,
+        "the 98 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
          `ends_on_collapse` (3), \
          `Psi::lipschitz` (2: the graph gradient's norm, its least end over its greatest, read \
          only behind its own `is_certified()` ask, and no worth of `ψ` in metres where it does \
          not certify), \
          `present_chart` (22), the pose's four (17, below), \
-         `present_plane` (11), `present_plane_corner` (7), `present_vertex_corner` (12), \
+         `present_plane` (14), `present_plane_corner` (7), `present_vertex_corner` (12), \
          `Trig::psi` (3), `iso_params` (4) and `segment_params` (4). `iso_params` and \
          `segment_params` each read the side's parameter enclosure (4) only behind their own \
-         `is_certified()` and finiteness ask; `present_plane`'s 3 beyond its `y` are a side's \
-         chart range handed to `segment_params` (2) and a corner's far coordinate (1), read \
-         behind the same SPAN and CORNER funnels as its rectangle. `present_chart` asks each clip line where it is placed, so 14 of its \
+         `is_certified()` and finiteness ask; `present_plane`'s 14 are its cell's placement off a \
+         line's face side (3, wholly off: `y`, and a corner's `x` and `y`); a side's chart range \
+         handed to `segment_params` (3); and its rectangle's bounds, the cell's reach and a strip \
+         end's cap height (8), each an enclosure's outer end, so the rectangle holds more of \
+         the plane and never less, the cap's height behind its own `is_certified()` (an \
+         undecided one caps nothing). All 14 count as asking because `present_plane` names \
+         `is_certified()` and its readings are closures inside it: the census asks of the \
+         enclosing `fn`, and these dispositions are each read's own. `present_chart` asks each clip line where it is placed, so 14 of its \
          reads, the touch, reach, merge and rectangle-side reads, see only certified \
          lines; its other 8 read a singular latitude's clip line, a sphere pole's `±π/2` or a \
          cone apex's `0`, a constant never handed to the ask, so they count as asking only \
          because the census reads a whole function, and they are sound because the line is \
-         exact. `present_plane` asks its one-edge `y`, \
-         and its other reads are behind the SPAN and CORNER funnels. `present_plane_corner` \
+         exact. `present_plane_corner` \
          and `present_vertex_corner` each read the cell's 4 ends behind their `cell` ask; \
          each also reads its arc's parameter span (2), and an upper bound on the chart's speed \
          (1, and 2 in `present_vertex_corner`, one per axis), neither of which the ask covers: \

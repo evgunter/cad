@@ -209,3 +209,22 @@ still open when that ratifies, like the rest of the slate.
 Signed: (CHROME orchestrator)
 
 Moved from VACUITY to CIW on 2026-11-20, by `git mv`, when VACUITY merged into CIW: VACUITY held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CIW carries.
+
+
+## Reopened (2026-11-23)
+
+Closed too early, by OFFER's `certify-affordance-on-the-bounds-panel`:
+the probe these findings were about is deleted, but finding 4's shape
+came back with its replacement. The first cut of `range?`'s rows
+asserted `session.range().is_none()` after a refused `range?` from a
+session that had never started one, so "does not set" and "does not
+clear" were again indistinguishable. Its fix pass starts a run first
+and asserts that the run's reading stands after the refusal, in
+`crates/viewer/tests/range_reading.rs`
+(`admission_refuses_ahead_of_the_click_in_the_kernels_words`),
+`crates/viewer/tests/gui_variables.rs`
+(`range_on_a_defined_or_absent_variable_is_refused_by_the_kernels_admission`)
+and `crates/viewer/tests/story_parametric.rs` (stage 8). Open for the
+class: a refusal row asserting an absence from a state that never
+held the thing is the shape, and the sweep for it outside the range
+rows has not been run.
