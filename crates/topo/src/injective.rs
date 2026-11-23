@@ -10576,7 +10576,8 @@ mod presentation_rows {
     /// **A plane face cornered at vertex 1**, the origin: the sector from
     /// `d1` round to `d2`, counter-clockwise about `normal`. Rim 0 runs
     /// along `d2` into the vertex (key `k2`), rim 1 along `d1` out of it
-    /// (key `k1`); each is the line from the origin over `(0, 4)`.
+    /// (key `k1`); each is the unit chord from the origin to four times
+    /// its direction.
     fn sector_at_vertex_1(
         normal: [f64; 3],
         d1: [f64; 3],
@@ -10587,7 +10588,7 @@ mod presentation_rows {
         let rim = |key: u64, d: [f64; 3], plus: bool| Rim {
             stated: None,
             key: edge(key),
-            arc: Some((Curve3::line(origin(), v3(d)), (iv0(0.0), iv0(4.0)))),
+            arc: Some(chord_segment(origin(), origin() + v3(d) * iv0(4.0))),
             ends: [vertex(1), vertex(key + 100)],
             uses: vec![Use {
                 plus,
