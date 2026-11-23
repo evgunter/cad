@@ -273,7 +273,7 @@ fn one_assertion_over_a_family_quiets_each_members_own_finding() {
 }
 
 /// A block of unit footprint at the origin, its own space.
-fn unit_block(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
+pub(crate) fn unit_block(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
     block(doc, (0.0, 0.5), (0.0, 0.5), 0.5)
 }
 

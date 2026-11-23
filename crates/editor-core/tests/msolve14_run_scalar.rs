@@ -2320,3 +2320,26 @@ fn r1_clearance_answers_alike_in_either_order() {
     }
     assert!(apart.is_empty(), "the order decides: {apart:#?}");
 }
+
+/// Review probe (PR 7506 lane A): the corpus's poses alone, no ids.
+#[test]
+fn review_pose_only_digest() {
+    for (label, doc, opts) in corpus() {
+        let mut h = Fnv::new();
+        let poses = solve(&doc, &opts, Tol::witness());
+        let mut n = 0;
+        for id in doc.ids() {
+            if let Some(rel) = poses.relative(id) {
+                h.frame(&rel);
+                n += 1;
+            }
+            if matches!(doc.node(id), Some(Node::InstantiatePart { .. })) {
+                if let Ok(f) = poses.placement(&doc, id) {
+                    h.frame(&f);
+                    n += 1;
+                }
+            }
+        }
+        println!("POSE {label} n={n} {:#018x}", h.0);
+    }
+}
