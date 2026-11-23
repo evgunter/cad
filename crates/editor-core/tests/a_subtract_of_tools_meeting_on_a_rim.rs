@@ -116,7 +116,7 @@ fn a_rod_and_its_elbow_cutting_one_block_refuse_typed() {
         doc,
         Node::Subtract {
             from: block.into(),
-            tool: editor_core::Bodies::Spelled(vec![
+            tool: editor_core::Bodies::spelled(vec![
                 rod.into(),
                 BodyRead::plain(Operand::output(elbow, 0)),
             ]),

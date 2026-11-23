@@ -169,7 +169,7 @@ fn join_at(hollow: bool, length: f64, end: CapEnd, off: OffCap) -> Joined {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![
+            members: editor_core::Bodies::spelled(vec![
                 pipe.into(),
                 BodyRead::plain(Operand::output(built, 0)),
             ]),

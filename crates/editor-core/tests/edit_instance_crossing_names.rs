@@ -392,7 +392,8 @@ fn deleting_an_outers_minting_node_strands_it_on_the_instance() {
             | Maintenance::StrandedSpace { .. }
             | Maintenance::ProductOutsideWorld { .. }
             | Maintenance::ValueDropped { .. }
-            | Maintenance::AnonymousVarRemoved { .. } => None,
+            | Maintenance::AnonymousVarRemoved { .. }
+            | Maintenance::YieldRemoved { .. } => None,
         })
         .collect();
     assert_eq!(

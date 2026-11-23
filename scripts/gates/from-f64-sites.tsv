@@ -43,7 +43,6 @@ crates/geom-brep/src/curve_pair/pose/window.rs	2	constant	band.escalate()	the ba
 crates/geom-brep/src/curve_pair/pose/window.rs	4	constant	band.zero()	the band's zero width, a tolerance
 crates/geom-brep/src/curve_pair/span.rs	2	constant	band.escalate()	the band's escalation width, a tolerance (a refused member's window on a line, and off one)
 crates/geom-brep/src/curve_pair/walk.rs	1	constant	band.escalate()	the band's escalation width, a tolerance (a polished piece pair's window bound)
-crates/geom-brep/src/dihedral.rs	2	constant	band.escalate()	the band's escalation width, a tolerance
 crates/geom-brep/src/edge_nurbs.rs	1	constant	*w	on_carrier_domain: the interpolation's unit weights, a constant of its form
 crates/geom-brep/src/edge_nurbs.rs	1	launders(an-edges-parameter-ends-enter-a-carrier-piece-as-constants)	<fn>	edge_piece: a piece end that is no carrier breakpoint is the f64 end of the edge's parameter enclosure, a computed value entered as a constant (breakpoints keep their held values)
 crates/geom-brep/src/edge_wedge.rs	1	constant	phase	a fixed station of a rim's uniform-phase schedule (WedgeWalk::around_circle)
@@ -162,6 +161,7 @@ crates/sweep/src/skin.rs	1	constant	steps	the sub-arc count
 crates/sweep/src/test_support.rs	1	fixture	(core::f64::consts::FRAC_PI_2 / 4.0).tan()	a fixture arc's bulge
 crates/sweep/src/test_support.rs	4	fixture	<fn>	a fixture's f64 points lifted into T, and its placements' twelve constants admitted again at T
 crates/topo/src/boolean/carrier_touch.rs	1	constant	band.escalate()	the band's escalation width, a tolerance
+crates/topo/src/boolean/fate.rs	1	constant	f64::from(halves)	a loop's count of half-turn corners, read as a scalar
 crates/topo/src/boolean/join.rs	1	constant	band.zero()	the band's zero width, a tolerance
 crates/topo/src/boolean/mod.rs	1	constant	crate::boxes::sweep_pad(band)	the band's sweep pad, a tolerance
 crates/topo/src/boolean/section_cert/ruling.rs	1	constant	<block> if charged	the band's zero width or zero, a tolerance (the reader cuts the argument at its brace)
@@ -210,4 +210,3 @@ crates/topo/src/test_support_fixtures.rs	1	fixture	t0	a fixture curve's domain
 crates/topo/src/test_support_fixtures.rs	1	fixture	t1	a fixture curve's domain
 crates/topo/src/test_support_fixtures.rs	11	fixture	<fn>	a fixture's f64 frame lifted into T
 crates/topo/src/test_support_meeting.rs	1	fixture	<fn>	posed_pyramid_kept: a fixture's posed f64 corners lifted into T
-crates/topo/src/validate.rs	1	constant	band.escalate() / band.zero()	the band's K, the ratio of its two widths

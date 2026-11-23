@@ -232,7 +232,7 @@ pub enum SectionPinMiss {
         check: geom_brep::CertCheck,
         /// The pin's diagnostics.
         diag: Indeterminate,
-        /// The carrier's resolution `K` times over, as the band read it.
+        /// The carrier's resolution, as the band one K-step finer read it.
         resolution: geom_core::MarginDiag,
     },
     /// An end pin read past the band, by a miss the carrier's
@@ -2243,8 +2243,8 @@ impl<T: Real> SectionChord<T> {
 }
 
 /// K name: a section chord's carrier's own resolution over its span
-/// ([`geom_brep::carrier_resolution::resolution`]), `K` times over,
-/// against the zero band (metres), where the gate refuses one of its
+/// ([`geom_brep::carrier_resolution::resolution`]) against the `ε/K`
+/// share of the band (metres), where the gate refuses one of its
 /// attachment pins: Zero reads an in-band pin as the input's
 /// ([`crate::validate::resolved_as`]).
 pub(crate) const SECTION_PIN_RESOLUTION: &str = "section_pin_resolution";
