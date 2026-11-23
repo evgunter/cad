@@ -318,6 +318,9 @@ jobs:
         run: cargo fmt --all --check && (cd benches && cargo fmt --all --check)
       - name: clippy (--all-features)
         if: needs.filter.outputs.run_build == 'true'
+        # An explicit shell runs the block with `pipefail`, so a cargo
+        # that dies in the census's pipe reds the step.
+        shell: bash
         env:
           TIER: ${{ needs.filter.outputs.tier }}
           SCOPE: ${{ needs.filter.outputs.test_scope }}
