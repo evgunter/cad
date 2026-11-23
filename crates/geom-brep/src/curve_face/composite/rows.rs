@@ -455,3 +455,73 @@ fn a_reference_direction_along_the_axis_is_a_degenerate_face() {
         "{got:?}"
     );
 }
+
+/// The rising line `z = 2t − 1` as a cubic over `[0, 1]`, at `Interval`,
+/// each control height widened by `w` on either side: a family of
+/// carriers whose crossings with `z = 0` spread over `w` about `t = ½`.
+fn rising_family(w: f64) -> NurbsCurve3<Interval> {
+    use geom_core::Real as _;
+    let net = cubic([-1.0, -1.0 / 3.0, 1.0 / 3.0, 1.0]);
+    let control = net
+        .control()
+        .iter()
+        .map(|p| {
+            Point3::new(
+                Interval::from_f64(p.x),
+                Interval::zero(),
+                Interval::from_bounds(p.z - w, p.z + w),
+            )
+        })
+        .collect();
+    let knots = net.knot_values().lift(Interval::from_f64);
+    NurbsCurve3::new(knots, control, vec![Interval::one(); 4]).unwrap()
+}
+
+/// `settle`'s stored crossings through the door, at a scalar the arm
+/// runs at: the candidate an `f64` search proposed, read against the
+/// plane at `Interval`.
+fn settled(net: &NurbsCurve3<Interval>, candidate: f64) -> Result<Vec<Interval>, CompositeRefusal> {
+    use geom_core::{Margin, Real as _};
+    let plane = Surface::Plane {
+        frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+    };
+    let on = |t: Interval| Margin::of(crate::implicit_residual(&plane, net.eval(t)));
+    super::settle(
+        net,
+        (Interval::zero(), Interval::one()),
+        band(),
+        &[],
+        vec![super::Meeting::Crossing(candidate)],
+        &on,
+    )
+}
+
+/// The door admits a crossing whose point reads on for the whole
+/// family, as the one point the search proposed; refuses one whose
+/// point reads definitely off by its row; and refuses at the door,
+/// typed and named, a family whose crossing spreads past the band
+/// about the candidate.
+#[test]
+fn a_stored_crossing_is_admitted_by_its_check_at_interval() {
+    use geom_core::Bounds as _;
+    let point = settled(&rising_family(0.0), 0.5);
+    assert!(
+        matches!(point.as_deref(), Ok([t]) if t.lo() == 0.5 && t.hi() == 0.5),
+        "a point family's crossing is the candidate, one point: {point:?}"
+    );
+    let off = settled(&rising_family(0.0), 0.25);
+    assert!(
+        matches!(
+            off,
+            Err(CompositeRefusal::Unsettled(Unsettled::Meter {
+                row: "spline_composite_root_on"
+            }))
+        ),
+        "a candidate whose point reads definitely off the plane refuses by the door's row: {off:?}"
+    );
+    let wide = settled(&rising_family(1e-6), 0.5);
+    assert!(
+        matches!(wide, Err(CompositeRefusal::Escalated(d)) if d.predicate == Some("spline_composite_root_on")),
+        "a family whose crossing spreads past the band refuses at the door, named: {wide:?}"
+    );
+}
