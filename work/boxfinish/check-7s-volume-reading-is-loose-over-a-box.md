@@ -112,3 +112,22 @@ cancelled terms, what `tilt_slack` is for over a box (it covers a loop
 off its plane; over a box it is charged for a width that is not a
 tilt), and whether the reading may use the symbolic channel, where the
 slab's volume is its depth.
+
+## Measured (2026-11-22, the volume-premises review pass): a plane read off the walk's sums
+
+PR 7344 reads a curved closed-form face's term off the role walk's own
+sums at a scalar whose sums are enclosures, and leaves planes on
+`quad_lane::planar_face_about`. With the plane exclusion taken out of
+`topo::props` `walked_closed_form` (a mutant, never committed), the
+seamless drum of boxed radius `[0.7625, 0.8625]` (two plane caps
+bounded by one circle each, `Sym<Interval>`) reads `[1.7414568,
+2.4221352]` where it reads `[1.5338833, 2.6297088]` today: width 0.681
+against 1.096, the members' volumes (1.827, 2.074, 2.337) held by both.
+No row of `topo`'s or `sweep`'s slow set at the default ε changes
+colour under that mutant. So on a cap bounded by an arc the walk's own
+sum is the tighter reading, with no tilt slack; whether it may stand in
+for the plane formula in general (a loop standing off its stored plane)
+is this row's question.
+`crates/sweep/tests/volume_premises_over_a_box.rs`
+`a_planes_term_is_read_by_its_own_formula_over_a_box` pins today's
+reading and moves with the answer.
