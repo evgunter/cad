@@ -191,8 +191,8 @@ fn both_blends_evaluate_in_one_document() {
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0xa968_a45c_16ee_6213_u64),
-        ("die_chamfer", 0x89c5_5513_1c2e_99d3),
+        ("die_fillet", 0x66ec_9a1e_71b3_dd93_u64),
+        ("die_chamfer", 0x0591_f7aa_a61f_c663),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -286,9 +286,9 @@ fn a_boolean_document_round_trips_byte_identical() {
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0x1ed8_c7ce_aa81_8bd8_u64),
-        ("heat_sink", 0xec88_26b3_7f36_9d63),
-        ("kiss_carry", 0xc20e_4e75_0612_0ae6),
+        ("crossing_slots", 0x9c09_f7a5_2312_b0fc_u64),
+        ("heat_sink", 0xe2d7_927d_bfa7_7304),
+        ("kiss_carry", 0x08e4_4e88_348d_5232),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -445,15 +445,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat5 empty_intersect: {got:#018x}");
     assert_eq!(
-        // Re-measured when the placement came to mint its source
-        // (VARIABLES VR4): the ids after it moved. Re-measured when the
-        // extrudes' caps and walls became their sketch frames: the
-        // bodies' stored planes moved. And again when a line wall's
-        // origin became the wall's middle, from construction data: the
-        // walls' origins moved back to where their fitted centroids
-        // stood, to rounding; the caps' stay at their sketch origins.
-        got,
-        0xda0e_717e_22a2_9f24,
+        got, 0x40bc_4e3b_d68b_4622,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }

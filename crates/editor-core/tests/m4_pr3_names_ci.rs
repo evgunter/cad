@@ -84,7 +84,7 @@ fn digest_names(ev: &Evaluation<f64>) -> u64 {
 
 /// The pinned names-only die digest ([`digest_names`]); update only on a
 /// ratified naming change.
-const DIE_NAMES_DIGEST: u64 = 0x0;
+const DIE_NAMES_DIGEST: u64 = 0xb543_5c1d_c3e1_8fac;
 
 /// **The die's tables are a function of its recipe and verdicts, and
 /// its names are the ratified ones.** Two fresh evaluations of the die

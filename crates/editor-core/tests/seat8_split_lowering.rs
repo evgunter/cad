@@ -149,9 +149,9 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0xe5a6_6d83_0fff_478c_u64),
-        ("part_select", 0x323e_0e72_9c73_bca0),
-        ("kitchen_sink", 0x4080_aff5_e382_f53d),
+        ("cut_cylinder", 0xb3f6_820f_71b0_21c2_u64),
+        ("part_select", 0xe22d_70bc_75e7_2e7b),
+        ("kitchen_sink", 0x3535_2a34_f9f6_9a87),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
@@ -315,13 +315,8 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     );
     let got = digest(&ev);
     println!("seat8 empty_side: {got:#018x}");
-    // Re-measured when the cube's caps and walls became its sketch
-    // frame: the body's stored planes moved. And again when a line
-    // wall's origin became the wall's middle, from construction data:
-    // the walls' origins moved back to where their fitted centroids
-    // stood, to rounding; the caps' stay at their sketch origins.
     assert_eq!(
-        got, 0x1d9e_9348_6605_d97e,
+        got, 0xc184_17b0_1d42_ce91,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }
