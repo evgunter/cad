@@ -598,10 +598,11 @@ pub(super) fn plane_line<T: Decide>(
 }
 
 /// **A conic against a plane**: its height above the plane,
-/// `d₀ + R cos(θ − φ)` (`Conic::along`), read on its rungs: the belly
-/// (`R − |d₀|`: negative, apart), the parallel gate (`R` in the zero
-/// band: the offset `d₀ ± R` decides lies or apart), then the belly's
-/// two roots or its graze, whose side `d₀`'s sign decides and whose
+/// `d₀ + R cos(θ − φ)` ([`geom::Height`], read from the point the conic
+/// stores), on its rungs: the belly (the extremes one-signed: apart), the
+/// parallel gate (`R` in the zero band: the offset decides lies or
+/// apart), then the belly's two roots ([`geom::Height::roots`], posed per
+/// placement) or its graze, whose side the extremes decide and whose
 /// curvature [`kappa`] reads.
 pub(super) fn plane_conic<T: Decide>(
     span: &Span<'_, T>,
@@ -611,18 +612,14 @@ pub(super) fn plane_conic<T: Decide>(
 ) -> Result<Pose<T>, PoseRefusal> {
     let (t0, t1) = span.params();
     let near = geom::mid_param(t0, t1);
-    let (d0, a, b) = crate::curve_pair::pose::height(conic, origin, normal);
-    // powi, never a*a: both amplitudes straddle zero on near-parallel
-    // frames, and an interval product's spurious negative low end makes
-    // the sqrt refuse.
-    let r = (a.powi(2) + b.powi(2)).sqrt();
+    let height = conic.height_along(origin, normal);
+    let (lo, hi) = height.extremes();
+    let r = height.swing();
     // The miss first: a conic wholly on one side never meets the plane,
-    // whatever its tilt reads.
-    let belly = decide(
-        "curve_face_pose_belly_graze",
-        Margin::of(r - d0.abs()),
-        band,
-    );
+    // whatever its tilt reads. `R − |d₀|` is the nearer extreme's reach
+    // past the plane, `min(hi, −lo)`, read with no cancellation.
+    let reach = hi.min(T::zero() - lo);
+    let belly = decide("curve_face_pose_belly_graze", Margin::of(reach), band);
     if let Ok(Sign::Negative) = belly {
         return Ok(Pose::Apart);
     }
@@ -630,43 +627,41 @@ pub(super) fn plane_conic<T: Decide>(
         .map_err(PoseRefusal::in_band(PoseRung::PlaneParallel))?
     {
         Sign::Zero => {
+            let half = T::from_f64(0.5);
             return constant_residual_as(
                 "curve_face_pose_plane_offset",
                 PoseRung::PlaneParallel,
-                (d0, r),
+                ((lo + hi) * half, (hi - lo) * half),
                 band,
             )?
             .pose(PoseRung::PlaneParallel);
         }
         Sign::Positive | Sign::Negative => {}
     }
-    let phi = geom::Azimuth::of(b, a).near(near);
+    let turn = geom_core::period::Period::angle();
     match belly.map_err(PoseRefusal::in_band(PoseRung::BellyGraze))? {
         Sign::Negative => Ok(Pose::Apart),
         Sign::Positive => {
-            // The roots solve cos(θ − φ) = −d₀/R, clamped against rounding.
-            let delta = ((T::zero() - d0) / r)
-                .min(T::one())
-                .max(T::zero() - T::one())
-                .acos();
-            let turn = geom_core::period::Period::angle();
+            let [falling, rising] = height.roots(T::zero());
             Ok(Pose::Isolated(Form(Formed::PlaneConic {
-                roots: [turn.near(phi + delta, near), turn.near(phi - delta, near)],
+                roots: [turn.near(falling, near), turn.near(rising, near)],
             })))
         }
         Sign::Zero => {
-            // The graze's one root is the extremum nearest the plane: φ
-            // with the centre below it, φ + π above.
-            let at = match decide_nonzero("curve_face_pose_graze_side", Margin::of(d0), band)
+            // The graze's one root is the extremum nearest the plane: the
+            // crest with the conic below the plane, the trough above it.
+            let crest = height.crest();
+            let below = (hi + lo) * T::from_f64(0.5);
+            let at = match decide_nonzero("curve_face_pose_graze_side", Margin::of(below), band)
                 .map_err(PoseRefusal::in_band(PoseRung::BellyGraze))?
             {
-                NonzeroSign::Negative => phi,
-                NonzeroSign::Positive => phi + T::pi(),
+                NonzeroSign::Negative => crest,
+                NonzeroSign::Positive => crest + T::pi(),
             };
-            let at = geom_core::period::Period::angle().near(at, near);
+            let at = turn.near(at, near);
             let graze = Graze {
                 at,
-                value: r - d0.abs(),
+                value: reach,
                 noise: T::zero(),
                 bend: r,
                 speed: conic.speed_at(at),

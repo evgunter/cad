@@ -5,7 +5,7 @@
 //! construction's rounding against the band. They meet instead where the
 //! edge crosses the curve's plane, through the curve × face crossing
 //! reading ([`crate::curve_face::cross()`], whose plane arm reads
-//! [`super::pose::height`], the one [`super::meet`]'s transverse reading is
+//! [`geom::Conic::height_along`], the one [`super::meet`]'s transverse reading is
 //! built on), at a meeting that lies on the curve's own section of its
 //! plane ([`Section`]).
 //!

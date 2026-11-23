@@ -1864,19 +1864,6 @@ enum Coplanar {
     Ellipses,
 }
 
-/// The conic `k`'s height above the plane through `on` with unit normal
-/// `n`: its first harmonic's constant, cosine and sine parts, in metres.
-/// The plane door's sinusoid is this one
-/// ([`crate::curve_face::plane_crossing`]).
-#[expect(
-    clippy::disallowed_methods,
-    reason = "the plane door's sinusoid about the centre, read by curve_face::plane_conic alone: owed its harmonic about the stored point (work/oneround/the-certified-lanes-harmonics-of-a-conic-are-formed-about-its-centre.md)"
-)]
-pub(crate) fn height<T: Decide>(k: &dyn Conic<T>, on: Point3<T>, n: Vec3<T>) -> (T, T, T) {
-    let (cp, sp) = k.along(n);
-    (geom::plane_offset(on, n, k.frame().origin()), cp, sp)
-}
-
 /// **A conic's height over another's plane**, read through both: the
 /// plane is stated at `o`, a point of the other conic's span, levelled by
 /// that point's own height over it ([`Conic::height_of`]), and the conic's
