@@ -744,17 +744,27 @@ fn spiric_plane<T: Decide>(
         regime @ (geom::SpiricRegime::ThroughAxis | geom::SpiricRegime::PastInnerEquator) => {
             // Data a span spelled past the mint can carry, so a refusal,
             // not a fault: the regime's margin read as its rejection.
-            let (name, margin) = match regime {
-                geom::SpiricRegime::ThroughAxis => {
-                    ("curve_face_pose_spiric_off_axis", offset.abs())
-                }
+            let in_band = PoseRefusal::in_band(PoseRung::SpiricRegime);
+            let (name, read) = match regime {
+                geom::SpiricRegime::ThroughAxis => (
+                    "curve_face_pose_spiric_off_axis",
+                    geom_core::k_stats::decide_reported(
+                        "curve_face_pose_spiric_off_axis",
+                        Margin::of(offset.abs()),
+                        band,
+                    )
+                    .map_err(in_band)?,
+                ),
                 _ => (
                     "curve_face_pose_spiric_two_ovals",
-                    (ring.major_radius() - ring.minor_radius()) - offset.abs(),
+                    geom_core::k_stats::decide_reported(
+                        "curve_face_pose_spiric_two_ovals",
+                        Margin::of((ring.major_radius() - ring.minor_radius()) - offset.abs()),
+                        band,
+                    )
+                    .map_err(in_band)?,
                 ),
             };
-            let read = geom_core::k_stats::decide_reported(name, Margin::of(margin), band)
-                .map_err(PoseRefusal::in_band(PoseRung::SpiricRegime))?;
             return Err(PoseRefusal::InBand {
                 rung: PoseRung::SpiricRegime,
                 diag: geom_core::k_stats::gate_rejection(
