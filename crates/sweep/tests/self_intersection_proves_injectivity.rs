@@ -882,6 +882,111 @@ fn a_stepped_rings_floor_holds_against_its_end_caps() {
     holds_at_both("the stepped ring", ring(), ring());
 }
 
+/// The verdict door over every face of `body`, at the default budgets.
+fn embedding<T: Scalar + geom_core::Certifies>(body: &Body<T>) -> topo::clearance::EmbeddingReport {
+    let side = Side {
+        body,
+        faces: body.faces().map(|(k, _)| k).collect(),
+    };
+    topo::clearance::embedded(
+        &side,
+        band(),
+        Budgets {
+            max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+            max_cell_pairs: BUDGET,
+        },
+    )
+}
+
+/// [`a_stepped_rings_floor_holds_against_its_end_caps`]' ring, at rest.
+fn stepped_ring<T: Scalar>() -> topo::AtRestBody<T> {
+    let profile = validated::<T>(&[ProfileLoop::polygon(
+        [
+            (1.0, 0.0),
+            (2.0, 0.0),
+            (2.0, 1.0),
+            (1.5, 1.0),
+            (1.5, 0.5),
+            (1.0, 0.5),
+        ]
+        .map(|(x, y)| Point2::new(x, y)),
+    )]);
+    let turn = Revolution::Partial(T::from_f64(1.5 * core::f64::consts::PI));
+    sweep::test_support::taken::<T>(
+        revolve(&profile, axis_y(), turn, tol()).unwrap().body,
+        tol(),
+    )
+    .expect("the ring is a finished body")
+}
+
+/// **The stepped ring is embedded with its thin cells read, where it
+/// stands, turned and placed far off.** Its annuli meet the end caps on
+/// radial lines, and a cell across such a line from its annulus reaches
+/// it by rounding: the annulus's part of the cell is a rectangle with no
+/// width, or one of rounding's, presented on the line. The cap's plane
+/// separates it, read at the reach of the two faces. The same body turned
+/// rigidly about a generic axis, and placed a hundred units from the
+/// origin, reads the same, at both scalars. Red if a rectangle's own
+/// width is what its departure is levered at, in any pose.
+#[test]
+fn a_stepped_ring_is_embedded_with_its_thin_cells_read_in_every_pose() {
+    use geom_core::{Affine3, Vec3};
+    let axis = Vec3::new(1.0, 2.0, 3.0) * (1.0 / 14.0_f64.sqrt());
+    let poses = [
+        ("as built", Affine3::translation(Vec3::new(0.0, 0.0, 0.0))),
+        (
+            "turned about a generic axis",
+            Affine3::rotation_about_axis(Point3::origin(), axis, 0.7),
+        ),
+        (
+            "a hundred units off",
+            Affine3::translation(Vec3::new(60.0, -80.0, 0.0)),
+        ),
+    ];
+    for (pose, map) in poses {
+        let float = moved(&stepped_ring::<f64>(), &map).into_body();
+        let twin = moved(&stepped_ring::<Interval>(), &map).into_body();
+        for (scalar, report) in [("f64", embedding(&float)), ("Interval", embedding(&twin))] {
+            println!("[remeter] the stepped ring {pose} at {scalar}: {report:?}");
+            assert!(
+                matches!(report.verdict, topo::clearance::Embedding::Embedded),
+                "the stepped ring {pose} at {scalar} is embedded: {report:?}"
+            );
+        }
+    }
+}
+
+/// **Two stepped rings through one another cross.** The ring and a copy
+/// moved `0.3` along `z`, grafted in as a solid of its own: the copy's
+/// faces pass through the first ring's beside the radial lines whose
+/// cells the row above reads, and its end caps lie in the first ring's.
+/// The two solids share nothing in M, so nothing a departure reads can
+/// part them. Red if the verdict is anything but a crossing, at either
+/// scalar.
+#[test]
+fn two_stepped_rings_through_one_another_cross() {
+    fn folded<T: Scalar>() -> Body<T> {
+        use geom_core::{Affine3, Vec3};
+        let ring = stepped_ring::<T>();
+        let mut folded = ring.clone().into_body();
+        let over = Affine3::translation(Vec3::new(0.0, 0.0, 0.3)).map(T::from_f64);
+        let rigid = geom_core::test_support::rigid(&over, tol());
+        let copy = topo::transform_rigid(&ring, &rigid).unwrap();
+        topo::graft_disjoint(&mut folded, &copy).expect("the copy grafts");
+        folded
+    }
+    for (scalar, report) in [
+        ("f64", embedding(&folded::<f64>())),
+        ("Interval", embedding(&folded::<Interval>())),
+    ] {
+        println!("[remeter] two stepped rings at {scalar}: {report:?}");
+        assert!(
+            matches!(report.verdict, topo::clearance::Embedding::Crosses(_)),
+            "the two rings cross at {scalar}: {report:?}"
+        );
+    }
+}
+
 /// **A quarter ball holds with its caps read at each pole**: a half
 /// disc revolved a quarter turn about its diameter. Each cap is a lens,
 /// the diameter and the semicircle meeting at both poles, so a cell
@@ -1607,11 +1712,30 @@ fn a_filleted_drum_certifies_across_its_fillet() {
     let body: &Body<f64> = &filleted::<f64>();
     let report = injective(body, None, BUDGET);
     assert_holds("the filleted drum", &report, body);
-    // At `Interval` as at `f64`: the band's rim phase is the drum's
-    // frame turned, exact to rounding, so the touch concession reads it.
+    // At `Interval` the band's line on the circle it shares with the top
+    // plane is an enclosure, and a cell past the band's end reaches into
+    // it: the strip is presented and read, and where the two faces meet
+    // tangentially its rate straddles zero at every depth
+    // (`work/embed/the-filleted-drum-at-interval-refuses-on-a-straddling-rate-at-its-tangent-seam.md`).
+    // Pinned at that refusal: red the day the drum holds at `Interval`,
+    // when this half joins the `f64` one above.
     let interval_body = filleted::<Interval>();
     let twin = injective(&interval_body, None, BUDGET);
-    assert_holds("the filleted drum at Interval", &twin, &interval_body);
+    let BoundVerdict::Refused(EngineRefusal::Uncertified {
+        a,
+        b,
+        shared: SharedCell::Edge(_),
+        arm: CertificateArm::Departure,
+    }) = twin.verdict
+    else {
+        panic!(
+            "the drum at Interval refuses at its tangent seam: {:?} {:?}",
+            twin.verdict, twin.receipt
+        )
+    };
+    let mut kinds = [kind(&interval_body, a), kind(&interval_body, b)];
+    kinds.sort_unstable();
+    assert_eq!(kinds, ["plane", "torus"], "the top plane against the band");
     let torus = body
         .faces()
         .map(|(k, _)| k)

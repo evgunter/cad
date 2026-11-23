@@ -375,7 +375,6 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SECTOR_APEX_WINDOW"),
     NameCarrier::Const("SESSION_BOX_REACH"),
     NameCarrier::Const("CELL_REGION_SINGULAR"),
-    NameCarrier::Const("SELF_INTERSECTION_SLIVER"),
     NameCarrier::Const("SELF_INTERSECTION_SPAN"),
     NameCarrier::Const("SPAN_ORDER_CHARGED"),
     NameCarrier::Const("SPAN_ROUNDING"),
