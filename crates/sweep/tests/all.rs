@@ -1428,6 +1428,10 @@ mod review_4737_span_probes;
 mod side_reader_aims_ask_nothing;
 #[path = "sphere_aims_reader_ties.rs"]
 mod sphere_aims_reader_ties;
+#[path = "volume_premises_door_bodies.rs"]
+mod volume_premises_door_bodies;
+#[path = "volume_premises_over_a_box.rs"]
+mod volume_premises_over_a_box;
 
 #[path = "fallback_rows_review.rs"]
 mod fallback_rows_review;
