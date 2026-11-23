@@ -12,8 +12,8 @@ twin reads a meeting anywhere I looked. It is held back by its own acceptance. T
 wrongly" on the ladder; the head certifies 19 wrongly at `f64`, **ten of which the base did not certify wrongly**
 (five it answered acceptably, five it refused), and the PR's account of them ("the evaluator, not a reader") is false
 for at least one and likely two, which this unit's own readers decide. The row filed for them schedules a fix that
-cannot close those. Either the nineteen refuse, or the row's owner re-cuts the acceptance; the PR body cannot do that for itself.
-Everything else below is fixable in place.
+cannot close those. Either the nineteen refuse, or the row's owner re-cuts the acceptance; the PR body cannot do
+that for itself. Everything else below is fixable in place.
 
 ## What was executed, and what was only read
 
@@ -61,8 +61,8 @@ One of the five refused-then-wrong is a new **"`Ok`, no meeting"** for curves th
 θ = 2, the circle at 5°, true gap 2.2e-13 (the base refused it). Another is **below the regression floor**: ε 1e-12,
 thin `a` = 1e4, θ = 2, the line at 5°, a meeting placed 1.2e-11 m (1.2 Kε) from the true one where the base
 refused; the P1 row's table lists the pose and the body does not say it is under the size at which main is never
-wrong. Seven of the nineteen are of that kind, the one
-direction main is wrong in. The acceptance reads "no pose certified wrongly … a differential against the base: every
+wrong. Seven of the nineteen are "`Ok`, no meeting" for curves that meet, the one direction main is wrong in.
+The acceptance reads "no pose certified wrongly … a differential against the base: every
 verdict that moves, judged against the oracle"; the body's table gives totals (60 → 7, 145 → 12) and says the
 remainder is "not a reader of where the conic is". On the question the brief puts: a wrong certificate left at a
 public door is not acceptable under that sentence, and it is this unit's to refuse. The row itself says how ("where a
