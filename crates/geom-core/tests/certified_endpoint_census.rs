@@ -772,7 +772,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/topo/src/injective.rs",
-        197,
+        204,
         95,
         "the 95 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
          `ends_on_collapse` (3), \
@@ -799,7 +799,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          against its extent, a line it takes only where its value `is_certified()` and places \
          by whole turns, which keeps it certified. `ends_on_collapse` reads \
          an edge's held coordinate (1) and its image's end (2) behind its own `is_certified()` \
-         ask, to hand them to the incidence decision. Of the other 102, \
+         ask, to hand them to the incidence decision. Of the other 109, \
          `reaching_its_singular_points`' 4 \
          read the ends of a singular latitude, a sphere pole's `±π/2` or a cone apex's `0`, to \
          compare the stored extent with it and move the extent to it: the constant's own \
