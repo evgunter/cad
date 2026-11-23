@@ -4,7 +4,7 @@ kind: issue
 title: A section conic can be anchored only at a principal vertex: a cylinder's shallow off-axis cut, whose in-box arc lies half a radian from any vertex, is still stored at its far centre
 status: open
 opened: 2026-11-20
-priority: P2
+priority: P1
 cost: H
 refs: [the-section-table-admits-a-curve-on-its-resolution, a-conics-point-is-evaluated-from-its-far-centre-not-its-vertex]
 ---
@@ -162,3 +162,21 @@ anomaly's pair are what that form reads.
 pins today's `u·a` from both sides and goes red when it becomes
 arc-scale; `a_re_seam_moves_parameter_zero_and_never_the_anchor` pins
 where parameter zero and the anchor are.
+
+## Re-banded P1 (2026-11-23, ONEROUND orchestrator)
+
+`a-construction-whose-centre-runs-off-still-stores-a-centre` (P1, owed
+by Ev's answer on PR 7258) is parked on this row: the cylinder's
+tilted ellipse, one of its four constructions, has no principal vertex
+near the arc it serves, so it can hold its arc only at a general
+point. A blocker carries the band of what waits on it
+(`work/README.md`, Priority). It follows `oneround/conic-readers`,
+which puts the readers of a conic through the conic first; the census
+above of readers that pair the parameter with `u_ref` / `v_ref` is
+what remains for this row after it.
+
+## Owed by this row: `u_ref` and `v_ref` leave `Conic` (2026-11-23)
+
+From the three designers' agreed answer on what a reader of a conic's position asks the conic (`analysis/design-fork/conic-reader-interface`; with Ev as an `[ev]` PR once the kernel measurement is in). Reading the seam direction is pairing it with the parameter, since θ = 0 lies along it, and moving parameter zero to the anchor changes what `u_ref` means. The end state is that `Conic` keeps `axis`, and the principal frame is asked as `major_frame()` / `section_frame()`, whose answer states the parameter at its vertex; a read that wants an in-plane basis with no parameter gets a frame with no seam meaning.
+
+**Remove or rename them; never re-document them under the same name**: the rename is the compile-time census of every pairing, and a re-documentation leaves every hand-written pairing compiling and wrong. If a readers unit removes them first (the pairing reads are the same sites those units convert), this section is discharged there.

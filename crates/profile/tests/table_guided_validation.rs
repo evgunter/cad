@@ -56,7 +56,7 @@ fn a_tables_guided_validation_at_dual_keeps_the_record_and_the_derivative() {
         .iter()
         .filter_map(|s| match s.kind {
             profile::SegmentKind::Arc { arc, .. } => Some(arc.sweep.deriv),
-            profile::SegmentKind::Line => None,
+            profile::SegmentKind::Line { .. } => None,
         })
         .collect();
     assert_eq!(sweeps.len(), 1, "one arc");
