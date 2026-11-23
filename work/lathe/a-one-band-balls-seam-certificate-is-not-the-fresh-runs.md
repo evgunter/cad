@@ -34,3 +34,29 @@ now on a revolve's own seam rather than a boolean's.
 `crates/sweep/src/revolve/full.rs`, the one-band build's meridian mint,
 or the test's `fresh` flag for the ball if the build's certificate is
 the right one to keep.
+
+## Cause
+
+The revolve restated the meridian once, as `EdgeDescriptionSpec::wrap(wall)`
+with no image, so the door derived the chart image and certified over
+the derived one: `1.5700924586837752e-16`. The edge stores that image,
+and a run over it stated (`recertify`, or `set_edge_curve` with the
+stored edge's `restated_spec`) mints `1.2246467991473532e-16`. Same
+carrier, interval, ends and surface; the endpoints do not move after
+the restatement (checked at `upgrade_meridian_wrap` and after the
+revolve's finish). So a run over a derived image and a run over the same
+image stated differ in the last bits. That is a geom-brep certify
+property, not the revolve's, and it may be the cleavetail row's cause
+too (`work/cleavetail/a-boolean-result-carries-a-seam-meridian-certificate-a-fresh-run-does-not-reproduce.md`,
+"Cause: not established"); not checked there.
+
+## Fixed
+
+`crates/sweep/src/revolve/upgrade.rs` `upgrade_meridian_wrap` restates
+the meridian once more from what it stores, through
+`restate_stored_edge` (the census door for a stored edge), so the
+stored certificate is the run a fresh re-certification mints.
+`snowman::the_fallback_assembly_carries_the_kept_operands_certificates`
+passes on `lathe/full-revolve-one-band`.
+
+- 2026-11-23 — cause traced and fixed on PR 7414's branch (LATHE one-band lane).
