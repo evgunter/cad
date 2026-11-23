@@ -5252,7 +5252,7 @@ where
     {
         return fail(bracket, NodeErrorKind::UnresolvedRead { slot, var });
     }
-    let mut keys: BTreeMap<RecipeNodeId, (ContentKey, NamingKey)> = BTreeMap::new();
+    let mut stands: BTreeMap<RecipeNodeId, &NodeValue<T>> = BTreeMap::new();
     for input in doc.upstream_of(id, node) {
         // Every input the document has precedes this node in the
         // order and so has its result: an absent one is not in it.
@@ -5260,7 +5260,7 @@ where
             node: input,
         }) {
             Ok(v) => {
-                keys.insert(input, (v.content_key, v.naming_key));
+                stands.insert(input, v);
             }
             Err(NodeStanding::NotEvaluated { .. } | NodeStanding::NotInDocument { .. }) => {
                 return fail(bracket, NodeErrorKind::MissingInput { input });
@@ -5275,43 +5275,6 @@ where
             }
         }
     }
-    // What the keys read of upstream: one entry per READ, in field
-    // order, as the operation it reads and the port (D10; DR-59's
-    // class: two outputs of one operation are two inputs, and a key
-    // that saw only the operation would serve one half's body for the
-    // other); a selection's read is its body's. Every operation here
-    // has its result (above). A placement's constraint side reading its
-    // own copy is no upstream read (`Doc::upstream_of`'s one exemption,
-    // the same predicate): the node's own key is what is being formed,
-    // and the side's selection names still key it.
-    let reads: Vec<(RecipeNodeId, u8)> = node
-        .operand_rows()
-        .into_iter()
-        .filter(|&(seat, var)| !crate::mate::solve::own_copy_side(doc, id, seat, var))
-        .flat_map(|(_, var)| doc.read_ports(var))
-        .collect();
-    let key_of = |at: &RecipeNodeId| {
-        *keys
-            .get(at)
-            .unwrap_or_else(|| unreachable!("every operation a node reads is in its upstream"))
-    };
-    let upstream_keys: Vec<UpstreamRead<ContentKey>> = reads
-        .iter()
-        .map(|(at, port)| UpstreamRead {
-            at: *at,
-            port: *port,
-            key: key_of(at).0,
-        })
-        .collect();
-    let upstream_naming: Vec<UpstreamRead<NamingKey>> = reads
-        .iter()
-        .map(|(at, port)| UpstreamRead {
-            at: *at,
-            port: *port,
-            key: key_of(at).1,
-        })
-        .collect();
-
     // Slot evaluation — the (node, slot) context door (PR 1's banked
     // NonFiniteResult obligation lands here). TWICE, through the one
     // door: at the evaluation scalar, which is what the op runs on,
@@ -5497,6 +5460,46 @@ where
         }
         _ => wire::OpInput::Other(node),
     };
+
+    // What the keys read of upstream: one entry per READ, in field
+    // order, as the operation it reads and the port (D10; DR-59's
+    // class: two outputs of one operation are two inputs, and a key
+    // that saw only the operation would serve one half's body for the
+    // other), keyed by the value the read sees of it
+    // ([`wire::reads_seen`]): a member's evaluation holds the member
+    // bound at its own indices where the family stood, and a read that
+    // takes the family whole, or picks another member, reads past it.
+    // Every operation here has its result (above). A placement's
+    // constraint side reading its own copy is no upstream read
+    // (`Doc::upstream_of`'s one exemption, the same predicate): the
+    // node's own key is what is being formed, and the side's selection
+    // names still key it.
+    let upstream: Vec<UpstreamRead<(ContentKey, NamingKey)>> = node
+        .operand_rows()
+        .into_iter()
+        .filter(|&(seat, var)| !crate::mate::solve::own_copy_side(doc, id, seat, var))
+        .flat_map(|(seat, var)| {
+            let seen = wire::reads_seen(node, doc, (seat, var), &slot_values, env);
+            let stands = &stands;
+            doc.read_ports(var).into_iter().map(move |(at, port)| {
+                let Some(value) = stands.get(&at) else {
+                    unreachable!("every operation a node reads is in its upstream")
+                };
+                // An operation the walk named no view of is keyed whole.
+                let (value, place) = seen.get(&at).unwrap_or(&wire::Seen::Whole).of(at, value);
+                UpstreamRead {
+                    at,
+                    port,
+                    place,
+                    key: (value.content_key, value.naming_key),
+                }
+            })
+        })
+        .collect();
+    let upstream_keys: Vec<UpstreamRead<ContentKey>> =
+        upstream.iter().map(|read| read.keyed(read.key.0)).collect();
+    let upstream_naming: Vec<UpstreamRead<NamingKey>> =
+        upstream.iter().map(|read| read.keyed(read.key.1)).collect();
 
     let content_key = content_key(
         node,
@@ -5818,10 +5821,13 @@ mod tag {
         /// A family's members ([`super::members`]): a member's key is
         /// its operation's at one value of its indices, then `AT` and
         /// each index and value; a family's is `FAMILY`, then each
-        /// member's.
+        /// member's. `PLACE` follows the upstream key of a read that
+        /// picks a member, then the member's place among its family's
+        /// bodies, and is written by no other read.
         member {
             AT = 1,
             FAMILY = 2,
+            PLACE = 3,
         }
         /// The word before a node's picked reads ([`crate::VarDef::Pick`]),
         /// written only by a node holding one; then each picked read's
@@ -6758,6 +6764,10 @@ where
     for read in upstream_keys {
         h.write_key(read.key);
         feed_port(&mut h, read.port);
+        if let Some(place) = read.place {
+            h.write_tag(tag::member::PLACE);
+            h.write_u64(u64::from(place));
+        }
     }
     // The recorded witness datum. Its presence is a word of its own so
     // `None` cannot alias a `Some` with empty bytes; a cleared witness
@@ -6776,11 +6786,27 @@ where
 
 /// **One read a node's keys feed** (D10): the operation `at` defining
 /// the variable read, the port read, and that operation's key.
+/// One read of an operation's output, as its reader's keys hash it.
 #[derive(Clone, Copy)]
 struct UpstreamRead<K> {
     at: RecipeNodeId,
     port: u8,
+    /// The place of the member the read picks among its family's
+    /// bodies ([`wire::Seen::of`]); `None` for any other read.
+    place: Option<u32>,
     key: K,
+}
+
+impl<K> UpstreamRead<K> {
+    /// This read under another key.
+    fn keyed<L>(&self, key: L) -> UpstreamRead<L> {
+        UpstreamRead {
+            at: self.at,
+            port: self.port,
+            place: self.place,
+            key,
+        }
+    }
 }
 
 /// A read's port, as the keys feed it: a presence tag, then the port.
