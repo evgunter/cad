@@ -2194,6 +2194,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         BooleanErrorKind::Band
         | BooleanErrorKind::CurvedBooleanUnsupported
         | BooleanErrorKind::CurvedPierceUnsupported
+        | BooleanErrorKind::JunctionEndUnread
         | BooleanErrorKind::CrossingAtConeApex
         | BooleanErrorKind::NormalAtConeApex
         | BooleanErrorKind::VertexPairAtConeApex
@@ -2836,6 +2837,24 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("reduce.rs", "esc", "BooleanDecision::Containment", 1),
     ("reduce.rs", "interior", "BooleanDecision::CurveMeeting", 1),
+    (
+        "reduce.rs",
+        "junction_end_window",
+        "BooleanDecision::JunctionEndOrder",
+        1,
+    ),
+    (
+        "reduce.rs",
+        "junction_end_window",
+        "BooleanDecision::JunctionEndSide",
+        1,
+    ),
+    (
+        "reduce.rs",
+        "junction_window",
+        "BooleanDecision::JunctionEndOnRim",
+        1,
+    ),
     ("reduce.rs", "lying_on", "BooleanDecision::CurveMeeting", 1),
     (
         "reduce.rs",

@@ -32,8 +32,9 @@ cut by two tools that meet on a rim junction would refuse its second
 cut, where the chain of pair cuts `(a − t₁) − t₂` decides that rim in
 the second cut's own door.
 
-Today the tools' judgement stops first, at the crossing layer that
-stops their union too
+Today the tools' judgement stops first, where their union stops too:
+past the crossing layer (PR 7463 reads an edge ending on the rim), at
+the finish on the seams' stand-in descriptions
 (`work/heldrecords/a-pipe-does-not-union-with-an-elbow-revolved-off-its-own-cap.md`).
 `crates/editor-core/tests/a_subtract_of_tools_meeting_on_a_rim.rs`
 pins the cut's refusal at either place. The kernel row

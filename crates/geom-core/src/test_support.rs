@@ -1,6 +1,8 @@
 //! Test vocabulary over this crate's types, for the suites downstream.
 
-use crate::{Affine3, Band, Decide, ErrorTextReading, MarginDiag, RigidMotion, Tol, Told};
+use crate::{
+    Affine3, Band, Decide, ErrorTextReading, Indeterminate, MarginDiag, RigidMotion, Tol, Told,
+};
 
 /// The upper end of a reporting margin: the point margin, or the
 /// enclosure's upper end; `NaN` for a poisoned reading, which no bound
@@ -42,6 +44,15 @@ pub fn upper(margin: MarginDiag) -> f64 {
 #[must_use]
 pub fn at_the_frame_cost_band(tol: Tol) -> bool {
     tol.eps() <= 1e-12
+}
+
+/// **Whether `cause` escalated `predicate` with its margin's upper end in
+/// `(lo, hi]`**: the window a frame-cost row
+/// ([`at_the_frame_cost_band`]) pins its refusal to.
+#[must_use]
+pub fn escalated(cause: &Indeterminate, predicate: &str, (lo, hi): (f64, f64)) -> bool {
+    let m = upper(cause.margin);
+    cause.predicate == Some(predicate) && m > lo && m <= hi
 }
 
 /// The lower end of a reporting margin: the point margin, or the
