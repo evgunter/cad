@@ -1449,7 +1449,11 @@ mod rows {
             (u, axis.cross(u))
         };
         let (sa, sb) = ((2.0, 1.0), (60.0, 45.0));
-        let a = Curve3::Ellipse(geom::Ellipse::new(geom::Frame::new(ca, axis, ua), sa.0, sa.1));
+        let a = Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(ca, axis, ua),
+            sa.0,
+            sa.1,
+        ));
         let centred = geom::Ellipse::new(geom::Frame::new(cb, axis, ub), sb.0, sb.1);
         let anchored = geom::Ellipse::anchored(cb + ub * sb.0, axis, ub, sb.0, sb.1);
         let ka = a.conic().unwrap();
@@ -1463,7 +1467,8 @@ mod rows {
                     .iter()
                     .map(|&(w, big)| {
                         let x0 = (ca - cb).dot(w);
-                        let (x1, dx1) = (a1.dot(w) * c + a2.dot(w) * s, a2.dot(w) * c - a1.dot(w) * s);
+                        let (x1, dx1) =
+                            (a1.dot(w) * c + a2.dot(w) * s, a2.dot(w) * c - a1.dot(w) * s);
                         (2.0 * x0 * x1 + 8.0 * (x1.powi(2) - dx1.powi(2))) / big.powi(2)
                     })
                     .sum::<f64>()
@@ -1473,9 +1478,15 @@ mod rows {
         for b in [Curve3::Ellipse(centred), Curve3::Ellipse(anchored)] {
             let kb = b.conic().unwrap();
             let bound = super::level_on(&ka, &kb).fourth();
-            assert!(bound >= truth, "{b:?}: the fourth bound {bound:e} below the true {truth:e}");
+            assert!(
+                bound >= truth,
+                "{b:?}: the fourth bound {bound:e} below the true {truth:e}"
+            );
             // And not vacuous: within a few times the truth.
-            assert!(bound <= 4.0 * truth, "{b:?}: the fourth bound {bound:e} past 4× the true {truth:e}");
+            assert!(
+                bound <= 4.0 * truth,
+                "{b:?}: the fourth bound {bound:e} past 4× the true {truth:e}"
+            );
         }
     }
 }

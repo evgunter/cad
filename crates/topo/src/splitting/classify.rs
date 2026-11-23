@@ -699,7 +699,6 @@ mod tests {
         );
     }
 
-
     /// **A graze's side is read on its far extreme, and a belly in the
     /// gap keeps its margin, each door that reads the fault ending on it.**
     /// A circle in a plane square to the query plane, at K = 2.
@@ -724,7 +723,11 @@ mod tests {
         use crate::boolean::refusal_routes::{BooleanDecision, DeclarationRead};
         let circle = |radius: f64, centre: f64| {
             geom::Curve3::Ellipse(geom::Ellipse::new(
-                geom::Frame::new(Point3::new(0.0, 0.0, centre), Vec3::unit_x(), Vec3::unit_z()),
+                geom::Frame::new(
+                    Point3::new(0.0, 0.0, centre),
+                    Vec3::unit_x(),
+                    Vec3::unit_z(),
+                ),
                 radius,
                 radius,
             ))
@@ -783,7 +786,10 @@ mod tests {
                 else {
                     panic!("{label}: {diag:?}");
                 };
-                assert!((belly - 1.5 * e).abs() <= 1e-6 * e, "{label}: the belly {belly:e}");
+                assert!(
+                    (belly - 1.5 * e).abs() <= 1e-6 * e,
+                    "{label}: the belly {belly:e}"
+                );
                 let split = crate::SplitReduceError::CrossingEscalated {
                     edge: crate::EdgeKey::default(),
                     fault,
@@ -791,10 +797,8 @@ mod tests {
                 .render(geom_brep::recourse::Reading::Build);
                 assert!(
                     split.contains("inside the ambiguity band")
-                        && split.ends_with(&format!(
-                            ". Recourse: {}",
-                            geom_core::SPLIT_PLANE_RECOURSE
-                        )),
+                        && split
+                            .ends_with(&format!(". Recourse: {}", geom_core::SPLIT_PLANE_RECOURSE)),
                     "{label}: the split's lever: {split}"
                 );
                 let boolean = crate::BooleanError::Escalated {
