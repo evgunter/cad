@@ -1040,10 +1040,28 @@ impl Along {
     /// where the side ends there by key.** A side clipped by a line whose
     /// edge ends at the vertex `end.vertex` ([`Along::stops`]) ends at
     /// that vertex: its edge does, and the clip is the line through it.
-    /// Its parameters past `end.at` are the line's enclosure against the
-    /// vertex's point value, two readings of one vertex and no stretch
-    /// of the edge, so they are cut at `end.at`. That is identity, not a
-    /// width: nothing is asked of how far past the parameters reach.
+    /// Its parameters past `end.at` are cut at `end.at`.
+    ///
+    /// **What is bridged, and what bounds it.** The stretch cut off is
+    /// the strip between the edge's stored end and the other line's
+    /// outer bound: two rows' readings of one vertex's coordinate (the
+    /// edge's end and the line's `at`), times the chart's speed along
+    /// the side. This code compares no length and bounds none: a keyed
+    /// side is cut however far past the vertex its parameters reach
+    /// (`a_keyed_side_is_cut_at_the_vertex_however_far_past_it_reaches`
+    /// pins that at `0.1`). The bound is the body's own, and is enforced
+    /// where the stop is recorded, not here: [`present_chart`] records a
+    /// stop only on a rectangle [`sides_are_the_faces`] has passed
+    /// (every side its edges' own run on to the other line's far bound
+    /// and no farther, every corner convex), so the side's reach past
+    /// the vertex is that line's enclosure and the corner is the face's.
+    /// A side built with a stop it was not recorded with has no such
+    /// bound.
+    ///
+    /// This is one more private spelling of a vertex's reading on an
+    /// edge (the row
+    /// `a-vertexs-reading-on-an-edge-is-spelled-privately-by-each-reader-that-joins-at-it`
+    /// lists them).
     ///
     /// Not checked here: that the clip's enclosure is the enclosure of
     /// the line through that vertex. [`present_chart`] records the stop
@@ -2198,8 +2216,18 @@ fn present_chart<'a>(
                 Some(&[e]) => {
                     // The ends of the side's edge where a line of the other
                     // axis, its own edge ending there, clips the rectangle.
+                    // None on a whole patch, which keeps its cell and is
+                    // not asked whether its sides are its edges'
+                    // ([`sides_are_the_faces`]): the bound on what a stop
+                    // bridges is that test's ([`Along::ending`]). The
+                    // other axis only: a clip is no corner with itself,
+                    // and its own edges' ends are no stops. A collapsed
+                    // clip names no edge, so it makes no corner here and
+                    // needs no filter ([`run_on`] filters it for its
+                    // line, which this does not read).
                     let stops = clip
                         .into_iter()
+                        .filter(|_| !piece.whole)
                         .flat_map(|c| {
                             merged
                                 .iter()
