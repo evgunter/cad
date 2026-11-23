@@ -159,8 +159,6 @@ mod r2_mesh2_probes;
 mod r2_mesh6_probes;
 #[path = "r2_split_door.rs"]
 mod r2_split_door;
-#[path = "iso_bounded.rs"]
-mod iso_bounded;
 #[path = "reach_probes.rs"]
 mod reach_probes;
 #[path = "review_m2_pr6_cert_oracle.rs"]
@@ -177,6 +175,8 @@ mod review_m2_pr6_walk_shapes;
 mod review_m3_pr1_mesh;
 #[path = "revolves.rs"]
 mod revolves;
+#[path = "rowless_cylinders.rs"]
+mod rowless_cylinders;
 #[path = "sizing_theorem_rows.rs"]
 mod sizing_theorem_rows;
 #[path = "split_rulings.rs"]

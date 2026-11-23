@@ -21,9 +21,7 @@
 //! make it cut at its midpoint ([`may_make`]), and each triangle read by
 //! the row's certificate. Its target is δ ([`face_target`]), by the
 //! theorems at `sizing::sagitta_step` and `sizing::cone_grid_step`; every
-//! other analytic face here sizes at [`UNPROVED_HEADROOM`] of δ. A
-//! cylinder face bounded by iso lines alone (`tessellate::Lane::IsoBounded`)
-//! lays no lattice rows.
+//! other analytic face here sizes at [`UNPROVED_HEADROOM`] of δ.
 //!
 //! # Watertightness is inherited, not re-derived
 //!
@@ -108,8 +106,8 @@
 //! (below), every other arm's in the lattice metric. Delaunay is not
 //! stretch-invariant, and a ruled wall's lattice is a strip whose
 //! columns are many times narrower than its rows (a lofted circle's
-//! wall: `s_u/s_v ≈ 0.03`; a cylinder of radius `r`, whose lattice is
-//! square in 3-D, `≈ 1/r` in (θ, z)); there, any point off the lattice — a trim
+//! wall: `s_u/s_v ≈ 0.03`; a cone's, square in 3-D at its widest
+//! radius `ρ`, `≈ 1/ρ` in (θ, v)); there, any point off the lattice — a trim
 //! chord point between two rows, a band interface's foreign column, a
 //! refinement centroid — has an empty circle many columns wide and a
 //! sliver across them. So points enter the CDT at `(u/k, v)`, with `k`
@@ -336,7 +334,7 @@ use topo::pcurves::{FaceLift, Lift};
 use topo::{Body, EdgeKey, FaceKey};
 
 use crate::cert;
-use crate::chart_table::{Analytic, AnalyticRow, ChartRow, RowEnd, SingularPoint};
+use crate::chart_table::{AnalyticRow, ChartRow, RowEnd, SingularPoint};
 use crate::chords::ChordPass;
 use crate::nurbs_cert::{FaceBounds, NurbsCellGrid};
 use crate::planar::{Pinches, Walk, shoelace2};
@@ -371,11 +369,11 @@ fn last_attempt() -> usize {
 /// ([`face_target`]).
 ///
 /// The lane has no worst-triangle theorem (`crates/mesh/README.md`
-/// `[mesh.sizing]`). Its lattice cell-halves would certify at the
-/// sagitta of the column step, but the trim polygon's points sit
-/// anywhere in a cell, and a constrained Delaunay triangle beside a
-/// trim chord can span more than one column — nothing yet bounds by
-/// how much. The certificate refuses typed where it is exceeded; this
+/// `[mesh.sizing]`). It lays no lattice on the cylinder
+/// (`chart_table::AnalyticRow::lattice_rows`), and a constrained
+/// Delaunay triangle on the face's boundary points certifies at the
+/// sagitta of its span round the axis, which can be more than one
+/// column — nothing yet bounds by how much. The certificate refuses typed where it is exceeded; this
 /// factor is what keeps that refusal rare, and it is a debt
 /// (`work/tesslane/the-trimmed-cylinder-lane-has-no-worst-triangle-theorem.md`):
 /// the fix is the theorem, not a retuned factor.
@@ -428,18 +426,16 @@ pub(crate) const BOUNDARY_CLEARANCE: f64 = 1.0 / 16.0;
 
 /// **A face's deviation target**: [`UNPROVED_HEADROOM`]·δ for a face
 /// this lane meshes on an analytic chart (one whose surface has no spline
-/// chart), a face bounded by iso lines alone among them, δ for every
-/// other face, a face it walks among them
+/// chart), δ for every other face, a face it walks among them
 /// (`tessellate::Lane::Walked`). The one statement those arms size
 /// their lattices at and the chord pass chords the face's boundary at
 /// (`chords::edge_target`), each reading the face's lane from the run's
 /// route (`tessellate::Routes`).
 pub(crate) fn face_target(surface: &Surface<f64>, lane: Lane, delta: f64) -> f64 {
-    match lane {
-        Lane::Trimmed | Lane::IsoBounded if surface.spline_chart().is_none() => {
-            delta * UNPROVED_HEADROOM
-        }
-        Lane::Planar | Lane::Curved | Lane::Trimmed | Lane::IsoBounded | Lane::Walked => delta,
+    if lane == Lane::Trimmed && surface.spline_chart().is_none() {
+        delta * UNPROVED_HEADROOM
+    } else {
+        delta
     }
 }
 
@@ -562,7 +558,7 @@ pub(crate) fn tessellate_trimmed(
     bounds: &FaceBounds,
     lift: &FaceLift<f64>,
     clearance: f64,
-    lane: Lane,
+    walked: bool,
 ) -> Result<Patch, TessellateError> {
     let face = body
         .get_face(fk)
@@ -601,7 +597,7 @@ pub(crate) fn tessellate_trimmed(
         &singular,
     );
     let orientation = trim_orientation(fk, face.sense, spline, &polygon)?;
-    if lane == Lane::Walked {
+    if walked {
         // `[failure.taxonomy]` row 0: could the route hand this lane a
         // type that only a cylinder or cone face's row inhabits, as
         // `curved::Rectangle` is the rectangle lane's? No, not locally:
@@ -655,39 +651,10 @@ pub(crate) fn tessellate_trimmed(
             // The row's steps at the face's target, the steps the chord
             // pass bounded this face's boundary UV steps by (`arm_steps`),
             // and the lattice the row lays from them.
-            let (hu, hv) = a.lattice_steps(arm_steps(a, face_target(surface, lane, tol.delta)));
+            let (hu, hv) =
+                a.lattice_steps(arm_steps(a, face_target(surface, Lane::Trimmed, tol.delta)));
             let nu = pole_side_columns(&polygon, &singular, (u0, u1), ceil_count(u1 - u0, hu)?)?;
-            // A cylinder face bounded by iso lines alone lays no rows (and
-            // so no node): its boundary points lie on rims and rulings, and
-            // its triangulation is held by the certificate alone. Measured
-            // over notched and holed pipe walls at δ `10⁻¹` to `10⁻³`: no
-            // triangle refuses at this target, the worst certifies at
-            // 0.69·δ, and the face takes 1 to 1.5 times the rectangle
-            // lane's triangles over the iso-rectangles it divides into,
-            // where the rows made 4 to 220 times.
-            let rows = if lane == Lane::IsoBounded && crate::chart_table::ruled(surface) {
-                Vec::new()
-            } else {
-                a.lattice_rows((v0, v1), (hu, hv))?
-            };
-            // The other half of #678's shape on the cylinder, checked
-            // where the count is: the fan needs ONE interior column
-            // between two boundary entries that share a mesh vertex,
-            // which is `nu == 2`. A cylinder has no singular point, and
-            // `one_location_per_branch` holds each vertex at one UV per
-            // branch, so a repeated id at two DISTINCT UVs is one vertex
-            // on two branches, at least half a turn apart: `u1 - u0` is
-            // at least π against an `hu` the sagitta cap holds at ≤ π/4,
-            // so `nu >= 4` and the two never meet.
-            debug_assert!(
-                !matches!(a.kind(), Analytic::Cylinder { .. })
-                    || nu != 2
-                    || !id_repeats_apart(&polygon.points),
-                "face {fk:?}: a trim polygon repeats a mesh id at two UV locations \
-                 with a single interior column (nu = 2, {} rows) — the shape \
-                 #678's non-manifold fan needs (curved::pole_columns)",
-                rows.len()
-            );
+            let rows = a.lattice_rows((v0, v1), (hu, hv))?;
             (
                 lattice_candidates((u0, u1), (v0, v1), nu, &rows),
                 None,
@@ -2478,8 +2445,8 @@ fn uv_centroid(uv: &[[f64; 2]; 3]) -> (f64, f64) {
 ///
 /// The rule for "different" is spade's and is stated once, at
 /// [`crate::cdt::ids_at_two_uvs`], which both lanes call. This
-/// function is that set's emptiness, named for the question the
-/// cylinder arm's `debug_assert` asks.
+/// function is that set's emptiness, which the rows below read.
+#[cfg(test)]
 fn id_repeats_apart(polygon: &[(f64, f64, u32)]) -> bool {
     !crate::cdt::ids_at_two_uvs(polygon.iter().copied()).is_empty()
 }
@@ -5269,7 +5236,7 @@ pub(super) mod tests {
             .build()
             .expect("a one-thread pool");
         pool.install(|| {
-            for delta in [2e-2, 5e-3] {
+            for delta in [5e-2, 2e-2] {
                 LAST_ATTEMPT.with(|a| a.set(Some(0)));
                 let first = crate::tessellate(&body, delta, Tol::witness());
                 LAST_ATTEMPT.with(|a| a.set(None));
@@ -5849,16 +5816,8 @@ pub(super) mod tests {
                 .then(|| {
                     let lift = super::face_domain(body, fk, tol.band).unwrap();
                     let answer = super::tessellate_trimmed(
-                        body,
-                        fk,
-                        surface,
-                        &chords,
-                        &positions,
-                        &tol,
-                        &bounds,
-                        &lift,
-                        clearance,
-                        crate::tessellate::Lane::Trimmed,
+                        body, fk, surface, &chords, &positions, &tol, &bounds, &lift, clearance,
+                        false,
                     );
                     (fk, answer.map(|patch| patch.triangles.len()))
                 })

@@ -232,10 +232,6 @@ pub(crate) enum Lane {
     /// whose straight side holds a point and whose loop is the walk's
     /// (`trimmed::walkable`): no lattice and no CDT, at δ.
     Walked,
-    /// The chart lane on a cylinder or sphere face that is no rectangle
-    /// and whose loops run on iso lines alone
-    /// (`walk::runs_on_iso_lines`): on the cylinder, no lattice rows.
-    IsoBounded,
 }
 
 /// The dispatch.
@@ -259,6 +255,8 @@ pub(crate) enum Lane {
 /// these facts that answers, each named by its predicate so a citation
 /// survives a fact inserted before it:
 ///
+/// - **A ring** (`face.rings`): a face holding one is no rectangle, and
+///   is the trimmed lane's, which reads every loop of its domain.
 /// - **A pinch** ([`crate::walk::pinches`]): an outer loop that passes
 ///   one point record at two distinct vertices — a slit's parted end, or
 ///   both ends of a slit run the full height of a full turn. The curved
@@ -270,8 +268,6 @@ pub(crate) enum Lane {
 ///   whether or not its domain is an iso rectangle (the full-height slit's
 ///   is). The body states the two vertices one point by giving them one
 ///   point record, so the route reads that and no distance.
-/// - **A ring** (`face.rings`): a face holding one is no rectangle, and
-///   is the trimmed lane's, which reads every loop of its domain.
 /// - **A non-iso chart image** ([`geom_brep::Pcurve::is_non_iso_form`]):
 ///   a face whose outer loop stores a chart image of a form no iso line
 ///   takes (a projected circle, a focal section, a spiric, a fitted or
@@ -290,12 +286,6 @@ pub(crate) enum Lane {
 ///   decide, or whose stored data contradicts itself, refuses
 ///   [`TessellateError::UnsupportedCurvedShape`] with their cause: no
 ///   lane is taken because a door could not answer.
-/// - **Iso lines alone** ([`crate::walk::runs_on_iso_lines`]): a
-///   cylinder or sphere face the ring fact or the doors sent to the
-///   trimmed lane, whose every loop stores images on iso lines of its
-///   chart (a notched or holed pipe wall, a ball less a wedge), is that
-///   lane's as [`Lane::IsoBounded`]. It is decided here once, so the chord
-///   pass, the sizing and the lane read one answer.
 /// - **A split straight side** ([`crate::walk::splits_a_straight_side`]):
 ///   a rectangle the doors certify on a ruled chart (a cylinder or a
 ///   cone) whose straight side holds a point between its ends — a ruling
@@ -333,26 +323,8 @@ pub(crate) fn route_of(
             let face = body
                 .get_face(fk)
                 .ok_or(TessellateError::MissingEntity { what: "face" })?;
-            // Fact 5: a cylinder or sphere face whose loops run on iso
-            // lines alone, here or where the doors decide it no rectangle.
-            let iso_bounded = || -> Result<bool, TessellateError> {
-                Ok(
-                    matches!(surface, Surface::Cylinder { .. } | Surface::Sphere { .. })
-                        && crate::walk::runs_on_iso_lines(body, fk, face)?,
-                )
-            };
-            if crate::walk::pinches(body, face.outer)? {
+            if !face.rings.is_empty() || crate::walk::pinches(body, face.outer)? {
                 return Ok((Route::Trimmed(Trim::Structural), None));
-            }
-            if !face.rings.is_empty() {
-                return Ok((
-                    Route::Trimmed(if iso_bounded()? {
-                        Trim::IsoBounded(None)
-                    } else {
-                        Trim::Structural
-                    }),
-                    None,
-                ));
             }
             let off_iso = crate::walk::loop_half_edges(body, face.outer, fk)?
                 .into_iter()
@@ -381,9 +353,6 @@ pub(crate) fn route_of(
                     let (lift, read) =
                         k_stats::detached(|| read_domain(body, fk, band, Some(verdict)));
                     match lift {
-                        Ok(lift) if iso_bounded()? => {
-                            (Route::Trimmed(Trim::IsoBounded(Some(lift))), Some(read))
-                        }
                         Ok(lift) => (Route::Trimmed(Trim::Read(lift)), Some(read)),
                         Err(refusal) => {
                             k_stats::splice(read);
@@ -418,10 +387,6 @@ pub(crate) enum Trim {
     /// Fact 4 on a face the walk takes ([`Lane::Walked`]); its domain is
     /// read at its turn.
     Walked,
-    /// Fact 5 ([`Lane::IsoBounded`]): its domain as the route read it
-    /// where the doors decided the face no rectangle, or `None` on a face
-    /// holding a ring, whose domain is read at its turn.
-    IsoBounded(Option<topo::pcurves::FaceLift<f64>>),
 }
 
 /// **The one read of a trimmed face's domain** (`trimmed::face_domain`),
@@ -474,10 +439,6 @@ impl Route {
             Self::Trimmed(Trim::Read(lift)) => Ready::Trimmed(lift),
             Self::Trimmed(Trim::Structural) => Ready::Trimmed(read_domain(body, fk, band, None)?),
             Self::Trimmed(Trim::Walked) => Ready::Walked(read_domain(body, fk, band, None)?),
-            Self::Trimmed(Trim::IsoBounded(Some(lift))) => Ready::IsoBounded(lift),
-            Self::Trimmed(Trim::IsoBounded(None)) => {
-                Ready::IsoBounded(read_domain(body, fk, band, None)?)
-            }
         })
     }
 }
@@ -488,7 +449,6 @@ pub(crate) enum Ready {
     Curved(crate::curved::Rectangle),
     Trimmed(topo::pcurves::FaceLift<f64>),
     Walked(topo::pcurves::FaceLift<f64>),
-    IsoBounded(topo::pcurves::FaceLift<f64>),
 }
 
 impl Ready {
@@ -499,7 +459,6 @@ impl Ready {
             Self::Curved(_) => Lane::Curved,
             Self::Trimmed(_) => Lane::Trimmed,
             Self::Walked(_) => Lane::Walked,
-            Self::IsoBounded(_) => Lane::IsoBounded,
         }
     }
 
@@ -507,7 +466,7 @@ impl Ready {
     /// none.
     fn domain(&self) -> Option<&topo::pcurves::FaceLift<f64>> {
         match self {
-            Self::Trimmed(lift) | Self::Walked(lift) | Self::IsoBounded(lift) => Some(lift),
+            Self::Trimmed(lift) | Self::Walked(lift) => Some(lift),
             Self::Planar | Self::Curved(_) => None,
         }
     }
@@ -557,7 +516,6 @@ enum Entry {
     Curved(crate::curved::Rectangle),
     Trimmed,
     Walked,
-    IsoBounded,
     Refused,
 }
 
@@ -590,7 +548,6 @@ impl Routes {
                     Ok(Route::Planar) => Entry::Planar,
                     Ok(Route::Curved(rectangle)) => Entry::Curved(rectangle.clone()),
                     Ok(Route::Trimmed(Trim::Walked)) => Entry::Walked,
-                    Ok(Route::Trimmed(Trim::IsoBounded(_))) => Entry::IsoBounded,
                     Ok(Route::Trimmed(_)) => Entry::Trimmed,
                     Err(_) => Entry::Refused,
                 };
@@ -620,7 +577,6 @@ impl Routes {
             Some(Entry::Curved(_)) => Ok(Routed::To(Lane::Curved)),
             Some(Entry::Trimmed) => Ok(Routed::To(Lane::Trimmed)),
             Some(Entry::Walked) => Ok(Routed::To(Lane::Walked)),
-            Some(Entry::IsoBounded) => Ok(Routed::To(Lane::IsoBounded)),
             Some(Entry::Refused) => Ok(Routed::Refused),
             None => Err(TessellateError::MissingEntity { what: "face" }),
         }
@@ -849,7 +805,7 @@ fn tessellate_impl(
                     // projects valid boundaries below spade's
                     // coordinate domain.
                     let run = || match &route {
-                        Ready::Trimmed(lift) | Ready::Walked(lift) | Ready::IsoBounded(lift) => {
+                        Ready::Trimmed(lift) | Ready::Walked(lift) => {
                             crate::trimmed::tessellate_trimmed(
                                 body,
                                 fk,
@@ -860,7 +816,7 @@ fn tessellate_impl(
                                 &bounds,
                                 lift,
                                 crate::trimmed::BOUNDARY_CLEARANCE,
-                                lane,
+                                lane == Lane::Walked,
                             )
                         }
                         Ready::Planar => tessellate_planar(body, fk, &chords.ids, shared),

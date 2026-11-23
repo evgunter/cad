@@ -882,7 +882,6 @@ impl FaceInputs {
             Lane::Curved => 1,
             Lane::Trimmed => 2,
             Lane::Walked => 3,
-            Lane::IsoBounded => 4,
         });
         w.f64(self.chordal);
         w.f64(self.eps);
@@ -890,7 +889,7 @@ impl FaceInputs {
         let (curved, trimmed) = match self.lane {
             Lane::Planar => (false, false),
             Lane::Curved => (true, false),
-            Lane::Trimmed | Lane::Walked | Lane::IsoBounded => (false, true),
+            Lane::Trimmed | Lane::Walked => (false, true),
         };
         // The dispatch reads the surface's kind on every lane; the
         // curved and trimmed lanes read its fields.

@@ -356,10 +356,11 @@ impl<'a> AnalyticRow<'a> {
     }
 
     /// The steps a lane's lattice lays from the cell steps `(hu, hv)`
-    /// ([`Self::steps`]): on a ruled chart, rows every `lever·hu` metres,
-    /// square in 3-D at the face's widest radius (the cylinder's radius,
-    /// the cone's largest), which shape the triangulation and move no
-    /// bound; on a torus and a spindle sheet both periodic steps capped at
+    /// ([`Self::steps`]): on a cone, rows every `ρ_max·hu` metres, square
+    /// in 3-D at the face's largest radius, which shape the triangulation
+    /// and move no bound; on a cylinder none (the steps as they are, `hv`
+    /// unbounded: [`Self::lattice_rows`] lays no row there); on a torus
+    /// and a spindle sheet both periodic steps capped at
     /// `sizing::MAX_ANGULAR_STEP`; on a sphere the steps as they are, both
     /// capped already.
     ///
@@ -369,9 +370,8 @@ impl<'a> AnalyticRow<'a> {
     /// lays none on a face it walks (`crate::ruled_walk`).
     pub(crate) fn lattice_steps(&self, (hu, hv): (f64, f64)) -> (f64, f64) {
         match self.kind() {
-            Analytic::Cylinder { radius: lever } | Analytic::Cone { rho_max: lever, .. } => {
-                (hu, lever * hu)
-            }
+            Analytic::Cylinder { .. } => (hu, hv),
+            Analytic::Cone { rho_max: lever, .. } => (hu, lever * hu),
             Analytic::Torus { .. } | Analytic::Spindle { .. } => (cap_angular(hu), cap_angular(hv)),
             Analytic::Sphere { .. } => (hu, hv),
         }
@@ -381,7 +381,19 @@ impl<'a> AnalyticRow<'a> {
     /// `v` window `(v0, v1)`**, from the lattice steps `(hu, hv)`
     /// ([`Self::lattice_steps`]), ascending.
     ///
-    /// Every chart but the cone: uniform, `⌈(v1 − v0)/hv⌉` gaps.
+    /// **The cylinder: none.** Its every line `u = const` is straight on
+    /// the surface, so a triangle's deviation is set by its span round
+    /// the axis (`cert::cert_cylinder`), which a row does not shorten,
+    /// while rows multiply the triangles. With no row there is no lattice
+    /// node, and the lane triangulates the face's boundary points, each
+    /// triangle held by the certificate. Measured over the `mesh` suite
+    /// and `sweep`'s meshing modules at three ε: no cylinder face refuses
+    /// or folds without its rows, and a notched or holed pipe wall takes
+    /// 1 to 1.5 times the rectangle lane's triangles over the
+    /// iso-rectangles it divides into, where the rows made 4 to 220 times.
+    ///
+    /// The sphere, the torus and the spindle sheet: uniform,
+    /// `⌈(v1 − v0)/hv⌉` gaps.
     ///
     /// **The cone: uniform in `√|v|`**, in `⌈2·(√v₁ − √v₀)·√v_w/hv⌉`
     /// gaps, `v_w = hv/(hu·sin α)` the slant the row step was laid at (the
@@ -443,10 +455,8 @@ impl<'a> AnalyticRow<'a> {
                     .filter(|v| v.abs() > certified)
                     .collect())
             }
-            Analytic::Cylinder { .. }
-            | Analytic::Sphere { .. }
-            | Analytic::Torus { .. }
-            | Analytic::Spindle { .. } => {
+            Analytic::Cylinder { .. } => Ok(Vec::new()),
+            Analytic::Sphere { .. } | Analytic::Torus { .. } | Analytic::Spindle { .. } => {
                 let n = ceil_count(v1 - v0, hv)?;
                 Ok((1..n).map(|j| lerp(v0, v1, j, n)).collect())
             }
@@ -942,7 +952,8 @@ mod tests {
         let row = AnalyticRow::new(&cylinder, f64::NAN).unwrap();
         assert_eq!(
             row.lattice_rows((1.0, 2.0), (0.1, 0.3)).unwrap(),
-            vec![1.25, 1.5, 1.75]
+            Vec::<f64>::new(),
+            "a cylinder lays no row"
         );
     }
 

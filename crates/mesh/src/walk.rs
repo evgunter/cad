@@ -679,58 +679,6 @@ pub(crate) fn pinches(body: &Body<f64>, lk: LoopKey) -> Result<bool, TessellateE
     })
 }
 
-/// **Whether every loop of face `fk` runs on iso lines of its chart
-/// alone**: each half-edge of the outer loop and of every ring stores an
-/// image one of whose channels is still (`geom_brep::Channel`: an angle
-/// of no windings, or a free channel with no `cos`, `sin` or linear
-/// term), or an iso line or arc by its variant. On a cylinder that is a
-/// rim or a ruling, on a sphere a parallel or a meridian. A half-edge with
-/// no stored image, or one whose image moves in both channels (a tilted
-/// section's sinusoid, a projected or fitted image), or a loop that is one
-/// vertex, answers no.
-///
-/// It reads the images the mints stored and decides nothing: no band, no
-/// tolerance. The route asks it of a cylinder or sphere face the doors
-/// decided no rectangle, and of one holding a ring
-/// (`tessellate::route_of`), and a yes routes the face to
-/// [`crate::tessellate::Lane::IsoBounded`].
-pub(crate) fn runs_on_iso_lines(
-    body: &Body<f64>,
-    fk: FaceKey,
-    face: &topo::Face,
-) -> Result<bool, TessellateError> {
-    use geom_brep::pcurve_cache::{Channel, Pcurve};
-    let still = |channel: &Channel<f64>| match *channel {
-        Channel::Angle { winding, .. } => winding == 0,
-        Channel::Free { a, b, l, .. } => a == 0.0 && b == 0.0 && l == 0.0,
-    };
-    for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
-        // A loop that is one vertex runs on no line; the lane's domain
-        // read answers it.
-        let one_vertex = body
-            .get_loop(lk)
-            .is_some_and(|lp| !matches!(lp.boundary, LoopBoundary::Cycle { .. }));
-        if one_vertex {
-            return Ok(false);
-        }
-        for (hek, _, _) in loop_half_edges(body, lk, fk)? {
-            let on_an_iso_line = body.pcurve(hek).is_some_and(|row| match row.pcurve() {
-                Pcurve::Harmonic { u, v } => still(u) || still(v),
-                Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. } => true,
-                Pcurve::Projected(_)
-                | Pcurve::FocalSection(_)
-                | Pcurve::Spiric { .. }
-                | Pcurve::Fitted(_)
-                | Pcurve::General(_) => false,
-            });
-            if !on_an_iso_line {
-                return Ok(false);
-            }
-        }
-    }
-    Ok(true)
-}
-
 /// **Whether a straight side of face `fk`'s outer loop holds a point
 /// between its ends**, on a cylinder or a cone: a side carried by more
 /// than one edge, or a cone's side through its apex.
