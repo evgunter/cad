@@ -344,10 +344,10 @@ mod review_probes {
                 }
             }
             assert!(
-                saw_sphere && cones == 4,
+                saw_sphere && cones == 2,
                 "{name}: sphere zone between a neck cone and a conical pucker, \
-                 both coaxial with the stem tangent and both halved at the \
-                 revolve seam — saw {cones} cone faces"
+                 both coaxial with the stem tangent, each one face — saw \
+                 {cones} cone faces"
             );
         }
     }
@@ -427,9 +427,9 @@ mod review_probes {
     /// `merge_coplanar_faces` then repaired; it now sweeps a planar
     /// wall whole (BAND, "one wall per run"), so neither cap carries a
     /// same-key adjacency. Its CURVED walls (two cones, one sphere
-    /// zone) are still cut at the seam, and the row tells the two
-    /// apart — no planar pair, six curved — so a change that stopped
-    /// doing so fails here rather than silently. The body as built is
+    /// zone) sweep in one band each too, so no curved wall carries one
+    /// either: a revolve that cut any wall again fails here. The body
+    /// as built is
     /// tier 2 and tier 3 clean (the delta review's MIN-1 asked for
     /// both real validators, not the tier 1 one).
     #[test]
@@ -455,9 +455,10 @@ mod review_probes {
         // Each pair is counted from both of its two struts.
         assert_eq!(
             (planar_pairs, curved_pairs),
-            (0, 6),
+            (0, 0),
             "two whole planar caps (the lip disk and the throat disk) and three \
-             curved walls (two cones, one sphere zone), each split at its seam"
+             whole curved walls (two cones, one sphere zone): no two faces share \
+             a carrier"
         );
         assert_eq!(
             pncad::topo::validate_closed(lant),
@@ -598,11 +599,10 @@ mod review_probes {
             lant.vertices().count(),
         );
         println!("lantern census (shells, faces, edges, vertices) = {census:?}");
-        // RE-BASELINED (wall 6 retired: the mouth rolled into one
-        // torus band): (1, 8, 14, 8) -> (1, 9, 17, 10), one band face
-        // between the zone and the pucker, its two tangency circles
-        // each two half-arcs, and their seam vertices.
-        assert_eq!(census, (1, 9, 17, 10), "the re-authored lantern's census");
+        // Six faces (two discs, the neck and pucker cones, the sphere
+        // zone, the mouth's torus band), each curved one band with its
+        // one seam; every rim one closed circle on its seam vertex.
+        assert_eq!(census, (1, 6, 9, 5), "the re-authored lantern's census");
         let props = pncad::topo::mass_properties(
             &demo_tour::booleans::at_rest(lant, Tol::witness()),
             Tol::witness(),
@@ -717,8 +717,10 @@ mod review_probes {
             // RE-BASELINED (wall 6 retired): the mouth's torus band,
             // sized per curvature like any torus, adds its own cells —
             // 1_080 -> 1_220 and 2_556 -> 3_038.
-            ("lily_lantern", 5e-3, 832),
-            ("lily_lantern", 2e-3, 1_900),
+            // The lantern's curved walls are one band each, so no seam
+            // meridian parts a wall into two meshed patches.
+            ("lily_lantern", 5e-3, 826),
+            ("lily_lantern", 2e-3, 1_860),
             // RE-BASELINED: the swept leaves are fitted at the cubic
             // degree along the path (wall 15 retired) — 6_468 -> 5_576
             // and 5_992 -> 5_164. RE-BASELINED again (PR 4984, one
