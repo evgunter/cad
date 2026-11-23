@@ -1,0 +1,116 @@
+
+===== eps 1e-09   (columns: a = 1e+02 1e+03 1e+04 1e+05 1e+06 1e+07 1e+08 1e+09;  each cell: s = 0, 0.3, -3 m of arc from the anchor)
+on_ca O n0               fat  truth ON           | rrr rrr rrr rrr rrr rrr rrr rrr
+on_ca O n0.5             fat  truth ON           | rrr rrr rrr rrr rrr rrr rrr rrr
+on_ca O n5               fat  truth GAP          | RRR RRR RRR RRR RRR RRR GGG GGG <<<
+on_ca O n30              fat  truth OFF          | rrr rrr rrr rrr rrr rrr rrr rrr
+on_ca O d0               fat  truth ON           | rrr rrr rrr rrr rrr rrr rrr rrr
+on_ca O d0.5             fat  truth ON           | rrr rrr rrr rrr rrr rrr rrr rrr
+on_ca O d5               fat  truth GAP          | RRR RRR RRR RRR RRR RRR GGG GGG <<<
+on_ca O d30              fat  truth OFF          | rrr rrr rrr rrr rrr rrr rrr rrr
+plane P own+0            fat  truth INPLANE      | rrr rrr rrr rrr rrr rrr RRR WWW <<<
+plane P own+5            fat  truth GAP          | RRR RRR RRR RRR RRR RRR RRR GGG <<<
+plane P own+30           fat  truth MISS         | rrr rrr rrr rrr rrr rrr rrr rrr
+under S in               fat  truth INPLANE      | rrr rrr rrr rrr rrr rrr RRR WWW <<<
+under S lift5            fat  truth GAP          | RRR RRR RRR RRR RRR RRR RRR GGG <<<
+under S lift30           fat  truth APART        | rrr rrr rrr rrr rrr rrr rrr rrr
+under S cross30          fat  truth CROSS        | rrr rrr rrr rrr rrr rrr rrr PPP <<<
+meet  A through          fat  truth MEETS        | rrr rrr rrr rrr rrr Rrr RRR WWW <<<
+meet  A short30          fat  truth APART        | rrr rrr rrr rrr rrr Rrr RRR rrr
+meet  A short300         fat  truth APART        | rrr rrr rrr rrr rrr rrr rrr rrr
+meet  C g90              fat  truth MEETS        | rrr rrr rrr rrr rrr rrr rWW WWW <<<
+meet  C g90off30         fat  truth APART        | rrr rrr rrr rrr rrr rrr rrr rrr
+meet  C g30              fat  truth MEETS        | rrr rrr rrr rrr rrr rrr rrr WWW <<<
+meet  C g30off30         fat  truth APART        | rrr rrr rrr rrr rrr rrr rrr rrr
+meet  C g5               fat  truth MEETS        | rrr rrr rrr rrr rrr rrr rrr WWr <<<
+meet  C g5off30          fat  truth APART        | rrr rrr rrr rrr rrr rrr rrr rrr
+meet  C g0.5             fat  truth MEETS        | rrr rrr rrr rrr rrr rrr rrr rWW <<<
+meet  C g0.5off30        fat  truth APART        | rrr rrr rrr rrr rrr rrr rrr rrr
+meet  D cross            fat  truth MEETS        | rrr rrr rrr rrr rrr rrr rrr WWW <<<
+meet  D cross-rev        fat  truth MEETS        | rrr rrr rrr rrr rrr rrr rrr WWW <<<
+meet  D clear-30         fat  truth MEETS        | rrr rrr rrr rrr rrr rrr rrr WWW <<<
+meet  D clear30          fat  truth APART        | rrr rrr rrr rrr rrr rrr rrr rrr
+meet  D lift30           fat  truth APART        | rrr rrr rrr rrr rrr rrr rrr rrr
+meet  E g90through       fat  truth MEETS        | rrr rrr rrr rrr rrr rrr WWW WWW <<<
+meet  E g90through-rev   fat  truth MEETS        | rrr rrr rrr rrr rrr rrr WWW WWW <<<
+meet  E g90off30         fat  truth APART        | rrr rrr rrr rrr rrr rrr rrr rrr
+meet  E g90off30-rev     fat  truth APART        | rrr rrr rrr rrr rrr rrr rrr rrr
+meet  E g30through       fat  truth MEETS        | rrr rrr rrr rrr rrr rrr WWW WWW <<<
+meet  E g30through-rev   fat  truth MEETS        | rrr rrr rrr rrr rrr rrr WWW WWW <<<
+meet  E g30off30         fat  truth APART        | rrr rrr rrr rrr rrr rrr rrr rrr
+meet  E g30off30-rev     fat  truth APART        | rrr rrr rrr rrr rrr rrr rrr rrr
+meet  E g5through        fat  truth MEETS        | rrr rrr rrr rrr rrr rrr WWW WWW <<<
+meet  E g5through-rev    fat  truth MEETS        | rrr rrr rrr rrr rrr rrr WWW WWW <<<
+meet  E g5off30          fat  truth APART        | rrr rrr rrr rrr rrr rrr rrr rrr
+meet  E g5off30-rev      fat  truth APART        | rrr rrr rrr rrr rrr rrr rrr rrr
+meet  F cross            fat  truth MEETS        | rrr rrr rrr rrr rrr RRR WRR WWW <<<
+meet  F cross-rev        fat  truth MEETS        | rrr rrr rrr rrr rrr rrr rrr WWW <<<
+meet  F clear-30         fat  truth MEETS        | RRR RRR RRR RRR RRR RRR RRR WWW <<<
+meet  F clear-30-rev     fat  truth MEETS        | RRR RRR RRR RRR RRR RRR RRR WWW <<<
+meet  F clear30          fat  truth APART        | RRR RRR RRR RRR RRR RRR RRr rrr
+meet  F clear30-rev      fat  truth APART        | RRR RRR RRR RRR RRR RRR RRR rrr
+meet  G coplanar         fat  truth MEETS        | rrr rrr rrr rrr rrr RRR RRR WWW <<<
+meet  G across           fat  truth MEETS        | rrr rrr rrr rrr rrr rrr WWW WWW <<<
+meet  B out-300          fat  truth MEETS        | r   r   r   r   r   R   r   W   <<<
+meet  B out-30           fat  truth MEETS        | r   r   r   r   r   R   R   W   <<<
+meet  B out-2            fat  truth MEETS        | R   R   R   R   R   R   R   W   <<<
+meet  B out0             fat  truth MEETS        | r   r   r   r   r   r   r   r  
+meet  B out30            fat  truth APART        | r   r   r   r   r   r   r   r  
+meet  B out300           fat  truth APART        | r   r   r   r   r   r   r   r  
+on_ca O n0               thin truth ON           | rrr rrr rrr rrr rrr rrr rrr rrr
+on_ca O n0.5             thin truth ON           | rrr rrr rrr rrr rrr rrr rrr rrr
+on_ca O n5               thin truth GAP          | RRR RRR RRR RRR RRR RRR GGR GGG <<<
+on_ca O n30              thin truth OFF          | rrr rrr rrr rrr rrr rrr rrr rrr
+on_ca O d0               thin truth ON           | rrr rrr rrr rrr rrr rrr rrr rrr
+on_ca O d0.5             thin truth ON           | rrr rrr rrr rrr rrr rrr rrr rrr
+on_ca O d5               thin truth GAP          | RRR RRR RRR RRR RRR RRR GGR GGG <<<
+on_ca O d30              thin truth OFF          | rrr rrr rrr rrr rrr rrr rrr rrr
+plane P own+0            thin truth INPLANE      | rrr rrr rrr rrr rrr rrr RRR WWW <<<
+plane P own+5            thin truth GAP          | RRR RRR RRR RRR RRR RRR RRR GGG <<<
+plane P own+30           thin truth MISS         | rrr rrr rrr rrr rrr rrr rrr rrr
+under S in               thin truth INPLANE      | rrr rrr rrr rrr rrr rrr RRR WWW <<<
+under S lift5            thin truth GAP          | RRR RRR RRR RRR RRR RRR RRR GGG <<<
+under S lift30           thin truth APART        | rrr rrr rrr rrr rrr rrr rrr rrr
+under S cross30          thin truth CROSS        | rrr rrr rrr rrr rrr rrr rrr PPP <<<
+meet  A through          thin truth MEETS        | rrr rrr rrr rrr rrr rRR rRR WWW <<<
+meet  A short30          thin truth APART        | rrr rrr rrr rrr rrr rRR rRR rrr
+meet  A short300         thin truth APART        | rrr rrr rrr rrr rrr rRR rRR rrr
+meet  C g90              thin truth MEETS        | rrr rrr rrr RRr RRR RRR RWR WWW <<<
+meet  C g90off30         thin truth APART        | rrr rrr rrr rrr rrr rrr rrr rrR
+meet  C g30              thin truth MEETS        | rrr rrr rrr RRr RRR RRR RRR WWW <<<
+meet  C g30off30         thin truth APART        | rrr rrr rrr rrr rrr rrr rrr rrr
+meet  C g5               thin truth MEETS        | rrr rrr rrr RRr RRR RRR RRR RRW <<<
+meet  C g5off30          thin truth APART        | rrr rrr rrr rrr rrr rrr rrr RrR
+meet  C g0.5             thin truth MEETS        | rrr rrr rrr RRr RRR RRR RRR RRR
+meet  C g0.5off30        thin truth APART        | rrr rrr rrr rrr rrr rrr rrr rRR
+meet  D cross            thin truth MEETS        | rrr rrr rrr rrr rrr rrr rrr WWW <<<
+meet  D cross-rev        thin truth MEETS        | rrr rrr rrr rrr rrr rrr rrr WWW <<<
+meet  D clear-30         thin truth MEETS        | rrr rrr rrr rrr rrr rrr rrr WWW <<<
+meet  D clear30          thin truth APART        | rrr rrr rrr rrr rrr rrr rrr rrr
+meet  D lift30           thin truth APART        | rrr rrr rrr rrr rrr rrr rrr rrr
+meet  E g90through       thin truth MEETS        | rrr rrr rrr RRr RRR RRR WWR WWW <<<
+meet  E g90through-rev   thin truth MEETS        | rrr rrr rrr RRr RRR RRR WWR WWW <<<
+meet  E g90off30         thin truth APART        | rrr rrr rrr rrr rrr rrr rrr rrr
+meet  E g90off30-rev     thin truth APART        | rrr rrr rrr rrr rrr rrr rrr rrr
+meet  E g30through       thin truth MEETS        | rrr rrr rrr RRr RRR RRR WWR WWW <<<
+meet  E g30through-rev   thin truth MEETS        | rrr rrr rrr RRr RRR RRR WWR WWW <<<
+meet  E g30off30         thin truth APART        | rrr rrr rrr rrr rrr rrr rrr rrr
+meet  E g30off30-rev     thin truth APART        | rrr rrr rrr rrr rrr rrr rrr rrr
+meet  E g5through        thin truth MEETS        | rrr rrr rrr RRr RRR RRR WWR WWW <<<
+meet  E g5through-rev    thin truth MEETS        | rrr rrr rrr RRr RRR RRR WWR WWW <<<
+meet  E g5off30          thin truth APART        | rrr rrr rrr rrr rrr rrr rrr rrr
+meet  E g5off30-rev      thin truth APART        | rrr rrr rrr rrr rrr rrr rrr rrr
+meet  F cross            thin truth MEETS        | rrr rrr rrr rrr rrr RRr RRR WWW <<<
+meet  F cross-rev        thin truth MEETS        | rrr rrr rrr rrr rrr rrr rrr WWW <<<
+meet  F clear-30         thin truth MEETS        | RRR RRR RRR RRR RRR RRR RRR WWW <<<
+meet  F clear-30-rev     thin truth MEETS        | RRR RRR RRR RRR RRR RRR RRR WWW <<<
+meet  F clear30          thin truth APART        | RRR RRR RRR RRR RRR RRR RRR rrr
+meet  F clear30-rev      thin truth APART        | RRR RRR RRR RRR RRR RRR RRR rrr
+meet  G coplanar         thin truth MEETS        | rrr rrr rrr rrr rrr RRR RRR WWW <<<
+meet  G across           thin truth MEETS        | rrr rrr rrr RRr RRR RRR WRR WWW <<<
+meet  B out-300          thin truth MEETS        | r   r   r   r   r   r   r   W   <<<
+meet  B out-30           thin truth MEETS        | r   r   r   r   r   r   R   W   <<<
+meet  B out-2            thin truth MEETS        | R   R   R   R   R   R   R   W   <<<
+meet  B out0             thin truth MEETS        | r   r   r   r   r   r   r   r  
+meet  B out30            thin truth APART        | r   r   r   r   r   r   r   r  
+meet  B out300           thin truth APART        | r   r   r   r   r   r   r   r  

@@ -66,7 +66,7 @@ use crate::rows::{SpiricReader, SpiricRegimeSites};
 use std::sync::Arc;
 
 pub use compose::{ComposeError, SeamSide, compose_chain};
-pub use conic::{Circle, Conic, Ellipse, MajorFrame};
+pub use conic::{Circle, Conic, Ellipse, Height, MajorFrame, arc_past, crest_roots};
 pub use fit::{Collocation, FIT_REMOVAL_BUDGET, FitError, FitOutcome, RefitSkip};
 use geom_core::period::Period;
 use geom_core::spline::SpanLocate;
@@ -77,7 +77,7 @@ use crate::frame::Frame;
 pub use nurbs::{CurveWindow2, CurveWindow3, NurbsCurve2, NurbsCurve3};
 pub use on_carrier::{
     CarrierEscalation, CarrierRefusal, Clearance, Foot, OnCarrier, PieceRead, PieceStep,
-    PieceWalkRefusal, ellipse_level_clearance,
+    PieceWalkRefusal, ellipse_level_clearance, level_clearance,
 };
 pub use periodic_nurbs::{
     PERIODIC_DEGREE, PERIODIC_MIN_KNOTS, PeriodicError, PeriodicNurbs3, PeriodicViewError,

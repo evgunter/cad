@@ -1,0 +1,202 @@
+== 1e-9 moves (lane, base->head):
+   ('f64', 'WRONG', 'WRONG') 7
+   ('f64', 'WRONG', 'refused') 21
+   ('f64', 'WRONG', 'right') 7
+   ('f64', 'refused', 'WRONG') 3
+   ('f64', 'refused', 'refused') 146
+   ('f64', 'refused', 'right') 65
+   ('f64', 'right', 'WRONG') 1
+   ('f64', 'right', 'refused') 99
+   ('f64', 'right', 'right') 659
+   ('interval', 'WRONG', 'refused') 53
+   ('interval', 'refused', 'refused') 415
+   ('interval', 'refused', 'right') 43
+   ('interval', 'right', 'refused') 172
+   ('interval', 'right', 'right') 325
+  apart twins read as a meeting on head: 0 []
+  head said-by-truth: [(('f64', 'apart', 'apart'), 452), (('f64', 'apart', 'refused'), 58), (('f64', 'between', 'apart'), 64), (('f64', 'between', 'meets'), 7), (('f64', 'between', 'refused'), 146), (('f64', 'meets', 'meets'), 219), (('f64', 'meets', 'refused'), 62), (('interval', 'apart', 'apart'), 304), (('interval', 'apart', 'refused'), 206), (('interval', 'between', 'refused'), 217), (('interval', 'meets', 'meets'), 64), (('interval', 'meets', 'refused'), 217)]
+  right on base, not right on head, by (lane,door,shape,target,place,now):
+     ('f64', 'circle', 'fat', 10000000.0, 'near', 'refused') 1
+     ('f64', 'circle', 'fat', 100000000.0, 'far', 'refused') 2
+     ('f64', 'circle', 'fat', 100000000.0, 'near', 'refused') 9
+     ('f64', 'circle', 'fat', 1000000000.0, 'near', 'refused') 6
+     ('f64', 'circle', 'thin', 100000.0, 'near', 'refused') 1
+     ('f64', 'circle', 'thin', 10000000.0, 'near', 'refused') 1
+     ('f64', 'circle', 'thin', 100000000.0, 'far', 'refused') 1
+     ('f64', 'circle', 'thin', 100000000.0, 'near', 'refused') 11
+     ('f64', 'circle', 'thin', 1000000000.0, 'far', 'WRONG') 1
+     ('f64', 'circle', 'thin', 1000000000.0, 'far', 'refused') 2
+     ('f64', 'circle', 'thin', 1000000000.0, 'near', 'refused') 11
+     ('f64', 'line', 'fat', 10000.0, 'far', 'refused') 2
+     ('f64', 'line', 'fat', 10000.0, 'near', 'refused') 2
+     ('f64', 'line', 'fat', 1000000.0, 'near', 'refused') 1
+     ('f64', 'line', 'fat', 10000000.0, 'far', 'refused') 5
+     ('f64', 'line', 'fat', 10000000.0, 'near', 'refused') 5
+     ('f64', 'line', 'fat', 100000000.0, 'far', 'refused') 5
+     ('f64', 'line', 'fat', 100000000.0, 'near', 'refused') 7
+     ('f64', 'line', 'fat', 1000000000.0, 'near', 'refused') 3
+     ('f64', 'line', 'thin', 10000.0, 'near', 'refused') 2
+     ('f64', 'line', 'thin', 10000000.0, 'far', 'refused') 7
+     ('f64', 'line', 'thin', 10000000.0, 'near', 'refused') 4
+     ('f64', 'line', 'thin', 100000000.0, 'far', 'refused') 1
+     ('f64', 'line', 'thin', 100000000.0, 'near', 'refused') 5
+     ('f64', 'line', 'thin', 1000000000.0, 'far', 'refused') 1
+     ('f64', 'line', 'thin', 1000000000.0, 'near', 'refused') 4
+     ('interval', 'circle', 'fat', 10000.0, 'far', 'refused') 1
+     ('interval', 'circle', 'fat', 100000.0, 'far', 'refused') 4
+     ('interval', 'circle', 'fat', 1000000.0, 'far', 'refused') 1
+     ('interval', 'circle', 'fat', 10000000.0, 'far', 'refused') 6
+     ('interval', 'circle', 'fat', 10000000.0, 'near', 'refused') 9
+     ('interval', 'circle', 'fat', 100000000.0, 'far', 'refused') 12
+     ('interval', 'circle', 'fat', 100000000.0, 'near', 'refused') 15
+     ('interval', 'circle', 'fat', 1000000000.0, 'far', 'refused') 18
+     ('interval', 'circle', 'fat', 1000000000.0, 'near', 'refused') 21
+     ('interval', 'circle', 'thin', 10000.0, 'far', 'refused') 1
+     ('interval', 'circle', 'thin', 100000.0, 'far', 'refused') 2
+     ('interval', 'circle', 'thin', 1000000.0, 'far', 'refused') 1
+     ('interval', 'circle', 'thin', 10000000.0, 'far', 'refused') 6
+     ('interval', 'circle', 'thin', 10000000.0, 'near', 'refused') 9
+     ('interval', 'circle', 'thin', 100000000.0, 'far', 'refused') 12
+     ('interval', 'circle', 'thin', 100000000.0, 'near', 'refused') 15
+     ('interval', 'circle', 'thin', 1000000000.0, 'far', 'refused') 18
+     ('interval', 'circle', 'thin', 1000000000.0, 'near', 'refused') 18
+     ('interval', 'line', 'fat', 10000.0, 'far', 'refused') 1
+     ('interval', 'line', 'thin', 10000.0, 'far', 'refused') 1
+     ('interval', 'line', 'thin', 1000000000.0, 'far', 'refused') 1
+  their faults:
+     ('f64', 'circle', 'Escalated(Indeterminate ') 15
+     ('f64', 'circle', 'Unsettled(Meter ') 30
+     ('f64', 'circle', None) 1
+     ('f64', 'line', 'Escalated(Indeterminate ') 43
+     ('f64', 'line', 'Unsettled(Meter ') 11
+     ('interval', 'circle', 'Unsettled(Meter ') 169
+     ('interval', 'line', 'Escalated(Indeterminate ') 2
+     ('interval', 'line', 'Unsettled(Meter ') 1
+  head WRONG:
+     line f64 fat 1000000000.0 near theta=-1.571 gamma=1.57 shift=0 gap=1.16e-16 meets meets ['5.17e-08']
+     line f64 fat 1000000000.0 near theta=-1.571 gamma=1.57 shift=0 gap=2.75e-16 meets meets ['1.84e-08']
+     line f64 fat 1000000000.0 near theta=-1.571 gamma=1.57 shift=0 gap=5.36e-14 meets meets ['4.98e-08']
+     line f64 fat 1000000000.0 near theta=-1.571 gamma=0.524 shift=0 gap=3.64e-17 meets meets ['5.08e-08']
+     line f64 fat 1000000000.0 near theta=-1.571 gamma=0.524 shift=0 gap=3.84e-14 meets meets ['5.06e-08']
+     line f64 fat 1000000000.0 near theta=-1.571 gamma=0.0873 shift=0 gap=1.05e-16 meets meets ['4.6e-08']
+     line f64 fat 1000000000.0 near theta=-1.571 gamma=0.0873 shift=0 gap=5.26e-14 meets meets ['1.15e-08']
+     line f64 thin 100000000.0 far theta=-1.071 gamma=0.0873 shift=0 gap=2.63e-10 meets meets ['1.26e-08']
+     line f64 thin 1000000000.0 far theta=-1.071 gamma=1.57 shift=0 gap=1.94e-11 meets meets ['2.05e-08']
+     line f64 thin 1000000000.0 far theta=-1.071 gamma=0.524 shift=0 gap=9.2e-10 meets meets ['2.14e-08']
+     circle f64 thin 1000000000.0 far theta=-1.071 gamma=0.524 shift=0 gap=1.78e-09 between meets ['1.93e-08']
+== 1e-12 moves (lane, base->head):
+   ('f64', 'WRONG', 'WRONG') 31
+   ('f64', 'WRONG', 'refused') 40
+   ('f64', 'WRONG', 'right') 15
+   ('f64', 'refused', 'WRONG') 3
+   ('f64', 'refused', 'refused') 33
+   ('f64', 'refused', 'right') 43
+   ('f64', 'right', 'WRONG') 3
+   ('f64', 'right', 'refused') 88
+   ('f64', 'right', 'right') 752
+   ('interval', 'WRONG', 'refused') 36
+   ('interval', 'refused', 'refused') 370
+   ('interval', 'refused', 'right') 83
+   ('interval', 'right', 'refused') 423
+   ('interval', 'right', 'right') 96
+  apart twins read as a meeting on head: 0 []
+  head said-by-truth: [(('f64', 'apart', 'apart'), 698), (('f64', 'apart', 'refused'), 22), (('f64', 'between', 'apart'), 52), (('f64', 'between', 'meets'), 11), (('f64', 'between', 'refused'), 83), (('f64', 'meets', 'apart'), 10), (('f64', 'meets', 'meets'), 76), (('f64', 'meets', 'refused'), 56), (('interval', 'apart', 'apart'), 179), (('interval', 'apart', 'refused'), 541), (('interval', 'between', 'refused'), 146), (('interval', 'meets', 'refused'), 142)]
+  right on base, not right on head, by (lane,door,shape,target,place,now):
+     ('f64', 'circle', 'fat', 10000.0, 'far', 'refused') 2
+     ('f64', 'circle', 'fat', 100000.0, 'far', 'refused') 4
+     ('f64', 'circle', 'fat', 100000.0, 'near', 'refused') 8
+     ('f64', 'circle', 'fat', 1000000.0, 'far', 'refused') 1
+     ('f64', 'circle', 'fat', 1000000.0, 'near', 'refused') 6
+     ('f64', 'circle', 'thin', 10000.0, 'far', 'refused') 3
+     ('f64', 'circle', 'thin', 10000.0, 'near', 'refused') 3
+     ('f64', 'circle', 'thin', 100000.0, 'far', 'refused') 4
+     ('f64', 'circle', 'thin', 100000.0, 'near', 'refused') 6
+     ('f64', 'circle', 'thin', 1000000.0, 'far', 'refused') 1
+     ('f64', 'circle', 'thin', 1000000.0, 'near', 'refused') 3
+     ('f64', 'circle', 'thin', 10000000.0, 'near', 'refused') 3
+     ('f64', 'circle', 'thin', 100000000.0, 'near', 'refused') 5
+     ('f64', 'line', 'fat', 10000.0, 'far', 'refused') 1
+     ('f64', 'line', 'fat', 10000.0, 'near', 'refused') 2
+     ('f64', 'line', 'fat', 100000.0, 'far', 'WRONG') 1
+     ('f64', 'line', 'fat', 100000.0, 'far', 'refused') 1
+     ('f64', 'line', 'fat', 1000000.0, 'near', 'refused') 1
+     ('f64', 'line', 'fat', 10000000.0, 'near', 'refused') 3
+     ('f64', 'line', 'fat', 100000000.0, 'near', 'refused') 3
+     ('f64', 'line', 'fat', 1000000000.0, 'near', 'refused') 4
+     ('f64', 'line', 'thin', 10000.0, 'far', 'refused') 3
+     ('f64', 'line', 'thin', 10000.0, 'near', 'refused') 6
+     ('f64', 'line', 'thin', 1000000.0, 'near', 'refused') 2
+     ('f64', 'line', 'thin', 10000000.0, 'near', 'refused') 3
+     ('f64', 'line', 'thin', 100000000.0, 'near', 'WRONG') 1
+     ('f64', 'line', 'thin', 100000000.0, 'near', 'refused') 3
+     ('f64', 'line', 'thin', 1000000000.0, 'near', 'WRONG') 1
+     ('f64', 'line', 'thin', 1000000000.0, 'near', 'refused') 7
+     ('interval', 'circle', 'fat', 10000.0, 'far', 'refused') 6
+     ('interval', 'circle', 'fat', 10000.0, 'near', 'refused') 6
+     ('interval', 'circle', 'fat', 100000.0, 'far', 'refused') 12
+     ('interval', 'circle', 'fat', 100000.0, 'near', 'refused') 15
+     ('interval', 'circle', 'fat', 1000000.0, 'far', 'refused') 16
+     ('interval', 'circle', 'fat', 1000000.0, 'near', 'refused') 27
+     ('interval', 'circle', 'fat', 10000000.0, 'far', 'refused') 18
+     ('interval', 'circle', 'fat', 10000000.0, 'near', 'refused') 27
+     ('interval', 'circle', 'fat', 100000000.0, 'far', 'refused') 18
+     ('interval', 'circle', 'fat', 100000000.0, 'near', 'refused') 27
+     ('interval', 'circle', 'fat', 1000000000.0, 'far', 'refused') 18
+     ('interval', 'circle', 'fat', 1000000000.0, 'near', 'refused') 27
+     ('interval', 'circle', 'thin', 10000.0, 'far', 'refused') 8
+     ('interval', 'circle', 'thin', 10000.0, 'near', 'refused') 6
+     ('interval', 'circle', 'thin', 100000.0, 'far', 'refused') 12
+     ('interval', 'circle', 'thin', 100000.0, 'near', 'refused') 12
+     ('interval', 'circle', 'thin', 1000000.0, 'far', 'refused') 16
+     ('interval', 'circle', 'thin', 1000000.0, 'near', 'refused') 18
+     ('interval', 'circle', 'thin', 10000000.0, 'far', 'refused') 18
+     ('interval', 'circle', 'thin', 10000000.0, 'near', 'refused') 27
+     ('interval', 'circle', 'thin', 100000000.0, 'far', 'refused') 18
+     ('interval', 'circle', 'thin', 100000000.0, 'near', 'refused') 26
+     ('interval', 'circle', 'thin', 1000000000.0, 'far', 'refused') 18
+     ('interval', 'circle', 'thin', 1000000000.0, 'near', 'refused') 27
+  their faults:
+     ('f64', 'circle', 'Escalated(Indeterminate ') 14
+     ('f64', 'circle', 'Unsettled(Meter ') 35
+     ('f64', 'line', 'Escalated(Indeterminate ') 21
+     ('f64', 'line', 'Unsettled(Meter ') 18
+     ('f64', 'line', None) 3
+     ('interval', 'circle', 'Unsettled(Meter ') 423
+  head WRONG:
+     line f64 fat 10000.0 far theta=0.4292 gamma=0.0873 shift=0 gap=7.73e-14 meets meets ['1.22e-11']
+     line f64 fat 100000.0 far theta=0.4292 gamma=0.524 shift=0 gap=6.15e-12 between meets ['2.58e-11']
+     line f64 fat 1000000.0 near theta=-1.571 gamma=1.57 shift=0 gap=1.65e-16 meets meets ['5.16e-11']
+     circle f64 fat 1000000.0 far theta=-1.071 gamma=0.524 shift=1e-11 gap=4.74e-13 meets apart []
+     circle f64 fat 1000000.0 far theta=0.4292 gamma=0.524 shift=1e-11 gap=2.03e-13 meets apart []
+     line f64 fat 1000000.0 near theta=-1.571 gamma=0.0873 shift=0 gap=1.46e-16 meets meets ['4.9e-11']
+     line f64 fat 10000000.0 near theta=-1.571 gamma=1.57 shift=0 gap=3.94e-17 meets meets ['5.17e-10']
+     line f64 fat 10000000.0 near theta=-1.571 gamma=1.57 shift=0 gap=2.08e-16 meets meets ['1.84e-10']
+     line f64 fat 10000000.0 near theta=-1.57 gamma=1.57 shift=0 gap=2.78e-14 meets meets ['1.85e-10']
+     line f64 fat 10000000.0 near theta=-1.571 gamma=0.524 shift=0 gap=4.81e-17 meets meets ['4.48e-10']
+     line f64 fat 10000000.0 near theta=-1.571 gamma=0.524 shift=0 gap=2.94e-16 meets meets ['2.88e-10']
+     line f64 fat 10000000.0 near theta=-1.57 gamma=0.524 shift=0 gap=5.81e-15 meets meets ['2.55e-10']
+     line f64 fat 10000000.0 near theta=-1.571 gamma=0.0873 shift=0 gap=8.16e-18 meets meets ['6e-11']
+     line f64 fat 10000000.0 near theta=-1.57 gamma=0.0873 shift=0 gap=3.66e-14 meets meets ['2.25e-11']
+     line f64 fat 100000000.0 near theta=-1.571 gamma=1.57 shift=0 gap=6.55e-18 meets meets ['1.49e-09']
+     line f64 fat 100000000.0 near theta=-1.571 gamma=1.57 shift=0 gap=2.12e-16 meets meets ['1.84e-09']
+     line f64 fat 100000000.0 near theta=-1.571 gamma=1.57 shift=0 gap=3.78e-14 meets meets ['1.62e-10']
+     line f64 fat 100000000.0 near theta=-1.571 gamma=0.524 shift=0 gap=4.95e-17 meets apart []
+     line f64 fat 100000000.0 near theta=-1.571 gamma=0.524 shift=0 gap=3.07e-17 meets meets ['1.14e-09']
+     line f64 fat 100000000.0 near theta=-1.571 gamma=0.524 shift=0 gap=7.9e-14 meets apart []
+     line f64 fat 100000000.0 near theta=-1.571 gamma=0.0873 shift=0 gap=3.64e-17 meets apart []
+     line f64 fat 100000000.0 near theta=-1.571 gamma=0.0873 shift=0 gap=1.35e-16 meets apart []
+     line f64 fat 100000000.0 near theta=-1.571 gamma=0.0873 shift=0 gap=8.58e-14 meets apart []
+     line f64 fat 1000000000.0 near theta=-1.571 gamma=1.57 shift=0 gap=1.16e-16 meets meets ['5.17e-08']
+     line f64 fat 1000000000.0 near theta=-1.571 gamma=1.57 shift=0 gap=2.75e-16 meets meets ['1.84e-08']
+     line f64 fat 1000000000.0 near theta=-1.571 gamma=1.57 shift=0 gap=5.36e-14 meets meets ['4.98e-08']
+     line f64 fat 1000000000.0 near theta=-1.571 gamma=0.524 shift=0 gap=3.64e-17 meets meets ['5.08e-08']
+     line f64 fat 1000000000.0 near theta=-1.571 gamma=0.524 shift=0 gap=2.23e-16 meets apart []
+     line f64 fat 1000000000.0 near theta=-1.571 gamma=0.524 shift=0 gap=3.84e-14 meets meets ['5.06e-08']
+     line f64 fat 1000000000.0 near theta=-1.571 gamma=0.0873 shift=0 gap=1.05e-16 meets meets ['4.6e-08']
+     line f64 fat 1000000000.0 near theta=-1.571 gamma=0.0873 shift=0 gap=1.77e-17 meets apart []
+     line f64 fat 1000000000.0 near theta=-1.571 gamma=0.0873 shift=0 gap=5.26e-14 meets meets ['1.15e-08']
+     line f64 thin 100000.0 far theta=0.4292 gamma=0.524 shift=0 gap=9.12e-12 between meets ['1.77e-11']
+     circle f64 thin 1000000.0 far theta=-1.071 gamma=0.524 shift=0 gap=6.12e-13 meets meets ['3.55e-11']
+     line f64 thin 100000000.0 near theta=-1.517 gamma=1.57 shift=1e-11 gap=3.07e-12 between meets ['6.36e-11']
+     line f64 thin 100000000.0 near theta=-1.517 gamma=0.524 shift=1e-11 gap=2.81e-13 meets apart []
+     line f64 thin 1000000000.0 near theta=-1.554 gamma=1.57 shift=0 gap=3.04e-12 between meets ['1.54e-09']

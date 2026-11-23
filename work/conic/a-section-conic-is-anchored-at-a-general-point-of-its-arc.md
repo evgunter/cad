@@ -184,3 +184,18 @@ From the three designers' agreed answer on what a reader of a conic's position a
 ## Moved to CONIC (2026-11-23)
 
 Moved from ONEROUND by `git mv` when that track was split on Ev's answer to PR 7523 (`work/conic/log.md`); the id and the body above are unchanged.
+
+## Seamed off the anchor, measured (2026-11-23, review of PR 7543)
+
+The reviewer of PR 7543 ran that unit's arc-held ladder with every section passed through `Ellipse::seamed_near(π/2)`, so the parameter's zero lies a quarter turn from the stored point. The judge was the unit's own 60-digit oracle, unchanged. The harness and its tables are kept at `analysis/oneround/conic-pair-readers/seamed/` (`ladder_seamed.rs`, `seamed-table-{base,head}-{1e-9,1e-12}.txt`, `seamed-ladder-base-vs-head.txt`).
+
+Wrong readings, all at `f64` on the head (the `Interval` lane reads none wrongly):
+
+| | base (PR 7510's head) | head (PR 7543) | head, within 1 km of the anchor |
+|---|---|---|---|
+| ε 1e-9 | 35 | 11 | 7 |
+| ε 1e-12 | 86 | 37 | 28 |
+
+The base's `Interval` lane reads 53 and 36 more wrongly. No pose the base read rightly is wrong on the head, except one at ε 1e-9 (thin `a` = 1e9, far). No twin standing apart reads as a meeting.
+
+The in-box wrong readings come from the line door on the fat sections (`a` = 1e9 at 1e-9; `a` ≥ 1e6 at 1e-12). Seven are "`Ok`, no meeting" for a line through the arc. The cause is the one `conic.rs` states for a quarter-turned seam: a point near the anchor holds to the semi-axis's rounding, not its own. So "near the anchor reads at the arc's scale", and PR 7543's acceptance, hold only with the seam at the anchor. A section re-seamed off its anchor is wrong in the box until a seam that is not the anchor is read as this row asks.

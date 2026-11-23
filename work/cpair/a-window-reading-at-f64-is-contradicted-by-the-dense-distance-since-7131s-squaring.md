@@ -50,3 +50,7 @@ The row's hosted run on PR 7294 (run 45098183324, the slow-set step for the test
 ## Evidence (germ/spiric-near-miss-off-q, 2026-11-23)
 
 The same row is red on main `61a3d77a0b`'s sources on seed `0x856e9c81e4b404d1` at ε unset, 1e-6 and 1e-12: three `Recedes` readings contradicted at ε 1e-12's column, draw 18, a circle of radius 485.93 whose frame's axis is `1.3e-9` off `z`.
+
+**A second seed, on an ellipse held at its centre (2026-11-23, `oneround/conic-pair-readers`).** `CAD_FUZZ_SEED=0x11467e023845fce7` at ε 1e-12 contradicts two `Recedes` readings on draw 48 (`Ellipse::new`, semi-axes 946.7 and 1137.6, centre about (654, 383, 2.6e-5), axis tilted 6e-8 off `z`), identically on that branch's base (PR 7510's head merged with main at `cbf90f201`) and on its head: not that unit's change.
+
+**Another seed, on an ellipse held at its centre (2026-11-23, `oneround/conic-pair-readers`'s final head).** `CAD_FUZZ_SEED=0x5e2dc7549959d0a2` at ε 1e-12 contradicts one `Recedes` reading. It is draw 48: `Ellipse::new`, semi-axes 742.4 and 370.4, centre about (8.9, −739.1, −2.9e-8), axis tilted 4e-11 off `z`. It is red identically on that branch's base (PR 7510's head `0645d2b68` merged with main `258f0d80b`), so it is not that unit's change.

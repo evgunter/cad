@@ -8,8 +8,7 @@ crates/geom-brep/src/curve_face/conic_oracle/exact.rs 2
 crates/geom-brep/src/curve_face/conic_quadric.rs 1
 crates/geom-brep/src/curve_face/spline_face.rs 1
 crates/geom-brep/src/curve_pair/on_surface.rs 3
-crates/geom-brep/src/curve_pair/pose.rs 18
-crates/geom-brep/src/curve_pair/pose/window.rs 3
+crates/geom-brep/src/curve_pair/pose.rs 4
 crates/geom-brep/src/edge_nurbs.rs 1
 crates/geom-brep/src/implicit.rs 11
 crates/geom-brep/src/pair_section/gap.rs 3
@@ -20,7 +19,7 @@ crates/geom-brep/src/props/curved.rs 12
 crates/geom-brep/src/tangent.rs 1
 crates/geom/src/cover.rs 1
 crates/geom/src/curves.rs 5
-crates/geom/src/curves/on_carrier.rs 4
+crates/geom/src/curves/on_carrier.rs 2
 crates/geom/src/pole_form.rs 1
 crates/mesh/src/sizing.rs 1
 crates/step-export/src/writer.rs 2

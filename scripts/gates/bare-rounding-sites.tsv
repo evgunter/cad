@@ -118,8 +118,9 @@ crates/geom/src/cover/tests.rs	test	6	oracle
 crates/geom/src/cover/tests/held_arc_rows.rs	test	5	oracle
 crates/geom/src/cover/tests/held_arc_sweep.rs	test	2	oracle
 crates/geom/src/curves.rs	test	3	oracle
-crates/geom/src/curves/conic.rs	prod	14	far-centre
+crates/geom/src/curves/conic.rs	prod	17	far-centre
 crates/geom/src/curves/conic.rs	test	9	oracle
+crates/geom/src/curves/conic/door_rows.rs	test	5	oracle
 crates/geom/src/curves/fit.rs	test	1	oracle
 crates/geom/src/frame.rs	prod	4	re-pose
 crates/geom/src/frame.rs	test	1	oracle

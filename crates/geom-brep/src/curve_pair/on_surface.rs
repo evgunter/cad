@@ -5,7 +5,7 @@
 //! construction's rounding against the band. They meet instead where one
 //! crosses the other's plane, through the curve × face crossing reading
 //! ([`crate::curve_face::cross()`], whose plane arm reads
-//! [`super::pose::height`], the one [`super::meet`]'s transverse reading is
+//! [`geom::Conic::height_along`], the one [`super::meet`]'s transverse reading is
 //! built on), at a meeting that lies on both curves' own sections of their
 //! planes ([`Section`]). Which one crosses which plane is fixed per pair
 //! of a curve's family and an edge's kind by the arm's direction table
@@ -602,7 +602,7 @@ impl<T: Decide> SurfaceCurve<T> {
     #[must_use]
     #[expect(
         clippy::disallowed_methods,
-        reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+        reason = "a circle's centre frame, which a circle stores: a circle's datum (work/oneround/a-circles-centre-is-read-as-a-datum-under-the-conic-gate.md)"
     )]
     pub fn starting_at(self, p: Point3<T>) -> Self {
         let Shape::Circle(c) = self.shape else {
@@ -1020,16 +1020,27 @@ impl<'a, T: Decide> OnSurface<'a, T> {
     }
 
     /// **The plane the edge's carrier lies in**, as a frame whose axis is
-    /// its unit normal: a conic's own frame, its axes as stored, a spiric's cutting
+    /// its unit normal: a circle's own frame, at its stored centre; an
+    /// ellipse's axes as stored, standing at the edge's point at the middle
+    /// of its span, which lies on the curve it states; a spiric's cutting
     /// plane with the spiric's `u_ref` kept bit for bit as its axis. A line
     /// lies in no one plane (`None`).
     #[expect(
         clippy::disallowed_methods,
-        reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+        reason = "a circle's centre frame, which a circle stores, and an ellipse's stored axes with the frame's origin replaced by a point of the edge: a circle's datum (work/oneround/a-circles-centre-is-read-as-a-datum-under-the-conic-gate.md)"
     )]
     pub fn plane(&self) -> Option<Frame<T>> {
         match *self.carrier {
-            Curve3::Circle(_) | Curve3::Ellipse(_) => self.carrier.frame(),
+            Curve3::Circle(_) | Curve3::Ellipse(_) => {
+                let frame = self.carrier.frame()?;
+                match *self.carrier {
+                    Curve3::Ellipse(e) => {
+                        let (t0, t1) = self.span;
+                        Some(frame.with_origin(geom::Conic::point_at(&e, geom::mid_param(t0, t1))))
+                    }
+                    _ => Some(frame),
+                }
+            }
             Curve3::Spiric { frame, offset, .. } => {
                 let (center, u_ref) = (frame.origin(), frame.u_ref());
                 Some(Frame::of_motion(&geom_core::RigidMotion::squared_about(
@@ -1054,7 +1065,7 @@ impl<'a, T: Decide> OnSurface<'a, T> {
     /// [`AcrossRefusal::NoPlane`] for an edge in no one plane;
     /// [`AcrossRefusal::Windows`] where the reading left a stretch of the
     /// curve unread.
-    fn under(
+    pub(super) fn under(
         &self,
         curve: &SurfaceCurve<T>,
         span: (T, T),

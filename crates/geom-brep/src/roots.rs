@@ -321,10 +321,6 @@ pub fn spread_readings<T: Decide>(
     Ok((below, above))
 }
 
-/// The angle from an extreme of a first harmonic `c₀ + A·cos ψ` to its
-/// roots, where that extreme has crossed zero by `ratio` of the swing
-/// `2A` (`ratio ∈ [0, 1]`): `2·asin(√ratio)`, which reads the extreme to
-/// its own relative precision.
-pub fn arc_past<T: Real>(ratio: T) -> T {
-    T::from_f64(2.0) * ratio.sqrt().asin()
-}
+/// The angle from an extreme of a first harmonic to its roots: geom's
+/// [`geom::arc_past`], its one home.
+pub use geom::arc_past;

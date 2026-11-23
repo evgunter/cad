@@ -27,7 +27,7 @@ use test_utils::fuzz;
 
 use super::{Joint, Read, Window};
 use crate::curve_pair::Span;
-use crate::curve_pair::pose::{height, level_on};
+use crate::curve_pair::pose::level_on;
 use geom::Conic;
 
 /// Eberly's bisection for the root `s` of `(r₀z₀/(s + r₀))² + (z₁/(s + 1))² = 1`.
@@ -178,7 +178,7 @@ fn window<'w, T: geom_core::Decide>(
         span_a: (T::from_f64(-1.0), T::from_f64(1.0)),
         b: kb,
         span_b: b,
-        height: height(ka, kb.frame().origin(), kb.frame().axis()),
+        height: ka.height_along(ka.point_at(T::zero()), kb.axis()),
     }
 }
 

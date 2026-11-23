@@ -116,13 +116,14 @@ use crate::piece::Taylor;
 const MAX_TURNS: usize = 64;
 
 /// What one window reads: the two conics, `a`'s span, `b`'s span,
-/// and `a`'s height above `b`'s plane as `(c₀, c₁, s₁)`.
+/// and `a`'s height along `b`'s axis ([`Conic::height_along`], read for
+/// its swing).
 pub(super) struct Window<'w, T: geom_core::Real> {
     pub(super) a: &'w dyn Conic<T>,
     pub(super) span_a: (T, T),
     pub(super) b: &'w dyn Conic<T>,
     pub(super) span_b: &'w Span<'w, T>,
-    pub(super) height: (T, T, T),
+    pub(super) height: geom::Height<T>,
 }
 
 /// A found meeting: its point and its parameter on `a`.
@@ -181,6 +182,16 @@ fn positive<T: Decide>(row: &'static str, x: T) -> bool {
     super::super::compare(row, x, T::zero()) == Some(Sign::Positive)
 }
 
+/// Whether the width `x` is not decided empty: positive, or an
+/// enclosure that may be, which holds points to read. Only a width
+/// decided at most zero passes an arc over.
+fn reaches<T: Decide>(row: &'static str, x: T) -> bool {
+    !matches!(
+        super::super::compare(row, x, T::zero()),
+        Some(Sign::Negative | Sign::Zero)
+    )
+}
+
 /// Whether `x` and `y` are definitely of the sign `away` names
 /// (`true` for positive) when multiplied.
 fn same_way<T: Decide>(row: &'static str, x: T, y: T, away: bool) -> bool {
@@ -191,26 +202,23 @@ fn same_way<T: Decide>(row: &'static str, x: T, y: T, away: bool) -> bool {
 
 impl<T: Decide> Window<'_, T> {
     /// `a`'s height above `b`'s plane and its first three derivatives at
-    /// `θ`, read locally as the level is ([`Level`]): on a conic
-    /// `P″ = −(P − c)` and `P‴ = −P′`.
-    #[expect(
-        clippy::disallowed_methods,
-        reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
-    )]
+    /// `θ`, read locally: the height of `a`'s point there over `b`'s plane
+    /// as `b` reads it from the point it stores ([`Conic::height_of`]),
+    /// and `P′`, `P″` and `P‴ = −P′` along `b`'s axis, which no position
+    /// enters.
     fn height_jet(&self, theta: T) -> [T; 4] {
-        let (n, centre) = (self.b.axis(), self.b.frame().origin());
+        let n = self.b.axis();
         let (p, dp) = self.a.jet_at(theta);
         let slope = dp.dot(n);
-        let bend = (self.a.frame().origin() - p).dot(n);
-        [(p - centre).dot(n), slope, bend, T::zero() - slope]
+        let bend = self.a.second_derivative_at(theta).dot(n);
+        [self.b.height_of(p), slope, bend, T::zero() - slope]
     }
 
-    /// A bound on the height's fourth derivative, `(P − c)·n̂`, at every
-    /// angle: its swing `√(c₁² + s₁²)`, raised past its four roundings and
-    /// the twelve of `c₁` and `s₁` (`k.along`).
+    /// A bound on the height's fourth derivative, `(P − x)·n̂`, at every
+    /// angle: its swing, raised past its rounding (the swing's four and
+    /// the twelve of its parts, [`Conic::along`]).
     fn height_fourth(&self) -> T {
-        let (_, c1, s1) = self.height;
-        up::<16, _>((c1.powi(2) + s1.powi(2)).sqrt())
+        up::<16, _>(self.height.swing())
     }
 
     /// **How the piece `(l, r)` reads**, `away` whether `θ` increasing
@@ -423,15 +431,12 @@ impl<T: Decide> Window<'_, T> {
         up::<2, _>(foot.gap() + up::<1, _>(skew * reach) + bent(sa, sb, k, reach))
     }
 
-    /// A seed for `q`'s foot on `b`: its angle about `b`'s centre in
-    /// `b`'s unit coordinates.
-    #[expect(
-        clippy::disallowed_methods,
-        reason = "a conic restated on a frame the caller holds, or a point read about a centre an arc-held ellipse derives: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
-    )]
+    /// A seed for `q`'s foot on `b`: its direction in `b`'s unit
+    /// coordinates ([`Conic::azimuth`]).
     fn foot_seed(&self, q: Point3<T>) -> T {
-        let (x, y) = self.b.unit_in_plane(q);
-        geom::Azimuth::of(y, x).principal_as(super::row::BRANCH, Band::least())
+        self.b
+            .azimuth(q)
+            .principal_as(super::row::BRANCH, Band::least())
     }
 
     /// **Whether a ringed arc's pieces, in order up `θ`, hold no meeting
@@ -576,7 +581,7 @@ impl<T: Decide> Window<'_, T> {
         };
         for centre in centres {
             let (l, h) = ((centre - half).max(t0), (centre + half).min(t1));
-            if !positive("curve_pair_window_width", h - l) {
+            if !reaches("curve_pair_window_width", h - l) {
                 continue;
             }
             // The found meetings on this part, each with its ring, in order.
@@ -606,12 +611,12 @@ impl<T: Decide> Window<'_, T> {
             let mut sides: Vec<((T, T), Option<bool>)> = Vec::new();
             let mut from = (l, false);
             for &(rl, rr) in &rings {
-                if positive("curve_pair_window_ring", rl - from.0) {
+                if reaches("curve_pair_window_ring", rl - from.0) {
                     sides.extend(outward((from.0, rl), from.1, true));
                 }
                 from = (from.0.max(rr), true);
             }
-            if positive("curve_pair_window_ring", h - from.0) {
+            if reaches("curve_pair_window_ring", h - from.0) {
                 sides.extend(outward((from.0, h), from.1, false));
             }
             for (arc, away) in sides {
@@ -690,7 +695,7 @@ mod rows {
                 b,
                 (-core::f64::consts::PI, core::f64::consts::PI),
             ),
-            height: super::super::height(&ka, kb.frame().origin(), kb.axis()),
+            height: ka.height_along(ka.point_at(0.0), kb.axis()),
         };
         let j = Joint {
             point: a.eval(joint),
@@ -834,7 +839,7 @@ mod rows {
             span_a: (0.0, FRAC_PI_2),
             b: &kb,
             span_b: &span_b,
-            height: super::super::height(&ka, kb.frame().origin(), kb.axis()),
+            height: ka.height_along(ka.point_at(0.0), kb.axis()),
         };
         let level = super::super::level_on(&ka, &kb);
         let piece = (2.5e-5, 5e-5);
@@ -981,7 +986,7 @@ mod rows {
                     &b,
                     (-core::f64::consts::PI, core::f64::consts::PI),
                 ),
-                height: super::super::height(&ka, kb.frame().origin(), kb.axis()),
+                height: ka.height_along(ka.point_at(0.0), kb.axis()),
             };
             let level = super::super::level_on(&ka, &kb);
             let past_zero = window
@@ -1028,7 +1033,7 @@ mod rows {
                 &b,
                 (-core::f64::consts::PI, core::f64::consts::PI),
             ),
-            height: super::super::height(&ka, kb.frame().origin(), kb.axis()),
+            height: ka.height_along(ka.point_at(0.0), kb.axis()),
         };
         for g in [0.0, 0.5 * e, 0.9 * e] {
             let joint = Joint {
@@ -1181,7 +1186,7 @@ mod rows {
                 b,
                 (-core::f64::consts::PI, core::f64::consts::PI),
             ),
-            height: super::super::height(&ka, kb.frame().origin(), kb.axis()),
+            height: ka.height_along(ka.point_at(0.0), kb.axis()),
         };
         let j = Joint {
             point: a.eval(0.0),
@@ -1243,7 +1248,7 @@ mod rows {
                 &b,
                 (-core::f64::consts::PI, core::f64::consts::PI),
             ),
-            height: super::super::height(&ka, kb.frame().origin(), kb.axis()),
+            height: ka.height_along(ka.point_at(0.0), kb.axis()),
         };
         let foot = b.foot(a.eval(5e-6), 0.0);
         let along = w.along_b(5e-6, 5e-6, &foot);
@@ -1302,7 +1307,7 @@ mod rows {
                 &b,
                 (-core::f64::consts::PI, core::f64::consts::PI),
             ),
-            height: super::super::height(&ka, kb.frame().origin(), kb.axis()),
+            height: ka.height_along(ka.point_at(0.0), kb.axis()),
         };
         let mut l = 400.0_f64;
         for _ in 0..64 {
@@ -1342,6 +1347,84 @@ mod rows {
                 "A {a}, B {b}, k {k}, w {w}: {got} under the real value — {}",
                 test_utils::fuzz::replay()
             );
+        }
+    }
+
+    /// **The window's jets are their functions' derivatives, and their
+    /// fourth-derivative bounds hold.** `a` a 2 × 1 ellipse tilted across
+    /// the plane of `b`, `b` an arc-held 3 × 1.5 ellipse and, beside it,
+    /// the same locus held at its centre: at seven angles of `a` the
+    /// height's and the level's jets match their central differences to
+    /// `1e-6` of their scale, and the fourth derivatives, by differences,
+    /// lie within [`Window::height_fourth`] and [`super::Level::fourth`].
+    /// Red where a jet's term carries the wrong sign or a fourth bound is
+    /// dropped.
+    #[test]
+    fn the_windows_jets_are_derivatives_and_their_fourth_bounds_hold() {
+        let a = Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(
+                Point3::new(0.4, -0.3, 0.2),
+                Vec3::new(0.3, 0.2, 0.9).normalize(),
+                Vec3::new(1.0, -0.4, 0.0).normalize(),
+            ),
+            2.0,
+            1.0,
+        ));
+        let anchored = geom::Ellipse::anchored(
+            Point3::new(3.1, 0.2, -0.1),
+            Vec3::new(0.1, -0.2, 1.0).normalize(),
+            Vec3::new(1.0, 0.3, 0.0).normalize(),
+            3.0,
+            1.5,
+        );
+        let centred = geom::Ellipse::new(geom::Conic::frame(&anchored), 3.0, 1.5);
+        let ka = a.conic().unwrap();
+        for b in [Curve3::Ellipse(anchored), Curve3::Ellipse(centred)] {
+            let kb = b.conic().unwrap();
+            let span = crate::curve_pair::Span::new(&b, (-1.0, 1.0));
+            let w = Window {
+                a: &ka,
+                span_a: (-1.0, 1.0),
+                b: &kb,
+                span_b: &span,
+                height: ka.height_along(ka.point_at(0.0), kb.axis()),
+            };
+            let level = super::level_on(&ka, &kb);
+            let h = |t: f64| kb.height_of(ka.point_at(t));
+            let f = |t: f64| kb.level_at(ka.point_at(t)).0;
+            let d = 1e-3;
+            let diffs = |g: &dyn Fn(f64) -> f64, t: f64| {
+                let (m2, m1, p1, p2) = (g(t - 2.0 * d), g(t - d), g(t + d), g(t + 2.0 * d));
+                let g0 = g(t);
+                [
+                    g0,
+                    (p1 - m1) / (2.0 * d),
+                    (p1 - 2.0 * g0 + m1) / d.powi(2),
+                    (p2 - 2.0 * p1 + 2.0 * m1 - m2) / (2.0 * d.powi(3)),
+                    (p2 - 4.0 * p1 + 6.0 * g0 - 4.0 * m1 + m2) / d.powi(4),
+                ]
+            };
+            for t in [-2.9, -1.7, -0.6, 0.0, 0.8, 1.9, 3.0] {
+                for (what, jet, by, fourth) in [
+                    ("height", w.height_jet(t), diffs(&h, t), w.height_fourth()),
+                    ("level", level.jet_at(t), diffs(&f, t), level.fourth()),
+                ] {
+                    let scale = by.iter().fold(1.0_f64, |m, x| m.max(x.abs()));
+                    for k in 0..4 {
+                        assert!(
+                            (jet[k] - by[k]).abs() <= 1e-5 * scale,
+                            "{b:?} θ {t}: the {what} jet's term {k} {:e} against {:e}",
+                            jet[k],
+                            by[k]
+                        );
+                    }
+                    assert!(
+                        by[4].abs() <= fourth * (1.0 + 1e-3) + 1e-3 * scale,
+                        "{b:?} θ {t}: the {what}'s fourth derivative {:e} past its bound {fourth:e}",
+                        by[4]
+                    );
+                }
+            }
         }
     }
 }

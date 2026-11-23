@@ -536,7 +536,7 @@ fn every_door_name_carries_a_listed_prefix() {
             "circle_roots.rs: harmonic_roots_as: root_slack",
             "composite.rs: settle: row",
             "conic_quadric/in_band_sweep.rs: a_circle_of_radius_1500_reading_its_noise_in_the_gap_is_answered_truly: LADDER_ROWS.noise()",
-            "pose.rs: constant_residual_as: name",
+            "pose.rs: extremes_residual_as: name",
             "spline_face.rs: settle: row",
         ],
         "the census's indirect sites"

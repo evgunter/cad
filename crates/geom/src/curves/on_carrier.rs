@@ -659,7 +659,7 @@ impl<T: Decide> Curve3<T> {
     /// cone's ruling, neither of them zero.
     #[expect(
         clippy::disallowed_methods,
-        reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+        reason = "a circle's centre frame, which a circle stores: a circle's datum (work/oneround/a-circles-centre-is-read-as-a-datum-under-the-conic-gate.md)"
     )]
     pub fn clearance(&self, q: Point3<T>) -> Option<T> {
         Some(match *self {
@@ -669,8 +669,9 @@ impl<T: Decide> Curve3<T> {
                 (h.powi(2) + (rho - c.radius()).powi(2)).sqrt()
             }
             Self::Ellipse(e) => {
-                let lower = ellipse_level_clearance(e.frame().in_plane(q), e.semi_axes()).abs();
-                (lower.powi(2) + e.frame().height(q).powi(2)).sqrt()
+                let (a, b) = e.semi_axes();
+                let lower = level_clearance(crate::Conic::level_at(&e, q), a.min(b)).abs();
+                (lower.powi(2) + crate::Conic::height_of(&e, q).powi(2)).sqrt()
             }
             Self::Spiric {
                 frame,
@@ -893,8 +894,15 @@ pub fn ellipse_level_clearance<T: Decide>((x, y): (T, T), (a, b): (T, T)) -> T {
     let two = T::from_f64(2.0);
     let (u, v) = (x / a, y / b);
     let f = u.powi(2) + v.powi(2) - T::one();
-    let g2 = (two * u / a).powi(2) + (two * v / b).powi(2);
-    let small = a.min(b);
+    level_clearance((f, (two * u / a, two * v / b)), a.min(b))
+}
+
+/// **[`ellipse_level_clearance`] from a level read by its conic**: `F`
+/// and its gradient `(∂F/∂X, ∂F/∂Y)` as [`crate::Conic::level_at`] reads
+/// them at the point, and `small` the smaller semi-axis.
+pub fn level_clearance<T: Decide>((f, (gx, gy)): (T, (T, T)), small: T) -> T {
+    let two = T::from_f64(2.0);
+    let g2 = gx.powi(2) + gy.powi(2);
     two * f / (g2.sqrt() + (g2 + T::from_f64(4.0) * f.abs() / small.powi(2)).sqrt())
 }
 

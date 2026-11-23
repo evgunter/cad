@@ -1154,7 +1154,9 @@ mod tests {
     /// edge at 60 stations (480 queries). A query counts where any frame
     /// answers otherwise than the first. With the legs started at
     /// `surface.eval(uv)`, the chart's round trip of the foot, 142 did;
-    /// started at the foot, 33 on frames squared where they are stated.
+    /// started at the foot, 33 on frames squared where they are stated;
+    /// with the plane door's roots read from the extreme that has crossed
+    /// the less, 25.
     /// What is left is the frame a curve
     /// carries in its section and plane
     /// (`work/onecopy/a-cone-or-torus-leg-carries-its-charts-frame-into-a-crossing-at-the-band.md`).
@@ -1181,7 +1183,7 @@ mod tests {
 
     /// [`a_torus_faces_circle_legs_read_no_chart_frame_at_the_escalation`]'s
     /// count.
-    const KEPT_TORUS: usize = 33;
+    const KEPT_TORUS: usize = 25;
 
     /// The frame pins' patch, `0.4 < u < 2.9`, `−0.5 < v < 0.8`, on each of
     /// [`geom::test_support::CHART_FRAMES`], its 3D edges fixed.

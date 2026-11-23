@@ -240,7 +240,7 @@ mod tests {
     /// not by the conic's slowest speed.** The ellipse 0.01 × 10 runs at
     /// 10 m/rad at `θ = 0`, where its span starts. A plane crosses it
     /// `δ` in, `10·δ` metres from the end: past the band at `δ = 5·10⁻⁸`
-    /// to `5·10⁻⁹`, a root inside the span; in the gap at `10⁻⁹`, an
+    /// to `5·10⁻⁹`, a root inside the span; in the gap at `5·10⁻¹⁰` (`10⁻⁹` sits on the escalation), an
     /// escalation; within the zero band at `5·10⁻¹¹`, the end's own.
     /// Red where the end is read as `(t − t₀)` metered at the smaller
     /// semi-axis, which puts every one of these at the end and drops the
@@ -271,7 +271,11 @@ mod tests {
                 10.0 * delta
             );
         }
-        assert!(lane(1e-9).is_err(), "a crossing in the gap escalates");
+        assert!(
+            lane(5e-10).is_err(),
+            "a crossing in the gap escalates: {:?}",
+            lane(5e-10)
+        );
         assert_eq!(lane(5e-11).unwrap(), Vec::<f64>::new(), "at the end");
     }
 

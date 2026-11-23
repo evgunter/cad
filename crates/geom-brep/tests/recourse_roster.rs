@@ -132,6 +132,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("spread_readings"),
     NameCarrier::Call("harmonic_roots_as"),
     NameCarrier::Call("constant_residual_as"),
+    NameCarrier::Call("extremes_residual_as"),
     NameCarrier::Call("torus_lift_as"),
     NameCarrier::Call("within_as"),
     NameCarrier::Const("AT_THE_END"),
