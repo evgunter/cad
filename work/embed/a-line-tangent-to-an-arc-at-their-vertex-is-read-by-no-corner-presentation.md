@@ -89,3 +89,19 @@ A corner reading for a curve continued at first order by its next edge:
 the next edge's departure from the curve read at second order (its
 curvature against the arc's), or the two edges read as one `C¹` run
 through the vertex.
+
+## Census tests the cylinder fix leaves at present_curved and graph (EMBED lane `embed/iso-end`, 2026-11-22)
+
+In these 9 the cylinder's pair is refused with the partner, a plane face, unpresented at `present_curved` (no column's graph reads, `graph_read`'s `Local`). Six are the tangent-boss documents (`intent_s6_*`, `coincidence_door`'s boss), built tangent by construction. In the last three (a rod glued in its bore, a rod at a box edge, the ring lane) the exit is the graph's; whether they are tangent was not checked.
+
+Measured on `embed/iso-end-measure2` (`origin/embed/gate-measure` @ `ebb2e6f8e` plus `embed/iso-end`'s diff), where each refusal is the same pair, test by test, as on the trace run that named the exits (`embed/iso-end-measure` @ `030c75763`, `CV_TRACE`).
+
+- `editor-core::all coincidence_door::a_boss_typed_tangent_to_a_cylinder_glues_one_unproven_tangency`
+- `editor-core::all intent_s6_d_tangency::a_boss_traced_off_the_walls_axis_is_tangent_by_construction`
+- `editor-core::all intent_s6_d_tangency::a_boss_traced_on_one_cylinder_is_unproven_against_its_image`
+- `editor-core::all intent_s6_d_tangency::a_boss_traced_on_the_walls_other_half_proves`
+- `editor-core::all intent_s6_d_tangency::a_heading_typed_along_the_tangent_is_unproven`
+- `editor-core::all intent_s6_d_tangency::a_frame_slid_spun_or_flipped_along_the_axis_still_proves`
+- `sweep::all bisector_nodes::a_rod_glued_in_its_bore_answers_alike_in_either_order`
+- `sweep::all curved_coincident_fates::a_rod_at_a_box_edge_borders_alike_in_either_order`
+- `sweep::all verbs_germarms_interval::the_ring_lane_builds_at_the_certified_scalar`
