@@ -47,7 +47,7 @@ fn fnv(h: &mut u64, bytes: &[u8]) {
 
 /// The mesh's bytes (positions, then each patch's face and triangles), or
 /// the refusal's `Debug`.
-fn mesh_digest(body: &Body<f64>, delta: f64) -> u64 {
+pub(super) fn mesh_digest(body: &Body<f64>, delta: f64) -> u64 {
     let mut h = 0xcbf2_9ce4_8422_2325;
     match mesh::tessellate(body, delta, Tol::witness()) {
         Ok(m) => {
@@ -622,23 +622,19 @@ fn an_obliquely_placed_rectangle_meshes_on_the_rectangle_lane_to_mains_bytes() {
 /// two bodies the route walks: a frustum wall turned a full turn (two cone
 /// faces), every line edge split at its middle, at δ 5e-2; the bored ball
 /// of `split_rulings` with its seam split at its middle, at δ 0.1, where
-/// the walk cuts. The walk adds two kinds of decision to a run:
+/// the walk cuts. The walk adds one kind of decision to a run:
+/// **`chart_singularity_at_vertex`**, inside the route, once per singular
+/// point of the face's chart per vertex of its outer loop
+/// (`trimmed::walkable`, `chart_table::at_a_pole`). A cone has one, its
+/// apex, so the frustum's two faces of six vertices each add 12 of the
+/// run's 36 (the other 24 are the trimmed lane's own reads of its
+/// vertices, `trimmed::singular_vertices`); a cylinder has none, so the
+/// bore adds none. Its cuts record nothing: whether a face across can
+/// reach a side (`trimmed::may_make`) reads no band.
 ///
-/// - **`chart_singularity_at_vertex`**, inside the route, once per
-///   singular point of the face's chart per vertex of its outer loop
-///   (`trimmed::walkable`, `chart_table::at_a_pole`): a cone has one, its
-///   apex, so the frustum's two faces of six vertices each add 12 of the
-///   run's 36 (the other 24 are the trimmed lane's own reads of its
-///   vertices, `trimmed::singular_vertices`); a cylinder has none, so the
-///   bore adds none;
-/// - **`walked side beyond its neighbour's reach`**, inside the lane, once
-///   per side of the walk and face across holding both its ends
-///   (`trimmed::may_make`), until one may make it: 43 on the bored ball,
-///   one per side it cuts.
-///
-/// A memo hit records neither: the route's decisions and the lane's are
-/// spliced only where the lane runs. Each body's count of both, and its
-/// whole run's stream, are pinned.
+/// A memo hit records none of it: the route's decisions are spliced only
+/// where the lane runs. Each body's count, and its whole run's stream, are
+/// pinned.
 #[test]
 fn a_split_side_body_records_the_walks_decisions() {
     use crate::split_rulings::{bored_ball, rulings, split_and_placed, turned};
@@ -653,33 +649,21 @@ fn a_split_side_body_records_the_walks_decisions() {
             &frustum,
             5e-2,
             36,
-            0,
             0xd351_00ba_acb8_3421_u64,
         ),
-        ("the bored ball", &bore, 0.1, 0, 43, 0x10ae_deb6_c0f9_1088),
+        ("the bored ball", &bore, 0.1, 0, 0xb042_5d70_935d_9752),
     ];
-    for (name, body, delta, apex, reach, stream) in rows {
+    for (name, body, delta, apex, stream) in rows {
         let split = split_and_placed(body, &rulings(body), &[0.5]);
         let bracket = Bracket::open();
         let _ = mesh::tessellate(&split, delta, Tol::witness());
         let recorded = bracket.finish();
-        let count = |name: &str| {
-            recorded
-                .verdicts
-                .iter()
-                .filter(|v| v.predicate == name)
-                .count()
-        };
-        assert_eq!(
-            count("chart_singularity_at_vertex"),
-            apex,
-            "{name}: apex reads"
-        );
-        assert_eq!(
-            count("walked side beyond its neighbour's reach"),
-            reach,
-            "{name}: reach decisions"
-        );
+        let apexes = recorded
+            .verdicts
+            .iter()
+            .filter(|v| v.predicate == "chart_singularity_at_vertex")
+            .count();
+        assert_eq!(apexes, apex, "{name}: apex reads");
         let got = k_digest(|| {
             let _ = mesh::tessellate(&split, delta, Tol::witness());
         });

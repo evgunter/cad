@@ -324,9 +324,7 @@ use std::collections::{HashMap, HashSet};
 
 use geom::Surface;
 use geom_brep::{OutwardNormal, Pcurve, PolygonOrientation};
-use geom_core::k_stats;
 use geom_core::period::Period;
-use geom_core::predicate::{Margin, Sign};
 use geom_core::{Band, Point3};
 use spade::handles::FixedVertexHandle;
 use spade::{ConstrainedDelaunayTriangulation, Point2 as SpadePoint, Triangulation};
@@ -3496,56 +3494,51 @@ impl Creases {
 }
 
 /// **Whether a neighbouring face on `neighbour` may make the side `a–b`**
-/// in a mesh at `delta`, read where it provably cannot: a triangle the
-/// neighbour emits passes its certificate, which bounds the triangle's
-/// distance from its surface, and a certified bound is at most
-/// `δ·(1 + cert::ALLOWANCE_SHARE)` (the verdict absorbs rounding only while
-/// it is that small, `cert::verdict`). So where the side's midpoint lies
-/// farther than that from the neighbour's surface, no triangle of the
-/// neighbour holds the side. "Farther" is a decision on the run's `band`
-/// (`geom_core::k_stats::decide`), three-way: decided greater, the
-/// neighbour cannot make the side; decided not greater, or undecided, it
-/// may. The distance is to the surface's own foot of the point
-/// (`geom::Surface::foot`, in closed form on every analytic kind); a
-/// surface with no such foot, or a point where it is not one point, may
-/// make it. Every face of one run is meshed at its one δ (the run's
-/// `SizingTols`), and a face sized finer than δ is still within it.
+/// in a mesh at `delta`, read where it provably cannot, as a function of
+/// the body and δ alone: no ε is read (DESIGN `[tolerance.chordal]`, an ε
+/// flip never moves emitted coordinates with δ held fixed; `[mesh.winding]`).
 ///
-/// **When the exclusion is sound.** It compares the midpoint's TRUE
-/// distance, computed, with δ·(1 + ALLOWANCE_SHARE), while the neighbour
-/// passes a triangle on its COMPUTED bound `b̃`: `cert::verdict` passes it
-/// where `b̃ ≤ δ + a`, `a = cert::rounding_allowance(scale)` (8 ulps of the
-/// coordinates' magnitude), and only while `a ≤ δ·ALLOWANCE_SHARE`. The
-/// true bound is within `a` of `b̃`, so a passed triangle lies within
-/// `δ·(1 + ALLOWANCE_SHARE) + a` of its surface. "Decided greater" puts
-/// the midpoint's true distance past `δ·(1 + ALLOWANCE_SHARE) + Kε − r`,
-/// `r` this distance's own rounding (a midpoint, a closed-form foot, a
-/// difference and a norm: a short chain, at most `SHORT_CHAIN_ULPS` of the
-/// magnitude). So no passed triangle holds the side while `Kε > a + r`:
-/// about `6·10⁻¹²` m at the session box's edge (`|p| ≤ √3·10³`). Every ε
-/// this crate's rows run has `Kε ≥ 10⁻¹¹` and passes it; the admission
-/// rule alone (`(K − 1)·ε` covers `geom_core::tolerance::ADMISSION_FLOOR`,
-/// `≈ 1.8·10⁻¹²`) does not guarantee it at `ε_min` for a body at the box's
-/// edge, where the band may decide "greater" on a side a passed triangle
-/// still holds, and the census (`tessellate::overused_side`) is what
-/// refuses it.
-fn may_make(
-    neighbour: &Surface<f64>,
-    a: Point3<f64>,
-    b: Point3<f64>,
-    delta: f64,
-    band: Band,
-) -> bool {
+/// A triangle the neighbour emits passes its certificate
+/// (`cert::verdict`): its computed bound is within δ, or past δ by no more
+/// than the certificate's own rounding allowance
+/// (`cert::rounding_allowance`, 8 ulps of the coordinates' magnitude) while
+/// that allowance is small beside δ (`ALLOWANCE_SHARE`). The true bound is
+/// within that allowance of the computed one, so a passed triangle lies
+/// within `δ·(1 + ALLOWANCE_SHARE)` plus one allowance of its surface. This
+/// test computes the side's midpoint's distance from the neighbour's
+/// surface (`geom::Surface::foot`, in closed form on every analytic kind)
+/// and keeps the side uncut only where that distance exceeds
+/// `δ·(1 + ALLOWANCE_SHARE)` by more than TWO allowances at the magnitude
+/// of the points it reads: one for the neighbour's bound, one for this
+/// distance's own rounding (a midpoint, a closed-form foot, a difference
+/// and a norm: a chain of the certificate's kind, which its 8 ulps bound
+/// with room, `cert::ROUNDING_ULPS`). Past that, no triangle the neighbour
+/// passes holds the side. Everything else cuts: a distance within it, a
+/// surface with no foot, a point where the foot is not one point.
+///
+/// **A planar neighbour** has no certificate: its triangles lie in its
+/// plane, so it holds a side only where the side's midpoint is in the
+/// plane, and there the distance is within rounding of zero, never past
+/// the reach; the walk cuts such a side.
+///
+/// **The magnitude read.** The allowance is taken at the side's two ends
+/// and the midpoint's foot. The neighbour's verdict reads its own
+/// triangle's third corner and its chart's anchor too
+/// (`cert::position_scale`); where those stand farther from the origin,
+/// its allowance is larger than the one read here (by at most
+/// `δ·ALLOWANCE_SHARE`, past which the verdict does not pass the
+/// triangle). A side excluded on that difference, which no body built here
+/// reaches, is the census's (`tessellate::overused_side`) to refuse.
+///
+/// Every face of one run is meshed at its one δ (the run's `SizingTols`),
+/// and a face sized finer than δ is still within it.
+fn may_make(neighbour: &Surface<f64>, a: Point3<f64>, b: Point3<f64>, delta: f64) -> bool {
     let mid = Point3::new(0.5 * (a.x + b.x), 0.5 * (a.y + b.y), 0.5 * (a.z + b.z));
     let Some(foot) = neighbour.foot(mid) else {
         return true;
     };
-    // A distance less a distance: a length (`Margin::of`).
-    let beyond = Margin::of((mid - foot).norm() - delta * (1.0 + cert::ALLOWANCE_SHARE));
-    !matches!(
-        k_stats::decide("walked side beyond its neighbour's reach", beyond, band),
-        Ok(Sign::Positive)
-    )
+    let allowance = cert::rounding_allowance(cert::coordinate_scale([a, b, foot]));
+    (mid - foot).norm() <= delta * (1.0 + cert::ALLOWANCE_SHARE) + 2.0 * allowance
 }
 
 /// **A walked face's patch** (`crate::ruled_walk`): the walk of its two
@@ -3641,13 +3634,7 @@ fn walk_face(
         let at = |id: u32| places.get(&id).map_or(&[][..], Vec::as_slice);
         for f in polygon.faces_holding_side(&across, (at(p), p), (at(q), q)) {
             let neighbour = crate::tessellate::face_surface(body, f)?;
-            if may_make(
-                neighbour,
-                shared[p as usize],
-                shared[q as usize],
-                tol.delta,
-                tol.band,
-            ) {
+            if may_make(neighbour, shared[p as usize], shared[q as usize], tol.delta) {
                 return Ok(true);
             }
         }
