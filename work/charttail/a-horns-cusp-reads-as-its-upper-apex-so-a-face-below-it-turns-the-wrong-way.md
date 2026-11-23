@@ -2,13 +2,14 @@
 id: a-horns-cusp-reads-as-its-upper-apex-so-a-face-below-it-turns-the-wrong-way
 kind: issue
 title: singular_at reads a horn's cusp as SheetApexUp whichever side the face reaches it from, so a face below the cusp stores the complement turn
-status: review
+status: closed
 opened: 2026-11-21
 priority: P1
 cost: M
 refs: [singular-turn-spells-the-chart-winding-rule-by-hand, mesh-pole-junction-unwrap-picks-a-whole-turn-off-numbers]
 branch: charttail/horn-cusp
 pr: 7511
+closed: 2026-11-23
 ---
 
 Found by TESSLIE's lift-turns unit (2026-11-21), which instrumented
