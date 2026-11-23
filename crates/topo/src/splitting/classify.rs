@@ -24,8 +24,9 @@ use geom::cover::BoxAxes;
 /// arm — `Plane`, `Cylinder` and `Cone`. A face of any other kind
 /// (`Sphere`, `Torus`, `Nurbs`, `Approx`) refuses typed only when the
 /// plane MAY meet it: when its padded reach along the plane's normal
-/// (`census::face_reach_in`, the face's cover at this body's scalar)
-/// is not definitely on one side of the plane
+/// (`census::face_reach_toward`, the face's cover at this body's
+/// scalar, with a sphere face's pole-side cut along the normal) is not
+/// definitely on one side of the plane
 /// ([`reach_clears`]). Behind a reach that clears, the face has no
 /// vertex on or across the plane, no edge crossing it and no section
 /// through it, so every later stage carries it through whole. The
@@ -64,7 +65,7 @@ pub(super) fn carrier_gate<T: Decide>(
             | geom::SurfaceKind::Nurbs
             | geom::SurfaceKind::Approx => {
                 if !reach_clears(
-                    crate::census::face_reach_in(body, face_key, band, &frame),
+                    crate::census::face_reach_toward(body, face_key, band, plane.normal),
                     plane,
                     band,
                 ) {
@@ -126,7 +127,7 @@ fn edge_clears<T: Decide>(
         || [e.he_plus, e.he_minus].into_iter().any(|he| {
             let face = body.face_of_linked(he);
             reach_clears(
-                crate::census::face_reach_in(body, face, band, frame),
+                crate::census::face_reach_toward(body, face, band, plane.normal),
                 plane,
                 band,
             )

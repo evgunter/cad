@@ -7493,6 +7493,25 @@ pub(crate) fn face_reach_in<T: Decide>(
         .map(|cover| cover.box_in(frame))
 }
 
+/// [`face_reach_in`] read along `aim`, in the frame aimed at it
+/// ([`geom::cover::BoxAxes::aimed`]): the face's cover with a sphere
+/// face's pole-side cut along `aim` ([`crate::cover::face_cover_toward`]),
+/// its box there. The first coordinate is the reach along `aim`.
+///
+/// # Panics
+///
+/// As [`face_reach_in`].
+pub(crate) fn face_reach_toward<T: Decide>(
+    body: &Body<T>,
+    f: crate::entity::FaceKey,
+    band: Band,
+    aim: geom_core::UnitVec3<T>,
+) -> Option<(Point3<T>, Point3<T>)> {
+    crate::cover::face_cover_toward(body, f, band, aim)
+        .ok()
+        .map(|cover| cover.box_in(&geom::cover::BoxAxes::aimed(aim)))
+}
+
 /// The touch lane's recourse for a designed contact it cannot read yet.
 macro_rules! designed_contact {
     () => {
@@ -7929,6 +7948,7 @@ enum Recorded {
 mod curved;
 pub(crate) use curved::{EdgeSpan, edge_span};
 mod depth_gap;
+pub(crate) use depth_gap::pair_directions;
 #[cfg(test)]
 mod depth_gap_fuzz;
 mod in_plane;
@@ -10546,11 +10566,9 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
                     depth_gap::face_read(body, a.face, band)
                         .zip(depth_gap::face_read(body, b.face, band))
                 };
-                let proposed = reads.as_ref().map_or_else(Vec::new, |(ra, rb)| {
-                    let mut dirs = depth_gap::toward(ra, rb, band);
-                    dirs.extend(depth_gap::across(ra, rb, band));
-                    dirs
-                });
+                let proposed = reads
+                    .as_ref()
+                    .map_or_else(Vec::new, |(ra, rb)| depth_gap::proposed(ra, rb, band));
                 if !cleared
                     && !backstop_apart(
                         body,

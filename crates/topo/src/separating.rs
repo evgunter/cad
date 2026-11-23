@@ -236,6 +236,46 @@ pub(crate) fn apart<T: Decide>(
     })
 }
 
+/// **Whether two faces, each of its own body, are certainly apart**:
+/// [`apart`] along `axes`, and past it every direction the pair's own
+/// geometry aims ([`crate::census::pair_directions`]: an axis or
+/// centre toward the other face's nearest boundary segment point, an
+/// arc's chord normal, the line between two carriers' axes or centres)
+/// with `axes` again, each face's cover read along the direction
+/// ([`crate::cover::face_cover_toward`], a sphere face's pole-side
+/// cut). That second read is arm 1's of the census
+/// (`census::backstop_apart`), so a face pair the census parts at rest
+/// these doors part too. It costs a boundary walk per face, and a point
+/// placement per pole of a sphere face, so it runs only on a pair the
+/// first read leaves.
+///
+/// The pole-side cut places a point in a face through its region
+/// ([`crate::contain::curved_face_placement`]), and narrows only on a
+/// definite `Out`. That is the door the boolean's curved sweep arm
+/// places its pierce and end points by on the same bodies mid-operation
+/// (`boolean::reduce::curved_face_arm`), so a body these doors read is
+/// one the operation already trusts that door on.
+///
+/// # Panics
+///
+/// As [`apart`].
+pub(crate) fn faces_apart<T: Decide>(
+    (x, fx): (&Body<T>, FaceKey),
+    (y, fy): (&Body<T>, FaceKey),
+    axes: &[UnitVec3<T>],
+    pad: f64,
+    band: Band,
+) -> bool {
+    let (xi, yi) = ((x, Item::Face(fx)), (y, Item::Face(fy)));
+    apart(xi, yi, axes, pad, band) || {
+        let mut dirs = crate::census::pair_directions((x, fx), (y, fy), band);
+        dirs.extend_from_slice(axes);
+        apart_by(xi, yi, &dirs, pad, band, &|body, f, aim| {
+            crate::cover::face_cover_toward(body, f, band, aim).ok()
+        })
+    }
+}
+
 /// A face's cover read along an aim: [`crate::cover::face_cover`], or
 /// [`crate::cover::face_cover_toward`], which reads one more constraint
 /// off the aim. `None` for a face with no cover.
@@ -289,16 +329,18 @@ fn apart_along<T: Decide>(
 }
 
 /// The span of `items` along `dir`: the least and greatest support any
-/// of their covers has there. `None` where an item has no cover, or
-/// there is no item.
+/// of their covers has there, each face's read along `dir`
+/// ([`crate::cover::face_cover_toward`], a sphere face's pole-side cut,
+/// sound where [`faces_apart`] reads it). `None` where an item has no
+/// cover, or there is no item.
 pub(crate) fn support_along<T: Decide>(
     body: &Body<T>,
     items: impl IntoIterator<Item = Item<T>>,
     dir: UnitVec3<T>,
     band: Band,
 ) -> Option<(T, T)> {
-    span_by(body, items, dir, &|body, f, _| {
-        crate::cover::face_cover(body, f, band).ok()
+    span_by(body, items, dir, &|body, f, aim| {
+        crate::cover::face_cover_toward(body, f, band, aim).ok()
     })
 }
 

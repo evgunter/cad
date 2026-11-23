@@ -468,10 +468,11 @@ pub(super) struct UnsupportedPair {
 ///   the operation and the gate has nothing to say about it.
 /// - **The boxes separate along the world's axes only**, so an
 ///   overlap is followed by the narrow phase
-///   ([`crate::separating::apart`]), which reads both faces along
-///   directions that turn with the operands. A pair it parts is
-///   certified apart as a box non-overlap is, and the verdict is the
-///   pair's rather than the pose's.
+///   ([`crate::separating::faces_apart`]), which reads both faces along
+///   directions that turn with the operands and with the pair, as the
+///   census reads a pair at rest. A pair it parts is certified apart as
+///   a box non-overlap is, and the verdict is the pair's rather than
+///   the pose's.
 /// - **Overlap is a MAY, not a DOES.** Boxes over-approximate, so
 ///   this scan still finds pairs that exact geometry would separate.
 ///   That is conservative in the correct direction — it never admits
@@ -564,9 +565,9 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
             for &(other_face, other_kind, ref other_box) in &others {
                 if boxed.overlaps(other_box)
                     && !covered(operand, face, other_face)
-                    && !crate::separating::apart(
-                        (body, Item::Face(face)),
-                        (other, Item::Face(other_face)),
+                    && !crate::separating::faces_apart(
+                        (body, face),
+                        (other, other_face),
                         axes.of(a, b, band),
                         pad,
                         band,
@@ -996,20 +997,22 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 // meets the edge nowhere, whichever arm its kind has.
                 // The parents' reading is the operand gate's, so a pair
                 // the gate cleared is cleared here too.
-                let apart_from_face = |item| {
-                    crate::separating::apart(
-                        (x, item),
-                        (y, Item::Face(face)),
-                        axes.of(x, y, band),
+                let axes = axes.of(x, y, band);
+                if crate::separating::apart(
+                    (x, Item::Edge(edge_key)),
+                    (y, Item::Face(face)),
+                    axes,
+                    pad,
+                    band,
+                ) || [edge.he_plus, edge.he_minus].into_iter().any(|he| {
+                    crate::separating::faces_apart(
+                        (x, x.face_of_linked(he)),
+                        (y, face),
+                        axes,
                         pad,
                         band,
                     )
-                };
-                if apart_from_face(Item::Edge(edge_key))
-                    || [edge.he_plus, edge.he_minus]
-                        .into_iter()
-                        .any(|he| apart_from_face(Item::Face(x.face_of_linked(he))))
-                {
+                }) {
                     continue;
                 }
                 let event = curved_face_arm(

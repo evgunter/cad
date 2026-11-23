@@ -249,6 +249,36 @@ pub(super) fn apart_in_depth<T: Decide>(
     })
 }
 
+/// **The directions two faces aim across their pair**, each of its own
+/// body: [`toward`] and [`across`] over the two faces' reads
+/// ([`face_read`]). None where either face has no cover. The boolean's
+/// pair doors read these ([`crate::separating::faces_apart`]), as arm 1
+/// reads them ([`proposed`]).
+///
+/// # Panics
+///
+/// As [`face_read`].
+pub(crate) fn pair_directions<T: Decide>(
+    (x, fx): (&Body<T>, FaceKey),
+    (y, fy): (&Body<T>, FaceKey),
+    band: Band,
+) -> Vec<geom_core::UnitVec3<T>> {
+    face_read(x, fx, band)
+        .zip(face_read(y, fy, band))
+        .map_or_else(Vec::new, |(rx, ry)| proposed(&rx, &ry, band))
+}
+
+/// [`toward`], then [`across`].
+pub(super) fn proposed<T: Decide>(
+    ra: &Read<T>,
+    rb: &Read<T>,
+    band: Band,
+) -> Vec<geom_core::UnitVec3<T>> {
+    let mut dirs = toward(ra, rb, band);
+    dirs.extend(across(ra, rb, band));
+    dirs
+}
+
 /// **The directions the depths of two faces, read as `ra` and `rb`
 /// ([`face_read`]), aim across the pair**: for each axis or centre one
 /// face proposes, the offset from it to the other face's nearest
