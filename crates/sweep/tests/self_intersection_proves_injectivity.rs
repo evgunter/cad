@@ -6558,7 +6558,7 @@ const OFF_GRID: Frustum = (0.7, 0.31, 0.9);
 /// section are stated a half turn apart (`u_ref` opposed), which
 /// `one_stated_conic` reads as two conics, so the cap's corner of two
 /// arcs has no reading
-/// (`work/embed/two-arcs-of-one-ellipse-stated-a-quarter-turn-apart-are-not-one-conic.md`).
+/// (`work/oneround/two-arcs-of-one-cone-section-are-stated-as-two-anchored-ellipses-so-no-reading-knows-them-one-conic.md`).
 /// The cone's side of that pair is presented. When the cap's corner is
 /// read this row's bodies are embedded, and the pin moves.
 ///

@@ -103,3 +103,5 @@ changes what `continues` certifies, so it is a ruling, not a repair.
 `self_intersection_proves_injectivity::a_cut_cones_wall_holds_in_every_placement_and_its_body_refuses_on_a_cap`
 and `…::a_needle_and_a_near_flat_cone_cut_read_as_any_cone`
 (`refuses_on_a_cap_and_its_wall_holds`).
+
+**Re-filed where the minting door lives** (the EMBED orchestrator's ruling, same day): the half-turn case is ONEROUND's, `work/oneround/two-arcs-of-one-cone-section-are-stated-as-two-anchored-ellipses-so-no-reading-knows-them-one-conic.md` (P0). `one_stated_conic` comparing by content is right and stays; the defect is that one section is stated twice. The census re-run on the merged tree: 1 of 24 pass. This row keeps the pre-merge quarter-turn sighting.
