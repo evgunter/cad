@@ -7475,16 +7475,19 @@ class Coincidence:
     plane a split cuts with is `(read, None)`; and a profile's own piece
     is `(profile, piece)`, the profile's `NodeId`. `relation` is
     `same_oriented`, `same_opposite`, `on_carrier`, `common_foot`,
-    `tangent`, `cusp`, `surface_tangent`, `coaxial`, `same_radius`,
-    `axes_meet`, `co_ruled` or `meet`; `site` is `plane_ladder`, `carrier_ladder`,
-    `tangent_witness`, `coaxial_sphere`, `sphere_on_torus_axis`,
+    `tangent`, `cusp`, `surface_tangent`, `rim_junction`, `coaxial`,
+    `same_radius`, `axes_meet`, `co_ruled` or `meet`; `site` is
+    `plane_ladder`, `carrier_ladder`, `tangent_witness`, `rim_junction`,
+    `coaxial_sphere`, `sphere_on_torus_axis`,
     `coaxial_cylinder_torus`, `coaxial_tori`, `crossing_cylinders`, `split_on`,
     `battery_turn`, `battery_joint`, `battery_support_axis`,
     `profile_junction`, `vertex_fusion`, `iso_join`, `census_at_rest` or
     `smooth_join`. A `profile_junction` row is `tangent` or `cusp`
     between two carriers and `same_oriented` where its two pieces
     continue one carrier; a `tangent_witness` row is `surface_tangent`,
-    claiming nothing of the materials. `rung` is the door's rung that
+    claiming nothing of the materials, and a `rim_junction` row is
+    `rim_junction`, two faces that end on one rim joined there smoothly,
+    with no touch claimed along it. `rung` is the door's rung that
     proved it structural (`same_construction`, `carrier_verdict` or
     `margin_identity`), or `None`, and then `residual` says what separates
     the two constructions and what the replay with every variable a
