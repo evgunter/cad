@@ -14658,3 +14658,652 @@ mod rate_rows {
         }
     }
 }
+
+/// Reviewer probes of PR 7640 (`embed/conic-symmetry`): not for landing.
+#[cfg(test)]
+mod review_probes {
+    use super::*;
+    use core::cell::Cell;
+    use core::f64::consts::PI;
+    use geom::Conic;
+
+    struct Rng(u64);
+    impl Rng {
+        fn next(&mut self) -> f64 {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            (self.0 >> 11) as f64 / (1u64 << 53) as f64
+        }
+        fn sym(&mut self) -> f64 {
+            2.0 * self.next() - 1.0
+        }
+        fn vec(&mut self) -> Vec3<f64> {
+            Vec3::new(self.sym(), self.sym(), self.sym())
+        }
+    }
+    fn iv0(x: f64) -> Interval {
+        Interval::from_bounds(x, x)
+    }
+    fn vertex(n: u64) -> VertexKey {
+        slotmap::KeyData::from_ffi((1u64 << 32) | n).into()
+    }
+    fn edge(n: u64) -> EdgeKey {
+        slotmap::KeyData::from_ffi((1u64 << 32) | n).into()
+    }
+    fn rim(e: geom::Ellipse<f64>, span: (f64, f64), ends: [u64; 2]) -> Rim {
+        let c = Curve3::Ellipse(e);
+        Rim {
+            key: edge(1),
+            arc: Some((c.map_scalar(Interval::from_f64), (iv0(span.0), iv0(span.1)))),
+            stated: Some(c),
+            ends: ends.map(vertex),
+            uses: vec![Use {
+                plus: true,
+                image: None,
+                iso: None,
+                harmonic: None,
+                wall: None,
+            }],
+        }
+    }
+    /// `e` with its phase set to `(c, s)` (nothing on a centre-held one).
+    fn with_phase(e: geom::Ellipse<f64>, (c, s): (f64, f64), arc: bool) -> geom::Ellipse<f64> {
+        if !arc {
+            return e;
+        }
+        let n = Cell::new(0);
+        e.map_scalar(
+            |f| *f,
+            |x| {
+                let k = n.get();
+                n.set(k + 1);
+                match k {
+                    0 => c,
+                    1 => s,
+                    _ => x,
+                }
+            },
+        )
+    }
+    fn bits(p: Point3<f64>) -> [u64; 3] {
+        [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()]
+    }
+    fn vbits(p: Vec3<f64>) -> [u64; 3] {
+        [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()]
+    }
+    fn ulps(a: f64, b: f64, scale: f64) -> f64 {
+        (a - b).abs() / (scale * f64::EPSILON)
+    }
+    fn random_ellipses(rng: &mut Rng, n: usize) -> Vec<(String, geom::Ellipse<f64>)> {
+        let mut out = Vec::new();
+        for i in 0..n {
+            let (axis, u) = (rng.vec(), rng.vec());
+            let origin = Point3::new(3.0 * rng.sym(), 3.0 * rng.sym(), 3.0 * rng.sym());
+            let (a, b) = if i % 7 == 0 {
+                (0.6, 0.6)
+            } else {
+                (0.1 + 2.0 * rng.next(), 0.1 + 2.0 * rng.next())
+            };
+            out.push((
+                format!("centre {i}"),
+                geom::Ellipse::new(geom::Frame::new(origin, axis, u), a, b),
+            ));
+            let anchored = geom::Ellipse::anchored(origin, axis, u, a, b);
+            let t = 2.0 * PI * rng.next();
+            let phases = [
+                (1.0, 0.0),
+                (0.0, 1.0),
+                (-1.0, 0.0),
+                (0.0, -1.0),
+                (-0.0, 1.0),
+                (1.0, -0.0),
+                (t.cos(), t.sin()),
+            ];
+            for p in phases {
+                out.push((format!("arc {i} phase {p:?}"), with_phase(anchored, p, true)));
+            }
+        }
+        out
+    }
+
+    /// Claim 1 at f64.
+    #[test]
+    fn rp1_restatements_evaluated() {
+        let mut rng = Rng(0x9E37_79B9_7F4A_7C15);
+        let es = random_ellipses(&mut rng, 200);
+        let mut not_rigid = 0usize;
+        let (mut back_bad, mut both_bad, mut dhalf_bad, mut dback_bad) =
+            (0usize, 0usize, 0usize, 0usize);
+        let (mut half_max, mut half_max_what) = (0.0f64, String::new());
+        let (mut fields_bad, mut n) = (0usize, 0usize);
+        for (what, e) in &es {
+            let m = e.frame().motion();
+            let (u, v, w) = (m.u().get(), m.v().get(), m.w().get());
+            if vbits(w.cross(u)) != vbits(v) || u.dot(w) != 0.0 || u.dot(u) != 1.0 {
+                not_rigid += 1;
+            }
+            let [id, half, back, both] = e.restatements();
+            // The stored frames are exact negations.
+            let (mh, mb, mo) = (
+                half.frame().motion(),
+                back.frame().motion(),
+                both.frame().motion(),
+            );
+            let ok = vbits(mh.u().get()) == vbits(-u)
+                && vbits(mh.v().get()) == vbits(-v)
+                && vbits(mh.w().get()) == vbits(w)
+                && vbits(mb.u().get()) == vbits(u)
+                && vbits(mb.v().get()) == vbits(-v)
+                && vbits(mb.w().get()) == vbits(-w)
+                && vbits(mo.u().get()) == vbits(-u)
+                && vbits(mo.v().get()) == vbits(v)
+                && vbits(mo.w().get()) == vbits(-w)
+                && half.semi_axes() == e.semi_axes()
+                && back.semi_axes() == e.semi_axes();
+            if !ok {
+                fields_bad += 1;
+            }
+            let scale = 10.0;
+            for k in 0..64 {
+                let th = match k {
+                    0 => 0.0,
+                    1 => -0.0,
+                    2 => PI,
+                    3 => PI / 2.0,
+                    4 => 1e-300,
+                    5 => 1e-9,
+                    _ => 20.0 * rng.sym(),
+                };
+                n += 1;
+                assert_eq!(bits(id.point_at(th)), bits(e.point_at(th)), "{what}: itself");
+                let (p, q) = (back.point_at(th), e.point_at(-th));
+                if !p.equals_exactly(q) {
+                    back_bad += 1;
+                }
+                let (p, q) = (both.point_at(th), half.point_at(-th));
+                if !p.equals_exactly(q) {
+                    both_bad += 1;
+                }
+                if !half.derivative_at(th).equals_exactly(-e.derivative_at(th)) {
+                    dhalf_bad += 1;
+                }
+                if !back.derivative_at(th).equals_exactly(-e.derivative_at(-th)) {
+                    dback_bad += 1;
+                }
+                let (p, q) = (half.point_at(th), e.point_at(th + PI));
+                let d = ulps(p.x, q.x, scale)
+                    .max(ulps(p.y, q.y, scale))
+                    .max(ulps(p.z, q.z, scale));
+                if d > half_max {
+                    half_max = d;
+                    half_max_what = format!("{what} θ={th:e}");
+                }
+            }
+        }
+        println!(
+            "RP1 ellipses={} evals={n} frames-not-rigid-to-the-bit={not_rigid} fields_bad={fields_bad} \
+             back_bad={back_bad} both_vs_half_bad={both_bad} dhalf_bad={dhalf_bad} dback_bad={dback_bad} \
+             half_vs_theta_plus_pi max={half_max:.2} ulps-of-10 at {half_max_what}",
+            es.len()
+        );
+        assert_eq!(
+            (fields_bad, back_bad, both_bad, dhalf_bad, dback_bad),
+            (0, 0, 0, 0, 0)
+        );
+    }
+
+    /// Claim 1: a centre-held half turn is the point reflection in the
+    /// stored centre, bit for bit, read with the centre at the origin.
+    #[test]
+    fn rp1b_centre_held_half_turn_negates_the_offset_bit_for_bit() {
+        let mut rng = Rng(77);
+        let mut bad = 0usize;
+        for _ in 0..300 {
+            let e = geom::Ellipse::new(
+                geom::Frame::new(Point3::origin(), rng.vec(), rng.vec()),
+                0.1 + rng.next(),
+                0.1 + rng.next(),
+            );
+            let half = e.restatements()[1];
+            for _ in 0..50 {
+                let th = 20.0 * rng.sym();
+                let (p, q) = (half.point_at(th), e.point_at(th));
+                if !(p.x == -q.x && p.y == -q.y && p.z == -q.z) {
+                    bad += 1;
+                }
+            }
+        }
+        println!("RP1b bad={bad}");
+        assert_eq!(bad, 0);
+    }
+
+    /// Claim 1, lifted: the lift of a restatement against the
+    /// restatement of the lift, and what `one_conic`'s lifted arm says.
+    #[test]
+    fn rp1c_lifted() {
+        let mut rng = Rng(4242);
+        let es = random_ellipses(&mut rng, 40);
+        let (mut differ, mut total, mut lifted_one, mut overlap_bad) =
+            (0usize, 0usize, 0usize, 0usize);
+        for (_what, e) in &es {
+            let lift = |e: &geom::Ellipse<f64>| Curve3::Ellipse(*e).map_scalar(Interval::from_f64);
+            let Curve3::Ellipse(le) = lift(e) else {
+                unreachable!()
+            };
+            let lr = le.restatements();
+            for (i, r) in e.restatements().iter().enumerate() {
+                total += 1;
+                let Curve3::Ellipse(a) = lift(r) else {
+                    unreachable!()
+                };
+                let same = |x: Vec3<Interval>, y: Vec3<Interval>| {
+                    [(x.x, y.x), (x.y, y.y), (x.z, y.z)]
+                        .iter()
+                        .all(|(p, q)| p.lo() == q.lo() && p.hi() == q.hi())
+                };
+                let (fa, fb) = (a.frame(), lr[i].frame());
+                if !(same(fa.axis(), fb.axis()) && same(fa.u_ref(), fb.u_ref())) {
+                    differ += 1;
+                }
+                // The stated arm off: the lifted arm alone.
+                let bare = |c: Curve3<Interval>| Rim {
+                    key: edge(1),
+                    arc: Some((c, (iv0(0.0), iv0(1.0)))),
+                    stated: None,
+                    ends: [vertex(1), vertex(2)],
+                    uses: Vec::new(),
+                };
+                if one_conic(&bare(lift(e)), &bare(lift(r))) {
+                    lifted_one += 1;
+                }
+                // At the parameter the identity names, the boxes meet.
+                let th = 0.37;
+                let pi = Interval::from_bounds(PI, f64::from_bits(PI.to_bits() + 1));
+                let at = match i {
+                    0 => iv0(th),
+                    1 => iv0(th) - pi,
+                    2 => iv0(-th),
+                    _ => pi - iv0(th),
+                };
+                let (p, q) = (lift(e).eval(iv0(th)), lift(r).eval(at));
+                let meets = |x: Interval, y: Interval| x.lo() <= y.hi() && y.lo() <= x.hi();
+                if !(meets(p.x, q.x) && meets(p.y, q.y) && meets(p.z, q.z)) {
+                    overlap_bad += 1;
+                }
+            }
+        }
+        println!(
+            "RP1c pairs={total} lift-of-restatement != restatement-of-lift (endpoints)={differ} \
+             lifted-arm-alone-reads-one={lifted_one} boxes-disjoint={overlap_bad}"
+        );
+        assert_eq!(overlap_bad, 0);
+    }
+
+    /// The ellipse `e` with its frame's signs and its phase's signs set.
+    fn signed(
+        e: geom::Ellipse<f64>,
+        (sn, su, sc, ss): (bool, bool, bool, bool),
+        phase: (f64, f64),
+    ) -> geom::Ellipse<f64> {
+        let f = |f: &geom::Frame<f64>| match (sn, su) {
+            (false, false) => *f,
+            (false, true) => f.half_turned(),
+            (true, false) => f.reversed(),
+            (true, true) => f.half_turned().reversed(),
+        };
+        let sg = |x: f64, s: bool| if s { -x } else { x };
+        with_phase(e.mapped(f), (sg(phase.0, sc), sg(phase.1, ss)), true)
+    }
+
+    /// Claim 2: every sign pattern, against the oracle of one centre.
+    #[test]
+    fn rp2_enumerated() {
+        let mut rng = Rng(99);
+        let t = 0.7f64;
+        let cases: Vec<(&str, (f64, f64), (f64, f64))> = vec![
+            ("generic phase", (t.cos(), t.sin()), (0.75, 0.4)),
+            ("phase (1,0)", (1.0, 0.0), (0.75, 0.4)),
+            ("phase (0,1)", (0.0, 1.0), (0.75, 0.4)),
+            ("phase (0,-1)", (0.0, -1.0), (0.75, 0.4)),
+            ("phase (-1,0)", (-1.0, 0.0), (0.75, 0.4)),
+            ("generic phase, a circle", (t.cos(), t.sin()), (0.6, 0.6)),
+            ("phase (1,0), a circle", (1.0, 0.0), (0.6, 0.6)),
+            ("anchor at the centre, phase (0,0)", (0.0, 0.0), (0.75, 0.4)),
+        ];
+        let frames: Vec<(&str, Vec3<f64>, Vec3<f64>)> = vec![
+            ("generic", rng.vec(), rng.vec()),
+            ("u along x", Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0)),
+            (
+                "7ths",
+                Vec3::new(2.0 / 7.0, 3.0 / 7.0, 6.0 / 7.0),
+                Vec3::new(0.6, -0.8, 0.1),
+            ),
+        ];
+        for (fw, axis, u) in &frames {
+            for (what, phase, (a, b)) in &cases {
+                let base = with_phase(
+                    geom::Ellipse::anchored(Point3::new(0.3, -1.1, 2.9), *axis, *u, *a, *b),
+                    *phase,
+                    true,
+                );
+                let mut ones = Vec::new();
+                for k in 0..16u32 {
+                    let (sn, su, sc, ss) = (k & 1 != 0, k & 2 != 0, k & 4 != 0, k & 8 != 0);
+                    let other = signed(base, (sn, su, sc, ss), *phase);
+                    let got = one_stated_conic(&Curve3::Ellipse(base), &Curve3::Ellipse(other));
+                    let sym = one_stated_conic(&Curve3::Ellipse(other), &Curve3::Ellipse(base));
+                    assert_eq!(got, sym, "{fw} {what} {k}: symmetric");
+                    // One centre, in the stored numbers:
+                    // C' = A − σuσc·u·a·c0 − σnσuσs·v·b·s0.
+                    let oracle =
+                        (su == sc || phase.0 == 0.0) && ((sn ^ su) == ss || phase.1 == 0.0);
+                    assert_eq!(got, oracle, "{fw} {what} pattern n{sn} u{su} c{sc} s{ss}");
+                    let r = one_conic(
+                        &rim(base, (0.0, 1.0), [1, 2]),
+                        &rim(other, (0.0, 1.0), [1, 2]),
+                    );
+                    if r != got {
+                        println!(
+                            "RP2 NOTE {fw} {what} pattern {k}: one_conic={r} one_stated_conic={got}"
+                        );
+                    }
+                    if got {
+                        ones.push(k);
+                    }
+                }
+                println!("RP2 {fw} / {what}: one at patterns {ones:?}");
+            }
+        }
+        // The danger pair, named.
+        let (n, u) = (
+            Vec3::new(2.0 / 7.0, 3.0 / 7.0, 6.0 / 7.0),
+            Vec3::new(0.6, -0.8, 0.1),
+        );
+        let e = geom::Ellipse::anchored(Point3::new(0.3, -1.1, 2.9), n, u, 0.75, 0.4);
+        let e1 = with_phase(e, (0.0, 1.0), true);
+        let e2 = signed(e1, (true, true, true, true), (0.0, 1.0));
+        println!(
+            "RP2 danger: E1={e1:?}\n           E2={e2:?}\n centres {:?} {:?}",
+            e1.frame().origin(),
+            e2.frame().origin()
+        );
+        assert!(!one_stated_conic(
+            &Curve3::Ellipse(e1),
+            &Curve3::Ellipse(e2)
+        ));
+        assert!(!one_conic(
+            &rim(e1, (0.0, 1.0), [1, 2]),
+            &rim(e2, (0.0, 1.0), [1, 2])
+        ));
+        assert!((e1.frame().origin() - e2.frame().origin()).norm() > 0.7);
+        // The same on exact axis-aligned frames, where the lifted arm is live.
+        let (z, x) = (Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0));
+        let g = with_phase(
+            geom::Ellipse::anchored(Point3::new(2.0, 0.0, 0.0), z, x, 2.0, 1.0),
+            (0.0, 1.0),
+            true,
+        );
+        let g2 = signed(g, (true, true, true, true), (0.0, 1.0));
+        assert!(
+            !one_conic(&rim(g, (0.0, 1.0), [1, 2]), &rim(g2, (0.0, 1.0), [1, 2])),
+            "danger pair on the grid"
+        );
+    }
+
+    /// Claim 3: a left-handed stored frame.
+    #[test]
+    fn rp3_left_handed() {
+        let (x, y, z) = (
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        );
+        for (what, v) in [("v negated", -y), ("v kept", y)] {
+            let map = geom_core::Affine3 {
+                linear: geom_core::Mat3::from_cols(x, v, z),
+                translation: Vec3::new(0.3, -1.1, 2.9),
+            };
+            println!(
+                "RP3 check_rigid, {what}: {:?}",
+                geom_core::RigidMotion::check_rigid(&map).map(|_| "admitted")
+            );
+        }
+        let m = geom_core::RigidMotion::<f64>::world();
+        for u in 0..3 {
+            for v in 0..3 {
+                for (su, sv) in [(false, false), (false, true), (true, false), (true, true)] {
+                    if let Some(r) = m.with_signed_axes((u, su), (v, sv)) {
+                        let det = r.u().get().cross(r.v().get()).dot(r.w().get());
+                        assert_eq!(det, 1.0, "with_signed_axes mints a reflection");
+                    }
+                }
+            }
+        }
+    }
+
+    /// Claim 4.
+    #[test]
+    fn rp4_continues() {
+        let e = geom::Ellipse::anchored(
+            Point3::new(0.3, -1.1, 2.9),
+            Vec3::new(2.0 / 7.0, 3.0 / 7.0, 6.0 / 7.0),
+            Vec3::new(0.6, -0.8, 0.1),
+            0.75,
+            0.4,
+        )
+        .seamed_near(PI / 2.0);
+        let [_, half, back, both] = e.restatements();
+        let first = rim(e, (0.0, 1.0), [1, 2]);
+        let row = |what: &str, on: Rim, lies: Rim| {
+            let got = [
+                continues(&first, &on, vertex(2)),
+                continues(&on, &first, vertex(2)),
+                continues(&first, &lies, vertex(2)),
+                continues(&lies, &first, vertex(2)),
+            ];
+            println!("RP4 {what}: runs on / asked back / lies back / asked back = {got:?}");
+            assert_eq!(got, [true, true, false, false], "{what}");
+        };
+        row(
+            "half",
+            rim(half, (1.0 - PI, 2.0 - PI), [2, 3]),
+            rim(half, (-PI, 1.0 - PI), [3, 2]),
+        );
+        row(
+            "back",
+            rim(back, (-2.0, -1.0), [3, 2]),
+            rim(back, (-1.0, 0.0), [2, 3]),
+        );
+        row(
+            "both",
+            rim(both, (PI - 2.0, PI - 1.0), [3, 2]),
+            rim(both, (PI - 1.0, PI), [2, 3]),
+        );
+        // The whole ellipse in two arcs, the second a half turn on.
+        let a = rim(e, (0.0, 2.5), [1, 2]);
+        let b = rim(half, (2.5 - PI, PI), [2, 1]);
+        println!(
+            "RP4 whole: at v2 {} at v1 {}",
+            continues(&a, &b, vertex(2)),
+            continues(&b, &a, vertex(1))
+        );
+        // More than a turn of parameter: [0, 4] and [4, 6.5].
+        let a = rim(e, (0.0, 4.0), [1, 2]);
+        let b = rim(half, (4.0 - PI, 6.5 - PI), [2, 3]);
+        assert!(!continues(&a, &b, vertex(2)), "over a turn");
+        let a = rim(e, (0.0, 2.5), [1, 2]);
+        for over in [1e-9, 1e-13, 1e-14, 3e-15] {
+            let b = rim(half, (2.5 - PI, PI + over), [2, 3]);
+            println!(
+                "RP4 a turn and {over:e} over: {}",
+                continues(&a, &b, vertex(2))
+            );
+        }
+        // A restatement and an ulp.
+        let nudge = |x: f64| f64::from_bits(x.to_bits() + 1);
+        let moved = half.mapped(|f| f.translated(Vec3::new(1e-16, 0.0, 0.0)));
+        let fat = {
+            let n = Cell::new(0);
+            half.map_scalar(
+                |f| *f,
+                |x| {
+                    let k = n.get();
+                    n.set(k + 1);
+                    if k == 2 { nudge(x) } else { x }
+                },
+            )
+        };
+        for (what, o) in [("anchor an ulp off", moved), ("semi_u an ulp off", fat)] {
+            let r = rim(o, (1.0 - PI, 2.0 - PI), [2, 3]);
+            println!(
+                "RP4 {what}: one_conic {} continues {}",
+                one_conic(&first, &r),
+                continues(&first, &r, vertex(2))
+            );
+            assert!(!continues(&first, &r, vertex(2)), "{what}");
+        }
+        // The same on exact axis-aligned frames, where the lift is a point.
+        let (z, x) = (Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0));
+        let g = geom::Ellipse::anchored(Point3::new(2.0, 0.0, 0.0), z, x, 2.0, 1.0);
+        let gh = g.restatements()[1];
+        let gfirst = rim(g, (0.0, 1.0), [1, 2]);
+        assert!(continues(
+            &gfirst,
+            &rim(gh, (1.0 - PI, 2.0 - PI), [2, 3]),
+            vertex(2)
+        ));
+        let d = 2.0 + 4.0 * f64::EPSILON;
+        let g2 = geom::Ellipse::anchored(Point3::new(d, 0.0, 0.0), z, x, d, 1.0).restatements()[1];
+        let r = rim(g2, (1.0 - PI, 2.0 - PI), [2, 3]);
+        println!(
+            "RP4 grid, anchor and semi_u moved together: one_conic {} continues {}",
+            one_conic(&gfirst, &r),
+            continues(&gfirst, &r, vertex(2))
+        );
+        assert!(!continues(&gfirst, &r, vertex(2)));
+        let g3 = geom::Ellipse::anchored(Point3::new(2.0, 1e-300, 0.0), z, x, 2.0, 1.0)
+            .restatements()[1];
+        let r = rim(g3, (1.0 - PI, 2.0 - PI), [2, 3]);
+        println!(
+            "RP4 grid, anchor 1e-300 off in y: one_conic {} continues {}",
+            one_conic(&gfirst, &r),
+            continues(&gfirst, &r, vertex(2))
+        );
+    }
+
+    /// Claim 5.
+    #[test]
+    fn rp5_circles() {
+        let mut rng = Rng(5);
+        let f = geom::Frame::new(Point3::new(0.3, -1.1, 2.9), rng.vec(), rng.vec());
+        let c = |f: geom::Frame<f64>, r: f64| Curve3::Circle(geom::Circle::new(f, r));
+        let pats = [
+            ("identity", f),
+            ("half", f.half_turned()),
+            ("back", f.reversed()),
+            ("both", f.half_turned().reversed()),
+            ("quarter exact", f.quarter_turned()),
+            ("quarter renormalized", f.quarter_turned_renormalized()),
+            ("moved an ulp", f.translated(Vec3::new(1e-16, 0.0, 0.0))),
+        ];
+        for (what, g) in pats {
+            println!(
+                "RP5 circle {what}: one_stated_conic {}",
+                one_stated_conic(&c(f, 0.5), &c(g, 0.5))
+            );
+        }
+        println!(
+            "RP5 radius an ulp: {}",
+            one_stated_conic(&c(f, 0.5), &c(f, 0.5 + f64::EPSILON))
+        );
+    }
+
+    /// Claim 6 and the centre-held / arc-held ruling, asked through the
+    /// rims as `continues` asks.
+    #[test]
+    fn rp6_quarter_and_centre() {
+        let (z, x) = (Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0));
+        let on_grid = geom::Ellipse::anchored(Point3::new(2.0, 0.0, 0.0), z, x, 2.0, 1.0);
+        let q = on_grid.seamed_near(PI / 2.0);
+        let centred = geom::Ellipse::new(geom::Frame::new(Point3::origin(), z, x), 2.0, 1.0);
+        let r = |e| rim(e, (0.0, 1.0), [1, 2]);
+        println!(
+            "RP6 exact quarter on the grid: stated {} rims {}",
+            one_stated_conic(&Curve3::Ellipse(on_grid), &Curve3::Ellipse(q)),
+            one_conic(&r(on_grid), &r(q))
+        );
+        println!(
+            "RP6 centre vs arc on the grid: stated {} rims {}",
+            one_stated_conic(&Curve3::Ellipse(centred), &Curve3::Ellipse(on_grid)),
+            one_conic(&r(centred), &r(on_grid))
+        );
+        let mut worst = 0.0f64;
+        for k in 0..200 {
+            let th = 0.05 * f64::from(k) - 5.0;
+            let (p, s) = (q.point_at(th), on_grid.point_at(th + PI / 2.0));
+            worst = worst.max((p - s).norm());
+        }
+        println!("RP6 exact quarter: max |Q(θ) − E(θ+π/2)| = {worst:e}; q = {q:?}");
+        let a = rim(centred, (0.0, 1.0), [1, 2]);
+        let b = rim(on_grid, (1.0, 2.0), [2, 3]);
+        println!(
+            "RP6 centre-held then arc-held on the grid: continues {}",
+            continues(&a, &b, vertex(2))
+        );
+        let near = geom::Ellipse::anchored(Point3::origin(), z, x, 100.0, 1.0);
+        let far = geom::Ellipse::anchored(Point3::new(2f64.powi(-60), 0.0, 0.0), z, x, 100.0, 1.0);
+        println!(
+            "RP6 anchors 2^-60 apart: rims {}",
+            one_conic(&r(near), &r(far))
+        );
+        let Curve3::Ellipse(lf) = Curve3::Ellipse(far).map_scalar(Interval::from_f64) else {
+            unreachable!()
+        };
+        println!("RP6 far's lifted centre {:?}", lf.frame().origin());
+    }
+
+    /// Claim 3: a frame whose stored `v` is negated, built off the mints
+    /// by a stateful `map_scalar` (no door mints it).
+    #[test]
+    fn rp3b_a_stored_v_negated() {
+        let e = geom::Ellipse::new(
+            geom::Frame::new(
+                Point3::new(0.3, -1.1, 2.9),
+                Vec3::new(2.0 / 7.0, 3.0 / 7.0, 6.0 / 7.0),
+                Vec3::new(0.6, -0.8, 0.1),
+            ),
+            0.75,
+            0.4,
+        );
+        let n = Cell::new(0);
+        let left = e.mapped(|f| {
+            f.map_scalar(|x: f64| {
+                let k = n.get();
+                n.set(k + 1);
+                if (6..9).contains(&k) { -x } else { x }
+            })
+        });
+        let (m, l) = (e.frame().motion(), left.frame().motion());
+        assert!(l.v().get().equals_exactly(-m.v().get()) && l.u().get().equals_exactly(m.u().get()));
+        let mut differ = 0;
+        for k in 0..100 {
+            let th = 0.1 * f64::from(k) - 5.0;
+            if bits(e.point_at(th)) != bits(left.point_at(th)) {
+                differ += 1;
+            }
+        }
+        println!(
+            "RP3b f64 points differing in a bit: {differ}; one_stated_conic {} ; content alike {}",
+            one_stated_conic(&Curve3::Ellipse(e), &Curve3::Ellipse(left)),
+            Curve3::Ellipse(e).same_content(&Curve3::Ellipse(left))
+        );
+        let lifted = std::panic::catch_unwind(|| {
+            let Curve3::Ellipse(l) = Curve3::Ellipse(left).map_scalar(Interval::from_f64) else {
+                unreachable!()
+            };
+            format!("{:?}", l.frame().axis())
+        });
+        println!("RP3b the left-handed frame lifted: {lifted:?}");
+    }
+}
