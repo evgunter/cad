@@ -9,6 +9,7 @@ refs: [set-edge-curve-keeps-a-certified-edges-rows-across-a-reparameterization]
 cost: M
 parent: producer-closing-mint-is-a-convention-with-thirteen-copies
 branch: walks/finish-completes
+pr: 7497
 ---
 
 

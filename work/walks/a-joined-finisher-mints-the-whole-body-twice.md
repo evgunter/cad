@@ -8,6 +8,7 @@ priority: P4
 cost: M
 parent: producer-closing-mint-is-a-convention-with-thirteen-copies
 branch: walks/finish-completes
+pr: 7497
 ---
 
 

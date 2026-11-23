@@ -7,6 +7,7 @@ opened: 2026-09-08
 priority: P1
 cost: M
 branch: walks/finish-completes
+pr: 7497
 ---
 
 
