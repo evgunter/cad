@@ -4589,7 +4589,28 @@ fn row_of<T: CertifiedBounds>(
 ) -> Option<Row> {
     if !monotone_line(pcurve, lift) {
         let t = Interval::from_bounds(t0.lo(), t1.hi());
-        return Some(Row::Bulging(curve_of(pcurve, lift)?.at(t)));
+        let curve = curve_of(pcurve, lift)?;
+        if matches!(curve, injective::ChartCurve::Focal(_)) {
+            use geom_brep::pcurve_cache::mutant as mutant;
+            if mutant("no_extent") {
+                return None;
+            }
+            let [u, v] = curve.at(t);
+            let inward = |x: Interval| {
+                let w = 0.1 * (x.hi() - x.lo());
+                Interval::from_bounds(x.lo() + w, x.hi() - w)
+            };
+            if mutant("extent_shrunk") {
+                return Some(Row::Bulging([inward(u), inward(v)]));
+            }
+            if mutant("extent_v_shrunk") {
+                return Some(Row::Bulging([u, inward(v)]));
+            }
+            if mutant("Mx1row") {
+                return Some(Row::Ends([curve.at(t0), curve.at(t1)]));
+            }
+        }
+        return Some(Row::Bulging(curve.at(t)));
     }
     Some(Row::Ends(ends))
 }
@@ -4680,6 +4701,9 @@ type Image = (
 fn curve_of<T: CertifiedBounds>(p: &Pcurve<T>, lift: Lift<'_, T>) -> Option<injective::ChartCurve> {
     use injective::ChartCurve;
     if let Pcurve::FocalSection(f) = *p {
+        if geom_brep::pcurve_cache::mutant("no_focal") {
+            return None;
+        }
         let image = geom_brep::FocalImage {
             u0: lift.of(f.u0),
             t0: lift.of(f.t0),

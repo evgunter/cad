@@ -4153,7 +4153,8 @@ impl Focal {
         ]
         .iter()
         .all(|x| x.is_certified());
-        let inside = certified && -1.0 < image.beta.lo() && image.beta.hi() < 1.0;
+        let inside = certified
+            && (mutant("of_any_beta") || (-1.0 < image.beta.lo() && image.beta.hi() < 1.0));
         inside.then_some(Self {
             image: *image,
             sense,
@@ -4178,6 +4179,14 @@ impl Focal {
             Axis::U => (window.u_min, window.u_max),
             Axis::V => (window.v_min, window.v_max),
         };
+        if mutant("hull_inside") && axis == Axis::U {
+            let (a, b) = (low.hi(), high.lo());
+            return Interval::from_bounds(a.min(b), a.max(b));
+        }
+        if mutant("extent_ends") && axis == Axis::V {
+            let (a, b) = (image.eval(at(t.lo())).y, image.eval(at(t.hi())).y);
+            return Interval::from_bounds(a.lo().min(b.lo()), a.hi().max(b.hi()));
+        }
         if low.is_certified() && high.is_certified() {
             Interval::from_bounds(low.lo(), high.hi())
         } else {
@@ -4201,6 +4210,7 @@ impl Focal {
                 let rate = (at(1.0) - b2) / den;
                 match self.sense {
                     Sense::With => rate,
+                    Sense::Against if mutant("rate_sense") => rate,
                     Sense::Against => at(0.0) - rate,
                 }
             }
@@ -4414,7 +4424,12 @@ impl Form {
             (ChartCurve::Harmonic(chart), _) => {
                 Trig::of(surface, &chart).map(|image| Self::Harmonic { chart, image })
             }
-            (ChartCurve::Focal(f), Surface::Cone { .. }) => Some(Self::Focal(f)),
+            (ChartCurve::Focal(f), Surface::Cone { .. }) if !mutant("no_form") => {
+                Some(Self::Focal(f))
+            }
+            (ChartCurve::Focal(f), Surface::Torus { .. }) if mutant("form_any_chart") => {
+                Some(Self::Focal(f))
+            }
             (ChartCurve::Focal(_) | ChartCurve::Wall(_), _) => None,
         }
     }
@@ -4723,7 +4738,13 @@ fn within(x: Interval, (lo, hi): (f64, f64)) -> bool {
 /// terms.
 fn cone_regular(surface: &Surface<Interval>, x: (f64, f64), y: (f64, f64)) -> bool {
     match surface {
-        Surface::Cone { .. } => (y.0 > 0.0 || y.1 < 0.0) && x.1 - x.0 < TURN,
+        Surface::Cone { .. } => {
+            if mutant("regular_off") {
+                return true;
+            }
+            (mutant("apex_off") || y.0 > 0.0 || y.1 < 0.0)
+                && (mutant("turn_off") || x.1 - x.0 < TURN)
+        }
         _ => true,
     }
 }
@@ -4987,6 +5008,7 @@ impl ChartCurve {
         match self {
             Self::Harmonic(h) => whole(h.pl[axis.index()]),
             Self::Focal(f) => match axis {
+                Axis::U if mutant("wind_nosense") => Some(1),
                 Axis::U => Some(f.sense.sign()),
                 Axis::V => whole(f.image.vl).filter(|&k| k == 0),
             },
@@ -5657,6 +5679,21 @@ fn reading(piece: &Piece<'_>, c: Corner) -> Option<Reading> {
     // A curve no presentation reads is read by no corner: `Structural`,
     // as [`present_curved`] types it unread on the shared cell.
     if curved(e) && reads_curve(s, e) && continues(e, o, c.vertex) {
+        if std::env::var_os("CV_CONIC").is_some() {
+            eprintln!(
+                "CVC conic face={:?} kind={} vertex={:?} read={:?} other={:?}",
+                piece.face,
+                match s {
+                    Surface::Cone { .. } => "Cone",
+                    Surface::Plane { .. } => "Plane",
+                    Surface::Cylinder { .. } => "Cylinder",
+                    _ => "Other",
+                },
+                c.vertex,
+                e.key,
+                o.key
+            );
+        }
         return Some(Reading::Conic);
     }
     if c.alone {
@@ -5700,7 +5737,11 @@ fn reading(piece: &Piece<'_>, c: Corner) -> Option<Reading> {
         };
         match (s, curve) {
             (Surface::Cylinder { .. }, Some(c @ ChartCurve::Harmonic(_)))
-            | (Surface::Cone { .. }, Some(c @ ChartCurve::Focal(_))) => Some(Reading::Line(c)),
+            | (Surface::Cone { .. }, Some(c @ ChartCurve::Focal(_)))
+                if !(mutant("no_line_arm") && matches!(s, Surface::Cone { .. })) =>
+            {
+                Some(Reading::Line(c))
+            }
             (Surface::Torus { .. }, Some(c @ ChartCurve::Wall(_))) if parallel(e) => {
                 Some(Reading::Line(c))
             }
@@ -5939,8 +5980,31 @@ fn shifted(x: [Interval; 2], k: [f64; 2]) -> [Interval; 2] {
 /// upper bounds (`rect_jet`'s): what a chart length along each axis
 /// levers into metres.
 fn speeds(surface: &Surface<Interval>, u: (f64, f64), v: (f64, f64)) -> [f64; 2] {
+    if matches!(surface, Surface::Cone { .. }) && mutant("speed_near") {
+        let near = if v.0.abs() < v.1.abs() { v.0 } else { v.1 };
+        let (ju, jv, _) = rect_jet(surface, u, (near, near));
+        return [ju.norm().hi(), jv.norm().hi()];
+    }
     let (ju, jv, _) = rect_jet(surface, u, v);
+    if matches!(surface, Surface::Cone { .. }) && mutant("speed_lower") {
+        return [ju.norm().lo(), jv.norm().lo()];
+    }
     [ju.norm().hi(), jv.norm().hi()]
+}
+
+/// SCRATCH: the near slant alone, on a cone.
+fn near_slant(surface: &Surface<Interval>, y: (f64, f64)) -> (f64, f64) {
+    if let Surface::Cone { .. } = surface {
+        let n = if y.0.abs() < y.1.abs() { y.0 } else { y.1 };
+        (n, n)
+    } else {
+        y
+    }
+}
+
+/// SCRATCH.
+fn mutant(name: &str) -> bool {
+    geom_brep::pcurve_cache::mutant(name)
 }
 
 /// The hull of chart boxes `[u, v]`, per axis.
@@ -6033,7 +6097,11 @@ fn leaving(
     let [near, far] = ends;
     let k = turns_to(periodic_axes(surface), [near.x, near.y], vertex);
     no_other_copy(surface, ends, k, r)?;
-    let speed = speeds(surface, r.0, r.1);
+    let speed = if mutant("site_curve") || mutant("Rnearsite") {
+        speeds(surface, r.0, near_slant(surface, r.1))
+    } else {
+        speeds(surface, r.0, r.1)
+    };
     let (near, far) = (shifted([near.x, near.y], k), shifted([far.x, far.y], k));
     if !on_vertex(near, vertex, speed, band) {
         return None;
@@ -6234,7 +6302,11 @@ fn present_line_corner<'a>(
         });
     }
     let from_start = o.ends[0] == c.vertex;
-    let speed = speeds(surface, x, y);
+    let speed = if mutant("site_line") || mutant("Rnearsite") {
+        speeds(surface, x, near_slant(surface, y))
+    } else {
+        speeds(surface, x, y)
+    };
     leaves_line(
         periodic_axes(surface),
         &h,
@@ -7092,6 +7164,11 @@ fn graph_read(
         .boundary
         .orientation()
         .interior_is_on(left_is_above(rising == plus, column));
+    let above = if matches!(surface, Surface::Cone { .. }) && mutant("side_flip_curve") {
+        !above
+    } else {
+        above
+    };
     if let Some(th) = through {
         // The vertex is in `R`, on the run read: its parameter in the
         // run's, and its point on the run's copy. The cell was widened to
@@ -16988,8 +17065,7 @@ mod presentation_rows {
                 plus: true,
                 image: None,
                 iso: None,
-                harmonic: None,
-                wall: None,
+                curve: None,
             }],
         }
     }

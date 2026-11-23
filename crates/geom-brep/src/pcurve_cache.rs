@@ -762,6 +762,12 @@ fn focal_section_azimuth<T: Real>(u0: T, beta: T, sense: T, e: T) -> T {
 /// The chart box of a [`Pcurve::FocalSection`] image over `[t0, t1]`:
 /// the azimuth's endpoint hull (it is monotone) and the second
 /// channel's harmonic box.
+/// SCRATCH: an env-switched mutant.
+pub fn mutant(name: &str) -> bool {
+    static M: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    M.get_or_init(|| std::env::var("CONE_MUT").unwrap_or_default()) == name
+}
+
 fn focal_section_span_box<T: Real>(image: &FocalImage<T>, t0: T, t1: T) -> ChartWindow<T> {
     let zero = T::zero();
     let second = harmonic_span_box(
@@ -773,9 +779,16 @@ fn focal_section_span_box<T: Real>(image: &FocalImage<T>, t0: T, t1: T) -> Chart
         t1,
     );
     let (ua, ub) = (image.azimuth(t0), image.azimuth(t1));
+    let (ua, ub) = if mutant("box_nosense") {
+        (ua, ub)
+    } else if mutant("box_swap") {
+        (ua.max(ub), ua.min(ub))
+    } else {
+        (ua.min(ub), ua.max(ub))
+    };
     ChartWindow {
-        u_min: ua.min(ub),
-        u_max: ua.max(ub),
+        u_min: ua,
+        u_max: ub,
         v_min: second.v_min,
         v_max: second.v_max,
     }
