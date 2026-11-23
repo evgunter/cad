@@ -2162,16 +2162,16 @@ fn a_ball_less_a_half_space_under_its_pole_keeps_no_shared_side() {
 /// (`mesh::trimmed`, `attempt`) keeps every face off such a side.
 ///
 /// **What the cure costs here, a stated cost.** A cylinder face lays no
-/// lattice (`chart_table::AnalyticRow::lattice_rows`), so its first
-/// triangulation is its `n` boundary points' `n − 2` triangles, and on
-/// these faces nearly every one holds a side the face across can make:
-/// the cure puts a point inside each, two triangles a point, and a second
-/// rounds a few more. Each cylinder face holds at most `3.25n` triangles
-/// (measured on the first pair: `n = 28` at δ 0.5, 26 sides cured then
-/// 4, 86 triangles; `n = 60` at δ 0.1, 182; `n = 130` at δ 0.02, 128
-/// then 10 then 2, 408), up to 2.2 times what the
-/// face took when it laid rows, whose nodes kept most of its triangles
-/// off the arcs. The rule that decides such a side is
+/// lattice (`chart_table::AnalyticRow::lattice_rows`), so it is its `n`
+/// boundary points and the `p` points the lane inserts, and holds
+/// `n − 2 + 2h + 2p` triangles (`common::rowless::Count`), which each
+/// face here is held to. On these faces nearly every triangle of the
+/// first triangulation holds a side the face across can make, and the
+/// cure puts a point inside each. Measured on the first pair: `n = 28`
+/// at δ 0.5, 26 sides cured then 4, 86 triangles; `n = 60` at δ 0.1,
+/// 58 then 4, 182; `n = 130` at δ 0.02, 128 then 10 then 2, 408; up to
+/// 2.2 times what the face took when it laid rows, whose nodes kept most
+/// of its triangles off the arcs. The rule that decides such a side is
 /// `work/tesslane/the-mesh-cures-a-side-two-faces-can-both-make-three-ways.md`.
 #[test]
 fn crossing_rods_keep_no_side_a_neighbour_can_make() {
@@ -2208,12 +2208,11 @@ fn crossing_rods_keep_no_side_a_neighbour_can_make() {
                         if kind_of(body, patch.face) != SurfaceKind::Cylinder {
                             continue;
                         }
-                        let n = crate::rowless_cylinders::boundary_points(body, &mesh, patch.face);
-                        assert!(
-                            4 * patch.triangles.len() <= 13 * n,
-                            "{what}, δ = {delta:e}: a cylinder face holds {} triangles on {n} \
-                             boundary points, past the cure's 3.25n",
-                            patch.triangles.len()
+                        let c = crate::common::rowless::count(body, &mesh, patch.face);
+                        assert_eq!(
+                            c.triangles,
+                            c.euler(),
+                            "{what}, δ = {delta:e}: {c:?} is no triangulation of its points"
                         );
                     }
                 }
