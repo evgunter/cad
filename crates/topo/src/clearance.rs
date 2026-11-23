@@ -4230,7 +4230,37 @@ fn row_of<T: CertifiedBounds>(
 ) -> Option<Row> {
     if !monotone_line(pcurve, lift) {
         let t = Interval::from_bounds(t0.lo(), t1.hi());
-        return Some(Row::Bulging(curve_of(pcurve, lift)?.at(t)));
+        let curve = curve_of(pcurve, lift)?;
+        if matches!(curve, injective::ChartCurve::Focal(_)) {
+            if injective::mutant("no_extent") {
+                return None;
+            }
+            if injective::mutant("extent_shrunk") {
+                // the enclosure drawn a tenth inside itself on each axis
+                let [u, v] = curve.at(t);
+                let inward = |x: Interval| {
+                    let w = 0.1 * (x.hi() - x.lo());
+                    Interval::from_bounds(x.lo() + w, x.hi() - w)
+                };
+                return Some(Row::Bulging([inward(u), inward(v)]));
+            }
+            if injective::mutant("extent_u_nudged") {
+                // the azimuth's hull 1e-9 rad inside itself: is the
+                // Interval halves' refusal the enclosure's reach past a
+                // ruling?
+                let [u, v] = curve.at(t);
+                return Some(Row::Bulging([
+                    Interval::from_bounds(u.lo() + 1e-9, u.hi() - 1e-9),
+                    v,
+                ]));
+            }
+            if injective::mutant("extent_v_shrunk") {
+                let [u, v] = curve.at(t);
+                let w = 0.1 * (v.hi() - v.lo());
+                return Some(Row::Bulging([u, Interval::from_bounds(v.lo() + w, v.hi() - w)]));
+            }
+        }
+        return Some(Row::Bulging(curve.at(t)));
     }
     Some(Row::Ends(ends))
 }
@@ -4321,6 +4351,9 @@ type Image = (
 fn curve_of<T: CertifiedBounds>(p: &Pcurve<T>, lift: Lift<'_, T>) -> Option<injective::ChartCurve> {
     use injective::ChartCurve;
     if let Pcurve::FocalSection(f) = *p {
+        if injective::mutant("no_focal") {
+            return None;
+        }
         let image = geom_brep::FocalImage {
             u0: lift.of(f.u0),
             t0: lift.of(f.t0),

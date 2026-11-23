@@ -6877,3 +6877,287 @@ fn a_needle_and_a_near_flat_cone_cut_read_as_any_cone() {
         }
     }
 }
+
+// ------------------------------------------------ REVIEW PROBES (PR 7605)
+
+/// Whether the cut's section stays on the wall alone, clear of both caps
+/// by `clear`.
+fn rp_wall_alone(shape: Frustum, cut: Cut, clear: f64) -> bool {
+    (0..64).all(|i| {
+        let y = on_section(shape, cut, f64::from(i) * TAU / 64.0).y;
+        clear < y && y < shape.2 - clear
+    })
+}
+
+/// The wall's point at azimuth `theta` and height `y`.
+fn rp_on_wall((r0, r1, h): Frustum, theta: f64, y: f64) -> Point3<f64> {
+    let r = r0 + (r1 - r0) / h * y;
+    Point3::new(r * theta.cos(), y, r * theta.sin())
+}
+
+/// The cut cone with a ball of radius `rho` about `at`; the faces asked
+/// are the cone's and the ball's (no plane cap, so the cap's refusal is
+/// out of the question).
+fn rp_ball_class<T: Scalar + geom_core::Certifies>(
+    shape: Frustum,
+    cut: Cut,
+    above: bool,
+    at: Point3<f64>,
+    rho: f64,
+) -> String {
+    let mut body = cone_cut::<T>(shape, cut, above).into_body();
+    let before: BTreeSet<FaceKey> = body.faces().map(|(k, _)| k).collect();
+    let p = |y: f64, bulge: f64| (Point2::new(T::zero(), T::from_f64(y)), T::from_f64(bulge));
+    let ball = topo::transform_rigid(
+        &revolved_about_y_at::<T>(vec![p(-rho, 1.0), p(rho, 0.0)], Revolution::Full, tol()),
+        &geom_core::RigidMotion::translation(
+            geom_core::Vec3::new(at.x, at.y, at.z).map(T::from_f64),
+        )
+        .expect("a translation"),
+    )
+    .expect("the ball moves");
+    topo::graft_disjoint_all_keyed(&mut body, &ball).expect("the ball grafts");
+    let mut faces = cone_faces(&body);
+    faces.extend(body.faces().map(|(k, _)| k).filter(|k| !before.contains(k)));
+    door_over(&body, faces)
+}
+
+/// The cut cone with a brick of half-side `half` about `at`; the faces
+/// asked are the cone's and the brick's.
+fn rp_block_class<T: Scalar + geom_core::Certifies>(
+    shape: Frustum,
+    cut: Cut,
+    above: bool,
+    at: Point3<f64>,
+    half: [f64; 3],
+) -> String {
+    let mut body = cone_cut::<T>(shape, cut, above).into_body();
+    let before: BTreeSet<FaceKey> = body.faces().map(|(k, _)| k).collect();
+    let side = |c: f64, w: f64| (c - w, c + w);
+    let block = sweep::test_support::brick::<T>(
+        side(at.x, half[0]),
+        side(at.y, half[1]),
+        side(at.z, half[2]),
+        tol(),
+    );
+    topo::graft_disjoint_all_keyed(&mut body, &block).expect("the block grafts");
+    let mut faces = cone_faces(&body);
+    faces.extend(body.faces().map(|(k, _)| k).filter(|k| !before.contains(k)));
+    door_over(&body, faces)
+}
+
+const RP_SHAPES: [(&str, Frustum); 5] = [
+    ("alpha 26.6", (1.0, 0.5, 1.0)),
+    ("off grid", (0.7, 0.31, 0.9)),
+    ("flat 69", (1.0, 0.2, 0.3)),
+    ("narrow 7.6", (0.3, 0.1, 1.5)),
+    ("widening", (0.4, 0.9, 0.8)),
+];
+
+/// REVIEW PROBE (claim 3, liveness and both tilts): the two halves of a
+/// cut cone's wall, asked alone through the verdict door, at several
+/// half-angles, tilted both ways and toward several azimuths, both
+/// sides of the cut. Printed; `Crosses` on an honest body fails.
+#[test]
+fn review_probe_halves_at_several_half_angles_and_tilts() {
+    let mut held = 0;
+    let mut asked = 0;
+    for (name, shape) in RP_SHAPES {
+        for phi in [0.3, -0.3, 0.08] {
+            for psi in [0.0, 0.7, 1.5707963267948966, 2.5, 3.9] {
+                let cut = (shape.2 * 0.5, phi * if name == "flat 69" { 0.2 } else { 1.0 }, psi);
+                if !rp_wall_alone(shape, cut, 0.02 * shape.2) {
+                    println!("[rp] {name} phi {phi} psi {psi}: SKIPPED, not a wall cut");
+                    continue;
+                }
+                for above in [true, false] {
+                    let Ok(body) = try_cone_cut::<f64>(shape, cut, above) else {
+                        println!("[rp] {name} phi {phi} psi {psi} above {above}: no split");
+                        continue;
+                    };
+                    let body = body.into_body();
+                    let class = door_over(&body, cone_faces(&body));
+                    asked += 1;
+                    if class == "Embedded" {
+                        held += 1;
+                    }
+                    println!("[rp] halves {name} phi {phi} psi {psi} above {above}: {class}");
+                    assert_ne!(class, "Crosses", "{name} {phi} {psi} {above}");
+                }
+            }
+        }
+    }
+    println!("[rp] halves: {held} of {asked} Embedded at f64");
+}
+
+/// REVIEW PROBE (claims 2 and 3, the nearest thing to a wrong
+/// `Embedded`): a ball of radius 0.02 through the wall of a cut cone,
+/// its centre on the wall just inside the kept face: beside the section
+/// at 12 azimuths (the arc's ends at the rulings, its interior, its
+/// lowest and highest points), at the corner itself, and `up` in
+/// {0.0, 0.012, 0.03}. Asked over the cone's and the ball's faces only.
+/// Never `Embedded`.
+#[test]
+fn review_probe_a_ball_through_the_wall_beside_the_section_is_never_embedded() {
+    let mut classes = std::collections::BTreeMap::<String, usize>::new();
+    for (name, shape) in [RP_SHAPES[1], RP_SHAPES[3], RP_SHAPES[4]] {
+        for (phi, psi) in [(0.3, 0.7), (-0.3, 2.5), (0.3, 0.0)] {
+            let cut = (shape.2 * 0.5, phi, psi);
+            if !rp_wall_alone(shape, cut, 0.08 * shape.2) {
+                println!("[rp] {name} phi {phi} psi {psi}: SKIPPED");
+                continue;
+            }
+            for above in [true, false] {
+                for k in 0..12 {
+                    let theta = f64::from(k) * TAU / 12.0 + if k % 6 == 0 { 0.0 } else { 0.11 };
+                    for up in [0.0, 0.012, 0.03] {
+                        let y = on_section(shape, cut, theta).y + if above { up } else { -up };
+                        let at = rp_on_wall(shape, theta, y);
+                        let class = rp_ball_class::<f64>(shape, cut, above, at, 0.02);
+                        if class == "Embedded" {
+                            println!(
+                                "[rp] WRONG EMBEDDED {name} phi {phi} psi {psi} above {above} theta {theta} up {up}"
+                            );
+                        }
+                        *classes.entry(class.clone()).or_default() += 1;
+                        assert_ne!(
+                            class, "Embedded",
+                            "{name} phi {phi} psi {psi} above {above} theta {theta} up {up}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+    println!("[rp] ball classes: {classes:?}");
+}
+
+/// REVIEW PROBE (claim 3): a flap through the wall at the ruling's
+/// corner (a thin brick about the vertex), a fold along the ruling (the
+/// cut's copy turned 0.05 about the cone's axis, and 0.002), and the
+/// copy lifted 0.03 along the axis; cone faces (and the flap's) asked.
+/// Never `Embedded`. At both scalars.
+#[test]
+fn review_probe_a_flap_and_a_fold_at_the_corner_are_never_embedded() {
+    use geom_core::{Affine3, Vec3};
+    fn folded<T: Scalar + geom_core::Certifies>(
+        shape: Frustum,
+        cut: Cut,
+        m: &Affine3<f64>,
+    ) -> String {
+        let whole = cone_cut::<T>(shape, cut, true);
+        let mut body = whole.clone().into_body();
+        let copy = moved(&whole, m);
+        topo::graft_disjoint(&mut body, &copy).expect("the copy grafts");
+        door_over(&body, cone_faces(&body))
+    }
+    let shape = OFF_GRID;
+    for cut in [(0.43, 0.3, 0.7), (0.43, -0.3, 0.0), (0.43, 0.3, 0.0)] {
+        for theta in [0.0, core::f64::consts::PI] {
+            let at = on_section(shape, cut, theta);
+            for half in [[0.02, 0.02, 0.002], [0.002, 0.02, 0.02], [0.02, 0.002, 0.02]] {
+                let f = rp_block_class::<f64>(shape, cut, true, at, half);
+                let i = rp_block_class::<Interval>(shape, cut, true, at, half);
+                println!("[rp] flap {cut:?} theta {theta} {half:?}: f64 {f} | Interval {i}");
+                assert_ne!(f, "Embedded");
+                assert_ne!(i, "Embedded");
+            }
+        }
+        for (what, m) in [
+            (
+                "turned 0.05 about the axis",
+                Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0), 0.05),
+            ),
+            (
+                "turned 0.002 about the axis",
+                Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0), 0.002),
+            ),
+            ("lifted 0.03", Affine3::translation(Vec3::new(0.0, 0.03, 0.0))),
+            ("slid 0.01 along x", Affine3::translation(Vec3::new(0.01, 0.0, 0.0))),
+        ] {
+            let f = folded::<f64>(shape, cut, &m);
+            let i = folded::<Interval>(shape, cut, &m);
+            println!("[rp] fold {cut:?} {what}: f64 {f} | Interval {i}");
+            // A copy lifted along the axis is a nested, parallel cone:
+            // its wall is clear of the first, and `Embedded` over the
+            // cone faces alone is the right answer.
+            if what != "lifted 0.03" {
+                assert_ne!(f, "Embedded");
+                assert_ne!(i, "Embedded");
+            }
+        }
+    }
+}
+
+/// REVIEW PROBE (claim 8): what the halves read at `Interval` where the
+/// lane says they do not hold: the refusal's payload, printed.
+#[test]
+fn review_probe_what_the_interval_halves_refuse_on() {
+    for (what, shape, cut, placed) in [
+        ("generic tilt as built", OFF_GRID, (0.43, 0.3, 0.7), Placed::AsBuilt),
+        ("toward a ruling, mirrored", OFF_GRID, (0.43, 0.3, 0.0), Placed::Mirrored),
+        ("generic tilt turned", OFF_GRID, (0.43, 0.3, 0.7), Placed::Turned),
+    ] {
+        let twin = placed_cut::<Interval>(shape, cut, true, placed);
+        let float = placed_cut::<f64>(shape, cut, true, placed);
+        let r = injective(&twin, Some(cone_faces(&twin)), BUDGET);
+        println!(
+            "[rp] interval halves {what}: f64 {} | Interval {} :: {:?} cornered {}",
+            door_over(&float, cone_faces(&float)),
+            door_over(&twin, cone_faces(&twin)),
+            r.verdict,
+            r.cornered
+        );
+    }
+}
+
+/// REVIEW PROBE (claim 2, the extent's teeth): a ball through the wall
+/// just inside the kept face at the section's two extreme points (the
+/// azimuth the plane tilts toward, and opposite), which are interior to
+/// their arcs under a generic tilt, `up` inside the face; and at the two
+/// ends of an arc. Cone and ball faces asked. Never `Embedded`: run
+/// under the extent mutants, a wrong `Embedded` here is the hole.
+#[test]
+fn review_probe_extent_teeth_at_the_slants_interior_extremes() {
+    let shape = OFF_GRID;
+    let cut = (0.43, 0.3, 0.7);
+    let mut wrong = Vec::new();
+    for above in [true, false] {
+        for theta in [0.7, 0.7 + core::f64::consts::PI, 0.02, core::f64::consts::PI - 0.02] {
+            for up in [0.012, 0.03, 0.06] {
+                let y = on_section(shape, cut, theta).y + if above { up } else { -up };
+                let at = rp_on_wall(shape, theta, y);
+                let f = rp_ball_class::<f64>(shape, cut, above, at, 0.01);
+                let i = rp_ball_class::<Interval>(shape, cut, above, at, 0.01);
+                println!("[rp] teeth above {above} theta {theta} up {up}: f64 {f} | Interval {i}");
+                if f == "Embedded" || i == "Embedded" {
+                    wrong.push((above, theta, up, f, i));
+                }
+            }
+        }
+    }
+    assert!(wrong.is_empty(), "WRONG EMBEDDED: {wrong:?}");
+}
+
+/// REVIEW PROBE: the whole body's class at the verdict door, printed,
+/// for the row's own cut cones (run with `CONE_CAP=old` to take the
+/// cap's two-arc corner out of the way, and under each mutant).
+#[test]
+fn review_probe_whole_body_class() {
+    for (what, shape, cut, above) in [
+        ("wall cut on grid", ON_GRID, (0.5, 0.25, 0.0), true),
+        ("wall cut off grid generic", OFF_GRID, (0.43, 0.3, 0.7), true),
+        ("wall cut lower side", ON_GRID, (0.5, 0.25, 0.7), false),
+        ("cap cut off grid", OFF_GRID, (0.86, 0.3, 0.0), false),
+        ("cap cut generic", OFF_GRID, (0.86, 0.3, 0.7), false),
+    ] {
+        let body = cone_cut::<f64>(shape, cut, above).into_body();
+        println!(
+            "[rp] whole {what}: {} | halves {}",
+            door_class(&body),
+            door_over(&body, cone_faces(&body))
+        );
+    }
+    let twin = cone_cut::<Interval>(ON_GRID, (0.5, 0.25, 0.0), true).into_body();
+    println!("[rp] whole wall cut on grid at Interval: {}", door_class(&twin));
+}

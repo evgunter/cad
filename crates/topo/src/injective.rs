@@ -304,6 +304,13 @@ pub(crate) struct Wall {
     pub(crate) offset: Interval,
 }
 
+/// REVIEW PROBE: an env-switched mutant (`CONE_MUT=<name>`), one build
+/// for every mutant of the review.
+pub(crate) fn mutant(name: &str) -> bool {
+    static M: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    M.get_or_init(|| std::env::var("CONE_MUT").unwrap_or_default()) == name
+}
+
 /// Which way a focal image's azimuth runs as its parameter grows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Sense {
@@ -3966,7 +3973,8 @@ impl Focal {
         ]
         .iter()
         .all(|x| x.is_certified());
-        let inside = certified && -1.0 < image.beta.lo() && image.beta.hi() < 1.0;
+        let inside = certified
+            && (mutant("of_any_beta") || (-1.0 < image.beta.lo() && image.beta.hi() < 1.0));
         inside.then_some(Self {
             u0: image.u0,
             t0: image.t0,
@@ -4029,10 +4037,33 @@ impl Focal {
                 if !(first.is_certified() && last.is_certified()) {
                     return whole_line();
                 }
+                if mutant("hull_swap") {
+                    // the ends swapped: each sense takes the other's hull
+                    let (a, b) = match self.sense {
+                        Sense::With => (last.lo(), first.hi()),
+                        Sense::Against => (first.lo(), last.hi()),
+                    };
+                    return Interval::from_bounds(a.min(b), a.max(b));
+                }
+                if mutant("sense_ignored") {
+                    let (a, b) = (first.lo(), last.hi());
+                    return Interval::from_bounds(a.min(b), a.max(b));
+                }
+                if mutant("hull_inside") {
+                    let (a, b) = match self.sense {
+                        Sense::With => (first.hi(), last.lo()),
+                        Sense::Against => (last.hi(), first.lo()),
+                    };
+                    return Interval::from_bounds(a.min(b), a.max(b));
+                }
                 match self.sense {
                     Sense::With => Interval::from_bounds(first.lo(), last.hi()),
                     Sense::Against => Interval::from_bounds(last.lo(), first.hi()),
                 }
+            }
+            Axis::V if mutant("extent_ends") => {
+                let (a, b) = (channel_on(self.v, at(t.lo())), channel_on(self.v, at(t.hi())));
+                Interval::from_bounds(a.lo().min(b.lo()), a.hi().max(b.hi()))
             }
             Axis::V => channel_on(self.v, t),
         }
@@ -4053,6 +4084,7 @@ impl Focal {
                 let rate = (at(1.0) - b2) / den;
                 match self.sense {
                     Sense::With => rate,
+                    Sense::Against if mutant("rate_sense") => rate,
                     Sense::Against => at(0.0) - rate,
                 }
             }
@@ -4266,7 +4298,8 @@ impl Form {
             (ChartCurve::Harmonic(chart), _) => {
                 Trig::of(surface, &chart).map(|image| Self::Harmonic { chart, image })
             }
-            (ChartCurve::Focal(f), Surface::Cone { .. }) => Some(Self::Focal(f)),
+            (ChartCurve::Focal(f), Surface::Cone { .. }) if !mutant("no_form") => Some(Self::Focal(f)),
+            (ChartCurve::Focal(f), _) if mutant("form_any_chart") => Some(Self::Focal(f)),
             (ChartCurve::Focal(_) | ChartCurve::Wall(_), _) => None,
         }
     }
@@ -4549,7 +4582,13 @@ fn within(x: Interval, (lo, hi): (f64, f64)) -> bool {
 /// terms.
 fn cone_regular(surface: &Surface<Interval>, x: (f64, f64), y: (f64, f64)) -> bool {
     match surface {
-        Surface::Cone { .. } => (y.0 > 0.0 || y.1 < 0.0) && x.1 - x.0 < TURN,
+        Surface::Cone { .. } => {
+            if mutant("regular_off") {
+                return true;
+            }
+            (mutant("apex_off") || y.0 > 0.0 || y.1 < 0.0)
+                && (mutant("turn_off") || x.1 - x.0 < TURN)
+        }
         _ => true,
     }
 }
@@ -5439,6 +5478,9 @@ fn reading(piece: &Piece<'_>, c: Corner) -> Option<Reading> {
     // A curve no presentation reads is read by no corner: `Structural`,
     // as [`present_curved`] types it unread on the shared cell.
     if curved(e) && reads_curve(s, e) && continues(e, o, c.vertex) {
+        if matches!(s, Surface::Cone { .. }) && std::env::var("CONE_TRACE").is_ok() {
+            eprintln!("[rp-trace] Reading::Conic on a cone");
+        }
         return Some(Reading::Conic);
     }
     if c.alone {
@@ -5482,7 +5524,11 @@ fn reading(piece: &Piece<'_>, c: Corner) -> Option<Reading> {
         };
         match (s, curve) {
             (Surface::Cylinder { .. }, Some(c @ ChartCurve::Harmonic(_)))
-            | (Surface::Cone { .. }, Some(c @ ChartCurve::Focal(_))) => Some(Reading::Line(c)),
+            | (Surface::Cone { .. }, Some(c @ ChartCurve::Focal(_)))
+                if !(mutant("no_line_arm") && matches!(s, Surface::Cone { .. })) =>
+            {
+                Some(Reading::Line(c))
+            }
             (Surface::Torus { .. }, Some(c @ ChartCurve::Wall(_))) if parallel(e) => {
                 Some(Reading::Line(c))
             }
@@ -5541,6 +5587,14 @@ fn one_stated_conic(e: &Curve3<f64>, o: &Curve3<f64>) -> bool {
     match (e, o) {
         (Curve3::Circle(a), Curve3::Circle(b)) => {
             one_stated_plane(&a.frame(), &b.frame()) && a.radius() == b.radius()
+        }
+        // REVIEW PROBE (`CONE_CAP=old`): the reading the lane describes
+        // from before the anchored ellipse, two stated frames one plane
+        // up to their axes' signs and the semi-axes equal.
+        (Curve3::Ellipse(a), Curve3::Ellipse(b)) if std::env::var("CONE_CAP").is_ok() => {
+            one_stated_plane(&a.frame(), &b.frame())
+                && a.semi_u() == b.semi_u()
+                && a.semi_v() == b.semi_v()
         }
         (Curve3::Ellipse(a), Curve3::Ellipse(b)) => {
             e.same_content(o)
@@ -5718,7 +5772,15 @@ fn shifted(x: [Interval; 2], k: [f64; 2]) -> [Interval; 2] {
 /// upper bounds (`rect_jet`'s): what a chart length along each axis
 /// levers into metres.
 fn speeds(surface: &Surface<Interval>, u: (f64, f64), v: (f64, f64)) -> [f64; 2] {
+    if matches!(surface, Surface::Cone { .. }) && mutant("speed_near") {
+        let near = if v.0.abs() < v.1.abs() { v.0 } else { v.1 };
+        let (ju, jv, _) = rect_jet(surface, u, (near, near));
+        return [ju.norm().hi(), jv.norm().hi()];
+    }
     let (ju, jv, _) = rect_jet(surface, u, v);
+    if matches!(surface, Surface::Cone { .. }) && mutant("speed_lower") {
+        return [ju.norm().lo(), jv.norm().lo()];
+    }
     [ju.norm().hi(), jv.norm().hi()]
 }
 
@@ -21201,5 +21263,167 @@ mod focal_rows {
         let rim = section_rim(11, [1, 3], &image, (0.0, 1.0));
         assert!(is_curved(&torus, &rim) && !reads_curve(&torus, &rim));
         assert!(reads_curve(&cone(), &rim));
+    }
+
+    // ------------------------------------------------ REVIEW PROBES
+
+    /// A deterministic stream of numbers in `[0, 1)`.
+    struct Lcg(u64);
+    impl Lcg {
+        fn next(&mut self) -> f64 {
+            self.0 = self
+                .0
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            #[allow(clippy::cast_precision_loss)]
+            let x = (self.0 >> 11) as f64 / (1u64 << 53) as f64;
+            x
+        }
+        fn pick(&mut self, xs: &[f64]) -> f64 {
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            let i = (self.next() * xs.len() as f64) as usize;
+            xs[i.min(xs.len() - 1)]
+        }
+        fn within(&mut self, lo: f64, hi: f64) -> f64 {
+            lo + (hi - lo) * self.next()
+        }
+    }
+
+    /// REVIEW PROBE (claim 1): random focal images with every number a
+    /// bracket of random width (`t0` too, which the lane's rows keep a
+    /// point), random pieces from a point to several turns wide, both
+    /// senses, `β` of both signs and up to `1 − 1e-9`; random members,
+    /// random parameters in the piece: the stored row's point at the
+    /// member lies in the enclosure, and the member's rate, by a central
+    /// difference, in the rate's.
+    #[test]
+    fn review_probe_focal_enclosures_hold_random_members_of_random_brackets() {
+        let mut g = Lcg(0x5EED_C0DE);
+        let (mut asked, mut unbounded, mut rate_unbounded) = (0u32, 0u32, 0u32);
+        for _ in 0..6000 {
+            let near_one = g.next() < 0.15;
+            let bc = if near_one {
+                g.pick(&[1.0, -1.0]) * (1.0 - g.pick(&[1e-9, 1e-6, 1e-3]))
+            } else {
+                g.within(-0.97, 0.97)
+            };
+            let room = 1.0 - bc.abs();
+            let wb = (g.pick(&[0.0, 1e-13, 1e-6, 1e-3, 0.05, 0.3]) as f64).min(room * 0.9);
+            let wb = if near_one { wb.min(room * 0.5) } else { wb };
+            let (uc, wu) = (g.within(-10.0, 10.0), g.pick(&[0.0, 1e-9, 1e-3, 0.5]));
+            let (tc, wt) = (g.within(-7.0, 7.0), g.pick(&[0.0, 1e-9, 1e-3, 0.4]));
+            let wv = g.pick(&[0.0, 1e-6, 1e-2]);
+            let vs = [
+                g.within(-3.0, 3.0),
+                g.within(-2.0, 2.0),
+                g.within(-2.0, 2.0),
+                g.pick(&[0.0, 0.0, 1.0, -0.3]),
+            ];
+            let sense = g.pick(&[1.0, -1.0]);
+            let x = |c: f64, w: f64| Interval::from_bounds(c - w, c + w);
+            let Some(f) = Focal::of(&FocalImage {
+                u0: x(uc, wu),
+                t0: x(tc, wt),
+                v0: x(vs[0], wv),
+                va: x(vs[1], wv),
+                vb: x(vs[2], wv),
+                vl: x(vs[3], 0.0),
+                beta: x(bc, wb),
+                sense: iv0(sense),
+            }) else {
+                panic!("builds: beta {bc} ± {wb}");
+            };
+            let a = g.within(-9.0, 9.0);
+            let width = g.pick(&[0.0, 1e-12, 1e-6, 1e-4, 0.3, 2.0, 7.0, 20.0]);
+            let t = Interval::from_bounds(a, a + width);
+            let (u, v) = (f.on(Axis::U, t), f.on(Axis::V, t));
+            let (ru, rv) = (f.rate(Axis::U, t), f.rate(Axis::V, t));
+            asked += 1;
+            if !u.is_certified() {
+                unbounded += 1;
+                assert!(wb > 0.0 || wt > 0.0 || wu > 0.0, "a point image is bounded");
+            }
+            if !ru.is_certified() {
+                rate_unbounded += 1;
+            }
+            for _ in 0..12 {
+                let corner = |g: &mut Lcg, c: f64, w: f64| c + w * g.pick(&[-1.0, 1.0, 0.0, 0.37, -0.81]);
+                let m = FocalImage {
+                    u0: corner(&mut g, uc, wu),
+                    t0: corner(&mut g, tc, wt),
+                    v0: corner(&mut g, vs[0], wv),
+                    va: corner(&mut g, vs[1], wv),
+                    vb: corner(&mut g, vs[2], wv),
+                    vl: vs[3],
+                    beta: corner(&mut g, bc, wb),
+                    sense,
+                };
+                let s = a + width * g.pick(&[0.0, 1.0, 0.5, 0.123, 0.777, 0.999]);
+                let s = s.clamp(a, a + width);
+                let (su, sv) = stored(&m, s);
+                // The f64 evaluator's own rounding, far from the claim.
+                let slack = 1e-10 * (1.0 + su.abs() + sv.abs() + s.abs());
+                assert!(
+                    u.lo() - slack <= su && su <= u.hi() + slack,
+                    "azimuth: member {m:?} at {s} gives {su}, outside {u:?} over {t:?} of beta {bc}±{wb} u0 ±{wu} t0 ±{wt} sense {sense}"
+                );
+                assert!(
+                    v.lo() - slack <= sv && sv <= v.hi() + slack,
+                    "slant: member {m:?} at {s} gives {sv}, outside {v:?}"
+                );
+                if (1.0 - m.beta.abs()) > 1e-2 {
+                    let h = 1e-6;
+                    let (p, q) = (stored(&m, s - h), stored(&m, s + h));
+                    let (du, dv) = ((q.0 - p.0) / (2.0 * h), (q.1 - p.1) / (2.0 * h));
+                    // The difference's own error, and the rate's change
+                    // over the stencil where it leaves the piece.
+                    let slack = 1e-3 * (1.0 + du.abs() + dv.abs()) / (1.0 - m.beta.abs()).powi(3);
+                    assert!(
+                        ru.lo() - slack <= du && du <= ru.hi() + slack,
+                        "azimuth rate: {du} outside {ru:?}, member {m:?} at {s}"
+                    );
+                    assert!(
+                        rv.lo() - slack <= dv && dv <= rv.hi() + slack,
+                        "slant rate: {dv} outside {rv:?}"
+                    );
+                    // The sign of the azimuth's rate is the sense's.
+                    assert!(du * sense > 0.0, "monotone by the sense: {du}");
+                    if ru.is_certified() {
+                        assert!(ru.lo() * sense > 0.0 || ru.hi() * sense > 0.0);
+                    }
+                }
+            }
+        }
+        println!("[rp] enclosure fuzz: {asked} asked, {unbounded} azimuths unbounded, {rate_unbounded} rates unbounded");
+    }
+
+    /// REVIEW PROBE (claims 1 and 2): the extent's enclosure over an arc
+    /// against a dense sampling of the stored row: no sample outside,
+    /// and how much wider than the samples' hull it is.
+    #[test]
+    fn review_probe_the_arcs_enclosure_holds_a_dense_sampling() {
+        let mut g = Lcg(77);
+        let mut worst = 0.0f64;
+        for _ in 0..400 {
+            let image = FocalImage {
+                beta: g.within(-0.95, 0.95),
+                va: g.within(-1.0, 1.0),
+                vb: g.within(-1.0, 1.0),
+                t0: g.within(-3.0, 3.0),
+                ..section(g.within(-7.0, 7.0), g.next() < 0.5)
+            };
+            let (t0, w) = (g.within(-7.0, 7.0), g.within(1e-3, 6.2));
+            let [u, v] = ChartCurve::Focal(focal(&image)).at(Interval::from_bounds(t0, t0 + w));
+            let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
+            for k in 0..=2000 {
+                let (su, sv) = stored(&image, t0 + w * f64::from(k) / 2000.0);
+                assert!(u.lo() - 1e-12 <= su && su <= u.hi() + 1e-12, "{su} in {u:?}");
+                assert!(v.lo() - 1e-12 <= sv && sv <= v.hi() + 1e-12, "{sv} in {v:?}");
+                lo = lo.min(sv);
+                hi = hi.max(sv);
+            }
+            worst = worst.max((v.hi() - v.lo()) - (hi - lo));
+        }
+        println!("[rp] the slant's enclosure is at most {worst} wider than the arc's own range");
     }
 }
