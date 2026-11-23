@@ -1011,3 +1011,9 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
   2. once rim pad lands, dispatch the cover-halving build (measurement in the sliver item; a chunked `refine_knots`; the pad-holds-tube row to rewrite);
   3. then the node-arc carry.
 - 2026-11-23 — **Usage back (Ev). Resumed both Fable lanes as the same agents** (rim pad, image function), on their arms, each told to merge main first. The image-function lane is to say what its build does to the three rows PR 7065 parked on it.
+
+## 2026-11-23 — Rim pad handed back as PR 7499; dual review dispatched
+
+- The rim-pad lane opened PR 7499 at head `4cad78819e`. Its one CI red is `certified_endpoint_census` on five files it does not touch (`ruling.rs`, `speed.rs`, `props.rs`, step-import's `on_built.rs` and `recognize_curve.rs`). That is main's known drift (CHARTTAIL and EXCH items), and the gate runs it here only because the PR edits the census file. It is to be settled at merge.
+- The C2/C5 rewrite carries out Ev's PR 7045 decision, which directed it. It is not a second design choice, so the PR self-merges after review.
+- Slot-order byte 253 (odd), so R1 = Fable and R2 = Opus. Recorded on the analysis branch. Both reviews of the frozen head are running concurrently.
