@@ -466,16 +466,27 @@ fn classify<T: Decide, A: MarginTerms>(
     margin: Margin<T, A>,
     band: Band,
 ) -> Result<Decided, Indeterminate> {
-    classify_quoting(name, margin, band, |source| source)
+    classified(name, margin, band, |source| source)
 }
 
-/// [`classify`], its escalation minted as `quote` restates it: for a row
-/// whose refusal quotes another reading of the same decision than the
-/// one classified ([`decide_across`]'s far row, which quotes the
-/// bracket's floor). `quote` keeps the predicate, the band and the
+/// [`classify`] for a row whose refusal quotes another reading of the
+/// same decision than the one classified ([`decide_across`]'s far row,
+/// which quotes the bracket's floor): its escalation is minted as
+/// `quote` restates it. `quote` keeps the predicate, the band and the
 /// classifier's verdict on subdivision; the verdict channel never sees
 /// it.
-fn classify_quoting<T: Decide, A: MarginTerms>(
+fn decide_quoting<T: Decide, A: MarginTerms>(
+    name: &'static str,
+    margin: Margin<T, A>,
+    band: Band,
+    quote: impl FnOnce(Indeterminate) -> Indeterminate,
+) -> Result<Decided, Indeterminate> {
+    classified(name, margin, band, quote)
+}
+
+/// The one classification body: [`classify`]'s, with the escalation it
+/// mints passed through `quote` first.
+fn classified<T: Decide, A: MarginTerms>(
     name: &'static str,
     margin: Margin<T, A>,
     band: Band,
@@ -1266,7 +1277,7 @@ pub fn decide_across_reported<T: Decide>(
 ) -> Result<(Sign, MarginDiag), Indeterminate> {
     let swing = swing.abs();
     let Decided { sign, margin } =
-        classify_quoting(far, Margin::of(datum.abs() + swing), band, |source| {
+        decide_quoting(far, Margin::of(datum.abs() + swing), band, |source| {
             quoting_floor(source, (datum.abs() - swing).max(T::zero()), band)
         })?;
     match sign {
