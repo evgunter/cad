@@ -58,7 +58,7 @@ use crate::names::{EntityKey, EntityRef, Entry, NameTable, StableName};
 use crate::node::{Node, RecipeNodeId};
 use crate::product::{GatheredCopy, Product};
 
-use super::quieting::{OpposedPair, Quieting, QuietingRef};
+use super::quieting::{OpposedPair, Quieting, QuietingRef, Reference};
 
 mod carried;
 
@@ -398,21 +398,13 @@ fn reference<P: crate::ProfilePayload>(doc: &Doc<P>, var: VarId) -> Vec<Quieting
         Some((select.body.read, name.clone()))
     };
     let entity = match selected(var) {
-        Some((read, name)) => Some(QuietingRef::Entity {
-            read,
-            name,
-            pose: None,
-        }),
+        Some((read, name)) => Some(QuietingRef::entity(read, name, None)),
         None => crate::eval::read_directly_off(doc, var).and_then(|(cell, kind)| {
             let (read, name) = selected(cell)?;
-            Some(QuietingRef::Entity {
-                read,
-                name,
-                pose: Some(kind),
-            })
+            Some(QuietingRef::entity(read, name, Some(kind)))
         }),
     };
-    std::iter::once(QuietingRef::Read(var))
+    std::iter::once(QuietingRef::variable(var))
         .chain(entity)
         .collect()
 }
@@ -555,9 +547,9 @@ impl Saying {
         i: usize,
         kind: Option<crate::VarKind>,
     ) -> bool {
-        let posed = match r {
-            QuietingRef::Read(_) => true,
-            QuietingRef::Entity { pose, .. } => *pose == kind,
+        let posed = match &r.0 {
+            Reference::Read(_) => true,
+            Reference::Entity { pose, .. } => *pose == kind,
         };
         posed && cell_of(doc, r, at).reads(doc, &self.cells[i])
     }
@@ -672,12 +664,10 @@ impl Saying {
         T: crate::mate::SolveScalar + topo::AtRestPolicy,
     {
         let written = |i: usize| match &self.cells[i] {
-            RowCell::Tool(var) => QuietingRef::Read(*var),
-            RowCell::Entity(read, name) => QuietingRef::Entity {
-                read: *read,
-                name: written_name(doc, *read, name),
-                pose: kinds[i],
-            },
+            RowCell::Tool(var) => QuietingRef::variable(*var),
+            RowCell::Entity(read, name) => {
+                QuietingRef::entity(*read, written_name(doc, *read, name), kinds[i])
+            }
         };
         let references = order.map(written);
         let members = members_of::<P, T>(doc, &references)?;
@@ -701,10 +691,7 @@ impl Saying {
                 return None;
             }
         }
-        Some(Quieting {
-            measure: verb,
-            references,
-        })
+        Some(Quieting::minted(verb, references))
     }
 }
 
@@ -736,9 +723,9 @@ fn cell_of<P: crate::ProfilePayload>(
     r: &QuietingRef,
     at: &crate::names::MemberAt,
 ) -> RowCell {
-    match r {
-        QuietingRef::Read(var) => RowCell::Tool(*var),
-        QuietingRef::Entity { read, name, .. } => {
+    match &r.0 {
+        Reference::Read(var) => RowCell::Tool(*var),
+        Reference::Entity { read, name, .. } => {
             RowCell::Entity(*read, member_name(doc, *read, name, at))
         }
     }
@@ -758,10 +745,7 @@ fn members_of<P: crate::ProfilePayload, T: Decide>(
 ) -> Option<Vec<(crate::names::MemberAt, Option<crate::expr::VarEnv<T>>)>> {
     let mut reached = BTreeSet::new();
     for r in references {
-        let read = match r {
-            QuietingRef::Read(var) => *var,
-            QuietingRef::Entity { read, .. } => *read,
-        };
+        let read = r.read();
         reached.extend(doc.var_reach(read).chain()?.iter().copied());
     }
     let chain = crate::repetition::Reach::new(doc)
@@ -1013,6 +997,50 @@ fn holding_measures<'a, P, T: Decide + topo::AtRestPolicy>(
         .flatten()
 }
 
+/// **The assertion in `doc` that already says `claim`**, verdict
+/// aside: a `Claim::Value` relating a measure of `claim`'s verb to zero
+/// by its relation, whose two references read, in order, as
+/// `claim`'s ([`reference()`]). `None` where none does.
+pub(crate) fn asserted<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    claim: &Quieting,
+) -> Option<RecipeNodeId> {
+    use crate::measure::MeasureVerb as M;
+    doc.ids().into_iter().find(|&id| {
+        let Some(Node::Assertion(crate::measure::Claim::Value {
+            value,
+            relation,
+            bound,
+        })) = doc.node(id)
+        else {
+            return false;
+        };
+        let Some((measure, 0)) = doc.var(*value).and_then(|v| v.def().output()) else {
+            return false;
+        };
+        let (verb, a, b) = match doc.node(measure) {
+            Some(Node::Measure {
+                primitive: MeasurePrimitive::Gap { outer, inner },
+            }) => (M::Gap, *outer, *inner),
+            Some(Node::Measure {
+                primitive: MeasurePrimitive::Distance { a, b },
+            }) => (M::Distance, *a, *b),
+            Some(Node::Measure {
+                primitive: MeasurePrimitive::Angle { a, b },
+            }) => (M::Angle, *a, *b),
+            _ => return false,
+        };
+        let [ra, rb] = claim.references();
+        verb == claim.measure()
+            && *relation == Quieting::RELATION
+            && doc.var(*bound).is_some_and(
+                |var| matches!(var.def(), crate::var::VarDef::Defined(zero) if zero.is_zero()),
+            )
+            && reference(doc, a).contains(ra)
+            && reference(doc, b).contains(rb)
+    })
+}
+
 /// **The name a selection holds, as the member at `at` reads it**: the
 /// selection's own name where its body reaches no index of `at`, else
 /// that name wrapped in the `Member` segment its family's table puts
@@ -1254,11 +1282,11 @@ fn face_read<P: crate::ProfilePayload, T: Decide + topo::AtRestPolicy>(
     r: &QuietingRef,
     at: &crate::names::MemberAt,
 ) -> Option<CopyFace> {
-    let QuietingRef::Entity {
+    let Reference::Entity {
         read,
         name,
         pose: None,
-    } = r
+    } = &r.0
     else {
         return None;
     };
@@ -1347,11 +1375,11 @@ fn written_pair<P: crate::ProfilePayload, T: Decide + topo::AtRestPolicy>(
             key: EntityKey::Face(face),
         })?;
         let name = keyed_by(name, read).unwrap_or(name);
-        Some(QuietingRef::Entity {
+        Some(QuietingRef::entity(
             read,
-            name: written_name(doc, read, name),
-            pose: None,
-        })
+            written_name(doc, read, name),
+            None,
+        ))
     };
     let references = [written(outer)?, written(inner)?];
     let members: Vec<_> = members_of::<P, f64>(doc, &references)?

@@ -608,8 +608,6 @@ mod part_depth_bound;
 mod parts_entered_before_the_map;
 #[path = "perf12_census_bvh_diff.rs"]
 mod perf12_census_bvh_diff;
-#[path = "perf12_census_goldens.rs"]
-mod perf12_census_goldens;
 #[path = "perf2_name_keying_differential.rs"]
 mod perf2_name_keying_differential;
 #[path = "pick3_early_out.rs"]
