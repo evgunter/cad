@@ -113,6 +113,20 @@ use crate::m10_9_pins_interval::measured_studies;
 /// 2,025 recorded decisions answer as on the merge base, each with its
 /// outcome, its 64 blocked residuals the same predicates.
 ///
+/// **Then moved by validation reading no adjacent line pair's shared
+/// vertex** (`profile::seg`'s `line_line`). Symbolic only, and frozen on
+/// the pad: the plate `979 → 955`, its four corners each losing two
+/// `chord_side` sides, two `line_span` spans and two
+/// `contact_at_shared_vertex` coincidences, all of which the tier proved;
+/// the bracket `1367 → 1337`, five corners; the pad `1483 → 1471` with
+/// `1967 → 1963` frozen, four collinear adjacent pairs, each losing two
+/// sides and one coincidence, and the forms those coincidences froze.
+/// The annulus and the link do not move. These are decisions no longer
+/// asked, not decisions answered differently, so no dispute or
+/// contradiction column can be reached by them: both read zero at every
+/// document, as before. Attributed by each document's per-predicate split
+/// at the nominal, base against head (PR 7264's probe).
+///
 /// Then the least turn read no exactness off the nominal (`valexact`,
 /// ERROR-DESIGN E12): an identity chart decides its pole verdict and its
 /// conditioning like any other pair, one `mate_chart_pole` and one
@@ -122,11 +136,11 @@ use crate::m10_9_pins_interval::measured_studies;
 /// count moves, and no dispute fired. Measured per predicate against the
 /// merge's first parent: those two predicates are the whole difference.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
-    ("two_hole_plate", [979, 1051, 36]),
+    ("two_hole_plate", [955, 1051, 36]),
     ("r1_annulus", [511, 550, 36]),
     ("r2_link", [786, 945, 2600]),
-    ("r2_filleted_bracket", [1367, 1550, 57]),
-    ("r2_rounded_pad", [1483, 1711, 1967]),
+    ("r2_filleted_bracket", [1337, 1550, 57]),
+    ("r2_rounded_pad", [1471, 1711, 1963]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal

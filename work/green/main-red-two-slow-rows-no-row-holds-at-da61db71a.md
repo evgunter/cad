@@ -21,6 +21,11 @@ Found by DOCTAIL's `main-red-the-identity-turns-decisions-moved-the-m10-slow-row
 
 - **`topo` `face_normal::tests::the_planar_sense_flip_lives_in_one_place`** (`face_normal.rs`, the assertion near :1425). Red on `origin/main` after `da61db71a`, at every ε, because it is a source scan. It reports: "`crates/topo/src/ring_path.rs` mints an `OutwardNormal` from a plane's chart normal — the planar sense flip has been re-forked out of face_normal.rs". `ring_path.rs` arrived with GERM's ring-path work (`2fee1eda6e`, "the ring path's plane-meet names keep clear of the boolean engine's"). The test is green on `fa42c60`. EXPORT's open `main-red-one-record-folds-the-face-sense-by-hand` is a sibling census (`no_source_file_folds_the_bit_by_hand`, step-import's `one_record.rs`), not this site.
 
+- **`check-slow-set-names` reds every PR whose test scope takes viewer.** This was seen on PR 7549's `test (app)`. The error is: `slow-set entry matches no test: viewer: app::properties_pane_tests::refused_slot_entry::the_range_buttons_grey_from_the_admission_door`.
+  - The test exists (`crates/viewer/src/app.rs`, `mod properties_pane_tests` → `mod refused_slot_entry`). But it compiles only under `--features app`, and the name check lists default-feature tests only.
+  - The entry came in with OFFER's `f712510c37` (PR 7548).
+  - This is the class CIW's closed `an-app-feature-only-test-cannot-be-listed-in-the-slow-set` names. Either drop the entry, so the row runs in the viewer app-feature job's fast set, or have the name check list `--features app`.
+
 Neither of the first two was bisected.
 
 **Also seen, on a row GREEN already holds:** `sweep` `germ_tilted_rod::other_spins_and_steeper_tilts_refuse_at_their_germs` is red on `fa42c60`, on `ccabcfb` and on `da61db71a` alike. But its β 0.5, spin 0.5 refusal reads differently:

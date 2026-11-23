@@ -143,7 +143,9 @@ None is touched here. The row that holds each is named where one is open.
 7434's gate ran none of these rows. They sit in the `ci` profile's slow
 set, and a slow row runs on a PR only when the diff spells its name or
 edits its file (`scripts/slow_set.py`'s `selected`). Ev ruled out running
-a seeded crate's whole slow set per PR (CIW's
-`dependents-slow-sets-skip-a-kernel-pr`, policy item 3, 2026-11-12). The
-faster canary is open as `trimmed-slow-canary-for-a-seeded-crate`. This
-instance is counted on the first of those two rows.
+a seeded crate's whole slow set per PR (PR 6731). CIW's
+`dependents-slow-sets-skip-a-kernel-pr` holds that ruling. It closed with
+the nightly attributing each newly red test to its merge, so the next red
+of this shape is bisected by the nightly rather than by hand, as these
+were. The per-PR canary that would have caught it before merge is CIW's
+open `a-stored-data-change-runs-none-of-the-slow-rows-that-read-it`.

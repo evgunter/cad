@@ -281,11 +281,20 @@ pub(crate) struct Study {
 /// (`topo::session_box_at`) and no measure asks it of an image, door
 /// shut: the bracket, two placements where one measure asked,
 /// (1290, 1611) -> (1290, 1612); the pad, one for one, unmoved. Then
-/// the least turn read no exactness off the nominal: an identity chart
-/// decides its pole verdict and its conditioning like any other pair, one
-/// `mate_chart_pole` and one `least_turn_conditioning` numeric row per
-/// chart and nothing else, door shut the bracket's two charts (1290,
-/// 1612) -> (1290, 1616) and the pad's one (1483, 1709) -> (1483, 1711).
+/// validation stopped reading an adjacent line pair's shared vertex
+/// (`profile::seg`'s `line_line`), every one of those decisions proved
+/// symbolically, so only `symbolic` moves, at every ε row, door open or
+/// shut alike. A corner loses its two `chord_side` sides, two `line_span`
+/// spans and two `contact_at_shared_vertex` coincidences; a collinear
+/// adjacent pair its two sides and one coincidence. The plate, four
+/// corners, 979 -> 955; the bracket, five, 1361 -> 1331 (door shut 1290
+/// -> 1260); the pad, four collinear pairs, 1483 -> 1471 (door shut the
+/// same). The link and the annulus do not move.
+/// Then the least turn read no exactness off the nominal: an identity
+/// chart decides its pole verdict and its conditioning like any other pair,
+/// one `mate_chart_pole` and one `least_turn_conditioning` numeric row per
+/// chart and nothing else, door shut the bracket's two charts +4 numeric
+/// and the pad's one +2.
 pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
     [
         Study {
@@ -299,7 +308,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // the door, and the plate refuses nowhere the bisection
             // reaches.
             without_the_registry: None,
-            symbolic: [979, 979, 979],
+            symbolic: [955, 955, 955],
             at: Box::new(move |s: f64| crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0),
         },
         Study {
@@ -378,13 +387,13 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // +2 numeric: each of its two placements asks the session box
             // of where its copy stands (`topo::session_box_at`).
             // −2 numeric: its two identity charts owe no pole verdict.
-            without_the_registry: Some(((1290, 1616), None)),
+            without_the_registry: Some(((1260, 1616), None)),
             // One is the fillet run out read against its arrival carrier
             // (`path_run_out_carrier`), a margin the tier proves zero.
             // How many the tier reaches depends on the order the
             // variables' symbols sort in
             // (`work/sym/sym-tier-reach-depends-on-symbol-order`).
-            symbolic: [1361, 1361, 1361],
+            symbolic: [1331, 1331, 1331],
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {
@@ -411,7 +420,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // +1 numeric: its placement asks the session box of where its
             // copy stands (`topo::session_box_at`).
             // −1 numeric: its identity chart owes no pole verdict.
-            without_the_registry: Some(((1483, 1711), None)),
+            without_the_registry: Some(((1471, 1711), None)),
             // Three are the fillet run outs read against their arrival
             // carriers (`path_run_out_carrier`), margins the tier proves
             // zero.
@@ -426,7 +435,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // extension's run became its own segment (Ev, PR 6542; PR
             // 6682, "the same added-vertex move as sym_9"): each corner
             // after a straight leg keeps the leg's end as a vertex.
-            symbolic: [1483, 1483, 1483],
+            symbolic: [1471, 1471, 1471],
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },
     ]
@@ -974,10 +983,16 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
     // (PR 7088), so the count does not move. Then the carriers held their
     // frames as rigid motions, minted from the sketch frame and read as
     // stored: 2773 -> 1967 frozen, the decisions holding
-    // (`sym11_exact_channel_rows`' `PAST_THE_CEILING`). Then the least
-    // turn read no exactness off the nominal, and the identity chart
+    // (`sym11_exact_channel_rows`' `PAST_THE_CEILING`). Then validation
+    // stopped reading an adjacent line pair's shared vertex
+    // (`profile::seg`'s `line_line`): the pad's four collinear adjacent
+    // pairs (its extension runs) each lose their two `chord_side` sides and
+    // the `contact_at_shared_vertex` their touch was discounted by, all
+    // decided symbolically, and the forms those four coincidences froze:
+    // (1483, 1709, 1967) -> (1471, 1709, 1963), at every ε row. Then the
+    // least turn read no exactness off the nominal, and the identity chart
     // decides its pole verdict and its conditioning: 1709 -> 1711 numeric.
-    assert_eq!(got[0], (1483, 1711, 1967), "rule F shut: the pad's receipt");
+    assert_eq!(got[0], (1471, 1711, 1963), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],
         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"

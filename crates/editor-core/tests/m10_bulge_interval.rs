@@ -269,6 +269,17 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// nominal: this copy's mated directions agree, and their identity turn
 /// decides its pole verdict and its conditioning like any other pair,
 /// `mate_chart_pole` 0/1 and `least_turn_conditioning` 0/1.
+///
+/// **An adjacent line pair's shared vertex is not read**
+/// (`profile::seg`'s `line_line`): the tab's two straight corners each
+/// lose their two `chord_side` sides, two `line_span` spans and two
+/// `contact_at_shared_vertex` coincidences, all of which the tier proved,
+/// so `chord_side` 6/12 -> 2/12, `line_span` 6/4 -> 2/4 and
+/// `contact_at_shared_vertex` 12/4 -> 8/4, in both spellings and at every
+/// ε row. What stands of the three is read elsewhere, the tab's
+/// line × arc joints among them, whose shared vertex is still read
+/// (`profile/an-adjacent-pairs-shared-vertex-is-recomputed-as-a-root`).
+/// Nothing else moved.
 const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("arc_apex_identity", [0, 1]),
     ("arc_diameter_clearance", [0, 6]),
@@ -281,9 +292,9 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("carrier_on_surface_1", [126, 18]),
     ("carrier_on_surface_2", [126, 18]),
     ("carrier_pose_axes_parallel", [1, 0]),
-    ("chord_side", [6, 12]),
+    ("chord_side", [2, 12]),
     ("circle_side", [2, 2]),
-    ("contact_at_shared_vertex", [12, 4]),
+    ("contact_at_shared_vertex", [8, 4]),
     ("pose_unit_norm", [0, 2]),
     // The extrude reads each of its 16 edges by its whole wedge, the
     // arm, the wedge and a corner's sign at 7 stations, where it read
@@ -295,7 +306,7 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("interval_span_forward", [0, 36]),
     ("interval_span_winding", [0, 12]),
     ("least_turn_conditioning", [0, 1]),
-    ("line_span", [6, 4]),
+    ("line_span", [2, 4]),
     ("mate_chart_pole", [0, 1]),
     ("path_circle_radius", [0, 1]),
     ("path_junction_turn", [0, 11]),

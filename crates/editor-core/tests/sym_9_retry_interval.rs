@@ -733,6 +733,14 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     // the ladder or without it, numeric +1 on the plate and the bracket,
     // each two placements where one measure asked, and unmoved on the
     // rest, one for one; no symbolic row moves and the recovery holds at 6.
+    // Then validation stopped reading an adjacent line pair's shared
+    // vertex (`profile::seg`'s `line_line`): fewer decisions ASKED, not a
+    // retry taking one away, so both arms fall alike and the ladder's
+    // recovery on the bracket holds at 6. Symbolic only, with the ladder
+    // or without it: the plate −24 (four corners, each two `chord_side`
+    // sides, two `line_span` spans and two `contact_at_shared_vertex`
+    // coincidences, all proved) and the bracket −30 (five corners); the
+    // annulus, the boss and the link do not move.
     // Then the least turn read no exactness off the nominal: each identity
     // chart decides its pole verdict and its conditioning, one
     // `mate_chart_pole` and one `least_turn_conditioning` numeric row a
@@ -740,10 +748,10 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     // annulus +2, the boss +2, the bracket +4 and the link +2; no symbolic
     // row moves and the recovery holds at 6.
     let expected: [(&str, [u64; 2], [u64; 2], u64); 5] = [
-        ("two_hole_plate", [979, 1051], [979, 1051], 0),
+        ("two_hole_plate", [955, 1051], [955, 1051], 0),
         ("r1_annulus", [511, 550], [511, 550], 0),
         ("r1_segment_boss", [489, 574], [489, 574], 0),
-        ("r2_filleted_bracket", [1361, 1545], [1367, 1539], 6),
+        ("r2_filleted_bracket", [1331, 1545], [1337, 1539], 6),
         ("r2_link", [786, 945], [786, 945], 0),
     ];
     let mut moved: Vec<String> = Vec::new();
@@ -933,13 +941,19 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     // what carries the ladder now. Then the decided least-turn mint (fork
     // 270) took the pad's identity chart with no pole verdict: [1390,
     // 1802, 0] -> [1390, 1801, 0]. The pad's one session-box ask is its
-    // placement's, not its measure's (PR 7088): unmoved. Then the least
-    // turn read no exactness off the nominal, and the identity chart
-    // decides its pole verdict and its conditioning: [1390, 1801, 0] ->
-    // [1390, 1803, 0].
+    // placement's, not its measure's (PR 7088): unmoved. Then validation
+    // stopped reading an adjacent line pair's shared vertex
+    // (`profile::seg`'s `line_line`): [1390, 1801, 0] -> [1381, 1798, 0],
+    // at every ε row. Those are the twelve decisions the pad loses at its
+    // nominal, measured there by predicate: its four collinear adjacent
+    // pairs' two `chord_side` sides and one `contact_at_shared_vertex`
+    // each. Over this leaf's box three of the twelve were numeric. Then the
+    // least turn read no exactness off the nominal, and the identity chart
+    // decides its pole verdict and its conditioning: [1381, 1798, 0] ->
+    // [1381, 1800, 0].
     assert_eq!(
         [d.symbolic, d.numeric, d.retried],
-        [1390, 1803, 0],
+        [1381, 1800, 0],
         "the shipped ladder's leaf receipt"
     );
     // With nothing retried the receipt writes no ladder column, as the
@@ -968,10 +982,11 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     // Then the sweeps' frames: the ladder retries nothing on this leaf,
     // and the bare drive reads the shipped receipt, [1390, 1802, 0]. Then
     // the least-turn mint's identity chart, as the shipped receipt's:
-    // [1390, 1802, 0] -> [1390, 1801, 0]. Then its pole verdict and
-    // conditioning, as the shipped receipt's: [1390, 1801, 0] ->
-    // [1390, 1803, 0].
-    assert_eq!([b.symbolic, b.numeric, b.retried], [1390, 1803, 0]);
+    // [1390, 1802, 0] -> [1390, 1801, 0]. Then the unread shared
+    // vertices, as the shipped receipt's: [1390, 1801, 0] -> [1381, 1798, 0].
+    // Then its pole verdict and conditioning, as the shipped receipt's:
+    // [1381, 1798, 0] -> [1381, 1800, 0].
+    assert_eq!([b.symbolic, b.numeric, b.retried], [1381, 1800, 0]);
     assert!(
         !bare.serialize().contains("retried="),
         "no ladder, no column"
