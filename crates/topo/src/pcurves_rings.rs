@@ -369,12 +369,28 @@ pub(crate) fn face_lift<T: Decide>(
     face: FaceKey,
     band: Band,
 ) -> Result<FaceLift<T>, RingPlacementError> {
-    let view = body.proven_face(face);
-    let mut loops = view.loops().map(|(lk, _, _)| lk);
+    let mut loops = body.proven_face(face).loops().map(|(lk, _, _)| lk);
     let Some(outer_loop) = loops.next() else {
         unreachable!("a face's record holds its outer loop")
     };
     let rings: Vec<LoopKey> = loops.collect();
+    face_lift_as(body, face, outer_loop, rings, band)
+}
+
+/// [`face_lift`] with the roles given rather than read off the face's
+/// record: `outer_loop` in the outline's role and `rings` in the rings',
+/// each a loop of `face`. The output merge asks which of a merged face's
+/// loops is its outline this way, each in that role in turn
+/// (`crate::merge_faces`, the curved role pass), before it sets the
+/// record's roles.
+pub(crate) fn face_lift_as<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    outer_loop: LoopKey,
+    rings: Vec<LoopKey>,
+    band: Band,
+) -> Result<FaceLift<T>, RingPlacementError> {
+    let view = body.proven_face(face);
     let outer = Lift::read(body, outer_loop).map_err(RingPlacementError::Gap)?;
     if outer.is_empty() && !rings.is_empty() {
         return Err(RingPlacementError::OuterEmpty);

@@ -7,12 +7,10 @@
 //! (`topo::boolean::ops::apply_cut_ins`): the cut's new piece descends
 //! from the face it divided, and the cut itself is no edge of the lens.
 //!
-//! Intersected (the cap), and the brick minus the lens, the cut is glued
-//! away and the circle keeps one vertex with no identity of its own,
-//! which the table refuses typed until its edge-derived name is built
+//! In every op and order the cut is glued away and the circle keeps one
+//! vertex with no identity of its own, which the table refuses typed
+//! until its edge-derived name is built
 //! (`work/borders/a-conventional-vertex-mints-no-edge-derived-name.md`).
-//! The union and the lens minus the brick keep the cut as two edges
-//! between pieces of one face ([`CUT_LEFT`]).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::blocks::{failure, run};
@@ -122,11 +120,6 @@ pub(crate) fn world_in_brick(
     against(doc, brick, body, &at)
 }
 
-/// Where the cut survives, the result holds two pieces of one sphere
-/// face across it.
-const CUT_LEFT: &str =
-    "work/hone/a-sphere-cut-in-survives-unglued-in-the-union-of-a-lens-and-a-tilted-brick.md";
-
 /// The document: the lens, the brick, and `op` over them, lens first or
 /// not.
 fn document(op: &str, lens_first: bool) -> (ProfileDoc, [RecipeNodeId; 3]) {
@@ -164,22 +157,24 @@ fn document(op: &str, lens_first: bool) -> (ProfileDoc, [RecipeNodeId; 3]) {
 }
 
 /// **The lens and the brick name, and every op over them refuses only
-/// where a row is filed**: the cap and the brick minus the lens at the
-/// circle's conventional vertex, which the totality check reaches only
-/// once every face and edge is named, and the union and the lens minus
-/// the brick at the cut they keep ([`CUT_LEFT`]). No op over them
-/// publishes a table yet, so none is read here for the lens entities
-/// its names cite; the conventional-vertex row's fix makes the first
-/// three name, and asserts that here.
+/// where a row is filed**: at the circle's conventional vertex, which the
+/// totality check reaches only once every face and edge is named. The
+/// kernel cuts the lens's face along its chart's meridian through the
+/// circle, and the output merge glues that cut away in every op and
+/// order, the union's and the lens minus the brick's included, whose cut
+/// runs on to the pole and is bridged on the sphere's simply connected
+/// carrier. No op over them publishes a table yet, so none is read here
+/// for the lens entities its names cite; the conventional-vertex row's
+/// fix makes them name, and asserts that here.
 #[test]
 fn a_sphere_cut_in_refuses_only_where_its_rows_are_filed() {
-    for (op, lens_first, want) in [
-        ("intersect", true, "ConventionalVertex"),
-        ("intersect", false, "ConventionalVertex"),
-        ("subtract", false, "ConventionalVertex"),
-        ("union", true, CUT_LEFT),
-        ("union", false, CUT_LEFT),
-        ("subtract", true, CUT_LEFT),
+    for (op, lens_first) in [
+        ("intersect", true),
+        ("intersect", false),
+        ("subtract", false),
+        ("union", true),
+        ("union", false),
+        ("subtract", true),
     ] {
         let what = format!("{op}, lens first: {lens_first}");
         let (doc, [lens, brick, out]) = document(op, lens_first);
@@ -187,29 +182,13 @@ fn a_sphere_cut_in_refuses_only_where_its_rows_are_filed() {
         assert!(failure(&ev, lens).is_none(), "{what}: the lens names");
         assert!(failure(&ev, brick).is_none(), "{what}: the brick names");
         let e = format!("{:?}", failure(&ev, out).expect("refuses"));
-        if want == CUT_LEFT {
-            assert!(
-                e.contains("a chart cut survives in the result"),
-                "{what}: refused other than at the cut ({CUT_LEFT}): {e}"
-            );
-        } else {
-            assert!(
-                e.starts_with("Naming(ConventionalVertex"),
-                "{what}: refused other than at the conventional vertex: {e}"
-            );
-        }
+        assert!(
+            e.starts_with("Naming(ConventionalVertex"),
+            "{what}: refused other than at the conventional vertex: {e}"
+        );
     }
 }
 
-/// **The cap states its meridian crossings as meetings**: the kernel
-/// cuts the lens's top face along a meridian before the op, and the
-/// cap decides each point where the section circle crosses that
-/// meridian on the brick's near face. Read back to the lens, the point
-/// is the face the meridian runs in, so the row is the lens's face and
-/// the brick's sharing that point (`Relation::Meet`), never the lens's
-/// face lying on the brick's. Every other row names cells of its inputs
-/// that hold the point decided: a vertex on a face lies on that face's
-/// surface. Red if a crossing is published face on face, or dropped.
 #[test]
 fn the_cap_states_its_meridian_crossings_as_meetings() {
     for lens_first in [true, false] {

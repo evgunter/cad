@@ -39,3 +39,30 @@ predicate "ring_place_clear" }) }`, so the mesh refuses `DomainUnread`
 at every δ. The same stub turned 0.5, −0.5, 1.5 or 3.0 places and
 meshes. Pinned by
 `reach_probes::ringed_curved_faces_that_still_refuse_answer_by_cause`.
+
+## A sphere face that reaches it (2026-11-23, LATHE interior-loop lane, PR 7440)
+
+With a sphere cut-in's meridian glued away by the output merge,
+`snowman::a_slab_cutting_a_cap_off_a_pole_strut_carve_builds` (the pole
+strut, slab toward `(0.866, 0.1, −0.5)`, ∪) builds a maximal sphere face
+whose ring `Body::face_lift` answers `Undecided { cause: None }`, and the
+mesh refuses `DomainUnread`. On the base the result carried the cut (two
+faces of one record) and meshed. The merge's own outline reading meets
+the same limit on an annulus (`merge_faces` `curved_outline_ring`, which
+settles it by striking out the slot the reader refuses decidedly).
+
+The same input on `origin/main` (`43295779ee`, two π-bands): it builds
+and meshes, both member orders, but not maximal: 10 faces, 2 edges
+dividing two faces of one record, the merge skipping one pair as
+`PeriodClosure` (`carve ∪ slab`: `[2v3, 7v1]` on `5v5`). So the row's
+red on the one-band stack is a regression against main's green, a green
+that rested on a non-maximal body.
+
+`snowman::a_cut_ends_at_the_nearest_of_several_boundary_hits` (∪) is a
+second witness: on the stack its glued sphere face's ring reads
+`Undecided`, and the mesh refuses `DomainUnread`. On `origin/main`
+(`43295779ee`) it builds and meshes, both latitudes and both member orders,
+but not maximal: 10 faces, 5 edges dividing two faces of one record, and
+the merge skipping one group of three faces as `PeriodClosure`. Both rows'
+undecided ring is the one the merge's role pass accepted by elimination
+(`work/lathe/a-merged-sphere-faces-outline-is-chosen-by-elimination-so-the-answer-depends-on-operand-order.md`).

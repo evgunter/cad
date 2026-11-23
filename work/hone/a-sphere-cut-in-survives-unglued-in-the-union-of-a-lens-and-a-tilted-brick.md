@@ -2,10 +2,12 @@
 id: a-sphere-cut-in-survives-unglued-in-the-union-of-a-lens-and-a-tilted-brick
 kind: issue
 title: A sphere cut-in's meridian survives unglued in the union of a lens and a tilted brick, leaving two pieces of one face
-status: open
+status: closed
 opened: 2026-10-13
 priority: P2
 cost: M
+closed: 2026-11-23
+pr: 7414
 ---
 
 
@@ -57,3 +59,11 @@ the pole (the full revolve's seam strut ends there too). The intersect
 cap, whose cut runs between the circle's two crossings only, glues.
 `joinable-reads-a-chart-singularity-by-distance-alone` may be the same
 ground.
+
+- 2026-11-23 — closed by the LATHE one-band lane on PR 7414. With a full
+  revolve's ball one band and PR 7440's bridge merge on a simply
+  connected carrier, the output merge glues the cut away in the union
+  and the lens minus the brick, in either order: all six ops over the
+  document reach the conventional vertex, as this row said the pin would
+  once the join glued the cut. `a_sphere_cut_in_refuses_only_where_its_rows_are_filed`
+  pins `ConventionalVertex` for all six; `CUT_LEFT` is retired.

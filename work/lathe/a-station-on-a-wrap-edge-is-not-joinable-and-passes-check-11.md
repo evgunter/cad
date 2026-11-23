@@ -44,8 +44,13 @@ A body holding a station on a wrap edge reads at rest, though the join
 that finishes every door would leave the edge whole: two bodies of one
 shape compare unequal, and the station reaches every consumer that
 reads a wrap edge as one edge (the wrap tip reads, the seam-twice
-meshing lane). No public door mints one today: the rows reach it by
-hand.
+meshing lane). A public door mints one: `topo::union` of a rod lying
+on a puck with its seam on the contact ruling
+(`two_tubes_in_the_zero_band::a_rod_on_a_puck_with_its_seam_on_the_ruling`)
+returns the rod's one wall with its seam in three pieces, split at the
+puck rim's two touches, in both operand orders, and the same rod
+anywhere else holds one seam edge. A one-band regression from a public
+door, so it gates the one band's landing.
 
 ## Ground
 
