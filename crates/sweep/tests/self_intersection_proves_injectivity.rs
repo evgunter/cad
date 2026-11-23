@@ -6948,6 +6948,70 @@ fn a_flap_through_a_cut_cones_wall_at_its_rulings_corner_is_never_embedded() {
     }
 }
 
+/// A whole cone of base radius `r` and height `h`, its apex up, cut by
+/// `cut`, the side holding the apex.
+fn apex_cut<T: Scalar>(r: f64, h: f64, cut: Cut) -> Result<Body<T>, String> {
+    use sweep::test_support::finished;
+    use topo::splitting::{SplitPart, SplitPlane, split};
+    let p = |x: f64, y: f64| (Point2::new(T::from_f64(x), T::from_f64(y)), T::zero());
+    let cone = finished(
+        "the cone",
+        revolved_about_y_at::<T>(
+            vec![p(0.0, 0.0), p(r, 0.0), p(0.0, h)],
+            Revolution::Full,
+            tol(),
+        ),
+        tol(),
+    );
+    let plane = SplitPlane {
+        origin: Point3::new(0.0, cut.0, 0.0).map(T::from_f64),
+        normal: geom_core::UnitVec3::new(
+            cut_normal(cut).map(T::from_f64),
+            topo::POSE_UNIT_NORM,
+            band(),
+        )
+        .expect("a cut normal has a length"),
+    };
+    match split(&cone, &plane, tol())
+        .map_err(|e| format!("{e:?}"))?
+        .above
+    {
+        SplitPart::Body(b) => Ok(b.into_body()),
+        SplitPart::Empty => panic!("the apex side carries material"),
+    }
+}
+
+/// **A cut cone that keeps its apex holds between its halves.** A whole
+/// cone of radius 0.7 and height 1, cut obliquely through its wall, the
+/// side holding the apex: each half of the wall is bounded by its two
+/// rulings, which meet at the apex, and its arc of the section. The
+/// halves' cells run down their shared rulings to the apex, where the
+/// chart collapses (`v = 0`: every azimuth one point) and no rectangle
+/// holding it is a homeomorphic image for the ruling's or the arc's
+/// reading to argue on (`injective`'s `cone_regular`). The halves alone
+/// hold at `f64` with a corner read, tilted toward a ruling and off
+/// them; at `Interval` they hold tilted toward a ruling and are never
+/// read crossing. The whole body refuses on its cap as every cut cone
+/// does ([`refuses_on_a_cap_and_its_wall_holds`]).
+#[test]
+fn a_cut_cone_that_keeps_its_apex_holds_between_its_halves() {
+    for (what, cut, twin_holds) in [
+        ("tilted toward a ruling", (0.5, 0.3, 0.0), true),
+        ("tilted off the rulings", (0.5, 0.3, 0.7), false),
+        ("cut near the apex", (0.8, 0.2, 0.7), false),
+    ] {
+        let float = apex_cut::<f64>(0.7, 1.0, cut).expect("the cone splits");
+        let twin = apex_cut::<Interval>(0.7, 1.0, cut).expect("the cone splits at Interval");
+        assert_eq!(cone_faces(&float).len(), 2, "{what}: two halves");
+        refuses_on_a_cap_and_its_wall_holds(what, &float);
+        let at_interval = door_over(&twin, cone_faces(&twin));
+        assert!(
+            at_interval != "Crosses" && (!twin_holds || at_interval == "Embedded"),
+            "{what}: the halves at Interval: {at_interval}"
+        );
+    }
+}
+
 /// **A needle and a near-flat cone, cut, read as any cone does**: a
 /// frustum of half-angle 0.015 (radii 0.05 and 0.02 over a height of 2)
 /// and one of half-angle 1.50 (radii 2 and 0.5 over 0.1), each cut

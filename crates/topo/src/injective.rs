@@ -21247,8 +21247,8 @@ mod focal_rows {
         {
             let image = section(0.4, true);
             let b = image.beta.abs();
-            let speed = (image.v0 + image.va.abs()) * ALPHA.sin() * (1.0 + b) / (1.0 - b)
-                + image.va.abs();
+            let speed =
+                (image.v0 + image.va.abs()) * ALPHA.sin() * (1.0 + b) / (1.0 - b) + image.va.abs();
             let gap = TURN * f64::EPSILON * speed;
             assert!(
                 speed < 1.04 && gap < 1e-15,
