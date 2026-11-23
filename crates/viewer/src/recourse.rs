@@ -416,6 +416,7 @@ fn node_act(kind: &NodeErrorKind) -> NodeAct {
             },
             MateFault::PosesOfAnotherDocument { .. }
             | MateFault::NotOnTheCopy { .. }
+            | MateFault::NotTheDatumsOwn { .. }
             | MateFault::KindsDiffer { .. }
             | MateFault::NoChart { .. }
             | MateFault::Backwards { .. }

@@ -188,6 +188,8 @@ pub enum NodeErrorClass {
     MateUnpinned,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::NotOnTheCopy`].
     MateNotOnTheCopy,
+    /// [`NodeErrorKind::Mate`] carrying [`MateFault::NotTheDatumsOwn`].
+    MateNotTheDatumsOwn,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::Unleverable`].
     MateUnleverable,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::KindsDiffer`].
@@ -326,6 +328,7 @@ impl NodeErrorClass {
             MateFault::Overconstrained { .. } => Self::MateOverconstrained,
             MateFault::Unpinned { .. } => Self::MateUnpinned,
             MateFault::NotOnTheCopy { .. } => Self::MateNotOnTheCopy,
+            MateFault::NotTheDatumsOwn { .. } => Self::MateNotTheDatumsOwn,
             MateFault::Unleverable { .. } => Self::MateUnleverable,
             MateFault::KindsDiffer { .. } => Self::MateKindsDiffer,
             MateFault::SideUnevaluated { .. } | MateFault::ReadUnevaluated { .. } => {

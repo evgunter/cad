@@ -101,6 +101,7 @@ all_classes! {
     MateOverconstrained,
     MateUnpinned,
     MateNotOnTheCopy,
+    MateNotTheDatumsOwn,
     MateUnleverable,
     MateKindsDiffer,
     MateSideUnevaluated,
@@ -437,6 +438,7 @@ fn witness(class: C, tol: Tol) -> K {
             free: 2,
         }),
         C::MateNotOnTheCopy => mate(crate::MateFault::NotOnTheCopy { mate: m(9) }),
+        C::MateNotTheDatumsOwn => mate(crate::MateFault::NotTheDatumsOwn { mate: m(9) }),
         C::MateUnleverable => mate(crate::MateFault::Unleverable {
             mate: m(9),
             refusal: Box::new(crate::LeverRefusal::Reach {

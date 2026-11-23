@@ -478,6 +478,7 @@ fn every_node_shape_states_its_signature() {
         "Assemble -> [body:Body]",
         "Place -> [copy:placed]",
         "Place -> [copy:placed]",
+        "Datum -> [frame:Frame]",
         "World -> [space:Space]",
         "Space -> [space:Space]",
         "Place -> [copy:placed]",
