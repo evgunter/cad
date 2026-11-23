@@ -58,7 +58,7 @@ pub(crate) fn shared_sides(t: [Option<u32>; 3]) -> impl Iterator<Item = Side> {
 
 /// **Whether a side is used past what its chords allow**: two triangle
 /// uses per chord carrying it, two where none does. The one spelling of
-/// that rule, for the census and for [`crate::tessellate`]'s check after
+/// that rule, for the census and for `tessellate::joined`'s check after
 /// the split.
 pub(crate) const fn overused(uses: usize, chords: usize) -> bool {
     uses > 2 * if chords == 0 { 1 } else { chords }
@@ -160,7 +160,7 @@ impl Book {
 /// triangle on each side of it; on its boundary, once per traversal of the
 /// edge whose chord carries it, and a face traverses an edge at most twice
 /// (a seam). A third use is a lane's own triangulation folded over the side,
-/// a bug, which this census does not split and [`crate::tessellate`]'s check
+/// a bug, which this census does not split and `tessellate::joined`'s check
 /// after the split reports (`[failure.taxonomy]`, an internal bug).
 pub(crate) fn census(
     faces: &[(FaceKey, Vec<[Option<u32>; 3]>)],
