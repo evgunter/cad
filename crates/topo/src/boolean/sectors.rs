@@ -1083,10 +1083,10 @@ pub(super) fn junction_bound_side<T: Decide>(
         });
     };
     let in_band = |diag| BooleanError::coincidence(Coincide::Rim, read, diag);
-    if let Some(circle) = support.circle() {
-        if crate::rim_wedge::circle_is_rim(circle, rim, band).map_err(in_band)? {
-            return Ok(SideCode::On);
-        }
+    if let Some(circle) = support.circle()
+        && crate::rim_wedge::circle_is_rim(circle, rim, band).map_err(in_band)?
+    {
+        return Ok(SideCode::On);
     }
     let tangent = rim.axis.cross(p - rim.center).normalize();
     let sine = d.normalize().cross(tangent).norm();
