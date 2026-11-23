@@ -3952,6 +3952,7 @@ fn door<T: Scalar + geom_core::Certifies>(
     let side = Side {
         body,
         faces: body.faces().map(|(k, _)| k).collect(),
+        excluded: Default::default(),
     };
     let report = topo::clearance::embedded(
         &side,
@@ -4030,7 +4031,7 @@ fn a_body_that_does_not_pass_is_told_one_finding_or_another_and_never_that_it_ho
             faces.reverse();
         }
         let report = topo::clearance::embedded(
-            &Side { body, faces },
+            &Side { body, faces, excluded: Default::default() },
             band(),
             Budgets {
                 max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
@@ -4207,6 +4208,7 @@ fn a_metric_bound_reads_a_violation_past_a_refusal() {
             Side {
                 body: &plate,
                 faces,
+                excluded: Default::default(),
             }
             .windows(which)
             .expect("every face has a window")

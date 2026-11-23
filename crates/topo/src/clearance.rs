@@ -6784,6 +6784,7 @@ mod depth_rows {
         let side = Side {
             body,
             faces: faces.to_vec(),
+            excluded: Default::default(),
         };
         let windows = side.windows(Which::First).expect("each wall has a window");
         let sweep = Sweep {
@@ -7099,6 +7100,7 @@ mod depth_rows {
         let side = |body, face| Side {
             body,
             faces: vec![face],
+            excluded: Default::default(),
         };
         let (a, b) = (side(&inner, fa), side(&outer, fb));
         let xa = a.windows(Which::First).expect("a wall has a window");
@@ -7392,6 +7394,7 @@ mod first_finding_rows {
         Side {
             body,
             faces: body.faces().map(|(k, _)| k).collect(),
+            excluded: Default::default(),
         }
         .windows(Which::First)
         .unwrap()
@@ -7573,6 +7576,10 @@ mod first_finding_rows {
                 below: true,
                 above: false,
             },
+            m_after: false,
+            m_tfirst: 0,
+            m_tnear: 0,
+            m_why: 0,
         };
         assert!(q.pair(&mut walk, task, x, y).is_break(), "the walk ends");
         assert!(
