@@ -583,6 +583,8 @@ mod blend_operand_gate;
 mod blend_seam_split_rim;
 #[path = "blend_tworims.rs"]
 mod blend_tworims;
+#[path = "conic_sizes_are_decided.rs"]
+mod conic_sizes_are_decided;
 #[path = "blend_value_decided_rows.rs"]
 mod blend_value_decided_rows;
 #[path = "bool5r1_probes.rs"]

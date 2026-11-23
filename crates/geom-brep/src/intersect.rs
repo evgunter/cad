@@ -1530,12 +1530,18 @@ pub fn plane_sphere_section_read<T: Decide>(
     let gap =
         decide_reported(ROW, Margin::of(r - s.abs()), band).map_err(SectionError::Escalated)?;
     let section = match gap.sign {
-        Sign::Positive => PlaneSphereSection::Circle(Curve3::circle(
-            foot,
-            n,
-            ((r - s.abs()) * (r + s.abs())).sqrt(),
-            u_ref,
-        )),
+        Sign::Positive => {
+            // Both factors are positive under the gap's verdict. An
+            // infinite radius decides that gap positive too, and a
+            // product past the float range has no finite root: either
+            // is a poisoned read of the same row.
+            let radius = ((r - s.abs()) * (r + s.abs())).sqrt();
+            if !geom_core::is_finite_length(radius) {
+                decide(ROW, Margin::of(geom_core::width(radius)), band)
+                    .map_err(SectionError::Escalated)?;
+            }
+            PlaneSphereSection::Circle(Curve3::circle(foot, n, radius, u_ref))
+        }
         Sign::Zero => PlaneSphereSection::TangentPoint(foot),
         Sign::Negative => PlaneSphereSection::Empty,
     };

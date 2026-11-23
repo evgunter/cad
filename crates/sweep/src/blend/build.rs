@@ -265,9 +265,12 @@ fn repeated_edge_gate(edges: &[EdgeKey]) -> Result<(), BlendError> {
 /// INCOMPARABLE case is an arm and not an accident: a poisoned size is
 /// not definitely positive either, and it refuses here with the other
 /// two.
+///
+/// A size with no finite upper end is no length either: no ball has an
+/// infinite radius, and the arms would read it as one.
 fn nonpositive_size_gate<T: Bounds>(size: T) -> Result<(), BlendError> {
     match size.lo().partial_cmp(&0.0) {
-        Some(core::cmp::Ordering::Greater) => Ok(()),
+        Some(core::cmp::Ordering::Greater) if size.hi().is_finite() => Ok(()),
         _ => Err(BlendError::NonpositiveSize { size: size.lo() }),
     }
 }

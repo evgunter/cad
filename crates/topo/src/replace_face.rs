@@ -1242,6 +1242,31 @@ pub(crate) fn error_count(n: usize) -> String {
 /// ruling/nappe on the kinds whose chart normal varies with position.
 type Transported<T> = Option<(Curve3<T>, Option<Vec3<T>>)>;
 
+/// **A moved circle's radius, decided before it is stored**
+/// (`offset_moved_radius`, the size itself in metres): `Some` where it
+/// is a definitely positive finite length, `None` where it is decided
+/// not positive, and the escalation in band or on poison. A size with
+/// no finite end is poison here, read through its own width: it decides
+/// positive and is no length.
+///
+/// The surface's floor (`offset_radius_floor`) decides the moved
+/// surface's radius. A circle's is the stored circle's own radius
+/// moved, a different sum, so it is decided as the sum it is.
+pub(crate) fn moved_radius<T: Decide>(size: T, band: Band) -> Result<Option<T>, Indeterminate> {
+    let read = if geom_core::is_finite_length(size) {
+        size
+    } else {
+        geom_core::width(size)
+    };
+    Ok(
+        matches!(decide(MOVED_RADIUS, Margin::of(read), band)?, Sign::Positive)
+            .then_some(size),
+    )
+}
+
+/// K name: a moved circle's radius, as a length ([`moved_radius`]).
+const MOVED_RADIUS: &str = "offset_moved_radius";
+
 #[expect(
     clippy::disallowed_methods,
     reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
@@ -1273,11 +1298,12 @@ fn transport_curve<T: Decide>(
                 }
                 Curve3::Circle(conic_k) => {
                     let carrier_frame_40 = &conic_k.frame();
-                    let radius = conic_k.radius();
-                    Some((
-                        Curve3::Circle(geom::Circle::new(*carrier_frame_40, radius + d)),
-                        None,
-                    ))
+                    moved_radius(conic_k.radius() + d, band)?.map(|radius| {
+                        (
+                            Curve3::Circle(geom::Circle::new(*carrier_frame_40, radius)),
+                            None,
+                        )
+                    })
                 }
                 // Neither an ellipse nor a spiric lies on a cylinder.
                 Curve3::Ellipse(..) | Curve3::Spiric { .. } => None,
@@ -1318,10 +1344,16 @@ fn transport_curve<T: Decide>(
                     let frame = &circle_k.frame();
                     let v = (frame.origin() - apex).dot(axis.get()) / cos_a;
                     let v_new = v + action.shift();
+                    // A magnitude, so only its being a finite length is
+                    // open: a parallel at the apex is the point circle.
+                    let radius = (v_new * sin_a).abs();
+                    if !geom_core::is_finite_length(radius) {
+                        decide(MOVED_RADIUS, Margin::of(geom_core::width(radius)), band)?;
+                    }
                     Some((
                         Curve3::Circle(geom::Circle::new(
                             frame.with_origin(action.apex() + axis.get() * (v_new * cos_a)),
-                            (v_new * sin_a).abs(),
+                            radius,
                         )),
                         None,
                     ))
@@ -1336,7 +1368,11 @@ fn transport_curve<T: Decide>(
         Surface::Sphere { frame, radius, .. } => {
             let center = frame.origin();
             let k = (*radius + d) / *radius;
-            homothety(curve, center, k).map(|c| (c, None))
+            let moved = match curve {
+                Curve3::Circle(circle) => moved_radius(circle.radius() * k, band)?,
+                _ => None,
+            };
+            homothety(curve, center, k, moved).map(|c| (c, None))
         }
         Surface::Torus {
             frame: carrier_frame,
@@ -1371,20 +1407,26 @@ fn transport_curve<T: Decide>(
                         let cos_v = (radius - *major_radius) / *minor_radius;
                         let sin_v = (c - center).dot(axis) / *minor_radius;
                         let r_new = *minor_radius + d;
-                        Some((
-                            Curve3::Circle(geom::Circle::new(
-                                carrier_frame_39.with_origin(center + axis * (r_new * sin_v)),
-                                *major_radius + r_new * cos_v,
-                            )),
-                            None,
-                        ))
+                        // The stored parallel's own radius, moved along
+                        // its `cos v`: the size the image stores.
+                        moved_radius(radius + d * cos_v, band)?.map(|moved| {
+                            (
+                                Curve3::Circle(geom::Circle::new(
+                                    carrier_frame_39.with_origin(center + axis * (r_new * sin_v)),
+                                    moved,
+                                )),
+                                None,
+                            )
+                        })
                     } else {
                         // A meridian (tube) circle: the tube centre is
                         // fixed and the radius moves with the minor.
-                        Some((
-                            Curve3::Circle(geom::Circle::new(*carrier_frame_39, *minor_radius + d)),
-                            None,
-                        ))
+                        moved_radius(*minor_radius + d, band)?.map(|moved| {
+                            (
+                                Curve3::Circle(geom::Circle::new(*carrier_frame_39, moved)),
+                                None,
+                            )
+                        })
                     }
                 }
                 _ => None,
@@ -1448,20 +1490,25 @@ pub(crate) fn translate_curve<T: Real>(curve: &Curve3<T>, delta: Vec3<T>) -> Cur
 }
 
 /// `curve` under the homothety of ratio `k` about `c` — the sphere
-/// offset's own map.
+/// offset's own map. A circle's image takes the radius the caller
+/// decided ([`moved_radius`]), and has none where that is `None`.
 #[expect(
     clippy::disallowed_methods,
     reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
 )]
-fn homothety<T: Real>(curve: &Curve3<T>, c: Point3<T>, k: T) -> Option<Curve3<T>> {
+fn homothety<T: Real>(
+    curve: &Curve3<T>,
+    c: Point3<T>,
+    k: T,
+    moved: Option<T>,
+) -> Option<Curve3<T>> {
     let map = |p: Point3<T>| c + (p - c) * k;
     Some(match curve {
         Curve3::Circle(conic_k) => {
             let carrier_frame_38 = &conic_k.frame();
-            let radius = conic_k.radius();
             Curve3::Circle(geom::Circle::new(
                 carrier_frame_38.with_origin(map(carrier_frame_38.origin())),
-                radius * k,
+                moved?,
             ))
         }
         // A homothety is affine: the net's image, knots and weights as
@@ -6420,5 +6467,83 @@ mod corner_rows {
             Point3::new(0.0, 1.0, 0.0),
         ];
         assert_eq!(corner_apart(&points, tol, band).ok(), Some(Some(1.0)));
+    }
+}
+
+/// **A moved circle's radius is decided as the sum the image stores.**
+/// Each row's mutant is `moved_radius` answering `Ok(Some(size))`
+/// undecided, under which the row panics in `Circle::new`.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::float_cmp)]
+mod moved_radius_rows {
+    use geom::{Curve3, Surface};
+    use geom_brep::Nappe;
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    use super::transport_curve;
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    fn frame_at(z: f64) -> geom::Frame<f64> {
+        geom::Frame::new(Point3::new(0.0, 0.0, z), Vec3::unit_z(), Vec3::unit_x())
+    }
+
+    fn moved(old: &Surface<f64>, d: f64, radius: f64, z: f64) -> Result<Option<f64>, ()> {
+        let circle = Curve3::circle(Point3::new(0.0, 0.0, z), Vec3::unit_z(), radius, Vec3::unit_x());
+        let mid = Point3::new(-radius, 0.0, z);
+        transport_curve(old, Nappe::Opening, d, &circle, mid, band())
+            .map(|image| {
+                image.map(|(c, _)| match c {
+                    Curve3::Circle(c) => c.radius(),
+                    other => panic!("a circle's image is a circle: {other:?}"),
+                })
+            })
+            .map_err(|_| ())
+    }
+
+    /// A stored circle whose radius is not its cylinder's: the surface's
+    /// floor decides `1 − 0.75`, the image stores `0.5 − 0.75`.
+    #[test]
+    fn a_cylinder_circle_past_its_own_collapse_has_no_image() {
+        let cylinder = Surface::Cylinder {
+            frame: frame_at(0.0),
+            radius: 1.0,
+        };
+        assert_eq!(moved(&cylinder, -0.75, 0.5, 0.0), Ok(None), "decided not positive");
+        assert_eq!(moved(&cylinder, 0.25, 1.0, 0.0), Ok(Some(1.25)), "the control");
+        assert_eq!(moved(&cylinder, f64::INFINITY, 1.0, 0.0), Err(()), "no finite radius");
+    }
+
+    /// The homothety's ratio `(R + d)/R` overflows at a finite `d` that
+    /// the floor passes.
+    #[test]
+    fn a_sphere_circle_moved_past_the_float_range_escalates() {
+        let sphere = Surface::Sphere {
+            frame: frame_at(0.0),
+            radius: 1e-3,
+        };
+        assert_eq!(moved(&sphere, 1e306, 1e-3, 0.0), Err(()), "the ratio overflows");
+        assert_eq!(moved(&sphere, f64::INFINITY, 1e-3, 0.0), Err(()), "an infinite move");
+        assert_eq!(moved(&sphere, 1e-3, 1e-3, 0.0), Ok(Some(2e-3)), "the control");
+    }
+
+    /// A torus parallel moves by `d·cos v` from its own stored radius:
+    /// the outer equator by `d`, the inner by `−d`, the top circle not
+    /// at all; a parallel stored inside the inner equator collapses
+    /// before the tube's ring does.
+    #[test]
+    fn a_torus_parallel_moves_from_its_own_radius() {
+        let torus = Surface::Torus {
+            frame: frame_at(0.0),
+            major_radius: 1.0,
+            minor_radius: 0.25,
+        };
+        assert_eq!(moved(&torus, 0.125, 1.25, 0.0), Ok(Some(1.375)), "outer equator");
+        assert_eq!(moved(&torus, 0.125, 0.75, 0.0), Ok(Some(0.625)), "inner equator");
+        assert_eq!(moved(&torus, 0.125, 1.0, 0.25), Ok(Some(1.0)), "top circle");
+        // `cos v = (0.25 − 1)/0.25 = −3`: off the torus, and `0.25 − 3·0.125 < 0`.
+        assert_eq!(moved(&torus, 0.125, 0.25, 0.0), Ok(None), "decided not positive");
     }
 }
