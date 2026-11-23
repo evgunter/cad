@@ -994,7 +994,16 @@ table*, on the transversality rule: the plane is that of a curve whose
 plane is transversal to the surface all along that curve, and a meeting
 is kept only where it lies on both curves' own sections. A pair whose
 curves' planes both touch the surface somewhere along their curves has
-its row fixed all the same, and escalates in band there. A curve on a surface is built from chart
+its row fixed all the same, and escalates in band there. On a plane
+record, and in a sketch plane, two curves both lie in the surface, so
+no plane of either is transversal to it: they meet by the table's own
+in-plane arms (two lines; a line and a conic by the conic's distance
+from the line; two circles; two ellipses), entered with coplanarity
+given by the type that holds the pair (two edges of one plane record,
+or two segments of one sketch plane) and never read, each candidate a
+root in a parameter that is settled by its place on each span. A span
+there keeps its ends as its holder has them, a profile's stored
+vertices or a face's vertex positions. A curve on a surface is built from chart
 coordinates on a surface record: its key, and its surface as stored or
 on another chart of it. An edge carries its face's record, and the arm
 refuses a pair on two records whichever way it reads the pair. That the
@@ -1002,9 +1011,13 @@ key and the surface are one record's stays the caller's: the region
 doors and the sphere cut-in read both off one face, and the planar loop
 walk names its own premise for the ray's plane. Every consumer holding
 two curves on one surface reads that arm (the region doors' landings,
-the sphere cut-in, the planar loop walk's ray against a conic or spiric
-arc), and
-none hands the pair to `meet`.
+the sphere cut-in, the planar loop walks' rays against a line, conic or
+spiric arc, profile validation's pair pass, the at-rest
+ring-against-outer contact reading, the census's pairs on one plane
+record), and none hands the pair to `meet`. A pose proves two spans
+apart from where each can lie (its cover's distance range from the
+other carrier) before a carrier reading in the band escalates, and a
+meeting says whether it crosses or touches.
 Implemented: plane×plane, plane×sphere, sphere×sphere (rung 1);
 plane×cylinder, plane×cone (the parabola and hyperbola in closed form,
 each arc minted per window, `ConicBranch::arc`),
@@ -1200,8 +1213,21 @@ is one loop whose carrier is the whole closed curve, plane×cylinder's
 rulings are cut by the region as two parallel walls' are, a tangency
 is its touch point or tangent ruling with no carrier and the deciding
 row its verdict, and none is marched.
-Every other pair refuses: the cone pairs blocked on the cone's metres
-conversion (C2 limb 2).
+A cone against a cylinder or a cone (`ConeRuledPose`) is classified
+on the sweep along the cone's rulings over the region, both nappes at
+once: a ruling along an asymptotic direction of the partner reads its
+sheet by the root form that stays finite, the other sheet leaving the
+region as an open component with cut ends; a double root of the
+discriminant is a tangency only where the rulings' clearance ceiling
+over it is decided `Zero`, the sweep's margin being a floor on that
+clearance; and an apex on the partner is divided out of the rulings'
+quadratic, its node's arcs ending at it. Two cones through one apex,
+and two on parallel axes of one aperture, are not built here. Its
+components are the general rung's, and carrying them refuses typed,
+since no march carries them: the certificate has no cone arm at the
+march's search (C2), and the pair has no march door. A crossing
+tangency is a node, its arcs one node-joined set.
+Every other pair refuses: the cone against a sphere or a torus.
 
 The same rule governs a curve against a face. A carrier span and a face
 meet through one exhaustive `(CurveKind, SurfaceKind)` table, in the
