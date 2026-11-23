@@ -38,6 +38,7 @@ test_utils::gated_to![
     "crates/sweep/src/",
     "crates/editor-core/src/",
     "crates/editor-core/tests/corpus/",
+    "crates/editor-core/tests/fixture/",
 ];
 
 use std::collections::{BTreeMap, BTreeSet};
