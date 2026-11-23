@@ -4451,7 +4451,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "not_finished",
             "oblique_mixed_corner",
             "op",
-            "pcurve_mint",
             "radius_headroom",
             "repeated_edge",
             "ring_clearance",

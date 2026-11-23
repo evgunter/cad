@@ -113,7 +113,7 @@ use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::spline::{ProjectiveScalar, ProjectiveSplit, SplineError};
 use geom_core::{Affine3, Band, BandError, Decide, Indeterminate, Point2, Point3, Real, Tol};
 use profile::{CanonicalStructure, SketchPlane, ValidatedProfile};
-use topo::construction::{FaceSurface, MefSite, MevCreated, MevSite};
+use topo::construction::{FaceSurface, MefSite, MevSite};
 use topo::{Body, EdgeKey, EulerOpError, FaceKey, ShellKey, SolidKey};
 
 use crate::skin::{
