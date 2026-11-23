@@ -2,10 +2,11 @@
 id: a-merged-prs-queued-run-keeps-its-place-and-takes-a-runner
 kind: issue
 title: A merged PR's queued run keeps its place in the queue and takes a runner in its turn
-status: open
+status: closed
 opened: 2026-11-23
 priority: P0
 cost: E
+closed: 2026-11-23
 ---
 
 
@@ -44,3 +45,26 @@ skipped (the `gate ok` aggregator included, since it runs on
 cancels the queued run, and needs no runner itself. Check on a merged
 test PR that the queued run is cancelled and that no job of the closing
 run is given a runner.
+
+## Closed
+
+2026-11-23. `ci.yml` takes `closed` in its `pull_request` types, and
+`change filter` and `gate ok` both carry
+`github.event.action != 'closed'`; every other job either needs
+`change filter` without a status function or runs on push only.
+The concurrency group keys a PR's runs by
+`refs/pull/<number>/merge` rather than `github.ref`, because on a
+merge's `closed` event `github.ref` is the base branch (GitHub's
+"Events that trigger workflows", `pull_request`): keyed by
+`github.ref`, a merge's closing run would have missed the PR's queued
+run and cancelled the base branch's push run instead.
+
+Checked on two throwaway PRs into a scratch base branch, each with its
+CI run queued:
+
+- PR 7568, closed unmerged: queued run 45186987383 went `cancelled`;
+  the closing run 45187054836 concluded `skipped`, 14 jobs all
+  `skipped`, none with a runner.
+- PR 7569, merged into the scratch base: queued run 45186999888 went
+  `cancelled`; the closing run 45187067846 concluded `skipped`, 14
+  jobs all `skipped`, none with a runner.

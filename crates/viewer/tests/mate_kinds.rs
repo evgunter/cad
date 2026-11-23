@@ -589,7 +589,7 @@ fn a_frame_mated_on_a_frame_coincides() {
         .expect("two frames propose");
     let mate = &proposal.mates[0].mate;
     assert!(
-        matches!(&mate.on, Operand::Pose(def) if matches!(**def, PoseDef::Through { .. })),
+        matches!(&mate.on.read, Operand::Pose(def) if matches!(**def, PoseDef::Through { .. })),
         "the on side is a frame through an axis and a point: {:?}",
         mate.on
     );
