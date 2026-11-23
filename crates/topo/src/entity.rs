@@ -184,11 +184,9 @@ new_key_type! {
 /// material from outside versus which bound internal voids — is
 /// **not stored**: the shell list carries no designation and this
 /// structure does not enforce one. It is DERIVED from orientation
-/// wherever it is needed, by one reader (`props::shell_role`): a
-/// solid's only shell is outer by arity; any other is read off the side
-/// at infinity its faces leave, by a ray aimed at one from beyond the
-/// shell, and off the sign of its signed volume only where no aim
-/// reads.
+/// wherever it is needed, as a [`crate::ShellRole`]: from the side at
+/// infinity the shell's faces leave, with its signed volume as the
+/// fallback.
 ///
 /// A `SolidKey` is not a `ShellKey` — a solid's shell list rejects keys
 /// of any other kind at compile time:

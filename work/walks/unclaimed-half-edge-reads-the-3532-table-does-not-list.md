@@ -1,7 +1,7 @@
 ---
 id: unclaimed-half-edge-reads-the-3532-table-does-not-list
 kind: issue
-title: a half-edge its own edge does not claim is read as its minus half: 27 sites no row lists
+title: a half-edge its own edge does not claim is read as its minus half: 26 sites no row lists
 status: open
 opened: 2026-11-22
 priority: P3
@@ -18,9 +18,7 @@ a half neither slot holds as the other half — a **direction** read
 (`edge.he_plus == he` calls it the minus half), a **mate** ladder
 (`if e.he_plus == he { e.he_minus } else { e.he_plus }` hands back a
 half that is not its mate), a **claim filter** (`if edge.he_plus == he
-{ push }` drops an edge neither of whose walked halves it claims) or a
-**write** ladder (`if e.he_plus == old { e.he_plus = new } else {
-e.he_minus = new }` overwrites the wrong slot). On a tier-1 body the
+{ push }` drops an edge neither of whose walked halves it claims). On a tier-1 body the
 state cannot occur; the site answers wrongly only where the body is
 torn, and none of them refuses.
 
@@ -50,7 +48,6 @@ along and may be stale:
 - `crates/topo/src/clearance.rs` the edge uses (~:3902), direction
 - `crates/topo/src/star/walk.rs` `departure` (~:458), direction
 - `crates/topo/src/validate.rs` `mate` (~:9366), mate; `side` (~:9387), direction
-- `crates/topo/src/movefac.rs` `trade_mates` (~:923), write
 - `crates/sweep/src/blend/surgery.rs` the mate trims (~:5872), mate
 - `crates/sweep/src/revolve/full.rs` `unslit_plane_wall` (~:1179), mate
 
@@ -63,8 +60,22 @@ As the sibling rows: read the pairing through `Edge::claim`
 (`crates/topo/src/entity.rs`) — inside `topo`, `crate::live::claimed`
 where a miss is a broken premise (it panics naming the half-edge and
 the edge), or the site's own typed refusal where the site already
-answers corruption as an error. Outside `topo`, `Body::mate` is public
-and `None` on an unclaimed half; there is no public direction reading.
+answers corruption as an error.
+
+Give the direction reading one home in `crate::live`, beside
+`claimed`: today `pcurves/mint.rs` `is_plus` and `spline_trim.rs`
+`walks_forward` answer the same question ("does the loop walk `he`'s
+edge forward?") separately, and most sites above ask it again by hand.
+
+Four sites spell `claimed` itself by hand (`claim(he)`, then an
+`unreachable!` naming the records), and move onto it:
+`euler.rs` `mate_of` (~:4631), `merge_faces.rs` `outermost_survivor`
+(~:2289) and `merge_group` (~:2751), `loop_winding.rs`
+`winding_of_halves` (~:372).
+
+The two `sweep` sites need a public direction reading: `Edge::claim`
+is `pub(crate)`, and `Body::mate` (public, `None` on an unclaimed
+half) answers the mate but not the side. This row owns adding it.
 
 ## The sweep
 
@@ -81,6 +92,7 @@ code (`tier3_tests.rs`, `review_m1_pr4.rs` five, `review_d18.rs`,
 `split.rs` prose, `vtxfac_spline_rows.rs`, `validate.rs`
 `closed_arc_pinch`, `splitting/finish.rs` `section_edge`,
 `euler_kill.rs`, `revert.rs` and `merge_faces.rs`' tear hooks,
+`movefac.rs` `trade_mates` (in its `#[cfg(test)] mod tests`),
 `side_reader.rs` `edge_frames`, `sweep` `blend/reach.rs`).
 
 What it cannot match: a slot bound to a local before it is compared,

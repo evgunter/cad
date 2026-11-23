@@ -94,6 +94,6 @@ PR 7418: `pcurves/mint.rs` `is_plus` reads `crate::live::claimed(..).plus`,
 which panics naming the half-edge and its edge on an unclaimed half;
 `props.rs` `run_edges` reads `Edge::claim` and answers an unclaimed
 half with its own `LoopEdgesError::Corrupt`, as every other miss in
-that function does. Re-running the sweep found 27 production sites no
+that function does. Re-running the sweep found 26 production sites no
 row's table lists; they are filed as
 `unclaimed-half-edge-reads-the-3532-table-does-not-list`.

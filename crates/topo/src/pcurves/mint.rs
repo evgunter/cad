@@ -1889,6 +1889,8 @@ pub fn mint_pcurves<T: AtRestPolicy>(body: &mut Body<T>, tol: Tol) -> Result<(),
 /// all about the rest of the map. The simultaneous offset doors are
 /// exactly that caller: they perform no topological surgery, so no
 /// half-edge of theirs ever dies and the two statements coincide.
+/// `join_edges_within` kills half-edges, and drops their rows
+/// (`drop_rows`) before this pass, which brings it to the same case.
 /// Pinned by `sweep`'s `shell10_r1_probes` and `shell10_r2_probes`,
 /// which kill a half-edge through the public `kef` and count what each
 /// pass leaves.
