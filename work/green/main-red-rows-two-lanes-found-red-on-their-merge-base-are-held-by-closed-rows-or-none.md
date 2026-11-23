@@ -2,10 +2,11 @@
 id: main-red-rows-two-lanes-found-red-on-their-merge-base-are-held-by-closed-rows-or-none
 kind: issue
 title: Main red: rows two lanes found red on their merge base at the default eps are held by closed rows, by rows that say 1e-12, or by none
-status: open
+status: done
 opened: 2026-11-22
 priority: P0
 cost: E
+pr: 7400
 ---
 
 
@@ -79,3 +80,10 @@ fixture has no blend: a block, a pocket and a moat extruded, subtracted
 and split. The placed-and-moved name guard on the same fixture
 (`the_kite_moats_cuts_name_alike_placed_and_moved`) is green before and
 after. So the new reading is right, and it is re-blessed.
+
+## Closed (GREEN orchestrator, 2026-11-22)
+
+Every red the reports listed is now held by a live row that names it,
+or is green on main, or is re-blessed here (the table above). PR 7400's
+STYLE review confirmed the kite moat's move is spelling only, by
+dumping the digest's chunks on both sides of PR 7131.
