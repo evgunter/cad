@@ -83,11 +83,15 @@
 //! vouched for; `None` where stale) and [`Body::edge_views`]. The curve
 //! hop is a link, so it panics on a torn body (D2 row 4); null
 //! scaffolding is the one absence [`EdgeView::certified`] answers. The
-//! curve arena is read raw only by a reader that reports a miss itself:
-//! `validate`'s `certified_carrier` and the raw mass-properties door's
-//! `props::run_edges`, beside [`Body::get_curve_geom`], the public
-//! curve-keyed read, and `transform`'s arena remap, which rewrites curve
-//! keys rather than reading an edge's.
+//! curve arena is read raw only by a reader that refuses or reports its
+//! own miss on a body tier 1 has not vouched for (the validator's
+//! `certified_carrier`, its tier-2 and tier-3 reads and `wraps`, the
+//! census's tangent read, the raw mass-properties door's
+//! `props::run_edges`, mesh's one `walk::edge_curve`), beside
+//! [`Body::get_curve_geom`], the public curve-keyed read, and
+//! `transform`'s arena remap, which rewrites curve keys rather than
+//! reading an edge's; this module's
+//! `production_reads_an_edges_curve_only_through_the_view` lists them.
 use crate::body::{Body, CYCLES_ARE_CLAIMANTS};
 use crate::entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
