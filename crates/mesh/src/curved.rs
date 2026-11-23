@@ -625,17 +625,17 @@ fn correction_point(
     let middle = |k: usize| {
         let j = (k + 1) % 3;
         (
-            f64::midpoint(uv[k][0], uv[j][0]),
-            f64::midpoint(uv[k][1], uv[j][1]),
+            geom::mid_param(uv[k][0], uv[j][0]),
+            geom::mid_param(uv[k][1], uv[j][1]),
         )
     };
     let sag = |k: usize| {
         let (a, b) = (p[k], p[(k + 1) % 3]);
         let (u, v) = middle(k);
         let s = surface.eval(u, v);
-        ((s.x - f64::midpoint(a.x, b.x)).powi(2)
-            + (s.y - f64::midpoint(a.y, b.y)).powi(2)
-            + (s.z - f64::midpoint(a.z, b.z)).powi(2))
+        ((s.x - geom::mid_param(a.x, b.x)).powi(2)
+            + (s.y - geom::mid_param(a.y, b.y)).powi(2)
+            + (s.z - geom::mid_param(a.z, b.z)).powi(2))
         .sqrt()
     };
     match (0..3)

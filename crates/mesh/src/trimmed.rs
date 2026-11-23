@@ -1027,8 +1027,8 @@ impl TrimmedFace<'_> {
             let j = (k + 1) % 3;
             match plane {
                 CdtPlane::Lattice { .. } => (
-                    f64::midpoint(uv[k][0], uv[j][0]),
-                    f64::midpoint(uv[k][1], uv[j][1]),
+                    geom::mid_param(uv[k][0], uv[j][0]),
+                    geom::mid_param(uv[k][1], uv[j][1]),
                 ),
                 // The side's middle in the development, read back to the
                 // chart as the inside point is: of the triangle that is
@@ -1036,8 +1036,8 @@ impl TrimmedFace<'_> {
                 // end that is no apex.
                 CdtPlane::Development { .. } => {
                     let m = SpadePoint::new(
-                        f64::midpoint(at[k].x, at[j].x),
-                        f64::midpoint(at[k].y, at[j].y),
+                        geom::mid_param(at[k].x, at[j].x),
+                        geom::mid_param(at[k].y, at[j].y),
                     );
                     let near = if apex[k] { uv[j] } else { uv[k] };
                     Self::inside_point(plane, &[near; 3], [m; 3], [false; 3])
@@ -1048,9 +1048,9 @@ impl TrimmedFace<'_> {
             let (a, b) = (p[k], p[(k + 1) % 3]);
             let (u, v) = middle(k);
             let s = surface.eval(u, v);
-            ((s.x - f64::midpoint(a.x, b.x)).powi(2)
-                + (s.y - f64::midpoint(a.y, b.y)).powi(2)
-                + (s.z - f64::midpoint(a.z, b.z)).powi(2))
+            ((s.x - geom::mid_param(a.x, b.x)).powi(2)
+                + (s.y - geom::mid_param(a.y, b.y)).powi(2)
+                + (s.z - geom::mid_param(a.z, b.z)).powi(2))
             .sqrt()
         };
         match (0..3)
