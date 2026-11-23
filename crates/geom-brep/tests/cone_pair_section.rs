@@ -492,7 +492,7 @@ fn a_rod_through_the_cone_cuts_two_loops() {
 /// **A fat steep wall about the apex cuts one loop round each nappe**: the
 /// axis leans `0.3` rad off `z` through `(0.1, 0, 0)`, radius `1`. The
 /// discriminant is positive round the whole turn, so each sheet is one
-/// loop, on the nappe its `t` keeps, and each winds about the cone. A
+/// loop, on the nappe its `t` keeps, and each winds about both. A
 /// sweep reading one sheet, or both on one nappe: red.
 #[test]
 fn a_fat_steep_wall_cuts_one_loop_round_each_nappe() {
@@ -515,7 +515,11 @@ fn a_fat_steep_wall_cuts_one_loop_round_each_nappe() {
         .unwrap()
         .iter()
         .map(|c| {
-            assert_eq!(c.winds, [true, false], "each loop winds about the cone");
+            assert_eq!(
+                c.winds,
+                [true, true],
+                "each loop winds about the cone and the wall"
+            );
             c.witness.unwrap().z > 0.0
         })
         .collect();
@@ -1137,6 +1141,9 @@ fn windings(
     forward
 }
 
+/// A pose, the region it is read over, and its loops' claimed windings.
+type WindingRow = (&'static str, Surface<f64>, ExtentBall<f64>, Vec<[bool; 2]>);
+
 /// **A loop round the partner claims its winding there**: each pose's
 /// loops claim the winding about the partner that `topo`'s
 /// `section_cert_cone_pair_rows` reads off its second chart, and which
@@ -1149,7 +1156,7 @@ fn windings(
 #[test]
 fn a_loop_round_the_partner_claims_its_winding_there() {
     let cone = unit_cone();
-    let rows: [(&str, Surface<f64>, ExtentBall<f64>, Vec<[bool; 2]>); 8] = [
+    let rows: [WindingRow; 8] = [
         (
             "the rod through the cone",
             cylinder(p(0.0, 0.0, 1.0), Vec3::unit_x(), 0.2),
