@@ -2,10 +2,11 @@
 id: rustfmt-does-not-reach-a-macro-wrapped-declaration-block
 kind: issue
 title: rustfmt does not format a macro invocation's body, so a macro-wrapped declaration block has no formatting gate
-status: open
+status: closed
 opened: 2026-09-13
 priority: P4
 cost: E
+closed: 2026-11-22
 ---
 
 
@@ -67,3 +68,7 @@ Either way the number wants measuring first.
 ## Re-homed to CIW (2026-09-28)
 
 Moved from MIRROR when it left the tracker (`docs/doc-ledger/mirror-and-blind-leave-the-tracker.md`); its subject is CIW's ground.
+
+## Closed
+
+2026-11-22, CIW triage (not worth its latency). The only fix that adds a check is a gate that extracts and formats macro bodies. That gate would sit in the lint job's gates step, which already takes 5–11 min on every PR. Drift there is visible in the diff (the row says so). No incident of harmful drift is recorded since filing (2026-09-13). Disclosure at each site is already the practice (`crates/editor-core/src/program.rs:156-162`, `crates/viewer/src/vocab.rs:74-94`).

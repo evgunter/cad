@@ -2402,12 +2402,17 @@ impl<T: Decide> Level<'_, T> {
         (gx.powi(2) + gy.powi(2)).sqrt()
     }
 
-    /// A bound on `|F⁗|` over every angle. Each of `X` and `Y` is
-    /// `x₀ + ρ·cos(θ − φ)`, so `X²`'s first and second harmonics have
-    /// amplitudes `2|x₀|ρ` and `ρ²/2`, and `|(X²)⁗| ≤ 2|x₀|ρ + 8ρ²`; `x₀`
-    /// is the mean of `X` at two antipodal points of `a`, each read by `b`
-    /// from the point it stores. A sum of non-negative terms, raised past
-    /// its roundings ([`up`]).
+    /// A bound on `|F⁗|` over every angle, read with no centre. Each of
+    /// `X` and `Y` is `x₀ + ρ·cos(θ − φ)`, so its derivatives are each at
+    /// most `ρ` and `X⁗ = X − x₀`: `|(X²)⁗| = 2|X·X⁗ + 4X′X‴ + 3X″²| ≤
+    /// 2ρ(|X| + 7ρ)`. Over `a`, `X` moves by at most `2ρ` from its value at
+    /// any one point, here `a(0)`, where `b` reads it from the point it
+    /// stores as its level's gradient `2X/A²` ([`Conic::level_at`]): so
+    /// each side is at most `|∂F/∂X|·ρ + 18ρ²/A²`. Raised past its
+    /// roundings ([`up`]): the gradient's nine (a dot product's five, the
+    /// unit offset's division and sum, its doubling and division), `ρ`'s
+    /// fourteen (two dot products, two squares, a sum, a root), the side's
+    /// five and the square's one, and the sum's one: 30, under 32.
     pub(super) fn fourth(&self) -> T {
         self.fourth
     }
@@ -2430,26 +2435,21 @@ pub(super) fn level_on<'k, T: Decide>(ka: &'k dyn Conic<T>, kb: &'k dyn Conic<T>
     let (big_a, big_b) = kb.semi_axes();
     let (ub, vb) = (kb.u_ref(), kb.v_ref());
     let (ua, va) = (ka.u_ref() * ka.semi_axes().0, ka.v_ref() * ka.semi_axes().1);
-    // `a`'s centre in `b`'s frame, the mean of two antipodal points of
-    // `a`: `(x₀/A, y₀/B)`.
-    let ((u0, v0), (u1, v1)) = (
-        kb.unit_in_plane(ka.point_at(T::zero())),
-        kb.unit_in_plane(ka.point_at(T::pi())),
-    );
-    let half = T::from_f64(0.5);
-    let centre = ((u0 + u1) * half * big_a, (v0 + v1) * half * big_b);
+    // `F`'s gradient at a point of `a`, read by `b` from the point it
+    // stores: `(2X/A², 2Y/B²)` there.
+    let (_, (gx, gy)) = kb.level_at(ka.point_at(T::zero()));
     let squares = (big_a.powi(2), big_b.powi(2));
-    let (two, eight) = (T::from_f64(2.0), T::from_f64(8.0));
-    let side = |axis: Vec3<T>, x0: T, square: T| {
+    let eighteen = T::from_f64(18.0);
+    let side = |axis: Vec3<T>, g: T, square: T| {
         let rho = (ua.dot(axis).powi(2) + va.dot(axis).powi(2)).sqrt();
-        (two * x0.abs() * rho + eight * rho.powi(2)) / square
+        g.abs() * rho + eighteen * rho.powi(2) / square
     };
     Level {
         a: ka,
         b: kb,
         axes: (ub, vb),
         squares,
-        fourth: up::<32, _>(side(ub, centre.0, squares.0) + side(vb, centre.1, squares.1)),
+        fourth: up::<32, _>(side(ub, gx, squares.0) + side(vb, gy, squares.1)),
     }
 }
 

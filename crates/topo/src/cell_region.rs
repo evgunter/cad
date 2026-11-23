@@ -358,15 +358,15 @@ pub(crate) fn lift_boundary<T: Decide + CertifiedBounds>(
         stops.push(BoundaryStop::Vertex(
             body.member_point(&member).map(Interval::from_certified),
         ));
-        let BoundaryMember::Edge { ek, edge: e, .. } = member else {
+        let BoundaryMember::Edge { edge: e, .. } = member else {
             continue;
         };
-        if on_face(e.he_plus) && on_face(e.he_minus) {
+        if on_face(e.record().he_plus) && on_face(e.record().he_minus) {
             continue;
         }
         // Null scaffolding has no carrier: its locus is its vertex, read
         // above.
-        let Some(curve) = body.edge_curve_linked(ek, e).certified() else {
+        let Some(curve) = e.certified() else {
             continue;
         };
         let (t0, t1) = curve.params();

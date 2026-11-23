@@ -307,7 +307,7 @@ use crate::attach::Rechart;
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, VertexKey};
 use crate::geometry::SurfaceKey;
-use crate::live::{linked, proven};
+use crate::live::proven;
 use crate::offset_restate::chart_moves;
 use crate::offset_together::{ChartMove, unmoved_in_scope, unplaced_in_scope};
 use crate::replace_face::ReplaceFaceError;
@@ -578,7 +578,8 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
     // generator pair where the plane holds the moved apex, and a
     // hyperbola where it stands off it. Read here, before any corner is
     // solved, so a section the pose leaves undecided refuses first.
-    for (edge, edge_data) in body.edges() {
+    for view in body.edge_views() {
+        let (edge, edge_data) = (view.key(), view.record());
         if !scope.holds_edge(edge) {
             continue;
         }
@@ -595,20 +596,14 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
         }
         // The edge stage refuses a moved edge with no carrier in these
         // words too; it is refused here so that it never reaches a solve.
-        if body
-            .edge_curve_linked(edge, edge_data)
-            .certified()
-            .is_none()
-        {
+        if view.certified().is_none() {
             return Err(ReplaceFaceError::CarrierLaneUnsupported {
                 edge,
                 what: "it has no curve to move",
             });
         }
-        let region = crate::replace_face::region_reach(
-            edge,
-            crate::cover::edge_cover_linked(body, edge, edge_data),
-        )?;
+        let region =
+            crate::replace_face::region_reach(edge, crate::cover::edge_cover_linked(body, view))?;
         let section = cone_cap_section(edge, cone, cap, &region, band)?;
         cone_sections.insert(edge, section);
     }
@@ -714,7 +709,8 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
     // ---- Decide: every edge's carrier and description. ----
     let mut specs: Vec<(EdgeKey, EdgeCurveSpec<T>)> = Vec::new();
     let mut conic_arcs: Vec<(EdgeKey, geom_brep::OpenConic)> = Vec::new();
-    for (edge, edge_data) in body.edges() {
+    for view in body.edge_views() {
+        let (edge, edge_data) = (view.key(), view.record());
         if !scope.holds_edge(edge) {
             continue;
         }
@@ -731,7 +727,7 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
         let old_point =
             |v: VertexKey| body.point_of(v, proven(&body.vertices, v, EntityId::Vertex));
         let (q_start, q_end) = (old_point(start), old_point(end));
-        let Some(curve) = body.edge_curve_linked(edge, edge_data).certified() else {
+        let Some(curve) = view.certified() else {
             return Err(ReplaceFaceError::CarrierLaneUnsupported {
                 edge,
                 what: "it has no curve to move",
@@ -1243,14 +1239,8 @@ fn corner_arms<T: Decide>(
     let mut out = Vec::new();
     for he in body.vertex_orbit_linked(vertex) {
         let key = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
-        let edge = linked(
-            &body.edges,
-            key,
-            EntityId::Edge,
-            EntityId::HalfEdge(he),
-            "edge",
-        );
-        let Some(curve) = body.edge_curve_linked(key, edge).certified() else {
+        let edge = body.linked_edge(key, EntityId::HalfEdge(he), "edge");
+        let Some(curve) = edge.certified() else {
             return Err(ReplaceFaceError::CarrierLaneUnsupported {
                 edge: key,
                 what: "it has no curve to move",
@@ -3357,7 +3347,6 @@ mod tests {
         let undecided = Indeterminate {
             margin: MarginDiag::value(5e-9),
             band: Band::new(1e-9, 1e-8).unwrap(),
-            // UNDECIDED-NAME: the in-band cause this row's escalations carry
             predicate: Some("ssi_tube_one_arc"),
             terminal_sliver: false,
         };

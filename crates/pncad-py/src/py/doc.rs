@@ -337,7 +337,7 @@ pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
             word(crate::tags::distribution_fault_tag(fault)),
             none(),
             none(),
-            text(&p.to_string()),
+            text(&pncad::document::sentence!(pncad::document::Speaker::TAG.var(p)).to_string()),
             none(),
             none(),
             none(),
@@ -357,7 +357,7 @@ pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
             none(),
             none(),
             none(),
-            text(&p.to_string()),
+            text(&pncad::document::sentence!(pncad::document::Speaker::TAG.var(p)).to_string()),
             dim(*measures),
             dim(*was),
             none(),
@@ -649,7 +649,7 @@ fn profile_of<'d>(doc: &'d d::ProfileDoc, node: &NodeId) -> PyResult<&'d d::Prof
         Some(d::Node::Profile(program)) => Ok(program),
         _ => Err(pyo3::exceptions::PyValueError::new_err(format!(
             "{} is not a profile",
-            doc.spoken(node.0)
+            pncad::document::sentence!(pncad::document::Speaker::TAG.mention(&doc.spoken(node.0)))
         ))),
     }
 }
@@ -1086,7 +1086,9 @@ impl Doc {
                 {
                     return Err(pyo3::exceptions::PyTypeError::new_err(format!(
                         "{} is an operation's output of kind {}, which no expression reads",
-                        self.inner.spoken_var(var),
+                        pncad::document::sentence!(
+                            pncad::document::Speaker::TAG.var(&self.inner.spoken_var(var))
+                        ),
                         held.kind()
                     )));
                 }
@@ -1347,7 +1349,9 @@ impl Doc {
                 .collect()),
             None => Err(pyo3::exceptions::PyValueError::new_err(format!(
                 "{} is not a loft",
-                self.inner.spoken(loft.0)
+                pncad::document::sentence!(
+                    pncad::document::Speaker::TAG.mention(&self.inner.spoken(loft.0))
+                )
             ))),
         }
     }
@@ -1420,7 +1424,9 @@ impl Doc {
             .map_err(|refusal| {
                 pyo3::exceptions::PyValueError::new_err(format!(
                     "{} has no pieces under the current values: {refusal}",
-                    self.inner.spoken(profile.0)
+                    pncad::document::sentence!(
+                        pncad::document::Speaker::TAG.mention(&self.inner.spoken(profile.0))
+                    )
                 ))
             })?;
         pieces
@@ -1430,14 +1436,14 @@ impl Doc {
             .collect()
     }
 
-    /// **The placements**, in document order: every `Place` and
-    /// `InstantiatePart` node — the nodes whose copies a bundle of
-    /// constraints places, into the world or another space
-    /// (`Doc.space`). Which body is the product is the product slot's
-    /// (`Doc.set_product`), never derived from these.
+    /// **The placements**, in document order: every node that holds a
+    /// bundle of constraints — each `Place` and `InstantiatePart`, whose
+    /// copies it places, and each datum, whose frame it places — into the
+    /// world or another space (`Doc.space`). Which body is the product is
+    /// the product slot's (`Doc.set_product`), never derived from these.
     ///
-    /// Written through `place` and `Node.instantiate_part`, and through
-    /// nothing else: no edit places as a side effect.
+    /// Written through `place`, `Node.instantiate_part` and `Node.datum`,
+    /// and through nothing else: no edit places as a side effect.
     fn placements(&self) -> Vec<NodeId> {
         self.inner.placements().into_iter().map(NodeId).collect()
     }
@@ -1470,24 +1476,22 @@ impl Doc {
                 },
             ));
         };
-        match node.authored(&self.inner) {
-            d::Node::Place { constraints, .. } | d::Node::InstantiatePart { constraints, .. } => {
-                constraints
-                    .into_iter()
-                    .map(|c| {
-                        let at = super::mate::MateRef(d::MateRef::new(placement.0, c.id));
-                        let held = match c.kind {
-                            d::ConstraintKind::Mate(mate) => {
-                                Py::new(py, super::mate::Mate(mate))?.into_any()
-                            }
-                            d::ConstraintKind::Value(value) => {
-                                Py::new(py, super::mate::MateValue(value))?.into_any()
-                            }
-                        };
-                        Ok((at, held))
-                    })
-                    .collect()
-            }
+        match node.authored(&self.inner).bundle().map(<[_]>::to_vec) {
+            Some(constraints) => constraints
+                .into_iter()
+                .map(|c| {
+                    let at = super::mate::MateRef(d::MateRef::new(placement.0, c.id));
+                    let held = match c.kind {
+                        d::ConstraintKind::Mate(mate) => {
+                            Py::new(py, super::mate::Mate(mate))?.into_any()
+                        }
+                        d::ConstraintKind::Value(value) => {
+                            Py::new(py, super::mate::MateValue(value))?.into_any()
+                        }
+                    };
+                    Ok((at, held))
+                })
+                .collect(),
             _ => Err(edit_err(
                 py,
                 &d::EditError::ConstraintOnNonPlacement {
@@ -1656,7 +1660,7 @@ impl Doc {
                 };
                 let message = format!(
                     "{}. Recourse: ask for the kind of a node this document holds",
-                    err.problem()
+                    pncad::document::Said(&err.problem(), pncad::document::Speaker::TAG).sentence()
                 );
                 edit_err_saying(py, &err, message)
             })
@@ -1907,7 +1911,7 @@ impl Doc {
             };
             if let Some(other) = self
                 .inner
-                .placements()
+                .copies()
                 .into_iter()
                 .find(|&placement| reads(placement) && !named.contains(&placement))
             {
@@ -2158,7 +2162,7 @@ impl Doc {
             };
             let message = format!(
                 "{}. Recourse: ask for the label of a node this document holds",
-                err.problem()
+                pncad::document::Said(&err.problem(), pncad::document::Speaker::TAG).sentence()
             );
             return Err(edit_err_saying(py, &err, message));
         }
@@ -2281,7 +2285,9 @@ impl Doc {
             Some(var) => Ok(Some(Var::of(&self.inner, var))),
             None => Err(pyo3::exceptions::PyValueError::new_err(format!(
                 "{} defines {} port(s), so it has no port {port}",
-                self.inner.spoken(node.0),
+                pncad::document::sentence!(
+                    pncad::document::Speaker::TAG.mention(&self.inner.spoken(node.0))
+                ),
                 signature.len()
             ))),
         }
@@ -3407,6 +3413,30 @@ impl Node {
             target.read(),
             super::mate::bundle(constraints),
         )
+    }
+
+    /// **A datum** (D10 `[placement.datums]`): a placement whose source
+    /// is nothing, placing a bare frame into `target` (`Doc.place`'s
+    /// space) by `constraints`, written whole as `Node.place`'s are.
+    /// `None` stands the frame at the space's origin, by the identity
+    /// bundle. Its one output is the frame (`Doc.output(node)`): read a
+    /// plane or an axis off it through a role (`RoleRead(frame, "xy")`).
+    /// A mate of its bundle reads the datum's own frame on its `on`
+    /// side, plainly or through its `"xy"` plane, `"z"` axis or
+    /// `"origin"`, so it is written once the datum is
+    /// (`DocEdit.set_constraints`); any other `on` refuses
+    /// `mate_not_the_datums_own`.
+    #[staticmethod]
+    #[pyo3(signature = (target, constraints=None))]
+    fn datum(
+        py: Python<'_>,
+        target: SpaceArg,
+        constraints: Option<super::mate::BundleArg>,
+    ) -> PyResult<Self> {
+        let constraints = constraints.map_or_else(|| d::stand().bundle(), super::mate::bundle);
+        let inner = d::Node::datum(target.read(), constraints);
+        Self::check_slots(py, &inner)?;
+        Ok(Self { inner })
     }
 
     /// **A space of its own**, reading nothing: a target a placement

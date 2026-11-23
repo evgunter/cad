@@ -113,7 +113,9 @@ crates/geom-brep/tests/review_r1_rational_probes.rs	test	1	oracle
 crates/geom-brep/tests/span_reach_hunt.rs	test	1	oracle
 crates/geom-brep/tests/tori_coincide.rs	test	1	oracle
 crates/geom-brep/tests/torus_doors_ssi.rs	test	1	oracle
-crates/geom/src/cover/tests.rs	test	5	oracle
+crates/geom/src/cover/tests.rs	test	6	oracle
+crates/geom/src/cover/tests/held_arc_rows.rs	test	3	oracle
+crates/geom/src/cover/tests/held_arc_sweep.rs	test	2	oracle
 crates/geom/src/curves.rs	test	3	oracle
 crates/geom/src/curves/conic.rs	prod	17	far-centre
 crates/geom/src/curves/conic.rs	test	9	oracle
@@ -229,7 +231,7 @@ crates/topo/src/props.rs	prod	2	re-pose
 crates/topo/src/props.rs	test	2	oracle
 crates/topo/src/props/quad_lane.rs	test	1	oracle
 crates/topo/src/ring_path.rs	prod	2	far-centre
-crates/topo/src/ring_path.rs	test	3	oracle
+crates/topo/src/ring_path.rs	test	2	oracle
 crates/topo/src/ring_path/graze_rows.rs	test	4	oracle
 crates/topo/src/separating.rs	test	1	oracle
 crates/topo/src/separation.rs	prod	1	re-pose

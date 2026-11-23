@@ -1,12 +1,13 @@
 # Listed functions per file that read a conic's centre frame
 # (scripts/gates/conic-centre-reads.sh). A pin only falls.
+crates/editor-core/src/mate/reach.rs 1
 crates/geom-brep/src/carrier_net.rs 1
 crates/geom-brep/src/certify.rs 1
 crates/geom-brep/src/curve_face/circle_torus.rs 2
 crates/geom-brep/src/curve_face/conic_oracle/exact.rs 1
 crates/geom-brep/src/curve_face/conic_quadric.rs 1
 crates/geom-brep/src/curve_face/spline_face.rs 1
-crates/geom-brep/src/curve_pair/on_surface.rs 2
+crates/geom-brep/src/curve_pair/on_surface.rs 3
 crates/geom-brep/src/curve_pair/pose.rs 1
 crates/geom-brep/src/edge_nurbs.rs 1
 crates/geom-brep/src/implicit.rs 8
@@ -17,7 +18,7 @@ crates/geom-brep/src/pcurve_cache.rs 5
 crates/geom-brep/src/props/curved.rs 11
 crates/geom-brep/src/tangent.rs 1
 crates/geom/src/cover.rs 1
-crates/geom/src/curves.rs 4
+crates/geom/src/curves.rs 3
 crates/geom/src/curves/on_carrier.rs 2
 crates/geom/src/pole_form.rs 1
 crates/mesh/src/sizing.rs 1
@@ -29,14 +30,14 @@ crates/step-import/src/on_built.rs 3
 crates/sweep/src/blend/arms.rs 2
 crates/sweep/src/blend/battery.rs 2
 crates/sweep/src/blend/junction.rs 2
-crates/sweep/src/blend/open/end_face.rs 5
+crates/sweep/src/blend/open/end_face.rs 6
 crates/sweep/src/blend/reach.rs 1
 crates/sweep/src/blend/surgery.rs 7
 crates/sweep/src/swept.rs 1
 crates/sweep/src/test_support.rs 2
 crates/topo/src/boolean/join.rs 4
 crates/topo/src/boolean/ops.rs 2
-crates/topo/src/boolean/vtxfac.rs 1
+crates/topo/src/boolean/trace.rs 1
 crates/topo/src/census/depth_gap.rs 1
 crates/topo/src/chart_iso.rs 1
 crates/topo/src/contain.rs 1
@@ -46,7 +47,8 @@ crates/topo/src/readback.rs 1
 crates/topo/src/region.rs 3
 crates/topo/src/replace_face.rs 3
 crates/topo/src/rim_wedge.rs 4
-crates/topo/src/ring_path.rs 9
+crates/topo/src/ring_path.rs 8
+crates/topo/src/separating.rs 1
 crates/topo/src/shell.rs 1
 crates/topo/src/solid_contain.rs 2
 crates/topo/src/splitting/section.rs 1
@@ -54,5 +56,4 @@ crates/topo/src/splitting/section_loops.rs 3
 crates/topo/src/stands.rs 1
 crates/topo/src/surface_group.rs 2
 crates/topo/src/test_support_fixtures.rs 1
-crates/topo/src/torus_region.rs 1
 crates/topo/src/validate.rs 3

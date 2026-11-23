@@ -4,6 +4,7 @@ kind: issue
 title: Declaring any module named like one on a test's path marks that test new in the slow-set and fast-set-time tooling
 status: open
 opened: 2026-10-19
+priority: P4
 ---
 
 
@@ -28,3 +29,9 @@ new.
 **Repair shape.** Key the module token by its path: the file's module path
 plus the declared name. Then `is_new` matches it only as a prefix of the
 test's own path.
+
+- 2026-11-22 — **Re-banded unbanded → P4 by CIW triage.** - Still true. `scripts/check-fast-set-times.py:127` emits a bare
+`pkg:mod:<name>`, and `scripts/slow_set.py:142` `is_new` matches any
+module of that name on a test's path.
+- One instance, PR 5401 (10-19). The cost is over-selection, a few
+seconds.

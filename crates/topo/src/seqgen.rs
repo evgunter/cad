@@ -1054,11 +1054,10 @@ const SPLIT_FRACTION: f64 = geom_core::GOLDEN_SECTION;
 /// carrier (the self-loop circles `mef_chord` mints included), which
 /// a `line_between` guess would not be.
 fn split_site(body: &Body<f64>, edge: EdgeKey, tol: Tol) -> Option<(f64, EdgeCurveSpec<f64>)> {
-    let edge_data = body.get_edge(edge)?;
+    let curve = body.proven_edge(edge).certified()?;
     let (start, end) = body.edge_vertices(edge)?;
     let p0 = *body.get_point(body.get_vertex(start)?.point)?;
     let p1 = *body.get_point(body.get_vertex(end)?.point)?;
-    let curve = body.get_curve_geom(edge_data.curve)?.certified()?;
     let band = Band::linear(tol).ok()?;
     if let Err(error) = curve.recertify(
         p0,
@@ -1235,9 +1234,8 @@ fn assert_unlisted_members_answer_to_the_gate(
         .filter(|&(i, _)| unlisted(i))
         .map(|(_, m)| m)
         .find(|m| {
-            let curve = body.get_edge(m.edge).expect("a member resolves").curve;
-            body.get_curve_geom(curve)
-                .and_then(crate::null::CurveGeom::certified)
+            body.proven_edge(m.edge)
+                .certified()
                 .expect("the walk mints no null edge")
                 .recertify(
                     m.start,
@@ -1325,7 +1323,7 @@ fn next_point(counter: &mut u32) -> Point3<f64> {
 /// own endpoints — the at-rest question [`split_site`] asks of a split
 /// candidate, asked here of a fan site's moved run.
 fn carrier_is_coherent(body: &Body<f64>, edge: EdgeKey, tol: Tol) -> bool {
-    let Some(edge_data) = body.get_edge(edge) else {
+    let Some(view) = body.edge(edge) else {
         return false;
     };
     let Some((start, end)) = body.edge_vertices(edge) else {
@@ -1337,11 +1335,7 @@ fn carrier_is_coherent(body: &Body<f64>, edge: EdgeKey, tol: Tol) -> bool {
     ) else {
         return false;
     };
-    let (Some(curve), Ok(band)) = (
-        body.get_curve_geom(edge_data.curve)
-            .and_then(crate::null::CurveGeom::certified),
-        Band::linear(tol),
-    ) else {
+    let (Some(curve), Ok(band)) = (view.certified(), Band::linear(tol)) else {
         return false;
     };
     let Some(reach) = crate::edge_wedge_reach(body, edge) else {

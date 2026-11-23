@@ -751,10 +751,9 @@ fn nothing_constructs_the_two_unreachable_refusals() {
     // THROUGH THE SHARED LEXER, not a hand-rolled one: comments and
     // string literals are blanked by `test_utils::source::code_only`,
     // so a doc comment naming `RefusalReason::Infeasible` — and this
-    // module's own docs do — cannot be read as a construction. The
-    // reader census's `Shared` disposition is the destination for every
-    // site that reads Rust source, and a `//`-prefix filter is the
-    // hand-rolled reader it exists to retire.
+    // module's own docs do — cannot be read as a construction. A
+    // `//`-prefix filter is the hand-rolled reader the reader census
+    // exists to retire.
     let src = test_utils::source::code_only(include_str!("../src/drive.rs"));
     // A CONSTRUCTION, as opposed to a declaration or a match pattern:
     // the variant's name in VALUE position — pushed onto the refused

@@ -337,7 +337,8 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
 
     // ---- Decide: every edge's carrier and description. ----
     let mut specs: Vec<(EdgeKey, EdgeCurveSpec<T>)> = Vec::new();
-    for (edge, edge_data) in body.edges() {
+    for view in body.edge_views() {
+        let (edge, edge_data) = (view.key(), view.record());
         if !scope.holds_edge(edge) {
             continue;
         }
@@ -351,7 +352,7 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
             point_at(start).unwrap_or_else(|| unplaced_in_scope(start)),
             point_at(end).unwrap_or_else(|| unplaced_in_scope(end)),
         );
-        let Some(curve) = body.edge_curve_linked(edge, edge_data).certified() else {
+        let Some(curve) = view.certified() else {
             return Err(ReplaceFaceError::CarrierLaneUnsupported {
                 edge,
                 what: "it has no curve to move",
@@ -891,7 +892,8 @@ impl Scope {
                     let f = body.linked_face(face, holder, "faces");
                     for member in f.boundary() {
                         self.vertices.insert(member.vertex(), solid);
-                        if let BoundaryMember::Edge { ek, .. } = member {
+                        if let BoundaryMember::Edge { edge, .. } = member {
+                            let ek = edge.key();
                             self.edges.insert(ek, solid);
                         }
                     }

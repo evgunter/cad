@@ -86,6 +86,13 @@
 //! of the conic maps its one placement ([`Circle::placed`],
 //! [`Ellipse::mapped`]), so the image is held as the conic was.
 //!
+//! A reader that asks where the conic is asks the conic: its point
+//! ([`Conic::point_at`]), a point's parameter ([`Conic::azimuth`]), its
+//! extent along a direction over a span ([`Conic::extent_along`]) and
+//! its cover over a span ([`Conic::cover_over`]), each stated from the
+//! stored point. The directions ([`Conic::axis`], [`Conic::u_ref`],
+//! [`Conic::v_ref`]) are stored and derive nothing.
+//!
 //! Each conic evaluates one way, [`Conic::point_at`], and
 //! [`Conic::running_point`] is that evaluation operation for operation
 //! with its bound. The derivatives read no position and are the same
@@ -309,7 +316,7 @@ pub trait Conic<T: Real>: core::fmt::Debug {
     }
 
     /// **The `(lo, hi)` of `(P(θ) − origin)·n` over `window`**:
-    /// [`Self::height_along`]'s [`Height::extent`].
+    /// [`Self::height_along`]'s [`Height::extent`]. `n` need not be unit.
     fn extent_along(&self, window: &ArcWindow<T>, origin: Point3<T>, n: Vec3<T>) -> (T, T) {
         self.height_along(origin, n).extent(window)
     }
@@ -320,8 +327,9 @@ pub trait Conic<T: Real>: core::fmt::Debug {
     fn height_along(&self, o: Point3<T>, n: Vec3<T>) -> Height<T>;
 
     /// **The cover of the arc over `window`**, stated from the point
-    /// the conic stores ([`Cover::arc`] for a conic held at its centre).
-    /// `None` for a datum that is not a finite number.
+    /// the conic stores. This body is a conic held at its centre's
+    /// ([`Cover::arc`] on its frame); a kind that can be held elsewhere
+    /// states its own. `None` for a datum that is not a finite number.
     fn cover_over(&self, window: ParamWindow<T>) -> Option<Cover<T>> {
         Cover::arc(&self.frame(), self.semi_axes(), window)
     }
@@ -620,11 +628,7 @@ fn running_offsets<T: Real>(theta: T, (c0, s0): (T, T)) -> (Rounded<T>, Rounded<
 ///
 /// An end reads through [`offsets`], as the point there does. A crest
 /// stands `A − k` over the anchor and a trough `A + k` under it,
-/// `A = √(p² + q²)` and `k = p·cos θ₀ + q·sin θ₀`; the one of the two
-/// that cancels (`A − k` for `k > 0`) is read as
-/// `(p·sin θ₀ − q·cos θ₀)² / (A + |k|)`, the same number in ℝ, a ratio of
-/// sums. The divisor is floored at the least positive number, which it
-/// reaches only where `p` and `q` are both zero and the ratio is `0`.
+/// `A = √(p² + q²)` and `k = p·cos θ₀ + q·sin θ₀` ([`over_anchor`]).
 fn offset_extent<T: Real>(window: &ArcWindow<T>, p: T, q: T, phase: (T, T)) -> (T, T) {
     let (t0, t1) = window.span();
     let end = |t: T| {
@@ -641,15 +645,13 @@ fn offset_extent<T: Real>(window: &ArcWindow<T>, p: T, q: T, phase: (T, T)) -> (
 }
 
 /// **The trough and the crest of `p·(cos θ − cos θ₀) + q·(sin θ − sin θ₀)`
-/// over the whole turn**, [`offset_extent`]'s: `−(A + k)` and `A − k`,
-/// the one that cancels read as a ratio of sums.
+/// over the whole turn**, `−(A + k)` and `A − k`, each through
+/// [`over_anchor`]: [`offset_extent`]'s and [`Height::extremes`]'.
 fn offset_crests<T: Real>(p: T, q: T, (c0, s0): (T, T)) -> (T, T) {
     let amp = (p.powi(2) + q.powi(2)).sqrt();
     let k = p * c0 + q * s0;
-    let ratio = (p * s0 - q * c0).powi(2) / (amp + k.abs()).max(T::from_f64(f64::MIN_POSITIVE));
-    let crest = k.select_le_zero(amp - k, ratio);
-    let trough = -(-k).select_le_zero(amp + k, ratio);
-    (trough, crest)
+    let cross = p * s0 - q * c0;
+    (-over_anchor(amp, -k, cross), over_anchor(amp, k, cross))
 }
 
 /// The row a harmonic's crest angle records its cut side under.
@@ -733,6 +735,26 @@ fn anchored_level<T: Real>((du, dv): (T, T), (c0, s0): (T, T), (a, b): (T, T)) -
             + (c0.powi(2) + s0.powi(2) - T::one()),
         (two * u / a, two * v / b),
     )
+}
+
+/// **`A − k`, how far a harmonic's crest stands over its anchor**, for
+/// `A = √(p² + q²)`, `k` the anchor's own height in it and `cross` with
+/// `cross² = A² − k²`. Never negative in ℝ.
+///
+/// Where `k ≤ 0` the difference adds. Where `k > 0` it cancels as the
+/// anchor nears the crest, losing a rounding of `A`, the semi-axis's
+/// scale; there it is read as the ratio `cross² / (A + k)`, the same
+/// number as a quotient of sums, whose divisor is at least `A`.
+///
+/// An enclosure of `k` across zero takes both. Along the conic's own
+/// normal `p` and `q` enclose zero, so `A + k` does too and the ratio
+/// bounds nothing: the divisor is floored at the least positive number,
+/// which keeps the ratio a bounded enclosure, and the reading is held
+/// under `A + |k|`, which the number never passes and which is small
+/// there.
+fn over_anchor<T: Real>(amp: T, k: T, cross: T) -> T {
+    let ratio = cross.powi(2) / (amp + k).max(T::from_f64(f64::MIN_POSITIVE));
+    k.select_le_zero(amp - k, ratio).min(amp + k.abs())
 }
 
 impl<T: Real> Circle<T> {

@@ -86,14 +86,18 @@ mod combine_ops;
 mod controls_guide;
 #[path = "creation_ops.rs"]
 mod creation_ops;
+#[path = "datum_authoring.rs"]
+mod datum_authoring;
+#[path = "datum_review_a.rs"]
+mod datum_review_a;
+#[path = "datum_review_b.rs"]
+mod datum_review_b;
 #[path = "debug_dumps.rs"]
 mod debug_dumps;
 #[path = "display_budget.rs"]
 mod display_budget;
 #[path = "doc_io.rs"]
 mod doc_io;
-#[path = "docm9_range_vs_probe.rs"]
-mod docm9_range_vs_probe;
 #[path = "door_at_rest.rs"]
 mod door_at_rest;
 #[path = "drawn_on_face.rs"]
@@ -140,6 +144,8 @@ mod mate_tool_flow;
 mod mirror_authoring;
 #[path = "named_source.rs"]
 mod named_source;
+#[path = "range_reading.rs"]
+mod range_reading;
 #[path = "review_bundle_editor_r2.rs"]
 mod review_bundle_editor_r2;
 #[path = "review_intent_e_r1.rs"]
@@ -151,6 +157,8 @@ mod msolve3_placer_refused;
 mod msolve5_unplaced_read_badge;
 #[path = "node_labels.rs"]
 mod node_labels;
+#[path = "offers.rs"]
+mod offers;
 #[path = "panel_display.rs"]
 mod panel_display;
 #[path = "panel_edits.rs"]
@@ -239,8 +247,6 @@ mod tree_badges;
 mod tree_shape;
 #[path = "undo_tree.rs"]
 mod undo_tree;
-#[path = "valid_range.rs"]
-mod valid_range;
 #[path = "view_toggles.rs"]
 mod view_toggles;
 #[path = "whole_rim_pick.rs"]

@@ -87,6 +87,10 @@ pub(crate) struct Circle<T: Real> {
 impl<T: Real> Circle<T> {
     /// The circle's cover: its arc over the whole turn. `None` for a
     /// datum that is not a finite number.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic restated on a frame the caller holds, or a point read about a centre an arc-held ellipse derives: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     pub(crate) fn cover(&self) -> Option<Cover<T>> {
         Cover::arc(
             &geom::Frame::new(self.center, self.u_ref.cross(self.v_ref), self.u_ref),
@@ -356,8 +360,9 @@ pub(crate) fn anchor<T: Decide>(body: &Body<T>, item: Item<T>) -> Option<Point3<
             for member in face.boundary() {
                 points.push(match member {
                     BoundaryMember::Isolated { point, .. } => point,
-                    BoundaryMember::Edge { ek, edge, .. } => {
-                        edge_end_point(body, ek, edge.he_plus, "he_plus")
+                    BoundaryMember::Edge { edge, .. } => {
+                        let ek = edge.key();
+                        edge_end_point(body, ek, edge.record().he_plus, "he_plus")
                     }
                 });
             }

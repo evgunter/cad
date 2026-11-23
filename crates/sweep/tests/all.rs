@@ -142,6 +142,8 @@ mod a_profile_touching_its_axis_twice_revolves;
 mod a_ray_beside_a_shallow_spiric_edge_is_read_by_the_span_walk;
 #[path = "a_ray_meets_a_curved_edge_once_for_both_faces.rs"]
 mod a_ray_meets_a_curved_edge_once_for_both_faces;
+#[path = "a_revolve_takes_a_profile_on_either_side_of_its_axis.rs"]
+mod a_revolve_takes_a_profile_on_either_side_of_its_axis;
 #[path = "a_rigid_turn_keeps_a_slivers_volume.rs"]
 mod a_rigid_turn_keeps_a_slivers_volume;
 #[path = "a_rim_arc_on_a_cylinder_beside_a_spline_wall.rs"]

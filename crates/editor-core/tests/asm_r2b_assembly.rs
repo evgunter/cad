@@ -1517,10 +1517,10 @@ fn a_mate_proves_its_faces_only_in_the_sense_it_states() {
 /// equates the two caps' outward normals, written under the orientation
 /// that turns the copy over about `x`.
 fn unflip(mate: &mut Mate<Formula>) {
-    if let Operand::Pose(p) = &mate.to
+    if let Operand::Pose(p) = &mate.to.read
         && let PoseDef::Flip { pose } = &**p
     {
-        mate.to = pose.read.clone();
+        mate.to = pose.clone();
     }
     mate.orient = editor_core::Orientation::new(
         editor_core::SignedAxis::PlusX,

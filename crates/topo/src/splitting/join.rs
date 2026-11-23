@@ -1129,10 +1129,8 @@ impl<T: Decide> Sweep<T> {
         let mut placeholders = 0;
         for &he in &hes {
             let he_data = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?;
-            let edge = body
-                .get_edge(he_data.edge)
-                .ok_or_else(|| corrupt_edge(he_data.edge))?;
-            let CurveGeom::Certified(curve) = body.edge_curve_linked(he_data.edge, edge) else {
+            let edge = body.linked_edge(he_data.edge, EntityId::HalfEdge(he), "edge");
+            let CurveGeom::Certified(curve) = edge.curve() else {
                 continue;
             };
             let end = body.half_edge_end(he).ok_or_else(|| corrupt_he(he))?;
@@ -1161,7 +1159,7 @@ impl<T: Decide> Sweep<T> {
             let ((sa, sb), reach) = (conic.semi_axes(), conic.speed_hi());
             let (t0, t1) = curve.params();
             let span = t1 - t0;
-            let forward = edge.he_plus == he;
+            let forward = edge.record().he_plus == he;
             let a_pt = body.resolve_vertex_point(he_data.start, crate::live::Proven);
             let b_pt = body.resolve_vertex_point(end, crate::live::Proven);
             let dt_signed = if forward { span } else { T::zero() - span };
@@ -1336,9 +1334,9 @@ impl Tree {
             if tree.edges.iter().any(|&(e, _)| e == edge) {
                 continue;
             }
-            let data = body.get_edge(edge).ok_or_else(|| corrupt_edge(edge))?;
+            let data = body.linked_edge(edge, EntityId::HalfEdge(he), "edge");
             tree.curved |= !matches!(
-                body.edge_curve_linked(edge, data),
+                data.curve(),
                 CurveGeom::Certified(c) if !c.carrier().is_curved()
             );
             tree.edges.push((edge, key));

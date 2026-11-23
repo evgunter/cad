@@ -181,7 +181,7 @@ impl WindsRefusal {
 /// **The largest principal difference trusted as a piece's turning**:
 /// `3π/4`, leaving `π/4` before the branch cut, which an end's angle
 /// error (its rounding over the tube radius, module docs) cannot cross.
-const TRUSTED_TURN: f64 = 0.75 * core::f64::consts::PI;
+pub(super) const TRUSTED_TURN: f64 = 0.75 * core::f64::consts::PI;
 
 /// **How far the turns may miss a whole number and still close**, in
 /// radians: the loop's closing gap (its fitted ends one point to the

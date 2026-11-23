@@ -2083,7 +2083,7 @@ fn circle_arcs_where(
                     .and_then(|g| g.certified())
                     .map(|c| c.carrier()),
                 Some(geom::Curve3::Circle(c))
-                    if pick(c.frame().origin(), c.radius(), c.frame().axis())
+                    if pick(c.frame().origin(), c.radius(), c.axis())
             )
         })
         .map(|(k, _)| k)

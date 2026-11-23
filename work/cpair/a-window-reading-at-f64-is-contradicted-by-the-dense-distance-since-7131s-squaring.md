@@ -39,4 +39,12 @@ So the draw's circle now carries a frame squared at `f64` (7131's `RigidMotion::
 The row is counted in ONEHOME's `pr-7131s-frame-cost-at-1e-12-is-larger-than-it-counted` (on PR 7402's branch until that merges) as one of the frame cost's two `f64`-squaring rows. Unlike the rest of that count, it is a finding and not a cost. It is not pinned; GREEN greens nothing until Ev rules on the count.
 (GREEN, U12)
 
+## Evidence (germ/co-surface-table, 2026-11-23)
+
+`geom-brep`'s `curve_pair::pose::window::oracle::each_window_reading_holds_on_a_dense_distance` is red on `origin/main` at default ε on seed `0x22eb45feecea31d9` (re-run on a main worktree, 2026-11-23, from PR 7431's review).
+
+## Evidence (germ/spiric-near-miss-off-q, 2026-11-23)
+
+The same row is red on main `61a3d77a0b`'s sources on seed `0x856e9c81e4b404d1` at ε unset, 1e-6 and 1e-12: three `Recedes` readings contradicted at ε 1e-12's column, draw 18, a circle of radius 485.93 whose frame's axis is `1.3e-9` off `z`.
+
 **A second seed, on an ellipse held at its centre (2026-11-23, `oneround/conic-pair-readers`).** `CAD_FUZZ_SEED=0x11467e023845fce7` at ε 1e-12 contradicts two `Recedes` readings on draw 48 (`Ellipse::new`, semi-axes 946.7 and 1137.6, centre about (654, 383, 2.6e-5), axis tilted 6e-8 off `z`), identically on that branch's base (PR 7510's head merged with main at `cbf90f201`) and on its head: not that unit's change.

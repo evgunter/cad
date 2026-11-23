@@ -194,37 +194,6 @@ impl core::fmt::Display for ReadbackError {
 
 impl std::error::Error for ReadbackError {}
 
-/// **Why the walk to an edge's certified carrier came back empty** —
-/// [`edge_carrier_ref`]'s refusal, with one arm per thing that can be
-/// absent rather than one per door that asked.
-///
-/// A stale edge key is the caller's; scaffolding that certifies no
-/// carrier at all is a fact about the edge, and the enum keeps the two
-/// apart because a reader that renames these (see
-/// [`crate::query::rim_of`]) renames them differently. The curve key a
-/// live edge names always resolves (D2 row 4: a miss panics naming the
-/// edge). [`ReadbackError`] is the read-back door's own spelling of
-/// the same two, reached through the `From` below.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum CarrierAbsence {
-    /// The edge the caller passed does not resolve.
-    Dangling(EdgeKey),
-    /// The curve entry resolves and certifies nothing — M3 null-edge
-    /// scaffolding, which has no carrier to read.
-    NoCarrier,
-}
-
-impl From<CarrierAbsence> for ReadbackError {
-    fn from(absence: CarrierAbsence) -> Self {
-        match absence {
-            CarrierAbsence::Dangling(edge) => Self::Dangling {
-                what: EntityId::Edge(edge),
-            },
-            CarrierAbsence::NoCarrier => Self::NoCarrier,
-        }
-    }
-}
-
 /// **A face's carrier surface, as the read-back doors refuse it**:
 /// [`Body::face`]'s [`crate::live::FaceView::surface`], its one refusal (a stale face key) spelled
 /// [`ReadbackError::Dangling`], with the surface's key and the face's
@@ -482,33 +451,19 @@ pub fn vertex_point<T: Real>(
     Ok(body.point_of(vertex, v))
 }
 
-/// **The walk to an edge's certified carrier** — edge, then its
-/// curve-arena entry, then the carrier the entry certifies — with the
-/// refusal left as the absence itself, for callers whose own error
-/// vocabulary names these two misses differently.
-///
-/// What it guarantees is exactly this and no more: every reader of an
-/// edge's carrier in this crate can make ONE walk, so WHICH lookup
-/// came back empty is decided in one place rather than once per
-/// reader. [`edge_carrier_kind`] and [`edge_pose`] read through it,
-/// and so does [`crate::query::rim_of`], which renames the misses in
-/// [`crate::query::RimError`]'s vocabulary.
-///
-/// # Errors
-///
-/// The [`CarrierAbsence`] naming whichever came back empty: the edge,
-/// or its curve entry's certified carrier.
-///
-/// # Panics
-///
-/// Where the live edge's curve key does not resolve (D2 row 4).
-pub fn edge_carrier_ref<T: Real>(
+/// **An edge's certified carrier, as the read-back doors refuse it**:
+/// [`Body::edge`]'s [`crate::live::EdgeView::certified`], its two
+/// refusals (a stale edge key, null scaffolding) spelled
+/// [`ReadbackError::Dangling`] and [`ReadbackError::NoCarrier`]. The
+/// edge twin of [`carrier_surface`].
+pub(crate) fn carrier_curve<T: Real>(
     body: &Body<T>,
     edge: EdgeKey,
-) -> Result<&Curve3<T>, CarrierAbsence> {
-    let e = body.get_edge(edge).ok_or(CarrierAbsence::Dangling(edge))?;
-    let geom = body.edge_curve_linked(edge, e);
-    Ok(geom.certified().ok_or(CarrierAbsence::NoCarrier)?.carrier())
+) -> Result<&Curve3<T>, ReadbackError> {
+    let e = body.edge(edge).ok_or(ReadbackError::Dangling {
+        what: EntityId::Edge(edge),
+    })?;
+    Ok(e.certified().ok_or(ReadbackError::NoCarrier)?.carrier())
 }
 
 /// **An edge's carrier kind** — the [`CurveKind`] tag of the curve the
@@ -518,7 +473,7 @@ pub fn edge_carrier_ref<T: Real>(
 /// than a verdict (rule 1) for the same reason: the answer is which
 /// closed variant the stored carrier is, with no number consulted on
 /// the way. "Is this edge straight" is the carrier's own reading,
-/// `!edge_carrier_ref(..)?.is_curved()` ([`Curve3::as_line`]). The
+/// [`Curve3::is_curved`] on the carrier [`Body::edge`]'s view reaches. The
 /// total flattening
 /// [`crate::query::edge_carrier_kind`] reads through this door and
 /// answers `None` where it refuses typed, for the reason
@@ -530,10 +485,14 @@ pub fn edge_carrier_ref<T: Real>(
 ///
 /// # Errors
 ///
-/// [`ReadbackError::Dangling`] for a stale edge or curve key, and
+/// [`ReadbackError::Dangling`] for a stale edge key, and
 /// [`ReadbackError::NoCarrier`] for M3 null-edge scaffolding — the
 /// only refusals: every certified carrier, NURBS included, has a
 /// kind, so [`ReadbackError::NoCanonicalFrame`] is not one of them.
+///
+/// # Panics
+///
+/// Where the live edge's curve key does not resolve (D2 row 4).
 ///
 /// ```
 /// use geom_core::{Point3, Tol};
@@ -558,7 +517,7 @@ pub fn edge_carrier_kind<T: Real>(
     body: &Body<T>,
     edge: EdgeKey,
 ) -> Result<CurveKind, ReadbackError> {
-    Ok(edge_carrier_ref(body, edge)?.kind())
+    Ok(carrier_curve(body, edge)?.kind())
 }
 
 /// **An edge's carrier frame** — the certified carrier's own stored
@@ -584,15 +543,19 @@ pub fn edge_carrier_kind<T: Real>(
 ///
 /// # Errors
 ///
-/// [`ReadbackError::Dangling`] for a stale edge or curve key;
+/// [`ReadbackError::Dangling`] for a stale edge key;
 /// [`ReadbackError::NoCarrier`] for null-edge scaffolding;
 /// [`ReadbackError::NoCanonicalFrame`] for a NURBS carrier.
+///
+/// # Panics
+///
+/// Where the live edge's curve key does not resolve (D2 row 4).
 #[expect(
     clippy::disallowed_methods,
     reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
 )]
 pub fn edge_pose<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<Pose<T>, ReadbackError> {
-    match edge_carrier_ref(body, edge)? {
+    match carrier_curve(body, edge)? {
         Curve3::Line(geom::Line { origin, dir }) => Ok(Pose {
             origin: *origin,
             axis: *dir,
@@ -933,8 +896,8 @@ mod tests {
     use geom_core::{Point3, Tol};
 
     use super::{
-        CarrierAbsence, EulerCounts, EulerParityError, ReadbackError, edge_carrier_kind,
-        edge_carrier_ref, edge_pose, edge_sides, euler_counts,
+        EulerCounts, EulerParityError, ReadbackError, edge_carrier_kind, edge_pose, edge_sides,
+        euler_counts,
     };
     use crate::body::Body;
     use crate::entity::{EntityId, GeomRef, Vertex};
@@ -1148,8 +1111,8 @@ mod tests {
             ("edge_pose", &|b| {
                 let _ = edge_pose(b, edge);
             }),
-            ("edge_carrier_ref", &|b| {
-                let _ = edge_carrier_ref(b, edge);
+            ("Body::edge", &|b| {
+                let _ = b.edge(edge).map(crate::live::EdgeView::certified);
             }),
             ("query::edge_carrier_kind", &|b| {
                 let _ = crate::query::edge_carrier_kind(b, edge);
@@ -1168,9 +1131,8 @@ mod tests {
             );
         }
         let stale = crate::entity::EdgeKey::default();
-        assert_eq!(
-            edge_carrier_ref(&body, stale).err(),
-            Some(CarrierAbsence::Dangling(stale)),
+        assert!(
+            body.edge(stale).is_none(),
             "the caller's stale edge stays typed"
         );
         assert_eq!(

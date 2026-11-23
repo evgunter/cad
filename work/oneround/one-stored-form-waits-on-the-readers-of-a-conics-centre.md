@@ -186,3 +186,39 @@ what the reading offers is bounded by the README's sentence and by
 what the families need. If two shapes of the interface are both
 viable and the choice binds the general-anchor row, the lane stops and
 asks.
+
+## Corrections from the unit's first PR (7510, 2026-11-23)
+
+Census at the merge base `2b9cd8b24`, taken with the compiler (the
+centre doors marked `#[deprecated]`, uses collected from
+`cargo check --workspace --lib --bins --all-features`), outside
+`conic.rs`: **339 reads on 291 lines in 63 files**, not about 90.
+
+- 137 of them read a direction only (`frame().axis()`, `.u_ref()`,
+  `.v_ref()`) and went to `Conic::axis` / `u_ref` / `v_ref`. About
+  half of those sit on a line that also reads the centre, to rebuild a
+  placement; that line stays listed for its centre read.
+- `crates/topo/src/ruled_region.rs`, `crates/mesh/src/curved.rs` and
+  the production half of `crates/geom-brep/src/extent.rs` read no conic
+  frame on main. The chart-frame family's one site is
+  `torus_region.rs` `on_edge_plane`; the pinch read's family has
+  `mesh/src/sizing.rs` `sphere_face_widest_cos`.
+- `Curve3::param_near` and `step-import`'s `settled_foot` already go
+  through `Conic::azimuth`, which reads an arc-held ellipse from its
+  anchor (PR 7203): that family had nothing to convert.
+- The `Rim` round trip in `crates/topo/src/boolean/mod.rs` (two
+  `Curve3::circle(rim.center, …)` sites) reads a struct another
+  function filled, so no centre door fires there and the gate does not
+  see it; it stays on this row's list of doors by name.
+- `Conic::unit_in_plane` reads the derived centre by default and has
+  three production callers; `Curve3::circle_at` and `Cover::arc` take a
+  conic restated on a caller's frame. All three are doors of the gate.
+
+What the first PR did: the direction readings, the cover and the
+extent, and the gate (`scripts/gates/conic-centre-reads.sh`, with
+`clippy.toml`'s `disallowed-methods`). What it left is on four rows:
+`the-cone-sections-chart-image-and-its-kin-are-stated-from-the-conics-centre`,
+`a-conic-made-from-a-conic-is-rebuilt-from-its-centre-and-frame`,
+`the-certified-lanes-harmonics-of-a-conic-are-formed-about-its-centre`,
+`a-circles-centre-is-read-as-a-datum-under-the-conic-gate`; and
+`the-arc-held-cover-is-looser-than-the-centre-forms-on-a-long-window`.

@@ -142,8 +142,8 @@ pub(crate) fn boss_on_tilted(half: f64, derived: bool) -> ProfileDoc {
     r.constrain(
         placement,
         editor_core::Mate {
-            on: fixture::plane(start),
-            to,
+            on: fixture::plane(start).into(),
+            to: to.into(),
             // The start cap faces the plane's normal unflipped: the copy
             // stands upended, its `z` along `−z`.
             orient: editor_core::Orientation::new(

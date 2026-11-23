@@ -53,7 +53,7 @@ use crate::{FaceCensus, NormalizationKind, StructureNormalization};
 /// Whether a printed carrier lies on the description built for it: how
 /// far it stands off the built carrier over its trim ([`description_gap`]),
 /// read at the file's band.
-pub(crate) const STEP_EDGE_ON_DESCRIPTION: &str = "step_edge_on_description";
+const STEP_EDGE_ON_DESCRIPTION: &str = "step_edge_on_description";
 
 /// Whether a printed vertex point lies where the build put its vertex,
 /// read at the file's band.
@@ -388,19 +388,6 @@ impl IsoMap {
             Pcurve::iso_row(self.fixed, (at(t0), at(t1)), (t0, t1))
         }
     }
-}
-
-/// [`choose`] of edge `id` alone: a unit test's reading of one edge's
-/// selection and carrier.
-#[cfg(test)]
-pub(crate) fn choose_edge(
-    solid: &SolidSpec,
-    id: u64,
-    tol: Tol,
-    file: FileBand,
-) -> Result<(), StepImportError> {
-    let sides = edge_faces(solid)?;
-    choose(solid, id, &solid.edges[&id], sides[&id], tol, file).map(|_| ())
 }
 
 /// Each edge's two faces, by index: the forward use's, then the reverse

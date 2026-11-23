@@ -2479,8 +2479,8 @@ fn group_cone_v_window<T: Decide>(
     } = axis;
     let mut window: Option<(T, T)> = None;
     for edge in group_boundary(body, group) {
-        let edge_data = proven(&body.edges, edge, EntityId::Edge);
-        let curve = body.edge_curve_linked(edge, edge_data).certified()?;
+        let edge_data = body.proven_edge(edge);
+        let curve = edge_data.certified()?;
         let (t0, t1) = curve.params();
         let (lo, hi) = cone_v_range(
             curve.carrier(),
@@ -2636,9 +2636,9 @@ fn plan_edge<'s, T: Decide>(
     // A moved chart's slot is its place among the operation's charts.
     let moved_slot = |key: SurfaceKey| walls.and_then(|w| w.moved(*slots.get(&key)?));
     let moved_of = |key: SurfaceKey| slots.get(&key).and_then(|&slot| charts.get(slot));
-    let edge_data = proven(&body.edges, edge, EntityId::Edge);
-    let sides = edge_side_keys(body, edge, edge_data);
-    let he_plus = edge_data.he_plus;
+    let edge_data = body.proven_edge(edge);
+    let sides = edge_side_keys(body, edge, edge_data.record());
+    let he_plus = edge_data.record().he_plus;
     let start = linked(
         &body.half_edges,
         he_plus,
@@ -2648,7 +2648,7 @@ fn plan_edge<'s, T: Decide>(
     )
     .start;
     let end = body.proven_half_edge_end(he_plus);
-    let Some(curve) = body.edge_curve_linked(edge, edge_data).certified() else {
+    let Some(curve) = edge_data.certified() else {
         return Err(ReplaceFaceError::CarrierLaneUnsupported {
             edge,
             what: "it has no curve to move",
@@ -2660,7 +2660,7 @@ fn plan_edge<'s, T: Decide>(
                 (edge, start, end, sides),
                 (
                     curve,
-                    region_reach(edge, crate::cover::edge_cover_linked(body, edge, edge_data)),
+                    region_reach(edge, crate::cover::edge_cover_linked(body, edge_data)),
                 ),
                 crate::wedge_reach(
                     body,
@@ -2705,7 +2705,7 @@ fn plan_edge<'s, T: Decide>(
         && c.surface == old_key
         && matches!(c.pcurve, geom_brep::Pcurve::IsoLine { .. })
     {
-        let (fa, fb) = crate::readback::edge_sides_of(body, edge, edge_data).faces();
+        let (fa, fb) = crate::readback::edge_sides_of(body, edge, edge_data.record()).faces();
         let other = if group.contains(&fa) { fb } else { fa };
         let self_shared = group.contains(&other);
         // The image's own line, read as a row only where it holds a
@@ -2835,7 +2835,7 @@ fn plan_edge<'s, T: Decide>(
             return derive_edge(
                 (edge, start, end, sides),
                 (curve, &description, (t0, t1)),
-                region_reach(edge, crate::cover::edge_cover_linked(body, edge, edge_data)),
+                region_reach(edge, crate::cover::edge_cover_linked(body, edge_data)),
                 (old_key, other_key, new_surface, held),
                 (
                     extent,
@@ -3817,8 +3817,8 @@ fn plan_reanchors<T: Decide>(
         if on_boundary.contains(&edge) {
             continue;
         }
-        let edge_data = proven(&body.edges, edge, EntityId::Edge);
-        let he_plus = edge_data.he_plus;
+        let edge_data = body.proven_edge(edge);
+        let he_plus = edge_data.record().he_plus;
         let start = linked(
             &body.half_edges,
             he_plus,
@@ -3854,7 +3854,7 @@ fn plan_reanchors<T: Decide>(
             .and(distance_at(start, true))
             .or_else(|| distance_at(end, false))
             .unwrap_or_else(|| unreachable!("{edge:?} ends at a moved corner, read off its group"));
-        let Some(curve) = body.edge_curve_linked(edge, edge_data).certified() else {
+        let Some(curve) = edge_data.certified() else {
             return Err(ReplaceFaceError::CarrierLaneUnsupported {
                 edge,
                 what: "it has no curve to re-attach",
@@ -4727,7 +4727,8 @@ fn incident_edges<T: Decide>(
     old_point: Point3<T>,
 ) -> Result<Vec<Incident<T>>, ReplaceFaceError<T>> {
     let mut out = Vec::new();
-    for (edge, edge_data) in body.edges() {
+    for view in body.edge_views() {
+        let (edge, edge_data) = (view.key(), view.record());
         let he_plus = edge_data.he_plus;
         let start = linked(
             &body.half_edges,
@@ -4788,7 +4789,7 @@ fn incident_edges<T: Decide>(
                 derived: plan.ends.is_none(),
             });
         } else {
-            let Some(curve) = body.edge_curve_linked(edge, edge_data).certified() else {
+            let Some(curve) = view.certified() else {
                 return Err(ReplaceFaceError::CarrierLaneUnsupported {
                     edge,
                     what: "it has no curve to re-attach",

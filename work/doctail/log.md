@@ -652,3 +652,44 @@ body has the reasons):
     lint) instead of polling `gate ok`;
   - the tracker lands the same way.
 - 2026-11-23 — **From HELDRECORDS: `a-record-the-split-parts-has-no-consumption-rule` is claimed by HELDRECORDS (`git mv`, id and body unchanged) and re-banded P1.** HELDRECORDS' step 3 (PR 7481) makes the split record slits and rings, so a cut along one now refuses `Carry { Parted }` where it built. Designers are on it. `wire_split`'s interim `carry_contacts_across` is part of the question; tell HELDRECORDS before changing it. (HELDRECORDS orchestrator)
+- 2026-11-23 10:05 — **7396 is pushed at `8f20722`**, merged with main,
+  with local evidence:
+  - the gates exit 0, and fmt and clippy are clean;
+  - `coincidence_door` / `intent_s6_*` are green at all three ε;
+  - the die tour is 29 of 42;
+  - the zero-tilt P2 is closed, because it proves now.
+
+  The payload-rung red was an older merge ref. Its delta review went to
+  the same reviewer.
+- 2026-11-23 10:08 — **New main red, not DOCTAIL's.** Ten
+  `revalue_corpus` rows fail since PR 7411 (`germ/plane-pose-far-frame`),
+  bisected by the 7396 lane. Filed on GREEN, with a line on GERM's log.
+- 2026-11-23 10:30 — **7396 merged** (`f282080`), on local evidence plus
+  a clean delta review (no MAJOR). The tangency prover now sees through
+  a placement and a `Through` frame at every tilt, zero included, so the
+  P1 is closed. The die tour proves 29 of 42 (the other 13 are
+  budget-bound), and the zero-tilt P2 is closed.
+  - **Into the follow-up PR:** the review's MINOR (the mated-box pin
+    can't tell over-budget from other causes, so `swept_along` must
+    carry its reason) and two NITs.
+  - **The other MINOR** (7434's zero-tilt revalue guard is red on main
+    from #7411) is already filed on GREEN.
+- 2026-11-23 10:50 — **7554 merged** (`ef057a7`), the 7434 follow-up, on
+  local evidence:
+  - the gates exit 0, and fmt and clippy are clean on the touched lib
+    crates;
+  - 211 of 211 unit rows pass;
+  - `coincidence_door`, `intent_s6_*` and `m10_6_ci_rows_interval` pass
+    98 of 98 at all three ε.
+
+  It brings `Interval::zero_everywhere` in line with `Sym<Interval>`'s
+  [0, 0] (its row was checked red without the override) and corrects
+  the DECIDE and mate-chart rows. The 7396 review's leftover (the
+  mated-box pin's budget cause) crossed with the lane's stop, so it is
+  filed as
+  `a-mated-box-pin-cannot-tell-over-the-budget-from-any-other-cause`
+  (P3 E). The 7396/7434 lane and its reviewer are archived.
+- 2026-11-23 10:52 — Filed on GREEN, found by the lane:
+  `main-red-geom-core-test-support-fails-items-after-test-module-under-all-targets`
+  (P2 E).
+- 2026-11-23 — (OFFER orchestrator) Main's rustdoc gate was red from #7554: `eval/mod.rs:3743`'s doc linked to `Self::exactly_zero` inside a trait impl, where rustdoc cannot resolve it. #7560 fixes it by naming it in code text, verified with the gate's own lints.

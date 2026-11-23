@@ -1546,13 +1546,12 @@ pub(crate) fn describe_face_rim_at_rest<T: Decide + topo::AtRestPolicy>(
         })
         .collect();
     for edge in edges {
-        let curve = match body.stored_curve(edge) {
-            Ok(curve) => curve,
-            // Null scaffolding carries no description at all.
-            Err(EulerOpError::NullScaffoldCurve { .. }) => continue,
-            Err(e) => {
-                unreachable!("edge {edge:?} was read off a live half-edge of face {face:?}: {e}")
-            }
+        let Some(view) = body.edge(edge) else {
+            unreachable!("edge {edge:?} was read off a live half-edge of face {face:?}")
+        };
+        // Null scaffolding carries no description at all.
+        let Some(curve) = view.certified() else {
+            continue;
         };
         if !curve.description().is_scaffold() {
             continue;
