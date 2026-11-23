@@ -559,10 +559,13 @@ pub fn shown_text_toward(unit: Option<UnitDef>, canonical: f64, toward: f64) -> 
         return written_text(canonical, unit);
     }
     let up = toward > canonical;
+    // What the shown number types back as: its decimal through the
+    // unit's door (a number of the unit past the float format, `1e309`
+    // in millimetres, reads back too).
     let reads_back = |value: f64| {
-        crate::readout::computed_number(value, unit)
-            .and_then(|number| number.parse::<f64>().ok())
-            .map(|number| from_written(number, unit))
+        quantity::Decimal::parse(&crate::readout::computed_number(value, unit))
+            .map(|number| unit.canonical(&number))
+            .filter(|back| back.is_finite())
     };
     let on_side = |back: f64| (up && back >= canonical) || (!up && back <= canonical);
     let Some(back) = reads_back(canonical) else {
