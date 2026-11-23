@@ -52,3 +52,4 @@ The row's hosted run on PR 7294 (run 45098183324, the slow-set step for the test
 The same row is red on main `61a3d77a0b`'s sources on seed `0x856e9c81e4b404d1` at ε unset, 1e-6 and 1e-12: three `Recedes` readings contradicted at ε 1e-12's column, draw 18, a circle of radius 485.93 whose frame's axis is `1.3e-9` off `z`.
 
 - 2026-11-23 (GERM, PR 7553's fix pass): another seed. At `CAD_FUZZ_SEED=0xabba8ad2f01a1859`, ε 1e-12, `each_window_reading_holds_on_a_dense_distance` reads draw 34 at `f64` as `Recedes` on `(1.68e-8, 2.66e-8)` where the dense distance contradicts it. It does the same on main `9eb483e0c7`.
+- 2026-11-23 (GERM, PR 7553): seed `0x1` reds the row too, at ε 1e-12. Draw 58 at `f64` is read `Recedes` against the dense distance, the same on main `64aeba04f9`.
