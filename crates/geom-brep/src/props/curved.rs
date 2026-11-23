@@ -2703,12 +2703,9 @@ fn require_cone_circle<T: Decide>(
     )?;
     require_zero(
         "props_cone_circle_off_axis",
-        // Unsourced lever: the rim centre's measured offset from the axis,
-        // a residual projected by `cos α`, not an extent, curvature or rate.
-        Margin::levered(
-            cos_a,
-            geom_core::Lever::unsourced((w - axis * w.dot(axis)).norm()),
-        ),
+        // The rim centre's offset from the axis, projected onto the
+        // cone's normal: the rim's elevation off the cone.
+        Margin::of((w - axis * w.dot(axis)).norm() * cos_a),
         band,
         Premise::OnSurface,
     )?;

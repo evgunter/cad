@@ -3,7 +3,7 @@ id: hand-built-one-patch-meshes-have-four-homes
 kind: issue
 title: Four sites hand-assemble a one-patch Mesh, two on a defaulted FaceKey that check_mesh now reads
 status: open
-priority: P3
+priority: P4
 cost: E
 opened: 2026-09-22
 ---
@@ -54,3 +54,5 @@ separately because its subject is a hand-assembled VALUE, not a body
 fixture, and no instrument that finds duplicated fixtures would find it.
 
 Moved from TINT to CIW on 2026-11-20, by `git mv`, when TINT merged into CIW: TINT held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CIW carries.
+
+- 2026-11-22 — **Re-banded P3 → P4 by CIW triage.** All four sites remain (`mesh/tests/r1_probes_issue303.rs:41`, `review_m2_pr6_checkmesh_audit.rs:32,49`, `stl/tests/export.rs:416`, `viewer/src/scene.rs:1830`). This is fixture deduplication with no latency effect.

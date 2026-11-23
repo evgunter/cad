@@ -974,7 +974,7 @@ pub(super) fn mint_plans<T: Decide>(
         })
         .collect();
     let mut edges: [Vec<Option<EdgeKey>>; 2] = [vec![None; runs.len()], vec![None; runs.len()]];
-    for (slot, operand) in [Operand::A, Operand::B].into_iter().enumerate() {
+    for (slot, operand) in Operand::BOTH.into_iter().enumerate() {
         let vertex = |i: usize| {
             let c = plans[i].contact;
             if slot == 0 { c.a } else { c.b }
@@ -1501,7 +1501,7 @@ fn shared_at<'s, T: geom_core::Real>(
         .filter(|&j| ends(plans[j].contact, slot).0 == vertex)
         .collect();
     (!plans[i].runs.is_empty() && !others.is_empty()).then(|| SharedAt {
-        operand: [Operand::A, Operand::B][slot],
+        operand: Operand::BOTH[slot],
         vertex,
         partner,
         others,

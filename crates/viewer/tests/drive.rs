@@ -71,7 +71,7 @@ mod driven {
     ///
     /// Over the slow-set bar, but `app`-gated, which the slow-set name
     /// check cannot see
-    /// (`work/ciw/an-app-feature-only-test-cannot-be-listed-in-the-slow-set.md`).
+    /// (`work/green/the-slow-set-name-check-cannot-see-app-feature-tests.md`).
     #[test]
     fn a_failed_revolve_does_not_hide_the_sphere_revolved_after_it() {
         let mut driver = started("drive-partial-picture");

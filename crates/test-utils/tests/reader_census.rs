@@ -1066,8 +1066,8 @@ fn every_disposition_that_carries_a_reason_states_a_real_one() {
 /// - a reader that compares identifiers it collected some other way (a
 ///   pattern's names read off brackets, an `impl` head's type), with no
 ///   keyword literal;
-/// - a reader in another language (the Python gates:
-///   `work/ciw/the-python-gates-scope-readers-are-hand-rolled.md`).
+/// - a reader in another language (the Python gates, whose
+///   blind spots each gate's header lists).
 ///
 /// A site of those shapes found by review is listed with an anchor, the
 /// item that does the reading, and held to it.

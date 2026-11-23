@@ -2,11 +2,13 @@
 id: a-split-of-a-family-has-no-halves-a-read-reaches
 kind: issue
 title: An indexed read of a split-of-a-family's half refuses WrongOperand: the read takes the split's whole Family value, not the half's members
-status: dispatched
+status: closed
 opened: 2026-11-09
 priority: P0
 cost: M
 branch: formwords/split-of-family
+pr: 7387
+closed: 2026-11-23
 ---
 
 
@@ -62,3 +64,7 @@ orchestrator and a panic on a normal gesture is P0. Under D10
 `[repetition]` the fix is the evaluator projecting a split's ports per
 member over a Family. The `unreachable!` becomes a typed refusal for
 any shape that is still genuinely unreachable.
+
+## Closed (2026-11-23)
+
+PR 7387. The panic is gone: `split_port` refuses `HalfOfAFamily { read, input, half }` typed, naming the read and the split, with the recourse "split one member (`xs[i]`) and read that split's half". What a split of a family means beyond that is not this row's question. Under the binder ruling (`[repetition]`, PR 7416), a one-body seat handed a family is refused at the door, so a split never sees a family. That is built by `a-family-read-at-a-body-seat-maps-implicitly`.

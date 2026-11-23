@@ -4,7 +4,7 @@ kind: issue
 title: decoration_seam.rs's header says the ssi::enclose crossing is pinned by no row; enclose.rs's own decoration_seam module pins it
 status: open
 opened: 2026-09-04
-priority: P3
+priority: P4
 cost: E
 ---
 
@@ -136,3 +136,6 @@ scope; `demos/`, `tools/` and `interval-transcendentals/` were not
 checked for callers.
 
 Moved from TINT to CIW on 2026-11-20, by `git mv`, when TINT merged into CIW: TINT held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CIW carries.
+
+- 2026-11-22 — **Re-banded P3 → P4 by CIW triage.** Still true: `crates/geom-core/tests/decoration_seam.rs:45` says "no row named here pins";
+`crates/geom-brep/src/ssi/enclose.rs:3850-3970` holds the three pinning rows. Prose only.
