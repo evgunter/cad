@@ -2670,7 +2670,8 @@ fn a_wall_holds_against_a_face_at_a_vertex_mid_ruling() {
 /// not as a coordinate line, so a cell holding that circle beside a
 /// ruling's vertex is handed to the curve presentations and read at no
 /// depth, before the wall's clips are built
-/// (`work/embed/a-generic-mirror-re-mints-a-rim-circles-row-as-a-harmonic-image.md`).
+/// (`work/pcert/a-cylinder-rim-on-a-turned-frame-stores-a-rounding-in-its-axial-channel-at-f64.md`,
+/// its third sighting).
 ///
 /// - The ring: `Uncertified { Departure }` across an edge of a plane end
 ///   face and a cylinder wall, at `f64` and at `Interval`.

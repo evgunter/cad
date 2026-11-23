@@ -217,7 +217,7 @@ Measured on the same run, each with its trace (`CVT`, `CVS` rows):
   wall never reached `zero_of`. Mirrored across a generic plane the
   block holds at `f64` and refuses at `Interval`, and the ring refuses
   at both, upstream of this reading
-  (`a-generic-mirror-re-mints-a-rim-circles-row-as-a-harmonic-image`).
+  (PCERT's `a-cylinder-rim-on-a-turned-frame-stores-a-rounding-in-its-axial-channel-at-f64`, its third sighting: the mirrored rim rows store a rounding in the axial channel).
 - **The one corner among several loose vertices is signed only where it
   is the first shared vertex** (review, by inspection): the
   vertex-alone plane and `anchor` take `near.vertices.first()`, and a

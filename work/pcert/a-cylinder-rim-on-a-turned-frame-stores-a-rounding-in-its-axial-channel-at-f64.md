@@ -120,3 +120,52 @@ it reads `Uncertified Departure`, cylinder against plane across an
 edge: the exit of this row's traced test. The mirror re-mints the rows
 on a turned frame, where a rigid move keeps the stored images. Likely
 the same cause; not traced. The row pins it at that exit.
+
+## A third sighting, TRACED to the stored rows: a generic mirror (2026-11-23)
+
+From EMBED's lane `embed/clip-vertex`, PR 7464's head `5b5ab29652`
+(over `origin/embed/wave3-land` `8d34076a9e`), `f64`, a probe printing
+every stored row of the body (`Body::pcurves`).
+
+A ring revolved `τ − 10⁻³` about the y axis (profile
+`[0.5, 1] × [0, 1]`; `near_full_ring` in
+`crates/sweep/tests/self_intersection_proves_injectivity.rs`), then
+`topo::mirror_body` across the plane through `(0.1, −0.2, 0.4)` with
+normal `(1, 2, 3)`. Its four rim circles' rows on the cylinder walls:
+
+| half-edge | as built | mirrored |
+|---|---|---|
+| `10v1` | `v: Free { c: 0, a: 0, b: 0, l: 0 }` | `v: Free { c: 0, a: 0, b: 1.3877787807814457e-17, l: 0 }` |
+| `11v1` | `v: Free { c: 1, a: 0, b: 0, l: 0 }` | `v: Free { c: 1, a: 0, b: 1.3877787807814457e-17, l: 0 }` |
+| `14v1` | `v: Free { c: 0, a: 0, b: 0, l: 0 }` | `v: Free { c: 0, a: 0, b: 2.7755575615628914e-17, l: 0 }` |
+| `15v1` | `v: Free { c: −1, a: 0, b: 0, l: 0 }` | `v: Free { c: −1, a: 0, b: 2.7755575615628914e-17, l: 0 }` |
+
+The same on a half rod united with a block (`half_rod_on_a_block`)
+mirrored: its two rim half-circles store `a: 2.7755575615628914e-17`.
+So the mirror's re-mint (`mirror_body` clears the rows and mints them
+again on the mirrored frame; a rigid move carries them through) is a
+second door into this row's class, with no outline built off the axes.
+
+**What it costs there**, traced before on the lane's head `5421491599`:
+each such rim use reads `iso = None, harmonic = Some`, `present_chart`
+hands a cell with that circle in reach to `curved_walls`, and
+`curved_walls` answers `Unpresented::Local` wherever the circle has a
+second edge or a vertex beside it (47 exits on the block's two wall
+pairs, 292 on the ring's refusing pair). On the landing branch the
+mirrored ring reads `Uncertified { 1v1, 3v1, Edge(9v1), Departure }`,
+a plane end face against the cylinder wall; the mirrored block is
+embedded at `f64` (its `f64` blocker was the cover's joint, PR 7322).
+
+**Controls**: a unit rod, a full ring, a 3-radian ring and a unit brick
+hold mirrored across the same plane (a lone circle is read by
+`present_curved`); every body above holds turned about a generic axis,
+moved a hundred units, and mirrored across an axis plane.
+
+**Not this row's, and not traced**: the same ring also refuses at
+`Interval` (`Uncertified { Departure }`, the same pair), and the
+mirrored block refuses at `Interval` (`Budget`) where it holds at
+`f64`. This row's cause is an `f64` point off zero; what the `Interval`
+rows store there was not printed.
+
+Pinned as it reads:
+`self_intersection_proves_injectivity::the_ring_and_the_interval_block_refuse_mirrored_across_a_generic_plane`.
