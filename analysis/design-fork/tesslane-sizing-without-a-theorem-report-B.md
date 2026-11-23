@@ -1,0 +1,57 @@
+## For Ev
+
+**Recommendation (likely).** Delete the half-of-δ factor for every face of the chart lane, not only the notched class. The lane sizes its lattice and chords at δ from the bound it already has proved (the bound on a triangle inside one lattice cell), holds every triangle to its certificate as now, and where a triangle reads over δ it adds one interior point and triangulates the face again, as it already does for spline faces. A face refuses only when a round budget ends. `[mesh.sizing]` then says: the step is the lane's first guess, the certificate is the judge, and a "theorem" is a proof that a lane's first guess is never corrected, worth writing where it is cheap and not a debt where it is not.
+
+Terms. δ: the chordal tolerance asked for. Certificate: the per-triangle closed-form bound on distance to the surface; every triangle of every face must read ≤ δ or the face refuses. Chart lane: the lane that meshes a curved face that is no rectangle of its chart (boundary chord points, a lattice of interior points, a constrained Delaunay triangulation). Headroom: `UNPROVED_HEADROOM = 0.5`, the factor by which that lane's cylinder, cone, sphere and torus faces shrink δ before sizing. Refinement: the lane's existing retry, which queues a point inside a triangle whose certificate refused and rebuilds the face; today it is switched on for spline faces only. Rows: the lattice's lines across a cylinder's or cone's straight direction.
+
+**Premise check: three corrections.**
+
+1. *Sizing at δ is not what made faces outside the class refuse; leaving the rows off was.* I measured the `mesh` suite (546 tests, about 1,120 meshings of chart-lane analytic faces that mesh today), lattice unchanged, sized at δ:
+   - no refinement: 14 of those meshings newly refuse (13 on the certificate, 1 fold); the rest mesh at 0.51 to 0.56 of today's triangles (median, per chart), worst certificate 0.995 δ;
+   - with the lane's existing refinement (the point at the triangle's centroid): none newly refuses on the certificate; one ringed sphere face refuses on a fold where a sibling of it folds today; five sphere faces that refuse today mesh. Same triangle ratios. At most 4 rounds, 85% of faces in one. Time spent in these faces fell from 25 s to 12 s (debug build).
+   - with the other insertion rule (midpoint of the widest unconstrained side): one tilted cylinder wall at a coarse δ refuses after the budget. So the rule matters, and neither has a proof that it ends.
+   - rows off everywhere as well: all 428 cylinder meshings pass (median 0.12 of today's triangles), 16 cone meshings refuse. That is a question about the lattice's shape on a cone, separate from δ.
+   About 50 meshings went unobserved in each run because their test stopped at an earlier pinned count.
+2. *The headroom guarantees nothing.* No bound says half of δ is enough: a triangle beside a trim chord is unbounded at any factor, faces refuse on the certificate at the headroom today (a test pins one), and on the notched class the worst reading at the headroom is 0.689 δ, already past half. It is a step shrunk for margin, with a name, on a page whose next bullet says "No safety factor".
+3. *Refinement is not a new mechanism.* It is in the lane; one condition restricts it to spline faces. On the cylinder the certificate is the exact distance (radius minus the triangle's distance from the axis), so refining on it is refining on the true deviation.
+
+**Ratified text I would change, and its provenance.** `[mesh.sizing]` was written 2026-10-25 from a converged pair of designer reports. Your own words in that exchange were "we should generally aim to never overrefine" and "as big as possible without any extra work" (said about not requiring a mesh to land exactly at δ). The clause that a lane must have a theorem before it may size at δ, and keeps a named headroom until then, was one designer's addition, adopted with the package; I found no words of yours asking for it. Those two are in conflict in spirit, and I would change the second. It also conflicts with what you wrote on the ruled-face question (triangulation as "any division into triangles so that it never deviates by more than delta"): a worst-triangle theorem is a statement about one triangulation method, so making it the licence to size at δ ties sizing to the method.
+
+**What the question is evidence of.** The page gives the step two jobs: choosing density, and guaranteeing in advance that every triangle passes. The second is the certificate's job, and it does it for every triangle already. Because the step is asked to guarantee, a lane with no proof must shrink it, and a wrong guess is fatal: one triangle over δ and the whole face refuses, though the surface is exact and one more point would cure it. Nothing in the page says what a lane does when its guess leaves a triangle over δ.
+
+**The answers as final states.**
+
+*A (recommended): the certificate judges, the step guesses, the lane corrects.*
+- True afterwards: one sizing target, δ, on every lane. `UNPROVED_HEADROOM` and `face_target`'s branch are gone. The refinement runs on every row of the chart lane. The rectangle lane and the walk keep their proofs, stated as "first guess never corrected" and pinned as now.
+- Proposed text for the two bullets: "**The step is a first guess, the coarsest the lane's cell bound allows; the certificate decides.** Where a triangle's certificate reads over δ, the lane adds a point there and triangulates the face again; it refuses when its round budget ends. **A lane that can prove its first guess is never corrected says so**, in closed form, pinned beside its step function." The sentence listing the kinds of worst triangle goes: it is already incomplete (a walked triangle is neither kind).
+- Still possible that should not be: a face can refuse after the budget, with no proof it will not. That is today's state too, with the refusal one round later instead of at once. A proof that the insertion ends would be the theorem worth owing, one for all charts.
+- Consequences: chart-lane faces at about half today's triangles; shared rims chorded at δ, so neighbours get coarser too; every pinned count and digest on these faces moves. The three debt rows close as not owed (they ask for a bound on constrained Delaunay triangles, a bound on the method).
+- Reversible: yes, one constant and one condition.
+
+*B: the page as it stands.* Headroom stays until the containment lemma is proved. The notched cylinder walls drop their rows (1.00 to 1.50 times the reference); every other chart-lane face stays at about twice the triangles δ needs. No ratified text moves. The lemma has been open a month, both sketches of it are marked unsure, and it would bind the lane to constrained Delaunay.
+
+*C: A for the notched class only.* Two targets in one lane, chosen by a fact of the route, and a rim between a class face and a non-class face chorded at the finer. The measurement above shows the faces outside the class behave as the class does, so the key decides nothing.
+
+**One clarification I ask for rather than guess.** "Without extra work": I read it as "do not build machinery, or search, to close the last gap to δ", which a retry on a refused certificate is not (it replaces a refusal, and the total work measured is less). If you meant "no second pass over a face", then B is the page's answer and A changes it. Either way I would have the page say which.
+
+Confidence: A over B likely. That δ sizing with refinement loses no face in the suite: sure for the suite as run, unsure beyond it (the slow set's nightly rows, `sweep` and `step-import` were not run). That the theorem clause was not asked for in your words: likely (I read the commit and the fork-log row, not the pull request).
+
+## For the orchestrator
+
+**Measured (mine), on this branch's head, `cargo nextest run -p mesh` default profile, ε as the tests set it, `ISO_PROBE_LOG` armed, faces aligned per test by (face key, kind, δ):** `ISO_CURE` unset; `delta`; `delta,refine_edge`; `delta,refine`; `delta,rowsoff,refine`. Suite results 546 pass / 16 / 11 / 10 / 18 failing; the failures under `delta,refine` are pinned counts, digests, K-streams and rows that pin a refusal (`an_over_delta_sphere_arm_triangle_refuses_typed`, `a_needle_funnel_cut_at_its_apex_refuses_typed`), plus `ringed_curved_faces_that_still_refuse_answer_by_cause`. **Only read:** the class table and the headroom-kept row you sent (not re-run), the step theorems, the three debt rows, fork-log rows 195 and 279, commits `d0b1563d29`, `ff1f4265bb`, `304d2a52b8`. I read no pull request.
+
+**Errors or gaps in the brief.**
+- "Applied to every chart-lane analytic face, the same switches make faces refuse": true only with `rowsoff` in the switches. With rows kept the m5_pr11 tilted wall and the section-cut cone faces mesh under `delta,refine`. This is the fact the recommendation rests on; have the implementer confirm it before it goes to Ev.
+- The table's 1a/1b ranking (widest side better) holds on the class with rows off. With rows kept across the suite the centroid is the rule that loses nothing; widest-side fails `m5_pr11_trimmed::a_wide_tilted_cylinder_meshes_at_every_delta` at δ 0.152 (a face with no node laid, 31 boundary points, 7 attempts, certificate 0.299). The ruling "cure 1b" should be re-read against this. One rule for the whole lane, spline rows included, is the final state to want; which rule is the unit's to measure on spline rows too.
+- The 0.689 δ reading at the headroom is itself evidence the headroom bounds nothing; the statement did not draw that.
+
+**Not checked, assumed.**
+- The one new sphere refusal (`FoldedTriangle`, attempt 1, a boundary fold) is in a row whose faces mostly refuse today; coarser rim chords may make boundary folds more likely. Count folds, not only certificates, in any wider run.
+- Rounds share `MAX_GRID_RETRIES` (6) with fold drops and shared-side splits. Under A the refinement's budget wants its own named termination constant, and the doc text in `trimmed.rs` calling refinement "a rare backstop" that "cannot converge" is about centroids on anisotropic spline strips; it would need restating.
+- `BOUNDARY_CLEARANCE`'s README bullet says its move to 1/2 "waits on the bound for a boundary run, as `UNPROVED_HEADROOM` does". Under A that wait ends too: 1/2 can be measured directly with refinement on. Not measured.
+- Rows on ruled charts: with refinement, no rows on any cylinder face passed the whole suite at a median 0.12 of today's triangles, so "a cylinder lays no rows" may be a fact of the chart and not of the class, which would remove the class key from the route. Cones do not survive it (16 refusals, up to 7 rounds). I lean to the chart fact for cylinders, unsure; it is a lattice-shape decision and does not need Ev unless the class key would otherwise enter the page.
+- Slow-set rows at other ε, `sweep`, `step-import`, the viewer rows and the tour were not run under any switch.
+
+**Off the question.** `sizing.rs`'s module doc and `types.rs` (near line 223) repeat the headroom rule in prose; under A both change with it. The probe's `face_target` switch reads an environment variable per call on a hot path; it is throwaway, but timings taken with it armed are slightly pessimistic for every configuration alike.
+
+Logs are in this session's scratchpad only (`log_*.tsv`, `an2.py`); say if you want any figure re-cut.
