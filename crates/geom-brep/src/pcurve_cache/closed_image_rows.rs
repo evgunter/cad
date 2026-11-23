@@ -732,17 +732,17 @@ impl Mirror {
         match c {
             Curve3::Line(l) => Curve3::line(self.point(l.origin), self.vector(l.dir)),
             Curve3::Circle(k) => Curve3::circle(
-                self.point(k.frame.origin()),
-                -self.vector(k.frame.axis()),
+                self.point(k.frame().origin()),
+                -self.vector(k.frame().axis()),
                 k.radius(),
-                self.vector(k.frame.u_ref()),
+                self.vector(k.frame().u_ref()),
             ),
             Curve3::Ellipse(e) => Curve3::ellipse(
-                self.point(e.frame.origin()),
-                -self.vector(e.frame.axis()),
+                self.point(e.frame().origin()),
+                -self.vector(e.frame().axis()),
                 e.semi_u(),
                 e.semi_v(),
-                self.vector(e.frame.u_ref()),
+                self.vector(e.frame().u_ref()),
                 band(),
             )
             .unwrap(),
@@ -1596,10 +1596,10 @@ fn a_focal_section_below_one_by_any_room_passes_its_beta_check() {
 
 /// **A genuine needle section of a cone passes with its own `β`.** The
 /// focal image's `1 − |β|` is about the section's projected axis ratio, so
-/// a section thin enough for that room to come near the band would need
-/// its plane within about `10⁻¹⁷` of a generator's tilt, under an ulp of
-/// any angle a run states: the thinnest sections a plane in the box cuts
-/// keep `1 − |β|` thousands of bands clear, and a stated `β` closer to one
+/// a section thin enough for that room to come near the band has its plane
+/// within the band of a generator's tilt, and the section's classifier
+/// (`intersect::plane_cone_section`) reads every such plane as an open
+/// conic: no ellipse that thin is minted, and a stated `β` closer to one
 /// is never a section's own (the row above). This one, a plane `10⁻³` off
 /// the apex and tilted a thousand of the band's zero short of the
 /// generator, a needle out along it, mints its own focal image with
@@ -1667,14 +1667,14 @@ fn a_needle_cone_section_passes_with_its_own_beta() {
 /// `±1`: an orientation, read by its sign, whatever the span. Levered at
 /// the span's own extent, an arc under the band read that cosine in band
 /// and refused the oval as off a "perpendicular" torus. Six ovals, each
-/// over spans from a millimetre down to a tenth of the band's zero.
+/// over spans from a million of the band's zero down to a tenth of it.
 #[test]
 fn a_spiric_on_its_own_torus_is_served_over_any_span() {
     let mut g = fuzz::start("spiric_own_torus_any_span");
     for _ in 0..6 {
         let (oval, charts) = spiric(&mut g);
         let t0 = g.range(-3.0, 3.0);
-        for span in [1e-3, 1e-5, 1e-7, 3e-8, 1e-8, 3e-9, 1e-9, 1e-10] {
+        for span in [1e6, 1e4, 1e2, 30.0, 10.0, 3.0, 1.0, 0.1].map(|k| k * band().zero()) {
             let got = chart_pcurve_over(&oval, t0, t0 + span, &charts[0], band());
             assert!(
                 matches!(got, Ok(Pcurve::Spiric { .. })),
