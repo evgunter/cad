@@ -1441,7 +1441,9 @@ fn survives_forged_seam_on_a_plane_annulus_edge_is_refused() {
         .unwrap_err();
     assert_eq!(
         err,
-        topo::EulerOpError::DescriptionNotAdjacent { edge: Some(circle) },
+        topo::EulerOpError::DescriptionNotAdjacent {
+            edge: topo::EdgeSubject::Keyed(circle)
+        },
         "Seam on a plane annulus's circle must be refused"
     );
     assert_all_tiers(&body);

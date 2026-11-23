@@ -1117,7 +1117,8 @@ pub(crate) fn rechart_section<T: Decide + crate::props::AtRestPolicy>(
     .map_err(|refusal| {
         let edge = match &refusal {
             EulerOpError::DescriptionUncertified {
-                edge: Some(edge), ..
+                edge: crate::EdgeSubject::Keyed(edge),
+                ..
             } => *edge,
             _ => return refusal.into(),
         };
@@ -2918,7 +2919,8 @@ mod edge_on_faces_rows {
             cause: in_band(predicate),
         };
         let keyed_or_minted = |error: CertifyError| {
-            [Some(edge), None].map(|edge| EulerOpError::DescriptionUncertified { edge, error })
+            [crate::EdgeSubject::Keyed(edge), crate::EdgeSubject::Minted]
+                .map(|edge| EulerOpError::DescriptionUncertified { edge, error })
         };
         for (check, predicate) in [
             (

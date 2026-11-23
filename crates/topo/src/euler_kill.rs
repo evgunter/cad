@@ -316,11 +316,11 @@ use crate::entity::{
 };
 #[cfg(debug_assertions)]
 use crate::euler::ArenaDelta;
-use crate::euler::RechartDoor;
 use crate::euler::{
     Clearing, EulerOpError, FaceSurface, KillAnchor, KillInto, KillRun, ParentSide, ProvenMate,
     Records, RunExtent, shared_loop,
 };
+use crate::euler::{EdgeSubject, RechartDoor};
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::joint::JointElement;
 use crate::live::{Arg, Live, dangling_link, link, linked, lookup, proven};
@@ -1227,6 +1227,7 @@ impl<T: Decide> Body<T> {
             let (p_start, p_end) = self.rebased_endpoints(edge, &plan.fan, survivor_point());
             let curve = self.certify_edge_spec(
                 crate::policy_lane::Origin::Callers,
+                EdgeSubject::Keyed(edge),
                 Some(edge),
                 None,
                 spec.clone(),
@@ -2726,7 +2727,7 @@ mod tests {
             matches!(
                 err,
                 EulerOpError::DescriptionUncertified {
-                    edge: Some(edge),
+                    edge: EdgeSubject::Keyed(edge),
                     error: geom_brep::CertifyError::ResidualExceeded { .. },
                 } if edge == seg.edge
             ),
@@ -2758,7 +2759,7 @@ mod tests {
             body.kev_describing(strut.he_minus, &[(seg.edge, spec)], Tol::witness())
                 .map(|_| ()),
             Err(EulerOpError::DescriptionNotAdjacent {
-                edge: Some(seg.edge)
+                edge: EdgeSubject::Keyed(seg.edge)
             })
         );
         assert_eq!(deep_snapshot(&body), before);

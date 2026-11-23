@@ -331,7 +331,7 @@ fn probe_f_uncertifiable_pair_refuses_at_attachment() {
     assert!(
         matches!(
             err,
-            topo::EulerOpError::DescriptionNotAdjacent { edge: Some(e) } if e == edge
+            topo::EulerOpError::DescriptionNotAdjacent { edge: topo::EdgeSubject::Keyed(e) } if e == edge
         ),
         "P-F: expected the adjacency refusal naming the seam, got {err:?}"
     );

@@ -33,7 +33,7 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, GeomRef, HalfEdgeKey, VertexKey};
 #[cfg(debug_assertions)]
 use crate::euler::ArenaDelta;
-use crate::euler::EulerOpError;
+use crate::euler::{EdgeSubject, EulerOpError};
 use crate::geometry::{CurveKey, PointKey};
 use crate::live::{Arg, dangling_link, link, lookup};
 use crate::provenance::Provenance;
@@ -318,11 +318,23 @@ impl<T: Decide> Body<T> {
         let faces = crate::edge_faces(self, edge);
         let origin =
             crate::policy_lane::Origin::Kernels(crate::policy_lane::KernelSite::SplitChild);
-        let child = |spec, start, end| {
-            self.certify_edge_spec(origin, Some(edge), None, spec, start, end, faces, tol)
+        // The first child keeps the parent's key and the second is
+        // minted; both read the parent's stored image and certificate.
+        let child = |subject, spec, start, end| {
+            self.certify_edge_spec(
+                origin,
+                subject,
+                Some(edge),
+                None,
+                spec,
+                start,
+                end,
+                faces,
+                tol,
+            )
         };
-        let cert1 = child(spec1, p_u, p_new)?;
-        let cert2 = child(spec2, p_new, p_v)?;
+        let cert1 = child(EdgeSubject::Keyed(edge), spec1, p_u, p_new)?;
+        let cert2 = child(EdgeSubject::Minted, spec2, p_new, p_v)?;
         // ---- Pcurve gate (still no mutation): each parent half-edge's
         // stored chart row, stated over the two children's sub-intervals
         // (placed again where it is closed-form or projected) and

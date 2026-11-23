@@ -47,7 +47,7 @@ fn the_f64_seam_answers_every_public_door() {
         &[1e-6],
         "the f64 seam",
         &[
-            "DescriptionUncertified { edge: Some(EdgeKey(10v1)), error: PlaneNurbs(TubeNotOneArc { rungs: 15, cause: Undecided(Indeterminate { margin: MarginDiag(Invalid)",
+            "DescriptionUncertified { edge: Keyed(EdgeKey(10v1)), error: PlaneNurbs(TubeNotOneArc { rungs: 15, cause: Undecided(Indeterminate { margin: MarginDiag(Invalid)",
             "predicate: Some(\"ssi_tube_one_arc\")",
         ],
         the_f64_seam_answers_every_public_door_row,

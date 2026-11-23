@@ -602,7 +602,9 @@ mod payloads {
     /// operation, never a bad argument, which a driver's own keys cannot
     /// be ([`topo::EulerOpError::from_driver`]).
     pub(super) fn euler() -> topo::EulerOpError {
-        topo::EulerOpError::DescriptionNotAdjacent { edge: None }
+        topo::EulerOpError::DescriptionNotAdjacent {
+            edge: topo::EdgeSubject::Minted,
+        }
     }
 
     pub(super) fn pcurve() -> topo::PcurveMintError {
@@ -3188,7 +3190,7 @@ fn certify_refusal_routes() -> Vec<(String, NodeErrorKind)> {
                 &format!("Extrude/Op/DescriptionUncertified/Routed/{route}"),
                 NodeErrorKind::Extrude(sweep::ExtrudeError::Op {
                     source: topo::EulerOpError::DescriptionUncertified {
-                        edge: None,
+                        edge: topo::EdgeSubject::Minted,
                         error: source,
                     },
                 }),

@@ -265,7 +265,7 @@ fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
         let ReplaceFaceError::Op {
             error:
                 topo::EulerOpError::DescriptionUncertified {
-                    edge: Some(edge),
+                    edge: topo::EdgeSubject::Keyed(edge),
                     error,
                 },
             ..

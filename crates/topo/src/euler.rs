@@ -791,7 +791,11 @@ fn require_chord_adjacent<T: Real>(
     if after == Slot::Kept(old) {
         return Ok(());
     }
-    require_description_adjacent(None, &spec.description, [Slot::Kept(old), after])
+    require_description_adjacent(
+        EdgeSubject::Minted,
+        &spec.description,
+        [Slot::Kept(old), after],
+    )
 }
 
 /// The lever of an edge at rest whose faces' join reads in band or mixed
@@ -800,6 +804,38 @@ fn require_chord_adjacent<T: Real>(
 pub(crate) const REST_JOIN_LEVER: &str = geom_core::move_lever!(
     "so the faces meet clearly smoothly or clearly at a corner along the edge"
 );
+
+/// The edge a description refusal is about
+/// ([`EulerOpError::DescriptionUncertified`],
+/// [`EulerOpError::DescriptionNotAdjacent`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EdgeSubject {
+    /// An edge the body holds.
+    Keyed(EdgeKey),
+    /// The edge the door would mint, which has no key before the
+    /// mutation phase.
+    Minted,
+}
+
+impl EdgeSubject {
+    /// The key, where the edge has one.
+    #[must_use]
+    pub const fn key(self) -> Option<EdgeKey> {
+        match self {
+            Self::Keyed(edge) => Some(edge),
+            Self::Minted => None,
+        }
+    }
+}
+
+impl fmt::Display for EdgeSubject {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Keyed(edge) => write!(f, "edge {edge:?}"),
+            Self::Minted => f.write_str("the minted edge"),
+        }
+    }
+}
 
 /// A failed Euler-operator precondition. Closed enum (D3 style); the
 /// body is untouched whenever one of these is returned (the operators
@@ -836,13 +872,12 @@ pub enum EulerOpError {
     /// handed it ([`Body::set_edge_curve`](crate::construction::Construct::set_edge_curve), a minting door's curve, a
     /// describing door's listed re-description, certified on the charts
     /// the move gives its edge) or the pieces a door cuts from the
-    /// description the body holds ([`Body::split_edge`](crate::construction::Construct::split_edge)'s children).
-    /// Raised before the mutation phase, so the body is untouched.
+    /// description the body holds ([`Body::split_edge`](crate::construction::Construct::split_edge)'s children: the
+    /// first keeps the parent's key, the second is minted). Raised
+    /// before the mutation phase, so the body is untouched.
     DescriptionUncertified {
-        /// The edge the description is for; `None` for the edge a
-        /// minting door would mint, which has no key before the mutation
-        /// phase.
-        edge: Option<EdgeKey>,
+        /// The edge the description is for.
+        edge: EdgeSubject,
         /// The certification failure.
         error: CertifyError,
     },
@@ -930,10 +965,8 @@ pub enum EulerOpError {
     /// surfaces are its adjacent faces'; a seam's surface is on both
     /// sides).
     DescriptionNotAdjacent {
-        /// The edge whose description is incoherent with its faces;
-        /// `None` for the edge a minting door would mint, which has no
-        /// key before the mutation phase.
-        edge: Option<EdgeKey>,
+        /// The edge whose description is incoherent with its faces.
+        edge: EdgeSubject,
     },
     /// A keys-only re-chart door ([`RechartDoor`]) would leave these
     /// edges described against a surface their faces no longer wear:
@@ -1426,12 +1459,8 @@ impl EulerOpError {
         use geom_brep::recourse::read_at;
         match self {
             Self::DescriptionUncertified { edge, error } => {
-                let edge = edge.map_or_else(
-                    || "the minted edge's".to_string(),
-                    |edge| format!("edge {edge:?}'s"),
-                );
                 format!(
-                    "{edge} description does not certify: {}",
+                    "{edge}'s description does not certify: {}",
                     read_at(error, at)
                 )
             }
@@ -1460,10 +1489,6 @@ impl EulerOpError {
                 format!("edge {edge:?} is re-described twice")
             }
             Self::DescriptionNotAdjacent { edge } => {
-                let edge = edge.map_or_else(
-                    || "the edge the door mints".to_string(),
-                    |edge| format!("edge {edge:?}"),
-                );
                 format!(
                     "{edge}: its description names surfaces that are not its two faces' \
                      surfaces (D2 adjacency coherence). Recourse: describe it against the \
@@ -1828,7 +1853,7 @@ pub(crate) fn every_euler_op_error_once()
     let vk = VertexKey::default();
     let errors = [
         EulerOpError::DescriptionUncertified {
-            edge: Some(ek),
+            edge: EdgeSubject::Keyed(ek),
             error: CertifyError::Unimplemented,
         },
         EulerOpError::RebasedCarrier {
@@ -1839,7 +1864,9 @@ pub(crate) fn every_euler_op_error_once()
         EulerOpError::MergeRebasesCarriers { edges: vec![ek] },
         EulerOpError::NotMergedMember { edge: ek },
         EulerOpError::DuplicateRedescription { edge: ek },
-        EulerOpError::DescriptionNotAdjacent { edge: Some(ek) },
+        EulerOpError::DescriptionNotAdjacent {
+            edge: EdgeSubject::Keyed(ek),
+        },
         EulerOpError::RechartStrandsDescriptions {
             door: RechartDoor::Mef,
             edges: vec![ek],
@@ -2472,6 +2499,7 @@ impl<T: Decide> Body<T> {
             [plan.he1_loop, plan.he2_loop].map(|l| proven(&self.loops, l, EntityId::Loop).face);
         let certified = self.certify_edge_spec(
             Origin::Callers,
+            EdgeSubject::Minted,
             None,
             curve.kept().as_ref(),
             curve.spec(false, p_old, point),
@@ -2742,6 +2770,7 @@ impl<T: Decide> Body<T> {
         // ---- Geometry gate (still no mutation). ----
         let certified = self.certify_edge_spec(
             Origin::Callers,
+            EdgeSubject::Minted,
             None,
             curve.kept().as_ref(),
             curve.spec(false, p_old, point),
@@ -2973,6 +3002,7 @@ impl<T: Decide> Body<T> {
         require_chord_adjacent(&spec, (inherit_surface, after))?;
         let certified = self.certify_edge_spec(
             Origin::Callers,
+            EdgeSubject::Minted,
             None,
             kept.as_ref(),
             spec,
@@ -3155,6 +3185,7 @@ impl<T: Decide> Body<T> {
         require_chord_adjacent(&spec, (inherit_surface, after))?;
         let certified = self.certify_edge_spec(
             Origin::Callers,
+            EdgeSubject::Minted,
             None,
             kept.as_ref(),
             spec,
@@ -3696,9 +3727,11 @@ impl<T: Decide> Body<T> {
     /// resolved from this body's arena, through the scalar's edge door
     /// ([`crate::AtRestPolicy::attach_edge`]), as `origin`'s data
     /// ([`Origin`]).
-    /// `edge` is the existing edge the spec certifies (a re-description,
-    /// a split child, a merged member), `None` where the door mints a new
-    /// edge; `faces` are the two faces the edge bounds as this door
+    /// `edge` is the existing edge whose stored image and certificate
+    /// the spec is read against (a re-description, a split child, a
+    /// merged member), `None` where the door mints a new edge; `subject`
+    /// is the edge a refusal names, which for a split's second child is
+    /// the minted one though `edge` is its parent; `faces` are the two faces the edge bounds as this door
     /// leaves them, read as the body stands before it (the face a minted
     /// strut or chord lies in, twice), which lever its wedge
     /// ([`fn@crate::wedge_reach`]). Those are not always the faces of the
@@ -3719,6 +3752,7 @@ impl<T: Decide> Body<T> {
     pub(crate) fn certify_edge_spec(
         &self,
         origin: Origin,
+        subject: EdgeSubject,
         edge: Option<EdgeKey>,
         kept: Option<&geom_brep::LocusCertificate<T>>,
         spec: EdgeCurveSpec<T>,
@@ -3760,7 +3794,10 @@ impl<T: Decide> Body<T> {
             stated.as_ref(),
             &kept,
         )
-        .map_err(|error| EulerOpError::DescriptionUncertified { edge, error })
+        .map_err(|error| EulerOpError::DescriptionUncertified {
+            edge: subject,
+            error,
+        })
     }
 
     /// The image `edge` already carries on the spline side of its

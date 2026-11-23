@@ -68,7 +68,7 @@ fn cause() -> Indeterminate {
 
 fn escalated(check: CertCheck) -> EulerOpError {
     EulerOpError::DescriptionUncertified {
-        edge: None,
+        edge: crate::EdgeSubject::Minted,
         error: CertifyError::Escalated {
             check,
             sample: 8,
@@ -79,7 +79,7 @@ fn escalated(check: CertCheck) -> EulerOpError {
 
 fn past(margin: f64) -> EulerOpError {
     EulerOpError::DescriptionUncertified {
-        edge: None,
+        edge: crate::EdgeSubject::Minted,
         error: CertifyError::ResidualExceeded {
             check: CertCheck::EndpointEnd,
             sample: 8,
@@ -293,7 +293,7 @@ fn what_no_reading_explains_stays_the_gates() {
         );
     }
     let definite_residual = EulerOpError::DescriptionUncertified {
-        edge: None,
+        edge: crate::EdgeSubject::Minted,
         error: CertifyError::ResidualExceeded {
             check: residual(),
             sample: 8,
@@ -308,7 +308,7 @@ fn what_no_reading_explains_stays_the_gates() {
     );
     assert!(gates(&got), "a definite residual: {got:?}");
     let unreadable = EulerOpError::DescriptionUncertified {
-        edge: None,
+        edge: crate::EdgeSubject::Minted,
         error: CertifyError::Escalated {
             check: CertCheck::EndpointEnd,
             sample: 8,
@@ -321,7 +321,7 @@ fn what_no_reading_explains_stays_the_gates() {
     let got = read(SectionEndReading::OnPlane, &far, far_ends(&far), unreadable);
     assert!(gates(&got), "an unreadable margin: {got:?}");
     let straddle = EulerOpError::DescriptionUncertified {
-        edge: None,
+        edge: crate::EdgeSubject::Minted,
         error: CertifyError::Escalated {
             check: CertCheck::EndpointStart,
             sample: 0,

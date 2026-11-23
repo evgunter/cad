@@ -2810,7 +2810,9 @@ mod recourse_tests {
             },
             BlendError::Op {
                 site: "strut mev",
-                source: Box::new(topo::EulerOpError::DescriptionNotAdjacent { edge: None }),
+                source: Box::new(topo::EulerOpError::DescriptionNotAdjacent {
+                    edge: topo::EdgeSubject::Minted,
+                }),
             },
             BlendError::Join {
                 refusal: topo::JoinRefusal::CarrierUnsupported {
