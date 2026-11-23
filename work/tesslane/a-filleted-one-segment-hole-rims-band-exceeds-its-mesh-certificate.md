@@ -2,11 +2,12 @@
 id: a-filleted-one-segment-hole-rims-band-exceeds-its-mesh-certificate
 kind: issue
 title: A plate hole whose one-segment rim is filleted refuses tessellation CertificateExceeded at some (radius, delta) where its two-arc twin meshes: r = 0.005 at delta 1e-3 is 7.7x over
-status: dispatched
+status: closed
 opened: 2026-11-21
 priority: P1
 cost: M
 branch: tesslane/one-slit-band
+closed: 2026-11-23
 ---
 
 
