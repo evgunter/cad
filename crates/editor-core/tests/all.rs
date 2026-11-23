@@ -63,10 +63,14 @@ mod wire;
 mod a_blend_refusal_names_its_edge;
 #[path = "a_bore_taken_alone_is_smooth_at_its_seams_interval.rs"]
 mod a_bore_taken_alone_is_smooth_at_its_seams_interval;
+#[path = "a_check_carries_the_assertion_that_quiets_it.rs"]
+mod a_check_carries_the_assertion_that_quiets_it;
 #[path = "a_dual_is_bound_to_its_build_of_record.rs"]
 mod a_dual_is_bound_to_its_build_of_record;
 #[path = "a_keel_on_the_floor_names_its_two_edges.rs"]
 mod a_keel_on_the_floor_names_its_two_edges;
+#[path = "a_pipes_end_loops_revolve_into_an_elbow.rs"]
+mod a_pipes_end_loops_revolve_into_an_elbow;
 #[path = "a_turned_discs_union_refuses_on_the_widened_copy.rs"]
 mod a_turned_discs_union_refuses_on_the_widened_copy;
 #[path = "aligned_overlap_quiets.rs"]
@@ -305,6 +309,10 @@ mod takeover_door;
 #[path = "rv_matehead_probes.rs"]
 mod rv_matehead_probes;
 
+#[path = "a_boxed_rectangle_certifies_over_its_box.rs"]
+mod a_boxed_rectangle_certifies_over_its_box;
+#[path = "a_pipe_unions_with_its_elbow.rs"]
+mod a_pipe_unions_with_its_elbow;
 #[path = "a_taken_slab_over_a_box_is_never_refused_as_a_flip.rs"]
 mod a_taken_slab_over_a_box_is_never_refused_as_a_flip;
 #[path = "gui1_pick.rs"]
@@ -602,8 +610,6 @@ mod part_depth_bound;
 mod parts_entered_before_the_map;
 #[path = "perf12_census_bvh_diff.rs"]
 mod perf12_census_bvh_diff;
-#[path = "perf12_census_goldens.rs"]
-mod perf12_census_goldens;
 #[path = "perf2_name_keying_differential.rs"]
 mod perf2_name_keying_differential;
 #[path = "pick3_early_out.rs"]
@@ -699,6 +705,8 @@ mod switch_program_key;
 mod switch_program_vocabulary;
 #[path = "switch_slots.rs"]
 mod switch_slots;
+#[path = "the_tours_die_with_two_pips_run_together_refuses_their_turned_seam.rs"]
+mod the_tours_die_with_two_pips_run_together_refuses_their_turned_seam;
 #[path = "trim_3_windows_interval.rs"]
 mod trim_3_windows_interval;
 #[path = "u8a_parse.rs"]
@@ -802,12 +810,16 @@ mod wire_rv_unknown;
 #[path = "wire_selection_kind_doors.rs"]
 mod wire_selection_kind_doors;
 
+#[path = "a_datum_is_a_placed_frame.rs"]
+mod a_datum_is_a_placed_frame;
 #[path = "a_keel_ring_names_its_two_edges.rs"]
 mod a_keel_ring_names_its_two_edges;
 #[path = "a_mate_on_a_full_turn_bore_names.rs"]
 mod a_mate_on_a_full_turn_bore_names;
 #[path = "a_mirror_is_a_construction.rs"]
 mod a_mirror_is_a_construction;
+#[path = "datum_review_a.rs"]
+mod datum_review_a;
 #[path = "decide_1_self_dot_interval.rs"]
 mod decide_1_self_dot_interval;
 #[path = "decide_3_split_rows_interval.rs"]
@@ -924,6 +936,8 @@ mod intent_value_chart_orientation;
 mod intent_vars_2_table;
 #[path = "intent_vars_3_readers.rs"]
 mod intent_vars_3_readers;
+#[path = "review_datum_b.rs"]
+mod review_datum_b;
 #[path = "review_s5b_r2_probes.rs"]
 mod review_s5b_r2_probes;
 #[path = "run_wall_offers.rs"]

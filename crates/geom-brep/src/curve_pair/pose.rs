@@ -695,6 +695,7 @@
 mod window;
 
 use geom::{Azimuth, Curve3, CurveKind};
+use geom_core::UnitVec3;
 use geom_core::k_stats::{Pick, choose, decide, straddle};
 use geom_core::one_line::{OnOneLine, on_one_line};
 use geom_core::{Band, Decide, Lever, Margin, Point3, Sign, Vec3};
@@ -1110,7 +1111,7 @@ impl<T: Decide> Side<'_, T> {
     /// `t1`: their difference at its greatest speed.
     fn run(self, t0: T, t1: T) -> T {
         let speed = match self {
-            Self::Line(line) => line.dir.norm(),
+            Self::Line(line) => line.dir.get().norm(),
             Self::Conic(k) => k.speed_hi(),
         };
         (t1 - t0).abs() * speed
@@ -1375,7 +1376,7 @@ fn on_line<T: Decide>(
     geom::Line { origin: o, dir: u }: geom::Line<T>,
     (p0, p1): Ends<T>,
 ) -> (T, T) {
-    ((p0 - o).dot(u), (p1 - o).dot(u))
+    ((p0 - o).dot(u.get()), (p1 - o).dot(u.get()))
 }
 
 /// Where the router sends a line's pair (module docs, "The router").
@@ -1502,8 +1503,8 @@ fn line_line<T: Decide>(
             dir: d2,
         },
     ) = (la, lb);
-    let (u1, u2) = (d1.normalize(), d2.normalize());
-    let n = u1.cross(u2);
+    let (u1, u2) = (UnitVec3::squared(d1.get()), UnitVec3::squared(d2.get()));
+    let n = u1.get().cross(u2.get());
     let s = n.norm();
     // Read from `a`'s span start along its carrier, never from either
     // carrier's origin, and charged for how each end was evaluated:
@@ -1513,10 +1514,10 @@ fn line_line<T: Decide>(
     let (ends_a, ends_b) = (line_ends(a)?, line_ends(b)?);
     let produced = |geom::Line { origin: o, dir: d }: geom::Line<T>, s: &Span<'_, T>| {
         let (t0, t1) = s.params();
-        (o - Point3::origin()).norm() * T::from_f64(2.0) + d.norm() * (t0.abs() + t1.abs())
+        (o - Point3::origin()).norm() * T::from_f64(2.0) + d.get().norm() * (t0.abs() + t1.abs())
     };
     let (a0, _) = ends_a;
-    let at = on_one_line(u1, ends_a, ends_b, produced(la, a) + produced(lb, b));
+    let at = on_one_line(u1.get(), ends_a, ends_b, produced(la, a) + produced(lb, b));
     let (unit1, unit2) = (
         geom::Line {
             origin: o1,
@@ -1527,15 +1528,15 @@ fn line_line<T: Decide>(
             dir: u2,
         },
     );
-    let off = unit2.distance(a0 + u1 * at.mid());
+    let off = unit2.distance(a0 + u1.get() * at.mid());
     let lever = reach(a).max(reach(b));
     // Unsourced lever: the longer span's arc length bounded through its
     // sup speed (`reach`), a metered span; the extent home's read of the
     // span (`edge_extent_sup`) has different bits.
     let arm = geom_core::Lever::unsourced(lever);
     let crossing = || {
-        let along = (o2 - o1).cross(u2).dot(n) / s.powi(2);
-        let point = o1 + u1 * along;
+        let along = (o2 - o1).cross(u2.get()).dot(n) / s.powi(2);
+        let point = o1 + u1.get() * along;
         Pose::Generic(vec![Candidate {
             point,
             ta: la.param(point),
@@ -1545,7 +1546,7 @@ fn line_line<T: Decide>(
     };
     match route(
         s,
-        s / u1.dot(u2).abs(),
+        s / u1.get().dot(u2.get()).abs(),
         (off, Offset::Distance),
         at,
         arm,
@@ -1555,7 +1556,7 @@ fn line_line<T: Decide>(
         Route::Parallel => Ok(Pose::Parallel),
         Route::Crossing => Ok(crossing()),
         Route::Level if one_line((ends_a, unit1), (ends_b, unit2), band)? => Ok(Pose::Coincident {
-            sense: sense(u1.dot(u2), arm, band)?,
+            sense: sense(u1.get().dot(u2.get()), arm, band)?,
             witnesses: witnesses(a, b, &|q| la.param(q), &|q| lb.param(q)),
         }),
         // Level where they can meet but apart past the band along a span:
@@ -1576,14 +1577,14 @@ fn line_conic<T: Decide>(
     let line = line_of(a.carrier())?;
     let k = conic_of(b.carrier())?;
     let geom::Line { origin: o, dir: d } = line;
-    let u = d.normalize();
+    let u = UnitVec3::squared(d.get());
     let unit = geom::Line { origin: o, dir: u };
     let e = T::from_f64(band.escalate());
     let n = k.frame().axis();
-    let den = u.dot(n);
+    let den = u.get().dot(n);
     // Where they can meet (module docs): the line's span and the conic's
     // extent, both projected on the line.
-    let c = (k.frame().origin() - o).dot(u);
+    let c = (k.frame().origin() - o).dot(u.get());
     let lever = reach(a).max(k.speed_hi());
     // Unsourced lever: the line's span metered through its sup speed
     // (`reach`), folded with the conic's size; the span's part fits no
@@ -1600,7 +1601,7 @@ fn line_conic<T: Decide>(
         (c - k.speed_hi(), c + k.speed_hi()),
         geom_core::rounding_charge(ends(ends_a)),
     );
-    let height = (o + u * at.mid() - k.frame().origin()).dot(n);
+    let height = (o + u.get() * at.mid() - k.frame().origin()).dot(n);
     match route(
         den,
         den.abs(),
@@ -1618,7 +1619,7 @@ fn line_conic<T: Decide>(
             // `h` the seed's own height above the plane: the seed, `o +
             // d̂·t` with `t = (c − o)·n̂ / d̂·n̂` in `f64`, is read where it
             // landed, a distance, rather than charged for its rounding.
-            let point = o + u * ((k.frame().origin() - o).dot(n) / den);
+            let point = o + u.get() * ((k.frame().origin() - o).dot(n) / den);
             let height = (point - k.frame().origin()).dot(n).abs();
             let polish = Polish {
                 span_a: a,
@@ -1636,7 +1637,7 @@ fn line_conic<T: Decide>(
     }
     // In the plane: the conic's signed distance from the line, along the
     // line's normal in the plane, a first harmonic in the conic's angle.
-    let m = n.cross(u).normalize();
+    let m = n.cross(u.get()).normalize();
     let c0 = (k.frame().origin() - o).dot(m);
     let (cp, sp) = k.along(m);
     let swing = (cp.powi(2) + sp.powi(2)).sqrt();
@@ -1654,7 +1655,7 @@ fn line_conic<T: Decide>(
     // the conic's offset along `v = û × m`, the line's other normal: a
     // line the tilt read level lies over the plane by a slant, which `H`
     // holds (module docs, "A slanted pair in one plane").
-    let v = u.cross(m);
+    let v = u.get().cross(m);
     let (hc, hs) = k.along(v);
     let level = Slant {
         r: (c0, cp, sp),
@@ -2292,7 +2293,7 @@ fn coplanar_ellipses<T: Decide>(
     // Read exact, as the window reads it: the level divides by the squared
     // semi-axes, which the admission rule does not cover, and is owed a
     // re-posing as a length
-    // (`work/oneround/the-windows-level-jet-is-read-exact-where-its-rounding-grows-with-the-aspect.md`).
+    // (`work/conic/the-windows-level-jet-is-read-exact-where-its-rounding-grows-with-the-aspect.md`).
     let jet = |theta: T| level.jet_at(theta).map(geom_core::Rounded::exact);
     let local = Local {
         at: &jet,
@@ -2318,7 +2319,7 @@ fn coplanar_ellipses<T: Decide>(
 /// local form drops the far centre's share, but not the thin pair's: its
 /// terms still divide by `A²` and `B²`, so its rounding as a length grows
 /// with `b`'s aspect, which the admission rule does not cover
-/// (`work/oneround/the-windows-level-jet-is-read-exact-where-its-rounding-grows-with-the-aspect.md`).
+/// (`work/conic/the-windows-level-jet-is-read-exact-where-its-rounding-grows-with-the-aspect.md`).
 /// A reading over a piece takes the jet at its middle and
 /// [`Level::fourth`] for Taylor's remainder, a bound that needs no
 /// precision.
@@ -2738,12 +2739,12 @@ mod one_line_rows {
         let a = (p(0.0, 0.0), p(1.0, 0.0));
         let la = geom::Line {
             origin: a.0,
-            dir: Vec3::new(1.0, 0.0, 0.0),
+            dir: geom::stated_direction(Vec3::new(1.0, 0.0, 0.0)),
         };
         let b = (p(0.0, 3e-9), p(1.0, 1.0 + 3e-9));
         let lb = geom::Line {
             origin: b.0,
-            dir: (b.1 - b.0).normalize(),
+            dir: geom_core::UnitVec3::squared(b.1 - b.0),
         };
         let first = lb.distance(a.0);
         assert!(

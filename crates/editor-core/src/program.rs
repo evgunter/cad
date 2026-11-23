@@ -158,8 +158,8 @@ macro_rules! document_vocabulary {
         /// and no gate will report drift there. The trade was taken
         /// deliberately — the macro closes a SILENT failure class and
         /// formatting drift is visible to any reader — but it is a real
-        /// cost and it is not detected. Filed:
-        /// `work/ciw/rustfmt-does-not-reach-a-macro-wrapped-declaration-block.md`.
+        /// cost and it is not detected. A gate for it was weighed and declined
+        /// (`work/ciw/rustfmt-does-not-reach-a-macro-wrapped-declaration-block.md`, closed).
         #[doc(hidden)]
         pub const DOCUMENT_VOCABULARIES: &[(&str, &[&str])] =
             &[$((stringify!($name), <$name>::ALL_NAMES)),*];

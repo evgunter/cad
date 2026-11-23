@@ -2,10 +2,11 @@
 id: a-merge-cancels-the-previous-merges-main-run-and-its-main-only-work
 kind: issue
 title: On main, ci.yml's cancel-in-progress makes each merge cancel the previous merge's run, silently dropping that commit's main-only side effects
-status: open
+status: closed
 opened: 2026-09-12
 priority: P4
 cost: D
+closed: 2026-11-22
 ---
 
 
@@ -223,3 +224,7 @@ so losing one is a slower next run, not lost data) is left to this
 issue's owner.
 
 Moved from `work/issues/` to `work/ciw/` on 2026-11-03, when the `work/issues/` bucket was retired (Ev's direction, in chat); id and body unchanged.
+
+## Closed
+
+2026-11-22, CIW triage (stale). Nothing main-only is left to lose. A push to main runs only `cache-prime` (ci.yml:736-762): filter and gate-ok are `event_name != 'push'` (:51, :766). cache-prime is state-keyed: it builds only when the rust-cache key stored nothing, so the next push redoes a cancelled run. The render write-back moved to nightly.yml, which re-baselines by state (the row's own 2026-10-02 note).

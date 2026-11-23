@@ -2,13 +2,14 @@
 id: a-cone-cell-presented-by-its-apex-side-is-signed-by-no-separator
 kind: issue
 title: A cone face's cell presented by its apex's collapsed side is signed by no separator, so a plane face sharing a ruling to the apex refuses Departure at the apex in the plain frame
-status: dispatched
+status: closed
 opened: 2026-11-21
 priority: P0
 cost: M
 refs: [7115]
 pr: 7315
 branch: embed/apex-separator
+closed: 2026-11-23
 ---
 
 

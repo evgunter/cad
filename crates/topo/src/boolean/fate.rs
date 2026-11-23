@@ -38,7 +38,7 @@
 //! (`finish::discarded`).
 
 use geom_brep::LeverBounds;
-use geom_brep::ladder::{Answering, Climb, Rung, climb};
+use geom_brep::ladder::{Climb, Rung};
 use geom_core::period::Period;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Tol, Vec3};
 
@@ -49,6 +49,7 @@ use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, Vertex
 use crate::euler::{FaceSurface, MefSite};
 use crate::euler_ring::MekrSite;
 use crate::lineage::FaceDivisions;
+use crate::loop_side::side_of_a_loop_the_division_does_not_cross;
 
 /// An edge of a kept coincident copy that bounds its region inside the
 /// dropped copy (module docs).
@@ -494,16 +495,10 @@ pub(super) fn departure<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<Le
 /// levers at the edge's extent from below.
 fn leaving<T: Decide>(body: &Body<T>, he: HalfEdgeKey, secant: bool) -> Option<Leaving<T>> {
     let h = body.get_half_edge(he)?;
-    let edge = body.get_edge(h.edge)?;
-    let curve = body.get_curve_geom(edge.curve)?.certified()?;
+    let edge = body.linked_edge(h.edge, crate::entity::EntityId::HalfEdge(he), "edge");
+    let curve = edge.certified()?;
     let base = body.half_edge_start_point(he)?;
-    let end = body.half_edge_start_point(body.mate(he)?)?;
-    let reach = match curve.carrier() {
-        geom::Curve3::Line(_) => {
-            LeverBounds::Exact(geom_brep::ExtentBall::point(end).lever_from(base))
-        }
-        _ => crate::cover::edge_reach_bounds(body, h.edge, edge, base)?,
-    };
+    let reach = crate::cover::edge_reach_bounds(body, edge, base)?;
     let (dir, bend) = if secant {
         (curve.mid_point() - base, None)
     } else {
@@ -543,8 +538,9 @@ fn leaving<T: Decide>(body: &Body<T>, he: HalfEdgeKey, secant: bool) -> Option<L
 fn sign<T: Decide>(x: T, arm: T, band: Band) -> Result<Sign, BooleanError> {
     crate::validate::decide(
         "bool_fate_corner",
-        // Unsourced lever: a unit arm (every caller's `1`) on a unit
-        // vector's length or a count of half-turns, no length of any extent.
+        // Unsourced lever: a unit arm (every caller's `1`) on a count of
+        // half-turns (`tip_wraps`), no length of any extent.
+        // No door names it yet: `work/oneround/unsourced-levers-with-no-door-that-names-them.md`.
         Margin::levered(x, geom_core::Lever::unsourced(arm)),
         band,
     )
@@ -584,7 +580,16 @@ pub(super) fn bisector<T: Decide>(
 ) -> Result<Vec3<T>, BooleanError> {
     let mid = s.middle();
     let (dir, len) = mid.direction_and_length();
-    match sign(len, T::one(), band)? {
+    // The bounds' sum, levered at the nearer of the bounds' reaches: the
+    // gap between one bound's point there and the other's reflection.
+    let [(_, start), (_, end)] = s.reached_bounds();
+    match crate::validate::decide(
+        "bool_fate_corner",
+        Margin::levered(len, start.min(end)),
+        band,
+    )
+    .map_err(corner_refused)?
+    {
         Sign::Positive => Ok(dir),
         Sign::Zero | Sign::Negative => Err(BooleanError::ClassificationInvariant {
             what: "a sector a half-turn wide reached the fate reading, whose bounds name no inside",
@@ -1285,10 +1290,17 @@ fn piece_beside<T: Decide>(
         if !crate::census::edge_is_line(body, e) {
             return Err(Limit::BesideNoPiece.into());
         }
-        let plus = body
-            .get_edge(e)
-            .ok_or_else(|| desync("a division edge no longer resolves"))?
-            .he_plus;
+        let edge = body
+            .edge(e)
+            .ok_or_else(|| desync("a division edge no longer resolves"))?;
+        let plus = edge.record().he_plus;
+        let curve = edge.certified().unwrap_or_else(|| {
+            unreachable!("{e:?} was read a line above, so its curve is certified")
+        });
+        let (carrier, (t0, t1)) = (curve.carrier(), curve.params());
+        let at = carrier
+            .param_near(p, geom::mid_param(t0, t1))
+            .ok_or_else(|| desync("a division edge's line does not place its cut point"))?;
         let normal = normal_at(
             ((body, operand), f, p),
             "a piece of a fate cut's kept face has no normal on its division's edge",
@@ -1303,15 +1315,8 @@ fn piece_beside<T: Decide>(
             let (Some(run), [Some(start), Some(end)]) = (departure(body, h), ends) else {
                 return Err(desync("a division edge's half-edge does not walk").into());
             };
-            // Each bound runs straight from `p` to an end of the line edge,
-            // which is its reach from `p`.
-            let bound = |dir, far| Leaving {
-                dir,
-                reach: LeverBounds::Exact(geom_brep::ExtentBall::point(far).lever_from(p)),
-                bend: run.bend,
-            };
-            // A straight corner's bounds leave apart: it never wraps.
-            let straight = (bound(run.dir, end), bound(-run.dir, start));
+            let straight =
+                straight_corner(carrier, (at, (t0, t1)), h == plus, p, (start, end), run);
             if corner_holds(Ray::bisector(d), straight, || Ok(false), normal, band)? == Holds::In {
                 holding.push(f);
             }
@@ -1323,6 +1328,33 @@ fn piece_beside<T: Decide>(
         [one] => Ok(*one),
         _ => Err(Limit::BesideNoPiece.into()),
     }
+}
+
+/// **The straight corner at `p`, a point inside a line edge**, of the
+/// half-edge that runs along `run` from `start` to `end` (`forward`
+/// where it runs the carrier's `t0` to `t1`): its bound ahead and its
+/// bound behind. Each runs along the edge from `p`, at the carrier's
+/// parameter `at`, to one of the half-edge's ends, and its reach is
+/// that piece's, read from `p` ([`crate::cover::piece_reach_bounds`]).
+/// A straight corner's bounds leave apart: it never wraps.
+fn straight_corner<T: Decide>(
+    carrier: &geom::Curve3<T>,
+    (at, (t0, t1)): (T, (T, T)),
+    forward: bool,
+    p: Point3<T>,
+    (start, end): (Point3<T>, Point3<T>),
+    run: Leaving<T>,
+) -> (Leaving<T>, Leaving<T>) {
+    let bound = |dir, (t, far)| Leaving {
+        dir,
+        reach: crate::cover::piece_reach_bounds(carrier, (at, t), (p, far), p),
+        bend: run.bend,
+    };
+    let (to_end, to_start) = if forward { (t1, t0) } else { (t0, t1) };
+    (
+        bound(run.dir, (to_end, end)),
+        bound(-run.dir, (to_start, start)),
+    )
 }
 
 /// The signed area `cycle`'s points enclose about `n`, over its
@@ -1351,7 +1383,9 @@ fn loop_of<T: geom_core::Real>(body: &Body<T>, he: HalfEdgeKey) -> Result<LoopKe
 /// into it (Mäntylä's `laringmv`): a lone vertex minted for a later cut,
 /// or a cut's dangling run; the division's own `remainder`, where it
 /// split a ring, stays. A ring is read at its first vertex `new`
-/// decides strictly inside or outside; one no vertex of which is
+/// decides strictly inside or outside
+/// ([`crate::loop_side::side_of_a_loop_the_division_does_not_cross`]:
+/// the division is the cut that made `new`); one no vertex of which is
 /// decided refuses, as the reading's escalation where one read in band.
 fn rehome<T: Decide>(
     body: &mut Body<T>,
@@ -1369,27 +1403,14 @@ fn rehome<T: Decide>(
     // lone vertex's loop in `new`.
     let mut moved = Vec::new();
     for ring in rings.into_iter().filter(|&r| r != remainder) {
-        let vertices: Vec<VertexKey> = match body
-            .get_loop(ring)
-            .ok_or_else(|| desync("a ring no longer resolves"))?
-            .boundary
-        {
-            LoopBoundary::Empty { vertex } => vec![vertex],
-            LoopBoundary::Cycle { first } => body
-                .loop_cycle(first)
-                .ok_or_else(|| desync("a ring does not walk"))?
-                .into_iter()
-                .filter_map(|he| body.get_half_edge(he).map(|h| h.start))
-                .collect(),
-        };
-        // The ladder ([`climb`]) whose answer is the first vertex placed:
-        // a ring the cut does not cross is on one side, and a touch
-        // switches no side, so every vertex placed reads it alike
-        // ([`Answering::Any`]; the premise and its residual, a vertex
-        // the cut did not identify: `chord_join::paths_rung`). A vertex on the
-        // boundary passes; a limit and a vertex in band are kept, ranked,
-        // and refuse only where no vertex places the ring.
-        let placed = climb(Answering::Any, vertices, |v| {
+        let vertices = body
+            .loop_vertices(ring)
+            .ok_or_else(|| desync("a ring does not walk"))?;
+        // The premise's residual, a vertex the cut did not identify:
+        // `chord_join::paths_rung`. A vertex on the boundary passes; a
+        // limit and a vertex in band are kept, ranked, and refuse only
+        // where no vertex places the ring.
+        let placed = side_of_a_loop_the_division_does_not_cross(vertices, |v| {
             let Some(p) = body
                 .get_vertex(v)
                 .and_then(|v| body.get_point(v.point))
@@ -1936,10 +1957,10 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
             Operand::B => &red.b,
         };
         let edge = kept_body
-            .get_edge(fe.edge)
+            .edge(fe.edge)
             .ok_or_else(|| desync("a fate edge no longer resolves"))?;
         let kept_root = div_k.root(fe.kept);
-        let kept_he = [edge.he_plus, edge.he_minus]
+        let kept_he = [edge.record().he_plus, edge.record().he_minus]
             .into_iter()
             .find(|&he| {
                 kept_body
@@ -1947,12 +1968,11 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
                     .is_some_and(|f| div_k.root(f) == kept_root)
             })
             .ok_or_else(|| desync("a fate edge does not bound its kept face"))?;
-        let curve = kept_body
-            .get_curve_geom(edge.curve)
-            .and_then(|c| c.certified())
+        let curve = edge
+            .certified()
             .cloned()
             .ok_or_else(|| desync("a fate edge has no certified curve"))?;
-        let forward = kept_he == edge.he_plus;
+        let forward = kept_he == edge.record().he_plus;
         let kept_mate = kept_body
             .mate(kept_he)
             .ok_or_else(|| desync("a fate edge has no mate"))?;
@@ -2561,6 +2581,115 @@ mod spline_departure_rows {
         assert!(
             (below.length() - 2.0).abs() < 1e-12 && (2.0..2.2).contains(&above.length()),
             "with its reach from the start between 2 and the bound's slack: {below:?}, {above:?}"
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod straight_corner_rows {
+    use geom_core::{Point3, Vec3};
+
+    use super::{Leaving, straight_corner};
+
+    /// **A straight corner's bounds each reach to their own end.** The
+    /// unit edge along `x`, cut at `0.1`: run with the carrier, the bound
+    /// ahead reaches `0.9` to the edge's end and the bound behind `0.1`
+    /// to its start; run against it, the other way about. Each bound read
+    /// over the other's piece would reach the farther end both ways.
+    #[test]
+    fn a_straight_corners_bounds_each_reach_to_their_own_end() {
+        let line = geom::Curve3::line(Point3::origin(), geom_core::UnitVec3::exact_x());
+        let p = Point3::new(0.1, 0.0, 0.0);
+        let (a, b) = (Point3::origin(), Point3::new(1.0, 0.0, 0.0));
+        for (forward, (start, end), (ahead, behind)) in
+            [(true, (a, b), (0.9, 0.1)), (false, (b, a), (0.1, 0.9))]
+        {
+            let run = Leaving {
+                dir: if forward {
+                    Vec3::unit_x()
+                } else {
+                    -Vec3::unit_x()
+                },
+                reach: geom_brep::LeverBounds::Exact(geom_core::test_support::fixture_lever(1.0)),
+                bend: None,
+            };
+            let (there, back) =
+                straight_corner(&line, (0.1, (0.0, 1.0)), forward, p, (start, end), run);
+            for (what, bound, want) in [("ahead", there, ahead), ("behind", back, behind)] {
+                let got = bound.reach.above().length();
+                assert!(
+                    (got - want).abs() < 1e-12,
+                    "forward {forward}, the bound {what} reaches {want}, got {got}"
+                );
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod bisector_rows {
+    use geom_core::test_support::fixture_lever;
+    use geom_core::{Band, Vec3};
+
+    use super::bisector;
+    use crate::boolean::BooleanError;
+    use crate::boolean::sectors::{BoolSector, BoundSupport};
+    use crate::entity::{FaceKey, HalfEdgeKey};
+
+    /// A planar sector between `x̂` and a bound `δ` short of its
+    /// opposite, its bounds reaching `0.01` and `0.1`.
+    fn sector(delta: f64) -> BoolSector<f64> {
+        let (near, far) = (fixture_lever(0.01), fixture_lever(0.1));
+        BoolSector {
+            he: HalfEdgeKey::default(),
+            start: Vec3::new(1.0, 0.0, 0.0),
+            end: Vec3::new(-delta.cos(), delta.sin(), 0.0),
+            start_reach: BoundSupport::Extent(near),
+            end_reach: BoundSupport::Extent(far),
+            face: FaceKey::default(),
+            at_vertex: crate::star::StarFace::Tangent(geom_brep::OutwardNormal::from_chart(
+                Vec3::new(0.0, 0.0, 1.0),
+                true,
+            )),
+            bend: crate::bound_side::FaceBend::Plane,
+            // The departures' metering arm, which this reading does not use.
+            arm: fixture_lever(1.0),
+        }
+    }
+
+    /// **The bisector's length is read at its bounds' nearer reach.**
+    /// Bounds `5e-8` short of opposite read `5e-10` at the nearer reach
+    /// `0.01`, half the band's zero: a sector a half-turn wide, no inside,
+    /// an invariant refusal. A unit arm would read `5e-8`, past the
+    /// escalation, and the farther reach `5e-9`, in band. Bounds `3e-7`
+    /// short read `3e-9`, in band: the corner's coincidence refusal. Bounds
+    /// `1e-5` short read `1e-7`, an inside.
+    #[test]
+    fn a_sector_a_half_turn_wide_at_its_nearer_reach_has_no_bisector() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        assert!(
+            matches!(
+                bisector(&sector(5e-8), band),
+                Err(BooleanError::ClassificationInvariant { .. })
+            ),
+            "5e-8 short of a half-turn: no inside at the nearer reach"
+        );
+        assert!(
+            matches!(
+                bisector(&sector(3e-7), band),
+                Err(BooleanError::Escalated {
+                    decision: crate::boolean::BooleanDecision::Coincidence(..),
+                    ..
+                })
+            ),
+            "3e-7 short of a half-turn: in band at the nearer reach"
+        );
+        let dir = bisector(&sector(1e-5), band).expect("1e-5 short: an inside");
+        assert!(
+            dir.y > 0.99,
+            "the bisector points between the bounds: {dir:?}"
         );
     }
 }

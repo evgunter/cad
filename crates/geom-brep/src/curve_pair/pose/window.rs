@@ -162,7 +162,7 @@ enum SpanRead {
 /// The level's is not: it divides by the squared semi-axes, and its
 /// rounding read as a length grows with `b`'s aspect `L/s`, which the
 /// rule does not cover. It is owed a re-posing as a length
-/// (`work/oneround/the-windows-level-jet-is-read-exact-where-its-rounding-grows-with-the-aspect.md`).
+/// (`work/conic/the-windows-level-jet-is-read-exact-where-its-rounding-grows-with-the-aspect.md`).
 fn local_taylor<T: Decide>(jet: [T; 4], top: T, w: T) -> Taylor<T> {
     Taylor::over(jet.map(Rounded::exact), top, w)
 }

@@ -533,8 +533,10 @@ pub const BESIDE_THE_REGISTRY: [&str; 1] = ["Shell"];
 
 /// The node kinds a document exercises (the coverage tally's domain).
 ///
-/// Hand-written, not welded to `Node`, and without `InstantiatePart`
-/// or `Mate`: `work/ciw/corpus-node-kinds-roster-is-hand-written`.
+/// Hand-written, not welded to `Node`, and without `InstantiatePart`,
+/// `Datum` or `Mate`: `work/ciw/corpus-node-kinds-roster-is-hand-written`,
+/// and for `Datum`
+/// `work/ciw/no-corpus-document-holds-a-datum.md`.
 pub const NODE_KINDS: [&str; 21] = [
     "Profile",
     "Extrude",
@@ -700,6 +702,7 @@ pub fn sub_kinds<P, S: editor_core::Slot>(node: &Node<P, S>) -> Vec<&'static str
         | Node::Split { .. }
         | Node::Mirror { .. }
         | Node::Place { .. }
+        | Node::Datum { .. }
         | Node::World
         | Node::Space
         | Node::Loft { .. }
@@ -731,6 +734,7 @@ pub fn node_kind<P, S: editor_core::Slot>(node: &Node<P, S>) -> &'static str {
         Node::Intersect { .. } => "Intersect",
         Node::Subtract { .. } => "Subtract",
         Node::Place { .. } => "Place",
+        Node::Datum { .. } => "Datum",
         Node::World => "World",
         Node::Space => "Space",
         Node::Loft { .. } => "Loft",

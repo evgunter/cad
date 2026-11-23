@@ -129,6 +129,7 @@
 //! [`departure`]'s plane through the pair's one shared vertex reads it
 //! wherever a face against that vertex is presented by its collapse.
 
+use geom_core::UnitVec3;
 use std::collections::{BTreeMap, BTreeSet};
 
 use geom::{Curve3, Surface};
@@ -1808,7 +1809,7 @@ fn singular_ends(
         Surface::Sphere { frame, radius, .. } => {
             let line = geom::Line {
                 origin: frame.origin(),
-                dir: frame.axis(),
+                dir: frame.axis_unit(),
             };
             let mut ends = [None; 2];
             for (pole, point) in sphere_poles(line, radius) {
@@ -3990,7 +3991,7 @@ impl Trig {
             Psi::Linear { n, q } => Some(linear(n, q)),
             Psi::Carrier(Implicit::Plane { o, n }) => Some(linear(n, o)),
             Psi::Carrier(Implicit::Cylinder { o, axis, r }) => {
-                let (w0, w1, w2) = radial(o, axis);
+                let (w0, w1, w2) = radial(o, axis.get());
                 let mut k = square3(w0, w1, w2);
                 k[0] = k[0] - r.powi(2);
                 // Q = ρ² − r² = ψ·(ρ + r), and ρ + r ≥ r.
@@ -4008,8 +4009,8 @@ impl Trig {
                 sin,
                 nappe,
             }) => {
-                let (w0, w1, w2) = radial(apex, axis);
-                let h = |w: Vec3<Interval>| w.dot(axis);
+                let (w0, w1, w2) = radial(apex, axis.get());
+                let h = |w: Vec3<Interval>| w.dot(axis.get());
                 let (h0, h1, h2) = (h(self.c - apex), h(self.a), h(self.b));
                 let (cc, ss) = (cos.powi(2), sin.powi(2));
                 let (rho, height) = (square3(w0, w1, w2), square(h0, h1, h2));
@@ -6863,7 +6864,7 @@ enum Implicit {
     },
     Cylinder {
         o: Point3<Interval>,
-        axis: Vec3<Interval>,
+        axis: UnitVec3<Interval>,
         r: Interval,
     },
     Sphere {
@@ -6872,7 +6873,7 @@ enum Implicit {
     },
     Cone {
         apex: Point3<Interval>,
-        axis: Vec3<Interval>,
+        axis: UnitVec3<Interval>,
         cos: Interval,
         sin: Interval,
         nappe: Interval,
@@ -6963,7 +6964,7 @@ impl Psi {
                     origin: o,
                     dir: axis,
                 };
-                radial(line.offset(p)).dot(square_to(axis, v))
+                radial(line.offset(p)).dot(square_to(axis.get(), v))
             }
             Self::Carrier(Implicit::Sphere { c, .. }) => {
                 let w = p - c;
@@ -6980,8 +6981,8 @@ impl Psi {
                     origin: apex,
                     dir: axis,
                 };
-                radial(line.offset(p)).dot(square_to(axis, v)) * cos
-                    - axis.dot(v) / axis.norm() * (nappe * sin)
+                radial(line.offset(p)).dot(square_to(axis.get(), v)) * cos
+                    - axis.get().dot(v) / axis.get().norm() * (nappe * sin)
             }
             Self::Graph { m, t, slope, .. } => m.dot(v) - t.dot(v) * slope,
         }
@@ -7496,7 +7497,7 @@ fn implicit_of(piece: &Piece<'_>, band: Band) -> Option<Implicit> {
             }
         }
         Surface::Cylinder { frame, radius, .. } => {
-            let (origin, axis) = (frame.origin(), frame.axis());
+            let (origin, axis) = (frame.origin(), frame.axis_unit());
             Implicit::Cylinder {
                 o: origin,
                 axis,
@@ -7513,9 +7514,9 @@ fn implicit_of(piece: &Piece<'_>, band: Band) -> Option<Implicit> {
         Surface::Cone {
             frame, half_angle, ..
         } => {
-            let (apex, axis) = (frame.origin(), frame.axis());
+            let (apex, axis) = (frame.origin(), frame.axis_unit());
             let (sin, cos) = half_angle.sin_cos();
-            let positive = nappe(piece.boundary, apex, axis, band)?;
+            let positive = nappe(piece.boundary, apex, axis.get(), band)?;
             Implicit::Cone {
                 apex,
                 axis,
@@ -7952,7 +7953,7 @@ fn planes_through(
         .iter()
         .map(|r| match r.arc.as_ref()? {
             (line @ Curve3::Line(geom::Line { dir, .. }), (t0, t1)) => {
-                Some((line.eval(at(geom::mid_param(t0.lo(), t1.hi()))), *dir))
+                Some((line.eval(at(geom::mid_param(t0.lo(), t1.hi()))), dir.get()))
             }
             _ => None,
         })
@@ -8485,6 +8486,30 @@ mod by_kind_rows {
 /// **Presentations, read directly**: a face built by hand, its local
 /// edges named, and what [`present_chart`] / [`present_plane`] make of a
 /// cell. Each row names the failure it catches.
+/// **A test row's segment from `a` to `b`**, stated points: its chord, a
+/// unit direction over its length, and its span in metres, as a line's
+/// carrier is stated since its direction is a [`UnitVec3`].
+#[cfg(test)]
+fn chord_segment(
+    a: Point3<Interval>,
+    b: Point3<Interval>,
+) -> (Curve3<Interval>, (Interval, Interval)) {
+    let d = Vec3::new(
+        b.x.lo() - a.x.lo(),
+        b.y.lo() - a.y.lo(),
+        b.z.lo() - a.z.lo(),
+    );
+    let len = d.norm();
+    let unit = (d * (1.0 / len)).map(|x| Interval::from_bounds(x, x));
+    (
+        Curve3::line(a, UnitVec3::checked(unit)),
+        (
+            Interval::from_bounds(0.0, 0.0),
+            Interval::from_bounds(len, len),
+        ),
+    )
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod presentation_rows {
@@ -8541,7 +8566,7 @@ mod presentation_rows {
             let (b, v) = on_a_ruling(o, d, along, 0.006);
             let cyl = Psi::Carrier(Implicit::Cylinder {
                 o: Point3::origin() + o.map(iv0),
-                axis: d.map(iv0),
+                axis: geom_core::UnitVec3::checked(d.map(iv0)),
                 r: iv0(0.006),
             });
             let rate = cyl.rate(b, v);
@@ -8549,23 +8574,15 @@ mod presentation_rows {
                 rate.hi() - rate.lo() < 1e-15 && rate.lo() <= 0.0 && 0.0 <= rate.hi(),
                 "cylinder, {along} m up: rate {rate:?}"
             );
-            // The same carrier about an axis twice as long: `square_to`
-            // removes the axial part for any `|axis|` (red where it divides
-            // by `|axis|`, not its square).
-            let long = Psi::Carrier(Implicit::Cylinder {
-                o: Point3::origin() + o.map(iv0),
-                axis: (d * 2.0).map(iv0),
-                r: iv0(0.006),
-            });
-            let rate = long.rate(b, v);
-            assert!(
-                rate.hi() - rate.lo() < 1e-15 && rate.lo() <= 0.0 && 0.0 <= rate.hi(),
-                "cylinder about a long axis, {along} m up: rate {rate:?}"
-            );
+            // Retired: the same carrier about an axis twice as long. A
+            // carrier's axis is a `UnitVec3<Interval>` (PR 7349, `onehome/carrier-directions`),
+            // which no door admits off unit, so a non-unit axis reaching
+            // `rate` is unrepresentable: a stronger guarantee than this
+            // sub-case gave.
             let (sin, cos) = (0.6, 0.8);
             let cone = Psi::Carrier(Implicit::Cone {
                 apex: Point3::origin() + o.map(iv0),
-                axis: d.map(iv0),
+                axis: geom_core::UnitVec3::checked(d.map(iv0)),
                 cos: iv0(cos),
                 sin: iv0(sin),
                 nappe: iv0(1.0),
@@ -8586,7 +8603,7 @@ mod presentation_rows {
     fn a_cones_rate_reads_its_radial_and_axial_parts_on_each_nappe() {
         let (sin, cos) = (0.6, 0.8);
         let apex = Point3::new(iv0(1.0), iv0(-2.0), iv0(0.5));
-        let axis = Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0));
+        let axis = geom_core::UnitVec3::exact_z();
         for nappe in [1.0, -1.0] {
             let cone = Psi::Carrier(Implicit::Cone {
                 apex,
@@ -8597,7 +8614,7 @@ mod presentation_rows {
             });
             let p = Point3::new(iv0(4.0), iv0(-2.0), iv0(0.5 + 4.0 * nappe));
             let radial = cone.rate(p, Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)));
-            let axial = cone.rate(p, axis);
+            let axial = cone.rate(p, axis.get());
             let near = |x: Interval, want: f64| x.lo() <= want + 1e-15 && want - 1e-15 <= x.hi();
             assert!(near(radial, cos), "nappe {nappe}: radial rate {radial:?}");
             assert!(
@@ -8645,7 +8662,7 @@ mod presentation_rows {
         let w0 = Vec3::new(0.3, 0.9, -0.2);
         let cyl = Psi::Carrier(Implicit::Cylinder {
             o: Point3::origin() + o.map(iv0),
-            axis: d.map(wide),
+            axis: geom_core::UnitVec3::checked(d.map(wide)),
             r: iv0(0.2),
         });
         let rate = cyl.rate(b, w0.map(wide));
@@ -8655,11 +8672,10 @@ mod presentation_rows {
                 let a = d + Vec3::new(k, -k, j) * (0.9 * e);
                 let w = w0 + Vec3::new(j, k, -j) * (0.9 * e);
                 let q = Point3::new(corner(&b.x, k), corner(&b.y, j), corner(&b.z, -k));
-                let line = geom::Line {
-                    origin: Point3::origin() + o,
-                    dir: a,
-                };
-                let r = line.offset(q);
+                // The member's axis is its direction, `a` over its length.
+                let u = a * (1.0 / a.norm());
+                let off = q - (Point3::origin() + o);
+                let r = off - u * off.dot(u);
                 let want = r.dot(w) / r.norm();
                 assert!(
                     rate.lo() <= want && want <= rate.hi(),
@@ -8667,18 +8683,9 @@ mod presentation_rows {
                 );
             }
         }
-        let zero = Psi::Carrier(Implicit::Cylinder {
-            o: Point3::origin() + o.map(iv0),
-            axis: Vec3::new(wide(0.0), wide(0.0), wide(0.0)),
-            r: iv0(0.2),
-        });
-        let none = zero.rate(b, w0.map(iv0));
-        assert!(
-            !(none.lo().is_finite()
-                && none.hi().is_finite()
-                && (none.lo() > 0.0 || none.hi() < 0.0)),
-            "an axis holding zero reads a sign: {none:?}"
-        );
+        // Retired: an axis enclosure holding zero. A carrier's axis is a
+        // `UnitVec3<Interval>` (PR 7349, `onehome/carrier-directions`); a box
+        // holding zero holds no unit vector, so no door admits one.
     }
     use crate::test_support_fixtures::trv;
     use geom_core::Tol;
@@ -8759,7 +8766,7 @@ mod presentation_rows {
             stated: None,
             key: edge(n),
             arc: Some((
-                Curve3::line(origin(), Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0))),
+                Curve3::line(origin(), geom_core::UnitVec3::exact_x()),
                 (iv0(0.0), iv0(1.0)),
             )),
             ends: ends.map(vertex),
@@ -10314,7 +10321,7 @@ mod presentation_rows {
                 stated: None,
                 key: edge(1),
                 arc: Some((
-                    Curve3::line(origin(), Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0))),
+                    Curve3::line(origin(), geom_core::UnitVec3::exact_x()),
                     (iv0(0.0), iv0(4.0)),
                 )),
                 ends: [vertex(1), vertex(2)],
@@ -10377,7 +10384,10 @@ mod presentation_rows {
         let line = |d: Vec3<Interval>, far: u64, plus: bool| Rim {
             stated: None,
             key: edge(far),
-            arc: Some((Curve3::line(origin(), d), (iv0(0.0), iv0(4.0)))),
+            arc: Some((
+                Curve3::line(origin(), geom_core::UnitVec3::checked(d)),
+                (iv0(0.0), iv0(4.0)),
+            )),
             ends: [vertex(1), vertex(far)],
             uses: vec![Use {
                 plus,
@@ -10438,7 +10448,7 @@ mod presentation_rows {
     /// boxes may hold, narrowed to them from both ends.
     #[test]
     fn edge_piece_narrows_to_the_parameters_the_boxes_hold() {
-        let line = Curve3::line(origin(), Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)));
+        let line = Curve3::line(origin(), geom_core::UnitVec3::exact_x());
         let bx = |a: f64, b: f64| {
             Point3::new(
                 Interval::from_bounds(a, b),
@@ -10647,13 +10657,23 @@ mod presentation_rows {
         Rim {
             stated: None,
             key: edge(n),
-            arc: Some((
-                Curve3::line(
-                    p(from),
-                    Vec3::new(iv0(to.0 - from.0), iv0(to.1 - from.1), iv0(0.0)),
-                ),
-                (iv0(0.0), iv0(1.0)),
-            )),
+            // The segment is its chord, its span in metres: the chord's
+            // direction over its own length, entered as points.
+            arc: Some({
+                let (dx, dy) = (to.0 - from.0, to.1 - from.1);
+                let len = dx.hypot(dy);
+                (
+                    Curve3::line(
+                        p(from),
+                        geom_core::UnitVec3::checked(Vec3::new(
+                            iv0(dx / len),
+                            iv0(dy / len),
+                            iv0(0.0),
+                        )),
+                    ),
+                    (iv0(0.0), iv0(len)),
+                )
+            }),
             ends: ends.map(vertex),
             uses: vec![Use {
                 plus: true,
@@ -10698,7 +10718,7 @@ mod presentation_rows {
         for e in core::iter::once(&other).chain(&extra) {
             if let Some((Curve3::Line(geom::Line { origin, dir }), _)) = &e.arc {
                 vertices.entry(e.ends[0]).or_insert(*origin);
-                vertices.entry(e.ends[1]).or_insert(*origin + *dir);
+                vertices.entry(e.ends[1]).or_insert(*origin + dir.get());
             }
         }
         Boundary {
@@ -11432,7 +11452,7 @@ mod presentation_rows {
         );
         let cylinder = Psi::Carrier(Implicit::Cylinder {
             o: origin(),
-            axis: z,
+            axis: geom_core::UnitVec3::checked(z),
             r: iv0(1.0),
         });
         assert_eq!(
@@ -12751,7 +12771,7 @@ mod presentation_rows {
             arc: Some((
                 Curve3::line(
                     Point3::new(iv0(10.0), iv0(10.0), iv0(10.0)),
-                    Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+                    geom_core::UnitVec3::exact_x(),
                 ),
                 (iv0(t.0), iv0(t.1)),
             )),
@@ -12789,7 +12809,7 @@ mod presentation_rows {
             stated: None,
             key: edge(10),
             arc: Some((
-                Curve3::line(on_cyl(1.0, 0.5), Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0))),
+                Curve3::line(on_cyl(1.0, 0.5), geom_core::UnitVec3::exact_z()),
                 (iv0(0.0), iv0(0.5)),
             )),
             ends: [vertex(1), vertex(2)],
@@ -12813,7 +12833,7 @@ mod presentation_rows {
         for e in &extra {
             if let Some((Curve3::Line(geom::Line { origin, dir }), _)) = &e.arc {
                 vertices.entry(e.ends[0]).or_insert(*origin);
-                vertices.entry(e.ends[1]).or_insert(*origin + *dir);
+                vertices.entry(e.ends[1]).or_insert(*origin + dir.get());
             }
         }
         Boundary {
@@ -12923,7 +12943,14 @@ mod presentation_rows {
             stated: None,
             key: edge(n),
             arc: Some((
-                Curve3::line(on_cyl(1.0, 0.5), Vec3::new(iv0(0.0), iv0(0.0), iv0(dv))),
+                Curve3::line(
+                    on_cyl(1.0, 0.5),
+                    if up {
+                        geom_core::UnitVec3::exact_z()
+                    } else {
+                        -geom_core::UnitVec3::exact_z()
+                    },
+                ),
                 (iv0(0.0), iv0(0.5)),
             )),
             ends: [vertex(1), vertex(2)],
@@ -13151,7 +13178,17 @@ mod presentation_rows {
         let line = |d: [f64; 3], far: u64, plus: bool| Rim {
             stated: None,
             key: edge(far),
-            arc: Some((Curve3::line(o, v(d)), (iv0(0.0), iv0(1.0)))),
+            // The segment is its chord, its span in metres.
+            arc: Some({
+                let len = Vec3::new(d[0], d[1], d[2]).norm();
+                (
+                    Curve3::line(
+                        o,
+                        geom_core::UnitVec3::checked(v([d[0] / len, d[1] / len, d[2] / len])),
+                    ),
+                    (iv0(0.0), iv0(len)),
+                )
+            }),
             ends: [vertex(key), vertex(far)],
             uses: vec![Use {
                 plus,
@@ -13767,7 +13804,7 @@ mod presentation_rows {
             arc: Some((
                 Curve3::line(
                     Point3::new(iv0(10.0), iv0(10.0), iv0(10.0)),
-                    Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+                    geom_core::UnitVec3::exact_x(),
                 ),
                 (iv0(0.0), iv0(1.0)),
             )),
@@ -13958,7 +13995,7 @@ mod presentation_rows {
             arc: Some((
                 Curve3::line(
                     Point3::new(iv0(10.0), iv0(10.0), iv0(10.0)),
-                    Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+                    geom_core::UnitVec3::exact_x(),
                 ),
                 (iv0(0.0), iv0(1.0)),
             )),
@@ -13981,7 +14018,7 @@ mod presentation_rows {
             arc: Some((
                 Curve3::line(
                     Point3::new(iv0(10.0), iv0(10.0), iv0(10.0)),
-                    Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+                    geom_core::UnitVec3::exact_x(),
                 ),
                 (iv0(0.0), iv0(1.0)),
             )),
@@ -14195,8 +14232,8 @@ mod presentation_rows {
                 stated: None,
                 key: edge(12),
                 arc: Some((
-                    Curve3::line(on_cyl(1.015, -0.5), Vec3::new(iv0(0.0), iv0(0.0), iv0(2.0))),
-                    (iv0(0.0), iv0(1.0)),
+                    Curve3::line(on_cyl(1.015, -0.5), geom_core::UnitVec3::exact_z()),
+                    (iv0(0.0), iv0(2.0)),
                 )),
                 ends: [vertex(5), vertex(6)],
                 uses: Vec::new(),
@@ -14238,7 +14275,7 @@ mod presentation_rows {
         let Surface::Cylinder { frame, radius, .. } = cyl else {
             unreachable!()
         };
-        let (origin, axis) = (frame.origin(), frame.axis());
+        let (origin, axis) = (frame.origin(), frame.axis_unit());
         let psi = Psi::Carrier(Implicit::Cylinder {
             o: origin,
             axis,
@@ -14431,7 +14468,7 @@ mod presentation_rows {
             stated: None,
             key: edge(2),
             arc: Some((
-                Curve3::line(lip(0.0502), Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0))),
+                Curve3::line(lip(0.0502), geom_core::UnitVec3::exact_x()),
                 (iv0(0.0), iv0(1e-4)),
             )),
             ends: [vertex(2), vertex(3)],
@@ -14486,7 +14523,7 @@ mod presentation_rows {
         let carrier = |r: f64| {
             Psi::Carrier(Implicit::Cylinder {
                 o: origin(),
-                axis: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                axis: geom_core::UnitVec3::exact_z(),
                 r: iv0(r),
             })
         };
@@ -14744,7 +14781,7 @@ mod presentation_rows {
     fn turning(w: f64) -> (Surface<Interval>, Surface<Interval>, Boundary, Boundary) {
         let s = Interval::from_bounds(-w, w);
         let d = Vec3::new(iv0(1.0), s, iv0(0.0));
-        let line = Curve3::line(origin(), d);
+        let line = Curve3::line(origin(), geom_core::UnitVec3::checked(d));
         let face = |sense: bool| Boundary {
             sense,
             edges: vec![Rim {
@@ -16378,7 +16415,7 @@ mod presentation_rows {
         let cylinder = |r| {
             Psi::Carrier(Implicit::Cylinder {
                 o: origin(),
-                axis: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                axis: geom_core::UnitVec3::exact_z(),
                 r,
             })
         };
@@ -16410,7 +16447,7 @@ mod presentation_rows {
                 stated: None,
                 key: edge(1),
                 arc: Some((
-                    Curve3::line(origin(), Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0))),
+                    Curve3::line(origin(), geom_core::UnitVec3::exact_x()),
                     (iv0(0.0), end),
                 )),
                 ends: [vertex(1), vertex(2)],
@@ -17177,7 +17214,7 @@ mod presentation_rows {
             arc: Some((
                 Curve3::line(
                     Point3::new(iv0(10.0), iv0(10.0), iv0(10.0)),
-                    Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+                    UnitVec3::exact_x(),
                 ),
                 (iv0(0.0), iv0(1.0)),
             )),
@@ -17455,8 +17492,19 @@ mod presentation_rows {
         let s2 = core::f64::consts::FRAC_1_SQRT_2;
         let pi = core::f64::consts::PI;
         let p3 = |x: f64, y: f64, z: f64| Point3::new(iv0(x), iv0(y), iv0(z));
+        // A segment is its chord, its span in metres, read off the
+        // stated points.
         let line = |a: Point3<Interval>, b: Point3<Interval>| {
-            Some((Curve3::line(a, b - a), (iv0(0.0), iv0(1.0))))
+            let d = Vec3::new(
+                b.x.lo() - a.x.lo(),
+                b.y.lo() - a.y.lo(),
+                b.z.lo() - a.z.lo(),
+            );
+            let len = d.norm();
+            Some((
+                Curve3::line(a, geom_core::UnitVec3::checked((d * (1.0 / len)).map(iv0))),
+                (iv0(0.0), iv0(len)),
+            ))
         };
         let apex = origin();
         let (p0, p1) = (p3(s2, 0.0, s2), p3(0.0, -s2, s2));
@@ -17616,7 +17664,13 @@ mod presentation_rows {
         };
         let p0 = Point3::new(iv0(s2), iv0(0.0), iv0(s2));
         let mut seam = rim(1, [1, 2], Axis::U, 0.0, (0.0, 0.0), (0.0, 1.0));
-        seam.arc = Some((Curve3::line(origin(), p0 - origin()), (iv0(0.0), iv0(1.0))));
+        seam.arc = Some((
+            Curve3::line(
+                origin(),
+                geom_core::UnitVec3::checked(Vec3::new(iv0(s2), iv0(0.0), iv0(s2))),
+            ),
+            (iv0(0.0), iv0(1.0)),
+        ));
         let mut back = seam.uses[0].clone();
         back.plus = false;
         back.image = Some([p2((TURN, 0.0)), p2((TURN, 1.0))]);
@@ -17701,8 +17755,19 @@ mod presentation_rows {
         let pi = core::f64::consts::PI;
         let m = if mirror { -1.0 } else { 1.0 };
         let p3 = |x: f64, y: f64, z: f64| Point3::new(iv0(x), iv0(m * y), iv0(z));
+        // A segment is its chord, its span in metres, read off the
+        // stated points.
         let line = |a: Point3<Interval>, b: Point3<Interval>| {
-            Some((Curve3::line(a, b - a), (iv0(0.0), iv0(1.0))))
+            let d = Vec3::new(
+                b.x.lo() - a.x.lo(),
+                b.y.lo() - a.y.lo(),
+                b.z.lo() - a.z.lo(),
+            );
+            let len = d.norm();
+            Some((
+                Curve3::line(a, geom_core::UnitVec3::checked((d * (1.0 / len)).map(iv0))),
+                (iv0(0.0), iv0(len)),
+            ))
         };
         let apex = origin();
         let (p0, p1) = (p3(s2, 0.0, s2), p3(0.0, -s2, s2));
@@ -17909,7 +17974,7 @@ mod rate_rows {
         let val = |s: f64| mid(psi.value(pt(q + v * s)).expect("a closed form"));
         (val(h) - val(-h)) / (2.0 * h)
     }
-    fn carriers(axis: Vec3<Interval>, org: Vec3<f64>) -> Vec<(&'static str, Psi)> {
+    fn carriers(axis: UnitVec3<Interval>, org: Vec3<f64>) -> Vec<(&'static str, Psi)> {
         let op = pt(org);
         let cone = |nappe: f64| {
             Psi::Carrier(Implicit::Cone {
@@ -17935,8 +18000,20 @@ mod rate_rows {
                 "sphere",
                 Psi::Carrier(Implicit::Sphere { c: op, r: iv0(0.5) }),
             ),
-            ("plane", Psi::Carrier(Implicit::Plane { o: op, n: axis })),
-            ("linear", Psi::Linear { n: axis, q: op }),
+            (
+                "plane",
+                Psi::Carrier(Implicit::Plane {
+                    o: op,
+                    n: axis.get(),
+                }),
+            ),
+            (
+                "linear",
+                Psi::Linear {
+                    n: axis.get(),
+                    q: op,
+                },
+            ),
         ]
     }
     fn off_axis(q: Vec3<f64>) -> f64 {
@@ -17958,7 +18035,7 @@ mod rate_rows {
             }
             seen += 1;
             let v = g.vec(1.0);
-            for (what, psi) in carriers(d().map(iv0), o()) {
+            for (what, psi) in carriers(geom_core::UnitVec3::checked(d().map(iv0)), o()) {
                 let rate = psi.rate(pt(q), v.map(iv0));
                 let want = fd(&psi, q, v);
                 assert!(
@@ -17973,7 +18050,9 @@ mod rate_rows {
 
     /// **Over a box, an axis enclosure and a direction enclosure, the
     /// rate holds every member's derivative**: members sampled, each
-    /// with its own axis, point and direction.
+    /// with its own axis, point and direction. A member's axis is a unit
+    /// direction (a carrier's axis is a [`UnitVec3`]), so a sampled
+    /// vector off the axis is read as its direction.
     #[test]
     fn each_carriers_rate_over_a_box_holds_every_sampled_members_derivative() {
         let mut g = Lcg(11);
@@ -17987,12 +18066,20 @@ mod rate_rows {
             let v = g.vec(1.0);
             for (hq, ha, hv) in [(1e-2, 0.0, 0.0), (1e-3, 1e-6, 1e-3), (1e-5, 1e-4, 1e-2)] {
                 let axis = vbox(d(), ha);
-                for ((what, psi), k) in carriers(axis, o()).into_iter().zip(0..) {
+                for ((what, psi), k) in carriers(geom_core::UnitVec3::checked(axis), o())
+                    .into_iter()
+                    .zip(0..)
+                {
                     let rate = psi.rate(boxed(q, hq), vbox(v, hv));
                     for _ in 0..12 {
                         let a = d() + g.vec(ha);
                         let (qm, vm) = (q + g.vec(hq), v + g.vec(hv));
-                        let (_, member) = carriers(a.map(iv0), o()).swap_remove(k);
+                        // The member's axis is its direction, lifted as the
+                        // type lifts a stated `f64` direction.
+                        let unit_a = geom_core::UnitVec3::stated(a * (1.0 / a.norm()))
+                            .expect("unit to rounding")
+                            .map_scalar(Interval::from_f64);
+                        let (_, member) = carriers(unit_a, o()).swap_remove(k);
                         let want = fd(&member, qm, vm);
                         assert!(
                             rate.lo() - 1e-7 <= want && want <= rate.hi() + 1e-7,
@@ -18005,65 +18092,24 @@ mod rate_rows {
         }
     }
 
-    /// **A cylinder's rate about an axis that is not unit** is still its
-    /// value's derivative (`Line::distance`, `Line::offset` and
-    /// `square_to` each hold for any nonzero `dir`): red where
-    /// `square_to` divides by `|axis|`.
-    #[test]
-    fn a_cylinders_rate_about_a_long_axis_is_its_values_derivative() {
-        let mut g = Lcg(13);
-        for scale in [2.0, 1.0 + 1e-3, 0.5] {
-            let psi = Psi::Carrier(Implicit::Cylinder {
-                o: pt(o()),
-                axis: (d() * scale).map(iv0),
-                r: iv0(0.5),
-            });
-            let mut seen = 0;
-            while seen < 50 {
-                let q = o() + g.vec(2.0);
-                if off_axis(q) < 0.2 {
-                    continue;
-                }
-                seen += 1;
-                let v = g.vec(1.0);
-                let rate = psi.rate(pt(q), v.map(iv0));
-                let want = fd(&psi, q, v);
-                assert!(
-                    rate.lo() - 1e-7 <= want && want <= rate.hi() + 1e-7,
-                    "scale {scale} at {q:?} along {v:?}: rate {rate:?}, derivative {want}"
-                );
-            }
-        }
-    }
-
-    /// **A cone about an axis off unit by the stored convention**
-    /// (`|dir|²` to 1e-10): its rate along the unit axis at a point off
-    /// it is `−sin` exactly, which the enclosure holds (red where the
-    /// axial term is read as `axis·v`, as the value's height is not).
-    #[test]
-    fn a_cones_rate_about_an_axis_off_unit_by_the_convention_holds_its_truth() {
-        let scale = 1.0 + 5e-11;
-        let a = d() * scale;
-        let psi = Psi::Carrier(Implicit::Cone {
-            apex: pt(o()),
-            axis: a.map(iv0),
-            cos: iv0(0.8),
-            sin: iv0(0.6),
-            nappe: iv0(1.0),
-        });
-        let q = o() + Vec3::new(0.8, 0.6, 0.0) * 0.7 + d() * 1.3;
-        let rate = psi.rate(pt(q), d().map(iv0));
-        assert!(
-            rate.lo() <= -0.6 && -0.6 <= rate.hi(),
-            "the rate {rate:?} misses −sin"
-        );
-    }
+    // Retired: a cylinder's rate about a long axis, and a cone's about
+    // an axis off unit by the stored convention (`|dir|²` to 1e-10). A
+    // carrier's axis is a `UnitVec3<Interval>` (PR 7349,
+    // `onehome/carrier-directions`), which no door admits off unit at
+    // `Interval` (`UnitVec3::checked` keeps a box only where `v·v − 1`
+    // holds zero), so a non-unit axis reaching `rate` is unrepresentable:
+    // a stronger guarantee than these rows gave. `rate`'s division by the
+    // axis's length and `square_to`'s any length are left without a pin:
+    // `work/embed/rate-reads-an-axis-length-the-unit-axis-type-retired.md`.
 
     /// **Over a box holding a cylinder's or a cone's axis, or the
     /// cone's apex, no sign is read off the rate.**
     #[test]
     fn no_sign_is_read_off_a_rate_over_a_box_holding_the_axis() {
-        for (what, psi) in carriers(d().map(iv0), o()).into_iter().take(3) {
+        for (what, psi) in carriers(geom_core::UnitVec3::checked(d().map(iv0)), o())
+            .into_iter()
+            .take(3)
+        {
             for (name, q, h) in [
                 ("holds the axis", o() + d() * 0.4, 1e-3),
                 ("holds the apex", o(), 1e-3),
@@ -18151,7 +18197,7 @@ mod rate_rows {
             let s = crossing_plane(r);
             let psi = Psi::Carrier(Implicit::Cylinder {
                 o: Point3::new(iv0(0.0), iv0(0.0), iv0(0.0)),
-                axis: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                axis: geom_core::UnitVec3::exact_z(),
                 r: iv0(r),
             });
             // Wide enough that a cell clear of the carrier departs it past
@@ -18272,7 +18318,7 @@ mod rate_rows {
                 continue;
             }
             seen += 1;
-            for (what, psi) in carriers(d().map(iv0), o()) {
+            for (what, psi) in carriers(geom_core::UnitVec3::checked(d().map(iv0)), o()) {
                 let e = 1e-6;
                 let grad = Vec3::new(
                     fd(&psi, q, Vec3::new(1.0, 0.0, 0.0)),
@@ -18703,7 +18749,7 @@ mod posed_rows {
             let (p, q) = (vmid_point(on(u, v0)), vmid_point(on(u, v1)));
             Rim {
                 key: edge(n),
-                arc: Some((Curve3::line(lift3(p), lift(q - p)), (iv0(0.0), iv0(1.0)))),
+                arc: Some(chord_segment(lift3(p), lift3(q))),
                 stated: None,
                 ends: ends.map(vertex),
                 uses: vec![Use {
@@ -18846,7 +18892,7 @@ mod posed_rows {
         let s = sphere();
         let mut b = triangle();
         let (p, q) = (b.vertices[&vertex(3)], b.vertices[&vertex(2)]);
-        b.edges[1].arc = Some((Curve3::line(p, q - p), (iv0(0.0), iv0(1.0))));
+        b.edges[1].arc = Some(chord_segment(p, q));
         // The shared edge first: [`beside_curve`] types a cell by the
         // first unread curved edge in its local boundary.
         let local = Local {
@@ -19411,10 +19457,7 @@ mod posed_rows {
         let tip = Point3::new(corner.x * 1.001, corner.y * 1.001, corner.z * 1.001);
         b.edges.push(Rim {
             key: edge(9),
-            arc: Some((
-                Curve3::line(lift3(corner), lift(tip - corner)),
-                (iv0(0.0), iv0(1.0)),
-            )),
+            arc: Some(chord_segment(lift3(corner), lift3(tip))),
             stated: None,
             ends: [vertex(7), vertex(8)],
             uses: vec![curve_use(true, (0.0, 0.0), (0.0, 0.0))],
@@ -19725,10 +19768,8 @@ mod margin_rows {
                 .iter()
                 .map(|&(k, arc, ends)| Rim {
                     key: key(k),
-                    arc: arc.map(|(a, b)| {
-                        let d = v3(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
-                        (Curve3::line(p3(a[0], a[1], a[2]), d), (iv0(0.0), iv0(1.0)))
-                    }),
+                    arc: arc
+                        .map(|(a, b)| chord_segment(p3(a[0], a[1], a[2]), p3(b[0], b[1], b[2]))),
                     stated: None,
                     ends: ends.map(key),
                     uses: Vec::new(),
@@ -19868,10 +19909,7 @@ mod margin_reach_rows {
     fn line(k: u64, ends: [u64; 2], a: [f64; 3], b: [f64; 3]) -> Rim {
         Rim {
             key: key(k),
-            arc: Some((
-                Curve3::line(pa(a), va([b[0] - a[0], b[1] - a[1], b[2] - a[2]])),
-                (iv0(0.0), iv0(1.0)),
-            )),
+            arc: Some(chord_segment(pa(a), pa(b))),
             stated: None,
             ends: ends.map(key),
             uses: vec![Use {

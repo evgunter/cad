@@ -84,11 +84,7 @@ fn builds<T: Scalar + topo::CertifiedPolicy>(
     let out = chamfer(body, edges, s).unwrap_or_else(|e| panic!("{what}: builds, got {e:?}"));
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3, got {e:?}"));
     let c = topo::readback::euler_counts(&out.body);
-    assert_eq!(
-        (c.s, c.genus()),
-        (1, Ok(0)),
-        "{what}: one closed genus-0 shell"
-    );
+    assert_eq!((c.s, c.h()), (1, Ok(0)), "{what}: one closed genus-0 shell");
     assert_naming_totality(body, &out, edges, what);
     let ((v0, pad0), (v1, pad1)) = (volume(body), volume(&out.body));
     let (dv, pad) = (v1 - v0, pad0 + pad1);

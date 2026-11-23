@@ -5,7 +5,7 @@ title: seqgen::fusion_remake_shell can return None unconditionally and nothing i
 status: open
 opened: 2026-09-20
 priority: P3
-cost: D
+cost: M
 ---
 
 ## Finding

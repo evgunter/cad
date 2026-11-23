@@ -466,7 +466,7 @@ fn latitude_arc(
                 ),
                 axis: geom::Line {
                     origin: Point3::new(0.0, 0.0, 0.0),
-                    dir: Vec3::new(0.0, 1.0, 0.0),
+                    dir: geom_core::UnitVec3::exact_y(),
                 },
                 angle: theta,
             },
@@ -641,7 +641,7 @@ where
                 ),
                 axis: geom::Line {
                     origin: p3(0.0, 0.0, 0.0),
-                    dir: v3(0.0, 1.0, 0.0),
+                    dir: geom_core::UnitVec3::exact_y(),
                 },
                 angle: l(theta),
             },

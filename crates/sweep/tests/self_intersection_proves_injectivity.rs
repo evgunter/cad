@@ -2808,7 +2808,9 @@ fn is_ellipse<T: Real>(body: &Body<T>, e: topo::EdgeKey) -> bool {
 /// `b` moved rigidly by `m`, at rest.
 fn moved<T: Scalar>(b: &topo::AtRestBody<T>, m: &geom_core::Affine3<f64>) -> topo::AtRestBody<T> {
     use sweep::test_support::finished;
-    let rigid = geom_core::test_support::rigid(&m.map(T::from_f64), tol());
+    // The motion stated at `f64` and lifted as the type lifts a stated
+    // frame (its polar enclosure at `Interval`).
+    let rigid = geom_core::test_support::rigid(m, tol()).map_scalar(T::from_f64);
     finished("moved", topo::transform_rigid(b, &rigid).unwrap(), tol())
 }
 

@@ -2357,8 +2357,11 @@ fn the_c5_table_retires_the_arm_whose_proof_is_complete() {
     let r = route(SurfaceKind::Nurbs, SurfaceKind::Nurbs);
     assert!(r.implemented, "Nurbs×Nurbs is implemented");
     assert!(r.note.contains("TWO-CHART"), "{}", r.note);
+    // Cone × torus retired off the axis with its pose's apex and gap.
+    let r = route(SurfaceKind::Cone, SurfaceKind::Torus);
+    assert!(r.implemented, "Cone×Torus is implemented");
+    assert!(r.note.contains("IMPLICIT PAIR"), "{}", r.note);
     for (a, b) in [
-        (SurfaceKind::Cone, SurfaceKind::Torus),
         (SurfaceKind::Nurbs, SurfaceKind::Cylinder),
         (SurfaceKind::Cone, SurfaceKind::Sphere),
     ] {

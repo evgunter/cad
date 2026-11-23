@@ -2,8 +2,9 @@
 id: feature-gated-lib-unit-tests-are-compiled-and-never-run
 kind: issue
 title: a probe-gated #[test] inside a library's src is compiled by CI and executed by no hosted job
-status: open
+status: closed
 opened: 2026-09-21
+closed: 2026-11-22
 ---
 
 
@@ -104,3 +105,7 @@ charter (`work/unread/plan.md`). Id and body unchanged.
 ## Moved to CIW (2026-11-02)
 
 - 2026-11-02 — moved from UNREAD to CIW when UNREAD merged into CIW (budget rule now counts P0/P1 only). UNREAD's rows are claims no gate reads and CIW's are what the hosted gate does not run or see: one question, what goes red if this stops being true. Id and body unchanged.
+
+## Closed
+
+2026-11-22, CIW triage (stale). A hosted job now runs these tests. `nightly.yml`'s `all-features` job (:791-910) builds the feature list from every workspace feature except `topo/per-op-postcondition`, which includes `geom-core/probe` and `topo/probe` (`crates/topo/Cargo.toml:59`). It then runs `cargo nextest run --profile ci --workspace --features "$FEATURES"`, which executes lib unit-test targets, so the probe-gated `#[test]`s in `k_stats.rs`, `props.rs` and `validate.rs` run nightly. The per-op scalpel half is its own row (`no-ci-row-runs-topo-under-the-per-op-postcondition-scalpel`).

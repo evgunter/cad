@@ -2,11 +2,13 @@
 id: doc-sketch-on-face-retires-for-a-profile-drawn-on-the-face
 kind: unit
 title: Doc.sketch_on_face retires: a sketch on a face is a profile drawn on the face's frame
-status: open
+status: closed
 opened: 2026-11-02
 priority: P1
 cost: M
 parent: on-the-picked-face-makes-a-profile-and-extrudes-it-in-one-checkbox
+closed: 2026-11-23
+pr: 7465
 ---
 
 

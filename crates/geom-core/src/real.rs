@@ -246,6 +246,14 @@ pub enum Witness {
     Inexact,
 }
 
+/// **The plain formula `(q − o)·n`**, in [`crate::Vec3::dot`]'s order:
+/// [`Real::difference_dot`]'s default, and the reading every scalar falls
+/// back to where its posed one does not apply.
+#[must_use]
+pub fn plain_difference_dot<T: Real>(q: [T; 3], o: [T; 3], n: [T; 3]) -> T {
+    (q[0] - o[0]) * n[0] + (q[1] - o[1]) * n[1] + (q[2] - o[2]) * n[2]
+}
+
 /// The scalar type the geometry evaluation layer is generic over.
 ///
 /// See the [module docs](self) for the design rationale: the deliberately
@@ -500,6 +508,23 @@ pub trait Real:
     fn enclose_unit(v: [Self; 3]) -> Option<[Self; 3]> {
         let _ = v;
         None
+    }
+
+    /// **`(q − o)·n`, posed so its digits are the result's own**: the
+    /// offset of `q` from `o` along `n`, which cancels whenever `q` and
+    /// `o` lie far apart across `n` (a plane's stored origin far along
+    /// the plane from the point read against it). At a value scalar each
+    /// difference and product is error-free and their sum compensated
+    /// (Ogita, Rump and Oishi's `Dot2`), so the value is the exact one's
+    /// rounding up to a term of order `u²·Σ|nᵢ(qᵢ − oᵢ)|`, whatever the
+    /// cancellation; at an enclosure stated at points it is the exact sum
+    /// enclosed. The
+    /// default is the plain formula, the real function every scalar
+    /// computes; a scalar that carries `T`'s value channel computes it
+    /// through `T`'s own.
+    #[must_use]
+    fn difference_dot(q: [Self; 3], o: [Self; 3], n: [Self; 3]) -> Self {
+        plain_difference_dot(q, o, n)
     }
 
     /// **The `f64` this value states**, where it is a plain enclosure
@@ -1931,10 +1956,9 @@ pub mod bounds_allowlist {
     //! `Surface::representability_margins` — a cylinder's, sphere's or
     //! torus tube's radius, and a cone half-angle's distance from each end
     //! of `(0, π/2)` — and `Curve3::representability_margins`, a circle's
-    //! radius, an ellipse's semi-axes and a spiric's tube radius — and,
-    //! for the axisymmetric kinds of both, the frame's unit-ness and
-    //! orthogonality stated as ε-slack margins at the kind's radius), the
-    //! representability read. Its `hi` decides nothing either: the datum
+    //! radius, an ellipse's semi-axes and a spiric's tube radius; a
+    //! carrier's frame has no margin, being a `geom::Frame`, rigid by its
+    //! type, so no bracket of it is read), the representability read. Its `hi` decides nothing either: the datum
     //! passes on `lo` alone, and `hi` only says which refusal a margin not
     //! passed is reported as, outside the convention where the whole
     //! bracket is, undecided where it straddles zero (ONEHOME fork 259).
@@ -2320,6 +2344,26 @@ impl Real for f64 {
         x: &F::At<Self>,
     ) -> crate::value_view::ValueView<'_, F::At<Self>> {
         crate::value_view::ValueView::Same(x)
+    }
+
+    /// `Dot2` over the error-free differences; where that is not finite
+    /// the plain formula's poison or overflow is the answer.
+    fn difference_dot(q: [Self; 3], o: [Self; 3], n: [Self; 3]) -> Self {
+        use crate::exact::{two_product, two_sum};
+        let (mut hi, mut lo) = (0.0, 0.0);
+        for i in 0..3 {
+            let (d, de) = two_sum(q[i], -o[i]);
+            let (p, pe) = two_product(d, n[i]);
+            let (s, se) = two_sum(hi, p);
+            hi = s;
+            lo += se + pe + de * n[i];
+        }
+        let v = hi + lo;
+        if v.is_finite() {
+            v
+        } else {
+            plain_difference_dot(q, o, n)
+        }
     }
 
     /// The identity — every `f64` embeds as itself, exactly.
@@ -2890,6 +2934,59 @@ mod tests {
         assert!(<f64 as Real>::copysign(3.0, f64::NAN).is_nan());
         // Contrast: the IEEE bit operation launders the NaN sign.
         assert_eq!(f64::copysign(3.0, f64::NAN).abs(), 3.0);
+    }
+
+    proptest! {
+        /// **A plane's offset read across a far stored origin keeps its
+        /// own digits** ([`Real::difference_dot`]): `q` near the world
+        /// origin, `o` on a plane through it a megametre and more along
+        /// that plane. The `f64` value is within an ulp or two of the
+        /// exact sum and `Dot2`'s second-order term, where the plain
+        /// formula rounds at `ulp(far)`; the
+        /// enclosure stated at points holds the exact sum within a few
+        /// ulps of it.
+        #[test]
+        fn a_far_origins_offset_is_read_to_its_own_digits(
+            far in 1e3f64..1e9,
+            c in prop::array::uniform3(-10.0f64..10.0),
+            n in prop::array::uniform3(-1.0f64..1.0),
+            t in prop::array::uniform3(-1.0f64..1.0),
+            gap in -1.0f64..1.0,
+        ) {
+            use crate::exact::Expansion;
+            let n = crate::Vec3::new(n[0], n[1], n[2]);
+            prop_assume!(n.norm() > 0.1);
+            let n = n.normalize();
+            let w = n.cross(crate::Vec3::new(t[0], t[1], t[2]));
+            prop_assume!(w.norm() > 0.1);
+            let w = w.normalize();
+            let q = crate::Point3::new(c[0], c[1], c[2]);
+            let o = q - n * gap + w * far;
+            let (q, o, n) = ([q.x, q.y, q.z], [o.x, o.y, o.z], [n.x, n.y, n.z]);
+            let exact: f64 = Expansion::difference_dot(q, o, n).components().iter().sum();
+            let ulp = |x: f64| f64::EPSILON * x.abs().max(f64::MIN_POSITIVE);
+            let got = f64::difference_dot(q, o, n);
+            // `Dot2`'s bound: the result's rounding and a second-order term.
+            let terms: f64 = (0..3).map(|i| (n[i] * (q[i] - o[i])).abs()).sum();
+            let u = f64::EPSILON / 2.0;
+            prop_assert!(
+                (got - exact).abs() <= 2.0 * ulp(exact) + 16.0 * u * u * terms,
+                "f64: {got:e} against the exact {exact:e} (far {far:e})"
+            );
+            let point = |a: [f64; 3]| a.map(crate::Interval::from_f64);
+            let enclosed = crate::Interval::difference_dot(point(q), point(o), point(n));
+            // `exact` is the expansion's sum rounded, so the true sum is
+            // within an ulp of it.
+            prop_assert!(
+                enclosed.lo() <= exact + ulp(exact) && exact - ulp(exact) <= enclosed.hi(),
+                "interval: [{:e}, {:e}] misses the exact {exact:e}", enclosed.lo(), enclosed.hi()
+            );
+            prop_assert!(
+                enclosed.hi() - enclosed.lo() <= 8.0 * ulp(exact),
+                "interval: [{:e}, {:e}] is wider than a few ulps of {exact:e}",
+                enclosed.lo(), enclosed.hi()
+            );
+        }
     }
 
     /// The door at `f64`: a total order, sign-blind at the tie, and

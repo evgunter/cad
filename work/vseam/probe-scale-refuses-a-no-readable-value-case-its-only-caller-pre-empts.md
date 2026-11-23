@@ -2,11 +2,12 @@
 id: probe-scale-refuses-a-no-readable-value-case-its-only-caller-pre-empts
 kind: issue
 title: probe_scale's NoSuchSlot covers a value-less slot that guard_driven and the dimension doors both pre-empt
-status: open
+status: closed
 opened: 2026-09-20
 refs: [the-range-button-re-mints-the-ratified-affordance]
 priority: P3
 cost: E
+closed: 2026-11-23
 ---
 
 Found by `vnews/properties-controls-read-their-refusals` (PR #2961),
@@ -65,3 +66,7 @@ row exists to pick one:
 
 **Do not silently delete the arm.** A refusal removed on an argument
 made in another file is exactly the shape that comes back as a panic.
+
+## Closed (2026-11-23)
+
+Nothing left to fix: the code it describes is deleted. Ev's decision on #7340 removes the sampling probe, and OFFER's `certify-affordance-on-the-bounds-panel` makes `range?` the certified search (`editor_core::range`), whose reading is `viewer::session::range`.

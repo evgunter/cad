@@ -245,7 +245,10 @@ impl Row {
     ) -> (EdgeBlend<f64>, Point3<f64>) {
         if let Some((origin, axis)) = self.axis {
             let sheet = Meridian {
-                axis: geom::Line { origin, dir: axis },
+                axis: geom::Line {
+                    origin,
+                    dir: geom::stated_direction(axis),
+                },
                 rim: self.rim,
             };
             let (ta, da) = sheet.trace(&self.a, senses.0).expect("a coaxial trace");
@@ -267,7 +270,9 @@ impl Row {
             (b, center)
         } else {
             let sheet = Ruling {
-                tau: self.tau.expect("a ruled row carries its ruling"),
+                tau: geom_core::UnitVec3::checked(
+                    self.tau.expect("a ruled row carries its ruling"),
+                ),
                 rim: self.rim,
                 lever: 1.0,
             };
@@ -279,8 +284,14 @@ impl Row {
                 self.arm.name()
             );
             let b = sheet.blend(ta, tb, radius, Branch::Rim);
-            let center =
-                sweep::blend::arms::sheet_center(self.rim, sheet.tau, ta, tb, radius, Branch::Rim);
+            let center = sweep::blend::arms::sheet_center(
+                self.rim,
+                sheet.tau.get(),
+                ta,
+                tb,
+                radius,
+                Branch::Rim,
+            );
             (b, center)
         }
     }
@@ -485,7 +496,7 @@ fn the_shared_reduction_agrees_with_the_plane_sphere_arm() {
         let sheet = Meridian {
             axis: geom::Line {
                 origin: Point3::new(0.0, 0.0, 0.0),
-                dir: Vec3::new(0.0, 1.0, 0.0),
+                dir: geom_core::UnitVec3::exact_y(),
             },
             rim,
         };
