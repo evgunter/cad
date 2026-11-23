@@ -90,3 +90,7 @@ same way. Two of fourteen runs of the row here drew a failing seed.
 ## Evidence (germ/co-surface-table, 2026-11-23)
 
 `geom-brep`'s `curve_face::ellipse_torus::torus_rows::certified_torus_answers_hold_against_the_true_distance` is red on `origin/main` on seed `0x3a0790b1c3cbfab2`, the panic at `circle_roots.rs:285` (re-run on a main worktree, 2026-11-23, from PR 7431's review).
+
+## Evidence (germ/spiric-near-miss-off-q, 2026-11-23)
+
+Two more seeds panic the same way (`ring_torus_convention` undecided, margins 6.3e-6 and 4.6e-6 in the band `(1e-6, 1e-5)`): `0x8f3af7fd0193fe1c` in a run at `CAD_TOLERANCE_EPS=1e-6` and `0x2721258bd8b3b6b0` in a run at `1e-12`.

@@ -342,7 +342,7 @@ impl core::fmt::Display for SeatError {
         let (unpicked, how) = match self {
             Self::Empty { seat } => (seat.name(), ""),
             Self::NoFace { role } => (role.name(), ""),
-            Self::NoPlane { role } => (role.name(), ": pick a face"),
+            Self::NoPlane { role } => (role.name(), ": pick a face or a datum"),
             Self::NoEdges { role } => (role.name(), ""),
             Self::HalfUnchosen { seat } => {
                 return write!(

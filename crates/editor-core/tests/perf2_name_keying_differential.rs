@@ -1,5 +1,5 @@
-//! **The naming differential**: per corpus document, ONE digest of every
-//! node's name table in BOTH directions and ONE digest of the document's
+//! **The naming differential**: per corpus document, every node's name
+//! table read in BOTH directions, and ONE digest of the document's
 //! persisted text — the pair a change to how names are KEYED must not
 //! move.
 //!
@@ -9,12 +9,12 @@
 //! of every registered document, which is the surface an emitter change
 //! moves. It says nothing about the REVERSE direction (entity → name),
 //! and the reverse map is what hit-testing reads, so a change that
-//! re-keys the table can leave every forward row intact and still hand a
-//! different name back for an entity. This file's first digest feeds both
-//! directions of every node's table, so the two maps are pinned as a
-//! pair rather than one of them twice.
+//! re-keys the table can leave every forward row intact and still hand
+//! back, for an entity, a name that does not denote it. This file reads
+//! every entity of every forward row back through the reverse map and
+//! asks that the name it gets denotes that entity.
 //!
-//! The second digest is the other half of the same claim. A
+//! The digest is the other half of the same claim. A
 //! [`editor_core::names::StableName`] is PERSISTED — declarations and the
 //! appearance store carry names into the saved text, structurally — so a
 //! representation change is observable on disk as well as in memory. The
@@ -40,11 +40,11 @@
 //!
 //! # When one moves
 //!
-//! It is a golden in the ordinary sense (`docs/prompts/implementer-discipline.md`
-//! §3): the question is whether the NEW names are right, never how to
-//! get the old number back. A document added to or removed from the
-//! registry moves its own row and no other.
-
+//! The text digest is a golden in the ordinary sense
+//! (`docs/prompts/implementer-discipline.md` §3): the question is
+//! whether the NEW text is right, never how to get the old number back.
+//! A document added to or removed from the registry moves its own row
+//! and no other.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::persist;
@@ -53,124 +53,82 @@ use geom_core::Tol;
 
 use crate::corpus;
 
-/// FNV-1a 64 — the same mixer `m4_pr3_names_ci` and
-/// `lib_g16_corpus_name_digests` use, so a number here is comparable
-/// with a number there by construction rather than by convention.
-struct Fnv(u64);
-
-impl Fnv {
-    fn new() -> Self {
-        Self(0xcbf2_9ce4_8422_2325)
-    }
-
-    fn feed(&mut self, s: &str) {
-        for b in s.bytes() {
-            self.0 ^= u64::from(b);
-            self.0 = self.0.wrapping_mul(0x1000_0000_01b3);
-        }
-    }
-}
-
-/// Both directions of every node's table, in evaluation order.
-///
-/// The reverse direction is fed through [`editor_core::names::NameTable::name_of`]
-/// over the forward table's own entities, so a row that answers in one
-/// direction and not the other moves the digest instead of being
-/// silently skipped.
-fn tables_digest(ev: &editor_core::Evaluation<f64>) -> u64 {
-    let mut h = Fnv::new();
+/// Every node's table read both ways: each entity of each forward row,
+/// handed to [`editor_core::names::NameTable::name_of`], answers a name
+/// whose forward row holds that entity. Returns the rows that do not.
+fn reverse_misreads(ev: &editor_core::Evaluation<f64>) -> Vec<String> {
+    let mut wrong = Vec::new();
     for id in &ev.order {
-        h.feed(&format!("#{id:?}"));
         for t in crate::fixture::tables(ev, *id) {
-            perf2_table_digest(&mut h, t);
+            for (n, e) in t.iter() {
+                let entities = match e {
+                    editor_core::names::Entry::Unique(one) => vec![*one],
+                    editor_core::names::Entry::Tied(many) => many.clone(),
+                };
+                for ent in entities {
+                    let back = t.name_of(&ent);
+                    let holds = back.and_then(|b| t.lookup(b)).is_some_and(|e| match e {
+                        editor_core::names::Entry::Unique(one) => *one == ent,
+                        editor_core::names::Entry::Tied(many) => many.contains(&ent),
+                    });
+                    if !holds {
+                        wrong.push(format!("{n:?} names {ent:?}, which reads back as {back:?}"));
+                    }
+                }
+            }
         }
     }
-    h.0
+    wrong
 }
 
-/// One table's rows into `h`, forward then reverse.
-fn perf2_table_digest(h: &mut Fnv, t: &editor_core::NameTable) {
-    for (n, e) in t.iter() {
-        h.feed(&format!("fwd {n:?}={e:?};"));
-    }
-    for (_, e) in t.iter() {
-        for ent in match e {
-            editor_core::names::Entry::Unique(one) => vec![*one],
-            editor_core::names::Entry::Tied(many) => many.clone(),
-        } {
-            h.feed(&format!(
-                "rev {ent:?}={:?};",
-                t.name_of(&ent).map(|n| format!("{n:?}"))
-            ));
-        }
-    }
-}
-
-/// `(document, both-direction name digest, persisted-text digest)`.
+/// `(document, persisted-text digest)`.
 ///
-/// A row's first word moves with its document's names and ids, its
-/// second with its persisted text, and a row is added with every
-/// document the registry gains. The PR that moves a row says which
+/// A row moves with its document's persisted text, and a row is added
+/// with every document the registry gains. The PR that moves a row says which
 /// documents moved and why.
-/// [`every_corpus_documents_name_tables_and_persisted_text_are_pinned`]
+/// [`every_corpus_documents_names_read_back_and_its_persisted_text_is_pinned`]
 /// reads it.
-const PINNED: &[(&str, u64, u64)] = &[
-    ("die", 0x1f1dbf0ce1f2b909, 0x2054dfbda20efbd6),
-    ("corner_table", 0x4e034da469bc27c2, 0x2e345b0dccdd4c24),
-    ("heat_sink", 0x6b9870e7cdf512fb, 0x9c1db942bfc15943),
-    ("crossing_slots", 0x7ca581eda04104b7, 0x2b824fc243a3ab59),
-    ("nested_islands_105", 0x58c9a9678cbce6eb, 0x6935a2dd3d8972f3),
-    (
-        "nested_islands_106_depth1",
-        0x2ce90e5c806fb715,
-        0xe3abcbda630addfd,
-    ),
-    (
-        "nested_islands_106_depth2",
-        0x1abe722dcf4cb0d6,
-        0x9d72d939da0fde76,
-    ),
-    ("declared_tangency", 0x02afb71c6f997726, 0xf9697861397eb937),
-    ("kitchen_sink", 0x88803e8bbf21187b, 0x8168f61c6f47fce7),
-    ("cut_cylinder", 0xd97c080b5a539bbb, 0x193416e7984f6d8e),
-    ("measured_web", 0xbc08efa7206efdd2, 0xae7444dea631555e),
-    ("boss_union", 0x5b69aa2230051b34, 0x4cdf20eb05c5c85f),
-    ("die_fillet", 0x5aa9c8b27756477a, 0xbff1369360505793),
-    ("die_chamfer", 0x6b467646ba746fd3, 0x302a655fce2975cc),
-    ("die_pips", 0x7b4fdd7ed4d1dacc, 0x91d7debf3d330210),
-    ("heat_sink_fins", 0x3a7bf5baaa100e36, 0xbc6967bf628b4e61),
-    ("die_tool", 0xf729aac9d2e514a4, 0xe77fe13851e627a8),
-    ("face_sketch", 0x66a7e13b6f73e1bb, 0xf42662938388297d),
-    ("part_select", 0x3bb5821be1122397, 0x9fac3f88d00aa799),
-    ("symmetric_plate", 0xe4fad153d1b0cdb3, 0x18e24c09ce1be59c),
-    ("loft_prism", 0xb08a6a63c44a8590, 0xfa174829a70971f4),
-    ("die_composed", 0x75e162f91358e32f, 0x0a64f2ce63cccd08),
-    ("die_composed_tour", 0x8cba24882dc22490, 0xd6b126057b3e32d5),
-    ("plate_param", 0xb7ba781c4227180e, 0x60c6cebb721190be),
-    ("kiss_carry", 0x64c8785488d77a3f, 0xa50cf2d76a2f2369),
-    ("tube_ring", 0x9bb47234553e3786, 0x03867bbe79cf2a84),
-    ("tube_arc", 0xef8fdffb339a0c0b, 0xcdfea7dc50e83443),
-    ("hollow_tube_elbow", 0xf47cb8f1a229d3c3, 0x786e99c0281f296b),
-    ("hollow_tube_ring", 0x33ed8cef64654256, 0x6a440ece2cb63056),
-    ("reshaped_rod", 0x1259bae421f75f0b, 0x022747dedfbeb84c),
-    ("pin_in_bore", 0x6199b58675e64253, 0x6841e68569e65434),
-    ("axis_projection", 0xff397bc6fe0bf56c, 0xc532d4c258eb0aa8),
-    (
-        "blocks_on_one_floor",
-        0x9173dd51814c576d,
-        0x5ade445df825d7b4,
-    ),
-    (
-        "revolves_on_one_axis",
-        0xa16460f006abd44d,
-        0x34e0902b0883c79c,
-    ),
+const PINNED: &[(&str, u64)] = &[
+    ("die", 0x2054dfbda20efbd6),
+    ("corner_table", 0x2e345b0dccdd4c24),
+    ("heat_sink", 0x9c1db942bfc15943),
+    ("crossing_slots", 0x2b824fc243a3ab59),
+    ("nested_islands_105", 0x6935a2dd3d8972f3),
+    ("nested_islands_106_depth1", 0xe3abcbda630addfd),
+    ("nested_islands_106_depth2", 0x9d72d939da0fde76),
+    ("declared_tangency", 0xf9697861397eb937),
+    ("kitchen_sink", 0x8168f61c6f47fce7),
+    ("cut_cylinder", 0x193416e7984f6d8e),
+    ("measured_web", 0xae7444dea631555e),
+    ("boss_union", 0x4cdf20eb05c5c85f),
+    ("die_fillet", 0xbff1369360505793),
+    ("die_chamfer", 0x302a655fce2975cc),
+    ("die_pips", 0x91d7debf3d330210),
+    ("heat_sink_fins", 0xbc6967bf628b4e61),
+    ("die_tool", 0xe77fe13851e627a8),
+    ("face_sketch", 0xf42662938388297d),
+    ("part_select", 0x9fac3f88d00aa799),
+    ("symmetric_plate", 0x18e24c09ce1be59c),
+    ("loft_prism", 0xfa174829a70971f4),
+    ("die_composed", 0x0a64f2ce63cccd08),
+    ("die_composed_tour", 0xd6b126057b3e32d5),
+    ("plate_param", 0x60c6cebb721190be),
+    ("kiss_carry", 0xa50cf2d76a2f2369),
+    ("tube_ring", 0x03867bbe79cf2a84),
+    ("tube_arc", 0xcdfea7dc50e83443),
+    ("hollow_tube_elbow", 0x786e99c0281f296b),
+    ("hollow_tube_ring", 0x6a440ece2cb63056),
+    ("reshaped_rod", 0x022747dedfbeb84c),
+    ("pin_in_bore", 0x6841e68569e65434),
+    ("axis_projection", 0xc532d4c258eb0aa8),
+    ("blocks_on_one_floor", 0x5ade445df825d7b4),
+    ("revolves_on_one_axis", 0x34e0902b0883c79c),
 ];
 
 #[test]
-fn every_corpus_documents_name_tables_and_persisted_text_are_pinned() {
+fn every_corpus_documents_names_read_back_and_its_persisted_text_is_pinned() {
     let tol = Tol::witness();
-    let got: Vec<(String, u64, u64)> = corpus::documents()
+    let got: Vec<(String, u64)> = corpus::documents()
         .iter()
         .map(|d| {
             let ev = corpus::eval::<f64>(&d.doc);
@@ -188,27 +146,30 @@ fn every_corpus_documents_name_tables_and_persisted_text_are_pinned() {
                 "{} does not round-trip to the same bytes",
                 d.name
             );
-            let mut h = Fnv::new();
-            h.feed(&sans_epsilon(&text));
-            (d.name.to_owned(), tables_digest(&ev), h.0)
+            let wrong = reverse_misreads(&ev);
+            assert!(
+                wrong.is_empty(),
+                "{}: the reverse map hands back a name that does not denote the entity:\n{}",
+                d.name,
+                wrong.join("\n")
+            );
+            let mut h = crate::fixture::digest::Fnv::new();
+            h.feed(sans_epsilon(&text).as_bytes());
+            (d.name.to_owned(), h.finish())
         })
         .collect();
-    let want: Vec<(String, u64, u64)> = PINNED
-        .iter()
-        .map(|(n, a, b)| ((*n).to_owned(), *a, *b))
-        .collect();
-    let render = |v: &[(String, u64, u64)]| {
+    let want: Vec<(String, u64)> = PINNED.iter().map(|(n, b)| ((*n).to_owned(), *b)).collect();
+    let render = |v: &[(String, u64)]| {
         v.iter()
-            .map(|(n, a, b)| format!("    (\"{n}\", 0x{a:016x}, 0x{b:016x}),"))
+            .map(|(n, b)| format!("    (\"{n}\", 0x{b:016x}),"))
             .collect::<Vec<_>>()
             .join("\n")
     };
     assert_eq!(
         got,
         want,
-        "the corpus's name tables or its persisted text moved. Decide \
-         whether the NEW names are right; if they are, this is the fresh \
-         table:\n{}",
+        "the corpus's persisted text moved. Decide whether the NEW text is \
+         right; if it is, this is the fresh table:\n{}",
         render(&got)
     );
 }

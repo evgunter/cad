@@ -86,6 +86,12 @@ mod combine_ops;
 mod controls_guide;
 #[path = "creation_ops.rs"]
 mod creation_ops;
+#[path = "datum_authoring.rs"]
+mod datum_authoring;
+#[path = "datum_review_a.rs"]
+mod datum_review_a;
+#[path = "datum_review_b.rs"]
+mod datum_review_b;
 #[path = "debug_dumps.rs"]
 mod debug_dumps;
 #[path = "display_budget.rs"]
@@ -151,6 +157,8 @@ mod msolve3_placer_refused;
 mod msolve5_unplaced_read_badge;
 #[path = "node_labels.rs"]
 mod node_labels;
+#[path = "offers.rs"]
+mod offers;
 #[path = "panel_display.rs"]
 mod panel_display;
 #[path = "panel_edits.rs"]

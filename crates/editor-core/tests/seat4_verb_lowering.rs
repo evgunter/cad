@@ -172,10 +172,11 @@ fn both_blends_evaluate_in_one_document() {
 /// is whether the new behaviour is right, never how to restore the old
 /// number.
 ///
-/// A row that moves is re-cut when the move is explained and right, and
-/// the PR that re-cuts it says what moved and why; the feed takes ids,
-/// names, arena keys and every carrier's `Debug`, so most moves are a
-/// spelling. A row whose body moved with no one judging the new body is
+/// The feed takes no arena key and no mint id (`fixture::digest`'s
+/// module docs), so a row moves only when a body, a value or the cell a
+/// name denotes does. A row that moves is re-cut when the move is
+/// explained and right, and the PR that re-cuts it says what moved and
+/// why. A row whose body moved with no one judging the new body is
 /// PINNED at what main reads and named below with the row that owes the
 /// judgment: the pin holds it still so the next move reds, and says
 /// nothing about the body being right.
@@ -190,8 +191,8 @@ fn both_blends_evaluate_in_one_document() {
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0xa968_a45c_16ee_6213_u64),
-        ("die_chamfer", 0x89c5_5513_1c2e_99d3),
+        ("die_fillet", 0x81ac_5f87_2e20_3541_u64),
+        ("die_chamfer", 0x70db_9e0e_6992_0941),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -269,10 +270,11 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// is what "nothing observable moved" means here; without it the
 /// constants would only say the branch agrees with itself.
 ///
-/// A row that moves is re-cut when the move is explained and right, and
-/// the PR that re-cuts it says what moved and why; the feed takes ids,
-/// names, arena keys and every carrier's `Debug`, so most moves are a
-/// spelling. A row whose body moved with no one judging the new body is
+/// The feed takes no arena key and no mint id (`fixture::digest`'s
+/// module docs), so a row moves only when a body, a value or the cell a
+/// name denotes does. A row that moves is re-cut when the move is
+/// explained and right, and the PR that re-cuts it says what moved and
+/// why. A row whose body moved with no one judging the new body is
 /// PINNED at what main reads and named below with the row that owes the
 /// judgment: the pin holds it still so the next move reds, and says
 /// nothing about the body being right.
@@ -284,9 +286,9 @@ fn a_boolean_document_round_trips_byte_identical() {
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0xdc49_a9c5_dfeb_2fb1_u64),
-        ("heat_sink", 0xec88_26b3_7f36_9d63),
-        ("kiss_carry", 0xc20e_4e75_0612_0ae6),
+        ("crossing_slots", 0x56ea_b7ff_de29_9532_u64),
+        ("heat_sink", 0x39d2_af92_e4d9_e36d),
+        ("kiss_carry", 0xee0f_b99e_2678_c234),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -443,15 +445,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat5 empty_intersect: {got:#018x}");
     assert_eq!(
-        // Re-measured when the placement came to mint its source
-        // (VARIABLES VR4): the ids after it moved. Re-measured when the
-        // extrudes' caps and walls became their sketch frames: the
-        // bodies' stored planes moved. And again when a line wall's
-        // origin became the wall's middle, from construction data: the
-        // walls' origins moved back to where their fitted centroids
-        // stood, to rounding; the caps' stay at their sketch origins.
-        got,
-        0xda0e_717e_22a2_9f24,
+        got, 0xf151_00c8_14bc_eea4,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }
