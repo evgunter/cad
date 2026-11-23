@@ -2171,4 +2171,155 @@ mod tests {
             }
         }
     }
+    fn p(x: f64, y: f64, z: f64) -> Point3<f64> {
+        Point3::new(x, y, z)
+    }
+
+    fn v(x: f64, y: f64, z: f64) -> Vec3<f64> {
+        Vec3::new(x, y, z)
+    }
+
+    fn band() -> geom_core::Band {
+        geom_core::Band::linear(geom_core::Tol::witness()).unwrap()
+    }
+
+    /// A circle of radius `r` about the origin in the `xy` plane.
+    fn circle(r: f64) -> Curve3<f64> {
+        Curve3::circle(p(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), r, v(1.0, 0.0, 0.0))
+    }
+
+    /// The segment from `a` to `b`, over `(0, 1)`.
+    fn segment(a: Point3<f64>, b: Point3<f64>) -> (Curve3<f64>, (f64, f64)) {
+        (Curve3::line(a, b - a), (0.0, 1.0))
+    }
+
+    fn stations(edges: &[(Curve3<f64>, (f64, f64))]) -> BoundaryStations<f64> {
+        BoundaryStations::of_boundary(edges.iter().map(|(c, s)| (c, *s)), [])
+    }
+
+    /// **A face's run from a line edge is across it, not along it.** A
+    /// strip 4 along the `x` axis and 0.05 across: its run from the edge
+    /// on the axis is 0.05, where its farthest station from that edge's
+    /// middle is 2.0006. From its corner it runs the diagonal.
+    #[test]
+    fn a_strips_run_from_its_long_edge_is_its_width() {
+        let corners = [
+            p(0.0, 0.0, 0.0),
+            p(4.0, 0.0, 0.0),
+            p(4.0, 0.05, 0.0),
+            p(0.0, 0.05, 0.0),
+        ];
+        let edges: Vec<_> = (0..4)
+            .map(|k| segment(corners[k], corners[(k + 1) % 4]))
+            .collect();
+        let strip = stations(&edges);
+        let (long, span) = &edges[0];
+        let run = strip.run_from_edge(long, *span).length();
+        assert!((run - 0.05).abs() < 1e-12, "across the edge: {run}");
+        let corner = strip.run_from_vertex(corners[0]).length();
+        assert!(
+            (corner - 16.0025_f64.sqrt()).abs() < 1e-12,
+            "from a vertex: {corner}"
+        );
+    }
+
+    /// **A half-disc's run from its arc is its radius, read at its
+    /// diameter's middle.** Its two vertices lie on the arc's circle, so
+    /// the ends alone read nothing; from its diameter it runs to the
+    /// arc's middle. Red if the stations are the vertices alone, or the
+    /// arc is read from its chord and not from its whole circle (the
+    /// diameter's middle is then the radius from the arc too, but its
+    /// ends are zero either way).
+    #[test]
+    fn a_half_discs_run_from_its_arc_is_read_at_its_diameters_middle() {
+        let arc = (circle(2.0), (0.0, core::f64::consts::PI));
+        let diameter = segment(p(-2.0, 0.0, 0.0), p(2.0, 0.0, 0.0));
+        let half = stations(&[arc.clone(), diameter.clone()]);
+        let from_arc = half.run_from_edge(&arc.0, arc.1).length();
+        assert!((from_arc - 2.0).abs() < 1e-12, "from the arc: {from_arc}");
+        let from_diameter = half.run_from_edge(&diameter.0, diameter.1).length();
+        assert!(
+            (from_diameter - 2.0).abs() < 1e-12,
+            "from the diameter: {from_diameter}"
+        );
+        // A quarter annulus between radii 1 and 2 runs 1 from its outer
+        // arc, however far round that arc's circle its other edges are.
+        let inner = (circle(1.0), (0.0, core::f64::consts::FRAC_PI_2));
+        let outer = (circle(2.0), (0.0, core::f64::consts::FRAC_PI_2));
+        let sides = [
+            segment(p(1.0, 0.0, 0.0), p(2.0, 0.0, 0.0)),
+            segment(p(0.0, 1.0, 0.0), p(0.0, 2.0, 0.0)),
+        ];
+        let annulus = stations(&[
+            inner.clone(),
+            outer.clone(),
+            sides[0].clone(),
+            sides[1].clone(),
+        ]);
+        let across = annulus.run_from_edge(&outer.0, outer.1).length();
+        assert!((across - 1.0).abs() < 1e-12, "a quarter annulus: {across}");
+    }
+
+    /// **A face on one closed curve reads no run from its stations, and
+    /// the curve's distance from its centre line where it spans it.** A
+    /// disc's rim, whole or in two arcs; an ellipse of semi-axes 3 and 1
+    /// in two arcs, read whole (a station on its other half is on it); a
+    /// spiric oval. A line and a pair whose first carrier is no oval
+    /// have no such bound.
+    #[test]
+    fn a_face_on_one_closed_curve_runs_at_least_that_curves_distance_from_its_centre_line() {
+        use core::f64::consts::{PI, TAU};
+        let rim = [(circle(2.0), (0.0, TAU))];
+        let run = stations(&rim).run_from_edge(&rim[0].0, rim[0].1).length();
+        assert!(run < 1e-12, "a disc's stations lie on its rim: {run}");
+        let spanned =
+            |edges: &[(Curve3<f64>, (f64, f64))]| spanned_curve_run(edges.iter().map(|(c, s)| (c, *s)));
+        let near = |got: Option<Lever<f64>>, want: f64, slack: f64, what: &str| {
+            let got = got.unwrap_or_else(|| panic!("{what}: a bound")).length();
+            assert!(
+                got <= want + 1e-12 && got >= want - slack,
+                "{what}: {got}, not within {slack} below {want}"
+            );
+        };
+        near(spanned(&rim), 2.0, 1e-9, "a whole rim");
+        let halves = [(circle(2.0), (0.0, PI)), (circle(2.0), (PI, TAU))];
+        near(spanned(&halves), 2.0, 1e-9, "two half rims");
+        let ellipse = Curve3::ellipse(
+            p(0.0, 0.0, 0.0),
+            v(0.0, 0.0, 1.0),
+            3.0,
+            1.0,
+            v(1.0, 0.0, 0.0),
+            band(),
+        )
+        .unwrap();
+        let arcs = [(ellipse.clone(), (0.0, PI)), (ellipse.clone(), (PI, TAU))];
+        near(spanned(&arcs), 1.0, 0.05, "an ellipse's lesser semi-axis");
+        let on_it = stations(&arcs).run_from_edge(&arcs[0].0, arcs[0].1).length();
+        assert!(
+            on_it < 1e-9,
+            "an ellipse is read whole, so its other half is on it: {on_it}"
+        );
+        let oval = Curve3::spiric(
+            p(0.0, 0.0, 0.0),
+            v(0.0, 0.0, 1.0),
+            v(1.0, 0.0, 0.0),
+            2.0,
+            0.5,
+            0.3,
+            band(),
+        )
+        .unwrap();
+        let got = spanned(&[(oval, (0.0, TAU))])
+            .expect("a spiric oval")
+            .length();
+        assert!(
+            (0.4..=0.5 + 1e-9).contains(&got),
+            "a spiric oval stands about its minor radius from its centre line: {got}"
+        );
+        let line = segment(p(0.0, 0.0, 0.0), p(1.0, 0.0, 0.0));
+        assert!(spanned(&[line]).is_none(), "a line spans nothing");
+        assert!(spanned(&[]).is_none(), "no edge");
+    }
+
 }
