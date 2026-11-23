@@ -543,14 +543,12 @@ mod edge_pair_rows {
         }
     }
 
-    /// The segment from `p` to `q`, on its line's unit window.
+    /// The segment from `p` to `q` ([`Line::chord`]).
     fn segment(p: Point3<f64>, q: Point3<f64>) -> Edge<f64> {
+        let (line, length) = Line::chord(p, q);
         Edge {
-            carrier: Curve3::Line(Line {
-                origin: p,
-                dir: q - p,
-            }),
-            params: (0.0, 1.0),
+            carrier: Curve3::Line(line),
+            params: (0.0, length),
             elliptic: false,
         }
     }
