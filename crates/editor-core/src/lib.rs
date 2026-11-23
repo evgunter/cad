@@ -107,6 +107,7 @@ pub use appearance::{
     AppearanceKey, AppearanceLoss, AppearanceLossCause, AppearanceMap, AppearanceRecord,
     AppearanceResolution, Attr, AttrKind, AttrSet, Rgba8,
 };
+pub use checks::CarriedAssertion;
 pub use checks::at_rest::{
     AtRestEvidence, AtRestRow, CarriedAtRestFinding, CarriedCoincidence, CarriedCoincidenceRows,
     CarriedFindings, CarriedInterference, CopyRef, FaceSite, InterferenceFinding, Overlap,

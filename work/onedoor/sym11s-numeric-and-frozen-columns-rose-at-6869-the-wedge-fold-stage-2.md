@@ -30,3 +30,7 @@ GREEN pinned `PAST_THE_CEILING` at main's readings, so the row is green and reds
 **Owed.** Say which decisions the whole-edge fold moved from the symbolic tier to the numeric one (380 more numeric decisions on the plate) and whether that is the fold's intent or a cost.
 
 Reproduce: `cargo nextest run -p editor-core -E 'test(sym11_the_exact_channel_never_contradicts_past_the_ceiling)'` at `e545801e0` and at `3b59315dc` (the assertion prints every receipt).
+
+## Witness pin (CIW, 2026-11-23)
+
+PR 7501 (`ciw/census-digest-goldens`) drops sym11's exact receipts but keeps this row's witness: `PAST_THE_CEILING`'s `frozen` ceiling and `symbolic` floor per document cite this row. A further fold that freezes more forms, or loses theorems, reds; the pin narrows once this row closes.

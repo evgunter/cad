@@ -128,13 +128,13 @@ fn add(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
 /// offers no `Gap` claim for a band; a `Gap ≥ 0`, a `Gap ≤ 0` and a
 /// `Distance = 0` between the walls leave the contact loud.
 ///
-/// The same `Gap`, its seats read as given ([`AssertedSeat::Read`])
-/// rather than picked, quiets it too.
+/// The same `Gap`, its seats the references the contact's finding
+/// carries ([`AssertedSeat::Minted`]) rather than picks, quiets it too.
 ///
 /// Red if the tool writes a `Gap` claim in any other vocabulary than
 /// the one the quieting rule reads, writes another relation than the
-/// one chosen, the clearance arm writes a value, or a read seat is
-/// written as anything but the read it was given.
+/// one chosen, the clearance arm writes a value, or a minted seat is
+/// written as anything but the reference the kernel minted.
 #[test]
 fn a_gap_of_zero_between_touching_walls_quiets_their_contact_and_a_clearance_does_not() {
     use viewer::combine::{AssertionMeasure, AssertionTool, BoundChoice};
@@ -219,37 +219,45 @@ fn a_gap_of_zero_between_touching_walls_quiets_their_contact_and_a_clearance_doe
         "the Gap = 0 quiets the contact, named"
     );
 
-    // Filled from values rather than the tool: each seat the selection
-    // of the wall's name in the copy that draws it, read as given.
+    // Filled from the finding rather than the tool: each seat the
+    // reference the kernel minted for the contact.
     let undone = session.perform(SessionOp::Undo);
     assert!(undone.refusal.is_none(), "{:?}", undone.refusal);
     session.pump();
     assert_eq!(contact(&session).quiet, None, "undone, the contact is loud");
-    let (a, b) = (as_read(&session, copies[0]), as_read(&session, copies[1]));
+    let [a, b] = minted(&session);
     let read = add(
         &mut session,
         SessionOp::AddAssertion {
-            a: AssertedSeat::Read(a),
-            b: AssertedSeat::Read(b),
+            a: AssertedSeat::Minted(a),
+            b: AssertedSeat::Minted(b),
             claim: valued(MeasureVerb::Gap, AssertionRelation::Equal),
         },
     );
     assert_eq!(
         contact(&session).quiet,
         Some(read),
-        "the Gap = 0 over seats read as given quiets it too"
+        "the Gap = 0 over the finding's own references quiets it too"
     );
 }
 
-/// The wall of the block `copy` draws, as the measure reads it: the
-/// selection of its name in the copy.
-fn as_read(session: &DocSession, copy: RecipeNodeId) -> Operand {
-    Operand::select(copy, vec![wall(session, copy).name])
+/// The two references the loud contact's finding carries for the `Gap`
+/// that would quiet it, outer then inner.
+fn minted(session: &DocSession) -> [pncad::document::QuietingRef; 2] {
+    let CheckEvidence::UnprovenCoincidence {
+        quieting: Some(quieting),
+        ..
+    } = contact(session).evidence
+    else {
+        panic!("the walls' contact carries the assertion that quiets it")
+    };
+    assert_eq!(quieting.measure(), MeasureVerb::Gap, "a rest is a Gap");
+    quieting.references().clone()
 }
 
 /// **A value claim is the kernel's measure and assertion pair**, bit
 /// for bit: for `Gap` and `Distance` under `=`, `≥` and `≤` at a 3 mm
-/// bound, the op over two read seats writes the document the kernel's
+/// bound, the op over two minted seats writes the document the kernel's
 /// `measure` door and an assertion over its output write — the pair the
 /// Python binding writes. Over two picks, the measure's first reference
 /// is the first seat's face.
@@ -260,7 +268,9 @@ fn as_read(session: &DocSession, copy: RecipeNodeId) -> Operand {
 fn a_value_claim_is_the_kernels_measure_and_assertion_pair_in_seat_order() {
     let tol = Tol::witness();
     let (mut session, copies) = touching(tol);
-    let (a, b) = (as_read(&session, copies[0]), as_read(&session, copies[1]));
+    let [ra, rb] = minted(&session);
+    let doc = session.committed_doc().clone();
+    let (a, b) = (ra.operand(&doc), rb.operand(&doc));
     for measure in [MeasureVerb::Gap, MeasureVerb::Distance] {
         for relation in [
             AssertionRelation::Equal,
@@ -270,8 +280,8 @@ fn a_value_claim_is_the_kernels_measure_and_assertion_pair_in_seat_order() {
             let why = format!("{measure:?} {relation:?}");
             let before = session.committed_doc().clone();
             let outcome = session.perform(SessionOp::AddAssertion {
-                a: AssertedSeat::Read(a.clone()),
-                b: AssertedSeat::Read(b.clone()),
+                a: AssertedSeat::Minted(ra.clone()),
+                b: AssertedSeat::Minted(rb.clone()),
                 claim: AssertedClaim::Value {
                     measure,
                     relation,
