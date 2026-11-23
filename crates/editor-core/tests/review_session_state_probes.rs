@@ -213,3 +213,149 @@ fn a_parts_nodes_and_the_receipt() {
     );
     assert_eq!(session, nodes, "the leaf's receipt is the sum of its nodes' records");
 }
+
+/// One leaf of `doc` over `box_` on `table`, from `prior` or from
+/// nothing.
+fn leaf_from(
+    doc: &ProfileDoc,
+    box_: &ParamBox,
+    table: Option<&Arc<DriveMemo>>,
+    prior: Option<&Evaluation<Sym<Interval>>>,
+    tol: Tol,
+) -> (Evaluation<Sym<Interval>>, SymCounts) {
+    let opts = EvalOptions {
+        param_box: Some(Arc::new(box_.clone())),
+        ..EvalOptions::default()
+    };
+    let run = || evaluate(doc, prior, &CancelToken::new(), &opts, tol);
+    match table {
+        Some(table) => with_session_memo_retry(
+            budget(),
+            SymRules::shipped(),
+            SymRetry::kept_atom(),
+            table,
+            run,
+        ),
+        None => geom_core::sym::with_session_retry(
+            budget(),
+            SymRules::shipped(),
+            SymRetry::kept_atom(),
+            run,
+        ),
+    }
+}
+
+fn texts(ev: &Evaluation<Sym<Interval>>) -> Vec<(String, String)> {
+    ev.order
+        .iter()
+        .map(|id| {
+            let text = match ev.result(*id) {
+                Some(NodeResult::Ok(v)) => format!(
+                    "ok {:?} {:?} | {:?} | {:?} | {:?} | {:?}",
+                    v.content_key, v.naming_key, v.verdicts, v.escalations, v.marks, v.sym
+                ),
+                Some(NodeResult::Failed(e)) => format!("failed {:?} | {:?}", e.kind, e.sym),
+                other => format!("{other:?}"),
+            };
+            (format!("{id:?}"), text)
+        })
+        .collect()
+}
+
+/// **The evaluator's own memo as the store, across two leaves of one
+/// drive's table**: the plate over its root box, then over the first
+/// half of each varying axis from the root leaf as its prior, against
+/// the same half evaluated from nothing. Every node's result is read,
+/// and the half's receipt with the reused nodes' records added.
+#[test]
+fn a_leaf_served_from_an_earlier_leaf_of_the_drive() {
+    use editor_core::analysis::BoxAxis;
+    let tol = Tol::witness();
+    let doc = crate::m10_7_plate::plate(5.0e-5, 1.0e-5, tol).0;
+    let root = ParamBox::of(&analyzed_box(&doc, &AnalysisPolicy::default()));
+    let table = Arc::new(DriveMemo::new(budget(), SymRules::shipped()));
+    let (parent, _) = leaf_from(&doc, &root, Some(&table), None, tol);
+    for (var, lo, hi) in root.varying() {
+        let mut axes = root.axes().clone();
+        axes.insert(var, BoxAxis::Varying { lo, hi: 0.5 * (lo + hi) });
+        let half = ParamBox::from_axes(axes);
+        let (served, served_session) = leaf_from(&doc, &half, Some(&table), Some(&parent), tol);
+        let fresh_table = Arc::new(DriveMemo::new(budget(), SymRules::shipped()));
+        let (fresh, fresh_session) = leaf_from(&doc, &half, Some(&fresh_table), None, tol);
+        let differing: Vec<String> = texts(&served)
+            .into_iter()
+            .zip(texts(&fresh))
+            .filter(|(a, b)| a != b)
+            .map(|(a, _)| a.0)
+            .collect();
+        // The served leaf's receipt, the reused nodes' records added.
+        let mut with_served = SymCounts { frozen: 0, ..served_session };
+        for id in &served.order {
+            let (Some(NodeResult::Ok(now)), Some(NodeResult::Ok(then))) =
+                (served.result(*id), parent.result(*id))
+            else {
+                continue;
+            };
+            if Arc::ptr_eq(&now.sym, &then.sym) {
+                with_served.absorb(now.sym.counts());
+            }
+        }
+        println!(
+            "axis {var:?}: reused {} recomputed {}; nodes differing from the fresh leaf: {}; \
+             served receipt + reused records {with_served:?}; fresh receipt {fresh_session:?}; \
+             served frozen {} fresh frozen {}",
+            served.reused,
+            served.recomputed,
+            differing.len(),
+            served_session.frozen,
+            fresh_session.frozen
+        );
+        assert!(served.reused > 0, "the half reuses a node of the root leaf");
+        assert!(differing.is_empty(), "served and built agree node by node: {differing:?}");
+        assert_eq!(
+            with_served,
+            SymCounts { frozen: 0, ..fresh_session },
+            "the receipt counts what the result rests on, served or built"
+        );
+    }
+}
+
+/// **A prior built outside the drive's table, served into a leaf on
+/// it**: what the public evaluation door does with it.
+#[test]
+fn a_prior_built_under_another_session_served_into_a_drives_leaf() {
+    use editor_core::analysis::BoxAxis;
+    let tol = Tol::witness();
+    let doc = crate::m10_7_plate::plate(5.0e-5, 1.0e-5, tol).0;
+    let root = ParamBox::of(&analyzed_box(&doc, &AnalysisPolicy::default()));
+    // The prior: the root box, in a session on no drive's table.
+    let (prior, _) = leaf_from(&doc, &root, None, None, tol);
+    for (var, lo, hi) in root.varying() {
+        let mut axes = root.axes().clone();
+        axes.insert(var, BoxAxis::Varying { lo, hi: 0.5 * (lo + hi) });
+        let half = ParamBox::from_axes(axes);
+        for (label, table) in [
+            ("serving", DriveMemo::new(budget(), SymRules::shipped())),
+            ("counting only", DriveMemo::counting_only(budget(), SymRules::shipped())),
+        ] {
+            let table = Arc::new(table);
+            let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let (ev, session) = leaf_from(&doc, &half, Some(&table), Some(&prior), tol);
+                (ev.reused, ev.recomputed, session)
+            }));
+            match outcome {
+                Ok((reused, recomputed, session)) => {
+                    println!("{var:?} {label}: reused {reused} recomputed {recomputed} {session:?}");
+                }
+                Err(panic) => {
+                    let text = panic
+                        .downcast_ref::<String>()
+                        .cloned()
+                        .or_else(|| panic.downcast_ref::<&str>().map(|s| (*s).to_string()))
+                        .unwrap_or_default();
+                    println!("{var:?} {label}: PANICKED: {text}");
+                }
+            }
+        }
+    }
+}
