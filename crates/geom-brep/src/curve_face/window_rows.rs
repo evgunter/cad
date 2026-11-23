@@ -832,4 +832,3 @@ fn a_line_cones_refused_slack_is_a_window_over_each_root() {
         );
     }
 }
-
