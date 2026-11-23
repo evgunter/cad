@@ -18,36 +18,39 @@
 //! a red row here:
 //!
 //! - a site whose name is a `const` this file does not declare;
-//! - a spelling it does not know, and a file it does not walk.
-//!
-//! A declared carrier that matches nothing reads nothing and is not a
-//! red.
-//!
-//! A name that reaches a `decide*` through a funnel no carrier declares
-//! is not read here. It is not lost: a test or fixture that names it is
-//! red in the tree-wide reference row
-//! (`test-utils/tests/predicate_name_coverage.rs`) until the funnel is
-//! declared a carrier.
+//! - any other indirect site not in [`INDIRECT`] — a funnel forwarding
+//!   its caller's name, a field of a row struct, keyed by the `fn` it
+//!   stands in (`<file>: <fn>: <head>`), and every `read_identity` call,
+//!   keyed by its place in its file and its own literals read as names;
+//! - a spelling it does not know, a file it does not walk, and a
+//!   declared carrier that no longer matches anything.
 //!
 //! A funnel that hands on the name its caller gives it is spelled so
 //! that no other call shares its token — `*_as`, "decided as" the row it
 //! is handed — and declared in [`CARRIERS`], so its callers' names are
 //! read: a forwarder under a common word (`sign`, `zero`, `read`) would
-//! hide them, since a carrier is crate-wide. A closed type's
-//! `predicate()` table is read where the type spells it, as a declared
-//! `NameCarrier::Table` (`TangentRow`) or as the `Const` carriers its arms
-//! return (`ClearanceBound`). What this row still cannot see is a name
-//! chosen by a `match` on something else before it reaches a funnel.
+//! hide them, since a carrier is crate-wide. **Every forwarder is an
+//! entry by name**: an indirect site is keyed by its enclosing `fn`, so a
+//! new forwarder that reuses a parameter name another already spells
+//! (`name`, `predicate`) reds until it is declared, here or as a
+//! carrier. A closed type's `predicate()` table is read where the type
+//! spells it, as a declared `NameCarrier::Table` (`TangentRow`) or as the
+//! `Const` carriers its arms return (`ClearanceBound`); the sites that
+//! hand on such a value stay listed ([`CLOSED_TYPE`]). What this row
+//! still cannot see is a name chosen by a `match` on something else
+//! before it reaches a funnel.
 //!
 //! **When it runs.** The walk takes seconds, so this row is in the slow
 //! set: a PR runs it only when the PR names it, and the nightly runs it
-//! every night.
+//! every night. A PR that adds a name or a site without touching this
+//! file meets it at the nightly, not at its own gate
+//! (`work/ciw/a-stored-data-change-runs-none-of-the-slow-rows-that-read-it.md`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::BTreeSet;
 use test_utils::source::{
-    NameCarrier, PredicateCensus, crate_dir, predicate_census, roster_violations,
+    FORWARDS, NameCarrier, PredicateCensus, crate_dir, predicate_census, roster_violations,
 };
 
 /// A door: the prefixes its names carry, and the error type its
@@ -161,8 +164,6 @@ const DOORS: &[&Door] = &[
 
 /// The names under no door's prefix, or under another door's, with the
 /// door that decides each.
-/// A name nothing decides now is not a red: it excuses nothing, and
-/// it goes stale silently.
 const EXCEPTIONS: &[(&str, &Door)] = &[
     // The face normal's reads, which the boolean's pierce point takes.
     ("cone_at_apex", &BOOLEAN),
@@ -235,9 +236,9 @@ const EXCEPTIONS: &[(&str, &Door)] = &[
 
 /// The carriers that hand a name to a funnel from somewhere other than
 /// the call.
-/// An entry that matches nothing in `src` now is not a red: it reads
-/// nothing and excuses nothing, and it goes stale silently.
 const CARRIERS: &[NameCarrier] = &[
+    NameCarrier::Const("REACH"),
+    NameCarrier::Const("NEST"),
     NameCarrier::Const("NEAR"),
     NameCarrier::Const("FAR"),
     // The tangent rows' closed table (`TangentRow::predicate`).
@@ -263,13 +264,9 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SECTION_PIN_RESOLUTION"),
     NameCarrier::Const("CROSS_TURN"),
     NameCarrier::Const("ARM_INF"),
-    // The forwarders that hand on their callers' names, declared so
-    // those names are read.
+    // The forwarders a `FORWARDS` line names, declared so their callers'
+    // names are read (`roster_violations` holds each line to one).
     NameCarrier::Call("advance_as"),
-    NameCarrier::Call("spline_chart_arms"),
-    NameCarrier::Call("closest"),
-    NameCarrier::Call("place"),
-    NameCarrier::Const("AT"),
     NameCarrier::Call("all_as"),
     NameCarrier::Call("apart_as"),
     NameCarrier::Call("arc_leaving_as"),
@@ -465,6 +462,494 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("first_within"),
 ];
 
+const NOT_FIRST: &str = "a declared carrier's call whose name is not its first argument, named \
+                         here by its `fn` and that first argument; its literal names are read";
+const ROW_FIELD: &str = "a field of a row struct, whose names are read at the struct's literal";
+const ACCESSOR_LIKE_A_DOOR: &str = "a row bundle's accessor sharing a door's name \
+     (`names.straddle()`, a `WedgeNames` row; `.turn()`, a `TurnRows` row), read as that door's call with no first argument";
+const IDENTITY: &str = "a `read_identity` call over data named by declared consts";
+const CLOSED_TYPE: &str = "a closed type's `predicate()`, whose names the census reads where the \
+                           type spells them: `TangentRow`'s table, a declared `NameCarrier::Table`, \
+                           or the consts `ClearanceBound`'s arms return, declared carriers";
+const CARRIER_CALL: &str = "a declared carrier's call holding no literal name: the name comes from \
+                            its enclosing function's caller or a binding, named here by the call's \
+                            first argument";
+const NOT_A_NAME: &str = "another type's `decide*` method, whose first argument is not a name";
+const SAME_NAMED: &str = "census.rs's point filter `bounded`, which shares the declared \
+                          `ConicRows::bounded` carrier's token and takes no name";
+const SAME_NAMED_TRAVEL: &str = "a spline wall piece's `travel()`, its chord and direction of \
+                                 travel, which shares the declared `travel` carrier's token and \
+                                 takes no name";
+
+const CLOSURE_FORWARDS: &str = "a closure bound in this `fn` hands on its callers' names, read where \
+                                its callers call it (a declared carrier, or a `decide*` spelling); \
+                                keyed by its `fn` until the census keys a closure by its binding \
+                                (`work/onecopy/the-census-keys-no-closure-forwarder-by-its-binding.md`)";
+
+/// The indirect sites whose expression is not a declared `const`, as
+/// `<file>: <expr>`, with what carries the name there.
+const INDIRECT: &[(&str, &str)] = &[
+    (
+        "boolean/section_cert.rs: cone_sphere: [(name, b)]",
+        CLOSURE_FORWARDS,
+    ),
+    (
+        "boolean/carrier_ladder_rows.rs: the_ladder_reads_two_tori_as_their_pose_does: &surface(ring)",
+        NOT_A_NAME,
+    ),
+    (
+        "boolean/cone_frame_rows.rs: declared_equal_walls_meeting_at_a_sliver_are_the_bisector_loops: x",
+        NOT_A_NAME,
+    ),
+    (
+        "boolean/contact_verify.rs: a_rim_the_pose_reads_tangent_can_still_escalate_along_the_rim: &first",
+        NOT_A_NAME,
+    ),
+    ("boolean/contact_verify.rs: on_surface_as: on", FORWARDS),
+    (
+        "boolean/contact_verify.rs: on_surface_as: row.predicate()",
+        CLOSED_TYPE,
+    ),
+    (
+        "boolean/contact_verify.rs: tangent_pass: (on, side)",
+        CARRIER_CALL,
+    ),
+    ("contain.rs: face_placement: on_plane", FORWARDS),
+    ("boolean/join.rs: line_of: name", CLOSURE_FORWARDS),
+    ("boolean/join.rs: travel: name", FORWARDS),
+    (
+        "boolean/offer_rows.rs: -: Vec3::new(1.0, 0.0, 0.0)",
+        NOT_A_NAME,
+    ),
+    ("boolean/ops.rs: apply_cut_ins: name", CLOSURE_FORWARDS),
+    ("boolean/ops.rs: carried: pending", NOT_A_NAME),
+    ("boolean/ops.rs: ledger: &mut pending", NOT_A_NAME),
+    ("boolean/ops.rs: vertices_meet: predicate", FORWARDS),
+    (
+        "boolean/recl.rs: a_flanker_reads_its_side_of_the_other_faces_at_its_reach: band",
+        CARRIER_CALL,
+    ),
+    ("boolean/recl.rs: recl_edges: m.dir", CARRIER_CALL),
+    ("boolean/recl.rs: recl_edges: mentions[i].dir", CARRIER_CALL),
+    ("boolean/recl.rs: resolve_edge_edge: band", CARRIER_CALL),
+    ("boolean/reduce.rs: vf: row", NOT_A_NAME),
+    ("boolean/reduce.rs: vv: row", NOT_A_NAME),
+    ("region.rs: place: at", CARRIER_CALL),
+    ("region.rs: short_of_end: end.row", ROW_FIELD),
+    ("region.rs: side_at_closest_as: cross", FORWARDS),
+    ("rim_wedge.rs: departures: a", CARRIER_CALL),
+    ("rim_wedge.rs: departures: b", CARRIER_CALL),
+    ("rim_wedge.rs: reach_as: name", FORWARDS),
+    ("rim_wedge.rs: read_identity#1([)", IDENTITY),
+    (
+        "rim_wedge.rs: read_identity#2([t0, t1].map(|t| {)",
+        IDENTITY,
+    ),
+    ("boolean/section_cert.rs: sign_as: name", FORWARDS),
+    ("boolean/section_cert/ruling.rs: assemble: lo", CARRIER_CALL),
+    (
+        "boolean/section_cert/ruling.rs: assemble: theta",
+        CARRIER_CALL,
+    ),
+    ("boolean/section_cert/ruling.rs: before_as: row", FORWARDS),
+    (
+        "boolean/section_cert/ruling.rs: read: rows.precision()",
+        ROW_FIELD,
+    ),
+    (
+        "boolean/section_cert/ruling.rs: reading: rows.asymptote()",
+        ROW_FIELD,
+    ),
+    (
+        "boolean/section_cert/ruling.rs: reading: rows.fold()",
+        ROW_FIELD,
+    ),
+    ("boolean/section_cert/ruling.rs: roots: o", CARRIER_CALL),
+    (
+        "boolean/sectors.rs: a_crescent_answers_past_bounds_parallel_in_band: x",
+        CARRIER_CALL,
+    ),
+    (
+        "boolean/sectors.rs: a_zero_direction_refuses_rather_than_reading_parallel_or_apart: -tiny",
+        CARRIER_CALL,
+    ),
+    (
+        "boolean/sectors.rs: a_zero_direction_refuses_rather_than_reading_parallel_or_apart: p",
+        CARRIER_CALL,
+    ),
+    (
+        "boolean/sectors.rs: a_zero_direction_refuses_rather_than_reading_parallel_or_apart: tiny",
+        CARRIER_CALL,
+    ),
+    ("boolean/sectors.rs: coincident_run: a.dir", CARRIER_CALL),
+    ("boolean/sectors.rs: crescent: da", CARRIER_CALL),
+    ("boolean/sectors.rs: first_order_overlap: u", CARRIER_CALL),
+    (
+        "boolean/sectors.rs: parallel_same_as: reading.predicate",
+        FORWARDS,
+    ),
+    (
+        "boolean/sectors.rs: parallelism_reads_the_directions_and_not_their_norms: u * 1e3",
+        CARRIER_CALL,
+    ),
+    (
+        "boolean/sectors.rs: parallelism_reads_the_directions_and_not_their_norms: u * norm",
+        CARRIER_CALL,
+    ),
+    ("boolean/sectors.rs: runs_into: dir", CARRIER_CALL),
+    (
+        "solid_contain.rs: a_root_whose_reach_margin_lies_in_band_is_set_aside: SCHEDULE_ROWS.reaches()",
+        ROW_FIELD,
+    ),
+    (
+        "solid_contain.rs: cast_ray: SCHEDULE_ROWS.order()",
+        CARRIER_CALL,
+    ),
+    ("solid_contain.rs: cast_ray: body", CARRIER_CALL),
+    (
+        "solid_contain.rs: clear_of_carrier: rows.clearance()",
+        ROW_FIELD,
+    ),
+    ("solid_contain.rs: edge_meets: rows.edge()", ROW_FIELD),
+    ("solid_contain.rs: edge_meets: rows.edge_span()", ROW_FIELD),
+    ("solid_contain.rs: pair_as: order", FORWARDS),
+    ("solid_contain.rs: ray_crossings: rows.denom()", ROW_FIELD),
+    (
+        "solid_contain.rs: ray_crossings: rows.represents()",
+        ROW_FIELD,
+    ),
+    (
+        "solid_contain.rs: ray_passes_beside: rows.beside()",
+        ROW_FIELD,
+    ),
+    (
+        "solid_contain.rs: reaches_root_in_band: rows.reaches()",
+        ROW_FIELD,
+    ),
+    (
+        "solid_contain.rs: sphere_chart_trim: name",
+        CLOSURE_FORWARDS,
+    ),
+    ("solid_contain.rs: vertex: rows.vertex()", ROW_FIELD),
+    (
+        "solid_contain/curved_edges.rs: nearest: rows.order()",
+        ROW_FIELD,
+    ),
+    (
+        "solid_contain/curved_edges.rs: fold: rows.order()",
+        ROW_FIELD,
+    ),
+    (
+        "surface_group.rs: read_identity#1(coaxial_margins(self.axis, circle).map(|margin| (BOOL_WRAP_RIM, margin)))",
+        IDENTITY,
+    ),
+    ("boolean/trace.rs: sign_as: name", FORWARDS),
+    ("bound_side.rs: first_order_as: predicate", FORWARDS),
+    ("bound_side.rs: read: dir", CARRIER_CALL),
+    ("bound_side.rs: read_plane_side: dir", CARRIER_CALL),
+    ("cell_region.rs: cell_region_lifted: boundary", CARRIER_CALL),
+    ("cell_region.rs: cell_region_lifted: row", CLOSURE_FORWARDS),
+    ("cell_region.rs: clear_as: row", FORWARDS),
+    ("cell_region.rs: clear_of_arc_as: row", FORWARDS),
+    ("cell_region.rs: clear_of_boundary_as: row", FORWARDS),
+    ("census.rs: charged_cmp: name", FORWARDS),
+    ("census.rs: enclosure_reading: straddle", FORWARDS),
+    ("census.rs: face_holds: body", NOT_FIRST),
+    ("census.rs: gap_is_zero_as: name", FORWARDS),
+    ("census.rs: gap_zero_reading: name", FORWARDS),
+    ("census.rs: magnitude_door: name", FORWARDS),
+    ("census.rs: meeting_point: a.p0 + a.dir * s", SAME_NAMED),
+    (
+        "census.rs: meeting_point: e.p0 + e.dir * ((f.origin - e.p0).dot(f.normal) / along)",
+        SAME_NAMED,
+    ),
+    ("census.rs: pierce_inside: body", CARRIER_CALL),
+    ("census.rs: signed_is_zero_as: name", FORWARDS),
+    ("census.rs: signed_zero_reading: name", FORWARDS),
+    ("census.rs: span_clear_as: [T::zero(), reach]", NOT_FIRST),
+    ("census.rs: span_clear_as: name", FORWARDS),
+    ("census/curved.rs: decided_as: name", FORWARDS),
+    (
+        "census/pierce_rows.rs: a_side_with_no_closed_form_clearance_is_not_read_clear: pair.body",
+        CARRIER_CALL,
+    ),
+    (
+        "census/pierce_rows.rs: a_spans_reach_counts_the_band_and_the_slope: pair.body",
+        CARRIER_CALL,
+    ),
+    ("census/pierce_rows.rs: clear: pair.body", CARRIER_CALL),
+    (
+        "chart_region.rs: cylinder_pair_overlap: name",
+        CLOSURE_FORWARDS,
+    ),
+    (
+        "chart_region.rs: cylinder_pair_overlap: window_mid(&uv_a) - window_mid(&uv_b)",
+        CARRIER_CALL,
+    ),
+    ("chart_region.rs: gate_arm_as: name", FORWARDS),
+    ("chart_region.rs: period_fold_as: name", FORWARDS),
+    ("chart_region.rs: spline_chart_arms: arm_u", CARRIER_CALL),
+    ("chart_region.rs: spline_chart_arms: arm_v", CARRIER_CALL),
+    (
+        "chart_region.rs: spline_chart_arms: inf.inf_u",
+        CARRIER_CALL,
+    ),
+    (
+        "chart_region.rs: spline_chart_arms: inf.inf_v",
+        CARRIER_CALL,
+    ),
+    ("chart_region.rs: spline_chart_arms: name", CLOSURE_FORWARDS),
+    (
+        "chart_region.rs: the_fold_is_its_whole_periods_as_a_theorem_over_a_box: a - b",
+        CARRIER_CALL,
+    ),
+    ("chord_join.rs: arc_leaving_as: name", FORWARDS),
+    ("chord_join.rs: bool_planar_chord_spec: face", CARRIER_CALL),
+    ("chord_join.rs: chord_spec: face", CARRIER_CALL),
+    (
+        "chord_join/torus_chord_rows.rs: a_chord_on_an_oval_is_an_arc_on_its_own_parameter: FaceKey::default()",
+        CARRIER_CALL,
+    ),
+    ("clearance.rs: pair: bound.predicate()", CLOSED_TYPE),
+    (
+        "clearance.rs: reading: self.as_bound().predicate()",
+        CLOSED_TYPE,
+    ),
+    ("injective.rs: interval_sign_as: row", FORWARDS),
+    ("injective.rs: of: carrier", CARRIER_CALL),
+    (
+        "link.rs: a_corner_off_the_point_by_its_tie_reads_nothing_in_band: band",
+        CARRIER_CALL,
+    ),
+    (
+        "link.rs: a_segment_of_no_length_clears_by_its_points_distance: iv(p)",
+        CARRIER_CALL,
+    ),
+    (
+        "link.rs: a_segment_of_no_length_clears_by_its_points_distance: p",
+        CARRIER_CALL,
+    ),
+    ("link.rs: clears_as: name", FORWARDS),
+    ("link.rs: decided_as: name", FORWARDS),
+    ("link.rs: escalation_as: name", FORWARDS),
+    (
+        "link.rs: nearly_opposite_ends_read_the_segments_own_clearance: p",
+        CARRIER_CALL,
+    ),
+    ("link.rs: read_as: name", FORWARDS),
+    ("link.rs: reads_given: p", CARRIER_CALL),
+    ("link.rs: settle_as: name", FORWARDS),
+    ("link.rs: settle_reported: name", FORWARDS),
+    ("link.rs: sign_as: name", FORWARDS),
+    ("link.rs: sign_over: name", FORWARDS),
+    ("link.rs: touches: name", CLOSURE_FORWARDS),
+    ("link.rs: why_as: name", FORWARDS),
+    ("link.rs: winds: p", CARRIER_CALL),
+    ("link.rs: zero_refused: name", FORWARDS),
+    ("offset_axial.rs: azimuth_turn_as: name", FORWARDS),
+    ("offset_axial.rs: classify: what", CLOSURE_FORWARDS),
+    ("offset_axial.rs: reauthor: name", CLOSURE_FORWARDS),
+    ("offset_derive.rs: held_zero_as: name", FORWARDS),
+    ("offset_derive.rs: holds_the_move: name", CLOSURE_FORWARDS),
+    (
+        "offset_derive.rs: normal_in_plane_along: name",
+        CLOSURE_FORWARDS,
+    ),
+    ("offset_derive.rs: translates_along: name", CLOSURE_FORWARDS),
+    ("offset_derive.rs: zero_as: name", FORWARDS),
+    (
+        "pcurves/stretch_meter.rs: a_half_turn_gap_answers_by_the_band_at_every_turn_count: chart(&cone)",
+        NOT_A_NAME,
+    ),
+    (
+        "pcurves/net_period_rows.rs: a_long_u_domain_crosses_its_seam_by_one_period: DescribedChart::of(&s).unwrap()",
+        NOT_A_NAME,
+    ),
+    (
+        "pcurves/stretch_meter.rs: a_narrow_cone_loop_joint_clear_of_the_apex_takes_a_lift_of_its_point: chart(surface)",
+        NOT_A_NAME,
+    ),
+    (
+        "pcurves/stretch_meter.rs: a_spline_gate_that_is_undecided_refuses_and_writes_nothing: chart(&s)",
+        NOT_A_NAME,
+    ),
+    (
+        "pcurves/villarceau_joint_tests.rs: a_whole_turn_decides_one_period_on_each_channel: chart",
+        NOT_A_NAME,
+    ),
+    ("pcurves/decision.rs: branches_astride_as: name", FORWARDS),
+    ("pcurves/mint.rs: chart_u_period: payload", CARRIER_CALL),
+    ("pcurves/mint.rs: chart_v_period: payload", CARRIER_CALL),
+    (
+        "pcurves/net_period_rows.rs: joint: DescribedChart::of(&s).unwrap()",
+        NOT_A_NAME,
+    ),
+    ("pcurves/decision.rs: lever_periods: name", FORWARDS),
+    (
+        "pcurves/lift_rows.rs: lift: DescribedChart::of(surface).unwrap()",
+        NOT_A_NAME,
+    ),
+    ("pcurves/mint.rs: net_closes_as: name", FORWARDS),
+    ("chain_parity.rs: ray_parity_as: name", FORWARDS),
+    (
+        "pcurves/pole_slit_tests.rs: only_a_net_closed_in_v_decides_a_v_element: super::DescribedChart::of(s).unwrap()",
+        NOT_A_NAME,
+    ),
+    ("pcurves/decision.rs: decide_plain_joint: chart", NOT_A_NAME),
+    ("pcurves/tier3.rs: pcurve_pass: chart", NOT_A_NAME),
+    // The pass's closure over one joint of a cycle, by its index.
+    ("pcurves/tier3.rs: pcurve_pass: i", NOT_A_NAME),
+    ("pcurves/tier3.rs: pcurve_pass: slit", NOT_A_NAME),
+    // The split's boxed joint decisions, asked with the rest of the
+    // loop or without it.
+    ("pcurves/site.rs: split_cache: None", NOT_A_NAME),
+    ("pcurves/site.rs: split_cache: Some(rest)", NOT_A_NAME),
+    ("pcurves/site.rs: split_cache: chart", NOT_A_NAME),
+    ("pcurves/site.rs: turn_element: chart", NOT_A_NAME),
+    (
+        "pcurves/net_period_rows.rs: u_crossing: DescribedChart::of(&s).unwrap()",
+        NOT_A_NAME,
+    ),
+    ("pcurves/decision.rs: walk_cycle: chart", NOT_A_NAME),
+    (
+        "props.rs: a_closed_form_face_refusing_about_its_reference_is_carried_from_the_origin: &faces",
+        NOT_A_NAME,
+    ),
+    (
+        "props.rs: a_shell_of_no_quadrature_face_reads_about_its_first_faces_start: &faces",
+        NOT_A_NAME,
+    ),
+    ("props.rs: at_round_zero: faces", NOT_A_NAME),
+    ("props.rs: decide_faces: items", NOT_A_NAME),
+    ("props.rs: mass_properties_one_point: &faces", NOT_A_NAME),
+    ("props.rs: one_verdict_as: name", FORWARDS),
+    ("props.rs: read_sign: name", CLOSURE_FORWARDS),
+    ("props.rs: read_sign: names.high()", ROW_FIELD),
+    ("props.rs: read_sign: names.low()", ROW_FIELD),
+    ("props.rs: resolution_runs: faces", NOT_A_NAME),
+    ("props.rs: resume_to: &wanted", NOT_A_NAME),
+    ("props.rs: settle_on: e", NOT_FIRST),
+    ("props.rs: slots_as: name", FORWARDS),
+    (
+        "props.rs: the_enclosure_holds_the_vertex_polyhedrons_exact_volume: &faces",
+        NOT_A_NAME,
+    ),
+    (
+        "props.rs: the_parallel_arm_decides_every_face_and_then_drops_the_rest: &items",
+        NOT_A_NAME,
+    ),
+    (
+        "props.rs: the_serial_arm_decides_no_face_past_the_first_refusal: &items",
+        NOT_A_NAME,
+    ),
+    ("props.rs: volume_about: &faces", NOT_A_NAME),
+    ("props.rs: walk_set: &open", NOT_A_NAME),
+    ("props/quad_lane.rs: runs: &faces", NOT_A_NAME),
+    ("props/settle.rs: contains_step: e", NOT_FIRST),
+    ("props/settle.rs: contains_step: name", FORWARDS),
+    ("props/settle.rs: relation_step: name", FORWARDS),
+    ("ray_walk.rs: advance_as: row", FORWARDS),
+    ("ray_walk.rs: apart_as: row", FORWARDS),
+    ("ray_walk.rs: closest: k", CARRIER_CALL),
+    ("ray_walk.rs: closest: order", CLOSURE_FORWARDS),
+    ("ray_walk.rs: first_count_as: order", FORWARDS),
+    ("ray_walk.rs: on_segment_margin: rows.boundary()", ROW_FIELD),
+    ("ray_walk.rs: on_segment_margin: rows.segment()", ROW_FIELD),
+    ("ray_walk.rs: ray_crossings: rows.advance()", ROW_FIELD),
+    ("ray_walk.rs: ray_crossings: rows.side()", ROW_FIELD),
+    ("ring_path.rs: path_parity: name", CLOSURE_FORWARDS),
+    ("ring_path.rs: spline_crossings: ", SAME_NAMED_TRAVEL),
+    ("ring_path/spline_wall.rs: paths: ", SAME_NAMED_TRAVEL),
+    ("ring_path/spline_wall.rs: reach: ", SAME_NAMED_TRAVEL),
+    ("rows.rs: line: self.line", ROW_FIELD),
+    ("rows.rs: names: ", ACCESSOR_LIKE_A_DOOR),
+    ("rows.rs: segment_rows: segment: self.segment", ROW_FIELD),
+    (
+        "side_reader.rs: aimed_ray: AIMED_ROWS.order()",
+        CARRIER_CALL,
+    ),
+    ("side_reader.rs: aimed_ray: body", CARRIER_CALL),
+    (
+        "splitting/containment.rs: old_span_rule: rows.rows().turn()",
+        ROW_FIELD,
+    ),
+    (
+        "splitting/containment.rs: read_identity#1(data.iter().map(|&(name, m, _)| (name, m)))",
+        IDENTITY,
+    ),
+    (
+        "splitting/containment.rs: the_span_rule_tags_an_over_wound_margin_and_a_straddle: ",
+        ACCESSOR_LIKE_A_DOOR,
+    ),
+    ("splitting/containment.rs: walk_schedule: arm_row", FORWARDS),
+    ("splitting/order.rs: lex_cmp_as: name", FORWARDS),
+    (
+        "splitting/order.rs: one_ulp_apart_orders_strictly: &p",
+        CARRIER_CALL,
+    ),
+    (
+        "splitting/order.rs: sort_indices_by_point: &points[b]",
+        CARRIER_CALL,
+    ),
+    ("splitting/pieced_arc.rs: contact: rows.end()", ROW_FIELD),
+    (
+        "splitting/pieced_arc.rs: pieces_contact: rows.clear()",
+        ROW_FIELD,
+    ),
+    (
+        "splitting/pieced_arc.rs: pieces_contact: rows.leaf()",
+        ROW_FIELD,
+    ),
+    (
+        "splitting/pieced_arc.rs: pieces_contact: rows.on()",
+        ROW_FIELD,
+    ),
+    (
+        "splitting/section_loops.rs: outlines_disjoint: body",
+        CARRIER_CALL,
+    ),
+    ("splitting/spline_arc.rs: all_as: row", FORWARDS),
+    (
+        "test_support_samples.rs: rejected_negative_as: predicate",
+        FORWARDS,
+    ),
+    ("validate.rs: decide: name", FORWARDS),
+    ("validate.rs: decide_agreed: name", FORWARDS),
+    ("validate.rs: decide_agreed: straddle", FORWARDS),
+    ("validate.rs: decide_at_lever: names", ROW_FIELD),
+    ("validate.rs: decide_at_lever: names.0", ROW_FIELD),
+    ("validate.rs: decide_levered: names", ROW_FIELD),
+    ("validate.rs: decide_nonzero: name", FORWARDS),
+    ("validate.rs: decide_positive: name", FORWARDS),
+    ("validate.rs: decide_reported: name", FORWARDS),
+    ("validate.rs: definitely_positive: name", FORWARDS),
+    ("validate.rs: resolved_as: name", FORWARDS),
+    ("validate.rs: ring_outer_contact: body", CARRIER_CALL),
+    ("validate.rs: ring_outer_contact_about_as: $name", FORWARDS),
+    ("validate.rs: tier3_local_checks_marked: body", CARRIER_CALL),
+    ("validate.rs: wedge_holds_named: ", ACCESSOR_LIKE_A_DOOR),
+    (
+        "validate.rs: wedge_holds_named: (name, names.straddle())",
+        CLOSURE_FORWARDS,
+    ),
+    ("validate.rs: wedge_holds_named: name", CLOSURE_FORWARDS),
+    (
+        "validate.rs: wedge_holds_named: names.after_leaving()",
+        CARRIER_CALL,
+    ),
+    (
+        "validate.rs: wedge_holds_named: names.before_arriving()",
+        CARRIER_CALL,
+    ),
+    (
+        "validate.rs: wedge_holds_named: names.straight()",
+        CARRIER_CALL,
+    ),
+    ("validate.rs: wedge_holds_named: names.turn()", CARRIER_CALL),
+    ("vertex_section.rs: decide_vertex_on_plane: name", FORWARDS),
+    ("vertex_section.rs: side_as: name", FORWARDS),
+];
+
 fn src() -> std::path::PathBuf {
     crate_dir(env!("CARGO_MANIFEST_DIR")).join("src")
 }
@@ -480,15 +965,16 @@ fn door_of(name: &str) -> Vec<&'static Door> {
 
 /// **Every name the crate decides carries one door's prefix or is
 /// listed, and the census meets the harness every roster shares**
-/// (`test_utils::source::roster_violations`: no spelling it cannot read,
-/// every const site a declared carrier). One census,
-/// read once: it walks the whole of `src`.
+/// (`test_utils::source::roster_violations`: nothing invisible, no
+/// stale carrier, every const site a declared carrier, the indirect
+/// sites exactly [`INDIRECT`]). One census, read once: it walks the
+/// whole of `src`.
 #[test]
 fn every_decided_name_has_its_door_and_every_site_is_read() {
     let census = predicate_census(&src(), CARRIERS);
     the_doors_are_well_formed();
     names_have_doors(&census);
-    let violations = roster_violations(&src(), &census, CARRIERS, None);
+    let violations = roster_violations(&src(), &census, CARRIERS, Some(INDIRECT));
     assert!(violations.is_empty(), "{}", violations.join("\n"));
 }
 
@@ -513,14 +999,10 @@ fn the_doors_are_well_formed() {
     assert_eq!(listed.len(), EXCEPTIONS.len(), "a name is listed twice");
 }
 
-/// Each name carries exactly one door's prefix or is an exception. An
-/// exception nothing decides now, or a prefix no name carries, excuses
-/// nothing and is not a red.
+/// Each name carries exactly one door's prefix or is an exception, each
+/// exception is decided, and each prefix has a name decided under it —
+/// which is also what keeps this row from passing over an empty census.
 fn names_have_doors(census: &PredicateCensus) {
-    assert!(
-        !census.names.is_empty(),
-        "the census read no name in the crate's src"
-    );
     let listed: BTreeSet<&str> = EXCEPTIONS.iter().map(|(n, _)| *n).collect();
     for name in &census.names {
         let doors = door_of(name);
@@ -537,5 +1019,22 @@ fn names_have_doors(census: &PredicateCensus) {
                     .join(" and "),
             }
         );
+    }
+    for (name, door) in EXCEPTIONS {
+        assert!(
+            census.names.contains(*name),
+            "`{name}` is listed as {}'s, but nothing in the crate's src decides it — a stale \
+             entry",
+            (door.error)()
+        );
+    }
+    for door in DOORS {
+        for prefix in door.prefixes {
+            assert!(
+                census.names.iter().any(|n| n.starts_with(prefix)),
+                "no name is decided under `{prefix}` ({}) — a stale prefix",
+                (door.error)()
+            );
+        }
     }
 }

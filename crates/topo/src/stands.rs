@@ -433,8 +433,7 @@ fn face_interior_point<T: Decide>(
 /// null scaffolding, which has no carrier to read.
 #[track_caller]
 fn witnessed_curve<T: Decide>(body: &Body<T>, e: EdgeKey) -> Option<&geom_brep::EdgeCurve<T>> {
-    body.edge_curve_linked(e, proven(&body.edges, e, EntityId::Edge))
-        .certified()
+    body.proven_edge(e).certified()
 }
 
 /// The direction into a face from a half-edge of it running along `t`,

@@ -44,9 +44,8 @@
 //! reach is what has to be absent — has no compiling instrument in this
 //! repository. The counterfactual was measured by hand (both arms are in
 //! the unit's PR); a permanent home for it needs a toolchain on a gate
-//! job, which is filed as
-//! `work/bool/raw-door-compile-proof-needs-a-gate.md` and is the
-//! schedule for it. The suite cannot host it: these rows run from a
+//! job, which was weighed and declined as not worth its CI cost
+//! (`work/ciw/raw-door-compile-proof-needs-a-gate.md`, closed). The suite cannot host it: these rows run from a
 //! `cargo nextest` archive on a machine with no toolchain and no
 //! registry, and a row that reports "cargo was not available" is not the
 //! row it claims to be.
@@ -578,9 +577,8 @@ fn the_door_is_declared_at_its_arms_visibility() {
 /// forward chain that spells neither string. The instrument for that is
 /// a per-member `cargo check`, which this unit ran across all 18
 /// workspace members and all 4 excluded roots and which CI does not
-/// run; the filed gate item
-/// (`work/bool/raw-door-compile-proof-needs-a-gate.md`) is where a
-/// permanent home for compile-shaped proof belongs.
+/// run; a permanent gate for compile-shaped proof was weighed and
+/// declined (`work/ciw/raw-door-compile-proof-needs-a-gate.md`, closed).
 #[test]
 fn every_crate_that_names_the_door_reaches_it() {
     let root = repo_root();

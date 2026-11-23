@@ -5846,7 +5846,10 @@ fn valences<T: Real>(body: &Body<T>) -> SecondaryMap<VertexKey, usize> {
 /// **Whether `edge` is a wrap edge**: its stored certified carrier is
 /// described as its face's wrap edge (`EdgeDescription::is_wrap`), so
 /// the reading is structural and takes no ε. `false` for an edge key or
-/// curve the body does not hold, or a carrier not yet certified.
+/// curve the body does not hold, or a carrier not yet certified: tier 2
+/// reads it ([`closed_by_tier`] through [`wrap_tips`]) on a body tier 1
+/// may refuse, where a dangling curve is tier 1's finding to report, so
+/// the curve is read raw rather than as a link.
 ///
 /// This is the one home of the wrap flag both tip readings take:
 /// [`wrap_tips`] (a valence-1 end of a wrap edge) and [`wrap_tip_at`]
@@ -9378,8 +9381,7 @@ pub(crate) fn side<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<CornerS
     let departure = match curve.carrier() {
         geom::Curve3::Line(_) => Some(Departure::Exact(p1 - p0)),
         geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..) | geom::Curve3::Spiric { .. } => {
-            let e = body.edges.get(h.edge)?;
-            let lever = crate::cover::edge_reach_bounds(body, h.edge, e, p0)?;
+            let lever = crate::cover::edge_reach_bounds(body, body.edge(h.edge)?, p0)?;
             Some(Departure::along(
                 curve.walk_tangents(plus).0.normalize(),
                 lever,

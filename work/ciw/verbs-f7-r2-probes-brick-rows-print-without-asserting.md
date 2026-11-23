@@ -2,10 +2,11 @@
 id: verbs-f7-r2-probes-brick-rows-print-without-asserting
 kind: issue
 title: verbs_f7_r2_probes' two brick-operand rows print their boolean outcome and assert nothing
-status: open
+status: closed
 opened: 2026-09-19
 priority: P3
 cost: E
+closed: 2026-11-22
 ---
 
 ## Finding
@@ -40,3 +41,9 @@ defect. It is filed from a duplication unit because the duplication
 unit's mutation instrument is what found it.
 
 Moved from VACUITY to CIW on 2026-11-20, by `git mv`, when VACUITY merged into CIW: VACUITY held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CIW carries.
+
+## Closed
+
+2026-11-22, CIW triage (stale). The two rows named (`r2_cone_carries_the_pole_split_cap`, `r2_one_face_cap_via_kef_then_kev`) are gone from `crates/sweep/tests/verbs_f7_r2_probes.rs`.
+The surviving brick row, `r2_cone_carries_its_cap_whole` (`:104-115`), asserts its claim: the F7 door is open, not `NonMaximalFaces`.
+Under that claim a moved brick rightly changes nothing.
