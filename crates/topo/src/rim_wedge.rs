@@ -1203,10 +1203,11 @@ pub(crate) fn rim_edges_convex<T: Decide>(
     };
     let mut on_rim = 0usize;
     for member in f.boundary() {
-        let crate::live::BoundaryMember::Edge { ek, edge, .. } = member else {
+        let crate::live::BoundaryMember::Edge { edge, .. } = member else {
             continue;
         };
-        let Some(curve) = body.edge_curve_linked(ek, edge).certified() else {
+        let ek = edge.key();
+        let Some(curve) = edge.certified() else {
             return false;
         };
         let Some(circle) = rim_of(curve.carrier()) else {

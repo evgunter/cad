@@ -341,10 +341,11 @@ fn an_elbow_whose_neutral_points_sit_between_the_stations_glues_a_junction() {
 /// turned −3π/2 and −5π/4 off the End cap, the rod and the pipe. The
 /// torus wall leaves the rim G1, so every wall pair on the rim glues a
 /// junction, then comes back round into the pipe's wall away from the
-/// rim. That crossing is the crossing layer's, which refuses it typed
-/// here; once the crossing layer reads it (PR 7471's top of the stack)
-/// the row owes a typed refusal or the hand-checked body, never a wrong
-/// one.
+/// rim. The arcs ending on the rim turn past a quarter turn, so their
+/// windows are not the whole span and the crossing is the root doors'.
+/// The union passes the crossing layer and stops at the finish (the
+/// seams' descriptions); once the finish builds, the row owes a typed
+/// refusal or the hand-checked body, never a wrong one.
 #[test]
 fn a_hooked_elbow_that_comes_back_into_its_pipe_is_never_a_wrong_body() {
     use topo::boolean::RimDoor;
@@ -353,6 +354,7 @@ fn a_hooked_elbow_that_comes_back_into_its_pipe_is_never_a_wrong_body() {
             let what = format!("hollow {hollow}, turned {angle}");
             let off = OffCap::Elbow {
                 axis_x: 1.5,
+                axis_y: 0.0,
                 heading: -FRAC_PI_2,
                 angle,
             };
@@ -366,7 +368,7 @@ fn a_hooked_elbow_that_comes_back_into_its_pipe_is_never_a_wrong_body() {
                 rest.iter().all(|d| *d == RimDoor::NotTangent),
                 "{what}: every other pair meets at a corner: {rest:?}"
             );
-            stops_at_the_crossing_layer(&j, &what);
+            stops_at_the_finish(&j, &what);
         }
     }
 }
