@@ -37,3 +37,19 @@ plane–plane line chunks. Every move was toward the exact value. PR
 the two kinds of move apart took a chunk dump and a Python replay
 against exact fractions. Any fix should keep the value channel and
 shed only the spelling channel.
+
+**PR 7501 narrowed this** (`43bbb7277f`, ciw/census-digest-goldens).
+`fixture::digest` now reads a `Debug` through `canonical`, which keeps
+every value and type name and drops field names. It feeds no arena keys
+or mint ids, and reads `max_residual` only as finite or not
+(`fixture/digest.rs:48-56`). That changed every digest. The kite moat
+moved to `0x5533_9c14_5231_454e` on 7597 and no value moved (U15's
+bisect, runs 45260170421 and 45260183312).
+
+What remains of this row is a restructure. 7131's respelling nested a new
+type (`Plane { frame: Frame { … } }`), and type names are still fed, so
+a change of that shape would still move every plane digest. The row's
+fix narrows to stating that cost in the doc, or to dropping type
+nesting as field names were dropped. Since 7501, the 96 residual moves
+from 7411 would no longer show at all. That is by design: the doc says
+a change to a check's arithmetic moves no digest.

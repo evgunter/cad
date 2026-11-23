@@ -657,3 +657,10 @@ gate on `c837247c3d` is running, with a waiter on it.
   the ruling pin included, in 7558. The pattern: a kernel change that
   moves f64 rounding moves every pin at 1e-12, and PR gates run slow-set
   pins at the default ε only.
+
+## 2026-11-23: 7597 merged (`62abb9cab0`)
+
+U15 bisected the kite's second move to PR 7501 (`43bbb7277f`), which
+redefined `fixture::digest`. It was a respelling, with no value moved. The
+pin is now `0x5533_9c14_5231_454e`, and the gate passed on `833320a385`. The
+respelling row now records how 7501 narrowed it.
