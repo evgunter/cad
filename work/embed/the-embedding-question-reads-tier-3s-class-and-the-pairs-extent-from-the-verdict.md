@@ -2,10 +2,11 @@
 id: the-embedding-question-reads-tier-3s-class-and-the-pairs-extent-from-the-verdict
 kind: unit
 title: the embedding question reads tier 3's class and the pair's extent from the verdict, and decides neither
-status: spec
+status: dispatched
 opened: 2026-11-22
 priority: P0
 cost: H
+branch: embed/verdict-read
 ---
 
 ## Ruling
