@@ -683,7 +683,11 @@ fn halved(
         })
         .collect();
     let (_, hes) = topo::props::loop_edges(&body, body.get_face(wall).unwrap().outer).unwrap();
-    let from = |v| *hes.iter().find(|&&h| body.get_half_edge(h).unwrap().start == v).unwrap();
+    let from = |v| {
+        *hes.iter()
+            .find(|&&h| body.get_half_edge(h).unwrap().start == v)
+            .unwrap()
+    };
     let at = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
     let (carrier, t0, t1) = meridian(at(split[0]), at(split[1]));
     let mut spec = body
@@ -812,10 +816,7 @@ fn a_sphere_zone_halved_by_two_meridians_keeps_its_meridian_as_the_period_closur
     let rim = (0.75_f64).sqrt();
     let mut zone = halved(
         revolved_profile(vec![
-            (
-                Point2::new(rim, -0.5),
-                (core::f64::consts::PI / 12.0).tan(),
-            ),
+            (Point2::new(rim, -0.5), (core::f64::consts::PI / 12.0).tan()),
             (Point2::new(rim, 0.5), 0.0),
         ]),
         SurfaceKind::Sphere,

@@ -314,8 +314,8 @@ fn in_tube_and_half_ball(p: Point3<f64>) -> Option<bool> {
 }
 
 /// **The sphere-capped tube builds with its hemisphere turned about the
-/// axis**, in both member orders and with the pair spun. Turned, each rim semicircle of one
-/// operand ends inside a rim arc of the other, so the rim is four arcs.
+/// axis**, in both member orders and with the pair spun. Turned, the
+/// operands' rim vertices fall apart, so the rim is cut at each of them.
 /// Each tube seam ruling ends on the rim beside a sphere face it does
 /// not touch, and that face's reach over its azimuth window clears the
 /// pair. The body is the tube and the half ball at every turn, by
@@ -355,9 +355,9 @@ fn the_sphere_capped_tube_builds_with_its_hemisphere_turned() {
         let tube = turned(&rod_z(R, 0.0, H), spin);
         let hemi = turned(&hemisphere, spin + deg);
         let rims = if deg == 0.0 {
-            (5, 8, 5, 1)
+            (4, 7, 5, 1)
         } else {
-            (5, 10, 7, 1)
+            (4, 8, 6, 1)
         };
         for (order, x, y) in [("tube ∪ cap", &tube, &hemi), ("cap ∪ tube", &hemi, &tube)] {
             let label = format!("spun {spin}°, turned {deg}°, {order}");
@@ -1411,8 +1411,8 @@ fn a_dome_sunk_across_the_tubes_seam_rulings_builds_every_op_undeclared() {
     let rho = 2.0_f64.sqrt() * R;
     let (tube, quartered) = (rod_z(R, 0.0, H), quartered_tube());
     // `[∪, d ∖ t, ∩]`; `t ∖ d` refuses ([`refuses_the_rims_slit`]).
-    let off: Censuses = [(6, 10, 7, 1), (3, 4, 3, 1), (4, 6, 4, 1)];
-    let four: Censuses = [(8, 16, 11, 1), (3, 4, 3, 1), (4, 6, 4, 1)];
+    let off: Censuses = [(5, 8, 6, 1), (2, 2, 2, 1), (3, 3, 2, 1)];
+    let four: Censuses = [(7, 14, 10, 1), (2, 2, 2, 1), (3, 3, 2, 1)];
     let rows = [
         ("two walls", &tube, 1.0 / 12.0, off),
         ("two walls", &tube, 1.0 / 8.0, off),
@@ -2018,7 +2018,7 @@ fn a_turned_rim_on_a_wall_bounded_by_an_ellipse_builds_every_op_undeclared() {
                 topo::transform_rigid(&sunk, &geom_core::test_support::rigid(&spin, tol)).unwrap(),
                 tol,
             );
-            let (whole, common) = ((6, 10, 7, 1), (4, 6, 4, 1));
+            let (whole, common) = ((5, 8, 6, 1), (3, 3, 2, 1));
             refuses_the_rims_slit(
                 &format!("dz = {dz}, turn {turn}: t ∖ d"),
                 topo::subtract(&tube, &d, tol),
@@ -2042,7 +2042,7 @@ fn a_turned_rim_on_a_wall_bounded_by_an_ellipse_builds_every_op_undeclared() {
                     "d ∖ t",
                     topo::subtract(&d, &tube, tol),
                     above,
-                    (3, 4, 3, 1),
+                    (2, 2, 2, 1),
                     [0; 6],
                 ),
                 (
@@ -2135,14 +2135,14 @@ fn a_rod_rim_on_the_dome_across_its_seam_meridian_builds_every_op_undeclared() {
                 "a ∪ d",
                 topo::union(&a, &dome, tol),
                 va + vd - i,
-                (6, 10, 7, 1),
+                (5, 8, 6, 1),
                 [0; 6],
             ),
             (
                 "d ∪ a",
                 topo::union(&dome, &a, tol),
                 va + vd - i,
-                (6, 10, 7, 1),
+                (5, 8, 6, 1),
                 [0; 6],
             ),
             (

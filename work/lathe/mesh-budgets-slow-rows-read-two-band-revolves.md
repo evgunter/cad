@@ -16,8 +16,12 @@ Found by the LATHE one-band lane (2026-11-23, PR 7414), on its branch
 ## What
 
 CI's `mesh-budget` job runs `cargo test -p mesh --features budget`, which
-runs mesh's slow rows that the nextest `ci` profile filters out. Eleven of
-them fail on the branch (303 passed). Run locally with that command.
+runs every mesh row, the slow set's included, which the nextest `ci`
+profile filters out. Eleven of them fail on the branch (303 passed). Run
+locally with that command. The rows are slow-set rows
+(`.config/nextest.toml`), not budget-only ones: the nightly runs them,
+and so does a PR's slow step wherever the diff spells one or edits its
+file (`scripts/slow_set.py`, `selected`).
 
 **Outcome changes** (not counts; each needs a reading before a re-pin):
 

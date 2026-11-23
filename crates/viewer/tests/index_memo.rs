@@ -618,10 +618,11 @@ fn assert_same_picture(
 /// `--nocapture`) with a little slack, and the reason each is what it
 /// is:
 /// - `die_composed_tour`, the first edit (one pip moved): one copy,
-///   recomputed, 73 of 89 faces bit-identical — level 2's case. It was
-///   85 before INTENT stage 3 E: the pips' union and the cut compute in
-///   a frame of their reads, so moving a pip moves more faces' bits by
-///   rounding, and each such face misses.
+///   recomputed, 59 faces bit-identical and 9 missed — level 2's case
+///   (each pip's wall one band, a full revolve's). The pips' union and
+///   the cut compute in a frame of their reads, so moving a pip moves
+///   more faces' bits by rounding than the pip's own, and each such
+///   face misses.
 /// - `die`, the first edit: 106 of 111 faces bit-identical.
 /// - `kitchen_sink`, the first edit (8 copies, the bump feeds 3): five
 ///   copies reused whole — level 1's case.
@@ -644,7 +645,7 @@ fn assert_same_picture(
 ///
 /// `(document, step, node-hit floor, face-hit floor, owes a miss)`.
 const HIT_FLOORS: &[(&str, &str, usize, usize, bool)] = &[
-    ("die_composed_tour", "the first edit", 0, 70, true),
+    ("die_composed_tour", "the first edit", 0, 56, true),
     ("die", "the first edit", 0, 100, true),
     ("kitchen_sink", "the first edit", 5, 0, false),
     ("heat_sink", "the second edit", 5, 20, true),

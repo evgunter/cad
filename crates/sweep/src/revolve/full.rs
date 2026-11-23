@@ -549,16 +549,18 @@ fn build_lamina<T: Decide + topo::AtRestPolicy>(
 
 /// The `+` half of a copied-chain edge, read before the `kef` that kills
 /// it.
-fn copied_plus<T: Real>(body: &Body<T>, edge: EdgeKey) -> topo::HalfEdgeKey {
+fn copied_plus<T: Decide>(body: &Body<T>, edge: EdgeKey) -> topo::HalfEdgeKey {
     body.get_edge(edge)
         .unwrap_or_else(|| {
-            unreachable!("copied-chain edge {edge:?} was minted by this sweep and is not yet killed")
+            unreachable!(
+                "copied-chain edge {edge:?} was minted by this sweep and is not yet killed"
+            )
         })
         .he_plus
 }
 
 /// The `−` half of the chain edge `he` walks.
-fn chain_minus<T: Real>(body: &Body<T>, he: topo::HalfEdgeKey) -> topo::HalfEdgeKey {
+fn chain_minus<T: Decide>(body: &Body<T>, he: topo::HalfEdgeKey) -> topo::HalfEdgeKey {
     let edge = he_edge(body, he);
     body.get_edge(edge)
         .unwrap_or_else(|| unreachable!("edge {edge:?} was read off live half-edge {he:?}"))

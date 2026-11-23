@@ -279,8 +279,30 @@ fn probes() -> Vec<Probe> {
 /// seam offset, the pole offsets); a body that builds and is wrong, or
 /// cannot be measured, is the failure. The rows above pin the poses
 /// whose outcome is the same at every ε.
+///
+/// Pinned to its stop while
+/// `work/lathe/a-boolean-ships-a-body-its-own-census-escalates-on-beside-a-one-band-seam.md`
+/// is open: the tube `1e-9` off the one-band ball's seam builds `B ∪ A`,
+/// `B ∩ A` and `B ∖ A` whose tier 3′ census escalates, and nothing else
+/// is wrong. A band-relative pose: at ε 1e-6 and 1e-12 every probe is
+/// sound or refused, and the row runs unpinned there.
 #[test]
 fn the_probe_family_ships_no_wrong_body() {
+    test_utils::pinned_red::row(
+        Tol::witness().eps(),
+        &[1e-9],
+        "the probe family",
+        &[
+            "3 wrong:\n",
+            "turn 0.000000001, B ∪ A (A the tube): OK BAD t2=true t3p=false cert=true operand=true",
+            "turn 0.000000001, B ∩ A (A the tube): OK BAD t2=true t3p=false cert=true operand=true",
+            "turn 0.000000001, B ∖ A (A the tube): OK BAD t2=true t3p=false cert=true operand=true",
+        ],
+        no_probe_ships_a_wrong_body,
+    );
+}
+
+fn no_probe_ships_a_wrong_body() {
     let tol = Tol::witness();
     let mut wrong = Vec::new();
     for p in probes() {

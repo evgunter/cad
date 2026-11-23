@@ -398,7 +398,7 @@ pub fn full_pappus_y(t: &sweep::Revolved<f64>) -> f64 {
 /// so an inverted body reads negative (or is refused) where a Pappus
 /// oracle over the meridian (`full_pappus_y`, unsigned) still reads the
 /// magnitude.
-pub fn signed_volume(body: &Body<f64>) -> f64 {
+pub fn measured_volume(body: &Body<f64>) -> f64 {
     let tol = geom_core::Tol::witness();
     topo::mass_properties(
         &topo::test_support::finished("the measured body", Body::clone(body), tol),
