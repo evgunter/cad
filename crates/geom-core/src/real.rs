@@ -537,19 +537,6 @@ pub trait Real:
         first
     }
 
-    /// **Is this scalar an exact zero in every channel it carries?** At
-    /// the point and interval scalars, [`is_exact_zero`] (the value
-    /// channel is the scalar). A scalar that carries more than its value
-    /// overrides it to ask each channel: at the dual scalar the value and
-    /// the derivative both exactly zero, so an exact test made through it
-    /// holds of the function and not only of its value at the point. It
-    /// is how a structural shortcut taken on an exact zero (the least
-    /// turn's identity, [`crate::UnitVec3::is_exactly`]) keeps every
-    /// channel the arithmetic it skips would have carried.
-    fn is_exact_zero_in_every_channel(self) -> bool {
-        is_exact_zero(self)
-    }
-
     /// **The registered-identity door's hook** (M10-9; ERROR-DESIGN
     /// E12's "kept in reserve — discharge by provenance"): a
     /// constructor generic over `T: Real` states that the two values

@@ -262,7 +262,11 @@ fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
         // that break, so the miss is its pcurve's (`ImageMiss`). It moves when the rim's derivation does,
         // so the 1e-9 arm reads it within 5%.
         let ReplaceFaceError::Op {
-            error: topo::EulerOpError::RechartFalsifies { edge, error, .. },
+            error:
+                topo::EulerOpError::DescriptionUncertified {
+                    edge: topo::EdgeSubject::Keyed(edge),
+                    error,
+                },
             ..
         } = error.as_ref()
         else {
