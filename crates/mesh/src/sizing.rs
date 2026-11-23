@@ -603,13 +603,15 @@ pub(crate) fn sphere_grid_steps(target: f64, r: f64, widest: f64) -> (f64, f64) 
 /// The largest UV aspect `h_u/h_v` [`sphere_grid_steps`] chooses: half
 /// of the `2√2` past which the off-lattice lemma fails in raw UV, the
 /// other half spent on the `ceil` that can halve `h_v`. **Structural**:
-/// it keeps the lattice in the shape its theorem is stated for. Two
-/// things still read it. The trimmed lane's sphere arm lays these steps
-/// and triangulates in the chart's metric at mid latitude, not the
-/// lattice's, so there the raw aspect still bounds the lemma's premise;
-/// and past 45° of latitude it sets the steps themselves (the AM–GM
-/// optimum asks a wider `h_u`). On the curved lane, whose CDT runs in
-/// its lattice's metric, the lemma's premise holds at any raw aspect
+/// it keeps the lattice in the shape its theorem is stated for. Past
+/// 45° of latitude it sets the steps themselves (the AM–GM optimum
+/// asks a wider `h_u`). The trimmed lane's sphere arm reads it only
+/// through those steps: its CDT runs in the chart's metric at mid
+/// latitude (`chart_table::AnalyticRow::trimmed_metric`), which is not
+/// the lemma's plane, and what holds its triangles is the certificate
+/// (`work/tesslane/the-trimmed-sphere-arm-triangulates-a-raw-uv-lattice-in-the-chart-metric.md`).
+/// On the curved lane, whose CDT runs in its lattice's metric, the
+/// lemma's premise holds at any raw aspect
 /// (`work/tesslane/the-sphere-cell-aspect-cap-was-chosen-for-a-raw-uv-cdt.md`).
 pub(crate) const SPHERE_CELL_ASPECT: f64 = core::f64::consts::SQRT_2;
 

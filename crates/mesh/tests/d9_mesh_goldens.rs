@@ -229,12 +229,12 @@ fn corpus() -> Vec<(&'static str, Body<f64>, [f64; 2])> {
         ),
         (
             "filleted_hole_three_arcs",
-            crate::the_one_slit_band::filleted_plate(0.3, 1e-3, 3),
+            filleted_plate(0.3, 1e-3, 3),
             [1e-3, 3e-4],
         ),
         (
             "filleted_hole_five_arcs",
-            crate::the_one_slit_band::filleted_plate(0.3, 5e-3, 5),
+            filleted_plate(0.3, 5e-3, 5),
             [3e-3, 1e-3],
         ),
     ]

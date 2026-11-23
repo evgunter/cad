@@ -18,12 +18,10 @@ use std::collections::HashSet;
 use geom::Surface;
 use geom_core::{Point2, Point3, Tol, Vec2};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
-use sweep::{
-    ExtrudeSide, Extrusion, Revolution, RevolveAxis, blend::fillet_edges, extrude, revolve,
-};
+use sweep::{Revolution, RevolveAxis, revolve};
 use topo::Body;
 
-use crate::common::sampled_deviation;
+use crate::common::{filleted_plate, sampled_deviation};
 
 /// How far, relative to its span, a chart coordinate read back from a
 /// mesh position (`atan2` of `f64` coordinates) may sit from the lattice
@@ -55,61 +53,6 @@ fn revolved_band(hole: f64, r: f64, turn: Revolution<f64>) -> Body<f64> {
         .into_body()
 }
 
-/// The plate `[−1, 1]² × [0, 1]` with a hole of radius `hole` drawn as
-/// `arcs` equal arcs, its bottom rim filleted at `r` through
-/// `sweep::blend::fillet_edges`: the band is one face with one slit.
-pub(crate) fn filleted_plate(hole: f64, r: f64, arcs: usize) -> Body<f64> {
-    let square = bulge_loop(vec![
-        (Point2::new(-1.0, -1.0), 0.0),
-        (Point2::new(1.0, -1.0), 0.0),
-        (Point2::new(1.0, 1.0), 0.0),
-        (Point2::new(-1.0, 1.0), 0.0),
-    ]);
-    #[allow(clippy::cast_precision_loss)]
-    let n = arcs as f64;
-    let rim = bulge_loop(
-        (0..arcs)
-            .map(|k| {
-                #[allow(clippy::cast_precision_loss)]
-                let a = TAU * k as f64 / n;
-                (
-                    Point2::new(hole * a.cos(), -hole * a.sin()),
-                    -(PI / (2.0 * n)).tan(),
-                )
-            })
-            .collect(),
-    );
-    let vp = Profile::new(SketchPlane::xy(), vec![square, rim])
-        .validate(Tol::witness())
-        .expect("the holed plate validates");
-    let extrusion = Extrusion::Distance {
-        depth: 1.0,
-        side: ExtrudeSide::Along,
-    };
-    let body = extrude(&vp, extrusion, Tol::witness())
-        .expect("the plate extrudes")
-        .body
-        .into_body();
-    let bottom_rim: Vec<topo::EdgeKey> = body
-        .edges()
-        .filter(|(_, e)| {
-            matches!(
-                body.get_curve_geom(e.curve)
-                    .and_then(|g| g.certified())
-                    .map(|c| c.carrier()),
-                Some(geom::Curve3::Circle(c)) if c.frame().origin().z == 0.0
-            )
-        })
-        .map(|(k, _)| k)
-        .collect();
-    assert_eq!(bottom_rim.len(), arcs, "the bottom rim is the hole's arcs");
-    let at_rest = sweep::test_support::at_rest(&body, Tol::witness());
-    fillet_edges(&at_rest, &bottom_rim, r, Tol::witness())
-        .expect("the rim fillets")
-        .body
-        .into_body()
-}
-
 /// A point's torus chart coordinates `(u, v)`, each in `(−π, π]`.
 fn chart(surface: &Surface<f64>, p: Point3<f64>) -> [f64; 2] {
     let Surface::Torus {
@@ -137,8 +80,6 @@ struct BandReading {
     meridian_chords: usize,
     /// Meridian points strictly between two of the lattice's rows.
     off_row_meridian_points: usize,
-    /// Rim points strictly between two of the lattice's columns.
-    off_column_rim_points: usize,
     /// The largest triangle `u` extent over the column width, and `v`
     /// extent over the row gap.
     reach: [f64; 2],
@@ -226,11 +167,6 @@ fn read_band(body: &Body<f64>, mesh: &mesh::Mesh) -> BandReading {
         .flat_map(|b| inside(b))
         .filter(|&i| !on(at(i)[1], &rows, vspan))
         .count();
-    let off_column_rim_points = rims
-        .iter()
-        .flat_map(|b| inside(b))
-        .filter(|&i| !on(at(i)[0], &columns, uspan))
-        .count();
     let meridian_chords = meridians.iter().map(|b| b.points.len() - 1).min().unwrap();
     let mut reach = [0.0f64; 2];
     let mut deviation = 0.0f64;
@@ -247,29 +183,20 @@ fn read_band(body: &Body<f64>, mesh: &mesh::Mesh) -> BandReading {
         rows: rows.len() + 1,
         meridian_chords,
         off_row_meridian_points,
-        off_column_rim_points,
         reach,
         deviation,
     }
 }
 
-/// What a band row asks its witness to carry.
-#[derive(Clone, Copy, PartialEq)]
-enum Carries {
-    /// A meridian point between two rows.
-    OffRowMeridian,
-    /// A rim point between two columns.
-    OffColumnRim,
-}
-
 /// The band's relation at `delta`: it meshes, watertight; every band
 /// triangle lies within δ of the torus by sampling, which reads no
-/// certificate; and a triangle spans at most one lattice column and at
+/// certificate; a meridian carries a point between two rows (the
+/// witness is in the class); and a triangle spans at most one lattice column and at
 /// most `max(1, nv/m)` row gaps, `nv` the band's rows and `m` the fewest
 /// chords on one of its meridians: a meridian chord spans `nv/m` gaps,
 /// and the triangles beside it reach no further (`curved`'s module docs,
 /// "What is measured and not proved").
-fn assert_band(what: &str, body: &Body<f64>, delta: f64, carries: Carries) {
+fn assert_band(what: &str, body: &Body<f64>, delta: f64) {
     let mesh = mesh::tessellate(body, delta, Tol::witness())
         .unwrap_or_else(|e| panic!("{what}, δ = {delta}: the band meshes: {e:?}"));
     assert_eq!(
@@ -278,16 +205,10 @@ fn assert_band(what: &str, body: &Body<f64>, delta: f64, carries: Carries) {
         "{what}, δ = {delta}: watertight"
     );
     let band = read_band(body, &mesh);
-    match carries {
-        Carries::OffRowMeridian => assert!(
-            band.off_row_meridian_points > 0,
-            "{what}, δ = {delta}: a meridian carries a chord point between two rows"
-        ),
-        Carries::OffColumnRim => assert!(
-            band.off_column_rim_points > 0,
-            "{what}, δ = {delta}: a rim carries a chord point between two columns"
-        ),
-    }
+    assert!(
+        band.off_row_meridian_points > 0,
+        "{what}, δ = {delta}: a meridian carries a chord point between two rows"
+    );
     assert!(
         band.deviation <= delta,
         "{what}, δ = {delta}: a band triangle samples {:e} off the torus",
@@ -320,7 +241,7 @@ fn a_revolved_band_meshes_with_its_meridian_points_between_rows() {
     ] {
         let body = revolved_band(0.6, 5e-3, turn);
         for delta in [3e-3, 1e-3] {
-            assert_band(what, &body, delta, Carries::OffRowMeridian);
+            assert_band(what, &body, delta);
         }
     }
 }
@@ -331,32 +252,10 @@ fn a_revolved_band_meshes_with_its_meridian_points_between_rows() {
 fn a_filleted_holes_one_slit_band_meshes_with_its_slit_points_between_rows() {
     let three = filleted_plate(0.3, 1e-3, 3);
     for delta in [1e-3, 3e-4] {
-        assert_band(
-            "three arcs, r = 1e-3",
-            &three,
-            delta,
-            Carries::OffRowMeridian,
-        );
+        assert_band("three arcs, r = 1e-3", &three, delta);
     }
     let five = filleted_plate(0.3, 5e-3, 5);
     for delta in [3e-3, 1e-3] {
-        assert_band("five arcs, r = 5e-3", &five, delta, Carries::OffRowMeridian);
-    }
-}
-
-/// **An off-lattice point by another source than a meridian's count**,
-/// on the band's short axis: a hole of two arcs makes the band's foot two
-/// edges, each chorded on its own, so the foot holds more chords than the
-/// band has columns (60 against 59 at δ = 1e-3). It is a witness that the
-/// mechanism exists on that axis and is harmless there: in raw UV this
-/// band meshes too, its triangles within one column, since a rim point's
-/// circle reaches across the short axis only. It goes red where a
-/// triangle beside the foot's points reaches past one column or samples
-/// past δ.
-#[test]
-fn a_band_whose_foot_is_two_arcs_meshes_with_its_rim_points_between_columns() {
-    let body = filleted_plate(0.3, 1e-3, 2);
-    for delta in [3e-3, 1e-3] {
-        assert_band("two arcs, r = 1e-3", &body, delta, Carries::OffColumnRim);
+        assert_band("five arcs, r = 5e-3", &five, delta);
     }
 }

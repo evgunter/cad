@@ -180,9 +180,11 @@
 //! δ 1e-3). In the metric `a` is within `√2` of one and the circle under
 //! a cell wide, inside the premise of `sizing::sphere_grid_steps`'
 //! containment lemma (a cell aspect under `2√2` on either axis) on every
-//! chart. A sphere's counts keep that premise in raw UV too (a curved
-//! sphere face with rows reaches aspect 2.4, measured over this crate's
-//! suite); the metric moves its cells nearer square and no further.
+//! chart. A sphere's counts alone do not keep that premise: over this
+//! crate's suite a curved sphere face with rows reaches raw aspects
+//! from 0.032 (a one-column wedge) to 2.64, 29 of 3,045 such faces
+//! outside it. In the metric every one enters the CDT between 0.71 and
+//! 1.41.
 //!
 //! The lane's other arguments about its triangulation are kept by the
 //! metric, which scales each axis by a positive constant and so keeps
@@ -1234,6 +1236,13 @@ mod tests {
     /// Over sphere zones and caps off the equator, a whole sphere and a
     /// thin torus band, at δ from 1e-1 to 1e-4, through the lane's own
     /// `grid_counts`. The thin band's raw aspect is far outside it.
+    ///
+    /// It pins [`cdt_metric`], not its call site. That `tessellate_curved`
+    /// hands its CDT this metric is witnessed by the bytes: with the call
+    /// site reading the trimmed lane's sphere metric instead,
+    /// `d9_mesh_goldens`' `sphere_wedge` golden reds and nothing read off
+    /// the mesh does, since no sphere face built here carries a boundary
+    /// point off its lattice, where the plane would show.
     #[test]
     fn the_cdt_cell_keeps_the_containment_lemmas_aspect_on_every_chart() {
         use core::f64::consts::{FRAC_PI_2, TAU};
