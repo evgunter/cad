@@ -26,3 +26,7 @@ GREEN pinned the roster at main's `(speed.rs, 38, 4)`, with a note naming this r
 Read the 34 reads that do not ask. For each, either argue it at the site (a selection, a seed, an outward hull of finite values, a read behind a funnel), or ask `is_certified()` before reading. Then replace the roster note with the dispositions.
 
     cargo nextest run -p geom-core -E 'test(certified_endpoint_census)'
+
+## 2026-11-23 — a spelling that disposes of the divisor reads (CHARTTAIL, PR 7509)
+
+`pole_azimuth_speed` dropped its three endpoint reads by dividing first and reading the quotient's decoration: `σ_max² / (2·det M)` refuses (`Trv`) exactly when the divisor's enclosure holds or touches zero, so `if q.is_certified() { finite(q.mag()) } else { Err(ThroughSingularSet) }` asks the divisor's question with no census-counted read. `projected_speeds`'s `over` (`lever > 0.0`, then `(speed / lever).hi()`) and `root_down` (`x > 0.0` on a lower end) are the same shape: a lower end sign-tested in `f64` before a division or a root. `over` takes that spelling directly, which removes its `.hi()`. The levers themselves are `.lo()` reads in `Levers::of`, `line_levers` and `net_levers`, which this spelling does not reach.
