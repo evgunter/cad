@@ -344,7 +344,7 @@ fn interval_the_sphere_lune_rim_encloses_its_corners() {
 /// enclosure holds the cut-revolve oracle (`disc_cut_volume`). The old
 /// doors, verbatim: check 7's `VolumeUncomputable` at a spiric-bounded
 /// cap (`Unimplemented`); before it `Face { error: Op { edge: None,
-/// error: RechartFalsifies { edge: EdgeKey(2v1), error:
+/// error: DescriptionUncertified { edge: Keyed(EdgeKey(2v1)), error:
 /// IntervalNotForward { margin: Enclosure [−0.7068583470577047,
 /// −0.7068583470577025] } } } }`, a rim window read backwards on
 /// `atan2`'s branch cut. An escalation at a strict band is the
