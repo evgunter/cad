@@ -2574,7 +2574,9 @@ fn present_plane<'a>(
             // ends at `r1 = 3m̂ + b̂`, the second at `r2 = 3m̂ + â`,
             // positive combinations, so each lies strictly between `m` and
             // that edge and the pieces overlap in the cone of `r2` and
-            // `r1`. Each stays under a half turn: `a × r1` is
+            // `r1`. Cut on `m` itself they would abut on a line a cell's
+            // side can lie on (a symmetric corner's bisector is a chart
+            // axis), leaving the far piece a rectangle a rounding wide. Each stays under a half turn: `a × r1` is
             // `sin(θ/2)·(3 + 2cos(θ/2))`, positive at every corner angle
             // `θ` short of a full turn.
             let mh = unit2(m);
@@ -2583,15 +2585,6 @@ fn present_plane<'a>(
             let r1 = [three * mh[0] + bh[0], three * mh[1] + bh[1]];
             let r2 = [three * mh[0] + ah[0], three * mh[1] + ah[1]];
             let d = [cell_u - o.x, cell_v - o.y];
-            let cross = |u: [Interval; 2], v: [Interval; 2]| u[0] * v[1] - u[1] * v[0];
-            // Whether the cell holds no point of a piece that the other
-            // piece does not hold too: none on the edge `e`'s side of the
-            // other piece's ray `r`, strictly. The cell's part of the face
-            // is then all in the other piece.
-            let covered = |e: [Interval; 2], r: [Interval; 2]| {
-                let x = cross(d, r) / cross(e, r);
-                x.is_certified() && x.hi() <= 0.0
-            };
             // One piece: the cone of an edge's direction `e`, of length
             // `l`, and the ray, as the image of `[0, x] × [0, y]`; `None`
             // where the cell lies wholly off it.
@@ -2652,19 +2645,8 @@ fn present_plane<'a>(
                     }
                 }
             };
-            let first = || cone(a, la, r1, &zero(*e1, (v1, w1)));
-            let second = || cone(bv, lb, r2, &zero(*e2, (v2, w2)));
-            // A piece the other covers is not presented: where the cell
-            // touches a piece's far ray from outside, that piece's part
-            // of the cell is a rectangle a rounding wide, and every point
-            // of it is the other piece's.
-            let (first, second) = if covered(a, r2) {
-                (None, second()?)
-            } else if covered(bv, r1) {
-                (first()?, None)
-            } else {
-                (first()?, second()?)
-            };
+            let first = cone(a, la, r1, &zero(*e1, (v1, w1)))?;
+            let second = cone(bv, lb, r2, &zero(*e2, (v2, w2)))?;
             Ok(match (first, second) {
                 (None, None) => Presentation::Vacuous,
                 (Some(p), None) | (None, Some(p)) => Presentation::Of(Box::new(p)),
@@ -8019,6 +8001,16 @@ mod presentation_rows {
         g: &(Surface<Interval>, Boundary),
         edges: &[(usize, usize)],
     ) -> bool {
+        parted_near(f, g, edges, &[vertex(1)])
+    }
+
+    /// [`parted_at_vertex_1`], near `vertices`.
+    fn parted_near(
+        f: &(Surface<Interval>, Boundary),
+        g: &(Surface<Interval>, Boundary),
+        edges: &[(usize, usize)],
+        vertices: &[VertexKey],
+    ) -> bool {
         let local = both_rims_and_vertex_1();
         let about = (-0.5, 0.5);
         let (x, y) = (
@@ -8027,7 +8019,7 @@ mod presentation_rows {
         );
         let near = |edges: Vec<(usize, usize)>| Near {
             edges,
-            vertices: vec![vertex(1)],
+            vertices: vertices.to_vec(),
         };
         let one = |o: Outcome| match o {
             Outcome::Certified { .. } => true,
@@ -8140,8 +8132,18 @@ mod presentation_rows {
                 band(),
             ))
         };
-        assert_eq!(read_of([1.0, 1e-10, 0.0]), Read::Local, "a spike");
-        assert_eq!(read_of([1.0, -1e-10, 0.0]), Read::Local, "a slit");
+        for angle in [1e-10, 1e-9, 3e-9] {
+            assert_eq!(
+                read_of([1.0, angle, 0.0]),
+                Read::Local,
+                "a spike of {angle} rad"
+            );
+            assert_eq!(
+                read_of([1.0, -angle, 0.0]),
+                Read::Local,
+                "a slit of {angle} rad"
+            );
+        }
         for (d2, what) in [
             ([-1.0, -0.225e-9, 0.0], "convex by 0.9 ε at the far end"),
             ([-1.0, 0.225e-9, 0.0], "reflex by 0.9 ε"),
@@ -8219,6 +8221,10 @@ mod presentation_rows {
         assert!(
             parted_at_vertex_1(&floor, &quadrant, &[(1, 0)]),
             "a wall's quadrant on a reflex floor's edge"
+        );
+        assert!(
+            parted_near(&floor, &quadrant, &[(1, 0)], &[]),
+            "the same pair near the edge and not its end: the end is still the pieces' corner"
         );
         let wall = sector_at_vertex_1(PY, MX, PX, (3, 1));
         assert!(
