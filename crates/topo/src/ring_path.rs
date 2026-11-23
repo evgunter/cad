@@ -1454,7 +1454,7 @@ pub(crate) fn path_parity<T: Decide>(
                         !arrival && coplanar_apart(&p, conic, slack, band) == Ok(true)
                     };
                     let roots = match plane_roots(&p, &sec.plane, arrival, band) {
-                        Ok(PlaneMeet::Roots(roots)) => roots,
+                        Ok(PlaneMeet::Meets(roots)) => roots,
                         Ok(PlaneMeet::Along) => {
                             if let LoopArc::Conic(conic) = arc
                                 && !arrival
@@ -1524,7 +1524,7 @@ pub(crate) fn path_parity<T: Decide>(
                 ) => {
                     let e = geom::Line { origin: c, dir: a }.offset(p.circle.frame.origin());
                     let e = e.normalize();
-                    let PlaneMeet::Roots(roots) = plane_roots(
+                    let PlaneMeet::Meets(roots) = plane_roots(
                         &p,
                         // `ê` is square to the axis `a`, which seams the plane.
                         &geom::Frame::new(p.circle.frame.origin(), e, a),
@@ -2225,7 +2225,7 @@ fn plane_roots<T: Decide>(
     // crosses the plane at, `|n̂·τ̂|`: each in-span reading of the other
     // arc is levered by it.
     let (ca, cb) = (n.dot(p.circle.frame.u_ref()), n.dot(p.circle.frame.v_ref()));
-    Ok(PlaneMeet::Roots(
+    Ok(PlaneMeet::Meets(
         at.into_iter()
             .map(|m| {
                 let (st, ct) = m.t().sin_cos();
@@ -2236,13 +2236,13 @@ fn plane_roots<T: Decide>(
 }
 
 /// A meeting [`plane_roots`] read, with the slope the piece crosses at.
-type Crossing<T> = (InSpan<T>, T);
+type PieceMeeting<T> = (InSpan<T>, T);
 
 /// **What [`plane_roots`] read of the piece against the plane.**
 #[derive(Debug)]
 enum PlaneMeet<T> {
     /// Its meetings, each with its slope.
-    Roots(Vec<Crossing<T>>),
+    Meets(Vec<PieceMeeting<T>>),
     /// It runs along the plane or grazes it, read in the zero band: the
     /// premise [`misses_in_plane`] reads the pair under.
     Along,
