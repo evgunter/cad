@@ -279,3 +279,9 @@ cone cases of the P0 row), its far probe 23 of 24. The mirrored cone
 wedges that needed this PR's run-on and that plane together are
 embedded in thirteen of fourteen poses at both scalars
 (`work/embed/a-mirrored-cone-wedge-refuses-departure-at-its-apex-off-the-plain-frame.md`).
+
+**On the final tree** (the landing train at `3e433e6786`, with lune's
+poses and remeter's margin, merged in on 2026-11-23): 171 `injective::`
+unit rows; 90 body rows at the default ε, 1e-6 and 1e-12; the endpoint
+census green with `injective.rs` at 197 / 95; all 29 mutants die on the
+unit rows (the body rows were not run under a mutant on this tree).
