@@ -149,6 +149,7 @@ fn a_family_a_level_down_and_later_in_order_crosses_after() {
             distance: depth,
         },
     );
+    let doc = fixture::yielded(doc, c);
     let ev = run(&doc, None, &EvalOptions::default());
     let at = |id| ev.order.iter().position(|&n| n == id).unwrap();
     assert!(
@@ -288,7 +289,9 @@ fn row_part_in(
     name: &str,
     n: i64,
 ) -> editor_core::DocRef {
-    store.insert_part(row_part(name, n), Tol::witness()).0
+    store
+        .insert_family_part(row_part(name, n), Tol::witness())
+        .0
 }
 
 /// **A part is charged at its instance, warm or cold**: a part of 10

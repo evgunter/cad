@@ -760,7 +760,7 @@ fn the_analysis_doors_and_reports_speak_the_labelled_node() {
     assert_eq!(
         McRefusal::NominalDoesNotBuild {
             node: doc.spoken(extrude),
-            cause: "a cause".to_owned(),
+            cause: "a cause".into(),
         }
         .to_string(),
         format!(
@@ -771,7 +771,7 @@ fn the_analysis_doors_and_reports_speak_the_labelled_node() {
     assert_eq!(
         StackupRefusal::MeasureRefusedAtNominal {
             node: Some(doc.spoken(extrude)),
-            cause: "a cause".to_owned(),
+            cause: "a cause".into(),
         }
         .to_string(),
         format!("{plate} refuses at the nominal build, so there is no nominal to report: a cause")
@@ -780,7 +780,7 @@ fn the_analysis_doors_and_reports_speak_the_labelled_node() {
         StackupRefusal::LeafDiverged {
             leaf: Box::new(ParamBox::from_axes(Default::default())),
             node: Some(doc.spoken(extrude)),
-            cause: "a cause".to_owned(),
+            cause: "a cause".into(),
         }
         .to_string()
         .starts_with(&format!(
@@ -814,12 +814,14 @@ fn the_analysis_doors_and_reports_speak_the_labelled_node() {
         basis: MassBasis::Priced,
     };
     assert!(
-        mc.render(&doc).contains(&format!("  {plate}: mean 1 ")),
+        mc.render(&doc)
+            .to_string()
+            .contains(&format!("  {plate}: mean 1 ")),
         "{}",
         mc.render(&doc)
     );
     assert!(
-        histogram.render(&doc).starts_with(&format!(
+        histogram.render(&doc).to_string().starts_with(&format!(
             "ADVISORY leaf-mass histogram of the value of {plate} — "
         )),
         "{}",
@@ -827,8 +829,12 @@ fn the_analysis_doors_and_reports_speak_the_labelled_node() {
     );
     let renamed = set_label(doc, extrude, Some("lid"));
     let lid = format!("\"lid\" ({e})");
-    assert!(mc.render(&renamed).contains(&format!("  {lid}: mean")));
-    assert!(histogram.render(&renamed).contains(&lid));
+    assert!(
+        mc.render(&renamed)
+            .to_string()
+            .contains(&format!("  {lid}: mean"))
+    );
+    assert!(histogram.render(&renamed).to_string().contains(&lid));
     for (golden, full) in [
         (mc.serialize(), extrude.full().to_string()),
         (histogram.serialize(), body.full().to_string()),

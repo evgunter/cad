@@ -2,7 +2,7 @@
 id: offer
 kind: program
 title: OFFER — what the viewer offers a person to do about what it shows, and what it asks of the platform beneath it
-status: active
+status: ready
 opened: 2026-09-22
 group: gui/author
 prefix: offer/

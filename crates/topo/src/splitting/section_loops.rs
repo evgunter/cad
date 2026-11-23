@@ -129,6 +129,10 @@ fn chord_direction<T: Real>(body: &Body<T>, l: LoopKey, points: &[Point3<T>]) ->
 /// The principal direction (`u_ref`) of the section conic the cycle at
 /// `first` is, when that cycle is one edge on a section conic that is no
 /// placeholder ([`crate::chord_join::lone_site_placeholder`]).
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn whole_conic_principal<T: Real>(
     body: &Body<T>,
     first: crate::entity::HalfEdgeKey,
