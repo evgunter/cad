@@ -222,8 +222,8 @@ impl MassBudget {
     pub fn render<P: crate::ProfilePayload>(&self, doc: &crate::doc::Doc<P>) -> crate::Lines {
         let by = Speaker::of(doc);
         let percent = |m: &Result<f64, MeasureUnavailable>| match m {
-            Ok(_) => percent_said(m, by),
-            Err(e) => percent_said(&Err(e.respoken(doc)), by),
+            Ok(_) => percent(m, by, 0),
+            Err(e) => percent(&Err(e.respoken(doc)), by, 0),
         };
         vec![
             self.basis.sentence(|id| doc.spoken_var(id), by),
@@ -349,16 +349,16 @@ impl LeafHistogram {
             let (lo, hi) = row.enclosure;
             lines.push(sentence!(
                 "  ",
-                percent_column(&row.mass, by),
+                percent(&row.mass, by, 8),
                 format_args!(" of mass in [{lo}, {hi}]   {}", row.leaf)
             ));
         }
         lines.push(sentence!(
             "  ",
-            percent_column(&self.uncovered, by),
+            percent(&self.uncovered, by, 8),
             " NOT covered by any row (the drive's unresolved budget)"
         ));
-        crate::Lines(lines)
+        crate::Lines::new(lines)
     }
 }
 
@@ -629,23 +629,17 @@ pub(crate) fn mass_bits(m: &Result<f64, MeasureUnavailable>) -> String {
 /// Four decimal places: the tail of a ±3σ box is 0.27%, and a report
 /// that rounded it to 0.3% would be rounding away the number E2 exists
 /// to keep.
-pub(crate) fn percent(m: &Result<f64, MeasureUnavailable>) -> String {
-    percent_said(m, Speaker::TAG).to_string()
-}
-
-/// [`percent`], its refusal's variable mentioned by `by`.
-pub(crate) fn percent_said(m: &Result<f64, MeasureUnavailable>, by: Speaker<'_>) -> Sentence {
+///
+/// At least `width` characters wide: a number is right-aligned in the
+/// column, and a refusal, whose words are wider than any column, is
+/// written as it is, its variable mentioned by `by`.
+pub(crate) fn percent(
+    m: &Result<f64, MeasureUnavailable>,
+    by: Speaker<'_>,
+    width: usize,
+) -> Sentence {
     match m {
-        Ok(v) => Sentence::from(format!("{:.4}%", v * 100.0)),
+        Ok(v) => Sentence::from(format!("{:>width$}", format!("{:.4}%", v * 100.0))),
         Err(e) => sentence!("[no measure: ", crate::Said(e, by), "]"),
-    }
-}
-
-/// [`percent_said`] in a column eight wide: a number is right-aligned
-/// in it, and a refusal is never narrower than the column.
-fn percent_column(m: &Result<f64, MeasureUnavailable>, by: Speaker<'_>) -> Sentence {
-    match m {
-        Ok(v) => Sentence::from(format!("{:>8}", format!("{:.4}%", v * 100.0))),
-        Err(_) => percent_said(m, by),
     }
 }

@@ -2172,7 +2172,7 @@ mod tests {
         Rss, SensitivityOutcome, Unavailable, Unread, pass_opts, render_rss, stamped,
     };
     use crate::eval::{CancelToken, Evaluation, NodeResult, evaluate};
-    use crate::program::{ProfileDoc, ProfileProgram};
+    use crate::program::ProfileDoc;
     use crate::{VarId, VarName};
     use geom_core::{Dual64, Tol};
 
@@ -2292,86 +2292,11 @@ mod tests {
         );
     }
 
-    /// **The slab**: a unit square extruded by `depth`, measured cap to
-    /// cap — the thickness, whose derivative in `depth` is 1. The
+    /// **The slab** ([`crate::test_support::measured_slab`]): the
     /// document, `depth`, and the thickness.
     fn slab(depth: f64) -> (ProfileDoc, VarId, VarId) {
-        use crate::{CapEnd, DocEdit, Formula, Node, RoleSeg, SitedRef, StableName};
-        let tol = Tol::witness();
-        let push = |doc: &ProfileDoc, edit: DocEdit<ProfileProgram>| {
-            let applied = crate::apply(doc, &edit, tol).expect("the edit applies");
-            (applied.doc, applied.record.minted)
-        };
-        let doc = crate::doc::Doc::empty_derived("stackup-binding-slab", tol);
-        let (doc, _) = push(
-            &doc,
-            DocEdit::DeclareVar {
-                name: VarName::from_static("depth"),
-                def: crate::VarDecl::Free(crate::FreeVar::Continuous {
-                    dim: crate::Dimension::Length,
-                    value: depth,
-                    display_unit: crate::UnitSym::canonical_for(crate::Dimension::Length),
-                    distribution: Some(crate::Distribution::Uniform {
-                        lo: -1e-3,
-                        hi: 1e-3,
-                    }),
-                }),
-            },
-        );
-        let depth_var = doc.var_named("depth").expect("declared");
-        let (doc, profile) = push(
-            &doc,
-            DocEdit::InsertNode {
-                node: Box::new(Node::Profile(ProfileProgram {
-                    loops: vec![
-                        crate::LoopProgram::polygon([
-                            (0.0, 0.0),
-                            (1.0, 0.0),
-                            (1.0, 1.0),
-                            (0.0, 1.0),
-                        ])
-                        .expect("finite corners"),
-                    ],
-                    ids: Vec::new(),
-                    on: None,
-                })),
-                fresh: Vec::new(),
-            },
-        );
-        let (doc, block) = push(
-            &doc,
-            DocEdit::InsertNode {
-                node: Box::new(Node::Extrude {
-                    profile: profile.expect("minted").into(),
-                    distance: Formula::named(
-                        VarName::from_static("depth"),
-                        crate::Dimension::Length,
-                    ),
-                }),
-                fresh: Vec::new(),
-            },
-        );
-        let block = block.expect("minted");
-        let cap = |end| {
-            SitedRef::new(
-                block,
-                StableName {
-                    kind: crate::EntityKind::Face,
-                    node: block,
-                    path: vec![RoleSeg::Cap(end)],
-                },
-            )
-        };
-        let measured = crate::measure(
-            &doc,
-            &[crate::MeasurePrimitive::Distance {
-                a: cap(CapEnd::Start),
-                b: cap(CapEnd::End),
-            }],
-            tol,
-        )
-        .expect("the measure inserts");
-        (measured.doc, depth_var, measured.measured.outputs[0])
+        let slab = crate::test_support::measured_slab("stackup-binding-slab", depth);
+        (slab.doc, slab.depth, slab.thickness)
     }
 
     /// `doc`'s build-path `f64` evaluation, stamped with `doc`'s pin as
@@ -2404,6 +2329,53 @@ mod tests {
 
     fn pin(doc: &ProfileDoc) -> crate::ContentPin {
         crate::persist::content_pin(doc, Tol::witness()).expect("canonicalizes")
+    }
+
+    /// **A measure that refuses keeps the nodes its cause names as
+    /// mentions** ([`Evaluation::reading_spoken`], which every stackup
+    /// cause is read through: the nominal's refusal, a pass's entry,
+    /// the record's reading). The thickness's measure fails for an
+    /// empty operand naming the extrude; the record's refusal mentions
+    /// the extrude in the document, and so does the stackup's refusal
+    /// at the nominal said from it.
+    #[test]
+    fn a_refused_measures_cause_mentions_the_node_it_names() {
+        let slab = crate::test_support::measured_slab("stackup-cause-mentions", 1.0);
+        let mut built = record_run(&slab.doc);
+        let (measure, _) = built.read_port(slab.thickness).expect("a measure's output");
+        built.nodes.insert(
+            measure,
+            NodeResult::Failed(crate::eval::NodeError {
+                node: measure,
+                kind: crate::eval::NodeErrorKind::EmptyOperand { input: slab.block },
+                escalations: std::sync::Arc::new(Vec::new()),
+            }),
+        );
+        let mentions = |said: &crate::Sentence| {
+            said.mentions().any(|m| {
+                m.node().map(crate::SpokenNode::id) == Some(slab.block)
+                    && m.document() == Some(slab.doc.id())
+            })
+        };
+        let Err((Some(at), cause)) = super::measure_of(&slab.doc, &built, slab.thickness) else {
+            panic!("the thickness refuses");
+        };
+        assert_eq!(at, measure, "the refusing measure");
+        assert!(
+            mentions(&cause),
+            "the cause mentions the extrude: {cause:?}"
+        );
+        let record = Record::new(&slab.doc, &built, slab.thickness).expect("binds");
+        let RecordReading::Refused { cause: read } = record.reading() else {
+            panic!("the record refuses the thickness");
+        };
+        assert_eq!(read, cause, "the record reads the same cause");
+        let refusal = super::StackupRefusal::MeasureRefusedAtNominal {
+            node: Some(slab.doc.spoken(at)),
+            cause,
+        };
+        let said = crate::Said(&refusal, crate::Speaker::of(&slab.doc)).sentence();
+        assert!(mentions(&said), "said, the refusal keeps it: {said:?}");
     }
 
     /// **A pass whose measured value is perturbed refuses as drift**,

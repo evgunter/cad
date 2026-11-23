@@ -459,10 +459,6 @@ impl core::fmt::Display for PersistError {
 impl Staged for PersistError {
     const STAGE: &'static str = "persist";
 
-    fn fmt_labelled(&self, f: &mut crate::Sentence, _: Labels) -> core::fmt::Result {
-        self.fmt_said(f, crate::Speaker::TAG)
-    }
-
     fn say_labelled(
         &self,
         f: &mut crate::Sentence,

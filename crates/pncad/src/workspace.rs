@@ -239,10 +239,6 @@ impl core::fmt::Display for WorkspaceError {
 impl Staged for WorkspaceError {
     const STAGE: &'static str = "workspace";
 
-    fn fmt_labelled(&self, f: &mut editor_core::Sentence, labels: Labels) -> core::fmt::Result {
-        self.say_labelled(f, labels, Speaker::TAG)
-    }
-
     fn say_labelled(
         &self,
         f: &mut editor_core::Sentence,

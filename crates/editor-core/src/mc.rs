@@ -471,19 +471,8 @@ pub fn monte_carlo(
     if let Some(stopped) = crate::Stopped::of(nominal.outcome) {
         return Err(McRefusal::Stopped(stopped));
     }
-    if let Some(standing) = nominal
-        .order
-        .iter()
-        .find_map(|&id| nominal.usable(id).err())
-    {
-        let node = standing.node();
-        let cause = nominal
-            .node_error(node)
-            .map_or_else(|| standing.spoken(doc), |e| e.kind_spoken(doc));
-        return Err(McRefusal::NominalDoesNotBuild {
-            node: doc.spoken(node),
-            cause,
-        });
+    if let Some((node, cause)) = crate::drive::first_unusable(doc, &nominal) {
+        return Err(McRefusal::NominalDoesNotBuild { node, cause });
     }
 
     // Every varying parameter must be sampleable BEFORE any sampling

@@ -1865,12 +1865,14 @@ mod tests {
         );
     }
 
-    /// **A sentence keeps each node as a mention, stamped with the
-    /// document of the speaker that said it**, and spells it once: a
-    /// labelled node by its label (escaped) and tag with no kind beside
-    /// it, an unlabelled one by its kind and tag, an id the document
-    /// does not hold as `node` and the tag. Said by tag, the mention
-    /// carries no document; said from a hold, the hold's.
+    /// **A line of a report holds no break**: [`super::Lines::new`]
+    /// refuses one, so a report's lines are the lines its text reads.
+    #[test]
+    #[should_panic(expected = "a line of a report holds a line break")]
+    fn a_report_line_that_holds_a_break_is_refused() {
+        let _ = super::Lines::new(vec![crate::Sentence::from("one\ntwo")]);
+    }
+
     /// **A report's lines keep their mentions**: a sentence split at its
     /// breaks is a line per break, each mention on the line it was
     /// written on, still stamped with its document; the lines' text is
@@ -1941,6 +1943,12 @@ mod tests {
         );
     }
 
+    /// **A sentence keeps each node as a mention, stamped with the
+    /// document of the speaker that said it**, and spells it once: a
+    /// labelled node by its label (escaped) and tag with no kind beside
+    /// it, an unlabelled one by its kind and tag, an id the document
+    /// does not hold as `node` and the tag. Said by tag, the mention
+    /// carries no document; said from a hold, the hold's.
     #[test]
     fn a_mention_carries_its_node_and_the_speakers_document_and_spells_once() {
         let tol = Tol::witness();

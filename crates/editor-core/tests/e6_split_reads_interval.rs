@@ -270,8 +270,9 @@ fn a_read_through_a_definition_counts() {
 }
 
 /// The human form says the node failed, with its cause, on the line
-/// under its own class's count: the node and each node of the cause
-/// mentioned in the driven document `doc`.
+/// under its own class's count, the node mentioned in the driven
+/// document `doc`. (The loft's cause names no other node; a cause that
+/// does is `drive::tests::a_failed_leafs_cause_mentions_the_node_it_names`.)
 fn assert_spoken_under_its_class(
     lines_said: &editor_core::Lines,
     leaves: usize,
@@ -306,13 +307,6 @@ fn assert_spoken_under_its_class(
             .is_some_and(|m| m.node().is_some() && m.document() == Some(doc)),
         "the line mentions its node in the driven document: {line:?}"
     );
-    for mention in cause.mentions() {
-        assert_eq!(mention.document(), Some(doc), "the cause's {mention:?}");
-        assert!(
-            line.contains(&mention),
-            "the line keeps the cause's {mention:?}"
-        );
-    }
 }
 
 /// **A deciding node that reads no variable of the box refuses the

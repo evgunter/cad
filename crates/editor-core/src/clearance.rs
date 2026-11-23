@@ -1734,16 +1734,24 @@ impl LeafFold {
         let _ = writeln!(
             s,
             "    {} of the measure holds",
-            crate::report::percent(&m.holds)
+            crate::report::percent(&m.holds, crate::Speaker::TAG, 0)
         );
-        let _ = writeln!(s, "    {} violated", crate::report::percent(&m.violated));
+        let _ = writeln!(
+            s,
+            "    {} violated",
+            crate::report::percent(&m.violated, crate::Speaker::TAG, 0)
+        );
         for (class, v) in &m.refused {
-            let _ = writeln!(s, "    {} refused ({class})", crate::report::percent(v));
+            let _ = writeln!(
+                s,
+                "    {} refused ({class})",
+                crate::report::percent(v, crate::Speaker::TAG, 0)
+            );
         }
         let _ = writeln!(
             s,
             "    {} the DRIVE never certified — this certificate says nothing about it",
-            crate::report::percent(&m.uncertified_by_the_drive)
+            crate::report::percent(&m.uncertified_by_the_drive, crate::Speaker::TAG, 0)
         );
         let _ = crate::say!(&mut lines, s);
         lines.lines()

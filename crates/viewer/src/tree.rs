@@ -534,7 +534,7 @@ pub enum Certified {
     /// `sentence` says so, with the recourse.
     OutOfBudget {
         /// What the row says under it.
-        sentence: String,
+        sentence: pncad::document::Sentence,
     },
     /// The answer, in plain numbers. At `f64` it is the third state,
     /// naming the lane that certifies.
@@ -639,7 +639,7 @@ impl Cleared {
                 | O::Unanswered { sentence },
             ) => Some(sentence.clone()),
             Certified::Stopped => Some(CERTIFY_STOPPED.into()),
-            Certified::OutOfBudget { sentence } => Some(sentence.as_str().into()),
+            Certified::OutOfBudget { sentence } => Some(sentence.clone()),
             Certified::Certifying
             | Certified::Answered(O::Holds | O::Within(_) | O::Violated(_) | O::Exceeded) => None,
         }

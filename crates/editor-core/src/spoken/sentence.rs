@@ -338,7 +338,7 @@ impl Sentence {
         if lines.last().is_some_and(Sentence::is_empty) {
             lines.pop();
         }
-        Lines(lines)
+        Lines::new(lines)
     }
 
     /// Writes `other` after it, its mentions as they were.
@@ -438,7 +438,26 @@ impl Sentence {
 /// line followed by its break — never inside a sentence being said
 /// ([`flattening`]).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct Lines(pub Vec<Sentence>);
+pub struct Lines(Vec<Sentence>);
+
+impl Lines {
+    /// `lines`, one per line. A line's words hold no break — a break
+    /// inside one would be a line the report does not count, and its
+    /// text would not be its lines' — and a debug assertion (on in every
+    /// profile) refuses one; a report written as one sentence is split
+    /// with [`Sentence::lines`].
+    #[must_use]
+    pub fn new(lines: Vec<Sentence>) -> Self {
+        debug_assert!(
+            lines.iter().flat_map(Sentence::runs).all(|run| match run {
+                Run::Words(words) => !words.contains('\n'),
+                Run::Mention(_) => true,
+            }),
+            "a line of a report holds a line break: {lines:?}"
+        );
+        Self(lines)
+    }
+}
 
 impl core::ops::Deref for Lines {
     type Target = [Sentence];
@@ -468,7 +487,7 @@ impl<'a> IntoIterator for &'a Lines {
 
 impl FromIterator<Sentence> for Lines {
     fn from_iter<I: IntoIterator<Item = Sentence>>(lines: I) -> Self {
-        Self(lines.into_iter().collect())
+        Self::new(lines.into_iter().collect())
     }
 }
 
