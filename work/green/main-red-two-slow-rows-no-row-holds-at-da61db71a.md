@@ -1,7 +1,7 @@
 ---
 id: main-red-two-slow-rows-no-row-holds-at-da61db71a
 kind: issue
-title: Main red: predicate_name_coverage at every eps and the cones-apex rows at 1e-6, red on da61db71a with no row holding them
+title: Main red, held by no row: predicate_name_coverage, the cones-apex rows at 1e-6, and the ring path's re-forked planar sense flip
 status: open
 opened: 2026-11-23
 priority: P0
@@ -19,7 +19,9 @@ Found by DOCTAIL's `main-red-the-identity-turns-decisions-moved-the-m10-slow-row
   The closed `main-red-predicate-name-coverage-step-import-decides-names-and-runs-no-roster` had another cause. geom-brep's `recourse_roster` also names `PC_PARALLEL_GAP`, as "a site names the const, not declared a carrier" (`main-red-geom-breps-recourse-roster-misses-three-ssi-enclose-cone-sites`). So one change may have moved both.
 - **`sweep` `a_plane_through_a_cones_apex::a_plane_through_a_{30,45}_degree_cones_apex_cuts_its_closed_forms`** (`a_plane_through_a_cones_apex.rs`, the assertion near :218). Red at 1e-6 only. At α = 30° and 45°, θ = 0, tilt 0.001, normal 1·n, the plane refuses `Reduce(CrossingEscalated { edge: EdgeKey(6v1), fault: Method { door: PlaneCrossing, fault: Unsettled(Tangency) } })`, where the row pins `ConsecutiveOnSectors`. The default ε is green.
 
-Neither was bisected.
+- **`topo` `face_normal::tests::the_planar_sense_flip_lives_in_one_place`** (`face_normal.rs`, the assertion near :1425). Red on `origin/main` after `da61db71a`, at every ε, because it is a source scan. It reports: "`crates/topo/src/ring_path.rs` mints an `OutwardNormal` from a plane's chart normal — the planar sense flip has been re-forked out of face_normal.rs". `ring_path.rs` arrived with GERM's ring-path work (`2fee1eda6e`, "the ring path's plane-meet names keep clear of the boolean engine's"). The test is green on `fa42c60`. EXPORT's open `main-red-one-record-folds-the-face-sense-by-hand` is a sibling census (`no_source_file_folds_the_bit_by_hand`, step-import's `one_record.rs`), not this site.
+
+Neither of the first two was bisected.
 
 **Also seen, on a row GREEN already holds:** `sweep` `germ_tilted_rod::other_spins_and_steeper_tilts_refuse_at_their_germs` is red on `fa42c60`, on `ccabcfb` and on `da61db71a` alike. But its β 0.5, spin 0.5 refusal reads differently:
 - `Euler(RebasedCarrier { edge: EdgeKey(15v1), error: PeriodicView(Span { … }) })` on `fa42c60` and `ccabcfb`;

@@ -124,6 +124,20 @@ None is touched here. The row that holds each is named where one is open.
   - **sweep's `a_plane_through_a_cones_apex` 30° and 45°:** no open row
     named them; they are filed on the same GREEN row.
 
+- **Red at 1e-12 only:** 18 rows, all red on `fa42c60` at 1e-12. They are
+  sweep's mixed-chain fillets, `parallel_cylinder_join`, the
+  `section_ellipse_seam_poses`, `torus_touch_off_faces`, `a_ring_on_a_cone_face`,
+  `spheres_crossing_off_every_edge`, `curved_notch_pinch` and
+  `verbs_germarms2_interval`; topo's `a_seamless_pipe_cut_by_an_oblique_plane_measures`
+  ×2; and editor-core's `union_fold_face_face_touch`. Each is named on an
+  open row: GREEN's `main-red-seven-slow-and-1e-12-rows-…` and
+  `…found-red-on-their-merge-base…`, ONEHOME's
+  `pr-7131s-frame-cost-at-1e-12-…` and `main-red-a-rod-tipped-…`, BAND's,
+  ORBIT's and REFS' rows.
+- **Red after `da61db71a`:** topo's
+  `face_normal::tests::the_planar_sense_flip_lives_in_one_place`, a
+  `ring_path.rs` site. It is filed on the same GREEN row.
+
 ## The CI gap
 
 7434's gate ran none of these rows. They sit in the `ci` profile's slow
