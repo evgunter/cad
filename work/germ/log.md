@@ -1779,3 +1779,16 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - A single FULL review is dispatched with an arm-free brief.
   - The ring-path consumer is answered by the PR: the `ArcLoop` copy is filed as `the-ring-paths-arcloop-copies-the-co-surface-arms-edge-section`.
   - The head's lint is red only on main's `payload-rung-sweep` (`NodeErrorClass`, since PR 7458).
+- 2026-11-23 09:00 — **PR 7538 review adjudicated: APPROVE-WITH-FIXES.**
+  - Every claim held under execution: the bisect at `ab72f72623` / `2cc97f1ce7`, the exact gap −5.6845e-5 m in band, D7 with no fork, both mutants red, and the slow set 486/486 at three ε.
+  - The fix pass is sent back to the lane. It covers:
+    - a synthetic witness for the lost #4950 case, which the reviewer demonstrated in the snapped-tangency fixture;
+    - a stale citation on the importgate nist row;
+    - a vacuous assertion;
+    - a row name that says more than it asserts;
+    - an unguarded "five snaps" measurement;
+    - stale prose;
+    - a row title that blames the wrong commit;
+    - the "sixth fillet" wording.
+  - Class, to be filed on importgate's slate: a moved corpus refusal needs 3–4 hand edits (the gap and the class are spelled in tier_gate, snap and two `WILD_REFUSALS` tables).
+  - **Friction / hazard (class):** worktrees that share one `CARGO_TARGET_DIR` reuse each other's artifacts when the sources' mtimes predate the last build. A mutant "passed" in 0.12 s without compiling. Lanes use their own target dirs, as the briefs already say; a reviewer running mutants must also confirm the `Compiling <crate> (<its path>)` line.
