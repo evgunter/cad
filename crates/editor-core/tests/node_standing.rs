@@ -505,8 +505,10 @@ const READERS: [(&str, usize, &str); 15] = [
     ),
     (
         "crates/editor-core/src/eval/mod.rs",
-        35,
-        "the home: the evaluator writes every result, and `usable_in` is the one ladder; the \
+        41,
+        "the home: the evaluator writes every result, and `usable_in` is the one ladder; \
+         `eval_node` writes what a node left in the symbolic session onto the result it made, \
+         and hands the result map to `upstream_records`, which reads through `usable_in`; the \
          test-support hand-built evaluation takes its result map whole; the solve reads each \
          placement's answer off the evaluation (`SolvedPoses::of`): its value's motion, or the \
          mate fault a FAILED placement carries, a standing and not a value (a node's space is \

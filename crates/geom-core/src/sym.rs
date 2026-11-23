@@ -2484,7 +2484,7 @@ struct NodeState {
     registry: IdMap<SymId>,
     /// The registrations made inside this scope, in the order made, as
     /// the registry recorded them: what [`NodeRecord`] carries.
-    registered: Vec<(SymId, SymId)>,
+    identities: Vec<(SymId, SymId)>,
     /// **The door-reduced forms** ([`SymRules::registered`]): the early
     /// walk with `registry` applied, a memo beside the early one so
     /// that a decision the early form answers never pays for the
@@ -2527,7 +2527,7 @@ impl NodeState {
 /// under one content key hold equal records.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct NodeRecord {
-    registered: Vec<(SymId, SymId)>,
+    identities: Vec<(SymId, SymId)>,
     counts: SymCounts,
     roots: Vec<SymId>,
 }
@@ -2544,7 +2544,7 @@ impl NodeRecord {
     /// How many identities the node registered.
     #[must_use]
     pub fn registrations(&self) -> usize {
-        self.registered.len()
+        self.identities.len()
     }
 }
 
@@ -2554,7 +2554,7 @@ impl Session {
     /// the registry first, and dropped where the two are already one
     /// node or the record would close a cycle. Answers whether the
     /// registry changed.
-    fn adopt(&mut self, a: SymId, b: SymId) -> Option<(SymId, SymId)> {
+    fn record_identity(&mut self, a: SymId, b: SymId) -> Option<(SymId, SymId)> {
         let (a, b) = (self.alias(a), self.alias(b));
         if a == b || self.reaches(b, a) {
             return None;
@@ -2603,16 +2603,16 @@ impl NodeGuard {
             // node: what it registered, the node has registered. The
             // root scope is no node, and reads nothing a node stated.
             if !sess.outer.is_empty() {
-                for &(a, b) in &inner.registered {
-                    if let Some(recorded) = sess.adopt(a, b) {
-                        sess.node.registered.push(recorded);
+                for &(a, b) in &inner.identities {
+                    if let Some(recorded) = sess.record_identity(a, b) {
+                        sess.node.identities.push(recorded);
                     }
                 }
             }
             let mut roots: Vec<SymId> = inner.plain_roots.keys().copied().collect();
             roots.sort_unstable_by_key(|id| id.bits());
             Some(NodeRecord {
-                registered: inner.registered,
+                identities: inner.identities,
                 counts: SymCounts {
                     frozen: 0,
                     ..inner.counts
@@ -2647,8 +2647,8 @@ pub(crate) fn node_scope<'a, R>(
         let outer = core::mem::replace(&mut sess.node, fresh);
         sess.outer.push(outer);
         for record in upstream {
-            for &(a, b) in &record.registered {
-                let _ = sess.adopt(a, b);
+            for &(a, b) in &record.identities {
+                let _ = sess.record_identity(a, b);
             }
         }
         Some(NodeGuard {
@@ -4930,10 +4930,10 @@ impl<T: Real> Sym<T> {
             }
             // Only the DOOR memos can hold a form the new record would
             // have changed, the first attempt's and every retry's
-            // (`Session::adopt` clears them); the plain and early memos
+            // (`Session::record_identity` clears them); the plain and early memos
             // never consult the registry.
             sess.node.registry.insert(a, b);
-            sess.node.registered.push((a, b));
+            sess.node.identities.push((a, b));
             sess.node.forms_door.clear();
             for r in &mut sess.node.retries {
                 r.door.clear();

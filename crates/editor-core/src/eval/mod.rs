@@ -5257,12 +5257,9 @@ fn upstream_records<T: topo::AtRestPolicy + Decide>(
     id: RecipeNodeId,
     results: &BTreeMap<RecipeNodeId, NodeResult<T>>,
 ) -> Vec<Arc<geom_core::sym::NodeRecord>> {
-    // No node of the results registered anything: at every scalar but
-    // a symbolic one, and in a document with no registrant.
-    if !results
-        .values()
-        .any(|r| r.value().is_some_and(|v| v.sym.registrations() > 0))
-    {
+    // No session, no record: every scalar but a symbolic one, and a
+    // symbolic one outside a replay.
+    if !geom_core::sym::session_installed() {
         return Vec::new();
     }
     let mut seen: std::collections::BTreeSet<RecipeNodeId> = std::collections::BTreeSet::new();
@@ -5276,7 +5273,9 @@ fn upstream_records<T: topo::AtRestPolicy + Decide>(
         }
     }
     seen.into_iter()
-        .filter_map(|input| results.get(&input)?.value())
+        .filter_map(|input| {
+            usable_in(results, input, || NodeStanding::NotInDocument { node: input }).ok()
+        })
         .filter(|v| v.sym.registrations() > 0)
         .map(|v| Arc::clone(&v.sym))
         .collect()
