@@ -165,17 +165,19 @@ fn a_partial_cone_refuses_only_inside_its_ball() {
         "a point 50 m up is off the face"
     );
     let geos = [(face, geo)];
-    let ray = |z: f64| geom::Ray::new(Point3::new(-200.0, 0.3, z), UnitVec3::exact_x());
-    let arm = geom_core::test_support::fixture_lever(500.0);
+    let ray = |z: f64| geom::Ray::new(Point3::new(-2.0 * z - 1.0, 0.3, z), UnitVec3::exact_x());
+    let arm = |z: f64| geom_core::test_support::fixture_lever(4.0 * z + 2.0);
     assert!(
-        ray_crossings(&body, &geos, &ray(50.0), arm, band(), SCHEDULE_ROWS).is_ok(),
+        ray_crossings(&body, &geos, &ray(50.0), arm(50.0), band(), SCHEDULE_ROWS).is_ok(),
         "a ray past the ball crosses"
     );
+    let through = ray_crossings(&body, &geos, &ray(1.0), arm(1.0), band(), SCHEDULE_ROWS);
     assert!(
         matches!(
-            ray_crossings(&body, &geos, &ray(1.0), arm, band(), SCHEDULE_ROWS),
+            through,
             Err(RayFault::Blocked(PointInSolidError::PartialConeFace { .. }))
         ),
-        "a ray through the face is blocked"
+        "a ray through the face is blocked: {:?}",
+        through.err()
     );
 }
