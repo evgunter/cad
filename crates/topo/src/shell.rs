@@ -382,6 +382,7 @@
 //! bodies OTHER producers hand the same predicate, which is where
 //! check 9 does its work.
 
+use geom_core::UnitVec3;
 use geom_core::k_stats::{decide, gate_measured};
 use geom_core::ladder::{Answering, Climb, FreeOf, Rung, Undecided, argmin_decided, climb};
 use geom_core::{
@@ -4980,7 +4981,7 @@ fn walls_cross<T: Decide>(
     }
     // The point of `L` nearest `a`'s box centre, so every side
     // and position below is a short difference.
-    let d = cross.normalize();
+    let d = UnitVec3::squared(cross);
     let k = a.normal.dot(b.normal);
     let q = a.lo.mid(a.hi);
     let r_a = a.normal.dot(a.origin - q);
@@ -5204,7 +5205,7 @@ impl<T: Decide> MovedWall<T> {
             Sign::Zero => zero_up,
             Sign::Negative => false,
         };
-        let m = self.normal.cross(line.dir);
+        let m = self.normal.cross(line.dir.get());
         let mut sides: Vec<(VertexKey, bool)> = Vec::new();
         // A vertex is decided once, so every edge meeting it reads the
         // same side, and an undecided vertex escalates. A point inside an
@@ -5832,7 +5833,7 @@ mod tests {
             disc.cut(
                 geom::Line {
                     origin: Point3::new(0.0, 0.6, 0.0),
-                    dir: x,
+                    dir: geom::stated_direction(x),
                 },
                 band,
             )
@@ -5844,7 +5845,7 @@ mod tests {
             disc.cut(
                 geom::Line {
                     origin: Point3::new(0.0, 1.5, 0.0),
-                    dir: x,
+                    dir: geom::stated_direction(x),
                 },
                 band,
             )
@@ -5873,7 +5874,7 @@ mod tests {
             half.cut(
                 geom::Line {
                     origin: Point3::new(0.3, 0.0, 0.0),
-                    dir: y,
+                    dir: geom::stated_direction(y),
                 },
                 band,
             )
@@ -5885,7 +5886,7 @@ mod tests {
             half.cut(
                 geom::Line {
                     origin: Point3::new(0.3, 0.0, 0.0),
-                    dir: -y,
+                    dir: geom::stated_direction(-y),
                 },
                 band,
             )
@@ -5911,7 +5912,7 @@ mod tests {
                 .cut(
                     geom::Line {
                         origin: Point3::new(1.0, 0.0, 0.0),
-                        dir: y,
+                        dir: geom::stated_direction(y),
                     },
                     band,
                 )
@@ -6426,7 +6427,7 @@ mod tests {
                     .cut(
                         geom::Line {
                             origin: Point3::new(c, 0.0, 0.0),
-                            dir: up,
+                            dir: geom::stated_direction(up),
                         },
                         band,
                     )
@@ -6442,7 +6443,7 @@ mod tests {
                 .cut(
                     geom::Line {
                         origin: Point3::new(1.5, 0.0, 0.0),
-                        dir: up,
+                        dir: geom::stated_direction(up),
                     },
                     band,
                 )
@@ -6558,7 +6559,7 @@ mod tests {
                     .cut(
                         geom::Line {
                             origin: Point3::new(d, c, 0.0),
-                            dir: Vec3::new(0.0, 0.0, 1.0),
+                            dir: geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
                         },
                         band,
                     )

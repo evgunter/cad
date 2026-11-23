@@ -60,7 +60,7 @@ fn lines(l1: &Curve3<f64>, l2: &Curve3<f64>) -> [(P3, P3); 2] {
         let Curve3::Line(geom::Line { origin, dir }) = *l else {
             panic!("a line outcome carries a line, got {l:?}");
         };
-        (p3(origin), w3(dir))
+        (p3(origin), w3(dir.get()))
     })
 }
 
