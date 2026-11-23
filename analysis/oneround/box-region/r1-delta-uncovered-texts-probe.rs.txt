@@ -1,0 +1,22 @@
+// Reviewer r1 delta probe, appended to crates/topo/src/tier3_tests.rs at
+// 1e81f303 and reverted after the run: what the gate and the checks say
+// of the coplanar pillow's split face carrying each surface below.
+#[test]
+fn r1_delta_probe_uncovered_texts() {
+    let tol = Tol::witness();
+    let cases: Vec<(&str, Surface<f64>)> = vec![
+        ("sphere -2", sphere(-2.0)), ("sphere 0", sphere(0.0)), ("sphere NaN", sphere(f64::NAN)),
+        ("torus r=0", torus(2.0, 0.0)), ("torus r=-0.5", torus(2.0, -0.5)), ("torus R=-1", torus(-1.0, 0.5)),
+        ("torus r NaN", torus(2.0, f64::NAN)), ("cone 2.0", cone(2.0)), ("cone NaN", cone(f64::NAN)),
+        ("cylinder -1", cylinder(-1.0)), ("cylinder NaN", cylinder(f64::NAN)),
+        ("plane zero normal", plane(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0))),
+    ];
+    for (what, s) in cases {
+        let (mut body, split) = coplanar_pillow(tol);
+        body.set_face_surface_unvouched_for_tests(split.face, FaceSurface::New { surface: s, sense: true }).unwrap();
+        let gate = validate_geometric(&body, tol).err().unwrap_or_default();
+        let checks = crate::validate::tier3_local_checks(&body, tol, None).0;
+        println!("R1 {what}: GATE {:?}", gate.iter().map(|e| format!("{e}")).collect::<Vec<_>>());
+        println!("R1 {what}: CHECKS {:?}", checks.iter().map(|e| format!("{e}")).collect::<Vec<_>>());
+    }
+}

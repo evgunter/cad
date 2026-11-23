@@ -1,0 +1,230 @@
+//! Reviewer r1's delta-read probes for PR 7225 at `1e81f303`. Each
+//! prints what it measures; none pins a contract the author owes.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::print_stdout)]
+
+use core::f64::consts::PI;
+use geom_core::{Band, Point2, RigidMotion, Tol, UnitVec3, Vec3};
+use sweep::Revolution;
+use sweep::test_support::revolved_about_y;
+
+fn class(errors: &[topo::ValidationError]) -> String {
+    match errors {
+        [topo::ValidationError::OutsideSessionBox { margin }] => {
+            format!("Outside({})", margin.readable_below_zero())
+        }
+        [topo::ValidationError::SessionBoxUnshown { margin }] => {
+            format!("Unshown({})", margin.readable_below_zero())
+        }
+        [topo::ValidationError::SessionBoxUncovered { .. }] => "Uncovered".into(),
+        other => format!(
+            "Other({})",
+            other.iter().map(|e| format!("{e}")).collect::<Vec<_>>().join(" | ").chars().take(160).collect::<String>()
+        ),
+    }
+}
+
+fn gate(body: &topo::Body<f64>, tol: Tol) -> String {
+    match topo::validate_geometric(body, tol) {
+        Ok(_) => "Ok".into(),
+        Err(e) => class(&e),
+    }
+}
+
+fn door(home: &topo::Body<f64>, at: &RigidMotion<f64>, tol: Tol) -> String {
+    match topo::session_box_at(home, at, tol) {
+        Ok(()) => "Ok".into(),
+        Err(topo::MoveError::NotFinished(found)) => class(found.as_slice()),
+        Err(other) => format!("Map({other:?})"),
+    }
+}
+
+fn unit(v: Vec3<f64>, tol: Tol) -> UnitVec3<f64> {
+    UnitVec3::new(v, "probe axis", Band::linear(tol).unwrap()).unwrap()
+}
+
+fn torus_y(big: f64, r: f64, rev: Revolution<f64>, tol: Tol) -> topo::Body<f64> {
+    revolved_about_y(
+        vec![(Point2::new(big - r, 0.0), 1.0), (Point2::new(big + r, 0.0), 1.0)],
+        rev,
+        tol,
+    )
+}
+
+/// C1 oracle, re-run on the delta head, now also counting in-box
+/// bodies refused as a limit.
+#[test]
+fn r1d_analytic_reach_oracle() {
+    let tol = Tol::witness();
+    let bodies: Vec<(&str, topo::Body<f64>, f64, f64)> = vec![
+        ("torus_row", revolved_about_y(vec![(Point2::new(450.0, -400.0), 1.0), (Point2::new(450.0, 400.0), 1.0)], Revolution::Full, tol), 450.0, 400.0),
+        ("torus_y", torus_y(300.0, 100.0, Revolution::Full, tol), 300.0, 100.0),
+        ("thin_torus", torus_y(600.0, 20.0, Revolution::Full, tol), 600.0, 20.0),
+        ("ball_y", sweep::test_support::ball_poled_y::<f64>(50.0, Vec3::new(0.0, 0.0, 0.0), tol), 0.0, 50.0),
+    ];
+    let mut seed = 0x2545F4914F6CDD1Du64;
+    let mut rnd = move || {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        (seed >> 11) as f64 / (1u64 << 53) as f64
+    };
+    let mut tally = std::collections::BTreeMap::<String, usize>::new();
+    for (what, home, big, r) in &bodies {
+        for _ in 0..60 {
+            let axis = Vec3::new(rnd() - 0.5, rnd() - 0.5, rnd() - 0.5);
+            let angle = rnd() * PI;
+            let turn = RigidMotion::rotation(unit(axis, tol), angle).unwrap();
+            let a = turn.to_affine().transform_vec(Vec3::new(0.0, 1.0, 0.0));
+            let a = a * (1.0 / a.norm());
+            let k = (rnd() * 3.0) as usize % 3;
+            let e = [Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 1.0)][k];
+            let s: f64 = (1.0_f64 - a.dot(e).powi(2)).max(0.0).sqrt();
+            let half = big * s + r;
+            let d = [-0.5, -0.01, 0.01, 0.5, 3.0][(rnd() * 5.0) as usize % 5];
+            let c = e * (1000.0 + d - half);
+            let at = RigidMotion::translation(c).unwrap().compose(turn).unwrap();
+            let image = topo::transform_rigid(home, &at).unwrap();
+            let (g, pd) = (gate(&image, tol), door(home, &at, tol));
+            let gk = g.split('(').next().unwrap().to_string();
+            let dk = pd.split('(').next().unwrap().to_string();
+            let truth = if d > 0.0 { "past" } else { "inside" };
+            *tally.entry(format!("{what} {truth} gate={gk}")).or_default() += 1;
+            if gk != dk {
+                println!("DOOR!=GATE {what} d {d}: gate {g} door {pd}");
+            }
+            if (d > 0.0 && gk == "Ok") || (d < 0.0 && gk == "Outside") {
+                println!("WRONG {what} axis {a:?} e{k} d {d}: gate {g} door {pd}");
+            }
+        }
+    }
+    println!("tally {tally:#?}");
+}
+
+/// A quarter-turn torus (R = 300, r = 100) whose missing three
+/// quarters of tube would cross the box: the face is inside, its
+/// tube past. Admitted only if the torus face reads a window.
+#[test]
+fn r1d_a_partial_torus_reads_its_window() {
+    let tol = Tol::witness();
+    for (what, rev) in [("quarter", Revolution::Partial(PI / 2.0)), ("half", Revolution::Partial(PI)), ("three quarters", Revolution::Partial(1.5 * PI))] {
+        let home = torus_y(300.0, 100.0, rev, tol);
+        for cx in [-650.0, -580.0] {
+            let at = RigidMotion::translation(Vec3::new(cx, 0.0, 0.0)).unwrap();
+            let image = topo::transform_rigid(&home, &at).unwrap();
+            println!("R1D partial torus {what} at x={cx}: gate {} door {}", gate(&image, tol), door(&home, &at, tol));
+        }
+    }
+}
+
+/// The conical-ended football (spindle R = 30, r = 50): its equator,
+/// interior to the spindle face, 30 m past the box along z. The new
+/// limit sentence.
+#[test]
+fn r1d_spindle_past_reads_the_new_sentence() {
+    let tol = Tol::witness();
+    let (big, r, half, tip) = (30.0_f64, 50.0_f64, 1.2_f64, 80.0_f64);
+    let (rho, z) = (big + r * half.cos(), r * half.sin());
+    let home = revolved_about_y(
+        vec![
+            (Point2::new(0.0, -tip), 0.0),
+            (Point2::new(rho, -z), (half / 2.0).tan()),
+            (Point2::new(rho, z), 0.0),
+            (Point2::new(0.0, tip), 0.0),
+        ],
+        Revolution::Full,
+        tol,
+    );
+    let at = RigidMotion::translation(Vec3::new(0.0, 0.0, 950.0)).unwrap();
+    let image = topo::transform_rigid(&home, &at).unwrap();
+    let said = topo::validate_geometric(&image, tol).err().map(|e| e.iter().map(|x| x.to_string()).collect::<Vec<_>>());
+    println!("R1D football 30 m past: {said:?}");
+}
+
+/// The near-axial torus, my first review's probe, on the delta head.
+#[test]
+fn r1d_nearly_axial_torus() {
+    let tol = Tol::witness();
+    let (big, r) = (300.0_f64, 100.0_f64);
+    let home = torus_y(big, r, Revolution::Full, tol);
+    for theta in [1e-3, 1e-5, 1e-6, 1e-7, 1e-9, 1e-12] {
+        let turn = RigidMotion::rotation(unit(Vec3::new(1.0, 0.0, 0.0), tol), theta).unwrap();
+        let top = r + big * theta.sin();
+        let past = 0.5 * (top - r);
+        let cy = 1000.0 + past - top;
+        let at = RigidMotion::translation(Vec3::new(0.0, cy, 0.0)).unwrap().compose(turn).unwrap();
+        let image = topo::transform_rigid(&home, &at).unwrap();
+        println!("R1D theta {theta:e}: past by {past:.3e}; gate {} ; door {}", gate(&image, tol), door(&home, &at, tol));
+    }
+}
+
+/// A lofted cylinder (two semicircle sections, skinned straight): its
+/// walls are splines, its caps planes bounded by the sections' edges.
+/// Moved so its rim stands just inside the box across each cap's plane.
+#[test]
+fn r1d_a_lofted_cylinder_at_the_wall() {
+    let tol = Tol::witness();
+    let home = sweep::test_support::lofted_cylinder(1.0, tol);
+    for (what, dir) in [("+x", Vec3::new(1.0, 0.0, 0.0)), ("+z (cap normal)", Vec3::new(0.0, 0.0, 1.0)), ("diag xy", Vec3::new(1.0, 1.0, 0.0) * (1.0 / 2.0_f64.sqrt()))] {
+        for t in [998.0, 998.9, 999.5] {
+            let at = RigidMotion::translation(dir * t).unwrap();
+            let image = topo::transform_rigid(&home, &at).unwrap();
+            println!("R1D lofted cylinder {what} t={t}: gate {} door {}", gate(&image, tol), door(&home, &at, tol));
+        }
+    }
+}
+
+/// A class the report-back may not name: torus patches a boolean cuts.
+/// The PR's own in-box cut (a bar through a torus of R = 700, r = 50
+/// about y at (0, 300, 0)) moved so the torus's tube reaches past the
+/// box while the cut body stays inside it. Admitted only if each torus
+/// piece reads a proven window.
+#[test]
+fn r1d_a_cut_torus_patch_near_the_wall() {
+    let tol = Tol::witness();
+    let torus = revolved_about_y(
+        vec![(Point2::new(650.0, 0.0), 1.0), (Point2::new(750.0, 0.0), 1.0)],
+        Revolution::Full,
+        tol,
+    );
+    let moved = topo::transform_rigid(
+        &torus,
+        &geom_core::test_support::rigid(&geom_core::Affine3::translation(Vec3::new(0.0, 300.0, 0.0)), tol),
+    )
+    .unwrap();
+    let torus = sweep::test_support::finished("the torus", moved, tol);
+    let bar = sweep::test_support::finished(
+        "the bar",
+        sweep::test_support::brick::<f64>((100.0, 400.0), (200.0, 400.0), (400.0, 800.0), tol),
+        tol,
+    );
+    let cut = match topo::intersect(&torus, &bar, tol) {
+        Ok(c) => c,
+        Err(e) => {
+            println!("R1D cut refused: {e}");
+            return;
+        }
+    };
+    let body = cut.body().expect("a body").body.clone();
+    println!("R1D cut at home: gate {}", gate(&body, tol));
+    let band = Band::linear(tol).unwrap();
+    for (f, _) in body.faces() {
+        let kind = format!("{:?}", body.face(f).unwrap().surface()).chars().take(8).collect::<String>();
+        let reach = topo::face_cover(&body, f, band).map(|c| {
+            let (lo, hi) = c.box_in(&geom::cover::BoxAxes::World);
+            (lo.x, hi.x, lo.z, hi.z)
+        });
+        println!("R1D face {kind}: cover x/z box {reach:?}");
+    }
+    for (e, _) in body.edges() {
+        let reach = topo::edge_cover(&body, e).map(|c| {
+            let (lo, hi) = c.box_in(&geom::cover::BoxAxes::World);
+            (lo.x, hi.x, lo.z, hi.z)
+        });
+        println!("R1D edge: cover x/z box {reach:?}");
+    }
+    for (what, v) in [("+x 500", Vec3::new(500.0, 0.0, 0.0)), ("+z 250", Vec3::new(0.0, 0.0, 250.0)), ("-x 550", Vec3::new(-550.0, 0.0, 0.0))] {
+        let at = RigidMotion::translation(v).unwrap();
+        let image = topo::transform_rigid(&body, &at).unwrap();
+        println!("R1D cut moved {what}: gate {} door {}", gate(&image, tol), door(&body, &at, tol));
+    }
+}
