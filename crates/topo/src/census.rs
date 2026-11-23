@@ -1982,6 +1982,12 @@ fn face_cone<T: Decide>(
             let [(leaving, before)] = corners[..] else {
                 return Err(Unread::Unbuilt);
             };
+            // A tip: the loop walks one edge out of the vertex and
+            // straight back, so the face is the full turn round it.
+            let edge_of = |he| body.half_edges.get(he).map(|h| h.edge);
+            if edge_of(leaving).is_some() && edge_of(leaving) == edge_of(before) {
+                return Ok(Cone::Full);
+            }
             let departure = |he| crate::validate::side(body, he).and_then(|(_, _, d)| d);
             let arriving = crate::validate::mate(body, before).ok_or(Unread::Unbuilt)?;
             match (departure(leaving), departure(arriving)) {

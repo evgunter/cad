@@ -92,19 +92,18 @@ fn slab() -> Body<f64> {
 }
 
 /// A half-unit ball whose bottom is `lift` above the slab's top face at
-/// (2, 2, 1): touching, the record of the hemisphere holding that point
-/// is confirmed and the other's stale; lifted half a metre, or sunk five
-/// centimetres (the sphere crossing the plane), both are stale; lifted
-/// 3ε, both escalate. Red where the census has no sphere–plane lane
+/// (2, 2, 1): touching, the ball's one sphere face's record is
+/// confirmed; lifted half a metre, or sunk five centimetres (the sphere
+/// crossing the plane), it is stale; lifted 3ε, it escalates. Red where the census has no sphere–plane lane
 /// (every record refused typed).
 #[test]
 fn a_ball_on_a_slab_face_is_read_at_its_touch_point() {
     let eps = tol().eps();
     for (what, lift, want) in [
-        ("touching", 0.0, ["Confirmed", "Stale"]),
-        ("half a metre up", 0.5, ["Stale", "Stale"]),
-        ("sunk 5 cm", -0.05, ["Stale", "Stale"]),
-        ("3ε up", 3.0 * eps, ["Escalated", "Escalated"]),
+        ("touching", 0.0, ["Confirmed"]),
+        ("half a metre up", 0.5, ["Stale"]),
+        ("sunk 5 cm", -0.05, ["Stale"]),
+        ("3ε up", 3.0 * eps, ["Escalated"]),
     ] {
         let ball = ball_poled_y(0.5, Vec3::new(2.0, 2.0, 1.5 + lift), tol());
         let (body, balls) = graft(slab(), &ball);
@@ -124,10 +123,9 @@ fn pair_reads(body: &Body<f64>, fa: &[topo::FaceKey], fb: &[topo::FaceKey]) -> V
     got
 }
 
-/// Two half-unit balls touching at (2, 2, 2): one pair of their faces
-/// holds the point and is confirmed, the other three are stale. (Each
-/// ball's seam meridian runs through its +x side, so the point is put
-/// on z.)
+/// Two half-unit balls touching at (2, 2, 2): their one pair of faces
+/// holds the point and is confirmed. (Each ball's seam meridian runs
+/// through its +x side, so the point is put on z.)
 #[test]
 fn two_balls_touching_are_read_at_their_touch_point() {
     let a = ball_poled_y(0.5, Vec3::new(2.0, 2.0, 1.5), tol());
@@ -137,8 +135,8 @@ fn two_balls_touching_are_read_at_their_touch_point() {
     let fa: Vec<_> = fa.into_iter().filter(|f| !fb.contains(f)).collect();
     assert_eq!(
         pair_reads(&body, &fa, &fb),
-        ["Confirmed", "Stale", "Stale", "Stale"],
-        "one pair of faces holds the touch point"
+        ["Confirmed"],
+        "the one pair of faces holds the touch point"
     );
 }
 
@@ -170,24 +168,18 @@ fn a_ball_touching_its_cavity_from_inside_is_read_at_its_touch_point() {
 }
 
 /// A half-unit ball touching the slab's top face at the face's
-/// boundary: on its edge x = 0 and at its corner both records are stale
-/// (the point is not inside the face); 3ε inside the edge the record of
-/// the hemisphere holding it escalates where the band is wider than 3ε,
-/// and the other hemisphere's, which does not hold the point, still
-/// reads stale.
+/// boundary: on its edge x = 0 and at its corner the record is stale
+/// (the point is not inside the face); 3ε inside the edge it escalates
+/// where the band is wider than 3ε.
 #[test]
 fn a_ball_touching_a_slab_face_at_its_boundary_is_read_there() {
     let band = geom_core::Band::linear(tol()).unwrap();
     let (eps, k) = (band.zero(), band.escalate() / band.zero());
     let near = if k > 3.0 { "Escalated" } else { "Confirmed" };
     for (what, (x, y), want) in [
-        ("on the face's edge", (0.0, 2.0), ["Stale", "Stale"]),
-        ("at the face's corner", (0.0, 0.0), ["Stale", "Stale"]),
-        (
-            "3ε inside the face's edge",
-            (3.0 * eps, 2.0),
-            [near, "Stale"],
-        ),
+        ("on the face's edge", (0.0, 2.0), ["Stale"]),
+        ("at the face's corner", (0.0, 0.0), ["Stale"]),
+        ("3ε inside the face's edge", (3.0 * eps, 2.0), [near]),
     ] {
         let ball = ball_poled_y(0.5, Vec3::new(x, y, 1.5), tol());
         let (body, balls) = graft(slab(), &ball);
@@ -197,8 +189,8 @@ fn a_ball_touching_a_slab_face_at_its_boundary_is_read_there() {
 }
 
 /// A half-unit ball resting on the slab's top edge along y = 0, its
-/// centre off the slab at 45°: the record of the hemisphere holding
-/// (2, 0, 1) and that edge is confirmed, the other's stale.
+/// centre off the slab at 45°: the record of its one sphere face and
+/// that edge, which hold (2, 0, 1), is confirmed.
 #[test]
 fn a_ball_on_a_slab_edge_is_read_at_its_touch_point() {
     let h = 0.5 / 2.0_f64.sqrt();
@@ -217,8 +209,5 @@ fn a_ball_on_a_slab_edge_is_read_at_its_touch_point() {
             ends == [p, q] || ends == [q, p]
         })
         .unwrap();
-    assert_eq!(
-        reads(&body, &balls, Cell::Edge(edge)),
-        ["Confirmed", "Stale"]
-    );
+    assert_eq!(reads(&body, &balls, Cell::Edge(edge)), ["Confirmed"]);
 }

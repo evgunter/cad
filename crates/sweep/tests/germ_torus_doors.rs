@@ -306,20 +306,19 @@ fn waist_point(alpha: f64, theta: f64, off: f64, sign: f64) -> Point3<f64> {
     Point3::new(rho * ca, y, rho * sa)
 }
 
-/// **The two waist faces partition their band, and nothing else is in
-/// either.** Every point sampled strictly inside the upper waist, away
-/// from the seam azimuths, is `In` exactly one of A's two waist faces
-/// and `Out` of the other; its mirror image below the joint plane — the
-/// SAME carrier, outside both faces' minor window — is `Out` of both;
-/// and a point a millimetre off the tube is `Out` of both at the
-/// carrier test. A containment that answered on the wrong side of
-/// either window, or read a wrap where the face is trimmed, puts a
-/// point in both faces or in neither.
+/// **The waist face holds its band, and nothing else.** Every point
+/// sampled strictly inside the upper waist, at every azimuth, is `In`
+/// A's one waist face; its mirror image below the joint plane — the SAME
+/// carrier, outside the face's minor window — is `Out`; and a point a
+/// millimetre off the tube is `Out` at the carrier test. A containment
+/// that answered on the wrong side of the window puts a mirror point in
+/// the face, and one that read the azimuth as trimmed leaves a waist
+/// point out of it.
 #[test]
-fn the_waist_faces_partition_their_band_under_face_containment() {
+fn the_waist_face_holds_its_band_under_face_containment() {
     let a = half(1.0, Handle::Torus);
     let tori = faces_where(&a, is_torus);
-    assert_eq!(tori.len(), 2);
+    assert_eq!(tori.len(), 1, "a full revolve's waist is one face");
     let at = |f, p| {
         topo::curved_face_containment(&a, f, p, band())
             .expect("containment decides without escalating")
@@ -339,7 +338,7 @@ fn the_waist_faces_partition_their_band_under_face_containment() {
                 .count();
             assert_eq!(
                 (ins, outs),
-                (1, 1),
+                (1, 0),
                 "alpha {alpha}, theta {theta}: {verdicts:?}"
             );
             for q in [
