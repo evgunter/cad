@@ -64,3 +64,26 @@ The second run (44969619240, head `34a244086`) read the same row at
 1.347 s. PR 7120 moves it into the slow set with both times in
 `.config/nextest.toml`, as the gate's message prescribes, so its gate
 can conclude; making the row cheaper is its owner's.
+
+## Measured (2026-11-22, green/fast-set-margin)
+
+Over 40 PR runs (`docs/perf-data/fast-set-times/`):
+`germ_conic_plane_roots::every_op_answers_its_closed_form_when_the_outside_root_comes_first`
+p90 0.896 s, median 0.659 s, max 0.931 s; `-j1` at the gate's build
+0.38-0.41 s; nightly opt 2 0.349 s. It stays in the fast set: the interim
+move took only the rows at gate p90 >= 0.9 s. The second sighting's row,
+`join_pierce_runs_sweep::six_crossing_corners_build_every_op` (p90
+0.904 s, max 1.067 s on a 1.33x runner, `-j1` 0.39-0.43 s), moved to the
+slow set. The third's, `review_m3_pr55_e2e::die_from_raw_extrudes_watertight_stl`,
+read p90 0.750 s and stays; the fourth's is in the slow set (PR 7120).
+PR 7397 decides whether the bar should red a PR for a row it does not touch.
+
+## Another sighting (2026-11-23, PR 7203, from the ONEROUND orchestrator)
+Run 45076908929: `test (kernel)`'s default-ε step went red on the bar
+alone, with no failing test: `sweep::all
+cert_m2r1_passes::m2r1_passes_interval` at 1.145 s against 1.0 s, an
+existing test the PR does not edit. The same step was green on the same
+code in run 45061549494. Timed locally, five runs each, alternating:
+the PR's head 2.936 s median, main at its merge base 2.885 s, inside a
+0.4 s spread. Hosted runners were queueing about an hour per stage that
+night. The PR merged with the red named.

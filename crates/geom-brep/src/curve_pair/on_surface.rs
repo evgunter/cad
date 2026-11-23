@@ -589,7 +589,7 @@ impl<T: Decide> SurfaceCurve<T> {
         let Shape::Circle(c) = self.shape else {
             unreachable!("only a circle's start moves: a line's origin is its locus")
         };
-        let (centre, axis) = (c.frame.origin(), c.frame.axis());
+        let (centre, axis) = (c.frame().origin(), c.frame().axis());
         let w = p - centre;
         let w = w - axis * w.dot(axis);
         debug_assert!(
@@ -991,7 +991,7 @@ impl<'a, T: Decide> OnSurface<'a, T> {
         // The plane is charted along the curve: a circle's reference, or a
         // line's direction, each in its plane.
         let u_ref = match curve.shape {
-            Shape::Circle(c) => c.frame.u_ref(),
+            Shape::Circle(c) => c.frame().u_ref(),
             Shape::Line(l) => l.dir,
         };
         let plane = geom::Surface::Plane {
@@ -1005,7 +1005,8 @@ impl<'a, T: Decide> OnSurface<'a, T> {
     /// line lies in no one plane (`None`).
     pub fn plane(&self) -> Option<(Point3<T>, Vec3<T>, Vec3<T>)> {
         match *self.carrier {
-            Curve3::Circle(Circle { frame, .. }) | Curve3::Ellipse(geom::Ellipse { frame, .. }) => {
+            Curve3::Circle(_) | Curve3::Ellipse(_) => {
+                let frame = self.carrier.frame()?;
                 Some((frame.origin(), frame.axis(), frame.u_ref()))
             }
             Curve3::Spiric { frame, offset, .. } => {
@@ -1051,7 +1052,7 @@ impl<'a, T: Decide> OnSurface<'a, T> {
     pub fn section(&self) -> Section<T> {
         match *self.carrier {
             Curve3::Circle(c) => Section::Circle {
-                centre: c.frame.origin(),
+                centre: c.frame().origin(),
                 radius: c.radius(),
             },
             Curve3::Spiric { frame, offset, .. } => {

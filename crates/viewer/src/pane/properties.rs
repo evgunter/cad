@@ -14,7 +14,7 @@ use pncad::select::{AboutReference, Resolution};
 use crate::app::{ViewerBehavior, indeterminate_wording, toned};
 use crate::display::free_move_check;
 use crate::drafts::NameDraft;
-use crate::forms::{FIELD_DRAG_SPEED, FieldWriting};
+use crate::forms::FieldWriting;
 use crate::frame::Tone;
 use crate::props::{self, Notation, SlotDriver, SlotGroup, SlotRow, SlotValue, VariableRow};
 use crate::session::{
@@ -23,9 +23,9 @@ use crate::session::{
 use crate::theme::Theme;
 use crate::tree::PickedName;
 use crate::widgets::{
-    CANCEL, FieldShowing, FieldVocabulary, ProbeOps, UNIT_PICKER_WIDTH, angle_picker, commit_row,
-    delete_button, form_door, free_move_gesture, length_picker, number_field, pick_unit,
-    unit_field, value_field_ops, value_gesture, vec3_row_ops,
+    CANCEL, FieldShowing, FieldVocabulary, ProbeOps, UNIT_PICKER_WIDTH, commit_row, delete_button,
+    form_door, free_move_gesture, named_field, notation_picker, pick_unit, unit_choices,
+    value_field_ops, value_gesture, vec3_row_ops,
 };
 
 /// What the door that opens the add-variable form says.
@@ -354,43 +354,21 @@ impl ViewerBehavior<'_> {
             }
             // **The form authors in the notation the picker says**, and
             // the draft behind the field stays canonical whatever it
-            // says (`widgets::unit_field`) — so the tick handed over is
-            // the CANONICAL one for the dimension picked and the field
-            // divides it by the same factor it divides the value by.
-            // The tick a person feels is therefore the tick of
-            // `FieldWriting::of(dimension, Some(unit), ..)` for the
-            // picked `unit`, derived rather than stated, and applying
-            // the factor here as well would apply it twice. With no dimension picked yet there is no
-            // tick to derive and the commit is refused anyway; a length's
-            // serves as the placeholder.
-            let speed = self
+            // says (`widgets::named_field`). With no dimension picked
+            // yet the commit is refused, and the field is a bare number
+            // until one is.
+            let writing = self
                 .drafts
                 .new_variable_dimension
-                .map_or(FIELD_DRAG_SPEED, |dimension| {
-                    FieldWriting::of(dimension, None, Notation::CANONICAL).tick
+                .map_or(FieldWriting::unpicked(), |dimension| {
+                    FieldWriting::of(dimension, None, *self.notation)
                 });
-            match self.new_variable_unit() {
-                Some(unit) => {
-                    unit_field(ui, unit, speed, &mut self.drafts.new_variable_value);
-                }
-                // A `Count` and a bare `Scalar` name no notation, so
-                // the field is the number itself and no picker is
-                // drawn beside it.
-                None => {
-                    ui.add(number_field(&mut self.drafts.new_variable_value, speed));
-                }
-            }
+            named_field(ui, "", writing, &mut self.drafts.new_variable_value);
             // Drawn AFTER the field it governs, which is the forms'
             // rule (`widgets::length_picker`): the pick is an input
             // event, so the field it re-writes is next frame's.
-            match self.drafts.new_variable_dimension {
-                Some(Dimension::Length) => {
-                    length_picker(ui, "add_variable", &mut self.notation.length);
-                }
-                Some(Dimension::Angle) => {
-                    angle_picker(ui, "add_variable", &mut self.notation.angle);
-                }
-                Some(Dimension::Scalar | Dimension::Count) | None => {}
+            if let Some(dimension) = self.drafts.new_variable_dimension {
+                notation_picker(ui, "add_variable", dimension, self.notation);
             }
         });
         // The draft text is offered to the one door that decides what
@@ -457,34 +435,12 @@ impl ViewerBehavior<'_> {
         {
             self.ops.push(SessionOp::DeclareVar {
                 name,
-                value: crate::props::doc_variable(dimension, value, self.new_variable_unit()),
+                value: crate::props::doc_variable(
+                    dimension,
+                    value,
+                    FieldWriting::of(dimension, None, *self.notation).unit,
+                ),
             });
-        }
-    }
-
-    /// **The notation the add-variable form is authoring in** — the
-    /// form's own unit for the dimension picked, and `None` where
-    /// there is no notation to name (a `Count`, a bare `Scalar`, or no
-    /// dimension picked yet).
-    ///
-    /// One answer read by TWO places — the field beside it and the
-    /// declaration the commit button mints — so the number on screen
-    /// and the unit the document remembers cannot disagree.
-    ///
-    /// **The picker is a third place and does not read it**, which is
-    /// the honest state of this form. `length_picker` and
-    /// `angle_picker` write the typed working notation
-    /// ([`Notation::length`], [`Notation::angle`]), so the ladder below is spelled a second time to
-    /// choose between them and the two could disagree. It is an
-    /// instance of the crate's `Dimension`-to-unit ladder class, filed
-    /// on CHROME, and the pairing it protects — a length picker that
-    /// could write a `deg` — is the one the typed notation already makes
-    /// unrepresentable.
-    fn new_variable_unit(&self) -> Option<UnitDef> {
-        match self.drafts.new_variable_dimension? {
-            Dimension::Length => Some(self.notation.length.def()),
-            Dimension::Angle => Some(self.notation.angle.def()),
-            Dimension::Scalar | Dimension::Count => None,
         }
     }
 
@@ -834,9 +790,8 @@ impl ViewerBehavior<'_> {
         // two operations. What a slot contributes is what the field
         // shows and what its edit opens on ([`slot_showing`]): a
         // number typed over a driven slot's reading is no echo of
-        // anything, so the driven slot's refusal stays reachable and
-        // is owed its affordance even when the number happens to
-        // match.
+        // anything, so it replaces the expression even when the number
+        // happens to match.
         value_field_ops(
             ui,
             slot_showing(row, draft, *self.notation),
@@ -928,13 +883,9 @@ impl ViewerBehavior<'_> {
     /// so the picker emits `SessionOp::SetVariableUnit` and the change
     /// enters the history like any other.
     ///
-    /// Nothing is drawn for a dimension with no units (`Scalar`,
-    /// `Count`) — there is no notation to offer for a number that is
-    /// not a quantity. Both halves of that answer come from
-    /// `props`: `rendering_unit` says what the row is written in and
-    /// answers `None` for exactly those dimensions, and
-    /// `widgets::pick_unit` reads their options off
-    /// `props::unit_options`, which is the same closed table.
+    /// Nothing is drawn for a dimension with no units to choose
+    /// between (`Scalar`, `Count`): `widgets::pick_unit` offers
+    /// `widgets::unit_choices`, which is empty for both.
     ///
     /// The combo itself is `widgets::pick_unit`, the creation forms'
     /// — the options, the width and the selected row are one
@@ -1001,14 +952,13 @@ impl ViewerBehavior<'_> {
     /// notation anyone chose, so it plays no part in that agreement.
     /// A picker with no writable component therefore shows no unit.
     ///
-    /// Nothing is drawn at all for a dimension with no units (`Scalar`,
-    /// `Count`) — there is no notation to offer for a number that is
-    /// not a quantity.
+    /// Nothing is drawn at all for a dimension with no units to choose
+    /// between (`Scalar`, `Count`; `widgets::unit_choices`).
     pub(crate) fn slot_unit_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, rows: &[SlotRow]) {
         let Some(first) = rows.first() else {
             return;
         };
-        let options = props::unit_options(first.dimension);
+        let options = unit_choices(first.dimension);
         if options.is_empty() {
             return;
         }
@@ -1532,11 +1482,11 @@ pub(crate) fn slot_showing(row: &SlotRow, draft: Option<&str>, notation: Notatio
         // which says `no … reading` where the working notation cannot
         // name the value), and the field under that text is its door
         // to the expression. The number the field holds is never
-        // written: a drag or a typed number over a driven slot is
-        // refused by the session's driven-slot guard, so a zero held
-        // there lands nowhere — the same zero held under the text of a
-        // slot with no one value: one that did not evaluate, or one
-        // with a value per member.
+        // written: a drag over a driven slot is refused by the
+        // session's driven-slot guard, and a typed number writes what
+        // was typed, so a zero held there lands nowhere — the same zero
+        // held under the text of a slot with no one value: one that did
+        // not evaluate, or one with a value per member.
         Err(_) if row.driver.is_driven() => Ok(0.0),
         number => number,
     };
@@ -1645,8 +1595,8 @@ pub(crate) fn variable_doors(
 }
 
 /// **The two doors a slot's field has**: a bare number through
-/// `SessionOp::SetSlot` (refused on a driven slot, with the
-/// affordance), anything else through `SessionOp::SetSlotExpression`.
+/// `SessionOp::SetSlot`, which replaces an expression as it replaces a
+/// literal, anything else through `SessionOp::SetSlotExpression`.
 pub(crate) fn slot_doors(
     node: RecipeNodeId,
     slot: SlotId,
@@ -1839,7 +1789,7 @@ fn free_move_probe(
     let frame_of = |written: [f64; 3]| Frame::translation(written.map(|v| field.authored(v)));
     let ProbeOps { gesture, typed } = free_move_gesture(node, frame_of);
     ui.horizontal(|ui| {
-        vec3_row_ops(ui, field.tick, &mut written, gesture, typed, ops);
+        vec3_row_ops(ui, field, &mut written, gesture, typed, ops);
     });
 }
 
@@ -2285,7 +2235,7 @@ mod tests {
         // home; this line does not.
         assert_eq!(
             rendered,
-            "driven by an expression over thickness (currently 4 mm) — edit the expression?"
+            "driven by an expression over thickness (currently 4 mm) — edit the expression, or type a number over it"
         );
     }
 

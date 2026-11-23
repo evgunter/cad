@@ -673,7 +673,7 @@ fn r2_every_same_side_touch_pose_answers_as_a_touch() {
         &[1e-12],
         "the review 4781 touch rows",
         &[
-            "Op { source: Certification { error: AnalyticRung3(KernelLimit { operand: Cylinder, bound: 1.333925562600302e-12",
+            "Op { source: DescriptionUncertified { edge: Keyed(EdgeKey(1v1)), error: AnalyticRung3(KernelLimit { operand: Cylinder, bound: 1.333925562600302e-12",
             "extent: 670.8203932499385",
         ],
         r2_every_same_side_touch_pose_answers_as_a_touch_row,
