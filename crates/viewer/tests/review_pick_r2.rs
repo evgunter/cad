@@ -95,7 +95,15 @@ struct Tally {
 /// 16,596, 8,142) there: rays 451,512 → 424,728, grazes
 /// 147,850 → 138,718, refused candidates 16,596 → 11,004, rays with a
 /// refusal 8,142 → 5,130. `genuine_refused` stays empty.
-const PINNED: (usize, usize, usize, usize) = (424_728, 138_718, 11_004, 5_130);
+///
+/// RE-PINNED when every chart-lane face came to size at δ, its
+/// certificate adding a point where a triangle reads over δ (`mesh`'s
+/// `[mesh.sizing]`), and the rims those faces share were chorded at δ:
+/// coarser chart-lane faces and their neighbours land fewer rays.
+/// Measured on main with the chart lane's rowless cylinder merged under
+/// it: rays 422,568, grazes 137,416, refused candidates 10,236, rays with
+/// a refusal 4,818. `genuine_refused` stays empty.
+const PINNED: (usize, usize, usize, usize) = (422_568, 137_416, 10_236, 4_818);
 
 fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
     let reference = FlatReference::of(index);
