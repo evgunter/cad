@@ -50,9 +50,10 @@ pub(crate) fn component_censuses(body: &Body<f64>) -> Vec<(ShellKey, FaceKey, Eu
                 let face = body.get_face(face_key).expect("a listed face");
                 f += 1;
                 r += face.rings.len() as i64;
-                for loop_key in face.loop_keys() {
-                    let loop_ = body.get_loop(loop_key).expect("a face's loop");
-                    if let LoopBoundary::Empty { vertex } = loop_.boundary {
+                for (_, loop_) in body.loops() {
+                    if let LoopBoundary::Empty { vertex } = loop_.boundary
+                        && loop_.face == face_key
+                    {
                         vertices.insert(vertex, ());
                     }
                 }
