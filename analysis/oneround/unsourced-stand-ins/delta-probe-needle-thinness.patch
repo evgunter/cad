@@ -1,0 +1,42 @@
+diff --git a/crates/geom-brep/src/pcurve_cache/closed_image_rows.rs b/crates/geom-brep/src/pcurve_cache/closed_image_rows.rs
+index 2c4a5489e..b895b501b 100644
+--- a/crates/geom-brep/src/pcurve_cache/closed_image_rows.rs
++++ b/crates/geom-brep/src/pcurve_cache/closed_image_rows.rs
+@@ -2483,3 +2483,37 @@ fn a_derived_circle_image_is_on_its_circle_where_its_azimuth_shows_most() {
+         "derived images off their circles: {missed:#?}"
+     );
+ }
++
++/// REVIEW PROBE (PR 7268 delta): needles closer to the generator; the old
++/// gate's margin `(1 − |β|)·arm` against the run's band.
++#[test]
++fn rvw_probe_needle_thinness() {
++    let (axis, u_ref) = (Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0));
++    let apex = Point3::new(0.0, 0.0, 0.0);
++    let half_angle = 0.5;
++    let cone = Surface::Cone { frame: geom::Frame::new(apex, axis, u_ref), half_angle };
++    for short in [1e-6, 1e-8, 1e-10, 1e-12, 1e-14] {
++        for off in [1e-3, 1e-1] {
++            let tilt = (1.0 - short) * (core::f64::consts::FRAC_PI_2 - half_angle);
++            let normal = (axis * tilt.cos() + axis.cross(u_ref) * tilt.sin()).normalize();
++            let plane = Surface::Plane { frame: geom::Frame::new(apex + axis * off, normal, u_ref.cross(normal).normalize()) };
++            let reach = crate::Reach::fixture(apex, 4.0);
++            let sec = crate::intersect::plane_cone_section(&plane, &cone, &reach, band());
++            let msg = match sec {
++                Ok(crate::intersect::PlaneConeSection::TiltedEllipse(needle)) => {
++                    let span = (0.2, 2.0);
++                    match chart_pcurve_over(&needle, span.0, span.1, &cone, band()) {
++                        Ok(Pcurve::FocalSection(f)) => {
++                            let id = super::focal_section_identity(&Pcurve::FocalSection(f), span, &cone, None, band());
++                            let arm = id.as_ref().map(|i| i.arm).unwrap_or(f64::NAN);
++                            format!("room={:e} arm={arm:e} old_margin={:e} vs esc={:e} id_ok={}", 1.0 - f.beta.abs(), (1.0 - f.beta.abs()) * arm, band().escalate(), id.is_ok())
++                        }
++                        other => format!("image {other:?}").chars().take(160).collect(),
++                    }
++                }
++                other => format!("section {other:?}").chars().take(160).collect(),
++            };
++            eprintln!("RVWN short={short:e} off={off:e} -> {msg}");
++        }
++    }
++}

@@ -1,0 +1,19 @@
+diff --git a/crates/geom-brep/tests/pcurve_villarceau.rs b/crates/geom-brep/tests/pcurve_villarceau.rs
+index 62ff842ee..29ffb81f2 100644
+--- a/crates/geom-brep/tests/pcurve_villarceau.rs
++++ b/crates/geom-brep/tests/pcurve_villarceau.rs
+@@ -908,6 +908,14 @@ fn a_tilt_just_past_the_band_takes_the_general_lane() {
+         Ok(Pcurve::Projected(_)) => "general lane",
+         other => panic!("a move of {m:e} is on the torus by its samples: {other:?}"),
+     };
++    for m in [0.99 * eps(), 1.0015 * eps()] {
++        for (a, b) in [(0.3, 4.0), (0.0, TAU)] {
++            let c = moved(m);
++            let row = geom_brep::chart_pcurve_over(&c, a, b, &surface, band());
++            let got = row.map(|row| PcurveCache::certify(row, a, b, &c, &surface, band()).map(|k| k.certificate().envelope));
++            eprintln!("RVWF2 m={:e} span=({a},{b}) lane={} -> {:?}", m / eps(), lane(m), got.as_ref().map(|r| r.as_ref().map_err(|e| e.render(geom_brep::recourse::Reading::Build))));
++        }
++    }
+     assert_eq!(lane(0.99 * eps()), "closed form", "a tilt under the zero");
+     assert_eq!(
+         lane(1.0015 * eps()),
