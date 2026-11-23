@@ -42,3 +42,15 @@ census has no sweep of a curved edge against a face.
 Weigh it as a fork once PRs 7068 and 7095 are answered and the two
 prices are measured: whether a face pair of one solid has one reader,
 total over kind pairs, and which.
+
+## One function, two callers (PR 7119, 2026-11-18)
+
+PR 7119 makes the overlap concrete for one reading. The clearance
+engine asks the census's depth gap (`census::depth_gap::gaps_in_depth`)
+at a face pair's root, so the certificate and the census's arm 1 now
+decide "these two faces are apart in depth" by one function, each at
+its own K name (`clearance_depth_gap`, `census_backstop_depth_gap`)
+and against its own bound. Where it lives and what its pad stands for
+are
+`the-depth-gap-lives-in-the-census-and-its-pad-is-not-derived-for-the-clearance-engine`.
+

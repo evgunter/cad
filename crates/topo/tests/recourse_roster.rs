@@ -318,6 +318,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("TORUS_REGION_CORNER"),
     NameCarrier::Const("PIERCE_SECTOR_SIDE_CURVED"),
     NameCarrier::Const("CLEARANCE_SUPPORT_GAP"),
+    NameCarrier::Const("CLEARANCE_DEPTH_GAP"),
     NameCarrier::Const("SELF_INTERSECTION_COLUMN"),
     NameCarrier::Const("COMPONENT"),
     NameCarrier::Const("CONES_SHARE_APEX"),
