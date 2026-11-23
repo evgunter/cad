@@ -114,6 +114,7 @@ use geom_core::{Band, LengthOutOfFormat, NoDirection, Point3, RigidMotion, Vec3}
 
 use crate::interpret::{
     FileBand, Read, STEP_COLLAPSED_SIDE, STEP_RECOGNIZED_CONDITIONING, STEP_RECOGNIZED_RESIDUAL,
+    STEP_RECOGNIZED_REVOLUTION_FRAME,
 };
 use crate::signed_zero::{plus_zero, plus_zero_point};
 
@@ -380,11 +381,12 @@ fn try_plane(patch: &NurbsSurface<f64>, file: FileBand) -> Option<(Surface<f64>,
     let normal = frame.w().get();
     // The flush is posture no test guards (`crate::signed_zero`).
     let plane = Surface::Plane {
-        frame: geom::Frame::new(
+        frame: decided_frame(
             plus_zero_point(origin),
             plus_zero(normal),
             plus_zero(frame.u().get()),
-        ),
+            crate::interpret::STEP_RECOGNIZED_PLANE_FRAME,
+        )?,
     };
     // The whole-patch certificate every kind reads
     // ([`geom_brep::patch_distance_sup`]): on a plane the composite is
@@ -477,14 +479,15 @@ fn try_cylinder(
     let Some((radial_hat, radius)) = radial.checked_direction().ok() else {
         return Ok(None);
     };
-    let cylinder = Surface::Cylinder {
-        frame: geom::Frame::new(
-            plus_zero_point(center),
-            plus_zero(axis),
-            plus_zero(radial_hat),
-        ),
-        radius,
+    let Some(frame) = decided_frame(
+        plus_zero_point(center),
+        plus_zero(axis),
+        plus_zero(radial_hat),
+        STEP_RECOGNIZED_REVOLUTION_FRAME,
+    ) else {
+        return Ok(None);
     };
+    let cylinder = Surface::Cylinder { frame, radius };
     // Orientation: the cylinder chart's normal is radially outward by
     // construction, whatever the patch's chart orientation — the
     // caller compares chart normals and composes `same_sense`.
@@ -555,6 +558,32 @@ const DIAGONAL: [f64; 3] = [1.0 / 8.0, 1.0 / 2.0, 7.0 / 8.0];
 
 /// The unit direction of `p − centre` with its component along `axis`
 /// removed.
+/// **A recognized carrier's frame, minted decided**: `axis`, an
+/// estimator's direction already, squared as the frame door squares it,
+/// and the part of `u_ref` square to it decided at the least band under
+/// `site` ([`RigidMotion::from_aim_and_reference`]). It is
+/// [`geom::Frame::new`]'s arithmetic step for step, so an input already
+/// unit and square keeps its bits. A seam along the axis (no part square
+/// to it, or one under the format) is a typed refusal there, which
+/// declines the candidate here (`None`), where the undecided square
+/// would have poisoned the frame.
+fn decided_frame(
+    origin: Point3<f64>,
+    axis: Vec3<f64>,
+    u_ref: Vec3<f64>,
+    site: &'static str,
+) -> Option<geom::Frame<f64>> {
+    RigidMotion::from_aim_and_reference(
+        origin,
+        geom_core::UnitVec3::squared(axis),
+        u_ref,
+        site,
+        Band::least(),
+    )
+    .ok()
+    .map(|m| geom::Frame::of_motion(&m))
+}
+
 fn radial_of(p: Point3<f64>, centre: Point3<f64>, axis: Vec3<f64>) -> Option<Vec3<f64>> {
     let d = p - centre;
     (d - axis * d.dot(axis))
@@ -635,7 +664,7 @@ fn estimate_cone(patch: &NurbsSurface<f64>, file: FileBand) -> Option<Surface<f6
     let apex = plus_zero_point(apex);
     let u_ref = plus_zero(seam_reference(patch, apex, axis)?);
     Some(Surface::Cone {
-        frame: geom::Frame::new(apex, axis, u_ref),
+        frame: decided_frame(apex, axis, u_ref, STEP_RECOGNIZED_REVOLUTION_FRAME)?,
         half_angle: slope.atan(),
     })
 }
@@ -815,10 +844,11 @@ fn estimate_sphere(patch: &NurbsSurface<f64>, file: FileBand) -> Option<Surface<
     };
     let axis = plus_zero(axis);
     let u_ref = plus_zero(radial_of(seam, center, axis)?);
-    (radius.is_finite() && radius > 0.0).then_some(Surface::Sphere {
-        frame: geom::Frame::new(center, axis, u_ref),
-        radius,
-    })
+    if !(radius.is_finite() && radius > 0.0) {
+        return None;
+    }
+    let frame = decided_frame(center, axis, u_ref, STEP_RECOGNIZED_REVOLUTION_FRAME)?;
+    Some(Surface::Sphere { frame, radius })
 }
 
 /// The torus candidate (module docs): the larger principal curvature's
@@ -861,7 +891,7 @@ fn estimate_torus(patch: &NurbsSurface<f64>, file: FileBand) -> Option<Surface<f
     let axis = plus_zero(axis);
     let u_ref = plus_zero(seam_reference(patch, center, axis)?);
     Some(Surface::Torus {
-        frame: geom::Frame::new(center, axis, u_ref),
+        frame: decided_frame(center, axis, u_ref, STEP_RECOGNIZED_REVOLUTION_FRAME)?,
         major_radius,
         minor_radius,
     })
@@ -2199,6 +2229,81 @@ mod plane_frame {
                 [normal.x, normal.y, normal.z, u_ref.x, u_ref.y, u_ref.z],
                 [0.0, 0.0, 1.0, 1.0, 0.0, 0.0],
                 "scale {scale:e} over {domains:?}"
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod decided_frame_rows {
+    use super::*;
+
+    /// Every component's bits, origin and the three axes.
+    fn bits(f: &geom::Frame<f64>) -> [u64; 12] {
+        let m = f.motion();
+        let [o, u, v, w] = [
+            f.origin() - Point3::origin(),
+            m.u().get(),
+            m.v().get(),
+            m.w().get(),
+        ];
+        [o, u, v, w]
+            .map(|e| [e.x, e.y, e.z].map(f64::to_bits))
+            .concat()
+            .try_into()
+            .unwrap()
+    }
+
+    /// **A recognized carrier's frame is the frame door's, bit for bit,
+    /// and a seam along its axis declines the candidate**: over drawn
+    /// axes and seams the decided mint reads every bit the undecided
+    /// square ([`geom::Frame::new`]) does, so an input already unit and
+    /// square keeps its bits; a seam along the axis (its residual zero),
+    /// where the square poisons the frame, is `None`. Red with the axis
+    /// kept as given rather than squared (the row's draws include axes
+    /// whose square moves a bit, counted), and red with the undecided
+    /// square in its place (the degenerate seam then mints a poisoned
+    /// frame).
+    #[test]
+    fn a_recognized_frame_keeps_the_doors_bits_and_refuses_a_seam_along_its_axis() {
+        let mut moved = 0;
+        for k in 0..2000_u32 {
+            let t = f64::from(k);
+            let axis =
+                Vec3::new((0.37 * t).sin(), (0.71 * t).cos(), 0.3 + (0.13 * t).sin()).normalize();
+            let seam = Vec3::new((1.1 * t).cos(), (0.53 * t).sin(), (0.29 * t).cos());
+            let origin = Point3::new(t * 1e-3, -2.0, 7.5);
+            let squared = geom::Frame::new(origin, axis, seam);
+            let decided = decided_frame(origin, axis, seam, STEP_RECOGNIZED_REVOLUTION_FRAME)
+                .unwrap_or_else(|| panic!("draw {k}: a seam off the axis mints"));
+            assert_eq!(bits(&decided), bits(&squared), "draw {k}");
+            let unsquared = RigidMotion::from_aim_and_reference(
+                origin,
+                geom_core::UnitVec3::checked(axis),
+                seam,
+                STEP_RECOGNIZED_REVOLUTION_FRAME,
+                Band::least(),
+            )
+            .unwrap();
+            moved += usize::from(bits(&geom::Frame::of_motion(&unsquared)) != bits(&squared));
+        }
+        assert!(moved > 0, "the row's draws tell the two spellings apart");
+        for axis in [Vec3::unit_z(), Vec3::new(0.6, 0.0, 0.8)] {
+            assert!(
+                decided_frame(
+                    Point3::origin(),
+                    axis,
+                    axis * 3.0,
+                    STEP_RECOGNIZED_REVOLUTION_FRAME
+                )
+                .is_none(),
+                "a seam along {axis:?} has no part square to it"
+            );
+            let poisoned = geom::Frame::new(Point3::origin(), axis, axis * 3.0);
+            assert!(
+                poisoned.u_ref().x.is_nan(),
+                "the undecided square poisons it: {poisoned:?}"
             );
         }
     }
