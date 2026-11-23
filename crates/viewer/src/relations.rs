@@ -12,8 +12,8 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    Doc, Mentioned, Node, OperandRead, OperandSlot, ProfileProgram, ReadIndex, RecipeNodeId, Said,
-    Sentence, Speaker,
+    Doc, Mention, Mentioned, Node, OperandRead, OperandSlot, ProfileProgram, ReadIndex,
+    RecipeNodeId, Said, Sentence, Speaker,
 };
 
 use crate::parts::PartFiles;
@@ -73,6 +73,27 @@ impl Related {
                 Mentioned::Node(node) => Selection::Node(node.id()),
                 Mentioned::Var(var) => Selection::Variable(var.id()),
             })
+    }
+}
+
+/// **What a click on `mention` selects in `on_screen`**, the document
+/// drawn: its node or variable, when the mention's id is spelled in
+/// that document and the document holds it; `None` otherwise. An id is
+/// not document-scoped, so a mention from another document — an
+/// instance's part, a check run on another landing — or of a node since
+/// deleted links nothing, and is drawn as words.
+#[must_use]
+pub fn link(on_screen: &Doc<ProfileProgram>, mention: &Mention) -> Option<Selection> {
+    if mention.document() != Some(on_screen.id()) {
+        return None;
+    }
+    match mention.mentioned() {
+        Mentioned::Node(node) => on_screen
+            .node(node.id())
+            .map(|_| Selection::Node(node.id())),
+        Mentioned::Var(var) => on_screen
+            .var(var.id())
+            .map(|_| Selection::Variable(var.id())),
     }
 }
 

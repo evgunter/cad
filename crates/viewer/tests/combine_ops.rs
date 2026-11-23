@@ -3432,12 +3432,12 @@ fn each_tool_narrows_the_cursor_to_what_it_can_use() {
     for kind in ToolKind::ALL {
         tools.open(kind);
         let want = match kind {
-            // The mirror's and the split's plane is a face, and their
-            // body is picked by one too; the assertion tool seats
-            // faces, and bodies from the tree.
-            ToolKind::Mate | ToolKind::Mirror | ToolKind::Split | ToolKind::Assertion => {
-                PickKinds::FacesOnly
-            }
+            // The mirror's and the split's plane is a face or a datum,
+            // and their body is picked by a face too; the placement
+            // editor's far side may be a datum.
+            ToolKind::Mate | ToolKind::Mirror | ToolKind::Split => PickKinds::FacesAndDatums,
+            // The assertion tool seats faces, and bodies from the tree.
+            ToolKind::Assertion => PickKinds::FacesOnly,
             ToolKind::Blend => PickKinds::EdgesOnly,
             ToolKind::Boolean | ToolKind::Transform | ToolKind::Pattern | ToolKind::Part => {
                 PickKinds::FacesAndEdges

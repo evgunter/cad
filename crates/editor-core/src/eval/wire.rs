@@ -618,6 +618,24 @@ where
             };
             wire_measure(primitive, doc, &at, env.lane.params, tol)
         }
+        Node::Datum {
+            target: _,
+            constraints,
+        } => {
+            // Its frame before placement is its target's own axes, which
+            // its mates' `on` read through their roles, as an instance's
+            // read its copy; it reaches nowhere past them.
+            let own: Results<T> = BTreeMap::from([(
+                id,
+                NodeResult::Ok(super::NodeValue::scratch(OpOut::plain(
+                    ValuePayload::Datum(RigidMotion::identity()),
+                    names::empty(),
+                ))),
+            )]);
+            let placed = fold_with(doc, &own, unprojected, id, constraints, Ok(0.0), env, tol)?;
+            let frame = placed.unwrap_or_else(RigidMotion::identity);
+            Ok(OpOut::plain(ValuePayload::Datum(frame), names::empty()).moved(placed))
+        }
         Node::InstantiatePart {
             doc_ref,
             interface,
@@ -819,25 +837,11 @@ where
             constraint: c.id,
             side,
         };
-        let on = pose::eval_pose(
-            doc,
-            on_results,
-            seat(MateSide::On),
-            crate::pose::RoleRead::plain(m.on),
-            params,
-            tol,
-        )
-        .map_err(|kind| unevaluated(MateSide::On, kind))?;
+        let on = pose::eval_pose(doc, on_results, seat(MateSide::On), m.on, params, tol)
+            .map_err(|kind| unevaluated(MateSide::On, kind))?;
         let on = crate::mate::solve::tightened(on);
-        let to = pose::eval_pose(
-            doc,
-            to_results,
-            seat(MateSide::To),
-            crate::pose::RoleRead::plain(m.to),
-            params,
-            tol,
-        )
-        .map_err(|kind| unevaluated(MateSide::To, kind))?;
+        let to = pose::eval_pose(doc, to_results, seat(MateSide::To), m.to, params, tol)
+            .map_err(|kind| unevaluated(MateSide::To, kind))?;
         let to = crate::mate::solve::tightened(to);
         charted.push((
             mate,

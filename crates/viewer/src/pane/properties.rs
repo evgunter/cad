@@ -6,7 +6,7 @@
 use eframe::egui;
 use pncad::document::{
     Axis3, Dimension, Doc, Evaluation, Frame, HeldNodes, ProfileProgram, RecipeNodeId, Said,
-    SlotId, VarId, VarName,
+    Sentence, SlotId, VarId, VarName,
 };
 use pncad::quantity::UnitDef;
 use pncad::select::{AboutReference, Resolution};
@@ -32,7 +32,7 @@ use crate::widgets::{
 pub(crate) const NEW_VARIABLE: &str = "New variable…";
 
 /// What the product door's button says ([`SessionOp::AddToProduct`]).
-pub(crate) const ADD_TO_THE_PRODUCT: &str = "Add to the product";
+pub(crate) use crate::recourse::ADD_TO_THE_PRODUCT;
 
 /// What the button taking a copy out of the product says.
 pub(crate) const TAKE_OUT_OF_THE_PRODUCT: &str = "Take out of the product";
@@ -83,8 +83,8 @@ impl ViewerBehavior<'_> {
                     node,
                     self.session.part_files(),
                 );
-                relation_rows(ui, Direction::Reads, &related.reads, self.ops);
-                relation_rows(ui, Direction::ReadBy, &related.read_by, self.ops);
+                relation_rows(ui, doc, Direction::Reads, &related.reads, self.ops);
+                relation_rows(ui, doc, Direction::ReadBy, &related.read_by, self.ops);
             }
             // Slot rows for the feature that MADE the picked entity —
             // the node `slot_groups` itself answered for, so the rows
@@ -491,12 +491,14 @@ impl ViewerBehavior<'_> {
             Standing::Empty | Standing::Variable { .. } => {}
             Standing::Node { node, present } => {
                 ui.horizontal(|ui| {
-                    ui.label(selected_node_heading(
+                    let heading = selected_node_heading(
                         landed.map(|(doc, _)| doc),
                         self.session.part_files(),
                         said,
                         *node,
-                    ));
+                    );
+                    let heading = crate::widgets::sentence(ui, &heading, self.session.doc(), None);
+                    self.ops.extend(heading.map(SessionOp::Select));
                     if *present && delete_button(ui, self.session, *node) {
                         self.ops.push(SessionOp::DeleteNode { node: *node });
                     }
@@ -575,7 +577,8 @@ impl ViewerBehavior<'_> {
             let by = crate::frame::landed_speaker(self.session.landed_pair())
                 .or_held(self.session.selection_said());
             let (label, feature) = entity_header(picked, by);
-            ui.label(label);
+            let label = crate::widgets::sentence(ui, &label, self.session.doc(), None);
+            self.ops.extend(label.map(SessionOp::Select));
             if standing.live() && delete_button(ui, self.session, feature) {
                 self.ops.push(SessionOp::DeleteNode { node: feature });
             }
@@ -618,11 +621,9 @@ impl ViewerBehavior<'_> {
             return;
         }
         ui.separator();
-        ui.label(crate::tree::node_label(
-            doc,
-            node,
-            self.session.part_files(),
-        ));
+        let heading = crate::relations::Related::node(doc, node, self.session.part_files());
+        let heading = crate::widgets::sentence(ui, heading.said(), self.session.doc(), None);
+        self.ops.extend(heading.map(SessionOp::Select));
         let mut on = self.toggles.body_on(node);
         if body_toggle(ui, &mut on) {
             self.ops.push(SessionOp::SetBodyOn { node, on });
@@ -646,7 +647,9 @@ impl ViewerBehavior<'_> {
                 // copy placed into the world is given a space of its
                 // own, which the probe then moves.
                 if matches!(fault, crate::display::AdmissionFault::InTheWorld { .. })
-                    && doc.placements().contains(&node)
+                    && doc
+                        .node(node)
+                        .is_some_and(pncad::document::Node::makes_a_copy)
                     && ui.button("Into a space of its own").clicked()
                 {
                     self.ops.push(SessionOp::IntoOwnSpace { placement: node });
@@ -1084,9 +1087,15 @@ impl ViewerBehavior<'_> {
             slot: row.slot,
         };
         let (lines, proving) = self.range_lines(&target);
-        if let Some(var) = slot_notes(ui, &self.theme, row, &lines, *self.notation) {
-            self.ops.push(SessionOp::Select(Selection::Variable(var)));
-        }
+        let clicked = slot_notes(
+            ui,
+            &self.theme,
+            row,
+            &lines,
+            self.session.doc(),
+            *self.notation,
+        );
+        self.ops.extend(clicked.map(SessionOp::Select));
         if proving && stop_link(ui) {
             self.ops.push(SessionOp::StopRange);
         }
@@ -1261,12 +1270,12 @@ impl ViewerBehavior<'_> {
     /// **The session's `range?` reading for `target`**: its lines, and
     /// whether the run is still proving. No lines while no run was taken
     /// for that field, or the document changed since.
-    fn range_lines(&self, target: &RangeTarget) -> (Vec<String>, bool) {
+    fn range_lines(&self, target: &RangeTarget) -> (Vec<Sentence>, bool) {
         self.session
             .range()
             .filter(|reading| reading.target == *target)
             .map_or((Vec::new(), false), |reading| {
-                (reading.lines(self.session.doc()), reading.proving())
+                (reading.said_lines(self.session.doc()), reading.proving())
             })
     }
 
@@ -1308,7 +1317,15 @@ impl ViewerBehavior<'_> {
         let target = RangeTarget::Variable { var: row.var };
         let (lines, proving) = self.range_lines(&target);
         let refused = self.session.range_refusal(&target);
-        let asked = range_notes(ui, &self.theme, &lines, proving, refused.as_ref());
+        let asked = range_notes(
+            ui,
+            &self.theme,
+            &lines,
+            self.session.doc(),
+            proving,
+            refused.as_ref(),
+        );
+        self.ops.extend(asked.followed.map(SessionOp::Select));
         if asked.stop {
             self.ops.push(SessionOp::StopRange);
         }
@@ -1337,10 +1354,12 @@ fn selected_node_heading(
     files: &crate::parts::PartFiles,
     said: &HeldNodes,
     node: RecipeNodeId,
-) -> String {
+) -> Sentence {
     match landed.filter(|doc| doc.node(node).is_some()) {
-        Some(doc) => crate::tree::node_label(doc, node, files),
-        None => crate::tree::spelled(&said.spoken(node)),
+        Some(doc) => crate::relations::Related::node(doc, node, files)
+            .said()
+            .clone(),
+        None => Sentence::from(crate::tree::spelled(&said.spoken(node))),
     }
 }
 
@@ -1379,6 +1398,7 @@ impl Direction {
 /// nothing this document holds. Nothing at all for no rows.
 pub(crate) fn relation_rows(
     ui: &mut egui::Ui,
+    on_screen: &Doc<ProfileProgram>,
     direction: Direction,
     rows: &[crate::relations::RelationRow],
     ops: &mut Vec<SessionOp>,
@@ -1391,11 +1411,11 @@ pub(crate) fn relation_rows(
         ui.horizontal_wrapped(|ui| {
             ui.label(direction.seat(row.seat));
             for entry in &row.entries {
-                related_entry(ui, entry, ops);
+                related_entry(ui, on_screen, entry, ops);
             }
             if let Some(through) = &row.through {
                 ui.label(THROUGH);
-                related_entry(ui, through, ops);
+                related_entry(ui, on_screen, through, ops);
             }
         });
     }
@@ -1405,36 +1425,29 @@ pub(crate) fn relation_rows(
 /// reads it through; the placement editor's "copy of" row says it too.
 pub(crate) const THROUGH: &str = "through";
 
-/// One [`crate::relations::Related`], drawn: a link pushing its
-/// selection, or its words.
+/// One [`crate::relations::Related`], drawn ([`crate::widgets::sentence`]
+/// against `on_screen`): its mention a link pushing its selection, the
+/// rest words.
 pub(crate) fn related_entry(
     ui: &mut egui::Ui,
+    on_screen: &Doc<ProfileProgram>,
     entry: &crate::relations::Related,
     ops: &mut Vec<SessionOp>,
 ) {
-    let said = entry.said().to_string();
-    match entry.selects() {
-        Some(selection) => {
-            if crate::widgets::message_link(ui, said.as_str()).clicked() {
-                ops.push(SessionOp::Select(selection));
-            }
-        }
-        None => {
-            crate::widgets::message(ui, said.as_str());
-        }
-    }
+    let said = crate::widgets::sentence(ui, entry.said(), on_screen, None);
+    ops.extend(said.map(SessionOp::Select));
 }
 
 /// **A picked entity's header**: the pick as the chrome says one
 /// ([`PickedName`]), and the node its Delete deletes — the feature the
 /// words name ([`PickedName::feature`]), so the button deletes what the
 /// label names. It is the node [`crate::session::FaceSelection::feature`]
-/// answersentence().s too, so the tree highlights what the header deletes.
+/// answers too, so the tree highlights what the header deletes.
 pub(crate) fn entity_header(
     picked: &PickedName<'_>,
     by: pncad::document::Speaker<'_>,
-) -> (String, RecipeNodeId) {
-    (Said(picked, by).sentence().to_string(), picked.feature())
+) -> (Sentence, RecipeNodeId) {
+    (Said(picked, by).sentence(), picked.feature())
 }
 
 /// **What the selection's standing has to SAY, drawn**: the verdict on
@@ -1774,9 +1787,10 @@ fn slot_notes(
     ui: &mut egui::Ui,
     theme: &Theme,
     row: &SlotRow,
-    reading: &[String],
+    reading: &[Sentence],
+    on_screen: &Doc<ProfileProgram>,
     notation: Notation,
-) -> Option<VarId> {
+) -> Option<Selection> {
     for line in reading_notes(&row.label, &row.value, row.dimension, notation) {
         crate::widgets::message_toned(ui, line, theme, Tone::Advisory);
     }
@@ -1814,7 +1828,7 @@ fn slot_notes(
                     )
                     .clicked()
                     {
-                        clicked = Some(var.id());
+                        clicked = Some(Selection::Variable(var.id()));
                     }
                 }
             });
@@ -1822,11 +1836,13 @@ fn slot_notes(
     }
     for (i, line) in reading.iter().enumerate() {
         let line = if i == 0 {
-            format!("{}: {line}", row.label)
+            pncad::document::sentence!(format_args!("{}: ", row.label), line)
         } else {
             line.clone()
         };
-        crate::widgets::message_toned(ui, line, theme, Tone::Advisory);
+        let followed =
+            crate::widgets::sentence(ui, &line, on_screen, Some((theme, Tone::Advisory)));
+        clicked = clicked.or(followed);
     }
     clicked
 }
@@ -1884,12 +1900,14 @@ fn free_move_probe(
 }
 
 /// What a `range?` line's controls were asked this frame.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 struct RangeAsked {
     /// The stop, under a run that is proving.
     stop: bool,
     /// The `range?` button.
     range: bool,
+    /// What a mention clicked in the reading selects.
+    followed: Option<Selection>,
 }
 
 /// **A document variable's `range?` reading and the button that starts
@@ -1903,14 +1921,18 @@ struct RangeAsked {
 fn range_notes(
     ui: &mut egui::Ui,
     theme: &Theme,
-    lines: &[String],
+    lines: &[Sentence],
+    on_screen: &Doc<ProfileProgram>,
     proving: bool,
     refused: Option<&Refusal>,
 ) -> RangeAsked {
+    let mut followed = None;
     for line in lines {
-        crate::widgets::message_toned(ui, line.as_str(), theme, Tone::Advisory);
+        let clicked = crate::widgets::sentence(ui, line, on_screen, Some((theme, Tone::Advisory)));
+        followed = followed.or(clicked);
     }
     RangeAsked {
+        followed,
         stop: proving && stop_link(ui),
         range: range_control(
             ui,
@@ -2062,7 +2084,17 @@ mod layout_tests {
             )
         };
         let (region, painted) = drawn_in(REGION, |ui| {
-            slot_notes(ui, &Theme::DEFAULT, &row, &[], Notation::DEFAULT);
+            slot_notes(
+                ui,
+                &Theme::DEFAULT,
+                &row,
+                &[],
+                &pncad::document::Doc::empty_derived(
+                    "slot-notes",
+                    pncad::geom_core::Tol::witness(),
+                ),
+                Notation::DEFAULT,
+            );
         });
         let label = SlotId::Distance.label();
         let values = find(&painted, &format!("{label} at each member: {spelled}"));
@@ -2129,7 +2161,17 @@ mod layout_tests {
             Ok(value),
         );
         let (region, painted) = drawn_in(REGION, |ui| {
-            slot_notes(ui, &Theme::DEFAULT, &row, &[], Notation::DEFAULT);
+            slot_notes(
+                ui,
+                &Theme::DEFAULT,
+                &row,
+                &[],
+                &pncad::document::Doc::empty_derived(
+                    "slot-notes",
+                    pncad::geom_core::Tol::witness(),
+                ),
+                Notation::DEFAULT,
+            );
         });
         let affordance = find(
             &painted,
@@ -2167,7 +2209,17 @@ mod layout_tests {
             )
         };
         let (region, painted) = drawn_in(REGION, |ui| {
-            slot_notes(ui, &Theme::DEFAULT, &row, &[], Notation::DEFAULT);
+            slot_notes(
+                ui,
+                &Theme::DEFAULT,
+                &row,
+                &[],
+                &pncad::document::Doc::empty_derived(
+                    "slot-notes",
+                    pncad::geom_core::Tol::witness(),
+                ),
+                Notation::DEFAULT,
+            );
         });
         let quoted = find(
             &painted,
@@ -2225,7 +2277,17 @@ mod layout_tests {
     fn a_slots_fault_is_said_under_its_row_inside_the_pane() {
         let row = distance_row(SlotDriver::Literal, Err(SlotFault::NoExpression));
         let (region, painted) = drawn_in(REGION, |ui| {
-            slot_notes(ui, &Theme::DEFAULT, &row, &[], Notation::DEFAULT);
+            slot_notes(
+                ui,
+                &Theme::DEFAULT,
+                &row,
+                &[],
+                &pncad::document::Doc::empty_derived(
+                    "slot-notes",
+                    pncad::geom_core::Tol::witness(),
+                ),
+                Notation::DEFAULT,
+            );
         });
         let fault = find(
             &painted,
@@ -2241,7 +2303,17 @@ mod layout_tests {
             "checked to 0 m…24.691357802469134 m".to_owned(),
         ];
         let (region, painted) = drawn_in(REGION, |ui| {
-            range_notes(ui, &Theme::DEFAULT, &lines, true, None);
+            range_notes(
+                ui,
+                &Theme::DEFAULT,
+                &lines.clone().map(pncad::document::Sentence::from),
+                &pncad::document::Doc::empty_derived(
+                    "range-notes",
+                    pncad::geom_core::Tol::witness(),
+                ),
+                true,
+                None,
+            );
         });
         let button = find(&painted, "restart");
         let stop = find(&painted, "stop");
@@ -2300,16 +2372,18 @@ mod tests {
             "the tree's feature is the header's"
         );
         let by = pncad::document::Speaker::TAG;
+        let (said, feature) = super::entity_header(&PickedName::face(&unclassified), by);
         assert_eq!(
-            super::entity_header(&PickedName::face(&unclassified), by),
+            (said.to_string(), feature),
             (
                 "the face of node 000000000003, on node 000000000005".to_owned(),
                 named
             ),
         );
         let cap = face(vec![RoleSeg::Cap(CapEnd::End)]);
+        let (said, feature) = super::entity_header(&PickedName::face(&cap), by);
         assert_eq!(
-            super::entity_header(&PickedName::face(&cap), by),
+            (said.to_string(), feature),
             (
                 "the end cap of node 000000000003, on node 000000000005".to_owned(),
                 named

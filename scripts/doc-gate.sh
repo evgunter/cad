@@ -400,18 +400,13 @@
 # DECLINES is priced to a tenth of a second and the arms it SHIPS would
 # otherwise not be priced at all: 7.0-7.4 s standing alone, and
 # `--selftest` end to end 85.0 -> 94.5 s, i.e. +9.5 s warm (2026-09-04,
-# 4 vCPU / 15 GB, three paired runs). That lands on every PR, in the
-# same `fmt` job the paragraph below records as already past F6's 2
-# billed minutes.
+# 4 vCPU / 15 GB, three paired runs). That lands on every run of
+# nightly.yml's `rustdoc-roots` job, which is where this gate runs.
 #
-# HOSTED, WARM AGAINST WARM, WHICH IS THE READING THAT DECIDES THE BILL:
-# the `fmt` job's `rustdoc (gate)` step goes 110 s -> 153 s and the job
-# 179 s -> 222 s, i.e. +43 s and +1 BILLED MINUTE, 3 -> 4 (runs
-# 33342571322 and 33346546955, cache restore 14 s and 13 s, non-gate
-# steps 69 s in both). Written up at F6's addendum in
-# docs/CI-MINUTES-2026-08.md, together with the thing that measurement
-# turned up: the job had ALREADY left F6's 2 billed minutes before this
-# pass existed, on growth elsewhere in the job. UNMEASURED and stated:
+# HOSTED, WARM AGAINST WARM: pass 3 took the gate step 110 s -> 153 s,
+# +43 s (runs 33342571322 and 33346546955, cache restore 14 s and 13 s;
+# the step then ran in a per-PR job, and the cost per run is the same
+# in the nightly one). UNMEASURED and stated:
 # each root pass 3 touches now carries a SECOND fingerprint set in its
 # cached target directory, so the hosted cache entry those roots share
 # grows by an amount nobody has read — F6's +90 MB was for adding the
@@ -478,17 +473,16 @@
 #     price of the exception paragraph above and is named as such.
 #
 # THE OUTSIDE ROOTS ARE ALSO THE CACHE'S SCOPE, WHICH IS WHY
-# `--print-roots` EXISTS. Hosted CI's `fmt` job restores one
-# `Swatinem/rust-cache` entry, and until #921 that entry covered `./target`
-# and nothing else — so the workspace pass ran against a warm dependency
-# graph while the six roots above compiled from nothing on EVERY run,
-# each into its own target directory that no cache carried. Measured on
-# the runner (2 vCPU, run 32583370980, warm cache with one kernel doc
-# comment changed — the case a real PR is): this script's real pass went
-# from 67 s to 33 s once the cache was told about all seven roots, and
-# the whole job from 136 s to 99 s, which is 3 billed minutes to 2. The
-# cache entry grows 155 MB to 245 MB compressed, paid only when the key
-# rotates. Written up as F6 in docs/CI-MINUTES-2026-08.md.
+# `--print-roots` EXISTS. nightly.yml's `rustdoc-roots` job restores one
+# `Swatinem/rust-cache` entry whose `workspaces:` is this script's
+# printed list. A cache covering `./target` alone runs the workspace pass
+# against a warm dependency graph while every outside root compiles from
+# nothing, each into its own target directory that no cache carries.
+# Measured on the runner (2 vCPU, run 32583370980, warm cache with one
+# kernel doc comment changed): this script's real pass went from 67 s to
+# 33 s once the cache was told about every root. The cache entry grows
+# 155 MB to 245 MB compressed, paid only when the key rotates
+# (docs/CI-MINUTES-2026-08.md, F6).
 #
 # THE LIST IS PRINTED, NOT COPIED. A `workspaces:` roster hand-written
 # into ci.yml would be the second hand-kept root list in this repo, and

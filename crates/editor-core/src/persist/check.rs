@@ -639,7 +639,7 @@ fn first_pose_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
                 snapshot
                     .operation_of(*copy)
                     .and_then(|at| snapshot.node(at)),
-                Some(crate::Node::Place { .. } | crate::Node::InstantiatePart { .. })
+                Some(node) if node.makes_a_copy()
             )
         {
             return Some(PoseFault::NotACopy { var: *copy });

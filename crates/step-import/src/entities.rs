@@ -1793,7 +1793,7 @@ impl<'a> Resolver<'a> {
                        refuses rather than guessing a splitting",
             });
         };
-        let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+        let (center, axis, u_ref) = (frame.origin(), frame.axis_unit(), frame.u_ref());
         // The file's one statement about this closed face's boundary
         // must lie on its surface, read at the file's band.
         let p = self.vertex(id, vertex_id)?;
@@ -1825,7 +1825,10 @@ impl<'a> Resolver<'a> {
         let mut meridian = |d: Vec3<f64>| -> Result<u64, StepImportError> {
             let eid = self.mint_id();
             let carrier = signed_zero::plus_zero_curve(geom::pole_form::sphere_meridian(
-                center, radius, axis, d,
+                center,
+                radius,
+                axis.get(),
+                d,
             ));
             let (t0, t1) = geometry::endpoint_params(eid, &carrier, north, south, false)?;
             edges.insert(
@@ -2790,12 +2793,10 @@ fn first_proj_axis(axis: Vec3<f64>) -> Vec3<f64> {
 /// **A line's unit direction from the file's ratio triple**: the triple
 /// itself where it is unit within its own rounding, so a unit direction
 /// the writer printed is kept bit for bit; otherwise the triple
-/// normalized. Read by the kernel's f64 door: the line's frame is built by
-/// `build_axes` about the triple, and with the triple as stated put back
-/// as its axis, [`geom_core::RigidMotion::check_rigid`] says whether the
-/// frame is still rigid within its rounding. `None` for a triple that
-/// names no direction.
-fn unit_line_direction(ratios: Vec3<f64>) -> Option<Vec3<f64>> {
+/// normalized, the axis of the frame `build_axes` decides about it. Unit
+/// within its rounding is [`geom_core::UnitVec3::stated`]'s column test,
+/// the frame door's. `None` for a triple that names no direction.
+fn unit_line_direction(ratios: Vec3<f64>) -> Option<geom_core::UnitVec3<f64>> {
     let reference = first_proj_axis(ratios);
     let built = geom_core::RigidMotion::from_axis_and_reference(
         Point3::origin(),
@@ -2805,13 +2806,9 @@ fn unit_line_direction(ratios: Vec3<f64>) -> Option<Vec3<f64>> {
         geom_core::Band::least(),
     )
     .ok()?;
-    let (u, v) = (built.u().get(), built.v().get());
-    let stated = Affine3::from_parts(Mat3::from_cols(u, v, ratios), Vec3::zero());
-    Some(if geom_core::RigidMotion::check_rigid(&stated).is_ok() {
-        ratios
-    } else {
-        built.w().get()
-    })
+    // The stated ratios where they are a unit direction to rounding, the
+    // built frame's axis otherwise.
+    Some(geom_core::UnitVec3::stated(ratios).unwrap_or_else(|| built.w()))
 }
 
 /// A placement as interpretation built it: the frame, the same frame as a

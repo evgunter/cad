@@ -261,7 +261,7 @@ dbg_macro = "warn"
 # not the timing: the 91.7s/1.2s pair is a 2026-07-21 reading on one box
 # and nothing re-takes it, because a timing asserted in the suite would be
 # box-dependent and this repo reports timings rather than gating them
-# (`docs/PERF-PLAN.md`). So the numbers above are a dated reason for a
+# (`work/perf/plan.md`). So the numbers above are a dated reason for a
 # guarded decision, and re-measuring them is a perf-lane act, not a CI one.
 [profile.dev.package.spade]
 opt-level = 2

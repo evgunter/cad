@@ -119,6 +119,16 @@ enum Read {
 }
 
 impl Reading {
+    /// The reading's ends: a value twice, an enclosure's two, `None`
+    /// where nothing was measured.
+    pub(crate) fn ends(&self) -> Option<(f64, f64)> {
+        match self.0 {
+            Read::Value(v) => Some((v, v)),
+            Read::Enclosure { lo, hi } => Some((lo, hi)),
+            Read::Unreadable => None,
+        }
+    }
+
     /// A scalar that is one number. NaN is unreadable.
     #[must_use]
     pub fn value(x: f64) -> Self {

@@ -342,6 +342,13 @@ impl fmt::Write for Sentence {
     }
 }
 
+/// A mention alone.
+impl From<Mention> for Sentence {
+    fn from(mention: Mention) -> Self {
+        Self(vec![Run::Mention(mention)])
+    }
+}
+
 /// Words alone.
 impl From<String> for Sentence {
     fn from(words: String) -> Self {

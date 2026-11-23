@@ -116,8 +116,12 @@ impl ViewerBehavior<'_> {
             }
             None => {}
         }
-        if let Some(name) = frame::creation_offer(news.refused.as_ref()) {
-            self.drafts.offer_variable(name);
+        // A refusal's lead is taken as it is heard.
+        for heard in news.refused.iter().flat_map(|refused| {
+            crate::recourse::offers(crate::recourse::Failure::Refused(refused)).heard
+        }) {
+            self.drafts
+                .take_heard(heard, self.tools, self.session.committed_doc());
         }
         true
     }
@@ -243,13 +247,13 @@ fn held_field(
             // this same rule (`guard_driven`), in the same words.
             HeldAct::Begin => {
                 if let Err(refusal) = crate::session::driven_refusal(node, row, notation) {
-                    notices.push(frame::refusal_message(&refusal));
+                    notices.push(frame::refusal_message_untargeted(&refusal));
                 }
             }
             HeldAct::Hold(value) => *held = value,
             HeldAct::Number(value) => match props::typed_formula(slot, value, unit) {
                 Ok(literal) => typed = Some(HeldEntry::Literal(literal)),
-                Err(error) => notices.push(frame::refusal_message(
+                Err(error) => notices.push(frame::refusal_message_untargeted(
                     &crate::session::Refusal::Dimension(error),
                 )),
             },
@@ -368,7 +372,7 @@ pub(crate) struct FieldNews {
     /// to the draft.
     pub(crate) standing: Option<(SlotId, String)>,
     /// The refusal of text typed this frame, for the offer the slot
-    /// door's refusal makes ([`frame::creation_offer`]).
+    /// door's refusal makes ([`crate::recourse::Heard::CreateVariable`]).
     pub(crate) refused: Option<crate::session::Refusal>,
     /// What the fields said this frame.
     pub(crate) notices: Vec<frame::Message>,
@@ -571,7 +575,10 @@ pub(crate) fn edit_door_ui(
             }
             (Err(refusal), _) => {
                 news.standing = None;
-                news.notices.push(frame::refusal_message(&refusal));
+                news.notices.push(frame::refusal_message(
+                    &refusal,
+                    pncad::document::Speaker::of(session.committed_doc()),
+                ));
             }
         }
     }
