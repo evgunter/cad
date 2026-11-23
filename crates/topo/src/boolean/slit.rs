@@ -1465,7 +1465,8 @@ fn conic_or_line_on<T: Decide + crate::props::AtRestPolicy>(
             if surface.spline_chart().is_none() =>
         {
             return Ok(
-                if clears_plane(carrier, surface, band) || spline_crosses(carrier, (t0, t1), surface, band)
+                if clears_plane(carrier, surface, band)
+                    || spline_crosses(carrier, (t0, t1), surface, band)
                 {
                     Placed::Off
                 } else {

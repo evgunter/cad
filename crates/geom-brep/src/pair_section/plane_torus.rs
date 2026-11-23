@@ -42,8 +42,7 @@ use geom_core::{Band, Decide, Indeterminate, MarginDiag, Point3, Real, Sign, rou
 
 use super::torus::{Ring, TorusGap, TorusPoseRefusal, TorusQuestion, lever, tangent_component};
 use super::{
-    ClassCarrier, ComponentShape, Components, PairPose, PairSection, SectionComponent,
-    square_part,
+    ClassCarrier, ComponentShape, Components, PairPose, PairSection, SectionComponent, square_part,
 };
 use crate::ExtentBall;
 use crate::intersect::SectionError;
@@ -234,7 +233,10 @@ fn tilted<T: Decide>(
                 .all(geom_core::is_finite_length)
                 .then_some(p)
         });
-        Ok((PtStance::Tilted(None), TorusGap::Tangent { row, margin, at }))
+        Ok((
+            PtStance::Tilted(None),
+            TorusGap::Tangent { row, margin, at },
+        ))
     };
     let near = row(NEAR, r - (h - s * big_r).abs(), slack, band)?;
     if near.0 == Sign::Zero {
@@ -290,9 +292,17 @@ fn null_witness<T: Decide>(pose: &PlaneTorusPose<T>, near: bool) -> Option<Point
 
 /// **The plane × torus section over its tilted pose** (module docs, the
 /// section); a closed pose is read elsewhere and never reaches it.
-pub(super) fn plane_torus<T: Decide>(pose: PlaneTorusPose<T>) -> Result<PairSection<T>, SectionError> {
+pub(super) fn plane_torus<T: Decide>(
+    pose: PlaneTorusPose<T>,
+) -> Result<PairSection<T>, SectionError> {
     let torus_first = !pose.plane_first;
-    let order = |torus: bool| if torus_first { [torus, false] } else { [false, torus] };
+    let order = |torus: bool| {
+        if torus_first {
+            [torus, false]
+        } else {
+            [false, torus]
+        }
+    };
     let loops = |count: usize, winds: bool| {
         Components::Counted(
             (0..count)
