@@ -2,12 +2,13 @@
 id: certify-affordance-on-the-bounds-panel
 kind: unit
 title: The bounds panel has no on-demand certify affordance for the certified range query
-status: dispatched
+status: review
 opened: 2026-09-13
 refs: [1183]
 priority: P1
 cost: H
 branch: offer/range-is-the-certified-search
+pr: 7548
 ---
 
 Filed by DOCM-9, which built the kernel side and was forbidden by its
