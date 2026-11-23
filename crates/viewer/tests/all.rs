@@ -217,6 +217,8 @@ mod review_m10_1_r1;
 mod review_pick_r2;
 #[path = "review_recheck_6300.rs"]
 mod review_recheck_6300;
+#[path = "review_subtract_tool_seat.rs"]
+mod review_subtract_tool_seat;
 #[path = "rv_matehead_probes.rs"]
 mod rv_matehead_probes;
 #[path = "save_and_fork_doors.rs"]
@@ -237,6 +239,8 @@ mod story_assembly;
 mod story_authoring;
 #[path = "story_parametric.rs"]
 mod story_parametric;
+#[path = "subtract_tool_seat.rs"]
+mod subtract_tool_seat;
 #[path = "takeovers.rs"]
 mod takeovers;
 #[path = "theme.rs"]

@@ -116,8 +116,9 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         /// The node to delete.
         id: RecipeNodeId,
     },
-    /// **Replace a node's whole LIST input** (DM4) — a union's or an
-    /// intersect's `Bodies` argument, or a loft's section reads re-pointed
+    /// **Replace a node's whole LIST input** (DM4) — a union's, an
+    /// intersect's or an assemble's `Bodies` argument, a subtract's
+    /// tools, or a loft's section reads re-pointed
     /// in place: the slot door
     /// ([`DocEdit::SetParam`] with a [`SlotValue::Read`]) on a list. The
     /// new list is stated in full, so nothing is inferred about which of
@@ -8972,13 +8973,19 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     )
                 };
             let mut rewritten = current.clone();
+            let seats = match &rewritten {
+                Node::Subtract { .. } => crate::operand::Seats::CUTS,
+                _ => crate::operand::Seats::MEMBERS,
+            };
             match &mut rewritten {
                 Node::Union { members: list, .. }
                 | Node::Intersect { members: list, .. }
-                | Node::Assemble { members: list, .. } => {
-                    let reads = members.try_map(|slot, member| lower(new, slot, member))?;
+                | Node::Assemble { members: list, .. }
+                | Node::Subtract { tool: list, .. } => {
+                    let reads =
+                        members.try_map_in(seats, |slot, member| lower(new, slot, member))?;
                     let mut indices = Vec::new();
-                    for (seat, member) in members.rows() {
+                    for (seat, member) in members.rows_in(seats) {
                         let mut at = Vec::new();
                         for (k, formula) in member.rows() {
                             at.push(lower_index(

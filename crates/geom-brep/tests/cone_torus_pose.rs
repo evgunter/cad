@@ -226,8 +226,8 @@ fn an_apex_on_the_torus_reads_node_or_touch_as_the_torus_crosses_it() {
         );
         let pose = decided(&k, &t);
         let read = match pose.stance() {
-            KtStance::Apex(ApexContact::Node { .. }) => true,
-            KtStance::Apex(ApexContact::Touch { .. }) => false,
+            KtStance::Apex(ApexContact::Node) => true,
+            KtStance::Apex(ApexContact::Touch) => false,
             other => panic!("{name}: not an apex pose: {other:?}"),
         };
         assert_eq!(read, node, "{name}: the pose's form");

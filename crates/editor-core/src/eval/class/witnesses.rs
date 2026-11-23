@@ -82,7 +82,7 @@ all_classes! {
     CountOutOfRange,
     UnschedulableCycle,
     Naming,
-    UnionFoldStep,
+    FoldStep,
     Shell,
     ShellLaneUnsupported,
     WitnessBifurcation,
@@ -369,7 +369,7 @@ fn witness(class: C, tol: Tol) -> K {
         C::Naming => K::Naming(crate::NamingError::Emission {
             what: "a cap face with no profile loop behind it",
         }),
-        C::UnionFoldStep => K::UnionFoldStep {
+        C::FoldStep => K::FoldStep {
             member: 2,
             read: crate::VarId::new(2, 2),
             refusal: Box::new(K::UnschedulableCycle),

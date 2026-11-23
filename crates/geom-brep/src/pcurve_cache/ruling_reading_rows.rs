@@ -366,13 +366,13 @@ fn a_shifted_ruling_takes_the_general_lane() {
 ///
 /// At ε 1e-12 the long span `(0.5, 40)` certifies at `f64` and its
 /// `Interval` certificate escalates `pcurve_envelope`, margin in
-/// `(1.1e-12, 1.2e-12]` (measured 1.121e-12 to 1.158e-12 over the four
+/// `(1.0e-12, 1.1e-12]` (measured 1.053e-12 to 1.090e-12 over the four
 /// generators). Cause: both jointly: a stored frame read as its polar
 /// enclosure (decision 1, #7131) and frames built at Interval from
-/// bracket inputs, a rigid-motion claim (fork 274); either alone stays
-/// under the band, so mutant A alone and mutant F1X alone each certify
-/// it and turn this pin red; both are levered by the span's 40 m. Every
-/// span certifies at ε 1e-9 and 1e-6.
+/// bracket inputs, a rigid-motion claim (fork 274), each widening the
+/// evaluation. Either alone stays under the band, so mutant A alone and
+/// mutant F1X alone each certify it and turn this pin red; both are
+/// levered by the span's 40 m. Every span certifies at ε 1e-9 and 1e-6.
 #[test]
 fn a_true_ruling_keeps_the_closed_form_on_both_nappes() {
     let surface = cone();
@@ -398,7 +398,7 @@ fn a_true_ruling_keeps_the_closed_form_on_both_nappes() {
                         .unwrap_or_else(|e| panic!("{what}: mints at Interval: {e:?}"));
                 // The long span at ε 1e-12: a stored frame read as its
                 // polar enclosure and the bracket frames (#7131; fork 274).
-                let pin = (span.1 > 10.0).then_some((1.1e-12, 1.2e-12));
+                let pin = (span.1 > 10.0).then_some((1.0e-12, 1.1e-12));
                 certifies(&what, (&image, &image_i), &carrier, span, &surface, pin);
                 assert_eq!(
                     chart_iso_family(&carrier, span, &surface, band()).map(|r| r.map(|r| r.family)),
