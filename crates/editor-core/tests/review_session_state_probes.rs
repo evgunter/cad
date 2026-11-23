@@ -359,3 +359,57 @@ fn a_prior_built_under_another_session_served_into_a_drives_leaf() {
         }
     }
 }
+
+fn peak_rss_mb() -> u64 {
+    std::fs::read_to_string("/proc/self/status")
+        .ok()
+        .and_then(|s| {
+            s.lines()
+                .find(|l| l.starts_with("VmHWM:"))
+                .and_then(|l| l.split_whitespace().nth(1)?.parse::<u64>().ok())
+        })
+        .map_or(0, |kb| kb / 1024)
+}
+
+/// **The drive's table against the leaf count**, and one thread against
+/// the default worker count: the wide bracket and the plate, each
+/// driven to a growing leaf budget. Prints; asserts nothing but that
+/// the drives ran.
+#[test]
+fn the_table_against_the_leaf_count() {
+    use editor_core::drive::{DriveConfig, drive};
+    let tol = Tol::witness();
+    let docs = [
+        ("bracket 1e3 eps", crate::m10_7_r2_probes_interval::bracket(1.0e3 * tol.eps(), tol).0),
+        ("plate", crate::m10_7_plate::plate(5.0e-5, 1.0e-5, tol).0),
+    ];
+    for (label, doc) in &docs {
+        let analyzed = analyzed_box(doc, &AnalysisPolicy::default());
+        for max_leaves in [2usize, 8, 32] {
+            for parallel in [false, true] {
+                let t0 = std::time::Instant::now();
+                let verdict = drive(
+                    doc,
+                    &analyzed,
+                    &DriveConfig {
+                        max_leaves,
+                        parallel,
+                        ..DriveConfig::default()
+                    },
+                    &editor_core::Stop::default(),
+                    tol,
+                )
+                .expect("the document drives");
+                let leaves = verdict.certified().len() + verdict.refused().len();
+                println!(
+                    "{label}: max_leaves {max_leaves} parallel {parallel}: {leaves} leaves, \
+                     {:.1} s, table {:?}, peak rss {} MB",
+                    t0.elapsed().as_secs_f64(),
+                    verdict.plain_memo(),
+                    peak_rss_mb()
+                );
+                assert!(leaves > 0);
+            }
+        }
+    }
+}
