@@ -1543,6 +1543,7 @@ impl Drafts {
             name_draft: _,
             new_variable_offer: _,
             mate_value_edits: _,
+            mate_offset_edits: _,
             mate_value_door: _,
             on_face: _,
             trace_face: _,
@@ -2029,6 +2030,7 @@ mod tests {
             }),
             new_variable_offer: Some(VarName::from_static("zz")),
             mate_value_edits: vec![(<Coord<Operand>>::slide(TargetAxis::X), "5 mm".to_owned())],
+            mate_offset_edits: vec![((node, 0), "5 mm".to_owned())],
             mate_value_door: Some(crate::matetool::PlaceDoor {
                 placement: node,
                 base: crate::session::PlacementBase {
@@ -2107,8 +2109,10 @@ mod tests {
         assert_eq!(drafts.name_draft, None, "the naming field");
         assert_eq!(drafts.new_variable_offer, None, "the offer");
         assert!(
-            drafts.mate_value_edits.is_empty() && drafts.mate_value_door.is_none(),
-            "the placement editor's typed values"
+            drafts.mate_value_edits.is_empty()
+                && drafts.mate_offset_edits.is_empty()
+                && drafts.mate_value_door.is_none(),
+            "the placement editor's typed values and offsets"
         );
         assert!(drafts.trace_shown.is_none(), "the trace shown");
         assert!(drafts.profile_edit.is_none(), "the profile editor's draft");
