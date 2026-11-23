@@ -976,7 +976,7 @@ pub fn trace_preview(marks: &pncad::trace::TraceMarks) -> ProfilePreview {
 /// one's must not, and a consumer handed a bare point list has nothing
 /// to read that from — it would either invent a leg nobody authored or
 /// drop one that was.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct PreviewLoop {
     /// The flattened polyline, in sketch-plane metres.
     ///
@@ -1026,7 +1026,7 @@ impl PreviewLoop {
 /// **How a drawn loop ends.** Only a chain produces an end
 /// other than [`Self::Closed`]: every template shape closes by
 /// construction.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum LoopEnd {
     /// The authored chain closes on its own.
     Closed,
@@ -1053,7 +1053,7 @@ pub enum LoopEnd {
 
 /// **A chain drawn short of its last step**: the refusal that cut it
 /// there, and how the drawn prefix ends.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct Cut {
     /// The refusal that cut the chain short.
     pub refusal: PreviewError,
@@ -1278,7 +1278,7 @@ impl Tell for PreviewHold<'_> {
 /// lattice does not admit, a leg whose geometry has no answer. A
 /// replay refusal whose loop still has a prefix to draw reaches a
 /// surface inside that loop ([`Cut`]); the rest are `preview`'s `Err`.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum PreviewError {
     /// A loop did not lower ([`path_program`]'s refusals): a field
     /// is not a finite number, or a complete-loop verb sits inside a
@@ -3163,7 +3163,10 @@ mod tests {
     fn a_last_leg_a_close_would_run_tangent_to_is_kept() {
         for (steps, tip) in test_support::tangent_closes() {
             let drawn = previewed(vec![steps.clone()]).expect("the legs written draw");
-            assert_eq!(drawn.loops[0].end, LoopEnd::Unfinished(None), "{steps:?}");
+            assert!(
+                matches!(drawn.loops[0].end, LoopEnd::Unfinished(None)),
+                "{steps:?}"
+            );
             assert_eq!(
                 vertex_points(&drawn.loops[0]).len(),
                 steps.len(),

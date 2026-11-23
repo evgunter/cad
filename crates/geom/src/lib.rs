@@ -161,6 +161,7 @@
 //! and `Dual<Interval>` — the derivative-vs-dual consistency and
 //! enclosure-containment test axes rely on exactly that.
 
+#![cfg_attr(not(test), deny(clippy::disallowed_methods))]
 mod azimuth;
 pub mod carrier_speed;
 mod chart_point;

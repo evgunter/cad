@@ -697,6 +697,10 @@ fn harmonic_curvature_bound<T: Real>(h: &ResidualHarmonics<T>) -> T {
 /// `work/oneround/a-conics-point-is-evaluated-from-its-far-centre-not-its-vertex.md`
 /// evaluates the point from its vertex. The share over in-box
 /// coordinates is not separated out of it.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn sample_rounding<T: Real>(s: &Surface<T>, conic: &dyn Conic<T>) -> Option<T> {
     let two = T::from_f64(2.0);
     let a = conic.speed_hi();
@@ -1102,6 +1106,10 @@ pub struct ConicHarmonics<T> {
 }
 
 /// The quadric arm of [`ConicHarmonics`]: `perp` is the surface's `⊥`.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn quadric_harmonics<T: Real>(
     conic: &dyn Conic<T>,
     origin: Point3<T>,
@@ -1113,7 +1121,7 @@ fn quadric_harmonics<T: Real>(
     let (a, b) = conic.semi_axes();
     let d = conic.frame().origin() - origin;
     let e = perp(d);
-    let (up, vp) = (perp(conic.frame().u_ref()), perp(conic.frame().v_ref()));
+    let (up, vp) = (perp(conic.u_ref()), perp(conic.v_ref()));
     let (aa, bb) = (a.powi(2) * up.norm_squared(), b.powi(2) * vp.norm_squared());
     let per = two * r;
     #[cfg(test)]
@@ -1188,6 +1196,10 @@ pub fn conic_sphere_harmonics<T: Real>(
 /// harmonics less their rounding. It vanishes where the carrier may
 /// reach the apex, where the cone's gradient does.
 #[must_use]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub fn conic_cone_harmonics<T: Real>(
     conic: &dyn Conic<T>,
     cone: geom::Line<T>,
@@ -1202,7 +1214,7 @@ pub fn conic_cone_harmonics<T: Real>(
     let (sin_a, cos_a) = half_angle.sin_cos();
     let (cc, ss) = (cos_a.powi(2), sin_a.powi(2));
     let (a, b) = conic.semi_axes();
-    let (u, v) = (conic.frame().u_ref(), conic.frame().v_ref());
+    let (u, v) = (conic.u_ref(), conic.v_ref());
     let d = conic.frame().origin() - apex;
     let perp = |x: Vec3<T>| {
         let along = c_axis.get().dot(x);
@@ -1275,7 +1287,7 @@ pub fn conic_cone_harmonics<T: Real>(
     // its radius.
     let abs_dot =
         |x: Vec3<T>, y: Vec3<T>| (x.x * y.x).abs() + (x.y * y.y).abs() + (x.z * y.z).abs();
-    let (n, uu_ref) = (conic.frame().axis(), conic.frame().u_ref());
+    let (n, uu_ref) = (conic.axis(), conic.u_ref());
     let v_abs = Vec3::new(
         (n.y * uu_ref.z).abs() + (n.z * uu_ref.y).abs(),
         (n.z * uu_ref.x).abs() + (n.x * uu_ref.z).abs(),
@@ -1428,6 +1440,10 @@ impl<T: Real> FormSup<T> {
 /// the rounding their coefficients carry, floored at `0` before the
 /// root. `axis` unit, unchecked.
 #[must_use]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(crate) fn conic_axis_distance_floor<T: Real>(conic: &dyn Conic<T>, axis: geom::Line<T>) -> T {
     let geom::Line { origin, dir: axis } = axis;
     let (two, half) = (T::from_f64(2.0), T::from_f64(0.5));
@@ -1437,11 +1453,7 @@ pub(crate) fn conic_axis_distance_floor<T: Real>(conic: &dyn Conic<T>, axis: geo
         x - axis.get() * along
     };
     let d = conic.frame().origin() - origin;
-    let (e, up, vp) = (
-        perp(d),
-        perp(conic.frame().u_ref()),
-        perp(conic.frame().v_ref()),
-    );
+    let (e, up, vp) = (perp(d), perp(conic.u_ref()), perp(conic.v_ref()));
     let (aa, bb) = (a.powi(2) * up.norm_squared(), b.powi(2) * vp.norm_squared());
     // `speed_hi` bounds both semi-axes: the invariant `ConicHarmonics::terms`
     // states.
@@ -1597,6 +1609,10 @@ fn trig_product<T: Real>(a: ([T; 5], [T; 5]), b: ([T; 5], [T; 5])) -> ([T; 5], [
 /// metre, which holds only on a ring, is [`ring_floor`]'s, read off the
 /// convention's witness.
 #[must_use]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub fn conic_torus_harmonics<T: Real>(
     conic: &dyn Conic<T>,
     torus: geom::Line<T>,
@@ -1609,7 +1625,7 @@ pub fn conic_torus_harmonics<T: Real>(
     } = torus;
     let (two, half) = (T::from_f64(2.0), T::from_f64(0.5));
     let (a, b) = conic.semi_axes();
-    let (u, v) = (conic.frame().u_ref(), conic.frame().v_ref());
+    let (u, v) = (conic.u_ref(), conic.v_ref());
     let w = conic.frame().origin() - t_center;
     let (aa, bb) = (a.powi(2) * u.norm_squared(), b.powi(2) * v.norm_squared());
     let rr = major_radius.powi(2);
@@ -1789,6 +1805,10 @@ pub fn conic_torus_implicit<T: Real>(
 /// values `F` takes near the tube. `theta`, the frames and the radii are
 /// taken as exact; `v̂ = n̂ × û` is charged as formed.
 #[must_use]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub fn conic_torus_jet<T: Real>(
     conic: &dyn Conic<T>,
     torus: geom::Line<T>,
@@ -1812,10 +1832,7 @@ pub fn conic_torus_jet<T: Real>(
         let (a, b) = conic.semi_axes();
         (Rounded::exact(a), Rounded::exact(b))
     };
-    let (n, u) = (
-        exact_vec(conic.frame().axis()),
-        exact_vec(conic.frame().u_ref()),
-    );
+    let (n, u) = (exact_vec(conic.axis()), exact_vec(conic.u_ref()));
     let v = cross(n, u);
     let c = exact_vec(Vec3::new(
         conic.frame().origin().x,
@@ -1967,6 +1984,10 @@ impl<T: Real> CircleSphereHarmonic<T> {
 /// encloses one, and the charge is zero ([`geom::Frame::rounding`]).
 /// Total arithmetic.
 #[must_use]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub fn circle_sphere_harmonic<T: Real>(
     circle: &geom::Circle<T>,
     s_center: Point3<T>,
@@ -2027,6 +2048,10 @@ pub fn circle_sphere_harmonic<T: Real>(
 /// spine circle), which is not a trigonometric polynomial and has no
 /// harmonic triple to report. Answering one would be a lie, not a
 /// widening.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn conic_residual_harmonics<T: Real>(
     s: &Surface<T>,
     conic: &dyn Conic<T>,
@@ -3443,7 +3468,7 @@ mod conic_tests {
         conics.push(Box::new(geom::Ellipse::new(
             geom::Frame::new(
                 first.frame().origin(),
-                first.frame().axis(),
+                first.axis(),
                 Vec3::new(1.0, 0.3, 0.1),
             ),
             first.semi_u(),
@@ -3663,7 +3688,7 @@ mod conic_tests {
         conics.push(Box::new(geom::Ellipse::new(
             geom::Frame::new(
                 first.frame().origin(),
-                first.frame().axis(),
+                first.axis(),
                 Vec3::new(1.0, 0.003, 0.0),
             ),
             first.semi_u(),
@@ -3769,7 +3794,7 @@ mod conic_tests {
         conics.push(Box::new(geom::Ellipse::new(
             geom::Frame::new(
                 first.frame().origin(),
-                first.frame().axis(),
+                first.axis(),
                 Vec3::new(1.0, 0.003, 0.0),
             ),
             first.semi_u(),

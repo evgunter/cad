@@ -2,11 +2,12 @@
 id: sizes-are-read-back-out-of-extent-levers
 kind: unit
 title: Ten sites read a size back out of a lever and use it as geometry
-status: dispatched
+status: review
 opened: 2026-11-20
 priority: P1
 cost: M
 branch: oneround/sizes-from-geometry
+pr: 7628
 ---
 
 

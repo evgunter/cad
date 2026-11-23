@@ -5929,6 +5929,10 @@ fn radial_amplitude<T: Real>(form: &Harmonic3<T>, axis: Vec3<T>) -> T {
 
 /// The carrier in the certified basis. Total for the analytic kinds;
 /// `Nurbs` carriers are refused at the lane check.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn carrier_harmonic<T: Real>(carrier: &Curve3<T>) -> Option<Harmonic3<T>> {
     match carrier {
         &Curve3::Line(geom::Line { origin, dir }) => Some(Harmonic3 {
@@ -9320,6 +9324,10 @@ pub fn iso_arc_spans(breaks: &KnotVector) -> usize {
 /// and the margin the band admits is paid as that term's sup bound.
 #[allow(clippy::too_many_arguments)] // one parameter per named quantity
 #[allow(clippy::too_many_lines)] // one class, kept whole like its siblings
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn run_iso_arc_checks<T: Decide>(
     p0: Point2<T>,
     pd: Vec2<T>,
@@ -9351,11 +9359,7 @@ fn run_iso_arc_checks<T: Decide>(
                    rational-quadratic reparameterization",
         });
     };
-    let (center, axis, u_ref) = (
-        circle.frame().origin(),
-        circle.frame().axis(),
-        circle.frame().u_ref(),
-    );
+    let (center, axis, u_ref) = (circle.frame().origin(), circle.axis(), circle.u_ref());
     let radius = circle.radius();
 
     // ---- Check 2: the parameter interval, metered into metres. ----
@@ -11532,6 +11536,10 @@ fn class_gate<T: Decide>(
 /// [`derive_class`], noting in `zero` each Zero its class stands on
 /// ([`IsoReading::zero`]): the class gates it decides Zero and the
 /// incidence test's margin.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn derive_class_zero<T: Decide>(
     carrier: &Curve3<T>,
     surface: &Surface<T>,
@@ -11957,11 +11965,8 @@ fn derive_class_zero<T: Decide>(
                     ))
                 }
                 Curve3::Ellipse(conic_k) => {
-                    let (center, e_axis, seam) = (
-                        conic_k.frame().origin(),
-                        conic_k.frame().axis(),
-                        conic_k.frame().u_ref(),
-                    );
+                    let (center, e_axis, seam) =
+                        (conic_k.frame().origin(), conic_k.axis(), conic_k.u_ref());
                     let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
                     // The tilted-section class: the exact
                     // [`Pcurve::FocalSection`] image (variant docs for
@@ -13102,6 +13107,10 @@ fn identity_escalated(cause: Indeterminate) -> PcurveCertifyError {
 /// in the sliver band; and [`PcurveCertifyError::Escalated`]
 /// ([`PcurveCheck::ChartClass`]) when a tangent's sign is not decided,
 /// the class not shown (the comment at `decided_sense`).
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn torus_oblique_circle<T: Decide>(
     carrier: &Curve3<T>,
     surface: &Surface<T>,
@@ -13120,7 +13129,7 @@ fn torus_oblique_circle<T: Decide>(
     else {
         unreachable!("torus_oblique_circle: the torus arm reads a circle carrier")
     };
-    let (c, n) = (circle.frame().origin(), circle.frame().axis());
+    let (c, n) = (circle.frame().origin(), circle.axis());
     let (center, axis, u_ref) = (
         torus_frame.origin(),
         torus_frame.axis_unit(),
@@ -13522,6 +13531,10 @@ mod incidence {
     /// Returned as the moved carrier, the moved chart, the slack, and
     /// the shift the moved carrier's parameter is read less (`mid` for a
     /// line, zero otherwise).
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn anchored<T: geom_core::Real>(
         carrier: &Curve3<T>,
         surface: &Surface<T>,
