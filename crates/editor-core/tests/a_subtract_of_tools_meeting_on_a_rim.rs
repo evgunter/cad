@@ -6,7 +6,9 @@
 //! a rim junction has no reading through the accumulation's turned tool
 //! face (`topo::boolean::nary`'s `given_pairs`): a step given one there
 //! refuses as that member's fold step. Today the judgement stops first,
-//! at the crossing layer that stops the union of the same two
+//! where the union of the same two stops: past the crossing layer (which
+//! reads an edge ending on the rim, `geom_brep::curve_face::end_root`),
+//! at the finish on the seams' stand-in descriptions
 //! (`work/heldrecords/a-pipe-does-not-union-with-an-elbow-revolved-off-its-own-cap.md`),
 //! so this row pins that refusal, and the turned-junction guard behind
 //! it is the kernel's own row
@@ -58,10 +60,11 @@ fn profile(doc: ProfileDoc, loops: Vec<LoopProgram<Formula>>) -> (ProfileDoc, Re
 }
 
 /// **The cut by a rod and its elbow refuses, typed, and builds no
-/// body**: the crossing layer's refusal of an edge ending on the rim,
-/// as the tools' own union refuses. Red where the cut builds a body
-/// (the junction read through a turned face as it stands), or refuses
-/// otherwise than the crossing layer or a fold step naming the elbow.
+/// body**: the finish's refusal of the seams' stand-in descriptions, as
+/// the tools' own union refuses. Red where the cut builds a body (the
+/// junction read through a turned face as it stands), or refuses
+/// otherwise than at the finish's stand-ins or a fold step naming the
+/// elbow.
 #[test]
 fn a_rod_and_its_elbow_cutting_one_block_refuse_typed() {
     let doc = ProfileDoc::empty_derived("a_subtract_of_tools_meeting_on_a_rim", Tol::witness());
@@ -131,9 +134,12 @@ fn a_rod_and_its_elbow_cutting_one_block_refuse_typed() {
     }
     let refusal = ev.node_error(cut).expect("the cut refuses");
     match &refusal.kind {
-        editor_core::NodeErrorKind::Boolean(topo::BooleanError::CurvedPierceUnsupported {
-            ..
-        }) => {}
+        editor_core::NodeErrorKind::Boolean(e @ topo::BooleanError::ResultInvalid { .. }) => {
+            assert!(
+                format!("{e:?}").contains("ScaffoldAtRest"),
+                "the finish's stand-in descriptions: {e:?}"
+            );
+        }
         editor_core::NodeErrorKind::FoldStep {
             member, refusal, ..
         } => {
@@ -146,6 +152,6 @@ fn a_rod_and_its_elbow_cutting_one_block_refuse_typed() {
                 "the turned junction's refusal: {refusal:?}"
             );
         }
-        other => panic!("the cut refuses at the crossing layer or the elbow's step: {other:?}"),
+        other => panic!("the cut refuses at the finish or the elbow's step: {other:?}"),
     }
 }
