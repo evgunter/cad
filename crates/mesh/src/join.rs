@@ -144,10 +144,11 @@ impl Wound {
 }
 
 /// Whether `tri`'s normal is not wound with `outward` at its centroid: a
-/// zero dot, or a normal that is poison, is a fold, as the lanes read one.
+/// zero dot, or a normal that is poison, is a fold, as the lanes read one;
+/// never where `outward` does not answer (a lane that reads no fold).
 fn wound_against(
     tri: [Point3<f64>; 3],
-    outward: impl Fn(Point3<f64>) -> geom_core::Vec3<f64>,
+    outward: &dyn Fn(Point3<f64>) -> Option<geom_core::Vec3<f64>>,
 ) -> bool {
     let normal = (tri[1] - tri[0]).cross(tri[2] - tri[0]);
     let centroid = Point3::new(
@@ -155,7 +156,8 @@ fn wound_against(
         (tri[0].y + tri[1].y + tri[2].y) / 3.0,
         (tri[0].z + tri[1].z + tri[2].z) / 3.0,
     );
-    normal.dot(outward(centroid)).partial_cmp(&0.0) != Some(core::cmp::Ordering::Greater)
+    outward(centroid)
+        .is_some_and(|n| normal.dot(n).partial_cmp(&0.0) != Some(core::cmp::Ordering::Greater))
 }
 
 /// **The census** on shared ids, before any patch is placed: each side
@@ -330,21 +332,44 @@ pub(crate) fn split(
             }
         }
     }
+    let made = triangles
+        .iter()
+        .enumerate()
+        .filter(|&(i, _)| pieces[i])
+        .map(|(i, t)| {
+            let Some((uv, singular)) = charts[i] else {
+                unreachable!("face {face:?}: every piece has its chart corners");
+            };
+            (t.map(|v| positions[v as usize]), uv, singular)
+        });
+    let outward = |p| match (&row, folds) {
+        (ChartRow::Analytic(analytic), true) => Some(analytic.outward(sense, p).vec()),
+        _ => None,
+    };
+    held(face, made, &row, &outward, run)
+}
+
+/// **The pieces of a split, read as their face's lane reads a triangle**:
+/// each on the face's certificate (`row`), and, where the lane reads folds
+/// (`outward` answers), wound with the face.
+///
+/// # Errors
+///
+/// The face's refusal: [`TessellateError::FoldedTriangle`], then the
+/// certificate's ([`cert::FaceVerdict::refusal`]).
+fn held(
+    face: FaceKey,
+    pieces: impl Iterator<Item = ([Point3<f64>; 3], [[f64; 2]; 3], [bool; 3])>,
+    row: &ChartRow<'_>,
+    outward: &dyn Fn(Point3<f64>) -> Option<geom_core::Vec3<f64>>,
+    run: &Run<'_>,
+) -> Result<(), TessellateError> {
     let mut verdict = cert::FaceVerdict::new();
     let mut folded = false;
-    for (i, t) in triangles.iter().enumerate() {
-        if !pieces[i] {
-            continue;
-        }
-        let Some((uv, singular)) = charts[i] else {
-            unreachable!("face {face:?}: every piece has its chart corners");
-        };
-        let tri = t.map(|v| positions[v as usize]);
+    for (tri, uv, singular) in pieces {
         let (bound, scale) = row.cert(tri, uv, singular);
         verdict.read(bound, run.delta, scale, run.eps);
-        if let (true, ChartRow::Analytic(analytic)) = (folds, &row) {
-            folded |= wound_against(tri, |p| analytic.outward(sense, p).vec());
-        }
+        folded |= wound_against(tri, outward);
     }
     if folded {
         return Err(TessellateError::FoldedTriangle { face });
@@ -428,5 +453,192 @@ fn cut(
             "face {face:?}: the census splits side {:?}, which two of its triangles have, and {on} have it",
             (a, b)
         );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use geom::Surface;
+    use geom_core::{Point3, Tol, Vec3};
+
+    use super::{Run, census, held, midpoint, side};
+    use crate::chart_table::ChartRow;
+    use crate::nurbs_cert::FaceBounds;
+    use crate::sizing::Eps;
+    use crate::types::TessellateError;
+
+    fn cone(half_angle: f64) -> Surface<f64> {
+        Surface::Cone {
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
+            half_angle,
+        }
+    }
+
+    /// **A side splits at its chart midpoint; an end at a singular point
+    /// gives it the other end's `u`; a cone's is the midpoint of the side
+    /// in its development.** On a cylinder the chart midpoint itself. On
+    /// cones of half-angle 0.1 to 1.2, on either nappe, sides up to a third
+    /// of a turn wide: the split point developed is the midpoint of the
+    /// developed ends (to rounding), its `u` between theirs; and from the
+    /// apex the other end's `u` at half its slant, the development's point
+    /// too.
+    #[test]
+    fn a_side_splits_at_its_charts_midpoint_and_a_cones_in_its_development() {
+        let cylinder = Surface::Cylinder {
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
+            radius: 2.0,
+        };
+        assert_eq!(
+            midpoint(&cylinder, ([0.25, 1.0], false), ([1.25, 3.0], false)),
+            [0.75, 2.0],
+            "a cylinder's split point is the chart midpoint"
+        );
+        for half_angle in [0.1, 0.5, 1.2] {
+            let surface = cone(half_angle);
+            let k = half_angle.sin();
+            for nappe in [1.0, -1.0] {
+                for (a, b) in [
+                    ([0.1, 1.0], [0.9, 2.5]),
+                    ([5.9, 0.4], [6.6, 0.5]),
+                    ([1.0, 3.0], [3.0, 1.0]),
+                ] {
+                    let (a, b) = ([a[0], nappe * a[1]], [b[0], nappe * b[1]]);
+                    let m = midpoint(&surface, (a, false), (b, false));
+                    let developed = |p: [f64; 2]| {
+                        let r = nappe * p[1];
+                        let t = nappe * k * p[0];
+                        (r * t.sin(), r * t.cos())
+                    };
+                    let ((xa, ya), (xb, yb), (xm, ym)) = (developed(a), developed(b), developed(m));
+                    let off = (xm - 0.5 * (xa + xb)).hypot(ym - 0.5 * (ya + yb));
+                    assert!(
+                        off < 1e-12,
+                        "half-angle {half_angle}, nappe {nappe}, {a:?} to {b:?}: {m:?} is {off:e} off the developed midpoint"
+                    );
+                    assert!(
+                        (a[0].min(b[0])..=a[0].max(b[0])).contains(&m[0]),
+                        "half-angle {half_angle}, nappe {nappe}: u {} between the ends'",
+                        m[0]
+                    );
+                }
+                let apex = [7.0, 0.0];
+                let end = [0.5, nappe * 2.0];
+                assert_eq!(
+                    midpoint(&surface, (apex, true), (end, false)),
+                    [0.5, nappe * 1.0],
+                    "from the apex: the other end's u at half its slant"
+                );
+            }
+        }
+    }
+
+    /// **A split's pieces are held as their face's lane holds a triangle.**
+    /// The rod sliver's cylinder face (`trimmed::tests::a_rod_sliver`), its
+    /// chart row as its lane reads it, and one piece spanning a third of a
+    /// radian of the rod: within δ 0.1 it passes; at δ 10⁻⁶ it refuses
+    /// `CertificateExceeded`; wound against the face where the lane reads
+    /// folds it refuses `FoldedTriangle`, and where it does not, not.
+    #[test]
+    fn a_split_piece_refuses_the_face_as_its_lane_would() {
+        let body = crate::trimmed::tests::a_rod_sliver();
+        let (face, surface) = body
+            .faces()
+            .find_map(|(fk, _)| {
+                let s = body.face_surface(fk)?;
+                matches!(s, Surface::Cylinder { .. }).then_some((fk, s))
+            })
+            .expect("the sliver has a cylinder face");
+        let bounds = FaceBounds::new();
+        let row = ChartRow::of(&body, face, surface, &bounds).unwrap();
+        let sense = body.get_face(face).unwrap().sense;
+        let ChartRow::Analytic(analytic) = &row else {
+            panic!("a cylinder's row is analytic");
+        };
+        let outward = |p| Some(analytic.outward(sense, p).vec());
+        let none = |_| None;
+        let uv = [[0.0, 0.5], [0.3, 0.5], [0.0, 1.5]];
+        let tri = uv.map(|[u, v]| surface.eval(u, v));
+        let reversed = [tri[0], tri[2], tri[1]];
+        let ruv = [uv[0], uv[2], uv[1]];
+        let run = |delta| Run {
+            body: &body,
+            bounds: &bounds,
+            delta,
+            eps: Eps::at(Tol::witness()),
+        };
+        // Which winding is outward is the face's sense: read it.
+        let wound = |t: [Point3<f64>; 3]| {
+            let n = (t[1] - t[0]).cross(t[2] - t[0]);
+            let c = Point3::new(
+                (t[0].x + t[1].x + t[2].x) / 3.0,
+                (t[0].y + t[1].y + t[2].y) / 3.0,
+                (t[0].z + t[1].z + t[2].z) / 3.0,
+            );
+            n.dot(analytic.outward(sense, c).vec()) > 0.0
+        };
+        let ((good, guv), (bad, buv)) = if wound(tri) {
+            ((tri, uv), (reversed, ruv))
+        } else {
+            ((reversed, ruv), (tri, uv))
+        };
+        let piece = |t, uv| std::iter::once((t, uv, [false; 3]));
+        assert!(
+            held(face, piece(good, guv), &row, &outward, &run(0.1)).is_ok(),
+            "within δ: held"
+        );
+        assert!(
+            matches!(
+                held(face, piece(good, guv), &row, &outward, &run(1e-6)),
+                Err(TessellateError::CertificateExceeded { .. })
+            ),
+            "past δ: the certificate refuses"
+        );
+        assert!(
+            matches!(
+                held(face, piece(bad, buv), &row, &outward, &run(0.1)),
+                Err(TessellateError::FoldedTriangle { .. })
+            ),
+            "wound against the face: a fold"
+        );
+        assert!(
+            held(face, piece(bad, buv), &row, &none, &run(0.1)).is_ok(),
+            "a lane that reads no fold"
+        );
+    }
+
+    /// **The census splits a side in every patch that has it inside, and
+    /// a face whose boundary chord carries it keeps it.** Three faces of a
+    /// cube for keys: `f` holds both halves of the edge whose chord carries
+    /// side `(1, 2)` (a seam, two of its triangles on it, both boundary),
+    /// `g` has the side inside, `h` uses it nowhere. Four uses against one
+    /// chord's two: `g` splits and `f` does not. A side no chord carries
+    /// that `g` and `h` both have inside splits in both; one only `g` has
+    /// is no one's to split.
+    #[test]
+    fn the_census_splits_inside_and_a_boundary_keeps_its_chord() {
+        let body = sweep::test_support::cube::<f64>(1.0, Tol::witness());
+        let keys: Vec<_> = body.faces().map(|(k, _)| k).collect();
+        let (f, g, h) = (keys[0], keys[1], keys[2]);
+        let carried = side(2, 1);
+        let free = side(5, 7);
+        let alone = side(8, 9);
+        let faces = vec![
+            (f, vec![carried, carried]),
+            (g, vec![carried, carried, free, free, alone, alone]),
+            (h, vec![free, free]),
+        ];
+        let split = census(&faces, &[(carried, [f, f])]);
+        assert_eq!(split.get(&g), Some(&vec![carried, free]), "g splits both");
+        assert_eq!(split.get(&h), Some(&vec![free]), "h splits the free side");
+        assert_eq!(split.get(&f), None, "f keeps its boundary chord");
     }
 }
