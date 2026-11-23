@@ -2,11 +2,12 @@
 id: raw-door-compile-proof-needs-a-gate
 kind: issue
 title: BOOL-9's shut-build proof (a downstream crate cannot mint a ProfileLoop without the test-support edge) is a measurement, not a row — it needs a gate with a toolchain
-status: open
+status: closed
 opened: 2026-09-08
 refs: [2134]
 priority: P3
 cost: D
+closed: 2026-11-22
 ---
 
 BOOL-9 (PR 2134 §11) measured the enforcement by hand — a witness crate
@@ -40,3 +41,7 @@ charter (`work/unread/plan.md`). Id and body unchanged.
 ## Moved to CIW (2026-11-02)
 
 - 2026-11-02 — moved from UNREAD to CIW when UNREAD merged into CIW (budget rule now counts P0/P1 only). UNREAD's rows are claims no gate reads and CIW's are what the hosted gate does not run or see: one question, what goes red if this stops being true. Id and body unchanged.
+
+## Closed
+
+2026-11-22, CIW triage (not worth its latency). Needs a toolchain job that builds a witness crate against `profile` twice (shut and open), which adds compile minutes to a per-PR job or adds a nightly job. No incident in 2.5 months: nobody has tried to mint a `ProfileLoop` downstream. The three census rows the row names already pin the visibility as text.

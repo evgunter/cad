@@ -1747,6 +1747,7 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
     - Waiting on CI, which is queued (95 runs repo-wide).
   - **P0 owed by GERM found on main**: BOXFINISH bisected `work/green/main-red-eleven-...-after-c390e1f9` and found that U3b (PR 7299) moved six editor-core default-set rows: `cut_cylinder`'s split vertex is now placed at `cross`'s root. I did not see this sooner. A lane is dispatched to judge the move with numbers and re-pin GERM's six; SECTCONE owns the other five. Tier: the orchestrator's read (a re-pin with a measured judgement), so no model-compare draw.
   - Closed `main-red-recourse-roster-misses-intersect-rs-closed-form-shown-and-shown`: PR 7217 fixed it, but the row was left open.
+- 2026-11-23 — **Closed `main-red-axis-normal-snap-refuses-nist-ftc-09`** (`germ/nist-snap-main-red`). `nist_ftc_09`'s refusal at `#5130` is a tangent pair, not an axis-normal one: cylinder `#5130` bites plane `#5116` by 56.8 µm, in the (33.8 µm, 338 µm) band. PR 7171's fix pass made the snap refuse it, and the build refuses the same gap at `#5118`. The pins moved from `#4950` to `#5130`, a refusal-class change by D7.
 - 2026-11-23 02:30 — **P0 re-pin merged** (PR 7500, `194131e40b`).
   - Measured judgement: across the whole corpus dump at f64, U3b moved one point, `cut_cylinder`'s x = −0.5 seam vertex z, by 1 ulp. It went from `…115`, 0.58 ulp below the exact crossing, to `…116`, the correctly rounded value. No outcome, count or verdict moved.
   - GERM's six rows are re-pinned. SECTCONE's five are untouched, and the green row stays open for them.
@@ -1817,3 +1818,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - The sweep fixes four more readers. A line-graze row was added for the mutant that survived.
   - The anchored-ellipse sibling is filed (P2), not fixed: Ev's PR 7523 keeps the anchor opaque.
   - The reviewer arm was drawn and recorded on the analysis branch. A single FULL review is dispatched with an arm-free brief.
+- 2026-11-23 — (DOCTAIL orchestrator) Filed `main-red-revalue-corpus-carrier-and-witness-on-surface-drift-since-7411` on GREEN: ten `revalue_corpus` rows red on main since PR 7411 (`germ/plane-pose-far-frame`), bisected by DOCTAIL's 7396 lane. GERM's change.
