@@ -24,7 +24,7 @@ const NAME: Option<&str> = option_env!("PCERT_RADIAL_PAIR_MUTANT");
 
 /// Every site this crate's hooks name. topo's `chord_join` declares its
 /// own one (`topo-v-var`) under the same variable.
-pub(super) const SITES: [&str; 57] = [
+pub(super) const SITES: [&str; 55] = [
     "class-circle",
     "zero-winding",
     "torus-parallel",
@@ -56,9 +56,7 @@ pub(super) const SITES: [&str; 57] = [
     "spline-floor-net",
     "spline-charge-dropped",
     "spline-cut-uncharged",
-    "spline-bound-undercut",
     "spline-on-cut-short",
-    "spline-product-uncharged",
     "spline-shown-unread",
     "sampled-line-incidence",
     "arc-rim-weight-unpaid",
@@ -243,19 +241,6 @@ pub(super) fn spline_charge_dropped() -> bool {
 /// (its rows are `spline_incidence_rows`).
 pub(super) fn spline_cut_uncharged() -> bool {
     on("spline-cut-uncharged")
-}
-
-/// A spline chart cut's insertion blends charged the difference's
-/// rounding but not the product's by the ratio (its rows are
-/// `spline_incidence_rows`'s knotted cut-drift row).
-pub(super) fn spline_product_uncharged() -> bool {
-    on("spline-product-uncharged")
-}
-
-/// A spline chart cut's point rounding bound cut to a quarter (its rows
-/// are `spline_incidence_rows`'s cut-drift rows).
-pub(super) fn spline_bound_undercut() -> bool {
-    on("spline-bound-undercut")
 }
 
 /// A spline chart's walk stopped four cells past its first point read in

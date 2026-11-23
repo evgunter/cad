@@ -10,8 +10,9 @@ use crate::entity::FaceKey;
 use crate::euler::{FaceSurface, MefSite, MevSite};
 use geom::{NurbsSurface, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, Pcurve};
+use geom_core::running::{Tracked, UNIT_ROUNDOFF, dehomogenized};
 use geom_core::spline::KnotVector;
-use geom_core::{Band, Point2, Point3, Tol, Vec2, Vec3};
+use geom_core::{Band, Point2, Point3, Rounded, Tol, Vec2, Vec3};
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
@@ -462,8 +463,8 @@ fn r1_a_hole_lifted_a_period_from_its_outer_loop_is_still_a_hole() {
         (0..4)
             .map(|k| {
                 super::Piece::segment(
-                    super::Piece::vertex(p[k], [0.0; 2]),
-                    super::Piece::vertex(p[(k + 1) % 4], [0.0; 2]),
+                    super::Piece::vertex(p[k]),
+                    super::Piece::vertex(p[(k + 1) % 4]),
                 )
             })
             .collect::<Vec<_>>()
@@ -775,8 +776,8 @@ fn a_way_out_of_the_window_within_the_band_keeps_a_query_near() {
     let square = (0..4)
         .map(|k| {
             super::Piece::segment(
-                super::Piece::vertex(p[k], [0.0; 2]),
-                super::Piece::vertex(p[(k + 1) % 4], [0.0; 2]),
+                super::Piece::vertex(p[k]),
+                super::Piece::vertex(p[(k + 1) % 4]),
             )
         })
         .collect();
@@ -806,7 +807,7 @@ fn a_piece_exactly_the_querys_size_that_meets_it_keeps_it_near() {
     let b = band();
     let chart = ruled(&[(0.0, 0.0), (1.0, 0.0)]);
     let cells = bezier_cells(&chart).unwrap();
-    let vertex = |p: [f64; 2]| super::Piece::vertex(p, [0.0; 2]);
+    let vertex = |p: [f64; 2]| super::Piece::vertex(p);
     let arc = super::Piece {
         net: vec![
             vertex([0.875, 0.625]),
@@ -1335,15 +1336,36 @@ fn dd_split(
     out
 }
 
+/// A cell point's bound out of homogeneous form, per coordinate
+/// ([`Tracked::dehomogenized`]): infinite where its weight's bound
+/// reaches the weight.
+fn patch_bound(control: &crate::spline_trim::Control<f64, 4>) -> [f64; 3] {
+    Tracked::dehomogenized(*control, crate::spline_trim::SPLINE_TRIM_WEIGHT)
+        .map_or([f64::INFINITY; 3], |p| [0, 1, 2].map(|k| p[k].rounding()))
+}
+
+/// A piece point's bound out of homogeneous form, per coordinate
+/// ([`dehomogenized`]): infinite where its weight's bound reaches the
+/// weight.
+fn piece_bound(node: &crate::spline_trim::Node) -> [f64; 2] {
+    dehomogenized(*node, crate::spline_trim::SPLINE_TRIM_WEIGHT)
+        .map_or([f64::INFINITY; 2], |p| [p[0].error, p[1].error])
+}
+
+/// A homogeneous channel's value.
+fn value(h: &crate::spline_trim::Control<f64, 4>, c: usize) -> f64 {
+    h[c].value()
+}
+
 /// The worst, over the cell's points and coordinates, of each point's
 /// drift from its double-double reference over its rounding bound
-/// ([`super::point_rounding`]).
+/// ([`patch_bound`]).
 fn drift_over_bound(cell: &super::Patch<f64>, reference: &[[Dd; 4]]) -> f64 {
     let mut worst = 0.0f64;
     for (control, exact) in cell.net.iter().zip(reference) {
-        let bound = super::point_rounding(control);
+        let bound = patch_bound(control);
         for c in 0..3 {
-            let drift = Dd::of(control.0[c] / control.0[3])
+            let drift = Dd::of(value(control, c) / value(control, 3))
                 .sub(exact[c].div(exact[3]))
                 .0
                 .abs();
@@ -1485,7 +1507,7 @@ fn a_query_on_a_far_trim_curve_is_given_no_side() {
         v: (c - 1.0, c + 1.0),
     };
     let trim = |mut run: Vec<Piece>| {
-        let v = |u: f64, v: f64| Piece::vertex([u, v], [0.0; 2]);
+        let v = |u: f64, v: f64| Piece::vertex([u, v]);
         run.push(Piece::segment(run.last().unwrap().last(), v(0.8, c + 0.5)));
         run.push(Piece::segment(v(0.8, c + 0.5), v(0.2, c + 0.5)));
         run.push(Piece::segment(v(0.2, c + 0.5), run[0].first()));
@@ -1658,9 +1680,12 @@ mod knotted {
                         exact = super::dd_split(&exact, (pu, pv), along_u, s, left);
                     }
                     for (got, ex) in cell.net.iter().zip(&exact) {
-                        let bound = super::super::point_rounding(got);
+                        let bound = super::patch_bound(got);
                         for k in 0..3 {
-                            let d = drift(got.0[k] / got.0[3], ex[k].div(ex[3]));
+                            let d = drift(
+                                super::value(got, k) / super::value(got, 3),
+                                ex[k].div(ex[3]),
+                            );
                             worst = worst.max(d / bound[k]);
                             assert!(
                                 d <= bound[k],
@@ -1739,9 +1764,9 @@ mod knotted {
             assert_eq!(firsts.len(), pieces.len(), "case {case}");
             let check = |piece: &Piece, ex: &[[Dd; 3]], worst: &mut f64| {
                 for (got, e) in piece.net.iter().zip(ex) {
-                    let bound = super::super::point_rounding(got);
+                    let bound = super::piece_bound(got);
                     for k in 0..2 {
-                        let d = drift(got.0[k] / got.0[2], e[k].div(e[2]));
+                        let d = drift(got[k].value / got[2].value, e[k].div(e[2]));
                         *worst = worst.max(d / bound[k]);
                         assert!(
                             d <= bound[k],
@@ -1827,7 +1852,7 @@ fn a_query_on_a_wide_interval_trim_image_is_given_no_side() {
         v: (c - 1.0, c + 1.0),
     };
     let mut run = bezier_pieces(&image, 0.0, 1.0).unwrap();
-    let v = |u: f64, v: f64| Piece::vertex([u, v], [0.0; 2]);
+    let v = |u: f64, v: f64| Piece::vertex([u, v]);
     run.push(Piece::segment(run.last().unwrap().last(), v(0.8, c + 0.5)));
     run.push(Piece::segment(v(0.8, c + 0.5), v(0.2, c + 0.5)));
     run.push(Piece::segment(v(0.2, c + 0.5), run[0].first()));
@@ -1855,8 +1880,16 @@ fn a_piece_with_a_nan_bound_has_no_box() {
     use super::Piece;
     let piece = Piece {
         net: vec![
-            ([0.0, 0.0, 1.0], [0.0, f64::NAN, 0.0]),
-            ([1.0, 1.0, 1.0], [0.0; 3]),
+            [
+                Rounded::exact(0.0),
+                Rounded::exact(0.0).with_charge(f64::NAN),
+                Rounded::exact(1.0),
+            ],
+            [
+                Rounded::exact(1.0),
+                Rounded::exact(1.0),
+                Rounded::exact(1.0),
+            ],
         ],
     };
     let b = piece.bbox();
@@ -1868,12 +1901,14 @@ fn a_piece_with_a_nan_bound_has_no_box() {
 /// dropped by the per-channel fold to leave the floor at the box gap.
 #[test]
 fn a_cell_with_a_nan_bound_has_no_floor() {
-    let net = vec![
-        ([0.0, 0.0, 0.0, 1.0], [f64::NAN, 0.0, 0.0, 0.0]),
-        ([1.0, 0.0, 0.0, 1.0], [0.0; 4]),
-        ([0.0, 1.0, 0.0, 1.0], [0.0; 4]),
-        ([1.0, 1.0, 0.0, 1.0], [0.0; 4]),
-    ];
+    let net = [
+        [carrying(f64::NAN), carrying(0.0), carrying(0.0)],
+        [Tracked::exact(1.0), carrying(0.0), carrying(0.0)],
+        [carrying(0.0), Tracked::exact(1.0), carrying(0.0)],
+        [Tracked::exact(1.0), Tracked::exact(1.0), carrying(0.0)],
+    ]
+    .map(|[x, y, z]| [x, y, z, Tracked::exact(1.0)])
+    .to_vec();
     let cell = super::Patch {
         rect: super::Rect {
             u: (0.0, 1.0),
@@ -1888,11 +1923,26 @@ fn a_cell_with_a_nan_bound_has_no_floor() {
     assert!(floor.is_nan(), "a NaN bound leaves the floor {floor}");
 }
 
+/// `0` carrying the rounding bound `e`, by the arithmetic: `a·1 − a` for
+/// `a = e/u`, whose product rounds by `u·|a| = e` and whose difference
+/// lands on an exact zero.
+fn carrying(e: f64) -> Tracked<f64> {
+    let a = Tracked::exact(e / UNIT_ROUNDOFF);
+    a * Tracked::exact(1.0) - a
+}
+
 /// A unit square cell at `z = 0`, held about `centre`, each point
 /// carrying the rounding bound `e` on its `z` channel.
 fn square_cell(centre: Vec3<f64>, e: f64) -> super::Patch<f64> {
     let net = [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0), (1.0, 1.0)]
-        .map(|(x, y)| ([x, y, 0.0, 1.0], [0.0, 0.0, e, 0.0]))
+        .map(|(x, y)| {
+            [
+                Tracked::exact(x),
+                Tracked::exact(y),
+                carrying(e),
+                Tracked::exact(1.0),
+            ]
+        })
         .to_vec();
     super::Patch {
         rect: super::Rect {
@@ -1990,7 +2040,7 @@ fn a_query_on_a_far_trim_curve_along_v_is_given_no_side() {
         v: (0.0, 1.0),
     };
     let mut run = bezier_pieces(&image, 0.0, 1.0).unwrap();
-    let v = |u: f64, v: f64| Piece::vertex([u, v], [0.0; 2]);
+    let v = |u: f64, v: f64| Piece::vertex([u, v]);
     run.push(Piece::segment(run.last().unwrap().last(), v(c - 0.5, 0.8)));
     run.push(Piece::segment(v(c - 0.5, 0.8), v(c - 0.5, 0.2)));
     run.push(Piece::segment(v(c - 0.5, 0.2), run[0].first()));
@@ -2020,15 +2070,16 @@ fn a_shifted_pieces_rounding_bound_holds_its_drift() {
         let w = 10f64.powf(rng.range(-4.0, 4.0));
         let p = [rng.range(-1e4, 1e4), rng.range(-1e4, 1e4)];
         let h = [p[0] * w, p[1] * w, w];
+        let node = h.map(Rounded::exact);
         let piece = super::Piece {
-            net: vec![(h, [0.0; 3]), (h, [0.0; 3])],
+            net: vec![node, node],
         };
         let d = [rng.range(-1e4, 1e4), rng.range(-1e4, 1e4)];
         let moved = piece.shifted(d[0], d[1]).net[0];
-        let bound = super::point_rounding(&moved);
+        let bound = piece_bound(&moved);
         for c in 0..2 {
             let exact = Dd::of(h[c]).add(Dd::of(d[c]).mul(Dd::of(w))).div(Dd::of(w));
-            let drift = Dd::of(moved.0[c] / moved.0[2]).sub(exact).0.abs();
+            let drift = Dd::of(moved[c].value / moved[2].value).sub(exact).0.abs();
             worst = worst.max(drift / bound[c]);
         }
     }
@@ -2059,10 +2110,10 @@ fn an_iso_images_ends_hold_their_evaluations_rounding() {
         let run =
             super::image_pieces(&line, geom_brep::StoredSpan::for_tests(t0, t1), scale).unwrap();
         for (end, t) in [(run[0].first(), t0), (run[0].last(), t1)] {
-            let bound = super::point_rounding(&end);
+            let bound = piece_bound(&end);
             for (c, (a, b)) in [(p0.x, pl.x), (p0.y, pl.y)].into_iter().enumerate() {
                 let exact = Dd::of(a).add(Dd::of(b).mul(Dd::of(t)));
-                let drift = Dd::of(end.0[c] / end.0[2]).sub(exact).0.abs();
+                let drift = Dd::of(end[c].value / end[2].value).sub(exact).0.abs();
                 worst = worst.max(drift / bound[c]);
             }
         }

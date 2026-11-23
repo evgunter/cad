@@ -98,10 +98,10 @@
 
 use geom::{Curve3, NurbsSurface};
 use geom_core::k_stats::{decide, decide_reported, straddle};
+use geom_core::running::Tracked;
 use geom_core::spline::{Knots, SpanLocate};
 use geom_core::{
-    Band, Decide, Decided, Indeterminate, Margin, Point3, Real, Sign, UNIT_ROUNDOFF, Vec3,
-    rounding_charge,
+    Band, Decide, Decided, Indeterminate, Margin, Point3, Real, Sign, Vec3, rounding_charge,
 };
 
 use super::{INCIDENCE_SAMPLES, Incidence, PcurveCertifyError, incidence_escalated};
@@ -117,6 +117,9 @@ pub(super) const FOOT: &str = "pcurve_spline_chart_foot";
 /// A sample left with a kept cell whose floor decided zero and whose
 /// points decided past the band.
 pub(super) const STRADDLE: &str = "pcurve_spline_chart_straddle";
+/// A control point's weight against its own rounding: whether the point
+/// out of homogeneous form has a bound.
+const WEIGHT: &str = "pcurve_spline_chart_weight";
 
 /// How many times a kept cell is halved at most. `topo`'s spline face
 /// placement walks the same cells with its own pair (`CELL_DEPTH` 48
@@ -324,10 +327,8 @@ struct Net<'a, T: Real> {
 }
 
 /// A homogeneous control point, `[w·x, w·y, w·z, w]` about the centre,
-/// with a first-order bound on each channel's accumulated rounding at
-/// `f64` (module docs, *Rounding*); zero at an enclosure scalar, whose
-/// arithmetic holds the exact value already.
-type Control<T> = ([T; 4], [f64; 4]);
+/// each channel with its rounding (module docs, *Rounding*).
+type Control<T> = [Tracked<T>; 4];
 
 /// One Bézier cell: its parameter rectangle `[u0, u1] × [v0, v1]`, its
 /// control net row-major in `u`, and how many times it was halved.
@@ -376,42 +377,10 @@ impl<T> Ord for Queued<T> {
     }
 }
 
-/// **One blend `x + (y − x)·t`** of two homogeneous control points, each
-/// channel by [`SpanLocate::homogeneous_step`], with its rounding bound
-/// at `f64`. The step rounds three times, with no fused multiply-add:
-/// the difference, its product by `t`, and the sum. To first order the
-/// bound is the inputs' bounds blended as the values are, plus
-/// `u·|y − x|·t` for the difference, `u·|y − x|·t` for the product,
-/// `u·|result|` for the sum, and `|y − x|·dt` for `t`'s own rounding.
-/// A halving's `t` is the exact half, so its product is exact and
-/// `dt` is zero, and the product term is dropped. An insertion's ratio
-/// of knots is rounded by three units of `t` (`dt`: two differences and
-/// a quotient), and its product rounds as well.
-fn blend<T: Decide>(x: Control<T>, y: Control<T>, t: T, ratio: bool, track: bool) -> Control<T> {
-    let h: [T; 4] = core::array::from_fn(|c| T::homogeneous_step(x.0[c], y.0[c], t));
-    if !track {
-        return (h, [0.0; 4]);
-    }
-    let tf = middle(t);
-    let (dt, roundings) = if ratio {
-        (3.0 * UNIT_ROUNDOFF * tf.abs(), 2.0)
-    } else {
-        (0.0, 1.0)
-    };
-    #[cfg(test)]
-    let roundings = if super::mutants::spline_product_uncharged() {
-        1.0
-    } else {
-        roundings
-    };
-    let e = core::array::from_fn(|c| {
-        let span = (middle(y.0[c]) - middle(x.0[c])).abs();
-        (1.0 - tf) * x.1[c]
-            + tf * y.1[c]
-            + UNIT_ROUNDOFF * (roundings * span * tf.abs() + middle(h[c]).abs())
-            + span * dt
-    });
-    (h, e)
+/// **One blend `x + (y − x)·t`** of two homogeneous control points,
+/// each channel by [`Tracked::step`].
+fn blend<T: SpanLocate>(x: Control<T>, y: Control<T>, t: Tracked<T>) -> Control<T> {
+    core::array::from_fn(|c| x[c].step(y[c], t))
 }
 
 impl<'a, T: Decide<Value = T>> Net<'a, T> {
@@ -422,7 +391,6 @@ impl<'a, T: Decide<Value = T>> Net<'a, T> {
         if pu == 0 || pv == 0 || nu == 0 || nv == 0 {
             return None;
         }
-        let track = T::WITNESS == geom_core::Witness::Inexact;
         let (control, weights) = (chart.control(), chart.weights());
         let (lo, hi) = shadow_box(control);
         let centre = Vec3::new(
@@ -430,35 +398,23 @@ impl<'a, T: Decide<Value = T>> Net<'a, T> {
             T::from_computed(geom_core::bracket_mid((lo[1], hi[1]))),
             T::from_computed(geom_core::bracket_mid((lo[2], hi[2]))),
         );
-        // Moved about the centre and out to homogeneous form: the
-        // difference and the product round each coordinate by `u` of it.
+        // Moved about the centre and out to homogeneous form.
         let homogeneous = |k: usize| -> Control<T> {
-            let (p, w) = (control[k] - centre, weights[k]);
-            let h = [p.x * w, p.y * w, p.z * w, w];
-            let e = if track {
-                core::array::from_fn(|c| {
-                    if c == 3 {
-                        0.0
-                    } else {
-                        2.0 * UNIT_ROUNDOFF * middle(h[c]).abs()
-                    }
-                })
-            } else {
-                [0.0; 4]
-            };
-            (h, e)
+            let (p, w) = (control[k], Tracked::exact(weights[k]));
+            let at = |x: T, c: T| (Tracked::exact(x) - Tracked::exact(c)) * w;
+            [at(p.x, centre.x), at(p.y, centre.y), at(p.z, centre.z), w]
         };
         // Along `v` first, one row per `u` index; then along `u`, one
         // row per refined `v` index.
         let rows: Vec<Vec<Control<T>>> = (0..nu)
             .map(|i| {
                 let row = (0..nv).map(|j| homogeneous(i * nv + j)).collect();
-                refined(kv, row, track)
+                refined(kv, row)
             })
             .collect::<Option<_>>()?;
         let nv = rows.first()?.len();
         let columns: Vec<Vec<Control<T>>> = (0..nv)
-            .map(|j| refined(ku, rows.iter().map(|r| r[j]).collect(), track))
+            .map(|j| refined(ku, rows.iter().map(|r| r[j]).collect()))
             .collect::<Option<_>>()?;
         let nu = columns.first()?.len();
         let (bu, bv) = (ku.breakpoint_values()?, kv.breakpoint_values()?);
@@ -695,10 +651,14 @@ impl<'a, T: Decide<Value = T>> Net<'a, T> {
     /// box and slab, less, at `f64`, the cut's rounding and the read's.
     /// The poison where a weight is not shown positive.
     fn floor(&self, cell: &Cell<T>, q: Point3<T>) -> T {
-        if !cell.net.iter().all(|(h, _)| h[3].structure_positive()) {
+        if !cell.net.iter().all(|h| h[3].value().structure_positive()) {
             return T::from_f64(f64::NAN);
         }
-        let points: Vec<Point3<T>> = cell.net.iter().map(|&(h, _)| point(h)).collect();
+        let points: Vec<Point3<T>> = cell
+            .net
+            .iter()
+            .map(|h| point(h.map(Tracked::value)))
+            .collect();
         #[cfg(test)]
         if super::mutants::spline_floor_net() {
             return points
@@ -748,11 +708,11 @@ fn past_zero<T: Decide>(gap: T, band: Band) -> bool {
 /// **The cut's rounding of a cell's points** at `f64` (module docs,
 /// *Rounding*): how far the box or the slab of the computed points can
 /// lie from the exact ones', `√(Σ_c ε_c²)` over the channels, `ε_c` the
-/// largest over the points of `(e_c + |P_c|·e_w)/(w − e_w) + u·|P_c|`
-/// (out of homogeneous form, the quotient's own rounding included). Any
-/// direction holds the hull in its slab, so a slab read on the computed
-/// points' direction moves with the points alone. Infinite where a
-/// weight's bound reaches the weight, which leaves the cell no floor.
+/// largest over the points of the bound out of homogeneous form
+/// ([`Tracked::dehomogenized`]). Any direction holds the hull in its
+/// slab, so a slab read on the computed points' direction moves with the
+/// points alone. Infinite where a weight's bound reaches the weight,
+/// which leaves the cell no floor.
 fn cut_rounding<T: SpanLocate>(cell: &Cell<T>) -> f64 {
     #[cfg(test)]
     if super::mutants::spline_cut_uncharged() {
@@ -760,35 +720,14 @@ fn cut_rounding<T: SpanLocate>(cell: &Cell<T>) -> f64 {
     }
     let mut worst = [0.0f64; 3];
     for control in &cell.net {
-        let bound = point_rounding(control);
+        let Some(point) = Tracked::dehomogenized(*control, WEIGHT) else {
+            return f64::INFINITY;
+        };
         for c in 0..3 {
-            worst[c] = worst[c].max(bound[c]);
+            worst[c] = worst[c].max(point[c].rounding());
         }
     }
     worst.iter().map(|x| x.powi(2)).sum::<f64>().sqrt()
-}
-
-/// One control point's rounding out of homogeneous form, per coordinate
-/// ([`cut_rounding`]): `(e_c + |P_c|·e_w)/(w − e_w) + u·|P_c|`, infinite
-/// where the weight's bound reaches the weight.
-fn point_rounding<T: SpanLocate>((h, e): &Control<T>) -> [f64; 3] {
-    let w = middle(h[3]);
-    let lead = w - e[3];
-    if lead.partial_cmp(&0.0) != Some(core::cmp::Ordering::Greater) {
-        return [f64::INFINITY; 3];
-    }
-    #[cfg(test)]
-    let scale = if super::mutants::spline_bound_undercut() {
-        0.25
-    } else {
-        1.0
-    };
-    #[cfg(not(test))]
-    let scale = 1.0;
-    core::array::from_fn(|c| {
-        let p = (middle(h[c]) / w).abs();
-        scale * ((e[c] + p * e[3]) / lead + UNIT_ROUNDOFF * p)
-    })
 }
 
 impl<T: Decide> Cell<T> {
@@ -800,7 +739,7 @@ impl<T: Decide> Cell<T> {
     /// span between equal rows of equal weights) is never cut.
     fn longer_along_u(&self, pu: usize, pv: usize) -> bool {
         let at = |i: usize, j: usize| {
-            let h = self.net[i * (pv + 1) + j].0;
+            let h = self.net[i * (pv + 1) + j].map(Tracked::value);
             let w = middle(h[3]);
             [0, 1, 2].map(|k| middle(h[k]) / w)
         };
@@ -828,8 +767,7 @@ impl<T: Decide> Cell<T> {
                 k * (pv + 1) + i
             }
         };
-        let track = T::WITNESS == geom_core::Witness::Inexact;
-        let half = T::from_f64(0.5);
+        let half = Tracked::exact(T::from_f64(0.5));
         let mut left = self.net.clone();
         let mut right = self.net.clone();
         for k in 0..=m {
@@ -838,7 +776,7 @@ impl<T: Decide> Cell<T> {
                 left[at(level, k)] = row[0];
                 right[at(n - level, k)] = row[n - level];
                 for i in 0..n - level {
-                    row[i] = blend(row[i], row[i + 1], half, false, track);
+                    row[i] = blend(row[i], row[i + 1], half);
                 }
             }
         }
@@ -903,9 +841,9 @@ fn middle<T: SpanLocate>(x: T) -> f64 {
 /// distance from the nearest of the cell's four corners, points of the
 /// chart, on the brackets' middles: the walk's order. NaN orders last.
 fn box_key<T: SpanLocate>(cell: &Cell<T>, q: [f64; 3], pu: usize, pv: usize) -> (f64, f64) {
-    let at = |(h, _): &Control<T>| {
-        let w = middle(h[3]);
-        [0, 1, 2].map(|k| middle(h[k]) / w)
+    let at = |h: &Control<T>| {
+        let w = middle(h[3].value());
+        [0, 1, 2].map(|k| middle(h[k].value()) / w)
     };
     let (mut lo, mut hi) = ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]);
     for control in &cell.net {
@@ -939,11 +877,7 @@ fn box_key<T: SpanLocate>(cell: &Cell<T>, q: [f64; 3], pu: usize, pv: usize) -> 
 /// `Interval` channel ([`geom_core::spline::CurvePlan::apply_certified`]),
 /// and this cut runs at every scalar, carrying the `f64` bound beside each
 /// point. `None` where a knot has no value or a plan refuses.
-fn refined<T: Decide>(
-    knots: &Knots<T>,
-    row: Vec<Control<T>>,
-    track: bool,
-) -> Option<Vec<Control<T>>> {
+fn refined<T: Decide>(knots: &Knots<T>, row: Vec<Control<T>>) -> Option<Vec<Control<T>>> {
     let p = knots.degree();
     let runs: Vec<(T, usize)> = knots.runs().collect();
     let mut add = Vec::new();
@@ -966,23 +900,23 @@ fn refined<T: Decide>(
     let unit = geom_core::spline::Weights::new(vec![T::one(); row.len()]).ok()?;
     let plans = geom_core::spline::plan_inputs::refine_plan(knots, &unit, &add).ok()?;
     let mut values: Vec<T> = knots.values().to_vec();
-    let poison: Control<T> = ([T::from_f64(f64::NAN); 4], [f64::NAN; 4]);
+    let poison: Control<T> = [Tracked::exact(T::from_f64(f64::NAN)); 4];
     let mut row = row;
     for plan in &plans {
-        let pairs: Vec<(Control<T>, T)> = row.iter().map(|c| (*c, c.0[3])).collect();
+        let pairs: Vec<(Control<T>, T)> = row.iter().map(|c| (*c, c[3].value())).collect();
         row = plan
             .apply_homogeneous(
                 &values,
                 &pairs,
-                ((poison, poison.0[3]), &held),
-                |x, y, t| blend(x, y, t, true, track),
+                ((poison, poison[3].value()), &held),
+                |x, y, t| blend(x, y, Tracked::ratio(t)),
             )
             .into_iter()
             .map(|(c, _)| c)
             .collect();
         values = plan.knots().knots().iter().map(|&v| held(v)).collect();
     }
-    (row.iter().all(|(h, _)| !h[3].is_poison())).then_some(row)
+    (row.iter().all(|h| !h[3].value().is_poison())).then_some(row)
 }
 
 /// A homogeneous control point out of homogeneous form.

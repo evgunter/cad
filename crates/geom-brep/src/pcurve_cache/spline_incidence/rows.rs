@@ -15,6 +15,7 @@
 test_utils::gated_to!["crates/geom-brep/src/pcurve_cache/spline_incidence.rs"];
 
 use geom::{Curve3, NurbsSurface, Surface};
+use geom_core::running::Tracked;
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Bounds, Interval, Point3, Tol, Vec3};
 use std::sync::Arc;
@@ -513,8 +514,8 @@ fn cut_drift(rng: &mut test_utils::fuzz::Rng) -> f64 {
             reference = dd_descend(&reference, pu, pv, left, right);
         }
         for (got, exact) in cell.net.iter().zip(&reference) {
-            let bound = super::point_rounding(got);
-            let at = super::point(got.0);
+            let bound = point_bound(got);
+            let at = super::point(got.map(Tracked::value));
             for (k, x) in [at.x, at.y, at.z].into_iter().enumerate() {
                 let drift = Dd::of(x).sub(exact[k].div(exact[3])).abs_hi();
                 points += 1;
@@ -530,6 +531,13 @@ fn cut_drift(rng: &mut test_utils::fuzz::Rng) -> f64 {
     }
     let _ = points;
     worst
+}
+
+/// A control point's bound out of homogeneous form, per coordinate:
+/// infinite where its weight's bound reaches the weight.
+fn point_bound(control: &super::Control<f64>) -> [f64; 3] {
+    Tracked::dehomogenized(*control, super::WEIGHT)
+        .map_or([f64::INFINITY; 3], |p| [0, 1, 2].map(|k| p[k].rounding()))
 }
 
 /// A double-double: an unevaluated sum `hi + lo`, `|lo| ≤ ulp(hi)/2`.
@@ -719,8 +727,8 @@ fn knotted_drift(rng: &mut test_utils::fuzz::Rng) -> f64 {
                 reference = dd_descend(&reference, pu, pv, left, right);
             }
             for (got, exact) in cell.net.iter().zip(&reference) {
-                let bound = super::point_rounding(got);
-                let at = super::point(got.0);
+                let bound = point_bound(got);
+                let at = super::point(got.map(Tracked::value));
                 for (k, x) in [at.x, at.y, at.z].into_iter().enumerate() {
                     let drift = Dd::of(x).sub(exact[k].div(exact[3])).abs_hi();
                     worst = worst.max(drift / bound[k]);
@@ -758,7 +766,11 @@ fn a_floor_is_below_the_exact_cells_hull() {
             if !cut.is_finite() || cut == 0.0 {
                 continue;
             }
-            let points: Vec<Point3<f64>> = cell.net.iter().map(|&(h, _)| super::point(h)).collect();
+            let points: Vec<Point3<f64>> = cell
+                .net
+                .iter()
+                .map(|h| super::point(h.map(Tracked::value)))
+                .collect();
             let axis = rng.below(3);
             let high = rng.below(2) == 0;
             let coordinate = |p: &Point3<f64>| [p.x, p.y, p.z][axis];
