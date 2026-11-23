@@ -892,13 +892,18 @@ pub enum HeldRefusal {
 impl core::fmt::Display for HeldRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::NotAProfile { node } => write!(f, "{node} is not a profile"),
+            Self::NotAProfile { node } => write!(
+                f,
+                "{node} is not a profile",
+                node = crate::tree::spelled(node)
+            ),
             Self::Unwritten { node, slots } => {
                 let labels: Vec<String> = slots.iter().map(|slot| slot.label()).collect();
                 write!(
                     f,
                     "{node} lists {} and carries no expression for it",
-                    labels.join(", ")
+                    labels.join(", "),
+                    node = crate::tree::spelled(node)
                 )
             }
         }

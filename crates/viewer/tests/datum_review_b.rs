@@ -138,7 +138,7 @@ fn b_the_line_names_the_datums_sides() {
     tool.pick_datum(session.doc(), base);
     let line = tool.line(0, pncad::document::Speaker::of(session.doc()));
     assert!(line.contains("the datum's z axis"), "{line}");
-    let said = session.doc().spoken(base).to_string();
+    let said = viewer::tree::spelled(&session.doc().spoken(base));
     assert!(line.contains(&said), "{line} names {said}");
     // The edited datum is no far side of its own.
     tool.pick_datum(session.doc(), datum);

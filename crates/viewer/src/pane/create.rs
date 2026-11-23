@@ -812,13 +812,13 @@ impl ViewerBehavior<'_> {
                 {
                     format!(
                         "editing the datum {}: pick what it meets, {}, or a datum",
-                        self.session.committed_doc().spoken(door.placement),
+                        crate::tree::spelled(&self.session.committed_doc().spoken(door.placement)),
                         crate::matetool::said_entities(&crate::matetool::reads(tool.active_kind()))
                     )
                 }
                 Some(door) => format!(
                     "editing the placement {}: pick on the copy, then on what it meets, each {}",
-                    self.session.committed_doc().spoken(door.placement),
+                    crate::tree::spelled(&self.session.committed_doc().spoken(door.placement)),
                     crate::matetool::said_entities(&crate::matetool::reads(tool.active_kind()))
                 ),
             }),
@@ -948,7 +948,11 @@ impl ViewerBehavior<'_> {
                 && ui
                     .button(format!(
                         "strike the {reading} that read {}",
-                        doc.spoken_space(old)
+                        pncad::document::Said(
+                            &doc.spoken_space(old),
+                            pncad::document::Speaker::TAG
+                        )
+                        .sentence()
                     ))
                     .clicked()
             {
@@ -1110,7 +1114,8 @@ impl ViewerBehavior<'_> {
                 crate::widgets::message_toned(
                     ui,
                     ToolKind::Mate.says(&format_args!(
-                        "placing {read} again shares its source: name it"
+                        "placing {read} again shares its source: name it",
+                        read = crate::tree::spelled_var(&read)
                     )),
                     &self.theme,
                     Tone::Actionable,
@@ -1156,7 +1161,10 @@ impl ViewerBehavior<'_> {
                 let mut chosen = None;
                 ui.horizontal_wrapped(|ui| {
                     for &source in sources {
-                        if ui.button(doc.spoken_var(source).to_string()).clicked() {
+                        if ui
+                            .button(crate::tree::spelled_var(&doc.spoken_var(source)))
+                            .clicked()
+                        {
                             chosen = Some(source);
                         }
                     }
@@ -1228,12 +1236,19 @@ impl ViewerBehavior<'_> {
             crate::widgets::message_toned(
                 ui,
                 ToolKind::Mate.says(&format_args!(
-                    "{what} is in {read}; this placement is into {into}"
+                    "{what} is in {read}; this placement is into {into}",
+                    read = pncad::document::Said(&read, pncad::document::Speaker::TAG).sentence()
                 )),
                 &self.theme,
                 Tone::Actionable,
             );
-            if ui.button(format!("Into {read}")).clicked() {
+            if ui
+                .button(format!(
+                    "Into {read}",
+                    read = pncad::document::Said(&read, pncad::document::Speaker::TAG).sentence()
+                ))
+                .clicked()
+            {
                 edited.retarget_into(space);
             }
         });
@@ -1342,9 +1357,13 @@ impl ViewerBehavior<'_> {
             None => Ok(pncad::document::VarId::WORLD),
             Some(node) => crate::world::datum_space(doc, node),
         };
-        let into = space
-            .as_ref()
-            .map(|&space| format!("a datum in {}", doc.spoken_space(space)));
+        let into = space.as_ref().map(|&space| {
+            format!(
+                "a datum in {}",
+                pncad::document::Said(&doc.spoken_space(space), pncad::document::Speaker::of(doc))
+                    .sentence()
+            )
+        });
         ui.horizontal(|ui| {
             for (datum, label) in NewDatum::ALL {
                 let button = ui.add_enabled(space.is_ok(), egui::Button::new(label));
@@ -1504,10 +1523,12 @@ impl ViewerBehavior<'_> {
             return;
         };
         ui.separator();
-        let named = Speaker::of(self.session.doc())
-            .or_held(self.session.selection_said())
-            .node(profile)
-            .to_string();
+        let named = pncad::document::sentence!(
+            Speaker::of(self.session.doc())
+                .or_held(self.session.selection_said())
+                .node(profile)
+        )
+        .to_string();
         let notation = *self.notation;
         let unit = WrittenLength::in_unit(1.0, notation.length).meters();
         let axis_x = if self.session.busy() {
@@ -1689,7 +1710,7 @@ impl ViewerBehavior<'_> {
             ui,
             ToolKind::Transform.says(&"pick the body or the copy to move"),
         );
-        let waiting = split.map(|split| (0, split.to_string()));
+        let waiting = split.map(|split| (0, crate::tree::spelled(&split)));
         if let Some((_, half)) = half_rows(ui, waiting, &self.theme) {
             for notice in self
                 .tools
@@ -1824,7 +1845,7 @@ impl ViewerBehavior<'_> {
         ui.weak(match (target, self.session.landed_pair()) {
             (Some(target), Some((landed, _))) => format!(
                 "{count} edges picked on {}",
-                Said(&target, Speaker::of(landed))
+                Said(&target, Speaker::of(landed)).sentence()
             ),
             (Some(target), None) => format!("{count} edges picked on {target}"),
             (None, _) => open_pick(EdgeRole::Blended.name()),
@@ -2827,7 +2848,7 @@ mod sketch_face_said {
             "the landed run lost the block"
         );
         let by = crate::frame::landed_speaker(session.landed_pair());
-        let last = format!("the end cap of Extrude \"plinth\" ({t})");
+        let last = format!("the end cap of \"plinth\" ({t})");
         assert_eq!(
             [&drafts.on_face, &drafts.trace_face]
                 .map(|held| crate::drafts::latch_said(held.as_ref(), by)),
@@ -2835,10 +2856,12 @@ mod sketch_face_said {
             "each latch says its face's node by its last label"
         );
         assert_eq!(
-            Speaker::of(landed)
-                .or_held(session.selection_said())
-                .node(block)
-                .to_string(),
+            pncad::document::sentence!(
+                Speaker::of(landed)
+                    .or_held(session.selection_said())
+                    .node(block)
+            )
+            .to_string(),
             format!("node {t}"),
             "the selection moved on, so its snapshot does not name the block"
         );
@@ -2913,7 +2936,7 @@ mod tools_respeak {
             landed.node(block).is_none(),
             "the landed run lost the block"
         );
-        (session, tools, format!("Extrude \"plinth\" ({t})"))
+        (session, tools, format!("\"plinth\" ({t})"))
     }
 
     /// The tool's drops, as the survival step reports them.
@@ -2959,7 +2982,7 @@ mod tools_respeak {
                 .map(|notice| match notice {
                     ToolNotice::Seated { event, .. } => {
                         let crate::seats::SeatEvent::PickLost { node, .. } = event;
-                        node.to_string()
+                        crate::tree::spelled(&node)
                     }
                     other => panic!("a seated tool's drop, not {other:?}"),
                 })
@@ -3064,7 +3087,7 @@ mod tools_respeak {
             said.first().map(String::as_str),
             Some(
                 format!(
-                    "mate tool: the mate 1 to pick (the end cap of Extrude \"plinth\" ({t})) no \
+                    "mate tool: the mate 1 to pick (the end cap of \"plinth\" ({t})) no \
                      longer resolves; the tool dropped it"
                 )
                 .as_str()

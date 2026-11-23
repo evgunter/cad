@@ -1697,7 +1697,7 @@ fn copies_of_one_cylinder_filling_one_volume_are_one_interference() {
             panic!("{label}: the overlap is bounded: {finding:?}");
         };
         assert!(
-            finding.is_loud() && !finding.quietable && !finding.refusable(),
+            finding.is_loud() && finding.quieting.is_none() && !finding.refusable(),
             "{label}: loud and unquietable: {finding:?}"
         );
         // Each copy's faces lie on the other's, and the intersection keeps

@@ -172,11 +172,20 @@ pub(crate) fn scalar_at(
     if formula.is_zero() {
         return Ok(d::Formula::zero(expected));
     }
+    let found = formula.dim();
     Err(pyo3::exceptions::PyValueError::new_err(format!(
-        "the {what} reads a {}, not a {}",
-        expected,
-        formula.dim()
+        "the {what} reads {} {expected}, not {} {found}",
+        article(expected),
+        article(found)
     )))
+}
+
+/// The indefinite article agreeing with `dim`'s noun.
+fn article(dim: d::Dimension) -> &'static str {
+    match dim {
+        d::Dimension::Angle => "an",
+        d::Dimension::Length | d::Dimension::Count | d::Dimension::Scalar => "a",
+    }
 }
 
 fn select(at: super::doc::BodyArg, name: &str) -> PyResult<d::Operand> {

@@ -112,6 +112,7 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::pose::RoleRead;
+use pncad::document::say;
 use pncad::document::{
     Constraint, ConstraintId, ConstraintKind, Dimension, Doc, Evaluation, Formula, Mate, MateRef,
     MateSide, Node, Operand, Orientation, Placed, ProfileProgram, RecipeNodeId, Said, Say,
@@ -1446,15 +1447,21 @@ impl core::fmt::Display for MateToolError {
             Self::PickGone { side, node } => write!(
                 f,
                 "the {} pick is on {node}, which the document no longer holds",
-                side.name()
+                side.name(),
+                node = crate::tree::spelled(node)
             ),
             Self::MemberUnread { side, node } => write!(
                 f,
                 "the {} pick is on {node}, a family, and a side reads one body: pick on one \
                  drawn member of it, once the document has landed",
-                side.name()
+                side.name(),
+                node = crate::tree::spelled(node)
             ),
-            Self::NotAPlacement { node } => write!(f, "{node} is no placement"),
+            Self::NotAPlacement { node } => write!(
+                f,
+                "{node} is no placement",
+                node = crate::tree::spelled(node)
+            ),
             Self::NotAMate { mate } => write!(
                 f,
                 "constraint {} of node {} is no mate of its bundle",
@@ -1528,15 +1535,16 @@ impl MateToolError {
 /// as its panel line said it ([`HeldPick`]) — the editor's drop and the
 /// mirror tool's (`crate::combine::PlaneEvent`).
 pub(crate) fn pick_lost<P: PickedEntity>(
-    f: &mut core::fmt::Formatter<'_>,
+    f: &mut pncad::document::Sentence,
     role: impl core::fmt::Display,
     pick: &HeldPick<P>,
     by: Speaker<'_>,
 ) -> core::fmt::Result {
-    write!(
+    say!(
         f,
-        "the {role} pick ({}) no longer resolves; the tool dropped it",
-        Said(pick, by)
+        format_args!("the {role} pick ("),
+        Said(pick, by),
+        ") no longer resolves; the tool dropped it"
     )
 }
 
@@ -1592,7 +1600,7 @@ pub enum MateToolEvent {
 }
 
 impl Say for MateToolEvent {
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::PickLost {
                 row,
@@ -1607,23 +1615,35 @@ impl Say for MateToolEvent {
                 };
                 pick_lost(f, role, pick, by)
             }
-            Self::Reloaded { placement } => write!(
+            Self::Reloaded { placement } => say!(
                 f,
-                "{placement} changed under the editor; it loaded the bundle again"
+                by.mention(placement),
+                " changed under the editor; it loaded the bundle again"
             ),
             Self::PlacementGone { placement } => {
-                write!(f, "{placement} is gone; the editor holds nothing")
+                say!(
+                    f,
+                    by.mention(placement),
+                    " is gone; the editor holds nothing"
+                )
             }
-            Self::NotPlaceable { node } => write!(
+            Self::NotPlaceable { node } => say!(
                 f,
-                "the pick is on {node}, which is no copy and no body to place"
+                "the pick is on ",
+                by.mention(node),
+                ", which is no copy and no body to place"
             ),
             Self::HalfUnchosen { split } => {
-                write!(f, "{split} is two bodies; choose the half to move")
+                say!(
+                    f,
+                    by.mention(split),
+                    " is two bodies; choose the half to move"
+                )
             }
-            Self::PatternFamily { family } => write!(
+            Self::PatternFamily { family } => say!(
                 f,
-                "{family} is a pattern's members, which its rule moves; edit the pattern"
+                by.mention(family),
+                " is a pattern's members, which its rule moves; edit the pattern"
             ),
         }
     }
@@ -1632,12 +1652,14 @@ impl Say for MateToolEvent {
 impl core::fmt::Display for MateToolEvent {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::PickLost { pick, .. } => self.say(f, Speaker::held(pick.said())),
+            Self::PickLost { pick, .. } => {
+                pncad::document::display_said(self, Speaker::held(pick.said()), f)
+            }
             Self::Reloaded { .. }
             | Self::PlacementGone { .. }
             | Self::NotPlaceable { .. }
             | Self::HalfUnchosen { .. }
-            | Self::PatternFamily { .. } => self.say(f, Speaker::TAG),
+            | Self::PatternFamily { .. } => pncad::document::display_said(self, Speaker::TAG, f),
         }
     }
 }
@@ -1735,7 +1757,11 @@ struct DraftInputs {
 pub fn said_target(doc: &Doc<ProfileProgram>, target: &PlaceTarget) -> String {
     match target {
         PlaceTarget::NewSpace => "a new space".to_owned(),
-        PlaceTarget::Space(space) => doc.spoken_space(*space).to_string(),
+        PlaceTarget::Space(space) => {
+            (pncad::document::Said(&doc.spoken_space(*space), pncad::document::Speaker::TAG)
+                .sentence())
+            .to_string()
+        }
     }
 }
 
@@ -3248,7 +3274,7 @@ impl MateTool {
         for side in [MateSide::On, MateSide::To] {
             let drafted = mate.side(side);
             if let MateSideDraft::Datum(_, said) = drafted {
-                roles.push((side.name().to_owned(), Some(said.to_string())));
+                roles.push((side.name().to_owned(), Some(crate::tree::spelled(said))));
                 continue;
             }
             if side == MateSide::On && self.draft.as_ref().is_some_and(|d| d.datum) {
@@ -3262,7 +3288,7 @@ impl MateTool {
                 };
                 let said = drafted
                     .pick(seat)
-                    .map(|pick| Said(pick, by).to_string())
+                    .map(|pick| Said(pick, by).sentence().to_string())
                     .or_else(|| drafted.is_written().then(|| "as written".to_owned()));
                 roles.push((role, said));
             }

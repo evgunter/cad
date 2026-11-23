@@ -113,7 +113,7 @@ use viewer::session::{
 /// `the_table_answers_for_every_op` checks the samples land on each
 /// exactly once — so a variant added without a sample fails, and one
 /// added without an answer does not compile.
-const OP_COUNT: usize = 64;
+const OP_COUNT: usize = 63;
 
 /// A document with a literal-driven extrude — a slot a gesture can
 /// actually open on, which the expression-driven fixture is not.
@@ -246,16 +246,6 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
         },
         SessionOp::NewDocument {
             name: "view1b-fresh".to_owned(),
-        },
-        SessionOp::SketchOnFace {
-            face: FaceSelection {
-                name: face(node),
-                node,
-                body: 0,
-            },
-            loops: vec![],
-            distance: len(0.01),
-            spin: Formula::zero(Dimension::Angle),
         },
         SessionOp::AddProfile { loops: vec![] },
         SessionOp::AddDatum {
@@ -474,9 +464,8 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         SessionOp::CancelFreeMove => (26, true),
         SessionOp::AddMate { .. } => (27, false),
         SessionOp::NewDocument { .. } => (28, false),
-        SessionOp::SketchOnFace { .. } => (29, false),
         SessionOp::AddProfile { .. } => (30, false),
-        SessionOp::AddDatum { .. } => (63, false),
+        SessionOp::AddDatum { .. } => (62, false),
         SessionOp::AddExtrude { .. } => (31, false),
         SessionOp::AddRevolve { .. } => (32, false),
         SessionOp::AddBoolean { .. } => (33, false),
@@ -536,7 +525,7 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         SessionOp::AddToProduct { .. } => (60, false),
         // What the placements place: a document edit, fenced with every
         // other one.
-        SessionOp::RepointPlacements { .. } => (62, false),
+        SessionOp::RepointPlacements { .. } => (29, false),
         // An insert door, fenced with every other one.
         SessionOp::AddAssertion { .. } => (45, false),
     }
@@ -1039,7 +1028,6 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::CommitFreeMove { .. }
         | SessionOp::AddMate { .. }
         | SessionOp::NewDocument { .. }
-        | SessionOp::SketchOnFace { .. }
         | SessionOp::DrawOnFace { .. }
         | SessionOp::AddProfile { .. }
         | SessionOp::AddDatum { .. }

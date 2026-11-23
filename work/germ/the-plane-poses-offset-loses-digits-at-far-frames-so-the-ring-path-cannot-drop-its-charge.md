@@ -2,8 +2,11 @@
 id: the-plane-poses-offset-loses-digits-at-far-frames-so-the-ring-path-cannot-drop-its-charge
 kind: issue
 title: The plane pose's offset n·(c − o) loses digits at far frames, so the ring path cannot read the crossing reading uncharged (U3b's ring-path move waits on it)
-status: open
+status: closed
+closed: 2026-11-23
 opened: 2026-11-21
+branch: germ/plane-pose-far-frame
+pr: 7411
 ---
 
 
@@ -57,3 +60,14 @@ The far-centre row passes uncharged through the pose, and the parked
 ring-path commit lands with U3b's retirements
 (`split_ring_path_meets_plane`, the hand-rolled harmonic, the charge
 on these readings).
+
+## Closed
+
+2026-11-23, by the GERM orchestrator. PR 7411 (`germ/plane-pose-far-frame`, merge `3547fe5764`).
+- The plane arm's offset is re-posed near its geometry with no rounding charge. It is checked against an exact `Expansion` oracle (`geom_core::real::tests::a_far_origins_offset_is_read_to_its_own_digits`; worst error 0.994 u-relative over 20k poses per far, 1e4–1e12).
+- `ring_path::plane_roots` reads `curve_face::cross` on the arc's own stored frame, with the `slack` charge dropped. `a_graze_against_a_far_centred_sections_plane_is_read_wrong_nowhere` is green uncharged at far 1e4/1e5/1e6.
+- Refusals are classified exhaustively and faults fail loud.
+- The review's class findings are filed:
+  - `the-plane-arms-harmonic-amplitude-rounds-at-a-far-centred-conics-reach` (P1);
+  - `plane-line-reads-its-offset-at-a-point-formed-far-along-the-line`;
+  - `the-ring-paths-plane-readings-beside-plane-roots-still-decide-on-charged-heights`.
