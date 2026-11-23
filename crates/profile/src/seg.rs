@@ -878,23 +878,36 @@ pub(crate) fn literal_sign<T: Decide>(x: T) -> Option<T> {
 /// `vertex_separation` decision already taken), an arc's
 /// centre-to-vertex units over its rim at each end. An arc that reads
 /// as a line keeps no carrier, and its recorded radials go with it.
+///
+/// An arc recorded with a line's director is no input this sees:
+/// [`check_directions`] refuses a table whose directions are not of its
+/// segment's kind (`RecordedDirection::Kind`) before any segment is
+/// read, and a constructed loop records each segment's own kind.
 pub(crate) fn validated_kind<T: Decide>(
     s: &Seg<T>,
     recorded: Option<SegmentDirections<T>>,
 ) -> SegmentKind<T> {
+    let minted_line = || SegmentKind::Line {
+        director: mint_director(s.chord, s.unit),
+    };
+    let arc = |g: &ArcGeom<T>, radials| SegmentKind::Arc {
+        arc: g.arc,
+        turn: g.turn,
+        radials,
+    };
+    let minted_radials = |g: &ArcGeom<T>| [mint_radial(g.arc, s.a), mint_radial(g.arc, s.b)];
     match (&s.kind, recorded) {
         (SegKind::Line, Some(SegmentDirections::Line(director))) => SegmentKind::Line { director },
-        (SegKind::Line, _) => SegmentKind::Line {
-            director: mint_director(s.chord, s.unit),
-        },
-        (SegKind::Arc(g), recorded) => SegmentKind::Arc {
-            arc: g.arc,
-            turn: g.turn,
-            radials: match recorded {
-                Some(SegmentDirections::Arc { start, end }) => [start, end],
-                _ => [mint_radial(g.arc, s.a), mint_radial(g.arc, s.b)],
-            },
-        },
+        (SegKind::Line, None | Some(SegmentDirections::Arc { .. })) => minted_line(),
+        (SegKind::Arc(g), Some(SegmentDirections::Arc { start, end })) => arc(g, [start, end]),
+        (SegKind::Arc(g), None) => arc(g, minted_radials(g)),
+        (SegKind::Arc(g), Some(SegmentDirections::Line(_))) => {
+            debug_assert!(
+                false,
+                "an arc recorded with a line's director is refused upstream"
+            );
+            arc(g, minted_radials(g))
+        }
     }
 }
 

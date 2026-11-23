@@ -149,22 +149,12 @@ certifiable: nominal Holds Holds { measured: 4558673246493684320, bound: 4558673
     }
 
     /// **The cut plate over the study box: its first `Subtract` refuses
-    /// the drilled blank's bore at its `u_ref`.** The tour's plate with
-    /// its holes subtracted, evaluated over the whole study box at
-    /// `Sym<Interval>`: the blank, both hole extrudes and their placed
-    /// copies build, and the first node that refuses is the first
-    /// `Subtract`, taking a hole that does not finish: its bore walls'
-    /// and rim circles' `u_ref`s, whose lengths tier 3 cannot read. The
-    /// extrude stores an arc wall's and rim's `u_ref` as the start radial
-    /// over its own length, the
-    /// verb's vertex `c + r·x` read against the stored radius `|r|`, which
-    /// is as wide as the radius box relative to the radius
-    /// (`work/boxfinish/a-verb-stores-a-radius-as-a-magnitude-and-the-symbolic-tier-cannot-use-the-sign-its-gate-decided.md`
-    /// holds it, and is the row whose change re-cuts this one). The
-    /// mutant that turns it red: the arc arm of `sweep::swept::sketch_vector`
-    /// (the wall frame's and the rim carrier's sketch vector) reading the
-    /// recorded radial instead, which moves the refusal onto the hole's
-    /// own extrude (`carrier_endpoint_start`).
+    /// a bore's `u_ref`**, and nothing before it refuses: the findings are
+    /// the bore walls' and rim circles' `u_ref` lengths, both kinds, and
+    /// nothing else. Red under `sweep::swept::sketch_vector`'s arc arm
+    /// reading the recorded radial (the refusal moves onto the hole's own
+    /// extrude, `carrier_endpoint_start`). Re-cut by
+    /// `work/boxfinish/a-verb-stores-a-radius-as-a-magnitude-and-the-symbolic-tier-cannot-use-the-sign-its-gate-decided.md`.
     #[test]
     fn the_cut_plates_first_subtract_refuses_a_bores_u_ref_over_the_study() {
         use demo_tour::plate::cut_plate;

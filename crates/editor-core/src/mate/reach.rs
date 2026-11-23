@@ -237,7 +237,7 @@ pub(crate) fn loops_reach_from<T: Decide>(
                     ParamWindow::new(T::zero(), arc.sweep.abs()),
                 )
             }
-            _ => Cover::segment(lift(s.start), lift(s.end)),
+            profile::SegmentKind::Line { .. } => Cover::segment(lift(s.start), lift(s.end)),
         }
         .ok_or(ReachRefusal::NoFiniteBound)?;
         let bound = far_from(&cover, origin);

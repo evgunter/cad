@@ -28,7 +28,9 @@
 //! [`swept_segments`] is the one place a validated loop is relabelled
 //! into traversal order, forward or reversed, and [`SweptSeg`] the
 //! record it fills, its kind carrying the segment's recorded directions
-//! through the relabelling ([`Traversed`]); no door reads them yet. Each verb still decides *whether* to reverse for
+//! through the relabelling ([`Traversed`]). No door reads them: each
+//! spells a direction from the segment's points ([`sketch_vector`] says
+//! why). Each verb still decides *whether* to reverse for
 //! its own reason — extrude for `w·n < 0`, revolve for θ > 0, loft
 //! never — but the relabelling is one rule with one implementation.
 //! Extrude needs one field more than the record carries, and takes it
@@ -368,7 +370,14 @@ impl<T: Real> Traversed<T> {
     /// This traversal run the other way: the reversal involution
     /// [`swept_segments`] applies to a canonical kind, applied to a
     /// traversed one (an arc's sweep negated and its turn flipped, the
-    /// carrier kept).
+    /// carrier kept). On a collapsed run ([`Self::continued`],
+    /// `revolve::full` reverses one) it swaps what the run carries: the
+    /// reversed run's start radial is the last member's end radial, so
+    /// it misses the run's carrier at its start by up to the cosurface
+    /// margin, and a line run's director is the first member's,
+    /// negated. (`profile::ProfileLoop::reversed` reverses segment by
+    /// segment, never a run, so its directions are each segment's own,
+    /// negated or swapped exactly.)
     pub(crate) fn reversed(self) -> Self {
         Self::backward(self.0)
     }
@@ -414,7 +423,10 @@ impl<T: Real> Traversed<T> {
     /// stored last endpoint. The end the run's carrier implies
     /// therefore differs from that endpoint by at most the margin plus
     /// rounding; the collapsed segment keeps the stored endpoint, and
-    /// certification meters the carrier against it. A pair of
+    /// certification meters the carrier against it. The same holds of
+    /// the end radial: it is `next`'s, about `next`'s centre, so
+    /// `centre + radius·end` with the run's own centre and radius misses
+    /// the stored last endpoint by up to the cosurface margin. A pair of
     /// different kinds is no run: the cosurface verdict never joins
     /// one. A line run's carried director is its first member's, not the
     /// run's chord `a_first → b_last` the doors read: the cosurface
@@ -612,10 +624,11 @@ pub(crate) fn sketch_segment<T: Real, S: SweptChord<T>>(seg: &S) -> SketchSegmen
     }
 }
 
-/// **A unit sketch direction**, minted only from a segment as the
-/// profile stores it ([`sketch_chord`]): the sweep's
-/// one place that divides a sketch difference by its own length. The
-/// station's frame carries it to a [`Unit3`] ([`Placing::direction`]).
+/// **A unit sketch direction**, minted from a segment as the profile
+/// stores it: [`sketch_chord`]'s chord over its own length. (A frame
+/// turned onto a segment divides too: [`Placing::frame_toward`]
+/// normalizes [`sketch_vector`].) The station's frame carries it to a
+/// [`Unit3`] ([`Placing::direction`]).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Unit2<T: Real>(Vec2<T>);
 
@@ -1567,6 +1580,9 @@ mod tests {
 
     /// A line from `a` to `b` with the director validation mints from
     /// its points where no axis is proven: the chord over its length.
+    /// A second spelling of `profile`'s mint (`seg::mint_director`),
+    /// because that one is private to `profile` and this crate cannot
+    /// call it; at `f64` on the rows that use it, the two agree.
     pub(super) fn line_from<T: Real>(a: Point2<T>, b: Point2<T>) -> SegmentKind<T> {
         SegmentKind::Line {
             director: (b - a) / (b - a).norm(),
@@ -1575,6 +1591,8 @@ mod tests {
 
     /// An arc from `a` to `b` with the radials validation mints from its
     /// points where no axis is proven: each vertex's offset over its rim.
+    /// A second spelling of `profile`'s private `seg::mint_radial`, for
+    /// the reason [`line_from`] gives.
     pub(super) fn arc_from<T: Real>(
         arc: Arc2<T>,
         turn: Sign,
@@ -2295,13 +2313,13 @@ pub(crate) mod undecided_fixtures {
     }
 }
 
-/// Reviewer rows (PR 7384): the directions a traversal carries agree with
-/// the ends it carries, through every relabelling — forward, backward and
-/// a collapsed run — so a mutant on `Traversed::backward` or
-/// `Traversed::continued` reds here even while no door reads them.
+/// The directions a traversal carries agree with the ends it carries,
+/// through every relabelling — forward, backward and a collapsed run —
+/// so a mutant on `Traversed::backward` or `Traversed::continued` reds
+/// here though no door reads them.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod review_doors_read_carried_directions {
+mod carried_directions {
     use super::tests::{arc_from, line_from};
     use super::*;
     use geom_core::Tol;
@@ -2398,5 +2416,59 @@ mod review_doors_read_carried_directions {
                 agree(&format!("reverse {reverse}, run {j}"), s);
             }
         }
+    }
+
+    /// **A collapsed line run carries its FIRST member's director**, not
+    /// the second's: a run joined over two lines whose directors differ
+    /// in bits (a bottom edge bent by 1e-3 at its midpoint) keeps the
+    /// first one bit for bit, and so does that run reversed, negated.
+    #[test]
+    fn a_collapsed_line_run_carries_its_first_members_director() {
+        let lp = Profile::new(
+            SketchPlane::<f64>::xy(),
+            vec![bulge_loop(vec![
+                (Point2::new(0.0, 0.0), 0.0),
+                (Point2::new(1.0, 0.0), 0.0),
+                (Point2::new(2.0, 1e-3), 0.0),
+                (Point2::new(2.0, 1.0), 0.0),
+                (Point2::new(0.0, 1.0), 0.0),
+            ])],
+        )
+        .validate(Tol::witness())
+        .expect("the bent rectangle validates")
+        .loops()[0]
+            .clone();
+        let segs = swept_segments(&lp, false);
+        let director = |s: &SweptSeg<f64>| match s.kind.get() {
+            SegmentKind::Line { director } => director,
+            SegmentKind::Arc { .. } => panic!("the loop is lines"),
+        };
+        let bits = |v: Vec2<f64>| (v.x.to_bits(), v.y.to_bits());
+        let first = segs
+            .iter()
+            .position(|s| s.a.x == 0.0 && s.a.y == 0.0)
+            .expect("the bottom edge's first member");
+        let second = (first + 1) % segs.len();
+        let (d0, d1) = (director(&segs[first]), director(&segs[second]));
+        assert_ne!(bits(d0), bits(d1), "the two members' directors differ");
+        // Join exactly the bent bottom edge, as a cosurface verdict
+        // within the band would.
+        let pair: Vec<bool> = (0..segs.len()).map(|j| j == second).collect();
+        let collapsed = collapse_runs(&segs, &joins(&segs, &pair), |s, next| s.continued(next));
+        let run = collapsed
+            .segs
+            .iter()
+            .find(|s| s.a.x == 0.0 && s.a.y == 0.0)
+            .expect("the joined run");
+        assert_eq!(
+            bits(director(run)),
+            bits(d0),
+            "the run carries the first member's director"
+        );
+        assert_eq!(
+            bits(director(&(*run).reversed(run.canonical_vertex))),
+            bits(-d0),
+            "the run reversed carries it negated"
+        );
     }
 }

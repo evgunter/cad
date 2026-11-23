@@ -4,6 +4,8 @@ kind: issue
 title: A validated arc's turn is a Sign, so SegmentKind::Arc { turn: Zero } can be written and a check holds it off
 status: open
 opened: 2026-11-22
+priority: P1
+cost: M
 ---
 
 
@@ -24,3 +26,15 @@ positive arm" convention from `turn_negates`. Not done in PR 7384: every
 reader of a validated turn in `profile`, `sweep`, `editor-core`'s rows,
 `viewer` and the value-channel digest (which hashes the turn) changes
 with it, and the revolve's tube passes a `Sign` it decided.
+
+**Two more of the class, from PR 7384's second review** (a type that
+admits what its one constructor excludes):
+
+- `profile::BlendArc.kind` (`crates/profile/src/validate.rs:1210`) is a
+  `SegmentKind`, documented "always `SegmentKind::Arc` here".
+  `ValidatedLoop::blend_arcs` holds it by a filter (line 1172), and a
+  reader that matches on it must answer a `Line` arm (the doc example
+  on `blend_arcs` panics there). Holding the arc's fields (`arc`, `turn`, `radials`)
+  instead makes the line unwritable.
+- `SegmentKind::Arc.turn` beside `arc.sweep`'s sign: the two say one
+  thing twice, and this row's two-valued turn is where they become one.

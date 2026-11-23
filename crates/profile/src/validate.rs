@@ -903,8 +903,7 @@ impl core::fmt::Display for LoopRole {
 /// from its vertices. A table's are checked against its vertices by one
 /// reading at the band, which is what "unit" means for them
 /// ([`crate::SegmentDirections`]); an accepted direction is stored as written,
-/// never normalised or re-minted. The sweep's traversal carries them and
-/// no sweep door reads them yet.
+/// never normalised or re-minted. The sweep's traversal carries them.
 #[derive(Debug, Clone, Copy)]
 pub enum SegmentKind<T: Real> {
     /// A straight segment on its chord.
@@ -932,7 +931,7 @@ impl<T: Real> SegmentKind<T> {
     /// component (an arc's carrier through [`Arc2::map`]), the turn
     /// carried, nothing derived.
     #[must_use]
-    pub fn map<U: Real>(self, f: impl Fn(T) -> U) -> SegmentKind<U> {
+    pub(crate) fn map<U: Real>(self, f: impl Fn(T) -> U) -> SegmentKind<U> {
         match self {
             Self::Line { director } => SegmentKind::Line {
                 director: director.map(&f),
@@ -2531,15 +2530,16 @@ fn canonicalize_loop<T: Decide>(
                 None => ProfileError::escalated(EscalationSite::Segment(at), source),
             })
         })?;
-        let kind = seg::validated_kind(&s, made.get(k).copied().flatten());
         // The value-channel check the pinned permutation earns: the
         // segments the recorded rotation and reversal produce must
         // classify HERE the way they classified there. A line where an
         // arc was recorded, or an arc turning the other way, is a
-        // structure the lane is watching change under it.
-        let shape = match kind {
-            SegmentKind::Line { .. } => SegmentShape::Line,
-            SegmentKind::Arc { turn, .. } => SegmentShape::Arc { turn },
+        // structure the lane is watching change under it. Read off the
+        // classification before the directions are minted, so a flipped
+        // shape refuses without the mint's readings.
+        let shape = match &s.kind {
+            seg::SegKind::Line => SegmentShape::Line,
+            seg::SegKind::Arc(g) => SegmentShape::Arc { turn: g.turn },
         };
         if let Some(rec) = recorded
             && rec.segments.get(k) != Some(&shape)
@@ -2557,6 +2557,7 @@ fn canonicalize_loop<T: Decide>(
                 None => StructureRefusal::shape(rec.segments.len(), n),
             }));
         }
+        let kind = seg::validated_kind(&s, made.get(k).copied().flatten());
         shapes.push(shape);
         segments.push(ValidatedSegment {
             start: s.a,
