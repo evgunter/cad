@@ -1,0 +1,4 @@
+        FAIL [   0.101s] (   5/1086) geom cover::review_probes::review_red_near_overshoots_on_a_short_far_centred_arc
+        FAIL [  42.787s] ( 957/1086) topo boolean::section_cert::square_search::the_square_wall_arm_agrees_with_the_traced_section
+     Summary [1937.133s] 1086 tests run: 1084 passed (28 slow), 2 failed, 7064 skipped
+    [fuzz] section_cert_square_search: seed=0x3fc3e7c41843d2ee effort=1 — replay with CAD_FUZZ_SEED=0x3fc3e7c41843d2ee

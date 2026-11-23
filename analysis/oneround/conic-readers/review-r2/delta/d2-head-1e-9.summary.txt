@@ -1,0 +1,3 @@
+        FAIL [  42.511s] (1038/1096) topo boolean::section_cert::square_search::the_square_wall_arm_agrees_with_the_traced_section
+     Summary [ 954.636s] 1096 tests run: 1095 passed (17 slow), 1 failed, 7064 skipped
+    [fuzz] section_cert_square_search: seed=0xcff10c204ea7e692 effort=1 — replay with CAD_FUZZ_SEED=0xcff10c204ea7e692

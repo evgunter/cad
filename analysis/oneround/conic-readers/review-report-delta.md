@@ -274,7 +274,9 @@ the curve. `arc_of` reads no frame and carries no `#[expect]`.
 | ε | main `c9cf004f9`: run / failed | head `32d065158`: run / failed |
 |---|---|---|
 | 1e-9 | 1086 / 2 (my old red probe, which main still fails; square_wall) | 1096 / 1 (square_wall) |
-| 1e-12 | (pending) | 1096 / 1 (square_wall) |
+| 1e-12 | 1086 / 2 (my old red probe; square_wall) | 1096 / 1 (square_wall) |
+
+No verdict moved, at either ε. The head runs 10 more tests: its own `held_arc` rows and my delta probes.
 
 ## Style (delta)
 
