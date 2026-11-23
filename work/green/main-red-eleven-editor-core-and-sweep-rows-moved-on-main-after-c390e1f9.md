@@ -175,3 +175,7 @@ no seed and no ε set, on a binary carrying only a decision logger
 them: its head merged with main at `5d5cb7d8` gives the two payloads
 above. (Carried here from the PR's branch by ONEROUND's orchestrator,
 whose copy of this row trailed main's.)
+
+## CIW, 2026-11-23
+
+PR 7501 (`ciw/census-digest-goldens`) re-cuts seat7's `boss_union` on a key-free feed and pins it at its tree's reading, with a comment citing this row: "holds PR 7354's move unjudged; SECTCONE owes the judgement". It also replaces `m10_p_fence`'s Interval golden with in-process claims, and adds `the_interval_corpus_holds_sectcones_move_unjudged`, an id-masked Interval pin citing this row for the same move. Neither pin judges the move. Each goes when SECTCONE has judged it.

@@ -37,3 +37,7 @@ After PR 6588, the plate's `Plain/Decision` walk moved twice more on 2026-11-09,
 Calls (1203) and every other walk line are unchanged, and so is the largest form (38). PR 6639's description says "`m10_sym` plates (38 against 28) and slabs (green) are unchanged": it read the largest-form bound, which held, and not the forms line, which moved. PR 6631's description does not mention the plate. PR 6663 re-pins the plate at main's `forms 55907 frozen 66`.
 
 So the cover's readings have now grown the plate's plain walk three times (6588, 6639, 6631), 51423 → 55907 forms and 36 → 66 frozen. The question this row owes is now about all three: whether that growth is the price of the cover reading, or whether the reach can be read without building forms the decisions never needed.
+
+## The golden is gone; the question stands (CIW, 2026-11-23)
+
+PR 7501 deletes the plate's walk-ledger golden. This row's question still stands without it: are the cover readers' 2,214 forms and 26 freezes the price of the cover reading, or avoidable? What witnesses the plate now: a growth guard on its largest form (76, twice the measured 38), the apex lines freezing nothing (`sym/rule-d…`'s witness) and the dial differential. None of these sees a form count or a `Plain/Decision` freeze count move.
