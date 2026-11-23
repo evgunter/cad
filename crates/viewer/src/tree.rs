@@ -351,12 +351,7 @@ fn constraint_rows(id: RecipeNodeId, node: &Node<ProfileProgram>) -> Vec<Constra
 pub fn numbered_constraints(
     node: &Node<ProfileProgram>,
 ) -> impl Iterator<Item = (usize, &Constraint)> {
-    let bundle = match node {
-        Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } => {
-            constraints.as_slice()
-        }
-        _ => &[],
-    };
+    let bundle = node.bundle().unwrap_or(&[]);
     bundle.iter().enumerate().map(|(at, held)| (at + 1, held))
 }
 

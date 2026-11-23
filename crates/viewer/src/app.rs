@@ -1571,6 +1571,10 @@ impl ViewerApp {
                 self.tools
                     .answered(&accepted_op, made, committed, self.session.committed_doc());
             }
+            if committed {
+                self.tools
+                    .datum_made(&accepted_op, made, self.session.committed_doc());
+            }
             match outcome.refusal {
                 Some(next) => refusal = Refusal::preferred(refusal, next),
                 None if replaced => self.document_replaced(),
@@ -13991,7 +13995,7 @@ mod properties_pane_tests {
                 (
                     ToolKind::Mirror,
                     COMBINE_BODIES,
-                    "no mirror plane picked yet: pick a face",
+                    "no mirror plane picked yet: pick a face or a datum",
                 ),
                 (
                     ToolKind::Assertion,
@@ -14037,7 +14041,7 @@ mod properties_pane_tests {
             withheld_says(
                 &mut driven,
                 &commit,
-                "no split plane picked yet: pick a face",
+                "no split plane picked yet: pick a face or a datum",
                 "split",
             );
             let splits = |driven: &Driven| -> Vec<RecipeNodeId> {
@@ -14098,7 +14102,7 @@ mod properties_pane_tests {
             withheld_says(
                 &mut driven,
                 &commit,
-                "no mirror plane picked yet: pick a face",
+                "no mirror plane picked yet: pick a face or a datum",
                 "mirror",
             );
             let mirrors = |driven: &Driven| -> Vec<RecipeNodeId> {
