@@ -1849,3 +1849,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
     - `export/step-imports-one-record-folds-the-sense-bit-by-hand`.
   - The same reviewer (the drawn arm) is confirming its findings on the new head, as a confirmation of its own findings, not a second review.
 - 2026-11-23 — **U4 spec written** (`docs/GERM-CROSSING-U4-SPEC.md`, read on main `739ffae37c`): U4a local windows (H, dual), U4b the face reading and the curved lane onto `cross` (H, dual), U4c the planar lane, `slit`, `factored_crossing`, `offer_rows` (M, single FULL), U4d the spline arms (H, dual), which waits on one fork for Ev (how `cross` reaches the certified lane at a dual).
+- 2026-11-23 — **U4a, local windows** (`germ/u4a-local-windows`, stacked on the U4 spec): the pose and the doors answer what they found and where they could not read; two off-arc rows closed, a cancelled-`acos` row filed.
