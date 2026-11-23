@@ -95,6 +95,17 @@ fn stored_point(e: &Ellipse<f64>) -> Point3<f64> {
         .expect("a stored point")
 }
 
+/// **The session box's own predicate** (`geom_core::tolerance::
+/// SESSION_BOX_EXTENT`: no coordinate of a model larger in magnitude),
+/// on a span's points: its ends and 4095 parameters between.
+fn span_in_box(c: &Curve3<f64>, (lo, hi): (f64, f64)) -> bool {
+    let e = geom_core::tolerance::SESSION_BOX_EXTENT;
+    (0..=4096).all(|i| {
+        let p = c.eval(lo + (hi - lo) * f64::from(i) / 4096.0);
+        p.x.abs() <= e && p.y.abs() <= e && p.z.abs() <= e
+    })
+}
+
 /// The stored numbers, as JSON fields.
 fn stored(e: &Ellipse<f64>) -> String {
     let CurveData::Analytic(data) = Curve3::Ellipse(*e).data() else {
@@ -200,7 +211,7 @@ fn main() {
                 let n = e.axis();
                 let across = n.cross(tan).normalize();
                 let span_e = (theta - half, theta + half);
-                for shift in [0.0, 10.0 * eps, 1000.0 * eps] {
+                for shift in [0.0, 20.0 * eps, 1000.0 * eps] {
                     let head = format!(
                         "\"zero\":{eps:?},\"esc\":{esc:?},\"fat\":{fat},\"target\":{target:?},\"case\":{case},\"place\":\"{place}\",\
                          \"theta\":{theta:?},\"gamma\":{gamma:?},\"shift\":{shift:?},\
@@ -216,6 +227,7 @@ fn main() {
                     let line = Curve3::line(lo, d);
                     let (sa, sb) = (Span::new(&line, (0.0, 4.0)), Span::new(&carrier, span_e));
                     let got = meet(&sa, &sb, band);
+                    let in_box = span_in_box(&line, (0.0, 4.0)) && span_in_box(&carrier, span_e);
                     let line_i = lift(&line);
                     let (ia, ib) = (
                         Span::new(&line_i, (iv(0.0), iv(4.0))),
@@ -228,7 +240,7 @@ fn main() {
                     ] {
                         writeln!(
                             f,
-                            "{{\"door\":\"line\",\"lane\":\"{lane}\",{head},\"lo\":{},\"ld\":{},{r}}}",
+                            "{{\"door\":\"line\",\"lane\":\"{lane}\",{head},\"in_box\":{in_box},\"lo\":{},\"ld\":{},{r}}}",
                             p3(lo),
                             v3(d)
                         )
@@ -246,6 +258,7 @@ fn main() {
                     let circle = Curve3::circle(centre, normal, 1.0, in_plane);
                     let (sa, sb) = (Span::new(&carrier, span_e), Span::new(&circle, (-1.0, 1.0)));
                     let got = meet(&sa, &sb, band);
+                    let in_box = span_in_box(&circle, (-1.0, 1.0)) && span_in_box(&carrier, span_e);
                     let circle_i = lift(&circle);
                     let (ia, ib) = (
                         Span::new(&carrier_i, (iv(span_e.0), iv(span_e.1))),
@@ -258,7 +271,7 @@ fn main() {
                     ] {
                         writeln!(
                             f,
-                            "{{\"door\":\"circle\",\"lane\":\"{lane}\",{head},\"c\":{},\"m\":{},\"cu\":{},{r}}}",
+                            "{{\"door\":\"circle\",\"lane\":\"{lane}\",{head},\"in_box\":{in_box},\"c\":{},\"m\":{},\"cu\":{},{r}}}",
                             p3(centre),
                             v3(normal),
                             v3(in_plane)

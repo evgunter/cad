@@ -17,7 +17,7 @@ meeting is wrong.
 
 Usage: oracle.py ladder-eps<eps>.jsonl  -> prints the table, writes .judged.json
 """
-import json, sys, collections
+import json, re, sys, collections
 from fractions import Fraction
 from mpmath import mp, mpf, sqrt, cos, sin, findroot
 
@@ -85,6 +85,15 @@ def closest(f, df, g, dg, t0, s0, scale_t):
     return t, sol[1], norm(sub(f(t), g(sol[1])))
 
 
+def refusing_row(fault):
+    """The row a refusal names: a meter's `row`, a gap decision's
+    `predicate`, else the fault itself (`Unsettled(Tangency)`)."""
+    if fault is None:
+        return None
+    m = re.search(r'row: "([^"]+)"', fault) or re.search(r'predicate: Some\("([^"]+)"\)', fault)
+    return m.group(1) if m else fault
+
+
 def judge(r):
     e = Ellipse(r)
     zero, esc = r["zero"], r["esc"]
@@ -120,7 +129,9 @@ def judge(r):
     if said == "meets" and truth != "apart" and off and min(off) > esc:
         wrong = True
     return {**{k: r[k] for k in ("door", "lane", "fat", "target", "case", "place", "theta", "gamma", "shift", "kind")},
-            "fault": r.get("fault"), "gap": gap, "truth": truth, "said": said, "wrong": wrong, "off": off}
+            "fault": r.get("fault"), "row": refusing_row(r.get("fault")),
+            "in_box": r.get("in_box"), "seam_at_anchor": r["phase"] == [1.0, 0.0],
+            "gap": gap, "truth": truth, "said": said, "wrong": wrong, "off": off}
 
 
 def main(path):
@@ -128,7 +139,7 @@ def main(path):
     json.dump(out, open(path.replace(".jsonl", ".judged.json"), "w"), indent=0)
     table = collections.Counter()
     for j in out:
-        verdict = ("WRONG" if j["wrong"] else "right") if j["said"] != "refused" else "refused:" + j["fault"].split(" ")[0].split("(")[0]
+        verdict = ("WRONG" if j["wrong"] else "right") if j["said"] != "refused" else "refused:" + j["row"]
         table[(j["door"], j["lane"], j["truth"], verdict)] += 1
     for k in sorted(table):
         print(*k, table[k], sep="\t")

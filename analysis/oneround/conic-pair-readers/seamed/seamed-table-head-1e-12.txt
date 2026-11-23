@@ -1,0 +1,69 @@
+circle	f64	apart	refused:Escalated	3
+circle	f64	apart	refused:Unsettled	1
+circle	f64	apart	right	386
+circle	f64	between	refused:Escalated	13
+circle	f64	between	refused:Unsettled	31
+circle	f64	between	right	34
+circle	f64	meets	WRONG	3
+circle	f64	meets	refused:Escalated	3
+circle	f64	meets	refused:Unsettled	10
+circle	f64	meets	right	20
+circle	interval	apart	refused:Unsettled	345
+circle	interval	apart	right	45
+circle	interval	between	refused:Unsettled	78
+circle	interval	meets	refused:Unsettled	36
+line	f64	apart	refused:Escalated	5
+line	f64	apart	refused:Unsettled	13
+line	f64	apart	right	312
+line	f64	between	WRONG	4
+line	f64	between	refused:Escalated	31
+line	f64	between	refused:Unsettled	8
+line	f64	between	right	25
+line	f64	meets	WRONG	30
+line	f64	meets	refused:Escalated	43
+line	f64	meets	right	33
+line	interval	apart	refused:Escalated	13
+line	interval	apart	refused:Unsettled	183
+line	interval	apart	right	134
+line	interval	between	refused:Escalated	10
+line	interval	between	refused:Unsettled	58
+line	interval	meets	refused:Escalated	23
+line	interval	meets	refused:Unsettled	83
+WRONG {"door": "line", "lane": "f64", "fat": true, "target": 10000.0, "case": 11, "place": "far", "theta": 0.42920367320510344, "gamma": 0.08726646259971647, "shift": 0.0, "kind": "ok", "fault": null, "gap": 7.727975927149643e-14, "truth": "meets", "said": "meets", "wrong": true, "off": [1.2166670997605638e-11]}
+WRONG {"door": "line", "lane": "f64", "fat": true, "target": 100000.0, "case": 9, "place": "far", "theta": 0.42920367320510344, "gamma": 0.5235987755982988, "shift": 0.0, "kind": "ok", "fault": null, "gap": 6.147075672008511e-12, "truth": "between", "said": "meets", "wrong": true, "off": [2.5817703363538893e-11]}
+WRONG {"door": "line", "lane": "f64", "fat": true, "target": 1000000.0, "case": 0, "place": "near", "theta": -1.5707953267948966, "gamma": 1.5707963267948966, "shift": 0.0, "kind": "ok", "fault": null, "gap": 1.6461291981511636e-16, "truth": "meets", "said": "meets", "wrong": true, "off": [5.162608339025986e-11]}
+WRONG {"door": "circle", "lane": "f64", "fat": true, "target": 1000000.0, "case": 8, "place": "far", "theta": -1.0707963267948966, "gamma": 0.5235987755982988, "shift": 1e-11, "kind": "ok", "fault": null, "gap": 4.743107559411932e-13, "truth": "meets", "said": "apart", "wrong": true, "off": []}
+WRONG {"door": "circle", "lane": "f64", "fat": true, "target": 1000000.0, "case": 9, "place": "far", "theta": 0.42920367320510344, "gamma": 0.5235987755982988, "shift": 1e-11, "kind": "ok", "fault": null, "gap": 2.028807099585245e-13, "truth": "meets", "said": "apart", "wrong": true, "off": []}
+WRONG {"door": "line", "lane": "f64", "fat": true, "target": 1000000.0, "case": 11, "place": "near", "theta": -1.5708063267948966, "gamma": 0.08726646259971647, "shift": 0.0, "kind": "ok", "fault": null, "gap": 1.458316041888019e-16, "truth": "meets", "said": "meets", "wrong": true, "off": [4.90437000640977e-11]}
+WRONG {"door": "line", "lane": "f64", "fat": true, "target": 10000000.0, "case": 0, "place": "near", "theta": -1.5707962267948965, "gamma": 1.5707963267948966, "shift": 0.0, "kind": "ok", "fault": null, "gap": 3.942677754065087e-17, "truth": "meets", "said": "meets", "wrong": true, "off": [5.167635009490508e-10]}
+WRONG {"door": "line", "lane": "f64", "fat": true, "target": 10000000.0, "case": 1, "place": "near", "theta": -1.5707973267948965, "gamma": 1.5707963267948966, "shift": 0.0, "kind": "ok", "fault": null, "gap": 2.083508596700533e-16, "truth": "meets", "said": "meets", "wrong": true, "off": [1.8419834862953464e-10]}
+WRONG {"door": "line", "lane": "f64", "fat": true, "target": 10000000.0, "case": 2, "place": "near", "theta": -1.5704629934615633, "gamma": 1.5707963267948966, "shift": 0.0, "kind": "ok", "fault": null, "gap": 2.7808541962859574e-14, "truth": "meets", "said": "meets", "wrong": true, "off": [1.8524294230565585e-10]}
+WRONG {"door": "line", "lane": "f64", "fat": true, "target": 10000000.0, "case": 5, "place": "near", "theta": -1.5707962267948965, "gamma": 0.5235987755982988, "shift": 0.0, "kind": "ok", "fault": null, "gap": 4.805588761765683e-17, "truth": "meets", "said": "meets", "wrong": true, "off": [4.4754429919089966e-10]}
+WRONG {"door": "line", "lane": "f64", "fat": true, "target": 10000000.0, "case": 6, "place": "near", "theta": -1.5707973267948965, "gamma": 0.5235987755982988, "shift": 0.0, "kind": "ok", "fault": null, "gap": 2.9422831544037446e-16, "truth": "meets", "said": "meets", "wrong": true, "off": [2.8797189149485757e-10]}
+WRONG {"door": "line", "lane": "f64", "fat": true, "target": 10000000.0, "case": 7, "place": "near", "theta": -1.5704629934615633, "gamma": 0.5235987755982988, "shift": 0.0, "kind": "ok", "fault": null, "gap": 5.8128422785187815e-15, "truth": "meets", "said": "meets", "wrong": true, "off": [2.547085619115995e-10]}
+WRONG {"door": "line", "lane": "f64", "fat": true, "target": 10000000.0, "case": 10, "place": "near", "theta": -1.5707962267948965, "gamma": 0.08726646259971647, "shift": 0.0, "kind": "ok", "fault": null, "gap": 8.1603172616896e-18, "truth": "meets", "said": "meets", "wrong": true, "off": [5.997531440907557e-11]}
+WRONG {"door": "line", "lane": "f64", "fat": true, "target": 10000000.0, "case": 12, "place": "near", "theta": -1.5704629934615633, "gamma": 0.08726646259971647, "shift": 0.0, "kind": "ok", "fault": null, "gap": 3.658320982683599e-14, "truth": "meets", "said": "meets", "wrong": true, "off": [2.2509438019885994e-11]}
+WRONG {"door": "line", "lane": "f64", "fat": true, "target": 100000000.0, "case": 0, "place": "near", "theta": -1.5707963167948966, "gamma": 1.5707963267948966, "shift": 0.0, "kind": "ok", "fault": null, "gap": 6.551734345818672e-18, "truth": "meets", "said": "meets", "wrong": true, "off": [1.4936986950608377e-09]}
+WRONG {"door": "line", "lane": "f64", "fat": true, "target": 100000000.0, "case": 1, "place": "near", "theta": -1.5707964267948966, "gamma": 1.5707963267948966, "shift": 0.0, "kind": "ok", "fault": null, "gap": 2.1174579674039354e-16, "truth": "meets", "said": "meets", "wrong": true, "off": [1.8369748656962724e-09]}
+WRONG {"door": "line", "lane": "f64", "fat": true, "target": 100000000.0, "case": 2, "place": "near", "theta": -1.5707629934615632, "gamma": 1.5707963267948966, "shift": 0.0, "kind": "ok", "fault": null, "gap": 3.7840373782963414e-14, "truth": "meets", "said": "meets", "wrong": true, "off": [1.6184002872536437e-10]}
+WRONG {"door": "line", "lane": "f64", "fat": true, "target": 100000000.0, "case": 5, "place": "near", "theta": -1.5707963167948966, "gamma": 0.5235987755982988, "shift": 0.0, "kind": "ok", "fault": null, "gap": 4.949046222660539e-17, "truth": "meets", "said": "apart", "wrong": true, "off": []}
+WRONG {"door": "line", "lane": "f64", "fat": true, "target": 100000000.0, "case": 6, "place": "near", "theta": -1.5707964267948966, "gamma": 0.5235987755982988, "shift": 0.0, "kind": "ok", "fault": null, "gap": 3.069415133131208e-17, "truth": "meets", "said": "meets", "wrong": true, "off": [1.1447826333809715e-09]}
+WRONG {"door": "line", "lane": "f64", "fat": true, "target": 100000000.0, "case": 7, "place": "near", "theta": -1.5707629934615632, "gamma": 0.5235987755982988, "shift": 0.0, "kind": "ok", "fault": null, "gap": 7.90226646987941e-14, "truth": "meets", "said": "apart", "wrong": true, "off": []}
+WRONG {"door": "line", "lane": "f64", "fat": true, "target": 100000000.0, "case": 10, "place": "near", "theta": -1.5707963167948966, "gamma": 0.08726646259971647, "shift": 0.0, "kind": "ok", "fault": null, "gap": 3.6386987944345125e-17, "truth": "meets", "said": "apart", "wrong": true, "off": []}
+WRONG {"door": "line", "lane": "f64", "fat": true, "target": 100000000.0, "case": 11, "place": "near", "theta": -1.5707964267948966, "gamma": 0.08726646259971647, "shift": 0.0, "kind": "ok", "fault": null, "gap": 1.351650746617097e-16, "truth": "meets", "said": "apart", "wrong": true, "off": []}
+WRONG {"door": "line", "lane": "f64", "fat": true, "target": 100000000.0, "case": 12, "place": "near", "theta": -1.5707629934615632, "gamma": 0.08726646259971647, "shift": 0.0, "kind": "ok", "fault": null, "gap": 8.581096302100285e-14, "truth": "meets", "said": "apart", "wrong": true, "off": []}
+WRONG {"door": "line", "lane": "f64", "fat": true, "target": 1000000000.0, "case": 0, "place": "near", "theta": -1.5707963257948965, "gamma": 1.5707963267948966, "shift": 0.0, "kind": "ok", "fault": null, "gap": 1.1606662613007633e-16, "truth": "meets", "said": "meets", "wrong": true, "off": [5.167639265432865e-08]}
+WRONG {"door": "line", "lane": "f64", "fat": true, "target": 1000000000.0, "case": 1, "place": "near", "theta": -1.5707963367948965, "gamma": 1.5707963267948966, "shift": 0.0, "kind": "ok", "fault": null, "gap": 2.753395979219559e-16, "truth": "meets", "said": "meets", "wrong": true, "off": [1.836970038365271e-08]}
+WRONG {"door": "line", "lane": "f64", "fat": true, "target": 1000000000.0, "case": 2, "place": "near", "theta": -1.5707929934615632, "gamma": 1.5707963267948966, "shift": 0.0, "kind": "ok", "fault": null, "gap": 5.363043109389417e-14, "truth": "meets", "said": "meets", "wrong": true, "off": [4.982452461427385e-08]}
+WRONG {"door": "line", "lane": "f64", "fat": true, "target": 1000000000.0, "case": 5, "place": "near", "theta": -1.5707963257948965, "gamma": 0.5235987755982988, "shift": 0.0, "kind": "ok", "fault": null, "gap": 3.638699287858141e-17, "truth": "meets", "said": "meets", "wrong": true, "off": [5.081036690042136e-08]}
+WRONG {"door": "line", "lane": "f64", "fat": true, "target": 1000000000.0, "case": 6, "place": "near", "theta": -1.5707963367948965, "gamma": 0.5235987755982988, "shift": 0.0, "kind": "ok", "fault": null, "gap": 2.23104143076583e-16, "truth": "meets", "said": "apart", "wrong": true, "off": []}
+WRONG {"door": "line", "lane": "f64", "fat": true, "target": 1000000000.0, "case": 7, "place": "near", "theta": -1.5707929934615632, "gamma": 0.5235987755982988, "shift": 0.0, "kind": "ok", "fault": null, "gap": 3.8391538151969846e-14, "truth": "meets", "said": "meets", "wrong": true, "off": [5.0621184853816794e-08]}
+WRONG {"door": "line", "lane": "f64", "fat": true, "target": 1000000000.0, "case": 10, "place": "near", "theta": -1.5707963257948965, "gamma": 0.08726646259971647, "shift": 0.0, "kind": "ok", "fault": null, "gap": 1.0544345136317653e-16, "truth": "meets", "said": "meets", "wrong": true, "off": [4.596136505031583e-08]}
+WRONG {"door": "line", "lane": "f64", "fat": true, "target": 1000000000.0, "case": 11, "place": "near", "theta": -1.5707963367948965, "gamma": 0.08726646259971647, "shift": 0.0, "kind": "ok", "fault": null, "gap": 1.770724940806934e-17, "truth": "meets", "said": "apart", "wrong": true, "off": []}
+WRONG {"door": "line", "lane": "f64", "fat": true, "target": 1000000000.0, "case": 12, "place": "near", "theta": -1.5707929934615632, "gamma": 0.08726646259971647, "shift": 0.0, "kind": "ok", "fault": null, "gap": 5.255466284727535e-14, "truth": "meets", "said": "meets", "wrong": true, "off": [1.1531410559729093e-08]}
+WRONG {"door": "line", "lane": "f64", "fat": false, "target": 100000.0, "case": 7, "place": "far", "theta": 0.42920367320510344, "gamma": 0.5235987755982988, "shift": 0.0, "kind": "ok", "fault": null, "gap": 9.117853139631914e-12, "truth": "between", "said": "meets", "wrong": true, "off": [1.7703475183176116e-11]}
+WRONG {"door": "circle", "lane": "f64", "fat": false, "target": 1000000.0, "case": 6, "place": "far", "theta": -1.0707963267948966, "gamma": 0.5235987755982988, "shift": 0.0, "kind": "ok", "fault": null, "gap": 6.120901140007842e-13, "truth": "meets", "said": "meets", "wrong": true, "off": [3.547995368730734e-11]}
+WRONG {"door": "line", "lane": "f64", "fat": false, "target": 100000000.0, "case": 2, "place": "near", "theta": -1.5171199740662917, "gamma": 1.5707963267948966, "shift": 1e-11, "kind": "ok", "fault": null, "gap": 3.071841293718568e-12, "truth": "between", "said": "meets", "wrong": true, "off": [6.362434128586704e-11]}
+WRONG {"door": "line", "lane": "f64", "fat": false, "target": 100000000.0, "case": 7, "place": "near", "theta": -1.5171199740662917, "gamma": 0.5235987755982988, "shift": 1e-11, "kind": "ok", "fault": null, "gap": 2.8110957629205325e-13, "truth": "meets", "said": "apart", "wrong": true, "off": []}
+WRONG {"door": "line", "lane": "f64", "fat": false, "target": 1000000000.0, "case": 2, "place": "near", "theta": -1.5538223723307527, "gamma": 1.5707963267948966, "shift": 0.0, "kind": "ok", "fault": null, "gap": 3.0431454896298352e-12, "truth": "between", "said": "meets", "wrong": true, "off": [1.5365332682614375e-09]}
+exit 0

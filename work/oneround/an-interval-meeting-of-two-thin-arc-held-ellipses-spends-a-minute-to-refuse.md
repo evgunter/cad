@@ -15,7 +15,9 @@ At ε 1e-6, `curve_pair::meet` takes:
 - about 2.8 s at `f64`, refusing `Unsettled(Meter { row: "curve_pair_pose_basin" })`;
 - about 68 s at `Interval`, refusing on the same row.
 
-The same pair, with the first ellipse replaced by the same locus held at its centre (`Ellipse::new` on its derived centre), refuses on the same row in 2.8 s at `f64` and 0.2 s at `Interval`. Every answer is a refusal, never a wrong one, so this is a cost only. The arc-held `Interval` reading spends some three hundred times the centre-held one's time before reaching the same refusal. Not traced: where the time goes (presumably the subdivision of the window, or the basin's polish loop, on the arc-held evaluator's wider enclosures), and whether the base, before this unit, spends it too.
+The same pair, with the first ellipse replaced by the same locus held at its centre (`Ellipse::new` on its derived centre), refuses on the same row in 2.8 s at `f64` and 0.2 s at `Interval`. Every answer is a refusal, never a wrong one, so this is a cost only. The arc-held `Interval` reading spends some three hundred times the centre-held one's time before reaching the same refusal. Not traced: where the time goes (presumably the subdivision of the window, or the basin's polish loop, on the arc-held evaluator's wider enclosures).
+
+**The base is fast because it is wrong.** The same row on that unit's base (PR 7510's head `32d065158f`, with the rows copied in) runs in 14 s in all. There its `Interval` lane answers `Ok` with no meeting on both poses, though the pair meets. So the cost came in with this unit's readers, in exchange for a refusal where the base gave a wrong answer.
 
 **Reproduce:** `CAD_TOLERANCE_EPS=1e-6 cargo nextest run -p geom-brep --run-ignored only -E 'test(=curve_pair::arc_held_rows::two_thin_far_arc_held_ellipses_across_planes_meet)'`, about 140 s, green. The default run's `two_arc_held_ellipses_through_one_point_meet` leaves this one pose out for its cost.
 
