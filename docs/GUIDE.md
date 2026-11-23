@@ -1929,7 +1929,7 @@ let (next, tab_on_plate) = insert(
 );
 doc = next;
 let (next, solid) = insert(&doc, Node::Union {
-    members: Bodies::Spelled(vec![plate.into(), tab_on_plate.into()]),
+    members: Bodies::spelled(vec![plate.into(), tab_on_plate.into()]),
 });
 doc = next;
 

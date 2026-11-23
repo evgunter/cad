@@ -3356,12 +3356,20 @@ fn the_body_seats_admissions_evaluate_as_bodies() {
             doc = applied.doc;
         }
     }
-    for wanted in ["transform of a pattern", "empty intersect", "sweep"] {
+    for wanted in ["empty intersect", "sweep"] {
         assert!(
             shells.iter().any(|&(name, _, _)| name == wanted),
             "the seat admits the {wanted}"
         );
     }
+    // A transform of a pattern is a family (D10 `[repetition]`): the body
+    // seat refuses it, as the kernel's door refuses it by kind.
+    assert!(
+        !shells
+            .iter()
+            .any(|&(name, _, _)| name == "transform of a pattern"),
+        "the seat refuses the transform of a pattern, a family"
+    );
     let mut landed = DocSession::inline(doc, tol);
     let pumped = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| landed.pump()));
     assert!(pumped.is_ok(), "evaluating what the seat admitted panicked");
