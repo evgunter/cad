@@ -48,9 +48,8 @@ nothing is rebuilt, and export composes the frame into the world. A resolved doc
 `ResolveFault::EpsilonSeam`. An evaluation enters each `(DocRef, ε)` it
 instantiates at most once (`PartStore`), before its mate solve and node
 map read it (`Reached`); a part the prior evaluation carried under the
-same pin is reused rather than evaluated again while the resolver still
-holds that pin and every pin beneath it, and a faulted one is asked
-again. A reference already on the descent chain is a
+same pin is reused rather than evaluated again, and a faulted one is
+asked again. A reference already on the descent chain is a
 cycle and refuses naming the loop. Which solids are one part, and that
 fusing is an explicit boolean, is DESIGN `[assemblies.document]`.
 
@@ -278,8 +277,8 @@ and only that placement's copy is in the product (A10).
 `[assemblies.saving]`. Here: the resolver returns a document only when
 its bytes hash to the pin, else `ResolveFault::PinMismatch`, and that
 refusal is the seam's alone (IDENTITY DI2): an evaluation that crosses
-the seam refuses a pin its store does not hold, and one served from a
-prior serves what the document pins, while the store holds it. An evaluation carries the id of the document it is
+the seam refuses a moved pin, and one served from a prior serves what
+the document pins. An evaluation carries the id of the document it is
 of, and `SolvedPoses` the id of the document it solved (DI3); which
 doors read that identity is A2a's. The two save acts (Ev, PR 2016) are
 built at the workspace door (DI4).
@@ -694,22 +693,9 @@ only, so a failed assertion quiets nothing.
 ## Open questions
 
 - **AQ1 — the document store.** Built: `pncad::Workspace`, a directory
-  of `*.pncad` files scanned by id header, one file per id (its
-  *head*), resolving `DocRef`s with the pin gate. A folder holds the
-  bytes of every pin written into it, as an immutable snapshot per
-  `(id, pin)` in a hidden kept area the head scan skips. Every door that
-  mints a pin (Add part, Accept, split, the workspace's own minting)
-  keeps its bytes at that moment. Every save keeps the saved document's
-  pins, transitively, in the target folder, copied from the first
-  source that holds each: the target's head or kept area, then the
-  source folder's, then the session's read. A pin no source holds
-  cannot be kept, and the save names it in its outcome. Resolution
-  never writes: the head if its pin matches, else the kept snapshot,
-  else `PinMismatch` (the id has a head at another pin, and this one was
-  never recorded here) or `Unresolved`. Prune is an explicit act only;
-  its roots are the pins the folder's heads hold, followed through kept
-  documents, and an open session's unsaved pins and undo are not roots.
-  Open: what an id anchors to beyond one directory.
+  of `*.pncad` files scanned by id header, one file per id, resolving
+  `DocRef`s with the pin gate. Open: what an id anchors to beyond one
+  directory, and how a one-version-per-id store serves mixed-pin state.
 - **AQ2, AQ3, AQ7** — discharged into A13, A11, A12.
 - **AQ4 — per-instance arguments.** Not implemented. Intended form:
   `InstantiatePart { …, args }` applying the pinned recipe at `args`.

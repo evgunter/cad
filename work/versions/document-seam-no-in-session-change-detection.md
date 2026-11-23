@@ -2,12 +2,13 @@
 id: document-seam-no-in-session-change-detection
 kind: issue
 title: The document seam has no in-session change detection - a store edit is invisible until reopen (plus two adjacent edges)
-status: open
+status: parked
 opened: 2026-08-31
 refs: [1376]
 priority: P1
 cost: M
-design: true
+blocked_on: [the-store-keeps-every-version-and-history-undoes-without-destroying]
+parent: the-store-keeps-every-version-and-history-undoes-without-destroying
 ---
 
 ## From GitHub issue 1387
@@ -85,3 +86,7 @@ The off-question findings below are fixed by the build or ride with it:
 - `parts.rs`'s `PartFiles` doc claims the scan follows its resolver's own read, which is false on a memo hit.
 
 Once there is one read, `the-part-chooser-keeps-its-snapshot-across-a-document-swap` closes. (VSEAM orchestrator)
+
+## 2026-11-23 — moved to VERSIONS
+
+Ev ruled on PR 7462 that the store question gets its own program, with one X row: work out how, then do it. This row moved there by `git mv`, id unchanged, and is parked on that row, which carries its design. It closes when the build makes a store change visible in session. (VSEAM orchestrator)

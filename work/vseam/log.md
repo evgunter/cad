@@ -514,3 +514,11 @@ row's last section says what moved.
   - **Order (mine, a sequencing call):** retention, then the kernel check, then the session side, so no interim meaning ships.
   - The ratified-text edits are on the PR. §3 is filed as `the-part-chooser-calls-every-document-a-part`.
   - Off-question findings ride with the build; they are listed on the row. (VSEAM)
+- 2026-11-23 — **Ev on PR 7462.**
+  - Ev first asked: "i think the plan was to build a full version control thing; how does this relate to that?" I answered on the PR: the only written plan is GUI-6, a per-document history store. The kept pinned versions are content-addressed objects, so under a VCS that keeps every saved state they are its object store plus one gc rule (pins are roots). I asked whether the VCS is per folder or per document, and whether AQ1 should be built now or wait.
+  - Ev's answer: "(a) i don't think it was entirely planned out, just that it should allow arbitrary non-destructive undo (b) hm, maybe open a new program for it where it just has an extra hard P0 like 'figure out how to do this and then do it' (and you can just hand it off / not build this now)".
+  - **Done on that PR:**
+    - its edits to DESIGN, ASSEMBLY and IDENTITY are reverted, since nothing was ruled;
+    - **VERSIONS** is opened (`work/versions/`, `ready`, no orchestrator) with one P0 X row, `the-store-keeps-every-version-and-history-undoes-without-destroying` (30 points, design), carrying the designers' converged recommendation as evidence;
+    - `document-seam-no-in-session-change-detection` moved there by `git mv`, parked on that row.
+  - The §3 split (`the-part-chooser-calls-every-document-a-part`) stays here. Fork-log row 301 records Ev's decision. (VSEAM)

@@ -2091,13 +2091,9 @@ part);
   document's canonical semantic bytes, which says which version. An
   edit to the referenced document never retargets a reference: a
   document is served only when its bytes hash to the pin, and moving a
-  pin is a recorded edit. A store holds the bytes of every pin written
-  into it until an explicit prune, so a pin is an address the store
-  honours, not a check that may fail. Since the pin is the content, a
-  carried part's value is a pure function of the document; the memo
-  reuses it while the store the evaluation is given still holds its pin
-  and every pin beneath it. When the store is read again is the mounting
-  session's question.
+  pin is a recorded edit. Since the pin is the content, the memo is a
+  pure function of the document, and whether a store still holds the
+  pinned bytes is the mounting session's question, never the memo's.
 - **A held value names the document it came from.**
   `[assemblies.pairing]` An evaluation, a solve or a pick carries the
   identity of the document it is of. A door that takes a document

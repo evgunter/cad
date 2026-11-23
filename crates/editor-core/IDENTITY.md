@@ -65,50 +65,37 @@ one is the node.** History position is not part of the question.
 *Open: the tools' clear on replacement and the rows pinning the rule,
 `layer3-recipenodeid-aliases-across-rewinds`.*
 
-## DI2 — The memo is a pure function of the document and the store it is given
+## DI2 — The memo is a pure function of the document; the store is the session's
 
-The memo's claim is "same content key, same value", and for an
-instantiate node the pin is the content. Content addressing makes a
-carried part's value right; whether the store can still supply it is a
-second fact, which the memo checks. A resolver is a read: its answers
-are stable for its lifetime, and `PartResolver::holds(ref)` (resolve
-would succeed, ε included) is a lookup in it, never a file read. A carried
-part row records every pin beneath it, and is reused only while the
-resolver holds its own pin and each of those; an instantiate node's
-memo hit counts only if its part row was reused in the same run. So
-`evaluate(doc, prior, store)` and `evaluate(doc, None, store)` agree for
-every caller, and with no resolver nothing is held and nothing is served
-from a prior. The check reads an in-memory value, so `evaluate` with a
-prior depends on no filesystem (D9).
+The memo is a pure function of the document, and the store is checked by
+whoever mounts it. An instantiate node served from the memo is never
+consulted against the resolver, so an evaluation with a prior may serve a part
+whose file has since changed or vanished, where the same evaluation without a
+prior refuses `PinMismatch` or `Unresolved`. That is the ruled behaviour: the memo's
+claim is "same content key, same value", and for an instantiate node the pin
+is the content, so the served value is exactly what the document pins. The
+alternative, memo admission checking resolver state, would make `evaluate`
+with a prior depend on the filesystem, against D9, and cost a seam crossing
+per reused node.
 
 - **A4's refusal sentence is the seam's, and only the seam's**: an
-  evaluation that crosses the seam refuses a pin its store does not hold.
+  evaluation that crosses the seam refuses a moved pin.
   `crates/editor-core/ASSEMBLY.md` A4 and `docs/guide/north-star-audit.md`
   say so in those words.
-- **The session reads the store once, as a value.** One read of its
-  folder answers every store question the session asks: resolution, the
-  tree's file names, the Add part chooser, Add part's pin and Accept. It
-  is retaken on Open, after each of the session's own writes, and at a
-  visible **Re-read parts** door wherever an instance shows. A read
-  forgets only what the memo's check finds no longer held.
-- **Each reference has a standing in the read**: served from its head;
-  kept, with the head moved on (a newer version here, and **Accept
-  updated version** offered); kept, with no head; at another ε;
-  unfetchable (pruned, or never recorded), which fails as a reopen does;
-  or the store's own refusal. The standing is transitive, so a part
-  inside a part is reported along its path, and the offer stands only on
-  a top-level reference, since an inner part is repaired in its own
-  document. The offer reads the standing, never a failure, so
-  `PinMismatch` means only that the pinned bytes cannot be fetched. It is
-  computed at rest, not on drag frames.
+- **The session owns store freshness.** It gates the memo on resolver
+  identity (`evalseam.rs`, `same_resolver`): a replaced resolver is a full
+  re-evaluation. A change to the mounted directory's contents has its own
+  door, the smallest complete one: **`SessionOp::Reevaluate` re-mounts the
+  store** — a fresh `DirResolver` over the same directory — which through
+  the existing gate re-evaluates fully, while ordinary edits keep the memo.
 - The session hands no previous evaluation as `prior`: `request_eval`
   carries none, and the memo lives in `evalseam::PriorRun`. Only
   `probe_bounds` hands a prior directly, and it hands the landed evaluation
   of the same document.
 
-*Built: A4's sentence (PR 1808). Open: the kernel's `holds` check, the
-store's kept area (ASSEMBLY AQ1) and the session's read and standing,
-`document-seam-no-in-session-change-detection`.*
+*Built: the memo half and A4's sentence (PR 1808). Open: the re-mount door
+and its two adjacent edges (save-as into a partless directory, the chooser's
+vocabulary), `document-seam-no-in-session-change-detection`.*
 
 ## DI3 — An evaluation carries its document's identity
 
