@@ -21,7 +21,7 @@ use core::f64::consts::{FRAC_1_SQRT_2, FRAC_PI_4, TAU};
 use geom::Surface;
 use geom_brep::{
     CarryError, CarryRefusal, ClassCarrier, Coincident, ComponentShape, ExtentBall, NoCarrier,
-    PairSection, SectionDecision, SectionError, SectionRead, SsiLane,
+    PairPose, PairSection, SectionDecision, SectionError, SectionRead, SsiLane,
 };
 use geom_core::{Band, Point3, Tol, Vec3};
 
@@ -760,6 +760,18 @@ fn a_wall_through_the_apex_touching_it_is_an_apex_touch() {
         "at the apex"
     );
     assert!(section.nodes().is_empty(), "a touch is no node");
+    // The divided sheet's loop winds round the upper nappe, and about the
+    // rod it runs over `θ ∈ [−π/2, π/2]` and back, so it does not wind
+    // there. A divided sweep that claims the partner for every loop, or
+    // reads no winding on the cone: red.
+    let loop_ = section
+        .counted()
+        .unwrap()
+        .iter()
+        .find(|c| c.shape == ComponentShape::Loop)
+        .unwrap();
+    assert_eq!(loop_.winds, [true, false], "round the cone, not the rod");
+    assert!(unclaimed(&section).is_empty(), "the winding settled");
 }
 
 /// **A wall through the apex, the cone's form indefinite on its tangent
@@ -1110,6 +1122,16 @@ fn two_cones_through_one_apex_are_read_elsewhere() {
 // The winding on both carriers
 // -------------------------------------------------------------------
 
+/// The windings a cone pair's section read and left unclaimed.
+fn unclaimed(section: &PairSection<f64>) -> Vec<&'static str> {
+    match section.pose() {
+        PairPose::ConeCylinder(pose) | PairPose::ConeCone(pose) => {
+            pose.unclaimed_windings().to_vec()
+        }
+        other => panic!("not a cone pair: {other:?}"),
+    }
+}
+
 /// **Every loop's claimed winding, `[on the cone, on the partner]`**, the
 /// section read both ways round and each read's claims checked to be the
 /// other's exchanged, sorted. Every component of these poses is a loop.
@@ -1119,7 +1141,9 @@ fn windings(
     region: ExtentBall<f64>,
 ) -> Vec<[bool; 2]> {
     let claims = |a: &Surface<f64>, b: &Surface<f64>| {
-        let mut claims: Vec<[bool; 2]> = built(a, b, region)
+        let section = built(a, b, region);
+        assert!(unclaimed(&section).is_empty(), "every winding settled");
+        let mut claims: Vec<[bool; 2]> = section
             .counted()
             .unwrap()
             .iter()
