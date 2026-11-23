@@ -650,12 +650,12 @@ fn the_geometric_selector_materializes_the_authored_die_composed_selection() {
         Tol::witness(),
     )
     .expect("exact atoms are total");
-    assert_eq!(meridians.len(), 2, "the two co-surface cavity meridians");
+    assert_eq!(meridians.len(), 1, "the cavity's one seam meridian");
     assert!(meridians.iter().all(|m| !materialized.contains(m)));
     assert_eq!(
         select(&ev, pipped, &edges).len(),
-        16,
-        "twelve straight + two rim arcs + two meridians is the whole table",
+        14,
+        "twelve straight + the rim + one meridian is the whole table",
     );
 }
 

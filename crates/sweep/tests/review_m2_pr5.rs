@@ -647,7 +647,9 @@ fn survives_forged_seam_on_a_rim_is_refused() {
     };
     assert_eq!(
         body.set_edge_curve(rim, forged, Tol::witness()),
-        Err(topo::EulerOpError::DescriptionNotAdjacent { edge: topo::EdgeSubject::Keyed(rim) }),
+        Err(topo::EulerOpError::DescriptionNotAdjacent {
+            edge: topo::EdgeSubject::Keyed(rim)
+        }),
         "a forged wrap flag on an edge between two faces is refused"
     );
     assert_all_tiers(&body);

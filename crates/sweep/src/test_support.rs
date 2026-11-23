@@ -613,7 +613,7 @@ pub fn two_lunes(body: &mut Body<f64>, tol: Tol) {
     .expect("the opposite meridian halves the ball");
     // Between two lunes the meridian is no longer a wrap edge.
     spec.description = geom_brep::EdgeDescriptionSpec::chart(surface);
-    body.set_edge_curve(wrap, spec, tol)
+    body.restate_stored_edge(wrap, spec.description, tol)
         .expect("the meridian restates as a chart edge between the lunes");
 }
 
