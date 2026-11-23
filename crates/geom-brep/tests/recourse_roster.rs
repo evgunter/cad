@@ -47,6 +47,7 @@ use test_utils::source::{NameCarrier, crate_dir, predicate_census, roster_violat
 const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SQUARE_FOLD_HALF"),
     NameCarrier::Const("OVAL_SIDE"),
+    NameCarrier::Const("OVAL_IN_BAND"),
     NameCarrier::Const("SQUARE_EDGE_OVER"),
     NameCarrier::Const("SPHERE_NEAR"),
     NameCarrier::Const("SPHERE_FAR"),
@@ -79,6 +80,12 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("DIHEDRAL_WEDGE"),
     NameCarrier::Const("TANGENT_SECOND_ORDER"),
     NameCarrier::Const("MATERIAL_CUSP_SIDE"),
+    // The end-root door's questions (`curve_face/end_root.rs`).
+    NameCarrier::Const("END_ROOT_ORDER"),
+    NameCarrier::Const("END_ROOT_RUN"),
+    NameCarrier::Const("END_ROOT_TAIL"),
+    NameCarrier::Const("END_ROOT_SPREAD"),
+    NameCarrier::Const("END_ROOT_WINDOW_CLEAR"),
     // The carrier ladder's data names, and each kind's reach row with
     // its straddle row (`carrier_eq.rs`).
     NameCarrier::Const("CARRIER_CONE_APEX"),
@@ -123,6 +130,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("require_solid_angle_as"),
     NameCarrier::Call("gradient_alignment"),
     NameCarrier::Call("normals_alignment"),
+    NameCarrier::Call("wedge_reads_zero_at_the_offer"),
     NameCarrier::Call("shown"),
     NameCarrier::Call("unit_winding"),
     NameCarrier::Call("spline_incidence_as"),

@@ -215,6 +215,10 @@ fn clears(x: Interval) -> bool {
 }
 
 impl Channel {
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn azimuth(self, p: Point3<f64>) -> geom::Azimuth<f64> {
         match self {
             Self::Axis(frame) => frame.azimuth(p),
@@ -233,6 +237,10 @@ impl Channel {
     /// azimuth ([`Self::azimuth`]) reads the stored entries, which are
     /// that rotation to rounding: the box is cleared on the carrier the
     /// azimuth rounds.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn clear(self, b: Box3) -> bool {
         let b = Vec3::new(b.x, b.y, b.z);
         match self {

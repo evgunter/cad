@@ -65,6 +65,7 @@ const BOOLEAN: Door = Door {
         "bool_",
         "carrier_",
         "contact_",
+        "junction_",
         "rim_",
         "seam_",
         "section_",
@@ -483,6 +484,8 @@ const SAME_NAMED_TRAVEL: &str = "a spline wall piece's `travel()`, its extent fr
                                  direction of travel, which shares the declared `travel` carrier's \
                                  token and takes no name";
 
+const PAIRED: &str = "a row and its floor handed on as an array: its literals are read, the rest \
+                      forwards its caller's name";
 const CLOSURE_FORWARDS: &str = "a closure bound in this `fn` hands on its callers' names, read where \
                                 its callers call it (a declared carrier, or a `decide*` spelling); \
                                 keyed by its `fn` until the census keys a closure by its binding \
@@ -518,7 +521,10 @@ const INDIRECT: &[(&str, &str)] = &[
     ),
     ("contain.rs: face_placement: on_plane", FORWARDS),
     ("boolean/join.rs: line_of: name", CLOSURE_FORWARDS),
-    ("boolean/join.rs: travel: name", FORWARDS),
+    (
+        "boolean/join.rs: travel: [name, \"bool_join_arc_clear\"]",
+        PAIRED,
+    ),
     (
         "boolean/offer_rows.rs: -: Vec3::new(1.0, 0.0, 0.0)",
         NOT_A_NAME,
@@ -539,8 +545,8 @@ const INDIRECT: &[(&str, &str)] = &[
     ("region.rs: place: at", CARRIER_CALL),
     ("region.rs: short_of_end: end.row", ROW_FIELD),
     ("region.rs: side_at_closest_as: cross", FORWARDS),
-    ("rim_wedge.rs: departures: a", CARRIER_CALL),
-    ("rim_wedge.rs: departures: b", CARRIER_CALL),
+    ("rim_wedge.rs: touch: a", CARRIER_CALL),
+    ("rim_wedge.rs: touch: b", CARRIER_CALL),
     ("rim_wedge.rs: reach_as: name", FORWARDS),
     ("rim_wedge.rs: read_identity#1([)", IDENTITY),
     (

@@ -2,12 +2,15 @@
 id: a-subtract-tool-seat-takes-a-whole-family-and-cuts-once-per-member
 kind: issue
 title: The subtract tool seat takes a pattern read whole, and the cut runs once per member: N plates each with one hole
-status: open
+status: closed
 opened: 2026-11-22
 priority: P0
 cost: M
 design: true
 refs: [denotes-body-enumerates-its-gaps-against-the-operand-door-and-misses-one, the-split-mirror-and-pattern-seats-read-a-picked-members-whole-family]
+pr: 7426
+branch: formwords/subtract-bodies
+closed: 2026-11-23
 ---
 
 

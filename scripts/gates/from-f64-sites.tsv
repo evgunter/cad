@@ -32,6 +32,7 @@ crates/geom-brep/src/chart_singularity.rs	1	constant	f64::from(WALK_SAMPLES)	a w
 crates/geom-brep/src/chart_singularity.rs	2	constant	f64::from(i)	a sample schedule's index (the sampled carrier's starting spans and a walk's stations)
 crates/geom-brep/src/curve_face/conic_quadric.rs	1	constant	band.escalate()	the band's escalation width, a tolerance (a root bracket's width through the apex)
 crates/geom-brep/src/curve_face/cross.rs	1	constant	band.escalate()	the band's escalation width, a tolerance: a window's reach about a root in band of an end
+crates/geom-brep/src/curve_face/end_root.rs	1	constant	band.zero()	the band's zero width, a tolerance: the most a coefficient decided Zero admits, charged at its power
 crates/geom-brep/src/curve_face/pose.rs	1	constant	band.escalate()	the band's escalation width, a tolerance: a touch's reach past which a span is apart
 crates/geom-brep/src/curve_face/pose.rs	1	constant	band.zero()	the band's zero width, a tolerance: a touch's in-band depth
 crates/geom-brep/src/curve_face/pose.rs	1	constant	k / 4.0	a quarter of the span, from a literal schedule: the not-Lies rung's sample shares
@@ -42,7 +43,6 @@ crates/geom-brep/src/curve_pair/pose/window.rs	2	constant	band.escalate()	the ba
 crates/geom-brep/src/curve_pair/pose/window.rs	4	constant	band.zero()	the band's zero width, a tolerance
 crates/geom-brep/src/curve_pair/span.rs	2	constant	band.escalate()	the band's escalation width, a tolerance (a refused member's window on a line, and off one)
 crates/geom-brep/src/curve_pair/walk.rs	1	constant	band.escalate()	the band's escalation width, a tolerance (a polished piece pair's window bound)
-crates/geom-brep/src/dihedral.rs	2	constant	band.escalate()	the band's escalation width, a tolerance
 crates/geom-brep/src/edge_nurbs.rs	1	constant	*w	on_carrier_domain: the interpolation's unit weights, a constant of its form
 crates/geom-brep/src/edge_nurbs.rs	1	launders(an-edges-parameter-ends-enter-a-carrier-piece-as-constants)	<fn>	edge_piece: a piece end that is no carrier breakpoint is the f64 end of the edge's parameter enclosure, a computed value entered as a constant (breakpoints keep their held values)
 crates/geom-brep/src/edge_wedge.rs	1	constant	phase	a fixed station of a rim's uniform-phase schedule (WedgeWalk::around_circle)
@@ -146,12 +146,14 @@ crates/profile/src/seg.rs	1	constant	ulps * f64::EPSILON	an ulp count's relative
 crates/profile/src/sugar.rs	1	constant	0.5 * band.zero()	half the band's coincidence threshold: how far past its boundary a recourse's value still fits exactly
 crates/profile/src/sugar.rs	1	constant	band.zero()	the band's zero width, a tolerance
 crates/profile/src/validate.rs	1	constant	angle	a containment ray's fixed angle (RAY_BASE + k·RAY_STEP)
-crates/profile/src/validate.rs	4	launders(the-loft-enclosure-arm-re-enters-its-sections-canonical-form-as-constants)	<fn>	ValidatedProfile::lift_onto (its stored scalars and its recorded directions): its one production caller, sweep's loft at an enclosure scalar, re-enters the f64 canonical form of its lane sections' value channel as constants (a function of the variables at Sym<Interval>)
+crates/profile/src/validate.rs	4	fixture	<fn>	ValidatedProfile::lift_onto (its stored scalars and its recorded directions): the fixture door for a canonical form, behind test-support; no production caller
 crates/sweep/src/blend/reach.rs	1	constant	2.0 * FaceBoxes::pad(band)	the band's box pad, a tolerance
 crates/sweep/src/blend/reach.rs	1	constant	pts.len() as f64	a point count
 crates/sweep/src/blend/reach.rs	2	constant	band.escalate()	the band's escalation width, a tolerance
+crates/sweep/src/loft.rs	2	fixture	<fn>	f64_body_held_as_points: the fixture body whose carriers hold f64 values as points (walls and section parameters), behind test-support; no production caller
 crates/sweep/src/loft/stacking.rs	1	constant	count.max(1) as f64	a count
-crates/sweep/src/skin.rs	1	constant	<fn>	a path sweep's path (control net, knots, weights): f64 data, a constant of the model, entering each lane its stations are minted at
+crates/sweep/src/skin.rs	1	constant	*share	section_parameters: a path sweep's station share i/(stations − 1), structure, the same v at every scalar
+crates/sweep/src/skin.rs	3	constant	<fn>	a path sweep's path (control net, knots, weights): f64 data, a constant of the model, entering each lane its stations are minted at; and each station's roll reference, selected at f64 from that path alone (PathCarry::of), so a constant of the model as the path is; and stated_knots: the averaged v knots of a path sweep's station shares, a function of the station count alone
 crates/sweep/src/skin.rs	1	constant	at	a path station's parameter, its uniform share of the path's domain selected at f64: the point the carry samples
 crates/sweep/src/skin.rs	1	constant	counted as f64	a row count
 crates/sweep/src/skin.rs	1	constant	geom_brep::sub_arc_joint(k + 1, m)	a sub-arc end k/m as a fraction of the sweep, structure
@@ -161,6 +163,7 @@ crates/sweep/src/skin.rs	1	constant	steps	the sub-arc count
 crates/sweep/src/test_support.rs	1	fixture	(core::f64::consts::FRAC_PI_2 / 4.0).tan()	a fixture arc's bulge
 crates/sweep/src/test_support.rs	4	fixture	<fn>	a fixture's f64 points lifted into T, and its placements' twelve constants admitted again at T
 crates/topo/src/boolean/carrier_touch.rs	1	constant	band.escalate()	the band's escalation width, a tolerance
+crates/topo/src/boolean/fate.rs	1	constant	f64::from(halves)	a loop's count of half-turn corners, read as a scalar
 crates/topo/src/boolean/join.rs	1	constant	band.zero()	the band's zero width, a tolerance
 crates/topo/src/boolean/mod.rs	1	constant	crate::boxes::sweep_pad(band)	the band's sweep pad, a tolerance
 crates/topo/src/census.rs	1	constant	band.escalate() - band.zero()	the band's room (K - 1)·ε, a tolerance
@@ -207,4 +210,3 @@ crates/topo/src/test_support_fixtures.rs	1	fixture	t0	a fixture curve's domain
 crates/topo/src/test_support_fixtures.rs	1	fixture	t1	a fixture curve's domain
 crates/topo/src/test_support_fixtures.rs	11	fixture	<fn>	a fixture's f64 frame lifted into T
 crates/topo/src/test_support_meeting.rs	1	fixture	<fn>	posed_pyramid_kept: a fixture's posed f64 corners lifted into T
-crates/topo/src/validate.rs	1	constant	band.escalate() / band.zero()	the band's K, the ratio of its two widths

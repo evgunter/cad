@@ -90,6 +90,10 @@ use crate::recognize_curve::circle_locus_within;
 /// over the printed trim** (module docs). `None` only where no arm
 /// serves the pair; an arm that runs and certifies no bound answers a
 /// non-finite one, which reads as no agreement.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(crate) fn printed_on(spec: &EdgeSpec, built: &Curve3<f64>) -> Option<f64> {
     let trim = (spec.t0, spec.t1);
     let line = match built {
@@ -102,11 +106,7 @@ pub(crate) fn printed_on(spec: &EdgeSpec, built: &Curve3<f64>) -> Option<f64> {
     let bound = match (&spec.carrier, built) {
         (Curve3::Nurbs(printed), Curve3::Circle(circle)) => circle_locus_within(
             printed,
-            (
-                circle.frame().origin(),
-                circle.frame().axis(),
-                circle.radius(),
-            ),
+            (circle.frame().origin(), circle.axis(), circle.radius()),
             trim,
         ),
         (Curve3::Nurbs(printed), Curve3::Nurbs(built)) => {
@@ -270,6 +270,10 @@ fn sub(a: [Interval; 3], b: [Interval; 3]) -> [Interval; 3] {
 /// at most `hypot(max |h|, max(r₂ − ρ_min, ρ_max − r₂))`, with
 /// `ρ_min² ≥ S_min − max h²` and `ρ_max² ≤ S_max`. The circles' frames
 /// and their `f64` closed forms are read as exact; every sum is outward.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn arc_on_circle(
     printed: &geom::Circle<f64>,
     (t0, t1): (f64, f64),
@@ -278,13 +282,13 @@ fn arc_on_circle(
     let iv = Interval::point;
     let (c1, u, n1, r1) = (
         printed.frame().origin(),
-        printed.frame().u_ref(),
-        printed.frame().axis(),
+        printed.u_ref(),
+        printed.axis(),
         printed.radius(),
     );
     let v = n1.cross(u);
     let v_dir = v;
-    let (c2, n, r2) = (built.frame().origin(), built.frame().axis(), built.radius());
+    let (c2, n, r2) = (built.frame().origin(), built.axis(), built.radius());
     let off = sub(pt(c1), pt(c2));
     let (u, v, n) = (vc(u), vc(v), vc(n));
     let dot = geom_core::interval::dot;
@@ -301,7 +305,7 @@ fn arc_on_circle(
     // Whether the printed point along `(cos, sin)` lies within `slack` of
     // the trim, its angle read through the circle's own azimuth.
     let inside = |(cs, sn): (f64, f64), slack: f64| {
-        let q = c1 + printed.frame().u_ref() * cs + v_dir * sn;
+        let q = c1 + printed.u_ref() * cs + v_dir * sn;
         let theta = geom::Conic::azimuth(printed, q).near(0.0);
         t1 - t0 >= period - slack || printed.period().above(theta, t0 - slack) <= t1 + slack
     };
@@ -378,10 +382,14 @@ struct Conic {
 impl Conic {
     /// The circle's or ellipse's form on its own parameter; `None` for
     /// any other curve.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn of(curve: &Curve3<f64>) -> Option<Self> {
         match curve {
             Curve3::Circle(c) => {
-                let (u, n, r) = (c.frame().u_ref(), c.frame().axis(), c.radius());
+                let (u, n, r) = (c.u_ref(), c.axis(), c.radius());
                 Some(Self {
                     center: c.frame().origin(),
                     a: u * r,
@@ -391,7 +399,7 @@ impl Conic {
                 })
             }
             Curve3::Ellipse(e) => {
-                let (u, n) = (e.frame().u_ref(), e.frame().axis());
+                let (u, n) = (e.u_ref(), e.axis());
                 Some(Self {
                     center: e.frame().origin(),
                     a: u * e.semi_u(),
