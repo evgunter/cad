@@ -1138,8 +1138,8 @@ impl<T: Real> Reach<T> {
 ///   face's boundary, so of the face, and its distance from the locus
 ///   read from below ([`locus_distance_below`]) is a distance the face
 ///   reaches;
-/// - **the spanned conic** ([`spanned_conic_run`]), for a face whose
-///   stations all lie on the shared conic.
+/// - **the spanned curve** ([`spanned_curve_run`]), for a face whose
+///   stations all lie on the shared closed curve.
 ///
 /// The door takes the boundary's geometry (each edge's carrier and
 /// span, a lone vertex's point) and places the stations itself, so no
@@ -1192,30 +1192,41 @@ impl<T: SpanLocate> BoundaryStations<T> {
     }
 }
 
-/// **The run of a face that spans a conic**: its least radius (a
-/// circle's radius, an ellipse's lesser semi-axis); `None` for a carrier
-/// that is no conic.
+/// **The run of a face that spans a closed curve**, for the kinds with
+/// a centre the curve stays a known distance from: a circle's radius, an
+/// ellipse's lesser semi-axis, a spiric oval's minor radius; `None` for
+/// any other carrier.
 ///
-/// A face whose whole boundary is one loop lying on one conic spans it:
-/// the loop is the conic, which winds once about the conic's axis (the
-/// line through its centre square to its plane), so the face, a surface
-/// bounded by it, meets that axis. A point of the axis `t` along it
-/// stands `√(ρ² + t²)` from the conic's point at radius `ρ`, at least
-/// the conic's least radius from every point of it. So the face reaches
-/// at least that far from the conic: a lower bound of its run, where its
-/// stations, all on the conic, read none. That the boundary is one loop
-/// on this one conic is the caller's to have read.
+/// A face whose whole boundary is one loop lying on one such curve spans
+/// it: the loop is the curve, which winds once about the line through
+/// its centre square to its plane, so the face, a surface bounded by it,
+/// meets that line. A point of the line `t` along it stands
+/// `√(ρ² + t²)` from the curve's point `ρ` from the centre, and `ρ` is
+/// at least the length returned:
+///
+/// - a circle's points are its radius from its centre, and an ellipse's
+///   at least its lesser semi-axis;
+/// - a spiric oval is, in its plane, the image of the tube's circle of
+///   the minor radius `r` under `(x, y) ↦ (g(x), y)`,
+///   `g(x) = √((R + x)² − d²)`, whose derivative is at least one, so no
+///   distance shrinks: the image of that circle's centre stands at least
+///   `r` from every point of the oval, and the oval winds once about it.
+///
+/// So the face reaches at least that far from the curve: a lower bound
+/// of its run, where its stations, all on the curve, read none. That the
+/// boundary is one loop on this one curve is the caller's to have read.
 ///
 /// The face's run from the edge's middle, which reads a disc at its
 /// diameter, is past the disc's true run, its radius, and so is no bound
 /// from below.
-pub fn spanned_conic_run<T: Real>(carrier: &Curve3<T>) -> Option<Lever<T>> {
+pub fn spanned_curve_run<T: Real>(carrier: &Curve3<T>) -> Option<Lever<T>> {
     match carrier {
         Curve3::Circle(c) => Some(Lever::of_consumed_extent(c.radius().abs())),
         Curve3::Ellipse(e) => Some(Lever::of_consumed_extent(
             e.semi_u().abs().min(e.semi_v().abs()),
         )),
-        Curve3::Line(_) | Curve3::Spiric { .. } | Curve3::Nurbs(_) | Curve3::Periodic(_) => None,
+        Curve3::Spiric { minor_radius, .. } => Some(Lever::of_consumed_extent(minor_radius.abs())),
+        Curve3::Line(_) | Curve3::Nurbs(_) | Curve3::Periodic(_) => None,
     }
 }
 

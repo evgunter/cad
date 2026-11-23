@@ -885,6 +885,11 @@ fn cavity_refusal_said(
         R::TorusNotRing { refusal, .. } => {
             format!("a wall lies on a torus not decided a ring: {refusal}").into()
         }
+        R::TurnContradicted { .. } => {
+            "two walls leave an edge they share the other way than the validity check read \
+             there"
+                .into()
+        }
         R::EmptyScope { .. } => "the cavity has no face".into(),
         R::BoxDependent { .. } => {
             "an upper bound's pair was confirmed at one point only, which the cavity's \
@@ -922,9 +927,10 @@ fn cavity_refusal_ending(
         }
         // The cavity asks the strict question, which has no upper bound
         // to prove, so a pointwise-only proof is the engine's defect.
-        R::PoisonEnclosure { .. } | R::EmptyScope { .. } | R::BoxDependent { .. } => {
-            KERNEL_DEFECT_ENDING.into()
-        }
+        R::PoisonEnclosure { .. }
+        | R::EmptyScope { .. }
+        | R::BoxDependent { .. }
+        | R::TurnContradicted { .. } => KERNEL_DEFECT_ENDING.into(),
     }
 }
 

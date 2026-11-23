@@ -585,6 +585,19 @@ pub enum EngineRefusal {
         /// The vertex of the face's body the chart collapses to.
         vertex: VertexKey,
     },
+    /// **A sign the question proved across a creased edge is the other
+    /// turn than tier 3's verdict holds there.** The question reads the
+    /// turn from the verdict and decides none, so the two disagreeing is
+    /// a defect in one of the readings, never a property of the body a
+    /// tolerance moves.
+    TurnContradicted {
+        /// The face the pair's first cell is of.
+        a: FaceKey,
+        /// The second's.
+        b: FaceKey,
+        /// The shared edge.
+        edge: EdgeKey,
+    },
     /// A face on a torus not decided a ring (`R > r > 0`), so not
     /// injective by its kind: a half of the convention decided outside it
     /// (a tube not shown thicker than zero, or not shown thinner than its
@@ -668,6 +681,7 @@ impl EngineRefusal {
                 format!("{}={face:?} {vertex:?}", side.name())
             }
             Self::TorusNotRing { face, side, .. } => format!("{}={face:?}", side.name()),
+            Self::TurnContradicted { a, b, edge } => format!("first={a:?} second={b:?} {edge:?}"),
             Self::EmptyScope { side } => side.name().to_owned(),
         }
     }
@@ -686,6 +700,7 @@ impl EngineRefusal {
             Self::Uncertified { .. } => "uncertified",
             Self::CollapsedChart { .. } => "collapsed_chart",
             Self::TorusNotRing { .. } => "torus_not_ring",
+            Self::TurnContradicted { .. } => "turn_contradicted",
         }
     }
 
@@ -743,6 +758,12 @@ impl EngineRefusal {
                  points and past it at others, so the box does not decide it; a narrower box \
                  can",
                 separation.0, separation.1
+            ),
+            Self::TurnContradicted { a, b, edge } => write!(
+                f,
+                "face {a:?} of {first} and face {b:?} of {second} leave their shared edge \
+                 {edge:?} the other way than the body's own validity check read there, which \
+                 is a defect in one of the two readings"
             ),
             Self::EmptyScope { side } => write!(
                 f,
