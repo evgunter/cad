@@ -9,10 +9,7 @@ use crate::glue::face_set_glue;
 /// `shell::count_components` / `face_neighbours` over a subset), a hop
 /// out of the set not followed. Returns labels in set order, the
 /// count, and the leaving hops as a sorted (from, to) list.
-fn base_walk(
-    body: &Body<f64>,
-    faces: &[FaceKey],
-) -> (Vec<usize>, usize, Vec<(FaceKey, FaceKey)>) {
+fn base_walk(body: &Body<f64>, faces: &[FaceKey]) -> (Vec<usize>, usize, Vec<(FaceKey, FaceKey)>) {
     let mut label: slotmap::SecondaryMap<FaceKey, usize> = slotmap::SecondaryMap::new();
     let mut leaving = Vec::new();
     let mut count = 0;
@@ -51,7 +48,11 @@ fn glue_walk(
         .unwrap_or_else(|e| panic!("valid body torn: {e}"));
     let mut leaving: Vec<_> = g.leaving.iter().map(|h| (h.from, h.to)).collect();
     leaving.sort_unstable();
-    (faces.iter().map(|&f| g.labels[f]).collect(), g.count, leaving)
+    (
+        faces.iter().map(|&f| g.labels[f]).collect(),
+        g.count,
+        leaving,
+    )
 }
 
 /// Subsets of `faces` (all when small, else a deterministic sample),
