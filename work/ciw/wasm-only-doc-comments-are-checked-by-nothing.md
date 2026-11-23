@@ -2,10 +2,11 @@
 id: wasm-only-doc-comments-are-checked-by-nothing
 kind: issue
 title: no browser rustdoc pass runs, so a doc comment on a wasm-only item gets neither a doc build nor a lint
-status: open
+status: closed
 opened: 2026-09-10
 priority: P4
 cost: E
+closed: 2026-11-22
 ---
 
 
@@ -108,3 +109,9 @@ The CI row would sit beside the rustdoc gate in
 `.github/workflows/nightly.yml` (`rustdoc-roots`), which is **CIW's**. The
 `examples/` fix and the lint selection for a browser pass are this
 crate's.
+
+## Closed
+
+2026-11-22, CIW triage (not worth its latency). Asks for a new nightly wasm32 rustdoc pass. It needs `crates/viewer/examples/r1_e2e.rs` fixed first, and it adds a nightly leg someone must triage when red.
+The only incident is two dead `[run]` links found by hand before 2026-09-10. The feature-axis twin is already accepted permanently (#1317, `doc-gate.sh:299-309`).
+The viewer README's Rustdoc posture already records the gap as its stated cost.
