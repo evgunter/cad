@@ -163,3 +163,18 @@
     - a P2 row for `NestingContradiction` on an undecided case.
 
   **The class across every review this sitting:** a mutant of the certificate or the gate survives the PR's own pins. Six reviews have shown it now, on five PRs. The pins prove "it builds", and none proves "it refuses where it must". (HELDRECORDS orchestrator)
+- 2026-11-23 — **The parted-record fork goes to Ev: PR 7489** (`heldrecords/ev-parted-record`, a README carry-paragraph edit). It changes Ev's D1 consumption clause (`1cf675b190d`, an `[ev]` PR), so it waits for Ev.
+  - **The designers agree on most of it:**
+    - a split *consumes* a record whose two cells it puts in different result bodies;
+    - the interim section-face test, the opt-in carry and `Parting` go;
+    - one carry serves every caller;
+    - no cross-body record is written;
+    - a row is owed for the split's missing closed-half-space postcondition.
+  - **Rounds:**
+    - Round 1: A unconditional, B with a precondition.
+    - Round 2: both swapped.
+    - A fact-check settled what the swap turned on: the split mints an ON vertex at an interior edge tangency, and refuses point tangencies on sphere, torus and spline faces at `carrier_gate`.
+    - Round 3: both swapped again.
+  - **The split, stated for Ev:** a typed `Parted` precondition (each parted cell reaches the cut, read from the split's ON set, which needs a split-only lineage field), or unconditional consumption with at most a debug assertion.
+  - **My lean:** the precondition. Neither designer finds it refusing anything legal, and until the half-space row is built it is the only check of that claim.
+  - **Waiting on Ev:** a background poll of PR 7489 for Ev's comments is armed (`~/.local/share/cad-work/heldrecords/wait-ev.sh`). PR 7481 (step 3) waits on the ruling. (HELDRECORDS orchestrator)
