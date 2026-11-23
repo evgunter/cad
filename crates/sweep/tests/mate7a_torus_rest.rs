@@ -539,3 +539,42 @@ fn the_rim_routing_reads_the_second_faces_sense_and_not_the_firsts() {
     walls.sort();
     assert_eq!(inverted, walls, "the gate names each reversed wall once");
 }
+
+/// Review probe (PR 7471, R1): the chain union's topology, and each
+/// operand's, side by side.
+#[test]
+fn r1_the_chain_union_topology() {
+    let (Some(a), Some(b)) = (segment_a(), segment_b()) else {
+        return;
+    };
+    let census = |what: &str, body: &Body<f64>| {
+        let kinds: Vec<_> = body
+            .faces()
+            .map(|(_, f)| format!("{:?}", body.get_surface(f.surface).map(|s| s.kind())))
+            .collect();
+        let descs: Vec<_> = body
+            .edges()
+            .map(|(_, d)| {
+                let c = body.get_curve_geom(d.curve);
+                let s = format!("{:?}", c.and_then(|c| c.certified()).map(|c| c.description()));
+                s.trim_start_matches("Some(").chars().take(40).collect::<String>()
+            })
+            .collect();
+        eprintln!(
+            "R1 {what}: solids {} shells {} faces {} edges {} vertices {} kinds {kinds:?} descs {descs:?}",
+            body.solids().count(),
+            body.shells().count(),
+            body.faces().count(),
+            body.edges().count(),
+            body.vertices().count()
+        );
+    };
+    census("A", &a);
+    census("B", &b);
+    for (order, x, y) in [("A,B", &a, &b), ("B,A", &b, &a)] {
+        let Ok(BooleanResult::Body(bb)) = topo::union(x, y, Tol::witness()) else {
+            panic!("{order}");
+        };
+        census(order, &bb.body);
+    }
+}

@@ -4279,3 +4279,77 @@ mod seam_rows {
         );
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod review_elbow_seams_r1 {
+    //! Review probes (PR 7471, R1): the elbow's rim, cylinder r=1 about z
+    //! against a torus R=3, r=1 about the y-parallel line through (3,0,2).
+    use super::*;
+    use geom_core::test_support::fixture_lever;
+    use geom_core::{Point3, Tol, Vec3};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    fn pair() -> (Surface<f64>, Surface<f64>, geom::Curve3<f64>) {
+        let cyl = Surface::Cylinder {
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
+            radius: 1.0,
+        };
+        let torus = Surface::Torus {
+            frame: geom::Frame::new(Point3::new(3.0, 0.0, 2.0), Vec3::unit_y(), Vec3::unit_z()),
+            major_radius: 3.0,
+            minor_radius: 1.0,
+        };
+        let rim = geom::Curve3::Circle(geom::Circle::new(
+            geom::Frame::new(Point3::new(0.0, 0.0, 2.0), Vec3::unit_z(), Vec3::unit_x()),
+            1.0,
+        ));
+        (cyl, torus, rim)
+    }
+
+    fn verdicts(t0: f64, t1: f64) -> [MustCarryVerdict; 2] {
+        let (cyl, torus, rim) = pair();
+        [
+            must_carry_over_edge(&cyl, &torus, &rim, t0, t1, fixture_lever(1.0), band()),
+            must_carry_over_edge(&torus, &cyl, &rim, t0, t1, fixture_lever(1.0), band()),
+        ]
+    }
+
+    fn kappas(t0: f64, t1: f64) -> Vec<(f64, f64)> {
+        let (cyl, torus, rim) = pair();
+        (0..crate::CERT_SAMPLES)
+            .map(|i| {
+                let t = crate::sample_param(t0, t1, i);
+                let st = Station::on(&rim, t);
+                (t, crate::tangent::tangent_jet(&cyl, &torus, st.p, st.tau).kappa_rel)
+            })
+            .collect()
+    }
+
+    /// The halves the boolean leaves: each holds one neutral point, so
+    /// stations of both signs.
+    #[test]
+    fn r1_halves() {
+        let pi = core::f64::consts::PI;
+        for (t0, t1) in [(0.0, pi), (pi, 2.0 * pi), (0.1, pi + 0.1)] {
+            eprintln!("[{t0},{t1}] {:?} kappas {:?}", verdicts(t0, t1), kappas(t0, t1));
+        }
+    }
+
+    /// **The converse**: an arc just over π whose two neutral points sit
+    /// between its ends and its first/last interior stations; every
+    /// interior station reads one sign.
+    #[test]
+    fn r1_converse_arc_over_pi() {
+        let h = core::f64::consts::FRAC_PI_2;
+        let (t0, t1) = (h - 0.05, 3.0 * h + 0.05);
+        let v = verdicts(t0, t1);
+        let (cyl, torus, rim) = pair();
+        let b = crate::tangent_span_bounds(&cyl, &torus, &rim, t0, t1);
+        eprintln!("converse {v:?} kappas {:?} bounds {b:?}", kappas(t0, t1));
+        assert_eq!(v, [MustCarryVerdict::JetDeterminate; 2], "the gap: read determinate");
+    }
+}

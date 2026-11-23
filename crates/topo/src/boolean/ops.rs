@@ -3368,7 +3368,10 @@ fn describe_edges_seamed<T: Decide + crate::props::AtRestPolicy>(
                     // zip kept between the two faces; either is described
                     // where it rests. Any other scaffold stays one, and
                     // tier 3 refuses it.
-                    geom_brep::EdgeDescription::Scaffold(_) => {
+                    geom_brep::EdgeDescription::Scaffold(m) => {
+                        if std::env::var_os("R1_TRACE").is_some() {
+                            eprintln!("R1_TRACE describe scaffold edge={edge:?} seam={} skip={} src={:?}", seams.contains(&edge), recorded_skip(sides.faces()), m.source);
+                        }
                         recorded_skip(sides.faces()) || seams.contains(&edge)
                     }
                 };
