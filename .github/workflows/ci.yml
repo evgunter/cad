@@ -770,6 +770,27 @@ jobs:
         if: steps.cache.outputs.cache-hit != 'true'
         run: cargo test --no-run --workspace
 
+  # lint saves `lint` only on main, and lint never runs on a push, so
+  # without this every PR's clippy and rustdoc pass compiled the graph
+  # cold. Same shape as cache-prime: lint's key, lint's (empty) job env,
+  # built only when the key stored nothing.
+  cache-prime-lint:
+    name: prime the lint cache
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        id: cache
+        with:
+          shared-key: lint
+      - name: build what clippy and the rustdoc pass read (only when the key stored nothing)
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          cargo clippy --workspace --exclude viewer --all-targets --all-features
+          scripts/doc-gate.sh --workspace-pass --skip-viewer-toolkit
+
   # The one check to read: green when every job that ran passed.
   gate-ok:
     name: gate ok
