@@ -5599,6 +5599,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "product_outside_world",
             "read_failed",
             "read_poisoned",
+            "read_refused",
             "stranded_product",
             "unknown_node",
         ],

@@ -251,6 +251,19 @@ impl<T: topo::AtRestPolicy + Decide> Evaluation<T> {
 
     /// [`Self::table_at`], shared: for a reader that keeps the table
     /// beside the value it read (the product's gather).
+    /// **The yielded half at `port` of the split `split`, where `split`
+    /// is evaluated once per member**: the half of each member, a family
+    /// of bodies named per member, as an evaluator reader outside the
+    /// binder reads it (`wire`'s `yielded_half`, the one reading);
+    /// `None` where `split` is no family of splits.
+    pub(crate) fn yielded_half(
+        &self,
+        split: RecipeNodeId,
+        port: u8,
+    ) -> Option<Result<NodeValue<T>, NodeErrorKind>> {
+        wire::yielded_half(&self.nodes, split, port)
+    }
+
     pub(crate) fn shared_table_at(&self, at: impl Into<At>) -> Option<Arc<NameTable>> {
         self.output_names(self.at_var(at)?)
             .map(OutputNames::shared_table)

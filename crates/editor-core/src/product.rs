@@ -124,6 +124,16 @@ pub enum ProductError {
     /// before it, or the id is not the document's), failed, or poisoned
     /// through its nearest failed ancestor.
     Read(NodeStanding),
+    /// **The read the product slot makes refused** (D10 `[repetition]`):
+    /// a yielded half of a split inside a binder is the half of each
+    /// member, and a member whose half is empty, or whose half's names
+    /// cannot be gathered, refuses it as it refuses every reader.
+    ReadRefused {
+        /// The split whose half the slot reads.
+        node: RecipeNodeId,
+        /// The refusal, as an operation reading the same half raises it.
+        kind: Box<crate::eval::NodeErrorKind>,
+    },
     /// **The product slot reads nothing** (D10 `[operations]`): there
     /// is no product for a door that needs one, and nothing has gone
     /// wrong. The reading is [`ProductErrorKind::means_no_body`]'s.
@@ -289,6 +299,10 @@ impl ProductError {
                  document {expected}",
             ),
             Self::Read(standing) => say!(f, Said(&standing.of_read(), by)),
+            Self::ReadRefused { kind, .. } => say!(
+                f,
+                sentence!("the body the slot reads: ", Said(&kind, by))
+            ),
             Self::EmptyProduct => write!(
                 f,
                 "the product slot reads nothing, so the document has no product. {}",
@@ -400,6 +414,9 @@ pub enum ProductErrorKind {
     ReadFailed,
     /// [`ProductError::Read`] carrying [`NodeStanding::Poisoned`].
     ReadPoisoned,
+    /// [`ProductError::ReadRefused`], and [`ProductError::Read`] carrying
+    /// [`NodeStanding::Members`]: the read the slot makes refused.
+    ReadRefused,
     /// [`ProductError::EmptyProduct`].
     EmptyProduct,
     /// [`ProductError::StrandedProduct`].
@@ -459,6 +476,7 @@ impl ProductErrorKind {
             | Self::UnknownNode
             | Self::ReadFailed
             | Self::ReadPoisoned
+            | Self::ReadRefused
             | Self::Frame
             | Self::Graft
             | Self::ProductInvalid
@@ -484,8 +502,11 @@ impl ProductError {
                 }
                 NodeStanding::Failed { .. } => ProductErrorKind::ReadFailed,
                 NodeStanding::Poisoned { .. } => ProductErrorKind::ReadPoisoned,
-                NodeStanding::Members { .. } => ProductErrorKind::UnknownNode, // PROVISIONAL (C) question
+                // A family that is no one value, and no split whose
+                // yielded half the gather reads: the read refuses.
+                NodeStanding::Members { .. } => ProductErrorKind::ReadRefused,
             },
+            Self::ReadRefused { .. } => ProductErrorKind::ReadRefused,
             Self::EmptyProduct => ProductErrorKind::EmptyProduct,
             Self::StrandedProduct { .. } => ProductErrorKind::StrandedProduct,
             Self::ProductOutsideWorld { .. } => ProductErrorKind::ProductOutsideWorld,
@@ -1146,7 +1167,24 @@ fn gather<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     if doc.space_of(var).is_none() {
         return Err(ProductError::StrandedProduct { read: var });
     }
-    let value = evaluation.usable(node).map_err(ProductError::Read)?;
+    // A yielded half of a split inside a binder is the family of each
+    // member's half, read as an evaluator reader outside the binder
+    // reads it (D10 `[repetition]`): its bodies are the halves, named
+    // per member in its own table.
+    let yielded = match evaluation.yielded_half(node, port) {
+        Some(Ok(family)) => Some(family),
+        Some(Err(kind)) => {
+            return Err(ProductError::ReadRefused {
+                node,
+                kind: Box::new(kind),
+            });
+        }
+        None => None,
+    };
+    let value = match &yielded {
+        Some(family) => family,
+        None => evaluation.usable(node).map_err(ProductError::Read)?,
+    };
     let carry = &value.carry;
     let mut product = match carry.census.as_ref().filter(|census| census.node == node) {
         // A door that assembled pieces: its own census, as it kept it.
@@ -1155,19 +1193,27 @@ fn gather<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
             let Some(bodies) = sources_of(value) else {
                 return Err(ProductError::Read(NodeStanding::NotEvaluated { node }));
             };
-            // A split's port is its own half.
+            // A split's port is its own half; a yielded half's family is
+            // every body it holds.
             let half = matches!(doc.node(node), Some(crate::node::Node::Split { .. }))
                 .then(|| SplitHalf::of_output_body(u32::from(port)))
                 .flatten()
-                .map(SplitHalf::output_body);
+                .map(SplitHalf::output_body)
+                .filter(|_| yielded.is_none());
             // A copy of a door's body brings the records that door kept.
             let kept = carry
                 .census
                 .as_ref()
                 .and_then(|census| census.records(doc, tol));
-            let table = evaluation
-                .shared_table_at(var)
-                .unwrap_or_else(crate::names::empty);
+            let table = match &yielded {
+                Some(family) => family
+                    .output(0)
+                    .map(crate::eval::OutputNames::shared_table)
+                    .unwrap_or_else(|| unreachable!("a family of halves names its output")),
+                None => evaluation
+                    .shared_table_at(var)
+                    .unwrap_or_else(crate::names::empty),
+            };
             // A family's member brings the records its own door kept,
             // and each body's carry is at its place: an empty member or
             // half holds one, and shifts no later body onto it.
@@ -1680,6 +1726,14 @@ mod tests {
             ProductError::Read(NodeStanding::NotInDocument { node }),
             ProductError::Read(NodeStanding::Failed { node }),
             ProductError::Read(NodeStanding::Poisoned { node, through }),
+            ProductError::Read(NodeStanding::Members { node }),
+            ProductError::ReadRefused {
+                node,
+                kind: Box::new(crate::eval::NodeErrorKind::EmptyHalf {
+                    input: node,
+                    half: crate::SplitHalf::Above,
+                }),
+            },
             ProductError::EmptyProduct,
             ProductError::StrandedProduct {
                 read: crate::VarId::new(0, test_utils::refusal::tagged(1)),
@@ -1739,6 +1793,7 @@ mod tests {
                 ProductErrorKind::UnknownNode => "UnknownNode",
                 ProductErrorKind::ReadFailed => "ReadFailed",
                 ProductErrorKind::ReadPoisoned => "ReadPoisoned",
+                ProductErrorKind::ReadRefused => "ReadRefused",
                 ProductErrorKind::EmptyProduct => "EmptyProduct",
                 ProductErrorKind::StrandedProduct => "StrandedProduct",
                 ProductErrorKind::ProductOutsideWorld => "ProductOutsideWorld",
@@ -1754,6 +1809,8 @@ mod tests {
             "UnknownNode",
             "ReadFailed",
             "ReadPoisoned",
+            "ReadRefused",
+            "ReadRefused",
             "EmptyProduct",
             "StrandedProduct",
             "ProductOutsideWorld",

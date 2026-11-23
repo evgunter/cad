@@ -2465,6 +2465,7 @@ pub fn product_error_tag(err: &pncad::document::ProductError) -> &'static str {
         K::UnknownNode => "unknown_node",
         K::ReadFailed => "read_failed",
         K::ReadPoisoned => "read_poisoned",
+        K::ReadRefused => "read_refused",
         K::EmptyProduct => "empty_product",
         K::StrandedProduct => "stranded_product",
         K::ProductOutsideWorld => "product_outside_world",

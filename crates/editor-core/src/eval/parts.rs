@@ -580,7 +580,10 @@ fn product_recourse(kind: crate::product::ProductErrorKind) -> ProductRecourse {
         | K::StrandedProduct
         | K::ProductOutsideWorld
         | K::Graft
-        | K::ProductInvalid => ProductRecourse::Carried,
+        | K::ProductInvalid
+        // The part's product reads a yielded half one of whose members
+        // refuses it: the part document's own to repair.
+        | K::ReadRefused => ProductRecourse::Carried,
         K::ContactLineage
         | K::Frame
         | K::EvaluationOfAnotherDocument

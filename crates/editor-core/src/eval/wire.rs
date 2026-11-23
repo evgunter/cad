@@ -3566,9 +3566,8 @@ fn split_port<T: topo::AtRestPolicy + Decide>(
     // of splits (D10 `[repetition]`); a reader of its yielded half
     // outside the binder reads that half of every member, a family of
     // bodies. Inside it, the split read is the reader's own member.
-    if let Some(super::NodeResult::Members(family)) = results.get(&split) {
-        return half_of_each(split, port, half, &family.members)
-            .map(|family| Some((split, half.output_body(), family)));
+    if let Some(family) = yielded_half(results, split, port) {
+        return family.map(|family| Some((split, half.output_body(), family)));
     }
     let value = value_as(results, split, super::family::SPLIT)?;
     let ValuePayload::Split { above, below } = &value.payload else {
@@ -3587,6 +3586,25 @@ fn split_port<T: topo::AtRestPolicy + Decide>(
     let at = half.output_body() as usize;
     let carry = value.carry.member(at).clone();
     Ok(Some((of, index, super::NodeValue { carry, ..projected })))
+}
+
+/// **A yielded half of a family of splits, read outside its binder**:
+/// the half at `port` of each member of `split`, where `split` is
+/// evaluated once per member (D10 `[repetition]`), as the family of
+/// those halves ([`half_of_each`]); `None` where `split` is no such
+/// family. The one reading of it, which every reader outside the binder
+/// reads, the product's gather among them.
+pub(super) fn yielded_half<T: topo::AtRestPolicy + Decide>(
+    results: &Results<T>,
+    split: RecipeNodeId,
+    port: u8,
+) -> Option<Result<super::NodeValue<T>, NodeErrorKind>> {
+    let super::NodeResult::Members(family) = results.get(&split)? else {
+        return None;
+    };
+    let half = SplitHalf::of_output_body(u32::from(port))
+        .unwrap_or_else(|| unreachable!("a split defines a port per half"));
+    Some(half_of_each(split, port, half, &family.members))
 }
 
 /// **The halves a pass has gathered**, by split and port: a family of

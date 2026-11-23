@@ -109,3 +109,64 @@ fn one_members_yielded_half_reads_by_index() {
         "the second member, from x = 2: {lo}"
     );
 }
+
+/// **The product of a yielded half is that half of every member**, as a
+/// reader of it reads it: a world product set to the upper halves is
+/// three bodies of three quarters each, each named at its member's
+/// place.
+///
+/// *Breaks if* the gather reads the family of splits as no value and
+/// refuses, reads one member's half for the family, or names the halves
+/// other than per member.
+#[test]
+fn the_product_of_a_yielded_half_is_that_half_of_every_member() {
+    // The row of a copy placed in the world, each member split a quarter
+    // up and the binder yielding both halves.
+    let doc = ProfileDoc::empty_derived("binder-split-halves-product", Tol::witness());
+    let (doc, the_box) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, placed) =
+        fixture::in_world(doc, the_box, &editor_core::Frame::translation([0.0, 0.0, 0.0]));
+    let (doc, _k, row) = fixture::row(doc, placed, ("k", 3), TargetAxis::X, 2.0);
+    let tool = fixture::plane_on(&doc, placed, [0.0, 0.0, 0.25], [0.0, 0.0, 1.0]);
+    let target = fixture::member_here(&doc, row.into());
+    let (doc, split) = insert(doc, Node::Split { target, tool });
+    let doc = fixture::yielded(doc, split);
+    let above = doc
+        .output(split, SplitHalf::Above.port())
+        .expect("a split defines a port per half");
+    let doc = doc
+        .apply(
+            &editor_core::DocEdit::SetProduct {
+                product: Some(Operand::Var(above)),
+            },
+            Tol::witness(),
+        )
+        .expect("a yielded half is a family of bodies in the world")
+        .doc;
+    let ev = fixture::run(&doc, &Default::default());
+    let product = editor_core::product_recorded(&doc, &ev, Tol::witness())
+        .unwrap_or_else(|e| panic!("the product of the yielded half gathers: {e}"));
+    let body = product.body.clone().into_body();
+    assert_eq!(body.solids().count(), 3, "one half-body per member");
+    let got = volume(&body);
+    assert!(
+        (got - 3.0 * 0.75).abs() < 1e-9,
+        "three halves of three quarters each, got {got}"
+    );
+    let mut places: Vec<String> = product
+        .names
+        .iter()
+        .filter_map(|(name, _)| {
+            let said = format!("{name:?}");
+            let at = said.find("Member")?;
+            Some(said[at..].split(" of").next().unwrap_or_default().to_owned())
+        })
+        .collect();
+    places.sort();
+    places.dedup();
+    assert_eq!(
+        places.len(),
+        3,
+        "every name is a member's, one place per member: {places:?}"
+    );
+}
