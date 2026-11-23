@@ -15341,4 +15341,38 @@ mod review_probes {
         });
         println!("RP3b the left-handed frame lifted: {lifted:?}");
     }
+
+    /// The half turn, bit for bit where the evaluator allows: at the SAME
+    /// θ the derivative and the second derivative are negated exactly
+    /// (either holding), and a centre-held ellipse's offset from its
+    /// stored centre is negated exactly. And what a 1e-14 comparison of
+    /// points cannot tell: the rounded quarter turn passes it too.
+    #[test]
+    fn rp7_the_half_turn_term_by_term() {
+        let mut rng = Rng(31337);
+        let es = random_ellipses(&mut rng, 100);
+        let (mut d1, mut d2, mut n) = (0usize, 0usize, 0usize);
+        let mut quarter_worst = 0.0f64;
+        let mut quarter_restated = 0usize;
+        for (_w, e) in &es {
+            let half = e.restatements()[1];
+            let q = e.seamed_near(PI / 2.0);
+            if e.restatements().iter().any(|r| Curve3::Ellipse(*r).same_content(&Curve3::Ellipse(q))) {
+                quarter_restated += 1;
+            }
+            for _ in 0..40 {
+                let th = 20.0 * rng.sym();
+                n += 1;
+                if vbits(half.derivative_at(th)) != vbits(-e.derivative_at(th)) {
+                    d1 += 1;
+                }
+                if vbits(half.second_derivative_at(th)) != vbits(-e.second_derivative_at(th)) {
+                    d2 += 1;
+                }
+                quarter_worst = quarter_worst.max((q.point_at(th - PI / 2.0) - e.point_at(th)).norm());
+            }
+        }
+        println!("RP7 evals={n} half: derivative not the exact negation {d1}, second derivative {d2}; rounded quarter turn: max |Q(θ−π/2) − E(θ)| = {quarter_worst:e} (a 1e-14 comparison passes it), read as a restatement {quarter_restated} of {}", es.len());
+        assert_eq!((d1, d2), (0, 0));
+    }
 }
