@@ -736,13 +736,16 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     // Then each edge's certification asks the session box of the edge
     // first (`session_box_reach`), numeric only, with the ladder or
     // without it: the plate +48, the annulus +24, the boss +24, the
-    // bracket +66 and the link +36; the recovery holds at 6.
+    // bracket +66 and the link +36; the recovery holds at 6. Then main's
+    // least-turn read decides each mated chart's conditioning and its pole
+    // at the identity again, numeric only: the plate and the bracket +4,
+    // the annulus, the boss and the link +2 (red at main's head too).
     let expected: [(&str, [u64; 2], [u64; 2], u64); 5] = [
-        ("two_hole_plate", [979, 1095], [979, 1095], 0),
-        ("r1_annulus", [511, 572], [511, 572], 0),
-        ("r1_segment_boss", [489, 596], [489, 596], 0),
-        ("r2_filleted_bracket", [1361, 1607], [1367, 1601], 6),
-        ("r2_link", [786, 979], [786, 979], 0),
+        ("two_hole_plate", [979, 1099], [979, 1099], 0),
+        ("r1_annulus", [511, 574], [511, 574], 0),
+        ("r1_segment_boss", [489, 598], [489, 598], 0),
+        ("r2_filleted_bracket", [1361, 1611], [1367, 1605], 6),
+        ("r2_link", [786, 981], [786, 981], 0),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -933,10 +936,12 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     // 1802, 0] -> [1390, 1801, 0]. The pad's one session-box ask is its
     // placement's, not its measure's (PR 7088): unmoved. Then each edge's
     // certification asks the session box of the edge first: [1390, 1801,
-    // 0] -> [1390, 1861, 0].
+    // 0] -> [1390, 1861, 0]. Then main's least-turn read decides the
+    // mated chart's conditioning and pole again: [1390, 1861, 0] ->
+    // [1390, 1863, 0] (red at main's head too).
     assert_eq!(
         [d.symbolic, d.numeric, d.retried],
-        [1390, 1861, 0],
+        [1390, 1863, 0],
         "the shipped ladder's leaf receipt"
     );
     // With nothing retried the receipt writes no ladder column, as the
@@ -967,7 +972,9 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     // the least-turn mint's identity chart, as the shipped receipt's:
     // [1390, 1802, 0] -> [1390, 1801, 0]. Then the edges' session-box
     // asks, as the shipped receipt's: [1390, 1801, 0] -> [1390, 1861, 0].
-    assert_eq!([b.symbolic, b.numeric, b.retried], [1390, 1861, 0]);
+    // Then main's least-turn read, as the shipped receipt's: [1390, 1861,
+    // 0] -> [1390, 1863, 0].
+    assert_eq!([b.symbolic, b.numeric, b.retried], [1390, 1863, 0]);
     assert!(
         !bare.serialize().contains("retried="),
         "no ladder, no column"

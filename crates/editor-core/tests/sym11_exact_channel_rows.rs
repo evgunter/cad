@@ -118,13 +118,18 @@ use crate::m10_9_pins_interval::measured_studies;
 /// `548 → 572`, the link `943 → 979`, the bracket `1546 → 1612` and the
 /// pad `1709 → 1769`; and the link's frozen `2600 → 2604`, the forms of
 /// its edges' covers past the ceiling. No symbolic count moves, and no
-/// dispute fired.
+/// dispute fired. Then main's least-turn read decides each mated chart's
+/// conditioning and its pole at the identity again
+/// (`least_turn_conditioning`, `mate_chart_pole`), numeric only: the plate
+/// and the bracket +4, the annulus, the link and the pad +2 (main's own
+/// pins are red at its head for it; measured here with the edges' box
+/// asks switched off, the plate `1047 → 1051`).
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
-    ("two_hole_plate", [979, 1095, 36]),
-    ("r1_annulus", [511, 572, 36]),
-    ("r2_link", [786, 979, 2604]),
-    ("r2_filleted_bracket", [1367, 1612, 57]),
-    ("r2_rounded_pad", [1483, 1769, 1967]),
+    ("two_hole_plate", [979, 1099, 36]),
+    ("r1_annulus", [511, 574, 36]),
+    ("r2_link", [786, 981, 2604]),
+    ("r2_filleted_bracket", [1367, 1616, 57]),
+    ("r2_rounded_pad", [1483, 1771, 1967]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal

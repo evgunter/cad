@@ -39,3 +39,8 @@ What moved, from main's pin:
 - each form's digest logged in build order on both sides. The 38,997 `Plain/Decision` forms are the same multiset (a sorted diff is empty), and two short runs of about 40 forms are built in a different order.
 
 No form changed, only the order in which those reads build theirs, so the new digest is a right answer.
+
+**Re-pinned again after merging the base's fix pass and main (`1329e397`).** The base re-pinned main's move (PR 7434) at `Plain/Assertion` 1051. Each edge's ask then adds its 48 assertions and 24 door decisions, with the forms of the covers:
+- `Plain/Assertion` `1051 → 1099` (forms `12382 → 15991`), `Early/Assertion` `1051 → 1099` (`12832 → 16240`), `Door/Decision` `554 → 578` (`12524 → 17835`);
+- `Plain/Decision` and `Early/Decision` keep their calls over fewer forms (`33088 → 32611`, `22928 → 22700`), the covers' forms built first and shared;
+- every digest moves.

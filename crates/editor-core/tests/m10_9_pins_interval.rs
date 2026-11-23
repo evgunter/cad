@@ -285,6 +285,10 @@ pub(crate) struct Study {
 /// (`session_box_reach`, one numeric decision where its cover is in the
 /// box), door shut: the link (696, 843) -> (696, 878), the bracket
 /// (1290, 1612) -> (1290, 1678) and the pad (1483, 1709) -> (1483, 1769).
+/// Then main's least-turn read decides each mated chart's conditioning
+/// and its pole at the identity again, door shut: the bracket (1290,
+/// 1678) -> (1290, 1682) and the pad (1483, 1769) -> (1483, 1771) (red at
+/// main's head too).
 pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
     [
         Study {
@@ -377,7 +381,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // +2 numeric: each of its two placements asks the session box
             // of where its copy stands (`topo::session_box_at`).
             // −2 numeric: its two identity charts owe no pole verdict.
-            without_the_registry: Some(((1290, 1678), None)),
+            without_the_registry: Some(((1290, 1682), None)),
             // One is the fillet run out read against its arrival carrier
             // (`path_run_out_carrier`), a margin the tier proves zero.
             // How many the tier reaches depends on the order the
@@ -410,7 +414,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // +1 numeric: its placement asks the session box of where its
             // copy stands (`topo::session_box_at`).
             // −1 numeric: its identity chart owes no pole verdict.
-            without_the_registry: Some(((1483, 1769), None)),
+            without_the_registry: Some(((1483, 1771), None)),
             // Three are the fillet run outs read against their arrival
             // carriers (`path_run_out_carrier`), margins the tier proves
             // zero.
@@ -976,7 +980,8 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
     // (`sym11_exact_channel_rows`' `PAST_THE_CEILING`). Each edge's
     // certification asks the session box of the edge first: 1709 -> 1769
     // numeric.
-    assert_eq!(got[0], (1483, 1769, 1967), "rule F shut: the pad's receipt");
+    // Then main's least-turn read: 1769 -> 1771 numeric.
+    assert_eq!(got[0], (1483, 1771, 1967), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],
         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"

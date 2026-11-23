@@ -285,6 +285,7 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("chord_side", [6, 12]),
     ("circle_side", [2, 2]),
     ("contact_at_shared_vertex", [12, 4]),
+    ("mate_chart_pole", [0, 1]),
     ("pose_unit_norm", [0, 2]),
     // The extrude reads each of its 16 edges by its whole wedge, the
     // arm, the wedge and a corner's sign at 7 stations, where it read
@@ -295,6 +296,9 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("extrusion_normal_component", [0, 2]),
     ("interval_span_forward", [0, 36]),
     ("interval_span_winding", [0, 12]),
+    // Main's least-turn read decides the mated chart's conditioning and
+    // its pole at the identity again, one each (red at main's head too).
+    ("least_turn_conditioning", [0, 1]),
     ("line_span", [6, 4]),
     ("path_circle_radius", [0, 1]),
     ("path_junction_turn", [0, 11]),
@@ -520,7 +524,10 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("extrusion_normal_component", [0, 2]),
             ("interval_span_forward", [0, 24]),
             ("interval_span_winding", [0, 12]),
+            // Main's least-turn read, as the d-tab's.
+            ("least_turn_conditioning", [0, 1]),
             ("line_span", [2, 0]),
+            ("mate_chart_pole", [0, 1]),
             ("path_circle_radius", [0, 1]),
             ("path_junction_turn", [0, 5]),
             ("pcurve_chart_cut_side", [0, 26]),
