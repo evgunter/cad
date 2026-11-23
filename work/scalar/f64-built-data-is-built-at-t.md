@@ -2,7 +2,9 @@
 id: f64-built-data-is-built-at-t
 kind: unit
 title: Data built whole at f64 and lifted is built at T
-status: dispatched
+status: closed
+refs: [7292]
+closed: 2026-11-23
 opened: 2026-11-20
 priority: P1
 cost: M
@@ -33,3 +35,7 @@ Two more sites of this row's kind, left as `T::from_computed` by that unit's fix
 - `topo/src/spline_trim.rs` `Patch::surface`'s knots `(a, b)`: a cell's own parameter rectangle, the knot vector of the surface the arms are metered on. They are the cell's rect, which is `f64` structure; whether they are a count-like constant of the cut or a value to build at `T` is this row's question.
 
 Both run only at a scalar that carries no tangent (the modules are bounded `Decide<Value = T>`), so no dual reaches them.
+
+## Closed
+
+PR 7292. Production builds a loft and a skin in `T` with no lift; `profile`'s `lift_computed` is gone and the demos build at `T`. A loft whose skin needs enclosure knots or weights refuses at the carrier's door until C6's build reaches it (`work/inlane/an-enclosure-carrier-holds-point-weights-and-knots`); a path sweep's knots are constants and build at every station count. The fitted chart image is not this unit's: `the-fitted-chart-image-is-c6s-fit-lift-and-a-pcurve-holds-it-at-t`, with designers.
