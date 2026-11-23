@@ -452,6 +452,9 @@ fn carry<E>(
     let mut step_map = StepMap::new();
     let mut section_map = SectionMap::new();
     let mut bundles: Vec<(RecipeNodeId, RecipeNodeId, Vec<crate::mate::Constraint>)> = Vec::new();
+    // Carried yields, each written once its node reads its binder.
+    let mut yields: Vec<(VarId, VarId)> = Vec::new();
+    let binders = source.binders();
     let is_space = |id: &RecipeNodeId| matches!(source.node(*id), Some(Node::Space));
     let olds: Vec<RecipeNodeId> = olds
         .iter()
@@ -554,6 +557,15 @@ fn carry<E>(
                     })
                     .map_err(&edit)?;
             }
+            // A yield crosses with its node (D10 `[repetition]`): the
+            // carried binder yields the new output too, once the node
+            // reads the binder there ([`yield_carried`]).
+            if let Some(binder) = binders
+                .yielding(output)
+                .and_then(|binder| vars.map.get(&binder).copied())
+            {
+                yields.push((binder, minted));
+            }
         }
         if let (Node::Profile(from), Some(Node::Profile(to))) = (node, target.doc().node(new)) {
             let shape = |ids: &[Vec<StepId>]| ids.iter().map(Vec::len).collect::<Vec<_>>();
@@ -622,6 +634,9 @@ fn carry<E>(
         if !bundle.is_empty() && !family_now {
             bundles.push((old, new, bundle));
         }
+        // A family whose bundle is in yields at once, for the readers
+        // carried after it.
+        yields.retain(|&(binder, minted)| !yield_carried(target, binder, minted).unwrap_or(false));
     }
     // The bundles, now every node is in, each as one write, verbatim.
     for (old, new, bundle) in bundles {
@@ -638,7 +653,42 @@ fn carry<E>(
             BundleMiss::Edit(error) => edit(error),
         })?;
     }
+    for (binder, minted) in yields {
+        // A carried yield whose reads of its binder stayed behind is one
+        // body in the target, and no yield: said, not dropped.
+        if !yield_carried(target, binder, minted).map_err(&edit)? {
+            let row = Maintenance::YieldRemoved {
+                binder: target.doc().spoken_var(binder),
+                var: target.doc().spoken_var(minted),
+            };
+            target.report(row);
+        }
+    }
     Ok((node_map, step_map, section_map, out_map))
+}
+
+/// **The carried output `minted` yielded by the carried binder
+/// `binder`**, where it reads the binder in the target; `Ok(false)`, and
+/// nothing written, where it does not (yet: its bundle is carried later,
+/// or its reads of the binder stayed behind, crossing as an input, so it
+/// is one body in the target and no yield).
+fn yield_carried(
+    target: &mut Recording<'_, ProfileProgram>,
+    binder: VarId,
+    minted: VarId,
+) -> Result<bool, EditError> {
+    let indices = target.doc().binder_indices(binder);
+    let reads = target
+        .doc()
+        .var_reach(minted)
+        .chain()
+        .is_some_and(|chain| chain.iter().any(|k| indices.contains(k)));
+    if !reads {
+        return Ok(false);
+    }
+    let more = DocEdit::yielding_more(target.doc(), binder, &[minted]);
+    target.apply(more)?;
+    Ok(true)
 }
 
 /// Why [`carry_bundle`] could not carry a bundle.
@@ -1900,15 +1950,18 @@ impl crate::Say for InlineError {
             // The store's sentence states the recourse of a pin or a
             // lookup; the ε seam's is the same whatever the store.
             Self::Unresolved { failure } => match failure.fault {
-                crate::ResolveFault::EpsilonSeam => write!(
+                crate::ResolveFault::EpsilonSeam => say!(
                     f,
                     "inline: the referenced document's recorded tolerance disagrees with this \
-                     process's: {failure}. {}",
-                    Recourse(crate::part::EPSILON_SEAM_RECOURSE)
+                     process's: ",
+                    &failure.message,
+                    format_args!(". {}", Recourse(crate::part::EPSILON_SEAM_RECOURSE))
                 ),
-                crate::ResolveFault::PinMismatch | crate::ResolveFault::Unresolved => {
-                    write!(f, "inline: the reference did not resolve: {failure}")
-                }
+                crate::ResolveFault::PinMismatch | crate::ResolveFault::Unresolved => say!(
+                    f,
+                    "inline: the reference did not resolve: ",
+                    &failure.message
+                ),
             },
             Self::EpsilonSeam { host_eps, part_eps } => write!(
                 f,
@@ -2192,9 +2245,10 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::FreshUnread { .. }
             | EditError::VarKindFixed { .. }
             | EditError::Index { .. }
+            | EditError::Yields { .. }
             | EditError::SourceRead { .. }
             | EditError::PlacementReadsNoSource { .. }
-            | EditError::IndicesUnrelated { .. }
+            | EditError::TwoBinders { .. }
             | EditError::NotAFreeVar { .. }
             | EditError::VarIsAnOutput { .. }
             | EditError::DefinitionCycle { .. }
@@ -2680,7 +2734,7 @@ fn remap_node(
         },
         Node::Subtract { from, tool } => Node::Subtract {
             from: br(crate::OperandSlot::From, from)?,
-            tool: br(crate::OperandSlot::Cut, tool)?,
+            tool: tool.try_map_in(crate::operand::Seats::CUTS, &br)?,
         },
         Node::Union { members } => Node::Union {
             members: members.try_map(&br)?,
@@ -2919,7 +2973,7 @@ impl<'s> VarCarry<'s> {
                     });
                 VarDecl::Index {
                     count,
-                    within: index.within.map(read),
+                    after: index.after().map(read),
                 }
             }
             VarDef::Output { .. } => {
@@ -3298,8 +3352,9 @@ pub fn split(
                     && matches!(doc.node(id), Some(Node::Assemble {
                         members: crate::Bodies::Spelled(reads),
                     }) if reads.len() == copies.len()
-                        && reads.iter().all(|read| !read.is_indexed())
-                        && reads.iter().map(|read| read.read).collect::<BTreeSet<_>>() == copies)
+                        && reads.iter().all(|read| !read.read().is_indexed())
+                        && reads.iter().map(|read| read.read().read).collect::<BTreeSet<_>>()
+                            == copies)
                     && doc.output(id, 0).is_some_and(|out| doc.is_read(out))
             })
         })
@@ -4058,14 +4113,22 @@ pub fn split(
             None
         }
         (None, several) => {
+            // A family its binder yields is spliced in whole (D10
+            // `[repetition]`).
+            let binders = part.doc().binders();
+            let members = several
+                .iter()
+                .map(|&copy| {
+                    binders.spell(
+                        part.doc(),
+                        copy,
+                        crate::BodyRead::plain(crate::Operand::Var(copy)),
+                    )
+                })
+                .collect();
             let node = part
                 .insert(Node::Assemble {
-                    members: crate::Bodies::Spelled(
-                        several
-                            .iter()
-                            .map(|&copy| crate::BodyRead::plain(crate::Operand::Var(copy)))
-                            .collect(),
-                    ),
+                    members: crate::Bodies::Spelled(members),
                 })
                 .map_err(part_refused)?;
             part_apply(
@@ -4318,15 +4381,8 @@ pub fn split(
                 crate::SlotValue::Read(reread(doc, var, heir_read(key)))
             }
         };
-        rem_apply(
-            &mut remainder,
-            DocEdit::SetParam {
-                node,
-                slot: crate::SlotId::Operand(slot),
-                value,
-                fresh: Vec::new(),
-            },
-        )?;
+        let write = seat_write(remainder.doc(), node, slot, value);
+        rem_apply(&mut remainder, write)?;
         if doc.selection(var).is_some() && !reauthored.contains_key(&var) {
             let fresh = read_at(remainder.doc(), node, slot);
             reauthored.insert(var, fresh);
@@ -5029,8 +5085,17 @@ pub fn inline(
         spliced,
         crate::Operand::source(crate::BodyRead::plain(crate::Operand::Var(spliced))),
     );
+    // A product its binder yields is placed member by member, `{k in
+    // xs: place(xs[k])}`, and the binder yields the copies too (D10
+    // `[repetition]`).
+    let yielding = current.doc().yielding(spliced);
     let whole = Node::Place {
-        source: crate::BodyRead::plain(spliced),
+        source: crate::BodyRead {
+            read: spliced,
+            at: yielding
+                .map(|binder| current.doc().binder_indices(binder))
+                .unwrap_or_default(),
+        },
         target: *target,
         constraints: bundle.clone(),
     };
@@ -5047,6 +5112,10 @@ pub fn inline(
         .doc()
         .output(placement, 0)
         .unwrap_or_else(|| unreachable!("a placement defines its copy"));
+    if let Some(binder) = yielding {
+        let more = DocEdit::yielding_more(current.doc(), binder, &[placed]);
+        current.apply(more).map_err(refused)?;
+    }
     // Witness data copies VERBATIM while ids remap — the same
     // invariant as split's copy: a witness datum is sketch-self-
     // relative and embeds no other node's identity (see split's
@@ -5784,15 +5853,8 @@ pub fn flatten(
             } else {
                 continue;
             };
-            step(
-                &mut current,
-                DocEdit::SetParam {
-                    node: id,
-                    slot: crate::SlotId::Operand(slot),
-                    value,
-                    fresh: Vec::new(),
-                },
-            )?;
+            let write = seat_write(current.doc(), id, slot, value);
+            step(&mut current, write)?;
             if doc.selection(var).is_some_and(|s| reads_copy(s.body.read))
                 && !reauthored.contains_key(&var)
             {
@@ -5878,6 +5940,61 @@ pub fn flatten(
         edits,
         maintenance,
     })
+}
+
+/// **The edit re-pointing `node`'s operand `slot` at `value`**: a
+/// [`DocEdit::SetParam`], except at a spelled list's member, where the
+/// entry is a splice exactly when its new read is a family a binder
+/// yields (D10 `[repetition]`), so the list is written whole
+/// ([`DocEdit::SetMembers`]) where that changes.
+fn seat_write(
+    doc: &ProfileDoc,
+    node: RecipeNodeId,
+    slot: crate::OperandSlot,
+    value: crate::SlotValue,
+) -> DocEdit<ProfileProgram> {
+    let set = |value| DocEdit::SetParam {
+        node,
+        slot: crate::SlotId::Operand(slot),
+        value,
+        fresh: Vec::new(),
+    };
+    let (crate::OperandSlot::Member(i), crate::SlotValue::Read(read)) = (slot, &value) else {
+        return set(value);
+    };
+    let family = match read {
+        crate::Operand::Var(var) => Some(*var),
+        crate::Operand::Node(id) => doc.outputs(*id).first().copied(),
+        crate::Operand::Output { node, port } => doc.output(*node, *port),
+        _ => None,
+    }
+    .is_some_and(|var| doc.family_through_sources(var));
+    let Some(members) = crate::continuation::spelled(doc, node) else {
+        return set(value);
+    };
+    if members
+        .get(i)
+        .is_none_or(|(stored, _)| stored.is_splice() == family)
+    {
+        return set(value);
+    }
+    let entry = crate::BodyRead::plain(read.clone());
+    DocEdit::SetMembers {
+        node,
+        members: crate::Bodies::Spelled(
+            members
+                .into_iter()
+                .enumerate()
+                .map(|(at, (_, written))| {
+                    if at == i {
+                        crate::Spell::of(entry.clone(), family)
+                    } else {
+                        written
+                    }
+                })
+                .collect(),
+        ),
+    }
 }
 
 /// **A remap never changes a KIND.**

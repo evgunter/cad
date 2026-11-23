@@ -180,15 +180,10 @@ pub enum SectionError<T: Real> {
         /// The winding's diagnostic, when it escalated.
         diag: Option<Indeterminate>,
     },
-    /// Nothing decides which outline encloses a hole — an outline edge
-    /// on a spiric or NURBS carrier, or a contact or containment in the
-    /// band ([`super::section_loops`]'s `nest` says what else could).
-    /// The split keeps such a hole as a face of its own; a region list
-    /// cannot state it.
-    UnplacedHole {
-        /// A corner of the hole.
-        corner: Point3<T>,
-    },
+    /// A hole of the section no outline is decided to enclose
+    /// ([`super::UnplacedHole`], `hole` a corner of it), as the split
+    /// refuses it ([`super::SplitFinishError::UnplacedHole`]).
+    UnplacedHole(super::UnplacedHole<Point3<T>>),
     /// Two outlines each read as enclosing the other around a hole
     /// (a kernel bug).
     NestingContradiction {
@@ -238,13 +233,9 @@ impl<T: Real> SectionError<T> {
                  cannot enclose). Recourse: \
                  {SECTION_PLANE_RECOURSE}"
             ),
-            Self::UnplacedHole { .. } => write!(
-                f,
-                "no outline of the section can be shown to enclose one of its holes: an \
-                 outline edge the nesting cannot read (spiric or NURBS), a contact too close \
-                 to call, or a sliver the section join mints across a curved face. Recourse: \
-                 {SECTION_PLANE_RECOURSE}"
-            ),
+            Self::UnplacedHole(hole) => {
+                write!(f, "{}. Recourse: {SECTION_PLANE_RECOURSE}", hole.reason())
+            }
             Self::NestingContradiction { .. } => write!(
                 f,
                 "two outlines of the section each read as enclosing the other around a hole. {}",
@@ -294,6 +285,10 @@ impl<T: Real> std::error::Error for SectionError<T> {}
 /// join's own, on the clone it carved, so a record on their walk that
 /// does not resolve is no refusal (`section_walk`, and the nesting's
 /// reads of the same loops).
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub fn plane_section<F: crate::FinishedBody>(
     operand: &F,
     plane: &SplitPlane<F::Scalar>,
@@ -410,9 +405,10 @@ where
             }
         })?;
     if let Some(hole) = nesting.unplaced.first() {
-        return Err(SectionError::UnplacedHole {
-            corner: hole.points()[0],
-        });
+        return Err(SectionError::UnplacedHole(super::UnplacedHole {
+            hole: hole.points()[0],
+            beside: None,
+        }));
     }
     Ok(Section {
         plane: *plane,

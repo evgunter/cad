@@ -529,7 +529,7 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
             none(),
             none(),
             none(),
-            text(&failure.message),
+            text(&failure.message.to_string()),
             none(),
             none(),
         ),

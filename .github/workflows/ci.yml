@@ -318,6 +318,9 @@ jobs:
         run: cargo fmt --all --check && (cd benches && cargo fmt --all --check)
       - name: clippy (--all-features)
         if: needs.filter.outputs.run_build == 'true'
+        # An explicit shell runs the block with `pipefail`, so a cargo
+        # that dies in the census's pipe reds the step.
+        shell: bash
         env:
           TIER: ${{ needs.filter.outputs.tier }}
           SCOPE: ${{ needs.filter.outputs.test_scope }}
@@ -325,13 +328,24 @@ jobs:
         run: |
           # viewer's `app` feature is the eframe/wgpu graph; the viewer job
           # lints it when the diff seeds viewer, pncad or bvh.
+          # `--force-warn clippy::disallowed_methods` reports every use of
+          # a door `clippy.toml` lists, whatever attribute sits over it,
+          # as a warning that `-D warnings` does not raise. The second
+          # invocation takes the same arguments, so it replays the first's
+          # diagnostics from cargo's cache, as JSON, and
+          # scripts/conic_centre_census.py holds the production reads of
+          # the crates this run checked at their pins
+          # (scripts/gates/conic-centre-reads.sh holds this wiring).
           if [ "$TIER" = all ]; then
-            cargo clippy --workspace --exclude viewer --all-targets --all-features -- -D warnings
+            SCOPE="--workspace --exclude viewer"
           else
             [ "$TOOLKIT" = true ] || SCOPE="$(echo " $SCOPE " | sed 's/ -p viewer / /')"
-            # shellcheck disable=SC2086 # SCOPE is a list of -p flags
-            cargo clippy $SCOPE --all-targets --all-features -- -D warnings
           fi
+          # shellcheck disable=SC2086 # SCOPE is a list of -p flags
+          cargo clippy $SCOPE --all-targets --all-features -- -D warnings --force-warn clippy::disallowed_methods
+          # shellcheck disable=SC2086
+          cargo clippy $SCOPE --all-targets --all-features --message-format=json -- -D warnings --force-warn clippy::disallowed_methods \
+            | python3 scripts/conic_centre_census.py --check
       - name: rustdoc (the doc gate's workspace pass)
         if: needs.filter.outputs.run_build == 'true'
         # clippy is blind to rustdoc's lints, so without this a PR that
