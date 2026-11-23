@@ -196,6 +196,18 @@ pub enum BooleanDecision {
     /// axis or an ellipse whose projection off it is a circle, otherwise
     /// the half-angle quartic's rows.
     ArcCylinderRoots,
+    /// Where an edge ends on a rim its face and a face of the other
+    /// operand both end on (a smooth junction): the order of its touch
+    /// with the other face's carrier there, or the window past it
+    /// (`geom_brep::curve_face::end_root`).
+    JunctionEndOrder,
+    /// Whether an edge's end lies on a junction's rim, inside the stretch
+    /// the two faces were joined over.
+    JunctionEndOnRim,
+    /// Whether an edge leaving a junction's rim stands on its own face's
+    /// side of it beyond the band, over the stretch past its end where
+    /// the other face's surface may meet it.
+    JunctionEndSide,
     /// Where a straight edge crosses a cone: the line × cone quadratic's
     /// rungs (`curve_face::line_quadric`) — its leading coefficient, its
     /// discriminant read as the depth its vertex reaches, and each
@@ -1347,6 +1359,17 @@ impl BooleanDecision {
             Self::ArcCylinderRoots => {
                 "whether an arc crosses a cylinder wall, grazes it or misses it"
             }
+            Self::JunctionEndOrder => {
+                "how closely an edge ending on a smooth seam's rim follows the other face's \
+                 surface there"
+            }
+            Self::JunctionEndOnRim => {
+                "whether an edge ends on the rim where its face joins the other smoothly"
+            }
+            Self::JunctionEndSide => {
+                "whether an edge leaving a smooth seam's rim leaves it steeply enough to stay off \
+                 the other face"
+            }
             Self::ConeRoots => "whether an edge crosses a cone, grazes it or misses it",
             Self::ArcConeRoots => "whether an arc crosses a cone, grazes it or misses it",
             Self::PierceCurvature => {
@@ -1550,6 +1573,20 @@ impl BooleanDecision {
             Self::ArcCylinderRoots => Ending::Lever(
                 "move the parts so the arc clearly crosses the cylinder or clearly misses it",
             ),
+            // The order's coefficients and the window's far end pass on
+            // different sets, and the escalation does not say which refused.
+            Self::JunctionEndOrder => Ending::Lever(
+                "turn the parts so the edge does not end where the two faces curve alike \
+                 across the rim",
+            ),
+            // The end's distance from the rim and its place along the
+            // touch pass on different sets.
+            Self::JunctionEndOnRim => Ending::Lever(
+                "build the edge so it ends exactly on the rim, or clearly away from it",
+            ),
+            Self::JunctionEndSide => {
+                Ending::Lever("turn the parts so the edge leaves the rim more steeply")
+            }
             // The lead and the depth pass on different sets (a zero lead
             // is a ruling the lane does not answer), and the escalation
             // does not say which refused.
@@ -1886,6 +1923,9 @@ pub(in crate::boolean) mod tests {
                 BooleanDecisionKind::SphereRoots => vec![BooleanDecision::SphereRoots],
                 BooleanDecisionKind::ArcSphereRoots => vec![BooleanDecision::ArcSphereRoots],
                 BooleanDecisionKind::ArcCylinderRoots => vec![BooleanDecision::ArcCylinderRoots],
+                BooleanDecisionKind::JunctionEndOrder => vec![BooleanDecision::JunctionEndOrder],
+                BooleanDecisionKind::JunctionEndOnRim => vec![BooleanDecision::JunctionEndOnRim],
+                BooleanDecisionKind::JunctionEndSide => vec![BooleanDecision::JunctionEndSide],
                 BooleanDecisionKind::ConeRoots => vec![BooleanDecision::ConeRoots],
                 BooleanDecisionKind::ArcConeRoots => vec![BooleanDecision::ArcConeRoots],
                 BooleanDecisionKind::PierceCurvature => vec![BooleanDecision::PierceCurvature],
@@ -2240,6 +2280,26 @@ pub(in crate::boolean) mod tests {
                     "Recourse: move the parts so the arc clearly crosses the cylinder or clearly \
                      misses it",
                 ),
+            ),
+            BooleanDecision::JunctionEndOrder => (
+                "how closely an edge ending on a smooth seam's rim follows the other face's \
+                 surface there",
+                Ending::Lever(
+                    "Recourse: turn the parts so the edge does not end where the two faces curve \
+                     alike across the rim",
+                ),
+            ),
+            BooleanDecision::JunctionEndOnRim => (
+                "whether an edge ends on the rim where its face joins the other smoothly",
+                Ending::Lever(
+                    "Recourse: build the edge so it ends exactly on the rim, or clearly away from \
+                     it",
+                ),
+            ),
+            BooleanDecision::JunctionEndSide => (
+                "whether an edge leaving a smooth seam's rim leaves it steeply enough to stay off \
+                 the other face",
+                Ending::Lever("Recourse: turn the parts so the edge leaves the rim more steeply"),
             ),
             BooleanDecision::ConeRoots => (
                 "whether an edge crosses a cone, grazes it or misses it",
