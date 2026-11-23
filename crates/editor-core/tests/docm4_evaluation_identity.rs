@@ -564,10 +564,11 @@ fn a_prior_whose_booleans_ran_the_other_sweep_is_refused() {
 
 /// **A prior's part rows are its run's** (`eval::parts`): a part is
 /// evaluated under the run's frame, strategy and symbols, and its row
-/// is keyed by its reference and ε alone. Red if a run carries a row
-/// from a prior under other options: the instance is then served, or
-/// rebuilt over the part as the prior's frame built it, and the part is
-/// not evaluated.
+/// is keyed by its reference and ε alone. Here the frame differs; the
+/// strategy and the symbols have a row each below. Red if the memo's
+/// door compares no frame: the instance is then served, or rebuilt over
+/// the part as the prior's frame built it, and the part is not
+/// evaluated.
 #[test]
 fn a_prior_under_other_options_carries_no_part_row() {
     let mut store = PartStore::default();
@@ -585,6 +586,99 @@ fn a_prior_under_other_options_carries_no_part_row() {
         "the part is evaluated in this run's frame"
     );
     assert!(served.part_evaluations > 0, "and it is evaluated");
+}
+
+/// **`asm`'s part rows are not carried from a prior under `prior_opts`
+/// into a run at `opts`**: the prior is refused for its options, nothing
+/// is served, and the part is evaluated in this run as often as a fresh
+/// run evaluates it. The two runs differ in the one option the caller
+/// varies.
+fn carries_no_part_row(asm: &ProfileDoc, prior_opts: &EvalOptions, opts: &EvalOptions, what: &str) {
+    let prior = run(asm, None, prior_opts);
+    assert!(
+        prior.part_evaluations > 0,
+        "{what}: the prior built the part"
+    );
+    let served = run(asm, Some(&prior), opts);
+    assert_eq!(
+        served.prior_refused,
+        Some(editor_core::PriorRefusal::Options),
+        "{what}: the prior is refused for its options"
+    );
+    assert_eq!(served.reused, 0, "{what}: nothing is served");
+    assert_eq!(
+        served.part_evaluations,
+        run(asm, None, opts).part_evaluations,
+        "{what}: the part is evaluated in this run"
+    );
+    assert!(served.part_evaluations > 0, "{what}: and it is evaluated");
+}
+
+/// **A prior's part rows are its run's, under the other sweep too**: a
+/// part's booleans run the strategy its instancing run does. Red if the
+/// memo's door compares no strategy: the row is carried and the part is
+/// not evaluated.
+#[test]
+fn a_prior_under_the_other_sweep_carries_no_part_row() {
+    let mut store = PartStore::default();
+    let part_ref = store.insert(part("docm4-options-part-sweep", 1.0), Tol::witness());
+    let opts = with_resolver(store);
+    let (asm, _) = assembly_of(
+        DocumentId::derive("docm4-options-asm-sweep"),
+        part_ref,
+        &opts,
+    );
+    let ideal = EvalOptions {
+        boolean_sweep: topo::SweepStrategy::Idealized,
+        ..opts.clone()
+    };
+    carries_no_part_row(&asm, &opts, &ideal, "a part under the other sweep");
+}
+
+/// **A prior run with every variable a symbol is refused by a run with
+/// none, and the other way** (`EvalOptions::symbols`): a part's own run
+/// binds its variables by it, and its row is keyed by its reference and
+/// ε alone. At `Sym<f64>`, in one replay session. Red if the memo's door
+/// compares no `symbols`: the prior is read, and its part row carried.
+#[test]
+fn a_prior_under_the_other_symbols_setting_is_refused() {
+    type S = geom_core::Sym<f64>;
+    let mut store = PartStore::default();
+    let part_ref = store.insert(part("docm4-options-part-symbols", 1.0), Tol::witness());
+    let plain = with_resolver(store);
+    let (asm, _) = assembly_of(
+        DocumentId::derive("docm4-options-asm-symbols"),
+        part_ref,
+        &plain,
+    );
+    let symbols = EvalOptions {
+        symbols: true,
+        ..plain.clone()
+    };
+    let at = |prior: Option<&Evaluation<S>>, o: &EvalOptions| -> Evaluation<S> {
+        evaluate(&asm, prior, &CancelToken::new(), o, Tol::witness())
+    };
+    let ((), _) = editor_core::coincide::with_replay_session(symbols.clone(), |symbols| {
+        for (prior_opts, opts) in [(&plain, symbols), (symbols, &plain)] {
+            let prior = at(None, prior_opts);
+            let served = at(Some(&prior), opts);
+            assert_eq!(
+                served.prior_refused,
+                Some(editor_core::PriorRefusal::Options),
+                "symbols {} over a prior at {}",
+                opts.symbols,
+                prior_opts.symbols
+            );
+            assert_eq!(served.reused, 0, "nothing is served");
+            assert_eq!(
+                served.part_evaluations,
+                at(None, opts).part_evaluations,
+                "the part is evaluated under this run's setting"
+            );
+            let again = at(Some(&served), opts);
+            assert_eq!(again.prior_refused, None, "a prior under this setting");
+        }
+    });
 }
 
 // ---- A4: the memo still works ----

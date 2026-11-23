@@ -3227,10 +3227,9 @@ fn member_read<T: Decide>(
     })
 }
 
-/// **What a read sees of an operation it reaches**, which is what its
-/// reader's keys hash of that operation ([`Seen::of`]).
+/// **What a read sees of an operation it reaches** ([`SeenRead`]).
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) enum Seen {
+enum Seen {
     /// The value standing in the results: the operation's own, or in a
     /// member's evaluation the member bound at the reader's indices.
     Stands,
@@ -3243,14 +3242,13 @@ pub(super) enum Seen {
 impl Seen {
     /// **The value this read is of `stands`**, the results' entry for
     /// the operation, and the member's place among its family's bodies
-    /// where it is a member: a place is read too (a clearance reports
-    /// its seat by it), and it moves with the members before it.
+    /// where it is a member.
     ///
     /// A member read that picks no member (another rank, a value no
     /// member stands at, an operation that is no family) is the op's to
-    /// refuse; it is keyed by the family, which holds whatever any read
-    /// of it reaches.
-    pub(super) fn of<'v, T: topo::AtRestPolicy + Decide>(
+    /// refuse; it sees the family, which holds whatever any read of it
+    /// reaches.
+    fn of<'v, T: topo::AtRestPolicy + Decide>(
         &self,
         at: RecipeNodeId,
         stands: &'v super::NodeValue<T>,
@@ -3273,58 +3271,115 @@ impl Seen {
     }
 }
 
-/// **What the read of `var` at `seat` sees of each operation it
-/// reaches** ([`crate::doc::Doc::read_ports`]): the one place a read's
-/// upstream is chosen for its reader's keys, by the resolvers the op
-/// itself reads through ([`member_read`], [`selection_member`]).
+/// **One read of an operation's output, as its reader sees it**: the
+/// variable the read comes through, the operation and port it reaches,
+/// and the value the read is of that operation, which is not always the
+/// results' entry. In a member's evaluation that entry is the member
+/// bound at the reader's own indices, and a read that takes the family
+/// whole, or picks another member, reads past it.
+///
+/// What a node's keys hash of its upstream, and what anything gathered
+/// from "the operations a node reads" is gathered from
+/// ([`seen_reads`]).
+pub(super) struct SeenRead<'v, T: topo::AtRestPolicy + Decide> {
+    /// The variable the read comes through, which its reader's names
+    /// and carried records cite: a body's own read and a source of it
+    /// reach one output and name apart.
+    pub read: crate::VarId,
+    /// The operation read.
+    pub at: RecipeNodeId,
+    /// Its output.
+    pub port: u8,
+    /// The value the read sees: the entry that stands, the family
+    /// whole, or the member its index picks.
+    pub value: &'v super::NodeValue<T>,
+    /// The picked member's place among its family's bodies; `None` for
+    /// any other read. A reader that reports a seat by its place reads
+    /// it (`member_place`), and it moves with the members before it.
+    pub place: Option<u32>,
+}
+
+/// **`node`'s reads of the operations upstream of it**, one per read in
+/// field order, each once per operation and port its variable reaches
+/// ([`crate::doc::Doc::read_ports`]), as the read sees it
+/// ([`SeenRead`]); `stands` holds the results' entry of every operation
+/// upstream. The one place a read's upstream is chosen, by the
+/// resolvers the op itself reads through ([`member_read`],
+/// [`selection_read`]).
 ///
 /// A seat that takes a family whole sees it whole where it picks no
 /// member; a pose definition sees what each of its reads sees, a
-/// selection of a member that member; two reads of one operation that
-/// see it differently see it whole. A read whose member does not
-/// resolve is the op's to refuse, and sees the family whole.
-pub(super) fn reads_seen<T: Decide>(
+/// selection of a member that member; two reads of one operation
+/// through one variable that see it differently see it whole. A read
+/// whose member does not resolve is the op's to refuse, and sees the
+/// family whole. A placement's constraint side reading its own copy is
+/// no upstream read (`Doc::upstream_of`'s one exemption, the same
+/// predicate).
+pub(super) fn seen_reads<'v, T: topo::AtRestPolicy + Decide>(
+    id: RecipeNodeId,
     node: &Node<ProfileProgram>,
     doc: &crate::doc::Doc<ProfileProgram>,
-    (seat, var): (crate::OperandSlot, crate::VarId),
+    stands: &BTreeMap<RecipeNodeId, &'v super::NodeValue<T>>,
     vals: &SlotValues<T>,
     params: &crate::expr::VarEnv<T>,
-) -> BTreeMap<RecipeNodeId, Seen> {
-    let mut seen: BTreeMap<RecipeNodeId, Seen> = BTreeMap::new();
-    let mut note = |at: RecipeNodeId, as_seen: Seen| {
-        seen.entry(at)
-            .and_modify(|held| {
-                if *held != as_seen {
-                    *held = Seen::Whole;
+) -> Vec<SeenRead<'v, T>> {
+    let mut reads = Vec::new();
+    for (seat, var) in node.operand_rows() {
+        if crate::mate::solve::own_copy_side(doc, id, seat, var) {
+            continue;
+        }
+        let ports = doc.read_ports(var);
+        let mut seen: BTreeMap<RecipeNodeId, Seen> = BTreeMap::new();
+        let mut note = |at: RecipeNodeId, as_seen: Seen| {
+            seen.entry(at)
+                .and_modify(|held| {
+                    if *held != as_seen {
+                        *held = Seen::Whole;
+                    }
+                })
+                .or_insert(as_seen);
+        };
+        match member_read(node, doc, (seat, var), vals, params) {
+            Ok(Some((family, values))) => {
+                for &(at, _) in &ports {
+                    let member = at == family;
+                    note(
+                        at,
+                        if member {
+                            Seen::Member(values.clone())
+                        } else {
+                            Seen::Whole
+                        },
+                    );
                 }
-            })
-            .or_insert(as_seen);
-    };
-    let reached = || doc.read_ports(var).into_iter().map(|(at, _)| at);
-    match member_read(node, doc, (seat, var), vals, params) {
-        Ok(Some((family, values))) => {
-            for at in reached() {
-                note(
-                    at,
-                    if at == family {
-                        Seen::Member(values.clone())
-                    } else {
-                        Seen::Whole
-                    },
-                );
             }
+            Ok(None) if !crate::repetition::takes_whole(node, seat) => {
+                see(doc, seat, var, params, &mut note, &mut Vec::new());
+            }
+            Ok(None) | Err(_) => ports.iter().for_each(|&(at, _)| note(at, Seen::Whole)),
         }
-        Ok(None) if !crate::repetition::takes_whole(node, seat) => {
-            see(doc, seat, var, params, &mut note, &mut Vec::new());
+        for (at, port) in ports {
+            let Some(&standing) = stands.get(&at) else {
+                unreachable!("every operation a node reads is in its upstream")
+            };
+            // An operation the walk named no view of is seen whole.
+            let (value, place) = seen.get(&at).unwrap_or(&Seen::Whole).of(at, standing);
+            reads.push(SeenRead {
+                read: var,
+                at,
+                port,
+                value,
+                place,
+            });
         }
-        Ok(None) | Err(_) => reached().for_each(|at| note(at, Seen::Whole)),
     }
-    seen
+    reads
 }
 
-/// [`reads_seen`] of a read at a seat that takes no family whole,
+/// [`seen_reads`] of a read at a seat that takes no family whole,
 /// through the definitions it reads: a pose definition's reads each as
-/// [`pose::eval_posed`] reads them ([`project_selection`]).
+/// [`pose::eval_posed`] and [`trace::drawn`] read them
+/// ([`project_selection`]).
 fn see<T: Decide>(
     doc: &crate::doc::Doc<ProfileProgram>,
     slot: crate::OperandSlot,
@@ -3343,22 +3398,35 @@ fn see<T: Decide>(
         }
         return;
     }
-    let as_seen = match doc.selection(var) {
-        Some(select) => match selection_member(doc, slot, select, params) {
-            Ok(Some((family, values))) => {
-                note(family, Seen::Member(values));
-                return;
-            }
-            Ok(None) => Seen::Stands,
-            Err(_) => Seen::Whole,
-        },
-        // No reader below a seat picks a source's member; one that came
-        // to would read past the value that stands.
-        None if doc.through_sources(var).is_indexed() => Seen::Whole,
-        None => Seen::Stands,
+    let as_seen = match selection_read(doc, slot, var, params) {
+        Ok(Some((family, values))) => {
+            note(family, Seen::Member(values));
+            return;
+        }
+        Err(_) => Seen::Whole,
+        // A member read of a source below a seat is projected by no
+        // reader ([`project_selection`] projects a selection's alone),
+        // so it is seen whole: the family holds the entry that stands
+        // and the member alike, whichever a reader comes to read.
+        Ok(None) if doc.through_sources(var).is_indexed() => Seen::Whole,
+        Ok(None) => Seen::Stands,
     };
     for (at, _) in doc.read_ports(var) {
         note(at, as_seen.clone());
+    }
+}
+
+/// **The member a read below a seat picks**: a selection's, by its own
+/// indices ([`selection_member`]); `None` for any other read.
+fn selection_read<T: Decide>(
+    doc: &crate::doc::Doc<ProfileProgram>,
+    slot: crate::OperandSlot,
+    var: crate::VarId,
+    params: &crate::expr::VarEnv<T>,
+) -> Result<Option<(RecipeNodeId, Vec<i64>)>, NodeErrorKind> {
+    match doc.selection(var) {
+        Some(select) => selection_member(doc, slot, select, params),
+        None => Ok(None),
     }
 }
 
@@ -3548,10 +3616,7 @@ pub(super) fn project_selection<T: topo::AtRestPolicy + Decide>(
     results: &Results<T>,
     params: &crate::expr::VarEnv<T>,
 ) -> Result<Option<Results<T>>, NodeErrorKind> {
-    let Some(select) = doc.selection(var) else {
-        return project_ports(&[var], doc, results);
-    };
-    match selection_member(doc, slot, select, params)? {
+    match selection_read(doc, slot, var, params)? {
         Some((family, at)) => Ok(with_replaced(
             results,
             vec![member_projected(
@@ -3560,7 +3625,12 @@ pub(super) fn project_selection<T: topo::AtRestPolicy + Decide>(
                 &at,
             )?],
         )),
-        None => project_ports(&[doc.selected_body(select).read], doc, results),
+        None => {
+            let read = doc
+                .selection(var)
+                .map_or(var, |select| doc.selected_body(select).read);
+            project_ports(&[read], doc, results)
+        }
     }
 }
 

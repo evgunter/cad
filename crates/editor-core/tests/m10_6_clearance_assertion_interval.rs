@@ -980,18 +980,21 @@ fn scopes_that_meet_are_within_any_upper_bound_over_a_box() {
     }
 }
 
-/// **A clearance over a box is keyed by the rebuild its verifier
-/// reads**: the dumbbell with a free length `idle` no body reads, its
-/// `≥ 0.5` violated over a box of `idle` about 0 and again, over that
-/// run as its prior, over a box about 0.15. Every input the lane reads
-/// is the same in both runs, so only the rebuild tells them apart: the
-/// second run's pair stands at ITS box's midpoint, `idle = +0.15`.
-/// Red if a clearance's key leaves the rebuild's point out: the second
-/// run is served the first's verdict, whose point (`+0`) is no point of
-/// the box it is reported over.
-#[test]
-fn a_clearance_over_a_prior_of_another_box_stands_at_its_own_boxs_midpoint() {
-    let f = dumbbell(&[ClearanceBounds::AtLeast(0.5)]);
+/// The dumbbell asserting `bound`, with a free length `idle` no body
+/// reads; `idle`; and the document's `Interval` evaluation over a box of
+/// `idle`, as offsets from its nominal, over `prior`.
+#[allow(clippy::type_complexity)]
+fn idle_boxes(
+    bound: ClearanceBounds<f64>,
+) -> (
+    RecipeNodeId,
+    editor_core::VarId,
+    impl Fn(
+        (f64, f64),
+        Option<&editor_core::Evaluation<geom_core::Interval>>,
+    ) -> editor_core::Evaluation<geom_core::Interval>,
+) {
+    let f = dumbbell(&[bound]);
     let (doc, _) = fixture::step(
         f.doc,
         DocEdit::DeclareVar {
@@ -1005,7 +1008,8 @@ fn a_clearance_over_a_prior_of_another_box_stands_at_its_own_boxs_midpoint() {
         },
     );
     let idle = doc.var_named("idle").expect("declared");
-    let over = |lo: f64, hi: f64, prior: Option<&editor_core::Evaluation<geom_core::Interval>>| {
+    let over = move |(lo, hi): (f64, f64),
+                     prior: Option<&editor_core::Evaluation<geom_core::Interval>>| {
         let axes = [(idle, editor_core::analysis::BoxAxis::Varying { lo, hi })];
         let opts = EvalOptions {
             param_box: Some(std::sync::Arc::new(ParamBox::from_axes(
@@ -1015,38 +1019,89 @@ fn a_clearance_over_a_prior_of_another_box_stands_at_its_own_boxs_midpoint() {
         };
         editor_core::evaluate(&doc, prior, &CancelToken::new(), &opts, Tol::witness())
     };
+    (f.assertions[0], idle, over)
+}
+
+/// **A clearance over a prior of another box, neither box about the
+/// nominal, stands at its own box's midpoint**: `≥ 0.5` violated over
+/// `idle ∈ [+0.1, +0.2]` and again, over that run as its prior, over
+/// `[+0.3, +0.4]`. Both rebuilds stand off the nominal, so every key of
+/// the lane is the same in both runs, the assertion's among them: the
+/// rebuild's POINT is all that tells the runs apart, and the second
+/// run's pair stands at `+0.35`. (A prior box about the nominal is
+/// rebuilt in the first pass's form, whose profile keys apart from the
+/// second's, so there the seats' keys move too and the row would see
+/// nothing.) Red if a prior verdict that cites a point is served at
+/// another: the second run reports `+0.15`, no point of its box.
+#[test]
+fn a_clearance_over_a_prior_of_another_off_nominal_box_stands_at_its_own_midpoint() {
+    let (assertion, idle, over) = idle_boxes(ClearanceBounds::AtLeast(0.5));
     let point = |ev: &editor_core::Evaluation<geom_core::Interval>| {
-        let report = report_of(ev, f.assertions[0]);
+        let report = report_of(ev, assertion);
         let ClearanceVerdict::Violated(w) = report.verdict() else {
             panic!("0.5 above a 0.4 gap is violated: {}", report.render());
         };
         w.param.offsets.clone()
     };
-    let prior = over(-0.05, 0.05, None);
-    assert_eq!(point(&prior), [(idle, 0.0)], "the first box's midpoint");
-    let fresh = over(0.1, 0.2, None);
+    let key = |ev: &editor_core::Evaluation<geom_core::Interval>| {
+        ev.value(assertion).map(|v| v.content_key)
+    };
+    let prior = over((0.1, 0.2), None);
+    let fresh = over((0.3, 0.4), None);
     assert_eq!(point(&fresh).len(), 1, "one axis");
-    assert!(
-        (point(&fresh)[0].1 - 0.15).abs() < 1e-12,
-        "the second box's midpoint: {:?}",
-        point(&fresh)
+    assert_eq!(point(&fresh)[0].0, idle);
+    assert_ne!(
+        point(&prior),
+        point(&fresh),
+        "the two boxes' midpoints differ, or the row sees nothing"
     );
-    let served = over(0.1, 0.2, Some(&prior));
+    assert_eq!(
+        key(&prior),
+        key(&fresh),
+        "and nothing else does: the assertion's key is the same over both"
+    );
+    let served = over((0.3, 0.4), Some(&prior));
     assert_eq!(
         point(&served),
         point(&fresh),
         "over the prior, the pair stands at this run's box's midpoint"
     );
     assert_eq!(
-        report_of(&served, f.assertions[0]).verdict(),
-        report_of(&fresh, f.assertions[0]).verdict(),
+        report_of(&served, assertion).verdict(),
+        report_of(&fresh, assertion).verdict(),
         "and the verdict is the fresh run's, whole"
     );
-    assert!(
-        served.reused > 0,
-        "the bodies, which read no boxed variable, are served: {} reused",
-        served.reused
+    assert_eq!(
+        served.recomputed, 1,
+        "the assertion alone is decided again: the bodies read no boxed variable"
     );
+}
+
+/// **A clearance that holds is served across boxes of a variable no
+/// body reads**: `≥ 0.3` over a 0.4 gap holds, citing no pair, so its
+/// verdict reads nothing of where the rebuild stood. Over
+/// `idle ∈ [+0.1, +0.2]` and again, over that run as its prior, over
+/// `[+0.3, +0.4]`: nothing is recomputed, and the verdict is the fresh
+/// run's. Red if a clearance's key, or its memo, holds the rebuild's
+/// point for a verdict that cites none: the sweep then runs once per
+/// leaf of every box a prior is served across.
+#[test]
+fn a_holding_clearance_is_served_across_boxes_of_a_variable_no_body_reads() {
+    let (assertion, _, over) = idle_boxes(ClearanceBounds::AtLeast(0.3));
+    let prior = over((0.1, 0.2), None);
+    let fresh = over((0.3, 0.4), None);
+    assert_eq!(
+        report_of(&fresh, assertion).verdict(),
+        &ClearanceVerdict::Holds,
+        "0.3 under a 0.4 gap holds"
+    );
+    let served = over((0.3, 0.4), Some(&prior));
+    assert_eq!(
+        report_of(&served, assertion).verdict(),
+        report_of(&fresh, assertion).verdict(),
+        "the served verdict is the fresh one"
+    );
+    assert_eq!(served.recomputed, 0, "and no node is decided again");
 }
 
 /// **A clearance assertion the box leaves undecided is split on what

@@ -406,6 +406,14 @@ impl<T: topo::AtRestPolicy + Decide> Evaluation<T> {
         crate::doc::two_spaces(self.spaces.get(&a).copied(), self.spaces.get(&b).copied())
     }
 
+    /// **The second computing frame this run built its constructions
+    /// in**, by bits ([`EvalOptions::computing_twist`]); `None` for a
+    /// run as built. No key hashes it, so a reader that reuses a body on
+    /// equal keys compares it too.
+    pub(crate) fn computing_frame(&self) -> Option<[u64; 7]> {
+        self.lane.twist
+    }
+
     /// The node's successful value, if it has one — [`Evaluation::usable`]
     /// for a reader to whom every standing is the same answer.
     pub fn value(&self, id: RecipeNodeId) -> Option<&NodeValue<T>> {
@@ -3276,7 +3284,9 @@ pub struct EvalOptions {
     /// is every other evaluation. Exclusive with `param_box`, which
     /// widens named variables over a box instead: an evaluation asked
     /// for both refuses every node. A part it resolves binds its own
-    /// variables as symbols of its own document.
+    /// variables as symbols of its own document, so a prior that ran
+    /// under the other setting is no memo for this run
+    /// ([`PriorRefusal::Options`]).
     pub symbols: bool,
     /// **Record the document's content pin** ([`Evaluation::pin`]):
     /// the run canonicalizes the document it read once, after the walk.
@@ -4037,6 +4047,9 @@ pub enum PriorRefusal {
     /// node of the prior with this run's keys need not hold this run's
     /// value. They are the run's, the same at every node, so the prior
     /// is refused whole rather than each written into every key.
+    ///
+    /// A caller that wants its prior read hands one made under the same
+    /// three; a run handed another recomputes every node.
     Options,
 }
 
@@ -4051,9 +4064,33 @@ impl PriorRefusal {
         if let Some(mispaired) = crate::ident::mispaired(doc.id(), prior.document) {
             return Some(Self::Document(mispaired));
         }
-        let ours = RunLane::of(opts);
+        // Every option, by name: one added compiles only once it is
+        // said here whether a key hashes it, this door compares it, or
+        // no value reads it.
+        let EvalOptions {
+            // The run's identity token; no value reads it.
+            epoch: _,
+            // The schedule; results are the serial walk's either way.
+            parallel: _,
+            // Compared: a boolean's log and refusals read it.
+            boolean_sweep,
+            // The store, checked by whoever mounts it (IDENTITY DI2).
+            resolver: _,
+            // Keyed: the box and the seed are in every slot's value.
+            param_box: _,
+            seed: _,
+            // Compared: a part's own run binds its variables by it.
+            symbols,
+            // Read after the walk.
+            pin: _,
+            // Compared, by bits: a construction is built in its frame.
+            computing_twist: _,
+            // Decides how far the run gets, never a value.
+            member_budget: _,
+        } = opts;
+        let twist = RunLane::of(opts).twist;
         ((prior.lane.twist, prior.lane.symbols, prior.boolean_sweep)
-            != (ours.twist, ours.symbols, opts.boolean_sweep))
+            != (twist, *symbols, *boolean_sweep))
             .then_some(Self::Options)
     }
 }
@@ -5529,59 +5566,10 @@ where
     // order, as the operation it reads and the port (D10; DR-59's
     // class: two outputs of one operation are two inputs, and a key
     // that saw only the operation would serve one half's body for the
-    // other), keyed by the value the read sees of it
-    // ([`wire::reads_seen`]): a member's evaluation holds the member
-    // bound at its own indices where the family stood, and a read that
-    // takes the family whole, or picks another member, reads past it.
-    // Every operation here has its result (above). A placement's
-    // constraint side reading its own copy is no upstream read
-    // (`Doc::upstream_of`'s one exemption, the same predicate): the
-    // node's own key is what is being formed, and the side's selection
-    // names still key it.
-    let upstream: Vec<UpstreamRead<(ContentKey, NamingKey)>> = node
-        .operand_rows()
-        .into_iter()
-        .filter(|&(seat, var)| !crate::mate::solve::own_copy_side(doc, id, seat, var))
-        .flat_map(|(seat, var)| {
-            let seen = wire::reads_seen(node, doc, (seat, var), &slot_values, env);
-            let stands = &stands;
-            doc.read_ports(var).into_iter().map(move |(at, port)| {
-                let Some(value) = stands.get(&at) else {
-                    unreachable!("every operation a node reads is in its upstream")
-                };
-                // An operation the walk named no view of is keyed whole.
-                let (value, place) = seen.get(&at).unwrap_or(&wire::Seen::Whole).of(at, value);
-                UpstreamRead {
-                    read: var,
-                    at,
-                    port,
-                    place,
-                    key: (value.content_key, value.naming_key),
-                }
-            })
-        })
-        .collect();
-    let upstream_keys: Vec<UpstreamRead<ContentKey>> =
-        upstream.iter().map(|read| read.keyed(read.key.0)).collect();
-    let upstream_naming: Vec<UpstreamRead<NamingKey>> =
-        upstream.iter().map(|read| read.keyed(read.key.1)).collect();
-
-    let rebuild = match (&input, op_env.lane.witness) {
-        (wire::OpInput::Clearance { .. }, Some(witness)) => Some(Rebuild {
-            param: &witness.param,
-            seats: upstream
-                .iter()
-                .map(|read| {
-                    usable_in(witness.results, read.at, || NodeStanding::NotInDocument {
-                        node: read.at,
-                    })
-                    .ok()
-                    .map(|built| built.content_key)
-                })
-                .collect(),
-        }),
-        _ => None,
-    };
+    // other), each with the value the read sees of it
+    // ([`wire::SeenRead`]), whose keys are the ones hashed. Every
+    // operation here has its result (above).
+    let reads = wire::seen_reads(id, node, doc, &stands, &slot_values, env);
     let content_key = content_key(
         node,
         &crate::param_source::definitions_of(doc),
@@ -5593,13 +5581,25 @@ where
         pose_words.as_deref(),
         input.resolved_program(),
         input.lane_program(),
-        &upstream_keys,
-        rebuild.as_ref(),
+        &reads,
         doc.witness(id),
         tol,
     );
     let content_key = members::member_key(content_key, at);
-    let naming_key = naming_key(content_key, &upstream_naming);
+    let naming_key = naming_key(content_key, &reads);
+    // A clearance's verdict stands at the point of the `f64` rebuild its
+    // verifier read wherever it cites a pair ([`wire::Witnessing`]), and
+    // that point is the run's box's, which the lane's keys do not hash:
+    // two boxes of a variable no seat reads key alike. So a prior
+    // verdict that cites a point is this run's only where the point is;
+    // one that cites none reads nothing of the rebuild's point, and is
+    // served across boxes.
+    let prior = prior.filter(|v| match (&input, clearance_point(v)) {
+        (wire::OpInput::Clearance { .. }, Some(point)) => {
+            op_env.lane.witness.is_some_and(|w| w.param == *point)
+        }
+        _ => true,
+    });
 
     // Memo (spec D4 + #95 disposition 2): a content-key match
     // certifies the GEOMETRY; whole-value reuse additionally requires
@@ -5625,12 +5625,11 @@ where
         // exactly what the precompute decides from, so D9 makes the two
         // sequences equal, at every scalar.
         // The reused value IS the record, so the fresh frame is
-        // finished and dropped rather than spliced in, and the prefix
-        // identity is asserted in every profile: one compare of a few
-        // dozen verdicts per hit, beside a precompute that just
-        // replayed and validated the profile.
+        // finished and dropped rather than spliced in. The prefix
+        // identity is a kernel bug's re-derivation: no input reaches it
+        // while the keys fix what the precompute decides from.
         let fresh = bracket.finish();
-        assert!(
+        debug_assert!(
             v.verdicts.starts_with(&fresh.verdicts)
                 && v.escalations.starts_with(&fresh.escalations)
                 && v.marks.starts_with(&fresh.marks),
@@ -5779,11 +5778,11 @@ mod tag {
         /// costs one whole-memo invalidation and no migration.
         format {
             /// v25: a read's upstream key is the key of the value the
-            /// read sees (`wire::reads_seen`): the member its index
-            /// picks, with that member's place (`member`'s `PLACE`), or
-            /// the family where it takes it whole, where it was the
-            /// value standing in the reader's results; and a clearance
-            /// writes the `f64` rebuild its verifier reads.
+            /// read sees (`wire::seen_reads`): the member its index
+            /// picks, or the family where it takes it whole, where it
+            /// was the value standing in the reader's results; and a
+            /// clearance writes, after each read's port, whether the
+            /// read picks a member and that member's place.
             /// v24: an extrude's depth is signed, so a negative depth's
             /// stream is a pocket's tool where it was a refusal. v23: a
             /// slide beside a mate whose direction is oblique in
@@ -5909,13 +5908,10 @@ mod tag {
         /// A family's members ([`super::members`]): a member's key is
         /// its operation's at one value of its indices, then `AT` and
         /// each index and value; a family's is `FAMILY`, then each
-        /// member's. `PLACE` follows the upstream key of a read that
-        /// picks a member, then the member's place among its family's
-        /// bodies, and is written by no other read.
+        /// member's.
         member {
             AT = 1,
             FAMILY = 2,
-            PLACE = 3,
         }
         /// The word before a node's picked reads ([`crate::VarDef::Pick`]),
         /// written only by a node holding one; then each picked read's
@@ -6226,13 +6222,12 @@ fn content_key<'d, T>(
     pose_words: Option<&[wire::pose::PoseWord<T>]>,
     resolved_program: Option<&[Vec<profile::Step<f64>>]>,
     lane_program: Option<&[Vec<profile::Step<T>>]>,
-    upstream_keys: &[UpstreamRead<ContentKey>],
-    rebuild: Option<&Rebuild<'_>>,
+    reads: &[wire::SeenRead<'_, T>],
     witness: Option<&crate::witness::WitnessDatum>,
     tol: Tol,
 ) -> ContentKey
 where
-    T: Decide + ContentBits,
+    T: Decide + ContentBits + topo::AtRestPolicy,
 {
     use crate::node::Node;
     let mut h = KeyHasher::new();
@@ -6668,34 +6663,6 @@ where
                     feed_stable_name(&mut h, name);
                 }
             }
-            // The `f64` rebuild its verifier reads ([`Rebuild`]): the
-            // point it stands at, which the verdict reports, and each
-            // seat's operation as the rebuild built it, which the
-            // proving pair is found on. Neither is a function of this
-            // lane's own inputs: two boxes over a variable no seat
-            // reads have two midpoints, and two expressions of one
-            // enclosure have two values at one.
-            match rebuild {
-                None => h.write_tag(tag::presence::ABSENT),
-                Some(rebuild) => {
-                    h.write_tag(tag::presence::PRESENT);
-                    h.write_u64(rebuild.param.offsets.len() as u64);
-                    for &(var, offset) in &rebuild.param.offsets {
-                        h.write_id(var.0);
-                        h.write_f64_bits(offset);
-                    }
-                    h.write_u64(rebuild.seats.len() as u64);
-                    for seat in &rebuild.seats {
-                        match seat {
-                            None => h.write_tag(tag::presence::ABSENT),
-                            Some(key) => {
-                                h.write_tag(tag::presence::PRESENT);
-                                h.write_key(*key);
-                            }
-                        }
-                    }
-                }
-            }
         }
         // A tube's WINDOW VARIANT is recipe payload, not a slot: which
         // variant it is decides whether the node has window slots at
@@ -6877,19 +6844,28 @@ where
     // Upstream identity, by CONTENT (never by id — ids are stable
     // labels, content keys are the Merkle links): each read as its
     // operation's key and the port it reads.
-    h.write_u64(upstream_keys.len() as u64);
-    for read in upstream_keys {
-        h.write_key(read.key);
+    // A clearance reports each seat by its member's place among its
+    // family's bodies (`wire::member_place`), which the member's own key
+    // does not fix: it moves with the members before it. No other node
+    // reads a place, so no other writes one.
+    let places = matches!(
+        node,
+        Node::Assertion(crate::measure::Claim::Clearance { .. })
+    );
+    h.write_u64(reads.len() as u64);
+    for read in reads {
+        h.write_key(read.value.content_key);
         feed_port(&mut h, read.port);
-        if let Some(place) = read.place {
-            h.write_tag(tag::member::PLACE);
-            h.write_u64(u64::from(place));
+        if places {
+            match read.place {
+                None => h.write_tag(tag::presence::ABSENT),
+                Some(place) => {
+                    h.write_tag(tag::presence::PRESENT);
+                    h.write_u64(u64::from(place));
+                }
+            }
         }
     }
-    // The recorded witness datum. Its presence is a word of its own so
-    // `None` cannot alias a `Some` with empty bytes; a cleared witness
-    // and a never-recorded one are both `None` and key alike, which is
-    // right — neither is an input.
     match witness {
         None => h.write_tag(tag::presence::ABSENT),
         Some(w) => {
@@ -6903,46 +6879,6 @@ where
 
 /// **One read a node's keys feed** (D10): the operation `at` defining
 /// the variable read, the port read, and that operation's key.
-/// **The `f64` rebuild a clearance's verifier reads, as the
-/// clearance's key hashes it** ([`wire::Witnessing`]): the parameter
-/// point it stands at, and the rebuild's key of each operation a seat
-/// reads, in read order, `None` where the rebuild built no value there.
-struct Rebuild<'a> {
-    param: &'a crate::clearance::ParamWitness,
-    seats: Vec<Option<ContentKey>>,
-}
-
-/// One read of an operation's output, as its reader's keys hash it.
-#[derive(Clone, Copy)]
-struct UpstreamRead<K> {
-    /// The variable the read comes through, which its reader's names
-    /// and carried records cite: a body's own read and a source of it
-    /// reach one output and name apart.
-    read: crate::VarId,
-    at: RecipeNodeId,
-    port: u8,
-    /// The place of the member the read picks among its family's
-    /// bodies ([`wire::Seen::of`]); `None` for any other read.
-    place: Option<u32>,
-    key: K,
-}
-
-impl<K> UpstreamRead<K> {
-    /// This read under another key.
-    fn keyed<L>(&self, key: L) -> UpstreamRead<L> {
-        UpstreamRead {
-            read: self.read,
-            at: self.at,
-            port: self.port,
-            place: self.place,
-            key,
-        }
-    }
-}
-
-/// A read's port, as the keys feed it: a presence tag, then the port.
-/// The tag stays in the byte stream so the keys of every stored
-/// document stay what they are.
 fn feed_port(h: &mut KeyHasher, port: u8) {
     h.write_tag(tag::presence::PRESENT);
     h.write_u64(u64::from(port));
@@ -6952,19 +6888,37 @@ fn feed_port(h: &mut KeyHasher, port: u8) {
 /// [`NamingKey`]): the node's own content key plus every read's
 /// (operation id, port, naming key), in read order — ids INCLUDED,
 /// which is exactly what the content key omits by design (D8).
-fn naming_key(content: ContentKey, upstream: &[UpstreamRead<NamingKey>]) -> NamingKey {
+fn naming_key<T: topo::AtRestPolicy + Decide>(
+    content: ContentKey,
+    reads: &[wire::SeenRead<'_, T>],
+) -> NamingKey {
     let mut h = KeyHasher::new();
     h.write_tag(tag::naming::DOMAIN);
     h.write_key(content);
-    h.write_u64(upstream.len() as u64);
-    for read in upstream {
+    h.write_u64(reads.len() as u64);
+    for read in reads {
         h.write_id(read.read.0);
         h.write_id(read.at.0);
         feed_port(&mut h, read.port);
-        h.write_u64(read.key.0 as u64);
-        h.write_u64((read.key.0 >> 64) as u64);
+        let key = read.value.naming_key.0;
+        h.write_u64(key as u64);
+        h.write_u64((key >> 64) as u64);
     }
     NamingKey(h.finish().0)
+}
+
+/// **The point a clearance's verdict stands at**, where `value` is a
+/// clearance's and its verdict cites a pair the `f64` rebuild verified
+/// ([`crate::clearance::ClearanceVerdict::point`]).
+fn clearance_point<T: topo::AtRestPolicy + Decide>(
+    value: &NodeValue<T>,
+) -> Option<&crate::clearance::ParamWitness> {
+    match &value.payload {
+        ValuePayload::Assertion(crate::measure::AssertionVerdict::Clearance(report)) => {
+            report.verdict().point()
+        }
+        _ => None,
+    }
 }
 
 /// The content-key tag of an authoring verb — the ONE place a verb's

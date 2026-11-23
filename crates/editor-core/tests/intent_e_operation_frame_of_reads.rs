@@ -606,6 +606,54 @@ fn a_value_edit_moves_a_copys_frame_and_not_its_mesh() {
     );
 }
 
+/// **The pick memo serves no tessellation across computing frames**:
+/// a block's index built from a run as built, then asked of a run of the
+/// same document in a second frame. Both keys are the same in the two
+/// runs, by design (no key hashes the frame), and the body is not: its
+/// points are in the frame the run turned. The second build misses.
+///
+/// *Breaks if* the memo reuses on the node's keys alone: the twisted
+/// run's body is drawn with the mesh of the body as built, under the
+/// twisted run's frame.
+#[test]
+fn the_pick_memo_serves_no_mesh_across_computing_frames() {
+    let doc = ProfileDoc::empty(DocumentId::derive("e-pick-frames"), Tol::witness());
+    let (doc, source) = block(doc);
+    let tol = Tol::witness();
+    let built = run(&doc, None);
+    let twisted = evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions {
+            computing_twist: Some(twist()),
+            ..EvalOptions::default()
+        },
+        tol,
+    );
+    let keys = |ev: &Evaluation<f64>| {
+        let value = ev.value(source).expect("the block builds");
+        (value.content_key, value.naming_key)
+    };
+    assert_eq!(keys(&built), keys(&twisted), "one node, one pair of keys");
+    let mut memo = editor_core::PickMemo::new();
+    let before = editor_core::NodePick::build_with(&built, source, 0, 0.1, tol, &mut memo)
+        .expect("the block tessellates");
+    memo.end_picture();
+    let after = editor_core::NodePick::build_with(&twisted, source, 0, 0.1, tol, &mut memo)
+        .expect("the twisted block tessellates");
+    memo.end_picture();
+    assert_eq!(
+        (memo.node_misses(), memo.node_hits()),
+        (1, 0),
+        "the twisted run's body is tessellated, not served"
+    );
+    assert!(
+        !std::ptr::eq(before.mesh(), after.mesh()),
+        "two bodies, two meshes"
+    );
+}
+
 /// **A measure between two copies moves neither body**
 /// (`[placement.frame]`: "a reading within one operand is made in its own
 /// coordinates, and only a reading between two goes through their

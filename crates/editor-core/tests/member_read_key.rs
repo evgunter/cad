@@ -398,65 +398,133 @@ fn a_members_source_of_another_member_is_rebuilt_when_that_member_moves() {
     served_is_fresh::<f64>(doc, reader, "place(source(tall[next]))");
 }
 
-/// **A member read is keyed by the member's place too**: its place
-/// among its family's bodies is what a reader of it is handed beside
-/// its value (a clearance reports its seat by it), and in a family
-/// whose inner count moves it moves under a member whose own key does
-/// not. `j` of `n` within `k` of two, `tall[k, j]` an extrude `0.25 +
-/// (scalar(k) + scalar(j))·p` deep; `reader = union([tall[1, 0]])`, no
-/// family; at `n = 1` member `(1, 0)` stands at place 1, at `n = 2` at
-/// place 2. Red if a member read's key leaves the place out
-/// (`tag::member::PLACE` not written): `reader`'s key is then the same
-/// at both.
-#[test]
-fn a_member_reads_key_moves_with_the_members_place() {
-    let doc = declare(
-        with_p("member-read-key-place-moves"),
-        "n",
-        FreeVar::Count { value: 1 },
-    );
+/// The document for the place rows: `j` of `n` within `k` of two,
+/// `tall[k, j]` an extrude `0.25 + (scalar(k) + scalar(j))·p` deep. At
+/// `n = 1` member `(1, 0)` stands at place 1 among the family's bodies,
+/// at `n = 2` at place 2, under its own key at both.
+fn jagged(label: &str) -> (ProfileDoc, VarId, VarId, RecipeNodeId) {
+    let doc = declare(with_p(label), "n", FreeVar::Count { value: 1 });
     let (doc, k) = fixture::index_of(doc, "k", Formula::count(2), None);
     let n = Formula::named(VarName::from_static("n"), Dimension::Count);
     let (doc, j) = fixture::index_of(doc, "j", n, Some(k));
     let by = Formula::add(scalar(var(k)), scalar(var(j))).unwrap();
     let (doc, tall) = prism(doc, 0.0, depth(by));
-    let (doc, reader) = insert(
-        doc,
-        Node::Union {
-            members: Bodies::Spelled(vec![BodyRead::indexed(
-                tall,
-                vec![Formula::count(1), Formula::count(0)],
-            )]),
-        },
-    );
+    (doc, k, j, tall)
+}
+
+/// Member `(1, 0)` of `tall`: its place among the family's bodies and
+/// its content key.
+fn member_one(ev: &Evaluation<f64>, tall: RecipeNodeId) -> (usize, editor_core::ContentKey) {
+    let family = ev
+        .value(tall)
+        .expect("tall")
+        .members
+        .as_ref()
+        .expect("a family");
+    let place = family
+        .members
+        .iter()
+        .position(|(at, _)| at == &[1, 0])
+        .expect("member (1, 0)");
+    (place, family.members[place].1.content_key)
+}
+
+/// `doc` at `n = 1` and at `n = 2`, each fresh, with member `(1, 0)` of
+/// `tall` a place on in the second under the key it had in the first.
+fn at_two_places(doc: ProfileDoc, tall: RecipeNodeId) -> [Evaluation<f64>; 2] {
     let one = evaluate::<f64>(&doc, None);
     let two = evaluate::<f64>(&set(doc, "n", FreeValue::Count(2)), None);
-    let member = |ev: &Evaluation<f64>| {
-        let family = ev
-            .value(tall)
-            .expect("tall")
-            .members
-            .as_ref()
-            .expect("a family");
-        let place = family
-            .members
-            .iter()
-            .position(|(at, _)| at == &[1, 0])
-            .expect("member (1, 0)");
-        (place, family.members[place].1.content_key)
-    };
     assert_eq!(
-        (member(&one).0, member(&two).0),
+        (member_one(&one, tall).0, member_one(&two, tall).0),
         (1, 2),
         "member (1, 0) stands a place on once member (0, 1) stands"
     );
-    assert_eq!(member(&one).1, member(&two).1, "under its own key");
-    let key = |ev: &Evaluation<f64>| ev.value(reader).expect("the reader builds").content_key;
-    assert_ne!(
-        key(&one),
-        key(&two),
-        "the reader's key moves with the place"
+    assert_eq!(
+        member_one(&one, tall).1,
+        member_one(&two, tall).1,
+        "under its own key"
     );
+    [one, two]
+}
+
+/// **A member read's key holds while the member's place moves, where
+/// its reader reads no place**: `reader[k, j] = union([tall[k, j]])`,
+/// each member reading its own; the inner count goes 1 to 2, which
+/// moves member `(1, 0)` of `tall` a place on and nothing of it.
+/// `reader[1, 0]`'s key is the same at both. Red if a read that picks a
+/// member writes the member's place into a key whose op reads none:
+/// every member after a count that moved is then rebuilt.
+#[test]
+fn a_member_reads_key_holds_while_the_members_place_moves() {
+    let (doc, k, j, tall) = jagged("member-read-key-place-holds");
+    let (doc, reader) = insert(
+        doc,
+        Node::Union {
+            members: Bodies::Spelled(vec![BodyRead::indexed(tall, vec![var(k), var(j)])]),
+        },
+    );
+    let [one, two] = at_two_places(doc, tall);
+    let key = |ev: &Evaluation<f64>| {
+        let family = ev.value(reader).expect("the reader builds");
+        let members = family.members.as_ref().expect("a family");
+        members.at(&[1, 0]).expect("member (1, 0)").content_key
+    };
+    assert_eq!(key(&one), key(&two), "reader[1, 0]'s key holds");
+}
+
+/// **A clearance's key moves with the place of the member a seat
+/// picks**: a clearance reports each seat by its member's place among
+/// its family's bodies, and its verifier reads the rebuild's body at
+/// that place (`wire::member_place`). `clearance(tall[1, 0].f,
+/// tall[0, 0].f)`, no family; the inner count goes 1 to 2. Red if a
+/// clearance's key leaves the place out: its key is then the same at
+/// both, and it is served a report that names another body.
+#[test]
+fn a_clearances_key_moves_with_the_place_of_the_member_its_seat_picks() {
+    let (doc, _, _, tall) = jagged("member-read-key-place-moves");
+    let face = {
+        let ev = evaluate::<f64>(&doc, None);
+        let table = ev
+            .table(doc.output(tall, 0).expect("tall's read"))
+            .expect("tall's table");
+        table
+            .iter()
+            .find_map(|(name, entry)| {
+                let [RoleSeg::Member { of, .. }] = name.path.as_slice() else {
+                    return None;
+                };
+                matches!(
+                    entry,
+                    editor_core::Entry::Unique(editor_core::EntityRef {
+                        body: 0,
+                        key: editor_core::EntityKey::Face(_),
+                    })
+                )
+                .then(|| (**of).clone())
+            })
+            .expect("member (0, 0) names a face")
+    };
+    let seat = |k: i64| {
+        Operand::select(
+            BodyRead::indexed(tall, vec![Formula::count(k), Formula::count(0)]),
+            vec![face.clone()],
+        )
+    };
+    let (doc, reader) = insert(
+        doc,
+        Node::clearance(
+            seat(1),
+            seat(0),
+            editor_core::ClearanceBounds::AtLeast(fixture::len(0.01)),
+        ),
+    );
+    let [one, two] = at_two_places(doc, tall);
+    let key = |ev: &Evaluation<f64>| {
+        ev.value(reader)
+            .unwrap_or_else(|| panic!("the clearance evaluates: {:?}", ev.result(reader)))
+            .content_key
+    };
+    assert_ne!(key(&one), key(&two), "the clearance's key moves");
 }
 
 /// **A read's variable is an input of its reader's names**: a body's
@@ -517,5 +585,43 @@ fn a_seat_re_pointed_to_a_source_of_the_same_body_is_named_through_it() {
         served.value(reader).map(|v| v.content_key),
         prior.value(reader).map(|v| v.content_key),
         "the content key holds: the body read is the same"
+    );
+}
+
+/// **Every read past the value that stands is one of nine, in one
+/// file**: `NodeValue::whole` is the one door a reader takes from the
+/// member bound in its results to the family, and `wire::seen_reads`
+/// says for each read whether its op goes through it. The two are two
+/// walks of a node's reads that no type holds equal, so a new caller of
+/// `whole()` is a read the keys may not see: it is counted here until
+/// someone says which of `seen_reads`' arms sees it.
+///
+/// The nine, in `eval/wire.rs`: `member_place`, `selection_table`,
+/// `reads_projected` and `project_selection` (a member read, seen as
+/// that member), `wire_combine` twice and `wire_assemble` (a seat that
+/// takes a family whole), and `Seen::of` twice (the keys' own).
+///
+/// Blind spot: a read of `NodeValue::family` by the field, which
+/// nothing outside `whole()` and the overlay makes today.
+#[test]
+fn every_read_past_the_value_that_stands_is_counted() {
+    let root = test_utils::source::repo_root(env!("CARGO_MANIFEST_DIR"));
+    let src = root.join("crates/editor-core/src");
+    let mut found: Vec<(String, usize)> = Vec::new();
+    for path in test_utils::source::rust_sources(&src) {
+        let text = std::fs::read_to_string(&path).expect("readable source file");
+        let hits = test_utils::source::code_only(&text)
+            .matches(".whole()")
+            .count();
+        if hits > 0 {
+            let rel = path.strip_prefix(&src).expect("under src");
+            found.push((rel.to_string_lossy().replace('\\', "/"), hits));
+        }
+    }
+    assert_eq!(
+        found,
+        [("eval/wire.rs".to_owned(), 9)],
+        "a reader of a family past the member bound in its results was added or moved: say \
+         which arm of `wire::seen_reads` sees its read, then count it here"
     );
 }

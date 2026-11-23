@@ -256,8 +256,20 @@ failure-output = "immediate-final"
 # run 45073621726):
 #    0.61 s  sweep::all pinned_corners_build::a_half_disc_turned_in_the_last_slab_builds_a_lune_on_a_straight_slab
 #    0.51 s  sweep::all pinned_corners_build::a_half_disc_turned_about_its_chord_builds_a_lune
+# Reads of a family evaluated, edited and evaluated again over the
+# first run, each held to a fresh run on every node's whole result: both
+# schedules four rounds over; readers across ranks at f64 and Interval;
+# a count moving under its readers; a mirror across each of six faces;
+# and a part's run at the symbolic scalar under each setting of
+# `symbols` (a local run, alone on the box):
+#    1.91 s  editor-core::all member_read_shapes::keys_are_the_same_on_both_schedules
+#    0.60 s  editor-core::all member_read_shapes::readers_across_ranks
+#    0.43 s  editor-core::all member_read_shapes::a_familys_count_moves_under_its_readers
+#    0.27 s  editor-core::all docm4_evaluation_identity::a_prior_under_the_other_symbols_setting_is_refused
+#    0.26 s  editor-core::all member_read_shapes::a_mirror_across_another_members_face
 default-filter = """
 not (
+  (binary_id(editor-core::all) & (test(=member_read_shapes::keys_are_the_same_on_both_schedules) | test(=member_read_shapes::readers_across_ranks) | test(=member_read_shapes::a_familys_count_moves_under_its_readers) | test(=member_read_shapes::a_mirror_across_another_members_face) | test(=docm4_evaluation_identity::a_prior_under_the_other_symbols_setting_is_refused))) |
   (binary_id(sweep::all) & (test(=pinned_corners_build::a_half_disc_turned_about_its_chord_builds_a_lune) | test(=pinned_corners_build::a_half_disc_turned_in_the_last_slab_builds_a_lune_on_a_straight_slab))) |
   (binary_id(sweep::all) & (test(=band_planar_cut_off_meters::a_far_side_arc_with_no_vertex_in_the_tube_is_clear_of_the_strip) | test(=band_planar_mitre::a_frustum_top_rim_mitres_at_leaning_walls) | test(=join_pierce_runs_sweep::six_crossing_corners_build_every_op))) |
   (binary_id(mesh::all) & test(=sizing_theorem_rows::cone_frusta_mesh_within_delta)) |

@@ -4,7 +4,12 @@
 //! the ambient tolerance (ε and k enter every decision the ops make,
 //! so they are inputs by D9's replay identity). Bit-exact floats in,
 //! so same key ⇒ same inputs ⇒ (D9 determinism) same output: the key
-//! IS the correctness proof for reuse.
+//! IS the correctness proof for reuse, within one document and one
+//! run's options. What no key hashes is held at the memo's door: a
+//! prior of another document, or run under other options an op reads,
+//! is refused whole (`PriorRefusal`); an instance is served only over
+//! the part row its prior carried; a clearance's verdict that cites the
+//! `f64` rebuild's point is served only at that point.
 //!
 //! # Hasher choice (spec D4)
 //!

@@ -2,8 +2,10 @@
 id: the-memo-hits-log-prefix-check-is-a-plain-assert-in-shipped-code
 kind: issue
 title: The memo hit's log-prefix check is a plain assert! in shipped code: a re-derivation check, which the failure taxonomy spells debug_assert!
-status: open
+status: closed
 opened: 2026-11-23
+closed: 2026-11-23
+pr: 7512
 ---
 
 
@@ -33,3 +35,7 @@ the node rather than serve it, and say so).
 
 **Owed:** the taxonomy's mechanism for this check, or the reason it is
 an exception written where the taxonomy is.
+
+**Closed in PR 7512.** The check is a kernel bug's re-derivation: the
+keys fix every input the pre-key decisions read, so no document
+reaches a mismatch, and the taxonomy's row 5 spells it `debug_assert!`.
