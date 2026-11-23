@@ -355,8 +355,8 @@ pub(crate) struct Boundary {
     /// at a pole is its pcurve's value there, a rounding to either side
     /// of the singular latitude, and [`face_extent`] puts the latitude
     /// in. A row that is a coordinate line whose moving
-    /// coordinate is monotone gives its ends, which bound it; a harmonic
-    /// or spiric wall row its enclosure over its span, so the hull may be
+    /// coordinate is monotone gives its ends, which bound it; a harmonic,
+    /// spiric wall or focal row its enclosure over its span, so the hull may be
     /// a superset, which holds the face. It is the FACE's extent only
     /// where the loop does not wrap a periodic axis. `None` where the loop
     /// has no lift or a row has no closed form. Read only through
@@ -4429,7 +4429,7 @@ impl ChartCurve {
 
     /// The chart point at `t`, or the image over the parameters `t`,
     /// enclosed, `[u, v]`.
-    fn at(&self, t: Interval) -> [Interval; 2] {
+    pub(crate) fn at(&self, t: Interval) -> [Interval; 2] {
         [self.on(Axis::U, t), self.on(Axis::V, t)]
     }
 
