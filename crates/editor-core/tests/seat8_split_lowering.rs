@@ -449,14 +449,24 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// `kitchen_sink` carries both re-blessings above, a placed copy's carried
 /// certificates and the one-record glue, each on its own branch; merged,
 /// it reads one value, measured on the merge.
+///
+/// RE-BLESSED, `cut_cylinder` and `kitchen_sink`, for PR 7203 (merge
+/// `2b9cd8b24`): `geom::Circle` and `geom::Ellipse` came to hold their
+/// frame as a private `at` (`Circle { at, radius }`, where it spelled
+/// `Circle { frame, radius }`), and an ellipse its placement `held`,
+/// which changes the edge curve's `Debug` the digest feeds. With that
+/// `Debug` written in the old shape both rows reproduce their old
+/// values, every ellipse in them held at its centre, so nothing else
+/// moved. `part_select` carries no conic and held.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        // Re-cut: PR 7299 places the x = -0.5 seam's split vertex at cross's root, z one ulp up onto the rounded crossing.
-        ("cut_cylinder", 0xed03_1d8e_bcfb_2ed4_u64),
+        // Re-cut: PR 7203 renames Circle's and Ellipse's stored frame `at` and adds Ellipse's `held`, which the body's Debug feeds; no point moved.
+        ("cut_cylinder", 0x99cf_4ac0_91e5_776c_u64),
         ("part_select", 0x323e_0e72_9c73_bca0),
-        ("kitchen_sink", 0x4080_aff5_e382_f53d),
+        // Re-cut: PR 7203 renames Circle's and Ellipse's stored frame `at` and adds Ellipse's `held`, which the body's Debug feeds; no point moved.
+        ("kitchen_sink", 0x2a79_f21a_9199_93e1),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()

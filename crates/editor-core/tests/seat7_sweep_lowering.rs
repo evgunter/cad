@@ -230,10 +230,11 @@ fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
         ("die", 0x0319_7db7_bec3_d32f),
         ("corner_table", 0x7da6_d69a_c91e_7f29),
-        // Re-cut: PR 7299 places the x = -0.5 seam's split vertex at cross's root, z one ulp up onto the rounded crossing.
-        ("cut_cylinder", 0xed03_1d8e_bcfb_2ed4),
+        // Re-cut: PR 7203 renames Circle's and Ellipse's stored frame `at` and adds Ellipse's `held`, which the body's Debug feeds; no point moved.
+        ("cut_cylinder", 0x99cf_4ac0_91e5_776c),
         ("boss_union", 0x9242_6dc9_578f_e111),
-        ("kitchen_sink", 0x4080_aff5_e382_f53d),
+        // Re-cut: PR 7203 renames Circle's and Ellipse's stored frame `at` and adds Ellipse's `held`, which the body's Debug feeds; no point moved.
+        ("kitchen_sink", 0x2a79_f21a_9199_93e1),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {
