@@ -2372,15 +2372,14 @@ fn the_c5_table_retires_the_arm_whose_proof_is_complete() {
         assert!(r.implemented, "{a:?}×{b:?} is implemented");
         assert!(r.note.contains("IMPLICIT PAIR"), "{}", r.note);
     }
-    for (a, b) in [(SurfaceKind::Nurbs, SurfaceKind::Cylinder)] {
-        let r = route(a, b);
-        assert!(!r.implemented, "{a:?}×{b:?} must stay refused");
-        assert!(
-            r.note.contains("TRACE") || r.note.contains("trace shape"),
-            "{a:?}×{b:?} must cite its trace shape: {}",
-            r.note
-        );
-    }
+    let (a, b) = (SurfaceKind::Nurbs, SurfaceKind::Cylinder);
+    let r = route(a, b);
+    assert!(!r.implemented, "{a:?}×{b:?} must stay refused");
+    assert!(
+        r.note.contains("TRACE") || r.note.contains("trace shape"),
+        "{a:?}×{b:?} must cite its trace shape: {}",
+        r.note
+    );
 }
 
 // ---------------------------------------------------------------------

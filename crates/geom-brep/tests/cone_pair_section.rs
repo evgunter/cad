@@ -1736,7 +1736,7 @@ fn the_value_reads_at_interval_as_at_f64() {
 /// overstates it.
 #[test]
 fn a_carried_loop_winds_as_its_claim_on_both_carriers() {
-    let rows: [(&str, Surface<f64>, ExtentBall<f64>, [bool; 2]); 3] = [
+    let rows = [
         (
             "the fat steep wall",
             cylinder(
