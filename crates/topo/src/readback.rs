@@ -795,9 +795,9 @@ impl EulerCounts {
     /// identity assigns to the census — the `h` the Euler operators
     /// move.
     ///
-    /// At tier 2, where every shell is one connected piece, `h` is the
-    /// body's genus: the handles summed over its shells. On a tier-1
-    /// transient it need not be: a shell whose faces have fallen into
+    /// Wherever every shell is one connected piece, which tier 2
+    /// guarantees, `h` is the body's genus: the handles summed over its
+    /// shells. Otherwise it need not be: a shell whose faces have fallen into
     /// several components (after `mfkrh` on a detached ring, before the
     /// shell partition that follows it) still contributes one `s`, so
     /// `h` can come back NEGATIVE there. That is the identity's honest

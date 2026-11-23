@@ -1488,16 +1488,13 @@ pub trait Construct<T: geom_core::Real> {
     /// `ring_move` re-glues the per-shell component partition (a face
     /// glues all its loops — validator pass 11), so unlike the Euler
     /// operators its tier-1 preservation is not a per-surgery
-    /// Euler-vector fact. It holds anyway, by the separating-curve
-    /// argument (independently derived by the PR 5 review): validator
-    /// passes 3/4/6 force every component to be a closed oriented
-    /// surface, and on a genus-0 component every ring cycle is a
-    /// separating (Jordan) curve — so a cross-component move
-    /// re-partitions the complex into pieces that are again closed
-    /// surfaces with `χ = 2(1 − g)`, `g ≥ 0`; a NON-separating ring
-    /// forces its component's genus ≥ 1 before the move, and a move can
-    /// merge at most two components, so no move manufactures odd χ or
-    /// negative genus. Exercised continuously by the seqgen fuzz lane
+    /// Euler-vector fact. Tier 1 is preserved by the records: the ring
+    /// keeps its half-edges, mates and vertices, and only its owning
+    /// face changes, within one shell. That every component then still
+    /// reads an even χ with `g ≥ 0` is the per-component theorem of
+    /// checks 1–7 and 10 (`crate::euler_theorem`), not a check: no
+    /// move can manufacture odd χ or negative genus. Exercised
+    /// continuously by the seqgen fuzz lane
     /// (`ring_move` is a candidate mutator) and by the promoted review
     /// sweeps (`tests/review_m1_pr5.rs`: every `ring_move` to depth 2
     /// over adversarial fixtures, including the non-separating-ring

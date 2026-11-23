@@ -329,12 +329,16 @@
 //! comparison (pass 10) derives each half's shell through the
 //! *ownership partition* — never the stored back-pointers, whose
 //! defects are pass 7's report — and needs both ownership steps
-//! unambiguous. Pass 11 (the component count) reads a coherent
-//! complex, so it has one coarse gate: it runs only when passes 1–7
-//! and 10 reported nothing — any of those defects voids the partition
-//! and already carries its own report (passes 8 and 9 do not gate it:
-//! orphan geometry and arity floors cannot move it). Tier 2's
-//! connectivity check reads pass 11's count, so it shares that gate. Its other
+//! unambiguous. Pass 11 (the component count) reads a structurally
+//! coherent complex, so it has one coarse gate: it runs only when passes
+//! 1–7 reported nothing — any earlier structural defect voids the count
+//! and already carries its own report (passes 8–10 do not gate it:
+//! orphan geometry and arity floors cannot move the count, and a
+//! cross-shell edge is exactly what the per-shell count must still be
+//! computed *through* — the walk keeps to the shell, so a shell left in
+//! pieces beside a cross-shell edge is still reported disconnected).
+//! Tier 2's connectivity check reads pass 11's count, so it shares
+//! that gate. Its other
 //! two scans are ungated — the empty-loop scan reads single loops, but
 //! the strut scan is an AGGREGATE (it counts resolving `start`
 //! references over the half-edge arena), so on a corrupt in-crate body
@@ -5890,7 +5894,7 @@ pub(crate) fn wrap_tips<T: Real>(body: &Body<T>) -> SecondaryMap<VertexKey, Half
 
 /// Tier 1's full result: the error vector plus the per-shell component
 /// counts when the component pass ran (`None` when its gate — passes
-/// 1–7 and 10 clean — did not hold). Tier 2 reuses the counts for its c = 1
+/// 1–7 clean — did not hold). Tier 2 reuses the counts for its c = 1
 /// check instead of re-enumerating.
 struct Tier1Report {
     errors: Vec<ValidationError>,
@@ -5930,7 +5934,7 @@ pub fn validate<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationError>> {
 /// documented order: empty loops (loop-arena order), valence-1 vertices
 /// (vertex-arena order), disconnected shells (shell-arena order). The
 /// connectivity check reads pass 11's component count, and so shares
-/// its gate (passes 1–7 and 10 clean); a face-less shell is
+/// its gate (passes 1–7 clean); a face-less shell is
 /// reported by the tier-1 arity floor alone (c = 0 is not double-
 /// reported here). The empty body validates vacuously.
 ///
@@ -11475,9 +11479,9 @@ fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
         }
     }
 
-    // Pass 11's gate, part one, captured HERE — after the structural
-    // passes 1–7, before the passes that cannot move the partition
-    // (module docs, cascade discipline). Part two is pass 10.
+    // Pass 11's gate, captured HERE — after the structural passes 1–7,
+    // before the passes that cannot move the count (module docs,
+    // cascade discipline).
     let structurally_sound = errors.is_empty();
 
     // ------------------------------------------------------------------
@@ -11538,7 +11542,6 @@ fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
         };
         Some(shell)
     };
-    let before_pass_10 = errors.len();
     for (edge_key, edge) in body.edges.iter() {
         let (Some(shell_plus), Some(shell_minus)) =
             (shell_of(edge.he_plus), shell_of(edge.he_minus))
@@ -11556,11 +11559,11 @@ fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
 
     // ------------------------------------------------------------------
     // Pass 11: the per-shell component count (module docs, check 11),
-    // gated on passes 1–7 and 10 having reported nothing. Reports
+    // gated on passes 1–7 having reported nothing. Reports
     // nothing; tier 2 reads it.
     // ------------------------------------------------------------------
     let mut shell_components = None;
-    if structurally_sound && errors.len() == before_pass_10 {
+    if structurally_sound {
         // Per-shell face lists in face-arena order. Membership comes
         // from the `face.shell` back-pointer, which the gate guarantees
         // matches the ownership lists.

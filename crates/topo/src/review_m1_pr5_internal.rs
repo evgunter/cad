@@ -135,11 +135,12 @@ fn leaked_provenance_all_seven_arenas() {
     leak_probe!(vertices, Vertex);
 }
 
-/// Pass 10 at scale: an ops cube shredded across three shells (faces
-/// round-robined). Pass 10 must fire for every edge whose halves land in
-/// different shells, and nothing else may (pass 11 and tier 2's
-/// connectivity are gated on pass 10); the report must be finite and
-/// deterministic across repeated validation.
+/// Pass 10 + 11 at scale: an ops cube shredded across three shells
+/// (faces round-robined). Pass 10 must fire for every edge whose halves
+/// land in different shells, and nothing else at tier 1; pass 11 runs
+/// through the corruption (not hang, not skip) and finds each shell's
+/// two faces adjacent, one piece, so tier 2 adds nothing; the report
+/// must be finite and deterministic across repeated validation.
 #[test]
 fn cross_shell_shredding_terminates_and_reports_coherently() {
     let tol = Tol::witness();
@@ -189,7 +190,7 @@ fn cross_shell_shredding_terminates_and_reports_coherently() {
     assert_eq!(
         validate_closed(&b).unwrap_err(),
         errs1,
-        "tier 2 adds nothing behind pass 10"
+        "each shell's two faces are adjacent: tier 2 finds every shell in one piece"
     );
 }
 
