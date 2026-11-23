@@ -602,8 +602,8 @@ fn joinable<T: Decide>(
         if f <= g { (f, g) } else { (g, f) }
     };
     let (f, g) = pair(s1);
-    // One face on both sides: both pieces are its wrap edge, or neither
-    // is a station on one edge.
+    // One face on both sides: a station only where both pieces are its
+    // wrap edge, so the joined edge's wrap claim holds over its span.
     let wrap_station = || crate::validate::wraps(body, e1) && crate::validate::wraps(body, e2);
     if pair(s2) != (f, g) || (f == g && !wrap_station()) {
         return Ok(None);
