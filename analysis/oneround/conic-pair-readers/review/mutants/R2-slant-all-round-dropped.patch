@@ -1,0 +1,13 @@
+diff --git a/crates/geom-brep/src/curve_pair/pose.rs b/crates/geom-brep/src/curve_pair/pose.rs
+index 30e6c7f31..0c71b80ba 100644
+--- a/crates/geom-brep/src/curve_pair/pose.rs
++++ b/crates/geom-brep/src/curve_pair/pose.rs
+@@ -1825,7 +1825,7 @@ impl<T: Decide> Slant<T> {
+         let width = up - tau * (up / tau).floor();
+         // Every point within `e`, read as a whole turn.
+         let all_round = (hi - self.e).max(T::zero() - (lo + self.e));
+-        let width = all_round.select_le_zero(tau, width);
++        let _ = all_round;
+         let to = from + width;
+         let half = T::pi();
+         if geom_core::k_stats::prove(row::LEVEL_ARC, Margin::of(half - width)) != Ok(Sign::Positive)

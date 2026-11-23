@@ -1,0 +1,13 @@
+diff --git a/crates/geom/src/curves/conic.rs b/crates/geom/src/curves/conic.rs
+index 968925162..44408cc22 100644
+--- a/crates/geom/src/curves/conic.rs
++++ b/crates/geom/src/curves/conic.rs
+@@ -1471,7 +1471,7 @@ impl<T: Real> Conic<T> for Ellipse<T> {
+     }
+ 
+     fn height_of(&self, p: Point3<T>) -> T {
+-        (p - self.at.origin()).dot(self.at.axis())
++        (p - Conic::frame(self).origin()).dot(self.at.axis())
+     }
+ 
+     fn unit_in_plane(&self, p: Point3<T>) -> (T, T) {

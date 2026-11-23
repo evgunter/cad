@@ -1,0 +1,13 @@
+diff --git a/crates/geom-brep/src/curve_pair/pose.rs b/crates/geom-brep/src/curve_pair/pose.rs
+index 30e6c7f31..e708450ba 100644
+--- a/crates/geom-brep/src/curve_pair/pose.rs
++++ b/crates/geom-brep/src/curve_pair/pose.rs
+@@ -1879,7 +1879,7 @@ struct Over<T: geom_core::Real> {
+ impl<T: Decide> Over<T> {
+     fn of(k: &dyn Conic<T>, plane: &dyn Conic<T>, o: Point3<T>) -> Self {
+         let h = k.height_along(o, plane.axis());
+-        let level = T::zero() - plane.height_of(o);
++        let level = T::zero() * plane.height_of(o);
+         let (lo, hi) = h.extremes();
+         Self {
+             h,

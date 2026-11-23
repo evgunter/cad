@@ -1,0 +1,13 @@
+diff --git a/crates/geom/src/curves/conic.rs b/crates/geom/src/curves/conic.rs
+index 968925162..d4c5d051d 100644
+--- a/crates/geom/src/curves/conic.rs
++++ b/crates/geom/src/curves/conic.rs
+@@ -1004,7 +1004,7 @@ impl<T: Real> Height<T> {
+             }
+             Held::Arc { phase } => {
+                 let (trough, crest) = offset_crests(self.p, self.q, phase);
+-                (self.at + trough, self.at + crest)
++                (self.at + trough * T::from_f64(0.5), self.at + crest)
+             }
+         }
+     }

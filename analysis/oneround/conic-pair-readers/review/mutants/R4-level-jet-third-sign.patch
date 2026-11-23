@@ -1,0 +1,13 @@
+diff --git a/crates/geom-brep/src/curve_pair/pose.rs b/crates/geom-brep/src/curve_pair/pose.rs
+index 30e6c7f31..6a6b85589 100644
+--- a/crates/geom-brep/src/curve_pair/pose.rs
++++ b/crates/geom-brep/src/curve_pair/pose.rs
+@@ -2392,7 +2392,7 @@ impl<T: Decide> Level<'_, T> {
+             f,
+             gx * x1 + gy * y1,
+             gx * x2 + gy * y2 + two * (x1.powi(2) / sx + y1.powi(2) / sy),
+-            T::zero() - (gx * x1 + gy * y1) + six * (x1 * x2 / sx + y1 * y2 / sy),
++            (gx * x1 + gy * y1) + six * (x1 * x2 / sx + y1 * y2 / sy),
+         ]
+     }
+ 

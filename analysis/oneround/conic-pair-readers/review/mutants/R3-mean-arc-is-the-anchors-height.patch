@@ -1,0 +1,13 @@
+diff --git a/crates/geom/src/curves/conic.rs b/crates/geom/src/curves/conic.rs
+index 968925162..c50f2c80f 100644
+--- a/crates/geom/src/curves/conic.rs
++++ b/crates/geom/src/curves/conic.rs
+@@ -1017,7 +1017,7 @@ impl<T: Real> Height<T> {
+     pub fn mean(&self) -> T {
+         match self.held {
+             Held::Centre => self.at,
+-            Held::Arc { phase: (c0, s0) } => self.at - (self.p * c0 + self.q * s0),
++            Held::Arc { phase: (c0, s0) } => self.at - (self.p * c0 + self.q * s0) * T::zero(),
+         }
+     }
+ 

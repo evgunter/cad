@@ -1,0 +1,13 @@
+diff --git a/crates/geom-brep/src/curve_pair/pose/window.rs b/crates/geom-brep/src/curve_pair/pose/window.rs
+index 30017879d..c1107d262 100644
+--- a/crates/geom-brep/src/curve_pair/pose/window.rs
++++ b/crates/geom-brep/src/curve_pair/pose/window.rs
+@@ -217,7 +217,7 @@ impl<T: Decide> Window<'_, T> {
+     /// angle: its swing `√(c₁² + s₁²)`, raised past its four roundings and
+     /// the twelve of `c₁` and `s₁` (`k.along`).
+     fn height_fourth(&self) -> T {
+-        up::<16, _>(self.swing)
++        up::<16, _>(self.swing * T::zero())
+     }
+ 
+     /// **How the piece `(l, r)` reads**, `away` whether `θ` increasing

@@ -1,0 +1,17 @@
+diff --git a/crates/geom-brep/src/curve_pair/pose/window.rs b/crates/geom-brep/src/curve_pair/pose/window.rs
+index 30017879d..caf05573a 100644
+--- a/crates/geom-brep/src/curve_pair/pose/window.rs
++++ b/crates/geom-brep/src/curve_pair/pose/window.rs
+@@ -433,9 +433,9 @@ impl<T: Decide> Window<'_, T> {
+     /// A seed for `q`'s foot on `b`: its direction in `b`'s unit
+     /// coordinates ([`Conic::azimuth`]).
+     fn foot_seed(&self, q: Point3<T>) -> T {
+-        self.b
+-            .azimuth(q)
+-            .principal_as(super::row::BRANCH, Band::least())
++        #[allow(clippy::disallowed_methods)]
++        let (x, y) = self.b.unit_of(q - self.b.frame().origin());
++        geom::Azimuth::of(y, x).principal_as(super::row::BRANCH, Band::least())
+     }
+ 
+     /// **Whether a ringed arc's pieces, in order up `θ`, hold no meeting
