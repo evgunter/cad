@@ -619,3 +619,20 @@ body has the reasons):
     `zero_everywhere` override, the DECIDE wording, the mate-chart P2
     reworded, and the NITs.
   - 7396 now merges main and re-measures; its delta review comes after.
+- 2026-11-23 05:05 — **Main is red from 7434 (ccabcfb).** Eight
+  `editor-core::all` slow-set rows fail on main. They are slow rows
+  7434's diff did not edit, so its PR gate never ran them, a known CI
+  gap.
+  - **Five are pins** moved by the identity pair's new decisions and
+    the Rodrigues bits: three m10_bulge rows, two m10_9 rows, the
+    m10_p_fence digest, and the m10_sym_profile forms.
+  - **One needs analysis:** in `m10_sym_drive_memo_interval`, the drive
+    certifies 1 and refuses 7, so the race row's certified arm is
+    vacuous.
+  - **Routed** to the same lane ahead of 7396, on branch
+    `doctail/the-identity-turns-decisions-repinned-on-the-m10-rows`,
+    with a P0 row. It re-pins only attributed moves and fixes item 6
+    if it is a real loss of certification.
+  - **Lesson:** merging 7434 at a head whose slow rows never ran cost a
+    red main. A change to a shared primitive (`least_turn`) needs the
+    whole slow set run before merge.
