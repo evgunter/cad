@@ -499,7 +499,7 @@ pub(crate) fn tessellate_curved(
             continue;
         }
         #[cfg(test)]
-        crate::trimmed::note_corrections(corrections);
+        crate::trimmed::tests::note_corrections(corrections);
         break (interior, triangles, verdict);
     };
 
@@ -1285,7 +1285,7 @@ mod tests {
     /// one-thread pool, on the worker that runs the faces.
     #[test]
     fn an_over_delta_grid_is_corrected_and_refuses_typed_without_the_correction() {
-        use crate::trimmed::test_seams::{corrections_used, set_correction_rounds};
+        use crate::trimmed::tests::{corrections_used, set_correction_rounds};
         let body = sphere_band(1.0);
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(1)

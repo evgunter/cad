@@ -382,30 +382,6 @@ pub(crate) fn correction_rounds() -> usize {
     MAX_CORRECTION_ROUNDS
 }
 
-/// Records the correction rounds a face ran, for the rows that hold
-/// them to the budget (`tests::CORRECTIONS_USED`: the most any face on
-/// this thread ran since the row cleared it).
-#[cfg(test)]
-pub(crate) fn note_corrections(rounds: usize) {
-    tests::CORRECTIONS_USED.with(|used| used.set(used.get().max(rounds)));
-}
-
-/// The correction's test switches, for the rectangle lane's rows
-/// (`curved::tests`): the budget's override and the rounds counter.
-#[cfg(test)]
-pub(crate) mod test_seams {
-    /// Sets the correction's budget (`None`: the shipped one).
-    pub(crate) fn set_correction_rounds(budget: Option<usize>) {
-        super::tests::CORRECTION_ROUNDS.with(|b| b.set(budget));
-        super::tests::CORRECTIONS_USED.with(|u| u.set(0));
-    }
-
-    /// The most rounds a face on this thread ran since the last set.
-    pub(crate) fn corrections_used() -> usize {
-        super::tests::CORRECTIONS_USED.with(std::cell::Cell::get)
-    }
-}
-
 /// The retry loop's last structural attempt: [`MAX_GRID_RETRIES`], or
 /// under `cfg(test)` an override a row sets to reach an exhaustion
 /// refusal through the real call path (`tests::LAST_ATTEMPT`).
@@ -774,7 +750,7 @@ pub(crate) fn tessellate_trimmed(
         }
     };
     #[cfg(test)]
-    note_corrections(corrections);
+    tests::note_corrections(corrections);
 
     // BUDGET METER (dead in normal runs): this face's measurements,
     // handed over ONCE, however the face ENDED — everything derivable
@@ -3826,7 +3802,7 @@ fn walk_face(
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-pub(super) mod tests {
+pub(crate) mod tests {
     use super::{
         ChordPass, Creases, FixedVertexHandle, Node, SpadePoint, TessellateError, TrimPolygon,
         chain_creases, one_location_per_branch, trim_polygon,
@@ -3863,7 +3839,7 @@ pub(super) mod tests {
         pub(crate) static STEP_SCALE: std::cell::Cell<f64> =
             const { std::cell::Cell::new(1.0) };
         /// The most correction rounds a face on this thread ran
-        /// (`super::note_corrections`). `cfg(test)` only.
+        /// (`note_corrections`). `cfg(test)` only.
         pub(crate) static CORRECTIONS_USED: std::cell::Cell<usize> =
             const { std::cell::Cell::new(0) };
         /// The correction's budget, when a row sets it
@@ -3874,6 +3850,24 @@ pub(super) mod tests {
         /// (`super::last_attempt`). `cfg(test)` only.
         pub(crate) static LAST_ATTEMPT: std::cell::Cell<Option<usize>> =
             const { std::cell::Cell::new(None) };
+    }
+
+    /// Records the correction rounds a face ran (`CORRECTIONS_USED`): the
+    /// trimmed lane's loop and the curved lane's call it.
+    pub(crate) fn note_corrections(rounds: usize) {
+        CORRECTIONS_USED.with(|used| used.set(used.get().max(rounds)));
+    }
+
+    /// Sets the correction's budget (`None`: the shipped one) and clears
+    /// the rounds counter, for the curved lane's row.
+    pub(crate) fn set_correction_rounds(budget: Option<usize>) {
+        CORRECTION_ROUNDS.with(|b| b.set(budget));
+        CORRECTIONS_USED.with(|u| u.set(0));
+    }
+
+    /// The most rounds a face on this thread ran since the last set.
+    pub(crate) fn corrections_used() -> usize {
+        CORRECTIONS_USED.with(std::cell::Cell::get)
     }
 
     /// **The MAJOR-1 backstop's end-to-end guard**: a face left with a
