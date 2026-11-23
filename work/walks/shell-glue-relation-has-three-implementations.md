@@ -6,7 +6,8 @@ status: open
 opened: 2026-09-06
 refs: [S69, 2014]
 priority: P1
-cost: D
+cost: M
+design: true
 ---
 
 ## What
@@ -97,3 +98,7 @@ clean, and pass 7 checks every loop's owner both ways. A unified routine has to
 carry the proofs to the copy that reads unvalidated input, so the
 `seqgen` register entry in `scripts/gates/loop-boundary-discards.sh`
 now says it lacks the proof that audits `movefac`'s.
+
+## Staleness audit (2026-11-22, WALKS, origin/main 7709b0ea)
+
+Still live, and a fourth copy: movefac.rs's test-module `claimed_components` (glues by edge via `parent_loop`, a deliberately record-based oracle). validate.rs `shell_component` seeds in face-arena order, not the shell's list order, and skips a mate in another shell; seqgen.rs `shell_component_faces` is still registered `unaudited` in scripts/gates/loop-boundary-discards.sh. Weighed with `euler-characteristic-has-three-carriers` as fork F5.

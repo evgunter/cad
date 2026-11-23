@@ -977,3 +977,66 @@ fn the_door_reads_a_circle_against_a_ring_wall_at_f64() {
 fn the_door_reads_a_circle_against_a_ring_wall_at_interval() {
     the_door_reads_a_circle_against_a_ring_wall::<Interval>();
 }
+
+/// A biquadratic-by-linear patch with an interior `u` knot, its every
+/// stored scalar lifted by `lift` (a dual's with a unit tangent).
+fn knotted_patch<T: geom_core::SpanLocate>(lift: impl Fn(f64) -> T) -> NurbsSurface<T> {
+    let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let mut control = Vec::new();
+    let mut weights = Vec::new();
+    for i in 0..4 {
+        for j in 0..2 {
+            let (x, y) = (f64::from(i) * 0.7, f64::from(j));
+            control.push(Point3::new(x, y, 0.2 * x * y + 0.1).map(&lift));
+            weights.push(lift(1.0 + 0.25 * f64::from(i % 2)));
+        }
+    }
+    NurbsSurface::new(
+        geom_core::spline::Knots::from(ku).lift(&lift),
+        geom_core::spline::Knots::from(kv).lift(&lift),
+        control,
+        weights,
+    )
+    .unwrap()
+}
+
+/// **At a dual the read is the `f64` read**: a chart and a sample whose
+/// every coordinate carries a tangent read, on the value channel, what
+/// the same chart and sample read at `f64`: `On`, `Off` with the same
+/// margin, or the same refusal. Read across the band: on the chart,
+/// inside the zero band, through the gap between the zero and the
+/// escalation width, and past it. Red where the view keeps the tangent in
+/// what it decides or folds it into the value.
+#[test]
+fn at_a_dual_a_point_reads_what_it_reads_at_f64_across_the_band() {
+    use geom_core::Dual64;
+    let band = Band::new(1e-9, 1e-8).unwrap();
+    let plain = knotted_patch(|x| x);
+    let dual = knotted_patch(Dual64::variable);
+    let (mut on, mut off, mut refused) = (0, 0, 0);
+    for (u, v) in [(0.3, 0.6), (0.5, 0.25), (0.875, 0.9)] {
+        let foot = plain.eval(u, v);
+        let up = normal(&plain, u, v);
+        for lift in [0.0, 2e-10, 5e-9, 2e-8, 1e-3] {
+            let q = foot + up * lift;
+            let at_f64 = super::spline_point_incidence_as("pin", &plain, q, band);
+            let at_dual =
+                super::spline_point_incidence_as("pin", &dual, q.map(Dual64::variable), band);
+            let (f, d) = (format!("{at_f64:?}"), format!("{at_dual:?}"));
+            assert_eq!(
+                f, d,
+                "({u}, {v}) lifted {lift}: the dual reads what f64 reads"
+            );
+            match at_f64 {
+                Ok(super::Incidence::On(_)) => on += 1,
+                Ok(super::Incidence::Off(_)) => off += 1,
+                Err(_) => refused += 1,
+            }
+        }
+    }
+    assert!(
+        on > 0 && off > 0 && refused > 0,
+        "the fixtures read on {on}, off {off}, refused {refused}"
+    );
+}
