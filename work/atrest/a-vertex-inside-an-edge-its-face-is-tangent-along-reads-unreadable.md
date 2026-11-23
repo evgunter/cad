@@ -32,15 +32,23 @@ other along a ray. That is `B`'s wall, read along its edge on both
 sides (`census::tangent_sectors`' edge fans), on `A`'s hole wall,
 which is tangent to it along the ruling. It answers `Unreadable`.
 
-## Not new with the wrap edge
+## Two witnesses, one gap
 
-The same cell with `B` built from two arcs (its seam an edge between
-two distinct wall faces) reads the identical finding on the base
-already, where the join has always taken the station at `z = 0`. Only
-the one-segment `B` read SOUND before. That was because its station
-stayed unjoined: the join's predicate refused a station on a wrap edge
-(`work/lathe/a-station-on-a-wrap-edge-is-not-joinable-and-passes-check-11.md`),
-so the vertex/vertex touch there was read at two corners instead.
+- **Already undecided before the wrap-edge fix**: the same cell with
+  `B` built from two arcs, so that its seam is an edge between two
+  distinct wall faces. The join has always taken that seam's station
+  at `z = 0`, and tier 3′ reads the identical finding there. Measured
+  on LATHE's base `lathe/full-revolve-one-band`, which builds this
+  extrusion as main does.
+- **Newly reached**: the one-segment `B`, whose seam is its one wall's
+  wrap edge. It read SOUND only because its station stayed unjoined:
+  the join's predicate refused a station on a wrap edge
+  (`work/lathe/a-station-on-a-wrap-edge-is-not-joinable-and-passes-check-11.md`),
+  so the touch read vertex/vertex at two corners of a non-maximal
+  body. PR 7532 makes the join take it. So a class of extruded-cylinder
+  internal tangencies, a seam on the tangent ruling with a rim vertex
+  touching it, now reaches this gap where it used to build a
+  non-canonical body read SOUND.
 
 ## Witness
 
@@ -50,5 +58,6 @@ there as this limit.
 
 ## Done when
 
-Those cells read SOUND, and their pin goes. So does the two-arc `B`
-cell, which no row pins yet.
+Those cells read SOUND, and their pin
+(`sound_or_unread_self_touch`) goes. The two-arc `B` cell reads SOUND
+too, though no row pins it yet.
