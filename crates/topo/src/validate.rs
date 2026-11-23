@@ -3333,6 +3333,10 @@ pub enum UncoveredCause {
     /// The face's spline surface is described, and its control net holds
     /// a value that is not a number.
     PoisonedNet,
+    /// The face's spline surface stores a control point that is not a
+    /// finite number (an infinity: a net carrying poison is
+    /// [`Self::PoisonedNet`]).
+    InfiniteNet,
     /// The face's surface stores this datum, which is not a finite
     /// number (the first such, in the kind's datum order).
     Datum(geom::SurfaceKind, geom::SurfaceDatum),
@@ -3377,6 +3381,9 @@ impl UncoveredCause {
             };
         }
         if carrier.iter().any(|(_, u)| *u == Unknown::NonFinite) {
+            if matches!(surface, Surface::Nurbs(_) | Surface::Approx(_)) {
+                return Self::InfiniteNet;
+            }
             return poisoned_datums(surface)
                 .first()
                 .map_or(Self::Unnamed(kind), |&datum| Self::Datum(kind, datum));
@@ -3404,6 +3411,12 @@ impl UncoveredCause {
             ),
             Self::PoisonedNet => (
                 "a face's surface description holds invalid numbers, so it describes no shape"
+                    .to_owned(),
+                DEFECT,
+            ),
+            Self::InfiniteNet => (
+                "a face's surface description stores a control point that is not a finite \
+                 number, so it describes no shape"
                     .to_owned(),
                 DEFECT,
             ),

@@ -391,6 +391,12 @@ fn past_its_carriers<T: Decide>(
         .flat_map(|(face, _)| crate::cover::face_extreme_points(body, face, band))
         .map(|q| (q - origin).norm_inf())
         .fold(points, T::max);
+    // A point that is no finite number is no point past the box: moving
+    // the geometry is no way through it, so the faces it leaves with no
+    // cover say why instead.
+    if !inside.is_bounded() {
+        return Err(unshown);
+    }
     match past(crate::validate::decide_reported(
         SESSION_BOX_POINT,
         box_margin(inside),
@@ -805,6 +811,12 @@ mod tests {
     /// - a brick with one vertex at NaN: its three faces, each "an end
     ///   vertex of the edge is not a finite point, on the boundary of a
     ///   face", the defect ending.
+    /// - the same brick with the vertex at `+∞`: the same three findings,
+    ///   not "past the box": a point that is no finite number is no
+    ///   point past it, and moving the geometry is no way through;
+    /// - a brick with one face's surface a described net holding an
+    ///   infinite control point: "stores a control point that is not a
+    ///   finite number", the defect ending.
     ///
     /// A lone-vertex loop whose point is NaN never reaches the box: tier 2
     /// refuses it as scaffolding first, as it does a face no loop bounds
@@ -847,6 +859,17 @@ mod tests {
         let mut edge = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
         let corner = edge.vertices().next().unwrap().1.point;
         *edge.points.get_mut(corner).unwrap() = Point3::new(f64::NAN, 0.0, 0.0);
+        let mut far = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let corner = far.vertices().next().unwrap().1.point;
+        *far.points.get_mut(corner).unwrap() = Point3::new(f64::INFINITY, 0.0, 0.0);
+        let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let mut control: Vec<Point3<f64>> = (0..4)
+            .map(|i| Point3::new(f64::from(i % 2), f64::from(i / 2), 0.0))
+            .collect();
+        control[2].y = f64::INFINITY;
+        let infinite = swap(Surface::Nurbs(std::sync::Arc::new(
+            geom::NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 4]).unwrap(),
+        )));
         let defect = geom_core::KERNEL_OR_FILE_DEFECT_ENDING;
         let records = Default::default();
         for (what, body, faces, says, ends) in [
@@ -876,6 +899,20 @@ mod tests {
                 &axis,
                 1,
                 "a cylindrical face's surface stores an axis that is",
+                defect,
+            ),
+            (
+                "the infinitely cornered brick",
+                &far,
+                3,
+                "an end vertex of the edge is not a finite point, on the boundary of a face",
+                defect,
+            ),
+            (
+                "the described net holding an infinity",
+                &infinite,
+                1,
+                "a face's surface description stores a control point that is not a finite number",
                 defect,
             ),
             (
