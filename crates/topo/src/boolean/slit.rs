@@ -1249,11 +1249,6 @@ pub(super) const RIDER_ON_CURVED: &str = "bool_rider_on_curved";
 /// tube and then its ring ([`geom_brep::variety::Variety::of`]).
 const RIDER_RING_TORUS: geom::RingSites = geom::RingReader::BooleanRider.sites();
 
-/// The site [`carrier_on_surface`] decides a spiric's plane against a
-/// plane face's under: their tilt over the spiric's reach, then the
-/// spiric's plane's height.
-const RIDER_SPIRIC_PLANE: &str = "bool_rider_spiric_plane";
-
 /// The site [`clears_plane`] decides a spline's control point beyond a
 /// plane under.
 const RIDER_HULL_OFF: &str = "bool_rider_hull_off_plane";
@@ -1307,9 +1302,9 @@ pub(super) enum Placed {
 /// offset is decided on the band ([`RIDER_ON_PLANE`], [`RIDER_ON_CURVED`]),
 /// every point before the answer, and one definitely off reads it off.
 ///
-/// A spiric lies in its own plane, so against a plane it reads as a conic
-/// does, by the two planes' tilt over its reach and then its plane's
-/// height ([`RIDER_SPIRIC_PLANE`]). A spline can lie on a surface along
+/// A spiric lies in its own plane, so against a plane it reads by the
+/// spiric × plane arm's pose ([`geom_brep::curve_face::pose()`]): on where
+/// it lies, off otherwise. A spline can lie on a surface along
 /// part of its length only, so no point of it read off says it lies there
 /// along no piece: it reads off only where it is certified off over its
 /// whole length ([`clears_plane`], a plane's). A spiric lies along no
@@ -1443,41 +1438,27 @@ fn conic_or_line_on<T: Decide>(
         ) => {
             return spiric_on_curved(carrier, (t0, t1), offset, surface, band);
         }
-        // A spiric lies in its own plane, so against a plane it reads as a
-        // conic does: in it where the two planes are one, and otherwise
-        // meeting it at four points at most.
-        (
-            &geom::Curve3::Spiric {
-                frame: spiric_frame,
-                major_radius,
-                minor_radius,
-                offset,
-                ..
-            },
-            &geom::Surface::Plane {
-                frame: plane_frame, ..
-            },
-        ) => {
-            let (center, u_ref) = (spiric_frame.origin(), spiric_frame.u_ref());
-            let (origin, normal) = (plane_frame.origin(), plane_frame.axis());
-            let (n, u) = (normal.normalize(), u_ref.normalize());
-            let refused = |diag| {
-                BooleanError::coincidence(Coincide::EdgeOnPlane, DeclarationRead::Moot, diag)
-            };
-            let tilt = n.cross(u).norm() * (major_radius + minor_radius);
-            return match crate::validate::decide(RIDER_SPIRIC_PLANE, Margin::of(tilt), band)
-                .map_err(refused)?
-            {
-                Sign::Zero => {
-                    let height = (center + u * offset - origin).dot(n);
-                    match crate::validate::decide(RIDER_SPIRIC_PLANE, Margin::of(height), band)
-                        .map_err(refused)?
-                    {
-                        Sign::Zero => Ok(Placed::On),
-                        Sign::Positive | Sign::Negative => Ok(Placed::Off),
-                    }
+        // A carrier the table reads by the spiric × plane door: its pose,
+        // in the plane where it lies and otherwise meeting it at four
+        // points at most.
+        _ if geom_brep::curve_face::route(carrier.kind(), surface.kind()).door
+            == geom_brep::curve_face::Door::SpiricPlane =>
+        {
+            use geom_brep::curve_face::{Pose, PoseRefusal};
+            let span = geom_brep::curve_pair::Span::new(carrier, (t0, t1));
+            return match geom_brep::curve_face::pose(&span, surface, band) {
+                Ok(Pose::Lies) => Ok(Placed::On),
+                Ok(Pose::Apart | Pose::Tangent(_) | Pose::Isolated(_) | Pose::Through(_)) => {
+                    Ok(Placed::Off)
                 }
-                Sign::Positive | Sign::Negative => Ok(Placed::Off),
+                Err(PoseRefusal::InBand { diag, .. }) => Err(BooleanError::coincidence(
+                    Coincide::EdgeOnPlane,
+                    DeclarationRead::Moot,
+                    diag,
+                )),
+                Err(refusal) => unreachable!(
+                    "the spiric × plane arm refuses a minted spiric only in band: {refusal:?}"
+                ),
             };
         }
         (geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_), _)

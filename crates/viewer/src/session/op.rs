@@ -26,7 +26,7 @@ use crate::display::PruneReport;
 use crate::layout::LayoutReport;
 use crate::props::SlotValue;
 use crate::session::author::{PartSelectSpec, PatternRuleSpec};
-use crate::session::probe::BoundsTarget;
+use crate::session::range::RangeTarget;
 use crate::session::refuse::Refusal;
 use crate::session::select::{FaceSelection, Hovered, Selection};
 
@@ -101,28 +101,19 @@ pub enum SessionOp {
         /// The new value.
         value: SlotValue,
     },
-    /// Take a locally-valid-range probe for one field: how far it can
-    /// move, in each direction, before the document acquires a failure
-    /// it does not have now.
+    /// **`range?`**: start the certified search of one field — over
+    /// which interval around its current value the document is PROVABLY
+    /// the same build ([`super::DocSession::range`]).
     ///
-    /// **Explicitly asked for, never automatic.** The probe costs tens
-    /// of evaluations (`bounds`'s cost note), which is a price worth
-    /// paying when a user is about to change a number and not worth
-    /// paying on every selection. The answer lands in the session
-    /// ([`super::DocSession::bounds`]) and is discarded on the next document
-    /// change.
-    ///
-    /// It changes no document, commits nothing and enters no history:
-    /// every candidate is applied to a scratch copy that is dropped.
-    ///
-    /// A slot driven by an expression is refused, exactly as
-    /// [`SessionOp::BeginGesture`] refuses it: the range would be how far
-    /// a number can move a slot whose number nothing moves until an
-    /// entry replaces the expression. The affordance names the driving
-    /// variables, which are the fields to probe instead.
-    ProbeBounds {
-        /// The field to probe.
-        target: BoundsTarget,
+    /// It runs on its own seam, off the frame, and its busy state is
+    /// not [`super::DocSession::busy`]'s. It changes no document, commits
+    /// nothing and enters no history. An edit, a value gesture or
+    /// another `range?` stops the run and drops its reading; a request
+    /// the kernel's admission refuses is refused here in its words
+    /// ([`super::DocSession::range_refusal`]).
+    ProveRange {
+        /// The field to search.
+        target: RangeTarget,
     },
     /// Change how a slot's literal is WRITTEN — its display unit —
     /// leaving the canonical value bit-identical.
@@ -378,6 +369,9 @@ pub enum SessionOp {
     Redo,
     /// Cancel the evaluation in flight.
     CancelEvaluation,
+    /// Stop the `range?` run in flight, keeping what it has proven.
+    /// Nothing in flight is nothing to stop.
+    StopRange,
     /// Ask for the current document to be evaluated again.
     ///
     /// The pair to [`SessionOp::CancelEvaluation`], and the only way
@@ -1336,7 +1330,7 @@ impl SessionOp {
             | Self::SetSlot { .. }
             | Self::SetSlotVariable { .. }
             | Self::DeclineOffer { .. }
-            | Self::ProbeBounds { .. }
+            | Self::ProveRange { .. }
             | Self::SetSlotUnit { .. }
             | Self::SetSlotExpression { .. }
             | Self::SetVariable { .. }
@@ -1355,6 +1349,7 @@ impl SessionOp {
             | Self::Undo
             | Self::Redo
             | Self::CancelEvaluation
+            | Self::StopRange
             | Self::Reevaluate
             | Self::Open(_)
             | Self::Save(_)
@@ -1415,7 +1410,7 @@ impl SessionOp {
             | Self::SetSlot { .. }
             | Self::SetSlotVariable { .. }
             | Self::DeclineOffer { .. }
-            | Self::ProbeBounds { .. }
+            | Self::ProveRange { .. }
             | Self::SetSlotUnit { .. }
             | Self::SetSlotExpression { .. }
             | Self::SetVariable { .. }
@@ -1427,6 +1422,7 @@ impl SessionOp {
             | Self::Undo
             | Self::Redo
             | Self::CancelEvaluation
+            | Self::StopRange
             | Self::Reevaluate
             | Self::Open(_)
             | Self::Save(_)
@@ -1616,7 +1612,7 @@ impl SessionOp {
     /// the document, the history or the file the drag is previewing
     /// against — stated as "all but one" rather than as a count,
     /// because the count is a property of the enum and goes stale the
-    /// day an operation joins it. [`SessionOp::ProbeBounds`] is the
+    /// day an operation joins it. [`SessionOp::ProveRange`] is the
     /// exception and moves none of them: it READS the shown document,
     /// which
     /// mid-drag is the scratch, so a range taken there would be a
@@ -1633,6 +1629,7 @@ impl SessionOp {
             | Self::CommitVariableGesture { .. }
             | Self::CancelGesture
             | Self::CancelEvaluation
+            | Self::StopRange
             | Self::Reevaluate
             | Self::Save(_)
             | Self::SetBodyOn { .. }
@@ -1649,7 +1646,7 @@ impl SessionOp {
             | Self::IntoOwnSpace { .. }
             | Self::SetSlot { .. }
             | Self::SetSlotVariable { .. }
-            | Self::ProbeBounds { .. }
+            | Self::ProveRange { .. }
             | Self::SetSlotUnit { .. }
             | Self::SetSlotExpression { .. }
             | Self::SetVariable { .. }
@@ -1768,6 +1765,7 @@ impl SessionOp {
             | Self::CommitVariableGesture { .. }
             | Self::CancelGesture
             | Self::CancelEvaluation
+            | Self::StopRange
             | Self::Reevaluate
             | Self::Save(_)
             | Self::SaveAsNewDocument(_)
@@ -1783,7 +1781,7 @@ impl SessionOp {
             | Self::SetSlot { .. }
             | Self::SetSlotVariable { .. }
             | Self::DeclineOffer { .. }
-            | Self::ProbeBounds { .. }
+            | Self::ProveRange { .. }
             | Self::SetSlotUnit { .. }
             | Self::SetSlotExpression { .. }
             | Self::SetVariable { .. }
@@ -1866,6 +1864,7 @@ impl SessionOp {
             | Self::CommitVariableGesture { .. }
             | Self::CancelGesture
             | Self::CancelEvaluation
+            | Self::StopRange
             | Self::Reevaluate
             | Self::Save(_)
             | Self::SaveAsNewDocument(_)
@@ -1881,7 +1880,7 @@ impl SessionOp {
             | Self::SetSlot { .. }
             | Self::SetSlotVariable { .. }
             | Self::DeclineOffer { .. }
-            | Self::ProbeBounds { .. }
+            | Self::ProveRange { .. }
             | Self::SetSlotUnit { .. }
             | Self::SetSlotExpression { .. }
             | Self::SetVariable { .. }

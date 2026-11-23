@@ -84,26 +84,18 @@
 //!   rows above, over the loop's STRAIGHT edges.
 //! - **`point_in_arc_loop_arm`**: the schedule gate, with the curved
 //!   edges' covers' reach in the extent.
-//! - **`point_in_arc_loop_reach`**: a ray's clearance from a spiric
-//!   piece's ball, less its reach, where anything undecided halves the
-//!   piece.
 //! - **`point_in_arc_loop_spiric_{end,clear,on,leaf}`**: the boundary
 //!   reading of a spiric edge ([`PiecedArc::contact`] on a
 //!   [`SpiricArc`]) — the distance to an end, a piece's ball's clearance
 //!   from the point, the distance to a point of the arc, and a piece's
 //!   own radius, which ends the halving.
-//! - **`point_in_arc_loop_spiric_{side,turn,advance}`**: a ray's
-//!   crossing of a spiric piece ([`PiecedArc::crossings`]) — an end's
-//!   offset from the ray line, the piece's monotonicity margin, and its
-//!   ball's advance along the ray — where anything undecided halves the
-//!   piece, and a piece still unsettled at the depth grazes the ray.
 //! - **`point_in_arc_loop_spline_{end,clear,on,leaf}`**: the boundary
 //!   reading of a spline edge ([`PiecedArc::contact`] on a
 //!   [`SplineArc`]) — the distance to an end, a piece's control ball's
 //!   clearance from the point, the distance to the piece's start point,
 //!   and the control ball's own radius, which ends the halving.
 //! - **`point_in_arc_loop_spline_{side,turn,advance}`**: a ray's
-//!   crossing of a spline piece ([`PiecedArc::crossings`]) — a control
+//!   crossing of a spline piece ([`PiecedCrossing::crossings`]) — a control
 //!   point's offset from the ray line, a step of those offsets along the
 //!   control polygon, and a control point's advance along the ray —
 //!   where anything undecided halves the piece, and a piece still
@@ -118,9 +110,10 @@
 //!   lower bound `curve_carrier_clear`, the ellipse's Hessian-bounded
 //!   root, the two straddling on `curve_carrier_straddle`), and the span's
 //!   reading of its ends (`curve_pair_span_end_*`).
-//! - **A ray's crossing of a conic arc** ([`conic_crossings`]) is a
-//!   co-surface pair's (C5): the arc across the ray's square plane through
-//!   `geom_brep`'s co-surface arm, on the curve × face pose's and
+//! - **A ray's crossing of a conic or a spiric arc** ([`arc_crossings`])
+//!   is a co-surface pair's (C5): the arc across the ray's square plane
+//!   through `geom_brep`'s co-surface arm (a spiric's through the
+//!   spiric × plane door), on the curve × face pose's and
 //!   crossing's rows (`curve_face_pose_*`, `curve_face_cross_*`, the
 //!   root's place on the arc's span included),
 //!   then **`point_in_arc_loop_conic_advance`**, the root's distance
@@ -145,7 +138,7 @@ use crate::entity::{EdgeKey, EntityId, LoopBoundary, LoopKey};
 use crate::geometry::SurfaceKey;
 use crate::live::proven;
 use crate::ray_walk::{self, ParityRows, RayFault};
-use crate::splitting::pieced_arc::{ArcHit, ArcRefusal, PiecedArc};
+use crate::splitting::pieced_arc::{ArcHit, ArcRefusal, PiecedArc, PiecedCrossing};
 use crate::splitting::spiric_arc::{Oval, SpiricArc};
 use crate::splitting::spline_arc::SplineArc;
 use crate::validate::decide;
@@ -794,11 +787,10 @@ fn walk_schedule<T: Decide>(
 /// boundary pre-pass and the straddle count, [`ParityRows`]' four —
 /// kept apart from [`point_in_vertex_polygon`]'s so the two walks'
 /// populations stay separable. Its own rows, written at their `decide` calls:
-/// `point_in_arc_loop_arm` (the schedule gate), `point_in_arc_loop_reach`
-/// (a spiric piece's ball's clearance from a ray), and the
-/// conic arm's `point_in_arc_loop_conic_{span,advance,in_plane}` beside
-/// the curve × face pose's and crossing's (`curve_face_pose_*`,
-/// `curve_face_cross_*`, [`conic_crossings`]).
+/// `point_in_arc_loop_arm` (the schedule gate), and the conic and spiric
+/// arcs' `point_in_arc_loop_conic_{span,advance,in_plane}` beside the
+/// curve × face pose's and crossing's (`curve_face_pose_*`,
+/// `curve_face_cross_*`, [`arc_crossings`]).
 const ARC_LOOP_ROWS: ParityRows = crate::rows::ARC_LOOP;
 
 pub(crate) use crate::rows::ConicRows;
@@ -1247,7 +1239,7 @@ impl<T: Decide> CarrierLoop<T> {
 /// `i + 1`) with its key and on its own carrier.
 pub(crate) struct CarrierLoop<T: geom_core::Real> {
     /// The surface record of the loop's face: what its edges are keyed by
-    /// where the walk reads one against its ray ([`conic_crossings`]).
+    /// where the walk reads one against its ray ([`arc_crossings`]).
     face: SurfaceKey,
     /// The vertices' points.
     pub(crate) verts: Vec<Point3<T>>,
@@ -1612,11 +1604,10 @@ enum Boundary<'a> {
 /// - **Spiric and spline arcs**: the boundary pass reads the arc by
 ///   halving it until every piece's ball is definitely clear of the
 ///   point, or a point of the arc is within the band of it
-///   ([`PiecedArc::contact`]), and each ray counts its crossings piece by
-///   piece ([`PiecedArc::crossings`]). A spiric piece is settled when its
-///   ball misses the ray or when its offset from the ray line is
-///   definitely monotone across it ([`super::spiric_arc`]); a spline
-///   piece when its control points all lie definitely on one side of the
+///   ([`PiecedArc::contact`]). A ray counts a spiric arc's crossings as a
+///   conic's, across the ray's square plane ([`arc_crossings`]), and a
+///   spline's piece by piece ([`PiecedCrossing::crossings`]): a spline
+///   piece is settled when its control points all lie definitely on one side of the
 ///   ray line or behind the point, or when their offsets from the ray
 ///   line are definitely monotone ([`super::spline_arc`]). A ray with a
 ///   piece still unsettled at the depth grazes; a boundary reading that
@@ -1655,11 +1646,17 @@ enum Boundary<'a> {
 /// - **Conics.** A conic's crossing reads the ray `q + d·t` in the
 ///   conic's own frame, which does not read `n̂ × d`. The boundary
 ///   pre-pass reads no normal at all.
-/// - **Spiric and spline pieces.** Every offset from the ray line along
-///   `n̂ × d` is negated: the side rows and a spiric's distance from the
-///   ray are symmetric in it; a spiric's turn row reads `|s_b − s_a|`;
-///   a spline's control offsets all of one sign, or all steps of one
-///   sign, swap that sign; and two ends on one side stay on one side.
+/// - **Spirics.** A spiric's crossing reads the ray's square plane, of
+///   normal `n̂ × d`: the same plane either way, its tilt off the oval's
+///   plane read as a norm and its height negated. The line where the two
+///   planes meet has the same point and runs the other way, so the line
+///   × torus ladder's odd coefficient is negated, which swaps its two
+///   factors' linear terms and negates each root exactly: the same
+///   points, the same tube angles.
+/// - **Spline pieces.** Every offset from the ray line along `n̂ × d` is
+///   negated: the side rows are symmetric in it; a spline's control
+///   offsets all of one sign, or all steps of one sign, swap that sign;
+///   and two ends on one side stay on one side.
 ///
 /// Negation is exact, so **the verdict is bit-identical either way**,
 /// and a refusal is identical in variant, predicate and band. One thing
@@ -1881,14 +1878,23 @@ fn carrier_walk<T: Decide>(
             for (i, edge) in edges.iter().enumerate() {
                 crossings += match edge {
                     LoopEdge::Conic(k) => RayFault::of(
-                        conic_crossings(lp.face, k, on_carrier[i], normal, q, d, band),
+                        arc_crossings(
+                            lp.face,
+                            (&k.carrier, k.span),
+                            on_carrier[i],
+                            normal,
+                            q,
+                            d,
+                            band,
+                        ),
+                        escalate,
+                    )?,
+                    LoopEdge::Spiric(k) => RayFault::of(
+                        k.crossings(lp.face, on_carrier[i], normal, (q, d), band),
                         escalate,
                     )?,
                     // A piece still unsettled at the depth is a graze, or a
-                    // crossing at a piece's end ([`PiecedArc::crossings`]).
-                    LoopEdge::Spiric(k) => {
-                        k.crossings(q, d, side_axis, band).ok_or(RayFault::Graze)?
-                    }
+                    // crossing at a piece's end ([`PiecedCrossing::crossings`]).
                     LoopEdge::Spline(k) => {
                         k.crossings(q, d, side_axis, band).ok_or(RayFault::Graze)?
                     }
@@ -1958,9 +1964,9 @@ pub(crate) fn loop_reach<T: Decide>(
 ///
 /// The raw [`Indeterminate`] of an in-band margin on any of its rows,
 /// which sets the ray aside ([`ray_walk`]).
-fn conic_crossings<T: Decide>(
+pub(in crate::splitting) fn arc_crossings<T: Decide>(
     face: SurfaceKey,
-    k: &ConicArc<T>,
+    (carrier, span): (&geom::Curve3<T>, (T, T)),
     on_carrier: bool,
     normal: Vec3<T>,
     q: Point3<T>,
@@ -1980,10 +1986,10 @@ fn conic_crossings<T: Decide>(
     let Ok(ray) = SurfaceCurve::u_line(&plane, geom_core::Point2::new(T::zero(), T::zero())) else {
         unreachable!("a plane has its u-lines")
     };
-    let meetings = match OnSurface::edge(face, &k.carrier, k.span).across(&ray, band) {
+    let meetings = match OnSurface::edge(face, carrier, span).across(&ray, band) {
         Ok(CoSurface::Roots(meetings)) => meetings,
-        // Tangent to the conic where a root can reach the arc, or the arc
-        // wholly in the ray's square plane (a conic stood on edge, only
+        // Tangent to the carrier where a root can reach the arc, or the
+        // arc wholly in the ray's square plane (an arc stood on edge, only
         // on the projected read): a graze.
         Ok(CoSurface::Touch | CoSurface::InPlane) => return Ok(None),
         // A count needs every root: a stretch of the arc the reading
@@ -2003,8 +2009,8 @@ fn conic_crossings<T: Decide>(
         Err(AcrossRefusal::OffRecord { edge, curve }) => {
             unreachable!("the walk keys its arc and its ray by one face: {edge:?}, {curve:?}")
         }
-        Err(AcrossRefusal::NoPlane) => {
-            unreachable!("the walk reads its arc across the ray's plane")
+        Err(AcrossRefusal::NoPlane | AcrossRefusal::AgainstTheTable) => {
+            unreachable!("the table reads every edge across the walk's ray's square plane")
         }
     };
     let mut crossings = 0;

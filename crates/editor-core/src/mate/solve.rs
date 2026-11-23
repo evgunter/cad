@@ -112,7 +112,11 @@ pub trait SolveScalar: Decide {
     /// `f64` (or `Probe`) of either sign's zero, an interval `[0, 0]`, a
     /// dual whose value and derivative both are; at `Sym`, its box
     /// lane's point zero alone (never at `Sym<f64>`, whose symbols range
-    /// over every value).
+    /// over every value). It chooses a branch that changes what is built
+    /// (`mate::turn::aligned`), so it answers for the whole of what the
+    /// scalar stands for; [`Self::exactly_zero`] only tightens a box
+    /// lane's reading, and answers false at `f64`, where nothing needs
+    /// tightening.
     fn zero_everywhere(self) -> bool {
         self.quoted() == 0.0 && self.upper() == 0.0
     }
