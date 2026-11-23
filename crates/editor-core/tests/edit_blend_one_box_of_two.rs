@@ -47,7 +47,7 @@ fn two_boxes(label: &str) -> (ProfileDoc, RecipeNodeId) {
     fixture::insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
     )
 }

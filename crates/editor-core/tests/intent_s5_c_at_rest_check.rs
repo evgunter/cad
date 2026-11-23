@@ -556,7 +556,7 @@ fn every_assemble_is_checked_against_nothing_outside_it() {
     let (doc, both) = insert(
         doc,
         Node::Assemble {
-            members: editor_core::Bodies::Spelled(members),
+            members: editor_core::Bodies::spelled(members),
         },
     );
     let (doc, far) = block(doc, 0.2, 0.2);
@@ -616,7 +616,7 @@ fn one_body_assembled_twice_refuses_nothing() {
     let (doc, twice) = insert(
         doc,
         Node::Assemble {
-            members: editor_core::Bodies::Spelled(vec![read.clone(), read]),
+            members: editor_core::Bodies::spelled(vec![read.clone(), read]),
         },
     );
     let doc = crate::fixture::step(
@@ -1105,7 +1105,7 @@ fn a_gap_over_a_pick_of_the_piece_quiets_its_contact() {
         let (doc, seat) = insert(
             doc,
             Node::Assemble {
-                members: Bodies::Spelled(vec![bolt.into(), plate.into()]),
+                members: Bodies::spelled(vec![bolt.into(), plate.into()]),
             },
         );
         let (doc, copy) = place(doc, seat);

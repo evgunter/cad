@@ -460,10 +460,10 @@ fn node_act(kind: &NodeErrorKind) -> NodeAct {
         | K::NotFinished { .. }
         | K::UnfinishedLeaf { .. }
         | K::EmptyHalf { .. }
-        | K::HalfOfAFamily { .. }
         | K::MemberOutOfRange { .. }
         | K::MemberRefused { .. }
-        | K::IndicesUnrelated { .. }
+        | K::TwoBinders { .. }
+        | K::YieldsNothing { .. }
         | K::IndexCount { .. }
         | K::IndexCountOutOfRange { .. }
         | K::NoSuchPiece { .. }
