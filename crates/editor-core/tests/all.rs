@@ -697,6 +697,8 @@ mod switch_program_key;
 mod switch_program_vocabulary;
 #[path = "switch_slots.rs"]
 mod switch_slots;
+#[path = "the_tours_die_with_two_pips_run_together_refuses_their_turned_seam.rs"]
+mod the_tours_die_with_two_pips_run_together_refuses_their_turned_seam;
 #[path = "trim_3_windows_interval.rs"]
 mod trim_3_windows_interval;
 #[path = "u8a_parse.rs"]

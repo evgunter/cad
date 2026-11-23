@@ -47,3 +47,49 @@ refusal, as a row; and the lineage invariant the `unreachable!` states
 is either held by construction or its failure is typed.
 
 (BOXFINISH orchestrator)
+
+## 2026-11-23 — measured: the lineage never read the re-chart
+
+Re-run on `origin/main` (`f64`, `Tol::witness()`, the reviewer's edit
+`value + max(|value|, 1) × 0.3`, no prior). All eight edits panic with
+the quoted text, at `MemberLineage::of` reached from
+`MemberLineage::step` (`crates/topo/src/boolean/nary.rs`), inside the
+`Node::Union` of the 21 pip balls (`editor_core::eval::wire::fold_members`
+→ `topo::nary_placed` → `run_members`). The document's other 42
+variables at a nominal of 0.28 or 0.5 do not panic at the same move
+(the rest were not re-run).
+
+**Which face, which stage.** For `#129` the panic is at the step
+joining member 3. The accumulation entering it has faces
+`1v1 … 6v1`; the step's naming has `a_keys: Direct`, and its
+`face_fragments_a` rows divide `4v3` and `3v3`, keys the accumulation
+does not hold. The result face `4v3` roots to itself, `7v3` to `3v3`.
+Those keys were minted by the sphere re-chart: the joining pip's ball
+crosses an accumulated ball, the extent scan asks for a re-chart
+(`Recuts::rechart`), `apply_recuts` turns that ball's shell about its
+centre, and the pair door re-enters on the turned operands
+(`boolean_op_recut`). Its naming records, in `recharted[0]`, every
+turned cell with the input shell's faces it was turned over.
+
+**Why the invariant failed.** `MemberLineage::step` rooted each result
+face through `FaceDescent::result_face` alone (graft rows, fragment
+rows), which stops at the turned face; it never read `recharted`.
+`Holdings::of_records` reads the same naming and does read `recharted`
+(its `input` closure), so the step's holdings were right and its lineage
+was not. On operand B the same gap is silent: a turned face of the
+joining member was entered as `(member, turned key)`, a member face that
+names nothing of the member.
+
+**Is the edited die buildable.** The variables are pip-centre
+coordinates (`0.5 − 0.22 = 0.28`; `0.5`). Each move puts one pip's ball
+0.08 from a neighbour's (radius 0.09 each), so two dimples run into one
+— a part a user can draft by dragging one pip, and a solid: the cube
+less a union of overlapping balls. The row is P0 by its own test.
+
+**After the fix** (the lineage reads each turned face as its input
+shell's faces, `FaceDescent::input_faces`): each of the eight edits
+evaluates; the union refuses typed,
+`Naming(UnsupportedTurnedCell { cell: Edge(_) })`, the turned-seam
+refusal ORBIT's re-chart row owns
+(`work/orbit/closed-sphere-escape-is-re-charted-by-rotation-beside-the-meridian-cut.md`),
+and the cut and fillets downstream are poisoned.

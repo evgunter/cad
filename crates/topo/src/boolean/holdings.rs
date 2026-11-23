@@ -312,14 +312,13 @@ impl Holdings {
         let descent = FaceDescent::of(naming);
         let place = |operand: Operand| usize::from(operand == Operand::B);
         let root = |operand: Operand, f: FaceKey| (place(operand), descent.clone_face(operand, f));
-        // The operand faces a root is: itself, or, for a face of a sphere
-        // shell a re-chart turned, the faces of the input shell it was
-        // turned over (`BooleanNaming::recharted`), any of which its
-        // region may meet.
         let input = |(p, r): MemberFace| -> Vec<MemberFace> {
-            naming.recharted[p]
-                .input_faces(super::Cell::Face(r))
-                .map_or_else(|| vec![(p, r)], |fs| fs.iter().map(|&f| (p, f)).collect())
+            let operand = if p == 0 { Operand::A } else { Operand::B };
+            descent
+                .shell_faces(operand, r)
+                .into_iter()
+                .map(|f| (p, f))
+                .collect()
         };
         let merged = descent.merged();
         // Every face of the result before the merge, with the operand face

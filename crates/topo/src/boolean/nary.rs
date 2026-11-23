@@ -181,21 +181,17 @@ impl MemberLineage {
         })
     }
 
-    /// **The member faces an operand face of the step joining `member`
-    /// to this accumulation descends from**: an accumulation face's
-    /// lineage for operand A, the member's own face for operand B. `f`
-    /// is a root face in that operand's keys ([`FaceDescent`]).
+    /// **The member faces an input face of the step joining `member` to
+    /// this accumulation descends from**: an accumulation face's lineage
+    /// for operand A, the member's own face for operand B. `f` is a face
+    /// of that operand as the step was given it
+    /// ([`FaceDescent::input_faces`]).
     ///
     /// # Panics
     ///
     /// Where an operand-A face has no lineage here.
     #[track_caller]
-    pub(crate) fn operand_faces(
-        &self,
-        member: usize,
-        operand: Operand,
-        f: FaceKey,
-    ) -> BTreeSet<MemberFace> {
+    fn operand_faces(&self, member: usize, operand: Operand, f: FaceKey) -> BTreeSet<MemberFace> {
         match operand {
             Operand::A => self.of(f).clone(),
             Operand::B => BTreeSet::from([(member, f)]),
@@ -206,14 +202,16 @@ impl MemberLineage {
     /// this accumulation with the naming `naming`.
     fn step<T: Real>(&self, member: usize, naming: &BooleanNaming, result: &Body<T>) -> Self {
         let descent = FaceDescent::of(naming);
-        let from = |(operand, f): (Operand, FaceKey)| self.operand_faces(member, operand, f);
         let merged = descent.merged();
         let faces = result
             .faces()
             .map(|(f, _)| {
                 let mut set = BTreeSet::new();
                 for &g in merged.get(&f).map_or(&[f][..], Vec::as_slice) {
-                    set.extend(from(descent.result_face(g)));
+                    let (operand, inputs) = descent.input_faces(g);
+                    for k in inputs {
+                        set.extend(self.operand_faces(member, operand, k));
+                    }
                 }
                 (f, set)
             })
@@ -239,7 +237,10 @@ impl<'n> FaceDescent<'n> {
         }
     }
 
-    /// The operand face result face `f` descends from. A merged face
+    /// The operand face result face `f` is a piece of, in the keys of the
+    /// operand the op ran on: where a re-chart turned that face's sphere
+    /// shell first, the turned face, which names no face of the input
+    /// ([`FaceDescent::input_faces`] reads it back). A merged face
     /// descends from each face it absorbed as well: see
     /// [`FaceDescent::merged`].
     ///
@@ -250,6 +251,27 @@ impl<'n> FaceDescent<'n> {
     pub fn result_face(&self, f: FaceKey) -> (Operand, FaceKey) {
         let (operand, k, _) = self.naming.operand_of(&self.inv_faces, f);
         (operand, self.clone_face(operand, k))
+    }
+
+    /// **The faces of the op's input result face `f` descends from**: its
+    /// [`FaceDescent::result_face`], or, where a re-chart turned that
+    /// face's sphere shell, every face of the input shell
+    /// ([`FaceDescent::shell_faces`]).
+    #[track_caller]
+    pub fn input_faces(&self, f: FaceKey) -> (Operand, Vec<FaceKey>) {
+        let (operand, root) = self.result_face(f);
+        (operand, self.shell_faces(operand, root))
+    }
+
+    /// The faces of the op's input that `root`, a face of `operand` as
+    /// the op ran on it, stands for: itself, or, for a face of a sphere
+    /// shell a re-chart turned (`BooleanNaming::recharted`), the faces of
+    /// the input shell it was turned over, any of which its region may
+    /// meet.
+    pub fn shell_faces(&self, operand: Operand, root: FaceKey) -> Vec<FaceKey> {
+        self.naming.recharted[usize::from(operand == Operand::B)]
+            .input_faces(super::Cell::Face(root))
+            .map_or_else(|| vec![root], <[FaceKey]>::to_vec)
     }
 
     /// The operand face a face in `operand`'s CLONE keys is a fragment
