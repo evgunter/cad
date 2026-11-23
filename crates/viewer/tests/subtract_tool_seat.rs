@@ -97,8 +97,8 @@ fn a_plate_minus_a_pattern_picked_whole_is_one_plate_with_two_holes() {
     );
 }
 
-/// **A viewport pick on a drawn copy is that member**, at the tool seat
-/// as at the body kept, and a further pick adds a tool rather than
+/// **A viewport pick on a drawn copy is that member**, and a further
+/// pick adds a tool rather than
 /// replacing one: the plate cut by member 1 and then by the pattern
 /// whole is the plate with both holes.
 #[test]
