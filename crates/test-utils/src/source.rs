@@ -2648,7 +2648,7 @@ pub fn crate_roster(crate_dir: &std::path::Path) -> Option<Vec<NameCarrier>> {
 /// decided**: each `const NAME: &str` (or tuple or array of them) it
 /// declares. Never a reference site and never an arbitrary literal, so a
 /// hold is only ever a decide-shaped spelling of the name (the coverage
-/// row's `KNOWN_MISSING`). A closed type's table is not held: a roster
+/// row's holds). A closed type's table is not held: a roster
 /// declares it ([`NameCarrier::Table`]) and the census reads it.
 #[must_use]
 pub fn held_spellings(src: &std::path::Path) -> std::collections::BTreeSet<String> {
