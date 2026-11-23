@@ -665,7 +665,8 @@ fn sampled_reach<T: SpanLocate>(
 /// far distance or a coordinate range read off it is exact: on a line
 /// and on a circle arc, on no other kind. The one home of that split,
 /// which [`edge_reach_bounds`] and [`edge_coordinate_reach_below`] both
-/// read.
+/// read; the coordinate range is exact on an ellipse arc too, which
+/// [`edge_coordinate_reach_below`] adds.
 fn cover_is_exact<T: Real>(carrier: &Curve3<T>) -> bool {
     match carrier {
         Curve3::Line(_) | Curve3::Circle(..) => true,
@@ -680,9 +681,10 @@ fn cover_is_exact<T: Real>(carrier: &Curve3<T>) -> bool {
 /// in magnitude than the box). `world_box` is the box the region the edge
 /// occupies spans along the world axes, which the caller reads off that
 /// region (topo reads its edge's cover, `Cover::box_in` at
-/// `BoxAxes::World`). Where the cover is the edge's own
-/// ([`cover_is_exact`]) the box's largest `|coordinate|` is exact;
-/// otherwise, and where there is no box, the samples' largest, each a
+/// `BoxAxes::World`). Where the cover's box is the edge's own coordinate
+/// range (on a line and on a conic arc, a circle's or an ellipse's, whose
+/// cover's support along each axis is its exact extent over the span) the
+/// box's largest `|coordinate|` is exact; otherwise, and where there is no box, the samples' largest, each a
 /// point of the edge. So a missing cover reads the edge's own points,
 /// never poison.
 pub fn edge_coordinate_reach_below<T: SpanLocate>(
@@ -691,16 +693,14 @@ pub fn edge_coordinate_reach_below<T: SpanLocate>(
     world_box: Option<(Point3<T>, Point3<T>)>,
 ) -> T {
     let origin = Point3::origin();
-    match (world_box.filter(|_| cover_is_exact(carrier)), carrier) {
-        (Some(world_box), _) => box_reach(world_box),
-        (None, Curve3::Ellipse(e)) => ellipse_extremes(e, carrier, span)
-            .into_iter()
-            .map(|x| (x - origin).norm_inf())
-            .fold(
-                sampled_reach(carrier, span, |x| (x - origin).norm_inf()),
-                T::max,
-            ),
-        (None, _) => sampled_reach(carrier, span, |x| (x - origin).norm_inf()),
+    // A conic arc's cover is bounded by its exact support along each
+    // direction (the sinusoid's extent over the span), so its box along
+    // the world axes is the arc's own coordinate range, an ellipse's as a
+    // circle's; only its distance reads are not exact.
+    let exact = cover_is_exact(carrier) || carrier.conic().is_some();
+    match world_box.filter(|_| exact) {
+        Some(world_box) => box_reach(world_box),
+        None => sampled_reach(carrier, span, |x| (x - origin).norm_inf()),
     }
 }
 
@@ -711,37 +711,6 @@ pub fn edge_coordinate_reach_below<T: SpanLocate>(
 pub fn box_reach<T: Real>((lo, hi): (Point3<T>, Point3<T>)) -> T {
     let origin = Point3::origin();
     (lo - origin).norm_inf().max((hi - origin).norm_inf())
-}
-
-/// **An ellipse arc's points where a world coordinate is stationary**:
-/// along axis `i`, `o_i + a·u_i·cos θ + b·v_i·sin θ` is stationary at
-/// `θ = atan2(b·v_i, a·u_i) + kπ`, so its extremes over the span are
-/// there or at the span's ends. For each axis, the first three such `θ`
-/// at or past the span's start, each held in the span by `min`/`max`
-/// (a lattice clamp, so every point read is a point of the arc, the
-/// span's end where the stationary point falls past it): an arc of up to
-/// a turn and a half meets no more. `carrier` is the ellipse `e` as a
-/// curve, read through [`Curve3::eval`].
-fn ellipse_extremes<T: SpanLocate>(
-    e: &geom::Ellipse<T>,
-    carrier: &Curve3<T>,
-    (t0, t1): (T, T),
-) -> Vec<Point3<T>> {
-    let (u, v) = (e.frame.u_ref(), e.frame.v_ref());
-    let (a, b) = (e.semi_u(), e.semi_v());
-    let (lo, hi) = (t0.min(t1), t0.max(t1));
-    let pi = T::pi();
-    [(u.x, v.x), (u.y, v.y), (u.z, v.z)]
-        .into_iter()
-        .flat_map(|(ui, vi)| {
-            let off = (b * vi).atan2(a * ui) - lo;
-            let first = lo + (off - pi * (off / pi).floor());
-            (0..3).map(move |k| {
-                let theta = first + pi * T::from_f64(f64::from(k));
-                carrier.eval(theta.max(lo).min(hi))
-            })
-        })
-        .collect()
 }
 
 /// **A lever known exactly, or only between two bounds.** A reading

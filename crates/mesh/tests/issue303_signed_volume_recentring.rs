@@ -142,7 +142,8 @@ fn translation_invariance_1e3_1e6() {
     for offset in [1.0e3, 1.0e6] {
         refused_by_the_session_box(plane_at(offset), &poly, 0.9, &format!("offset {offset:e}"));
     }
-    for (offset, tol) in [(9.0e2, 1e-11)] {
+    {
+        let (offset, tol) = (9.0e2, 1e-11);
         let label = format!("offset {offset:e}");
         let m = mesh_or_typed(plane_at(offset), &poly, 0.9, 1e-2, &label)
             .unwrap_or_else(|| panic!("{label}: the prism inside the box meshes"));

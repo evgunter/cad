@@ -558,9 +558,10 @@ mod tests {
     /// **An ellipse arc whose crest alone is past the box is a point past
     /// it**: an arc of semi-axis `1000.003 m` about the origin whose span
     /// straddles its crest between two of its sixteen samples (each short
-    /// of the box) reads its crest in closed form, 3 mm past the box.
-    /// *Breaks if* the inside read of an ellipse is its samples alone,
-    /// which call the arc a limit.
+    /// of the box) reads its cover's box, which is the arc's own coordinate
+    /// range (its support along each axis is the arc's exact extent), so
+    /// its crest is 3 mm past the box. *Breaks if* the inside read of an
+    /// ellipse is its samples alone, which call the arc a limit.
     #[test]
     fn an_ellipses_crest_between_its_samples_is_a_point_past_the_box() {
         let carrier = Curve3::Ellipse(geom::Ellipse::new(
