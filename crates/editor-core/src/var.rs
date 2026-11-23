@@ -285,8 +285,8 @@ pub struct Index {
     pub seat: IndexSeat,
 }
 
-/// An index read as a file spells it. An index with no seat was
-/// written before binders and refuses typed
+/// An index read as a file spells it. An index with no seat, bare or
+/// nested `within` another, was written before binders and refuses typed
 /// ([`crate::persist::PersistError::IndexBeforeBinders`]).
 impl<'de> serde::Deserialize<'de> for Index {
     fn deserialize<D: serde::Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
@@ -295,11 +295,13 @@ impl<'de> serde::Deserialize<'de> for Index {
         struct Written {
             count: Expr,
             seat: Option<IndexSeat>,
+            /// The nested index of before binders, `index(N) within k`.
+            within: Option<serde::de::IgnoredAny>,
         }
-        let Written { count, seat } = Written::deserialize(de)?;
-        match seat {
-            Some(seat) => Ok(Self { count, seat }),
-            None => {
+        let Written { count, seat, within } = Written::deserialize(de)?;
+        match (seat, within) {
+            (Some(seat), None) => Ok(Self { count, seat }),
+            _ => {
                 crate::persist::refusal::record_index_before_binders();
                 Err(serde::de::Error::custom(
                     "an index written before binders has no seat",

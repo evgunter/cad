@@ -4611,11 +4611,22 @@ impl EditError {
                             tail.recourse(f, format_args!("splice it, `…{var}`"))
                         }
                         // A family at a seat for one: write the binder,
-                        // one node per member.
-                        (VarKind::Bodies, _) => tail.recourse(
-                            f,
-                            format_args!("write a binder, `{{k in {var}: op({var}[k])}}`"),
-                        ),
+                        // one node per member, in the seat's own words.
+                        (VarKind::Bodies, _) => {
+                            let op = node.kind().map_or_else(
+                                || "op".to_owned(),
+                                str::to_lowercase,
+                            );
+                            let held = var.name().map(crate::doc::VarName::as_str);
+                            let k = ["k", "i", "j", "m", "n"]
+                                .into_iter()
+                                .find(|k| held != Some(*k))
+                                .unwrap_or("k");
+                            tail.recourse(
+                                f,
+                                format_args!("write a binder, `{{{k} in {var}: {op}({var}[{k}])}}`"),
+                            )
+                        }
                         _ => tail.recourse(f, format_args!("read {expected} there")),
                     }
                 }
@@ -4853,7 +4864,7 @@ impl EditError {
                     )?;
                     tail.recourse(
                         f,
-                        format_args!("yield {var} from {other}, the binder it stands in"),
+                        format_args!("drop {var} from {binder}'s yields; {other} yields it"),
                     )
                 }
                 YieldsFault::Nothing => {
@@ -5578,9 +5589,10 @@ pub enum Maintenance {
     },
     /// **A yield this edit removed from its binder** (D10
     /// `[repetition]`): the edit removed the variable (its node was
-    /// deleted, or the variable itself), so the binder yields it no
-    /// more. Its readers outside the binder are stranded, and say so
-    /// where they read it.
+    /// deleted, or the variable itself), or a refactoring carried it
+    /// where it reads none of its binder's indices (its reads of them
+    /// stayed behind), so the binder yields it no more. Its readers
+    /// outside the binder say so where they read it.
     YieldRemoved {
         /// The binder, by its first index, spoken from the document the
         /// edit entered.
@@ -5889,7 +5901,8 @@ impl core::fmt::Display for Maintenance {
             }
             Self::YieldRemoved { binder, var } => write!(
                 f,
-                "the edit removed {var}, so {binder}'s binder yields it no more"
+                "{binder}'s binder yields {var} no more: the edit removed it, or carried it \
+                 where it reads none of the binder's indices"
             ),
         }
     }
@@ -6362,6 +6375,11 @@ impl MaintenanceNet {
         self.rows.extend(edit.maintenance.iter().cloned());
     }
 
+    /// Fold in a row the action reports itself, beside its edits' own.
+    pub(crate) fn report(&mut self, row: Maintenance) {
+        self.rows.push(row);
+    }
+
     /// The rows that survive, against `start` — the document the first
     /// pushed edit was applied to — and `end`, the one the last
     /// produced.
@@ -6596,6 +6614,13 @@ impl<'a, P: Clone + crate::ProfilePayload> Recording<'a, P> {
     fn end(&mut self, refusal: EditError) -> EditError {
         self.refused = Some(refusal.clone());
         refusal
+    }
+
+    /// **A row the action reports itself** (a refactoring's carry that
+    /// keeps no yield for a variable it carried, say), kept with its
+    /// edits' rows.
+    pub(crate) fn report(&mut self, row: Maintenance) {
+        self.maintenance.report(row);
     }
 
     fn take(&mut self, edit: DocEdit<P>, applied: Applied<P>) -> Option<RecipeNodeId> {
@@ -8194,6 +8219,8 @@ fn door<P: Clone + crate::ProfilePayload, T>(
         new.vars
             .insert(id, Var::written(crate::WrittenDef::Index(index)));
     }
+    // D10 `[repetition]`, on EVERY arm: the yield rules' one home.
+    yields_door(doc, &new)?;
     // D10 `[placement.spaces]`, on EVERY arm: the node an edit
     // re-points (`held`) is refused reading two spaces, as one written
     // whole is at its own door; any other node an edit left reading two
@@ -9834,34 +9861,14 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 let Some(var) = doc.resolve_var(read) else {
                     return Err(unknown(read));
                 };
-                let spoken = || Box::new(doc.spoken_var(var));
-                if doc
-                    .var(var)
-                    .is_some_and(|held| held.def().index().is_some())
-                {
-                    return Err(refused(YieldsFault::Index { var: spoken() }));
-                }
-                if written.contains(&var) {
-                    return Err(refused(YieldsFault::Twice { var: spoken() }));
-                }
-                if let Some(other) = doc.yielding(var).filter(|&other| other != first) {
-                    return Err(refused(YieldsFault::Elsewhere {
-                        var: spoken(),
-                        binder: Box::new(doc.spoken_var(other)),
-                    }));
-                }
-                let indices = doc.binder_indices(first);
-                if !doc
-                    .var_reach(var)
-                    .chain()
-                    .is_some_and(|chain| chain.iter().any(|k| indices.contains(k)))
-                {
-                    return Err(refused(YieldsFault::Outside { var: spoken() }));
-                }
                 written.push(var);
             }
-            if written.is_empty() {
-                return Err(refused(YieldsFault::Nothing));
+            // The yield rules' one home (`Doc::yield_rule`), which every
+            // arm and load ask too ([`yields_door`]).
+            if let Some(rule) =
+                doc.yield_rule(first, &written, &mut crate::repetition::Reach::own(doc))
+            {
+                return Err(refused(yields_fault(doc, rule)));
             }
             let index = crate::Index {
                 count: index.count.clone(),
@@ -10399,6 +10406,44 @@ impl core::fmt::Display for ProductReadFault {
             ),
             Self::Path { at } => write!(f, "{}", PicksNoPiece("it", *at)),
         }
+    }
+}
+
+/// **A yield rule, in the door's words** ([`YieldsFault`]).
+fn yields_fault<P: crate::ProfilePayload>(doc: &Doc<P>, rule: crate::repetition::YieldRule) -> YieldsFault {
+    use crate::repetition::YieldRule as R;
+    let spoken = |var| Box::new(doc.spoken_var(var));
+    match rule {
+        R::Nothing => YieldsFault::Nothing,
+        // A yield the door resolved is live; one an edit removed went
+        // with its variable (`Maintenance::YieldRemoved`).
+        R::NotLive(var) | R::Outside(var) => YieldsFault::Outside { var: spoken(var) },
+        R::Index(var) => YieldsFault::Index { var: spoken(var) },
+        R::Twice(var) => YieldsFault::Twice { var: spoken(var) },
+        R::Elsewhere { var, binder } => YieldsFault::Elsewhere {
+            var: spoken(var),
+            binder: spoken(binder),
+        },
+    }
+}
+
+/// **The yield rules on every arm** (D10 `[repetition]`): an edit that
+/// leaves a binder breaking a rule it did not break before refuses
+/// ([`EditError::Yields`]) — a redefinition that leaves a yield reading
+/// none of its binder's indices, say. `doc` is the document the edit
+/// entered and `new` the one it would leave.
+fn yields_door<P: crate::ProfilePayload>(doc: &Doc<P>, new: &Doc<P>) -> Result<(), EditError> {
+    let before = doc.yield_faults();
+    match new
+        .yield_faults()
+        .into_iter()
+        .find(|fault| !before.contains(fault))
+    {
+        None => Ok(()),
+        Some((binder, rule)) => Err(EditError::Yields {
+            binder: new.spoken_var(binder),
+            fault: yields_fault(new, rule),
+        }),
     }
 }
 

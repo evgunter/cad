@@ -654,7 +654,15 @@ fn carry<E>(
         })?;
     }
     for (binder, minted) in yields {
-        yield_carried(target, binder, minted).map_err(&edit)?;
+        // A carried yield whose reads of its binder stayed behind is one
+        // body in the target, and no yield: said, not dropped.
+        if !yield_carried(target, binder, minted).map_err(&edit)? {
+            let row = Maintenance::YieldRemoved {
+                binder: target.doc().spoken_var(binder),
+                var: target.doc().spoken_var(minted),
+            };
+            target.report(row);
+        }
     }
     Ok((node_map, step_map, section_map, out_map))
 }

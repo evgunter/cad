@@ -114,6 +114,32 @@ pub struct Reach<'d, P> {
     binders: Binders,
     vars: BTreeMap<VarId, BTreeSet<VarId>>,
     nodes: BTreeMap<RecipeNodeId, BTreeSet<VarId>>,
+    /// Whether a yield reaches its binder's indices because it is one
+    /// ([`Self::own`] reads without these edges).
+    yield_edges: bool,
+}
+
+/// **A yield rule a binder's yields break** ([`Doc::yield_rule`]), the
+/// fault the door and load each say in their own words.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum YieldRule {
+    /// The binder yields nothing.
+    Nothing,
+    /// A yield is no live variable.
+    NotLive(VarId),
+    /// A yield is an index.
+    Index(VarId),
+    /// A yield is written twice.
+    Twice(VarId),
+    /// A yield is another binder's.
+    Elsewhere {
+        /// The yield.
+        var: VarId,
+        /// The binder yielding it.
+        binder: VarId,
+    },
+    /// A yield reads none of the binder's indices.
+    Outside(VarId),
 }
 
 /// **A document's binders**, read once: each index's binder and place
@@ -194,6 +220,19 @@ impl<'d, P: crate::ProfilePayload> Reach<'d, P> {
             binders: Binders::of(doc),
             vars: BTreeMap::new(),
             nodes: BTreeMap::new(),
+            yield_edges: true,
+        }
+    }
+
+    /// **A walk of what each variable reads itself**: [`Self::new`]'s,
+    /// without the edge by which a yield reaches its binder's indices
+    /// for being one. What judges whether a yield repeats in its binder
+    /// (`YieldsFault::Outside`).
+    #[must_use]
+    pub fn own(doc: &'d Doc<P>) -> Self {
+        Self {
+            yield_edges: false,
+            ..Self::new(doc)
         }
     }
 
@@ -256,7 +295,9 @@ impl<'d, P: crate::ProfilePayload> Reach<'d, P> {
             Some(VarDef::Free(_)) | None => {}
         }
         // A yield is one member per value of its binder's every index.
-        if let Some(binder) = self.binders.yielding(var) {
+        if self.yield_edges
+            && let Some(binder) = self.binders.yielding(var)
+        {
             out.extend(self.binders.indices(binder).iter().copied());
         }
         self.vars.insert(var, out.clone());
@@ -294,7 +335,7 @@ impl<'d, P: crate::ProfilePayload> Reach<'d, P> {
                 }
                 out.extend(self.of_read(var));
             }
-            for output in doc.outputs(id) {
+            for output in doc.outputs(id).into_iter().filter(|_| self.yield_edges) {
                 if let Some(binder) = self.binders.yielding(output) {
                     out.extend(self.binders.indices(binder).iter().copied());
                 }
@@ -353,6 +394,79 @@ impl<P: crate::ProfilePayload> Doc<P> {
     #[must_use]
     pub fn yielding(&self, var: VarId) -> Option<VarId> {
         Binders::of(self).yielding(var)
+    }
+
+    /// **Why the binder `binder` yielding `yields` breaks a yield rule**
+    /// (D10 `[repetition]`), the first in the order written, or `None`:
+    /// the one home of the rules, which `DocEdit::SetYields`'s door asks
+    /// with what it would write and [`Self::yield_faults`] asks of every
+    /// binder a document holds. `own` is a walk of what each variable
+    /// reads itself ([`Reach::own`]), so a yield is judged by its own
+    /// reads, not by being yielded.
+    pub(crate) fn yield_rule(
+        &self,
+        binder: VarId,
+        yields: &[VarId],
+        own: &mut Reach<'_, P>,
+    ) -> Option<YieldRule> {
+        if yields.is_empty() {
+            return Some(YieldRule::Nothing);
+        }
+        let indices = own.binders().indices(binder).to_vec();
+        let mut seen = BTreeSet::new();
+        for &var in yields {
+            let Some(held) = self.var(var) else {
+                return Some(YieldRule::NotLive(var));
+            };
+            if held.def().index().is_some() {
+                return Some(YieldRule::Index(var));
+            }
+            if !seen.insert(var) {
+                return Some(YieldRule::Twice(var));
+            }
+            if let Some(other) = own.binders().yielding(var).filter(|&other| other != binder) {
+                return Some(YieldRule::Elsewhere { var, binder: other });
+            }
+            if !own.of_var(var).iter().any(|k| indices.contains(k)) {
+                return Some(YieldRule::Outside(var));
+            }
+        }
+        None
+    }
+
+    /// **Every binder whose yields break a yield rule**, by its first
+    /// index ([`Self::yield_rule`]), in declaration order: what every
+    /// edit's door diffs before and after, and what load refuses. A
+    /// binder that yields nothing is no fault here: an edit that deletes
+    /// its last yield reports it (`Maintenance::YieldRemoved`) and the
+    /// evaluation refuses what stands in it (`YieldsNothing`); only
+    /// `SetYields` refuses writing nothing.
+    pub(crate) fn yield_faults(&self) -> Vec<(VarId, YieldRule)> {
+        if !self.declares_index() {
+            return Vec::new();
+        }
+        let mut own = Reach::own(self);
+        let mut written: BTreeMap<VarId, VarId> = BTreeMap::new();
+        let mut out = Vec::new();
+        for (&binder, var) in self.vars() {
+            let Some(crate::IndexSeat::Binder { yields }) = var.def().index().map(|i| &i.seat)
+            else {
+                continue;
+            };
+            // A variable two binders write is the later one's fault.
+            if let Some(&var) = yields.iter().find(|y| written.get(y).is_some_and(|&b| b != binder)) {
+                out.push((binder, YieldRule::Elsewhere { var, binder: written[&var] }));
+                continue;
+            }
+            for &y in yields {
+                written.insert(y, binder);
+            }
+            match self.yield_rule(binder, yields, &mut own) {
+                None | Some(YieldRule::Nothing | YieldRule::Elsewhere { .. }) => {}
+                Some(rule) => out.push((binder, rule)),
+            }
+        }
+        out
     }
 
     /// **Whether `read` is a member read at its binder's own key**,

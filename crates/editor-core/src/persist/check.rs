@@ -831,7 +831,6 @@ fn first_var_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
 /// none listed twice or by two binders.
 fn index_seat_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
     let mut after: std::collections::BTreeMap<VarId, VarId> = std::collections::BTreeMap::new();
-    let mut yielded: std::collections::BTreeMap<VarId, VarId> = std::collections::BTreeMap::new();
     for (&id, var) in &snapshot.vars {
         let Some(index) = var.def().index() else {
             continue;
@@ -858,23 +857,27 @@ fn index_seat_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
                 }
                 after.insert(*before, id);
             }
-            crate::IndexSeat::Binder { yields } => {
-                for &y in yields {
-                    match snapshot.vars.get(&y) {
-                        None => return refused(y, IndexSeatFault::YieldNotLive),
-                        Some(v) if v.def().index().is_some() => {
-                            return refused(y, IndexSeatFault::YieldIndex);
-                        }
-                        Some(_) => {}
-                    }
-                    if yielded.insert(y, id).is_some() {
-                        return refused(y, IndexSeatFault::YieldTwice);
-                    }
-                }
-            }
+            // The yields, below, by the rules' one home.
+            crate::IndexSeat::Binder { .. } => {}
         }
     }
-    None
+    // The yield rules (`Doc::yield_faults`): the ones every edit's door
+    // asks too.
+    snapshot.yield_faults().into_iter().next().map(|(binder, rule)| {
+        use crate::repetition::YieldRule as R;
+        let (other, fault) = match rule {
+            R::NotLive(var) => (var, IndexSeatFault::YieldNotLive),
+            R::Index(var) => (var, IndexSeatFault::YieldIndex),
+            R::Twice(var) | R::Elsewhere { var, .. } => (var, IndexSeatFault::YieldTwice),
+            R::Outside(var) => (var, IndexSeatFault::YieldOutside),
+            R::Nothing => unreachable!("a binder yielding nothing is no fault at load"),
+        };
+        SnapshotError::IndexSeat {
+            var: binder,
+            other,
+            fault,
+        }
+    })
 }
 
 /// **Why an index's seat in its binder is refused at load**
@@ -889,8 +892,10 @@ pub enum IndexSeatFault {
     YieldNotLive,
     /// Its binder yields an index.
     YieldIndex,
-    /// A variable is yielded twice.
+    /// A variable is yielded twice, by one binder or by two.
     YieldTwice,
+    /// Its binder yields a variable that reads none of its indices.
+    YieldOutside,
 }
 
 /// The first defined variable, in declaration order, whose definition
@@ -1948,6 +1953,11 @@ impl core::fmt::Display for SnapshotError {
                         "{other} is yielded twice, and by binder {var} the second time"
                     )
                 }
+                IndexSeatFault::YieldOutside => write!(
+                    f,
+                    "the binder {var} yields {other}, which reads none of its indices, and a \
+                     binder yields what repeats in it"
+                ),
             },
             Self::VarNameTwice { name, a, b } => write!(
                 f,
