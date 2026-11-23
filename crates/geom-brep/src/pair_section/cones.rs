@@ -428,8 +428,10 @@ impl<T: Decide> ConeRuledPose<T> {
         // `w`, `h` and `ρ` are read off the centre and the apex, and the
         // axis's rounding moves them by its size times `|w|`: each length
         // here is read across that charge.
-        let size = (c - Point3::origin()).norm() + (cone.apex - Point3::origin()).norm() + radius;
-        let swing = geom_core::rounding_charge(size);
+        // Twice the charge at the larger of the two scales bounds the
+        // charge at their sum.
+        let at = (c - Point3::origin()).norm() + (cone.apex - Point3::origin()).norm();
+        let swing = geom_core::rounding_charge(at.max(radius)) * T::from_f64(2.0);
         if read_across(
             ConeDecision::SphereOnAxis,
             "kc_sphere_on_axis_floor",
