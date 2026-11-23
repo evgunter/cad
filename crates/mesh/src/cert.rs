@@ -574,6 +574,84 @@ pub(crate) fn verdict(bound: f64, delta: f64, scale: f64, eps: Eps) -> Verdict {
     }
 }
 
+/// **A face's certificate verdict, over its triangles**: the worst bound
+/// (a NaN kept once met, [`worse`]: what a refusal reports is what
+/// refused), whether some triangle's bound is [`Verdict::Exceeded`] at its
+/// own rounding magnitude, and the largest allowance an
+/// [`Verdict::Unresolved`] triangle would have had to absorb. An exceeded
+/// triangle outranks an unresolved one. The one reading of a face's
+/// triangles every lane makes (the rectangle lane, the trimmed lane's CDT
+/// arms, its walk), kept per triangle rather than read off the worst
+/// bound: [`verdict`] reads each bound at its own magnitude.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct FaceVerdict {
+    worst: f64,
+    exceeded: bool,
+    unresolved: Option<f64>,
+}
+
+impl FaceVerdict {
+    /// No triangle read yet.
+    pub(crate) fn new() -> Self {
+        Self {
+            worst: 0.0,
+            exceeded: false,
+            unresolved: None,
+        }
+    }
+
+    /// Reads one triangle's `bound`, computed at magnitude `scale`, at
+    /// `delta`: its [`verdict`], which this face's verdict takes in.
+    pub(crate) fn read(&mut self, bound: f64, delta: f64, scale: f64, eps: Eps) -> Verdict {
+        let verdict = verdict(bound, delta, scale, eps);
+        match verdict {
+            Verdict::Certified => {}
+            Verdict::Exceeded => self.exceeded = true,
+            Verdict::Unresolved { allowance } => {
+                self.unresolved =
+                    Some(self.unresolved.map_or(allowance, |a: f64| a.max(allowance)));
+            }
+        }
+        self.worst = worse(self.worst, bound);
+        verdict
+    }
+
+    /// The worst bound read.
+    pub(crate) fn worst(&self) -> f64 {
+        self.worst
+    }
+
+    /// The face's refusal, if it has one: `CertificateExceeded` where a
+    /// triangle exceeded `delta`, else `RoundingUnresolved` where one could
+    /// not be resolved.
+    ///
+    /// # Errors
+    ///
+    /// Those two.
+    pub(crate) fn refusal(
+        &self,
+        face: topo::FaceKey,
+        delta: f64,
+    ) -> Result<(), crate::types::TessellateError> {
+        if self.exceeded {
+            return Err(crate::types::TessellateError::CertificateExceeded {
+                face,
+                bound: self.worst,
+                requested: delta,
+            });
+        }
+        if let Some(allowance) = self.unresolved {
+            return Err(crate::types::TessellateError::RoundingUnresolved {
+                face,
+                bound: self.worst,
+                requested: delta,
+                allowance,
+            });
+        }
+        Ok(())
+    }
+}
+
 /// The magnitude a position certificate ([`cert_cylinder`],
 /// [`cert_sphere`]) rounds at: the largest coordinate norm among the
 /// chart's anchor and the triangle's corners, since every distance it

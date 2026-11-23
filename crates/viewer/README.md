@@ -2574,8 +2574,9 @@ Every placement is a copy to the viewer, wherever its target stands
 one placed in its body's own space or in another construction's
 space, as Place's and a pattern's are, is a copy as one in the world
 is. The body a placement copies (`world::copy_source`, down its source) is
-what the placed badge, the re-point offer and the way to the original
-body read, and the placement editor's `on` side selects in the source
+what the re-point offer and the way to the original body read; the
+placed badge counts a body's readers at the source seat
+(`ReadIndex::placements_of`), and the placement editor's `on` side selects in the source
 the placement reads (`bracket.top`); a pick on a copy seats that copy.
 Projecting a pattern member writes
 nothing: a pick on a drawn member seats `family[k]`. The Transform tool
