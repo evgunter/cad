@@ -47,6 +47,10 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SQUARE_EDGE_OVER"),
     NameCarrier::Const("SPHERE_NEAR"),
     NameCarrier::Const("SPHERE_FAR"),
+    NameCarrier::Const("PC_PARALLEL_GAP"),
+    NameCarrier::Const("EXTERNAL"),
+    NameCarrier::Const("INTERNAL"),
+    NameCarrier::Const("TANGENCY"),
     // The closed decision types' name tables (`fn name/floor/straddle/
     // row/predicate`), read as the census reads them. A type whose
     // `fn name` spells a label (`PcurveKind`, `SsiLimb`, `FloorKind`) is
