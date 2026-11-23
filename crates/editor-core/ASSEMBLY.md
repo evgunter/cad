@@ -251,7 +251,7 @@ source's geometry before calling the constructor: it reads `n` off the
 evaluated copy and writes the slides `mate::slides_left_along` leaves
 (and beside a slide along a read direction with no mate, the target
 axes `mate::slides_across` leaves, `Placed::unmated_across`)
-(`Recording::sketch_on_face`, `Recording::constrain` and `remove_mate`,
+(`Recording::constrain` and `remove_mate`,
 the viewer's mate tool and snap). The raw edit doors stay structural,
 so where the slides they fill do not span the solve refuses
 `SlidesDoNotSpan`, naming the slides to write. A copy pinned in the world at a pose is that
