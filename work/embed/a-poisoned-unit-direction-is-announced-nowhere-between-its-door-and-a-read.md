@@ -39,6 +39,18 @@ Fixed in the fixtures (that PR): every hand-normalised or literal
 direction in that file's test modules is now `UnitVec3::chord` (an
 enclosure built in the scalar's own arithmetic) or an `exact_x/y/z`.
 
+## What is held by a row now
+
+`injective::presentation_rows::a_poisoned_line_direction_is_refused_by_every_reader`
+injects a poisoned direction at each reader below (a plane's one line
+edge; a corner of two lines, either shared; the tangent joint read
+from its arc and from its line; `line_onward` called on NaN fields;
+the graph separator asked to run on along the poisoned edge) and
+asserts each refuses, beside the same fixture with a sound direction,
+which is read. So the embedding certificate's half of this row is
+pinned; what stays open is below ("What was not checked", "What is
+needed").
+
 ## What was checked, by reading the comparisons
 
 Each consumer of a line edge's evaluated ends or direction in
@@ -71,7 +83,9 @@ would accept.
 
 ## What was not checked
 
-- No NaN was injected: the list above is a reading of the comparisons.
+- `no_other_copy`'s `meets_rect` is not reached by the row either (the
+  fixtures are on a plane, which has no other copy): its safety on a
+  periodic chart is still by reading `turn_ladder`.
 - No reader of a line's direction outside the embedding certificate
   (the boolean, the band, props, the pcurve mint) was audited.
 - Test sites elsewhere that pass `T::from_f64(..)` components to
