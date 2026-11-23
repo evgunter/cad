@@ -205,8 +205,9 @@ fn injective<T: Scalar>(
     budget: usize,
 ) -> BoundReport<Witness> {
     let faces = faces.unwrap_or_else(|| body.faces().map(|(k, _)| k).collect());
-    let side = Side { body, faces };
-    let windows = side.windows(Which::First).expect("every face has a window");
+    let windows = geometric(body)
+        .windows(faces, Which::First)
+        .expect("every face has a window");
     let sweep = Sweep {
         bound: ClearanceBound::StrictlyPositive,
         band: band(),
@@ -877,14 +878,20 @@ fn a_stepped_rings_floor_holds_against_its_end_caps() {
     holds_at_both("the stepped ring", ring(), ring());
 }
 
+/// `body` with tier 3's facts on it, which the question takes
+/// ([`topo::geometric`]): a body tier 3's local battery refuses is not
+/// asked, and the row that built it fails naming the findings.
+fn geometric<T: Scalar>(body: &Body<T>) -> topo::Geometric<'_, T> {
+    topo::geometric(body, tol()).unwrap_or_else(|findings| {
+        panic!("tier 3's local battery refuses this body, so it is not asked: {findings:?}")
+    })
+}
+
 /// The verdict door over every face of `body`, at the default budgets.
 fn embedding<T: Scalar + geom_core::Certifies>(body: &Body<T>) -> topo::clearance::EmbeddingReport {
-    let side = Side {
-        body,
-        faces: body.faces().map(|(k, _)| k).collect(),
-    };
     topo::clearance::embedded(
-        &side,
+        &geometric(body),
+        body.faces().map(|(k, _)| k).collect(),
         band(),
         Budgets {
             max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
@@ -2599,13 +2606,11 @@ fn pair_report<T: Scalar>(
     b: FaceKey,
     budget: usize,
 ) -> BoundReport<()> {
+    let geometric = geometric(body);
     let window = |f| {
-        Side {
-            body,
-            faces: vec![f],
-        }
-        .windows(Which::First)
-        .expect("every face has a window")
+        geometric
+            .windows(vec![f], Which::First)
+            .expect("every face has a window")
     };
     let sweep = Sweep {
         bound: ClearanceBound::StrictlyPositive,
@@ -2912,13 +2917,11 @@ fn wall_against_wall<T: Scalar>(
     walls: [FaceKey; 2],
     bound: ClearanceBound,
 ) -> BoundReport<Witness> {
+    let geometric = geometric(body);
     let window = |f, which| {
-        Side {
-            body,
-            faces: vec![f],
-        }
-        .windows(which)
-        .expect("a wall has a window")
+        geometric
+            .windows(vec![f], which)
+            .expect("a wall has a window")
     };
     let sweep = Sweep {
         bound,
@@ -3043,13 +3046,11 @@ fn wall_against_wall_unwitnessed<T: Scalar>(
     bound: ClearanceBound,
     budget: usize,
 ) -> BoundReport<()> {
+    let geometric = geometric(body);
     let window = |f, which| {
-        Side {
-            body,
-            faces: vec![f],
-        }
-        .windows(which)
-        .expect("a wall has a window")
+        geometric
+            .windows(vec![f], which)
+            .expect("a wall has a window")
     };
     let sweep = Sweep {
         bound,

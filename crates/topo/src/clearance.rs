@@ -459,6 +459,28 @@ pub struct Windows<'b, T: Real> {
     of: Vec<Window<'b, T>>,
 }
 
+impl<'b, T: Decide + CertifiedBounds> crate::Geometric<'b, T> {
+    /// **`faces` of this body read into windows that carry tier 3's
+    /// facts**: what the strict question over one body subdivides
+    /// ([`embedded`] builds its own this way). Windows read off a bare
+    /// [`Side`] carry none, and a touching pair of them refuses typed.
+    ///
+    /// # Errors
+    ///
+    /// As [`Side::windows`].
+    pub fn windows(
+        &self,
+        faces: Vec<FaceKey>,
+        which: Which,
+    ) -> Result<Windows<'b, T>, EngineRefusal> {
+        let side = Side {
+            body: self.body(),
+            faces,
+        };
+        Ok(side.windows(which)?.reading(self.facts()))
+    }
+}
+
 impl<T: CertifiedBounds> Windows<'_, T> {
     /// These windows with tier 3's facts on each face's boundary
     /// ([`injective::Facts::of`]), each kept length crossed once, here,

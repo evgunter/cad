@@ -46,7 +46,7 @@
 //!
 //! [`CellReceipt`]: pncad::topo::clearance::CellReceipt
 use pncad::geom_core::{Band, Tol};
-use pncad::topo::clearance::{Budgets, DEFAULT_MAX_CELL_DEPTH, Embedding, Side, embedded};
+use pncad::topo::clearance::{Budgets, DEFAULT_MAX_CELL_DEPTH, Embedding, embedded};
 
 const BUDGETS: Budgets = Budgets {
     max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
@@ -71,12 +71,21 @@ fn main() {
         &mut |stop| {
             for sb in &stop.bodies {
                 bodies += 1;
-                let side = Side {
-                    body: &sb.body,
-                    faces: sb.body.faces().map(|(k, _)| k).collect(),
-                };
                 let started = std::time::Instant::now();
-                let report = embedded(&side, band, BUDGETS);
+                // The question takes tier 3's facts: a body tier 3's
+                // local battery refuses is not asked.
+                let geometric = match pncad::topo::geometric(&sb.body, tol) {
+                    Ok(geometric) => geometric,
+                    Err(findings) => {
+                        println!(
+                            "WALK {}/{} | NotGeometric {findings:?} | cand 0 disc 0 refused 0 splits 0",
+                            stop.name, sb.name
+                        );
+                        continue;
+                    }
+                };
+                let faces = sb.body.faces().map(|(k, _)| k).collect();
+                let report = embedded(&geometric, faces, band, BUDGETS);
                 let verdict = match &report.verdict {
                     Embedding::Embedded => {
                         held += 1;

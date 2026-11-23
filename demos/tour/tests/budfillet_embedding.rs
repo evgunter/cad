@@ -8,7 +8,7 @@
 //! Red if the stop refuses or crosses.
 
 use pncad::geom_core::{Band, Tol};
-use pncad::topo::clearance::{Budgets, DEFAULT_MAX_CELL_DEPTH, Embedding, Side, embedded};
+use pncad::topo::clearance::{Budgets, DEFAULT_MAX_CELL_DEPTH, Embedding, embedded};
 
 #[test]
 fn every_budfillet_body_is_embedded() {
@@ -21,11 +21,10 @@ fn every_budfillet_body_is_embedded() {
     let mut asked = 0;
     for stop in demo_tour::bud::stops(tol) {
         for sb in &stop.bodies {
-            let side = Side {
-                body: &sb.body,
-                faces: sb.body.faces().map(|(k, _)| k).collect(),
-            };
-            let report = embedded(&side, band, budgets);
+            let geometric = pncad::topo::geometric(&sb.body, tol)
+                .unwrap_or_else(|findings| panic!("{}: {findings:?}", sb.name));
+            let faces = sb.body.faces().map(|(k, _)| k).collect();
+            let report = embedded(&geometric, faces, band, budgets);
             assert!(
                 matches!(report.verdict, Embedding::Embedded),
                 "{}: {:?} {:?}",

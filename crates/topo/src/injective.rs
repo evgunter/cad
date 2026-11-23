@@ -112,6 +112,10 @@ pub(crate) const SELF_INTERSECTION_ON_SHARED: &str = "self_intersection_on_share
 /// the reach of the faces the pair shares that cell between
 /// ([`arm_of`]); where none is, the separator's value, a distance.
 pub(crate) const SELF_INTERSECTION_DEPARTURE: &str = "self_intersection_departure";
+/// What a face lifted with no tier-3 verdict is, to a touching pair's
+/// refusal ([`departure`]).
+pub(crate) const NO_VERDICT: &str = "read with no tier-3 verdict, which a touching pair's \
+                                     certificate reads";
 /// The funnel site of one face's own side of a separator: the sine at
 /// which it leaves it, read for its sign alone ([`Leaves`]).
 pub(crate) const SELF_INTERSECTION_DEPARTURE_SIDE: &str = "self_intersection_departure_side";
@@ -6024,6 +6028,17 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
         arm: CertificateArm::Departure,
         shared,
     };
+    // The departure reads tier 3's facts on both faces; a boundary lifted
+    // with none (a bare side's window) has no reading here at any depth.
+    for (piece, side) in [(x, Which::First), (y, Which::Second)] {
+        if piece.boundary.facts.is_none() {
+            return Outcome::Refuse(EngineRefusal::Unsupported {
+                carrier: NO_VERDICT,
+                face: piece.face,
+                side,
+            });
+        }
+    }
     let (ex, ey) = (near.side(false), near.side(true));
     // A wall image is read against a plane's carrier only
     // ([`WallImage::psi`]): across a shared spiric between two faces
