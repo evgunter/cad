@@ -53,3 +53,7 @@ neighbouring plane cap to hold both ends of most sides there (the
 geometry, accepted meshes) and not the same row: these refuse.
 
 (TESSLIE, PR 7198, 2026-11-21) `TessellateError::BoundaryEar` is renamed `UnclearedSharedSide` (Python tag `uncleared_shared_side`), because the trimmed lane's rule is now about a shared side, not an ear. The cells above that say `BoundaryEar` were measured under the old name and rule; they are not re-measured here.
+
+## 2026-11-23 — the fold gets a point (branch `tesslane/join-split`)
+
+With the winding census splitting every folded triangle by a point inside it (`trimmed::MAX_FOLD_ROUNDS`, its own budget) and the shared-side insert retired, the half above the cut at `h = 1e-5` refuses `FoldedTriangle` at δ `1e-3` and `2e-4` (the `UnclearedSharedSide` at `2e-4` was a fold's) and meshes at `3e-5`.

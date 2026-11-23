@@ -101,3 +101,7 @@ ringed ops (both unions, ball ∖ tube) refuse `FoldedTriangle` at
 δ `2·10⁻²` and mesh at `5·10⁻³` and `10⁻³`; turned 0 about `z`, they mesh
 at every δ. Pinned by
 `reach_probes::ringed_curved_faces_that_still_refuse_answer_by_cause`.
+
+## 2026-11-23 — the fold gets a point (branch `tesslane/join-split`)
+
+The winding census now splits every folded triangle by a point inside it, on its own budget (`trimmed::MAX_FOLD_ROUNDS`), where it dropped lattice corners and refused a fold with none. The near-pole tube on the ball (`mesh`'s `reach_probes::ringed_curved_faces_that_still_refuse_answer_by_cause`) meshes at δ 2e-2 as at 5e-3 and 1e-3, every op, at all three ε; `sweep`'s `tilted_sphere_pair::a_circle_near_the_pole_meshes_at_a_coarse_delta` meshes at 4e-2 with the shared-side insert it leaned on retired, at the trimmed lane's headroom and at δ itself (one fold round, 188 points on each of the four sphere faces). The `ChordBudget` refusals above are a chord count and are untouched.
