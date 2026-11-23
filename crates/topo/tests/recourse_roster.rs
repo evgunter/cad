@@ -482,6 +482,8 @@ const SAME_NAMED_TRAVEL: &str = "a spline wall piece's `travel()`, its extent fr
                                  direction of travel, which shares the declared `travel` carrier's \
                                  token and takes no name";
 
+const PAIRED: &str = "a row and its floor handed on as an array: its literals are read, the rest \
+                      forwards its caller's name";
 const CLOSURE_FORWARDS: &str = "a closure bound in this `fn` hands on its callers' names, read where \
                                 its callers call it (a declared carrier, or a `decide*` spelling); \
                                 keyed by its `fn` until the census keys a closure by its binding \
@@ -517,7 +519,10 @@ const INDIRECT: &[(&str, &str)] = &[
     ),
     ("contain.rs: face_placement: on_plane", FORWARDS),
     ("boolean/join.rs: line_of: name", CLOSURE_FORWARDS),
-    ("boolean/join.rs: travel: name", FORWARDS),
+    (
+        "boolean/join.rs: travel: [name, \"bool_join_arc_clear\"]",
+        PAIRED,
+    ),
     (
         "boolean/offer_rows.rs: -: Vec3::new(1.0, 0.0, 0.0)",
         NOT_A_NAME,

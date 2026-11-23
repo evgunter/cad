@@ -734,14 +734,14 @@ fn wire_doors_refuse_typed() {
     let (doc, ids) = rich_doc();
     let (base, u, pat) = (ids[1], ids[4], ids[5]);
     let ax = crate::fixture::axis_on(&doc, base, [0.0; 3], [0.0, 0.0, 1.0]);
-    // A family read plainly at a pair's seat (their flag #5) makes the
-    // subtract a family under the same index (D10 `[repetition]`): one
-    // subtract per member, not a guess at one body.
+    // A family read plainly at the kept body's seat (their flag #5)
+    // makes the subtract a family under the same index (D10
+    // `[repetition]`): one subtract per member, not a guess at one body.
     let (per_member, cut) = crate::fixture::insert(
         doc.clone(),
         Node::Subtract {
-            from: u.into(),
-            tool: pat.into(),
+            from: pat.into(),
+            tool: u.into(),
         },
     );
     assert_eq!(

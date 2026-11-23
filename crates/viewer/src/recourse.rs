@@ -483,7 +483,7 @@ fn node_act(kind: &NodeErrorKind) -> NodeAct {
         | K::CountOutOfRange { .. }
         | K::UnschedulableCycle
         | K::Naming { .. }
-        | K::UnionFoldStep { .. }
+        | K::FoldStep { .. }
         | K::Shell { .. }
         | K::ShellLaneUnsupported { .. }
         | K::WitnessBifurcation { .. }
