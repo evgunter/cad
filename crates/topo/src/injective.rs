@@ -10658,21 +10658,16 @@ mod presentation_rows {
             stated: None,
             key: edge(n),
             // The segment is its chord, its span in metres: the chord's
-            // direction over its own length, entered as points.
+            // unit direction and its length, both enclosures
+            // ([`geom_core::UnitVec3::chord`]), as a built body's line is.
+            // Its far end is then an enclosure that holds `to`, a
+            // rounding wide, and not a point equal to it. A point box of
+            // the rounded quotient is no unit vector at an enclosure
+            // scalar: at 45 degrees its squares sum past 1 and the
+            // direction is poison.
             arc: Some({
-                let (dx, dy) = (to.0 - from.0, to.1 - from.1);
-                let len = dx.hypot(dy);
-                (
-                    Curve3::line(
-                        p(from),
-                        geom_core::UnitVec3::checked(Vec3::new(
-                            iv0(dx / len),
-                            iv0(dy / len),
-                            iv0(0.0),
-                        )),
-                    ),
-                    (iv0(0.0), iv0(len)),
-                )
+                let (dir, len) = geom_core::UnitVec3::chord(p(to) - p(from));
+                (Curve3::line(p(from), dir), (iv0(0.0), len))
             }),
             ends: ends.map(vertex),
             uses: vec![Use {
@@ -10683,6 +10678,32 @@ mod presentation_rows {
                 harmonic: None,
             }],
         }
+    }
+
+    /// **A fixture's line is its unit chord as an enclosure, at any
+    /// angle.** [`segment`] from `(1.5, 0.5)` to `(1, 0)`, at 45 degrees,
+    /// where the rounded quotient's squares sum past 1: its direction is
+    /// finite, and its far end is an enclosure that holds `to` without
+    /// being the point `to`, as a built body's line ends on its vertex.
+    /// Red if the helper states the direction as a point box (poison at
+    /// this angle, and every read of the edge then answers nothing), or
+    /// states the line so that it ends on its vertex exactly.
+    #[test]
+    fn a_fixture_segment_ends_on_its_vertex_by_enclosure_at_any_angle() {
+        let rim = segment(20, [3, 1], (1.5, 0.5), (1.0, 0.0));
+        let (carrier, (_, t1)) = rim.arc.expect("a line");
+        let end = carrier.eval(t1);
+        for (what, x, to) in [("x", end.x, 1.0), ("y", end.y, 0.0)] {
+            assert!(
+                x.lo().is_finite() && x.hi().is_finite(),
+                "the far end's {what} is a number: {x:?}"
+            );
+            assert!(x.lo() <= to && to <= x.hi(), "it holds the vertex: {x:?}");
+        }
+        assert!(
+            end.x.lo() < end.x.hi() || end.y.lo() < end.y.hi(),
+            "and is not the vertex to the bit: {end:?}"
+        );
     }
 
     /// **A corner of the unit circle's arc on [`floor`]**: the arc from
