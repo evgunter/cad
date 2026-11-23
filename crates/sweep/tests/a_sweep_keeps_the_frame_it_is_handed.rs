@@ -1279,7 +1279,7 @@ fn slab_of<T: Decide + topo::AtRestPolicy>(lp: ProfileLoop<T>) -> Extruded<T> {
 ///
 /// So the one reader of a written radial's length in a frame is that
 /// envelope term, at its own lever, and under it the stretch is stored
-/// (`work/boxfinish/spun-onto-takes-a-bare-vector-for-a-unit.md`).
+/// (`work/boxfinish/a-recorded-direction-claims-a-unit-and-is-held-as-two-numbers.md`).
 ///
 /// Red when the stretch stops reaching the frame (a door that
 /// normalizes a written radial, or a type no written radial inhabits),
@@ -1339,4 +1339,71 @@ fn a_tables_stretched_radial_is_stored_in_the_walls_frame_as_written() {
         refusal.contains("EnvelopeTerm(Frame)") && refusal.contains("pcurve_envelope"),
         "the envelope's frame term refuses four tenths of ε: {refusal}"
     );
+}
+
+/// A three-arc circle of radius `r` about the origin, its first vertex
+/// a quarter of a radian round: radials that are rounded sines and
+/// cosines, a unit to rounding.
+fn split_circle<T: profile::ArcCarrierScalar>(r: f64) -> ProfileLoop<T> {
+    let l = T::from_f64;
+    profile::circle_split(Point2::new(l(0.0), l(0.0)), l(r), 3, l(0.25), tol())
+        .expect("the split circle draws")
+        .loop_
+        .into_loop()
+}
+
+/// **A loft of arc sections at `Interval` turns its rims onto radials
+/// that enclose a unit.** Two three-arc circles lofted at `Interval`:
+/// the sections are points, so the loft encloses its `f64` loft and
+/// builds its caps' rims from the `f64` canonical form lifted onto the
+/// lane's placements (`ValidatedProfile::lift_onto`). A lifted radial's
+/// two numbers are a unit to rounding, and an arc's rim frame is turned
+/// onto its radial with no arithmetic, so the lift normalizes them at
+/// `Interval`: every rim circle's `u_ref` has a width (it is an
+/// enclosure, not the `f64` point) and its length holds one.
+///
+/// Red under the lift carrying an arc's radials through `from_f64`
+/// alone (`ValidatedSegment::lift` without its `normalize`): each rim's
+/// `u_ref` is a point.
+#[test]
+fn a_loft_of_arc_sections_at_interval_turns_its_rims_onto_enclosed_units() {
+    let top = SketchPlane::<Interval>::xy_at(Point3::new(
+        Interval::from_f64(0.0),
+        Interval::from_f64(0.0),
+        Interval::from_f64(1.5),
+    ));
+    let lofted = loft_body(
+        &[
+            vec![split_circle::<Interval>(1.0)],
+            vec![split_circle::<Interval>(0.6)],
+        ],
+        &[SketchPlane::xy(), top],
+        1,
+        tol(),
+    )
+    .expect("the loft of arc sections builds at Interval");
+    let body: &Body<Interval> = &lofted.body;
+    let mut rims = 0;
+    for (edge, _) in body.edges() {
+        let circle = topo::readback::edge_carrier_ref(body, edge)
+            .ok()
+            .and_then(|carrier| carrier.as_circle());
+        let Some(circle) = circle else {
+            continue;
+        };
+        rims += 1;
+        let u = circle.frame().u_ref();
+        let n = u.norm();
+        assert!(
+            n.lo() <= 1.0 && 1.0 <= n.hi(),
+            "rim {edge:?}: the u_ref's length holds one: [{}, {}]",
+            n.lo(),
+            n.hi()
+        );
+        assert!(
+            width(u.x) > 0.0 || width(u.y) > 0.0,
+            "rim {edge:?}: the u_ref is an enclosure, not the f64 radial's point: {u:?}"
+        );
+    }
+    assert!(rims > 0, "the loft's caps have circle rims");
 }

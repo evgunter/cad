@@ -1342,7 +1342,7 @@ impl<T: Real> RigidMotion<T> {
     /// that length) is not one this door may take: it goes through
     /// [`RigidMotion::spun_toward`]. The argument is a bare [`Vec2`], so
     /// that is the caller's to hold
-    /// (`work/boxfinish/spun-onto-takes-a-bare-vector-for-a-unit.md`).
+    /// (`work/boxfinish/a-recorded-direction-claims-a-unit-and-is-held-as-two-numbers.md`).
     #[must_use]
     pub fn spun_onto(self, c: Vec2<T>) -> Self {
         let along = Vec3::new(c.x, c.y, T::zero());
