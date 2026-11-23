@@ -1648,7 +1648,7 @@ fn line_conic<T: Decide>(
     let range = Range::first_harmonic(
         c0,
         swing,
-        belly(&k, o, m),
+        k.belly_along(o, m),
         Azimuth::of(sp, cp).principal_as(row::BRANCH, Band::least()),
     );
     // The pair's distance is `√(R² + H²)`, `R` the residual above and `H`
@@ -1882,29 +1882,6 @@ pub(crate) fn height<T: Decide>(k: &dyn Conic<T>, on: Point3<T>, n: Vec3<T>) -> 
     (geom::plane_offset(on, n, k.frame().origin()), cp, sp)
 }
 
-/// **The belly of `k`'s height above the plane** through `on` with unit
-/// normal `n`: `√(c₁² + s₁²) − |c₀|` of [`height`]'s first harmonic, how
-/// far the conic reaches past the plane (positive where it crosses it,
-/// negative where it stands clear by that much). Read from the stored
-/// centre and directions to the belly's own digits
-/// ([`geom_core::Real::harmonic_belly`]), never as the difference of the
-/// swing and the offset, which are each of the conic's size where the
-/// belly is the band's (a far-centred conic grazing the plane). Every
-/// reading that decides the sign of an extreme of [`height`] reads it
-/// here.
-pub fn belly<T: Decide>(k: &dyn Conic<T>, on: Point3<T>, n: Vec3<T>) -> T {
-    let f = k.frame();
-    let (a, b) = k.semi_axes();
-    let vector = |v: Vec3<T>| [v.x, v.y, v.z];
-    let point = |p: Point3<T>| [p.x, p.y, p.z];
-    T::harmonic_belly(
-        point(f.origin()),
-        point(on),
-        vector(n),
-        [(a, vector(f.u_ref())), (b, vector(f.v_ref()))],
-    )
-}
-
 /// Two conics, `a` the one parametrized in one plane (module docs).
 fn conic_conic<T: Decide>(
     a: &Span<'_, T>,
@@ -1921,18 +1898,14 @@ fn conic_conic<T: Decide>(
     let swing = |(_, cp, sp): (T, T, T)| (cp.powi(2) + sp.powi(2)).sqrt();
     let (swing_a, swing_b) = (swing(ha), swing(hb));
     let (belly_a, belly_b) = (
-        belly(&ka, kb.frame().origin(), kb.frame().axis()),
-        belly(&kb, ka.frame().origin(), ka.frame().axis()),
+        ka.belly_along(kb.frame().origin(), kb.frame().axis()),
+        kb.belly_along(ka.frame().origin(), ka.frame().axis()),
     );
     let sides = [(swing_a, ha), (swing_b, hb)];
     // The one reading of a conic's height against the other's plane:
     // clear of it all round is apart, whatever the swing reads.
     for (swing, belly, (c0, _, _)) in [(swing_a, belly_a, ha), (swing_b, belly_b, hb)] {
-        let (lo, hi) = extremes(c0, swing, belly);
-        let read = |x: T| geom_core::k_stats::decide_reported(row::PARALLEL, Margin::of(x), band);
-        let clear = read(lo).and_then(|below| Ok((below, read(hi)?)));
-        if matches!(clear, Ok((below, above)) if below.sign == Sign::Positive || above.sign == Sign::Negative)
-        {
+        if clear_all_round(c0, swing, belly, band) {
             return Ok(Pose::Apart);
         }
     }
@@ -2122,7 +2095,7 @@ fn transverse<T: Decide>(
         })
         .collect();
     let near = |theta: T| {
-        let arc = range.band_arc(theta, band);
+        let arc = band_arc((c0, swing, range.at_hi), theta, band);
         if window.holds_only((theta - arc, theta + arc), &joints, band) {
             return Ok(None);
         }
@@ -2461,8 +2434,18 @@ pub(super) fn level_ceiling<T: Decide>(small: T) -> (T, T) {
     (four / small, small / four)
 }
 
+/// **Whether a conic's height over the other's plane is clear of it all
+/// round** (`curve_pair_pose_parallel`): its extremes ([`extremes`])
+/// definitely one-signed, the one nearer zero read as the belly.
+fn clear_all_round<T: Decide>(c0: T, swing: T, belly: T, band: Band) -> bool {
+    let (lo, hi) = extremes(c0, swing, belly);
+    let read = |x: T| geom_core::k_stats::decide_reported(row::PARALLEL, Margin::of(x), band);
+    let clear = read(lo).and_then(|below| Ok((below, read(hi)?)));
+    matches!(clear, Ok((below, above)) if below.sign == Sign::Positive || above.sign == Sign::Negative)
+}
+
 /// **The extremes `(lo, hi)` of `c₀ + A·cos ψ`**, `A ≥ 0` the swing and
-/// `belly` its [`belly`] `A − |c₀|`: the one nearer zero is the belly
+/// `belly` its [`Conic::belly_along`] `A − |c₀|`: the one nearer zero is the belly
 /// (negated below), the other the sum, which cancels nothing.
 fn extremes<T: Decide>(c0: T, swing: T, belly: T) -> (T, T) {
     (
@@ -2486,7 +2469,7 @@ struct Range<T> {
 
 impl<T: Decide> Range<T> {
     /// `c₀ + A·cos(θ − at_hi)`, `A ≥ 0`, solved in itself, its extreme
-    /// nearer zero read as `belly` ([`belly`]: `A − |c₀|`), the other as
+    /// nearer zero read as `belly` ([`Conic::belly_along`]: `A − |c₀|`), the other as
     /// the sum, which cancels nothing.
     fn first_harmonic(c0: T, swing: T, belly: T, at_hi: T) -> Self {
         let (lo, hi) = extremes(c0, swing, belly);
@@ -2513,20 +2496,20 @@ impl<T: Decide> Range<T> {
         let read = |x: T| decide(row::EXTREME, Margin::of(x), band);
         (read(self.lo), read(self.hi))
     }
+}
 
-    /// `ℓ` in radians (module docs, "Across planes"): how far from `theta`
-    /// the arc about it runs on which the harmonic, a metre residual,
-    /// stays within the band's escalation.
-    fn band_arc(&self, theta: T, band: Band) -> T {
-        let two = T::from_f64(2.0);
-        let (c0, swing) = ((self.lo + self.hi) / two, (self.hi - self.lo) / two);
-        let e = T::from_f64(band.escalate());
-        let unit_cos = |x: T| x.max(T::zero() - T::one()).min(T::one());
-        let phi = geom::separation(theta, self.at_hi);
-        let inner = unit_cos((e - c0) / swing).acos();
-        let outer = unit_cos((T::zero() - e - c0) / swing).acos();
-        (phi - inner).abs().max((outer - phi).abs())
-    }
+/// `ℓ` in radians (module docs, "Across planes"): how far from `theta`
+/// the arc about it runs on which the first harmonic
+/// `c₀ + swing·cos(θ − at_hi)`, a metre residual, stays within the band's
+/// escalation. Read from the harmonic's own `c₀` and swing, as the caller
+/// formed them.
+fn band_arc<T: Decide>((c0, swing, at_hi): (T, T, T), theta: T, band: Band) -> T {
+    let e = T::from_f64(band.escalate());
+    let unit_cos = |x: T| x.max(T::zero() - T::one()).min(T::one());
+    let phi = geom::separation(theta, at_hi);
+    let inner = unit_cos((e - c0) / swing).acos();
+    let outer = unit_cos((T::zero() - e - c0) / swing).acos();
+    (phi - inner).abs().max((outer - phi).abs())
 }
 
 /// **Whether a coplanar touch's reported point is one point to its
@@ -2709,6 +2692,9 @@ fn harmonic_roots<T: Decide>(
     decide(row::ROOT_GAP, gap, band)?;
     Ok(Harmonic::Cross(roots.to_vec()))
 }
+
+#[cfg(test)]
+mod far_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]

@@ -160,9 +160,16 @@ impl Expansion {
     }
 
     /// **The value, rounded** (Shewchuk's Estimate): the components
-    /// summed from the smallest. The components below the largest sum to
-    /// less than its last bit, so the result is within `2u` of the value,
-    /// relatively, whatever cancellation formed it.
+    /// summed from the smallest. Grow-Expansion ([`Self::add`]) keeps an
+    /// expansion nonadjacent as well as nonoverlapping (Shewchuk, Lemma
+    /// 12): no two components overlap or touch in their binary digits.
+    /// So the components below the largest sum to less than its last
+    /// bit, each partial sum taken smallest first is exact or rounds
+    /// below that bit, and the one rounding at the value's scale is the
+    /// last: the result is within `2u` of the value, relatively, whatever
+    /// cancellation formed it. The order matters: summed largest first, a
+    /// tail that would have carried the head past a rounding tie is lost
+    /// (the row `the_estimate_sums_from_the_smallest`).
     #[must_use]
     pub fn estimate(&self) -> f64 {
         self.0.iter().sum()
@@ -188,25 +195,94 @@ impl Expansion {
     }
 }
 
-/// **A first harmonic's belly across a plane, its terms exact**: for
-/// the height `D + A cos θ + B sin θ` with `A = a·(u·n)`, `B = b·(v·n)`
-/// and `D = (q − o)·n`, the expansions `(A² + B² − D², A, B, D)`
+/// **The exponent of `x`'s lowest set bit**: `x` is an integer multiple
+/// of `2^k` and no larger power; `None` for zero, which constrains
+/// nothing.
+fn low_bit(x: f64) -> Option<i32> {
+    if x == 0.0 || !x.is_finite() {
+        return None;
+    }
+    let bits = x.to_bits();
+    let biased = i32::try_from((bits >> 52) & 0x7ff).unwrap_or(0);
+    let fraction = bits & ((1u64 << 52) - 1);
+    let (mantissa, exponent) = if biased == 0 {
+        (fraction, -1074)
+    } else {
+        (fraction | (1u64 << 52), biased - 1075)
+    };
+    Some(exponent + i32::try_from(mantissa.trailing_zeros()).unwrap_or(0))
+}
+
+/// **A first harmonic's belly across a plane, its terms exact**: for a
+/// curve stored as [`crate::StoredHarmonic`] (the point `x` it stores,
+/// its axis `w`, seam `u` and semi-axes `(a, b)`, `x` at the phase
+/// `(c₀, s₀)` on it), its height over the plane through `o` with normal
+/// `n` is `D + A cos θ + B sin θ`, with
+///
+/// - `A = a·(u·n)`, `B = b·((w × u)·n)`, the across-seam direction
+///   crossed exactly rather than read rounded;
+/// - `D = (x − o)·n − c₀·A − s₀·B`, the centre's height formed from the
+///   stored point, so no derived centre is rounded.
+///
+/// Answers the expansions `(A² + B² − D², [A, B, D])`
 /// ([`crate::Real::harmonic_belly`]'s value is the first over
-/// `√(A² + B²) + |D|`).
+/// `√(A² + B²) + |D|`), or `None` where an expansion could not be
+/// exact. **When every digit is kept**: each component of each
+/// expansion is an integer multiple of the product of its monomial's
+/// factors' lowest set bits, so every error-free sum and product below
+/// is exact while that product is at least `2^−1074`, the least
+/// subnormal's (a product's error term is then a representable multiple
+/// of it); the deepest monomials are `D²`'s, `(s₀·b·w·u·n)²`. That is
+/// checked on the inputs' own lowest bits, and an overflow on the
+/// components' finiteness.
 #[must_use]
 pub fn harmonic_belly(
-    q: [f64; 3],
+    curve: crate::StoredHarmonic<f64>,
     o: [f64; 3],
     n: [f64; 3],
-    [(a, u), (b, v)]: [(f64, [f64; 3]); 2],
-) -> (Expansion, [Expansion; 3]) {
-    let big_a = Expansion::dot(u, n).scaled(a);
-    let big_b = Expansion::dot(v, n).scaled(b);
-    let d = Expansion::difference_dot(q, o, n);
+) -> Option<(Expansion, [Expansion; 3])> {
+    let crate::StoredHarmonic {
+        at,
+        axis,
+        u_ref,
+        semi: (a, b),
+        phase: (c0, s0),
+    } = curve;
+    // The least lowest bit of each group of factors; a group of zeros
+    // contributes no monomial.
+    let least = |xs: &[f64]| xs.iter().filter_map(|&x| low_bit(x)).min();
+    let (lb_x, lb_n, lb_w, lb_u) = (
+        least(&[at, o].concat()),
+        least(&n),
+        least(&axis),
+        least(&u_ref),
+    );
+    let (lb_a, lb_b, lb_c, lb_s) = (least(&[a]), least(&[b]), least(&[c0]), least(&[s0]));
+    let sum = |parts: &[Option<i32>]| parts.iter().try_fold(0i32, |s, p| p.map(|p| s + p));
+    let t_a = sum(&[lb_a, lb_u, lb_n]);
+    let t_b = sum(&[lb_b, lb_w, lb_u, lb_n]);
+    let t_d = [
+        sum(&[lb_x, lb_n]),
+        t_a.and_then(|t| lb_c.map(|c| t + c)),
+        t_b.and_then(|t| lb_s.map(|s| t + s)),
+    ]
+    .into_iter()
+    .flatten()
+    .min();
+    let deepest = [t_a, t_b, t_d].into_iter().flatten().map(|t| 2 * t).min();
+    if deepest.is_some_and(|d| d < -1074) {
+        return None;
+    }
+    let big_a = Expansion::dot(u_ref, n).scaled(a);
+    let big_b = triple_product(axis, u_ref, n).scaled(b);
+    let mut d = Expansion::difference_dot(at, o, n);
+    d.add_expansion(&big_a.scaled(c0).negated());
+    d.add_expansion(&big_b.scaled(s0).negated());
     let mut squares = big_a.times(&big_a);
     squares.add_expansion(&big_b.times(&big_b));
     squares.add_expansion(&d.times(&d).negated());
-    (squares, [big_a, big_b, d])
+    let parts = [big_a, big_b, d];
+    (squares.is_finite() && parts.iter().all(Expansion::is_finite)).then_some((squares, parts))
 }
 
 /// **The exact determinant `p · (q × r)`** of three points' coordinates,
@@ -224,7 +300,19 @@ pub fn triple_product(p: [f64; 3], q: [f64; 3], r: [f64; 3]) -> Expansion {
 
 #[cfg(test)]
 mod tests {
-    use super::two_sum;
+    use super::{Expansion, two_sum};
+
+    /// **The estimate sums from the smallest component**
+    /// ([`Expansion::estimate`]): the nonadjacent expansion
+    /// `2⁻¹⁰⁵ + 2⁻⁵³ + 1` lies just past the tie between `1` and
+    /// `1 + 2⁻⁵²`, so it rounds up. Summed from the smallest the tail
+    /// carries the sum past the tie; summed from the largest, `1 + 2⁻⁵³`
+    /// ties to `1` and the tail is lost.
+    #[test]
+    fn the_estimate_sums_from_the_smallest() {
+        let e = Expansion(vec![2f64.powi(-105), 2f64.powi(-53), 1.0]);
+        assert_eq!(e.estimate(), 1.0 + 2f64.powi(-52), "{e:?}");
+    }
 
     /// The residual is the real remainder, and it is what separates a
     /// pair whose real sum misses a target from one that hits it even

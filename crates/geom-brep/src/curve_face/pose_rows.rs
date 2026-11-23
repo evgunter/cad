@@ -715,123 +715,58 @@ fn a_touch_past_the_span_is_windowed_by_its_reach() {
 }
 
 /// The far-centred conic graze rows' readings: `(wrong, of them beyond
-/// the escalation)` of the poses read. Each pose is an ellipse of
-/// semi-axes `far` and `far/3`, in any orientation, whose vertex lies in
-/// the box and whose centre lies `far` from it (a shallow cut's section),
-/// against a plane grazing it near that vertex, the plane's stored origin
-/// by the arc. The gap is set within twice the band's escalation and read
-/// exactly on the stored terms: the conic's height above the plane is
-/// `d₀ + A cos θ + B sin θ` with `A = a·(u·n)`, `B = b·(v·n)` and
-/// `d₀ = n·(c − o)` (`u`, `v` the frame's directions as it answers them,
-/// which its points are read along), so the belly `√(A² + B²) − |d₀|`
-/// has the sign of `A² + B² − d₀²`, an exact expansion. A reading is
-/// wrong where it is definite on a belly the band does not decide
-/// (within `Kε`), or definite against the exact sign.
-fn far_centre_conic_grazes(far: f64) -> (usize, usize) {
-    use geom_core::exact::Expansion;
-    let band = Band::linear_at(geom_core::Tol::witness(), 1e-12).unwrap();
+/// the escalation, definite)` of the poses read. Each pose is a graze
+/// from [`crate::curve_pair::far_graze_rows::graze`] (an ellipse of
+/// semi-axes `far` and `far/3`, held at its centre or on its arc, grazed
+/// at any angle round the turn by a point in the box) against a plane
+/// through that point, its normal the ellipse's in-plane normal there
+/// tilted out of the ellipse's plane, its stored origin by the arc and its
+/// gap within twice the band's escalation. Judged exactly on the stored
+/// data ([`crate::curve_pair::far_graze_rows::judge`]).
+fn far_centre_conic_grazes(far: f64, arc_held: bool) -> (usize, usize, usize) {
+    use crate::curve_pair::far_graze_rows::{band, graze, judge};
+    let band = band();
     let mut rng = test_utils::fuzz::start("curve_face::far_centre_conic_grazes");
-    let unit = |rng: &mut test_utils::fuzz::Rng| {
-        Vec3::new(
-            rng.range(-1.0, 1.0),
-            rng.range(-1.0, 1.0),
-            rng.range(-1.0, 1.0),
-        )
-        .normalize()
-    };
-    let times = |x: &Expansion, y: &Expansion| {
-        let mut out = Expansion::default();
-        for &c in y.components() {
-            out.add_expansion(&x.scaled(c));
-        }
-        out
-    };
-    let dot = |p: Vec3<f64>, q: Vec3<f64>| {
-        let mut out = Expansion::default();
-        for (x, y) in [(p.x, q.x), (p.y, q.y), (p.z, q.z)] {
-            out.add_expansion(&Expansion::product(x, y));
-        }
-        out
-    };
-    let (mut wrong, mut beyond) = (0, 0);
+    let (mut wrong, mut beyond, mut definite) = (0, 0, 0);
     for _ in 0..test_utils::fuzz::scaled(2000) {
-        let vertex = Point3::new(
-            rng.range(-500.0, 500.0),
-            rng.range(-500.0, 500.0),
-            rng.range(-500.0, 500.0),
-        );
-        let axis = unit(&mut rng);
-        let u = unit(&mut rng).cross(axis).normalize();
-        let v = axis.cross(u);
-        let (a, b) = (far, far / 3.0);
-        let centre = vertex - u * a;
-        let conic = Curve3::Ellipse(geom::Ellipse::new(geom::Frame::new(centre, axis, u), a, b));
-        // The support point near the vertex, its in-plane outward normal
-        // tilted out of the conic's plane: the height's crest is there.
-        let theta = rng.range(-0.05, 0.05);
-        let crest = centre + u * (a * theta.cos()) + v * (b * theta.sin());
-        let outward = (u * (b * theta.cos()) + v * (a * theta.sin())).normalize();
+        let g = graze(&mut rng, far, arc_held);
         let tilt = rng.range(-1.2, 1.2);
-        let n = (outward * tilt.cos() + axis * tilt.sin()).normalize();
-        let w = n.cross(unit(&mut rng)).normalize();
+        let n = (g.outward * tilt.cos() + g.axis * tilt.sin()).normalize();
+        let w = n.cross(g.along).normalize();
         let gap = rng.range(-2.0, 2.0) * band.escalate();
-        let plane = geom::Frame::new(crest + n * gap + w * rng.range(-3.0, 3.0), n, w);
-        // The stored terms, read exactly.
-        let Some(k) = conic.conic() else {
-            unreachable!("an ellipse is a conic")
-        };
-        let f = k.frame();
-        let (o, n) = (plane.origin(), plane.axis());
-        let (c, o3) = (f.origin(), [o.x, o.y, o.z]);
-        let d0 = Expansion::difference_dot([c.x, c.y, c.z], o3, [n.x, n.y, n.z]);
-        let (sa, sb) = k.semi_axes();
-        let big_a = dot(f.u_ref(), n).scaled(sa);
-        let big_b = dot(f.v_ref(), n).scaled(sb);
-        let mut belly2 = times(&big_a, &big_a);
-        belly2.add_expansion(&times(&big_b, &big_b));
-        belly2.add_expansion(&times(&d0, &d0).negated());
-        let sum = |e: &Expansion| e.components().iter().sum::<f64>();
-        let r = sum(&big_a).hypot(sum(&big_b));
-        let exact = sum(&belly2) / (r + sum(&d0).abs());
-        let span = Span::new(&conic, (0.0, TAU));
-        let surface = geom::Surface::Plane { frame: plane };
-        let definite = match pose(&span, &surface, band) {
+        let plane = geom::Frame::new(g.crest + n * gap + w * rng.range(-3.0, 3.0), n, w);
+        let span = Span::new(&g.conic, (0.0, TAU));
+        let read = match pose(&span, &geom::Surface::Plane { frame: plane }, band) {
             Ok(Pose::Isolated(_)) => Some(true),
             Ok(Pose::Apart) => Some(false),
             _ => None,
         };
-        if let Some(meets) = definite {
-            let against = meets != (exact > 0.0);
-            // A belly within its own rounding of the escalation is the
-            // threshold's.
-            let threshold = band.escalate() * (1.0 - 64.0 * f64::EPSILON);
-            if exact.abs() < threshold || against {
-                wrong += 1;
-                if against && exact.abs() >= threshold {
-                    beyond += 1;
-                }
-            }
+        if let Some(meets) = read {
+            definite += 1;
+            let (w, b) = judge(g.stored, (plane.origin(), plane.axis()), meets, band);
+            wrong += usize::from(w);
+            beyond += usize::from(b);
         }
     }
-    (wrong, beyond)
+    (wrong, beyond, definite)
 }
 
 /// **A graze of a far-centred conic is read wrong nowhere**: an ellipse
-/// of semi-axes of the order `far`, centred `far` from the vertex a
-/// plane grazes, so its height's amplitude and its centre's offset are
-/// both of the order `far` and its belly the band's order. The pose
-/// charges no rounding (`[simple.conditioned]`), so no reading may be
-/// definite where the exact belly is not.
+/// of semi-axes of the order `far`, held at its centre or on its arc,
+/// whose height above a plane grazing it at any angle round the turn has
+/// an amplitude and an offset each of the order `far` and a belly of the
+/// band's order. The pose charges no rounding (`[simple.conditioned]`),
+/// so no reading may be definite where the exact belly is not.
 #[test]
 fn a_graze_of_a_far_centred_conic_is_read_wrong_nowhere() {
-    let got: Vec<_> = [1e4, 1e5, 1e6]
+    let got: Vec<_> = [false, true]
         .into_iter()
-        .map(|far| (far, far_centre_conic_grazes(far)))
+        .flat_map(|held| [1e4, 1e5, 1e6].map(|far| (held, far, far_centre_conic_grazes(far, held))))
         .collect();
-    println!("(far, (wrong, beyond the escalation)): {got:?}");
+    println!("(arc-held, far, (wrong, beyond the escalation, definite)): {got:?}");
     assert!(
-        got.iter().all(|g| g.1.0 == 0),
-        "read wrong (wrong, beyond the escalation): {got:?}; {}",
+        got.iter().all(|g| g.2.0 == 0),
+        "read wrong: {got:?}; {}",
         test_utils::fuzz::replay()
     );
 }

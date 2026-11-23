@@ -797,33 +797,35 @@ impl Real for Interval {
     }
 
     /// The exact expansions enclosed where every input is a stated point
-    /// in the range [`Real::harmonic_belly`]'s `f64` reading keeps exact,
-    /// and its denominator definitely positive; the plain enclosure
-    /// elsewhere.
-    fn harmonic_belly(
-        q: [Self; 3],
-        o: [Self; 3],
-        n: [Self; 3],
-        terms: [(Self, [Self; 3]); 2],
-    ) -> Self {
-        let plain = || crate::real::plain_harmonic_belly(q, o, n, terms);
-        let [(a, u), (b, v)] = terms;
-        let in_range = |x: &f64| *x == 0.0 || (2f64.powi(-120)..=2f64.powi(120)).contains(&x.abs());
-        let zero = <Self as Real>::zero();
-        let Some([q, o, n]) =
-            stated_points(&[q, o, n]).filter(|m| m.iter().flatten().all(in_range))
-        else {
+    /// whose digits an exact expansion keeps
+    /// ([`crate::exact::harmonic_belly`]) and the denominator is
+    /// definitely positive; the plain enclosure elsewhere, which is
+    /// sound.
+    fn harmonic_belly(curve: crate::StoredHarmonic<Self>, o: [Self; 3], n: [Self; 3]) -> Self {
+        let plain = || crate::real::plain_harmonic_belly(curve, o, n);
+        let point = |x: Self| stated_point(x).ok_or(());
+        let points = |v: [Self; 3]| -> Result<[f64; 3], ()> {
+            Ok([point(v[0])?, point(v[1])?, point(v[2])?])
+        };
+        let stated = (|| -> Result<_, ()> {
+            Ok((
+                crate::StoredHarmonic {
+                    at: points(curve.at)?,
+                    axis: points(curve.axis)?,
+                    u_ref: points(curve.u_ref)?,
+                    semi: (point(curve.semi.0)?, point(curve.semi.1)?),
+                    phase: (point(curve.phase.0)?, point(curve.phase.1)?),
+                },
+                points(o)?,
+                points(n)?,
+            ))
+        })();
+        let Ok((curve, o, n)) = stated else {
             return plain();
         };
-        let Some([u, v, [a, b, _]]) =
-            stated_points(&[u, v, [a, b, zero]]).filter(|m| m.iter().flatten().all(in_range))
-        else {
+        let Some((squares, parts)) = crate::exact::harmonic_belly(curve, o, n) else {
             return plain();
         };
-        let (squares, parts) = crate::exact::harmonic_belly(q, o, n, [(a, u), (b, v)]);
-        if !squares.is_finite() || !parts.iter().all(crate::exact::Expansion::is_finite) {
-            return plain();
-        }
         let [big_a, big_b, d] = parts.map(|e| enclose_expansion(&e, 0.0));
         let rise = (big_a.powi(2) + big_b.powi(2)).sqrt() + d.abs();
         if !(rise.is_certified() && Bounds::lo(rise) > 0.0) {

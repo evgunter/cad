@@ -254,19 +254,61 @@ pub fn plain_difference_dot<T: Real>(q: [T; 3], o: [T; 3], n: [T; 3]) -> T {
     (q[0] - o[0]) * n[0] + (q[1] - o[1]) * n[1] + (q[2] - o[2]) * n[2]
 }
 
-/// **The plain formula `√((a·(u·n))² + (b·(v·n))²) − |(q − o)·n|`**:
-/// [`Real::harmonic_belly`]'s default, and the reading every scalar falls
-/// back to where its posed one does not apply.
+/// **A first harmonic's curve as it is stored**: the point `at` it
+/// stores, its unit `axis` and seam `u_ref`, its semi-axes `(a, b)`, and
+/// the phase `(c₀, s₀)` at which `at` lies on it, so that its point at
+/// `θ` is `at + u_ref·a·(cos θ − c₀) + (axis × u_ref)·b·(sin θ − s₀)`.
+/// A conic held at its centre states the phase `(0, 0)`; an ellipse held
+/// on its arc, its anchor's. [`Real::harmonic_belly`] reads it.
+#[derive(Clone, Copy, Debug)]
+pub struct StoredHarmonic<T> {
+    /// The stored point.
+    pub at: [T; 3],
+    /// The stored unit axis.
+    pub axis: [T; 3],
+    /// The stored unit seam.
+    pub u_ref: [T; 3],
+    /// The semi-axes along the seam and across it.
+    pub semi: (T, T),
+    /// Where on the curve `at` lies: `(0, 0)` at its centre.
+    pub phase: (T, T),
+}
+
+impl<T: Copy> StoredHarmonic<T> {
+    /// Every scalar of the placement, read through `f`.
+    #[must_use]
+    pub fn map<U>(self, f: impl Fn(T) -> U) -> StoredHarmonic<U> {
+        StoredHarmonic {
+            at: self.at.map(&f),
+            axis: self.axis.map(&f),
+            u_ref: self.u_ref.map(&f),
+            semi: (f(self.semi.0), f(self.semi.1)),
+            phase: (f(self.phase.0), f(self.phase.1)),
+        }
+    }
+}
+
+/// **The plain formula for [`Real::harmonic_belly`]**: `√(A² + B²) − |D|`
+/// with every term rounded as it is formed: its default, and the reading
+/// every scalar falls back to where its posed one does not apply.
 #[must_use]
-pub fn plain_harmonic_belly<T: Real>(
-    q: [T; 3],
-    o: [T; 3],
-    n: [T; 3],
-    [(a, u), (b, v)]: [(T, [T; 3]); 2],
-) -> T {
+pub fn plain_harmonic_belly<T: Real>(curve: StoredHarmonic<T>, o: [T; 3], n: [T; 3]) -> T {
+    let StoredHarmonic {
+        at,
+        axis: w,
+        u_ref: u,
+        semi: (a, b),
+        phase: (c0, s0),
+    } = curve;
+    let v = [
+        w[1] * u[2] - w[2] * u[1],
+        w[2] * u[0] - w[0] * u[2],
+        w[0] * u[1] - w[1] * u[0],
+    ];
     let dot = |p: [T; 3]| p[0] * n[0] + p[1] * n[1] + p[2] * n[2];
     let (big_a, big_b) = (a * dot(u), b * dot(v));
-    (big_a.powi(2) + big_b.powi(2)).sqrt() - plain_difference_dot(q, o, n).abs()
+    let d = plain_difference_dot(at, o, n) - c0 * big_a - s0 * big_b;
+    (big_a.powi(2) + big_b.powi(2)).sqrt() - d.abs()
 }
 
 /// The scalar type the geometry evaluation layer is generic over.
@@ -544,33 +586,40 @@ pub trait Real:
 
     /// **The belly `√(A² + B²) − |D|` of a first harmonic read across a
     /// plane, posed so its digits are the belly's own**: the height
-    /// `D + A cos θ + B sin θ` of the curve `q + a·u cos θ + b·v sin θ`
-    /// above the plane through `o` with normal `n`, so `A = a·(u·n)`,
-    /// `B = b·(v·n)` and `D = (q − o)·n`. Its sign is whether the curve
-    /// reaches the plane. Where the curve is far larger than its belly
-    /// (an arc of a far-centred conic grazing the plane), `√(A² + B²)`
-    /// and `|D|` are both of the curve's size and their difference
-    /// cancels to the belly: read as that difference, the belly would be
-    /// off by `u` of the curve's size whatever `D`'s precision. At a value
-    /// scalar it is read instead as `(A² + B² − D²)/(√(A² + B²) + |D|)`,
-    /// the numerator an exact expansion of the stored terms
-    /// ([`crate::exact::harmonic_belly`]) rounded once, and `A`, `B`
-    /// and `D` each its own exact value rounded once: the numerator is
-    /// within `2u` of itself, the denominator, which sums two
-    /// non-negative terms and cancels nothing, within `6u`, so the belly
-    /// is within `9u` of itself to first order, relative to the belly and
-    /// not to the curve. At an enclosure stated at points the same
-    /// expansions are enclosed. The default is the plain formula
-    /// ([`plain_harmonic_belly`]); a scalar that carries `T`'s value
-    /// channel computes it through `T`'s own.
+    /// `D + A cos θ + B sin θ` of the stored curve `curve`
+    /// ([`StoredHarmonic`]) above the plane through `o` with unit normal
+    /// `n` ([`crate::exact::harmonic_belly`] names `A`, `B` and `D`). Its
+    /// sign is whether the curve reaches the plane. Where the curve is
+    /// far larger than its belly (an arc of a far-centred conic grazing
+    /// the plane), `√(A² + B²)` and `|D|` are each of the curve's size and
+    /// their difference cancels to the belly: read as that difference,
+    /// it would be off by `u` of the curve's size.
+    ///
+    /// **At a value scalar** it is read as
+    /// `(A² + B² − D²)/(√(A² + B²) + |D|)`, the numerator an exact
+    /// expansion of the stored terms rounded once, and `A`, `B` and `D`
+    /// each its exact value rounded once. The numerator is within `2u` of
+    /// itself ([`crate::exact::Expansion::estimate`]); `√(A² + B²)` is
+    /// within `3u` (each square's `2u` halved by the root, and the
+    /// root's `u`); the denominator sums two non-negative terms, `4u`;
+    /// the quotient's own rounding adds `u`. So the belly is **within
+    /// `7u` of itself, relative to the belly and not to the curve**, to
+    /// first order; the row pins `8u`, judged exactly. Where the inputs'
+    /// digits do not fit an exact expansion (an input whose lowest bit
+    /// is so fine that `D²`'s deepest monomial, `(s₀·b·w·u·n)²`, falls
+    /// below the least subnormal, or an overflow), it is poison: the
+    /// belly cannot be read to its digits there, and a decision on it
+    /// escalates rather than answering on a plain reading.
+    ///
+    /// **At an enclosure** stated at points the same expansions are
+    /// enclosed, each step widened outward by an ulp or two (the row pins
+    /// the width at `32u`); anywhere else, the plain enclosure, which is
+    /// sound. The default is the plain formula ([`plain_harmonic_belly`]);
+    /// a scalar that carries `T`'s value channel computes it through
+    /// `T`'s own.
     #[must_use]
-    fn harmonic_belly(
-        q: [Self; 3],
-        o: [Self; 3],
-        n: [Self; 3],
-        terms: [(Self, [Self; 3]); 2],
-    ) -> Self {
-        plain_harmonic_belly(q, o, n, terms)
+    fn harmonic_belly(curve: StoredHarmonic<Self>, o: [Self; 3], n: [Self; 3]) -> Self {
+        plain_harmonic_belly(curve, o, n)
     }
 
     /// **The `f64` this value states**, where it is a plain enclosure
@@ -2413,34 +2462,19 @@ impl Real for f64 {
         }
     }
 
-    /// The exact expansions, each rounded once; where an input lies
-    /// outside the range an exact product of six of them keeps every
-    /// digit in, or a sum is not finite, the plain formula's.
-    fn harmonic_belly(
-        q: [Self; 3],
-        o: [Self; 3],
-        n: [Self; 3],
-        terms: [(Self, [Self; 3]); 2],
-    ) -> Self {
-        let plain = || plain_harmonic_belly(q, o, n, terms);
-        let [(a, u), (b, v)] = terms;
-        let in_range = |x: &f64| *x == 0.0 || (2f64.powi(-120)..=2f64.powi(120)).contains(&x.abs());
-        let inputs = [q, o, n, u, v, [a, b, 0.0]];
-        if !inputs.iter().flatten().all(in_range) {
-            return plain();
-        }
-        let (squares, parts) = crate::exact::harmonic_belly(q, o, n, terms);
-        if !squares.is_finite() || !parts.iter().all(crate::exact::Expansion::is_finite) {
-            return plain();
-        }
+    /// The exact expansions, each rounded once; poison where they cannot
+    /// be exact (the trait's docs).
+    fn harmonic_belly(curve: StoredHarmonic<Self>, o: [Self; 3], n: [Self; 3]) -> Self {
+        let Some((squares, parts)) = crate::exact::harmonic_belly(curve, o, n) else {
+            return f64::NAN;
+        };
         let [big_a, big_b, d] = parts.map(|e| e.estimate());
         let rise = big_a.hypot(big_b) + d.abs();
         // A zero denominator is `A = B = D = 0`, whose belly is zero.
         if rise == 0.0 {
             return 0.0;
         }
-        let belly = squares.estimate() / rise;
-        if belly.is_finite() { belly } else { plain() }
+        squares.estimate() / rise
     }
 
     /// The identity — every `f64` embeds as itself, exactly.
@@ -3069,85 +3103,116 @@ mod tests {
     proptest! {
         /// **A far-centred harmonic's belly is read to its own digits**
         /// ([`Real::harmonic_belly`]): a curve of semi-axes `far` and
-        /// `k·far` centred `far` from its vertex by the world origin,
-        /// against a plane by the vertex whose normal tilts out of the
-        /// curve's plane, so the swing and the offset are each about
-        /// `far` and the belly is within a metre of zero. The `f64` value
-        /// is within `16u` of the exact belly, relatively, where the plain
-        /// formula rounds at `u·far`; the enclosure stated at points holds
-        /// it within `32u` of it.
+        /// `k·far`, held at its centre (`far` from the world origin) or on
+        /// its arc at a point by the origin, against a plane grazing it at
+        /// any angle round the turn, its normal tilted out of the curve's
+        /// plane, so `√(A² + B²)` and `|D|` are each about `far` and the
+        /// belly is within a metre of zero. Judged exactly on the stored
+        /// data ([`crate::test_support::stored_belly`]): the `f64` value is
+        /// within `8u` of the belly, relatively, and the enclosure stated
+        /// at points holds it and is no wider than `32u` of it.
         #[test]
         fn a_far_centred_harmonics_belly_is_read_to_its_own_digits(
             far in 1e3f64..1e9,
             k in 0.1f64..1.0,
-            vertex in prop::array::uniform3(-10.0f64..10.0),
+            by in prop::array::uniform3(-10.0f64..10.0),
             axis in prop::array::uniform3(-1.0f64..1.0),
             seam in prop::array::uniform3(-1.0f64..1.0),
+            graze in 0.0f64..core::f64::consts::TAU,
+            anchor in 0.0f64..core::f64::consts::TAU,
+            arc_held in any::<bool>(),
             tilt in -1.4f64..1.4,
             across in prop::array::uniform3(-1.0f64..1.0),
-            gap in -1.0f64..1.0,
+            gap in 1e-3f64..1.0,
+            below in any::<bool>(),
             slide in -10.0f64..10.0,
         ) {
-            use crate::exact::Expansion;
-            let unit = |a: [f64; 3]| crate::Vec3::new(a[0], a[1], a[2]);
-            prop_assume!(unit(axis).norm() > 0.1);
-            let axis = unit(axis).normalize();
-            let u = axis.cross(unit(seam));
+            use crate::test_support::stored_belly;
+            let vec = |a: [f64; 3]| crate::Vec3::new(a[0], a[1], a[2]);
+            let arr = |p: crate::Vec3<f64>| [p.x, p.y, p.z];
+            prop_assume!(vec(axis).norm() > 0.1);
+            let axis = vec(axis).normalize();
+            let u = axis.cross(vec(seam));
             prop_assume!(u.norm() > 0.1);
             let u = u.normalize();
             let v = axis.cross(u);
-            let n = (u * tilt.cos() + axis * tilt.sin()).normalize();
-            let w = n.cross(unit(across));
+            let (a, b) = (far, k * far);
+            // The stored point is by the world origin on the arc, or the
+            // centre `far` from it.
+            let by = crate::Point3::new(by[0], by[1], by[2]);
+            let on_arc = |t: f64| u * (a * t.cos()) + v * (b * t.sin());
+            let centre = by - on_arc(anchor);
+            let (at, phase) = if arc_held {
+                (by, (anchor.cos(), anchor.sin()))
+            } else {
+                (centre, (0.0, 0.0))
+            };
+            let outward = u * (b * graze.cos()) + v * (a * graze.sin());
+            let n = (outward.normalize() * tilt.cos() + axis * tilt.sin()).normalize();
+            let w = n.cross(vec(across));
             prop_assume!(w.norm() > 0.1);
             let w = w.normalize();
-            let vertex = crate::Point3::new(vertex[0], vertex[1], vertex[2]);
-            let q = vertex - u * far;
-            let o = vertex + n * gap + w * slide;
-            let arr = |p: crate::Vec3<f64>| [p.x, p.y, p.z];
-            let (q, o) = ([q.x, q.y, q.z], [o.x, o.y, o.z]);
-            let terms = [(far, arr(u)), (k * far, arr(v))];
-            let n = arr(n);
-            // The exact belly: `A² + B² − D²` exact, over `√(A² + B²) + |D|`
-            // read from the exact parts, each within an ulp.
-            let dot = |p: [f64; 3]| {
-                let mut e = Expansion::default();
-                for i in 0..3 {
-                    e.add_expansion(&Expansion::product(p[i], n[i]));
-                }
-                e
+            let gap = if below { -gap } else { gap };
+            let o = centre + on_arc(graze) + n * gap + w * slide;
+            let curve = StoredHarmonic {
+                at: [at.x, at.y, at.z],
+                axis: arr(axis),
+                u_ref: arr(u),
+                semi: (a, b),
+                phase,
             };
-            let (big_a, big_b) = (dot(terms[0].1).scaled(terms[0].0), dot(terms[1].1).scaled(terms[1].0));
-            let d = Expansion::difference_dot(q, o, n);
-            let mut squares = big_a.times(&big_a);
-            squares.add_expansion(&big_b.times(&big_b));
-            squares.add_expansion(&d.times(&d).negated());
-            let sum = |e: &Expansion| e.components().iter().sum::<f64>();
-            let exact = sum(&squares) / (sum(&big_a).hypot(sum(&big_b)) + sum(&d).abs());
-            let u = f64::EPSILON / 2.0;
-            let got = f64::harmonic_belly(q, o, n, terms);
+            let (o, n) = ([o.x, o.y, o.z], arr(n));
+            let u_ = f64::EPSILON / 2.0;
+            let got = f64::harmonic_belly(curve, o, n);
             prop_assert!(
-                (got - exact).abs() <= 16.0 * u * exact.abs(),
-                "f64: {got:e} against the exact {exact:e} (far {far:e}; the plain formula reads {:e})",
-                plain_harmonic_belly(q, o, n, terms)
+                stored_belly::within(curve, o, n, (got - 8.0 * u_ * got.abs(), got + 8.0 * u_ * got.abs())),
+                "f64: {got:e} is not within 8u of the belly (far {far:e}; the plain formula reads {:e})",
+                plain_harmonic_belly(curve, o, n)
             );
-            let point = |a: [f64; 3]| a.map(crate::Interval::from_f64);
             let enclosed = crate::Interval::harmonic_belly(
-                point(q),
-                point(o),
-                point(n),
-                terms.map(|(s, d)| (crate::Interval::from_f64(s), point(d))),
-            );
-            let slack = 16.0 * u * exact.abs();
-            prop_assert!(
-                enclosed.lo() <= exact + slack && exact - slack <= enclosed.hi(),
-                "interval: [{:e}, {:e}] misses the exact {exact:e}", enclosed.lo(), enclosed.hi()
+                curve.map(crate::Interval::from_f64),
+                o.map(crate::Interval::from_f64),
+                n.map(crate::Interval::from_f64),
             );
             prop_assert!(
-                enclosed.hi() - enclosed.lo() <= 32.0 * u * exact.abs(),
-                "interval: [{:e}, {:e}] is wider than a few ulps of {exact:e}",
+                stored_belly::within(curve, o, n, (enclosed.lo(), enclosed.hi())),
+                "interval: [{:e}, {:e}] misses the belly", enclosed.lo(), enclosed.hi()
+            );
+            prop_assert!(
+                enclosed.hi() - enclosed.lo() <= 32.0 * u_ * got.abs(),
+                "interval: [{:e}, {:e}] is wider than 32u of {got:e}",
                 enclosed.lo(), enclosed.hi()
             );
         }
+    }
+
+    /// **A belly whose digits no exact expansion keeps is poison, not a
+    /// plain reading** ([`Real::harmonic_belly`]): a normal component of
+    /// `1e-200` puts `D²`'s deepest monomial below the least subnormal, so
+    /// the `f64` reading is NaN (a decision on it escalates), and the
+    /// enclosure falls back to the plain one, which still holds the belly.
+    #[test]
+    fn a_belly_past_the_exact_range_is_poison() {
+        let curve = StoredHarmonic {
+            at: [-1e6, 0.0, 0.0],
+            axis: [0.0, 0.0, 1.0],
+            u_ref: [1.0, 0.0, 0.0],
+            semi: (1e6, 3e5),
+            phase: (0.0, 0.0),
+        };
+        let (o, n) = ([1e-9, 0.0, 0.0], [1.0, 1e-200, 0.0]);
+        assert!(f64::harmonic_belly(curve, o, n).is_nan());
+        let enclosed = crate::Interval::harmonic_belly(
+            curve.map(crate::Interval::from_f64),
+            o.map(crate::Interval::from_f64),
+            n.map(crate::Interval::from_f64),
+        );
+        assert!(crate::test_support::stored_belly::within(
+            curve,
+            o,
+            n,
+            (enclosed.lo(), enclosed.hi())
+        ));
     }
 
     /// The door at `f64`: a total order, sign-blind at the tie, and

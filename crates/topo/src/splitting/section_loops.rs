@@ -404,7 +404,7 @@ fn line_clears_conic<T: Decide>(
     let m = c.frame().axis().cross(along.normalize());
     positive(
         "split_nest_line_conic",
-        T::zero() - geom_brep::curve_pair::pose::belly(c, p, m),
+        T::zero() - c.belly_along(p, m),
         band,
     )
 }
@@ -521,6 +521,101 @@ mod torn_hop_rows {
             &mut body,
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
             |b| disjoint(b),
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod far_clear_rows {
+    use geom_core::test_support::stored_belly;
+    use geom_core::{Band, Point3, StoredHarmonic, Vec3};
+
+    use super::line_clears_conic;
+
+    /// `(wrong, clears)` over 2000 lines in a far ellipse's plane at
+    /// `far`, each along its tangent at a point at any angle round the
+    /// turn, set off it by a gap within twice the band's escalation. The
+    /// ellipse is held at its centre or on its arc, semi-axes `far` and
+    /// `far/3`, the grazed point in the box. A clear is judged exactly on
+    /// the stored data across the plane through the line's first point
+    /// along the reader's own normal `m`: it is wrong unless the belly is
+    /// definitely negative.
+    fn far_line_clears(far: f64) -> (usize, usize) {
+        let band = Band::linear_at(geom_core::Tol::witness(), 1e-12).unwrap();
+        let mut rng = test_utils::fuzz::start("section_loops::far_line_clears");
+        let (mut wrong, mut clears) = (0, 0);
+        for k in 0..test_utils::fuzz::scaled(2000) {
+            let mut unit = || {
+                Vec3::new(
+                    rng.range(-1.0, 1.0),
+                    rng.range(-1.0, 1.0),
+                    rng.range(-1.0, 1.0),
+                )
+                .normalize()
+            };
+            let axis = unit();
+            let u = unit().cross(axis).normalize();
+            let v = axis.cross(u);
+            let (a, b) = (far, far / 3.0);
+            let theta = rng.range(0.0, core::f64::consts::TAU);
+            let crest = Point3::new(
+                rng.range(-500.0, 500.0),
+                rng.range(-500.0, 500.0),
+                rng.range(-500.0, 500.0),
+            );
+            let centre = crest - (u * (a * theta.cos()) + v * (b * theta.sin()));
+            let outward = (u * (b * theta.cos()) + v * (a * theta.sin())).normalize();
+            let along = axis.cross(outward);
+            let (frame, phase, conic) = if k % 2 == 1 {
+                let anchor = centre + u * a;
+                (
+                    geom::Frame::new(anchor, axis, u),
+                    (1.0, 0.0),
+                    geom::Ellipse::anchored(anchor, axis, u, a, b),
+                )
+            } else {
+                let frame = geom::Frame::new(centre, axis, u);
+                (frame, (0.0, 0.0), geom::Ellipse::new(frame, a, b))
+            };
+            let gap = rng.range(-2.0, 2.0) * band.escalate();
+            let p = crest + outward * gap + along * rng.range(-3.0, 3.0);
+            let q = p + along * 5.0;
+            if !line_clears_conic(p, q, &conic, band) {
+                continue;
+            }
+            clears += 1;
+            let arr = |w: Vec3<f64>| [w.x, w.y, w.z];
+            let at = frame.origin();
+            let stored = StoredHarmonic {
+                at: [at.x, at.y, at.z],
+                axis: arr(frame.axis()),
+                u_ref: arr(frame.u_ref()),
+                semi: (a, b),
+                phase,
+            };
+            let m = frame.axis().cross((q - p).normalize());
+            let threshold = band.escalate() * (1.0 - 64.0 * f64::EPSILON);
+            if !stored_belly::below(stored, [p.x, p.y, p.z], arr(m), -threshold) {
+                wrong += 1;
+            }
+        }
+        (wrong, clears)
+    }
+
+    /// **A line clears a far-centred conic only where it is clear**
+    /// ([`line_clears_conic`]): no clear where the exact belly is not
+    /// definitely negative.
+    #[test]
+    fn a_line_clears_a_far_centred_conic_only_where_it_is_clear() {
+        let got: Vec<_> = [1e4, 1e5, 1e6]
+            .map(|far| (far, far_line_clears(far)))
+            .to_vec();
+        println!("(far, (wrong, clears)): {got:?}");
+        assert!(
+            got.iter().all(|g| g.1.0 == 0),
+            "cleared wrongly: {got:?}; {}",
+            test_utils::fuzz::replay()
         );
     }
 }
