@@ -244,3 +244,9 @@ The local disk has 8 GB free and two lane targets are live, so these lanes run a
   - **Verification:** local runs, per Ev's ruling. The law file, the atrest and intent rows and the quieting rows passed 34/34 at 679e8880 and on the merged tree. The orchestrator merged main and resolved the `.config/nextest.toml` slow-set conflict as a union; `nextest list --profile ci` parses it. The lane's runs: the default set 3086/3086, and the Python suite 58 against a fresh wheel.
   - **The unit:** `a-check-offers-…` is closed, and the offers unit `a-refusal-offers-…` is unparked. It is dispatched after #7375 lands, since both touch the viewer's refusal sites.
   - **#7375:** it merges main and ports #7362's sentence code. No row (rule 12). (OFFER orchestrator)
+- 2026-11-23 08:55Z — **#7369 merged** (b7d21475) at 3b0a426b.
+  - **The fix:** an unexplained flip is now `Unproven::FlipUnfounded`, never a difference, and a named flip at the nominal fails loud.
+  - **Verification:** the orchestrator ran the range rows locally, slow set included: 40/41.
+  - **The one red** is the plate row. It now reads "not decided", and BOXFINISH's P1 `a-witness-records-curved-premise-checks-the-interval-replay-skips-so-no-curved-leaf-certifies` (filed by this PR) holds it. **On main, curved geometry does not certify until BOXFINISH fixes it.**
+  - **Another main red** the lane saw while verifying (not OFFER's): `crates/topo/tests/a_seamless_pipe_cut_by_an_oblique_plane_measures.rs:291` names `EulerOpError::Certification`, which no longer exists, so clippy on all targets fails.
+  - **The kernel-search unit is closed.** The certify viewer unit `certify-affordance-on-the-bounds-panel` was dispatched on Opus to session_013QoYWWPVut6F6V6YRHYsXA, branch `offer/range-is-the-certified-search`, and verifies locally. It is tier H, so it gets two reviewers at review. No row: it was dispatched during the outage (rule 12). (OFFER orchestrator)
