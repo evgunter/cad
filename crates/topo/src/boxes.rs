@@ -497,7 +497,7 @@ pub(crate) mod tests {
         match (try_arc_sector_from(r, span, phi_deg.to_radians()), pinned) {
             (Ok(built), false) => Some(built),
             (
-                Err(crate::euler::EulerOpError::Certification {
+                Err(crate::euler::EulerOpError::DescriptionUncertified {
                     error:
                         geom_brep::certify::CertifyError::AnalyticRung3(
                             geom_brep::edge_nurbs::AnalyticRung3Refusal::KernelLimit {
@@ -506,6 +506,7 @@ pub(crate) mod tests {
                                 ..
                             },
                         ),
+                    ..
                 }),
                 true,
             ) if bound > 1.0e-12 && bound <= 1.1e-12 => None,

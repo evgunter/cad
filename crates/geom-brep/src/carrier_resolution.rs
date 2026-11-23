@@ -415,7 +415,7 @@ mod tests {
     /// centre, `r/θ` away along the axis, and stands within `4u` of its
     /// semi-axis: its in-box arc lies about half a radian from any
     /// vertex, so no vertex anchors it
-    /// (`work/oneround/a-section-conic-is-anchored-at-a-general-point-of-its-arc.md`).
+    /// (`work/conic/a-section-conic-is-anchored-at-a-general-point-of-its-arc.md`).
     /// Red if the cone's vertex is read as its centre less its
     /// semi-axis.
     #[test]

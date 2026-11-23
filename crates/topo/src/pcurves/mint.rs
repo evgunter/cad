@@ -1361,7 +1361,8 @@ pub(super) fn computed_foot<T: Real>(foot: geom_core::Point2<f64>) -> Point2<T> 
 /// forward in the carrier parameter)?
 #[track_caller]
 pub(crate) fn is_plus<T: Decide>(body: &Body<T>, half_edge: HalfEdgeKey) -> bool {
-    edge_record(body, half_edge).1.he_plus == half_edge
+    let (ek, data) = edge_record(body, half_edge);
+    crate::live::claimed(half_edge, ek, data).plus
 }
 
 /// The FIRST-CHANNEL arm of a chart — the metres a unit step of the
@@ -1883,6 +1884,8 @@ pub fn mint_pcurves<T: AtRestPolicy>(body: &mut Body<T>, tol: Tol) -> Result<(),
 /// all about the rest of the map. The simultaneous offset doors are
 /// exactly that caller: they perform no topological surgery, so no
 /// half-edge of theirs ever dies and the two statements coincide.
+/// `join_edges_within` kills half-edges, and drops their rows
+/// (`drop_rows`) before this pass, which brings it to the same case.
 /// Pinned by `sweep`'s `shell10_r1_probes` and `shell10_r2_probes`,
 /// which kill a half-edge through the public `kef` and count what each
 /// pass leaves.

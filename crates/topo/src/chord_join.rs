@@ -2299,7 +2299,7 @@ fn section_pin_refusal<T: Decide>(
     band: Band,
 ) -> JoinError {
     use geom_brep::CertCheck as C;
-    let EulerOpError::Certification { error } = &refusal else {
+    let EulerOpError::DescriptionUncertified { error, .. } = &refusal else {
         return refusal.into();
     };
     let Some(rho) =
