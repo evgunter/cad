@@ -48,7 +48,8 @@ a triangle within δ is its certificate.
 "Without extra work" means: where refining to exactly δ would be more
 work than refining slightly past it, the lane refines slightly past
 it. It never does something extra to get a less precise mesh on
-purpose.
+purpose. The work meant is centrally the work of writing the code,
+more than the work of running it.
 
 - **The step is a first guess, and the certificate decides.** Each
   chart has a cell bound: a closed-form bound on the deviation of a
