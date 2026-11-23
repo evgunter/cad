@@ -2321,7 +2321,7 @@ fn product_is(
             let (next, at) = insert(
                 doc,
                 Node::Assemble {
-                    members: Bodies::Spelled(
+                    members: Bodies::spelled(
                         several
                             .iter()
                             .map(|&copy| BodyRead::plain(Operand::Node(copy)))
@@ -2775,7 +2775,7 @@ fn the_export_door_refuses_typed_not_vaguely() {
     let (doc, downstream) = insert(
         doc,
         Node::Union {
-            members: pncad::document::Bodies::Spelled(vec![cut.into(), first_box.into()]),
+            members: pncad::document::Bodies::spelled(vec![cut.into(), first_box.into()]),
         },
     );
     let ev = doors_evaluate(&doc);
@@ -2906,7 +2906,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
     let (doc, solid) = insert(
         doc,
         Node::Union {
-            members: pncad::document::Bodies::Spelled(vec![plate.into(), tab.into()]),
+            members: pncad::document::Bodies::spelled(vec![plate.into(), tab.into()]),
         },
     );
     let (doc, copy) = place(doc, solid);
@@ -7938,7 +7938,9 @@ fn the_nominal_clearance_door_answers_each_assertion_and_stops_on_cancel() {
         None,
     )
     .expect("a length pitch");
-    let (doc, _row) = insert(doc, row);
+    let (doc, row) = insert(doc, row);
+    let binder = doc.var_named("k").expect("the row's index");
+    let doc = applied(&doc, pncad::pattern::yields_edit(binder, &doc.outputs(row))).doc;
     let lowered = Stop {
         member_budget: 2,
         ..Stop::default()

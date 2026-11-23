@@ -809,6 +809,10 @@ pub(crate) fn register_rigidity<T: Real>(rim: Vec3<T>, arc: Arc2<T>, start: Poin
 /// **What it touches: nothing.** `Curve3::circle_at` over the spec's
 /// own carrier and span is the node the certifier evaluates; the
 /// placed carrier end is built here and thrown away.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn register_placed_carrier_end<T: Real>(
     carrier: &Curve3<T>,
     param_end: T,

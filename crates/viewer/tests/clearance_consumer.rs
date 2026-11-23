@@ -719,17 +719,17 @@ fn a_body_drawn_twice_is_refused_at_the_pick_in_the_tools_words() {
     assert_eq!(tool.body(0), None, "the seat is untouched");
 }
 
-/// **A requirement over a pattern's members refuses in words, never
-/// crashes**: a pattern seat lifts the assertion over the family, one
-/// requirement per member, which the certifying lane does not decide
-/// yet. The row says so with its recourse, under the requirement's own
-/// name. A face of one drawn member, picked in the picture, seats that
-/// member alone, and is certified.
+/// **A requirement over a pattern's family is refused**: a clearance
+/// seat takes one body, so a family there refuses at the body gate, as
+/// the door refuses it by kind (D10 `[repetition]`); nothing reaches the
+/// certify door. A face of
+/// one drawn member, picked in the picture, seats that member alone, and
+/// is certified.
 ///
-/// Red if the landing hands the family to the certify door as a verdict
-/// (which panicked the worker), or the row stays silent.
+/// Red if a family at the seat is lifted over its members implicitly,
+/// or the refusal says nothing to do.
 #[test]
-fn a_requirement_over_a_patterns_members_refuses_in_words() {
+fn a_requirement_over_a_patterns_family_is_refused_by_kind() {
     let tol = Tol::witness();
     let (mut session, left, right) = scene(tol, None);
     // Picked on the left block's world copy, the pattern repeats the copy
@@ -747,61 +747,21 @@ fn a_requirement_over_a_patterns_members_refuses_in_words() {
         },
     );
     session.pump();
-    let by_body = add(
-        &mut session,
-        requirement(pattern, right, ClearanceBounds::AtLeast(len(0.02))),
-    );
-    let label = pncad::document::Label::new("pattern gap").expect("a label");
-    let labelled = session.perform(SessionOp::SetLabel {
-        node: by_body,
-        label: Some(label),
-    });
-    assert!(labelled.refusal.is_none(), "{:?}", labelled.refusal);
-    session.pump();
-    let row = cleared(&session, by_body);
+    let refused = session.perform(requirement(
+        pattern,
+        right,
+        ClearanceBounds::AtLeast(len(0.02)),
+    ));
     assert!(
         matches!(
-            row.answer,
-            Certified::Answered(ClearanceOutcome::OverMembers { .. })
+            &refused.refusal,
+            Some(viewer::session::Refusal::WrongNodeKind {
+                wanted: viewer::session::NodeKindWanted::Body,
+                ..
+            })
         ),
-        "{:?}",
-        row.answer
-    );
-    assert_eq!(row.state(), "Refused");
-    let said = row.sentence().expect("the refusal is said");
-    let sentence = said.to_string();
-    assert!(
-        sentence.contains("\"pattern gap\"") && sentence.contains("Recourse:"),
-        "{sentence}"
-    );
-    assert!(
-        said.mentions()
-            .any(|mention| mention.node().map(|n| n.id()) == Some(by_body)
-                && mention.document() == Some(session.doc().id())),
-        "the assertion is a mention in the document on screen, a link: {said:?}"
-    );
-    // A landing whose only clearance is lifted owes no certified answer.
-    let seam = Recording::default();
-    let mut fresh = DocSession::inline(session.committed_doc().clone(), tol)
-        .with_certifier(Box::new(seam.clone()));
-    fresh.pump();
-    assert!(
-        seam.submits().is_empty(),
-        "a family is not handed to the certify door as a verdict"
-    );
-    // The certify door answers it the same way, in words, rather than
-    // reading the family as a verdict.
-    let answers =
-        clearances_at_nominal(session.doc(), None, &pncad::document::Stop::default(), tol)
-            .expect("an uncancelled run answers");
-    let door = answers
-        .iter()
-        .find(|answer| answer.assertion == by_body)
-        .expect("one answer per clearance");
-    assert!(
-        matches!(&door.answer, ClearanceOutcome::OverMembers { sentence } if sentence.to_string().contains("Recourse:")),
-        "{:?}",
-        door.answer
+        "a family at a clearance seat refuses at the body gate: {:?}",
+        refused.refusal
     );
     // A face of the second member, picked where the picture draws it.
     // The family stands in the world and is drawn as itself.

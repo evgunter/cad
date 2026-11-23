@@ -128,11 +128,12 @@ fn a_member_is_selected_by_its_own_names_and_carried_as_the_familys() {
     }
 }
 
-/// **`xs[k]` on the family's own index chain is stored as `xs`**: a
-/// per-member reader's plain read, so the fillet is a family under `k`.
-/// Red if the indexed form is stored.
+/// **`xs[k]` is stored as written** (REFERENCES DM3): a member read at
+/// the binder's own index reads one member, so the fillet reads `k` and
+/// is a family under it, one fillet per member. Red if the door stores
+/// the plain read, which is the family whole.
 #[test]
-fn a_member_read_at_the_familys_own_index_is_stored_plain() {
+fn a_member_read_at_the_familys_own_index_is_stored_as_written() {
     let (doc, cube, k, xs) = family("select-own-index");
     let edge = an_edge(&doc, cube);
     let own = BodyRead::indexed(xs, vec![Formula::var(k, Dimension::Count)]);
@@ -140,8 +141,8 @@ fn a_member_read_at_the_familys_own_index_is_stored_plain() {
     let select = selection_of(&doc, fillet);
     assert_eq!(
         select.body,
-        BodyRead::plain(doc.output(xs, 0).expect("the family's read")),
-        "`xs[k]` is stored as `xs`"
+        BodyRead::indexed(doc.output(xs, 0).expect("the family's read"), vec![k]),
+        "`xs[k]` is stored as written"
     );
     assert_eq!(
         doc.node_reach(fillet).chain(),
@@ -156,15 +157,11 @@ fn a_member_read_at_the_familys_own_index_is_stored_plain() {
     );
 }
 
-/// **The family read whole is no body a selection reads**, at the door
-/// or at load. A family read plainly at a selection's body is read one
-/// member at a time, as at every body seat: the selection makes its
-/// reader a family under `k`. So a selection under a name of the
-/// family's table (`Member { (k, 2), e }`) holds a name no member's own
-/// table holds, and every member refuses resolving it; nothing reads the
-/// family whole to find the member the name spells. The saved document
-/// loads to the same per-member read and the same refusal. Red if any
-/// door or evaluation reads a selection's family whole.
+/// **The family read whole is no body a selection reads** (D10
+/// `[repetition]`): a selection's body is a seat for one body, so a
+/// family a binder yields, read plainly there, is refused at the door by
+/// kind, found `Bodies`; nothing maps the selection over the members.
+/// Red if the door admits it.
 #[test]
 fn a_family_read_whole_is_no_body_a_selection_reads() {
     let (doc, cube, k, xs) = family("select-whole");
@@ -177,29 +174,20 @@ fn a_family_read_whole_is_no_body_a_selection_reads() {
             of: edge.into(),
         }],
     };
-    let (doc, fillet) = insert(
-        doc,
+    let refused = fixture::insert_refused(
+        &doc,
         Node::fillet(Operand::Node(xs), len(0.1), vec![whole_name]),
     );
-    let text = editor_core::persist::save(&doc, Tol::witness()).expect("the document saves");
-    let loaded = editor_core::persist::load(&text, Tol::witness()).expect("and loads");
-    for (door, doc) in [("the edit door", &doc), ("the load door", &loaded)] {
-        assert_eq!(
-            doc.node_reach(fillet).chain(),
-            Some(&[k][..]),
-            "{door}: a plain read of the family is read per member"
-        );
-        let ev = eval(doc);
-        assert!(
-            matches!(
-                error_of(&ev, fillet),
-                NodeErrorKind::MemberRefused { source, .. }
-                    if matches!(**source, NodeErrorKind::SelectResolve { .. })
-            ),
-            "{door}: a member's table holds no name of the family's: {:?}",
-            ev.result(fillet)
-        );
-    }
+    assert!(
+        matches!(
+            refused,
+            editor_core::EditError::SlotVarKind {
+                found: editor_core::VarKind::Bodies,
+                ..
+            }
+        ),
+        "refused by kind: {refused:?}"
+    );
 }
 
 /// **A mate side's index is a written count**: the mate's member walk
@@ -241,10 +229,10 @@ fn a_mate_sides_index_is_a_written_count() {
 }
 
 /// **D10's per-copy reading, `gap(c[k], c[(k + 1) mod N])`**: a measure
-/// evaluated once per member, between a vertex of member `k` (the
-/// family read plainly) and the same vertex of member `(k + 1) mod 3`
-/// (the selection's own index), is 2, 2 and 4. Red if the second read
-/// is not the next member, or the index does not wrap.
+/// evaluated once per member, between a vertex of member `k` and the same
+/// vertex of member `(k + 1) mod 3`, each a member read written at its
+/// index, is 2, 2 and 4. Red if the second read is not the next member,
+/// or the index does not wrap.
 #[test]
 fn a_per_copy_selection_reads_the_next_member() {
     let (doc, cube, k, xs) = family("select-next");
@@ -260,7 +248,10 @@ fn a_per_copy_selection_reads_the_next_member() {
     let measured = editor_core::measure(
         &doc,
         &[MeasurePrimitive::Distance {
-            a: Operand::select(Operand::Node(xs), vec![vertex.clone()]),
+            a: Operand::select(
+                BodyRead::indexed(xs, vec![Formula::var(k, Dimension::Count)]),
+                vec![vertex.clone()],
+            ),
             b: Operand::select(BodyRead::indexed(xs, vec![next]), vec![vertex]),
         }],
         Tol::witness(),
@@ -429,6 +420,11 @@ fn a_side_index_named_after_the_door_still_reads_its_member() {
 #[test]
 fn the_load_door_holds_a_side_read_through_a_pose() {
     let (doc, k, _, index, _) = side_on_member("select-side-load");
+    // The product reads the top, which a side reading `k` makes a
+    // k-reader, so containment refuses the redefinition while it is the
+    // product (D10 `[repetition]`); the row is the load door's, so the
+    // product is cleared first.
+    let doc = fixture::step(doc, DocEdit::SetProduct { product: None }).0;
     let defined = doc
         .apply(
             &DocEdit::DefineVar {
@@ -464,7 +460,7 @@ fn the_load_door_holds_a_side_read_through_a_pose() {
                 var: editor_core::VarRef::Id(k),
                 def: editor_core::VarDecl::Index {
                     count: Formula::count(2),
-                    within: Some(Formula::var(j, Dimension::Count)),
+                    after: Some(Formula::var(j, Dimension::Count)),
                 },
                 fresh: Vec::new(),
             },
@@ -535,6 +531,9 @@ fn the_load_door_holds_a_side_read_through_a_named_pose() {
         .expect("the pose is named")
         .doc;
     editor_core::persist::save(&doc, Tol::witness()).expect("a written index saves");
+    // The load door's row: the product, which containment would hold
+    // the redefinition to, is cleared first.
+    let doc = fixture::step(doc, DocEdit::SetProduct { product: None }).0;
     let defined = doc
         .apply(
             &DocEdit::DefineVar {

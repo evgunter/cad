@@ -702,9 +702,10 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         // An index's own declaration, and a reader of two indices
         // neither within the other (D10 `[repetition]`).
         EditError::Index { .. } => "index",
+        EditError::Yields { .. } => "yields",
         EditError::SourceRead { .. } => "source_read",
         EditError::PlacementReadsNoSource { .. } => "placement_reads_no_source",
-        EditError::IndicesUnrelated { .. } => "indices_unrelated",
+        EditError::TwoBinders { .. } => "two_binders",
         EditError::PlacementAxis { .. } => "placement_axis",
         EditError::UpdateOnNonInstance { .. } => "update_on_non_instance",
         EditError::PinUnchanged { .. } => "pin_unchanged",
@@ -1033,7 +1034,8 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         // outside the counts an index holds.
         C::MemberOutOfRange => "member_out_of_range",
         C::MemberRefused => "member_refused",
-        C::IndicesUnrelated => "indices_unrelated",
+        C::TwoBinders => "two_binders",
+        C::YieldsNothing => "yields_nothing",
         C::IndexCount => "index_count",
         C::IndexCountOutOfRange => "index_count_out_of_range",
         C::UnschedulableCycle => "unschedulable_cycle",
@@ -1047,7 +1049,6 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         // A read of a split's half with no material (DOCM-2).
         C::EmptyHalf => "empty_half",
         // A read of a half of a split whose target is a family.
-        C::HalfOfAFamily => "half_of_a_family",
         C::WitnessBifurcation => "witness_bifurcation",
         // The seam faults stay separable at the tag level:
         // "the pin does not hold" and "the tolerances disagree" are
@@ -1167,11 +1168,11 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         // `half` is WHICH side was empty, a value the caller asked
         // for — the payload question, not the fault one.
         NodeErrorKind::EmptyHalf { .. } => None,
-        NodeErrorKind::HalfOfAFamily { .. } => None,
         NodeErrorKind::MemberOutOfRange { .. } => None,
         // The member's own refusal crosses in the message.
         NodeErrorKind::MemberRefused { .. } => None,
-        NodeErrorKind::IndicesUnrelated { .. } => None,
+        NodeErrorKind::TwoBinders { .. } => None,
+        NodeErrorKind::YieldsNothing { .. } => None,
         NodeErrorKind::IndexCount { source, .. } => Some(eval_error_tag(source)),
         NodeErrorKind::IndexCountOutOfRange { .. } => None,
         NodeErrorKind::DegenerateDirection { .. } => None,
@@ -1337,7 +1338,16 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::UnknownConstraint { .. } => None,
         EditError::Index { fault, .. } => Some(match fault {
             pncad::document::IndexFault::CountNotCount { .. } => "count_not_count",
-            pncad::document::IndexFault::WithinNoIndex => "within_no_index",
+            pncad::document::IndexFault::AfterNoIndex => "after_no_index",
+            pncad::document::IndexFault::AfterTaken { .. } => "after_taken",
+        }),
+        EditError::Yields { fault, .. } => Some(match fault {
+            pncad::document::YieldsFault::NotABinder => "not_a_binder",
+            pncad::document::YieldsFault::Index { .. } => "yield_is_index",
+            pncad::document::YieldsFault::Twice { .. } => "yield_twice",
+            pncad::document::YieldsFault::Elsewhere { .. } => "yield_elsewhere",
+            pncad::document::YieldsFault::Nothing => "no_yields",
+            pncad::document::YieldsFault::Outside { .. } => "yield_outside",
         }),
         EditError::SourceRead { fault, .. } => Some(match fault {
             pncad::document::SourceFault::Unresolved { .. } => "unresolved",
@@ -1348,7 +1358,7 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
             pncad::document::SourceFault::Fresh => "fresh",
         }),
         EditError::PlacementReadsNoSource { .. } => None,
-        EditError::IndicesUnrelated { .. } => None,
+        EditError::TwoBinders { .. } => None,
         EditError::UpdateOnNonInstance { .. } => None,
         EditError::PinUnchanged { .. } => None,
         EditError::LabelUnchanged { .. } => None,
@@ -1618,6 +1628,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::DegenerateTorus => "degenerate_torus",
         BooleanErrorKind::CurvedSectorSideUnsupported => "curved_sector_side_unsupported",
         BooleanErrorKind::CurvedPierceUnsupported => "curved_pierce_unsupported",
+        BooleanErrorKind::JunctionEndUnread => "junction_end_unread",
         BooleanErrorKind::CurvedPierceEscalated => "curved_pierce_escalated",
         BooleanErrorKind::CrossingAtConeApex => "crossing_at_cone_apex",
         BooleanErrorKind::NormalAtConeApex => "normal_at_cone_apex",
@@ -2170,6 +2181,7 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::OutputSignature { .. } => "output_signature",
         SnapshotError::VarNotMinted { .. } => "var_not_minted",
         SnapshotError::NameOnMissingVar { .. } => "name_on_missing_var",
+        SnapshotError::IndexSeat { .. } => "index_seat",
         SnapshotError::VarNameTwice { .. } => "var_name_twice",
         SnapshotError::ReaderOfUnmintedVar { .. } => "reader_of_unminted_var",
         SnapshotError::SlotVarKind { .. } => "slot_var_kind",
@@ -2216,6 +2228,7 @@ pub fn persist_error_tag(err: &PersistError) -> &'static str {
         // [`expr_dimension_error_tag`] — the same map the text door
         // draws `ParseError.kind` from. One vocabulary, three doors.
         PersistError::Dimension { .. } => "dimension",
+        PersistError::IndexBeforeBinders { .. } => "index_before_binders",
         PersistError::Snapshot(_) => "snapshot",
         PersistError::ToleranceConflict { .. } => "tolerance_conflict",
         PersistError::ToleranceInvalid { .. } => "tolerance_invalid",
@@ -3512,6 +3525,7 @@ pub fn maintenance_tag(maintenance: &Maintenance) -> &'static str {
         Maintenance::ProductOutsideWorld { .. } => "product_outside_world",
         Maintenance::ValueDropped { .. } => "value_dropped",
         Maintenance::AnonymousVarRemoved { .. } => "anonymous_var_removed",
+        Maintenance::YieldRemoved { .. } => "yield_removed",
     }
 }
 
@@ -3549,6 +3563,7 @@ pub fn product_read_fault_tag(fault: &ProductReadFault) -> &'static str {
         ProductReadFault::Kind { .. } => "kind",
         ProductReadFault::Space { .. } => "space",
         ProductReadFault::Member => "member_at_product",
+        ProductReadFault::PerMember => "per_member_at_product",
         ProductReadFault::Path { .. } => "pick_path",
     }
 }

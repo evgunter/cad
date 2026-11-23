@@ -105,14 +105,14 @@ pub enum NodeErrorClass {
     UnfinishedLeaf,
     /// [`NodeErrorKind::EmptyHalf`].
     EmptyHalf,
-    /// [`NodeErrorKind::HalfOfAFamily`].
-    HalfOfAFamily,
     /// [`NodeErrorKind::MemberOutOfRange`].
     MemberOutOfRange,
     /// [`NodeErrorKind::MemberRefused`].
     MemberRefused,
-    /// [`NodeErrorKind::IndicesUnrelated`].
-    IndicesUnrelated,
+    /// [`NodeErrorKind::TwoBinders`].
+    TwoBinders,
+    /// [`NodeErrorKind::YieldsNothing`].
+    YieldsNothing,
     /// [`NodeErrorKind::IndexCount`].
     IndexCount,
     /// [`NodeErrorKind::IndexCountOutOfRange`].
@@ -262,10 +262,10 @@ impl NodeErrorKind {
             Self::NotFinished { .. } => C::NotFinished,
             Self::UnfinishedLeaf { .. } => C::UnfinishedLeaf,
             Self::EmptyHalf { .. } => C::EmptyHalf,
-            Self::HalfOfAFamily { .. } => C::HalfOfAFamily,
             Self::MemberOutOfRange { .. } => C::MemberOutOfRange,
             Self::MemberRefused { .. } => C::MemberRefused,
-            Self::IndicesUnrelated { .. } => C::IndicesUnrelated,
+            Self::TwoBinders { .. } => C::TwoBinders,
+            Self::YieldsNothing { .. } => C::YieldsNothing,
             Self::IndexCount { .. } => C::IndexCount,
             Self::IndexCountOutOfRange { .. } => C::IndexCountOutOfRange,
             Self::NoSuchPiece { .. } => C::NoSuchPiece,

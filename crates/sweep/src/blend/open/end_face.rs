@@ -119,6 +119,10 @@ impl<T: Decide + Bounds> EndCut<T> {
     /// [`BlendError::BodyNotIntact`] when the end is not the incidence
     /// the verdict classified or the end face is not a plane.
     #[allow(clippy::too_many_arguments)] // the band's own reads, one per argument.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     pub(in crate::blend) fn plan(
         body: &Body<T>,
         vertex: VertexKey,
@@ -369,25 +373,46 @@ struct SliverBoundary<T: Real> {
     rims: [(Curve3<T>, (T, T)); 2],
 }
 
-/// A round section in the end plane, as the ellipse `shape` centred at
+/// A round section in the end plane, as the conic `shape` centred at
 /// the origin and seamed along its larger semi-axis: `p − center` is
 /// inside it when its unit coordinates ([`geom::Conic::unit_in_plane`])
 /// lie inside the unit circle. `1/minor` bounds the scaling's stretch
 /// ([`Self::depth`], [`Self::outside`]).
 #[derive(Clone, Copy)]
 struct SectionFrame<T: Real> {
-    shape: geom::Ellipse<T>,
+    shape: SectionShape<T>,
+}
+
+/// The end curve's carrier moved to the origin, major semi-axis first:
+/// a circle as it is, an ellipse quarter-turned where its seam is the
+/// minor axis ([`geom::Ellipse::quarter_turned_where`]).
+#[derive(Clone, Copy)]
+enum SectionShape<T: Real> {
+    Circle(geom::Circle<T>),
+    Ellipse(geom::Ellipse<T>),
 }
 
 impl<T: Bounds> SectionFrame<T> {
+    /// The section's conic.
+    fn conic(&self) -> &dyn geom::Conic<T> {
+        match &self.shape {
+            SectionShape::Circle(c) => c,
+            SectionShape::Ellipse(e) => e,
+        }
+    }
+
     /// The section's smaller semi-axis.
     fn minor(self) -> T {
-        geom::Conic::speed_lo(&self.shape)
+        self.conic().speed_lo()
     }
 
     /// `d` in the section's unit coordinates.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic restated on a frame the caller holds, or a point read about a centre an arc-held ellipse derives: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn unit(self, d: Vec3<T>) -> (T, T) {
-        geom::Conic::unit_in_plane(&self.shape, Point3::origin() + d)
+        self.conic().unit_in_plane(Point3::origin() + d)
     }
 
     /// The section's scaled radius at `d`: below one inside it.
@@ -404,6 +429,10 @@ impl<T: Bounds> SectionFrame<T> {
     /// length by more than `1/minor`. A scaled radius `ρ < 1` is at
     /// least `minor·(1 − ρ)` from the section, which shrinks no length
     /// by less than `minor`. `None` for a carrier with no closed form.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn depth(self, carrier: &Curve3<T>, (ta, tb): (T, T), center: Point3<T>) -> Option<T> {
         let rho = match *carrier {
             Curve3::Line(geom::Line { origin, dir }) => self
@@ -426,6 +455,10 @@ impl<T: Bounds> SectionFrame<T> {
     /// `a/minor` short of `c`'s. A scaled radius `ρ > 1` is at least
     /// `minor·(ρ − 1)` from the section, as in [`Self::depth`]. `None`
     /// for a carrier with no closed form.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn outside(self, carrier: &Curve3<T>, (ta, tb): (T, T), center: Point3<T>) -> Option<T> {
         let rho = match *carrier {
             Curve3::Line(geom::Line { origin, dir }) => {
@@ -628,6 +661,10 @@ impl<T: Decide + Bounds> CapSliver<T> {
 /// semi-axis, which holds it, and the disc of its minor, which it holds.
 /// Two segments are read by each one's line: two segments that do not
 /// meet always leave one of them wholly on one side of the other's line.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn apart<T: Decide + Bounds>(a: Piece<'_, T>, b: Piece<'_, T>, n: Vec3<T>) -> Option<T> {
     let round = |c: &Curve3<T>| {
         c.conic()
@@ -842,6 +879,10 @@ impl<T: Decide + Bounds> CapSliver<T> {
     /// old vertex, a rim, or the end face's half of a rim does not
     /// resolve, or a round end curve does not run forward from one foot
     /// to the other.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn of(
         body: &Body<T>,
         vertex: VertexKey,
@@ -861,25 +902,23 @@ impl<T: Decide + Bounds> CapSliver<T> {
         let (center, round) = match curve {
             EndCurve::Chord => (foot_a.mid(foot_b), None),
             EndCurve::Round(arc) => {
-                // The frame with the major semi-axis first
-                // (`Curve3::major_frame`).
-                let (center, axis, major, minor, u) = match *arc {
-                    Curve3::Circle(circle) => {
-                        let (center, axis, u_ref) = (
-                            circle.frame().origin(),
-                            circle.frame().axis(),
-                            circle.frame().u_ref(),
-                        );
-                        let radius = circle.radius();
-                        (center, axis, radius, radius, u_ref)
-                    }
-                    ref ellipse @ Curve3::Ellipse(the_ellipse @ geom::Ellipse { .. }) => {
-                        let carrier_frame = the_ellipse.frame();
-                        let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
-                        let Some(f) = ellipse.major_frame() else {
-                            unreachable!("an Ellipse carrier has a major frame")
-                        };
-                        (center, axis, f.major, f.minor, f.major_dir)
+                // The carrier moved to the origin, its major semi-axis
+                // first (as `Curve3::major_frame` reads it).
+                let origin = Point3::origin();
+                let (center, axis, shape) = match *arc {
+                    Curve3::Circle(circle) => (
+                        circle.frame().origin(),
+                        circle.axis(),
+                        SectionShape::Circle(circle.centred_at(origin)),
+                    ),
+                    Curve3::Ellipse(the_ellipse) => {
+                        let (semi_u, semi_v) = the_ellipse.semi_axes();
+                        let major_first = the_ellipse.quarter_turned_where(semi_v - semi_u);
+                        (
+                            the_ellipse.frame().origin(),
+                            the_ellipse.axis(),
+                            SectionShape::Ellipse(major_first.centred_at(origin)),
+                        )
                     }
                     Curve3::Line(_)
                     | Curve3::Spiric { .. }
@@ -902,20 +941,14 @@ impl<T: Decide + Bounds> CapSliver<T> {
                 if (tb - ta).lo() <= 0.0 {
                     return Err(backward());
                 }
-                let frame = SectionFrame {
-                    shape: geom::Ellipse::new(
-                        geom::Frame::new(Point3::origin(), axis, u),
-                        major,
-                        minor,
-                    ),
-                };
+                let frame = SectionFrame { shape };
                 (center, Some((frame, axis)))
             }
         };
         let toward = (pv - center).normalize();
         let mut directions = vec![toward];
         if let Some((frame, _)) = round {
-            let (u, w) = (frame.shape.frame().u_ref(), frame.shape.frame().v_ref());
+            let (u, w) = (frame.conic().u_ref(), frame.conic().v_ref());
             directions.extend([u, -u, w, -w]);
         }
         // `reach` and the floors over the rim pieces alone: `A` adds no
@@ -1344,7 +1377,7 @@ mod tests {
                 rims: [EdgeKey::default(); 2],
                 center: Point3::new(f(0.0), f(0.0), f(0.0)),
                 inside: self.section.map(|(a, major, minor)| SectionFrame {
-                    shape: geom::Ellipse::new(
+                    shape: super::SectionShape::Ellipse(geom::Ellipse::new(
                         geom::Frame::new(
                             Point3::new(f(0.0), f(0.0), f(0.0)),
                             Vec3::new(f(0.0), f(0.0), f(1.0)),
@@ -1352,7 +1385,7 @@ mod tests {
                         ),
                         f(major),
                         f(minor),
-                    ),
+                    )),
                 }),
                 reach: f(self.reach),
                 floors: self
@@ -1720,11 +1753,11 @@ mod tests {
             rims: [EdgeKey::default(); 2],
             center: p(0.0, 0.0),
             inside: Some(SectionFrame {
-                shape: geom::Ellipse::new(
+                shape: super::SectionShape::Ellipse(geom::Ellipse::new(
                     geom::Frame::new(p(0.0, 0.0), Vec3::unit_z(), v(1.0, 0.0)),
                     1.0,
                     1.0,
-                ),
+                )),
             }),
             reach: 2f64.sqrt(),
             floors: Vec::new(),

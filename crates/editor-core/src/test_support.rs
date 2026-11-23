@@ -1519,6 +1519,7 @@ pub fn assemble_world_copies_edits(
         });
     // A product already the world's copies is kept as it is, so a
     // document written twice is the one document.
+    let binders = doc.binders();
     let world: Vec<crate::VarId> = doc
         .copies()
         .into_iter()
@@ -1528,12 +1529,22 @@ pub fn assemble_world_copies_edits(
             doc.var(copy)
                 .is_some_and(|v| v.kind() == crate::VarKind::Body)
         })
+        // A copy inside a binder is read outside it only as what the
+        // binder yields (D10 `[repetition]`).
+        .filter(|&copy| binders.yielding(copy).is_some() || doc.var_reach(copy).is_none())
         .collect();
+    // A family the binder yields is spliced in whole.
+    let entry = |doc: &ProfileDoc, copy: crate::VarId| {
+        binders.spell(doc, copy, crate::BodyRead::plain(crate::Operand::Var(copy)))
+    };
     let spelled = |copies: &[crate::VarId]| {
         crate::Bodies::Spelled(
             copies
                 .iter()
-                .map(|&copy| crate::BodyRead::plain(copy))
+                .map(|&copy| match entry(&doc, copy) {
+                    crate::Spell::All(_) => crate::Spell::All(crate::BodyRead::plain(copy)),
+                    crate::Spell::One(_) => crate::Spell::One(crate::BodyRead::plain(copy)),
+                })
                 .collect(),
         )
     };
@@ -1558,10 +1569,7 @@ pub fn assemble_world_copies_edits(
             let insert = crate::DocEdit::InsertNode {
                 node: Box::new(Node::Assemble {
                     members: crate::Bodies::Spelled(
-                        several
-                            .iter()
-                            .map(|&copy| crate::BodyRead::plain(crate::Operand::Var(copy)))
-                            .collect(),
+                        several.iter().map(|&copy| entry(&doc, copy)).collect(),
                     ),
                 }),
                 fresh: Vec::new(),
