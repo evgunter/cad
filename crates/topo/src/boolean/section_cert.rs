@@ -759,6 +759,10 @@ pub(crate) fn classify_known<T: crate::props::AtRestPolicy>(
         (S::Torus { .. }, S::Cone { .. }) | (S::Cone { .. }, S::Torus { .. }) => {
             cone_torus(f, g, band, marched)
         }
+        // Served, every pose read here on the certificate's own plane
+        // rows.
+        (S::Torus { .. }, S::Plane { .. }) => torus_pair(f, g, band),
+        (S::Plane { .. }, S::Torus { .. }) => swapped(torus_pair(g, f, band)),
         _ if geom_brep::pair_section::serves(f.kind(), g.kind()) => {
             match geom_brep::pair_section(f, g, region, None::<geom_core::NoLane>, band) {
                 Ok(geom_brep::SectionRead::Built(section)) => {
@@ -768,8 +772,6 @@ pub(crate) fn classify_known<T: crate::props::AtRestPolicy>(
                 Err(e) => of_pair_section(&Err(e), band, marched),
             }
         }
-        (S::Torus { .. }, S::Plane { .. }) => torus_pair(f, g, band),
-        (S::Plane { .. }, S::Torus { .. }) => swapped(torus_pair(g, f, band)),
         (
             S::Cone { .. },
             S::Plane { .. } | S::Sphere { .. } | S::Cylinder { .. } | S::Cone { .. },
@@ -856,8 +858,8 @@ pub(super) fn of_listed<
     })
 }
 
-/// The torus arm the section value does not build: `t` is a torus, `p`
-/// a plane.
+/// The plane × torus arm, read on [`torus_plane`]'s margins: `t` is a
+/// torus, `p` a plane.
 fn torus_pair<T: Decide>(t: &geom::Surface<T>, p: &geom::Surface<T>, band: Band) -> Section<T> {
     let &geom::Surface::Torus {
         frame: carrier_frame,
