@@ -346,7 +346,7 @@ fn r2_spiric_sup_is_finite_on_whole_ovals_and_bounds_the_speed() {
 
 /// `(sin, cos)` of `t0 + d`, `t0` an exact `f64` and `d` an enclosure,
 /// through the addition formula, so a far `t0` keeps a tight enclosure.
-fn sin_cos_at(t0: f64, d: Interval) -> (Interval, Interval) {
+pub(crate) fn sin_cos_at(t0: f64, d: Interval) -> (Interval, Interval) {
     let (s0, c0) = Interval::from_f64(t0).sin_cos();
     let (sd, cd) = d.sin_cos();
     (s0 * cd + c0 * sd, c0 * cd - s0 * sd)
@@ -365,10 +365,22 @@ fn true_defect(x: f64) -> Interval {
 /// smaller and the larger semi-axis at every `t`, and the enclosure is
 /// held to them: the formula's own rounding reaches past a semi-axis by
 /// ulps where `sin t` or `cos t` is near zero, which no speed does.
-fn speed_enclosure(a: f64, b: f64, t0: f64, d: Interval) -> Interval {
+pub(crate) fn speed_enclosure(a: f64, b: f64, t0: f64, d: Interval) -> Interval {
     let (s, c) = sin_cos_at(t0, d);
     let speed = ((Interval::from_f64(a) * s).powi(2) + (Interval::from_f64(b) * c).powi(2)).sqrt();
-    Interval::from_bounds(speed.lo().max(a.min(b)), speed.hi().min(a.max(b)))
+    let (floor, ceiling) = semi_axes(a, b);
+    // The rebuild narrows a certified enclosure to the speed's exact range.
+    assert!(
+        speed.is_certified(),
+        "the speed's enclosure is poison: {speed:?}"
+    );
+    Interval::from_bounds(speed.lo().max(floor), speed.hi().min(ceiling))
+}
+
+/// The smaller and the larger semi-axis: the least and the greatest
+/// speed of the ellipse.
+fn semi_axes(a: f64, b: f64) -> (f64, f64) {
+    (a.min(b), a.max(b))
 }
 
 /// **The turn defect's two speed bounds hold over the true defect, at
@@ -405,54 +417,63 @@ fn turn_defect_speeds_bound_the_speed_on_the_true_defect_at_f64_and_interval() {
 #[test]
 fn turn_defect_speeds_bound_the_speed_where_it_meets_a_semi_axis() {
     for (a, b, t0, gap) in [
+        // 0xcc21d29c318a7479 at 1e-6, the row's line (`a` was drawn negative then)
         (
             130.88286993304766,
             0.027471258741429194,
             1.5708606597176065,
             2.571067338045846e-4,
         ),
+        // 0x85193fcde51a223a at 1e-12, the row's line
         (
             1.0336476587993828,
             2.953798525442482,
             0.0002488148581001326,
             7.583415220477767e-4,
         ),
+        // 0x85193fcde51a223a, its draw on main e3fdefa369
         (
             2.953798525442482,
             3.015283037154643,
             0.0002488148581001326,
             7.583415220477767e-4,
         ),
+        // 0x6aefff4768992785 at the default ε, the row's line
         (
             0.03369404504116446,
             0.13233093034424084,
             18.85412848563191,
             1.2723748588382879e-2,
         ),
+        // 0x4c4e025223660e02, its draw on main e3fdefa369
         (
             1.977716557583453,
             45.74884339543839,
             822842.7892914331,
             -3.098368395400565e-2,
         ),
+        // 0x60f5bbc7adbbd2d2 at 1e-9 and 1e-12, the row's line
         (
             26.03895124682756,
             0.007562229532909478,
             -237.19042521848743,
             -1.7984767358215947e-4,
         ),
+        // 0x19eec72bea96df53, its draw on main e3fdefa369
         (
             0.011120948807169967,
             0.27856151065157725,
             380.1317794593529,
             -1.8631574094071257e-3,
         ),
+        // 0x33ed5f8575435ac4, PR 7553's gate line
         (
             137.656887657693,
             130.10564052669167,
             351388.7089381741,
             -2.5972671470384146e-4,
         ),
+        // 0x4d073e89924408a0 at 1e-6, the row's line: the inf at the floor
         (
             0.04921567327106361,
             0.058765961403788376,
@@ -482,7 +503,7 @@ fn turn_defect_speeds_bound_the_speed_at(a: f64, b: f64, t0: f64, gap: f64, repl
     let hi_iv = turn_defect_speed_hi(&carrier_iv, t0_iv, extent_iv)
         .get()
         .hi();
-    let (floor, ceiling) = (a.min(b), a.max(b));
+    let (floor, ceiling) = semi_axes(a, b);
     assert!(
         lo >= floor && lo_iv >= floor * (1.0 - 1e-15),
         "never below the floor: {lo} / {lo_iv} < {floor}: {case}"
