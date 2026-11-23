@@ -687,3 +687,57 @@ fn the_construction_recourse_reads_as_one_sentence() {
                  coincidence holds whatever their values";
     assert_eq!(Recourse::OneConstruction.words(None, Speaker::TAG), alone);
 }
+
+/// **The law over three more family shapes**: fins resting on two
+/// blocks of different heights, each member on its own (a family claim
+/// over either block fails at the other member); three families stacked
+/// on one index, assembled and as one union; and two families on
+/// unrelated indices. Each offered claim holds at every member and
+/// quiets its rows, and no row offered none is quieted by an assertion
+/// in the rule's language holding at every member.
+///
+/// *Breaks if* the mint and the rule part over a family whose members
+/// rest on different cells, more than two families, or indices neither
+/// within the other.
+#[test]
+fn the_law_holds_over_steps_stacks_and_unrelated_indices() {
+    let steps = {
+        let doc = ProfileDoc::empty_derived("offer-steps", Tol::witness());
+        let (doc, k) = fixture::index(doc, "k", 2);
+        let (doc, low) = block(doc, (0.0, 1.5), (0.0, 2.0), 1.0);
+        let (doc, high) = block(doc, (1.5, 6.0), (0.0, 2.0), 1.5);
+        let (doc, fin) = block(doc, (0.25, 0.5), (0.5, 1.5), 1.25);
+        let (doc, _) = fixture::place(doc, low);
+        let (doc, _) = fixture::place(doc, high);
+        let (doc, _) = family(doc, fin, k, 2.0, (1.0, 0.5));
+        editor_core::test_support::assemble_world_copies(doc, Tol::witness())
+    };
+    let stacked = |union: bool| {
+        let (doc, k, fins) = fins_at(3, 0.75, (1.0, 0.0));
+        let (doc, cap) = block(doc, (0.25, 0.5), (0.5, 1.5), 0.5);
+        let (doc, caps) = family(doc, cap, k, 0.75, (2.25, 0.0));
+        let (doc, hat) = block(doc, (0.25, 0.5), (0.5, 1.5), 0.25);
+        let (doc, hats) = family(doc, hat, k, 0.75, (2.75, 0.0));
+        if union {
+            fixture::union_over(doc, &[fins, caps, hats]).0
+        } else {
+            editor_core::test_support::assemble_world_copies(doc, Tol::witness())
+        }
+    };
+    let unrelated = {
+        let (doc, _, _) = fins_at(3, 0.75, (1.0, 0.0));
+        let (doc, j) = fixture::index(doc, "j", 3);
+        let (doc, cap) = block(doc, (0.25, 0.5), (0.5, 1.5), 0.5);
+        let (doc, _) = family(doc, cap, j, 0.75, (2.25, 0.0));
+        editor_core::test_support::assemble_world_copies(doc, Tol::witness())
+    };
+    for (what, doc) in [
+        ("fins on two heights", steps),
+        ("three families assembled", stacked(false)),
+        ("three families unioned", stacked(true)),
+        ("two families on unrelated indices", unrelated),
+    ] {
+        let offered = every_offered_assertion_quiets(what, &doc);
+        assert!(offered > 0, "{what}: offers a claim");
+    }
+}
