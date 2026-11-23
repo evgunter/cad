@@ -447,19 +447,13 @@ fn a_grazing_circle_takes_the_general_lane_and_a_moved_villarceau_circle_is_off_
         "the crest circle's envelope is inside the band"
     );
 
-    let Curve3::Circle(
-        conic_k @ geom::Circle {
-            frame: carrier_frame_17,
-            ..
-        },
-    ) = villarceau(0.4, 1.0, 1.0, 0.0)
-    else {
+    let Curve3::Circle(conic_k) = villarceau(0.4, 1.0, 1.0, 0.0) else {
         unreachable!()
     };
     let (c, n, e) = (
-        carrier_frame_17.origin(),
-        carrier_frame_17.axis(),
-        carrier_frame_17.u_ref(),
+        conic_k.frame().origin(),
+        conic_k.frame().axis(),
+        conic_k.frame().u_ref(),
     );
     let radius = conic_k.radius();
     let lifted = Curve3::circle(c + axis * (5.0 * k * eps()), n, radius, e);
@@ -590,19 +584,13 @@ fn each_villarceau_gate_alone_refuses_typed() {
         unreachable!()
     };
     let (tc, axis) = (carrier_frame.origin(), carrier_frame.axis());
-    let Curve3::Circle(
-        conic_k @ geom::Circle {
-            frame: carrier_frame_16,
-            ..
-        },
-    ) = villarceau(0.4, 1.0, 1.0, 0.0)
-    else {
+    let Curve3::Circle(conic_k) = villarceau(0.4, 1.0, 1.0, 0.0) else {
         unreachable!()
     };
     let (center, n, u_ref) = (
-        carrier_frame_16.origin(),
-        carrier_frame_16.axis(),
-        carrier_frame_16.u_ref(),
+        conic_k.frame().origin(),
+        conic_k.frame().axis(),
+        conic_k.frame().u_ref(),
     );
     let radius = conic_k.radius();
     let delta = 3.0 * Tol::witness().k() * eps();
