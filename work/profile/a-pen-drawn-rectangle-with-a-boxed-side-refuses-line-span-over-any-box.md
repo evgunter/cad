@@ -2,10 +2,13 @@
 id: a-pen-drawn-rectangle-with-a-boxed-side-refuses-line-span-over-any-box
 kind: issue
 title: A pen-drawn rectangle with a boxed side refuses the profile's line-span gate over any parameter box, on main
-status: open
+status: closed
 opened: 2026-11-14
 priority: P1
 cost: M
+closed: 2026-11-23
+pr: 7264
+branch: profile/pen-rectangle-over-a-box
 ---
 
 
@@ -68,3 +71,15 @@ with cause 1 repaired, the pen turned by `fl(π/2)` refuses
 Repaired (cause 1): `line_line` takes the pair's shared ends
 (`seg::SharedEnds`, by index from `judge_pair`): the shared vertex's two
 sides are Zero and its contact is `CKind::SharedVertex`, none read.
+
+## Closed (2026-11-23, PR 7264)
+
+Two adjacent lines share their vertex by construction, and the pair
+pass recomputed it as a root of the two carriers, which it could not
+order over a box. The pass now reads the shared end as a contact
+(`SharedEnds`, `CKind::SharedVertex` in `line_line`), so the rectangle
+validates over its box. The curved pairs still recompute their shared
+vertex: `an-adjacent-pairs-shared-vertex-is-recomputed-as-a-root`,
+which closes with PLANAR's unit that moves profile onto the pair
+reader. The second cause the trace found is
+`a-pen-loop-turned-by-a-rounded-quarter-cannot-order-its-start-over-an-interval`.
