@@ -115,7 +115,7 @@ crates/geom-brep/tests/span_reach_hunt.rs	test	1	oracle
 crates/geom-brep/tests/tori_coincide.rs	test	1	oracle
 crates/geom-brep/tests/torus_doors_ssi.rs	test	1	oracle
 crates/geom/src/cover/tests.rs	test	6	oracle
-crates/geom/src/cover/tests/held_arc_rows.rs	test	3	oracle
+crates/geom/src/cover/tests/held_arc_rows.rs	test	5	oracle
 crates/geom/src/cover/tests/held_arc_sweep.rs	test	2	oracle
 crates/geom/src/curves.rs	test	3	oracle
 crates/geom/src/curves/conic.rs	prod	17	far-centre

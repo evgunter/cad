@@ -2517,10 +2517,61 @@ fn a_borrowed_conic_and_each_direction_door_read_the_conic() {
     same(e.axis(), fe.axis(), "ellipse axis by the frame");
     same(e.u_ref(), fe.u_ref(), "ellipse u_ref by the frame");
     same(e.v_ref(), fe.v_ref(), "ellipse v_ref by the frame");
+    same(e.axis_unit().get(), e.axis(), "ellipse axis as a unit");
+    same(
+        Conic::axis_unit(&e).get(),
+        fe.axis_unit().get(),
+        "ellipse axis as a unit, by the frame",
+    );
+    same(c.axis_unit().get(), c.axis(), "circle axis as a unit");
+    same(
+        Conic::axis_unit(&c).get(),
+        fc.axis_unit().get(),
+        "circle axis as a unit, by the frame",
+    );
+    same(
+        Conic::axis_unit(&&e).get(),
+        e.axis(),
+        "a borrowed ellipse's axis as a unit",
+    );
     same(c.axis(), Conic::axis(&c), "circle axis");
     same(c.u_ref(), Conic::u_ref(&c), "circle u_ref");
     same(c.v_ref(), Conic::v_ref(&c), "circle v_ref");
     same(c.axis(), fc.axis(), "circle axis by the frame");
     same(c.u_ref(), fc.u_ref(), "circle u_ref by the frame");
     same(c.v_ref(), fc.v_ref(), "circle v_ref by the frame");
+}
+
+/// **A centre-held arc's farthest distance holds the crest of a piece.**
+/// An ellipse held at its centre, read from a point 50 m off along the
+/// inward normal at the middle of the window's first quarter: the
+/// farthest point of the arc from there is that middle, between the
+/// piece's ends, and the cover's farthest distance is at least its
+/// distance and within the piece's bulge of it. The mean-circle bound is
+/// looser by the semi-axes' difference, so the four-piece bound is the
+/// one read. Red where a piece's bulge is dropped or halved.
+#[test]
+fn a_centre_held_arcs_farthest_distance_holds_a_pieces_crest() {
+    let (a, b) = (1.0, 0.4);
+    let frame = Frame::new(Point3::new(0.5, -1.0, 2.0), Vec3::unit_z(), Vec3::unit_x());
+    let e = crate::Ellipse::new(frame, a, b);
+    for (lo, hi) in [(0.2, 1.8), (2.0, 3.2), (-1.0, -0.2)] {
+        let quarter = (hi - lo) / 4.0;
+        let t = lo + 0.5 * quarter;
+        let p = Conic::point_at(&e, t);
+        // The outward normal of `(a·cos, b·sin)` is along `(cos/a, sin/b)`.
+        let (s, c) = t.sin_cos();
+        let out = (e.u_ref() * (c / a) + e.v_ref() * (s / b)).normalize();
+        let site = p - out * 50.0;
+        let (_, far) = Curve3::Ellipse(e)
+            .cover_over(ParamWindow::new(lo, hi))
+            .unwrap()
+            .distance_range(&Site::Point(site));
+        let bulge = a * (1.0 - (0.5 * quarter).cos());
+        assert!(
+            far >= 50.0 - 1e-12 && far <= 50.0 + bulge,
+            "window [{lo}, {hi}]: the farthest distance {far} against the crest's 50, \
+             a bulge of {bulge}"
+        );
+    }
 }

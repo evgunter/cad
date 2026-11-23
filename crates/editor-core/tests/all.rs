@@ -113,6 +113,8 @@ mod band_planar_cut_off_names;
 mod band_planar_mitre_names;
 #[path = "band_run_wall_names.rs"]
 mod band_run_wall_names;
+#[path = "binder_split_halves.rs"]
+mod binder_split_halves;
 #[path = "blend5_r1_probes.rs"]
 mod blend5_r1_probes;
 #[path = "blend5_r2_probes.rs"]
@@ -647,6 +649,8 @@ mod r2_m10_6_probes_interval;
 mod r2_m10_di_probes;
 #[path = "rev_fix_xsplit_unreachable.rs"]
 mod rev_fix_xsplit_unreachable;
+#[path = "review_binders_b.rs"]
+mod review_binders_b;
 #[path = "review_gui1_r1.rs"]
 mod review_gui1_r1;
 #[path = "review_m4_pr1.rs"]
@@ -940,6 +944,8 @@ mod intent_value_chart_orientation;
 mod intent_vars_2_table;
 #[path = "intent_vars_3_readers.rs"]
 mod intent_vars_3_readers;
+#[path = "review_binders_a.rs"]
+mod review_binders_a;
 #[path = "review_datum_b.rs"]
 mod review_datum_b;
 #[path = "review_s5b_r2_probes.rs"]
@@ -964,3 +970,8 @@ mod union_member_orders_decide_alike;
 mod value_chart_sweeps;
 #[path = "vessel_cavity_interval.rs"]
 mod vessel_cavity_interval;
+
+#[path = "review_binders_delta.rs"]
+mod review_binders_delta;
+#[path = "review_delta_dump.rs"]
+mod review_delta_dump;

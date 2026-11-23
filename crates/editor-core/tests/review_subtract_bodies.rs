@@ -86,14 +86,14 @@ fn crossing_tools_name_alike_in_either_order() {
         doc,
         Node::Subtract {
             from: read(plate),
-            tool: Bodies::Spelled(vec![read(long), read(short)]),
+            tool: Bodies::spelled(vec![read(long), read(short)]),
         },
     );
     let (doc, backward) = insert(
         doc,
         Node::Subtract {
             from: read(plate),
-            tool: Bodies::Spelled(vec![read(short), read(long)]),
+            tool: Bodies::spelled(vec![read(short), read(long)]),
         },
     );
     let ev = run(&doc);
@@ -123,14 +123,14 @@ fn crossing_tools_decide_alike_in_either_order() {
         doc,
         Node::Subtract {
             from: read(plate),
-            tool: Bodies::Spelled(vec![read(long), read(short)]),
+            tool: Bodies::spelled(vec![read(long), read(short)]),
         },
     );
     let (doc, backward) = insert(
         doc,
         Node::Subtract {
             from: read(plate),
-            tool: Bodies::Spelled(vec![read(short), read(long)]),
+            tool: Bodies::spelled(vec![read(short), read(long)]),
         },
     );
     let ev = run(&doc);
@@ -148,13 +148,13 @@ fn the_union_of_the_same_crossing_tools_names_alike_in_either_order() {
     let (doc, forward) = insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(vec![read(long), read(short)]),
+            members: Bodies::spelled(vec![read(long), read(short)]),
         },
     );
     let (doc, backward) = insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(vec![read(short), read(long)]),
+            members: Bodies::spelled(vec![read(short), read(long)]),
         },
     );
     let ev = run(&doc);
@@ -177,7 +177,7 @@ fn set_members_on_a_subtract_keeps_the_names_of_the_tools_that_stay() {
         doc,
         Node::Subtract {
             from: read(plate),
-            tool: Bodies::Spelled(vec![read(h0), read(h1), read(h2)]),
+            tool: Bodies::spelled(vec![read(h0), read(h1), read(h2)]),
         },
     );
     let before = names(&run(&doc), cut);
@@ -185,7 +185,7 @@ fn set_members_on_a_subtract_keeps_the_names_of_the_tools_that_stay() {
         doc,
         DocEdit::SetMembers {
             node: cut,
-            members: Bodies::Spelled(vec![read(h0), read(h2)]),
+            members: Bodies::spelled(vec![read(h0), read(h2)]),
         },
     );
     let ev = run(&after_doc);
@@ -276,7 +276,10 @@ fn a_family_of_one_at_the_tools_cuts_as_its_member() {
             },
         )
     };
-    let (doc, spelled) = cut(doc, Bodies::one(read(row)));
+    let (doc, spelled) = cut(
+        doc,
+        Bodies::Spelled(vec![editor_core::Spell::All(read(row))]),
+    );
     let (doc, whole) = cut(doc, Bodies::Family(read(row)));
     let (doc, member) = cut(
         doc,

@@ -53,3 +53,21 @@ No verdict of the fast or the filtered slow set moved on it at ε 1e-6,
 
 `Cover::arc`'s sentence "no reader of a cover built here reads past its
 whole conic" is true of that door and says that `arc_of` is not met so.
+
+## Its band, and one more looseness (PR 7510's last review)
+
+P2 as filed. One reviewer's argument for more, for whoever takes this
+row: arguably P1, because `Arc` and `HeldArc` are two covers of one
+locus: the same ellipse reads a different region according to how it
+is held, and a reader cannot tell which it was handed.
+
+`HeldArc::pieces` and `Arc::far` cut the same four pieces in two places
+and share only `bulge_factor`; the tightening here is where they get
+one home.
+
+At `Interval` the support along the ellipse's own stored normal is
+wide by about nine roundings of the SEMI-AXIS (4.3e-11 m at 2.2e4 m
+over a 2 mm window), as the centre form's is: the harmonic's two
+coefficients enclose zero at that width
+(`held_arc_rows::the_interval_support_along_the_arcs_own_normal_is_a_rounding_of_its_semi_axis`).
+It is not the arc's own scale.

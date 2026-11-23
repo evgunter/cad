@@ -53,7 +53,7 @@ fn corpus() -> ProfileDoc {
     let (doc, _union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
     );
     let (doc, c) = block(doc, (0.0, 3.0), (0.0, 3.0), 1.0);

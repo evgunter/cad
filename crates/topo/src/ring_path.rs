@@ -1563,12 +1563,7 @@ pub(crate) fn path_parity<T: Decide>(
                     if arrival {
                         return Ok(Some(flip));
                     }
-                    let s = p
-                        .circle
-                        .frame()
-                        .axis()
-                        .dot(p.circle.frame().origin() - origin)
-                        / across;
+                    let s = p.circle.axis().dot(p.circle.frame().origin() - origin) / across;
                     let t = p.param(origin + dir.get() * s);
                     // The plane moved by δ moves the root by δ over the
                     // slope the ruling crosses it at, `|m̂·d̂|`.

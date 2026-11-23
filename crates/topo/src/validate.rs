@@ -8357,6 +8357,8 @@ pub(crate) fn tier3_local_checks_marked<
         };
         for (point, _) in singular_points(surface) {
             match point {
+                // A horn's cusp is both apexes, one per copy of `v`, and
+                // each copy is unshown: two findings at one point.
                 Singularity::SheetApexUp | Singularity::SheetApexDown => {
                     errors.push(ValidationError::SheetApexReached { face, point });
                 }
@@ -10414,7 +10416,7 @@ fn locus_gap<T: Real>(carrier: &geom::Curve3<T>, p: geom_core::Point3<T>) -> Opt
         // The distance from a point to a full circle: the in-plane
         // radial defect and the out-of-plane offset, in quadrature.
         geom::Curve3::Circle(circle) => {
-            let (center, axis) = (circle.frame().origin(), circle.frame().axis_unit());
+            let (center, axis) = (circle.frame().origin(), circle.axis_unit());
             let radius = circle.radius();
             let (along, rho) = geom::Line {
                 origin: center,

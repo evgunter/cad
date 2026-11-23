@@ -78,8 +78,8 @@
 //! [`Conic::unit_in_plane`]), and the conic's height along a direction
 //! as a first harmonic about that point, posed per placement inside one
 //! opaque value that answers at a parameter, over a window, at its
-//! extremes and at its roots ([`Conic::height_along`], [`Height`]). The
-//! centre itself is read as the centre
+//! extremes and at its roots ([`Conic::height_along`], [`Height`]). Its
+//! centre is a datum of the whole conic
 //! ([`Conic::center`], the origin of [`Conic::frame`]), and the stored
 //! data are walked by name ([`Curve3::data`], whose datum for the stored
 //! point is [`CurveDatum::Center`] or [`CurveDatum::Anchor`]). A motion
@@ -90,8 +90,9 @@
 //! ([`Conic::point_at`]), a point's parameter ([`Conic::azimuth`]), its
 //! extent along a direction over a span ([`Conic::extent_along`]) and
 //! its cover over a span ([`Conic::cover_over`]), each stated from the
-//! stored point. The directions ([`Conic::axis`], [`Conic::u_ref`],
-//! [`Conic::v_ref`]) are stored and derive nothing.
+//! stored point. The directions ([`Conic::axis`], and as its unit
+//! witness [`Conic::axis_unit`]; [`Conic::u_ref`], [`Conic::v_ref`])
+//! are stored and derive nothing.
 //!
 //! Each conic evaluates one way, [`Conic::point_at`], and
 //! [`Conic::running_point`] is that evaluation operation for operation
@@ -154,7 +155,7 @@
     reason = "the conic's own module: the centre is derived here and nowhere else"
 )]
 
-use geom_core::{Decide, Point3, Real, Rounded, Vec3};
+use geom_core::{Decide, Point3, Real, Rounded, UnitVec3, Vec3};
 
 use crate::azimuth::{self, Azimuth};
 use crate::cover::{Cover, ParamWindow};
@@ -245,6 +246,11 @@ pub trait Conic<T: Real>: core::fmt::Debug {
 
     /// The unit plane normal, as stored.
     fn axis(&self) -> Vec3<T>;
+
+    /// [`Self::axis`] as the unit direction it is stored as
+    /// ([`Frame::axis_unit`]), for a reader that hands the direction on
+    /// as a witness.
+    fn axis_unit(&self) -> UnitVec3<T>;
 
     /// The unit seam, as stored: the direction `θ = 0` lies along.
     fn u_ref(&self) -> Vec3<T>;
@@ -458,6 +464,9 @@ impl<T: Real, C: Conic<T> + ?Sized> Conic<T> for &C {
     }
     fn axis(&self) -> Vec3<T> {
         (**self).axis()
+    }
+    fn axis_unit(&self) -> UnitVec3<T> {
+        (**self).axis_unit()
     }
     fn u_ref(&self) -> Vec3<T> {
         (**self).u_ref()
@@ -861,6 +870,13 @@ impl<T: Real> Circle<T> {
         self.at.axis()
     }
 
+    /// The plane normal as the unit direction it is stored as
+    /// ([`Conic::axis_unit`]).
+    #[must_use]
+    pub fn axis_unit(&self) -> UnitVec3<T> {
+        self.at.axis_unit()
+    }
+
     /// The unit seam ([`Conic::u_ref`]).
     #[must_use]
     pub fn u_ref(&self) -> Vec3<T> {
@@ -910,6 +926,10 @@ impl<T: Real> Conic<T> for Circle<T> {
 
     fn axis(&self) -> Vec3<T> {
         self.at.axis()
+    }
+
+    fn axis_unit(&self) -> UnitVec3<T> {
+        self.at.axis_unit()
     }
 
     fn u_ref(&self) -> Vec3<T> {
@@ -1326,6 +1346,13 @@ impl<T: Real> Ellipse<T> {
         self.at.axis()
     }
 
+    /// The plane normal as the unit direction it is stored as
+    /// ([`Conic::axis_unit`]).
+    #[must_use]
+    pub fn axis_unit(&self) -> UnitVec3<T> {
+        self.at.axis_unit()
+    }
+
     /// The unit seam ([`Conic::u_ref`]).
     #[must_use]
     pub fn u_ref(&self) -> Vec3<T> {
@@ -1501,6 +1528,10 @@ impl<T: Real> Conic<T> for Ellipse<T> {
 
     fn axis(&self) -> Vec3<T> {
         self.at.axis()
+    }
+
+    fn axis_unit(&self) -> UnitVec3<T> {
+        self.at.axis_unit()
     }
 
     fn u_ref(&self) -> Vec3<T> {

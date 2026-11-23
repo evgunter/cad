@@ -151,7 +151,7 @@ impl BooleanSpec {
 
     /// Lower to the node.
     pub fn node(&self) -> AuthoredNode {
-        let spelled = |members: &[BodyRead<Formula>]| Bodies::Spelled(members.to_vec());
+        let spelled = |members: &[BodyRead<Formula>]| Bodies::spelled(members.to_vec());
         match self {
             Self::Union(members) => Node::Union {
                 members: spelled(members),

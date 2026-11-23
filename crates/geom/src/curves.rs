@@ -2684,13 +2684,9 @@ mod tests {
             );
             assert_eq!((turned.semi_u(), turned.semi_v()), (2.0, 5.0), "pose {k}");
             if bits(
-                geom_core::RigidMotion::squared_about(
-                    e.frame().origin(),
-                    e.frame().axis_unit(),
-                    base,
-                )
-                .u()
-                .get(),
+                geom_core::RigidMotion::squared_about(e.frame().origin(), e.axis_unit(), base)
+                    .u()
+                    .get(),
             ) != bits(base)
             {
                 parted_squared += 1;

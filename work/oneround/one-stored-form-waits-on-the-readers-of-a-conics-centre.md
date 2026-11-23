@@ -2,13 +2,14 @@
 id: one-stored-form-waits-on-the-readers-of-a-conics-centre
 kind: unit
 title: Every reader that rebuilds or restates a conic from its centre goes through the conic: the sites, and what each showed when the centre was a derived one
-status: review
+status: closed
 opened: 2026-11-21
 priority: P1
 cost: H
 refs: [the-section-table-admits-a-curve-on-its-resolution, a-conics-points-are-restated-in-centre-form-outside-its-evaluator, a-section-conic-is-anchored-at-a-general-point-of-its-arc]
 branch: oneround/conic-readers
 pr: 7510
+closed: 2026-11-23
 ---
 
 
@@ -222,3 +223,9 @@ extent, and the gate (`scripts/gates/conic-centre-reads.sh`, with
 `the-certified-lanes-harmonics-of-a-conic-are-formed-about-its-centre`,
 `a-circles-centre-is-read-as-a-datum-under-the-conic-gate`; and
 `the-arc-held-cover-is-looser-than-the-centre-forms-on-a-long-window`.
+
+## Closed (2026-11-23, PR 7510)
+
+The first part landed as PR 7510 (`oneround/conic-readers`): a conic's direction, extent and cover are read through the conic (`axis`, `axis_unit`, the extent and cover doors), the centre-frame doors are gated, and the gate's census is clippy's own diagnostics (`--force-warn clippy::disallowed_methods`, read by `scripts/conic_centre_census.py --check`) pinned as reads per file in `scripts/gates/conic-centre-reads.counts` (203 reads in 58 files at the merge). Reviewed by a concurrent pair with a delta read each; its record is `docs/model-compare-log/rows/PR-7510.md`.
+
+What the row asked for and this PR did not do is not left here. It is CONIC's slate (`work/conic/`, opened 2026-11-23 from Ev's answer on PR 7523): the certified lane's harmonics about the centre, a conic made from a conic, the cone section's chart image and its kin, a construction whose centre runs off, a circle's centre read as a datum under the gate, the three compare doors, and the rest of that plan's order. The second conic unit this track holds, `an-arc-held-ellipses-readers-decide-apart-from-its-derived-centre` (PR 7543), is stacked on this one. Filed by the unit on CIW: the census holds only the crates a scoped run selects, and the nightly runs none.

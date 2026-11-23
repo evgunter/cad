@@ -3,12 +3,24 @@
 //! asymmetric, away from the anchor and across it), at `f64` and at
 //! `Interval`. Each sweep's seed is fixed: the rows are read against a
 //! table of mutants, case by case.
+//!
+//! What these rows cannot see: the points are the ellipse's own
+//! evaluator's (`Conic::point_at`), so a defect the evaluator and the
+//! cover share is invisible here (`held_arc_sweep` judges against an
+//! independent double-double evaluation); and each miss is read net of
+//! twice the frame's skew (`Case::skew`), so a stored seam off square to
+//! its axis, which puts a stored point off the extent, is excused
+//! (`work/onecopy/a-conics-harmonic-takes-its-stored-seam-as-square-to-its-axis.md`).
 #![allow(clippy::unwrap_used, clippy::print_stdout, clippy::float_cmp)]
 
 use core::f64::consts::{FRAC_PI_2, PI, TAU};
 
 use geom_core::{Bounds, Interval, Point3, Real, Vec3};
 use test_utils::fuzz::Rng;
+
+/// How many roundings of the anchor's distance plus the semi-axis the
+/// support along the arc's own normal may be wide (measured: 8.8).
+const CEILING: f64 = 32.0;
 
 use super::{ParamWindow, Site, ipt, iv, ivec, point, unit, unit_at};
 use crate::{Conic, Curve3, Ellipse, Line};
@@ -182,16 +194,6 @@ fn an_arc_held_cover_holds_its_stored_points_at_f64() {
             slack_ball = slack_ball.max(radius / far_from_mid);
         }
     }
-    for (i, what) in ["ball", "support", "nearest", "farthest", "finite"]
-        .iter()
-        .enumerate()
-    {
-        println!(
-            "PROBE f64 {what}: worst miss / scale = {:e}  at {}",
-            worst[i], worst_at[i]
-        );
-    }
-    println!("PROBE f64 ball radius / farthest sample, worst = {slack_ball:e}");
     let u = f64::EPSILON;
     for (i, w) in worst.iter().enumerate() {
         assert!(*w <= 16.0 * u, "probe {i}: {w:e} at {}", worst_at[i]);
@@ -283,26 +285,6 @@ fn an_arc_held_cover_encloses_its_stored_points_at_interval() {
             }
         }
     }
-    for (i, what) in ["ball", "support", "nearest", "farthest"]
-        .iter()
-        .enumerate()
-    {
-        println!(
-            "PROBE interval {what}: worst miss / scale = {:e}  at {}",
-            worst[i], worst_at[i]
-        );
-    }
-    println!("PROBE interval unbounded readings: {}", unbounded.len());
-    for s in unbounded.iter().take(5) {
-        println!("  UNBOUNDED {s}");
-    }
-    println!(
-        "PROBE interval readings wider than 1e-3 of the scale: {}",
-        huge.len()
-    );
-    for s in huge.iter().take(8) {
-        println!("  WIDE {s}");
-    }
     let u = f64::EPSILON;
     for (i, w) in worst.iter().enumerate() {
         // An enclosure misses nothing: the bar is the rounding of the
@@ -312,64 +294,48 @@ fn an_arc_held_cover_encloses_its_stored_points_at_interval() {
     assert!(unbounded.is_empty() && huge.is_empty());
 }
 
-/// **RED at the frozen head.** At `Interval`, an arc-held ellipse's
-/// support along its own plane normal (and its extent there) is some
-/// 1e280 m wide where the centre-held reading of the same locus is 1e-13:
-/// `offset_extent`'s ratio divides by `A + |k|` floored at the least
-/// positive number, and along the normal `A` and `k` enclose zero.
+/// **At `Interval`, an arc-held ellipse's support along its own stored
+/// normal is wide by a rounding of its semi-axis, and no more.** Along
+/// the normal the harmonic's two coefficients enclose zero, each a
+/// rounding of the semi-axis wide, and the support is the anchor's
+/// height within that: under 32 roundings of the anchor's distance plus
+/// the semi-axis, at every size from 2 m to 2.2e7 m, over a short, a
+/// long and a whole window, on a frame a rounding off a world axis (as
+/// a placed part's is) and on a general one. That is the width the same
+/// locus held at its centre reads; it is not the arc's own scale. Red
+/// where the crest is a ratio whose divisor encloses zero (a width of
+/// `1e280`), and where the reading widens by a constant `4e-7` m.
 #[test]
-fn the_interval_support_along_the_arcs_own_normal_is_of_the_arcs_size() {
-    // The plane z = const turned a quarter turn about y and back by
-    // `sin_cos`: its normal is the world z to a rounding, as a placed
-    // part's is.
+fn the_interval_support_along_the_arcs_own_normal_is_a_rounding_of_its_semi_axis() {
     let (sn, cs) = FRAC_PI_2.sin_cos();
-    let n = Vec3::new(cs, 0.0, sn);
-    let toward = Vec3::new(0.6 * sn, 0.8, -0.6 * cs);
+    let frames = [
+        (Vec3::new(cs, 0.0, sn), Vec3::new(0.6 * sn, 0.8, -0.6 * cs)),
+        (
+            Vec3::new(1.0, 2.0, 2.0) / 3.0,
+            Vec3::new(2.0, 1.0, -2.0) / 3.0,
+        ),
+    ];
     let anchor = Point3::new(40.25, -7.5, 3.125);
     let w = |x: Interval| Bounds::hi(x) - Bounds::lo(x);
-    let mut worst: f64 = 0.0;
-    println!("AXIS normal {n:?}");
-    for a in [2.0, 2.2e1, 2.2e4, 2.2e7] {
-        let ie = Ellipse::anchored(ipt(anchor), ivec(n), ivec(toward), iv(a), iv(0.8 * a));
-        let centred = Ellipse::new(Conic::frame(&ie), iv(a), iv(0.8 * a));
-        for (lo, hi) in [(-1e-3, 1e-3), (0.0, 1.0), (0.0, TAU)] {
-            let win = ParamWindow::new(iv(lo), iv(hi));
-            let now = Curve3::Ellipse(ie).cover_over(win).unwrap();
-            let before = Curve3::Ellipse(centred).cover_over(win).unwrap();
-            let z = Vec3::new(0.0, 0.0, 1.0);
-            let (s, s0) = (now.support(ivec(z)), before.support(ivec(z)));
-            let (sn_, sn0) = (now.support(ivec(n)), before.support(ivec(n)));
-            println!(
-                "AXIS    along the stored normal itself: arc-held width {:e}, centre-held width {:e}",
-                w(sn_),
-                w(sn0)
-            );
-            worst = worst.max(w(sn_));
-            let bb = now.aabb(0.0);
-            let (elo, ehi) = crate::curves::boxes::conic_arc_extent_along(
-                &Curve3::Ellipse(ie),
-                iv(lo),
-                iv(hi),
-                ipt(Point3::origin()),
-                ivec(z),
-            )
-            .unwrap();
-            println!(
-                "AXIS a {a:e} window [{lo}, {hi}]: support along world z, arc-held {s:?} (width {:e}); the same locus centre-held width {:e}; aabb z [{:e}, {:e}]; extent lo width {:e} hi width {:e}",
-                w(s),
-                w(s0),
-                bb.min_z,
-                bb.max_z,
-                w(elo),
-                w(ehi)
-            );
-            worst = worst.max(w(s));
+    for (n, toward) in frames {
+        for a in [2.0, 2.2e1, 2.2e4, 2.2e7] {
+            let ie = Ellipse::anchored(ipt(anchor), ivec(n), ivec(toward), iv(a), iv(0.8 * a));
+            for (lo, hi) in [(-1e-3, 1e-3), (0.0, 1.0), (0.0, TAU)] {
+                let win = ParamWindow::new(iv(lo), iv(hi));
+                let cover = Curve3::Ellipse(ie).cover_over(win).unwrap();
+                let size = (anchor - Point3::origin()).norm() + a;
+                for dir in [n, -n] {
+                    let width = w(cover.support(ivec(dir)));
+                    assert!(
+                        width <= CEILING * f64::EPSILON * size,
+                        "a {a:e}, window [{lo}, {hi}], along {dir:?}: the support is \
+                         {width:e} wide, {:.1} roundings of {size:e}",
+                        width / (f64::EPSILON * size)
+                    );
+                }
+            }
         }
     }
-    assert!(
-        worst < 1e-6,
-        "the support along the arc's own normal is {worst:e} wide"
-    );
 }
 
 /// Both ends of the extent door, f64 and Interval, against sampled
@@ -434,16 +400,6 @@ fn an_arc_held_extent_holds_both_its_ends() {
             slack = slack.max(((smin - lo).max(hi - smax)) / c.e.speed_hi());
         }
     }
-    for (i, what) in ["f64 lo", "f64 hi", "interval lo", "interval hi"]
-        .iter()
-        .enumerate()
-    {
-        println!(
-            "PROBE extent {what}: worst miss / scale = {:e} at {}",
-            worst[i], worst_at[i]
-        );
-    }
-    println!("PROBE extent f64 worst slack / larger semi-axis = {slack:e} (400 samples a window)");
     for (i, w) in worst.iter().enumerate() {
         assert!(
             *w <= 16.0 * f64::EPSILON,

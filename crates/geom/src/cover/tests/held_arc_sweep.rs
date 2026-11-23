@@ -254,7 +254,7 @@ fn windows(a: f64, b: f64) -> Vec<(&'static str, (f64, f64))> {
 /// The sweep, printed: every configuration's worst miss at f64 (the
 /// cover's own lane, `[simple.conditioned]`: real bounds computed as if
 /// exact) and at Interval (an enclosure: no miss is permitted), with the
-/// Interval widths. `cargo test -p geom review_probes -- --nocapture`.
+/// Interval widths.
 #[test]
 fn an_arc_held_cover_holds_its_stored_arc_over_every_window() {
     let mut int_worst: f64 = f64::NEG_INFINITY;
@@ -325,9 +325,6 @@ fn the_nearest_distance_from_a_point_of_a_short_far_arc_is_zero_to_its_rounding(
             let site = round(p);
             let d = from(p, site).norm();
             let (near, _) = cover.distance_range(&Site::Point(site));
-            eprintln!(
-                "a={a:.1e}: site on the stored arc at {t:e}: distance {d:e}, cover near {near:e}"
-            );
             worst = worst.max(near - d);
         }
     }
@@ -350,21 +347,11 @@ fn the_interval_box_of_a_world_plane_arc_held_ellipse_is_of_its_size() {
         .unwrap();
     let (lo, hi) = icover.box_in(&super::BoxAxes::World);
     let zspan = Bounds::hi(hi.z) - Bounds::lo(lo.z);
-    let ibox = icover.aabb(0.0);
     let e = Ellipse::anchored(anchor, z, x, a, b);
     let c = Curve3::Ellipse(e);
     let certified =
         crate::curves::boxes::ellipse_arc_aabb(&c, -half, half, c.eval(-half), c.eval(half))
             .unwrap();
-    eprintln!(
-        "Interval cover box z: [{}, {}]; aabb z [{}, {}]; certified ellipse_arc_aabb z [{}, {}]",
-        Bounds::lo(lo.z),
-        Bounds::hi(hi.z),
-        ibox.min_z,
-        ibox.max_z,
-        certified.min_z,
-        certified.max_z
-    );
     assert!(
         zspan < 1e-9 && certified.max_z - certified.min_z < 1e-9,
         "a planar arc at z = 3 is boxed {zspan:e} tall at Interval, certified box {:e}",

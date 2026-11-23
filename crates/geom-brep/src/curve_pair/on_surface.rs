@@ -1031,11 +1031,15 @@ impl<'a, T: Decide> OnSurface<'a, T> {
     )]
     pub fn plane(&self) -> Option<Frame<T>> {
         match *self.carrier {
-            Curve3::Circle(_) => self.carrier.frame(),
-            Curve3::Ellipse(e) => {
-                let (t0, t1) = self.span;
-                let at = geom::Conic::point_at(&e, geom::mid_param(t0, t1));
-                Some(self.carrier.frame()?.with_origin(at))
+            Curve3::Circle(_) | Curve3::Ellipse(_) => {
+                let frame = self.carrier.frame()?;
+                match *self.carrier {
+                    Curve3::Ellipse(e) => {
+                        let (t0, t1) = self.span;
+                        Some(frame.with_origin(geom::Conic::point_at(&e, geom::mid_param(t0, t1))))
+                    }
+                    _ => Some(frame),
+                }
             }
             Curve3::Spiric { frame, offset, .. } => {
                 let (center, u_ref) = (frame.origin(), frame.u_ref());

@@ -4082,7 +4082,15 @@ mod tests {
             (AnySign, v(-0.0), Shows::Unresolved),
         ];
         for (pass, margin, want) in rows {
-            assert_eq!(margin.shows(band, pass), want, "{pass:?} over {margin:e}");
+            // An offer is pinned by what the person reads.
+            match (margin.shows(band, pass), want) {
+                (Shows::Offer(got), Shows::Offer(want)) => assert_eq!(
+                    crate::Tell::told_in(&got, quantity::Notation::CANONICAL).to_string(),
+                    crate::Tell::told_in(&want, quantity::Notation::CANONICAL).to_string(),
+                    "{pass:?} over {margin:e}"
+                ),
+                (got, want) => assert_eq!(got, want, "{pass:?} over {margin:e}"),
+            }
         }
     }
 

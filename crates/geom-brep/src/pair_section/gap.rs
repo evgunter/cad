@@ -684,7 +684,7 @@ pub(crate) fn critical_gap<T: Decide>(
             geom::cover::Cover::circle(geom::cover::Core {
                 axis: geom::Line {
                     origin: core.circle.frame().origin(),
-                    dir: core.circle.frame().axis_unit(),
+                    dir: core.circle.axis_unit(),
                 },
                 radius: core.circle.radius(),
             })
@@ -813,7 +813,7 @@ mod tests {
                 geom::cover::Cover::circle(geom::cover::Core {
                     axis: geom::Line {
                         origin: core.circle.frame().origin(),
-                        dir: core.circle.frame().axis_unit(),
+                        dir: core.circle.axis_unit(),
                     },
                     radius: core.circle.radius(),
                 })
