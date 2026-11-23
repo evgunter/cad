@@ -39,9 +39,9 @@ test_utils::gated_to![
 
 use geom_core::{Point2, Sign, Tol};
 use profile::{
-    ArcData, ArcForm, ArcMode, ArcSide, ArcSweep, PathErrorKind, ReplayError, ReplayErrorKind,
-    Segment, ShapeFault, ShapeFaultKind, SpecForms, Step, StepForm, Target, TargetKind, TipState,
-    Verb, arc_specs_at, chain_shape, replay, replay_recording,
+    ArcData, ArcForm, ArcMode, ArcSide, ArcSweep, PathErrorKind, ReplayErrorKind, Segment,
+    ShapeFault, ShapeFaultKind, SpecForms, Step, StepForm, Target, TargetKind, TipState, Verb,
+    arc_specs_at, chain_shape, replay, replay_recording,
 };
 use test_utils::fuzz::Rng;
 
@@ -277,11 +277,14 @@ fn redraws(r: &mut Rng, steps: &[Step<f64>]) -> Vec<Option<(usize, profile::Path
         .map(|_| {
             let again: Vec<Step<f64>> = steps.iter().map(|s| redrawn(r, s)).collect();
             match replay(&again, Tol::witness()) {
-                Err(ReplayError {
-                    step,
-                    kind: ReplayErrorKind::Path(e),
-                }) => Some((step, e)),
-                _ => None,
+                Err(error) => {
+                    let at = error.raised_at();
+                    match error.kind {
+                        ReplayErrorKind::Path(e) => Some((at, e)),
+                        ReplayErrorKind::Transition { .. } => None,
+                    }
+                }
+                Ok(_) => None,
             }
         })
         .collect()
@@ -445,13 +448,16 @@ fn compare(r: &mut Rng, steps: &[Step<f64>]) -> Result<Compared, String> {
     let forms: Vec<StepForm> = steps.iter().map(Step::form).collect();
     let shape = chain_shape(&forms);
     let replayed = replay_recording(steps, Tol::witness());
+    // Each refusal at the step the replay was applying, which is the
+    // step the shape walk reached.
+    let replayed_at = replayed.as_ref().map_err(|e| (e.raised_at(), &e.kind));
     let say = |what: &str| {
         Err(format!(
             "{what}: {steps:?}\nshape {shape:?}\nreplay {:?}",
             replayed.as_ref().map(|_| ())
         ))
     };
-    match (&shape, &replayed) {
+    match (&shape, &replayed_at) {
         (Ok(shape), Ok((lp, record))) => {
             let generic = record
                 .fillets
@@ -479,13 +485,7 @@ fn compare(r: &mut Rng, steps: &[Step<f64>]) -> Result<Compared, String> {
             }
             Ok(Compared::Closed(kinds))
         }
-        (
-            _,
-            Err(ReplayError {
-                step,
-                kind: ReplayErrorKind::Transition { state, verb },
-            }),
-        ) => match shape {
+        (_, Err((step, ReplayErrorKind::Transition { state, verb }))) => match shape {
             Err(ShapeFault {
                 step: s,
                 state: t,
@@ -493,13 +493,7 @@ fn compare(r: &mut Rng, steps: &[Step<f64>]) -> Result<Compared, String> {
             }) if s == *step && t == *state && v == *verb => Ok(Compared::Lattice(verb.is_none())),
             _ => say("the replay refuses on the lattice"),
         },
-        (
-            _,
-            Err(ReplayError {
-                step,
-                kind: ReplayErrorKind::Path(e),
-            }),
-        ) if ORDER.contains(&e.kind()) => match shape {
+        (_, Err((step, ReplayErrorKind::Path(e)))) if ORDER.contains(&e.kind()) => match shape {
             Err(ShapeFault {
                 step: s,
                 kind: ShapeFaultKind::Order(f),
@@ -514,38 +508,30 @@ fn compare(r: &mut Rng, steps: &[Step<f64>]) -> Result<Compared, String> {
                 ..
             }),
             _,
-        ) => match &replayed {
-            Err(ReplayError {
-                step: s,
-                kind: ReplayErrorKind::Path(e),
-            }) if s == step && e.kind() == f.kind() => Ok(Compared::Order),
+        ) => match &replayed_at {
+            Err((s, ReplayErrorKind::Path(e))) if s == step && e.kind() == f.kind() => {
+                Ok(Compared::Order)
+            }
             // A value refused an earlier step: nothing reached this one.
-            Err(ReplayError { step: s, .. }) if s < step => Ok(Compared::Geometry),
+            Err((s, _)) if s < step => Ok(Compared::Geometry),
             // A value the step reads refused it before its order was
             // asked; at some other values the order refusal stands.
-            Err(ReplayError {
-                step: s,
-                kind: ReplayErrorKind::Path(_),
-            }) if s == step
-                && redraws(r, steps)
-                    .iter()
-                    .flatten()
-                    .any(|(s, e)| s == step && e.kind() == f.kind()) =>
+            Err((s, ReplayErrorKind::Path(_)))
+                if s == step
+                    && redraws(r, steps)
+                        .iter()
+                        .flatten()
+                        .any(|(s, e)| s == step && e.kind() == f.kind()) =>
             {
                 Ok(Compared::Order)
             }
             _ => say("the shape refuses an order the replay does not refuse there in its class"),
         },
-        (
-            Ok(_) | Err(ShapeFault { .. }),
-            Err(ReplayError {
-                step,
-                kind: ReplayErrorKind::Path(e),
-            }),
-        ) if zero_chord(e)
-            && redraws(r, steps)
-                .iter()
-                .all(|at| at.as_ref().is_some_and(|(s, e)| s == step && zero_chord(e))) =>
+        (Ok(_) | Err(ShapeFault { .. }), Err((step, ReplayErrorKind::Path(e))))
+            if zero_chord(e)
+                && redraws(r, steps)
+                    .iter()
+                    .all(|at| at.as_ref().is_some_and(|(s, e)| s == step && zero_chord(e))) =>
         {
             say("the replay refuses a degenerate chord at every value, and the shape passes it")
         }
@@ -826,11 +812,10 @@ fn each_order_refusal_refuses_at_the_replay_and_the_shape_alike() {
             }) => assert_eq!((step, f.kind()), (at, kind), "{what}: the shape"),
             other => panic!("{what}: the shape refuses the order, got {other:?}"),
         }
-        match replay(&steps, Tol::witness()) {
-            Err(ReplayError {
-                step,
-                kind: ReplayErrorKind::Path(e),
-            }) => assert_eq!((step, e.kind()), (at, kind), "{what}: the replay"),
+        match replay(&steps, Tol::witness()).map_err(|e| (e.raised_at(), e.kind)) {
+            Err((step, ReplayErrorKind::Path(e))) => {
+                assert_eq!((step, e.kind()), (at, kind), "{what}: the replay")
+            }
             other => panic!(
                 "{what}: the replay refuses the order, got {:?}",
                 other.err()
