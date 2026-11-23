@@ -2,12 +2,13 @@
 id: the-placement-editor-cannot-author-an-offset-from-a-face
 kind: issue
 title: The placement editor never writes a slid far side, so no body can be placed at an offset from a face in the GUI
-status: dispatched
+status: review
 opened: 2026-11-22
 priority: P0
 cost: M
 refs: [a-plane-other-than-a-face-cannot-be-authored-in-the-viewer]
 branch: formwords/face-offset
+pr: 7380
 ---
 
 

@@ -304,7 +304,6 @@ const INDIRECT: &[(&str, &str)] = &[
         CLOSURE_FORWARDS,
     ),
     ("curve_face/spline_face.rs: settle: row", CLOSURE_FORWARDS),
-    ("curve_pair/on_surface.rs: decided: row", FORWARDS),
     ("curve_pair/on_surface.rs: section_of: row", FORWARDS),
     ("curve_pair/pose.rs: constant_as: row", FORWARDS),
     ("curve_pair/pose.rs: definite_as: row", FORWARDS),

@@ -2,11 +2,10 @@
 id: cone-sphere-and-cone-cone-in-general-pose-have-no-rung-three-door
 kind: issue
 title: Cone × sphere and cone × cone in general pose route to rung 3 and refuse: no pair door with its gate, tangency decision and certified pose
-status: parked
+status: open
 opened: 2026-11-21
 priority: P0
 cost: M
-blocked_on: [the-search-certificate-reads-limb-two-through-the-edge-reader, the-tube-enclosure-has-a-cone-arm]
 ---
 
 
