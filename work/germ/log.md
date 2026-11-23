@@ -1953,3 +1953,14 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - **New reproduction:** `replace_face_offset` on a sphere face with d ≥ ~1e306 or `inf` panics in `plane_sphere_section_read`. The audit had listed that site as "decided before construction": its `ps_center_gap` sign holds, and the radius overflows.
   - The lane asked whether `Circle` should get a deciding door. That is the fork's agreed core (a fallible mint), so it is built after Ev rules, not in this PR.
   - The PR keeps the sign dispositions plus a finiteness column, the two real sign fixes, and filed rows for the open classes.
+- 2026-11-23 23:35 — **The raw-radii fork went to Ev as PR 7645** (`[ev] [sizes]`, subscribed). It adds a new DESIGN clause `[sizes]` and fork log row 307 (recommendation half).
+  - Round 1 agreed on the core.
+  - Rounds 2–3 oscillated: both designers swapped positions on three points each round.
+  - A further designer weighed the three against the tree.
+  - Round 4: A and B both accepted its reading. A added a condition: the P3-sourced ring door takes a token that only P3's decision mints.
+  - The PR body carries A's and B's round-4 For Ev sections and the further designer's, labelled and naming no model. The label mapping, with the further designer's model, is on `analysis/design-fork/germ-raw-surface-radii`.
+  - New rows owed (to file):
+    - `sphere_trim_r`, the plane–sphere blend contact circle, decided by no battery predicate (battery's slate);
+    - the cone aperture's band lever (a fork, GERM);
+    - the stale `Surface::Torus` doc on STEP's reading;
+    - `Charted::turned`'s `unreachable!` on a plane or spline handed through a pub door.
