@@ -337,7 +337,7 @@ pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
             word(crate::tags::distribution_fault_tag(fault)),
             none(),
             none(),
-            text(&p.to_string()),
+            text(&pncad::document::sentence!(pncad::document::Speaker::TAG.var(p)).to_string()),
             none(),
             none(),
             none(),
@@ -357,7 +357,7 @@ pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
             none(),
             none(),
             none(),
-            text(&p.to_string()),
+            text(&pncad::document::sentence!(pncad::document::Speaker::TAG.var(p)).to_string()),
             dim(*measures),
             dim(*was),
             none(),
@@ -649,7 +649,7 @@ fn profile_of<'d>(doc: &'d d::ProfileDoc, node: &NodeId) -> PyResult<&'d d::Prof
         Some(d::Node::Profile(program)) => Ok(program),
         _ => Err(pyo3::exceptions::PyValueError::new_err(format!(
             "{} is not a profile",
-            doc.spoken(node.0)
+            pncad::document::sentence!(pncad::document::Speaker::TAG.mention(&doc.spoken(node.0)))
         ))),
     }
 }
@@ -706,7 +706,7 @@ pub(crate) fn name_from_text(text: &str) -> PyResult<pncad::prelude::StableName>
 /// the rest of each address holds
 /// an integer the word does not carry, so each refuses in its own
 /// sentence rather than as a misspelling.
-fn slot_from_text(word: &str) -> PyResult<d::SlotId> {
+pub(crate) fn slot_from_text(word: &str) -> PyResult<d::SlotId> {
     if let Some(slot) = crate::slot_word::slot_from_word(word) {
         return Ok(slot);
     }
@@ -1086,7 +1086,9 @@ impl Doc {
                 {
                     return Err(pyo3::exceptions::PyTypeError::new_err(format!(
                         "{} is an operation's output of kind {}, which no expression reads",
-                        self.inner.spoken_var(var),
+                        pncad::document::sentence!(
+                            pncad::document::Speaker::TAG.var(&self.inner.spoken_var(var))
+                        ),
                         held.kind()
                     )));
                 }
@@ -1347,7 +1349,9 @@ impl Doc {
                 .collect()),
             None => Err(pyo3::exceptions::PyValueError::new_err(format!(
                 "{} is not a loft",
-                self.inner.spoken(loft.0)
+                pncad::document::sentence!(
+                    pncad::document::Speaker::TAG.mention(&self.inner.spoken(loft.0))
+                )
             ))),
         }
     }
@@ -1420,7 +1424,9 @@ impl Doc {
             .map_err(|refusal| {
                 pyo3::exceptions::PyValueError::new_err(format!(
                     "{} has no pieces under the current values: {refusal}",
-                    self.inner.spoken(profile.0)
+                    pncad::document::sentence!(
+                        pncad::document::Speaker::TAG.mention(&self.inner.spoken(profile.0))
+                    )
                 ))
             })?;
         pieces
@@ -1430,14 +1436,14 @@ impl Doc {
             .collect()
     }
 
-    /// **The placements**, in document order: every `Place` and
-    /// `InstantiatePart` node — the nodes whose copies a bundle of
-    /// constraints places, into the world or another space
-    /// (`Doc.space`). Which body is the product is the product slot's
-    /// (`Doc.set_product`), never derived from these.
+    /// **The placements**, in document order: every node that holds a
+    /// bundle of constraints — each `Place` and `InstantiatePart`, whose
+    /// copies it places, and each datum, whose frame it places — into the
+    /// world or another space (`Doc.space`). Which body is the product is
+    /// the product slot's (`Doc.set_product`), never derived from these.
     ///
-    /// Written through `place` and `Node.instantiate_part`, and through
-    /// nothing else: no edit places as a side effect.
+    /// Written through `place`, `Node.instantiate_part` and `Node.datum`,
+    /// and through nothing else: no edit places as a side effect.
     fn placements(&self) -> Vec<NodeId> {
         self.inner.placements().into_iter().map(NodeId).collect()
     }
@@ -1470,24 +1476,22 @@ impl Doc {
                 },
             ));
         };
-        match node.authored(&self.inner) {
-            d::Node::Place { constraints, .. } | d::Node::InstantiatePart { constraints, .. } => {
-                constraints
-                    .into_iter()
-                    .map(|c| {
-                        let at = super::mate::MateRef(d::MateRef::new(placement.0, c.id));
-                        let held = match c.kind {
-                            d::ConstraintKind::Mate(mate) => {
-                                Py::new(py, super::mate::Mate(mate))?.into_any()
-                            }
-                            d::ConstraintKind::Value(value) => {
-                                Py::new(py, super::mate::MateValue(value))?.into_any()
-                            }
-                        };
-                        Ok((at, held))
-                    })
-                    .collect()
-            }
+        match node.authored(&self.inner).bundle().map(<[_]>::to_vec) {
+            Some(constraints) => constraints
+                .into_iter()
+                .map(|c| {
+                    let at = super::mate::MateRef(d::MateRef::new(placement.0, c.id));
+                    let held = match c.kind {
+                        d::ConstraintKind::Mate(mate) => {
+                            Py::new(py, super::mate::Mate(mate))?.into_any()
+                        }
+                        d::ConstraintKind::Value(value) => {
+                            Py::new(py, super::mate::MateValue(value))?.into_any()
+                        }
+                    };
+                    Ok((at, held))
+                })
+                .collect(),
             _ => Err(edit_err(
                 py,
                 &d::EditError::ConstraintOnNonPlacement {
@@ -1656,7 +1660,7 @@ impl Doc {
                 };
                 let message = format!(
                     "{}. Recourse: ask for the kind of a node this document holds",
-                    err.problem()
+                    pncad::document::Said(&err.problem(), pncad::document::Speaker::TAG).sentence()
                 );
                 edit_err_saying(py, &err, message)
             })
@@ -1711,75 +1715,135 @@ impl Doc {
         })
     }
 
-    /// **"Sketch on this face"**: `outline` (one loop or a list, as
-    /// `Node.profile` takes it) drawn on its own plane and extruded
-    /// `distance` up its own `z`, the extrude's copy placed against
-    /// `face` of `body` — its start cap resting on the face's plane,
-    /// looking out along the face's outward normal, its origin over the
-    /// face body's own and turned `spin` about the normal — and the
-    /// face's body and the copy fused. `face` is one of the opaque
-    /// texts `Evaluation.all_faces` / `select` answered with. `orient=`
-    /// is the mate's `Orientation`: where the profile's axes lie among
-    /// the face body's space's. Unwritten, it is the one nearest where
-    /// the copy stands, the profile's `z` along the face's outward
-    /// normal, read off the face; one putting `z` opposite the normal is
-    /// the orientation written backwards (`mate_backwards`).
+    /// **Author the assertion a check carries** (`CheckEvidence.quieting`),
+    /// as one action: a split's unnamed tool named first (a variable two
+    /// readers share is named), the measure, whose insert mints each
+    /// reference's selection and pose, then the assertion, `= 0` over its
+    /// output; all land or none does. Answers the assertion's id, the
+    /// node the quieted finding names.
     ///
-    /// One action: the four nodes, the mate and its values all land or
-    /// none does, and the first door that refuses raises its
-    /// `EditError`. Answers the four ids as a `SketchedOnFace`;
-    /// `label=` labels the union, the body the gesture leaves.
-    #[pyo3(signature = (body, face, outline, distance, spin=None, *, orient=None, label=None))]
+    /// `quieting` must be one the checks of this document found; one of
+    /// another document raises `EditError` with variant
+    /// `evaluation_of_another_document` before anything is applied, and a
+    /// refusal of the insert door raises its own `EditError`. A later
+    /// version of this document is fine: the claim is spelled for this
+    /// one as it stands, and a name it no longer resolves refuses.
+    fn assert_quieting(
+        &mut self,
+        py: Python<'_>,
+        quieting: &super::checks::Quieting,
+    ) -> PyResult<NodeId> {
+        let (claim, found) = quieting.minted();
+        if found.id() != self.inner.id() {
+            let foreign = d::EditError::EvaluationOfAnotherDocument {
+                expected: self.inner.id(),
+                found: found.id(),
+            };
+            return Err(edit_err(py, &foreign));
+        }
+        let done = claim
+            .edits(&self.inner, Tol::witness())
+            .map_err(|err| edit_err(py, &err))?;
+        let assertion = done
+            .minted
+            .last()
+            .copied()
+            .flatten()
+            .unwrap_or_else(|| unreachable!("the last edit inserts the assertion"));
+        self.take_up(done.doc, done.maintenance);
+        Ok(NodeId(assertion))
+    }
+
+    /// **A profile drawn on a face** (DM1): `outline` drawn on the chart
+    /// of `face` of `body`, the frame a plane placement onto the face
+    /// gives, as one profile node in `body`'s space. Nothing is placed.
+    /// `outline` is a closed loop (as `Node.profile` takes one) or a
+    /// traced chain (as `Node.drawn_profile` takes one), or a list of
+    /// them, outer first; `traced` is the faces of that space a chain
+    /// reads the trace of, each `(body, name)`, by its place in the
+    /// list. `face` is one of the opaque texts `Evaluation.all_faces` /
+    /// `select` answered with.
+    ///
+    /// The chart's `z` is the face's outward normal; its `x` and origin
+    /// are the space's under `orient`, carried onto the face by the
+    /// least turn, then turned `spin` about the normal and moved by the
+    /// two `slides`. The slides run along the space's own axes: the two
+    /// other than the one `orient` puts the chart's `z` most along, in
+    /// `x`, `y`, `z` order. `orient=None` writes the orientation nearest
+    /// the face, read off the face as it evaluates under `resolver=`.
+    ///
+    /// One action, answering the profile's id; `label=` labels it. A
+    /// boss is `Node.extrude(profile, d)` and a union with `body`, a
+    /// pocket the same profile extruded `-d` and subtracted from it.
+    #[pyo3(signature = (body, face, outline, *, orient=None, spin=None, slides=None, traced=None, label=None, resolver=None))]
     #[allow(clippy::too_many_arguments)] // the gesture's own arguments, each a seat
-    fn sketch_on_face(
+    fn draw_on_face(
         &mut self,
         py: Python<'_>,
         body: BodyArg,
         face: &str,
         outline: &Bound<'_, PyAny>,
-        distance: super::expr::SlotArg,
-        spin: Option<super::expr::SlotArg>,
         orient: Option<super::mate::Orientation>,
+        spin: Option<super::expr::SlotArg>,
+        slides: Option<(super::expr::SlotArg, super::expr::SlotArg)>,
+        traced: Option<Vec<(BodyArg, String)>>,
         label: Option<&str>,
-    ) -> PyResult<SketchedOnFace> {
+        resolver: Option<&super::store::Workspace>,
+    ) -> PyResult<NodeId> {
         let label = label.map(|text| label_from_text(py, text)).transpose()?;
         let face = name_from_text(face)?;
-        let profile = d::ProfileProgram {
-            loops: loops_from_outline(py, outline)?,
-            ids: Vec::new(),
-            on: None,
-        };
-        let distance = slot_expr(py, d::SlotId::Distance, &distance)?;
+        let loops = loops_on_face(py, outline)?;
         let spin = match spin {
             Some(spin) => super::pose::scalar_at(py, d::Dimension::Angle, &spin, "spin")?,
             None => d::Formula::zero(d::Dimension::Angle),
         };
-        let tol = Tol::witness();
-        let mut action = d::Recording::start(&self.inner, tol);
+        let slide = |s: &super::expr::SlotArg, at: usize| {
+            super::pose::scalar_at(
+                py,
+                d::Dimension::Length,
+                s,
+                &format!("slide at slides[{at}]"),
+            )
+        };
+        let slides = match slides {
+            Some((a, b)) => [slide(&a, 0)?, slide(&b, 1)?],
+            None => [
+                d::Formula::zero(d::Dimension::Length),
+                d::Formula::zero(d::Dimension::Length),
+            ],
+        };
+        let on = d::OnFace {
+            orient: orient.map(|o| o.0),
+            spin,
+            slides,
+            traced: super::trace::traced_faces(traced.unwrap_or_default())?,
+        };
+        let opts = d::EvalOptions {
+            resolver: seam(resolver),
+            ..d::EvalOptions::default()
+        };
+        let mut action = d::Recording::start(&self.inner, Tol::witness());
         let edit_failed = |err: d::EditError| edit_err(py, &err);
-        let sketched = action
-            .sketch_on_face(
+        let profile = action
+            .draw_on_face(
                 body.read(),
                 face,
-                profile,
-                distance,
-                spin,
-                orient.map(|o| o.0),
-                &d::EvalOptions::default(),
-                &d::CancelToken::new(),
+                loops,
+                on,
+                (&opts, &d::CancelToken::new()),
             )
             .map_err(edit_failed)?;
         if let Some(label) = label {
             action
                 .apply(d::DocEdit::SetLabel {
-                    node: sketched.union,
+                    node: profile,
                     label: Some(label),
                 })
                 .map_err(edit_failed)?;
         }
         let done = action.finish().map_err(edit_failed)?;
         self.take_up(done.doc, done.maintenance);
-        Ok(SketchedOnFace(sketched))
+        Ok(NodeId(profile))
     }
 
     /// **A takeover**: the source each of `copies` (placements) reads its
@@ -1847,7 +1911,7 @@ impl Doc {
             };
             if let Some(other) = self
                 .inner
-                .placements()
+                .copies()
                 .into_iter()
                 .find(|&placement| reads(placement) && !named.contains(&placement))
             {
@@ -2098,7 +2162,7 @@ impl Doc {
             };
             let message = format!(
                 "{}. Recourse: ask for the label of a node this document holds",
-                err.problem()
+                pncad::document::Said(&err.problem(), pncad::document::Speaker::TAG).sentence()
             );
             return Err(edit_err_saying(py, &err, message));
         }
@@ -2221,7 +2285,9 @@ impl Doc {
             Some(var) => Ok(Some(Var::of(&self.inner, var))),
             None => Err(pyo3::exceptions::PyValueError::new_err(format!(
                 "{} defines {} port(s), so it has no port {port}",
-                self.inner.spoken(node.0),
+                pncad::document::sentence!(
+                    pncad::document::Speaker::TAG.mention(&self.inner.spoken(node.0))
+                ),
                 signature.len()
             ))),
         }
@@ -2743,6 +2809,64 @@ fn loops_from_outline(
                 .collect::<PyResult<Vec<_>>>()
         }
     }
+}
+
+/// **The loops a profile drawn on a face draws**, outer first: each a
+/// closed loop of the paths vocabulary or a traced chain, one or a
+/// list. A chain's arguments are checked at their slots as
+/// `Node.drawn_profile` checks them, a refusal naming the loop by its
+/// place in the list.
+fn loops_on_face(
+    py: Python<'_>,
+    outline: &Bound<'_, PyAny>,
+) -> PyResult<Vec<d::LoopProgram<d::Formula>>> {
+    let one = |at: u32, item: &Bound<'_, PyAny>| -> PyResult<d::LoopProgram<d::Formula>> {
+        if let Ok(closed) = item.cast::<super::path::ClosedLoop>() {
+            return super::path::loop_program(py, &closed.borrow());
+        }
+        let Ok(chain) = item.extract::<super::trace::Chain>() else {
+            return Err(pyo3::exceptions::PyTypeError::new_err(format!(
+                "outline[{at}] is a {}, neither a ClosedLoop nor a Chain",
+                item.get_type().name()?
+            )));
+        };
+        let mut loops = pncad::trace::chain_loops(vec![chain.0]).map_err(|err| {
+            let err = match err {
+                d::EditError::SlotDimensionMismatch {
+                    slot: d::SlotId::Profile { step, arg, .. },
+                    expected,
+                    found,
+                } => d::EditError::SlotDimensionMismatch {
+                    slot: d::SlotId::Profile {
+                        loop_: at,
+                        step,
+                        arg,
+                    },
+                    expected,
+                    found,
+                },
+                other => other,
+            };
+            edit_err(py, &err)
+        })?;
+        Ok(loops.remove(0))
+    };
+    let is_one = outline.cast::<super::path::ClosedLoop>().is_ok()
+        || outline.cast::<super::trace::Chain>().is_ok();
+    if is_one {
+        return Ok(vec![one(0, outline)?]);
+    }
+    let Ok(items) = outline.extract::<Vec<Bound<'_, PyAny>>>() else {
+        return Err(pyo3::exceptions::PyTypeError::new_err(format!(
+            "the outline is a {}, neither a ClosedLoop, a Chain nor a list of them",
+            outline.get_type().name()?
+        )));
+    };
+    items
+        .iter()
+        .zip(0..)
+        .map(|(item, at)| one(at, item))
+        .collect()
 }
 
 /// A recipe node, before it is inserted into a document.
@@ -3291,6 +3415,30 @@ impl Node {
         )
     }
 
+    /// **A datum** (D10 `[placement.datums]`): a placement whose source
+    /// is nothing, placing a bare frame into `target` (`Doc.place`'s
+    /// space) by `constraints`, written whole as `Node.place`'s are.
+    /// `None` stands the frame at the space's origin, by the identity
+    /// bundle. Its one output is the frame (`Doc.output(node)`): read a
+    /// plane or an axis off it through a role (`RoleRead(frame, "xy")`).
+    /// A mate of its bundle reads the datum's own frame on its `on`
+    /// side, plainly or through its `"xy"` plane, `"z"` axis or
+    /// `"origin"`, so it is written once the datum is
+    /// (`DocEdit.set_constraints`); any other `on` refuses
+    /// `mate_not_the_datums_own`.
+    #[staticmethod]
+    #[pyo3(signature = (target, constraints=None))]
+    fn datum(
+        py: Python<'_>,
+        target: SpaceArg,
+        constraints: Option<super::mate::BundleArg>,
+    ) -> PyResult<Self> {
+        let constraints = constraints.map_or_else(|| d::stand().bundle(), super::mate::bundle);
+        let inner = d::Node::datum(target.read(), constraints);
+        Self::check_slots(py, &inner)?;
+        Ok(Self { inner })
+    }
+
     /// **A space of its own**, reading nothing: a target a placement
     /// places copies into beside the world's. Inserting it is
     /// `Doc.new_space`.
@@ -3831,50 +3979,6 @@ impl Measured {
 
     fn __repr__(&self) -> String {
         format!("Measured({} measures)", self.measures.len())
-    }
-}
-
-/// **What `Doc.sketch_on_face` inserted**: the profile, its extrude,
-/// the extrude's copy placed on the face, and the union of the face's
-/// body with the copy.
-#[pyclass(frozen, module = "pncad", from_py_object)]
-#[derive(Clone, Copy)]
-pub(crate) struct SketchedOnFace(d::SketchedOnFace);
-
-#[pymethods]
-impl SketchedOnFace {
-    /// The profile, drawn on its own plane.
-    #[getter]
-    fn profile(&self) -> NodeId {
-        NodeId(self.0.profile)
-    }
-
-    /// The profile extruded up its own `z`.
-    #[getter]
-    fn extrude(&self) -> NodeId {
-        NodeId(self.0.extrude)
-    }
-
-    /// The extrude's copy, placed on the face.
-    #[getter]
-    fn placement(&self) -> NodeId {
-        NodeId(self.0.placement)
-    }
-
-    /// The face's body and the copy, fused.
-    #[getter]
-    fn union(&self) -> NodeId {
-        NodeId(self.0.union)
-    }
-
-    fn __repr__(&self) -> String {
-        format!(
-            "SketchedOnFace(profile={}, extrude={}, placement={}, union={})",
-            self.0.profile.full(),
-            self.0.extrude.full(),
-            self.0.placement.full(),
-            self.0.union.full()
-        )
     }
 }
 
@@ -5179,7 +5283,6 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<VarName>()?;
     m.add_class::<Var>()?;
     m.add_class::<Measured>()?;
-    m.add_class::<SketchedOnFace>()?;
     m.add_class::<FreeVar>()?;
     m.add_class::<VarDecl>()?;
     // The expansion bound `definition_too_large`'s `count` is measured

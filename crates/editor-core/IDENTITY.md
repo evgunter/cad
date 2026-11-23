@@ -89,9 +89,7 @@ per reused node.
   store** — a fresh `DirResolver` over the same directory — which through
   the existing gate re-evaluates fully, while ordinary edits keep the memo.
 - The session hands no previous evaluation as `prior`: `request_eval`
-  carries none, and the memo lives in `evalseam::PriorRun`. Only
-  `probe_bounds` hands a prior directly, and it hands the landed evaluation
-  of the same document.
+  carries none, and the memo lives in `evalseam::PriorRun`.
 
 *Built: the memo half and A4's sentence (PR 1808). Open: the re-mount door
 and its two adjacent edges (save-as into a partless directory, the chooser's

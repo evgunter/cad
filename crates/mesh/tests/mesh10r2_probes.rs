@@ -172,7 +172,9 @@ fn m10r2_split_lineage_after_graft() {
         v_ball + v_donut
     );
     for (fk, f) in held.faces() {
-        let Ok((outer, _)) = topo::props::loop_edges(&held, f.outer) else {
+        let Ok((outer, _)) =
+            topo::props::loop_edges(held.cycle_loop(f.outer).expect("a cycle loop"))
+        else {
             continue;
         };
         let ids: Vec<_> = outer

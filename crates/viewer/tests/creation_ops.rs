@@ -1,6 +1,6 @@
 //! **From nothing to a solid, replayed headlessly** (GAUTH-1): the
 //! creation op vocabulary driving the real `DocSession` with no
-//! renderer — the new-document door, the profile/extrude/revolve/sketch-on-face
+//! renderer — the new-document door, the profile/extrude/revolve/drawn-on-face
 //! inserts with their typed refusals, a seat's held pick across a new
 //! document, and the ring acceptance stream.
 //!
@@ -232,7 +232,9 @@ fn a_fresh_extrude_lands_unplaced_and_raises_only_unused() {
         "the extrude is drawn, in its own space"
     );
     assert!(
-        !common::row_of(&session.tree_rows(), extrude).placed,
+        common::row_of(&session.tree_rows(), extrude)
+            .placements
+            .is_empty(),
         "no world badge"
     );
     session.pump();
@@ -456,7 +458,7 @@ fn new_document_refuses_a_blank_name_and_a_gesture_in_flight() {
             name: "mid-gesture".to_owned(),
         },
         SessionOp::Open(std::env::temp_dir().join("gauth1-never-read.pncad")),
-        SessionOp::SketchOnFace {
+        SessionOp::DrawOnFace {
             face: FaceSelection {
                 name: StableName {
                     kind: EntityKind::Face,
@@ -466,9 +468,8 @@ fn new_document_refuses_a_blank_name_and_a_gesture_in_flight() {
                 node: extrude,
                 body: 0,
             },
-            loops: vec![common::rectangle_loop([0.0, 0.0], 0.002, 0.002)],
-            distance: len(0.002),
-            spin: Formula::zero(Dimension::Angle),
+            traced: Vec::new(),
+            chains: vec![common::rectangle_chain([0.0, 0.0], 0.002, 0.002)],
         },
         SessionOp::AddProfile {
             loops: vec![circle_at([0.0, 0.0], 0.01)],
@@ -601,7 +602,9 @@ fn a_profile_with_no_loops_inserts_and_what_sweeps_it_refuses() {
     );
     match common::status_of(&rows, extrude) {
         viewer::tree::RowStatus::Failed { message, .. } => assert!(
-            message.contains("profile has no loops — nothing to sweep"),
+            message
+                .to_string()
+                .contains("profile has no loops — nothing to sweep"),
             "the extrude's badge says it: {message}"
         ),
         other => panic!("the extrude's row is its own failure: {other:?}"),
@@ -689,7 +692,8 @@ fn a_refusal_at_any_creation_door_leaves_no_history_state() {
     let tol = Tol::witness();
     let mut session = session(tol);
     // A body: no profile to extrude or revolve, and its face is on a
-    // body, so the sketch on it refuses on its depth instead.
+    // body, so the profile drawn on it refuses on its coordinates
+    // instead.
     let block = common::xy_box_in(&mut session, [0.01, 0.01, 0.01]);
     let states = session.history().len();
     for op in [
@@ -712,9 +716,10 @@ fn a_refusal_at_any_creation_door_leaves_no_history_state() {
             axis_heading: Formula::turn_over(4).expect("a quarter turn"),
             angle: ang(TAU),
         },
-        // A dimensionless depth in a Length slot refuses at the edit
-        // door, one rule for authored and hand-written documents.
-        SessionOp::SketchOnFace {
+        // A dimensionless coordinate in a Length argument refuses at
+        // the edit door, one rule for authored and hand-written
+        // documents.
+        SessionOp::DrawOnFace {
             face: FaceSelection {
                 name: StableName {
                     kind: EntityKind::Face,
@@ -724,9 +729,19 @@ fn a_refusal_at_any_creation_door_leaves_no_history_state() {
                 node: block,
                 body: 0,
             },
-            loops: vec![common::rectangle_loop([0.0, 0.0], 0.002, 0.002)],
-            distance: scl(0.01),
-            spin: Formula::zero(Dimension::Angle),
+            traced: Vec::new(),
+            chains: vec![
+                pncad::trace::Chain::at(scl(0.0), scl(0.0))
+                    .line_to(pncad::document::ProgramTarget::Point([
+                        len(0.002),
+                        len(0.0),
+                    ]))
+                    .line_to(pncad::document::ProgramTarget::Point([
+                        len(0.002),
+                        len(0.002),
+                    ]))
+                    .line_to(pncad::document::ProgramTarget::Start),
+            ],
         },
     ] {
         let outcome = session.perform(op);
@@ -983,17 +998,19 @@ fn a_form_authoring_in_millimetres_reads_back_in_millimetres() {
 ///
 /// A document, a square, an extrude; then the box's top cap is PICKED
 /// the way the viewport picks it (a `FaceSelection` carrying the name
-/// and the node whose body the ray met), and `SketchOnFace` draws a
-/// circle on it, extrudes it and fuses it on — one action.
+/// and the node whose body the ray met), `DrawOnFace` draws a footprint
+/// on its chart, `AddExtrude` extrudes it off the cap and `AddBoolean`
+/// fuses it on: three actions.
 ///
 /// **The boss's own volume discriminates nothing** — a boss on the
 /// bottom cap, on a side, or at the wrong height extrudes the same
-/// cylinder — so what pins it is its placement's POSE in the block's
-/// coordinates, asserted whole: origin at the cap's centre, its own z
-/// along the cap's outward normal, and its own +x where a zero spin
-/// puts it. A boss on the bottom cap has the opposite z and an origin
-/// 10 mm below; one on a side has neither. The union's volume is the
-/// evidence that the profile drew and extruded on it, flush.
+/// block — so what pins it is where the boss stands in the block's
+/// coordinates, asserted whole: a footprint 6 × 3 mm in its chart's
+/// first quadrant spans the box whose corner is the cap's centre, its
+/// height along the cap's outward normal, its long side along the
+/// block's +x. A boss on the bottom cap hangs below the block; one on a
+/// side spans another box; one turned spans another quadrant. The
+/// union's volume is the evidence that it fused, flush.
 #[test]
 fn a_boss_is_authored_on_a_picked_face() {
     let tol = Tol::witness();
@@ -1013,62 +1030,41 @@ fn a_boss_is_authored_on_a_picked_face() {
         node: block,
         body: 0,
     };
-    let outcome = session.perform(SessionOp::SketchOnFace {
-        face: picked,
-        loops: vec![circle_at([0.0, 0.0], 0.005)],
-        distance: len(0.004),
-        spin: Formula::zero(Dimension::Angle),
-    });
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let doc = session.committed_doc();
-    let of_kind = |want: fn(&Node<ProfileProgram>) -> bool| {
-        outcome
-            .minted
-            .iter()
-            .copied()
-            .find(|&id| doc.node(id).is_some_and(want))
-            .expect("the action minted it")
-    };
-    let placed = of_kind(|node| matches!(node, Node::Place { .. }));
-    let union = of_kind(|node| matches!(node, Node::Union { .. }));
+    let footprint = [0.006, 0.003, 0.004];
+    let (_, boss) = common::drawn_boss(
+        &mut session,
+        picked,
+        common::rectangle_chain([0.0, 0.0], footprint[0], footprint[1]),
+        footprint[2],
+    );
+    let union = session_insert(
+        &mut session,
+        SessionOp::AddBoolean {
+            spec: viewer::session::BooleanSpec::Union(vec![block.into(), boss.into()]),
+        },
+    );
     let v = body_volume(&mut session, union, tol);
-    let want = 0.04 * 0.02 * 0.01 + core::f64::consts::PI * 0.005 * 0.005 * 0.004;
-    assert!(
-        near(v, want),
-        "the boss drew, extruded and fused: {v} vs {want}"
-    );
+    let want = 0.04 * 0.02 * 0.01 + footprint.iter().product::<f64>();
+    assert!(near(v, want), "the boss fused, flush: {v} vs {want}");
 
-    // The copy stands ON the cap: this is what "drawn on that face"
+    // The boss stands ON the cap: this is what "drawn on that face"
     // means geometrically, and it is the assertion a boss on another
-    // face or at another height fails.
-    let poses = pncad::document::solve_document(
-        session.committed_doc(),
-        &pncad::document::EvalOptions::default(),
-        &pncad::document::CancelToken::new(),
-        tol,
-    );
-    let at = poses
-        .relative(placed)
-        .expect("the boss stands in the block's space");
+    // face, at another height or turned fails.
+    let (lo, hi) = common::drawn::extent(&mut session, boss);
     let close = |got: [f64; 3], want: [f64; 3], what: &str| {
         for (g, w) in got.into_iter().zip(want) {
             assert!((g - w).abs() <= 1e-12, "{what}: {got:?} vs {want:?}");
         }
     };
     close(
-        at.translation,
+        lo,
         [0.0, 0.0, 0.01],
-        "the boss's origin is the cap's centre, 10 mm up",
+        "the footprint's corner is the cap's centre, 10 mm up",
     );
     close(
-        at.columns[2],
-        [0.0, 0.0, 1.0],
-        "and its own z is the cap's outward normal, not the base's",
-    );
-    close(
-        at.columns[0],
-        [1.0, 0.0, 0.0],
-        "and a zero spin leaves its own +x on the carrier's u-reference",
+        hi,
+        [footprint[0], footprint[1], 0.01 + footprint[2]],
+        "and the boss rises along the cap's outward normal, its long side on +x",
     );
 }
 

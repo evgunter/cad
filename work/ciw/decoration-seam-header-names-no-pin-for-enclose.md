@@ -2,10 +2,11 @@
 id: decoration-seam-header-names-no-pin-for-enclose
 kind: issue
 title: decoration_seam.rs's header says the ssi::enclose crossing is pinned by no row; enclose.rs's own decoration_seam module pins it
-status: open
+status: closed
 opened: 2026-09-04
 priority: P3
 cost: E
+closed: 2026-11-22
 ---
 
 
@@ -136,3 +137,7 @@ scope; `demos/`, `tools/` and `interval-transcendentals/` were not
 checked for callers.
 
 Moved from TINT to CIW on 2026-11-20, by `git mv`, when TINT merged into CIW: TINT held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CIW carries.
+
+## Closed
+
+`decoration_seam.rs`'s fourth bullet names `enclose.rs`'s `tests::decoration_seam` rows (`every_ring_crossing_refuses_exactly_where_the_decoration_degrades`, `no_crossing_may_be_rebounded_to_the_bracket_door`, `a_violated_radius_refuses_the_pad`), each verified present.

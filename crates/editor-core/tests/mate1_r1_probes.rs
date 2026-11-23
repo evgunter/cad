@@ -414,8 +414,8 @@ fn r1_no_mate_can_give_one_copy_a_pose_apart_from_its_siblings() {
         &DocEdit::AddConstraint {
             placement: pattern,
             mate: Box::new(editor_core::Mate {
-                on: plane(member_head(pattern, &[0], leg_part.cap(leg, CapEnd::End))),
-                to: plane(member_head(pattern, &[1], leg_part.cap(leg, CapEnd::End))),
+                on: plane(member_head(pattern, &[0], leg_part.cap(leg, CapEnd::End))).into(),
+                to: plane(member_head(pattern, &[1], leg_part.cap(leg, CapEnd::End))).into(),
                 orient: editor_core::Orientation::IDENTITY,
             }),
             fresh: Vec::new(),
