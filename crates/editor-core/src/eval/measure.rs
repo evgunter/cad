@@ -704,7 +704,13 @@ pub(crate) fn reach_of<T: Decide>(
     band: Band,
 ) -> Option<T> {
     let cover = topo::face_cover(body, k, band).ok()?;
-    Some(cover.distance_range(&geom::cover::Site::Point(origin)).1)
+    Some(far_from(&cover, origin))
+}
+
+/// **The farthest a region's cover stands from `origin`**: the one
+/// reading of a reach, a face's ([`reach_of`]) or a profile's loop's.
+pub(crate) fn far_from<T: geom_core::Real>(cover: &geom::cover::Cover<T>, origin: Point3<T>) -> T {
+    cover.distance_range(&geom::cover::Site::Point(origin)).1
 }
 
 /// `distance(a, b)` -> Length. Unsigned throughout: a distance is a

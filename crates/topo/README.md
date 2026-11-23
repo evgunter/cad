@@ -47,7 +47,7 @@ that what you need belongs at the root or below.
 |---|---|
 | Arenas, entities, provenance | `src/body.rs`, `src/entity.rs`, `src/geometry.rs`, `src/provenance.rs`, `src/live.rs` |
 | Euler operators | `src/euler.rs` (make), `src/euler_kill.rs` (kill duals), `src/euler_ring.rs` (rings/genus), `src/strut.rs` (a strut deleted from its face, for the merge and the Boolean's closing), `src/split.rs`, `src/movefac.rs`, `src/revert.rs`, `src/attach.rs` |
-| Validation tiers 1–3, 3′ | `src/validate.rs` (`validate`, `validate_closed`, `validate_geometric`, `validate_pseudomanifold`), `src/edge_wedge.rs` (an edge's wedge read whole, which check 4 and the constructors share), `src/face_normal.rs`, `src/sector_face.rs`, `src/sector_shape.rs`, `src/coherence.rs` |
+| Validation tiers 1–3, 3′ | `src/validate.rs` (`validate`, `validate_closed`, `validate_geometric`, `validate_pseudomanifold`), `src/edge_wedge.rs` (an edge's wedge read whole, which check 4 and the constructors share), `src/face_normal.rs`, `src/sector_face.rs`, `src/sector_shape.rs` |
 | Coincidence census, at rest | `src/census.rs` (`census_and_certify`: the BVH pre-filter `Candidates`, the sweeps, the backing rungs, the confirm pass, the cross-solid backstop) |
 | Contact vocabulary | `src/contact.rs` (`GlueClass`, `ContactPair`, `ContactRefusal`, `ContactFinding`, `CONTACT_RECOURSE`) |
 | Contact verification (Door 1) | `src/boolean/contact_verify.rs` (`rest_pair_verdict`), `src/boolean/carrier_pair.rs` (the face-pair door); the carrier ladder it reads is `geom_brep::carrier_eq` (kind-generalized) and `geom_brep::plane_eq` (its planar arm) |
@@ -642,11 +642,15 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    the lone vertex of exactly one Empty loop); vertex-orbit closure
    (manifoldness — watertightness is structural in the half-edge
    form); the ownership/back-pointer partition; shell-partition/
-   edge-adjacency coherence; arity floors; bidirectional [identity] provenance;
-   and the **component-aware per-shell Euler–Poincaré**: per connected
+   edge-adjacency coherence; arity floors; bidirectional [identity] provenance.
+   The checklist guarantees, and no check of its own repeats, the
+   **component-aware per-shell Euler–Poincaré**: per connected
    component of a shell's incidence complex, v − e + f − r = 2(1 − g)
    with g a non-negative integer, summing per shell to 2(c − Σgᵢ) over
-   its c components. The naive per-body form is wrong for tier-1
+   its c components — each component is a closed, connected,
+   orientable surface by the checks above. The validator counts each
+   shell's components (for tier 2's c = 1) with its own walk, apart from
+   the operators' shared one. The naive per-body form is wrong for tier-1
    bodies — `mfkrh` on a detached ring disconnects a shell's surface
    while a single shell entity remains.
 2. **Tier 2 "closed solid"** (`validate_closed`) — tier 1 plus: no

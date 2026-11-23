@@ -2,10 +2,11 @@
 id: loop-walk-is-respelled-across-topo
 kind: issue
 title: the face loop walk (once(outer).chain(rings)) is respelled across topo/src outside census.rs
-status: open
+status: closed
 opened: 2026-09-13
 priority: P1
-cost: D
+cost: M
+closed: 2026-11-22
 ---
 
 
@@ -37,3 +38,9 @@ for `pick.rs`.
 One walk on `Body` (a `face_loops`/`face_cycles` pair, or an iterator
 on `Face`) that every site reads, each site keeping its own answer to an
 unwalkable loop — the `loop-boundary-discards` register moves with it.
+
+- 2026-11-21 (TESSLIE) — the chart-coherence examination is retired: `work/tesslie/chart-coherence-ships-off-and-nothing-schedules-turning-it-on.md`. The `coherence.rs` spelling is gone.
+
+## Closed
+
+2026-11-22 (WALKS staleness audit, origin/main 7709b0ea): fixed and a duplicate. `grep -rn "once(&\?face.outer).chain" crates/topo/src` returns nothing; PR 6460 (ONECOPY, `a face's loops walk through one home`) routed every listed site through `FaceView::loops`/`boundary`/`cycles` and `Body::unchecked_face_boundary` (live.rs), and the source pin `live::tests::a_faces_loops_are_walked_in_one_place` holds it. The row was the same finding as `a-faces-loops-are-walked-by-hand-in-thirty-four-places`, filed a day earlier with fewer sites; that row carries the surviving half (what a non-Cycle loop means to each reader).

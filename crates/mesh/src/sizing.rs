@@ -261,9 +261,8 @@ impl Eps {
     /// and [`crate::cert::verdict`], which applies a certificate's
     /// rounding allowance only while the band dominates it (four times
     /// over, `cert::ALLOWANCE_SHARE`). Nothing reads it to measure the
-    /// quality of a body's own coordinates: that question is
-    /// `topo::coherence`'s, and it carries its own band. So this
-    /// operation has no deviation to record.
+    /// quality of a body's own coordinates. So this operation has no
+    /// deviation to record.
     pub(crate) fn dominates(self, scaled: f64) -> bool {
         scaled < self.0
     }

@@ -933,8 +933,9 @@ fn ambiguous_outerness_refuses_typed() {
 /// **Row 4 (e) — negative zeros normalize to `+0.0`.** FreeCAD writes
 /// `-0.` on nearly every placement (`DIRECTION('',(1.,0.,-0.))`). The
 /// value is the same real number, but the bit pattern is not, and the
-/// importer compares surface records bitwise to restore the writer's
-/// key sharing. The proof is textual and end to end: the source carries
+/// importer reads some values bitwise (a printed spline carrier against
+/// the wall column it repeats, `on_built::bitwise_twin`), and the writer
+/// prints the sign it holds. The proof is textual and end to end: the source carries
 /// `-0.`, and nothing the importer produces does.
 #[test]
 fn negative_zeros_normalize_at_translation() {
@@ -1490,7 +1491,6 @@ fn eps_in_is_the_scaled_declaration_and_the_override_wins() {
             &text,
             &ImportOptions {
                 eps_in: Some(2.5e-8),
-                ..ImportOptions::default()
             },
             Tol::witness(),
         )

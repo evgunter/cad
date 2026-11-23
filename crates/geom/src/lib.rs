@@ -169,6 +169,7 @@ mod frame;
 mod memo;
 mod net;
 mod periodic;
+pub mod places;
 pub mod pole_form;
 mod projection_policy;
 pub mod rows;

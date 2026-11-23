@@ -10,9 +10,10 @@
 //! bit pattern, and bit patterns are read:
 //!
 //! * the importer compares floats **bitwise** in several places (its
-//!   `to_bits` uses) — among them `adopt::surface_sig`, which restores
-//!   writer-side key sharing, so two records identical as geometry
-//!   would fail to share a key on a printed sign alone; and
+//!   `to_bits` uses) — among them `on_built::bitwise_twin`, which reads
+//!   a printed spline carrier as the wall column it repeats bit for bit
+//!   (`build`'s `column_match`), so a carrier identical to its column as
+//!   geometry would fail to match it on a printed sign alone; and
 //! * the writer prints `-0.0` verbatim while a re-import normalizes it
 //!   back, so an unflushed mint makes the adoption pass fail to be a
 //!   fixed point of the writer over that one printed sign.

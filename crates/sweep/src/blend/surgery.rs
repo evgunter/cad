@@ -217,6 +217,7 @@ use geom::{Conic as _, Curve3};
 use geom_brep::{
     EdgeCurveSpec, EdgeDescriptionSpec, SmoothJoin, SurfacePair, must_carry_description,
 };
+use geom_core::k_stats::TestSite;
 use geom_core::period::Within;
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Vec3};
 use topo::construction::{FaceSurface, MefSite, MekrSite};
@@ -2451,7 +2452,7 @@ pub(super) fn strip_reading<T: Decide + Bounds>(
         let d = within(lo, hi);
         depth = Some(depth.map_or(d, |x| x.min(d)));
     }
-    if let Some(d) = depth.filter(|d| super::reach::sure(*d, band)) {
+    if let Some(d) = depth.filter(|d| super::reach::sure(STRIP_DEPTH, *d, band)) {
         return Some(CycleReading::Inside(T::zero() - d));
     }
     let mut deepest: Option<T> = None;
@@ -2459,10 +2460,11 @@ pub(super) fn strip_reading<T: Decide + Bounds>(
     for &p in witnesses {
         let x = (p - o).dot(m);
         let d = within(x, x);
-        if super::reach::sure(d, band) {
+        if super::reach::sure(WITNESS_DEPTH, d, band) {
             deepest = Some(deepest.map_or(d, |y| y.max(d)));
         }
-        out |= super::reach::sure(x, band) || super::reach::sure(T::zero() - x - across, band);
+        out |= super::reach::sure(WITNESS_OFFSET, x, band)
+            || super::reach::sure(WITNESS_ACROSS, T::zero() - x - across, band);
     }
     Some(match deepest.filter(|_| out) {
         Some(d) => CycleReading::Crossing(T::zero() - d),
@@ -3686,7 +3688,7 @@ impl<T: Decide + Bounds> StripLevel<T> {
             };
             let m = whole.max(m);
             match part.touch {
-                Some(t) if !sure(m, band) => touch = least(touch, m.max(t)),
+                Some(t) if !sure(WEDGE_MARGIN, m, band) => touch = least(touch, m.max(t)),
                 _ => definite = least(definite, m),
             }
         }
@@ -3767,7 +3769,7 @@ impl<T: Decide + Bounds> StripLevel<T> {
     /// where there is neither.
     fn settle(definite: Option<T>, touch: Option<T>, band: Band) -> Option<Reading<T>> {
         match (definite, touch) {
-            (Some(d), Some(t)) if sure(d, band) => Some(Reading::Touch {
+            (Some(d), Some(t)) if sure(SETTLE_DEFINITE, d, band) => Some(Reading::Touch {
                 clear: Some(d),
                 touch: t,
             }),
@@ -3859,7 +3861,7 @@ impl<T: Decide + Bounds> StripLevel<T> {
     fn graze(clip: Clip<T>, into: T, band: Band) -> Option<Clip<T>> {
         if into.lo() >= 0.0 {
             Some(clip)
-        } else if sure(-into, band) {
+        } else if sure(GRAZE_CLEAR, -into, band) {
             None
         } else {
             Some(Clip {
@@ -3902,10 +3904,10 @@ impl<T: Decide + Bounds> StripLevel<T> {
             return windows;
         }
         let into = k + reach;
-        if sure(-into, band) {
+        if sure(ARC_CLEAR, -into, band) {
             return Vec::new();
         }
-        let touch = (!sure(into, band)).then_some(-into);
+        let touch = (!sure(ARC_INTO, into, band)).then_some(-into);
         let alpha = (-k / reach).max(-T::one()).min(T::one()).acos();
         let mid = |x: T| geom_core::mid_param(x.lo(), x.hi());
         let turns = |x: f64| x / core::f64::consts::TAU;
@@ -6511,6 +6513,44 @@ fn records_rooted<T: Real>(source: &topo::Body<T>, rec: &BlendNaming) {
         );
     }
 }
+
+/// The surgery's calls of `reach::sure`, one site per call.
+const STRIP_DEPTH: TestSite = TestSite::new(
+    "blend_surgery_strip_depth",
+    "a cycle's every piece lies surely within the strip",
+);
+const WITNESS_DEPTH: TestSite = TestSite::new(
+    "blend_surgery_witness_depth",
+    "a cycle's witness lies surely within the strip",
+);
+const WITNESS_OFFSET: TestSite = TestSite::new(
+    "blend_surgery_witness_offset",
+    "a strip witness lies surely ahead of the strip's start",
+);
+const WITNESS_ACROSS: TestSite = TestSite::new(
+    "blend_surgery_witness_across",
+    "a strip witness lies surely past the strip's far side",
+);
+const WEDGE_MARGIN: TestSite = TestSite::new(
+    "blend_surgery_wedge_margin",
+    "a wedge part's margin reads surely clear",
+);
+const SETTLE_DEFINITE: TestSite = TestSite::new(
+    "blend_surgery_settle_definite",
+    "a definite reading beside a touch is surely positive",
+);
+const GRAZE_CLEAR: TestSite = TestSite::new(
+    "blend_surgery_graze_clear",
+    "a clip's clearance reads surely positive",
+);
+const ARC_CLEAR: TestSite = TestSite::new(
+    "blend_surgery_arc_clear",
+    "an arc lies surely clear of the reach",
+);
+const ARC_INTO: TestSite = TestSite::new(
+    "blend_surgery_arc_into",
+    "an arc reaches surely into the band",
+);
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

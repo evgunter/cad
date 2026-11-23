@@ -632,9 +632,10 @@ fn an_arc_that_dips_past_the_walls_rim_between_two_nodes_is_refused_by_the_tube(
 
 /// **The lane's door takes a sphere, a cylinder or a torus, and the
 /// resolver sends a cone beside a spline nowhere**: a plane has its own
-/// lane, and a cone's residual has no metres conversion at the rung-3
-/// door, so each is refused by the lane as the wrong one, and a cone ×
-/// spline `Intersection` stays unimplemented.
+/// lane, and a cone has no form the chart tube reads
+/// (`ssi::certify::chart_partner_form`), so each is refused by the lane
+/// as the wrong one, and a cone × spline `Intersection` stays
+/// unimplemented.
 ///
 /// Red against: a door that admits any analytic partner.
 #[test]

@@ -42,6 +42,7 @@ use geom::Curve3;
 use geom::Surface;
 use geom_brep::EdgeCurveSpec;
 use geom_core::UnitVec3;
+use geom_core::k_stats::TestSite;
 use geom_core::{Band, Bounds, Decide, InfSpeed, Margin, Point3, Real, Sign, Tol, Vec3};
 use topo::construction::Construct;
 use topo::construction::{FaceSurface, MefSite};
@@ -734,18 +735,22 @@ impl<T: Decide + Bounds> CapSliver<T> {
         cut: bool,
         band: Band,
     ) -> CycleReading<T> {
-        if !cut && let Some(depth) = self.ring_inside(pieces).filter(|d| sure(*d, band)) {
+        if !cut
+            && let Some(depth) = self
+                .ring_inside(pieces)
+                .filter(|d| sure(RING_INSIDE, *d, band))
+        {
             return CycleReading::Inside(T::zero() - depth);
         }
         let deepest = pieces
             .iter()
             .filter_map(|&(carrier, window)| self.reaches_in(carrier, window))
-            .filter(|x| sure(*x, band))
+            .filter(|x| sure(REACHES_IN, *x, band))
             .reduce(|m, x| m.max(x));
         let reaches_out = cut
             || pieces.iter().any(|&(carrier, window)| {
                 self.reaches_out(carrier, window)
-                    .is_some_and(|x| sure(x, band))
+                    .is_some_and(|x| sure(REACHES_OUT, x, band))
             });
         match deepest.filter(|_| reaches_out) {
             Some(depth) => CycleReading::Crossing(T::zero() - depth),
@@ -1296,6 +1301,20 @@ pub(in crate::blend) fn fold_sliver<T: Decide>(
     rec.dead.vertices.push(vertex);
     Ok(())
 }
+
+/// The end face's calls of `reach::sure`, one site per call.
+const RING_INSIDE: TestSite = TestSite::new(
+    "blend_end_face_ring_inside",
+    "a ring lies surely inside the end face",
+);
+const REACHES_IN: TestSite = TestSite::new(
+    "blend_end_face_reaches_in",
+    "a piece reaches surely into the end face",
+);
+const REACHES_OUT: TestSite = TestSite::new(
+    "blend_end_face_reaches_out",
+    "a piece reaches surely out of the end face",
+);
 
 #[cfg(test)]
 mod line_meter_fuzz;

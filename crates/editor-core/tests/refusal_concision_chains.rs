@@ -131,7 +131,6 @@ pub(crate) const ALLOWED_LABELS: &[(&str, &str)] = &[
     // the placement it ran on, by its tag.
     ("Check/", "check at-rest"),
     ("Check/", "check connectedness"),
-    ("Check/", "check chart-coherence"),
     ("Check/", "placement 000000000004 output 0"),
     // The mate solve names the constraint it refused (`constraint #9 of
     // node 7: …`).
@@ -317,12 +316,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Skin/SectionProfile",
     "Tube/DegenerateWindow",
     "Tube/FullRangeWindow",
-    // work/chrome/unowned-viewer-refusals-short-of-the-shape-guard.md
-    "Check/ChartCoherence(meridian closure)",
-    "Check/ChartCoherence(rim)",
-    "Check/ChartCoherenceUnexamined(corrupt)",
-    "Check/ChartCoherenceUnexamined(non-iso)",
-    "Check/ChartCoherenceUnexamined(scaffold)",
 ];
 
 /// The rows that render a door's generic fallback subject
@@ -905,7 +898,8 @@ mod kernel {
     test_utils::f6_variants! {
         /// `PathError`'s arms, for the `ProfileReplay/Path/` rows.
         pub(super) const PATH_ERROR: PathError = [
-            JunctionTangent, JunctionCusp, CuspDoublesBackOverLeg, SeamTangent, SeamArrivalOffDirection,
+            JunctionTurnWithinTolerance, JunctionCusp, CuspDoublesBackOverLeg,
+            SeamTurnWithinTolerance, SeamArrivalOffDirection,
             SeamArrivalLeverTooShort, ContinuationTargetOffRay, NoCornerForFillet,
             NoCornerOfPair, FilletOffsetLeverTooShort, FilletArcFlattenedInStorage,
             FilletCarrierBelowSceneResolution, ArcLegOnOpenFillet,
@@ -915,7 +909,7 @@ mod kernel {
             UnderflowedDirection, ArcViaCollinear, DegenerateArcChord,
             ArcCenterNotEquidistant, DegenerateArcCenter, ArcMissesAuthoredPoint,
             ArcMissBelowSceneResolution, FarEndAnchorWithoutFillet,
-            Escalated, Band, Structure, UnderdeterminedLeg, OverdeterminedJunction,
+            Escalated, Band, Structure, UnderdeterminedLeg, OverdeterminedJunction, Deferred,
         ];
     }
 
@@ -1032,7 +1026,8 @@ mod kernel {
 test_utils::f6_variants! {
     /// `Diagnosis`'s arms, for the `SelectResolve/Vanished(…)` rows.
     const DIAGNOSIS: Diagnosis = [
-        PredicateFlip, BorderDelta, GroupResized, StructuralParam, IndexCount, RecipeEdit, Cascade,
+        PredicateFlip, BorderDelta, GroupResized, Parted, StructuralParam, IndexCount, RecipeEdit,
+        Cascade,
         WitnessBifurcation, Upstream,
     ];
 }
@@ -2307,7 +2302,10 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             "CrossingEscalated",
             R::CrossingEscalated {
                 edge,
-                fault: topo::ConicRootFault::CrossingInterior(diag()),
+                fault: topo::CrossWhy::Method {
+                    door: geom_brep::curve_face::Door::PlaneCrossing,
+                    fault: geom_brep::curve_pair::MeetFault::Escalated(diag()),
+                },
             },
         ),
         (
@@ -4258,17 +4256,21 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
     }
     use geom_core::Point2;
     use payloads::*;
-    use profile::path::{PathError as P, PathNoCornerReason, TurnLever};
+    use profile::path::{LeveredTurn, PathError as P, PathNoCornerReason, TurnLever};
     use profile::{
         CornerReason, CornerRefusal, FilletLegCarrier, LegFit, NoCornerReason, OverrunLegs,
     };
     use profile::{CornerWindow, FilletLeg, ReplayError, ReplayErrorKind, TipState};
     let path: Vec<(&str, P<f64>)> = vec![
         (
-            "JunctionTangent",
-            P::JunctionTangent {
-                margin: l(1e-12),
-                arm: l(0.5),
+            "JunctionTurnWithinTolerance",
+            P::JunctionTurnWithinTolerance {
+                turn: LeveredTurn {
+                    sin_turn: r(0.9),
+                    align: r(0.44),
+                    lever: l(3e-10),
+                    lever_of: TurnLever::ShorterLeg,
+                },
             },
         ),
         (
@@ -4284,7 +4286,17 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
                 at: Point2::new(2.0, 0.0),
             },
         ),
-        ("SeamTangent", P::SeamTangent { margin: l(1e-12) }),
+        (
+            "SeamTurnWithinTolerance",
+            P::SeamTurnWithinTolerance {
+                turn: LeveredTurn {
+                    sin_turn: r(-0.9),
+                    align: r(0.44),
+                    lever: l(3e-10),
+                    lever_of: TurnLever::ShorterLeg,
+                },
+            },
+        ),
         (
             "SeamArrivalOffDirection",
             P::SeamArrivalOffDirection {
@@ -4471,10 +4483,12 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
             "NoCornerForFillet(turn, leg)",
             P::NoCornerForFillet {
                 reason: PathNoCornerReason::TurnWithinTolerance {
-                    sin_turn: r(0.01),
-                    align: r(-0.99995),
-                    lever: l(5e-8),
-                    lever_of: TurnLever::ShorterLeg,
+                    turn: LeveredTurn {
+                        sin_turn: r(0.01),
+                        align: r(-0.99995),
+                        lever: l(5e-8),
+                        lever_of: TurnLever::ShorterLeg,
+                    },
                     corner: Some(Point2::new(0.25, -0.5)),
                 },
                 radius: gl(0.05),
@@ -4484,10 +4498,12 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
             "NoCornerForFillet(turn, anchors)",
             P::NoCornerForFillet {
                 reason: PathNoCornerReason::TurnWithinTolerance {
-                    sin_turn: r(0.9),
-                    align: r(0.44),
-                    lever: l(6e-10),
-                    lever_of: TurnLever::AnchorSeparation,
+                    turn: LeveredTurn {
+                        sin_turn: r(0.9),
+                        align: r(0.44),
+                        lever: l(6e-10),
+                        lever_of: TurnLever::AnchorSeparation,
+                    },
                     corner: None,
                 },
                 radius: gl(0.05),
@@ -4675,6 +4691,24 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
             "OverdeterminedJunction",
             P::OverdeterminedJunction { site: "arc_to" },
         ),
+        // The stored-form refusal as the close raises it about the
+        // fillet's step: the longest inner sentence a deferral carries.
+        (
+            "Deferred",
+            P::Deferred {
+                step: 2,
+                raised_at: 11,
+                deferral: profile::Deferral::FilletStoredForm,
+                refusal: Box::new(P::FilletCarrierBelowSceneResolution {
+                    turn: a(0.5),
+                    radius: gl(1e-9),
+                    scale: l(10.0),
+                    resolution: l(1e-8),
+                    predicate: "fillet_scene_resolution",
+                    margin: l(1e-12),
+                }),
+            },
+        ),
     ];
     use profile::{EscalatedAt, Gate};
     let routed = [
@@ -4710,21 +4744,18 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
         .collect();
     // The state that takes the most verbs, so its recourse is the
     // longest list a lattice refusal draws.
-    let transition = ReplayError {
-        step: 2,
-        kind: ReplayErrorKind::Transition {
+    let transition = ReplayError::new(
+        2,
+        ReplayErrorKind::Transition {
             state: TipState::DirectedPoint,
             verb: Some(profile::Verb::CloseTo),
         },
-    };
+    );
     path.into_iter()
         .map(|(n, p)| {
             (
                 format!("ProfileReplay/Path/{n}"),
-                ReplayError {
-                    step: 2,
-                    kind: ReplayErrorKind::Path(p),
-                },
+                ReplayError::new(2, ReplayErrorKind::Path(p)),
             )
         })
         .chain([("ProfileReplay/Transition".to_owned(), transition)])
@@ -5262,6 +5293,18 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
                     was: 2,
                     now: 1,
                     cutters: editor_core::GroupCutters::NotSeamBounded,
+                }),
+            ),
+            (
+                "Vanished(Parted)",
+                vanished(Diagnosis::Parted {
+                    node: at,
+                    site: geom_core::k_stats::QuerySite::new(
+                        "refusal_rows_query",
+                        "the faces whose boxes meet a face's",
+                    )
+                    .site(),
+                    step: 19,
                 }),
             ),
             (
@@ -6429,10 +6472,7 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
     use editor_core::{CheckEvidence as E, CheckFinding, CheckId};
     use geom_core::{Indeterminate, MarginDiag};
     use payloads::*;
-    use topo::{
-        CoherenceCondition, CoherenceFinding, EdgeKey, FaceKey, LoopKey, ShellClassifyError,
-        ShellKey, StructureRead, Unexaminable, Unexamined, VertexKey,
-    };
+    use topo::{FaceKey, ShellClassifyError, ShellKey};
     let shell = ShellKey::default();
     let copy = |n| editor_core::CopyRef {
         var: editor_core::VarId::new(0, tagged(n)),
@@ -6455,21 +6495,6 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
         },
         evidence,
         quiet: None,
-    };
-    let coherence = |condition| CoherenceFinding {
-        face: FaceKey::default(),
-        r#loop: LoopKey::default(),
-        edge: EdgeKey::default(),
-        condition,
-        gap: 1.0e-10,
-        lever: 100.0,
-        metres: 1.0e-8,
-        eps: 1.0e-9,
-    };
-    let unexamined = |why| Unexamined {
-        face: FaceKey::default(),
-        r#loop: LoopKey::default(),
-        why,
     };
     vec![
         (
@@ -6577,65 +6602,6 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
                     ))),
                 },
             ),
-        ),
-        (
-            "ChartCoherence(meridian closure)",
-            finding(
-                CheckId::ChartCoherence,
-                E::ChartCoherence {
-                    finding: coherence(CoherenceCondition::MeridianClosure {
-                        vertex: VertexKey::default(),
-                    }),
-                },
-            ),
-        ),
-        (
-            "ChartCoherence(rim)",
-            finding(
-                CheckId::ChartCoherence,
-                E::ChartCoherence {
-                    finding: coherence(CoherenceCondition::RimContinuation {
-                        opens: EdgeKey::default(),
-                    }),
-                },
-            ),
-        ),
-        (
-            "ChartCoherenceUnexamined(corrupt)",
-            finding(
-                CheckId::ChartCoherence,
-                E::ChartCoherenceUnexamined {
-                    unexamined: unexamined(Unexaminable::Corrupt {
-                        at: StructureRead::Cycle,
-                    }),
-                },
-            ),
-        ),
-        (
-            "ChartCoherenceUnexamined(scaffold)",
-            finding(
-                CheckId::ChartCoherence,
-                E::ChartCoherenceUnexamined {
-                    unexamined: unexamined(Unexaminable::NullScaffoldEdge {
-                        edge: EdgeKey::default(),
-                    }),
-                },
-            ),
-        ),
-        (
-            "ChartCoherenceUnexamined(non-iso)",
-            finding(
-                CheckId::ChartCoherence,
-                E::ChartCoherenceUnexamined {
-                    unexamined: unexamined(Unexaminable::NonIsoCarrier {
-                        edge: EdgeKey::default(),
-                    }),
-                },
-            ),
-        ),
-        (
-            "ChartCoherenceUnavailable",
-            finding(CheckId::ChartCoherence, E::ChartCoherenceUnavailable),
         ),
     ]
     .into_iter()

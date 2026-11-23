@@ -677,8 +677,7 @@ mod rows {
                 u_ref: Vec3::new(1.0, 0.0, 0.0),
                 sense,
             };
-            // Unsourced lever: a fixture's unit arm, with no edge to read it off.
-            let unit = Lever::unsourced(1.0);
+            let unit = geom_core::test_support::fixture_lever(1.0);
             let sector = BoolSector {
                 he: HalfEdgeKey::from(key(1)),
                 start,
@@ -735,8 +734,7 @@ mod rows {
             u_ref: side,
             sense: true,
         };
-        // Unsourced lever: the grid's given arm, with no edge to read it off.
-        let arm = Lever::unsourced(arm);
+        let arm = geom_core::test_support::fixture_lever(arm);
         BoolSector {
             he: HalfEdgeKey::from(key(face)),
             start,

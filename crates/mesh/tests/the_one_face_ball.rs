@@ -216,12 +216,14 @@ fn the_one_face_spindle_meshes_as_its_revolve() {
 /// between them (a slit face), and the other meridian killed. The ball
 /// face's loop runs pole to pole and back, its spurs ending on both
 /// poles, but its chart image keeps the slit's two arcs, so the face is
-/// not the whole sphere: it is walked as any other rimless loop, and the
-/// slit's two coincident arcs refuse it `PinchWedge`. Read as the strip,
-/// the ball face would mesh as the whole sphere and leave the slit face
-/// to refuse instead. The body is outside `tessellate`'s contract (tier 2
-/// reads the spurs' ends as strut tips); the row pins which reading the
-/// walk takes of it.
+/// not read as the strip: it is walked as any other rimless loop, its
+/// columns off its lift. The lift turns the face a whole turn round each
+/// pole, the slit's two arcs a turn apart (`topo::pcurves`' slit rule), so
+/// the ball face meshes as the sphere cut by the slit, and the refusal is
+/// the slit face's: its two coincident arcs open one column
+/// (`SingleColumnCurvedFace`). The body is outside `tessellate`'s contract
+/// (tier 2 reads the spurs' ends as strut tips); the row pins which
+/// reading the walk takes of it.
 #[test]
 fn a_slit_between_the_tips_is_not_the_strip() {
     let mut body = two_band_ball();
@@ -258,11 +260,19 @@ fn a_slit_between_the_tips_is_not_the_strip() {
     assert_eq!(
         body.faces().next().map(|(f, _)| f),
         Some(ball_face),
-        "the ball face is first in arena order, so the fold answers for it"
+        "the ball face is first in arena order, so the fold meshes it before the slit face"
     );
+    let slit_face = body
+        .faces()
+        .map(|(f, _)| f)
+        .find(|&f| f != ball_face)
+        .unwrap();
     assert_eq!(
         mesh::tessellate(&body, DELTA, tol()).map(|_| ()),
-        Err(mesh::TessellateError::PinchWedge { face: ball_face })
+        Err(mesh::TessellateError::SingleColumnCurvedFace {
+            face: slit_face,
+            surface: geom::SurfaceKind::Sphere,
+        })
     );
 }
 

@@ -473,8 +473,9 @@ fn speed_sup<T: SpanLocate>(carrier: &Curve3<T>) -> T {
 /// points, and so no more than its arc. The lever arm of a reading
 /// consumed along the edge (D4 ¶1) whose definite verdict is a
 /// nonzero sign and whose Zero only refuses: a transversality or a
-/// uniqueness tube a certificate claims, a root a corner accepts as
-/// transversal, a section's crossing. Such a reading's convention is
+/// uniqueness tube a certificate claims, the root a face move's corner
+/// accepts as transversal (`topo`'s `replace_face`, where a graze serves
+/// no point), a section's crossing. Such a reading's convention is
 /// that a Zero is a refusal, never a served class; under it an arm
 /// longer than `D` would certify a crossing too shallow to pin within
 /// the edge, and a shorter one only refuses more. Being no longer than

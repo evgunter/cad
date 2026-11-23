@@ -628,7 +628,7 @@ fn the_distance_floor_is_below_the_distance_and_meets_it() {
                             Meters::Cone {
                                 sin: iv(sin),
                                 cos: iv(cos),
-                                nappe: Nappe::Opening,
+                                locus: crate::pcurve_cache::projected::Locus::Nappe(Nappe::Opening),
                             },
                             Box::new(move |p: Vec3<Interval>| {
                                 iv(cos).powi(2) * (p.x.powi(2) + p.y.powi(2))
@@ -2088,7 +2088,7 @@ fn each_conversion_reads_its_stated_floors() {
     let (inc, floor) = net_incidence(
         &hull(1.0, (0.5, 2.0)),
         (0.0, 1.0),
-        Some(crate::Nappe::Opening),
+        crate::pcurve_cache::projected::Locus::Nappe(crate::Nappe::Opening),
         &cone,
         d,
         b,
@@ -2103,7 +2103,7 @@ fn each_conversion_reads_its_stated_floors() {
     let mirror = net_incidence(
         &hull(0.1, (0.5, 2.0)),
         (0.0, 1.0),
-        Some(crate::Nappe::Mirror),
+        crate::pcurve_cache::projected::Locus::Nappe(crate::Nappe::Mirror),
         &cone,
         d,
         b,
@@ -2148,9 +2148,16 @@ fn each_conversion_reads_its_stated_floors() {
             },
         ),
     ] {
-        let (inc, floor) =
-            net_incidence(&hull(rho, (0.0, 0.0)), (0.0, 1.0), None, &surf, d, b, false)
-                .unwrap_or_else(|e| panic!("{surf:?}: {e:?}"));
+        let (inc, floor) = net_incidence(
+            &hull(rho, (0.0, 0.0)),
+            (0.0, 1.0),
+            crate::pcurve_cache::projected::Locus::Carrier,
+            &surf,
+            d,
+            b,
+            false,
+        )
+        .unwrap_or_else(|e| panic!("{surf:?}: {e:?}"));
         assert!(close(inc, want), "{surf:?}: {inc:e} against {want:e}");
         assert!(close(floor, rho - d), "{surf:?}: floor {floor}");
     }
@@ -2159,7 +2166,7 @@ fn each_conversion_reads_its_stated_floors() {
     let got = net_incidence(
         &uncertified,
         (0.0, 1.0),
-        Some(crate::Nappe::Opening),
+        crate::pcurve_cache::projected::Locus::Nappe(crate::Nappe::Opening),
         &cone,
         d,
         b,
@@ -2560,7 +2567,7 @@ fn an_uncertified_part_refuses_only_inside_the_edges_interval() {
         super::super::projected::net_incidence(
             hull,
             edge,
-            image.chart.nappe(),
+            image.chart.locus(),
             &twin,
             0.0,
             b,
