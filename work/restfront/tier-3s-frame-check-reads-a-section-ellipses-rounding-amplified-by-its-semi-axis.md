@@ -94,6 +94,8 @@ Moved from RESTDATUM to RESTFRONT on 2026-11-20, by `git mv`, when RESTDATUM mer
 
 **Since PR 7131 (GREEN U12, 2026-11-23).** `section_ellipse_seam_poses::planes_through_the_axis_nearly_along_it_split`'s pose table moved at θ 1e-6 (nightly 44989234943), so its pin is red. Four poses at φ 0.4 and 2.5 now refuse at rest on `URef Tilt`, and two at φ 3.9 that refused on `URef Length` now pass. Cause: 7131's squaring at `f64`. Mutant F1F alone turns the row green, and A or F1X alone does not. The class is this row's: which poses' rounding lands outside ε/A has moved. The refusal is counted in ONEHOME's `pr-7131s-frame-cost-at-1e-12-is-larger-than-it-counted` (PR 7402's branch until it merges), with probe runs 45083192761 (green at `e4d679d37e`), 45083200534 (red at `9bc9d6517b`) and 45083184695 (mutants). GREEN pins nothing until Ev rules on that count.
 
+**Re-pinned as 7131's cost (GREEN U13, 2026-11-23, PR 7558).** Ev ruled on PR 7505 that PR 7131's frame cost stands. `THROUGH_1E12` in `section_ellipse_seam_poses.rs` is now the table measured on main `e38e85bebe` and after, with the cause in its doc. 14 poses at θ 1e-6, 3e-6 and 3e-5 moved, not the 6 counted on `4d3402ecb1`. Mutant F1F turns the table red. This row's status is unchanged. **Superseded on merge (2026-11-23):** main's check-1 change below removed the frame check, so at ε 1e-12 every through-axis pose builds, `THROUGH_1E12` is empty again, and PR 7558 keeps main's file.
+
 ## Closed (2026-11-21): check 1 reads no frame
 
 By ONEHOME, on `onehome/check1-frame-half` (fork 274 decision 1, built by
