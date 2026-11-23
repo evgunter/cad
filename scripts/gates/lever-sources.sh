@@ -65,12 +65,17 @@ gate() {
   mapfile -t files < <(find crates/*/src crates/*/tests crates/*/examples crates/*/benches demos benches \
     -type f -name '*.rs' -not -path '*/target/*' 2>/dev/null | sort)
   GATE_SCAN_FILES=${#files[@]}
-  if ! code=$(gate_rust_code "${files[@]}"); then
+  # The view goes through a file, not a shell variable: it is the whole
+  # tree, and the shell copying it into each reader was most of this
+  # gate's time. An empty view reads as one empty line, as a variable did.
+  code=$GATE_VIEW_FILE.code
+  if ! (gate_rust_code "${files[@]}") > "$code"; then
     gate_error "$(gate_name): could not read the sources under $PWD — the gate could not read its subject, which is not a pass"
     exit 1
   fi
+  [ -s "$code" ] || printf '\n' > "$code"
   # The door's references: its definition is not one.
-  doors=$(grep -E '\bof_consumed_extent\b' <<<"$code" | grep -vE '\bfn of_consumed_extent\b' \
+  doors=$(grep -E '\bof_consumed_extent\b' < "$code" | grep -vE '\bfn of_consumed_extent\b' \
     | grep -v "^$EXTENT_HOME:" || true)
   for item in "${EXTENT_ITEMS[@]}"; do
     read -r path want <<<"$item"
@@ -87,7 +92,7 @@ gate() {
     exit 1
   fi
   # The escape hatches' own definitions are not references.
-  if ! report=$(grep -vE '\bfn (unsourced|fixture_lever|fixture)\b' <<<"$code" \
+  if ! report=$(grep -vE '\bfn (unsourced|fixture_lever|fixture)\b' < "$code" \
     | python3 "$CENSUS" "$BASELINE" unsourced --reasons '--marker=// Unsourced lever:' --per-file); then
     gate_error "$(gate_name): the counter failed under $PWD (its own message is above, if it had one) — the gate could not read its subject, which is not a pass"
     exit 1
@@ -103,7 +108,7 @@ gate() {
     exit 1
   fi
   local fixtures
-  if ! fixtures=$(grep -vE '\bfn (unsourced|fixture_lever|fixture)\b' <<<"$code" \
+  if ! fixtures=$(grep -vE '\bfn (unsourced|fixture_lever|fixture)\b' < "$code" \
     | python3 "$CENSUS" "$FIXTURES" fixture_lever 'Reach::fixture' 'ExtentBall::fixture'); then
     gate_error "$(gate_name): the fixture counter failed under $PWD — the gate could not read its subject, which is not a pass"
     exit 1

@@ -329,7 +329,7 @@ fn probe_opened_box_census() {
         (16, 24, 11, 1, 1),
         "the rim surgery's census"
     );
-    assert_eq!(counts.genus(), Ok(0), "Euler–Poincaré at genus 0");
+    assert_eq!(counts.h(), Ok(0), "Euler–Poincaré at genus 0");
 
     // And the tube (two opposite rims): genus 1.
     let bottom = plane_face_at(&body, 0.0);
@@ -344,7 +344,7 @@ fn probe_opened_box_census() {
     let counts = euler_counts(&tube);
     let EulerCounts { v, e, f, r, s } = counts;
     println!("[probe] tube census: V={v} E={e} F={f} R={r} S={s}");
-    assert_eq!(counts.genus(), Ok(1), "Euler–Poincaré at genus 1");
+    assert_eq!(counts.h(), Ok(1), "Euler–Poincaré at genus 1");
 }
 
 /// TWO ADJACENT faces designated open — the designation the acceptance
@@ -487,7 +487,7 @@ fn probe_opened_vessel_cup() {
             assert_eq!(counts.r, 1, "and that is the body's only ring");
             // THE GENUS: `topo::shell`'s own docs say a cup is 0.
             assert_eq!(
-                counts.genus(),
+                counts.h(),
                 Ok(0),
                 "one opening gives a cup, which is genus 0"
             );
