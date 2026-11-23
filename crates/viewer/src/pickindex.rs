@@ -3232,24 +3232,22 @@ fn segment_distance_px(cursor: [f64; 2], a: [f64; 2], b: [f64; 2]) -> (f64, [f64
 /// same magnitude, so the guard fires where the arithmetic actually
 /// stops meaning anything.
 fn ray_segment_closest(ray: &Ray, a: Point3<f64>, b: Point3<f64>) -> (f64, Point3<f64>) {
-    let segment = pncad::geom::Line {
-        origin: a,
-        dir: b - a,
-    };
+    let (segment, length) = pncad::geom::Line::chord(a, b);
     let pair = segment.closest_params(&pncad::geom::Line {
         origin: ray.origin,
-        dir: ray.dir,
+        dir: pncad::geom_core::UnitVec3::squared(ray.dir),
     });
     // A pick's policy, not the kernel's: a segment within PARALLEL_REL of
     // the ray's direction (or of no length, NaN) answers its own start,
     // since any end will do.
+    // The segment's own fraction: the chord's parameter is in metres.
     let t_segment = if pair.sin2 > PARALLEL_REL {
-        pair.s
+        pair.s / length
     } else {
         0.0
     }
     .clamp(0.0, 1.0);
-    (t_segment, segment.at(t_segment))
+    (t_segment, segment.at(t_segment * length))
 }
 
 /// Why a cursor produced no answer (closed enum, D4 ¶3).

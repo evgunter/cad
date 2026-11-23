@@ -354,7 +354,7 @@ mod crossing_rows {
             )
             .unwrap();
         body.kemr(strut.he_plus, strut.he_minus).unwrap();
-        let ruling = |u: f64| Curve3::line(at(u, 0.0), Vec3::unit_z());
+        let ruling = |u: f64| Curve3::line(at(u, 0.0), geom_core::UnitVec3::exact_z());
         let read = |u: f64| {
             boundary_crossing(
                 &body,
@@ -699,7 +699,7 @@ mod crossing_rows {
                 let c = body.get_curve_geom(e.curve)?.certified()?;
                 match *c.carrier() {
                     Curve3::Line(geom::Line { origin, dir })
-                        if dir.z.abs() > 0.9
+                        if dir.get().z.abs() > 0.9
                             && Point3::new(origin.x, origin.y, 0.0).distance(foot) < 1e-12 =>
                     {
                         Some((k, origin))
@@ -719,10 +719,10 @@ mod crossing_rows {
             _ => panic!("a ruling is a line"),
         };
         let mid = body
-            .split_edge(ruling, (0.5 - origin.z) / dir.z, tol)
+            .split_edge(ruling, (0.5 - origin.z) / dir.get().z, tol)
             .unwrap()
             .vertex;
-        let along = Curve3::line(foot, Vec3::unit_z());
+        let along = Curve3::line(foot, geom_core::UnitVec3::exact_z());
         match boundary_crossing(
             &body,
             (Operand::B, EdgeKey::default(), true),

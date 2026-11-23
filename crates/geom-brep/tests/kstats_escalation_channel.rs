@@ -181,7 +181,7 @@ fn the_dihedral_sign_gate_records_its_escalation() {
     );
     // The fold reads the corner's sign at a station on a walk ACROSS the
     // planes' crossing: every station a corner, every sign zero.
-    let across = geom::Curve3::line(Point3::origin(), Vec3::new(0.0, 1.0, 0.0));
+    let across = geom::Curve3::line(Point3::origin(), geom_core::UnitVec3::exact_y());
     let side = |surface| geom_brep::SideFace {
         surface,
         sense: true,
