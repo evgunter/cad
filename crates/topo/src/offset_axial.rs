@@ -1227,9 +1227,10 @@ fn classify<T: Decide>(
 /// conditioning is levered by: each edge's reach from the corner, where
 /// the corner's transversality is read ([`crate::cover::edge_reach_bounds`]).
 /// That reading acts on every sign (a definite transversality serves the
-/// branch root, a Zero the tangent foot), so each reach is held from
-/// both sides, exact on a line and a circle arc, and read at both bounds
-/// where they differ. A closed one-seam arc reaches its diameter from its
+/// branch root, a Zero the tangent foot), and the cap pair's sine
+/// refuses typed on its Zero, a claim of its own; so each reach is held
+/// from both sides, exact on a line and a circle arc, and read at both
+/// bounds where they differ. A closed one-seam arc reaches its diameter from its
 /// vertex, never its zero chord.
 fn corner_arms<T: Decide>(
     body: &Body<T>,
@@ -1745,6 +1746,9 @@ fn cap_pair_corner<T: Decide>(
     // distance from zero this division stands on, cited rather than
     // re-decided (one derivation, the module's own law).
     let sine = (mp0.cross(mp1) / (n0 * n1)).dot(frame.axis.dir);
+    // Only Positive goes on; the typed refusal on Zero claims the caps
+    // parallel, which only the arm from above proves, so the sine is read
+    // at both bounds and a disagreement is in band and escalates.
     for &arm in arms {
         match crate::validate::decide_levered(
             ("offset_axial_cap_pair", "offset_axial_cap_pair_straddle"),
@@ -3582,6 +3586,132 @@ mod tests {
     /// A station line `ρ = c`.
     const fn station(c: f64) -> Profile<f64> {
         Profile::Line { n: (1.0, 0.0), c }
+    }
+
+    /// An arm known only between `below` and `above`, as a corner edge
+    /// whose cover is not its own (an ellipse, a spiric, a spline) reads.
+    fn between(below: f64, above: f64) -> LeverBounds<f64> {
+        LeverBounds::Between {
+            below: geom_core::test_support::fixture_lever(below),
+            above: geom_core::test_support::fixture_lever(above),
+        }
+    }
+
+    /// **A corner whose arm is known only between two bounds decides
+    /// its transversality at both, and escalates where they disagree.**
+    /// The station line `ρ = 11 − 8·10⁻¹²` against the unit profile
+    /// circle has transversality `4·10⁻⁶`; under the band `(10⁻⁵, 10⁻⁴)`
+    /// an arm between 2 and 50 reads it Zero from below and definite
+    /// from above. Acting on either alone answers (the foot, or the
+    /// branch root); together they straddle the band
+    /// (`offset_axial_corner_straddle`). Red where the corner reads one
+    /// bound.
+    #[test]
+    fn a_corner_arm_between_two_bounds_straddles_where_they_disagree() {
+        let band = Band::new(1e-5, 1e-4).unwrap();
+        let pair = [station(11.0 - 8e-12), CIRCLE];
+        let got = solve_pairs(
+            &pair,
+            &[between(2.0, 50.0)],
+            (11.0, 4e-6),
+            VertexKey::default(),
+            band,
+        );
+        assert!(
+            matches!(&got, Err(ReplaceFaceError::Escalated { source })
+                if source.predicate == Some("offset_axial_corner_straddle")),
+            "the two bounds straddle the band: {got:?}"
+        );
+    }
+
+    /// **The cap pair's typed refusal is a claim of Zero, read from
+    /// above.** Two meridian caps whose cross-section normals stand
+    /// `5·10⁻¹⁰` apart, under the band `(10⁻⁹, 10⁻⁸)`, with an arm
+    /// between 1 and 100: Zero from below, definite from above. The
+    /// refusal ("their planes are parallel") is owed only where the arm
+    /// from above reads Zero too; here the two straddle and the sine
+    /// escalates. Red where the cap pair reads one bound.
+    #[test]
+    fn a_cap_pairs_refusal_is_read_at_both_bounds() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let s: f64 = 5e-10;
+        let frame = Frame {
+            axis: geom::Line {
+                origin: Point3::origin(),
+                dir: Vec3::new(0.0, 0.0, 1.0),
+            },
+            extent: geom_core::test_support::fixture_lever(1.0),
+        };
+        let caps = (
+            (Vec3::new(1.0, 0.0, 0.0), 0.0),
+            (Vec3::new(s.cos(), s.sin(), 0.0), 0.0),
+        );
+        let got = cap_pair_corner(
+            VertexKey::default(),
+            2,
+            (10.0, 0.0),
+            &CIRCLE,
+            caps,
+            &[between(1.0, 100.0)],
+            &frame,
+            band,
+        );
+        assert!(
+            matches!(&got, Err(ReplaceFaceError::Escalated { source })
+                if source.predicate == Some("offset_axial_cap_pair_straddle")),
+            "the cap pair's sine straddles the band: {got:?}"
+        );
+    }
+
+    /// **The planar door takes each arm from below.** Three planes whose
+    /// normals' triple product is `5·10⁻¹⁰`, under the band
+    /// `(10⁻⁹, 10⁻⁸)`, with an arm between 1 and 100: the planar solve
+    /// claims a corner only on a definite transversality, which the arm
+    /// from below does not read, so it refuses. Red where the planar
+    /// door is handed the arm from above.
+    #[test]
+    fn the_planar_corner_takes_each_arm_from_below() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let s: f64 = 5e-10;
+        let plane = |n: Vec3<f64>, u: Vec3<f64>| Surface::Plane {
+            frame: geom::Frame::new(Point3::origin(), n, u),
+        };
+        let chart = |surface: Surface<f64>| MovedChart {
+            old_key: SurfaceKey::default(),
+            old: surface.clone(),
+            new: surface,
+            distance: 0.0,
+            constraint: Constraint::Station(0.0),
+            rigid: None,
+        };
+        let charts = [
+            chart(plane(Vec3::new(0.0, 1.0, 0.0), Vec3::new(1.0, 0.0, 0.0))),
+            chart(plane(Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0))),
+            chart(plane(
+                Vec3::new(s.cos(), 0.0, s.sin()),
+                Vec3::new(0.0, 1.0, 0.0),
+            )),
+        ];
+        let at: Vec<&MovedChart<f64>> = charts.iter().collect();
+        let frame = Frame {
+            axis: geom::Line {
+                origin: Point3::origin(),
+                dir: Vec3::new(0.0, 0.0, 1.0),
+            },
+            extent: geom_core::test_support::fixture_lever(1.0),
+        };
+        let got = solve_corner(
+            VertexKey::default(),
+            Point3::origin(),
+            &at,
+            &[between(1.0, 100.0)],
+            &frame,
+            band,
+        );
+        assert!(
+            matches!(&got, Err(ReplaceFaceError::TogetherCorner { .. })),
+            "no triple resolves the corner at the arm from below: {got:?}"
+        );
     }
 
     /// **The pair ladders' order** (the ladder's rule over the fan):
