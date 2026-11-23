@@ -1405,7 +1405,7 @@ fn face_above<T: Decide>(
 
 /// **Whether a chart end at a spindle sheet's apex lies above it in
 /// `v`**: the end is at the apex against the sheet's axis, `v = −v*`. A
-/// sheet's tube angle is named in `(−π, π]` ([`geom::azimuth::Window::Sheet`]),
+/// sheet's tube angle is named in `(−π, π]` ([`geom::Window::Sheet`]),
 /// so its images lie in its window `[−v*, v*]` and an end at an apex
 /// reads `±v*`: the copy is the sign of the end's `v`, metred at the
 /// polar radius (`pcurve_sheet_apex_copy`), a margin of `r·v*`.
