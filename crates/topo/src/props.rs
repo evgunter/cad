@@ -9636,14 +9636,11 @@ mod review_7437_probe {
     #[test]
     fn raw_door_on_a_removed_curve() {
         let tol = Tol::witness();
-        let mut body = crate::splitting::reassembly::quad_prism(
-            &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
-            1.0,
-            tol,
-        );
+        let mut body = crate::test_support::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
         let curve = body.edges.iter().next().unwrap().1.curve;
         body.curves.remove(curve).expect("the curve was there");
         let got = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            // Raw door: the subject is a body whose edge names a removed curve, which tier 1 refuses, and the door's typed refusal of it.
             crate::test_support::measure_unvalidated(
                 &body,
                 tol,
