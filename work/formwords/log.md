@@ -199,3 +199,4 @@ after Ev's answer.
   - One class behind two MINORs: the readers of `MateSideDraft` list its fields by hand, and none was taught `datum`.
   - Ruled without Ev: New plane with a body selected puts the datum in the space where that body is drawn (the copy's target if it is shown only through a copy), so the next viewport pick lands in the same space.
   - Recorded for Ev's retroactive review. Fix pass sent; both review sessions archived.
+- 2026-11-23 — **PR 7382's lint red is main's, not the datum's.** `payload-rung-sweep.py --check` fails on main `9bc36ff78b` alone with the `NodeErrorClass` under `Unsettled` line (since PR 7458; BOXFINISH's disposition, `work/boxfinish/log.md`). Said so on the PR; 7382 merges on every other job green. (FORMWORDS orchestrator)
