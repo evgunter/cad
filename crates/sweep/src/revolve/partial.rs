@@ -373,9 +373,16 @@ pub(super) fn he_edge<T: Decide>(body: &Body<T>, he: topo::HalfEdgeKey) -> EdgeK
 /// where the caps are one carrier. Every edge is read on the records the
 /// build wrote; only then do the smooth verdicts leave the caps on one
 /// record ([`topo::Body::one_record_across`]), so no reading names a
-/// record an earlier act retired. Every axis edge joins the same two
-/// caps, so the first act moves them and records the row, and the rest
-/// find them on one record already.
+/// record an earlier act retired. Every smooth axis edge joins the same
+/// start cap to the same end cap (checked per verdict), so the first act
+/// moves the end cap onto the start cap's record and records the row,
+/// and the rest find them on one record already.
+///
+/// # Panics
+///
+/// Where two smooth axis edges join different cap pairs, or a later act
+/// moves a record after the first: a partial revolve has one start cap
+/// and one end cap, so either is a kernel defect.
 #[allow(clippy::too_many_arguments)] // one internal call site.
 fn finish_partial<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
@@ -418,18 +425,34 @@ fn finish_partial<T: Decide + topo::AtRestPolicy>(
                         tol,
                     )?;
                     if let Some(verdict) = smooth {
-                        smooth_joins.push((verdict, face_wearing(body, bottom, start_surface)));
+                        let caps = [
+                            face_wearing(body, bottom, start_surface),
+                            face_wearing(body, bottom, end_surface),
+                        ];
+                        if let Some(&(_, first)) = smooth_joins.first() {
+                            assert_eq!(
+                                caps, first,
+                                "axis edge {bottom:?} joins caps {caps:?}, but an earlier axis \
+                                 edge joined {first:?}: a partial revolve has one start cap \
+                                 and one end cap"
+                            );
+                        }
+                        smooth_joins.push((verdict, caps));
                     }
                 }
             }
         }
     }
     let mut coplanar = None;
-    for (verdict, start_cap) in smooth_joins {
-        if let Some(row) = body.one_record_across(verdict, start_cap, tol)?
-            && coplanar.replace(row).is_some()
-        {
-            unreachable!("every axis edge joins the one start cap to the one end cap");
+    for (k, (verdict, [start_cap, _])) in smooth_joins.into_iter().enumerate() {
+        let row = body.one_record_across(verdict, start_cap, tol)?;
+        match (k, row) {
+            (0, row) => coplanar = row,
+            (_, None) => {}
+            (_, Some(row)) => unreachable!(
+                "smooth axis verdict {k} moved a record after the first had left the caps \
+                 on one: {row:?}"
+            ),
         }
     }
     Ok(coplanar)
