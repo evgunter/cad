@@ -5267,7 +5267,8 @@ class Body:
         A measurement that cannot be made raises `ValidationError` with
         `reason == "mass_properties_failed"` and `measure_refusal`
         naming which: `"face"`, `"ring_on_curved_face"`, `"corrupt"`,
-        `"null_scaffold_edge"` or `"band"` (no enclosure),
+        `"null_scaffold_edge"`, `"no_outline"` (a face whose outline is a
+        single vertex) or `"band"` (no enclosure),
         `"poisoned"` (the predicate's margin could not be read),
         `"resolution_finer_than_eps"`, `"empty_contains"` (a
         `Settle.contains` whose `lo` is above its `hi`), or
