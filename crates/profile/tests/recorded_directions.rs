@@ -1696,3 +1696,214 @@ fn the_value_channel_keeps_an_arcs_radials_at_their_own_ends() {
     }
     assert_eq!(arcs, 2, "the D has two arcs");
 }
+
+/// What a build of [`quad`] came to: built and validated, or the head
+/// of the verb's or validation's refusal.
+fn outcome<T: Decide>(r: Result<ConstructedLoop<T>, profile::PathError<T>>) -> String {
+    let head = |s: String| s.chars().take(60).collect::<String>();
+    match r {
+        Ok(lp) => match ConstructedProfile::new(SketchPlane::xy(), vec![lp]).validate(tol()) {
+            Ok(_) => "built and validated".to_owned(),
+            Err(e) => format!("validate: {}", head(format!("{e:?}"))),
+        },
+        Err(e) => format!("verb: {}", head(format!("{e:?}"))),
+    }
+}
+
+/// **A chord with no length is refused in every lane, and the mint
+/// gives it no axis.** The hop `(x1, 0) → (x2, y)` of [`quad`] with
+/// both components zero: both proved, one proved and the other reading
+/// Zero, and both merely reading zero. The mint stores the quotient,
+/// which is no direction there, and the verb's junction gate answers on
+/// it: by name at a value (`JunctionTurnWithinTolerance`), and as an
+/// escalation of `path_junction_turn` over a box. Where the other
+/// component straddles zero the sign reading itself escalates. No lane
+/// builds; none names the zero chord as such
+/// (`work/profile/a-hop-whose-chord-is-proved-zero-is-refused-by-the-junction-gate-not-by-name.md`).
+#[test]
+fn a_chord_with_no_length_is_refused_in_every_lane() {
+    const NAMED: &str = "verb: JunctionTurnWithinTolerance";
+    const JUNCTION: &str = "verb: Escalated { site: Door, gate: PathJunctionTurn";
+    const SIGN: &str = "verb: Escalated { site: Door, gate: SegmentDirectionAxis";
+    let i = |v: f64| Interval::from_bounds(v, v);
+    let mut rows = vec![
+        ("f64".to_owned(), NAMED, outcome(quad(1.0, 1.0, 0.0))),
+        (
+            "Interval".to_owned(),
+            NAMED,
+            outcome(quad(i(1.0), i(1.0), i(0.0))),
+        ),
+    ];
+    for kind in SESSIONS {
+        let boxed = || param("w", 1.0, small());
+        let lanes: [(&str, &str, &dyn Fn() -> String); 6] = [
+            ("both proved", NAMED, &|| {
+                let w = pf("w", 1.0);
+                outcome(quad(w, w, Sym::from_f64(0.0)))
+            }),
+            ("x proved, y reads 0", NAMED, &|| {
+                let w = pf("w", 1.0);
+                outcome(quad(w, w, pf("h", 0.0)))
+            }),
+            ("both read 0", NAMED, &|| {
+                outcome(quad(pf("a", 1.0), pf("b", 1.0), pf("h", 0.0)))
+            }),
+            ("box, both proved", JUNCTION, &|| {
+                outcome(quad(boxed(), boxed(), Sym::from_f64(0.0)))
+            }),
+            ("box, x proved, y the point 0", JUNCTION, &|| {
+                outcome(quad(boxed(), boxed(), param("h", 0.0, 0.0)))
+            }),
+            ("box, x proved, y straddles 0", SIGN, &|| {
+                outcome(quad(boxed(), boxed(), param("h", 0.0, small())))
+            }),
+        ];
+        for (lane, want, build) in lanes {
+            rows.push((format!("{kind:?}: {lane}"), want, run(kind, build)));
+        }
+    }
+    for (lane, want, got) in rows {
+        assert!(got.starts_with(want), "{lane}: {got}");
+    }
+}
+
+/// **The sign is read at the least band.** A hop whose proved-zero
+/// component leaves the other a sixty-fourth of ε long: its direction
+/// is `+y` however short it is, the reading answers Positive, and the
+/// axis is stored; the junction gate then refuses the short side by
+/// name. A reading at the working band answers Zero here and is red on
+/// the readings.
+#[test]
+fn the_axis_sign_is_read_at_the_least_band() {
+    use geom_core::Sign::Positive;
+    use geom_core::sym::revalue::record;
+    for kind in SESSIONS {
+        let (at_value, d) = record(|| {
+            run(kind, || {
+                let w = pf("w", 1.0);
+                outcome(quad(w, w, pf("h", small())))
+            })
+        });
+        assert_eq!(
+            axis_readings(&d),
+            [Some(Positive), Some(Positive)],
+            "{kind:?}"
+        );
+        assert!(
+            at_value.starts_with("verb: JunctionTurnWithinTolerance"),
+            "{kind:?}: {at_value}"
+        );
+        let (_, d) = record(|| {
+            run(kind, || {
+                let w = param("w", 1.0, small());
+                outcome(quad(w, w, param("h", small(), 0.0)))
+            })
+        });
+        assert_eq!(
+            axis_readings(&d),
+            [Some(Positive), Some(Positive)],
+            "{kind:?}: over a box"
+        );
+    }
+}
+
+/// **What was asked before does not move the branch.** The sum `x + w`
+/// is minted before the session is installed, and the hop
+/// `(x, 0) → (that − w, 1)` asks about a graph the session does not
+/// hold. The same document built inside the session afterwards mints
+/// the axis whether or not that hop was asked first: each ask starts
+/// from the expression alone.
+#[test]
+fn an_earlier_ask_does_not_move_the_branch() {
+    for kind in SESSIONS {
+        let build = |ask_first: bool| {
+            let minted_before = pf("x", 0.1) + pf("w", 0.3);
+            run(kind, || {
+                let (x, w) = (pf("x", 0.1), pf("w", 0.3));
+                if ask_first {
+                    let _ = quad(x, minted_before - w, Sym::from_f64(1.0));
+                }
+                quad_hop(x, (x + w) - w)
+            })
+        };
+        assert_eq!(build(false), AXIS_UP, "{kind:?}");
+        assert_eq!(build(true), AXIS_UP, "{kind:?}: asked first");
+    }
+}
+
+/// **The one-branch statement is about a graph built inside its
+/// session.** The identity `(x + w) − w` computed before the session is
+/// installed is a graph the session's table does not hold; the question
+/// proves nothing about it, and the hop stores the quotient: the axis
+/// where the value channel computes `0.0`, one ulp off it at
+/// `(0.1, 0.3)`. Every door builds its document inside the session it
+/// decides in.
+#[test]
+fn a_graph_built_outside_its_session_stores_the_quotient() {
+    for kind in SESSIONS {
+        let outside = |x: f64, w: f64| {
+            let (x, w) = (pf("x", x), pf("w", w));
+            let x2 = (x + w) - w;
+            run(kind, || quad_hop(x, x2))
+        };
+        assert_eq!(outside(1.0, 1.0), AXIS_UP, "{kind:?}");
+        let leans = outside(0.1, 0.3);
+        assert!(leans[0].0 > 0.0, "{kind:?}: {leans:?}");
+    }
+}
+
+/// **An arc verb whose leg lowers to a line is a hop.** A bulge of the
+/// literal zero has no arc; the leg is the line to its end, and its
+/// director is minted and recorded as `line_to`'s is: at `f64` the
+/// quotient with its zero's sign, and over a box the axis, with no
+/// width, where the chord's `x` is proved zero.
+#[test]
+fn a_bulge_of_zero_records_the_hops_minted_director() {
+    let (a, b) = (Point2::new(4.0, 0.0), Point2::new(4.0, 4.0));
+    let lp = Open
+        .at(Point2::new(0.0, 0.0))
+        .line_to(a, tol())
+        .unwrap()
+        .arc_to(profile::Bulge { p: b, b: 0.0 }, tol())
+        .unwrap()
+        .line_to(Point2::new(0.0, 4.0), tol())
+        .unwrap()
+        .line_to(Start, tol())
+        .unwrap();
+    records(
+        &lp.loop_.into_loop(),
+        &[
+            hop((0.0, 0.0), (4.0, 0.0)),
+            hop((4.0, 0.0), (4.0, 4.0)),
+            hop((4.0, 4.0), (0.0, 4.0)),
+            hop((0.0, 4.0), (0.0, 0.0)),
+        ],
+        "bulge 0",
+    );
+    for kind in SESSIONS {
+        let side = run(kind, || {
+            let (w, z) = (param("W", 4.0, small()), Lane::from_f64(0.0));
+            let h = Lane::from_f64(4.0);
+            let lp = Open
+                .at(Point2::new(z, z))
+                .line_to(Point2::new(w, z), tol())
+                .unwrap()
+                .arc_to(
+                    profile::Bulge {
+                        p: Point2::new(w, h),
+                        b: z,
+                    },
+                    tol(),
+                )
+                .unwrap()
+                .line_to(Point2::new(z, h), tol())
+                .unwrap()
+                .line_to(Start, tol())
+                .unwrap();
+            bounds(line_director(
+                validated(vec![lp.loop_]).loops()[0].segments()[1].kind,
+            ))
+        });
+        assert_eq!(side, AXIS_UP, "{kind:?}");
+    }
+}
