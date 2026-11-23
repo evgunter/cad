@@ -21284,10 +21284,22 @@ mod focal_rows {
                     ball: Ball::holding(origin(), origin()),
                 };
                 let got = present_curved(&piece, 0, None, &[0], &[vertex(1)], band());
+                // The loop runs the section toward the greater azimuths
+                // either way (`plus` follows the sense), its face on its
+                // left: beyond the arc from the apex.
                 assert!(
-                    matches!(&got, Ok(Presentation::Of(q)) if matches!(q.zero, Zero::Curve(..))),
+                    matches!(
+                        &got,
+                        Ok(Presentation::Of(q))
+                            if Zeroed::of(&q.zero) == Zeroed::Curve(Side::YLo)
+                    ),
                     "the join, sense with = {with}, {turn} on: {:?}",
-                    got.as_ref().map(|_| ()).map_err(|e| format!("{e:?}"))
+                    got.as_ref()
+                        .map(|p| match p {
+                            Presentation::Of(q) => format!("{:?}", Zeroed::of(&q.zero)),
+                            Presentation::Vacuous => "vacuous".into(),
+                        })
+                        .map_err(|e| format!("{e:?}"))
                 );
             }
         }
