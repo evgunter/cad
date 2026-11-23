@@ -2,9 +2,9 @@
 //! loft door, and the sections are apart beyond it.** A pinned corner is
 //! a profile vertex at one world point in two adjacent sections; a hinge
 //! is two adjacent ones. Pinned throughout the span its wall covers, it
-//! is a legal body the kernel does not build yet (a spline wall's
-//! collapsed boundary column), refused as unsupported and never as bad
-//! input; pinned in some slabs and moving in others under one wall, it
+//! is a legal body (`pinned_corners_build`), refused as unsupported only
+//! at a full turn's one vertex; pinned in some slabs and moving in others
+//! under one wall, it
 //! is a wall that retraces itself; in band, it escalates. Beyond the
 //! pinned corners, two sections that meet refuse naming the two
 //! segments. The coincident-section and strip-0 hinge rows are
@@ -53,89 +53,48 @@ fn lift(z: f64) -> Affine3<f64> {
     Affine3::translation(Vec3::new(0.0, 0.0, z))
 }
 
-/// Asserts `out` is the class-1 refusal naming `at` of loop 0 in slab
-/// `slab`, as a kernel limit and not an input fault.
-fn assert_unsupported(
-    what: &str,
-    out: Result<sweep::Lofted<f64>, LoftError>,
-    at: PinnedSite,
-    slab: usize,
-) {
-    match out {
+/// **Class 1 builds, but for a full turn's one vertex**: a one-segment
+/// loop turned about the tangent at its vertex pins that vertex, and its
+/// wall is the whole turn collapsed at its wrap edge, which the assembly
+/// does not build. Refused as a kernel limit, and never as bad input.
+/// The other class-1 bodies are `pinned_corners_build`'s.
+#[test]
+fn a_full_turns_pinned_vertex_refuses_as_unsupported() {
+    let tol = Tol::witness();
+    let circle = || {
+        vec![<ProfileLoop<f64> as RawLoop<f64>>::new([(
+            Point2::new(1.0, 0.0),
+            profile::Segment::Arc(geom_core::Arc2 {
+                centre: Point2::new(0.0, 0.0),
+                radius: 1.0,
+                sweep: core::f64::consts::TAU,
+            }),
+        )])]
+    };
+    let ps = places(
+        &[
+            Affine3::identity(),
+            turn([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], 0.5),
+        ],
+        tol,
+    );
+    match loft_body::<f64>(&vec![circle(); 2], &ps, 1, tol) {
         Err(
             e @ LoftError::PinnedCornerUnsupported {
                 loop_index: 0,
-                at: got,
-                slab: s,
+                at: PinnedSite::Corner(0),
+                slab: 0,
             },
         ) => {
-            assert_eq!(
-                (got, s),
-                (at, slab),
-                "{what}: the pinned site and its slab are named"
-            );
             let msg = e.render(geom_brep::recourse::Reading::Build);
-            assert!(
-                msg.contains(&format!(
-                    "loft sections {slab} and {} hold {at} of loop 0 at one point; that is a \
-                     legal body",
-                    slab + 1
-                )),
-                "{what}: {msg}"
-            );
+            assert!(msg.contains("a full turn"), "{msg}");
             assert!(
                 msg.contains("a kernel limit, not an input fault"),
-                "{what}: the refusal is the kernel's, not the input's: {msg}"
+                "the refusal is the kernel's, not the input's: {msg}"
             );
         }
-        other => panic!("{what}: expected PinnedCornerUnsupported at {at}, got {other:?}"),
+        other => panic!("expected PinnedCornerUnsupported at the vertex, got {other:?}"),
     }
-}
-
-/// **Class 1: a corner pinned throughout the span its wall covers.** A
-/// two-section wedge (a square turned about its edge x = −1, segment 3)
-/// and the same hinge at v-degree 1 through three sections, where each
-/// slab's wall is its own; a single corner pinned in a wedge; and a
-/// single corner pinned through every section at v-degree 2. Each is a
-/// legal body the kernel does not build, refused as such.
-#[test]
-fn a_corner_pinned_throughout_its_walls_span_refuses_as_unsupported() {
-    let tol = Tol::witness();
-    let hinge = turn([-1.0, 0.0, 0.0], [0.0, -1.0, 0.0], 0.5);
-    let wedge = places(&[Affine3::identity(), hinge], tol);
-    assert_unsupported(
-        "two-section wedge",
-        loft_body::<f64>(&vec![square(); 2], &wedge, 1, tol),
-        PinnedSite::Segment(3),
-        0,
-    );
-    let degree_one = places(&[Affine3::identity(), hinge, lift(3.0)], tol);
-    assert_unsupported(
-        "hinge at v-degree 1",
-        loft_body::<f64>(&vec![square(); 3], &degree_one, 1, tol),
-        PinnedSite::Segment(3),
-        0,
-    );
-    // About the diagonal through corner 0, which no other corner is on.
-    let corner = |a: f64| turn([-1.0, -1.0, 0.0], [1.0, -1.0, 0.0], a);
-    assert_unsupported(
-        "one corner pinned in a wedge",
-        loft_body::<f64>(
-            &vec![square(); 2],
-            &places(&[Affine3::identity(), corner(0.5)], tol),
-            1,
-            tol,
-        ),
-        PinnedSite::Corner(0),
-        0,
-    );
-    let every = places(&[Affine3::identity(), corner(0.3), corner(0.6)], tol);
-    assert_unsupported(
-        "one corner pinned through every section",
-        loft_body::<f64>(&vec![square(); 3], &every, 2, tol),
-        PinnedSite::Corner(0),
-        0,
-    );
 }
 
 /// **Class 2: one corner pinned in one slab and moving in the next**,
@@ -255,11 +214,11 @@ fn sections_that_meet_beyond_their_pinned_corners_refuse_naming_the_segments() {
 
 /// **A lens turned about its chord**: both corners pinned in every slab,
 /// the arcs apart elsewhere, the curve-pair reader finding them meet
-/// only at those corners. No corner moves, so the step decides nothing
-/// and the lens reaches the class-1 refusal naming its hinged segment —
-/// symmetric or not, and turned either way.
+/// only at those corners. No corner moves, so each arc steps on its own,
+/// and the two step to opposite sides of the lens's plane: the slab
+/// stacks against itself, symmetric or not, and turned either way.
 #[test]
-fn a_lens_turned_about_its_chord_reaches_class_1() {
+fn a_lens_turned_about_its_chord_stacks_against_itself() {
     let tol = Tol::witness();
     for sense in [1.0, -1.0] {
         let about = |a: f64| turn([0.0; 3], [-sense, 0.0, 0.0], a);
@@ -267,12 +226,13 @@ fn a_lens_turned_about_its_chord_reaches_class_1() {
         let two = places(&[Affine3::identity(), about(0.8)], tol);
         for (what, ps, v) in [("three sections", &three, 2), ("a wedge", &two, 1)] {
             for (ridge, keel) in [(0.8, 0.3), (0.5, 0.5)] {
-                assert_unsupported(
-                    &format!("lens ({ridge}, {keel}) turned {sense}, {what}"),
-                    loft_body::<f64>(&vec![lens(ridge, keel); ps.len()], ps, v, tol),
-                    PinnedSite::Segment(0),
-                    0,
-                );
+                match loft_body::<f64>(&vec![lens(ridge, keel); ps.len()], ps, v, tol) {
+                    Err(LoftError::ReversedStacking { slab: 0 }) => {}
+                    other => panic!(
+                        "lens ({ridge}, {keel}) turned {sense}, {what}: expected \
+                         ReversedStacking, got {other:?}"
+                    ),
+                }
             }
         }
     }
@@ -443,7 +403,7 @@ fn an_outer_loop_held_with_a_hole_moving_in_its_plane_has_no_step() {
 /// wedge. (Two stations that coincide are
 /// `one_door_for_coincident_sections`'s.)
 #[test]
-fn a_sweep_turning_about_a_profile_corner_refuses_as_unsupported() {
+fn a_sweep_turning_about_a_profile_edge_builds_its_wedge() {
     let tol = Tol::witness();
     let h = core::f64::consts::FRAC_1_SQRT_2;
     let path = geom::NurbsCurve3::new(
@@ -473,23 +433,16 @@ fn a_sweep_turning_about_a_profile_corner_refuses_as_unsupported() {
         at(0.5, 0.3),
         at(0.0, 0.3),
     ])];
-    match sweep_body::<f64>(&profile, place, &path, 3, 2, tol) {
-        Err(
-            e @ LoftError::PinnedCornerUnsupported {
-                loop_index: 0,
-                at: PinnedSite::Segment(_),
-                slab: 0,
-            },
-        ) => {
-            assert!(
-                e.render(geom_brep::recourse::Reading::Build)
-                    .contains("a kernel limit, not an input fault"),
-                "{e_at}",
-                e_at = e.render(geom_brep::recourse::Reading::Build)
-            );
-        }
-        other => panic!("expected the class-1 refusal at the swept corner, got {other:?}"),
-    }
+    let swept = sweep_body::<f64>(&profile, place, &path, 3, 2, tol)
+        .unwrap_or_else(|e| panic!("the swept wedge builds: {e}"));
+    assert_eq!(
+        swept.side_faces[0]
+            .iter()
+            .filter(|w| w[0].is_none())
+            .count(),
+        1,
+        "the segment on the axis has no wall: the two caps hold it"
+    );
 }
 
 /// A D on the line x = 0 from (0, 1) to (0, −1), its semicircle through
