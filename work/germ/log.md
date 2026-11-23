@@ -1773,3 +1773,9 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - Coverage lost: a printed crossing line read off a snapped tangency no longer has a witness in the tree. That is noted on the IMPORTGATE row.
   - Reviewer draw: byte 9 (single FULL), recorded on the analysis branch. The review is dispatched with an arm-free brief.
   - Not ours: `payload-rung-sweep.py --check` is red on clean main since PR 7458, already on BOXFINISH's log. It will red this PR's lint.
+- 2026-11-23 08:30 — **PR 7431 review.**
+  - The head `f5d7ed9762` is frozen by the orchestrator. The lane had not declared it, but CI has run and the body is complete.
+  - The reviewer arm was drawn and recorded on the analysis branch.
+  - A single FULL review is dispatched with an arm-free brief.
+  - The ring-path consumer is answered by the PR: the `ArcLoop` copy is filed as `the-ring-paths-arcloop-copies-the-co-surface-arms-edge-section`.
+  - The head's lint is red only on main's `payload-rung-sweep` (`NodeErrorClass`, since PR 7458).
