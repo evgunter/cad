@@ -150,6 +150,7 @@ REGISTER=(
   "crates/topo/src/boolean/ops.rs|pinched_at_cone_apex|else { continue|1|audited: a lone-vertex loop holds one vertex once, so it passes no vertex twice; the at-rest gate after this scan reads it as it reads every loop"
   "crates/topo/src/boolean/ops.rs|face_boundary_meets||1|unaudited"
   "crates/topo/src/rim_wedge.rs|face_boundary_arcs||1|unaudited"
+  "crates/topo/src/rim_wedge.rs|rim_edges_convex||1|audited: a lone-vertex loop holds no edge, so it has none on the rim for the certificate to read; the rim itself was found among the face's edges (shared_rim), and an edge the walk meets that carries no certified curve answers false rather than passing over"
   "crates/topo/src/surface_group.rs|unmated_boundary||1|audited: a non-cycle outline answers None (not closed, not wrapping), which sends every caller to its per-face or windowed class; each of those reads the same outer loop in its own reading (sphere_chart_trim, region::boundary), and that walk is where a non-cycle is answered"
   "crates/topo/src/boolean/zip.rs|section_cycle||1|unaudited"
   "crates/topo/src/cell_region.rs|lift_boundary||1|audited: the lone vertex's point is a stop already, pushed on the line before, and it has no edge to lift"

@@ -574,16 +574,18 @@ impl Coincide {
     /// [`GluedPairs::read`](super::GluedPairs::read) settles by.
     ///
     /// - [`Coincide::Sectors`]: a one-carrier pair's lump is its record's,
-    ///   and a `Tangent` pair's descends to the second order
-    ///   (`sectors::tangent_lump`).
+    ///   a `Tangent` pair's descends to the second order
+    ///   (`sectors::tangent_lump`), and a `Junction` pair's reads its rim
+    ///   bound on and every other bound outside the other operand, on the
+    ///   junction's certificate (`sectors::junction_lump`).
     ///
     /// Every other question refuses a declared pair as it refuses an
     /// undeclared one, or meets no declaration its door verifies.
     #[must_use]
     pub const fn settled_by(self, class: GlueClass) -> bool {
-        use GlueClass::{Continuation, Rest, Tangent};
+        use GlueClass::{Continuation, Junction, Rest, Tangent};
         match (self, class) {
-            (Self::Sectors, Rest | Tangent | Continuation) => true,
+            (Self::Sectors, Rest | Tangent | Continuation | Junction) => true,
             (
                 Self::VertexOnFace
                 | Self::VertexOnSection
@@ -604,7 +606,7 @@ impl Coincide {
                 | Self::Contact
                 | Self::Section
                 | Self::Join,
-                Rest | Tangent | Continuation,
+                Rest | Tangent | Continuation | Junction,
             ) => false,
         }
     }
@@ -2629,9 +2631,12 @@ pub(in crate::boolean) mod tests {
         let none = GluedPairs::<f64>::without_struts(&Glue::none(), Default::default());
         let settled = |which: Coincide| -> &'static [GlueClass] {
             match which {
-                Coincide::Sectors => {
-                    &[GlueClass::Rest, GlueClass::Tangent, GlueClass::Continuation]
-                }
+                Coincide::Sectors => &[
+                    GlueClass::Rest,
+                    GlueClass::Tangent,
+                    GlueClass::Continuation,
+                    GlueClass::Junction,
+                ],
                 Coincide::VertexOnFace
                 | Coincide::VertexOnSection
                 | Coincide::VertexOnCurvedFace

@@ -351,7 +351,7 @@ pub(super) fn conic_quadric_method<T: Decide>(
             geom::Surface::Cone {
                 frame, half_angle, ..
             } => {
-                let (apex, axis) = (frame.origin(), frame.axis());
+                let (apex, axis) = (frame.origin(), frame.axis_unit());
                 cone_ladder(&conic, (apex, axis, half_angle), (t0, t1), surface, band)?
             }
             _ => {
@@ -392,7 +392,7 @@ pub(super) fn conic_quadric_method<T: Decide>(
 /// which carries the harmonics' noise.
 pub(super) struct QuadricLadder<'a, T: Decide> {
     pub(super) h: crate::ConicHarmonics<T>,
-    quadric: (geom_core::Point3<T>, Option<geom_core::Vec3<T>>, T),
+    quadric: (geom_core::Point3<T>, Option<geom_core::UnitVec3<T>>, T),
     pub(super) frame: HalfAngleFrame<'a, T>,
 }
 
@@ -412,7 +412,7 @@ pub(super) fn quadric_ladder<T: Decide>(
             )
         }
         geom::Surface::Cylinder { frame, radius, .. } => {
-            let (origin, axis) = (frame.origin(), frame.axis());
+            let (origin, axis) = (frame.origin(), frame.axis_unit());
             (
                 crate::conic_cylinder_harmonics(conic, geom::Line { origin, dir: axis }, radius),
                 (origin, Some(axis), radius),
@@ -467,7 +467,7 @@ const CONE_APEX: &str = "conic_quadric_cone_apex";
 /// "Against a cone").
 pub(super) fn cone_harmonics<T: Decide>(
     conic: &dyn geom::Conic<T>,
-    (apex, axis, half_angle): (geom_core::Point3<T>, geom_core::Vec3<T>, T),
+    (apex, axis, half_angle): (geom_core::Point3<T>, geom_core::UnitVec3<T>, T),
 ) -> crate::ConicHarmonics<T> {
     crate::conic_cone_harmonics(
         conic,
@@ -490,7 +490,7 @@ pub(super) fn cone_noise<T: Decide>(h: &crate::ConicHarmonics<T>) -> T {
 /// residual.
 fn cone_ladder<T: Decide>(
     conic: &dyn geom::Conic<T>,
-    (apex, axis, half_angle): (geom_core::Point3<T>, geom_core::Vec3<T>, T),
+    (apex, axis, half_angle): (geom_core::Point3<T>, geom_core::UnitVec3<T>, T),
     (t0, t1): (T, T),
     surface: &geom::Surface<T>,
     band: Band,
@@ -551,7 +551,7 @@ fn deflated<T: Decide>(h: &crate::ConicHarmonics<T>, theta_a: T) -> (T, T, (T, T
 /// coefficients, whose noise a square root would amplify past any band.
 pub(super) fn apex_spread<T: Decide>(
     conic: &dyn geom::Conic<T>,
-    (apex, _, _): (geom_core::Point3<T>, geom_core::Vec3<T>, T),
+    (apex, _, _): (geom_core::Point3<T>, geom_core::UnitVec3<T>, T),
     h: &crate::ConicHarmonics<T>,
     theta_a: T,
 ) -> T {
@@ -587,7 +587,7 @@ pub(super) fn through_the_apex<T: Decide>(
     else {
         unreachable!("only a cone's apex is a singular point the pose reads");
     };
-    let axis = frame.axis();
+    let axis = frame.axis_unit();
     let conic = span
         .carrier()
         .conic()
@@ -801,7 +801,10 @@ mod tests {
             Vec3::new(0.0, 0.0, 1.0),
             Vec3::new(1.0, 0.0, 0.0),
         );
-        let line = geom::Curve3::Line(geom::Line { origin: o, dir: x });
+        let line = geom::Curve3::Line(geom::Line {
+            origin: o,
+            dir: geom_core::UnitVec3::checked(x),
+        });
         let circle = geom::Curve3::circle(o, z, 1.0, x);
         let ellipse =
             geom::Curve3::Ellipse(geom::Ellipse::new(geom::Frame::new(o, z, x), 1.0, 0.5));

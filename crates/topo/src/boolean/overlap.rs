@@ -38,7 +38,6 @@
 
 use std::sync::Arc;
 
-use geom_brep::LeverBounds;
 use geom_brep::curve_face::BoundaryRefusal;
 use geom_brep::curve_pair::MeetKind;
 use geom_brep::curve_pair::Span;
@@ -549,11 +548,8 @@ fn half_plane<T: Decide>(
             .ok_or_else(torn)
     };
     let (at_t0, at_t1) = (vertex(v0)?, vertex(v1)?);
-    let reach = |ta: T, (tb, end): (T, Point3<T>)| match carrier {
-        geom::Curve3::Line(_) => {
-            LeverBounds::Exact(geom_brep::ExtentBall::point(carrier.eval(tb)).lever_from(p))
-        }
-        _ => crate::cover::piece_reach_bounds(carrier, (ta, tb), (p, end), p),
+    let reach = |ta: T, (tb, end): (T, Point3<T>)| {
+        crate::cover::piece_reach_bounds(carrier, (ta, tb), (p, end), p)
     };
     let (ahead, behind) = if forward {
         ((t1, at_t1), (t0, at_t0))

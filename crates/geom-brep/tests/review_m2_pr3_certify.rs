@@ -117,7 +117,7 @@ fn fixed_winding_aliased_full_period_refused() {
                 place: Affine3::translation(Vec3::new(0.0, 0.0, 3.0)),
                 axis: geom::Line {
                     origin: center,
-                    dir: Vec3::unit_z(),
+                    dir: geom_core::UnitVec3::exact_z(),
                 },
                 angle: TAU,
             },
@@ -235,7 +235,10 @@ fn survives_wrong_carriers_are_rejected() {
     let l0 = Point3::origin();
     let l1 = Point3::new(1.0, 0.0, 0.0);
     let mut line = EdgeCurveSpec::line_between(l0, l1);
-    line.carrier = Curve3::line(Point3::new(0.0, 100.0 * eps(), 0.0), Vec3::unit_x());
+    line.carrier = Curve3::line(
+        Point3::new(0.0, 100.0 * eps(), 0.0),
+        geom_core::UnitVec3::exact_x(),
+    );
     assert!(
         EdgeCurve::certify(
             line,
@@ -786,7 +789,7 @@ fn fixed_reversed_interval_refused() {
             },
         )),
         // Carrier parameterized from p0, walked BACKWARD: t: 1 -> 0.
-        carrier: Curve3::line(p0, Vec3::unit_x()),
+        carrier: Curve3::line(p0, geom_core::UnitVec3::exact_x()),
         param_start: 1.0,
         param_end: 0.0,
     };
@@ -827,7 +830,7 @@ fn fixed_zero_length_edge_refused() {
                 vec: Vec3::zero(),
             },
         )),
-        carrier: Curve3::line(p, Vec3::unit_x()),
+        carrier: Curve3::line(p, geom_core::UnitVec3::exact_x()),
         param_start: 0.0,
         param_end: 0.0,
     };
@@ -1062,7 +1065,7 @@ mod interval_lane {
                     place: Affine3::translation(v3(0.0, 0.0, 3.0)),
                     axis: geom::Line {
                         origin: center,
-                        dir: v3(0.0, 0.0, 1.0),
+                        dir: geom_core::UnitVec3::exact_z(),
                     },
                     angle: Interval::from_f64(core::f64::consts::TAU),
                 },
