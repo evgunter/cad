@@ -31,12 +31,18 @@
 //! - the swapped order the same classification.
 //!
 //! Below the trace's resolution (`0.03` of the scale) the class is not
-//! traced: an offset inside the band's Zero (a quarter of it) must
-//! refuse R-tan, and every answer's witnesses lie on both carriers. A
+//! traced, and every answer's witnesses lie on both carriers. The
+//! section value decides an offset inside the band's Zero (the apex on
+//! the partner a node or a touch, a tangency a node or a touch at C5),
+//! so such a pose may answer, its witnesses read on the exact pose
+//! within the margin of either carrier. A
 //! pose standing [`must_answer`] or farther from every degeneracy — the
 //! built one, and each the search measures from the carriers itself
 //! ([`clear_of`]) — must answer, or refuse a chart's precision floor
-//! (`_precision`: the `f64` reading cannot resolve the band). Every
+//! (`_precision`: the `f64` reading cannot resolve the band), or the
+//! region's boundary ([`region_cut`]): the value reads each pose over a
+//! ball ([`region_of`]) wide enough to hold whole every bounded
+//! component the trace sees. Every
 //! refusal is tallied by row, with the farthest each stood off its
 //! degeneracies.
 
@@ -49,7 +55,8 @@
 
 test_utils::gated_to![
     "crates/topo/src/boolean/section_cert.rs",
-    "crates/topo/src/boolean/section_cert/ruling.rs",
+    "crates/geom-brep/src/pair_section/ruling.rs",
+    "crates/geom-brep/src/pair_section/cones.rs",
     "crates/geom-brep/src/curve_face/circle_roots.rs",
     "crates/geom-brep/src/half_angle.rs",
     "crates/geom-core/src/bisect.rs",
@@ -776,6 +783,16 @@ fn reach_of(k: &Frame) -> Reach<f64> {
     geom_brep::Reach::Ball(geom_brep::ExtentBall::fixture(k.apex, 5.0 * k.scale))
 }
 
+/// **The region the section value reads every search pose over**: wide
+/// enough to hold every bounded component the trace sees whole, which
+/// the value would otherwise read cut, as the operation's region does.
+fn region_of(k: &Frame) -> Option<ExtentBall<f64>> {
+    Some(geom_brep::ExtentBall::fixture(k.apex, REGION * k.scale))
+}
+
+/// [`region_of`]'s radius, in units of the pose's scale.
+const REGION: f64 = 50.0;
+
 fn class_on(c: &Component<f64>, essential: bool) -> Class {
     match (c.unbounded, essential) {
         (true, _) => Class::Unbounded,
@@ -915,6 +932,15 @@ fn precision_floor(row: &str) -> bool {
     row.ends_with("_precision")
 }
 
+/// **A refusal at the region's boundary**: a branch crossing the sphere
+/// the value reads over within the band of it, at a cut end
+/// (`ruling_cut`, `ruling_cut_straddle`). The region is the search's
+/// fixture, not the pose's ([`region_of`]), so no distance this search
+/// measures from the carriers' degeneracies bounds it.
+fn region_cut(row: &str) -> bool {
+    row.starts_with("ruling_cut")
+}
+
 /// A partner's ruling chart, read off its carrier.
 fn partner_of(surface: &Surface<f64>, scale: f64) -> Partner {
     match *surface {
@@ -1051,7 +1077,7 @@ fn check(k: &Frame, pose: &Pose) -> (Outcome, Vec<String>) {
         &cone,
         partner,
         &reach,
-        None,
+        region_of(k),
         Some(geom_brep::SsiLane::marched()),
         b,
     );
@@ -1059,7 +1085,7 @@ fn check(k: &Frame, pose: &Pose) -> (Outcome, Vec<String>) {
         partner,
         &cone,
         &reach,
-        None,
+        region_of(k),
         Some(geom_brep::SsiLane::marched()),
         b,
     );
@@ -1072,7 +1098,7 @@ fn check(k: &Frame, pose: &Pose) -> (Outcome, Vec<String>) {
             if !matches!(back, Section::Tangent(_)) {
                 bad.push(format!("one order R-tan, the other {back:?}"));
             }
-            if clear >= must_answer(k.scale) && !precision_floor(name) {
+            if clear >= must_answer(k.scale) && !precision_floor(name) && !region_cut(name) {
                 bad.push(format!(
                     "{clear:.3e} m off every degeneracy ({:.1e} of the must-answer floor), refused {name}",
                     clear / must_answer(k.scale)
@@ -1080,11 +1106,25 @@ fn check(k: &Frame, pose: &Pose) -> (Outcome, Vec<String>) {
             }
             return (Outcome::Refused(name), bad);
         }
+        // A touch the value decided at one point (the apex on the
+        // partner, its form definite there, or a tangency the section
+        // shrinks to): the point on both carriers within the margin.
+        Section::Touch(t) => {
+            if !matches!(back, Section::Touch(_)) {
+                bad.push(format!("one order a touch, the other {back:?}"));
+            }
+            let within =
+                2.0 * m + WITNESS_ROUNDING * f64::EPSILON * ((t.at - k.apex).norm() + k.scale);
+            for surf in [&cone, partner] {
+                let r = geom_brep::implicit_residual(surf, t.at);
+                if r.abs() > within {
+                    bad.push(format!("the touch {:?} is {r} off {surf:?}", t.at));
+                }
+            }
+            return (Outcome::Answered, bad);
+        }
         other => return (Outcome::Refused("other"), vec![format!("{other:?}")]),
     };
-    if m <= 0.25 * b.zero() {
-        bad.push(format!("margin {m} in the band, answered {sec:?}"));
-    }
     match &back {
         Section::Components {
             parts: bp,
@@ -1104,7 +1144,11 @@ fn check(k: &Frame, pose: &Pose) -> (Outcome, Vec<String>) {
             }
             continue;
         };
-        let rounding = WITNESS_ROUNDING * f64::EPSILON * ((w - k.apex).norm() + k.scale);
+        // A pose decided on a `Zero` margin (the apex on the partner, a
+        // tangency) is read on the exact pose, whose section the witness
+        // lies on: the carriers stand up to the margin off it.
+        let decided = if m <= b.zero() { 2.0 * m } else { 0.0 };
+        let rounding = WITNESS_ROUNDING * f64::EPSILON * ((w - k.apex).norm() + k.scale) + decided;
         for surf in [&cone, partner] {
             let r = geom_brep::implicit_residual(surf, w);
             if r.abs() > rounding {
@@ -1286,7 +1330,7 @@ fn dump_for_the_mpmath_oracle() {
                 &k.surface(),
                 &pose.partner.surface,
                 &reach_of(&k),
-                None,
+                region_of(&k),
                 Some(geom_brep::SsiLane::marched()),
                 band(),
             );

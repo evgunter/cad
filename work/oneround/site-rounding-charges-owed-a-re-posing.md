@@ -71,8 +71,15 @@ re-posing that empties a file lowers or drops its row in the same change.
   `conic_torus_harmonics`, `CEILING_PAD`), which the arc enclosure's
   Bernstein bound reads; the residual is the squared form, so a distance
   form changes the enclosure's function.
-- `topo::boolean::section_cert::ruling` (`Rounded` throughout, its own
-  `CEILING_PAD`), `geom_brep::curve_pair::pose` and `pose::window`
+- `geom_brep::pair_section::ruling`'s cone side (`RuledCone`: the
+  coefficients' `charges`, `axis_distance`'s quotient, the clearance
+  ceiling's, `Form::slack`) and `pair_section::cones`' one site: the
+  same debt `topo::boolean::section_cert::ruling` carried, which
+  retired when topo's section certificate moved its cone pairs onto the
+  section value (`sectcone`, the section certificate's cone-pair unit).
+  The re-posing is the cone sweep's: a distance form for the cone's
+  clearance, the ruling's quadratic read in a frame at its foot.
+- `geom_brep::curve_pair::pose` and `pose::window`
   (`pose`'s sites are the gate's row for it; its line router's two
   world-origin mints are scheduled by
   `work/onecopy/the-line-router-charges-its-margins-with-world-origin-noise.md`,

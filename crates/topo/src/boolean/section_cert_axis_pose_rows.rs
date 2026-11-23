@@ -32,7 +32,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::search_kit::band;
-use super::section_cert_rows::{cylinder, p, shape, tangent, torus, unit_cone};
+use super::section_cert_rows::{cylinder, p, shape, tangent, torus};
 use super::*;
 use core::f64::consts::TAU;
 use geom::Surface;
@@ -202,32 +202,18 @@ fn a_narrow_band_straddles_on_the_offset_floor() {
 
 /// The parallel arms' rows, each `K + past` bands from the flip beside
 /// a swing of `0.45` (the tilt reading `0.9` at its lever, which is
-/// twice the swing's), its far row named.
-fn parallel_rows(past: f64) -> [(&'static str, Section<f64>); 2] {
+/// twice the swing's), its far row named. A cone against a wall in that
+/// pose is the section value's, which reads no axis pose.
+fn parallel_rows(past: f64) -> [(&'static str, Section<f64>); 1] {
     let z = zero();
     let gap = (k() + past) * z;
     let swing = 0.45 * z;
-    let one = |at: Point3<f64>| geom_brep::Reach::Ball(geom_brep::ExtentBall::fixture(at, 1.0));
     // A pin of radius 0.2 clear of the donut's outer equator by `gap`,
     // its tilt levered over the donut's ball from the pivot `(e, 0, 0)`.
     let e = 2.7 + gap;
     let pin = cylinder(p(e, 0.0, 0.0), tilted(swing / (e + BALL)), 0.2);
     let torus_pin = super::section_cert_rows::classify(&torus(p(0.0, 0.0, 0.0), 2.0, 0.5), &pin);
-    // A wall of radius 0.2 standing `gap` off the cone's axis.
-    let e = 0.2 + gap;
-    let wall = cylinder(p(e, 0.0, 0.0), tilted(swing), 0.2);
-    let cone_wall = classify(
-        &unit_cone(),
-        &wall,
-        &one(p(e, 0.0, 0.0)),
-        None,
-        Some(geom_brep::SsiLane::marched()),
-        band(),
-    );
-    [
-        ("section_torus_offset_wall_near_outer", torus_pin),
-        ("section_cone_cylinder_apex", cone_wall),
-    ]
+    [("section_torus_offset_wall_near_outer", torus_pin)]
 }
 
 /// **The parallel rows read on the floor.** `K + 0.35` bands past the
@@ -243,10 +229,6 @@ fn parallel_rows_serve_a_side_on_the_floor() {
             ("section_torus_offset_wall_near_outer", Section::Components { parts, .. }) => {
                 assert!(parts.is_empty(), "{row}: the pin is clear of the tube")
             }
-            ("section_cone_cylinder_apex", Section::Components { parts, .. }) => assert!(
-                parts.len() == 2 && parts.iter().all(|c| !c.essential_f && c.essential_g),
-                "{row}: one loop per nappe, the wall clear of the axis: {parts:?}"
-            ),
             _ => panic!("{row}: served, got {s:?}"),
         }
     }
@@ -319,10 +301,11 @@ fn turn_reach(at: Point3<f64>) -> (Reach<f64>, f64) {
 /// inside the ball is far below it.) It has no offset, and
 /// the swing is `0.425` bands; the arm's coaxial reading reads the height
 /// at the centre or the apex, which the turn moves by `0.9` bands more,
-/// so each refuses on the offset; so does a second cone whose apex stands
-/// `0.5` m off the pivot along its axis. The same pose with the read point
-/// at the pivot is served: two parallels apart from the cone, the coaxial
-/// cones' two parallels.
+/// so each refuses on the offset. The same pose with the read point at
+/// the pivot is served: two parallels apart from the cone. A second cone
+/// against a cone, whose apex stands `0.5` m off the pivot along its
+/// axis or at it, is the section value's, which reads no turn: it is
+/// classified either way.
 #[test]
 fn the_turn_of_a_point_read_off_the_pivot_counts() {
     let at = p(0.0, 0.0, 0.0);
@@ -352,7 +335,7 @@ fn the_turn_of_a_point_read_off_the_pivot_counts() {
         }
         // A second cone whose apex stands `0.5` m along its own axis from
         // the pivot, against a cone whose apex is a metre down the first
-        // axis: refused coaxial, the pair goes to the ruling charts.
+        // axis.
         let apexes = Surface::Cone {
             frame: geom::Frame::new(at + d * rise, d, Vec3::unit_y()),
             half_angle: core::f64::consts::FRAC_PI_4,
@@ -369,11 +352,11 @@ fn the_turn_of_a_point_read_off_the_pivot_counts() {
             Some(geom_brep::SsiLane::marched()),
             band(),
         );
-        let coaxial = matches!(
-            &s,
-            Section::Components { parts, .. } if parts.len() == 2
-                && parts.iter().all(|c| c.essential_f && c.essential_g && c.witness.is_none())
+        // Two cones are the section value's, which reads no axis pose: it
+        // classifies the pair over the reach either way.
+        assert!(
+            matches!(&s, Section::Components { .. }),
+            "cones, apex {rise} off the pivot: {s:?}"
         );
-        assert_eq!(coaxial, !refuses, "cones, apex {rise} off the pivot: {s:?}");
     }
 }

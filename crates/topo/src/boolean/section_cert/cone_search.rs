@@ -41,7 +41,6 @@
 // geometry types a decision reads.
 test_utils::gated_to![
     "crates/topo/src/boolean/section_cert.rs",
-    "crates/topo/src/boolean/section_cert/ruling.rs",
     "crates/geom-brep/src/curve_face/circle_roots.rs",
     "crates/geom-brep/src/half_angle.rs",
     "crates/geom-core/src/bisect.rs",
@@ -239,6 +238,14 @@ fn across(v: Vec3<f64>, a: Vec3<f64>) -> Vec3<f64> {
 /// The reach every search pose is classified with.
 fn reach_of(k: &Frame) -> Reach<f64> {
     geom_brep::Reach::Ball(geom_brep::ExtentBall::fixture(k.apex, 5.0 * k.scale))
+}
+
+/// **The region the section value reads a cylinder or cone partner
+/// over**: the ball about the apex of the trace's window, so a component
+/// the region cuts is one the trace sees reach its window's edge, and
+/// both read it unbounded.
+fn region_of(k: &Frame, pose: &Pose) -> Option<ExtentBall<f64>> {
+    Some(geom_brep::ExtentBall::fixture(k.apex, pose.window))
 }
 
 /// What the arm promises of the traced count.
@@ -448,7 +455,7 @@ fn check(k: &Frame, pose: &Pose) -> Vec<String> {
         &cone,
         &pose.partner,
         &reach,
-        None,
+        region_of(k, pose),
         Some(geom_brep::SsiLane::marched()),
         b,
     );
@@ -456,7 +463,7 @@ fn check(k: &Frame, pose: &Pose) -> Vec<String> {
         &pose.partner,
         &cone,
         &reach,
-        None,
+        region_of(k, pose),
         Some(geom_brep::SsiLane::marched()),
         b,
     );
@@ -465,6 +472,14 @@ fn check(k: &Frame, pose: &Pose) -> Vec<String> {
     // aperture, where Zero is the parabola's class — one part, essential,
     // no witness, uncounted.
     if m <= 0.25 * b.zero() {
+        // The section value decides a cylinder's or a cone's pose in the
+        // band itself (C5: the apex on the partner a node or a touch).
+        if matches!(
+            pose.partner,
+            Surface::Cylinder { .. } | Surface::Cone { .. }
+        ) {
+            return Vec::new();
+        }
         let parabola = matches!(pose.partner, Surface::Plane { .. })
             && matches!(&sec, Section::Components { parts, single: false }
                 if parts.len() == 1
@@ -624,7 +639,7 @@ fn the_cone_arms_agree_with_the_traced_section() {
                 &k.surface(),
                 &pose.partner,
                 &reach_of(&k),
-                None,
+                region_of(&k, &pose),
                 Some(geom_brep::SsiLane::marched()),
                 band(),
             ) {

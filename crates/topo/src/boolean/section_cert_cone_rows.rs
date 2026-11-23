@@ -374,9 +374,11 @@ fn coaxial_partners_meet_the_cone_in_parallels() {
 
 /// **A parallel-axis cylinder: two components, one per nappe**,
 /// essential on the cylinder always and on the cone iff it encloses the
-/// cone's axis; a ruling through the apex is R-tan. The witnesses sit
-/// on the ruling nearest the axis, `(e − r_c, 0, ±|e − r_c|)`. The
-/// mutant reading the enclosure the other way: red.
+/// cone's axis, read on the section value; each witness on both
+/// carriers, one on each nappe. A ruling through the apex is the apex on
+/// the wall, its tangent plane `x = 0` holding the rulings `y = ±z`, a
+/// node the value classifies. The mutant reading the enclosure the other
+/// way: red.
 #[test]
 fn a_parallel_axis_cylinder_every_class() {
     let cone = unit_cone();
@@ -385,16 +387,12 @@ fn a_parallel_axis_cylinder_every_class() {
         let s = both(&cone, &wall);
         assert_eq!(shape(&s), shape_of(2, false, encloses, true, false), "{rc}");
         let w = witnesses_on_both(&s, &cone, &wall);
-        let x = 0.5 - rc;
-        assert!((w[0] - p(x, 0.0, x.abs())).norm() < 1e-12, "{w:?}");
-        assert!((w[1] - p(x, 0.0, -x.abs())).norm() < 1e-12, "{w:?}");
+        assert!(w[0].z * w[1].z < 0.0, "one witness on each nappe: {w:?}");
     }
-    assert_eq!(
-        tangent(&both(
-            &cone,
-            &cylinder(p(0.5, 0.0, 0.0), Vec3::unit_z(), 0.5)
-        )),
-        "section_cone_cylinder_apex"
+    let through = classify(&cone, &cylinder(p(0.5, 0.0, 0.0), Vec3::unit_z(), 0.5));
+    assert!(
+        matches!(through, Section::Components { .. }),
+        "the apex on the wall: {through:?}"
     );
 }
 

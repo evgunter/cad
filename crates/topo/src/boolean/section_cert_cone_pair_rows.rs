@@ -16,11 +16,32 @@
 )]
 
 use super::search_kit::band;
-use super::section_cert_rows::{LEVER, classify, cylinder, p, tangent, unit_cone, v};
+use super::section_cert_rows::{LEVER, cylinder, p, tangent, unit_cone, v};
 use super::*;
 use core::f64::consts::{FRAC_1_SQRT_2, FRAC_PI_4, PI};
 use geom::Surface;
 use geom_core::{Point3, Vec3};
+
+/// **The region the section value reads every row over**: wide enough
+/// to hold whole every bounded component of these poses that the trace
+/// sees, as the operation's region holds its faces.
+const REGION: f64 = 12.0;
+
+/// The classification over [`REGION`] about the origin, its closed forms
+/// levered over the reach the other rows read at.
+fn classify(f: &Surface<f64>, g: &Surface<f64>) -> Section<f64> {
+    super::classify(
+        f,
+        g,
+        &geom_brep::Reach::Ball(geom_brep::ExtentBall::fixture(
+            p(0.0, 0.0, 0.0),
+            LEVER / 2.0,
+        )),
+        Some(geom_brep::ExtentBall::fixture(p(0.0, 0.0, 0.0), REGION)),
+        Some(geom_brep::SsiLane::marched()),
+        band(),
+    )
+}
 
 /// The cone `(apex, axis, α)` with a seam square to its axis.
 fn cone_about(apex: Point3<f64>, axis: Vec3<f64>, alpha: f64) -> Surface<f64> {
@@ -138,33 +159,43 @@ fn a_wall_across_the_axis_about_the_apex_is_null_on_the_wall() {
     );
 }
 
-/// **The degenerate cylinder poses refuse R-tan**: the apex on the
-/// wall (the rod about `y = 0, z = 0.2`, radius `0.2`, its wall
-/// through the apex), the axis along a generator (`x = z`), and the rod
-/// about `y = 0, z = 1` of radius `1/√2`, which touches the cone along
-/// the circle of its own section `x = 0` at `y = ±z` (two folds of the
-/// cone's chart merging).
+/// **The degenerate cylinder poses, as the section value decides them**:
+/// the apex on the wall (the rod about `y = 0, z = 0.2`, radius `0.2`,
+/// its wall through the apex, the cone's form definite on its tangent
+/// plane) is a touch at the apex beside the loop round the upper nappe,
+/// R-tan on the apex's margin; the axis along a generator (`x = z`)
+/// refuses on its own margin; and the rod about `y = 0, z = 1` of radius
+/// `1/√2`, which touches the cone along the circle of its own section
+/// `x = 0` at `y = ±z`, is decided a crossing tangency: two arcs through
+/// each of two nodes, one node-joined set, one bounded component that
+/// claims no winding. A reading that refuses the graze, or reads the
+/// apex as a tangency: red.
 #[test]
-fn the_degenerate_cylinder_poses_refuse() {
+fn the_degenerate_cylinder_poses_read_as_the_value_decides_them() {
     let cone = unit_cone();
     refuses(
         &cone,
         &cylinder(p(0.0, 0.0, 0.2), Vec3::unit_x(), 0.2),
-        "section_cone_cylinder_apex",
+        "kc_apex_on_partner",
     );
     refuses(
         &cone,
         &cylinder(p(0.5, 0.0, 0.0), v(1.0, 0.0, 1.0), 0.3),
-        "section_cone_cylinder_aperture",
+        "kc_generator_along_axis",
     );
-    let graze = classify(
-        &cone,
-        &cylinder(p(0.0, 0.0, 1.0), Vec3::unit_x(), FRAC_1_SQRT_2),
-    );
-    assert!(
-        matches!(graze, Section::Tangent(name) if name.ends_with("_fold")),
-        "the grazing rod: {graze:?}"
-    );
+    let rod = cylinder(p(0.0, 0.0, 1.0), Vec3::unit_x(), FRAC_1_SQRT_2);
+    for graze in [classify(&cone, &rod), classify(&rod, &cone)] {
+        let Section::Components { parts, single } = &graze else {
+            panic!("the grazing rod is classified: {graze:?}")
+        };
+        assert!(*single, "one node-joined set: {graze:?}");
+        assert!(
+            parts
+                .iter()
+                .all(|c| !c.unbounded && !c.essential_f && !c.essential_g),
+            "a bounded set claiming no winding: {graze:?}"
+        );
+    }
 }
 
 // -------------------------------------------------------------------
@@ -280,64 +311,47 @@ fn two_cones_through_one_apex_meet_in_their_common_rulings() {
     }
 }
 
-/// **The degenerate cone poses refuse R-tan**: the partner's apex on
-/// the unit cone (`(1, 0, 1)`), a partner whose
-/// direction cone touches the unit cone's (axis `5π/12` off `z`,
-/// `α = π/6`: the two share one asymptotic direction doubly, a double
-/// root of `p₂`), and a parallel-axis partner whose aperture is in the
-/// band's gap off the unit cone's (`cos²α₁ − cos²α₂` levered past the
-/// zero, short of the escalation).
+/// **The degenerate cone poses, as the section value decides them**:
+/// the partner's apex on the unit cone (`(1, 0, 1)`), its form
+/// indefinite on the unit cone's tangent plane there, is a node at that
+/// apex, its arcs one bounded node-joined set; a partner whose direction
+/// cone touches the unit cone's (axis `5π/12` off `z`, `α = π/6`: one
+/// asymptotic direction shared doubly) is a branch leaving every bound,
+/// cut by the region; and a parallel-axis partner whose aperture is in
+/// the band's gap off the unit cone's refuses R-tan on the sweep's own
+/// discriminant. A reading that refuses the apex or the doubled
+/// asymptote, or answers the aperture in the band: red.
 #[test]
-fn the_degenerate_cone_poses_refuse() {
+fn the_degenerate_cone_poses_read_as_the_value_decides_them() {
     let cone = unit_cone();
-    refuses(
-        &cone,
-        &cone_about(p(1.0, 0.0, 1.0), v(0.2, 1.0, 0.3), 0.4),
-        "section_cone_pair_apex",
-    );
+    let apex = cone_about(p(1.0, 0.0, 1.0), v(0.2, 1.0, 0.3), 0.4);
+    for s in [classify(&cone, &apex), classify(&apex, &cone)] {
+        assert!(
+            matches!(&s, Section::Components { parts, single: true }
+                if parts.iter().all(|c| !c.unbounded)),
+            "the apex on the unit cone: one bounded set, {s:?}"
+        );
+    }
     let lean = 5.0 * PI / 12.0;
-    refuses(
-        &cone,
-        &cone_about(p(0.3, 2.0, 0.5), v(lean.sin(), 0.0, lean.cos()), PI / 6.0),
-        "section_cone_pair_asymptote",
-    );
+    let doubled = cone_about(p(0.3, 2.0, 0.5), v(lean.sin(), 0.0, lean.cos()), PI / 6.0);
+    for s in [classify(&cone, &doubled), classify(&doubled, &cone)] {
+        assert!(
+            matches!(&s, Section::Components { parts, .. }
+                if parts.len() == 1 && parts[0].unbounded),
+            "the doubled asymptote: one branch the region cuts, {s:?}"
+        );
+    }
     let b = band();
-    // The longer chart lever: twice the partner apex's distance from the
-    // reach's centre (the origin) plus the reach's radius.
+    // The aperture gap the retired charts levered over the reach: the
+    // pose is the one they refused.
     let lever = 2.0 * (1.0 + LEVER / 2.0);
     let gap = (b.zero() + b.escalate()) / 2.0 / lever;
     let alpha = (0.5f64 - gap).sqrt().acos();
     refuses(
         &cone,
         &cone_about(p(1.0, 0.0, 0.0), Vec3::unit_z(), alpha),
-        "section_cone_pair_aperture",
+        "ruling_discriminant",
     );
-}
-
-/// **Charts that disagree refuse under `_charts`**: the two readings are
-/// planted, since the charts agree on every pose by construction (module
-/// docs of `section_cert/ruling.rs`). A count off by one bounded part,
-/// and by one unbounded, each refuse; agreeing readings answer.
-#[test]
-fn charts_that_disagree_refuse() {
-    let reading = |bounded: usize, unbounded: usize| ruling::Reading {
-        bounded: vec![Point3::<f64>::origin(); bounded],
-        essential: false,
-        unbounded,
-    };
-    let row = "section_cone_pair_charts";
-    assert!(matches!(
-        charted(Ok(reading(2, 0)), Ok(reading(1, 0)), row),
-        Section::Tangent(name) if name == row
-    ));
-    assert!(matches!(
-        charted(Ok(reading(1, 2)), Ok(reading(1, 1)), row),
-        Section::Tangent(name) if name == row
-    ));
-    assert!(matches!(
-        charted(Ok(reading(1, 2)), Ok(reading(1, 2)), row),
-        Section::Components { ref parts, .. } if parts.len() == 3
-    ));
 }
 
 /// **The rows, for the high-precision oracle**: every answered pose
@@ -412,41 +426,38 @@ fn classify_at(
     )
 }
 
-/// **The precision floors are typed**: at ε `1e-12` a reading whose own
-/// rounding is not inside the band's zero refuses its chart's
-/// `_precision` row, named apart from a tangency, and the same pose
-/// answers at ε `1e-9`. The rod through the cone answers at 1 m and
-/// refuses at 300 m (the clearance's rounding grows with the reach);
-/// the rod through a slender cone (`α = 0.02`, the rod about
-/// `y = 0, z = 10` along `x`, radius `0.2`) refuses on the wall's chart.
-/// The mutant naming every refusal by its root's row: red.
+/// **A far rod and a slender cone answer at every ε**: the rod through
+/// the cone at 300 m (the reach 750 m) and the rod through a slender cone
+/// (`α = 0.02`, the rod about `y = 0, z = 10` along `x`, radius `0.2`),
+/// which the retired ruling charts refused at `1e-12` on their
+/// `_precision` rows, read on the value at both `1e-9` and `1e-12`: two
+/// loops each, round the rod and round the slender cone respectively. A
+/// reading that refuses either at the finer ε: red.
 #[test]
-fn the_precision_floors_are_typed() {
+fn a_far_rod_and_a_slender_cone_answer_at_every_eps() {
     let origin = p(0.0, 0.0, 0.0);
     let rod = |s: f64| cylinder(p(0.0, 0.0, s), Vec3::unit_x(), 0.2 * s);
-    let parts = |x: &Section<f64>| match x {
-        Section::Components { parts, .. } => parts.len(),
+    let classes = |x: &Section<f64>| match x {
+        Section::Components { parts, .. } => parts
+            .iter()
+            .map(|c| (c.unbounded, c.essential_f, c.essential_g))
+            .collect::<Vec<_>>(),
         other => panic!("not classified: {other:?}"),
     };
-    assert_eq!(
-        parts(&classify_at(&unit_cone(), &rod(1.0), origin, 2.5, 1e-12)),
-        2,
-        "1 m"
-    );
-    let far = |eps| classify_at(&unit_cone(), &rod(300.0), origin, 750.0, eps);
-    assert_eq!(parts(&far(1e-9)), 2, "300 m at 1e-9");
-    assert_eq!(
-        tangent(&far(1e-12)),
-        "section_cone_cylinder_precision",
-        "300 m at 1e-12"
-    );
     let slender = cone_about(origin, Vec3::unit_z(), 0.02);
     let thin = cylinder(p(0.0, 0.0, 10.0), Vec3::unit_x(), 0.2);
-    let near = |eps| classify_at(&slender, &thin, p(0.0, 0.0, 10.0), 2.5, eps);
-    assert_eq!(parts(&near(1e-9)), 2, "slender at 1e-9");
-    assert_eq!(
-        tangent(&near(1e-12)),
-        "section_cylinder_cone_precision",
-        "slender at 1e-12"
-    );
+    for eps in [1e-9, 1e-12] {
+        let far = classify_at(&unit_cone(), &rod(300.0), origin, 750.0, eps);
+        assert_eq!(
+            classes(&far),
+            vec![(false, false, true); 2],
+            "300 m at {eps:e}"
+        );
+        let near = classify_at(&slender, &thin, p(0.0, 0.0, 10.0), 2.5, eps);
+        assert_eq!(
+            classes(&near),
+            vec![(false, true, false); 2],
+            "slender at {eps:e}"
+        );
+    }
 }
