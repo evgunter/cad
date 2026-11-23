@@ -13,7 +13,7 @@ echo "BUILD done $(date +%s)" >> $W/progress
 for RUN in ${RUNS:-P M}; do
   rm -rf $W/log-$RUN; mkdir -p $W/log-$RUN
   echo "RUN $RUN start $(date +%s)" >> $W/progress
-  if [ "$RUN" = M ]; then MUT="CAD_WM_MUTANT=1"; else MUT="CAD_WM_X=0"; fi
+  case $RUN in M) MUT="CAD_WM_MUTANT=1";; N) MUT="CAD_WM_NARROW=1";; *) MUT="CAD_WM_X=0";; esac
   env CAD_WM_LOG=$W/log-$RUN $MUT cargo nextest run $PKGS --profile wm --ignore-default-filter \
     --no-fail-fast -E "$(cat $W/expr-all.txt)" > $W/out-$RUN.txt 2>&1
   echo "RUN $RUN done $(date +%s) $(grep -E '^\s+Summary' $W/out-$RUN.txt | head -1)" >> $W/progress

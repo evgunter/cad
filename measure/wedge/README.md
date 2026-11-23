@@ -38,3 +38,15 @@ python3 measure/wedge/summ.py P M ; python3 measure/wedge/deep.py
 Files: `summ-P0.txt` (all 1,301 tests that ran, PR 7329, unsigned gap),
 `summ-P.txt` / `summ-M.txt` (the 580 tests with rows, both modes),
 `deep-M.txt`, `item5.txt` (from P0), `summ-tour.txt`, `tour-walk-*.txt`.
+
+## The narrower face's run with the rates summed (`CAD_WM_NARROW=1`)
+
+Per edge, narrow = the lesser of the two faces' runs across the edge: each
+face's farthest boundary point (vertices, and 17 samples along each of its
+boundary edges) from the edge (a 64-segment polyline); a face whose whole
+boundary lies on the edge reads half its boundary's diameter (`fallback`).
+A cell pair near edges levers at the least narrow; one near vertices alone
+keeps PR 7329's reach. Separators through the shared cell read each face's
+side by its rate's sign and decide `(rate_x − rate_y)·arm`; the carrier
+arm reads the other face's rate alone. `CAD_WM_FOLD=1` levers at the fold.
+`RUNS=N ./both.sh`; `python3 moves.py log-P0 log-N` → `moves-N.txt`.

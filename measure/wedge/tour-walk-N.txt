@@ -1,0 +1,87 @@
+WALK HEADER | eps 1e-9 | max_cell_depth 40 | max_cell_pairs 65536
+WALK bracket/bracket | Embedded | cand 70 disc 1379 refused 0 splits 1309
+WALK spacer/spacer | Embedded | cand 122 disc 954 refused 0 splits 832
+WALK plate/plate | Embedded | cand 32 disc 424 refused 0 splits 392
+WALK vase/vase | Embedded | cand 25 disc 590 refused 0 splits 565
+WALK sheave/sheave | Embedded | cand 59 disc 2002 refused 0 splits 1943
+WALK chute/chute | Embedded | cand 47 disc 1794 refused 0 splits 1747
+WALK rocker/rocker | Embedded | cand 94 disc 926 refused 0 splits 832
+WALK diefillet/diefillet | Embedded | cand 122 disc 1065 refused 0 splits 943
+WALK diepips/diepips | Refused Uncertified { a: FaceKey(8v3), b: FaceKey(39v3), shared: Edge(EdgeKey(31v7)), arm: Departure } | cand 123 disc 6409 refused 56 splits 6342
+WALK diecomposed/diecomposed | Refused Uncertified { a: FaceKey(8v3), b: FaceKey(39v3), shared: Edge(EdgeKey(73v5)), arm: Departure } | cand 471 disc 45233 refused 42 splits 44804
+WALK diechamferblank/diechamferblank | Embedded | cand 122 disc 550 refused 0 splits 428
+WALK diechamfer/diechamfer | Refused Uncertified { a: FaceKey(8v3), b: FaceKey(39v3), shared: Edge(EdgeKey(31v7)), arm: Departure } | cand 227 disc 7120 refused 56 splits 6949
+WALK lily/lily_rootstock | Embedded | cand 37 disc 1122 refused 0 splits 1085
+WALK lily/lily_stem | Embedded | cand 9 disc 822 refused 0 splits 813
+WALK lily/lily_arch | Embedded | cand 9 disc 1606 refused 0 splits 1597
+WALK lily/lily_pedicel | Embedded | cand 9 disc 598 refused 0 splits 589
+WALK lily/lily_lantern | Refused Uncertified { a: FaceKey(3v1), b: FaceKey(12v1), shared: Edge(EdgeKey(19v1)), arm: Departure } | cand 33 disc 20218 refused 76 splits 20261
+WALK lily/lily_leaf_a | Embedded | cand 9 disc 3419 refused 0 splits 3410
+WALK lily/lily_leaf_b | Embedded | cand 9 disc 320 refused 0 splits 311
+WALK lily/lily_leaf_c | Embedded | cand 9 disc 368 refused 0 splits 359
+WALK lily/lily_bud_a | Embedded | cand 18 disc 606 refused 0 splits 588
+WALK lily/lily_bud_b | Embedded | cand 18 disc 537 refused 0 splits 519
+WALK lily/lily_bud_c | Embedded | cand 18 disc 726 refused 0 splits 708
+WALK lily/lily_sepal_a | Embedded | cand 9 disc 1111 refused 0 splits 1102
+WALK lily/lily_sepal_b | Embedded | cand 9 disc 1215 refused 0 splits 1206
+WALK lily/lily_sepal_c | Embedded | cand 9 disc 1250 refused 0 splits 1241
+WALK budfillet/budfillet | Embedded | cand 24 disc 3029 refused 0 splits 3005
+WALK klein/klein_bulb | Embedded | cand 43 disc 23574 refused 0 splits 23531
+WALK klein/klein_loop | Embedded | cand 20 disc 51322 refused 0 splits 51302
+WALK tiltedcut/tiltedcut_above | Embedded | cand 146 disc 1680 refused 0 splits 1534
+WALK tiltedcut/tiltedcut_below | Embedded | cand 9 disc 131 refused 0 splits 122
+WALK bossplate/bossplate | Embedded | cand 31 disc 195 refused 0 splits 164
+WALK snowman/snowman_rolled | Embedded | cand 15 disc 1308 refused 0 splits 1293
+WALK snowman/snowman_union | Embedded | cand 10 disc 403 refused 0 splits 393
+WALK snowman/snowman_bitten | Embedded | cand 10 disc 417 refused 0 splits 407
+WALK snowman/snowman_lens | Embedded | cand 10 disc 368 refused 0 splits 358
+WALK lofts/loft_prism | Embedded | cand 18 disc 18 refused 0 splits 0
+WALK lofts/nonuniform_loft | Embedded | cand 18 disc 406 refused 0 splits 388
+WALK lofts/twisted_loft | Embedded | cand 20 disc 9423 refused 0 splits 9403
+WALK s_duct/s_duct | Embedded | cand 19 disc 208 refused 0 splits 189
+WALK twisted_tube/twisted_tube | Embedded | cand 54 disc 760 refused 0 splits 706
+WALK twisted_duct/twisted_duct | Embedded | cand 20 disc 218 refused 0 splits 198
+WALK twisted_duct_shadow_z/twisted_duct_shadow_z | Embedded | cand 20 disc 218 refused 0 splits 198
+WALK twisted_duct_shadow_y/twisted_duct_shadow_y | Embedded | cand 20 disc 218 refused 0 splits 198
+WALK tube_along_arc/tube_along_arc | Embedded | cand 9 disc 148 refused 0 splits 139
+WALK hollowring/hollowring | Embedded | cand 10 disc 27335 refused 0 splits 27325
+WALK hollowelbow/hollowelbow | Embedded | cand 20 disc 9942 refused 0 splits 9922
+WALK hollowtorus/hollowtorus | Embedded | cand 10 disc 30928 refused 0 splits 30918
+WALK teapot/teapotvessel | Embedded | cand 57 disc 8460 refused 0 splits 8403
+WALK teapot/teapotlid | Embedded | cand 39 disc 7478 refused 0 splits 7439
+WALK teapot/teapotspout | Embedded | cand 54 disc 11930 refused 0 splits 11876
+WALK teapot/teapothandle | Embedded | cand 9 disc 362 refused 0 splits 353
+WALK torusvessel/torusvessel | Embedded | cand 110 disc 27928 refused 0 splits 27818
+WALK torusvesselcup/torusvesselcup | Embedded | cand 107 disc 27347 refused 0 splits 27240
+WALK fivewall/fivewall | Embedded | cand 68 disc 14635 refused 0 splits 14567
+WALK fivewall/fivewallcup | Embedded | cand 70 disc 16441 refused 0 splits 16371
+WALK die/die | Embedded | cand 375 disc 6283 refused 0 splits 5908
+WALK table/table | Embedded | cand 66 disc 1586 refused 0 splits 1520
+WALK silhouette/silhouette | Embedded | cand 66 disc 1004 refused 0 splits 938
+WALK silhouette3/silhouette3 | Embedded | cand 100 disc 1174 refused 0 splits 1074
+WALK silhouette3_shadow_z/silhouette3_shadow_z | Embedded | cand 100 disc 1174 refused 0 splits 1074
+WALK silhouette3_shadow_x/silhouette3_shadow_x | Embedded | cand 100 disc 1174 refused 0 splits 1074
+WALK silhouette3_shadow_y/silhouette3_shadow_y | Embedded | cand 100 disc 1174 refused 0 splits 1074
+WALK az/az | Embedded | cand 148 disc 1631 refused 0 splits 1483
+WALK crosslap/crosslap_glued | Embedded | cand 50 disc 330 refused 0 splits 280
+WALK crosslap_exploded/crosslap_exp_a | Embedded | cand 34 disc 608 refused 0 splits 574
+WALK crosslap_exploded/crosslap_exp_b | Embedded | cand 34 disc 444 refused 0 splits 410
+WALK twopeg/twopeg_mated | Embedded | cand 34 disc 174 refused 0 splits 140
+WALK twopeg/twopeg_apart_p | Embedded | cand 60 disc 700 refused 0 splits 640
+WALK twopeg/twopeg_apart_q | Embedded | cand 58 disc 720 refused 0 splits 662
+WALK projectbox/projectbox | Embedded | cand 215 disc 6627 refused 0 splits 6412
+WALK projectbox/spring | Embedded | cand 20 disc 4579 refused 0 splits 4559
+WALK projectbox/cutaway_above | Embedded | cand 154 disc 2869 refused 0 splits 2715
+WALK projectbox/cutaway_below | Embedded | cand 241 disc 6621 refused 0 splits 6380
+WALK projectbox/cutaway_spring | Embedded | cand 20 disc 4579 refused 0 splits 4559
+WALK impeller6/impeller6 | Embedded | cand 252 disc 4173 refused 0 splits 3921
+WALK impeller8/impeller8 | Embedded | cand 318 disc 4899 refused 0 splits 4581
+WALK impeller12/impeller12 | Embedded | cand 526 disc 8148 refused 0 splits 7622
+WALK heatsink5/heatsink5 | Embedded | cand 207 disc 3391 refused 0 splits 3184
+WALK heatsink7/heatsink7 | Embedded | cand 241 disc 3781 refused 0 splits 3540
+WALK heatsink9/heatsink9 | Embedded | cand 278 disc 4865 refused 0 splits 4587
+WALK bench/bench | Crosses (FaceKey(1v1), FaceKey(8v1)) | cand 95 disc 24 refused 0 splits 4
+WALK bench/benchlayout | Embedded | cand 54 disc 754 refused 0 splits 700
+WALK bench60/bench60 | Crosses (FaceKey(1v1), FaceKey(8v1)) | cand 95 disc 24 refused 0 splits 4
+WALK bench90/bench90 | Crosses (FaceKey(1v1), FaceKey(8v1)) | cand 95 disc 24 refused 0 splits 4
+WALK TOTAL 78 of 85 hold

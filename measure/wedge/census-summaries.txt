@@ -1,2 +1,3 @@
 /home/user/wm-work/out-P.txt:     Summary [3506.777s] 580 tests run: 17 passed, 540 failed, 23 timed out, 13422 skipped
 /home/user/wm-work/out-M.txt:     Summary [3482.558s] 580 tests run: 18 passed, 539 failed, 23 timed out, 13422 skipped
+     Summary [3643.586s] 1301 tests run: 61 passed (1 slow), 1216 failed, 24 timed out, 13504 skipped
