@@ -143,8 +143,8 @@ mod tests {
             let v = c.without_tangent();
             assert!(v.node() == c.node(), "the node is kept");
             assert_eq!(
-                v.value.to_bits(),
-                c.value.value.to_bits(),
+                v.value().to_bits(),
+                c.value().value.to_bits(),
                 "the numeric value, bit for bit"
             );
             assert!(
