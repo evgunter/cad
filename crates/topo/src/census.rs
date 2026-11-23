@@ -23286,7 +23286,11 @@ mod lone_vertex_rows {
                 assert!(
                     matches!(cone, Ok(super::Cone::Corner(_))),
                     "face {face:?} at the rim vertex {v:?}: {}",
-                    if matches!(cone, Ok(super::Cone::Full)) { "the full turn" } else { "unread" }
+                    if matches!(cone, Ok(super::Cone::Full)) {
+                        "the full turn"
+                    } else {
+                        "unread"
+                    }
                 );
                 read += 1;
             }

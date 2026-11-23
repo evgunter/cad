@@ -25,10 +25,26 @@ fn lemon(major: f64) -> Surface<f64> {
 
 /// `(R, volume, area)`, the truths at 60 digits.
 const TRUTHS: [(f64, f64, f64); 4] = [
-    (-0.9, 1.482_457_104_905_159_26e-2, 3.765_608_928_668_846_00e-1),
-    (-0.999, 1.498_466_564_275_898_83e-7, 3.746_755_215_061_206_63e-4),
-    (-0.9999, 4.739_024_357_876_662_75e-10, 1.184_774_707_447_826_40e-5),
-    (-0.99999, 1.498_625_536_931_917_45e-12, 3.746_569_729_816_416_98e-7),
+    (
+        -0.9,
+        1.482_457_104_905_159_26e-2,
+        3.765_608_928_668_846_00e-1,
+    ),
+    (
+        -0.999,
+        1.498_466_564_275_898_83e-7,
+        3.746_755_215_061_206_63e-4,
+    ),
+    (
+        -0.9999,
+        4.739_024_357_876_662_75e-10,
+        1.184_774_707_447_826_40e-5,
+    ),
+    (
+        -0.99999,
+        1.498_625_536_931_917_45e-12,
+        3.746_569_729_816_416_98e-7,
+    ),
 ];
 
 /// Each lemon's volume within `1e-9` of the truth, relative, and its
@@ -43,7 +59,14 @@ fn a_thin_lemons_volume_and_area_match_their_series() {
         let v = whole.flux / 3.0;
         let rel_v = ((v - volume) / volume).abs();
         let rel_a = ((whole.area - area) / area).abs();
-        assert!(rel_v <= 1e-9, "R = {major}: volume {v:e} vs {volume:e}, {rel_v:e} off");
-        assert!(rel_a <= 1e-13, "R = {major}: area {:e} vs {area:e}, {rel_a:e} off", whole.area);
+        assert!(
+            rel_v <= 1e-9,
+            "R = {major}: volume {v:e} vs {volume:e}, {rel_v:e} off"
+        );
+        assert!(
+            rel_a <= 1e-13,
+            "R = {major}: area {:e} vs {area:e}, {rel_a:e} off",
+            whole.area
+        );
     }
 }

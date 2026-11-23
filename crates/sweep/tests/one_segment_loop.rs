@@ -1339,7 +1339,9 @@ fn every_wrap_edge_stores_the_certificate_a_fresh_run_mints() {
         ("torus", revolved(vec![circle(2.0, 0.0, 0.5, TAU)])),
         (
             "cylinder",
-            extruded(vec![circle(0.0, 0.0, 1.0, TAU)], 2.0, ExtrudeSide::Along).body,
+            topo::Body::clone(
+                &extruded(vec![circle(0.0, 0.0, 1.0, TAU)], 2.0, ExtrudeSide::Along).body,
+            ),
         ),
         (
             "ball",

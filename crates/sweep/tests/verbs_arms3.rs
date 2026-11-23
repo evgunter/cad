@@ -341,11 +341,7 @@ fn requesting_the_rim_whole_gets_past_the_seam() {
     )
     .unwrap_or_else(|e| panic!("the whole rim carves, got {e:?}"));
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("tier-3 valid, got {e:?}"));
-    assert_eq!(
-        out.band_faces.len(),
-        1,
-        "the ONE rim is ONE annulus band"
-    );
+    assert_eq!(out.band_faces.len(), 1, "the ONE rim is ONE annulus band");
     let naming = out
         .naming
         .as_ref()

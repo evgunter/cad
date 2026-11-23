@@ -86,7 +86,7 @@ fn ball_full_revolve_omits_the_axis_edge_and_certifies() {
     );
     // Orientation: the volume, signed (each face's flux under its
     // stored sense), positive and at the closed form.
-    let v = signed_volume(&t.body);
+    let v = measured_volume(&t.body);
     let exact = 4.0 * core::f64::consts::PI / 3.0;
     assert!(
         v > 0.0 && (v - exact).abs() / exact < 1e-9,
