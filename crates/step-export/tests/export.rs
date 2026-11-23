@@ -549,6 +549,13 @@ fn a_mid_surgery_body_cannot_reach_the_writer() {
 /// last commits of the carrier-frames row (PR 7131) after its own
 /// regeneration. The sign of a zero component is one real number either
 /// way, and nothing reads it: the importer folds it at translation.
+///
+/// **Regenerated when the Rodrigues arm spelled its last term
+/// `k × (k × v)/(1 + c)`** (`least_turn_rodrigues`, so that a pair one
+/// direction turns by the identity through the arithmetic): the same 5
+/// lines in `swept_elbow`, each a 6.1e-17 component moved by an ulp or
+/// two. The arm's former spelling on the same head writes every fixture
+/// back byte for byte.
 #[test]
 fn committed_fixtures_are_byte_golden() {
     for (name, body) in common::fixture_corpus() {

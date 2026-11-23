@@ -137,10 +137,11 @@ fn only_a_creation_can_be_labelled() {
     );
 }
 
-/// A labelled row leads with its label and mutes its kind and tag; an
-/// unlabelled one reads as the spoken node and its pose.
+/// A row leads with its node as every sentence spells it — a labelled
+/// one by its label and tag, never its kind beside them, an unlabelled
+/// one by its kind and tag — and mutes which one of its kind it is.
 #[test]
-fn a_labelled_rows_headline_is_its_label_with_kind_and_tag_muted() {
+fn a_rows_headline_is_its_node_as_a_sentence_spells_it() {
     let tol = Tol::witness();
     let (doc, extrude) = extruded("viewer-node-labels-headline", tol);
     let t = tag(extrude.0.digest());
@@ -155,8 +156,8 @@ fn a_labelled_rows_headline_is_its_label_with_kind_and_tag_muted() {
     assert_eq!(
         headline(&doc.spoken(extrude), Some("unused pose")),
         Headline {
-            lead: "base plate".to_owned(),
-            muted: Some(format!("Extrude {t}")),
+            lead: format!("\"base plate\" ({t})"),
+            muted: Some("— unused pose".to_owned()),
         }
     );
 }
@@ -457,24 +458,6 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
         "halves",
     );
     session.pump();
-    run(
-        &mut session,
-        SessionOp::SketchOnFace {
-            face: FaceSelection {
-                name: pncad::prelude::StableName {
-                    kind: pncad::prelude::EntityKind::Face,
-                    node: block,
-                    path: vec![pncad::prelude::RoleSeg::Cap(pncad::prelude::CapEnd::End)],
-                },
-                node: block,
-                body: 0,
-            },
-            loops: vec![common::rectangle_loop([0.0, 0.0], 0.005, 0.005)],
-            distance: len(0.005),
-            spin: Formula::zero(Dimension::Angle),
-        },
-        "boss",
-    );
     // A footprint drawn in a cylinder's base, running onto its wall's
     // trace and along it.
     let disc = run(
@@ -619,6 +602,27 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
         },
         "measured",
     );
+    // A finding's claim, authored from the value the kernel minted, on
+    // a scene of its own: two blocks side by side rest on each other.
+    let mut touching = crate::offers::blocks(tol, viewer::test_support::CLEARANCE_SIDE);
+    let quieting = touching
+        .checks()
+        .expect("the registry ran")
+        .findings
+        .iter()
+        .find_map(|f| match &f.evidence {
+            pncad::document::CheckEvidence::UnprovenCoincidence {
+                quieting: Some(quieting),
+                ..
+            } if f.quiet.is_none() => Some(quieting.clone()),
+            _ => None,
+        })
+        .expect("the blocks' rest carries its claim");
+    run(
+        &mut touching,
+        SessionOp::AssertQuieting { quieting },
+        "rests",
+    );
     let edges = pncad::select::all_edges(session.evaluation().expect("landed"), block);
     run(
         &mut session,
@@ -686,13 +690,13 @@ fn a_failed_row_speaks_its_node_with_the_label_it_has_now() {
     let mut session = DocSession::inline(doc, tol);
     session.pump();
     let failed = |rows: &[viewer::tree::TreeRow]| match common::status_of(rows, extrude) {
-        viewer::tree::RowStatus::Failed { message, .. } => message,
+        viewer::tree::RowStatus::Failed { message, .. } => message.to_string(),
         other => panic!("the extrude fails: {other:?}"),
     };
     let before = failed(&session.tree_rows());
     assert!(
         before.starts_with(&format!(
-            "Extrude \"pocket\" ({}) failed: ",
+            "\"pocket\" ({}) failed: ",
             tag(extrude.0.digest())
         )),
         "{before}"
@@ -743,7 +747,7 @@ fn batch_line(session: &mut DocSession, ops: &[SessionOp]) -> Option<viewer::fra
     let mut line = None;
     viewer::frame::apply(
         &mut line,
-        viewer::frame::frame_status(&[], ops, refusal.as_ref()),
+        viewer::frame::frame_status_untargeted(&[], ops, refusal.as_ref()),
     );
     line
 }
@@ -775,12 +779,8 @@ fn a_kept_refusal_speaks_its_node_and_a_rename_retires_it() {
             .map(|m| m.text().to_owned())
             .unwrap_or_default()
     };
-    let is_not_a_profile = |text: &str| {
-        format!(
-            "Extrude \"{text}\" ({}) is not a profile",
-            tag(extrude.0.digest())
-        )
-    };
+    let is_not_a_profile =
+        |text: &str| format!("\"{text}\" ({}) is not a profile", tag(extrude.0.digest()));
 
     let line = batch_line(&mut session, core::slice::from_ref(&refused));
     assert!(
@@ -799,7 +799,7 @@ fn a_kept_refusal_speaks_its_node_and_a_rename_retires_it() {
     let mut line = line;
     viewer::frame::apply(
         &mut line,
-        viewer::frame::frame_status(&[], &[rename("post")], None),
+        viewer::frame::frame_status_untargeted(&[], &[rename("post")], None),
     );
     assert!(session.perform(rename("post")).refusal.is_none());
     assert_eq!(
@@ -839,7 +839,7 @@ fn an_edit_door_refusal_says_a_rename_later_in_its_batch() {
     );
     let said = line.map(|m| m.text().to_owned()).unwrap_or_default();
     assert!(
-        said.contains(&format!("Extrude \"slab\" ({})", tag(block.0.digest()))),
+        said.contains(&format!("\"slab\" ({})", tag(block.0.digest()))),
         "{said}"
     );
     assert!(
@@ -875,7 +875,7 @@ fn a_node_deleted_later_in_the_batch_keeps_its_label_on_the_line() {
     let said = line.map(|m| m.text().to_owned()).unwrap_or_default();
     assert!(
         said.starts_with(&format!(
-            "Extrude \"plate\" ({}) is not a profile",
+            "\"plate\" ({}) is not a profile",
             tag(extrude.0.digest())
         )),
         "{said}"
@@ -907,7 +907,7 @@ fn a_refusal_before_a_new_document_in_its_batch_keeps_the_label_it_was_raised_wi
     let said = line.map(|m| m.text().to_owned()).unwrap_or_default();
     assert!(
         said.starts_with(&format!(
-            "Extrude \"plate\" ({}) is not a profile",
+            "\"plate\" ({}) is not a profile",
             tag(extrude.0.digest())
         )),
         "{said}"
@@ -962,10 +962,7 @@ fn the_path_editors_refusal_speaks_its_node() {
     let refused = viewer::sketch::held_loops(&doc, extrude).expect_err("an extrude is no profile");
     assert_eq!(
         refused.to_string(),
-        format!(
-            "Extrude \"plate\" ({}) is not a profile",
-            tag(extrude.0.digest())
-        )
+        format!("\"plate\" ({}) is not a profile", tag(extrude.0.digest()))
     );
 }
 
@@ -977,7 +974,7 @@ fn the_gathers_refusal_speaks_its_nodes() {
     let tol = Tol::witness();
     let (doc, extrude) = extruded("viewer-node-labels-product", tol);
     let doc = relabelled(&doc, extrude, "plate", tol);
-    let spoken = format!("Extrude \"plate\" ({})", tag(extrude.0.digest()));
+    let spoken = format!("\"plate\" ({})", tag(extrude.0.digest()));
     let lineage = pncad::document::ProductError::ContactLineage {
         node: extrude,
         what: "face",
@@ -992,7 +989,7 @@ fn the_gathers_refusal_speaks_its_nodes() {
     assert!(
         refused
             .to_string()
-            .contains(&format!("Extrude \"pocket\" ({})", tag(failed.0.digest()))),
+            .contains(&format!("\"pocket\" ({})", tag(failed.0.digest()))),
         "{refused}"
     );
 }
@@ -1032,18 +1029,18 @@ fn the_checks_window_speaks_from_the_landed_document() {
         (Some("big block"), Some("renamed")),
         "the rename has not landed: the two documents say two labels"
     );
-    let rows = viewer::frame::check_rows(report, landed);
+    let rows = viewer::frame::check_rows(report, landed, session.current());
     let row = rows
         .iter()
         .find(|row| row.select == viewer::Selection::Node(big))
         .expect("the two overlapping boxes are an interference finding about the big one");
     let b = tag(big.0.digest());
-    assert_eq!(row.button, format!("Extrude \"big block\" ({b})"));
+    assert_eq!(row.button, format!("\"big block\" ({b})"));
     // The finding is about the two copies, and names them by their
     // placements (A10).
     let copy = |body| tag(common::copy_of(landed, body).0.digest());
     assert!(
-        row.sentence.contains(&format!(
+        row.sentence.to_string().contains(&format!(
             "Place {} and Place {} overlap",
             copy(big),
             copy(small)
@@ -1052,7 +1049,7 @@ fn the_checks_window_speaks_from_the_landed_document() {
         row.sentence
     );
     assert!(
-        !row.sentence.contains("renamed") && !row.button.contains("renamed"),
+        !row.sentence.to_string().contains("renamed") && !row.button.contains("renamed"),
         "and never the committed label: {row:?}"
     );
 }
@@ -1092,7 +1089,7 @@ fn an_unused_variables_row_selects_the_variable() {
         tol,
     )
     .expect("the checks run");
-    let rows = viewer::frame::check_rows(&report, &doc);
+    let rows = viewer::frame::check_rows(&report, &doc, None);
     let selects: Vec<_> = rows.iter().map(|row| row.select.clone()).collect();
     assert_eq!(
         selects,
@@ -1106,6 +1103,7 @@ fn an_unused_variables_row_selects_the_variable() {
     assert!(
         rows[1]
             .sentence
+            .to_string()
             .contains("check unused: spare: used by nothing"),
         "{}",
         rows[1].sentence
@@ -1147,7 +1145,7 @@ fn a_labelled_creation_keeps_its_label_through_save_and_reopen() {
     assert_eq!(reopened.committed_doc().label(node), Some(&label(text)));
     assert_eq!(
         headline(&reopened.committed_doc().spoken(node), None).lead,
-        text,
+        format!("\"{text}\" ({})", tag(node.0.digest())),
         "the reopened row leads with the label"
     );
     std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");

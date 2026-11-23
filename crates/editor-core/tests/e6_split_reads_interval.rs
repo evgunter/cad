@@ -346,7 +346,12 @@ fn a_deciding_node_that_reads_nothing_refuses_naming_it_at_the_root_and_at_a_chi
     );
     let analyzed = analyzed_box(&r.doc, &AnalysisPolicy::default());
     let said = v.render(&r.doc, &analyzed);
-    assert_spoken_under_its_class(&said, 1, &r.doc.spoken(loft).to_string(), cause);
+    assert_spoken_under_its_class(
+        &said,
+        1,
+        &editor_core::test_support::node_text(&r.doc.spoken(loft)),
+        cause,
+    );
 
     let mut r = Recorder::new();
     declare_in_eps(&mut r, "depth", UNDECIDED);
@@ -382,7 +387,7 @@ fn a_deciding_node_that_reads_nothing_refuses_naming_it_at_the_root_and_at_a_chi
     assert_spoken_under_its_class(
         &v.render(&r.doc, &analyzed),
         named.len(),
-        &r.doc.spoken(loft).to_string(),
+        &editor_core::test_support::node_text(&r.doc.spoken(loft)),
         cause,
     );
     for leaf in named {
@@ -524,8 +529,8 @@ fn moving_a_variable_moves_no_key_outside_its_readers() {
                     reads.get(&node).is_some_and(|set| set.contains(&var)),
                     "{}: moving {} moved the key of {}, whose read set lacks it",
                     d.name,
-                    d.doc.spoken_var(var),
-                    d.doc.spoken(node)
+                    editor_core::test_support::var_text(&d.doc.spoken_var(var)),
+                    editor_core::test_support::node_text(&d.doc.spoken(node))
                 );
             }
         }

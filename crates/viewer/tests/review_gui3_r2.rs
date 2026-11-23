@@ -676,12 +676,13 @@ fn failed_and_poisoned_badges_carry_the_payloads_own_text_and_nothing_else() {
             let allowed = match &row.status {
                 viewer::tree::RowStatus::Poisoned { through, .. } => format!(
                     "upstream failure at {} — that row carries the cause",
-                    session.doc().spoken(*through)
+                    viewer::tree::spelled(&session.doc().spoken(*through))
                 ),
-                _ => expected.clone(),
+                _ => expected.to_string(),
             };
             assert_eq!(
-                message, allowed,
+                message.to_string(),
+                allowed,
                 "an unexpected message appeared in the tree: {message}"
             );
         }

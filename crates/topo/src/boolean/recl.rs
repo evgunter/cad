@@ -792,7 +792,7 @@ pub(super) fn recl_edges<T: crate::props::AtRestPolicy>(
                 (Operand::B, b_vertex, &b_ms, b_sectors, b_body),
             ];
             for (operand, vertex, ms, secs, body) in sides {
-                let Some(face) = tips[usize::from(operand == Operand::B)].face_at(vertex) else {
+                let Some(face) = tips[operand.index()].face_at(vertex) else {
                     continue;
                 };
                 let bounds_face = |he: crate::entity::HalfEdgeKey| {
@@ -1603,7 +1603,7 @@ pub(super) fn resolve_edge_edge<T: crate::props::AtRestPolicy>(
     let arm = a_sectors[fa_s].arm.min(b_sectors[fb_s].arm);
     let secs_of = |slot: usize| if slot == 0 { a_sectors } else { b_sectors };
     let body_of = |slot: usize| if slot == 0 { a_body } else { b_body };
-    let operand_of = |slot: usize| if slot == 0 { Operand::A } else { Operand::B };
+    let operand_of = |slot: usize| Operand::BOTH[slot];
     let wedges = [aw, bw];
     // A wedge's two flanks: each flanker's bound off the line.
     let flanks = |secs: &[BoolSector<T>], w: Wedge| -> Flanks<T> {

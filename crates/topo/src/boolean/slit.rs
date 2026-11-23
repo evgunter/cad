@@ -1249,11 +1249,6 @@ pub(super) const RIDER_ON_CURVED: &str = "bool_rider_on_curved";
 /// tube and then its ring ([`geom_brep::variety::Variety::of`]).
 const RIDER_RING_TORUS: geom::RingSites = geom::RingReader::BooleanRider.sites();
 
-/// The site [`carrier_on_surface`] decides a spiric's plane against a
-/// plane face's under: their tilt over the spiric's reach, then the
-/// spiric's plane's height.
-const RIDER_SPIRIC_PLANE: &str = "bool_rider_spiric_plane";
-
 /// The site [`clears_plane`] decides a spline's control point beyond a
 /// plane under.
 const RIDER_HULL_OFF: &str = "bool_rider_hull_off_plane";
@@ -1307,9 +1302,9 @@ pub(super) enum Placed {
 /// offset is decided on the band ([`RIDER_ON_PLANE`], [`RIDER_ON_CURVED`]),
 /// every point before the answer, and one definitely off reads it off.
 ///
-/// A spiric lies in its own plane, so against a plane it reads as a conic
-/// does, by the two planes' tilt over its reach and then its plane's
-/// height ([`RIDER_SPIRIC_PLANE`]). A spline can lie on a surface along
+/// A spiric lies in its own plane, so against a plane it reads by the
+/// spiric × plane arm's pose ([`geom_brep::curve_face::pose()`]): on where
+/// it lies, off otherwise. A spline can lie on a surface along
 /// part of its length only, so no point of it read off says it lies there
 /// along no piece: it reads off only where it is certified off over its
 /// whole length ([`clears_plane`], a plane's). A spiric lies along no
@@ -1443,41 +1438,27 @@ fn conic_or_line_on<T: Decide>(
         ) => {
             return spiric_on_curved(carrier, (t0, t1), offset, surface, band);
         }
-        // A spiric lies in its own plane, so against a plane it reads as a
-        // conic does: in it where the two planes are one, and otherwise
-        // meeting it at four points at most.
-        (
-            &geom::Curve3::Spiric {
-                frame: spiric_frame,
-                major_radius,
-                minor_radius,
-                offset,
-                ..
-            },
-            &geom::Surface::Plane {
-                frame: plane_frame, ..
-            },
-        ) => {
-            let (center, u_ref) = (spiric_frame.origin(), spiric_frame.u_ref());
-            let (origin, normal) = (plane_frame.origin(), plane_frame.axis());
-            let (n, u) = (normal.normalize(), u_ref.normalize());
-            let refused = |diag| {
-                BooleanError::coincidence(Coincide::EdgeOnPlane, DeclarationRead::Moot, diag)
-            };
-            let tilt = n.cross(u).norm() * (major_radius + minor_radius);
-            return match crate::validate::decide(RIDER_SPIRIC_PLANE, Margin::of(tilt), band)
-                .map_err(refused)?
-            {
-                Sign::Zero => {
-                    let height = (center + u * offset - origin).dot(n);
-                    match crate::validate::decide(RIDER_SPIRIC_PLANE, Margin::of(height), band)
-                        .map_err(refused)?
-                    {
-                        Sign::Zero => Ok(Placed::On),
-                        Sign::Positive | Sign::Negative => Ok(Placed::Off),
-                    }
+        // A carrier the table reads by the spiric × plane door: its pose,
+        // in the plane where it lies and otherwise meeting it at four
+        // points at most.
+        _ if geom_brep::curve_face::route(carrier.kind(), surface.kind()).door
+            == geom_brep::curve_face::Door::SpiricPlane =>
+        {
+            use geom_brep::curve_face::{Pose, PoseRefusal};
+            let span = geom_brep::curve_pair::Span::new(carrier, (t0, t1));
+            return match geom_brep::curve_face::pose(&span, surface, band) {
+                Ok(Pose::Lies) => Ok(Placed::On),
+                Ok(Pose::Apart | Pose::Tangent(_) | Pose::Isolated(_) | Pose::Through(_)) => {
+                    Ok(Placed::Off)
                 }
-                Sign::Positive | Sign::Negative => Ok(Placed::Off),
+                Err(PoseRefusal::InBand { diag, .. }) => Err(BooleanError::coincidence(
+                    Coincide::EdgeOnPlane,
+                    DeclarationRead::Moot,
+                    diag,
+                )),
+                Err(refusal) => unreachable!(
+                    "the spiric × plane arm refuses a minted spiric only in band: {refusal:?}"
+                ),
             };
         }
         (geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_), _)
@@ -1954,11 +1935,8 @@ fn walls_inside<T: Decide>(
     let desync = || BooleanError::JoinDesync {
         what: "an edge lying in a face does not resolve",
     };
-    let edge = body.get_edge(e).ok_or_else(desync)?;
-    let curve = body
-        .get_curve_geom(edge.curve)
-        .and_then(|c| c.certified())
-        .ok_or_else(desync)?;
+    let edge = body.edge(e).ok_or_else(desync)?;
+    let curve = edge.certified().ok_or_else(desync)?;
     let (t0, t1) = curve.params();
     let mid = curve.mid_point();
     let tangent = curve.carrier().deriv(geom::mid_param(t0, t1)).normalize();
@@ -2014,9 +1992,12 @@ fn walls_inside<T: Decide>(
             == super::sectors::FaceShape::Plane;
     let mut inside = [false; 2];
     let mut flat = [false; 2];
-    for (k, (he, dir)) in [(edge.he_plus, tangent), (edge.he_minus, -tangent)]
-        .into_iter()
-        .enumerate()
+    for (k, (he, dir)) in [
+        (edge.record().he_plus, tangent),
+        (edge.record().he_minus, -tangent),
+    ]
+    .into_iter()
+    .enumerate()
     {
         let wall = body.face_of_half_edge(he).ok_or_else(desync)?;
         let normal = normal_at(wall)?;
@@ -2248,12 +2229,9 @@ fn part<T: Decide + crate::props::AtRestPolicy>(
     let desync = || BooleanError::JoinDesync {
         what: "an edge lying in a face does not resolve",
     };
-    let data = body.get_edge(edge).ok_or_else(desync)?;
-    let h = data.he_plus;
-    let curve = body
-        .get_curve_geom(data.curve)
-        .and_then(|c| c.certified())
-        .cloned();
+    let data = body.edge(edge).ok_or_else(desync)?;
+    let h = data.record().he_plus;
+    let curve = data.certified().cloned();
     let (start, end) = crate::query::edge_ends(body, edge);
     let wall = body.face_of_half_edge(h).ok_or_else(desync)?;
     let surfaces = [face, wall].map(|f| body.get_face(f).map(|d| d.surface));
@@ -2786,10 +2764,7 @@ struct Resting {
 
 /// An edge's certified carrier and its span.
 fn span_of<T: Decide>(body: &Body<T>, e: EdgeKey) -> Option<(geom::Curve3<T>, (T, T))> {
-    let curve = body
-        .get_edge(e)
-        .and_then(|d| body.get_curve_geom(d.curve))
-        .and_then(|c| c.certified())?;
+    let curve = body.edge(e).and_then(crate::live::EdgeView::certified)?;
     Some((curve.carrier().clone(), curve.params()))
 }
 
@@ -2986,10 +2961,9 @@ fn touches_an_edge(contacts: &ContactRecords, v: VertexKey) -> bool {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod unread_piece {
-    use super::{ContainError, EdgeInFaceGap, Names, holding};
+    use super::{Names, holding};
     use crate::Body;
     use crate::LoopBoundary;
-    use crate::boolean::BooleanError;
     use crate::construction::MevSite;
     use crate::entity::{EdgeKey, FaceKey, LoopKey};
     use geom_core::{Band, Point3, Tol};
@@ -3036,12 +3010,12 @@ mod unread_piece {
         (body, p.top_face, ring, edge)
     }
 
-    /// Where both the edge's ends lie on the face, the unread piece
-    /// refuses with the door's refusal; where nothing names the pair but
-    /// a crossing, the face is not asked.
+    /// A lone-vertex ring bounds no area, so the face is read past it
+    /// whether its ends or only a crossing name the pair. Red where the
+    /// face door refused the face whose ends named it as a lone loop.
     #[test]
-    fn an_unread_piece_refuses_unless_only_a_crossing_names_the_pair() {
-        let (body, top, ring, edge) = top_with_an_empty_ring();
+    fn a_lone_ring_leaves_the_face_read() {
+        let (body, top, _, edge) = top_with_an_empty_ring();
         let band = Band::linear(Tol::witness()).unwrap();
         let read = |ends| {
             holding(
@@ -3058,15 +3032,8 @@ mod unread_piece {
         };
         let named = read(true);
         assert!(
-            matches!(
-                &named,
-                Err(BooleanError::EdgeInFace {
-                    edge: e,
-                    face: f,
-                    gap: EdgeInFaceGap::Unread(Some(ContainError::EmptyLoop(lk))),
-                }) if *e == edge && *f == top && *lk == ring
-            ),
-            "ends on the face: the unread piece refuses naming the door's refusal, got {named:?}"
+            matches!(named, Ok(None)),
+            "ends on the face: the face is read, got {named:?}"
         );
         let crossed = read(false);
         assert!(
