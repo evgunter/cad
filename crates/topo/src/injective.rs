@@ -10308,7 +10308,7 @@ mod presentation_rows {
             let phi = if rng.unit() < 0.2 {
                 0.0
             } else {
-                rng.unit() * 6.283
+                rng.unit() * core::f64::consts::TAU
             };
             let p1 = (rng.unit() - 0.5, rng.unit() - 0.5);
             let d2 = dir(phi);
