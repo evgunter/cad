@@ -1243,13 +1243,21 @@ fn joined_spec<T: Decide>(
             }
         }
     } else {
-        read_far(carrier, gone.stored_carrier(), at_w, far, tw).ok_or(
+        let read = read_far(carrier, gone.stored_carrier(), at_w, far, tw).ok_or(
             BooleanError::JoinCarrierUnsupported {
                 edge: join.kept,
                 carrier: carrier.kind(),
                 closed: false,
             },
-        )?
+        )?;
+        // A join that is not closed spans less than a turn of a loop, so
+        // a far end read a turn on is the rounding of the walk, held to
+        // the turn.
+        match carrier.period() {
+            Some(period) if backward => read.max(t1 - period.length()),
+            Some(period) => read.min(t0 + period.length()),
+            None => read,
+        }
     };
     let (a, b) = if backward { (tx, t1) } else { (t0, tx) };
     // A declaration's parameter is affine in the carrier's, so the kept

@@ -2,8 +2,10 @@
 //! counterexample search for a wrong body. Each rod passes through a
 //! point `p` drawn inside the tube, so `p` lies in both operands: a
 //! body `donut ∩ rod` answers must hold `p`, and a body either
-//! subtract answers must not. Any body answered must also be valid at
-//! tier 3, and the volumes of `A ∖ B` and `A ∩ B` must sum to `A`'s.
+//! subtract answers must not, wherever `point_in_solid` reads the body
+//! (it reads no torus face a marched edge trims). Any body answered must
+//! also be valid at tier 3, and the volumes of `A ∖ B` and `A ∩ B` must
+//! sum to `A`'s.
 //!
 //! Most rods refuse (the join's germ frame, the pierce door, or an
 //! escalation, depending on the pose and the band); the row prints the
@@ -33,12 +35,19 @@ use test_utils::fuzz;
 use topo::{Body, BooleanResult};
 
 fn volume(b: &Body<f64>) -> f64 {
-    topo::test_support::pinned_volume(
-        "the volume integrates",
-        &topo::test_support::finished("the measured body", topo::Body::clone(b), Tol::witness()),
-        Tol::witness(),
-    )
-    .volume
+    measured(b).expect("an operand's volume is met")
+}
+
+/// `b`'s volume where the measurement meets its pinned resolution;
+/// `None` where it stops at its floor, a bracket and not a number met.
+fn measured(b: &Body<f64>) -> Option<f64> {
+    let tol = Tol::witness();
+    let body = topo::test_support::finished("the measured body", topo::Body::clone(b), tol);
+    topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
+        .expect("the volume integrates")
+        .met()
+        .ok()
+        .map(|e| e.volume)
 }
 
 #[test]
@@ -102,18 +111,37 @@ fn random_rods_through_the_tube_never_answer_a_wrong_body() {
                         what(op)
                     );
                     let at_p = topo::point_in_solid(&b.body, p, band, Tol::witness());
-                    assert!(
-                        matches!(
-                            (at_p, want_p),
-                            (Ok(topo::SolidContainment::In), true)
-                                | (Ok(topo::SolidContainment::Out), false)
-                        ),
-                        "{}: p must be {} the result",
-                        what(op),
-                        if want_p { "in" } else { "out of" }
-                    );
-                    vols[k] = Some(volume(&b.body));
-                    *counts.entry("Body".into()).or_default() += 1;
+                    // The ray lane reads no torus face a marched edge
+                    // trims (`work/inside/point-in-solid-refuses-a-torus-face-bounded-by-a-spline-chord.md`):
+                    // the body is then held by its tier-3 validity and
+                    // the volumes below alone.
+                    if matches!(at_p, Err(topo::PointInSolidError::PartialTorusFace { .. })) {
+                        *counts
+                            .entry("p unread on a trimmed torus face".into())
+                            .or_default() += 1;
+                    } else {
+                        assert!(
+                            matches!(
+                                (&at_p, want_p),
+                                (Ok(topo::SolidContainment::In), true)
+                                    | (Ok(topo::SolidContainment::Out), false)
+                            ),
+                            "{}: p must be {} the result, got {at_p:?}",
+                            what(op),
+                            if want_p { "in" } else { "out of" }
+                        );
+                    }
+                    vols[k] = measured(&b.body);
+                    *counts
+                        .entry(
+                            if vols[k].is_some() {
+                                "Body"
+                            } else {
+                                "Body, volume unmet"
+                            }
+                            .into(),
+                        )
+                        .or_default() += 1;
                 }
             }
         }

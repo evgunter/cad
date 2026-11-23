@@ -599,7 +599,9 @@ impl<T: SpanLocate> PeriodicNurbs3<T> {
             window: self.view_window(),
         };
         let period = self.period.point_value().ok_or(span)?;
-        let forward = s0 < s1 && s1 <= s0 + period;
+        // Read in the caller's parameter, where the sum is rounded: the
+        // negated ends of a run-back loop round the sum otherwise.
+        let forward = a < b && b <= a + period;
         if !forward {
             return Err(span);
         }
@@ -909,6 +911,23 @@ mod tests {
         assert_eq!(back, mirrored);
         assert!(r.reversed().same_content(&c, |a, b| a == b));
         assert!(!r.same_content(&c, |a, b| a == b));
+    }
+
+    /// A whole turn on the run-back loop reads wherever it starts: its end
+    /// is the start plus the period as the caller's parameter rounds it,
+    /// whose negation may stand an ulp past the negated start's turn.
+    #[test]
+    fn a_whole_turn_of_the_run_back_loop_reads_as_its_sum_rounds() {
+        let r = PeriodicNurbs3::interpolate(&loop_points(19))
+            .unwrap()
+            .reversed();
+        let a = -0.456_177_391_716_567_74_f64;
+        assert!(
+            -a > -(a + 1.0) + 1.0,
+            "the negated span is a hair over a turn"
+        );
+        let view = r.clamped_view((a, a + 1.0));
+        assert!(view.is_ok(), "{view:?}");
     }
 
     /// A view that starts an ulp under a knot keeps the knot inside, as
