@@ -336,7 +336,8 @@ class Runner:
             rc, tail = sh([*cmd, "-j", "2"], self.tree, dict(os.environ), self.clock.left())
         self.last_build_s = time.monotonic() - t0
         if rc == 0:
-            print(f"  built {binary} at {self.commits[idx][:10]} in {self.last_build_s:.0f} s", flush=True)
+            mb = dest.stat().st_size >> 20
+            print(f"  built {binary} at {self.commits[idx][:10]} in {self.last_build_s:.0f} s ({mb} MB)", flush=True)
             got: Path | str = dest
         else:
             got = "its build timed out" if rc is None else f"its build exited {rc}"
@@ -344,11 +345,13 @@ class Runner:
         self.archives[(idx, binary)] = got
         return got
 
-    def drop(self, binary: str) -> None:
+    def prune(self, binary: str, keep: set[int]) -> None:
+        """Delete `binary`'s archives but those at `keep`: a test binary is
+        gigabytes, and only an open range's two ends can still be re-run."""
         for (idx, b), a in list(self.archives.items()):
-            if b == binary and isinstance(a, Path):
+            if b == binary and idx not in keep and isinstance(a, Path):
                 a.unlink(missing_ok=True)
-                self.archives[(idx, b)] = "its build was dropped"
+                self.archives[(idx, b)] = "its build was pruned"
 
     def run(self, idx: int, binary: str, reds: list[Red]) -> dict[int, str]:
         """{id(red): result} for `reds` (one binary) at commit `idx`."""
@@ -464,7 +467,7 @@ def bisect(reds: list[Red], commits: list[str], runner, clock: Clock, args, labe
             groups.setdefault(r.binary, []).append(r)
         if current not in groups:
             if current is not None:
-                runner.drop(current)
+                runner.prune(current, set())
             current = min(groups, key=lambda b: (-len(groups[b]), b))
         group = sorted(groups[current], key=lambda r: (r.hi - r.lo, r.time, r.row))
         at = wants(group[0], suspects)[0]
@@ -493,6 +496,7 @@ def bisect(reds: list[Red], commits: list[str], runner, clock: Clock, args, labe
                     r.hi = at
                 else:
                     r.untestable.add(at)
+        runner.prune(current, {i for r in reds if r.open and r.binary == current for i in (r.lo, r.hi)})
 
 
 def attribute(reds: list[Red], args, clock: Clock, out: Path, log: list[str]) -> None:
@@ -699,8 +703,8 @@ class _FakeRunner:
     def built(self, idx, binary):
         return (idx, binary) in self.have
 
-    def drop(self, binary):
-        pass
+    def prune(self, binary, keep):
+        self.have -= {(i, b) for i, b in self.have if b == binary and i not in keep}
 
     def run(self, idx, binary, reds):
         if (idx, binary) in self.have:
