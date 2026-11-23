@@ -799,11 +799,11 @@ mod tests {
         assert!(worst > 0.0, "no step rounded at all");
     }
 
-    /// **A step's bound is not loose by half**: `0.1 + (0.7 − 0.1)·0.3`,
-    /// whose difference, product and sum all round, drifts more than half
-    /// its bound from the exact step on the stored operands. A bound
-    /// halved, or a step that leaves out its product's rounding, no
-    /// longer holds it.
+    /// **A step's bound is not loose by half**: over steps of operands
+    /// in `[-1, 1)` by fractions in `[0.05, 0.95)`, whose difference,
+    /// product and sum all round, some step drifts more than half its
+    /// bound from the exact step on the stored operands, so a bound
+    /// halved no longer holds it.
     #[test]
     fn a_steps_bound_comes_within_half_of_its_drift() {
         let mut next = draws(0x5eed_57ea);
@@ -816,6 +816,80 @@ mod tests {
         assert!(
             (0.5..=1.0).contains(&worst),
             "the worst step drifts {worst} of its bound, outside (½, 1]"
+        );
+    }
+
+    /// **Each of a step's own roundings is owed**, at a fixture where it
+    /// decides: `x + (y − x)·t` with `x` all but cancelling the product,
+    /// so the sum rounds by almost nothing while the difference and the
+    /// product each round near their worst; the drift from the exact step
+    /// is past the bound less its product's term (and past it less its
+    /// difference's), and within the whole bound.
+    #[test]
+    fn a_steps_product_and_difference_roundings_are_each_owed() {
+        let (x, y, t) = (
+            -1.042_363_492_101_883_8,
+            0.968_262_008_516_658_2,
+            0.518_244_490_440_225_8,
+        );
+        let s = Judged::exact(x).step(&Judged::exact(y), t);
+        let mut gap = s.exact.clone();
+        gap.add(-s.got.value);
+        let drift = gap.components().iter().sum::<f64>().abs();
+        let d = y - x;
+        let (product, difference) = (UNIT_ROUNDOFF * (d * t).abs(), UNIT_ROUNDOFF * d.abs() * t);
+        assert!(
+            drift <= s.got.error,
+            "the step drifts {drift:e} past its bound {:?}",
+            s.got
+        );
+        assert!(
+            drift > s.got.error - product && drift > s.got.error - difference,
+            "the fixture no longer stresses the terms: drift {drift:e}, bound {:?}",
+            s.got
+        );
+    }
+
+    /// **A ratio's own rounding is owed**: `t = (u − lo)/(hi − lo)` from
+    /// exact knots, whose two differences and quotient round together by
+    /// more than two units of it, and a step by it whose sum cancels. The
+    /// drift from the step by the true ratio (`|v·(hi − lo) − x·(hi − lo)
+    /// − (y − x)·(u − lo)|` over `hi − lo`, read exactly) is past the bound
+    /// less `t`'s share `|y − x|·3u·t`, and within the whole bound
+    /// ([`Tracked::ratio`]).
+    #[test]
+    fn a_ratios_own_rounding_is_owed() {
+        use crate::exact::Expansion;
+        let (x, y) = (-1.010_251_997_330_188, 0.999_333_217_241_132_9);
+        let (u, lo, hi) = (
+            0.959_954_238_683_149,
+            0.551_813_048_816_387_2,
+            1.360_711_498_187_997_3,
+        );
+        let t = (u - lo) / (hi - lo);
+        let v = Tracked::exact(x).step(Tracked::exact(y), Tracked::ratio(t));
+        let mut n = Expansion::default();
+        for (a, b) in [
+            (v.value(), hi),
+            (-v.value(), lo),
+            (-x, hi),
+            (x, lo),
+            (-y, u),
+            (y, lo),
+            (x, u),
+            (-x, lo),
+        ] {
+            n.add_expansion(&Expansion::product(a, b));
+        }
+        let drift = n.components().iter().sum::<f64>().abs() / (hi - lo);
+        let share = (y - x).abs() * 3.0 * UNIT_ROUNDOFF * t;
+        assert!(
+            drift <= v.rounding(),
+            "the step drifts {drift:e} past its bound {v:?}"
+        );
+        assert!(
+            drift > v.rounding() - share,
+            "the fixture no longer stresses t's rounding: drift {drift:e}, bound {v:?}"
         );
     }
 
