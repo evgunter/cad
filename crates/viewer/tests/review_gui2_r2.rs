@@ -51,7 +51,9 @@ use pncad::select::{Ray, Resolution};
 use viewer::camera::Camera;
 use viewer::display::DisplayView;
 use viewer::evalseam::{EvalDone, EvalRequest, EvalService, InlineEvaluator};
-use viewer::input::{InputMap, PickAction, PointerButton, ViewportEvent, ViewportSize};
+use viewer::input::{
+    Held, InputMap, PickAction, PointerButton, ScrollAxis, ViewportEvent, ViewportSize,
+};
 use viewer::narrowing::Narrow;
 use viewer::pickindex::{IdMap, PatchId, PickIndex, PictureKey};
 use viewer::scene::DisplayTolerance;
@@ -1096,11 +1098,14 @@ fn the_two_mappings_partition_the_event_stream() {
         ViewportEvent::Leave,
         ViewportEvent::Drag {
             button: PointerButton::Middle,
-            shift: false,
-            alt: false,
+            held: Held::NONE,
             delta_px: [4.0, 4.0],
         },
-        ViewportEvent::Scroll { units: 1.0 },
+        ViewportEvent::Scroll {
+            held: Held::NONE,
+            axis: ScrollAxis::Wheel,
+            units: 1.0,
+        },
         ViewportEvent::Pinch { factor: 1.1 },
     ];
     for event in &events {

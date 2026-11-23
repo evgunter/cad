@@ -15,7 +15,9 @@ use crate::drafts::ProfileDoors;
 use crate::frame;
 use crate::gpu::{ID_PASS_ASKED, IdQuery, ViewportCallback};
 use crate::idpass::{self, IdStep};
-use crate::input::{self, PickAction, PointerButton, ViewportEvent, ViewportSize};
+use crate::input::{
+    self, Held, PickAction, PointerButton, ScrollAxis, ViewportEvent, ViewportSize,
+};
 use crate::marks;
 use crate::narrowing::Narrow;
 use crate::pickcache;
@@ -893,28 +895,17 @@ fn egui_buttons() -> [egui::PointerButton; egui::NUM_POINTER_BUTTONS] {
     ]
 }
 
-/// Which modifier keys this viewport binds, in the order
-/// [`ViewportEvent::Drag`] carries them: shift, then alt.
+/// The modifier keys down, as the viewer names them.
 ///
 /// **The one place the toolkit's modifier state meets the viewer's.**
-/// With [`scroll_event`] and [`pinch_event`] it says what this adapter
-/// reads of a frame's modifier, wheel and magnification state and what
-/// it drops, and [`pointer_events`] is where the three are read. The
-/// toolkit offers five modifier fields and two scroll axes; this
-/// viewport binds two of the five and one of the two, and the parts it
-/// does not bind are named here and discarded rather than never
-/// mentioned, because a part an adapter leaves out is
-/// indistinguishable downstream from a part nobody touched.
-///
-/// **Two, because [`input::Held`] has two a binding can require**:
-/// `shift` and `alt`. `ctrl`, `command` and `mac_cmd` are not
-/// gestures in this viewport — no binding row, preset or preferences
-/// key names one, and [`ViewportEvent::Drag`] carries a bare `shift`
-/// and a bare `alt` and nothing else, so a ctrl-drag is a plain drag at every
-/// reader downstream. Binding one arrives the way a side button's
-/// would ([`viewer_button`]): a field on [`ViewportEvent::Drag`] that
-/// can carry it, a binding that can name it, and a pattern here that
-/// stops discarding it.
+/// With [`scroll_events`] and [`pinch_event`] it says what this adapter
+/// reads of a frame's modifier, wheel and magnification state, and
+/// [`pointer_events`] is where the three are read. The toolkit offers
+/// five modifier fields; [`input::Held`] has three keys, so two of the
+/// five are folded together: `ctrl`, `mac_cmd` and `command` are one
+/// key, ctrl or ⌘ ([`input::Held::ctrl`]) — `command` is egui's own
+/// name for whichever of the other two the platform's shortcuts use,
+/// so a reader on either platform finds its key in it.
 ///
 /// **The compiler holds the SET.** `egui::Modifiers` is a plain struct
 /// and not `#[non_exhaustive]`, so a pattern over it must mention
@@ -924,62 +915,85 @@ fn egui_buttons() -> [egui::PointerButton; egui::NUM_POINTER_BUTTONS] {
 /// missing field and offers `..` among its repairs, so what it buys is
 /// that the answer is given HERE, on the day the field appears,
 /// instead of being given by omission. It is the struct's form of the
-/// exhaustive match
-/// [`viewer_button`] makes over the toolkit's button enum, and it
-/// fires at the same moment — a version bump, the only moment either
-/// set can change. **It holds the set and nothing else**: which field
-/// lands in which half of the returned pair is a naming decision with
-/// nothing to derive it from, and swapping the two type-checks while
+/// exhaustive match [`viewer_button`] makes over the toolkit's button
+/// enum, and it fires at the same moment — a version bump, the only
+/// moment either set can change. **It holds the set and nothing
+/// else**: which field lands in which key is a naming decision with
+/// nothing to derive it from, and swapping two type-checks while
 /// inverting every modified drag in the viewer.
-/// `tests::a_drag_carries_the_two_modifiers_this_viewport_binds` is
-/// what makes that edit red.
-fn viewer_modifiers(modifiers: egui::Modifiers) -> (bool, bool) {
+/// `tests::a_drag_carries_the_keys_held` is what makes that edit red.
+fn viewer_modifiers(modifiers: egui::Modifiers) -> Held {
     let egui::Modifiers {
         shift,
         alt,
-        ctrl: _,
-        mac_cmd: _,
-        command: _,
+        ctrl,
+        mac_cmd,
+        command,
     } = modifiers;
-    (shift, alt)
+    Held {
+        ctrl: ctrl || mac_cmd || command,
+        shift,
+        alt,
+    }
 }
 
-/// The scroll event this frame's wheel denotes, or `None` when the
-/// wheel turned in no direction this viewport binds.
+/// The scroll events this frame's wheel denotes, under the keys
+/// `modifiers` holds: at most one per axis.
 ///
-/// The other half of [`viewer_modifiers`]' decision: of the toolkit's
-/// two scroll axes this viewport reads `y`, which
-/// [`input::InputMap::map`] reads as the one binding a scroll has —
-/// zoom.
+/// **This undoes the toolkit's folding**, so that which key was held
+/// is the table's question and not the axis's answer. egui moves a
+/// wheel turned with `horizontal_scroll_modifier` held (SHIFT) wholly
+/// onto `x`, and one turned with `vertical_scroll_modifier` held (ALT)
+/// wholly onto `y`, unless both are held; macOS moves a shift+wheel
+/// onto `x` itself before egui sees it. In a folded frame the whole
+/// delta is one motion, the sum of the two axes, and it is read as
+/// [`ScrollAxis::Wheel`]: what a person turning a wheel with that key
+/// held did. Of a frame no fold reached, `y` is the wheel and `x` is
+/// [`ScrollAxis::Sideways`] — a trackpad's sideways swipe or a tilt
+/// wheel, with no fold key down.
 ///
-/// **`x` is dropped because the viewer has no horizontal gesture.** A
-/// positive `x` is content moving right: a trackpad's sideways swipe,
-/// a tilt wheel, and shift+wheel on an ordinary mouse, which the
-/// toolkit folds onto that axis itself (`InputOptions`'
-/// `horizontal_scroll_modifier`, SHIFT by default). Zoom being the
-/// only binding a scroll has, an `x` passed on would have to zoom, and
-/// a sideways swipe that zooms is a worse answer than one that does
-/// nothing.
+/// **What this cannot tell apart is a sideways swipe made with the
+/// fold key held** from a turn of the wheel: the fold has summed them
+/// before this adapter sees the frame, so both are a wheel under
+/// shift (or alt). Undoing the fold upstream instead —
+/// `InputOptions::horizontal_scroll_modifier` set to none — would not
+/// help on macOS, where the operating system folds, and would take
+/// the one wheel route to the sideways end of every chrome pane and
+/// the status line, which scroll on both axes and on `x`
+/// (`app::ViewerBehavior::pane`, the status line's `ScrollArea`).
 ///
-/// **A ctrl/⌘+wheel reaches this function as a plain wheel**, because
-/// [`configure_input`] turns the toolkit's wheel-zoom routing off; it
-/// zooms at the one wheel rate, [`input::InputMap::zoom_rate_per_notch`].
-/// An alt+wheel arrives the same way by the toolkit's own folding
-/// (`vertical_scroll_modifier` puts it on `y`).
+/// The fold keys are read from `input`, the options the frame ran
+/// under, rather than assumed, and `modifiers` is the frame's key
+/// state: egui folds by the keys held when a trackpad gesture began,
+/// which a key released mid-gesture can make differ.
 ///
-/// **The compiler holds both axes** the way [`viewer_modifiers`] holds
-/// the five fields — `egui::Vec2` is a plain struct, so the pattern
-/// names `x` in order to drop it. That upgrade hold is nominal, a
-/// two-axis vector being unlikely to grow a third; what the pattern
-/// buys here is that the drop is written at the site rather than
-/// implied by a field access.
-fn scroll_event(delta: egui::Vec2) -> Option<ViewportEvent> {
-    let egui::Vec2 { y: points, x: _ } = delta;
-    (points != 0.0).then(|| ViewportEvent::Scroll {
-        // egui reports scroll in points; a wheel notch is
-        // conventionally 50 of them.
-        units: f64::from(points) / 50.0,
-    })
+/// **The compiler holds both axes** — `egui::Vec2` is a plain struct,
+/// so the pattern names `x` and `y` rather than implying them by a
+/// field access.
+fn scroll_events(
+    delta: egui::Vec2,
+    modifiers: egui::Modifiers,
+    input: &egui::InputOptions,
+) -> Vec<ViewportEvent> {
+    let held = viewer_modifiers(modifiers);
+    let egui::Vec2 { x, y } = delta;
+    let folded = modifiers.matches_any(input.horizontal_scroll_modifier)
+        != modifiers.matches_any(input.vertical_scroll_modifier);
+    let axes = if folded {
+        [(ScrollAxis::Wheel, x + y), (ScrollAxis::Sideways, 0.0)]
+    } else {
+        [(ScrollAxis::Wheel, y), (ScrollAxis::Sideways, x)]
+    };
+    axes.into_iter()
+        .filter(|(_, points)| *points != 0.0)
+        .map(|(axis, points)| ViewportEvent::Scroll {
+            held,
+            axis,
+            // egui reports scroll in points; a wheel notch is
+            // conventionally 50 of them.
+            units: f64::from(points) / 50.0,
+        })
+        .collect()
 }
 
 /// The pinch event this frame's magnification denotes, or `None` when
@@ -1010,7 +1024,7 @@ fn pinch_event(factor: f32) -> Option<ViewportEvent> {
 /// and everything downstream sees one convention). The events are the
 /// drags and clicks [`button_events`] reads under
 /// [`viewer_modifiers`]' modifiers, then — only while the pointer is
-/// over the pane — the wheel's [`scroll_event`] and the
+/// over the pane — the wheel's [`scroll_events`] and the
 /// magnification's [`pinch_event`].
 fn pointer_events(
     response: &egui::Response,
@@ -1023,11 +1037,16 @@ fn pointer_events(
             f64::from(pos.y - rect.min.y) * pixels_per_point,
         ]
     });
-    let (shift, alt) = response.ctx.input(|i| viewer_modifiers(i.modifiers));
-    let mut events = button_events(response, shift, alt, pixels_per_point, cursor_px);
+    let (held, modifiers) = response
+        .ctx
+        .input(|i| (viewer_modifiers(i.modifiers), i.modifiers));
+    let mut events = button_events(response, held, pixels_per_point, cursor_px);
     if response.hovered() {
+        let options = response
+            .ctx
+            .options(|options| options.input_options.clone());
         response.ctx.input(|i| {
-            events.extend(scroll_event(i.smooth_scroll_delta));
+            events.extend(scroll_events(i.smooth_scroll_delta, modifiers, &options));
             events.extend(pinch_event(i.zoom_delta()));
         });
     }
@@ -1039,12 +1058,15 @@ fn pointer_events(
 ///
 /// egui by default routes a wheel turned with ctrl, ⌘ or `command` into
 /// its zoom accumulator instead of the scroll delta, so a ctrl+wheel
-/// would reach [`scroll_event`] as nothing. The viewer owns how a wheel
-/// is read — a scroll is zoom here, at its own rate — so the routing is
+/// would reach [`scroll_events`] as nothing. The viewer owns how a wheel
+/// is read — which modified wheel does what is
+/// [`input::InputMap::bindings`]' to say — so the routing is
 /// switched off. egui's advice not to change `zoom_modifier` concerns
 /// its own zooming widgets (`egui::Scene`, plots), and this crate uses
 /// none. The option is context-wide, so its one other visible effect is
 /// that a ctrl+wheel over an egui `ScrollArea` (a panel) scrolls it.
+/// The two scroll-fold options are left as the toolkit sets them;
+/// [`scroll_events`] says why.
 /// The application and the viewport's test probe both call this, so
 /// the shipped and the tested input options are one.
 pub(crate) fn configure_input(ctx: &egui::Context) {
@@ -1069,8 +1091,7 @@ pub(crate) fn configure_input(ctx: &egui::Context) {
 /// stream order.
 fn button_events(
     response: &egui::Response,
-    shift: bool,
-    alt: bool,
+    held: Held,
     pixels_per_point: f64,
     cursor_px: Option<[f64; 2]>,
 ) -> Vec<ViewportEvent> {
@@ -1084,8 +1105,7 @@ fn button_events(
             let delta = response.drag_delta();
             drags.push(ViewportEvent::Drag {
                 button,
-                shift,
-                alt,
+                held,
                 delta_px: [
                     f64::from(delta.x) * pixels_per_point,
                     f64::from(delta.y) * pixels_per_point,
@@ -1486,7 +1506,9 @@ mod tests {
     use crate::display::DisplayView;
     use crate::frame::{self, product_badge};
     use crate::idpass::{self, IdStep};
-    use crate::input::{self, InputMap, PointerButton, ViewportEvent, ViewportSize};
+    use crate::input::{
+        self, Held, InputMap, PointerButton, ScrollAxis, ViewportEvent, ViewportSize,
+    };
     use crate::marks;
     use crate::pickcache::{self, NotIndexed};
     use crate::pickindex::{IdMap, PatchNameFault, PickError, PickIndex, PictureKey};
@@ -1830,21 +1852,28 @@ mod tests {
     /// Turn the wheel over the pane with `modifiers` held, and hand
     /// back what the viewport read from that frame.
     fn turn_wheel(pane: &Pane, modifiers: egui::Modifiers) -> Vec<ViewportEvent> {
+        scroll_by(pane, modifiers, egui::vec2(0.0, WHEEL_POINTS))
+    }
+
+    /// Scroll over the pane by `delta` points with `modifiers` held.
+    fn scroll_by(pane: &Pane, modifiers: egui::Modifiers, delta: egui::Vec2) -> Vec<ViewportEvent> {
         pane.reach();
         pane.frame(vec![
             egui::Event::ModifiersChanged(modifiers),
             egui::Event::MouseWheel {
                 unit: egui::MouseWheelUnit::Point,
-                delta: egui::vec2(0.0, WHEEL_POINTS),
+                delta,
                 phase: egui::TouchPhase::Move,
                 modifiers,
             },
         ])
     }
 
-    /// The scroll a plain [`turn_wheel`] denotes.
-    fn a_wheels_scroll() -> ViewportEvent {
+    /// The scroll a [`turn_wheel`] with `held` down denotes.
+    fn a_wheels_scroll(held: Held) -> ViewportEvent {
         ViewportEvent::Scroll {
+            held,
+            axis: ScrollAxis::Wheel,
             units: f64::from(WHEEL_POINTS) / 50.0,
         }
     }
@@ -2759,8 +2788,7 @@ mod tests {
             let expected: Vec<ViewportEvent> = viewer_button(egui_button)
                 .map(|button| ViewportEvent::Drag {
                     button,
-                    shift: false,
-                    alt: false,
+                    held: Held::NONE,
                     delta_px: [40.0, 0.0],
                 })
                 .into_iter()
@@ -2826,37 +2854,33 @@ mod tests {
     /// exhaustive matches over a closed enum, so neither can fall
     /// behind the toolkit while the other moves: a sixth
     /// `egui::PointerButton` reds them together.
-    /// **A drag carries the two modifiers this viewport binds, and the
-    /// other three leave no trace on it.**
+    /// **A drag carries the keys held**, ctrl, ⌘ and `command` all as
+    /// ctrl.
     ///
-    /// Two claims, and the second is the one nothing else can make.
     /// [`viewer_modifiers`]'s pattern holds the SET of fields it reads;
-    /// the PAIRING — shift into the first half of the returned pair,
-    /// alt into the second — is a naming decision with nothing to
-    /// derive it from, and swapping the two type-checks while turning
-    /// every constrain into an orbit and back. That is the same gap
-    /// [`viewer_button`]'s doc names for the button table, answered the
-    /// same way: a second statement of the table, here at the far end
-    /// of a real toolkit frame.
+    /// the PAIRING — which toolkit field lands in which key — is a
+    /// naming decision with nothing to derive it from, and swapping two
+    /// type-checks while turning every pan into an orbit and back.
+    /// That is the same gap [`viewer_button`]'s doc names for the
+    /// button table, answered the same way: a second statement of the
+    /// table, here at the far end of a real toolkit frame.
     #[test]
-    fn a_drag_carries_the_two_modifiers_this_viewport_binds() {
-        for (modifiers, expected) in [
-            (egui::Modifiers::NONE, (false, false)),
-            (egui::Modifiers::SHIFT, (true, false)),
-            (egui::Modifiers::ALT, (false, true)),
-            (egui::Modifiers::CTRL, (false, false)),
-            (egui::Modifiers::COMMAND, (false, false)),
-            (egui::Modifiers::MAC_CMD, (false, false)),
+    fn a_drag_carries_the_keys_held() {
+        for (modifiers, held) in [
+            (egui::Modifiers::NONE, Held::NONE),
+            (egui::Modifiers::SHIFT, Held::SHIFT),
+            (egui::Modifiers::ALT, Held::ALT),
+            (egui::Modifiers::CTRL, Held::CTRL),
+            (egui::Modifiers::COMMAND, Held::CTRL),
+            (egui::Modifiers::MAC_CMD, Held::CTRL),
         ] {
             let pane = Pane::new();
             let events = drag_modified(&pane, egui::PointerButton::Middle, modifiers);
-            let (shift, alt) = expected;
             assert_eq!(
                 events,
                 vec![ViewportEvent::Drag {
                     button: PointerButton::Middle,
-                    shift,
-                    alt,
+                    held,
                     delta_px: [40.0, 0.0],
                 }],
                 "what a middle drag carries with {modifiers:?} held"
@@ -2864,28 +2888,25 @@ mod tests {
         }
     }
 
-    /// **A plain wheel is the one scroll this viewport binds.**
-    ///
-    /// The control the shift row below needs: it asserts that a
-    /// modified wheel produces NO scroll, and a probe that never
-    /// delivered a wheel event at all would satisfy it.
+    /// **A plain wheel is a scroll on the wheel's axis with no key
+    /// held.**
     #[test]
-    fn a_plain_wheel_is_the_one_scroll_this_viewport_binds() {
+    fn a_plain_wheel_is_a_scroll_on_the_wheels_axis() {
         let pane = Pane::new();
         assert_eq!(
             turn_wheel(&pane, egui::Modifiers::NONE),
-            vec![a_wheels_scroll()]
+            vec![a_wheels_scroll(Held::NONE)]
         );
     }
 
-    /// **A ctrl/⌘+wheel is a wheel**: the same scroll a plain wheel
-    /// produces, and nothing in the toolkit's zoom accumulator. Both
-    /// halves fail if the probe's [`configure_input`] is dropped — the
-    /// toolkit then spends the wheel as a zoom and the viewport reads
-    /// nothing. That the application calls it too is
+    /// **A ctrl/⌘+wheel is a wheel with ctrl held**, and nothing in the
+    /// toolkit's zoom accumulator. Both halves fail if the probe's
+    /// [`configure_input`] is dropped — the toolkit then spends the
+    /// wheel as a zoom and the viewport reads nothing. That the
+    /// application calls it too is
     /// `app::tests::startup_reads_every_wheel_as_a_scroll`'s claim.
     #[test]
-    fn a_ctrl_wheel_is_the_same_scroll_as_a_plain_wheel() {
+    fn a_ctrl_wheel_is_a_wheel_with_ctrl_held() {
         for modifiers in [
             egui::Modifiers::CTRL,
             egui::Modifiers::MAC_CMD,
@@ -2894,8 +2915,8 @@ mod tests {
             let pane = Pane::new();
             assert_eq!(
                 turn_wheel(&pane, modifiers),
-                vec![a_wheels_scroll()],
-                "a wheel with {modifiers:?} held zooms as a plain wheel does"
+                vec![a_wheels_scroll(Held::CTRL)],
+                "a wheel with {modifiers:?} held"
             );
             assert_eq!(
                 pane.ctx.input(|i| i.zoom_delta()),
@@ -2920,37 +2941,142 @@ mod tests {
         );
     }
 
-    /// **A shift+wheel is folded onto the axis this viewport drops.**
-    ///
-    /// `horizontal_scroll_modifier` is SHIFT, so the toolkit moves the
-    /// whole delta onto `x` before the adapter sees it — the axis
-    /// [`scroll_event`] names in order to drop. Shift is a modifier
-    /// this viewport DOES bind on a drag, which is why the row is worth
-    /// having: the two halves of the decision are independent.
+    /// **A shift+wheel is a wheel with shift held**, though the toolkit
+    /// folded it sideways: [`scroll_events`] undoes the fold. The
+    /// second assertion is what makes the first a statement about the
+    /// undoing — the frame's delta did arrive on `x`.
     #[test]
-    fn a_shift_wheel_is_folded_onto_the_axis_this_viewport_drops() {
+    fn a_shift_wheel_is_a_wheel_with_shift_held() {
         let pane = Pane::new();
         assert_eq!(
             turn_wheel(&pane, egui::Modifiers::SHIFT),
-            Vec::<ViewportEvent>::new()
+            vec![a_wheels_scroll(Held::SHIFT)]
         );
-        assert_ne!(
-            pane.ctx.input(|i| i.smooth_scroll_delta.x),
-            0.0,
-            "the wheel did arrive, on the axis the viewer has no gesture for"
+        assert_eq!(
+            pane.ctx.input(|i| i.smooth_scroll_delta),
+            egui::vec2(WHEEL_POINTS, 0.0),
+            "the toolkit folded the wheel onto the sideways axis"
         );
     }
 
-    /// **An alt+wheel is folded onto the axis this viewport binds**, so
-    /// it zooms exactly as a plain wheel does. The same toolkit
-    /// mechanism as the shift row above, pointing the other way:
-    /// `vertical_scroll_modifier` is ALT.
+    /// **An alt+wheel is a wheel with alt held** — the toolkit's
+    /// vertical fold, which leaves a wheel's turn where it was.
     #[test]
-    fn an_alt_wheel_is_folded_onto_the_axis_this_viewport_binds() {
+    fn an_alt_wheel_is_a_wheel_with_alt_held() {
         let pane = Pane::new();
         assert_eq!(
             turn_wheel(&pane, egui::Modifiers::ALT),
-            vec![a_wheels_scroll()]
+            vec![a_wheels_scroll(Held::ALT)]
+        );
+    }
+
+    /// **A sideways swipe with no key held is a sideways scroll**, the
+    /// gesture the shift+wheel row above is kept apart from; under
+    /// alt the toolkit folds it onto the wheel, and under shift and alt
+    /// together it folds nothing, so a diagonal swipe is one scroll on
+    /// each axis.
+    #[test]
+    fn a_sideways_swipe_is_a_sideways_scroll_unless_a_fold_key_is_held() {
+        let units = f64::from(WHEEL_POINTS) / 50.0;
+        let sideways = egui::vec2(WHEEL_POINTS, 0.0);
+        let shift_alt = egui::Modifiers::SHIFT | egui::Modifiers::ALT;
+        let both_held = Held {
+            shift: true,
+            alt: true,
+            ..Held::NONE
+        };
+        for (modifiers, delta, expected) in [
+            (
+                egui::Modifiers::NONE,
+                sideways,
+                vec![ViewportEvent::Scroll {
+                    held: Held::NONE,
+                    axis: ScrollAxis::Sideways,
+                    units,
+                }],
+            ),
+            (
+                egui::Modifiers::CTRL,
+                sideways,
+                vec![ViewportEvent::Scroll {
+                    held: Held::CTRL,
+                    axis: ScrollAxis::Sideways,
+                    units,
+                }],
+            ),
+            (
+                egui::Modifiers::ALT,
+                sideways,
+                vec![a_wheels_scroll(Held::ALT)],
+            ),
+            (
+                shift_alt,
+                egui::vec2(WHEEL_POINTS, -WHEEL_POINTS),
+                vec![
+                    ViewportEvent::Scroll {
+                        held: both_held,
+                        axis: ScrollAxis::Wheel,
+                        units: -units,
+                    },
+                    ViewportEvent::Scroll {
+                        held: both_held,
+                        axis: ScrollAxis::Sideways,
+                        units,
+                    },
+                ],
+            ),
+        ] {
+            assert_eq!(
+                scroll_by(&Pane::new(), modifiers, delta),
+                expected,
+                "a scroll of {delta:?} with {modifiers:?} held"
+            );
+        }
+    }
+
+    /// **Each modified wheel does what the default table's row for it
+    /// says** — every one zooms, at the plain wheel's step — and a
+    /// sideways swipe, which no row names, does nothing. From a real
+    /// toolkit frame through [`input::InputMap::map`].
+    #[test]
+    fn every_wheel_zooms_by_the_default_table_and_a_sideways_swipe_does_not() {
+        let size = ViewportSize {
+            width_px: 800.0,
+            height_px: 600.0,
+        };
+        let camera = Camera::default();
+        let map = InputMap::DEFAULT;
+        let ops = |events: Vec<ViewportEvent>| -> Vec<CameraOp> {
+            events
+                .iter()
+                .filter_map(|event| map.map(event, size, &camera))
+                .collect()
+        };
+        let plain = ops(turn_wheel(&Pane::new(), egui::Modifiers::NONE));
+        assert!(
+            matches!(plain.as_slice(), [CameraOp::Dolly { factor }] if *factor < 1.0),
+            "a plain wheel up zooms in: {plain:?}"
+        );
+        for modifiers in [
+            egui::Modifiers::SHIFT,
+            egui::Modifiers::CTRL,
+            egui::Modifiers::MAC_CMD,
+            egui::Modifiers::ALT,
+        ] {
+            assert_eq!(
+                ops(turn_wheel(&Pane::new(), modifiers)),
+                plain,
+                "a wheel with {modifiers:?} held"
+            );
+        }
+        assert_eq!(
+            ops(scroll_by(
+                &Pane::new(),
+                egui::Modifiers::NONE,
+                egui::vec2(WHEEL_POINTS, 0.0)
+            )),
+            Vec::new(),
+            "a sideways swipe"
         );
     }
 

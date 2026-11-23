@@ -8106,6 +8106,7 @@ mod properties_pane_tests {
                 Binding::Drag {
                     button: PointerButton::Secondary,
                     held: Held {
+                        ctrl: true,
                         shift: true,
                         alt: true,
                     },

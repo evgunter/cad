@@ -4,9 +4,10 @@
 //! job is to say *which operation that is*. Both halves are ordinary
 //! values — [`ViewportEvent`] in, [`CameraOp`] out — so the whole
 //! mapping is replayable in a headless test. The egui layer above
-//! decides which toolkit values reach this vocabulary — for one, that
-//! a modified wheel stays a wheel (`pane::viewport::configure_input`)
-//! — and none of what an event means.
+//! decides which toolkit values reach this vocabulary — for one, which
+//! axis a wheel turned with a modifier held came in on
+//! (`pane::viewport::scroll_events`) — and none of what an event
+//! means.
 //!
 //! # Screen conventions
 //!
@@ -81,18 +82,22 @@ pub enum ViewportEvent {
     Drag {
         /// Which button is held.
         button: PointerButton,
-        /// Whether a shift-style modifier is held ([`Held::shift`]).
-        shift: bool,
-        /// Whether an alt-style modifier is held ([`Held::alt`]).
-        alt: bool,
+        /// The modifier keys down.
+        held: Held,
         /// The motion since the previous event.
         delta_px: [f64; 2],
     },
-    /// A wheel notch; positive scrolls "up", which zooms in.
+    /// Wheel notches on one axis; positive is "up" on
+    /// [`ScrollAxis::Wheel`], which zooms in, and content moving right
+    /// on [`ScrollAxis::Sideways`].
     ///
-    /// A wheel turned with ctrl or ⌘ held is one too, read at the same
-    /// rate — not a [`ViewportEvent::Pinch`].
+    /// A wheel turned with ctrl or ⌘ held is one too, with that key in
+    /// `held` — not a [`ViewportEvent::Pinch`].
     Scroll {
+        /// The modifier keys down.
+        held: Held,
+        /// Which way the scroll went.
+        axis: ScrollAxis,
         /// Notches (fractional on a trackpad).
         units: f64,
     },
@@ -221,46 +226,96 @@ impl PointerButton {
     }
 }
 
-/// The modifier keys a drag binding requires.
-///
-/// The two [`ViewportEvent::Drag`] carries. A requirement, not an
-/// exact state: a key this does not name is not asked about.
+/// Modifier keys: on an event, the keys down; on a binding row, the
+/// keys it requires — a requirement, not an exact state, so a key a
+/// row does not name is not asked about.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Held {
-    /// The shift-style modifier must be down.
+    /// Ctrl, or ⌘ on a Mac.
+    pub ctrl: bool,
+    /// The shift-style modifier.
     pub shift: bool,
-    /// The alt-style modifier must be down.
+    /// The alt-style modifier (⌥ on a Mac).
     pub alt: bool,
 }
 
 impl Held {
-    /// No modifier required.
+    /// No modifier.
     pub const NONE: Self = Self {
+        ctrl: false,
         shift: false,
         alt: false,
     };
-    /// Shift required.
+    /// Ctrl alone.
+    pub const CTRL: Self = Self {
+        ctrl: true,
+        ..Self::NONE
+    };
+    /// Shift alone.
     pub const SHIFT: Self = Self {
         shift: true,
-        alt: false,
+        ..Self::NONE
     };
-    /// Alt required.
+    /// Alt alone.
     pub const ALT: Self = Self {
-        shift: false,
         alt: true,
+        ..Self::NONE
     };
 
-    /// Whether a drag with these keys down meets the requirement:
+    /// Every combination of the three keys, [`Held::NONE`] first.
+    pub const ALL: [Self; 8] = {
+        let mut all = [Self::NONE; 8];
+        let mut at = 0;
+        while at < 8 {
+            all[at] = Self {
+                ctrl: at & 1 != 0,
+                shift: at & 2 != 0,
+                alt: at & 4 != 0,
+            };
+            at += 1;
+        }
+        all
+    };
+
+    /// Whether a gesture with the keys `down` meets this requirement:
     /// every key named here is down, and no other key is asked about.
-    pub fn met_by(self, shift: bool, alt: bool) -> bool {
-        (!self.shift || shift) && (!self.alt || alt)
+    pub fn met_by(self, down: Self) -> bool {
+        (!self.ctrl || down.ctrl) && (!self.shift || down.shift) && (!self.alt || down.alt)
     }
 
-    /// How many keys are required — a drag's most demanding matching
+    /// How many keys are named — a gesture's most demanding matching
     /// row is the one it denotes.
-    fn required(self) -> usize {
-        usize::from(self.shift) + usize::from(self.alt)
+    pub fn count(self) -> usize {
+        usize::from(self.ctrl) + usize::from(self.shift) + usize::from(self.alt)
     }
+
+    /// The keys, as the controls guide names them before a gesture:
+    /// `""`, or `"Shift + "`, `"Ctrl + Alt + "` and so on.
+    fn prefix(self) -> String {
+        [
+            (self.ctrl, "Ctrl"),
+            (self.shift, "Shift"),
+            (self.alt, "Alt"),
+        ]
+        .into_iter()
+        .filter(|(down, _)| *down)
+        .map(|(_, key)| format!("{key} + "))
+        .collect()
+    }
+}
+
+crate::vocab::vocabulary! {
+    /// Which way a scroll went.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+    pub enum ScrollAxis {
+        /// Up and down: a wheel's turn, a trackpad's vertical swipe.
+        Wheel,
+        /// Left and right: a trackpad's sideways swipe, a tilt wheel.
+        Sideways,
+    }
+
+    /// Both axes.
+    pub const ALL;
 }
 
 /// How a bound drag moves the camera.
@@ -323,8 +378,14 @@ pub enum Binding {
         /// The camera motion.
         moves: Navigation,
     },
-    /// The wheel zooms, at [`InputMap::zoom_rate_per_notch`].
-    Scroll,
+    /// A scroll on `axis` with at least `held` down zooms, at
+    /// [`InputMap::zoom_rate_per_notch`].
+    Scroll {
+        /// The axis scrolled.
+        axis: ScrollAxis,
+        /// The modifiers required.
+        held: Held,
+    },
     /// A pinch zooms by its own ratio.
     Pinch,
     /// A click of `button` selects ([`PickAction::Select`]).
@@ -341,16 +402,14 @@ impl Binding {
     /// The gesture, as the controls guide names it.
     pub fn gesture(&self) -> String {
         match *self {
-            Self::Drag { button, held, .. } => {
-                let button = button.name();
-                match (held.shift, held.alt) {
-                    (false, false) => format!("{} drag", capitalized(button)),
-                    (true, false) => format!("Shift + {button} drag"),
-                    (false, true) => format!("Alt + {button} drag"),
-                    (true, true) => format!("Shift + Alt + {button} drag"),
-                }
-            }
-            Self::Scroll => "Scroll".to_owned(),
+            Self::Drag { button, held, .. } => keyed(held, &format!("{} drag", button.name())),
+            Self::Scroll { axis, held } => keyed(
+                held,
+                match axis {
+                    ScrollAxis::Wheel => "scroll",
+                    ScrollAxis::Sideways => "sideways scroll",
+                },
+            ),
             Self::Pinch => "Pinch".to_owned(),
             Self::Click { button } => format!("{} click", capitalized(button.name())),
             Self::Hover => "Hover".to_owned(),
@@ -368,7 +427,7 @@ impl Binding {
                 moves: Navigation::Pan,
                 ..
             } => Action::Pan,
-            Self::Scroll | Self::Pinch => Action::Zoom,
+            Self::Scroll { .. } | Self::Pinch => Action::Zoom,
             Self::Click { .. } => Action::Select,
             Self::Hover => Action::Highlight,
         }
@@ -377,6 +436,14 @@ impl Binding {
     /// What the gesture does, as the controls guide names it.
     pub fn action(&self) -> &'static str {
         self.does().label()
+    }
+}
+
+/// `gesture` after the keys `held` names, capitalized at its start.
+fn keyed(held: Held, gesture: &str) -> String {
+    match held.prefix() {
+        keys if keys.is_empty() => capitalized(gesture),
+        keys => format!("{keys}{gesture}"),
     }
 }
 
@@ -404,10 +471,11 @@ pub struct InputMap {
     /// Which gesture does what: every gesture this map honours, and
     /// the rows the controls guide shows.
     ///
-    /// A drag denotes the matching [`Binding::Drag`] row that requires
-    /// the most modifiers, so a row naming one takes the drag from
-    /// the row on that button naming none; between rows requiring
-    /// equally many, the earlier.
+    /// A drag or a scroll denotes the matching row — a
+    /// [`Binding::Drag`] on its button, a [`Binding::Scroll`] on its
+    /// axis, whose keys are down — that requires the most modifiers,
+    /// so a row naming one takes the gesture from the row naming none;
+    /// between rows requiring equally many, the earlier.
     pub bindings: &'static [Binding],
 }
 
@@ -456,7 +524,28 @@ impl InputMap {
                 held: Held::SHIFT,
                 moves: Navigation::Pan,
             },
-            Binding::Scroll,
+            // Every wheel zooms, whatever key is held: a row each, so
+            // the guide says so. Shift's is the one the toolkit would
+            // have folded sideways (`pane::viewport::scroll_events`).
+            Binding::Scroll {
+                axis: ScrollAxis::Wheel,
+                held: Held::NONE,
+            },
+            Binding::Scroll {
+                axis: ScrollAxis::Wheel,
+                held: Held::SHIFT,
+            },
+            Binding::Scroll {
+                axis: ScrollAxis::Wheel,
+                held: Held::CTRL,
+            },
+            Binding::Scroll {
+                axis: ScrollAxis::Wheel,
+                held: Held::ALT,
+            },
+            // No row names a sideways scroll: with zoom the one thing a
+            // scroll can do, a sideways swipe that zoomed would be
+            // worse than one that does nothing.
             Binding::Pinch,
             // Click-to-select, the first of
             // `crates/viewer/GUI-DESIGN.md` G3's four items.
@@ -467,21 +556,17 @@ impl InputMap {
         ],
     };
 
-    /// The camera motion a drag of `button` with these modifiers down
-    /// denotes, by the rule [`InputMap::bindings`] states.
-    fn drag_navigation(&self, button: PointerButton, shift: bool, alt: bool) -> Option<Navigation> {
+    /// What a drag or scroll with the keys `down` denotes, by the rule
+    /// [`InputMap::bindings`] states: `fits` reads a row on the
+    /// gesture's button or axis as the keys it requires and what it
+    /// does, and is `None` on every other row.
+    fn denoted<T>(&self, down: Held, fits: impl Fn(&Binding) -> Option<(Held, T)>) -> Option<T> {
         self.bindings
             .iter()
-            .filter_map(|binding| match *binding {
-                Binding::Drag {
-                    button: bound,
-                    held,
-                    moves,
-                } if bound == button && held.met_by(shift, alt) => Some((held.required(), moves)),
-                _ => None,
-            })
+            .filter_map(|binding| fits(binding).filter(|(held, _)| held.met_by(down)))
+            .map(|(held, does)| (held.count(), does))
             .reduce(|best, next| if next.0 > best.0 { next } else { best })
-            .map(|(_, moves)| moves)
+            .map(|(_, does)| does)
     }
 }
 
@@ -545,14 +630,21 @@ impl InputMap {
         match *event {
             ViewportEvent::Drag {
                 button,
-                shift,
-                alt,
+                held: down,
                 delta_px: [dx, dy],
             } => {
                 if dx == 0.0 && dy == 0.0 {
                     return None;
                 }
-                match self.drag_navigation(button, shift, alt)? {
+                let moves = self.denoted(down, |binding| match *binding {
+                    Binding::Drag {
+                        button: bound,
+                        held,
+                        moves,
+                    } if bound == button => Some((held, moves)),
+                    _ => None,
+                })?;
+                match moves {
                     Navigation::Pan => {
                         let world_per_px = self.world_per_px(viewport, camera)?;
                         // The model follows the cursor, so the target
@@ -569,10 +661,18 @@ impl InputMap {
                     }),
                 }
             }
-            ViewportEvent::Scroll { units } => {
-                if units == 0.0 || !self.bindings.contains(&Binding::Scroll) {
+            ViewportEvent::Scroll {
+                held: down,
+                axis,
+                units,
+            } => {
+                if units == 0.0 {
                     return None;
                 }
+                self.denoted(down, |binding| match *binding {
+                    Binding::Scroll { axis: bound, held } if bound == axis => Some((held, ())),
+                    _ => None,
+                })?;
                 Some(CameraOp::Dolly {
                     factor: (-units * self.zoom_rate_per_notch).exp(),
                 })

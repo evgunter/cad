@@ -17,7 +17,7 @@ use bvh::{Aabb, Axis};
 use pncad::geom_core::{Point3, Tol, Vec3};
 use test_utils::fuzz;
 use viewer::camera::{self, Camera, CameraOp, CameraOpError};
-use viewer::input::{InputMap, PointerButton, ViewportEvent, ViewportSize};
+use viewer::input::{Held, InputMap, PointerButton, ScrollAxis, ViewportEvent, ViewportSize};
 use viewer::scene::{self, DisplayTolerance};
 
 /// The pole clamp the camera documents (`|pitch| < π/2` strictly, held
@@ -215,8 +215,7 @@ fn pan_keeps_the_point_under_the_cursor_at_random_states() {
             .map(
                 &ViewportEvent::Drag {
                     button: PointerButton::Secondary,
-                    shift: false,
-                    alt: false,
+                    held: Held::NONE,
                     delta_px: [dx, dy],
                 },
                 size,
@@ -311,6 +310,7 @@ fn map_stream_agrees_with_folding_its_own_output() {
         PointerButton::Secondary,
         PointerButton::Middle,
     ];
+    let held = |at: usize| Held::ALL[at];
     for case in 0..fuzz::scaled(24) {
         let start = Camera::framing(Some(random_box(&mut rng)), 1.5).expect("frames");
         let size = ViewportSize {
@@ -324,6 +324,12 @@ fn map_stream_agrees_with_folding_its_own_output() {
                 let kind = rng.below(8);
                 if kind == 0 {
                     ViewportEvent::Scroll {
+                        held: held(rng.below(8)),
+                        axis: if rng.below(2) == 1 {
+                            ScrollAxis::Sideways
+                        } else {
+                            ScrollAxis::Wheel
+                        },
                         units: rng.range(-4.0, 4.0),
                     }
                 } else if kind == 1 {
@@ -333,11 +339,10 @@ fn map_stream_agrees_with_folding_its_own_output() {
                 } else {
                     ViewportEvent::Drag {
                         button: buttons[rng.below(3)],
-                        shift: rng.below(2) == 1,
-                        // Random alt too: the property is about the
+                        // Random keys: the property is about the
                         // fold agreeing with its own output, whatever
                         // the events bound to.
-                        alt: rng.below(2) == 1,
+                        held: held(rng.below(8)),
                         // Includes exact zeros sometimes, which must
                         // bind to nothing.
                         delta_px: [

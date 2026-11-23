@@ -11,8 +11,8 @@
 
 use viewer::camera::{Camera, CameraOp};
 use viewer::input::{
-    Action, Binding, Held, InputMap, Navigation, PRESETS, PickAction, PointerButton, ViewportEvent,
-    ViewportSize,
+    Action, Binding, Held, InputMap, Navigation, PRESETS, PickAction, PointerButton, ScrollAxis,
+    ViewportEvent, ViewportSize,
 };
 
 use crate::common;
@@ -48,20 +48,27 @@ fn did(map: &InputMap, event: &ViewportEvent) -> Vec<Action> {
     moved.into_iter().chain(picked).collect()
 }
 
-fn drag(button: PointerButton, shift: bool, alt: bool) -> ViewportEvent {
+fn drag(button: PointerButton, held: Held) -> ViewportEvent {
     ViewportEvent::Drag {
         button,
-        shift,
-        alt,
+        held,
         delta_px: [7.0, -3.0],
+    }
+}
+
+fn scroll(axis: ScrollAxis, held: Held) -> ViewportEvent {
+    ViewportEvent::Scroll {
+        held,
+        axis,
+        units: 1.0,
     }
 }
 
 /// The event that is exactly `binding`'s gesture.
 fn performed(binding: &Binding) -> ViewportEvent {
     match *binding {
-        Binding::Drag { button, held, .. } => drag(button, held.shift, held.alt),
-        Binding::Scroll => ViewportEvent::Scroll { units: 1.0 },
+        Binding::Drag { button, held, .. } => drag(button, held),
+        Binding::Scroll { axis, held } => scroll(axis, held),
         Binding::Pinch => ViewportEvent::Pinch { factor: 1.25 },
         Binding::Click { button } => ViewportEvent::Click { button, pos_px: AT },
         Binding::Hover => ViewportEvent::Hover { pos_px: AT },
@@ -75,13 +82,19 @@ fn names(binding: &Binding, event: &ViewportEvent) -> bool {
             Binding::Drag { button, held, .. },
             ViewportEvent::Drag {
                 button: dragged,
-                shift,
-                alt,
+                held: down,
                 ..
             },
-        ) => button == dragged && held.met_by(shift, alt),
-        (Binding::Scroll, ViewportEvent::Scroll { .. })
-        | (Binding::Pinch, ViewportEvent::Pinch { .. })
+        ) => button == dragged && held.met_by(down),
+        (
+            Binding::Scroll { axis, held },
+            ViewportEvent::Scroll {
+                axis: scrolled,
+                held: down,
+                ..
+            },
+        ) => axis == scrolled && held.met_by(down),
+        (Binding::Pinch, ViewportEvent::Pinch { .. })
         | (Binding::Hover, ViewportEvent::Hover { .. }) => true,
         (
             Binding::Click { button },
@@ -94,30 +107,43 @@ fn names(binding: &Binding, event: &ViewportEvent) -> bool {
 }
 
 /// Every event of the vocabulary that could denote something: each
-/// button dragged under each modifier state and clicked, the wheel, a
-/// pinch, a hover.
+/// button dragged under each modifier state and clicked, each axis
+/// scrolled both ways under each modifier state, a pinch, a hover.
 fn every_gesture() -> Vec<ViewportEvent> {
     let mut events = vec![
-        ViewportEvent::Scroll { units: 1.0 },
-        ViewportEvent::Scroll { units: -2.0 },
         ViewportEvent::Pinch { factor: 1.25 },
         ViewportEvent::Hover { pos_px: AT },
     ];
+    for held in Held::ALL {
+        for axis in ScrollAxis::ALL {
+            for units in [1.0, -2.0] {
+                events.push(ViewportEvent::Scroll { held, axis, units });
+            }
+        }
+    }
     for button in PointerButton::ALL {
         events.push(ViewportEvent::Click { button, pos_px: AT });
-        for shift in [false, true] {
-            for alt in [false, true] {
-                events.push(drag(button, shift, alt));
-            }
+        for held in Held::ALL {
+            events.push(drag(button, held));
         }
     }
     events
 }
 
+/// `held` with each key moved to the next: ctrl to shift, shift to
+/// alt, alt to ctrl.
+fn rotated(held: Held) -> Held {
+    Held {
+        ctrl: held.alt,
+        shift: held.ctrl,
+        alt: held.shift,
+    }
+}
+
 /// The registered presets, and one table no preset holds: the
-/// default's rows reversed with the default's modifiers swapped, so a
-/// mapper arm that read a fixed button or modifier instead of the
-/// table disagrees with it.
+/// default's rows reversed, with every key moved to the next and every
+/// scroll on the other axis, so a mapper arm that read a fixed button,
+/// modifier or axis instead of the table disagrees with it.
 fn tables() -> Vec<(String, InputMap)> {
     let swapped: Vec<Binding> = InputMap::DEFAULT
         .bindings
@@ -130,11 +156,15 @@ fn tables() -> Vec<(String, InputMap)> {
                 moves,
             } => Binding::Drag {
                 button,
-                held: Held {
-                    shift: held.alt,
-                    alt: held.shift,
-                },
+                held: rotated(held),
                 moves,
+            },
+            Binding::Scroll { axis, held } => Binding::Scroll {
+                axis: match axis {
+                    ScrollAxis::Wheel => ScrollAxis::Sideways,
+                    ScrollAxis::Sideways => ScrollAxis::Wheel,
+                },
+                held: rotated(held),
             },
             Binding::Click { .. } => Binding::Click {
                 button: PointerButton::Middle,
@@ -194,53 +224,98 @@ fn every_gesture_the_mapper_answers_is_a_guide_row() {
     }
 }
 
-/// How many keys `held` names.
-fn keys(held: Held) -> usize {
-    usize::from(held.shift) + usize::from(held.alt)
+/// A keyed row's gesture with no keys, and the keys it requires: a
+/// drag's button, a scroll's axis.
+fn keyed(binding: &Binding) -> Option<(Binding, Held)> {
+    match *binding {
+        Binding::Drag { button, held, .. } => Some((
+            Binding::Drag {
+                button,
+                held: Held::NONE,
+                moves: Navigation::Orbit,
+            },
+            held,
+        )),
+        Binding::Scroll { axis, held } => Some((
+            Binding::Scroll {
+                axis,
+                held: Held::NONE,
+            },
+            held,
+        )),
+        Binding::Pinch | Binding::Click { .. } | Binding::Hover => None,
+    }
 }
 
-/// **A key a row does not name is not asked about**: a row's drag
-/// with any further keys down still does the row's action, unless
-/// that state is another row's — one on the same button naming more
-/// keys, or as many and listed earlier.
+/// **A key a row does not name is not asked about**: a drag's or a
+/// scroll's row with any further keys down still does the row's
+/// action, unless that state is another row's — one on the same button
+/// or axis naming more keys, or as many and listed earlier.
 #[test]
-fn a_drag_row_holds_under_every_key_it_does_not_name() {
-    let mut held_under_more = 0;
+fn a_keyed_row_holds_under_every_key_it_does_not_name() {
+    let (mut drags, mut scrolls) = (0, 0);
     for (name, map) in tables() {
         for (at, row) in map.bindings.iter().enumerate() {
-            let Binding::Drag { button, held, .. } = *row else {
+            let Some((gesture, held)) = keyed(row) else {
                 continue;
             };
-            for (more_shift, more_alt) in [(false, true), (true, false), (true, true)] {
-                let (shift, alt) = (held.shift || more_shift, held.alt || more_alt);
+            for down in Held::ALL.into_iter().filter(|down| held.met_by(*down)) {
                 let taken = map.bindings.iter().enumerate().any(|(other_at, other)| {
-                    matches!(
-                        *other,
-                        Binding::Drag { button: bound, held: other_held, .. }
-                            if other_at != at
-                                && bound == button
-                                && other_held.met_by(shift, alt)
-                                && (keys(other_held) > keys(held)
-                                    || (keys(other_held) == keys(held) && other_at < at))
-                    )
+                    keyed(other).is_some_and(|(other_gesture, other_held)| {
+                        other_at != at
+                            && other_gesture == gesture
+                            && other_held.met_by(down)
+                            && (other_held.count() > held.count()
+                                || (other_held.count() == held.count() && other_at < at))
+                    })
                 });
-                if taken || (shift, alt) == (held.shift, held.alt) {
+                if taken || down == held {
                     continue;
                 }
-                held_under_more += 1;
+                let event = match gesture {
+                    Binding::Drag { button, .. } => {
+                        drags += 1;
+                        drag(button, down)
+                    }
+                    Binding::Scroll { axis, .. } => {
+                        scrolls += 1;
+                        scroll(axis, down)
+                    }
+                    _ => unreachable!("`keyed` reads drags and scrolls"),
+                };
                 assert_eq!(
-                    did(&map, &drag(button, shift, alt)),
+                    did(&map, &event),
                     vec![row.does()],
-                    "{name}: `{}` with shift {shift}, alt {alt} down",
+                    "{name}: `{}` with {down:?} down",
                     row.gesture(),
                 );
             }
         }
     }
     assert!(
-        held_under_more >= 8,
-        "the tables hold rows with a key to spare: {held_under_more} states asked"
+        drags >= 16 && scrolls >= 8,
+        "the tables hold rows with a key to spare: {drags} drag and {scrolls} scroll states asked"
     );
+}
+
+/// **The default table's wheel zooms under every key, and its
+/// sideways scroll does nothing under any** — the shift+wheel the
+/// toolkit folds sideways among the first, a trackpad's sideways
+/// swipe the second.
+#[test]
+fn the_default_wheel_zooms_under_every_key_and_a_sideways_scroll_does_nothing() {
+    for held in Held::ALL {
+        assert_eq!(
+            did(&InputMap::DEFAULT, &scroll(ScrollAxis::Wheel, held)),
+            vec![Action::Zoom],
+            "the wheel under {held:?}"
+        );
+        assert_eq!(
+            did(&InputMap::DEFAULT, &scroll(ScrollAxis::Sideways, held)),
+            vec![],
+            "a sideways scroll under {held:?}"
+        );
+    }
 }
 
 /// **Between two rows a drag fits that name equally many keys, the
@@ -257,7 +332,14 @@ fn of_two_rows_naming_equally_many_keys_the_earlier_wins() {
         held: Held::ALT,
         moves: Navigation::Pan,
     };
-    let both = drag(PointerButton::Middle, true, true);
+    let both = drag(
+        PointerButton::Middle,
+        Held {
+            shift: true,
+            alt: true,
+            ..Held::NONE
+        },
+    );
     for (bindings, first) in [(&[ORBIT, PAN], Action::Orbit), (&[PAN, ORBIT], Action::Pan)] {
         let map = InputMap {
             bindings,
@@ -276,10 +358,11 @@ fn words(text: &str) -> Vec<String> {
 }
 
 /// **A row's wording says what its fields say**: a drag's gesture
-/// names its button and no other, and a key exactly when the row
-/// requires it; its action is its `moves`; and no two actions, and no
-/// two gestures, read alike. Every button under every key state, so
-/// the rows no preset holds are worded too.
+/// names its button and no other, a scroll's says `sideways` exactly
+/// on that axis, and either names a key exactly when the row requires
+/// it; a drag's action is its `moves`; and no two actions, and no two
+/// gestures, read alike. Every button and axis under every key state,
+/// so the rows no preset holds are worded too.
 #[test]
 fn a_rows_wording_names_its_button_its_keys_and_its_action() {
     let names_only = |said: &[String], button: PointerButton, row: &Binding| {
@@ -293,28 +376,59 @@ fn a_rows_wording_names_its_button_its_keys_and_its_action() {
             );
         }
     };
+    let names_keys = |said: &[String], held: Held, row: &Binding| {
+        for (key, required) in [
+            ("ctrl", held.ctrl),
+            ("shift", held.shift),
+            ("alt", held.alt),
+        ] {
+            assert_eq!(
+                said.iter().any(|word| word == key),
+                required,
+                "{row:?} says {key} in `{}`",
+                row.gesture()
+            );
+        }
+    };
     let mut gestures = Vec::new();
+    for held in Held::ALL {
+        for axis in ScrollAxis::ALL {
+            let row = Binding::Scroll { axis, held };
+            let said = words(&row.gesture());
+            names_keys(&said, held, &row);
+            assert!(
+                said.iter().any(|word| word == "scroll"),
+                "{row:?}: {said:?}"
+            );
+            assert_eq!(
+                said.iter().any(|word| word == "sideways"),
+                axis == ScrollAxis::Sideways,
+                "{row:?}: {said:?}"
+            );
+            assert!(
+                PointerButton::ALL
+                    .iter()
+                    .all(|button| !said.iter().any(|word| word == button.name())),
+                "{row:?} names a button: {said:?}"
+            );
+            assert_eq!(row.does(), Action::Zoom, "{row:?}");
+            gestures.push(row.gesture());
+        }
+    }
     for button in PointerButton::ALL {
-        for (shift, alt) in [(false, false), (true, false), (false, true), (true, true)] {
+        for held in Held::ALL {
             for (moves, does) in [
                 (Navigation::Orbit, Action::Orbit),
                 (Navigation::Pan, Action::Pan),
             ] {
                 let row = Binding::Drag {
                     button,
-                    held: Held { shift, alt },
+                    held,
                     moves,
                 };
                 let said = words(&row.gesture());
                 names_only(&said, button, &row);
-                for (key, required) in [("shift", shift), ("alt", alt)] {
-                    assert_eq!(
-                        said.iter().any(|word| word == key),
-                        required,
-                        "{row:?} says {key} in `{}`",
-                        row.gesture()
-                    );
-                }
+                names_keys(&said, held, &row);
                 assert!(said.iter().any(|word| word == "drag"), "{row:?}: {said:?}");
                 assert_eq!(row.does(), does, "{row:?}");
                 assert_eq!(row.action(), does.label(), "{row:?}");
@@ -329,7 +443,7 @@ fn a_rows_wording_names_its_button_its_keys_and_its_action() {
         assert!(said.iter().any(|word| word == "click"), "{row:?}: {said:?}");
         gestures.push(row.gesture());
     }
-    gestures.extend([Binding::Scroll, Binding::Pinch, Binding::Hover].map(|row| row.gesture()));
+    gestures.extend([Binding::Pinch, Binding::Hover].map(|row| row.gesture()));
     for (at, gesture) in gestures.iter().enumerate() {
         assert!(
             !gestures[..at].contains(gesture),

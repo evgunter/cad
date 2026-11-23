@@ -65,7 +65,7 @@ use bvh::{Aabb, Axis};
 use pncad::geom_core::{Point3, Tol};
 use test_utils::fuzz;
 use viewer::camera::{self, Camera, CameraError, CameraOp, CameraOpError};
-use viewer::input::{InputMap, PointerButton, ViewportEvent, ViewportSize};
+use viewer::input::{Held, InputMap, PointerButton, ViewportEvent, ViewportSize};
 use viewer::scene::{self, DisplayTolerance};
 
 // ------------------------------------------------------------ fixtures
@@ -366,8 +366,7 @@ fn a_pan_moves_the_cursor_point_by_the_dragged_distance_on_both_axes() {
         let dy = rng.range(-400.0, 400.0);
         let event = ViewportEvent::Drag {
             button: PointerButton::Secondary,
-            shift: false,
-            alt: false,
+            held: Held::NONE,
             delta_px: [dx, dy],
         };
         let Some(op) = map.map(&event, size, &camera) else {

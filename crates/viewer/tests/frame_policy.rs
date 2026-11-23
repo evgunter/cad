@@ -1826,8 +1826,7 @@ fn an_empty_batch_and_a_pure_cursor_stream_move_no_camera() {
 
     let orbit = [input::ViewportEvent::Drag {
         button: input::PointerButton::Middle,
-        shift: false,
-        alt: false,
+        held: input::Held::NONE,
         delta_px: [12.0, 0.0],
     }];
     let moved = input::fold_events(&map, &camera, viewport, &orbit);

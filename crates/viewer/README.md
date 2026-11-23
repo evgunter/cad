@@ -26,6 +26,9 @@ it rather than using it. The ratified plan that record answers to is
 | Right drag | pan |
 | Shift + middle drag | pan |
 | Scroll | zoom |
+| Shift + scroll | zoom |
+| Ctrl + scroll | zoom |
+| Alt + scroll | zoom |
 | Pinch | zoom |
 | Left click | select what is under the pointer |
 | Hover | highlight what is under the pointer |
@@ -39,14 +42,16 @@ them, so neither can name a binding the viewport does not honour.
 Selecting picks a face, edge or vertex, or a profile by its drawn
 outline, and feeds the mate tool's picks. A modifier key a row does not
 name does not change what its gesture does (`input::Held::met_by`), and
-of two rows a drag fits, the one naming more keys is the one it means.
+of two rows a drag or a scroll fits, the one naming more keys is the
+one it means. Ctrl is ctrl or ⌘.
 
-**The wheel's modifiers are not in the table.** The toolkit adapter
-decides them before the table is asked (`pane/viewport.rs`,
-`configure_input` and `scroll_event`, with the rows beside them that
-hold it): a wheel turned with ctrl, ⌘ or alt held reaches the table as
-a plain scroll, and one turned with shift held is a sideways scroll,
-which is no gesture here.
+**A sideways scroll** — a trackpad's sideways swipe, a tilt wheel — is
+named by no row, so it does nothing: zoom being the one thing a scroll
+does, a sideways swipe that zoomed would be worse. The toolkit folds a
+shift+wheel onto the sideways axis (and macOS does before it); the
+adapter undoes that fold (`pane/viewport.rs`, `scroll_events`), so a
+shift+wheel reaches the table as a wheel with shift held, and only a
+sideways swipe made with shift held cannot be told from one.
 
 **A pinch zooms** with the model's apparent size following the
 fingers: a trackpad pinch where the
@@ -814,11 +819,10 @@ trusted:
   `ProbeOps` unpacks in `pane::properties` and `widgets`.
 - **Two destructure a TOOLKIT type at the chrome boundary** and are
   not rows: `pane::viewport`'s `viewer_modifiers` over
-  `egui::Modifiers` and `scroll_event` over `egui::Vec2`. Each carries
+  `egui::Modifiers` and `scroll_events` over `egui::Vec2`. Each carries
   a completeness argument of its own and each is worth having, but the
   declaration they are held to is the toolkit's rather than this
-  crate's — a field arriving there is a version bump's news, which is
-  the upgrade hold `scroll_event`'s own doc calls nominal, and not a
+  crate's — a field arriving there is a version bump's news, and not a
   value of ours whose account has fallen behind it.
 - **The remaining fifteen binds are the fourteen censuses below.**
   `PartialEq for Camera` spends two of them, the second over

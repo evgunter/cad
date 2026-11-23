@@ -9,7 +9,7 @@
 #![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
 
 use viewer::camera::{self, Camera, CameraOp, CameraOpError};
-use viewer::input::{self, InputMap, PointerButton, ViewportEvent, ViewportSize};
+use viewer::input::{self, Held, InputMap, PointerButton, ScrollAxis, ViewportEvent, ViewportSize};
 
 use crate::common;
 
@@ -37,8 +37,7 @@ fn round_map() -> InputMap {
 fn drag(button: PointerButton, shift: bool, dx: f64, dy: f64) -> ViewportEvent {
     ViewportEvent::Drag {
         button,
-        shift,
-        alt: false,
+        held: if shift { Held::SHIFT } else { Held::NONE },
         delta_px: [dx, dy],
     }
 }
@@ -46,9 +45,17 @@ fn drag(button: PointerButton, shift: bool, dx: f64, dy: f64) -> ViewportEvent {
 fn alt_drag(button: PointerButton, dx: f64, dy: f64) -> ViewportEvent {
     ViewportEvent::Drag {
         button,
-        shift: false,
-        alt: true,
+        held: Held::ALT,
         delta_px: [dx, dy],
+    }
+}
+
+/// A plain wheel's scroll of `units` notches.
+fn wheel(units: f64) -> ViewportEvent {
+    ViewportEvent::Scroll {
+        held: Held::NONE,
+        axis: ScrollAxis::Wheel,
+        units,
     }
 }
 
@@ -61,10 +68,10 @@ fn a_synthetic_event_stream_folds_to_the_expected_operations() {
     let events = vec![
         drag(PointerButton::Middle, false, 10.0, 0.0),
         drag(PointerButton::Middle, false, 0.0, -5.0),
-        ViewportEvent::Scroll { units: 1.0 },
+        wheel(1.0),
         drag(PointerButton::Primary, false, 20.0, 20.0),
         drag(PointerButton::Middle, false, 0.0, 0.0),
-        ViewportEvent::Scroll { units: 0.0 },
+        wheel(0.0),
     ];
     let (_, ops) = input::map_stream(&map, &camera, viewport(), &events).expect("finite events");
     assert_eq!(
@@ -223,10 +230,7 @@ fn a_pan_keeps_the_point_under_the_cursor() {
 fn scrolling_up_and_back_returns_the_same_distance() {
     let map = round_map();
     let camera = framed();
-    let events = vec![
-        ViewportEvent::Scroll { units: 3.0 },
-        ViewportEvent::Scroll { units: -3.0 },
-    ];
+    let events = vec![wheel(3.0), wheel(-3.0)];
     let (back, ops) = input::map_stream(&map, &camera, viewport(), &events).expect("finite events");
     assert_eq!(ops.len(), 2);
     assert!(
@@ -330,13 +334,8 @@ fn the_stream_folds_the_camera_between_events() {
     let pan = drag(PointerButton::Secondary, false, 100.0, 0.0);
 
     let (_, plain) = input::map_stream(&map, &camera, size, &[pan]).expect("finite events");
-    let (_, after_zoom) = input::map_stream(
-        &map,
-        &camera,
-        size,
-        &[ViewportEvent::Scroll { units: 5.0 }, pan],
-    )
-    .expect("finite events");
+    let (_, after_zoom) =
+        input::map_stream(&map, &camera, size, &[wheel(5.0), pan]).expect("finite events");
 
     let world_of = |op: &CameraOp| match *op {
         CameraOp::Pan { right, .. } => right,
@@ -371,7 +370,7 @@ fn the_shipped_fold_and_the_result_view_are_the_same_fold() {
     // no refusal.
     let clean = vec![
         drag(PointerButton::Middle, false, 10.0, -4.0),
-        ViewportEvent::Scroll { units: 1.5 },
+        wheel(1.5),
         drag(PointerButton::Secondary, false, 7.0, 3.0),
     ];
     let folded = input::fold_events(&map, &camera, size, &clean);
