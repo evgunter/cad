@@ -326,7 +326,7 @@ impl<'a, T: Real> Sides<'a, T> {
                 };
                 let row = super::split_on_row(rows, Cell::Edge(line.edge), line.margin);
                 let contact = crate::Contact::new(body, Cell::Edge(a), Cell::Edge(b))
-                    .map_err(|_| FinishDesync::CoincidentUnheld { edges: [a, b] })?;
+                    .map_err(|_| FinishDesync::CoincidentOneCell { edges: [a, b] })?;
                 let list = match side {
                     PlaneSide::Above => &mut out.above,
                     _ => &mut out.below,
@@ -337,18 +337,21 @@ impl<'a, T: Real> Sides<'a, T> {
         for pair in coincident {
             let mut held = false;
             for (side, body) in self.listed() {
-                let joined = |mut e: EdgeKey| {
-                    while let Some(&(_, j)) = self
-                        .naming
-                        .edge_joins
-                        .iter()
-                        .find(|&&(s, j)| s == side && j.gone == e)
-                    {
-                        e = j.kept;
-                    }
-                    e
-                };
-                let [a, b] = pair.edges.map(joined);
+                let joins: Vec<crate::boolean::EdgeJoin> = self
+                    .naming
+                    .edge_joins
+                    .iter()
+                    .filter(|&&(s, _)| s == side)
+                    .map(|&(_, j)| j)
+                    .collect();
+                let [a, b] = pair
+                    .edges
+                    .map(|e| crate::boolean::edge_join::joined_edge(&joins, e));
+                // A coplanar merge kills only an edge between two faces of
+                // one plane, and a slit's edge bounds a face of the cut and
+                // a wall leaving the plane: one the merge killed leaves its
+                // partner on the merged face's line, a touch no record
+                // states, so it refuses rather than drop the pair.
                 let merged = |e: EdgeKey| {
                     self.naming
                         .merge_groups
@@ -356,14 +359,13 @@ impl<'a, T: Real> Sides<'a, T> {
                         .any(|(s, g)| *s == side && g.killed_edges.contains(&e))
                 };
                 if merged(a) || merged(b) {
-                    held = true;
-                    continue;
+                    return Err(FinishDesync::CoincidentMerged { edges: pair.edges });
                 }
                 if body.get_edge(a).is_none() || body.get_edge(b).is_none() {
                     continue;
                 }
                 let contact = crate::Contact::new(body, Cell::Edge(a), Cell::Edge(b))
-                    .map_err(|_| FinishDesync::CoincidentUnheld { edges: pair.edges })?;
+                    .map_err(|_| FinishDesync::CoincidentOneCell { edges: pair.edges })?;
                 let list = match side {
                     PlaneSide::Above => &mut out.above,
                     _ => &mut out.below,
@@ -914,9 +916,21 @@ pub enum FinishDesync {
         solids: usize,
     },
     /// No side holds both of a slit's two coincident edges, each read
-    /// through the joins its side ended with, and no merge killed either.
+    /// through the joins its side ended with.
     CoincidentUnheld {
         /// The two edges, in the scratch body's keys.
+        edges: [EdgeKey; 2],
+    },
+    /// A side's coplanar merge killed an edge of a slit's coincident
+    /// pair, which bounds a face of the cut and a wall leaving the plane.
+    CoincidentMerged {
+        /// The two edges, in the scratch body's keys.
+        edges: [EdgeKey; 2],
+    },
+    /// A coincident pair the split minted is one edge on its side, read
+    /// through the side's joins.
+    CoincidentOneCell {
+        /// The two edges, in the side's keys.
         edges: [EdgeKey; 2],
     },
 }
@@ -957,6 +971,14 @@ impl core::fmt::Display for FinishDesync {
             Self::CoincidentUnheld { edges } => write!(
                 f,
                 "no side of the cut holds both of the slit's coincident edges {edges:?}"
+            ),
+            Self::CoincidentMerged { edges } => write!(
+                f,
+                "a merge of coplanar faces killed one of the slit's coincident edges {edges:?}"
+            ),
+            Self::CoincidentOneCell { edges } => write!(
+                f,
+                "the cut's coincident edges {edges:?} are one edge on their side"
             ),
         }
     }

@@ -474,8 +474,9 @@ fn random_bases_with_corners_in_the_band_split_sound() {
 /// way up, against the closed form: a base the review's fuzz drew
 /// (seed `0x9E3779B97F4A7C15`, its 123rd). The floor is read On, so the
 /// edge from the apex to it lies in the plane. Each piece passes tier
-/// 3′ with no contact records: the two edges continuing each other
-/// through the floor, kinked by `0.9 ε`, overlap nowhere.
+/// 3′ against its records: where the side holds two copies of that edge,
+/// one per lobe, the split records the pair, citing the edge's `SplitOn`
+/// row.
 #[test]
 fn a_notch_floor_in_the_band_splits_sound() {
     let base = base_of(&[
@@ -495,7 +496,7 @@ fn a_notch_floor_in_the_band_splits_sound() {
                     panic!("{}: side {side} empty", pose.label);
                 };
                 assert_eq!(
-                    topo::validate_pseudomanifold(b, &topo::ContactRecords::default(), t()),
+                    topo::validate_pseudomanifold(b, topo::FinishedBody::records(b), t()),
                     Ok(()),
                     "{}, up {up}, side {side}: tier 3′",
                     pose.label

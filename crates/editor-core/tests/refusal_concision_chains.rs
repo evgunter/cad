@@ -69,6 +69,8 @@ const KERNEL_KEYED: &[&str] = &[
     "Split/Finish/Desync(LoopNotACycle)",
     "Split/Finish/Desync(NoShell)",
     "Split/Finish/Desync(CoincidentUnheld)",
+    "Split/Finish/Desync(CoincidentMerged)",
+    "Split/Finish/Desync(CoincidentOneCell)",
     "Split/Finish/Carve",
     "Split/Finish/LineageRow",
     "Split/Finish/TornComponent",
@@ -2774,6 +2776,18 @@ fn split() -> Vec<(String, NodeErrorKind)> {
         (
             "Desync(CoincidentUnheld)",
             F::Desync(D::CoincidentUnheld {
+                edges: [topo::EdgeKey::default(); 2],
+            }),
+        ),
+        (
+            "Desync(CoincidentMerged)",
+            F::Desync(D::CoincidentMerged {
+                edges: [topo::EdgeKey::default(); 2],
+            }),
+        ),
+        (
+            "Desync(CoincidentOneCell)",
+            F::Desync(D::CoincidentOneCell {
                 edges: [topo::EdgeKey::default(); 2],
             }),
         ),
