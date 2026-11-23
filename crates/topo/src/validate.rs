@@ -6645,17 +6645,18 @@ enum StructuralPhase {
 ///
 /// `Ok` carries check 7's certificate — `Some` exactly when the phase
 /// made it ([`certificate_of_a_clean_verdict`]'s invariant).
+/// The structural phase's clean verdict: check 7's certificate where
+/// the phase made it, and the per-entity facts the battery decided.
+type Structural<'b, T> = (
+    Option<crate::props::SignCertificate<'b, T>>,
+    crate::Tier3Facts<T>,
+);
+
 fn structural_via<'b, T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy>(
     body: &'b Body<T>,
     tol: Tol,
     phase: StructuralPhase,
-) -> Result<
-    (
-        Option<crate::props::SignCertificate<'b, T>>,
-        crate::Tier3Facts<T>,
-    ),
-    Vec<ValidationError>,
-> {
+) -> Result<Structural<'b, T>, Vec<ValidationError>> {
     let plus_v = match phase {
         StructuralPhase::NoLane => PlusVCheck::Through(None),
         StructuralPhase::BeforeCertifiedCheck7 => PlusVCheck::NotMade,

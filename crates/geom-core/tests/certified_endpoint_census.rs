@@ -733,10 +733,12 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/topo/src/injective.rs",
-        177,
-        79,
-        "the 79 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
-         `present_chart` (26), \
+        179,
+        81,
+        "the 81 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
+         `Psi::lipschitz` (2: the graph gradient's norm, its least end over its greatest, read \
+         only behind its own `is_certified()` ask, and no worth of `ψ` in metres where it does \
+         not certify), `present_chart` (26), \
          `present_plane` (11), `present_plane_corner` (7), `present_vertex_corner` (12), \
          `Trig::psi` (3), `iso_params` (4) and `segment_params` (4). `iso_params` and \
          `segment_params` each read the side's parameter enclosure (4) only behind their own \

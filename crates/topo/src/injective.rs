@@ -1010,14 +1010,14 @@ fn leaves(sine: Interval) -> Option<Leaves> {
 /// which differ by the wedge's square over eight: the reading is the
 /// separator's only to that order.
 ///
-/// No extent decides nothing.
+/// No extent, or no worth of `ψ` in metres, decides nothing.
 fn parts(
     rates: impl IntoIterator<Item = Interval>,
-    lipschitz: Interval,
+    lipschitz: Option<Interval>,
     extent: Option<Lever<Interval>>,
     band: Band,
 ) -> bool {
-    let Some(extent) = extent else {
+    let (Some(extent), Some(lipschitz)) = (extent, lipschitz) else {
         return false;
     };
     let sum = rates.into_iter().fold(at(0.0), |a, b| a + b);
@@ -5635,13 +5635,15 @@ impl Psi {
     /// between two points is worth in metres, against `ψ`'s own rate. A
     /// plane's gradient is one vector; a cylinder's, a sphere's and a
     /// cone's `ψ` is a distance from an axis, a centre or a nappe, of
-    /// unit gradient: one. The graph's is `|m − t·γ′|` over its slopes.
-    fn lipschitz(&self) -> Interval {
+    /// unit gradient: one. The graph's is `|m − t·γ′|` over its slopes,
+    /// its least over its greatest; `None` where that enclosure does not
+    /// certify, since its ends are then no bounds.
+    fn lipschitz(&self) -> Option<Interval> {
         match *self {
-            Self::Linear { .. } | Self::Carrier(_) => at(1.0),
+            Self::Linear { .. } | Self::Carrier(_) => Some(at(1.0)),
             Self::Graph { m, t, slope, .. } => {
                 let norm = (m - t * slope).norm();
-                at(norm.lo()) / at(norm.hi())
+                norm.is_certified().then(|| at(norm.lo()) / at(norm.hi()))
             }
         }
     }
@@ -14081,7 +14083,7 @@ mod margin_reach_rows {
             slope: Interval::from_bounds(0.0, 1.0),
             piece: (0.0, 1.0),
         };
-        let worth = graph.lipschitz();
+        let worth = graph.lipschitz().expect("a certified slope");
         assert!(
             (worth.hi() - core::f64::consts::FRAC_1_SQRT_2).abs() < 1e-12 && worth.lo() > 0.7,
             "{worth:?}"
@@ -14090,11 +14092,14 @@ mod margin_reach_rows {
             n: v3([0.0, 0.0, 3.0]),
             q: p3([0.0; 3]),
         };
-        assert!(exactly(plane.lipschitz(), 1.0), "a plane");
+        assert!(
+            plane.lipschitz().is_some_and(|w| exactly(w, 1.0)),
+            "a plane"
+        );
         let unit = Some(fixture_lever(iv0(1.0)));
         let sine = iv0(1.2 * band().escalate());
         assert!(parts([sine], plane.lipschitz(), unit, band()), "a plane");
-        assert!(!parts([sine], worth, unit, band()), "the graph");
+        assert!(!parts([sine], Some(worth), unit, band()), "the graph");
     }
 
     /// **The class tier 3 kept decides which arguments run.** One fold,
@@ -14196,7 +14201,7 @@ mod margin_reach_rows {
         let parts_at = |a: f64, b: f64| {
             parts(
                 [iv0(a * band_edge), iv0(b * band_edge)],
-                iv0(1.0),
+                Some(iv0(1.0)),
                 unit,
                 band(),
             )
@@ -14205,7 +14210,7 @@ mod margin_reach_rows {
         assert!(!parts_at(0.4, 0.4), "two small sines, their sum in band");
         assert!(parts_at(0.7, 0.7), "two sines, their sum past the band");
         assert!(
-            !parts([iv0(5.0 * band_edge)], iv0(1.0), None, band()),
+            !parts([iv0(5.0 * band_edge)], Some(iv0(1.0)), None, band()),
             "no extent"
         );
         assert!(
@@ -14340,7 +14345,12 @@ mod margin_reach_rows {
         );
         assert!(matches!(got, Outcome::Split { .. }), "{got:?}");
         assert!(
-            parts([iv0(sine)], iv0(1.0), Some(fixture_lever(iv0(1.0))), band()),
+            parts(
+                [iv0(sine)],
+                Some(iv0(1.0)),
+                Some(fixture_lever(iv0(1.0))),
+                band()
+            ),
             "the same sine parts at the plate's metre"
         );
     }
