@@ -938,6 +938,8 @@ mod review_s5b_r2_probes;
 mod review_subtract_bodies;
 #[path = "review_subtract_bodies_a.rs"]
 mod review_subtract_bodies_a;
+#[path = "review_subtract_delta.rs"]
+mod review_subtract_delta;
 #[path = "run_wall_offers.rs"]
 mod run_wall_offers;
 #[path = "source_readers.rs"]
