@@ -22,8 +22,8 @@ only.
   reads exactly that reading and passes, because it asserts only
   `is_bounded()`.
 - **What also has to change before this is evidence**: the unit's one
-  row pins a short symmetric window at the anchor, so six mutants of
-  the new code survive the unit's own suite, four of them unsound
+  row pins a short symmetric window at the anchor, so eight mutants of
+  the new code survive the unit's own suite, five of them under-covers
   (M2).
 
 ## Executed, and only read
@@ -543,8 +543,8 @@ public surface and the kernel's rule disagree, and the manifests'
 - **Idiom and structure: 3.** The conversions are clean and exactly
   mechanical; the new `Arc` is two shapes in one struct with a dead
   derived-centre read (S1).
-- **Test quality: 2.** One fixture, one window shape; six mutants of
-  the new code survive, four unsound, and the row passes a 1e280-wide
+- **Test quality: 2.** One fixture, one window shape; eight mutants of
+  the new code survive, five of them under-covers, and the row passes a 1e280-wide
   enclosure it reads itself (M1, M2).
 - **Doc and comment honesty: 3.** The PR body is unusually candid
   about what was not done and both mutant claims reproduce; but its
