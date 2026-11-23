@@ -110,7 +110,6 @@ arm 1 crates/topo/src/sector_face.rs
 whole 1 crates/topo/src/separating.rs
 arm 3 crates/topo/src/shell.rs
 arm 4 crates/topo/src/splitting/containment.rs
-arm 1 crates/topo/src/splitting/section_loops.rs
 arm 2 crates/topo/src/star/walk.rs
 arm 1 crates/topo/src/test_support_fixtures.rs
 arm 4 crates/topo/src/validate.rs

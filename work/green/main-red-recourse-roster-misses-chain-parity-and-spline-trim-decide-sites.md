@@ -26,6 +26,10 @@ has to move back under the name the roster lists. The gating gap that lets
 such a change past its PR is
 `green/a-src-change-that-moves-a-decide-site-skips-its-crates-recourse-roster`.
 
+## Seen by `oneround/unsourced-unions` (PR 7294), 2026-11-21
+
+Confirmed on that branch's final tree (debug build, default ε): `recourse_roster::every_decided_name_has_its_door_and_every_site_is_read` fails with `an indirect site not listed: chain_parity.rs: decide: name` and `… spline_trim.rs: decide: name`. Neither file is in that branch's diff.
+
 ## Re-pinned (2026-11-23, `embed/roster-main-drift`)
 
 Reproduced on main `6c5ea3ec`: the row reported the two sites above and
