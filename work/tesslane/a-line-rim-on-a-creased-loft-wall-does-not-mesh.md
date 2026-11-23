@@ -2,11 +2,10 @@
 id: a-line-rim-on-a-creased-loft-wall-does-not-mesh
 kind: issue
 title: A line rim on a loft wall creased by another section's sub-arcs does not mesh: its chord points straddle the crease
-status: parked
+status: open
 opened: 2026-11-04
 priority: P0
 cost: E
-blocked_on: [the-skin-cuts-an-arc-wall-at-each-sub-arc-joint]
 ---
 
 
@@ -71,3 +70,4 @@ now mesh to their integrated volume at δ 1e-3, 2e-3 and 5e-3. Measured
 error runs from 2.2e-6 relative at 1e-3 to 8.4e-6 at 5e-3. The test
 meshes every case at all three δ, so both cases pinned on this row are
 unpinned.
+- 2026-11-23 — (LATHE orchestrator) Its trigger fired: PR 7478 closed `the-skin-cuts-an-arc-wall-at-each-sub-arc-joint`, so this row is open again. That PR says all three cases of `degree1_loft_slabs::an_interior_arc_refined_by_its_neighbours_lofts` mesh at δ 1e-3, 2e-3 and 5e-3 with their pins lifted. TESSLANE checks that and closes this row.

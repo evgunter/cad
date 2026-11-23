@@ -100,3 +100,4 @@ At v-degree 1 through k ≥ 3 sections, the loft (and `sweep_body`) now cuts its
 - **Moved off this row:** the slab names' positional placeholder is `work/refs/loft-slab-and-section-names-are-positional` (P1, open). The rest of the crease work is carried by the four rows the Ruled section names.
 
 - 2026-11-14 — moved from TESS to TESSLANE by `git mv` when TESS and TESSSIZE merged into their successor TESSLANE (`docs/doc-ledger/tess-and-tesssize-leave-the-tracker.md`), id and body unchanged.
+- 2026-11-23 — (LATHE orchestrator) PR 7478 (`the-skin-cuts-an-arc-wall-at-each-sub-arc-joint`) cuts every loft, sweep and tube wall at each C⁰ knot its `u` carries, so no native sweep carrier carries one now. All three cases of `degree1_loft_slabs::an_interior_arc_refined_by_its_neighbours_lofts` mesh at δ 1e-3, 2e-3 and 5e-3, unpinned there. The crease arms' retirement is `the-crease-arms-retire-once-no-carrier-carries-a-c0-knot`. TESSLANE closes this row.

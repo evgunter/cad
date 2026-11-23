@@ -2,12 +2,11 @@
 id: tier-3-refuses-a-carrier-with-an-interior-c0-knot
 kind: issue
 title: tier 3 refuses a face chart or edge carrier with an interior C⁰ knot, read exactly from its knot structure
-status: parked
+status: open
 opened: 2026-10-28
 priority: P1
 cost: E
 refs: [loft-of-three-or-more-sections-at-degree-one-is-unmeshable]
-blocked_on: [the-skin-cuts-an-arc-wall-at-each-sub-arc-joint]
 ---
 
 
@@ -22,3 +21,4 @@ Tier 3 checks that `KnotStructure::crease_runs` is empty on every face chart and
 **Sequencing:** it lands after `the-skin-cuts-an-arc-wall-at-each-sub-arc-joint` and `import-splits-a-foreign-face-or-edge-at-each-c0-knot`. Before they land, valid native and imported bodies would fail it.
 
 Filed by the TESS orchestrator at the ruling.
+- 2026-11-23 — (LATHE orchestrator) Its trigger fired: PR 7478 cut every native loft, sweep and tube wall at each C⁰ knot, so no native carrier now reaches this door with one. Imports are `importgate/import-splits-a-foreign-face-or-edge-at-each-c0-knot`. Reopened for MEASUREDOOR to decide what remains.

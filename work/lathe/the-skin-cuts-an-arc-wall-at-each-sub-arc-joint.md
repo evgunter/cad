@@ -2,11 +2,12 @@
 id: the-skin-cuts-an-arc-wall-at-each-sub-arc-joint
 kind: issue
 title: the skin cuts a spline wall at each sub-arc joint (a double knot inside an arc wider than MAX_SUB_ARC), so a lofted arc wall carries no C⁰ knot inside it
-status: open
+status: closed
 opened: 2026-10-28
 priority: P0
 cost: H
 refs: [loft-of-three-or-more-sections-at-degree-one-is-unmeshable]
+closed: 2026-11-23
 ---
 
 
