@@ -3116,6 +3116,107 @@ mod tests {
         }
     }
 
+    /// One draw of the far-centred belly row
+    /// ([`a_far_centred_harmonics_belly_is_read_to_its_own_digits`]).
+    #[derive(Debug)]
+    struct BellyDraw {
+        far: f64,
+        k: f64,
+        by: [f64; 3],
+        axis: [f64; 3],
+        seam: [f64; 3],
+        graze: f64,
+        anchor: f64,
+        arc_held: bool,
+        tilt: f64,
+        across: [f64; 3],
+        depth: f64,
+        below: bool,
+        slide: f64,
+    }
+
+    /// **The draw read and judged**: `Ok(false)` for a degenerate draw,
+    /// `Ok(true)` where every reading holds, the failure otherwise.
+    fn belly_draw(d: &BellyDraw) -> Result<bool, String> {
+        use crate::test_support::stored_belly;
+        let vec = |a: [f64; 3]| crate::Vec3::new(a[0], a[1], a[2]);
+        let arr = |p: crate::Vec3<f64>| [p.x, p.y, p.z];
+        if vec(d.axis).norm() <= 0.1 {
+            return Ok(false);
+        }
+        let axis = vec(d.axis).normalize();
+        let u = axis.cross(vec(d.seam));
+        if u.norm() <= 0.1 {
+            return Ok(false);
+        }
+        let u = u.normalize();
+        let v = axis.cross(u);
+        let (a, b) = (d.far, d.k * d.far);
+        // The stored point is by the world origin on the arc, or the
+        // centre `far` from it.
+        let by = crate::Point3::new(d.by[0], d.by[1], d.by[2]);
+        let on_arc = |t: f64| u * (a * t.cos()) + v * (b * t.sin());
+        let centre = by - on_arc(d.anchor);
+        let (at, phase) = if d.arc_held {
+            (by, (d.anchor.cos(), d.anchor.sin()))
+        } else {
+            (centre, (0.0, 0.0))
+        };
+        let outward = u * (b * d.graze.cos()) + v * (a * d.graze.sin());
+        let n = (outward.normalize() * d.tilt.cos() + axis * d.tilt.sin()).normalize();
+        let w = n.cross(vec(d.across));
+        if w.norm() <= 0.1 {
+            return Ok(false);
+        }
+        let w = w.normalize();
+        // From a tenth of the curve's size down to its last digits, so
+        // both the double-double reading and the expansions answer.
+        let gap = d.far * 10f64.powf(-d.depth);
+        let gap = if d.below { -gap } else { gap };
+        let o = centre + on_arc(d.graze) + n * gap + w * d.slide;
+        let curve = StoredHarmonic {
+            at: [at.x, at.y, at.z],
+            axis: arr(axis),
+            u_ref: arr(u),
+            semi: (a, b),
+            phase,
+        };
+        let (o, n) = ([o.x, o.y, o.z], arr(n));
+        let u_ = f64::EPSILON / 2.0;
+        let got = f64::harmonic_belly(curve, o, n);
+        if !stored_belly::within(
+            curve,
+            o,
+            n,
+            (got - 8.0 * u_ * got.abs(), got + 8.0 * u_ * got.abs()),
+        ) {
+            return Err(format!(
+                "f64: {got:e} is not within 8u of the belly (the plain formula reads {:e}): {d:?}",
+                plain_harmonic_belly(curve, o, n)
+            ));
+        }
+        let enclosed = crate::Interval::harmonic_belly(
+            curve.map(crate::Interval::from_f64),
+            o.map(crate::Interval::from_f64),
+            n.map(crate::Interval::from_f64),
+        );
+        if !stored_belly::within(curve, o, n, (enclosed.lo(), enclosed.hi())) {
+            return Err(format!(
+                "interval: [{:e}, {:e}] misses the belly: {d:?}",
+                enclosed.lo(),
+                enclosed.hi()
+            ));
+        }
+        if enclosed.hi() - enclosed.lo() > 32.0 * u_ * got.abs() {
+            return Err(format!(
+                "interval: [{:e}, {:e}] is wider than 32u of {got:e}: {d:?}",
+                enclosed.lo(),
+                enclosed.hi()
+            ));
+        }
+        Ok(true)
+    }
+
     proptest! {
         /// **A far-centred harmonic's belly is read to its own digits**
         /// ([`Real::harmonic_belly`]): a curve of semi-axes `far` and
@@ -3123,8 +3224,9 @@ mod tests {
         /// its arc at a point by the origin, against a plane grazing it at
         /// any angle round the turn, its normal tilted out of the curve's
         /// plane, so `√(A² + B²)` and `|D|` are each about `far`, and the
-        /// belly from a tenth of `far` down to its last digits. Judged exactly on the stored
-        /// data ([`crate::test_support::stored_belly`]): the `f64` value is
+        /// belly from a tenth of `far` down to its last digits. Judged
+        /// exactly on the stored data
+        /// ([`crate::test_support::stored_belly`]): the `f64` value is
         /// within `8u` of the belly, relatively, and the enclosure stated
         /// at points holds it and is no wider than `32u` of it.
         #[test]
@@ -3143,66 +3245,51 @@ mod tests {
             below in any::<bool>(),
             slide in -10.0f64..10.0,
         ) {
-            use crate::test_support::stored_belly;
-            let vec = |a: [f64; 3]| crate::Vec3::new(a[0], a[1], a[2]);
-            let arr = |p: crate::Vec3<f64>| [p.x, p.y, p.z];
-            prop_assume!(vec(axis).norm() > 0.1);
-            let axis = vec(axis).normalize();
-            let u = axis.cross(vec(seam));
-            prop_assume!(u.norm() > 0.1);
-            let u = u.normalize();
-            let v = axis.cross(u);
-            let (a, b) = (far, k * far);
-            // The stored point is by the world origin on the arc, or the
-            // centre `far` from it.
-            let by = crate::Point3::new(by[0], by[1], by[2]);
-            let on_arc = |t: f64| u * (a * t.cos()) + v * (b * t.sin());
-            let centre = by - on_arc(anchor);
-            let (at, phase) = if arc_held {
-                (by, (anchor.cos(), anchor.sin()))
-            } else {
-                (centre, (0.0, 0.0))
-            };
-            let outward = u * (b * graze.cos()) + v * (a * graze.sin());
-            let n = (outward.normalize() * tilt.cos() + axis * tilt.sin()).normalize();
-            let w = n.cross(vec(across));
-            prop_assume!(w.norm() > 0.1);
-            let w = w.normalize();
-            // From a tenth of the curve's size down to its last digits,
-            // so both the double-double reading and the expansions answer.
-            let gap = far * 10f64.powf(-depth);
-            let gap = if below { -gap } else { gap };
-            let o = centre + on_arc(graze) + n * gap + w * slide;
-            let curve = StoredHarmonic {
-                at: [at.x, at.y, at.z],
-                axis: arr(axis),
-                u_ref: arr(u),
-                semi: (a, b),
-                phase,
-            };
-            let (o, n) = ([o.x, o.y, o.z], arr(n));
-            let u_ = f64::EPSILON / 2.0;
-            let got = f64::harmonic_belly(curve, o, n);
-            prop_assert!(
-                stored_belly::within(curve, o, n, (got - 8.0 * u_ * got.abs(), got + 8.0 * u_ * got.abs())),
-                "f64: {got:e} is not within 8u of the belly (far {far:e}; the plain formula reads {:e})",
-                plain_harmonic_belly(curve, o, n)
-            );
-            let enclosed = crate::Interval::harmonic_belly(
-                curve.map(crate::Interval::from_f64),
-                o.map(crate::Interval::from_f64),
-                n.map(crate::Interval::from_f64),
-            );
-            prop_assert!(
-                stored_belly::within(curve, o, n, (enclosed.lo(), enclosed.hi())),
-                "interval: [{:e}, {:e}] misses the belly", enclosed.lo(), enclosed.hi()
-            );
-            prop_assert!(
-                enclosed.hi() - enclosed.lo() <= 32.0 * u_ * got.abs(),
-                "interval: [{:e}, {:e}] is wider than 32u of {got:e}",
-                enclosed.lo(), enclosed.hi()
-            );
+            let read = belly_draw(&BellyDraw {
+                far, k, by, axis, seam, graze, anchor, arc_held, tilt, across, depth, below, slide,
+            });
+            prop_assume!(read != Ok(false));
+            prop_assert!(read.is_ok(), "{}", read.unwrap_err());
         }
+    }
+
+    /// **A belly at the stored data's own rounding is read from the
+    /// expansions, not the double-double** ([`Real::harmonic_belly`]'s
+    /// filter): a draw of the row above at semi-axis 8.5e8, where the
+    /// belly is of the order of `u` of the curve's size. A double-double
+    /// reading errs there by more than `8u` of the belly, so it holds only
+    /// if the filter hands it to the expansions. Red against the filter
+    /// accepting every double-double reading.
+    #[test]
+    fn a_belly_at_the_datas_own_rounding_is_read_from_the_expansions() {
+        let draw = BellyDraw {
+            far: 851_683_219.375_316_5,
+            k: 0.157_504_165_797_794_22,
+            by: [7.957_220_486_622_747, 0.0, -0.366_087_286_095_782_45],
+            axis: [
+                0.220_995_106_655_226_06,
+                -0.528_969_050_180_594_7,
+                0.954_794_496_324_708_3,
+            ],
+            seam: [
+                0.510_799_693_076_673_2,
+                0.657_556_726_575_884_8,
+                0.668_758_451_103_263_9,
+            ],
+            graze: 6.161_413_575_346_425,
+            anchor: 3.379_873_348_826_776_7,
+            arc_held: false,
+            tilt: -1.055_442_095_410_990_9,
+            across: [
+                -0.924_923_913_156_334_7,
+                0.519_370_600_166_168_2,
+                0.997_924_939_694_345_9,
+            ],
+            depth: 15.886_290_740_898_609,
+            below: false,
+            slide: 5.315_320_982_006_195,
+        };
+        assert_eq!(belly_draw(&draw), Ok(true));
     }
 
     /// **A belly whose digits no exact expansion keeps is poison, not a
