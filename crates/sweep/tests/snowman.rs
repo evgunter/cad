@@ -129,6 +129,105 @@ fn the_snowman_builds_under_every_boolean() {
     }
 }
 
+/// The same six ops on a coaxial pair other than two balls: each meets
+/// the ball in two section circles, each crossing both walls' seams at
+/// one site, since every full revolve about `y` carries its seam in one
+/// half-plane.
+fn assert_coaxial_pair(pose: &str, wall: &AtRestBody<f64>, v_wall: f64, shared: f64) {
+    let ball = ball(1.0, 0.0);
+    let v_ball = ball_volume(1.0);
+    for (label, op, x, y, expected) in [
+        (
+            "W ∪ ball",
+            BooleanOp::Union,
+            wall,
+            &ball,
+            v_wall + v_ball - shared,
+        ),
+        (
+            "ball ∪ W",
+            BooleanOp::Union,
+            &ball,
+            wall,
+            v_wall + v_ball - shared,
+        ),
+        ("W ∩ ball", BooleanOp::Intersect, wall, &ball, shared),
+        ("ball ∩ W", BooleanOp::Intersect, &ball, wall, shared),
+        (
+            "W ∖ ball",
+            BooleanOp::Subtract,
+            wall,
+            &ball,
+            v_wall - shared,
+        ),
+        (
+            "ball ∖ W",
+            BooleanOp::Subtract,
+            &ball,
+            wall,
+            v_ball - shared,
+        ),
+    ] {
+        assert_body(&format!("{pose}, {label}"), &run(op, x, y), expected);
+    }
+}
+
+/// **A coaxial rod through the ball**: radius `a = 0.5`, `y ∈ [−2, 2]`,
+/// one band. The ball holds `(4π/3)(1 − (1 − a²)^{3/2})` of it, the ball
+/// less its napkin ring.
+#[test]
+fn a_coaxial_rod_through_the_ball_builds_under_every_boolean() {
+    let a = 0.5;
+    let rod = finished(
+        "the rod",
+        revolved_about_y(
+            vec![
+                (Point2::new(0.0, -2.0), 0.0),
+                (Point2::new(a, -2.0), 0.0),
+                (Point2::new(a, 2.0), 0.0),
+                (Point2::new(0.0, 2.0), 0.0),
+            ],
+            Revolution::Full,
+            Tol::witness(),
+        ),
+        Tol::witness(),
+    );
+    let shared = 4.0 * PI / 3.0 * (1.0 - (1.0 - a * a).powf(1.5));
+    assert_coaxial_pair("rod", &rod, PI * a * a * 4.0, shared);
+}
+
+/// **A coaxial torus across the ball's surface**: tube radius `r = 0.3`
+/// about the circle of radius 1 in `y = 0`, one band. Their meridian
+/// sections are two discs, `ρ² + y² ≤ 1` and `(ρ − 1)² + y² ≤ r²`, which
+/// meet across the chord `ρ = ρ₀ = (2 − r²)/2`; the shared volume is
+/// Pappus's `2π ∫ ρ dA` over the two circular segments it cuts off.
+#[test]
+fn a_coaxial_torus_across_the_ball_builds_under_every_boolean() {
+    let r: f64 = 0.3;
+    let torus = finished(
+        "the torus",
+        revolved_about_y(
+            vec![
+                (Point2::new(1.0 - r, 0.0), 1.0),
+                (Point2::new(1.0 + r, 0.0), 1.0),
+            ],
+            Revolution::Full,
+            Tol::witness(),
+        ),
+        Tol::witness(),
+    );
+    let rho0 = (2.0 - r * r) / 2.0;
+    // The unit disc's segment beyond the chord, its moment about the axis.
+    let m_ball = 2.0 / 3.0 * (1.0 - rho0 * rho0).powf(1.5);
+    // The tube's segment inside it, the chord `h` from the tube's centre.
+    let h = 1.0 - rho0;
+    let half = (r * r - h * h).sqrt();
+    let area = r * r * (h / r).acos() - h * half;
+    let m_tube = area - 2.0 / 3.0 * half.powi(3);
+    let shared = 2.0 * PI * (m_ball + m_tube);
+    assert_coaxial_pair("torus", &torus, 2.0 * PI * PI * r * r, shared);
+}
+
 /// The boolean's refusal; a body fails with the op named.
 fn refusal(op: BooleanOp, a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> topo::BooleanError {
     match op {
@@ -258,6 +357,9 @@ fn the_near_tangent_family_builds_to_1e_6_at_the_finer_bands() {
 /// `h = δ(2r2 − δ)/2d`, the circle's radius `√(h(2r1 − h))`, every
 /// factor free of cancellation, and `δ = (r1 − d) + r2` exact. The
 /// volume cannot see a misplaced pierce on a lens this thin; this can.
+/// Both balls carry their seam in one half-plane (`z = 0`, `x > 0`), so
+/// the circle meets the two seams at one site there, the only vertex off
+/// the axis.
 fn assert_pierces_on_the_section(label: &str, body: &Body<f64>, d: f64) {
     let eps = Tol::witness().get().eps;
     let delta = (R1 - d) + R2;
@@ -270,13 +372,17 @@ fn assert_pierces_on_the_section(label: &str, body: &Body<f64>, d: f64) {
             continue;
         }
         pierces += 1;
+        assert!(
+            p.z.abs() <= eps && p.x > 0.0,
+            "{label}: vertex {p:?} is off the seams' half-plane z = 0, x > 0"
+        );
         let off = (p.y - y_star).hypot(off_axis - a);
         assert!(
             off <= eps,
             "{label}: vertex {p:?} is {off:e} off the section circle (y {y_star}, radius {a})"
         );
     }
-    assert!(pierces >= 2, "{label}: the section's pierce vertices exist");
+    assert_eq!(pierces, 1, "{label}: the section's one pierce vertex");
 }
 
 /// **Where the near-tangent family stops at ε = 1e-12.** At `δ = 1e-7`
