@@ -35,3 +35,13 @@ second intersect, which can re-chart too.
 Unmeasured: whether any at-rest document pairs a re-charted ball with
 an assertion. The fix reads the root through `naming.recharted` and
 takes every face of the input shell as the piece's sources.
+
+## 2026-11-23 — the door now exists in `topo`
+
+HELDRECORDS' `nary-lineage` lane added `topo::FaceDescent::input_faces`
+(a result face's operand and every input face it descends from,
+reading `recharted`) and `FaceDescent::shell_faces` (the same for a
+root), for the n-ary door's member lineage, which panicked on exactly
+this gap (`work/heldrecords/the-nary-door-panics-on-an-accumulation-face-with-no-member-lineage.md`).
+Both readers here can take it in place of `result_face`. Still
+unmeasured on an at-rest document.
