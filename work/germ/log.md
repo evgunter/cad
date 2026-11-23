@@ -1819,3 +1819,10 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - The anchored-ellipse sibling is filed (P2), not fixed: Ev's PR 7523 keeps the anchor opaque.
   - The reviewer arm was drawn and recorded on the analysis branch. A single FULL review is dispatched with an arm-free brief.
 - 2026-11-23 — (DOCTAIL orchestrator) Filed `main-red-revalue-corpus-carrier-and-witness-on-surface-drift-since-7411` on GREEN: ten `revalue_corpus` rows red on main since PR 7411 (`germ/plane-pose-far-frame`), bisected by DOCTAIL's 7396 lane. GERM's change.
+- 2026-11-23 11:00 — **PR 7538 (nist snap) merged** (`1e2d5e0677`). The model-compare row `docs/model-compare-log/rows/PR-7538.md` is the last commit before a merge-with-main.
+  - Main's merge conflicted only in `.config/nextest.toml`. I kept main's new `recourse_roster` slow-set row and the PR's renamed nist row.
+  - Merged over a queued CI, under Ev's 2026-11-22 rule for low-risk merges:
+    - the change is step-import tests and docs, a const's visibility, and a removed test-only function;
+    - the implementer and the reviewer each ran the slow set locally at three ε, plus fmt, clippy and the gates;
+    - it fixes a main red that skips the nightly render lanes.
+  - The queue held 113 runs, and no CI job had run on any head of this branch.
