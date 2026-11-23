@@ -630,7 +630,8 @@ mod far_clear_rows {
     use super::{Edge, edges_clear};
 
     /// `(wrong, placed, clears)` over 2000 segments in the plane of an
-    /// ellipse held at its centre, semi-axes `far` and `far/3`. Each runs
+    /// ellipse held at its centre, semi-axes `far` and `far/3`, both in the
+    /// plane `z = 0` exactly. Each runs
     /// ten metres along the tangent at a point at any angle round the turn,
     /// that point in the box and inside the segment's run, set off it by a
     /// gap within twice the band's escalation.
@@ -649,24 +650,17 @@ mod far_clear_rows {
         let mut rng = test_utils::fuzz::start("section_loops::far_segment_clears");
         let (mut wrong, mut placed, mut clears) = (0, 0, 0);
         for _ in 0..test_utils::fuzz::scaled(2000) {
-            let mut unit = || {
-                Vec3::new(
-                    rng.range(-1.0, 1.0),
-                    rng.range(-1.0, 1.0),
-                    rng.range(-1.0, 1.0),
-                )
-                .normalize()
-            };
-            let axis = unit();
-            let u = unit().cross(axis).normalize();
+            // In the plane `z = 0` exactly: the axis is `z`, and every
+            // point and direction below has `z = 0`, so the segment lies
+            // in the ellipse's stored plane and the in-plane belly is the
+            // whole question.
+            let axis = Vec3::unit_z();
+            let turn = rng.range(0.0, core::f64::consts::TAU);
+            let u = Vec3::new(turn.cos(), turn.sin(), 0.0);
             let v = axis.cross(u);
             let (a, b) = (far, far / 3.0);
             let theta = rng.range(0.0, core::f64::consts::TAU);
-            let crest = Point3::new(
-                rng.range(-500.0, 500.0),
-                rng.range(-500.0, 500.0),
-                rng.range(-500.0, 500.0),
-            );
+            let crest = Point3::new(rng.range(-500.0, 500.0), rng.range(-500.0, 500.0), 0.0);
             let centre = crest - (u * (a * theta.cos()) + v * (b * theta.sin()));
             let outward = (u * (b * theta.cos()) + v * (a * theta.sin())).normalize();
             let along = axis.cross(outward);
