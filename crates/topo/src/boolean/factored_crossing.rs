@@ -129,7 +129,7 @@ pub(super) fn factored_crossing<T: Decide + crate::props::AtRestPolicy>(
             // In the plane, or parallel to it at an offset the pose cannot
             // call: no factored crossing.
             PlaneCrossingLane::Conic(
-                ConicPlaneMeet::InPlane
+                ConicPlaneMeet::InPlane(_)
                 | ConicPlaneMeet::Roots(Err(ConicRootFault::PlaneParallel(_))),
             ) => return Ok(None),
             PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Ok(ts))) => roots[i] = ts,

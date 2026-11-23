@@ -46,6 +46,13 @@ fn a_plane_through_a_pinch_puts_each_brick_on_its_side() {
             "{what}: the parted pinch record is consumed, not carried: {:?}",
             topo::FinishedBody::records(&body)
         );
+        assert_eq!(
+            topo::validate_pseudomanifold(&body, topo::FinishedBody::records(&body), tol),
+            Ok(()),
+            "{what}: tier 3′ against its records"
+        );
+        let v = topo::test_support::pinned_volume("the brick", &body, tol).volume;
+        assert!((v - 1.0).abs() < 1e-9, "{what}: the brick holds {v}, not 1");
         let xs: Vec<f64> = body.vertex_points().map(|(_, p)| p.x).collect();
         assert!(
             xs.len() == 8 && xs.iter().all(|&px| px == x.0 || px == x.1),

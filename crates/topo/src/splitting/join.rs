@@ -108,6 +108,8 @@ pub(crate) struct CoincidentPair {
     pub(crate) on: EdgeKey,
     /// Its two ends, in the operand's keys.
     pub(crate) ends: [crate::entity::VertexKey; 2],
+    /// Whether it is a line.
+    pub(crate) line: bool,
     /// The slit's two edges over it.
     pub(crate) edges: [EdgeKey; 2],
 }
@@ -1405,6 +1407,7 @@ impl Tree {
                     let pair = CoincidentPair {
                         on: edge,
                         ends: [start(on.he_plus)?, start(on.he_minus)?],
+                        line: crate::census::edge_is_line(body, edge),
                         edges: [*ea, *eb],
                     };
                     slit.push((pair, [*a, *b]));

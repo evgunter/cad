@@ -1690,7 +1690,7 @@ fn closed_reach<T: Decide>(
         match super::slit::carrier_on_surface(body, curve.carrier(), curve.params(), face, band)? {
             super::slit::Placed::Unread(_) => unread = true,
             super::slit::Placed::Off => {}
-            super::slit::Placed::On => match in_trim(body, face, p, band)? {
+            super::slit::Placed::On(_) => match in_trim(body, face, p, band)? {
                 Some(PlaneRead::Inside) => {
                     return Ok(Some(ClosedReach::On(Touch::Face, Some(face))));
                 }

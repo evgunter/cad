@@ -387,54 +387,66 @@ pub struct ReducedRows {
 
 impl ReducedRows {
     /// **The row of operand edge `edge` ON the plane**, its ends `ends`,
-    /// which a slit over it cites ([`join::CoincidentPair`]), at the
-    /// margin of the decision that put the edge in the plane
-    /// ([`edge_in_plane`]). Its index, the edge's row once however many
-    /// slits cite it.
-    pub(in crate::splitting) fn edge_on(&mut self, edge: EdgeKey, ends: [VertexKey; 2]) -> u32 {
-        let margin = edge_in_plane(edge, ends, &self.on_margins, &self.lies);
-        split_on_row(&mut self.rows, crate::Cell::Edge(edge), margin)
+    /// a line where `line`, which a slit over it cites
+    /// ([`join::CoincidentPair`]), at the margin of the decision that put
+    /// the edge in the plane ([`edge_in_plane`]). Its index, the edge's
+    /// row once however many slits cite it.
+    ///
+    /// # Errors
+    ///
+    /// [`finish::SplitFinishError::ArcNotReadInPlane`] for a curved edge
+    /// the crossing reading did not read lying in the plane.
+    pub(in crate::splitting) fn edge_on(
+        &mut self,
+        edge: EdgeKey,
+        ends: [VertexKey; 2],
+        line: bool,
+    ) -> Result<u32, finish::SplitFinishError> {
+        let margin = edge_in_plane(edge, ends, line, &self.on_margins, &self.lies)
+            .ok_or(finish::SplitFinishError::ArcNotReadInPlane { edge })?;
+        Ok(split_on_row(
+            &mut self.rows,
+            crate::Cell::Edge(edge),
+            margin,
+        ))
     }
 }
 
 /// **The margin of the decision that put operand edge `edge` in the
-/// plane**: a curved edge's crossing reading, the carrier decided lying in
-/// the plane over its span (`Pose::Lies`, `lies`); a line's two ends' ON
-/// verdicts (`margins`), the worse of the two, since its residual is
-/// affine and the crossing reading takes it as decided by its ends
-/// ([`classify::insert_crossings`]).
-///
-/// # Panics
-///
-/// Where a curved edge has no `Lies` reading or a line's end no ON
-/// verdict: an edge the join reads in the plane is the operand's, which
-/// the reduce read before the join ran.
+/// plane**, its ends `ends`: a curved edge's crossing reading, the
+/// carrier decided lying in the plane over its span (`Pose::Lies`,
+/// `lies`); a line's (`line`) two ends' ON verdicts (`margins`), the worse
+/// of the two, since its residual is affine and the crossing reading
+/// takes it as decided by its ends ([`classify::insert_crossings`]).
+/// `None` where that decision was not taken: a curved edge the crossing
+/// reading did not read `Lies` (a window at an end, a touch) though the
+/// neighbourhood put it in the plane, or a line with an end not ON. The
+/// germ reading at a vertex is local to it and decides nothing of the
+/// edge's interior.
 fn edge_in_plane(
     edge: EdgeKey,
     ends: [VertexKey; 2],
+    line: bool,
     margins: &SecondaryMap<VertexKey, MarginDiag>,
     lies: &std::collections::BTreeMap<EdgeKey, MarginDiag>,
-) -> MarginDiag {
-    if let Some(&margin) = lies.get(&edge) {
-        return margin;
+) -> Option<MarginDiag> {
+    if !line {
+        return lies.get(&edge).copied();
     }
-    let [a, b] = ends.map(|v| {
-        margins.get(v).copied().unwrap_or_else(|| {
-            unreachable!(
-                "split: edge {edge:?} in the plane has no reading that put it there: no `Lies` \
-                 of its carrier, and its end {v:?} has no ON verdict"
-            )
-        })
-    });
-    a.worst(b)
+    let [a, b] = ends.map(|v| margins.get(v).copied());
+    Some(a?.worst(b?))
 }
 
 /// **Each operand line edge lying in the plane** of `body`, the reduced
 /// clone before null-edge insertion: a line between two operand vertices
 /// the vertex sweep decided ON (`margins`), its segment key, and the
-/// margin of its row ([`edge_in_plane`]), for a pinch whose two copies
-/// run along it.
-fn on_lines<T: Real>(body: &Body<T>, margins: &SecondaryMap<VertexKey, MarginDiag>) -> Vec<OnLine> {
+/// margin of its row ([`edge_in_plane`], with the crossing reading's
+/// `lies`), for a pinch whose two copies run along it.
+fn on_lines<T: Real>(
+    body: &Body<T>,
+    margins: &SecondaryMap<VertexKey, MarginDiag>,
+    lies: &std::collections::BTreeMap<EdgeKey, MarginDiag>,
+) -> Vec<OnLine> {
     body.edges()
         .filter(|&(e, _)| crate::census::edge_is_line(body, e))
         .filter_map(|(e, data)| {
@@ -443,10 +455,10 @@ fn on_lines<T: Real>(body: &Body<T>, margins: &SecondaryMap<VertexKey, MarginDia
             let [Some(a), Some(b)] = ends else {
                 return None;
             };
-            (margins.contains_key(a) && margins.contains_key(b)).then(|| OnLine {
+            Some(OnLine {
                 edge: e,
                 segment: crate::census::edge_segment_key(body, e),
-                margin: edge_in_plane(e, [a, b], margins, &std::collections::BTreeMap::new()),
+                margin: edge_in_plane(e, [a, b], true, margins, lies)?,
             })
         })
         .collect()
@@ -1169,7 +1181,7 @@ pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
         (&mut sides, &mut on_vertices, &on_plane),
         tol,
     )?;
-    let lines = on_lines(&body, &on_margins);
+    let lines = on_lines(&body, &on_margins, &lies);
 
     let mut null_edges = Vec::new();
     let mut apex_germs = SecondaryMap::new();
@@ -1569,36 +1581,44 @@ mod edge_in_plane_rows {
     use super::edge_in_plane;
     use crate::entity::{EdgeKey, VertexKey};
 
-    fn read(v: f64) -> geom_core::MarginDiag {
-        let band = geom_core::Band::linear(Tol::witness()).unwrap();
-        geom_core::k_stats::decide_reported("edge_in_plane_rows", Margin::of(v), band)
+    /// A margin of `k` of the run's ε, decided Zero at its band.
+    fn read(k: f64) -> geom_core::MarginDiag {
+        let tol = Tol::witness();
+        let band = geom_core::Band::linear(tol).unwrap();
+        geom_core::k_stats::decide_reported("edge_in_plane_rows", Margin::of(k * tol.eps()), band)
             .unwrap()
             .margin
     }
 
     /// **The row of an edge in the plane carries the decision that put
     /// it there**: an arc's `Lies` margin, whatever its ends read; a
-    /// line's worse end. Red on a row that reads one end, or reads the
-    /// ends for an arc.
+    /// line's worse end; and none for an arc no `Lies` read. Red on a row
+    /// that reads one end, reads the ends for an arc, or falls back to
+    /// them where the arc was not read in the plane.
     #[test]
     fn an_edges_row_reads_its_lies_or_its_worse_end() {
         let mut vertices: SlotMap<VertexKey, ()> = SlotMap::with_key();
         let (a, b) = (vertices.insert(()), vertices.insert(()));
         let mut edges: SlotMap<EdgeKey, ()> = SlotMap::with_key();
-        let (arc, line) = (edges.insert(()), edges.insert(()));
+        let (arc, unread, line) = (edges.insert(()), edges.insert(()), edges.insert(()));
         let mut margins = SecondaryMap::new();
-        margins.insert(a, read(1e-12));
-        margins.insert(b, read(3e-12));
-        let lies = std::collections::BTreeMap::from([(arc, read(5e-12))]);
+        margins.insert(a, read(0.1));
+        margins.insert(b, read(0.3));
+        let lies = std::collections::BTreeMap::from([(arc, read(0.5))]);
         assert_eq!(
-            edge_in_plane(arc, [a, b], &margins, &lies),
-            read(5e-12),
+            edge_in_plane(arc, [a, b], false, &margins, &lies),
+            Some(read(0.5)),
             "an arc's row is its Lies reading"
+        );
+        assert_eq!(
+            edge_in_plane(unread, [a, b], false, &margins, &lies),
+            None,
+            "an arc no Lies read has no row, whatever its ends read"
         );
         for ends in [[a, b], [b, a]] {
             assert_eq!(
-                edge_in_plane(line, ends, &margins, &lies),
-                read(3e-12),
+                edge_in_plane(line, ends, true, &margins, &lies),
+                Some(read(0.3)),
                 "a line's row is its worse end, {ends:?}"
             );
         }

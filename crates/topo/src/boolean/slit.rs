@@ -430,18 +430,18 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
     {
         read.insert(edge);
         let mut parting = Vec::new();
-        for LiesIn { face, divides } in faces {
+        for LiesIn { face, held } in faces {
             if let Some(tangent) = walls_inside(body, edge, face, band)? {
-                parting.push((face, tangent, divides));
+                parting.push((face, tangent, held.divides, held.lies));
             }
         }
-        let (face, flat, divides) = match parting[..] {
+        let (face, flat, divides, lies) = match parting[..] {
             [] => continue,
             [one] => one,
             // Pieces of the edge lie in several faces, across their
             // boundaries: divided against all of them at once, its pieces
             // are read again.
-            [first, ..] if parting.iter().all(|&(.., divides)| divides) => first,
+            [first, ..] if parting.iter().all(|&(_, _, divides, _)| divides) => first,
             [(face, ..), ..] => {
                 return Err(BooleanError::EdgeInFace {
                     edge,
@@ -512,21 +512,53 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
         // ([`arc_on_face`]), with an edge-on-face record of the arc where
         // one names it. Two lines between shared point keys are one
         // segment by structure.
-        let backing = if crate::census::edge_is_line(body, edge) {
-            None
-        } else {
-            let row = arc_on_face(body, edge, face, rows, band)?;
-            Some(
-                records
-                    .rows()
-                    .iter()
-                    .filter(|r| r.record.cells() == [Cell::Edge(edge), Cell::Face(face)])
-                    .fold(Cites::decided(row), |all, r| all.union(&r.cites)),
+        // An arc's two coincident edges are read before the parting divides
+        // the face: the reading that put the arc in the face's plane, and an
+        // edge-on-face record of it where one names it.
+        let arc = (!crate::census::edge_is_line(body, edge)).then(|| {
+            // A curve the parting reaches lies in a plane face, which
+            // [`holding`] read as a conic's or a spiric's own plane, so the
+            // reading carries its margin.
+            let lies = lies.unwrap_or_else(|| {
+                unreachable!(
+                    "edge {edge:?}, a curve lying in plane face {face:?}, was placed there by no \
+                     reading of its plane"
+                )
+            });
+            let recorded: Vec<Cites> = records
+                .rows()
+                .iter()
+                .filter(|r| r.record.cells() == [Cell::Edge(edge), Cell::Face(face)])
+                .map(|r| r.cites.clone())
+                .collect();
+            (
+                lies,
+                recorded,
+                proven(&body.faces, face, EntityId::Face).surface,
             )
-        };
+        });
         let p = part(body, edge, face, &joined, tol)?;
-        if let Some(cites) = backing {
-            coincident.push((p.parted.kept, p.parted.minted, cites));
+        if let Some((lies, recorded, plane)) = arc {
+            // The row is of the arc as the parting leaves it: the kept edge
+            // and the face of its plane it bounds, `face` or the piece of it
+            // a division left holding the arc.
+            let kept = p.parted.kept;
+            let edge = proven(&body.edges, kept, EntityId::Edge);
+            let on = [edge.he_plus, edge.he_minus]
+                .into_iter()
+                .filter_map(|he| body.face_of_half_edge(he))
+                .find(|&f| body.get_face(f).is_some_and(|d| d.surface == plane))
+                .unwrap_or_else(|| {
+                    unreachable!(
+                        "the kept edge {kept:?} of a parting bounds no face of the plane it \
+                         was parted in"
+                    )
+                });
+            let row = arc_on_face(kept, on, lies, rows);
+            let cites = recorded
+                .iter()
+                .fold(Cites::decided(row), |all, c| all.union(c));
+            coincident.push((kept, p.parted.minted, cites));
         }
         fused.extend(&p.parted.fused)?;
         let (kept_start, kept_end) = p.parted.ends;
@@ -897,9 +929,19 @@ fn part_mid_slit<T: Decide + crate::props::AtRestPolicy>(
 struct LiesIn {
     /// The face.
     face: FaceKey,
+    /// How it holds the edge ([`holding`]).
+    held: Held,
+}
+
+/// **How a face holds an edge lying in it** ([`holding`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Held {
     /// Whether [`divide`] divides the edge against it before it is
     /// parted.
     divides: bool,
+    /// The margin of the reading that put a curve in a plane face's plane
+    /// ([`Placed::On`]).
+    lies: Option<geom_core::MarginDiag>,
 }
 
 /// Every edge of `body` lying in faces it does not bound, with those
@@ -989,8 +1031,8 @@ fn riders<T: Decide>(
                 ends: both.contains(&f),
                 record: recorded.contains(&f),
             };
-            if let Some(divides) = holding(body, named, e, f, names, band)? {
-                lies_in.push(LiesIn { face: f, divides });
+            if let Some(held) = holding(body, named, e, f, names, band)? {
+                lies_in.push(LiesIn { face: f, held });
             }
         }
         if !lies_in.is_empty() {
@@ -1082,7 +1124,7 @@ fn holding<T: Decide>(
     f: FaceKey,
     names: Names,
     band: Band,
-) -> Result<Option<bool>, BooleanError> {
+) -> Result<Option<Held>, BooleanError> {
     let Some((carrier, (t0, t1))) = span_of(body, e) else {
         return Ok(None);
     };
@@ -1104,8 +1146,8 @@ fn holding<T: Decide>(
         gap: EdgeInFaceGap::Unread(why),
     };
     let on = match carrier_on_surface(body, &carrier, (t0, t1), f, band) {
-        Ok(Placed::On) => Ok(true),
-        Ok(Placed::Off) => Ok(false),
+        Ok(Placed::On(lies)) => Ok(Some(lies)),
+        Ok(Placed::Off) => Ok(None),
         // Nothing says the edge lies along no piece of the face, and
         // something relates the two (an end on it, a crossing of its
         // boundary, a record of the pair): it is read as an in-band
@@ -1118,9 +1160,9 @@ fn holding<T: Decide>(
         }),
         Err(read) => Err(read),
     };
-    match on {
-        Ok(true) => {}
-        Ok(false) => return Ok(None),
+    let lies = match on {
+        Ok(Some(lies)) => lies,
+        Ok(None) => return Ok(None),
         // Whether the edge lies on the surface matters only where both
         // its faces go into the face's material: where they do not, the
         // parting is not asked whatever the answer.
@@ -1151,15 +1193,19 @@ fn holding<T: Decide>(
                 Err(other) => Err(other),
             };
         }
-    }
+    };
     let along = Span::new(&carrier, (t0, t1));
     let at = match cuts(body, named, e, f, &along, band) {
         Ok(at) => at,
         Err(read) => return unplaced(read),
     };
     let divided = !names.ends || !at.is_empty();
+    let held = Held {
+        divides: divided,
+        lies,
+    };
     if names.record {
-        return Ok(Some(divided));
+        return Ok(Some(held));
     }
     let ends: Vec<T> = core::iter::once(t0)
         .chain(at.into_iter().rev())
@@ -1174,7 +1220,7 @@ fn holding<T: Decide>(
         .map(|piece| carrier.eval(geom::mid_param(piece[0], piece[1])));
     let read = |mid| piece_reading(body, f, mid, band, DoorInBand::Containment);
     match pieces_hold(pieces, read, unread) {
-        Climb::Answered { answer, .. } => answer.map(|()| Some(divided)),
+        Climb::Answered { answer, .. } => answer.map(|()| Some(held)),
         Climb::Passed => Ok(None),
         Climb::Undecided(read) => unplaced(read),
     }
@@ -1305,8 +1351,11 @@ const LEBESGUE_NINE: f64 = 2.37;
 /// ([`carrier_on_surface`]).
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum Placed {
-    /// On the surface over the whole span.
-    On,
+    /// On the surface over the whole span; where a curve was read in a
+    /// plane face's plane (a conic's pose `Lies`, a spiric's own plane),
+    /// the margin of that reading, which a parting of it cites
+    /// ([`arc_on_face`]).
+    On(Option<geom_core::MarginDiag>),
     /// Off it along every piece of the span.
     Off,
     /// Not read: the gap a reader that needs the answer refuses with.
@@ -1404,7 +1453,9 @@ fn conic_or_line_on<T: Decide>(
                 ConicPlaneMeet, ConicRootFault, PlaneCrossingLane, plane_crossing_lane,
             };
             return match plane_crossing_lane(carrier, t0, t1, origin, normal, band) {
-                PlaneCrossingLane::Conic(ConicPlaneMeet::InPlane) => Ok(Placed::On),
+                PlaneCrossingLane::Conic(ConicPlaneMeet::InPlane(margin)) => {
+                    Ok(Placed::On(Some(margin)))
+                }
                 PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Err(
                     ConicRootFault::PlaneParallel(diag),
                 ))) => Err(BooleanError::coincidence(
@@ -1426,7 +1477,7 @@ fn conic_or_line_on<T: Decide>(
                 "bool_line_face_carrier_offset",
                 band,
             ) {
-                Some(Ok(true)) => Ok(Placed::On),
+                Some(Ok(true)) => Ok(Placed::On(None)),
                 Some(Ok(false)) | None => Ok(Placed::Off),
                 Some(Err(diag)) => Err(BooleanError::coincidence(
                     Coincide::EdgeOnCurvedFace,
@@ -1487,20 +1538,20 @@ fn conic_or_line_on<T: Decide>(
                 BooleanError::coincidence(Coincide::EdgeOnPlane, DeclarationRead::Moot, diag)
             };
             let tilt = n.cross(u).norm() * (major_radius + minor_radius);
-            return match crate::validate::decide(RIDER_SPIRIC_PLANE, Margin::of(tilt), band)
-                .map_err(refused)?
-            {
-                Sign::Zero => {
-                    let height = (center + u * offset - origin).dot(n);
-                    match crate::validate::decide(RIDER_SPIRIC_PLANE, Margin::of(height), band)
-                        .map_err(refused)?
-                    {
-                        Sign::Zero => Ok(Placed::On),
-                        Sign::Positive | Sign::Negative => Ok(Placed::Off),
-                    }
-                }
-                Sign::Positive | Sign::Negative => Ok(Placed::Off),
+            let read = |margin| {
+                geom_core::k_stats::decide_reported(RIDER_SPIRIC_PLANE, margin, band)
+                    .map_err(refused)
             };
+            let tilted = read(Margin::of(tilt))?;
+            if tilted.sign != Sign::Zero {
+                return Ok(Placed::Off);
+            }
+            let height = read(Margin::of((center + u * offset - origin).dot(n)))?;
+            return Ok(if height.sign == Sign::Zero {
+                Placed::On(Some(tilted.margin.worst(height.margin)))
+            } else {
+                Placed::Off
+            });
         }
         (geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_), _)
             if surface.spline_chart().is_none() =>
@@ -1546,7 +1597,7 @@ fn conic_or_line_on<T: Decide>(
             )
             .map_err(refused)
         }
-        _ => Ok(Placed::On),
+        _ => Ok(Placed::On(None)),
     }
 }
 
@@ -1711,7 +1762,7 @@ fn torus_between<T: Decide>(
     let bound = worst * T::from_f64(LEBESGUE_NINE) / (big.powi(2) - small.powi(2));
     Ok(
         match crate::validate::decide(RIDER_ON_CURVED, Margin::of(bound), band)? {
-            Sign::Zero => Placed::On,
+            Sign::Zero => Placed::On(None),
             Sign::Positive | Sign::Negative => Placed::Unread(EdgeInFaceGap::CarrierUnread),
         },
     )
@@ -1824,7 +1875,7 @@ mod torus_rows {
             let read = super::carrier_on_surface(&body, &carrier, (0.0, TAU), face, band)
                 .unwrap_or_else(|e| panic!("{what}: {e:?}"));
             let want = if on {
-                super::Placed::On
+                super::Placed::On(None)
             } else {
                 super::Placed::Off
             };
@@ -1891,7 +1942,7 @@ mod torus_rows {
         );
         assert!(matches!(
             super::conic_or_line_on(&villarceau, (0.0, TAU), &fat_torus(), band()),
-            Ok(super::Placed::On)
+            Ok(super::Placed::On(None))
         ));
     }
 
@@ -2257,46 +2308,26 @@ struct Parting {
 }
 
 /// **The row of arc `edge` lying in plane face `face`** of the result,
-/// added to `rows`, the operation's own: the parting reads the arc's
-/// carrier on the face's plane over its span, the curve × face pose's
-/// `Lies`, at that reading's margin, and that reading covers the arc's
-/// interior, which its ends' placements do not. Its index.
-///
-/// # Errors
-///
-/// [`BooleanError::JoinDesync`] where the pose does not read the arc
-/// lying in the plane: [`holding`] placed it there by the same pose
-/// ([`carrier_on_surface`]), so a parting never asks of an arc it did
-/// not place.
-fn arc_on_face<T: Decide>(
-    body: &Body<T>,
+/// added to `rows`, the operation's own: [`holding`]'s reading of the
+/// arc's carrier in the face's plane over its span, at its margin `lies`,
+/// which covers the arc's interior, as its ends' placements do not. Its
+/// index.
+fn arc_on_face(
     edge: EdgeKey,
     face: FaceKey,
+    lies: geom_core::MarginDiag,
     rows: &mut Vec<crate::Coincidence>,
-    band: Band,
-) -> Result<u32, BooleanError> {
-    let unplaced = || BooleanError::JoinDesync {
-        what: "an arc the parting placed on a plane face does not read lying in its plane",
-    };
-    let (carrier, params) = span_of(body, edge).ok_or_else(unplaced)?;
-    let surface = body.proven_face(face).surface();
-    let Ok(geom_brep::curve_face::Crossings {
-        pose: geom_brep::curve_face::Pose::Lies(margin),
-        ..
-    }) = geom_brep::curve_face::cross(&Span::new(&carrier, params), surface, band)
-    else {
-        return Err(unplaced());
-    };
+) -> u32 {
     let cell = |cell| crate::RowCell::Result { cell };
     rows.push(crate::Coincidence {
         cells: [cell(Cell::Edge(edge)), cell(Cell::Face(face))],
         more: [None; 3],
         relation: crate::Relation::OnCarrier,
         site: crate::DecisionSite::ArcOnFace,
-        margin,
-        discharge: crate::Discharge::of(margin),
+        margin: lies,
+        discharge: crate::Discharge::of(lies),
     });
-    Ok(super::reduce::index(rows.len() - 1))
+    super::reduce::index(rows.len() - 1)
 }
 
 /// **Parts edge `edge` lying in face `face`**, joining each end of
@@ -3390,7 +3421,7 @@ mod spline_rider {
             (
                 "its own plane",
                 plane(Point3::new(0.5, 3.0, -1.0), Vec3::unit_x(), Vec3::unit_y()),
-                Placed::On,
+                Placed::On(None),
             ),
             (
                 "a parallel plane a hundredth away",
@@ -3404,7 +3435,14 @@ mod spline_rider {
             ),
         ] {
             let read = conic_or_line_on(&spiric, (0.0, 1.0), &surface, band());
-            assert_eq!(read.ok(), Some(want), "{what}");
+            // A spiric read in its own plane carries that reading's margin.
+            let read = read.ok();
+            let agrees = match (&read, &want) {
+                (Some(Placed::On(lies)), Placed::On(_)) => lies.is_some(),
+                (Some(got), want) => got == want,
+                (None, _) => false,
+            };
+            assert!(agrees, "{what}: {read:?}, not {want:?}");
         }
     }
 

@@ -982,7 +982,7 @@ mod kernel {
             Band, ConeCornerEscalated, ConeCornerUnread, WedgeEscalated, Undescribed,
             WholeBodySideEscalated,
             EdgeOnFacesEscalated, SmoothJoinRefuted, SectionWindingUndecided, KnifeEdge,
-            NestingContradiction, SlitUnplaced, SlitHoming, ResultInvalid,
+            NestingContradiction, ArcNotReadInPlane, SlitUnplaced, SlitHoming, ResultInvalid,
             ResultNotAtRest, Carry, EdgeJoin, Merge,
         ];
     }
@@ -2902,6 +2902,12 @@ fn split() -> Vec<(String, NodeErrorKind)> {
         (
             "NestingContradiction",
             F::NestingContradiction { hole: face },
+        ),
+        (
+            "ArcNotReadInPlane",
+            F::ArcNotReadInPlane {
+                edge: EdgeKey::default(),
+            },
         ),
         (
             "SlitUnplaced",

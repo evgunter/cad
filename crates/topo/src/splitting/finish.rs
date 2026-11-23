@@ -1137,6 +1137,15 @@ pub enum SplitFinishError {
         /// the island's plane piece (in its side's body).
         hole: FaceKey,
     },
+    /// An arc of the operand a slit runs over, read in the plane by its
+    /// ends' neighbourhoods, whose carrier the crossing reading did not
+    /// read lying in the plane (`Pose::Lies`): a window at an end, or a
+    /// touch. The slit's record would cite no decision that puts the arc
+    /// there, so the split refuses rather than read the arc's ends for it.
+    ArcNotReadInPlane {
+        /// The arc (in the operand's keys).
+        edge: EdgeKey,
+    },
     /// A slit trace's slit, read definitely, lies in no section region of
     /// its side: no outline holds a vertex of it, or the innermost one
     /// that does has it in a hole (`in_hole`), whether a ring of its own
@@ -1457,6 +1466,13 @@ impl SplitFinishError {
                 )?;
                 defect_ended(f, at)
             }
+            Self::ArcNotReadInPlane { .. } => write!(
+                f,
+                "an arc lying in the cut, which the material across it wraps, was not read \
+                 lying in the plane along its whole span, so the two edges the cut leaves \
+                 along it have no decision to record. Recourse: {}",
+                super::SPLIT_COINCIDENCE_RECOURSE
+            ),
             Self::SlitHoming { error, .. } => error.render_as(
                 f,
                 "placing a slit an edge in the cut leaves",
@@ -1558,11 +1574,13 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
     let coincident: Vec<Coincident> = completed
         .iter()
         .flat_map(|section| &section.coincident)
-        .map(|pair| Coincident {
-            edges: pair.edges,
-            row: rows.edge_on(pair.on, pair.ends.map(original)),
+        .map(|pair| {
+            Ok(Coincident {
+                edges: pair.edges,
+                row: rows.edge_on(pair.on, pair.ends.map(original), pair.line)?,
+            })
         })
-        .collect();
+        .collect::<Result<_, SplitFinishError>>()?;
     let mut reassembled = red.body;
     let mut body = reassembled.begin_surgery();
     let solid = operand_solid(&body)?;

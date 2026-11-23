@@ -78,13 +78,44 @@ fn a_curved_keel_on_the_floor_builds_its_slit_form() {
         };
         // The record cites the parting's reading of the arc in the floor,
         // which covers its interior, not its ends' placements.
+        let rows: Vec<_> = pair
+            .cites
+            .iter()
+            .filter_map(|b| match b {
+                topo::Backing::Decided(k) => Some(r.coincidences[k as usize]),
+                topo::Backing::Carried { .. } => None,
+            })
+            .filter(|row| row.site == topo::DecisionSite::ArcOnFace)
+            .collect();
+        let [row] = rows.as_slice() else {
+            panic!("{what}: {pair:?} cites no one row of the arc on the floor");
+        };
+        // The row names the arc and the floor as the result holds them,
+        // after the parting: the edge bounds the face.
+        let [
+            topo::RowCell::Result {
+                cell: topo::Cell::Edge(arc),
+            },
+            topo::RowCell::Result {
+                cell: topo::Cell::Face(floor),
+            },
+        ] = row.cells
+        else {
+            panic!("{what}: {row:?} is not the result's arc and face");
+        };
+        let edge = r
+            .body
+            .get_edge(arc)
+            .unwrap_or_else(|| panic!("{what}: {arc:?} is dead"));
         assert!(
-            pair.cites.iter().any(|b| matches!(
-                b,
-                topo::Backing::Decided(k)
-                    if r.coincidences[k as usize].site == topo::DecisionSite::ArcOnFace
-            )),
-            "{what}: {pair:?} cites no row of the arc on the floor"
+            [edge.he_plus, edge.he_minus]
+                .into_iter()
+                .any(|he| r.body.face_of_half_edge(he) == Some(floor)),
+            "{what}: the row's arc {arc:?} bounds no face {floor:?}"
+        );
+        assert!(
+            [edge_of(pair, 0), edge_of(pair, 1)].contains(&arc),
+            "{what}: the row's arc is one of the record's two edges"
         );
         let volume = 0.75 * PI * (9.0 - 0.25) - 0.2 * 2.0 * inside.to_radians();
         let got = topo::test_support::pinned_volume(
@@ -97,5 +128,13 @@ fn a_curved_keel_on_the_floor_builds_its_slit_form() {
             (got - volume).abs() < 1e-9 * volume,
             "{what}: volume {got}, closed form {volume}"
         );
+    }
+}
+
+/// Edge `i` of edge–edge record `pair`.
+fn edge_of(pair: &topo::Cited<topo::Contact>, i: usize) -> topo::EdgeKey {
+    match pair.cells()[i] {
+        topo::Cell::Edge(e) => e,
+        other => panic!("{pair:?}: cell {i} is {other:?}, not an edge"),
     }
 }

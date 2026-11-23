@@ -1251,7 +1251,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     // `Lies`): the line lane's `(Zero, Zero)` posture —
                     // both endpoints through `vertex_on_face`, the
                     // interior left to the neighbour faces.
-                    Some(ConicPlaneMeet::InPlane) => {
+                    Some(ConicPlaneMeet::InPlane(_)) => {
                         let mut hit =
                             vertex_on_face(x_is, y, u, pu, face, None, contacts, band, tol)?;
                         if v != u {
