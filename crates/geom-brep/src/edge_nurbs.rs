@@ -933,9 +933,9 @@ enum Partner<'a, T: Real> {
 
 impl<'a, T: Real> Partner<'a, T> {
     /// `s` as a lane's partner: a plane, or a sphere, cylinder or ring
-    /// torus, whose implicit residual the rung-3 door reads in metres.
-    /// A cone's has no metres conversion there, a spindle has no arm,
-    /// and a spline is a wall.
+    /// torus, whose implicit form the chart tube reads
+    /// (`ssi::certify::chart_partner_form`). A cone has no such form, a
+    /// spindle has no arm, and a spline is a wall.
     fn of(s: &'a Surface<T>) -> Option<Self> {
         match s {
             Surface::Plane { frame, .. } => {
@@ -1029,9 +1029,9 @@ pub(crate) fn is_residual_partner<T: Real>(s: &Surface<T>) -> bool {
 /// # Errors
 ///
 /// [`PlaneNurbsRefusal`], whose vocabulary this lane shares:
-/// [`PlaneNurbsRefusal::WrongLane`] for any other partner (a cone's
-/// residual has no metres conversion at the rung-3 door, and a plane has
-/// its own lane), and otherwise as [`plane_nurbs_limbs`].
+/// [`PlaneNurbsRefusal::WrongLane`] for any other partner (a cone has no
+/// form the chart tube reads, and a plane has its own lane), and
+/// otherwise as [`plane_nurbs_limbs`].
 ///
 /// The bound is [`plane_nurbs_limbs`]'s, and a dual fails it the same
 /// way:
@@ -1306,7 +1306,7 @@ pub fn arc_rim_measured<T: Decide>(
     let (Curve3::Circle(circle), Some(turn)) = (carrier, carrier.period()) else {
         return Vec::new();
     };
-    let frame = circle.frame;
+    let frame = circle.frame();
     let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
     let vref = axis.cross(u_ref);
     let spans = arc_rim_spans(chart);
@@ -2111,7 +2111,13 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
             &curve,
             params,
             operand,
-            crate::pcurve_cache::limb2_offset_sup(&curve, params, operand, band),
+            crate::pcurve_cache::limb2_offset_sup(
+                &curve,
+                params,
+                operand,
+                crate::pcurve_cache::Limb2Locus::Face,
+                band,
+            ),
             None,
             band,
         )?;
@@ -2191,7 +2197,13 @@ pub fn analytic_edge_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
             carrier,
             params,
             operand,
-            crate::pcurve_cache::limb2_offset_sup(carrier, params, operand, band),
+            crate::pcurve_cache::limb2_offset_sup(
+                carrier,
+                params,
+                operand,
+                crate::pcurve_cache::Limb2Locus::Face,
+                band,
+            ),
             line_plane_ends(carrier, params, operand),
             band,
         )?;
@@ -2250,6 +2262,7 @@ pub(crate) fn limb2<T: Decide>(
         size,
         upper,
         floor,
+        ..
     } = read.map_err(refused)?;
     let decided = match (T::WITNESS, offset) {
         (geom_core::Witness::Exact, Offset::Bound(_) | Offset::Miss { bound: Ok(_), .. }) => {
@@ -3014,14 +3027,18 @@ impl core::fmt::Display for AnalyticRung3Refusal {
 /// holds them. A spline's domain is its own knot domain
 /// (`Schedule::new(&eval, net.domain(), net.knot_values().domain())`);
 /// a closed-form carrier's is the one its caller states.
+///
+/// Bounded `CertifiedEnclosure`: its consumers are the chart image's
+/// certification doors, and a station is a place handed to the
+/// carrier's evaluator at a scalar that carries no tangent.
 #[derive(Clone, Copy)]
-pub(crate) struct Schedule<'a, T: geom_core::Real> {
+pub(crate) struct Schedule<'a, T: geom_core::CertifiedEnclosure> {
     eval: &'a dyn Fn(T) -> geom_core::Point3<T>,
     domain: (f64, f64),
     ends: (T, T),
 }
 
-impl<'a, T: geom_core::Real> Schedule<'a, T> {
+impl<'a, T: geom_core::CertifiedEnclosure> Schedule<'a, T> {
     /// The schedule of `eval` over `domain`, held at `ends`.
     pub(crate) fn new(
         eval: &'a dyn Fn(T) -> geom_core::Point3<T>,
@@ -3037,7 +3054,13 @@ impl<'a, T: geom_core::Real> Schedule<'a, T> {
     }
 
     /// The carrier's parameter at schedule fraction `at`: its held ends
-    /// at `0` and `1`.
+    /// at `0` and `1`, and inside them the point at the `f64` station,
+    /// as [`crate::certify::held_station`]'s interior station is a point
+    /// (a read at a chosen point has no use for the station's own
+    /// width). `at` is a schedule fraction, a bisection iterate or a
+    /// midpoint of two (`general_chart_image`), so the station is a
+    /// place, its own unknown at `Sym`; `held_station`'s fractions are
+    /// the fixed schedule's alone, constants.
     fn station(&self, at: f64) -> T {
         let (t0, t1) = self.domain;
         if at <= 0.0 {
@@ -3263,8 +3286,7 @@ where
     // An image's gap at a fraction: its chart point mapped through the
     // wall, less the carrier's point there.
     let gap = |at: f64, p: Point2<f64>| {
-        let gap = wall.eval(T::from_computed(p.x), T::from_computed(p.y))
-            - (schedule.eval)(schedule.station(at));
+        let gap = wall.eval_at(p.x, p.y) - (schedule.eval)(schedule.station(at));
         Vec3::new(mid(gap.x), mid(gap.y), mid(gap.z))
     };
     // The miss midway between two nodes, net of the standoff they carry:

@@ -29,7 +29,7 @@ use geom_core::{
 };
 use sweep::{Revolution, RevolveAxis};
 use topo::splitting::SplitPart;
-use topo::{Body, BooleanInputs, ClearanceLaneOf, POSE_UNIT_NORM};
+use topo::{BooleanInputs, ClearanceLaneOf, POSE_UNIT_NORM};
 
 use super::anchor::{self, ProfilePre, ProfileValue};
 use super::slots::{self, SlotValues};
@@ -260,7 +260,7 @@ pub(crate) enum OpInput<'n, T: geom_core::Real> {
         form: ProfileForm<T>,
         /// The frame the profile is drawn on, at the lane, where it is
         /// drawn on one.
-        frame: Option<RigidMotion<T>>,
+        frame: Option<trace::OnFrame<T>>,
     },
     /// An assertion over a value, with its value and bound evaluated
     /// ([`super::Payload`]) and the dimensions they are read at.
@@ -362,7 +362,7 @@ where
             frame,
             ..
         } => {
-            let value = wire_profile(program, pre, form, frame.as_ref(), tol)?;
+            let value = wire_profile(id, program, pre, form, frame.clone(), tol)?;
             let rows = crate::coincide::name_junctions(id, &value.validated, &value.pieces);
             return Ok(
                 OpOut::plain(ValuePayload::Profile(value), names::empty()).with_coincidences(rows)
@@ -719,14 +719,8 @@ fn body_reach<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
 ) -> Result<f64, crate::mate::LeverRefusal> {
     body.space_origin()
         .map_err(|_| crate::mate::ReachRefusal::NoFiniteBound)
-        .and_then(|about| crate::mate::part_reach_from(body.body(), about, band))
-        .map(crate::mate::SolveScalar::upper)
-        .and_then(|hi| {
-            if hi.is_finite() {
-                Ok(hi)
-            } else {
-                Err(crate::mate::ReachRefusal::NoFiniteBound)
-            }
+        .and_then(|about| {
+            crate::mate::reach::lever_reach(crate::mate::part_reach_from(body.body(), about, band))
         })
         .map_err(|refusal| crate::mate::LeverRefusal::Shape { shape: at, refusal })
 }
@@ -1560,10 +1554,13 @@ pub(crate) fn lane_profile<T: Decide + geom_core::Bounds>(
         let lp = profile::replay_guided(steps, record, tol).map_err(|error| {
             NodeErrorKind::ProfileLaneReplay {
                 loop_: li,
-                step: error.step,
-                structure: match error.kind {
-                    profile::ReplayErrorKind::Path(profile::PathError::Structure(r)) => Some(r),
-                    _ => None,
+                step: error.step(),
+                structure: match &error.kind {
+                    profile::ReplayErrorKind::Path(source) => match source.refusal() {
+                        profile::PathError::Structure(r) => Some(r.clone()),
+                        _ => None,
+                    },
+                    profile::ReplayErrorKind::Transition { .. } => None,
                 },
             }
         })?;
@@ -1574,11 +1571,12 @@ pub(crate) fn lane_profile<T: Decide + geom_core::Bounds>(
         .map_err(NodeErrorKind::Profile)
 }
 
-fn wire_profile<T: Decide + geom_core::Bounds + super::ProfileLane>(
+fn wire_profile<T: crate::mate::SolveScalar + geom_core::Bounds + super::ProfileLane>(
+    id: RecipeNodeId,
     program: &ProfileProgram,
     pre: &ProfilePre,
     form: &ProfileForm<T>,
-    frame: Option<&RigidMotion<T>>,
+    frame: Option<trace::OnFrame<T>>,
     tol: Tol,
 ) -> Result<Arc<ProfileValue<T>>, NodeErrorKind> {
     let plane = profile::SketchPlane::xy();
@@ -1592,12 +1590,20 @@ fn wire_profile<T: Decide + geom_core::Bounds + super::ProfileLane>(
         }
         ProfileForm::Lane(resolved) => lane_profile::<T>(resolved, plane, pre, tol)?,
     };
+    // The profile stands in the frame it is drawn on, carried over its
+    // own loops' reach.
+    let frame = frame
+        .map(|on| {
+            let reach = super::anchor::loops_reach(&validated, id);
+            on.carrying(reach, tol)
+        })
+        .transpose()?;
     Ok(Arc::new(ProfileValue {
         validated,
         naming: pre.naming.clone(),
         pieces: pre.pieces.clone(),
         edge_radii: edge_radii(program, pre),
-        frame: frame.map(|f| super::Frame::Map(Arc::new(*f))),
+        frame,
     }))
 }
 
@@ -1669,7 +1675,7 @@ fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crat
 /// The body and the name table (profile refs in canonical numbering).
 /// The body stands in the profile's frame, `lift` along the profile's
 /// `z` where it is lifted ([`super::ProfileValue::lifted`]).
-fn wire_swept<T: Decide + geom_core::Bounds + topo::AtRestPolicy, A>(
+fn wire_swept<T: crate::mate::SolveScalar + geom_core::Bounds + topo::AtRestPolicy, A>(
     verb: &crate::verbs::sweep::ProfileVerb<T, A>,
     args: A,
     id: RecipeNodeId,
@@ -1693,11 +1699,8 @@ fn wire_swept<T: Decide + geom_core::Bounds + topo::AtRestPolicy, A>(
     // A lifted sweep stands `by` along its profile's `z`, a placement
     // of its own, so it asks where it stands as a placed copy does.
     let framed = match lift {
-        None => vp.framed(body, tol)?,
-        Some(by) => vp
-            .lifted(body, by)
-            .map_err(NodeErrorKind::Motion)?
-            .asked_where_it_stands(tol)?,
+        None => vp.framed(body, id, tol)?,
+        Some(by) => vp.lifted(body, by, id, tol)?.asked_where_it_stands(tol)?,
     };
     Ok(OpOut::plain(ValuePayload::Body(framed), out.table))
 }
@@ -1709,7 +1712,7 @@ fn wire_swept<T: Decide + geom_core::Bounds + topo::AtRestPolicy, A>(
 /// negative, the extrude is the sweep of `|d|` whose start cap sits `d`
 /// along the profile's `z`. Its zero and its band are the sweep's to
 /// refuse.
-fn wire_extrude<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
+fn wire_extrude<T: crate::mate::SolveScalar + geom_core::Bounds + topo::AtRestPolicy>(
     id: RecipeNodeId,
     profile: RecipeNodeId,
     results: &Results<T>,
@@ -1740,7 +1743,7 @@ fn wire_extrude<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 /// — the document semantics (the axis slots, the full-vs-partial
 /// classification), and the generic lowering from there. The axis's
 /// lift, the node's `axis` output, is read by the pose evaluator.
-fn wire_revolve<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
+fn wire_revolve<T: crate::mate::SolveScalar + geom_core::Bounds + topo::AtRestPolicy>(
     id: RecipeNodeId,
     profile: RecipeNodeId,
     results: &Results<T>,
@@ -4735,7 +4738,7 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
     members: &[(RecipeNodeId, crate::VarId, &Results<T>)],
     tol: Tol,
 ) -> OpResult<T> {
-    let mut fused = Body::new();
+    let mut fused = topo::Assembled::new();
     // Each operand's bodies, read once: every seat of an assemble takes
     // a family whole, so a member is its family's every body, and an
     // empty one refuses.
@@ -4765,12 +4768,6 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
     let mut named: Vec<(crate::VarId, Arc<NameTable>, Vec<topo::GraftKeys>)> =
         Vec::with_capacity(members.len());
     let mut pieces: Vec<super::Piece<T>> = Vec::with_capacity(members.len());
-    let mut bridges_seen = 0usize;
-    // What the graft holds: each member body's own records, re-keyed
-    // through its graft, and which arrival each solid came by.
-    let mut held = topo::ContactRecords::default();
-    let mut arrivals: std::collections::BTreeMap<topo::SolidKey, u32> =
-        std::collections::BTreeMap::new();
     let mut citing: Vec<crate::coincide::CitedInput> = Vec::with_capacity(members.len());
     let mut parts = 0;
     for (read, value, bodies, family) in operands {
@@ -4779,17 +4776,6 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
         for body in &bodies {
             let keys = super::Framed::graft_into(&frame, &mut fused, body, tol)
                 .map_err(NodeErrorKind::from)?;
-            let arrival = names::narrow(bridges_seen, names::Numbered::InputPosition)
-                .map_err(NodeErrorKind::Naming)?;
-            crate::product::carry_contacts(
-                &fused,
-                &mut held,
-                &body.holding().records().carried_from(arrival),
-                &keys,
-            )
-            .map_err(|what| NodeErrorKind::Naming(names::NamingError::Emission { what }))?;
-            arrivals.extend(keys.solids().iter().map(|&solid| (solid, arrival)));
-            bridges_seen += 1;
             bridges.push(keys);
         }
         // Each body it grafts is one arrival, cited by the member's read.
@@ -4808,7 +4794,7 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
         });
         named.push((read, table, bridges));
     }
-    let table = names::name_assemble(id, &named, &fused).map_err(NodeErrorKind::Naming)?;
+    let table = names::name_assemble(id, &named, fused.body()).map_err(NodeErrorKind::Naming)?;
     // The graft of its members is its scalar's leaf
     // (`topo::AtRestPolicy::leaf_assembled`), as they are: finished at
     // `f64`, its census recording each touch between two members; tier
@@ -4817,15 +4803,8 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
         leaf: fused,
         rows,
         findings,
-    } = T::leaf_assembled(
-        topo::Assembled::new(
-            fused,
-            held,
-            Arc::new(move |solid| arrivals.get(&solid).copied()),
-        ),
-        tol,
-    )
-    .map_err(|findings| NodeErrorKind::NotFinished { findings })?;
+    } = T::leaf_assembled(fused, tol)
+        .map_err(|findings| NodeErrorKind::NotFinished { findings })?;
     let fused = Arc::new(fused);
     let pieces = Arc::new(super::Pieces { by: id, pieces });
     Ok(OpOut::plain(
@@ -4934,7 +4913,7 @@ fn need_count(
 /// functions of them, and the structure is selected on the sections'
 /// value channel (`sweep::loft_profiles`). At `Interval` a section wider
 /// than a point lofts the family it spans.
-fn wire_loft<T: Decide + topo::AtRestPolicy>(
+fn wire_loft<T: crate::mate::SolveScalar + topo::AtRestPolicy>(
     id: RecipeNodeId,
     profiles: &[RecipeNodeId],
     ids: &[crate::SectionId],
@@ -4986,7 +4965,7 @@ fn wire_loft<T: Decide + topo::AtRestPolicy>(
     // with that section's id.
     let table = names::name_loft(id, &built, &pieces, ids).map_err(NodeErrorKind::Naming)?;
     Ok(OpOut::plain(
-        ValuePayload::Body(values[0].framed(Arc::new(built.body), tol)?),
+        ValuePayload::Body(values[0].framed(Arc::new(built.body), id, tol)?),
         table,
     ))
 }

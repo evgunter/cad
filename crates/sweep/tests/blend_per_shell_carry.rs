@@ -107,7 +107,8 @@ fn snapshot(body: &Body<f64>, shell: ShellKey) -> String {
 }
 
 fn validate(what: &str, body: &Body<f64>) {
-    topo::finish(body.clone(), tol()).unwrap_or_else(|e| panic!("{what}: tier 3 refuses: {e:?}"));
+    topo::finish(topo::Built::of(body.clone()), tol())
+        .unwrap_or_else(|e| panic!("{what}: tier 3 refuses: {e:?}"));
 }
 
 fn volume(body: &Body<f64>) -> f64 {

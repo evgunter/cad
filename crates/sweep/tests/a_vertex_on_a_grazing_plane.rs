@@ -27,7 +27,7 @@ fn tol() -> Tol {
 }
 
 fn finished(body: Body<f64>) -> AtRestBody<f64> {
-    topo::finish(body, tol()).expect("a valid operand")
+    topo::finish(topo::Built::of(body), tol()).expect("a valid operand")
 }
 
 fn moved(body: &AtRestBody<f64>, by: Affine3<f64>) -> AtRestBody<f64> {

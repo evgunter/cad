@@ -1807,8 +1807,8 @@ fn a_stranded_split_top_is_refused_at_the_at_rest_gate() {
         .collect();
     let edges: Vec<_> = boundary.iter().map(|he| he.edge).collect();
     let vertices: Vec<_> = boundary.iter().map(|he| he.start).collect();
-    let errors =
-        crate::finish(body, Tol::witness()).expect_err("a stranded body is not a finished body");
+    let errors = crate::finish(crate::Built::of(body), Tol::witness())
+        .expect_err("a stranded body is not a finished body");
     assert!(
         errors
             .iter()
@@ -2589,7 +2589,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("insert.rs", "record_germ_dir", "Coincide::TangentLocus", 2),
     ("insert.rs", "walk_faces_first", "Coincide::Sectors", 1),
     ("insert.rs", "walks_after", "Coincide::Sectors", 1),
-    ("join.rs", "bool_connect", "Coincide::Section", 1),
     (
         "join.rs",
         "section_unbuilt",

@@ -133,7 +133,7 @@ fn a_later_finish_of_a_boxed_move_reports_only_undecided_findings() {
     .unwrap();
     for (what, motion) in [("the boxed translation", shift), ("the boxed turn", turn)] {
         let moved = source.moved(&motion, tol()).unwrap();
-        let refused = topo::finish(moved.into_body(), tol())
+        let refused = topo::finish(topo::Built::of(moved.into_body()), tol())
             .map(|_| ())
             .expect_err(&format!("{what}: a later finish over the box refuses"));
         let findings = refused.into_findings();

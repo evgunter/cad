@@ -172,7 +172,8 @@ fn assert_section(part: &Body<f64>, tilted: bool, what: &str) {
         };
         let conic = match c.carrier() {
             Curve3::Ellipse(..) => tilted,
-            Curve3::Circle(geom::Circle { frame, .. }) => {
+            Curve3::Circle(the_circle @ geom::Circle { .. }) => {
+                let frame = the_circle.frame();
                 let center = frame.origin();
                 !tilted && center.y == 0.5
             }
@@ -549,9 +550,12 @@ fn steep_frusta_in_a_generic_pose_split_at_a_shallow_tilt() {
             motion.transform_vec(Vec3::new(phi.sin(), phi.cos(), 0.0)),
             tol,
         );
-        let Some(operand) =
-            test_utils::kernel_limit::pinned(topo::finish(turned, tol), eps, pinned, &what)
-        else {
+        let Some(operand) = test_utils::kernel_limit::pinned(
+            topo::finish(topo::Built::of(turned), tol),
+            eps,
+            pinned,
+            &what,
+        ) else {
             continue;
         };
         let answer = split(&operand, &cut, tol);

@@ -89,8 +89,10 @@ pub enum SessionOp {
         /// The placement: a `Place` or an instance.
         placement: RecipeNodeId,
     },
-    /// Write a value into a node's slot. Refused if the slot is
-    /// driven by an expression.
+    /// Write a value into a node's slot: the slot reads a literal of
+    /// it in the unit it is written in, whatever it read before, so a
+    /// number written over an expression replaces the expression. Only a
+    /// drag over an expression is refused ([`SessionOp::BeginGesture`]).
     SetSlot {
         /// The node.
         node: RecipeNodeId,
@@ -114,10 +116,10 @@ pub enum SessionOp {
     /// every candidate is applied to a scratch copy that is dropped.
     ///
     /// A slot driven by an expression is refused, exactly as
-    /// [`SessionOp::SetSlot`] and [`SessionOp::BeginGesture`] refuse
-    /// it: the range would be a range of numbers for a field that
-    /// takes no number. The affordance names the driving variables,
-    /// which are the fields to probe instead.
+    /// [`SessionOp::BeginGesture`] refuses it: the range would be how far
+    /// a number can move a slot whose number nothing moves until an
+    /// entry replaces the expression. The affordance names the driving
+    /// variables, which are the fields to probe instead.
     ProbeBounds {
         /// The field to probe.
         target: BoundsTarget,
@@ -148,7 +150,7 @@ pub enum SessionOp {
     },
     /// Replace a slot's expression from source text, through the
     /// shipped `parse_formula` door. This is the affordance's editing
-    /// half: a driven slot refuses a NUMBER, never an expression.
+    /// half: a driven slot refuses a DRAG, never an expression.
     SetSlotExpression {
         /// The node.
         node: RecipeNodeId,
@@ -681,11 +683,11 @@ pub enum SessionOp {
     ///
     /// Every argument of a kept step that did not move is written as
     /// the document holds it, so only what moved takes the editor's
-    /// notation. A kept step's argument an expression drives refuses
-    /// with the affordance if the program does not hold it unmoved
-    /// ([`Refusal::DrivenByExpression`]), exactly as the slot field
-    /// does. The program itself, and `ids`' shape, are the edit door's
-    /// to judge, and refuse in its words ([`Refusal::Edit`]).
+    /// notation. A kept step's argument the program writes anew is
+    /// written as the program holds it, over an expression as over a
+    /// literal, exactly as [`SessionOp::SetSlot`] writes a slot. The
+    /// program itself, and `ids`' shape, are the edit door's to judge,
+    /// and refuse in its words ([`Refusal::Edit`]).
     ///
     /// A name on a step the program does not keep, or on a kept step's
     /// piece it stops drawing, is stranded, and the door's report of it
@@ -794,9 +796,8 @@ pub enum SessionOp {
     /// (`work/doors/a-takeover-re-points-a-union-operand-but-rebinds-no-mate-through-it.md`).
     ///
     /// The plane is any plane the document reads in the target's space
-    /// ([`SplitPlane`]): a picked face's own, read where it was picked
-    /// as the mirror reads its plane, or a plane read the caller
-    /// writes. A target seat of the wrong kind refuses
+    /// ([`ToolPlane`]): a picked face's own, read where it was picked,
+    /// or a plane read the caller writes. A target seat of the wrong kind refuses
     /// [`Refusal::WrongNodeKind`]; a plane read in another space refuses
     /// at the insert door (`EditError::SpaceMismatch`). Whether the
     /// face is planar, and which side is empty, are the split's own to
@@ -805,12 +806,14 @@ pub enum SessionOp {
         /// The body split.
         target: Operand,
         /// The plane it is cut along.
-        plane: SplitPlane,
+        plane: ToolPlane,
     },
-    /// **Mirror an existing body across the plane of a picked face** —
-    /// the mirror tool's one committed action. The plane is the face's
-    /// own, read where it was picked: a pick on a copy is read on that
-    /// copy, in the copy's space, where the mirrored body stands.
+    /// **Mirror an existing body across a plane** — the mirror tool's
+    /// one committed action. The plane is any plane the document reads
+    /// in the body's space ([`ToolPlane`]), as the split's is: a picked
+    /// face's own, read where it was picked — a pick on a copy is read
+    /// on that copy, in the copy's space, where the mirrored body
+    /// stands — or a plane read the caller writes.
     ///
     /// The body becomes the symmetric part: the image (`Node::Mirror`)
     /// and the union of the body and its image, in the body's space,
@@ -821,28 +824,39 @@ pub enum SessionOp {
     /// PR 6353). The made node is the image, the piece the gesture adds.
     ///
     /// A body seat of the wrong kind refuses [`Refusal::WrongNodeKind`];
-    /// a face read in another space — another construction's, or its
+    /// a plane read in another space — another construction's, or its
     /// image's — refuses at the insert door (`EditError::SpaceMismatch`).
-    /// Whether the face is planar is the mirror's own refusal where it
+    /// Whether a face is planar is the mirror's own refusal where it
     /// evaluates.
     AddMirror {
         /// The body reflected.
         body: Operand,
-        /// The face whose plane it is reflected across.
-        plane: FaceSelection,
+        /// The plane it is reflected across.
+        plane: ToolPlane,
     },
-    /// **Add a clearance requirement** — the clearance tool's one
-    /// committed action: an assertion that `clearance(a, b)` lies within
-    /// `bounds` (`Node::clearance`), each seat a body or a face. The
-    /// bounds are written as typed: a reversed band and a negative
-    /// bound are the evaluation's to refuse, on the requirement's row.
-    AddClearance {
-        /// The first seat.
-        a: ClearedSeat,
+    /// **Add an assertion** — the assertion tool's one committed action:
+    /// a recorded claim between two seats, each a body, a face picked in
+    /// the picture, or a read written as given.
+    ///
+    /// A clearance claim is `clearance(a, b)` within its bounds
+    /// (`Node::clearance`). A `Gap` or `Distance` claim is the measure
+    /// node over the two seats and a `Node::Assertion` relating its
+    /// output to the bound: the vocabulary `[assertions.quiet]` reads,
+    /// so a holding `Gap = 0` over a coincidence's two cells quiets it.
+    /// Either is one action and one undo. What a measure cannot read is
+    /// the insert door's to refuse, in its own words; a bound is written
+    /// as typed, and what is wrong with it is the evaluation's to say.
+    ///
+    /// **Built from values** ([`AssertedSeat`], [`AssertedClaim`]), so
+    /// a caller that already holds the claim — a check's finding — can
+    /// author it without the tool.
+    AddAssertion {
+        /// The first seat: a `Gap`'s outer, a `Distance`'s first.
+        a: AssertedSeat,
         /// The second seat.
-        b: ClearedSeat,
-        /// The bounds, each a length.
-        bounds: pncad::document::ClearanceBounds<Formula>,
+        b: AssertedSeat,
+        /// What is claimed between them.
+        claim: AssertedClaim,
     },
     /// Insert one pattern of an existing body — the pattern tool's one
     /// committed edit: an index `k = index(count)` and one placement of
@@ -1289,6 +1303,20 @@ pub struct PlacementBase {
 }
 
 impl SessionOp {
+    /// **The slot a value field's typed entry is aimed at**: a number
+    /// ([`Self::SetSlot`]) and text ([`Self::SetSlotExpression`]) are
+    /// the two doors of one field, so either is that field's edit.
+    /// `None` for every other op.
+    #[must_use]
+    pub fn field_entry(&self) -> Option<(RecipeNodeId, SlotId)> {
+        match self {
+            Self::SetSlot { node, slot, .. } | Self::SetSlotExpression { node, slot, .. } => {
+                Some((*node, *slot))
+            }
+            _ => None,
+        }
+    }
+
     /// **The viewer's Place of `body`**: into the space the body is in,
     /// so the copy stands where the body is. `None` for a read in no
     /// space, which names no body to place.
@@ -1316,7 +1344,7 @@ impl SessionOp {
             | Self::AddBoolean { .. }
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
-            | Self::AddClearance { .. }
+            | Self::AddAssertion { .. }
             | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
@@ -1444,7 +1472,7 @@ impl SessionOp {
             | Self::AddBoolean { .. }
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
-            | Self::AddClearance { .. }
+            | Self::AddAssertion { .. }
             | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
@@ -1674,7 +1702,7 @@ impl SessionOp {
             | Self::AddBoolean { .. }
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
-            | Self::AddClearance { .. }
+            | Self::AddAssertion { .. }
             | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
@@ -1808,7 +1836,7 @@ impl SessionOp {
             | Self::AddBoolean { .. }
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
-            | Self::AddClearance { .. }
+            | Self::AddAssertion { .. }
             | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
@@ -1907,7 +1935,7 @@ impl SessionOp {
             | Self::AddBoolean { .. }
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
-            | Self::AddClearance { .. }
+            | Self::AddAssertion { .. }
             | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
@@ -1925,9 +1953,10 @@ impl SessionOp {
     }
 }
 
-/// **The plane a split cuts along** ([`SessionOp::AddSplit`]).
+/// **The plane a split cuts along or a mirror reflects across**
+/// ([`SessionOp::AddSplit`], [`SessionOp::AddMirror`]).
 #[derive(Debug, Clone, PartialEq)]
-pub enum SplitPlane {
+pub enum ToolPlane {
     /// A face, read as its plane on the body it was picked on
     /// (`crate::matetool::plane_of`).
     Face(FaceSelection),
@@ -1936,14 +1965,57 @@ pub enum SplitPlane {
     Read(pncad::document::pose::RoleRead<Operand>),
 }
 
-/// **One seat of a clearance requirement** ([`SessionOp::AddClearance`]):
-/// a body, all of its faces, or one face picked in the picture.
+/// **One seat of an assertion** ([`SessionOp::AddAssertion`]).
 #[derive(Debug, Clone, PartialEq)]
-pub enum ClearedSeat {
-    /// A body read.
+pub enum AssertedSeat {
+    /// A body read, where it is drawn; a clearance reads all of its
+    /// faces.
     Body(Operand),
     /// A face, read on the body it was picked on.
     Face(FaceSelection),
+    /// **An operand as the measure reads it**, written as given: a
+    /// selection of one name in the body read plainly, a pose defined
+    /// off such a selection, or a variable — what the measure's insert
+    /// mints its references from. A check's finding names its cells
+    /// keyed by the `⊔` that gathered them, which is not this: a seat
+    /// built from a finding's raw name is admitted and then fails to
+    /// resolve. A finding's quieting assertion is converted to seats by
+    /// the kernel's own reading of the row.
+    Read(Operand),
+}
+
+/// **What an assertion claims** ([`SessionOp::AddAssertion`]): the
+/// measure over its two seats and how it is bounded.
+#[derive(Debug, Clone, PartialEq)]
+pub enum AssertedClaim {
+    /// `clearance(a, b)` within the bounds, each a length.
+    Clearance(pncad::document::ClearanceBounds<Formula>),
+    /// The output of the measure `measure` names, over the two seats in
+    /// order (a `Gap`'s outer then inner), related to the bound
+    /// (`pncad::document::Claim::Value`).
+    Value {
+        /// The measure.
+        measure: pncad::document::MeasureVerb,
+        /// How the output must relate to the bound.
+        relation: pncad::document::AssertionRelation,
+        /// The bound, in the output's dimension.
+        bound: Formula,
+    },
+}
+
+/// **The primitive `verb` names over `a` and `b`**, in seat order.
+#[must_use]
+pub fn measured(
+    verb: pncad::document::MeasureVerb,
+    a: Operand,
+    b: Operand,
+) -> pncad::document::MeasurePrimitive<Operand> {
+    use pncad::document::{MeasurePrimitive as M, MeasureVerb as V};
+    match verb {
+        V::Gap => M::Gap { outer: a, inner: b },
+        V::Distance => M::Distance { a, b },
+        V::Angle => M::Angle { a, b },
+    }
 }
 
 /// **An operation that creates a node** — the only operation

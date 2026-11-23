@@ -469,8 +469,9 @@ fn speed_sup<T: SpanLocate>(carrier: &Curve3<T>) -> T {
 /// points, and so no more than its arc. The lever arm of a reading
 /// consumed along the edge (D4 ¶1) whose definite verdict is a
 /// nonzero sign and whose Zero only refuses: a transversality or a
-/// uniqueness tube a certificate claims, a root a corner accepts as
-/// transversal, a section's crossing. Such a reading's convention is
+/// uniqueness tube a certificate claims, the root a face move's corner
+/// accepts as transversal (`topo`'s `replace_face`, where a graze serves
+/// no point), a section's crossing. Such a reading's convention is
 /// that a Zero is a refusal, never a served class; under it an arm
 /// longer than `D` would certify a crossing too shallow to pin within
 /// the edge, and a shorter one only refuses more. Being no longer than
@@ -1203,9 +1204,9 @@ mod tests {
                 if let (Curve3::Circle(c), true) = (&carrier, t1 > 1.0) {
                     // The whole circle's farthest point from the pivot, exactly:
                     // `√(h² + (ρ + r)²)`, `h` off its plane, `ρ` across it.
-                    let w = pivot - c.frame.origin();
-                    let h = w.dot(c.frame.axis());
-                    let rho = (w - c.frame.axis() * h).norm();
+                    let w = pivot - c.frame().origin();
+                    let h = w.dot(c.frame().axis());
+                    let rho = (w - c.frame().axis() * h).norm();
                     let exact = (h * h + (rho + c.radius()).powi(2)).sqrt();
                     assert!(
                         (lever - exact).abs() <= 1e-12 && farthest <= exact,
@@ -1287,8 +1288,8 @@ mod tests {
                     // against it has its farthest point there.
                     let crest_normal = {
                         let (u, k) = match carrier {
-                            Curve3::Circle(geom::Circle { frame, .. })
-                            | Curve3::Ellipse(geom::Ellipse { frame, .. }) => {
+                            Curve3::Circle(_) | Curve3::Ellipse(_) => {
+                                let frame = carrier.frame().unwrap();
                                 (frame.u_ref(), frame.axis())
                             }
                             _ => unreachable!(),

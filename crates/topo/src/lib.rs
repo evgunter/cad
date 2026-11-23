@@ -158,7 +158,6 @@ pub mod chart_region;
 pub(crate) mod chart_window;
 pub(crate) mod chord_join;
 pub mod clearance;
-pub mod coherence;
 pub mod coincidence;
 pub mod construction;
 pub mod contact;
@@ -340,6 +339,9 @@ pub mod test_support {
 
     use crate::body::Body;
 
+    #[cfg(any(test, feature = "test-support"))]
+    pub use crate::validate::unconfirmed;
+
     /// The at-rest window's reasons for an incidence refusal, one per
     /// read (`validate::incidence_reasons`): a test outside this crate
     /// reads them rather than copying their words.
@@ -476,12 +478,14 @@ pub mod test_support {
     // purpose — a guard that reached for the constant the builder uses
     // would be comparing that constant against itself.
     pub use crate::props::{
-        DoorOutcome, DoorRead, FaceReading, FaceTerm, every_door, face_reading,
-        face_reading_structural, fold_order_bound, mass_properties_one_point,
-        mass_properties_with_face_terms, measure_with_unmet_width, quadrature_rounds, read_points,
-        region_carries_of, shell_references,
+        ClosedFormRead, DoorOutcome, DoorRead, FaceReading, FaceTerm, closed_form_reads,
+        every_door, face_reading, face_reading_structural, fold_order_bound,
+        mass_properties_one_point, mass_properties_with_face_terms, measure_with_unmet_width,
+        quadrature_rounds, read_points, region_carries_of, shell_references, volume_role_reading,
     };
     pub use crate::star::with_ring_root;
+    #[cfg(feature = "test-support")]
+    pub use crate::test_support_fixtures::restate_geometry;
     pub use crate::test_support_fixtures::{
         CubeOps, CylFrame, CylKey, FaceGeometry, HINGED_ALONG_B, NullStrutListing, Prism, PrismOps,
         RingFaceOps, StraddleSeat, arc_chain_over_the_jump, assert_every_chord_named_by_the_fence,
@@ -493,6 +497,7 @@ pub mod test_support {
         prism_z, set_sheet_sense, split_plane, straddle_seat, tool_on_a_block_corner,
         wedge_on_a_block_top,
     };
+    pub use crate::test_support_fixtures::{Stored, seamless_drum};
     pub use crate::test_support_impl::ArenaCounts;
 
     /// **A placement the census decided overlaps**: a finding
@@ -1541,16 +1546,12 @@ pub use sweep_trace::SweepPairs;
 // consumer of the ops needs no direct geom-* imports for the common
 // path (the full geometry vocabulary still lives in those crates).
 pub use chart::{Chart, ChartKind};
-pub use chart_iso::{TravKind, classify_kind, iso_side_starts, mid_azimuth};
+pub use chart_iso::{TravKind, iso_side_starts, mid_azimuth, traversal_kind};
 pub use chart_region::{
     CarrierPremise, ChartOverlap, ChartRegionError, RegionLane, RegionLaneOf, WITNESS_CELL_CAP,
     WITNESS_SEGMENT_CAP, chart_region_overlap, glued_pair_overlap,
 };
 pub use clearance::{ClearanceLane, ClearanceLaneOf};
-pub use coherence::{
-    CoherenceCondition, CoherenceFinding, CoherenceReport, StructureRead, Unexaminable, Unexamined,
-    examine_chart_coherence, gap_is_noise,
-};
 pub use coincidence::{
     Backing, Cited, Cites, Coincidence, DecisionSite, Discharge, Relation, RowCell,
 };
@@ -1601,9 +1602,11 @@ pub use face_boxes::{FaceBox, FaceBoxes};
 #[cfg(debug_assertions)]
 pub use finish::finishes_on_this_thread;
 pub use finish::{
-    Arrivals, Assembled, Built, Censused, CensusedLeaf, FindingFamily, FinishedBody, HeldKind,
-    LeafBody, MoveError, NotFinished, Replay, finish, finish_assembled, session_box_at, take,
+    AssembleError, Assembled, Built, Censused, CensusedLeaf, FindingFamily, FinishedBody, HeldKind,
+    KernelOnly, LeafBody, MoveError, NotFinished, Replay, finish, finish_assembled, session_box_at,
+    take,
 };
+pub use geom_brep::curve_face::CrossWhy;
 pub use geom_brep::curve_face::plane_crossing::ConicRootFault;
 pub use geom_brep::edge_crossing::CrossingDecision;
 pub use mirror::{Reflection, mirror_body};

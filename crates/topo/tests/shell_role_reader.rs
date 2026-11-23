@@ -46,7 +46,8 @@ fn stood_down(tol: Tol) -> bool {
 }
 
 fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64), tol: Tol) -> AtRestBody<f64> {
-    topo::finish(common::brick::<f64>(x, y, z, tol), tol).expect("the brick is at rest")
+    topo::finish(topo::Built::of(common::brick::<f64>(x, y, z, tol)), tol)
+        .expect("the brick is at rest")
 }
 
 fn slab(t: f64, tol: Tol) -> Body<f64> {
@@ -115,7 +116,8 @@ fn a_brick_less_a_thin_slab_holds_it_as_a_cavity() {
     let big = brick((-1.0, 2.0), (-1.0, 2.0), (-1.0, 2.0), tol);
     for m in ABOVE_K {
         let what = format!("brick ∖ slab {m}ε");
-        let s = topo::finish(slab(m * tol.eps(), tol), tol).expect("the slab is at rest");
+        let s = topo::finish(topo::Built::of(slab(m * tol.eps(), tol)), tol)
+            .expect("the slab is at rest");
         let body = built(&what, topo::subtract(&big, &s, tol));
         assert_eq!(shells_per_solid(&body), [2], "{what}: one solid");
         assert_eq!(
@@ -190,7 +192,8 @@ fn a_thin_slab_and_a_far_brick_are_two_solids() {
         );
     }
     for m in ABOVE_K {
-        let s = topo::finish(slab(m * tol.eps(), tol), tol).expect("the slab is at rest");
+        let s = topo::finish(topo::Built::of(slab(m * tol.eps(), tol)), tol)
+            .expect("the slab is at rest");
         for (order, a, b) in [("slab ∪ far", &s, &far), ("far ∪ slab", &far, &s)] {
             let what = format!("{order} {m}ε");
             let body = built(&what, topo::union(a, b, tol));
@@ -224,7 +227,7 @@ fn a_lone_slab_is_outer_and_inside_out_refuses_at_rest() {
         let inverted = body.revert().expect("the slab reverts");
         let solid = inverted.solids().next().expect("one solid").0;
         assert_eq!(
-            topo::finish(inverted, tol)
+            topo::finish(topo::Built::of(inverted), tol)
                 .map(|_| ())
                 .map_err(topo::NotFinished::into_findings),
             Err(vec![ValidationError::NegativeVolume { solid }]),
@@ -256,13 +259,13 @@ fn a_slab_in_the_plane_x_equals_y_reads_its_role() {
         let inverted = raw.revert().expect("the slab reverts");
         let solid = inverted.solids().next().expect("one solid").0;
         assert_eq!(
-            topo::finish(inverted, tol)
+            topo::finish(topo::Built::of(inverted), tol)
                 .map(|_| ())
                 .map_err(topo::NotFinished::into_findings),
             Err(vec![ValidationError::NegativeVolume { solid }]),
             "{m}ε: the inside-out slab refuses at rest"
         );
-        let s = topo::finish(raw, tol).expect("the slab is at rest");
+        let s = topo::finish(topo::Built::of(raw), tol).expect("the slab is at rest");
         let what = format!("brick ∖ x=y slab {m}ε");
         let body = built(&what, topo::subtract(&big, &s, tol));
         assert_eq!(
@@ -331,7 +334,7 @@ fn reads_its_orientation(what: &str, raw: Body<f64>, inverted: bool, tol: Tol) {
         raw
     };
     let solid = raw.solids().next().expect("one solid").0;
-    match (topo::finish(raw, tol), inverted) {
+    match (topo::finish(topo::Built::of(raw), tol), inverted) {
         (Ok(_), false) => {}
         (Err(errors), true) => assert_eq!(
             errors,
@@ -438,14 +441,14 @@ fn a_boolean_leaving_a_turned_needle_builds_it_in_every_pose() {
                 Point3::new(at(0), at(1), at(2))
             };
             let at_rest = |body| topo::finish(body, tol).expect("an operand at rest");
-            let a = at_rest(common::mapped_cube::<f64>(
+            let a = at_rest(topo::Built::of(common::mapped_cube::<f64>(
                 move |x, y, z| place([x, y, z]),
                 tol,
-            ));
-            let b = at_rest(common::mapped_cube::<f64>(
+            )));
+            let b = at_rest(topo::Built::of(common::mapped_cube::<f64>(
                 move |x, y, z| place([x, 1.0 - w + y * (1.0 + w), 1.0 - w + z * (1.0 + w)]),
                 tol,
-            ));
+            )));
             let what = format!("brick ∩ brick leaving a {across}Kε needle, pose {i}");
             let body = built(&what, topo::intersect(&a, &b, tol));
             assert_eq!(shells_per_solid(&body), [1], "{what}: one needle");
@@ -524,7 +527,7 @@ fn channel(pose: Pose, w: f64, s: f64, tol: Tol) -> Channel {
         } else {
             body
         };
-        topo::finish(body, tol).expect("an operand at rest")
+        topo::finish(topo::Built::of(body), tol).expect("an operand at rest")
     };
     let corner = |p: [f64; 3]| {
         if pose == Pose::Aligned {

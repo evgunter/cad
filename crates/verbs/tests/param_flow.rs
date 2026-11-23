@@ -245,8 +245,8 @@ fn the_booleans_flow_is_empty_beside_a_real_record() {
     let map = Affine3::translation(Vec3::new(0.5, 0.5, 0.5));
     let b = topo::transform_rigid(&a, &geom_core::test_support::rigid(&map, tol()))
         .expect("a translation is rigid");
-    let a = topo::finish(a, tol()).expect("the unit cube is a finished body");
-    let b = topo::finish(b, tol()).expect("the shifted cube is a finished body");
+    let a = topo::finish(topo::Built::of(a), tol()).expect("the unit cube is a finished body");
+    let b = topo::finish(topo::Built::of(b), tol()).expect("the shifted cube is a finished body");
     let out = Boolean {
         op: BooleanOp::Union,
         inputs: Box::new(BooleanInputs::default()),

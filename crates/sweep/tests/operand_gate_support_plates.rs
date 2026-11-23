@@ -78,7 +78,7 @@ fn pose(s: f64, seed: u64) -> Affine3<f64> {
 /// skips: the question is the boolean's, not the move's).
 fn posed(body: &Body<f64>, map: &Affine3<f64>) -> Option<AtRestBody<f64>> {
     let b = topo::transform_rigid(body, &geom_core::test_support::rigid(map, tol())).ok()?;
-    topo::finish(b, tol()).ok()
+    topo::finish(topo::Built::of(b), tol()).ok()
 }
 
 #[derive(Clone, Copy, PartialEq)]

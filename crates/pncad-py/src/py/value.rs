@@ -2329,7 +2329,8 @@ impl StructureNormalization {
     /// how far the snap moved a point of the surface's faces on `snapped`,
     /// how far the build moved a vertex from its printed point on
     /// `vertex_built`, how far the printed carrier stands off the built one
-    /// on `carrier_built`.
+    /// on `carrier_built`, how far a control point of the side moved on
+    /// `collapsed_side_made_one`.
     #[getter]
     fn moved_by(&self) -> Option<f64> {
         match &self.0.kind {
@@ -2337,7 +2338,10 @@ impl StructureNormalization {
             | pncad::step_import::NormalizationKind::OneRecord { moved_by, .. }
             | pncad::step_import::NormalizationKind::Snapped { moved_by, .. }
             | pncad::step_import::NormalizationKind::VertexBuilt { moved_by }
-            | pncad::step_import::NormalizationKind::CarrierBuilt { moved_by } => Some(*moved_by),
+            | pncad::step_import::NormalizationKind::CarrierBuilt { moved_by }
+            | pncad::step_import::NormalizationKind::CollapsedSideMadeOne { moved_by } => {
+                Some(*moved_by)
+            }
             _ => None,
         }
     }
@@ -2615,15 +2619,6 @@ pub(crate) fn import_step(
     let defaults = pncad::step_import::ImportOptions::default();
     let options = pncad::step_import::ImportOptions {
         eps_in: eps_in.map(|e| e.0.meters()).or(defaults.eps_in),
-        // This door asks for no chart-coherence examination, because
-        // `ImportReport` has no field to report one on: asking would
-        // measure the body and drop the measurement. Written as the
-        // literal rather than read off `defaults`, so this line
-        // ENFORCES the sentence above it — a kernel-side default that
-        // flipped one crate away would otherwise turn the examination
-        // on here silently, and the comment would go quietly false.
-        // The surface census carries the decision as a `NotBound` row.
-        examine_chart_coherence: false,
     };
     let imported = pncad::step_import::import_step(text, &options, tol);
     let curve_promotions = imported
@@ -2636,10 +2631,6 @@ pub(crate) fn import_step(
             eps_in,
             normalizations,
             instances,
-            // `None` by construction: the options above ask for no
-            // examination, and `None` means NOT ASKED — which is the
-            // one thing an empty report would not say.
-            coherence: _,
             // The rows the body's records cite: the import's own
             // decisions, which no document reads through this door.
             coincidences: _,

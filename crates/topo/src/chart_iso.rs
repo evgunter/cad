@@ -4,24 +4,17 @@
 //! edges carry ONE iso side between them.
 //!
 //! [`crate::chart`] answers what a surface's coordinates are; this
-//! module answers what a BOUNDARY EDGE is in them. Two consumers run
-//! these expressions and there is one copy of each:
+//! module answers what a BOUNDARY EDGE is in them. Its consumer is
+//! `mesh`'s boundary walk and chord rule, which read each edge of a
+//! curved face's loop at the family the shape door certified
+//! ([`traversal_kind`]) before emitting its UV polygon.
 //!
-//! - `mesh`'s boundary walk, which classifies every edge of a curved
-//!   face's loop before emitting its UV polygon;
-//! - [`crate::coherence`], which measures how far the body's own two
-//!   accounts of one of those constant coordinates disagree.
+//! **What is here is the rule; what is NOT here is the caller's
+//! disposition of it.** `mesh` reads the separation band through its
+//! own `Eps` newtype and this module takes the answer as a `bool`: a
+//! band's spelling belongs to the crate that owns the band.
 //!
-//! **What is here is the rule; what is NOT here is each caller's
-//! disposition of it.** `mesh` maps a non-iso carrier onto its own
-//! typed refusal and this module answers `None`; `mesh` reads the
-//! separation band through its own `Eps` newtype and this module takes
-//! the answer as a `bool`. Those two seams are deliberate and are
-//! named at the items below: a disposition belongs to the crate that
-//! disposes, and a band's spelling belongs to the crate that owns the
-//! band.
-//!
-//! `f64` alone: both consumers read `f64` bodies.
+//! `f64` alone: `mesh` reads `f64` bodies.
 
 use geom::Curve3;
 
@@ -61,57 +54,30 @@ pub fn mid_azimuth(chart: &Chart, curve: &geom_brep::EdgeCurve<f64>) -> f64 {
     chart.u_of(curve.mid_point())
 }
 
-/// Rim-vs-meridian classification, on the carrier alone: line
-/// carriers are meridians; circle carriers split on axis alignment
-/// (structurally either parallel — a rim — or perpendicular — a
-/// meridian; 0.5 splits the two classes with maximal margin). A wrap
-/// edge is classified like any other edge on its carrier: a meridian
-/// wraps `u` and a torus parallel wraps `v` (D1).
+/// **The traversal an edge is, given its iso family**: a meridian (`U`)
+/// reads its column at the mid-point chart inversion
+/// ([`mid_azimuth`]), a rim (`V`) its row from its circle
+/// ([`Chart::rim_v`]). The family is the caller's — `mesh` reads the one
+/// `geom_brep::props::iso_rectangle_sides` certified for the edge — so
+/// this decides nothing; it reads the coordinate.
 ///
-/// A meridian's column u always comes from the mid-point chart
-/// inversion — **never** from the edge kind: chart u is read through
-/// the chart, whose [`Chart::u_of`] carries the cone's mirror-nappe
-/// correction.
-///
-/// **`None` is not a refusal, it is the absence of a classification**:
-/// a conic or spline carrier is no chart iso curve, so this function
-/// has no answer about it. What that MEANS is the caller's, and the
-/// two callers mean different things by it — `mesh` reaches such a
-/// carrier only as a dispatch defect and surfaces it typed, while
-/// [`crate::coherence`] records the loop as unexamined and carries on.
-/// Neither disposition belongs here.
-pub fn classify_kind(chart: &Chart, curve: &geom_brep::EdgeCurve<f64>) -> Option<TravKind> {
-    match *curve.carrier() {
-        Curve3::Line(_) => Some(TravKind::Meridian {
+/// `None` for a rim whose carrier is no circle, which has no row to
+/// read.
+pub fn traversal_kind(
+    chart: &Chart,
+    curve: &geom_brep::EdgeCurve<f64>,
+    family: geom_brep::IsoFamily,
+) -> Option<TravKind> {
+    match family {
+        geom_brep::IsoFamily::U => Some(TravKind::Meridian {
             u_raw: mid_azimuth(chart, curve),
         }),
-        Curve3::Circle(
-            circle @ geom::Circle {
-                frame: carrier_frame,
-                ..
-            },
-        ) => {
-            let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
-            let radius = circle.radius();
-            if axis.dot(chart.frame().axis()).abs() > 0.5 {
-                Some(TravKind::Rim {
-                    v_raw: chart.rim_v(center, radius),
-                })
-            } else {
-                Some(TravKind::Meridian {
-                    u_raw: mid_azimuth(chart, curve),
-                })
-            }
-        }
-        // A spiric is neither a rim nor a meridian traversal of its
-        // torus chart (its azimuth AND its minor angle both move), so it
-        // opens no iso side. The mesh's chord pass never asks this of a
-        // spiric (its chord arm sizes the carrier itself), so the
-        // `None` here is read by the coherence walk alone
-        // (`NonIsoCarrier`).
-        Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) | Curve3::Periodic(_) => {
-            None
-        }
+        geom_brep::IsoFamily::V => match *curve.carrier() {
+            Curve3::Circle(circle) => Some(TravKind::Rim {
+                v_raw: chart.rim_v(circle.frame().origin(), circle.radius()),
+            }),
+            _ => None,
+        },
     }
 }
 
@@ -130,10 +96,8 @@ pub fn classify_kind(chart: &Chart, curve: &geom_brep::EdgeCurve<f64>) -> Option
 /// It arrives as an answer rather than as a length because the BAND
 /// that decides it is the caller's — `mesh` spells it
 /// `Eps::separates(chart.radial(junction))` through the newtype that
-/// owns every one of that crate's terminal ε reads, and
-/// [`crate::coherence`] spells the same comparison against the run's
-/// ε. One rule, two bands, and the seam is visible in this signature
-/// rather than hidden in a second copy of the rule.
+/// owns every one of that crate's terminal ε reads, and the seam is
+/// visible in this signature rather than hidden in a copy of the rule.
 ///
 /// Every chart singularity lies ON THE AXIS — a sphere's poles, a
 /// cone's apex — so one separation answer covers them all, without a

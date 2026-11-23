@@ -260,6 +260,16 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
          `graft_disjoint_all_keyed` on `dst` — same body, same assertion",
     ),
     (
+        "graft_finished",
+        "calls `graft_placed` on the aggregate it holds — same body, same assertion; the \
+         records it carries beside are no part of the body",
+    ),
+    (
+        "graft_leaf",
+        "calls `graft_placed` on the aggregate it holds — same body, same assertion; the \
+         records it carries beside are no part of the body",
+    ),
+    (
         "split_edge",
         "calls `split_edge_minting` with the carrier's own point — same body, same assertion",
     ),
@@ -268,6 +278,11 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
         "restate_surface",
         "a test-support door that overwrites one surface datum in place; no vertex, edge, \
          loop, face or shell is touched, so tier 1 holds as it found it",
+    ),
+    (
+        "restate_geometry",
+        "a test-support door that overwrites stored points, carriers and surfaces in place; \
+         no vertex, edge, loop, face or shell is touched, so tier 1 holds as it found it",
     ),
     (
         "set_sheet_sense",

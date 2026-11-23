@@ -501,7 +501,7 @@ pub(crate) fn partition_and_complement(name: &str, a: &AtRestBody<f64>, b: &AtRe
     .expect("the pinned resolution is met")
     .volume;
     assert_eq!(minus + meet, whole, "{name}: A∖B and A∩B partition A");
-    let refused = topo::finish(b.revert().unwrap(), Tol::witness())
+    let refused = topo::finish(topo::Built::of(b.revert().unwrap()), Tol::witness())
         .expect_err("a complement is not a finished body");
     assert!(
         !refused.is_empty()

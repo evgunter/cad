@@ -145,7 +145,7 @@ fn plain_body_volume(session: &mut DocSession, node: RecipeNodeId, tol: Tol) -> 
     };
     pncad::topo::test_support::pinned_volume(
         "mass properties",
-        &pncad::topo::finish(pncad::topo::Body::clone(body.body()), tol)
+        &pncad::topo::finish(topo::Built::of(pncad::topo::Body::clone(body.body())), tol)
             .expect("the measured body passes tier 3"),
         tol,
     )
@@ -596,7 +596,12 @@ fn losing_the_target_voids_the_whole_set_and_says_so() {
     assert_eq!(blend(&tools).count(), 0);
     assert_eq!(blend(&tools).target(), None);
     assert!(
-        blend(&tools).fillet_op(len(BLEND)).is_none(),
+        matches!(
+            blend(&tools).fillet_op(len(BLEND)),
+            Err(viewer::SeatError::NoEdges {
+                role: viewer::EdgeRole::Blended
+            })
+        ),
         "and a tool holding no edges has no op to commit"
     );
 }
@@ -810,11 +815,21 @@ fn an_empty_set_has_no_op_and_refuses_at_the_insert() {
     let mut tools = Tools::new();
     tools.open(ToolKind::Blend);
     assert!(
-        blend(&tools).fillet_op(len(BLEND)).is_none(),
+        matches!(
+            blend(&tools).fillet_op(len(BLEND)),
+            Err(viewer::SeatError::NoEdges {
+                role: viewer::EdgeRole::Blended
+            })
+        ),
         "no fillet op"
     );
     assert!(
-        blend(&tools).chamfer_op(len(BLEND)).is_none(),
+        matches!(
+            blend(&tools).chamfer_op(len(BLEND)),
+            Err(viewer::SeatError::NoEdges {
+                role: viewer::EdgeRole::Blended
+            })
+        ),
         "no chamfer op"
     );
 
@@ -1269,7 +1284,15 @@ fn an_emptied_set_releases_its_target() {
     assert!(pick(&mut tools, &session, &one).is_empty());
     assert_eq!(blend(&tools).count(), 0);
     assert_eq!(blend(&tools).target(), None, "an empty set holds no target");
-    assert!(blend(&tools).fillet_op(len(BLEND)).is_none(), "and no op");
+    assert!(
+        matches!(
+            blend(&tools).fillet_op(len(BLEND)),
+            Err(viewer::SeatError::NoEdges {
+                role: viewer::EdgeRole::Blended
+            })
+        ),
+        "and no op"
+    );
     // And the next click starts wherever the user aims it.
     assert!(pick(&mut tools, &session, &other).is_empty());
     assert_eq!(blend(&tools).target(), Some(whole(&session, second)));

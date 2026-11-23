@@ -229,9 +229,10 @@ fn none(_: &[usize]) -> Option<BooleanErrorKind> {
 }
 
 /// The left fold of `members` by union in `order`, or the step that
-/// refused and why. A kernel op called without `BooleanInputs` records
-/// carries none of its operands' records, so the fold's contact record
-/// is its last step's.
+/// refused and why, each step handed no record of its operands
+/// (`BooleanInputs::default()`, where the plain `union` hands the
+/// operands' own): the uncarried fold, whose contact record is its last
+/// step's.
 fn fold(
     members: &[AtRestBody<f64>],
     order: &[usize],
@@ -239,7 +240,14 @@ fn fold(
     let mut body = members[order[0]].clone();
     let mut last = None;
     for (k, &i) in order.iter().enumerate().skip(1) {
-        match union(&body, &members[i], t()) {
+        match topo::boolean_op_with(
+            topo::BooleanOp::Union,
+            &body,
+            &members[i],
+            &topo::BooleanInputs::default(),
+            topo::SweepStrategy::Realized,
+            t(),
+        ) {
             Ok(BooleanResult::Body(r)) => {
                 body = r.body.clone();
                 last = Some(r);

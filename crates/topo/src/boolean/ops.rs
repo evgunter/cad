@@ -1527,8 +1527,8 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
         //   circles), any other escaping face is cut along its chart's
         //   meridian through each circle ([`SphereCutIn`]), and the
         //   pipeline re-enters once; the ordinary crossing layer then
-        //   finds the section circles and the (Plane, Sphere) or
-        //   (Sphere, Sphere) germ arm joins them exactly. Both spheres
+        //   finds the section circles and the carried lane joins them
+        //   exactly on the section value's circle. Both spheres
         //   of a crossing pair are re-cut, so the circle lands as
         //   chords on both and neither keeps it as a ring.
         // - **uncertifiable** (NURBS re-gate, a trimmed group's circle
@@ -2265,6 +2265,12 @@ fn face_boundary_meets<T: Decide + Bounds>(
     false
 }
 
+/// [`walk_pairs`]' box test.
+const WALK_PAIRS_BOXES: geom_core::k_stats::TestSite = geom_core::k_stats::TestSite::new(
+    "bool_walk_pairs_boxes",
+    "two faces' boxes meet, for the section certificate",
+);
+
 /// **The section certificate over pairs of rows**: every `(A row, B
 /// row)` pair whose certified boxes overlap, which the narrow phase
 /// ([`crate::separating::apart`]) does not part and which `admit`
@@ -2297,10 +2303,8 @@ fn walk_pairs<'r, T: Decide + Bounds + crate::props::AtRestPolicy + 'r>(
             // The box test prunes which face pairs the section
             // certificate reads, and decides nothing: its outcome is
             // marked, so two runs whose pruning differs part there.
-            if !geom_core::k_stats::mark_outcome(
-                "bool_walk_pairs_boxes",
-                fa.bbox.overlaps(&fb.bbox),
-            ) || !admit(fa, fb)
+            if !geom_core::k_stats::mark_outcome(WALK_PAIRS_BOXES, fa.bbox.overlaps(&fb.bbox))
+                || !admit(fa, fb)
             {
                 continue;
             }
@@ -6772,16 +6776,11 @@ fn sphere_pair_cut<T: Decide>(
     };
     let center = carrier_frame.origin();
     match geom_brep::sphere_sphere_section(x, y, band) {
-        Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(
-            circle @ geom::Circle {
-                frame: carrier_frame_21,
-                ..
-            },
-        ))) => {
+        Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(circle))) => {
             let (foot, normal, u_ref) = (
-                carrier_frame_21.origin(),
-                carrier_frame_21.axis(),
-                carrier_frame_21.u_ref(),
+                circle.frame().origin(),
+                circle.frame().axis(),
+                circle.frame().u_ref(),
             );
             let rho = circle.radius();
             Ok(SphereCutIn {
@@ -6822,10 +6821,10 @@ fn pair_seam<T: Decide>(
         Operand::B => (y, x),
     };
     match geom_brep::sphere_sphere_section(a, b, band) {
-        Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(geom::Circle {
-            frame,
-            ..
-        }))) => {
+        Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(
+            the_circle @ geom::Circle { .. },
+        ))) => {
+            let frame = the_circle.frame();
             let u_ref = frame.u_ref();
             Ok(u_ref)
         }
@@ -7434,18 +7433,30 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                     carrier,
                     (t0, t1),
                 )
-                .across(&meridian, "bool_sphere_cut_in_plane", band)
+                .across(&meridian, band)
                 {
                     Ok(geom_brep::curve_pair::on_surface::CoSurface::Roots(roots)) => roots,
                     Ok(
                         geom_brep::curve_pair::on_surface::CoSurface::InPlane
-                        | geom_brep::curve_pair::on_surface::CoSurface::Touch
-                        | geom_brep::curve_pair::on_surface::CoSurface::Unlaned,
+                        | geom_brep::curve_pair::on_surface::CoSurface::Touch,
                     ) => return Err(uncertified()),
-                    // A rung of the plane door escalated: the cut-in's own
-                    // question, in band.
-                    Err(geom_brep::curve_pair::on_surface::AcrossRefusal::InBand(diag)) => {
-                        return Err(esc(diag));
+                    // A stretch of the arc read in band: the cut-in's own
+                    // question, on its margin where it has one.
+                    Err(geom_brep::curve_pair::on_surface::AcrossRefusal::Windows(refusal)) => {
+                        if refusal.windows.iter().any(|w| w.why.fault().is_some()) {
+                            return Err(corrupt(
+                                "cut-in: the crossing reading of a boundary arc against the \
+                                 cut's meridian plane is a kernel fault",
+                            ));
+                        }
+                        return Err(refusal
+                            .windows
+                            .iter()
+                            .find_map(|w| w.why.diag())
+                            .map_or_else(uncertified, esc));
+                    }
+                    Err(geom_brep::curve_pair::on_surface::AcrossRefusal::NoPlane) => {
+                        unreachable!("the cut-in reads its arcs across the meridian's plane")
                     }
                     // Every piece inherits the cut face's record (the
                     // `mef` below): a piece on another is a fault here.
@@ -7461,14 +7472,11 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                     "bool_sphere_cut_span",
                     Margin::metered(t1 - t0, geom_core::InfSpeed::new(cr)),
                 )? == Sign::Positive;
-                for (root, p) in roots {
-                    let theta = root.t;
-                    let at_end = match root.place {
-                        geom_brep::curve_face::plane_crossing::RootPlace::Inside => false,
-                        geom_brep::curve_face::plane_crossing::RootPlace::AtEnd => true,
-                        geom_brep::curve_face::plane_crossing::RootPlace::Undecided(_) => {
-                            return Err(uncertified());
-                        }
+                for meeting in roots {
+                    let p = meeting.point;
+                    let (theta, at_end) = match meeting.on_span {
+                        geom_brep::curve_face::OnSpan::Inside { t } => (t, false),
+                        geom_brep::curve_face::OnSpan::End(_) => (t0, true),
                     };
                     let at_pole = sign_as(
                         "bool_sphere_cut_pole",
@@ -9155,8 +9163,8 @@ mod tests {
         let tol = Tol::witness();
         let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
         let raw = quad_prism(&square, 1.0, tol);
-        let errors =
-            crate::finish(raw.clone(), tol).expect_err("the box's chords are scaffolds at rest");
+        let errors = crate::finish(crate::Built::of(raw.clone()), tol)
+            .expect_err("the box's chords are scaffolds at rest");
         let mut named: Vec<_> = errors
             .iter()
             .filter_map(|e| match e {
@@ -9226,7 +9234,7 @@ mod tests {
         // gate that would hand it to the boolean refuses each of its
         // faces as uncertifiable, so no NURBS placeholder reaches a pair.
         for (what, body) in [("the declined cube", &a), ("the far declined cube", &b)] {
-            let errors = crate::finish(body.clone(), Tol::witness())
+            let errors = crate::finish(crate::Built::of(body.clone()), Tol::witness())
                 .expect_err("a NURBS placeholder is not a finished body");
             let mut uncertifiable: Vec<_> = errors
                 .iter()

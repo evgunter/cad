@@ -1960,9 +1960,10 @@ impl<T: Real> EdgeCurveSpec<T> {
         T: SpanLocate,
     {
         use geom_core::{Affine3, Point2, Point3};
-        let Curve3::Circle(geom::Circle { frame, .. }) = carrier else {
+        let Curve3::Circle(the_circle @ geom::Circle { .. }) = carrier else {
             return None;
         };
+        let frame = the_circle.frame();
         let center = frame.origin();
         let start = carrier.eval(t0);
         Some(Self {
@@ -3266,6 +3267,18 @@ impl<T: Real> EdgeCurve<T> {
     /// cubic, the whole loop the edge is a span of.
     pub fn stored_carrier(&self) -> &Curve3<T> {
         &self.stored
+    }
+
+    /// **This edge with every scalar of its carrier restated through
+    /// `map`**, its description, interval and certificate kept and
+    /// nothing certified again: the fixture of a row that wants a built
+    /// body's geometry written in other terms, or written wrong
+    /// (`topo::test_support::restate_geometry`).
+    #[cfg(feature = "test-support")]
+    #[doc(hidden)]
+    pub fn restate_carrier(&mut self, map: impl Fn(T) -> T) {
+        self.stored = self.stored.map_scalar(&map);
+        self.reading = self.reading.as_ref().map(|view| view.map_scalar(&map));
     }
 
     /// The certified carrier-parameter interval `(t₀, t₁)` —
@@ -5204,7 +5217,9 @@ fn run_checks<T: geom_core::Certifies + geom_core::CertifiedBounds>(
     let resolved = &resolved;
     let chart_stated = StatedChart::of(resolved);
     if let Some(surface) = chart_stated.analytic() {
-        stated_analytic_bound(spec, surface, band, crate::pcurve_cache::limb2_offset_sup)?;
+        stated_analytic_bound(spec, surface, band, |c, w, s, b| {
+            crate::pcurve_cache::limb2_offset_sup(c, w, s, crate::pcurve_cache::Limb2Locus::Face, b)
+        })?;
     }
     if let StatedChart::Bounded { surface, door } = chart_stated {
         let outer = crate::carrier_net::outer_ends((t0, t1));

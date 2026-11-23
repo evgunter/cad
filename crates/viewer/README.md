@@ -21,24 +21,43 @@ it rather than using it. The ratified plan that record answers to is
 
 | Gesture | Action |
 | --- | --- |
-| LEFT click | select (a face, edge or vertex pick, or a profile by its drawn outline; also feeds the mate tool's picks) |
-| MIDDLE drag | orbit (shift+middle: pan) |
-| ALT + LEFT drag | orbit — the trackpad binding (plain left never moves the camera) |
-| RIGHT drag | pan |
-| scroll | zoom |
-| ctrl/⌘ + scroll | zoom (as scroll) |
+| Middle drag | orbit |
+| Alt + left drag | orbit |
+| Right drag | pan |
+| Shift + middle drag | pan |
+| Scroll | zoom |
+| Pinch | zoom |
+| Left click | select what is under the pointer |
+| Hover | highlight what is under the pointer |
 
-**A pinch is not a mouse binding, and it zooms too**, with the model's
-apparent size following the fingers: a trackpad pinch where the
+The running viewer shows this table from the toolbar's **Controls**
+button. Both are the rows of `InputMap::DEFAULT.bindings`
+(`src/input.rs`), the table the input mapper itself reads: the window
+draws them, and `tests/controls_guide.rs` holds this page's copy to
+them, so neither can name a binding the viewport does not honour.
+
+Selecting picks a face, edge or vertex, or a profile by its drawn
+outline, and feeds the mate tool's picks. A modifier key a row does not
+name does not change what its gesture does (`input::Held::met_by`), and
+of two rows a drag fits, the one naming more keys is the one it means.
+
+**The wheel's modifiers are not in the table.** The toolkit adapter
+decides them before the table is asked (`pane/viewport.rs`,
+`configure_input` and `scroll_event`, with the rows beside them that
+hold it): a wheel turned with ctrl, ⌘ or alt held reaches the table as
+a plain scroll, and one turned with shift held is a sideways scroll,
+which is no gesture here.
+
+**A pinch zooms** with the model's apparent size following the
+fingers: a trackpad pinch where the
 platform reports one as a gesture (macOS and iOS through winit, and a
 browser through the web backend), and a touchscreen pinch. A platform
 that turns a pinch into a ctrl+wheel instead hands the viewer a scroll,
 which zooms at the scroll rate — by that mechanism, what a Windows
 precision touchpad's pinch would be.
 
-Left-drag in the viewport is inert **by design** — primary is reserved
-for selection; hold ALT to orbit with it on a trackpad. Moving a body's
-space is not a viewport drag either: the free-move probe is the typed
+A drag no row names moves nothing. Moving a body's space is not a
+viewport drag either: the free-move probe is the typed
 x/y/z fields in the selected body's display section of the Properties
 panel (display-only, in the working length unit).
 
@@ -60,8 +79,8 @@ one opens an empty name field instead, because a variable two slots
 share has a name. Typing a name and pressing **Name** or Enter names the
 variable and makes the slot read it, as one undo step. **keep
 separate** keeps the typed value distinct. A slot reading a shared
-variable is driven by it: a value typed there is refused, naming the
-variable, and the slot's expression text makes it its own again. A
+variable is driven by it: a drag there is refused, naming the
+variable, and a value typed there makes it its own again. A
 slot whose variable has no name has a **name…** button that opens an
 empty field; nothing is stored until you type a name and press
 **Name** or Enter.
@@ -286,8 +305,8 @@ Four things are known-absent by design:
   download/upload or OPFS story GUI-5 owns.
 - **No touch orbit or pan.** A pinch zooms — a touchscreen's, and a
   trackpad's the browser reports as a gesture, through
-  `ViewportEvent::Pinch` — but `InputMap` binds orbit to a middle drag
-  and pan to a secondary drag, and a phone has neither. egui delivers the touch events and `Context::multi_touch`
+  `ViewportEvent::Pinch` — but every drag row of the table
+  (`input::Binding::Drag`) names a mouse button, and a phone has none. egui delivers the touch events and `Context::multi_touch`
   is there, but only its zoom is consumed, so orbiting and panning are
   unreachable on a phone until a touch vocabulary for them lands.
   `InputMap::map` is a pure `ViewportEvent → CameraOp` function, so
@@ -932,7 +951,7 @@ neither.
 
 | Module | Holds |
 |---|---|
-| `forms` | What the panels offer for authoring, and how a typed field behaves. The vocabularies — `ShapeKind` (the profile editor's add-loop templates), `PatternLayoutChoice` — mirror a kernel or session enum, and the MIRROR is what is hand-maintained: the two enums declare themselves and their `ALL` in one declaration (**Closed vocabularies are declared once**, below), so no membership list here can fall behind its own enum (the mate tool's `MATE_KINDS`, a deliberately partial mirror of `VarKind`, lives beside the tool in `matetool`). A kernel vocabulary this crate offers WHOLE is not mirrored at all: the boolean form draws one button per entry of `topo::BooleanOp::ALL` and writes only the labels, at an exhaustive match, a body seat holding a split picked in the tree does the same over `select::SplitHalf::ALL` (`split_half_label`, declared in `tree` because an empty half's readout names the half with the same word), and the profile editor's step list does the same over `profile::Verb::ALL` (whose `Display` is its word), `profile::ArcMode::ALL` and `profile::TargetKind::ALL`, editing the kernel's own `Step` rather than a copy of it. The field-writing family — `FieldWriting`, `drag_tick` and the four drag speeds — mirrors nothing and is a product decision on its own (how much of a unit one pixel of drag is worth). Both are decisions the toolkit does not make, which is what puts them here rather than in `app` |
+| `forms` | What the panels offer for authoring, and how a typed field behaves. The vocabularies — `ShapeKind` (the profile editor's add-loop templates), `PatternLayoutChoice` — mirror a kernel or session enum, and the MIRROR is what is hand-maintained: the two enums declare themselves and their `ALL` in one declaration (**Closed vocabularies are declared once**, below), so no membership list here can fall behind its own enum (the mate tool's `MATE_KINDS`, a deliberately partial mirror of `VarKind`, lives beside the tool in `matetool`). A kernel vocabulary this crate offers WHOLE is not mirrored at all: the boolean form draws one button per entry of `topo::BooleanOp::ALL` and writes only the labels, at an exhaustive match, a body seat holding a split picked in the tree does the same over `select::SplitHalf::ALL` (`split_half_label`, declared in `tree` because an empty half's readout names the half with the same word), and the profile editor's step list does the same over `profile::Verb::ALL` (whose `Display` is its word), `profile::ArcMode::ALL` and `profile::TargetKind::ALL`, editing the kernel's own `Step` rather than a copy of it. `FieldWriting` — how one field is written: the unit `props::rendering_unit` gives a dimension in a notation, at `props::drag_tick`'s tick for it — mirrors nothing and is a product decision on its own (how much of a unit one pixel of drag is worth). Both are decisions the toolkit does not make, which is what puts them here rather than in `app` |
 | `drafts` | `Drafts`, `ProfileEdit`, `RowEdit` and `CommitFault`: the in-flight form state (`ProfileEdit` is a committed profile's program held as written, which the profile editor's step lists edit through each step's view at plain numbers, and `RowEdit` a change to the shape of one of its step lists), its defaults and the editor's loop templates, and its lowering of typed field values to `Expr`, `LoopProgram` and the profile-on-a-face form's `SessionOp` — the same layer as `session::author`, and today the larger half of it |
 | `frame` | The per-frame policies the viewport runs, as values: hand one the values a frame holds and it answers the same way every time, with no window, no session and no process around it — which is what makes a rule about the chrome testable at all, and why the frame loop still decides WHEN to call one and no longer decides what it MEANS. What the chrome has to say and which of its two channels says it (`Subject`, `Message`, `StatusUpdate`, `RankedVerdict`, `Badge`, the doors that build one and the two that spend one — `deliver` for a policy's `StatusUpdate`, `apply` for the ranking's `RankedVerdict`, each taking only its own type, so the compiler rejects a policy's verdict at the ranked door — though a hand-built `RankedVerdict::Show` still passes, which is `work/vnews/the-status-field-is-lent-bare-so-a-pane-can-write-around-both-doors.md`), `frame_status`'s ranking over a frame's news, the badge family including `product_badge`, the draft and the offer a refused batch leaves behind (`retype_draft`, `creation_offer`) and the one a failed instance makes (`version_offer`), what a folded event stream amounts to (`folded_is_a_camera_event`, `fold_status`), and what a frame says about work outstanding (`progress`). **The charter's exclusions are the half that was missing**: a concern that reads ambient process state is a function of the machine and lives in `platform`; a concern that carries state across frames is not a function of one frame and lives in `idpass`. Both are consumed here (`cursor_status` takes an `idpass::IdStep`) and neither is decided here. This row used to say the charter argues for taking each concern out of `app` and **not** for their being one module — `work/view/frame-module-has-eight-concerns-and-no-holds-row.md` owned the split that sentence deferred, and the split is taken: the charter above is now true of what is here, so the row covers the module rather than confessing that it cannot |
 | `platform` | What the environment the process was started in offers the shell, read once before the first frame. Each value here — the chooser-backend verdict (`ChooserBackend`, whose `unusable` answers the reason a dialog the environment cannot put up gives for being disabled; `chooser_backend`; `chooser_backend_of` over `Zenity` and `SessionBus`), the XDG preferences path (`prefs_path`, `prefs_path_in`) and the WSL probe (`running_under_wsl`) — takes the environment as its ARGUMENT, so none is a function of anything this crate holds and none can be replayed from a value a test builds. That is why they are not `frame`'s and why they are one module: `scripts/gates/no-ambient-env.sh` ratifies that the viewer's runtime environment reads have ONE home and allowlists this file as that home, and its argument against the gate's four rows is an argument about exactly these probes. A module that exists FOR the door is what makes that entry a door rather than a region inside something else |
@@ -2098,6 +2117,20 @@ is its preview.
 Six seated tools hold no value field; what they used to type is a row
 of the node they insert, or a pick.
 
+**A creation tool's commit waiting on a pick is withheld and names
+the pick.** The seated tools', the blend tool's and the
+profile-on-a-face form's commits are drawn by one row
+(`pane::create`'s `withheld_commit_row`), which takes the op as the
+tool's door forms it and reads the fault off it: a pick not held — a
+`seats::SeatError`, its role named the way the panel line names it —
+or, on the assertion form, a band over a measure's value. While one
+stands the commit is disabled and the fault is said under it and on
+its hover (`no mirror plane picked yet: pick a face`). A panel line says an open
+pick `role: none picked` (`seats::open_pick`), and a pick that leaves
+the document is said by `seats::pick_gone`. The mate tool, the
+add-variable form and the selection's own buttons (re-point,
+`Select all edges`) gate their controls apart.
+
 - **Blend.** The form asks for the edges and fillet or chamfer. The
   insert writes the size at `blend::default_size`: a millimetre,
   written in the working unit at one significant figure (`1 mm`,
@@ -2109,10 +2142,24 @@ of the node they insert, or a pick.
   The gesture's noun is the mirror: the insert writes the image and
   `body ∪ image` for every body, placed or not, and answers the image
   as what it made, so the image is labelled `Mirror N` and selected.
-  The union takes no label.
-- **Clearance.** The form asks for the two seats and the bound's shape
-  (at least, at most, exactly, between), which decides how many bound
-  slots the requirement has. The insert writes every end at contact,
+  The union takes no label. Its body and plane are held and taken as
+  the split's are (`combine::PlaneSeats`, below), and the button is
+  withheld, naming the missing pick, until both are held.
+- **Assertion.** One tool authors every claim between two seats
+  (`SessionOp::AddAssertion`). The form asks for the two seats and the
+  measure: a clearance, a `Gap` or a `Distance`. A `Gap` or a
+  `Distance` is the measure node over the seats and a value assertion
+  over its output, inserted as one action. One bound choice serves
+  every measure (at least, at most, exactly, between); a band bounds
+  only a clearance, and the commit is withheld for a band over a value.
+  A value claim's insert writes the bound at contact, `0`. A holding
+  `= 0` over a measure that says what an unproven coincidence decided
+  quiets it, by the rule `[assertions.quiet]` states
+  (`checks::at_rest::saying`: a `Gap` over two faces at rest, a
+  `Distance` between the poses read off two cells, a `Gap` or a
+  `Distance` against a split's tool); a clearance quiets nothing. For a
+  clearance the bound choice decides how many bound slots the
+  requirement has. The insert writes every end at contact,
   `0`. Each end is then a slot row of the requirement,
   `SlotId::ClearanceBound` (`Low` or `High`; `= c` holds the low end),
   taking a number or a formula. The evaluator reads a bound slot with
@@ -2129,13 +2176,14 @@ of the node they insert, or a pick.
   missing pick, until both are held. The plane is a face pick, read as
   its plane on the body it was picked on (`matetool::plane_of`), and
   held as the mirror holds its own (`combine::PlaneSeats`, one value
-  for both tools); the first face pick seats the target too, a
-  later one re-picks the plane, and a tree pick re-picks the target. A
-  `Plane` variable, or a `Frame` read through its `xy`, is taken as the
-  plane when the selection names it (`Selection::Variable`); no
-  Properties row lists a pose variable, so that pick comes through the
-  selection stream (a driver, the op vocabulary), not a row.
-  `SessionOp::AddSplit` takes the plane as `SplitPlane`: that face, or a
+  and one selection feed for both tools); the first face pick seats
+  the target too, a later one re-picks the plane, and a tree pick
+  re-picks the target. A `Plane` variable, or a `Frame` read through
+  its `xy`, is taken as the plane when the selection names it
+  (`Selection::Variable`); no Properties row lists a pose variable, so
+  that pick comes through the selection stream (a driver, the op
+  vocabulary), not a row. `SessionOp::AddSplit` and
+  `SessionOp::AddMirror` take the plane as `ToolPlane`: that face, or a
   plane read written whole. The insert
   selects the split. Nothing is staged before it: the split's own
   evaluation, read on its tree row, says whether a side is empty.
@@ -2200,7 +2248,7 @@ has no spelling. The operation choice is the kernel's own
 **The operation is tool state, because it decides what a pick does.**
 Under union and intersect every pick appends a member, in pick order,
 and the panel lists them as `member 1`, `member 2`, …; the commit
-button commits whatever is held from one member on, and refuses typed
+button commits whatever is held from one member on, and is withheld
 (`SeatError::Empty` naming `Seat::Member`) while none is. Under subtract
 the tool holds two role-typed seats on the `seats` rule — the body kept
 (`from`), then the body removed (`tool`), a further pick replacing the
@@ -2214,14 +2262,16 @@ two members, and two seats become a member list of what they hold.
 `BodyRead<Formula>`: a body; a split's half by its port, a tree pick
 of the split waiting for its half; or one member of a family by its
 indices (`pattern[1]`), for a viewport pick on that drawn member. A
-tree pick of a family names the node, so it reads the family whole
-until the panel's member row chooses one. A member read keeps its
-output, so a split of a family reads one half of one member. A family
+tree pick of a family names the node: a list seat (a member, a
+subtract's tool) reads the family whole until the panel's member row
+chooses one, and a one-body seat (a subtract's kept body) offers "each
+member", which writes a binder the tree shows. A member read keeps its
+output, so a pick of a drawn half reads one half of one member. A family
 something reads along a seen path (a copy, a `⊔`, the product) is
 read whole, and the combine takes that reader over: what one member's
-read does to a copy of its family is a takeover not yet ruled. The
-boolean seats are the ones that read members; the other body seats
-read a family whole. The held-picks line says which read it holds
+read does to a copy of its family is a takeover not yet ruled. Every other
+one-body seat handed a family refuses it by kind, and offers "each
+member" the same way. The held-picks line says which read it holds
 (`Pattern 1[1]`, `Pattern 1, every member`, `Split 1[1], above half`).
 
 **A body picked twice is not refused anywhere.** A repeated read
@@ -2363,7 +2413,16 @@ The draft is **mate rows** (`matetool::MateRow`), each a kind of
 frame), a sense of two named values (`matetool::senses`: `opposed` or
 `flush` for a plane, `same` or `reversed` for an axis and a direction,
 `same` or `turned over` for a frame, none for a point) written as the
-flip of `to`, its seats, and a stroke. **Picks are seated by body**: a
+flip of `to`, its seats, and a stroke. A plane's and a frame's row also
+has an **offset** (`MateTool::set_offset`, `pane::create::mate_offset_row`):
+a length field taking a number or a formula, which writes `to` slid along
+the outward normal of the face it is read off, a frame's `z`
+(`matetool::offset_side`: one `PoseDef::Slide` under the sense's flip and
+over any slide written elsewhere, its direction read off the face, so a
+positive offset runs out of the face in either sense and however the side
+is spelled); left empty it takes the slide off, and `0` is an offset
+written as zero. It is the standoff DESIGN `[placement.mates]` makes a
+construction on the target, so the copy follows the face. **Picks are seated by body**: a
 pick on the draft's copy fills the active row's `on` seat and any other
 pick its `to` seat; order carries nothing. A frame's side has an axis
 seat an edge fills and a point seat a vertex fills, written
@@ -2549,7 +2608,8 @@ deletes nothing. Nothing about how the node was made is recorded or inferred:
 the plan is read off the recipe, so adding a feature and deleting it
 leaves the document as it was, and a mirror's image or a sketch's
 profile (the piece its gesture made) deleted collapses the union back
-to the body. The delete button prices the nodes that go
+to the body. The delete button prices the nodes that go and the
+names the delete strands, counted off a rehearsal of the delete itself
 (`DeleteAffordance`).
 
 **A body reaches the product through one door.** Nothing joins the

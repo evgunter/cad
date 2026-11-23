@@ -169,7 +169,8 @@ fn p1_shell_open_is_a_disjoint_ring_on_my_own_revolve() {
     );
 
     let cup = pncad::topo::shell_open(
-        &pncad::topo::finish(body.clone(), tol).expect("a finished operand"),
+        &pncad::topo::finish(pncad::topo::Built::of(body.clone()), tol)
+            .expect("a finished operand"),
         t,
         &mouth,
         tol,
@@ -208,8 +209,8 @@ fn p1_shell_open_is_a_disjoint_ring_on_my_own_revolve() {
     let carriers = loop_carriers(&cup, f.rings[0]);
     for c in &carriers {
         match c {
-            Curve3::Circle(conic_k @ pncad::geom::Circle { frame, .. }) => {
-                let center = frame.origin();
+            Curve3::Circle(conic_k) => {
+                let center = conic_k.frame().origin();
                 let radius = conic_k.radius();
                 assert!(
                     center.x.abs() < 1e-9
@@ -345,7 +346,8 @@ fn p2_the_oblique_class_hollows_outside_the_enumeration() {
         ("a box with one beveled side", beveled_box, None),
     ] {
         let hollow = pncad::topo::shell(
-            &pncad::topo::finish(body.clone(), tol).expect("a finished operand"),
+            &pncad::topo::finish(pncad::topo::Built::of(body.clone()), tol)
+                .expect("a finished operand"),
             t,
             tol,
         )
@@ -412,7 +414,8 @@ fn p2b_an_all_square_plus_prism_still_hollows() {
         tol,
     );
     let hollow = pncad::topo::shell(
-        &pncad::topo::finish(plus.clone(), tol).expect("a finished operand"),
+        &pncad::topo::finish(pncad::topo::Built::of(plus.clone()), tol)
+            .expect("a finished operand"),
         0.02,
         tol,
     )
@@ -470,7 +473,8 @@ fn p3_wall1_hollows_to_its_closed_form() {
         tol,
     );
     let pot = pncad::topo::shell(
-        &pncad::topo::finish(bellied.clone(), tol).expect("a finished operand"),
+        &pncad::topo::finish(pncad::topo::Built::of(bellied.clone()), tol)
+            .expect("a finished operand"),
         t,
         tol,
     )

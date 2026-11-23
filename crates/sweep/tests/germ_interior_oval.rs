@@ -844,7 +844,7 @@ fn a_nurbs_graze_behind_crossings_is_refused_on_every_op() {
         vec!["Plane × Nurbs: Err(Undecided)".to_string()],
         "the same with the operands swapped"
     );
-    let errors = topo::finish(a, Tol::witness())
+    let errors = topo::finish(topo::Built::of(a), Tol::witness())
         .expect_err("the stranded bump block is not a finished body");
     assert_eq!(
         errors

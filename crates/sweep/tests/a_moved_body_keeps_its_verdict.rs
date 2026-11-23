@@ -70,7 +70,7 @@ fn keeps_its_verdict(what: &str, body: Body<f64>) {
             before,
             "{at}: the move ran a finish"
         );
-        let fresh = topo::finish(moved.clone().into_body(), tol())
+        let fresh = topo::finish(topo::Built::of(moved.clone().into_body()), tol())
             .unwrap_or_else(|e| panic!("{at}: the move passed and a fresh finish refused: {e}"));
         let ((v, v_pad), (w, w_pad)) = (volume(&moved), volume(&fresh));
         assert!(

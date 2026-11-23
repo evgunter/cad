@@ -56,8 +56,8 @@ fn wedge(ccw: bool) -> Body<f64> {
 fn the_clockwise_wedge_is_refused_before_the_shell() {
     let body = wedge(false);
     let (solid, _) = body.solids().next().expect("the wedge is one solid");
-    let errors =
-        topo::finish(body, Tol::witness()).expect_err("an inside-out wedge is not a finished body");
+    let errors = topo::finish(topo::Built::of(body), Tol::witness())
+        .expect_err("an inside-out wedge is not a finished body");
     assert_eq!(
         errors,
         vec![ValidationError::NegativeVolume { solid }],
@@ -81,7 +81,8 @@ fn the_counterclockwise_wedge_shells_to_its_closed_form_wall() {
     let height = 0.5;
     let wall = area * height - area * scale * scale * (height - 2.0 * t);
 
-    let operand = topo::finish(wedge(true), tol).expect("the wedge is a finished body");
+    let operand =
+        topo::finish(topo::Built::of(wedge(true)), tol).expect("the wedge is a finished body");
     let shelled = shell(&operand, t, tol).expect("the counterclockwise wedge shells");
     let volume = mass_properties(
         &topo::test_support::finished("the measured body", shelled.body.clone(), tol),

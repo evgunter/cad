@@ -24,7 +24,6 @@
 use std::sync::Arc;
 
 use geom_core::{Decide, Tol};
-use topo::Body;
 
 use super::{BooleanValue, NodeErrorKind, OpOut, OpResult, ValuePayload};
 use crate::eval::{Piece, Pieces};
@@ -191,14 +190,19 @@ impl<T: Decide + topo::AtRestPolicy> Operand<T> {
 /// **What a boolean made of each piece, assembled** (`id`'s output):
 /// each non-empty result grafted beside the others as a piece keyed by
 /// the read its piece came through, with that result's names, rows and
-/// records; the records' citations renumbered onto the assembled rows
-/// and inputs. Nothing left is the typed empty result.
+/// records. A record a piece's result holds cites, at this value, what
+/// it cited there: its rows renumbered onto the assembled rows and its
+/// inputs onto the assembled inputs ([`crate::eval::Citing::Each`]). A
+/// touch the door's census records between two pieces cites the
+/// census's row, numbered after every piece's row; those rows are the
+/// census's own ([`crate::product::Census`]) and are not among the
+/// value's coincidences. Nothing left is the typed empty result.
 pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
     outs: Vec<(crate::VarId, OpOut<T>)>,
     tol: Tol,
 ) -> OpResult<T> {
-    let mut fused = Body::new();
+    let mut fused = topo::Assembled::new();
     // Computed in its first result's frame
     // ([`crate::eval::Framed::computing_among`]), each grafted into it
     // through its own placement ([`crate::eval::Framed::graft_into`]).
@@ -209,13 +213,10 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
     .map_or(crate::eval::Frame::Own, |first| first.frame().clone());
     let mut named: Vec<(crate::VarId, Arc<NameTable>, Vec<topo::GraftKeys>)> = Vec::new();
     let mut pieces: Vec<Piece<T>> = Vec::new();
-    // What the graft holds: each piece result's own records, re-keyed
-    // through its graft, and which arrival each solid came by.
-    let mut held = topo::ContactRecords::default();
-    let mut arrivals: std::collections::BTreeMap<topo::SolidKey, u32> =
-        std::collections::BTreeMap::new();
     let mut coincidences: Vec<crate::coincide::NamedCoincidence> = Vec::new();
     let mut citing: Vec<crate::coincide::CitedInput> = Vec::new();
+    // What each record the pieces carry in cites, in the graft's order.
+    let mut cites: Vec<topo::Cites> = Vec::new();
     let mut kinds = Vec::new();
     let mut parts = 0;
     for (read, out) in outs {
@@ -227,18 +228,51 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
         };
         let keys = crate::eval::Framed::graft_into(&frame, &mut fused, &body, tol)
             .map_err(NodeErrorKind::from)?;
-        let arrival = names::narrow(named.len(), names::Numbered::InputPosition)
+        // What each of the piece's records cites, in this value's terms:
+        // its own inputs at their places in the assembled list, its own
+        // rows after the rows of the pieces before it.
+        let base = coincidences.len();
+        let inputs: Vec<u32> = out
+            .carry
+            .cited_inputs
+            .iter()
+            .map(|input| {
+                let at = citing.iter().position(|c| c == input).unwrap_or_else(|| {
+                    citing.push(input.clone());
+                    citing.len() - 1
+                });
+                names::narrow(at, names::Numbered::InputPosition).map_err(NodeErrorKind::Naming)
+            })
+            .collect::<Result<_, _>>()?;
+        let rows = (base..base + out.coincidences.len())
+            .map(|row| names::narrow(row, names::Numbered::Row))
+            .collect::<Result<Vec<u32>, _>>()
             .map_err(NodeErrorKind::Naming)?;
-        crate::product::carry_contacts(
-            &fused,
-            &mut held,
-            &body.holding().records().carried_from(arrival),
-            &keys,
-        )
-        .map_err(|what| NodeErrorKind::Naming(names::NamingError::Emission { what }))?;
-        arrivals.extend(keys.solids().iter().map(|&solid| (solid, arrival)));
-        // Each piece's result is one arrival, cited by the piece's read.
-        citing.push(crate::coincide::CitedInput::Read(read));
+        let recited = out
+            .carry
+            .contacts(body.holding().records())
+            .into_owned()
+            .recited(|b| match b {
+                topo::Backing::Decided(k) => vec![topo::Backing::Decided(
+                    rows.get(k as usize).copied().unwrap_or_else(|| {
+                        unreachable!(
+                            "a piece's record cites its row {k}, though its boolean decided {}",
+                            rows.len()
+                        )
+                    }),
+                )],
+                topo::Backing::Carried { input, record } => vec![topo::Backing::Carried {
+                    input: inputs.get(input as usize).copied().unwrap_or_else(|| {
+                        unreachable!(
+                            "a piece's record cites its input {input}, which its boolean does \
+                             not publish"
+                        )
+                    }),
+                    record,
+                }],
+            })
+            .unwrap_or_else(|k| unreachable!("record {k} cites nothing once renumbered"));
+        cites.extend(recited.cites().cloned());
         coincidences.extend(out.coincidences.iter().cloned());
         let table = out
             .outputs
@@ -265,21 +299,26 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
         [one] => *one,
         _ => topo::BooleanResultKind::Assembly,
     };
-    let table = names::name_assemble(id, &named, &fused).map_err(NodeErrorKind::Naming)?;
-    let fused = T::finish_assembled(
-        topo::Assembled::new(
-            fused,
-            held,
-            Arc::new(move |solid| arrivals.get(&solid).copied()),
-        ),
-        tol,
-    )
-    .map_err(|findings| NodeErrorKind::NotFinished { findings })?;
+    let table = names::name_assemble(id, &named, fused.body()).map_err(NodeErrorKind::Naming)?;
+    // The census's rows are numbered after the pieces' own, so a record
+    // it mints names no piece's row.
+    let first_row =
+        names::narrow(coincidences.len(), names::Numbered::Row).map_err(NodeErrorKind::Naming)?;
+    let fused = T::finish_assembled(fused.numbering_from(first_row), tol)
+        .map_err(|findings| NodeErrorKind::NotFinished { findings })?;
     let topo::Censused {
         body: fused,
         rows,
         findings,
     } = fused;
+    // The records the census minted follow the carried ones on the
+    // body, citing as the gate wrote them.
+    cites.extend(
+        topo::FinishedBody::records(&fused)
+            .cites()
+            .skip(cites.len())
+            .cloned(),
+    );
     let fused = Arc::new(fused);
     let pieces = Arc::new(Pieces { by: id, pieces });
     // What it made is the `⊔` of what each piece's boolean made, so the
@@ -306,7 +345,7 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
         pieces: Some(pieces),
         census,
         censused: true,
-        citing: crate::eval::Citing::Own,
+        citing: crate::eval::Citing::Each(cites.into()),
         cited_inputs: citing.into(),
         findings: Arc::default(),
         members: None,

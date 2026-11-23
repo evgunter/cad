@@ -917,6 +917,7 @@ impl Through {
         let records = &self.records;
         crate::FinishedBody::try_recite(
             &mut out.body,
+            crate::finish::KernelOnly(()),
             |backing| match backing {
                 Backing::Carried { input: 1, record } => records
                     .get(record as usize)

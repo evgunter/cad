@@ -107,7 +107,7 @@ const LBOT: Prism = Prism {
 };
 
 fn finished(what: &str, body: Body<f64>) -> AtRestBody<f64> {
-    topo::finish(body, tol()).unwrap_or_else(|e| panic!("{what}: {e:?}"))
+    topo::finish(topo::Built::of(body), tol()).unwrap_or_else(|e| panic!("{what}: {e:?}"))
 }
 
 /// The side-4 cube with `v` inside its near face (`face`), on its edge

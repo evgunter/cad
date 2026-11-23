@@ -50,12 +50,13 @@ fn unslit_plane_annuli_round_trip_through_step() {
             .filter(|(_, e)| {
                 let c = washer.get_curve_geom(e.curve).unwrap().certified().unwrap();
                 matches!(c.carrier(), geom::Curve3::Circle(k)
-                    if (k.radius() - 1.0).abs() < 1e-12 && k.frame.origin().y.abs() < 1e-12)
+                    if (k.radius() - 1.0).abs() < 1e-12 && k.frame().origin().y.abs() < 1e-12)
             })
             .map(|(k, _)| k)
             .collect();
         assert_eq!(bore.len(), 1, "the bottom bore rim is one edge");
-        let operand = topo::finish(washer.clone(), tol()).expect("the washer is finished");
+        let operand =
+            topo::finish(topo::Built::of(washer.clone()), tol()).expect("the washer is finished");
         sweep::blend::build::fillet_edges(&operand, &bore, 0.2, tol())
             .unwrap()
             .body

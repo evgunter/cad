@@ -4583,6 +4583,9 @@ fn singularity_noun(point: geom_brep::chart_singularity::Singularity) -> &'stati
         geom_brep::chart_singularity::Singularity::Apex => "the apex of a cone",
         geom_brep::chart_singularity::Singularity::SheetApexUp
         | geom_brep::chart_singularity::Singularity::SheetApexDown => "an apex of a spindle sheet",
+        geom_brep::chart_singularity::Singularity::Side(_) => {
+            "a collapsed side of a spline surface"
+        }
     }
 }
 
@@ -5027,6 +5030,12 @@ impl ValidationError {
                          be read: the reading lies within its own error bound{}",
                         ended(ending)
                     ),
+                    Undecided::SplineSide => write!(
+                        f,
+                        "whether {what} lies in a face on that surface cannot be read: it is off \
+                         the face's boundary, and no side is read through a spline chart yet{}",
+                        ended(ending)
+                    ),
                 }
             }
             Self::NegativeVolume { .. } => write!(
@@ -5243,8 +5252,9 @@ impl ValidationError {
             Self::StaleContactDeclaration { declaration } => write!(
                 f,
                 "{declaration} names a contact the geometry does not have. \
-                 Recourse: remove that declaration, \
-                 or move the geometry so the contact exists"
+                 Recourse: where you declared the contact, remove that declaration, \
+                 or move the geometry so the contact exists; where an operation \
+                 recorded it, this is a kernel defect: report it"
             ),
             Self::ContactContradicted { record, verdict } => write!(
                 f,
@@ -8339,12 +8349,14 @@ pub(crate) fn tier3_local_checks_marked<
     // the pole read below for a member whose own boundary encodes no side.
     let mut regions = crate::props::read_seam_regions(body, body.faces.keys(), band);
     // Each sphere, cone and spindle face's loops as this arm flattens
-    // them, kept for the chart-singularity arm below. A sphere or cone
+    // them, and each spline face's with a collapsed side, kept for the
+    // chart-singularity arm below. A sphere or cone
     // face is kept once its side is read (a face whose images refuse is
     // exempt there, as here); a spindle face as soon as its loops
     // flatten, since its apex must be shown clear whatever this arm
     // reads, and one whose loops do not flatten is kept in `unflattened`
-    // and refused there unshown.
+    // and refused there unshown, as a spline face with a collapsed side
+    // whose loops do not flatten is.
     let mut flattened: SecondaryMap<FaceKey, FlatLoops<T>> = SecondaryMap::new();
     let mut unflattened: Vec<FaceKey> = Vec::new();
     for region in &regions {
@@ -8360,7 +8372,22 @@ pub(crate) fn tier3_local_checks_marked<
             // Planar: the Newell arm above. Spline charts: the quadrature lane
             // is winding-derived end to end, bit-free by design (S10
             // module docs) — recorded residual, out of this arm's
-            // scope.
+            // scope. A spline face with a collapsed side is kept for the
+            // chart-singularity arm below, which reads its loops alone.
+            // One whose loops do not flatten is kept in `unflattened`, as
+            // a spindle face is, and its sides refused there unshown.
+            if !geom_brep::chart_singularity::singular_points(surface).is_empty() {
+                match face
+                    .loop_keys()
+                    .map(|l| crate::props::loop_edges(body, l))
+                    .collect::<Result<FlatLoops<T>, _>>()
+                {
+                    Ok(full) => {
+                        flattened.insert(face_key, full);
+                    }
+                    Err(_) => unflattened.push(face_key),
+                }
+            }
             continue;
         }
         // Every loop's chart image: a cylinder face reads its side off
@@ -8472,17 +8499,26 @@ pub(crate) fn tier3_local_checks_marked<
     // ------------------------------------------------------------------
     let sheet_unshown = |face: FaceKey, errors: &mut Vec<ValidationError>| {
         use geom_brep::chart_singularity::{Singularity, singular_points};
-        let Some(chart) = body
+        let Some(surface) = body
             .faces
             .get(face)
             .and_then(|f| body.surfaces.get(f.surface))
-            .and_then(|s| geom::ChartInverse::of(s).ok())
         else {
             return;
         };
-        for (point, _) in singular_points(&chart) {
-            if matches!(point, Singularity::SheetApexUp | Singularity::SheetApexDown) {
-                errors.push(ValidationError::SheetApexReached { face, point });
+        for (point, _) in singular_points(surface) {
+            match point {
+                Singularity::SheetApexUp | Singularity::SheetApexDown => {
+                    errors.push(ValidationError::SheetApexReached { face, point });
+                }
+                // A spline face's side, unplaced: no side is read through
+                // a spline chart, and its loops gave nothing to place it on.
+                Singularity::Side(_) => errors.push(ValidationError::ChartSingularityUndecided {
+                    face,
+                    point,
+                    reading: geom_brep::chart_singularity::Undecided::SplineSide,
+                }),
+                Singularity::North | Singularity::South | Singularity::Apex => {}
             }
         }
     };
@@ -8500,9 +8536,10 @@ pub(crate) fn tier3_local_checks_marked<
         else {
             continue; // unreachable: the curved arm read both
         };
-        let Ok(chart) = geom::ChartInverse::of(surface) else {
-            continue; // no chart, no singular point
-        };
+        let points = singular_points(surface);
+        if points.is_empty() {
+            continue;
+        }
         let Some(corners) = flat
             .iter()
             .map(|(_, hes)| {
@@ -8541,7 +8578,7 @@ pub(crate) fn tier3_local_checks_marked<
                 .collect()
         };
         let sense = body.faces.get(face_key).is_some_and(|f| f.sense);
-        for (point, x) in singular_points(&chart) {
+        for (point, x) in points {
             let face = face_key;
             let sheet_apex = matches!(
                 point,
@@ -8604,6 +8641,18 @@ pub(crate) fn tier3_local_checks_marked<
                                 errors.push(ValidationError::SheetApexReached { face, point });
                             }
                         }
+                    }
+                    // A spline net's collapsed side the face's door does
+                    // not place: no reading through a spline chart states
+                    // its side yet.
+                    Ok(None)
+                        if matches!(point, geom_brep::chart_singularity::Singularity::Side(_)) =>
+                    {
+                        errors.push(ValidationError::ChartSingularityUndecided {
+                            face,
+                            point,
+                            reading: Undecided::SplineSide,
+                        });
                     }
                     Ok(Some(false) | None) => {}
                     // The door's boundary reading in band is the same
@@ -9014,6 +9063,12 @@ pub(crate) fn joinable_at_rest_errors<T: geom_core::Decide>(
         .collect()
 }
 
+/// [`ring_pairs`]' query.
+const RING_PAIRS: geom_core::k_stats::QuerySite = geom_core::k_stats::QuerySite::new(
+    "validate_ring_pairs",
+    "the rings whose boxes meet a ring's",
+);
+
 /// The pairs `(i, j)`, `j < i`, of `rings` whose padded certified
 /// boxes meet, ascending in `i` and then `j`: the order a loop over
 /// every pair reads them in, less the pairs the boxes clear (D9).
@@ -9058,7 +9113,7 @@ fn ring_pairs<T: Decide + geom_core::Bounds>(
     let tree = bvh::Bvh::build(&boxes);
     let mut pairs = Vec::new();
     for (k, ring_box) in boxes.iter().enumerate() {
-        for m in tree.overlapping(ring_box) {
+        for m in tree.overlapping(RING_PAIRS, ring_box) {
             if m < k {
                 pairs.push((index[k], index[m]));
             }
@@ -9822,7 +9877,12 @@ fn ring_outer_meeting<T: Decide>(
         crate::contain::loop_circle(body, ring, band),
     ) {
         return match circle_pair(
-            circles_of(o.frame.origin(), o.radius(), r.frame.origin(), r.radius()),
+            circles_of(
+                o.frame().origin(),
+                o.radius(),
+                r.frame().origin(),
+                r.radius(),
+            ),
             band,
         ) {
             Ok(CirclePair::Apart | CirclePair::Nested) => RingOuterVerdict::Disjoint,
@@ -9962,16 +10022,11 @@ fn meet_segment<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<(EdgeKey, Me
             let (a, b) = edge_endpoints(body, he)?;
             MeetSegment::Line { a, b }
         }
-        geom::Curve3::Circle(
-            circle @ geom::Circle {
-                frame: carrier_frame_47,
-                ..
-            },
-        ) => {
+        geom::Curve3::Circle(circle) => {
             let (center, axis, u_ref) = (
-                carrier_frame_47.origin(),
-                carrier_frame_47.axis(),
-                carrier_frame_47.u_ref(),
+                circle.frame().origin(),
+                circle.frame().axis(),
+                circle.frame().u_ref(),
             );
             let radius = circle.radius();
             let (t0, t1) = geom.params();
@@ -10524,8 +10579,8 @@ fn locus_gap<T: Real>(carrier: &geom::Curve3<T>, p: geom_core::Point3<T>) -> Opt
         geom::Curve3::Line(line) => Some(line.distance(p)),
         // The distance from a point to a full circle: the in-plane
         // radial defect and the out-of-plane offset, in quadrature.
-        geom::Curve3::Circle(circle @ geom::Circle { frame, .. }) => {
-            let (center, axis) = (frame.origin(), frame.axis());
+        geom::Curve3::Circle(circle) => {
+            let (center, axis) = (circle.frame().origin(), circle.frame().axis());
             let radius = circle.radius();
             let (along, rho) = geom::Line {
                 origin: center,
@@ -10744,20 +10799,25 @@ pub fn validate_pseudomanifold_certificate_structural<
     pseudomanifold_certificate_via(body, contacts, tol, None, None)
 }
 
-/// **The bar a finished body's gate paid past tier 3**
-/// ([`AtRestBody::bar`]): what its census read. Neither is tier 3′ in
-/// both directions; the type names which half was paid rather than let
-/// one verdict mean both.
+/// **The bar a finished body's gate paid on its contact records**
+/// ([`AtRestBody::bar`]; `[topology.tiers]`: a result "names the bar it
+/// paid (tier 3, or 3′) rather than letting one verdict mean both").
+///
+/// No gate yet searches a body for a meeting its records do not state
+/// (`work/heldrecords/the-gate-raises-no-unbacked-meeting-until-the-census-reads-what-doors-build.md`),
+/// so tier 3′ here is tier 3′ over what the body holds and, at a `⊔`,
+/// between its arrivals.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Bar {
-    /// A deciding door's: every record the body holds is confirmed
-    /// where it lies. A meeting no record backs was not asked.
-    RecordsConfirmed,
-    /// A `⊔`'s: the census decided every meeting between two arrivals,
-    /// recorded or reported, and confirmed the records it holds. Inside
-    /// one arrival nothing was read: the arrival's verdict is its own
-    /// door's.
-    ArrivalsDecided,
+    /// **Tier 3.** The body holds no record the census confirmed
+    /// against a search: either it holds none and nothing was read past
+    /// tier 3, or at least one record it holds is held on its citation
+    /// alone, the census having no lane that reads its pair.
+    Tier3,
+    /// **Tier 3′ over its records.** The census read every record the
+    /// body holds and confirmed each; at a `⊔` of two arrivals or more,
+    /// it also decided every meeting between two arrivals.
+    Tier3Prime,
 }
 
 /// **A finished body at a scalar with certification rights**, and tier
@@ -10867,19 +10927,27 @@ impl<T: crate::props::CertifiedPolicy<Finished = AtRestBody<T>> + geom_core::Cer
             geom_core::k_stats::checking(|| validate_geometric_certificate(&body, tol))?
                 .into_parts(),
         );
-        if !records.is_empty() {
-            records_certified(census_verdict(
-                &body,
-                &records,
-                linear_band(tol)?,
-                tol,
-                Some(CertifiedLanes::<T>::held().region),
-            ))?;
+        // The records, each read where it lies: one the census read and
+        // did not confirm refuses; one no lane reads is held on its
+        // citation, and the bar says so.
+        let read = crate::census::confirm_only(
+            &body,
+            &records,
+            linear_band(tol)?,
+            Some(CertifiedLanes::<T>::held().region),
+        );
+        if !read.refused.is_empty() {
+            return Err(read.refused);
         }
+        let bar = if records.is_empty() || !read.no_lane.is_empty() {
+            Bar::Tier3
+        } else {
+            Bar::Tier3Prime
+        };
         Ok(Self {
             body,
             records,
-            bar: Bar::RecordsConfirmed,
+            bar,
             sign,
             held: None,
         })
@@ -10912,11 +10980,30 @@ impl<T: crate::props::CertifiedPolicy<Finished = AtRestBody<T>> + geom_core::Cer
         );
         let band = linear_band(tol)?;
         let region = CertifiedLanes::<T>::held().region;
+        // What the arrivals carried in, confirmed where the graft put it
+        // as a deciding door's gate confirms its own: a record that does
+        // not confirm here is the graft's defect, and refuses.
+        let read = crate::census::confirm_only(&body, &carried, band, Some(region));
+        if !read.refused.is_empty() {
+            return Err(read.refused);
+        }
+        // Tier 3′ where the census confirmed all it carried in and had
+        // two arrivals to decide between, or records to confirm.
+        let joined = arrivals
+            .values()
+            .collect::<std::collections::BTreeSet<_>>()
+            .len()
+            >= 2;
+        let bar = if read.no_lane.is_empty() && (joined || !carried.is_empty()) {
+            Bar::Tier3Prime
+        } else {
+            Bar::Tier3
+        };
         let recorded = crate::census::record_at_rest(
             &body,
             &carried,
             |records| crate::census::census_and_certify(&body, records, band, tol, Some(region)),
-            &|solid| arrivals(solid),
+            &|solid| arrivals.get(&solid).copied(),
             first_row,
         );
         let mut records = carried;
@@ -10925,7 +11012,7 @@ impl<T: crate::props::CertifiedPolicy<Finished = AtRestBody<T>> + geom_core::Cer
             body: Self {
                 body,
                 records,
-                bar: Bar::ArrivalsDecided,
+                bar,
                 sign,
                 held: None,
             },
@@ -10943,11 +11030,17 @@ impl<T: crate::props::AtRestPolicy> AtRestBody<T> {
         &self.records
     }
 
-    /// **The bar its gate paid past tier 3** ([`Bar`]); an isometry
-    /// keeps it.
+    /// **The bar its gate paid on its records** ([`Bar`]). A move keeps
+    /// it: an isometry changes no reading.
     #[must_use]
     pub const fn bar(&self) -> Bar {
         self.bar
+    }
+
+    /// This body at `bar`: a leaf's image, finished again where it
+    /// stands, keeps the bar its source paid.
+    pub(crate) fn at_bar(self, bar: Bar) -> Self {
+        Self { bar, ..self }
     }
 
     /// **Maps its records' citations**
@@ -10955,7 +11048,7 @@ impl<T: crate::props::AtRestPolicy> AtRestBody<T> {
     /// two cells, which are what the gate confirmed, and cites what `f`
     /// makes of each citation. A citation names a row or a record of the
     /// op that holds the body, so a holder that renumbers those re-cites
-    /// here. A refusal leaves it with no record.
+    /// here. A refusal leaves it as it was.
     ///
     /// # Errors
     ///
@@ -10965,7 +11058,7 @@ impl<T: crate::props::AtRestPolicy> AtRestBody<T> {
         f: impl FnMut(crate::Backing) -> Result<Vec<crate::Backing>, E>,
         uncited: impl FnOnce(usize) -> E,
     ) -> Result<(), E> {
-        self.records = core::mem::take(&mut self.records).try_recited(f, uncited)?;
+        self.records = self.records.clone().try_recited(f, uncited)?;
         Ok(())
     }
 
@@ -11170,40 +11263,6 @@ fn census_verdict<T: geom_core::Decide + crate::props::AtRestPolicy + geom_core:
         Ok(())
     } else {
         Err(errors)
-    }
-}
-
-/// **Tier 3′'s record certification, as a deciding door's gate runs
-/// it** (`[topology.tiers]`): the census over `body` against the
-/// records the door decided, each record confirmed where it lies, and
-/// one the census does not confirm, or reads otherwise, refused. No
-/// record, no census: there is nothing to confirm.
-///
-/// A meeting the census finds that no record backs is not raised here.
-/// The census has no lane yet for several shapes valid doors build (two
-/// curved solids within reach of each other, a curved edge pair whose
-/// count it cannot settle, a reading in the band), and it reads the
-/// split's own unrecorded touches, so raising them would refuse those
-/// results (`work/heldrecords/the-splits-at-rest-gate-reads-tier-3-where-a-finished-body-owes-tier-3-prime.md`,
-/// `work/reachhold/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`).
-fn records_certified(census: Result<(), Vec<ValidationError>>) -> Result<(), Vec<ValidationError>> {
-    let Err(findings) = census else {
-        return Ok(());
-    };
-    let about_a_record: Vec<ValidationError> = findings
-        .into_iter()
-        .filter(|finding| {
-            matches!(
-                finding,
-                ValidationError::StaleContactDeclaration { .. }
-                    | ValidationError::ContactContradicted { .. }
-            )
-        })
-        .collect();
-    if about_a_record.is_empty() {
-        Ok(())
-    } else {
-        Err(about_a_record)
     }
 }
 
@@ -19466,25 +19525,51 @@ mod door_roster {
 }
 
 /// **A finished body holding a record no gate confirmed**, for the rows
-/// that pin a door's gate reading the records its carry lands
-/// (`splitting::tests`, `shell::tests`). No public door can stage one: a
-/// finished operand never holds a record its own gate did not confirm,
-/// so this writes one into a finished body's fields, which only this
-/// module can reach.
-#[cfg(test)]
+/// that pin a door's gate reading the records its carry lands. No door
+/// stages one: a finished operand holds no record its own gate did not
+/// confirm, and a `⊔` takes its records off its arrivals. So this
+/// writes one into a finished body's fields, which only this module can
+/// reach, and is compiled for tests alone (the `test-support` feature
+/// for the crates above this one).
+#[cfg(any(test, feature = "test-support"))]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-pub(crate) mod unconfirmed {
+pub mod unconfirmed {
     use super::*;
     use crate::test_support_fixtures::brick;
     use crate::{BooleanResult, Cell, Cited, Cites, Contact, union};
 
+    /// `finished` holding `extra` beside its own records, unread.
+    #[must_use]
+    pub fn holding<T: crate::props::AtRestPolicy>(
+        finished: &AtRestBody<T>,
+        extra: crate::ContactRecords,
+    ) -> AtRestBody<T> {
+        let mut records = finished.records.clone();
+        records.extend(extra.rows().iter().cloned());
+        AtRestBody {
+            records,
+            ..finished.clone()
+        }
+    }
+
     /// Two cubes kissing at (1, 1, 1), finished, holding the kiss and a
     /// record of the first cube's `x = 0` face on the second's `x = 2`
     /// face, which do not meet.
-    pub(crate) fn kiss_holding_a_false_record(tol: Tol) -> AtRestBody<f64> {
+    #[must_use]
+    pub fn kiss_holding_a_false_record(tol: Tol) -> AtRestBody<f64> {
         let at_rest = |b| crate::finish(b, tol).unwrap();
-        let a = at_rest(brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol));
-        let b = at_rest(brick::<f64>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), tol));
+        let a = at_rest(crate::Built::of(brick::<f64>(
+            (0.0, 1.0),
+            (0.0, 1.0),
+            (0.0, 1.0),
+            tol,
+        )));
+        let b = at_rest(crate::Built::of(brick::<f64>(
+            (1.0, 2.0),
+            (1.0, 2.0),
+            (1.0, 2.0),
+            tol,
+        )));
         let BooleanResult::Body(kiss) = union(&a, &b, tol).unwrap() else {
             panic!("the kiss is empty");
         };
@@ -19492,11 +19577,13 @@ pub(crate) mod unconfirmed {
             kiss.body
                 .faces()
                 .find(|(f, _)| {
-                    matches!(
-                        kiss.body.face_surface(*f),
-                        Some(crate::Surface::Plane { frame })
-                            if frame.axis().x.abs() == 1.0 && frame.origin().x == x
-                    )
+                    kiss.body.face(*f).is_some_and(|face| {
+                        matches!(
+                            face.surface(),
+                            crate::Surface::Plane { frame }
+                                if frame.axis().x.abs() == 1.0 && frame.origin().x == x
+                        )
+                    })
                 })
                 .map(|(f, _)| f)
                 .unwrap()
@@ -19518,7 +19605,8 @@ pub(crate) mod unconfirmed {
     }
 
     /// Whether `findings` are the one false record, refused.
-    pub(crate) fn the_false_record_alone(findings: &crate::NotFinished) -> bool {
+    #[must_use]
+    pub fn the_false_record_alone(findings: &crate::NotFinished) -> bool {
         matches!(
             findings.as_slice(),
             [ValidationError::ContactContradicted { .. }]

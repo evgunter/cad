@@ -897,6 +897,12 @@ fn edge_face_read<T: crate::props::AtRestPolicy>(
     declared.read(&pairs, question, &[])
 }
 
+/// [`sweep_direction`]'s query.
+const REDUCE_EDGE_FACES: geom_core::k_stats::QuerySite = geom_core::k_stats::QuerySite::new(
+    "bool_reduce_edge_faces",
+    "the faces whose boxes meet an edge's, read for the sweep direction",
+);
+
 #[allow(clippy::too_many_arguments)] // one parameter per named duty (bodies, orientation, declarations, sinks, band, strategy, plant, trace)
 pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
     (x, tips): (&mut Body<T>, &SlitTips),
@@ -949,14 +955,15 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
         // preserved pair-for-pair.
         #[cfg(feature = "sweep-testing")]
         let candidates: Vec<usize> = match &tree {
-            Some(t) => t.overlapping(&boxes::edge_box(x, edge_key, pad)),
+            Some(t) => t.overlapping(REDUCE_EDGE_FACES, &boxes::edge_box(x, edge_key, pad)),
             // The idealized reference's candidate set: every face, in
             // arena order. Reachable only through the gated
             // `SweepStrategy::Idealized`, and compiled out with it.
             None => (0..faces.len()).collect(),
         };
         #[cfg(not(feature = "sweep-testing"))]
-        let candidates: Vec<usize> = tree.overlapping(&boxes::edge_box(x, edge_key, pad));
+        let candidates: Vec<usize> =
+            tree.overlapping(REDUCE_EDGE_FACES, &boxes::edge_box(x, edge_key, pad));
         let mut ci = 0;
         'faces: while let Some(&j) = candidates.get(ci) {
             ci += 1;
@@ -7063,8 +7070,9 @@ mod declaration_order_rows {
                     Some(super::CurveGeom::Certified(g))
                         if matches!(
                             g.carrier(),
-                            geom::Curve3::Circle(geom::Circle { frame, .. })
-                                if frame.axis().z.abs() > 0.9 && frame.origin().z > 0.1
+                            geom::Curve3::Circle(circle @ geom::Circle { .. })
+                                if circle.frame().axis().z.abs() > 0.9
+                                    && circle.frame().origin().z > 0.1
                         )
                 )
             })
@@ -8534,7 +8542,7 @@ mod spline_face_rows {
                 let Some(CurveGeom::Certified(c)) = body.get_curve_geom(e.curve) else {
                     return false;
                 };
-                matches!(c.carrier(), Curve3::Circle(geom::Circle { frame, .. }) if (frame.origin().z - z).abs() < 1e-12)
+                matches!(c.carrier(), Curve3::Circle(circle @ geom::Circle { .. }) if (circle.frame().origin().z - z).abs() < 1e-12)
             })
             .map(|(k, _)| k)
             .expect("the rim")
@@ -9266,9 +9274,10 @@ mod spline_face_rows {
                 panic!("a certified rim")
             };
             let carrier = curve.carrier().clone();
-            let Curve3::Ellipse(geom::Ellipse { frame, .. }) = carrier else {
+            let Curve3::Ellipse(the_ellipse @ geom::Ellipse { .. }) = carrier else {
                 panic!("an ellipse")
             };
+            let frame = the_ellipse.frame();
             let axis = frame.axis();
             for t in [0.4, 1.3, 2.9] {
                 let (p, d) = carrier.ders1(t);

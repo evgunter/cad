@@ -102,7 +102,7 @@ fn split_volumes(session: &mut DocSession, split: RecipeNodeId, tol: Tol) -> (f6
         SplitSide::Body(body) => {
             pncad::topo::test_support::pinned_volume(
                 "mass properties",
-                &pncad::topo::finish(pncad::topo::Body::clone(body.body()), tol)
+                &pncad::topo::finish(topo::Built::of(pncad::topo::Body::clone(body.body())), tol)
                     .expect("the measured body passes tier 3"),
                 tol,
             )
@@ -683,7 +683,7 @@ fn the_split_tool_cuts_along_a_picked_face_and_its_plane_re_picks() {
     tools.open(ToolKind::Split);
     feed(&mut tools, &session, &y_wall);
     let tool = tools.split().expect("the split tool is open");
-    assert_eq!(tool.target(), Some(block), "the face pick seats its body");
+    assert_eq!(tool.body(), Some(block), "the face pick seats its body");
     assert_eq!(tool.face(), Some(&y_wall), "and is the plane");
     let op = tool.op().expect("a target and a plane are held");
     assert!(tools.commits_open_tool(&op), "the split is the tool's edit");
@@ -700,7 +700,7 @@ fn the_split_tool_cuts_along_a_picked_face_and_its_plane_re_picks() {
     // target stays.
     feed(&mut tools, &session, &x_wall);
     let tool = tools.split().expect("the split tool is open");
-    assert_eq!(tool.target(), Some(block), "a re-pick keeps the target");
+    assert_eq!(tool.body(), Some(block), "a re-pick keeps the target");
     assert_eq!(tool.face(), Some(&x_wall), "and moves the plane");
 
     // Re-picked after commit, through the operand slot door.
@@ -2468,15 +2468,15 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
     split.pick(session.committed_doc(), a);
     assert!(matches!(
         split.op(),
-        Err(SeatError::NoFace {
-            role: viewer::seats::FaceRole::SplitPlane
+        Err(SeatError::NoPlane {
+            role: viewer::seats::PlaneRole::Split
         })
     ));
     split.pick_plane(session.committed_doc(), end_cap(a));
     assert!(matches!(
         split.op(),
         Ok(SessionOp::AddSplit {
-            plane: viewer::session::SplitPlane::Face(_),
+            plane: viewer::session::ToolPlane::Face(_),
             ..
         })
     ));
@@ -2556,7 +2556,7 @@ fn open_flags(tools: &Tools) -> [bool; ToolKind::ALL.len()] {
         ToolKind::Blend => tools.blend().is_some(),
         ToolKind::Part => tools.part().is_some(),
         ToolKind::Mirror => tools.mirror().is_some(),
-        ToolKind::Clearance => tools.clearance().is_some(),
+        ToolKind::Assertion => tools.assertion().is_some(),
     })
 }
 
@@ -2686,7 +2686,7 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
             // about the body seat.
             Seat::MirrorBody => SessionOp::AddMirror {
                 body: filled(Seat::MirrorBody).into(),
-                plane: viewer::session::FaceSelection {
+                plane: viewer::session::ToolPlane::Face(viewer::session::FaceSelection {
                     name: pncad::prelude::StableName {
                         kind: pncad::prelude::EntityKind::Face,
                         node: body,
@@ -2694,14 +2694,16 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
                     },
                     node: body,
                     body: 0,
-                },
+                }),
             },
             // The other seat a body of the right kind, so the refusal
             // is about the seat under test.
-            Seat::ClearedFirst | Seat::ClearedSecond => SessionOp::AddClearance {
-                a: viewer::session::ClearedSeat::Body(filled(Seat::ClearedFirst).into()),
-                b: viewer::session::ClearedSeat::Body(filled(Seat::ClearedSecond).into()),
-                bounds: pncad::document::ClearanceBounds::AtLeast(Formula::zero(Dimension::Length)),
+            Seat::AssertedFirst | Seat::AssertedSecond => SessionOp::AddAssertion {
+                a: viewer::session::AssertedSeat::Body(filled(Seat::AssertedFirst).into()),
+                b: viewer::session::AssertedSeat::Body(filled(Seat::AssertedSecond).into()),
+                claim: viewer::session::AssertedClaim::Clearance(
+                    pncad::document::ClearanceBounds::AtLeast(Formula::zero(Dimension::Length)),
+                ),
             },
             Seat::PatternBody => SessionOp::AddPattern {
                 input: filled(Seat::PatternBody).into(),
@@ -2770,7 +2772,7 @@ fn a_pick_both_seats_admit_and_a_pick_neither_does_follow_the_plain_rule() {
     split.pick_plane(doc, end_cap(a));
     split.pick(doc, profile);
     assert_eq!(
-        split.target(),
+        split.body(),
         Some(profile),
         "an unroutable pick lands where the plain rule puts it",
     );
@@ -2982,7 +2984,7 @@ fn a_tool_closes_on_its_own_committed_edit() {
             ToolKind::Split,
             SessionOp::AddSplit {
                 target: (RecipeNodeId::new(0, tagged(1))).into(),
-                plane: viewer::session::SplitPlane::Face(end_cap(RecipeNodeId::new(0, tagged(1)))),
+                plane: viewer::session::ToolPlane::Face(end_cap(RecipeNodeId::new(0, tagged(1)))),
             },
         ),
         (
@@ -3310,9 +3312,9 @@ fn each_tool_narrows_the_cursor_to_what_it_can_use() {
         tools.open(kind);
         let want = match kind {
             // The mirror's and the split's plane is a face, and their
-            // body is picked by one too; the clearance tool seats
+            // body is picked by one too; the assertion tool seats
             // faces, and bodies from the tree.
-            ToolKind::Mate | ToolKind::Mirror | ToolKind::Split | ToolKind::Clearance => {
+            ToolKind::Mate | ToolKind::Mirror | ToolKind::Split | ToolKind::Assertion => {
                 PickKinds::FacesOnly
             }
             ToolKind::Blend => PickKinds::EdgesOnly,
@@ -3338,7 +3340,7 @@ fn product_volume(session: &mut DocSession, tol: Tol) -> f64 {
     let body = pncad::document::product(landed, ev, tol).expect("the product gathers");
     pncad::topo::test_support::pinned_volume(
         "mass properties",
-        &pncad::topo::finish(pncad::topo::Body::clone(&body), tol)
+        &pncad::topo::finish(topo::Built::of(pncad::topo::Body::clone(&body)), tol)
             .expect("the measured body passes tier 3"),
         tol,
     )
@@ -3368,7 +3370,7 @@ fn drawn_volume(session: &mut DocSession, tol: Tol) -> f64 {
     let body = pncad::document::product(&doc, &ev, tol).expect("the world gathers");
     pncad::topo::test_support::pinned_volume(
         "mass properties",
-        &pncad::topo::finish(pncad::topo::Body::clone(&body), tol)
+        &pncad::topo::finish(topo::Built::of(pncad::topo::Body::clone(&body)), tol)
             .expect("the measured body passes tier 3"),
         tol,
     )
@@ -3874,11 +3876,11 @@ fn a_viewport_pick_seats_the_drawn_body_in_every_body_seat() {
         );
         let held = match kind {
             ToolKind::Boolean => tools.boolean().and_then(|t| t.picks().first().copied()),
-            ToolKind::Split => tools.split().and_then(|t| t.target()),
+            ToolKind::Split => tools.split().and_then(|t| t.body()),
             // The placement editor opened on the copy's placement.
             ToolKind::Transform => tools.mate().and_then(|t| t.door()).map(|d| d.placement),
             ToolKind::Pattern => tools.pattern().and_then(|t| t.input()),
-            ToolKind::Mirror => tools.mirror().and_then(|t| t.input()),
+            ToolKind::Mirror => tools.mirror().and_then(|t| t.body()),
             // Seats a split or a pattern, never a body: its own row
             // below picks one.
             ToolKind::Part => continue,
@@ -3886,7 +3888,7 @@ fn a_viewport_pick_seats_the_drawn_body_in_every_body_seat() {
             // a profile and an axis, which a face pick never is.
             ToolKind::Mate | ToolKind::Blend => continue,
             // A face pick seats the face itself, not its body.
-            ToolKind::Clearance => continue,
+            ToolKind::Assertion => continue,
         };
         assert_eq!(
             held,
@@ -3949,7 +3951,7 @@ fn a_body_seat_takes_a_split_half_clicked_in_the_viewport() {
         &[SessionOp::Select(picked)],
     );
     let tool = tools.split().expect("open");
-    assert_eq!(tool.target(), Some(split));
+    assert_eq!(tool.body(), Some(split));
     assert_eq!(
         tool.seats().read(0),
         Some(pncad::document::Operand::output(
@@ -4710,8 +4712,8 @@ fn every_seat_reads_a_member_exactly_where_its_door_takes_one() {
             | Seat::PatternBody
             | Seat::PartInstance
             | Seat::MirrorBody
-            | Seat::ClearedFirst
-            | Seat::ClearedSecond => None,
+            | Seat::AssertedFirst
+            | Seat::AssertedSecond => None,
         };
         if let Some(spec) = spec {
             let mut session = crate::common::inline_without_door(doc.clone(), tol);

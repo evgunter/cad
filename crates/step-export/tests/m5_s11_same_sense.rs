@@ -66,7 +66,7 @@ fn a_flipped_face_bit_refuses_at_the_gate() {
         .flipped_face_sense_for_tests(face, geom_core::Tol::witness())
         .unwrap();
     assert!(
-        topo::finish(flipped, Tol::witness()).is_err(),
+        topo::finish(topo::Built::of(flipped), Tol::witness()).is_err(),
         "a face whose bit disagrees with its windings is not at rest"
     );
 }

@@ -423,6 +423,11 @@ fn builds_along(
 ///   wedges overlap, which every tier passed. They return with the
 ///   re-pairing
 ///   (`work/topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet.md`).
+/// - `ResultInvalid`: `y − x` carves the plate's top away under the
+///   lying pyramid's touching vertex. Both cells keep their keys, so the
+///   cut's carry lands their record unread, and the result's gate reads
+///   it and finds no touch
+///   (`work/heldrecords/a-cut-that-trims-a-kept-face-leaves-a-record-on-it-stale.md`).
 /// - `EdgeInFace`: an edge lies in a face whose material parts it, and
 ///   the parting is not built. The pyramid out the bottom of the glued
 ///   blocks: `y − x` leaves an edge in the glued face, which its
@@ -444,6 +449,14 @@ const REFUSING: &[(&str, BooleanErrorKind)] = &[
     (
         "a pyramid through the glued faces, out the bottom, y − x",
         BooleanErrorKind::EdgeInFace,
+    ),
+    (
+        "under the lying pyramid's ray, y − x",
+        BooleanErrorKind::ResultInvalid,
+    ),
+    (
+        "continuing the lying pyramid's face, y − x",
+        BooleanErrorKind::ResultInvalid,
     ),
 ];
 
@@ -1819,7 +1832,15 @@ fn a_partner_tipped_off_the_face_builds_sound_or_refuses_typed_at_every_pose() {
             .chain(s.along_ray.iter().map(|(label, x)| (*label, x, false)))
             {
                 let inside = label.starts_with("inside");
-                let pins = (f64::abs(k) < 1.0).then_some(label);
+                // Off the top past the band the apex still rests on it,
+                // recorded, so the cut under it refuses as it does in
+                // band (`REFUSING`'s `ResultInvalid` cells).
+                let stale = [
+                    "under the lying pyramid's ray",
+                    "continuing the lying pyramid's face",
+                ]
+                .contains(&label);
+                let pins = (f64::abs(k) < 1.0 || stale).then_some(label);
                 let label = format!("{label}, the pyramid lying {k}ε off the top");
                 built += builds_or_refuses((&label, pins), x, &y, &pose, &|e| {
                     matches!(e, BooleanError::Escalated { .. })

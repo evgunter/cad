@@ -791,7 +791,11 @@ fn carried_refusal_payloads_are_matchable_through_the_prelude() {
     match PathNoCornerReason::<f64>::CarriersTangent {
         PathNoCornerReason::CarriersTangent | PathNoCornerReason::CarriersDoNotMeet => {}
         PathNoCornerReason::TurnWithinTolerance {
-            lever_of: TurnLever::ShorterLeg | TurnLever::AnchorSeparation,
+            turn:
+                LeveredTurn {
+                    lever_of: TurnLever::ShorterLeg | TurnLever::AnchorSeparation,
+                    ..
+                },
             ..
         } => {}
     }
@@ -843,8 +847,11 @@ fn a_tube_is_minted_and_built_from_prelude_names_alone() {
     let built =
         tube_along_arc(frame, major, TubeWindow::Full, minor, tol).expect("the tube builds");
     let props = mass_properties(
-        &pncad::topo::finish(pncad::topo::Body::clone(&built.body), tol)
-            .expect("the measured body passes tier 3"),
+        &pncad::topo::finish(
+            pncad::topo::Built::of(pncad::topo::Body::clone(&built.body)),
+            tol,
+        )
+        .expect("the measured body passes tier 3"),
         tol,
         pinned_resolution(tol),
     )
@@ -1126,8 +1133,8 @@ fn the_polygon_door_authors_through_the_lattice() {
     // CORNER. A raw vertex table would have accepted this and left it
     // for validate.
     match polygon::<f64>(&[(0.0, 0.0), (1.0, 0.0), (2.0, 0.0)], tol) {
-        Err(PathError::JunctionTangent { .. }) => {}
-        other => panic!("a collinear corner must refuse as JunctionTangent: {other:?}"),
+        Err(PathError::JunctionTurnWithinTolerance { .. }) => {}
+        other => panic!("a collinear corner must refuse as JunctionTurnWithinTolerance: {other:?}"),
     }
 }
 
@@ -1240,8 +1247,11 @@ fn the_authoring_ladder_runs_on_one_dependency() {
     // A primitive body: no declared contacts, so the tier-3 arm.
     ladder(&built.body, None);
 
-    let finished = pncad::topo::finish(pncad::topo::Body::clone(&built.body), Tol::witness())
-        .expect("the measured body passes tier 3");
+    let finished = pncad::topo::finish(
+        pncad::topo::Built::of(pncad::topo::Body::clone(&built.body)),
+        Tol::witness(),
+    )
+    .expect("the measured body passes tier 3");
     let props = mass_properties(&finished, Tol::witness(), pinned_resolution(Tol::witness()))
         .expect("mass properties");
     assert!(
@@ -1376,10 +1386,7 @@ fn the_import_surface_is_matchable_and_fillable_through_the_prelude() {
         None
     );
 
-    let options = ImportOptions {
-        eps_in: Some(1e-7),
-        examine_chart_coherence: true,
-    };
+    let options = ImportOptions { eps_in: Some(1e-7) };
     assert!(matches!(
         import_step("not a step file", &options, Tol::witness()),
         Err(StepImportError::Syntax { .. })
@@ -1440,7 +1447,6 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
         eps_in,
         normalizations,
         instances,
-        coherence,
         coincidences,
     } = imported
     else {
@@ -1457,13 +1463,6 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
     named::<Vec<StructureNormalization>>(normalizations.clone());
     named::<Vec<CurvePromotion>>(curve_promotions.clone());
     named::<Vec<PlacedInstance>>(instances.clone());
-    // The chart-coherence channel, spelled from the prelude down to
-    // the vocabulary a consumer matches on. The import above asked
-    // for no examination, so the field is `None` — which is the
-    // CONFIGURATION half of this channel's distinction and not an
-    // empty report; `topo`'s own door draws the same line about the
-    // two lists inside a report it did produce.
-    named::<Option<CoherenceReport>>(coherence.clone());
     // The touches between instances the gate recorded, and the rows
     // they cite: none, since one box touches nothing.
     let contacts = body.records();
@@ -1473,19 +1472,6 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
         contacts.is_empty() && coincidences.is_empty(),
         "one box records no contact"
     );
-    assert!(
-        coherence.is_none(),
-        "the default import asked for no chart-coherence examination"
-    );
-    // The report's own two lists, spelled from here too, because a
-    // consumer that holds the answer reads them. No `assert_ne!`
-    // against `Some(empty)`: the assertion above is the whole runtime
-    // claim, and the fold it would guard against — an unasked import
-    // rendering as an empty report — is unrepresentable in
-    // `Option<CoherenceReport>` and would fail `is_none` first.
-    let empty = CoherenceReport::default();
-    named::<&Vec<CoherenceFinding>>(&empty.findings);
-    named::<&Vec<Unexamined>>(&empty.unexamined);
 
     // "Not a second computation", as an equality rather than a claim.
     let again = mass_properties(&body, Tol::witness(), pinned_resolution(Tol::witness()))
@@ -1552,6 +1538,10 @@ fn normalization_kind_is_readable(kind: &NormalizationKind) -> &'static str {
             SingularityFound::ValenceOneVertex => "chart_singularity_vertex_valence_one",
         },
         NormalizationKind::SeamlessPeriodicBand => "seamless_periodic_band",
+        NormalizationKind::CollapsedSideMadeOne { moved_by } => {
+            named::<&f64>(moved_by);
+            "collapsed_side_made_one"
+        }
         NormalizationKind::JoinedEdges => "joined_edges",
         NormalizationKind::EdgeSplitAtC0Knot => "edge_split_at_c0_knot",
         NormalizationKind::FaceSplitAtC0Knot => "face_split_at_c0_knot",
@@ -2522,12 +2512,12 @@ fn a_recorded_paths_chain_becomes_a_profile_program_node() {
     let evaluated = doors_evaluate(&doc);
     let volume = mass_properties(
         &pncad::topo::finish(
-            pncad::topo::Body::clone(
+            pncad::topo::Built::of(pncad::topo::Body::clone(
                 match &evaluated.value(body).expect("the plate evaluated").payload {
                     ValuePayload::Body(b) => b.body(),
                     other => panic!("expected a body, got {other:?}"),
                 },
-            ),
+            )),
             Tol::witness(),
         )
         .expect("the measured body passes tier 3"),
@@ -2562,12 +2552,12 @@ fn the_persist_doors_round_trip_through_the_facade() {
     let before = doors_evaluate(&doc);
     let volume = mass_properties(
         &pncad::topo::finish(
-            pncad::topo::Body::clone(
+            pncad::topo::Built::of(pncad::topo::Body::clone(
                 match &before.value(body_node).expect("the box evaluated").payload {
                     pncad::document::ValuePayload::Body(b) => b.body(),
                     other => panic!("expected a body, got {}", other.kind_name()),
                 },
-            ),
+            )),
             Tol::witness(),
         )
         .expect("the measured body passes tier 3"),
@@ -2593,7 +2583,7 @@ fn the_persist_doors_round_trip_through_the_facade() {
     let after = doors_evaluate(&loaded);
     let replayed = mass_properties(
         &pncad::topo::finish(
-            pncad::topo::Body::clone(
+            pncad::topo::Built::of(pncad::topo::Body::clone(
                 match &after
                     .value(body_node)
                     .expect("the box re-evaluated")
@@ -2602,7 +2592,7 @@ fn the_persist_doors_round_trip_through_the_facade() {
                     pncad::document::ValuePayload::Body(b) => b.body(),
                     other => panic!("expected a body, got {}", other.kind_name()),
                 },
-            ),
+            )),
             Tol::witness(),
         )
         .expect("the measured body passes tier 3"),
@@ -3057,8 +3047,11 @@ fn plate_param_authors_facade_only_and_its_saved_text_is_pinned() {
         panic!("a union yields a body");
     };
     let volume = mass_properties(
-        &pncad::topo::finish(pncad::topo::Body::clone(body.body()), Tol::witness())
-            .expect("the measured body passes tier 3"),
+        &pncad::topo::finish(
+            pncad::topo::Built::of(pncad::topo::Body::clone(body.body())),
+            Tol::witness(),
+        )
+        .expect("the measured body passes tier 3"),
         Tol::witness(),
         pinned_resolution(Tol::witness()),
     )
@@ -3855,8 +3848,11 @@ fn asm2a_row1_two_instances_through_a_real_workspace() {
         pncad::document::product(&part_doc, &part_ev, Tol::witness()).expect("the part's product");
     let vol = |b: &pncad::topo::Body<f64>| {
         pncad::topo::mass_properties(
-            &pncad::topo::finish(pncad::topo::Body::clone(b), Tol::witness())
-                .expect("the measured body passes tier 3"),
+            &pncad::topo::finish(
+                pncad::topo::Built::of(pncad::topo::Body::clone(b)),
+                Tol::witness(),
+            )
+            .expect("the measured body passes tier 3"),
             Tol::witness(),
             pinned_resolution(Tol::witness()),
         )
@@ -4008,8 +4004,11 @@ fn asm2a_child_product_probe() {
     let ev = asm2a_eval(&doc, &ws);
     let body = pncad::document::product(&doc, &ev, Tol::witness()).expect("gathers");
     let v = pncad::topo::mass_properties(
-        &pncad::topo::finish(pncad::topo::Body::clone(&body), Tol::witness())
-            .expect("the measured body passes tier 3"),
+        &pncad::topo::finish(
+            pncad::topo::Built::of(pncad::topo::Body::clone(&body)),
+            Tol::witness(),
+        )
+        .expect("the measured body passes tier 3"),
         Tol::witness(),
         pinned_resolution(Tol::witness()),
     )
@@ -4158,8 +4157,11 @@ fn asm_r2a_child_mated_probe() {
     let ev = asm2a_eval(&doc, &ws);
     let body = pncad::document::product(&doc, &ev, Tol::witness()).expect("gathers");
     let v = pncad::topo::mass_properties(
-        &pncad::topo::finish(pncad::topo::Body::clone(&body), Tol::witness())
-            .expect("the measured body passes tier 3"),
+        &pncad::topo::finish(
+            pncad::topo::Built::of(pncad::topo::Body::clone(&body)),
+            Tol::witness(),
+        )
+        .expect("the measured body passes tier 3"),
         Tol::witness(),
         pinned_resolution(Tol::witness()),
     )
@@ -4267,8 +4269,11 @@ fn asm_r2b_child_crossing_probe() {
     let ev = asm2a_eval(&doc, &ws);
     let assembled = pncad::document::product(&doc, &ev, Tol::witness()).expect("gathers");
     let v = pncad::topo::mass_properties(
-        &pncad::topo::finish(pncad::topo::Body::clone(&assembled), Tol::witness())
-            .expect("the measured body passes tier 3"),
+        &pncad::topo::finish(
+            pncad::topo::Built::of(pncad::topo::Body::clone(&assembled)),
+            Tol::witness(),
+        )
+        .expect("the measured body passes tier 3"),
         Tol::witness(),
         pinned_resolution(Tol::witness()),
     )
@@ -4395,8 +4400,11 @@ fn asm2b_row2_sub_assembly_through_a_real_workspace() {
 
     let vol = |b: &pncad::topo::Body<f64>| {
         pncad::topo::mass_properties(
-            &pncad::topo::finish(pncad::topo::Body::clone(b), Tol::witness())
-                .expect("the measured body passes tier 3"),
+            &pncad::topo::finish(
+                pncad::topo::Built::of(pncad::topo::Body::clone(b)),
+                Tol::witness(),
+            )
+            .expect("the measured body passes tier 3"),
             Tol::witness(),
             pinned_resolution(Tol::witness()),
         )
@@ -4469,8 +4477,11 @@ fn asm2b_child_product_probe() {
     let ev = asm2a_eval(&doc, &ws);
     let body = pncad::document::product(&doc, &ev, Tol::witness()).expect("gathers");
     let v = pncad::topo::mass_properties(
-        &pncad::topo::finish(pncad::topo::Body::clone(&body), Tol::witness())
-            .expect("the measured body passes tier 3"),
+        &pncad::topo::finish(
+            pncad::topo::Built::of(pncad::topo::Body::clone(&body)),
+            Tol::witness(),
+        )
+        .expect("the measured body passes tier 3"),
         Tol::witness(),
         pinned_resolution(Tol::witness()),
     )
@@ -4582,8 +4593,11 @@ fn asm4_split_and_inline_through_the_real_store() {
     let body1 = d::product(&doc, &ev1, Tol::witness()).expect("gathers");
     let vol = |b: &pncad::topo::Body<f64>| {
         pncad::topo::mass_properties(
-            &pncad::topo::finish(pncad::topo::Body::clone(b), Tol::witness())
-                .expect("the measured body passes tier 3"),
+            &pncad::topo::finish(
+                pncad::topo::Built::of(pncad::topo::Body::clone(b)),
+                Tol::witness(),
+            )
+            .expect("the measured body passes tier 3"),
             Tol::witness(),
             pinned_resolution(Tol::witness()),
         )
@@ -4749,8 +4763,11 @@ fn asm_upd_row3_update_to_store_picks_up_the_resaved_part() {
 
     let vol = |b: &pncad::topo::Body<f64>| {
         pncad::topo::mass_properties(
-            &pncad::topo::finish(pncad::topo::Body::clone(b), Tol::witness())
-                .expect("the measured body passes tier 3"),
+            &pncad::topo::finish(
+                pncad::topo::Built::of(pncad::topo::Body::clone(b)),
+                Tol::witness(),
+            )
+            .expect("the measured body passes tier 3"),
             Tol::witness(),
             pinned_resolution(Tol::witness()),
         )
@@ -4887,7 +4904,9 @@ fn asm_upd_child_update_probe() {
     let ev = asm2a_eval(&updated, &ws);
     let volume = pncad::topo::mass_properties(
         &pncad::topo::finish(
-            pncad::topo::Body::clone(&d::product(&updated, &ev, Tol::witness()).expect("gathers")),
+            pncad::topo::Built::of(pncad::topo::Body::clone(
+                &d::product(&updated, &ev, Tol::witness()).expect("gathers"),
+            )),
             Tol::witness(),
         )
         .expect("the measured body passes tier 3"),
@@ -5018,7 +5037,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   to its value and would have had to re-implement the evaluator to
 ///   display one. `crate::document` carries all three now.
 /// - **Types whose curated face is a different shape**
-///   (`ProfilePayload`, `ParamValue`,
+///   (`ProfilePayload`, `ProfilePartition`, `ParamValue`,
 ///   `BifurcationKind`,
 ///   `MetaValue`, `MetaInt`, `MetaError`, `from_value`,
 ///   `to_value`): each has a curated door of its own or is machinery
@@ -5157,7 +5176,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   which `Doc::mint` answers. The doors read it and a consumer never
 ///   writes it; what a consumer holds is the ids themselves
 ///   (`RecipeNodeId`, `StepId`), carried.
-const NOT_CARRIED: [&str; 101] = [
+const NOT_CARRIED: [&str; 102] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceKey",
@@ -5201,6 +5220,7 @@ const NOT_CARRIED: [&str; 101] = [
     "NodeVerdicts",
     "ParamValue",
     "ProfileLane",
+    "ProfilePartition",
     "ProfilePayload",
     "Qualifier",
     "RangeField",
@@ -7020,8 +7040,11 @@ mod the_hollowed_box_through_the_facade {
             panic!("the shell's payload is not a body");
         };
         let props = pncad::topo::mass_properties(
-            &pncad::topo::finish(pncad::topo::Body::clone(body.body()), Tol::witness())
-                .expect("the measured body passes tier 3"),
+            &pncad::topo::finish(
+                pncad::topo::Built::of(pncad::topo::Body::clone(body.body())),
+                Tol::witness(),
+            )
+            .expect("the measured body passes tier 3"),
             Tol::witness(),
             crate::pinned_resolution(Tol::witness()),
         )
@@ -7176,7 +7199,7 @@ fn far_d_shape(tol: Tol) -> ClosedLoop<f64> {
 fn validated_decides_no_consistency_check_on_a_lattice_built_loop() {
     let tol = Tol::witness();
     if 0.25 * landing_reach(tol) < d_shape_reach() {
-        match d_shape(1.0, tol) {
+        match d_shape(1.0, tol).map_err(|e| e.refusal().clone()) {
             Err(PathError::ArcMissBelowSceneResolution { read, .. }) => {
                 assert_eq!(read.gate().predicate(), "path_arc_landing");
             }

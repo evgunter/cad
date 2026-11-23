@@ -216,6 +216,20 @@ const OVERLAPPING: &[(&str, usize)] = &[
     ("inside the lying pyramid", 5),
 ];
 
+/// The scenes some of whose cells the result gate refuses on a record
+/// its carry landed stale (`BooleanError::ResultInvalid`), with how many
+/// over every pose and op: `y − x` carves the plate's top away under the
+/// lying pyramid's touching vertex, both cells keep their keys, and the
+/// gate reads the record and finds no touch
+/// (`work/heldrecords/a-cut-that-trims-a-kept-face-leaves-a-record-on-it-stale.md`).
+const STALE: &[(&str, usize)] = &[
+    ("under the lying pyramid's ray", 5),
+    ("continuing the lying pyramid's face", 5),
+];
+
+/// The tally's key for the result gate's refusal of the finished body.
+const INVALID: &str = "ResultInvalid";
+
 /// A refusal's kind as a tally keys it: the error's arm, and for the
 /// result gate's refusal of coincident edges, [`OVERLAP`] where it is an
 /// overlap.
@@ -1002,18 +1016,26 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
             tally.doubled,
             tally.refused_cells
         );
-        // The result gate's overlap refusals are pinned, by count
-        // ([`OVERLAPPING`]); nothing else refuses.
+        // The result gate's overlap refusals and its stale-record
+        // refusals are pinned, by count ([`OVERLAPPING`], [`STALE`]);
+        // nothing else refuses.
         let (overlaps, others): (Vec<&String>, Vec<&String>) = tally
             .refused_cells
             .iter()
             .partition(|cell| cell.ends_with(&format!(": {OVERLAP}")));
-        let pinned = OVERLAPPING
-            .iter()
-            .find(|(scene, _)| scene == label)
-            .map_or(0, |&(_, n)| n);
+        let (stale, others): (Vec<&String>, Vec<&String>) = others
+            .into_iter()
+            .partition(|cell| cell.ends_with(&format!(": {INVALID}")));
+        let pinned_in = |table: &[(&str, usize)]| {
+            table
+                .iter()
+                .find(|(scene, _)| scene == label)
+                .map_or(0, |&(_, n)| n)
+        };
+        let pinned = pinned_in(OVERLAPPING);
         if !others.is_empty()
             || overlaps.len() != pinned
+            || stale.len() != pinned_in(STALE)
             || tally.wrong + tally.missing + tally.doubled > 0
         {
             failures.push(format!("{label}: {tally:?}"));

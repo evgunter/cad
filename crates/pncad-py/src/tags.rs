@@ -158,7 +158,6 @@ use pncad::topo::{
     RingContact, RingPairContact, ShellError, SplitFinishError, StaleDeclaration, TransformError,
     ValidationError,
 };
-use pncad::topo::{CoherenceCondition, Unexaminable};
 // All three STL refusals are prelude-curated; the module path is the
 // spelling this file uses throughout, not a reach past the façade.
 use pncad::stl::{BinaryHeaderError, SolidNameError, StlError};
@@ -179,10 +178,10 @@ use pncad::workspace::WorkspaceError;
 /// name no refusal can ever carry.
 pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
     match err.kind() {
-        PathErrorKind::JunctionTangent => "junction_tangent",
+        PathErrorKind::JunctionTurnWithinTolerance => "junction_turn_within_tolerance",
         PathErrorKind::JunctionCusp => "junction_cusp",
         PathErrorKind::CuspDoublesBackOverLeg => "cusp_doubles_back_over_leg",
-        PathErrorKind::SeamTangent => "seam_tangent",
+        PathErrorKind::SeamTurnWithinTolerance => "seam_turn_within_tolerance",
         PathErrorKind::SeamArrivalOffDirection => "seam_arrival_off_direction",
         PathErrorKind::SeamArrivalLeverTooShort => "seam_arrival_lever_too_short",
         PathErrorKind::ContinuationTargetOffRay => "continuation_target_off_ray",
@@ -1104,6 +1103,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
             pncad::document::pose::PoseConstruction::FaceChartUnleverable { .. } => {
                 "face_chart_unleverable"
             }
+            pncad::document::pose::PoseConstruction::FaceChartUnseated => "face_chart_unseated",
         }),
         NodeErrorKind::PoseScalar { .. } => None,
         NodeErrorKind::CountOutOfRange { .. } => None,
@@ -2274,6 +2274,7 @@ pub fn normalization_kind_tag(kind: &NormalizationKind) -> &'static str {
         NormalizationKind::ChartSingularityVertex { .. } => "chart_singularity_vertex",
         NormalizationKind::SeamlessPeriodicBand => "seamless_periodic_band",
         NormalizationKind::SurfacePromotion { .. } => "surface_promotion",
+        NormalizationKind::CollapsedSideMadeOne { .. } => "collapsed_side_made_one",
         NormalizationKind::JoinedEdges => "joined_edges",
         NormalizationKind::EdgeSplitAtC0Knot => "edge_split_at_c0_knot",
         NormalizationKind::FaceSplitAtC0Knot => "face_split_at_c0_knot",
@@ -2534,6 +2535,7 @@ pub fn tessellate_error_tag(err: &TessellateError) -> &'static str {
         TessellateError::OverusedSide { .. } => "overused_side",
         TessellateError::SphereTrimShape { .. } => "sphere_trim_shape",
         TessellateError::WrapStripTurn { .. } => "wrap_strip_turn",
+        TessellateError::LiftedColumnOff { .. } => "lifted_column_off",
     }
 }
 
@@ -3015,9 +3017,6 @@ pub fn check_evidence_tag(evidence: &CheckEvidence) -> &'static str {
         CheckEvidence::Unsupported { .. } => "unsupported",
         CheckEvidence::NotAtRest { .. } => "not_at_rest",
         CheckEvidence::StaleExpectation { .. } => "stale_expectation",
-        CheckEvidence::ChartCoherence { .. } => "chart_coherence",
-        CheckEvidence::ChartCoherenceUnexamined { .. } => "chart_coherence_unexamined",
-        CheckEvidence::ChartCoherenceUnavailable => "chart_coherence_unavailable",
         CheckEvidence::UnprovenCoincidence { .. } => "unproven_coincidence",
         CheckEvidence::Interference { .. } => "interference",
         CheckEvidence::CarriedInterference { .. } => "carried_interference",
@@ -3079,40 +3078,6 @@ pub fn coincidence_rung_tag(rung: pncad::document::Rung) -> &'static str {
         pncad::document::Rung::SameConstruction => "same_construction",
         pncad::document::Rung::CarrierVerdict => "carrier_verdict",
         pncad::document::Rung::MarginIdentity => "margin_identity",
-    }
-}
-
-/// The stable tag for WHICH of the three chart-coherence conditions a
-/// measurement reports — the inner arm of
-/// [`CheckEvidence::ChartCoherence`].
-///
-/// Each names the two statements whose disagreement was measured: a
-/// meridian edge's carrier midpoint against its own endpoint vertex, a
-/// rim row's two carriers against each other, a meridian column's two
-/// carriers against each other.
-pub fn coherence_condition_tag(condition: CoherenceCondition) -> &'static str {
-    match condition {
-        CoherenceCondition::MeridianClosure { .. } => "meridian_closure",
-        CoherenceCondition::RimContinuation { .. } => "rim_continuation",
-        CoherenceCondition::MeridianContinuation { .. } => "meridian_continuation",
-    }
-}
-
-/// The stable tag for WHY one loop was out of the examination's reach
-/// — the inner arm of [`CheckEvidence::ChartCoherenceUnexamined`].
-///
-/// **A word about the DATA, never about the configuration.** A check
-/// a caller turned off is `ChecksReport.skipped` and is not a finding
-/// at all; these are loops the body itself put out of reach, and
-/// no configuration makes them examinable. The alphabets are disjoint
-/// from [`coherence_condition_tag`]'s, which is what lets both ride
-/// one attribute.
-pub fn unexaminable_tag(why: Unexaminable) -> &'static str {
-    match why {
-        Unexaminable::Corrupt { .. } => "corrupt",
-        Unexaminable::LoneLoop { .. } => "empty_loop",
-        Unexaminable::NullScaffoldEdge { .. } => "null_scaffold_edge",
-        Unexaminable::NonIsoCarrier { .. } => "non_iso_carrier",
     }
 }
 

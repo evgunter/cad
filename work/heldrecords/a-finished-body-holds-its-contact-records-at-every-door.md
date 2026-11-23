@@ -2,11 +2,13 @@
 id: a-finished-body-holds-its-contact-records-at-every-door
 kind: unit
 title: AtRestBody holds its contact records; every door carries its operand's records through its own lineage and gates each finished body it returns at tier 3′
-status: open
+status: dispatched
 opened: 2026-10-28
 priority: P1
 cost: X
 points: 16
+pr: 7124
+branch: embed/records
 ---
 
 
@@ -155,3 +157,33 @@ The eager graft census is the one new cost: 10.2 s over 2,679 calls.
   is on the `⊔`'s body, not on either pick).
 - `a-boolean-over-an-instance-drops-its-parts-census-findings`:
   remains whole (findings, not records).
+
+## Review fix pass (2026-11-22, `embed/records`)
+
+Both reviews of PR 7124 found three public ways a finished body could
+hold a record its gate had not confirmed. As the code stands after the
+fix pass:
+
+- The gate runs the census's confirmation direction alone over the
+  records it is handed (`census::confirm_only`) and takes each answer
+  as one of three: confirmed; read and not confirmed (stale,
+  contradicted, in the band, undecided), which refuses; no lane reads
+  the pair, which holds the record on its citation. The lane causes
+  are matched whole, and one is classed as no lane today
+  (`a-recorded-tangency-past-the-certifiers-set-is-held-on-its-citation`).
+- A `⊔`'s gate takes arrivals, never a record list:
+  `Assembled::graft_finished` / `graft_leaf` graft an arrival and carry
+  the records it holds; `Assembled::of_solids` is an import's solids
+  with none. The gate confirms what the arrivals carried in before its
+  census decides between them, and a record that does not confirm
+  refuses.
+- `FinishedBody::try_recite` takes a `KernelOnly`, which no other crate
+  can build, and a refusal leaves the body as it was.
+- `AtRestBody::bar` names the bar the gate paid: `Bar::Tier3Prime`
+  where the census confirmed every record the body holds (and, at a
+  `⊔` of two arrivals or more, decided between them), `Bar::Tier3`
+  where a record waits on a lane or the body holds none. A move keeps
+  it.
+- `From<Body> for Built` is gone: every finish spells what it hands
+  (`Built::of(body)` is a body with no record).
+

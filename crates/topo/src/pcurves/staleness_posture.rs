@@ -189,6 +189,16 @@ pub(crate) const DECLARED: &[(&str, Posture, &str)] = {
              image is a parameter-space fact), then grafted",
         ),
         (
+            "graft_finished",
+            Transfers,
+            "an arrival grafted into a `⊔`'s aggregate — see `graft_placed`",
+        ),
+        (
+            "graft_leaf",
+            Transfers,
+            "an arrival grafted into a `⊔`'s aggregate — see `graft_placed`",
+        ),
+        (
             "graft_disjoint_all_keyed",
             Transfers,
             "remaps each row onto the transplanted half-edge's fresh key and DROPS any \
@@ -237,6 +247,13 @@ pub(crate) const DECLARED: &[(&str, Posture, &str)] = {
             Neither,
             "a test-support door that overwrites one surface datum and leaves every row \
                  as found; a row the new datum stales is the tier-3 pass's to report",
+        ),
+        (
+            "restate_geometry",
+            Neither,
+            "a test-support door that restates the stored points, carriers and surfaces \
+                 and leaves every row as found; a row the new data stale is the tier-3 \
+                 pass's to report",
         ),
         (
             "rotate_shell_faces",

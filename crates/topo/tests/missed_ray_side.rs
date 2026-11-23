@@ -35,7 +35,7 @@ fn slab(t: f64, tol: Tol) -> Body<f64> {
 }
 
 fn at_rest(body: Body<f64>, tol: Tol) -> AtRestBody<f64> {
-    topo::finish(body, tol).expect("the operand is at rest")
+    topo::finish(topo::Built::of(body), tol).expect("the operand is at rest")
 }
 
 fn far_brick(tol: Tol) -> AtRestBody<f64> {
@@ -245,7 +245,7 @@ fn an_inside_out_slab_refuses_at_rest() {
         let rev = slab(m * tol.eps(), tol).revert().unwrap();
         let solid = rev.solids().next().expect("one solid").0;
         assert_eq!(
-            topo::finish(rev, tol)
+            topo::finish(topo::Built::of(rev), tol)
                 .map(|_| ())
                 .map_err(topo::NotFinished::into_findings),
             Err(vec![ValidationError::NegativeVolume { solid }]),

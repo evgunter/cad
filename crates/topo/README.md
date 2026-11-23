@@ -47,7 +47,7 @@ that what you need belongs at the root or below.
 |---|---|
 | Arenas, entities, provenance | `src/body.rs`, `src/entity.rs`, `src/geometry.rs`, `src/provenance.rs`, `src/live.rs` |
 | Euler operators | `src/euler.rs` (make), `src/euler_kill.rs` (kill duals), `src/euler_ring.rs` (rings/genus), `src/strut.rs` (a strut deleted from its face, for the merge and the Boolean's closing), `src/split.rs`, `src/movefac.rs`, `src/revert.rs`, `src/attach.rs` |
-| Validation tiers 1–3, 3′ | `src/validate.rs` (`validate`, `validate_closed`, `validate_geometric`, `validate_pseudomanifold`), `src/edge_wedge.rs` (an edge's wedge read whole, which check 4 and the constructors share), `src/face_normal.rs`, `src/sector_face.rs`, `src/sector_shape.rs`, `src/coherence.rs` |
+| Validation tiers 1–3, 3′ | `src/validate.rs` (`validate`, `validate_closed`, `validate_geometric`, `validate_pseudomanifold`), `src/edge_wedge.rs` (an edge's wedge read whole, which check 4 and the constructors share), `src/face_normal.rs`, `src/sector_face.rs`, `src/sector_shape.rs` |
 | Coincidence census, at rest | `src/census.rs` (`census_and_certify`: the BVH pre-filter `Candidates`, the sweeps, the backing rungs, the confirm pass, the cross-solid backstop) |
 | Contact vocabulary | `src/contact.rs` (`GlueClass`, `ContactPair`, `ContactRefusal`, `ContactFinding`, `CONTACT_RECOURSE`) |
 | Contact verification (Door 1) | `src/boolean/contact_verify.rs` (`rest_pair_verdict`), `src/boolean/carrier_pair.rs` (the face-pair door); the carrier ladder it reads is `geom_brep::carrier_eq` (kind-generalized) and `geom_brep::plane_eq` (its planar arm) |
@@ -642,11 +642,15 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    the lone vertex of exactly one Empty loop); vertex-orbit closure
    (manifoldness — watertightness is structural in the half-edge
    form); the ownership/back-pointer partition; shell-partition/
-   edge-adjacency coherence; arity floors; bidirectional [identity] provenance;
-   and the **component-aware per-shell Euler–Poincaré**: per connected
+   edge-adjacency coherence; arity floors; bidirectional [identity] provenance.
+   The checklist guarantees, and no check of its own repeats, the
+   **component-aware per-shell Euler–Poincaré**: per connected
    component of a shell's incidence complex, v − e + f − r = 2(1 − g)
    with g a non-negative integer, summing per shell to 2(c − Σgᵢ) over
-   its c components. The naive per-body form is wrong for tier-1
+   its c components — each component is a closed, connected,
+   orientable surface by the checks above. The validator counts each
+   shell's components (for tier 2's c = 1) with its own walk, apart from
+   the operators' shared one. The naive per-body form is wrong for tier-1
    bodies — `mfkrh` on a detached ring disconnects a shell's surface
    while a single shell entity remains.
 2. **Tier 2 "closed solid"** (`validate_closed`) — tier 1 plus: no
@@ -778,17 +782,32 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    op records them, straight or curved alike, citing its decision; the
    census confirms the record, by reconstruction from its bounds for a
    straight pair, and infers no record from shared bounds.
-   The gate certifies each record it is handed (`finish` takes the
-   body with its records, `Built`): one the census does not confirm
-   where it lies, or reads otherwise, refuses at the door that handed
-   it over. A `⊔`'s gate (`finish_assembled`) runs the census as the
-   deciding operation between its arrivals and holds what it records.
-   A meeting no record backs is not raised by a deciding door's gate:
-   the census has no lane yet for shapes those doors build (two curved
-   solids within reach,
+   **Where the code stands against that today.** A finished body
+   holds no record its gate read and did not confirm: the gate reads
+   each record it is handed where it lies, and one the census read and
+   did not confirm (stale, contradicted, in the band, undecided)
+   refuses at the door that handed it over. A record no census lane
+   can read is held on its citation, and the body names the bar it
+   paid (`AtRestBody::bar`): tier 3′ over its records where the census
+   confirmed every one, tier 3 where one waits on a lane or the body
+   holds none. `finish` takes the body with its records (`Built`); a
+   `⊔`'s gate (`finish_assembled`) takes its arrivals, reads the
+   records off them, runs the census as the deciding operation between
+   them and holds what it records. That is short of the sentence above
+   in two respects, each with the rows that owe it. A recorded tangency
+   past the tangent certifier's set is the one record held unread
+   today
+   (`work/heldrecords/a-recorded-tangency-past-the-certifiers-set-is-held-on-its-citation.md`).
+   And no gate yet searches a body for a meeting its records do not
+   state, so a body handed no record is finished at tier 3 and no
+   census reads it: the search waits on lanes the census does not have
+   for shapes the doors build (two curved solids within reach,
    `work/reachhold/boolean-door-runs-the-census-over-its-result.md`;
    the split's own touches and curved counts,
-   `work/heldrecords/the-splits-at-rest-gate-reads-tier-3-where-a-finished-body-owes-tier-3-prime.md`).
+   `work/heldrecords/the-splits-at-rest-gate-reads-tier-3-where-a-finished-body-owes-tier-3-prime.md`),
+   and
+   `work/heldrecords/the-gate-raises-no-unbacked-meeting-until-the-census-reads-what-doors-build.md`
+   owes it.
    Construction state (tier 1, or tier 2 without geometric
    certification) is what Euler operators hand back, and becomes a
    finished body only through the at-rest gate.
@@ -888,7 +907,12 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      beside the record; any other op refuses one. A record
      that lands on no pair, every pair read definitely, is consumed
      where one of its cells was removed, divided with its remainder
-     removed, or moved, and is stale otherwise; a cell the lineage does not cover
+     removed, or moved, or where the op put its two cells in different
+     result bodies, each holding images of one cell alone and each
+     reaching the cut by a decision the op made: the touch is
+     then a meeting between two bodies, as a split's two sides meet
+     across its plane, which no body's records state. It is stale
+     otherwise; a cell the lineage does not cover
      refuses. A cell that replaces another without holding its interior
      (a blend face for the edge it rounds) takes no record from it.
    - **Certification strength equals its skeleton**: a curve touch is

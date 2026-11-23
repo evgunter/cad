@@ -134,8 +134,9 @@
 //! hyperbola, and the edge is its exact rational-quadratic arc between
 //! the moved corners, on the branch the old edge's middle stands beside
 //! ([`geom_brep::ConicBranch::arc`]); it rests where the plane×cone
-//! section states the bounds that retire its tube, and an arc that does
-//! not certify refuses as [`ReplaceFaceError::TogetherConicArc`]. The kind is the
+//! section states the bounds that retire its tube or where that tube
+//! certifies, and an arc whose tube cannot certify it refuses as
+//! [`ReplaceFaceError::TogetherConicArc`]. The kind is the
 //! section's, whatever the old carrier's was: a cavity's cap offset off
 //! the axis turns a meridian circle into a spiric, and the lift that
 //! puts it back turns the spiric into a circle. The old carrier
@@ -282,7 +283,7 @@
 //! As in the planar door, a dimensionless quantity's lever is the
 //! geometry being judged and never the request: the profile solve's
 //! `|det|` — a sine between two unit 2-D normals — is levered by the
-//! ARC LENGTHS of the corner's own incident edges, and the azimuth
+//! arms of the corner's own incident edges ([`corner_arms`]), and the azimuth
 //! solve's two roots
 //! are separated by a LENGTH that is metered as one. A corner asked to
 //! move nothing is answered before any meter runs. This is also what
@@ -1221,16 +1222,20 @@ fn classify<T: Decide>(
     })
 }
 
-/// The ARC LENGTH of every edge ending at a vertex — the lengths this
-/// door's conditioning is levered by.
+/// The arm of every edge ending at a vertex — the lengths this door's
+/// conditioning is levered by.
 ///
-/// The planar door levers by each edge's CHORD, which is the same
-/// length there because a planar body's edges are straight. Here they
-/// are not: a full revolve's rim arc runs half a turn and a chart with
-/// ONE seam closes on itself, whose chord is exactly zero — and a zero
-/// arm makes every meter read `Zero` and calls a perfectly transversal
-/// corner degenerate. Measured on the revolved TUBE, which refused that
-/// way before this. The arc length is the length that was always meant.
+/// A line reads its chord ([`geom_brep::edge_extent_inf`]), as in the
+/// planar door, where the extent's bounds from below and from above
+/// agree. An ellipse, a spiric or a spline reads its extent from below
+/// (the chord, its fold and its sampled pairs), though the verdicts
+/// levered here act on every sign, which asks for both bounds.
+///
+/// A circle reads its arc length. A full revolve's rim arc runs half a
+/// turn and a chart with ONE seam closes on itself, whose chord is
+/// exactly zero — and a zero arm makes every meter read `Zero` and calls
+/// a perfectly transversal corner degenerate. Measured on the revolved
+/// TUBE, which refused that way before the arc length.
 fn corner_arms<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
@@ -1253,22 +1258,13 @@ fn corner_arms<T: Decide>(
         };
         let (t0, t1) = curve.params();
         out.push(match curve.carrier() {
-            // A line's parameter IS arc length, so its span is its chord;
-            // a circle's is an angle levered by its own radius. Anything
-            // else falls back to the endpoints' chord, which is what the
-            // carrier can say.
-            Curve3::Line(_) => {
-                // Unsourced lever: a length read off the parameter span, not the edge's end
-                // points; the end points' distance rounds differently.
-                Lever::unsourced((t1 - t0).abs())
-            }
             Curve3::Circle(circle) => {
                 let radius = circle.radius();
                 // Unsourced lever: the arc's length, an angular span times its radius, is
                 // longer than the arc's extent, which `edge_extent_inf` reads as its chord or fold.
                 Lever::unsourced((t1 - t0).abs() * radius)
             }
-            other => geom_brep::ExtentBall::point(other.eval(t1)).lever_from(other.eval(t0)),
+            carrier => geom_brep::edge_extent_inf(carrier, t0, t1),
         });
     }
     Ok(out)
@@ -2161,11 +2157,10 @@ fn mint_carrier<T: Decide>(
     // sphere's great circle, a torus's meridian circle — and each
     // certifies its own posture.
     if ca.old_key == cb.old_key {
-        if let Curve3::Circle(geom::Circle {
-            frame: seam_frame, ..
-        }) = old
-            && latitude_posture(frame, seam_frame.axis_line(), band)?.is_none()
+        if let Curve3::Circle(seam) = old
+            && latitude_posture(frame, seam.frame().axis_line(), band)?.is_none()
         {
+            let seam_frame = seam.frame();
             let (axis, u_ref) = (seam_frame.axis(), seam_frame.u_ref());
             return Ok(latitude_circle(frame, p_start, axis, u_ref));
         }
@@ -2205,12 +2200,9 @@ fn mint_carrier<T: Decide>(
                     frame: sphere_frame,
                     ..
                 },
-                Curve3::Circle(
-                    circle @ geom::Circle {
-                        frame: seam_frame, ..
-                    },
-                ),
+                Curve3::Circle(circle),
             ) => {
+                let seam_frame = &circle.frame();
                 let cc = seam_frame.origin();
                 let center = sphere_frame.origin();
                 let radius = circle.radius();
@@ -2241,12 +2233,9 @@ fn mint_carrier<T: Decide>(
                     major_radius,
                     ..
                 },
-                Curve3::Circle(
-                    circle @ geom::Circle {
-                        frame: seam_frame, ..
-                    },
-                ),
+                Curve3::Circle(circle),
             ) => {
+                let seam_frame = &circle.frame();
                 let cc = seam_frame.origin();
                 let center = torus_frame.origin();
                 let radius = circle.radius();
@@ -2466,8 +2455,9 @@ fn mint_carrier<T: Decide>(
         // the two normals says whether the parameter runs the old way.
         // A cosine of unit vectors, levered at the body's extent.
         let normal_of = |c: &Curve3<T>| match c {
-            Curve3::Circle(geom::Circle { frame, .. })
-            | Curve3::Ellipse(geom::Ellipse { frame, .. }) => Some(frame.axis().normalize()),
+            Curve3::Circle(_) | Curve3::Ellipse(_) => {
+                c.frame().map(|frame| frame.axis().normalize())
+            }
             Curve3::Spiric { frame, .. } => {
                 let u_ref = frame.u_ref();
                 Some(u_ref.normalize())
@@ -2524,10 +2514,9 @@ fn mint_carrier<T: Decide>(
             .offset(p_start);
             Ok(Curve3::line(*origin + delta, *dir))
         }
-        Curve3::Circle(geom::Circle {
-            frame: circle @ carrier_frame,
-            ..
-        }) => {
+        Curve3::Circle(circle_5) => {
+            let circle = circle_5.frame();
+            let carrier_frame = circle;
             let (axis, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
             // A LATITUDE circle: coaxial with the body, so its centre
             // stays on the axis and its radius is the corner's own.
@@ -2543,11 +2532,12 @@ fn mint_carrier<T: Decide>(
 }
 
 /// A re-chart refused because an arc this door minted on a cone does not
-/// certify, read as the door's own refusal: the re-chart names the edge
-/// whose re-description does not certify, and an arc's tube is retired
-/// only where the plane×cone section states the bounds (C2) — a cone has
-/// no tube enclosure otherwise — so the arc it names refuses as
-/// [`ReplaceFaceError::TogetherConicArc`]. Any other refusal stands.
+/// certify at its uniqueness tube, read as the door's own refusal: the
+/// re-chart names the edge whose re-description does not certify, and an
+/// arc whose plane×cone section states no bounds (C2) owes the tube, so
+/// the arc it names refuses as [`ReplaceFaceError::TogetherConicArc`]
+/// where the tube decided it could not certify the arc ([`tube_failed`]).
+/// Any other refusal stands with its own ending.
 fn uncertified_arc<T: Real>(
     error: ReplaceFaceError<T>,
     arcs: &[(EdgeKey, geom_brep::OpenConic)],
@@ -2556,12 +2546,7 @@ fn uncertified_arc<T: Real>(
         error:
             crate::EulerOpError::RechartFalsifies {
                 edge,
-                error:
-                    geom_brep::CertifyError::AnalyticRung3(
-                        geom_brep::AnalyticRung3Refusal::NoTubeEnclosure {
-                            operand: geom::SurfaceKind::Cone,
-                        },
-                    ),
+                error: geom_brep::CertifyError::AnalyticRung3(refusal),
                 ..
             },
         ..
@@ -2569,9 +2554,40 @@ fn uncertified_arc<T: Real>(
     else {
         return error;
     };
+    if !tube_failed(refusal) {
+        return error;
+    }
     match arcs.iter().find(|(arc, _)| arc == edge) {
         Some(&(edge, conic)) => ReplaceFaceError::TogetherConicArc { edge, conic },
         None => error,
+    }
+}
+
+/// **Whether an edge's tube refusal says the tube could not certify the
+/// arc**: no enclosure of an operand, every rung's enclosure refused
+/// somewhere, a decided straddle, or a decided one-arc shortfall. A
+/// band escalation (`Escalated`, a one-arc proof left undecided) is the
+/// input's ambiguity at the tolerance and keeps its own ending, and so
+/// do an empty ladder (the extent's recourse), a silent ladder with
+/// nothing refused and a degenerate tube, which are no reading of the arc.
+fn tube_failed(refusal: &geom_brep::AnalyticRung3Refusal) -> bool {
+    use geom_brep::AnalyticRung3Refusal as A;
+    use geom_brep::edge_nurbs::TubeRefusal;
+    match refusal {
+        A::NoTubeEnclosure { .. } | A::TubeStraddles { .. } => true,
+        A::TubeNotOneArc { cause, .. } => {
+            !matches!(cause, geom_brep::ssi::OneArcRefusal::Undecided(_))
+        }
+        A::Tube(TubeRefusal::ProbeSilent { refused, .. }) => *refused > 0,
+        A::Tube(TubeRefusal::LadderEmpty { .. } | TubeRefusal::Degenerate(_))
+        | A::Escalated { .. }
+        | A::Limb { .. }
+        | A::KernelLimit { .. }
+        | A::Stalled { .. }
+        | A::NoOffsetBound { .. }
+        | A::CarrierEnclosure(_)
+        | A::Unsupported { .. }
+        | A::OutsideVocabulary => false,
     }
 }
 
@@ -2815,7 +2831,8 @@ fn param_on<T: Decide>(
     let t = match carrier {
         // A circle's motion is the angle between the two points' rays
         // about its own centre, read off the points themselves.
-        Curve3::Circle(geom::Circle { frame, .. }) => {
+        Curve3::Circle(the_circle @ geom::Circle { .. }) => {
+            let frame = the_circle.frame();
             let (center, axis) = (frame.origin(), frame.axis());
             let n = axis.normalize();
             let axis_line = geom::Line {
@@ -3075,11 +3092,12 @@ fn reauthor<T: Decide>(
                         geom_brep::SketchSegment::Line { a, b }
                     }
                     geom_brep::SketchSegment::Arc { arc: was, .. } => {
-                        let Curve3::Circle(circle @ geom::Circle { frame, .. }) = carrier else {
+                        let Curve3::Circle(circle) = carrier else {
                             return Err(refuse(
                                 "a sketch arc with no moved circle to be redrawn about",
                             ));
                         };
+                        let frame = circle.frame();
                         let center = frame.origin();
                         let radius = circle.radius();
                         let centre = flat(center);
@@ -3309,6 +3327,134 @@ fn clamp_unit<T: Real>(x: T) -> T {
 mod tests {
     use super::*;
     use crate::test_support_fixtures::geometric_cube;
+
+    /// **A cone arc's tube refusal reads as the door's own only where the
+    /// tube could not certify the arc** ([`tube_failed`]): each refusal
+    /// handed to [`uncertified_arc`] on an edge the door minted, which
+    /// becomes [`ReplaceFaceError::TogetherConicArc`] or stands as handed.
+    /// Red if a band escalation, an empty or silent-unrefused ladder, or
+    /// a degenerate tube is folded into the conic arc's not-yet, or if a
+    /// refused or straddling tube is not; and the edge must be one the
+    /// door minted.
+    #[test]
+    fn a_cone_arcs_tube_refusal_is_the_doors_own_only_where_the_tube_failed() {
+        use geom_brep::AnalyticRung3Refusal as A;
+        use geom_brep::edge_nurbs::TubeRefusal;
+        use geom_brep::recourse::Refused;
+        use geom_brep::ssi::OneArcRefusal;
+        use geom_core::{Indeterminate, MarginDiag};
+        let undecided = Indeterminate {
+            margin: MarginDiag::value(5e-9),
+            band: Band::new(1e-9, 1e-8).unwrap(),
+            // UNDECIDED-NAME: the in-band cause this row's escalations carry
+            predicate: Some("ssi_tube_one_arc"),
+            terminal_sliver: false,
+        };
+        let straddle = Refused::Negative {
+            margin: MarginDiag::value(-1e-3),
+        };
+        let rows = [
+            (
+                "no enclosure",
+                A::NoTubeEnclosure {
+                    operand: SurfaceKind::Cone,
+                },
+                true,
+            ),
+            (
+                "every rung refused",
+                A::Tube(TubeRefusal::ProbeSilent {
+                    rungs: 3,
+                    refused: 3,
+                }),
+                true,
+            ),
+            (
+                "a decided straddle",
+                A::TubeStraddles {
+                    verdict: straddle,
+                    boxes: 4,
+                },
+                true,
+            ),
+            (
+                "a decided one-arc shortfall",
+                A::TubeNotOneArc {
+                    rungs: 1,
+                    cause: OneArcRefusal::Short,
+                },
+                true,
+            ),
+            (
+                "an undecided one-arc proof",
+                A::TubeNotOneArc {
+                    rungs: 1,
+                    cause: OneArcRefusal::Undecided(undecided),
+                },
+                false,
+            ),
+            (
+                "a tube escalation",
+                A::Escalated {
+                    operand: None,
+                    limb: geom_brep::Rung3Limb::Tube,
+                    cause: undecided,
+                },
+                false,
+            ),
+            (
+                "an empty ladder",
+                A::Tube(TubeRefusal::LadderEmpty {
+                    extent: 1e-9,
+                    floor: 1e-8,
+                }),
+                false,
+            ),
+            (
+                "a silent ladder with nothing refused",
+                A::Tube(TubeRefusal::ProbeSilent {
+                    rungs: 3,
+                    refused: 0,
+                }),
+                false,
+            ),
+        ];
+        let arc = EdgeKey::default();
+        let arcs = [(arc, geom_brep::OpenConic::Hyperbola)];
+        for (name, refusal, conic) in rows {
+            let refused = |edge| ReplaceFaceError::<f64>::Op {
+                edge: None,
+                error: crate::EulerOpError::RechartFalsifies {
+                    door: crate::euler::RechartDoor::SetFaceSurface,
+                    edge,
+                    error: geom_brep::CertifyError::AnalyticRung3(refusal),
+                },
+            };
+            let got = uncertified_arc(refused(arc), &arcs);
+            assert_eq!(
+                matches!(got, ReplaceFaceError::TogetherConicArc { .. }),
+                conic,
+                "{name}: {got:?}"
+            );
+        }
+        let other = uncertified_arc(
+            ReplaceFaceError::<f64>::Op {
+                edge: None,
+                error: crate::EulerOpError::RechartFalsifies {
+                    door: crate::euler::RechartDoor::SetFaceSurface,
+                    edge: EdgeKey::default(),
+                    error: geom_brep::CertifyError::AnalyticRung3(A::NoTubeEnclosure {
+                        operand: SurfaceKind::Cone,
+                    }),
+                },
+            },
+            &[],
+        );
+        assert!(
+            matches!(other, ReplaceFaceError::Op { .. }),
+            "an edge the door did not mint stands: {other:?}"
+        );
+    }
 
     /// The unit cube re-charted as a quarter-revolve wedge about `z`:
     /// `x = 0` and `y = 0` contain the axis, the caps are normal to it,

@@ -99,6 +99,11 @@ fn a_blend_away_from_the_kiss_carries_it() {
     );
     let filleted = fillet_edges(&base.body, &[edge], R, tol()).expect("the fillet builds");
     carried_kiss("fillet", &filleted);
+    assert_eq!(
+        filleted.body.bar(),
+        topo::Bar::Tier3Prime,
+        "fillet: its gate confirmed the kiss it carried"
+    );
 
     let chamfered = chamfer_edges(&base.body, &[edge], R, tol()).expect("the chamfer builds");
     let carried = carried_kiss("chamfer", &chamfered);
@@ -363,5 +368,41 @@ fn a_record_on_a_support_face_is_consumed() {
             }]],
             "{what}: the record is consumed, the kiss carries"
         );
+    }
+}
+
+/// **The blend's own gate reads the records its carry lands.** A
+/// finished operand holding a record with no touch behind it
+/// (`topo::test_support::unconfirmed`: the first cube's `x = 0` face on
+/// the second's `x = 2` face), blended along an edge of its `x = 1`
+/// face, clear of both: the record lands by lineage, unread, and the
+/// blended body's gate refuses it. Red where the blend finishes without
+/// the records it carried, or its gate takes them on their word: the
+/// blend builds.
+#[test]
+fn the_blend_refuses_a_carried_record_its_gate_does_not_confirm() {
+    use topo::test_support::unconfirmed::{kiss_holding_a_false_record, the_false_record_alone};
+    let operand = kiss_holding_a_false_record(tol());
+    let edge = edge_between(
+        &operand,
+        Point3::new(1.0, 0.0, 0.0),
+        Point3::new(1.0, 0.0, 1.0),
+    );
+    for (what, got) in [
+        ("fillet", fillet_edges(&operand, &[edge], R, tol())),
+        ("chamfer", chamfer_edges(&operand, &[edge], R, tol())),
+    ] {
+        match got {
+            Err(sweep::blend::BlendRefusal {
+                error: sweep::blend::BlendError::NotFinished { findings },
+                ..
+            }) => {
+                assert!(the_false_record_alone(&findings), "{what}: {findings:?}");
+            }
+            other => panic!(
+                "{what}: the blend refuses at its gate: {:?}",
+                other.map(|_| ())
+            ),
+        }
     }
 }

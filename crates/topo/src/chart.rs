@@ -2,11 +2,9 @@
 //! and the lever arms that convert a chart-coordinate discrepancy into
 //! metres.
 //!
-//! Three consumers read it: `mesh`'s boundary walk, which inverts
-//! every junction and every chord point of a curved face's loop to
-//! build its UV polygon; [`crate::coherence`], which measures how far a
-//! body's own carriers and vertices disagree about those coordinates;
-//! and `shell`'s rim nesting, generic over its scalar. The
+//! `mesh`'s boundary walk reads it, inverting every junction and every
+//! chord point of a curved face's loop to build its UV polygon, and so
+//! does `shell`'s rim nesting, generic over its scalar. The
 //! CLASSIFICATION built on top of it — which boundary edge is a rim and
 //! which a meridian, which of them carry one iso side — is next door in
 //! [`crate::chart_iso`].
@@ -26,12 +24,8 @@
 //! What is NOT here is each consumer's DISPOSITION of an answer: the
 //! typed refusal `mesh` turns an unclassifiable carrier into, the band
 //! spelling it reads a separation at, its rotation, its pole fan and
-//! its emission; and this crate's own band and its report. A
-//! disposition belongs to the crate that disposes. `chart_iso`'s items
-//! say which half is theirs, and
-//! `mesh::walk::tests::the_two_spellings_of_the_band_agree` is the
-//! executed reconciliation of the band (`Eps` is `mesh`-local by
-//! MESH-4's ruling and has no accessor).
+//! its emission. A disposition belongs to the crate that disposes, and
+//! `chart_iso`'s items say which half is theirs.
 
 use geom::{ChartArm, ChartInverse, Surface};
 use geom_core::predicate::Band;
@@ -44,6 +38,9 @@ pub struct Chart<T: Real = f64> {
     /// Kind-specific data.
     pub kind: ChartKind<T>,
     inverse: ChartInverse<T>,
+    /// The analytic surface the chart is of, which its singular points
+    /// are read off ([`Self::poles`]).
+    surface: Surface<T>,
 }
 
 /// The kind payload of a [`Chart`].
@@ -95,7 +92,11 @@ impl<T: Real> Chart<T> {
             ChartArm::Torus { major, minor } => ChartKind::Torus { major, minor },
             ChartArm::Spindle { major, minor } => ChartKind::Spindle { major, minor },
         };
-        Some(Self { kind, inverse })
+        Some(Self {
+            kind,
+            inverse,
+            surface: surface.clone(),
+        })
     }
 
     /// The surface's placement: its axis point (apex, centre or
@@ -182,8 +183,7 @@ impl<T: Decide> Chart<T> {
     /// for a split rim) did not (issue #653); the iso-side run rule
     /// closes it by giving the whole run the first edge's value, which
     /// is what makes the row bitwise straight whatever carries it —
-    /// [`crate::coherence`] measures the value that discards, and
-    /// `mesh`'s walk is what discards it.
+    /// `mesh`'s walk is what discards the value.
     pub fn rim_v(&self, center: Point3<T>, radius: T) -> T {
         let f = self.frame();
         let h = f.height(center);
@@ -222,7 +222,7 @@ impl Chart<f64> {
             }
         };
         let horn = self.is_horn();
-        geom_brep::chart_singularity::singular_points(&self.inverse)
+        geom_brep::chart_singularity::singular_points(&self.surface)
             .into_iter()
             .filter(|(which, _)| !(horn && *which == Singularity::SheetApexDown))
             .map(|(which, p)| {
@@ -232,6 +232,10 @@ impl Chart<f64> {
                     Singularity::Apex => 0.0,
                     Singularity::SheetApexUp => v_star(),
                     Singularity::SheetApexDown => -v_star(),
+                    // `Chart::of` admits the analytic kinds alone.
+                    Singularity::Side(_) => {
+                        unreachable!("Chart::poles: an analytic chart has no spline side")
+                    }
                 };
                 (p, v)
             })
@@ -379,5 +383,39 @@ mod tests {
                 "rim v {rim} against its point's {point}"
             );
         }
+    }
+
+    /// The lever arms are the chart's own, and the two axes take
+    /// different ones for a reason the type carries: u's varies over a
+    /// cone and a sphere because it is the point's distance from the
+    /// axis, and v's does not.
+    #[test]
+    fn the_two_axes_take_the_levers_their_charts_state() {
+        let sphere = z_chart(|center, axis, u_ref| Surface::Sphere {
+            frame: geom::Frame::new(center, axis, u_ref),
+            radius: 3.0,
+        });
+        assert!((sphere.v_lever() - 3.0).abs() < 1e-15);
+        assert!((sphere.radial(Point3::new(3.0, 0.0, 0.0)) - 3.0).abs() < 1e-15);
+        assert!(
+            sphere.radial(Point3::new(0.0, 0.0, 3.0)).abs() < 1e-15,
+            "a pole"
+        );
+    }
+
+    /// A plane is out of the chart's domain: it carries no chart, so
+    /// [`Chart::of`] answers `None` for it.
+    #[test]
+    fn a_plane_has_no_chart() {
+        assert!(
+            Chart::of(&Surface::Plane {
+                frame: geom::Frame::new(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                ),
+            })
+            .is_none()
+        );
     }
 }

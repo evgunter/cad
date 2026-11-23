@@ -133,3 +133,5 @@ INTENT closed on 2026-10-30 with D10's umbrella row (#6103,
 longer stands. Its one site went with the REST zip: `boolean/rest.rs`
 is gone from main, `patch_faces` with it. Nothing in this row waits on
 D10.
+
+- 2026-11-21 (TESSLIE) — the chart-coherence examination is retired: `work/tesslie/chart-coherence-ships-off-and-nothing-schedules-turning-it-on.md`. The `coherence.rs` walk is gone.

@@ -72,7 +72,7 @@ fn dump(label: &str, body: &Body<f64>) {
         println!("[r1diff] {label}: vertex {k:?} point={:?}", p);
     }
     // A body tier 3 refuses prints its refusal and is not measured.
-    match topo::finish(topo::Body::clone(body), tol()) {
+    match topo::finish(topo::Built::of(topo::Body::clone(body)), tol()) {
         Err(errors) => println!("[r1diff] {label}: not at rest {errors:?}"),
         Ok(finished) => match topo::mass_properties(
             &finished,

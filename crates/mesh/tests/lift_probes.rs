@@ -1254,7 +1254,7 @@ fn the_spline_section_bodies_read_lifts_that_close() {
 /// The variant names of what `topo::finish` finds on `body`, sorted and
 /// deduplicated; empty where it finishes.
 fn findings(body: &Body<f64>) -> Vec<String> {
-    let mut out: Vec<String> = match topo::finish(body.clone(), tol()) {
+    let mut out: Vec<String> = match topo::finish(topo::Built::of(body.clone()), tol()) {
         Ok(_) => Vec::new(),
         Err(not) => not
             .as_slice()

@@ -228,7 +228,7 @@ fn mint_band(
 ) -> Result<(), StepImportError> {
     let chart_band = Some(file.band());
     let face_id = solid.faces[fi].id;
-    let surface = solid.faces[fi].surface.clone();
+    let surface = solid.surface(fi).clone();
     let sense = solid.faces[fi].sense;
     // Detection tagged only these two chart kinds (spec D3).
     let (s_axis, s_u_ref, axis_point, torus) = match surface {
@@ -302,8 +302,8 @@ fn mint_band(
         for (ui, u) in lp.uses.iter().enumerate() {
             let spec = &solid.edges[&u.edge];
             let coaxial = match spec.carrier {
-                Curve3::Circle(circle @ geom::Circle { frame, .. }) => {
-                    let (center, n) = (frame.origin(), frame.axis());
+                Curve3::Circle(circle) => {
+                    let (center, n) = (circle.frame().origin(), circle.frame().axis());
                     let radius = circle.radius();
                     let off_axis = geom::Line {
                         origin: axis_point,
@@ -550,8 +550,9 @@ fn seam_vertex_on_loop(
             // circle; anything else lands in the typed refusal below.
             continue;
         };
-        let q =
-            crate::signed_zero::plus_zero_point(circle.frame.origin() + s_u_ref * circle.radius());
+        let q = crate::signed_zero::plus_zero_point(
+            circle.frame().origin() + s_u_ref * circle.radius(),
+        );
         let t = circle
             .period()
             .above(geom::Conic::azimuth(circle, q).near(0.0), spec.t0);
@@ -616,7 +617,9 @@ fn wall_inversion(
     chart_band: Option<geom_core::Band>,
 ) -> Result<(), StepImportError> {
     for face in &solid.faces {
-        let (Surface::Cylinder { frame, .. } | Surface::Cone { frame, .. }) = face.surface else {
+        let (Surface::Cylinder { frame, .. } | Surface::Cone { frame, .. }) =
+            *solid.surface_of(face)
+        else {
             continue;
         };
         let axis = frame.axis();
@@ -629,22 +632,29 @@ fn wall_inversion(
         let mut readable = true;
         for use_ in &lp.uses {
             let spec = &solid.edges[&use_.edge];
-            let Curve3::Circle(geom::Circle { frame, .. }) = spec.carrier else {
+            let Curve3::Circle(the_circle @ geom::Circle { .. }) = spec.carrier else {
                 continue;
             };
+            let frame = the_circle.frame();
             let n_c = frame.axis();
             if n_c.dot(axis).abs() <= 0.5 {
                 continue;
             }
-            let Some(p) =
-                chart_direction(&face.surface, &spec.carrier, spec.t0, spec.t1, chart_band)
-            else {
+            let Some(p) = chart_direction(
+                solid.surface_of(face),
+                &spec.carrier,
+                spec.t0,
+                spec.t1,
+                chart_band,
+            ) else {
                 readable = false;
                 break;
             };
-            let Some(uv) =
-                crate::chart::uv_of(&face.surface, spec.carrier.eval(spec.t0), chart_band)
-            else {
+            let Some(uv) = crate::chart::uv_of(
+                solid.surface_of(face),
+                spec.carrier.eval(spec.t0),
+                chart_band,
+            ) else {
                 readable = false;
                 break;
             };
@@ -740,14 +750,7 @@ mod tests {
             id: 100,
             faces: vec![FaceSpec {
                 id: 101,
-                surface: Surface::Cone {
-                    frame: geom::Frame::new(
-                        apex,
-                        Vec3::new(0.0, 0.0, -1.0),
-                        Vec3::new(1.0, 0.0, 0.0),
-                    ),
-                    half_angle: std::f64::consts::FRAC_PI_4,
-                },
+                record: 900,
                 sense: true,
                 loops: vec![LoopSpec {
                     outer: true,
@@ -757,6 +760,17 @@ mod tests {
             }],
             edges,
             vertices,
+            surfaces: crate::entities::records_of([(
+                900,
+                Surface::Cone {
+                    frame: geom::Frame::new(
+                        apex,
+                        Vec3::new(0.0, 0.0, -1.0),
+                        Vec3::new(1.0, 0.0, 0.0),
+                    ),
+                    half_angle: std::f64::consts::FRAC_PI_4,
+                },
+            )]),
             band_seams: Default::default(),
         };
         let mut minted = 0_u64;

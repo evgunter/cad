@@ -15,14 +15,15 @@
 //! **Most of what is here draws one row or one field** from values the
 //! caller already holds, and returns what the user did with it. The
 //! rule that produces the exceptions is *a function that takes no
-//! `ui: &mut egui::Ui`*, and there are twelve — re-derived from this
+//! `ui: &mut egui::Ui`*, and there are fourteen — re-derived from this
 //! file's own text by
 //! `roster_tests::the_helpers_that_take_no_ui_are_the_ones_named_here`,
 //! so the list below goes red rather than stale: `wrapped_in_region`,
 //! which lays a sentence out without drawing it; [`message_floor`] and
 //! [`widest_number`], which measure the width it is laid out at;
-//! [`number_text`] and
-//! [`number_field`], which render and build rather than draw;
+//! [`number_text`], [`number_field`] and [`count_field`], which render
+//! and build rather than draw;
+//! [`unit_choices`], which reads the unit table for a chooser;
 //! [`install_number_formatter`], which writes a style; [`new_row_step`],
 //! which mints a value; `twin`, which picks a fused step's arrival
 //! role; [`value_gesture`] and [`free_move_gesture`],
@@ -46,8 +47,7 @@ use pncad::profile::{
 use pncad::quantity::{AngleUnit, LengthUnit, UnitDef};
 
 use crate::forms::{
-    ANGLE_DRAG_SPEED, COUNT_DRAG_SPEED, FIELD_DRAG_SPEED, MAX_CIRCLE_SPLIT, MIN_CIRCLE_SPLIT,
-    UNIT_DRAG_SPEED, arc_mode_label, target_kind_label,
+    FieldWriting, MAX_CIRCLE_SPLIT, MIN_CIRCLE_SPLIT, arc_mode_label, target_kind_label,
 };
 use crate::props;
 use crate::readout;
@@ -272,9 +272,9 @@ pub(crate) fn widest_number(ui: &egui::Ui, font: &egui::FontId) -> f32 {
 /// from its DRAG SPEED and the display scaling, and from nothing about
 /// the value — `auto_decimals` is `ceil(log10(aim_radius / speed))` and
 /// the range handed to a formatter is `auto_decimals ..= auto_decimals
-/// + 2`. A length field at [`FIELD_DRAG_SPEED`] shown in millimetres is
-/// handed `1..=3` at one point per pixel, so its coarsest spelling is
-/// `{:.3}` over millimetres.
+/// + 2`. A length field at a length's tick ([`props::drag_tick`])
+/// shown in millimetres is handed `1..=3` at one point per pixel, so
+/// its coarsest spelling is `{:.3}` over millimetres.
 ///
 /// Inside that range the widget already picks the shortest spelling
 /// that reads back, which is this rule. What it does when NONE of them
@@ -328,7 +328,7 @@ pub(crate) fn widest_number(ui: &egui::Ui, font: &egui::FontId) -> f32 {
 /// **It is still invisible to a drag**, and that is a measurement
 /// rather than a hope. The widest spelling a millimetre field's range
 /// offers is `{:.1}`, which passes ten characters only at `1e8`
-/// (`1e7` once a sign is spent) — and a drag moves `FIELD_DRAG_SPEED`
+/// (`1e7` once a sign is spent) — and a drag moves a length's tick
 /// per pixel, so reaching either would take twenty million pixels of
 /// dragging. The substituted band is out of a drag's reach at the top
 /// exactly as it is at the bottom. Millimetres are the worst case
@@ -548,15 +548,16 @@ pub(crate) struct GestureVocabulary<Preview, Op = SessionOp> {
 
 impl<Preview, Op> GestureVocabulary<Preview, Op> {
     /// **A gesture over a HELD value** — one a draft holds rather than
-    /// the session: every frame the value moves is `preview` of it, and
-    /// the press, the release and Escape are `rest`, since nothing is
-    /// opened to land or abandon.
-    pub(crate) fn held(preview: Preview, rest: Op) -> Self
+    /// the session: the press is `begin`, where the held field judges
+    /// the drag as the session judges a slot's, every frame the value
+    /// moves is `preview` of it, and the release and Escape are `rest`,
+    /// since nothing is opened to land or abandon.
+    pub(crate) fn held(begin: Op, preview: Preview, rest: Op) -> Self
     where
         Op: Clone,
     {
         Self {
-            begin: rest.clone(),
+            begin,
             preview,
             commit: rest.clone(),
             cancel: rest,
@@ -1173,51 +1174,33 @@ fn seed_edit(ui: &mut egui::Ui, id: egui::Id, text: &str) {
 /// sentence that carries the unit.
 pub(crate) fn vec3_row_ops(
     ui: &mut egui::Ui,
-    speed: f64,
+    writing: FieldWriting,
     components: &mut [f64; 3],
     gesture: GestureVocabulary<impl Fn([f64; 3]) -> SessionOp>,
     typed: impl Fn([f64; 3]) -> Vec<SessionOp>,
     ops: &mut Vec<SessionOp>,
 ) {
     let [x, y, z] = components;
-    let row = ui.add(number_field(x, speed))
-        | ui.add(number_field(y, speed))
-        | ui.add(number_field(z, speed));
+    let row = ui.add(number_field(x, writing.tick))
+        | ui.add(number_field(y, writing.tick))
+        | ui.add(number_field(z, writing.tick));
     drag_ops(&row, *components, gesture, typed, ops);
 }
 
-/// **One dimensioned field of a creation form.**
+/// **One dimensioned field of a creation form**, with the quantity's
+/// NAME written into the field itself (none where `name` is empty).
 ///
 /// The draft behind it is CANONICAL (metres, radians) and the field
-/// is what that value looks like written in `unit` — the property
-/// panel's own rule ([`crate::props::in_written`] / [`crate::props::from_written`], the
-/// text door's one multiply), applied to the forms so a number typed
-/// into a form and the same number typed into a panel field mean the
-/// same thing.
+/// is what that value looks like written as `writing` says — the
+/// property panel's own rule ([`FieldWriting`], the text door's one
+/// multiply), applied to the forms so a number typed into a form and
+/// the same number typed into a panel field mean the same thing, at
+/// the same tick.
 ///
 /// Held canonical rather than as-typed for the reason the panel holds
 /// it that way: switching the unit is a change of NOTATION, and a
 /// draft that stored what was typed would silently become a different
 /// length when the picker moved.
-///
-/// **The drag speed travels through the same conversion**, which is
-/// the half of this that is easy to leave out: a tick in metres
-/// applied to a field showing millimetres is the same gesture made a
-/// thousand times finer by a change of notation.
-///
-/// Answers whether the person edited the value this frame
-/// ([`named_field`]).
-pub(crate) fn unit_field(
-    ui: &mut egui::Ui,
-    unit: UnitDef,
-    speed: f64,
-    canonical: &mut f64,
-) -> bool {
-    named_field(ui, "", unit, speed, canonical)
-}
-
-/// [`unit_field`] with the quantity's NAME written into the field
-/// itself.
 ///
 /// A prefix rather than a `Label` beside it, and that is the point: a
 /// path step's row is a horizontal strip of controls, and the labels
@@ -1239,7 +1222,8 @@ pub(crate) fn unit_field(
 /// ([`crate::props::written`]). Forming it anyway puts `inf` in a
 /// `DragValue`, and that text is what an edit would start from.
 ///
-/// So the refusal is asked AT the conversion and the row draws
+/// So the refusal is asked AT the conversion
+/// ([`crate::props::shown_value`]) and the row draws
 /// [`crate::props::no_reading`] where the field would be. A disabled
 /// field is not the alternative it sounds like: a `DragValue` is
 /// handed the `f64` it holds and the only `f64` here is the `inf`
@@ -1254,20 +1238,29 @@ pub(crate) fn unit_field(
 pub(crate) fn named_field(
     ui: &mut egui::Ui,
     name: &str,
-    unit: UnitDef,
-    speed: f64,
+    writing: FieldWriting,
     canonical: &mut f64,
 ) -> bool {
-    let Some(mut written) = props::written(*canonical, unit) else {
-        let marker = props::no_reading(unit);
-        ui.weak(if name.is_empty() {
-            marker
-        } else {
-            format!("{name} {marker}")
-        });
-        return false;
+    // A draft that is itself not finite is the same non-number in every
+    // notation, so it is shown as it is and stays a field to type over.
+    let shown = if canonical.is_finite() {
+        props::shown_value(writing.unit, *canonical)
+    } else {
+        Ok(*canonical)
     };
-    let mut field = number_field(&mut written, props::in_written(speed, unit));
+    let mut written = match shown {
+        Ok(written) => written,
+        Err(unit) => {
+            let marker = props::no_reading(unit);
+            ui.weak(if name.is_empty() {
+                marker
+            } else {
+                format!("{name} {marker}")
+            });
+            return false;
+        }
+    };
+    let mut field = number_field(&mut written, writing.tick);
     if !name.is_empty() {
         field = field.prefix(format!("{name} "));
     }
@@ -1276,16 +1269,16 @@ pub(crate) fn named_field(
     // otherwise round-trip its value through a divide and a multiply
     // every frame, which is a drift nobody asked for.
     if response.changed() {
-        *canonical = props::from_written(written, unit);
+        *canonical = writing.authored(written);
     }
     response.changed()
 }
 
-/// A dimensionless field with its own name written in — the scalar
-/// twin of [`named_field`], for the components and bulges that carry
-/// no unit at all.
-pub(crate) fn named_scalar(ui: &mut egui::Ui, name: &str, speed: f64, value: &mut f64) {
-    ui.add(number_field(value, speed).prefix(format!("{name} ")));
+/// **A whole-number field** — an index, an instance, a subdivision
+/// count — at a count's tick ([`props::drag_tick`]), so a form's
+/// count steps the way the panel's does.
+pub(crate) fn count_field<Num: egui::emath::Numeric>(value: &mut Num) -> egui::DragValue<'_> {
+    number_field(value, props::drag_tick(Some(Dimension::Count)))
 }
 
 /// **What a step row's fields draw for each argument** — the seam
@@ -1309,38 +1302,20 @@ pub(crate) trait ArgDoors {
 }
 
 /// **Plain numbers in one notation**: the profile editor's arguments
-/// where a field is no committed slot yet. Each field is written in the
-/// unit its role's dimension is noted in, and the editor's notation row
-/// says the units ([`length_picker`]).
+/// where a field is no committed slot yet. Each field is written as
+/// its role's dimension is in that notation ([`FieldWriting`]), and
+/// the editor's notation row says the units ([`length_picker`]).
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct WrittenIn {
-    /// Every length field's unit.
-    pub(crate) length: UnitDef,
-    /// Every angle field's unit.
-    pub(crate) angle: UnitDef,
-}
-
-impl WrittenIn {
-    /// The units `notation` writes lengths and angles in.
-    pub(crate) fn of(notation: props::Notation) -> Self {
-        Self {
-            length: notation.length.def(),
-            angle: notation.angle.def(),
-        }
-    }
-}
+pub(crate) struct WrittenIn(pub(crate) props::Notation);
 
 impl ArgDoors for WrittenIn {
     fn field(&mut self, ui: &mut egui::Ui, _: usize, arg: StepArg, name: &str, value: &mut f64) {
-        match arg.dimension() {
-            Dimension::Length => {
-                named_field(ui, name, self.length, FIELD_DRAG_SPEED, value);
-            }
-            Dimension::Angle => {
-                named_field(ui, name, self.angle, ANGLE_DRAG_SPEED, value);
-            }
-            Dimension::Scalar | Dimension::Count => named_scalar(ui, name, UNIT_DRAG_SPEED, value),
-        }
+        named_field(
+            ui,
+            name,
+            FieldWriting::of(arg.dimension(), None, self.0),
+            value,
+        );
     }
 
     fn unit(&mut self, _: &mut egui::Ui, _: usize, _: &[StepArg]) {}
@@ -1715,7 +1690,7 @@ pub(crate) fn path_step_fields(
             // The count is the step's shape, not an argument: no slot
             // addresses it.
             ui.add(
-                number_field(n, COUNT_DRAG_SPEED)
+                count_field(n)
                     .range(MIN_CIRCLE_SPLIT..=MAX_CIRCLE_SPLIT)
                     .clamp_existing_to_range(false)
                     .prefix("n "),
@@ -1740,7 +1715,7 @@ pub(crate) fn path_step_fields(
 /// **The creation forms' written-unit picker.**
 ///
 /// The panel's picker as a form control: the same options
-/// ([`crate::props::unit_options`], read off the closed unit table) and the
+/// ([`unit_choices`], read off the closed unit table) and the
 /// same rule about what the label beside a field may say. There is no
 /// "nothing chosen" state to fall back from — a form is always
 /// authoring in some notation, and says which. **The unit is the picker's
@@ -1782,6 +1757,28 @@ pub(crate) fn angle_picker(ui: &mut egui::Ui, salt: &str, chosen: &mut AngleUnit
     }
 }
 
+/// The picker for a field of `dimension` over a whole working
+/// `notation` — for a form whose dimension is itself a choice, where
+/// [`length_picker`] and [`angle_picker`] are for one whose dimension
+/// is fixed. It draws nothing for a dimension with no units to offer
+/// ([`crate::props::unit_options`]), and a pick lands in the one
+/// component of `notation` its unit measures (`Notation::with`), so the
+/// typed pairing holds here too.
+pub(crate) fn notation_picker(
+    ui: &mut egui::Ui,
+    salt: &str,
+    dimension: Dimension,
+    notation: &mut props::Notation,
+) {
+    use props::WorkingNotation as _;
+    let Some(shown) = notation.unit(dimension) else {
+        return;
+    };
+    if let Some(row) = pick_unit(ui, "creation_unit", salt, dimension, shown) {
+        *notation = notation.with(row);
+    }
+}
+
 /// **How wide a written-unit combo is drawn**, in points.
 ///
 /// Wide enough for the longest symbol the table carries (`pi rad`)
@@ -1791,6 +1788,17 @@ pub(crate) fn angle_picker(ui: &mut egui::Ui, salt: &str, chosen: &mut AngleUnit
 /// property of that table and a second spelling of it is free to be
 /// narrower than the symbol it has to show.
 pub(crate) const UNIT_PICKER_WIDTH: f32 = 72.0;
+
+/// **The units a chooser offers for `dimension`**: its rows
+/// ([`crate::props::unit_options`]) where there are two or more to
+/// choose between, and none otherwise — a count has no unit and a
+/// bare scalar one, and one option is not a choice
+/// (`UnitQuantity::Scalar`'s rule for whatever draws the chooser). Every
+/// unit combo in the chrome draws these.
+pub(crate) fn unit_choices(dimension: Dimension) -> Vec<UnitDef> {
+    let rows = props::unit_options(dimension);
+    if rows.len() < 2 { Vec::new() } else { rows }
+}
 
 /// The combo itself: the rows `dimension` admits, with `shown`
 /// selected; `Some(row)` when this frame's click chose one.
@@ -1807,7 +1815,7 @@ pub(crate) fn pick_unit(
     dimension: Dimension,
     shown: UnitDef,
 ) -> Option<UnitDef> {
-    let options = props::unit_options(dimension);
+    let options = unit_choices(dimension);
     if options.is_empty() {
         return None;
     }
@@ -1856,7 +1864,7 @@ pub(crate) fn delete_button(ui: &mut egui::Ui, session: &DocSession, node: Recip
     let affordance = session.delete_affordance(node);
     let refusal = session
         .delete_refusal(node)
-        .map(|refusal| crate::shown(&refusal));
+        .map(|refusal| crate::shown(&*refusal));
     gated_button(
         ui,
         egui::Button::new(affordance.label),
@@ -1940,6 +1948,8 @@ mod roster_tests {
             "widest_number",
             "number_text",
             "number_field",
+            "count_field",
+            "unit_choices",
             "install_number_formatter",
             "new_row_step",
             "twin",
@@ -2513,6 +2523,43 @@ mod tests {
 
     const NODE: RecipeNodeId = RecipeNodeId::new(0, 7);
 
+    /// **A count field steps by one**: `egui` moves a focused field by
+    /// one tick per arrow key and then rounds an integer field to a
+    /// whole number, so the count tick is what the keyboard can reach.
+    /// Red at any tick below one half, which rounds the step away and
+    /// leaves the field where it was.
+    #[test]
+    fn a_count_field_steps_by_one_at_the_keyboard() {
+        let ctx = egui::Context::default();
+        let mut count: i64 = 3;
+        let mut frame = |events: Vec<egui::Event>| {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(800.0, 600.0),
+                )),
+                events,
+                ..Default::default()
+            };
+            let mut output = ctx.run_ui(input, |ui| {
+                ui.add(super::count_field(&mut count));
+            });
+            output.textures_delta.clear();
+        };
+        let key = |key| egui::Event::Key {
+            key,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        };
+        frame(Vec::new());
+        frame(vec![key(egui::Key::Tab)]);
+        frame(vec![key(egui::Key::ArrowUp)]);
+        frame(Vec::new());
+        assert_eq!(count, 4, "one arrow key is one more instance");
+    }
+
     /// How many Tab/ArrowUp pairs the row spends looking for the
     /// focus. A budget rather than a count: which step the focus
     /// reaches a second component on is egui's Tab order, not this
@@ -2592,7 +2639,12 @@ mod tests {
                     Vocabulary::FreeMove => {
                         let frame_of = |mm: [f64; 3]| Frame::translation(mm.map(|v| v * 1.0e-3));
                         let ProbeOps { gesture, typed } = free_move_gesture(NODE, frame_of);
-                        vec3_row_ops(ui, 0.5, mm, gesture, typed, ops_ref);
+                        let writing = crate::forms::FieldWriting::of(
+                            pncad::document::Dimension::Length,
+                            None,
+                            crate::props::Notation::CANONICAL.with(pncad::quantity::MM.def()),
+                        );
+                        vec3_row_ops(ui, writing, mm, gesture, typed, ops_ref);
                     }
                     Vocabulary::Slot => {
                         // Three components, three SLOTS, three
@@ -2997,7 +3049,7 @@ mod field_tests {
     }
 
     /// The decimal range a length field shown in millimetres is handed:
-    /// `FIELD_DRAG_SPEED` written in millimetres is 0.5, one point per
+    /// a length's tick written in millimetres is 0.5, one point per
     /// pixel makes `auto_decimals` `ceil(log10(1.0 / 0.5))`, and egui
     /// adds two. Derived here rather than asserted off the widget
     /// because these rows are about the RULE over a range, and the
@@ -3327,8 +3379,12 @@ mod field_tests {
                             super::named_field(
                                 ui,
                                 "",
-                                pncad::quantity::MM.def(),
-                                crate::forms::FIELD_DRAG_SPEED,
+                                crate::forms::FieldWriting::of(
+                                    pncad::document::Dimension::Length,
+                                    None,
+                                    crate::props::Notation::CANONICAL
+                                        .with(pncad::quantity::MM.def()),
+                                ),
                                 value,
                             );
                         })
@@ -3996,8 +4052,8 @@ mod value_field_tests {
                 self.emitted.push(op.clone());
                 let outcome = self.session.perform(op.clone());
                 // The harness drives the paths a row can DRIVE: every
-                // refusal this field can reach (a driven slot's number
-                // door, an unparseable text) is a path `Row` cannot
+                // refusal this field can reach (a drag over a driven
+                // slot, an unparseable text) is a path `Row` cannot
                 // hold, because a refused frame stops here. Those stay
                 // with `tests/panel_edits.rs`, which reads them at the
                 // session door.
@@ -4393,8 +4449,8 @@ mod value_field_tests {
     /// the no-reading marker after the driven mark, and still opens its
     /// keyboard edit on its SOURCE, because the field under that text is
     /// the slot's only door to its expression; the number the field
-    /// holds is one the driven guard refuses to write. In metres the
-    /// same row reads a number.
+    /// holds is one no drag writes, since the driven guard refuses it.
+    /// In metres the same row reads a number.
     #[test]
     fn a_driven_slot_past_its_notations_range_keeps_its_text_door() {
         let mut row = Row::extrude_distance("vgeom-driven-unnameable", 0.008);
@@ -4944,5 +5000,245 @@ mod repoint_button_tests {
             repoint_button(ui, button(Ok(SessionOp::Reevaluate)), &mut ops);
         });
         assert_eq!(ops, [SessionOp::Reevaluate], "a live click pushes the op");
+    }
+}
+
+/// **Every whole-number field steps by one, by keyboard and by
+/// pointer**, at each site that draws one through [`count_field`]: the
+/// part form's instance, a member row's position, and a circle split's
+/// `n`. Each site is drawn as the form draws it, the field is found by
+/// Tab and bumped by ArrowUp, then dragged by the pointer; a tick
+/// below a half leaves the keyboard bump at zero and a tenth-of-one
+/// tick moves a twenty-point drag by two.
+#[cfg(test)]
+mod count_site_tests {
+    #![allow(clippy::expect_used, clippy::panic)]
+    use eframe::egui;
+    use pncad::profile::{Step, Verb};
+
+    /// Every text a frame painted.
+    fn texts(shapes: &[egui::epaint::ClippedShape]) -> Vec<String> {
+        fn walk(shape: &egui::Shape, out: &mut Vec<String>) {
+            match shape {
+                egui::Shape::Text(text) => out.push(text.galley.text().to_owned()),
+                egui::Shape::Vec(shapes) => shapes.iter().for_each(|s| walk(s, out)),
+                _ => {}
+            }
+        }
+        let mut out = Vec::new();
+        for clipped in shapes {
+            walk(&clipped.shape, &mut out);
+        }
+        out
+    }
+
+    struct Site<S> {
+        ctx: egui::Context,
+        state: S,
+        painted: Vec<String>,
+    }
+
+    impl<S> Site<S> {
+        fn frame(&mut self, events: Vec<egui::Event>, draw: &impl Fn(&mut egui::Ui, &mut S)) {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1200.0, 600.0),
+                )),
+                events,
+                ..Default::default()
+            };
+            let state = &mut self.state;
+            let mut output = self.ctx.run_ui(input, |ui| draw(ui, state));
+            output.textures_delta.clear();
+            self.painted = texts(&output.shapes);
+        }
+    }
+
+    fn key(key: egui::Key) -> egui::Event {
+        egui::Event::Key {
+            key,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        }
+    }
+
+    /// What one ArrowUp and one twenty-point drag move the site's count
+    /// by, read by `read`.
+    fn bumped<S>(
+        state: S,
+        draw: impl Fn(&mut egui::Ui, &mut S),
+        read: impl Fn(&S, &[String]) -> i64,
+    ) -> (i64, i64) {
+        let mut site = Site {
+            ctx: egui::Context::default(),
+            state,
+            painted: Vec::new(),
+        };
+        site.frame(Vec::new(), &draw);
+        site.frame(Vec::new(), &draw);
+        let mut field = None;
+        let mut keyboard = 0;
+        for _ in 0..12 {
+            site.frame(vec![key(egui::Key::Tab)], &draw);
+            let before = read(&site.state, &site.painted);
+            site.frame(vec![key(egui::Key::ArrowUp)], &draw);
+            site.frame(Vec::new(), &draw);
+            let after = read(&site.state, &site.painted);
+            if after != before {
+                keyboard = after - before;
+                field = site.ctx.memory(|m| m.focused());
+                break;
+            }
+        }
+        let field = match field {
+            Some(id) => id,
+            // The keyboard never moved it: walk the focus again and
+            // keep the first widget a pointer drag moves the count by.
+            None => return (0, drag_some(&mut site, &draw, &read)),
+        };
+        site.frame(vec![key(egui::Key::Escape)], &draw);
+        site.frame(Vec::new(), &draw);
+        let rect = site
+            .ctx
+            .read_response(field)
+            .expect("the count field was laid out")
+            .rect;
+        (keyboard, drag(&mut site, &draw, &read, rect.center()))
+    }
+
+    fn drag<S>(
+        site: &mut Site<S>,
+        draw: &impl Fn(&mut egui::Ui, &mut S),
+        read: &impl Fn(&S, &[String]) -> i64,
+        at: egui::Pos2,
+    ) -> i64 {
+        site.frame(Vec::new(), draw);
+        let before = read(&site.state, &site.painted);
+        site.frame(vec![egui::Event::PointerMoved(at)], draw);
+        site.frame(
+            vec![egui::Event::PointerButton {
+                pos: at,
+                button: egui::PointerButton::Primary,
+                pressed: true,
+                modifiers: egui::Modifiers::NONE,
+            }],
+            draw,
+        );
+        for step in 1..=4 {
+            site.frame(
+                vec![egui::Event::PointerMoved(
+                    at + egui::vec2(5.0 * step as f32, 0.0),
+                )],
+                draw,
+            );
+        }
+        let end = at + egui::vec2(20.0, 0.0);
+        site.frame(
+            vec![egui::Event::PointerButton {
+                pos: end,
+                button: egui::PointerButton::Primary,
+                pressed: false,
+                modifiers: egui::Modifiers::NONE,
+            }],
+            draw,
+        );
+        site.frame(Vec::new(), draw);
+        read(&site.state, &site.painted) - before
+    }
+
+    /// The fallback when the keyboard reached nothing: Tab to each
+    /// focus in turn and drag it, keeping the first that moves.
+    fn drag_some<S>(
+        site: &mut Site<S>,
+        draw: &impl Fn(&mut egui::Ui, &mut S),
+        read: &impl Fn(&S, &[String]) -> i64,
+    ) -> i64 {
+        for _ in 0..12 {
+            site.frame(vec![key(egui::Key::Tab)], draw);
+            let Some(id) = site.ctx.memory(|m| m.focused()) else {
+                continue;
+            };
+            let Some(rect) = site.ctx.read_response(id).map(|r| r.rect) else {
+                continue;
+            };
+            site.frame(vec![key(egui::Key::Escape)], draw);
+            let moved = drag(site, draw, read, rect.center());
+            if moved != 0 {
+                return moved;
+            }
+        }
+        0
+    }
+
+    fn assert_steps_by_one(site: &str, (keyboard, dragged): (i64, i64)) {
+        assert_eq!(keyboard, 1, "{site}: one arrow key is one more");
+        assert!(
+            (10..=30).contains(&dragged),
+            "{site}: a twenty-point drag moves the count about twenty, not two: {dragged}"
+        );
+    }
+
+    #[test]
+    fn the_part_forms_instance_steps_by_one() {
+        let moved = bumped(
+            1_i64,
+            |ui, instance| {
+                crate::pane::create::part_selector_rows(
+                    ui,
+                    &crate::theme::Theme::DEFAULT,
+                    instance,
+                );
+            },
+            |instance, _| *instance,
+        );
+        assert_steps_by_one("part instance", moved);
+    }
+
+    #[test]
+    fn a_member_rows_position_steps_by_one() {
+        let members: Vec<Vec<i64>> = (0..60).map(|i| vec![i]).collect();
+        let moved = bumped(
+            (),
+            move |ui, ()| {
+                crate::pane::create::member_rows(ui, [(0, "pick".to_owned(), members.clone())]);
+            },
+            |(), painted| {
+                painted
+                    .iter()
+                    .find_map(|run| {
+                        run.strip_prefix("read [")
+                            .and_then(|rest| rest.strip_suffix(']'))
+                            .and_then(|n| n.parse().ok())
+                    })
+                    .unwrap_or_else(|| panic!("a read button is drawn: {painted:?}"))
+            },
+        );
+        assert_steps_by_one("member position", moved);
+    }
+
+    #[test]
+    fn a_circle_splits_count_steps_by_one() {
+        let moved = bumped(
+            crate::sketch::fresh_step(Verb::CircleSplit),
+            |ui, step| {
+                ui.horizontal(|ui| {
+                    super::path_step_fields(
+                        ui,
+                        "probe",
+                        (&mut super::WrittenIn(crate::props::Notation::CANONICAL), 0),
+                        None,
+                        step,
+                    );
+                });
+            },
+            |step, _| match step {
+                Step::CircleSplit { n, .. } => i64::try_from(*n).expect("a small count"),
+                other => panic!("still a circle split: {other:?}"),
+            },
+        );
+        assert_steps_by_one("circle split n", moved);
     }
 }

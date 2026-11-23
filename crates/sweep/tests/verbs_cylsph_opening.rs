@@ -273,7 +273,7 @@ fn a_flipped_chorded_sphere_face_is_refused_as_a_lamina() {
         let flipped = body
             .flipped_face_sense_for_tests(k, geom_core::Tol::witness())
             .unwrap();
-        let errs = topo::finish::<f64>(flipped, tol)
+        let errs = topo::finish::<f64>(topo::Built::of(flipped), tol)
             .err()
             .unwrap_or_else(|| panic!("{k:?} flipped finishes"));
         assert!(
@@ -525,7 +525,7 @@ fn the_join_dispatchs_refusal_says_what_it_actually_wires() {
         },
     )
     .unwrap();
-    let errors = topo::finish(b, Tol::witness())
+    let errors = topo::finish(topo::Built::of(b), Tol::witness())
         .expect_err("a NURBS placeholder wall is not a finished body");
     assert!(
         errors.iter().any(

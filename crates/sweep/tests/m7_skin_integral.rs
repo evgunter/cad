@@ -385,8 +385,11 @@ fn nonuniform_prism_loft_body_matches_the_derived_volume() {
         Ok(()),
         "tier 2 (watertight)"
     );
-    let body =
-        topo::finish(topo::Body::clone(&lofted.body), Tol::witness()).expect("tier 3 at rest");
+    let body = topo::finish(
+        topo::Built::of(topo::Body::clone(&lofted.body)),
+        Tol::witness(),
+    )
+    .expect("tier 3 at rest");
     let m = topo::mass_properties(
         &body,
         Tol::witness(),
@@ -491,8 +494,11 @@ fn curved_path_sweep_body_builds_validates_and_brackets_pappus() {
         Ok(()),
         "tier 2 (watertight)"
     );
-    let body =
-        topo::finish(topo::Body::clone(&swept.body), Tol::witness()).expect("tier 3 at rest");
+    let body = topo::finish(
+        topo::Built::of(topo::Body::clone(&swept.body)),
+        Tol::witness(),
+    )
+    .expect("tier 3 at rest");
 
     let m = topo::mass_properties(
         &body,
@@ -753,7 +759,7 @@ fn a_rational_section_on_a_curved_path_faces_out_along_the_turn() {
         "the elbow must turn the level planes a quarter turn along v, not \
          {turned} rad against {want} — a straight path would hold them parallel"
     );
-    let (surface, _, _) = chart_at(&swept.body, swept.side_faces[0][0][0], 0.5, 0.5);
+    let (surface, _, _) = chart_at(&swept.body, swept.side_faces[0][0][0].unwrap(), 0.5, 0.5);
     assert!(
         surface.weights().iter().any(|w| *w != 1.0),
         "the fixture stopped exercising a RATIONAL chart: every weight is 1.0, so \

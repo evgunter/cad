@@ -30,7 +30,8 @@ fn flat_torus(tol: Tol) -> Body<f64> {
     let tube = vec![(Point2::new(2.5, 0.0), 1.0), (Point2::new(1.5, 0.0), 1.0)];
     let torus = revolved_about_y(tube, Revolution::Full, tol);
     let cutter = brick::<f64>((-3.0, 1.5 - 1e-3), (-3.0, 3.0), (-3.0, 3.0), tol);
-    let rest = |x: &Body<f64>| topo::finish(x.clone(), tol).expect("an operand finishes");
+    let rest =
+        |x: &Body<f64>| topo::finish(topo::Built::of(x.clone()), tol).expect("an operand finishes");
     topo::intersect(&rest(&torus), &rest(&cutter), tol)
         .expect("the cut builds")
         .body()

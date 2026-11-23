@@ -46,3 +46,22 @@ poses (`the_void_and_material_pinches_read_alike_at_every_pose`).
   through a door. What it pinned, that a solid's missing cusp edges do
   not leave the census's other solid pairs unexamined, has no row
   until the cut builds again or the fixture is built by hand.
+
+## A row this defect takes with it (2026-11-22)
+
+`sweep face_face_touch::a_solid_missing_its_cusp_edges_leaves_a_solid_in_its_bore_cleared`
+was deleted with PR 7124: it united this cut's result with a cube
+standing in the bore and pinned that tier 3′ reports the plate's
+missing cusp edges and nothing of the cube. Its property (a missing
+cusp finding in one solid does not stop the census reading the other
+solid pairs) is pinned nowhere now. The cut is the only door that
+builds a closed body missing its cusp edges, and it refuses. The
+kernel's own cusp rows (`census::same_solid_tangent_lines`) stand on
+open sheet fixtures whose placeholder faces the cross-solid arm cannot
+bound: the same two walls with a cube grafted in the bore answer
+`CuspEdgesMissing` and a `CensusUndecidable { MayOverlap }` of the two
+solids, so that fixture does not hold the property either (tried in
+the review fix pass). The row comes back with the fix here: once the
+cut mints the two cusp edges, or ships the crescent unrecorded, the
+united body exists again.
+

@@ -376,7 +376,7 @@ fn refused_on_the_relabelled_face(
         .collect();
     edges.sort();
     assert_eq!(edges.len(), 4);
-    let mut errors = topo::finish(b, Tol::witness())
+    let mut errors = topo::finish(topo::Built::of(b), Tol::witness())
         .map_err(topo::NotFinished::into_findings)
         .expect_err("a relabel over a brick's lines does not finish");
     // A boundary line the relabelled surface does not hold can also meet

@@ -16,12 +16,14 @@ took when it built the type
 ## Where the code stands
 
 A finished body holds its records and `finish` is its one constructor.
-The gate certifies every record it is handed: a stale or contradicted
-one refuses at that door (`deciding_door_census`,
-`crates/topo/src/validate.rs`). It raises no meeting that no record
-backs, and with no record it runs no census. `AtRestBody::bar` names
-which half was paid (`Bar::RecordsConfirmed`; a `⊔`'s is
-`Bar::ArrivalsDecided`).
+The gate confirms every record it is handed and nothing else: it runs
+the census's confirmation direction over those records
+(`census::confirm_only`, called from `AtRestBody::validate` in
+`crates/topo/src/validate.rs`): a record the census read and did not
+confirm refuses at that door, and one no lane reads is held on its
+citation with the body at `Bar::Tier3`. It searches for no meeting, so
+it raises none that no record backs, and with no record it reads
+nothing.
 
 ## Measured: the gate flipped early
 
@@ -69,5 +71,6 @@ this program's rows on the split's own touches), words for the census's
 predicates where a node's verdict log reads them, and a re-measurement
 at three ε with the slow set.
 
-The flip itself is the filter in `deciding_door_census` and the early
-return on no records.
+The flip itself is `AtRestBody::validate` running the whole census
+(`census::census_and_certify`) where it runs `census::confirm_only`
+today, and refusing on every finding.

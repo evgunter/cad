@@ -1310,7 +1310,7 @@ pub fn posed_crown_kept(
     pose: &Pose,
     tol: Tol,
 ) -> Result<AtRestBody<f64>, crate::NotFinished> {
-    crate::finish(crown_body(ring, bottom, pose, tol), tol)
+    crate::finish(crate::Built::of(crown_body(ring, bottom, pose, tol)), tol)
 }
 
 /// [`posed_crown`]'s body as built, before the at-rest gate.

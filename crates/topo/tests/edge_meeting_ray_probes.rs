@@ -99,14 +99,14 @@ fn probe_boolean_needles_aimed_rays() {
                 Point3::new(at(0), at(1), at(2))
             };
             let at_rest = |body| topo::finish(body, tol).expect("an operand at rest");
-            let a = at_rest(common::mapped_cube::<f64>(
+            let a = at_rest(topo::Built::of(common::mapped_cube::<f64>(
                 move |x, y, z| place([x, y, z]),
                 tol,
-            ));
-            let b = at_rest(common::mapped_cube::<f64>(
+            )));
+            let b = at_rest(topo::Built::of(common::mapped_cube::<f64>(
                 move |x, y, z| place([x, 1.0 - w + y * (1.0 + w), 1.0 - w + z * (1.0 + w)]),
                 tol,
-            ));
+            )));
             let what = format!("eps={:e} {across}Kε pose {i}", tol.eps());
             match topo::intersect(&a, &b, tol) {
                 Ok(result) => match result.body() {

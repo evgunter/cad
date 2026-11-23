@@ -178,30 +178,6 @@ const ROSTER: &[Site] = &[
         ),
     },
     Site {
-        path: "crates/geom-brep/src/ssi/certify.rs",
-        subject: "composite_form",
-        why: HandedOff("Track Q's; a private helper S88's census names"),
-    },
-    Site {
-        path: "crates/geom-brep/src/ssi/certify.rs",
-        subject: "exact",
-        why: HandedOff("Track Q's; a private helper S88's census names"),
-    },
-    Site {
-        path: "crates/geom-brep/src/ssi/certify.rs",
-        subject: "exact3",
-        why: HandedOff("Track Q's; a private helper S88's census names"),
-    },
-    Site {
-        path: "crates/geom-brep/src/ssi/certify.rs",
-        subject: "brackets",
-        why: Payload(
-            "a frame direction's components read as brackets for `frame_direction`: its \
-             midpoint and its turn bound, f64 payloads the composite's hull charges and the \
-             chart tube's partner form reads its structure from",
-        ),
-    },
-    Site {
         path: "crates/geom-core/src/dual.rs",
         subject: "impl<T> Bounds for Dual<T>",
         why: Impl(
@@ -387,6 +363,18 @@ const ROSTER: &[Site] = &[
              request and one that falls back to a bound. A point it does not certify \
              leaves the request refused as a bound, never built and never read inside, \
              and the margins it does report are classified at the funnel",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/reach.rs",
+        subject: "sure_below",
+        why: Selection(
+            "`sure`'s other side, whether a depth is certainly below `-escalate`. Its one \
+             reader, `screened`, takes it to choose which support vertices' depths it hands \
+             to `face_clearance_margin`, and that door, not this read, decides whether the \
+             request refuses, classifying the margin at the funnel. A vertex it does not \
+             certify is not read as a feature, the branch the f64 lane takes at the same \
+             value channel",
         ),
     },
     Site {

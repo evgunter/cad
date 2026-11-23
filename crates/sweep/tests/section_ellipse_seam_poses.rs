@@ -47,11 +47,11 @@ const SLIVER_RESIDUE: &str =
 /// `(±1, 0, 0)` and `(±1, 0, 1)`.
 fn cylinder(tol: Tol) -> AtRestBody<f64> {
     topo::finish(
-        sweep::test_support::prism(
+        topo::Built::of(sweep::test_support::prism(
             vec![(Point2::new(1.0, 0.0), 1.0), (Point2::new(-1.0, 0.0), 1.0)],
             1.0,
             tol,
-        ),
+        )),
         tol,
     )
     .expect("a valid operand")
@@ -69,7 +69,9 @@ fn cut(
 
 /// Why tier 3 refuses one side, or `None` where it is valid at rest.
 fn at_rest(body: &Body<f64>, tol: Tol) -> Option<String> {
-    Some(reasons(&topo::finish(body.clone(), tol).err()?))
+    Some(reasons(
+        &topo::finish(topo::Built::of(body.clone()), tol).err()?,
+    ))
 }
 
 /// Tier 3's findings on one side: a frame finding by its datum, measure
@@ -242,11 +244,12 @@ fn a_near_axial_sections_readback_u_ref_is_its_major_direction() {
     let mut seamed_across = 0;
     for body in [res.above.body(), res.below.body()].into_iter().flatten() {
         for (edge, _) in body.edges() {
-            let Ok(&geom::Curve3::Ellipse(geom::Ellipse { frame, .. })) =
+            let Ok(&geom::Curve3::Ellipse(the_ellipse @ geom::Ellipse { .. })) =
                 topo::readback::edge_carrier_ref(body, edge)
             else {
                 continue;
             };
+            let frame = the_ellipse.frame();
             let u_ref = frame.u_ref();
             if u_ref.z.abs() < 0.5 {
                 seamed_across += 1;
@@ -292,7 +295,12 @@ fn a_slab_face_nearly_along_a_ruling_builds() {
     for dd in [-50.0 * eps, -1e3 * eps] {
         for t in [1e-2, -1e-2] {
             let slab = topo::finish(
-                sweep::test_support::prism_at(rect(1.0 + dd, -2.0, 3.0, 2.0), 0.25, 0.5, tol),
+                topo::Built::of(sweep::test_support::prism_at(
+                    rect(1.0 + dd, -2.0, 3.0, 2.0),
+                    0.25,
+                    0.5,
+                    tol,
+                )),
                 tol,
             )
             .expect("a valid slab");
@@ -302,8 +310,10 @@ fn a_slab_face_nearly_along_a_ruling_builds() {
                 t,
             );
             let slab = topo::finish(
-                topo::transform_rigid(&slab, &geom_core::test_support::rigid(&turn, tol))
-                    .expect("a rigid turn"),
+                topo::Built::of(
+                    topo::transform_rigid(&slab, &geom_core::test_support::rigid(&turn, tol))
+                        .expect("a rigid turn"),
+                ),
                 tol,
             )
             .expect("a valid tilted slab");

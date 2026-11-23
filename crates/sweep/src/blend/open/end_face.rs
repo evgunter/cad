@@ -41,6 +41,7 @@
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::EdgeCurveSpec;
+use geom_core::k_stats::TestSite;
 use geom_core::{Band, Bounds, Decide, InfSpeed, Margin, Point3, Real, Sign, Tol, Vec3};
 use topo::construction::Construct;
 use topo::construction::{FaceSurface, MefSite};
@@ -161,9 +162,11 @@ impl<T: Decide + Bounds> EndCut<T> {
             let placed = placed.ok_or_else(unbuilt)?;
             let turn = (foot_a - center).cross(foot_b - center);
             let backward = match placed {
-                Curve3::Circle(geom::Circle { frame, .. })
-                | Curve3::Ellipse(geom::Ellipse { frame, .. }) => {
-                    let axis = frame.axis();
+                ref conic @ (Curve3::Circle(_) | Curve3::Ellipse(_)) => {
+                    let axis = conic
+                        .frame()
+                        .unwrap_or_else(|| unreachable!("a circle and an ellipse have a frame"))
+                        .axis();
                     turn.dot(axis).hi() < 0.0
                 }
                 _ => return Err(unbuilt()),
@@ -734,18 +737,22 @@ impl<T: Decide + Bounds> CapSliver<T> {
         cut: bool,
         band: Band,
     ) -> CycleReading<T> {
-        if !cut && let Some(depth) = self.ring_inside(pieces).filter(|d| sure(*d, band)) {
+        if !cut
+            && let Some(depth) = self
+                .ring_inside(pieces)
+                .filter(|d| sure(RING_INSIDE, *d, band))
+        {
             return CycleReading::Inside(T::zero() - depth);
         }
         let deepest = pieces
             .iter()
             .filter_map(|&(carrier, window)| self.reaches_in(carrier, window))
-            .filter(|x| sure(*x, band))
+            .filter(|x| sure(REACHES_IN, *x, band))
             .reduce(|m, x| m.max(x));
         let reaches_out = cut
             || pieces.iter().any(|&(carrier, window)| {
                 self.reaches_out(carrier, window)
-                    .is_some_and(|x| sure(x, band))
+                    .is_some_and(|x| sure(REACHES_OUT, x, band))
             });
         match deepest.filter(|_| reaches_out) {
             Some(depth) => CycleReading::Crossing(T::zero() - depth),
@@ -854,24 +861,17 @@ impl<T: Decide + Bounds> CapSliver<T> {
                 // The frame with the major semi-axis first
                 // (`Curve3::major_frame`).
                 let (center, axis, major, minor, u) = match *arc {
-                    Curve3::Circle(
-                        circle @ geom::Circle {
-                            frame: carrier_frame_3,
-                            ..
-                        },
-                    ) => {
+                    Curve3::Circle(circle) => {
                         let (center, axis, u_ref) = (
-                            carrier_frame_3.origin(),
-                            carrier_frame_3.axis(),
-                            carrier_frame_3.u_ref(),
+                            circle.frame().origin(),
+                            circle.frame().axis(),
+                            circle.frame().u_ref(),
                         );
                         let radius = circle.radius();
                         (center, axis, radius, radius, u_ref)
                     }
-                    ref ellipse @ Curve3::Ellipse(geom::Ellipse {
-                        frame: carrier_frame,
-                        ..
-                    }) => {
+                    ref ellipse @ Curve3::Ellipse(the_ellipse @ geom::Ellipse { .. }) => {
+                        let carrier_frame = the_ellipse.frame();
                         let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
                         let Some(f) = ellipse.major_frame() else {
                             unreachable!("an Ellipse carrier has a major frame")
@@ -912,7 +912,7 @@ impl<T: Decide + Bounds> CapSliver<T> {
         let toward = (pv - center).normalize();
         let mut directions = vec![toward];
         if let Some((frame, _)) = round {
-            let (u, w) = (frame.shape.frame.u_ref(), frame.shape.frame.v_ref());
+            let (u, w) = (frame.shape.frame().u_ref(), frame.shape.frame().v_ref());
             directions.extend([u, -u, w, -w]);
         }
         // `reach` and the floors over the rim pieces alone: `A` adds no
@@ -1296,6 +1296,20 @@ pub(in crate::blend) fn fold_sliver<T: Decide>(
     rec.dead.vertices.push(vertex);
     Ok(())
 }
+
+/// The end face's calls of `reach::sure`, one site per call.
+const RING_INSIDE: TestSite = TestSite::new(
+    "blend_end_face_ring_inside",
+    "a ring lies surely inside the end face",
+);
+const REACHES_IN: TestSite = TestSite::new(
+    "blend_end_face_reaches_in",
+    "a piece reaches surely into the end face",
+);
+const REACHES_OUT: TestSite = TestSite::new(
+    "blend_end_face_reaches_out",
+    "a piece reaches surely out of the end face",
+);
 
 #[cfg(test)]
 mod line_meter_fuzz;

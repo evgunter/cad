@@ -84,7 +84,7 @@ fn tilted_cone(tilt: f64) -> (Result<AtRestBody<f64>, String>, String) {
         Surface::Cone { frame, half_angle },
     ));
     (
-        topo::finish(body, Tol::witness()).map_err(|e| format!("{e:?}")),
+        topo::finish(topo::Built::of(body), Tol::witness()).map_err(|e| format!("{e:?}")),
         format!("{frame:?}"),
     )
 }
@@ -92,7 +92,7 @@ fn tilted_cone(tilt: f64) -> (Result<AtRestBody<f64>, String>, String) {
 /// The coaxial pin of radius `r` over `y ∈ [−1, 2]`.
 fn pin(r: f64) -> AtRestBody<f64> {
     topo::finish(
-        revolved(&[(0.0, -1.0), (r, -1.0), (r, 2.0), (0.0, 2.0)]),
+        topo::Built::of(revolved(&[(0.0, -1.0), (r, -1.0), (r, 2.0), (0.0, 2.0)])),
         Tol::witness(),
     )
     .unwrap()

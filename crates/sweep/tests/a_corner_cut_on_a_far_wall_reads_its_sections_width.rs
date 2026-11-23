@@ -33,7 +33,7 @@ fn a_corner_cut_in_the_gap_escalates_at_the_sections_own_width() {
     }
     let bulge = ((5.0 / FAR).asin() / 2.0).tan();
     let plate = topo::finish(
-        sweep::test_support::prism(
+        topo::Built::of(sweep::test_support::prism(
             vec![
                 (Point2::new(0.0, 0.0), 0.0),
                 (Point2::new(10.0, 0.0), 0.0),
@@ -42,7 +42,7 @@ fn a_corner_cut_in_the_gap_escalates_at_the_sections_own_width() {
             ],
             1.0,
             tol,
-        ),
+        )),
         tol,
     )
     .expect("the plate");

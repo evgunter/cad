@@ -41,7 +41,7 @@ fn a_take_relogs_the_verdicts_a_finish_records() {
     let t = Tol::witness();
     for (what, body) in bodies() {
         let fresh = recorded(|| {
-            topo::finish::<f64>(body.clone(), t).expect("it finishes");
+            topo::finish::<f64>(topo::Built::of(body.clone()), t).expect("it finishes");
         });
         assert!(!fresh.verdicts.is_empty(), "{what}: the finish decides");
         let mut leaf = None;
@@ -70,7 +70,8 @@ fn a_leaf_that_refuses_relogs_its_record_where_it_refuses() {
     for (what, body) in bodies() {
         let inside_out = body.revert().expect("it reverts");
         let fresh = recorded(|| {
-            topo::finish::<f64>(inside_out.clone(), t).expect_err("inside out, it refuses");
+            topo::finish::<f64>(topo::Built::of(inside_out.clone()), t)
+                .expect_err("inside out, it refuses");
         });
         assert!(!fresh.verdicts.is_empty(), "{what}: the refusal decided");
         let refused = recorded(|| {

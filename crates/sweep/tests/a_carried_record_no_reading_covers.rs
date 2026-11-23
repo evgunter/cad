@@ -11,7 +11,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::SurfaceKind;
-use geom_core::{Point2, Tol};
+use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::test_support::bulge_loop;
 use profile::{Profile, ProfileLoop};
 use sweep::ExtrudeSide;
@@ -94,12 +94,21 @@ fn rested() -> (topo::BooleanBody<f64>, ContactRecords) {
 }
 
 /// `plate ∪ rod` handed to the gate with `one` as its records.
-fn holding(u: &topo::BooleanBody<f64>, one: &ContactRecords) -> Result<(), topo::NotFinished> {
+fn handed(u: &topo::BooleanBody<f64>, one: &ContactRecords) -> Result<(), topo::NotFinished> {
     topo::finish(
         topo::Built::of(Body::clone(&u.body)).recording(one.clone()),
         tol(),
     )
     .map(|_| ())
+}
+
+/// `plate ∪ rod` finished, holding `one` alone, unread: what no door
+/// stages (`topo::test_support::unconfirmed`), for the rows that read
+/// what a later door makes of it.
+fn holding(u: &topo::BooleanBody<f64>, one: &ContactRecords) -> AtRestBody<f64> {
+    let bare = topo::finish(topo::Built::of(Body::clone(&u.body)), tol())
+        .unwrap_or_else(|e| panic!("plate ∪ rod finishes with no record: {e:?}"));
+    topo::test_support::unconfirmed::holding(&bare, one.clone())
 }
 
 /// The gate's refusal of the planted record: the census confirms no
@@ -134,7 +143,8 @@ fn carried(
 /// the carry, and the op's gate, which confirms every record it is
 /// handed, refuses it: `ResultInvalid`, the census's stale finding, not
 /// a carry refusal. The gate refuses the same record on `plate ∪ rod`
-/// itself, so no finished operand can hold it into a split. Red on the
+/// itself, and a split that keeps both cells on one side lands it there
+/// for that side's gate to refuse. Red on the
 /// carry that confirms every pair, kept ones included: there each op
 /// refused `CarryRefused { Carried(A), Unread }`.
 #[test]
@@ -155,17 +165,35 @@ fn a_record_no_reading_covers_lands_by_lineage_through_an_op_that_keeps_its_cell
             "{what}: the record lands and the gate reads it stale: {got:?}"
         );
     }
-    let got = holding(&u, &one);
+    let got = handed(&u, &one);
     assert!(
         matches!(&got, Err(findings) if stale(findings)),
         "the gate refuses the record on `plate ∪ rod`: {got:?}"
+    );
+    // A split above both cells keeps them on one side: the record lands
+    // there by lineage, unread, and that side's gate refuses it.
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.0, 0.0, 0.9),
+        Vec3::new(0.0, 0.0, 1.0),
+        tol(),
+    );
+    let got = topo::split(&holding(&u, &one), &plane, tol()).map(|_| ());
+    assert!(
+        matches!(
+            &got,
+            Err(topo::SplitError::Finish(
+                topo::SplitFinishError::ResultNotAtRest { findings, .. }
+            )) if stale(findings)
+        ),
+        "a split above both cells: the record lands and the side's gate reads it stale: {got:?}"
     );
 }
 
 /// An op that divides one of the record's cells puts each piece to the
 /// census's record confirm, which reads a line against a cylinder: the
 /// plate's bottom edge touches the rod's wall nowhere, so each piece
-/// reads stale, and a notch across the edge drops it from the result.
+/// reads stale: a notch across the edge drops it from the result, and
+/// a split across the rod refuses it.
 #[test]
 fn a_record_an_op_divides_is_read_and_found_stale() {
     let (u, one) = rested();
@@ -180,4 +208,22 @@ fn a_record_an_op_divides_is_read_and_found_stale() {
         ),
         other => panic!("∖ a notch across the edge: {:?}", other.map(|_| ())),
     }
+    // A split across the rod divides both cells: the split's carry puts
+    // the pieces to the curve × face reading and refuses the record
+    // stale, before any gate.
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(1.0, 0.0, 0.0),
+        tol(),
+    );
+    let got = topo::split(&holding(&u, &one), &plane, tol()).map(|_| ());
+    assert!(
+        matches!(
+            got,
+            Err(topo::SplitError::Finish(topo::SplitFinishError::Carry {
+                refusal: topo::CarryRefusal::Stale { record: 0 },
+            }))
+        ),
+        "a split across both cells: {got:?}"
+    );
 }
