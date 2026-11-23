@@ -221,6 +221,8 @@ mod scene_build;
 mod screen_view;
 #[path = "select_pick.rs"]
 mod select_pick;
+#[path = "split_of_a_family.rs"]
+mod split_of_a_family;
 #[path = "story_assembly.rs"]
 mod story_assembly;
 #[path = "story_authoring.rs"]

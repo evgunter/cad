@@ -3442,7 +3442,16 @@ fn split_port<T: topo::AtRestPolicy + Decide>(
         .unwrap_or_else(|| unreachable!("a split defines a port per half"));
     let value = value_of(results, split)?;
     let ValuePayload::Split { above, below } = &value.payload else {
-        unreachable!("a split evaluates to its two sides")
+        // A split of a family is a family of splits (D10
+        // `[repetition]`), read here by a reader of no member of it.
+        return Err(match value.payload {
+            ValuePayload::Family => NodeErrorKind::HalfOfAFamily {
+                read: var,
+                input: split,
+                half,
+            },
+            _ => wrong_operand(value, split, super::family::SPLIT),
+        });
     };
     let body = split_side(split, half, above, below)?;
     // The half's names are its own output's (N1, the scope).
