@@ -351,6 +351,40 @@ pub trait Real:
     /// records and cannot certify is not constructible from this side.
     type Carries<C: Copy + Debug + Send + Sync + 'static>: Copy + Debug + Send + Sync + 'static;
 
+    /// **This scalar with its tangent removed**: the scalar a place is
+    /// evaluated at and a decision reads, which DL5.2 (the crate README)
+    /// calls the value channel. It is not [`crate::SpanLocate`]'s
+    /// `value_channel`, an `f64` a structure decision reads (NaN where a
+    /// value is wider than a point). What it is at each scalar:
+    ///
+    /// - `f64`, [`crate::Interval`], [`crate::Probe`]: the scalar itself,
+    ///   which carries no tangent.
+    /// - `Dual<f64>`, `Dual<Interval>`: the base scalar, the value part.
+    /// - [`crate::Sym`]`<T>`: `Sym<T::Value>`, node for node: the symbols
+    ///   are an identity over the document's unknowns, which a decision
+    ///   reads, not a tangent. Over `f64` or `Interval` that is the
+    ///   scalar itself.
+    ///
+    /// It carries no tangent of its own, so a second read is the
+    /// identity. `T: Real<Value = T>` (or `Decide<Value = T>`) is the
+    /// bound "a scalar that carries no tangent", which no dual meets.
+    type Value: crate::Decide<Value = Self::Value>;
+
+    /// The read down to [`Real::Value`]: a dual's value part, bit for
+    /// bit; the `Sym` over its numeric channel's read, its node kept;
+    /// the scalar itself elsewhere.
+    fn without_tangent(self) -> Self::Value;
+
+    /// **`x` without its tangent**: [`Real::without_tangent`] of every
+    /// scalar it holds, through `F`'s map. Borrowed where the scalar
+    /// carries no tangent; a copy at a dual, and at a `Sym` over one.
+    /// Plumbing for a geometry type's `value_view()`, which is what a
+    /// caller names.
+    #[doc(hidden)]
+    fn view<F: crate::value_view::OverScalar>(
+        x: &F::At<Self>,
+    ) -> crate::value_view::ValueView<'_, F::At<Self::Value>>;
+
     /// Embeds an `f64` exactly (a point interval, a constant dual number).
     ///
     /// **For a constant only**: a literal, a count, a tolerance, data
@@ -2056,7 +2090,11 @@ pub mod bounds_allowlist {
 /// holds the line — the only door between a dual and certified code.
 /// Reopening it would be a ratified reversal of DL1 on its own
 /// evidence, never an impl someone can add in passing.
-pub trait CertifiedEnclosure: Copy + enclosure_seal::Sealed {
+///
+/// A scalar that certifies carries no tangent: it is its own
+/// [`Real::Value`], so certification code hands a place straight to a
+/// place-taking evaluator (`geom`'s `eval_at`).
+pub trait CertifiedEnclosure: Real<Value = Self> + enclosure_seal::Sealed {
     /// The bracket, or `None` if this value carries a domain violation.
     ///
     /// `Some([lo, hi])` promises both things at once: the pair brackets
@@ -2195,6 +2233,9 @@ impl<T: Bounds + CertifiedEnclosure> CertifiedBounds for T {}
 /// doors. At `Sym<Sym<f64>>` it means what it means at `Sym<f64>`: the
 /// symbolic tier certifies as the scalar under it does and changes only
 /// how an identically-zero margin decides, however deep it is nested.
+/// A scalar that certifies is its own [`Real::Value`] (it carries no
+/// tangent), so code at `T: Certifies` hands a place straight to a
+/// place-taking evaluator.
 /// A [`crate::Dual`] is absent for [`CertifiedEnclosure`]'s reason
 /// (`docs/DUAL-DESIGN.md` DL1), over any base:
 ///
@@ -2220,7 +2261,7 @@ impl<T: Bounds + CertifiedEnclosure> CertifiedBounds for T {}
 /// certifies::<geom_core::Sym<f64>>();
 /// certifies::<geom_core::Sym<geom_core::Interval>>();
 /// ```
-pub trait Certifies: crate::predicate::Decide + certifies_seal::Sealed {}
+pub trait Certifies: crate::predicate::Decide<Value = Self> + certifies_seal::Sealed {}
 
 mod certifies_seal {
     pub trait Sealed {}
@@ -2231,7 +2272,7 @@ mod certifies_seal {
 /// which is sealed). The bound still grants neither: code at
 /// `T: Certifies` can name no method of either trait's bracket doors.
 impl<T: CertifiedEnclosure> certifies_seal::Sealed for T {}
-impl<T: crate::predicate::Decide + certifies_seal::Sealed> Certifies for T {}
+impl<T: crate::predicate::Decide<Value = T> + certifies_seal::Sealed> Certifies for T {}
 
 /// Exponentiation by squaring over any [`Real`], the shared implementation
 /// of [`Real::powi`]: `n < 0` via the reciprocal of `base.powi(|n|)`,
@@ -2306,6 +2347,18 @@ impl Real for f64 {
     const NAME: &'static str = "f64";
 
     type Carries<C: Copy + Debug + Send + Sync + 'static> = C;
+
+    type Value = f64;
+
+    fn without_tangent(self) -> f64 {
+        self
+    }
+
+    fn view<F: crate::value_view::OverScalar>(
+        x: &F::At<Self>,
+    ) -> crate::value_view::ValueView<'_, F::At<Self>> {
+        crate::value_view::ValueView::Same(x)
+    }
 
     /// `Dot2` over the error-free differences; where that is not finite
     /// the plain formula's poison or overflow is the answer.
