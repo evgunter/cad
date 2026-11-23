@@ -170,3 +170,35 @@ fn a_zone_against_planes_whose_circles_miss_its_seam() {
         (vz, 2.9 * 2.45 * 4.0, below),
     );
 }
+
+/// The ball less its cap `x > 0.6`, hollowed by the concentric ball of
+/// radius `0.5` turned half a turn about `y`, its seam on `z = 0, x < 0`,
+/// against `x > −0.9`: the circle `x = −0.9` misses the outer seam, the
+/// cut runs along the outer face's meridian on `−x`, and the inner ball's
+/// seam lies in that half-plane too. The merge glues the cut away; the
+/// inner seam is its own face's, which the op leaves as it found it.
+#[test]
+fn a_hollow_shell_whose_inner_seam_lies_in_the_cuts_half_plane() {
+    use geom_core::{Affine3, Point3};
+    let y = Vec3::new(0.0, 1.0, 0.0);
+    let inner = topo::transform_rigid(
+        &ball_poled(0.5, Vec3::zero(), y, tol()),
+        &geom_core::test_support::rigid(
+            &Affine3::rotation_about_axis(Point3::origin(), y, std::f64::consts::PI),
+            tol(),
+        ),
+    )
+    .unwrap();
+    let inner = finished("the inner ball", inner, tol());
+    let shell = built(topo::subtract(
+        &built(topo::subtract(&ball(), &slab((0.6, 2.0)), tol())),
+        &inner,
+        tol(),
+    ));
+    let vs = ball_volume(1.0) - cap_volume(1.0, 0.4) - ball_volume(0.5);
+    every_op_sound(
+        &shell,
+        &slab((-0.9, 2.0)),
+        (vs, 2.9 * 16.0, vs - cap_volume(1.0, 0.1)),
+    );
+}

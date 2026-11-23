@@ -57,3 +57,12 @@ dividing two faces of one record, the merge skipping one pair as
 `PeriodClosure` (`carve ∪ slab`: `[2v3, 7v1]` on `5v5`). So the row's
 red on the one-band stack is a regression against main's green, a green
 that rested on a non-maximal body.
+
+`snowman::a_cut_ends_at_the_nearest_of_several_boundary_hits` (∪) is a
+second witness: on the stack its glued sphere face's ring reads
+`Undecided`, and the mesh refuses `DomainUnread`. On `origin/main`
+(`43295779ee`) it builds and meshes, both latitudes and both member orders,
+but not maximal: 10 faces, 5 edges dividing two faces of one record, and
+the merge skipping one group of three faces as `PeriodClosure`. Both rows'
+undecided ring is the one the merge's role pass accepted by elimination
+(`work/lathe/a-merged-sphere-faces-outline-is-chosen-by-elimination-so-the-answer-depends-on-operand-order.md`).

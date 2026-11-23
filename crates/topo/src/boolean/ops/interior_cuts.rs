@@ -18,7 +18,8 @@
 //! A refusing pair of any other kind, or of any other refusal, keeps the
 //! guard's refusal for the whole op, and so does a cut-in that cannot
 //! be made: the pipeline goes on, and the guard raises its refusal on
-//! the built body as it would have.
+//! the built body as it would have. A decision of the cut-in's own that
+//! its band cannot read escalates as itself.
 
 use geom_core::{Band, Decide, NonzeroSign};
 

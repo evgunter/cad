@@ -12,7 +12,9 @@
 //! - every edge with one sphere face on both sides lies on that face's
 //!   own chart seam, the half-meridian at azimuth zero (the plane of its
 //!   frame's axis and `u_ref`, on `u_ref`'s side), which is where the
-//!   operand's wrap edge runs.
+//!   operand's wrap edge runs: its two ends and the middle of its curve,
+//!   so a pole-to-pole meridian on another half, whose ends are the
+//!   poles and lie on every meridian, is read too.
 //!
 //! Not absorbed: [`super::cap_rims`] reads rims and the faces across
 //! them, not seams; [`super::orient`] reads positions off charts, not
@@ -52,13 +54,19 @@ pub fn assert_no_cut_trace(label: &str, r: &BooleanResult<f64>) {
             continue;
         };
         let (u, v) = body.edge_vertices(e).unwrap();
+        let curve = body
+            .get_curve_geom(body.get_edge(e).unwrap().curve)
+            .and_then(topo::CurveGeom::certified)
+            .unwrap();
+        let (t0, t1) = curve.params();
+        let mid = curve.carrier().mid_point(t0, t1);
         let (c, axis, seam) = (frame.origin(), frame.axis(), frame.u_ref());
         let across = axis.cross(seam);
-        for p in [point(u), point(v)] {
+        for p in [point(u), mid, point(v)] {
             let d = p - c;
             assert!(
                 across.dot(d).abs() <= 1e-9 * radius.max(1.0) && seam.dot(d) >= -1e-9 * radius,
-                "{label}: {e:?} lies inside its sphere face off the face's own seam: an end at \
+                "{label}: {e:?} lies inside its sphere face off the face's own seam: a point at \
                  {p:?}"
             );
         }

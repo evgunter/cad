@@ -56,9 +56,12 @@ use crate::loop_winding::{LoopWinding, WINDING_PREDICATE};
 use crate::validate::{ValidationError, validate_closed};
 use geom_brep::{CarrierEqError, CarrierRelation, PlaneRung, oriented_plane_eq};
 
-/// Whether `surface` is simply connected, so that no closed curve on it
-/// winds: a sphere or a spindle sheet.
-fn simply_connected<T: geom_core::Real>(surface: &Surface<T>) -> bool {
+/// Whether `surface` is one of the kinds whose sheet is simply connected,
+/// so that no closed curve on it winds: a sphere or a spindle sheet. A
+/// kind list, not a reading of the surface: a cylinder, a cone, a torus
+/// and every other kind answer no (`work/lathe`'s row on a wall whose
+/// carrier is not simply connected keeps them on the period skip).
+fn simply_connected_kind<T: geom_core::Real>(surface: &Surface<T>) -> bool {
     matches!(surface, Surface::Sphere { .. } | Surface::Spindle { .. })
 }
 
@@ -2686,7 +2689,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         // same-face edge may be the cut that keeps the face's period
         // open, and the run keeps the period-closure skip.
         let bridges =
-            kind == MergeKind::Curved && simply_connected(self.proven_face(rep).surface());
+            kind == MergeKind::Curved && simply_connected_kind(self.proven_face(rep).surface());
         // Absorption: repeatedly kill the first (edge-arena order)
         // edge shared between rep and another group member, on a
         // bridging run a wrap edge last.
@@ -2963,7 +2966,11 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     /// a ring decidedly nowhere or decidedly twice is struck out. A
     /// face has one outline, so a slot struck out is not it, and the
     /// last one standing is, whether or not its own reading settles (a
-    /// row whose boxes do not tighten reads a ring undecided).
+    /// row whose boxes do not tighten reads a ring undecided). Where
+    /// two slots stand undecided, the run refuses, and which runs meet
+    /// that depends on the arena order the pieces arrive in, so on the
+    /// operand order
+    /// (`work/lathe/a-merged-sphere-faces-outline-is-chosen-by-elimination-so-the-answer-depends-on-operand-order.md`).
     /// `Some(i)` is ring `i`; `None` the loop already there.
     ///
     /// # Errors
@@ -2972,29 +2979,30 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     /// run killed, where no slot or more than one is left: the run is
     /// left unmerged.
     fn curved_outline_ring(
-        &mut self,
+        &self,
         face: FaceKey,
         group: &MergedGroup,
         tol: Tol,
     ) -> Result<Option<usize>, MergeCoplanarError> {
         let band = Band::linear(tol).map_err(|error| MergeCoplanarError::Band { error })?;
-        let rings = self.proven_face(face).record().rings.len();
+        let record = self.proven_face(face).record();
         // A face has one outline. The slot whose lift places every ring
         // is it; failing one, the slot left standing once every slot
         // whose lift places a ring decidedly nowhere, or decidedly in
         // two places, is struck out, whether its own reading settles or
-        // not.
+        // not. Each loop is asked in the outline's role as the lift
+        // reads roles given it, the record untouched until one is chosen.
         let (mut placed, mut standing) = (Vec::new(), Vec::new());
-        for slot in core::iter::once(None).chain((0..rings).map(Some)) {
-            let swap = |body: &mut Self| {
-                if let (Some(i), Some(fm)) = (slot, body.faces.get_mut(face)) {
-                    core::mem::swap(&mut fm.outer, &mut fm.rings[i]);
-                }
+        for slot in core::iter::once(None).chain((0..record.rings.len()).map(Some)) {
+            // Ring `i` asked as the outline trades places with the outer
+            // loop, the rest in their order: the record as it would read
+            // with that slot chosen.
+            let mut rings = record.rings.clone();
+            let outer = match slot {
+                Some(i) => core::mem::replace(&mut rings[i], record.outer),
+                None => record.outer,
             };
-            swap(self);
-            let lift = self.face_lift(face, band);
-            swap(self);
-            match lift {
+            match crate::pcurves::face_lift_as(self, face, outer, rings, band) {
                 Ok(_) => placed.push(slot),
                 Err(
                     crate::pcurves::RingPlacementError::NoShift { .. }

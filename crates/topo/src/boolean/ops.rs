@@ -1586,27 +1586,39 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
     // cannot be made the pipeline goes on, and the guard's refusal is
     // raised on the built body as it would be; where the re-entered
     // op's output merge leaves a cut behind, the op refuses with the
-    // guard's refusal.
+    // guard's refusal. A decision of the cut-in's in band escalates as
+    // itself: the guard's refusal stands for a cut that cannot be made,
+    // not for one the band could not read.
     if recut
         && let Ok(pairs) = &pairs
         && let Some(guard) = first_refusing(pairs).map(|i| &pairs[i])
-        && let Ok(Some(cut_ins)) = interior_cuts::cut_ins(a, b, pairs, band)
     {
-        let (mut a2, mut b2) = (a.clone(), b.clone());
-        if let Ok(cuts) = apply_cut_ins(&mut a2, &mut b2, &cut_ins, band, tol) {
-            let recharted = RechartsPerOperand::default();
-            let survives = |_: &CutPlane<T>| guard_refusal(op, guard);
-            return reenter_recut(
-                op,
-                (&a2, &b2),
-                decls,
-                strategy,
-                cuts,
-                recharted,
-                survives,
-                tol,
-            )
-            .map(|result| Joined::Answered(Box::new(result)));
+        let cut_ins = match interior_cuts::cut_ins(a, b, pairs, band) {
+            Err(e @ BooleanError::Escalated { .. }) => return Err(e),
+            Ok(cut_ins) => cut_ins,
+            Err(_) => None,
+        };
+        if let Some(cut_ins) = cut_ins {
+            let (mut a2, mut b2) = (a.clone(), b.clone());
+            match apply_cut_ins(&mut a2, &mut b2, &cut_ins, band, tol) {
+                Err(e @ BooleanError::Escalated { .. }) => return Err(e),
+                Err(_) => {}
+                Ok(cuts) => {
+                    let recharted = RechartsPerOperand::default();
+                    let survives = |_: &CutPlane<T>| guard_refusal(op, guard);
+                    return reenter_recut(
+                        op,
+                        (&a2, &b2),
+                        decls,
+                        strategy,
+                        cuts,
+                        recharted,
+                        survives,
+                        tol,
+                    )
+                    .map(|result| Joined::Answered(Box::new(result)));
+                }
+            }
         }
     }
     let interior_loops = pairs.and_then(|pairs| match first_refusing(&pairs) {
@@ -1679,13 +1691,6 @@ fn reenter_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     }
     let mut result = boolean_op_recut(op, a2, b2, decls, strategy, false, tol)?;
     if let BooleanResult::Body(out) = &mut result {
-        // The cuts are the op's own, glued away with the pieces they
-        // divided; one the output merge left is a cut the result's
-        // operands never carried, and the op refuses rather than answer
-        // a face that is not maximal.
-        if let Some(plane) = surviving_cut(&out.body, &planes, Band::linear(tol)?)? {
-            return Err(survives(plane));
-        }
         // A row names the cells of the op's inputs, not of the
         // cut operands ([`crate::coincidence`]), through the one
         // door ([`spell`]).
@@ -1706,6 +1711,24 @@ fn reenter_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
             edges.extend(made.edges);
         }
         *n.recharted = recharted;
+        // The cuts are the op's own, glued away with the pieces they
+        // divided; one the output merge left is a cut the result's
+        // operands never carried, and the op refuses rather than answer
+        // a face that is not maximal. A result face reads back to its
+        // operand's face through the graft and every division row,
+        // the cut-ins' included.
+        let inv: BTreeMap<FaceKey, FaceKey> = n.graft_faces.iter().map(|&(s, d)| (d, s)).collect();
+        let piece_of = |f: FaceKey| {
+            let (operand, k, _) = n.operand_of(&inv, f);
+            let rows = match operand {
+                Operand::A => &n.face_fragments_a,
+                Operand::B => &n.face_fragments_b,
+            };
+            (operand, rows.root(k))
+        };
+        if let Some(plane) = surviving_cut(&out.body, &planes, piece_of, Band::linear(tol)?)? {
+            return Err(survives(plane));
+        }
     }
     Ok(result)
 }
@@ -6262,10 +6285,13 @@ pub(super) struct CutPlane<T: Real> {
 }
 
 /// **A cut-in's meridian left in `body`**, the re-entered op's result:
-/// an edge whose faces both lie on a sphere and whose carrier is a
-/// circle about a cut's sphere's centre, in that cut's meridian plane,
-/// its middle on the cut's half of the plane. `None` where the output
-/// merge glued every cut away.
+/// an edge dividing two faces on one surface record that are both pieces
+/// of a cut's own face (`piece_of` reads a result face back to its
+/// operand and the operand face it was divided from), whose carrier is a
+/// circle about that cut's sphere's centre, in its meridian plane, its
+/// middle on the cut's half of the plane. An edge on another face or
+/// another record, or with one face on both sides, is no cut of the
+/// op's. `None` where the output merge glued every cut away.
 ///
 /// # Errors
 ///
@@ -6274,17 +6300,22 @@ pub(super) struct CutPlane<T: Real> {
 fn surviving_cut<'p, T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     planes: &'p [CutPlane<T>],
+    piece_of: impl Fn(FaceKey) -> (Operand, FaceKey),
     band: Band,
 ) -> Result<Option<&'p CutPlane<T>>, BooleanError> {
     let esc = |diag| BooleanError::Escalated {
         decision: BooleanDecision::Sphere(SphereQuestion::CutIn),
         diag,
     };
-    let sphere = |f: FaceKey| matches!(body.proven_face(f).surface(), geom::Surface::Sphere { .. });
     for (edge, e) in body.edges() {
         let sides = crate::readback::edge_sides_of(body, edge, e);
         let (f1, f2) = sides.faces();
-        if !sphere(f1) || !sphere(f2) {
+        let (k1, k2) = sides.surfaces();
+        if f1 == f2 || k1 != k2 {
+            continue;
+        }
+        let piece = piece_of(f1);
+        if piece_of(f2) != piece {
             continue;
         }
         let Some(curve) = body.edge_curve_linked(edge, e).certified() else {
@@ -6295,7 +6326,7 @@ fn surviving_cut<'p, T: Decide + crate::props::AtRestPolicy>(
         };
         let (t0, t1) = curve.params();
         let mid = curve.carrier().mid_point(t0, t1);
-        for plane in planes {
+        for plane in planes.iter().filter(|c| (c.operand, c.face) == piece) {
             let lever = |m: T| {
                 Margin::levered(
                     m,

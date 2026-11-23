@@ -452,11 +452,12 @@ fn two_trimmed_spheres_build() {
 /// crossings read the meridian's half in the escalation gap), so the
 /// other ε rows stand down.
 ///
-/// At every `δ` the op `b ∪ a` refuses ([`cut_survives`]): the merge
-/// cannot glue the trimmed face's cut back into one face, since it reads
-/// the cut's short piece into the pole as a period closure, so the op
-/// names the face rather than answer one that is not maximal
-/// (`work/lathe/a-cut-in-beside-a-pole-sliver-keeps-period-closure-so-the-op-refuses.md`).
+/// At every `δ` the op `b ∪ a` refuses ([`cut_survives`]) where `a ∪ b`
+/// builds: the merge's outline choice for the trimmed face's glued
+/// pieces leaves two slots standing in this order and refuses the run,
+/// so the cut survives and the op names the face rather than answer one
+/// that is not maximal. The two orders disagreeing is the defect
+/// (`work/lathe/a-merged-sphere-faces-outline-is-chosen-by-elimination-so-the-answer-depends-on-operand-order.md`).
 #[test]
 fn a_trimmed_face_cut_beside_its_pole_builds() {
     if Tol::witness().get().eps != 1e-9 {
