@@ -996,8 +996,11 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 // from along a direction that turns with the operands
                 // meets the edge nowhere, whichever arm its kind has.
                 // The parents' reading is the operand gate's, so a pair
-                // the gate cleared is cleared here too.
+                // the gate cleared is cleared here too: the gate reads
+                // the pair's own directions only where a face's kind is
+                // off its roster, and so does this.
                 let axes = axes.of(x, y, band);
+                let off_roster = !boolean_arm_exists(y.proven_face(face).surface());
                 if crate::separating::apart(
                     (x, Item::Edge(edge_key)),
                     (y, Item::Face(face)),
@@ -1005,13 +1008,18 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     pad,
                     band,
                 ) || [edge.he_plus, edge.he_minus].into_iter().any(|he| {
-                    crate::separating::faces_apart(
-                        (x, x.face_of_linked(he)),
-                        (y, face),
-                        axes,
-                        pad,
-                        band,
-                    )
+                    let parent = x.face_of_linked(he);
+                    if off_roster || !boolean_arm_exists(x.proven_face(parent).surface()) {
+                        crate::separating::faces_apart((x, parent), (y, face), axes, pad, band)
+                    } else {
+                        crate::separating::apart(
+                            (x, Item::Face(parent)),
+                            (y, Item::Face(face)),
+                            axes,
+                            pad,
+                            band,
+                        )
+                    }
                 }) {
                     continue;
                 }

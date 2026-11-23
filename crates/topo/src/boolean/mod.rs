@@ -8014,8 +8014,9 @@ fn tangent_line<T: Decide>(
     // reading of the carriers.
     let pad = witness_pad::<T>(band);
     let extents = |across| {
+        let frame = geom::cover::BoxAxes::aimed(across);
         [(a, fa), (b, fb)].map(|(body, face)| {
-            crate::census::face_reach_toward(body, face, band, across)
+            crate::census::face_reach_in(body, face, band, &frame)
                 .map(|(lo, hi)| (lo.x - pad, hi.x + pad))
         })
     };
