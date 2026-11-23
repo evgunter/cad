@@ -45,3 +45,39 @@ Stage 1 measures, then stops and reports: which insertion rule loses no face lan
 **Letter H. Tier: dual review.** It changes the target of every chart-lane face and of every rim such a face shares, so every pinned count and digest on those faces moves, and it rests on a correction whose termination has no proof.
 
 It builds on unit 4b (the cylinder arm's rows) and unit 4c (the walk, which reads no headroom).
+
+## Stage 1, measured (2026-11-23), and the rulings on it
+
+Measured behind switches that did not ship, over the `mesh` suite with its slow set, `sweep`'s 131 modules that name the mesher and `step-import`, at ε `10⁻⁹`, `10⁻⁶` and `10⁻¹²`, with every chart-lane analytic face sized at δ (at `10⁻¹²`, `sweep`'s rule runs took the 50 tests that hold a chart-lane analytic face). Seven statements above it corrected; each correction stands.
+
+**The rule.** Faces lost on the certificate and the most rounds any face took (`mesh` / `sweep` / `step-import`), the same at all three ε:
+
+| point a triangle read over δ adds | faces lost | most rounds |
+|---|---|---|
+| its centroid | 0 | 3 / 7 / 0 |
+| the middle of its longest side that is no constraint | 0 | 3 / 7 / 0 |
+| the middle of its side, no constraint, whose own chord stands farthest from the surface | 0 | 3 / 2 / 0 |
+
+The centroid's 7 is one sphere face (`sweep` `snowman::two_cut_ins_on_one_face_build_in_either_order`), the longest side's 7 a bored cylinder wall (`sweep` `bisector_nodes`). With no correction, 10 meshings are lost at δ. No spline face in any suite takes a round. Of the rectangle lane's 24,767 faces one body reads over δ, `loops_the_meridian_guard_admits`' short spur, and no rule cures it within a small budget.
+
+**Work** (release, one thread, nothing else running, two repeats; `mesh` and `sweep`, ε `10⁻⁹`; time against the old sizing at δ/2):
+
+| chart | faces | time at δ | time at 0.9 δ | triangles at δ |
+|---|---|---|---|---|
+| cone | 452 | 0.52 | 0.56 | 0.50 |
+| cylinder | 1,819 | 0.74 | 0.75 | 0.71 |
+| sphere | 858 | 0.56 | 0.60 | 0.53 |
+| torus | 109 | 0.69 | 0.53 | 0.51 |
+
+80 faces (2.4%) take a round; 53 of them end coarser and cost more time than the old sizing (median 1.19 times, worst 2.6). A 0.9 δ first guess does not remove the corrected faces: 65 take a round, mostly other faces.
+
+**Folds.** Five meshings that mesh at δ/2 fold at δ, every one a tilted circle near a sphere's pole; the correction does not reach a fold (`a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm`).
+
+**Rulings** (the orchestrator, 2026-11-23):
+
+1. The third rule, on every row that triangulates, spline rows included, under its own budget `MAX_CORRECTION_ROUNDS` = 6, apart from `MAX_GRID_RETRIES`.
+2. Every chart sizes at δ. No family is sized finer. The torus at 0.9 δ is six faces of two bodies, filed as a measurement owed (`the-torus-arm-at-a-finer-first-guess-is-measured-on-two-bodies`).
+3. The 53 faces are within the owner's condition (the first guess is less work on every chart, and no round is run to get a coarser mesh); the question is put to the owner on PR 7486 and does not hold the build. The cheap round is its own unit (`a-correction-round-triangulates-and-certifies-the-whole-face-again`).
+4. The rectangle lane takes the same correction, with a row that forces an over-δ first guess on it. The spur cap keeps refusing, and its pin stays.
+5. The folds block this unit's landing, not its build: the fold's cure comes from `tesslane/join-split`, and the PR opens only when all five mesh.
+6. `the-trimmed-cylinder-lane-has-no-worst-triangle-theorem`, `the-trimmed-sphere-arm-has-no-worst-triangle-theorem` and `one-containment-lemma-for-an-oblique-boundary` close with this unit as not owed; `the-boundary-clearance-goes-to-half-a-step-with-the-boundary-run-bound` opens as a measurement.

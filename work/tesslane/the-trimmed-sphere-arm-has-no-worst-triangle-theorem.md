@@ -2,10 +2,11 @@
 id: the-trimmed-sphere-arm-has-no-worst-triangle-theorem
 kind: issue
 title: the trimmed lane's sphere arm has no worst-triangle theorem, so it sizes at UNPROVED_HEADROOM = ½ of δ
-status: open
+status: closed
 opened: 2026-10-28
 priority: P2
 cost: M
+closed: 2026-11-23
 ---
 
 
@@ -49,3 +50,10 @@ bounds by the lattice steps), giving the triangle's deviation
 for the step, and the factor goes.
 
 - 2026-11-14 — moved from TESSSIZE to TESSLANE by `git mv` when TESS and TESSSIZE merged into their successor TESSLANE (`docs/doc-ledger/tess-and-tesssize-leave-the-tracker.md`), id and body unchanged.
+
+
+## Closed (2026-11-23, `tesslane/certificate-decides`) — not owed
+
+`a-refused-certificate-adds-a-point-and-no-face-sizes-below-delta` deletes `UNPROVED_HEADROOM`: every chart-lane face sizes at δ from its chart's cell bound, and a triangle whose certificate reads over δ adds a point and the face is triangulated again, under its own round budget (`trimmed::MAX_CORRECTION_ROUNDS`, `crates/mesh/README.md` `[mesh.sizing]`). The bound this row asked for, on the triangle beside a trim chord, was owed only so that the step alone could hold that triangle; the certificate holds it now. Measured over the `mesh` suite, `sweep`'s meshing modules and `step-import` at ε `10⁻⁹`, `10⁻⁶` and `10⁻¹²`: no face is lost to the certificate, and no face takes more than 3 rounds.
+
+Two things stay true. **The correction's termination is a budget, not a proof**: nothing bounds the rounds a face needs, and a face past the budget refuses `CertificateExceeded`. **`a-cone-face-with-a-split-side-has-no-worst-triangle-theorem`** is a walked face, sized by the walk's own theorems, and this closing does not touch it.

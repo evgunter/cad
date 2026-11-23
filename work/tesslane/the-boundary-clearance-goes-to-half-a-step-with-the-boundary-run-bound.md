@@ -2,11 +2,10 @@
 id: the-boundary-clearance-goes-to-half-a-step-with-the-boundary-run-bound
 kind: unit
 title: BOUNDARY_CLEARANCE becomes half a step, the value nobody chooses, once a boundary run has its bound
-status: parked
+status: open
 opened: 2026-11-16
 priority: P2
 cost: M
-blocked_on: [one-containment-lemma-for-an-oblique-boundary]
 ---
 
 
@@ -26,3 +25,7 @@ The constant is not raised toward 1/2 in steps: each step buys refusals of faces
 ## Done when
 
 The constant is 1/2 and stated on the page as the rule's own value; the table is re-measured over every trimmed face the suite builds with no face refusing; the goldens that move are named with why each new mesh is right.
+
+## Unblocked (2026-11-23)
+
+`one-containment-lemma-for-an-oblique-boundary` closed as not owed: every chart-lane face sizes at δ and a triangle read over δ adds a point (`a-refused-certificate-adds-a-point-and-no-face-sizes-below-delta`, `trimmed::MAX_CORRECTION_ROUNDS`). So the clearance no longer waits on a bound. It becomes a measurement: at 1/2, over every trimmed face the suites build, how many faces refuse, how many correction rounds the larger triangles beside the boundary ask, and what that costs against 1/16. The measurement above was taken at the old headroom of a half; it is to be taken again at δ.
