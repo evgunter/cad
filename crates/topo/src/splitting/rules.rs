@@ -1290,24 +1290,21 @@ mod edge_view_review_probes {
         assert!(msg.contains(&format!("{}", EntityId::Edge(stale))), "{msg}");
     }
 
-    /// `validate::wraps` (read by boolean/insert.rs and sector_shape.rs
-    /// mid-run) reads the curve as a link: a torn one panics naming the
-    /// edge rather than answering "not a wrap".
+    /// `validate::wraps` is tier 2's reading too (`closed_by_tier`
+    /// through `wrap_tips`), on a body tier 1 may refuse: a torn curve
+    /// link reads "not a wrap" there, and tier 1 reports the link.
     #[test]
-    fn wraps_panics_on_a_torn_curve_link() {
+    fn wraps_reads_a_torn_curve_link_as_no() {
         let mut body = declined_cube::<f64>(Tol::witness()).body;
         let edge = body.edges().next().unwrap().0;
+        body.get_edge_mut(edge).unwrap().curve = CurveKey::default();
         assert!(
             !crate::validate::wraps(&body, edge),
-            "a cube edge is no wrap"
+            "no wrap, and no panic"
         );
-        body.get_edge_mut(edge).unwrap().curve = CurveKey::default();
-        let msg = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
-            let _ = crate::validate::wraps(&body, edge);
-        }));
         assert!(
-            msg.contains(&format!("{}'s curve names", EntityId::Edge(edge))),
-            "{msg}"
+            crate::validate::validate_closed(&body).is_err(),
+            "tier 1 reports the torn link"
         );
     }
 }

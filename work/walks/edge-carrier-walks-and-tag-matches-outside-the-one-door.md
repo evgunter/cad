@@ -131,8 +131,8 @@ selection predicate only.
 The curve arena is read raw only by readers that refuse or report
 their own miss on a body tier 1 has not vouched for, and the guard
 `live::tests::production_reads_an_edges_curve_only_through_the_view`
-lists them: `validate`'s `certified_carrier`, `closed_by_tier` and
-tier-3 local checks, `census/curved.rs`'s tangent read, `props`'s
+lists them: `validate`'s `certified_carrier`, `closed_by_tier`, `wraps`
+(tier 2's wrap reading) and tier-3 local checks, `census/curved.rs`'s tangent read, `props`'s
 `run_edges` (the raw mass-properties door: a removed curve is
 `Corrupt`), mesh's one `walk::edge_curve` (`tessellate` takes a body it
 does not re-validate and refuses a dangling key typed),

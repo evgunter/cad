@@ -2026,12 +2026,13 @@ fn wrong_key(&self, he: K, other: K, from: F) -> Result<Live, E> {
     fn production_reads_an_edges_curve_only_through_the_view() {
         use crate::policy_lane::origin_census::production;
         /// `(file under crates/, fn)`: the raw curve-arena readers.
-        const RAW: [(&str, &str); 10] = [
+        const RAW: [(&str, &str); 11] = [
             ("topo/src/body.rs", "get_curve_geom"),
             ("topo/src/live.rs", "curve"),
             ("topo/src/transform.rs", "map_isometry"),
             ("topo/src/validate.rs", "certified_carrier"),
             ("topo/src/validate.rs", "closed_by_tier"),
+            ("topo/src/validate.rs", "wraps"),
             ("topo/src/validate.rs", "tier3_local_checks_marked"),
             ("topo/src/census/curved.rs", "read"),
             ("topo/src/props.rs", "run_edges"),
