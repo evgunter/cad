@@ -41,14 +41,12 @@
 //!
 //! # The chart image is derived, and therefore checked
 //!
-//! The pcurve `P(t)` is not in the file. This lane derives it from foot
-//! points at the fixed schedule, on the carrier's own parameter (the OQ4
-//! identity: `P(t)` and `C(t)` are the same `t` by construction):
-//! beside a plane their degree-1 interpolant (`chart_image`); beside a
-//! curved partner, whose arc bends in the chart, the image the pcurve
-//! mint climbs to for the same carrier (`general_chart_image`), whose
-//! nodes depend on the band. Either is a **structure** selection in
-//! C6's `f64` lane, lifted to the caller's scalar, and certifies nothing
+//! The pcurve `P(t)` is not in the file. This lane derives it as the
+//! trace and the pcurve mint do (`crate::carrier_image`): the wall's
+//! foot path of the carrier, interpolated on the carrier's own knots and
+//! parameter (the OQ4 identity: `P(t)` and `C(t)` are the same `t` by
+//! construction), whatever the edge's other surface. It is a
+//! **structure** selection in C6's `f64` lane, lifted to the caller's scalar, and certifies nothing
 //! by itself. Limb 2 bounds `sup_t |S(P(t)) − C(t)|` over the whole
 //! span, so an image that wanders off the true foot path inside the
 //! wall's knot rectangle enlarges the bound it must pass. Limb 2 alone
@@ -1017,11 +1015,8 @@ pub(crate) fn is_residual_partner<T: Real>(s: &Surface<T>) -> bool {
 /// door: limbs 1 and 2 read the partner's implicit residual in metres
 /// and the wall's chart, and limb 3 is the chart tube read against the
 /// partner's form, the theorem the residual × NURBS search certifies its
-/// branch by. The wall's image of the carrier is not the plane lane's
-/// degree-1 interpolant, which misses an arc that bends in the chart by
-/// its chords' sag: it is the image the pcurve mint climbs to for the
-/// same carrier (`general_chart_image`), through the same schedule's
-/// feet. An interior sample's angle is between the partner's gradient at
+/// branch by. The wall's image of the carrier is the plane lane's
+/// (`crate::carrier_image`). An interior sample's angle is between the partner's gradient at
 /// the wall's foot and the wall's normal, its arm the shorter of the
 /// extent and either surface's curvature radius there.
 ///

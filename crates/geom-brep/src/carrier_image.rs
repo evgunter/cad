@@ -186,11 +186,11 @@ where
     }
 }
 
-fn mid<T: Bounds>(x: T) -> f64 {
+fn mid<T: Decide + Bounds>(x: T) -> f64 {
     geom::mid_param(x.lo(), x.hi())
 }
 
-fn mid3<T: Bounds>(v: Vec3<T>) -> Vec3<f64> {
+fn mid3<T: Decide + Bounds>(v: Vec3<T>) -> Vec3<f64> {
     Vec3::new(mid(v.x), mid(v.y), mid(v.z))
 }
 
@@ -320,7 +320,7 @@ where
 }
 
 /// The degree a carrier is imaged at.
-fn chain_degree<T: Bounds>(carrier: &Curve3<T>) -> usize {
+fn chain_degree<T: geom_core::Real>(carrier: &Curve3<T>) -> usize {
     match carrier {
         Curve3::Nurbs(net) => net.degree().max(IMAGE_DEGREE),
         _ => IMAGE_DEGREE,
@@ -331,7 +331,7 @@ fn chain_degree<T: Bounds>(carrier: &Curve3<T>) -> usize {
 /// interior knot at the multiplicity that keeps its continuity at the
 /// image's degree, and any other carrier's uniform spans. `None` where a
 /// spline's domain has no width.
-fn chain<T: Bounds>(carrier: &Curve3<T>, (t0, t1): (f64, f64)) -> Option<Vec<f64>> {
+fn chain<T: geom_core::Real>(carrier: &Curve3<T>, (t0, t1): (f64, f64)) -> Option<Vec<f64>> {
     let degree = chain_degree(carrier);
     let mut knots = vec![0.0; degree + 1];
     match carrier {

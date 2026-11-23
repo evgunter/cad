@@ -472,7 +472,7 @@ pub(super) fn arc_rim_tangent_under() -> bool {
 /// its measured miss: `Some(false)` for a carrier that is straight or a
 /// spline, which takes the degree-1 image unclimbed and whose refusal
 /// keeps its own term, and `Some(true)` for any other (its rows are
-/// `general_climb_rows`).
+/// `carrier_image_rows`).
 pub(crate) fn general_image_class_gate<T: Real>(carrier: &geom::Curve3<T>) -> Option<bool> {
     on("general-image-class-gate")
         .then(|| carrier.is_curved() && !matches!(carrier, geom::Curve3::Nurbs(_)))

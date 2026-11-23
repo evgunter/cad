@@ -179,13 +179,10 @@ impl<T: geom_core::Certifies> FittedLane<T> {
 
     /// **The chart image of a carrier on a NURBS wall.**
     ///
-    /// The producer is `edge_nurbs`'s: foot points at the D9-fixed
-    /// schedule, interpolated on the carrier's own parameter
-    /// (`pcurve_cache::general_image_lane`). The image is the degree-1 one
-    /// the edge certificate reads (`edge_nurbs::chart_image`) where its
-    /// miss between feet is within its share of `band`, and climbs
-    /// `edge_nurbs::general_chart_image`'s rungs where the foot path bends
-    /// past it, whatever the carrier's kind. It
+    /// The one image of a carrier on a wall (`crate::carrier_image`,
+    /// through `pcurve_cache::general_image_lane`): the wall's foot path
+    /// interpolated on the carrier's own knots, which the trace's
+    /// certificate and the edge certificate at rest read too. It
     /// is EVIDENCE and certifies nothing by itself; the caller's next
     /// move is [`crate::PcurveCache::certify_general`], which bounds
     /// `sup_t |S(P(t)) − C(t)|` over the whole span against the chart.
