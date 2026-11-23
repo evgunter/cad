@@ -336,6 +336,41 @@ fn an_elbow_whose_neutral_points_sit_between_the_stations_glues_a_junction() {
     }
 }
 
+/// **A hooked elbow that comes back into its pipe is never a wrong body**
+/// (R1's guard on PR 7432's second review): the axis 1.5 off the pipe's,
+/// turned −3π/2 and −5π/4 off the End cap, the rod and the pipe. The
+/// torus wall leaves the rim G1, so every wall pair on the rim glues a
+/// junction, then comes back round into the pipe's wall away from the
+/// rim. That crossing is the crossing layer's, which refuses it typed
+/// here; once the crossing layer reads it (PR 7471's top of the stack)
+/// the row owes a typed refusal or the hand-checked body, never a wrong
+/// one.
+#[test]
+fn a_hooked_elbow_that_comes_back_into_its_pipe_is_never_a_wrong_body() {
+    use topo::boolean::RimDoor;
+    for hollow in [false, true] {
+        for angle in [-1.5 * PI, -1.25 * PI] {
+            let what = format!("hollow {hollow}, turned {angle}");
+            let off = OffCap::Elbow {
+                axis_x: 1.5,
+                heading: -FRAC_PI_2,
+                angle,
+            };
+            let j = join(hollow, CapEnd::End, off);
+            let (walls, rest) = door(&j);
+            assert!(
+                !walls.is_empty() && walls.iter().all(|d| *d == RimDoor::Junction),
+                "{what}: every wall pair on the rim a junction: {walls:?}"
+            );
+            assert!(
+                rest.iter().all(|d| *d == RimDoor::NotTangent),
+                "{what}: every other pair meets at a corner: {rest:?}"
+            );
+            stops_at_the_crossing_layer(&j, &what);
+        }
+    }
+}
+
 /// The door's row for a pose bent away: `walls` pairs of a cylinder and a
 /// torus sharing a rim, each glued a junction, and no other pair glued.
 #[track_caller]
