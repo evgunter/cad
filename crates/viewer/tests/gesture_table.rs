@@ -113,7 +113,7 @@ use viewer::session::{
 /// `the_table_answers_for_every_op` checks the samples land on each
 /// exactly once — so a variant added without a sample fails, and one
 /// added without an answer does not compile.
-const OP_COUNT: usize = 63;
+const OP_COUNT: usize = 64;
 
 /// A document with a literal-driven extrude — a slot a gesture can
 /// actually open on, which the expression-driven fixture is not.
@@ -249,6 +249,9 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             name: "view1b-fresh".to_owned(),
         },
         SessionOp::AddProfile { loops: vec![] },
+        SessionOp::AddDatum {
+            space: pncad::document::VarId::WORLD,
+        },
         SessionOp::AddExtrude {
             profile: node,
             distance: len(0.01),
@@ -466,6 +469,7 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         SessionOp::AddMate { .. } => (27, false),
         SessionOp::NewDocument { .. } => (28, false),
         SessionOp::AddProfile { .. } => (30, false),
+        SessionOp::AddDatum { .. } => (63, false),
         SessionOp::AddExtrude { .. } => (31, false),
         SessionOp::AddRevolve { .. } => (32, false),
         SessionOp::AddBoolean { .. } => (33, false),
@@ -1031,6 +1035,7 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::NewDocument { .. }
         | SessionOp::DrawOnFace { .. }
         | SessionOp::AddProfile { .. }
+        | SessionOp::AddDatum { .. }
         | SessionOp::EditProfile { .. }
         | SessionOp::AddExtrude { .. }
         | SessionOp::AddRevolve { .. }

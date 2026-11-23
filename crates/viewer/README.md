@@ -1403,6 +1403,23 @@ chrome and leave a message where it is. `widgets::message_toned` adds
 the voice, through `app::toned`, so what `Advisory` looks like stays
 decided in one place.
 
+A kernel `Sentence` — a refusal, a finding, a notice, a relation entry,
+a heading that names a node — is drawn by `widgets::sentence`, on the
+same wrap: one galley, one section per run, so it breaks where its text
+would. Each mention `relations::link` answers for the document on
+screen (its id spelled in that document, and the document still
+holding it) wears the chrome's one link look (`widgets::message_link`
+wears it too), and a click on its characters selects it; any other
+mention is drawn as words. The sentence is a label over its galley, so
+it selects and copies as any message does. A `frame::Message`
+holds its `Sentence`, never its text, so the status line keeps its
+mentions; a refusal is said by the document it was raised in
+(`frame::refusal_speaker`), and a door that says one in no document is
+named so (`frame::frame_status_untargeted`,
+`frame::refusal_message_untargeted`). The feature tree scrolls the selected row
+into view when the selection changes from outside it, and not when the
+tree's own click changed it.
+
 The region is taken down to a floor and no further:
 `widgets::message_floor` is the widest number `readout::number`
 returns (`widgets::widest_number`, over `readout::widest_render`) and
@@ -2101,6 +2118,19 @@ is its preview.
   nothing, and a sweep of it refuses `EmptyProfile` at the sweep's own
   door. The editor's add-loop choices (circle, rectangle, path) are
   the templates.
+- **New plane**, **New axis** and **New frame** each insert a datum
+  (`SessionOp::AddDatum`, DESIGN `[placement.datums]`) into the selected
+  body's space, or the world with nothing selected, at its origin, and
+  open the placement editor on it with one mate row of that kind. The
+  datum is a frame whatever the button: a row's near side is the
+  datum's own xy plane, z axis, origin or frame (`matetool::datum_side`),
+  every pick fills its far side, and a fresh row opens flush rather than
+  turned to face it. A datum is drawn in its space as its xy plane's
+  square with its x and y axes and a z leg (`sketch::DATUM_HALF`), and
+  that square is picked under every tool rule but edges-only
+  (`PickedKind::Datum`): a datum picked whole fills a plane seat through
+  its xy plane (`PlaneSeats::feed`) and a mate's far side through the
+  role of the row's kind (`MateTool::pick_datum`).
 - **Place** on an unplaced body inserts its placement with no mates
   and opens the placement editor on it. Every mate is added there. A
   second Place of a body reads the source the first one does, so what
