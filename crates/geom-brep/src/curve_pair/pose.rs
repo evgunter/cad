@@ -2041,10 +2041,7 @@ pub(super) fn one_curve_gap<T: Decide>(e: &dyn Conic<T>, f: &dyn Conic<T>) -> T 
     let reach = |k: &dyn Conic<T>| k.speed_hi();
     // Each centre read through its conic, the mean of two antipodal
     // points.
-    let centre = |k: &dyn Conic<T>| {
-        let (p, q) = (k.point_at(T::zero()), k.point_at(T::pi()));
-        p + (q - p) * T::from_f64(0.5)
-    };
+    let centre = |k: &dyn Conic<T>| k.point_at(T::zero()).mid(k.point_at(T::pi()));
     let gap = (centre(e) - centre(f)).norm() + frame_gap(e, f).max(frame_gap(f, e));
     gap + geom_core::rounding_charge(reach(e) + reach(f) + gap)
 }

@@ -11,7 +11,7 @@ refs: [an-arc-held-ellipse-is-charged-a-centre-held-ones-resolution-and-hulls-it
 
 
 Found by the arc-held ladder of `oneround/conic-pair-readers`
-(`crates/geom-brep/src/curve_pair/ladder_rows.rs`, judged by
+(`analysis/oneround/conic-pair-readers/ladder.rs`, judged by
 `analysis/oneround/conic-pair-readers/oracle.py` at 60 digits against the
 curve the stored numbers state), after every reader in `curve_pair` that
 read the derived centre was re-posed from the stored point.

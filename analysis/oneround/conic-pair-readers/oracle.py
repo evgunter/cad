@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The arc-held ladder's oracle (`crates/geom-brep/src/curve_pair/ladder_rows.rs`).
+"""The arc-held ladder's oracle (`ladder.rs` beside it).
 
 The truth is the curve the STORED numbers state,
 `S + a*u*(cos t - kc) + b*(axis x u)*(sin t - ks)`, evaluated at 60 digits

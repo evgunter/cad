@@ -3,15 +3,15 @@
 //! semi-axes `1e4` to `1e9`, near the anchor and far from it, each pose
 //! also planted apart by `10ε` and `1000ε`, at `f64` and at `Interval`.
 //!
-//! A measurement, not a gate: it writes one JSON line per reading to
-//! `$CONIC_LADDER_OUT/ladder-eps<ε>.jsonl`, every stored number in its
-//! shortest round-trip form, and the 60-digit oracle
-//! (`analysis/oneround/conic-pair-readers/oracle.py`) judges each line
-//! against the curve the stored numbers state. Run with
-//! `CONIC_LADDER_OUT=<dir> CAD_TOLERANCE_EPS=<ε> cargo nextest run -p
-//! geom-brep --run-ignored only the_arc_held_ladder`.
+//! A measurement, kept beside its oracle and never built in the tree: it
+//! writes one JSON line per reading to `$CONIC_LADDER_OUT/ladder-eps<ε>.jsonl`,
+//! every stored number in its shortest round-trip form, and the 60-digit
+//! oracle (`oracle.py`, beside it) judges each line against the curve the
+//! stored numbers state. Run by dropping it into `crates/geom-brep/examples/`:
+//! `CONIC_LADDER_OUT=<dir> CAD_TOLERANCE_EPS=<ε> cargo run -p geom-brep
+//! --features test-support --example ladder`, then `oracle.py <dir>/ladder-eps<ε>.jsonl`.
 
-#![allow(clippy::unwrap_used, clippy::expect_used)]
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::disallowed_methods)]
 
 use std::fmt::Write as _;
 use std::io::Write as _;
@@ -19,7 +19,7 @@ use std::io::Write as _;
 use geom::{Conic, Curve3, CurveData, DatumValue, Ellipse, Frame, Surface};
 use geom_core::{Band, Interval, Point3, Tol, Vec3};
 
-use super::{Span, meet};
+use geom_brep::curve_pair::{MeetRefusal, Meetings, Span, meet};
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
@@ -47,9 +47,9 @@ fn mint(alpha: f64, tau: f64, gap: f64, apex: Point3<f64>) -> Option<Ellipse<f64
     let plane = Surface::Plane {
         frame: Frame::new(apex + ez * gap, n, ey),
     };
-    let reach = crate::Reach::fixture(apex, 10.0);
-    match crate::intersect::plane_cone_section(&plane, &cone, &reach, band()) {
-        Ok(crate::intersect::PlaneConeSection::TiltedEllipse(Curve3::Ellipse(e))) => Some(e),
+    let reach = geom_brep::Reach::fixture(apex, 10.0);
+    match geom_brep::intersect::plane_cone_section(&plane, &cone, &reach, band()) {
+        Ok(geom_brep::intersect::PlaneConeSection::TiltedEllipse(Curve3::Ellipse(e))) => Some(e),
         _ => None,
     }
 }
@@ -123,7 +123,7 @@ fn stored(e: &Ellipse<f64>) -> String {
 
 /// A reading as JSON: its kind and its points' parameters.
 fn reading<T: geom_core::Decide>(
-    got: &Result<super::Meetings<T>, super::MeetRefusal<T>>,
+    got: &Result<Meetings<T>, MeetRefusal<T>>,
     (a, b): (&Span<'_, T>, &Span<'_, T>),
     mid: impl Fn(T) -> f64,
 ) -> String {
@@ -152,9 +152,7 @@ fn reading<T: geom_core::Decide>(
     }
 }
 
-#[test]
-#[ignore = "a measurement: writes the ladder for the oracle (module docs)"]
-fn the_arc_held_ladder() {
+fn main() {
     let dir = std::env::var("CONIC_LADDER_OUT").expect("set CONIC_LADDER_OUT to a directory");
     let band = band();
     let eps = band.zero();

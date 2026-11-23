@@ -16,7 +16,7 @@ these are refusals where the base answered rightly, measured on the two
 ladders under `analysis/oneround/conic-pair-readers/`.
 
 - **`curve_pair_pose_level_arc` at `Interval`** (the line door in the
-  ellipse's plane, `ladder_rows.rs`): `Slant::read`
+  ellipse's plane, `analysis/oneround/conic-pair-readers/ladder.rs`): `Slant::read`
   (`crates/geom-brep/src/curve_pair/pose.rs`) takes the `|R| ≤ e` arc's
   ends from `Height::roots(±e)` and reads its width up `θ` within a turn,
   `up − τ·⌊up/τ⌋`; where `up`'s enclosure reaches below zero the floor

@@ -693,8 +693,11 @@ fn anchored_roots<T: Decide>(h: T, p: T, q: T, (c0, s0): (T, T)) -> [T; 2] {
     // The anchor's anomaly within half a turn of the seam, `0` itself
     // at the seam's own vertex.
     let theta0 = Azimuth::of(s0, c0).near(T::zero());
-    // `2·atan(num/den)`, read as one angle so no quotient is formed.
-    let angle = |num: T, den: T| theta0 + (two * num * den).atan2(den.powi(2) - num.powi(2));
+    // `2·atan(num/den)`, read as one direction so no quotient is formed,
+    // within half a turn of the anchor.
+    let angle = |num: T, den: T| {
+        theta0 + Azimuth::of(two * num * den, den.powi(2) - num.powi(2)).near(T::zero())
+    };
     let (r1, r2) = (angle(w, a2), angle(h, w));
     // The falling one first: where `dH/dθ = q·cos θ − p·sin θ` is negative.
     let slope = |t: T| {
