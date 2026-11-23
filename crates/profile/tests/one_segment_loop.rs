@@ -69,7 +69,7 @@ fn a_one_segment_circle_validates_with_its_carrier_verbatim() {
             bits(&seg.end),
             "the segment closes on its vertex"
         );
-        let SegmentKind::Arc { arc, turn: got } = seg.kind else {
+        let SegmentKind::Arc { arc, turn: got, .. } = seg.kind else {
             panic!("a full turn is an arc, got {:?}", seg.kind);
         };
         // Canonical outers run counterclockwise: the clockwise input is
@@ -95,7 +95,7 @@ fn a_one_segment_circle_validates_at_interval_and_lifts_verbatim() {
         .lift_onto(SketchPlane::<Interval>::xy())
         .expect("the xy plane is finite");
     for vp in [&vi, &lifted] {
-        let SegmentKind::Arc { arc, turn } = vp.loops()[0].segments()[0].kind else {
+        let SegmentKind::Arc { arc, turn, .. } = vp.loops()[0].segments()[0].kind else {
             panic!("an arc");
         };
         let lohi = |x: Interval| (x.lo(), x.hi());

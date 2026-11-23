@@ -1733,8 +1733,10 @@ fn skin_strips<T: SpanLocate>(
 /// slabs holds its first section's point throughout; and in each section
 /// of the run strip `j − 1` ends on the point strip `j` starts on.
 /// Where `joint(l, j, i, s)`, strip `j`'s sub-arc joint `i` (its `i`-th
-/// C⁰ knot, [`crease_columns`]) holds its section-`s` point the same way,
-/// so the two walls the loft cuts there each have a collapsed side.
+/// C⁰ knot, at control column `columns[l][j][i]`, the stacking door's
+/// one reading of [`crease_columns`]) holds its section-`s` point the
+/// same way, so the two walls the loft cuts there each have a collapsed
+/// side.
 ///
 /// # Errors
 ///
@@ -1744,6 +1746,7 @@ fn pin_strips<T: SpanLocate>(
     strips: &mut [Vec<Vec<NurbsCurve3<T>>>],
     pinned: &dyn Fn(usize, usize, usize) -> bool,
     joint: &dyn Fn(usize, usize, usize, usize) -> bool,
+    columns: &[Vec<Vec<usize>>],
 ) -> Result<(), SkinError> {
     let with_point = |c: &NurbsCurve3<T>, at: usize, p: Point3<T>| {
         let mut control = c.control().to_vec();
@@ -1766,12 +1769,7 @@ fn pin_strips<T: SpanLocate>(
                     lp[prev][section] = with_point(&lp[prev][section], last, point)?;
                 }
             }
-            let columns: Vec<usize> = lp[j]
-                .first()
-                .and_then(|c| crease_columns(c.knot_values()))
-                .map(|js| js.into_iter().map(|(_, c)| c).collect())
-                .unwrap_or_default();
-            for (i, &at) in columns.iter().enumerate() {
+            for (i, &at) in columns[l][j].iter().enumerate() {
                 for s in 0..k.saturating_sub(1) {
                     if !joint(l, j, i, s) {
                         continue;
@@ -1796,7 +1794,9 @@ fn pin_strips<T: SpanLocate>(
 /// such a run holds the corner as its first section's stored point
 /// ([`pin_strips`]), so each wall beside it has a collapsed side;
 /// `joint(l, j, i, s)` is the door's verdict on strip `j`'s sub-arc joint
-/// `i`, written the same way.
+/// `i`, written the same way at control column `columns[l][j][i]`, the
+/// door's own reading of the joints (`loft::strip_joints`, which refuses
+/// a strip whose joints do not read).
 pub(crate) fn skin_validated<T: SpanLocate>(
     validated: Vec<ValidatedProfile<T>>,
     places: &[SketchPlane<T>],
@@ -1804,9 +1804,10 @@ pub(crate) fn skin_validated<T: SpanLocate>(
     params: Option<&[f64]>,
     pinned: &dyn Fn(usize, usize, usize) -> bool,
     joint: &dyn Fn(usize, usize, usize, usize) -> bool,
+    columns: &[Vec<Vec<usize>>],
 ) -> Result<LoftGeometry<T>, SkinError> {
     let mut compat = compatible_strips(&validated, places)?;
-    pin_strips(&mut compat, pinned, joint)?;
+    pin_strips(&mut compat, pinned, joint, columns)?;
     let params = match params {
         Some(params) => params.iter().map(|v| T::from_computed(*v)).collect(),
         None => strip_parameters(&compat)?,

@@ -1685,7 +1685,7 @@ mod tests {
     /// The second half is a pin on a known shortfall, held from both
     /// sides: red if it gets worse than `8 u·a`, and red if it becomes
     /// arc-scale, which is what
-    /// `work/oneround/a-section-conic-is-anchored-at-a-general-point-of-its-arc.md`
+    /// `work/conic/a-section-conic-is-anchored-at-a-general-point-of-its-arc.md`
     /// closes (parameter zero kept at the anchor through a re-seam); the
     /// unit that does it turns this half over.
     #[test]

@@ -162,11 +162,10 @@ fn n1r1_curve2_lift_matches_source() {
     }
 }
 
-/// A described net with ONE poisoned control point lifts to a described
-/// net (never the benign placeholder), and `is_placeholder` answers the
-/// same before and after the lift.
+/// A described net with ONE poisoned control point poisons the lifted
+/// curve at exactly the parameters it poisons the source.
 #[test]
-fn n1r1_partly_poisoned_net_is_not_the_placeholder() {
+fn n1r1_partly_poisoned_net_lifts_its_poison() {
     let knots = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
     let control = vec![
         Point3::new(2.0, 0.0, 0.0),
@@ -175,15 +174,7 @@ fn n1r1_partly_poisoned_net_is_not_the_placeholder() {
     ];
     let weights = vec![1.0, 1.0, 1.0];
     let c = NurbsCurve3::new(knots, control, weights).unwrap();
-    assert!(
-        !c.is_placeholder(),
-        "source: one poison point is not the placeholder"
-    );
     let cd: NurbsCurve3<Dual64> = c.map_scalar(Dual::constant);
-    assert!(
-        !cd.is_placeholder(),
-        "a partly-poisoned described net lifted to the benign placeholder"
-    );
     // At t = 1 the poisoned control point has zero basis weight, but the
     // evaluator's fixed association still touches it, so poison is
     // permitted to spread; what must NOT happen is silent finiteness at
@@ -200,10 +191,6 @@ fn n1r1_partly_poisoned_net_is_not_the_placeholder() {
             assert_eq!(p.x.value.to_bits(), q.x.to_bits(), "t={t}");
         }
     }
-    // The placeholder itself survives the lift at the enum level.
-    let ph: Curve3<f64> = Curve3::nurbs_placeholder();
-    let phd: Curve3<Dual64> = ph.map_scalar(Dual::constant);
-    assert!(matches!(&phd, Curve3::Nurbs(n) if n.is_placeholder()));
 }
 
 /// A surface lift: value, both first partials, both second partials and
@@ -392,13 +379,10 @@ mod interval_probes {
         assert_eq!(a.z.value.hi().to_bits(), b.z.value.hi().to_bits());
     }
 
-    /// The placeholder lifts to the placeholder at the INTERVAL scalar
-    /// too — the lane's row only covers the dual lane.
+    /// The surface placeholder lifts to the placeholder at the INTERVAL
+    /// scalar too — the lane's row only covers the dual lane.
     #[test]
     fn n1r1_placeholder_lifts_to_placeholder_at_interval() {
-        let ph: Curve3<f64> = Curve3::nurbs_placeholder();
-        let phi: Curve3<Interval> = ph.map_scalar(Interval::from_f64);
-        assert!(matches!(&phi, Curve3::Nurbs(n) if n.is_placeholder()));
         let sph: Surface<f64> = Surface::nurbs_placeholder();
         let sphi: Surface<Interval> = sph.map_scalar(Interval::from_f64);
         assert!(matches!(&sphi, Surface::Nurbs(n) if n.is_placeholder()));

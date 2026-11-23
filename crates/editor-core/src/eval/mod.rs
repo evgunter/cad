@@ -1758,6 +1758,19 @@ pub enum NodeErrorKind {
         /// The empty half.
         half: crate::names::SplitHalf,
     },
+    /// **A read of a split's half where the split's target is a
+    /// family** (D10 `[repetition]`): the split is evaluated once per
+    /// member, so its value is a family of splits and no single half
+    /// stands for the read. The repair is to split one member,
+    /// `xs[i]`, and read that split's half.
+    HalfOfAFamily {
+        /// The read of the half.
+        read: crate::VarId,
+        /// The split whose half was read.
+        input: RecipeNodeId,
+        /// The half read.
+        half: crate::names::SplitHalf,
+    },
     /// An indexed read `xs[i, j]` whose index leaves the family's
     /// range (D10 `[repetition]`): the read is unresolved, typed. A
     /// negative index lands here too — the index is neither wrapped nor
@@ -2421,6 +2434,16 @@ impl crate::spoken::Say for NodeErrorKind {
                     findings.render(geom_brep::recourse::Reading::AtRest)
                 )
             }
+            Self::HalfOfAFamily { read, input, half } => write!(
+                f,
+                "{read} reads the {} half of {}, whose target is a family: a split of a family \
+                 is one split per member, and no one half stands for the read. {}",
+                half.name(),
+                by.node(*input),
+                crate::sentence::Recourse(format_args!(
+                    "split one member (`xs[i]`) and read that split's half"
+                ))
+            ),
             Self::EmptyHalf { input, half } => write!(
                 f,
                 "the split's {} half ({}) holds no material",
@@ -3701,6 +3724,12 @@ where
         self.value.exactly_zero()
     }
 
+    /// The value and the derivative both zero everywhere: a value zero
+    /// only at the seed's point is no zero of the function.
+    fn zero_everywhere(self) -> bool {
+        self.value.zero_everywhere() && self.deriv.zero_everywhere()
+    }
+
     fn solve_atan2(y: Self, x: Self) -> Self {
         let angle = geom_core::Real::atan2(y, x);
         Self {
@@ -3729,6 +3758,16 @@ where
     }
 
     fn exactly_zero(self) -> bool {
+        self.value.exactly_zero()
+    }
+
+    /// **A box lane's point zero, never a point lane's number**: at
+    /// `Sym<Interval>` the enclosure `[0, 0]`, which holds over the whole
+    /// box the lane claims over; at `Sym<f64>` never, since the replay's
+    /// claim ranges over every value of the symbols and the number is the
+    /// nominal's alone (DESIGN `[scalars]`). The form's own zero is the
+    /// follow-up (BOXFINISH's EX1, `Expression::proves_zero`).
+    fn zero_everywhere(self) -> bool {
         self.value.exactly_zero()
     }
 

@@ -682,9 +682,8 @@ fn rim_radii(body: &topo::Body<Lane>, face: FaceKey) -> Vec<Lane> {
         .filter_map(|he| {
             let he = body.get_half_edge(he)?;
             match body
-                .get_edge(he.edge)
-                .and_then(|e| body.get_curve_geom(e.curve))
-                .and_then(topo::CurveGeom::certified)
+                .edge(he.edge)
+                .and_then(topo::EdgeView::certified)
                 .map(geom_brep::EdgeCurve::carrier)
             {
                 Some(geom::Curve3::Circle(circle)) => {

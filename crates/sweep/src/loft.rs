@@ -175,7 +175,8 @@ pub struct Lofted<T: topo::AtRestPolicy, B = <T as topo::AtRestPolicy>::Leaf> {
     /// `joints[l][j][q][s]` is the seam between segment `j`'s
     /// sub-arc walls `q` and `q + 1` across slab `s`, the `u = 0`
     /// boundary iso of wall `q + 1`. It is a crease in general: smooth
-    /// only where every row holds one arc's joint, as a sweep's do
+    /// where every section's joint there is one of arcs of one sweep
+    /// (one weight), as a sweep's are, or at v-degree 1
     /// (`crates/sweep/README.md`, the sub-arc walls). Empty for a
     /// segment of one wall;
     /// `None` where the segment is held flat in the slab, its joints
@@ -256,7 +257,7 @@ pub enum LoftError {
     Skin(SkinError),
     /// An Euler operator or certified attach refused mid-assembly
     /// (D4 ¶2 reports surface inside
-    /// [`EulerOpError::Certification`]).
+    /// [`EulerOpError::DescriptionUncertified`]).
     Euler(EulerOpError),
     /// The whole-body pcurve mint pass refused: a wall boundary's
     /// exact line-in-UV image failed its certification.
@@ -1032,6 +1033,7 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> LoftBuild<'_, T, L> {
             self.params,
             &|l, j, s| pinned.at(l, j, s),
             &|l, j, i, s| pinned.joint_at(l, j, i, s),
+            &joints,
         )
         .map_err(LoftError::Skin)?;
         assemble(
@@ -1144,6 +1146,7 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> ProjectiveSplit<T> for L
             self.params,
             &|l, j, s| pinned.at(l, j, s),
             &|l, j, i, s| pinned.joint_at(l, j, i, s),
+            &joints,
         )
         .map_err(LoftError::Skin)?;
         let walls = geometry
@@ -1310,7 +1313,7 @@ fn segment_pieces<T: geom_core::spline::SpanLocate>(
     }
     let piece = |a: Point2<T>, b: Point2<T>, kind| SweptSeg { a, b, kind, ..seg };
     match seg.kind.get() {
-        profile::SegmentKind::Line => {
+        profile::SegmentKind::Line { .. } => {
             let at = |u: f64| seg.a + (seg.b - seg.a) * T::from_f64(u);
             let points: Vec<Point2<T>> = core::iter::once(seg.a)
                 .chain(cuts.iter().map(|&u| at(u)))
@@ -1321,7 +1324,11 @@ fn segment_pieces<T: geom_core::spline::SpanLocate>(
                 .map(|w| piece(w[0], w[1], seg.kind))
                 .collect())
         }
-        profile::SegmentKind::Arc { arc, .. } => {
+        profile::SegmentKind::Arc {
+            arc,
+            radials: [start_radial, end_radial],
+            ..
+        } => {
             // The skin decided the sub-arc count over the sweep's bracket
             // (`segment_curve`) before this arc reached a wall, so a
             // sweep with no bracket here is the two disagreeing.
@@ -1351,21 +1358,33 @@ fn segment_pieces<T: geom_core::spline::SpanLocate>(
                 .chain(core::iter::once(Ok(T::one())))
                 .collect::<Result<_, _>>()?;
             let last = fractions.len() - 2;
+            // The unit radial at a cut: the start radial turned by the
+            // cut's angle, the rotation `point_from` applies about a
+            // unit circle at the origin, so nothing divides.
+            let unit = geom_core::Arc2 {
+                centre: Point2::new(T::zero(), T::zero()),
+                radius: T::one(),
+                ..arc
+            };
+            let radial_at = |f: T| {
+                unit.point_from(Point2::new(start_radial.x, start_radial.y), f)
+                    - Point2::new(T::zero(), T::zero())
+            };
             Ok(fractions
                 .windows(2)
                 .enumerate()
                 .map(|(i, f)| {
-                    let a = if i == 0 {
-                        seg.a
+                    let (a, ra) = if i == 0 {
+                        (seg.a, start_radial)
                     } else {
-                        arc.point_from(seg.a, f[0])
+                        (arc.point_from(seg.a, f[0]), radial_at(f[0]))
                     };
-                    let b = if i == last {
-                        seg.b
+                    let (b, rb) = if i == last {
+                        (seg.b, end_radial)
                     } else {
-                        arc.point_from(seg.a, f[1])
+                        (arc.point_from(seg.a, f[1]), radial_at(f[1]))
                     };
-                    piece(a, b, seg.kind.part(arc.sweep * (f[1] - f[0])))
+                    piece(a, b, seg.kind.part(arc.sweep * (f[1] - f[0]), [ra, rb]))
                 })
                 .collect())
         }
@@ -1393,7 +1412,12 @@ fn describe_section_rim<T: Decide + topo::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<(), LoftError> {
-    let spec = body.stored_curve(edge)?.restated_spec();
+    let Some(curve) = body.edge(edge).and_then(topo::EdgeView::certified) else {
+        unreachable!(
+            "an interior section's rim {edge:?} is a certified edge the loft minted and still holds"
+        )
+    };
+    let spec = curve.restated_spec();
     let EdgeDescriptionSpec::Scaffold(declared) = spec.description else {
         unreachable!(
             "an interior section's rim is minted through the scaffolding door, and only this \
@@ -2021,7 +2045,7 @@ fn profile_all<T: Real>(profile: &ValidatedProfile<T>, holds: impl Fn(T) -> bool
                 point_all(&s.start, holds)
                     && point_all(&s.end, holds)
                     && match &s.kind {
-                        profile::SegmentKind::Line => true,
+                        profile::SegmentKind::Line { .. } => true,
                         profile::SegmentKind::Arc { arc, .. } => arc_all(arc, holds),
                     }
             })

@@ -809,14 +809,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     // a hollow tube, so one handle.
     let census = euler_counts(&top);
     assert_eq!(
-        (
-            census.v,
-            census.e,
-            census.f,
-            census.r,
-            census.s,
-            census.genus()
-        ),
+        (census.v, census.e, census.f, census.r, census.s, census.h()),
         (16, 24, 10, 2, 1, Ok(1)),
         "the loop is one genus-1 shell of 10 faces; got {census:?}"
     );

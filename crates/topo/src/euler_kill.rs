@@ -316,11 +316,11 @@ use crate::entity::{
 };
 #[cfg(debug_assertions)]
 use crate::euler::ArenaDelta;
-use crate::euler::RechartDoor;
 use crate::euler::{
     Clearing, EulerOpError, FaceSurface, KillAnchor, KillInto, KillRun, ParentSide, ProvenMate,
     Records, RunExtent, shared_loop,
 };
+use crate::euler::{EdgeSubject, RechartDoor};
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::joint::JointElement;
 use crate::live::{Arg, Live, dangling_link, link, linked, lookup, proven};
@@ -821,9 +821,7 @@ impl<T: Decide> Body<T> {
         // whole: the band decides each one's turn, which a closed carrier
         // (two vertices at one point) has.
         if plan.unsplice == KevUnsplice::General && plan.turns == [None; 2] {
-            let band = geom_core::Band::linear(tol).map_err(|e| EulerOpError::Certification {
-                error: geom_brep::CertifyError::Band(e),
-            })?;
+            let band = geom_core::Band::linear(tol).map_err(EulerOpError::Band)?;
             for (slot, half) in [plan.he, plan.m].into_iter().enumerate() {
                 plan.turns[slot] =
                     crate::pcurves::turn_element(self, half, band).map_err(|diag| {
@@ -984,11 +982,7 @@ impl<T: Decide> Body<T> {
         };
         // A null edge is a point: crossing one of its halves whole moves
         // nothing.
-        let turns = if self
-            .edge_curve_linked(edge, edge_data)
-            .null_scaffold()
-            .is_some()
-        {
+        let turns = if self.proven_edge(edge).curve().null_scaffold().is_some() {
             [Some(JointElement::IDENTITY); 2]
         } else {
             [None; 2]
@@ -1227,23 +1221,17 @@ impl<T: Decide> Body<T> {
             listed.push(edge);
             self.check_description_adjacent(edge, &spec.description)?;
             let (p_start, p_end) = self.rebased_endpoints(edge, &plan.fan, survivor_point());
-            let curve = self
-                .certify_edge_spec(
-                    crate::policy_lane::Origin::Callers,
-                    Some(edge),
-                    None,
-                    spec.clone(),
-                    p_start,
-                    p_end,
-                    crate::edge_faces(self, edge),
-                    tol,
-                )
-                .map_err(|e| match e {
-                    EulerOpError::Certification { error } => {
-                        EulerOpError::RebasedCarrier { edge, error }
-                    }
-                    other => other,
-                })?;
+            let curve = self.certify_edge_spec(
+                crate::policy_lane::Origin::Callers,
+                EdgeSubject::Keyed(edge),
+                Some(edge),
+                None,
+                spec.clone(),
+                p_start,
+                p_end,
+                crate::edge_faces(self, edge),
+                tol,
+            )?;
             certified.push((edge, curve));
         }
         if self.kev_merge_moves(plan) && listed.len() < plan.members.len() {
@@ -1421,12 +1409,8 @@ impl<T: Decide> Body<T> {
         site: impl Fn(&Self, FaceKey) -> SiteFace<T>,
         tol: Option<Tol>,
     ) -> Result<Vec<SiteRows<T>>, EulerOpError> {
-        let edge_data = proven(&self.edges, edge, EntityId::Edge);
-        if self
-            .edge_curve_linked(edge, edge_data)
-            .null_scaffold()
-            .is_none()
-        {
+        let edge_data = self.proven_edge(edge);
+        if edge_data.curve().null_scaffold().is_none() {
             return Ok(Vec::new());
         }
         self.plan_site_mint_of(
@@ -2734,8 +2718,8 @@ mod tests {
         assert!(
             matches!(
                 err,
-                EulerOpError::RebasedCarrier {
-                    edge,
+                EulerOpError::DescriptionUncertified {
+                    edge: EdgeSubject::Keyed(edge),
                     error: geom_brep::CertifyError::ResidualExceeded { .. },
                 } if edge == seg.edge
             ),
@@ -2767,7 +2751,7 @@ mod tests {
             body.kev_describing(strut.he_minus, &[(seg.edge, spec)], Tol::witness())
                 .map(|_| ()),
             Err(EulerOpError::DescriptionNotAdjacent {
-                edge: Some(seg.edge)
+                edge: EdgeSubject::Keyed(seg.edge)
             })
         );
         assert_eq!(deep_snapshot(&body), before);
@@ -3641,7 +3625,7 @@ mod tests {
         // Euler–Poincaré at genus 0 with one ring left (the hole's top
         // rim): v − e + f − r = 16 − 24 + 11 − 1 = 2 = 2(1 − 0).
         let counts = euler_counts(&body);
-        assert_eq!((counts.r, counts.f, counts.genus()), (1, 11, Ok(0)));
+        assert_eq!((counts.r, counts.f, counts.h()), (1, 11, Ok(0)));
         let plug = body.kfmrh(bottom_face, created.face).unwrap();
         assert_eq!(validate(&body), Ok(()));
         assert_eq!(plug.ring, t.plug.ring);

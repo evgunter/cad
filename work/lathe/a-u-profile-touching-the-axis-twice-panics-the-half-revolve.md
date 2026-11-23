@@ -2,10 +2,13 @@
 id: a-u-profile-touching-the-axis-twice-panics-the-half-revolve
 kind: issue
 title: a half revolve of a profile touching its axis along two separate runs panics (unreachable!: a kernel driver passed an Euler operator a bad argument) instead of building or refusing
-status: open
+status: closed
 opened: 2026-11-22
 priority: P1
 cost: M
+closed: 2026-11-23
+pr: 7422
+branch: lathe/u-profile-half-revolve
 ---
 
 
