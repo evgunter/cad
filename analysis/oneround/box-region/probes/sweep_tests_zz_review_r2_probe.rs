@@ -598,3 +598,80 @@ fn review_r2_a_slender_frustum_at_the_origin() {
         }
     }
 }
+
+/// DELTA PROBE: a ring torus cut by a bar. The piece's torus faces are
+/// bounded by spiric edges; does such a face read a window? Stood so the
+/// piece is inside the box and the torus's tube pokes out of it.
+#[test]
+fn review_r2_delta_a_bar_cut_ring_torus_piece_near_the_wall() {
+    use sweep::test_support::{brick, finished, revolved_about_y};
+    let tol = Tol::witness();
+    let (big_r, r) = (700.0, 50.0);
+    let torus = revolved_about_y(
+        vec![
+            (Point2::new(big_r - r, 0.0), 1.0),
+            (Point2::new(big_r + r, 0.0), 1.0),
+        ],
+        Revolution::Full,
+        tol,
+    );
+    let moved = topo::transform_rigid(
+        &torus,
+        &RigidMotion::translation(Vec3::new(0.0, 300.0, 0.0)).unwrap(),
+    )
+    .unwrap();
+    let torus = finished("the torus", moved, tol);
+    let bar = finished(
+        "the bar",
+        brick::<f64>((100.0, 400.0), (200.0, 400.0), (400.0, 800.0), tol),
+        tol,
+    );
+    let cut = match topo::intersect(&torus, &bar, tol) {
+        Ok(topo::BooleanResult::Body(b)) => b.body,
+        other => {
+            println!("CUT: intersect gave {other:?}");
+            return;
+        }
+    };
+    let far = |b: &topo::Body<f64>| {
+        b.vertex_points()
+            .map(|(_, q)| q.x.abs().max(q.y.abs()).max(q.z.abs()))
+            .fold(0.0, f64::max)
+    };
+    println!("CUT at home: vertices reach {:.3}; gate {}", far(&cut), gate_word(&cut, tol));
+    // The piece lies in the bar: x in [100, 400], y in [200, 400], z in
+    // [400, 800]. The torus's tube reaches |x|, |z| <= 750, y in [250, 350].
+    for (dx, dz) in [(0.0, 0.0), (200.0, 0.0), (300.0, 0.0), (400.0, 0.0), (0.0, 150.0), (0.0, 195.0)] {
+        let at = RigidMotion::translation(Vec3::new(dx, 0.0, dz)).unwrap();
+        let image = topo::transform_rigid(&cut, &at).unwrap();
+        println!(
+            "CUT moved ({dx}, 0, {dz}): the bar's far coordinate {}, the tube's {}, vertices {:.3}: gate {}",
+            (400.0 + dx).max(800.0 + dz),
+            (750.0 + dx).max(750.0 + dz),
+            far(&image),
+            gate_word(&image, tol).chars().take(170).collect::<String>()
+        );
+    }
+}
+
+/// DELTA PROBE: the slender frustum and seamless-band claims, at the gate.
+#[test]
+fn review_r2_delta_how_an_uncovered_face_is_said() {
+    let tol = Tol::witness();
+    // A ball wedge as before, the sentence of the limit.
+    let wedge = try_revolved_about_y_at::<f64>(
+        vec![(Point2::new(0.0, -30.0), 1.0), (Point2::new(0.0, 30.0), 0.0)],
+        Revolution::Partial(1.1),
+        tol,
+    )
+    .unwrap();
+    let band = geom_core::Band::linear(tol).unwrap();
+    let turn = RigidMotion::rotation(
+        UnitVec3::new(Vec3::new(0.0, 1.0, 0.0), "y", band).unwrap(),
+        core::f64::consts::PI,
+    )
+    .unwrap();
+    let at = RigidMotion::translation(Vec3::new(990.0, 0.0, 0.0)).unwrap().compose(turn).unwrap();
+    let image = topo::transform_rigid(&wedge, &at).unwrap();
+    println!("WEDGE: {}", gate_word(&image, tol));
+}

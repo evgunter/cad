@@ -1,0 +1,118 @@
+== mutant 0
+     Summary [ 146.055s] 313 tests run: 313 passed (2 slow), 12249 skipped
+== mutant 1
+  FAIL topo boolean::ops::tests::nurbs_faces_refuse_typed_at_both_doors
+  FAIL topo session_box::tests::a_face_with_no_cover_refuses_at_the_gate_alone_by_its_cause
+  FAIL sweep::all session_box_reach::a_torus_whose_bulge_no_edge_rides_is_refused_past_the_box
+  FAIL topo::all interval_body::interval_described_net_carrying_poison_is_refused_on_its_face
+  FAIL sweep::all verbs_cylsph_opening::the_join_dispatchs_refusal_says_what_it_actually_wires
+  FAIL topo::all geometric_cube::without_the_top_cap_tier3_rejects_the_nurbs_seed
+  FAIL sweep::all session_box_reach::a_torus_tilted_off_an_axis_is_refused_past_the_box_by_its_extreme
+  FAIL sweep::all session_box_reach::a_ball_past_the_box_is_refused_whichever_way_it_is_poled
+  FAIL topo session_box::tests::a_cone_cap_whose_apex_alone_is_past_the_box_is_refused_past_it
+  FAIL sweep::all session_box_reach::a_ball_wedge_in_the_box_whose_ball_pokes_out_refuses_as_a_limit
+  FAIL topo::all review_m2_pr3::survives_nurbs_seed_gate_and_clear
+  FAIL editor-core::all intent_e_operation_frame_of_reads::a_copy_whose_bulge_alone_is_past_the_box_refuses_at_its_placement
+  FAIL sweep::all session_box_reach::a_body_whose_cover_alone_is_past_the_box_is_refused_as_a_limit
+  FAIL topo::all review_m3_pr4::a_placeholder_nurbs_wall_is_refused_at_rest
+  FAIL sweep::all tcost_k3_certificate::the_exhausting_prism_whose_net_alone_is_past_the_box_refuses_as_a_limit
+     Summary [ 148.032s] 313 tests run: 298 passed (2 slow), 15 failed, 12249 skipped
+== mutant 2
+  FAIL topo session_box::tests::a_cone_cap_whose_apex_alone_is_past_the_box_is_refused_past_it
+  FAIL sweep::all session_box_reach::a_ball_past_the_box_is_refused_whichever_way_it_is_poled
+  FAIL sweep::all session_box_reach::a_torus_tilted_off_an_axis_is_refused_past_the_box_by_its_extreme
+  FAIL editor-core::all intent_e_operation_frame_of_reads::a_copy_whose_bulge_alone_is_past_the_box_refuses_at_its_placement
+  FAIL sweep::all session_box_reach::a_torus_whose_bulge_no_edge_rides_is_refused_past_the_box
+     Summary [ 136.502s] 313 tests run: 308 passed (2 slow), 5 failed, 12249 skipped
+== mutant 3
+  FAIL sweep::all session_box_reach::a_ball_wedge_in_the_box_whose_ball_pokes_out_refuses_as_a_limit
+  FAIL sweep::all session_box_reach::a_body_whose_cover_alone_is_past_the_box_is_refused_as_a_limit
+  FAIL sweep::all tcost_k3_certificate::the_exhausting_prism_whose_net_alone_is_past_the_box_refuses_as_a_limit
+     Summary [ 117.293s] 313 tests run: 310 passed (2 slow), 3 failed, 12249 skipped
+== mutant 4
+  FAIL sweep::all session_box_reach::a_ball_wedge_in_the_box_whose_ball_pokes_out_refuses_as_a_limit
+  FAIL sweep::all tcost_k3_certificate::the_exhausting_prism_whose_net_alone_is_past_the_box_refuses_as_a_limit
+  FAIL sweep::all session_box_reach::a_body_whose_cover_alone_is_past_the_box_is_refused_as_a_limit
+     Summary [ 112.320s] 313 tests run: 310 passed (2 slow), 3 failed, 12249 skipped
+== mutant 5
+  FAIL topo session_box::tests::a_cone_cap_whose_apex_alone_is_past_the_box_is_refused_past_it
+  FAIL sweep::all session_box_reach::a_torus_whose_bulge_no_edge_rides_is_refused_past_the_box
+  FAIL topo session_box::tests::a_placements_reach_is_its_images_to_the_bit
+  FAIL sweep::all session_box_reach::a_torus_tilted_off_an_axis_is_refused_past_the_box_by_its_extreme
+  FAIL sweep::all session_box_reach::a_ball_wedge_in_the_box_whose_ball_pokes_out_refuses_as_a_limit
+  FAIL sweep::all session_box_reach::a_ball_past_the_box_is_refused_whichever_way_it_is_poled
+  FAIL sweep::all session_box_reach::a_body_whose_cover_alone_is_past_the_box_is_refused_as_a_limit
+  FAIL editor-core::all intent_e_operation_frame_of_reads::a_copy_whose_bulge_alone_is_past_the_box_refuses_at_its_placement
+     Summary [ 115.595s] 313 tests run: 305 passed (2 slow), 8 failed, 12249 skipped
+== mutant 6
+  FAIL topo session_box::tests::a_seamless_frustum_band_does_not_hold_its_apex
+  FAIL sweep::all revolve_axis_gaps::a_kink_in_a_pocket_has_the_outer_loops_reading
+  FAIL sweep::all session_box_reach::a_zone_whose_pole_alone_is_past_the_box_is_admitted
+     Summary [ 113.272s] 313 tests run: 310 passed (2 slow), 3 failed, 12249 skipped
+== mutant 7
+  FAIL sweep::all session_box_reach::a_body_at_the_boxs_edge_is_in_it
+     Summary [ 119.362s] 313 tests run: 312 passed (2 slow), 1 failed, 12249 skipped
+== mutant 8
+  FAIL topo session_box::tests::a_face_with_no_cover_refuses_at_the_gate_alone_by_its_cause
+  FAIL topo::all geometric_cube::without_the_top_cap_tier3_rejects_the_nurbs_seed
+  FAIL topo boolean::ops::tests::nurbs_faces_refuse_typed_at_both_doors
+  FAIL topo::all review_m2_pr3::survives_nurbs_seed_gate_and_clear
+  FAIL topo::all interval_body::interval_described_net_carrying_poison_is_refused_on_its_face
+  FAIL topo::all review_m3_pr4::a_placeholder_nurbs_wall_is_refused_at_rest
+  FAIL sweep::all verbs_cylsph_opening::the_join_dispatchs_refusal_says_what_it_actually_wires
+     Summary [ 117.896s] 313 tests run: 306 passed (2 slow), 7 failed, 12249 skipped
+== mutant 10
+  FAIL topo session_box::tests::a_cone_cap_whose_apex_alone_is_past_the_box_is_refused_past_it
+  FAIL topo cover::cover_reach_rows::a_cone_cap_holding_its_apex_reaches_it_along_the_axis
+     Summary [ 108.246s] 313 tests run: 311 passed (2 slow), 2 failed, 12249 skipped
+== mutant 12
+  FAIL sweep::all session_box_reach::a_ball_wedge_in_the_box_whose_ball_pokes_out_refuses_as_a_limit
+  FAIL sweep::all session_box_reach::a_zone_whose_pole_alone_is_past_the_box_is_admitted
+     Summary [ 106.661s] 313 tests run: 311 passed (2 slow), 2 failed, 12249 skipped
+== mutant 13
+  FAIL topo session_box::tests::a_cone_cap_whose_apex_alone_is_past_the_box_is_refused_past_it
+  FAIL sweep::all session_box_reach::a_ball_past_the_box_is_refused_whichever_way_it_is_poled
+  FAIL sweep::all session_box_reach::a_torus_tilted_off_an_axis_is_refused_past_the_box_by_its_extreme
+  FAIL sweep::all session_box_reach::a_zone_whose_pole_alone_is_past_the_box_is_admitted
+  FAIL sweep::all session_box_reach::a_torus_whose_bulge_no_edge_rides_is_refused_past_the_box
+  FAIL sweep::all session_box_reach::a_body_at_the_boxs_edge_is_in_it
+  FAIL sweep::all session_box_reach::a_ball_wedge_in_the_box_whose_ball_pokes_out_refuses_as_a_limit
+  FAIL editor-core::all intent_e_operation_frame_of_reads::two_far_copies_refuse_each_at_its_placement
+  FAIL editor-core::all intent_e_operation_frame_of_reads::a_copy_whose_bulge_alone_is_past_the_box_refuses_at_its_placement
+  FAIL sweep::all session_box_reach::a_body_whose_cover_alone_is_past_the_box_is_refused_as_a_limit
+  FAIL editor-core::all intent_e_operation_frame_of_reads::a_mirror_past_the_box_refuses_at_the_mirror
+  FAIL editor-core::all intent_e_operation_frame_of_reads::a_copy_placed_past_the_box_refuses_at_its_placement
+  FAIL editor-core::all face_chart_and_signed_depth::a_sweep_lifted_past_the_box_refuses_at_its_lift
+  FAIL editor-core::all product_finishes_once::a_copy_moved_past_the_box_refuses_at_the_box
+  FAIL editor-core::all product_finishes_once::a_member_past_the_box_refuses_at_its_placement_before_the_product
+  FAIL editor-core::all intent_e_operation_frame_of_reads::a_copy_whose_rim_reaches_past_the_box_refuses_at_its_placement
+  FAIL editor-core::all product_finishes_once::a_sub_assembly_placed_far_out_is_asked_once_where_it_stands
+     Summary [ 109.625s] 313 tests run: 296 passed (1 slow), 17 failed, 12249 skipped
+== mutant 14
+  FAIL sweep::all session_box_reach::a_torus_tilted_off_an_axis_is_refused_past_the_box_by_its_extreme
+  FAIL sweep::all session_box_reach::a_torus_whose_bulge_no_edge_rides_is_refused_past_the_box
+     Summary [ 103.678s] 313 tests run: 311 passed (1 slow), 2 failed, 12249 skipped
+== mutant 15
+  FAIL topo::all review_m2_pr3::survives_nurbs_seed_gate_and_clear
+  FAIL topo::all review_m3_pr4::a_placeholder_nurbs_wall_is_refused_at_rest
+  FAIL topo::all geometric_cube::without_the_top_cap_tier3_rejects_the_nurbs_seed
+  FAIL topo boolean::ops::tests::nurbs_faces_refuse_typed_at_both_doors
+  FAIL topo::all interval_body::interval_described_net_carrying_poison_is_refused_on_its_face
+  FAIL sweep::all verbs_cylsph_opening::the_join_dispatchs_refusal_says_what_it_actually_wires
+  FAIL topo session_box::tests::a_face_with_no_cover_refuses_at_the_gate_alone_by_its_cause
+     Summary [ 106.955s] 313 tests run: 306 passed (1 slow), 7 failed, 12249 skipped
+== mutant 17
+  FAIL sweep::all session_box_reach::a_torus_tilted_off_an_axis_is_refused_past_the_box_by_its_extreme
+     Summary [ 105.472s] 313 tests run: 312 passed (2 slow), 1 failed, 12249 skipped
+== mutant 18
+     Summary [ 103.657s] 313 tests run: 313 passed (2 slow), 12249 skipped
+== mutant 19
+  FAIL topo session_box::tests::a_seamless_frustum_band_does_not_hold_its_apex
+     Summary [ 101.469s] 313 tests run: 312 passed (1 slow), 1 failed, 12249 skipped
+== mutant 20
+  FAIL topo cover::cover_reach_rows::a_cone_cap_holding_its_apex_reaches_it_along_the_axis
+  FAIL topo session_box::tests::a_cone_cap_whose_apex_alone_is_past_the_box_is_refused_past_it
+     Summary [ 106.432s] 313 tests run: 311 passed (1 slow), 2 failed, 12249 skipped
+== mutant 21
+  FAIL topo session_box::tests::a_cone_cap_whose_apex_alone_is_past_the_box_is_refused_past_it
+     Summary [ 107.147s] 313 tests run: 312 passed (2 slow), 1 failed, 12249 skipped
