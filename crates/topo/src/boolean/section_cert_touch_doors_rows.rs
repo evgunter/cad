@@ -123,6 +123,10 @@ fn doors_at(g: f64) -> Vec<(&'static str, Read)> {
             line_read(top(g), Vec3::new(1.0, 0.6, 0.0), inside, &donut()),
         ),
         (
+            "line × torus inside, along the axis beside the inner equator",
+            line_read(Point3::new(0.0, 0.0, 1.5 + g), y, inside, &donut()),
+        ),
+        (
             "circle × torus outside",
             circle_torus(&circle(Point3::new(0.0, 0.0, 2.8 + g), y, 0.3)),
         ),
@@ -143,6 +147,24 @@ fn doors_at(g: f64) -> Vec<(&'static str, Read)> {
             "line × wall outside",
             line_read(
                 Point3::new(1.0 + g, 0.0, 0.0),
+                Vec3::new(0.0, 1.0, 0.3),
+                1.0,
+                &wall(),
+            ),
+        ),
+        (
+            "line × sphere inside",
+            line_read(
+                Point3::new(1.0 - g, 0.0, 0.0),
+                Vec3::new(0.0, 1.0, 0.3),
+                1.0,
+                &sphere(),
+            ),
+        ),
+        (
+            "line × wall inside",
+            line_read(
+                Point3::new(1.0 - g, 0.0, 0.0),
                 Vec3::new(0.0, 1.0, 0.3),
                 1.0,
                 &wall(),
@@ -180,8 +202,12 @@ fn doors_at(g: f64) -> Vec<(&'static str, Read)> {
 /// silent**: each answers a tangency, escalates, or names a root, at
 /// gaps of `ε/100`, `ε/2` and `2ε` (the reach an extreme's parting edge
 /// needs is the touch's margin, at most `2ε`); and past `3Kε` each
-/// answers a decided miss. The line × torus door is read on the solid's
-/// side only, where an extreme's parting line stands (the module docs).
+/// answers decided, a miss or a root. The line × torus door is read on
+/// the solid's side only, where a torus point touch's parting line
+/// stands (the module docs), along the axis beside both equators and in a
+/// generic direction; line × sphere and line × wall on both sides, the
+/// inside the side a one-point touch's parting line stands at sphere ×
+/// plane or wall × plane.
 /// Mutant: any door's silent answer read on a margin that is no
 /// clearance in metres.
 #[test]
@@ -194,7 +220,7 @@ fn within_the_band_no_door_an_extreme_leans_on_goes_silent() {
     }
     let far = 3.0 * band().escalate();
     for (door, read) in doors_at(far) {
-        assert_eq!(read, Read::Silent, "{door} at 3Kε");
+        assert_ne!(read, Read::Refused, "{door} at 3Kε");
     }
 }
 

@@ -318,67 +318,68 @@ fn a_parallel_touch_off_its_exact_pose_refuses() {
     }
 }
 
-/// Every op in both orders refuses, or builds bodies that validate at the
-/// volumes `(va, vb)` apart give: a crossing within the band, recorded,
-/// moves no volume the closed form sees.
-fn refuses_or_builds_apart(label: &str, a: &Body<f64>, b: &Body<f64>, (va, vb): (f64, f64)) {
-    for (op, x, y, want) in [
-        (BooleanOp::Union, a, b, va + vb),
-        (BooleanOp::Union, b, a, va + vb),
-        (BooleanOp::Subtract, a, b, va),
-        (BooleanOp::Subtract, b, a, vb),
-    ] {
-        if let Ok(result) = boolean(op, x, y) {
-            let body = result.body().expect("a body");
-            super::extent_scan_off_face_tangency::assert_body(
-                &format!("{label}: {op:?}"),
-                &body.body,
-                want,
-            );
-        }
-    }
-}
-
-/// **A point touch read off its pose clears no crossing**: each point arm
-/// moved `0.4ε` across, so the partner dips into the tube about its
-/// actual deepest point, its face cut through that dip on the far side of
-/// the deepest point, which it does not hold: a brick whose edge stands
-/// inside the cap, a ball trimmed through it, and a rod tilted by a turn
-/// the band admits whose end stands in it. Each pair has a crossing of
-/// the partner's face, which the sweep records or refuses: every op
-/// refuses or builds the volumes apart, never a body that misses the
-/// crossing's material.
+/// **A point touch read off its pose clears no crossing; it refuses**:
+/// each point arm moved `0.4ε` across, so the partner dips into the tube
+/// about its actual deepest point, its face cut through that dip on the
+/// far side of the deepest point, which it does not hold: a brick whose
+/// edge stands inside the cap, a ball trimmed through it, and a rod tilted
+/// by a turn the band admits whose end stands in it. Each pair's faces
+/// cross, and every op refuses: a build would move some 1e-19 of volume
+/// against the operands apart, no volume check sees it.
 #[test]
-fn a_point_touch_off_its_exact_pose_clears_no_crossing() {
+fn a_point_touch_off_its_exact_pose_refuses() {
     let eps = Tol::witness().eps();
     let d = donut(1.0);
     let dip = 0.4 * eps;
     let cap = (2.0 * 0.4 * dip).sqrt();
     let block = brick((0.3 * cap, 2.0), (-1.0, 1.0), (2.5 - dip, 3.5));
-    let vb = brick_volume((0.3 * cap, 2.0), (-1.0, 1.0), (2.5 - dip, 3.5));
-    refuses_or_builds_apart("brick", &d, &block, (DONUT_VOLUME, vb));
+    assert_every_op_refuses("brick", &d, &block, |_| true);
     let ball_cut = built(
         BooleanOp::Subtract,
         &ball(0.5, Vec3::new(0.0, 0.0, 3.0 - dip)),
         &brick((-2.0, 0.3 * cap), (-2.0, 2.0), (2.0, 4.0)),
     )
     .expect("the cut ball");
-    refuses_or_builds_apart(
-        "ball",
-        &d,
-        &ball_cut,
-        (DONUT_VOLUME, ball_volume(0.5) / 2.0 - PI * 0.25 * 0.3 * cap),
-    );
-    let tilt = 0.4 * eps / 10.0;
+    assert_every_op_refuses("ball", &d, &ball_cut, |_| true);
     let rod = moved(
         &rod_y(0.5, (0.0, 3.0 - dip), (0.3 * cap, 2.0)),
-        &Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 3.0), Vec3::unit_z(), tilt),
+        &Affine3::rotation_about_axis(
+            Point3::new(0.0, 0.0, 3.0),
+            Vec3::unit_z(),
+            IN_BAND_TILT * eps,
+        ),
     );
-    refuses_or_builds_apart(
-        "tilted rod",
-        &d,
+    assert_every_op_refuses("tilted rod", &d, &rod, |_| true);
+}
+
+/// A turn, in units of ε, the parallel-axis reading takes as parallel:
+/// its tilt over the torus's lever (twice its ball's diameter, 10 here)
+/// is `0.4ε`.
+const IN_BAND_TILT: f64 = 0.04;
+
+/// **A rod tilted by a turn the band admits touches off its face and
+/// builds**: the rod of [`top_rod`], past its end, turned `0.04ε` about
+/// the z line through its axis's point over the touch, so the wall's axis
+/// is read parallel to the donut's, and its touch is read off the wall's
+/// own axis. Every op builds at the operands' volumes.
+#[test]
+fn a_rod_tilted_in_the_band_touching_off_its_face_builds() {
+    let eps = Tol::witness().eps();
+    let (rod, vr) = top_rod(false, 0.0, 1.0);
+    let rod = moved(
         &rod,
-        (DONUT_VOLUME, PI * 0.25 * (2.0 - 0.3 * cap)),
+        &Affine3::rotation_about_axis(
+            Point3::new(0.0, 0.0, 3.0),
+            Vec3::unit_z(),
+            IN_BAND_TILT * eps,
+        ),
+    );
+    assert_every_op(
+        "tilted rod",
+        &donut(1.0),
+        &rod,
+        (DONUT_VOLUME, vr),
+        Pose::Apart,
     );
 }
 

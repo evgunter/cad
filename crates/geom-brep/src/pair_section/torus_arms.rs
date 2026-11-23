@@ -442,7 +442,9 @@ pub(super) fn parallel_cylinder_arm<T: Decide>(
 /// the torus's equatorial plane, and the point of the tube circle about
 /// `C` on its normal through `wall` (nearest it at a minimum, farthest at
 /// the maximum), which is critical across the tube exactly and around the
-/// axis to first order in the tilt.
+/// axis to first order in the tilt: its distance from the deepest point is
+/// second order in a tilt the band bounds by its zero over the lever, below
+/// the rounding of every in-band pose.
 pub(super) fn parallel_cylinder_touch<T: Decide>(
     tan: Pinch,
     (axis, [big_r, r]): (geom::Line<T>, [T; 2]),

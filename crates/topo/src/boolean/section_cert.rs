@@ -196,10 +196,12 @@
 //! argument needs the pair's own silence.
 //!
 //! **`at` is the actual pose's deepest point**, never one read off the
-//! exact pose a reading idealises: the plane's foot and the sphere's
-//! nearest or farthest point are read off the partner as it stands, and
-//! the parallel wall's off its own axis, not the parallel reading's
-//! pivot. In a pose where the carriers cross, the section bounds the cap
+//! exact pose a reading idealises: exactly for the plane's foot and the
+//! sphere's nearest or farthest point, read off the partner as it stands;
+//! to first order for the parallel wall's, read off its own axis rather
+//! than the parallel reading's pivot, the residual second order in the
+//! tilt the pose admits (at most the band over the lever), below 1e-18
+//! at ε = 1e-9. In a pose where the carriers cross, the section bounds the cap
 //! of the torus the partner reaches past, which holds `at`, so `P`'s
 //! boundary lies in that cap, where the partner stands inside the torus
 //! solid (a plane's height and a distance from a line the solid does not
@@ -223,9 +225,11 @@
 //!   wall's straight edge), circle × torus on either side, and circle ×
 //!   plane, sphere and wall (a torus face's circles); at the one-point
 //!   touches of a sphere or a wall against a plane, a sphere or a wall,
-//!   line × wall and line × sphere (the reduction's belly branch, its
-//!   miss a discriminant decided as a depth in metres) and the circle
-//!   doors (`section_cert_touch_doors_rows`). Line × torus is silent
+//!   line × wall and line × sphere on either side (the reduction's belly
+//!   branch, its miss a discriminant decided as a depth in metres; a
+//!   segment whose ends are decided inside stands past `Kε` throughout,
+//!   the residual being convex along a line) and the circle doors
+//!   (`section_cert_touch_doors_rows`). Line × torus is silent
 //!   within the band outside the solid
 //!   (`work/germ/the-line-torus-door-misses-silently-within-the-band.md`),
 //!   the side a touch at a saddle or along a parallel leans on; and a
@@ -1225,7 +1229,11 @@ fn cone_pair<T: Decide>(
                     band,
                 ) {
                     Ok(_) => essential_pair(true, true),
-                    Err(tan) if tan.undecided.is_none() => Section::touch(tan.name, apex, true),
+                    Err(tan)
+                        if tan.undecided.is_none() && tan.name == "section_cone_coaxial_apexes" =>
+                    {
+                        Section::touch(tan.name, apex, true)
+                    }
                     Err(tan) => tan.into(),
                 },
                 AxisPose::Parallel { .. } => {
