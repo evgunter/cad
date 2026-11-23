@@ -674,3 +674,21 @@ body has the reasons):
     carry its reason) and two NITs.
   - **The other MINOR** (7434's zero-tilt revalue guard is red on main
     from #7411) is already filed on GREEN.
+- 2026-11-23 10:50 — **7554 merged** (`ef057a7`), the 7434 follow-up, on
+  local evidence:
+  - the gates exit 0, and fmt and clippy are clean on the touched lib
+    crates;
+  - 211 of 211 unit rows pass;
+  - `coincidence_door`, `intent_s6_*` and `m10_6_ci_rows_interval` pass
+    98 of 98 at all three ε.
+
+  It brings `Interval::zero_everywhere` in line with `Sym<Interval>`'s
+  [0, 0] (its row was checked red without the override) and corrects
+  the DECIDE and mate-chart rows. The 7396 review's leftover (the
+  mated-box pin's budget cause) crossed with the lane's stop, so it is
+  filed as
+  `a-mated-box-pin-cannot-tell-over-the-budget-from-any-other-cause`
+  (P3 E). The 7396/7434 lane and its reviewer are archived.
+- 2026-11-23 10:52 — Filed on GREEN, found by the lane:
+  `main-red-geom-core-test-support-fails-items-after-test-module-under-all-targets`
+  (P2 E).
