@@ -243,13 +243,13 @@ fn held_field(
             // this same rule (`guard_driven`), in the same words.
             HeldAct::Begin => {
                 if let Err(refusal) = crate::session::driven_refusal(node, row, notation) {
-                    notices.push(frame::refusal_message(&refusal));
+                    notices.push(frame::refusal_message_untargeted(&refusal));
                 }
             }
             HeldAct::Hold(value) => *held = value,
             HeldAct::Number(value) => match props::typed_formula(slot, value, unit) {
                 Ok(literal) => typed = Some(HeldEntry::Literal(literal)),
-                Err(error) => notices.push(frame::refusal_message(
+                Err(error) => notices.push(frame::refusal_message_untargeted(
                     &crate::session::Refusal::Dimension(error),
                 )),
             },
@@ -571,7 +571,10 @@ pub(crate) fn edit_door_ui(
             }
             (Err(refusal), _) => {
                 news.standing = None;
-                news.notices.push(frame::refusal_message(&refusal));
+                news.notices.push(frame::refusal_message(
+                    &refusal,
+                    pncad::document::Speaker::of(session.committed_doc()),
+                ));
             }
         }
     }
