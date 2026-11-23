@@ -500,7 +500,8 @@ impl Message {
     /// it — is rewritten as words, since its spelling is the kernel's
     /// and only words can be rewritten; it is then no link.
     pub fn new(subject: Subject, said: impl Into<Sentence>, retold: Retold) -> Self {
-        let unmarked = |words: &str| Sentence::from(words.replace(NOTICE_MARK, LIST_SEPARATOR.trim()));
+        let unmarked =
+            |words: &str| Sentence::from(words.replace(NOTICE_MARK, LIST_SEPARATOR.trim()));
         let mut out = Sentence::new();
         for run in said.into().runs() {
             out.append(match run {
@@ -922,10 +923,7 @@ pub fn batch_refusal(
 pub fn refusal_message_by(refusal: &Refusal, by: Speaker<'_>) -> Message {
     Message::new(
         Subject::Document,
-        refusal.said(
-            by,
-            Some(pncad::geom_brep::recourse::Reading::AtRest.into()),
-        ),
+        refusal.said(by, Some(pncad::geom_brep::recourse::Reading::AtRest.into())),
         Retold::Again,
     )
 }

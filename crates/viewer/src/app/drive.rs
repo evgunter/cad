@@ -109,9 +109,7 @@ impl Landed {
     /// characters from the text's start, on screen.
     #[must_use]
     pub fn char_centre(&self, index: usize) -> egui::Pos2 {
-        let from = self
-            .galley
-            .pos_from_cursor(egui::text::CCursor::new(index));
+        let from = self.galley.pos_from_cursor(egui::text::CCursor::new(index));
         let to = self
             .galley
             .pos_from_cursor(egui::text::CCursor::new(index + 1));

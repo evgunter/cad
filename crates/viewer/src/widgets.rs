@@ -209,12 +209,11 @@ pub(crate) fn message_toned(
     message(ui, crate::app::toned(text, theme, tone))
 }
 
-/// **A kernel sentence, drawn**: [`message`]'s wrap, each run in
-/// `voice`, and each mention [`crate::relations::link`] answers for
-/// `on_screen` underlined in the link colour. A click on one answers
-/// what it selects in [`Spoken::selects`]; a mention it answers nothing
-/// for — another document's, or a node `on_screen` no longer holds —
-/// is drawn as words, and so are the sentence's words.
+/// **A kernel sentence, drawn**: [`message`]'s wrap, and each mention [`crate::relations::link`] answers for
+/// `on_screen` underlined in the link colour; a mention it answers
+/// nothing for — another document's, or a node `on_screen` no longer
+/// holds — is drawn as words, and so are the sentence's words. Answers
+/// what the mention clicked this frame selects, if one was.
 ///
 /// The sentence is ONE galley, one section per run, so it wraps as the
 /// same text drawn by [`message`] does, a mention included. A click is
@@ -227,8 +226,7 @@ pub(crate) fn sentence(
     ui: &mut egui::Ui,
     said: &pncad::document::Sentence,
     on_screen: &pncad::document::Doc<pncad::document::ProfileProgram>,
-    voice: impl Fn(egui::RichText) -> egui::RichText,
-) -> Spoken {
+) -> Option<crate::session::Selection> {
     use pncad::document::{Mentioned, Run};
     let link_colour = ui.visuals().hyperlink_color;
     let mut job = egui::text::LayoutJob::default();
@@ -248,7 +246,7 @@ pub(crate) fn sentence(
         };
         runs.push((chars, selects.clone()));
         chars += text.chars().count();
-        let mut rich = voice(egui::RichText::new(text));
+        let mut rich = egui::RichText::new(text);
         if selects.is_some() {
             rich = rich.color(link_colour).underline();
         }
@@ -261,10 +259,8 @@ pub(crate) fn sentence(
     }
     let galley = wrapped_in_region(ui, job);
     if runs.iter().all(|(_, selects)| selects.is_none()) {
-        return Spoken {
-            response: ui.add(egui::Label::new(galley)),
-            selects: None,
-        };
+        ui.add(egui::Label::new(galley));
+        return None;
     }
     let (rect, response) = ui.allocate_exact_size(galley.size(), egui::Sense::click());
     // The run whose character the pointer is on, if it is a link's.
@@ -298,32 +294,7 @@ pub(crate) fn sentence(
         ui.painter()
             .galley(rect.min, galley, ui.visuals().text_color());
     }
-    Spoken { response, selects }
-}
-
-/// [`sentence`] in the voice its [`frame::Tone`] asks for, as
-/// [`message_toned`] voices a message.
-///
-/// [`frame::Tone`]: crate::frame::Tone
-pub(crate) fn sentence_toned(
-    ui: &mut egui::Ui,
-    said: &pncad::document::Sentence,
-    on_screen: &pncad::document::Doc<pncad::document::ProfileProgram>,
-    theme: &Theme,
-    tone: crate::frame::Tone,
-) -> Spoken {
-    sentence(ui, said, on_screen, |text| {
-        crate::app::voiced(text, theme, tone)
-    })
-}
-
-/// **What [`sentence`] drew, and the link a click on it took**.
-pub(crate) struct Spoken {
-    /// The sentence's own response.
-    pub(crate) response: egui::Response,
-    /// What the mention clicked this frame selects; `None` when no link
-    /// was clicked.
-    pub(crate) selects: Option<crate::session::Selection>,
+    selects
 }
 
 /// The one place the wrap rule [`message`]'s doc states is spelled,
@@ -5396,6 +5367,8 @@ mod sentence_tests {
     use eframe::egui;
     use pncad::document::{Doc, DocumentId, ProfileProgram, RecipeNodeId, Sentence, Speaker};
 
+    use crate::session::{DocSession, SessionOp};
+
     use crate::pane::headless::Landed;
     use crate::session::Selection;
 
@@ -5438,7 +5411,7 @@ mod sentence_tests {
             },
             |ui| {
                 ui.allocate_ui(egui::vec2(REGION, 400.0), |ui| {
-                    selects = super::sentence(ui, said, on_screen, |text| text).selects;
+                    selects = super::sentence(ui, said, on_screen);
                 });
             },
         );
@@ -5448,7 +5421,11 @@ mod sentence_tests {
 
     /// What a click at `at` selects, on a context that has drawn the
     /// sentence once.
-    fn click(said: &Sentence, on_screen: &Doc<ProfileProgram>, at: egui::Pos2) -> Option<Selection> {
+    fn click(
+        said: &Sentence,
+        on_screen: &Doc<ProfileProgram>,
+        at: egui::Pos2,
+    ) -> Option<Selection> {
         let ctx = egui::Context::default();
         let _ = frame(&ctx, said, on_screen, Vec::new());
         let _ = frame(&ctx, said, on_screen, vec![egui::Event::PointerMoved(at)]);
@@ -5513,7 +5490,128 @@ mod sentence_tests {
             (after, None, "the character after it"),
             (past_row_end, None, "past the last row's end"),
         ] {
-            assert_eq!(click(&said, &doc, at), selects, "a click on {what}, at {at:?}");
+            assert_eq!(
+                click(&said, &doc, at),
+                selects,
+                "a click on {what}, at {at:?}"
+            );
+        }
+    }
+
+    /// Where the run reading `name` in `said`'s galley is, drawn against
+    /// `on_screen`.
+    fn mention_at(said: &Sentence, on_screen: &Doc<ProfileProgram>, name: &str) -> egui::Pos2 {
+        galley(said, on_screen)
+            .at(name)
+            .expect("the mention is painted")
+    }
+
+    /// Whether some run of `said` is drawn in a voice of its own — the
+    /// link's — rather than the words'.
+    fn is_voiced_apart(said: &Sentence, on_screen: &Doc<ProfileProgram>) -> bool {
+        galley(said, on_screen).ink.is_none()
+    }
+
+    /// **A mention of another document's node is words**: the same
+    /// node, said by a document with another identity, drawn against
+    /// the plate, is neither underlined in the link's voice nor
+    /// clicked through.
+    ///
+    /// *Breaks if* a link is decided by the node's id alone — an id is
+    /// not document-scoped, so the click would select whatever this
+    /// document holds under it.
+    #[test]
+    fn a_mention_of_another_documents_node_is_not_a_link() {
+        let (doc, extrude) = plate();
+        let other = doc
+            .clone()
+            .under_identity(DocumentId::derive("another part"));
+        let name = crate::tree::spelled(&doc.spoken(extrude));
+        let here = said(Speaker::of(&doc), &doc, extrude);
+        let there = said(Speaker::of(&other), &other, extrude);
+        assert!(
+            is_voiced_apart(&here, &doc),
+            "the document's own mention is a link"
+        );
+        assert!(
+            !is_voiced_apart(&there, &doc),
+            "another document's mention is drawn as words"
+        );
+        assert_eq!(
+            click(&there, &doc, mention_at(&there, &doc, &name)),
+            None,
+            "and a click on it selects nothing"
+        );
+    }
+
+    /// **A node the document no longer holds is words**: a profile
+    /// added, mentioned, then undone is a link while the document holds
+    /// it and words once it does not.
+    ///
+    /// *Breaks if* a link is decided by the mention's document alone.
+    #[test]
+    fn a_node_the_document_no_longer_holds_is_not_a_link() {
+        let (doc, _) = plate();
+        let mut session = DocSession::inline(doc, pncad::tolerance::witness());
+        session.perform(SessionOp::AddProfile {
+            loops: vec![
+                pncad::document::LoopProgram::circle(0.02, 0.0, 0.005).expect("a finite circle"),
+            ],
+        });
+        let added = *session
+            .committed_doc()
+            .ids()
+            .last()
+            .expect("the profile is added");
+        let held = session.committed_doc().clone();
+        let mentioned = said(Speaker::of(&held), &held, added);
+        let name = crate::tree::spelled(&held.spoken(added));
+        assert_eq!(
+            click(&mentioned, &held, mention_at(&mentioned, &held, &name)),
+            Some(Selection::Node(added)),
+            "a link while the document holds it"
+        );
+        session.perform(SessionOp::Undo);
+        let after = session.committed_doc();
+        assert!(after.node(added).is_none(), "the undo took the profile out");
+        assert!(
+            !is_voiced_apart(&mentioned, after),
+            "drawn as words once the document does not hold it"
+        );
+        assert_eq!(
+            click(&mentioned, after, mention_at(&mentioned, after, &name)),
+            None,
+            "and a click on it selects nothing"
+        );
+    }
+
+    /// **A sentence wraps where its text does**: a refusal-length
+    /// sentence with a mention in it, drawn by [`super::sentence`], lands
+    /// in the same rows as its text drawn by [`super::message`], at
+    /// three region widths.
+    ///
+    /// *Breaks if* the widget lays its runs out in a font, a wrap mode
+    /// or a width of its own, or breaks a line at a run boundary.
+    #[test]
+    fn a_sentence_wraps_where_its_text_does() {
+        let (doc, extrude) = plate();
+        let said = said(Speaker::of(&doc), &doc, extrude);
+        let text = said.to_string();
+        for width in [200.0, 260.0, 420.0] {
+            let rows = |draw: &dyn Fn(&mut egui::Ui)| {
+                let painted = crate::pane::headless::landed(|ui| {
+                    ui.allocate_ui(egui::vec2(width, 400.0), |ui| draw(ui));
+                });
+                crate::pane::headless::find(&painted, &text).rows.clone()
+            };
+            let drawn = rows(&|ui| {
+                super::sentence(ui, &said, &doc);
+            });
+            let message = rows(&|ui| {
+                super::message(ui, text.as_str());
+            });
+            assert!(drawn.len() > 1, "the sentence wraps at {width}");
+            assert_eq!(drawn, message, "the rows at {width}");
         }
     }
 }

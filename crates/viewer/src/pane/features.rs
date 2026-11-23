@@ -127,6 +127,7 @@ pub(crate) fn feature_row_ui(
             clicks.select = Some(row.id);
         }
         clicks.hovered = label.hovered();
+        clicks.label = Some(label.rect);
         if row.spoken.kind() == Some("InstantiatePart") {
             let mut shown = !hidden;
             let toggle = ui.add_enabled(
@@ -201,6 +202,20 @@ fn version_offer_lines(ui: &mut egui::Ui, offer: &VersionOffer, theme: &Theme) -
     .inner
 }
 
+/// **What the feature tree last drew**: the selection it drew, and the
+/// one a click in it asked for that frame — so the next frame can tell
+/// a selection the tree made from one made outside it.
+#[derive(Clone)]
+struct TreeSaw {
+    drawn: Selection,
+    asked: Option<Selection>,
+}
+
+impl TreeSaw {
+    /// Where it is kept, in egui's memory: there is one tree.
+    const ID: &'static str = "feature_tree_saw";
+}
+
 /// What a click on one drawn feature row asked for.
 #[derive(Debug, Default)]
 pub(crate) struct RowClicks {
@@ -222,6 +237,9 @@ pub(crate) struct RowClicks {
     /// Whether the pointer is over the row's label: a clearance row's
     /// witness is drawn while it is ([`crate::marks::witness`]).
     pub(crate) hovered: bool,
+    /// Where the row's label was drawn: what the tree scrolls into view
+    /// when the row's node is selected from outside it.
+    pub(crate) label: Option<egui::Rect>,
 }
 
 /// **The lines under a row that a failure writes, drawn** — and the
@@ -392,18 +410,44 @@ impl ViewerBehavior<'_> {
         // feature here — one selection value, one inversion. Overflow
         // is `pane_ui`'s scroll container's job, the same one every
         // chrome pane sits in; a second ScrollArea here would nest.
-        let selected = self.session.selection().node();
+        //
+        // **A selection made outside the tree scrolls its row into
+        // view** — a link followed, a pick in the viewport — and one
+        // made by a click in the tree does not, so a row clicked stays
+        // under the pointer that clicked it. Outside is a selection
+        // that differs from the one the tree last drew and is not the
+        // one the tree asked for.
+        let now = self.session.selection().clone();
+        let (seen, asked) = ui
+            .ctx()
+            .data(|data| data.get_temp::<TreeSaw>(egui::Id::new(TreeSaw::ID)))
+            .map_or((None, None), |saw| (Some(saw.drawn), saw.asked));
+        let outside = seen.is_some_and(|seen| seen != now) && asked.as_ref() != Some(&now);
+        let selected = now.node();
+        let mut asked = None;
         for row in &rows {
-            self.feature_row(ui, row, selected == Some(row.id));
+            let clicks = self.feature_row(ui, row, selected == Some(row.id));
+            if let Some(label) = clicks.label.filter(|_| outside && selected == Some(row.id)) {
+                ui.scroll_to_rect(label, Some(egui::Align::Center));
+            }
+            asked = asked.or(clicks.select.map(Selection::Node));
         }
+        ui.ctx().data_mut(|data| {
+            data.insert_temp(egui::Id::new(TreeSaw::ID), TreeSaw { drawn: now, asked });
+        });
     }
 
     /// One feature-tree row ([`feature_row_ui`]), and the ops its
     /// clicks name.
-    pub(crate) fn feature_row(&mut self, ui: &mut egui::Ui, row: &TreeRow, selected: bool) {
+    pub(crate) fn feature_row(
+        &mut self,
+        ui: &mut egui::Ui,
+        row: &TreeRow,
+        selected: bool,
+    ) -> RowClicks {
         let hidden = !self.toggles.body_on(row.id);
         let refusal = self.session.body_toggle_refusal(row.id);
-        let clicks = feature_row_ui(
+        let mut clicks = feature_row_ui(
             ui,
             row,
             selected,
@@ -424,7 +468,7 @@ impl ViewerBehavior<'_> {
                 on: !hidden,
             });
         }
-        if let Some(accept) = clicks.accept {
+        if let Some(accept) = clicks.accept.take() {
             self.ops.push(accept);
         }
         if clicks.edit {
@@ -443,6 +487,7 @@ impl ViewerBehavior<'_> {
                 )),
             }
         }
+        clicks
     }
 }
 
@@ -1637,6 +1682,7 @@ mod tests {
             remove: remove.get(),
             edit: false,
             hovered: false,
+            label: None,
         }
     }
 

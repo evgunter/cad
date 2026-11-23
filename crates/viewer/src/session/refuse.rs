@@ -16,8 +16,8 @@
 
 use pncad::document::{
     Dimension, DimensionError, Doc, DocumentId, EditError, EvalError, Node, Operand, ParseError,
-    ProfileProgram, RecipeNodeId, Said, Sentence, SlotId, SlotKind, SpokenNode, SpokenSpace,
-    SpokenVar, Speaker, VarId, VarKind, VarName, say,
+    ProfileProgram, RecipeNodeId, Said, Sentence, SlotId, SlotKind, Speaker, SpokenNode,
+    SpokenSpace, SpokenVar, VarId, VarKind, VarName, say,
 };
 use std::path::{Path, PathBuf};
 

@@ -12,8 +12,8 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    Doc, Mention, Mentioned, Node, OperandRead, OperandSlot, ProfileProgram, ReadIndex, RecipeNodeId, Said,
-    Sentence, Speaker,
+    Doc, Mention, Mentioned, Node, OperandRead, OperandSlot, ProfileProgram, ReadIndex,
+    RecipeNodeId, Said, Sentence, Speaker,
 };
 
 use crate::parts::PartFiles;

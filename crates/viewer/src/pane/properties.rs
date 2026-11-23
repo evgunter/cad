@@ -497,9 +497,8 @@ impl ViewerBehavior<'_> {
                         said,
                         *node,
                     );
-                    let heading =
-                        crate::widgets::sentence(ui, &heading, self.session.doc(), |text| text);
-                    self.ops.extend(heading.selects.map(SessionOp::Select));
+                    let heading = crate::widgets::sentence(ui, &heading, self.session.doc());
+                    self.ops.extend(heading.map(SessionOp::Select));
                     if *present && delete_button(ui, self.session, *node) {
                         self.ops.push(SessionOp::DeleteNode { node: *node });
                     }
@@ -622,8 +621,8 @@ impl ViewerBehavior<'_> {
         }
         ui.separator();
         let heading = crate::relations::Related::node(doc, node, self.session.part_files());
-        let heading = crate::widgets::sentence(ui, heading.said(), self.session.doc(), |text| text);
-        self.ops.extend(heading.selects.map(SessionOp::Select));
+        let heading = crate::widgets::sentence(ui, heading.said(), self.session.doc());
+        self.ops.extend(heading.map(SessionOp::Select));
         let mut on = self.toggles.body_on(node);
         if body_toggle(ui, &mut on) {
             self.ops.push(SessionOp::SetBodyOn { node, on });
@@ -1440,8 +1439,8 @@ pub(crate) fn related_entry(
     entry: &crate::relations::Related,
     ops: &mut Vec<SessionOp>,
 ) {
-    let said = crate::widgets::sentence(ui, entry.said(), on_screen, |text| text);
-    ops.extend(said.selects.map(SessionOp::Select));
+    let said = crate::widgets::sentence(ui, entry.said(), on_screen);
+    ops.extend(said.map(SessionOp::Select));
 }
 
 /// **A picked entity's header**: the pick as the chrome says one
