@@ -1941,3 +1941,8 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - the turn-defect P1, as a local lane on branch `germ/turn-defect-sup-encloses`;
   - the conic-constructions audit, as cloud session `session_01BJC3B2yq7zFHzsrXXqX6CK` on branch `germ/conic-constructions-audit`.
   The implementer arms were drawn and recorded on the analysis branch. The briefs are arm-free.
+- 2026-11-23 22:25 — **A fork from the conic-constructions audit: raw surface radii at kernel doors below the finished body.**
+  - The conic constructors check their size, but `Surface`'s radii are public and unchecked (only tier-3 check 1 at rest; `major_radius` is checked by nothing). About 20 of the 67 production sites panic on data at raw-`&Surface` doors: `SurfaceCurve::{parallel,…}`, `trace::circle_crossings`, `Ring::of` on `+inf`.
+  - The lane's three readings are: (a) every door decides; (b) a typed positive length; (c) the doors are kernel-internal, so a bad radius is an invariant panic. A sub-question rides on it: `decide(+inf)` is Positive.
+  - The answer binds SECT and GERM rows, so it goes to designers per `docs/DESIGN-FORK-PROTOCOL.md`. The draws are on `analysis/design-fork/germ-raw-surface-radii`: two designers, labels A and B. The problem statement is at `~/.local/share/cad-work/germ-radii-fork/problem.md` and holds no candidate answers.
+  - The lane carries on with the work outside the fork: the Rim fix, non-finite user sizes gated per door, and re-posed cancelling sizes. It lists the held sites in its PR, and `trace::circle_crossings` is held with the fork.
