@@ -7068,7 +7068,7 @@ mod wavy_loft {
     /// value, whose two arcs, two and a half rungs apart, are each read
     /// in their own cells and carried. The join mints a chord on them,
     /// and the plane × NURBS lane's own image of it misses it at rest
-    /// (`Certification`, `PlaneNurbs`, `ImageMiss`;
+    /// (`DescriptionUncertified`, `PlaneNurbs`, `ImageMiss`;
     /// `work/sectarms/a-planes-carried-arc-across-a-flared-spline-wall-misses-its-own-image-at-rest.md`).
     ///
     /// It reds the day that image holds. The end-to-end row, the
@@ -7142,12 +7142,15 @@ mod wavy_loft {
         }
         let refusal = ev.node_error(union).map(|e| &e.kind);
         let chord = match refusal {
-            Some(crate::eval::NodeErrorKind::Boolean(topo::BooleanError::Join(join))) => match join
-                .error()
-            {
-                topo::JoinError::Euler(topo::EulerOpError::Certification { error }) => Some(error),
-                _ => None,
-            },
+            Some(crate::eval::NodeErrorKind::Boolean(topo::BooleanError::Join(join))) => {
+                match join.error() {
+                    topo::JoinError::Euler(topo::EulerOpError::DescriptionUncertified {
+                        error,
+                        ..
+                    }) => Some(error),
+                    _ => None,
+                }
+            }
             _ => None,
         };
         assert!(
