@@ -599,9 +599,9 @@ impl<T: SpanLocate> PeriodicNurbs3<T> {
             window: self.view_window(),
         };
         let period = self.period.point_value().ok_or(span)?;
-        // Read in the caller's parameter, where the sum is rounded: the
-        // negated ends of a run-back loop round the sum otherwise.
-        let forward = a < b && b <= a + period;
+        // A whole turn is read as either parameter rounds its sum: the
+        // caller's, or the run-back loop's negated one.
+        let forward = s0 < s1 && (s1 <= s0 + period || b <= a + period);
         if !forward {
             return Err(span);
         }

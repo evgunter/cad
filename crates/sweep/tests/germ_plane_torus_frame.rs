@@ -283,8 +283,10 @@ fn doors(
 /// every op that builds is valid to tier 3, and a half-space's ops hold
 /// the donut's part past the plane, integrated apart from the kernel
 /// ([`torus_past_a_plane`]). An op other than ∪ may stop at the piece
-/// sort, which reads no torus face a marched edge trims; B3's pierce
-/// escalates ahead of everything at a coarse run band, and says so.
+/// sort, which reads no torus face a marched edge trims; B3 may stop at
+/// its torus face's ring run, which winds no marched edge, and its
+/// pierce escalates ahead of everything at a coarse run band, and says
+/// so.
 #[test]
 fn a_general_pose_builds_to_its_volume() {
     let d = donut();
@@ -353,6 +355,13 @@ fn a_general_pose_builds_to_its_volume() {
                     source: topo::PointInSolidError::PartialTorusFace { .. },
                     ..
                 })) if !op.contains('∪') => continue,
+                // B3's null loops leave a ring on the torus face, whose
+                // run winding reads no marched edge
+                // (`work/orbit/a-ring-on-a-torus-face-bounded-by-a-marched-edge-has-no-ring-run-winding.md`).
+                Err(BooleanError::EdgeCarrierUnsupported {
+                    site: topo::EdgeCarrierSite::RingRun,
+                    ..
+                }) if pose == "B3" => continue,
                 r => r.unwrap_or_else(|e| panic!("{pose}, {op}: builds, got {e:?}")),
             };
             let Some(body) = r.body() else {
