@@ -1107,27 +1107,29 @@ fn one_vertex_sense<T: Decide>(
     }
     // The tangent a half leaves its start along: its carrier's at the
     // start parameter, reversed on the minus half; and its conic's arm.
-    let leaving = |he: HalfEdgeKey| -> Result<(geom_core::Vec3<T>, geom_core::Lever<T>), BooleanError> {
-        let edge = body
-            .get_half_edge(he)
-            .ok_or_else(|| corr("seam half-edge no longer resolves"))?
-            .edge;
-        let data = body
-            .get_edge(edge)
-            .ok_or_else(|| corr("seam edge no longer resolves"))?;
-        let curve = body
-            .edge_curve_linked(edge, data)
-            .certified()
-            .ok_or_else(|| corr("a one-vertex seam edge has no certified curve"))?;
-        let (t0, t1) = curve.params();
-        let tangent = if data.he_plus == he {
-            curve.carrier().deriv(t0)
-        } else {
-            -curve.carrier().deriv(t1)
+    let leaving =
+        |he: HalfEdgeKey| -> Result<(geom_core::Vec3<T>, geom_core::Lever<T>), BooleanError> {
+            let edge = body
+                .get_half_edge(he)
+                .ok_or_else(|| corr("seam half-edge no longer resolves"))?
+                .edge;
+            let data = body
+                .get_edge(edge)
+                .ok_or_else(|| corr("seam edge no longer resolves"))?;
+            let curve = body
+                .edge_curve_linked(edge, data)
+                .certified()
+                .ok_or_else(|| corr("a one-vertex seam edge has no certified curve"))?;
+            let (t0, t1) = curve.params();
+            let tangent = if data.he_plus == he {
+                curve.carrier().deriv(t0)
+            } else {
+                -curve.carrier().deriv(t1)
+            };
+            let arm =
+                geom_brep::ExtentBall::of_covered(curve.carrier().cover().as_ref().ok()).lever();
+            Ok((tangent.normalize(), arm))
         };
-        let arm = geom_brep::ExtentBall::of_covered(curve.carrier().cover().as_ref().ok()).lever();
-        Ok((tangent.normalize(), arm))
-    };
     let band = geom_core::Band::linear(tol).map_err(|_| corr("the zip's band does not read"))?;
     let ((out_dir, arm), (ring_dir, _)) = (leaving(outer)?, leaving(ring)?);
     let margin = geom_core::Margin::levered(out_dir.dot(ring_dir), arm);

@@ -428,9 +428,21 @@ fn the_pair_swallowing_a_pole_joins_under_every_op() {
     let (a, b) = (ball(1.0, BASE), ball(1.0, BASE + offset));
     let shared = lens_volume(1.0, 1.0, offset.norm());
     for (label, op, x, y, expected) in [
-        ("A ∪ B", BooleanOp::Union, &a, &b, 2.0 * ball_volume(1.0) - shared),
+        (
+            "A ∪ B",
+            BooleanOp::Union,
+            &a,
+            &b,
+            2.0 * ball_volume(1.0) - shared,
+        ),
         ("A ∩ B", BooleanOp::Intersect, &a, &b, shared),
-        ("A ∖ B", BooleanOp::Subtract, &a, &b, ball_volume(1.0) - shared),
+        (
+            "A ∖ B",
+            BooleanOp::Subtract,
+            &a,
+            &b,
+            ball_volume(1.0) - shared,
+        ),
     ] {
         let out = run(op, x, y).unwrap_or_else(|e| panic!("{label} refused: {e:?}"));
         let body = &out

@@ -1138,7 +1138,7 @@ fn closes_at_its_site<T: crate::props::AtRestPolicy>(
         (SiteCell::Closed(Some(_)), SiteCell::Wrap) => true,
         (SiteCell::Wrap, SiteCell::Closed(Some(_))) => true,
         (SiteCell::Wrap, SiteCell::Wrap) => true,
-        (SiteCell::Closed(Some(e)),SiteCell::Other(f)) => {
+        (SiteCell::Closed(Some(e)), SiteCell::Other(f)) => {
             planar(&red.b, f) && stands_on(red, (Operand::A, e), f, band)?
         }
         (SiteCell::Other(f), SiteCell::Closed(Some(e))) => {
