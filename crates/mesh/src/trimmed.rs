@@ -1089,6 +1089,12 @@ impl TrimmedFace<'_> {
             measure,
             falsification,
         )?;
+        crate::join_split::log(&format!(
+            "ATTEMPT face={fk:?} attempt={attempt} shared_sides={} folded_grid={} folded_boundary={}",
+            shared_sides.len(),
+            folded.0.len(),
+            folded.1
+        ));
         // THE SHARED-SIDE CURE (every arm). A triangle side joining two points
         // of the trim polygon is the same two mesh vertices whichever face makes
         // it. Where one neighbouring face holds both points and they are not
