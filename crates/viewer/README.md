@@ -79,8 +79,8 @@ one opens an empty name field instead, because a variable two slots
 share has a name. Typing a name and pressing **Name** or Enter names the
 variable and makes the slot read it, as one undo step. **keep
 separate** keeps the typed value distinct. A slot reading a shared
-variable is driven by it: a value typed there is refused, naming the
-variable, and the slot's expression text makes it its own again. A
+variable is driven by it: a drag there is refused, naming the
+variable, and a value typed there makes it its own again. A
 slot whose variable has no name has a **name…** button that opens an
 empty field; nothing is stored until you type a name and press
 **Name** or Enter.
@@ -951,7 +951,7 @@ neither.
 
 | Module | Holds |
 |---|---|
-| `forms` | What the panels offer for authoring, and how a typed field behaves. The vocabularies — `ShapeKind` (the profile editor's add-loop templates), `PatternLayoutChoice` — mirror a kernel or session enum, and the MIRROR is what is hand-maintained: the two enums declare themselves and their `ALL` in one declaration (**Closed vocabularies are declared once**, below), so no membership list here can fall behind its own enum (the mate tool's `MATE_KINDS`, a deliberately partial mirror of `VarKind`, lives beside the tool in `matetool`). A kernel vocabulary this crate offers WHOLE is not mirrored at all: the boolean form draws one button per entry of `topo::BooleanOp::ALL` and writes only the labels, at an exhaustive match, a body seat holding a split picked in the tree does the same over `select::SplitHalf::ALL` (`split_half_label`, declared in `tree` because an empty half's readout names the half with the same word), and the profile editor's step list does the same over `profile::Verb::ALL` (whose `Display` is its word), `profile::ArcMode::ALL` and `profile::TargetKind::ALL`, editing the kernel's own `Step` rather than a copy of it. The field-writing family — `FieldWriting`, `drag_tick` and the four drag speeds — mirrors nothing and is a product decision on its own (how much of a unit one pixel of drag is worth). Both are decisions the toolkit does not make, which is what puts them here rather than in `app` |
+| `forms` | What the panels offer for authoring, and how a typed field behaves. The vocabularies — `ShapeKind` (the profile editor's add-loop templates), `PatternLayoutChoice` — mirror a kernel or session enum, and the MIRROR is what is hand-maintained: the two enums declare themselves and their `ALL` in one declaration (**Closed vocabularies are declared once**, below), so no membership list here can fall behind its own enum (the mate tool's `MATE_KINDS`, a deliberately partial mirror of `VarKind`, lives beside the tool in `matetool`). A kernel vocabulary this crate offers WHOLE is not mirrored at all: the boolean form draws one button per entry of `topo::BooleanOp::ALL` and writes only the labels, at an exhaustive match, a body seat holding a split picked in the tree does the same over `select::SplitHalf::ALL` (`split_half_label`, declared in `tree` because an empty half's readout names the half with the same word), and the profile editor's step list does the same over `profile::Verb::ALL` (whose `Display` is its word), `profile::ArcMode::ALL` and `profile::TargetKind::ALL`, editing the kernel's own `Step` rather than a copy of it. `FieldWriting` — how one field is written: the unit `props::rendering_unit` gives a dimension in a notation, at `props::drag_tick`'s tick for it — mirrors nothing and is a product decision on its own (how much of a unit one pixel of drag is worth). Both are decisions the toolkit does not make, which is what puts them here rather than in `app` |
 | `drafts` | `Drafts`, `ProfileEdit`, `RowEdit` and `CommitFault`: the in-flight form state (`ProfileEdit` is a committed profile's program held as written, which the profile editor's step lists edit through each step's view at plain numbers, and `RowEdit` a change to the shape of one of its step lists), its defaults and the editor's loop templates, and its lowering of typed field values to `Expr`, `LoopProgram` and the profile-on-a-face form's `SessionOp` — the same layer as `session::author`, and today the larger half of it |
 | `frame` | The per-frame policies the viewport runs, as values: hand one the values a frame holds and it answers the same way every time, with no window, no session and no process around it — which is what makes a rule about the chrome testable at all, and why the frame loop still decides WHEN to call one and no longer decides what it MEANS. What the chrome has to say and which of its two channels says it (`Subject`, `Message`, `StatusUpdate`, `RankedVerdict`, `Badge`, the doors that build one and the two that spend one — `deliver` for a policy's `StatusUpdate`, `apply` for the ranking's `RankedVerdict`, each taking only its own type, so the compiler rejects a policy's verdict at the ranked door — though a hand-built `RankedVerdict::Show` still passes, which is `work/vnews/the-status-field-is-lent-bare-so-a-pane-can-write-around-both-doors.md`), `frame_status`'s ranking over a frame's news, the badge family including `product_badge`, the draft and the offer a refused batch leaves behind (`retype_draft`, `creation_offer`) and the one a failed instance makes (`version_offer`), what a folded event stream amounts to (`folded_is_a_camera_event`, `fold_status`), and what a frame says about work outstanding (`progress`). **The charter's exclusions are the half that was missing**: a concern that reads ambient process state is a function of the machine and lives in `platform`; a concern that carries state across frames is not a function of one frame and lives in `idpass`. Both are consumed here (`cursor_status` takes an `idpass::IdStep`) and neither is decided here. This row used to say the charter argues for taking each concern out of `app` and **not** for their being one module — `work/view/frame-module-has-eight-concerns-and-no-holds-row.md` owned the split that sentence deferred, and the split is taken: the charter above is now true of what is here, so the row covers the module rather than confessing that it cannot |
 | `platform` | What the environment the process was started in offers the shell, read once before the first frame. Each value here — the chooser-backend verdict (`ChooserBackend`, whose `unusable` answers the reason a dialog the environment cannot put up gives for being disabled; `chooser_backend`; `chooser_backend_of` over `Zenity` and `SessionBus`), the XDG preferences path (`prefs_path`, `prefs_path_in`) and the WSL probe (`running_under_wsl`) — takes the environment as its ARGUMENT, so none is a function of anything this crate holds and none can be replayed from a value a test builds. That is why they are not `frame`'s and why they are one module: `scripts/gates/no-ambient-env.sh` ratifies that the viewer's runtime environment reads have ONE home and allowlists this file as that home, and its argument against the gate's four rows is an argument about exactly these probes. A module that exists FOR the door is what makes that entry a door rather than a region inside something else |
@@ -2117,6 +2117,20 @@ is its preview.
 Six seated tools hold no value field; what they used to type is a row
 of the node they insert, or a pick.
 
+**A creation tool's commit waiting on a pick is withheld and names
+the pick.** The seated tools', the blend tool's and the
+profile-on-a-face form's commits are drawn by one row
+(`pane::create`'s `withheld_commit_row`), which takes the op as the
+tool's door forms it and reads the fault off it: a pick not held — a
+`seats::SeatError`, its role named the way the panel line names it —
+or, on the assertion form, a band over a measure's value. While one
+stands the commit is disabled and the fault is said under it and on
+its hover (`no mirror plane picked yet: pick a face`). A panel line says an open
+pick `role: none picked` (`seats::open_pick`), and a pick that leaves
+the document is said by `seats::pick_gone`. The mate tool, the
+add-variable form and the selection's own buttons (re-point,
+`Select all edges`) gate their controls apart.
+
 - **Blend.** The form asks for the edges and fillet or chamfer. The
   insert writes the size at `blend::default_size`: a millimetre,
   written in the working unit at one significant figure (`1 mm`,
@@ -2234,7 +2248,7 @@ has no spelling. The operation choice is the kernel's own
 **The operation is tool state, because it decides what a pick does.**
 Under union and intersect every pick appends a member, in pick order,
 and the panel lists them as `member 1`, `member 2`, …; the commit
-button commits whatever is held from one member on, and refuses typed
+button commits whatever is held from one member on, and is withheld
 (`SeatError::Empty` naming `Seat::Member`) while none is. Under subtract
 the tool holds two role-typed seats on the `seats` rule — the body kept
 (`from`), then the body removed (`tool`), a further pick replacing the
@@ -2248,14 +2262,16 @@ two members, and two seats become a member list of what they hold.
 `BodyRead<Formula>`: a body; a split's half by its port, a tree pick
 of the split waiting for its half; or one member of a family by its
 indices (`pattern[1]`), for a viewport pick on that drawn member. A
-tree pick of a family names the node, so it reads the family whole
-until the panel's member row chooses one. A member read keeps its
-output, so a split of a family reads one half of one member. A family
+tree pick of a family names the node: a list seat (a member, a
+subtract's tool) reads the family whole until the panel's member row
+chooses one, and a one-body seat (a subtract's kept body) offers "each
+member", which writes a binder the tree shows. A member read keeps its
+output, so a pick of a drawn half reads one half of one member. A family
 something reads along a seen path (a copy, a `⊔`, the product) is
 read whole, and the combine takes that reader over: what one member's
-read does to a copy of its family is a takeover not yet ruled. The
-boolean seats are the ones that read members; the other body seats
-read a family whole. The held-picks line says which read it holds
+read does to a copy of its family is a takeover not yet ruled. Every other
+one-body seat handed a family refuses it by kind, and offers "each
+member" the same way. The held-picks line says which read it holds
 (`Pattern 1[1]`, `Pattern 1, every member`, `Split 1[1], above half`).
 
 **A body picked twice is not refused anywhere.** A repeated read

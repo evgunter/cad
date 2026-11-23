@@ -2,10 +2,13 @@
 id: probe-seed-respells-props-authored-in
 kind: issue
 title: probe_seed re-spells props::authored_in by hand
-status: open
+status: closed
 opened: 2026-09-21
 priority: P1
 cost: E
+pr: 7372
+branch: formwords/dimension-ladders
+closed: 2026-11-22
 ---
 
 
@@ -64,3 +67,7 @@ than by a `factor()` call, across `crates/viewer/src/` and
 `bounds-reading-respells-the-panels-one-divide` could not see here:
 this site spells no `factor()` of its own, because the factor is
 already inside the `props` call it makes.
+
+## Closed (2026-11-22)
+
+PR 7372. The Dimension→quantity relation has one home in the kernel: `Dimension::quantity`, with `UnitSym::measures` and `canonical_for` reading it, and `Notation::unit_of` as the read half of `with`. The viewer keeps only `props::drag_tick` (the tick and the whole-number rule). The `*_DRAG_SPEED` constants are gone, a count steps by 1, and `probe_seed` is `props::authored_in(unit, 1.0)`.

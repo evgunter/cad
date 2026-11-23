@@ -49,7 +49,7 @@ pub fn segment_bits<T: Real>(segment: &Segment<T>) -> String {
 /// assertion carries the refusal in its message, so an empty slice
 /// reads as the wrong refusal rather than as a silent zero.
 pub fn corners<T: Real>(err: &PathError<T>) -> &[CornerRefusal<T>] {
-    match err {
+    match err.refusal() {
         PathError::NoCornerOfPair { corners, .. } => corners,
         _ => &[],
     }
@@ -1307,7 +1307,7 @@ pub fn grid_a(
 /// Neither is the fillet corner's fit, whose gates classify on the
 /// exact band.
 pub fn past_the_corner(e: &PathError<f64>) -> Option<&'static str> {
-    match e {
+    match e.refusal() {
         PathError::Escalated { source, .. }
             if source.predicate.is_some_and(|p| {
                 p.starts_with("path_junction_") || p == "path_fillet_joint_turn"
@@ -1315,7 +1315,7 @@ pub fn past_the_corner(e: &PathError<f64>) -> Option<&'static str> {
         {
             Some(source.predicate.unwrap_or("<unnamed>"))
         }
-        PathError::JunctionTangent { .. } => Some("JunctionTangent"),
+        PathError::JunctionTurnWithinTolerance { .. } => Some("JunctionTurnWithinTolerance"),
         _ => None,
     }
 }
@@ -1358,7 +1358,8 @@ pub fn grid_a_overruns_inside_the_band() -> (usize, usize, usize) {
     std::fs::remove_file(&out).expect("the child's file is removed");
     let mut taken = std::collections::BTreeSet::new();
     grid_a(|n, _, _, res| {
-        if let Err(PathError::Escalated { source, .. }) = res
+        if let Err(e) = res
+            && let PathError::Escalated { source, .. } = e.refusal()
             && source.predicate == Some("fillet_leg_fit")
         {
             taken.insert(n);

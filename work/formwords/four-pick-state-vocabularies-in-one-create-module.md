@@ -2,10 +2,13 @@
 id: four-pick-state-vocabularies-in-one-create-module
 kind: issue
 title: create.rs answers 'what is this button waiting for' in four unrelated vocabularies
-status: open
+status: closed
 opened: 2026-09-21
 priority: P1
 cost: D
+pr: 7374
+branch: formwords/seat-vocab
+closed: 2026-11-22
 ---
 
 
@@ -48,3 +51,7 @@ sites.
 `work/README.md`'s Priority: *"a special case that should be handled
 uniformly, and the rest of that class, which mostly falls under no
 tidier heading than itself."* This is that heading.
+
+## Closed (2026-11-22)
+
+PR 7374: `seats::SeatError` is the one home of "what a commit is waiting for". `tool_commit_row` takes the formed work and derives the withheld reason through `CommitFault::withholds`, and the reason is drawn in plain view. Stragglers that gate their own controls are filed as `work/chrome/disabled-reasons-still-pass-as-strings-through-gated-button.md`.
