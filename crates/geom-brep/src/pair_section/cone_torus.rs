@@ -241,8 +241,17 @@ impl<T: Decide> ConeTorusPose<T> {
                                 // the torus is the near-node's: its two
                                 // branches are what the sweep cannot part.
                                 TorusPoseRefusal::Undecided { diag, .. } => {
-                                    let near = apex_off
-                                        < ring.radii()[1] / T::from_f64(NEAR_APEX_FRACTION);
+                                    let near = matches!(
+                                        decide(
+                                            "kt_apex_near",
+                                            Margin::of(
+                                                ring.radii()[1] / T::from_f64(NEAR_APEX_FRACTION)
+                                                    - apex_off,
+                                            ),
+                                            band,
+                                        ),
+                                        Ok(Sign::Positive)
+                                    );
                                     let question = if near {
                                         KtQuestion::Apex
                                     } else {
