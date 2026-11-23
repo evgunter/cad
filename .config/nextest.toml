@@ -248,6 +248,7 @@ failure-output = "immediate-final"
 #    0.51 s  sweep::all pinned_corners_build::a_half_disc_turned_about_its_chord_builds_a_lune
 default-filter = """
 not (
+  (binary_id(sweep::all) & (test(=one_segment_loop::every_one_segment_circle_stack_builds_at_every_degree) | test(=pinned_corners_at_the_loft_door::a_full_turns_pinned_vertex_builds))) |
   (binary_id(sweep::all) & (test(=pinned_corners_build::a_half_disc_turned_about_its_chord_builds_a_lune) | test(=pinned_corners_build::a_pinned_sub_arc_joint_builds_as_a_pinned_corner) | test(=pinned_corners_build::a_half_disc_turned_in_the_last_slab_builds_a_lune_on_a_straight_slab))) |
   (binary_id(sweep::all) & (test(=band_planar_cut_off_meters::a_far_side_arc_with_no_vertex_in_the_tube_is_clear_of_the_strip) | test(=band_planar_mitre::a_frustum_top_rim_mitres_at_leaning_walls) | test(=join_pierce_runs_sweep::six_crossing_corners_build_every_op))) |
   (binary_id(mesh::all) & test(=sizing_theorem_rows::cone_frusta_mesh_within_delta)) |
