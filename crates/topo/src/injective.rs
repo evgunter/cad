@@ -18915,6 +18915,55 @@ mod focal_rows {
         assert!(got, "a cell beside the arc alone is presented by its graph");
     }
 
+    /// **A closed section is read through its join, a turn on from its
+    /// start**: the whole ellipse as one edge over `E ∈ [−π, π]`, its
+    /// vertex at the section's far point, in a cell about that point on
+    /// the sheet the span's end lands on and on the one a turn back. The
+    /// curve continues past its span by its closed form, its azimuth a
+    /// turn on by its sense ([`ChartCurve::wind`]). Red if the join is
+    /// continued by any other turn count: the run stops at the vertex,
+    /// inside the columns.
+    #[test]
+    fn a_closed_section_is_read_through_its_join() {
+        use core::f64::consts::PI;
+        for with in [true, false] {
+            let image = section(0.4, with);
+            let (ju, jv) = stored(&image, PI);
+            let mut rim = section_rim(11, [1, 1], &image, (-PI, PI));
+            rim.uses[0].plus = with;
+            let b = Boundary {
+                sense: true,
+                edges: vec![rim],
+                vertices: BTreeMap::from([(vertex(1), on_cone(ju, jv))]),
+                extent: None,
+                outer: None,
+            };
+            let s = cone();
+            let local = Local {
+                edges: vec![0],
+                vertices: vec![vertex(1)],
+            };
+            for turn in [0.0, if with { -TURN } else { TURN }] {
+                let piece = Piece {
+                    face: FaceKey::default(),
+                    surface: &s,
+                    whole: true,
+                    boundary: &b,
+                    u: (ju + turn - 0.05, ju + turn + 0.05),
+                    v: (jv - 0.05, jv + 0.05),
+                    local: &local,
+                    ball: Ball::holding(origin(), origin()),
+                };
+                let got = present_curved(&piece, 0, None, &[0], &[vertex(1)], band());
+                assert!(
+                    matches!(&got, Ok(Presentation::Of(q)) if matches!(q.zero, Zero::Curve(..))),
+                    "the join, sense with = {with}, {turn} on: {:?}",
+                    got.as_ref().map(|_| ()).map_err(|e| format!("{e:?}"))
+                );
+            }
+        }
+    }
+
     /// **A rim's corner with a section arc is read by the rim**: the rim
     /// `v = c` through the section's point of azimuth `1` runs from the
     /// vertex toward the section's near vertex, the face between it and

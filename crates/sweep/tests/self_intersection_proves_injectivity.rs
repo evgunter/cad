@@ -5768,3 +5768,421 @@ fn a_roof_folded_across_a_blocks_corner_crosses_it() {
         );
     }
 }
+
+// ------------------------------------------- a cone's section ellipses
+
+/// A frustum's base radius, top radius and height.
+type Frustum = (f64, f64, f64);
+/// A cut plane through `(0, q, 0)`, its normal `y` tilted by `phi`
+/// toward the horizontal direction at azimuth `psi`: `(q, phi, psi)`.
+type Cut = (f64, f64, f64);
+
+/// The cut plane's unit normal.
+fn cut_normal((_, phi, psi): Cut) -> geom_core::Vec3<f64> {
+    geom_core::Vec3::new(phi.sin() * psi.cos(), phi.cos(), phi.sin() * psi.sin())
+}
+
+/// **A frustum split by a tilted plane, one side of it**: the frustum
+/// revolved a full turn about `y` (its wall two half-cones meeting along
+/// the rulings at `±x`), split, the side the normal points to where
+/// `above`. Where the plane cuts the wall alone the cut is a section
+/// ellipse, two open arcs meeting the rulings at two vertices; where it
+/// runs out through the top cap, the side below keeps two arcs that each
+/// end on the top rim.
+fn cone_cut<T: Scalar>((r0, r1, h): Frustum, cut: Cut, above: bool) -> topo::AtRestBody<T> {
+    use sweep::test_support::finished;
+    use topo::splitting::{SplitPart, SplitPlane, split};
+    let p = |x: f64, y: f64| (Point2::new(T::from_f64(x), T::from_f64(y)), T::zero());
+    let frustum = finished(
+        "the frustum",
+        revolved_about_y_at::<T>(
+            vec![p(0.0, 0.0), p(r0, 0.0), p(r1, h), p(0.0, h)],
+            Revolution::Full,
+            tol(),
+        ),
+        tol(),
+    );
+    let plane = SplitPlane {
+        origin: Point3::new(0.0, cut.0, 0.0).map(T::from_f64),
+        normal: geom_core::UnitVec3::new(
+            cut_normal(cut).map(T::from_f64),
+            topo::POSE_UNIT_NORM,
+            band(),
+        )
+        .expect("a cut normal has a length"),
+    };
+    let result = split(&frustum, &plane, tol()).expect("the frustum splits");
+    match if above { result.above } else { result.below } {
+        SplitPart::Body(b) => b,
+        SplitPart::Empty => panic!("the side carries material"),
+    }
+}
+
+/// The section's point on the wall at azimuth `theta` about `y`.
+fn on_section((r0, r1, h): Frustum, cut: Cut, theta: f64) -> Point3<f64> {
+    let n = cut_normal(cut);
+    let (c, k) = (n.x * theta.cos() + n.z * theta.sin(), (r1 - r0) / h);
+    let y = (n.y * cut.0 - c * r0) / (n.y + c * k);
+    let r = r0 + k * y;
+    Point3::new(r * theta.cos(), y, r * theta.sin())
+}
+
+/// How a cut cone is placed before it is asked.
+#[derive(Clone, Copy, Debug)]
+enum Placed {
+    AsBuilt,
+    /// Turned 0.7 about a generic axis off the origin.
+    Turned,
+    /// Moved a hundred units from the origin.
+    Out,
+    /// Mirrored across a generic plane: its rows are minted again.
+    Mirrored,
+}
+
+/// The cut cone placed, as a body.
+fn placed_cut<T: Scalar>(shape: Frustum, cut: Cut, above: bool, placed: Placed) -> Body<T> {
+    use geom_core::{Affine3, Vec3};
+    let body = cone_cut::<T>(shape, cut, above);
+    match placed {
+        Placed::AsBuilt => body.into_body(),
+        Placed::Turned => moved(
+            &body,
+            &Affine3::rotation_about_axis(
+                Point3::new(0.3, -0.2, 0.1),
+                Vec3::new(2.0 / 7.0, 3.0 / 7.0, 6.0 / 7.0),
+                0.7,
+            ),
+        )
+        .into_body(),
+        Placed::Out => {
+            moved(&body, &Affine3::translation(Vec3::new(60.0, -70.0, 40.0))).into_body()
+        }
+        Placed::Mirrored => {
+            let across = topo::Reflection::across(
+                Point3::new(0.2, 0.1, -0.3).map(T::from_f64),
+                Vec3::new(3.0 / 7.0, -6.0 / 7.0, 2.0 / 7.0).map(T::from_f64),
+                tol(),
+            )
+            .expect("a mirror plane");
+            topo::mirror_body(&body, &across, tol()).expect("the cut mirrors")
+        }
+    }
+}
+
+/// The body's cone faces.
+fn cone_faces<T: Real>(body: &Body<T>) -> Vec<FaceKey> {
+    body.faces()
+        .map(|(k, _)| k)
+        .filter(|&k| matches!(surface(body, k), Surface::Cone { .. }))
+        .collect()
+}
+
+/// The frustum on the dyadic grid and off it.
+const ON_GRID: Frustum = (1.0, 0.5, 1.0);
+const OFF_GRID: Frustum = (0.7, 0.31, 0.9);
+
+/// **A cone cut by a tilted plane is embedded, in every placement.** The
+/// cut's section ellipse is two arcs, each a focal image on its half of
+/// the wall. Three readings sign the cells beside it: a half-cone at the
+/// vertex where the ruling it shares with the other half meets its own
+/// arc, by the ruling; a half-cone against the cut's cap at that vertex,
+/// by the arc read on through it; and along the arc, by the arc's graph.
+/// Where the cut runs out through the top cap the arcs end on the top
+/// rim, and the corner is read by the rim's arc.
+///
+/// At `f64`, through the verdict door: cut through the wall alone, on
+/// the dyadic grid as built and off it under a generic tilt as built,
+/// turned, a hundred units out and mirrored across a generic plane, and
+/// the side below the cut; cut out through the cap, off the grid in the
+/// same four placements, and on it. Red, `Uncertified { Departure }` at
+/// depth 0 between the two halves, where a cone's chart reads no focal
+/// image.
+///
+/// **At `Interval` the same bodies refuse**, and not on the cone: the
+/// plane caps' two arcs of one conic are one conic only as one value
+/// (`one_conic`), which a split body's bracketed frames are not, and a
+/// cone cell a rounding past its face's ruling is kept where the face's
+/// extent, an enclosure, reaches past the ruling by its bracket
+/// (`work/embed/an-interval-cone-cut-refuses-at-its-caps-two-arcs-and-beside-its-rulings.md`).
+/// So the row asks the two halves of the wall alone there: they hold
+/// against each other at both scalars wherever the cut is as built,
+/// turned or a hundred out under a tilt toward a ruling, which is the
+/// ruling's corner read at `Interval`.
+#[test]
+fn a_cone_cut_by_a_tilted_plane_is_embedded_in_every_placement() {
+    use Placed::{AsBuilt, Mirrored, Out, Turned};
+    use topo::clearance::Embedding;
+    let wall = (0.43, 0.3, 0.7);
+    let cap = (0.86, 0.3, 0.0);
+    let cases: Vec<(&str, Frustum, Cut, bool, Vec<Placed>)> = vec![
+        (
+            "the wall cut on the grid",
+            ON_GRID,
+            (0.5, 0.25, 0.0),
+            true,
+            vec![AsBuilt],
+        ),
+        (
+            "the wall cut",
+            OFF_GRID,
+            wall,
+            true,
+            vec![AsBuilt, Turned, Out, Mirrored],
+        ),
+        (
+            "the wall cut's lower side",
+            ON_GRID,
+            (0.5, 0.25, 0.7),
+            false,
+            vec![AsBuilt],
+        ),
+        (
+            "the cap cut",
+            OFF_GRID,
+            cap,
+            false,
+            vec![AsBuilt, Turned, Out, Mirrored],
+        ),
+        (
+            "the cap cut on the grid",
+            ON_GRID,
+            (0.9375, 0.25, 0.0),
+            false,
+            vec![AsBuilt],
+        ),
+    ];
+    for (what, shape, cut, above, placements) in cases {
+        for placed in placements {
+            let body = placed_cut::<f64>(shape, cut, above, placed);
+            assert_eq!(cone_faces(&body).len(), 2, "{what}: two halves of the wall");
+            let report = door(&body, DEFAULT_MAX_CELL_DEPTH, BUDGET);
+            assert_eq!(
+                report.verdict,
+                Embedding::Embedded,
+                "{what} {placed:?}: {:?}",
+                report.receipt
+            );
+        }
+    }
+    // The two halves alone, at both scalars.
+    for (what, shape, cut) in [
+        ("on the grid", ON_GRID, (0.5, 0.25, 0.0)),
+        ("off the grid", OFF_GRID, (0.43, 0.3, 0.0)),
+    ] {
+        for placed in [AsBuilt, Turned, Out] {
+            let float = placed_cut::<f64>(shape, cut, true, placed);
+            let twin = placed_cut::<Interval>(shape, cut, true, placed);
+            let reports = [
+                injective(&float, Some(cone_faces(&float)), BUDGET),
+                injective(&twin, Some(cone_faces(&twin)), BUDGET),
+            ];
+            same_class(
+                &format!("the halves {what} {placed:?}"),
+                &reports[0],
+                &reports[1],
+            );
+            for r in &reports {
+                assert!(
+                    matches!(r.verdict, BoundVerdict::Holds),
+                    "the halves {what} {placed:?}: {:?}",
+                    r.verdict
+                );
+                assert!(r.cornered > 0, "{what} {placed:?}: a corner is read");
+            }
+        }
+    }
+    // The whole body at `Interval`: never embedded while its caps refuse.
+    for (what, shape, cut, above) in [
+        ("the wall cut", OFF_GRID, wall, true),
+        ("the cap cut", OFF_GRID, cap, false),
+    ] {
+        let twin = placed_cut::<Interval>(shape, cut, above, AsBuilt);
+        let verdict = door(&twin, DEFAULT_MAX_CELL_DEPTH, BUDGET).verdict;
+        assert!(
+            matches!(verdict, Embedding::Refused(_)),
+            "{what} at Interval refuses: {verdict:?}"
+        );
+    }
+}
+
+/// **A cap cut under a generic tilt refuses on its cut cap, not on its
+/// cone.** Off the dyadic grid and tilted toward no ruling, the two arcs
+/// the split mints on the cut's cap are one ellipse stated with frames a
+/// quarter turn apart, their semi-axes exchanged, which `one_stated_conic`
+/// does not read as one conic: the cap's corner of two arcs is read by
+/// no presentation
+/// (`work/embed/two-arcs-of-one-ellipse-stated-a-quarter-turn-apart-are-not-one-conic.md`).
+/// The pair refused holds the cap; the two halves of the wall alone hold.
+#[test]
+fn a_cap_cut_under_a_generic_tilt_refuses_on_its_cut_cap_alone() {
+    use topo::clearance::{Embedding, EngineRefusal};
+    let body = placed_cut::<f64>(OFF_GRID, (0.86, 0.3, 0.7), false, Placed::AsBuilt);
+    let verdict = door(&body, DEFAULT_MAX_CELL_DEPTH, BUDGET).verdict;
+    let Embedding::Refused(EngineRefusal::Uncertified { a, b, arm, .. }) = verdict else {
+        panic!("the cap cut refuses departure: {verdict:?}")
+    };
+    assert_eq!(arm, CertificateArm::Departure);
+    assert!(
+        [a, b]
+            .iter()
+            .any(|&f| matches!(surface(&body, f), Surface::Plane { .. })),
+        "the refused pair holds a plane: {a:?} {b:?}"
+    );
+    let halves = injective(&body, Some(cone_faces(&body)), BUDGET);
+    assert!(
+        matches!(halves.verdict, BoundVerdict::Holds),
+        "the two halves hold: {:?}",
+        halves.verdict
+    );
+}
+
+/// **A body through a cut cone's wall beside its section crosses**: a
+/// ball of radius 0.02 grafted with its centre on the wall, at the
+/// vertex where a ruling meets the section, at the vertex where the top
+/// rim meets it, and on the section between two vertices; and the cut
+/// cone's own copy, moved 0.05 along the section's plane, grafted over
+/// it, so a second pair of half-cones overlaps the first across the
+/// section. A graft's solids share no cell, so each crossing is found by
+/// distance: the row pins that the section's readings leave a crossing
+/// beside them to be found, at both scalars, and never certify it. A
+/// crossing of two faces that SHARE the corner is built by no kernel
+/// operation; its rows are `injective::focal_rows`'.
+#[test]
+fn a_body_through_a_cut_cones_wall_beside_its_section_crosses() {
+    use topo::clearance::Embedding;
+    fn with_ball<T: Scalar>(shape: Frustum, cut: Cut, above: bool, at: Point3<f64>) -> Body<T> {
+        let mut body = cone_cut::<T>(shape, cut, above).into_body();
+        let rho = 0.02;
+        let p = |y: f64, bulge: f64| (Point2::new(T::zero(), T::from_f64(y)), T::from_f64(bulge));
+        let ball = topo::transform_rigid(
+            &revolved_about_y_at::<T>(vec![p(-rho, 1.0), p(rho, 0.0)], Revolution::Full, tol()),
+            &geom_core::RigidMotion::translation(
+                geom_core::Vec3::new(at.x, at.y, at.z).map(T::from_f64),
+            )
+            .expect("a translation"),
+        )
+        .expect("the ball moves");
+        topo::graft_disjoint_all_keyed(&mut body, &ball).expect("the ball grafts");
+        body
+    }
+    fn folded<T: Scalar>(shape: Frustum, cut: Cut) -> Body<T> {
+        use geom_core::{Affine3, Vec3};
+        let whole = cone_cut::<T>(shape, cut, true);
+        let mut body = whole.clone().into_body();
+        let copy = moved(&whole, &Affine3::translation(Vec3::new(0.0, 0.0, 0.05)));
+        topo::graft_disjoint(&mut body, &copy).expect("the copy grafts");
+        body
+    }
+    let wall = (0.43, 0.3, 0.0);
+    let cap = (0.86, 0.3, 0.0);
+    let rim_theta = (-(0.3f64.cos()) * (0.9 - 0.86) / (0.3f64.sin() * 0.31)).acos();
+    let rim_corner = Point3::new(0.31 * rim_theta.cos(), 0.9, 0.31 * rim_theta.sin());
+    let crossings: [(&str, Embedding, Embedding); 4] = [
+        (
+            "a ball at the ruling's corner",
+            door(
+                &with_ball::<f64>(OFF_GRID, wall, true, on_section(OFF_GRID, wall, 0.0)),
+                DEFAULT_MAX_CELL_DEPTH,
+                BUDGET,
+            )
+            .verdict,
+            door(
+                &with_ball::<Interval>(OFF_GRID, wall, true, on_section(OFF_GRID, wall, 0.0)),
+                DEFAULT_MAX_CELL_DEPTH,
+                BUDGET,
+            )
+            .verdict,
+        ),
+        (
+            "a ball at the rim's corner",
+            door(
+                &with_ball::<f64>(OFF_GRID, cap, false, rim_corner),
+                DEFAULT_MAX_CELL_DEPTH,
+                BUDGET,
+            )
+            .verdict,
+            door(
+                &with_ball::<Interval>(OFF_GRID, cap, false, rim_corner),
+                DEFAULT_MAX_CELL_DEPTH,
+                BUDGET,
+            )
+            .verdict,
+        ),
+        (
+            "a ball on the section",
+            door(
+                &with_ball::<f64>(OFF_GRID, wall, true, on_section(OFF_GRID, wall, 1.3)),
+                DEFAULT_MAX_CELL_DEPTH,
+                BUDGET,
+            )
+            .verdict,
+            door(
+                &with_ball::<Interval>(OFF_GRID, wall, true, on_section(OFF_GRID, wall, 1.3)),
+                DEFAULT_MAX_CELL_DEPTH,
+                BUDGET,
+            )
+            .verdict,
+        ),
+        (
+            "the cut's copy across the section",
+            door(
+                &folded::<f64>(OFF_GRID, wall),
+                DEFAULT_MAX_CELL_DEPTH,
+                BUDGET,
+            )
+            .verdict,
+            door(
+                &folded::<Interval>(OFF_GRID, wall),
+                DEFAULT_MAX_CELL_DEPTH,
+                BUDGET,
+            )
+            .verdict,
+        ),
+    ];
+    for (what, float, twin) in crossings {
+        println!("[cone] {what}: f64 {float:?} | Interval {twin:?}");
+        assert!(matches!(float, Embedding::Crosses(_)), "{what}: {float:?}");
+        assert!(
+            !matches!(twin, Embedding::Embedded),
+            "{what} at Interval is never embedded: {twin:?}"
+        );
+    }
+}
+
+/// **A needle and a near-flat cone, cut, read as any cone does**: a
+/// frustum of half-angle 0.015 (radii 0.05 and 0.02 over a height of 2)
+/// and one of half-angle 1.50 (radii 2 and 0.5 over 0.1), each cut
+/// through its wall alone. A chart length along `u` is `|v|·sin α`
+/// metres, so the needle's levers are small and the flat cone's section
+/// is nearly a circle. Each is embedded at `f64` through the verdict
+/// door, and its two halves hold against each other at both scalars in
+/// one class. Red if a lever taken without the half-angle's sine signs
+/// nothing on the needle, or signs too much.
+#[test]
+fn a_needle_and_a_near_flat_cone_cut_read_as_any_cone() {
+    use topo::clearance::Embedding;
+    for (what, shape, cut) in [
+        ("the needle", (0.05, 0.02, 2.0), (1.0, 0.3, 0.0)),
+        ("the near-flat cone", (2.0, 0.5, 0.1), (0.05, 0.03, 0.0)),
+    ] {
+        let float = cone_cut::<f64>(shape, cut, true).into_body();
+        let twin = cone_cut::<Interval>(shape, cut, true).into_body();
+        assert_eq!(
+            door(&float, DEFAULT_MAX_CELL_DEPTH, BUDGET).verdict,
+            Embedding::Embedded,
+            "{what}"
+        );
+        let reports = [
+            injective(&float, Some(cone_faces(&float)), BUDGET),
+            injective(&twin, Some(cone_faces(&twin)), BUDGET),
+        ];
+        same_class(&format!("{what}'s halves"), &reports[0], &reports[1]);
+        for r in &reports {
+            assert!(
+                matches!(r.verdict, BoundVerdict::Holds) && r.cornered > 0,
+                "{what}'s halves hold with a corner read: {:?}",
+                r.verdict
+            );
+        }
+    }
+}
