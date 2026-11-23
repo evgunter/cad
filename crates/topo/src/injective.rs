@@ -8640,6 +8640,33 @@ mod presentation_rows {
 
     // ------------------------------------------- review probes (re-review)
 
+    /// REVIEW PROBE B1 (re-review). A sliver triangle's end in a cell
+    /// that runs along its sides to where they stand `gap` apart: the
+    /// cap's lean over the reach comes down to `gap`. Inside the band it
+    /// must not be read; the corner's own lean (the end's width, a
+    /// millimetre) is far outside the band either way.
+    #[test]
+    fn review2_probe_a_cap_lean_inside_the_band_is_not_read() {
+        let (l, w) = (10.0, 1e-3);
+        let (plane, triangle) = segments(&[
+            (1, (0.0, 0.0), (l, 0.0), [1, 2]),
+            (2, (l, 0.0), (l, w), [2, 3]),
+            (3, (l, w), (0.0, 0.0), [3, 1]),
+        ]);
+        let end = holding(&[0, 1, 2], &[2, 3]);
+        let k = band().escalate();
+        for (gap, presented) in [(0.05 * k, false), (50.0 * k, true)] {
+            let from = gap * l / w;
+            let got = present_in(&plane, &triangle, ((from, 10.5), (-1.0, 1.0)), &end, &[1]);
+            println!("[B1] gap {gap:e} (cell from x = {from:e}): presented {}", matches!(got, Ok(Presentation::Of(_))));
+            assert_eq!(
+                matches!(got, Ok(Presentation::Of(_))),
+                presented,
+                "a cap standing {gap:e} off its base at the cell's far reach: presented = {presented}"
+            );
+        }
+    }
+
     /// REVIEW PROBE F1 (re-review). A fuzz of `present_plane` over chains
     /// of three line edges `Q0 -> P1 -> P2 -> Q3` (the face on the left),
     /// each corner convex or reflex, turned in the chart, in cells whose
