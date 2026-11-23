@@ -384,9 +384,10 @@ fn zone(lo: f64, hi: f64) -> Body<f64> {
         .into_body()
 }
 
-/// **A curved sphere face off the equator, in its metric**: the zone at
-/// 50°–80° has lattice metric 2 (`1/cos 65°`, rounded to a power of
-/// two), and every triangle lies within δ of the sphere by sampling.
+/// **A curved sphere face off the equator, in its lattice's metric**:
+/// the zone at 50°–80°, whose cells enter the CDT at a power of two of
+/// their realized aspect, meshes with every triangle within δ of the
+/// sphere by sampling.
 #[test]
 fn an_off_equator_sphere_zone_meshes_within_delta_in_its_metric() {
     let body = zone(50.0, 80.0);

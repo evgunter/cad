@@ -573,7 +573,7 @@ pub(crate) fn tessellate_trimmed(
                 // than their gaps.
                 match a.development() {
                     Some(_) => 1.0,
-                    None => a.metric((u0, u1), (v0, v1), (nu, rows.len() + 1)),
+                    None => a.trimmed_metric((u0, u1), (v0, v1), (nu, rows.len() + 1)),
                 },
             )
         }

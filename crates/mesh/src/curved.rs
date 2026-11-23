@@ -161,17 +161,24 @@
 //! # The lattice metric
 //!
 //! The CDT runs where the lattice is near square: each point enters at
-//! [`crate::cdt::lattice_point`] under the face's lattice metric
-//! ([`crate::chart_table::AnalyticRow::metric`]), the trimmed lane's
-//! one spelling (`crate::trimmed`, "The lattice metric"). Delaunay is
-//! not stretch-invariant. A chord point the grid did not place (a
+//! [`crate::cdt::lattice_point`] under [`cdt_metric`], the face's own
+//! lattice's metric ([`crate::chart_table::AnalyticRow::cell_metric`]:
+//! its realized cell aspect to the nearest power of two), on every
+//! chart. It is never the trimmed lane's sphere choice, the chart's own
+//! metric at mid latitude: that is no lattice's spacing, and near a pole
+//! it is 8 to 32 times one. Delaunay is not stretch-invariant. A chord point the grid did not place (a
 //! meridian's, between two rows; a rim's, between two columns) has, in
 //! raw UV, an empty circle `√(t(1 − t))·a` cells wide across the
 //! lattice's long axis, `t` the point's fraction of its cell and `a`
 //! the cell's aspect: a thin torus band's lattice is `a ≈ √(R/r)`
 //! times taller than wide, and its meridian points joined rim points
 //! four columns away, seven times past δ. In the metric `a` is within
-//! `√2` of one and the circle under a cell wide.
+//! `√2` of one and the circle under a cell wide, inside the premise of
+//! `sizing::sphere_grid_steps`' containment lemma (a cell aspect under
+//! `2√2` on either axis) on every chart. A sphere's counts keep that
+//! premise in raw UV too (a curved sphere face with rows reaches aspect
+//! 2.4, measured); the metric moves its cells nearer square and no
+//! further.
 //!
 //! **What is measured and not proved.** The theorem above bounds a
 //! lattice half cell; a triangle beside an off-lattice chord point has
@@ -366,9 +373,8 @@ pub(crate) fn tessellate_curved(
         meridian_interior,
     )?;
 
-    // The CDT runs in the lattice metric (module docs, "The lattice
-    // metric"); `meta`, the grid and every certificate read UV.
-    let metric = row.metric((u0, u1), (v0, v1), (nu, nv));
+    // `meta`, the grid and every certificate read UV.
+    let metric = cdt_metric(&row, (u0, u1), (v0, v1), (nu, nv));
     // CDT: boundary entries (fixed walk order) + constraints + grid.
     let mut cdt: ConstrainedDelaunayTriangulation<SpadePoint<f64>> =
         ConstrainedDelaunayTriangulation::new();
@@ -1113,6 +1119,18 @@ fn overused_identified_edge(
     crate::walk::overused_identified_edge_in(&identified, &triangles())
 }
 
+/// **The metric a curved face's CDT runs in** (module docs, "The lattice
+/// metric"): its own lattice's, over the box `(u0, u1) × (v0, v1)` of
+/// `nu × nv` cells ([`AnalyticRow::cell_metric`]).
+pub(crate) fn cdt_metric(
+    row: &AnalyticRow<'_>,
+    u: (f64, f64),
+    v: (f64, f64),
+    counts: (usize, usize),
+) -> f64 {
+    row.cell_metric(u, v, counts)
+}
+
 /// The interior grid counts `(nu, nv)` for the face's UV spans, at the
 /// face's chart row's steps ([`AnalyticRow::steps`]) and the lattice it
 /// lays from them ([`AnalyticRow::lattice_steps`]).
@@ -1221,6 +1239,83 @@ mod tests {
     use sweep::ExtrudeSide;
     use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
     use topo::construction::Construct;
+
+    /// **The CDT's cells keep the containment lemma's premise on every
+    /// chart** (module docs, "The lattice metric"): a curved face's cell,
+    /// in the plane [`cdt_metric`] puts it in, has aspect under `2√2` on
+    /// either axis, the premise of `sizing::sphere_grid_steps`' lemma.
+    /// Over sphere zones and caps off the equator, a whole sphere and a
+    /// thin torus band, at δ from 1e-1 to 1e-4, through the lane's own
+    /// `grid_counts`. The thin band's raw aspect is far outside it.
+    #[test]
+    fn the_cdt_cell_keeps_the_containment_lemmas_aspect_on_every_chart() {
+        use core::f64::consts::{FRAC_PI_2, TAU};
+        let frame = geom::Frame::new(
+            geom_core::Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        );
+        let sphere = Surface::Sphere { frame, radius: 1.0 };
+        let band = Surface::Torus {
+            frame,
+            major_radius: 0.3,
+            minor_radius: 1e-3,
+        };
+        let bound = 2.0 * core::f64::consts::SQRT_2;
+        let mut raw_outside = 0usize;
+        let mut faces = 0usize;
+        let windows: Vec<(&Surface<f64>, f64, (f64, f64))> = [
+            (0.0, 30.0),
+            (20.0, 70.0),
+            (50.0, 80.0),
+            (60.0, 88.0),
+            (70.0, 89.0),
+            (-80.0, -50.0),
+            (30.0, 90.0),
+            (60.0, 90.0),
+            (80.0, 90.0),
+            (-90.0, 90.0),
+        ]
+        .into_iter()
+        .map(|(lo, hi): (f64, f64)| (&sphere, TAU, (lo.to_radians(), hi.to_radians())))
+        .chain([(&band, TAU, (FRAC_PI_2, core::f64::consts::PI))])
+        .collect();
+        for (surface, uspan, (v0, v1)) in windows {
+            let sphere_face = matches!(surface, Surface::Sphere { .. });
+            let widest = if v0 <= 0.0 && v1 >= 0.0 {
+                1.0
+            } else {
+                v0.abs().min(v1.abs()).cos()
+            };
+            let row =
+                AnalyticRow::new(surface, if sphere_face { widest } else { f64::NAN }).unwrap();
+            let has_pole = sphere_face && (v1 >= FRAC_PI_2 || v0 <= -FRAC_PI_2);
+            for delta in [1e-1, 3e-2, 1e-2, 3e-3, 1e-3, 1e-4] {
+                let (nu, nv) =
+                    grid_counts(&row, delta, (uspan, v1 - v0), has_pole, 2 * 64).unwrap();
+                if nv < 2 {
+                    continue;
+                }
+                faces += 1;
+                #[allow(clippy::cast_precision_loss)]
+                let aspect = (uspan / nu as f64) / ((v1 - v0) / nv as f64);
+                let k = cdt_metric(&row, (0.0, uspan), (v0, v1), (nu, nv));
+                let cdt = aspect / k;
+                raw_outside += usize::from(!(1.0 / bound < aspect && aspect < bound));
+                assert!(
+                    1.0 / bound < cdt && cdt < bound,
+                    "{surface:?} over v [{v0}, {v1}] at δ = {delta}: {nu} × {nv} cells of raw \
+                     aspect {aspect} enter the CDT at aspect {cdt} (metric {k}), outside the \
+                     lemma's 2√2"
+                );
+            }
+        }
+        assert!(faces > 40, "the windows lay rows: {faces}");
+        assert!(
+            raw_outside > 0,
+            "the thin band's raw aspect is past the lemma's bound"
+        );
+    }
 
     fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
         Profile::new(SketchPlane::xy(), loops)
