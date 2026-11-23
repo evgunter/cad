@@ -309,11 +309,10 @@ pub(super) fn outlines_disjoint<T: Decide>(
                 | (
                     OutlineEdge::Conic(c @ geom::Curve3::Ellipse(_), span),
                     &OutlineEdge::Line(p, q),
-                ) => arc_clears(conic(c), *span, &Other::Segment(p, q), band),
+                ) => { let _ = span; mut_a_line_clears_conic(p, q, conic(c), band) },
                 (OutlineEdge::Conic(c @ geom::Curve3::Ellipse(_), s), OutlineEdge::Conic(d, t))
                 | (OutlineEdge::Conic(c, s), OutlineEdge::Conic(d @ geom::Curve3::Ellipse(_), t)) => {
-                    conics_clear(conic(c), conic(d), band)
-                        || arc_clears(conic(c), *s, &Other::Arc(conic(d), *t), band)
+                    { let _ = (s, t); conics_clear(conic(c), conic(d), band) }
                 }
                 // Lines and circles: check 9 decided them above.
                 _ => true,
@@ -774,4 +773,18 @@ mod review_nesting_threshold {
         }
         let _ = Conic::point_at(&Ellipse::new(Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()), 1.0, 1.0), 0.0);
     }
+}
+
+/// MUTATION A: main's carrier reading.
+fn mut_a_line_clears_conic<T: Decide>(p: Point3<T>, q: Point3<T>, c: &dyn Conic<T>, band: geom_core::Band) -> bool {
+    let along = q - p;
+    if !positive("split_nest_segment_arc", along.norm(), band)
+        || !positive("split_nest_segment_arc", c.speed_lo(), band)
+    {
+        return false;
+    }
+    let m = c.frame().axis().cross(along.normalize());
+    let (p_m, q_m) = c.along(m);
+    let reach = (p_m.powi(2) + q_m.powi(2)).sqrt();
+    positive("split_nest_segment_arc", m.dot(c.frame().origin() - p).abs() - reach, band)
 }
