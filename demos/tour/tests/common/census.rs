@@ -17,6 +17,6 @@ pub fn rings(body: &Body<f64>) -> i64 {
 /// row fails on the door's typed refusal in its own words.
 pub fn genus(body: &Body<f64>) -> i64 {
     euler_counts(body)
-        .genus()
+        .h()
         .unwrap_or_else(|refusal| panic!("{refusal}"))
 }

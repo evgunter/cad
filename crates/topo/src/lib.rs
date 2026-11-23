@@ -168,6 +168,8 @@ pub mod entity;
 pub mod euler;
 pub mod euler_kill;
 pub mod euler_ring;
+#[cfg(test)]
+pub(crate) mod euler_theorem;
 pub(crate) mod face_boundary;
 pub mod face_boxes;
 pub mod face_normal;
