@@ -28,7 +28,7 @@ fn delta_dump_placed_geometry() {
             let row = match ev.result(id) {
                 Some(NodeResult::Ok(v)) => match &v.payload {
                     ValuePayload::Body(b) => {
-                        (format!("body"), vec![pts(&crate::fixture::in_space(b))])
+                        ("body".to_owned(), vec![pts(&crate::fixture::in_space(b))])
                     }
                     ValuePayload::Instances(ms) => (
                         format!("family{}", ms.len()),
