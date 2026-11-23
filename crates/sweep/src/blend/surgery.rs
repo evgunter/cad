@@ -1894,15 +1894,13 @@ fn rims_share_support<T: Real>(a: &RimPlan<'_, T>, b: &RimPlan<'_, T>) -> bool {
 ///   any mutation, with the sequential recourse (each call plans
 ///   against its own source, so sequence is always honest).
 ///
-///   **The mixed pair is REACHABLE and this arm is what refuses it.**
-///   A revolve whose flat top runs in to a dome, followed by
-///   `merge_coplanar_faces`, mints one plane face carrying both a RING
-///   (the dome rim, a ladder) and a revolution-wall outer cycle (the
-///   top rim, a hostless annulus); requesting the two together is a
-///   mixed pair, and each rim carves ALONE. Rowed by
-///   `ring_clearance_forms::the_bosss_two_rims_refuse_together_and_compose_sequentially`,
-///   which also follows the recourse: the two calls in sequence build
-///   the same solid at the sum of the two closed forms.
+///   No fixture reaches this arm today. The boss — a revolve whose flat
+///   top runs in to a dome, followed by `merge_coplanar_faces` — mints
+///   one plane face carrying both a RING (the dome rim) and a
+///   revolution-wall outer cycle (the top rim), but each rim there plans
+///   as an ANNULUS, so the pair is two annuli on one support and the
+///   call builds at the sum of the two closed forms
+///   (`ring_clearance_forms::the_bosss_two_rims_carve_together_and_compose_sequentially`).
 fn shared_support_gate<T: Real>(rims: &[RimPlan<'_, T>]) -> Result<(), BlendError> {
     for (i, a) in rims.iter().enumerate() {
         for b in rims.iter().skip(i + 1) {
@@ -1965,12 +1963,13 @@ struct LiveSeams {
 /// strut this phase mints, which no earlier carve can have staled. A
 /// second rim of the same call CAN rest on that host face — the host may
 /// carry rings, and a ring of it is itself a candidate rim (the boss's
-/// dome rim beside its top rim) — but such a pair is a LADDER or MIXED
-/// rim and an ANNULUS sharing a support, which [`shared_support_gate`] refuses
-/// before any plan mutates, with the sequential recourse. So nothing on
-/// the host side can have moved by the time this runs, and what such a
-/// rim can share is its MATE wall, which is exactly the side still
-/// re-read.
+/// dome rim beside its top rim). A LADDER or MIXED rim there and an
+/// ANNULUS share a support, which [`shared_support_gate`] refuses before
+/// any plan mutates, with the sequential recourse; an ANNULUS ring rim
+/// carves the plane host's ring alone, which holds no seam this rim's
+/// crossing reads. So nothing on the host side this rim reads can have
+/// moved by the time this runs, and what such a rim can share is its
+/// MATE wall, which is exactly the side still re-read.
 fn refresh_annulus_seams<T: Decide + Bounds>(
     body: &Body<T>,
     rim: &RimPlan<'_, T>,
