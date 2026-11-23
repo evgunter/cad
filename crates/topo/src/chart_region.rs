@@ -148,8 +148,8 @@ use geom::Surface;
 use geom_core::k_stats::{Magnitude, decide_magnitude};
 use geom_core::period::{Exact, Extent, NotForward, Period, TurnRows};
 use geom_core::{
-    Band, Bounds, CertifiedBounds, Decide, Indeterminate, InfSpeed, Lever, Margin, Point2, Sign,
-    Vec2, is_underflowed_length,
+    Band, Bounds, CertifiedBounds, Decide, Indeterminate, InfSpeed, Margin, Point2, Sign, Vec2,
+    is_underflowed_length,
 };
 
 use crate::body::Body;
@@ -1342,34 +1342,6 @@ fn pair_cover<T: Decide>(
     crate::cover::face_cover(body, face, band).map_err(ChartRegionError::FaceUncovered)
 }
 
-/// **How far `face`'s boundary reaches from `pivot`, from below**: the
-/// farthest of its edges' reaches ([`crate::cover::edge_reach_bounds`],
-/// each read from below), every one a distance to a point of the face.
-/// A lone-vertex loop, null scaffolding or a face with no edge is
-/// refused, as a face that does not resolve is.
-fn boundary_reach_below<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-    pivot: geom_core::Point3<T>,
-) -> Result<Lever<T>, ChartRegionError> {
-    let view = body.face(face).ok_or(ChartRegionError::Corrupt)?;
-    let reaches = view
-        .boundary()
-        .map(|member| match member {
-            BoundaryMember::Isolated { .. } => Err(ChartRegionError::Corrupt),
-            BoundaryMember::Edge { ek, edge, .. } => {
-                crate::cover::edge_reach_bounds(body, ek, edge, pivot)
-                    .map(geom_brep::LeverBounds::below)
-                    .ok_or(ChartRegionError::Corrupt)
-            }
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    reaches
-        .into_iter()
-        .reduce(Lever::max)
-        .ok_or(ChartRegionError::Corrupt)
-}
-
 /// Every boundary vertex of a face, outer loop then rings, cycle order
 /// (fixed schedule, D9): [`crate::live::FaceView::boundary`], every hop past
 /// the face a link. A lone-vertex loop is refused, as a face that does
@@ -1715,21 +1687,28 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
     //     sin θ times its distance from there: the lever is both faces'
     //     reach from both origins. The tilt gate acts on its Zero and
     //     reads it from above (each face's cover); the sense row acts on
-    //     its sign and reads it from below (each face's boundary).
-    let mut above: Option<Lever<T>> = None;
-    let mut below: Option<Lever<T>> = None;
-    for (body, face) in [(body_a, face_a), (body_b, face_b)] {
-        let cover = pair_cover(body, face, band)?;
-        for pivot in [a.origin(), b.origin()] {
-            let up = geom_brep::ExtentBall::of_cover_from(Some(&cover), pivot).lever();
-            let down = boundary_reach_below(body, face, pivot)?;
-            above = Some(above.map_or(up, |x| x.max(up)));
-            below = Some(below.map_or(down, |x| x.max(down)));
-        }
-    }
-    let (Some(above), Some(below)) = (above, below) else {
-        unreachable!("two faces read from two origins")
+    //     its sign and reads it from below (each face's boundary). The
+    //     fold is over two pivots: from above, the larger of two upper
+    //     bounds bounds the reach from either; from below it is a read of
+    //     the axis cosine, which carries no point of its own, so either
+    //     origin's reach is one it is consumed over.
+    let read = |(body, face, pivot): (&Body<T>, FaceKey, geom_core::Point3<T>)| {
+        let up = geom_brep::ExtentBall::of_cover_from(Some(&pair_cover(body, face, band)?), pivot)
+            .lever();
+        let down = crate::cover::boundary_reach_below(body, face, pivot)
+            .map_err(|_| ChartRegionError::Corrupt)?;
+        Ok::<_, ChartRegionError>((up, down))
     };
+    let (mut above, mut below) = read((body_a, face_a, a.origin()))?;
+    for pair in [
+        (body_a, face_a, b.origin()),
+        (body_b, face_b, a.origin()),
+        (body_b, face_b, b.origin()),
+    ] {
+        let (up, down) = read(pair)?;
+        above = above.max(up);
+        below = below.max(down);
+    }
     // A gate over a SIGNED margin (the radius difference): either
     // definite sign is a genuine "definitely apart".
     let signed_gate = |name: &'static str, margin: Margin<T>| -> Result<(), ChartRegionError> {

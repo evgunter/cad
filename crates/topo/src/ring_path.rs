@@ -1771,8 +1771,9 @@ pub(crate) fn path_parity<T: Decide>(
 /// on it ([`SplineArc`]):
 /// every meeting it finds lies inside both spans and is a crossing, the
 /// sine between the two curves' directions there decided past the band
-/// (**`split_ring_path_spline_across`**, levered at the piece's extent
-/// from below, an iso curve's chord, and charged `slack`). The arrival on the closing
+/// (**`split_ring_path_spline_across`**, levered at the piece's length,
+/// an arc's reach from the meeting from below, an iso curve's chord, and
+/// charged `slack`). The arrival on the closing
 /// chord, at the end of the path's last piece, is no crossing before it
 /// (`arrival`). `None`
 /// where the path says nothing: a meeting at either span's end (the
@@ -1789,21 +1790,20 @@ fn spline_crossings<T: Decide>(
 ) -> Result<Option<usize>, Indeterminate> {
     use geom_brep::curve_pair::{Hit, Span, SpanEnd, meet};
     // The piece's carrier and span, the arm its crossings are levered
-    // at, its length where that is the arm's (an iso curve's is bounded
-    // below), and the span end it stops at.
+    // at (an arc's is read at each meeting, `None` here), its length
+    // where that is the arm's (an iso curve's is bounded below), and the
+    // span end it stops at.
     let (curve, params, length, extent, stop) = match piece {
         &(Piece::Arc(p) | Piece::Meridian(p)) => {
-            // A crossing is a definite sign, levered at the arc's
-            // diameter from below; a piece of no length is a Zero,
-            // read at it from above.
+            // A piece of no length is a Zero, read at the arc's diameter
+            // from above.
             let arc = geom::Curve3::Circle(p.circle);
             let (t0, t1) = p.span;
-            let length = geom_brep::edge_extent_inf(&arc, t0, t1);
             let extent = geom_brep::edge_extent_sup(&arc, t0, t1);
             (
                 arc,
                 p.span,
-                length,
+                None,
                 Margin::of(charge(extent.length(), slack)),
                 SpanEnd::Stop,
             )
@@ -1813,7 +1813,7 @@ fn spline_crossings<T: Decide>(
             (
                 geom::Curve3::line(from, to - from),
                 (T::zero(), T::one()),
-                length,
+                Some(length),
                 Margin::of(charge(length.length(), slack)),
                 SpanEnd::Stop,
             )
@@ -1821,7 +1821,7 @@ fn spline_crossings<T: Decide>(
         Piece::Iso(p) => (
             p.carrier(),
             p.span,
-            p.travel().0,
+            Some(p.travel().0),
             // No longer than its span at the curve's greatest speed: a
             // chord says nothing of the length of a curve that turns.
             Margin::metered_sup(p.span.1 - p.span.0, p.curve.speed_upper_bound()),
@@ -1857,6 +1857,18 @@ fn spline_crossings<T: Decide>(
         };
         let (dp, da) = (curve.deriv(tp), carrier.deriv(ta));
         let sine = dp.cross(da).norm() / (dp.norm() * da.norm());
+        // A crossing is a definite sign read at the meeting: an arc's
+        // lever is its reach from there, from below.
+        let length = length.unwrap_or_else(|| {
+            let (t0, t1) = params;
+            crate::cover::piece_reach_bounds(
+                &curve,
+                params,
+                (curve.eval(t0), curve.eval(t1)),
+                curve.eval(tp),
+            )
+            .below()
+        });
         if decide(
             "split_ring_path_spline_across",
             Margin::levered(charge(sine, slack / length.length()), length),

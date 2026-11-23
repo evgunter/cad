@@ -43,7 +43,7 @@ use geom_brep::curve_face::BoundaryRefusal;
 use geom_brep::curve_pair::MeetKind;
 use geom_brep::curve_pair::Span;
 use geom_brep::ladder::{Answering, Climb, Evidence, Rung, climb};
-use geom_core::{Band, Decide, Indeterminate, Lever, Margin, Point3, Sign, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use super::BooleanError;
 use super::fate::{Holds, Leaving, corner_holds, departure};
@@ -350,16 +350,15 @@ fn one_sense<T: Decide>(
     };
     let (carrier, (t0, t1)) = edge_span(a.0, he)?;
     let p = carrier.eval(geom::mid_param(t0, t1));
-    let reach_below = |h: HalfEdgeKey| -> Result<Lever<T>, OverlapRefusal> {
-        let (_, edge) = edge_record(a.0, h)?;
-        crate::cover::edge_reach_bounds(a.0, half_edge(a.0, h)?.edge, edge, p)
-            .map(geom_brep::LeverBounds::below)
-            .ok_or(OverlapRefusal::Unread(OverlapUnread::UncertifiedEdge))
-    };
-    let arm = boundary
-        .iter()
-        .flatten()
-        .try_fold(reach_below(he)?, |arm, &h| Ok(arm.max(reach_below(h)?)))?;
+    let arm = crate::cover::boundary_reach_below(a.0, a.1, p).map_err(|why| {
+        use crate::cover::BoundaryReachUnread as W;
+        match why {
+            W::StaleFace => OverlapRefusal::StaleFace { face: a.1 },
+            W::LoneVertex => OverlapRefusal::Unread(OverlapUnread::LoneVertex),
+            W::Uncertified => OverlapRefusal::Unread(OverlapUnread::UncertifiedEdge),
+            W::NoEdge => OverlapRefusal::Unread(OverlapUnread::NoBoundaryEdge),
+        }
+    })?;
     let na = normal_at(a, p, band)?;
     let nb = turned(normal_at(b, p, band)?, reversed);
     match crate::validate::decide(
