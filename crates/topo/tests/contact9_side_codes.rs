@@ -348,17 +348,19 @@ fn a_sector_parallel_at_a_short_arm_is_coplanar_only_if_its_bounds_read_on() {
 /// edge and part at 5e-8 rad, so they are within ε of each other for
 /// about 20 mm from it and 500ε apart at the far end.
 ///
-/// **This pins a reading known to be wrong.** It reads `Embedded`: an
-/// in-band pair certified by the reach lever. `[topology.tiers]` levers
-/// a departure at how far the narrower face runs from what the two
-/// share, which is the 20 mm these faces run within ε of each other, so
-/// the ratified reading is a refusal. The code still levers at the
-/// pair's reach (PR 7329's step), which over-reads a face inside the
-/// band. The row goes red when
-/// `the-embedding-question-reads-tier-3s-class-and-the-pairs-extent-from-the-verdict`
-/// levers at the narrower run, and that unit flips it to the refusal;
+/// **It reads `Embedded`.** The question levers the pair's departure
+/// at how far the narrower face runs from what the two share
+/// (`[topology.tiers]`), read from tier 3's verdict as the farthest
+/// each face stands from the tip edge's line: both run the sliver's
+/// 10 m from it. The two faces' summed sine there is 500ε, past the
+/// band, so the pair is certified. The run is not the 20 mm over which
+/// the faces stay within ε of each other: that stretch is a statement
+/// about the pair's separation, not about either face, and reading it
+/// as the lever is what
 /// `the-verifier-reads-a-separation-inside-the-band-as-a-coincidence-where-the-tiers-clause-says-ambiguous`
-/// holds the same move.
+/// holds open. The verdict and the receipt are the ones the pair's
+/// reach read before
+/// `the-embedding-question-reads-tier-3s-class-and-the-pairs-extent-from-the-verdict`.
 ///
 /// Before `a-plane-cell-holding-both-sides-of-a-thin-face-is-read-only-below-its-width`
 /// it read `Budget(Pairs)` on the top against a long side wall, a face
@@ -391,7 +393,7 @@ fn the_sector_slivers_meet_is_certified_by_the_reach_lever_once_its_faces_are_re
     );
     assert!(
         matches!(report.verdict, topo::clearance::Embedding::Embedded),
-        "the sector's sliver reads Embedded by the reach lever: {report:?}"
+        "the sector's sliver reads Embedded at its faces' run: {report:?}"
     );
     let r = report.receipt;
     assert_eq!(

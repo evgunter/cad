@@ -3220,12 +3220,11 @@ fn a_rod_less_a_tilted_slab_holds_across_its_curved_corners() {
         rod_less_a_tilted_slab(z).into_body(),
         rod_less_a_tilted_slab(z).into_body(),
     );
-    // How many certificates read a face through a corner. The two
-    // scalars split their cells alike and certify at different depths
-    // beside the cut's vertices, so the counts differ; each is pinned.
+    // How many certificates read a face through a corner, at each
+    // scalar.
     assert_eq!(
         (float.cornered, interval.cornered),
-        (16, 18),
+        (16, 16),
         "the corners are read through"
     );
 }
