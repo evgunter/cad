@@ -1049,7 +1049,7 @@ fn boolean_door<T: Decide + Bounds + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
     let (a, b) = (one_solid(a)?, one_solid(b)?);
-    boolean_op_recut(op, &a, &b, decls, strategy, true, tol)
+    boolean_op_recut(op, &a, &b, decls, strategy, Pass::First, tol)
 }
 
 /// **∖'s check on an operand part it reverts and nothing joins
@@ -1191,22 +1191,20 @@ impl SeamEdges {
     }
 }
 
-/// The pipeline behind the front door, parameterized on whether the
-/// no-crossings sphere RE-CUT (M5 S13) may still run: the re-entry
-/// pass sets `recut = false`, so a re-cut that surfaces no crossings
-/// is a loud invariant failure rather than a loop.
+/// The pipeline behind the front door, on the caller's operands or on
+/// the ones the no-crossings sphere RE-CUT (M5 S13) made ([`Pass`]).
 pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a: &Body<T>,
     b: &Body<T>,
     decls: &Glue<T>,
     strategy: SweepStrategy,
-    recut: bool,
+    pass: Pass,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
     let band = Band::linear(tol)?;
     let (red, connected, interior_loops, glued) =
-        match through_the_join(op, a, b, decls, strategy, recut, tol)? {
+        match through_the_join(op, a, b, decls, strategy, &pass, tol)? {
             Joined::Answered(result) => return Ok(*result),
             Joined::Connected {
                 red,
@@ -1240,8 +1238,9 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let mut body = finished.begin_surgery();
     let mut seam_edges = SeamEdges::default();
     let mut struts = Vec::new();
-    // Each operand's face divisions: the join's chord-mef rows.
-    let fragments = [connected.a_fragments.clone(), connected.b_fragments.clone()];
+    // Each operand's face divisions: the cut-ins' rows, then the join's
+    // chord-mef rows.
+    let fragments = pass.then([&connected.a_fragments, &connected.b_fragments])?;
     let mut desc = Descendants::default()
         .with_copies(copies)
         .with_along(along)
@@ -1448,6 +1447,42 @@ fn fused_through(map: &SeamCorrespondence, merges: &Fusions) -> SeamCorresponden
     out
 }
 
+/// **Which pass of the pipeline runs** ([`boolean_op_recut`]).
+pub(super) enum Pass {
+    /// The caller's operands, which the no-crossings sphere scan may
+    /// re-cut.
+    First,
+    /// The re-entry over the re-cut operands, holding each operand's
+    /// cut-in divisions, A's then B's, in its keys: the cut-ins divided
+    /// those faces before the join did, so a face of the op's input is
+    /// read through both ([`Descendants::fragments`]). It re-cuts
+    /// nothing: a cut-in's meridian runs through its circle's two
+    /// crossings, so re-cut operands that meet in no crossing are a
+    /// loud invariant failure rather than a loop.
+    Recut([crate::lineage::FaceDivisions; 2]),
+}
+
+impl Pass {
+    /// Each operand's face divisions: this pass's cut-ins, then `join`'s.
+    fn then(
+        &self,
+        join: [&crate::lineage::FaceDivisions; 2],
+    ) -> Result<[crate::lineage::FaceDivisions; 2], BooleanError> {
+        let [a, b] = join;
+        Ok(match self {
+            Self::First => [a.clone(), b.clone()],
+            Self::Recut([cut_a, cut_b]) => [
+                crate::lineage::FaceDivisions::from_rows(
+                    cut_a.rows().iter().chain(a.rows()).copied(),
+                )?,
+                crate::lineage::FaceDivisions::from_rows(
+                    cut_b.rows().iter().chain(b.rows()).copied(),
+                )?,
+            ],
+        })
+    }
+}
+
 /// What the pipeline reaches through its join ([`through_the_join`]).
 pub(super) enum Joined<T: crate::props::AtRestPolicy> {
     /// The pipeline's answer, reached without a join to finish: the
@@ -1475,8 +1510,9 @@ pub(super) enum Joined<T: crate::props::AtRestPolicy> {
 /// there is no null pair, and otherwise the join.
 /// [`boolean_op_recut`] finishes what it returns, and the test hook
 /// that stops at the join (`boolean::through_the_join`) reads it, so
-/// the two run one sequence. A re-cut re-enters with the caller's
-/// declarations, and the glue door reads the re-cut operands afresh.
+/// the two run one sequence. A re-cut re-enters ([`Pass::Recut`]) with
+/// the caller's declarations, and the glue door reads the re-cut
+/// operands afresh.
 ///
 /// # Errors
 ///
@@ -1489,7 +1525,7 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
     b: &Body<T>,
     decls: &Glue<T>,
     strategy: SweepStrategy,
-    recut: bool,
+    pass: &Pass,
     tol: Tol,
 ) -> Result<Joined<T>, BooleanError> {
     let band = Band::linear(tol)?;
@@ -1500,6 +1536,11 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
         if !red.null_edges.is_empty() {
             return Err(BooleanError::ClassificationInvariant {
                 what: "null edges without pairs reached the op",
+            });
+        }
+        if let Pass::Recut(_) = pass {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "re-cut sphere operands still produced no crossings",
             });
         }
         // M5 S13, the containment-fallback re-cut. Before any vertex
@@ -1541,11 +1582,6 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
             }
             NoCrossings::Recut(recuts) => recuts,
         };
-        if !recut {
-            return Err(BooleanError::ClassificationInvariant {
-                what: "re-cut sphere operands still produced no crossings",
-            });
-        }
         let (mut a2, mut b2, recharted) = apply_recuts(a, b, &recuts.rechart, tol)?;
         // The cut-ins name faces of `a` and `b`; the re-charts carve
         // and graft other shells, and `carve` keeps every kept
@@ -1564,25 +1600,17 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
                  keeps both on a finished operand (kernel bug)"
             );
         }
-        let mut result = boolean_op_recut(op, &a2, &b2, decls, strategy, false, tol)?;
+        let [cut_a, cut_b] = [&cuts[0], &cuts[1]]
+            .map(|c| crate::lineage::FaceDivisions::from_rows(c.divisions.iter().copied()));
+        let pass = Pass::Recut([cut_a?, cut_b?]);
+        let mut result = boolean_op_recut(op, &a2, &b2, decls, strategy, pass, tol)?;
         if let BooleanResult::Body(out) = &mut result {
             // A row names the cells of the op's inputs, not of the
             // cut operands ([`crate::coincidence`]), through the one
             // door ([`spell`]).
             respell_through_cuts(&mut out.coincidences, &cuts, &recharted)?;
-            // The cut-ins divided faces before the join did, in the
-            // operand keys the join's rows are in.
             let n = &mut out.naming;
-            for ((made, joined), edges) in cuts
-                .into_iter()
-                .zip([&mut n.face_fragments_a, &mut n.face_fragments_b])
-                .zip(&mut n.chart_cuts)
-            {
-                *joined = crate::lineage::FaceDivisions::from_rows(
-                    made.divisions
-                        .into_iter()
-                        .chain(joined.rows().iter().copied()),
-                )?;
+            for (made, edges) in cuts.into_iter().zip(&mut n.chart_cuts) {
                 edges.extend(made.edges);
             }
             *n.recharted = recharted;
@@ -3604,8 +3632,9 @@ pub(super) struct Descendants {
     /// Read only where `edge` left the result.
     along: [Vec<(EdgeKey, EdgeKey)>; 2],
     /// Each operand's face divisions, `(new face, divided-from face)` in
-    /// its clone keys, read before its key view: the join's chord-mef
-    /// fragments. A division keeps the divided
+    /// its clone keys, read before its key view: a re-entry's sphere
+    /// cut-ins ([`Pass::Recut`]), then the join's chord-mef fragments.
+    /// A division keeps the divided
     /// face's key on one piece, whichever piece that is, so a record
     /// naming the face is read through all of its pieces
     /// ([`operand_fate`], [`place_found`]).
@@ -9779,10 +9808,16 @@ mod tests {
         ] {
             for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
                 let decls = super::Glue::none();
-                let Joined::Connected { red, connected, .. } =
-                    through_the_join(op, &a, &b, &decls, SweepStrategy::Realized, true, tol)
-                        .unwrap()
-                else {
+                let Joined::Connected { red, connected, .. } = through_the_join(
+                    op,
+                    &a,
+                    &b,
+                    &decls,
+                    SweepStrategy::Realized,
+                    &super::Pass::First,
+                    tol,
+                )
+                .unwrap() else {
                     panic!("{label} {op:?}: the op joins");
                 };
                 let fin = super::setopfinish(op, *red, &connected, &a, &b, band(), tol).unwrap();
@@ -9855,7 +9890,7 @@ mod tests {
                 &b,
                 &decls,
                 SweepStrategy::Realized,
-                true,
+                &super::Pass::First,
                 tol,
             )
             .unwrap() else {
@@ -11530,7 +11565,7 @@ mod join_row_rows {
             &b,
             &super::super::Glue::none(),
             SweepStrategy::Realized,
-            true,
+            &super::Pass::First,
             tol,
         )
         .unwrap()

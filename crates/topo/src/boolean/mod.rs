@@ -6634,7 +6634,15 @@ pub(crate) fn through_the_join(
     tol: Tol,
 ) -> Result<Option<crate::test_support::JoinedOperands>, BooleanError> {
     Ok(
-        match ops::through_the_join(op, a, b, &Glue::none(), SweepStrategy::Realized, true, tol)? {
+        match ops::through_the_join(
+            op,
+            a,
+            b,
+            &Glue::none(),
+            SweepStrategy::Realized,
+            &ops::Pass::First,
+            tol,
+        )? {
             ops::Joined::Answered(_) => None,
             ops::Joined::Connected {
                 red,
