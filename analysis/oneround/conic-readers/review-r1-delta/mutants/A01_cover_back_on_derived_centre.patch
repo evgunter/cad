@@ -1,0 +1,13 @@
+diff --git a/crates/geom/src/curves/conic.rs b/crates/geom/src/curves/conic.rs
+index 094196e2e..39b63e4af 100644
+--- a/crates/geom/src/curves/conic.rs
++++ b/crates/geom/src/curves/conic.rs
+@@ -1213,7 +1213,7 @@ impl<T: Real> Conic<T> for Ellipse<T> {
+     fn cover_over(&self, window: ParamWindow<T>) -> Option<Cover<T>> {
+         match self.held {
+             Held::Centre => Cover::arc(&self.at, self.semi_axes(), window),
+-            Held::Arc { .. } => Cover::arc_of(*self, window),
++            Held::Arc { .. } => Cover::arc(&Conic::frame(self), self.semi_axes(), window),
+         }
+     }
+ 

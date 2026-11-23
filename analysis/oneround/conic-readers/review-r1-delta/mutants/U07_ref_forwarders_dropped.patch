@@ -1,0 +1,17 @@
+diff --git a/crates/geom/src/curves/conic.rs b/crates/geom/src/curves/conic.rs
+index 094196e2e..541808b32 100644
+--- a/crates/geom/src/curves/conic.rs
++++ b/crates/geom/src/curves/conic.rs
+@@ -453,12 +453,6 @@ impl<T: Real, C: Conic<T> + ?Sized> Conic<T> for &C {
+     fn center(&self) -> Point3<T> {
+         (**self).center()
+     }
+-    fn extent_along(&self, window: &ArcWindow<T>, origin: Point3<T>, n: Vec3<T>) -> (T, T) {
+-        (**self).extent_along(window, origin, n)
+-    }
+-    fn cover_over(&self, window: ParamWindow<T>) -> Option<Cover<T>> {
+-        (**self).cover_over(window)
+-    }
+     fn along(&self, n: Vec3<T>) -> (T, T) {
+         (**self).along(n)
+     }

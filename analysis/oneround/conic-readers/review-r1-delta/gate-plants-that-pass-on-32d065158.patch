@@ -1,0 +1,22 @@
+diff --git a/crates/geom-brep/src/extent.rs b/crates/geom-brep/src/extent.rs
+index b9e1af19c..b6f0a50d9 100644
+--- a/crates/geom-brep/src/extent.rs
++++ b/crates/geom-brep/src/extent.rs
+@@ -2336,3 +2336,17 @@ mod geometry_door_rows {
+         assert!((d - 2.0 * 3.0_f64.sqrt()).abs() < 1e-9, "{d}");
+     }
+ }
++
++/// Review plant 2: the lint allowed under its retired name.
++#[allow(renamed_and_removed_lints)]
++#[allow(clippy::disallowed_method)]
++pub fn review_plant_old_name(c: &geom::Circle<f64>) -> geom_core::Point3<f64> {
++    c.frame().origin()
++}
++
++/// Review plant 3: a whole circle's cover's ball stands at its centre.
++pub fn review_plant_ball(c: &geom::Curve3<f64>) -> Option<geom_core::Point3<f64>> {
++    c.cover_over(geom::cover::ParamWindow::new(0.0, core::f64::consts::TAU))
++        .ok()
++        .map(|cover| cover.ball().0)
++}

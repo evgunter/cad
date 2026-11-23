@@ -1,0 +1,13 @@
+diff --git a/crates/geom/src/curves/conic.rs b/crates/geom/src/curves/conic.rs
+index 094196e2e..9294fe1cb 100644
+--- a/crates/geom/src/curves/conic.rs
++++ b/crates/geom/src/curves/conic.rs
+@@ -590,7 +590,7 @@ fn running_offsets<T: Real>(theta: T, (c0, s0): (T, T)) -> (Rounded<T>, Rounded<
+ fn offset_extent<T: Real>(window: &ArcWindow<T>, p: T, q: T, phase: (T, T)) -> (T, T) {
+     let (t0, t1) = window.span();
+     let end = |t: T| {
+-        let (ku, kv) = offsets(t, phase);
++        let (ku, kv) = offsets(t, (phase.1, phase.0));
+         p * ku + q * kv
+     };
+     let (r0, r1) = (end(t0), end(t1));

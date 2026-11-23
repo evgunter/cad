@@ -1,0 +1,13 @@
+diff --git a/crates/geom/src/cover.rs b/crates/geom/src/cover.rs
+index c94422fa4..8984ce54a 100644
+--- a/crates/geom/src/cover.rs
++++ b/crates/geom/src/cover.rs
+@@ -1700,7 +1700,7 @@ impl<T: Real> HeldArc<T> {
+     fn ball(&self) -> Ball<T> {
+         let half = T::from_f64(0.5);
+         let (lo, hi) = (self.window.lo, self.window.hi);
+-        let reach = ((hi - lo) * half).abs().min(T::pi());
++        let reach = ((hi - lo) * half).abs();
+         let chord = T::from_f64(2.0) * (reach * half).sin();
+         (
+             self.ellipse.point_at(crate::mid_param(lo, hi)),

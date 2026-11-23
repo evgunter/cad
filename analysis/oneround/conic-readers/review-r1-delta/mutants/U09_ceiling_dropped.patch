@@ -1,0 +1,13 @@
+diff --git a/crates/geom/src/curves/conic.rs b/crates/geom/src/curves/conic.rs
+index 094196e2e..f5d3b9372 100644
+--- a/crates/geom/src/curves/conic.rs
++++ b/crates/geom/src/curves/conic.rs
+@@ -624,7 +624,7 @@ fn offset_extent<T: Real>(window: &ArcWindow<T>, p: T, q: T, phase: (T, T)) -> (
+ /// there.
+ fn over_anchor<T: Real>(amp: T, k: T, cross: T) -> T {
+     let ratio = cross.powi(2) / (amp + k).max(T::from_f64(f64::MIN_POSITIVE));
+-    k.select_le_zero(amp - k, ratio).min(amp + k.abs())
++    k.select_le_zero(amp - k, ratio)
+ }
+ 
+ impl<T: Real> Circle<T> {

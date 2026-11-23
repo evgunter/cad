@@ -1,0 +1,13 @@
+diff --git a/crates/geom/src/cover.rs b/crates/geom/src/cover.rs
+index c94422fa4..9b2e94ccb 100644
+--- a/crates/geom/src/cover.rs
++++ b/crates/geom/src/cover.rs
+@@ -1602,7 +1602,7 @@ impl<T: Real> Arc<T> {
+         ) + c.dev;
+         let turn = T::tau();
+         let quarter = ((hi - lo).max(T::zero() - turn).min(turn)) * T::from_f64(0.25);
+-        let shift = bulge_factor(quarter);
++        let shift = bulge_factor(quarter) * T::zero();
+         let point = |t: T| self.point(t);
+         let pieces = (0..4).fold(site.distance(point(lo)), |far, k| {
+             let s0 = lo + quarter * T::from_f64(f64::from(k));

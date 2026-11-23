@@ -1,0 +1,13 @@
+diff --git a/crates/geom/src/cover.rs b/crates/geom/src/cover.rs
+index c94422fa4..60f5f3caa 100644
+--- a/crates/geom/src/cover.rs
++++ b/crates/geom/src/cover.rs
+@@ -1678,7 +1678,7 @@ impl<T: Real> HeldArc<T> {
+                 .second_derivative_at(s0 + quarter * T::from_f64(0.5))
+                 * shift;
+             let (x0, x1) = (point(s0), point(s1));
+-            let near = (segment_range(x0, x1, site).0 - bulge.norm()).max(T::zero());
++            let near = segment_range(x0, x1, site).0;
+             let far = [x0, x0 + bulge, x1, x1 + bulge]
+                 .into_iter()
+                 .fold(T::zero(), |far, p| far.max(site.distance(p)));

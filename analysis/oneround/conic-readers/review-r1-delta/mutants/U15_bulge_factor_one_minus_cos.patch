@@ -1,0 +1,13 @@
+diff --git a/crates/geom/src/cover.rs b/crates/geom/src/cover.rs
+index c94422fa4..74599f6c2 100644
+--- a/crates/geom/src/cover.rs
++++ b/crates/geom/src/cover.rs
+@@ -1640,7 +1640,7 @@ impl<T: Real> Arc<T> {
+ /// `2·sin²(h/2)`: the difference cancels on a short piece, and is zero
+ /// below `h ≈ 1e-8`, where the square keeps every digit.
+ fn bulge_factor<T: Real>(quarter: T) -> T {
+-    T::from_f64(2.0) * (quarter * T::from_f64(0.25)).sin().powi(2)
++    T::one() - (quarter * T::from_f64(0.5)).abs().cos()
+ }
+ 
+ impl<T: Real> HeldArc<T> {

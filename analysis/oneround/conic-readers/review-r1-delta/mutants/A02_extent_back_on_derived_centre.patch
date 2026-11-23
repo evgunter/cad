@@ -1,0 +1,16 @@
+diff --git a/crates/geom/src/curves/conic.rs b/crates/geom/src/curves/conic.rs
+index 094196e2e..4fc4e3699 100644
+--- a/crates/geom/src/curves/conic.rs
++++ b/crates/geom/src/curves/conic.rs
+@@ -1203,10 +1203,7 @@ impl<T: Real> Conic<T> for Ellipse<T> {
+         let at = (self.at.origin() - origin).dot(n);
+         match self.held {
+             Held::Centre => window.extent(at, p, q),
+-            Held::Arc { phase } => {
+-                let (lo, hi) = offset_extent(window, p, q, phase);
+-                (at + lo, at + hi)
+-            }
++            Held::Arc { .. } => window.extent((Conic::frame(self).origin() - origin).dot(n), p, q),
+         }
+     }
+ 
