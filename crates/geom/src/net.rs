@@ -130,20 +130,8 @@ pub(crate) fn poison_point<T: Real, P: ControlPoint<T>>() -> P {
     P::splat(T::from_f64(f64::NAN))
 }
 
-/// Is this the "no description yet" placeholder net rather than a
-/// described one? The contract is stated once, in the crate docs'
-/// totality-and-poison section; this is its one implementation, and
-/// it reads **every channel of every control point** — the width that
-/// contract states, as one expression because
-/// [`ControlPoint::Channels`] carries the count.
-///
-/// The width is load-bearing in one direction. A net whose every point
-/// carries poison in SOME channel and finite data in the others is
-/// corrupt *described* geometry: it must reach each consumer's
-/// described arm and fail there. The placeholder arm is a benign
-/// "mid-surgery, nothing to answer here" at every consumer that tells
-/// the states apart, and it is the one answer such a net must never
-/// get.
+/// Is every channel of every control point poison: the curve
+/// placeholder's discriminator (`NurbsCurve3::is_placeholder`)?
 pub(crate) fn is_placeholder<T: Real, P: ControlPoint<T>>(control: &[P]) -> bool {
     control
         .iter()
@@ -161,27 +149,6 @@ pub(crate) fn is_finite<T: Real, P: ControlPoint<T>>(control: &[P]) -> bool {
     control
         .iter()
         .all(|p| p.channels().into_iter().all(Real::is_bounded))
-}
-
-/// Does any control point carry poison in any channel?
-///
-/// The box constructors' screen. A placeholder answers `true` here
-/// (every channel of every point is poison), and so does a DESCRIBED
-/// net that carries poison anywhere — the two states a box must treat
-/// alike, because a box is a claim about where the locus is and a net
-/// with one poisoned channel bounds its locus on no axis. That is the
-/// distinction a **box** needs; a consumer that must tell the three
-/// states apart asks `crate::NurbsSurface::net_state`, which reads
-/// this door and [`is_placeholder`] together and answers
-/// `crate::NetState`. Folding such a net gives a box that is poison on the poisoned
-/// axis and finite on the others, and `Aabb::overlaps` tests each axis
-/// on its own, so the finite axes witness a disjointness the geometry
-/// does not support and the box PRUNES. The poison box is the loud
-/// answer for a door whose return type cannot refuse.
-pub(crate) fn any_poison<T: Real, P: ControlPoint<T>>(control: &[P]) -> bool {
-    control
-        .iter()
-        .any(|p| p.channels().into_iter().any(Real::is_poison))
 }
 
 /// The net's coordinate channels as certification enclosures, in channel order

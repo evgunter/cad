@@ -74,7 +74,7 @@ use crate::frame::Frame;
 use crate::azimuth;
 pub use approx::{ApproxSurface, ApproxWindow, OffsetCertificate, SurfaceDescription, SurfaceSpec};
 pub use nurbs::{
-    NetState, NurbsSurface, RunSide, SpanBeside, SurfaceJet, SurfaceJet3, SurfaceWindow,
+    NurbsSurface, RunSide, SpanBeside, SurfaceJet, SurfaceJet3, SurfaceWindow,
 };
 pub use projection::{SurfaceProjection, SurfaceProjectionInconclusive};
 
@@ -787,12 +787,6 @@ impl<T: Real> RingTorus<T> {
     }
 }
 
-/// What a refusal of the placeholder chart
-/// ([`Surface::is_placeholder_chart`]) says, wherever it is refused —
-/// one text, so every reader sees the same fact in the same words.
-pub const PLACEHOLDER_SURFACE: &str =
-    "the surface has no description yet: it is only the placeholder a construction starts from";
-
 /// An end of [`Surface::Spindle`]'s datum range `−r < R ≤ r`, `R ≠ 0`
 /// ([`spindle_sheet`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -925,15 +919,6 @@ pub fn sheet_apex<T: Real>(major_radius: T, minor_radius: T) -> SheetApex<T> {
 pub type AnglePeriods<T> = (Option<Period<T>>, Option<Period<T>>);
 
 impl<T: Real> Surface<T> {
-    /// The "no description yet" NURBS state (the former unit
-    /// placeholder variant, as data): a structurally valid payload
-    /// whose control points are all-poison, so evaluation yields the
-    /// all-poison point and every downstream certification fails
-    /// loudly (D4 ¶2) — representable ≠ described.
-    pub fn nurbs_placeholder() -> Self {
-        Surface::Nurbs(Arc::new(NurbsSurface::placeholder()))
-    }
-
     /// The **spline chart** a surface evaluates through, when it has
     /// one: the payload for [`Surface::Nurbs`], the fit for
     /// [`Surface::Approx`], `None` for the analytic kinds.
@@ -985,18 +970,6 @@ impl<T: Real> Surface<T> {
             }
             Surface::Nurbs(_) | Surface::Approx(_) => None,
         }
-    }
-
-    /// Is this surface's chart the placeholder — the
-    /// [`NurbsSurface::placeholder`] payload a construction starts from,
-    /// or an approximating surface whose fit is one? Such a chart has no
-    /// locus (its net is all-poison), so nothing can be imaged on it or
-    /// metred through it. The ONE spelling of the question: every door
-    /// that refuses the placeholder asks here, so `Nurbs` and `Approx`
-    /// cannot drift apart. The refusal text is [`PLACEHOLDER_SURFACE`].
-    pub fn is_placeholder_chart(&self) -> bool {
-        self.spline_chart()
-            .is_some_and(NurbsSurface::is_placeholder)
     }
 
     /// **The representability margins of this surface's datum
