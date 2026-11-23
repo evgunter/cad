@@ -992,36 +992,27 @@ impl BodyArg {
     }
 }
 
-/// **A union's or an intersect's members, or a subtract's tools, as
-/// Python writes them**: ONE
-/// operand, a family read whole (a pattern's output), or a sequence of
-/// reads, each on its own (an operand, or a member `op[i]`) — the
-/// kernel's `Bodies`. Whether a read in a sequence is itself a family
-/// is the kernel's question at the door (`slot_var_kind`), not this
-/// one's.
+/// **A union's, an intersect's or an assemble's members, or a
+/// subtract's tools, as Python writes them**: ONE operand, or a sequence
+/// of reads, each on its own (an operand, or a member `op[i]`) — the
+/// kernel's `Bodies`. One operand is spelled alone (`Bodies::one`): a
+/// body, or a family read whole as its every member (a pattern's
+/// output), so every door that takes a list writes one operand one way.
+/// Whether a read is itself a family is the kernel's question at the
+/// door, not this one's.
 #[derive(FromPyObject)]
 pub(crate) enum MembersArg {
-    /// One read: the family it reads, whole.
-    Family(BodyArg),
+    /// One read, spelled alone.
+    One(BodyArg),
     /// A sequence of reads, in the order written.
     Spelled(Vec<BodyArg>),
 }
 
 impl MembersArg {
-    /// The authored argument at a subtract's tool: one read is spelled
-    /// on its own, a body or a family read whole as its every member
-    /// (`Bodies::one`), so a single tool needs no family.
-    pub(crate) fn tools(self) -> d::Bodies<d::BodyRead<d::Formula>> {
-        match self {
-            Self::Family(read) => d::Bodies::one(read.read()),
-            spelled @ Self::Spelled(_) => spelled.bodies(),
-        }
-    }
-
     /// The authored argument.
     pub(crate) fn bodies(self) -> d::Bodies<d::BodyRead<d::Formula>> {
         match self {
-            Self::Family(read) => d::Bodies::Family(read.read()),
+            Self::One(read) => d::Bodies::one(read.read()),
             Self::Spelled(reads) => {
                 d::Bodies::Spelled(reads.into_iter().map(BodyArg::read).collect())
             }
@@ -3389,7 +3380,7 @@ impl Node {
         Ok(Self {
             inner: d::Node::Subtract {
                 from: from_.read(),
-                tool: tool.tools(),
+                tool: tool.bodies(),
             },
         })
     }

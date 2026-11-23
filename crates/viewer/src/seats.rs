@@ -37,10 +37,11 @@
 //!
 //! A seat means a particular thing, and no pair here is symmetric — not
 //! even a subtraction's body kept and a tool, whose order is the
-//! difference between `A ∖ B` and `B ∖ A`. So seats fill in order, a further pick
-//! replaces the LAST one, and a drop empties the seat it was in without
-//! promoting the survivor: moving a node between seats that mean
-//! different things is not a correction, it is a different edit.
+//! difference between `A ∖ B` and `B ∖ A`. So seats fill in order: in
+//! a [`Seats`], a further pick replaces the LAST one, and in the boolean
+//! tool's subtraction it appends a tool. A drop empties the seat it was
+//! in without promoting the survivor: moving a node between seats that
+//! mean different things is not a correction, it is a different edit.
 //!
 //! **The mate tool is the deliberate exception and stays outside this
 //! module**: its two picks are an interchangeable pair (`a`/`b` of one

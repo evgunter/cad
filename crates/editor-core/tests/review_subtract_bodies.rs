@@ -185,7 +185,7 @@ fn set_members_on_a_subtract_keeps_the_names_of_the_tools_that_stay() {
         doc,
         DocEdit::SetMembers {
             node: cut,
-            members: Bodies::Spelled(vec![read(h0).into(), read(h2).into()]),
+            members: Bodies::Spelled(vec![read(h0), read(h2)]),
         },
     );
     let ev = run(&after_doc);
@@ -238,7 +238,7 @@ fn an_indexed_family_argument_at_the_tools_refuses_at_both_doors() {
         .apply(
             &DocEdit::SetMembers {
                 node: cut,
-                members: Bodies::Family(member.into()),
+                members: Bodies::Family(member),
             },
             Tol::witness(),
         )
@@ -343,7 +343,7 @@ fn set_members_with_a_bare_body_at_a_subtract_refuses_by_kind() {
     let got = doc.apply(
         &DocEdit::SetMembers {
             node: cut,
-            members: Bodies::Family(read(other).into()),
+            members: Bodies::Family(read(other)),
         },
         Tol::witness(),
     );

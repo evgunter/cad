@@ -1204,6 +1204,17 @@ pub(crate) enum GivenDecision<T: Real> {
 }
 
 impl<T: Real> GivenDecision<T> {
+    /// The same decision with one face's sense reversed: a one-carrier
+    /// pair's senses swap between opposed and aligned; a tangency reads
+    /// no sense.
+    pub(crate) fn reversed(self) -> Self {
+        match self {
+            Self::Rest => Self::Continuation,
+            Self::Continuation => Self::Rest,
+            tangent @ Self::Tangent { .. } => tangent,
+        }
+    }
+
     /// The class the decision glues under.
     pub(crate) fn class(&self) -> GlueClass {
         match self {

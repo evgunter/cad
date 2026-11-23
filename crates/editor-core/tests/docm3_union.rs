@@ -1202,7 +1202,8 @@ fn list_input(
     match node {
         Node::Union { members, .. }
         | Node::Intersect { members, .. }
-        | Node::Assemble { members } => Some(
+        | Node::Assemble { members }
+        | Node::Subtract { tool: members, .. } => Some(
             members
                 .try_map(|_, m| {
                     Ok::<_, std::convert::Infallible>(editor_core::BodyRead::plain(m.read))

@@ -926,10 +926,10 @@ mod intent_vars_2_table;
 mod intent_vars_3_readers;
 #[path = "review_s5b_r2_probes.rs"]
 mod review_s5b_r2_probes;
-#[path = "review_subtract_bodies_a.rs"]
-mod review_subtract_bodies_a;
 #[path = "review_subtract_bodies.rs"]
 mod review_subtract_bodies;
+#[path = "review_subtract_bodies_a.rs"]
+mod review_subtract_bodies_a;
 #[path = "run_wall_offers.rs"]
 mod run_wall_offers;
 #[path = "source_readers.rs"]

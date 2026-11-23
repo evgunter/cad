@@ -2368,9 +2368,9 @@ class Node:
         in the members' order.
 
         `members` is a sequence of reads, each on its own (an operand,
-        or one member of a family, `xs[i]`), or ONE operand reading a
-        whole family — a pattern's output — whose bodies are the
-        members in index order. Any count is a union:
+        or one member of a family, `xs[i]`), or ONE operand, written as
+        a list of it: a body, or a whole family — a pattern's output —
+        whose bodies are the members in index order. Any count is a union:
         one member is that body, none is the typed empty body, and a
         read listed twice is the same material twice (`[a, a]` is
         `a`). A family read beside single reads in one list refuses at

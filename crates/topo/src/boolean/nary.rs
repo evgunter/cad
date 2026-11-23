@@ -1,5 +1,8 @@
-//! **The n-ary union and intersect** (DM4, `[operations.operators]`):
-//! one operation over a list of members in the author's order.
+//! **The n-ary union, intersect and subtract** (DM4,
+//! `[operations.operators]`): one operation over a list of members in
+//! the author's order. A subtract's first member is the body kept and
+//! every other a tool, `((m0 − m1) − m2) − …`, no tool fused with
+//! another.
 //!
 //! It judges every member pair whose boxes meet once, as a pair
 //! boolean, then folds the members in list order, `((m0 ∘ m1) ∘ m2) ∘ …`.
@@ -37,7 +40,7 @@ use geom_core::{Band, Bounds, Decide, Real, Tol};
 
 use super::holdings::{Held, HeldRefusal, Holdings};
 use super::ops::boolean_op_given;
-use super::overlap::overlap;
+use super::overlap::overlap_as;
 use super::{
     BooleanBody, BooleanError, BooleanInputs, BooleanNaming, BooleanOp, BooleanResult,
     GivenDecision, GlueVerdict, GluedPair, Operand, OperandRecords, SweepStrategy,
@@ -46,13 +49,16 @@ use crate::body::Body;
 use crate::entity::FaceKey;
 use crate::props::AtRestPolicy;
 
-/// The two operators that take a list of members.
+/// The operators that take a list of members.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NaryOp {
     /// The material in any member.
     Union,
     /// The material in every member.
     Intersect,
+    /// The material in the first member and in no other: the first cut
+    /// by each of the rest, which are not fused with one another.
+    Subtract,
 }
 
 impl NaryOp {
@@ -61,6 +67,7 @@ impl NaryOp {
         match self {
             Self::Union => BooleanOp::Union,
             Self::Intersect => BooleanOp::Intersect,
+            Self::Subtract => BooleanOp::Subtract,
         }
     }
 }
@@ -665,7 +672,7 @@ fn run_members<T: Decide + Bounds + AtRestPolicy>(
     }
     let refused = NaryEnd::Refused;
     let empty = |what: &str| match op {
-        NaryOp::Intersect => Err(NaryEnd::Empty),
+        NaryOp::Intersect | NaryOp::Subtract => Err(NaryEnd::Empty),
         NaryOp::Union => unreachable!(
             "a union's {what} returned empty, though both operands are finished non-empty \
              bodies and their union holds each"
@@ -694,8 +701,18 @@ fn run_members<T: Decide + Bounds + AtRestPolicy>(
     if pairwise {
         let ranks: Vec<u32> = members.iter().map(|m| m.inputs.rank).collect();
         for (a, b) in judged_pairs(&hulls, &ranks).filter(|&(a, b)| !apart.holds(a, b)) {
+            // A subtract judges its kept body against a tool as that cut,
+            // the kept body its operand A, and two tools as their union:
+            // the verdicts are the carriers' own, and the tools are fused
+            // nowhere, since a judgement's body is read for its verdicts
+            // and rows alone.
+            let (a, b, pair_op) = match op {
+                NaryOp::Subtract if a == 0 || b == 0 => (0, a.max(b), BooleanOp::Subtract),
+                NaryOp::Subtract => (a, b, BooleanOp::Union),
+                NaryOp::Union | NaryOp::Intersect => (a, b, op.op()),
+            };
             let judgement = boolean_op_given(
-                op.op(),
+                pair_op,
                 members[a].body,
                 members[b].body,
                 &BooleanInputs::default(),
@@ -737,7 +754,9 @@ fn run_members<T: Decide + Bounds + AtRestPolicy>(
     for member in 1..members.len() {
         let acc = steps.last().map_or(members[0].body, |s| &s.body.body);
         let given = match verdicts {
-            Some(verdicts) => Some(given_pairs(verdicts, member, &lineage, acc).map_err(refused)?),
+            Some(verdicts) => {
+                Some(given_pairs(op, verdicts, member, &lineage, acc).map_err(refused)?)
+            }
             None => None,
         };
         let inputs = BooleanInputs {
@@ -781,7 +800,15 @@ fn run_members<T: Decide + Bounds + AtRestPolicy>(
                 "the fold step joining member {member} built at a band it cannot read: {e}"
             )
         });
-        holdings = lift(&holdings, member, &body, clone_a.as_ref(), members, band);
+        holdings = lift(
+            op,
+            &holdings,
+            member,
+            &body,
+            clone_a.as_ref(),
+            members,
+            band,
+        );
         records_a = body.contacts.carried();
         steps.push(NaryStep {
             member,
@@ -813,6 +840,7 @@ fn run_members<T: Decide + Bounds + AtRestPolicy>(
 /// its final records, the pair door keeps its A clone wherever it
 /// discards A's faces, and every finished face is a piece of a member's.
 fn lift<T: Decide + crate::AtRestPolicy>(
+    op: NaryOp,
     prev: &Holdings,
     member: usize,
     step: &BooleanBody<T>,
@@ -850,7 +878,10 @@ fn lift<T: Decide + crate::AtRestPolicy>(
             if exact.contains(&m) {
                 continue;
             }
-            match overlap(region, (members[m.0].body, m.1), band) {
+            // A subtract's result holds each tool's faces turned inside
+            // out.
+            let reversed = op == NaryOp::Subtract && m.0 != 0;
+            match overlap_as(region, ((members[m.0].body, m.1), reversed), band) {
                 Ok(true) => {
                     exact.insert(m);
                 }
@@ -1062,6 +1093,7 @@ fn sides<T: Real>(v: &PairVerdict<T>, member: usize) -> Option<(MemberFace, Face
 /// [`NaryRefusal::VerdictsDisagree`] where two verdicts glue one pair
 /// under two relations.
 fn given_pairs<T: Real>(
+    op: NaryOp,
     verdicts: &[PairVerdict<T>],
     member: usize,
     lineage: &MemberLineage,
@@ -1077,8 +1109,15 @@ fn given_pairs<T: Real>(
             if !parents.contains(&at) {
                 continue;
             }
-            let prior = given.entry((f, joining)).or_insert(v.decision);
-            if prior.class() != v.decision.class() {
+            // A subtract's accumulation holds each tool's faces turned
+            // inside out, so a verdict read through one has its senses
+            // reversed.
+            let decision = match op {
+                NaryOp::Subtract if at.0 != 0 => v.decision.reversed(),
+                NaryOp::Union | NaryOp::Intersect | NaryOp::Subtract => v.decision,
+            };
+            let prior = given.entry((f, joining)).or_insert(decision);
+            if prior.class() != decision.class() {
                 return Err(NaryRefusal::VerdictsDisagree {
                     member,
                     face: f,

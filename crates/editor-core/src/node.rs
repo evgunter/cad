@@ -1900,10 +1900,12 @@ pub enum Node<P, S: Slot = crate::VarId> {
         /// The members, in fold order.
         members: Bodies<crate::BodyRead<S>>,
     },
-    /// **The subtract** (DM4): `from` cut by every tool, the one pair
-    /// node, since difference neither commutes nor associates. The cut
-    /// is the fold `from − t₁ − … − tₙ`, order-free in the tools, and
-    /// fuses none of them with another; a tool list of none is `from`.
+    /// **The subtract** (DM4): `from` cut by every tool, its two seats
+    /// named, since difference neither commutes nor associates. The cut
+    /// is the fold `from − t₁ − … − tₙ`, which fuses no tool with
+    /// another; two or more tools are judged and folded as a union's
+    /// members are, so the result and its names are the same in every
+    /// order of the tools. A tool list of none is `from`.
     /// A tool that is a family read whole is its every member (D10
     /// `[repetition]`), as a union's member is. A `from` that
     /// holds pieces (a [`Node::Assemble`], or a copy of one) is cut
