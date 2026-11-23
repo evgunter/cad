@@ -10915,10 +10915,48 @@ impl<T: crate::props::AtRestPolicy> AtRestBody<T> {
             )
             .map(|(certificate, facts)| (certificate.into_parts(), facts))
         })?;
+        let facts = std::sync::Arc::new(facts);
+        // MEASUREMENT ONLY: log-and-pass, the at-rest gate's question.
+        if let Ok(dir) = std::env::var("CAD_GATE_LOG") {
+            use std::io::Write;
+            if let Ok(band) = Band::linear(tol) {
+                let asked = crate::Geometric::new(&body, std::sync::Arc::clone(&facts));
+                for (solid, _) in body.solids() {
+                    let faces = body.faces_of_solid(solid).unwrap_or_default();
+                    if faces.is_empty() {
+                        continue;
+                    }
+                    let started = std::time::Instant::now();
+                    let report = crate::clearance::embedded(
+                        &asked,
+                        faces,
+                        band,
+                        crate::clearance::Budgets {
+                            max_cell_depth: crate::clearance::DEFAULT_MAX_CELL_DEPTH,
+                            max_cell_pairs: 65_536,
+                        },
+                    );
+                    let line = format!(
+                        "GATE\t{}\t{}\t{:?}\t{:.3}\n",
+                        std::thread::current().name().unwrap_or("?"),
+                        core::any::type_name::<T>(),
+                        report.verdict,
+                        started.elapsed().as_secs_f64()
+                    );
+                    if let Ok(mut f) = std::fs::OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open(format!("{dir}/{}.log", std::process::id()))
+                    {
+                        let _ = f.write_all(line.as_bytes());
+                    }
+                }
+            }
+        }
         Ok(Self {
             body,
             sign: std::sync::Arc::new(sign),
-            facts: std::sync::Arc::new(facts),
+            facts,
             held: None,
         })
     }
