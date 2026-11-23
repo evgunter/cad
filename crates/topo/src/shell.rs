@@ -399,7 +399,7 @@ use crate::entity::{
 };
 use crate::euler::EulerOpError;
 use crate::face_normal::plane_outward_normal;
-use crate::live::{BoundaryMember, NAMES_ONLY_LIVE, linked, proven};
+use crate::live::{BoundaryMember, NAMES_ONLY_LIVE, proven};
 use crate::pcurves::{PcurveMintError, mint_pcurves};
 use crate::props::ShellRole;
 use crate::replace_face::ReplaceFaceError;
@@ -3582,8 +3582,8 @@ fn along<T: Decide>(
     band: Band,
     designated: FaceKey,
 ) -> Result<geom_brep::EdgeCurveSpec<T>, ShellError<T>> {
-    let data = proven(&body.edges, edge, EntityId::Edge);
-    let Some(curve) = body.edge_curve_linked(edge, data).certified() else {
+    let data = body.proven_edge(edge);
+    let Some(curve) = data.certified() else {
         unreachable!("{edge:?} is a seam of a finished wall, and a finished wall has no null edge")
     };
     let (t0, t1) = curve.params();
@@ -3640,12 +3640,13 @@ fn re_anchored<T: Decide>(
     designated: FaceKey,
     band: Band,
 ) -> Result<geom_brep::EdgeCurveSpec<T>, ShellError<T>> {
-    let data = proven(&body.edges, edge, EntityId::Edge);
-    let Some(curve) = body.edge_curve_linked(edge, data).certified() else {
+    let data = body.proven_edge(edge);
+    let Some(curve) = data.certified() else {
         unreachable!("{edge:?} is a seam of a finished wall, which has no null edge")
     };
     let (t0, t1) = curve.params();
-    let starts_there = proven(&body.half_edges, data.he_plus, EntityId::HalfEdge).start == moved;
+    let starts_there =
+        proven(&body.half_edges, data.record().he_plus, EntityId::HalfEdge).start == moved;
     let Some(landed) = curve
         .carrier()
         .param_near(onto, if starts_there { t0 } else { t1 })
@@ -3997,9 +3998,10 @@ fn duplicate_in_loop<T: Real>(
     for (r#loop, members, _) in view.boundary_by_loop() {
         let mut cycle = Vec::new();
         for member in members {
-            let BoundaryMember::Edge { he, ek, .. } = member else {
+            let BoundaryMember::Edge { edge, he, .. } = member else {
                 continue;
             };
+            let ek = edge.key();
             if !skip.contains(&ek) {
                 cycle.push((he, ek));
             }
@@ -4071,15 +4073,9 @@ fn half_edge_points<T: Decide>(body: &Body<T>, run: &[HeKey]) -> Vec<geom_core::
     let mut out = Vec::new();
     for &he in run {
         let key = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
-        let edge = linked(
-            &body.edges,
-            key,
-            EntityId::Edge,
-            EntityId::HalfEdge(he),
-            "edge",
-        );
+        let edge = body.linked_edge(key, EntityId::HalfEdge(he), "edge");
         // A null edge has no carrier to sample, and no extent either.
-        let Some(geom) = body.edge_curve_linked(key, edge).certified() else {
+        let Some(geom) = edge.certified() else {
             continue;
         };
         for i in 0..=8 {
@@ -4420,14 +4416,8 @@ fn loop_rekeyed<T: Decide>(
     let mut descriptions = Vec::new();
     for he in body.loop_walk(first).closed("loop", first) {
         let edge = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
-        let data = linked(
-            &body.edges,
-            edge,
-            EntityId::Edge,
-            EntityId::HalfEdge(he),
-            "edge",
-        );
-        let Some(curve) = body.edge_curve_linked(edge, data).certified() else {
+        let data = body.linked_edge(edge, EntityId::HalfEdge(he), "edge");
+        let Some(curve) = data.certified() else {
             unreachable!(
                 "{edge:?} bounds a rim face the shell op built from certified walls, and the \
                  surgery mints no null edge"
@@ -4762,8 +4752,8 @@ fn footprint<T: Decide>(
     for member in body.proven_face(face).boundary() {
         let at = frame.point(body.member_point(&member));
         points.push((at.x, at.y));
-        if let crate::live::BoundaryMember::Edge { ek, edge, .. } = member {
-            points.extend(edge_box_in(body, ek, edge, frame));
+        if let crate::live::BoundaryMember::Edge { edge, .. } = member {
+            points.extend(edge_box_in(body, edge, frame));
         }
     }
     let poison = points
@@ -4792,12 +4782,11 @@ fn footprint<T: Decide>(
 /// the cover asserts.
 fn edge_box_in<T: Decide>(
     body: &Body<T>,
-    key: crate::entity::EdgeKey,
-    edge: &crate::entity::Edge,
+    edge: crate::live::EdgeView<'_, T>,
     frame: &InPlane<T>,
 ) -> Vec<(T, T)> {
     use crate::cover::EdgeUncovered;
-    match crate::cover::edge_cover_linked(body, key, edge) {
+    match crate::cover::edge_cover_linked(body, edge) {
         Ok(cover) => cover_box_in(&cover, frame).to_vec(),
         Err(EdgeUncovered::Scaffold) => Vec::new(),
         Err(EdgeUncovered::Carrier(_) | EdgeUncovered::Ends) => {
@@ -5413,19 +5402,13 @@ fn moved_walls<T: Decide>(
                 .collect();
             for (i, &he) in cycle.iter().enumerate() {
                 let h = proven(&cavity.half_edges, he, EntityId::HalfEdge);
-                let edge = linked(
-                    &cavity.edges,
-                    h.edge,
-                    EntityId::Edge,
-                    EntityId::HalfEdge(he),
-                    "edge",
-                );
+                let edge = cavity.linked_edge(h.edge, EntityId::HalfEdge(he), "edge");
                 let (start, end) = (ends[i], ends[(i + 1) % ends.len()]);
-                let certified = cavity.edge_curve_linked(h.edge, edge).certified();
+                let certified = edge.certified();
                 // The edge's cover (`boolean::crate::cover::edge_cover_linked`):
                 // `None` for null scaffolding, a chord the wall's own
                 // vertices below hold.
-                let cover = match crate::cover::edge_cover_linked(cavity, h.edge, edge) {
+                let cover = match crate::cover::edge_cover_linked(cavity, edge) {
                     Err(crate::cover::EdgeUncovered::Scaffold) => None,
                     other => Some(other),
                 };
@@ -5435,7 +5418,7 @@ fn moved_walls<T: Decide>(
                         // The carrier's parameter runs with the edge's
                         // plus half.
                         let (t0, t1) = curve.params();
-                        let (v0, v1) = if edge.he_plus == he {
+                        let (v0, v1) = if edge.record().he_plus == he {
                             (start.0, end.0)
                         } else {
                             (end.0, start.0)
@@ -5457,7 +5440,7 @@ fn moved_walls<T: Decide>(
                                     .and_then(|c| c.as_ref().ok())
                                     .map(geom::cover::Cover::ball),
                                 (t0, t1),
-                                edge.he_plus == he,
+                                edge.record().he_plus == he,
                             )),
                         }
                     }

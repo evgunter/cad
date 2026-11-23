@@ -122,12 +122,7 @@ fn read<T: Decide>(
 /// `q` on the span or refuses, or for an edge with no certified curve,
 /// leaving the question to the reading.
 pub(super) fn may_rest_on<T: Decide>(body: &Body<T>, e: EdgeKey, q: Point3<T>, band: Band) -> bool {
-    let Some(curve) = body
-        .edges
-        .get(e)
-        .and_then(|d| body.curves.get(d.curve))
-        .and_then(crate::null::CurveGeom::certified)
-    else {
+    let Some(curve) = body.edge(e).and_then(crate::live::EdgeView::certified) else {
         return true;
     };
     let (t0, t1) = curve.params();
@@ -199,8 +194,7 @@ pub(super) fn tangent_on_interior<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) -> Option<Option<Departure<T>>> {
     let tangent = edge_tangent_at(body, e, q, band, errors)?;
-    let edge = crate::live::proven(&body.edges, e, EntityId::Edge);
-    let lever = crate::cover::edge_reach_bounds(body, e, edge, q)?;
+    let lever = crate::cover::edge_reach_bounds(body, body.proven_edge(e), q)?;
     Some(tangent.map(|tangent| Departure::along(tangent.dir(), lever)))
 }
 
