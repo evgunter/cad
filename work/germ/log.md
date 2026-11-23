@@ -1976,3 +1976,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - Files the open classes: GERM `no-sign-decision-gives-a-conic-a-finite-size` (the PR 7645 fork), BAND, CPAIR and TRACE rows, and a note on SECT's row.
   - Makes no finiteness claim.
   - The reviewer arm was drawn and recorded on the analysis branch. A single FULL review is dispatched with an arm-free brief.
+- 2026-11-24 00:20 — **Fable usage limit hit** (it resets 2026-11-29 14:00 UTC). It stopped PR 7658's review, whose drawn arm was Fable. Under rule 12 I asked the user whether to proceed on Opus or pause, and dispatch nothing in a Fable agent's place until answered. Work already running on Opus continues.
