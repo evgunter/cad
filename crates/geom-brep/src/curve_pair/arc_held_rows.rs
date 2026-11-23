@@ -302,7 +302,12 @@ fn all_green(failures: Vec<String>) {
 fn a_line_through_a_point_of_an_arc_held_ellipse_meets_it() {
     let mut failed = Vec::new();
     for f in poses() {
-        let line = |lift: f64| Curve3::line(f.p - f.d * (2.0 * f.r) + f.n * lift, geom_core::UnitVec3::checked(f.d));
+        let line = |lift: f64| {
+            Curve3::line(
+                f.p - f.d * (2.0 * f.r) + f.n * lift,
+                geom_core::UnitVec3::checked(f.d),
+            )
+        };
         failed.extend(
             Case {
                 f: &f,
@@ -360,7 +365,9 @@ fn a_line_piercing_the_plane_through_a_point_of_the_arc_meets_it() {
     let mut failed = Vec::new();
     for f in poses() {
         let dir = (f.d * g.cos() + f.n * g.sin()).normalize();
-        let line = |at: Point3<f64>| Curve3::line(at - dir * (2.0 * f.r), geom_core::UnitVec3::checked(dir));
+        let line = |at: Point3<f64>| {
+            Curve3::line(at - dir * (2.0 * f.r), geom_core::UnitVec3::checked(dir))
+        };
         failed.extend(
             Case {
                 f: &f,
