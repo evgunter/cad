@@ -3345,6 +3345,18 @@ impl<T: Real> EdgeCurve<T> {
         &self.stored
     }
 
+    /// **This edge with every scalar of its carrier restated through
+    /// `map`**, its description, interval and certificate kept and
+    /// nothing certified again: the fixture of a row that wants a built
+    /// body's geometry written in other terms, or written wrong
+    /// (`topo::test_support::restate_geometry`).
+    #[cfg(feature = "test-support")]
+    #[doc(hidden)]
+    pub fn restate_carrier(&mut self, map: impl Fn(T) -> T) {
+        self.stored = self.stored.map_scalar(&map);
+        self.reading = self.reading.as_ref().map(|view| view.map_scalar(&map));
+    }
+
     /// The certified carrier-parameter interval `(t₀, t₁)` —
     /// `he_plus`-forward, a certified cache of the vertex-derived
     /// bounds (module docs).

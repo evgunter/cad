@@ -116,13 +116,16 @@ fn f64_replay_or_unresolvable(
     let unresolvable =
         |read: &str, scale: f64| ulps(read).is_some_and(|u| u * scale * ULP >= k * eps);
     let answered = match &refusal.kind {
-        ReplayErrorKind::Path(PathError::ArcMissBelowSceneResolution { read, scale, .. }) => {
-            unresolvable(read.gate().predicate(), crate::common::told(scale))
-        }
-        ReplayErrorKind::Path(PathError::Escalated { source, .. }) => {
-            source.predicate.is_some_and(|read| unresolvable(read, r))
-        }
-        _ => false,
+        ReplayErrorKind::Path(source) => match source.refusal() {
+            PathError::ArcMissBelowSceneResolution { read, scale, .. } => {
+                unresolvable(read.gate().predicate(), crate::common::told(scale))
+            }
+            PathError::Escalated { source, .. } => {
+                source.predicate.is_some_and(|read| unresolvable(read, r))
+            }
+            _ => false,
+        },
+        ReplayErrorKind::Transition { .. } => false,
     };
     assert!(answered, "{what}: f64 replay refused: {refusal}");
     None
