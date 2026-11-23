@@ -37,3 +37,21 @@ farthest pair falls between samples. The fix is to lever `chain_g1`
 the sampled pairs where a reading acts on a definite nonzero sign, and
 correct the doc. Found by OFFSET's sweep for the class (the "shorter is
 safe" claim on a lever whose Zero is acted on).
+
+## Read again by `oneround/reach-from-the-read-point` (2026-11-23)
+
+Still as above on `main` at `093205aa3`: `resolve_link` stores
+`extent_of`'s sampled diameter in `Link::arm_len`, and `chain_g1` reads
+`a.arm_len.min(b.arm_len)` at the shared vertex, where the two
+tangents are read, acting on its Zero (`cap_transverse` reads the same
+field at a vertex too). Two corrections to the fix named above:
+
+- The datum is read at a point, the shared vertex, so its arm is each
+  link's reach from that vertex, not its diameter: from above (the
+  Zero is acted on), the link's cover's far distance from the vertex
+  (`geom_brep::span_reach_bounds(..).above()`). `edge_extent_sup` is
+  sound but loose, the diameter bounding the reach.
+- A link meets a chain at both its ends, so `Link` would hold a reach
+  from each (or its region, read from the vertex at the junction).
+  That is a change to what the record stores, which this lane left;
+  `extent_of`'s caller comment and `Link::arm_len` are the sites.

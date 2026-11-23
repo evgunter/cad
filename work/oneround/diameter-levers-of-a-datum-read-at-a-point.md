@@ -79,3 +79,30 @@ Out of class (a datum of the whole span):
 - every sign takes both.
 
 The differential needs re-taking per caller, as PR 7294 did for the router.
+
+## Read against `main` at `093205aa3` (`oneround/reach-from-the-read-point`)
+
+**Corrections to the lists above.**
+
+- `curve_face/pose.rs` `line_cone_read`: the lead `A/|d|²` does not depend on where the quadratic is centred. What it moves the run by is still measured from the centre, the apex's foot, so the reach from the foot is its arm (exact on a line). Both its signs are acted on: Zero is `Lies` or `Parallel`, a definite sign goes on to divide by it.
+- `census.rs` `parallel_reading`: a line's `edge_extent_inf` and `edge_extent_sup` are one value, its chord, so the lever is the shorter span's exact length and no bound is wrong. The sine has no point of its own. Its Zero claims the pair within the band over their overlap, which that length bounds from above. Its definite sign routes the pair to the crossing reading over the same length (`settle_in_band`'s argument). It is out of class, and is left with its doc saying so.
+- `replace_face.rs` `corner_arm` and step-import's `root_on` hand their lever to one door, `offset_derive::analytic_root` (through `topo::root_along` for the import). Its graze is decided at every Newton iterate and at the root. Both consumers act on both signs: a decided graze is served (the corner stands on the other candidates; the import's vertex is left free). At an iterate, every reading short of Positive is a graze.
+- The spline arm of the same corner root (`SectionLane::root`, `plane_spline_root`) hands the lever to `geom_brep::boundary_section`, which isolates the roots over the whole carrier. So the read point is made inside the lane, as in `certify.rs`'s and `edge_nurbs.rs`'s lanes.
+- (a) `replace_face`'s two hand-offs to `derive_edge`, then to `offset_derive::section_of` and `section_closed`: every pose reading there is of a datum with no point of its own, a datum of the whole span.
+  - These are `plane_plane`'s `offset_section_planes_parallel` (the cross product of two normals), the cone's coaxial guards (the axes' tilt) and the torus's axis fork. Each claim is over the old edge's whole span, so out of class.
+  - The spline lanes `plane_wall_section` / `pair_section` size a domain and a tube by it (PR 7628's ground).
+- (b) `sweep` `blend/battery.rs` `extent_of` is stored in `Link::arm_len` and read by `chain_g1` at the shared vertex, where its Zero is acted on (the junction accepted G1). It is the bound from below where the one from above is owed, and a diameter where the reach from the vertex is owed. It is a record: added to `work/band/blend-battery-levers-a-chains-g1-from-below.md`.
+- (c) The "region read from a pivot" list. Each pivot is the read point, except `boolean/trace.rs` `ray_crossings_to`. Its crossing sense, read at each crossing, was levered from the ray's start over the whole run, so `circle_crossings_to` and `circle_crossings` (a pivot-free arc or circle ball radius) are the same shape. `props/curved.rs` is geom-brep's.
+
+**Converted by this unit:** `line_cone_read`; `analytic_root` and its consumers' `Incident.extent`, whose analytic arm now carries the span; `IsoPiece::reach`; the three `trace.rs` crossing readers.
+
+**Left, in class:**
+
+- The spline lanes' per-sample levers, where the read point is made inside the lane from one lever handed in. These are `certify.rs`'s residual × NURBS lane, `edge_nurbs.rs`'s tube, `boundary_section` (`plane_spline_root`, `level_row`), and `contact_verify`'s tangent schedule (from above, sound but loose).
+- Found by this unit's second sweep, on pivot-free region measures:
+  - `curve_pair/pose.rs` `conic_conic`. `arm` is the larger of the two whole carriers' ball radii. It levers `polish::bound`'s basin at the polished pair, and only a Positive goes on. On a short arc the whole carrier's radius can pass the span's reach from the pair, so it is not a bound from below. The read point is made inside the polish.
+  - `pair_section/spline_implicit.rs` `ray_at`. The end tangent's lead at a node, whose definite sign names the ray, is levered at `pose.ball().certified_diameter()`, a bound from above.
+  - `PairSection.lever` on the spline arms (`spline_pair.rs` `section`, `spline_implicit.rs` `section_listing`): a net's ball radius, stored and read by topo `boolean/join.rs` `bool_join_foot_heading` at a site's foot. A record.
+  - `pair_section/gap.rs` `Sweep.core_lever`: the whole core circle's radius, for a sine read at a sample of it. Sound from below (a whole circle reaches `2R` from each of its points), loose by up to 2.
+  - Not settled: `chord_join.rs` `SectionCurve::lever` (the whole conic's ball radius, for the departure cosine at `p1`). It is sound if the claim is over the whole conic and not if it is over the chord's arc. Also `spline_implicit/sweep.rs`'s regular-cell slope: read over a cell, not at a point, but at a bound from above.
+- `Reach::lever_from(pivot)` reads no pivot for a `Reach::Measured` or a `Reach::Face`. A caller handing either a pivot gets a pivot-free length.

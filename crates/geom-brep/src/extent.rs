@@ -527,25 +527,28 @@ fn speed_sup<T: SpanLocate>(carrier: &Curve3<T>) -> T {
 
 /// The extent of an edge's own point set bounded from below: no more
 /// than its diameter `D`, the farthest distance between two of its
-/// points, and so no more than its arc. The lever arm of a reading
-/// consumed along the edge (D4 ¶1) whose definite verdict is a
-/// nonzero sign and whose Zero only refuses: a transversality or a
-/// uniqueness tube a certificate claims, the root a face move's corner
-/// accepts as transversal (`topo`'s `replace_face`, where a graze serves
-/// no point), a section's crossing. Such a reading's convention is
-/// that a Zero is a refusal, never a served class; under it an arm
-/// longer than `D` would certify a crossing too shallow to pin within
-/// the edge, and a shorter one only refuses more. Being no longer than
-/// the arc, a point that far along the edge lies on it
-/// ([`crate::conic_bend_side`]'s witness). Never the wedge between the
-/// edge's two faces, which is levered at the faces' extent
-/// ([`crate::folded_lever_arm`]'s `reach`).
+/// points, and so no more than its arc. The lever arm of a datum of the
+/// whole edge (D4 ¶1), one with no point of its own whose claim is over
+/// all of it (the edge's length, the tilt between two directions that
+/// hold along it, a tube about the whole span), where the verdict acted
+/// on is a definite sign and a Zero only refuses: an arm longer than `D`
+/// would certify a reading the edge does not reach, and a shorter one
+/// only refuses more. Being no longer than the arc, a point that far
+/// along the edge lies on it ([`crate::conic_bend_side`]'s witness).
+/// Never the wedge between the edge's two faces, which is levered at the
+/// faces' extent ([`crate::folded_lever_arm`]'s `reach`).
 ///
-/// A reading that acts on its Zero and only refuses on a definite sign
-/// levers at [`edge_extent_sup`]: an arm short of `D` turns a reading
-/// that is Positive at `D` into a definite Zero. A reading that acts on
-/// every sign reads at both bounds and acts only where they agree
-/// ([`LeverBounds`]; from a point of the edge, [`edge_reach_bounds`]).
+/// A datum read at a point of the edge (a sine at a root or a sample, a
+/// coefficient centred there) moves over the edge by at most the datum
+/// times the edge's reach from that point, which can be half of `D`, so
+/// `D` from below bounds nothing of it: such a datum reads
+/// [`span_reach_bounds`] (or [`edge_reach_bounds`]) from its point.
+///
+/// A reading of a whole-edge datum that acts on its Zero and only
+/// refuses on a definite sign levers at [`edge_extent_sup`]: an arm
+/// short of `D` turns a reading that is Positive at `D` into a definite
+/// Zero. One that acts on every sign reads at both bounds and acts only
+/// where they agree ([`LeverBounds`]).
 ///
 /// Per carrier kind, the max of the chord between the carrier's points
 /// at the span's two ends and:
@@ -673,12 +676,14 @@ fn extent_inf<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
 
 /// The extent of an edge's own point set bounded from above: no two of
 /// its points lie farther apart, at every carrier kind and scalar. The
-/// lever arm of a reading consumed over the whole edge whose Zero is
-/// acted on and whose definite signs only refuse (a tangency verified,
-/// with any defect a contradiction), where [`edge_extent_inf`]'s shorter
-/// arm would read a definite Zero that the edge's own diameter reads
-/// Positive. A reading that acts on its definite signs too reads at
-/// both bounds and acts only where they agree ([`LeverBounds`]).
+/// lever arm of a datum of the whole edge (the edge's length, a tilt
+/// that holds along all of it) whose Zero is acted on and whose definite
+/// signs only refuse, where [`edge_extent_inf`]'s shorter arm would read
+/// a definite Zero that the edge's own diameter reads Positive. A
+/// reading that acts on its definite signs too reads at both bounds and
+/// acts only where they agree ([`LeverBounds`]). A datum read at a point
+/// of the edge is levered by the edge's reach from that point
+/// ([`span_reach_bounds`]), which `D` bounds from above but loosely.
 ///
 /// **Its tightness depends on the carrier.** It is the diameter on a
 /// line and a circle arc, and within a few percent of it on an ellipse

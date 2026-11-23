@@ -391,7 +391,8 @@ struct Span<T: Real> {
 }
 
 impl<T: Real> Span<T> {
-    /// The span's extent, read off its line over `at`.
+    /// The span's length, read off its line over `at`: exact, a line's
+    /// extent being its chord.
     fn extent(&self) -> geom_core::Lever<T>
     where
         T: geom_core::spline::SpanLocate,
@@ -5488,7 +5489,13 @@ fn settle_in_band<T: Decide>(
 /// Whether two straight spans are parallel: `Some(true)` parallel,
 /// `Some(false)` not, `None` escalated (pushed). The margin is
 /// sin(angle of the unit dirs) × the shorter span's own length: the
-/// displacement the angular deviation induces over it.
+/// displacement the angular deviation induces over it. The sine has no
+/// point of its own: its Zero claims the two within the band over their
+/// overlap, which the shorter span's length bounds from above, and its
+/// definite sign hands the pair to the crossing reading over that same
+/// length ([`settle_in_band`]'s argument). A span's length is exact (a
+/// line's extent is its chord, both bounds one value), so each sign
+/// reads the bound it is owed.
 fn parallel_reading<T: Decide>(
     a: &impl Spans<T>,
     b: &impl Spans<T>,

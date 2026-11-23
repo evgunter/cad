@@ -783,7 +783,8 @@ impl<T: geom_core::Real> ConeRoots<T> {
 ///   gap: the lane refuses [`Unsettled::AtApex`] rather than place the
 ///   roots there.
 /// - **`curve_face_pose_cone_lead`** — `A/|dir|²` levered by the run's
-///   length: how far the line turns off a generator over the run. Zero:
+///   reach from the apex's foot, about which the quadratic is centred:
+///   how far the line turns off a generator over the run. Zero:
 ///   the quadratic degenerates (a ruling, or a line parallel to one) and
 ///   the lane does not answer ([`Unsettled::Degenerate`]).
 /// - **`curve_face_pose_cone_depth`** — the depth the line's vertex `t*`
@@ -1662,6 +1663,39 @@ mod line_cone_rows {
         assert!(
             certified > 50 && judged > 100,
             "the row reaches the rung: {certified} certified pairs, {judged} roots judged"
+        );
+    }
+
+    /// **The lead is levered at the run's reach from the apex's foot**,
+    /// where the quadratic is centred, not at the run's length. A line a
+    /// metre off the apex, tilted `δ = 0.8·10⁻⁹` off a generator of the
+    /// right cone in its own plane, so its lead `A/|d|²` is about `δ`.
+    /// Read over two metres about its foot, the run reaches a metre from
+    /// it and the lead reads `δ·1` in the zero band of `(10⁻⁹, 10⁻⁸)`: a
+    /// line parallel to a generator, which the method does not answer.
+    /// The run's length, its diameter and its chord alike, would read
+    /// `δ·2` in band, and the reach from an end of it would too. Over the
+    /// same two metres from the foot on, the reach is the whole run and
+    /// the lead is in band: half the run is not the arm either.
+    #[test]
+    fn the_cone_lead_is_levered_at_the_runs_reach_from_the_apexs_foot() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let theta = core::f64::consts::FRAC_PI_4 - 0.8e-9;
+        let line = geom::Line {
+            origin: Point3::new(0.0, 1.0, 0.0),
+            dir: geom::stated_direction(Vec3::new(theta.sin(), 0.0, theta.cos())),
+        };
+        let cone = upright(core::f64::consts::FRAC_PI_4);
+        let foot = line.param(cone.0.origin);
+        let about = line_cone_roots(line, cone, (foot - 1.0, foot + 1.0), band);
+        assert!(
+            matches!(about, Ok(Err(Unsettled::Degenerate))),
+            "about the foot the lead reads Zero at the reach 1: got {about:?}"
+        );
+        let from = line_cone_roots(line, cone, (foot, foot + 2.0), band);
+        assert!(
+            from.is_err(),
+            "from the foot on the lead reads in band at the reach 2: got {from:?}"
         );
     }
 }

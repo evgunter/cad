@@ -332,7 +332,7 @@ fn taken_over<T: Decide>(
 
 /// **[`ray_crossings`] up to the crossing the piece takes**
 /// ([`taken_over`]): `reach` the run it reads for where its crossings
-/// are, and each read levered over its own run.
+/// are, and each crossing levered at its read run's reach from it.
 ///
 /// # Errors
 ///
@@ -348,14 +348,10 @@ pub fn ray_crossings_to<T: Decide>(
     let dir = ray.line().dir.get();
     let carrier = Curve3::Line(ray.line());
     let read = |run: T, whole: bool| {
-        // The run read as the segment it covers, levered from the ray's
-        // start: the run itself, the extent the crossings are decided
-        // over.
-        let arm = geom_brep::ExtentBall::of_covered(
-            geom::cover::Cover::segment(ray.start_point(), ray.start_point() + dir * run).as_ref(),
-        )
-        .lever_from(ray.start_point());
-        let span = Span::new(&carrier, (ray.start(), ray.from_start(run)));
+        let params = (ray.start(), ray.from_start(run));
+        let ends = (ray.start_point(), ray.start_point() + dir * run);
+        let arm = |point| crate::cover::piece_reach_bounds(&carrier, params, ends, point).below();
+        let span = Span::new(&carrier, params);
         let skip: &[SpanEnd] = if whole {
             &[SpanEnd::Start]
         } else {
@@ -363,7 +359,7 @@ pub fn ray_crossings_to<T: Decide>(
         };
         meetings(&span, surface, skip, band)?
             .into_iter()
-            .map(|(t, point)| crossing(surface, sense, t, point, dir, arm, band))
+            .map(|(t, point)| crossing(surface, sense, t, point, dir, arm(point), band))
             .collect()
     };
     taken_over(reach, read, taken)
@@ -371,7 +367,7 @@ pub fn ray_crossings_to<T: Decide>(
 
 /// **[`circle_crossings`] up to the crossing the piece takes**
 /// ([`taken_over`]): the whole turn read for where its crossings are,
-/// and each read levered over the arc it runs.
+/// and each crossing levered at its read arc's reach from it.
 ///
 /// # Errors
 ///
@@ -388,21 +384,16 @@ pub fn circle_crossings_to<T: Decide>(
     let tau = geom::conic_period::<T>().length();
     let carrier = Curve3::Circle(geom::Circle::new(frame, radius));
     let read = |run: T, _whole: bool| {
-        let reach = geom_brep::ExtentBall::of_covered(
-            geom::cover::Cover::arc(
-                &frame,
-                (radius, radius),
-                geom::cover::ParamWindow::new(T::zero(), run),
-            )
-            .as_ref(),
-        )
-        .lever();
+        let ends = (carrier.eval(T::zero()), carrier.eval(run));
         let span = Span::new(&carrier, (T::zero(), run));
         meetings(&span, surface, &[SpanEnd::Start, SpanEnd::Stop], band)?
             .into_iter()
             .map(|(theta, point)| {
                 let (s, c) = theta.sin_cos();
                 let velocity = v_ref * c - u_ref * s;
+                let reach =
+                    crate::cover::piece_reach_bounds(&carrier, (T::zero(), run), ends, point)
+                        .below();
                 crossing(surface, sense, theta, point, velocity, reach, band)
             })
             .collect()
@@ -428,27 +419,20 @@ pub fn circle_crossings<T: Decide>(
     // The circle on the frame its stated directions square to; the
     // crossings' velocity reads that same frame, so it is the carrier's.
     let frame = geom::Frame::new(center, axis, u_ref);
-    let (axis, u_ref, v_ref) = (frame.axis_unit(), frame.u_ref(), frame.v_ref());
+    let (u_ref, v_ref) = (frame.u_ref(), frame.v_ref());
     // The circle's period: its parameter is its angle.
     let tau = geom::conic_period::<T>().length();
     let carrier = Curve3::Circle(geom::Circle::new(frame, radius));
-    let reach = geom_brep::ExtentBall::of_covered(
-        geom::cover::Cover::circle(geom::cover::Core {
-            axis: geom::Line {
-                origin: center,
-                dir: axis,
-            },
-            radius,
-        })
-        .as_ref(),
-    )
-    .lever();
+    let start = carrier.eval(T::zero());
     let span = Span::new(&carrier, (T::zero(), tau));
     meetings(&span, surface, &[SpanEnd::Start, SpanEnd::Stop], band)?
         .into_iter()
         .map(|(theta, point)| {
             let (s, c) = theta.sin_cos();
             let velocity = v_ref * c - u_ref * s;
+            let reach =
+                crate::cover::piece_reach_bounds(&carrier, (T::zero(), tau), (start, start), point)
+                    .below();
             crossing(surface, sense, theta, point, velocity, reach, band)
         })
         .collect()
@@ -457,7 +441,10 @@ pub fn circle_crossings<T: Decide>(
 /// One crossing at `point`, `along` the piece, its sense read off the
 /// piece's unit `velocity` against the outward normal: the cosine
 /// between them, the outward gradient's component along the velocity
-/// over its length.
+/// over its length. The cosine is read at `point`, and its definite
+/// sign is the passage (a Zero refuses as a graze), so `lever` is the
+/// piece's reach from `point`, from below
+/// ([`crate::cover::piece_reach_bounds`]).
 fn crossing<T: Decide>(
     surface: &Surface<T>,
     sense: bool,
