@@ -37,9 +37,9 @@ pub(super) const BUDGET: SymBudget = SymBudget {
     max_degree: 128,
 };
 
-/// The shipped algebra. The two rules that read a value are named off;
-/// what keeps them from firing is that an ask's state has nothing for
-/// them to read (module docs;
+/// The shipped algebra. The two rules that read a value are named off,
+/// a second guard behind the first: an ask's state has nothing for them
+/// to read, so neither switch alone changes an answer (module docs;
 /// `a_max_is_not_proved_once_the_session_holds_a_witness`, and `sym`'s
 /// `the_structural_question_does_not_read_the_registry`).
 const RULES: SymRules = SymRules {
@@ -231,7 +231,8 @@ mod tests {
     /// question's state holds neither a bracket nor a witness kind, and
     /// `max(a, b) − b` is not proved. An answer taken from the installed
     /// session's ladder proves it and is red here; so is an ask's state
-    /// lent the session's brackets and witness.
+    /// lent the session's brackets and witness with the read's switch
+    /// on. Either guard alone keeps the row green.
     #[test]
     fn a_max_is_not_proved_once_the_session_holds_a_witness() {
         let answer = session(Kind::Eager, shipped(), SymRules::shipped(), || {
