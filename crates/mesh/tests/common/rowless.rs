@@ -39,16 +39,8 @@ pub fn posed(what: &str, raw: Body<f64>, pose: Affine3<f64>) -> AtRestBody<f64> 
 
 /// `a ∖ b`, finished.
 pub fn less(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> AtRestBody<f64> {
-    try_less(a, b).unwrap_or_else(|e| panic!("a ∖ b builds: {e}"))
-}
-
-/// [`less`], with the boolean's refusal as text: a cut whose decision
-/// lands in the run's band refuses, so at an ε the caller does not choose
-/// there may be no body to mesh.
-pub fn try_less(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> Result<AtRestBody<f64>, String> {
-    let cut = topo::subtract(a, b, tol()).map_err(|e| format!("{e:?}"))?;
-    let body = cut.body().ok_or_else(|| "the empty result".to_owned())?;
-    Ok(finished("the cut", Body::clone(&body.body), tol()))
+    let cut = topo::subtract(a, b, tol()).unwrap();
+    finished("the cut", Body::clone(&cut.body().unwrap().body), tol())
 }
 
 /// `a ∩ b`, finished.
@@ -149,15 +141,24 @@ pub fn tilted(tilt: f64) -> Body<f64> {
 
 /// **Two small holes in a pipe wall, `gap` columns of free wall between
 /// them**: the pipe of radius `r` over `z ∈ (−h/2, h/2)` less two thin
-/// radial stubs at mid-height, cut one after the other, centred half a
-/// column off a rim chord point (9.5 columns round). A column is the
-/// rim's chord step on a chart-lane wall at `delta`: read off a pipe with
-/// one such hole meshed at `delta`, so the lane's own target sets it.
-pub fn two_holes(r: f64, h: f64, gap: f64, delta: f64) -> Result<Body<f64>, String> {
+/// radial stubs at mid-height, `0.016·r` wide, cut one after the other,
+/// centred half a column off a rim chord point (9.5 columns round). A
+/// column is the rim's chord step on a chart-lane wall at `delta`: read
+/// off the unit pipe with one such hole meshed at `delta / r`, so the
+/// lane's own target sets it and the reading is the same at every scale.
+/// The width is a fixed share of the radius, not of the column, so each
+/// cut's decisions sit clear of the band at every ε the suite runs: a
+/// hole `0.04` columns wide on the unit pipe at δ 10⁻³ pierces at a
+/// margin of `1.58·10⁻⁶`, inside the band at ε 10⁻⁶, and the millimetre
+/// pipe's probe hole at `−1.00·10⁻⁶`.
+pub fn two_holes(r: f64, h: f64, gap: f64, delta: f64) -> Body<f64> {
     let d = 0.02 * h;
-    let stub = |w: f64, turn: f64| bar((0.5 * r, 1.1 * r), w, (-d, d), turn);
-    let probe = try_less(&pipe(r, -0.5 * h, h), &stub(0.01 * r, 1.0))?;
-    let rims = mesh::tessellate(&probe, delta, tol()).map_err(|e| format!("{e:?}"))?;
+    let (hu, du) = (h / r, d / r);
+    let probe = less(
+        &pipe(1.0, -0.5 * hu, hu),
+        &bar((0.5, 1.1), 0.01, (-du, du), 1.0),
+    );
+    let rims = mesh::tessellate(&probe, delta / r, tol()).unwrap();
     let n = rims
         .boundaries
         .iter()
@@ -167,11 +168,11 @@ pub fn two_holes(r: f64, h: f64, gap: f64, delta: f64) -> Result<Body<f64>, Stri
         - 1;
     #[allow(clippy::cast_precision_loss)]
     let column = core::f64::consts::PI / n as f64;
-    let w = 0.04 * column * r;
+    let w = 0.008 * r;
+    let stub = |turn: f64| bar((0.5 * r, 1.1 * r), w, (-d, d), turn);
     let (c, half) = (9.5 * column, 0.5 * gap * column + w / r);
-    let one = try_less(&pipe(r, -0.5 * h, h), &stub(w, c - half))?;
-    let two = try_less(&one, &stub(w, c + half))?;
-    Ok(Body::clone(&two))
+    let one = less(&pipe(r, -0.5 * h, h), &stub(c - half));
+    Body::clone(&less(&one, &stub(c + half)))
 }
 
 /// **What a face triangulated on its boundary points and `p` inserted

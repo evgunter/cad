@@ -130,9 +130,7 @@ fn a_notched_wall_with_split_rulings_is_its_boundary_points_alone() {
 /// two that refuse on the lane's former rows (`r = 10`, δ 0.1), which mesh
 /// here at the first attempt. Measured: one round, four points, on every
 /// refusing cell, after which the worst certificate reads 0.48·δ to
-/// 0.49·δ. Off the default ε a cut whose decision lands in the run's band
-/// is printed and skipped (at 10⁻⁶ four cells are: the pierce reads
-/// `1.58·10⁻⁶` on the unit pipe, `−1.00·10⁻⁶` on the millimetre one).
+/// 0.49·δ. Every cell builds and meshes at every ε the suite runs.
 #[test]
 fn two_holes_across_a_column_and_a_half_mesh_by_the_correction() {
     for (r, delta, h, gap, inserted) in [
@@ -148,25 +146,7 @@ fn two_holes_across_a_column_and_a_half_mesh_by_the_correction() {
         (10.0, 0.1, 13.3, 1.5, 0),
     ] {
         let what = format!("two holes, r {r}, h {h}, gap {gap}");
-        // The two stubs are cut by two booleans, whose decisions can land
-        // in the run's band: off the default ε the cut that does not build
-        // is printed and skipped, so the absence shows in the log, and at
-        // the default ε it is this row's failure.
-        let body = match two_holes(r, h, gap, delta) {
-            Ok(body) => body,
-            Err(refusal) => {
-                assert_ne!(
-                    tol().eps(),
-                    geom_core::tolerance::DEFAULT_EPS,
-                    "{what}: the cuts build at the default ε, got {refusal}"
-                );
-                println!(
-                    "SKIPPED {what}: not built at ε {:e}: {refusal}",
-                    tol().eps()
-                );
-                continue;
-            }
-        };
+        let body = two_holes(r, h, gap, delta);
         let counts = counts(&what, &body, delta);
         let total: usize = counts.iter().map(|c| c.p).sum();
         holds(&what, delta, &counts, |_| true);
