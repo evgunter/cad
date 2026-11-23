@@ -205,21 +205,25 @@ gate() {
     return
   fi
   alt=$( { printf '%s\n' "$list" | sed '/^$/d; s/$/_RECOURSE/'; printf '%s\n' $named; } | paste -sd'|')
-  view=$(gate_rust_code --skip-cfg-test --keep-literals "${GATE_PRODUCTION_FILES[@]}")
-  hits=$(printf '%s\n' "$view" | python3 -c "$MATCHER" "$alt")
+  # Through a file, not a shell variable, as `lever-sources.sh` reads
+  # its view; an empty view reads as one empty line, as a variable did.
+  view=$GATE_VIEW_FILE.code
+  (gate_rust_code --skip-cfg-test --keep-literals "${GATE_PRODUCTION_FILES[@]}") > "$view"
+  [ -s "$view" ] || printf '\n' > "$view"
+  hits=$(python3 -c "$MATCHER" "$alt" < "$view")
   if [ -n "$hits" ]; then
     printf '%s\n' "$hits"
     gate_error "a recourse fragment labelled by hand beside its ending: write the X_ENDING constant (for COINCIDENCE_RECOURSE, MOVE_RECOURSE or move_recourse!(\"so …\"))"
     exit 1
   fi
   move_arm_exceptions_from_env
-  hits=$(printf '%s\n' "$view" | python3 -c "$WORDS" "$(printf '%s\n' ${MOVE_ARM_EXCEPTIONS[@]+"${MOVE_ARM_EXCEPTIONS[@]}"})")
+  hits=$(python3 -c "$WORDS" "$(printf '%s\n' ${MOVE_ARM_EXCEPTIONS[@]+"${MOVE_ARM_EXCEPTIONS[@]}"})" < "$view")
   if [ -n "$hits" ]; then
     printf '%s\n' "$hits"
     gate_error "the move recourse spelled by hand: write MOVE_RECOURSE for the whole ending, geom_core::move_recourse!(\"so …\") for a move named more closely (a format! site passes it as an argument), or geom_core::move_lever!(\"so …\") for that move as an unlabelled lever; a lever that opens the arm with another continuation is a recorded exception (MOVE_ARM_EXCEPTIONS, with its reason), and an entry whose count is not the tree's is moved to it"
     exit 1
   fi
-  hits=$(printf '%s\n' "$view" | grep -v '^crates/geom-core/' \
+  hits=$(grep -v '^crates/geom-core/' < "$view" \
     | grep -E 'move_lever![[:space:]]*[(\[{][[:space:]]*@words' || true)
   if [ -n "$hits" ]; then
     printf '%s\n' "$hits"

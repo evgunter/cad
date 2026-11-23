@@ -2,8 +2,9 @@
 id: certified-range-has-no-python-door
 kind: issue
 title: The certified locally-valid range query has no Python door
-status: open
+status: closed
 opened: 2026-09-13
+closed: 2026-11-22
 refs: [1183]
 priority: P3
 cost: M
@@ -85,3 +86,11 @@ a Python door should expose the budget rather than choosing one:
 LIB owns `crates/pncad-py` and the binding surface.
 
 - 2026-11-03 — moved from LIB to PYDOOR by `git mv` when LIB closed, id and body unchanged; priced M (was legacy D) in the move (LIB had three P1 rows left behind 124 closed ones; its library-door rows went to PYDOOR, opened for them, and its tag, stub, census and projection rows to BIND; Ev, in chat).
+
+## Closed
+
+By OFFER's kernel certify unit (`work/offer/the-certified-range-refines-away-from-the-current-value`), which rebuilt the query as a resumable search and bound it in the same PR. The signature and the four arms quoted above are the query as it was; the door binds what replaced them.
+
+- `crates/pncad-py/src/py/range.rs`: `RangeSearch` (`step()`, `steps`, `answer()`), the one-shot `certified_range`, the admission door `admit_range`, `RangeField`, `RangeSeed`, and the answer (`CertifiedRange`, `RangeSide`, `ProvenDifferent`, `NotDecided`), with the typed `RangeRefusal`. Undecided ground is its own object and never a number per side; offsets cross as quantities in the field's dimension; `pinned` is on the answer.
+- The budget is the caller's: `max_depth` and `max_replays`, the latter required on the one-shot door. `DriveConfig` is not bound as a class; the rest of the certified half stays where `work/bind/certified-analysis-half-compiles-into-the-wheel-unbound` leaves it.
+- The family left `NOT_CARRIED` and is carried through `pncad::analysis`.
