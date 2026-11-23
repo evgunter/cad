@@ -3510,7 +3510,7 @@ impl<T: Decide> CarriedComponent<T> {
     /// in closed form or by that carrier's own polish, and a further step
     /// would only move it by roundings.
     fn polished(&self, p: Point3<T>, t: T, band: Band) -> T {
-        if self.pad == 0.0 {
+        if self.pad <= 0.0 {
             return t;
         }
         let value = |x: T| x.point_value();
