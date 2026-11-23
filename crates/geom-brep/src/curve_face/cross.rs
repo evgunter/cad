@@ -326,7 +326,7 @@ pub fn cross<T: Decide>(
 /// found meeting the band cannot read outside a window is taken into it,
 /// so no found meeting lies in one; then windows that overlap or touch
 /// within the band are one ([`merged`]).
-fn finish<T: Decide>(
+pub(super) fn finish<T: Decide>(
     span: &Span<'_, T>,
     pose: Pose<T>,
     meetings: Vec<(Meeting<T>, T)>,

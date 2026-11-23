@@ -695,14 +695,13 @@ pub fn certified_subdivision<T: Decide>(
 
 /// **[`certified_subdivision`] read past what it refuses**: a refused
 /// piece is recorded with its window and the walk goes on, so the roots it
-/// answers are every root outside the windows. A piece off the arc
-/// `[t0, t1]` that would be split or refused decides nothing the caller
-/// reads: it is dropped, neither walked to the floor nor a window. A
-/// window is the refused piece, or a refused root's slack about it, each
-/// widened by the band's escalation `Kε` at the carrier's least speed
-/// `speed_lo`, reported within `π` of the arc's midpoint. The turn's parity
-/// and degree checks read only a walk with no window and no dropped piece:
-/// the count inside either is unknown.
+/// answers are every root outside the windows. A window is the refused
+/// piece, or a refused root's slack about it, each widened by the band's
+/// escalation `Kε` at the carrier's least speed `speed_lo`, reported within
+/// `π` of the arc's midpoint; whether one meets the caller's arc is the
+/// caller's to read (`curve_face`'s W3). The turn's parity and degree
+/// checks read only a walk with no window: the count inside one is
+/// unknown.
 ///
 /// # Errors
 ///
@@ -1094,34 +1093,20 @@ fn subdivision<T: Decide>(
         Step::Halve([((l, sl), (c, sc)), ((c, sc), (r, sr))])
     };
     // Read past (`past`, the carrier's least speed): a refused piece is
-    // recorded and the walk goes on; a piece off the arc that would be
-    // split or refused is dropped unread. Each window is the piece, or a
-    // root's slack, reported as the roots are and widened by `Kε`.
+    // recorded and the walk goes on. Each window is the piece, or a root's
+    // slack, reported as the roots are and widened by `Kε`.
     let mut refused: Vec<((T, T), RootRefusal)> = Vec::new();
-    let mut unread = false;
     let walk = bisect(pieces, |piece: ((T, Sign), (T, Sign))| {
         let ((l, _), (r, _)) = piece;
-        let step = visit(piece);
-        let Some(speed_lo) = past else {
-            return match step {
-                Step::Stop((_, why)) => Step::Stop(why),
-                Step::Settled => Step::Settled,
-                Step::Halve(halves) => Step::Halve(halves),
-            };
-        };
-        let widen = T::from_f64(band.escalate()) / speed_lo;
-        let held = |(lo, hi): (T, T)| (lo - widen, hi + widen);
-        let moved = l - reported(l);
-        match step {
-            Step::Settled => Step::Settled,
-            Step::Halve(halves) => Step::Halve(halves),
-            Step::Stop((window, why)) => {
-                let window = held(window.unwrap_or((l - moved, r - moved)));
-                if off_arc(window, (t0, t1), speed_lo, band) {
-                    unread = true;
-                } else {
-                    refused.push((window, why));
-                }
+        match (visit(piece), past) {
+            (Step::Settled, _) => Step::Settled,
+            (Step::Halve(halves), _) => Step::Halve(halves),
+            (Step::Stop((_, why)), None) => Step::Stop(why),
+            (Step::Stop((window, why)), Some(speed_lo)) => {
+                let widen = T::from_f64(band.escalate()) / speed_lo;
+                let moved = l - reported(l);
+                let (lo, hi) = window.unwrap_or((l - moved, r - moved));
+                refused.push(((lo - widen, hi + widen), why));
                 Step::Settled
             }
         }
@@ -1131,9 +1116,9 @@ fn subdivision<T: Decide>(
         Ok(Some(why)) => return Err(why),
         Err(_) => return Err(Unsettled::Exhausted.into()),
     }
-    if !refused.is_empty() || unread {
-        // The count inside a window, or on a dropped piece, is unknown:
-        // the turn's parity and degree are not read.
+    if !refused.is_empty() {
+        // The count inside a window is unknown: the turn's parity and
+        // degree are not read.
         return Ok(Walk {
             roots,
             touches,
@@ -1154,25 +1139,6 @@ fn subdivision<T: Decide>(
         touches,
         refused,
     })
-}
-
-/// **Whether a window misses the arc `(t0, t1)`** (`curve_face_window`,
-/// metred at the carrier's least speed): at each of its turns it stands
-/// past an end by a gap of zero or more. The window is the escalation
-/// wider than where its roots lie, so a zero gap misses them; a gap in
-/// band keeps it.
-fn off_arc<T: Decide>((lo, hi): (T, T), (t0, t1): (T, T), speed_lo: T, band: Band) -> bool {
-    let (a0, a1) = (t0.min(t1), t0.max(t1));
-    let past = |gap: T| {
-        matches!(
-            decide("curve_face_window", Margin::of(gap * speed_lo), band),
-            Ok(Sign::Zero | Sign::Positive)
-        )
-    };
-    let turn = T::tau();
-    [T::zero() - turn, T::zero(), turn]
-        .into_iter()
-        .all(|k| past((lo + k) - a1) || past(a0 - (hi + k)))
 }
 
 #[cfg(test)]

@@ -298,24 +298,24 @@ fn a_touchs_harmonic_arc_keeps_its_digits_at_every_ratio() {
 }
 
 /// **A circle crossing a plane just below its belly is placed by its
-/// depth** (`pose::plane_conic`'s roots): a unit circle dipping `h` below
-/// a plane, `h = 2⁻¹⁴` (6e-5) down to `2⁻³³` (1.2e-10, ten `Kε` at
+/// depth** (`pose::plane_conic`'s roots): a circle of radius 3 dipping `h`
+/// below a plane, `h = 2⁻¹⁴` (6e-5) down to `2⁻³³` (1.2e-10, ten `Kε` at
 /// `ε = 1e-12`). Each meeting's offset along the plane against the
-/// double-double `√(h(2 − h))`, within the zero band. Red with
-/// `acos(−d₀/R)` restored, which moves the root by `u/√(2h)` radians,
-/// seven zero bands at the deepest.
+/// double-double `√(h(6 − h))`, within the zero band. Red with
+/// `acos(−d₀/R)` restored: `−d₀/R = 1 − h/3` rounds, which moves the
+/// root by `u·R/√(2h/R)` of arc, several zero bands at the deepest.
 #[test]
 fn a_circle_crossing_a_plane_near_its_belly_is_placed_within_the_band() {
     let eps = 1e-12;
     let b = band(eps);
     for k in 14..=33 {
         let h = 2.0_f64.powi(-k);
-        let c = hanging(1.0, -h);
+        let c = hanging(3.0, -h);
         let label = format!("h = 2^-{k}");
         let got = cross(&Span::new(&c, (0.0, PI)), &plane_z(), b)
             .unwrap_or_else(|r| panic!("{label}: two crossings, got {r:?}"));
         assert_eq!(got.meetings.len(), 2, "{label}: {got:?}");
-        let want = Dd::of(h).mul(Dd::of(2.0 - h)).sqrt().to_f64();
+        let want = Dd::of(h).mul(Dd::of(6.0 - h)).sqrt().to_f64();
         for m in &got.meetings {
             let off = (m.point.x.abs() - want).abs();
             assert!(
@@ -695,4 +695,140 @@ fn a_window_past_an_end_in_band_is_held_to_the_end() {
         (lo, hi)
     );
     assert!(super::misses(&span, (1.1, 1.5), b), "a clear gap drops it");
+}
+
+/// **A first harmonic's refused root slack is a window over each root,
+/// and off the arc it refuses nothing**: a circle of radius `0.5` in
+/// `z = 0` about `(0.5 + δ, 0, 0)`, crossing the unit sphere `δ = 1e-8`
+/// deep at `θ = 0`, at `ε = 1e-12`. Its roots, `±2.8e-4` rad apart, are
+/// too shallow for the root slack to fall inside the band. Over the turn
+/// the answer is a window, local, holding both true crossings; over the
+/// arc `[2, 4]`, a radian and more from them, `cross` and the sweep's
+/// wrapper answer with no window. Red where the slack's window is the
+/// whole span, where a window that misses the span is kept, or where a
+/// wrapper reads every window rather than the first that meets the span.
+#[test]
+fn a_first_harmonics_refused_slack_is_local_and_refuses_nothing_off_the_arc() {
+    let b = band(1e-12);
+    let sphere = Surface::Sphere {
+        frame: Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+        radius: 1.0,
+    };
+    let delta = 1e-8;
+    let c = Curve3::circle(
+        Point3::new(0.5 + delta, 0.0, 0.0),
+        Vec3::unit_z(),
+        0.5,
+        Vec3::unit_x(),
+    );
+    // The crossings in double-double: `|p|² = 1` at `cos θ = (1 − d² −
+    // ρ²)/(2dρ)`, read here as `θ ≈ ±√(2(1 − cos θ))` to first order.
+    let d = 0.5 + delta;
+    let one_minus = Dd::of(1.0).sub(Dd::of(d).add(Dd::of(0.5)).mul(Dd::of(d).add(Dd::of(0.5))));
+    let theta = (2.0 * -one_minus.to_f64() / (2.0 * d * 0.5)).sqrt();
+    match cross(&Span::new(&c, (-PI, PI)), &sphere, b) {
+        Err(r) => {
+            assert!(r.found.is_empty(), "{r:?}");
+            for root in [-theta, theta] {
+                assert!(
+                    r.windows
+                        .iter()
+                        .any(|w| w.window.0 <= root && root <= w.window.1),
+                    "the crossing at {root} lies in a window: {r:?}"
+                );
+            }
+            for w in &r.windows {
+                assert!(w.window.1 - w.window.0 < 0.1, "a local window: {r:?}");
+            }
+        }
+        Ok(got) => panic!("the turn's slack refuses: {got:?}"),
+    }
+    let arc = cross(&Span::new(&c, (2.0, 4.0)), &sphere, b);
+    assert!(
+        matches!(&arc, Ok(got) if got.meetings.is_empty()),
+        "the arc off the crossings: {arc:?}"
+    );
+    let wrapped = super::conic_quadric::conic_quadric_roots(&c, 2.0, 4.0, &sphere, b);
+    assert!(
+        matches!(wrapped, Ok(Ok(super::circle_roots::CircleRoots::Miss))),
+        "the wrapper on the arc: {wrapped:?}"
+    );
+}
+
+/// **No found meeting lies in a window** (W1, `finish`): a meeting the
+/// band cannot read outside a window is taken into it, and one apart from
+/// every window is found. Red where a meeting inside a window is kept.
+#[test]
+fn a_meeting_inside_a_window_is_taken_into_it() {
+    use crate::curve_pair::MeetFault;
+    let c = hanging(1.0, -0.5);
+    let span = Span::new(&c, (0.0, 1.0));
+    let b = band(1e-9);
+    let meeting = |t: f64| {
+        (
+            super::Meeting {
+                point: c.eval(t),
+                on_span: super::OnSpan::Inside { t },
+                kind: super::MeetingKind::Cross,
+            },
+            t,
+        )
+    };
+    let window = super::Undecided {
+        window: (0.4, 0.6),
+        why: CrossWhy::Method {
+            door: super::Door::PlaneCrossing,
+            fault: MeetFault::Unsettled(crate::roots::Unsettled::Tangency),
+        },
+    };
+    let got = super::cross::finish(
+        &span,
+        Pose::Apart,
+        vec![meeting(0.5), meeting(0.9)],
+        vec![window],
+        b,
+    );
+    let Err(r) = got else {
+        panic!("a window stands: {got:?}")
+    };
+    assert_eq!(r.found.len(), 1, "{r:?}");
+    assert!(
+        matches!(r.found[0].on_span, super::OnSpan::Inside { t } if t == 0.9),
+        "{r:?}"
+    );
+    assert_eq!(r.windows.len(), 1, "{r:?}");
+}
+
+/// **A line × cone root whose slack the meter refuses is a window over
+/// the root ± its slack** (`line_quadric_cone_root_slack`): a line at
+/// height 1 passing `δ = 1e-6` inside the cone of half-angle `0.5`, at
+/// `ε = 1e-12`. Its two shallow roots are each in a local window, which
+/// holds the double-double root `2 ± √(δ(2R − δ))`. Red where the slack's
+/// window is the whole span.
+#[test]
+fn a_line_cones_refused_slack_is_a_window_over_each_root() {
+    let b = band(1e-12);
+    let cone = Surface::Cone {
+        frame: Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+        half_angle: 0.5,
+    };
+    let r = 0.5_f64.tan();
+    let y = r - 1e-6;
+    let l = Curve3::Line(geom::Line {
+        origin: Point3::new(-2.0, y, 1.0),
+        dir: Vec3::unit_x(),
+    });
+    let depth = Dd::of(r).sub(Dd::of(y));
+    let half = depth.mul(Dd::of(2.0 * r).sub(depth)).sqrt().to_f64();
+    let Err(got) = cross(&Span::new(&l, (0.0, 4.0)), &cone, b) else {
+        panic!("the slack refuses")
+    };
+    for root in [2.0 - half, 2.0 + half] {
+        assert!(
+            got.windows.iter().any(|w| w.window.0 <= root
+                && root <= w.window.1
+                && w.window.1 - w.window.0 < 1e-6),
+            "a local window holds the root at {root}: {got:?}"
+        );
+    }
 }
