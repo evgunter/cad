@@ -826,8 +826,14 @@ impl<T: Real> RigidMotion<T> {
     ///   past `√ε`, or not finite, is poison.
     /// - At an enclosure kind ([`Witness::Exact`](crate::Witness::Exact))
     ///   the construction's argument covers every value enclosed, so the
-    ///   bits are kept, unless a margin's bracket excludes zero (an
-    ///   enclosure that holds no rigid frame), which is poison.
+    ///   bits are kept, unless a margin's bracket stands past its charge
+    ///   from zero (a box that holds no frame within its rounding), which
+    ///   is poison. The test is `check_rigid`'s own, read off the bracket:
+    ///   a genuine enclosure of a rigid frame holds zero in every margin,
+    ///   and a point box of a frame `check_rigid` admits (a suite's test
+    ///   door, `geom_core::test_support::rigid`) stands within its charge,
+    ///   so a product of one with a turn's enclosure keeps its bits. A
+    ///   reflected, swapped or non-finite frame stands far past it.
     ///
     /// A poisoned frame keeps its origin, its axes every entry poison.
     fn measured_frame(origin: Point3<T>, u: Vec3<T>, v: Vec3<T>, w: Vec3<T>) -> Self {
@@ -863,7 +869,7 @@ impl<T: Real> RigidMotion<T> {
             }
             match T::WITNESS {
                 crate::Witness::Exact => {
-                    if !(lo <= 0.0 && 0.0 <= hi) {
+                    if lo > charge || hi < -charge {
                         return poisoned();
                     }
                 }
