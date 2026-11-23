@@ -94,7 +94,7 @@ fn rim<T: Decide>(r: f64, h: f64, u0: f64, u1: f64) -> LoopEdge<T> {
 
 fn ruling<T: Decide>(r: f64, u: f64, z0: f64, z1: f64) -> LoopEdge<T> {
     edge(
-        Curve3::line(at(r * u.cos(), r * u.sin(), 0.0), placed::<T>().axis()),
+        Curve3::line(at(r * u.cos(), r * u.sin(), 0.0), placed::<T>().axis_unit()),
         z0,
         z1,
         0,

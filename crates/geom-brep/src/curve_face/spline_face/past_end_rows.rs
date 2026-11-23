@@ -145,7 +145,12 @@ fn the_next_span_meets_the_crossing_on_the_boundary() {
     let corners =
         [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)].map(|(x, y)| Point3::new(x, y, 0.0));
     let sides: Vec<Curve3<f64>> = (0..4)
-        .map(|i| Curve3::line(corners[i], corners[(i + 1) % 4] - corners[i]))
+        .map(|i| {
+            Curve3::line(
+                corners[i],
+                geom::stated_direction(corners[(i + 1) % 4] - corners[i]),
+            )
+        })
         .collect();
     let edges: Vec<_> = sides
         .iter()

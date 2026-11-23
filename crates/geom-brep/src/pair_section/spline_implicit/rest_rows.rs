@@ -386,7 +386,7 @@ fn a_sphere_touching_the_wall_is_not_transverse_at_its_curvature_radius() {
         frame: geom::Frame::new(pt(0.0, 1.1, 1.0), Vec3::unit_z(), Vec3::unit_x()),
         radius: 0.1,
     };
-    let line = Curve3::line(pt(0.0, 1.0, 1.0), Vec3::unit_x());
+    let line = Curve3::line(pt(0.0, 1.0, 1.0), geom_core::UnitVec3::exact_x());
     let refused = curved_nurbs_limbs(
         &line,
         (-half, half),
@@ -426,7 +426,7 @@ fn a_flat_sphere_touching_a_curved_wall_is_not_transverse_at_the_walls_curvature
         frame: geom::Frame::new(pt(0.0, 101.15, 1.0), Vec3::unit_z(), Vec3::unit_x()),
         radius: 100.0,
     };
-    let line = Curve3::line(pt(0.0, 1.15, 1.0), Vec3::unit_x());
+    let line = Curve3::line(pt(0.0, 1.15, 1.0), geom_core::UnitVec3::exact_x());
     let refused = curved_nurbs_limbs(
         &line,
         (-half, half),
@@ -647,7 +647,7 @@ fn the_curved_lane_takes_no_plane_and_no_cone() {
     let plane = Surface::Plane {
         frame: geom::Frame::new(pt(0.0, 0.0, 1.0), Vec3::unit_z(), Vec3::unit_x()),
     };
-    let line = Curve3::line(pt(0.0, 1.0, 1.0), Vec3::unit_x());
+    let line = Curve3::line(pt(0.0, 1.0, 1.0), geom_core::UnitVec3::exact_x());
     for (what, partner) in [("a plane", &plane), ("a cone", &cone)] {
         let refused = curved_nurbs_limbs(
             &line,

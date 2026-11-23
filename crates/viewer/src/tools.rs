@@ -49,7 +49,7 @@ use crate::matetool::{MateTool, MateToolEvent};
 use crate::pickcache::NotIndexed;
 use crate::pickindex::{PickIndex, PickKinds};
 use crate::seats::SeatEvent;
-use crate::session::{Refusal, Selection, SessionOp};
+use crate::session::{PlaceTarget, Selection, SessionOp};
 use crate::vocab::vocabulary;
 
 vocabulary! {
@@ -299,7 +299,9 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         | SessionOp::AddExtrude { .. }
         | SessionOp::AddRevolve { .. }
         | SessionOp::AddInstance { .. }
-        | SessionOp::AcceptPartVersion { .. } => None,
+        | SessionOp::AcceptPartVersion { .. }
+        // A finding's offer, drawn beside the finding, not a tool's edit.
+        | SessionOp::AssertQuieting { .. } => None,
     }
 }
 
@@ -652,6 +654,12 @@ impl Tools {
         self.open = Some(OpenTool::Mate(tool));
     }
 
+    /// Open the assertion tool holding `tool`'s seats: the one a
+    /// finding's lead fills ([`AssertionTool::led`]).
+    pub fn open_assertion(&mut self, tool: AssertionTool) {
+        self.open = Some(OpenTool::Assertion(tool));
+    }
+
     /// The open boolean tool.
     pub fn boolean(&self) -> Option<BooleanTool> {
         match &self.open {
@@ -899,22 +907,21 @@ impl Tools {
         }
     }
 
-    /// **A door's target change held** ([`Refusal::TargetHeld`]): the
-    /// placement editor opens on the copy with the door's target set, so
-    /// the change is held there as the editor holds one — the rows
-    /// reading the old space marked, and the strike offered. Answers
-    /// whether it opened; any other refusal opens nothing.
-    pub fn held_target(&mut self, refusal: &Refusal, doc: &Doc<ProfileProgram>) -> bool {
-        let Refusal::TargetHeld {
-            placement, target, ..
-        } = refusal
-        else {
+    /// **A door's target change held** ([`crate::session::Refusal::TargetHeld`]'s
+    /// lead, [`crate::recourse::Heard::HoldTarget`]): the placement editor
+    /// opens on `placement` with `target` set, so the change is held
+    /// there as the editor holds one — the rows reading the old space
+    /// marked, and the strike offered. Answers whether it opened.
+    pub fn hold_target(
+        &mut self,
+        placement: RecipeNodeId,
+        target: PlaceTarget,
+        doc: &Doc<ProfileProgram>,
+    ) -> bool {
+        let Ok(mut tool) = MateTool::edit(doc, placement) else {
             return false;
         };
-        let Ok(mut tool) = MateTool::edit(doc, *placement) else {
-            return false;
-        };
-        tool.set_target(target.clone());
+        tool.set_target(target);
         self.open_mate(tool);
         true
     }

@@ -212,7 +212,8 @@ pub fn count(body: &Body<f64>, mesh: &mesh::Mesh, fk: topo::FaceKey) -> Count {
     let (mut n, mut loops) = (0, 0);
     for (lk, _, _) in body.face(fk).unwrap().loops() {
         loops += 1;
-        let (_, half_edges) = topo::props::loop_edges(body.cycle_loop(lk).unwrap()).unwrap();
+        let (_, half_edges) =
+            topo::props::loop_edges(body.cycle_loop(lk).expect("a cycle loop")).unwrap();
         for hek in half_edges {
             let edge = body.get_half_edge(hek).unwrap().edge;
             let line = mesh.boundaries.iter().find(|b| b.edge == edge).unwrap();

@@ -2,8 +2,9 @@
 id: a-boundary-run-on-a-chart-iso-line-gets-a-lattice-line
 kind: unit
 title: A face bounded by chart iso lines alone that is no rectangle meshes at the density its δ allows; the cures are measured, then one is built
-status: dispatched
+status: closed
 opened: 2026-11-16
+closed: 2026-11-23
 priority: P1
 cost: H
 branch: tesslane/iso-run-density
@@ -113,3 +114,13 @@ So this unit builds neither the δ target nor the refinement. **It builds "no ro
 **Ruled (TESSLANE, 07:28Z): the lane's correction on the cylinder row.** A triangle whose certificate refuses gets a point inside it (its centroid) and the face is triangulated again, under the existing `MAX_GRID_RETRIES`, refusing typed when the budget ends; the headroom and everything else as on the head. Not a lattice node laid where a triangle spans more than a bound of columns: a second predictor of what the certificate already reads, against Ev's answer on the sizing question (PR 7486: the step is a first guess, the certificate decides). Not the rows back: main refuses its own two cells with them. The lane-wide form (every analytic arm, the insertion rule chosen by measurement, the headroom deleted) is the neighbouring unit `tesslane/certificate-decides`.
 
 **Measured with the correction** (debug, default ε, the fuzz seed pinned): all 900 cells mesh; each of the head's 8 refusing cells takes one round of four points, after which its worst certificate reads 0.48–0.49 δ; the other 892 cells, the `mesh` suite (58,640 faces) and `sweep`'s 61 meshing modules (32,235 faces) are bit-identical to the head, the correction firing nowhere else. Pinned in `crates/mesh/tests/rowless_cylinders.rs` (`two_holes_across_a_column_and_a_half_mesh_by_the_correction`, the 8 cells and main's 2, with the mutant "correction off" red).
+
+### Closed (2026-11-23, PR 7526)
+
+Built as ruled, reviewed by two reviewers on one brief and by both again on the fix pass's head. The chart lane's cylinder arm lays no rows (`AnalyticRow::lattice_rows`, the one home for "no rows"), and a cylinder triangle whose certificate refuses gets the lane's correction. The rows hold one identity, as an equality, on every cylinder face of `rowless_cylinders` and `reach_probes`: a constrained triangulation of a polygon of `n` points with `h` holes and `p` inserted points has `n − 2 + 2h + 2p` triangles, with `p` read off the patch (0 on every cut, tilted and split wall; 4 on the eight two-hole cells). The four relation rows of the first build were fits, and the review showed each false on a body of its own.
+
+**The CDT metric on the cylinder arm is kept by measurement, not derived.** Under the cylinder's own development (`k = 1/r`) or main's metric before the unit, the 180 two-hole cells at δ 10⁻³ refuse with the correction on, the 540 at δ/r 10⁻² mesh with 47 to 177 more points and the 180 at δ/r 10⁻¹ with 0 to 33 more; 16 rows of each suite go red. The present metric (column step over window height with one row, to a power of two) refuses none. Stated at its site.
+
+**Not built, and filed:** a cone and a spline-stored cylinder keep the rows a cylinder face no longer lays (`a-cone-and-a-spline-cylinder-keep-the-rows-a-cylinder-face-no-longer-lays`, P3); two rods a hair apart crossing at a shallow angle refuse `Triangulation` on a plane face, on main as on the head (`two-rods-a-hair-apart-crossing-at-a-shallow-angle-refuse-triangulation`, P3). The sphere half of the class is unchanged: stage 1 measured it within 0.75 to 3.0 of the reference with no cure.
+
+**The first "Done when" above is superseded** by the unit section: no lattice line is laid through a run, and `[mesh.sizing]`'s wording is untouched (its clearance clause was read against the build and stands). The lane-wide form of the correction and the headroom's deletion are `tesslane/certificate-decides`.

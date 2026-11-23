@@ -2,12 +2,18 @@
 id: a-carried-sites-foot-is-certified-at-the-reading
 kind: unit
 title: A carried site's foot is decided at the reading: CarriedComponent::reads certifies the along-residual Zero, so the foot is the site's orthogonal foot, not a witness
-status: dispatched
+status: closed
 opened: 2026-11-22
 priority: P1
 cost: M
 branch: sectcone/certified-foot
+closed: 2026-11-23
+pr: 7408
 ---
+
+## Closed (2026-11-23, PR 7408)
+
+`CarriedComponent::reads` certifies a site's foot. `foot_along` decides `|a|/(1 − κr)` Zero, where `a` is the along-residual, `r = |p − C(t)| + Kε`, and κ comes from `curvature_hi_over` over the arc's run. Before that, the bend `1/κ − r` is decided positive. A site past an open end reads at that end. Padded components take a short Newton polish first; closed forms keep their exact witness. Membership (`witness`, read by `holds`, `ended_by` and `distinct`) is split from place (`reads`), and `site` decides membership on every component before certifying the one foot. The measured pads are 1.5e7–1.3e8·ε, with κ·pad ≤ 0.62. Single FULL Opus review: APPROVE-WITH-FIXES, no MAJOR. Follow-up: `a-carried-sites-foot-escalates-where-its-polish-stalls-or-clamps-at-a-run-end` (P3).
 
 
 Weighed 2026-11-22 by two designers, from PR 7354's fork (log, 2026-11-22). Both reached the same recommendation independently.

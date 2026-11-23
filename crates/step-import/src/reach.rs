@@ -130,8 +130,8 @@ impl Reach {
     /// The two points of `line` (its direction unit) at the ends of the
     /// region's extent along it.
     pub(crate) fn ends_on(&self, line: geom::Line<f64>) -> [Point3<f64>; 2] {
-        let (lo, hi) = self.along(line.dir);
-        let at = |s: f64| line.at(s - line.dir.dot(line.origin - Point3::origin()));
+        let (lo, hi) = self.along(line.dir.get());
+        let at = |s: f64| line.at(s - line.dir.get().dot(line.origin - Point3::origin()));
         [at(lo), at(hi)]
     }
 
