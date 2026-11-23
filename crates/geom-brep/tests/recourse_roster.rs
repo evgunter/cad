@@ -165,6 +165,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SITE_AT_NODE"),
     NameCarrier::Const("SITE_FOOT_ALONG"),
     NameCarrier::Const("SITE_FOOT_AT_END"),
+    NameCarrier::Const("SITE_FOOT_BEND"),
     NameCarrier::Const("SITE_FOOT_PAST_END"),
     NameCarrier::Const("SITE_IN_SPAN"),
     NameCarrier::Const("SITE_PAST_SPAN"),
