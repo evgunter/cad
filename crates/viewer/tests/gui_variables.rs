@@ -419,58 +419,71 @@ fn a_named_offer_takes_no_second_name() {
     assert_eq!(reads(&session, a), minted, "and the slot its read");
 }
 
-/// **Two slots that share a variable are made two by the text door,
-/// not by a typed value** (VR2: a shared variable is named, and a slot
-/// reading a named variable is driven by it): a value typed at either
-/// is refused, naming the variable, and moves nothing; a written
-/// quantity set as its text makes it its own.
+/// **Two slots that share a variable are made two by an entry at
+/// either** (VR2: a shared variable is named, and a slot reading a named
+/// variable is driven by it): a drag at either is refused, naming the
+/// variable, and moves nothing; a value typed there, as a number or as a
+/// written quantity, makes it its own, and the other keeps the variable.
 #[test]
-fn a_shared_slot_is_made_its_own_by_its_text() {
-    let (mut session, a, b, _w, _k) = two_extrudes();
-    typed(&mut session, a, 0.010);
-    let shared = reads(&session, b);
-    let name = VarName::from_static("depth");
-    let accepted = session.perform(SessionOp::SetSlotVariable {
-        node: a,
-        slot: SlotId::Distance,
-        var: shared,
-        name: Some(name.clone()),
-    });
-    assert!(accepted.refusal.is_none(), "{:?}", accepted.refusal);
-    assert_eq!(reads(&session, a), shared, "a and b read one variable");
-
-    let refused = session.perform(SessionOp::SetSlot {
-        node: a,
+fn a_shared_slot_is_made_its_own_by_an_entry() {
+    let number = |node| SessionOp::SetSlot {
+        node,
         slot: SlotId::Distance,
         value: SlotValue::Continuous(0.020),
-    });
-    let named: Option<Vec<_>> = match &refused.refusal {
-        Some(Refusal::DrivenByExpression { variables, .. }) => {
-            Some(variables.iter().map(|var| var.name().cloned()).collect())
-        }
-        _ => None,
     };
-    assert_eq!(
-        named,
-        Some(vec![Some(name.clone())]),
-        "a typed value at a shared slot is refused, naming depth: {:?}",
-        refused.refusal
-    );
-    assert_eq!(reads(&session, a), shared, "nothing moved");
-
-    let own = session.perform(SessionOp::SetSlotExpression {
-        node: a,
+    let quantity = |node| SessionOp::SetSlotExpression {
+        node,
         slot: SlotId::Distance,
         text: "20 mm".to_owned(),
-    });
-    assert!(own.refusal.is_none(), "{:?}", own.refusal);
-    assert_ne!(reads(&session, a), shared, "a reads a new variable");
-    assert_eq!(reads(&session, b), shared, "b keeps the one it read");
-    assert_eq!(
-        session.committed_doc().free(shared).map(FreeVar::dim),
-        Some(Dimension::Length),
-        "and it still holds b's depth"
-    );
+    };
+    let doors: [(&str, &dyn Fn(RecipeNodeId) -> SessionOp); 2] =
+        [("a number", &number), ("a written quantity", &quantity)];
+    for (door, entry) in doors {
+        let (mut session, a, b, _w, _k) = two_extrudes();
+        typed(&mut session, a, 0.010);
+        let shared = reads(&session, b);
+        let name = VarName::from_static("depth");
+        let accepted = session.perform(SessionOp::SetSlotVariable {
+            node: a,
+            slot: SlotId::Distance,
+            var: shared,
+            name: Some(name.clone()),
+        });
+        assert!(accepted.refusal.is_none(), "{:?}", accepted.refusal);
+        assert_eq!(reads(&session, a), shared, "a and b read one variable");
+
+        let refused = session.perform(SessionOp::BeginGesture {
+            node: a,
+            slot: SlotId::Distance,
+        });
+        let named: Option<Vec<_>> = match &refused.refusal {
+            Some(Refusal::DrivenByExpression { variables, .. }) => {
+                Some(variables.iter().map(|var| var.name().cloned()).collect())
+            }
+            _ => None,
+        };
+        assert_eq!(
+            named,
+            Some(vec![Some(name.clone())]),
+            "a drag at a shared slot is refused, naming depth: {:?}",
+            refused.refusal
+        );
+        assert_eq!(reads(&session, a), shared, "nothing moved");
+
+        let own = session.perform(entry(a));
+        assert!(own.refusal.is_none(), "{door}: {:?}", own.refusal);
+        assert_ne!(reads(&session, a), shared, "{door}: a reads a new variable");
+        assert_eq!(
+            reads(&session, b),
+            shared,
+            "{door}: b keeps the one it read"
+        );
+        assert_eq!(
+            session.committed_doc().free(shared).map(FreeVar::dim),
+            Some(Dimension::Length),
+            "{door}: and it still holds b's depth"
+        );
+    }
 }
 
 /// **A name is stored only on commit, and naming moves no reader**
