@@ -452,7 +452,7 @@ const SLAB_LEDGER: [&str; 3] = [
 /// **The slab's largest 6 → 4** when the extrude stopped fitting planes
 /// to its corners: the largest form it built was a Newell sum's.
 const SLAB_MAX_TERMS: usize = 4;
-const PLATE_MAX_TERMS: usize = 38;
+const PLATE_MAX_TERMS: usize = 111;
 
 /// The plate's walk ledger at its nominal — one row, because the
 /// plate's nominal reads no ε (its dimensions are literals, not
@@ -485,12 +485,19 @@ const PLATE_MAX_TERMS: usize = 38;
 ///
 /// The pinned lines are main's reading; each move of them, with its
 /// cause, is recorded on the work row that re-pinned it.
+///
+/// With the arcs' radii stored as their constructions decided and the
+/// rim read as the rationalized gap, the plate's decisions hold (979
+/// plain, 1047 assertions, 550 at the door) and what they build moves:
+/// the rim's `sqrt` forms are gone from what freezes (36 to 8), 72 fewer
+/// decisions go on to the early walk (308 to 236), and the largest form
+/// is a gap's squared offset at 111 terms where it was a cover's at 38.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 979 forms 33088 frozen 36 digest 2e82fe8fa43fb62fa0d4e6e57e62412f\n\
-     Plain/Assertion calls 1047 forms 12224 frozen 0 digest 60d5dc286b65a810dedda6cba84213dc\n\
-     Early/Decision calls 308 forms 22928 frozen 0 digest a0bc99f42c355fffd211b273bb594e1f\n\
-     Early/Assertion calls 1047 forms 12674 frozen 0 digest 39cefb42a8a949bb6fc643ee9c474a35\n\
-     Door/Decision calls 550 forms 12366 frozen 0 digest 75aa7cd508fc1005ee274141b4e539c1";
+     Plain/Decision calls 979 forms 35745 frozen 8 digest a024744ff46f65b4b99e6b50a4a4f250\n\
+     Plain/Assertion calls 1047 forms 11908 frozen 0 digest a19d7071872b877ff7ce6665a671d05e\n\
+     Early/Decision calls 236 forms 24699 frozen 0 digest dd564e525d5dce773c4ad0e37d840322\n\
+     Early/Assertion calls 1047 forms 12664 frozen 0 digest 8054eb954aefe6bbcde2df44c0d17539\n\
+     Door/Decision calls 550 forms 12159 frozen 0 digest 855b1b48a18fb1ff750b7830b06b9a29";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)
