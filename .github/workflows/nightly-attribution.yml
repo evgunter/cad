@@ -33,16 +33,18 @@ jobs:
   attribute:
     name: attribute newly red tests to merges
     runs-on: ubuntu-latest
-    # The script's own budget is 70 minutes of probes; setup and downloads
-    # take the rest.
+    # The script's own clock is 60 minutes from its start, every build and
+    # test call bounded by what is left of it; its step is cut at 70; setup,
+    # downloads and the upload fit in the rest.
     timeout-minutes: 90
     permissions:
       contents: read
       actions: read
-    # The PR gate's build env: rust-cache restores the dependency graph
-    # cache-prime saved under build-default, and each probe compiles only
-    # the workspace crates its test target needs, at opt-level 1
-    # (scripts/gates/build-default-env-agrees.sh holds the blocks equal).
+    # The PR gate's build env: rust-cache restores into ./target the
+    # dependency graph cache-prime saved under build-default, the probes
+    # build into that same directory (CARGO_TARGET_DIR below), and each
+    # compiles only the workspace crates its test target needs, at opt-level
+    # 1 (scripts/gates/build-default-env-agrees.sh holds the blocks equal).
     env:
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
@@ -98,8 +100,12 @@ jobs:
           run-id: ${{ inputs.run_id }}
           github-token: ${{ github.token }}
       - name: attribute each newly red test
+        id: attribute
+        timeout-minutes: 70
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
           RUN: ${{ inputs.run_id || github.run_id }}
           DRY_RUN: ${{ inputs.dry_run }}
           ARCHIVE: ${{ steps.archive.outcome == 'success' && format('{0}/archive/full-suite.tar.zst', runner.temp) || '' }}
@@ -110,6 +116,13 @@ jobs:
           python3 scripts/nightly-attribution.py --run "$RUN" --junit "$RUNNER_TEMP/junit" \
             --out "$RUNNER_TEMP/attribution" "${opts[@]}" \
             || echo "attribution failed: the script exited $?" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: say so when the attribution step itself died
+        if: always() && steps.attribute.outcome != 'success'
+        env:
+          OUTCOME: ${{ steps.attribute.outcome }}
+        run: |
+          echo "attribution failed: its step ended $OUTCOME (cut at its time limit, or the runner)" \
+            | tee -a "$GITHUB_STEP_SUMMARY"
       - name: upload the verdicts
         if: always()
         continue-on-error: true

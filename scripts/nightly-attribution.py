@@ -1,51 +1,72 @@
 #!/usr/bin/env python3
 """Name the merge that turned each newly red nightly test red.
 
-    scripts/nightly-attribution.py --run <run-id> [--archive <file>] [--dry-run]
+    scripts/nightly-attribution.py --run <run-id> [--junit <dir>] [--archive <file>] [--dry-run]
     scripts/nightly-attribution.py --selftest
 
-<run-id> is a nightly run of `.github/workflows/nightly.yml` whose
-`full-suite-junit-*` artifacts are uploaded. Its baseline, per eps row and
-test, is the latest earlier SCHEDULED nightly of `main` that reported that
-test at that row: a dispatched nightly can run on any branch, and a night
-whose build died reported nothing. A test is NEWLY RED at a row when it
-failed there in this run and passed in its baseline.
+<run-id> is a run of `.github/workflows/nightly.yml` that uploaded its
+`full-suite-junit-*` artifacts. A test's BASELINE at an eps row is the latest
+earlier SCHEDULED run of `main` that reported it there (a dispatched nightly
+may run on any branch; a night whose build died reported nothing). A test is
+NEWLY RED at a row when it failed there in this run and passed in its
+baseline. A test a leg was running when that leg stopped at its budget is
+marked failed by nextest without having failed; on either side it counts as
+not reported, and this run's are listed as `leg stopped`.
 
-Each newly red test is attributed over the first-parent commits between its
-baseline's sha (good) and this run's (bad):
+Each newly red test is attributed over EVERY first-parent commit after its
+baseline's sha (good) up to this run's sha (bad):
 
-1. Retried once at the bad sha: from `--archive` (the nightly's own test
-   binaries) when given, else from a per-package build. A pass there is
-   `flaky`, and the test is not bisected.
-2. One commit in the range: that commit, no probe.
-3. Otherwise a bisection that builds only the packages and test targets of
-   the tests still open at the probed commit and runs only those tests,
-   each at the eps of the row that went red. One probe serves every test
-   whose open range holds the probed commit, so tests that went red
-   together are bisected together. A commit where a test's target does not
-   build or the test is absent or times out is skipped for that test.
+1. Retried once at the bad sha, from `--archive` (the nightly's own test
+   binaries) when given. A pass there is `flaky`.
+2. One commit in the range: that commit, with no probe.
+3. Otherwise a bisection in the PROBE CONFIGURATION: the test's own target
+   (`cargo nextest archive -p <crate> --test/--lib ...`) built at the probed
+   commit with the job's env, then one nextest call per eps row over every
+   open test of that binary. A probe result counts as a failure only when
+   nextest reports the failure type the nightly did (a panic's `exit code
+   101`); a crash, abort, timeout, missing test or failed build makes the
+   commit untestable for that test.
 
-Bounds: `--max-probes` probes and `--budget-min` minutes in all; a test that
-took over `--slow-s` seconds at the bad sha, a range of over `--max-range`
-commits, and tests past the first `--max-tests` are reported as a range with
-the reason. `--dry-run` prints the newly red tests, their ranges and the
-probes it would start with, and builds and runs nothing.
+A culprit C is reported only when, in the probe configuration, the test
+passed at C^1 and failed at C, and a re-run of both from the same builds
+agrees. That covers the ends: a bisect that narrows to the baseline or to
+the bad sha probes that end, so a red the probe configuration does not share
+ends as a range `(probe config disagrees at the bad end)` or `... good end`,
+never as a culprit. Otherwise the answer is a range with why it stopped.
+
+The bisection ASSUMES each test is monotone over the range (green, then red
+from one commit on) and does not flake. The retry and the re-runs at C^1 and
+C catch a flake that shows within one re-run; a test that went red, green
+and red again within the range can still be pinned on the wrong one of its
+reds.
+
+Cost order: the binary with most open tests is bisected first and finished
+before the next starts, so a spent budget leaves whole answers. Once a
+culprit C is confirmed, the other binaries probe C and C^1 first. Bounds:
+`--max-probes` builds and `--budget-min` minutes from the script's start;
+`--probe-test-s` seconds of tests per nextest call; a test that took over
+`--slow-s` at the bad sha, a range of over `--max-range` commits, and tests
+past the `--max-tests` cheapest are reported as a range with the reason.
+`--dry-run` lists the newly red tests and their ranges; it builds nothing.
 
 Writes `attribution.md` and `attribution.json` into `--out` and the markdown
-to `$GITHUB_STEP_SUMMARY`. It exits 0 whatever happens inside it: a failure
-of its own is reported as `attribution failed: <why>`, never as a red test.
+to `$GITHUB_STEP_SUMMARY`. It exits 0 whatever happens inside it: its own
+failure is reported as `attribution failed: <why>`, never as a red test, and
+the verdicts reached before it are kept.
 """
 
 import argparse
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
 import tempfile
 import time
 import traceback
 import xml.etree.ElementTree as ET
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -54,8 +75,22 @@ WORKFLOW = "nightly.yml"
 JUNIT_PREFIX = "full-suite-junit-"
 LEG = re.compile(r"^(?P<row>.+?)(?:-(?P<k>\d+)of(?P<n>\d+))?$")
 MERGE = re.compile(r"^Merge pull request #(\d+)")
+PANIC = "test failure with exit code 101"
 NO_TESTS_RUN = 4
-TEST_FAILED = 100
+PASS, FAIL = "pass", "fail"
+progress = print  # the selftest silences it
+
+
+class Clock:
+    def __init__(self, budget_min: float):
+        self.budget = 60 * budget_min
+        self.start = time.monotonic()
+
+    def left(self) -> float:
+        return self.budget - (time.monotonic() - self.start)
+
+    def used_min(self) -> float:
+        return (time.monotonic() - self.start) / 60
 
 
 # ---- junit ----------------------------------------------------------------
@@ -63,21 +98,37 @@ TEST_FAILED = 100
 
 @dataclass
 class Case:
-    red: bool
+    failure: str  # "" when it passed, else nextest's failure type
     time: float
+    stopped: bool = False  # marked failed by a leg stopped at its budget
+
+    @property
+    def red(self) -> bool:
+        return bool(self.failure)
 
 
-def read_junit_dir(base: Path) -> dict[str, dict[str, Case]]:
-    """{row: {"<binary-id> <test>": Case}} over `<base>/full-suite-junit-<leg>/junit.xml`."""
+def failure_type(case: ET.Element) -> str:
+    for ch in case:
+        if ch.tag in ("failure", "error"):
+            return ch.get("type") or ch.tag
+    return ""
+
+
+def read_junit_dir(base: Path, leg_budget_s: float) -> dict[str, dict[str, Case]]:
+    """{row: {"<binary-id> <test>": Case}} over `<base>/full-suite-junit-<leg>/junit.xml`.
+
+    A leg whose run lasted `leg_budget_s` or more was stopped at its budget;
+    its failures other than a panic are the tests it was running then."""
     rows: dict[str, dict[str, Case]] = {}
     for report in sorted(base.glob(f"{JUNIT_PREFIX}*/junit.xml")):
         leg = report.parent.name[len(JUNIT_PREFIX) :]
-        row = LEG.match(leg)["row"]
-        cases = rows.setdefault(row, {})
+        cases = rows.setdefault(LEG.match(leg)["row"], {})
         root = ET.parse(report).getroot()  # noqa: S314 — a junit the nightly wrote
+        stopped = float(root.get("time") or 0) >= leg_budget_s
         for c in root.iter("testcase"):
-            red = any(ch.tag in ("failure", "error") for ch in c)
-            cases[f"{c.get('classname')} {c.get('name')}"] = Case(red, float(c.get("time") or 0))
+            ft = failure_type(c)
+            killed = stopped and bool(ft) and ft != PANIC
+            cases[f"{c.get('classname')} {c.get('name')}"] = Case(ft, float(c.get("time") or 0), killed)
     return rows
 
 
@@ -92,10 +143,6 @@ def eps_env(row: str) -> str | None:
 def gh_json(path: str) -> dict:
     out = subprocess.run(["gh", "api", path], check=True, capture_output=True, text=True).stdout
     return json.loads(out)
-
-
-def run_info(run: int) -> dict:
-    return gh_json(f"repos/{REPO}/actions/runs/{run}")
 
 
 def earlier_scheduled_main(before: str, limit: int) -> list[dict]:
@@ -132,13 +179,16 @@ class Red:
     test: str  # "<binary-id> <test name>"
     row: str
     time: float  # seconds at the bad sha
+    failure: str = PANIC  # the nightly's failure type
     base_run: int = 0
     base_sha: str = ""
     verdict: str = ""
-    lo: int = -1  # index of the latest known-good commit (-1: the baseline sha)
-    hi: int = 0  # index of the earliest known-bad commit
+    note: str = ""  # why it is no longer bisected
+    base_idx: int = 0
+    lo: int = 0  # latest commit index known good
+    hi: int = 0  # earliest commit index known bad
+    seen: dict[int, list[str]] = field(default_factory=dict)  # probe-config results
     untestable: set[int] = field(default_factory=set)
-    note: str = ""
 
     @property
     def binary(self) -> str:
@@ -148,28 +198,39 @@ class Red:
     def name(self) -> str:
         return self.test.split(" ", 1)[1]
 
+    @property
+    def open(self) -> bool:
+        return not self.verdict and not self.note
 
-def newly_red(head: dict[str, dict[str, Case]], bases: list[tuple[int, str, dict]]) -> tuple[list[Red], int]:
-    """(newly red tests, count of red tests with no earlier report to compare).
+
+def newly_red(
+    head: dict[str, dict[str, Case]], bases: list[tuple[int, str, dict]]
+) -> tuple[list[Red], int, list[tuple[str, str]]]:
+    """(newly red, count of reds no baseline reported, (test, row) a stopped leg held).
 
     `bases` is (run id, sha, rows) newest first; each red test's baseline is
-    the first of them that reported it at its row."""
+    the first of them that reported it at its row, not counting a test a
+    stopped leg was running."""
     out: list[Red] = []
     unreported = 0
+    stopped: list[tuple[str, str]] = []
     for row, cases in sorted(head.items()):
         for test, case in sorted(cases.items()):
             if not case.red:
                 continue
+            if case.stopped:
+                stopped.append((test, row))
+                continue
             for run, sha, rows in bases:
                 before = rows.get(row, {}).get(test)
-                if before is None:
+                if before is None or before.stopped:
                     continue
                 if not before.red:
-                    out.append(Red(test, row, case.time, run, sha))
+                    out.append(Red(test, row, case.time, case.failure, run, sha))
                 break
             else:
                 unreported += 1
-    return out, unreported
+    return out, unreported, stopped
 
 
 # ---- git ------------------------------------------------------------------
@@ -179,20 +240,13 @@ def git(*args: str, cwd: Path | None = None) -> str:
     return subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True).stdout.strip()
 
 
-INERT = ("work/", "docs/perf-data/")
-
-
 def first_parent_range(good: str, bad: str) -> list[str]:
-    """First-parent commits after `good` up to `bad`, oldest first, less those
-    that touch only the tracker or the perf history (INERT): a test cannot
-    read either, and they are half of a day's first-parent commits."""
+    """`good`, then every first-parent commit after it up to `bad`, oldest first.
+
+    No commit is dropped for the paths it touches: tests read the tracker
+    and the docs too."""
     out = git("rev-list", "--first-parent", "--reverse", f"{good}..{bad}")
-    keep = []
-    for c in out.split():
-        touched = git("diff", "--name-only", f"{c}^1", c).splitlines()
-        if c == bad or any(not t.startswith(INERT) for t in touched):
-            keep.append(c)
-    return keep
+    return [good, *out.split()]
 
 
 def label(sha: str) -> str:
@@ -201,7 +255,7 @@ def label(sha: str) -> str:
     return f"#{m[1]} ({sha[:10]})" if m else f"{sha[:10]} ({subject[:60]})"
 
 
-# ---- running a test -------------------------------------------------------
+# ---- running tests --------------------------------------------------------
 
 
 def target_args(binary: str) -> list[str]:
@@ -214,346 +268,399 @@ def target_args(binary: str) -> list[str]:
         return ["-p", pkg, "--test", rest]
     flag = {"bin": "--bin", "example": "--example", "bench": "--bench"}.get(kind)
     if flag is None:
-        raise ValueError(f"unknown binary id kind in {binary!r}")
+        raise ValueError(f"unknown binary-id kind in {binary!r}")
     return ["-p", pkg, flag, name]
 
 
-def filterset(red: Red) -> str:
-    return f"binary_id({red.binary}) & test(={red.name})"
-
-
-class Clock:
-    def __init__(self, budget_min: float):
-        self.end = time.monotonic() + 60 * budget_min
-
-    def left(self) -> float:
-        return self.end - time.monotonic()
+def filterset(reds: list[Red]) -> str:
+    return " | ".join(f"(binary_id({r.binary}) & test(={r.name}))" for r in reds)
 
 
 def sh(cmd: list[str], cwd: Path, env: dict, timeout: float) -> tuple[int | None, str]:
-    """(exit code or None on timeout, the output's tail)."""
+    """(exit code, or None on timeout, and the output's tail). A timeout kills
+    the whole process group, test processes included."""
+    p = subprocess.Popen(
+        cmd, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, start_new_session=True
+    )
     try:
-        p = subprocess.run(cmd, cwd=cwd, env=env, timeout=max(timeout, 1), capture_output=True, text=True)
-        return p.returncode, (p.stdout + p.stderr)[-2000:]
-    except subprocess.TimeoutExpired as e:
-        out = (e.stdout or b"") + (e.stderr or b"")
-        return None, out.decode(errors="replace")[-2000:] if isinstance(out, bytes) else str(out)[-2000:]
+        out, _ = p.communicate(timeout=max(timeout, 1))
+        return p.returncode, out[-3000:]
+    except subprocess.TimeoutExpired:
+        os.killpg(p.pid, signal.SIGKILL)
+        out, _ = p.communicate()
+        return None, (out or "")[-3000:]
 
 
-def test_env(red: Red) -> dict:
-    env = dict(os.environ)
-    env.pop("CAD_TOLERANCE_EPS", None)
-    eps = eps_env(red.row)
-    if eps:
-        env["CAD_TOLERANCE_EPS"] = eps
-    return env
-
-
-def run_one(red: Red, cwd: Path, extra: list[str], clock: Clock, test_timeout: float) -> str:
-    """'pass' | 'fail' | 'absent' | 'timeout' | 'error:<code>' for one test."""
-    cmd = [
-        "cargo",
-        "nextest",
-        "run",
-        "--profile",
-        "ci",
-        "--ignore-default-filter",
-        "--no-fail-fast",
-        *extra,
-        "-E",
-        filterset(red),
-    ]
-    rc, tail = sh(cmd, cwd, test_env(red), min(test_timeout, clock.left()))
-    if rc == 0:
-        return "pass"
-    if rc == TEST_FAILED:
-        return "fail"
-    if rc == NO_TESTS_RUN:
+def verdict_of(r: Red, case: ET.Element | None) -> str:
+    """A junit testcase as a probe result for `r`."""
+    if case is None:
         return "absent"
-    if rc is None:
-        return "timeout"
-    print(tail, file=sys.stderr)
-    return f"error:{rc}"
+    ft = failure_type(case)
+    if not ft:
+        return PASS
+    return FAIL if ft == r.failure else f"failed otherwise ({ft})"
 
 
-def build(binaries: set[str], cwd: Path, clock: Clock) -> dict[str, str]:
-    """Build each test target at `cwd`; {binary: '' if built, else why not}."""
-    why: dict[str, str] = {}
-    for b in sorted(binaries):
+class Runner:
+    """Builds and runs tests at the range's commits, in one worktree."""
+
+    def __init__(self, commits: list[str], work: Path, clock: Clock, args):
+        self.commits, self.work, self.clock, self.args = commits, work, clock, args
+        self.tree = work / "tree"
+        self.archives: dict[tuple[int, str], Path | str] = {}  # a path, or why there is none
+        self.builds = 0
+        self.last_build_s = 0.0
+        work.mkdir(parents=True, exist_ok=True)
+        subprocess.run(["git", "worktree", "remove", "--force", str(self.tree)], check=False, capture_output=True)
+        git("worktree", "add", "--detach", str(self.tree), commits[-1])
+
+    def close(self) -> None:
+        subprocess.run(["git", "worktree", "remove", "--force", str(self.tree)], check=False, capture_output=True)
+
+    def built(self, idx: int, binary: str) -> bool:
+        return (idx, binary) in self.archives
+
+    def checkout(self, idx: int) -> None:
+        git("checkout", "--quiet", "--force", "--detach", self.commits[idx], cwd=self.tree)
+
+    def build(self, idx: int, binary: str) -> Path | str:
+        self.checkout(idx)
+        self.builds += 1
+        dest = self.work / f"{idx}-{binary.replace(':', '_').replace('/', '_')}.tar.zst"
+        cmd = ["cargo", "nextest", "archive", *target_args(binary), "--archive-file", str(dest)]
         t0 = time.monotonic()
-        cmd = ["cargo", "test", "--no-run", *target_args(b)]
-        rc, tail = sh(cmd, cwd, dict(os.environ), clock.left())
+        rc, tail = sh(cmd, self.tree, dict(os.environ), self.clock.left())
         if rc not in (0, None) and "SIGKILL" in tail:
-            # A rustc killed for memory says nothing about the commit; two
-            # jobs is the build's own fallback before calling it untestable.
-            print(f"  {b}: a rustc was killed (memory?); retrying at -j 2", flush=True)
-            rc, tail = sh([*cmd, "-j", "2"], cwd, dict(os.environ), clock.left())
-        took = time.monotonic() - t0
+            # A rustc killed for memory says nothing about the commit.
+            print(f"  {binary}: a rustc was killed (memory?); retrying at -j 2", flush=True)
+            rc, tail = sh([*cmd, "-j", "2"], self.tree, dict(os.environ), self.clock.left())
+        self.last_build_s = time.monotonic() - t0
         if rc == 0:
-            why[b] = ""
-            print(f"  built {b} in {took:.0f} s", flush=True)
+            print(f"  built {binary} at {self.commits[idx][:10]} in {self.last_build_s:.0f} s", flush=True)
+            got: Path | str = dest
         else:
-            why[b] = "build timed out" if rc is None else f"build exited {rc}"
-            print(f"  {b}: {why[b]} after {took:.0f} s\n{tail}", flush=True)
-    return why
+            got = "its build timed out" if rc is None else f"its build exited {rc}"
+            print(f"  {binary} at {self.commits[idx][:10]}: {got} after {self.last_build_s:.0f} s\n{tail}", flush=True)
+        self.archives[(idx, binary)] = got
+        return got
+
+    def drop(self, binary: str) -> None:
+        for (idx, b), a in list(self.archives.items()):
+            if b == binary and isinstance(a, Path):
+                a.unlink(missing_ok=True)
+                self.archives[(idx, b)] = "its build was dropped"
+
+    def run(self, idx: int, binary: str, reds: list[Red]) -> dict[int, str]:
+        """{id(red): result} for `reds` (one binary) at commit `idx`."""
+        archive = self.archives.get((idx, binary)) or self.build(idx, binary)
+        if not isinstance(archive, Path):
+            return {id(r): archive for r in reds}
+        self.checkout(idx)
+        return self.run_archive(archive, reds)
+
+    def run_archive(self, archive: Path, reds: list[Red]) -> dict[int, str]:
+        """Run `reds` from a nextest archive against the worktree as it stands:
+        one nextest call per eps row, read back from its junit."""
+        got: dict[int, str] = {}
+        junit = self.tree / "target" / "nextest" / "ci" / "junit.xml"
+        for row in sorted({r.row for r in reds}):
+            these = [r for r in reds if r.row == row]
+            env = dict(os.environ)
+            env.pop("CAD_TOLERANCE_EPS", None)
+            if eps_env(row):
+                env["CAD_TOLERANCE_EPS"] = eps_env(row)
+            cmd = [
+                "cargo", "nextest", "run", "--archive-file", str(archive), "--workspace-remap", str(self.tree),
+                "--profile", "ci", "--ignore-default-filter", "--no-fail-fast", "-E", filterset(these),
+            ]  # fmt: skip
+            want = min(sum(max(120.0, 4 * r.time) for r in these), self.args.probe_test_s, self.clock.left())
+            junit.unlink(missing_ok=True)
+            rc, tail = sh(cmd, self.tree, env, want)
+            if rc is None:
+                for r in these:
+                    got[id(r)] = f"timed out ({want:.0f} s for {len(these)} test(s))"
+                continue
+            cases = {}
+            if junit.exists():
+                root = ET.parse(junit).getroot()  # noqa: S314 — nextest's own report
+                cases = {f"{c.get('classname')} {c.get('name')}": c for c in root.iter("testcase")}
+            elif rc != NO_TESTS_RUN:
+                print(tail, flush=True)
+                for r in these:
+                    got[id(r)] = f"nextest exited {rc} with no report"
+                continue
+            for r in these:
+                got[id(r)] = verdict_of(r, cases.get(r.test))
+        return got
 
 
-def test_timeout(red: Red) -> float:
-    return max(120.0, 4 * red.time)
+# ---- the bisection --------------------------------------------------------
 
 
-# ---- attribution ----------------------------------------------------------
+def wants(r: Red, suspects: list[int]) -> list[int]:
+    """The commits `r` would take a probe at now, best first (empty: none)."""
+    cands = [i for i in range(r.lo + 1, r.hi) if i not in r.untestable]
+    if cands:
+        first = [s for s in suspects if s in cands]
+        mid = (r.lo + r.hi) // 2
+        return first + sorted((i for i in cands if i not in first), key=lambda i: (abs(i - mid), i))
+    if r.hi - r.lo != 1:
+        return []
+    # Adjacent: both ends observed in the probe config, then each once more,
+    # unless an observation already disagrees.
+    hi, lo = r.seen.get(r.hi, []), r.seen.get(r.lo, [])
+    if any(x != FAIL for x in hi) or any(x != PASS for x in lo):
+        return []
+    for end, seen in ((r.hi, hi), (r.lo, lo)):
+        if not seen:
+            return [end]
+    return [end for end, seen in ((r.hi, hi), (r.lo, lo)) if len(seen) < 2]
 
 
-def choose_probe(open_reds: list[Red]) -> tuple[int, str] | None:
-    """(commit index, test binary) to probe next: the middle of the narrowest
-    open range, so one binary's bisect finishes before the next starts and a
-    spent budget leaves whole answers, not every range half-narrowed. A probe
-    builds that one binary; commits found untestable for a test are avoided."""
-    for red in sorted(open_reds, key=lambda r: (r.hi - r.lo, r.binary, r.row)):
-        mid = (red.lo + red.hi) // 2
-        cands = [i for i in range(red.lo + 1, red.hi) if i not in red.untestable]
-        if cands:
-            return min(cands, key=lambda i: (abs(i - mid), i)), red.binary
-    return None
-
-
-def is_open(red: Red) -> bool:
-    return not red.verdict and any(i not in red.untestable for i in range(red.lo + 1, red.hi))
-
-
-def settle(red: Red, commits: list[str]) -> None:
-    if red.verdict:
+def judge(r: Red, n_last: int, label_of: Callable[[int], str]) -> None:
+    """Settle `r` once it wants no further probe."""
+    if not r.open or wants(r, []):
         return
-    if red.hi - red.lo == 1:
-        red.verdict = f"introduced by {label(commits[red.hi])}"
+    lo, hi = r.seen.get(r.lo, []), r.seen.get(r.hi, [])
+    if r.hi - r.lo != 1:
+        r.note = "every commit left between is untestable"
+    elif lo and hi and all(x == PASS for x in lo) and all(x == FAIL for x in hi):
+        r.verdict = f"introduced by {label_of(r.hi)}"
     else:
-        start = git("rev-parse", "--short=10", red.base_sha) if red.lo < 0 else commits[red.lo][:10]
-        red.verdict = (
-            f"range {start}..{commits[red.hi][:10]} ({red.hi - red.lo} commits; bisect stopped: "
-            f"{red.note or 'every commit between was untestable'})"
-        )
+        why = []
+        if any(x != FAIL for x in hi):
+            end = "the bad end" if r.hi == n_last else "the culprit"
+            why.append(f"probe config disagrees at {end} ({', '.join(hi)})")
+        if any(x != PASS for x in lo):
+            end = "the good end" if r.lo == r.base_idx else "its parent"
+            why.append(f"probe config disagrees at {end} ({', '.join(lo)})")
+        r.note = "; ".join(why)
 
 
-def attribute(reds: list[Red], args, out: Path) -> list[str]:
-    """Fill each red's verdict; returns log lines for the report."""
-    log: list[str] = []
-    clock = Clock(args.budget_min)
+def settle(r: Red, commits: list[str]) -> None:
+    if r.verdict:
+        return
+    n = r.hi - r.lo
+    r.verdict = (
+        f"range {commits[r.lo][:10]}..{commits[r.hi][:10]} ({n} commit{'s' * (n != 1)}; {r.note or 'not reached'})"
+    )
+
+
+def bisect(reds: list[Red], commits: list[str], runner, clock: Clock, args, label_of, log: list[str]) -> None:
+    """Probe until every red is settled or a bound stops it."""
+    n_last = len(commits) - 1
+    suspects: list[int] = []
+    current = None
+    while True:
+        for r in reds:
+            judge(r, n_last, label_of)
+            if r.verdict.startswith("introduced by") and r.hi not in suspects:
+                suspects[:0] = [r.hi, r.hi - 1]
+        live = [r for r in reds if r.open and wants(r, suspects)]
+        if not live:
+            return
+        groups: dict[str, list[Red]] = {}
+        for r in live:
+            groups.setdefault(r.binary, []).append(r)
+        if current not in groups:
+            if current is not None:
+                runner.drop(current)
+            current = min(groups, key=lambda b: (-len(groups[b]), b))
+        group = sorted(groups[current], key=lambda r: (r.hi - r.lo, r.time, r.row))
+        at = wants(group[0], suspects)[0]
+        these = [r for r in group if at in wants(r, suspects)]
+        needs_build = not runner.built(at, current)
+        stop = ""
+        if needs_build and runner.builds >= args.max_probes:
+            stop = f"the {args.max_probes}-build cap was reached"
+        elif clock.left() < max(120, 1.2 * runner.last_build_s if needs_build else 0):
+            stop = f"the {args.budget_min:.0f}-minute budget was spent"
+        if stop:
+            for r in live:
+                r.note = stop
+            return
+        what = "probe" if needs_build else "re-run"
+        progress(f"{what} {current} at {label_of(at)}: {len(these)} test(s)", flush=True)
+        got = runner.run(at, current, these)
+        for r in these:
+            res = got[id(r)]
+            log.append(f"{what} {commits[at][:10]} {r.test} @ {r.row}: {res}")
+            r.seen.setdefault(at, []).append(res)
+            if r.lo < at < r.hi:
+                if res == PASS:
+                    r.lo = at
+                elif res == FAIL:
+                    r.hi = at
+                else:
+                    r.untestable.add(at)
+
+
+def attribute(reds: list[Red], args, clock: Clock, out: Path, log: list[str]) -> None:
+    """Fill each red's verdict. The verdicts reached are kept whatever raises."""
     head = args.head_sha
-    ranges = {r.base_sha: first_parent_range(r.base_sha, head) for r in reds}
-    # The probes index one commit list; a test whose baseline is older sees a
-    # longer prefix of it, so every range is a suffix of the longest.
-    commits = max(ranges.values(), key=len)
+    widest = max({r.base_sha for r in reds}, key=lambda s: int(git("rev-list", "--count", f"{s}..{head}")))
+    commits = first_parent_range(widest, head)
+    index = {c: i for i, c in enumerate(commits)}
+    labels: dict[int, str] = {}
+
+    def label_of(i: int) -> str:
+        if i not in labels:
+            labels[i] = label(commits[i])
+        return labels[i]
+
     for r in reds:
-        n = len(ranges[r.base_sha])
-        if n == 0:
-            r.verdict = f"attribution failed: no commit between {r.base_sha[:10]} and {head[:10]}"
+        r.hi = len(commits) - 1
+        if r.base_sha not in index:
+            r.lo = 0
+            r.note = f"the baseline {r.base_sha[:10]} is not on {head[:10]}'s first-parent chain"
             continue
-        r.lo, r.hi = len(commits) - n - 1, len(commits) - 1
+        r.base_idx = r.lo = index[r.base_sha]
+        n = r.hi - r.lo
+        try:
+            target_args(r.binary)
+        except ValueError as e:
+            r.note = str(e)
         if n > args.max_range:
             r.note = f"{n} commits, over the {args.max_range}-commit cap"
         elif r.time > args.slow_s:
             r.note = f"the test took {r.time:.0f} s at the bad sha, over the {args.slow_s:.0f} s cap"
-    for i, r in enumerate(r for r in reds if not r.verdict and not r.note):
+    for i, r in enumerate(sorted((r for r in reds if r.open), key=lambda r: (r.time, r.test, r.row))):
         if i >= args.max_tests:
-            r.note = f"over the {args.max_tests}-test cap"
-    log.append(f"{len(commits)} first-parent commits in the widest range ..{head[:10]}")
-
+            r.note = f"past the {args.max_tests} cheapest tests"
+    log.append(f"{len(commits) - 1} first-parent commits in the widest range {widest[:10]}..{head[:10]}")
     if args.dry_run:
         for r in reds:
             n = r.hi - r.lo
-            plan = (
-                "one commit: no probe"
-                if n == 1
-                else (
-                    f"skipped: {r.note}" if r.note else f"bisect, about {max(1, (n - 1).bit_length())} probes"
-                )
-            )
-            log.append(
-                f"- {r.test} @ {r.row}: {n} commit(s) from {r.base_sha[:10]} (run {r.base_run}); {plan}"
-            )
-        first = choose_probe([r for r in reds if not r.note and r.hi - r.lo > 1])
-        if first is not None:
-            log.append(f"first probe would be {first[1]} at {label(commits[first[0]])}")
+            if n == 1:
+                plan = "one commit, no probe"
+            elif r.note:
+                plan = f"skipped: {r.note}"
+            else:
+                plan = f"bisect, about {max(1, (n - 1).bit_length())} probe builds"
+            log.append(f"- {r.test} @ {r.row}: {n} commit(s) after {r.base_sha[:10]} (run {r.base_run}); {plan}")
         for r in reds:
-            if r.hi - r.lo == 1 or r.note:
-                settle(r, commits)
-        return log
+            settle(r, commits)
+        return
 
-    probe = out / "probe"
-    if probe.exists():
-        git("worktree", "remove", "--force", str(probe))
-    git("worktree", "add", "--detach", str(probe), head)
+    runner = None
     try:
-        # 1. the retry at the bad sha
-        retry_from = "the nightly's archive" if args.archive else "a per-package build"
+        runner = Runner(commits, out / "probe", clock, args)
         if args.archive:
-            extra = ["--archive-file", str(args.archive), "--workspace-remap", str(probe)]
-            built = {r.binary: "" for r in reds}
-        else:
-            extra = []
-            built = build({r.binary for r in reds if not r.note}, probe, clock)
+            todo = [r for r in reds if r.open]
+            runner.checkout(len(commits) - 1)
+            got = runner.run_archive(Path(args.archive), todo)
+            for r in todo:
+                res = got[id(r)]
+                log.append(f"retry {r.test} @ {r.row} at {head[:10]} from the nightly's archive: {res}")
+                if res == PASS:
+                    r.verdict = "flaky (passed on retry at the bad sha)"
+                elif res != FAIL:
+                    r.note = f"the retry at the bad sha gave: {res}"
         for r in reds:
-            if r.note:
-                continue
-            if built[r.binary]:
-                r.note = r.note or f"the retry at the bad sha could not run ({built[r.binary]})"
-                continue
-            got = run_one(r, probe, extra if args.archive else target_args(r.binary), clock, test_timeout(r))
-            log.append(f"retry {r.test} @ {r.row} at {head[:10]} from {retry_from}: {got}")
-            if got == "pass":
-                r.verdict = "flaky (passed on retry at the bad sha)"
-            elif got != "fail":
-                r.note = r.note or f"the retry at the bad sha gave {got}"
-        # 2. one commit is its own answer; 3. bisect the rest
-        probes = 0
-        last = 0.0
-        while True:
-            live = [r for r in reds if not r.note and is_open(r)]
-            if not live:
-                break
-            if probes >= args.max_probes:
-                for r in live:
-                    r.note = f"the {args.max_probes}-probe cap was reached"
-                break
-            if clock.left() < max(last * 1.2, 60):
-                for r in live:
-                    r.note = f"the {args.budget_min:.0f}-minute budget was spent"
-                break
-            pick = choose_probe(live)
-            if pick is None:
-                break
-            at, binary = pick
-            sha = commits[at]
-            these = [r for r in live if r.binary == binary and r.lo < at < r.hi and at not in r.untestable]
-            t0 = time.monotonic()
-            print(f"probe {probes + 1} at {label(sha)}: {len(these)} test(s)", flush=True)
-            git("checkout", "--quiet", "--detach", sha, cwd=probe)
-            built = build({r.binary for r in these}, probe, clock)
-            for r in these:
-                if built[r.binary]:
-                    got = built[r.binary]
-                else:
-                    got = run_one(r, probe, target_args(r.binary), clock, test_timeout(r))
-                if got == "pass":
-                    r.lo = at
-                elif got == "fail":
-                    r.hi = at
-                else:
-                    r.untestable.add(at)
-                log.append(f"probe {probes + 1} {sha[:10]} {r.test} @ {r.row}: {got}")
-            probes += 1
-            last = time.monotonic() - t0
-        log.append(
-            f"{probes} probe(s); {(args.budget_min * 60 - clock.left()) / 60:.1f} of {args.budget_min:.0f} minutes used"
-        )
+            if r.open and r.hi - r.lo == 1:
+                r.verdict = f"introduced by {label_of(r.hi)} (the only commit between the two nightlies)"
+        bisect(reds, commits, runner, clock, args, label_of, log)
+    except Exception as e:
+        for r in reds:
+            if r.open:
+                r.note = f"stopped by an error ({type(e).__name__})"
+        raise
     finally:
-        git("worktree", "remove", "--force", str(probe))
-    for r in reds:
-        settle(r, commits)
-    return log
+        if runner is not None:
+            log.append(f"{runner.builds} probe build(s); {clock.used_min():.1f} of {args.budget_min:.0f} minutes used")
+            runner.close()
+        for r in reds:
+            settle(r, commits)
 
 
 # ---- report ---------------------------------------------------------------
 
 
-def report(run: int, head_sha: str, reds: list[Red], unreported: int, log: list[str], failed: str) -> str:
+def report(run, head_sha: str, reds: list[Red], unreported: int, stopped, log: list[str], failed: str) -> str:
     lines = [f"## Newly red tests in nightly run {run} ({head_sha[:10]})", ""]
     if failed:
         lines += [f"**attribution failed: {failed}**", ""]
-    if reds:
+    if reds or stopped:
         lines += ["| test | eps | verdict |", "|---|---|---|"]
         for r in sorted(reds, key=lambda r: (r.verdict, r.test, r.row)):
             lines.append(f"| `{r.test}` | {r.row} | {r.verdict or 'not attributed'} |")
+        for test, row in stopped:
+            lines.append(f"| `{test}` | {row} | leg stopped (its leg hit its budget while this test ran) |")
     elif not failed:
         lines.append("No test is red here that passed in its baseline.")
     if unreported:
         lines += [
             "",
-            f"{unreported} red test(s) were reported by no earlier scheduled main nightly at their row, so are not compared.",
+            f"{unreported} red test(s) no earlier scheduled main nightly reported at their row: not compared.",
         ]
     if log:
-        lines += [
-            "",
-            "<details><summary>log</summary>",
-            "",
-            *[f"    {line}" for line in log],
-            "",
-            "</details>",
-        ]
+        lines += ["", "<details><summary>log</summary>", "", *[f"    {line}" for line in log], "", "</details>"]
     return "\n".join(lines) + "\n"
 
 
 def main(args) -> int:
-    out = Path(args.out)
+    clock = Clock(args.budget_min)
+    out = Path(args.out).resolve()
     out.mkdir(parents=True, exist_ok=True)
     reds: list[Red] = []
+    stopped: list = []
     unreported = 0
     log: list[str] = []
     failed = ""
     head_sha = ""
     try:
-        info = run_info(args.run)
+        info = gh_json(f"repos/{REPO}/actions/runs/{args.run}")
         head_sha = args.head_sha = info["head_sha"]
         log.append(f"run {args.run}: {info['event']} on {info['head_branch']} at {head_sha[:10]}")
+        budget_s = 60 * args.leg_budget_min
         dl = Path(tempfile.mkdtemp(prefix="attrib-junit-"))
         head_dir = Path(args.junit) if args.junit else dl / str(args.run)
         if not args.junit and not download_junit(args.run, head_dir):
             raise RuntimeError(f"run {args.run} uploaded no junit report")
-        head = read_junit_dir(head_dir)
+        head = read_junit_dir(head_dir, budget_s)
         if not head:
             raise RuntimeError(f"no junit report under {head_dir}: this run's full-suite rows uploaded none")
         bases: list[tuple[int, str, dict]] = []
         for prev in earlier_scheduled_main(info["created_at"], args.lookback):
             d = dl / str(prev["id"])
-            if download_junit(prev["id"], d):
-                bases.append((prev["id"], prev["head_sha"], read_junit_dir(d)))
-                log.append(
-                    f"baseline candidate: run {prev['id']} at {prev['head_sha'][:10]} ({prev['created_at']})"
-                )
+            try:
+                have = download_junit(prev["id"], d)
+            except (subprocess.CalledProcessError, OSError, KeyError) as e:
+                log.append(f"run {prev['id']}: its junit could not be fetched ({type(e).__name__}): skipped")
+                continue
+            if have:
+                bases.append((prev["id"], prev["head_sha"], read_junit_dir(d, budget_s)))
+                log.append(f"baseline candidate: run {prev['id']} at {prev['head_sha'][:10]} ({prev['created_at']})")
             else:
                 log.append(f"run {prev['id']} ({prev['created_at']}) has no junit report: skipped")
         if not bases:
-            raise RuntimeError(
-                f"no earlier scheduled main nightly in the last {args.lookback} has a junit report"
-            )
-        reds, unreported = newly_red(head, bases)
+            raise RuntimeError(f"no earlier scheduled main nightly in the last {args.lookback} has a junit report")
+        reds, unreported, stopped = newly_red(head, bases)
         if args.only:
             kept = [r for r in reds if re.search(args.only, r.test)]
             log.append(f"--only {args.only!r}: {len(kept)} of {len(reds)} newly red test(s) kept")
             reds = kept
-        # Shallow or stale checkouts lack the endpoints; a full one has them.
-        subprocess.run(
-            ["git", "fetch", "--quiet", "origin", head_sha, *{r.base_sha for r in reds}], check=False
-        )
+        # A shallow or stale checkout lacks the endpoints; a full one has them.
+        subprocess.run(["git", "fetch", "--quiet", "origin", head_sha, *{r.base_sha for r in reds}], check=False)
         if reds:
-            log += attribute(reds, args, out)
+            attribute(reds, args, clock, out, log)
     except Exception as e:  # noqa: BLE001 — reported, never raised
         traceback.print_exc()
         failed = f"{type(e).__name__}: {e}"
-    md = report(args.run, head_sha or "?", reds, unreported, log, failed)
+    md = report(args.run, head_sha or "?", reds, unreported, stopped, log, failed)
     print(md)
     (out / "attribution.md").write_text(md)
-    (out / "attribution.json").write_text(
-        json.dumps(
-            {
-                "run": args.run,
-                "head_sha": head_sha,
-                "failed": failed,
-                "newly_red": [
-                    {
-                        "test": r.test,
-                        "eps": r.row,
-                        "baseline_run": r.base_run,
-                        "baseline_sha": r.base_sha,
-                        "verdict": r.verdict,
-                    }
-                    for r in reds
-                ],
-            },
-            indent=2,
-        )
-    )
+    record = {
+        "run": args.run,
+        "head_sha": head_sha,
+        "failed": failed,
+        "newly_red": [
+            {"test": r.test, "eps": r.row, "baseline_run": r.base_run, "baseline_sha": r.base_sha, "verdict": r.verdict}
+            for r in reds
+        ],
+        "leg_stopped": [{"test": t, "eps": row} for t, row in stopped],
+    }
+    (out / "attribution.json").write_text(json.dumps(record, indent=2))
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary:
         with open(summary, "a") as f:
@@ -564,54 +671,162 @@ def main(args) -> int:
 # ---- selftest -------------------------------------------------------------
 
 
-def _junit(d: Path, leg: str, cases: dict[str, bool]) -> None:
+def _junit(d: Path, leg: str, cases: dict[str, str], time_s: float = 100) -> None:
     (d / f"{JUNIT_PREFIX}{leg}").mkdir(parents=True)
     body = "".join(
         f'<testcase classname="{t.split()[0]}" name="{t.split()[1]}" time="1.0">'
-        + ("<failure message='x'/>" if red else "")
+        + (f"<failure type='{ft}' message='x'/>" if ft else "")
         + "</testcase>"
-        for t, red in cases.items()
+        for t, ft in cases.items()
     )
     (d / f"{JUNIT_PREFIX}{leg}" / "junit.xml").write_text(
-        f"<testsuites><testsuite>{body}</testsuite></testsuites>"
+        f'<testsuites time="{time_s}"><testsuite>{body}</testsuite></testsuites>'
     )
+
+
+class _FakeRunner:
+    """A history in which test `t` is red from commit `red_from[t]` on.
+    `config[(t, commit)]` is a list of results that override it in turn;
+    the `boom`-th build raises."""
+
+    def __init__(self, red_from: dict[str, int], config=None, boom: int | None = None):
+        self.red_from, self.config, self.boom = red_from, config or {}, boom
+        self.builds = 0
+        self.last_build_s = 0.0
+        self.have: set[tuple[int, str]] = set()
+        self.reruns = 0
+
+    def built(self, idx, binary):
+        return (idx, binary) in self.have
+
+    def drop(self, binary):
+        pass
+
+    def run(self, idx, binary, reds):
+        if (idx, binary) in self.have:
+            self.reruns += 1
+        else:
+            self.builds += 1
+            if self.builds == self.boom:
+                raise RuntimeError("planted")
+            self.have.add((idx, binary))
+        got = {}
+        for r in reds:
+            queued = self.config.get((r.test, idx))
+            res = queued.pop(0) if queued else None
+            got[id(r)] = res or (FAIL if idx >= self.red_from[r.test] else PASS)
+        return got
+
+
+class _Args:
+    max_probes, budget_min = 30, 60
+
+
+def _bisect(red_from: dict[str, int], config=None, boom=None, n=16):
+    reds = [Red(t, "1e-12", 1.0, lo=0, hi=n) for t in red_from]
+    commits = [f"{i:040x}" for i in range(n + 1)]
+    runner = _FakeRunner(red_from, config, boom)
+    try:
+        bisect(reds, commits, runner, Clock(60), _Args, lambda i: f"#{i}", [])
+    except RuntimeError:
+        for r in reds:
+            if r.open:
+                r.note = "stopped by an error"
+    for r in reds:
+        settle(r, commits)
+    return {r.test: r for r in reds}, runner
+
+
+def _git_selftest(t: Path) -> None:
+    t.mkdir()
+
+    def g(*a):
+        return subprocess.run(["git", *a], cwd=t, check=True, capture_output=True, text=True).stdout.strip()
+
+    g("init", "-q", "-b", "main")
+    g("config", "user.email", "selftest@example.invalid")
+    g("config", "user.name", "selftest")
+    shas = []
+    for path in ("crates/a.rs", "work/ciw/row.md", "docs/perf-data/x.json", "crates/b.rs"):
+        (t / path).parent.mkdir(parents=True, exist_ok=True)
+        (t / path).write_text(path)
+        g("add", path)
+        g("commit", "-q", "-m", path)
+        shas.append(g("rev-parse", "HEAD"))
+    cwd = os.getcwd()
+    os.chdir(t)
+    try:
+        got = first_parent_range(shas[0], shas[-1])
+    finally:
+        os.chdir(cwd)
+    assert got == shas, f"every first-parent commit, work/- and docs/-only ones included: {got} != {shas}"
 
 
 def selftest() -> int:
+    global progress
+    progress = lambda *a, **k: None  # noqa: E731
     with tempfile.TemporaryDirectory() as t:
         t = Path(t)
-        _junit(t / "head", "default", {"a::all x": True, "a::all y": True, "b z": False, "c new": True})
-        _junit(t / "head", "1E-12-1of2", {"a::all x": True})
-        _junit(t / "head", "1E-12-2of2", {"b z": True})
-        _junit(t / "n1", "default", {"a::all x": False, "a::all y": True})
-        _junit(t / "n2", "default", {"b z": False})
-        _junit(t / "n2", "1E-12-1of2", {"a::all x": True})
-        _junit(t / "n2", "1E-12-2of2", {"b z": False})
-        head = read_junit_dir(t / "head")
-        assert set(head) == {"default", "1E-12"}, f"shards fold into one row: {set(head)}"
-        bases = [(1, "s1", read_junit_dir(t / "n1")), (2, "s2", read_junit_dir(t / "n2"))]
-        reds, unreported = newly_red(head, bases)
+        _junit(t / "head", "default", {"a::all x": PANIC, "a::all y": PANIC, "b z": "", "c new": PANIC, "d s": ""})
+        _junit(t / "head", "1e-12-1of2", {"a::all x": PANIC, "d s": "test abort with signal 9"}, time_s=6400)
+        _junit(t / "head", "1e-12-2of2", {"b z": PANIC})
+        _junit(t / "n1", "default", {"a::all x": "", "a::all y": PANIC})
+        _junit(t / "n1", "1e-12-1of2", {"a::all x": "test abort with signal 9"}, time_s=6400)
+        _junit(t / "n2", "default", {"b z": ""})
+        _junit(t / "n2", "1e-12-1of2", {"a::all x": ""})
+        _junit(t / "n2", "1e-12-2of2", {"b z": ""})
+        head = read_junit_dir(t / "head", 6300)
+        assert set(head) == {"default", "1e-12"}, f"shards fold into one row: {set(head)}"
+        bases = [(1, "s1", read_junit_dir(t / "n1", 6300)), (2, "s2", read_junit_dir(t / "n2", 6300))]
+        reds, unreported, stopped = newly_red(head, bases)
         got = {(r.test, r.row, r.base_run) for r in reds}
-        # x: green at n1 (default), red at n2 (1e-12) -> newly red at default only;
-        # y: red before; z: green at its 1e-12 baseline n2 (n1 lacks that row);
-        # c new: in no baseline.
-        assert got == {("a::all x", "default", 1), ("b z", "1E-12", 2)}, f"newly red: {got}"
+        # x @ default: green at n1. x @ 1e-12: n1's stopped leg was running it,
+        # so its baseline is n2, green. y: red before. z @ 1e-12: n1 lacks the
+        # row, n2 has it green. c: in no baseline. d @ 1e-12: this run's
+        # stopped leg was running it.
+        want = {("a::all x", "default", 1), ("a::all x", "1e-12", 2), ("b z", "1e-12", 2)}
+        assert got == want, f"newly red: {got}"
         assert unreported == 1, f"unreported: {unreported}"
+        assert stopped == [("d s", "1e-12")], f"leg stopped: {stopped}"
+        _git_selftest(t / "repo")
     assert target_args("topo") == ["-p", "topo", "--lib"]
     assert target_args("sweep::all") == ["-p", "sweep", "--test", "all"]
     assert target_args("pncad::bin/pncad") == ["-p", "pncad", "--bin", "pncad"]
-    assert eps_env("default") is None and eps_env("1E-06") == "1E-06"
-    # choose_probe: the widest range's middle, around untestable commits
-    a = Red("a::all x", "default", 1, lo=-1, hi=8)
-    b = Red("b y", "default", 1, lo=5, hi=8)
-    assert choose_probe([a, b]) == (6, "b"), choose_probe([a, b])
-    assert choose_probe([a]) == (3, "a::all"), choose_probe([a])
-    a.untestable = {3}
-    assert choose_probe([a]) == (2, "a::all"), choose_probe([a])
-    a.untestable = set(range(0, 8))
-    assert not is_open(a) and choose_probe([a]) is None
+    assert eps_env("default") is None and eps_env("1e-12") == "1e-12"
+
+    # Monotone, red from commit 11 of 16: pass at 10 and fail at 11, each re-run.
+    by, run = _bisect({"a::all x": 11})
+    r = by["a::all x"]
+    assert r.verdict == "introduced by #11", r.verdict
+    assert r.seen[10] == [PASS, PASS] and r.seen[11] == [FAIL, FAIL], r.seen
+    assert run.reruns == 2, f"the confirming re-runs reuse the builds: {run.reruns}"
+    # The culprit's re-run passes: a range, never a culprit.
+    by, _ = _bisect({"a::all x": 11}, {("a::all x", 11): [FAIL, PASS]})
+    assert "disagrees at the culprit" in by["a::all x"].verdict, by["a::all x"].verdict
+    # Passes everywhere in the probe config: the bad end is probed and disagrees.
+    by, _ = _bisect({"a::all x": 99})
+    assert "disagrees at the bad end" in by["a::all x"].verdict, by["a::all x"].verdict
+    # Fails everywhere in the probe config: the good end disagrees.
+    by, _ = _bisect({"a::all x": 0})
+    assert "disagrees at the good end" in by["a::all x"].verdict, by["a::all x"].verdict
+    # An abort at the culprit is not a failure: the commit is untestable.
+    by, _ = _bisect({"a::all x": 11}, {("a::all x", 11): ["failed otherwise (test abort)"] * 3})
+    v = by["a::all x"].verdict
+    assert v.startswith("range") and "untestable" in v, v
+    # The binary with most open tests goes first; the next tries C and C^1 first.
+    by, _ = _bisect({"a::all x": 11, "a::all x2": 11, "b y": 11})
+    assert by["b y"].verdict == "introduced by #11", by["b y"].verdict
+    assert sorted(by["b y"].seen) == [10, 11], f"b probed only C^1 and C: {sorted(by['b y'].seen)}"
+    # An error part-way keeps the verdict already reached.
+    by, _ = _bisect({"a::all x": 11, "b y": 3}, boom=7)
+    assert by["a::all x"].verdict == "introduced by #11", by["a::all x"].verdict
+    assert "stopped by an error" in by["b y"].verdict, by["b y"].verdict
     print(
-        "nightly-attribution selftest OK: shards fold into a row; the baseline is the newest earlier report of the test at its row; a test red before, or in no baseline, is not newly red; target args per binary-id kind; a probe takes the narrowest open range's binary and steps around untestable commits"
+        "nightly-attribution selftest OK: shards fold into a row; the baseline is the newest earlier report of the "
+        "test at its row, a stopped leg's killed tests counting as unreported on both sides; work/- and docs/-only "
+        "commits stay in the range; a culprit needs a pass at C^1 and a fail at C, each re-run; a red the probe "
+        "config does not share ends as a range at the end that disagrees; an abort is not a failure; the next "
+        "binary tries C and C^1 first; an error keeps the verdicts already reached"
     )
     return 0
 
@@ -625,11 +840,11 @@ def parse(argv: list[str]):
     p.add_argument("--out", default="attribution")
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--only", help="attribute only the newly red tests matching this regex")
-    p.add_argument(
-        "--lookback", type=int, default=7, help="earlier scheduled main nightlies searched for a baseline"
-    )
+    p.add_argument("--lookback", type=int, default=7, help="earlier scheduled main nightlies searched for a baseline")
+    p.add_argument("--leg-budget-min", type=float, default=104, help="a leg that ran this long was stopped")
     p.add_argument("--max-probes", type=int, default=12)
-    p.add_argument("--budget-min", type=float, default=70)
+    p.add_argument("--budget-min", type=float, default=60)
+    p.add_argument("--probe-test-s", type=float, default=900)
     p.add_argument("--slow-s", type=float, default=300)
     p.add_argument("--max-range", type=int, default=200)
     p.add_argument("--max-tests", type=int, default=25)
