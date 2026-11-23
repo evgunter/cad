@@ -1,0 +1,79 @@
+== sweep-default
+ base ['Summary [1505.820s] 3824 tests run: 3820 passed (17 slow), 4 failed, 125 skipped']
+ head ['Summary [ 760.729s] 3824 tests run: 3820 passed (6 slow), 4 failed, 125 skipped']
+ red on head only: []
+ red on base only: []
+  both: sweep offer_rows::every_sphere_offer_passes_just_below_it payload SAME (6 lines)
+  both: sweep::all bisector_nodes::the_near_node_poses_at_the_witness_band payload SAME (2 lines)
+  both: sweep::all germ_tilted_rod::other_spins_and_steeper_tilts_refuse_at_their_germs payload SAME (2 lines)
+  both: sweep::all section_end_poses::a_section_end_at_the_band_edge_refuses_as_the_inputs_at_the_boolean_and_its_lever_builds payload SAME (8 lines)
+== topo-default
+ base ['Summary [ 423.400s] 4323 tests run: 4317 passed (2 slow), 6 failed, 136 skipped']
+ head ['Summary [ 226.729s] 4323 tests run: 4317 passed (1 slow), 6 failed, 136 skipped']
+ red on head only: []
+ red on base only: []
+  both: topo boolean::refusal_routes::offer_rows::every_offered_tolerance_passes_just_below_it payload SAME (8 lines)
+  both: topo boolean::section_cert::square_search::the_square_wall_arm_agrees_with_the_traced_section payload DIFFERS (5 lines)
+     base> 3 mismatches (reproduce with CAD_FUZZ_SEED=0x50b5d2aed3724960 CAD_FUZZ_EFFORT=1):
+     base> a strip crossing at a tube circle's top: R 0.04446384788590974, r 0.030997224111723124, (e, z0, rc) (0.22494384668561573, -0.02411599926720754, 0.18061113433305573), tilt 0: R-tan at Degeneracy { tangent: 0.0295242806471
+     base> a strip crossing at a tube circle's top: R 26.851686353357014, r 16.006283665463517, (e, z0, rc) (-79.34695300106475, 30.65396876769338, 70.23483592494954), tilt 0: R-tan at Degeneracy { tangent: 6.561404325665926, top: 
+     head> 4 mismatches (reproduce with CAD_FUZZ_SEED=0xb6b96f511fb03677 CAD_FUZZ_EFFORT=1):
+     head> a strip crossing at a tube circle's top: R 0.04211313884820463, r 0.004555878904852344, (e, z0, rc) (0.03812574866922629, -0.014620980212787474, 0.010826152655415354), tilt 0: R-tan at Degeneracy { tangent: 0.00022708705
+     head> a strip crossing at a tube circle's top: R 0.4254208623339024, r 0.3424908881081953, (e, z0, rc) (0.40400764796149086, -0.41572148628976935, 0.07629709095333587), tilt 0: R-tan at Degeneracy { tangent: 0.0025153761764340
+  both: topo face_normal::tests::no_source_file_folds_the_bit_by_hand payload SAME (4 lines)
+  both: topo::all a_corner_reads_only_its_own_sectors::an_unglued_pair_parallel_at_the_arm_refuses_on_the_arms_tilt payload SAME (2 lines)
+  both: topo::all a_corner_reads_only_its_own_sectors::the_corners_offer_executes payload SAME (2 lines)
+  both: topo::all recourse_roster::every_decided_name_has_its_door_and_every_site_is_read payload DIFFERS (8 lines)
+     base> Summary [ 423.400s] 4323 tests run: 4317 passed (2 slow), 6 failed, 136 skipped
+     head> Summary [ 226.729s] 4323 tests run: 4317 passed (1 slow), 6 failed, 136 skipped
+== profile-1e-6
+ base ['Summary [   4.168s] 762 tests run: 762 passed, 3 skipped']
+ head ['Summary [   2.064s] 763 tests run: 763 passed, 3 skipped']
+ red on head only: []
+ red on base only: []
+== profile-1e-12
+ base ['Summary [   4.259s] 762 tests run: 762 passed, 3 skipped']
+ head ['Summary [   2.103s] 763 tests run: 763 passed, 3 skipped']
+ red on head only: []
+ red on base only: []
+== sweep-1e-6
+ base ['Summary [ 653.305s] 3824 tests run: 3816 passed (4 slow), 8 failed, 125 skipped']
+ head ['Summary [ 440.688s] 3824 tests run: 3816 passed (1 slow), 8 failed, 125 skipped']
+ red on head only: []
+ red on base only: []
+  both: sweep offer_rows::every_sphere_offer_passes_just_below_it payload SAME (6 lines)
+  both: sweep::all a_plane_through_a_cones_apex::a_plane_through_a_30_degree_cones_apex_cuts_its_closed_forms payload SAME (4 lines)
+  both: sweep::all a_plane_through_a_cones_apex::a_plane_through_a_45_degree_cones_apex_cuts_its_closed_forms payload SAME (4 lines)
+  both: sweep::all germ_tilted_rod::other_spins_and_steeper_tilts_refuse_at_their_germs payload SAME (2 lines)
+  both: sweep::all section_end_poses::a_section_end_at_the_band_edge_refuses_as_the_inputs_at_the_boolean_and_its_lever_builds payload SAME (8 lines)
+  both: sweep::all verbs_cylcyl_r1_review_probes::every_reachable_crossing_pose_refuses_typed_or_answers_correctly payload SAME (3 lines)
+  both: sweep::all verbs_germarms2::a_rod_through_a_drum_wall_builds_at_its_sliced_volume payload SAME (3 lines)
+  both: sweep::all verbs_germarms2::the_fenced_poses_keep_their_own_outcomes payload DIFFERS (6 lines)
+     base> Summary [ 653.305s] 3824 tests run: 3816 passed (4 slow), 8 failed, 125 skipped
+     head> Summary [ 440.688s] 3824 tests run: 3816 passed (1 slow), 8 failed, 125 skipped
+== sweep-1e-12
+ base ['Summary [3789.743s] 3824 tests run: 3805 passed (39 slow), 19 failed, 125 skipped']
+ head ['Summary [2362.397s] 3824 tests run: 3805 passed (34 slow), 19 failed, 125 skipped']
+ red on head only: []
+ red on base only: []
+  both: sweep offer_rows::every_sphere_offer_passes_just_below_it payload SAME (6 lines)
+  both: sweep::all a_cylinder_wall_through_a_prism_corner_meshes_at_a_coarse_delta::a_cylinder_wall_through_a_prism_corner_meshes_at_a_coarse_delta payload SAME (2 lines)
+  both: sweep::all a_ring_on_a_cone_face::the_rings_volume_brackets_its_closed_form_at_the_certified_scalar payload SAME (2 lines)
+  both: sweep::all band_closed_mixed_chain_shapes::a_four_arc_barrel_fillets_whole payload SAME (2 lines)
+  both: sweep::all band_closed_mixed_chain_shapes::rounded_polygons_fillet_whole payload SAME (2 lines)
+  both: sweep::all band_closed_mixed_chain_shapes::turned_rounded_outlines_fillet_whole payload SAME (2 lines)
+  both: sweep::all band_open_mixed_chain::an_l_plates_rounded_corner_run_fillets_whole_at_interval payload SAME (2 lines)
+  both: sweep::all band_open_mixed_chain_shapes::an_s_run_of_a_convex_and_a_reflex_arc_builds payload SAME (2 lines)
+  both: sweep::all band_open_mixed_chain_shapes::two_arcs_in_one_run_build payload SAME (2 lines)
+  both: sweep::all curved_notch_pinch::a_curved_notch_at_a_corner_pinch_builds_bodies_the_census_cannot_read_yet payload SAME (2 lines)
+  both: sweep::all germ_tilted_rod::other_spins_and_steeper_tilts_refuse_at_their_germs payload SAME (3 lines)
+  both: sweep::all parallel_cylinder_join::a_rod_tipped_off_parallel_over_a_long_wall_takes_a_decided_door payload SAME (2 lines)
+  both: sweep::all parallel_cylinder_join::a_tipped_rod_refuses_alike_in_both_operand_orders payload SAME (2 lines)
+  both: sweep::all section_ellipse_seam_poses::a_slab_face_nearly_along_a_ruling_builds payload SAME (8 lines)
+  both: sweep::all section_ellipse_seam_poses::planes_through_the_axis_nearly_along_it_split payload SAME (8 lines)
+  both: sweep::all spheres_crossing_off_every_edge::the_plain_witness_builds_its_seam_crossing_at_the_interval_scalar payload SAME (3 lines)
+  both: sweep::all torus_touch_off_faces::the_off_face_touches_build_at_every_scale payload SAME (2 lines)
+  both: sweep::all verbs_cylcyl_r1_review_probes::every_reachable_crossing_pose_refuses_typed_or_answers_correctly payload DIFFERS (5 lines)
+     base> Summary [3789.743s] 3824 tests run: 3805 passed (39 slow), 19 failed, 125 skipped
+     head> Summary [2362.397s] 3824 tests run: 3805 passed (34 slow), 19 failed, 125 skipped
+  both: sweep::all verbs_germarms2_interval::the_meeting_axes_pose_builds_at_the_certified_scalar payload SAME (3 lines)

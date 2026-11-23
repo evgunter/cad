@@ -1,0 +1,75 @@
+ Downloading crates ...
+  Downloaded quote v1.0.47
+  Downloaded either v1.17.0
+  Downloaded proc-macro2 v1.0.107
+   Compiling proc-macro2 v1.0.107
+   Compiling unicode-ident v1.0.24
+   Compiling quote v1.0.47
+   Compiling version_check v0.9.5
+   Compiling crossbeam-utils v0.8.22
+   Compiling autocfg v1.5.1
+   Compiling crossbeam-epoch v0.9.20
+   Compiling crossbeam-deque v0.8.7
+   Compiling num-traits v0.2.19
+   Compiling rayon-core v1.13.0
+   Compiling libm v0.2.16
+   Compiling syn v2.0.119
+   Compiling heck v0.5.0
+   Compiling num-integer v0.1.47
+   Compiling either v1.17.0
+   Compiling num-bigint v0.4.8
+   Compiling strum_macros v0.28.0
+   Compiling rayon v1.12.0
+   Compiling interval-transcendentals v0.1.0 (/home/user/cad-head/interval-transcendentals)
+   Compiling quantity v0.0.0 (/home/user/cad-head/crates/quantity)
+   Compiling strum v0.28.0
+   Compiling slotmap v1.1.1
+   Compiling generic-array v0.14.7
+   Compiling allocator-api2 v0.2.21
+   Compiling foldhash v0.2.0
+   Compiling typenum v1.20.1
+   Compiling equivalent v1.0.2
+   Compiling hashbrown v0.16.1
+   Compiling geom-core v0.0.0 (/home/user/cad-head/crates/geom-core)
+   Compiling serde_core v1.0.229
+   Compiling robust v1.2.0
+   Compiling smallvec v1.15.2
+   Compiling zmij v1.0.23
+   Compiling spade v2.15.1
+   Compiling block-buffer v0.10.4
+   Compiling crypto-common v0.1.7
+   Compiling syn v3.0.3
+   Compiling cfg-if v1.0.4
+   Compiling libc v0.2.189
+   Compiling serde_json v1.0.151
+   Compiling serde v1.0.229
+   Compiling digest v0.10.7
+   Compiling itoa v1.0.18
+   Compiling cpufeatures v0.2.17
+   Compiling getrandom v0.3.4
+   Compiling memchr v2.8.3
+   Compiling sha2 v0.10.9
+   Compiling serde_derive v1.0.229
+   Compiling bvh v0.0.0 (/home/user/cad-head/crates/bvh)
+   Compiling profile v0.0.0 (/home/user/cad-head/crates/profile)
+   Compiling geom v0.0.0 (/home/user/cad-head/crates/geom)
+   Compiling geom-brep v0.0.0 (/home/user/cad-head/crates/geom-brep)
+   Compiling test-utils v0.0.0 (/home/user/cad-head/crates/test-utils)
+   Compiling topo v0.0.0 (/home/user/cad-head/crates/topo)
+   Compiling mesh v0.0.0 (/home/user/cad-head/crates/mesh)
+   Compiling sweep v0.0.0 (/home/user/cad-head/crates/sweep)
+   Compiling step-import v0.0.0 (/home/user/cad-head/crates/step-import)
+   Compiling verbs v0.0.0 (/home/user/cad-head/crates/verbs)
+   Compiling editor-core v0.0.0 (/home/user/cad-head/crates/editor-core)
+   Compiling stl v0.0.0 (/home/user/cad-head/crates/stl)
+   Compiling step-export v0.0.0 (/home/user/cad-head/crates/step-export)
+   Compiling tess-meter v0.1.0 (/home/user/cad-head/tools/tess-meter)
+   Compiling pncad v0.0.0 (/home/user/cad-head/crates/pncad)
+   Compiling demo-tour v0.1.0 (/home/user/cad-head/demos/tour)
+    Finished `ci-tour` profile [optimized] target(s) in 11m 57s
+────────────
+ Nextest run ID 9290bdf8-832d-4e3d-85f6-fd60ee4fa9cf with nextest profile: ci
+    Starting 98 tests across 1 binary (11 tests skipped, including 9 tests via profile.ci.default-filter)
+────────────
+     Summary [ 712.556s] 98 tests run: 98 passed (4 slow), 11 skipped
+EXIT=0
