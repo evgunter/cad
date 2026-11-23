@@ -4,7 +4,7 @@ kind: issue
 title: A section's two arcs, each seamed near its own middle, are stated a quarter turn apart through a turn that rounds at f64, so they are two statements an ulp apart and no certificate may read them as one conic: a cone cut out through a cap refuses on its cut cap
 status: open
 opened: 2026-11-23
-priority: P1
+priority: P0
 cost: M
 refs: [two-conics-are-compared-through-three-doors, 7605]
 ---
@@ -53,10 +53,29 @@ restatements admitted (`embed/conic-symmetry`), the wall cuts hold at
 this cut refuses `Uncertified { Departure }` on its cut cap in all four
 (4 of 4), the cap against a half-cone across a section arc.
 
-**Not checked:** which other section doors seam two arcs of one conic a
-quarter turn apart (a cylinder's split states its two arcs held at the
-centre, a half turn apart, in the cuts measured); how many census
-bodies reach this.
+**What decides it, and a count.** Each arc is seamed at the principal
+vertex nearest its own middle. A cut through the wall alone leaves two
+arcs between the two rulings the wall's halves meet on, their middles
+opposite: a half turn, exact. A cut that runs out through a cap leaves
+two arcs that each end on the cap's rim, their middles in adjacent
+quadrants: a quarter turn, rounded. Of the split bodies built for this
+unit on main, as built: 7 of 7 cone cuts through the wall alone (either
+side kept, tilted toward a ruling and off it) and 5 of 5 cylinder cuts
+through the wall alone state a half turn; the 1 cone cut and the 1
+cylinder cut out through a cap state a quarter turn (the cylinder's
+held at the centre, `u_ref` of the second the first's stored `v`
+direction and the semi-axes exchanged). The cylinder's cap cut holds at
+`f64` all the same in three of four placements, by another reading.
+
+**Not checked:** the census tests' own bodies (the count above is of
+14 bodies built here, not of the census), and which other section doors
+seam two arcs of one conic a quarter turn apart.
+
+The cone-image lane's row
+`two-arcs-of-one-cone-section-are-stated-as-two-anchored-ellipses-so-no-reading-knows-them-one-conic`
+(on its branch, on ONEROUND's slate) is about the half-turn pairs,
+which `embed/conic-symmetry` reads as one; this row is the quarter
+turn, which nothing may.
 
 ## What a fix needs
 

@@ -142,7 +142,8 @@ which by the unit's own rule state two curves. It is not admitted, and
 its cause is filed on the minting side:
 `work/conic/a-sections-two-arcs-seamed-a-quarter-turn-apart-are-two-statements-a-rounding-apart.md`.
 The title of this row names both cases; the half turn is closed by this
-unit and the quarter turn is that row's.
+unit, and **this row stays open on the quarter turn**, waiting on that
+row.
 
 **What landed.** `geom::Ellipse::restatements`: the four statements an
 ellipse's stored numbers reach by exact negation (itself; its seam a
