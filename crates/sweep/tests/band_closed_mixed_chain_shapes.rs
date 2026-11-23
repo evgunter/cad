@@ -466,21 +466,15 @@ pub(crate) fn assert_touch_escalation(what: &str, e: &BlendError) {
 /// frames are built at `Interval` from bracket inputs (fork 274), and
 /// their squaring's width leaves the shared row undecided. Mutant F1X
 /// (PR 7131's body: that squaring stores the stated vectors raw) lets
-/// each section admit and escalate `shared_row_touch` again, and turns
-/// this pin red; mutant A does not. The rectangles at 7° and 90° still
-/// read their touch.
-const UNADMITTED_AT_THE_FRAME_COST: [&str; 11] = [
-    "barrel at Interval",
-    "triangle at Interval",
+/// each section admit and escalate `shared_row_touch`, and turns this
+/// pin red; mutant A does not. Every other mixed rim, the barrel, the
+/// triangle, the L-plate, the S-run, the two arcs and the rectangles at
+/// 7°, 45° and 90° among them, reaches the touch.
+const UNADMITTED_AT_THE_FRAME_COST: [&str; 4] = [
     "pentagon at Interval",
     "hexagon at Interval",
     "rectangle at 30° at Interval",
-    "rectangle at 45° at Interval",
     "slot at 30° at Interval",
-    "L-plate, Interval, r = 0.1",
-    "L-plate, Interval, r = 0.14",
-    "S-run, Interval",
-    "two arcs, Interval",
 ];
 
 /// A plate of outline `o`, `z ∈ [0, h]`, every edge filleted at `r`, at

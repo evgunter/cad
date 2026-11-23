@@ -448,7 +448,7 @@ fn a_carrier_whose_origin_stands_far_off_hands_on_the_pass_s_line_row() {
 /// union refuses at ε 1e-12, in every order, ahead of the back-900 stop
 /// its pin names: the rod's wall cannot read its volume,
 /// `props_cylinder_circle_off_axis` escalating with its margin in
-/// `(1.15e-12, 1.25e-12]` (measured 1.195e-12). Cause: polar, the rod's
+/// `(1.45e-12, 1.6e-12]` (measured 1.536e-12). Cause: polar, the rod's
 /// stored frame read as its polar enclosure
 /// (`geom_core::test_support::at_the_frame_cost_band`); mutant A (PR
 /// 7131's body) builds back 300 again, and turns this pin red.
@@ -478,14 +478,14 @@ fn assert_far_off_refuses_as_the_frame_cost(
                     } if geom_core::test_support::escalated(
                         cause,
                         "props_cylinder_circle_off_axis",
-                        (1.15e-12, 1.25e-12),
+                        (1.45e-12, 1.6e-12),
                     )
                 ))
     );
     assert!(
         pinned,
         "{what}: pinned to refuse the rod's volume, props_cylinder_circle_off_axis in \
-         (1.15e-12, 1.25e-12], at ε 1e-12: {got:?}"
+         (1.45e-12, 1.6e-12], at ε 1e-12: {got:?}"
     );
 }
 

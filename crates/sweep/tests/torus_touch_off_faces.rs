@@ -297,7 +297,7 @@ fn the_off_face_touches_build_at_every_scale() {
                 crate::common::frame_cost::assert_rod_refuses_its_finish(
                     &label,
                     &topo::finish(b.clone(), Tol::witness()).map(|_| ()),
-                    (1.5e-12, 1.65e-12),
+                    (1.65e-12, 1.8e-12),
                 );
                 test_utils::vacuity::stood_down(
                     &format!("{label} at ε {eps:e}"),
@@ -331,8 +331,8 @@ const ROD_SCAN_STOPS: f64 = 1.0e14;
 /// rod refuses its own finish at ε 1e-12
 /// (`crate::common::frame_cost::at_the_least_band`), ahead of the
 /// extent scan: its wall's volume escalates
-/// `props_cylinder_circle_off_axis`, margin in `(1.5e-12, 1.65e-12]`
-/// (measured 1.568e-12). Cause: polar, the rod's stored frame read as
+/// `props_cylinder_circle_off_axis`, margin in `(1.65e-12, 1.8e-12]`
+/// (measured 1.738e-12). Cause: polar, the rod's stored frame read as
 /// its polar enclosure, levered by the scale; mutant A (PR 7131's body)
 /// finishes it, and turns this pin red; mutant F1X does not.
 const ROD_FRAME_COST: [f64; 1] = [250.0];

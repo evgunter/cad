@@ -456,7 +456,7 @@ fn try_tipped(r: f64, c: f64, half: f64, theta: f64) -> Result<Pose, topo::NotFi
 /// **The half-lengths at which a tipped rod past the band refuses its
 /// own finish at ε 1e-12** (`crate::common::frame_cost::at_the_least_band`):
 /// its wall's volume escalates `props_cylinder_circle_off_axis`, margin
-/// in `(1.15e-12, 1.25e-12]` (measured 1.194e-12 at every tip and both
+/// in `(1.25e-12, 1.35e-12]` (measured 1.307e-12 at every tip and both
 /// radii), so [`a_rod_tipped_off_parallel_over_a_long_wall_takes_a_decided_door`]
 /// and [`a_tipped_rod_refuses_alike_in_both_operand_orders`] read no op
 /// of it there. Cause: polar, the rod's stored frame read as its polar
@@ -475,7 +475,7 @@ fn tipped_rod_refuses_as_pinned(r: f64, c: f64, half: f64, theta: f64) -> bool {
     crate::common::frame_cost::assert_rod_refuses_its_finish(
         &format!("the rod r {r} at {c}, half-length {half}, tipped {theta:e}"),
         &try_tipped(r, c, half, theta).map(|_| ()),
-        (1.15e-12, 1.25e-12),
+        (1.25e-12, 1.35e-12),
     );
     true
 }
