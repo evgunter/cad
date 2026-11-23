@@ -173,7 +173,7 @@ pub fn decided_facts<T: Real>(vp: &crate::ValidatedProfile<T>) -> String {
 /// On a verb [`ARC_VERBS`] does not name, and where a door refuses its
 /// fixture.
 #[must_use]
-#[allow(clippy::too_many_lines, clippy::unwrap_used)]
+#[allow(clippy::too_many_lines, clippy::unwrap_used, clippy::panic)]
 pub fn arc_verb_loop<T: crate::ArcCarrierScalar>(
     verb: &str,
     q: T,
