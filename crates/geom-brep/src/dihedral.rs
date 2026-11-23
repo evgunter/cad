@@ -1097,11 +1097,7 @@ fn at_wedge<T: Decide>(
     band: Band,
 ) -> LeverEscalation {
     let wedge = Margin::levered(sin_theta, arm);
-    let Some(offered) = escalation
-        .diag()
-        .offered_band()
-        .filter(|_| escalation.re_quotes())
-    else {
+    let Some(offered) = escalation.diag().offered_band() else {
         return escalation;
     };
     // `arm / wedge` is finite unless the wedge is exactly zero, or poison

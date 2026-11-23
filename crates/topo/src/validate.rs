@@ -496,10 +496,7 @@ pub(crate) fn resolved_as<T: Decide>(
     rounding: T,
     band: Band,
 ) -> Result<(), geom_core::MarginDiag> {
-    let share = band
-        .a_step_finer()
-        .unwrap_or_else(|e| unreachable!("a run's band has a K-step below it: {e:?}"));
-    match decide_reported(name, Margin::of(rounding), share) {
+    match decide_reported(name, Margin::of(rounding), band.a_step_finer()) {
         Ok(geom_core::Decided {
             sign: Sign::Zero, ..
         }) => Ok(()),
