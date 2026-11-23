@@ -10008,10 +10008,7 @@ mod torn_hop_rows {
             "sphere_extent_scan",
             &mut a,
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
-            |a| {
-                sphere_extent_scan(a, &b, &Evidence::NONE, band)
-                    .map(|(r, _)| r.len())
-            },
+            |a| sphere_extent_scan(a, &b, &Evidence::NONE, band).map(|(r, _)| r.len()),
         );
     }
 

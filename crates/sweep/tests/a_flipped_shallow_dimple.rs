@@ -81,10 +81,12 @@ fn a_flipped_dimple_is_refused_by_the_side_reader() {
                         geom_brep::chart_singularity::Singularity::North,
                         geom_brep::chart_singularity::Singularity::South,
                     ]
-                    .map(|point| topo::ValidationError::ChartSingularityNotAVertex {
-                        face: dimple,
-                        point,
-                        lies: topo::SingularityLies::Interior,
+                    .map(|point| {
+                        topo::ValidationError::ChartSingularityNotAVertex {
+                            face: dimple,
+                            point,
+                            lies: topo::SingularityLies::Interior,
+                        }
                     })
                 )
                 .collect()

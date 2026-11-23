@@ -4337,12 +4337,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             .map_err(NodeErrorKind::Naming)?,
         );
         pair_senses
-            .judged(
-                j.a,
-                j.b,
-                &j.body.naming,
-                &j.body.body,
-            )
+            .judged(j.a, j.b, &j.body.naming, &j.body.body)
             .map_err(NodeErrorKind::Naming)?;
     }
     // One row per statement: two pairs that state one thing (a member
@@ -4413,12 +4408,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             })
             .collect();
             pair_senses
-                .judged(
-                    0,
-                    1,
-                    naming,
-                    &out.body,
-                )
+                .judged(0, 1, naming, &out.body)
                 .map_err(NodeErrorKind::Naming)?;
         }
         // The step's records in the node's terms: every row the step

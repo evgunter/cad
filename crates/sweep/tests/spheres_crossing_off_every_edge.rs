@@ -680,4 +680,3 @@ fn a_large_ball_near_external_tangency_is_pinned() {
         }
     }
 }
-
