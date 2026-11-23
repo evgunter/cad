@@ -3,19 +3,17 @@
 Opened 2026-10-24 by CHART's priority-seam cut (`work/README.md`, Track
 size). CHART closed every P0 and P1 row it kept and folded into this
 track on 2026-10-26 (`docs/doc-ledger/chart-leaves-the-tracker.md`), so
-the chart boundary and its consumers are one track again. Nothing
-dispatched.
+the chart boundary and its consumers are one track again. The sitting of
+2026-11-20 to 2026-11-23 closed every P0 and P1 row (U1–U8, in
+`log.md`), and the track is `ready` with nothing dispatched.
 
 ## The slate
 
-**47 budget points** of dispatchable work against this program's
-ceiling of 45 (`budget: 45`, its reason in `program.md`). CHART's fold
-added 6 (two M region rows and one E). The overrun is accepted (Ev, in
-chat, 2026-10-26): **the orchestrator that opens this track splits it
-sensibly first**, along its priority seam (`work/README.md`, Track
-size), rather than working an over-budget slate. The seam is plain:
-three P1 rows and seven P2 rows on the region doors and certificates, and
-a P3/P4 tail of refusal text and `pcurves.rs` docs.
+**12 P2, 20 P3 and 11 P4 rows**, with no P0 or P1. The only weight on the
+load is one unbanded row, `cell-region-reach-reads-a-spline-cell-by-wide-eval`,
+which the next orchestrator bands first, along with
+`a-split-reduce-on-a-torn-body-panics-at-pcurves-unreachable-own-loop`, which
+has no cost.
 
 Two closed CHART rows are kept here because live rows lean on them:
 `clearance-cells-are-decided-in-model-space` (the model-space cell
@@ -27,28 +25,33 @@ verdict's design record, whose measure half CLEAR's
 
 ## Order
 
-The P1 rows first: `chart-definite-diag-labels-an-interval-lower-end-as-an-f64-value`
-and `chart-region-mints-indeterminates-after-a-definite-sign` retire the
-`chart_region` hand mints CLEAVE's `the-indeterminate-seal` (P1) waits
-on, and `the-cones-rung3-certificate-has-no-metres-enclosure` beside
-them.
+The P2 rows first. Three are hard:
+- `a-planar-face-with-a-conic-trim-has-no-region-door` (H);
+- `a-closed-collapsed-side-has-no-turn-or-side-reading` (H), the follow-up
+  of the collapsed-side ruling (`[ev]` PR 7287), whose joint refuses at a
+  closed side today;
+- `a-seam-faces-image-refusal-is-dropped-so-off-and-uncovered-both-end-unplaced` (C).
 
-Then the P2 rows. `torus-certificate-runs-root-free-through-its-quartic`
-and `a-planar-face-with-a-conic-trim-has-no-region-door` are the two hard
-ones. CHART's two region-door rows,
+CHART's two region-door rows,
 `a-landings-edge-parameter-is-spelled-three-times-in-the-region-doors`
 and `the-region-legs-spell-a-circle-and-a-line-beside-curve3`, are both
-copies inside `region.rs` and its doors, filed off the
-skeleton's last review; they run as one unit, and touch nothing INTENT
-owns. `azimuth-inf-arm-has-two-homes` (P3 E) rides with them if its
-lane is on `chart_region.rs`'s `certified_arms` anyway.
+copies inside `region.rs` and its doors; they run as one unit, and touch
+nothing INTENT owns. `azimuth-inf-arm-has-two-homes` (P3 E) rides with
+them if its lane is on `chart_region.rs`'s `certified_arms` anyway.
 
-The E rows go as sweeps: the four refusal-text rows
+The E rows go as sweeps: the refusal-text rows
 (`chart-refusal-prose-outgrows-the-viewer`,
 `chart-region-ray-exhausted-says-read-at-a-tighter-eps`,
+`chart-region-ray-exhausted-tells-the-point-to-leave-a-boundary-it-is-off`,
 `chart-region-corrupt-spells-its-kernel-defect-ending-by-hand`,
 `chart-region-arm-unbounded-names-its-chart-by-string`) are one unit, and
 the two `pcurves.rs` doc rows are another.
+
+The spline-chart P3s filed off the collapsed-column unit
+(`a-spline-charts-closure-is-read-at-a-band-and-folds-in-band-to-open`,
+which carries Ev's "fix it later when necessary";
+`a-spline-net-collapsed-over-its-whole-u-domain-reads-periodless`) wait for
+a body that needs them.
 
 ## Wait on ATREST before building on the declared-pair door
 

@@ -4524,6 +4524,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "join_pairs_tied",
             "join_partners_tied",
             "join_undecided",
+            "junction_end_unread",
             "line_material_unread",
             "line_wedges",
             "lineage_row",

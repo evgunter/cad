@@ -2550,6 +2550,10 @@ pub(super) fn stored_piece<T: Real>(
 /// CIRCLE it is [`ArcReads::arc_distance`]. On an ELLIPSE it is a bound,
 /// not the extremes: every point lies within the semi-major axis of
 /// the centre, so within that of the centre's distance to `c`.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(super) fn piece_distance<T: Decide + Bounds>(
     carrier: &Curve3<T>,
     (ta, tb): (T, T),
@@ -2580,6 +2584,10 @@ pub(super) fn piece_distance<T: Decide + Bounds>(
 /// circle of its frame, whose image it is: `(p − center)·u` at `t` is
 /// the unit circle's height at `t` along
 /// `major·(u_ref·u)·u_ref + minor·(v·u)·v`.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(super) fn piece_along<T: Decide + Bounds>(
     carrier: &Curve3<T>,
     (ta, tb): (T, T),
@@ -2666,6 +2674,10 @@ impl<T: Decide + Bounds> ArcReads<T> for geom::Circle<T> {
         past_misses(self.arc_past(ta, q), (ta, tb))
     }
 
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn arc_past(&self, t: T, q: Point3<T>) -> T {
         self.frame().azimuth(q).near(t + T::pi()) - t
     }
@@ -2684,6 +2696,10 @@ impl<T: Decide + Bounds> ArcReads<T> for geom::Circle<T> {
     /// wherever `c` is — the side [`Self::arc_misses`] falls back to. A
     /// point scalar takes it only at `ρ` exactly zero, where the ends'
     /// values equal the whole circle's.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn arc_distance(&self, (ta, tb): (T, T), c: Point3<T>) -> (T, T) {
         let (da, db) = (
             (self.point_at(ta) - c).norm(),
@@ -2723,6 +2739,10 @@ impl<T: Decide + Bounds> ArcReads<T> for geom::Circle<T> {
     /// guard as [`Self::arc_distance`]'s on-axis read, selecting the pair
     /// that bounds the arc's wherever `u` points, and taken by a point
     /// scalar only where the two pairs are equal.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn arc_along(&self, (ta, tb): (T, T), c: Point3<T>, u: Vec3<T>) -> (T, T) {
         let (la, lb) = (
             (self.point_at(ta) - c).dot(u),
@@ -2730,7 +2750,7 @@ impl<T: Decide + Bounds> ArcReads<T> for geom::Circle<T> {
         );
         let (o, radius) = (self.frame().origin(), self.radius());
         let mid = (o - c).dot(u);
-        let plane = u - self.frame().axis() * u.dot(self.frame().axis());
+        let plane = u - self.axis() * u.dot(self.axis());
         let nu = plane.norm();
         let (whole_low, whole_high) = (mid - radius * nu, mid + radius * nu);
         if nu.lo() <= 0.0 {
@@ -3504,6 +3524,10 @@ struct StripLevel<T: Real> {
 
 impl<T: Decide + Bounds> StripLevel<T> {
     /// The level of link `l`'s strip on `face`, windowed when `windowed`.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn of(body: &Body<T>, l: &Link<T>, face: FaceKey, windowed: bool) -> Result<Self, BlendError> {
         let (rim_carrier, (t0, t1)) = stored_piece(body, l.edge)?;
         let (centre, direction, at_trim, rim_at) = if l.arm.is_coaxial() {
@@ -3520,7 +3544,7 @@ impl<T: Decide + Bounds> StripLevel<T> {
             match body.get_surface(fd.surface) {
                 Some(Surface::Plane { .. }) => (ci, None, si, rim_circle.radius()),
                 Some(Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Sphere { .. }) => {
-                    let u = rim_circle.frame().axis();
+                    let u = rim_circle.axis();
                     (
                         ci,
                         Some(u),
@@ -3888,13 +3912,17 @@ impl<T: Decide + Bounds> StripLevel<T> {
     /// can be dropped. The turns tried are read off the brackets'
     /// midpoints, a selection only: a turn that meets no window is
     /// dropped as empty by [`StripLevel::within`].
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn arc_within(
         c: &geom::Circle<T>,
         windows: Vec<Clip<T>>,
         (o, u): (Point3<T>, Vec3<T>),
         band: Band,
     ) -> Vec<Clip<T>> {
-        let plane = u - c.frame().axis() * u.dot(c.frame().axis());
+        let plane = u - c.axis() * u.dot(c.axis());
         let reach = c.radius() * plane.norm();
         let k = (c.frame().origin() - o).dot(u);
         if windows.is_empty() || (k - reach).hi() >= 0.0 {
