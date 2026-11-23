@@ -991,15 +991,17 @@ fn start_range(request: &RangeRequest, stop: &Stop) -> Result<RangeSearch, Box<R
         stop,
         request.tol,
     )
-    .map_err(|refusal| Box::new(RangeReport {
-        run: request.run,
-        answer: Err(refusal),
-        progress: if stop.cancel.is_canceled() {
-            RangeProgress::Stopped
-        } else {
-            RangeProgress::Finished
-        },
-    }))
+    .map_err(|refusal| {
+        Box::new(RangeReport {
+            run: request.run,
+            answer: Err(refusal),
+            progress: if stop.cancel.is_canceled() {
+                RangeProgress::Stopped
+            } else {
+                RangeProgress::Finished
+            },
+        })
+    })
 }
 
 /// One step of `search`, and the report it leaves.
