@@ -712,6 +712,10 @@ pub(crate) fn cone_hull_may_miss_apex<T: Decide>(
             _ => return true,
         }
     }
+    // Three or more loops winding once belong to no valid face: on one
+    // nappe a connected region has at most two boundary curves that wind
+    // it, and across both nappes it has one on each. They read as may
+    // miss the apex, the side that keeps it.
     !matches!(winding_once, 0 | 2)
 }
 

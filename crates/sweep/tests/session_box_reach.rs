@@ -754,3 +754,122 @@ fn an_approximated_cap_reads_its_fits_net() {
         assert_eq!(class, "Ok", "{door}: at the wall, in the box");
     }
 }
+
+/// A ball of radius `r` about the origin, poled on `y`: a semicircle
+/// revolved whole.
+fn ball(r: f64, tol: Tol) -> topo::Body<f64> {
+    sweep::test_support::try_revolved_about_y_at::<f64>(
+        vec![(Point2::new(0.0, -r), 1.0), (Point2::new(0.0, r), 0.0)],
+        Revolution::Full,
+        tol,
+    )
+    .expect("the ball revolves")
+}
+
+/// The gate's and the placing door's verdicts on `home` moved by `by`,
+/// each checked against `want` (its class and margin).
+fn verdicts_at(home: &topo::Body<f64>, by: Vec3<f64>, want: (&str, f64), tol: Tol) {
+    let at = geom_core::RigidMotion::translation(by).unwrap();
+    let image = topo::transform_rigid(home, &at).unwrap();
+    for (door, (class, margin)) in [
+        ("gate", gate_class(&image, tol)),
+        ("placing door", door_class(home, &at, tol)),
+    ] {
+        assert!(
+            class == want.0 && (margin - want.1).abs() < 1e-6,
+            "{door}, moved by {by:?}: read {class} {margin}, want {want:?}"
+        );
+    }
+}
+
+/// **A ball cut by a box reads the whole ball, so the piece, in the box,
+/// refuses as a limit by it** (both reviewers of PR 7225's second delta).
+/// A ball of radius 1.5 poled on `z`, intersected with the brick
+/// `[−1, 1]² × [0, 3]`: its sphere faces are bounded partly by the
+/// walls' sections, small circles that are neither latitude rims (circles
+/// about the polar axis) nor meridian great circles, so the sphere trim's
+/// class (`solid_contain::sphere_chart_trim`) holds no such face,
+/// `topo::cover`'s sphere arm reads no window, and they cover the ball. Moved 998.7 m along `x`, the
+/// piece reaches 999.7 m and the ball 1000.2 m: refused as the limit
+/// 0.2 m past, at the gate and at the placing door; moved 998 m, admitted.
+/// *Breaks if* a sphere face a box cuts comes to read a window (then the
+/// row's 998.7 m case admits, and the row is the measure of it), or the
+/// limit is refused as past.
+#[test]
+fn a_ball_a_box_cuts_reads_its_whole_ball() {
+    let tol = Tol::witness();
+    let to_z = geom_core::RigidMotion::rotation(
+        unit(Vec3::new(1.0, 0.0, 0.0), tol),
+        core::f64::consts::FRAC_PI_2,
+    )
+    .unwrap();
+    let ball = finished(
+        "the ball",
+        topo::transform_rigid(&ball(1.5, tol), &to_z).unwrap(),
+        tol,
+    );
+    let bar = finished(
+        "the brick",
+        brick::<f64>((-1.0, 1.0), (-1.0, 1.0), (0.0, 3.0), tol),
+        tol,
+    );
+    let cut = topo::intersect(&ball, &bar, tol).expect("the brick cuts the ball");
+    let cut = cut
+        .body()
+        .expect("the cut is a body")
+        .body
+        .clone()
+        .into_body();
+    verdicts_at(&cut, Vec3::new(998.7, 0.0, 0.0), ("Unshown", 0.2), tol);
+    verdicts_at(&cut, Vec3::new(998.0, 0.0, 0.0), ("Ok", 0.0), tol);
+}
+
+/// **A ball cut by a plane tilted to its poles reads the whole ball; cut
+/// square to them, its window** (both reviewers of PR 7225's second
+/// delta). A ball of radius 50 poled on `y`, intersected with the half
+/// space below a plane 10 m above its centre, turned 0.4 rad about `x`:
+/// the rim is a circle tilted to the polar axis, neither a latitude rim
+/// nor a meridian great circle, so the sphere trim's class holds no such
+/// face and it covers the ball. The kept part's top stands
+/// 28.29 m above the centre. Lifted 960 m it reaches 988.3 m and the ball
+/// 1010 m: refused as the limit 10 m past, at the gate and at the placing
+/// door; lifted 940 m, admitted; lifted 985 m, past by its true 13.29 m.
+/// The same ball cut by the plane square to its poles (its rim a latitude
+/// rim) reads its window,
+/// and is admitted lifted 960 m and 985 m. *Breaks if* the tilted rim's
+/// face comes to read a window (the 960 m case then admits), or the
+/// square rim's stops reading one.
+#[test]
+fn a_ball_cut_by_a_plane_tilted_to_its_poles_reads_its_whole_ball() {
+    let tol = Tol::witness();
+    let cut_at = |tilt: f64| {
+        let slab = brick::<f64>((-100.0, 100.0), (-100.0, 10.0), (-100.0, 100.0), tol);
+        let turn =
+            geom_core::RigidMotion::rotation(unit(Vec3::new(1.0, 0.0, 0.0), tol), tilt).unwrap();
+        let slab = finished(
+            "the half space",
+            topo::transform_rigid(&slab, &turn).unwrap(),
+            tol,
+        );
+        let cut = topo::intersect(&finished("the ball", ball(50.0, tol), tol), &slab, tol)
+            .expect("the plane cuts the ball");
+        cut.body()
+            .expect("the cut is a body")
+            .body
+            .clone()
+            .into_body()
+    };
+    let tilted = cut_at(0.4);
+    verdicts_at(&tilted, Vec3::new(0.0, 960.0, 0.0), ("Unshown", 10.0), tol);
+    verdicts_at(&tilted, Vec3::new(0.0, 940.0, 0.0), ("Ok", 0.0), tol);
+    let at = geom_core::RigidMotion::translation(Vec3::new(0.0, 985.0, 0.0)).unwrap();
+    let (class, margin) = gate_class(&topo::transform_rigid(&tilted, &at).unwrap(), tol);
+    assert!(
+        class == "Outside" && (margin - 13.288).abs() < 1e-3,
+        "lifted 985 m the tilted cut is past by its true reach: {class} {margin}"
+    );
+    let square = cut_at(0.0);
+    for dy in [960.0, 985.0] {
+        verdicts_at(&square, Vec3::new(0.0, dy, 0.0), ("Ok", 0.0), tol);
+    }
+}

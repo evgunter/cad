@@ -74,6 +74,9 @@ pub fn past_the_box_as<T: Decide>(name: &'static str, reach: T, band: Band) -> O
 /// that is not definitely past it; otherwise `inside`, the largest
 /// `|coordinate|` of points known to lie on the region, decides which
 /// refusal it is. `inside` is read only where the cover does not decide.
+/// An `inside` that is no finite number is no point past the box: moving
+/// the geometry is no way through it, so the cover's refusal stands (the
+/// limit, or what has no cover and why).
 ///
 /// # Errors
 ///
@@ -90,7 +93,11 @@ pub fn region_in_box<T: Decide, U>(
         },
         Err(what) => BoxRefusal::Uncovered(what),
     };
-    match past_the_box_as(SESSION_BOX_POINT, inside(), band) {
+    let inside = inside();
+    if !inside.is_bounded() {
+        return Err(unshown);
+    }
+    match past_the_box_as(SESSION_BOX_POINT, inside, band) {
         Some(margin) => Err(BoxRefusal::Point { margin }),
         None => Err(unshown),
     }
@@ -531,6 +538,24 @@ mod tests {
             band(),
         );
         assert!(matches!(got, Err(BoxRefusal::Point { .. })), "{got:?}");
+    }
+
+    /// **An inside read that is no finite number is no point past the
+    /// box**: a cover reaching 2 km is the limit, and one with no cover
+    /// says why, when the points read `+∞` or NaN, never past the box by
+    /// them. *Breaks if* a non-finite inside read is decided against the
+    /// box, so an infinite vertex reads as geometry a move could bring in.
+    #[test]
+    fn an_inside_read_past_every_number_leaves_the_covers_refusal() {
+        for inside in [f64::INFINITY, f64::NAN] {
+            let got = region_in_box::<f64, ()>(Ok(2e3), || inside, band());
+            assert!(
+                matches!(got, Err(BoxRefusal::Unshown { .. })),
+                "{inside}: {got:?}"
+            );
+            let got = region_in_box::<f64, ()>(Err(()), || inside, band());
+            assert_eq!(got, Err(BoxRefusal::Uncovered(())), "{inside}");
+        }
     }
 
     /// **A point that is not finite hides no other point past the box**:

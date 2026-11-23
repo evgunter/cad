@@ -2434,6 +2434,11 @@ fn session_box_uncovered_causes() -> Vec<(
         ("not described", net(), C::NotDescribed),
         ("poisoned net", net(), C::PoisonedNet),
         (
+            "infinite net",
+            FaceUncovered::of_carrier(surface(K::Nurbs, Unknown::NonFinite)),
+            C::InfiniteNet,
+        ),
+        (
             "datum",
             FaceUncovered::of_carrier(surface(K::Torus, Unknown::NonFinite)),
             C::Datum(K::Torus, geom::SurfaceDatum::MinorRadius),
