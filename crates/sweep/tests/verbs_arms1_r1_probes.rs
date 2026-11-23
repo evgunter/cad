@@ -351,9 +351,9 @@ fn the_unbored_hemisphere_equator_carves_as_one_band() {
     assert!(
         arcs.iter().all(|k| {
             let (start, end) = body.edge_vertices(*k).unwrap();
-            start != end
+            start == end
         }),
-        "an on-axis profile mints no closed rim edge at all"
+        "a full revolve's rim is a closed edge"
     );
     let out = fillet_edges(
         &sweep::test_support::at_rest(&body, tol()),
