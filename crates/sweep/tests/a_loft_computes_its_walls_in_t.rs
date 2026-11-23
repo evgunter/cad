@@ -531,6 +531,10 @@ fn point_inputs_loft_in_t_at_interval() {
         let widest = wall_values(&enclosed, |x: Interval| x.hi() - x.lo())
             .into_iter()
             .fold(0.0, f64::max);
+        // Rounding alone, on sections of unit size: the widest value
+        // measured is 7.5e-15 (the v-degree 2 solve), so 1e-13 is an
+        // order above what the arithmetic gives and far below any width
+        // an input would bring.
         assert!(
             widest <= 1e-13,
             "{what}: a family of one widens by rounding alone: the widest wall value is \
@@ -578,6 +582,121 @@ fn a_point_valued_loft_builds_at_sym_over_an_interval() {
         .map_err(|e| format!("{e:?}"))
     });
     assert_eq!(built, Ok(()), "two line sections loft at Sym<Interval>");
+}
+
+/// **A dual over an enclosure gets the tangent through the skin's
+/// solve.** Three [`quad`]s at v-degree 2, the middle one's corner the
+/// variable, at `Dual<Interval>`: the middle section is interpolated,
+/// not a control row, so its corner moves every pole of the walls beside
+/// it and the chord-length parameter with them. Each wall value's
+/// derivative holds the central difference of the `f64` lofts, and more
+/// values move than the corner's own two.
+#[test]
+fn a_loft_at_a_dual_carries_the_tangent_through_the_solve() {
+    use geom_core::{Bounds, Dual, DualInterval, Interval};
+    let at = |h: f64| {
+        loft_body::<f64>(
+            &[quad(1.2), quad(h), quad(1.25)],
+            &[0.0, 1.0, 2.0].map(at_height),
+            2,
+            Tol::witness(),
+        )
+        .expect("the f64 loft builds")
+    };
+    let lit = |x: f64| DualInterval::from_f64(x);
+    let lofted = sweep::test_support::loft_body_construction::<DualInterval>(
+        &[
+            quad(lit(1.2)),
+            quad(Dual::variable(Interval::from_f64(1.3))),
+            quad(lit(1.25)),
+        ],
+        &[0.0, 1.0, 2.0].map(|z| at_height(lit(z))),
+        2,
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("the loft builds at Dual<Interval>: {e:?}"));
+    let got = wall_values(&lofted, |x: DualInterval| (x.deriv.lo(), x.deriv.hi()));
+    let step = 1e-5;
+    let slope: Vec<f64> = wall_values(&at(1.3 + step), |x: f64| x)
+        .iter()
+        .zip(wall_values(&at(1.3 - step), |x: f64| x))
+        .map(|(hi, lo)| (hi - lo) / (2.0 * step))
+        .collect();
+    assert_eq!(got.len(), slope.len(), "the same walls at every corner");
+    let moving = slope.iter().filter(|d| d.abs() > 1e-6).count();
+    assert!(
+        moving > 2,
+        "the corner moves more than its own poles: {moving} values"
+    );
+    for (k, ((lo, hi), want)) in got.iter().zip(&slope).enumerate() {
+        assert!(
+            lo - 1e-7 <= *want && *want <= hi + 1e-7 && hi - lo <= 1e-9,
+            "wall value {k} moves with the corner as the f64 lofts do: [{lo}, {hi}] against \
+             {want}"
+        );
+    }
+}
+
+/// **A v-degree-1 slab is its two sections' rows.** Four arc-sided
+/// squares whose bulges differ, unevenly stacked, at `f64`: on the arc
+/// wall the weights vary from section to section. Each slab's wall is
+/// the skinned wall through every section ([`sweep::loft_geometry`])
+/// on its span, adjacent slabs hold their shared section's row bit for
+/// bit, poles and weights, and each row is the section curve's own (the
+/// skin's homogeneous lane held `(P·w)/w` there, which is `P` to
+/// rounding).
+#[test]
+fn a_degree_one_slab_is_the_skinned_wall_on_its_span() {
+    let sections = [section(0.2), section(0.35), section(0.3), section(0.1)];
+    let places = [0.0, 1.0, 3.0, 3.5].map(at_height);
+    let tol = Tol::witness();
+    let lofted = loft_body::<f64>(&sections, &places, 1, tol).expect("the loft builds");
+    let params = sweep::loft_parameters(&sections, &places, 1, tol).expect("the parameters");
+    let skinned = sweep::loft_geometry(&sections, &places, 1, &params, tol).expect("the skin");
+    let wall = |j: usize, s: usize| match lofted
+        .body
+        .face_surface(lofted.side_faces[0][j][s].expect("a wall"))
+        .expect("a described face")
+    {
+        Surface::Nurbs(n) => n.as_ref().clone(),
+        other => panic!("a lofted wall is a NURBS surface, got {other:?}"),
+    };
+    for (j, whole) in skinned.walls[0].iter().enumerate() {
+        let (u0, u1) = whole.knot_values_u().domain();
+        for s in 0..3 {
+            let slab = wall(j, s);
+            for iu in 0..=8 {
+                for iv in 0..=8 {
+                    let (a, t) = (f64::from(iu) / 8.0, f64::from(iv) / 8.0);
+                    let u = u0 + (u1 - u0) * a;
+                    let v = params[s] + (params[s + 1] - params[s]) * t;
+                    let miss = (slab.eval(u, t) - whole.eval(u, v)).norm();
+                    assert!(
+                        miss <= 1e-13,
+                        "wall {j}, slab {s} at ({a}, {t}) is {miss:e} off the skinned wall"
+                    );
+                }
+            }
+            if s < 2 {
+                let above = wall(j, s + 1);
+                let rows = slab.control_counts().0;
+                for iu in 0..rows {
+                    let (top, bottom) = (pole(&slab, iu, 1), pole(&above, iu, 0));
+                    let bits = |p: Point3<f64>| p.to_array().map(f64::to_bits);
+                    assert_eq!(
+                        (bits(slab.control()[top]), slab.weights()[top].to_bits()),
+                        (
+                            bits(above.control()[bottom]),
+                            above.weights()[bottom].to_bits()
+                        ),
+                        "wall {j}: slabs {s} and {} share section {}'s row {iu}",
+                        s + 1,
+                        s + 1
+                    );
+                }
+            }
+        }
+    }
 }
 
 /// **A dual over an enclosure gets the loft's tangent.** A two-section
@@ -783,6 +902,58 @@ fn a_turning_sweep_at_interval_encloses_its_f64_sweep() {
         widest <= 1e-12,
         "the swept walls widen by rounding alone: the widest wall value is {widest:e}"
     );
+}
+
+/// **A path sweep at `Interval` builds at every station count.** The
+/// elbow at 4 to 13 stations and v-degree 1, 2 and 3: a sweep's v knots
+/// are averages of its station shares `i / (stations − 1)`, a function
+/// of the count alone, so they enter as constants and are points at
+/// every scalar, whatever the count. Each sweep builds, its sections sit
+/// at the `f64` sweep's shares, and every wall value holds the `f64`
+/// sweep's. Red where the averages are formed at `Interval`: they round
+/// wider than a point at most counts (6, 7, 8, 10 and 13 at v-degree 3)
+/// and the carrier's door refuses them.
+#[test]
+fn a_path_sweep_at_interval_builds_at_every_station_count() {
+    use geom_core::Interval;
+    use sweep::sweep_body;
+    use sweep::test_support::{elbow_path, elbow_section, lift_sections};
+    let tol = Tol::witness();
+    let profile = elbow_section();
+    let lane = lift_sections::<Interval>(core::slice::from_ref(&profile)).remove(0);
+    for v_degree in 1..=3 {
+        for stations in 4..=13 {
+            let what = format!("{stations} stations at v-degree {v_degree}");
+            let nominal = sweep_body::<f64>(
+                &profile,
+                SketchPlane::xy(),
+                &elbow_path(),
+                stations,
+                v_degree,
+                tol,
+            )
+            .unwrap_or_else(|e| panic!("{what}: the elbow sweeps at f64: {e:?}"));
+            let enclosed = sweep::test_support::sweep_body_construction::<Interval>(
+                &lane,
+                SketchPlane::xy(),
+                &elbow_path(),
+                stations,
+                v_degree,
+                tol,
+            )
+            .unwrap_or_else(|e| panic!("{what}: the elbow sweeps at Interval: {e:?}"));
+            assert_eq!(
+                points(&enclosed.section_params),
+                nominal
+                    .section_params
+                    .iter()
+                    .map(|u| Some(*u))
+                    .collect::<Vec<_>>(),
+                "{what}"
+            );
+            assert_encloses(&what, &enclosed, &nominal);
+        }
+    }
 }
 
 /// Every value of every wall a loft built, in face order: poles,

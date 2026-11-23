@@ -2708,7 +2708,7 @@ pub fn f64_body_held_as_points<T: geom_core::Decide + topo::AtRestPolicy>(
     v_degree: usize,
     tol: geom_core::Tol,
 ) -> Result<crate::Lofted<T>, crate::LoftError> {
-    crate::loft::f64_body_held_as_points(sections, places, None, v_degree, tol)?.leaf(tol)
+    crate::loft::f64_body_held_as_points(sections, places, v_degree, tol)?.leaf(tol)
 }
 
 /// [`f64_body_held_as_points`] before its finish: the body in
@@ -2724,27 +2724,7 @@ pub fn f64_body_held_as_points_construction<T: geom_core::Decide + topo::AtRestP
     v_degree: usize,
     tol: geom_core::Tol,
 ) -> Result<crate::Lofted<T, topo::Body<T>>, crate::LoftError> {
-    crate::loft::f64_body_held_as_points(sections, places, None, v_degree, tol)
-}
-
-/// [`f64_body_held_as_points_construction`] over the `f64` body
-/// [`crate::sweep_body`] builds: `profile` at each of `stations`
-/// stations of `path`, carried from `plane`. Not the sweep of that
-/// profile at `T`, and under the same fence.
-///
-/// # Errors
-///
-/// [`crate::sweep_body`]'s at `f64` short of its finish, and the
-/// assembly's at `T`.
-pub fn f64_sweep_held_as_points_construction<T: geom_core::Decide + topo::AtRestPolicy>(
-    profile: &[ProfileLoop<f64>],
-    plane: profile::SketchPlane<f64>,
-    path: &geom::NurbsCurve3<f64>,
-    stations: usize,
-    v_degree: usize,
-    tol: geom_core::Tol,
-) -> Result<crate::Lofted<T, topo::Body<T>>, crate::LoftError> {
-    crate::loft::f64_sweep_held_as_points(profile, plane, path, stations, v_degree, tol)
+    crate::loft::f64_body_held_as_points(sections, places, v_degree, tol)
 }
 
 /// [`loft_body_construction`]'s twin for [`crate::loft_profiles`].

@@ -91,7 +91,9 @@ use std::sync::Arc;
 
 use geom::NurbsCurve3;
 use geom::NurbsSurface;
-use geom::curves::fit::{FitError, interpolate_columns_in};
+use geom::curves::fit::{
+    FitError, averaged_knot_vector, interpolate_columns_in, interpolate_columns_over,
+};
 use geom_brep::SketchSegment;
 use geom_core::Tol;
 use geom_core::spline::{Built, KnotAlgebraError, Knots, SpanLocate, SplineError};
@@ -1107,7 +1109,7 @@ pub fn skin<T: SpanLocate>(
         }
     }
     let params = skin_parameters(sections)?;
-    skin_with(sections, v_degree, &params)
+    skin_with(sections, v_degree, &params, None)
 }
 
 /// [`skin`] on an EXPLICIT v-parameterization — the entry a multi-wall
@@ -1129,7 +1131,7 @@ pub fn skin_on<T: SpanLocate>(
         return Err(SkinError::TooFewSections { have: k, need: 2 });
     }
     check_parameters(params, k)?;
-    skin_with(sections, v_degree, params)
+    skin_with(sections, v_degree, params, None)
 }
 
 /// The caller's parameterization of `sections` sections, checked by the
@@ -1145,11 +1147,14 @@ fn check_parameters<T: SpanLocate>(params: &[T], sections: usize) -> Result<(), 
 
 /// [`skin_on`] past its check of the caller's parameters: the body
 /// [`skin`] and the loft reach with parameters the kernel chose, so a
-/// refusal of the fit over them is the kernel's.
+/// refusal of the fit over them is the kernel's. `stated` is the v
+/// knots where the parameters are stated shares ([`stated_knots`]);
+/// otherwise the fit averages the parameters in `T`.
 fn skin_with<T: SpanLocate>(
     sections: &[NurbsCurve3<T>],
     v_degree: usize,
     params: &[T],
+    stated: Option<&Knots<T>>,
 ) -> Result<NurbsSurface<T>, SkinError> {
     let k = sections.len();
     if k < 2 {
@@ -1205,8 +1210,11 @@ fn skin_with<T: SpanLocate>(
             row
         })
         .collect();
-    let (knots_v, solved) = interpolate_columns_in(params, v_degree, &rows)
-        .map_err(|e| SkinError::Fit(Built::new(e)))?;
+    let (knots_v, solved) = match stated {
+        Some(knots) => interpolate_columns_over(params, knots.clone(), &rows),
+        None => interpolate_columns_in(params, v_degree, &rows),
+    }
+    .map_err(|e| SkinError::Fit(Built::new(e)))?;
     // Into the surface's u-major layout, `idx = iu · nv + iv`. A lane
     // whose sections all hold one stored point (a pinned corner) is that
     // point in every row, passed through unsolved, so a corner the loft
@@ -1297,11 +1305,13 @@ pub type Section<L = ProfileLoop<f64>> = Vec<L>;
 /// [`ConstructedProfile::validate`] without being decided again. A
 /// section is all one or all the other.
 ///
-/// A section's structure is decided once, at `f64`, on its loops'
-/// value channel ([`SectionLoop::channel`]); at `T` the section is
-/// validated GUIDED by that record ([`SectionLoop::validate_guided`]),
-/// so its canonical form is the `f64` one and its values are the
-/// loops' own.
+/// At a projective scalar a section's structure is decided once, at
+/// `f64`, on its loops' value channel ([`SectionLoop::channel`]), and
+/// at `T` the section is validated GUIDED by that record
+/// ([`SectionLoop::validate_guided`]), so its canonical form is the
+/// `f64` one and its values are the loops' own. At an enclosure scalar
+/// it is validated at `T` with each decision certified there
+/// ([`validate_at_t`]).
 pub trait SectionLoop<T: Decide = f64>: Clone {
     /// The loop at `f64`.
     type Channel: SectionLoop<f64>;
@@ -1432,8 +1442,7 @@ fn validate_sections<T: Decide, L: SectionLoop<T>>(
 }
 
 /// Each section validated at `T`, its decisions taken there: the door
-/// for sections with no `f64` value to select a record on (values wider
-/// than a point, at an enclosure scalar).
+/// for every section at an enclosure scalar, a point one included.
 ///
 /// # Errors
 ///
@@ -1685,7 +1694,7 @@ fn skin_strips<T: SpanLocate>(
         .iter()
         .map(|lp| {
             lp.iter()
-                .map(|strip| skin_with(strip, v_degree, params).map(Arc::new))
+                .map(|strip| skin_with(strip, v_degree, params, None).map(Arc::new))
                 .collect()
         })
         .collect::<Result<_, _>>()?;
@@ -1752,6 +1761,19 @@ fn section_parameters<T: SpanLocate>(
     }
 }
 
+/// The v knots of a skin over stated shares: the averages of the shares
+/// (Book Eq. 9.8) formed at `f64` and entered as constants. The shares
+/// are a station count's fractions and read no value of the model, so
+/// their averages are structure, points at every scalar; a loft's
+/// chord-length parameters are read from its sections at `T`, and their
+/// averages are formed there ([`interpolate_columns_in`]). At `Sym`
+/// each stated knot is a literal.
+fn stated_knots<T: SpanLocate>(shares: &[f64], v_degree: usize) -> Result<Knots<T>, SkinError> {
+    averaged_knot_vector(shares, v_degree)
+        .map(|knots| Knots::from(knots).lift(T::from_f64))
+        .map_err(|e| SkinError::Fit(Built::new(e)))
+}
+
 /// **The walls a loft body stands on**, `[loop][segment][slab]`, and the
 /// v each section sits at.
 ///
@@ -1788,6 +1810,10 @@ pub(crate) fn body_walls<T: SpanLocate>(
 ) -> Result<(Vec<Vec<Vec<Arc<NurbsSurface<T>>>>>, Vec<T>), SkinError> {
     pin_strips(&mut strips, pinned)?;
     let params = section_parameters(&strips, shares)?;
+    let stated = shares
+        .filter(|_| !(v_degree == 1 && params.len() >= 3))
+        .map(|shares| stated_knots::<T>(shares, v_degree))
+        .transpose()?;
     let walls = strips
         .iter()
         .map(|lp| {
@@ -1796,7 +1822,8 @@ pub(crate) fn body_walls<T: SpanLocate>(
                     if v_degree == 1 && strip.len() >= 3 {
                         strip.windows(2).map(section_slab).collect()
                     } else {
-                        skin_with(strip, v_degree, &params).map(|w| vec![Arc::new(w)])
+                        skin_with(strip, v_degree, &params, stated.as_ref())
+                            .map(|w| vec![Arc::new(w)])
                     }
                 })
                 .collect::<Result<Vec<_>, _>>()
@@ -1805,10 +1832,13 @@ pub(crate) fn body_walls<T: SpanLocate>(
     Ok((walls, params))
 }
 
-/// The ruled wall between two section curves of one compatible strip
-/// ([`compatible_strips`]: one `u` structure), `pair[0]` its row `v = 0`
-/// and `pair[1]` its row `v = 1`: their poles and weights copied, the
-/// `u` knots `pair[0]`'s.
+/// The ruled wall between two section curves of one compatible strip,
+/// `pair[0]` its row `v = 0` and `pair[1]` its row `v = 1`: their poles
+/// and weights copied, the `u` knots `pair[0]`'s. The pole counts are
+/// checked and the `u` knots are not: [`compatible_strips`] refines a
+/// strip's curves onto one knot vector, and comparing two curves' knots
+/// here would read them as `f64` past the carrier's interim funnel
+/// (`scripts/gates/knots-f64-interim.sh`).
 fn section_slab<T: SpanLocate>(pair: &[NurbsCurve3<T>]) -> Result<Arc<NurbsSurface<T>>, SkinError> {
     let [lower, upper] = pair else {
         unreachable!("`windows(2)` yields pairs")

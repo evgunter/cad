@@ -427,20 +427,16 @@ fn top_wall<T: Scalar>(lofted: &sweep::Lofted<T, Body<T>>) -> FaceKey {
 fn a_370_degree_flat_ribbon_reads_violated() {
     fn ribbon<T: Scalar>() -> (BoundReport<Witness>, FaceKey) {
         let path = helix(370.0 / 360.0, 0.0);
-        let place = normal_start_place(&path);
-        let profile = quad([(-0.1, -0.02), (0.1, -0.02), (0.1, 0.02), (-0.1, 0.02)]);
-        // The `f64` sweep's carriers held as points: the injectivity
-        // read is the subject, and the sweep built at `Interval` holds
-        // an enclosure knot no carrier takes yet.
-        let swept = sweep::test_support::f64_sweep_held_as_points_construction::<T>(
-            &profile,
-            place,
-            &path,
-            48,
-            3,
-            tol(),
-        )
-        .expect("the ribbon body builds");
+        let place = plane_at(&normal_start_place(&path));
+        let profile = lifted(&quad([
+            (-0.1, -0.02),
+            (0.1, -0.02),
+            (0.1, 0.02),
+            (-0.1, 0.02),
+        ]));
+        let swept =
+            sweep::test_support::sweep_body_construction::<T>(&profile, place, &path, 48, 3, tol())
+                .expect("the ribbon sweeps");
         let wall = top_wall(&swept);
         (injective(&swept.body, Some(vec![wall]), BUDGET), wall)
     }
@@ -1264,17 +1260,10 @@ fn the_s_duct_walls_hold_against_themselves() {
             }))
             .collect();
         let path = NurbsCurve3::interpolate(&points, 3).expect("the S path interpolates");
-        // The `f64` sweep's carriers held as points (the ribbon row's
-        // note).
-        sweep::test_support::f64_sweep_held_as_points_construction::<T>(
-            &quad([(-h, -h), (h, -h), (h, h), (-h, h)]),
-            normal_start_place(&path),
-            &path,
-            13,
-            3,
-            tol(),
-        )
-        .expect("the S duct body builds")
+        let place = plane_at(&normal_start_place(&path));
+        let profile = lifted(&quad([(-h, -h), (h, -h), (h, h), (-h, h)]));
+        sweep::test_support::sweep_body_construction::<T>(&profile, place, &path, 13, 3, tol())
+            .expect("the S path sweeps")
     }
     let float = duct::<f64>();
     let walls: Vec<FaceKey> = float

@@ -152,7 +152,7 @@ crates/sweep/src/blend/reach.rs	2	constant	band.escalate()	the band's escalation
 crates/sweep/src/loft.rs	2	fixture	<fn>	f64_body_held_as_points: the fixture body whose carriers hold f64 values as points (walls and section parameters), behind test-support; no production caller
 crates/sweep/src/loft/stacking.rs	1	constant	count.max(1) as f64	a count
 crates/sweep/src/skin.rs	1	constant	*share	section_parameters: a path sweep's station share i/(stations − 1), structure, the same v at every scalar
-crates/sweep/src/skin.rs	2	constant	<fn>	a path sweep's path (control net, knots, weights): f64 data, a constant of the model, entering each lane its stations are minted at; and each station's roll reference, selected at f64 from that path alone (PathCarry::of), so a constant of the model as the path is
+crates/sweep/src/skin.rs	3	constant	<fn>	a path sweep's path (control net, knots, weights): f64 data, a constant of the model, entering each lane its stations are minted at; and each station's roll reference, selected at f64 from that path alone (PathCarry::of), so a constant of the model as the path is; and stated_knots: the averaged v knots of a path sweep's station shares, a function of the station count alone
 crates/sweep/src/skin.rs	1	constant	at	a path station's parameter, its uniform share of the path's domain selected at f64: the point the carry samples
 crates/sweep/src/skin.rs	1	constant	counted as f64	a row count
 crates/sweep/src/skin.rs	1	constant	geom_brep::sub_arc_joint(k + 1, m)	a sub-arc end k/m as a fraction of the sweep, structure

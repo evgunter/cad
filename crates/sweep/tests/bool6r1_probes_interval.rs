@@ -40,9 +40,9 @@ fn stacked(zs: &[f64]) -> Vec<SketchPlane<f64>> {
 /// **The band edges at the certified scalar.** Below ε the interior
 /// slab is the loft's sliver; in the band it escalates carrying slab
 /// 1; above `K·ε` it passes the door (and the loft then refuses at the
-/// carrier's door, which holds no enclosure knot yet). Each row is checked against `decide` on
-/// the step itself rather than against a written-out verdict, so the
-/// row tracks whatever ε the run commits.
+/// carrier's door, which holds no enclosure knot yet). Each row is
+/// checked against `decide` on the step itself rather than against a
+/// written-out verdict, so the row tracks whatever ε the run commits.
 #[test]
 fn an_interior_slab_at_the_band_edges_decides_the_same_at_interval() {
     let tol = Tol::witness();
