@@ -760,6 +760,25 @@ fn certifier() -> Result<Box<dyn crate::evalseam::CertifyService>, StartupError>
     }
 }
 
+/// The range seam: a `range?` run, stepped on its own worker.
+///
+/// # Errors
+///
+/// [`StartupError::Worker`] if the OS refuses the thread; the wasm arm
+/// is infallible. Every `range?` would otherwise read proving forever.
+fn ranger() -> Result<Box<dyn crate::evalseam::RangeService>, StartupError> {
+    #[cfg(not(target_family = "wasm"))]
+    {
+        Ok(Box::new(
+            crate::evalseam::ThreadRanger::spawn().map_err(StartupError::Worker)?,
+        ))
+    }
+    #[cfg(target_family = "wasm")]
+    {
+        Ok(Box::new(crate::evalseam::InlineRanger::new()))
+    }
+}
+
 /// **What the viewer owes the document under the session when its
 /// first scene lands, and what the budget said about it.**
 ///
@@ -981,7 +1000,8 @@ impl ViewerApp {
 
         let mut session = DocSession::new(document, tol, evaluator()?)
             .with_door(prover()?)
-            .with_certifier(certifier()?);
+            .with_certifier(certifier()?)
+            .with_ranger(ranger()?);
         session.set_notation(notation);
 
         Ok(Self {
@@ -2199,11 +2219,12 @@ impl ViewerApp {
                 }
                 None => {}
             }
-            // The door's answer and the certified clearances are
-            // background results too; they change the Checks window,
-            // its badge and the tree's rows, not the picture, so a
-            // slower wake than a spinner's is enough.
-            if self.session.proving() || self.session.certifying() {
+            // The door's answer, the certified clearances and a
+            // `range?` run's answer are background results too; they
+            // change the Checks window, its badge, the tree's rows and
+            // the properties pane, not the picture, so a slower wake
+            // than a spinner's is enough.
+            if self.session.proving() || self.session.certifying() || self.session.ranging() {
                 ui.ctx()
                     .request_repaint_after(std::time::Duration::from_millis(250));
             }
@@ -11388,7 +11409,7 @@ mod properties_pane_tests {
         use pncad::profile::{Step, Target};
 
         use super::{Driven, startup_node};
-        use crate::session::{BoundsTarget, Selection, SessionOp};
+        use crate::session::{RangeTarget, Selection, SessionOp};
 
         /// The startup plate's profile.
         fn profile() -> RecipeNodeId {
@@ -11973,14 +11994,14 @@ mod properties_pane_tests {
             );
         }
 
-        /// **A unit change and a range probe made at the editor's field
+        /// **A unit change and a `range?` made at the editor's field
         /// are the slot row's own operations.** The anchor's x is
         /// re-noted in millimetres first, so its point's one picker
         /// reads `mixed`; picking centimetres there writes both
         /// coordinates (`SetSlotUnit`), and the row's x range button
-        /// asks the probe for that slot (`ProbeBounds`).
+        /// starts a run for that slot (`ProveRange`).
         #[test]
-        fn a_unit_change_and_a_range_probe_at_the_field_reach_the_slot_ops() {
+        fn a_unit_change_and_a_range_run_at_the_field_reach_the_slot_ops() {
             let x = outline(0, StepArg::PointX);
             let y = outline(0, StepArg::PointY);
             let mut driven = Driven::with(vec![
@@ -12013,13 +12034,13 @@ mod properties_pane_tests {
                 driven
                     .app
                     .session
-                    .bounds()
+                    .range()
                     .map(|reading| reading.target.clone()),
-                Some(BoundsTarget::Slot {
+                Some(RangeTarget::Slot {
                     node: profile(),
                     slot: x,
                 }),
-                "the probe ran for the anchor's x"
+                "the run was started for the anchor's x"
             );
         }
 
@@ -12705,35 +12726,112 @@ mod properties_pane_tests {
             assert!(driven.app.session.committed_doc().bit_eq(&before));
         }
 
-        /// **A range probe over a driven slot is refused; a typed number
-        /// lands after it, and the probe of the literal runs.**
+        /// **The pane's `range?` greys from the session's admission
+        /// door**, at a slot and at a variable. Over a depth a formula
+        /// defines, the button's hover is the kernel's refusal and its
+        /// click starts nothing; after a typed number the same button
+        /// starts a run. A variable whose document does not build greys
+        /// the same way, in the witness's words.
         #[test]
-        fn a_refused_probe_then_a_typed_number_lands_and_probes() {
+        fn the_range_buttons_grey_from_the_admission_door() {
             let mut driven = with_w();
-            type_depth(&mut driven, "w");
-            let target = crate::session::BoundsTarget::Slot {
+            type_depth(&mut driven, "w * 2");
+            let target = crate::session::RangeTarget::Slot {
                 node: extrude(),
                 slot: SlotId::Distance,
             };
-            let probed = driven.app.session.perform(SessionOp::ProbeBounds {
+            let refused = crate::shown(
+                &driven
+                    .app
+                    .session
+                    .range_refusal(&target)
+                    .expect("the admission door refuses a defined slot"),
+            );
+            let gained = driven.gained_hovering("range?");
+            assert!(
+                gained.iter().any(|run| run.contains(&refused)),
+                "the greyed button says the refusal: {gained:?}"
+            );
+            driven.click("range?");
+            driven.settle();
+            assert!(
+                driven.app.session.range().is_none(),
+                "a greyed button starts nothing"
+            );
+            type_depth(&mut driven, "0.02");
+            driven.click("range?");
+            assert_eq!(
+                driven
+                    .app
+                    .session
+                    .range()
+                    .map(|reading| reading.target.clone()),
+                Some(target),
+                "and an admitted one starts a run"
+            );
+
+            let mut driven = with_w();
+            type_depth(&mut driven, "w");
+            let w = driven
+                .app
+                .session
+                .committed_doc()
+                .var_named("w")
+                .expect("w is declared");
+            let set = driven.app.session.perform(SessionOp::SetVariable {
+                var: w,
+                value: crate::props::SlotValue::Continuous(0.0),
+            });
+            assert!(set.refusal.is_none(), "{:?}", set.refusal);
+            driven
+                .app
+                .session
+                .perform(SessionOp::Select(Selection::Variable(w)));
+            driven.settle();
+            let refused = crate::shown(
+                &driven
+                    .app
+                    .session
+                    .range_refusal(&crate::session::RangeTarget::Variable { var: w })
+                    .expect("a document that does not build is refused"),
+            );
+            let gained = driven.gained_hovering("range?");
+            assert!(
+                gained.iter().any(|run| run.contains(&refused)),
+                "the variable's greyed button says the refusal: {gained:?}"
+            );
+            driven.click("range?");
+            assert!(driven.app.session.range().is_none(), "and starts nothing");
+        }
+
+        /// **`range?` over a slot a formula defines is refused in the
+        /// kernel's words; a typed number lands after it, and the run of
+        /// the literal starts.**
+        #[test]
+        fn a_refused_range_then_a_typed_number_lands_and_ranges() {
+            let mut driven = with_w();
+            type_depth(&mut driven, "w * 2");
+            let target = crate::session::RangeTarget::Slot {
+                node: extrude(),
+                slot: SlotId::Distance,
+            };
+            let ranged = driven.app.session.perform(SessionOp::ProveRange {
                 target: target.clone(),
             });
             assert!(
                 matches!(
-                    probed.refusal,
-                    Some(crate::session::Refusal::DrivenByExpression { .. })
+                    ranged.refusal.as_ref(),
+                    Some(crate::session::Refusal::Range(refusal))
+                        if matches!(**refusal, pncad::analysis::RangeRefusal::SlotIsDefined { .. })
                 ),
                 "{:?}",
-                probed.refusal
+                ranged.refusal
             );
             type_depth(&mut driven, "0.02");
             let (row, _, status) = left(&driven);
             assert!(!row.driver.is_driven(), "{status}");
-            let probed = driven
-                .app
-                .session
-                .perform(SessionOp::ProbeBounds { target });
-            assert!(probed.refusal.is_none(), "{:?}", probed.refusal);
+            let ranged = driven.app.session.perform(SessionOp::ProveRange { target });
+            assert!(ranged.refusal.is_none(), "{:?}", ranged.refusal);
         }
 
         /// **A drag over the driven depth's own field, then a number
