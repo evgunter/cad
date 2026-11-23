@@ -1830,8 +1830,8 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     );
     assert_eq!(
         (pv, pe, pf),
-        (12, 20, 12),
-        "the operand's 6/10/6, twice: the cavity is the same boundary offset inward, \
+        (6, 10, 8),
+        "the operand's 3/5/4, twice: the cavity is the same boundary offset inward, \
          inserted whole through the shared void door"
     );
     assert_eq!(
@@ -2587,7 +2587,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
              same operand and the same wall through the same node kind twice, parted \
              only by the open list: EMPTY for the sealed hollow, the mouth disc's \
              name for the cup. Sealed it is {pv} vertices, {pe} edges, \
-             {pf} faces over TWO shells in one solid — the operand's 6/10/6 twice, \
+             {pf} faces over TWO shells in one solid — the operand's 3/5/4 twice, \
              since the cavity is that same boundary offset inward and inserted whole \
              through the shared void door. Genus 0. V = {:.9} m³ of WALL against the \
              difference of two closed-form SPHERICAL ZONES on a foot, and A = {:.9} m² \
