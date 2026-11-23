@@ -4660,8 +4660,8 @@ mod value_field_tests {
         );
         assert_eq!(
             text,
-            Some(format!("{} 4e305 m", props::DRIVEN)),
-            "and says its value in a unit that can name it"
+            Some(format!("{} 4e308 mm", props::DRIVEN)),
+            "and says its value in the working unit"
         );
         assert_eq!(
             seed.as_deref(),

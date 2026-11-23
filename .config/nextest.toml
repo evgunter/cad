@@ -85,6 +85,26 @@ failure-output = "immediate-final"
 # branch (0.47 s and 0.49 s locally, each in its own target; 1.00 s on
 # the hosted runner):
 #    1.00 s  geom-core::all m5_pr7b_tensor_compose::a_bicubic_bicubic_composition_completes_within_the_budget
+# The told number's sweeps over the whole format in every notation, each
+# spelling decided in exact arithmetic, and the unit door's sweep of every
+# fifth binade in every unit (a local run, the box shared with other lanes):
+#  111.86 s  geom-core told::tests::one_told_number_is_never_wider_than_the_stated_bound
+#   36.61 s  geom-core told::tests::display_is_the_rendering_in_metres_and_radians
+#   27.59 s  geom-core told::tests::a_quantity_that_names_the_tolerance_is_told_in_metres
+#   23.65 s  geom-core told::tests::a_given_number_types_back_exactly_in_every_notation
+#   16.74 s  geom-core told::tests::an_offered_bound_typed_back_lies_on_its_side_in_every_notation
+#   12.87 s  quantity tests::every_float_has_a_shortest_decimal_in_every_unit
+#   11.96 s  geom-core told::tests::compared_numbers_read_in_their_true_order_in_every_role
+#    8.55 s  geom-core told::tests::the_grid_is_the_same_length_in_every_unit
+#    7.98 s  geom-core told::tests::an_enclosure_typed_back_contains_its_ends_in_every_notation
+#    4.70 s  geom-core told::tests::a_given_number_reads_back_as_itself_at_every_magnitude
+#    3.21 s  geom-core told::tests::a_round_metre_offer_in_millimetres_reads_its_own_decimal
+#    2.82 s  geom-core told::tests::the_tolerance_caps_a_lengths_grid_and_no_other
+#    2.22 s  geom-core told::tests::a_computed_number_is_on_the_grid_and_never_reads_zero
+#    1.50 s  geom-core told::tests::compared_numbers_read_in_their_true_order_in_every_notation
+# Three solids on one sphere chart, over the 1 s bar on the hosted runner
+# (PR 7291's run 45191136715):
+#    1.09 s  sweep::all shell8_r2_probes::r2_three_solids_on_one_sphere_chart_open_additively
 # The one-slit fillet bands, each built through a public door and meshed
 # at two or three δ (a local run, 4 vCPUs; the revolve refuses at
 # ε = 1e-12, which costs the most):
@@ -313,6 +333,9 @@ failure-output = "immediate-final"
 #    2.12 s  mesh::all d9_mesh_goldens::the_corpus_digests_the_same_bytes_at_one_and_four_threads
 default-filter = """
 not (
+  (binary_id(geom-core) & (test(=told::tests::one_told_number_is_never_wider_than_the_stated_bound) | test(=told::tests::display_is_the_rendering_in_metres_and_radians) | test(=told::tests::a_quantity_that_names_the_tolerance_is_told_in_metres) | test(=told::tests::a_given_number_types_back_exactly_in_every_notation) | test(=told::tests::an_offered_bound_typed_back_lies_on_its_side_in_every_notation) | test(=told::tests::compared_numbers_read_in_their_true_order_in_every_role) | test(=told::tests::the_grid_is_the_same_length_in_every_unit) | test(=told::tests::an_enclosure_typed_back_contains_its_ends_in_every_notation) | test(=told::tests::a_given_number_reads_back_as_itself_at_every_magnitude) | test(=told::tests::a_round_metre_offer_in_millimetres_reads_its_own_decimal) | test(=told::tests::the_tolerance_caps_a_lengths_grid_and_no_other) | test(=told::tests::a_computed_number_is_on_the_grid_and_never_reads_zero) | test(=told::tests::compared_numbers_read_in_their_true_order_in_every_notation))) |
+  (binary_id(quantity) & test(=tests::every_float_has_a_shortest_decimal_in_every_unit)) |
+  (binary_id(sweep::all) & test(=shell8_r2_probes::r2_three_solids_on_one_sphere_chart_open_additively)) |
   (binary_id(mesh::all) & (test(=d9_mesh_goldens::every_corpus_body_meshes_to_its_committed_digest) | test(=d9_mesh_goldens::the_corpus_digests_the_same_bytes_at_one_and_four_threads))) |
   (binary_id(mesh) & (test(=trimmed::collapsed_rows::every_collapsed_side_the_loft_builds_meshes_at_a_fine_chordal) | test(=trimmed::collapsed_rows::a_collapsed_side_is_walked_as_its_unpinned_twins_strut_is_chorded) | test(=trimmed::collapsed_rows::a_lune_walks_both_its_collapsed_sides) | test(=trimmed::collapsed_rows::the_wall_pinned_through_three_sections_meshes_only_with_its_side_walked) | test(=trimmed::collapsed_rows::a_vertex_in_a_sides_band_is_on_it_and_meshes_as_the_vertex_on_its_point) | test(=trimmed::collapsed_rows::the_class_meshes_to_one_digest_at_every_eps))) |
   (binary_id(editor-core::all) & (test(=a_check_carries_the_assertion_that_quiets_it::every_offered_assertion_across_the_corpus_quiets_its_row_part_0) | test(=a_check_carries_the_assertion_that_quiets_it::every_offered_assertion_across_the_corpus_quiets_its_row_part_1) | test(=a_check_carries_the_assertion_that_quiets_it::every_offered_assertion_across_the_corpus_quiets_its_row_part_2) | test(=a_check_carries_the_assertion_that_quiets_it::every_offered_assertion_across_the_corpus_quiets_its_row_part_3) | test(=a_check_carries_the_assertion_that_quiets_it::the_laws_rosters_name_corpus_documents) | test(=a_check_carries_the_assertion_that_quiets_it::a_row_between_two_members_carries_no_assertion) | test(=a_check_carries_the_assertion_that_quiets_it::a_family_members_row_carries_the_assertion_that_reaches_its_index) | test(=a_check_carries_the_assertion_that_quiets_it::two_families_on_one_index_carry_the_assertion_over_both) | test(=a_check_carries_the_assertion_that_quiets_it::a_partly_resting_family_carries_no_assertion) | test(=atrest_operation_rows_quiet::a_splits_unnamed_tool_is_named_by_a_free_name) | test(=intent_s5_c_quietable::an_overlap_a_familys_copy_bounds_carries_the_familys_gap) | test(=atrest_operation_rows_quiet::a_split_by_a_repeated_tool_carries_its_claim) | test(=a_check_carries_the_assertion_that_quiets_it::the_law_holds_over_steps_stacks_and_unrelated_indices))) |
