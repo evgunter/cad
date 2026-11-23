@@ -50,3 +50,10 @@ mesh refuses `DomainUnread`. On the base the result carried the cut (two
 faces of one record) and meshed. The merge's own outline reading meets
 the same limit on an annulus (`merge_faces` `curved_outline_ring`, which
 settles it by striking out the slot the reader refuses decidedly).
+
+The same input on `origin/main` (`43295779ee`, two π-bands): it builds
+and meshes, both member orders, but not maximal: 10 faces, 2 edges
+dividing two faces of one record, the merge skipping one pair as
+`PeriodClosure` (`carve ∪ slab`: `[2v3, 7v1]` on `5v5`). So the row's
+red on the one-band stack is a regression against main's green, a green
+that rested on a non-maximal body.

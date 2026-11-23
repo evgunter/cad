@@ -451,6 +451,12 @@ fn two_trimmed_spheres_build() {
 /// The distances are band-relative (at `ε = 10⁻⁶` the `10⁻⁵` circle's
 /// crossings read the meridian's half in the escalation gap), so the
 /// other ε rows stand down.
+///
+/// At every `δ` the op `b ∪ a` refuses ([`cut_survives`]): the merge
+/// cannot glue the trimmed face's cut back into one face, since it reads
+/// the cut's short piece into the pole as a period closure, so the op
+/// names the face rather than answer one that is not maximal
+/// (`work/lathe/a-cut-in-beside-a-pole-sliver-keeps-period-closure-so-the-op-refuses.md`).
 #[test]
 fn a_trimmed_face_cut_beside_its_pole_builds() {
     if Tol::witness().get().eps != 1e-9 {
@@ -481,14 +487,32 @@ fn a_trimmed_face_cut_beside_its_pole_builds() {
                 lens(1.0, r, 1.0),
             ),
             if delta > 1e-4 {
-                [Draws; 6]
+                [Draws, Refuses(cut_survives), Draws, Draws, Draws, Draws]
             } else if delta > 1e-6 {
-                [Folds, Folds, Folds, Draws, Draws, Draws]
+                [Folds, Refuses(cut_survives), Folds, Draws, Draws, Draws]
             } else {
-                [Budget; 6]
+                [
+                    Budget,
+                    Refuses(cut_survives),
+                    Budget,
+                    Budget,
+                    Budget,
+                    Budget,
+                ]
             },
         );
     }
+}
+
+/// The refusal of a sphere cut-in whose meridian survives the output
+/// merge: the cut face named as the no-crossings path's extent fallback,
+/// on operand `B` (the trimmed face, in `b ∪ a`).
+fn cut_survives(e: &BooleanError) -> bool {
+    matches!(
+        e,
+        BooleanError::FallbackExtentUnsupported { operand: topo::Operand::B, what, .. }
+            if what.starts_with("the meridian the sphere face was cut in along survives the output merge")
+    )
 }
 
 /// The lens `ball(1, y = 0) ∩ ball(0.8, y = 1.4)` against a small ball
