@@ -254,8 +254,8 @@ fn the_sphere_capped_tube_builds_as_a_seam() {
         );
         assert_eq!(
             c,
-            (5, 8, 5, 1),
-            "{label}: two walls, two sphere faces, the floor disc"
+            (4, 7, 5, 1),
+            "{label}: two walls, one sphere face, the floor disc"
         );
         assert_eq!(records, [0; 6], "{label}: no contact survives a union");
         let rims = tangent_intersections(&body);
@@ -408,19 +408,13 @@ fn the_sphere_capped_tube_builds_with_its_hemisphere_turned() {
 /// by how far its rim vertices sit apart. Inside the zero band it is the
 /// aligned body. Where the rim vertices sit in the sliver band apart,
 /// the glue door reads the shared rim and escalates the seam cover's
-/// order there, in both operand orders. From there to about
-/// `√(70·ε·R)` apart, the tube's seam ruling, whose top
-/// end lies on the hemisphere's rim just outside one sphere face, keeps
-/// the covered line rung's door against that face
-/// (`a-covered-line-ending-just-off-the-face-keeps-the-door`): the
-/// face's reach clears the ruling by `R·(1 − cos θ)`, which is inside
-/// the sweep's pad. Further apart the reach clears the pair, and it
-/// builds.
+/// order there, in both operand orders. Further apart it builds: the
+/// hemisphere is one sphere face, so the tube's seam ruling ends on that
+/// face's own rim rather than just outside a half-face beside it.
 #[test]
 fn the_sphere_capped_tube_turned_within_a_hair_of_aligned() {
     enum Expect {
         Builds((usize, usize, usize, usize)),
-        RulingDoor,
         /// The glue door's rim routing escalates.
         RimDoor,
     }
@@ -434,14 +428,14 @@ fn the_sphere_capped_tube_turned_within_a_hair_of_aligned() {
     // `apart² / 2R`, against the sweep's pad `escalate + 2·zero` on each
     // side.
     for (apart, expect) in [
-        (0.01 * zero, Expect::Builds((5, 8, 5, 1))),
+        (0.01 * zero, Expect::Builds((4, 7, 5, 1))),
         (2.0 * (zero * escalate).sqrt(), Expect::RimDoor),
-        (5.0 * escalate, Expect::RulingDoor),
-        ((R * escalate).sqrt(), Expect::RulingDoor),
-        (-(R * escalate).sqrt(), Expect::RulingDoor),
+        (5.0 * escalate, Expect::Builds((4, 8, 6, 1))),
+        ((R * escalate).sqrt(), Expect::Builds((4, 8, 6, 1))),
+        (-(R * escalate).sqrt(), Expect::Builds((4, 8, 6, 1))),
         (
             (2000.0 * R * escalate).sqrt(),
-            Expect::Builds((5, 10, 7, 1)),
+            Expect::Builds((4, 8, 6, 1)),
         ),
     ] {
         let deg = (apart / R).to_degrees();
@@ -469,16 +463,6 @@ fn the_sphere_capped_tube_turned_within_a_hair_of_aligned() {
                         diag.predicate,
                         Some("seam_cover_order"),
                         "{label}: the seam cover's order: {r:?}"
-                    );
-                }
-                Expect::RulingDoor => {
-                    let Err(BooleanError::CurvedPierceUnsupported { operand, edge, .. }) = r else {
-                        panic!("{label}: the covered line rung's door: {r:?}");
-                    };
-                    assert_eq!(operand, tube_is, "{label}: an edge of the tube");
-                    assert!(
-                        matches!(carrier_of(&tube, edge), geom::Curve3::Line(_)),
-                        "{label}: the tube's seam ruling"
                     );
                 }
             }
@@ -512,7 +496,11 @@ fn the_sphere_capped_tube_is_its_seam() {
     let (cap_t, cap_h) = (planes_at_z(&tube, H), planes_at_z(&hemi, H));
     assert_eq!((cap_t.len(), cap_h.len()), (1, 1), "one cap disc each");
 
-    assert_eq!((cyl.len(), sph.len()), (2, 2), "two wall faces each");
+    assert_eq!(
+        (cyl.len(), sph.len()),
+        (2, 1),
+        "the tube's two wall faces, the hemisphere's one"
+    );
     seam_builds("hemisphere", &tube, &hemi);
 }
 
@@ -547,9 +535,9 @@ fn a_dome_abutting_on_the_rim_at_a_transverse_corner_builds() {
     // Each rim's two semicircles are one seam each; turned, each runs
     // along two of the other's arcs, splitting at their seam vertices.
     for (label, tube, cap, want_census) in [
-        ("dome", &tube, &dome, (5, 8, 5, 1)),
-        ("dome turned", &tube, &turned, (5, 10, 7, 1)),
-        ("revolved tube", &revolved, &dome, (5, 8, 5, 1)),
+        ("dome", &tube, &dome, (4, 7, 5, 1)),
+        ("dome turned", &tube, &turned, (4, 8, 6, 1)),
+        ("revolved tube", &revolved, &dome, (3, 4, 3, 1)),
     ] {
         for (order, r) in unions_both_ways(tube, cap).into_iter().enumerate() {
             let b = match r {
@@ -622,7 +610,7 @@ fn a_lens_of_two_domes_builds() {
         };
         topo::validate_geometric(&b, tol)
             .unwrap_or_else(|e| panic!("order {order}: tier 3: {e:?}"));
-        assert_eq!(census(&b), (4, 6, 4, 1), "order {order}: F, E, V, shells");
+        assert_eq!(census(&b), (2, 3, 3, 1), "order {order}: F, E, V, shells");
         assert!(
             (volume(&b) - want).abs() <= 1e-12 * want,
             "order {order}: the two domes: {} vs {want}",
@@ -645,7 +633,7 @@ fn a_lens_of_two_domes_builds() {
             let (v, c, k) = built(&label, r);
             assert_eq!(k, [0; 6], "{label}: no contact records");
             // Each dome's two rim vertices and pole: minimal.
-            assert_eq!(c, (4, 8, 6, 1), "{label}: F, E, V, shells");
+            assert_eq!(c, (2, 4, 4, 1), "{label}: F, E, V, shells");
             assert!(
                 (v - want).abs() <= 1e-12 * want,
                 "{label}: the two domes: {v} vs {want}"
@@ -769,7 +757,7 @@ fn a_rim_offset_inside_the_zero_band_answers_alike_in_both_member_orders() {
                 };
                 topo::validate_geometric(&b, tol)
                     .unwrap_or_else(|e| panic!("{label}: tier 3: {e:?}"));
-                assert_eq!(census(&b), (5, 8, 5, 1), "{label}: F, E, V, shells");
+                assert_eq!(census(&b), (4, 7, 5, 1), "{label}: F, E, V, shells");
                 let kept = [tube_rim, dome_rim][order];
                 assert_eq!(
                     rim_radius(&b),
@@ -872,7 +860,7 @@ fn a_cap_abutting_on_the_rim_glues_a_seam_or_a_continuation_undeclared() {
             (v - want).abs() <= 1e-12 * want,
             "frustum, order {order}: the tube and the frustum: {v} vs {want}"
         );
-        assert_eq!(c, (6, 10, 6, 1), "frustum, order {order}: F, E, V, shells");
+        assert_eq!(c, (5, 8, 5, 1), "frustum, order {order}: F, E, V, shells");
         assert_eq!(k, [0; 6], "frustum, order {order}: no contact records");
     }
 }
@@ -1362,7 +1350,7 @@ fn a_dome_sunk_into_the_tube_builds_undeclared() {
                 (v - want).abs() <= 1e-12 * want,
                 "{label}: the tube and the cap above it: {v} vs {want}"
             );
-            assert_eq!(c, (6, 10, 7, 1), "{label}: F, E, V, shells");
+            assert_eq!(c, (5, 8, 6, 1), "{label}: F, E, V, shells");
         }
     }
 }
@@ -1547,35 +1535,35 @@ fn a_tube_through_the_domes_base_builds_every_op_undeclared() {
             "t ∪ d",
             topo::union(&tall, &dome, tol),
             tube + above,
-            (6, 10, 7, 1),
+            (5, 8, 6, 1),
             [0; 6],
         ),
         (
             "d ∪ t",
             topo::union(&dome, &tall, tol),
             tube + above,
-            (6, 10, 7, 1),
+            (5, 8, 6, 1),
             [0; 6],
         ),
         (
             "d ∖ t",
             topo::subtract(&dome, &tall, tol),
             above,
-            (3, 4, 3, 1),
+            (2, 2, 2, 1),
             [0; 6],
         ),
         (
             "t ∩ d",
             topo::intersect(&tall, &dome, tol),
             inside,
-            (4, 6, 4, 1),
+            (3, 3, 2, 1),
             [0; 6],
         ),
         (
             "d ∩ t",
             topo::intersect(&dome, &tall, tol),
             inside,
-            (4, 6, 4, 1),
+            (3, 3, 2, 1),
             [0; 6],
         ),
     ] {
@@ -1630,11 +1618,11 @@ fn a_g1_joint_authored_inside_one_profile_is_the_seams_union() {
     .volume;
     let want = tube_and_half_ball_volume();
     assert!((v - want).abs() <= 1e-12 * want, "{v} vs {want}");
-    assert_eq!(census(&capsule), (5, 8, 5, 1), "the seam union's census");
+    assert_eq!(census(&capsule), (3, 4, 3, 1), "the seam union's census");
     assert_eq!(
         tangent_intersections(&capsule).len(),
-        2,
-        "the authored joint, minted as two semicircles"
+        1,
+        "the authored joint, minted as one circle"
     );
 }
 
