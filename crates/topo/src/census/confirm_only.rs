@@ -330,3 +330,36 @@ fn reading(finding: &ValidationError) -> Reading {
         | ValidationError::NullFaceAtRest { .. } => Reading::NotConfirmed,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{Reading, reading};
+    use crate::contact::{ContactReach, ContactRefusal};
+    use crate::validate::{CensusSubject, CensusUnsupportedCause, ValidationError};
+
+    fn declined(reach: ContactReach) -> ValidationError {
+        ValidationError::CensusUnsupported {
+            subject: CensusSubject::Entity(crate::EntityId::Face(crate::FaceKey::default())),
+            cause: CensusUnsupportedCause::ContactLane(ContactRefusal::NotCertifiable {
+                what: "a cause",
+                reach,
+            }),
+        }
+    }
+
+    /// A lane's refusal is "no lane" only where the site that raised it
+    /// says nothing was read. A reading that ran and did not decide
+    /// refuses: held, it would be a record the census looked at and
+    /// could not confirm.
+    #[test]
+    fn only_a_cause_that_read_nothing_is_no_lane() {
+        assert!(matches!(
+            reading(&declined(ContactReach::NoLane)),
+            Reading::NoLane
+        ));
+        assert!(matches!(
+            reading(&declined(ContactReach::Unread)),
+            Reading::NotConfirmed
+        ));
+    }
+}

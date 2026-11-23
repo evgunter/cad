@@ -76,10 +76,24 @@ pub(super) fn assembled<T: geom_core::Decide + AtRestPolicy>(
     let held = records
         .records(&body, 0)
         .map_err(|_| BooleanError::JoinDesync { what: UNREAD })?;
+    let handed = held.len();
     let body = T::finish(crate::Built::of(body).recording(held), tol)
         .map_err(|findings| BooleanError::ResultInvalid { findings })?;
+    // The material's records leave here twice: on the finished body,
+    // and as `records` beside it, which is what the cut reads
+    // (`work/onecopy/a-fold-and-a-scene-keep-a-working-copy-of-records-beside-the-body.md`).
+    // The two are one list, so a body that holds another count is a
+    // carry that dropped or doubled a record.
+    if crate::FinishedBody::records(&body).len() != handed {
+        return Err(BooleanError::JoinDesync { what: UNHELD });
+    }
     Ok((body, records, through))
 }
+
+/// A material whose finished body does not hold the records read back
+/// beside it, for [`BooleanError::JoinDesync`].
+const UNHELD: &str = "a cut's material finished holding other records than the ones read back to \
+                      its tool";
 
 /// What a fold refused to read back, for [`BooleanError::JoinDesync`].
 const UNREAD: &str = "a cell or record of a cut's material reads back to no cell or record of its \
