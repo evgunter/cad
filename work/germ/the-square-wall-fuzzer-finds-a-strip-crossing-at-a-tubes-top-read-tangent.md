@@ -66,3 +66,7 @@ mismatches of the same shape, `top` 3.28e-9 and 3.38e-9, read
 `Tangent("section_torus_square_wall_fold_half")`. The fuzzer is red on
 main's nightly too (`work/green/nightly-1115-residue-the-reds-no-lane-holds.md`,
 seed `0x96ec838c8a0d073e` at 1e-12).
+
+**Another seed (2026-11-22, HELDRECORDS' `heldrecords/nesting` lane, whose diff this arm does not read).** `CAD_FUZZ_SEED=0x127a80287c19c581 CAD_FUZZ_EFFORT=1` at the default ε gives 2 mismatches of this class: `R 38.834, r 26.194, (e, z0, rc) (35.239, 30.287, 5.4475)`, tilt 1.2e-14, `Degeneracy { tangent: 1.142, top: 3.74e-9 }`; and `R 0.36623, r 0.32703, (e, z0, rc) (0.39027, 0.26587, 0.065705)`, tilt 8.0e-14, `Degeneracy { tangent: 0.00564, top: 5.69e-10 }`; both `Tangent("section_torus_square_wall_fold_half")`.
+
+**Another seed, red on main (2026-11-23, ONEROUND's `oneround/conic-readers` lane).** `CAD_FUZZ_SEED=0x28ab5920d3c632ea CAD_FUZZ_EFFORT=1` at the default eps gives 1 mismatch on a clean worktree of `origin/main` at `2b9cd8b24`, and the same one on the lane's branch (which changes no formula this arm reads): a strip crossing at a tube circle's top, `R 3.7722725905900796, r 1.0650391083001807, (e, z0, rc) (-4.8298983194402485, 3.5969163843253504, 2.743897725051316)`, tilt 0, `R-tan at Degeneracy { tangent: 0.059752967741008245, top: 4.306466294679012e-10 }: Tangent("section_torus_square_wall_fold_half")`.

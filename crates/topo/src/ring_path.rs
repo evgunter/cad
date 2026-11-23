@@ -918,6 +918,10 @@ impl<T: Decide> LoopArc<T> {
     /// per radian: a conic's minor semi-axis, an oval's tube radius),
     /// which levers an in-span reading, and the side of its plane's two
     /// loops its own lies on. `None` for a ruling or a crest.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn plane(&self) -> Option<SectionArc<T>> {
         match self {
             Self::Conic(c) => Some(SectionArc {
@@ -1028,6 +1032,10 @@ impl<T: Real> LoopSplit<T> {
     ///
     /// `None` for a section with no two loops, or a meridian section
     /// whose first loop is no circle.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     pub(crate) fn plane_torus(
         section: &geom_brep::PlaneTorusSection<T>,
         (centre, axis, major): (Point3<T>, Vec3<T>, T),
@@ -1159,6 +1167,10 @@ impl<T: Decide> Quadric<T> {
     /// radius from the plane's and the torus's stored directions and
     /// radii, never from a difference of far points
     /// (`box_edge_rows::a_torus_circle_the_section_lane_mints_in_the_box_reads_its_kind_at_the_origin`).
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     pub(crate) fn torus_circle_arc(
         &self,
         carrier: &geom::Curve3<T>,
@@ -1180,7 +1192,7 @@ impl<T: Decide> Quadric<T> {
         else {
             return Ok(None);
         };
-        let (k, n) = (circle.frame().origin(), circle.frame().axis());
+        let (k, n) = (circle.frame().origin(), circle.axis());
         let radius = circle.radius();
         let (k, n, radius) = (k, n, radius);
         let arm = geom_brep::circle_curvature_arm(circle);
@@ -1335,6 +1347,10 @@ impl<T: Decide> Quadric<T> {
 ///   carrier displacement that moves the root past the end: near a graze
 ///   a root moves by the displacement over the slope, so a span end a
 ///   decided arc length away can still be inside its reach.)
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(crate) fn path_parity<T: Decide>(
     path: &Path<T>,
     arcs: &[LoopArc<T>],
@@ -1536,7 +1552,7 @@ pub(crate) fn path_parity<T: Decide>(
                         span,
                     },
                 ) => {
-                    let across = p.circle.frame().axis().dot(dir.get());
+                    let across = p.circle.axis().dot(dir.get());
                     if decide_m(
                         "split_ring_path_line_across",
                         Margin::levered(across, geom_brep::circle_curvature_arm(&p.circle)),
@@ -1547,12 +1563,7 @@ pub(crate) fn path_parity<T: Decide>(
                     if arrival {
                         return Ok(Some(flip));
                     }
-                    let s = p
-                        .circle
-                        .frame()
-                        .axis()
-                        .dot(p.circle.frame().origin() - origin)
-                        / across;
+                    let s = p.circle.axis().dot(p.circle.frame().origin() - origin) / across;
                     let t = p.param(origin + dir.get() * s);
                     // The plane moved by δ moves the root by δ over the
                     // slope the ruling crosses it at, `|m̂·d̂|`.
@@ -1737,8 +1748,9 @@ pub(crate) fn path_parity<T: Decide>(
 /// on it ([`SplineArc`]):
 /// every meeting it finds lies inside both spans and is a crossing, the
 /// sine between the two curves' directions there decided past the band
-/// (**`split_ring_path_spline_across`**, levered at the piece's length,
-/// an iso curve's chord, and charged `slack`). The arrival on the closing
+/// (**`split_ring_path_spline_across`**, levered at the piece's reach
+/// from the meeting, from below, whatever the piece's kind, and charged
+/// `slack`). The arrival on the closing
 /// chord, at the end of the path's last piece, is no crossing before it
 /// (`arrival`). `None`
 /// where the path says nothing: a meeting at either span's end (the
@@ -1754,19 +1766,19 @@ fn spline_crossings<T: Decide>(
     band: Band,
 ) -> Result<Option<usize>, Indeterminate> {
     use geom_brep::curve_pair::{Hit, Span, SpanEnd, meet};
-    // The piece's carrier and span, the arm its crossings are levered
-    // at, its length where that is the arm's (an iso curve's is bounded
+    // The piece's carrier and span, its length (the no-length reading
     // below), and the span end it stops at.
-    let (curve, params, length, extent, stop) = match piece {
+    let (curve, params, extent, stop) = match piece {
         &(Piece::Arc(p) | Piece::Meridian(p)) => {
-            // Unsourced lever: the arc's length, its angular span times its radius, longer
-            // than the arc's extent, which `edge_extent_inf` reads as its chord or fold.
-            let length = Lever::unsourced(p.circle.radius() * (p.span.1 - p.span.0));
+            // A piece of no length is a Zero, read at the arc's diameter
+            // from above.
+            let arc = geom::Curve3::Circle(p.circle);
+            let (t0, t1) = p.span;
+            let extent = geom_brep::edge_extent_sup(&arc, t0, t1);
             (
-                geom::Curve3::Circle(p.circle),
+                arc,
                 p.span,
-                length,
-                Margin::of(charge(length.length(), slack)),
+                Margin::of(charge(extent.length(), slack)),
                 SpanEnd::Stop,
             )
         }
@@ -1776,7 +1788,6 @@ fn spline_crossings<T: Decide>(
             (
                 geom::Curve3::Line(chord),
                 (T::zero(), chord_length),
-                length,
                 Margin::of(charge(length.length(), slack)),
                 SpanEnd::Stop,
             )
@@ -1784,7 +1795,6 @@ fn spline_crossings<T: Decide>(
         Piece::Iso(p) => (
             p.carrier(),
             p.span,
-            p.travel().0,
             // No longer than its span at the curve's greatest speed: a
             // chord says nothing of the length of a curve that turns.
             Margin::metered_sup(p.span.1 - p.span.0, p.curve.speed_upper_bound()),
@@ -1820,6 +1830,19 @@ fn spline_crossings<T: Decide>(
         };
         let (dp, da) = (curve.deriv(tp), carrier.deriv(ta));
         let sine = dp.cross(da).norm() / (dp.norm() * da.norm());
+        // A crossing is a definite sign read at the meeting: its lever is
+        // the piece's reach from there, from below (a piece met at its
+        // middle reaches half its chord). No row holds the arc's: no pose
+        // tried reaches this reading against a circle piece with a lever
+        // that decides apart (`crossing_reach_rows`' module doc).
+        let (t0, t1) = params;
+        let length = crate::cover::piece_reach_bounds(
+            &curve,
+            params,
+            (curve.eval(t0), curve.eval(t1)),
+            curve.eval(tp),
+        )
+        .below();
         if decide(
             "split_ring_path_spline_across",
             Margin::levered(charge(sine, slack / length.length()), length),
@@ -1859,6 +1882,10 @@ impl<T: Decide> ConicArc<T> {
     /// floor under each of its points: `ring_path::arc_floor_rows`), less
     /// `|a − b|`, which bounds how far a conic point lies from the
     /// circle's at the same parameter.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     pub(crate) fn distance_floor(&self, x: Point3<T>) -> T {
         let k = self.conic();
         let (f, (a, b)) = (k.frame(), k.semi_axes());
@@ -1955,6 +1982,10 @@ fn resolution<T: Real>(points: &[Point3<T>]) -> T {
 /// arc's own
 /// resolution over its span ([`geom_brep::carrier_resolution`]), the
 /// rounding its stored semi-axes and far centre amplify.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn path_resolution<T: Decide>(path: &Path<T>, arcs: &[LoopArc<T>]) -> T {
     let mut points = Vec::with_capacity(3 * path.pieces.len() + arcs.len());
     for piece in &path.pieces {
@@ -2034,6 +2065,10 @@ fn segment_misses<T: Decide>(
 ///
 /// `Ok(false)` where neither is decided. The apart and in-span readings
 /// are charged `slack` ([`charge`]).
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn misses_in_plane<T: Decide>(
     p: &CircleArc<T>,
     arc: &ConicArc<T>,
@@ -2095,6 +2130,10 @@ fn misses_in_plane<T: Decide>(
 /// triangle inequality, so the reading holds whatever the two planes:
 /// [`misses_in_plane`]'s first arm, and [`path_parity`]'s answer past a
 /// plane meeting [`plane_roots`] reads in band.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn coplanar_apart<T: Decide>(
     p: &CircleArc<T>,
     arc: &ConicArc<T>,
@@ -2178,10 +2217,7 @@ fn plane_roots<T: Decide>(
     // A carrier moved by δ moves the root by δ over the slope the piece
     // crosses the plane at, `|n̂·τ̂|`: each in-span reading of the other
     // arc is levered by it.
-    let (ca, cb) = (
-        n.dot(p.circle.frame().u_ref()),
-        n.dot(p.circle.frame().v_ref()),
-    );
+    let (ca, cb) = (n.dot(p.circle.u_ref()), n.dot(p.circle.v_ref()));
     Ok(PlaneMeet::Meets(
         at.into_iter()
             .map(|m| {
@@ -2328,6 +2364,10 @@ mod spline_wall_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod span_turn_rows;
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod crossing_reach_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

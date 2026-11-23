@@ -450,10 +450,9 @@ mod tests {
     ///
     /// The unit: the same distance reads in metres and millimetres, and
     /// an angle in degrees and half turns, as the unit table writes
-    /// them. The existence: a camera distance above `f64::MAX * MILLI`
-    /// metres has no millimetre value, and the render says which
-    /// notation could not name it instead of spelling `inf`, while
-    /// metres still name it.
+    /// them. A camera distance above `f64::MAX * MILLI` metres has no
+    /// millimetre float, and the render says it in millimetres all the
+    /// same, never spelling `inf`.
     #[test]
     fn a_camera_reading_reads_in_the_unit_it_is_handed() {
         assert_eq!(camera_reading(0.05, M.def()), "0.05 m");
@@ -467,7 +466,7 @@ mod tests {
             "0.5 pi rad"
         );
         let unnameable = 1.0e306;
-        assert_eq!(camera_reading(unnameable, MM.def()), "1e306 m");
+        assert_eq!(camera_reading(unnameable, MM.def()), "1e309 mm");
         assert_eq!(camera_reading(unnameable, M.def()), "1e306 m");
         assert!(
             !camera_reading(f64::INFINITY, M.def()).contains("inf"),

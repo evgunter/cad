@@ -48,7 +48,7 @@ fn cone_block_union_refusal() -> String {
     let cone = r.in_world(cone, &editor_core::Frame::IDENTITY);
     let block = r.in_world(block, &editor_core::Frame::translation([0.0, 0.0, -0.25]));
     let union = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![cone.into(), block.into()]),
+        members: editor_core::Bodies::spelled(vec![cone.into(), block.into()]),
     });
     let ev = eval::<f64>(&r.doc);
     match ev.nodes.get(&union) {

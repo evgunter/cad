@@ -957,17 +957,25 @@ impl<T: Decide> Round<T> {
 
     /// The angle round the circle between the start and `y`, a point of
     /// the circle, the shorter way, in `[0, π]` ([`between`]).
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn swept(&self, y: Point3<T>) -> T {
         let w = y - self.circle.frame().origin();
-        between(w.normalize(), self.circle.frame().u_ref())
+        between(w.normalize(), self.circle.u_ref())
     }
 
     /// The arc length from the start round to `y`, a point of the
     /// circle, in `[0, 2π·radius)`: the shorter way where `y` lies ahead
     /// of the start's diameter, the longer way where it lies behind.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     pub(crate) fn arc(&self, y: Point3<T>) -> T {
         let s = self.swept(y);
-        let ahead = (y - self.circle.frame().origin()).dot(self.circle.frame().v_ref());
+        let ahead = (y - self.circle.frame().origin()).dot(self.circle.v_ref());
         let turn = geom::conic_period::<T>().length();
         self.circle.radius() * (T::zero() - ahead).select_le_zero(s, turn - s)
     }
@@ -993,12 +1001,12 @@ impl<T: Decide> Course<T> for Round<T> {
         Ok(Some(self.arc(y)))
     }
 
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn heading(&self, y: Point3<T>) -> Vec3<T> {
-        let h = self
-            .circle
-            .frame()
-            .axis()
-            .cross(y - self.circle.frame().origin());
+        let h = self.circle.axis().cross(y - self.circle.frame().origin());
         h.normalize()
     }
 

@@ -1183,7 +1183,7 @@ fn a_degenerate_creation_still_mints_the_node_it_labels() {
         SessionOp::AddBoolean {
             spec: BooleanSpec::Subtract {
                 from: block.into(),
-                tool: block.into(),
+                tool: vec![block.into()],
             },
         },
     ];
