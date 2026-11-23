@@ -1366,6 +1366,10 @@ pub(super) struct Connected {
 /// The lockstep joining sweep (module docs). Mutates both annotated
 /// clones in `red` in place; returns the completed polygon pairs in
 /// completion order, with [`NullFacePair::Boolean`] records set.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
     red: &mut BooleanReduction<T>,
     a_pristine: &Body<T>,
@@ -2844,6 +2848,10 @@ fn germ_loops<T: crate::props::AtRestPolicy>(
 /// Section escalations propagate; non-escalation classification
 /// failures at match time are a desync (the germ was minted FROM this
 /// pair's crossing).
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn germ_section_loops<T: crate::props::AtRestPolicy>(
     sections: &super::section_table::SectionTable<T>,
     (a, b): (&Body<T>, &Body<T>),
@@ -4191,6 +4199,10 @@ pub(super) enum PkSection<T: geom_core::Real> {
 ///
 /// The section's refusals ([`section_refusal`]), and a line pair whose
 /// lines are no lines.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(super) fn pk_section<T: Decide>(
     plane: &geom::Surface<T>,
     cone: &geom::Surface<T>,
@@ -4284,6 +4296,10 @@ pub(super) fn pk_section<T: Decide>(
 ///
 /// Levered at the torus face's reach from the reading point
 /// ([`FrameExtent::Reach`]); any other extent is a desync.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn pt_germ_frame<T: Decide>(
     plane: &geom::Surface<T>,
     torus: &geom::Surface<T>,
@@ -7031,11 +7047,8 @@ mod frame_dispatch_tests {
                     let geom::Curve3::Ellipse(conic_k) = *e else {
                         panic!("{deg}°, {name}: the section carried a non-ellipse");
                     };
-                    let (center, axis, u_ref) = (
-                        conic_k.frame().origin(),
-                        conic_k.frame().axis(),
-                        conic_k.frame().u_ref(),
-                    );
+                    let (center, axis, u_ref) =
+                        (conic_k.frame().origin(), conic_k.axis(), conic_k.u_ref());
                     let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
                     // The eccentric anomaly of the pinch point, read
                     // off the ellipse's own frame, then evaluated back:

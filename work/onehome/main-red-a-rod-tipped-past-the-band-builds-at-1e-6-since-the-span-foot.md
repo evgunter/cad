@@ -2,10 +2,12 @@
 id: main-red-a-rod-tipped-past-the-band-builds-at-1e-6-since-the-span-foot
 kind: issue
 title: Main red (ε = 1e-6): a rod tipped past the band over a long wall builds a body since PR 7112, where it took a decided door
-status: review
+status: closed
 opened: 2026-11-22
 priority: P1
 cost: M
+closed: 2026-11-23
+pr: 7612
 ---
 
 
