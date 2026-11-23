@@ -1020,20 +1020,15 @@ impl<T: Real> Surface<T> {
     /// - `Spindle`: `minor_radius`, lower end, likewise; the sheet's
     ///   range `−r < R ≤ r`, `R ≠ 0` relates the two datums and is
     ///   [`spindle_sheet`]'s;
-    /// - **the frame**, for `Cylinder`, `Sphere`, `Torus` and `Spindle`, after the
-    ///   scalar conventions: `axis` and `u_ref` unit and `u_ref ⊥ axis`,
-    ///   each within `band`'s coincidence threshold ε at the kind's
-    ///   radius (`convention::frame_margins`, which says what each frame
-    ///   margin protects — the locus, and on the cylinder's tilt the
-    ///   chart — and how the lever bounds the movement);
-    /// - `Plane`, `Nurbs`, `Approx`: none — a plane's frame moves no
-    ///   locus a datum can lever (a non-unit `normal` or `u_ref` spans
-    ///   the same plane, and a `u_ref` off `⊥ normal` tilts the chart
-    ///   by an amount that grows with distance from `origin`, which no
-    ///   datum bounds), and a spline's datum is its net
-    ///   ([`NurbsSurface::net_state`]). The `Cone`'s frame is not
-    ///   margined either, for the same reason as the plane's tilt: it
-    ///   moves the half-angle, a deviation that grows along the slant.
+    /// - **no frame margin**, for any kind: a carrier's frame is a
+    ///   [`crate::Frame`], a `RigidMotion`, unit and square by its type
+    ///   (fork 274 decision 1). At an enclosure scalar its entries
+    ///   enclose a rotation (the polar read), so a length or a tilt read
+    ///   off them reads only their width; at `f64` its rounding is
+    ///   charged where it is levered (`Frame::rounding`);
+    /// - `Plane`, `Nurbs`, `Approx`: no scalar margin — a plane stores
+    ///   no scalar datum, and a spline's datum is its net
+    ///   ([`NurbsSurface::net_state`]).
     ///
     /// **This is the one place in code these bounds are computed for
     /// the at-rest check**, and it is not the only place they are
@@ -1051,35 +1046,12 @@ impl<T: Real> Surface<T> {
     /// the crate docs' conventional-and-unchecked rule — and a margin
     /// of a poisoned datum is poison. The variants are destructured
     /// without `..`, so a field a variant gains is a compile error
-    /// here rather than a convention this door silently omits. The
-    /// scalar conventions come first, so a consumer reading the first
-    /// failing margin names a non-positive radius before the frame it
-    /// levers.
-    pub fn representability_margins(&self, band: Band) -> Vec<RepresentabilityMargin<T>> {
-        use crate::convention::{frame_margins, lower};
-        let frame = |axis, u_ref, arm| {
-            frame_margins(
-                axis,
-                u_ref,
-                arm,
-                band,
-                SurfaceDatum::Axis,
-                SurfaceDatum::URef,
-            )
-        };
+    /// here rather than a convention this door silently omits.
+    pub fn representability_margins(&self) -> Vec<RepresentabilityMargin<T>> {
+        use crate::convention::lower;
         match self {
-            Surface::Cylinder {
-                frame: carrier_frame,
-                radius,
-            }
-            | Surface::Sphere {
-                frame: carrier_frame,
-                radius,
-            } => {
-                let (axis, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
-                core::iter::once(lower(SurfaceDatum::Radius, *radius))
-                    .chain(frame(axis, u_ref, *radius))
-                    .collect()
+            Surface::Cylinder { frame: _, radius } | Surface::Sphere { frame: _, radius } => {
+                vec![lower(SurfaceDatum::Radius, *radius)]
             }
             Surface::Cone {
                 frame: _,
@@ -1088,31 +1060,20 @@ impl<T: Real> Surface<T> {
                 lower(SurfaceDatum::HalfAngle, *half_angle),
                 RepresentabilityMargin {
                     datum: SurfaceDatum::HalfAngle,
-                    measure: crate::ConventionMeasure::Value,
                     end: ConventionEnd::Upper,
                     margin: T::pi() * T::from_f64(0.5) - *half_angle,
                 },
             ],
             Surface::Torus {
-                frame: carrier_frame,
-                major_radius,
+                frame: _,
+                major_radius: _,
                 minor_radius,
-            } => {
-                let (axis, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
-                core::iter::once(lower(SurfaceDatum::MinorRadius, *minor_radius))
-                    .chain(frame(axis, u_ref, *major_radius + *minor_radius))
-                    .collect()
             }
-            Surface::Spindle {
-                frame: carrier_frame,
-                major_radius,
+            | Surface::Spindle {
+                frame: _,
+                major_radius: _,
                 minor_radius,
-            } => {
-                let (axis, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
-                core::iter::once(lower(SurfaceDatum::MinorRadius, *minor_radius))
-                    .chain(frame(axis, u_ref, major_radius.abs() + *minor_radius))
-                    .collect()
-            }
+            } => vec![lower(SurfaceDatum::MinorRadius, *minor_radius)],
             Surface::Plane { frame: _ } | Surface::Nurbs(_) | Surface::Approx(_) => Vec::new(),
         }
     }
@@ -1703,7 +1664,7 @@ mod tests {
         };
         let margins = |a: f64| -> Vec<(ConventionEnd, f64)> {
             cone(a)
-                .representability_margins(geom_core::Band::new(1e-9, 1e-8).unwrap())
+                .representability_margins()
                 .into_iter()
                 .map(|m| {
                     assert_eq!(m.datum, SurfaceDatum::HalfAngle);

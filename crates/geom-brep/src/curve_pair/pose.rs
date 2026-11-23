@@ -49,18 +49,19 @@
 //!   spans' ends as evaluated ([`OnOneLine`]), so a coordinate large by
 //!   its parameter is charged as one large by its origin; the offset is a
 //!   local difference, read as it is.
-//!   Only where neither decides does the tilt route: levered
-//!   by the longer span (`curve_pair_pose_tilt`), definite is a crossing;
-//!   read zero over the overlap `s·(L + 2e)`, or zero over the longer
-//!   span, the pair is level where it can meet, and the offset at the
+//!   Only where neither decides does the tilt route, levered at the
+//!   spans' reach from the overlap's middle, the point the offset is read
+//!   at (`curve_pair_pose_tilt`): read zero at the nearer span's reach
+//!   from above, which holds every point a meeting can use, the pair is
+//!   level where it can meet; definite at the farther span's from below
+//!   is a crossing. Level, the offset at the
 //!   overlap's middle (`curve_pair_pose_offset`) decides: zero is level,
 //!   definite refuses [`Unsettled::Meter`], the parallel margin having
 //!   not decided, and in the gap what the offset measures decides
 //!   (`Offset`): a second line's distance escalates, and a line's height
 //!   above a conic's plane, only a lower bound on its distance from the
 //!   conic, is level, read by the arm in the plane with its candidates
-//!   read on both spans. A tilt over the longer span in its band
-//!   escalates.
+//!   read on both spans. A tilt in its band escalates.
 //! - **Two lines.** Crossing, the candidate is the first line's point
 //!   nearest the second. Level, the lines are [`Pose::Coincident`] only
 //!   where each span's two ends lie within the zero band of the other's
@@ -69,7 +70,7 @@
 //!   `Coincident` claims one curve over both spans, not only where they
 //!   can meet. Two lines level at a shallow corner, their overlap one
 //!   point and an end apart past the band, are read as the crossing the
-//!   longer span's tilt decides, and refuse [`Unsettled::Meter`] where it
+//!   farther span's tilt decides, and refuse [`Unsettled::Meter`] where it
 //!   reads zero.
 //! - **A line and a conic.** Crossing, the line crosses the plane once,
 //!   and the candidate is the closest pair polished from there (below).
@@ -961,11 +962,28 @@ fn conic_of<T: Decide>(c: &Curve3<T>) -> Result<&dyn Conic<T>, MeetFault> {
     c.conic().ok_or(MeetFault::Desync)
 }
 
-/// The metres a span runs at most: its parameter run at the carrier's
-/// greatest speed.
-fn reach<T: Decide>(s: &Span<'_, T>) -> T {
-    let (t0, t1) = s.params();
-    Margin::metered_sup((t1 - t0).abs(), s.speeds().1).value()
+/// **How far the pair's two spans reach from `at`**, the point the
+/// router reads its offset at: the farther span's reach from below
+/// ([`crate::edge_reach_bounds`]), the lever of a tilt whose definite
+/// sign is a crossing, and the nearer's from above (its cover's far
+/// distance), which bounds where the two can meet, since a meeting is a
+/// point of both, and levers a tilt whose Zero is level there.
+fn span_reaches<T: Decide>(
+    a: &Span<'_, T>,
+    b: &Span<'_, T>,
+    at: Point3<T>,
+) -> (Lever<T>, Lever<T>) {
+    let read = |s: &Span<'_, T>| {
+        let (t0, t1) = s.params();
+        let cover = s
+            .carrier()
+            .cover_over(geom::cover::ParamWindow::new(t0, t1))
+            .ok();
+        let above = crate::ExtentBall::of_cover_from(cover.as_ref(), at).lever();
+        crate::edge_reach_bounds(s.carrier(), (t0, t1), at, above)
+    };
+    let (ra, rb) = (read(a), read(b));
+    (ra.below().max(rb.below()), ra.above().min(rb.above()))
 }
 
 /// A lower bound on `q`'s distance from the carrier
@@ -1386,7 +1404,7 @@ enum Route {
     Apart,
     /// Definitely apart over every place they can meet.
     Parallel,
-    /// Crossing: the tilt definite over the longer span.
+    /// Crossing: the tilt definite over the farther span's reach.
     Crossing,
     /// Level over where they can meet, the offset there read zero.
     Level,
@@ -1396,29 +1414,38 @@ enum Route {
 /// docs, "The router"): `tilt` the sine of the pair's angle, `rate` the
 /// most metres the offset moves per metre along the first line, `offset`
 /// the second's distance (or the plane's height) at the overlap's middle,
-/// `at` the overlap ([`OnOneLine`], carrying its own rounding) and `lever`
-/// the longer span's metres.
+/// `at` the overlap ([`OnOneLine`], carrying its own rounding), `lever`
+/// the farther span's reach from the overlap's middle from below and
+/// `over` the nearer's from above ([`span_reaches`]).
 ///
 /// The parallel argument runs first: where the offset less its most
 /// variation over the overlap and the escalation either side decides
 /// positive (`curve_pair_pose_parallel`), no point meets, whatever the
 /// tilt reads. Then the gap: where the projections are disjoint and
 /// their gap decides positive (`curve_pair_pose_gap`), no point meets.
-/// Only otherwise does the tilt route: definite over the
-/// longer span, a crossing; zero over the overlap, or over the longer
-/// span, level where the offset reads zero, and [`Unsettled::Meter`]
-/// where it does not, the parallel margin having not decided.
+/// Only otherwise does the tilt route: zero over the nearer span's
+/// reach, level where the offset reads zero, and [`Unsettled::Meter`]
+/// where it does not, the parallel margin having not decided; otherwise
+/// definite over the farther span's reach, a crossing.
+///
+/// A tilt not Zero over `over` is never Zero over `lever`, for two
+/// reasons. The first span is a line for every caller, whose reach is
+/// exact, so `lever` is never shorter than `over`:
+/// `max(r, b) ≥ r ≥ min(r, a)`. And a conic whose cover cannot be read
+/// (non-finite data) makes `over` poison, which reads no Zero; the same
+/// data poisons the samples `lever` is read from below by, so the
+/// crossing read escalates.
 ///
 /// # Errors
 ///
-/// The band's escalation of the tilt over the longer span or of the
+/// The band's escalation of the tilt or of the
 /// offset, and the Meter refusal above.
 fn route<T: Decide>(
     tilt: T,
     rate: T,
     (offset, offset_is): (T, Offset),
     at: OnOneLine<T>,
-    lever: Lever<T>,
+    (lever, over): (Lever<T>, Lever<T>),
     band: Band,
 ) -> Result<Route, MeetFault> {
     let length = at.extent().max(T::zero());
@@ -1431,17 +1458,15 @@ fn route<T: Decide>(
     if decide(row::GAP, Margin::of(at.apart()), band) == Ok(Sign::Positive) {
         return Ok(Route::Apart);
     }
-    let level = decide(
-        row::TILT,
-        // Unsourced lever: the overlap's projected length widened by the
-        // band's escalation either side, a measured length and a
-        // tolerance, not a read of the extent home.
-        Margin::levered(tilt, geom_core::Lever::unsourced(length + e + e)),
-        band,
-    ) == Ok(Sign::Zero)
-        || !definite_as(row::TILT, Margin::levered(tilt, lever), band)?;
-    if !level {
-        return Ok(Route::Crossing);
+    if decide(row::TILT, Margin::levered(tilt, over), band) != Ok(Sign::Zero) {
+        return if definite_as(row::TILT, Margin::levered(tilt, lever), band)? {
+            Ok(Route::Crossing)
+        } else {
+            // Why no input reaches here: the doc's last paragraph.
+            unreachable!(
+                "a tilt not Zero over the nearer span's reach read Zero over the farther's"
+            )
+        };
     }
     let offset = decide(row::OFFSET, Margin::of(offset), band);
     match (offset, offset_is) {
@@ -1528,12 +1553,9 @@ fn line_line<T: Decide>(
             dir: u2,
         },
     );
-    let off = unit2.distance(a0 + u1.get() * at.mid());
-    let lever = reach(a).max(reach(b));
-    // Unsourced lever: the longer span's arc length bounded through its
-    // sup speed (`reach`), a metered span; the extent home's read of the
-    // span (`edge_extent_sup`) has different bits.
-    let arm = geom_core::Lever::unsourced(lever);
+    let mid = a0 + u1.get() * at.mid();
+    let off = unit2.distance(mid);
+    let (arm, over) = span_reaches(a, b, mid);
     let crossing = || {
         let along = (o2 - o1).cross(u2.get()).dot(n) / s.powi(2);
         let point = o1 + u1.get() * along;
@@ -1549,7 +1571,7 @@ fn line_line<T: Decide>(
         s / u1.get().dot(u2.get()).abs(),
         (off, Offset::Distance),
         at,
-        arm,
+        (arm, over),
         band,
     )? {
         Route::Apart => Ok(Pose::Apart),
@@ -1560,7 +1582,7 @@ fn line_line<T: Decide>(
             witnesses: witnesses(a, b, &|q| la.param(q), &|q| lb.param(q)),
         }),
         // Level where they can meet but apart past the band along a span:
-        // a shallow corner, read as the crossing the longer span's tilt
+        // a shallow corner, read as the crossing the farther span's tilt
         // decides.
         Route::Level if definite_as(row::TILT, Margin::levered(s, arm), band)? => Ok(crossing()),
         Route::Level => Err(MeetFault::Unsettled(Unsettled::Meter { row: row::TILT })),
@@ -1568,6 +1590,10 @@ fn line_line<T: Decide>(
 }
 
 /// A line `a` and a conic `b` (module docs).
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn line_conic<T: Decide>(
     a: &Span<'_, T>,
     b: &Span<'_, T>,
@@ -1580,16 +1606,11 @@ fn line_conic<T: Decide>(
     let u = UnitVec3::squared(d.get());
     let unit = geom::Line { origin: o, dir: u };
     let e = T::from_f64(band.escalate());
-    let n = k.frame().axis();
+    let n = k.axis();
     let den = u.get().dot(n);
     // Where they can meet (module docs): the line's span and the conic's
     // extent, both projected on the line.
     let c = (k.frame().origin() - o).dot(u.get());
-    let lever = reach(a).max(k.speed_hi());
-    // Unsourced lever: the line's span metered through its sup speed
-    // (`reach`), folded with the conic's size; the span's part fits no
-    // extent read with the same bits.
-    let arm = geom_core::Lever::unsourced(lever);
     let ends_a = line_ends(a)?;
     // A conic's extent is no second span: its projection is read from the
     // line's origin, charged as the router's screens are. That anchor
@@ -1601,13 +1622,15 @@ fn line_conic<T: Decide>(
         (c - k.speed_hi(), c + k.speed_hi()),
         geom_core::rounding_charge(ends(ends_a)),
     );
-    let height = (o + u.get() * at.mid() - k.frame().origin()).dot(n);
+    let mid = o + u.get() * at.mid();
+    let height = (mid - k.frame().origin()).dot(n);
+    let (arm, over) = span_reaches(a, b, mid);
     match route(
         den,
         den.abs(),
         (height.abs(), Offset::Height),
         at,
-        arm,
+        (arm, over),
         band,
     )? {
         Route::Apart => return Ok(Pose::Apart),
@@ -1877,12 +1900,20 @@ enum Coplanar {
 /// `n`: its first harmonic's constant, cosine and sine parts, in metres.
 /// The plane door's sinusoid is this one
 /// ([`crate::curve_face::plane_crossing`]).
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(crate) fn height<T: Decide>(k: &dyn Conic<T>, on: Point3<T>, n: Vec3<T>) -> (T, T, T) {
     let (cp, sp) = k.along(n);
     (geom::plane_offset(on, n, k.frame().origin()), cp, sp)
 }
 
 /// Two conics, `a` the one parametrized in one plane (module docs).
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn conic_conic<T: Decide>(
     a: &Span<'_, T>,
     b: &Span<'_, T>,
@@ -1893,8 +1924,8 @@ fn conic_conic<T: Decide>(
     let (ka, kb) = (conic_of(a.carrier())?, conic_of(b.carrier())?);
     let ball = |c: &Curve3<T>| crate::ExtentBall::of_covered(c.cover().as_ref().ok());
     let arm = ball(a.carrier()).lever().max(ball(b.carrier()).lever());
-    let ha = height(&ka, kb.frame().origin(), kb.frame().axis());
-    let hb = height(&kb, ka.frame().origin(), ka.frame().axis());
+    let ha = height(&ka, kb.frame().origin(), kb.axis());
+    let hb = height(&kb, ka.frame().origin(), ka.axis());
     let swing = |(_, cp, sp): (T, T, T)| (cp.powi(2) + sp.powi(2)).sqrt();
     let (swing_a, swing_b) = (swing(ha), swing(hb));
     let sides = [(swing_a, ha), (swing_b, hb)];
@@ -1948,7 +1979,7 @@ fn conic_conic<T: Decide>(
         }
         return transverse((a, &ka, &kb, b), ha, swing_a, arm, known, band);
     };
-    let oriented = |k: &dyn Conic<T>| k.frame().axis() * (k.semi_axes().0 * k.semi_axes().1);
+    let oriented = |k: &dyn Conic<T>| k.axis() * (k.semi_axes().0 * k.semi_axes().1);
     if one_curve(&ka, &kb, band)? {
         let (foot_a, foot_b) = (|q| foot(a, q), |q| foot(b, q));
         return Ok(Pose::Coincident {
@@ -2017,6 +2048,10 @@ pub(super) fn one_curve<T: Decide>(
 /// [`geom_core::rounding_charge`]`(m_e + m_f + g)`. A degenerate side (a zero
 /// semi-axis, or `a·b·a′·b′` underflowing) has no way up, and its gap
 /// is NaN: the reading escalates.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(super) fn one_curve_gap<T: Decide>(e: &dyn Conic<T>, f: &dyn Conic<T>) -> T {
     let reach = |k: &dyn Conic<T>| k.speed_hi();
     let gap =
@@ -2156,6 +2191,10 @@ fn constant_as<T: Decide>(
 
 /// Two circles in one plane (module docs): `slant` how far they lie from
 /// one plane.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn coplanar_circles<T: Decide>(
     ka: &dyn Conic<T>,
     kb: &dyn Conic<T>,
@@ -2166,7 +2205,7 @@ fn coplanar_circles<T: Decide>(
 ) -> Result<Pose<T>, MeetFault> {
     let (ra, rb) = (ka.speed_hi(), kb.speed_hi());
     let w = ka.frame().origin() - kb.frame().origin();
-    let w = w - ka.frame().axis() * w.dot(ka.frame().axis());
+    let w = w - ka.axis() * w.dot(ka.axis());
     let d = w.norm();
     if !definite_as(row::CENTRES, Margin::norm3(w), band)? {
         // The one-curve gap is at most `d + |r₁ − r₂|` plus the slant, so
@@ -2186,8 +2225,8 @@ fn coplanar_circles<T: Decide>(
     let (near, far) = ((ra - d).abs(), ra + d);
     let (lo, hi) = (near - rb, far - rb);
     let swing = T::from_f64(4.0) * ra * d;
-    let toward = Azimuth::of(w.dot(ka.frame().v_ref()), w.dot(ka.frame().u_ref()))
-        .principal_as(row::BRANCH, Band::least());
+    let toward =
+        Azimuth::of(w.dot(ka.v_ref()), w.dot(ka.u_ref())).principal_as(row::BRANCH, Band::least());
     let range = Range {
         lo,
         hi,
@@ -2263,6 +2302,10 @@ fn subdivided<T: Decide>(
 /// `|F|·s/(√2 + √3) > |F|·s/4`; past it, increasing in `|F|`, at least
 /// `s/(√2 + √3) > s/4`. So the bound is at least `min(s/4, |F|/(4/s))`
 /// everywhere: the ceiling `4/s`, reaching to `s/4`.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn coplanar_ellipses<T: Decide>(
     e: &Span<'_, T>,
     ka: &dyn Conic<T>,
@@ -2271,7 +2314,7 @@ fn coplanar_ellipses<T: Decide>(
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
     let (big_a, big_b) = kb.semi_axes();
-    let (ub, vb) = (kb.frame().u_ref(), kb.frame().v_ref());
+    let (ub, vb) = (kb.u_ref(), kb.v_ref());
     let level = level_on(ka, kb);
     let small = big_a.abs().min(big_b.abs());
     let large = big_a.abs().max(big_b.abs());
@@ -2334,6 +2377,10 @@ pub(super) struct Level<'k, T: geom_core::Real> {
 impl<T: Decide> Level<'_, T> {
     /// `F` and its first three derivatives at `θ`. On a conic
     /// `P″ = −(P − c)` and `P‴ = −P′`, `c` its centre.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     pub(super) fn jet_at(&self, theta: T) -> [T; 4] {
         let (p, dp) = self.a.jet_at(theta);
         let ddp = self.a.frame().origin() - p;
@@ -2391,13 +2438,14 @@ pub(super) fn up<const N: u32, T: Decide>(x: T) -> T {
 }
 
 /// [`Level`] of `kb` along `ka`.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(super) fn level_on<'k, T: Decide>(ka: &'k dyn Conic<T>, kb: &dyn Conic<T>) -> Level<'k, T> {
     let (big_a, big_b) = kb.semi_axes();
-    let (ub, vb) = (kb.frame().u_ref(), kb.frame().v_ref());
-    let (ua, va) = (
-        ka.frame().u_ref() * ka.semi_axes().0,
-        ka.frame().v_ref() * ka.semi_axes().1,
-    );
+    let (ub, vb) = (kb.u_ref(), kb.v_ref());
+    let (ua, va) = (ka.u_ref() * ka.semi_axes().0, ka.v_ref() * ka.semi_axes().1);
     let w = ka.frame().origin() - kb.frame().origin();
     let squares = (big_a.powi(2), big_b.powi(2));
     let (two, eight) = (T::from_f64(2.0), T::from_f64(8.0));

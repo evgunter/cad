@@ -1348,6 +1348,10 @@ pub(crate) fn trim_window_short<T: Decide>(
 /// torn curve is not null scaffolding. The
 /// links hold at rest and, on the reduction's working copies, by
 /// [`crate::live::OPERATORS_KEEP_LINKS`].
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(crate) fn sphere_chart_trim<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -1403,11 +1407,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
         let geom::Curve3::Circle(conic_k) = *curve.carrier() else {
             return Ok(None);
         };
-        let (c_c, n_c, u_c) = (
-            conic_k.frame().origin(),
-            conic_k.frame().axis(),
-            conic_k.frame().u_ref(),
-        );
+        let (c_c, n_c, u_c) = (conic_k.frame().origin(), conic_k.axis(), conic_k.u_ref());
         let r_c = conic_k.radius();
         let w = c_c - center;
         // A unit-vector cross/dot is a SINE or COSINE (dimensionless)
@@ -2389,19 +2389,28 @@ fn at_hit(e: PointInSolidError) -> RayFault<PointInSolidError> {
 /// [`PointInSolidError::CorruptFace`] for a face with no cover (a
 /// poisoned net, data that is not a finite number), which no reach
 /// bounds.
+///
+/// # Panics
+///
+/// For an empty selection: every caller asks it of one holding a face.
 pub(crate) fn selection_reach<T: Decide>(
     body: &Body<T>,
     faces: &[FaceKey],
     q: Point3<T>,
     band: Band,
 ) -> Result<Lever<T>, PointInSolidError> {
-    faces
-        .iter()
-        .try_fold(geom_brep::ExtentBall::point(q).lever(), |reach, &face| {
-            crate::cover::face_reach_from(body, face, q, band)
-                .map(|far| reach.max(far))
-                .map_err(|_| PointInSolidError::CorruptFace { face })
-        })
+    let mut reach: Option<Lever<T>> = None;
+    for &face in faces {
+        let far = crate::cover::face_reach_from(body, face, q, band)
+            .map_err(|_| PointInSolidError::CorruptFace { face })?;
+        reach = Some(reach.map_or(far, |r| r.max(far)));
+    }
+    Ok(reach.unwrap_or_else(|| {
+        unreachable!(
+            "a selection's reach is asked only of one holding a face: the probe refuses an empty \
+             selection first, and an aimed ray is aimed at one of its faces"
+        )
+    }))
 }
 
 /// The crossing sign implied by a CHART-outward direction on a face
@@ -3046,6 +3055,10 @@ fn crosses_by_turn<T: Decide>(
 /// far the edge is off its ruling or parallel (`bool_wall_turn_true`,
 /// below). The turn is read as a planar face's is ([`turned_inside`]): no
 /// path is walked.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn wall_crosses_by_turn<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -3113,7 +3126,7 @@ fn wall_crosses_by_turn<T: Decide>(
                 .value()
             }
             geom::Curve3::Circle(circle) => {
-                let (center, normal) = (circle.frame().origin(), circle.frame().axis());
+                let (center, normal) = (circle.frame().origin(), circle.axis());
                 let r = circle.radius();
                 r.abs() * normal.normalize().cross(axis.get()).norm()
                     + geom::Line { origin, dir: axis }.distance(center)

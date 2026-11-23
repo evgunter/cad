@@ -800,7 +800,9 @@ fn aimed_ray<T: Decide>(
     )
 }
 /// **How far each solid's aimed rays start from `aim`, over two**
-/// ([`selection_reach`]): the probes read the reach's scale off it.
+/// ([`selection_reach`]): the probes read the reach's scale off it. A
+/// solid with no face aims no ray, and reads as such: the reach is asked
+/// only of a selection holding a face, as every production caller asks.
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) fn beyond_report(
     body: &Body<f64>,
@@ -810,6 +812,9 @@ pub(crate) fn beyond_report(
     body.solids()
         .map(|(solid, _)| {
             let sel = SolidFaces::of(body, solid).map_err(|e| format!("{e:?}"))?;
+            if sel.faces().is_empty() {
+                return Err("a solid with no face aims no ray".to_owned());
+            }
             selection_reach(body, sel.faces(), aim, band)
                 .map(|reach| reach.length())
                 .map_err(|e| format!("{e:?}"))

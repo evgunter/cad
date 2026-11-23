@@ -441,7 +441,7 @@ fn the_world_is_undeletable_and_defines_nothing() {
     let read = fixture::insert_refused(
         &doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![
+            members: editor_core::Bodies::spelled(vec![
                 body.into(),
                 BodyRead::plain(Operand::Node(RecipeNodeId::WORLD)),
             ]),
@@ -781,7 +781,7 @@ fn a_union_of_an_instances_copy_and_a_block_evaluates() {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![
+            members: editor_core::Bodies::spelled(vec![
                 fixture::copy(instance, part_body),
                 other.into(),
             ]),
@@ -924,7 +924,7 @@ fn a_place_of_an_assemble_picks_its_pieces() {
     let (doc, both) = insert(
         doc,
         Node::Assemble {
-            members: editor_core::Bodies::Spelled(vec![first.into(), second.into()]),
+            members: editor_core::Bodies::spelled(vec![first.into(), second.into()]),
         },
     );
     let (doc, place) = insert(doc, crate::fixture::stood(both));
@@ -935,7 +935,7 @@ fn a_place_of_an_assemble_picks_its_pieces() {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![
+            members: editor_core::Bodies::spelled(vec![
                 BodyRead::plain(Operand::pick(Operand::Node(place), vec![second_read])),
                 BodyRead::plain(Operand::pick(Operand::Node(place), vec![first_read])),
             ]),
@@ -951,7 +951,7 @@ fn a_place_of_an_assemble_picks_its_pieces() {
     let (doc, joined) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![first.into(), second.into()]),
+            members: editor_core::Bodies::spelled(vec![first.into(), second.into()]),
         },
     );
     let (doc, through) = insert(doc, crate::fixture::stood(joined));

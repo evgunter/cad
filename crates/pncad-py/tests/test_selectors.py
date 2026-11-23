@@ -259,6 +259,7 @@ def run():
         node = doc.insert(
             Node.linear_pattern(k, source, doc.space(node), [("x", Formula.length_in(2, m))])
         )
+        doc.apply(DocEdit.set_yields(k, [doc.output(node)]))
         source = node[0]
     face = evaluate(doc).all_faces(node)[0]
     try:

@@ -23,6 +23,7 @@
 //! arm RETURNS its error to a shell that will print it, and the browser
 //! arm has to put it somewhere a person holding a phone can see.
 
+#![cfg_attr(not(test), deny(clippy::disallowed_methods))]
 #[cfg(not(target_family = "wasm"))]
 fn main() -> eframe::Result<()> {
     viewer::app::run(

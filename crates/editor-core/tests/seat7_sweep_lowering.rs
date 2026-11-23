@@ -781,7 +781,7 @@ fn one_declared_radius_decides_equal_radii_at_the_germ_as_its_kernel_twin_does()
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
     );
     let ev = eval::<f64>(&doc);

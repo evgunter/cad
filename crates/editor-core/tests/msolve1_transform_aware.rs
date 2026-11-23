@@ -194,14 +194,31 @@ fn row_on(
     count: i64,
     within: Option<VarId>,
 ) -> (ProfileDoc, VarId, RecipeNodeId) {
-    use editor_core::{Coord, Dimension, TargetAxis};
     let name = fixture::fresh_index_name(&doc);
     let (doc, k) = fixture::index_of(doc, &name, Formula::count(count), within);
+    match within {
+        // Under an index within `input`'s own, the row is of `input`'s
+        // members, written inside its binder.
+        Some(_) => {
+            let (doc, row) = fixture::family_of_members(doc, input, slides(dir, spacing, k));
+            (doc, k, row)
+        }
+        None => row_over(doc, input, (dir, spacing), k),
+    }
+}
+
+/// Member `k` slid `(scalar(k) + 1)·spacing` along `dir`.
+fn slides(
+    dir: [f64; 3],
+    spacing: f64,
+    k: VarId,
+) -> Vec<(editor_core::Coord<editor_core::Operand>, Formula)> {
+    use editor_core::{Coord, Dimension, TargetAxis};
     let next = Formula::count_to_scalar(
         Formula::add(Formula::var(k, Dimension::Count), Formula::count(1)).unwrap(),
     )
     .unwrap();
-    let values = [TargetAxis::X, TargetAxis::Y, TargetAxis::Z]
+    [TargetAxis::X, TargetAxis::Y, TargetAxis::Z]
         .into_iter()
         .zip(dir)
         .filter(|&(_, d)| d != 0.0)
@@ -211,8 +228,17 @@ fn row_on(
                 Formula::mul(next.clone(), len(d * spacing)).unwrap(),
             )
         })
-        .collect();
-    let (doc, row) = fixture::family_of(doc, input, values);
+        .collect()
+}
+
+/// [`row_on`] over the index `k` the document already declares.
+fn row_over(
+    doc: ProfileDoc,
+    input: RecipeNodeId,
+    (dir, spacing): ([f64; 3], f64),
+    k: VarId,
+) -> (ProfileDoc, VarId, RecipeNodeId) {
+    let (doc, row) = fixture::family_of(doc, input, slides(dir, spacing, k));
     (doc, k, row)
 }
 
@@ -333,6 +359,21 @@ fn place_moved(
     let at = editor_core::Frame::rotate_then_translate(axis, angle, t, fixture::band())
         .expect("a rotation axis with a direction");
     crate::mate1_member_vocab::against_with(doc, input, input, &at, o)
+}
+
+/// [`place_moved`] for a family `input`, each member moved within its
+/// own space (`{k in xs: place(xs[k])}`).
+fn place_each_moved(
+    doc: ProfileDoc,
+    input: RecipeNodeId,
+    t: [f64; 3],
+    axis: [f64; 3],
+    angle: f64,
+    o: &EvalOptions,
+) -> (ProfileDoc, RecipeNodeId) {
+    let at = editor_core::Frame::rotate_then_translate(axis, angle, t, fixture::band())
+        .expect("a rotation axis with a direction");
+    crate::mate1_member_vocab::each_against_with(doc, input, input, &at, o)
 }
 
 const LIFT: Step = ([0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0);
@@ -1283,9 +1324,12 @@ fn a11_a_placement_between_two_patterns_composes_outer_t_inner() {
     );
     let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
     let (doc, i, inner) = row_on(doc, base, ([1.0, 0.0, 0.0], 5.0), 3, None);
+    // One binder `{i, j}` (D10 `[repetition]`): `j` is declared before
+    // the placement between the patterns reads a member of it.
+    let (doc, j) = fixture::index_of(doc, "j_outer", Formula::count(2), Some(i));
     let spin = std::f64::consts::FRAC_PI_2;
-    let (doc, t) = place_moved(doc, inner, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], spin, &opts);
-    let (doc, j, outer) = row_on(doc, t, ([0.0, 1.0, 0.0], 20.0), 2, Some(i));
+    let (doc, t) = place_each_moved(doc, inner, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], spin, &opts);
+    let (doc, _, outer) = row_over(doc, t, ([0.0, 1.0, 0.0], 20.0), j);
     let nest = |n: StableName| in_member(outer, vec![(i, 1), (j, 1)], n);
     let a = nest(base_part.cap(base, CapEnd::End).name);
     let b = top_part.cap(top, CapEnd::Start);

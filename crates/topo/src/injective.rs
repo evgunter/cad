@@ -31,10 +31,8 @@
 //!   a separator `ψ`, vanishing on the shared cell, takes one strict sign
 //!   on one face's part of the pair and the other strict sign on the
 //!   other's, so a coincidence can only happen on the shared cell, where
-//!   `f` is injective. `ψ` is a face's own analytic carrier (the other
-//!   face departs it to one side), a plane through straight shared edges
-//!   or the plane of a conic one, or the graph of the shared edge under
-//!   a projection.
+//!   `f` is injective. The separators and their order are listed at
+//!   [`departure`].
 //! - **Second order**, at a wedge-0/2π edge, is not built: such an edge
 //!   refuses typed, naming it.
 //!
@@ -92,6 +90,14 @@
 //! ([`Zero::Point`]) reads `ψ` zero there, so its sign may be misread
 //! within that tolerance, over `ψ`'s lean across the partner, of the
 //! vertex: the stored vertex's own tolerance, not a new one.
+//!
+//! The same membership reads a collapsed side ([`Along::at`]) zero under
+//! a plane through the stored vertex: the side's image is the cone's
+//! apex or the sphere's pole, which the vertex is within the band of
+//! ([`SELF_INTERSECTION_APEX`], `vertex_at_singular_point`), so `ψ` is
+//! read zero along a side it may miss by that distance over its lean.
+//! [`departure`]'s plane through the pair's one shared vertex reads it
+//! wherever a face against that vertex is presented by its collapse.
 
 use geom_core::UnitVec3;
 use std::collections::{BTreeMap, BTreeSet};
@@ -124,9 +130,10 @@ pub(crate) const SELF_INTERSECTION_SPAN: &str = "self_intersection_span";
 /// The funnel site of a planar corner's convexity: how far the second
 /// edge's far end stands on the first edge's face side, metres.
 pub(crate) const SELF_INTERSECTION_CORNER: &str = "self_intersection_corner";
-/// The funnel site of a vertex at a collapse of its face's chart, a
-/// cone's apex or a sphere's pole: its distance from that point, metres.
-/// `Zero` is the collapse.
+/// The funnel site of a vertex at a cone's apex, the collapse of its
+/// face's chart: its distance from the apex, metres. `Zero` is the
+/// collapse. A sphere's pole is read by `vertex_at_singular_point`
+/// (`chart_singularity_at_vertex`).
 pub(crate) const SELF_INTERSECTION_APEX: &str = "self_intersection_apex";
 /// The funnel site of a cone face's nappe: a vertex's signed height
 /// along the axis from the apex, metres. Its sign is the nappe.
@@ -261,7 +268,8 @@ pub(crate) struct Rim {
     pub(crate) arc: Option<(Curve3<Interval>, (Interval, Interval))>,
     /// The carrier as the body stores it, where the body's scalar is a
     /// point scalar (`f64`): the claim its lift encloses. Two edges whose
-    /// stored carriers are one conic bit for bit name one exact conic,
+    /// stored carriers are one conic as values, their frames one up to the
+    /// signs of their axes ([`one_stated_plane`]), name one exact conic,
     /// which their lifts, enclosures of it a rounding wide, cannot show
     /// as one value ([`one_conic`]). `None` on a body held as enclosures,
     /// and for null scaffolding.
@@ -881,6 +889,11 @@ impl Side {
         }
     }
 
+    /// Two sides of different axes, the `u` side first.
+    fn by_axis(s: Self, t: Self) -> (Self, Self) {
+        if s.axis() == Axis::U { (s, t) } else { (t, s) }
+    }
+
     /// `+1` where the rectangle lies above the side on its axis.
     fn into(self) -> f64 {
         match self {
@@ -1224,9 +1237,21 @@ impl<'a> Presented<'a> {
 
     /// The image of the corner of two sides.
     fn corner(&self, s: Side, t: Side) -> Point3<Interval> {
-        let (xs, ys) = if s.axis() == Axis::U { (s, t) } else { (t, s) };
+        let (xs, ys) = Side::by_axis(s, t);
         let (x, y) = (self.bound(xs), self.bound(ys));
         self.image((x, x), (y, y))
+    }
+
+    /// The unit axes a [`Zero::Point`]'s corner leaves into the rectangle
+    /// along, read off the rectangle's jet: `Φ_x` and `Φ_y` turned toward
+    /// the sides' far ends. `None` for any other zero.
+    fn corner_axes(&self) -> Option<[Vec3<f64>; 2]> {
+        let Zero::Point(s, t, _) = self.zero else {
+            return None;
+        };
+        let (xs, ys) = Side::by_axis(s, t);
+        let (fx, fy, _) = self.jet();
+        Some([unit(vmid(fx) * xs.into())?, unit(vmid(fy) * ys.into())?])
     }
 
     /// The outward unit normal at the middle of the side on the shared
@@ -2105,6 +2130,31 @@ fn present_chart<'a>(
     }
     // Every clip's side must be the edges' own, run on past its corners,
     // and every corner convex.
+    //
+    // **A cell at a reflex corner is refused here at every depth.** The
+    // face's part of it is the cell less a quadrant, or the whole cell with
+    // the corner on a side, and no one presentation of that part is signed
+    // by a first-order separator holding the shared edge's carrier: it
+    // vanishes on that edge's chart line past the corner, the face's
+    // interior, and the part lies on both sides of the line. Nor by one
+    // through the vertex alone, which cuts the face along a curve one of
+    // whose rays enters the face's 270°. The carrier arm reads the corner
+    // instead, with the face's own carrier against the partner's
+    // presentation, where (i) the face has a carrier implicit
+    // (`implicit_of`), (ii) the partner is presented, and (iii) the
+    // partner lies on one side of the face's whole carrier in the cell.
+    // The code tests (iii) by `sign_on(carrier, None, p, None).is_some()`,
+    // which is sufficient and stricter: a tangent partner on one side is
+    // refused, and a `Zero::Past` side is never read there. Two guards
+    // come before it: the arm is not asked inside one face (`two`), and a
+    // `Vacuous` partner certifies the pair first. Across a shared edge with a transverse partner (iii) holds for a
+    // valid body; at a vertex alone (four or more faces there) a valid
+    // partner may cross the carrier in the quadrant the face lacks. Where
+    // (i) to (iii) fail, the reading is the cell cut at the vertex into
+    // two convex pieces, each certified against the partner with its own
+    // separator: `embed/corner-pieces` for a plane,
+    // `work/embed/a-reflex-corner-of-a-face-with-no-implicit-carrier-has-no-reading.md`
+    // for a face with no implicit.
     if !piece.whole && !sides_are_the_faces(b, &merged, (x, y), |a| periodic(piece.surface, a)) {
         return Err(Unpresented::Local);
     }
@@ -2807,23 +2857,19 @@ impl Curved {
 }
 
 /// A conic carrier as a [`Trig`]: `center + u_ref·a·cos t + v_ref·b·sin t`.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn conic(c: &Curve3<Interval>) -> Option<Trig> {
     let (center, axis, a, b, x) = match *c {
         Curve3::Circle(circle) => {
-            let (center, axis, u_ref) = (
-                circle.frame().origin(),
-                circle.frame().axis(),
-                circle.frame().u_ref(),
-            );
+            let (center, axis, u_ref) = (circle.frame().origin(), circle.axis(), circle.u_ref());
             let radius = circle.radius();
             (center, axis, radius, radius, u_ref)
         }
         Curve3::Ellipse(ellipse) => {
-            let (center, axis, u_ref) = (
-                ellipse.frame().origin(),
-                ellipse.frame().axis(),
-                ellipse.frame().u_ref(),
-            );
+            let (center, axis, u_ref) = (ellipse.frame().origin(), ellipse.axis(), ellipse.u_ref());
             let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             (center, axis, semi_u, semi_v, u_ref)
         }
@@ -3593,11 +3639,16 @@ struct Through {
     conic: bool,
 }
 
-/// **The vertex that is the shared cell alone**: no shared edge, and one
-/// shared vertex.
-fn vertex_alone(no_edges: bool, vertices: &[VertexKey]) -> Option<VertexKey> {
+/// **The pair's one shared vertex**: the shared vertex, where the cells
+/// are near exactly one. Read with no shared edge near, it is the shared
+/// cell alone ([`corner_of`], [`graph_of`]); with shared edges near, the
+/// vertex [`departure`]'s last separator is built through. With two or
+/// more, none is chosen: reading at the first would be as sound (the
+/// argument at that separator's site names no one vertex), but nothing
+/// measured needs it and no row reads it.
+fn one_shared_vertex(vertices: &[VertexKey]) -> Option<VertexKey> {
     match vertices {
-        &[v] if no_edges => Some(v),
+        &[v] => Some(v),
         _ => None,
     }
 }
@@ -3655,7 +3706,9 @@ fn corner_of(
             other: e,
             alone: false,
         }),
-        (false, false) if vertex_alone(near_edges.is_empty(), near_vertices) == Some(vertex) => {
+        (false, false)
+            if near_edges.is_empty() && one_shared_vertex(near_vertices) == Some(vertex) =>
+        {
             // The arc read is the one of lower key, so the reading does not
             // depend on the order the walls come in.
             let (read, other) = if re.key <= rf.key { (e, f) } else { (f, e) };
@@ -3817,17 +3870,26 @@ fn reading(piece: &Piece<'_>, c: Corner) -> Option<Reading> {
     }
 }
 
-/// **Whether two edges' stored carriers are one conic, as one value**:
-/// one plane through one centre ([`one_plane`]) and the same radius; on
-/// an ellipse the same semi-axes along the same lines (`u_ref` equal or
-/// opposed, a half-turn of the parameter). Every comparison is
-/// [`one_value`]'s, so a component held as a bracket wider than a point
-/// is never one conic, even against itself: at `Interval` this admits
-/// only carriers stored as points. The two parametrizations may differ;
-/// the reading never maps one onto the other ([`continues`]).
+/// **Whether two edges' carriers are one conic, as one value**: a
+/// point-scalar body's stored carriers one conic ([`one_stated_conic`]),
+/// or their lifts one plane through one centre ([`one_plane`]) and the
+/// same radius, and on an ellipse the same semi-axes along the same lines
+/// (`u_ref` equal or opposed, a half-turn of the parameter). Every
+/// comparison of the lifts is [`one_value`]'s, so a component held as a
+/// bracket wider than a point is never one conic, even against itself:
+/// the lifts are one value only where the frames are exactly rigid,
+/// where a frame's axis is the one value of its polar factor. The two
+/// parametrizations may differ; the reading never maps one onto the
+/// other ([`continues`]).
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn one_conic(e: &Rim, o: &Rim) -> bool {
-    if let (Some(se), Some(so)) = (e.stated.as_ref(), o.stated.as_ref()) {
-        return one_stated_conic(se, so);
+    if let (Some(se), Some(so)) = (e.stated.as_ref(), o.stated.as_ref())
+        && one_stated_conic(se, so)
+    {
+        return true;
     }
     let (Some((ce, _)), Some((co, _))) = (e.arc.as_ref(), o.arc.as_ref()) else {
         return false;
@@ -3841,7 +3903,7 @@ fn one_conic(e: &Rim, o: &Rim) -> bool {
         }
         (Curve3::Ellipse(a), Curve3::Ellipse(b)) => {
             plane(&a.frame(), &b.frame())
-                && one_line(a.frame().u_ref(), b.frame().u_ref())
+                && one_line(a.u_ref(), b.u_ref())
                 && one_value(a.semi_u(), b.semi_u(), false)
                 && one_value(a.semi_v(), b.semi_v(), false)
         }
@@ -3849,37 +3911,55 @@ fn one_conic(e: &Rim, o: &Rim) -> bool {
     }
 }
 
-/// [`one_conic`] on two carriers as a point-scalar body stores them:
-/// the same comparisons, of stored values (a stored value is its one
-/// value), so one plane through one centre, the same radius, and
-/// on an ellipse the same semi-axes along `u_ref` equal or opposed. It is
-/// what [`one_conic`] read of their lifts when a lift carried the stored
-/// entries as points; a frame lifted to an enclosure of the rotation it
-/// states is a rounding wide wherever its entries are not exactly rigid,
-/// and the claim two such carriers make is still the stored one.
+/// [`one_conic`] on two carriers as a point-scalar body stores them: two
+/// circles whose stored frames place one plane ([`one_stated_plane`]) and
+/// whose radii are one; two ellipses stated alike
+/// ([`Curve3::same_content`]: one placement, held at one point and phase,
+/// one pair of semi-axes) with one `v` beside, which that comparison does
+/// not read. An ellipse held on its arc derives its centre from its
+/// anchor, rounded, so two of them may round to one centre from two
+/// anchors whose true centres differ: their frames, read at the centre,
+/// are no stored fact, and only their stored content is.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn one_stated_conic(e: &Curve3<f64>, o: &Curve3<f64>) -> bool {
-    // Equal as numbers, as [`one_value`] compares a point's ends (a
-    // signed zero is its own negation's value): `equals_exactly`, the
-    // value question, of the vectors placed at the origin.
-    let same =
-        |a: Vec3<f64>, b: Vec3<f64>| (Point3::origin() + a).equals_exactly(Point3::origin() + b);
-    let line = |a: Vec3<f64>, b: Vec3<f64>| same(a, b) || same(a, -b);
-    let plane = |f: &geom::Frame<f64>, g: &geom::Frame<f64>| {
-        f.origin().equals_exactly(g.origin()) && line(f.axis(), g.axis())
-    };
-    let one = |a: f64, b: f64| a == b;
     match (e, o) {
         (Curve3::Circle(a), Curve3::Circle(b)) => {
-            plane(&a.frame(), &b.frame()) && one(a.radius(), b.radius())
+            one_stated_plane(&a.frame(), &b.frame()) && a.radius() == b.radius()
         }
         (Curve3::Ellipse(a), Curve3::Ellipse(b)) => {
-            plane(&a.frame(), &b.frame())
-                && line(a.frame().u_ref(), b.frame().u_ref())
-                && one(a.semi_u(), b.semi_u())
-                && one(a.semi_v(), b.semi_v())
+            e.same_content(o)
+                && a.frame()
+                    .motion()
+                    .v()
+                    .get()
+                    .equals_exactly(b.frame().motion().v().get())
         }
         _ => false,
     }
+}
+
+/// **Whether two stored `f64` frames place one plane as their lifts
+/// read it**: one origin, and each of the second's axes `u`, `v`, `w` the
+/// first's or its negation, as numbers (a signed zero is its negation).
+/// A stored frame is lifted as the enclosure of its polar factor, the
+/// rotation nearest its stored axes; the polar factor of `M·D`, with `D`
+/// a diagonal of signs, is `M`'s times `D`, so the two lifts enclose one
+/// origin and one axis line, the one value each holds. The axis `w`
+/// alone would not do: the polar factor's axis leans on all three stored
+/// axes wherever they are not exactly rigid, and two frames with one `w`
+/// and a `u` an ulp apart lift to disjoint enclosures of `w`. The sign
+/// patterns admitted are wider than the argument needs: one of
+/// determinant −1 would make one of two stored frames a reflection,
+/// which no stored frame is (a reflection lifts to poison).
+fn one_stated_plane(f: &geom::Frame<f64>, g: &geom::Frame<f64>) -> bool {
+    let (m, n) = (f.motion(), g.motion());
+    f.origin().equals_exactly(g.origin())
+        && [(m.u(), n.u()), (m.v(), n.v()), (m.w(), n.w())]
+            .into_iter()
+            .all(|(a, b)| a.get().equals_exactly(b.get()) || a.get().equals_exactly(-b.get()))
 }
 
 /// **`o` is `e`'s continuation through `v` along one conic**
@@ -5345,21 +5425,40 @@ impl Psi {
         })
     }
 
-    /// `∇ψ` over a box.
-    fn gradient(&self, p: Point3<Interval>) -> Vec3<Interval> {
+    /// **`ψ`'s rate along `v` over a box**: `∇ψ(q)·v` for every `q` in
+    /// `p`, each arm spelled so a quantity the true rate does not depend
+    /// on is not named twice:
+    ///
+    /// - plane and linear: `n·v`, exact;
+    /// - cylinder: the radial unit against `v` less its part along the
+    ///   axis ([`square_to`]). The radial unit is square to the axis at
+    ///   every point, so the two dots agree; a box's enclosure of it holds
+    ///   directions with an axial part, which a dot with `v` itself would
+    ///   read, and along a ruling, where `v` is the axis, that part is all
+    ///   of it. Factoring the norm out (`offset·square_to / |offset|`) is
+    ///   tighter across and radially and looser along the ruling, the
+    ///   reading this spelling exists for;
+    /// - cone: the cylinder's term times `cos`, less `nappe·sin` times
+    ///   `v`'s part along the unit axis, `axis·v/|axis|`, as [`Self::value`]
+    ///   reads the height (a stored axis is unit only to its convention);
+    /// - sphere: `(w·v)/|w|`, `w = p − c`, naming each component of `w`
+    ///   once in the dot where `w/|w|` names it with the norm;
+    /// - graph: `m·v − (t·v)·γ′`, the slope named once: one real slope
+    ///   makes the two equal, and `(m − t·γ′)·v` names it per component.
+    fn rate(&self, p: Point3<Interval>, v: Vec3<Interval>) -> Interval {
+        let radial = |w: Vec3<Interval>| w * (at(1.0) / w.norm());
         match *self {
-            Self::Linear { n, .. } | Self::Carrier(Implicit::Plane { n, .. }) => n,
+            Self::Linear { n, .. } | Self::Carrier(Implicit::Plane { n, .. }) => n.dot(v),
             Self::Carrier(Implicit::Cylinder { o, axis, .. }) => {
-                let radial = geom::Line {
+                let line = geom::Line {
                     origin: o,
                     dir: axis,
-                }
-                .offset(p);
-                radial * (at(1.0) / radial.norm())
+                };
+                radial(line.offset(p)).dot(square_to(axis.get(), v))
             }
             Self::Carrier(Implicit::Sphere { c, .. }) => {
                 let w = p - c;
-                w * (at(1.0) / w.norm())
+                w.dot(v) / w.norm()
             }
             Self::Carrier(Implicit::Cone {
                 apex,
@@ -5368,14 +5467,32 @@ impl Psi {
                 sin,
                 nappe,
             }) => {
-                let radial = geom::Line {
+                let line = geom::Line {
                     origin: apex,
                     dir: axis,
-                }
-                .offset(p);
-                radial * (cos / radial.norm()) - axis.get() * (nappe * sin)
+                };
+                radial(line.offset(p)).dot(square_to(axis.get(), v)) * cos
+                    - axis.get().dot(v) / axis.get().norm() * (nappe * sin)
             }
-            Self::Graph { m, t, slope, .. } => m - t * slope,
+            Self::Graph { m, t, slope, .. } => m.dot(v) - t.dot(v) * slope,
+        }
+    }
+
+    /// **`|∇ψ|` over a box**: 1 for a cylinder's and a sphere's carrier
+    /// (a distance less a radius), `√(cos² + sin²)` for a cone's (its
+    /// gradient is `cos` times a unit square to the unit axis, less
+    /// `nappe·sin` times that axis), `|n|` for a plane and a linear
+    /// separator, and the graph's `|m − t·γ′|` over its slope. A reader of
+    /// the angle between `∇ψ` and a direction divides [`Self::rate`] by
+    /// this and the direction's norm: a vector gradient read over a box
+    /// would bring back the slop `rate` keeps out.
+    #[allow(dead_code)] // read by the departure margin's sine (`embed/remeter`, PR 7329)
+    fn gradient_norm(&self) -> Interval {
+        match *self {
+            Self::Linear { n, .. } | Self::Carrier(Implicit::Plane { n, .. }) => n.norm(),
+            Self::Carrier(Implicit::Cylinder { .. } | Implicit::Sphere { .. }) => at(1.0),
+            Self::Carrier(Implicit::Cone { cos, sin, .. }) => (cos.powi(2) + sin.powi(2)).sqrt(),
+            Self::Graph { m, t, slope, .. } => (m - t * slope).norm(),
         }
     }
 
@@ -5388,16 +5505,39 @@ impl Psi {
     }
 }
 
+/// **`v` less its part along `axis`**: `v − axis·(axis·v)/|axis|²`. A
+/// vector square to the axis has the same dot with it as with `v`.
+///
+/// Read over enclosures it holds, for every member `a` of `axis` and `w`
+/// of `v`, `w`'s part square to `a`: interval evaluation holds each
+/// expression's value at every assignment of members, and here `axis` is
+/// named three times, so the three uses may take different members. That
+/// is a superset of the single-member value, so it is wider, never
+/// narrower, than the truth: a radial unit square to the carrier's axis
+/// has the same dot with every enclosed part as with `w`, so the rate it
+/// gives holds the true rate for whichever member is the carrier's axis.
+/// Its width grows with the axis enclosure's width over `|axis|`, and
+/// with `v`'s. An axis enclosure holding zero makes `|axis|²` hold zero,
+/// and the quotient is unbounded or not a number: no sign is read off it.
+fn square_to(axis: Vec3<Interval>, v: Vec3<Interval>) -> Vec3<Interval> {
+    v - axis * (axis.dot(v) / axis.norm_squared())
+}
+
 /// `ψ∘Φ` over `x × y` in its centred form: its value at the middle, and
-/// the gradient's enclosure over the image times the half-spans.
+/// its rate along each chart direction over the image ([`Psi::rate`])
+/// times the half-spans.
 /// Tight where the plain enclosure of a slanted image's box is not.
 fn centred(psi: &Psi, p: &Presented<'_>, x: (f64, f64), y: (f64, f64)) -> Option<Interval> {
     let (xm, ym) = (geom::mid_param(x.0, x.1), geom::mid_param(y.0, y.1));
     let middle = psi.value(p.image((xm, xm), (ym, ym)))?;
     let whole = x == p.x && y == p.y;
     let (fx, fy, _) = if whole { p.jet() } else { p.jet_on(x, y) };
-    let grad = psi.gradient(if whole { p.whole() } else { p.image(x, y) });
-    Some(middle + grad.dot(fx) * iv((x.0 - xm, x.1 - xm)) + grad.dot(fy) * iv((y.0 - ym, y.1 - ym)))
+    let image = if whole { p.whole() } else { p.image(x, y) };
+    Some(
+        middle
+            + psi.rate(image, fx) * iv((x.0 - xm, x.1 - xm))
+            + psi.rate(image, fy) * iv((y.0 - ym, y.1 - ym)),
+    )
 }
 
 /// `ψ∘Φ` over a side `x × y` of the presentation. On an analytic chart
@@ -5638,10 +5778,9 @@ fn sign_on(
     };
     let (fx, fy, fxy) = p.jet();
     let image = p.whole();
-    let grad = psi.gradient(image);
     let across = |axis: Axis| match axis {
-        Axis::U => grad.dot(fx) * at(p.span(Axis::U)),
-        Axis::V => grad.dot(fy) * at(p.span(Axis::V)),
+        Axis::U => psi.rate(image, fx) * at(p.span(Axis::U)),
+        Axis::V => psi.rate(image, fy) * at(p.span(Axis::V)),
     };
     let departs = |s: Side| {
         interval_sign_as(
@@ -5786,9 +5925,18 @@ fn implicit_of(piece: &Piece<'_>, band: Band) -> Option<Implicit> {
     })
 }
 
-/// **The departure arm.** Each separator in turn: one face's carrier
-/// with the other presented, a plane through straight shared edges or a
-/// conic one's own plane, the shared edge's graph.
+/// **The departure arm.** The separators, in the order tried (the one
+/// place they are listed):
+/// 1. one face's carrier with the other presented ([`implicit_of`]);
+/// 2. the planes through the shared cell ([`planes_through`]): through
+///    straight shared edges, a conic one's own plane, or a vertex the pair
+///    shares alone;
+/// 3. the shared edge's graph ([`graph_of`]);
+/// 4. the plane through the pair's one shared vertex, with shared edges
+///    near, each face presented against that vertex alone
+///    ([`one_shared_vertex`]; the argument is at its site below).
+///
+/// A pair none of them parts is a [`cusp`] or splits.
 fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -> Outcome {
     let shared = near.cell(x.boundary).unwrap_or(SharedCell::Face(x.face));
     let split = Outcome::Split {
@@ -5852,19 +6000,88 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
     let (Ok(Presentation::Of(qx)), Ok(Presentation::Of(qy))) = (&px, &py) else {
         return split;
     };
-    let opposite = |(psi, on): (Psi, On)| match (
+    let apart = |qx: &Presented<'_>, qy: &Presented<'_>, (psi, on): (Psi, On)| match (
         sign_on(&psi, Some(&on), qx, Some(qy), band),
         sign_on(&psi, Some(&on), qy, Some(qx), band),
     ) {
         (Some(a), Some(b)) => a == flip(b),
         _ => false,
     };
+    let opposite = |sep| apart(qx, qy, sep);
     let corner = qx.corner || qy.corner;
     if planes_through(x, near, qx, qy).into_iter().any(opposite) {
         return Outcome::Certified { corner };
     }
     if graph_of(x, y, near, qx, qy, band).is_some_and(opposite) {
         return Outcome::Certified { corner };
+    }
+    // The pair's one shared vertex `v`, with shared edges near: the plane
+    // through `v` alone, each face presented against `v` alone. Its own
+    // path, not one more separator of the list above: those are read on
+    // the pair's presentations against the whole shared cell, this one on
+    // presentations against `v`.
+    //
+    // **Why it is sound.** Each presentation against `{v}` is a superset
+    // of the face's part of its cell up to the module's ε concessions:
+    // the sliver cannot fire against `{v}` (it reads a side on shared
+    // edges), but the touch, the cover and the sheet's overlap can drop
+    // points within their few ulps, as they do in any presentation. `apart`
+    // accepts only where the plane is strictly of one sign on each off its
+    // zero set and the two signs are opposite. Against `{v}` the zero sets
+    // lie at `v`: a zero carrying an edge reads nothing under a plane that
+    // lists `v` alone ([`On::holds`]). So a common point of the two parts
+    // other than `v` would carry both signs, and none exists. A shared
+    // edge's points in both cells, or a second ruling of a cone the plane
+    // face holds, are such common points: there the pair is not signed
+    // apart, and splits as before. Tangency, a second meeting off the
+    // shared cell, and a vertex that is no apex are refused by the same
+    // reading, not by a premise of their own.
+    //
+    // **Why a collapsed side is read.** A cone's apex or a sphere's pole
+    // is presented as a side whose whole image is `v` ([`Along::at`]), and
+    // `sign_on` reads it as any side, by the mean value theorem along the
+    // axis across it at each value of the other: `ψ∘Φ` vanishes on the
+    // side, so its sign off it is the sign of `ψ∘Φ`'s derivative across it
+    // over the whole rectangle. That never reads the derivative that
+    // vanishes at the collapse; across the side the chart's derivative is
+    // a ruling's or a meridian's direction. `ψ` vanishes on the side by
+    // membership, `q` being `v`'s stored point, and the side's image is
+    // `v` within the collapse's own reading: [`SELF_INTERSECTION_APEX`] at
+    // an apex, `vertex_at_singular_point` at a pole (the module's
+    // separator concessions).
+    //
+    // **Where it fires.** It certifies only where each face against `v` is
+    // presented with no zero (read by value), a corner point at `v`
+    // ([`Zero::Point`]: the plane's two-line corner, or the corner of two
+    // coordinate-line clips on a chart), or a collapsed side at `v` (a
+    // cone's apex, a sphere's pole). Measured: a plane against a cone at
+    // its apex (a wedge of a revolved cone past a half turn, a box face
+    // through the apex), and the two half-bands of a sphere at a pole (a
+    // union of revolved balls, the tour's dice's pips).
+    //
+    // With no shared edge near, the presentations against `v` are the
+    // pair's own, which the planes above have read: the edge test saves
+    // that work and is no premise.
+    if !near.edges.is_empty()
+        && let Some(v) = one_shared_vertex(&near.vertices)
+    {
+        let alone = Near {
+            edges: Vec::new(),
+            vertices: vec![v],
+        };
+        let (rx, ry) = (
+            present(x, &[], &alone.vertices, band),
+            present(y, &[], &alone.vertices, band),
+        );
+        if let (Ok(Presentation::Of(rx)), Ok(Presentation::Of(ry))) = (&rx, &ry)
+            && planes_through(x, &alone, rx, ry)
+                .into_iter()
+                .any(|sep| apart(rx, ry, sep))
+        {
+            return Outcome::Certified {
+                corner: rx.corner || ry.corner,
+            };
+        }
     }
     if let Some(shared) = cusp(x, near, qx, qy, y.boundary.sense, band) {
         return Outcome::Cusp { shared };
@@ -5926,6 +6143,38 @@ fn heading(p: &Presented<'_>, q: Point3<f64>) -> Option<Vec3<f64>> {
     unit(pmid(p.image((x, x), (y, y))) - q)
 }
 
+/// **The normal of a plane through a vertex that parts two faces each
+/// presented there as a quadrant** ([`Zero::Point`]): each face leaves
+/// the vertex into the cone of its two corner axes, `a₁, a₂` and
+/// `b₁, b₂`, read over its rectangle ([`Presented::corner_axes`]). A
+/// plane through the vertex parts them, `n·aᵢ > 0 > n·bⱼ`, exactly where
+/// the hull of `{a₁, a₂, −b₁, −b₂}` misses the origin (Gordan): where the
+/// cones share no ray and neither is a straight corner, whose
+/// antiparallel axes put the origin in the hull whatever the other is.
+/// The hull's point nearest the origin is then the normal whose least
+/// cosine to the four axes is greatest
+/// ([`geom_core::linalg::min_norm::min_norm_point`], at `f64`). On a
+/// pair that parts with a least cosine above about `1e-7` it is found;
+/// nearer `√ε` it can be missed or come a few `1e-8` short; it is kept
+/// only where it parts all four axes at `f64`. `None` for any other
+/// presentation, or where nothing parts.
+///
+/// It chooses a direction and decides nothing: [`sign_on`] reads each
+/// face's sign at the band, so a plane that does not part the faces
+/// certifies nothing, and a poor `n` costs a certificate, never a wrong
+/// one.
+fn wedges_apart(px: &Presented<'_>, py: &Presented<'_>) -> Option<Vec3<f64>> {
+    parting_normal(px.corner_axes()?, py.corner_axes()?)
+}
+
+/// [`wedges_apart`]'s normal from the two corners' axes.
+fn parting_normal([a1, a2]: [Vec3<f64>; 2], [b1, b2]: [Vec3<f64>; 2]) -> Option<Vec3<f64>> {
+    let g = [a1, a2, -b1, -b2];
+    let n = geom_core::linalg::min_norm::min_norm_point(&g.map(|d| [d.x, d.y, d.z]))?;
+    let n = Vec3::new(n[0], n[1], n[2]);
+    g.iter().all(|d| n.dot(*d) > 0.0).then(|| unit(n)).flatten()
+}
+
 /// **The planes through the shared cell, built from the shared edges'
 /// own carriers**, each with the cells it vanishes on ([`On`]):
 ///
@@ -5940,15 +6189,28 @@ fn heading(p: &Presented<'_>, q: Point3<f64>) -> Option<Vec3<f64>> {
 /// - through two line edges with a common end, at a shared vertex: `n`
 ///   their stored directions' cross product, `q` a point of the first.
 ///   It lists both and their ends;
-/// - at a shared vertex alone, through the vertex, `n` across the faces'
-///   two headings. It lists the vertex.
+/// - at a shared vertex alone, through the vertex, listing the vertex:
+///   where both faces are presented as quadrants there, `n` the plane
+///   leaning furthest from both wedges ([`wedges_apart`]); against any
+///   other presentation (a sphere's pole read as its chart's collapsed
+///   side, a curve through the vertex), where a face has no corner
+///   axes, `n` across the faces' two headings. Two quadrants the wedge
+///   plane does not part get no plane: any plane [`sign_on`] reads
+///   departing both of their rectangles parts their axes, so the wedge
+///   plane is missing only where those axes part by a least cosine
+///   below about `1e-7`, and the heading plane is no fallback there.
 ///
 /// Every value is computed at the lane scalar from the stored carrier,
 /// so each member of a family has its own `n` and `q` in these
 /// enclosures, normal to its own edge and on it: the plane vanishes on
-/// the listed cells for every member. The headings and the bisector only
-/// choose a direction; any direction is exact. A shared vertex off the
-/// lines a plane was built through is not listed.
+/// the listed cells for every member. The headings, the bisector and the
+/// wedges only choose a direction; any direction is exact. A shared
+/// vertex off the lines a plane was built through is not listed. Where
+/// these are tried among the other separators is [`departure`]'s list.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn planes_through(
     x: &Piece<'_>,
     near: &Near,
@@ -6006,26 +6268,30 @@ fn planes_through(
         .collect();
     let plane = || {
         let lines = lines?;
-        let q0 = pmid(anchor(x, near)?);
-        let (hx, hy) = (heading(px, q0)?, heading(py, q0)?);
+        let headings = || {
+            let q0 = pmid(anchor(x, near)?);
+            Some((heading(px, q0)?, heading(py, q0)?))
+        };
         match (lines.as_slice(), rims.as_slice()) {
             ([], []) => {
                 let v = *near.vertices.first()?;
+                let q = *b.vertices.get(&v)?;
+                let n = match (&px.zero, &py.zero) {
+                    (Zero::Point(..), Zero::Point(..)) => wedges_apart(px, py)?,
+                    _ => {
+                        let (hx, hy) = headings()?;
+                        unit(hx - hy)?
+                    }
+                };
                 let on = On {
                     edges: Vec::new(),
                     vertices: vec![v],
                     whole: true,
                 };
-                let q = *b.vertices.get(&v)?;
-                Some((
-                    Psi::Linear {
-                        n: lift(unit(hx - hy)?),
-                        q,
-                    },
-                    on,
-                ))
+                Some((Psi::Linear { n: lift(n), q }, on))
             }
             ([(q, d)], [r]) => {
+                let (hx, hy) = headings()?;
                 let m = lift(bisector(hx, hy, unit(vmid(*d))?)?);
                 let n = m - *d * (m.dot(*d) / d.dot(*d));
                 Some((Psi::Linear { n, q: *q }, through(&[*r])))
@@ -6047,7 +6313,7 @@ fn planes_through(
     plane().into_iter().collect()
 }
 
-/// **Whether two planar conics' stored frames hold one plane, as one
+/// **Whether two planar conics' lifted frames hold one plane, as one
 /// value**: every component of the first's centre and axis is a point,
 /// and the second's are the same points, its axis the first's or its
 /// negation. A point is the one value every member has, so the plane
@@ -6190,7 +6456,7 @@ fn graph_of<'a>(
     py: &Presented<'_>,
     band: Band,
 ) -> Option<(Psi, On)> {
-    let alone = vertex_alone(near.edges.is_empty(), &near.vertices);
+    let alone = one_shared_vertex(&near.vertices).filter(|_| near.edges.is_empty());
     let (e, vertices) = match (near.edges.as_slice(), alone) {
         ([(i, _)], _) => (x.boundary.edges.get(*i)?, Vec::new()),
         (_, Some(v)) => {
@@ -6445,6 +6711,163 @@ mod presentation_rows {
         }
         let d = unit(Vec3::new(0.0, 3e-160, -4e-160)).expect("in the format");
         assert_eq!(d.to_array(), [0.0, 0.6, -0.8], "a small heading");
+    }
+
+    /// A box around a ruling's segment 1.2e-5 long, `r` off a tilted axis
+    /// through `o` and `along` metres up it, and the segment's direction.
+    fn on_a_ruling(
+        o: Vec3<f64>,
+        d: Vec3<f64>,
+        along: f64,
+        r: f64,
+    ) -> (Point3<Interval>, Vec3<Interval>) {
+        let off = Vec3::new(0.8, 0.6, 0.0);
+        let c = Point3::origin() + o + d * along + off * r;
+        let h = 6e-6;
+        let span = |x: f64, k: f64| Interval::from_bounds(x - h * k.abs(), x + h * k.abs());
+        (
+            Point3::new(span(c.x, d.x), span(c.y, d.y), span(c.z, d.z)),
+            d.map(iv0) * iv0(2.0 * h),
+        )
+    }
+
+    /// **A cylinder carrier's rate along its ruling reads zero over a
+    /// thin box on a tilted axis, at the origin and 100 m up it**: its
+    /// gradient is square to the axis at every point, so its rate along
+    /// the axis is 0, which a box's
+    /// enclosure of the radial unit (it holds directions with an axial
+    /// part, the more the box is tilted) must not read (red where the
+    /// rate dots the gradient box with the ruling itself). The cone's
+    /// radial term is the same reading; its rate along its axis is
+    /// `−nappe·sin` exactly.
+    #[test]
+    fn a_carriers_rate_along_its_ruling_reads_tight_on_a_tilted_axis_near_and_far() {
+        let d = Vec3::new(0.36, -0.48, 0.8);
+        let o = Vec3::new(1.5, -2.25, 0.75);
+        for along in [0.0, 100.0] {
+            let (b, v) = on_a_ruling(o, d, along, 0.006);
+            let cyl = Psi::Carrier(Implicit::Cylinder {
+                o: Point3::origin() + o.map(iv0),
+                axis: geom_core::UnitVec3::checked(d.map(iv0)),
+                r: iv0(0.006),
+            });
+            let rate = cyl.rate(b, v);
+            assert!(
+                rate.hi() - rate.lo() < 1e-15 && rate.lo() <= 0.0 && 0.0 <= rate.hi(),
+                "cylinder, {along} m up: rate {rate:?}"
+            );
+            // Retired: the same carrier about an axis twice as long. A
+            // carrier's axis is a `UnitVec3<Interval>` (PR 7349, `onehome/carrier-directions`),
+            // which no door admits off unit, so a non-unit axis reaching
+            // `rate` is unrepresentable: a stronger guarantee than this
+            // sub-case gave.
+            let (sin, cos) = (0.6, 0.8);
+            let cone = Psi::Carrier(Implicit::Cone {
+                apex: Point3::origin() + o.map(iv0),
+                axis: geom_core::UnitVec3::checked(d.map(iv0)),
+                cos: iv0(cos),
+                sin: iv0(sin),
+                nappe: iv0(1.0),
+            });
+            let axial = d.map(iv0) * iv0(1.0);
+            let rate = cone.rate(b, axial);
+            assert!(
+                rate.hi() - rate.lo() < 1e-12 && rate.lo() <= -sin && -sin <= rate.hi(),
+                "cone, {along} m up: rate {rate:?}"
+            );
+        }
+    }
+    /// **A cone's rate holds its nappe and its half-angle apart**: at a
+    /// point off the axis, along the radial unit it is `cos`, along the
+    /// axis it is `−nappe·sin`, on either nappe (red where the nappe's
+    /// sign is dropped or `cos` and `sin` trade places).
+    #[test]
+    fn a_cones_rate_reads_its_radial_and_axial_parts_on_each_nappe() {
+        let (sin, cos) = (0.6, 0.8);
+        let apex = Point3::new(iv0(1.0), iv0(-2.0), iv0(0.5));
+        let axis = geom_core::UnitVec3::exact_z();
+        for nappe in [1.0, -1.0] {
+            let cone = Psi::Carrier(Implicit::Cone {
+                apex,
+                axis,
+                cos: iv0(cos),
+                sin: iv0(sin),
+                nappe: iv0(nappe),
+            });
+            let p = Point3::new(iv0(4.0), iv0(-2.0), iv0(0.5 + 4.0 * nappe));
+            let radial = cone.rate(p, Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)));
+            let axial = cone.rate(p, axis.get());
+            let near = |x: Interval, want: f64| x.lo() <= want + 1e-15 && want - 1e-15 <= x.hi();
+            assert!(near(radial, cos), "nappe {nappe}: radial rate {radial:?}");
+            assert!(
+                near(axial, -nappe * sin),
+                "nappe {nappe}: axial rate {axial:?}"
+            );
+        }
+    }
+
+    /// **The graph separator's rate is `(m − γ′·t)·v`**: with `γ′` in
+    /// `slope`, along `t` it is `m·t − γ′·|t|²` over the slope's range
+    /// (red where the slope term's sign is flipped).
+    #[test]
+    fn the_graph_separators_rate_subtracts_its_slope_along_t() {
+        let graph = Psi::Graph {
+            m: Vec3::new(iv0(0.0), iv0(1.0), iv0(0.0)),
+            t: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+            slope: Interval::from_bounds(0.25, 0.5),
+            piece: (0.0, 1.0),
+        };
+        let p = origin();
+        let along_t = graph.rate(p, Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)));
+        assert!(
+            along_t.lo() <= -0.5 && -0.25 <= along_t.hi() && along_t.hi() < 0.0,
+            "along t: {along_t:?}"
+        );
+        let along_m = graph.rate(p, Vec3::new(iv0(0.0), iv0(1.0), iv0(0.0)));
+        assert!(
+            along_m.lo() <= 1.0 && 1.0 <= along_m.hi(),
+            "along m: {along_m:?}"
+        );
+    }
+
+    /// **A bracketed axis and a bracketed direction**: the cylinder's
+    /// rate over a box encloses `unit_a(q)·w` for members `a` of the
+    /// axis, `q` of the box and `w` of the direction, each read at
+    /// `f64`; an axis enclosure holding zero reads no sign.
+    #[test]
+    fn a_carriers_rate_encloses_every_members_rate_where_the_axis_is_a_bracket() {
+        let e = 1e-7;
+        let wide = |x: f64| Interval::from_bounds(x - e, x + e);
+        let d = Vec3::new(0.36, -0.48, 0.8);
+        let o = Vec3::new(1.5, -2.25, 0.75);
+        let (b, _) = on_a_ruling(o, d, 3.0, 0.2);
+        let w0 = Vec3::new(0.3, 0.9, -0.2);
+        let cyl = Psi::Carrier(Implicit::Cylinder {
+            o: Point3::origin() + o.map(iv0),
+            axis: geom_core::UnitVec3::checked(d.map(wide)),
+            r: iv0(0.2),
+        });
+        let rate = cyl.rate(b, w0.map(wide));
+        let corner = |i: &Interval, k: f64| if k < 0.0 { i.lo() } else { i.hi() };
+        for k in [-1.0, 1.0] {
+            for j in [-1.0, 1.0] {
+                let a = d + Vec3::new(k, -k, j) * (0.9 * e);
+                let w = w0 + Vec3::new(j, k, -j) * (0.9 * e);
+                let q = Point3::new(corner(&b.x, k), corner(&b.y, j), corner(&b.z, -k));
+                // The member's axis is its direction, `a` over its length.
+                let u = a * (1.0 / a.norm());
+                let off = q - (Point3::origin() + o);
+                let r = off - u * off.dot(u);
+                let want = r.dot(w) / r.norm();
+                assert!(
+                    rate.lo() <= want && want <= rate.hi(),
+                    "{rate:?} misses member ({k}, {j}): {want}"
+                );
+            }
+        }
+        // Retired: an axis enclosure holding zero. A carrier's axis is a
+        // `UnitVec3<Interval>` (PR 7349, `onehome/carrier-directions`); a box
+        // holding zero holds no unit vector, so no door admits one.
     }
     use crate::test_support_fixtures::trv;
     use geom_core::Tol;
@@ -9425,8 +9848,8 @@ mod presentation_rows {
     /// **Two cylinder corners at a vertex they share alone**
     /// ([`certify_pair`]): the face above the parallel and left of the
     /// ruling against the one below it and right, diagonally opposite
-    /// quadrants of one tangent plane, certify through the plane across
-    /// their headings. Against the face below the parallel and LEFT of the
+    /// quadrants of one tangent plane, certify through the plane leaning
+    /// furthest from both wedges. Against the face below the parallel and LEFT of the
     /// ruling, whose quadrant shares the parallel's direction with the
     /// first — two faces meeting along a curve neither bounds by a shared
     /// edge — no separator departs both strictly, and the pair is not
@@ -9458,6 +9881,400 @@ mod presentation_rows {
                 parts,
                 "{what}: {got:?}"
             );
+        }
+    }
+
+    /// **A plane face's wedge at the origin** (vertex 1): the plane the
+    /// origin, `d1` and `d2` span, its face the convex wedge from `d1`
+    /// round to `d2` about `d1 × d2`, bounded by the lines out to
+    /// vertices `n + 1` (along `d1`) and `n + 2` (along `d2`).
+    fn plane_wedge(n: u64, d1: [f64; 3], d2: [f64; 3]) -> (Surface<Interval>, Boundary) {
+        plane_wedge_at(n, 1, [0.0; 3], d1, d2)
+    }
+
+    /// [`plane_wedge`] with its vertex `key` at `q`.
+    fn plane_wedge_at(
+        n: u64,
+        key: u64,
+        q: [f64; 3],
+        d1: [f64; 3],
+        d2: [f64; 3],
+    ) -> (Surface<Interval>, Boundary) {
+        let v = |d: [f64; 3]| Vec3::new(iv0(d[0]), iv0(d[1]), iv0(d[2]));
+        let o = Point3::new(iv0(q[0]), iv0(q[1]), iv0(q[2]));
+        let (f1, f2) = (
+            Vec3::new(d1[0], d1[1], d1[2]),
+            Vec3::new(d2[0], d2[1], d2[2]),
+        );
+        let normal = unit(f1.cross(f2)).expect("a wedge spans a plane");
+        let along = unit(f1).expect("a direction");
+        let plane = Surface::Plane {
+            frame: geom::Frame::new(o, lift(normal), lift(along)),
+        };
+        let line = |d: [f64; 3], far: u64, plus: bool| Rim {
+            stated: None,
+            key: edge(far),
+            // The segment is its chord, its span in metres.
+            arc: Some({
+                let len = Vec3::new(d[0], d[1], d[2]).norm();
+                (
+                    Curve3::line(
+                        o,
+                        geom_core::UnitVec3::checked(v([d[0] / len, d[1] / len, d[2] / len])),
+                    ),
+                    (iv0(0.0), iv0(len)),
+                )
+            }),
+            ends: [vertex(key), vertex(far)],
+            uses: vec![Use {
+                plus,
+                image: None,
+                iso: None,
+                wall: None,
+                harmonic: None,
+            }],
+        };
+        let b = Boundary {
+            sense: true,
+            edges: vec![line(d2, n + 2, false), line(d1, n + 1, true)],
+            vertices: BTreeMap::from([
+                (vertex(key), o),
+                (vertex(n + 1), o + v(d1)),
+                (vertex(n + 2), o + v(d2)),
+            ]),
+            extent: None,
+        };
+        (plane, b)
+    }
+
+    /// **A plane wedge at a sphere's pole is parted by the heading plane**
+    /// ([`certify_pair`]): [`octant`]'s cell at its pole, presented by the
+    /// collapsed side `v = π/2` ([`Zero::Side`], no corner axes), against
+    /// a plane wedge at the pole on the far side of the axis, one edge
+    /// rising out of the ball and one sinking into it, its plane holding
+    /// the cell's own heading. Neither carrier parts them (the wedge
+    /// straddles the sphere, the cell its plane), and the wedge plane is
+    /// not read; the plane across the two headings does. Red if the
+    /// vertex-alone arm offers no plane where a face is not a quadrant.
+    #[test]
+    fn a_plane_wedge_at_a_spheres_pole_is_parted_by_the_heading_plane() {
+        let (sphere, ob) = octant();
+        let top = Interval::pi().hi() * 0.5;
+        let local = Local {
+            edges: vec![1, 2],
+            vertices: vec![vertex(3)],
+        };
+        let near = Near {
+            edges: Vec::new(),
+            vertices: vec![vertex(3)],
+        };
+        let cap = Piece {
+            face: face(1),
+            surface: &sphere,
+            whole: false,
+            boundary: &ob,
+            u: (0.7, 0.8),
+            v: (1.5, top),
+            local: &local,
+            ball: Ball::holding(origin(), origin()),
+        };
+        let (c, s) = (0.75f64.cos(), 0.75f64.sin());
+        let (plane, pb) = plane_wedge_at(20, 3, [0.0, 0.0, 1.0], [-c, -s, 0.3], [-c, -s, -0.3]);
+        let wedge_local = Local {
+            edges: vec![0, 1],
+            vertices: vec![vertex(3)],
+        };
+        let wedge = quadrant_piece(&plane, &pb, &wedge_local, 2, ((-0.02, 0.02), (-0.02, 0.02)));
+        let zero = |p: &Piece<'_>| match present(p, &[], &near.vertices, band()) {
+            Ok(Presentation::Of(q)) => Some(q.zero.clone()),
+            _ => None,
+        };
+        assert!(
+            matches!(zero(&cap), Some(Zero::Side(Side::YHi, _)))
+                && matches!(zero(&wedge), Some(Zero::Point(..))),
+            "the pole's side against the wedge's quadrant: {:?} {:?}",
+            zero(&cap),
+            zero(&wedge)
+        );
+        let got = certify_pair(&cap, &wedge, &near, band());
+        assert!(matches!(got, Outcome::Certified { .. }), "{got:?}");
+    }
+
+    /// **Two plane wedges at a vertex they share alone** ([`certify_pair`]
+    /// through [`wedges_apart`]), each face presented as its quadrant
+    /// there, a floor `A` from `a₁` round to `a₂` against a wedge `B`:
+    ///
+    /// - the keel's joint (`a_deep_keels_joint_is_embedded_in_every_pose`'s
+    ///   pair, its cells as long and thin as the keel's): each wedge holds
+    ///   an edge in the other's plane, so neither carrier parts them, and
+    ///   the plane across the rectangles' middles leaves `B`'s edges on
+    ///   `A`'s side;
+    /// - a wedge through the floor's plane, each straddling the other's
+    ///   plane, its cell long along its first edge: parted by no
+    ///   difference of bisectors (`−0.013` on its second edge) and not by
+    ///   the rectangles' middles;
+    /// - a roof over the floor, its edges `(3, −1, 1)` and `(−1, 3, 1)`
+    ///   past the floor's two, parted by no difference of bisectors (the
+    ///   floor's carrier parts it);
+    /// - a roof folded onto the floor's diagonal, holding its ray
+    ///   `(1, 1, 0)`: the faces cross there, and no plane parts them.
+    ///
+    /// Red on a vertex-alone separator taken from the bisectors or the
+    /// rectangles' middles, or if a plane that does not part the wedges
+    /// were read as one.
+    #[test]
+    fn two_plane_wedges_at_a_vertex_alone_certify_only_where_a_plane_parts_them() {
+        let local = Local {
+            edges: vec![0, 1],
+            vertices: vec![vertex(1)],
+        };
+        let near = Near {
+            edges: Vec::new(),
+            vertices: vec![vertex(1)],
+        };
+        let square = ((-0.02, 0.02), (-0.02, 0.02));
+        type Wedge = ([f64; 3], [f64; 3], ((f64, f64), (f64, f64)));
+        let cases: [(Wedge, Wedge, bool, &str); 4] = [
+            (
+                (
+                    [0.351_123_441_588_391_76, 0.936_329_177_569_044_4, 0.0],
+                    [0.0, 0.0, -1.0],
+                    ((-0.0035, 0.0035), (-0.025, 0.025)),
+                ),
+                (
+                    [0.0, 1.0, 0.0],
+                    [0.0, 0.0, 1.0],
+                    ((-0.028, 0.028), (-0.018, 0.018)),
+                ),
+                true,
+                "the keel's joint",
+            ),
+            (
+                ([1.0, 0.0, 0.0], [0.122, 0.993, 0.0], square),
+                (
+                    [-0.662, -0.735, 0.147],
+                    [0.496, 0.0, -0.868],
+                    ((-0.03, 0.03), (-0.005, 0.005)),
+                ),
+                true,
+                "a wedge through the floor's plane",
+            ),
+            (
+                ([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], square),
+                ([3.0, -1.0, 1.0], [-1.0, 3.0, 1.0], square),
+                true,
+                "the roof",
+            ),
+            (
+                ([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], square),
+                ([1.0, 1.0, 1.0], [1.0, 1.0, -1.0], square),
+                false,
+                "the folded roof",
+            ),
+        ];
+        for ((a1, a2, ca), (b1, b2, cb), parts, what) in cases {
+            let (floor, fb) = plane_wedge(10, a1, a2);
+            let (wedge, wb) = plane_wedge(20, b1, b2);
+            let a = quadrant_piece(&floor, &fb, &local, 1, ca);
+            let b = quadrant_piece(&wedge, &wb, &local, 2, cb);
+            let presented = |p: &Piece<'_>| {
+                matches!(present(p, &[], &near.vertices, band()),
+                    Ok(Presentation::Of(q)) if matches!(q.zero, Zero::Point(..)))
+            };
+            assert!(
+                presented(&a) && presented(&b),
+                "{what}: both faces are their quadrants at the vertex"
+            );
+            let got = certify_pair(&a, &b, &near, band());
+            assert_eq!(
+                matches!(got, Outcome::Certified { .. }),
+                parts,
+                "{what}: {got:?}"
+            );
+        }
+    }
+
+    /// **The wedge plane turns each corner axis into its rectangle**
+    /// ([`wedges_apart`]): on [`floor`]'s own chart, the third quadrant
+    /// presented by its rectangle's high corner (`Zero::Point(XHi, YHi)`)
+    /// against the first presented by its low one. They are parted by the
+    /// plane normal to `(−1, −1, 0)`. Red if an axis is read off the jet's
+    /// column unturned: the third quadrant's wedge is then the first's,
+    /// and no plane parts them.
+    #[test]
+    fn the_wedge_plane_turns_each_corner_axis_into_its_rectangle() {
+        let s = floor();
+        let quadrant = |x: (f64, f64), y: (f64, f64), zero: Zero| Presented {
+            surface: &s,
+            map: Map::Chart,
+            x,
+            y,
+            zero,
+            corner: false,
+            cache: Cache::default(),
+        };
+        let third = quadrant(
+            (-0.02, 0.0),
+            (-0.02, 0.0),
+            Zero::Point(Side::XHi, Side::YHi, vertex(1)),
+        );
+        let first = quadrant(
+            (0.0, 0.02),
+            (0.0, 0.02),
+            Zero::Point(Side::XLo, Side::YLo, vertex(1)),
+        );
+        let n = wedges_apart(&third, &first).expect("the quadrants part");
+        let want = unit(Vec3::new(-1.0, -1.0, 0.0)).expect("a direction");
+        assert!(
+            (n - want).dot(n - want) < 1e-24,
+            "the plane leans furthest from both: {n:?}"
+        );
+    }
+
+    /// **The wedge plane reads a curved corner's axes over its
+    /// rectangle** ([`Presented::corner_axes`]), as [`sign_on`] decides:
+    /// [`cylinder`]'s quadrant at `(1, ½)` over `u ∈ (1, 1.3)`, its `u`
+    /// axis turning `0.3` rad across the rectangle, against a plane
+    /// wedge at the corner on `(0, −0.6, 0.4)` and `(−0.9, −0.1, 0.8)`.
+    /// The plane leaning furthest from both, read over the rectangle,
+    /// parts the faces; read at the corner point alone it leaves the far
+    /// end of the cylinder's turning axis on the wedge's side. Red if
+    /// the axes are read at the corner point.
+    #[test]
+    fn the_wedge_plane_reads_a_curved_corners_axes_over_its_rectangle() {
+        let cyl = cylinder();
+        let p0 = on_cyl(1.0, 0.5);
+        let quadrant = Presented {
+            surface: &cyl,
+            map: Map::Chart,
+            x: (1.0, 1.3),
+            y: (0.5, 0.52),
+            zero: Zero::Point(Side::XLo, Side::YLo, vertex(1)),
+            corner: false,
+            cache: Cache::default(),
+        };
+        let (d1, d2) = (Vec3::new(0.0, -0.6, 0.4), Vec3::new(-0.9, -0.1, 0.8));
+        let (n, u) = (
+            unit(d1.cross(d2)).expect("a plane"),
+            unit(d1).expect("an axis"),
+        );
+        let plane = Surface::Plane {
+            frame: geom::Frame::new(p0, lift(n), lift(u)),
+        };
+        let v = n.cross(u);
+        let wedge = Presented {
+            surface: &plane,
+            map: Map::Affine {
+                o: [iv0(0.0), iv0(0.0)],
+                a: [iv0(d1.dot(u)), iv0(0.0)],
+                b: [iv0(d2.dot(u)), iv0(d2.dot(v))],
+            },
+            x: (0.0, 0.02),
+            y: (0.0, 0.02),
+            zero: Zero::Point(Side::XLo, Side::YLo, vertex(1)),
+            corner: false,
+            cache: Cache::default(),
+        };
+        let on = On {
+            edges: Vec::new(),
+            vertices: vec![vertex(1)],
+            whole: true,
+        };
+        let n = wedges_apart(&quadrant, &wedge).expect("the wedges part");
+        let psi = Psi::Linear { n: lift(n), q: p0 };
+        let signs = (
+            sign_on(&psi, Some(&on), &quadrant, Some(&wedge), band()),
+            sign_on(&psi, Some(&on), &wedge, Some(&quadrant), band()),
+        );
+        assert!(
+            matches!(signs, (Some(a), Some(b)) if a == flip(b)),
+            "each face strictly on its own side: {signs:?}, {n:?}"
+        );
+    }
+
+    /// **[`parting_normal`] finds a parting plane exactly where the two
+    /// cones share no ray**, wherever the hull's nearest point falls: on
+    /// an edge (two quadrants of one plane, a thin wedge below the
+    /// other's diagonal) or inside a triangle (the roof, a wide wedge just
+    /// above, a thin wedge laid across a thin one). Wedges crossing along
+    /// a ray, sharing an edge, holding the other's axis or crossing
+    /// through it are parted by none. Each `n` found parts the axes
+    /// strictly. Red if the nearest point is not the hull's, or a point is
+    /// kept that does not part.
+    #[test]
+    fn parting_normal_parts_two_cones_exactly_where_they_share_no_ray() {
+        let d = |x: f64, y: f64, z: f64| unit(Vec3::new(x, y, z)).expect("a direction");
+        let (x, y) = (d(1.0, 0.0, 0.0), d(0.0, 1.0, 0.0));
+        for (a, b, parts, what) in [
+            (
+                [x, y],
+                [d(3.0, -1.0, 1.0), d(-1.0, 3.0, 1.0)],
+                true,
+                "the roof",
+            ),
+            (
+                [x, y],
+                [d(-1.0, -1.0, 0.1), d(-1.0, -1.0, -0.1)],
+                true,
+                "a thin wedge below the diagonal",
+            ),
+            (
+                [x, y],
+                [d(-1.0, 0.0, 0.0), d(0.0, -1.0, 0.0)],
+                true,
+                "the opposite quadrant of one plane",
+            ),
+            (
+                [x, y],
+                [d(1.0, -0.01, 1.0), d(-0.01, 1.0, 1.0)],
+                true,
+                "a wide wedge just above",
+            ),
+            (
+                [x, d(1.0, 1.0, 0.0)],
+                [d(-1.0, 1.0, 0.0), d(-1.0, 0.0, 0.0)],
+                true,
+                "two thin wedges of one plane",
+            ),
+            (
+                [x, y],
+                [d(1.0, 1.0, 1.0), d(1.0, 1.0, -1.0)],
+                false,
+                "across the diagonal",
+            ),
+            (
+                [x, y],
+                [y, d(-1.0, 0.0, 0.0)],
+                false,
+                "the next quadrant, an edge shared",
+            ),
+            (
+                [x, y],
+                [d(1.0, 1.0, 0.0), d(0.0, 0.0, 1.0)],
+                false,
+                "an axis inside the other",
+            ),
+            (
+                [x, d(1.0, 0.2, 0.0)],
+                [d(1.0, -0.2, 0.05), d(1.0, 0.4, 0.05)],
+                true,
+                "a thin wedge laid across a thin one",
+            ),
+            (
+                [x, y],
+                [d(1.0, 0.0, 1.0), d(1.0, 0.0, -1.0)],
+                false,
+                "a wedge through an edge",
+            ),
+        ] {
+            let got = parting_normal(a, b);
+            assert_eq!(got.is_some(), parts, "{what}: {got:?}");
+            if let Some(n) = got {
+                assert!(
+                    a.iter().all(|v| n.dot(*v) > 0.0) && b.iter().all(|v| n.dot(*v) < 0.0),
+                    "{what}: n parts the axes strictly: {n:?}"
+                );
+            }
         }
     }
 
@@ -10722,6 +11539,177 @@ mod presentation_rows {
         let w = Interval::from_bounds(-1e-9, 1e-9);
         let wide = Vec3::new(w, iv0(0.0), iv0(-1.0));
         assert!(!one_plane((o, wide), (o, wide)), "one bracket twice");
+    }
+
+    /// **A point-scalar body's two circles are one where it stores their
+    /// frames one up to the signs of their axes, and not where one axis
+    /// alone is a rounding off** ([`one_conic`], [`one_stated_conic`],
+    /// [`one_stated_plane`]): a ball's two seam meridians in a turned
+    /// frame, one origin and one `u`, the second's `v` and `w` turned
+    /// over, are one circle though their lifts (the enclosures of the
+    /// frames' polar factors) are not one value. Against the first: each
+    /// of `u`, `v` and `w` a rounding off with the other two and the
+    /// origin kept bit for bit, and the origin an ulp off, are not one
+    /// circle; with `u.z` two ulps off, the two lifted `w` are disjoint
+    /// enclosures, two planes for certain, which comparing the origin and
+    /// `w` alone reads as one; another radius is another circle. Not one
+    /// circle where only the lifts are held. Two exactly rigid frames with
+    /// one axis and two `u`, whose lifts are points, are one circle by
+    /// their lifts. Red if any one of the comparisons is dropped, or
+    /// either reading is not read.
+    #[test]
+    fn two_stored_circles_are_one_only_with_every_axis_one_up_to_its_sign() {
+        let o = Point3::new(0.299_999_999_999_999_9, -1.1, 2.9);
+        let u = Vec3::new(
+            -0.482_929_284_214_212_1,
+            0.832_030_133_774_634_8,
+            0.272_956_338_888_314_3,
+        );
+        let w = Vec3::new(
+            -0.394_739_798_173_799_8,
+            0.071_392_499_417_875_87,
+            -0.916_015_066_887_317_3,
+        );
+        let v = w.cross(u);
+        let frame = |o: Point3<f64>, u: Vec3<f64>, v: Vec3<f64>, w: Vec3<f64>| {
+            let map = geom_core::Affine3 {
+                linear: geom_core::Mat3::from_cols(u, v, w),
+                translation: o - Point3::origin(),
+            };
+            geom::Frame::of_motion(
+                &geom_core::RigidMotion::check_rigid(&map).expect("rigid within its rounding"),
+            )
+        };
+        let rim = |f: geom::Frame<f64>, stated: bool| {
+            let c = Curve3::Circle(geom::Circle::new(f, 1.0));
+            Rim {
+                key: edge(1),
+                arc: Some((c.map_scalar(Interval::from_f64), (iv0(0.0), iv0(1.0)))),
+                stated: stated.then_some(c),
+                ends: [vertex(1), vertex(2)],
+                uses: Vec::new(),
+            }
+        };
+        let lifted_w = |r: &Rim| match r.arc.as_ref() {
+            Some((Curve3::Circle(c), _)) => c.frame().axis(),
+            _ => panic!("a circle"),
+        };
+        let a = rim(frame(o, u, v, w), true);
+        let b = rim(frame(o, u, -v, -w), true);
+        assert!(
+            !one_vector(lifted_w(&a), lifted_w(&b) * at(-1.0)),
+            "the lifts are no one value"
+        );
+        assert!(one_conic(&a, &b), "stored one up to signs");
+        assert!(
+            !one_conic(
+                &rim(frame(o, u, v, w), false),
+                &rim(frame(o, u, -v, -w), false)
+            ),
+            "the lifts alone"
+        );
+        let up = |x: Vec3<f64>| Vec3::new(x.x.next_up(), x.y, x.z);
+        let u_off = rim(
+            frame(o, Vec3::new(u.x, u.y, u.z.next_up().next_up()), v, w),
+            true,
+        );
+        let apart = |x: Interval, y: Interval| x.hi() < y.lo() || y.hi() < x.lo();
+        let (wa, wu) = (lifted_w(&a), lifted_w(&u_off));
+        assert!(
+            apart(wa.x, wu.x) || apart(wa.y, wu.y) || apart(wa.z, wu.z),
+            "u two ulps off lifts w apart: {wa:?} {wu:?}"
+        );
+        for (what, other) in [
+            ("u two ulps off", u_off),
+            ("v an ulp off", rim(frame(o, u, up(v), w), true)),
+            ("w an ulp off", rim(frame(o, u, v, up(w)), true)),
+            (
+                "the origin an ulp off",
+                rim(frame(Point3::new(o.x.next_up(), o.y, o.z), u, v, w), true),
+            ),
+        ] {
+            assert!(!one_conic(&a, &other), "{what} is another circle");
+        }
+        let wider = Rim {
+            stated: Some(Curve3::Circle(geom::Circle::new(frame(o, u, -v, -w), 2.0))),
+            arc: Some((
+                Curve3::Circle(geom::Circle::new(frame(o, u, -v, -w), 2.0))
+                    .map_scalar(Interval::from_f64),
+                (iv0(0.0), iv0(1.0)),
+            )),
+            ..b.clone()
+        };
+        assert!(!one_conic(&a, &wider), "another radius is another circle");
+        let (x, y, z) = (
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        );
+        assert!(
+            one_conic(
+                &rim(frame(o, x, y, z), true),
+                &rim(frame(o, y, Vec3::new(-1.0, 0.0, 0.0), z), true)
+            ),
+            "exactly rigid frames with one axis and two u are one circle, by their lifts"
+        );
+    }
+
+    /// **Two stored ellipses are one only where stated alike**
+    /// ([`one_stated_conic`]): an ellipse is one with itself restated;
+    /// two held on their arcs, anchored `2⁻⁶⁰` apart with a semi-axis of
+    /// 100 toward the centre, derive one centre to the bit and one frame
+    /// there, yet are two ellipses (their centres `2⁻⁶⁰` apart), and are
+    /// not one; two stated alike but for `v`, which the stated-content
+    /// comparison does not read, are not one. Red if the frames at the
+    /// derived centre are compared, or `v` is not.
+    #[test]
+    fn two_stored_ellipses_are_one_only_where_stated_alike() {
+        let (x, y, z) = (
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        );
+        let rim = |e: geom::Ellipse<f64>| {
+            let c = Curve3::Ellipse(e);
+            Rim {
+                key: edge(1),
+                arc: Some((c.map_scalar(Interval::from_f64), (iv0(0.0), iv0(1.0)))),
+                stated: Some(c),
+                ends: [vertex(1), vertex(2)],
+                uses: Vec::new(),
+            }
+        };
+        let near = geom::Ellipse::anchored(Point3::origin(), z, x, 100.0, 1.0);
+        let off = 2f64.powi(-60);
+        let far = geom::Ellipse::anchored(Point3::new(off, 0.0, 0.0), z, x, 100.0, 1.0);
+        assert!(
+            one_stated_plane(&near.frame(), &far.frame()),
+            "one frame at one derived centre: {:?} {:?}",
+            near.frame(),
+            far.frame()
+        );
+        assert!(one_conic(&rim(near), &rim(near)), "restated alike");
+        assert!(
+            !one_conic(&rim(near), &rim(far)),
+            "anchored apart is another ellipse"
+        );
+        let frame = |v: Vec3<f64>| {
+            let map = geom_core::Affine3 {
+                linear: geom_core::Mat3::from_cols(x, v, z),
+                translation: Vec3::new(0.3, -1.1, 2.9),
+            };
+            geom::Frame::of_motion(
+                &geom_core::RigidMotion::check_rigid(&map).expect("rigid within its rounding"),
+            )
+        };
+        let tilted_v = Vec3::new(y.x, y.y, y.z + 1e-17);
+        assert!(
+            !one_conic(
+                &rim(geom::Ellipse::new(frame(y), 2.0, 1.0)),
+                &rim(geom::Ellipse::new(frame(tilted_v), 2.0, 1.0))
+            ),
+            "v a rounding off is another ellipse"
+        );
     }
 
     /// **A plane through a line edge answers nothing at a shared vertex
@@ -12608,5 +13596,833 @@ mod presentation_rows {
             None,
             "the shared edge's far end"
         );
+    }
+
+    /// **A wedge plane and a cone face sharing a ruling to the apex.** The
+    /// cone `Φ(u, v) = v·(cos u, sin u, 1)/√2` about `z`, its face over
+    /// `u ∈ [0, 3π/2]`, `v ∈ [0, 1]`, its apex `A` a collapsed side, its
+    /// rulings at `u = 0` (edge 1, shared) and `u = 3π/2` (edge 2). The
+    /// plane `y = 0`, charted `(z, x)`, holds the shared ruling, whose
+    /// direction there is `(1, 1)`, and a second edge from `A` along
+    /// `far`; so it holds the cone's ruling at `u = π`, along `(1, −1)`,
+    /// on the cone face. The pair is read in the plane's cell at `A` and
+    /// the cone's at `A` about `u = π`, where they share `A` and are near
+    /// the shared ruling: [`certify_pair`]'s outcome.
+    fn wedge_at_the_apex(far: (f64, f64)) -> Outcome {
+        let s2 = core::f64::consts::FRAC_1_SQRT_2;
+        let pi = core::f64::consts::PI;
+        let p3 = |x: f64, y: f64, z: f64| Point3::new(iv0(x), iv0(y), iv0(z));
+        // A segment is its chord, its span in metres, read off the
+        // stated points.
+        let line = |a: Point3<Interval>, b: Point3<Interval>| {
+            let d = Vec3::new(
+                b.x.lo() - a.x.lo(),
+                b.y.lo() - a.y.lo(),
+                b.z.lo() - a.z.lo(),
+            );
+            let len = d.norm();
+            Some((
+                Curve3::line(a, geom_core::UnitVec3::checked((d * (1.0 / len)).map(iv0))),
+                (iv0(0.0), iv0(len)),
+            ))
+        };
+        let apex = origin();
+        let (p0, p1) = (p3(s2, 0.0, s2), p3(0.0, -s2, s2));
+        // The plane's second edge ends at `q`, its chart point `far`.
+        let q = p3(far.1, 0.0, far.0);
+        let cone = Surface::Cone {
+            frame: geom::Frame::new(
+                apex,
+                Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+            ),
+            half_angle: iv0(core::f64::consts::FRAC_PI_4),
+        };
+        let plane = Surface::Plane {
+            frame: geom::Frame::new(
+                apex,
+                Vec3::new(iv0(0.0), iv0(1.0), iv0(0.0)),
+                Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+            ),
+        };
+        let mut c = Boundary {
+            sense: true,
+            edges: vec![
+                rim(1, [1, 2], Axis::U, 0.0, (0.0, 0.0), (0.0, 1.0)),
+                rim(
+                    2,
+                    [1, 3],
+                    Axis::U,
+                    1.5 * pi,
+                    (1.5 * pi, 0.0),
+                    (1.5 * pi, 1.0),
+                ),
+                rim(3, [2, 3], Axis::V, 1.0, (0.0, 1.0), (1.5 * pi, 1.0)),
+            ],
+            vertices: BTreeMap::from([(vertex(1), apex), (vertex(2), p0), (vertex(3), p1)]),
+            extent: Some([(0.0, 1.5 * pi), (0.0, 1.0)]),
+        };
+        c.edges[0].arc = line(apex, p0);
+        c.edges[0].uses[0].plus = false;
+        c.edges[1].arc = line(apex, p1);
+        // The rim: the circle at `v = 1` from `p0` to `p1`, run back.
+        c.edges[2].arc = Some((
+            Curve3::circle(
+                p3(0.0, 0.0, s2),
+                Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                iv0(s2),
+                Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+            ),
+            (iv0(0.0), iv0(1.5 * pi)),
+        ));
+        c.edges[2].uses[0].plus = false;
+        let unread = |n: u64, ends: [u64; 2], arc, plus| Rim {
+            key: edge(n),
+            arc,
+            stated: None,
+            ends: ends.map(vertex),
+            uses: vec![Use {
+                plus,
+                image: None,
+                iso: None,
+                wall: None,
+                harmonic: None,
+            }],
+        };
+        let w = Boundary {
+            sense: true,
+            edges: vec![
+                unread(1, [1, 2], line(apex, p0), false),
+                unread(4, [1, 4], line(apex, q), true),
+                unread(5, [4, 2], line(q, p0), true),
+            ],
+            vertices: BTreeMap::from([(vertex(1), apex), (vertex(2), p0), (vertex(4), q)]),
+            extent: None,
+        };
+        let (lw, lc) = (
+            Local {
+                edges: vec![0, 1],
+                vertices: vec![vertex(1)],
+            },
+            Local {
+                edges: vec![0, 1],
+                vertices: vec![vertex(1)],
+            },
+        );
+        let near = Near {
+            edges: vec![(0, 0)],
+            vertices: vec![vertex(1)],
+        };
+        let piece = |face: FaceKey, surface, boundary, u, v, local| Piece {
+            face,
+            surface,
+            whole: false,
+            boundary,
+            u,
+            v,
+            local,
+            ball: Ball::holding(origin(), origin()),
+        };
+        let a = piece(face(1), &plane, &w, (0.0, 1e-3), (-1e-3, 1e-3), &lw);
+        let b = piece(face(2), &cone, &c, (pi - 3e-3, pi + 3e-3), (0.0, 1e-3), &lc);
+        certify_pair(&a, &b, &near, band())
+    }
+
+    /// **The cone's cell about the second ruling is parted from the wedge
+    /// plane at the apex** ([`wedge_at_the_apex`], the plane's second edge
+    /// the axis): no plane through the shared ruling signs the cone there,
+    /// as the plane's carrier holds the cone's ruling at `u = π`, and the
+    /// plane through the apex alone, both faces presented against it,
+    /// does. Red while [`departure`] reads no separator but those through
+    /// the shared edge, where the pair splits.
+    #[test]
+    fn a_cone_cell_about_the_wedge_planes_second_ruling_is_parted_at_the_apex() {
+        let got = wedge_at_the_apex((1.0, 0.0));
+        assert!(
+            matches!(got, Outcome::Certified { .. }),
+            "the plane through the apex parts the pair: {got:?}"
+        );
+    }
+
+    /// **A wedge plane holding the cone's second ruling is not parted
+    /// from it** ([`wedge_at_the_apex`], the plane's sector run on past
+    /// the axis to `(1, −2)`): the plane face holds the cone's ruling at
+    /// `u = π`, so the two faces meet along it, off the shared cell, and
+    /// no separator through the apex reads them apart. Red if the plane
+    /// through the apex certifies a pair that meets.
+    #[test]
+    fn a_wedge_plane_holding_the_cones_second_ruling_is_not_parted() {
+        let got = wedge_at_the_apex((1.0, -2.0));
+        assert!(
+            !matches!(got, Outcome::Certified { .. }),
+            "the faces meet along the ruling at u = π: {got:?}"
+        );
+    }
+
+    /// **A cone cell across both nappes at its apex is presented on the
+    /// face's own**: a whole cone face about `z` (`u` over a whole turn,
+    /// its seam at `u = 0`, its rim at `v = 1`), whose extent wraps, so
+    /// nothing but the nappe places its `v`. The cell at the apex reaching
+    /// `v ∈ (−10⁻³, 10⁻³)` is presented against the apex alone as the
+    /// rectangle `v ∈ [0, 10⁻³]` with the apex its collapsed low side, and
+    /// the plane `z = 0` through the apex signs it positive. Red if the
+    /// rectangle is not clamped to the nappe: it then reaches the other
+    /// nappe, where the plane is negative, under the same sign
+    /// ([`departure`]'s plane through the one shared vertex reads this).
+    #[test]
+    fn a_cone_cell_across_both_nappes_at_its_apex_is_presented_on_its_nappe() {
+        let s2 = core::f64::consts::FRAC_1_SQRT_2;
+        let cone = Surface::Cone {
+            frame: geom::Frame::new(
+                origin(),
+                Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+            ),
+            half_angle: iv0(core::f64::consts::FRAC_PI_4),
+        };
+        let p0 = Point3::new(iv0(s2), iv0(0.0), iv0(s2));
+        let mut seam = rim(1, [1, 2], Axis::U, 0.0, (0.0, 0.0), (0.0, 1.0));
+        seam.arc = Some((
+            Curve3::line(
+                origin(),
+                geom_core::UnitVec3::checked(Vec3::new(iv0(s2), iv0(0.0), iv0(s2))),
+            ),
+            (iv0(0.0), iv0(1.0)),
+        ));
+        let mut back = seam.uses[0].clone();
+        back.plus = false;
+        back.image = Some([p2((TURN, 0.0)), p2((TURN, 1.0))]);
+        back.iso = Some(Iso {
+            held: Axis::U,
+            at: iv0(TURN),
+            full: false,
+        });
+        seam.uses.push(back);
+        let mut ring = rim(2, [2, 2], Axis::V, 1.0, (0.0, 1.0), (TURN, 1.0));
+        ring.arc = Some((
+            Curve3::circle(
+                Point3::new(iv0(0.0), iv0(0.0), iv0(s2)),
+                Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                iv0(s2),
+                Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+            ),
+            (iv0(0.0), iv0(TURN)),
+        ));
+        ring.uses[0].plus = false;
+        let b = Boundary {
+            sense: true,
+            edges: vec![seam, ring],
+            vertices: BTreeMap::from([(vertex(1), origin()), (vertex(2), p0)]),
+            extent: Some([(0.0, TURN), (0.0, 1.0)]),
+        };
+        let local = Local {
+            edges: vec![0],
+            vertices: vec![vertex(1)],
+        };
+        let piece = Piece {
+            face: FaceKey::default(),
+            surface: &cone,
+            whole: false,
+            boundary: &b,
+            u: (2.0, 2.1),
+            v: (-1e-3, 1e-3),
+            local: &local,
+            ball: Ball::holding(origin(), origin()),
+        };
+        let Ok(Presentation::Of(q)) = present_chart(&piece, &[], &[vertex(1)], band()) else {
+            panic!("the cell at the apex is presented");
+        };
+        assert_eq!(q.y, (0.0, 1e-3), "the rectangle is on the face's nappe");
+        assert!(
+            matches!(&q.zero, Zero::Side(Side::YLo, a) if a.vertex == Some(vertex(1))),
+            "the apex is the rectangle's collapsed low side: {:?}",
+            q.zero
+        );
+        let through = On {
+            edges: Vec::new(),
+            vertices: vec![vertex(1)],
+            whole: true,
+        };
+        let plane = Psi::Linear {
+            n: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+            q: origin(),
+        };
+        assert_eq!(
+            sign_on(&plane, Some(&through), &q, None, band()),
+            Some(Sign::Positive),
+            "the plane through the apex signs the face's nappe"
+        );
+    }
+
+    /// [`wedge_at_the_apex`] in a true mirror (`y → −y`), on a re-charted
+    /// cone (axis `−z`: `u' = π − u`, `v' = −v`) and a re-charted plane
+    /// (normal `−y`), the plane's far edge at `(1, far.1)`, the cone's
+    /// cell about `u = π` widened by `du` and reaching `dv` along the
+    /// ruling: [`certify_pair`]'s outcome.
+    fn mirrored_wedge(
+        far: (f64, f64),
+        mirror: bool,
+        recone: bool,
+        replane: bool,
+        du: (f64, f64),
+        dv: f64,
+    ) -> Outcome {
+        let s2 = core::f64::consts::FRAC_1_SQRT_2;
+        let pi = core::f64::consts::PI;
+        let m = if mirror { -1.0 } else { 1.0 };
+        let p3 = |x: f64, y: f64, z: f64| Point3::new(iv0(x), iv0(m * y), iv0(z));
+        // A segment is its chord, its span in metres, read off the
+        // stated points.
+        let line = |a: Point3<Interval>, b: Point3<Interval>| {
+            let d = Vec3::new(
+                b.x.lo() - a.x.lo(),
+                b.y.lo() - a.y.lo(),
+                b.z.lo() - a.z.lo(),
+            );
+            let len = d.norm();
+            Some((
+                Curve3::line(a, geom_core::UnitVec3::checked((d * (1.0 / len)).map(iv0))),
+                (iv0(0.0), iv0(len)),
+            ))
+        };
+        let apex = origin();
+        let (p0, p1) = (p3(s2, 0.0, s2), p3(0.0, -s2, s2));
+        let q = p3(far.1, 0.0, far.0);
+        let cone = Surface::Cone {
+            frame: geom::Frame::new(
+                apex,
+                Vec3::new(iv0(0.0), iv0(0.0), iv0(if recone { -1.0 } else { 1.0 })),
+                Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+            ),
+            half_angle: iv0(core::f64::consts::FRAC_PI_4),
+        };
+        let plane = Surface::Plane {
+            frame: geom::Frame::new(
+                apex,
+                Vec3::new(iv0(0.0), iv0(if replane { -1.0 } else { 1.0 }), iv0(0.0)),
+                Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+            ),
+        };
+        // Chart of a cone point at original (u, v): mirror u -> -u (shift by 2π
+        // to stay in [π/2, 2π]); recone (u, v) -> (π − u, −v).
+        let ch = |u: f64, v: f64| -> (f64, f64) {
+            let u = if mirror {
+                if u <= 0.0 { -u } else { 2.0 * pi - u }
+            } else {
+                u
+            };
+            if recone { (pi - u, -v) } else { (u, v) }
+        };
+        let (u_sh, u_far) = (ch(0.0, 0.0).0, ch(1.5 * pi, 0.0).0);
+        let vr = if recone { -1.0 } else { 1.0 };
+        let mut c = Boundary {
+            sense: !mirror,
+            edges: vec![
+                rim(1, [1, 2], Axis::U, u_sh, (u_sh, 0.0), (u_sh, vr)),
+                rim(2, [1, 3], Axis::U, u_far, (u_far, 0.0), (u_far, vr)),
+                rim(3, [2, 3], Axis::V, vr, (u_sh, vr), (u_far, vr)),
+            ],
+            vertices: BTreeMap::from([(vertex(1), apex), (vertex(2), p0), (vertex(3), p1)]),
+            extent: Some([
+                (u_sh.min(u_far), u_sh.max(u_far)),
+                (vr.min(0.0), vr.max(0.0)),
+            ]),
+        };
+        c.edges[0].arc = line(apex, p0);
+        c.edges[0].uses[0].plus = false;
+        c.edges[1].arc = line(apex, p1);
+        c.edges[2].arc = Some((
+            Curve3::circle(
+                p3(0.0, 0.0, s2),
+                Vec3::new(iv0(0.0), iv0(0.0), iv0(m)),
+                iv0(s2),
+                Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+            ),
+            (iv0(0.0), iv0(1.5 * pi)),
+        ));
+        c.edges[2].uses[0].plus = false;
+        let unread = |n: u64, ends: [u64; 2], arc, plus| Rim {
+            key: edge(n),
+            arc,
+            stated: None,
+            ends: ends.map(vertex),
+            uses: vec![Use {
+                plus,
+                image: None,
+                iso: None,
+                wall: None,
+                harmonic: None,
+            }],
+        };
+        let w = Boundary {
+            sense: !(mirror ^ replane),
+            edges: vec![
+                unread(1, [1, 2], line(apex, p0), false),
+                unread(4, [1, 4], line(apex, q), true),
+                unread(5, [4, 2], line(q, p0), true),
+            ],
+            vertices: BTreeMap::from([(vertex(1), apex), (vertex(2), p0), (vertex(4), q)]),
+            extent: None,
+        };
+        let lw = Local {
+            edges: vec![0, 1],
+            vertices: vec![vertex(1)],
+        };
+        let lc = Local {
+            edges: vec![0, 1],
+            vertices: vec![vertex(1)],
+        };
+        let near = Near {
+            edges: vec![(0, 0)],
+            vertices: vec![vertex(1)],
+        };
+        let piece = |face: FaceKey, surface, boundary, u, v, local| Piece {
+            face,
+            surface,
+            whole: false,
+            boundary,
+            u,
+            v,
+            local,
+            ball: Ball::holding(origin(), origin()),
+        };
+        // The plane's chart is (z, ±x): x flips with replane.
+        let a = piece(face(1), &plane, &w, (0.0, 1e-3), (-1e-3, 1e-3), &lw);
+        let uc = ch(pi, 0.0).0;
+        let cv = if recone { (-dv, 0.0) } else { (0.0, dv) };
+        let b = piece(face(2), &cone, &c, (uc + du.0, uc + du.1), cv, &lc);
+        certify_pair(&a, &b, &near, band())
+    }
+
+    /// **A wedge plane holding the cone's second ruling is never parted
+    /// from it, in any mirror or chart** ([`mirrored_wedge`]): over both
+    /// mirrors, both cone charts, both plane charts, eight far edges
+    /// (those with `far.1 < −1` hold the ruling at `u = π`, so the faces
+    /// meet along it), five cone cells and three reaches, 960 pairs, none
+    /// holding the ruling certifies. Red if the plane through the one
+    /// shared vertex certifies where it signs one face only.
+    #[test]
+    fn mirrored_and_recharted_wedges_never_certify_a_meeting() {
+        let mut bad = Vec::new();
+        for mirror in [false, true] {
+            for recone in [false, true] {
+                for replane in [false, true] {
+                    for t in [0.9, 0.0, -0.5, -0.99, -1.01, -1.5, -2.0, -5.0] {
+                        for du in [
+                            (-3e-3, 3e-3),
+                            (-1e-4, 2e-3),
+                            (-2e-3, 1e-5),
+                            (-0.3, 0.3),
+                            (-1e-6, 1e-6),
+                        ] {
+                            for dv in [1e-3, 1e-6, 0.1] {
+                                let got = mirrored_wedge((1.0, t), mirror, recone, replane, du, dv);
+                                let cert = matches!(got, Outcome::Certified { .. });
+                                if t < -1.0 && cert {
+                                    bad.push(format!("mirror {mirror} recone {recone} replane {replane} far.1 {t} du {du:?} dv {dv}: {got:?}"));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert!(bad.is_empty(), "false certificates: {bad:#?}");
+    }
+}
+
+/// **`Psi::rate` against a finite difference of `Psi::value`**, member by
+/// member, and the carrier arm's negative. The points are a fixed sample
+/// (`Lcg`): these rows pin each arm's formula, which any sample of
+/// off-axis points exercises; they are not a counterexample search.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod rate_rows {
+    use super::*;
+
+    fn iv0(x: f64) -> Interval {
+        Interval::from_bounds(x, x)
+    }
+    fn band() -> Band {
+        Band::linear(geom_core::Tol::witness()).unwrap()
+    }
+    fn pt(q: Vec3<f64>) -> Point3<Interval> {
+        Point3::new(iv0(q.x), iv0(q.y), iv0(q.z))
+    }
+    fn boxed(q: Vec3<f64>, h: f64) -> Point3<Interval> {
+        let s = |x: f64| Interval::from_bounds(x - h, x + h);
+        Point3::new(s(q.x), s(q.y), s(q.z))
+    }
+    fn vbox(v: Vec3<f64>, h: f64) -> Vec3<Interval> {
+        let s = |x: f64| Interval::from_bounds(x - h, x + h);
+        Vec3::new(s(v.x), s(v.y), s(v.z))
+    }
+    struct Lcg(u64);
+    impl Lcg {
+        /// Uniform in (-1, 1).
+        fn next(&mut self) -> f64 {
+            self.0 = self
+                .0
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            ((self.0 >> 11) as f64) / ((1u64 << 53) as f64) * 2.0 - 1.0
+        }
+        fn vec(&mut self, s: f64) -> Vec3<f64> {
+            Vec3::new(self.next() * s, self.next() * s, self.next() * s)
+        }
+    }
+    const D: [f64; 3] = [0.36, -0.48, 0.8];
+    const O: [f64; 3] = [1.5, -2.25, 0.75];
+    fn d() -> Vec3<f64> {
+        Vec3::new(D[0], D[1], D[2])
+    }
+    fn o() -> Vec3<f64> {
+        Vec3::new(O[0], O[1], O[2])
+    }
+    fn mid(x: Interval) -> f64 {
+        0.5 * (x.lo() + x.hi())
+    }
+    /// A central difference of `psi.value` along `v` at `q`.
+    fn fd(psi: &Psi, q: Vec3<f64>, v: Vec3<f64>) -> f64 {
+        let h = 1e-5;
+        let val = |s: f64| mid(psi.value(pt(q + v * s)).expect("a closed form"));
+        (val(h) - val(-h)) / (2.0 * h)
+    }
+    fn carriers(axis: UnitVec3<Interval>, org: Vec3<f64>) -> Vec<(&'static str, Psi)> {
+        let op = pt(org);
+        let cone = |nappe: f64| {
+            Psi::Carrier(Implicit::Cone {
+                apex: op,
+                axis,
+                cos: iv0(0.8),
+                sin: iv0(0.6),
+                nappe: iv0(nappe),
+            })
+        };
+        vec![
+            (
+                "cylinder",
+                Psi::Carrier(Implicit::Cylinder {
+                    o: op,
+                    axis,
+                    r: iv0(0.5),
+                }),
+            ),
+            ("cone+", cone(1.0)),
+            ("cone-", cone(-1.0)),
+            (
+                "sphere",
+                Psi::Carrier(Implicit::Sphere { c: op, r: iv0(0.5) }),
+            ),
+            (
+                "plane",
+                Psi::Carrier(Implicit::Plane {
+                    o: op,
+                    n: axis.get(),
+                }),
+            ),
+            (
+                "linear",
+                Psi::Linear {
+                    n: axis.get(),
+                    q: op,
+                },
+            ),
+        ]
+    }
+    fn off_axis(q: Vec3<f64>) -> f64 {
+        let w = q - o();
+        (w - d() * w.dot(d())).norm()
+    }
+
+    /// **At a point, each carrier's rate is the derivative of its own
+    /// value along `v`**, to 1e-7, and is itself a point to 1e-9: so a
+    /// sign, a factor, or a swapped term in any arm goes red.
+    #[test]
+    fn each_carriers_rate_at_a_point_is_its_values_derivative() {
+        let mut g = Lcg(7);
+        let mut seen = 0;
+        while seen < 200 {
+            let q = o() + g.vec(2.0);
+            if off_axis(q) < 0.2 {
+                continue;
+            }
+            seen += 1;
+            let v = g.vec(1.0);
+            for (what, psi) in carriers(geom_core::UnitVec3::checked(d().map(iv0)), o()) {
+                let rate = psi.rate(pt(q), v.map(iv0));
+                let want = fd(&psi, q, v);
+                assert!(
+                    rate.hi() - rate.lo() < 1e-9
+                        && rate.lo() - 1e-7 <= want
+                        && want <= rate.hi() + 1e-7,
+                    "{what} at {q:?} along {v:?}: rate {rate:?}, derivative {want}"
+                );
+            }
+        }
+    }
+
+    /// **Over a box, an axis enclosure and a direction enclosure, the
+    /// rate holds every member's derivative**: members sampled, each
+    /// with its own axis, point and direction.
+    #[test]
+    fn each_carriers_rate_over_a_box_holds_every_sampled_members_derivative() {
+        let mut g = Lcg(11);
+        let mut seen = 0;
+        while seen < 60 {
+            let q = o() + g.vec(2.0);
+            if off_axis(q) < 0.3 {
+                continue;
+            }
+            seen += 1;
+            let v = g.vec(1.0);
+            for (hq, ha, hv) in [(1e-2, 0.0, 0.0), (1e-3, 1e-6, 1e-3), (1e-5, 1e-4, 1e-2)] {
+                let axis = vbox(d(), ha);
+                for ((what, psi), k) in carriers(geom_core::UnitVec3::checked(axis), o())
+                    .into_iter()
+                    .zip(0..)
+                {
+                    let rate = psi.rate(boxed(q, hq), vbox(v, hv));
+                    for _ in 0..12 {
+                        let a = d() + g.vec(ha);
+                        let (qm, vm) = (q + g.vec(hq), v + g.vec(hv));
+                        // The member's axis is its direction, lifted as the
+                        // type lifts a stated `f64` direction.
+                        let unit_a = geom_core::UnitVec3::stated(a * (1.0 / a.norm()))
+                            .expect("unit to rounding")
+                            .map_scalar(Interval::from_f64);
+                        let (_, member) = carriers(unit_a, o()).swap_remove(k);
+                        let want = fd(&member, qm, vm);
+                        assert!(
+                            rate.lo() - 1e-7 <= want && want <= rate.hi() + 1e-7,
+                            "{what} box {hq} axis {ha} dir {hv} at {q:?}: rate {rate:?}, \
+                             a member's derivative {want}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    // Retired: a cylinder's rate about a long axis, and a cone's about
+    // an axis off unit by the stored convention (`|dir|²` to 1e-10). A
+    // carrier's axis is a `UnitVec3<Interval>` (PR 7349,
+    // `onehome/carrier-directions`), which no door admits off unit at
+    // `Interval` (`UnitVec3::checked` keeps a box only where `v·v − 1`
+    // holds zero), so a non-unit axis reaching `rate` is unrepresentable:
+    // a stronger guarantee than these rows gave. `rate`'s division by the
+    // axis's length and `square_to`'s any length are left without a pin:
+    // `work/embed/rate-reads-an-axis-length-the-unit-axis-type-retired.md`.
+
+    /// **Over a box holding a cylinder's or a cone's axis, or the
+    /// cone's apex, no sign is read off the rate.**
+    #[test]
+    fn no_sign_is_read_off_a_rate_over_a_box_holding_the_axis() {
+        for (what, psi) in carriers(geom_core::UnitVec3::checked(d().map(iv0)), o())
+            .into_iter()
+            .take(3)
+        {
+            for (name, q, h) in [
+                ("holds the axis", o() + d() * 0.4, 1e-3),
+                ("holds the apex", o(), 1e-3),
+                (
+                    "touches the axis",
+                    o() + d() * 0.4 + Vec3::new(1e-3, 0.0, 0.0),
+                    1e-3,
+                ),
+            ] {
+                let v = Vec3::new(0.8, 0.6, 0.0);
+                let rate = psi.rate(boxed(q, h), v.map(iv0));
+                assert!(
+                    interval_sign_as(rate, SELF_INTERSECTION_DEPARTURE, band()).is_none(),
+                    "{what} {name}: a sign read over a box holding the axis"
+                );
+            }
+        }
+    }
+
+    /// **The graph arm's rate holds `m·v − s·(t·v)` for every slope `s`
+    /// in its enclosure**: its gradient is `m − γ′(s)·t` by definition.
+    #[test]
+    fn the_graph_arms_rate_holds_every_slopes_rate() {
+        let mut g = Lcg(17);
+        for _ in 0..200 {
+            let (m, t, v) = (g.vec(1.0), g.vec(1.0), g.vec(1.0));
+            let (s0, s1) = {
+                let (a, b) = (g.next(), g.next());
+                (a.min(b), a.max(b))
+            };
+            let psi = Psi::Graph {
+                m: m.map(iv0),
+                t: t.map(iv0),
+                slope: Interval::from_bounds(s0, s1),
+                piece: (0.0, 1.0),
+            };
+            let rate = psi.rate(pt(o()), v.map(iv0));
+            for k in 0..=4 {
+                let s = s0 + (s1 - s0) * f64::from(k) / 4.0;
+                let want = m.dot(v) - s * t.dot(v);
+                assert!(
+                    rate.lo() - 1e-12 <= want && want <= rate.hi() + 1e-12,
+                    "slope {s}: rate {rate:?} want {want}"
+                );
+            }
+            // and no wider than the three independent slopes can make it
+            let slack = (s1 - s0)
+                * (t.x * v.x)
+                    .abs()
+                    .max((t.y * v.y).abs())
+                    .max((t.z * v.z).abs())
+                * 3.0;
+            let tight = (s1 - s0) * t.dot(v).abs();
+            assert!(
+                rate.hi() - rate.lo() <= tight + slack + 1e-12,
+                "rate {rate:?} wider than its slopes: tight {tight} slack {slack}"
+            );
+        }
+    }
+
+    /// The plane through the ruling `(r, 0, z)` of the cylinder of radius
+    /// `r` round `z`, at 45° to the tangent plane there: chart
+    /// `(u, v) ↦ (r, 0, 0) + u·e + v·ẑ·(±1)`, `e = (1, 1, 0)/√2`. It
+    /// crosses the cylinder along the ruling, `u = 0`.
+    fn crossing_plane(r: f64) -> Surface<Interval> {
+        let s = core::f64::consts::FRAC_1_SQRT_2;
+        Surface::Plane {
+            frame: geom::Frame::new(
+                Point3::new(iv0(r), iv0(0.0), iv0(0.0)),
+                Vec3::new(iv0(s), iv0(-s), iv0(0.0)),
+                Vec3::new(iv0(s), iv0(s), iv0(0.0)),
+            ),
+        }
+    }
+
+    /// **The carrier arm's negative.** A plane face's cell with no zero
+    /// on its sides, crossing the cylinder's carrier along a ruling's
+    /// line in its interior, is not signed against that carrier, at
+    /// radius 0.25 and at radius 4; the same cell moved clear of the
+    /// line is. Red where the rate's enclosure is too small (a radial
+    /// term not normalised at r < 1, a rate read as zero).
+    #[test]
+    fn a_plane_cell_crossing_a_cylinders_carrier_along_a_ruling_is_not_signed() {
+        for r in [0.25, 4.0, 0.006] {
+            let s = crossing_plane(r);
+            let psi = Psi::Carrier(Implicit::Cylinder {
+                o: Point3::new(iv0(0.0), iv0(0.0), iv0(0.0)),
+                axis: geom_core::UnitVec3::exact_z(),
+                r: iv0(r),
+            });
+            // Wide enough that a cell clear of the carrier departs it past
+            // the band at every ε, and still small against the radius.
+            let k = (r * 4e-3).max(100.0 * band().zero());
+            let cell = |x: (f64, f64)| Presented {
+                surface: &s,
+                map: Map::Chart,
+                x,
+                y: (-k, k),
+                zero: Zero::None,
+                corner: false,
+                cache: Cache::default(),
+            };
+            let crossing = cell((-0.3 * k, 1.7 * k));
+            let value = centred(&psi, &crossing, crossing.x, crossing.y);
+            assert_eq!(
+                sign_on(&psi, None, &crossing, None, band()),
+                None,
+                "r = {r}: a cell crossing the carrier is signed: {value:?}"
+            );
+            let clear = cell((0.5 * k, 1.5 * k));
+            assert_eq!(
+                sign_on(&psi, None, &clear, None, band()),
+                Some(Sign::Positive),
+                "r = {r}: a cell clear of the carrier, outside it"
+            );
+            let inside = cell((-1.5 * k, -0.5 * k));
+            assert_eq!(
+                sign_on(&psi, None, &inside, None, band()),
+                Some(Sign::Negative),
+                "r = {r}: a cell clear of the carrier, inside it"
+            );
+        }
+    }
+
+    /// **The graph arm names its slope once**: over a slope `[0.9, 1.1]`
+    /// with `t` tilted, `m·v − (t·v)·γ′` is at most a third the width of
+    /// `(m − t·γ′)·v`, which names the slope once per component (red
+    /// where the rate is spelled that way).
+    #[test]
+    fn the_graph_arms_rate_names_its_slope_once() {
+        let slope = Interval::from_bounds(0.9, 1.1);
+        let (m, t) = (Vec3::new(0.6, 0.0, 0.8), Vec3::new(0.48, 0.6, -0.64));
+        let v = vbox(Vec3::new(0.6, 0.6, 0.8), 1e-3);
+        let psi = Psi::Graph {
+            m: m.map(iv0),
+            t: t.map(iv0),
+            slope,
+            piece: (0.0, 1.0),
+        };
+        let w = |x: Interval| x.hi() - x.lo();
+        let rate = psi.rate(pt(o()), v);
+        let per_component = (m.map(iv0) - t.map(iv0) * slope).dot(v);
+        assert!(
+            w(rate) * 3.0 <= w(per_component),
+            "rate {:e} against {:e}",
+            w(rate),
+            w(per_component)
+        );
+    }
+
+    /// **The sphere arm names `w` once in its dot**: over a cube 1e-2
+    /// wide, `(w·v)/|w|` is narrower than `(w/|w|)·v` (red where the rate
+    /// is spelled that way).
+    #[test]
+    fn the_sphere_arms_rate_names_w_once_in_its_dot() {
+        let c = o() + d() * 0.7 + Vec3::new(0.8, 0.6, 0.0) * 0.5;
+        let p = boxed(c, 1e-2);
+        let psi = Psi::Carrier(Implicit::Sphere {
+            c: pt(o()),
+            r: iv0(0.5),
+        });
+        let v = Vec3::new(0.3, 0.5, -0.4).map(iv0);
+        let w = |x: Interval| x.hi() - x.lo();
+        let ws = p - pt(o());
+        let unit_first = (ws * (at(1.0) / ws.norm())).dot(v);
+        let rate = psi.rate(p, v);
+        assert!(
+            w(rate) < 0.9 * w(unit_first),
+            "rate {:e} against {:e}",
+            w(rate),
+            w(unit_first)
+        );
+    }
+
+    /// **`|∇ψ|` holds each arm's gradient norm**: a central difference
+    /// along the gradient's own direction over its norm is 1 for the
+    /// distance carriers and `|n|` for a plane.
+    #[test]
+    fn each_carriers_gradient_norm_is_its_rate_along_its_steepest_direction() {
+        let mut g = Lcg(19);
+        let mut seen = 0;
+        while seen < 50 {
+            let q = o() + g.vec(2.0);
+            if off_axis(q) < 0.2 {
+                continue;
+            }
+            seen += 1;
+            for (what, psi) in carriers(geom_core::UnitVec3::checked(d().map(iv0)), o()) {
+                let e = 1e-6;
+                let grad = Vec3::new(
+                    fd(&psi, q, Vec3::new(1.0, 0.0, 0.0)),
+                    fd(&psi, q, Vec3::new(0.0, 1.0, 0.0)),
+                    fd(&psi, q, Vec3::new(0.0, 0.0, 1.0)),
+                );
+                let norm = psi.gradient_norm();
+                assert!(
+                    norm.lo() - e <= grad.norm() && grad.norm() <= norm.hi() + e,
+                    "{what} at {q:?}: |grad| {} against {norm:?}",
+                    grad.norm()
+                );
+            }
+        }
     }
 }

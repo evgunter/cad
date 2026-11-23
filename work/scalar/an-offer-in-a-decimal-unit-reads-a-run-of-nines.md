@@ -2,12 +2,13 @@
 id: an-offer-in-a-decimal-unit-reads-a-run-of-nines
 kind: issue
 title: An offered bound in a unit whose factor is not a power of two reads a run of nines: is the side that works the typed float's or the decimal's
-status: open
+status: closed
 opened: 2026-11-20
 priority: P1
 cost: M
 parent: patherror-display-renders-float-noise
 rides_with: a-number-in-a-unit-is-rounded-once
+closed: 2026-11-21
 ---
 
 
@@ -47,3 +48,7 @@ the side, and step by a whole grid step otherwise.
 ## Decided
 
 Ev, PR 7261 (2026-11-21): settled by `a-number-in-a-unit-is-rounded-once`, which this row rides with and which builds the answer.
+
+## Closed
+
+Built by `a-number-in-a-unit-is-rounded-once`: `300.04 mm` now types back as the float nearest 0.30004 m, so `at most 0.30004 m` reads `300.04 mm` and `at most 0.00013 m` reads `0.13 mm`; `told::tests::a_round_metre_offer_in_millimetres_reads_its_own_decimal` pins that a round metre bound offered in millimetres is its own decimal there, both sides.

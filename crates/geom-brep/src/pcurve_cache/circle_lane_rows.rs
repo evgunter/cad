@@ -1120,6 +1120,13 @@ fn a_circles_projected_envelope_covers_its_residual() {
                 } else {
                     s.range(b.zero(), b.escalate()) / (h.abs() * alpha.tan())
                 };
+                // The section circle is read off the plane's cut of one
+                // nappe, an ellipse only while the plane's tilt stays
+                // under the generators' `π/2 − α` from it; at a half-angle
+                // near `π/2` the scaled tilt can pass that and cut a
+                // hyperbola, which has no mean semi-axis. Capped at nine
+                // tenths of it, so the cut is always an ellipse.
+                let tau = tau.min(0.9 * (core::f64::consts::FRAC_PI_2 - alpha));
                 (
                     surface.clone(),
                     cone_section_circle(&surface, alpha, h, tau),
