@@ -9,10 +9,12 @@
 //!   two faces leave it on opposite sides ([`departures`]): the
 //!   composed material is smooth through it, and the rim is a SEAM of
 //!   one composite wall, whatever its bend. Between two operands the
-//!   boolean glues the junction on the rim's identity and this wedge
-//!   alone, nothing read along the rim of the two carriers' second
-//!   order, and the seam is read on the result; inside one body it is
-//!   structural.
+//!   boolean glues it a `Junction` where each operand's own rim edge is
+//!   also a convex crease ([`rim_edges_convex`]): the rim's identity,
+//!   this wedge (whose fold reads `second_order_walk` at each station,
+//!   so an in-band bend still stops it), the departures and those edges,
+//!   no touch read along the rim. The seam is read on the result; inside
+//!   one body it is structural.
 //! - **a corner all round** — no junction to glue: the crossing lanes
 //!   meet the two faces as any corner.
 //! - **normals agree, same departure** — the two faces leave the rim on
@@ -20,7 +22,9 @@
 //!   cusp the normals alone cannot tell from the seam. The material
 //!   table answers [`RimRouting::Seam`] for it, since it reads only the
 //!   two sheets' normals and jets; [`departures`] is what tells the two
-//!   apart, and the glue door (`route_rim`) asks it after the table.
+//!   apart, and the glue door asks it in the junction's test
+//!   (`junction_of`), and again in `route_rim` after the table for a rim
+//!   that is no junction.
 //! - **wedge 0 or 2π** — the normals oppose across the rim. A pair
 //!   reaching this routing has no tangent-locus arm for its two
 //!   surface kinds, which is what its refusal names.
