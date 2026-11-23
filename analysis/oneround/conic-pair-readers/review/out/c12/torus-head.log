@@ -1,0 +1,88 @@
+   Compiling geom-core v0.0.0 (/home/user/cad-clean/crates/geom-core)
+   Compiling bvh v0.0.0 (/home/user/cad-clean/crates/bvh)
+   Compiling geom v0.0.0 (/home/user/cad-clean/crates/geom)
+   Compiling geom-brep v0.0.0 (/home/user/cad-clean/crates/geom-brep)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 50s
+────────────
+ Nextest run ID 5931fda8-4498-4b9d-9262-682e7ddd82cc with nextest profile: ci
+    Starting 1 test across 2 binaries (2990 tests skipped)
+        FAIL [   3.165s] (1/1) geom-brep curve_face::ellipse_torus::torus_rows::certified_torus_answers_hold_against_the_true_distance
+  stdout ───
+
+    running 1 test
+    [fuzz] ellipse_torus::certified_torus_answers_hold: seed=0x53500b4c590de496 effort=1 — replay with CAD_FUZZ_SEED=0x53500b4c590de496
+    ε 0.000001, crossing: 110 certified, 10 misses, 0 uncertain
+    ε 0.000001, graze: 36 certified, 13 misses, 71 uncertain
+    ε 0.000001, far-out: 109 certified, 11 misses, 0 uncertain
+    test curve_face::ellipse_torus::torus_rows::certified_torus_answers_hold_against_the_true_distance ... FAILED
+
+    failures:
+
+    failures:
+        curve_face::ellipse_torus::torus_rows::certified_torus_answers_hold_against_the_true_distance
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1756 filtered out; finished in 3.15s
+
+  stderr ───
+
+    thread 'curve_face::ellipse_torus::torus_rows::certified_torus_answers_hold_against_the_true_distance' (24645) panicked at crates/geom-brep/src/curve_face/circle_roots.rs:285:23:
+    the door refused outside its decision: Torus(TorusRefusal { convention: Ring, verdict: Undecided(Indeterminate { margin: MarginDiag(Value(7.140357392529135e-6, None, ZeroWord(0))), terminal_sliver: false, band: Band { zero: 1e-6, escalate: 9.999999999999999e-6 }, predicate: Some("ring_torus_convention") }) })
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:689:5
+       1: core::panicking::panic_fmt
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:80:14
+       2: geom_brep::curve_face::circle_roots::door_answer::<f64, geom_brep::torus_convention::TorusRefusal>
+                 at ./src/curve_face/circle_roots.rs:285:23
+       3: certified_torus_answers_hold_against_the_true_distance
+                 at ./src/curve_face/ellipse_torus.rs:517:33
+       4: geom_brep::curve_face::ellipse_torus::torus_rows::certified_torus_answers_hold_against_the_true_distance::{closure#0}
+                 at ./src/curve_face/ellipse_torus.rs:509:64
+       5: <geom_brep::curve_face::ellipse_torus::torus_rows::certified_torus_answers_hold_against_the_true_distance::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+       6: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+────────────
+     Summary [   3.173s] 1 test run: 0 passed, 1 failed, 2990 skipped
+        FAIL [   3.165s] (1/1) geom-brep curve_face::ellipse_torus::torus_rows::certified_torus_answers_hold_against_the_true_distance
+  stdout ───
+
+    running 1 test
+    [fuzz] ellipse_torus::certified_torus_answers_hold: seed=0x53500b4c590de496 effort=1 — replay with CAD_FUZZ_SEED=0x53500b4c590de496
+    ε 0.000001, crossing: 110 certified, 10 misses, 0 uncertain
+    ε 0.000001, graze: 36 certified, 13 misses, 71 uncertain
+    ε 0.000001, far-out: 109 certified, 11 misses, 0 uncertain
+    test curve_face::ellipse_torus::torus_rows::certified_torus_answers_hold_against_the_true_distance ... FAILED
+
+    failures:
+
+    failures:
+        curve_face::ellipse_torus::torus_rows::certified_torus_answers_hold_against_the_true_distance
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1756 filtered out; finished in 3.15s
+
+  stderr ───
+
+    thread 'curve_face::ellipse_torus::torus_rows::certified_torus_answers_hold_against_the_true_distance' (24645) panicked at crates/geom-brep/src/curve_face/circle_roots.rs:285:23:
+    the door refused outside its decision: Torus(TorusRefusal { convention: Ring, verdict: Undecided(Indeterminate { margin: MarginDiag(Value(7.140357392529135e-6, None, ZeroWord(0))), terminal_sliver: false, band: Band { zero: 1e-6, escalate: 9.999999999999999e-6 }, predicate: Some("ring_torus_convention") }) })
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:689:5
+       1: core::panicking::panic_fmt
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:80:14
+       2: geom_brep::curve_face::circle_roots::door_answer::<f64, geom_brep::torus_convention::TorusRefusal>
+                 at ./src/curve_face/circle_roots.rs:285:23
+       3: certified_torus_answers_hold_against_the_true_distance
+                 at ./src/curve_face/ellipse_torus.rs:517:33
+       4: geom_brep::curve_face::ellipse_torus::torus_rows::certified_torus_answers_hold_against_the_true_distance::{closure#0}
+                 at ./src/curve_face/ellipse_torus.rs:509:64
+       5: <geom_brep::curve_face::ellipse_torus::torus_rows::certified_torus_answers_hold_against_the_true_distance::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+       6: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+error: test run failed
+exit 100

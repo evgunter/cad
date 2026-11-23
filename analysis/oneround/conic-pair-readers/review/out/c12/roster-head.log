@@ -1,0 +1,202 @@
+   Compiling num-traits v0.2.19
+   Compiling interval-transcendentals v0.1.0 (/home/user/cad-clean/interval-transcendentals)
+   Compiling quantity v0.0.0 (/home/user/cad-clean/crates/quantity)
+   Compiling test-utils v0.0.0 (/home/user/cad-clean/crates/test-utils)
+   Compiling num-integer v0.1.46
+   Compiling proptest v1.11.0
+   Compiling spade v2.15.1
+   Compiling num-bigint v0.4.8
+   Compiling geom-core v0.0.0 (/home/user/cad-clean/crates/geom-core)
+   Compiling bvh v0.0.0 (/home/user/cad-clean/crates/bvh)
+   Compiling geom v0.0.0 (/home/user/cad-clean/crates/geom)
+   Compiling geom-brep v0.0.0 (/home/user/cad-clean/crates/geom-brep)
+   Compiling topo v0.0.0 (/home/user/cad-clean/crates/topo)
+   Compiling mesh v0.0.0 (/home/user/cad-clean/crates/mesh)
+   Compiling step-export v0.0.0 (/home/user/cad-clean/crates/step-export)
+   Compiling stl v0.0.0 (/home/user/cad-clean/crates/stl)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 8m 01s
+────────────
+ Nextest run ID b1c9b076-6bf6-4bba-bf8a-6f20ed1927b9 with nextest profile: ci
+    Starting 2 tests across 4 binaries (7460 tests skipped)
+        FAIL [  10.165s] (1/2) geom-brep::all recourse_roster::every_decided_name_is_read_and_every_site_is_listed
+  stdout ───
+
+    running 1 test
+    test recourse_roster::every_decided_name_is_read_and_every_site_is_listed ... FAILED
+
+    failures:
+
+    failures:
+        recourse_roster::every_decided_name_is_read_and_every_site_is_listed
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1233 filtered out; finished in 10.14s
+
+  stderr ───
+
+    thread 'recourse_roster::every_decided_name_is_read_and_every_site_is_listed' (20457) panicked at crates/geom-brep/tests/recourse_roster.rs:718:5:
+    a site names the const `EXTERNAL`, not declared a carrier: intersect.rs: EXTERNAL
+    a site names the const `INTERNAL`, not declared a carrier: intersect.rs: INTERNAL
+    a site names the const `PC_PARALLEL_GAP`, not declared a carrier: intersect.rs: PC_PARALLEL_GAP
+    a site names the const `TANGENCY`, not declared a carrier: pair_section/ruling.rs: TANGENCY
+    an indirect site not listed: carrier_resolution.rs: a_far_centred_section_stands_at_the_scale_its_form_is_stored_at: &cut
+    an indirect site not listed: pair_section/cones.rs: against_wall: ConeDecision::Radius.name()
+    an indirect site not listed: pair_section/cones.rs: decide: a
+    an indirect site not listed: pair_section/cones.rs: read: decision.name()
+    an indirect site not listed: pcurve_cache/closed_image_rows.rs: a_needle_cone_section_passes_with_its_own_beta: &plane
+    an indirect site not listed: pcurve_cache/spline_incidence.rs: span_incidence_as: name
+    an indirect site not listed: ssi/certify.rs: analytic_limbs: arm.sup
+    an indirect site not listed: ssi/certify.rs: analytic_limbs: arm.value
+    an indirect site not listed: ssi/enclose.rs: implicit_gradient_enclosure: parts
+    an indirect site not listed: ssi/enclose.rs: over: ConeParts::over(mid, apex, axis, angle)
+    an indirect site not listed: ssi/enclose.rs: over: parts
+    a listed indirect site the census no longer finds: pcurve_cache/spline_incidence.rs: spline_incidence_as: name
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:689:5
+       1: core::panicking::panic_fmt
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:80:14
+       2: panic_display<alloc::string::String>
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:259:5
+       3: all::recourse_roster::every_decided_name_is_read_and_every_site_is_listed
+                 at ./tests/recourse_roster.rs:718:5
+       4: all::recourse_roster::every_decided_name_is_read_and_every_site_is_listed::{closure#0}
+                 at ./tests/recourse_roster.rs:709:57
+       5: <all::recourse_roster::every_decided_name_is_read_and_every_site_is_listed::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+       6: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        FAIL [  18.422s] (2/2) topo::all recourse_roster::every_decided_name_has_its_door_and_every_site_is_read
+  stdout ───
+
+    running 1 test
+    test recourse_roster::every_decided_name_has_its_door_and_every_site_is_read ... FAILED
+
+    failures:
+
+    failures:
+        recourse_roster::every_decided_name_has_its_door_and_every_site_is_read
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1282 filtered out; finished in 18.40s
+
+  stderr ───
+
+    thread 'recourse_roster::every_decided_name_has_its_door_and_every_site_is_read' (20458) panicked at crates/topo/tests/recourse_roster.rs:978:5:
+    a declared carrier matched nothing in src: Const(NEST)
+    a declared carrier matched nothing in src: Const(REACH)
+    an indirect site not listed: chain_parity.rs: decide: name
+    an indirect site not listed: pcurves/collapsed_side_rows.rs: joint: DescribedChart::of(surface).unwrap()
+    an indirect site not listed: pcurves/collapsed_side_rows.rs: joint_at: DescribedChart::of(surface).unwrap()
+    an indirect site not listed: pcurves/decision.rs: decide_joint: chart
+    an indirect site not listed: spline_trim.rs: decide: name
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:689:5
+       1: core::panicking::panic_fmt
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:80:14
+       2: panic_display<alloc::string::String>
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:259:5
+       3: all::recourse_roster::every_decided_name_has_its_door_and_every_site_is_read
+                 at ./tests/recourse_roster.rs:978:5
+       4: all::recourse_roster::every_decided_name_has_its_door_and_every_site_is_read::{closure#0}
+                 at ./tests/recourse_roster.rs:973:60
+       5: <all::recourse_roster::every_decided_name_has_its_door_and_every_site_is_read::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+       6: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+────────────
+     Summary [  18.439s] 2 tests run: 0 passed, 2 failed, 7460 skipped
+        FAIL [  10.165s] (1/2) geom-brep::all recourse_roster::every_decided_name_is_read_and_every_site_is_listed
+  stdout ───
+
+    running 1 test
+    test recourse_roster::every_decided_name_is_read_and_every_site_is_listed ... FAILED
+
+    failures:
+
+    failures:
+        recourse_roster::every_decided_name_is_read_and_every_site_is_listed
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1233 filtered out; finished in 10.14s
+
+  stderr ───
+
+    thread 'recourse_roster::every_decided_name_is_read_and_every_site_is_listed' (20457) panicked at crates/geom-brep/tests/recourse_roster.rs:718:5:
+    a site names the const `EXTERNAL`, not declared a carrier: intersect.rs: EXTERNAL
+    a site names the const `INTERNAL`, not declared a carrier: intersect.rs: INTERNAL
+    a site names the const `PC_PARALLEL_GAP`, not declared a carrier: intersect.rs: PC_PARALLEL_GAP
+    a site names the const `TANGENCY`, not declared a carrier: pair_section/ruling.rs: TANGENCY
+    an indirect site not listed: carrier_resolution.rs: a_far_centred_section_stands_at_the_scale_its_form_is_stored_at: &cut
+    an indirect site not listed: pair_section/cones.rs: against_wall: ConeDecision::Radius.name()
+    an indirect site not listed: pair_section/cones.rs: decide: a
+    an indirect site not listed: pair_section/cones.rs: read: decision.name()
+    an indirect site not listed: pcurve_cache/closed_image_rows.rs: a_needle_cone_section_passes_with_its_own_beta: &plane
+    an indirect site not listed: pcurve_cache/spline_incidence.rs: span_incidence_as: name
+    an indirect site not listed: ssi/certify.rs: analytic_limbs: arm.sup
+    an indirect site not listed: ssi/certify.rs: analytic_limbs: arm.value
+    an indirect site not listed: ssi/enclose.rs: implicit_gradient_enclosure: parts
+    an indirect site not listed: ssi/enclose.rs: over: ConeParts::over(mid, apex, axis, angle)
+    an indirect site not listed: ssi/enclose.rs: over: parts
+    a listed indirect site the census no longer finds: pcurve_cache/spline_incidence.rs: spline_incidence_as: name
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:689:5
+       1: core::panicking::panic_fmt
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:80:14
+       2: panic_display<alloc::string::String>
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:259:5
+       3: all::recourse_roster::every_decided_name_is_read_and_every_site_is_listed
+                 at ./tests/recourse_roster.rs:718:5
+       4: all::recourse_roster::every_decided_name_is_read_and_every_site_is_listed::{closure#0}
+                 at ./tests/recourse_roster.rs:709:57
+       5: <all::recourse_roster::every_decided_name_is_read_and_every_site_is_listed::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+       6: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        FAIL [  18.422s] (2/2) topo::all recourse_roster::every_decided_name_has_its_door_and_every_site_is_read
+  stdout ───
+
+    running 1 test
+    test recourse_roster::every_decided_name_has_its_door_and_every_site_is_read ... FAILED
+
+    failures:
+
+    failures:
+        recourse_roster::every_decided_name_has_its_door_and_every_site_is_read
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1282 filtered out; finished in 18.40s
+
+  stderr ───
+
+    thread 'recourse_roster::every_decided_name_has_its_door_and_every_site_is_read' (20458) panicked at crates/topo/tests/recourse_roster.rs:978:5:
+    a declared carrier matched nothing in src: Const(NEST)
+    a declared carrier matched nothing in src: Const(REACH)
+    an indirect site not listed: chain_parity.rs: decide: name
+    an indirect site not listed: pcurves/collapsed_side_rows.rs: joint: DescribedChart::of(surface).unwrap()
+    an indirect site not listed: pcurves/collapsed_side_rows.rs: joint_at: DescribedChart::of(surface).unwrap()
+    an indirect site not listed: pcurves/decision.rs: decide_joint: chart
+    an indirect site not listed: spline_trim.rs: decide: name
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:689:5
+       1: core::panicking::panic_fmt
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:80:14
+       2: panic_display<alloc::string::String>
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:259:5
+       3: all::recourse_roster::every_decided_name_has_its_door_and_every_site_is_read
+                 at ./tests/recourse_roster.rs:978:5
+       4: all::recourse_roster::every_decided_name_has_its_door_and_every_site_is_read::{closure#0}
+                 at ./tests/recourse_roster.rs:973:60
+       5: <all::recourse_roster::every_decided_name_has_its_door_and_every_site_is_read::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+       6: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+error: test run failed
+exit 100

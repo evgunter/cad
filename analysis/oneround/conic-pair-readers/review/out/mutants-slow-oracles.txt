@@ -1,0 +1,14 @@
+BASELINE-1e-12: 17 passed, 2974 skipped exit 0 
+BASELINE-1e-9: 17 passed, 2974 skipped exit 0 
+R1-over-level-dropped-1e-12: 17 passed, 2974 skipped exit 0 
+R1-over-level-dropped-1e-9: 17 passed, 2974 skipped exit 0 
+R3-mean-arc-is-the-anchors-height-1e-12: 17 passed, 2974 skipped exit 0 
+R3-mean-arc-is-the-anchors-height-1e-9: 17 passed, 2974 skipped exit 0 
+R4-level-jet-third-sign-1e-12: 17 passed, 2974 skipped exit 0 
+R4-level-jet-third-sign-1e-9: 17 passed, 2974 skipped exit 0 
+R9-window-height-fourth-zero-1e-12: 17 passed, 2974 skipped exit 0 
+R9-window-height-fourth-zero-1e-9: 17 passed, 2974 skipped exit 0 
+S1-foot-seed-from-centre-1e-12: 17 passed, 2974 skipped exit 0 
+S1-foot-seed-from-centre-1e-9: 17 passed, 2974 skipped exit 0 
+S2-level-ddp-from-centre-1e-12: 17 passed, 2974 skipped exit 0 
+S2-level-ddp-from-centre-1e-9: 17 passed, 2974 skipped exit 0 

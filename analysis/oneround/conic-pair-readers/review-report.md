@@ -11,8 +11,8 @@ The unit does what it set out to do beside the anchor, and I could not break tha
 twin reads a meeting anywhere I looked. It is held back by its own acceptance. The row asks for "no pose certified
 wrongly" on the ladder; the head certifies 19 wrongly at `f64`, **ten of which the base did not certify wrongly**
 (five it answered acceptably, five it refused), and the PR's account of them ("the evaluator, not a reader") is false
-for at least two, which this unit's own readers decide. The row filed for them schedules a fix that cannot close those
-two. Either the nineteen refuse, or the row's owner re-cuts the acceptance; the PR body cannot do that for itself.
+for at least one and likely two, which this unit's own readers decide. The row filed for them schedules a fix that
+cannot close those. Either the nineteen refuse, or the row's owner re-cuts the acceptance; the PR body cannot do that for itself.
 Everything else below is fixable in place.
 
 ## What was executed, and what was only read
@@ -68,23 +68,28 @@ and the readers that decide these are the ones this unit rewrote (M2). All ninet
 the stored point, an order past the session box (1e3 m), which is where the admission rule stops covering a
 coordinate's own rounding; I name that as the fact, not as a design.
 
-**M2. "The evaluator, not a reader" is false for at least two of the nineteen: this unit's own readers decide them,
-on their own rounding and on a frame they take as square.** DEMONSTRATED (measured readings and the kernel's decision
-log, `review/probe_far.rs`, `review/out/far-1e-9.txt`, `far-1e-12.txt`), `sure` for the two, `likely` that more of
-the nineteen are mixed.
+**M2. "The evaluator, not a reader" is false for at least one of the nineteen, and likely two: this unit's own
+readers decide them, on their own rounding and on a frame they take as square.** DEMONSTRATED (measured readings at
+60 digits and the kernel's decision log, `review/probe_far.rs`, `review/out/far-1e-9.txt`, `far-1e-12.txt`); the
+confidence is on each.
 
-- ε 1e-9, fat `a` = 1e9, θ = 0.5, the line at 90° lifted 1e-8: `Ok`, no meeting, true gap 3.8e-10. The last decision
-  is `curve_carrier_piece_clear_by: Positive`, a lower bound from `Curve3::clearance`, i.e. `level_at` and `height_of`
-  of the line's point: no evaluated point of the ellipse enters it. `height_of` reads the point 1.490e-8 over the
-  plane, and that is right to 6e-10 for the plane normal to the stored axis. But the curve the stored numbers state
-  does not lie in that plane: the stored seam is out of square with the stored axis by 6.8e-17, so the stated curve
-  stands `a·|u·axis|·(1 − cos θ)` out of it, 8.3e-9 m at θ = 0.5 and 1.35e-7 m at the antipode on this section
-  (measured at 60 digits for all twelve ladder sections). The P1 row's own table gives "—" for the evaluator's error
-  at this pose.
-- ε 1e-12, thin `a` = 1e5, θ = 2, the line at 5°: `Ok`, no meeting, true gap 4.2e-13. The last decision is
-  `curve_pair_pose_parallel: Positive`, the router's height, now `k.height_of(o + u·mid)`. It reads −1.09e-11 where
-  the same dot at 60 digits is −5.4e-12: the reading's own rounding at 1.4e5 m from the stored point, about
-  `u·|p − x|`, unmetered, past the band's zero.
+- ε 1e-12, thin `a` = 1e5, θ = 2, the line at 5°: `Ok`, no meeting, true gap 4.2e-13. **The last decision in the
+  kernel's log is `curve_pair_pose_parallel: Positive`**: the router's height, which this unit rewrote as
+  `k.height_of(o + u·mid)`. Nothing in that reading is an evaluated point of the ellipse: it is the line's numbers,
+  the stored point and the stored axis. At 60 digits the line stands 7.6e-13 m over the plane through the stored
+  point normal to the stored axis, along its whole span, and the stated curve 1.18e-12 m over it where they meet.
+  `height_of` of the line's `f64` point there reads −1.09e-11, past the escalation: a point formed 1.4e5 m from the
+  stored point moves by its coordinates' rounding (their spacing there is 2.9e-11 m) and the dot rounds at
+  `u·|p − x|`, neither metered. `sure`.
+- ε 1e-9, fat `a` = 1e9, θ = 0.5, the line at 90° lifted 1e-8: `Ok`, no meeting, true gap 3.8e-10. At 60 digits the
+  line stands 7.89e-9 m over that plane and the stated curve 8.27e-9 m over it: **the curve the stored numbers state
+  does not lie in the plane normal to its stored axis.** The stored seam is out of square with the stored axis by
+  6.8e-17, so the curve leaves that plane by `a·|u·axis|·(1 − cos θ)`, 8.3e-9 m at θ = 0.5 and 1.35e-7 m at the
+  antipode on this section (measured for all twelve ladder sections). `height_of` is `(p − x)·axis` and
+  `Conic::along` projects the direction across that plane first, so every height this unit reads takes the curve to
+  lie in it; `height_of` of the line's `f64` point reads 1.49e-8. The log ends on `curve_pair_pose_level_arc:
+  Positive` and `curve_carrier_piece_clear_by: Positive`; I did not trace which inputs that last walk read, so
+  `likely` for the decider. The P1 row's own table gives "—" for the evaluator's error at this pose.
 
 Away from the anchor that is the row's own class ("a reader that decides from a datum rounded at a scale larger than
 the tolerance, with no charge for it, certifies what it cannot see"), with the point's offset from the stored point as
@@ -94,7 +99,7 @@ anchor. `on_carrier` shows the same reader at a second door (`review/probe_level
 points): a definite `Off` inside the band's gap 4 times at each ε and once for a point within ε of the stored curve
 (1e-12), the row's finding B persisting away from the anchor. **Consequence for the row filed:** P1's fix is "a meter
 of the evaluator's running bound (`Conic::running_point`, or `Height::running_at`)". Both take the frame as exact and
-neither meters `height_of` or `level_at` of a foreign point, so that fix leaves both poses above certified. The
+neither meters `height_of` or `level_at` of a foreign point, so that fix leaves the first pose above certified, and the second if it is what I read it as. The
 square-frame assumption is disclosed in the dispatch but in no row and no doc comment I could find (`conic.rs`
 "A unit frame, by its type" says the opposite: "its axes unit and square by the mint that made it"); it is
 unscheduled (Q6).
@@ -163,7 +168,7 @@ derived centre, reached through the evaluator at the antipode instead of through
 (`rounding_charge`). It is exactly the shape `conic-centre-reads.sh` lists under "what it does not hold" ("a centre
 restated without these doors"). The charge is one-sided (it can only withhold `Coincident`), so I found no wrong
 answer; but the README's clause is "re-posed, never charged", the body's table files it under "fixed", and
-`pose.rs` 8 → 1 counts it as gone. `level_on`'s `centre` (`pose.rs:2435`) is the same construction feeding a bound.
+`pose.rs` 8 → 1 counts it as gone. `level_on`'s `centre` (`pose.rs:2440`) is the same construction feeding a bound.
 This is the trap the style brief names: a lane closing an unguarded reader of the centre wrote two readers of the
 centre the guard cannot see.
 
@@ -254,8 +259,8 @@ claimed.
 byte for byte. (a) Wrong on the head and not in the tables: m2. (b) No apart twin reads a meeting: 0 on the unit's
 ladder, 0 on the suspects' harness, 0 on the re-seamed ladder, both ε. `sure`. (c), (d): m3, m4, m5. (e): N4.
 
-**C5 (the nineteen).** M1 and M2. Two of them are decided by this unit's readers with no evaluated point in the
-decision; the wrong certificates are not acceptable under the acceptance as written.
+**C5 (the nineteen).** M1 and M2. One is decided by this unit's router on a reading no evaluated point enters, a
+second likely so; the wrong certificates are not acceptable under the acceptance as written.
 
 **C6 (`holds_only`).** Both halves hold. On the base, at `Interval`, a circle through the ellipse's point reads
 `Ok`, no meeting, for the arc-held ellipse AND for the same locus held at its centre (ε 1e-9: `a` = 1e6, θ = 2;
@@ -320,17 +325,21 @@ read for any third implementor. What my pattern cannot match: a position restate
 anything in `curve_face/` beyond the plane door (`conic_quadric.rs`, `circle_torus.rs`, `implicit.rs` stay on the
 gate; out of this unit's scope).
 
-**C11 (the rows).** P1: true of the tree in its table, wrong in its cause for two of nineteen and in its fix (M2),
+**C11 (the rows).** P1: true of the tree in its table, wrong in its cause for one or two of nineteen and in its fix (M2),
 silent on the re-seamed case (m2); P1 as banded is defensible (the readers' architecture guarding a latent wrong
 answer, as the parent). P3: its first paragraph is not true of the tree (m4); P3 for refusals is the right band.
-The `cpair` seed: [[C12W]]. Disclosed and unscheduled: the square-frame assumption (M2); the unpinned width (C7);
+The `cpair` seed: true (`CAD_FUZZ_SEED=0x11467e023845fce7` at 1e-12 fails
+`each_window_reading_holds_on_a_dense_distance` on draw 48 with the same two `Recedes` readings on the base and on
+the head). Disclosed and unscheduled: the square-frame assumption (M2); the unpinned width (C7);
 "the slow set and the demos were not run" (the slow rows in files this diff edits are selected per PR, so the hosted
 run does take them; the demos nothing schedules); the `Interval` loss on the circle door (m4).
 
 **C12 (the body).** True of the frozen head except: the test count and the commit the differential ran on (N2);
 "every one is named in the tables" (m5); the account of the `Interval` loss (m4); "every remaining wrong reading …
 not a reader of where the conic is" (M2); and it does not say that ten of the nineteen are new (M1). The disowned
-reds: [[C12]].
+reds, each run on the base and on the head: `recourse_roster` fails in geom-brep and in topo on both, with the same
+message line for line; `certified_torus_answers_hold_against_the_true_distance` at seed `0x53500b4c590de496`, ε 1e-12,
+fails on both alike; sweep's `a_cylinder_wall_through_a_prism_corner_meshes_at_a_coarse_delta` at 1e-12: [[C12S]].
 
 ## Style
 
@@ -338,7 +347,7 @@ Questions exercised: **Q1** (prose sweep and constants sweep over the added line
 **Q2**, **Q3** (by mutants), **Q4** (who cited the old premises: the module docs), **Q5**, **Q6**, **Q7**, **Q8**
 (`conic.rs` read end to end, 2,320 lines; `pose.rs`'s 700-line header read for staleness, its body by diff only).
 
-- **The fix mints the defect it closes.** `crates/geom-brep/src/curve_pair/pose.rs:2044`, `2435`: two centres formed
+- **The fix mints the defect it closes.** `crates/geom-brep/src/curve_pair/pose.rs:2044`, `2440`: two centres formed
   outside the conic from two evaluated points, in the unit whose point is that nothing outside `conic.rs` forms one,
   and invisible to the gate that counts the unit's progress. `sure`. Class: any "mean of antipodal points", `P + P″`,
   or `anchor − a·u` by hand; I would look in `curve_face/conic_quadric.rs` and `implicit.rs` when their turn comes.
@@ -346,7 +355,7 @@ Questions exercised: **Q1** (prose sweep and constants sweep over the added line
   crossed the less", `2·asin √r`) and `crates/geom-brep/src/curve_pair/pose.rs` `Range::roots`' `Crossings` arm with
   `crate::roots::arc_past` (`roots.rs:328`). The same formula in two crates, the lower one unable to call the upper;
   neither says so. `sure`.
-- **`parallel_as` beside `constant_as`** (`pose.rs:2174-2195` and `2152-2172`): the same three-arm match, one over
+- **`parallel_as` beside `constant_as`** (`pose.rs:2182` and `2160`): the same three-arm match, one over
   `(value, spread)`, one over `(lo, hi)` with the row hard-wired. `sure`.
 - **A test fixture written out eight times.** `swing: { let (p, q) = ka.along(kb.axis()); (p² + q²).sqrt() }` in seven
   `window.rs` rows and `window/oracle.rs:181`, where production writes `h.swing()`. A `Window` is now built from a
@@ -357,15 +366,15 @@ Questions exercised: **Q1** (prose sweep and constants sweep over the added line
 - **A count with its derivation deleted.** `pose.rs:2452`, `up::<32, _>`, was `24` with its roundings enumerated ("a
   dot product's five, `ρ`'s four more, and each side's six"); the new doc says "raised past its roundings". Nobody
   can check 32. `sure`.
-- **An invariant by `unreachable!`.** `pose.rs`, `Range::band_arc`: `let RootsFrom::Along { .. } = self.roots else {
+- **An invariant by `unreachable!`.** `pose.rs:2534-2538`, `Range::band_arc`: `let RootsFrom::Along { .. } = self.roots else {
   unreachable!(…) }`. `Range` became a struct with an enum inside so that one of its two methods is only valid for one
   variant. `likely` there is a cleaner split.
-- **Two orders for one pair.** `Height::roots` returns `[falling, rising]`; `Slant::roots` turns it into `(rising,
+- **Two orders for one pair.** `Height::roots` returns `[falling, rising]`; `Slant::roots` (`pose.rs:1785`) turns it into `(rising,
   falling)` three lines from where `Slant::read` destructures `[near_f, near_r]`. `sure`, taste.
 - **Dead code left by a re-baseline.** `crates/sweep/tests/section_end_poses.rs:356`, `MAP_RESIDUAL: [..; 0] = []`
   with its `contains` branch, its pin and a doc paragraph about a pose that is no longer in it; and `Slant::read`'s
-  `all_round` (mutant R2). `sure`.
-- **Two rules for "the plane of an edge".** `on_surface.rs:767-781`: a circle's at its stored centre, an ellipse's at
+  `all_round` (`pose.rs:1827`, mutant R2). `sure`.
+- **Two rules for "the plane of an edge".** `on_surface.rs:766-781`: a circle's at its stored centre, an ellipse's at
   its span's middle point, chosen because the other choice moved two counts (the body says so). The comment
   reconciles two spellings of one rule (Q2). `likely` worth one rule; `unsure` which.
 - **Justification by bit-identity.** `mean()` exists, by the body's account, so that a centre-held row keeps its
@@ -388,5 +397,5 @@ Questions exercised: **Q1** (prose sweep and constants sweep over the added line
   nine mutants survive, the unsound ones at the new door die on a single unit assertion each, nothing holds a
   re-seamed, thin, grazing or far pose, and the placing tolerance is ten escalations.
 - **Doc and comment honesty: 3.** The doors' docs say what they do and the body discloses a great deal; but the body's
-  central attribution is wrong for two of nineteen, a filed row misstates what refuses, the module header still
+  central attribution is wrong for at least one of nineteen, a filed row misstates what refuses, the module header still
   describes the removed reading, and "named in the tables" is not so.

@@ -1,0 +1,84 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.16s
+────────────
+ Nextest run ID 60b813ed-ebc1-4d67-9512-56bdb99b3cda with nextest profile: ci
+    Starting 7 tests across 2 binaries (2984 tests skipped)
+        FAIL [   7.236s] (6/7) geom-brep curve_pair::pose::window::oracle::each_window_reading_holds_on_a_dense_distance
+  stdout ───
+
+    running 1 test
+    [fuzz] curve_pair::pose::window::oracle: seed=0x11467e023845fce7 effort=1 — replay with CAD_FUZZ_SEED=0x11467e023845fce7
+    ε 0.000000001: off, on, recedes: ringed [444, 287, 1011], unringed [822, 113, 839], 496 unringed offs read by the near end
+    ε 0.000000000001: off, on, recedes: ringed [0, 0, 0], unringed [1506, 41, 391], 714 unringed offs read by the near end
+    test curve_pair::pose::window::oracle::each_window_reading_holds_on_a_dense_distance ... FAILED
+
+    failures:
+
+    failures:
+        curve_pair::pose::window::oracle::each_window_reading_holds_on_a_dense_distance
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1756 filtered out; finished in 7.22s
+
+  stderr ───
+
+    thread 'curve_pair::pose::window::oracle::each_window_reading_holds_on_a_dense_distance' (24819) panicked at crates/geom-brep/src/curve_pair/pose/window/oracle.rs:352:9:
+    ε 0.000000000001: 2 readings contradicted (reproduce with CAD_FUZZ_SEED=0x11467e023845fce7 CAD_FUZZ_EFFORT=1): [
+        "draw 48 f64: Recedes on (-1.0526037298886871e-8, -1.051929039873587e-8) ring None: a Ellipse(Ellipse { at: Frame { origin: Point3 { x: 654.127916973913, y: 383.367681889126, z: 2.5796039455545014e-5 }, axis: Vec3 { x: 2.843080481077086e-9, y: -5.991306644375768e-8, z: 0.9999999999999982 }, u_ref: Vec3 { x: -0.868328953887605, y: -0.4959887376145319, z: -2.7247477092103056e-8 } }, held: Centre, semi_u: 946.7312937145446, semi_v: 1137.5584540215098 }) b (190.98485943151033, 181.04005039675624)",
+        "draw 48 f64: Recedes on (-6.29880121910462e-9, -4.332458595075886e-9) ring None: a Ellipse(Ellipse { at: Frame { origin: Point3 { x: 654.127916973913, y: 383.367681889126, z: 2.5796039455545014e-5 }, axis: Vec3 { x: 2.843080481077086e-9, y: -5.991306644375768e-8, z: 0.9999999999999982 }, u_ref: Vec3 { x: -0.868328953887605, y: -0.4959887376145319, z: -2.7247477092103056e-8 } }, held: Centre, semi_u: 946.7312937145446, semi_v: 1137.5584540215098 }) b (190.98485943151033, 181.04005039675624)",
+    ]
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:689:5
+       1: core::panicking::panic_fmt
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:80:14
+       2: each_window_reading_holds_on_a_dense_distance
+                 at ./src/curve_pair/pose/window/oracle.rs:352:9
+       3: geom_brep::curve_pair::pose::window::oracle::each_window_reading_holds_on_a_dense_distance::{closure#0}
+                 at ./src/curve_pair/pose/window/oracle.rs:300:51
+       4: <geom_brep::curve_pair::pose::window::oracle::each_window_reading_holds_on_a_dense_distance::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+       5: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+────────────
+     Summary [   8.656s] 7 tests run: 6 passed, 1 failed, 2984 skipped
+        FAIL [   7.236s] (6/7) geom-brep curve_pair::pose::window::oracle::each_window_reading_holds_on_a_dense_distance
+  stdout ───
+
+    running 1 test
+    [fuzz] curve_pair::pose::window::oracle: seed=0x11467e023845fce7 effort=1 — replay with CAD_FUZZ_SEED=0x11467e023845fce7
+    ε 0.000000001: off, on, recedes: ringed [444, 287, 1011], unringed [822, 113, 839], 496 unringed offs read by the near end
+    ε 0.000000000001: off, on, recedes: ringed [0, 0, 0], unringed [1506, 41, 391], 714 unringed offs read by the near end
+    test curve_pair::pose::window::oracle::each_window_reading_holds_on_a_dense_distance ... FAILED
+
+    failures:
+
+    failures:
+        curve_pair::pose::window::oracle::each_window_reading_holds_on_a_dense_distance
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1756 filtered out; finished in 7.22s
+
+  stderr ───
+
+    thread 'curve_pair::pose::window::oracle::each_window_reading_holds_on_a_dense_distance' (24819) panicked at crates/geom-brep/src/curve_pair/pose/window/oracle.rs:352:9:
+    ε 0.000000000001: 2 readings contradicted (reproduce with CAD_FUZZ_SEED=0x11467e023845fce7 CAD_FUZZ_EFFORT=1): [
+        "draw 48 f64: Recedes on (-1.0526037298886871e-8, -1.051929039873587e-8) ring None: a Ellipse(Ellipse { at: Frame { origin: Point3 { x: 654.127916973913, y: 383.367681889126, z: 2.5796039455545014e-5 }, axis: Vec3 { x: 2.843080481077086e-9, y: -5.991306644375768e-8, z: 0.9999999999999982 }, u_ref: Vec3 { x: -0.868328953887605, y: -0.4959887376145319, z: -2.7247477092103056e-8 } }, held: Centre, semi_u: 946.7312937145446, semi_v: 1137.5584540215098 }) b (190.98485943151033, 181.04005039675624)",
+        "draw 48 f64: Recedes on (-6.29880121910462e-9, -4.332458595075886e-9) ring None: a Ellipse(Ellipse { at: Frame { origin: Point3 { x: 654.127916973913, y: 383.367681889126, z: 2.5796039455545014e-5 }, axis: Vec3 { x: 2.843080481077086e-9, y: -5.991306644375768e-8, z: 0.9999999999999982 }, u_ref: Vec3 { x: -0.868328953887605, y: -0.4959887376145319, z: -2.7247477092103056e-8 } }, held: Centre, semi_u: 946.7312937145446, semi_v: 1137.5584540215098 }) b (190.98485943151033, 181.04005039675624)",
+    ]
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:689:5
+       1: core::panicking::panic_fmt
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:80:14
+       2: each_window_reading_holds_on_a_dense_distance
+                 at ./src/curve_pair/pose/window/oracle.rs:352:9
+       3: geom_brep::curve_pair::pose::window::oracle::each_window_reading_holds_on_a_dense_distance::{closure#0}
+                 at ./src/curve_pair/pose/window/oracle.rs:300:51
+       4: <geom_brep::curve_pair::pose::window::oracle::each_window_reading_holds_on_a_dense_distance::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+       5: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+                 at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+error: test run failed
+exit 100
