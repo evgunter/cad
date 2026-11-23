@@ -4106,8 +4106,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                         (
                             [end(t0), end(t1)],
                             iso_of(&row.pcurve, lift),
-                            harmonic_of(&row.pcurve, lift),
-                            wall_of(&row.pcurve, lift),
+                            curve_of(&row.pcurve, lift),
                         ),
                     );
                 }
@@ -4142,8 +4141,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                     Use {
                         plus: e.he_plus == *he,
                         image: found.map(|(image, ..)| *image),
-                        harmonic: found.and_then(|(_, _, h, _)| *h),
-                        wall: found.and_then(|(.., w)| *w),
+                        curve: found.and_then(|(.., c)| *c),
                         iso: found
                             .and_then(|(_, iso, ..)| *iso)
                             .map(|(held, at, angle)| Iso {
@@ -4199,8 +4197,7 @@ pub(crate) fn chart_use(
         Use {
             plus,
             image: Some([end(t0), end(t1)]),
-            harmonic: harmonic_of(pcurve, lift),
-            wall: wall_of(pcurve, lift),
+            curve: curve_of(pcurve, lift),
             iso: iso_of(pcurve, lift).map(|(held, at, angle)| Iso {
                 held,
                 at,
@@ -4317,9 +4314,35 @@ type IsoImage = (Axis, Interval, bool);
 type Image = (
     [Point2<Interval>; 2],
     Option<IsoImage>,
-    Option<injective::Harmonic>,
-    Option<injective::Wall>,
+    Option<injective::ChartCurve>,
 );
+
+/// **A chart image's closed form on its curve's parameter, crossed by
+/// `lift`** ([`injective::ChartCurve`]): a harmonic row, a spiric's wall
+/// image, or a focal section's image whose numbers make its azimuth
+/// monotone ([`injective::Focal::of`]); `None` for every other image.
+fn curve_of<T: CertifiedBounds>(
+    p: &Pcurve<T>,
+    lift: Lift<'_, T>,
+) -> Option<injective::ChartCurve> {
+    use injective::ChartCurve;
+    if let Pcurve::FocalSection(f) = *p {
+        let image = geom_brep::FocalImage {
+            u0: lift.of(f.u0),
+            t0: lift.of(f.t0),
+            v0: lift.of(f.v0),
+            va: lift.of(f.va),
+            vb: lift.of(f.vb),
+            vl: lift.of(f.vl),
+            beta: lift.of(f.beta),
+            sense: lift.of(f.sense),
+        };
+        return injective::Focal::of(&image).map(ChartCurve::Focal);
+    }
+    harmonic_of(p, lift)
+        .map(ChartCurve::Harmonic)
+        .or_else(|| wall_of(p, lift).map(ChartCurve::Wall))
+}
 
 /// **A harmonic chart image's coefficients, crossed by `lift`**
 /// ([`injective::Harmonic`]); `None` for every other variant.
