@@ -425,7 +425,7 @@ fn the_displacement_moves_the_face_along_its_own_outward_normal() {
             let action = ConeOffset::new(
                 geom::Line {
                     origin: apex,
-                    dir: axis,
+                    dir: geom::stated_direction(axis),
                 },
                 half_angle,
                 nappe.turn(d_face),

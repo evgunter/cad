@@ -46,11 +46,11 @@ fn brackets(lo: Point3<Interval>, hi: Point3<Interval>) -> [f64; 6] {
 fn a_closed_form_arcs_cover_box_is_its_whole_span_evaluation_and_aabb_steps_it_out() {
     let line = Curve3::Line(Line {
         origin: Point3::new(0.0, 2.0, 0.0),
-        dir: Vec3::new(1.0, 0.0, 0.0),
+        dir: geom_core::UnitVec3::exact_x(),
     });
     let diagonal = Curve3::Line(Line {
         origin: Point3::new(0.1, 0.2, 0.3),
-        dir: Vec3::new(0.3, 0.7, -0.2),
+        dir: geom_core::UnitVec3::squared(Vec3::new(0.3, 0.7, -0.2)),
     });
     let circle = Curve3::Circle(Circle::new(
         Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),

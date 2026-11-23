@@ -183,7 +183,7 @@ fn failed(result: Option<&NodeResult<f64>>) -> &NodeErrorKind {
 fn deepest(kind: &NodeErrorKind) -> (usize, &NodeErrorKind, String) {
     let levels: Vec<_> = kind.carried_chain().collect();
     let last = levels.last().expect("a part refusal carries its chain");
-    (levels.len(), last.refusal.kind(), last.line())
+    (levels.len(), last.refusal.kind(), last.line().to_string())
 }
 
 /// **One past the bound refuses typed** where the evaluation descends,
@@ -323,7 +323,7 @@ fn instantiating_all_pinned(label: &str, below: &[DocRef]) -> (ProfileDoc, Vec<R
 /// carried level's line.
 fn drawn(kind: &NodeErrorKind) -> Vec<String> {
     std::iter::once(kind.to_string())
-        .chain(kind.carried_chain().map(|level| level.line()))
+        .chain(kind.carried_chain().map(|level| level.line().to_string()))
         .collect()
 }
 

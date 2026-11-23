@@ -1131,7 +1131,7 @@ fn survives_near_full_period_rim_span_escalates() {
                 place: geom_core::Affine3::identity(),
                 axis: geom::Line {
                     origin: center,
-                    dir: Vec3::new(0.0, 1.0, 0.0),
+                    dir: geom_core::UnitVec3::exact_y(),
                 },
                 angle: span,
             },

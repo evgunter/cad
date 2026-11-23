@@ -2,10 +2,11 @@
 id: a-source-attribute-can-silence-a-ci-deny-unread
 kind: issue
 title: a source-level allow can return a denying CI row to what it was, and nothing reads for it
-status: open
+status: closed
 opened: 2026-09-11
 priority: P4
 cost: E
+closed: 2026-11-22
 ---
 
 
@@ -68,3 +69,7 @@ worth pricing before either is built:
    an absence detector). That argument is weaker here, because an
    `allow` is not self-limiting — it silences every future warning in
    its scope, not one.
+
+## Closed
+
+2026-11-22, CIW triage (not worth its latency). It asks for a new census of crate-root `allow`s in the lint job's gates step, which is already the per-PR bottleneck. In 2.5 months no incident: no `#![allow]` has ever silenced a deny row. The row's own option 2 ("nothing, deliberately") holds: a blanket `allow` shows up in the diff a reviewer reads.

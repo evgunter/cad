@@ -433,6 +433,48 @@ pub mod twins {
     }
 }
 
+/// **How far a motion's `f64` axes are from their polar factor**, the
+/// rotation [`RigidMotion::rounding`] bounds the distance to, read
+/// independently of that bound: `(‖w − Rẑ‖, ‖u − Rx̂‖)`. The Gram defect
+/// `G = MᵀM − I` of the stored columns `M = [u v w]` is read exactly
+/// ([`crate::exact::Expansion`]) and rounded once per entry. Then
+/// `(M − R)eⱼ = R·S·eⱼ` with `S = (I + G)^½ − I`, summed as its series
+/// `G/2 − G²/8 + G³/16`. Each answer is within a few ulps of its own
+/// size, the series' remainder `5‖G‖⁴/128` below that wherever
+/// `‖G‖ ≤ 10⁻⁶`. A frame farther from rigid panics: the series is no
+/// oracle there.
+#[must_use]
+pub fn polar_distance(m: &RigidMotion<f64>) -> (f64, f64) {
+    use crate::exact::Expansion;
+    let columns = [m.u().get(), m.v().get(), m.w().get()];
+    let gram = |i: usize, j: usize| {
+        let (x, y) = (columns[i], columns[j]);
+        let mut e = Expansion::product(x.x, y.x);
+        e.add_expansion(&Expansion::product(x.y, y.y));
+        e.add_expansion(&Expansion::product(x.z, y.z));
+        if i == j {
+            e.add(-1.0);
+        }
+        e.components().iter().sum::<f64>()
+    };
+    let g: [[f64; 3]; 3] = core::array::from_fn(|i| core::array::from_fn(|j| gram(i, j)));
+    let norm = g.iter().flatten().map(|x| x.powi(2)).sum::<f64>().sqrt();
+    assert!(
+        norm <= 1e-6,
+        "polar_distance: ‖G‖ = {norm:e}, past the series oracle's reach"
+    );
+    let product = |a: &[[f64; 3]; 3], b: &[[f64; 3]; 3]| -> [[f64; 3]; 3] {
+        core::array::from_fn(|i| core::array::from_fn(|j| (0..3).map(|k| a[i][k] * b[k][j]).sum()))
+    };
+    let g2 = product(&g, &g);
+    let g3 = product(&g2, &g);
+    let s: [[f64; 3]; 3] = core::array::from_fn(|i| {
+        core::array::from_fn(|j| g[i][j] / 2.0 - g2[i][j] / 8.0 + g3[i][j] / 16.0)
+    });
+    let column = |j: usize| (0..3).map(|i| s[i][j].powi(2)).sum::<f64>().sqrt();
+    (column(2), column(0))
+}
+
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod offer_tests {

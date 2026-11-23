@@ -381,8 +381,8 @@ fn box_resting_on(
     let (doc, placement) = placed(doc, body);
     let (doc, top, _) = fixture::floor(doc, moves);
     let written = Mate {
-        on: plane_of(on_body(body, bottom)),
-        to: fixture::flip(top),
+        on: plane_of(on_body(body, bottom)).into(),
+        to: fixture::flip(top).into(),
         orient: editor_core::Orientation::IDENTITY,
     };
     let coords = [
@@ -505,8 +505,8 @@ fn a_slide_set_twice_refuses_though_a_turn_is_free() {
     let (doc, placement) = placed(doc, body);
     let (doc, floor) = floor_flipped(doc);
     let written = Mate {
-        on: plane_of(on_body(body, bottom)),
-        to: floor,
+        on: plane_of(on_body(body, bottom)).into(),
+        to: floor.into(),
         orient: editor_core::Orientation::IDENTITY,
     };
     let twice = editor_core::Placed {
@@ -562,8 +562,8 @@ fn box_on_the_wall(draft: f64, roll: f64) -> Affine3<f64> {
         )],
     );
     let written = Mate {
-        on: face,
-        to: wall,
+        on: face.into(),
+        to: wall.into(),
         orient: editor_core::Orientation::IDENTITY,
     };
     let doc = doc;
@@ -676,8 +676,8 @@ fn a_cap_at_the_antipode_places_without_a_turn() {
     let (doc, placement) = placed(doc, body);
     let (doc, down) = floor_facing_down(doc);
     let written = Mate {
-        on: plane_of(on_body(body, bottom)),
-        to: down,
+        on: plane_of(on_body(body, bottom)).into(),
+        to: down.into(),
         orient: editor_core::Orientation::IDENTITY,
     };
     let doc = seat(
@@ -713,8 +713,8 @@ fn a_cap_at_the_antipode_places_without_a_turn() {
     let (doc, placement) = placed(doc, body);
     let (doc, down) = floor_facing_down(doc);
     let written = Mate {
-        on: tilted,
-        to: down,
+        on: tilted.into(),
+        to: down.into(),
         orient: editor_core::Orientation::IDENTITY,
     };
     let doc = seat(
@@ -1007,8 +1007,8 @@ fn box_slid_by_a_parameter(nominal: f64) -> (ProfileDoc, RecipeNodeId, EvalOptio
     let (doc, placement) = placed(doc, body);
     let (doc, floor) = floor_flipped(doc);
     let written = Mate {
-        on: plane_of(on_body(body, bottom)),
-        to: floor,
+        on: plane_of(on_body(body, bottom)).into(),
+        to: floor.into(),
         orient: editor_core::Orientation::IDENTITY,
     };
     let slide = Formula::named(
@@ -1179,8 +1179,8 @@ fn a_seeded_copy_at_rest_has_the_value_lanes_bits_and_its_tangent() {
     let (doc, placement) = placed(doc, body);
     let (doc, floor) = floor_flipped(doc);
     let written = Mate {
-        on: plane_of(on_body(body, bottom)),
-        to: floor,
+        on: plane_of(on_body(body, bottom)).into(),
+        to: floor.into(),
         orient: editor_core::Orientation::IDENTITY,
     };
     let turn = Formula::named(
@@ -1265,8 +1265,8 @@ fn a_box_spanning_the_band_encloses_the_value_lane_at_its_corners() {
     let (doc, placement) = placed(doc, body);
     let (doc, floor) = floor_flipped(doc);
     let written = Mate {
-        on: plane_of(on_body(body, bottom)),
-        to: floor,
+        on: plane_of(on_body(body, bottom)).into(),
+        to: floor.into(),
         orient: editor_core::Orientation::IDENTITY,
     };
     let turn = Formula::named(

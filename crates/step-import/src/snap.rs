@@ -349,9 +349,7 @@ fn candidates(
 /// ([`Surface::axis_line`]); a sphere's centre has no axis of its own.
 fn axis(s: &Surface<f64>) -> Option<Line<f64>> {
     match s {
-        Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Torus { .. } => {
-            s.axis_line().map(Line::unit)
-        }
+        Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Torus { .. } => s.axis_line(),
         _ => None,
     }
 }
@@ -387,7 +385,7 @@ fn plane_of(s: &Surface<f64>) -> Option<(Point3<f64>, Vec3<f64>)> {
 /// Where `line` meets the plane through `p` with normal `n`; `None` where
 /// the line runs nearer along the plane than across it.
 fn meets(line: Line<f64>, (p, n): (Point3<f64>, Vec3<f64>)) -> Option<Point3<f64>> {
-    let across = n.dot(line.dir);
+    let across = n.dot(line.dir.get());
     (across.abs() > std::f64::consts::FRAC_1_SQRT_2)
         .then(|| line.at(n.dot(p - line.origin) / across))
 }
@@ -419,7 +417,7 @@ fn gap(kind: SnapRelation, a: &Surface<f64>, b: &Surface<f64>, reach: &Reach) ->
                 return far;
             };
             meets(line, plane).map_or(far, |pivot| {
-                plane.1.cross(line.dir).norm() * reach.from(pivot)
+                plane.1.cross(line.dir.get()).norm() * reach.from(pivot)
             })
         }
         SnapRelation::Coaxial => match (axis(a), axis(b)) {
@@ -658,7 +656,7 @@ fn tangent(
         }
     };
     // Square to the axis, so the move is a translation across it.
-    let delta = delta - line.dir * delta.dot(line.dir);
+    let delta = delta - line.dir.get() * delta.dot(line.dir.get());
     Ok((
         Surface::Cylinder {
             frame: cylinder_frame.with_origin(origin + delta),
@@ -746,16 +744,16 @@ fn coaxial(kept: &Surface<f64>, moved: &Surface<f64>, faces: &Reach) -> (Surface
             // Turned onto the kept direction about the moved axis's point
             // at its faces, and carried onto the kept line there.
             let pivot = from.foot(faces.centre());
-            let dir = if from.dir.dot(onto.dir) < 0.0 {
+            let dir = if from.dir.get().dot(onto.dir.get()) < 0.0 {
                 -onto.dir
             } else {
                 onto.dir
             };
             let to = onto.foot(pivot);
-            carry(&mut out, from, (pivot, to), dir);
+            carry(&mut out, from, (pivot, to), dir.get());
             (
                 out,
-                (to - pivot).norm() + (dir - from.dir).norm() * faces.from(pivot),
+                (to - pivot).norm() + (dir.get() - from.dir.get()).norm() * faces.from(pivot),
             )
         }
         (Some(onto), None) => {
@@ -771,7 +769,12 @@ fn coaxial(kept: &Surface<f64>, moved: &Surface<f64>, faces: &Reach) -> (Surface
                 return (out, f64::INFINITY);
             };
             let delta = c - from.foot(c);
-            carry(&mut out, from, (from.origin, from.origin + delta), from.dir);
+            carry(
+                &mut out,
+                from,
+                (from.origin, from.origin + delta),
+                from.dir.get(),
+            );
             (out, delta.norm())
         }
         (None, None) => {
@@ -809,23 +812,23 @@ fn axis_normal(kept: &Surface<f64>, moved: &Surface<f64>, faces: &Reach) -> (Sur
         return (moved.clone(), f64::INFINITY);
     };
     if matches!(moved, Surface::Plane { .. }) {
-        let normal = if n.dot(line.dir) < 0.0 {
+        let normal = if n.dot(line.dir.get()) < 0.0 {
             -line.dir
         } else {
             line.dir
         };
-        let u_ref = geom::Frame::new(pivot, normal, u_ref).square().u_ref;
+        let u_ref = geom::Frame::new(pivot, normal.get(), u_ref).square().u_ref;
         (
             Surface::Plane {
-                frame: geom::Frame::new(pivot, normal, u_ref),
+                frame: geom::Frame::new(pivot, normal.get(), u_ref),
             },
-            (normal - n).norm() * faces.from(pivot),
+            (normal.get() - n).norm() * faces.from(pivot),
         )
     } else {
-        let dir = if line.dir.dot(n) < 0.0 { -n } else { n };
+        let dir = if line.dir.get().dot(n) < 0.0 { -n } else { n };
         let mut out = moved.clone();
         carry(&mut out, line, (pivot, pivot), dir);
-        (out, (dir - line.dir).norm() * faces.from(pivot))
+        (out, (dir - line.dir.get()).norm() * faces.from(pivot))
     }
 }
 
@@ -843,7 +846,7 @@ fn carry(
         Surface::Cylinder { frame, .. }
         | Surface::Torus { frame, .. }
         | Surface::Cone { frame, .. } => {
-            let along = from.dir.dot(frame.origin() - pivot);
+            let along = from.dir.get().dot(frame.origin() - pivot);
             let at = to + dir * along;
             // The seam squared to the new axis, as the frame door squares it.
             *frame = geom::Frame::new(at, dir, frame.u_ref());
@@ -1147,20 +1150,16 @@ mod tests {
         );
     }
 
-    /// **`nist_ftc_09`'s five tangent snaps, and the build's reading of
-    /// its six tangent edges after them.** The file (ε_in ≈ 33.8 µm)
-    /// states five fillet cylinders biting into their planes by 1.5 to
-    /// 13 µm: three between two parallel planes (a slot's end, the
-    /// radius made half the spacing), two between crossing planes (the
-    /// axis translated). Every one snaps. The writer printed each
-    /// tangent edge as a crossing line of the pair as it wrote it,
-    /// `√(2·r·gap)` from the ruling the snap makes exact, so the build
-    /// reads five of the six printed carriers off their description in
-    /// or past the file's band and refuses them as the file's; the
-    /// sixth, 35 µm off, builds
-    /// (`work/importgate/a-tangent-edge-printed-as-a-crossing-line-refuses-at-the-build.md`).
+    /// **`nist_ftc_09`'s cylinder `#5130` reads tangent to plane `#5116` in
+    /// the file's band, and the file refuses at the snap.** The cylinder
+    /// (r 0.17985467 in, axis along y at z 4.472383303296 in) lies between
+    /// parallel planes `#5116` (z 4.294766606592 in) and `#5144` (z 4.65 in)
+    /// and bites each by 56.8 µm, which the file's band (ε_in ≈ 33.8 µm,
+    /// k 10) does not decide. The file's ambiguity is refused on the later
+    /// record before any class is solved. The pair along `#5132` reads in
+    /// band too; `#5118`, along `#5116`, is read first only by edge-id order.
     #[test]
-    fn nist09s_five_cylinders_snap_and_its_printed_tangent_edges_are_read_off_them() {
+    fn nist09s_cylinder_5130_reads_tangent_in_the_files_band_and_refuses_at_the_snap() {
         let tol = geom_core::Tol::witness();
         let text = std::fs::read_to_string(concat!(
             env!("CARGO_MANIFEST_DIR"),
@@ -1168,71 +1167,37 @@ mod tests {
         ))
         .unwrap();
         let parsed = crate::parse::parse_file(&text).unwrap();
-        let model = crate::entities::resolve(&parsed, None, tol).unwrap();
-        let mut snapped: Vec<(u64, SnapRelation)> = model
-            .normalizations
-            .iter()
-            .filter_map(|n| match n.kind {
-                NormalizationKind::Snapped {
-                    surface,
-                    relation,
-                    moved_by,
-                } => {
-                    assert!(
-                        moved_by > 0.0 && moved_by < model.uncertainty_m,
-                        "#{surface}: a move inside ε_in: {moved_by:e}"
-                    );
-                    Some((surface, relation))
-                }
-                _ => None,
-            })
-            .collect();
-        snapped.sort_unstable_by_key(|&(s, _)| s);
-        assert_eq!(
-            snapped,
-            [4962, 4990, 5102, 5231, 5336].map(|s| (s, SnapRelation::Tangent)),
-            "the five fillets snap, each by the tangent construction"
-        );
-        let crate::entities::Shape::Solids(solids) = &model.shape else {
-            panic!("a solid file")
-        };
-        let solid = &solids[0].outer;
-        let file = FileBand::of_import(model.uncertainty_m, false, tol).unwrap();
-        // Each tangent edge whose pair moved: how far its printed carrier
-        // lies from the ruling (`None`: it builds).
-        for (edge, off) in [
-            (4950, Some(1.802e-4)),
-            (4964, Some(1.227e-4)),
-            (4978, Some(3.439e-4)),
-            (5090, Some(1.150e-4)),
-            (5233, Some(2.329e-4)),
-            (5338, None),
-        ] {
-            match (crate::build::choose_edge(solid, edge, tol, file), off) {
-                (Ok(()), None) => {}
-                (
-                    Err(StepImportError::Interpretation {
-                        id,
-                        refusal:
-                            crate::interpret::Refusal::MissInBand {
-                                reading, miss: gap, ..
-                            }
-                            | crate::interpret::Refusal::EvidenceMiss {
-                                reading, miss: gap, ..
-                            },
-                        ..
-                    }),
-                    Some(off),
-                ) => {
-                    assert_eq!(id, edge);
-                    assert_eq!(reading, crate::build::STEP_EDGE_ON_DESCRIPTION);
-                    assert!(
-                        (gap - off).abs() < 1e-7,
-                        "#{edge}: the printed carrier lies √(2rg) off the ruling: {gap:e}"
-                    );
-                }
-                (other, off) => panic!("#{edge}: expected {off:?}, got {other:?}"),
+        // The tangent candidate's gap from the printed values, in inches:
+        // the axis's distance from the plane less the radius.
+        let inch = 0.0254;
+        let bite = ((4.472_383_303_296 - 4.294_766_606_592) - 0.179_854_67_f64).abs() * inch;
+        match crate::entities::resolve(&parsed, None, tol) {
+            Err(StepImportError::Interpretation {
+                id,
+                refusal:
+                    crate::interpret::Refusal::Ambiguous {
+                        reading, gap, k, ..
+                    },
+                file,
+            }) => {
+                assert_eq!(
+                    (id, reading),
+                    (5130, STEP_SNAP_RELATION),
+                    "the later record"
+                );
+                assert!(
+                    (gap - bite).abs() < 1e-15,
+                    "the tangent gap |z_axis − z_plane| − r, {bite:e}: {gap:e}"
+                );
+                assert!(
+                    (file.eps_in() - 3.381_637_022_920_199_4e-5).abs() < 1e-18
+                        && file.eps_in() < gap
+                        && gap < k * file.eps_in(),
+                    "the file's declared ε_in {:e}, k {k}: {gap:e} in its band",
+                    file.eps_in()
+                );
             }
+            other => panic!("the in-band pair's ambiguity at #5130, got {other:?}"),
         }
     }
 }

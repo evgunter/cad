@@ -142,8 +142,8 @@ fn a_resolved_carriers_pin_is_the_inputs_by_provenance() {
 
 /// **The section's own rounding is never offered as the input's.** A
 /// far centre resolves its arc only to `u` times its distance, so an
-/// in-band pin is a kernel limitation exactly where that resolution, `K`
-/// times over, passes ε, whichever reading of the plane, and its words
+/// in-band pin is a kernel limitation exactly where that resolution
+/// passes `ε/K`, whichever reading of the plane, and its words
 /// name no lever and no defect. Both sides of the line are read:
 /// `x = 1e4` resolves (`ρ ≈ 7e-11`), `x = 3e4` does not (`ρ ≈ 2e-10`).
 #[test]
@@ -157,7 +157,7 @@ fn an_unresolved_carriers_pin_is_a_kernel_limitation() {
             spec.param_end,
         )
         .unwrap();
-        let unresolved = k * rho > EPS;
+        let unresolved = rho > EPS / k;
         assert_eq!(unresolved, x > 2e4, "x {x:e}: ρ {rho:e}");
         for reading in [SectionEndReading::OnPlane, SectionEndReading::SquareToAxis] {
             let got = read(
@@ -180,7 +180,7 @@ fn an_unresolved_carriers_pin_is_a_kernel_limitation() {
                     true,
                 ) => {
                     assert_eq!(*diag, cause(), "x {x:e}");
-                    assert_eq!(*resolution, MarginDiag::value(k * rho), "x {x:e}");
+                    assert_eq!(*resolution, MarginDiag::value(rho), "x {x:e}");
                     let text = got.render(geom_brep::recourse::Reading::Build);
                     assert!(
                         text.starts_with(
