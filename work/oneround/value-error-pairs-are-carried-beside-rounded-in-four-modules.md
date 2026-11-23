@@ -2,12 +2,13 @@
 id: value-error-pairs-are-carried-beside-rounded-in-four-modules
 kind: issue
 title: Four modules carry (value, error) pairs of their own beside Rounded and spell room and magnitude on them by hand
-status: review
+status: closed
 opened: 2026-11-19
 priority: P1
 cost: M
 branch: oneround/rounded-pairs
 pr: 7221
+closed: 2026-11-23
 ---
 
 
@@ -86,3 +87,11 @@ charge removes its pair with it.
 
 P1 by `work/README.md` Priority (two implementations of one underlying
 logic).
+
+## Closed (2026-11-23, PR 7221)
+
+The four modules' value/error pairs are `Rounded` readings, and their room and magnitude are read through it. What the unit left, each in its own file:
+- `a-graze-carries-its-form-and-noise-as-two-fields` (P2): `Graze` keeps a bare form/noise pair, since three of its four constructions read an exact form and the bare-rounding gate has no reason for an exact read.
+- `site-rounding-charges-owed-a-re-posing` (P2) gained `geom_brep::curve_face::pose`: `conic_quadric`'s circle × sphere frame-defect charge and `lane`'s first-harmonic extremes.
+
+The run of record (45088390543 on `6862af6efe`) is red in `test (kernel)` on three lines that are not the unit's: a slow-set fuzz that reds on main with the same seed (`work/cpair/a-touch-window-fuzz-seed-contradicts-the-dense-distance-at-1e-12.md`) and two time-bar lines on tests the unit does not edit (`work/ciw/a-fast-set-test-two-percent-under-the-one-second-bar-reds-prs-that-do-not-touch-it.md`). The merged head `305c357963` adds a last merge of main (one conflict, the gate's count file, set by the gate's recount) and a two-line test fix; no hosted run covers it, and it merged on the lane's local gates, clippy and the two test selections. The row is `docs/model-compare-log/rows/PR-7221.md`.
