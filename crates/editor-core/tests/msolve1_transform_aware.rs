@@ -361,6 +361,21 @@ fn place_moved(
     crate::mate1_member_vocab::against_with(doc, input, input, &at, o)
 }
 
+/// [`place_moved`] for a family `input`, each member moved within its
+/// own space (`{k in xs: place(xs[k])}`).
+fn place_each_moved(
+    doc: ProfileDoc,
+    input: RecipeNodeId,
+    t: [f64; 3],
+    axis: [f64; 3],
+    angle: f64,
+    o: &EvalOptions,
+) -> (ProfileDoc, RecipeNodeId) {
+    let at = editor_core::Frame::rotate_then_translate(axis, angle, t, fixture::band())
+        .expect("a rotation axis with a direction");
+    crate::mate1_member_vocab::each_against_with(doc, input, input, &at, o)
+}
+
 const LIFT: Step = ([0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0);
 
 /// **The seat this fixture's mates ask for**, measured on the document
@@ -1313,7 +1328,7 @@ fn a11_a_placement_between_two_patterns_composes_outer_t_inner() {
     // the placement between the patterns reads a member of it.
     let (doc, j) = fixture::index_of(doc, "j_outer", Formula::count(2), Some(i));
     let spin = std::f64::consts::FRAC_PI_2;
-    let (doc, t) = place_moved(doc, inner, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], spin, &opts);
+    let (doc, t) = place_each_moved(doc, inner, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], spin, &opts);
     let (doc, _, outer) = row_over(doc, t, ([0.0, 1.0, 0.0], 20.0), j);
     let nest = |n: StableName| in_member(outer, vec![(i, 1), (j, 1)], n);
     let a = nest(base_part.cap(base, CapEnd::End).name);

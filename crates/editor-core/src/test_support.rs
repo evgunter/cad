@@ -1515,6 +1515,7 @@ pub fn assemble_world_copies_edits(
         });
     // A product already the world's copies is kept as it is, so a
     // document written twice is the one document.
+    let binders = doc.binders();
     let world: Vec<crate::VarId> = doc
         .placements()
         .into_iter()
@@ -1526,11 +1527,11 @@ pub fn assemble_world_copies_edits(
         })
         // A copy inside a binder is read outside it only as what the
         // binder yields (D10 `[repetition]`).
-        .filter(|&copy| doc.yielding(copy).is_some() || doc.var_reach(copy).is_none())
+        .filter(|&copy| binders.yielding(copy).is_some() || doc.var_reach(copy).is_none())
         .collect();
     // A family the binder yields is spliced in whole.
     let entry = |doc: &ProfileDoc, copy: crate::VarId| {
-        doc.spell(copy, crate::BodyRead::plain(crate::Operand::Var(copy)))
+        binders.spell(doc, copy, crate::BodyRead::plain(crate::Operand::Var(copy)))
     };
     let spelled = |copies: &[crate::VarId]| {
         crate::Bodies::Spelled(

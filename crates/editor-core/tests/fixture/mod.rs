@@ -1121,50 +1121,49 @@ pub fn family_of(
     body: RecipeNodeId,
     values: Vec<(editor_core::Coord<editor_core::Operand>, Formula)>,
 ) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, copy) = copy_of(doc, body, values);
+    (yielded(doc, copy), copy)
+}
+
+/// **One copy of `body` in `body`'s own space**, its mateless bundle
+/// writing `values`: [`family_of`] where the values read no index, so
+/// the copy is one body and nothing yields it.
+pub fn copy_of(
+    doc: ProfileDoc,
+    body: RecipeNodeId,
+    values: Vec<(editor_core::Coord<editor_core::Operand>, Formula)>,
+) -> (ProfileDoc, RecipeNodeId) {
     let target = space(&doc, body);
     let read = body_read(&doc, body.into());
     let placed = editor_core::Placed::of(&doc, Vec::new(), values);
-    let (doc, copy) = insert(
+    insert(
         doc,
         Node::place(
             editor_core::BodyRead::plain(read),
             editor_core::Operand::Var(target),
             placed.bundle(),
         ),
-    );
-    (yielded(doc, copy), copy)
+    )
 }
 
 /// **The read of `family`'s member at its binder's own indices**,
 /// `xs[k]`: what a node written inside the binder `{k in xs: …}` reads of
-/// the family (D10 `[repetition]`). `family` as it is where it is no
-/// yield.
+/// the family (D10 `[repetition]`). Panics where `family` is no yield:
+/// a test hands this a family, and says so.
 pub fn member_here(
     doc: &ProfileDoc,
     family: editor_core::Operand,
 ) -> editor_core::BodyRead<Formula> {
     let read = body_read(doc, family);
-    let binder = operand_var(doc, &read).and_then(|var| doc.yielding(var));
-    let at: Vec<Formula> = binder
-        .map(|binder| doc.binder_indices(binder))
-        .unwrap_or_default()
+    let binder = operand_var(doc, &read)
+        .and_then(|var| doc.yielding(var))
+        .unwrap_or_else(|| panic!("member_here reads a member of a yield; {read:?} is none"));
+    let at: Vec<Formula> = doc
+        .binder_indices(binder)
         .into_iter()
         .map(|index| Formula::var(index, editor_core::Dimension::Count))
         .collect();
     editor_core::BodyRead { read, at }
-}
-
-/// **The list entry for `body`**: the splice `…body` where it is a yield,
-/// the read itself otherwise ([`editor_core::Doc::spell`]).
-pub fn entry(
-    doc: &ProfileDoc,
-    body: RecipeNodeId,
-) -> editor_core::Spell<editor_core::BodyRead<Formula>> {
-    let read = editor_core::BodyRead::plain(body_read(doc, body.into()));
-    match operand_var(doc, &read.read) {
-        Some(var) => doc.spell(var, read),
-        None => editor_core::Spell::One(read),
-    }
 }
 
 /// **A family of copies of each member of `family`**, written inside
@@ -1198,7 +1197,7 @@ pub fn yielded(doc: ProfileDoc, node: RecipeNodeId) -> ProfileDoc {
         .and_then(|chain| chain.first().copied())
         .and_then(|first| doc.binder_of(first))
     else {
-        return doc;
+        panic!("yielded writes a yield of the binder {node:?} reads; it reads none");
     };
     let outs = doc.outputs(node);
     let doc = yield_more(doc, binder, &outs);
@@ -2651,6 +2650,28 @@ impl Recorder {
         self.copies_in(read, at, values)
     }
 
+    /// **One copy of `body` in `body`'s own space**, recorded: [`Self::copies`]
+    /// where the values read no index, so nothing yields the copy.
+    pub fn copy(
+        &mut self,
+        body: impl Into<editor_core::Operand>,
+        values: Vec<(editor_core::Coord<editor_core::Operand>, Formula)>,
+    ) -> RecipeNodeId {
+        let read = body_read(&self.doc, body.into());
+        let of = match &read {
+            editor_core::Operand::Node(id) | editor_core::Operand::Output { node: id, .. } => *id,
+            editor_core::Operand::Var(var) => self.doc.operation_of(*var).expect("a body read"),
+            other => panic!("a body read, got {other:?}"),
+        };
+        let target = space(&self.doc, of);
+        let placed = editor_core::Placed::of(&self.doc, Vec::new(), values);
+        self.insert(Node::place(
+            editor_core::BodyRead::plain(read),
+            editor_core::Operand::Var(target),
+            placed.bundle(),
+        ))
+    }
+
     /// **A family of copies of `body` in the space `of` is in**,
     /// recorded: one placement whose mateless bundle writes `values` on
     /// that space's axes.
@@ -2684,7 +2705,7 @@ impl Recorder {
             .and_then(|chain| chain.first().copied())
             .and_then(|first| self.doc.binder_of(first))
         else {
-            return;
+            panic!("yielded writes a yield of the binder {node:?} reads; it reads none");
         };
         let outs = self.doc.outputs(node);
         self.push(DocEdit::yielding_more(&self.doc, binder, &outs));

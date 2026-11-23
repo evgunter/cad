@@ -863,21 +863,25 @@ fn index_seat_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
     }
     // The yield rules (`Doc::yield_faults`): the ones every edit's door
     // asks too.
-    snapshot.yield_faults().into_iter().next().map(|(binder, rule)| {
-        use crate::repetition::YieldRule as R;
-        let (other, fault) = match rule {
-            R::NotLive(var) => (var, IndexSeatFault::YieldNotLive),
-            R::Index(var) => (var, IndexSeatFault::YieldIndex),
-            R::Twice(var) | R::Elsewhere { var, .. } => (var, IndexSeatFault::YieldTwice),
-            R::Outside(var) => (var, IndexSeatFault::YieldOutside),
-            R::Nothing => unreachable!("a binder yielding nothing is no fault at load"),
-        };
-        SnapshotError::IndexSeat {
-            var: binder,
-            other,
-            fault,
-        }
-    })
+    snapshot
+        .yield_faults()
+        .into_iter()
+        .next()
+        .map(|(binder, rule)| {
+            use crate::repetition::YieldRule as R;
+            let (other, fault) = match rule {
+                R::NotLive(var) => (var, IndexSeatFault::YieldNotLive),
+                R::Index(var) => (var, IndexSeatFault::YieldIndex),
+                R::Twice(var) | R::Elsewhere { var, .. } => (var, IndexSeatFault::YieldTwice),
+                R::Outside(var) => (var, IndexSeatFault::YieldOutside),
+                R::Nothing => unreachable!("a binder yielding nothing is no fault at load"),
+            };
+            SnapshotError::IndexSeat {
+                var: binder,
+                other,
+                fault,
+            }
+        })
 }
 
 /// **Why an index's seat in its binder is refused at load**

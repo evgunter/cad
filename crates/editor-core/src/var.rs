@@ -298,7 +298,11 @@ impl<'de> serde::Deserialize<'de> for Index {
             /// The nested index of before binders, `index(N) within k`.
             within: Option<serde::de::IgnoredAny>,
         }
-        let Written { count, seat, within } = Written::deserialize(de)?;
+        let Written {
+            count,
+            seat,
+            within,
+        } = Written::deserialize(de)?;
         match (seat, within) {
             (Some(seat), None) => Ok(Self { count, seat }),
             _ => {

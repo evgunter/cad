@@ -143,9 +143,12 @@ pub(crate) enum YieldRule {
 }
 
 /// **A document's binders**, read once: each index's binder and place
-/// in it, each binder's indices in order, and each yield's binder.
+/// in it, each binder's indices in order, and each yield's binder. A
+/// pass that asks of many reads builds it once ([`Doc::binders`]) and
+/// asks it, where each of [`Doc::yielding`] and [`Doc::spell`] reads the
+/// document's binders afresh.
 #[derive(Debug, Clone, Default)]
-pub(crate) struct Binders {
+pub struct Binders {
     /// Each index: its binder's first index, and its place in it.
     seat: BTreeMap<VarId, (VarId, usize)>,
     /// Each binder, by its first index: its indices, outermost first.
@@ -196,8 +199,31 @@ impl Binders {
     }
 
     /// The binder yielding `var`, if it is a yield.
-    pub(crate) fn yielding(&self, var: VarId) -> Option<VarId> {
+    #[must_use]
+    pub fn yielding(&self, var: VarId) -> Option<VarId> {
         self.yields.get(&var).copied()
+    }
+
+    /// [`Doc::family_through_sources`] against these binders, `doc`'s.
+    #[must_use]
+    pub fn family_through_sources<P: crate::ProfilePayload>(
+        &self,
+        doc: &Doc<P>,
+        var: VarId,
+    ) -> bool {
+        let read = doc.through_sources(var);
+        !read.is_indexed() && self.yielding(read.read).is_some()
+    }
+
+    /// [`Doc::spell`] against these binders, `doc`'s.
+    #[must_use]
+    pub fn spell<P: crate::ProfilePayload, R>(
+        &self,
+        doc: &Doc<P>,
+        var: VarId,
+        read: R,
+    ) -> crate::Spell<R> {
+        crate::Spell::of(read, self.family_through_sources(doc, var))
     }
 
     /// The binder of the index `index`, and its place there.
@@ -454,8 +480,17 @@ impl<P: crate::ProfilePayload> Doc<P> {
                 continue;
             };
             // A variable two binders write is the later one's fault.
-            if let Some(&var) = yields.iter().find(|y| written.get(y).is_some_and(|&b| b != binder)) {
-                out.push((binder, YieldRule::Elsewhere { var, binder: written[&var] }));
+            if let Some(&var) = yields
+                .iter()
+                .find(|y| written.get(y).is_some_and(|&b| b != binder))
+            {
+                out.push((
+                    binder,
+                    YieldRule::Elsewhere {
+                        var,
+                        binder: written[&var],
+                    },
+                ));
                 continue;
             }
             for &y in yields {
@@ -487,15 +522,21 @@ impl<P: crate::ProfilePayload> Doc<P> {
     /// yields, and read as one body otherwise (D10 `[repetition]`).
     #[must_use]
     pub fn spell<R>(&self, var: VarId, read: R) -> crate::Spell<R> {
-        crate::Spell::of(read, self.family_through_sources(var))
+        self.binders().spell(self, var, read)
     }
 
     /// **Whether `var` is, through its sources, a family a binder
     /// yields**, read whole.
     #[must_use]
     pub fn family_through_sources(&self, var: VarId) -> bool {
-        let read = self.through_sources(var);
-        !read.is_indexed() && self.yielding(read.read).is_some()
+        self.binders().family_through_sources(self, var)
+    }
+
+    /// **The document's binders**, read once, for a pass that asks of
+    /// many reads ([`Binders`]).
+    #[must_use]
+    pub fn binders(&self) -> Binders {
+        Binders::of(self)
     }
 
     /// **The binder of the index `index`**, by its first index; `None`

@@ -4613,10 +4613,9 @@ impl EditError {
                         // A family at a seat for one: write the binder,
                         // one node per member, in the seat's own words.
                         (VarKind::Bodies, _) => {
-                            let op = node.kind().map_or_else(
-                                || "op".to_owned(),
-                                str::to_lowercase,
-                            );
+                            let op = node
+                                .kind()
+                                .map_or_else(|| "op".to_owned(), str::to_lowercase);
                             let held = var.name().map(crate::doc::VarName::as_str);
                             let k = ["k", "i", "j", "m", "n"]
                                 .into_iter()
@@ -4624,7 +4623,9 @@ impl EditError {
                                 .unwrap_or("k");
                             tail.recourse(
                                 f,
-                                format_args!("write a binder, `{{{k} in {var}: {op}({var}[{k}])}}`"),
+                                format_args!(
+                                    "write a binder, `{{{k} in {var}: {op}({var}[{k}])}}`"
+                                ),
                             )
                         }
                         _ => tail.recourse(f, format_args!("read {expected} there")),
@@ -10410,7 +10411,10 @@ impl core::fmt::Display for ProductReadFault {
 }
 
 /// **A yield rule, in the door's words** ([`YieldsFault`]).
-fn yields_fault<P: crate::ProfilePayload>(doc: &Doc<P>, rule: crate::repetition::YieldRule) -> YieldsFault {
+fn yields_fault<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    rule: crate::repetition::YieldRule,
+) -> YieldsFault {
     use crate::repetition::YieldRule as R;
     let spoken = |var| Box::new(doc.spoken_var(var));
     match rule {

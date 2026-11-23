@@ -2780,6 +2780,10 @@ NOT_BOUND = {
     # itself behind a door.
     "Reached": INTERIOR,
     "MemberEnv": INTERIOR,
+    # A document's binders read once (D10 `[repetition]`), the memo a
+    # pass that spells many list entries reads (`Binders::spell`): no
+    # value a Python caller holds.
+    "Binders": INTERIOR,
     "Chamfered": INTERIOR,
     "ContactRecords": INTERIOR,
     # What a contact record cites (D1 (ii)): its `ContactRecords`

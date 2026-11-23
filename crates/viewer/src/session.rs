@@ -5458,6 +5458,7 @@ fn write_product(
         several => {
             // A family a binder yields is spliced in whole (D10
             // `[repetition]`).
+            let binders = run.doc().binders();
             let entry = |read: Operand| {
                 let var = match &read {
                     Operand::Var(var) => Some(*var),
@@ -5467,7 +5468,7 @@ fn write_product(
                 };
                 let read = pncad::document::BodyRead::plain(read);
                 match var {
-                    Some(var) => run.doc().spell(var, read),
+                    Some(var) => binders.spell(run.doc(), var, read),
                     None => pncad::document::Spell::One(read),
                 }
             };
@@ -5988,6 +5989,7 @@ fn splice_families(
     node: pncad::document::AuthoredNode,
 ) -> pncad::document::AuthoredNode {
     type Entry = pncad::document::Spell<pncad::document::BodyRead<Formula>>;
+    let binders = doc.binders();
     let spell = |entries: Vec<Entry>| -> Vec<Entry> {
         entries
             .into_iter()
@@ -6000,7 +6002,7 @@ fn splice_families(
                         _ => None,
                     };
                     match var {
-                        Some(var) => doc.spell(var, read),
+                        Some(var) => binders.spell(doc, var, read),
                         None => pncad::document::Spell::One(read),
                     }
                 }

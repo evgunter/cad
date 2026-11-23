@@ -472,7 +472,7 @@ fn per_member_assembles(reversed: bool) -> (ProfileDoc, RecipeNodeId, RecipeNode
             distance: fixture::len(0.25),
         },
     );
-    let (doc, lid) = fixture::family_of(
+    let (doc, lid) = fixture::copy_of(
         doc,
         slab,
         vec![(Coord::slide(TargetAxis::Z), fixture::len(0.3))],

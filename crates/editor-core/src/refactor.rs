@@ -451,6 +451,7 @@ fn carry<E>(
     let mut bundles: Vec<(RecipeNodeId, RecipeNodeId, Vec<crate::mate::Constraint>)> = Vec::new();
     // Carried yields, each written once its node reads its binder.
     let mut yields: Vec<(VarId, VarId)> = Vec::new();
+    let binders = source.binders();
     let is_space = |id: &RecipeNodeId| matches!(source.node(*id), Some(Node::Space));
     let olds: Vec<RecipeNodeId> = olds
         .iter()
@@ -560,7 +561,7 @@ fn carry<E>(
             // A yield crosses with its node (D10 `[repetition]`): the
             // carried binder yields the new output too, once the node
             // reads the binder there ([`yield_carried`]).
-            if let Some(binder) = source
+            if let Some(binder) = binders
                 .yielding(output)
                 .and_then(|binder| vars.map.get(&binder).copied())
             {
@@ -3893,11 +3894,15 @@ pub fn split(
         (None, several) => {
             // A family its binder yields is spliced in whole (D10
             // `[repetition]`).
+            let binders = part.doc().binders();
             let members = several
                 .iter()
                 .map(|&copy| {
-                    part.doc()
-                        .spell(copy, crate::BodyRead::plain(crate::Operand::Var(copy)))
+                    binders.spell(
+                        part.doc(),
+                        copy,
+                        crate::BodyRead::plain(crate::Operand::Var(copy)),
+                    )
                 })
                 .collect();
             let node = part
