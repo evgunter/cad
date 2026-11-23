@@ -43,3 +43,27 @@ rung instead (its levered tilt reads 9.9e-9).
 
 Every gap inside the band refuses, an oval wholly within the band on one
 side of the cutting plane included, with a row holding that pose.
+
+## Progress (germ/spiric-oval-in-band, 2026-11-23)
+
+The oval of the two-oval regime is convex (its curvature's sign is
+`ρ·y² + offset²·r·cos v·sin² v`, positive throughout; the proof is in
+the module doc), so a line of the spiric's plane meets it twice or not
+at all. Where the count is none on all three lines, the door now reads
+one point of the oval (the span's middle) across `L` against
+`escalate/s` (`spiric_plane_oval_in_band`): between `L` and a moved
+line, the whole oval lies within the escalation of the cutting plane and
+the door refuses as a tangency; past both, the miss stands.
+
+The row `an_oval_wholly_inside_the_band_off_the_plane_refuses` sweeps
+three thin tubes near the inner equator, two fat tubes near
+`offset → R − r` and the module's oval, three lean directions, tilt
+sines from 1.05× the parallel rung's edge up, and stand-offs either
+side, read against a sampled-and-bisected oracle over the oval's whole
+turn; the review's poses are pinned beside it. On main 22 swept poses
+and the review's three answered a miss in band; on the branch none do.
+A fat tube's oval is wider than its cover ball every way and holds no
+such pose. 38 past-band poses refuse on the line × torus ladder's own
+band (its wide band about the tube's top and bottom circles), on main
+and the branch alike; the row excuses a refusal only where the ladder
+itself refuses on one of the three lines.
