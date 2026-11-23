@@ -855,12 +855,15 @@ pub fn splice<P: crate::ProfilePayload + Clone>(
         .iter()
         .flat_map(|&source| crate::take_over::sources_reading(doc, source).into_keys())
         .collect();
-    handed_sources.extend(doc.placements().into_iter().filter(|&placement| {
-        !dead.contains_key(&placement)
-            && doc
-                .copied_read(placement)
-                .is_some_and(|read| reading.contains(&read))
-    }));
+    let copies: BTreeSet<RecipeNodeId> = sources
+        .iter()
+        .flat_map(|&source| doc.plain_copies_of(source))
+        .collect();
+    handed_sources.extend(
+        doc.placements()
+            .into_iter()
+            .filter(|placement| !dead.contains_key(placement) && copies.contains(placement)),
+    );
     edits.extend(rebinds(doc, &dead, &handed_sources, &reading));
     Ok(Some(Splice { deleted, edits }))
 }

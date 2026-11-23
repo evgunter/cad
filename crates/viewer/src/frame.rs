@@ -2718,12 +2718,7 @@ pub fn repoint_button(
     tol: pncad::geom_core::Tol,
 ) -> RepointButton {
     let by = Speaker::of(doc);
-    let said = repointed(
-        by,
-        doc,
-        source,
-        &crate::world::placements_of_var(doc, source),
-    );
+    let said = repointed(by, doc, source, &doc.placements_of_var(source));
     let Some(node) = onto else {
         return RepointButton {
             label: repoint_label(&said.named, "the selected body"),
