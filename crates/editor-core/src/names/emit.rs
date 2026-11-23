@@ -1933,9 +1933,9 @@ mod display_tests {
                 // payload that greps to nothing would outlive its own
                 // subject.
                 NamingError::Emission {
-                    what: "a chart cut survives in the result",
+                    what: "a carried edge's group names no operand",
                 },
-                vec!["a chart cut survives in the result"],
+                vec!["a carried edge's group names no operand"],
             ),
             (
                 NamingError::Escalated {

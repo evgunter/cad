@@ -12,7 +12,8 @@
 //!   seam on its survivor (`Body::merge_coplanar_faces`);
 //! - the Boolean, whose zip glues a slit's face to itself where the
 //!   result keeps that face on both sides of the slit's line
-//!   (`boolean::slit::close_struts`).
+//!   (`boolean::slit::close_struts`), and whose sphere cut-ins leave
+//!   pieces of a chart cut (`boolean::slit::close_cuts`).
 //!
 //! An edge whose two halves bound one face and neither of whose ends is
 //! free is no strut: it closes the face across a stretch of a slit the
@@ -21,9 +22,10 @@
 //!
 //! A delete is planned, then run ([`Body::plan_strut_prune`],
 //! [`Body::prune_strut`]): the plan only reads, so a door can re-check
-//! what it proved between the two. Only a planar face is pruned: the
-//! bridge `mekr` mints is a line chord, which lies in a plane's face and
-//! in no curved one's.
+//! what it proved between the two. A strut with one free end is pruned
+//! on any face, since `kev` mints nothing; one with both ends free only
+//! on a plane's, since the bridge `mekr` mints is a line chord, which
+//! lies in a plane's face and in no curved one's.
 
 use geom_core::Tol;
 
@@ -49,8 +51,8 @@ pub(crate) struct StrutPrune {
 /// Why [`Body::plan_strut_prune`] does not delete a strut.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum StrutRefusal {
-    /// The face is not a plane, where the lone ring's bridge does not
-    /// lie.
+    /// Both ends are free and the face is not a plane, where the lone
+    /// ring's bridge does not lie.
     Curved,
     /// Both ends are free and the strut is the face's outline: the face
     /// would be left with a lone vertex for its outline, which bounds no
@@ -97,9 +99,9 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     ///
     /// # Errors
     ///
-    /// [`StrutRefusal::Curved`] where `face` is not a plane;
     /// [`StrutRefusal::LoneOutline`] where both ends are free and the
-    /// strut is `face`'s outline.
+    /// strut is `face`'s outline; [`StrutRefusal::Curved`] where both
+    /// ends are free and `face` is not a plane.
     ///
     /// # Panics
     ///
@@ -112,9 +114,6 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         toward_free: HalfEdgeKey,
     ) -> Result<StrutPrune, StrutRefusal> {
         let view = self.proven_face(face);
-        if view.surface().kind() != geom::SurfaceKind::Plane {
-            return Err(StrutRefusal::Curved);
-        }
         let toward = proven(&self.half_edges, toward_free, EntityId::HalfEdge);
         let (other_end, ring) = (toward.start, toward.parent_loop);
         let free = self.half_edge_end(toward_free).unwrap_or_else(|| {
@@ -123,6 +122,9 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         let lone = self.strut_tip(toward_free).then_some((other_end, ring));
         if lone.is_some() && ring == view.record().outer {
             return Err(StrutRefusal::LoneOutline);
+        }
+        if lone.is_some() && view.surface().kind() != geom::SurfaceKind::Plane {
+            return Err(StrutRefusal::Curved);
         }
         Ok(StrutPrune {
             toward_free,

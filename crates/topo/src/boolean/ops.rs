@@ -346,12 +346,6 @@ pub struct BooleanNaming {
     /// clone keys as `edge_classes`. A reader that needs a class there
     /// refuses naming the partner, not a missing row.
     pub unread_partners: Vec<super::UnreadPartner>,
-    /// The meridian edges a sphere cut-in minted in each operand before
-    /// the op re-entered on the cut operands, A's then B's, in clone keys
-    /// as `edge_classes`. Each divides one operand face into two of its
-    /// pieces (`face_fragments_a`/`face_fragments_b`): a cut of the
-    /// face's chart, not an edge of the operand.
-    pub chart_cuts: [Vec<EdgeKey>; 2],
     /// The two vertices each of the classification's null edges joins,
     /// `(operand, below end, above end)` in clone keys as
     /// `edge_classes`: one point by construction, so a vertex and its
@@ -421,7 +415,6 @@ impl Default for BooleanNaming {
             uncut: Default::default(),
             edge_classes: Default::default(),
             unread_partners: Default::default(),
-            chart_cuts: Default::default(),
             null_copies: Default::default(),
             cone_splits: crate::lineage::ConeCopies::new(crate::lineage::LineageRows::ConeCopies),
             edge_joins: Default::default(),
@@ -1028,7 +1021,7 @@ fn boolean_door<T: Decide + Bounds + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
     let (a, b) = (one_solid(a)?, one_solid(b)?);
-    boolean_op_recut(op, &a, &b, decls, strategy, true, tol)
+    boolean_op_recut(op, &a, &b, decls, strategy, Recut::May, tol)
 }
 
 /// **∖'s check on an operand part it reverts and nothing joins
@@ -1170,22 +1163,140 @@ impl SeamEdges {
     }
 }
 
+/// Whether [`boolean_op_recut`] may still cut its operands in (M5 S13),
+/// and what the cut-ins it re-entered on left for it to close.
+#[derive(Clone, Copy)]
+pub(super) enum Recut<'c> {
+    /// The front door's pass: the scan may cut the operands in.
+    May,
+    /// The re-entry on the cut operands: a re-cut that surfaces no
+    /// crossings is a loud invariant failure rather than a loop, and the
+    /// output stage closes the cuts ([`super::slit::close_cuts`]).
+    Closing(&'c CutsLeft),
+}
+
+impl<'c> Recut<'c> {
+    /// Whether the scan may still cut the operands in.
+    fn may_cut(self) -> bool {
+        matches!(self, Self::May)
+    }
+
+    /// The cuts the output stage closes: none on the front door's pass.
+    fn cuts(self) -> &'c CutsLeft {
+        static NONE: CutsLeft = CutsLeft {
+            edges: [Vec::new(), Vec::new()],
+            held: [Vec::new(), Vec::new()],
+        };
+        match self {
+            Self::May => &NONE,
+            Self::Closing(left) => left,
+        }
+    }
+}
+
+/// **What the sphere cut-ins left for the re-entered op to close**
+/// ([`super::slit::close_cuts`]): a cut the kernel makes for its own
+/// reasons is no edge of the result. A's then B's, in the cut operands'
+/// keys.
+#[derive(Default)]
+pub(super) struct CutsLeft {
+    /// Each cut's meridian edge.
+    edges: [Vec<EdgeKey>; 2],
+    /// The faces the cuts divided that the operand held before them.
+    held: [Vec<FaceKey>; 2],
+}
+
+impl CutsLeft {
+    /// What `cuts` made, as the closing reads it.
+    fn of(cuts: &CutsPerOperand) -> Self {
+        let mut left = Self::default();
+        for (side, made) in cuts.iter().enumerate() {
+            left.edges[side].clone_from(&made.edges);
+            left.held[side] = made
+                .divisions
+                .iter()
+                .map(|&(_, from)| from)
+                .filter(|from| !made.divisions.iter().any(|&(new, _)| new == *from))
+                .collect();
+        }
+        left
+    }
+
+    /// The cuts in the result's keys. Each cut's edge is read with every
+    /// edge split off it in its operand's clone as the join left it, and
+    /// with the chords the join minted along any of them (`along`, in the
+    /// clones' keys): A's held directly, B's through the graft (an edge B
+    /// no longer held at the graft through its dead stand-in).
+    fn in_result<T: crate::props::AtRestPolicy>(
+        &self,
+        fin: &super::finish::FinishOut<T>,
+        along: &[Vec<(EdgeKey, EdgeKey)>; 2],
+    ) -> super::slit::CutRoots {
+        let graft = &fin.graft;
+        let descent = |side: usize, clone: &Body<T>| -> BTreeSet<EdgeKey> {
+            let parents = super::edge_join::split_records(clone);
+            let mut from_cut: BTreeSet<EdgeKey> = self.edges[side].iter().copied().collect();
+            for &edge in parents.keys() {
+                let mut at = edge;
+                for _ in 0..=parents.len() {
+                    if from_cut.contains(&at) {
+                        from_cut.insert(edge);
+                        break;
+                    }
+                    match parents.get(&at) {
+                        Some(&parent) => at = parent,
+                        None => break,
+                    }
+                }
+            }
+            let chords: Vec<EdgeKey> = along[side]
+                .iter()
+                .filter(|(e, _)| from_cut.contains(e))
+                .map(|&(_, chord)| chord)
+                .collect();
+            from_cut.extend(chords);
+            from_cut
+        };
+        let b_edge = |e: EdgeKey| {
+            graft
+                .edges
+                .get(e)
+                .or_else(|| graft.dead_edges.get(&e))
+                .copied()
+        };
+        super::slit::CutRoots {
+            edges: descent(0, &fin.clone_a)
+                .into_iter()
+                .chain(descent(1, &fin.clone_b).into_iter().filter_map(b_edge))
+                .collect(),
+            held: self.held[0]
+                .iter()
+                .copied()
+                .chain(
+                    self.held[1]
+                        .iter()
+                        .filter_map(|&f| graft.faces.get(f).copied()),
+                )
+                .collect(),
+        }
+    }
+}
+
 /// The pipeline behind the front door, parameterized on whether the
-/// no-crossings sphere RE-CUT (M5 S13) may still run: the re-entry
-/// pass sets `recut = false`, so a re-cut that surfaces no crossings
-/// is a loud invariant failure rather than a loop.
+/// no-crossings sphere RE-CUT (M5 S13) may still run
+/// ([`Recut`]).
 pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a: &Body<T>,
     b: &Body<T>,
     decls: &Glue<T>,
     strategy: SweepStrategy,
-    recut: bool,
+    recut: Recut<'_>,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
     let band = Band::linear(tol)?;
     let (red, connected, interior_loops, glued) =
-        match through_the_join(op, a, b, decls, strategy, recut, tol)? {
+        match through_the_join(op, a, b, decls, strategy, recut.may_cut(), tol)? {
             Joined::Answered(result) => return Ok(*result),
             Joined::Connected {
                 red,
@@ -1209,6 +1320,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let substituted = connected.fates.substituted.clone();
     let tangent_lines = red.tangent_lines.clone();
     let fin = setopfinish(op, red, &connected, a, b, band, tol)?;
+    let cut_roots = recut.cuts().in_result(&fin, &connected.along);
     // The zip, the merge, the re-description and the closing mint are
     // one door's surgery (`crate::surgery`): the operators inside them
     // do not each re-derive the whole body, and `gate` below — tier 3
@@ -1281,7 +1393,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         &mut body,
         &mut desc,
         &glued_pairs,
-        (&mut seam_edges, &struts),
+        (&mut seam_edges, &struts, &cut_roots),
         &recorded,
         band,
         tol,
@@ -1347,7 +1459,6 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         uncut: Vec::new(),
         edge_classes,
         unread_partners,
-        chart_cuts: [Vec::new(), Vec::new()],
         null_copies,
         cone_splits,
         edge_joins,
@@ -1534,26 +1645,29 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
                  keeps both on a finished operand (kernel bug)"
             );
         }
-        let mut result = boolean_op_recut(op, &a2, &b2, decls, strategy, false, tol)?;
+        let left = CutsLeft::of(&cuts);
+        let mut result =
+            boolean_op_recut(op, &a2, &b2, decls, strategy, Recut::Closing(&left), tol)?;
         if let BooleanResult::Body(out) = &mut result {
             // A row names the cells of the op's inputs, not of the
             // cut operands ([`crate::coincidence`]), through the one
             // door ([`spell`]).
             respell_through_cuts(&mut out.coincidences, &cuts)?;
             // The cut-ins divided faces before the join did, in the
-            // operand keys the join's rows are in.
+            // operand keys the join's rows are in. The output stage
+            // closed every cut, so no row reads a cut as an edge.
             let n = &mut out.naming;
-            for ((made, joined), edges) in cuts
+            n.edge_classes
+                .retain(|row| !cuts[row.operand.index()].edges.contains(&row.edge));
+            for (made, joined) in cuts
                 .into_iter()
                 .zip([&mut n.face_fragments_a, &mut n.face_fragments_b])
-                .zip(&mut n.chart_cuts)
             {
                 *joined = crate::lineage::FaceDivisions::from_rows(
                     made.divisions
                         .into_iter()
                         .chain(joined.rows().iter().copied()),
                 )?;
-                edges.extend(made.edges);
             }
         }
         return Ok(Joined::Answered(Box::new(result)));
@@ -2951,7 +3065,7 @@ pub(super) fn finish_output<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     desc: &mut Descendants,
     glued: &OneRecordTokens,
-    (seam_edges, struts): (&mut SeamEdges, &[EdgeKey]),
+    (seam_edges, struts, cuts): (&mut SeamEdges, &[EdgeKey], &super::slit::CutRoots),
     recorded: &BTreeSet<VertexKey>,
     band: Band,
     tol: Tol,
@@ -2983,7 +3097,21 @@ pub(super) fn finish_output<T: Decide + crate::props::AtRestPolicy>(
         .copied()
         .filter(|&e| seen.insert(e))
         .collect();
-    let closed = super::slit::close_struts(body, &candidates, tol)?;
+    let mut closed = super::slit::close_struts(body, &candidates, tol)?;
+    seam_edges.retain(|e| !closed.iter().any(|c| c.edge == *e));
+    let pieces = cuts.pieces(body, &split_from);
+    closed.extend(super::slit::close_cuts(
+        body,
+        &pieces,
+        &cuts.held,
+        &seam_edges.held,
+        tol,
+    )?);
+    debug_assert_eq!(
+        cuts.pieces(body, &split_from),
+        [],
+        "a chart cut survives its closing (kernel bug)"
+    );
     let mut killed_lineage = BTreeMap::new();
     super::edge_join::record_killed_lineage(
         &mut killed_lineage,
@@ -2996,7 +3124,6 @@ pub(super) fn finish_output<T: Decide + crate::props::AtRestPolicy>(
     {
         desc.substitute(row)?;
     }
-    seam_edges.retain(|e| !closed.iter().any(|c| c.edge == *e));
     // The closing sweeps the arena, so a glued surface no face held (a
     // dropped copy's) is gone now: its token licenses nothing, as a
     // consumed side does at `OneRecordTokens::of_result`.
@@ -7495,7 +7622,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 &mut body,
                 &mut desc,
                 &glued_pairs,
-                (&mut SeamEdges::default(), &[]),
+                (&mut SeamEdges::default(), &[], &super::slit::CutRoots::default()),
                 &recorded,
                 band,
                 tol,
@@ -7849,7 +7976,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         &mut body,
         &mut desc,
         &OneRecordTokens::none(),
-        (&mut SeamEdges::default(), &[]),
+        (&mut SeamEdges::default(), &[], &super::slit::CutRoots::default()),
         &recorded,
         band,
         tol,
