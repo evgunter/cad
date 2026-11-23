@@ -11,6 +11,8 @@
 //! route through the same two doors and the same refusal map, pinned in
 //! `blend::arms` and `blend` beside them.
 
+#![allow(clippy::expect_used, clippy::panic)]
+
 use geom::Surface;
 use geom_core::{Band, OrthoAxis, OrthonormalizeError, Point3, Tol, UnitVec3, UnitVec3Error, Vec3};
 use sweep::blend::Convexity;
