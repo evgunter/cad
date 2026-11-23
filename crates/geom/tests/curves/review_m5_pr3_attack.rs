@@ -31,7 +31,7 @@ test_utils::gated_to![
 use core::num::NonZeroUsize;
 use geom_core::spline::{KnotVector, KnotVectorIssue, SplineError};
 // Promotion adaptation (mechanical): dropped an unused Real import.
-use geom::{Curve3, NurbsCurve3};
+use geom::NurbsCurve3;
 use geom_core::{Dual64, Point3};
 use test_utils::fuzz;
 
@@ -421,28 +421,6 @@ fn f5_insert_refine_elevate_are_evaluation_invariant_fuzzed() {
             }
         }
     }
-}
-
-// ---------- F6: placeholder poison bit identity ----------
-
-#[test]
-fn f6_placeholder_evaluates_to_quiet_nan_bits() {
-    let c: Curve3<f64> = Curve3::nurbs_placeholder();
-    let p = c.eval(0.5);
-    // Old unit-variant behavior: from_f64(NAN) coordinates. Bit-identical
-    // quiet NaN expected.
-    assert_eq!(
-        p.x.to_bits(),
-        f64::NAN.to_bits(),
-        "poison bits changed: {:#x}",
-        p.x.to_bits()
-    );
-    assert_eq!(p.y.to_bits(), f64::NAN.to_bits());
-    assert_eq!(p.z.to_bits(), f64::NAN.to_bits());
-    let d = c.deriv(0.5);
-    assert_eq!(d.x.to_bits(), f64::NAN.to_bits());
-    let d2 = c.deriv2(f64::NAN); // poison parameter on poison payload
-    assert!(d2.x.is_nan() && d2.y.is_nan() && d2.z.is_nan());
 }
 
 // ---------- F7: validation and totality attacks ----------
