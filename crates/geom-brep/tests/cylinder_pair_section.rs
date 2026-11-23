@@ -823,7 +823,7 @@ fn ruling_lines(section: &PairSection<f64>) -> Vec<(Point3<f64>, Vec3<f64>)> {
             ClassCarrier::Span {
                 curve: geom::Curve3::Line(geom::Line { origin, dir }),
                 ..
-            } => (*origin, dir.normalize()),
+            } => (*origin, dir.get().normalize()),
             other => panic!("a parallel pair's component is a ruling, not {other:?}"),
         })
         .collect()

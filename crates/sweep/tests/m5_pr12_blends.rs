@@ -31,7 +31,7 @@ fn plane_plane_blend_on_a_right_dihedral_is_the_quarter_cylinder() {
     let r = 0.15;
     let b = plane_plane_blend(
         Point3::new(0.0, 0.0, 0.4),
-        Vec3::new(0.0, 0.0, 1.0),
+        geom_core::UnitVec3::exact_z(),
         Vec3::new(-1.0, 0.0, 0.0),
         Vec3::new(0.0, -1.0, 0.0),
         r,
@@ -69,7 +69,7 @@ fn plane_plane_setback_is_r_times_tan_half_the_normal_angle() {
         let n_b = Vec3::new(-phi.cos(), -phi.sin(), 0.0);
         let b = plane_plane_blend(
             Point3::new(0.0, 0.0, 0.0),
-            Vec3::new(0.0, 0.0, 1.0),
+            geom_core::UnitVec3::exact_z(),
             n_a,
             n_b,
             r,
@@ -94,7 +94,7 @@ fn a_concave_chain_rolls_the_ball_on_the_other_side_and_reverses_sense() {
     let (n_a, n_b) = (Vec3::new(-1.0, 0.0, 0.0), Vec3::new(0.0, -1.0, 0.0));
     let convex = plane_plane_blend(
         Point3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.0, 0.0, 1.0),
+        geom_core::UnitVec3::exact_z(),
         n_a,
         n_b,
         r,
@@ -102,7 +102,7 @@ fn a_concave_chain_rolls_the_ball_on_the_other_side_and_reverses_sense() {
     );
     let concave = plane_plane_blend(
         Point3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.0, 0.0, 1.0),
+        geom_core::UnitVec3::exact_z(),
         n_a,
         n_b,
         r,
@@ -188,7 +188,7 @@ fn the_corner_ball_centre_lies_on_every_incident_cylinder_axis() {
     ] {
         let b = plane_plane_blend(
             Point3::new(0.0, 0.0, 0.0),
-            tau,
+            geom::stated_direction(tau),
             normals[i],
             normals[j],
             r,

@@ -143,7 +143,7 @@ fn on_the_oval<T: Decide>(
         line,
         geom::Line {
             origin: center,
-            dir: axis,
+            dir: frame.axis_unit(),
         },
         major_radius,
         minor_radius,
@@ -162,7 +162,7 @@ fn on_the_oval<T: Decide>(
     };
     let mut out = Vec::new();
     for t in ts {
-        let y = line.origin + line.dir * t;
+        let y = line.origin + line.dir.get() * t;
         match decide(OVAL_SIDE, Margin::of((y - center).dot(m)), band)
             .map_err(MeetFault::Escalated)?
         {

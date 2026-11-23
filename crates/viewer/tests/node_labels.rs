@@ -602,6 +602,27 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
         },
         "measured",
     );
+    // A finding's claim, authored from the value the kernel minted, on
+    // a scene of its own: two blocks side by side rest on each other.
+    let mut touching = crate::offers::blocks(tol, viewer::test_support::CLEARANCE_SIDE);
+    let quieting = touching
+        .checks()
+        .expect("the registry ran")
+        .findings
+        .iter()
+        .find_map(|f| match &f.evidence {
+            pncad::document::CheckEvidence::UnprovenCoincidence {
+                quieting: Some(quieting),
+                ..
+            } if f.quiet.is_none() => Some(quieting.clone()),
+            _ => None,
+        })
+        .expect("the blocks' rest carries its claim");
+    run(
+        &mut touching,
+        SessionOp::AssertQuieting { quieting },
+        "rests",
+    );
     let edges = pncad::select::all_edges(session.evaluation().expect("landed"), block);
     run(
         &mut session,
@@ -625,6 +646,15 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
         &mut session,
         SessionOp::AddInstance { id: bench.post.id },
         "third post",
+    );
+    // A datum is a bare frame placed into a space, here the world (D10
+    // `[placement.datums]`).
+    run(
+        &mut session,
+        SessionOp::AddDatum {
+            space: pncad::document::VarId::WORLD,
+        },
+        "plane",
     );
     // A mate is a constraint in a placement's bundle and makes no node,
     // so it is no creation and takes no label.
@@ -1008,7 +1038,7 @@ fn the_checks_window_speaks_from_the_landed_document() {
         (Some("big block"), Some("renamed")),
         "the rename has not landed: the two documents say two labels"
     );
-    let rows = viewer::frame::check_rows(report, landed);
+    let rows = viewer::frame::check_rows(report, landed, session.current());
     let row = rows
         .iter()
         .find(|row| row.select == viewer::Selection::Node(big))
@@ -1068,7 +1098,7 @@ fn an_unused_variables_row_selects_the_variable() {
         tol,
     )
     .expect("the checks run");
-    let rows = viewer::frame::check_rows(&report, &doc);
+    let rows = viewer::frame::check_rows(&report, &doc, None);
     let selects: Vec<_> = rows.iter().map(|row| row.select.clone()).collect();
     assert_eq!(
         selects,

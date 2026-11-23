@@ -167,6 +167,15 @@ window.
 | **lune** | 1 | the departure row, `departure-reads-no-curved-corner-off-its-shared-edge` (trace added there) | The sphere faces read `Structural` beside the caps' off-axis circles. |
 | **rational window** | 2 | `a-rational-edges-whole-span-enclosure-is-unbounded-so-its-face-has-no-window` | The cap's hyperbola is a rational quadratic, and its one-interval whole-span enclosure is unbounded, so the face's box and window are infinite. |
 
+## Measured after the depth gap (EMBED, lane nested-tori, 2026-11-18)
+
+Main `ff2319654` with
+`nested-tori-a-thin-gap-apart-spend-the-pair-budget-on-box-distance`'s
+change, the same 222 tests through the same local switch: **9 valid
+rows refuse** (12 before). The three nested-tori rows shell; the six
+pole rows, the lune and the two window rows refuse as in the table
+above, and the two crossing pins still read `Crosses`.
+
 ## Carried by the switch (review of PR 6885)
 
 - At `Probe` the switch puts the cavity sweep's samples into the K

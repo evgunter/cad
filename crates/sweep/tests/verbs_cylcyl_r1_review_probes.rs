@@ -564,7 +564,7 @@ fn the_r6_bracket_pocket_edge_no_longer_reaches_the_corner_wall() {
                 pocket.get_curve_geom(e.curve).and_then(topo::CurveGeom::certified),
                 Some(c) if matches!(c.carrier(),
                     geom::Curve3::Line(geom::Line { origin, dir })
-                        if (origin.y - 10.0).abs() < 1e-9 && dir.y.abs() < 1e-9)
+                        if (origin.y - 10.0).abs() < 1e-9 && dir.get().y.abs() < 1e-9)
             )
         })
         .map(|(k, _)| k)
