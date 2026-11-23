@@ -142,6 +142,8 @@ enum Ruled<T: geom_core::Real> {
         axis: Vec3<T>,
         radius: T,
         u_ref: Vec3<T>,
+        /// The frame the fields are read from, held as stored.
+        frame: geom::Frame<T>,
     },
     /// Generators through `apex` at `half_angle` to the axis.
     Cone {
@@ -149,6 +151,8 @@ enum Ruled<T: geom_core::Real> {
         axis: Vec3<T>,
         half_angle: T,
         u_ref: Vec3<T>,
+        /// The frame the fields are read from, held as stored.
+        frame: geom::Frame<T>,
     },
 }
 
@@ -174,6 +178,13 @@ impl<T: Decide> Ruled<T> {
         }
     }
 
+    /// The surface's frame, as it is stored.
+    fn frame(&self) -> geom::Frame<T> {
+        match *self {
+            Self::Cylinder { frame, .. } | Self::Cone { frame, .. } => frame,
+        }
+    }
+
     /// A cylinder's or a cone's own fields, or `None` on any other
     /// surface.
     fn of(surface: &geom::Surface<T>) -> Option<Self> {
@@ -185,6 +196,7 @@ impl<T: Decide> Ruled<T> {
                     axis,
                     radius,
                     u_ref,
+                    frame,
                 }
             }
             geom::Surface::Cone { frame, half_angle } => {
@@ -194,6 +206,7 @@ impl<T: Decide> Ruled<T> {
                     axis,
                     half_angle,
                     u_ref,
+                    frame,
                 }
             }
             _ => return None,
@@ -495,15 +508,10 @@ impl<T: Decide> RuledFaceRegion<T> {
         )
     }
 
-    /// The surface's frame: the axis its frame held, its bits kept
-    /// ([`UnitVec3::checked`](geom_core::UnitVec3::checked)), and its seam
-    /// squared to it, nothing decided.
+    /// The surface's frame, as the face's surface stores it: nothing
+    /// re-minted.
     fn frame(&self) -> geom::Frame<T> {
-        geom::Frame::of_motion(&geom_core::RigidMotion::squared_about(
-            self.surface.base(),
-            geom_core::UnitVec3::checked(self.surface.axis()),
-            self.surface.u_ref(),
-        ))
+        self.surface.frame()
     }
 
     /// The parallel through `p`, run `forward` (right-handed about the

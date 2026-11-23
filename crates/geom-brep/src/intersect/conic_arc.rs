@@ -296,11 +296,20 @@ impl<T: Real> OpenConicSection<T> {
             // `u` is the section's major direction, unit and square to
             // `n` by its construction ([`super::tilted_section_major`]):
             // squared about the normal, nothing decided.
-            frame: geom::Frame::of_motion(&geom_core::RigidMotion::squared_about(
-                apex - n * delta,
-                geom_core::UnitVec3::squared(n),
-                u,
-            )),
+            frame: {
+                // The plane's normal as it is held, a frame's axis in a
+                // bare vector ([`super::SectionPlane`]), not squared again.
+                let normal = geom_core::UnitVec3::checked(n);
+                debug_assert!(
+                    geom_core::RigidMotion::square_to_rounding(normal, u),
+                    "the section's major direction lies in its plane"
+                );
+                geom::Frame::of_motion(&geom_core::RigidMotion::squared_about_stated(
+                    apex - n * delta,
+                    normal,
+                    u,
+                ))
+            },
             delta,
             delta_sigma: delta * tilt.c.unit_sign(),
             tilt,

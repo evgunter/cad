@@ -1287,6 +1287,45 @@ impl<T: Real> RigidMotion<T> {
 }
 
 impl<T: Real> RigidMotion<T> {
+    /// **[`RigidMotion::squared_about`] with stated directions read as a
+    /// choice**: where `w` and `u` are certified points at a plain
+    /// enclosure ([`Real::stated_point`]), the frame minted at `f64` and
+    /// read into the scalar by its enclosure, exactly as
+    /// [`RigidMotion::squared`] reads them; elsewhere `squared_about`,
+    /// `w` kept bit for bit. The door for a frame about an axis the
+    /// caller holds and a reference square to it by the caller's
+    /// construction (a seam, a radial, a ruling in the section plane):
+    /// nothing is decided, and a stated frame is no wider at an enclosure
+    /// than the frame door's own. At `f64` it is `squared_about`.
+    #[must_use]
+    pub fn squared_about_stated(origin: Point3<T>, w: UnitVec3<T>, u: Vec3<T>) -> Self {
+        if let Some(stated) = Self::squared_as_stated(w.get(), u) {
+            return Self { origin, ..stated };
+        }
+        Self::squared_about(origin, w, u)
+    }
+
+    /// **Whether `u` is square to `w` to rounding**: the premise of a
+    /// reference square by its caller's construction
+    /// ([`RigidMotion::squared_about_stated`]), for a debug assertion at
+    /// the call. False only where the bracket of `w·u` lies wholly past
+    /// `2⁻³⁰·(|u| + 1)`, a defect no rounding of a construction reaches
+    /// and no reference decided square in a band is owed; true where
+    /// nothing is measured.
+    #[must_use]
+    pub fn square_to_rounding(w: UnitVec3<T>, u: Vec3<T>) -> bool {
+        let d = w.get().dot(u);
+        match (d.told_reading().ends(), u.dot(u).told_reading().ends()) {
+            (Some((lo, hi)), Some((_, top))) => {
+                let charge = 2f64.powi(-30) * (top.abs().sqrt() + 1.0);
+                !(lo > charge || hi < -charge)
+            }
+            _ => true,
+        }
+    }
+}
+
+impl<T: Real> RigidMotion<T> {
     /// **This frame placed at another origin**, its axes kept bit for
     /// bit. Nothing is decided: the origin's finiteness is the caller's,
     /// as for [`RigidMotion::squared`].
@@ -2492,6 +2531,76 @@ mod tests {
             bits(&bracketed),
             bits(&schmidt),
             "brackets: Gram–Schmidt at the scalar"
+        );
+    }
+
+    /// **A frame about a held axis keeps the frame door's stated read**
+    /// ([`RigidMotion::squared_about_stated`]): about the exact `ẑ` with a
+    /// sketch radial `(0.6, 0.8, 0)` stated as points (the mate reach's
+    /// arc), the frame is [`RigidMotion::squared`]'s bit for bit, the
+    /// `f64` squaring read by its enclosure, its `u.x` within an ulp of
+    /// `0.6` either side; the squaring at the scalar
+    /// ([`RigidMotion::squared_about`]) is wider on some entry. At `f64`
+    /// the door is `squared_about`, and a bracketed reference takes it at
+    /// the scalar too. Red against the door squaring at the scalar
+    /// throughout.
+    #[test]
+    fn a_frame_about_a_held_axis_keeps_the_stated_read() {
+        let entries = |m: &RigidMotion<Interval>| {
+            [m.u, m.v, m.w]
+                .iter()
+                .flat_map(|c| [c.get().x, c.get().y, c.get().z])
+                .collect::<Vec<_>>()
+        };
+        let bits = |m: &RigidMotion<Interval>| {
+            entries(m)
+                .into_iter()
+                .map(|x| (x.lo().to_bits(), x.hi().to_bits()))
+                .collect::<Vec<_>>()
+        };
+        let width = |x: Interval| x.hi() - x.lo();
+        let lift = |v: Vec3<f64>| v.map(Interval::from_f64);
+        let (z, radial) = (Vec3::new(0.0, 0.0, 1.0), Vec3::new(0.6, 0.8, 0.0));
+        let origin = Point3::new(2.0, -1.0, 0.0).map(Interval::from_f64);
+        let held = RigidMotion::squared_about_stated(origin, UnitVec3::exact_z(), lift(radial));
+        let door = RigidMotion::squared(origin, lift(z), lift(radial));
+        assert_eq!(
+            bits(&held),
+            bits(&door),
+            "the frame door's read, bit for bit"
+        );
+        let ux = held.u.get().x;
+        assert!(
+            ux.lo() >= 0.6 - f64::EPSILON && ux.hi() <= 0.6 + f64::EPSILON,
+            "u.x at the f64 squaring's enclosure: {ux:?}"
+        );
+        let at_scalar = RigidMotion::squared_about(origin, UnitVec3::exact_z(), lift(radial));
+        assert!(
+            entries(&at_scalar)
+                .into_iter()
+                .zip(entries(&held))
+                .any(|(a, b)| width(a) > width(b)),
+            "squared at the scalar, the frame is wider: {at_scalar:?}"
+        );
+        let f = RigidMotion::squared_about_stated(Point3::origin(), UnitVec3::exact_z(), radial);
+        let g = RigidMotion::squared_about(Point3::origin(), UnitVec3::exact_z(), radial);
+        assert_eq!(
+            cols(f).map(|c| c.to_array().map(f64::to_bits)),
+            cols(g).map(|c| c.to_array().map(f64::to_bits))
+        );
+        let wide = radial.map(|x| Interval::from_bounds(x - 1e-9, x + 1e-9));
+        assert_eq!(
+            bits(&RigidMotion::squared_about_stated(
+                origin,
+                UnitVec3::exact_z(),
+                wide
+            )),
+            bits(&RigidMotion::squared_about(
+                origin,
+                UnitVec3::exact_z(),
+                wide
+            )),
+            "a bracketed reference is squared at the scalar"
         );
     }
 

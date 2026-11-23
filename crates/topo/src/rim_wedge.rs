@@ -69,17 +69,30 @@ pub(crate) struct Rim<T: Real> {
     pub radius: T,
     /// The unit reference direction where the parameter is zero.
     pub u_ref: Vec3<T>,
+    /// The frame the fields above are read from, held as the circle
+    /// stores it ([`Rim::on_frame`]).
+    frame: geom::Frame<T>,
+}
+
+impl<T: Real> Rim<T> {
+    /// **The rim a circle's frame and radius name**: its centre, axis and
+    /// seam read off the frame, which is held, so the rim's frame is the
+    /// circle's own and nothing re-mints it.
+    pub(crate) fn on_frame(frame: geom::Frame<T>, radius: T) -> Self {
+        Self {
+            center: frame.origin(),
+            axis: frame.axis_unit(),
+            radius,
+            u_ref: frame.u_ref(),
+            frame,
+        }
+    }
 }
 
 impl<T: Decide> Rim<T> {
-    /// The rim's frame: the axis it holds kept, its seam squared to it,
-    /// nothing decided.
+    /// The rim's frame, as its circle holds it.
     fn frame(&self) -> geom::Frame<T> {
-        geom::Frame::of_motion(&geom_core::RigidMotion::squared_about(
-            self.center,
-            self.axis,
-            self.u_ref,
-        ))
+        self.frame
     }
 
     /// **The farthest the whole circle stands from `pivot`**: its cover's
@@ -1049,20 +1062,8 @@ fn rides<T: Decide>(
 ) -> Result<bool, Indeterminate> {
     match (locus, curve.carrier()) {
         (Locus::Rim(rim), geom::Curve3::Circle(circle)) => {
-            let (center, axis, u_ref) =
-                (circle.frame().origin(), circle.axis_unit(), circle.u_ref());
-            let radius = circle.radius();
-            same_circle(
-                Rim {
-                    center,
-                    axis,
-                    radius,
-                    u_ref,
-                },
-                rim,
-                band,
-            )
-            .map(|one| one.is_some())
+            same_circle(Rim::on_frame(circle.frame(), circle.radius()), rim, band)
+                .map(|one| one.is_some())
         }
         // Both ends on the line, an identity: either end decided off it
         // answers "not riding", whatever the other read
@@ -1127,12 +1128,7 @@ fn face_boundary_circles<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<Rim<T>> 
 )]
 fn rim_of<T: Real>(carrier: &geom::Curve3<T>) -> Option<Rim<T>> {
     match *carrier {
-        geom::Curve3::Circle(circle) => Some(Rim {
-            center: circle.frame().origin(),
-            axis: circle.axis_unit(),
-            radius: circle.radius(),
-            u_ref: circle.u_ref(),
-        }),
+        geom::Curve3::Circle(circle) => Some(Rim::on_frame(circle.frame(), circle.radius())),
         _ => None,
     }
 }
@@ -1370,12 +1366,14 @@ mod redfirst {
     }
 
     fn circle(center: [f64; 3], axis: [f64; 3], radius: f64) -> Rim<f64> {
-        Rim {
-            center: Point3::from_array(center),
-            axis: geom_core::UnitVec3::squared(Vec3::from_array(axis)),
+        Rim::on_frame(
+            geom::Frame::of_motion(&geom_core::RigidMotion::squared_about_stated(
+                Point3::from_array(center),
+                geom_core::UnitVec3::squared(Vec3::from_array(axis)),
+                Vec3::new(1.0, 0.0, 0.0),
+            )),
             radius,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        }
+        )
     }
 
     /// The rim-identity comparison ([`same_circle`]), driven directly
@@ -1506,12 +1504,14 @@ mod redfirst {
             ),
             radius: 1.0,
         };
-        let equator = Rim {
-            center: Point3::origin(),
-            axis: geom_core::UnitVec3::exact_z(),
-            radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let equator = Rim::on_frame(
+            geom::Frame::of_motion(&geom_core::RigidMotion::squared_about_stated(
+                Point3::origin(),
+                geom_core::UnitVec3::exact_z(),
+                Vec3::new(1.0, 0.0, 0.0),
+            )),
+            1.0,
+        );
         let same = classify_shared_rim(
             &sphere,
             true,
@@ -1568,12 +1568,14 @@ mod redfirst {
                 Vec3::new(1.0, 0.0, 0.0),
             ),
         };
-        let rim = Rim {
-            center: Point3::new(0.0, 0.0, 0.6),
-            axis: geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
-            radius: 0.8,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let rim = Rim::on_frame(
+            geom::Frame::of_motion(&geom_core::RigidMotion::squared_about_stated(
+                Point3::new(0.0, 0.0, 0.6),
+                geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
+                Vec3::new(1.0, 0.0, 0.0),
+            )),
+            0.8,
+        );
         let got = classify_shared_rim(&sphere, true, &plane, true, rim, rim_diameter(rim), band());
         println!("transverse rim answers {got:?}");
         assert!(
@@ -1625,12 +1627,14 @@ mod r2_probes {
     }
 
     fn cut_rim() -> Rim<f64> {
-        Rim {
-            center: Point3::new(0.0, 0.0, 0.6),
-            axis: geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
-            radius: 0.8,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        }
+        Rim::on_frame(
+            geom::Frame::of_motion(&geom_core::RigidMotion::squared_about_stated(
+                Point3::new(0.0, 0.0, 0.6),
+                geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
+                Vec3::new(1.0, 0.0, 0.0),
+            )),
+            0.8,
+        )
     }
 
     /// **The tangency screen, at R2's own fixture.** `validate`'s
@@ -2019,12 +2023,14 @@ mod boundary_midpoint_rows {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
         let zero = band.zero();
-        let rim = Rim {
-            center: Point3::origin(),
-            axis: geom_core::UnitVec3::exact_z(),
-            radius: 1.0,
-            u_ref: Vec3::unit_x(),
-        };
+        let rim = Rim::on_frame(
+            geom::Frame::of_motion(&geom_core::RigidMotion::squared_about_stated(
+                Point3::origin(),
+                geom_core::UnitVec3::exact_z(),
+                Vec3::unit_x(),
+            )),
+            1.0,
+        );
         for alpha in [0.3, 2.0, 4.0] {
             let e = Vec3::new(alpha.cos(), alpha.sin(), 0.0);
             let small = geom::Curve3::circle(Point3::origin() + e * 0.5, Vec3::unit_z(), 0.5, e);

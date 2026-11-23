@@ -40,7 +40,6 @@
 
 use geom::cover::Cover;
 use geom::{Curve3, Surface};
-use geom_core::UnitVec3;
 use geom_core::k_stats::decide_reported;
 use geom_core::{
     Band, Circles, Decide, Decided, Indeterminate, Margin, MarginDiag, Point2, Point3, Real, Sign,
@@ -232,9 +231,10 @@ impl From<TorusPoseRefusal> for SectionError {
 /// A ring torus's data, its axis unit.
 #[derive(Clone, Copy, Debug)]
 pub struct Ring<T: Real> {
+    /// The torus's own placement, held as it is stored.
+    frame: geom::Frame<T>,
     center: Point3<T>,
     axis: geom_core::UnitVec3<T>,
-    u_ref: Vec3<T>,
     big_r: T,
     r: T,
 }
@@ -254,12 +254,12 @@ impl<T: Decide> Ring<T> {
         else {
             return None;
         };
+        // The frame's own axis, the witness it holds: not squared again.
         let (center, axis, u_ref) = (
             carrier_frame.origin(),
-            carrier_frame.axis(),
+            carrier_frame.axis_unit(),
             carrier_frame.u_ref(),
         );
-        let axis = UnitVec3::squared(axis);
         let finite = [
             center.x,
             center.y,
@@ -282,9 +282,9 @@ impl<T: Decide> Ring<T> {
             TorusRefusal::require(major_radius + defect, minor_radius + defect, band)
                 .map_err(TorusPoseRefusal::Torus)
                 .map(|_| Self {
+                    frame: carrier_frame,
                     center,
                     axis,
-                    u_ref,
                     big_r: major_radius,
                     r: minor_radius,
                 }),
@@ -296,12 +296,8 @@ impl<T: Real> Ring<T> {
     /// The torus's placement: its centre, unit axis and seam.
     #[must_use]
     pub fn frame(&self) -> geom::Frame<T> {
-        // The axis the ring holds, kept; its seam squared to it.
-        geom::Frame::of_motion(&geom_core::RigidMotion::squared_about(
-            self.center,
-            self.axis,
-            self.u_ref,
-        ))
+        // The torus's frame as it is stored: nothing re-minted.
+        self.frame
     }
 
     /// The torus centre.

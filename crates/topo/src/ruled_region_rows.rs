@@ -597,6 +597,11 @@ fn cone_surface() -> Ruled<f64> {
         axis: z_axis(),
         half_angle: ALPHA,
         u_ref: x_axis(),
+        frame: geom::Frame::of_motion(&geom_core::RigidMotion::squared_about_stated(
+            Point3::origin(),
+            geom_core::UnitVec3::checked(z_axis()),
+            x_axis(),
+        )),
     }
 }
 

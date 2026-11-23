@@ -424,13 +424,13 @@ impl SplineImplicitPose<f64> {
         else {
             unreachable!("the pose holds a plane")
         };
-        let (normal, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
         let Some(foot) = self.partner.foot(self.ball().center()) else {
             unreachable!("a plane's foot is in closed form")
         };
         Pivot {
+            // The plane's own frame placed at the foot, its axes kept.
             plane: Surface::Plane {
-                frame: geom::Frame::new(foot, normal, u_ref),
+                frame: carrier_frame.with_origin(foot),
             },
             lift: stored_height(&carrier_frame, foot),
         }

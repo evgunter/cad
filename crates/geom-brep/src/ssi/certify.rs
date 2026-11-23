@@ -1978,11 +1978,16 @@ pub(crate) fn chart_partner_form<T: Real>(
             frame.map_scalar(|x| point(x).unwrap_or(f64::NAN))
         }
     } else {
-        geom::Frame::new(
-            origin,
-            Vec3::new(axis_mid[0], axis_mid[1], axis_mid[2]),
-            Vec3::new(u_mid[0], u_mid[1], u_mid[2]),
-        )
+        // The midpoints of a frame's enclosures each within rounding of
+        // the frame's own axis ([`frame_direction`]): unit and square to
+        // rounding, so held as they are, the seam squared about the axis.
+        let axis = geom_core::UnitVec3::checked(Vec3::new(axis_mid[0], axis_mid[1], axis_mid[2]));
+        let u = Vec3::new(u_mid[0], u_mid[1], u_mid[2]);
+        debug_assert!(
+            geom_core::RigidMotion::square_to_rounding(axis, u),
+            "a frame's midpoint seam is square to its midpoint axis"
+        );
+        geom::Frame::of_motion(&geom_core::RigidMotion::squared_about(origin, axis, u))
     };
     let at_f64 = match *partner {
         Surface::Plane { .. } => Surface::Plane { frame: mid },

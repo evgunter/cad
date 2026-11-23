@@ -253,12 +253,7 @@ pub(super) fn wrap_rims_within<T: Decide>(
     Ok(Some(
         found
             .into_iter()
-            .map(|(_, circle)| Rim {
-                center: circle.frame().origin(),
-                axis: circle.axis_unit(),
-                radius: circle.radius(),
-                u_ref: circle.u_ref(),
-            })
+            .map(|(_, circle)| Rim::on_frame(circle.frame(), circle.radius()))
             .collect(),
     ))
 }

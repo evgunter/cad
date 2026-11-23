@@ -370,11 +370,11 @@ impl<T: Real> Placed<T> {
 
 /// **`frame` turned about its own axis onto the seam `u_ref`**: the axis
 /// kept as the witness the frame holds and `u_ref`'s part square to it
-/// normalized ([`RigidMotion::squared_about`]), the origin kept. For a
+/// normalized ([`RigidMotion::squared_about_stated`]), the origin kept. For a
 /// seam the caller holds square to the axis already, so nothing is
 /// decided.
 fn turned_to<T: Real>(frame: &Frame<T>, u_ref: Vec3<T>) -> Frame<T> {
-    Frame::of_motion(&RigidMotion::squared_about(
+    Frame::of_motion(&RigidMotion::squared_about_stated(
         frame.origin(),
         frame.axis_unit(),
         u_ref,
@@ -1039,11 +1039,16 @@ impl<'a, T: Decide> OnSurface<'a, T> {
         // plane, square to its normal by the curve's frame: squared about
         // that normal, nothing decided.
         let plane = geom::Surface::Plane {
-            frame: Frame::of_motion(&RigidMotion::squared_about(
-                origin,
-                UnitVec3::squared(normal),
-                u_ref,
-            )),
+            frame: {
+                // The plane's normal as it is held, a frame's axis in a
+                // bare vector, not squared again.
+                let normal = UnitVec3::checked(normal);
+                debug_assert!(
+                    RigidMotion::square_to_rounding(normal, u_ref),
+                    "a curve's seam or direction lies in its own plane"
+                );
+                Frame::of_motion(&RigidMotion::squared_about_stated(origin, normal, u_ref))
+            },
         };
         co_surface(&super::Span::new(self.carrier, self.span), &plane, band)
     }
@@ -1061,11 +1066,13 @@ impl<'a, T: Decide> OnSurface<'a, T> {
             Curve3::Circle(_) | Curve3::Ellipse(_) => self.carrier.frame(),
             Curve3::Spiric { frame, offset, .. } => {
                 let (center, u_ref) = (frame.origin(), frame.u_ref());
-                Some(Frame::of_motion(&geom_core::RigidMotion::squared_about(
-                    center + u_ref * offset,
-                    frame.u_ref_unit(),
-                    frame.axis(),
-                )))
+                Some(Frame::of_motion(
+                    &geom_core::RigidMotion::squared_about_stated(
+                        center + u_ref * offset,
+                        frame.u_ref_unit(),
+                        frame.axis(),
+                    ),
+                ))
             }
             _ => None,
         }

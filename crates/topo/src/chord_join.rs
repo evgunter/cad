@@ -2517,9 +2517,11 @@ fn chord_spec<T: Decide>(
                     let k = body.add_surface(geom::Surface::Plane {
                         // The ruling lies in the section plane, square to its
                         // normal by construction: squared about it.
-                        frame: geom::Frame::of_motion(&geom_core::RigidMotion::squared_about(
-                            ctx.origin, ctx.normal, ruling_hat,
-                        )),
+                        frame: geom::Frame::of_motion(
+                            &geom_core::RigidMotion::squared_about_stated(
+                                ctx.origin, ctx.normal, ruling_hat,
+                            ),
+                        ),
                     });
                     ctx.plane_key = Some(k);
                     k
@@ -2592,7 +2594,7 @@ fn chord_spec<T: Decide>(
         Some(k) => k,
         None => {
             let k = body.add_surface(geom::Surface::Plane {
-                frame: geom::Frame::of_motion(&geom_core::RigidMotion::squared_about(
+                frame: geom::Frame::of_motion(&geom_core::RigidMotion::squared_about_stated(
                     ctx.origin,
                     ctx.normal,
                     conic.in_plane(),

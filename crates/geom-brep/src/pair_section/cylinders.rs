@@ -473,10 +473,16 @@ impl<T: Decide> CylinderCylinderPose<T> {
         // The picked axis and the common perpendicular, square to both
         // axes by its construction: squared about the axis, nothing
         // decided.
-        let frame = geom::Frame::of_motion(&geom_core::RigidMotion::squared_about(
-            foot,
-            geom_core::UnitVec3::squared(axis),
-            normal,
+        // The picked axis is one of the two the cylinders' frames hold (a
+        // hull of both where the pick is open, which holds each): taken as
+        // held, not squared again.
+        let held = geom_core::UnitVec3::checked(axis);
+        debug_assert!(
+            geom_core::RigidMotion::square_to_rounding(held, normal),
+            "the common perpendicular is square to the picked axis"
+        );
+        let frame = geom::Frame::of_motion(&geom_core::RigidMotion::squared_about_stated(
+            foot, held, normal,
         ));
         let v = frame.v_ref();
         Some(RuledCylinders {

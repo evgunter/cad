@@ -243,10 +243,15 @@ pub(crate) fn loops_reach_from<T: Decide>(
                 } else {
                     up
                 };
-                let frame = geom::Frame::of_motion(&geom_core::RigidMotion::squared_about(
+                let start = geom_core::Vec3::new(start.x, start.y, T::zero());
+                debug_assert!(
+                    geom_core::RigidMotion::square_to_rounding(axis, start),
+                    "a sketch radial lies in the sketch plane"
+                );
+                let frame = geom::Frame::of_motion(&geom_core::RigidMotion::squared_about_stated(
                     lift(arc.centre),
                     axis,
-                    geom_core::Vec3::new(start.x, start.y, T::zero()),
+                    start,
                 ));
                 Cover::arc(
                     &frame,
