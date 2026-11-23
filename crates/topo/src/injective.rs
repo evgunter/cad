@@ -17666,7 +17666,7 @@ mod presentation_rows {
         seam.arc = Some((
             Curve3::line(
                 origin(),
-                geom_core::UnitVec3::checked(Vec3::new(iv0(s2), iv0(0.0), iv0(s2))),
+                geom_core::UnitVec3::chord(Vec3::new(iv0(1.0), iv0(0.0), iv0(1.0))).0,
             ),
             (iv0(0.0), iv0(1.0)),
         ));
