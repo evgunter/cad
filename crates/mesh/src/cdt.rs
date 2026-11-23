@@ -53,6 +53,24 @@ pub(crate) fn spade_point(u: f64, v: f64) -> SpadePoint<f64> {
     mitigate_underflow(SpadePoint::new(u, v))
 }
 
+/// **The point a chart lane's CDT sees in the lattice metric `k`**
+/// (`crate::nurbs_cert::lattice_metric`, a power of two): `(u, v)`
+/// floored ([`spade_point`]), then `(u/k, v)` times a uniform power of
+/// two. The axis that GROWS is scaled, `v` by `k` when `k > 1` and `u`
+/// by `1/k` when `k < 1`: a power of two of at least one, which rounds
+/// nothing and cannot carry a value spade accepts into the floor's
+/// band, so the scale is injective on floored points and two chart
+/// points are one CDT vertex exactly when [`ids_at_two_uvs`] reads them
+/// as one location.
+pub(crate) fn lattice_point(u: f64, v: f64, metric: f64) -> SpadePoint<f64> {
+    let p = spade_point(u, v);
+    if metric > 1.0 {
+        SpadePoint::new(p.x, p.y * metric)
+    } else {
+        SpadePoint::new(p.x / metric, p.y)
+    }
+}
+
 /// The ids that appear at two or more DISTINCT UV locations among
 /// `entries` — the "one mesh vertex, two parameter locations" state
 /// that both tessellation lanes have to reason about.

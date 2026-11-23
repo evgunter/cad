@@ -15,7 +15,8 @@
 //!   step's, or on the cone graded to the row's own radius) and the
 //!   plane the trimmed
 //!   lane's triangulation runs in: the chart in its **metric**
-//!   ([`AnalyticRow::metric`]), or on the cone its **development**
+//!   ([`AnalyticRow::trimmed_metric`]; the curved lane's is the lattice's
+//!   own, [`AnalyticRow::cell_metric`]), or on the cone its **development**
 //!   ([`AnalyticRow::development`]);
 //! - the per-triangle **certificate** ([`ChartRow::cert`], `crate::cert`
 //!   and the spline cell table), with the magnitude it rounds at;
@@ -37,8 +38,10 @@
 //! sheet's apexes at `v = ±v*` (a horn's one cusp, at `π`). The row reads
 //! them from `topo::chart::Chart::poles`, their one home beneath which is
 //! `geom_brep::chart_singularity`, and adds what is the mesh's: where the
-//! row sits in the chart's `v` domain ([`RowEnd`]). A cylinder, a torus
-//! and a spline chart have none.
+//! row sits in the chart's `v` domain ([`RowEnd`]). A cylinder and a
+//! torus have none. A spline chart's are its collapsed sides, which the
+//! row does not carry: the trimmed lane reads them from the home
+//! (`trimmed::CollapsedSides`).
 //!
 //! Whether a loop vertex IS a singular point is a fact about the body,
 //! decided once, where the kernel decides it:
@@ -453,33 +456,49 @@ impl<'a> AnalyticRow<'a> {
         }
     }
 
-    /// **The metric the trimmed lane's triangulation runs in**: the
-    /// lattice metric `k` (`nurbs_cert::lattice_metric`) of a uniform
-    /// lattice of `nu × nv` cells over the chart box `(u0, u1) × (v0, v1)`.
-    /// The sphere's is the chart's own at the box's mid latitude,
-    /// `(u·cos v, v)` to the nearest power of two: there a small face's
-    /// boundary circle is near round, so a triangle on its points alone
-    /// (an ear, or a side across several chord steps) usually has the
-    /// face's interior points in its circumcircle and the CDT does not
-    /// make it, which leaves the trimmed lane's shared-side cure less to
-    /// split. Every other chart's is its lattice's realized spacing: a ruled
-    /// lattice square in 3-D is a strip of aspect about `1/lever` in the
-    /// chart, and a torus's is `√(r/(R + r))`.
-    pub(crate) fn metric(
+    /// **The lattice's own metric**: the lattice metric `k`
+    /// (`nurbs_cert::lattice_metric`) of the realized cells of a uniform
+    /// lattice of `nu × nv` cells over the chart box `(u0, u1) × (v0, v1)`,
+    /// `(Δu/nu)/(Δv/nv)` to the nearest power of two, on every chart. A
+    /// ruled lattice square in 3-D is a strip of aspect about `1/lever` in
+    /// the chart, a torus's is `√(r/(R + r))`, and a sphere's is within
+    /// `2√2` of one (`sizing::sphere_grid_steps`). The curved lane's CDT
+    /// runs in it.
+    pub(crate) fn cell_metric(
         &self,
         (u0, u1): (f64, f64),
         (v0, v1): (f64, f64),
         (nu, nv): (usize, usize),
     ) -> f64 {
         #[allow(clippy::cast_precision_loss)]
-        let aspect = match self.kind() {
-            Analytic::Sphere { .. } => 1.0 / geom::mid_param(v0, v1).cos(),
+        let aspect = ((u1 - u0) / nu as f64) / ((v1 - v0) / nv as f64);
+        lattice_metric(std::iter::once(aspect))
+    }
+
+    /// **The metric the trimmed lane's triangulation runs in**: the
+    /// lattice's own ([`Self::cell_metric`]) on every chart but the
+    /// sphere, whose is the chart's own at the box's mid latitude,
+    /// `(u·cos v, v)` to the nearest power of two: there a small face's
+    /// boundary circle is near round, so a triangle on its points alone
+    /// (an ear, or a side across several chord steps) usually has the
+    /// face's interior points in its circumcircle and the CDT does not
+    /// make it, which leaves the trimmed lane's shared-side cure less to
+    /// split.
+    pub(crate) fn trimmed_metric(
+        &self,
+        (u0, u1): (f64, f64),
+        (v0, v1): (f64, f64),
+        (nu, nv): (usize, usize),
+    ) -> f64 {
+        match self.kind() {
+            Analytic::Sphere { .. } => {
+                lattice_metric(std::iter::once(1.0 / geom::mid_param(v0, v1).cos()))
+            }
             Analytic::Cylinder { .. }
             | Analytic::Cone { .. }
             | Analytic::Torus { .. }
-            | Analytic::Spindle { .. } => ((u1 - u0) / nu as f64) / ((v1 - v0) / nv as f64),
-        };
-        lattice_metric(std::iter::once(aspect))
+            | Analytic::Spindle { .. } => self.cell_metric((u0, u1), (v0, v1), (nu, nv)),
+        }
     }
 
     /// The certificate of one triangle ([`ChartRow::cert`]).
@@ -619,9 +638,10 @@ impl<'a> AnalyticRow<'a> {
 /// their order: `true` where one is decided zero distance from `p`,
 /// `false` where every one is decided clear, the escalation where none
 /// is decided zero and one is in the band. The one read of a vertex on a
-/// singular point, which [`AnalyticRow::is_singular`] and
-/// [`at_a_pole`] both make.
-fn at_a_singular_point(
+/// singular point, which [`AnalyticRow::is_singular`], [`at_a_pole`] and
+/// the trimmed lane's read of a spline chart's collapsed sides
+/// (`trimmed::CollapsedSides`) make.
+pub(crate) fn at_a_singular_point(
     points: impl Iterator<Item = Point3<f64>>,
     p: Point3<f64>,
     band: Band,

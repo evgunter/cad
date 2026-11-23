@@ -69,11 +69,7 @@ impl<E: core::fmt::Display> core::fmt::Display for Refusal<E> {
 }
 
 impl<E: crate::spoken::Say> crate::spoken::Say for Refusal<E> {
-    fn say(
-        &self,
-        f: &mut core::fmt::Formatter<'_>,
-        by: crate::spoken::Speaker<'_>,
-    ) -> core::fmt::Result {
+    fn say(&self, f: &mut crate::Sentence, by: crate::spoken::Speaker<'_>) -> core::fmt::Result {
         self.0.say(f, by)
     }
 }

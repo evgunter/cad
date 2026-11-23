@@ -132,6 +132,7 @@ const INDIRECT: &[(&str, &str)] = &[
 const OTHER_DOORS: &[(&str, &str)] = &[
     ("axis_gap", AXIS),
     ("axis_vertex_radius", AXIS),
+    ("revolve_profile_side", SIDE),
     ("revolve_axis_direction", AXIS),
     ("revolve_angle", REVOLVE),
     ("revolve_angle_headroom", REVOLVE),
@@ -153,6 +154,9 @@ const OTHER_DOORS: &[(&str, &str)] = &[
 
 const AXIS: &str = "the revolve axis's own classifications: an escalation here is typed on \
                     `RevolveError` and rendered by that door";
+const SIDE: &str = "the revolve's choice of frame by the side of the axis its profile lies on: \
+                    never rendered, since an undecided side keeps the authored frame and the axis \
+                    classifications there name the crossing";
 const REVOLVE: &str = "the revolve window's classifications, typed on `RevolveError`";
 const EXTRUDE: &str = "the extrusion direction's classifications, typed on `ExtrudeError`";
 const LOFT: &str = "the loft's section stacking, typed on `LoftError`";
