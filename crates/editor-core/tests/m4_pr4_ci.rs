@@ -110,7 +110,12 @@ fn digest(rows: &[(&'static str, editor_core::Resolution)]) -> u64 {
 /// (`bool_glue_pairs`) at step 0,
 /// `GroupResized` → `Parted`: a change of diagnosis. Every other row
 /// keeps its shape.
-const DIAGNOSIS_DIGEST: u64 = 0xd7c1_8876_4bd6_ba62;
+///
+/// **Re-pinned for a subtract's tool list** (DM4: the tool is a
+/// `Bodies`): a subtract's mint preimage spells its tool as a list, so
+/// every id minted at or after a subtract moved. Every row keeps its
+/// shape: a spelling change.
+const DIAGNOSIS_DIGEST: u64 = 0x23d1_ac0c_df96_1c8c;
 
 #[test]
 fn diagnosis_corpus_is_golden() {

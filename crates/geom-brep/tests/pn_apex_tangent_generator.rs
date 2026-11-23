@@ -118,3 +118,50 @@ fn a_grazing_plane_serves_the_generator_it_grazes() {
         }
     }
 }
+
+/// **A plane stated far from the apex it passes through is served only
+/// as far as its own rounding lets the apex stand off it.** A needle
+/// cone (`α = 1e-4`) at the origin and the plane that grazes it, its
+/// origin `900 m` off along both in-plane axes its normal splits evenly:
+/// the gap reads exactly zero, and its rounding, `2.5u` of the summed
+/// products (`7.1e-13 m`), over the grazing sine `sin 2α` puts the
+/// section's start up to `3.5e-9 m` from the apex, in a band of
+/// `1e-9 m`. The generator is not served there; the same plane stated
+/// at the apex serves it.
+#[test]
+fn a_far_stated_grazing_plane_is_read_to_its_gaps_rounding() {
+    let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
+    let alpha = 1e-4_f64;
+    let half = core::f64::consts::FRAC_1_SQRT_2;
+    let (n, t) = (Vec3::new(half, -half, 0.0), Vec3::new(half, half, 0.0));
+    let cone = Surface::Cone {
+        frame: geom::Frame::new(
+            Point3::origin(),
+            t * alpha.cos() - n * alpha.sin(),
+            Vec3::unit_z(),
+        ),
+        half_angle: alpha,
+    };
+    let stated_at = |origin: Point3<f64>| Surface::Plane {
+        frame: geom::Frame::new(origin, n, Vec3::unit_z()),
+    };
+    let section =
+        |plane: &Surface<f64>| plane_cone_section(plane, &cone, &at_apex(&cone, 1.0), band);
+    assert!(
+        matches!(
+            section(&stated_at(Point3::origin())),
+            Ok(PlaneConeSection::ApexTangentLine(_))
+        ),
+        "stated at the apex: {:?}",
+        section(&stated_at(Point3::origin()))
+    );
+    let far = section(&stated_at(Point3::new(-900.0, -900.0, 0.0)));
+    assert!(
+        matches!(
+            far,
+            Err(geom_brep::SectionError::Escalated(ref diag))
+                if diag.predicate == Some("pn_apex_tangent_reach")
+        ),
+        "stated 900 m off: {far:?}"
+    );
+}
