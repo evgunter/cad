@@ -5207,7 +5207,7 @@ pub(super) mod tests {
     /// lattice cells across, between two section-ellipse arcs whose plane
     /// faces have no interior point, so each joins the points of its arc
     /// freely.
-    fn a_rod_sliver() -> topo::Body<f64> {
+    pub(crate) fn a_rod_sliver() -> topo::Body<f64> {
         use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
         let tol = Tol::witness();
         let disc = profile::Profile::new(

@@ -1561,6 +1561,48 @@ mod tests {
         ),
     ];
 
+    /// **A patch names the entry its placed corners are, and a patch the
+    /// join split names none** (`PatchKeys::unstore`): what a consumer
+    /// caching against the entry (the pick index's tables) reads. The rod
+    /// sliver (`trimmed::tests::a_rod_sliver`), whose cylinder face and the
+    /// plane face across each make sides of one arc, through one memo in
+    /// two pictures (a miss, then hits): every patch reported under an entry
+    /// has that entry's triangles, and every split one, which has two more
+    /// per split, reports none.
+    #[test]
+    fn a_patch_split_where_the_patches_join_names_no_entry() {
+        let body = crate::trimmed::tests::a_rod_sliver();
+        let mut memo = PatchMemo::new();
+        for picture in ["a miss", "hits"] {
+            let t = crate::tessellate_with(&body, 2e-2, Tol::witness(), &mut memo)
+                .unwrap_or_else(|e| panic!("{picture}: meshes, got {e:?}"));
+            let mut split = 0;
+            for (i, p) in t.mesh.patches.iter().enumerate() {
+                let entry = &memo.entries[&t.keys.get(i).expect("a row per face")];
+                let placed = p.triangles.len();
+                if placed == entry.patch.triangles.len() {
+                    assert_eq!(
+                        t.keys.stored(i),
+                        Some(entry.id),
+                        "{picture}: patch {i} as stored"
+                    );
+                } else {
+                    split += 1;
+                    assert_eq!(
+                        t.keys.stored(i),
+                        None,
+                        "{picture}: patch {i}, split, names no entry"
+                    );
+                }
+            }
+            assert!(
+                split >= 2,
+                "{picture}: the join split both faces of the arc, {split}"
+            );
+            memo.end_picture();
+        }
+    }
+
     #[test]
     fn each_input_moves_the_key_of_exactly_the_lanes_that_read_it() {
         for (what, moved, expect) in ROWS {
