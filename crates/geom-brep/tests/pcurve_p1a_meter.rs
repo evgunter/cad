@@ -36,7 +36,10 @@ fn cone_seam(half_angle: f64, d: f64) -> (Surface<f64>, Curve3<f64>, f64, f64) {
     let (s, c) = half_angle.sin_cos();
     let generator = Vec3::new(s, 0.0, c);
     let outward = Vec3::new(c, 0.0, -s);
-    let carrier = Curve3::line(Point3::origin() + outward * d, generator);
+    let carrier = Curve3::line(
+        Point3::origin() + outward * d,
+        geom::stated_direction(generator),
+    );
     (cone, carrier, 0.5, 2.0)
 }
 
@@ -125,7 +128,10 @@ fn the_collapsed_meter_never_understates_the_distance_to_the_surface() {
                 frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
                 radius: 2.0,
             },
-            Curve3::line(Point3::new(2.0 + d, 0.0, 0.0), Vec3::unit_z()),
+            Curve3::line(
+                Point3::new(2.0 + d, 0.0, 0.0),
+                geom_core::UnitVec3::exact_z(),
+            ),
             0.0,
             3.0,
         ),
@@ -244,7 +250,7 @@ mod at_intervals {
         }]);
         let carrier = Curve3::line(
             Point3::new(iv(r + d), iv(0.0), iv(0.0)),
-            Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+            geom_core::UnitVec3::exact_z(),
         );
         let (t0, t1) = (iv(0.0), iv(3.0));
         let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
@@ -300,7 +306,7 @@ mod at_intervals {
         }]);
         let carrier = Curve3::line(
             Point3::new(iv(c * d), iv(0.0), iv(-s * d)),
-            Vec3::new(iv(s), iv(0.0), iv(c)),
+            geom_core::UnitVec3::checked(Vec3::new(s, 0.0, c)).map_scalar(iv),
         );
         let (t0, t1) = (iv(0.5), iv(2.0));
         let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
