@@ -7877,7 +7877,7 @@ impl AtRestPolicy for geom_core::interval::Interval {
 /// from the one replay that certifies.
 impl<T> AtRestPolicy for geom_core::Sym<T>
 where
-    geom_core::Sym<T>: Decide + geom_core::Bounds,
+    geom_core::Sym<T>: Decide<Value = geom_core::Sym<T>> + geom_core::Bounds,
     T: geom_core::Certifies + geom_core::CertifiedBounds,
     T: AtRestPolicy,
 {

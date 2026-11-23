@@ -619,7 +619,7 @@ impl<T: Real> Occupant<T> {
         }
     }
 
-    fn point(center: Point3<T>) -> Self {
+    pub(super) fn point(center: Point3<T>) -> Self {
         Self {
             center,
             radius: T::zero(),
@@ -1063,9 +1063,9 @@ pub(super) fn cylinder_cylinder<T: Decide>(
                         .components
                         .into_iter()
                         .map(|c| SectionComponent {
-                            cut_ends: c.cut_ends,
+                            cut_ends: c.cut_ends(),
                             ..component(
-                                match c.cut_ends {
+                                match c.cut_ends() {
                                     Some(_) => cut,
                                     None => ComponentShape::Loop,
                                 },

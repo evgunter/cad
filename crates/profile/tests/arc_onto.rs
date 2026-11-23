@@ -75,10 +75,17 @@ fn refuses(steps: &[Step<f64>], at: usize, kind: PathErrorKind, what: &str) -> S
         r: Result<ConstructedLoop<T>, ReplayError<T>>,
     ) -> (usize, PathErrorKind, String) {
         match r {
-            Err(ReplayError {
-                step,
-                kind: ReplayErrorKind::Path(e),
-            }) => (step, e.kind(), e.to_string()),
+            Err(
+                error @ ReplayError {
+                    kind: ReplayErrorKind::Path(_),
+                    ..
+                },
+            ) => {
+                let ReplayErrorKind::Path(e) = &error.kind else {
+                    unreachable!("matched above")
+                };
+                (error.step(), e.kind(), e.to_string())
+            }
             Err(e) => panic!("not a geometry refusal: {e}"),
             Ok(_) => panic!("closed; a refusal was expected"),
         }
@@ -96,10 +103,10 @@ fn ill_typed(steps: &[Step<f64>], state: TipState, what: &str) {
     for r in [
         try_replay_at::<f64>(steps)
             .err()
-            .map(|e| (e.step, format!("{:?}", e.kind))),
+            .map(|e| (e.step(), format!("{:?}", e.kind))),
         try_replay_at::<Interval>(steps)
             .err()
-            .map(|e| (e.step, format!("{:?}", e.kind))),
+            .map(|e| (e.step(), format!("{:?}", e.kind))),
     ] {
         assert_eq!(
             r,
@@ -153,7 +160,7 @@ fn from_the_entry_the_derived_departure_is_starts_direction() {
     let msg = refuses(
         &with(lead.clone(), &[Step::LineTo(Target::Start)]),
         5,
-        PathErrorKind::SeamTangent,
+        PathErrorKind::SeamTurnWithinTolerance,
         "an undeclared north arrival at an entry that leaves north",
     );
     assert!(
@@ -178,7 +185,7 @@ fn from_the_entry_the_derived_departure_is_starts_direction() {
 }
 
 /// From a leg end the derived departure is junction-checked: sharp
-/// proceeds, tangent refuses `JunctionTangent` naming
+/// proceeds, tangent refuses `JunctionTurnWithinTolerance` naming
 /// `.tangent().tangent_arc_to(p)`, reversed refuses `JunctionCusp`.
 #[test]
 fn from_a_leg_end_the_derived_departure_is_junction_checked() {
@@ -198,7 +205,7 @@ fn from_a_leg_end_the_derived_departure_is_junction_checked() {
     let msg = refuses(
         &with(leg_end(), &[onto(3.0, 1.0), toward(0.0, 1.0)]),
         3,
-        PathErrorKind::JunctionTangent,
+        PathErrorKind::JunctionTurnWithinTolerance,
         "a derived departure along the incoming leg",
     );
     assert!(
@@ -374,7 +381,7 @@ fn an_interior_target_lands_a_directed_point_incoming_the_director() {
 }
 
 /// `Start` with a director is the sharp seam, classified as every seam
-/// is: a zero turn refuses `SeamTangent`, whose recourse is the token.
+/// is: a zero turn refuses `SeamTurnWithinTolerance`, whose recourse is the token.
 #[test]
 fn start_with_a_director_is_the_classified_sharp_seam() {
     let d = [
@@ -387,7 +394,7 @@ fn start_with_a_director_is_the_classified_sharp_seam() {
     let msg = refuses(
         &with(d.to_vec(), &[toward(0.0, 1.0)]),
         5,
-        PathErrorKind::SeamTangent,
+        PathErrorKind::SeamTurnWithinTolerance,
         "a director along Start's own direction",
     );
     assert!(
@@ -484,7 +491,7 @@ fn the_d_closes_with_the_token_supplied_and_validates() {
 
 /// Both ends tangent refuses at the DEPARTURE: on the stadium the cap
 /// the token supplies would leave tangent to the incoming straight, so
-/// it refuses `JunctionTangent` and the stadium stays
+/// it refuses `JunctionTurnWithinTolerance` and the stadium stays
 /// `.tangent().tangent_arc_to(Start.arrives_tangent())`.
 #[test]
 fn the_token_on_the_stadium_refuses_at_the_departure() {
@@ -500,7 +507,7 @@ fn the_token_on_the_stadium_refuses_at_the_departure() {
     let msg = refuses(
         &with(stadium.clone(), &[Step::ArcOnto(Target::StartArriving)]),
         7,
-        PathErrorKind::JunctionTangent,
+        PathErrorKind::JunctionTurnWithinTolerance,
         "arc_onto's tangent closer on the stadium",
     );
     assert!(msg.contains(".tangent().tangent_arc_to(p)"), "{msg}");
@@ -724,7 +731,7 @@ fn up_the_side() -> Vec<Step<f64>> {
 /// The `Via` and `Center` LEGS fix their end tangent, so the token
 /// CHECKS it: a tangent arrival closes with joint 0 constructed, an
 /// off-tangent one refuses `SeamArrivalOffDirection`, and the tangent
-/// one undeclared still refuses `SeamTangent`.
+/// one undeclared still refuses `SeamTurnWithinTolerance`.
 #[test]
 fn the_via_and_center_legs_check_the_token() {
     let via = |q: Point2<f64>, target| Step::ArcTo(ArcData::Via { q, target });
@@ -759,13 +766,13 @@ fn the_via_and_center_legs_check_the_token() {
     refuses(
         &with(up_the_side(), &[via(pt(-2.5, 2.5), Target::Start)]),
         4,
-        PathErrorKind::SeamTangent,
+        PathErrorKind::SeamTurnWithinTolerance,
         "Via: the tangent arrival undeclared",
     );
     refuses(
         &with(up_the_side(), &[center(pt(0.0, 2.5), Target::Start)]),
         4,
-        PathErrorKind::SeamTangent,
+        PathErrorKind::SeamTurnWithinTolerance,
         "Center: the tangent arrival undeclared",
     );
 }
@@ -808,7 +815,7 @@ fn the_center_arrival_checks_the_token() {
     refuses(
         &into_the_arrival(center(pt(0.0, 2.0), Target::Start)),
         4,
-        PathErrorKind::SeamTangent,
+        PathErrorKind::SeamTurnWithinTolerance,
         "the tangent Center arrival undeclared",
     );
 }
@@ -842,7 +849,7 @@ fn the_via_arrival_takes_its_direction_from_the_token() {
             &[toward(1.0, 0.0)],
         ),
         5,
-        PathErrorKind::SeamTangent,
+        PathErrorKind::SeamTurnWithinTolerance,
         "the same tangent from a director, undeclared",
     );
     refuses(
