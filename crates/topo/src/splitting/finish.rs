@@ -337,7 +337,11 @@ impl<'a, T: Real> Sides<'a, T> {
         for pair in coincident {
             let mut held = false;
             for (side, body) in self.listed() {
-                // Each edge as the side's joins, in the order made, leave it.
+                // Each edge as the side's joins, in the order made, leave it:
+                // the twin of `boolean::edge_join::joined_edge`, folded here
+                // over the side's own joins, since the engine pin
+                // (`[topo.homes]`) keeps the split from naming the boolean's
+                // join type to call it. A change to one is owed the other.
                 let [a, b] = pair.edges.map(|e| {
                     self.naming
                         .edge_joins

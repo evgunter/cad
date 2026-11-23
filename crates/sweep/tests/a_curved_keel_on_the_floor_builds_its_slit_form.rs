@@ -138,3 +138,95 @@ fn edge_of(pair: &topo::Cited<topo::Contact>, i: usize) -> topo::EdgeKey {
         other => panic!("{pair:?}: cell {i} is {other:?}, not an edge"),
     }
 }
+
+/// **A keel across the whole floor divides it, and the arcs' row names
+/// the piece the arc bounds.** A 90° slab less the V turned −30°, whose
+/// 150° spans past both of the slab's end faces: the keel runs across the
+/// floor from end face to end face, and the parting divides the floor
+/// into the inner and outer piece, each in a solid of its own touching
+/// the other along the keel. The arcs' one edge–edge record cites one
+/// `ArcOnFace` row, whose edge is one of the record's two and whose face,
+/// live in the result, is the piece that edge bounds. *Breaks if* the row
+/// is minted before the parting, on the floor's key, which the division
+/// leaves on the other piece. Tier 3′ is not read: two curved solids in
+/// reach are undecidable to the census
+/// (`work/reachhold/boolean-door-runs-the-census-over-its-result.md`).
+#[test]
+fn a_keel_across_the_floor_names_the_piece_its_arc_bounds() {
+    let loop_of = |pts: &[(f64, f64)]| pts.iter().map(|&(x, y)| (Point2::new(x, y), 0.0)).collect();
+    let slab = finished(
+        "the slab",
+        revolved_about_y(
+            loop_of(&[(0.5, 1.0), (3.0, 1.0), (3.0, 2.0), (0.5, 2.0)]),
+            Revolution::Partial(90f64.to_radians()),
+            tol(),
+        ),
+        tol(),
+    );
+    let v = revolved_about_y(
+        loop_of(&[(1.7, 2.5), (2.0, 1.0), (2.3, 2.5)]),
+        Revolution::Partial(150f64.to_radians()),
+        tol(),
+    );
+    let turned =
+        Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), (-30f64).to_radians());
+    let v = transform_rigid(&v, &geom_core::test_support::rigid(&turned, tol())).unwrap();
+    let r = match subtract(&slab, &finished("the V", v, tol()), tol()) {
+        Ok(BooleanResult::Body(r)) => r,
+        other => panic!("{:?}, not a body", other.map(drop)),
+    };
+    assert_eq!(r.body.solids().count(), 2, "the floor's two pieces' solids");
+    assert_eq!(topo::validate(&r.body), Ok(()), "tier 1");
+    assert_eq!(topo::validate_geometric(&r.body, tol()), Ok(()), "tier 3");
+    let pairs: Vec<_> = r
+        .contacts()
+        .rows()
+        .iter()
+        .filter(|c| matches!(c.kind(), topo::ContactKind::EdgeEdge(..)))
+        .collect();
+    let [pair] = pairs.as_slice() else {
+        panic!("the arcs' record, {:?}", r.contacts());
+    };
+    let rows: Vec<_> = pair
+        .cites
+        .iter()
+        .filter_map(|b| match b {
+            topo::Backing::Decided(k) => Some(r.coincidences[k as usize]),
+            topo::Backing::Carried { .. } => None,
+        })
+        .filter(|row| row.site == topo::DecisionSite::ArcOnFace)
+        .collect();
+    let [row] = rows.as_slice() else {
+        panic!("{pair:?} cites no one row of the arc on the floor");
+    };
+    let [
+        topo::RowCell::Result {
+            cell: topo::Cell::Edge(arc),
+        },
+        topo::RowCell::Result {
+            cell: topo::Cell::Face(floor),
+        },
+    ] = row.cells
+    else {
+        panic!("{row:?} is not the result's arc and face");
+    };
+    assert!(
+        [edge_of(pair, 0), edge_of(pair, 1)].contains(&arc),
+        "the row's arc {arc:?} is one of the record's edges, {pair:?}"
+    );
+    assert!(
+        r.body.get_face(floor).is_some(),
+        "the row's face {floor:?} is live"
+    );
+    let (from, to) = r
+        .body
+        .edge_vertices(arc)
+        .unwrap_or_else(|| panic!("{arc:?} is dead"));
+    let edge = r.body.get_edge(arc).unwrap();
+    assert!(
+        [edge.he_plus, edge.he_minus]
+            .into_iter()
+            .any(|he| r.body.face_of_half_edge(he) == Some(floor)),
+        "the row's arc {arc:?} ({from:?}–{to:?}) bounds no face {floor:?}"
+    );
+}

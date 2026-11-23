@@ -170,7 +170,9 @@ pub fn join_covers(joins: &[EdgeJoin]) -> BTreeMap<EdgeKey, Vec<EdgeKey>> {
 }
 
 /// The live edge `edge` is part of after `joins`: itself, or the edge a
-/// join killed it into, followed through every later join.
+/// join killed it into, followed through every later join. Its twin is
+/// folded in `splitting::finish`'s `minted_contacts`, over one side's
+/// joins, which the engine pin keeps from calling it.
 #[must_use]
 pub fn joined_edge(joins: &[EdgeJoin], edge: EdgeKey) -> EdgeKey {
     joins
