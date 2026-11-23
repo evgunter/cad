@@ -67,6 +67,7 @@ thread_local! {
     pub(crate) static SUM: RefCell<Vec<SumRow>> = const { RefCell::new(Vec::new()) };
     pub(crate) static EDGES: RefCell<BTreeMap<EdgeKey, EdgeInfo>> = const { RefCell::new(BTreeMap::new()) };
     pub(crate) static CELL: Cell<(u32, u32)> = const { Cell::new((0, 0)) };
+    pub(crate) static PROBE: RefCell<String> = const { RefCell::new(String::new()) };
     pub(crate) static PRES: RefCell<String> = const { RefCell::new(String::new()) };
     static COUNTS: Cell<[usize; 5]> = const { Cell::new([0; 5]) };
     static FLIPS: RefCell<BTreeSet<(FaceKey, FaceKey)>> = const { RefCell::new(BTreeSet::new()) };
@@ -184,7 +185,7 @@ pub(crate) fn enter<T: geom_core::Decide + geom_core::Bounds>(
         let fold = geom_brep::folded_lever_arm(sa, sb, mid, reach);
         let crease = matches!(verdict, geom_brep::WedgeVerdict::Crease { .. });
         let class = match &verdict {
-            geom_brep::WedgeVerdict::Crease { .. } => "Crease".to_owned(),
+            geom_brep::WedgeVerdict::Crease { convexity, .. } => format!("Crease/{convexity:?}"),
             geom_brep::WedgeVerdict::Seam { .. } => "Seam".to_owned(),
             geom_brep::WedgeVerdict::End { .. } => "End".to_owned(),
             geom_brep::WedgeVerdict::Lamina => "Lamina".to_owned(),

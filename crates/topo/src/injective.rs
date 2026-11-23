@@ -6320,6 +6320,11 @@ fn departure_inner(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: b
                 }
             })
             .collect();
+        let same_side = rows.iter().any(|r| r.alone_x && r.alone_y && !r.opposite);
+        if same_side {
+            let probe = wm_same_side_probe(x, near, qx, qy, arm, band);
+            crate::wedge_measure::PROBE.with(|c| *c.borrow_mut() = probe);
+        }
         crate::wedge_measure::SUM.with(|s| *s.borrow_mut() = rows);
     }
     if planes_through(x, near, qx, qy).into_iter().any(opposite) {
@@ -6333,6 +6338,78 @@ fn departure_inner(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: b
     }
     crate::gate_measure::set_reason_undecided();
     split
+}
+
+/// MEASUREMENT ONLY: where both faces read definite on one side of a
+/// separator through the shared cell, the faces' tangent departures at
+/// the edge's middle, the two planes bisecting them, the headings the
+/// bisector was built from, and each separator's normal.
+fn wm_same_side_probe(
+    x: &Piece<'_>,
+    near: &Near,
+    qx: &Presented<'_>,
+    qy: &Presented<'_>,
+    arm: Option<Lever<Interval>>,
+    band: Band,
+) -> String {
+    let dep = |p: &Presented<'_>| -> Option<Vec3<f64>> {
+        let (fx, fy, _) = p.jet();
+        let (s, f) = match &p.zero {
+            Zero::Side(s, _) | Zero::Past(s, _) | Zero::Curve(s, _) => (*s, if s.axis() == Axis::U { fx } else { fy }),
+            _ => return None,
+        };
+        unit(vmid(f) * Side::into(s))
+    };
+    let Some(&(i, _)) = near.edges.first() else { return "no edge".into() };
+    let Some((carrier, span)) = x.boundary.edges.get(i).and_then(|r| r.arc.as_ref()) else { return "no arc".into() };
+    let tm = geom::mid_param(span.0.lo(), span.1.hi());
+    let t = match unit(vmid(carrier.deriv(at(tm)))) { Some(t) => t, None => return "no tangent".into() };
+    let q0 = pmid(carrier.eval(at(tm)));
+    let (Some(dx), Some(dy)) = (dep(qx), dep(qy)) else { return "no departure".into() };
+    let (ux, uy) = (unit(perp(dx, t)), unit(perp(dy, t)));
+    let (Some(ux), Some(uy)) = (ux, uy) else { return "departure along the edge".into() };
+    let n1 = unit(ux - uy);
+    let n2 = unit(ux + uy);
+    let sg = |v: f64| if v > 0.0 { '+' } else if v < 0.0 { '-' } else { '0' };
+    let on = |n: Option<Vec3<f64>>| n.map_or("none".to_owned(), |n| format!("{}{}", sg(ux.dot(n)), sg(uy.dot(n))));
+    let anchor_q = anchor(x, near).map(pmid);
+    let hd = |p: &Presented<'_>| anchor_q.and_then(|q| heading(p, q)).and_then(|h| unit(perp(h, t)));
+    let (hx, hy) = (hd(qx), hd(qy));
+    let chosen = match (hx, hy) {
+        (Some(a), Some(b)) => unit(a - b),
+        _ => None,
+    };
+    let cosang = |a: Option<Vec3<f64>>, b: Option<Vec3<f64>>| match (a, b) {
+        (Some(a), Some(b)) => format!("{:.3}", a.dot(b)),
+        _ => "-".into(),
+    };
+    // The other bisector, read through sign_on as the chosen one was.
+    let read_under = |n: Option<Vec3<f64>>| n.map(|n| {
+        let psi = Psi::Linear { n: lift(n), q: carrier.eval(at(tm)) };
+        let on = On { edges: vec![x.boundary.edges[i].key], vertices: x.boundary.edges[i].ends.to_vec(), whole: true };
+        let a = sign_on(&psi, Some(&on), qx, Some(qy), arm, band);
+        let b = sign_on(&psi, Some(&on), qy, Some(qx), arm, band);
+        format!("{a:?}/{b:?}")
+    });
+    let (under1, under2) = (read_under(n1), read_under(n2));
+    let hraw = |p: &Presented<'_>| anchor_q.and_then(|q| heading(p, q)).map(|h| (h.dot(t), perp(h, t).norm()));
+    let _ = q0;
+    format!(
+        "angle(ux,uy)={:.1}deg n1(ux-uy):{} n2(ux+uy):{} sign_on_n1={} sign_on_n2={} heading_x(along,perp)={:?} heading_y={:?} headings.ux={} hy.uy={} chosen.n1={} chosen.n2={} anchor_to_mid={:.3e} rect=({:.4},{:.4})x({:.4},{:.4})|({:.4},{:.4})x({:.4},{:.4})",
+        ux.dot(uy).clamp(-1.0, 1.0).acos().to_degrees(),
+        on(n1),
+        on(n2),
+        under1.unwrap_or_default(),
+        under2.unwrap_or_default(),
+        hraw(qx),
+        hraw(qy),
+        cosang(hx, Some(ux)),
+        cosang(hy, Some(uy)),
+        cosang(chosen, n1),
+        cosang(chosen, n2),
+        anchor_q.map_or(f64::NAN, |a| (a - q0).norm()),
+        qx.x.0, qx.x.1, qx.y.0, qx.y.1, qy.x.0, qy.x.1, qy.y.0, qy.y.1,
+    )
 }
 
 /// MEASUREMENT ONLY: the far side's least `|ψ|` over a presented face.
@@ -6411,6 +6488,7 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
     let base = departure_inner(x, y, near, band, two);
     let sum = wm::SUM.with(|c| c.borrow().clone());
     let pres = wm::PRES.with(|c| c.borrow().clone());
+    let probe = wm::PROBE.with(|c| std::mem::take(&mut *c.borrow_mut()));
     let rates = wm::RATES.with(|c| c.borrow().clone());
     let keys: Vec<EdgeKey> = near
         .edges
@@ -6478,7 +6556,7 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
         wm::emit(
             "WMD",
             &format!(
-                "{:?}/{:?}	edges={keys:?}	crease={crease}	depth={depth}/{max}	base={}	c7329={c7329}	cmut={cmut}	cfold={cfold:?}	arm={arm:?}	reach={reach:?}	fold={fold:?}	gap={gap:?}	one_signed={one_signed}	pres={pres}	sum={sums:?}",
+                "{:?}/{:?}	edges={keys:?}	crease={crease}	depth={depth}/{max}	base={}	c7329={c7329}	cmut={cmut}	cfold={cfold:?}	arm={arm:?}	reach={reach:?}	fold={fold:?}	gap={gap:?}	one_signed={one_signed}	pres={pres}	sum={sums:?}	probe={probe}",
                 x.face,
                 y.face,
                 kind(&base),
