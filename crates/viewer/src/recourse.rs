@@ -436,7 +436,6 @@ fn refusal_offers(refusal: &Refusal) -> Vec<Offer> {
         Refusal::DrivenByExpression { .. }
         | Refusal::NoSuchSlot { .. }
         | Refusal::NoSuchVariable(_)
-        | Refusal::VariableIsDefined(_)
         | Refusal::NotOffered(_)
         | Refusal::OfferIsNamed(_)
         | Refusal::ConstantRefused { .. }
@@ -455,6 +454,7 @@ fn refusal_offers(refusal: &Refusal) -> Vec<Offer> {
         | Refusal::NothingToDo { .. }
         | Refusal::Display(_)
         | Refusal::SlotUnit(_)
+        | Refusal::Range(_)
         | Refusal::NoDocumentDirectory
         | Refusal::SelfInstance { .. }
         | Refusal::ProfileEditStale { .. }

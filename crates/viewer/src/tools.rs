@@ -259,7 +259,7 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         | SessionOp::SetSlot { .. }
         | SessionOp::SetSlotVariable { .. }
         | SessionOp::DeclineOffer { .. }
-        | SessionOp::ProbeBounds { .. }
+        | SessionOp::ProveRange { .. }
         | SessionOp::SetSlotUnit { .. }
         | SessionOp::SetSlotExpression { .. }
         | SessionOp::SetVariable { .. }
@@ -278,6 +278,7 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         | SessionOp::Undo
         | SessionOp::Redo
         | SessionOp::CancelEvaluation
+        | SessionOp::StopRange
         | SessionOp::Reevaluate
         | SessionOp::Open(_)
         | SessionOp::Save(_)

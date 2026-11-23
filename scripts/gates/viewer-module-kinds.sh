@@ -397,7 +397,7 @@ viewer_modules() {
 # it the expensive way: its first version anchored every rule at `^`,
 # and a row indented TWO SPACES — which every renderer draws as a row of
 # the table — was seen by no rule at all. Indenting
-# `crates/viewer/README.md`'s last `session::probe` row dropped that
+# `crates/viewer/README.md`'s last session-vocabulary row dropped that
 # module out of the roster with the gate at exit 0 and its OK line
 # `cmp`-identical to the clean run: the silent short roster this reader
 # was rewritten to remove, re-minted inside the rewrite.

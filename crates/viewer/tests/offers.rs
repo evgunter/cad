@@ -186,7 +186,7 @@ fn a_coincidence_drawn_with_its_commit_is_not_said_twice() {
     ) -> viewer::frame::CheckRow {
         viewer::frame::check_rows(report, landed, session.current())
             .into_iter()
-            .find(|row| row.sentence.contains("rests on one carrier against"))
+            .find(|row| row.sentence.to_string().contains("rests on one carrier against"))
             .expect("the walls' contact has a row")
     }
     let drawn = row(&report, &landed, &session);
@@ -199,7 +199,7 @@ fn a_coincidence_drawn_with_its_commit_is_not_said_twice() {
         commit.label
     );
     assert!(
-        !drawn.sentence.contains("assert Gap("),
+        !drawn.sentence.to_string().contains("assert Gap("),
         "the sentence beside the control does not say it again: {}",
         drawn.sentence
     );
@@ -210,13 +210,13 @@ fn a_coincidence_drawn_with_its_commit_is_not_said_twice() {
     let words = row(&report, &landed, &session);
     assert!(words.offers.is_empty(), "an outstanding run offers nothing");
     assert!(
-        words.sentence.contains("assert Gap("),
+        words.sentence.to_string().contains("assert Gap("),
         "with no control, the assertion is said: {}",
         words.sentence
     );
     let others = "Recourse: build the cells as one construction";
     assert!(
-        drawn.sentence.contains(others) && words.sentence.contains(others),
+        drawn.sentence.to_string().contains(others) && words.sentence.to_string().contains(others),
         "the acts no control takes are said either way: {}",
         drawn.sentence
     );

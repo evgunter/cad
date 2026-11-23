@@ -3,7 +3,10 @@
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use eframe::egui;
-use pncad::document::{AssertionVerdict, MateRef, RecipeNodeId, SpokenNode, UnevaluatedReason};
+use pncad::document::{
+    AssertionVerdict, Doc, MateRef, ProfileProgram, RecipeNodeId, Sentence, SpokenNode,
+    UnevaluatedReason,
+};
 
 use crate::app::{GLYPH_WORLD, ViewerBehavior, toned};
 use crate::frame;
@@ -111,9 +114,13 @@ fn placed_badge(copies: usize) -> Option<String> {
 /// decides whether the toggle is drawn; the op's admission decides
 /// whether it is live, and a refused one carries the op's sentence on
 /// its hover.
+// One row's whole drawing reads all of these; bundling them would be a
+// type with no meaning of its own.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn feature_row_ui(
     ui: &mut egui::Ui,
     row: &TreeRow,
+    on_screen: &Doc<ProfileProgram>,
     selected: bool,
     hidden: bool,
     hide_refusal: Option<&Refusal>,
@@ -127,6 +134,7 @@ pub(crate) fn feature_row_ui(
             clicks.select = Some(row.id);
         }
         clicks.hovered = label.hovered();
+        clicks.label = Some(label.rect);
         if row.spoken.kind() == Some("InstantiatePart") {
             let mut shown = !hidden;
             let toggle = ui.add_enabled(
@@ -154,9 +162,11 @@ pub(crate) fn feature_row_ui(
             })
             .inner;
     }
-    if let Some(to) = lines_under(ui, row, theme) {
+    let under = lines_under(ui, row, on_screen, theme);
+    if let Some(to) = under.select {
         clicks.select = Some(to);
     }
+    clicks.followed = under.followed;
     if !row.offers.is_empty() {
         clicks.offered = ui
             .horizontal(|ui| {
@@ -193,6 +203,20 @@ pub(crate) const REMOVE_CONSTRAINT: &str = "remove";
 /// The label on a placement row's button that opens its editor.
 pub(crate) const EDIT_PLACEMENT: &str = "edit placement";
 
+/// **What the feature tree last drew**: the selection it drew, and the
+/// one a click in it asked for that frame — so the next frame can tell
+/// a selection the tree made from one made outside it.
+#[derive(Clone)]
+struct TreeSaw {
+    drawn: Selection,
+    asked: Option<Selection>,
+}
+
+impl TreeSaw {
+    /// Where it is kept, in egui's memory: there is one tree.
+    const ID: &'static str = "feature_tree_saw";
+}
+
 /// What a click on one drawn feature row asked for.
 #[derive(Debug, Default)]
 pub(crate) struct RowClicks {
@@ -214,6 +238,13 @@ pub(crate) struct RowClicks {
     /// Whether the pointer is over the row's label: a clearance row's
     /// witness is drawn while it is ([`crate::marks::witness`]).
     pub(crate) hovered: bool,
+    /// Where the row's label was drawn: what the tree scrolls into view
+    /// when the row's node is selected from outside it.
+    pub(crate) label: Option<egui::Rect>,
+    /// What a mention clicked in a line under the row selects: a link
+    /// followed, which the tree scrolls to as it does any selection
+    /// made outside its own rows.
+    pub(crate) followed: Option<Selection>,
 }
 
 /// **The lines under a row that a failure writes, drawn** — and the
@@ -226,24 +257,31 @@ pub(crate) struct RowClicks {
 /// ([`TreeRow::repair_at`]) keeps its words as they are and gets a
 /// line that is that click, under the refusals its words carry
 /// ([`crate::tree::carried_lines`]), one line per level.
+///
+/// A failed row's words and its carried refusals are sentences drawn
+/// against `on_screen` ([`crate::widgets::sentence`]): a node they name
+/// in this document is a link, answered in [`FailureClicks::followed`].
 pub(crate) fn failure_lines(
     ui: &mut egui::Ui,
     row: &TreeRow,
+    on_screen: &Doc<ProfileProgram>,
     theme: &Theme,
-) -> Option<RecipeNodeId> {
-    let message = row.status.message()?;
-    let mut clicked = None;
+) -> FailureClicks {
+    let mut clicked = FailureClicks::default();
+    let Some(message) = row.status.message() else {
+        return clicked;
+    };
     match row.status.jump() {
         Some(to) => {
-            if link_line(ui, message) {
-                clicked = Some(to);
+            if link_line(ui, &message.to_string()) {
+                clicked.select = Some(to);
             }
         }
         // Advisory whatever the status: how loud a row is, is its
         // badge's, read off `RowStatus::tone` on the row above.
         // The line under it is that verdict's words, and a failed
         // row drawn loud twice would be the one loud row twice.
-        None => advisory_line(ui, message, theme),
+        None => clicked.followed = advisory_said_at(ui, 1, &message, on_screen, theme),
     }
     // The refusals the row's words point at, each one step further in:
     // the traceback reads down the way the failure reaches in. Each is
@@ -256,13 +294,23 @@ pub(crate) fn failure_lines(
                 ui.add_space(nested_indent(ui, nesting));
                 ui.weak(&carried.document);
             });
-            advisory_line_at(ui, nesting, &carried.line, theme);
+            let followed = advisory_said_at(ui, nesting, &carried.line, on_screen, theme);
+            clicked.followed = clicked.followed.or(followed);
         }
     }
     if let Some(to) = &row.repair_at {
-        clicked = link_to(ui, to).or(clicked);
+        clicked.select = link_to(ui, to).or(clicked.select);
     }
     clicked
+}
+
+/// What a click on the lines under a row asked for.
+#[derive(Debug, Default)]
+pub(crate) struct FailureClicks {
+    /// The row a pointer line or a repair link selects.
+    pub(crate) select: Option<RecipeNodeId>,
+    /// What a mention clicked in a sentence under the row selects.
+    pub(crate) followed: Option<Selection>,
 }
 
 /// **What the run said about a row, drawn beside it**: the badge of a
@@ -312,8 +360,13 @@ fn row_result(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme, notation: Notatio
 /// ([`failure_lines`]), why an assertion has no verdict, and the node's
 /// standing caveat. Answers the node a click
 /// selects, as [`failure_lines`] does.
-fn lines_under(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme) -> Option<RecipeNodeId> {
-    let clicked = failure_lines(ui, row, theme);
+fn lines_under(
+    ui: &mut egui::Ui,
+    row: &TreeRow,
+    on_screen: &Doc<ProfileProgram>,
+    theme: &Theme,
+) -> FailureClicks {
+    let clicked = failure_lines(ui, row, on_screen, theme);
     match &row.readout {
         Some(Readout::Asserted(asserted)) => match &asserted.verdict {
             AssertionVerdict::Unevaluated {
@@ -344,13 +397,28 @@ fn advisory_line(ui: &mut egui::Ui, text: &str, theme: &Theme) {
     advisory_line_at(ui, 1, text, theme);
 }
 
-/// [`advisory_line`] nested `level` steps under its row: a carried
-/// refusal's.
+/// [`advisory_line`] nested `level` steps under its row.
 fn advisory_line_at(ui: &mut egui::Ui, level: usize, text: &str, theme: &Theme) {
     ui.horizontal(|ui| {
         ui.add_space(nested_indent(ui, level));
         crate::widgets::message_toned(ui, text, theme, frame::Tone::Advisory);
     });
+}
+
+/// [`advisory_line_at`] for a kernel sentence, drawn against
+/// `on_screen`: what a mention clicked in it selects.
+fn advisory_said_at(
+    ui: &mut egui::Ui,
+    level: usize,
+    said: &Sentence,
+    on_screen: &Doc<ProfileProgram>,
+    theme: &Theme,
+) -> Option<Selection> {
+    ui.horizontal(|ui| {
+        ui.add_space(nested_indent(ui, level));
+        crate::widgets::sentence(ui, said, on_screen, Some((theme, frame::Tone::Advisory)))
+    })
+    .inner
 }
 
 /// **A line under a row that links to the node `to`**, in
@@ -384,20 +452,47 @@ impl ViewerBehavior<'_> {
         // feature here — one selection value, one inversion. Overflow
         // is `pane_ui`'s scroll container's job, the same one every
         // chrome pane sits in; a second ScrollArea here would nest.
-        let selected = self.session.selection().node();
+        //
+        // **A selection made outside the tree scrolls its row into
+        // view** — a link followed, a pick in the viewport — and one
+        // made by a click in the tree does not, so a row clicked stays
+        // under the pointer that clicked it. Outside is a selection
+        // that differs from the one the tree last drew and is not the
+        // one the tree asked for.
+        let now = self.session.selection().clone();
+        let (seen, asked) = ui
+            .ctx()
+            .data(|data| data.get_temp::<TreeSaw>(egui::Id::new(TreeSaw::ID)))
+            .map_or((None, None), |saw| (Some(saw.drawn), saw.asked));
+        let outside = seen.is_some_and(|seen| seen != now) && asked.as_ref() != Some(&now);
+        let selected = now.node();
+        let mut asked = None;
         for row in &rows {
-            self.feature_row(ui, row, selected == Some(row.id));
+            let clicks = self.feature_row(ui, row, selected == Some(row.id));
+            if let Some(label) = clicks.label.filter(|_| outside && selected == Some(row.id)) {
+                ui.scroll_to_rect(label, Some(egui::Align::Center));
+            }
+            asked = asked.or(clicks.select.map(Selection::Node));
         }
+        ui.ctx().data_mut(|data| {
+            data.insert_temp(egui::Id::new(TreeSaw::ID), TreeSaw { drawn: now, asked });
+        });
     }
 
     /// One feature-tree row ([`feature_row_ui`]), and the ops its
     /// clicks name.
-    pub(crate) fn feature_row(&mut self, ui: &mut egui::Ui, row: &TreeRow, selected: bool) {
+    pub(crate) fn feature_row(
+        &mut self,
+        ui: &mut egui::Ui,
+        row: &TreeRow,
+        selected: bool,
+    ) -> RowClicks {
         let hidden = !self.toggles.body_on(row.id);
         let refusal = self.session.body_toggle_refusal(row.id);
-        let clicks = feature_row_ui(
+        let mut clicks = feature_row_ui(
             ui,
             row,
+            self.session.doc(),
             selected,
             hidden,
             refusal.as_ref(),
@@ -410,13 +505,16 @@ impl ViewerBehavior<'_> {
         if let Some(to) = clicks.select {
             self.ops.push(SessionOp::Select(Selection::Node(to)));
         }
+        if let Some(followed) = clicks.followed.take() {
+            self.ops.push(SessionOp::Select(followed));
+        }
         if let Some(hidden) = clicks.hide {
             self.ops.push(SessionOp::SetBodyOn {
                 node: row.id,
                 on: !hidden,
             });
         }
-        match clicks.offered {
+        match clicks.offered.take() {
             Some(crate::widgets::Taken::Op(op)) => self.ops.push(op),
             Some(crate::widgets::Taken::Lead(lead)) => {
                 self.drafts
@@ -440,6 +538,7 @@ impl ViewerBehavior<'_> {
                 )),
             }
         }
+        clicks
     }
 }
 
@@ -464,6 +563,12 @@ mod tests {
         assert_under, find, landed, landed_voiced, painted, painted_after_clicking, painted_text,
     };
     use crate::props::Notation;
+
+    /// The document a row is drawn against: one holding none of the
+    /// rows' nodes, so a mention in their lines is words.
+    fn screen() -> pncad::document::Doc<pncad::document::ProfileProgram> {
+        pncad::document::Doc::empty_derived("feature-rows", pncad::geom_core::Tol::witness())
+    }
     use crate::test_support::spoken;
     use crate::theme::Theme;
     use crate::tree;
@@ -670,7 +775,7 @@ mod tests {
             which: None,
             placements: Vec::new(),
             status: RowStatus::Failed {
-                message: FAILURE.to_owned(),
+                message: FAILURE.into(),
                 carried: Vec::new(),
             },
             repair_at,
@@ -692,18 +797,18 @@ mod tests {
         ];
         let row = TreeRow {
             status: RowStatus::Failed {
-                message: FAILURE.to_owned(),
+                message: FAILURE.into(),
                 carried: carried
                     .map(|(document, line)| CarriedLine {
                         document: document.to_owned(),
-                        line: line.to_owned(),
+                        line: line.into(),
                     })
                     .to_vec(),
             },
             ..placer_refused_row(None)
         };
         let painted = landed(|ui| {
-            failure_lines(ui, &row, &Theme::DEFAULT);
+            failure_lines(ui, &row, &screen(), &Theme::DEFAULT);
         });
         let at = |text: &str| {
             painted
@@ -737,7 +842,7 @@ mod tests {
     fn clicking(row: &TreeRow, target: &str) -> Option<RecipeNodeId> {
         let clicked = core::cell::Cell::new(None);
         painted_after_clicking(target, |ui| {
-            if let Some(to) = failure_lines(ui, row, &Theme::DEFAULT) {
+            if let Some(to) = failure_lines(ui, row, &screen(), &Theme::DEFAULT).select {
                 clicked.set(Some(to));
             }
         });
@@ -769,7 +874,7 @@ mod tests {
     #[test]
     fn a_failed_row_with_no_node_to_repair_draws_no_link() {
         let drawn = painted_text(|ui| {
-            failure_lines(ui, &placer_refused_row(None), &Theme::DEFAULT);
+            failure_lines(ui, &placer_refused_row(None), &screen(), &Theme::DEFAULT);
         });
         assert!(drawn.contains(FAILURE), "{drawn}");
         assert!(!drawn.contains("see "), "no link line: {drawn}");
@@ -781,7 +886,7 @@ mod tests {
     #[test]
     fn a_failed_rows_words_are_weak_under_its_loud_badge() {
         let (painted, voices) = landed_voiced(&Theme::DEFAULT, |ui, theme| {
-            failure_lines(ui, &placer_refused_row(None), theme);
+            failure_lines(ui, &placer_refused_row(None), &screen(), theme);
         });
         assert_eq!(find(&painted, FAILURE).ink, Some(voices.weak));
     }
@@ -989,7 +1094,7 @@ mod tests {
 
     /// [`feature_row_drawn`], read in `notation`.
     fn feature_row_drawn_in(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme, notation: Notation) {
-        feature_row_ui(ui, row, false, false, None, theme, notation);
+        feature_row_ui(ui, row, &screen(), false, false, None, theme, notation);
     }
 
     /// **A measure with a value paints it on its own row**, in the
@@ -1171,7 +1276,7 @@ mod tests {
                     test_utils::refusal::tag(fixture.failed.0.digest())
                 ),
                 "FAILED".to_owned(),
-                message.clone()
+                message.to_string()
             ],
             "the kind, the badge, the words, and nothing measured"
         );
@@ -1240,6 +1345,7 @@ mod tests {
                     let clicks = feature_row_ui(
                         ui,
                         &row,
+                        &screen(),
                         false,
                         false,
                         None,
@@ -1617,6 +1723,7 @@ mod tests {
             let clicks = feature_row_ui(
                 ui,
                 row,
+                &screen(),
                 false,
                 hidden,
                 None,
@@ -1634,6 +1741,8 @@ mod tests {
             remove: remove.get(),
             edit: false,
             hovered: false,
+            label: None,
+            followed: None,
         }
     }
 
@@ -1738,7 +1847,7 @@ mod tests {
         let accept = SessionOp::AcceptPartVersion { id: doc_ref.id };
         let row = TreeRow {
             status: RowStatus::Failed {
-                message: kind.to_string(),
+                message: kind.to_string().into(),
                 carried: Vec::new(),
             },
             offers: vec![Offer::commit(label, accept.clone())],
@@ -1754,6 +1863,7 @@ mod tests {
             let clicks = feature_row_ui(
                 ui,
                 &row,
+                &screen(),
                 false,
                 false,
                 None,
@@ -1818,11 +1928,11 @@ mod tests {
         ];
         let failed = TreeRow {
             status: RowStatus::Failed {
-                message: FAILURE.to_owned(),
+                message: FAILURE.into(),
                 carried: carried
                     .map(|(document, line)| CarriedLine {
                         document: document.to_owned(),
-                        line: line.to_owned(),
+                        line: line.into(),
                     })
                     .to_vec(),
             },
