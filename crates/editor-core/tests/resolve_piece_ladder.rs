@@ -98,7 +98,7 @@ impl Slot {
             kind: EntityKind::Face,
             node: self.cut,
             path: vec![RoleSeg::From {
-                read: tool.read,
+                read: tool.reads().next().expect("a subtract with one tool").read,
                 of: self.wall(segment).into(),
             }],
         }
