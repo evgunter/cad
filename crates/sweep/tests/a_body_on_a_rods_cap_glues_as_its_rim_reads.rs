@@ -1,7 +1,7 @@
 //! **A body built on a rod's end cap glues as its rim reads.** Each
 //! fixture's walls both end on the cap's rim (or the inner rim of a
 //! pipe), and the glue door's verdict on every pair of faces sharing that
-//! rim is pinned (`topo::test_support::rim_door`): a junction where the
+//! rim is pinned (`topo::boolean::rim_door`): a junction where the
 //! routing reads the π seam, the walls leave on opposite sides and both
 //! bodies' own rim edges are convex creases; the tangency the door read
 //! before the junction lane where one of those edges is concave; no glue
@@ -18,11 +18,11 @@
 
 use core::f64::consts::PI;
 
-use geom::SurfaceKind::{Cone, Cylinder, Plane, Sphere};
+use geom::SurfaceKind::{Cone, Cylinder, Sphere};
 use geom_core::{Point2, Tol};
 use sweep::Revolution;
 use sweep::test_support::{finished, revolved_about_y};
-use topo::test_support::RimDoor;
+use topo::boolean::RimDoor;
 use topo::{AtRestBody, BooleanResult};
 
 fn body(what: &str, verts: Vec<(Point2<f64>, f64)>, rev: Revolution<f64>) -> AtRestBody<f64> {
@@ -149,7 +149,7 @@ fn door(
     walls: (geom::SurfaceKind, geom::SurfaceKind),
     want: RimDoor,
 ) {
-    let rows = topo::test_support::rim_door(a, b, Tol::witness());
+    let rows = topo::boolean::rim_door(a, b, Tol::witness());
     let (w, rest): (Vec<_>, Vec<_>) = rows.into_iter().partition(|(kinds, _)| *kinds == walls);
     assert!(!w.is_empty(), "{what}: the walls share the rim");
     assert!(

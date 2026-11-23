@@ -269,7 +269,7 @@ fn an_elbow_bent_back_into_its_pipe_refuses_its_rims_at_the_glue_door() {
         assert!(
             walls.iter().all(|d| matches!(
                 d,
-                topo::test_support::RimDoor::Refused(topo::BooleanErrorKind::Escalated)
+                topo::boolean::RimDoor::Refused(topo::BooleanErrorKind::Escalated)
             )),
             "{what}: each wall pair refuses in band at the table: {walls:?}"
         );
@@ -317,7 +317,7 @@ fn an_elbow_whose_neutral_points_sit_between_the_stations_glues_a_junction() {
 /// torus sharing a rim, each glued a junction, and no other pair glued.
 #[track_caller]
 fn glues_its_walls_a_junction(j: &Joined, walls: usize, what: &str) {
-    use topo::test_support::RimDoor;
+    use topo::boolean::RimDoor;
     let (w, rest) = door(j);
     assert_eq!(w.len(), walls, "{what}: the wall pairs on the rims");
     assert!(
@@ -355,15 +355,10 @@ fn a_pipe_unions_with_an_extrude_off_its_own_cap() {
 }
 
 /// **What the glue door returns for each pair of the two bodies' faces
-/// that share a rim** (`topo::test_support::rim_door`), the walls' pairs
+/// that share a rim** (`topo::boolean::rim_door`), the walls' pairs
 /// apart from the rest: the pairs whose kinds are a cylinder and a
 /// torus, and every other.
-fn door(
-    j: &Joined,
-) -> (
-    Vec<topo::test_support::RimDoor>,
-    Vec<topo::test_support::RimDoor>,
-) {
+fn door(j: &Joined) -> (Vec<topo::boolean::RimDoor>, Vec<topo::boolean::RimDoor>) {
     let at_rest = |node| {
         topo::test_support::finished(
             "an operand",
@@ -377,7 +372,7 @@ fn door(
             (geom::SurfaceKind::Cylinder, geom::SurfaceKind::Torus)
         )
     };
-    let rows = topo::test_support::rim_door(&at_rest(j.base), &at_rest(j.built), Tol::witness());
+    let rows = topo::boolean::rim_door(&at_rest(j.base), &at_rest(j.built), Tol::witness());
     let (w, rest): (Vec<_>, Vec<_>) = rows.into_iter().partition(|(kinds, _)| walls(*kinds));
     (
         w.into_iter().map(|(_, d)| d).collect(),

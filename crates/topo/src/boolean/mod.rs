@@ -1202,7 +1202,7 @@ pub(crate) enum GivenDecision<T: Real> {
         /// The locus as it derived and placed it, or none for a rim.
         line: Option<geom::Line<T>>,
     },
-    /// Two faces joined on a rim both end on ([`Junction`]).
+    /// Two faces joined on a rim both end on ([`GluedJunction`]).
     /// Its margin is not handed on: a given junction records no row
     /// ([`given_verdicts`]).
     Junction {
@@ -1345,7 +1345,7 @@ enum Glued<T: Real> {
     /// certified ([`verify_distinct`]).
     Tangent(Tangency<T>),
     /// Two faces joined on a rim both end on ([`verify_distinct`]).
-    Junction(Junction<T>),
+    Junction(GluedJunction<T>),
 }
 
 /// Where a glued pair's decision comes from: the glue door, or the fold
@@ -1516,7 +1516,7 @@ impl<T: Real> GluedPair<T> {
 
     /// A pair on distinct carriers the glue door glued: a tangency on
     /// what the witness lane certified, or a junction on its rim.
-    pub(crate) fn distinct(a: FaceKey, b: FaceKey, glue: DistinctGlue<T>) -> Self {
+    pub(in crate::boolean) fn distinct(a: FaceKey, b: FaceKey, glue: DistinctGlue<T>) -> Self {
         Self {
             a,
             b,
@@ -1889,7 +1889,8 @@ pub(crate) struct VerifiedGlue<T: Real> {
     pub(crate) tangent: std::collections::BTreeMap<(FaceKey, FaceKey), TangentCert>,
     /// Rim junctions the glue door glued, with what their readers read
     /// of each.
-    pub(crate) junction: std::collections::BTreeMap<(FaceKey, FaceKey), JunctionCert<T>>,
+    pub(in crate::boolean) junction:
+        std::collections::BTreeMap<(FaceKey, FaceKey), JunctionCert<T>>,
     /// The verified tangencies whose line locus runs through both faces'
     /// interiors: the reduction's face–face rows
     /// ([`ReductionContacts::ff`]).
@@ -2230,7 +2231,7 @@ impl<T: crate::props::AtRestPolicy> GluedPairs<T> {
 
     /// The rim a pair glued `Junction` was certified over; none for any
     /// other pair, and for a given junction whose record carries none.
-    pub(crate) fn junction_at(
+    pub(in crate::boolean) fn junction_at(
         &self,
         o1: Operand,
         f1: FaceKey,
@@ -7973,7 +7974,7 @@ fn tangent_row(fa: FaceKey, fb: FaceKey, margin: MarginDiag) -> crate::Coinciden
 
 /// The row a glued rim junction records: the rim's identity, on which
 /// the routed wedge, the departures and the convex rim edges were
-/// decided with it ([`Junction`]), never a touch along the rim.
+/// decided with it ([`GluedJunction`]), never a touch along the rim.
 fn junction_row(fa: FaceKey, fb: FaceKey, margin: MarginDiag) -> crate::Coincidence {
     crate::Coincidence {
         cells: [
@@ -8073,12 +8074,12 @@ pub(crate) struct Tangency<T: Real> {
 /// over, which its sector readers place their sites on
 /// ([`GluedPairs::junction_at`]).
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct JunctionCert<T: Real> {
+pub(in crate::boolean) struct JunctionCert<T: Real> {
     /// The two carriers' kinds, A's first.
-    pub(crate) kinds: (geom::SurfaceKind, geom::SurfaceKind),
+    pub(in crate::boolean) kinds: (geom::SurfaceKind, geom::SurfaceKind),
     /// The rim, or none for a given junction whose record carries no
     /// circle.
-    pub(crate) rim: Option<crate::rim_wedge::Rim<T>>,
+    pub(in crate::boolean) rim: Option<crate::rim_wedge::Rim<T>>,
 }
 
 /// What [`GluedPairs`] keeps of a glued tangency: its carriers' kinds
@@ -8314,12 +8315,12 @@ fn glued_face<T: Real>(
 /// ([`verify_distinct`]): a tangency the table certified along its
 /// locus, or a junction on a rim both faces end on.
 #[derive(Clone, Copy, Debug)]
-pub(crate) enum DistinctGlue<T: Real> {
+pub(in crate::boolean) enum DistinctGlue<T: Real> {
     /// C4's `Tangent`: the pair touches along the locus it was read on.
     Tangent(Tangency<T>),
     /// C4's `Junction`: the faces end on one rim and meet nowhere else
     /// near it.
-    Junction(Junction<T>),
+    Junction(GluedJunction<T>),
 }
 
 /// **A rim junction the glue door glued** (C4's `Junction`): two faces
@@ -8332,14 +8333,14 @@ pub(crate) enum DistinctGlue<T: Real> {
 /// rim's identity and that wedge, decided once over the whole rim; it
 /// claims no touch along a locus, and no reader of a tangency reads it.
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct Junction<T: Real> {
+pub(in crate::boolean) struct GluedJunction<T: Real> {
     /// The two carriers' kinds, A's first.
-    pub(crate) kinds: (geom::SurfaceKind, geom::SurfaceKind),
+    pub(in crate::boolean) kinds: (geom::SurfaceKind, geom::SurfaceKind),
     /// The circle both faces end on.
-    pub(crate) rim: crate::rim_wedge::Rim<T>,
+    pub(in crate::boolean) rim: crate::rim_wedge::Rim<T>,
     /// The rim's identity margin ([`crate::rim_wedge::shared_rim`]), the
     /// decision the record carries.
-    pub(crate) margin: MarginDiag,
+    pub(in crate::boolean) margin: MarginDiag,
 }
 
 /// **The glue door's distinct-carrier check** (C4's `Tangent` and
@@ -8374,7 +8375,7 @@ pub(crate) struct Junction<T: Real> {
 ///    routed ([`route_rim`]).
 ///
 /// Escalations carry `read`, what the caller holds of the pair.
-pub(crate) fn verify_distinct<T: Decide>(
+pub(in crate::boolean) fn verify_distinct<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
     b: &Body<T>,
@@ -8500,7 +8501,7 @@ pub(crate) fn verify_distinct<T: Decide>(
 }
 
 /// What the glue door returns for one face pair, as a row outside the
-/// crate names it ([`crate::test_support::rim_door`]).
+/// crate names it ([`rim_door`]).
 #[cfg(any(test, feature = "test-support"))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RimDoor {
@@ -8524,11 +8525,21 @@ pub enum RimDoor {
 /// verdict by, so a mutant of the routing turns it red where the
 /// union's outcome alone would not.
 #[cfg(any(test, feature = "test-support"))]
-pub(crate) fn rim_door<T: Decide>(
-    a: &Body<T>,
-    b: &Body<T>,
-    band: Band,
+///
+/// # Panics
+///
+/// Where `tol` makes no band.
+#[allow(clippy::panic)]
+#[must_use]
+pub fn rim_door(
+    a: &crate::AtRestBody<f64>,
+    b: &crate::AtRestBody<f64>,
+    tol: geom_core::Tol,
 ) -> Vec<((geom::SurfaceKind, geom::SurfaceKind), RimDoor)> {
+    let Ok(band) = Band::linear(tol) else {
+        panic!("a fixture's tolerance makes a band");
+    };
+    let (a, b): (&Body<f64>, &Body<f64>) = (a, b);
     let mut out = Vec::new();
     for fa in a.face_views().map(|f| f.key()).collect::<Vec<_>>() {
         for fb in b.face_views().map(|f| f.key()).collect::<Vec<_>>() {
@@ -8587,7 +8598,7 @@ fn junction_of<T: Decide>(
     rim: crate::rim_wedge::Rim<T>,
     margin: MarginDiag,
     band: Band,
-) -> Option<Junction<T>> {
+) -> Option<GluedJunction<T>> {
     let circle = geom::Curve3::circle(rim.center, rim.axis, rim.radius, rim.u_ref);
     let whole = (T::zero(), T::tau());
     let reach = crate::wedge_reach(a, [fa; 2], &circle, whole)
@@ -8599,7 +8610,7 @@ fn junction_of<T: Decide>(
         && matches!(departure(), Ok(crate::rim_wedge::Departure::Opposite))
         && crate::rim_wedge::rim_edges_convex(a, fa, rim, band)
         && crate::rim_wedge::rim_edges_convex(b, fb, rim, band))
-    .then_some(Junction {
+    .then_some(GluedJunction {
         kinds: (sa.kind(), sb.kind()),
         rim,
         margin,

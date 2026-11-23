@@ -315,16 +315,13 @@ fn the_g1_tube_chain_glues_its_meridian_a_junction_and_stops_at_the_crossing_lay
     let (Some(a), Some(b)) = (segment_a(), segment_b()) else {
         return;
     };
-    let walls: Vec<_> = topo::test_support::rim_door(&a, &b, Tol::witness())
+    let walls: Vec<_> = topo::boolean::rim_door(&a, &b, Tol::witness())
         .into_iter()
         .filter(|(kinds, _)| *kinds == (geom::SurfaceKind::Torus, geom::SurfaceKind::Torus))
         .map(|(_, door)| door)
         .collect();
     assert!(
-        !walls.is_empty()
-            && walls
-                .iter()
-                .all(|d| *d == topo::test_support::RimDoor::Junction),
+        !walls.is_empty() && walls.iter().all(|d| *d == topo::boolean::RimDoor::Junction),
         "the two walls on the meridian glue a junction: {walls:?}"
     );
     for (x, y) in [(&a, &b), (&b, &a)] {
