@@ -187,7 +187,6 @@ pub fn census_finding_solids<T: Real>(
         | E::SolidWithoutShells { .. }
         | E::ShellWithoutFaces { .. }
         | E::EdgeAcrossShells { .. }
-        | E::ComponentEulerViolation { .. }
         | E::MissingProvenance { .. }
         | E::LeakedProvenance { .. }
         | E::ScaffoldingEmptyLoop { .. }

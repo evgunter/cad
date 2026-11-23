@@ -163,7 +163,7 @@ impl<T: topo::AtRestPolicy> Blended<T> {
 /// clear a trimline, or a cap cycle does not clear the sliver a ruled
 /// cut-off removes; [`BlendError::Op`], carrying the operator's own
 /// typed refusal, when an Euler operator refuses;
-/// [`BlendError::Certify`], carrying the pass's own typed refusal,
+/// [`BlendError::PcurveMint`], carrying the pass's own typed refusal,
 /// when the result's pcurve caches cannot be re-minted.
 pub fn fillet_edges<F: topo::FinishedBody>(
     body: &F,
@@ -443,7 +443,7 @@ pub type Chamfered<T> = Blended<T>;
 /// body does not hold together where the plan reads it, among them a
 /// requested chain or corner bounded by faces of two shells;
 /// [`BlendError::RingClearance`] when a carried-through ring does not
-/// clear a trimline; [`BlendError::Op`] / [`BlendError::Certify`]
+/// clear a trimline; [`BlendError::Op`] / [`BlendError::PcurveMint`]
 /// carrying an operator's or the pcurve pass's own typed refusal.
 pub fn chamfer_edges<F: topo::FinishedBody>(
     body: &F,

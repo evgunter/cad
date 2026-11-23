@@ -466,12 +466,13 @@ fn transversality_refused(r: &Result<BooleanResult<f64>, topo::BooleanError>) ->
     };
     matches!(
         join.error(),
-        JoinError::Euler(EulerOpError::Certification {
+        JoinError::Euler(EulerOpError::DescriptionUncertified {
             error: CertifyError::NotTransverse { .. }
                 | CertifyError::Escalated {
                     check: CertCheck::Transversality,
                     ..
                 },
+            ..
         })
     )
 }

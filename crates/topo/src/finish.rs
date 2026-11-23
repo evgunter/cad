@@ -1301,7 +1301,6 @@ impl ValidationError {
             | Self::SolidWithoutShells { .. }
             | Self::ShellWithoutFaces { .. }
             | Self::EdgeAcrossShells { .. }
-            | Self::ComponentEulerViolation { .. }
             | Self::MissingProvenance { .. }
             | Self::LeakedProvenance { .. }
             | Self::NullScaffoldShared { .. }

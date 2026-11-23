@@ -65,8 +65,8 @@ pub(crate) fn signed_area(poly: &[(f64, f64, f64)], u: (f64, f64, f64), v: (f64,
 /// Euler-Poincare ledger check: v - e + f - r == 2(s - h), with r =
 /// number of ring loops (loops that are some face's ring) and s/h given
 /// by the caller (h = genus; as reviewed, "not derivable structurally
-/// until PR 5" — the validator's component pass derives it now, but the
-/// probe keeps its independent caller-supplied form).
+/// until PR 5" — the census door's `h()` derives it now, but the probe
+/// keeps its independent caller-supplied form).
 pub(crate) fn euler_poincare_holds(body: &Body<f64>, shells: i64, genus: i64) -> bool {
     let EulerCounts { v, e, f, r, .. } = euler_counts(body);
     v - e + f - r == 2 * (shells - genus)

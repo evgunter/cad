@@ -2,11 +2,12 @@
 id: a-family-members-read-of-another-member-is-served-from-a-prior-that-read-its-old-body
 kind: unit
 title: A family member's read of another member is served from a prior that read its old body: a stale result on the editor's incremental path, at every scalar
-status: dispatched
+status: review
 opened: 2026-11-23
 priority: P0
 cost: M
 branch: boxfinish/member-read-key
+pr: 7512
 ---
 
 

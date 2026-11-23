@@ -264,7 +264,7 @@ fn p1_shell_open_is_a_disjoint_ring_on_my_own_revolve() {
     // Euler bookkeeping on the returned data reads genus 0 — the census
     // door over the returned arenas, not the scene's helper.
     assert_eq!(
-        euler_counts(&cup).genus(),
+        euler_counts(&cup).h(),
         Ok(0),
         "Euler-Poincare over the returned arenas reads genus 0, as a cup's is"
     );

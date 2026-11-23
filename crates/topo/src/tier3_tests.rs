@@ -1624,8 +1624,9 @@ fn a_drafted_chord_refused_its_span_is_typed() {
     assert!(
         matches!(
             refusal,
-            crate::euler::EulerOpError::Certification {
-                error: geom_brep::CertifyError::StatedInterval { .. }
+            crate::euler::EulerOpError::DescriptionUncertified {
+                error: geom_brep::CertifyError::StatedInterval { .. },
+                ..
             }
         ),
         "the chord's span refuses typed: {refusal:?}"

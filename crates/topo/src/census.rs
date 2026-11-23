@@ -6063,14 +6063,13 @@ fn span_charge<T: Decide>(noise: T, band: Band) -> Option<T> {
     }
 }
 
-/// `a` against `b` read past the charge `n` (`name`'s bounds, decided
-/// through the funnel): the verdict where `a − b − n` and `a − b + n`
+/// `a − b`, read with the charge it carries (`name`'s bounds, decided
+/// through the funnel): the verdict where its enclosure's two ends
 /// agree, and the straddle between them ([`SPAN_ROUNDING`]) where they
 /// do not. `None` escalated (pushed).
 fn charged_cmp<T: Decide>(
     name: &'static str,
-    m: T,
-    n: T,
+    m: geom_core::Rounded<T>,
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<Sign> {
@@ -6079,11 +6078,11 @@ fn charged_cmp<T: Decide>(
         errors.push(ValidationError::CensusEscalated { cause });
         None
     };
-    let lower = match read(m - n) {
+    let lower = match read(m.lower_end()) {
         Ok(d) => d,
         Err(cause) => return escalated(cause, errors),
     };
-    let upper = match read(m + n) {
+    let upper = match read(m.upper_end()) {
         Ok(d) => d,
         Err(cause) => return escalated(cause, errors),
     };
@@ -6148,7 +6147,15 @@ fn span_cmp<T: Decide>(
         return Some(core::cmp::Ordering::Equal);
     }
     Some(
-        match charged_cmp(SPAN_ORDER_CHARGED, x.at - y.at, n, band, errors)? {
+        match charged_cmp(
+            SPAN_ORDER_CHARGED,
+            geom_core::Rounded {
+                value: x.at - y.at,
+                error: n,
+            },
+            band,
+            errors,
+        )? {
             Sign::Positive => core::cmp::Ordering::Greater,
             Sign::Negative => core::cmp::Ordering::Less,
             Sign::Zero => core::cmp::Ordering::Equal,
@@ -6273,7 +6280,15 @@ fn projected_overlap<T: Decide>(
             if one_point(lo, hi, band, errors)? {
                 Sign::Zero
             } else {
-                charged_cmp(EE_OVERLAP_CHARGED, hi.at - lo.at, n, band, errors)?
+                charged_cmp(
+                    EE_OVERLAP_CHARGED,
+                    geom_core::Rounded {
+                        value: hi.at - lo.at,
+                        error: n,
+                    },
+                    band,
+                    errors,
+                )?
             }
         }
         None => match decide("pm_census_ee_overlap", Margin::of(hi.at - lo.at), band) {

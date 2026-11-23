@@ -1259,3 +1259,103 @@ fn a_mirror_whose_plane_is_on_a_copy_is_not_on_that_copy() {
         "one row, its button X"
     );
 }
+
+/// **A placement's source row links the body behind it through the named
+/// source, and the body's read-by rows are its placements** — the two
+/// copies the fixture made, which is also what the tree badge counts.
+///
+/// *Breaks if* the source seat drops the variable's link or its body's,
+/// a reader at the source seat goes missing from the body's Properties,
+/// or the badge counts other than the copies made.
+#[test]
+fn a_source_links_its_variable_and_body_and_the_body_lists_its_placements() {
+    use pncad::document::OperandSlot;
+    use viewer::relations::{Seat, relations};
+    use viewer::session::Selection;
+    let tol = Tol::witness();
+    let (session, body, first, second) = placed_twice(tol);
+    let doc = session.committed_doc();
+    let files = session.part_files();
+    let index = doc.read_index();
+    let source = doc
+        .copied_read(second)
+        .expect("the placement reads a source");
+    let reads = relations(doc, &index, second, files).reads;
+    let row = reads
+        .iter()
+        .find(|row| row.seat == Seat::Operand(OperandSlot::Source))
+        .expect("the placement's source seat is a row");
+    let selects: Vec<_> = row.entries.iter().map(|e| e.selects.clone()).collect();
+    assert_eq!(
+        selects,
+        [Some(Selection::Node(body))],
+        "the body behind the source: {row:?}"
+    );
+    let space = reads
+        .iter()
+        .find(|row| row.seat == Seat::Operand(OperandSlot::Space))
+        .expect("the placement's target space is a row");
+    assert_eq!(
+        space
+            .entries
+            .iter()
+            .map(|e| e.selects.clone())
+            .collect::<Vec<_>>(),
+        [Some(Selection::Node(body))],
+        "placed where it stands, into the body's own space, whose definer it links: {space:?}"
+    );
+    let through = row.through.as_ref().expect("read through the named source");
+    assert_eq!(through.selects, Some(Selection::Variable(source)));
+    assert_eq!(through.said, "bracket", "the variable by its name");
+
+    let read_by = relations(doc, &index, body, files).read_by;
+    let placements: Vec<_> = read_by
+        .iter()
+        .filter(|row| row.seat == Seat::Operand(OperandSlot::Source))
+        .flat_map(|row| row.entries.iter().map(|e| e.selects.clone()))
+        .collect();
+    assert_eq!(
+        placements,
+        [Some(Selection::Node(first)), Some(Selection::Node(second))],
+        "the body lists both copies made: {read_by:?}"
+    );
+    assert_eq!(
+        common::row_of(&session.tree_rows(), body).placements,
+        [first, second],
+        "the badge counts the two copies made"
+    );
+}
+
+/// **A read whose node is gone says so in words**: the bracket's profile
+/// deleted, the body's profile row reads as a deleted node and links
+/// nothing, rather than spelling the variable's id.
+///
+/// *Breaks if* a stranded read is drawn as a raw id or as a link.
+#[test]
+fn a_read_of_a_deleted_node_says_so_in_words() {
+    use pncad::document::OperandSlot;
+    use viewer::relations::{DELETED, Seat, relations};
+    let tol = Tol::witness();
+    let (session, body) = bracket("offer-stranded-read", tol);
+    let [profile] = session.committed_doc().upstream(body)[..] else {
+        panic!("the box reads one profile")
+    };
+    // The document's own delete, which strands its readers rather than
+    // cascading as the session's does.
+    let doc = pncad::document::apply(
+        session.committed_doc(),
+        &DocEdit::DeleteNode { id: profile },
+        tol,
+    )
+    .expect("a delete refuses nothing")
+    .doc;
+    assert!(doc.node(body).is_some(), "the body stays, stranded");
+    let reads = relations(&doc, &doc.read_index(), body, session.part_files()).reads;
+    let row = reads
+        .iter()
+        .find(|row| row.seat == Seat::Operand(OperandSlot::Profile))
+        .expect("the profile seat is a row");
+    assert_eq!(row.entries.len(), 1, "{row:?}");
+    assert_eq!(row.entries[0].said, DELETED, "{row:?}");
+    assert_eq!(row.entries[0].selects, None, "{row:?}");
+}
