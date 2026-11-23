@@ -2876,19 +2876,22 @@ mod tests {
             profile::SketchPlane::xy(),
             vec![
                 profile::circle(Point2::new(0.0, 0.0), 1.0, tol)
-                    .unwrap()
+                    .expect("a unit circle")
                     .into(),
             ],
         )
         .validate(tol)
-        .unwrap();
+        .expect("a disc");
         let depth = sweep::Extrusion::Distance {
             depth: 2.0,
             side: sweep::ExtrudeSide::Along,
         };
         let rod = sweep::test_support::finished(
             "the rod",
-            sweep::extrude(&disc, depth, tol).unwrap().body.into_body(),
+            sweep::extrude(&disc, depth, tol)
+                .expect("the rod")
+                .body
+                .into_body(),
             tol,
         );
         let pose = Affine3::translation(Vec3::new(0.99, 0.0, 1.0))
@@ -2899,10 +2902,10 @@ mod tests {
                 &sweep::test_support::brick((0.0, 6.0), (-3.0, 3.0), (-0.4, 0.4), tol),
                 &geom_core::test_support::rigid(&pose, tol),
             )
-            .unwrap(),
+            .expect("the slab placed"),
             tol,
         );
-        let met = topo::intersect(&rod, &slab, tol).unwrap();
+        let met = topo::intersect(&rod, &slab, tol).expect("the sliver");
         Body::clone(&met.body().expect("a sliver").body)
     }
 
