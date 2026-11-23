@@ -102,11 +102,7 @@ use pncad::prelude::{
     CancelToken, Dimension, Doc, DocEdit, EvalOptions, Formula, LoopProgram, MM, Node,
     PI as HALF_TURN, ProfileProgram, RecipeNodeId, apply, evaluate,
 };
-// The unit TABLE is one hop away from the prelude — the scene reads its
-// own constants through `mm`'s door, the one the document's literals
-// went through, so the two cannot drift.
 use pncad::profile::{ConstructedLoop, SketchPlane};
-use pncad::quantity::MM;
 use pncad::sweep::{CavityOrigin, Revolution, RevolveAxis, revolve};
 use pncad::topo::Body;
 
