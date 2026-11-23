@@ -929,6 +929,19 @@ pub(crate) fn landings<'b, T: crate::props::AtRestPolicy>(
     Ok(out)
 }
 
+/// **The edge–edge record of edges `a` and `b` of `body`**, citing row
+/// `row` of the op's own list ([`Backing::Decided`]): two coincident
+/// edges an op minted and decided. `None` where the two are one edge.
+pub(crate) fn decided_edge_pair<T: Real>(
+    body: &Body<T>,
+    [a, b]: [EdgeKey; 2],
+    row: u32,
+) -> Option<Cited<Contact>> {
+    Contact::new(body, Cell::Edge(a), Cell::Edge(b))
+        .ok()
+        .map(|pair| Cited::new(pair, Cites::decided(row)))
+}
+
 /// Whether `cell`, an image `body` holds, reaches the cut by a decision
 /// the op made: it is, or is bounded by, a vertex of the op's ON set
 /// ([`crate::Lineage::on_the_cut`]). Never, for an op with no cut.

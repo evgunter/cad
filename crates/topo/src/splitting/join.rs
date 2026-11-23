@@ -94,7 +94,7 @@ pub(crate) struct CompletedSection {
     /// Whether the polygon bounds area or is a slit trace.
     pub(crate) kind: SectionKind,
     /// The coincident edge pairs its slits hold, in tree order.
-    pub(crate) coincident: Vec<CoincidentPair>,
+    pub(in crate::splitting) coincident: Vec<CoincidentPair>,
 }
 
 /// **Two coincident edges a slit holds** ([`Tree::slit`]): distinct
@@ -103,15 +103,15 @@ pub(crate) struct CompletedSection {
 /// they are owed an edge–edge record, which cites the operand edge ON
 /// the plane.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct CoincidentPair {
+pub(in crate::splitting) struct CoincidentPair {
     /// The operand's edge in the plane, in the operand's keys.
-    pub(crate) on: EdgeKey,
+    pub(in crate::splitting) on: EdgeKey,
     /// Its two ends, in the operand's keys.
-    pub(crate) ends: [crate::entity::VertexKey; 2],
+    pub(in crate::splitting) ends: [crate::entity::VertexKey; 2],
     /// Whether it is a line.
-    pub(crate) line: bool,
+    pub(in crate::splitting) line: bool,
     /// The slit's two edges over it.
-    pub(crate) edges: [EdgeKey; 2],
+    pub(in crate::splitting) edges: [EdgeKey; 2],
 }
 
 /// What a completed section polygon is, read from its topology before
@@ -1398,15 +1398,10 @@ impl Tree {
                 .collect();
             match over.as_slice() {
                 [(a, (ea, _)), (b, (eb, _))] if ea != eb => {
-                    let on = body.get_edge(edge).ok_or_else(|| corrupt_edge(edge))?;
-                    let start = |he: HalfEdgeKey| {
-                        body.get_half_edge(he)
-                            .map(|h| h.start)
-                            .ok_or_else(|| corrupt_he(he))
-                    };
+                    let (from, to) = body.edge_vertices(edge).ok_or_else(|| corrupt_edge(edge))?;
                     let pair = CoincidentPair {
                         on: edge,
-                        ends: [start(on.he_plus)?, start(on.he_minus)?],
+                        ends: [from, to],
                         line: crate::census::edge_is_line(body, edge),
                         edges: [*ea, *eb],
                     };

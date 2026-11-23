@@ -491,10 +491,9 @@ fn a_split_records_its_pinch_and_nothing_where_it_only_cuts() {
                 input: topo::Operand::A,
                 cell: topo::Cell::Edge(e),
             } => {
-                let edge = fx.body.get_edge(e).unwrap();
-                let start = |he| fx.body.get_half_edge(he).unwrap().start;
+                let (from, to) = fx.body.edge_vertices(e).unwrap();
                 assert!(
-                    tips.contains(&start(edge.he_plus)) && tips.contains(&start(edge.he_minus)),
+                    tips.contains(&from) && tips.contains(&to),
                     "{e:?} is the tip line between the tip vertices"
                 );
                 line = Some(k);

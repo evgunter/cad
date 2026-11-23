@@ -449,12 +449,8 @@ fn on_lines<T: Real>(
 ) -> Vec<OnLine> {
     body.edges()
         .filter(|&(e, _)| crate::census::edge_is_line(body, e))
-        .filter_map(|(e, data)| {
-            let ends =
-                [data.he_plus, data.he_minus].map(|he| body.get_half_edge(he).map(|h| h.start));
-            let [Some(a), Some(b)] = ends else {
-                return None;
-            };
+        .filter_map(|(e, _)| {
+            let (a, b) = crate::query::edge_ends(body, e);
             Some(OnLine {
                 edge: e,
                 segment: crate::census::edge_segment_key(body, e),
@@ -472,20 +468,20 @@ pub(in crate::splitting) struct OnLine {
     pub(in crate::splitting) margin: MarginDiag,
 }
 
-/// **The split's `SplitOn` row of operand cell `cell` ON the plane**
+/// **The split's `SplitOn` row of operand cell `key` ON the plane**
 /// (the tool), decided at `margin`, in `rows`: a vertex whose
 /// neighbourhood leaves two runs on a side, or an edge lying in the
 /// plane a coincident pair of the split's runs over. Its index, the
 /// cell's row once however many records cite it.
-pub(in crate::splitting) fn split_on_row(
+pub(in crate::splitting) fn split_on_row<K: crate::lineage::LineageKey>(
     rows: &mut Vec<crate::Coincidence>,
-    cell: crate::Cell,
+    key: K,
     margin: MarginDiag,
 ) -> u32 {
     let cells = [
         crate::RowCell::Input {
             input: crate::Operand::A,
-            cell,
+            cell: key.cell(),
         },
         crate::RowCell::Tool,
     ];
@@ -1195,7 +1191,7 @@ pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
         // crossing's vertex was minted on the plane, so no margin
         // decided it, and one run is a cut, not a touch.
         if let (true, Some(&margin)) = (runs.len() >= 2, on_margins.get(v)) {
-            split_on_row(&mut coincidences, crate::Cell::Vertex(v), margin);
+            split_on_row(&mut coincidences, v, margin);
         }
         let hood = insert::Neighborhood {
             vertex: v,

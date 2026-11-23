@@ -160,7 +160,7 @@ mod raw {
         pub(in crate::splitting) below: RawPart<T>,
         pub(in crate::splitting) naming: SplitNaming,
         coincidences: Vec<crate::Coincidence>,
-        mints: super::Mints,
+        mints: super::PlaneMints,
     }
 
     impl<T: Real> RawSplit<T> {
@@ -178,7 +178,7 @@ mod raw {
                 below,
                 naming,
                 coincidences: rows.rows,
-                mints: super::Mints {
+                mints: super::PlaneMints {
                     coincident,
                     on_lines: rows.on_lines,
                 },
@@ -193,7 +193,7 @@ mod raw {
             RawPart<T>,
             SplitNaming,
             Vec<crate::Coincidence>,
-            super::Mints,
+            super::PlaneMints,
         ) {
             (
                 self.above,
@@ -211,7 +211,7 @@ mod raw {
 /// the plane, along which a pinch's two copies run
 /// ([`Sides::minted_contacts`]).
 #[derive(Debug)]
-pub(in crate::splitting) struct Mints {
+pub(in crate::splitting) struct PlaneMints {
     pub(in crate::splitting) coincident: Vec<Coincident>,
     pub(in crate::splitting) on_lines: Vec<super::OnLine>,
 }
@@ -310,10 +310,10 @@ impl<'a, T: Real> Sides<'a, T> {
     /// [`FinishDesync::CoincidentUnheld`] for a pair no side holds.
     pub(in crate::splitting) fn minted_contacts(
         &self,
-        Mints {
+        PlaneMints {
             coincident,
             on_lines,
-        }: &Mints,
+        }: &PlaneMints,
         rows: &mut Vec<crate::Coincidence>,
     ) -> Result<SplitContacts, FinishDesync> {
         let mut out = SplitContacts::default();
@@ -324,29 +324,27 @@ impl<'a, T: Real> Sides<'a, T> {
                 let Some(line) = on_lines.iter().find(|l| l.segment == key) else {
                     continue;
                 };
-                let row = super::split_on_row(rows, Cell::Edge(line.edge), line.margin);
-                let contact = crate::Contact::new(body, Cell::Edge(a), Cell::Edge(b))
-                    .map_err(|_| FinishDesync::CoincidentOneCell { edges: [a, b] })?;
+                let row = super::split_on_row(rows, line.edge, line.margin);
+                let record = crate::boolean::records::decided_edge_pair(body, [a, b], row)
+                    .ok_or(FinishDesync::CoincidentOneCell { edges: [a, b] })?;
                 let list = match side {
                     PlaneSide::Above => &mut out.above,
                     _ => &mut out.below,
                 };
-                list.push(crate::Cited::new(contact, crate::Cites::decided(row)));
+                list.push(record);
             }
         }
         for pair in coincident {
             let mut held = false;
             for (side, body) in self.listed() {
-                let joins: Vec<crate::boolean::EdgeJoin> = self
-                    .naming
-                    .edge_joins
-                    .iter()
-                    .filter(|&&(s, _)| s == side)
-                    .map(|&(_, j)| j)
-                    .collect();
-                let [a, b] = pair
-                    .edges
-                    .map(|e| crate::boolean::edge_join::joined_edge(&joins, e));
+                // Each edge as the side's joins, in the order made, leave it.
+                let [a, b] = pair.edges.map(|e| {
+                    self.naming
+                        .edge_joins
+                        .iter()
+                        .filter(|&&(s, _)| s == side)
+                        .fold(e, |at, (_, j)| if j.gone == at { j.kept } else { at })
+                });
                 // A coplanar merge kills only an edge between two faces of
                 // one plane, and a slit's edge bounds a face of the cut and
                 // a wall leaving the plane: one the merge killed leaves its
@@ -364,13 +362,13 @@ impl<'a, T: Real> Sides<'a, T> {
                 if body.get_edge(a).is_none() || body.get_edge(b).is_none() {
                     continue;
                 }
-                let contact = crate::Contact::new(body, Cell::Edge(a), Cell::Edge(b))
-                    .map_err(|_| FinishDesync::CoincidentOneCell { edges: pair.edges })?;
+                let record = crate::boolean::records::decided_edge_pair(body, [a, b], pair.row)
+                    .ok_or(FinishDesync::CoincidentOneCell { edges: pair.edges })?;
                 let list = match side {
                     PlaneSide::Above => &mut out.above,
                     _ => &mut out.below,
                 };
-                list.push(crate::Cited::new(contact, crate::Cites::decided(pair.row)));
+                list.push(record);
                 held = true;
             }
             if !held {
@@ -3567,7 +3565,6 @@ mod parted_on_the_cut {
     use geom_core::{Point3, Tol, Vec3};
 
     use super::{RawPart, Sides};
-    use crate::CarryRefusal;
     use crate::body::Body;
 
     /// **A record the cut parts is consumed only where each cell reaches
@@ -3629,7 +3626,10 @@ mod parted_on_the_cut {
         );
         naming.on_vertices.clear();
         assert!(
-            matches!(carry(&naming), Err(CarryRefusal::Parted { record: 0 })),
+            matches!(
+                carry(&naming),
+                Err(crate::CarryRefusal::Parted { record: 0 })
+            ),
             "with no vertex on the cut the parted record refuses"
         );
     }

@@ -55,7 +55,7 @@ crate-visible             147  boolean/mod.rs
 crate-visible               3  boolean/nary.rs
 crate-visible              22  boolean/ops.rs
 crate-visible               1  boolean/overlap.rs
-crate-visible              20  boolean/records.rs
+crate-visible              18  boolean/records.rs
 crate-visible               7  boolean/reduce.rs
 crate-visible              19  boolean/refusal_routes.rs
 crate-visible              12  boolean/section_cert.rs
@@ -77,7 +77,7 @@ crate-visible               8  splitting/spiric_arc.rs
 crate-visible               3  splitting/spline_arc.rs
 
 names-boolean               1  attach.rs
-names-boolean               3  bound_side.rs
+names-boolean               2  bound_side.rs
 names-boolean             285  census.rs  # work/onecopy/the-census-sort-of-a-boolean-refusal-has-no-legal-home-under-topo-homes
 names-boolean               1  census/curved.rs
 names-boolean               2  census/confirm_only.rs  # work/onecopy/contact-records-are-declared-under-boolean-while-the-finished-body-at-the-root-holds-them
