@@ -1,0 +1,9 @@
+PANIC die_composed_tour rel=3e-1 #129:767741f704e8ebe6 = 0.5800000000000001 (nominal 0.28)
+PANIC die_composed_tour rel=3e-1 #357:2810486fa916a8a9 = 0.5800000000000001 (nominal 0.28)
+PANIC die_composed_tour rel=3e-1 #433:4871340191d62d6a = 0.8 (nominal 0.5)
+PANIC die_composed_tour rel=3e-1 #509:b22228a4e6a704b8 = 0.8 (nominal 0.5)
+PANIC die_composed_tour rel=3e-1 #744:9f2157e91944fa82 = 0.5800000000000001 (nominal 0.28)
+PANIC die_composed_tour rel=3e-1 #972:77de0c7836d1da04 = 0.5800000000000001 (nominal 0.28)
+PANIC die_composed_tour rel=3e-1 #1352:3d7e3060f60b5a4b = 0.5800000000000001 (nominal 0.28)
+PANIC die_composed_tour rel=3e-1 #1504:5e9b7e9fd63def62 = 0.5800000000000001 (nominal 0.28)
+compared 56695 moved 21237 failing-pairs 253 edits-refused 0

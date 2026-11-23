@@ -1,0 +1,26 @@
+Receipt { certified: 13, refused: 12, splits: 24 }
+certified bfc47ae147ae147b 0000000000000000 bfc47ae147ae147b 3fc47ae147ae147b differ=0/81
+certified 0000000000000000 3fb47ae147ae147b bfc47ae147ae147b 3fc47ae147ae147b differ=0/81
+certified 3fb47ae147ae147b 3fbeb851eb851eb8 bfc47ae147ae147b 3fc47ae147ae147b differ=0/81
+certified 3fbeb851eb851eb8 3fc1eb851eb851ec bfc47ae147ae147b 3fc47ae147ae147b differ=0/81
+certified 3fc1eb851eb851ec 3fc28f5c28f5c290 bfc47ae147ae147b 3fc47ae147ae147b differ=0/81
+certified 3fc28f5c28f5c290 3fc2e147ae147ae2 bfc47ae147ae147b 3fc47ae147ae147b differ=0/81
+certified 3fc2e147ae147ae2 3fc2f5c28f5c28f6 bfc47ae147ae147b 3fc47ae147ae147b differ=0/81
+certified 3fc2f5c28f5c28f6 3fc2f66666666666 bfc47ae147ae147b 3fc47ae147ae147b differ=0/81
+certified 3fc2f66666666666 3fc2f6b851eb851e bfc47ae147ae147b 3fc47ae147ae147b differ=0/81
+certified 3fc2f6b851eb851e 3fc2f6cccccccccc bfc47ae147ae147b 3fc47ae147ae147b differ=0/81
+certified 3fc2f6cccccccccc 3fc2f6ce147ae147 bfc47ae147ae147b 3fc47ae147ae147b differ=0/81
+certified 3fc2f6ce147ae147 3fc2f6ceb851eb84 bfc47ae147ae147b 3fc47ae147ae147b differ=0/81
+certified 3fc2f6ceb851eb84 3fc2f6cf0a3d70a3 bfc47ae147ae147b 3fc47ae147ae147b differ=0/81
+FlipCrossing 3fc3333333333334 3fc47ae147ae147b bfc47ae147ae147b 3fc47ae147ae147b differ=81/81
+FlipCrossing 3fc30a3d70a3d70b 3fc3333333333334 bfc47ae147ae147b 3fc47ae147ae147b differ=81/81
+FlipCrossing 3fc3000000000000 3fc30a3d70a3d70b bfc47ae147ae147b 3fc47ae147ae147b differ=81/81
+FlipCrossing 3fc2fae147ae147b 3fc3000000000000 bfc47ae147ae147b 3fc47ae147ae147b differ=81/81
+FlipCrossing 3fc2f851eb851eb8 3fc2fae147ae147b bfc47ae147ae147b 3fc47ae147ae147b differ=81/81
+FlipCrossing 3fc2f70a3d70a3d7 3fc2f851eb851eb8 bfc47ae147ae147b 3fc47ae147ae147b differ=81/81
+FlipCrossing 3fc2f6e147ae147a 3fc2f70a3d70a3d7 bfc47ae147ae147b 3fc47ae147ae147b differ=81/81
+FlipCrossing 3fc2f6d70a3d70a3 3fc2f6e147ae147a bfc47ae147ae147b 3fc47ae147ae147b differ=81/81
+FlipCrossing 3fc2f6d1eb851eb8 3fc2f6d70a3d70a3 bfc47ae147ae147b 3fc47ae147ae147b differ=81/81
+FlipCrossing 3fc2f6cf5c28f5c2 3fc2f6d1eb851eb8 bfc47ae147ae147b 3fc47ae147ae147b differ=81/81
+Budget 3fc2f6cf0a3d70a3 3fc2f6cf33333332 bfc47ae147ae147b 3fc47ae147ae147b differ=0/81
+Budget 3fc2f6cf33333332 3fc2f6cf5c28f5c2 bfc47ae147ae147b 3fc47ae147ae147b differ=45/81

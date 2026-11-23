@@ -181,6 +181,10 @@ mod dsc_checks;
 mod e4_dual_door;
 #[path = "e6_drive_over_a_loft_at_interval.rs"]
 mod e6_drive_over_a_loft_at_interval;
+#[path = "review_split_reads_probes.rs"]
+mod review_split_reads_probes;
+#[path = "review_split_reads_head_probes.rs"]
+mod review_split_reads_head_probes;
 #[path = "e6_split_reads_interval.rs"]
 mod e6_split_reads_interval;
 #[path = "edit_blend_canonical.rs"]
