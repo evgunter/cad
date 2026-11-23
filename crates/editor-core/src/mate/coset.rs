@@ -629,7 +629,7 @@ fn point_on_line<T: SolveScalar>(
 ) -> Result<bool, Indeterminate> {
     let off = geom::Line {
         origin,
-        dir: direction.get(),
+        dir: direction,
     }
     .offset(p);
     Ok(decide("mate_axis_point_offset", Margin::norm3(off), band)? == Sign::Zero)
