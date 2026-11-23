@@ -7425,6 +7425,13 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                          its roots are not certified",
                     )
                 };
+                // The canonical reading of a co-surface pair is
+                // `OnSurface::meet`. The cut-in reads the edge across the
+                // meridian's plane by `across`, which the direction table
+                // reads the same way, and decides the section itself,
+                // because a root at a pole lies on every half-meridian:
+                // the pole is read before the section, where `meet`
+                // decides the section first.
                 let roots = match geom_brep::curve_pair::on_surface::OnSurface::edge(
                     view.record().surface,
                     carrier,

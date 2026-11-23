@@ -48,6 +48,7 @@ use test_utils::source::{FORWARDS, NameCarrier, crate_dir, predicate_census, ros
 const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SQUARE_FOLD_HALF"),
     NameCarrier::Const("OVAL_SIDE"),
+    NameCarrier::Const("LINE_ROUNDING"),
     NameCarrier::Const("SQUARE_EDGE_OVER"),
     NameCarrier::Const("SPHERE_NEAR"),
     NameCarrier::Const("SPHERE_FAR"),

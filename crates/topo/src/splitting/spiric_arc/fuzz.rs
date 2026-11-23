@@ -61,11 +61,13 @@ struct Torus {
     o: f64,
 }
 
-/// Every regime the rate bounds cover: zero offset (a plane through
-/// the axis — [`geom::Curve3::spiric`] refuses it, the bounds' algebra
-/// does not), near-tangent cuts (`|o| → R − r`), very thin and very fat
-/// rings, negative offsets.
-fn torus(rng: &mut Rng) -> Torus {
+/// Every regime the rate bounds cover: near-tangent cuts
+/// (`|o| → R − r`), very thin and very fat rings, negative offsets, and
+/// by the axis: `through_axis`, zero offset (a plane through the axis —
+/// [`geom::Curve3::spiric`] refuses it, the bounds' algebra does not);
+/// otherwise a small one, inside the two-oval convention. Either way the
+/// draws are the same.
+fn torus(rng: &mut Rng, through_axis: bool) -> Torus {
     let big = 10f64.powf(rng.range(-2.0, 2.0));
     let r = big
         * match rng.below(4) {
@@ -74,10 +76,11 @@ fn torus(rng: &mut Rng) -> Torus {
             _ => rng.range(0.05, 0.95),
         };
     let ring = big - r;
-    // The two-oval convention, `0 < |o| < R − r`: by the axis, by the
-    // inner equator, and between.
     let frac = match rng.below(5) {
-        0 => 10f64.powf(rng.range(-6.0, -2.0)),
+        0 => {
+            let small = 10f64.powf(rng.range(-6.0, -2.0));
+            if through_axis { 0.0 } else { small }
+        }
         1 => 1.0 - 10f64.powf(rng.range(-6.0, -2.0)),
         _ => 0.001 + rng.unit() * 0.998,
     };
@@ -125,7 +128,7 @@ fn the_rate_bounds_hold_over_every_admitted_regime() {
     let mut rng = test_utils::fuzz::start("spiric_bounds");
     let (mut worst_a, mut worst_s) = (0.0_f64, 0.0_f64);
     for _ in 0..test_utils::fuzz::scaled(200) {
-        let t = torus(&mut rng);
+        let t = torus(&mut rng, true);
         let k = SpiricArc::new(
             oval::<f64>(t, Point3::new(0.0, 0.0, 0.0), frame(&mut rng)),
             (0.0, 1.0),
@@ -197,7 +200,7 @@ fn random_arcs<T: Decide>(lane: &str, cases: usize) {
     let mut on_refused = 0usize;
     let mut unminted = 0usize;
     for case in 0..cases {
-        let t = torus(&mut rng);
+        let t = torus(&mut rng, false);
         // Keep scale near metres so the band is meaningful relative to it.
         let scale = 1.0 / t.big;
         let t = Torus {
@@ -213,22 +216,46 @@ fn random_arcs<T: Decide>(lane: &str, cases: usize) {
         );
         let v0 = rng.range(-4.0, 4.0);
         let w = rng.range(0.05, core::f64::consts::TAU - 0.05);
-        // An edge's span ascends; the draw that once reversed it stays,
-        // so the stream after it does not move.
-        let _ = rng.below(2);
+        // The ray's crossings read an edge's span, which ascends; the
+        // boundary reading has no sense, and reads it either way.
+        let reversed = rng.below(2) == 1;
         let span = (v0, v0 + w);
-        // A cut the mint refuses at this band (its regime in band, or
-        // read past the inner equator) is no carrier a body holds.
-        if geom::Curve3::<f64>::spiric(c, fr.0, fr.1, t.big, t.r, t.o, band).is_err() {
-            unminted += 1;
-            continue;
-        }
         let cs = Case { t, fr, c };
         let cf: geom::Curve3<f64> = carrier(cs.t, cs.c, cs.fr);
         let k = SpiricArc::new(
             oval::<T>(cs.t, cs.c, cs.fr),
             (T::from_f64(span.0), T::from_f64(span.1)),
         );
+        let contact_arc = if reversed {
+            SpiricArc::new(
+                oval::<T>(cs.t, cs.c, cs.fr),
+                (T::from_f64(span.1), T::from_f64(span.0)),
+            )
+        } else {
+            k
+        };
+        // A cut the mint refuses at this band (its regime in band, or
+        // read past the inner equator): a ray across it is refused typed
+        // on the regime's margin, never read and never a fault.
+        if geom::Curve3::<f64>::spiric(c, fr.0, fr.1, t.big, t.r, t.o, band).is_err() {
+            unminted += 1;
+            let got = k.crossings(
+                crate::geometry::SurfaceKey::default(),
+                false,
+                normal_t::<T>(fr.1),
+                (
+                    Point3::new(T::from_f64(c.x), T::from_f64(c.y), T::from_f64(c.z)),
+                    normal_t::<T>(fr.0),
+                ),
+                band,
+            );
+            if got.is_ok() {
+                wrong.push(format!(
+                    "{lane} case {case} {t:?}: a cut the mint refuses read {got:?}"
+                ));
+            }
+            continue;
+        }
         let (axis, u) = fr;
         let m = axis.cross(u);
         let normal = u; // the plane's normal
@@ -300,7 +327,7 @@ fn random_arcs<T: Decide>(lane: &str, cases: usize) {
             // a near-tangent double crossing, so compare parity only.
             let truth_inside = (arc_cross + chord) % 2 == 1;
             asked += 1;
-            match k.contact(lift(q), ROWS, band) {
+            match contact_arc.contact(lift(q), ROWS, band) {
                 Ok(ArcHit::Off) => {}
                 other => {
                     refused_far += 1;
@@ -347,7 +374,7 @@ fn random_arcs<T: Decide>(lane: &str, cases: usize) {
             // point might be near another part of a non-convex oval.
             let dd = delta.abs();
             near_asked += 1;
-            let got = k.contact(lift(q), ROWS, band);
+            let got = contact_arc.contact(lift(q), ROWS, band);
             if dd <= band.escalate() && got == Ok(ArcHit::Off) {
                 wrong.push(format!(
                     "{lane} case {case} {:?}: δ={delta} in band read Off",
@@ -376,6 +403,12 @@ fn random_arcs<T: Decide>(lane: &str, cases: usize) {
     }
     println!(
         "{lane}: {asked} far asked, {abandoned} rays abandoned, {near_asked} near asked, {refused_far} refused past band, {on_refused} on-arc refused, {unminted} cuts the mint refuses"
+    );
+    // A ray is set aside near a graze or an arc's end; a lane that sets
+    // most aside reads nothing.
+    assert!(
+        abandoned * 5 <= asked,
+        "{lane}: {abandoned} of {asked} rays set aside"
     );
     assert!(
         wrong.is_empty(),

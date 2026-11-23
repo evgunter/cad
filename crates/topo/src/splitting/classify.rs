@@ -474,8 +474,7 @@ fn edge_roots<T: Decide + crate::props::AtRestPolicy>(
                     CrossWhy::Method {
                         fault: MeetFault::Escalated(_)
                             | MeetFault::Unsettled(geom_brep::roots::Unsettled::Tangency),
-                        door: geom_brep::curve_face::Door::PlaneCrossing
-                            | geom_brep::curve_face::Door::SpiricPlane,
+                        door: geom_brep::curve_face::Door::PlaneCrossing,
                     }
                 ) && !matches!(
                     span.place_param(geom::mid_param(w.window.0, w.window.1), band),

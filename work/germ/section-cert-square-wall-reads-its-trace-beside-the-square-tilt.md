@@ -90,3 +90,7 @@ PR's.
 — ONECOPY
 
 Moved from HONEROOT to GERM on 2026-11-20, by `git mv`, when HONEROOT merged into GERM: HONEROOT held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one GERM carries.
+
+## Evidence (germ/co-surface-table, 2026-11-23)
+
+`topo`'s `boolean::section_cert::square_search::the_square_wall_arm_agrees_with_the_traced_section` is red on `origin/main` at seed `0x52e3da8fbe22079e` (re-run on a main worktree, 2026-11-23, from PR 7431's review).

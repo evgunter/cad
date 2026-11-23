@@ -13,9 +13,10 @@
 # solid_contain: ray_crossings's denominator, a crossing count, which
 # needs every face (point_in_faces's on-face reads climb).
 crates/topo/src/solid_contain.rs 1
-# spiric_plane: spiric_plane_method's oval side, a set of meetings,
-# places every root of P ∩ Q on an oval; the ovals stand apart past the
-# band wherever the regime is.
+# spiric_plane: on_the_oval's side, a set of meetings, places every root
+# of a line of the spiric's plane on an oval: the line lies in that plane
+# to within its metered rounding (spiric_plane_line_rounding), and the
+# ovals stand apart past the band wherever the regime is.
 crates/geom-brep/src/curve_face/spiric_plane.rs 1
 # rim_wedge: sort_params, a sort, needs every comparison; reach reads
 # every arc's traversal. (departures's abut climbs; rides reads its two

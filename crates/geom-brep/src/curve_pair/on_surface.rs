@@ -76,7 +76,9 @@ pub enum Section<T: Real> {
     /// An edge's circle, of its plane's section: the one about `centre`
     /// at `radius`, where the plane holds another (a torus's meridian
     /// and its mirror, a Villarceau circle and its mirror, a parallel and
-    /// the one across the tube).
+    /// the one across the tube). Read as a distance from the centre, it
+    /// never cannot tell: a point where a Villarceau circle crosses its
+    /// mirror is on both, so on this one.
     Circle {
         /// The circle's centre.
         centre: Point3<T>,
@@ -138,8 +140,9 @@ pub enum Family {
     /// A cylinder's or a cone's parallel: its plane square to the axis
     /// meets the surface square all along it.
     Parallel,
-    /// A torus's parallel: its plane is tangent to the torus along its
-    /// top and bottom circles.
+    /// A torus's parallel: its plane is square to the axis, tangent to the
+    /// torus along the crest parallels (its top and bottom circles) and
+    /// all but tangent along the parallels near them.
     TorusParallel,
     /// A torus's or a sphere's meridian: its plane holds the axis and is
     /// normal to the surface everywhere.
@@ -173,8 +176,9 @@ pub enum Read {
 ///
 /// - A torus's parallel against a planar edge (a circle, an ellipse, a
 ///   spiric) reads the parallel across the edge's plane: the parallel's
-///   own plane is tangent to the torus along its top and bottom circles,
-///   where an edge across it grazes it. A torus's circle edge is a
+///   own plane is tangent to the torus along the crest parallels and all
+///   but tangent along those near them, where an edge across it grazes it
+///   or crosses it at a pair of roots the band cannot part. A torus's circle edge is a
 ///   meridian, whose plane is normal to the torus, or a parallel, whose
 ///   plane is the leg's or parallel to it, or a Villarceau circle, whose
 ///   plane is tangent to the torus at two points: that row has no
@@ -204,7 +208,17 @@ pub const fn direction(curve: Family, edge: geom::CurveKind) -> Read {
             Spiric,
         ) => Read::LegOverEdge,
         (Family::ULine, Spiric) => Read::EdgeOverLeg,
-        (_, Line | Nurbs | Periodic) => Read::EdgeOverLeg,
+        (
+            Family::Parallel
+            | Family::TorusParallel
+            | Family::Meridian
+            | Family::Ruling
+            | Family::Generator
+            | Family::ULine
+            | Family::GreatCircle
+            | Family::SmallCircle,
+            Line | Nurbs | Periodic,
+        ) => Read::EdgeOverLeg,
         (
             Family::Parallel
             | Family::Meridian
@@ -1069,13 +1083,15 @@ impl<'a, T: Decide> OnSurface<'a, T> {
     }
 
     /// **Where the edge meets `curve`**, read in the direction the table
-    /// fixes for the pair ([`direction`]), `span` the curve's span and
-    /// whether it is a whole turn with no ends (`endless`), asked only
-    /// where the curve is read across the edge's plane: one curve across the other's plane by the
-    /// crossing reading, each meeting kept where it lies on both curves'
-    /// own sections of their planes (the read curve's by construction,
-    /// the other's decided on `row`), and placed on the edge's span by
-    /// the span's own reading.
+    /// fixes for the pair ([`direction`]): one curve across the other's
+    /// plane by the crossing reading.
+    ///
+    /// Each meeting is kept where it lies on both curves' own sections of
+    /// their planes: the read curve's by construction, the other's decided
+    /// on `row`. It is then placed on the edge's span by the span's own
+    /// reading, and a meeting past the span is none. `span` gives the
+    /// curve's span and whether it is a whole turn with no ends; it is
+    /// asked only where the curve is read across the edge's plane.
     ///
     /// # Errors
     ///
@@ -1463,6 +1479,31 @@ mod tests {
         assert!(
             (m.point - want).norm() < 1e-9,
             "{label}: {m:?}, want {want:?}"
+        );
+    }
+
+    /// **A meeting past the edge's span is none** ([`OnSurface::meet`]'s
+    /// placement): a parallel leg read across a meridian edge's plane
+    /// meets the meridian's circle at its tube angle, which lands inside
+    /// one span of the edge and past another.
+    #[test]
+    fn a_meeting_past_the_edges_span_is_none() {
+        let (big, minor, v) = (5.0, 1.5, 0.7);
+        let torus = torus();
+        let on = on(&torus);
+        let meridian = SurfaceCurve::meridian(&on, Point2::new(0.0, 0.0), true).unwrap();
+        let edge = meridian.carrier();
+        let parallel = SurfaceCurve::parallel(&on, Point2::new(0.0, v), true).unwrap();
+        let whole = || ((-PI, PI), true);
+        lands_once(
+            "a span holding the meeting",
+            OnSurface::edge(key(), &edge, (0.5, 1.0)).meet(&parallel, whole, ROW, b()),
+            Point3::new(big + minor * v.cos(), 0.0, minor * v.sin()),
+        );
+        let past = OnSurface::edge(key(), &edge, (1.0, 2.5)).meet(&parallel, whole, ROW, b());
+        assert!(
+            matches!(past, Ok(Met::Meets(ref m)) if m.is_empty()),
+            "a span past the meeting: {past:?}"
         );
     }
 

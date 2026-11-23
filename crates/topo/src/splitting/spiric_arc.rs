@@ -395,27 +395,47 @@ mod tests {
     /// off the arc `v ∈ [−3, 3]`. The whole oval's speed bound is up to
     /// `10⁴` times its typical speed there; each piece's own window keeps
     /// the reading to the pieces by the pinch, and it answers `Off`, and
-    /// a ray from there is counted, up to a cut within the band of the
-    /// pinch, which no mint makes.
+    /// a ray from there is counted. A cut within the band of the pinch,
+    /// which the mint refuses, refuses the ray typed on the regime's
+    /// margin.
     #[test]
     fn a_near_tangent_cut_reads_and_crosses_a_far_point() {
         let band = Band::linear(Tol::witness()).unwrap();
-        for frac in [0.99, 0.9999, 0.999_999, 0.999_999_99] {
-            let o = 0.75 * frac;
+        let gaps = [0.99, 0.9999, 0.999_999, 0.999_999_99]
+            .map(|frac| 0.75 * (1.0 - frac))
+            .into_iter()
+            .chain([5e-10, 1e-11, 1e-13]);
+        for gap in gaps {
+            let (o, frac) = (0.75 - gap, gap);
             let k = SpiricArc::new(oval(1.0, 0.25, o), (-3.0, 3.0));
             let mid_y = 0.5 * (k.point(0.0).y + k.point(core::f64::consts::PI).y);
             let q = Point3::new(o, mid_y, 0.0);
-            assert_eq!(k.contact(q, ROWS, band), Ok(ArcHit::Off), "frac {frac}");
+            assert_eq!(k.contact(q, ROWS, band), Ok(ArcHit::Off), "gap {frac}");
             let d = Vec3::new(0.0, 0.3_f64.cos(), 0.3_f64.sin());
             let normal = Vec3::new(1.0, 0.0, 0.0);
             // One crossing: the ray leaves the oval's interior through
-            // the arc (the gap `v ∈ [3, 2π − 3]` lies behind it).
-            // A cut within the band of the pinch is no carrier the mint
-            // makes at this band (its regime reads in band or past the
-            // inner equator), so its crossing is not read here.
-            if 0.75 - o > band.escalate() {
-                let got = k.crossings(SurfaceKey::default(), false, normal, (q, d), band);
-                assert!(matches!(got, Ok(Some(1))), "frac {frac}: {got:?}");
+            // the arc (the gap `v ∈ [3, 2π − 3]` lies behind it). A cut
+            // the mint refuses, within the band of the pinch, reads its
+            // regime in band or past the inner equator: the ray is set
+            // aside on the regime's margin, typed, never a fault.
+            let got = k.crossings(SurfaceKey::default(), false, normal, (q, d), band);
+            let minted = geom::Curve3::spiric(
+                Point3::origin(),
+                Vec3::unit_z(),
+                Vec3::unit_x(),
+                1.0,
+                0.25,
+                o,
+                band,
+            )
+            .is_ok();
+            if minted {
+                assert!(matches!(got, Ok(Some(1))), "gap {frac}: {got:?}");
+            } else {
+                assert!(
+                    matches!(got, Err(d) if d.predicate == Some("curve_face_pose_spiric_two_ovals")),
+                    "gap {frac}: {got:?}"
+                );
             }
         }
     }

@@ -1438,10 +1438,12 @@ fn conic_or_line_on<T: Decide>(
         ) => {
             return spiric_on_curved(carrier, (t0, t1), offset, surface, band);
         }
-        // A spiric against a plane: the spiric × plane arm's pose, in the
-        // plane where it lies and otherwise meeting it at four points at
-        // most.
-        (geom::Curve3::Spiric { .. }, geom::Surface::Plane { .. }) => {
+        // A carrier the table reads by the spiric × plane door: its pose,
+        // in the plane where it lies and otherwise meeting it at four
+        // points at most.
+        _ if geom_brep::curve_face::route(carrier.kind(), surface.kind()).door
+            == geom_brep::curve_face::Door::SpiricPlane =>
+        {
             use geom_brep::curve_face::{Pose, PoseRefusal};
             let span = geom_brep::curve_pair::Span::new(carrier, (t0, t1));
             return match geom_brep::curve_face::pose(&span, surface, band) {
