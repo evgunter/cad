@@ -419,7 +419,7 @@ impl<T: Decide> SurfaceCurve<T> {
         let Shape::Circle(c) = self.shape else {
             unreachable!("only a circle's start moves: a line's origin is its locus")
         };
-        let (centre, axis) = (c.frame.origin(), c.frame.axis());
+        let (centre, axis) = (c.frame().origin(), c.frame().axis());
         let w = p - centre;
         let w = w - axis * w.dot(axis);
         debug_assert!(
@@ -741,7 +741,7 @@ impl<'a, T: Decide> OnSurface<'a, T> {
         // The plane is charted along the curve: a circle's reference, or a
         // line's direction, each in its plane.
         let u_ref = match curve.shape {
-            Shape::Circle(c) => c.frame.u_ref(),
+            Shape::Circle(c) => c.frame().u_ref(),
             Shape::Line(l) => l.dir,
         };
         let plane = geom::Surface::Plane {
@@ -751,14 +751,12 @@ impl<'a, T: Decide> OnSurface<'a, T> {
     }
 
     /// **The plane the edge's carrier lies in**, as a frame whose axis is
-    /// its unit normal: a conic's own frame as stored, a spiric's cutting
+    /// its unit normal: a conic's own frame, its axes as stored, a spiric's cutting
     /// plane with the spiric's `u_ref` kept bit for bit as its axis. A line
     /// lies in no one plane (`None`).
     pub fn plane(&self) -> Option<Frame<T>> {
         match *self.carrier {
-            Curve3::Circle(Circle { frame, .. }) | Curve3::Ellipse(geom::Ellipse { frame, .. }) => {
-                Some(frame)
-            }
+            Curve3::Circle(_) | Curve3::Ellipse(_) => self.carrier.frame(),
             Curve3::Spiric { frame, offset, .. } => {
                 let (center, u_ref) = (frame.origin(), frame.u_ref());
                 Some(Frame::of_motion(&geom_core::RigidMotion::squared_about(

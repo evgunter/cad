@@ -46,6 +46,15 @@ Reads definite against the exact sign:
 
 Example: exact gap −3.86e-11, read `Isolated`.
 
+A sibling on the same ground: an ellipse held on its arc (`Ellipse::anchored`)
+answers `frame()` at its derived centre, `anchor − u·a·cos θ₀ − v·b·sin θ₀`,
+which rounds at `u·far` when the anchor is far from the centre. A reader
+that takes that frame as a plane (`OnSurface::plane`,
+`ring_path::LoopArc::plane`) places the plane's origin off the plane by
+that much, along the normal. Placing the plane at the stored anchor, which
+lies in it exactly, would avoid this, but no public door hands the anchored
+placement out (`Ellipse::stored` is `pub(super)`).
+
 ## Settles when
 
 The belly `r − |d₀|` is posed so its digits are the gap's own. That

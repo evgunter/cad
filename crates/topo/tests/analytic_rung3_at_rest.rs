@@ -121,11 +121,12 @@ fn a_carrier_bumped_off_the_plane_between_samples_refuses_at_mev() {
         assert!(
             matches!(
                 &made,
-                Err(EulerOpError::Certification {
+                Err(EulerOpError::DescriptionUncertified {
                     error: CertifyError::AnalyticRung3(AnalyticRung3Refusal::Limb {
                         operand: geom::SurfaceKind::Plane,
                         margin,
                     }),
+                    ..
                 }) if (0.99 * between..=1.01 * between).contains(&upper(*margin))
             ),
             "bump {bump:e} (off the plane by {between:e}): {made:?}"
