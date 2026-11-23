@@ -403,7 +403,8 @@ fn the_ellipse_arm_recovers_the_eccentric_anomaly() {
 /// `None` — the typed refusal each consumer turns into its own error.
 #[test]
 fn the_nurbs_arm_refuses() {
-    let nurbs = Curve3::<f64>::nurbs_placeholder();
+    let nurbs: Curve3<f64> =
+        geom::test_support::nurbs_segment(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
     assert!(nurbs.param_near(Point3::new(0.0, 0.0, 0.0), 0.0).is_none());
 }
 
