@@ -6507,24 +6507,25 @@ pub fn validate_geometric_certificate<
     // and reported first, as the structural doors' one pass reports it
     // (`cleave_mint_doors::split_edge_splits_an_m7_8_edge_into_two_of_the_class_at_f64`
     // pins both: check 7's verdict, then check 11's).
-    validate_geometric_kept(body, tol).map(|(certificate, _)| certificate)
+    kept_via(
+        structural_via(body, tol, StructuralPhase::BeforeCertifiedCheck7),
+        || validate_geometric_certified(body, tol),
+    )
+    .map(|(certificate, _)| certificate)
 }
 
-/// [`validate_geometric_certificate`], handing back tier 3's per-entity
-/// facts beside the certificate ([`crate::Tier3Facts`]): the finished
-/// body's verdict.
-pub(crate) fn validate_geometric_kept<
-    T: geom_core::CertifiedBounds + crate::props::CertifiedPolicy,
->(
-    body: &Body<T>,
-    tol: Tol,
-) -> Result<(crate::props::SignCertificate<'_, T>, crate::Tier3Facts<T>), Vec<ValidationError>> {
-    match structural_via(body, tol, StructuralPhase::BeforeCertifiedCheck7) {
-        Ok((_, facts)) => validate_geometric_certified(body, tol).map(|kept| (kept, facts)),
+/// **The composed door's two halves, joined**: the structural half's
+/// facts beside what the certified half hands back, the certified half
+/// made only behind a structural half that is clean or refused by check
+/// 11 alone (whose findings then follow the certified half's).
+fn kept_via<C, T>(
+    structural: Result<(Option<C>, crate::Tier3Facts<T>), Vec<ValidationError>>,
+    certified: impl FnOnce() -> Result<C, Vec<ValidationError>>,
+) -> Result<(C, crate::Tier3Facts<T>), Vec<ValidationError>> {
+    match structural {
+        Ok((_, facts)) => certified().map(|kept| (kept, facts)),
         Err(joinable) if joinable.iter().all(ValidationError::is_check_11) => {
-            let mut errors = validate_geometric_certified(body, tol)
-                .err()
-                .unwrap_or_default();
+            let mut errors = certified().err().unwrap_or_default();
             errors.extend(joinable);
             Err(errors)
         }
@@ -10907,8 +10908,11 @@ impl<T: crate::props::AtRestPolicy> AtRestBody<T> {
     {
         crate::finish::count_finish();
         let (sign, facts) = geom_core::k_stats::checking(|| {
-            validate_geometric_kept(&body, tol)
-                .map(|(certificate, facts)| (certificate.into_parts(), facts))
+            kept_via(
+                structural_via(&body, tol, StructuralPhase::BeforeCertifiedCheck7),
+                || validate_geometric_certified(&body, tol),
+            )
+            .map(|(certificate, facts)| (certificate.into_parts(), facts))
         })?;
         Ok(Self {
             body,

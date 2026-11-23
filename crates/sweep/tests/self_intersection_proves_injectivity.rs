@@ -205,9 +205,8 @@ fn injective<T: Scalar>(
     budget: usize,
 ) -> BoundReport<Witness> {
     let faces = faces.unwrap_or_else(|| body.faces().map(|(k, _)| k).collect());
-    let windows = geometric(body)
-        .windows(faces, Which::First)
-        .expect("every face has a window");
+    let windows =
+        Side::windows_of(&geometric(body), faces, Which::First).expect("every face has a window");
     let sweep = Sweep {
         bound: ClearanceBound::StrictlyPositive,
         band: band(),
@@ -2607,11 +2606,8 @@ fn pair_report<T: Scalar>(
     budget: usize,
 ) -> BoundReport<()> {
     let geometric = geometric(body);
-    let window = |f| {
-        geometric
-            .windows(vec![f], Which::First)
-            .expect("every face has a window")
-    };
+    let window =
+        |f| Side::windows_of(&geometric, vec![f], Which::First).expect("every face has a window");
     let sweep = Sweep {
         bound: ClearanceBound::StrictlyPositive,
         band: band(),
@@ -2918,11 +2914,8 @@ fn wall_against_wall<T: Scalar>(
     bound: ClearanceBound,
 ) -> BoundReport<Witness> {
     let geometric = geometric(body);
-    let window = |f, which| {
-        geometric
-            .windows(vec![f], which)
-            .expect("a wall has a window")
-    };
+    let window =
+        |f, which| Side::windows_of(&geometric, vec![f], which).expect("a wall has a window");
     let sweep = Sweep {
         bound,
         band: band(),
@@ -3047,11 +3040,8 @@ fn wall_against_wall_unwitnessed<T: Scalar>(
     budget: usize,
 ) -> BoundReport<()> {
     let geometric = geometric(body);
-    let window = |f, which| {
-        geometric
-            .windows(vec![f], which)
-            .expect("a wall has a window")
-    };
+    let window =
+        |f, which| Side::windows_of(&geometric, vec![f], which).expect("a wall has a window");
     let sweep = Sweep {
         bound,
         band: band(),
@@ -3172,11 +3162,12 @@ fn the_walk_reads_its_charts_and_edges_through_their_memos() {
     )
     .expect("the half-turn helix sweeps")
     .body;
-    let side = Side {
-        body: &body,
-        faces: body.faces().map(|(k, _)| k).collect(),
-    };
-    let windows = side.windows(Which::First).expect("every face has a window");
+    let windows = Side::windows_of(
+        &geometric(&body),
+        body.faces().map(|(k, _)| k).collect(),
+        Which::First,
+    )
+    .expect("every face has a window");
     let sweep = Sweep {
         bound: ClearanceBound::StrictlyPositive,
         band: band(),

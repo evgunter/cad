@@ -322,11 +322,14 @@ pub(crate) struct Facts {
 /// closed curve ([`Facts::of`]); `None` for any other face.
 fn spanned(edges: &[Rim]) -> Option<Lever<Interval>> {
     let (first, rest) = edges.split_first()?;
-    rest.iter()
-        .all(|o| one_conic(first, o))
-        .then(|| first.arc.as_ref())
-        .flatten()
-        .and_then(|(carrier, _)| geom_brep::spanned_curve_run(carrier))
+    if !rest.iter().all(|o| one_conic(first, o)) {
+        return None;
+    }
+    let arcs: Option<Vec<_>> = edges
+        .iter()
+        .map(|e| e.arc.as_ref().map(|(carrier, span)| (carrier, *span)))
+        .collect();
+    geom_brep::spanned_curve_run(arcs?)
 }
 
 impl Facts {

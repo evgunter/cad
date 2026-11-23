@@ -65,7 +65,7 @@
 //! Everything is comparison-free: `max` and `min` are the [`Real`]
 //! lattice operations.
 
-use geom::cover::{Cover, ParamWindow, Site, Uncovered};
+use geom::cover::{Around, Core, Cover, ParamWindow, Site, Uncovered};
 use geom::{Conic, Curve3, Line};
 use geom_core::spline::SpanLocate;
 use geom_core::{Lever, Point3, Real, Vec3, is_finite_length, poison};
@@ -1192,66 +1192,105 @@ impl<T: SpanLocate> BoundaryStations<T> {
     }
 }
 
-/// **The run of a face that spans a closed curve**, for the kinds with
-/// a centre the curve stays a known distance from: a circle's radius, an
-/// ellipse's lesser semi-axis, a spiric oval's minor radius; `None` for
-/// any other carrier.
+/// **The run of a face that spans a closed curve**: where `edges`, the
+/// face's whole boundary, are one loop lying on one closed planar curve
+/// with a centre (a circle, an ellipse, a spiric oval), the nearest that
+/// curve stands to the line through its centre square to its plane;
+/// `None` for any other first carrier, or where a piece has no cover.
 ///
-/// A face whose whole boundary is one loop lying on one such curve spans
-/// it: the loop is the curve, which winds once about the line through
-/// its centre square to its plane, so the face, a surface bounded by it,
-/// meets that line. A point of the line `t` along it stands
-/// `√(ρ² + t²)` from the curve's point `ρ` from the centre, and `ρ` is
-/// at least the length returned:
+/// Such a face spans the curve: the loop is the curve, which winds once
+/// about that line, so the face, a surface bounded by it, meets the
+/// line. Every point of the line stands at least the line's distance
+/// from the curve away from it. So the face reaches at least that far
+/// from the curve: a lower bound of its run from each of its edges,
+/// where its stations, all on the curve, read none.
 ///
-/// - a circle's points are its radius from its centre, and an ellipse's
-///   at least its lesser semi-axis;
-/// - a spiric oval is, in its plane, the image of the tube's circle of
-///   the minor radius `r` under `(x, y) ↦ (g(x), y)`,
-///   `g(x) = √((R + x)² − d²)`, whose derivative is at least one, so no
-///   distance shrinks: the image of that circle's centre stands at least
-///   `r` from every point of the oval, and the oval winds once about it.
+/// The line is through the middle of the curve's points at parameters
+/// `0` and `π`, along its tangent at `0` crossed with the chord between
+/// them. On each of the three kinds those two points are the ends of an
+/// axis of symmetry the tangent at `0` is square to, so the line is
+/// square to the curve's plane through a point inside it (a conic's
+/// centre; on a spiric oval, between its two crossings of its axis of
+/// symmetry). The distance is the edges' covers' own, in pieces
+/// ([`halved`]), about that line: a cover holds its piece, so the
+/// nearest any cover stands is never past the curve's.
 ///
-/// So the face reaches at least that far from the curve: a lower bound
-/// of its run, where its stations, all on the curve, read none. That the
-/// boundary is one loop on this one curve is the caller's to have read.
+/// That the boundary is one loop on this one curve is the caller's to
+/// have read.
 ///
 /// The face's run from the edge's middle, which reads a disc at its
 /// diameter, is past the disc's true run, its radius, and so is no bound
 /// from below.
-pub fn spanned_curve_run<T: Real>(carrier: &Curve3<T>) -> Option<Lever<T>> {
+pub fn spanned_curve_run<'a, T: SpanLocate + 'a>(
+    edges: impl IntoIterator<Item = (&'a Curve3<T>, (T, T))>,
+) -> Option<Lever<T>> {
+    let edges: Vec<_> = edges.into_iter().collect();
+    let (first, _) = edges.first()?;
+    if !is_centred_oval(first) {
+        return None;
+    }
+    let (near, far) = (first.eval(T::zero()), first.eval(T::pi()));
+    let through = Line {
+        origin: near + (far - near) * T::from_f64(0.5),
+        dir: first.deriv(T::zero()).cross(far - near),
+    };
+    edges
+        .iter()
+        .flat_map(|&(carrier, span)| halved(carrier, span))
+        .map(|cover| Some(cover?.range_about(&Around::Line(through)).0))
+        .reduce(|a, b| Some(a?.min(b?)))?
+        .map(Lever::of_consumed_extent)
+}
+
+/// **Whether a carrier is a closed planar curve its points at `0` and
+/// `π` are the ends of an axis of symmetry of**, with its tangent at `0`
+/// square to that axis: a circle, an ellipse, a spiric oval. A statement
+/// about the kind's shape, which the kinds are matched for; no region is
+/// read here.
+fn is_centred_oval<T: Real>(carrier: &Curve3<T>) -> bool {
     match carrier {
-        Curve3::Circle(c) => Some(Lever::of_consumed_extent(c.radius().abs())),
-        Curve3::Ellipse(e) => Some(Lever::of_consumed_extent(
-            e.semi_u().abs().min(e.semi_v().abs()),
-        )),
-        Curve3::Spiric { minor_radius, .. } => Some(Lever::of_consumed_extent(minor_radius.abs())),
-        Curve3::Line(_) | Curve3::Nurbs(_) | Curve3::Periodic(_) => None,
+        Curve3::Circle(_) | Curve3::Ellipse(_) | Curve3::Spiric { .. } => true,
+        Curve3::Line(_) | Curve3::Nurbs(_) | Curve3::Periodic(_) => false,
     }
 }
 
-/// How many pieces a carrier with no closed distance is covered in over
-/// its span ([`Locus::Pieces`]).
-const LOCUS_PIECES: u32 = 64;
+/// `carrier`'s covers over `span` in `2^` [`LOCUS_HALVINGS`] equal
+/// pieces; `None` for a piece with no cover.
+fn halved<T: SpanLocate>(carrier: &Curve3<T>, span: (T, T)) -> Vec<Option<Cover<T>>> {
+    let mut spans = vec![span];
+    for _ in 0..LOCUS_HALVINGS {
+        spans = spans
+            .into_iter()
+            .flat_map(|(t0, t1)| {
+                let mid = geom::mid_param(t0, t1);
+                [(t0, mid), (mid, t1)]
+            })
+            .collect();
+    }
+    spans
+        .into_iter()
+        .map(|(t0, t1)| carrier.cover_over(ParamWindow::new(t0, t1)).ok())
+        .collect()
+}
+
+/// How many times a carrier with no closed distance is halved over the
+/// edge's span ([`Locus::Pieces`]): `2^6` pieces.
+const LOCUS_HALVINGS: u32 = 6;
 
 /// **A shared edge's locus, as a distance from below is read from it**
-/// ([`BoundaryStations::run_from_edge`]).
+/// ([`BoundaryStations::run_from_edge`]). Each station is read as its
+/// own one-point cover about the locus, or against the locus's cover,
+/// so every distance is a cover's reading ([`Cover::range_about`],
+/// [`Cover::distance_range`]) and none is spelled here.
 enum Locus<T: Real> {
-    /// A line, whole: the perpendicular distance, exact. A face's run
-    /// along the line is no distance from it.
-    Line(Line<T>),
-    /// A circle, whole: `√((ρ − r)² + t²)`, exact.
-    Circle { axis: Line<T>, radius: T },
-    /// An ellipse, whole. It lies in its plane between the circles of
-    /// its two semi-axes about its centre, so a point `t` off the plane
-    /// and `ρ` from the axis stands at least
-    /// `√(t² + max(0, ρ − a, b − ρ)²)` from it, `a ≥ b` the semi-axes.
-    Ellipse { axis: Line<T>, major: T, minor: T },
-    /// A carrier with no closed distance (a spiric, a spline), over the
-    /// edge's own span in [`LOCUS_PIECES`] equal pieces: the nearest any
-    /// piece's cover stands to the point. A cover holds its piece, so
-    /// that is never past the distance from the arc. A piece with no
-    /// cover reads zero.
+    /// A line or a circle, whole: the station's distance about it,
+    /// exact. A face's run along the line or round the circle is no
+    /// distance from it.
+    About(Around<T>),
+    /// Any other carrier, over the edge's own span in `2^`
+    /// [`LOCUS_HALVINGS`] pieces: the nearest any piece's cover stands
+    /// to the station. A cover holds its piece, so that is never past
+    /// the distance from the arc. A piece with no cover reads zero.
     ///
     /// The locus here is the edge's arc, not the carrier past its ends,
     /// so a face's run along such an edge past an end still counts.
@@ -1259,53 +1298,28 @@ enum Locus<T: Real> {
 }
 
 impl<T: SpanLocate> Locus<T> {
-    fn of(carrier: &Curve3<T>, (t0, t1): (T, T)) -> Self {
-        let axis = |frame: &geom::Frame<T>| Line {
-            origin: frame.origin(),
-            dir: frame.axis(),
-        };
-        match carrier {
-            Curve3::Line(line) => Self::Line(*line),
-            Curve3::Circle(c) => Self::Circle {
-                axis: axis(&c.frame),
-                radius: c.radius().abs(),
-            },
-            Curve3::Ellipse(e) => {
-                let (u, v) = (e.semi_u().abs(), e.semi_v().abs());
-                Self::Ellipse {
-                    axis: axis(&e.frame),
-                    major: u.max(v),
-                    minor: u.min(v),
-                }
-            }
-            Curve3::Spiric { .. } | Curve3::Nurbs(_) | Curve3::Periodic(_) => {
-                let step = (t1 - t0) / T::from_f64(f64::from(LOCUS_PIECES));
-                let at = |k: u32| match k {
-                    0 => t0,
-                    LOCUS_PIECES => t1,
-                    k => t0 + step * T::from_f64(f64::from(k)),
-                };
-                Self::Pieces(
-                    (0..LOCUS_PIECES)
-                        .map(|k| carrier.cover_over(ParamWindow::new(at(k), at(k + 1))).ok())
-                        .collect(),
-                )
-            }
+    fn of(carrier: &Curve3<T>, span: (T, T)) -> Self {
+        if let Some(line) = carrier.as_line() {
+            return Self::About(Around::Line(line));
         }
+        if let Some(circle) = carrier.as_circle() {
+            return Self::About(Around::Circle(Core {
+                axis: Line {
+                    origin: circle.frame.origin(),
+                    dir: circle.frame.axis(),
+                },
+                radius: circle.radius(),
+            }));
+        }
+        Self::Pieces(halved(carrier, span))
     }
 
     /// A distance `p` stands from the locus, never past the true one.
     fn distance_below(&self, p: Point3<T>) -> T {
         match self {
-            Self::Line(line) => line.distance(p),
-            Self::Circle { axis, radius } => {
-                let (t, rho) = axis.height_and_distance(p);
-                ((rho - *radius).powi(2) + t.powi(2)).sqrt()
-            }
-            Self::Ellipse { axis, major, minor } => {
-                let (t, rho) = axis.height_and_distance(p);
-                let radial = (rho - *major).max(*minor - rho).max(T::zero());
-                (radial.powi(2) + t.powi(2)).sqrt()
+            // One point's range about a line or a circle is its distance.
+            Self::About(around) => {
+                Cover::points(vec![p]).map_or_else(T::zero, |at| at.range_about(around).1)
             }
             Self::Pieces(pieces) => pieces
                 .iter()
