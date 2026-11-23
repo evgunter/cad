@@ -161,3 +161,55 @@ impl<'b, T: geom_core::Real> Geometric<'b, T> {
         &self.facts
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod rows {
+    use geom_core::Tol;
+
+    /// **Tier 3 keeps what it decided on a brick.** Every edge of a
+    /// `2 × 3 × 5` brick is a convex crease; each face runs from each of
+    /// its edges the face's own width across it, so of the 24 face-edge
+    /// pairs eight read each of 2, 3 and 5; no vertex has more than
+    /// three edges, so no vertex run is kept, and no face has a singular
+    /// vertex. Red if a class or run is dropped, if a run is the
+    /// farther face's or read from the edge's middle, or if a fact is
+    /// invented.
+    #[test]
+    fn tier_3_keeps_a_bricks_classes_and_runs() {
+        let tol = Tol::witness();
+        let brick: crate::Body<f64> =
+            crate::test_support_fixtures::brick((0.0, 2.0), (0.0, 3.0), (0.0, 5.0), tol);
+        let geometric = crate::geometric(&brick, tol).expect("a brick passes tier 3");
+        let facts = geometric.facts();
+        let mut runs = Vec::new();
+        for (edge, _) in brick.edges() {
+            assert_eq!(
+                facts.class(edge),
+                Some(crate::EdgeClass::Crease(geom_brep::Convexity::Convex)),
+                "{edge:?}"
+            );
+            for face in crate::edge_faces(&brick, edge) {
+                runs.push(facts.edge_run(face, edge).expect("a run").length());
+            }
+        }
+        for width in [2.0, 3.0, 5.0] {
+            let count = runs.iter().filter(|r| (**r - width).abs() < 1e-12).count();
+            assert_eq!(count, 8, "runs of {width}: {runs:?}");
+        }
+        for (face, _) in brick.faces() {
+            assert!(facts.singular(face).is_empty(), "{face:?}");
+            for (vertex, _) in brick.vertices() {
+                assert!(facts.vertex_run(face, vertex).is_none(), "{face:?} {vertex:?}");
+            }
+        }
+        // A run from an edge off the face is not kept.
+        let (edge, _) = brick.edges().next().unwrap();
+        let off = brick
+            .faces()
+            .map(|(f, _)| f)
+            .find(|f| !crate::edge_faces(&brick, edge).contains(f))
+            .unwrap();
+        assert!(facts.edge_run(off, edge).is_none());
+    }
+}
