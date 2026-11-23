@@ -41,7 +41,7 @@ impl ViewerBehavior<'_> {
     /// **Each argument's field is its slot's field** ([`HeldArgs`]):
     /// the slot row's field over the argument as the draft holds it,
     /// and for a kept step the slot row's own doors beside it — the
-    /// unit, the range probe, the name — so the node has no second set
+    /// unit, `range?`, the name — so the node has no second set
     /// of rows for its arguments. An argument an expression drives is
     /// held as that expression, its number the reading, locked; text
     /// typed into any field is an expression the draft holds.
@@ -243,13 +243,13 @@ fn held_field(
             // this same rule (`guard_driven`), in the same words.
             HeldAct::Begin => {
                 if let Err(refusal) = crate::session::driven_refusal(node, row, notation) {
-                    notices.push(frame::refusal_message(&refusal));
+                    notices.push(frame::refusal_message_untargeted(&refusal));
                 }
             }
             HeldAct::Hold(value) => *held = value,
             HeldAct::Number(value) => match props::typed_formula(slot, value, unit) {
                 Ok(literal) => typed = Some(HeldEntry::Literal(literal)),
-                Err(error) => notices.push(frame::refusal_message(
+                Err(error) => notices.push(frame::refusal_message_untargeted(
                     &crate::session::Refusal::Dimension(error),
                 )),
             },
@@ -571,7 +571,10 @@ pub(crate) fn edit_door_ui(
             }
             (Err(refusal), _) => {
                 news.standing = None;
-                news.notices.push(frame::refusal_message(&refusal));
+                news.notices.push(frame::refusal_message(
+                    &refusal,
+                    pncad::document::Speaker::of(session.committed_doc()),
+                ));
             }
         }
     }
@@ -2904,12 +2907,12 @@ mod tests {
 
     /// **The doors beside a held field judge what they act on**: the
     /// committed slot. The draft holds a formula over a committed
-    /// literal; the range probe beside it acts on the committed slot,
-    /// which the session probes, so the row it is judged on is the
-    /// committed literal's — offered, not refused as driven.
+    /// literal; the `range?` beside it acts on the committed slot,
+    /// so the row it is judged on is the committed literal's — offered,
+    /// not refused.
     #[test]
     fn the_doors_beside_a_held_formula_judge_the_committed_slot() {
-        use crate::session::{BoundsTarget, SessionOp};
+        use crate::session::{RangeTarget, SessionOp};
         use pncad::document::StepArg;
 
         let (mut session, profile) = square_session();
@@ -2946,16 +2949,15 @@ mod tests {
             !row.driver.is_driven(),
             "the doors read the committed literal, not the held formula: {row:?}"
         );
+        let target = RangeTarget::Slot {
+            node: profile,
+            slot: row.slot,
+        };
         assert!(
-            crate::app::ViewerBehavior::probe_refusal(profile, row, Notation::CANONICAL).is_none(),
-            "so the probe is offered"
+            session.range_refusal(&target).is_none(),
+            "so `range?` is offered"
         );
-        let out = session.perform(SessionOp::ProbeBounds {
-            target: BoundsTarget::Slot {
-                node: profile,
-                slot: row.slot,
-            },
-        });
+        let out = session.perform(SessionOp::ProveRange { target });
         assert!(
             out.refusal.is_none(),
             "and the session takes it: {:?}",
