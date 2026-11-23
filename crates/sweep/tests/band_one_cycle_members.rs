@@ -197,8 +197,8 @@ pub(crate) fn assert_taken<
     );
     let c1 = topo::readback::euler_counts(&out.body);
     assert_eq!(
-        (c1.s, c1.genus().expect("a genus") + through),
-        (c0.s, c0.genus().expect("a genus")),
+        (c1.s, c1.h().expect("a genus") + through),
+        (c0.s, c0.h().expect("a genus")),
         "{what}: the shells hold and each through feature's handle goes"
     );
     let ((v0, pad0), (v1, pad1)) = (volume_enclosure(body), volume_enclosure(&out.body));
@@ -802,9 +802,7 @@ fn a_cup_with_a_handle_and_a_u_tube_refuse_wholly_inside() {
         ),
     );
     assert_eq!(
-        topo::readback::euler_counts(&body)
-            .genus()
-            .expect("a genus"),
+        topo::readback::euler_counts(&body).h().expect("a genus"),
         1,
         "the bore carries a handle"
     );
@@ -840,9 +838,7 @@ fn a_cup_with_a_handle_and_a_u_tube_refuse_wholly_inside() {
         ),
     );
     assert_eq!(
-        topo::readback::euler_counts(&body)
-            .genus()
-            .expect("a genus"),
+        topo::readback::euler_counts(&body).h().expect("a genus"),
         1,
         "the pin carries a handle"
     );

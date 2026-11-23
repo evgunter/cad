@@ -4142,7 +4142,6 @@ MEMBERS_BOUND_AS = {
     "ValidationError::SolidWithoutShells": "ValidationFinding.variant",
     "ValidationError::ShellWithoutFaces": "ValidationFinding.variant",
     "ValidationError::EdgeAcrossShells": "ValidationFinding.variant",
-    "ValidationError::ComponentEulerViolation": "ValidationFinding.variant",
     "ValidationError::MissingProvenance": "ValidationFinding.variant",
     "ValidationError::LeakedProvenance": "ValidationFinding.variant",
     "ValidationError::ScaffoldingEmptyLoop": "ValidationFinding.variant",

@@ -393,7 +393,7 @@ fn a_mirror_on_one_of_two_copies_is_that_copys_part_alone() {
     let part = part.expect("the picked copy becomes its part");
     let doc = session.committed_doc();
     assert_eq!(
-        viewer::world::placements_of(doc, block),
+        doc.placements_of(block),
         [first, second],
         "both copies still place the block"
     );
