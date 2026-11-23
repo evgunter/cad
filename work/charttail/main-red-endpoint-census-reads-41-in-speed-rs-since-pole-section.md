@@ -2,7 +2,7 @@
 id: main-red-endpoint-census-reads-41-in-speed-rs-since-pole-section
 kind: issue
 title: Main red: certified_endpoint_census reads pcurve_cache/speed.rs at (41, 4) where the roster pins (38, 4), since PR 7180
-status: done
+status: closed
 opened: 2026-11-20
 priority: P1
 cost: E
