@@ -2,12 +2,13 @@
 id: a-hole-in-an-elliptic-section-keeps-a-face-of-its-own-that-tier-3-prime-refuses
 kind: issue
 title: A hole in an elliptic section keeps a face of its own over the outline's, and tier 3′ refuses the side
-status: review
+status: closed
 opened: 2026-10-19
 priority: P1
 cost: M
 branch: heldrecords/nesting
 pr: 7436
+closed: 2026-11-23
 ---
 
 
@@ -74,3 +75,7 @@ A hole the rule still cannot place, or one the ring guard turns away,
 now refuses `SplitFinishError::UnplacedHole` instead of keeping a face
 of its own over the outline's. The "sound by cancellation" allowance
 is retired. Nothing in the topo, sweep or editor-core suites needed it.
+
+## Closed (2026-11-23, HELDRECORDS orchestrator)
+
+Closed by PR 7436 (`c51d65be18`). The split nests a hole as a ring of its outline: `section_loops::edges_clear` reads `geom_brep::curve_pair::meet`, and an unplaced hole refuses typed `UnplacedHole`. The "sound by cancellation" allowance is retired. Pinned at tier 3′ across three ε. Residue filed: `nest-reads-an-undecided-pair-of-enclosing-outlines-as-a-contradiction` (P2).

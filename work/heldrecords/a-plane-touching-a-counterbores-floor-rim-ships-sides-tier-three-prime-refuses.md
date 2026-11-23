@@ -2,12 +2,13 @@
 id: a-plane-touching-a-counterbores-floor-rim-ships-sides-tier-three-prime-refuses
 kind: issue
 title: a plane touching a counterbore's floor rim ships sides tier 3′ refuses with unrecorded vertex-on-face contacts
-status: review
+status: closed
 opened: 2026-10-29
 priority: P1
 cost: M
 branch: heldrecords/nesting
 pr: 7436
+closed: 2026-11-23
 ---
 
 
@@ -102,3 +103,7 @@ any other. It replaces
 whose two faces no longer exist; the census's `Degenerate` reading of
 two planar faces on each other keeps its own rows in `link` and
 `two_wedge_ends_on_one_line`.
+
+## Closed (2026-11-23, HELDRECORDS orchestrator)
+
+Closed by PR 7436 (`c51d65be18`). The split nests a hole as a ring of its outline: `section_loops::edges_clear` reads `geom_brep::curve_pair::meet`, and an unplaced hole refuses typed `UnplacedHole`. The "sound by cancellation" allowance is retired. Pinned at tier 3′ across three ε. Residue filed: `nest-reads-an-undecided-pair-of-enclosing-outlines-as-a-contradiction` (P2).
