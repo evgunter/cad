@@ -40,7 +40,7 @@
 use geom_brep::LeverBounds;
 use geom_brep::ladder::{Climb, Rung};
 use geom_core::period::Period;
-use geom_core::{Band, Decide, Margin, Point3, Sign, Tol, Vec3};
+use geom_core::{Band, Decide, Lever, Margin, Point3, Sign, Tol, Vec3};
 
 use super::sectors::reading_lever;
 use super::{BooleanError, BooleanReduction, NullCopies, Operand};
@@ -534,19 +534,6 @@ fn leaving<T: Decide>(body: &Body<T>, he: HalfEdgeKey, secant: bool) -> Option<L
     })
 }
 
-/// The sign of `x`, a dimensionless reading levered at `arm`.
-fn sign<T: Decide>(x: T, arm: T, band: Band) -> Result<Sign, BooleanError> {
-    crate::validate::decide(
-        "bool_fate_corner",
-        // Unsourced lever: a unit arm (every caller's `1`) on a count of
-        // half-turns (`tip_wraps`), no length of any extent.
-        // No door names it yet: `work/oneround/unsourced-levers-with-no-door-that-names-them.md`.
-        Margin::levered(x, geom_core::Lever::unsourced(arm)),
-        band,
-    )
-    .map_err(corner_refused)
-}
-
 /// The sign of `x`, a dimensionless reading levered at `arm`, known
 /// exactly or from both sides: read once where exact, else at both
 /// bounds, a verdict only where the two agree and their straddle of the
@@ -883,13 +870,13 @@ fn tip_wraps<T: Decide>(
     band: Band,
 ) -> Result<bool, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
-    let unread = BooleanError::SlitFaceGlued {
+    let unread = || BooleanError::SlitFaceGlued {
         operand,
         face: f,
         gap: super::SlitFaceGap::TipUnread,
     };
     let Some(normal) = crate::face_normal::face_outward_normal(body, f) else {
-        return Err(unread);
+        return Err(unread());
     };
     let n = normal.vec();
     let outer = body.get_face(f).map(|x| x.outer) == Some(loop_of(body, h)?);
@@ -907,40 +894,68 @@ fn tip_wraps<T: Decide>(
             .ok_or_else(|| desync("a tip's loop does not walk"))?
             .edge;
         if !crate::census::edge_is_line(body, edge) {
-            return Err(unread);
+            return Err(unread());
         }
         runs.push(run);
     }
-    let (mut turned, mut halves, mut any) = (T::zero(), T::zero(), false);
+    // The loop's half-turn corners: how many, and the least of their
+    // levers, each from below (the count claims a side of each mark).
+    let (mut turned, mut halves) = (T::zero(), None::<(i32, Lever<T>)>);
     for (k, b) in runs.iter().enumerate() {
         let a = runs[(k + runs.len() - 1) % runs.len()];
         let (across, ahead) = (n.dot(a.dir.cross(b.dir)), a.dir.dot(b.dir));
         let arm = reading_lever(b.reach, Some(a.reach));
         if sign_at(across, arm, band)? == Sign::Zero && sign_at(ahead, arm, band)? == Sign::Negative
         {
-            halves = halves + T::one();
-            any = true;
+            halves = Some(match halves {
+                Some((count, least)) => (count + 1, least.min(arm.below())),
+                None => (1, arm.below()),
+            });
         } else {
             turned = turned + across.atan2(ahead);
         }
     }
+    // A loop with no half-turn corner has no tip to read.
+    let Some((halves, least)) = halves else {
+        return Err(unread());
+    };
     // The runs' turning is an angle by construction: one turn of it is
-    // its period.
+    // its period. A loop's corners turn one whole turn exactly, and the
+    // other corners' turns are summed as they are, so what is left to
+    // the half-turn corners is a whole number of half-turns but for
+    // their own admission: each lies within the band's zero of a
+    // half-turn at its lever, an angle of at most a quarter turn's
+    // share `(π/2)·ε/L` (an angle up to a quarter turn is at most `π/2`
+    // times its sine), and the `h` of them sum to at most
+    // `(π/2)·h·ε/L`, `L` the least of their levers. A mark stands a
+    // quarter turn from every whole count, so the count is read
+    // (`Period::decide`) on the gap from each mark as a share of a
+    // quarter turn among the `h` corners, levered at `L`: a side it
+    // claims is past `K·ε` there, more than the sum can move it.
     let turn = Period::<T>::angle();
     let whole = if outer {
         turn.length()
     } else {
         T::zero() - turn.length()
     };
-    let half_turns = (whole - turned) / turn.half();
-    match (
-        sign(half_turns + halves, T::one(), band)?,
-        sign(half_turns - halves, T::one(), band)?,
-    ) {
-        _ if !any => Err(unread),
-        (Sign::Zero, _) => Ok(true),
-        (_, Sign::Zero) => Ok(false),
-        _ => Err(unread),
+    let shares = T::from_f64(f64::from(halves)) * turn.half() * T::from_f64(0.5);
+    let count = Period::new(turn.half())
+        .decide(
+            "bool_fate_corner",
+            whole - turned,
+            |off| Margin::levered(off / shares, least),
+            band,
+        )
+        .map_err(|stop| match stop.miss {
+            geom_core::period::BranchMiss::Undecided(diag) => corner_refused(diag),
+            geom_core::period::BranchMiss::OnMark => unread(),
+        })?;
+    if count == -halves {
+        Ok(true)
+    } else if count == halves {
+        Ok(false)
+    } else {
+        Err(unread())
     }
 }
 
@@ -2691,5 +2706,266 @@ mod bisector_rows {
             dir.y > 0.99,
             "the bisector points between the bounds: {dir:?}"
         );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tip_count_rows {
+    use geom_core::{Band, Decide, ErrorTextReading, Interval, Point3, Tol};
+
+    use super::tip_wraps;
+    use crate::body::Body;
+    use crate::boolean::{BooleanError, Operand, SlitFaceGap};
+    use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, LoopKey};
+    use crate::euler::{MefSite, MevSite};
+    use crate::props::AtRestPolicy;
+    use crate::test_support_fixtures::{plane_every_face, plant_ring_face};
+
+    /// The tips' opening: `0.9e-6 rad`, so over a `1 mm` side the two
+    /// sides part by `0.9e-9 m`, one ray within a band of `1e-9 m`.
+    const OPENING: f64 = 0.9e-6;
+
+    /// A spike whose two sides leave its tip, the origin, [`OPENING`]
+    /// apart, one `1 mm` long and the other a metre. Its shortest run, a
+    /// `0.2 mm` jog, is far from the tip, and every other corner is
+    /// square. Counterclockwise about `+z`, the tip first.
+    fn spike() -> Vec<(f64, f64)> {
+        let far = 1.0 + 2e-4;
+        vec![
+            (0.0, 0.0),
+            (1e-3, 0.0),
+            (1e-3, -1.0),
+            (1.0, -1.0),
+            (1.0, -0.5),
+            (far, -0.5),
+            (far, OPENING * far),
+        ]
+    }
+
+    /// An outline with two such tips, at the origin and at `(3, −1)`,
+    /// each with a `1 mm` side, and no run shorter. Counterclockwise
+    /// about `+z`, the first tip first.
+    fn two_spikes() -> Vec<(f64, f64)> {
+        two_spikes_with(1e-3)
+    }
+
+    /// [`two_spikes`] with the second tip's short side `side` long, its
+    /// two sides still `0.9e-9 m` apart at that lever.
+    fn two_spikes_with(side: f64) -> Vec<(f64, f64)> {
+        vec![
+            (0.0, 0.0),
+            (1e-3, 0.0),
+            (1e-3, -1.0),
+            (3.0, -1.0),
+            (3.0 - side, -1.0 + OPENING * 1e-3),
+            (3.0 - side, 1.0),
+            (1.0, 1.0),
+            (1.0, OPENING),
+        ]
+    }
+
+    /// A square lamina holding `rim` as a ring of one face and as the
+    /// outline of the face that covers it: `[host, cover, plain]`, the
+    /// first two with their half-edge leaving the rim's first corner,
+    /// the third the lamina's other face, a plain square, with a
+    /// half-edge of its outline.
+    fn lamina_with<T: Decide + AtRestPolicy>(
+        rim: &[(f64, f64)],
+    ) -> (Body<T>, [(FaceKey, HalfEdgeKey); 3]) {
+        let tol = Tol::witness();
+        let lift = |&(x, y): &(f64, f64)| Point3::new(x, y, 0.0).map(T::from_f64);
+        let outer = [(-5.0, -5.0), (5.0, -5.0), (5.0, 5.0), (-5.0, 5.0)];
+        let mut body = Body::<T>::new();
+        let seed = body.mvfs(lift(&outer[0]), true).unwrap();
+        let first = body
+            .mev_line(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                lift(&outer[1]),
+                tol,
+            )
+            .unwrap();
+        let mut chain = vec![first];
+        for p in &outer[2..] {
+            let prev = chain.last().unwrap().he_minus;
+            chain.push(
+                body.mev_line(
+                    MevSite::Fan {
+                        he1: prev,
+                        he2: prev,
+                    },
+                    lift(p),
+                    tol,
+                )
+                .unwrap(),
+            );
+        }
+        let n = chain.len();
+        let close = body
+            .find_half_edge(seed.face, chain[n - 1].vertex, chain[n - 2].vertex)
+            .unwrap();
+        let front = body
+            .mef_chord(
+                MefSite::Chords {
+                    he1: close,
+                    he2: first.he_plus,
+                },
+                tol,
+            )
+            .unwrap();
+        let rim: Vec<Point3<T>> = rim.iter().map(lift).collect();
+        let tip = plant_ring_face(&mut body, front.he_plus, &rim, tol)
+            .strut
+            .vertex;
+        plane_every_face(&mut body, tol);
+        let first_of = |l: LoopKey| {
+            let LoopBoundary::Cycle { first } = body.get_loop(l).unwrap().boundary else {
+                panic!("a walked loop");
+            };
+            first
+        };
+        let leaving_tip = |l: LoopKey| {
+            body.loop_cycle(first_of(l))
+                .unwrap()
+                .into_iter()
+                .find(|&he| body.get_half_edge(he).unwrap().start == tip)
+        };
+        let (mut host, mut cover, mut plain) = (None, None, None);
+        for (f, face) in body.faces() {
+            if let [ring] = face.rings.as_slice() {
+                host = Some((f, leaving_tip(*ring).unwrap()));
+            } else if let Some(he) = leaving_tip(face.outer) {
+                cover = Some((f, he));
+            } else {
+                plain = Some((f, first_of(face.outer)));
+            }
+        }
+        (body, [host.unwrap(), cover.unwrap(), plain.unwrap()])
+    }
+
+    /// `tip_wraps` on each lane, as text: `wraps`, `spur`, `unread`, or
+    /// the escalated margin's enclosure.
+    fn read<T: Decide + AtRestPolicy>(
+        rim: &[(f64, f64)],
+        face: usize,
+        band: Band,
+    ) -> Result<bool, Option<(f64, f64)>> {
+        let (body, faces) = lamina_with::<T>(rim);
+        match tip_wraps((&body, Operand::A), faces[face], band) {
+            Ok(wraps) => Ok(wraps),
+            Err(BooleanError::SlitFaceGlued {
+                gap: SlitFaceGap::TipUnread,
+                ..
+            }) => Err(None),
+            Err(BooleanError::Escalated { diag, .. })
+                if diag.predicate == Some("bool_fate_corner") =>
+            {
+                Err(Some(match diag.margin.diagnostic_f64_for_error_text() {
+                    ErrorTextReading::Value(m) => (m, m),
+                    ErrorTextReading::Enclosure { lo, hi } => (lo, hi),
+                    ErrorTextReading::Invalid => panic!("an unreadable margin: {diag:?}"),
+                }))
+            }
+            Err(other) => panic!("{other:?}"),
+        }
+    }
+
+    const HOST: usize = 0;
+    const COVER: usize = 1;
+    const PLAIN: usize = 2;
+
+    /// **A half-turn corner admitted within the band still counts as
+    /// one.** The spike's tip turns [`OPENING`] short of a half-turn,
+    /// which leaves the loop's other corners `2.9e-7` half-turns off a
+    /// whole count: the face the spike is a ring of wraps the tip, and
+    /// the face it outlines holds a spur there. So with two tips. On
+    /// both lanes.
+    #[test]
+    fn a_tip_admitted_at_a_millimetre_reach_is_counted_as_its_half_turn() {
+        fn row<T: Decide + AtRestPolicy>(lane: &str) {
+            let band = Band::new(1e-9, 1e-8).unwrap();
+            for (name, rim) in [("one tip", spike()), ("two tips", two_spikes())] {
+                assert_eq!(
+                    read::<T>(&rim, HOST, band),
+                    Ok(true),
+                    "{lane}, {name}: the ring's tip, wrapped"
+                );
+                assert_eq!(
+                    read::<T>(&rim, COVER, band),
+                    Ok(false),
+                    "{lane}, {name}: the outline's spur"
+                );
+            }
+        }
+        row::<f64>("f64");
+        row::<Interval>("Interval");
+    }
+
+    /// **The count is metered at its half-turn corners' levers, not at
+    /// the loop's shortest run.** In a band whose zero holds a quarter
+    /// turn at the spike's `0.2 mm` jog, the one tip, read at its `1 mm`
+    /// lever, is still counted. On both lanes.
+    #[test]
+    fn a_run_shorter_than_the_tips_lever_does_not_meter_the_count() {
+        let band = Band::new(2.5e-4, 9e-4).unwrap();
+        assert_eq!(read::<f64>(&spike(), COVER, band), Ok(false), "f64");
+        assert_eq!(
+            read::<Interval>(&spike(), COVER, band),
+            Ok(false),
+            "Interval"
+        );
+    }
+
+    /// **The half-turn corners share the meter, at the least of their
+    /// levers.** Two tips admitted at `1 mm` each leave the count's gap
+    /// from a mark levered at half a millimetre: in a band that holds
+    /// `0.5 mm` the count escalates as a corner does, quoting it, and in
+    /// a band whose zero holds it the tip is unread, where either tip's
+    /// own corner is a half-turn at its `1 mm` lever and one tip alone
+    /// would count. A second tip admitted at `4 mm` changes nothing: the
+    /// shorter lever meters both. On both lanes.
+    #[test]
+    fn two_admitted_tips_are_counted_at_half_their_least_lever() {
+        fn row<T: Decide + AtRestPolicy>(lane: &str) {
+            for (name, rim) in [
+                ("both at 1 mm", two_spikes()),
+                ("one at 1 mm, one at 4 mm", two_spikes_with(4e-3)),
+            ] {
+                let in_band = Band::new(3e-4, 7e-4).unwrap();
+                let Err(Some((lo, hi))) = read::<T>(&rim, COVER, in_band) else {
+                    panic!(
+                        "{lane}, {name}: a count in band: {:?}",
+                        read::<T>(&rim, COVER, in_band)
+                    );
+                };
+                assert!(
+                    lo - 1e-9 < 5e-4 && 5e-4 < hi + 1e-9 && hi - lo < 1e-9,
+                    "{lane}, {name}: half a millimetre, [{lo:e}, {hi:e}]"
+                );
+                let on_mark = Band::new(6e-4, 9e-4).unwrap();
+                assert_eq!(
+                    read::<T>(&rim, COVER, on_mark),
+                    Err(None),
+                    "{lane}, {name}: on the mark"
+                );
+            }
+        }
+        row::<f64>("f64");
+        row::<Interval>("Interval");
+    }
+
+    /// **A loop with no half-turn corner has no tip.** The lamina's
+    /// plain square face turns a whole turn at its four corners, which
+    /// leaves a count of none: unread, never a tip wrapped. The caller
+    /// asks only at a corner it has read as a half-turn by the same two
+    /// runs at the same lever, so this is reached by a direct call
+    /// alone.
+    #[test]
+    fn a_loop_with_no_half_turn_corner_is_unread() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        assert_eq!(read::<f64>(&spike(), PLAIN, band), Err(None));
+        assert_eq!(read::<Interval>(&spike(), PLAIN, band), Err(None));
     }
 }

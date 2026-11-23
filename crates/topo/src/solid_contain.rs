@@ -1079,7 +1079,7 @@ const PAST_EVERY_REACH: &str = "bool_point_past_every_reach";
 pub(crate) const POINT_AXIS: &str = "bool_point_axis";
 
 /// Whether `q` lies definitely outside the hull of every face's
-/// certified reach (`census::face_reach_in`, the box rules' one map),
+/// certified reach along a direction ([`crate::separating::support_along`]),
 /// along some direction that turns with the body: a planar face's
 /// outward normal, or the axis from the faces' anchor to `q`
 /// ([`crate::separating`]'s candidates, each read both ways; this

@@ -291,6 +291,17 @@ pub(super) fn apart_in_depth<T: Decide>(
     gaps_in_depth((x, a, ra), (y, b, rb), band).any(|gap| clears(gap, band))
 }
 
+/// [`toward`], then [`across`].
+pub(super) fn proposed<T: Decide>(
+    ra: &Read<T>,
+    rb: &Read<T>,
+    band: Band,
+) -> Vec<geom_core::UnitVec3<T>> {
+    let mut dirs = toward(ra, rb, band);
+    dirs.extend(across(ra, rb, band));
+    dirs
+}
+
 /// **The directions the depths of two faces, read as `ra` and `rb`
 /// ([`face_read`]), aim across the pair**: for each axis or centre one
 /// face proposes, the offset from it to the other face's nearest

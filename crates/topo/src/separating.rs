@@ -279,16 +279,18 @@ fn apart_along<T: Decide>(
 }
 
 /// The span of `items` along `dir`: the least and greatest support any
-/// of their covers has there. `None` where an item has no cover, or
-/// there is no item.
+/// of their covers has there, each face's read along `dir`
+/// ([`crate::cover::face_cover_toward`], a sphere face's pole-side cut,
+/// sound where [`crate::census::faces_apart`] reads it). `None` where an item has no
+/// cover, or there is no item.
 pub(crate) fn support_along<T: Decide>(
     body: &Body<T>,
     items: impl IntoIterator<Item = Item<T>>,
     dir: UnitVec3<T>,
     band: Band,
 ) -> Option<(T, T)> {
-    span_by(body, items, dir, &|body, f, _| {
-        crate::cover::face_cover(body, f, band).ok()
+    span_by(body, items, dir, &|body, f, aim| {
+        crate::cover::face_cover_toward(body, f, band, aim).ok()
     })
 }
 

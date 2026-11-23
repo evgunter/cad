@@ -468,10 +468,11 @@ pub(super) struct UnsupportedPair {
 ///   the operation and the gate has nothing to say about it.
 /// - **The boxes separate along the world's axes only**, so an
 ///   overlap is followed by the narrow phase
-///   ([`crate::separating::apart`]), which reads both faces along
-///   directions that turn with the operands. A pair it parts is
-///   certified apart as a box non-overlap is, and the verdict is the
-///   pair's rather than the pose's.
+///   ([`crate::census::faces_apart`]), which reads both faces along
+///   directions that turn with the operands and with the pair, as the
+///   census reads a pair at rest. A pair it parts is certified apart as
+///   a box non-overlap is, and the verdict is the pair's rather than
+///   the pose's.
 /// - **Overlap is a MAY, not a DOES.** Boxes over-approximate, so
 ///   this scan still finds pairs that exact geometry would separate.
 ///   That is conservative in the correct direction — it never admits
@@ -564,9 +565,9 @@ pub(super) fn first_unsupported_pair<T: Decide + Bounds>(
             for &(other_face, other_kind, ref other_box) in &others {
                 if boxed.overlaps(other_box)
                     && !covered(operand, face, other_face)
-                    && !crate::separating::apart(
-                        (body, Item::Face(face)),
-                        (other, Item::Face(other_face)),
+                    && !crate::census::faces_apart(
+                        (body, face),
+                        (other, other_face),
                         axes.of(a, b, band),
                         pad,
                         band,
@@ -995,21 +996,31 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 // from along a direction that turns with the operands
                 // meets the edge nowhere, whichever arm its kind has.
                 // The parents' reading is the operand gate's, so a pair
-                // the gate cleared is cleared here too.
-                let apart_from_face = |item| {
-                    crate::separating::apart(
-                        (x, item),
-                        (y, Item::Face(face)),
-                        axes.of(x, y, band),
-                        pad,
-                        band,
-                    )
-                };
-                if apart_from_face(Item::Edge(edge_key))
-                    || [edge.he_plus, edge.he_minus]
-                        .into_iter()
-                        .any(|he| apart_from_face(Item::Face(x.face_of_linked(he))))
-                {
+                // the gate cleared is cleared here too: the gate reads
+                // the pair's own directions only where a face's kind is
+                // off its roster, and so does this.
+                let axes = axes.of(x, y, band);
+                let off_roster = !boolean_arm_exists(y.proven_face(face).surface());
+                if crate::separating::apart(
+                    (x, Item::Edge(edge_key)),
+                    (y, Item::Face(face)),
+                    axes,
+                    pad,
+                    band,
+                ) || [edge.he_plus, edge.he_minus].into_iter().any(|he| {
+                    let parent = x.face_of_linked(he);
+                    if off_roster || !boolean_arm_exists(x.proven_face(parent).surface()) {
+                        crate::census::faces_apart((x, parent), (y, face), axes, pad, band)
+                    } else {
+                        crate::separating::apart(
+                            (x, Item::Face(parent)),
+                            (y, Item::Face(face)),
+                            axes,
+                            pad,
+                            band,
+                        )
+                    }
+                }) {
                     continue;
                 }
                 let event = curved_face_arm(

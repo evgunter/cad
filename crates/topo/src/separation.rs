@@ -127,7 +127,7 @@ use geom_core::{Band, Bounds, Decide, RigidMotion, Tol};
 use crate::body::Body;
 use crate::boolean::BooleanError;
 use crate::boxes::{face_box, sweep_pad};
-use crate::census::{PairFace, face_reach, faces_apart};
+use crate::census::faces_apart;
 use crate::entity::{FaceKey, SolidKey};
 
 /// [`Separation`]'s query, a placed instance's faces against another's.
@@ -141,46 +141,11 @@ const SOLID_FACES: geom_core::k_stats::QuerySite = geom_core::k_stats::QuerySite
     "the other solid's faces whose boxes meet a face's",
 );
 
-/// A face as the narrow phase reads it ([`faces_apart`]): its key, its
-/// world reach ([`face_reach`]), or `None` for a face with no cover, and
-/// whether it is planar.
-#[derive(Debug, Clone, Copy)]
-struct Read<T: geom_core::Real> {
-    face: FaceKey,
-    reach: Option<(geom_core::Point3<T>, geom_core::Point3<T>)>,
-    planar: bool,
-}
-
-impl<T: Decide> Read<T> {
-    fn of(body: &Body<T>, face: FaceKey, band: Band) -> Self {
-        Self {
-            face,
-            reach: face_reach(body, face, band),
-            planar: matches!(
-                body.get_face(face)
-                    .and_then(|d| body.surfaces.get(d.surface)),
-                Some(geom::Surface::Plane { .. })
-            ),
-        }
-    }
-
-    /// The face read in `body`; `None` for a face with no cover.
-    fn in_body<'b>(&self, body: &'b Body<T>) -> Option<PairFace<'b, T>> {
-        Some((body, self.face, self.reach?, self.planar))
-    }
-}
-
-/// Whether the faces `x` of `xb` and `y` of `yb`, in one frame, are
-/// certainly apart: the census's reading of a face pair behind a box
-/// overlap ([`faces_apart`]). A face with no cover is never apart.
-fn read_apart<T: Decide>(
-    (xb, x): (&Body<T>, &Read<T>),
-    (yb, y): (&Body<T>, &Read<T>),
-    band: Band,
-) -> bool {
-    x.in_body(xb)
-        .zip(y.in_body(yb))
-        .is_some_and(|(x, y)| faces_apart(x, y, band))
+/// Whether the face `x` and the face `y`, each of its body and both in
+/// one frame, are certainly apart: the one reading of a face pair behind
+/// a box overlap ([`faces_apart`]).
+fn read_apart<T: Decide>(x: (&Body<T>, FaceKey), y: (&Body<T>, FaceKey), band: Band) -> bool {
+    faces_apart(x, y, &[], sweep_pad(band), band)
 }
 
 /// The prototype's separation certificate machinery: its padded face
@@ -198,8 +163,8 @@ pub struct Separation<'b, T: geom_core::Real> {
     /// The padded per-face boxes, in the prototype's face-arena order —
     /// the tree's input order, so a query's item index indexes here.
     boxes: Vec<Aabb>,
-    /// Each box's face, read in the prototype's frame, in `boxes`' order.
-    faces: Vec<Read<T>>,
+    /// Each box's face, in `boxes`' order.
+    faces: Vec<FaceKey>,
     /// The hull of every box: the whole prototype's conservative box, the
     /// pair prefilter's operand.
     hull: Aabb,
@@ -224,7 +189,7 @@ impl<'b, T: Decide + Bounds> Separation<'b, T> {
         let mut faces = Vec::new();
         for (f, _) in proto.faces() {
             boxes.push(face_box(proto, f, pad, band));
-            faces.push(Read::of(proto, f, band));
+            faces.push(f);
         }
         // A face-less prototype encloses nothing; the hull of nothing is
         // the poison box, which overlaps everything — so a face-less
@@ -302,9 +267,8 @@ impl<'b, T: Decide + Bounds> Separation<'b, T> {
             else {
                 return true;
             };
-            let fj = Read::of(moved, fj.face, self.band);
             hits.into_iter()
-                .any(|k| !read_apart((self.proto, &self.faces[k]), (moved, &fj), self.band))
+                .any(|k| !read_apart((self.proto, self.faces[k]), (moved, *fj), self.band))
         })
     }
 }
@@ -407,11 +371,11 @@ pub struct SolidsMeet {
 /// One solid's separation machinery: its padded face boxes, their hull,
 /// and the tree over them.
 #[derive(Debug, Clone)]
-struct SolidBoxes<T: geom_core::Real> {
+struct SolidBoxes {
     /// The padded per-face boxes, in this solid's own face order.
     boxes: Vec<Aabb>,
     /// Each box's face, in `boxes`' order.
-    faces: Vec<Read<T>>,
+    faces: Vec<FaceKey>,
     /// The hull of every box: the pair prefilter's operand.
     hull: Aabb,
     /// The tree over `boxes`.
@@ -469,7 +433,7 @@ pub struct SolidSeparation<'b, T: geom_core::Real> {
     /// The band the boxes and the face reads take.
     band: Band,
     /// Per-solid machinery, in the body's solid-arena order.
-    solids: Vec<(SolidKey, SolidBoxes<T>)>,
+    solids: Vec<(SolidKey, SolidBoxes)>,
     /// Position in `solids` for each key, so a pair query is a lookup
     /// rather than a scan.
     index: slotmap::SecondaryMap<SolidKey, usize>,
@@ -502,7 +466,7 @@ impl<'b, T: Decide + Bounds> SolidSeparation<'b, T> {
                         })?;
                 for &face in &shell.faces {
                     boxes.push(face_box(body, face, pad, band));
-                    faces.push(Read::of(body, face, band));
+                    faces.push(face);
                 }
             }
             // A face-less solid encloses nothing, and the hull of
@@ -599,7 +563,7 @@ impl<'b, T: Decide + Bounds> SolidSeparation<'b, T> {
             y.tree
                 .overlapping(SOLID_FACES, b)
                 .into_iter()
-                .any(|k| !read_apart((body, fx), (body, &y.faces[k]), self.band))
+                .any(|k| !read_apart((body, *fx), (body, y.faces[k]), self.band))
         });
         if meets { Err(pair) } else { Ok(()) }
     }

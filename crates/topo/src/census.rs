@@ -7500,87 +7500,104 @@ pub(crate) fn face_reach_in<T: Decide>(
         .map(|cover| cover.box_in(frame))
 }
 
-/// A face's world reach ([`face_reach`]): its low and high corners.
-type WorldReach<T> = (Point3<T>, Point3<T>);
-
-/// One face as [`faces_apart`] reads it: its body, its key, its world
-/// reach ([`face_reach`]) and whether it is planar.
-pub(crate) type PairFace<'b, T> = (&'b Body<T>, FaceKey, WorldReach<T>, bool);
-
 /// **Whether two faces, each of its own body and both in one frame, are
-/// certainly apart**: arm 1 of [`sweep_cross_solid_backstop`]'s reading,
-/// and the one the separation doors ([`crate::Separation`],
-/// [`crate::SolidSeparation`]) read behind a box overlap. In order:
+/// certainly apart** behind a box overlap: the one reading of a face
+/// pair that arm 1 of [`sweep_cross_solid_backstop`], the separation
+/// doors ([`crate::Separation`], [`crate::SolidSeparation`]) and the
+/// boolean's pair doors (the operand gate, the NURBS re-gate, the
+/// sweep's narrow phase) share. In order, each step read only where the
+/// one before it leaves the pair:
 ///
-/// - a gap between the two world reaches along a world axis;
-/// - a gap along a direction that turns with the pair
-///   ([`crate::separating::apart_by`]): the axis between the two faces'
-///   anchors, either face's own normal where it is planar, the offset
-///   from an axis or centre either face proposes to the other's nearest
-///   boundary segment point ([`depth_gap::toward`]), either face's arc
-///   chords' normals, and the line between the two carriers' axes or
-///   centres ([`depth_gap::across`]). Both faces' covers are read along
-///   the direction, a sphere face's with its pole-side cut along it
-///   ([`crate::cover::face_cover_toward`]);
+/// - a gap along either face's own normal where it is planar, or along
+///   one of the caller's `axes`, or along the axis between the two
+///   faces' anchors, each face read by its cover
+///   ([`crate::separating::apart`]);
+/// - a gap along those directions and every one the pair's own geometry
+///   aims ([`depth_gap::proposed`]: the offset from an axis or centre
+///   either face proposes to the other's nearest boundary segment point,
+///   either face's arc chords' normals, the line between the two
+///   carriers' axes or centres), each face's cover read along the
+///   direction with a sphere face's pole-side cut
+///   ([`crate::separating::apart_by`],
+///   [`crate::cover::face_cover_toward`]);
 /// - a gap in depth about an axis, a centre or a circle either face
 ///   proposes ([`depth_gap::apart_in_depth`]), which clears a nested
 ///   pair no direction separates;
 /// - for two planar faces, a gap where one meets the other's plane
 ///   ([`in_plane::apart_in_plane`]).
 ///
-/// Each gap is less both faces' [`sweep_pad`] and clears only where it
-/// is decided definitely positive at this lane's scalar. Each cover
-/// holds its face's locus, so any one of them proves the loci disjoint.
-/// Every reading is of the two faces alone, so the verdict does not
-/// depend on how the pair is turned, save that a world-axis gap may
-/// clear a pair first.
+/// The direction gaps are less `pad` on each face; the depth and
+/// in-plane gaps less each face's [`sweep_pad`]. Each clears only where
+/// it is decided definitely positive at this lane's scalar. Each cover
+/// holds its face's locus, so any one of them proves the loci disjoint,
+/// and every reading is of the two faces alone, so the verdict does not
+/// depend on how the pair is turned. A face with no cover is never
+/// apart.
+///
+/// The pole-side cut places a point in a face through its region
+/// ([`crate::contain::curved_face_placement`]), and narrows only on a
+/// definite `Out`. That is the door the boolean's curved sweep arm
+/// places its pierce and end points by on the same bodies mid-operation
+/// (`boolean::reduce::curved_face_arm`), so a body the boolean's doors
+/// read here is one the operation already trusts that door on.
+///
+/// # Panics
+///
+/// As [`crate::cover::face_cover`]: each face is one the caller read
+/// out of its body.
 pub(crate) fn faces_apart<T: Decide>(
-    (x, fa, ra, a_planar): PairFace<'_, T>,
-    (y, fb, rb, b_planar): PairFace<'_, T>,
+    (x, fa): (&Body<T>, FaceKey),
+    (y, fb): (&Body<T>, FaceKey),
+    axes: &[geom_core::UnitVec3<T>],
+    pad: f64,
     band: Band,
 ) -> bool {
-    use crate::separating::{Item, apart_by, planar_axis};
-    let ((alo, ahi), (blo, bhi)) = (ra, rb);
-    let world = [
-        (alo.x, ahi.x, blo.x, bhi.x),
-        (alo.y, ahi.y, blo.y, bhi.y),
-        (alo.z, ahi.z, blo.z, bhi.z),
-    ]
-    .into_iter()
-    .any(|(alo, ahi, blo, bhi)| {
-        let gap = (blo - ahi).max(alo - bhi);
-        matches!(
-            decide("census_backstop_gap", Margin::of(gap), band),
-            Ok(Sign::Positive)
-        )
-    });
-    if world {
+    use crate::separating::{Item, apart, apart_by, planar_axis};
+    let (xi, yi) = ((x, Item::Face(fa)), (y, Item::Face(fb)));
+    let mut dirs: Vec<_> = [(x, fa), (y, fb)]
+        .into_iter()
+        .filter_map(|(body, f)| planar_axis(body, f, band))
+        .collect();
+    dirs.extend_from_slice(axes);
+    if apart(xi, yi, &dirs, pad, band) {
         return true;
     }
     // Both faces are read once for their depths, which aim the offset
     // directions and bound the depth gap.
     let reads = depth_gap::face_read(x, fa, band).zip(depth_gap::face_read(y, fb, band));
-    let proposed = reads.as_ref().map_or_else(Vec::new, |(rx, ry)| {
-        let mut dirs = depth_gap::toward(rx, ry, band);
-        dirs.extend(depth_gap::across(rx, ry, band));
-        dirs
-    });
-    let mut axes: Vec<_> = [(x, fa), (y, fb)]
-        .into_iter()
-        .filter_map(|(body, f)| planar_axis(body, f, band))
-        .collect();
-    axes.extend(proposed.iter().copied());
-    apart_by(
-        (x, Item::Face(fa)),
-        (y, Item::Face(fb)),
-        &axes,
-        sweep_pad(band),
-        band,
-        &|body, f, aim| crate::cover::face_cover_toward(body, f, band, aim).ok(),
-    ) || reads
+    let proposed = reads
+        .as_ref()
+        .map_or_else(Vec::new, |(rx, ry)| depth_gap::proposed(rx, ry, band));
+    dirs.extend(proposed.iter().copied());
+    let planar =
+        |body: &Body<T>, f| matches!(body.proven_face(f).surface(), geom::Surface::Plane { .. });
+    apart_by(xi, yi, &dirs, pad, band, &|body, f, aim| {
+        crate::cover::face_cover_toward(body, f, band, aim).ok()
+    }) || reads
         .as_ref()
         .is_some_and(|(rx, ry)| depth_gap::apart_in_depth((x, fa, rx), (y, fb, ry), band))
-        || (a_planar && b_planar && in_plane::apart_in_plane((x, fa), (y, fb), &proposed, band))
+        || (planar(x, fa)
+            && planar(y, fb)
+            && in_plane::apart_in_plane((x, fa), (y, fb), &proposed, band))
+}
+
+/// [`face_reach_in`] read along `aim`, in the frame aimed at it
+/// ([`geom::cover::BoxAxes::aimed`]): the face's cover with a sphere
+/// face's pole-side cut along `aim` ([`crate::cover::face_cover_toward`]),
+/// its box there. The first coordinate is the reach along `aim`.
+///
+/// # Panics
+///
+/// As [`face_reach_in`].
+pub(crate) fn face_reach_toward<T: Decide>(
+    body: &Body<T>,
+    f: crate::entity::FaceKey,
+    band: Band,
+    aim: geom_core::UnitVec3<T>,
+) -> Option<(Point3<T>, Point3<T>)> {
+    crate::cover::face_cover_toward(body, f, band, aim)
+        .ok()
+        .map(|cover| cover.box_in(&geom::cover::BoxAxes::aimed(aim)))
 }
 
 /// The touch lane's recourse for a designed contact it cannot read yet.
@@ -10562,12 +10579,28 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
             // placeholder patch, or a face whose boundary carries an
             // unboxable curve.
             let before = errors.len();
-            if let (Some(ra), Some(rb)) = (a.boxed, b.boxed) {
-                if !faces_apart(
-                    (body, a.face, ra, a.planar),
-                    (body, b.face, rb, b.planar),
-                    band,
-                ) {
+            if let (Some((alo, ahi)), Some((blo, bhi))) = (a.boxed, b.boxed) {
+                // Definite separation along ANY direction clears the
+                // pair: the margin is the gap between the sound reaches
+                // along it — a metre coordinate difference (audit row).
+                // The world axes are read first; then the face pair's
+                // own reading ([`faces_apart`]).
+                let world = [
+                    (alo.x, ahi.x, blo.x, bhi.x),
+                    (alo.y, ahi.y, blo.y, bhi.y),
+                    (alo.z, ahi.z, blo.z, bhi.z),
+                ]
+                .into_iter()
+                .any(|(alo, ahi, blo, bhi)| {
+                    let gap = (blo - ahi).max(alo - bhi);
+                    matches!(
+                        decide("census_backstop_gap", Margin::of(gap), band),
+                        Ok(Sign::Positive)
+                    )
+                });
+                if !world
+                    && !faces_apart((body, a.face), (body, b.face), &[], sweep_pad(band), band)
+                {
                     // The lone loop is the cause only where it is what
                     // keeps each face out of the exact sweeps.
                     let why = if (a.lone || b.lone)
