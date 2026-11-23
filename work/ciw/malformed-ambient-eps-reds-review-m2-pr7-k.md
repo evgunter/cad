@@ -2,11 +2,12 @@
 id: malformed-ambient-eps-reds-review-m2-pr7-k
 kind: issue
 title: local cargo test — review_m2_pr7_k reds under a malformed ambient CAD_TOLERANCE_EPS
-status: open
+status: closed
 opened: 2026-08-15
 refs: [415, 448]
 priority: P4
 cost: E
+closed: 2026-11-22
 ---
 
 ## From GitHub issue 497
@@ -145,3 +146,7 @@ pass; if it is count-shaped, this row is a class of two and its title
 should say so.
 
 Moved from VACUITY to CIW on 2026-11-20, by `git mv`, when VACUITY merged into CIW: VACUITY held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CIW carries.
+
+## Closed
+
+`review_m2_pr7_k.rs`'s `run_probe` and `ambiguity_k_env.rs`'s re-exec now `env_remove` `CAD_TOLERANCE_EPS` and `CAD_AMBIGUITY_K` before setting their own, as `wire_band_cause.rs` does.

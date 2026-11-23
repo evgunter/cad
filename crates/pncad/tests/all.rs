@@ -4177,8 +4177,8 @@ fn asm_r2a_mated_assembly(
         doc,
         ids[1],
         Mate {
-            on: plane(ids[1]),
-            to: plane(ids[0]),
+            on: plane(ids[1]).into(),
+            to: plane(ids[0]).into(),
             orient: pncad::document::Orientation::IDENTITY,
         },
         values,

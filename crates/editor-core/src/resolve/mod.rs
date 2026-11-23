@@ -2691,8 +2691,8 @@ pub fn apply_with_names<T: topo::AtRestPolicy + Decide>(
         }
         DocEdit::Rebind { to, .. } => names.push(to),
         DocEdit::AddConstraint { mate, .. } => {
-            names.extend(mate.on.selected_names());
-            names.extend(mate.to.selected_names());
+            names.extend(mate.on.read.selected_names());
+            names.extend(mate.to.read.selected_names());
         }
         DocEdit::SetConstraints { constraints, .. } => {
             for (_, read) in constraints.iter().flat_map(crate::mate::Constraint::reads) {

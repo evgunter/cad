@@ -494,9 +494,7 @@ fn carry<E>(
             .map(<[_]>::to_vec)
             .unwrap_or_default();
         let mut bare = node.clone();
-        if let Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } =
-            &mut bare
-        {
+        if let Some(constraints) = bare.bundle_mut() {
             constraints.clear();
         }
         let (carried, selects) = remap_with_selects(
@@ -507,9 +505,7 @@ fn carry<E>(
         )
         .map_err(&refuse)?;
         let (mut authored, fresh) = vars.author(&carried, &selects);
-        if let Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } =
-            &mut authored
-        {
+        if let Some(constraints) = authored.bundle_mut() {
             *constraints = crate::mate::pin::Placed::identity().bundle();
         }
         let record = target
@@ -664,20 +660,19 @@ fn carry_bundle(
     new: RecipeNodeId,
     bundle: &[crate::mate::Constraint],
 ) -> Result<(), BundleMiss> {
-    let whole = Node::Place {
-        source: crate::BodyRead::plain(VarId::WORLD),
+    let whole = Node::Datum {
         target: VarId::WORLD,
         constraints: bundle.to_vec(),
     };
     let (carried, selects) =
         remap_with_selects(source, &whole, vars, maps).map_err(BundleMiss::Remap)?;
     let (authored, fresh) = vars.author(&carried, &selects);
-    let Node::Place {
+    let Node::Datum {
         constraints: authored,
         ..
     } = authored
     else {
-        unreachable!("a carried placement carrier stays one")
+        unreachable!("a carried datum carrier stays one")
     };
     let record = target
         .apply_recorded(DocEdit::SetConstraints {
@@ -2708,6 +2703,13 @@ fn remap_node(
             target: rd(crate::OperandSlot::Space, *target)?,
             constraints: bundle(constraints)?,
         },
+        Node::Datum {
+            target,
+            constraints,
+        } => Node::Datum {
+            target: rd(crate::OperandSlot::Space, *target)?,
+            constraints: bundle(constraints)?,
+        },
         // The world is every document's own, never carried; a
         // constraint reading it names no id.
         Node::World => Node::World,
@@ -3280,7 +3282,7 @@ pub fn split(
             cut.contains(&id)
                 && matches!(
                     doc.node(id),
-                    Some(Node::Place { .. } | Node::InstantiatePart { .. })
+                    Some(node) if node.makes_a_copy()
                 )
                 && world(id)
         })
@@ -3325,7 +3327,7 @@ pub fn split(
             && body.is_none_or(|b| b == name.node)
             && matches!(
                 doc.node(name.node),
-                Some(Node::Place { .. } | Node::InstantiatePart { .. })
+                Some(node) if node.makes_a_copy()
             )
         {
             return world(name.node).then_some((name.node, false));
@@ -3413,7 +3415,7 @@ pub fn split(
                 return Ok(None);
             };
             match doc.node(at) {
-                Some(Node::Place { .. } | Node::InstantiatePart { .. }) => {
+                Some(node) if node.makes_a_copy() => {
                     let within = match doc.pick_path(var) {
                         Some((_, path)) => path,
                         None if !read.is_indexed()
@@ -3996,7 +3998,7 @@ pub fn split(
     if !in_order.iter().any(|&id| {
         matches!(
             doc.node(id),
-            Some(Node::Place { .. } | Node::InstantiatePart { .. })
+            Some(node) if node.makes_a_copy()
         ) && world(id)
     }) && let Some(&first) = doc.ids().iter().find(|id| selected.contains(id))
     {
@@ -5003,7 +5005,7 @@ pub fn inline(
     for side in bundle
         .iter()
         .filter_map(crate::mate::Constraint::mate)
-        .map(|mate| mate.on)
+        .map(|mate| mate.on.read)
     {
         if doc.var_name(side).is_some() || pose_leaves(doc, side).is_none() {
             continue;
@@ -5610,7 +5612,7 @@ pub fn flatten(
     // the `⊔` operand the path starts at, picked further by the rest.
     let source_is_copy = matches!(
         doc.operation_of(source).and_then(|at| doc.node(at)),
-        Some(Node::Place { .. } | Node::InstantiatePart { .. })
+        Some(node) if node.makes_a_copy()
     );
     let unpicked = |of: &[VarId]| -> crate::Operand {
         match of.split_first() {

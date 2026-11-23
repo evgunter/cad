@@ -2,10 +2,11 @@
 id: e2-recut-probe-has-no-residual-independence-left
 kind: issue
 title: review_arceval's E2 now re-executes the shipped row's fixture, constant and predicate, and can no longer disagree with it
-status: open
+status: closed
 opened: 2026-09-19
-priority: P4
+priority: P3
 cost: E
+closed: 2026-11-22
 ---
 
 ## Finding
@@ -60,4 +61,6 @@ now explains at length.
 
 Moved from VACUITY to CIW on 2026-11-20, by `git mv`, when VACUITY merged into CIW: VACUITY held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CIW carries.
 
-- 2026-11-22 — **Re-banded P3 → P4 by CIW triage.** The probe re-runs the shipped row's fixture, constant and predicate (`crates/sweep/tests/review_arceval_r1_probes.rs:131`). It cannot red on its own, so it is a duplicate execution: a small suite cost, not a missing guard. "Suite costing less" is P4.
+## Closed
+
+Deleted E2 from `review_arceval_r1_probes.rs`; its header names `m5_s12_curved_ops_interval.rs`'s `interval_sphere_subtract_decides_definitely_after_the_recut` as the owner of the claim, and `common/sphere_recut.rs`'s header no longer counts E2 as a reader.

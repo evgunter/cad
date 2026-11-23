@@ -639,18 +639,19 @@ pub(crate) fn iso_rectangle_shape(
     band: Band,
 ) -> Result<Shape, TessellateError> {
     use geom_brep::props::PropsError as P;
-    let lp = body
-        .get_loop(lk)
-        .ok_or(TessellateError::MissingEntity { what: "loop" })?;
-    if matches!(lp.boundary, topo::LoopBoundary::Empty { .. }) {
-        return Err(TessellateError::EmptyLoop { face: fk });
-    }
+    let lp = body.cycle_loop(lk).map_err(|miss| match miss {
+        topo::NoCycle::Stale => TessellateError::MissingEntity { what: "loop" },
+        topo::NoCycle::Torn => TessellateError::MissingEntity {
+            what: "a loop that does not walk",
+        },
+        topo::NoCycle::Lone(_) => TessellateError::EmptyLoop { face: fk },
+    })?;
     // `loop_edges` reports exactly the two states a flatten can reach,
     // in its own type, so this match is exhaustive over them and a
     // third arm minted in `topo` is a compile error here — D2 row 0
     // across the crate boundary, in place of an `unreachable!` over
     // arms the flatten never produced.
-    let (outer, half_edges) = topo::props::loop_edges(body, lk).map_err(|e| match e {
+    let (outer, half_edges) = topo::props::loop_edges(lp).map_err(|e| match e {
         LoopEdgesError::NullScaffoldEdge { edge } => TessellateError::NullScaffoldEdge { edge },
         LoopEdgesError::Corrupt { what } => TessellateError::MissingEntity { what },
     })?;
@@ -1152,8 +1153,8 @@ fn grid_counts(
 ) -> Result<(usize, usize), TessellateError> {
     let steps = row.steps(delta);
     let (hu, hv) = steps;
-    // The lattice the row lays: rows every `lever·hu` on a ruled chart,
-    // the periodic steps capped on a torus and a spindle sheet.
+    // The lattice the row lays: the periodic steps capped on a torus and
+    // a spindle sheet, which this lane reads alone.
     let (lu, lv) = row.lattice_steps(steps);
     match row.kind() {
         Analytic::Cylinder { .. } => {
@@ -3305,7 +3306,9 @@ mod tests {
         let routes = body
             .faces()
             .fold(crate::tessellate::Routes::witness(&body), |r, (fk, f)| {
-                let (_, half_edges) = topo::props::loop_edges(&body, f.outer).unwrap();
+                let (_, half_edges) =
+                    topo::props::loop_edges(body.cycle_loop(f.outer).expect("a cycle loop"))
+                        .unwrap();
                 let sides = half_edges
                     .into_iter()
                     .map(|he| (he, geom_brep::IsoFamily::V))
@@ -3331,7 +3334,9 @@ mod tests {
         assert_eq!(
             geom_brep::props::require_iso_rectangle(
                 surface,
-                &topo::props::loop_edges(&body, outer).unwrap().0,
+                &topo::props::loop_edges(body.cycle_loop(outer).expect("a cycle loop"))
+                    .unwrap()
+                    .0,
                 band
             ),
             Err(geom_brep::props::PropsError::NotIsoRectangle {

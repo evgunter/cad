@@ -883,7 +883,7 @@ fn a_downstream_failure_alone_is_a_fault_the_reader_cannot_act_on() {
         status,
         repair_at: None,
         readout: None,
-        version_offer: None,
+        offers: Vec::new(),
         constraints: Vec::new(),
     };
     let rows = [

@@ -2,11 +2,12 @@
 id: perf-plan-citations-name-a-path-that-moved
 kind: issue
 title: Five citations name docs/PERF-PLAN.md, a path that became work/perf/plan.md on 2026-09-03; twenty-seven more name the document, which is alive
-status: open
+status: closed
 opened: 2026-09-11
 refs: [perf-plan-is-cited-by-twenty-nine-files-and-absent-from-tree-and-ledger]
 priority: P4
 cost: E
+closed: 2026-11-22
 ---
 
 
@@ -96,3 +97,7 @@ reads and a claim no gate reads are one kind of work. Id and body unchanged.
 ## Moved to CIW (2026-11-02)
 
 - 2026-11-02 — moved from UNREAD to CIW when UNREAD merged into CIW (budget rule now counts P0/P1 only). UNREAD's rows are claims no gate reads and CIW's are what the hosted gate does not run or see: one question, what goes red if this stops being true. Id and body unchanged.
+
+## Closed
+
+The five live path citations (`Cargo.toml`, `local-scripts/setup-build-env.sh`, `crates/mesh/tests/profile_overrides.rs`, `docs/PERF-SCAN-2026-08.md` twice) now name `work/perf/plan.md`; the records in `docs/WORK-TRACKS-2026-09.md` and the doc-ledger stay as written.

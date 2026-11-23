@@ -2305,7 +2305,12 @@ mod tests {
                 }
                 geom::Surface::Cylinder { frame, radius, .. } => {
                     let (origin, axis) = (frame.origin(), frame.axis());
-                    geom::Line { origin, dir: axis }.distance(q) - radius
+                    geom::Line {
+                        origin,
+                        dir: geom::stated_direction(axis),
+                    }
+                    .distance(q)
+                        - radius
                 }
                 _ => unreachable!("a sphere or a cylinder"),
             };
