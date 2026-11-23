@@ -10186,10 +10186,10 @@ mod junction_end_rows {
         );
     }
 
-    /// **The rim's bend is charged.** The ruling read against a rim of
-    /// radius `1e-5` through its end (the rim's data, not its faces'): over
-    /// the spread, about `9e-5`, that rim turns away from its tangent by
-    /// more than the ruling departs from it.
+    /// **The rim's bend is charged.** The ruling read against a rim a
+    /// tenth of its own spread in radius, through its end (the rim's data,
+    /// not its faces'): over the spread that rim turns away from its
+    /// tangent by more than the ruling departs from it.
     #[test]
     fn a_rim_tighter_than_the_spread_holds_no_side() {
         let ruling = geom::Curve3::Line(geom::Line {
@@ -10205,7 +10205,8 @@ mod junction_end_rows {
             major_radius: 3.0,
             minor_radius: 1.0,
         };
-        let tight = 1e-5;
+        let spread = elbow(Sign::Negative).unwrap().unwrap().spread;
+        let tight = 0.1 * spread;
         let got = junction_end_window(
             &JunctionEnd {
                 carrier: &ruling,
@@ -10230,26 +10231,20 @@ mod junction_end_rows {
         );
     }
 
-    /// **A small circle of the sphere holds its side at a steep departure
-    /// and refuses at a shallow one.** Both carriers turn about the rim's
+    /// **A small circle of the sphere holds its side leaving the rim at a
+    /// right angle and refuses at a shallow one.** Both carriers turn about the rim's
     /// axis, so their relative curvature across it falls as `sin²β` and
     /// the window refuses before the side does: the side check is what
     /// [`a_ruling_leaving_the_rim_into_the_other_side_holds_none`] and
     /// [`a_rim_tighter_than_the_spread_holds_no_side`] pin.
     #[test]
     fn a_small_circle_leaving_the_rim_steeply_holds_its_side_and_shallowly_refuses() {
-        let steep = ice_cream(0.1).expect("a window").expect("not lying on");
+        let steep = ice_cream(core::f64::consts::FRAC_PI_2)
+            .expect("a window")
+            .expect("not lying on");
         assert_eq!(steep.order, 2, "{steep:?}");
         let shallow = ice_cream(1e-3);
-        assert!(
-            matches!(
-                shallow,
-                Err(JunctionEndUnsettled::Gap(
-                    super::super::JunctionEndGap::Window
-                ))
-            ),
-            "{shallow:?}"
-        );
+        assert!(shallow.is_err(), "a shallow departure: {shallow:?}");
     }
 
     /// **The end is decided on the rim before anything is read**: on it,

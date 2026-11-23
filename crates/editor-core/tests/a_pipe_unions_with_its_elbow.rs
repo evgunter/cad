@@ -535,18 +535,20 @@ fn neutral_off_the_seam(delta: f64) -> OffCap {
 ///
 /// - on it, the end's root is of order four, read past, and the union
 ///   stops at the finish;
-/// - `1e-9` off it, the quadratic term reads in band: the end's order
+/// - `ε` off it, the quadratic term reads in band: the end's order
 ///   escalates (`JunctionEndOrder`);
-/// - `1e-5` off it, the quadratic term decides but no window holds its
-///   spread: the end is unread (`JunctionEndUnread`, `Window`), the belt
+/// - `√ε/3` off it (`1e-5` at `ε = 1e-9`), the quadratic term decides but
+///   no window holds its spread: the end is unread (`JunctionEndUnread`,
+///   `Window`), the belt
 ///   `work/heldrecords/the-junction-end-window-refuses-in-a-belt-around-a-neutral-point.md`
 ///   files.
 #[test]
 fn an_edge_ending_near_a_neutral_point_stops_where_its_distance_says() {
     let on = join(true, CapEnd::End, neutral_off_the_seam(0.0));
     stops_at_the_finish(&on, "on the neutral point");
-    let near = join(true, CapEnd::End, neutral_off_the_seam(1e-9));
-    let e = refusal(&near, "1e-9 off it");
+    let eps = Tol::witness().eps();
+    let near = join(true, CapEnd::End, neutral_off_the_seam(eps));
+    let e = refusal(&near, "ε off it");
     assert!(
         matches!(
             e,
@@ -555,10 +557,10 @@ fn an_edge_ending_near_a_neutral_point_stops_where_its_distance_says() {
                 ..
             }
         ),
-        "1e-9 off it, the order in band: {e:?}"
+        "ε off it, the order in band: {e:?}"
     );
-    let belt = join(true, CapEnd::End, neutral_off_the_seam(1e-5));
-    let e = refusal(&belt, "1e-5 off it");
+    let belt = join(true, CapEnd::End, neutral_off_the_seam(eps.sqrt() / 3.0));
+    let e = refusal(&belt, "√ε/3 off it");
     assert!(
         matches!(
             e,
@@ -567,7 +569,7 @@ fn an_edge_ending_near_a_neutral_point_stops_where_its_distance_says() {
                 ..
             }
         ),
-        "1e-5 off it, no window: {e:?}"
+        "√ε/3 off it, no window: {e:?}"
     );
 }
 

@@ -674,12 +674,20 @@ mod rows {
 
     /// **The window's far end stands off the surface.** At `δ = 1e-4`
     /// off the neutral point the quartic tail halves the window until its
-    /// far end lies about `3e-9` off the bend, in band; the door does not
-    /// hand that end to the root doors as the rest of the span's start,
-    /// and no nearer window holds its spread.
+    /// far end lies about `3e-9` off the bend, in band at the witness
+    /// band; the door does not hand that end to the root doors as the rest
+    /// of the span's start, and no nearer window holds its spread. The
+    /// pose is placed by hand for that band's `ε = 1e-9`.
     #[test]
     fn a_window_whose_far_end_reads_in_band_is_not_returned() {
         let b = band();
+        if b.zero() != 1e-9 {
+            test_utils::vacuity::stood_down(
+                "ε ≠ 1e-9",
+                "the far end's clearance is not driven in band: the pose is placed for ε = 1e-9",
+            );
+            return;
+        }
         let c = ruling(core::f64::consts::FRAC_PI_2 - 1e-4);
         let got = end_window(&c, (0.0, 2.0), SpanEnd::End, &bend(), b);
         assert!(
