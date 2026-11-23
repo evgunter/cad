@@ -5,8 +5,10 @@
 //!    KIND roster, so no torus pair is the gate's question; the peg
 //!    seated in its socket builds through the join, and a coincident
 //!    pair is one body.
-//! 2. **A G1 tube chain refuses at the crossing layer**: an edge of one
-//!    segment rides the other's wall.
+//! 2. **A G1 tube chain passes the glue door and refuses at the crossing
+//!    layer**: the two walls both end on their shared meridian and glue
+//!    as a junction, and an edge of one segment ends on that rim tangent
+//!    to the other's wall.
 //! 3. **∖ and ∩ meet the doors ∪ does.** The torus is on the revert
 //!    roster, so each fixture under a subtract (both orders) or an
 //!    intersect answers at the door its union meets; the peg seated in
@@ -299,32 +301,44 @@ fn a_partly_covered_torus_pair_is_no_longer_a_gate_question() {
 // 2. The G1 chain.
 // -------------------------------------------------------------------
 
-/// **The G1 tube chain refuses at the glue door**: the two segments
-/// share their terminal meridian circle, and at its poles the tubes
-/// osculate (`κ_rel` exactly zero at a sample), the second-order
-/// residue no declaration stands behind. In both orders.
+/// **The G1 tube chain glues its meridian a junction and stops at the
+/// crossing layer**: the two segments both end on their terminal meridian
+/// circle, the routing's π seam with the walls leaving on opposite sides
+/// and each segment's own rim edge (its torus against its end cap) a
+/// convex crease, so the glue door glues the pair a junction on the rim's
+/// identity and that wedge, and its neutral points (`κ_rel` exactly zero)
+/// are no question there; an edge of one segment ending on that rim
+/// tangent to the other's wall is what the crossing layer cannot yet
+/// settle. In both orders.
 #[test]
-fn the_g1_tube_chain_refuses_at_the_glue_door() {
+fn the_g1_tube_chain_glues_its_meridian_a_junction_and_stops_at_the_crossing_layer() {
     let (Some(a), Some(b)) = (segment_a(), segment_b()) else {
         return;
     };
+    let walls: Vec<_> = topo::boolean::rim_door(&a, &b, Tol::witness())
+        .into_iter()
+        .filter(|(kinds, _)| *kinds == (geom::SurfaceKind::Torus, geom::SurfaceKind::Torus))
+        .map(|(_, door)| door)
+        .collect();
+    assert!(
+        !walls.is_empty() && walls.iter().all(|d| *d == topo::boolean::RimDoor::Junction),
+        "the two walls on the meridian glue a junction: {walls:?}"
+    );
     for (x, y) in [(&a, &b), (&b, &a)] {
         let err = topo::union(x, y, Tol::witness()).expect_err("the chain refuses");
-        assert!(osculates(&err), "the glue door's refusal: {err:?}");
+        assert!(
+            at_the_crossing_layer(&err),
+            "the crossing layer's refusal: {err:?}"
+        );
     }
 }
 
-/// The glue door's escalation on the chain's second order.
-fn osculates(err: &BooleanError) -> bool {
+/// The crossing layer's refusal of an edge that ends on the chain's
+/// rim: unsettled where its residual reads the end's tangency, or in band.
+fn at_the_crossing_layer(err: &BooleanError) -> bool {
     matches!(
         err,
-        BooleanError::Escalated {
-            diag: geom_core::Indeterminate {
-                predicate: Some("contact_tangent_second_order"),
-                ..
-            },
-            ..
-        }
+        BooleanError::CurvedPierceUnsupported { .. } | BooleanError::CurvedPierceEscalated { .. }
     )
 }
 
@@ -342,8 +356,7 @@ fn osculates(err: &BooleanError) -> bool {
 ///   each difference its minuend whole, the volumes by Pappus
 ///   (`πr²·Rθ` for a tube of radius `r` turned through `θ` on a ring of
 ///   radius `R`);
-/// - the chain refuses at the glue door on its osculating poles, and
-///   the kissing pair at the crossing layer (escalated where the run's
+/// - the chain and the kissing pair refuse at the crossing layer (escalated where the run's
 ///   band puts the sampled margin in its window).
 #[test]
 fn subtract_and_intersect_on_the_torus_rest_fixtures() {
@@ -395,8 +408,8 @@ fn subtract_and_intersect_on_the_torus_rest_fixtures() {
         for (op, r) in subtract_both_orders_and_intersect(&sa, &sb) {
             let err = r.expect_err(op);
             assert!(
-                osculates(&err),
-                "chain, {op}: the glue door's refusal: {err:?}"
+                at_the_crossing_layer(&err),
+                "chain, {op}: the crossing layer's refusal: {err:?}"
             );
         }
     }
