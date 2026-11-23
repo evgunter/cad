@@ -1417,9 +1417,9 @@ impl<T: Real> Ruling<T> {
 }
 
 /// **The chart of a corner patch**, from the unit directions
-/// `[f_x, f_y, f_c]` from the ball centre to the patch's three feet.
-/// Returns `(u_ref, axis)`: the pole is `±f_c`, the seam meridian runs
-/// through `f_x`, and `f_y` lies at `u ∈ (0, π)`.
+/// `[f_x, f_y, f_c]` from the ball centre to the patch's three feet,
+/// minted at `center` ([`frame_along`]): the pole is `±f_c`, the seam
+/// meridian runs through `f_x`, and `f_y` lies at `u ∈ (0, π)`.
 ///
 /// **Neither pole lies inside the patch off a vertex.** Each boundary
 /// circle is a great circle (an edge cylinder of radius `r` whose axis
