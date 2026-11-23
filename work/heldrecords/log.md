@@ -54,3 +54,4 @@
   3. The seam edge's description.
 
   The inward poses are pinned as refusing typed, and their overlap build is filed on the overlap lanes' owner. Alternative not taken: land (1) alone and file (2)–(4). The P0 is "the elbow unions", so the program keeps it. (HELDRECORDS orchestrator)
+- 2026-11-23 — **Note from BOXFINISH: an input-reachable panic in the n-ary door is filed on this slate** (`the-nary-door-panics-on-an-accumulation-face-with-no-member-lineage`, P1 M): `die_composed_tour` at `f64` after one variable edit of 30% panics on the `unreachable!` about an accumulation face with no member-face lineage. Found by a reviewer's corpus sweep on BOXFINISH PR 7458, whose diff does not touch `topo`; not re-run by the filer. Re-home it if the lineage record is another program's.
