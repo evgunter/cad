@@ -2747,13 +2747,19 @@ mod tip_count_rows {
     /// each with a `1 mm` side, and no run shorter. Counterclockwise
     /// about `+z`, the first tip first.
     fn two_spikes() -> Vec<(f64, f64)> {
+        two_spikes_with(1e-3)
+    }
+
+    /// [`two_spikes`] with the second tip's short side `side` long, its
+    /// two sides still `0.9e-9 m` apart at that lever.
+    fn two_spikes_with(side: f64) -> Vec<(f64, f64)> {
         vec![
             (0.0, 0.0),
             (1e-3, 0.0),
             (1e-3, -1.0),
             (3.0, -1.0),
-            (3.0 - 1e-3, -1.0 + OPENING * 1e-3),
-            (3.0 - 1e-3, 1.0),
+            (3.0 - side, -1.0 + OPENING * 1e-3),
+            (3.0 - side, 1.0),
             (1.0, 1.0),
             (1.0, OPENING),
         ]
@@ -2912,32 +2918,39 @@ mod tip_count_rows {
         );
     }
 
-    /// **The half-turn corners share the meter.** Two tips admitted at
-    /// `1 mm` each leave the count's gap from a mark levered at half a
-    /// millimetre: in a band that holds `0.5 mm` the count escalates as
-    /// a corner does, quoting it, and in a band whose zero holds it the
-    /// tip is unread, where either tip's own corner is a half-turn at
-    /// its `1 mm` lever and one tip alone would count. On both lanes.
+    /// **The half-turn corners share the meter, at the least of their
+    /// levers.** Two tips admitted at `1 mm` each leave the count's gap
+    /// from a mark levered at half a millimetre: in a band that holds
+    /// `0.5 mm` the count escalates as a corner does, quoting it, and in
+    /// a band whose zero holds it the tip is unread, where either tip's
+    /// own corner is a half-turn at its `1 mm` lever and one tip alone
+    /// would count. A second tip admitted at `4 mm` changes nothing: the
+    /// shorter lever meters both. On both lanes.
     #[test]
     fn two_admitted_tips_are_counted_at_half_their_least_lever() {
         fn row<T: Decide + AtRestPolicy>(lane: &str) {
-            let in_band = Band::new(3e-4, 7e-4).unwrap();
-            let Err(Some((lo, hi))) = read::<T>(&two_spikes(), COVER, in_band) else {
-                panic!(
-                    "{lane}: a count in band: {:?}",
-                    read::<T>(&two_spikes(), COVER, in_band)
+            for (name, rim) in [
+                ("both at 1 mm", two_spikes()),
+                ("one at 1 mm, one at 4 mm", two_spikes_with(4e-3)),
+            ] {
+                let in_band = Band::new(3e-4, 7e-4).unwrap();
+                let Err(Some((lo, hi))) = read::<T>(&rim, COVER, in_band) else {
+                    panic!(
+                        "{lane}, {name}: a count in band: {:?}",
+                        read::<T>(&rim, COVER, in_band)
+                    );
+                };
+                assert!(
+                    lo - 1e-9 < 5e-4 && 5e-4 < hi + 1e-9 && hi - lo < 1e-9,
+                    "{lane}, {name}: half a millimetre, [{lo:e}, {hi:e}]"
                 );
-            };
-            assert!(
-                lo - 1e-9 < 5e-4 && 5e-4 < hi + 1e-9 && hi - lo < 1e-9,
-                "{lane}: half a millimetre, [{lo:e}, {hi:e}]"
-            );
-            let on_mark = Band::new(6e-4, 9e-4).unwrap();
-            assert_eq!(
-                read::<T>(&two_spikes(), COVER, on_mark),
-                Err(None),
-                "{lane}: on the mark"
-            );
+                let on_mark = Band::new(6e-4, 9e-4).unwrap();
+                assert_eq!(
+                    read::<T>(&rim, COVER, on_mark),
+                    Err(None),
+                    "{lane}, {name}: on the mark"
+                );
+            }
         }
         row::<f64>("f64");
         row::<Interval>("Interval");
