@@ -9216,21 +9216,21 @@ mod tests {
         // translating map. The fixture is anchored at the origin, and
         // this operand needs a disjoint certified box so the realized
         // sweep examines no pair at all.
-        let far_cube = |dx: f64| {
+        let far_cube = |dx: f64, faces: FaceGeometry| {
             let mut body = crate::Body::<f64>::new();
             prism_ops(
                 &mut body,
                 &UNIT_SQUARE,
                 (0.0, 1.0),
                 |x, y, z| Point3::new(x + dx, y, z),
-                FaceGeometry::Declined,
+                faces,
                 Tol::witness(),
             );
             body
         };
 
         let a = declined_cube::<f64>(Tol::witness()).body;
-        let b = far_cube(10.0);
+        let b = far_cube(10.0, FaceGeometry::Declined);
         // Door 1 — the placeholder is not a finished body: the at-rest
         // gate that would hand it to the boolean refuses each of its
         // faces as uncertifiable, so no NURBS placeholder reaches a pair.
@@ -9252,14 +9252,18 @@ mod tests {
 
         // Door 2 — the fallback's own re-gate, at the mechanism: a
         // fallback entry carrying a NURBS face whose box may meet a face
-        // of the other operand refuses BEFORE a vertex is probed. A
-        // placeholder's net is poison, so its box meets every face, far
-        // or not (the fixture's pending slots are described as an
-        // all-poison net here). `sweep`'s `s16_box_soundness` pins the re-gate end to
-        // end on a lofted operand.
-        let (mut a, mut b) = (a, b);
-        crate::fixtures::describe_pending_as_poison(&mut a);
-        crate::fixtures::describe_pending_as_poison(&mut b);
+        // of the other operand refuses BEFORE a vertex is probed. Two
+        // certified cubes, one face of `a` re-described as a finite
+        // NURBS patch whose net reaches past `b`'s near face, so its box
+        // meets `b`'s. `sweep`'s `s16_box_soundness` pins the re-gate end
+        // to end on a lofted operand.
+        let mut a = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
+        let b = far_cube(10.0, FaceGeometry::Certified);
+        let wall = a.faces().next().map(|(k, f)| (k, f.surface)).unwrap();
+        assert!(a.describe_slot_for_tests(wall.1, crate::fixtures::patch_spanning(
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(11.0, 1.0, 1.0),
+        )));
         let band = Band::linear(Tol::witness()).unwrap();
         let Err(err) = super::sphere_extent_scan(&a, &b, &super::Evidence::NONE, band) else {
             panic!("the NURBS fallback must be re-gated, never vertex-probed");

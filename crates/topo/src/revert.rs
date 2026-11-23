@@ -145,7 +145,7 @@ use crate::body::Body;
 use crate::census::CollinearOverlap;
 use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, HalfEdgeKey};
 use crate::geometry::CurveKey;
-use crate::live::{FaceView, OPERATORS_KEEP_LINKS, Proven, dangling_link, link};
+use crate::live::{FaceView, OPERATORS_KEEP_LINKS, Proven, link};
 use crate::null::CurveGeom;
 
 /// **Which of the two exclusive encodings carries a face's reversal**
@@ -254,11 +254,12 @@ impl<T: Real> Body<T> {
                     return false;
                 };
                 curve.description().chart().is_some_and(|chart| {
-                    Reversal::of(self.get_surface(chart.surface).unwrap_or_else(|_| {
-                        dangling_link(
+                    Reversal::of(self.get_surface(chart.surface).unwrap_or_else(|miss| {
+                        crate::live::described_link(
                             GeomRef::Curve(key),
                             "chart image's surface",
-                            GeomRef::Surface(chart.surface),
+                            chart.surface,
+                            miss,
                         )
                     }))
                     .turns_chart()
@@ -471,9 +472,9 @@ mod tests {
     use geom_core::Tol;
 
     /// **A non-plane face reverts on its `sense` bit.**
-    /// `declined_cube`'s faces all share the `mvfs` `Nurbs` placeholder
-    /// surface, and revert: every face's `sense` flips, and
-    /// nothing else about a non-plane surface moves. (The full
+    /// `declined_cube`'s faces all share the `mvfs` pending slot, which
+    /// reverts as a non-plane surface does: every face's `sense` flips,
+    /// and nothing else moves. (The full
     /// involution/determinism/tier pins run on the geometric cube in
     /// `tests/m3_pr1_surgery.rs` and on real analytic surfaces in
     /// `crates/sweep/tests/m5_s12_curved_ops.rs`.)
@@ -487,7 +488,7 @@ mod tests {
         );
         let reverted = cube.body.revert().unwrap();
         let after: Vec<bool> = reverted.faces().map(|(_, f)| f.sense).collect();
-        assert!(after.iter().all(|s| !*s), "every non-plane face flipped");
+        assert!(after.iter().all(|s| !*s), "every pending face flipped");
         // The surfaces themselves are untouched (the reversal is on the
         // face, not the chart), and the involution is bitwise.
         assert_eq!(
@@ -501,7 +502,7 @@ mod tests {
     }
 
     /// **Every loop keeps its anchor.** `declined_cube`'s faces all
-    /// share the `mvfs` placeholder surface (not a plane), and a one-face
+    /// share the `mvfs` pending slot (not a plane), and a one-face
     /// body whose face is a plane carries a two-half-edge cycle: in both
     /// every reverted `first` is the source's, and the involution is
     /// bitwise. No stored byte depends on `first` (module docs), so one
@@ -553,20 +554,17 @@ mod tests {
             ),
             radius: 1.0,
         };
-        let mut cube = declined_cube::<f64>(Tol::witness()).body;
-        crate::fixtures::describe_pending_as_poison(&mut cube);
-        assert!(
-            cube.face_views()
-                .all(|face| matches!(face.surface().unwrap(), geom::Surface::Nurbs(_))),
-            "the NURBS rows' fixture: every face of the cube is on a NURBS net"
+        let nurbs = crate::fixtures::patch_spanning(
+            geom_core::Point3::new(0.0, 0.0, 0.0),
+            geom_core::Point3::new(1.0, 1.0, 1.0),
         );
         let rows = [
             ("a plane", lone_face(plane.clone(), true), false),
             ("a plane", lone_face(plane, false), false),
             ("a cylinder", lone_face(cylinder.clone(), true), true),
             ("a cylinder", lone_face(cylinder, false), true),
-            ("a NURBS net", cube.revert().unwrap(), true),
-            ("a NURBS net", cube, true),
+            ("a NURBS net", lone_face(nurbs.clone(), true), true),
+            ("a NURBS net", lone_face(nurbs, false), true),
         ];
         for (kind, body, flips) in rows {
             let reverted = body.revert().unwrap();

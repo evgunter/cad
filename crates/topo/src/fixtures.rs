@@ -1763,15 +1763,31 @@ mod tests {
     }
 }
 
-/// Every pending slot of `body` described as [`poisoned_net`] with every
-/// point poisoned: a spline chart with no locus, for a row that hands a
-/// mid-build fixture to a reader of finished bodies.
-pub(crate) fn describe_pending_as_poison(body: &mut crate::Body<f64>) {
+/// Every pending slot of `body` described as `surface`: for a row that
+/// reads its faces' KINDS only, so where the surface lies does not enter
+/// what it pins.
+pub(crate) fn describe_pending_as(body: &mut crate::Body<f64>, surface: &geom::Surface<f64>) {
     for (_, slot) in body.surfaces.iter_mut() {
         if slot.is_pending() {
-            *slot = crate::SurfaceSlot::Described(poisoned_net(|_| true));
+            *slot = crate::SurfaceSlot::Described(surface.clone());
         }
     }
+}
+
+/// A finite bilinear NURBS patch whose net spans the box from `lo` to
+/// `hi`: corners `(lo.x, lo.y, lo.z)`, `(lo.x, hi.y, hi.z)`,
+/// `(hi.x, lo.y, lo.z)` and `(hi.x, hi.y, hi.z)`, so its box is that box.
+pub(crate) fn patch_spanning(lo: Point3<f64>, hi: Point3<f64>) -> geom::Surface<f64> {
+    let unit = || geom_core::spline::KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
+    let control = vec![
+        Point3::new(lo.x, lo.y, lo.z),
+        Point3::new(lo.x, hi.y, hi.z),
+        Point3::new(hi.x, lo.y, lo.z),
+        Point3::new(hi.x, hi.y, hi.z),
+    ];
+    geom::Surface::Nurbs(std::sync::Arc::new(
+        geom::NurbsSurface::new(unit(), unit(), control, vec![1.0; 4]).unwrap(),
+    ))
 }
 
 /// A NURBS surface whose net is not finite: bilinear on `[0, 1]²`,
