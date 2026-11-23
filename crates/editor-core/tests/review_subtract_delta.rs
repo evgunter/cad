@@ -252,7 +252,7 @@ fn nary_and_chain(
         doc,
         Node::Subtract {
             from: plain(p),
-            tool: Bodies::Spelled(tools.iter().copied().map(plain).collect()),
+            tool: Bodies::spelled(tools.iter().copied().map(plain).collect()),
         },
     );
     let mut doc = doc;
@@ -262,7 +262,7 @@ fn nary_and_chain(
             doc,
             Node::Subtract {
                 from: plain(acc),
-                tool: Bodies::Spelled(vec![plain(t)]),
+                tool: Bodies::spelled(vec![plain(t)]),
             },
         );
         doc = d;
@@ -369,7 +369,7 @@ fn tools_touching_outside_the_kept_body_publish_no_row_between_them() {
         doc,
         Node::Subtract {
             from: plain(p),
-            tool: Bodies::Spelled(vec![plain(a), plain(b), plain(c)]),
+            tool: Bodies::spelled(vec![plain(a), plain(b), plain(c)]),
         },
     );
     let ev = run(&doc);

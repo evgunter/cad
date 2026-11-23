@@ -47,6 +47,7 @@ use test_utils::source::{NameCarrier, crate_dir, predicate_census, roster_violat
 const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SQUARE_FOLD_HALF"),
     NameCarrier::Const("OVAL_SIDE"),
+    NameCarrier::Const("OVAL_IN_BAND"),
     // The session box's two decisions (`session_box.rs`).
     NameCarrier::Const("SESSION_BOX_REACH"),
     NameCarrier::Const("SESSION_BOX_POINT"),
@@ -82,6 +83,12 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("DIHEDRAL_WEDGE"),
     NameCarrier::Const("TANGENT_SECOND_ORDER"),
     NameCarrier::Const("MATERIAL_CUSP_SIDE"),
+    // The end-root door's questions (`curve_face/end_root.rs`).
+    NameCarrier::Const("END_ROOT_ORDER"),
+    NameCarrier::Const("END_ROOT_RUN"),
+    NameCarrier::Const("END_ROOT_TAIL"),
+    NameCarrier::Const("END_ROOT_SPREAD"),
+    NameCarrier::Const("END_ROOT_WINDOW_CLEAR"),
     // The carrier ladder's data names, and each kind's reach row with
     // its straddle row (`carrier_eq.rs`).
     NameCarrier::Const("CARRIER_CONE_APEX"),

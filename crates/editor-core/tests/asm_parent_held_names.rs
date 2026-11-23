@@ -47,7 +47,7 @@ impl editor_core::PartResolver for VersionShelf {
             .cloned()
             .ok_or_else(|| ResolveFailure {
                 fault: ResolveFault::Unresolved,
-                message: "no such version on the shelf".to_string(),
+                message: "no such version on the shelf".into(),
             })
     }
 }

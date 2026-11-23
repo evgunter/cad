@@ -1,27 +1,22 @@
-//! **A loft's end profiles are the `f64` canonical form, lifted.**
+//! **A loft's seam struts join its sections' canonical vertices.**
 //!
-//! A section is `f64` data and the walls are skinned from the `f64`
-//! canonical loops `loft_geometry` validates. These rows pin that the
-//! body's seam struts — `seam_edges[l][j][0]`, the strut at CANONICAL
-//! vertex `j` — join exactly that vertex's two world points, bit for
-//! bit at `f64` and as point enclosures at `Interval`. So the caps are
-//! the walls' own sections rather than a second canonicalization of
-//! the same data made in the evaluation scalar's arithmetic: an
-//! end-profile lift that moved a bit, rotated a loop's canonical start
-//! or reversed its traversal fails here.
+//! At `f64` the body's seam struts (`seam_edges[l][j][0]`, the strut at
+//! CANONICAL vertex `j`) join exactly that vertex's two world points,
+//! bit for bit: the caps are the walls' own sections, and a wiring that
+//! rotated a loop's canonical start or reversed its traversal fails
+//! here.
 //!
-//! The strut rows' expectation is built through `Profile::validate` on
+//! The strut row's expectation is built through `Profile::validate` on
 //! the section at its own placement. That IS the call `loft_geometry`
 //! makes at the door, so the row is not independent of the decision
-//! under test; what it still pins independently is everything the
-//! assembly does with that decision — which canonical vertex each
-//! strut is wired to, and that `lift_onto` carries the scalars onto
-//! the lane's placement without touching a bit.
+//! under test; what it still pins independently is which canonical
+//! vertex each strut is wired to.
 //!
-//! The last row is the separating one: a section whose `f64`
-//! validation decides and whose `Interval` re-validation escalates
-//! lofts at `Interval`, because the assembly reads the decided form
-//! instead of deciding again.
+//! At `Interval` the loft validates its sections and builds its walls
+//! at the lane scalar. The cone's arc sections refuse there at the
+//! carrier's door, pinned below; and a section whose `f64` validation
+//! decides and whose `Interval` validation escalates refuses at the
+//! profile door, since every decision is certified at the lane.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point2, Point3, Real, Tol};
@@ -112,26 +107,12 @@ fn each_seam_strut_joins_its_canonical_vertexs_two_world_points() {
     }
 }
 
-/// The interval twin: the same struts at `Interval` carry the same
-/// points as POINT enclosures. Nothing widens, because the end
-/// profiles are lifted rather than re-derived at the scalar.
+/// The loft at `Interval`.
 mod interval {
-    use super::{Bits, cone_sections, edge_points, expected_struts};
-    use geom_core::{Bounds, Interval, Point2, Point3, Tol};
+    use super::cone_sections;
+    use geom_core::{Interval, Point2, Point3, Tol};
     use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
     use sweep::{LoftError, Section, SkinError, loft_body};
-
-    fn bits(p: Point3<Interval>) -> Bits {
-        for c in p.to_array() {
-            assert!(
-                c.lo().to_bits() == c.hi().to_bits(),
-                "a lifted end point is a point enclosure, got [{}, {}]",
-                c.lo(),
-                c.hi()
-            );
-        }
-        (p.x.lo().to_bits(), p.y.lo().to_bits(), p.z.lo().to_bits())
-    }
 
     /// **The separating shape.** Two vertices at `(∓h, 0)`, both bulge
     /// `b` — a pair of arcs whose carrier is far longer than the chord, so
@@ -267,55 +248,57 @@ mod interval {
             .unwrap_or_else(|e| panic!("(h = {h}, b = {b}) lofts at f64: {e:?}"));
     }
 
-    /// **The behaviour that moved, pinned.** `separating_pair` selects
-    /// a section the `f64` arithmetic decides and the `Interval`
-    /// arithmetic escalates on. That escalation is what an assembly
-    /// deciding the canonical form at the evaluation scalar would have
-    /// met — it is the refusal this loft used to return — and the
-    /// assembly does not meet it any more, because the end profiles
-    /// read the form the geometry door already decided.
-    ///
-    /// The claim is about the SECTION-PROFILE door and stops there.
-    /// Whether the rest of the pipeline completes at `Interval` for a
-    /// given `(h, b)` is a question about pcurve fitting and skinning
-    /// at that scalar, which this row is not about and must not gate
-    /// on: asserting only the absence of the profile refusal is what
-    /// keeps it a statement about the change.
+    /// **A section the lane cannot decide refuses at the profile
+    /// door.** `separating_pair` selects a section the `f64` arithmetic
+    /// decides and the `Interval` arithmetic escalates on. The loft at
+    /// `Interval` certifies each section decision at the lane, so it
+    /// meets that escalation and refuses the section's profile, typed.
     #[test]
-    fn a_section_whose_interval_revalidation_escalates_is_not_refused_by_the_profile_door() {
+    fn a_section_whose_interval_validation_escalates_refuses_at_the_profile_door() {
         let Some((h, b, sections, places)) = separating_pair() else {
             return;
         };
-        if let Err(e) = loft_body::<Interval>(
+        let lofted = loft_body::<Interval>(
+            &sweep::test_support::lift_sections::<Interval>(&sections),
+            &sweep::test_support::lift_places::<Interval>(&places, geom_core::Tol::witness()),
+            1,
+            Tol::witness(),
+        );
+        assert!(
+            matches!(
+                lofted,
+                Err(LoftError::Skin(SkinError::SectionProfile { .. }))
+            ),
+            "(h = {h}, b = {b}) at Interval: the loft certifies the section's decisions at \
+             the lane and refuses its profile: {:?}",
+            lofted.map(|_| ())
+        );
+    }
+
+    /// **The cone loft at `Interval` refuses at the carrier's door.**
+    /// Its sections are circles, and an arc's weight `cos(Δ/2)` built
+    /// at `Interval` is an enclosure, which a carrier does not hold yet
+    /// (`work/inlane/an-enclosure-carrier-holds-point-weights-and-knots.md`).
+    /// The refusal is pinned so the row goes red when that lands: once
+    /// the loft builds, ask here that each seam strut's two ends hold
+    /// the `f64` world points `expected_struts` lists.
+    #[test]
+    fn the_cone_loft_refuses_at_the_carriers_door_at_interval() {
+        use geom_core::spline::SplineError;
+        let (sections, places) = cone_sections();
+        match sweep::test_support::loft_body_construction::<Interval>(
             &sweep::test_support::lift_sections::<Interval>(&sections),
             &sweep::test_support::lift_places::<Interval>(&places, geom_core::Tol::witness()),
             1,
             Tol::witness(),
         ) {
-            assert!(
-                !matches!(e, LoftError::Skin(SkinError::SectionProfile { .. })),
-                "(h = {h}, b = {b}) at Interval: the assembly refused the section's \
-                 profile, so something decided it again: {e:?}"
-            );
-        }
-    }
-
-    #[test]
-    fn each_seam_strut_at_interval_encloses_the_f64_world_points_exactly() {
-        let (sections, places) = cone_sections();
-        let lofted = sweep::test_support::loft_body_construction::<Interval>(
-            &sweep::test_support::lift_sections::<Interval>(&sections),
-            &sweep::test_support::lift_places::<Interval>(&places, geom_core::Tol::witness()),
-            1,
-            Tol::witness(),
-        )
-        .expect("the loft builds");
-        let want = expected_struts();
-        assert_eq!(lofted.seam_edges[0].len(), want.len());
-        for (j, &e) in lofted.seam_edges[0].iter().flatten().flatten().enumerate() {
-            let mut got = edge_points(&lofted.body, e).map(bits);
-            got.sort_unstable();
-            assert_eq!(got, want[j], "strut {j} at Interval");
+            Err(LoftError::Skin(SkinError::Structure(e)))
+                if matches!(e.refusal(), SplineError::CarrierWeightNotAPoint { .. }) => {}
+            other => panic!(
+                "the cone loft at Interval refuses its arc weights at the carrier's door; \
+                 once it builds, ask its struts here: {:?}",
+                other.map(|_| ())
+            ),
         }
     }
 }
