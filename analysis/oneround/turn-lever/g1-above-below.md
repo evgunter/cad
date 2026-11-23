@@ -28,7 +28,7 @@ include that arc. **So none of these is a cover that is not a cover. They are
 G1's truth applied outside its premise.** Nothing to file.
 
 Bodies (one line per test):
-- `a_keel_on_the_floor_subtracts_as_a_slit::*`: ten tests, the arc 1.4 to 2.7 m off.
+- `a_keel_on_the_floor_subtracts_as_a_slit::*`: twelve tests, the arc 1.4 to 2.7 m off.
 - `intent_e_operation_frame_of_reads::every_corpus_document_reads_alike_in_a_second_computing_frame`: 1.0 m.
 - `a_flank_touch_at_a_shared_corner::a_flank_touch_glues_the_half_turn_it_leaves`: 1.45 m.
 - `a_ring_crossed_along_its_line_places_its_germs_apart::a_box_at_the_rings_tip_builds_in_every_op`: 1.44 m.
