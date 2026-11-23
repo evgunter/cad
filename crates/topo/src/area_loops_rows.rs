@@ -133,6 +133,7 @@ fn raw(body: &Body<f64>) -> std::thread::Result<String> {
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         format!(
             "{:?}",
+            // Raw door: the measured body is torn (a parent_loop tear or a dead lone-ring vertex), which tier 1 refuses, and whether the door refuses it rather than panicking.
             crate::test_support::measure_unvalidated(
                 body,
                 tol,

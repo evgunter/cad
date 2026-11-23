@@ -28,6 +28,7 @@ fn raw_door_on_a_claimant_tear_refuses_rather_than_panics() {
     let second = body.half_edges[first].next;
     body.half_edges[second].parent_loop = b;
     let got = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        // Raw door: the measured body has a claimant tear, which tier 1 refuses, and whether the door refuses it rather than panicking.
         crate::test_support::measure_unvalidated(
             &body,
             tol(),
@@ -66,6 +67,7 @@ fn loop_edges_on_a_torn_walk_refuses() {
 #[test]
 fn a_lone_ring_box_measures_unit_volume() {
     let (body, _, _) = box_with_a_lone_ring(tol());
+    // Raw door: the measured body holds a lone-vertex ring, which tier 2 refuses at rest (ScaffoldingEmptyLoop), and whether the measure reads past it.
     let m = crate::test_support::measure_unvalidated(
         &body,
         tol(),
