@@ -182,13 +182,10 @@ fn sweep_row(major: f64, delta: f64, sweep: Revolution<f64>) {
             .unwrap()
             .certified()
             .unwrap();
-        let Curve3::Circle(geom::Circle {
-            frame: carrier_frame,
-            ..
-        }) = *curve.carrier()
-        else {
+        let Curve3::Circle(the_circle) = *curve.carrier() else {
             continue;
         };
+        let carrier_frame = the_circle.frame();
         let axis = carrier_frame.axis();
         let mut on_torus = None;
         for hek in [edge.he_plus, edge.he_minus] {

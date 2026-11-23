@@ -2858,30 +2858,20 @@ impl Curved {
 /// A conic carrier as a [`Trig`]: `center + u_ref·a·cos t + v_ref·b·sin t`.
 fn conic(c: &Curve3<Interval>) -> Option<Trig> {
     let (center, axis, a, b, x) = match *c {
-        Curve3::Circle(
-            circle @ geom::Circle {
-                frame: carrier_frame_25,
-                ..
-            },
-        ) => {
+        Curve3::Circle(circle) => {
             let (center, axis, u_ref) = (
-                carrier_frame_25.origin(),
-                carrier_frame_25.axis(),
-                carrier_frame_25.u_ref(),
+                circle.frame().origin(),
+                circle.frame().axis(),
+                circle.frame().u_ref(),
             );
             let radius = circle.radius();
             (center, axis, radius, radius, u_ref)
         }
-        Curve3::Ellipse(
-            ellipse @ geom::Ellipse {
-                frame: carrier_frame_24,
-                ..
-            },
-        ) => {
+        Curve3::Ellipse(ellipse) => {
             let (center, axis, u_ref) = (
-                carrier_frame_24.origin(),
-                carrier_frame_24.axis(),
-                carrier_frame_24.u_ref(),
+                ellipse.frame().origin(),
+                ellipse.frame().axis(),
+                ellipse.frame().u_ref(),
             );
             let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             (center, axis, semi_u, semi_v, u_ref)
@@ -3908,11 +3898,11 @@ fn one_conic(e: &Rim, o: &Rim) -> bool {
     };
     match (ce, co) {
         (Curve3::Circle(a), Curve3::Circle(b)) => {
-            plane(&a.frame, &b.frame) && one_value(a.radius(), b.radius(), false)
+            plane(&a.frame(), &b.frame()) && one_value(a.radius(), b.radius(), false)
         }
         (Curve3::Ellipse(a), Curve3::Ellipse(b)) => {
-            plane(&a.frame, &b.frame)
-                && one_line(a.frame.u_ref(), b.frame.u_ref())
+            plane(&a.frame(), &b.frame())
+                && one_line(a.frame().u_ref(), b.frame().u_ref())
                 && one_value(a.semi_u(), b.semi_u(), false)
                 && one_value(a.semi_v(), b.semi_v(), false)
         }
@@ -3920,19 +3910,27 @@ fn one_conic(e: &Rim, o: &Rim) -> bool {
     }
 }
 
-/// [`one_conic`] on two carriers as a point-scalar body stores them:
-/// frames that place one plane ([`one_stated_plane`]), and the same
-/// radius, or the same semi-axes (`u_ref` equal or opposed follows from
-/// the frames).
+/// [`one_conic`] on two carriers as a point-scalar body stores them: two
+/// circles whose stored frames place one plane ([`one_stated_plane`]) and
+/// whose radii are one; two ellipses stated alike
+/// ([`Curve3::same_content`]: one placement, held at one point and phase,
+/// one pair of semi-axes) with one `v` beside, which that comparison does
+/// not read. An ellipse held on its arc derives its centre from its
+/// anchor, rounded, so two of them may round to one centre from two
+/// anchors whose true centres differ: their frames, read at the centre,
+/// are no stored fact, and only their stored content is.
 fn one_stated_conic(e: &Curve3<f64>, o: &Curve3<f64>) -> bool {
     match (e, o) {
         (Curve3::Circle(a), Curve3::Circle(b)) => {
-            one_stated_plane(&a.frame, &b.frame) && a.radius() == b.radius()
+            one_stated_plane(&a.frame(), &b.frame()) && a.radius() == b.radius()
         }
         (Curve3::Ellipse(a), Curve3::Ellipse(b)) => {
-            one_stated_plane(&a.frame, &b.frame)
-                && a.semi_u() == b.semi_u()
-                && a.semi_v() == b.semi_v()
+            e.same_content(o)
+                && a.frame()
+                    .motion()
+                    .v()
+                    .get()
+                    .equals_exactly(b.frame().motion().v().get())
         }
         _ => false,
     }
@@ -6225,11 +6223,10 @@ fn planes_through(
         whole: true,
     };
     let conic = |r: &Rim| match r.arc.as_ref()? {
-        (
-            Curve3::Circle(geom::Circle { frame, .. })
-            | Curve3::Ellipse(geom::Ellipse { frame, .. }),
-            _,
-        ) => Some((frame.origin(), frame.axis())),
+        (conic @ (Curve3::Circle(_) | Curve3::Ellipse(_)), _) => {
+            let frame = conic.frame()?;
+            Some((frame.origin(), frame.axis()))
+        }
         _ => None,
     };
     if !rims.is_empty()
@@ -10395,7 +10392,7 @@ mod presentation_rows {
             l.origin = thin(l.origin);
         }
         if let Some((Curve3::Circle(c), _)) = &mut b.edges[1].arc {
-            *c = geom::Circle::new(c.frame, iv0(r));
+            *c = geom::Circle::new(c.frame(), iv0(r));
         }
         let local = Local {
             edges: vec![0, 1],
@@ -11573,7 +11570,7 @@ mod presentation_rows {
             }
         };
         let lifted_w = |r: &Rim| match r.arc.as_ref() {
-            Some((Curve3::Circle(c), _)) => c.frame.axis(),
+            Some((Curve3::Circle(c), _)) => c.frame().axis(),
             _ => panic!("a circle"),
         };
         let a = rim(frame(o, u, v, w), true);
