@@ -1221,7 +1221,7 @@ pub fn centre_line<T: SpanLocate>(carrier: &Curve3<T>) -> Option<Line<T>> {
     }
     let (near, far) = (carrier.eval(T::zero()), carrier.eval(T::pi()));
     Some(Line {
-        origin: near + (far - near) * T::from_f64(0.5),
+        origin: near.mid(far),
         dir: carrier.deriv(T::zero()).cross(far - near),
     })
 }
