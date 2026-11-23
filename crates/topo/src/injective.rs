@@ -2346,6 +2346,9 @@ fn zero_of(
                 })
                 .filter(|_| iso_circle(surface, c.side.axis(), c.at.lo()).is_none())
                 .map(|e| Along::of(surface, b, &[e]))
+                // A line edge on a chart line whose image is no circle is
+                // whole on every analytic chart; this leaves out a spline
+                // chart, whose coordinate line is no line.
                 .filter(|a| a.whole)
                 .map(|a| Zero::Through(c.side, a, *v)),
             _ => None,
@@ -7933,6 +7936,19 @@ mod presentation_rows {
                 Ok(Zero::None)
             ),
             "two loose vertices, neither at a corner"
+        );
+        assert!(
+            matches!(
+                zero_of(
+                    &s,
+                    &b,
+                    &[clip_of(Side::XLo, &[0, 1])],
+                    &[],
+                    &[vertex(5), vertex(9)]
+                ),
+                Ok(Zero::None)
+            ),
+            "a vertex on one clip's line edge, beside a second loose vertex"
         );
         let corner = [clip_of(Side::XLo, &[1]), clip_of(Side::YHi, &[2])];
         assert!(
