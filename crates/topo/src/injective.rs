@@ -3612,11 +3612,14 @@ fn zero_of(
                         e.ends.contains(v) && matches!(e.arc, Some((Curve3::Line(_), _)))
                     })
                 })
-                .filter(|_| iso_circle(surface, c.side.axis(), c.at.lo()).is_none())
+                .filter(|_| !iso_is_circle(surface, c.side.axis()))
                 .map(|e| Along::of(surface, b, &[e]))
-                // A line edge on a chart line whose image is no circle is
-                // whole on every analytic chart; this leaves out a spline
-                // chart, whose coordinate line is no line.
+                // Liveness, not soundness: a line edge on a chart line
+                // whose image is no circle is whole on every analytic
+                // chart, so this decides only on a spline chart, where
+                // the side is then read with no zero, by value.
+                // `sign_on` asks the same of the plane (`holds(a, true)`),
+                // so without it the zero is one that never reads.
                 .filter(|a| a.whole)
                 .map(|a| Zero::Through(c.side, a, *v)),
             _ => None,
@@ -7302,11 +7305,26 @@ fn on_side(psi: &Psi, p: &Presented<'_>, x: (f64, f64), y: (f64, f64)) -> Option
     }
 }
 
+/// **Whether an analytic chart's coordinate lines `held = const` are
+/// circles** ([`iso_circle`]): by the surface's kind and the axis alone,
+/// whatever the constant. A torus's and a sphere's both families, a
+/// cylinder's and a cone's parallels.
+fn iso_is_circle(surface: &Surface<Interval>, held: Axis) -> bool {
+    matches!(
+        (surface, held),
+        (Surface::Torus { .. } | Surface::Sphere { .. }, _)
+            | (Surface::Cylinder { .. } | Surface::Cone { .. }, Axis::V)
+    )
+}
+
 /// **The image of an analytic chart's coordinate line `held = b`, where
 /// it is a circle**, in the moving coordinate: a torus's meridians and
 /// parallels, a sphere's, and a cylinder's or a cone's parallels. `None`
 /// for a ruling, which is a line, and for every other carrier.
 fn iso_circle(surface: &Surface<Interval>, held: Axis, b: f64) -> Option<Trig> {
+    if !iso_is_circle(surface, held) {
+        return None;
+    }
     let b = at(b);
     let ring = |frame: geom::Frame<Interval>, c: Point3<Interval>, r: Interval| Trig {
         c,
@@ -12330,6 +12348,17 @@ mod presentation_rows {
             sign(Some(&on(true)), Some(&at_corner)),
             Some(Sign::Positive),
             "under the ruling's plane, against a corner at the vertex"
+        );
+        // A partner that names no zero is read by value over its whole
+        // rectangle, so the side is read against it as well (built
+        // bodies reach this: a three-arc disc's filleted rim, a cone's
+        // apex, a sphere's pole).
+        let mut nothing = present(&[]);
+        nothing.zero = Zero::None;
+        assert_eq!(
+            sign(Some(&on(true)), Some(&nothing)),
+            Some(Sign::Positive),
+            "against a partner with no zero"
         );
         assert_eq!(sign(None, Some(&at_corner)), None, "the carrier arm");
         assert_eq!(sign(Some(&on(true)), None), None, "no partner");
