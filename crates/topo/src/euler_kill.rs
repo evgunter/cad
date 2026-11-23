@@ -982,11 +982,7 @@ impl<T: Decide> Body<T> {
         };
         // A null edge is a point: crossing one of its halves whole moves
         // nothing.
-        let turns = if self
-            .edge_curve_linked(edge, edge_data)
-            .null_scaffold()
-            .is_some()
-        {
+        let turns = if self.proven_edge(edge).curve().null_scaffold().is_some() {
             [Some(JointElement::IDENTITY); 2]
         } else {
             [None; 2]
@@ -1413,12 +1409,8 @@ impl<T: Decide> Body<T> {
         site: impl Fn(&Self, FaceKey) -> SiteFace<T>,
         tol: Option<Tol>,
     ) -> Result<Vec<SiteRows<T>>, EulerOpError> {
-        let edge_data = proven(&self.edges, edge, EntityId::Edge);
-        if self
-            .edge_curve_linked(edge, edge_data)
-            .null_scaffold()
-            .is_none()
-        {
+        let edge_data = self.proven_edge(edge);
+        if edge_data.curve().null_scaffold().is_none() {
             return Ok(Vec::new());
         }
         self.plan_site_mint_of(

@@ -318,10 +318,9 @@ pub fn faces_through_two_vertices_at(body: &Body<f64>, at: V3) -> usize {
         .filter(|(fk, _)| {
             body.face(*fk)
                 .expect("a live face")
-                .loops()
-                .any(|(l, _, _)| {
-                    topo::loop_points::loop_corners(body, l)
-                        .expect("a live loop")
+                .cycle_loops()
+                .any(|(l, _)| {
+                    topo::loop_points::loop_corners(l)
                         .groups()
                         .iter()
                         .any(|g| g.pinches() && at_v.contains(&g.vertices()[0]))

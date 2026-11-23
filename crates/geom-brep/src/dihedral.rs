@@ -1133,6 +1133,7 @@ fn wedge_reads_zero_at_the_arm<T: Decide>(sin_theta: T, band: Band) -> bool {
             // Unsourced lever: the band's own escalation edge, the arm
             // rescaled to the tolerance that decides it; a tolerance, not
             // an extent, a curvature or a rate.
+            // No door names it yet: `work/oneround/unsourced-levers-with-no-door-that-names-them.md`.
             Margin::levered(
                 sin_theta,
                 geom_core::Lever::unsourced(T::from_f64(band.escalate()))
@@ -2439,6 +2440,7 @@ fn wedge_reads_zero_at_the_offer<T: Decide>(sin_theta: T, cos_theta: T, band: Ba
             "material_pairing_offer_wedge",
             // Unsourced lever: the band's own escalation edge, as
             // `wedge_reads_zero_at_the_arm`'s.
+            // No door names it yet: `work/oneround/unsourced-levers-with-no-door-that-names-them.md`.
             Margin::levered(
                 sin_theta / cos_theta.abs(),
                 geom_core::Lever::unsourced(T::from_f64(band.escalate()))

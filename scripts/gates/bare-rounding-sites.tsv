@@ -6,7 +6,7 @@ crates/bvh/tests/ray_r2.rs	test	2	oracle
 crates/editor-core/src/mate/value.rs	prod	1	pose
 crates/editor-core/src/mate/value.rs	test	2	oracle
 crates/editor-core/src/placement.rs	test	1	oracle
-crates/editor-core/src/range.rs	test	5	oracle
+crates/editor-core/src/range.rs	test	1	oracle
 crates/editor-core/src/resolve/pick.rs	prod	6	re-pose
 crates/editor-core/src/resolve/pick.rs	test	4	oracle
 crates/editor-core/src/test_support.rs	prod	1	fixture
@@ -48,8 +48,9 @@ crates/geom-brep/src/implicit.rs	prod	67	re-pose,far-centre
 crates/geom-brep/src/implicit.rs	test	5	oracle
 crates/geom-brep/src/intersect.rs	prod	8	re-pose
 crates/geom-brep/src/intersect.rs	test	1	oracle
+crates/geom-brep/src/pair_section/cone_torus.rs	prod	1	re-pose
 crates/geom-brep/src/pair_section/cones.rs	prod	1	re-pose
-crates/geom-brep/src/pair_section/gap.rs	prod	16	re-pose
+crates/geom-brep/src/pair_section/gap.rs	prod	24	re-pose
 crates/geom-brep/src/pair_section/gap.rs	test	2	oracle
 crates/geom-brep/src/pair_section/ruling.rs	prod	16	re-pose
 crates/geom-brep/src/pair_section/spline_implicit.rs	prod	1	re-pose
@@ -228,7 +229,7 @@ crates/topo/src/props.rs	prod	2	re-pose
 crates/topo/src/props.rs	test	2	oracle
 crates/topo/src/props/quad_lane.rs	test	1	oracle
 crates/topo/src/ring_path.rs	prod	2	far-centre
-crates/topo/src/ring_path.rs	test	3	oracle
+crates/topo/src/ring_path.rs	test	2	oracle
 crates/topo/src/ring_path/graze_rows.rs	test	4	oracle
 crates/topo/src/separating.rs	test	1	oracle
 crates/topo/src/separation.rs	prod	1	re-pose

@@ -220,7 +220,7 @@ impl Read {
 
     /// Whether the distance `d` reads Zero at the pass's band under the
     /// decision `name`.
-    fn on(&self, name: &'static str, d: f64) -> bool {
+    fn on_as(&self, name: &'static str, d: f64) -> bool {
         self.file.read(name, d) == crate::interpret::Read::Zero
     }
 
@@ -1008,7 +1008,7 @@ fn strut_tip(
     let x = solid.vertices[&vertex];
     let Some(k) = singular
         .iter()
-        .position(|s| read.on(STEP_SINGULARITY_POINT, (*s - x).norm()))
+        .position(|s| read.on_as(STEP_SINGULARITY_POINT, (*s - x).norm()))
     else {
         unreachable!("the scan finds a strut tip at a singular point")
     };

@@ -1,53 +1,37 @@
 ---
 id: doc-gate-cannot-see-a-broken-link-inside-a-cfg-test-module
 kind: issue
-title: doc-gate.sh cannot see a broken intra-doc link inside a #[cfg(test)] module
+title: doc-gate.sh's header does not say that #[cfg(test)] modules are outside its population
 status: open
 opened: 2026-09-16
-priority: P3
+priority: P4
 cost: E
 ---
 
+`scripts/doc-gate.sh` builds rustdoc at the host cfg, so no `#[cfg(test)]`
+module is ever compiled by any of its passes, and an intra-doc link written
+inside one is never resolved. The witness is `crates/pncad-py/src/tests.rs`
+(a `#[cfg(test)]` module), where a dangling name sat for two commits with the
+gate green (CENSUS-ARRIVAL-RESIDUE, 2026-09-16). The header already names this
+as a *second* reason some `cfg(not(debug_assertions))` prose is unread
+(`scripts/doc-gate.sh:358-381`), but nowhere states it as the gate's scope, so
+a green reads as "every doc link resolves".
 
-Found by CENSUS-ARRIVAL-RESIDUE's fix pass (2026-09-16) and executed
-by it, then filed here because `scripts/doc-gate.sh` is CIW's
-(`work/ciw/program.md:11`). CENSUS disclosed it at the site and filed
-it rather than fixing it: `work/README.md` says *"disclosing a residue
-is not scheduling it."*
+A `--cfg test` rustdoc pass is not the answer: it is a distinct feature
+unification sharing almost no artifacts with pass 1 (the header's own pass-3
+costing, `scripts/doc-gate.sh:383-395`, measured +33 to +58 s for a smaller
+pass), and pass 1 runs on every PR in `ci.yml`'s lint job (`ci.yml:322-335`).
+No incident has followed the 2026-09-16 one.
 
-## What was executed
+The repair is one paragraph in the header, beside the `not(feature)` blind
+spot it is the twin of (`scripts/doc-gate.sh:299-309`): `#[cfg(test)]`
+modules are outside the gate's population, links in them are unchecked, and
+why (the cost above), plus the same sentence at the gate's `gate_ok` line if
+it names its scope.
 
-A broken intra-doc link inside `crates/pncad-py/src/tests.rs` leaves
-`scripts/doc-gate.sh` **green**. That module is `#[cfg(test)]`
-(`crates/pncad-py/src/tests.rs:1768`), and rustdoc does not build a
-`cfg(test)` module at all, so no link inside one is ever resolved.
+What would close it: the header paragraph stating the `cfg(test)` scope and its reason, landed in `scripts/doc-gate.sh`.
 
-The finding is recorded at `crates/pncad-py/src/tests.rs:6845`, in the
-doc of the walk whose own blind-spot list carried a dangling test name
-for two commits without the gate noticing.
-
-## Why it is a row and not a note
-
-**The gate's population is not the population its name implies.** It is
-a gate — a green from it is read as "every doc link in this crate
-resolves" — and for every `#[cfg(test)] mod` in the tree it says
-nothing while reporting agreement over what it can still read. That is
-the shape CENSUS exists to find, one instrument over: a check that
-scans the wrong population, where the drift is invisible and certified.
-
-Scope is not one file. Every crate in this workspace with a
-`#[cfg(test)]` module is unchecked by this gate today, and a name
-written inside one is uncheckable rather than merely unchecked — so a
-lane that writes `[\`foo\`]` there gets no signal at any point.
-
-## What is not decided here
-
-Whether the repair is `--cfg test` in the gate's rustdoc invocation,
-a second rustdoc pass over the test cfg, or a ruling that doc links in
-test modules are out of scope and the gate's own doc says so. All
-three are CIW's call; what this row asserts is only that the gate's
-claim today is wider than what it checks, and that nothing says so.
-
-## Re-homed to CIW (2026-09-28)
-
-Moved from BLIND when it left the tracker (`docs/doc-ledger/mirror-and-blind-leave-the-tracker.md`); its subject is CIW's ground.
+- 2026-11-22 — **Reformulated by CIW triage** (the earlier body is in git history): Pass 1 runs on every PR (`ci.yml:322-335`). A `--cfg test` pass is a distinct unification that shares no artifacts.
+The header prices a smaller extra pass at +33 to +58 s (`scripts/doc-gate.sh:383-395`).
+One incident (2026-09-16, two commits of a dangling name in a test module), none since.
+Replacement: say the scope in the header. See `reform/doc-gate-cannot-see-a-broken-link-inside-a-cfg-test-module.md`.

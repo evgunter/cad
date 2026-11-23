@@ -476,22 +476,13 @@ fn spline_normal<T: Decide>(
     // pcurve's chart box over its edge's half at the vertex.
     let bound = |half: HalfEdgeKey, leaves: bool| {
         let data = crate::live::proven(&body.half_edges, half, EntityId::HalfEdge);
-        let edge = crate::live::linked(
-            &body.edges,
-            data.edge,
-            EntityId::Edge,
-            EntityId::HalfEdge(half),
-            "edge",
-        );
-        let curve = body
-            .edge_curve_linked(data.edge, edge)
-            .certified()
-            .ok_or(unplaced)?;
+        let edge = body.linked_edge(data.edge, EntityId::HalfEdge(half), "edge");
+        let curve = edge.certified().ok_or(unplaced)?;
         let pcurve = body.pcurve(half).ok_or(unplaced)?.pcurve();
         let (t0, t1) = curve.params();
         // A half-edge walking its carrier forward starts at the carrier's
         // first end.
-        let at_first = (half == edge.he_plus) == leaves;
+        let at_first = (half == edge.record().he_plus) == leaves;
         let (t, near) = if at_first {
             (t0, (t0, geom::mid_param(t0, t1)))
         } else {

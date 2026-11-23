@@ -23,7 +23,7 @@
 # Two layers now stand between the gate and that host:
 #
 #   1. CACHE — same pattern as the FreeCAD AppImage in ci.yml (`step
-#      import (freecad)`). The key is the pinned version, so it is a
+#      export fixtures (freecad)`). The key is the pinned version, so it is a
 #      content key: a hit is exactly the binary the pin names, and
 #      bumping NEXTEST_VERSION invalidates it by construction. On a hit
 #      the download step does not run at all, which takes get.nexte.st

@@ -2,10 +2,11 @@
 id: the-gates-step-rescans-the-tree-once-per-gate
 kind: issue
 title: scripts/gates takes 7.3-7.6 min on every PR run, docs-only included: 64 gates rescan the tree independently, 1358 CPU-s on 4 vCPU, and lint is the pole of half the runs
-status: open
+status: closed
 opened: 2026-11-21
 priority: P2
 cost: M
+closed: 2026-11-23
 ---
 
 
@@ -22,3 +23,10 @@ Job 136904187370 (11-21): 64 gates, their own timings summing to 1358 s on a 4-v
 - One shared read of the tree (a cached file list and stripped-code view the gates read) — the per-gate 35–45 s floor looks like the same walk repeated.
 - Split the gates into their own job beside the rust lints: lint's pole drops from ~12 to ~8.5 min, at about one more job setup per run (more demand in the queue that already dominates).
 - Skip a gate on a diff that cannot move its subject (docs-only): a change to what CI runs, argued per gate, since some read Markdown.
+
+## Closed
+
+Done by PR 7439, which closed CIW's duplicate P0
+(`work/ciw/the-lint-jobs-gates-step-scans-the-tree-64-times-for-5-to-11-minutes-on-every-pr`):
+the gates step went from 5:22–10:54 to 1:06 on a hosted runner (run
+45069292031) through one shared read of the tree, the first option above.

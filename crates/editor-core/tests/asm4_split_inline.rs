@@ -1101,7 +1101,10 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
             assert_eq!(name.name(), &body_name);
             let msg = format!("{}", SplitError::BodyNameCrossesCut { name });
             assert!(
-                msg.contains(&format!("the output body of {}", doc.spoken(ids[1]))),
+                msg.contains(&format!(
+                    "the output body of {}",
+                    editor_core::test_support::node_text(&doc.spoken(ids[1]))
+                )),
                 "the message names the name: {msg}"
             );
             assert!(
@@ -1202,7 +1205,8 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
                 }
             );
             assert!(
-                msg.contains(&doc.spoken(fillet).to_string()) && msg.contains("outside the cut"),
+                msg.contains(&editor_core::test_support::node_text(&doc.spoken(fillet)))
+                    && msg.contains("outside the cut"),
                 "the message names the site and the fault: {msg}"
             );
         }
@@ -1493,7 +1497,8 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
             assert_eq!(
                 minter_label(&name),
                 Some("left leg"),
-                "the instance's body name is the host's, spoken from it: {name}"
+                "the instance's body name is the host's, spoken from it: {name}",
+                name = editor_core::test_support::said_text(&name)
             );
             let msg = format!("{}", InlineError::InstanceBodyNameReferenced { name });
             assert!(
@@ -1587,7 +1592,8 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
                 assert_eq!(
                     minter_label(&name),
                     Some("part body"),
-                    "a carried name is the part's, spoken from it: {name}"
+                    "a carried name is the part's, spoken from it: {name}",
+                    name = editor_core::test_support::said_text(&name)
                 );
                 let msg = format!("{}", InlineError::StrandedPartRead { name, read });
                 assert!(
@@ -1793,7 +1799,12 @@ fn a_name_on_a_dropped_step_refuses_a_split_and_an_inline() {
     ) {
         Err(SplitError::NameOnDroppedStep { name, step }) => {
             assert_eq!((name.name(), step), (&dropped, dropped_step));
-            assert_eq!(minter_label(&name), Some("walled block"), "{name}");
+            assert_eq!(
+                minter_label(&name),
+                Some("walled block"),
+                "{name}",
+                name = editor_core::test_support::said_text(&name)
+            );
         }
         other => panic!("expected NameOnDroppedStep, got {other:?}"),
     }
@@ -1814,7 +1825,8 @@ fn a_name_on_a_dropped_step_refuses_a_split_and_an_inline() {
             assert_eq!(
                 minter_label(&name),
                 Some("walled block"),
-                "a carried name is the part's, spoken from it: {name}"
+                "a carried name is the part's, spoken from it: {name}",
+                name = editor_core::test_support::said_text(&name)
             );
         }
         other => panic!("expected NameOnDroppedStep, got {other:?}"),

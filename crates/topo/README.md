@@ -562,6 +562,14 @@ went to those crates' pages, and the wired-arm list, which went to
   emanating half-edge. A face's outer loop is excluded from its ring
   list (`outer ∉ rings`), so rings coincide with the Euler–Poincaré
   r-term.
+- **What a loop that is not a cycle means** is a property of the loop
+  and of the question asked, never of the reader asking it. A torn loop
+  (a walk that does not close, a key that misses) is a broken link, not
+  a boundary. A lone-vertex ring is a point on its face's boundary that
+  bounds no area. A lone-vertex outer loop (the `mvfs` skeleton) is a
+  face with no outline, which every question about the face's region
+  refuses. `live.rs` states this once, with one facet per question, and
+  no reader re-decides it.
 - **Manifold solids only.** Non-manifold (radial-edge) topology is added
   only if sheet/wire bodies demand it.
 - Topology is built **exclusively through Euler operators**: a small

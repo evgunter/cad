@@ -136,11 +136,12 @@ fn next_fusion<T: Decide>(
         if s != side {
             continue;
         }
-        let Some(f) = body.get_face(face) else {
+        let Some(f) = body.face(face) else {
             continue;
         };
-        for l in f.loop_keys() {
-            let loop_corners = crate::loop_points::loop_corners(body, l).map_err(desync)?;
+        // A lone loop has no corner.
+        for (lp, _) in f.cycle_loops() {
+            let loop_corners = crate::loop_points::loop_corners(lp);
             for group in loop_corners.groups().iter().filter(|g| g.pinches()) {
                 let at = group.corners();
                 let corners = point_corners(body, loop_corners.cycle(), at);

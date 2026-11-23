@@ -333,7 +333,6 @@ use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopKey, VertexKey}
 use crate::face_normal::NormalAbort;
 use crate::geometry::PointKey;
 use crate::live::proven;
-use crate::null::CurveGeom;
 use crate::solid_contain::SolidContainment;
 use crate::sweep_trace::SweepPairs;
 
@@ -928,6 +927,9 @@ pub(crate) fn census_and_certify<T: Decide + crate::props::AtRestPolicy + Bounds
 /// dangling key), the touch analysis reports
 /// [`Undecided::CorruptInstance`] — a kernel defect — about a body the
 /// caller never validated. The sentence is only as true as the caller.
+/// The census reads an edge through [`crate::Body::edge`], so a stale
+/// edge stays its own miss; the curve past a resolved edge is a link
+/// ([`crate::live::EdgeView::curve`]), and a dangling one panics.
 #[cfg(feature = "sweep-testing")]
 pub fn census_traces<T: Decide + crate::props::AtRestPolicy + Bounds>(
     body: &Body<T>,
@@ -2429,11 +2431,7 @@ fn edge_line_span<T: Real>(
     body: &Body<T>,
     ek: crate::entity::EdgeKey,
 ) -> Option<(geom::Line<T>, (T, T))> {
-    let curve = body
-        .edges
-        .get(ek)
-        .and_then(|e| body.curves.get(e.curve))
-        .and_then(CurveGeom::certified)?;
+    let curve = body.edge(ek)?.certified()?;
     Some((curve.carrier().as_line()?, curve.params()))
 }
 
@@ -4969,15 +4967,30 @@ fn boundary_crossings<T: Decide>(
     use crate::splitting::containment::carrier_loop;
     let refused =
         |r: CrossRefusal, errors: &mut Vec<ValidationError>| refuse_crossing(f.key, r, errors);
-    let Some(face) = body.get_face(f.key) else {
+    let Some(face) = body.face(f.key) else {
         census_fault(
             format_args!("face {:?} does not resolve", f.key),
             NAMES_ONLY_LIVE,
         )
     };
+    // A lone ring holds no edge to cross: an edge through its vertex is
+    // a vertex-edge contact, which pass 2 reads over every vertex
+    // ([`sweep_vertex_edge`]). A face with no outline has no boundary
+    // edge to read.
+    let area = match face.area_loops() {
+        Ok(area) => area,
+        Err(no) => {
+            refused(
+                CrossRefusal::Unsupported(ContainError::EmptyLoop(no.r#loop)),
+                errors,
+            );
+            return None;
+        }
+    };
     let mut cuts = Vec::new();
-    for lk in face.loop_keys() {
-        let lp = match carrier_loop(body, lk, EF_CROSS_CONIC, band) {
+    for (cycle, _) in area.cycles() {
+        let lk = cycle.key();
+        let lp = match carrier_loop(cycle, EF_CROSS_CONIC, band) {
             Ok(lp) => lp,
             Err(err) => {
                 let r = match ContainError::from(err) {
@@ -5073,9 +5086,8 @@ fn edge_crossings<T: Decide>(
 ) -> Option<Vec<(T, CutAt)>> {
     use crate::splitting::containment::LoopEdge;
     let stored = body
-        .get_edge(side.key)
-        .and_then(|edge| body.get_curve_geom(edge.curve))
-        .and_then(CurveGeom::certified);
+        .edge(side.key)
+        .and_then(crate::live::EdgeView::certified);
     // Two straight segments from one point meet nowhere else unless they
     // run together, and a shared run is no cut either.
     let straight = stored.is_none_or(|c| !c.carrier().is_curved());
@@ -9667,10 +9679,9 @@ pub(crate) fn carrier_frame<T: Real>(surface: &geom::Surface<T>) -> Option<[Vec3
 /// Whether edge `e`'s certified carrier is a circle
 /// ([`crate::link::Bound::circle`]).
 fn on_circle<T: Real>(body: &Body<T>, e: EdgeKey) -> bool {
-    body.get_edge(e)
-        .and_then(|d| body.get_curve_geom(d.curve))
-        .and_then(|g| g.certified())
-        .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Circle(..)))
+    body.edge(e)
+        .and_then(crate::live::EdgeView::certified)
+        .is_some_and(|c| c.carrier().as_circle().is_some())
 }
 
 /// **A resolved corner face's normal at the vertex**, or no tangent
@@ -12549,7 +12560,7 @@ fn shared_interior_witness<T: Decide>(
             .into_iter()
             .filter_map(|v| Some((geo.vmap.get(&v).copied()?, FaceContainment::OnVertex(v))));
         let middles = edges.iter().filter_map(|&e| {
-            let curve = body.get_curve_geom(body.get_edge(e)?.curve)?.certified()?;
+            let curve = body.proven_edge(e).certified()?;
             Some((curve.mid_point(), FaceContainment::OnEdge(e)))
         });
         probes.extend(
@@ -23407,5 +23418,37 @@ mod line_pass_rows {
             "the span runs through the edge's stored line: gap {:?}",
             pass.gap
         );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod edge_view_review_probes {
+    use crate::geometry::CurveKey;
+    use crate::test_support_fixtures::declined_cube;
+    use geom_core::Tol;
+
+    /// Claim 3: census tag reads no longer read a torn curve as "no".
+    #[test]
+    fn on_circle_and_line_span_panic_on_a_torn_curve_link() {
+        let mut body = declined_cube::<f64>(Tol::witness()).body;
+        let edge = body.edges().next().unwrap().0;
+        assert!(!super::on_circle(&body, edge));
+        assert!(super::edge_line_span(&body, edge).is_some());
+        body.get_edge_mut(edge).unwrap().curve = CurveKey::default();
+        for (what, f) in [
+            (
+                "on_circle",
+                &(|| {
+                    let _ = super::on_circle(&body, edge);
+                }) as &dyn Fn(),
+            ),
+            ("edge_line_span", &|| {
+                let _ = super::edge_line_span(&body, edge);
+            }),
+        ] {
+            let msg = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(f));
+            assert!(msg.contains("curve names"), "{what}: {msg}");
+        }
     }
 }
