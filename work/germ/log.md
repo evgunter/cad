@@ -1964,3 +1964,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
     - the cone aperture's band lever (a fork, GERM);
     - the stale `Surface::Torus` doc on STEP's reading;
     - `Charted::turned`'s `unreachable!` on a plane or spline handed through a pub door.
+- 2026-11-23 23:40 — **Turn-defect unit delivered: PR 7646** (head `91b3e0bd0b`). The test's comparison was at fault, not the kernel. A 60-digit oracle shows the sup and inf are sound. The Interval sample overshoots by up to 12.3 ulps near a semi-axis, so the test now intersects it with the exact [min(a,b), max(a,b)]. The change is test-only; nine pinned cases red under M1. The reviewer arm was drawn and recorded on the analysis branch, and a single FULL review is dispatched to check above all that the test change cannot mask a kernel defect.
