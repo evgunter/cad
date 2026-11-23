@@ -61,3 +61,5 @@ Now agreed by all three: the straight midpoint in EVERY patch is out; exactly tw
 Positions moved again and did not meet: A went from (1)-in-every-patch to (2); C went from (2) back to (1); B held (1). Two facts are in dispute between the reports and bear on it: whether the nightly admesh gate can see an edge of four triangles at all (B and C measured that it cannot; A reads the gate as the promise), and whether the surface split restores a thin body's volume (unmeasured; C names it as that option's whole case). A fourth round runs on those.
 
 ## Round four
+
+Sent 00:23Z to all three, one text but for the label and the two paths: the other two round-three reports; the orchestrator's reading above; the two disputed facts (can the admesh gate see an edge of four triangles, and is the promise the gate's, the words "watertight STL", or nobody's; does the both-sided surface split restore signed volume and admesh's verdict on the bodies thinner than δ, which one report calls that option's whole case and nobody has measured); and a request for the one sentence Ev would have to rule on if a difference remains.
