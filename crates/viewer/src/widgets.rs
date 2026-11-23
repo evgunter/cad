@@ -15,7 +15,7 @@
 //! **Most of what is here draws one row or one field** from values the
 //! caller already holds, and returns what the user did with it. The
 //! rule that produces the exceptions is *a function that takes no
-//! `ui: &mut egui::Ui`*, and there are fourteen — re-derived from this
+//! `ui: &mut egui::Ui`*, and there are fifteen — re-derived from this
 //! file's own text by
 //! `roster_tests::the_helpers_that_take_no_ui_are_the_ones_named_here`,
 //! so the list below goes red rather than stale: `wrapped_in_region`,
@@ -28,7 +28,9 @@
 //! which mints a value; `twin`, which picks a fused step's arrival
 //! role; [`value_gesture`] and [`free_move_gesture`],
 //! which mint a gesture's operations from its name; and [`drag_ops`]
-//! with [`drag_gesture_ops`], which read a `Response`.
+//! with [`drag_gesture_ops`], which read a `Response`; and
+//! [`let_go_of_the_focused_edit`], which writes a context's focus and
+//! memory.
 //!
 //! [`drag_ops`] is the one worth naming — it is the one mapping from a
 //! `DragValue` to session operations, and the whole reason a dragged
@@ -548,15 +550,16 @@ pub(crate) struct GestureVocabulary<Preview, Op = SessionOp> {
 
 impl<Preview, Op> GestureVocabulary<Preview, Op> {
     /// **A gesture over a HELD value** — one a draft holds rather than
-    /// the session: every frame the value moves is `preview` of it, and
-    /// the press, the release and Escape are `rest`, since nothing is
-    /// opened to land or abandon.
-    pub(crate) fn held(preview: Preview, rest: Op) -> Self
+    /// the session: the press is `begin`, where the held field judges
+    /// the drag as the session judges a slot's, every frame the value
+    /// moves is `preview` of it, and the release and Escape are `rest`,
+    /// since nothing is opened to land or abandon.
+    pub(crate) fn held(begin: Op, preview: Preview, rest: Op) -> Self
     where
         Op: Clone,
     {
         Self {
-            begin: rest.clone(),
+            begin,
             preview,
             commit: rest.clone(),
             cancel: rest,
@@ -802,6 +805,27 @@ pub(crate) struct FieldShowing {
     /// ([`crate::props::field_source`]). `None` is an edit seeded with
     /// what the field shows, which is egui's own seed.
     pub(crate) source: Option<String>,
+}
+
+/// **Let go of the focused field's keyboard edit, unwritten** — what a
+/// replaced document owes the field typed into over the outgoing one.
+///
+/// The focus is surrendered and egui's text buffer for the field is
+/// removed with it, so the field's next draw neither keeps editing nor
+/// parses the buffer at its loss of focus (`egui::DragValue` applies a
+/// buffer it finds on the frame focus leaves); every [`OpenEdit`] goes
+/// with them.
+pub(crate) fn let_go_of_the_focused_edit(ctx: &egui::Context) {
+    let focused = ctx.memory(egui::Memory::focused);
+    if let Some(id) = focused {
+        ctx.memory_mut(|memory| memory.surrender_focus(id));
+    }
+    ctx.data_mut(|data| {
+        if let Some(id) = focused {
+            data.remove::<String>(id);
+        }
+        data.remove_by_type::<OpenEdit>();
+    });
 }
 
 /// **One open keyboard edit**, remembered under its field's own
@@ -1956,6 +1980,7 @@ mod roster_tests {
             "free_move_gesture",
             "drag_ops",
             "drag_gesture_ops",
+            "let_go_of_the_focused_edit",
         ];
         found.sort_unstable();
         let mut named_sorted = named;
@@ -4051,8 +4076,8 @@ mod value_field_tests {
                 self.emitted.push(op.clone());
                 let outcome = self.session.perform(op.clone());
                 // The harness drives the paths a row can DRIVE: every
-                // refusal this field can reach (a driven slot's number
-                // door, an unparseable text) is a path `Row` cannot
+                // refusal this field can reach (a drag over a driven
+                // slot, an unparseable text) is a path `Row` cannot
                 // hold, because a refused frame stops here. Those stay
                 // with `tests/panel_edits.rs`, which reads them at the
                 // session door.
@@ -4448,8 +4473,8 @@ mod value_field_tests {
     /// the no-reading marker after the driven mark, and still opens its
     /// keyboard edit on its SOURCE, because the field under that text is
     /// the slot's only door to its expression; the number the field
-    /// holds is one the driven guard refuses to write. In metres the
-    /// same row reads a number.
+    /// holds is one no drag writes, since the driven guard refuses it.
+    /// In metres the same row reads a number.
     #[test]
     fn a_driven_slot_past_its_notations_range_keeps_its_text_door() {
         let mut row = Row::extrude_distance("vgeom-driven-unnameable", 0.008);

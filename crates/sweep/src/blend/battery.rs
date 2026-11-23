@@ -1520,7 +1520,7 @@ fn frustum_arm<T: Real>(
     unsupported: impl Fn() -> BlendError,
 ) -> Result<(BlendArm, EdgeBlend<T>, Option<SupportAxis>), BlendError> {
     let sheet = Meridian {
-        axis: circle.frame.axis_line(),
+        axis: circle.frame().axis_line(),
         rim: p,
     };
     let (Some((_, da)), Some((_, db))) = (
@@ -1644,7 +1644,8 @@ fn curved_arm<T: Decide + Bounds>(
     let room = |ta, tb| room_at(edge, &branch, offset_room(p, ta, tb, radius), radius, band);
     let unsupported = |supports| BlendError::SpineUnsupported { edge, supports };
     match *carrier {
-        Curve3::Circle(geom::Circle { frame, .. }) => {
+        Curve3::Circle(the_circle @ geom::Circle { .. }) => {
+            let frame = the_circle.frame();
             let arm = coaxial_arm(sa, sb);
             if arm.is_none() && matches!(branch, Branch::Rim) {
                 return Err(unsupported(ARM_ROSTER));
@@ -4050,7 +4051,7 @@ mod coaxial_spine_rows {
                 };
                 let p = carrier.eval(geom::mid_param(t0, t1));
                 let sheet = Meridian {
-                    axis: rim.frame.axis_line(),
+                    axis: rim.frame().axis_line(),
                     rim: p,
                 };
                 let radial = sheet.radial();
@@ -4102,7 +4103,7 @@ mod coaxial_spine_rows {
                     );
                     // The contact: where the circle crosses the rim's
                     // sheet, at the ball's radius from its centre.
-                    let at = |x: f64| ((c.frame.origin() + radial * x) - ball).norm() - r;
+                    let at = |x: f64| ((c.frame().origin() + radial * x) - ball).norm() - r;
                     let rho = if at(c.radius()).abs() < at(-c.radius()).abs() {
                         c.radius()
                     } else {
@@ -4116,9 +4117,9 @@ mod coaxial_spine_rows {
                     // seamed a half turn on: `(u·cos θ + v·sin θ)·(−r)` is
                     // `((−u)·cos θ + (axis × −u)·sin θ)·r`.
                     let signed = if rho > 0.0 {
-                        Curve3::circle(c.frame.origin(), axis, rho, radial)
+                        Curve3::circle(c.frame().origin(), axis, rho, radial)
                     } else {
-                        Curve3::circle(c.frame.origin(), axis, -rho, -radial)
+                        Curve3::circle(c.frame().origin(), axis, -rho, -radial)
                     };
                     for k in 0..8 {
                         let t = f64::from(k) * 0.8;
