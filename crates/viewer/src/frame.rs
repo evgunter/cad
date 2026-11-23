@@ -770,7 +770,7 @@ pub fn acts(op: &SessionOp) -> bool {
         | SessionOp::SetSlot { .. }
         | SessionOp::SetSlotVariable { .. }
         | SessionOp::DeclineOffer { .. }
-        | SessionOp::ProbeBounds { .. }
+        | SessionOp::ProveRange { .. }
         | SessionOp::SetSlotUnit { .. }
         | SessionOp::SetSlotExpression { .. }
         | SessionOp::SetVariable { .. }
@@ -789,6 +789,7 @@ pub fn acts(op: &SessionOp) -> bool {
         | SessionOp::Undo
         | SessionOp::Redo
         | SessionOp::CancelEvaluation
+        | SessionOp::StopRange
         | SessionOp::Reevaluate
         | SessionOp::Open(_)
         | SessionOp::Save(_)

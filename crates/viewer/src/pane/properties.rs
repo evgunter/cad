@@ -18,7 +18,7 @@ use crate::forms::FieldWriting;
 use crate::frame::Tone;
 use crate::props::{self, Notation, SlotDriver, SlotGroup, SlotRow, SlotValue, VariableRow};
 use crate::session::{
-    BoundsTarget, NodeKindWanted, Refusal, Selection, SessionOp, Standing, ValueGestureName, admits,
+    NodeKindWanted, RangeTarget, Refusal, Selection, SessionOp, Standing, ValueGestureName, admits,
 };
 use crate::theme::Theme;
 use crate::tree::PickedName;
@@ -154,7 +154,7 @@ impl ViewerBehavior<'_> {
                         // nothing.
                         self.variable_unit_ui(ui, &row);
                     });
-                    self.variable_bounds_ui(ui, &row);
+                    self.variable_range_ui(ui, &row);
                 } else if let Some(row) = crate::props::defined_rows(self.session.doc())
                     .into_iter()
                     .find(|row| row.var == var)
@@ -719,13 +719,13 @@ impl ViewerBehavior<'_> {
     /// The grouping is [`crate::props::SlotGroup`]'s and the vocabulary's (see
     /// its docs); this function only lays it out. What the two arms
     /// share — the value field (numbers AND expressions, one widget),
-    /// the gesture mapping, the driven affordance, the range probe —
+    /// the gesture mapping, the driven affordance, `range?` —
     /// is called once per COMPONENT, so a component of a vector is
     /// edited by exactly the operations a stand-alone slot is.
     ///
     /// **Three lines per group at most, whatever its arity.** Folding
     /// three slots onto one line buys nothing if their doors then take
-    /// three lines each, so the range probe is a single line of small
+    /// three lines each, so `range?` is a single line of small
     /// buttons tagged by axis rather than a stacked block per
     /// component.
     pub(crate) fn slot_group_ui(
@@ -832,7 +832,7 @@ impl ViewerBehavior<'_> {
 
     /// **The doors under a row of a profile editor's held fields**
     /// (`pane::profile`'s `held_field`), each tagged by its field's
-    /// name: one line of range probes and naming buttons
+    /// name: one line of `range?` and naming buttons
     /// ([`Self::tagged_doors`], the vector group's), then each slot's
     /// notes ([`Self::slot_notes_ui`]): its expression, its range
     /// reading, its offer and its naming field. Each row is the
@@ -1076,15 +1076,19 @@ impl ViewerBehavior<'_> {
     }
 
     /// The notes a slot says under its row ([`slot_notes`]), with the
-    /// session's range reading when one has been taken for this field.
+    /// session's `range?` reading when one was taken for this field,
+    /// and its stop while it is proving.
     fn slot_readings_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, row: &SlotRow) {
-        let target = BoundsTarget::Slot {
+        let target = RangeTarget::Slot {
             node,
             slot: row.slot,
         };
-        let reading = self.bounds_wording(&target);
-        if let Some(var) = slot_notes(ui, &self.theme, row, reading.as_deref(), *self.notation) {
+        let (lines, proving) = self.range_lines(&target);
+        if let Some(var) = slot_notes(ui, &self.theme, row, &lines, *self.notation) {
             self.ops.push(SessionOp::Select(Selection::Variable(var)));
+        }
+        if proving && stop_link(ui) {
+            self.ops.push(SessionOp::StopRange);
         }
     }
 
@@ -1246,40 +1250,32 @@ impl ViewerBehavior<'_> {
         }
     }
 
-    /// **The session's range reading for `target`, as its sentence** —
-    /// `None` while no reading has been taken for that field.
-    ///
-    /// Written in the unit the SEARCH used, which the reading carries,
-    /// not re-derived from the row it is drawn under: one sentence for
-    /// a slot's range and a variable's alike
-    /// (`BoundsReading::wording`).
-    fn bounds_wording(&self, target: &BoundsTarget) -> Option<String> {
+    /// Whether a `range?` run for `target` is proving: its button then
+    /// starts it again, dropping what it has proven.
+    fn proving(&self, target: &RangeTarget) -> bool {
         self.session
-            .bounds()
-            .filter(|reading| reading.target == *target)
-            .map(|reading| reading.wording())
+            .range()
+            .is_some_and(|reading| reading.target == *target && reading.proving())
     }
 
-    /// The button that asks for one slot's locally-valid range.
+    /// **The session's `range?` reading for `target`**: its lines, and
+    /// whether the run is still proving. No lines while no run was taken
+    /// for that field, or the document changed since.
+    fn range_lines(&self, target: &RangeTarget) -> (Vec<String>, bool) {
+        self.session
+            .range()
+            .filter(|reading| reading.target == *target)
+            .map_or((Vec::new(), false), |reading| {
+                (reading.lines(self.session.doc()), reading.proving())
+            })
+    }
+
+    /// **The button that starts one slot's `range?` run.**
     ///
-    /// **Asked for, not automatic** — see `SessionOp::ProbeBounds` for
-    /// why. Offered only where a number can actually be written: a
-    /// driven slot's value is not the user's to move, so a range for it
-    /// would answer a question they cannot act on. The reading itself
-    /// lands in [`Self::slot_notes_ui`], in the slot's own written unit.
-    ///
-    /// **The control reads the refused operation's own value.**
-    /// `Session::probe_bounds` refuses a driven slot through
-    /// `guard_driven` with [`Refusal::DrivenByExpression`], and
-    /// [`Self::probe_refusal`] answers that same value ahead of the
-    /// click; the button gates on whether there is one and renders it
-    /// through its own `Display`. **The row's VALUE is not a second
-    /// conjunct**: a slot the document holds a bare literal for always
-    /// evaluates, because `Node::slot_dimension_fault` — the one
-    /// predicate the edit doors and the load walk both ask — refuses
-    /// an expression whose dimension disagrees with the slot's. A gate
-    /// that also read the value would owe a sentence for a state no
-    /// document can be in.
+    /// Greyed ahead of the click by the kernel's admission door, which
+    /// runs no geometry ([`crate::session::DocSession::range_refusal`]):
+    /// the disabled control says the refused operation's own words. The
+    /// reading lands in [`Self::slot_notes_ui`], in the slot's unit.
     pub(crate) fn range_button(
         &mut self,
         ui: &mut egui::Ui,
@@ -1287,55 +1283,37 @@ impl ViewerBehavior<'_> {
         row: &SlotRow,
         label: &str,
     ) {
-        let refused = Self::probe_refusal(node, row, *self.notation);
-        let button = ui.add_enabled(refused.is_none(), egui::Button::new(label).small());
-        let button = match refused {
-            None => button.on_hover_text(PROBE_HOVER),
-            // The refusal renders itself; nothing here composes words.
-            Some(refusal) => button.on_disabled_hover_text(crate::shown(&refusal)),
+        let target = RangeTarget::Slot {
+            node,
+            slot: row.slot,
         };
-        if button.clicked() {
-            self.ops.push(SessionOp::ProbeBounds {
-                target: BoundsTarget::Slot {
-                    node,
-                    slot: row.slot,
-                },
-            });
+        let refused = self.session.range_refusal(&target);
+        let restarts = self.proving(&target);
+        // A scalar row's button says it restarts; a vector's tagged one
+        // keeps its axis tag and says so on hover.
+        let label = if restarts && label == "range?" {
+            "restart"
+        } else {
+            label
+        };
+        if range_control(ui, label, refused.as_ref(), restarts) {
+            self.ops.push(SessionOp::ProveRange { target });
         }
     }
 
-    /// **What `SessionOp::ProbeBounds` would answer for this row, or
-    /// `None` where it would accept** — a [`Refusal`], not a sentence.
-    ///
-    /// The session refuses the probe with
-    /// [`crate::session::driven_refusal`] of the slot's row as the
-    /// document holds it (`props::slot_rows`), so for that row — the
-    /// one every caller hands [`Self::range_button`], a profile
-    /// editor's held field included (`pane::profile`'s `SlotDoors`) —
-    /// the disabled control's words are the refused operation's own.
-    /// A caller that wants the words asks the value for them.
-    pub(crate) fn probe_refusal(
-        node: RecipeNodeId,
-        row: &SlotRow,
-        notation: Notation,
-    ) -> Option<Refusal> {
-        crate::session::driven_refusal(node, row, notation).err()
-    }
-
-    /// The range probe's button and reading for a DOCUMENT VARIABLE —
-    /// the one field that is not a slot.
-    ///
-    /// The reading is written in the unit the SEARCH ran in, which
-    /// `BoundsReading` carries beside the range: the panel says the
-    /// sentence, it does not decide the notation. That is what keeps
-    /// "the range says millimetres because the search stepped
-    /// millimetres" a fact about one value rather than an agreement
-    /// between two reads.
-    pub(crate) fn variable_bounds_ui(&mut self, ui: &mut egui::Ui, row: &VariableRow) {
-        let target = BoundsTarget::Variable { var: row.var };
-        let reading = self.bounds_wording(&target);
-        if bounds_notes(ui, &self.theme, reading.as_deref()) {
-            self.ops.push(SessionOp::ProbeBounds { target });
+    /// The `range?` reading and button for a DOCUMENT VARIABLE — the one
+    /// field that is not a slot: the reading on its own lines, its stop
+    /// while it proves, and the button under them.
+    pub(crate) fn variable_range_ui(&mut self, ui: &mut egui::Ui, row: &VariableRow) {
+        let target = RangeTarget::Variable { var: row.var };
+        let (lines, proving) = self.range_lines(&target);
+        let refused = self.session.range_refusal(&target);
+        let asked = range_notes(ui, &self.theme, &lines, proving, refused.as_ref());
+        if asked.stop {
+            self.ops.push(SessionOp::StopRange);
+        }
+        if asked.range {
+            self.ops.push(SessionOp::ProveRange { target });
         }
     }
 }
@@ -1343,7 +1321,7 @@ impl ViewerBehavior<'_> {
 /// Which tagged door a line of them offers ([`ViewerBehavior::tagged_doors`]).
 #[derive(Clone, Copy, Debug)]
 enum SlotDoor {
-    /// The range probe.
+    /// `range?`.
     Range,
     /// The naming button.
     Name,
@@ -1796,7 +1774,7 @@ fn slot_notes(
     ui: &mut egui::Ui,
     theme: &Theme,
     row: &SlotRow,
-    reading: Option<&str>,
+    reading: &[String],
     notation: Notation,
 ) -> Option<VarId> {
     for line in reading_notes(&row.label, &row.value, row.dimension, notation) {
@@ -1842,13 +1820,13 @@ fn slot_notes(
             });
         }
     }
-    if let Some(reading) = reading {
-        crate::widgets::message_toned(
-            ui,
-            format!("{}: {reading}", row.label),
-            theme,
-            Tone::Advisory,
-        );
+    for (i, line) in reading.iter().enumerate() {
+        let line = if i == 0 {
+            format!("{}: {line}", row.label)
+        } else {
+            line.clone()
+        };
+        crate::widgets::message_toned(ui, line, theme, Tone::Advisory);
     }
     clicked
 }
@@ -1905,22 +1883,66 @@ fn free_move_probe(
     });
 }
 
-/// **A document variable's range `reading` and the button that takes
-/// one** — the reading on its own line, the button under it, which is
-/// the order a slot's reading ([`slot_notes`]) and its range row are
-/// drawn in.
+/// What a `range?` line's controls were asked this frame.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct RangeAsked {
+    /// The stop, under a run that is proving.
+    stop: bool,
+    /// The `range?` button.
+    range: bool,
+}
+
+/// **A document variable's `range?` reading and the button that starts
+/// one** — each line on its own, the stop under them while the run
+/// proves, and the button last, which is the order a slot's reading
+/// ([`slot_notes`]) and its range row are drawn in.
 ///
-/// The reading is a sentence whose numbers are the search's, so it is
-/// not drawn beside the button: there it would be laid out from the
-/// button's edge rather than the pane's.
-///
-/// Answers whether the button was clicked.
-fn bounds_notes(ui: &mut egui::Ui, theme: &Theme, reading: Option<&str>) -> bool {
-    if let Some(reading) = reading {
-        crate::widgets::message_toned(ui, reading, theme, Tone::Advisory);
+/// The reading is sentences whose numbers are the search's, so none is
+/// drawn beside a control: there it would be laid out from the
+/// control's edge rather than the pane's.
+fn range_notes(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    lines: &[String],
+    proving: bool,
+    refused: Option<&Refusal>,
+) -> RangeAsked {
+    for line in lines {
+        crate::widgets::message_toned(ui, line.as_str(), theme, Tone::Advisory);
     }
-    ui.small_button("range?")
-        .on_hover_text(PROBE_HOVER)
+    RangeAsked {
+        stop: proving && stop_link(ui),
+        range: range_control(
+            ui,
+            if proving { "restart" } else { "range?" },
+            refused,
+            proving,
+        ),
+    }
+}
+
+/// **The `range?` button**, greyed with `refused`'s own words where the
+/// admission door refuses the run. Answers whether it was clicked.
+fn range_control(
+    ui: &mut egui::Ui,
+    label: &str,
+    refused: Option<&Refusal>,
+    restarts: bool,
+) -> bool {
+    let button = ui.add_enabled(refused.is_none(), egui::Button::new(label).small());
+    match refused {
+        None => button.on_hover_text(if restarts { RESTART_HOVER } else { RANGE_HOVER }),
+        // The refusal renders itself; nothing here composes words.
+        Some(refusal) => button.on_disabled_hover_text(crate::shown(refusal)),
+    }
+    .clicked()
+}
+
+/// **The stop under a proving `range?` run**: it keeps what the run has
+/// proven. Answers whether it was clicked.
+fn stop_link(ui: &mut egui::Ui) -> bool {
+    crate::widgets::message_link(ui, "stop")
+        .on_hover_text(STOP_HOVER)
         .clicked()
 }
 
@@ -1945,8 +1967,15 @@ const NAME_HOVER: &str = "name the variable this slot reads, so a formula can re
 
 /// What a range button says on hover, for a slot's and a variable's
 /// alike.
-const PROBE_HOVER: &str =
-    "probe how far this can move before something new fails (tens of evaluations)";
+const RANGE_HOVER: &str = "prove how far this can move and stay the same build — it keeps \
+                           proving until you stop it or it can go no further, which on some \
+                           fields is never";
+
+/// What the button says on hover while its run is proving.
+const RESTART_HOVER: &str = "start proving again from nothing, dropping what this run has proven";
+
+/// What the stop under a proving run says on hover.
+const STOP_HOVER: &str = "stop proving, and keep what is proven so far";
 
 /// **Where this pane's sentences LAND** — each measured in a pane
 /// narrower than the sentence, through `crate::pane::headless::landed`,
@@ -1966,7 +1995,7 @@ mod layout_tests {
 
     use pncad::document::{Dimension, SlotId, SpokenVar, VarId, VarName};
 
-    use super::{bounds_notes, exists_notice, reading_notes, slot_notes, slot_showing};
+    use super::{exists_notice, range_notes, reading_notes, slot_notes, slot_showing};
     use crate::pane::headless::{assert_inside, assert_own_lines, assert_under, drawn_in, find};
     use crate::props::{
         MemberValues, Notation, Reading, SlotDriver, SlotFault, SlotRow, SlotValue,
@@ -2033,7 +2062,7 @@ mod layout_tests {
             )
         };
         let (region, painted) = drawn_in(REGION, |ui| {
-            slot_notes(ui, &Theme::DEFAULT, &row, None, Notation::DEFAULT);
+            slot_notes(ui, &Theme::DEFAULT, &row, &[], Notation::DEFAULT);
         });
         let label = SlotId::Distance.label();
         let values = find(&painted, &format!("{label} at each member: {spelled}"));
@@ -2100,7 +2129,7 @@ mod layout_tests {
             Ok(value),
         );
         let (region, painted) = drawn_in(REGION, |ui| {
-            slot_notes(ui, &Theme::DEFAULT, &row, None, Notation::DEFAULT);
+            slot_notes(ui, &Theme::DEFAULT, &row, &[], Notation::DEFAULT);
         });
         let affordance = find(
             &painted,
@@ -2138,7 +2167,7 @@ mod layout_tests {
             )
         };
         let (region, painted) = drawn_in(REGION, |ui| {
-            slot_notes(ui, &Theme::DEFAULT, &row, None, Notation::DEFAULT);
+            slot_notes(ui, &Theme::DEFAULT, &row, &[], Notation::DEFAULT);
         });
         let quoted = find(
             &painted,
@@ -2196,7 +2225,7 @@ mod layout_tests {
     fn a_slots_fault_is_said_under_its_row_inside_the_pane() {
         let row = distance_row(SlotDriver::Literal, Err(SlotFault::NoExpression));
         let (region, painted) = drawn_in(REGION, |ui| {
-            slot_notes(ui, &Theme::DEFAULT, &row, None, Notation::DEFAULT);
+            slot_notes(ui, &Theme::DEFAULT, &row, &[], Notation::DEFAULT);
         });
         let fault = find(
             &painted,
@@ -2206,15 +2235,22 @@ mod layout_tests {
     }
 
     #[test]
-    fn a_variables_range_reading_is_said_over_its_button_inside_the_pane() {
-        let reading = "free from 0.0012345678901234567 m to 12.345678901234567 m \
-                       before something new fails";
+    fn a_variables_range_reading_is_said_over_its_stop_and_button_inside_the_pane() {
+        let lines = [
+            "proven 0.0012345678901234567 m…12.345678901234567 m".to_owned(),
+            "checked to 0 m…24.691357802469134 m".to_owned(),
+        ];
         let (region, painted) = drawn_in(REGION, |ui| {
-            bounds_notes(ui, &Theme::DEFAULT, Some(reading));
+            range_notes(ui, &Theme::DEFAULT, &lines, true, None);
         });
-        let said = find(&painted, reading);
-        assert_own_lines(region, said);
-        assert_under(said, find(&painted, "range?"));
+        let button = find(&painted, "restart");
+        let stop = find(&painted, "stop");
+        for line in &lines {
+            let said = find(&painted, line);
+            assert_own_lines(region, said);
+            assert_under(said, stop);
+        }
+        assert_under(stop, button);
     }
 }
 
@@ -2227,12 +2263,11 @@ mod tests {
     use std::cell::Cell;
 
     use super::{body_toggle, free_move_probe};
-    use crate::app::ViewerBehavior;
     use crate::pane::headless::{painted_after_clicking, painted_text};
-    use crate::props::{Notation, SlotDriver, SlotFault, SlotRow, SlotValue};
+    use crate::props::Notation;
     use crate::session::{Refusal, SessionOp};
     use eframe::egui;
-    use pncad::document::{Dimension, RecipeNodeId, SlotId, SpokenVar, VarId, VarName};
+    use pncad::document::RecipeNodeId;
 
     const NODE: RecipeNodeId = RecipeNodeId::new(0, test_utils::refusal::tagged(4));
 
@@ -2283,78 +2318,28 @@ mod tests {
         assert_eq!(cap.feature(), named, "the tree's feature is the header's");
     }
 
-    fn thickness() -> SpokenVar {
-        SpokenVar::new(VarId::new(0, 5), Some(VarName::from_static("thickness")))
-    }
-
-    /// One extrude distance row, driven or not, with the value the
-    /// document's variables give it.
-    fn distance_row(driver: SlotDriver, value: Result<SlotValue, SlotFault>) -> SlotRow {
-        SlotRow {
-            slot: SlotId::Distance,
-            label: SlotId::Distance.label(),
-            dimension: Dimension::Length,
-            structural: false,
-            driver,
-            value: value.map(crate::props::Reading::One),
-            unit: None,
-            source: None,
-        }
-    }
-
-    /// **The disabled range button reads the refused operation's own
-    /// value** — the variant and its payload, not a sentence about it.
-    ///
-    /// `guard_driven` builds `DrivenByExpression` from the same row's
-    /// driver and value, so the fields asserted here are the ones the
-    /// click's refusal carries; the rendering follows from the value
-    /// rather than being a second composition beside it. Both are
-    /// asserted: a control that started minting words again would keep
-    /// the variant and lose the sentence.
+    /// **Admission greys `range?`**: a refused run's button takes no
+    /// click, and an admitted one does — the same control, with and
+    /// without the refusal the session's admission door answers.
     #[test]
-    fn a_driven_slots_range_button_reads_the_refusal_the_probe_would_give() {
-        let current = SlotValue::Continuous(0.004);
-        let millimetres = Notation {
-            length: pncad::quantity::MM,
-            ..Notation::DEFAULT
-        };
-        let row = distance_row(
-            SlotDriver::Expression {
-                variables: vec![thickness()],
-            },
-            Ok(current),
-        );
-        match ViewerBehavior::probe_refusal(NODE, &row, millimetres) {
-            Some(Refusal::DrivenByExpression {
-                node,
-                slot,
-                ref variables,
-                current: carried,
-                notation,
-            }) => {
-                assert_eq!(node, NODE);
-                assert_eq!(slot, SlotId::Distance);
-                assert_eq!(variables, &vec![thickness()], "what to edit instead");
-                assert_eq!(carried, Some(current));
-                assert_eq!(notation, millimetres, "and the notation it reads in");
-            }
-            ref other => panic!("expected the driven refusal, got {other:?}"),
+    fn a_refused_range_button_takes_no_click() {
+        for (refused, want) in [
+            (
+                Some(Refusal::Range(Box::new(
+                    pncad::analysis::RangeRefusal::SeedNotABracket { lo: 1.0, hi: 2.0 },
+                ))),
+                false,
+            ),
+            (None, true),
+        ] {
+            let clicked = Cell::new(false);
+            painted_after_clicking("range?", |ui| {
+                if super::range_control(ui, "range?", refused.as_ref(), false) {
+                    clicked.set(true);
+                }
+            });
+            assert_eq!(clicked.get(), want, "refused: {refused:?}");
         }
-        let rendered = ViewerBehavior::probe_refusal(NODE, &row, millimetres)
-            .expect("a driven slot is refused the probe")
-            .to_string();
-        assert_eq!(
-            rendered,
-            Refusal::affordance(&[thickness()], SlotId::Distance, Some(current), millimetres),
-            "and it renders as the ratified affordance, from its one home"
-        );
-        // The mapping itself, planted: the words a reader gets for this
-        // row. The coupling above holds under any rewording of the one
-        // home; this line does not.
-        assert_eq!(
-            rendered,
-            "driven by an expression over thickness (currently 4 mm) — edit the expression, or type a number over it"
-        );
     }
 
     /// **A click on the body's toggle flips it.**
@@ -2368,51 +2353,6 @@ mod tests {
             }
         });
         assert!(changed.get(), "the click reached the checkbox");
-    }
-
-    /// **A slot the user can write is offered the probe**, with nothing
-    /// owed: `probe_bounds` would accept the click.
-    #[test]
-    fn a_literal_slot_is_offered_the_probe() {
-        assert!(
-            ViewerBehavior::probe_refusal(
-                NODE,
-                &distance_row(SlotDriver::Literal, Ok(SlotValue::Continuous(0.008))),
-                Notation::DEFAULT,
-            )
-            .is_none()
-        );
-    }
-
-    /// **The driver decides the arm, and a driven row with no value
-    /// still gets the refusal** — naming what to edit instead is most
-    /// of what that reader needs, and `current` goes `None` rather
-    /// than the whole affordance going away.
-    ///
-    /// This is also the one shape in which a row reaches the panel with
-    /// an `Err` value and no `EvalError`: `props::slot_row` reports a
-    /// slot its node lists and carries no expression for as
-    /// `SlotFault::NoExpression`, and classifies it as driven with an
-    /// empty variable list, which is the refusing direction.
-    #[test]
-    fn a_driven_slot_that_did_not_evaluate_still_gets_the_refusal() {
-        let row = distance_row(
-            SlotDriver::Expression {
-                variables: vec![thickness()],
-            },
-            Err(SlotFault::NoExpression),
-        );
-        let refusal = ViewerBehavior::probe_refusal(NODE, &row, Notation::DEFAULT)
-            .expect("a driven slot is refused the probe");
-        assert!(
-            matches!(refusal, Refusal::DrivenByExpression { current: None, .. }),
-            "no current value to name: {refusal:?}"
-        );
-        assert_eq!(
-            refusal.to_string(),
-            Refusal::affordance(&[thickness()], SlotId::Distance, None, Notation::DEFAULT)
-        );
-        assert!(refusal.to_string().contains("thickness"));
     }
 
     /// The working notation every free-move row below is drawn in:
