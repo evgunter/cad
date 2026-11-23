@@ -381,16 +381,24 @@ impl<'a> AnalyticRow<'a> {
     /// `v` window `(v0, v1)`**, from the lattice steps `(hu, hv)`
     /// ([`Self::lattice_steps`]), ascending.
     ///
-    /// **The cylinder: none.** Its every line `u = const` is straight on
-    /// the surface, so a triangle's deviation is set by its span round
+    /// **The cylinder: none.** Argued: every line `u = const` is straight
+    /// on the surface, so a triangle's deviation is set by its span round
     /// the axis (`cert::cert_cylinder`), which a row does not shorten,
     /// while rows multiply the triangles. With no row there is no lattice
-    /// node, and the lane triangulates the face's boundary points, each
-    /// triangle held by the certificate. Measured over the `mesh` suite
-    /// and `sweep`'s meshing modules at three ε: no cylinder face refuses
-    /// or folds without its rows, and a notched or holed pipe wall takes
-    /// 1 to 1.5 times the rectangle lane's triangles over the
-    /// iso-rectangles it divides into, where the rows made 4 to 220 times.
+    /// node, the lane triangulates the face's boundary points, and nothing
+    /// bounds a triangle's span but where those points lie: a triangle
+    /// joining two boundary features across free wall can be wider than
+    /// the target's column, its certificate refuses, and the lane's
+    /// correction (`trimmed::TrimmedFace::attempt`) puts a point inside it
+    /// and triangulates again; `mesh`'s
+    /// `rowless_cylinders::two_holes_across_a_column_and_a_half_mesh_by_the_correction`
+    /// holds that. Measured, debug, against the rows this replaced: over
+    /// the `mesh` suite (ε 10⁻⁹, 10⁻⁶ and 10⁻¹²) and `sweep`'s meshing
+    /// modules (the default ε) no cylinder face newly refuses, and 1,751
+    /// faces fall from 3.2 million triangles to 0.2 million; on notched
+    /// and holed pipe walls a face takes 1.0 to 1.5 times the rectangle
+    /// lane's triangles over the iso-rectangles it divides into, where the
+    /// rows made 1.2 to 223 times.
     ///
     /// The sphere, the torus and the spindle sheet: uniform,
     /// `⌈(v1 − v0)/hv⌉` gaps.
@@ -472,10 +480,18 @@ impl<'a> AnalyticRow<'a> {
     /// (an ear, or a side across several chord steps) usually has the
     /// face's interior points in its circumcircle and the CDT does not
     /// make it, which leaves the trimmed lane's shared-side cure less to
-    /// split. Every other chart's is its lattice's realized spacing: a
-    /// cone's lattice square in 3-D is a strip of aspect about `1/ρ_max`
-    /// in the chart, a torus's is `√(r/(R + r))`, and a cylinder's, which
-    /// lays no row, is its window's height over its column step.
+    /// split. Every other chart's is its lattice's realized spacing, the
+    /// column step over the row step: a cone's lattice square in 3-D is a
+    /// strip of aspect about `1/ρ_max` in the chart, and a torus's is
+    /// `√(r/(R + r))`. A cylinder lays no row, so its one "row" is the
+    /// window's height (`nv = 1`) and its aspect the column step over that
+    /// height: points enter the triangulation at `(u/k, v)`, a column the
+    /// height of the window reads as a square cell, and a triangle across
+    /// one column from rim to rim is as well shaped there as any, so the
+    /// triangulation prefers strips joining the two rims a column at a
+    /// time, which is the shape whose span round the axis the target
+    /// bounds. `k` is rounded to a power of two, so the plane changes in
+    /// steps of two as the window's height grows.
     pub(crate) fn metric(
         &self,
         (u0, u1): (f64, f64),
@@ -575,7 +591,7 @@ impl<'a> AnalyticRow<'a> {
 
     /// **Whether the trimmed lane's arm on this chart chords its boundary
     /// to its lattice** (`chords::tighten`): every arm's but the
-    /// cylinder's, which chords at its target alone
+    /// cylinder's, which lays no lattice and chords at its target alone
     /// (`work/tesslane/the-trimmed-cylinder-arm-chords-its-boundary-to-no-lattice.md`).
     pub(crate) fn chorded_to_lattice(&self) -> bool {
         match self.kind() {

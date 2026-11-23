@@ -89,12 +89,11 @@ struct Tally {
 ///
 /// RE-PINNED when the chart lane's cylinder arm stopped laying lattice
 /// rows (`mesh`'s `chart_table::AnalyticRow::lattice_rows`): the corpus's
-/// chart-lane cylinder faces mesh on their boundary points alone, so
-/// fewer rays land and fewer near-degenerate candidates reach the
-/// determinant. Against its merge base, which reads (451,512, 147,850,
-/// 16,596, 8,142) there: rays 451,512 → 424,728, grazes
-/// 147,850 → 138,718, refused candidates 16,596 → 11,004, rays with a
-/// refusal 8,142 → 5,130. `genuine_refused` stays empty.
+/// chart-lane cylinder faces mesh on their boundary points alone, with
+/// fewer vertices, and a ray is aimed at each subsampled vertex, so fewer
+/// rays are aimed and fewer near-degenerate candidates reach the
+/// determinant: rays RAYS, grazes GRAZES, refused candidates REFUSED, rays
+/// with a refusal WITH. `genuine_refused` stays empty.
 const PINNED: (usize, usize, usize, usize) = (424_728, 138_718, 11_004, 5_130);
 
 fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {

@@ -286,7 +286,10 @@
 //! split by a point inside it, and (below) a triangle certified above δ
 //! is refined. Lattice nodes are a fixed, (v, u)-sorted list computed
 //! once, before the loop; a fold drops a node by its index, and the
-//! shared-side and refinement arms append, so indices only grow.
+//! shared-side and refinement arms append, so indices only grow. A
+//! cylinder face lays no lattice node, so a fold there drops only a point
+//! one of those arms inserted, and a fold with none of its corners such a
+//! point refuses typed ([`TessellateError::FoldedTriangle`]).
 //!
 //! The same loop carries TESS-SPAN's second arm, **certificate-driven
 //! refinement**: after the emit pass, any NURBS or cylinder triangle
@@ -366,18 +369,21 @@ fn last_attempt() -> usize {
     MAX_GRID_RETRIES
 }
 
-/// **The trimmed lane's unproved headroom**: the cylinder arm sizes its
-/// lattice, and the chord pass chords that face's edges
-/// (`chords::edge_target`), at this share of δ rather than at δ
-/// ([`face_target`]).
+/// **The trimmed lane's unproved headroom**: the chord pass chords a
+/// cylinder face's edges (`chords::edge_target`) at this share of δ
+/// rather than at δ ([`face_target`]).
 ///
 /// The lane has no worst-triangle theorem (`crates/mesh/README.md`
 /// `[mesh.sizing]`). It lays no lattice on the cylinder
-/// (`chart_table::AnalyticRow::lattice_rows`), and a constrained
-/// Delaunay triangle on the face's boundary points certifies at the
-/// sagitta of its span round the axis, which can be more than one
-/// column — nothing yet bounds by how much. The certificate refuses typed where it is exceeded; this
-/// factor is what keeps that refusal rare, and it is a debt
+/// (`chart_table::AnalyticRow::lattice_rows`), so the face is triangulated
+/// on its boundary points. What bounds a triangle's span round the axis
+/// there is only where those points lie: a rim chord spans one column at
+/// this target, but a triangle joining two boundary features across free
+/// wall spans as many columns as lie between them, and nothing bounds
+/// that. The certificate reads every triangle; one that it refuses gets a
+/// point inside it and the face is triangulated again
+/// ([`TrimmedFace::attempt`], under [`MAX_GRID_RETRIES`]). This factor
+/// keeps those refusals rare, and it is a debt
 /// (`work/tesslane/the-trimmed-cylinder-lane-has-no-worst-triangle-theorem.md`):
 /// the fix is the theorem, not a retuned factor.
 ///
@@ -1541,14 +1547,14 @@ impl TrimmedFace<'_> {
                 // half is the row's: a chart with singular points holds its
                 // polygon to `singular_row_shape`'s shapes. The INGREDIENT
                 // half — a repeated id with a single interior column between
-                // the entries — is checked at the cylinder arm's `nu`, kept
-                // off at a singular point by `pole_side_columns`, and this
-                // emit pass also runs for
-                // NURBS, where there is no `nu`: the candidates come from
-                // the cell grid rather than a uniform division, so the
-                // "single interior column" has no analogue to test. That
-                // arm's ingredient check is therefore still an ARGUMENT
-                // and not a check.
+                // the entries — cannot arise on the cylinder, which lays no
+                // lattice node (`chart_table::AnalyticRow::lattice_rows`), is
+                // kept off at a singular point by `pole_side_columns`, and
+                // this emit pass also runs for NURBS, where there is no
+                // uniform column count: the candidates come from the cell
+                // grid, so the "single interior column" has no analogue to
+                // test. That arm's ingredient check is therefore still an
+                // ARGUMENT and not a check.
                 //
                 // ITS EMISSION IS NOT (issue 897). The census after this
                 // loop re-derives the CONCLUSION over the emitted patch,
@@ -3757,11 +3763,13 @@ pub(super) mod tests {
     /// Whether any mesh id appears at two DIFFERENT UV locations in the
     /// trim polygon — the second ingredient of #678's non-manifold fan
     /// (`curved::pole_columns` carries the argument; the first ingredient
-    /// is a single interior column between them).
+    /// is a single interior column between them, which no lattice node
+    /// of this lane's cylinder can make, since it lays none).
     ///
     /// The rule for "different" is spade's and is stated once, at
-    /// [`crate::cdt::ids_at_two_uvs`], which both lanes call. This
-    /// function is that set's emptiness, which the rows below read.
+    /// `crate::cdt::ids_at_two_uvs`, which both lanes' censuses call; this
+    /// is that set's emptiness, for the rows here that hold the rule's two
+    /// edges (an ulp apart reads apart, `-0.0` against `0.0` does not).
     fn id_repeats_apart(polygon: &[(f64, f64, u32)]) -> bool {
         !crate::cdt::ids_at_two_uvs(polygon.iter().copied()).is_empty()
     }
