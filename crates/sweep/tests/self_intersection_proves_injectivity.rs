@@ -4449,3 +4449,86 @@ fn a_ball_through_a_split_cylinders_two_arc_corner_crosses() {
         }
     }
 }
+
+/// Reviewer scan (PR 7640): which restatement a split states its
+/// section's arcs by, over a grid of cuts of a frustum and a rod, either
+/// side. Prints a census of the patterns; asserts nothing.
+#[test]
+fn review_scan_which_restatement_a_split_states() {
+    use std::collections::BTreeMap;
+    let mut census: BTreeMap<String, (usize, String)> = BTreeMap::new();
+    let shapes = [("frustum", (0.7, 0.31, 0.9)), ("rod", (0.7, 0.7, 1.9))];
+    for (shape_name, shape) in shapes {
+        for qi in 0..6 {
+            let q = 0.2 + 0.13 * f64::from(qi);
+            for phi in [0.12, 0.3, 0.55] {
+                for k in 0..16 {
+                    let psi = 0.05 + core::f64::consts::TAU * f64::from(k) / 16.0;
+                    for above in [true, false] {
+                        let cut: SplitCone = (shape, (q, phi, psi), above);
+                        let Ok(arcs) = std::panic::catch_unwind(|| {
+                            section_arcs(&split_cone::<f64>(cut, SplitPose::AsBuilt))
+                        }) else {
+                            census.entry(format!("{shape_name}: no build")).or_default().0 += 1;
+                            continue;
+                        };
+                        if arcs.len() != 2 {
+                            census
+                                .entry(format!("{shape_name}: {} arcs", arcs.len()))
+                                .or_default()
+                                .0 += 1;
+                            continue;
+                        }
+                        let (a, b) = (arcs[0], arcs[1]);
+                        let pat = a
+                            .restatements()
+                            .map(|r| geom::Curve3::Ellipse(r).same_content(&geom::Curve3::Ellipse(b)));
+                        let swapped = a.semi_axes() == (b.semi_v(), b.semi_u());
+                        let key = format!(
+                            "{shape_name}: [id, half, back, both] = {pat:?}, semi-axes exchanged {swapped}"
+                        );
+                        let e = census.entry(key).or_default();
+                        e.0 += 1;
+                        if e.1.is_empty() {
+                            e.1 = format!("{cut:?}");
+                        }
+                    }
+                }
+            }
+        }
+    }
+    for (k, (n, first)) in census {
+        println!("RS {n:4} {k}   first: {first}");
+    }
+}
+
+/// Reviewer probe (PR 7640): what the statement row's reading says of
+/// the `Interval` twin of a wall cut.
+#[test]
+fn review_the_statement_reading_at_interval() {
+    for (what, cut) in [("on the grid", WALL_CUT), ("off the grid", WALL_CUT_OFF_GRID)] {
+        let body = split_cone::<Interval>(cut, SplitPose::AsBuilt);
+        let arcs: Vec<geom::Ellipse<Interval>> = body
+            .edges()
+            .filter_map(
+                |(_, e)| match body.get_curve_geom(e.curve).unwrap().certified()?.carrier() {
+                    geom::Curve3::Ellipse(e) => Some(*e),
+                    _ => None,
+                },
+            )
+            .collect();
+        let [a, b] = arcs.as_slice() else {
+            panic!("two arcs")
+        };
+        let pat = a
+            .restatements()
+            .map(|r| geom::Curve3::Ellipse(r).same_content(&geom::Curve3::Ellipse(*b)));
+        let w = |x: Interval| x.hi() - x.lo();
+        let (fa, fb) = (a.frame(), b.frame());
+        println!(
+            "RI {what}: restated at Interval {pat:?}; self-content {}; centre widths {:e} {:e}; u_ref.x widths {:e} {:e}; semi_u widths {:e} {:e}",
+            geom::Curve3::Ellipse(*a).same_content(&geom::Curve3::Ellipse(*a)),
+            w(fa.origin().x), w(fb.origin().x), w(fa.u_ref().x), w(fb.u_ref().x), w(a.semi_u()), w(b.semi_u())
+        );
+    }
+}
