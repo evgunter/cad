@@ -264,6 +264,10 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SECTION_PIN_RESOLUTION"),
     NameCarrier::Const("CROSS_TURN"),
     NameCarrier::Const("ARM_INF"),
+    // `offset_axial::classify`'s two `(name, straddle)` pairs, handed to
+    // its sine closure and on to `validate::decide_levered`.
+    NameCarrier::Const("ALIGNMENT"),
+    NameCarrier::Const("AXIS_PARALLEL"),
     // The forwarders a `FORWARDS` line names, declared so their callers'
     // names are read (`roster_violations` holds each line to one).
     NameCarrier::Call("advance_as"),
