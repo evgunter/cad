@@ -1517,21 +1517,25 @@ fn embedding<T: Scalar + geom_core::Certifies>(body: &Body<T>) -> topo::clearanc
 }
 
 /// **A half rod with a block under its flat face**: the half disc
-/// `x² + y² ≤ 1`, `y ≥ 0` over `z ∈ [0, 2]`, united with the block
-/// `[0, 1] × [-1, 0] × [0.5, 1.5]`. The block's corners `(1, 0, 0.5)`
-/// and `(1, 0, 1.5)` land on the wall's ruling `x = 1`, `y = 0`, so that
-/// line of the wall is three edges, and the wall meets each of the
-/// block's two horizontal faces, at its corner, at one of those vertices
-/// alone.
-fn half_rod_on_a_block<T: Scalar>() -> topo::AtRestBody<T> {
+/// `x² + y² ≤ r²`, `y ≥ 0` over `z ∈ [0, 2]`, united with the block
+/// `[x0, r] × [-d, 0] × [z0, z1]`. The block's corners `(r, 0, z0)` and
+/// `(r, 0, z1)` land on the wall's ruling `x = r`, `y = 0`, so that line
+/// of the wall is three edges, and the wall meets each of the block's
+/// two horizontal faces, at its corner, at one of those vertices alone.
+fn half_rod_on_a_block_at<T: Scalar>(
+    r: f64,
+    x0: f64,
+    d: f64,
+    (z0, z1): (f64, f64),
+) -> topo::AtRestBody<T> {
     use sweep::test_support::{brick, finished, prism_at};
     let at = T::from_f64;
     let half = finished(
         "the half rod",
         prism_at(
             vec![
-                (Point2::new(at(-1.0), T::zero()), T::zero()),
-                (Point2::new(T::one(), T::zero()), T::one()),
+                (Point2::new(at(-r), T::zero()), T::zero()),
+                (Point2::new(at(r), T::zero()), T::one()),
             ],
             T::zero(),
             at(2.0),
@@ -1541,10 +1545,40 @@ fn half_rod_on_a_block<T: Scalar>() -> topo::AtRestBody<T> {
     );
     let block = finished(
         "the block",
-        brick::<T>((0.0, 1.0), (-1.0, 0.0), (0.5, 1.5), tol()),
+        brick::<T>((x0, r), (-d, 0.0), (z0, z1), tol()),
         tol(),
     );
     built(topo::union(&half, &block, tol()))
+}
+
+/// [`half_rod_on_a_block_at`] on the dyadic grid: radius 1, the block
+/// `[0, 1] × [-1, 0] × [0.5, 1.5]`.
+fn half_rod_on_a_block<T: Scalar>() -> topo::AtRestBody<T> {
+    half_rod_on_a_block_at(1.0, 0.0, 1.0, (0.5, 1.5))
+}
+
+/// `b` mirrored across the plane through `(0.1, -0.2, 0.4)` with normal
+/// `(1, 2, 3)`: a mirror across no axis plane.
+fn mirrored_generically<T: Scalar>(b: &Body<T>) -> Body<T> {
+    let across = topo::Reflection::across(
+        Point3::new(0.1, -0.2, 0.4).map(T::from_f64),
+        geom_core::Vec3::new(1.0, 2.0, 3.0).map(T::from_f64),
+        tol(),
+    )
+    .unwrap();
+    topo::mirror_body(b, &across, tol()).unwrap()
+}
+
+/// Whether `verdict` is `Uncertified { Departure }` at a vertex.
+fn refuses_departure_at_a_vertex(verdict: &BoundVerdict<Witness>) -> bool {
+    matches!(
+        verdict,
+        BoundVerdict::Refused(EngineRefusal::Uncertified {
+            shared: SharedCell::Vertex(_),
+            arm: CertificateArm::Departure,
+            ..
+        })
+    )
 }
 
 /// The cylinder wall of `body`, and the faces that share a vertex with
@@ -1685,6 +1719,152 @@ fn a_wall_holds_against_a_face_at_a_vertex_mid_ruling() {
             ),
             other => panic!("{pose}: the whole body at Interval: {other:?}"),
         }
+    }
+}
+
+/// **The dyadic build's wall and ring, mirrored across a plane that is
+/// no axis plane, refuse.** The mirror re-mints each rim circle's chart
+/// row, which then reads as a harmonic image and not as a coordinate
+/// line, so a cell holding that circle beside a ruling's vertex is
+/// handed to the curve presentations and read at no depth, before the
+/// wall's clips are built
+/// (`work/embed/a-generic-mirror-re-mints-a-rim-circles-row-as-a-harmonic-image.md`).
+/// At `f64`, the block's whole body refuses at the verdict door and one
+/// of its two wall pairs refuses `Uncertified { Departure }` at the
+/// vertex; the ring refuses `Uncertified { Departure }` across an edge of
+/// a plane face and a cylinder wall, at both scalars. Mirrored across an
+/// axis plane both hold. Red, rightly, the day a mirrored rim circle is
+/// read as the coordinate line it is.
+#[test]
+fn the_wall_and_the_ring_refuse_mirrored_across_a_generic_plane() {
+    use topo::clearance::Embedding;
+
+    let block = mirrored_generically(&half_rod_on_a_block::<f64>().into_body());
+    let (wall, alone) = wall_and_the_faces_at_a_vertex_alone(&block);
+    let refusing = alone
+        .iter()
+        .filter(|&&f| {
+            refuses_departure_at_a_vertex(&injective(&block, Some(vec![wall, f]), BUDGET).verdict)
+        })
+        .count();
+    assert_eq!(
+        refusing, 1,
+        "one of the two wall pairs refuses at the vertex"
+    );
+    assert!(
+        matches!(
+            embedding(&block),
+            Embedding::Refused(EngineRefusal::Uncertified {
+                arm: CertificateArm::Departure,
+                ..
+            })
+        ),
+        "the mirrored block at the verdict door: {:?}",
+        embedding(&block)
+    );
+    let ring = mirrored_generically(&near_full_ring::<f64>().into_body());
+    let twin = mirrored_generically(&near_full_ring::<Interval>().into_body());
+    let report = injective(&ring, None, BUDGET);
+    same_class(
+        "the mirrored ring",
+        &report,
+        &injective(&twin, None, BUDGET),
+    );
+    let BoundVerdict::Refused(EngineRefusal::Uncertified {
+        a,
+        b,
+        shared: SharedCell::Edge(_),
+        arm: CertificateArm::Departure,
+    }) = report.verdict
+    else {
+        panic!("the mirrored ring: {:?}", report.verdict);
+    };
+    let kinds = [a, b].map(|f| matches!(surface(&ring, f), Surface::Plane { .. }));
+    assert!(
+        kinds.contains(&true) && kinds.contains(&false),
+        "a plane face against a curved wall"
+    );
+    let axis = topo::Reflection::across(
+        Point3::new(0.1, -0.2, 0.4),
+        geom_core::Vec3::new(1.0, 0.0, 0.0),
+        tol(),
+    )
+    .unwrap();
+    for (what, body) in [
+        ("the block", half_rod_on_a_block::<f64>().into_body()),
+        ("the ring", near_full_ring::<f64>().into_body()),
+    ] {
+        assert_eq!(
+            embedding(&topo::mirror_body(&body, &axis, tol()).unwrap()),
+            Embedding::Embedded,
+            "{what}, mirrored across an axis plane"
+        );
+    }
+}
+
+/// **Built off the dyadic grid, the wall's lower pair refuses at `f64`
+/// and holds at `Interval`**, as built, turned and a hundred units off:
+/// radius 0.7, the block `[0.13, 0.7] × [-0.61, 0] × [0.3, 1.7]`. The
+/// wall's ruling is three edges, and the two that meet at the vertex
+/// `(0.7, 0, 0.3)` store its height as `0.3` and `0.30000000000000004`:
+/// two readings of one vertex, an ulp apart. At `f64` a cell whose side
+/// straddles that joint is not covered by the two edges
+/// (`sides_are_the_faces`), so the wall is not presented at the vertex at
+/// any depth and never reaches its zero; at `Interval` the two readings
+/// are brackets that overlap, the side is covered, and the wall reads
+/// its side through the vertex and certifies. The upper pair holds at
+/// both. On the dyadic build the two readings are the same bits.
+///
+/// That a joint's two stored ends are one vertex is the cover's to read
+/// (`work/embed/coaxial-walls-glued-across-a-circle-read-one-side-with-no-zero.md`,
+/// its second defect). Red, rightly, the day it does: the pair then
+/// holds at both scalars.
+#[test]
+fn an_off_grid_walls_joint_a_rounding_apart_refuses_at_f64_and_holds_at_interval() {
+    use topo::clearance::Embedding;
+
+    for (pose, m) in turned_and_far() {
+        let float = posed(
+            half_rod_on_a_block_at::<f64>(0.7, 0.13, 0.61, (0.3, 1.7)),
+            m.as_ref(),
+        );
+        let twin = posed(
+            half_rod_on_a_block_at::<Interval>(0.7, 0.13, 0.61, (0.3, 1.7)),
+            m.as_ref(),
+        );
+        let (wall, alone) = wall_and_the_faces_at_a_vertex_alone(&float);
+        let (twin_wall, twin_alone) = wall_and_the_faces_at_a_vertex_alone(&twin);
+        assert_eq!((alone.len(), twin_alone.len()), (2, 2), "{pose}");
+        let verdicts: Vec<_> = alone
+            .iter()
+            .map(|&f| injective(&float, Some(vec![wall, f]), BUDGET).verdict)
+            .collect();
+        assert!(
+            verdicts
+                .iter()
+                .filter(|v| refuses_departure_at_a_vertex(v))
+                .count()
+                == 1
+                && verdicts
+                    .iter()
+                    .filter(|v| matches!(v, BoundVerdict::Holds))
+                    .count()
+                    == 1,
+            "{pose}: at f64 one pair refuses at the vertex and one holds: {verdicts:?}"
+        );
+        for g in twin_alone {
+            let report = injective(&twin, Some(vec![twin_wall, g]), BUDGET);
+            assert!(
+                matches!(report.verdict, BoundVerdict::Holds),
+                "{pose}: at Interval both pairs hold: {:?}",
+                report.verdict
+            );
+        }
+        assert!(
+            matches!(embedding(&float), Embedding::Refused(_)),
+            "{pose}: the verdict door at f64: {:?}",
+            embedding(&float)
+        );
     }
 }
 
@@ -2147,6 +2327,35 @@ fn the_collinear_cap_drum_itself_runs_out_of_depth_off_its_half_circle() {
         report.receipt
     );
     assert_eq!(report.receipt.refused, 210, "{:?}", report.receipt);
+}
+
+/// **A drum whose splits fall a rounding off its half-circle runs out of
+/// depth**: the same drum at radius 0.7, whose half-annulus cells beside
+/// the disc's half-circle are read by no presentation
+/// (`work/embed/a-cell-whose-side-lies-a-rounding-off-a-curved-edge-reads-local-at-every-depth.md`).
+/// Red when it holds, and that row's reading has landed.
+#[test]
+fn a_drum_of_radius_0_7_runs_out_of_depth_off_its_half_circle() {
+    use crate::common::latitude_seam::ring_on_cap;
+    use sweep::test_support::{corners, revolved_about_y};
+    let (r, h) = (0.7, 2.0);
+    let mut drum = revolved_about_y(
+        corners(&[(0.0, 0.0), (r, 0.0), (r, h), (0.0, h)]),
+        Revolution::Full,
+        Tol::witness(),
+    );
+    ring_on_cap(&mut drum, h, r, r / 2.0);
+    let report = injective(&drum, None, BUDGET);
+    assert!(
+        matches!(
+            report.verdict,
+            BoundVerdict::Refused(EngineRefusal::Budget(_))
+        ),
+        "the drum runs out of depth: {:?} {:?}",
+        report.verdict,
+        report.receipt
+    );
+    assert!(report.receipt.refused > 0, "{:?}", report.receipt);
 }
 
 /// **A cylinder–cylinder tee builds at both scalars, and its injectivity
