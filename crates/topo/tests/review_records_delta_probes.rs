@@ -6,7 +6,7 @@ use crate::common;
 use geom_core::{Point3, Tol, Vec3};
 use topo::{
     Assembled, AtRestBody, Body, BooleanResult, Built, Cell, Cited, Cites, Contact, ContactRecords,
-    FinishedBody as _, finish, finish_assembled, union,
+    finish, finish_assembled, union,
 };
 
 fn tol() -> Tol {

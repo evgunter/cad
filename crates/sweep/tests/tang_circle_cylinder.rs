@@ -375,7 +375,7 @@ fn a_tilted_rod_through_a_rim_builds_at_its_sliced_volume() {
                 .map_err(Vec::as_slice),
             Err([topo::ValidationError::CensusUnsupported {
                 cause: topo::CensusUnsupportedCause::ContactLane(
-                    topo::ContactRefusal::NotCertifiable { what }
+                    topo::ContactRefusal::NotCertifiable { what, .. }
                 ),
                 ..
             }]) if what.starts_with("a line edge on a curved face's ruling")

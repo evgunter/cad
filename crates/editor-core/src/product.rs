@@ -1384,8 +1384,8 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
         // two are held to one arena here.
         Some(decided) => {
             assert!(
-                same_arena(aggregate.body(), &decided.body),
-                "a product's graft and the graft its `⊔` door finished mint one arena: \
+                same_keys(aggregate.body(), &decided.body),
+                "a product's graft and the graft its `⊔` door finished mint the same keys: \
                  every name, record and census row below is keyed through the first \
                  onto the second"
             );
@@ -1608,9 +1608,10 @@ fn carry_names(
     }
 }
 
-/// Whether two bodies hold the same solid, face, edge and vertex keys:
-/// what two grafts of the same sources in the same order leave.
-fn same_arena<T: geom_core::Real>(a: &Body<T>, b: &Body<T>) -> bool {
+/// Whether two bodies hold the same solid, face, edge and vertex keys,
+/// in order: what two grafts of the same sources in the same order
+/// leave. It compares keys only, not what they name.
+fn same_keys<T: geom_core::Real>(a: &Body<T>, b: &Body<T>) -> bool {
     a.solids().map(|(k, _)| k).eq(b.solids().map(|(k, _)| k))
         && a.faces().map(|(k, _)| k).eq(b.faces().map(|(k, _)| k))
         && a.edges().map(|(k, _)| k).eq(b.edges().map(|(k, _)| k))

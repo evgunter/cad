@@ -4754,6 +4754,7 @@ fn curved_overlap_cells<T: Decide>(
                     crate::contact::ContactRefusal::NotCertifiable {
                         what: "a line edge on a curved face's ruling whose trim the \
                                containment door does not read",
+                        reach: crate::contact::ContactReach::Unread,
                     },
                 ),
             }),
@@ -7298,6 +7299,7 @@ fn line_unread(
             crate::contact::ContactRefusal::NotCertifiable {
                 what: "a face of a two-carrier face pair whose trim the containment door does \
                        not read",
+                reach: crate::contact::ContactReach::Unread,
             },
         )),
         crate::boolean::FaceUnread::Placement(e) => {
@@ -7408,7 +7410,10 @@ fn same_solid_tangent_pair<T: Decide>(
         TangentVerdict::NotCertifiable(why) => errors.push(pair_lane_refused(
             a,
             b,
-            crate::contact::ContactRefusal::NotCertifiable { what: why.what() },
+            crate::contact::ContactRefusal::NotCertifiable {
+                what: why.what(),
+                reach: why.reach(),
+            },
         )),
     }
 }
@@ -11322,6 +11327,7 @@ fn confirm_face_pair<T: crate::props::AtRestPolicy>(
                 cause: CensusUnsupportedCause::ContactLane(
                     crate::contact::ContactRefusal::NotCertifiable {
                         what: "a face of the face-face record has no extent to read",
+                        reach: crate::contact::ContactReach::Unread,
                     },
                 ),
             });
@@ -11359,6 +11365,7 @@ fn confirm_face_pair<T: crate::props::AtRestPolicy>(
                 crate::contact::ContactRefusal::NotCertifiable {
                     what: "a face-face record on two carriers with no closed-form tangent locus \
                            (plane x cylinder along a ruling, parallel cylinders)",
+                    reach: crate::contact::ContactReach::NoLane,
                 },
             ));
             return;
@@ -11395,7 +11402,10 @@ fn confirm_face_pair<T: crate::props::AtRestPolicy>(
         TangentVerdict::NotCertifiable(why) => errors.push(pair_lane_refused(
             a,
             b,
-            crate::contact::ContactRefusal::NotCertifiable { what: why.what() },
+            crate::contact::ContactRefusal::NotCertifiable {
+                what: why.what(),
+                reach: why.reach(),
+            },
         )),
     }
 }
@@ -11502,6 +11512,7 @@ fn confirm_vertex_on_face<T: Decide>(
                 crate::contact::ContactRefusal::NotCertifiable {
                     what: "a vertex-on-face record on a curved face whose trim \
                            the containment door does not read",
+                    reach: crate::contact::ContactReach::Unread,
                 },
             ),
         }),

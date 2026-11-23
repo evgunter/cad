@@ -477,6 +477,8 @@ mod verbs_offd;
 #[path = "verbs_shell.rs"]
 mod verbs_shell;
 
+#[path = "a_record_no_lane_reads.rs"]
+mod a_record_no_lane_reads;
 #[path = "a_thin_wall_bounds_the_band.rs"]
 mod a_thin_wall_bounds_the_band;
 #[path = "a_tiny_lune_on_a_wide_sphere_reads_its_own_extent.rs"]

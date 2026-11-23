@@ -142,7 +142,25 @@ pub enum ContactRefusal {
     NotCertifiable {
         /// Why the configuration is outside the lane.
         what: &'static str,
+        /// Whether anything was read of it ([`ContactReach`]), stated where
+        /// the refusal is raised.
+        reach: ContactReach,
     },
+}
+
+/// **What stands behind a [`ContactRefusal::NotCertifiable`]**, stated
+/// by the site that raises it. A gate reads it to tell a pair nothing
+/// can speak to from a reading that ran and did not decide: only the
+/// first is a record it may hold on its citation
+/// (`[topology.tiers]`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ContactReach {
+    /// No reading the kernel has speaks to the configuration: its
+    /// kinds are outside every lane's set, and nothing was measured.
+    NoLane,
+    /// A reading ran, or was handed input it could not read, and did
+    /// not decide.
+    Unread,
 }
 
 // The human-readable rendering (LIB-DOORS F6 shape): each arm states
@@ -169,7 +187,7 @@ impl core::fmt::Display for ContactRefusal {
                 "whether the faces touch escalated ({}); {CONTACT_RECOURSE}",
                 diag.payload()
             ),
-            Self::NotCertifiable { what } => {
+            Self::NotCertifiable { what, .. } => {
                 write!(f, "this contact cannot be certified ({what})")
             }
         }
@@ -295,6 +313,16 @@ pub enum Uncertified {
 }
 
 impl Uncertified {
+    /// What stands behind it: the lane's own boundary reads nothing; a
+    /// span bound the schedule did not reach is a reading that ran.
+    #[must_use]
+    pub const fn reach(self) -> ContactReach {
+        match self {
+            Self::OutsideLane | Self::NoSpanBounds => ContactReach::NoLane,
+            Self::SagUnreached => ContactReach::Unread,
+        }
+    }
+
     /// Why, as a clause.
     #[must_use]
     pub const fn what(self) -> &'static str {

@@ -8166,11 +8166,14 @@ pub(crate) fn tangent_pair_at_rest<T: Decide>(
     use crate::contact::ContactRefusal;
     let ((sa, _), (sb, _)) = (record_face(body, fa), record_face(body, fb));
     let line = tangent_line((body, fa, sa), (body, fb, sb), band).map_err(|e| {
+        // The line's reading was handed a face it could not read: a
+        // reading that failed, not a pair outside every lane.
         ContactRefusal::NotCertifiable {
             what: match e {
                 BooleanError::InvalidInput { what, .. } => what,
                 _ => "a face of the face-face record has no extent to read",
             },
+            reach: crate::contact::ContactReach::Unread,
         }
     })?;
     let line = match line {

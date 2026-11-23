@@ -3756,8 +3756,8 @@ fn the_census_findings_read_as_prose_by_this_crate_s_own_rule() {
 fn every_validation_finding_carries_every_word_its_arm_has() {
     use crate::validation::{Finding, project};
     use pncad::topo::{
-        CensusContact, CensusSubject, CensusUnsupportedCause, ContactRefusal, EntityId,
-        ValidationError,
+        CensusContact, CensusSubject, CensusUnsupportedCause, ContactReach, ContactRefusal,
+        EntityId, ValidationError,
     };
 
     // The arm whose subject is ONE entity: the recourse is that
@@ -3772,6 +3772,7 @@ fn every_validation_finding_carries_every_word_its_arm_has() {
             cause: CensusUnsupportedCause::ContactLane(ContactRefusal::NotCertifiable {
                 what: "a glued face's surface kind is outside the Rest ladder's \
                        inventory (plane, sphere, cylinder, torus, cone)",
+                reach: ContactReach::NoLane,
             }),
         }),
         Finding {

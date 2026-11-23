@@ -787,17 +787,23 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    each record it is handed where it lies, and one the census read and
    did not confirm (stale, contradicted, in the band, undecided)
    refuses at the door that handed it over. A record no census lane
-   can read is held on its citation, and the body names the bar it
-   paid (`AtRestBody::bar`): tier 3′ over its records where the census
-   confirmed every one, tier 3 where one waits on a lane or the body
-   holds none. `finish` takes the body with its records (`Built`); a
+   can read (the lane says so where it declines:
+   `ContactReach::NoLane`), whose two cells' enclosures are not apart
+   past the band, is held on its citation, and the body names the bar
+   it paid (`AtRestBody::bar`): tier 3′ over its records where the
+   census confirmed every one and, at a `⊔`, left no finding between
+   its arrivals; tier 3 where one waits on a lane or the body holds
+   none. `finish` takes the body with its records (`Built`); a
    `⊔`'s gate (`finish_assembled`) takes its arrivals, reads the
    records off them, runs the census as the deciding operation between
    them and holds what it records. That is short of the sentence above
-   in two respects, each with the rows that owe it. A recorded tangency
-   past the tangent certifier's set is the one record held unread
-   today
-   (`work/heldrecords/a-recorded-tangency-past-the-certifiers-set-is-held-on-its-citation.md`).
+   in two respects, each with the rows that owe it. A record held on
+   its citation is held unread: a recorded tangency past the tangent
+   certifier's set is the one a suite reaches today
+   (`work/heldrecords/a-recorded-tangency-past-the-certifiers-set-is-held-on-its-citation.md`),
+   and no gate resolves the citation or reads apart two such cells
+   whose enclosures overlap
+   (`work/heldrecords/a-record-held-on-its-citation-is-held-on-a-citation-no-gate-resolves.md`).
    And no gate yet searches a body for a meeting its records do not
    state, so a body handed no record is finished at tier 3 and no
    census reads it: the search waits on lanes the census does not have

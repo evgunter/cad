@@ -18236,6 +18236,7 @@ mod tests {
         let contact = says(CensusUnsupportedCause::ContactLane(
             ContactRefusal::NotCertifiable {
                 what: geom_brep::carrier_eq::OUTSIDE_REST_INVENTORY,
+                reach: crate::contact::ContactReach::NoLane,
             },
         ));
         // `NotCertifiable` carries NO recourse on purpose
@@ -18301,7 +18302,10 @@ mod tests {
         );
         let contact = ValidationError::CensusUnsupported {
             subject: CensusSubject::Entity(EntityId::Edge(EdgeKey::default())),
-            cause: CensusUnsupportedCause::ContactLane(ContactRefusal::NotCertifiable { what }),
+            cause: CensusUnsupportedCause::ContactLane(ContactRefusal::NotCertifiable {
+                what,
+                reach: crate::contact::ContactReach::NoLane,
+            }),
         }
         .render(geom_brep::recourse::Reading::AtRest);
         assert!(

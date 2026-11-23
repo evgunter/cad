@@ -218,17 +218,34 @@ const OVERLAPPING: &[(&str, usize)] = &[
 
 /// The scenes some of whose cells the result gate refuses on a record
 /// its carry landed stale (`BooleanError::ResultInvalid`), with how many
-/// over every pose and op: `y − x` carves the plate's top away under the
-/// lying pyramid's touching vertex, both cells keep their keys, and the
-/// gate reads the record and finds no touch
+/// over every pose and op: in `y − x` the cutter's apex lands on the
+/// top's boundary at the point where the lying pyramid's vertex rests on
+/// it, both recorded cells keep their keys, and the gate reads the
+/// record stale, that finding alone ([`INVALID`])
 /// (`work/heldrecords/a-cut-that-trims-a-kept-face-leaves-a-record-on-it-stale.md`).
 const STALE: &[(&str, usize)] = &[
     ("under the lying pyramid's ray", 5),
     ("continuing the lying pyramid's face", 5),
 ];
 
-/// The tally's key for the result gate's refusal of the finished body.
-const INVALID: &str = "ResultInvalid";
+/// The tally's key for the result gate's refusal of the finished body
+/// on exactly one finding, a vertex-on-face record read stale. Any other
+/// finding keys as the bare arm, which no table pins.
+const INVALID: &str = "ResultInvalid: one stale vertex-on-face record";
+
+/// Whether `e` is the result gate refusing on one finding alone, a
+/// vertex-on-face record read stale.
+fn stale_vertex_on_face(e: &BooleanError) -> bool {
+    matches!(
+        e,
+        BooleanError::ResultInvalid { findings } if matches!(
+            findings.as_slice(),
+            [topo::ValidationError::StaleContactDeclaration {
+                declaration: topo::StaleDeclaration::VertexOnFace { .. },
+            }]
+        )
+    )
+}
 
 /// A refusal's kind as a tally keys it: the error's arm, and for the
 /// result gate's refusal of coincident edges, [`OVERLAP`] where it is an
@@ -242,6 +259,9 @@ fn refusal_kind(e: &BooleanError) -> String {
         }
     ) {
         return OVERLAP.to_owned();
+    }
+    if stale_vertex_on_face(e) {
+        return INVALID.to_owned();
     }
     let kind = format!("{e:?}");
     kind.split([' ', '{', '(']).next().unwrap_or("").to_owned()

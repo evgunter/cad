@@ -423,10 +423,12 @@ fn builds_along(
 ///   wedges overlap, which every tier passed. They return with the
 ///   re-pairing
 ///   (`work/topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet.md`).
-/// - `ResultInvalid`: `y − x` carves the plate's top away under the
-///   lying pyramid's touching vertex. Both cells keep their keys, so the
-///   cut's carry lands their record unread, and the result's gate reads
-///   it and finds no touch
+/// - `ResultInvalid`: in `y − x` the cutter's apex is at the point
+///   where the lying pyramid's vertex rests on the top, and lands on the
+///   top's boundary there. Both recorded cells keep their keys, the
+///   cut's carry lands their record again, and the result's gate reads
+///   it stale, that finding alone ([`pinned`]): the touch is on the
+///   face's boundary now
 ///   (`work/heldrecords/a-cut-that-trims-a-kept-face-leaves-a-record-on-it-stale.md`).
 /// - `EdgeInFace`: an edge lies in a face whose material parts it, and
 ///   the parting is not built. The pyramid out the bottom of the glued
@@ -463,9 +465,21 @@ const REFUSING: &[(&str, BooleanErrorKind)] = &[
 /// Whether `e` is the refusal [`REFUSING`] names for the cell.
 fn pinned(label: &str, op: &str, e: &BooleanError) -> bool {
     let key = format!("{label}, {op}");
-    REFUSING
-        .iter()
-        .any(|&(cell, kind)| cell == key && e.kind() == kind)
+    // The result gate's pins are on one finding alone, the record read
+    // stale: the day either reader of that pair changes its answer, the
+    // cell refuses on something else and the pin goes red.
+    let stale = matches!(
+        e,
+        BooleanError::ResultInvalid { findings } if matches!(
+            findings.as_slice(),
+            [topo::ValidationError::StaleContactDeclaration {
+                declaration: topo::StaleDeclaration::VertexOnFace { .. },
+            }]
+        )
+    );
+    REFUSING.iter().any(|&(cell, kind)| {
+        cell == key && e.kind() == kind && (kind != BooleanErrorKind::ResultInvalid || stale)
+    })
 }
 
 /// A cell [`REFUSING`] names that builds is a pin gone stale.
