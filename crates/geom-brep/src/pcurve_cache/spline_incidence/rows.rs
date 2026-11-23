@@ -430,8 +430,8 @@ fn big_family(rng: &mut test_utils::fuzz::Rng, band: Band) -> Tally {
 /// Bézier patches of degree one to five, weights up to eight decades
 /// apart, placed up to `1e5` of their size away, each point of a cell
 /// quartered at `f64` along a random descent up to thirty levels deep
-/// lies within its tracked bound ([`super::point_rounding`]) of the same
-/// descent in double-double arithmetic (a reference exact to about
+/// lies within its tracked bound ([`Tracked::dehomogenized`]) of the
+/// same descent in double-double arithmetic (a reference exact to about
 /// `1e-30` of the coordinates).
 #[test]
 fn the_cut_rounding_bound_holds_the_cut_drift() {
@@ -442,9 +442,7 @@ fn the_cut_rounding_bound_holds_the_cut_drift() {
 /// **The cut's bound is within a factor of four of a drift it bounds**,
 /// on [`the_cut_rounding_bound_holds_the_cut_drift`]'s samples at one
 /// seed: some point drifts past a quarter of its bound, so a bound cut
-/// to a quarter is passed, and built with
-/// `PCERT_RADIAL_PAIR_MUTANT=spline-bound-undercut` (every point's bound
-/// cut to a quarter) both rows are red. The seed is a fixture
+/// to a quarter at its home ([`Tracked::dehomogenized`]) is passed. The seed is a fixture
 /// identifier (discipline §8, shape 3): over its four hundred patches the
 /// worst ratio is about `0.55`, as it is at every seed sampled.
 #[test]
@@ -535,11 +533,12 @@ fn cut_drift(rng: &mut test_utils::fuzz::Rng) -> f64 {
 
 /// **A cell whose weight's rounding reaches the weight has no bound on
 /// its cut** ([`super::cut_rounding`]): a bilinear cell whose corner's
-/// weight is `1` carrying `1 + u` (a product that rounds by `1`, less a
-/// value it cancels against exactly) may hold a zero weight, so its
-/// cut's bound is infinite and its floor cannot clear; the same weight
-/// carrying `0.5` is charged a finite bound, the weight's share at
-/// least.
+/// weight is `0.25` carrying `1` (a product that rounds by `1`, less
+/// values it cancels against exactly) may hold a zero weight, so its
+/// cut's bound is infinite and its floor cannot clear (a room read
+/// unclamped, `0.25 − 1`, would charge a negative bound, and the cut
+/// none); the same corner's weight `1` carrying `0.5` is charged a
+/// finite bound, the weight's share at least.
 #[test]
 fn a_cells_cut_has_no_bound_where_a_weights_rounding_reaches_it() {
     use geom_core::UNIT_ROUNDOFF;
@@ -547,7 +546,7 @@ fn a_cells_cut_has_no_bound_where_a_weights_rounding_reaches_it() {
         let a = Tracked::exact(e / UNIT_ROUNDOFF);
         a * Tracked::exact(1.0) - Tracked::exact(e / UNIT_ROUNDOFF - 1.0)
     };
-    let cell = |e: f64| {
+    let cell = |w: Tracked<f64>| {
         let corner = |x: f64, y: f64| [x, y, 0.0, 1.0].map(Tracked::exact);
         let mut net = vec![
             corner(0.0, 0.0),
@@ -555,24 +554,24 @@ fn a_cells_cut_has_no_bound_where_a_weights_rounding_reaches_it() {
             corner(1.0, 0.0),
             corner(1.0, 1.0),
         ];
-        net[3][3] = one_carrying(e);
+        net[3][3] = w;
         super::Cell {
             rect: [0.0, 1.0, 0.0, 1.0],
             net,
             depth: 0,
         }
     };
-    let w = one_carrying(1.0);
+    let w = one_carrying(1.0) - Tracked::exact(0.75);
     assert!(
-        w.value() == 1.0 && w.rounding() >= 1.0,
-        "the fixture's weight is 1 ± 1: {w:?}"
+        w.value() == 0.25 && w.rounding() >= 1.0,
+        "the fixture's weight is 0.25 carrying 1: {w:?}"
     );
-    let cut = super::cut_rounding(&cell(1.0));
+    let cut = super::cut_rounding(&cell(w));
     assert!(
         cut.is_infinite(),
         "a weight within its rounding of zero: cut {cut:e}"
     );
-    let cut = super::cut_rounding(&cell(0.5));
+    let cut = super::cut_rounding(&cell(one_carrying(0.5)));
     assert!(
         cut.is_finite() && cut >= 0.5,
         "a weight clear of its rounding: cut {cut:e}, at least the weight's share"
@@ -673,15 +672,13 @@ fn dd_descend(net: &[[Dd; 4]], pu: usize, pv: usize, left: bool, right: bool) ->
 /// `1e5` of their size away, each point of each Bézier cell the
 /// insertions cut, and of a cell then halved along a random descent up
 /// to twelve levels, lies within its tracked bound
-/// ([`super::point_rounding`]) of the same cut by Boehm's insertion in
+/// ([`Tracked::dehomogenized`]) of the same cut by Boehm's insertion in
 /// double-double ([`dd_refine`]). So the insertion branch of
 /// [`super::blend`], its ratio's rounding and its product's, meets a
-/// reference. Built with `PCERT_RADIAL_PAIR_MUTANT=spline-product-uncharged`
-/// (the product by the ratio uncharged) the row stays green: that drops
-/// one unit of the five a ratio's blend charges on `|y − x|·t`, and a
-/// drift reaches past the rest only where all five roundings meet at
-/// their worst. Under it the worst drift found is `0.81` of the bound,
-/// at twenty times this row's effort.
+/// reference. A drift reaches past a bound that leaves out one of a
+/// ratio's roundings only where they all meet at their worst, which a
+/// search here rarely draws: each is pinned at a fixture where it
+/// decides, in `geom_core::running`.
 #[test]
 fn the_cut_rounding_bound_holds_a_knotted_cuts_drift() {
     let worst = knotted_drift(&mut test_utils::fuzz::start("spline-knotted-drift"));

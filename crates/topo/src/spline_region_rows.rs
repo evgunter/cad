@@ -1437,9 +1437,8 @@ fn the_cut_rounding_bound_holds_the_cut_drift() {
 
 /// **The cut's rounding bound is not loose by half**: one bilinear
 /// rational patch whose net, moved about its centre into homogeneous
-/// form and back, drifts more than half its bound in `x`. Halved
-/// (`SPLINE_TRIM_MUTANT=spline-trim-bound-halved`), the bound
-/// no longer holds it.
+/// form and back, drifts more than half its bound in `x`. Halved at its
+/// home ([`Tracked::dehomogenized`]), the bound no longer holds it.
 #[test]
 fn the_cut_rounding_bound_comes_within_half_of_a_points_drift() {
     let k = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
@@ -1932,28 +1931,31 @@ fn one_carrying(e: f64) -> Tracked<f64> {
 }
 
 /// **A cell whose weight's rounding reaches the weight has no floor**
-/// ([`super::Patch::floor`]): a unit square whose corner's weight is `1`
-/// carrying `1 + u` may hold a zero weight, so its point out of
-/// homogeneous form has no bound and the cell no floor; the same weight
-/// carrying `0.5` floors.
+/// ([`super::Patch::floor`]): a unit square whose corner's weight is
+/// `0.25` carrying `1` may hold a zero weight, so its point out of
+/// homogeneous form has no bound and the cell no floor (a room read
+/// unclamped, `0.25 − 1`, would charge a negative bound and floor it);
+/// the same corner's weight `1` carrying `0.5` floors.
 #[test]
 fn a_cell_whose_weights_rounding_reaches_it_has_no_floor() {
-    let cell = |e: f64| {
+    let cell = |w: Tracked<f64>| {
         let mut cell = square_cell(Vec3::new(0.0, 0.0, 0.0), 0.0);
-        cell.net[3][3] = one_carrying(e);
+        cell.net[3][3] = w;
         cell
     };
-    let w = one_carrying(1.0);
+    let w = one_carrying(1.0) - Tracked::exact(0.75);
     assert!(
-        w.value() == 1.0 && w.rounding() >= 1.0,
-        "the fixture's weight is 1 ± 1: {w:?}"
+        w.value() == 0.25 && w.rounding() >= 1.0,
+        "the fixture's weight is 0.25 carrying 1: {w:?}"
     );
-    let floor = cell(1.0).floor(Point3::new(0.5, 0.5, -1.0)).at_f64();
+    let floor = cell(w).floor(Point3::new(0.5, 0.5, -1.0)).at_f64();
     assert!(
         floor.is_nan(),
         "a weight within its rounding of zero floors at {floor}"
     );
-    let floor = cell(0.5).floor(Point3::new(0.5, 0.5, -1.0)).at_f64();
+    let floor = cell(one_carrying(0.5))
+        .floor(Point3::new(0.5, 0.5, -1.0))
+        .at_f64();
     assert!(
         floor.is_finite() && floor < 1.0,
         "a weight clear of its rounding floors at {floor}, below the gap by the point's bound"
