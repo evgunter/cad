@@ -131,7 +131,7 @@ wall weights are constant along `v`. So the moved cap's section of
 each wall is the wall's row at `v = 0.025`, exact structure, and the
 rim mints on that row and certifies: the vase's cap now moves alone.
 The shipped vase row is renamed
-`shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_moves_alone_onto_a_wall_row`,
+`shelling_the_vase_refuses_at_a_walls_fit_and_its_cap_moves_alone_onto_a_wall_row`,
 and it now stops at tier 3's volume check
 (`a-planar-face-bounded-by-a-rational-spline-rim-has-no-vector-area`, closed by PR 5689).
 The rational-wall measurements above are history. The row's live pin

@@ -122,8 +122,9 @@
 //!    The sweep carries the annulus, two `circle`s, around the U-turn —
 //!    its stacking statement is the loft's fold over adjacent station
 //!    pairs, each decided against both its sections' normals (issue
-//!    368). Its mesh was wall 8 (its semicircle walls' C0 knot, which
-//!    the mesher refused until #5499 cut along it); its tier-3 sign
+//!    368). Its mesh was wall 8 (the C0 knot its walls carried, which
+//!    the mesher refused until #5499 cut along it; the sweep now cuts
+//!    each wall at its sub-arc joints, so no wall carries one); its tier-3 sign
 //!    was wall 5 (the sign walk stopped at the quadrature's reporting
 //!    budget until the walk refined past it).
 //!
@@ -799,8 +800,9 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
         "the loop's mesh volume {v_mesh} is outside Pappus's A·L = {pappus} ± {allowance:e}: \
          the swept body is not the authored loop"
     );
-    // The census: two annular caps and two semicircular walls per
-    // side — a hollow tube, so one handle.
+    // The census: two annular caps and four quarter-turn walls per
+    // side, each circle's two half turns cut at their sub-arc joints —
+    // a hollow tube, so one handle.
     let census = euler_counts(&top);
     assert_eq!(
         (
@@ -811,8 +813,8 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
             census.s,
             census.genus()
         ),
-        (8, 12, 6, 2, 1, Ok(1)),
-        "the loop is one genus-1 shell of 6 faces; got {census:?}"
+        (16, 24, 10, 2, 1, Ok(1)),
+        "the loop is one genus-1 shell of 10 faces; got {census:?}"
     );
 
     // Findings entry 10, executed: the same cylinder, said four ways.
@@ -1222,13 +1224,12 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         );
     }
 
-    // Wall 8, RETIRED by #5499: the `circle` loop's mesh. Each wall is
-    // two semicircles, a semicircle is not one rational Bézier, so
-    // every lofted wall carries an interior knot of multiplicity =
-    // degree — a C0 crease the mesher refused by name until the
-    // trimmed lane learned to cut along it
-    // (`work/tesslane/lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late`).
-    // The scene's own loop is that loop, and its stop meshes it at the
+    // Wall 8, RETIRED: the `circle` loop's mesh. A semicircle is not one
+    // rational Bézier, so its wall carried an interior knot of
+    // multiplicity = degree, a C0 crease the mesher refused by name
+    // (`work/tesslane/lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late`);
+    // the sweep now cuts the wall there, one quarter turn a wall. The
+    // scene's own loop is that loop, and its stop meshes it at the
     // stop's δ, so a regression reappears there.
 
     // Wall 9, RETIRED: the loop sweeping along its exact spine. The

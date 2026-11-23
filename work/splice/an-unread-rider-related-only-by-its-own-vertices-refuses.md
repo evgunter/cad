@@ -204,3 +204,14 @@ gate is unbuilt. Nothing nearer gives it:
   boundary. Conditions 2 and 3 are kept only if some bug can turn a row red
   through them. Otherwise they go: a check no bug can turn red is
   documentation.
+
+## The lofted cylinder no longer reaches it (2026-11-22, LATHE `lathe/skin-sub-arc-walls`)
+
+The loft now cuts a wall at each sub-arc joint, so the lofted cylinder is
+four quarter walls. A quarter rim arc's two vertices lie on its two
+neighbouring walls, and no other wall holds both of them. Its far
+`O ∪ B`, `B ∪ O` and around `B ∖ O` build at their closed forms
+(`spline_spiric_operands::no_spline_or_spiric_operand_builds_wrong`, its
+census rows now `builds`). The pin
+`the_lofted_cylinders_unions_refuse_at_its_own_rims` is retired with
+them. The tilted rod's other spins were not re-measured here.

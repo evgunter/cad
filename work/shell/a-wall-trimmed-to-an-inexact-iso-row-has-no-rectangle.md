@@ -16,7 +16,7 @@ whose producer mints the corners (below).
 ## Measured
 
 `crates/sweep/tests/encl_curved_loft_shell.rs`'s
-`shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_moves_alone_onto_a_wall_row`
+`shelling_the_vase_refuses_at_a_walls_fit_and_its_cap_moves_alone_onto_a_wall_row`
 moves the vase's bottom cap 0.05 into the body. The cap now measures
 (`geom_brep::props::rational_rim`). Tier 3 then refuses at one of the
 two spline walls, at every ε row (1e-9, 1e-12, 1e-6):

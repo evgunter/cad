@@ -61,7 +61,7 @@ not give. A lane's local `--profile ci` run excludes the slow set too.
   - the gate ran neither.
 - **PR 6982** (`boxfinish/rectangle-runs`): its change to check 7's
   rectangle certificate flipped two slow rows' pins in their bodies
-  (`encl_curved_loft_shell::shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_moves_alone_onto_a_wall_row`,
+  (`encl_curved_loft_shell::shelling_the_vase_refuses_at_a_walls_fit_and_its_cap_moves_alone_onto_a_wall_row`,
   from a refusal to a validated body holding its turned volume) and moved
   what six faces of
   `one_segment_loop::a_lofted_one_segment_section_is_one_spline_wall_with_a_wrap_strut`

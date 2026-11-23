@@ -60,3 +60,14 @@ A body that meshes at one δ and refuses at a neighbouring one is the
 crease gap, not the body. The row meshes its first case only.
 
 - 2026-11-14 — moved from TESS to TESSLANE by `git mv` when TESS and TESSSIZE merged into their successor TESSLANE (`docs/doc-ledger/tess-and-tesssize-leave-the-tracker.md`), id and body unchanged.
+
+## The crease is gone (2026-11-22, LATHE `lathe/skin-sub-arc-walls`)
+
+The loft now cuts the wall at every section's sub-arc joint, and each
+section's line at the same joint. No line rim crosses a crease. All
+three cases of
+`sweep degree1_loft_slabs::an_interior_arc_refined_by_its_neighbours_lofts`
+now mesh to their integrated volume at δ 1e-3, 2e-3 and 5e-3. Measured
+error runs from 2.2e-6 relative at 1e-3 to 8.4e-6 at 5e-3. The test
+meshes every case at all three δ, so both cases pinned on this row are
+unpinned.
