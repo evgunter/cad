@@ -2733,7 +2733,9 @@ fn loop_uv_polygon<T: Decide + Bounds>(
             half_edge: he,
             what,
         };
-        let row = lifted.as_ref().map(|(lift, rows)| (lift, rows[i]));
+        let row = lifted
+            .as_ref()
+            .and_then(|(lift, rows)| Some((lift, rows[i]?)));
         let entry = if let Some((cache, (lift, row))) = body.pcurve(he).zip(row) {
             let image = &lift.rows()[row].pcurve;
             pcurve_entry(image, cache.params(), forward, Some(lift.joint_point(row)))

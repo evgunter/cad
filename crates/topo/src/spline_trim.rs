@@ -890,7 +890,7 @@ impl TrimChart {
             } else {
                 [exit, entry]
             };
-            let mut run = image_pieces(&row.pcurve, row.params, ends, self.scale)
+            let mut run = image_pieces(&row.pcurve, row.params(), ends, self.scale)
                 .ok_or(SplineTrimGap::NoPieces)?;
             if !walks_forward(body, row.half_edge) {
                 run = run.into_iter().rev().map(Piece::reversed).collect();

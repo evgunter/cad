@@ -1130,16 +1130,12 @@ impl<T: Real> ChartLine<T> {
 }
 
 /// **The chart line an iso image lies on, and how it runs along it**
-/// ([`Pcurve::held_line`]): the channel it holds fixed, the value it
-/// holds there, and the moving channel's rate along the image's own
-/// parameter.
+/// ([`Pcurve::held_line`]): the image's own [`ChartLine`], and the moving
+/// channel's rate along the image's own parameter.
 #[derive(Clone, Copy, Debug)]
 pub struct HeldLine<T> {
-    /// The channel held fixed: [`ChartAxis::U`](crate::ssi::ChartAxis::U)
-    /// for a column, [`ChartAxis::V`](crate::ssi::ChartAxis::V) for a row.
-    pub axis: crate::ssi::ChartAxis,
-    /// The value the line holds that channel at.
-    pub value: T,
+    /// The line: the channel held fixed and the value it is held at.
+    pub line: ChartLine<T>,
     /// The moving channel's rate: an `IsoLine`'s rate, an `IsoArc`'s
     /// whole displacement (its parameter increases with the carrier's).
     /// Its sign is the way the image runs along the line.
@@ -1159,11 +1155,7 @@ impl<T: Real> Pcurve<T> {
             Pcurve::IsoArc { line, gd, .. } => (line, gd),
             _ => return None,
         };
-        Some(HeldLine {
-            axis: line.axis,
-            value: line.value,
-            rate,
-        })
+        Some(HeldLine { line, rate })
     }
 
     /// **Whether the image's FORM is one no iso line of its chart takes**:

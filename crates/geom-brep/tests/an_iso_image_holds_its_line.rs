@@ -41,7 +41,7 @@ fn a_minted_row_holds_its_line_exactly_and_its_end_is_its_maps() {
     fn at<T: Decide + Bounds>(scalar: &str) -> bool {
         let span = (T::zero(), computed_length::<T>());
         let row = Pcurve::iso_row(T::one(), (T::zero(), T::one()), span);
-        let line = row.held_line().expect("a minted row holds a line");
+        let line = row.held_line().expect("a minted row holds a line").line;
         assert_eq!(line.axis, ChartAxis::V, "{scalar}: a row holds v");
         assert_eq!(
             point(line.value),
@@ -94,9 +94,9 @@ fn an_image_no_mint_held_to_a_line_holds_none() {
         at0: 0.25,
         rate: 0.0,
     };
-    let line = still.held_line().expect("an iso image holds its line");
+    let held = still.held_line().expect("an iso image holds its line");
     assert_eq!(
-        (line.axis, line.value, line.rate),
+        (held.line.axis, held.line.value, held.rate),
         (ChartAxis::U, 0.5, 0.0),
         "an iso image with a zero rate holds the line it stores"
     );
@@ -221,7 +221,7 @@ fn a_period_moved_seam_column_is_its_other_end() {
         let f = T::from_f64;
         for (lo, hi) in [(0.3, 1.7), (0.4, 1.7), (0.6, 1.7), (0.7, 3.1)] {
             let period = Period::of_domain(f(lo), f(hi));
-            let held = |image: &Pcurve<T>| image.held_line().expect("a column").value;
+            let held = |image: &Pcurve<T>| image.held_line().expect("a column").line.value;
             let seam = Pcurve::iso_column(f(lo), (T::zero(), T::one()), (T::zero(), T::one()));
             let lifted = seam.shift_branch(1, period);
             assert_eq!(

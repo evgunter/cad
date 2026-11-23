@@ -929,7 +929,7 @@ fn a_spline_trim_reads_past_a_placeholder_and_no_other_rowless_half() {
         Lift::read_past_placeholders(body, outer(body, face))
             .unwrap()
             .into_iter()
-            .map(|r| (r.half_edge, r.lift, r.pcurve.eval(r.params.0)))
+            .map(|r| (r.half_edge, r.lift, r.pcurve.eval(r.params().0)))
             .collect()
     };
     let (skipped, bare) = (lifted(&nulled, face), lifted(&plain, plain_face));
@@ -1099,7 +1099,7 @@ fn a_placeholder_at_each_joint_across_a_closed_charts_seam_reads_as_the_bare_fac
             crate::pcurves::Lift::read_past_placeholders(b, lk)
                 .unwrap()
                 .into_iter()
-                .map(|r| (r.half_edge, r.lift, r.pcurve.eval(r.params.0)))
+                .map(|r| (r.half_edge, r.lift, r.pcurve.eval(r.params().0)))
                 .collect()
         };
         for &lk in &loops {

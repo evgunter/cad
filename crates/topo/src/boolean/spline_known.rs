@@ -123,17 +123,9 @@ fn corners<T: Decide + AtRestPolicy>(
     face: FaceKey,
     net: &geom::NurbsSurface<T>,
 ) -> Vec<(geom_brep::ssi::ChartCorner, geom_core::Point3<T>)> {
-    use geom_brep::ssi::{ChartCorner, ChartEnd};
+    use geom_brep::ssi::ChartCorner;
+    use geom_core::period::domain_end as end;
     let (du, dv) = (net.knot_values_u().domain(), net.knot_values_v().domain());
-    let end = |x: T, (lo, hi): (T, T)| {
-        if geom_core::is_exact_zero(x - lo) {
-            Some(ChartEnd::Low)
-        } else if geom_core::is_exact_zero(x - hi) {
-            Some(ChartEnd::High)
-        } else {
-            None
-        }
-    };
     let mut out: Vec<(ChartCorner, geom_core::Point3<T>)> = Vec::new();
     for (r#loop, _) in body.proven_face(face).cycles() {
         let Ok(lift) = crate::pcurves::Lift::read(body, r#loop) else {

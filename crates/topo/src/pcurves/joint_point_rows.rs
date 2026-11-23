@@ -30,6 +30,14 @@ fn brackets<T: Bounds>(p: Point2<T>) -> [(f64, f64); 2] {
     [(p.x.lo(), p.x.hi()), (p.y.lo(), p.y.hi())]
 }
 
+/// A span neither of whose ends is zero or a literal: `(0.1 + 0.2,
+/// 1.2 + 1)`. A mint's map over it reads each of its own ends through a
+/// product and a sum, so the end rounds at `f64` and has width at
+/// `Interval`: an image's own entry is then never the corner's bits.
+fn span<T: Real>() -> (T, T) {
+    (T::from_f64(0.1) + T::from_f64(0.2), length())
+}
+
 /// The row `v` from `u0` to `u1` over `(t0, t1)`, forward.
 fn row<T: Decide>(v: f64, (u0, u1): (f64, f64), span: (T, T)) -> LiftedRow<T> {
     let f = T::from_f64;
@@ -55,33 +63,55 @@ fn closed() -> Option<Winding> {
 /// at; the cut is the second piece's own value where it enters, inside
 /// the chart, and the first piece leaves at its own value there.
 ///
-/// Red under `Lift::joint_point` (or `exit_point`) reading a corner
-/// through the image's map: at `Interval` the corner is then an
-/// enclosure, no point.
+/// Every row is over [`span`], whose ends are computed, and the top row
+/// is traversed backward, so each image's own entry and exit is read
+/// through its map's arithmetic: at `Interval` an enclosure with width,
+/// which the row asserts of each before it reads the corner.
+///
+/// Red under `Lift::joint_point` reading the row's own entry where there
+/// is a meet, and under `Lift::exit_point` reading its own exit: at
+/// `Interval` the corner is then an enclosure, no point (each planted
+/// alone; the entry mutant leaves `exit_point`'s assertions green and
+/// reddens "the joint into row … is the meet").
 #[test]
 fn a_corner_is_the_meet_and_a_cut_is_the_maps_value() {
     // One body per scalar, by macro: the rows read brackets and decide
     // nothing, and name no compound bound to do it.
     macro_rules! at {
-        ($t:ty, $scalar:expr) => {{
+        ($t:ty, $scalar:expr, $width:expr) => {{
             let scalar: &str = $scalar;
-            let (zero, len) = (<$t>::zero(), length::<$t>());
-            let cut = len / <$t>::from_f64(3.0);
+            let (t0, t1) = span::<$t>();
+            let cut = t0 + (t1 - t0) / <$t>::from_f64(3.0);
             // The bottom side's two pieces hold one image over their own spans.
-            let mut first = row(0.0, (0.0, 1.0), (zero, len));
-            let mut second = first.clone();
-            first.params = (zero, cut);
-            second.params = (cut, len);
+            let whole = row(0.0, (0.0, 1.0), (t0, t1));
+            let first = whole.clone().piece_for_tests((t0, cut));
+            let second = whole.piece_for_tests((cut, t1));
             let lift = Lift::stated_for_tests(
                 vec![
                     first,
                     second,
-                    column(1.0, (0.0, 1.0), (zero, len)),
-                    row(1.0, (1.0, 0.0), (zero, len)),
-                    column(0.0, (1.0, 0.0), (zero, len)),
+                    column(1.0, (0.0, 1.0), (t0, t1)),
+                    // The top, stated left to right and run right to left.
+                    row(1.0, (0.0, 1.0), (t0, t1)).reversed_for_tests(),
+                    column(0.0, (1.0, 0.0), (t0, t1)),
                 ],
                 closed(),
             );
+            // Each image's own entry and exit, through its map: with
+            // width at `Interval` on the moving coordinate, so a reader
+            // of the map is told apart from a reader of the meet.
+            if $width {
+                for (i, entry) in [(0, true), (2, true), (3, true), (4, true), (1, false)] {
+                    let (a, b) = lift.rows()[i].entry_exit_points();
+                    let p = if entry { a } else { b };
+                    assert_eq!(
+                        (points(p).0.is_some(), points(p).1.is_some()),
+                        (i % 2 == 0 && i != 0, i == 0 || i % 2 == 1),
+                        "{scalar}: row {i}'s own end has width along its line: {:?}",
+                        brackets(p)
+                    );
+                }
+            }
             // Corners: into rows 0, 2, 3, 4.
             for (i, corner) in [
                 (0, (0.0, 0.0)),
@@ -96,8 +126,8 @@ fn a_corner_is_the_meet_and_a_cut_is_the_maps_value() {
                 );
                 let before = (i + 4) % 5;
                 assert_eq!(
-                    brackets(lift.exit_point(before)),
-                    brackets(lift.joint_point(i)),
+                    points(lift.exit_point(before)),
+                    (Some(corner.0), Some(corner.1)),
                     "{scalar}: row {before} leaves at the corner row {i} enters at"
                 );
             }
@@ -114,30 +144,16 @@ fn a_corner_is_the_meet_and_a_cut_is_the_maps_value() {
                 brackets(rows[0].pcurve.eval(cut)),
                 "{scalar}: the piece before the cut leaves at its own value"
             );
-            assert!(
-                entering.x.lo() > 0.0 && entering.x.hi() < 1.0,
-                "{scalar}: the cut is no chart end"
-            );
-            // What the meet replaces: the image's own end over a computed span.
-            let own_end = rows[2].pcurve.eval(len);
-            assert!(
-                own_end.y.lo() <= 1.0 && 1.0 <= own_end.y.hi(),
-                "{scalar}: the column's own end encloses the corner"
+            assert_eq!(
+                (entering.x.lo() > 0.0, entering.x.hi() < 1.0),
+                (true, true),
+                "{scalar}: the cut is no chart end: {:?}",
+                brackets(entering)
             );
         }};
     }
-    at!(f64, "f64");
-    at!(Interval, "Interval");
-    // At `Interval` an image's own end over a computed span has width:
-    // the corner is exact only as a meet.
-    let len = length::<Interval>();
-    let end = Pcurve::iso_column(
-        Interval::one(),
-        (Interval::zero(), Interval::one()),
-        (Interval::zero(), len),
-    )
-    .eval(len);
-    assert!(end.y.lo() < end.y.hi(), "the map's end is an enclosure");
+    at!(f64, "f64", false);
+    at!(Interval, "Interval", true);
 }
 
 /// The bilinear patch over `[lo, hi] × [0, 1]`.
@@ -151,19 +167,39 @@ fn patch<T: Decide>(lo: f64, hi: f64) -> Surface<T> {
     Surface::Nurbs(std::sync::Arc::new(net.map_scalar(T::from_f64)))
 }
 
-/// **A corner read on the image's own branch undoes the row's deck.** On
-/// a chart whose `u` domain is `[0.4, 1.7]`, a bottom row stored from
-/// `u = 0.4` and lifted one period starts, in the lift, at the seam's
-/// column `u = 1.7`. Its stored corner there is the domain's low end
-/// `0.4` itself, at both scalars: the meet `1.7` moved back one period
-/// of a period stated by its ends. A row the lift does not move reads
-/// its meets as they are.
+/// `u` moved `k` periods of the chart's first channel.
+fn deck(k: i32) -> Deck {
+    Deck {
+        u: k,
+        v: 0,
+        twin: false,
+    }
+}
+
+/// **A row's stored corners are its domain's ends, at both ends, however
+/// far the lift moved it.** On a chart whose `u` domain is `[0.4, 1.7]`,
+/// a whole-period bottom row stored over `[0.4, 1.7]` and lifted one
+/// period runs, in the lift, between the seam's column one period over
+/// and the seam's column two periods over. Its two stored corners are
+/// `0.4` and `1.7` themselves, as points, at both scalars: each is the
+/// neighbouring column's STORED value moved by the periods between the
+/// two rows' decks, and one step off a domain's end is the other end.
 ///
-/// Red under `Lift::stored_corners` leaving the meet un-moved (the
-/// corner reads `1.7`), and under `Period::moved` subtracting the
-/// period's length (`1.7 − 1.3` is no point at `Interval`).
+/// Stated three ways, which a body's seam can be stored in: both seam
+/// columns stored at the low end and moved one and two periods; the near
+/// one stored at the high end unmoved; the far one stored at the high
+/// end and moved one. And the row run backward, whose two corners swap
+/// to the edge's own order. A row the lift does not move reads its
+/// corners as they are; a row on the twin sheet, or beside one, reads
+/// none.
+///
+/// Red under `Lift::stored_corners` reading the neighbour's MOVED value
+/// and un-moving it by the row's deck (the far corner is `hi + P − P`:
+/// `1.7000000000000002` at `f64`, a width at `Interval`), under it
+/// ignoring the decks (the near corner reads `1.7`), and under
+/// `Period::moved` adding the period's length always.
 #[test]
-fn a_stored_corner_undoes_the_rows_own_deck() {
+fn a_stored_corner_is_the_neighbours_stored_value_moved_between_the_decks() {
     // One body per scalar, by macro: the rows read brackets and decide
     // nothing, and name no compound bound to do it.
     macro_rules! at {
@@ -172,27 +208,68 @@ fn a_stored_corner_undoes_the_rows_own_deck() {
             let (lo, hi) = (0.4, 1.7);
             let surface = patch::<$t>(lo, hi);
             let periods = ChartPeriods::stated(&surface);
-            let span = (<$t>::zero(), length::<$t>());
-            let once = Deck {
-                u: 1,
-                v: 0,
-                twin: false,
+            let span = span::<$t>();
+            // A row as the lift moves it by `k` periods.
+            let lifted = |stored: LiftedRow<$t>, k: i32| {
+                let image = deck(k).apply(&stored.pcurve, &surface, periods).unwrap();
+                let mut moved = stored.moved_for_tests(deck(k));
+                moved.pcurve = image;
+                moved
             };
-            // The stored bottom row, and the same row as the lift moves it.
-            let stored = row::<$t>(0.0, (lo, hi), span);
-            let mut lifted = stored.clone().moved_for_tests(once);
-            lifted.pcurve = once.apply(&stored.pcurve, &surface, periods).unwrap();
-            let seam = column::<$t>(hi, (1.0, 0.0), span);
-            let far = column::<$t>(3.0, (0.0, 1.0), span);
-            let top = row::<$t>(1.0, (3.0, hi), span);
-            let lift = Lift::stated_for_tests(vec![lifted, far, top, seam], closed());
-            let [start, _] = lift.stored_corners(0, periods);
-            let start = start.expect("the row meets the seam's column at its start");
-            assert_eq!(
-                (start.lo(), start.hi()),
-                (lo, lo),
-                "{scalar}: the corner at the lifted seam is the stored branch's low end"
-            );
+            let bracket = |c: Option<$t>| c.map(|c| (c.lo(), c.hi()));
+            let ends = [Some((lo, lo)), Some((hi, hi))];
+            let bottom = || lifted(row::<$t>(0.0, (lo, hi), span), 1);
+            let top = || lifted(row::<$t>(1.0, (hi, lo), span), 1);
+            for (name, near, far) in [
+                (
+                    "both seam columns stored at lo",
+                    lifted(column::<$t>(lo, (1.0, 0.0), span), 1),
+                    lifted(column::<$t>(lo, (0.0, 1.0), span), 2),
+                ),
+                (
+                    "the near column stored at hi, unmoved",
+                    column::<$t>(hi, (1.0, 0.0), span),
+                    lifted(column::<$t>(lo, (0.0, 1.0), span), 2),
+                ),
+                (
+                    "the far column stored at hi, moved once",
+                    lifted(column::<$t>(lo, (1.0, 0.0), span), 1),
+                    lifted(column::<$t>(hi, (0.0, 1.0), span), 1),
+                ),
+            ] {
+                let lift = Lift::stated_for_tests(
+                    vec![bottom(), far.clone(), top(), near.clone()],
+                    closed(),
+                );
+                assert_eq!(
+                    lift.stored_corners(0, periods).map(bracket),
+                    ends,
+                    "{scalar}, {name}: the bottom row's stored corners are its domain's ends"
+                );
+                // The top row runs from the far column back to the near
+                // one, and is stated in that order: its start is `hi`.
+                assert_eq!(
+                    lift.stored_corners(2, periods).map(bracket),
+                    [ends[1], ends[0]],
+                    "{scalar}, {name}: the top row's, in its edge's order"
+                );
+                // The same loop run the other way round: each row
+                // reversed, the chain's order reversed.
+                let back = Lift::stated_for_tests(
+                    vec![
+                        near.reversed_for_tests(),
+                        top().reversed_for_tests(),
+                        far.reversed_for_tests(),
+                        bottom().reversed_for_tests(),
+                    ],
+                    closed(),
+                );
+                assert_eq!(
+                    back.stored_corners(3, periods).map(bracket),
+                    ends,
+                    "{scalar}, {name}: a row run backward reads its corners in its edge's order"
+                );
+            }
             // An unmoved row's corners are its meets.
             let plain = Lift::stated_for_tests(
                 vec![
@@ -203,11 +280,54 @@ fn a_stored_corner_undoes_the_rows_own_deck() {
                 ],
                 closed(),
             );
-            let [a, b] = plain.stored_corners(0, periods).map(|c| c.unwrap());
             assert_eq!(
-                ((a.lo(), a.hi()), (b.lo(), b.hi())),
-                ((lo, lo), (hi, hi)),
+                plain.stored_corners(0, periods).map(bracket),
+                ends,
                 "{scalar}: an unmoved row spans its domain exactly"
+            );
+            // No corner: a cut (the neighbour on the same line), and the
+            // twin sheet on either row.
+            let whole = row::<$t>(0.0, (lo, hi), span);
+            let mid = span.0 + (span.1 - span.0) / <$t>::from_f64(2.0);
+            let cut = Lift::stated_for_tests(
+                vec![
+                    whole.clone().piece_for_tests((span.0, mid)),
+                    whole.piece_for_tests((mid, span.1)),
+                    column::<$t>(hi, (0.0, 1.0), span),
+                    row::<$t>(1.0, (hi, lo), span),
+                    column::<$t>(lo, (1.0, 0.0), span),
+                ],
+                closed(),
+            );
+            assert_eq!(
+                (
+                    cut.stored_corners(0, periods).map(bracket),
+                    cut.stored_corners(1, periods).map(bracket)
+                ),
+                ([ends[0], None], [None, ends[1]]),
+                "{scalar}: a cut is no corner of either piece"
+            );
+            let twin = Deck {
+                u: 0,
+                v: 0,
+                twin: true,
+            };
+            let on_twin = Lift::stated_for_tests(
+                vec![
+                    row::<$t>(0.0, (lo, hi), span).moved_for_tests(twin),
+                    column::<$t>(hi, (0.0, 1.0), span),
+                    row::<$t>(1.0, (hi, lo), span),
+                    column::<$t>(lo, (1.0, 0.0), span),
+                ],
+                closed(),
+            );
+            assert_eq!(
+                (
+                    on_twin.stored_corners(0, periods).map(bracket),
+                    on_twin.stored_corners(1, periods).map(bracket)
+                ),
+                ([None, None], [None, Some((1.0, 1.0))]),
+                "{scalar}: no stored corner is read across the twin sheet"
             );
         }};
     }

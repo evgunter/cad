@@ -1369,7 +1369,7 @@ fn trim_rectangle<T: Decide + Bounds + CertifiedEnclosure>(
     // Each piece's held value and rate, crossed into certification
     // arithmetic, and whether the lift moved it by a period.
     let piece = |i: usize, line: &geom_brep::HeldLine<T>| Piece {
-        value: Interval::from_certified(line.value),
+        value: Interval::from_certified(line.line.value),
         rate: Interval::from_certified(line.rate),
         moved: lift.rows()[i].lift != crate::joint::Deck::IDENTITY,
     };
@@ -1663,6 +1663,7 @@ fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
     };
     let (lift, rows) = crate::pcurves::lift_of_halves(body, hes).ok_or_else(unminted)?;
     for ((le, he), &row) in outer.iter().zip(hes).zip(&rows) {
+        let row = row.ok_or_else(unminted)?;
         let cache = body.pcurve(*he).ok_or_else(unminted)?;
         let image = &lift.rows()[row].pcurve;
         let (t0, t1) = cache.params();
@@ -2723,10 +2724,8 @@ mod tests {
             let mut rows = polygon::<Interval>(&SQUARE);
             let (zero, one) = (Interval::zero(), Interval::one());
             let first = piece((zero, zero), (1.0, 0.0));
-            let mut first_short = first.clone();
-            first_short.params = (zero, cut);
-            let mut second = first;
-            second.params = (cut, one);
+            let first_short = first.clone().piece_for_tests((zero, cut));
+            let second = first.piece_for_tests((cut, one));
             rows.splice(0..1, [first_short, second]);
             let lift = Lift::stated_for_tests(rows, closed());
             assert_eq!(
