@@ -26,7 +26,7 @@ Both fail at the same build. `pipe::<Interval>`'s roof ellipse stalls against th
 
 So the cause is bracket, and A also narrows it.
 
-**Pinned against this row.** PR 7402's `FRAME_COST` pins both refusals at ε ≤ 1e-12, in the test file: windows, cause and mutants are there. The pin goes red when the poses build.
+**Pinned against this row, until the bracket fix.** PR 7402's `FRAME_COST` pinned both refusals at ε ≤ 1e-12 in the test file. Both poses build since the bracket fix (below), and the pin is gone.
 
 **More of the same window.** Nightly 44989234943 (dispatched on `green/nightly-build` at `1942290ead`, which is main `4d3402ecb1`'s kernel) is the first 1e-12 suite with the slow set since 7131 merged. Against the 11-21 nightly 44870651337 it has 19 new 1e-12 reds and none fixed. Several carry frame-cost-shaped margins (`a_ring_on_a_cone_face`, `verbs_germarms2_interval`, `torus_touch_off_faces`, `union_fold_face_face_touch`, `spheres_crossing_off_every_edge` at 3.277e-12). GREEN's U12 is attributing them, and adds the full count here.
 
@@ -73,3 +73,28 @@ Nightly 44989234943 (main `4d3402ecb1`'s kernel) against the 11-21 nightly 44870
 
 **Done when** the counted cost is re-measured with the slow set at 1e-12 and put to Ev as the cost it is. Each row in it is then built at 1e-12 or re-pinned under that count.
 (GREEN, U8)
+
+## The bracket cause, fixed (ONEHOME, 2026-11-23)
+
+`RigidMotion::squared` on bracket directions at `Interval` now takes the squaring's centered form (`Real::square_frame`): the squaring of a point of the box plus its derivatives over the box, met with the plain evaluation. It encloses the frame every point of the box squares to and is never wider than the plain one. Over brackets of half-widths 1e-12 to 1e-6 the plain frame's widest entry is a median 4.4 times the centered one's.
+
+At ε 1e-12, on the bracket fix's head, the 11 bracket rows stand as follows:
+- **Building where main built:** the ring on a cone, the meeting axes, and the two seamless pipes.
+- **The plain witness** builds, and its row `the-plain-sphere-witness-escalates-…` closes. It had refused there since PR 6717.
+- **The 6 band rows** return to the refusal each pins at ε 1e-12, `shared_row_touch`, in place of the junction's `UnsupportedGeometry`. They do not build.
+
+The F1X pins elsewhere move with them:
+- these now build, and their pins are removed:
+  - `band_turn_overrun_fillet`'s skewed box;
+  - `verbs_tubewall_r1_probes`' windowed tube at R 3.7;
+  - the ellipse lane's in-band cone section (9.955e-13 and 9.972e-13, about 0.4% under the band's zero);
+  - the ruling row's long span;
+  - the projected exactness sweep's pinned seed.
+- The line-near-a-ruling sweep keeps a joint residual: 2 of 40 seeds escalate (1.074e-12 and 1.114e-12), still escalating under A alone or F1X alone, certifying under both. Its pinned seed is re-cut to one of them.
+
+**The polar cause stands: 4 rows at ε 1e-12**, on main after PR 7349:
+- the tipped rod ×2 at 1.307e-12;
+- the torus touch at 1.738e-12;
+- the far-off carrier at 1.536e-12.
+
+Before 7349 they read 1.194, 1.194, 1.568 and about 1.195e-12. Bisected, the move is 7349's (`bba39ef945^1` against `bba39ef945`), and it is not `measured_frame`'s squaring. The frames lane is localizing it. The polar read itself is at its floor: one rounding per entry, read off an exact expansion. The residual count goes to Ev.

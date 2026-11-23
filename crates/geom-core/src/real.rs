@@ -500,6 +500,25 @@ pub trait Real:
         None
     }
 
+    /// **The frame [`RigidMotion::squared`](crate::RigidMotion::squared)
+    /// squares from bracket directions `w` and `u`, enclosed**: columns
+    /// `[u, v, w]` that hold, entry by entry, the frame every point of the
+    /// box `(w, u)` squares to over the reals, each inside the plain
+    /// evaluation of the squaring at this scalar, and the plain entry
+    /// itself wherever that is not certified. Decides nothing.
+    ///
+    /// Only a plain enclosure answers (`Interval`, by the squaring's
+    /// centered form). `None`, the default, is every other scalar's
+    /// answer: a point scalar (`f64`, a dual or form over it) has no box
+    /// to enclose, and a dual or form over an enclosure carries a value
+    /// channel the centered form does not speak for, so each squares by
+    /// the plain formula.
+    #[must_use]
+    fn square_frame(w: [Self; 3], u: [Self; 3]) -> Option<[[Self; 3]; 3]> {
+        let _ = (w, u);
+        None
+    }
+
     /// **An enclosure of the unit direction a stated `v` names**,
     /// [`Real::enclose_rotation`]'s one-column case: the direction
     /// `v/|v|`, each component enclosed, where this scalar's value is a

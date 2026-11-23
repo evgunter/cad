@@ -8,12 +8,6 @@ use geom_brep::props::PropsError;
 use geom_core::Indeterminate;
 use topo::{MassPropsError, ValidationError};
 
-/// [`geom_core::test_support::at_the_frame_cost_band`] at the witness band.
-#[must_use]
-pub fn at_the_least_band() -> bool {
-    geom_core::test_support::at_the_frame_cost_band(geom_core::Tol::witness())
-}
-
 /// Whether `cause` escalated `predicate` with its margin's upper end in
 /// `(lo, hi]`.
 #[must_use]
@@ -39,17 +33,4 @@ pub fn volume_escalates(findings: &[ValidationError], predicate: &str, band: (f6
                 } if escalated(cause, predicate, band)
             )
         })
-}
-
-/// Whether a pcurve pass refused on one half-edge's certification
-/// escalating `predicate` with its margin in `(lo, hi]`.
-#[must_use]
-pub fn pcurve_escalates(error: &topo::PcurveMintError, predicate: &str, band: (f64, f64)) -> bool {
-    matches!(
-        error,
-        topo::PcurveMintError::Certify {
-            error: geom_brep::PcurveCertifyError::Escalated { cause, .. },
-            ..
-        } if escalated(cause, predicate, band)
-    )
 }

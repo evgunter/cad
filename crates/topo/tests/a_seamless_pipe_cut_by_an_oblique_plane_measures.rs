@@ -251,62 +251,18 @@ fn try_pipe<T: Decide + AtRestPolicy>(
     Ok(body)
 }
 
-/// **The poses pinned to refuse at `Interval` at ε ≤ 1e-12**, each a
-/// frame's axis and a floor height, with the window its refusal's upper
-/// end must fall in: the floor 100 m up the axis in the two tilted
-/// frames (measured 2.193e-12 along `(1, 2, 3)` and 1.415e-12 in the far
-/// one). Rung 3 stalls against the wall's cylinder on `ssi_hull_sup`.
-/// Cause: bracket ([`geom_core::test_support::at_the_frame_cost_band`]);
-/// mutant F1X alone builds both, and mutant A also narrows them (to
-/// 1.619e-12 and 1.079e-12), out of their windows, so each reds the pin.
-/// F1F moves neither. The cost is counted on ONEHOME's
-/// `pr-7131s-frame-cost-at-1e-12-is-larger-than-it-counted`. At ε 1e-9
-/// and 1e-6 every pose builds, and at `f64` every pose builds at every ε.
-const FRAME_COST: [([f64; 3], f64, (f64, f64)); 2] = [
-    ([1.0, 2.0, 3.0], 100.0, (2.1e-12, 2.3e-12)),
-    ([0.3, -0.2, 0.9], 100.0, (1.35e-12, 1.5e-12)),
-];
-
-/// **The pipe at `Interval`, or `None` where [`FRAME_COST`] pins it to
-/// refuse its roof's certificate.** A build there is red, and so is any
-/// other refusal or an upper end outside the window.
-fn pipe_at_interval(
-    (o, axis): ([f64; 3], [f64; 3]),
-    pose: Pose,
-    tol: Tol,
-) -> Option<Body<Interval>> {
-    let pinned = FRAME_COST
-        .iter()
-        .find(|(a, z0, _)| *a == axis && *z0 == pose.z0)
-        .map(|&(_, _, window)| window)
-        .filter(|_| geom_core::test_support::at_the_frame_cost_band(tol));
-    let within = |m, (lo, hi): (f64, f64)| {
-        let upper = geom_core::test_support::upper(m);
-        upper > lo && upper <= hi
-    };
-    let built = try_pipe::<Interval>(pose, &Frame::at(o, axis), tol);
-    match (built, pinned) {
-        (Ok(body), None) => Some(body),
-        (
-            Err(topo::EulerOpError::DescriptionUncertified {
-                edge: _,
-                error:
-                    geom_brep::certify::CertifyError::AnalyticRung3(
-                        geom_brep::edge_nurbs::AnalyticRung3Refusal::Stalled {
-                            operand: geom::SurfaceKind::Cylinder,
-                            cause,
-                        },
-                    ),
-            }),
-            Some(band),
-        ) if cause.predicate == Some("ssi_hull_sup") && within(cause.margin, band) => None,
-        (built, pinned) => panic!(
-            "frame {o:?} axis {axis:?}, {:?}: pinned to stall on the cylinder, ssi_hull_sup \
-             in {pinned:?}; got {:?}",
-            pose,
-            built.map(|_| ())
-        ),
-    }
+/// **The pipe at `Interval`**, which builds in every frame and pose at
+/// every ε. The two poses whose floor stands 100 m up a tilted axis
+/// once refused here at ε 1e-12: rung 3 stalled against the wall's
+/// cylinder on `ssi_hull_sup` (2.193e-12 along `(1, 2, 3)`, 1.415e-12 in
+/// the far frame), the bracket frame's squaring widening its inputs
+/// about three times over. The squaring's centered form
+/// ([`geom_core::RigidMotion::squared`]) builds both (ONEHOME's
+/// `pr-7131s-frame-cost-at-1e-12-is-larger-than-it-counted`).
+fn pipe_at_interval((o, axis): ([f64; 3], [f64; 3]), pose: Pose, tol: Tol) -> Body<Interval> {
+    try_pipe::<Interval>(pose, &Frame::at(o, axis), tol).unwrap_or_else(|e| {
+        panic!("frame {o:?} axis {axis:?}, {pose:?}: the pipe at Interval does not build: {e:?}")
+    })
 }
 
 const FRAMES: [([f64; 3], [f64; 3]); 4] = [
@@ -414,8 +370,7 @@ fn a_seamless_pipe_cut_by_an_oblique_plane_measures_in_its_closed_form() {
     }
 }
 
-/// Every pose converges at `Interval`, at every ε, but the
-/// [`FRAME_COST`] poses at ε 1e-12. The pipe a kilometre out with its
+/// Every pose converges at `Interval`, at every ε. The pipe a kilometre out with its
 /// floor 100 m up its tilted axis once ran its wall out of budget at
 /// ε = 1e-12 (width 3.3e-9 against 1.024e-9, rounds 13), read about the
 /// world origin; each face is read about a vertex of its shell
@@ -424,16 +379,7 @@ fn a_seamless_pipe_cut_by_an_oblique_plane_measures_in_its_closed_form() {
 fn a_seamless_pipe_cut_by_an_oblique_plane_encloses_its_closed_form_at_interval() {
     for (o, axis) in FRAMES {
         for pose in POSES {
-            let Some(body) = pipe_at_interval((o, axis), pose, Tol::witness()) else {
-                // At ε 1e-12 this skips the kilometre-out pose this row
-                // was written for: it does not build at `Interval`
-                // (FRAME_COST), so its convergence goes unread there.
-                println!(
-                    "SKIPPED at ε 1e-12: frame {o:?} axis {axis:?}, {pose:?} does not build at \
-                     Interval (FRAME_COST); its convergence is unread"
-                );
-                continue;
-            };
+            let body = pipe_at_interval((o, axis), pose, Tol::witness());
             let at = format!("frame {o:?} axis {axis:?}, {pose:?}, Interval");
             let mp = measured(pose, body, &at);
             let (r, h) = (Interval::from_f64(pose.r), Interval::from_f64(pose.h));
@@ -602,10 +548,14 @@ fn a_curved_junction_certifies_across_the_departure_arm() {
         for pose in POSES {
             let body = pipe::<f64>(pose, &f, tol);
             let report = injectivity(&body, None, true, BUDGET, tol);
-            if let Some(twin) = pipe_at_interval((o, axis), pose, tol) {
-                let twin = injectivity(&twin, None, true, BUDGET, tol);
-                same_class(&format!("pipe {o:?} {axis:?} {pose:?}"), &report, &twin);
-            }
+            let twin = injectivity(
+                &pipe_at_interval((o, axis), pose, tol),
+                None,
+                true,
+                BUDGET,
+                tol,
+            );
+            same_class(&format!("pipe {o:?} {axis:?} {pose:?}"), &report, &twin);
             println!(
                 "[curvedep] pipe {o:?} {axis:?} {pose:?}: {:?} {:?}",
                 report.verdict, report.receipt

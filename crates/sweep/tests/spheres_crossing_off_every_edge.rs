@@ -235,29 +235,12 @@ fn both_witnesses_build_under_every_boolean() {
 /// roots' phase is the first-harmonic door's degenerate case. The phase
 /// is read within half a turn of the span's middle
 /// (`geom::Azimuth::near`), so an enclosure of it stays as narrow as its
-/// inputs and each op builds, its volume bracketing the oracle's.
+/// inputs and each op builds, its volume bracketing the oracle's. It
+/// builds at ε 1e-12 too since the bracket frame's squaring takes its
+/// centered form ([`geom_core::RigidMotion::squared`]); before it the
+/// union escalated `pcurve_envelope` there (3.277e-12).
 #[test]
 fn the_plain_witness_builds_its_seam_crossing_at_the_interval_scalar() {
-    // Pinned red at ε 1e-12: the Interval union escalates a pcurve envelope
-    // (`work/onehome/the-plain-sphere-witness-escalates-its-pcurve-envelope-at-1e-12-since-the-rigid-motion`).
-    // Since PR 6988 (the re-cut's least-turn mint) the check that escalates
-    // is the aggregate `Envelope`, at half-edge 3v1, sample 0, not the
-    // per-term `EnvelopeTerm(Radius)`.
-    test_utils::pinned_red::row(
-        geom_core::Tol::witness().eps(),
-        &[1e-12],
-        "the plain witness",
-        &[
-            "Interval a ∪ b: wanted a body",
-            "half_edge: HalfEdgeKey(3v1), error: Escalated { check: Envelope, sample: 0",
-            "pcurve_envelope",
-        ],
-        the_plain_witness_builds_its_seam_crossing_at_the_interval_scalar_row,
-    );
-}
-
-/// The row [`the_plain_witness_builds_its_seam_crossing_at_the_interval_scalar`] runs, under its pin.
-fn the_plain_witness_builds_its_seam_crossing_at_the_interval_scalar_row() {
     use crate::common::interval::iv;
     use geom_core::Bounds;
     let tol = Tol::witness();

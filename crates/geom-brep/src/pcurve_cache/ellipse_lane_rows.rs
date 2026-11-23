@@ -21,8 +21,8 @@ use geom_core::{Bounds, Interval};
 use test_utils::fuzz;
 
 use super::circle_lane_rows::{
-    certifies_projected, certifies_projected_at, cone, cone_coefficient_excess, cylinder, derived,
-    lemma_envelopes, other_charts_within, torus, world, world_dir,
+    certifies_projected, cone, cone_coefficient_excess, cylinder, derived, lemma_envelopes,
+    other_charts_within, torus, world, world_dir,
 };
 use super::harmonic_sup_rows::{band, sampled_residual, zero};
 use super::*;
@@ -214,13 +214,14 @@ fn takes_the_general_lane(
 /// `b − zero` of the escalation band. A minor semi-axis inside the band
 /// takes the lane too, and ends at the meter, as on every lane.
 ///
-/// At ε 1e-12 the needle certifies at `f64` and its `Interval`
-/// certificate escalates `pcurve_envelope`, margin in `(1.0e-12,
-/// 1.05e-12]` (measured 1.023e-12 and 1.029e-12, on either nappe and
-/// span). Its cause is a bracket one: a frame built at Interval from
-/// bracket inputs, a rigid-motion claim (fork 274). Mutant F1X alone
-/// turns this pin red (nappe −1 certifies), and mutant A alone does not;
-/// nappe 1 certifies only under both. It certifies at ε 1e-9 and 1e-6.
+/// It certifies at every ε. At ε 1e-12 its `Interval` envelope reads
+/// 9.955e-13 (nappe 1) and 9.972e-13 (nappe −1), about 0.4% under the
+/// band's zero: it escalated `pcurve_envelope` (1.023e-12 and 1.029e-12)
+/// while its frames, built at Interval from bracket inputs, carried the
+/// plain squaring's dependency width, and certifies since that squaring
+/// takes its centered form ([`geom_core::RigidMotion::squared`]). The
+/// stored frame's polar read is the rest of the width, so a change that
+/// widens either reads here first.
 #[test]
 fn an_in_band_cone_section_certifies_through_the_projected_lane() {
     let cone = cone(0.5);
@@ -229,8 +230,7 @@ fn an_in_band_cone_section_certifies_through_the_projected_lane() {
         for span in [(0.3, 2.5), (-1.0, TAU - 1.0)] {
             let what = format!("nappe {sigma}, span {span:?}");
             takes_the_general_lane(&what, &needle, span, &cone, true);
-            // Both causes of the frame cost at ε 1e-12 (PR 7131).
-            certifies_projected_at(&what, &needle, span, &cone, Some((1.0e-12, 1.05e-12)));
+            certifies_projected(&what, &needle, span, &cone);
         }
         let thin = cone_needle(&cone, sigma, 1.2, (0.3, 0.5 * band().escalate(), 0.0), 0.0);
         let (image, image_i) = derived(&thin, (0.3, 2.5), &cone);

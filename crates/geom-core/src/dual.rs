@@ -1018,6 +1018,28 @@ pub type Dual64 = Dual<f64>;
 /// existed off the shelf — see the module-doc deviation note).
 pub type DualInterval = Dual<Interval>;
 
+/// **The derivatives of [`RigidMotion::squared`](crate::RigidMotion::squared)'s
+/// columns over a box**, one per input entry: `x` is `[w, u]` flattened,
+/// and entry `k` of the answer encloses `∂S/∂xₖ` at every point of the
+/// box, each column's entries, by forward-mode duals at
+/// [`Interval`] (each evaluation's tangent the `k`th
+/// unit vector). The centered form of the squaring
+/// ([`Real::square_frame`]) reads them.
+pub(crate) fn squared_columns_derivatives(x: [Interval; 6]) -> [[[Interval; 3]; 3]; 6] {
+    core::array::from_fn(|k| {
+        let d: [Dual<Interval>; 6] = core::array::from_fn(|i| {
+            let tangent = if i == k {
+                Interval::one()
+            } else {
+                Interval::zero()
+            };
+            Dual::new(x[i], tangent)
+        });
+        let cols = crate::linalg::squared_columns([d[0], d[1], d[2]], [d[3], d[4], d[5]]);
+        core::array::from_fn(|c| core::array::from_fn(|r| cols[c][r].deriv))
+    })
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {

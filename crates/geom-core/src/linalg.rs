@@ -136,6 +136,7 @@ mod mat;
 pub mod min_norm;
 mod point;
 mod rigid_motion;
+pub(crate) use rigid_motion::squared_columns;
 pub mod svd;
 mod unit_vec;
 mod vec;

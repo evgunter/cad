@@ -772,6 +772,56 @@ impl Real for Interval {
         }))
     }
 
+    /// **The squared frame by its centered form**: `S(X) ⊆ S(m) +
+    /// Σₖ ∂ₖS(X)·(Xₖ − m)`, `m` a point of the box, the derivatives
+    /// enclosed over the whole box by forward-mode duals at this scalar
+    /// (the mean value theorem, entry by entry), met with the plain
+    /// evaluation `S(X)`. Each is an enclosure of every frame the box's
+    /// points square to, so their meet is too. Where an entry of the
+    /// centered form is not a finite enclosure (a box reaching a zero
+    /// length, whose derivatives are unbounded), or the plain entry is not
+    /// certified, that entry is the plain evaluation's. The two go
+    /// together: the duals' value channel is the plain evaluation over the
+    /// box bit for bit, and each entry's derivatives divide by that
+    /// entry's own denominators, so an entry the plain evaluation leaves
+    /// unbounded has an unbounded derivative too (over 200 000 boxes
+    /// leaning degenerate, none had one without the other).
+    fn square_frame(w: [Self; 3], u: [Self; 3]) -> Option<[[Self; 3]; 3]> {
+        let x: [Self; 6] = [w[0], w[1], w[2], u[0], u[1], u[2]];
+        if !x.iter().all(|e| e.is_finite_enclosure()) {
+            return None;
+        }
+        let split = |a: [Self; 6]| ([a[0], a[1], a[2]], [a[3], a[4], a[5]]);
+        let (pw, pu) = split(x);
+        let plain = crate::linalg::squared_columns(pw, pu);
+        let mid: [Self; 6] = core::array::from_fn(|k| {
+            let (l, h) = (x[k].0.lo(), x[k].0.hi());
+            let m = (0.5 * l + 0.5 * h).clamp(l, h);
+            Self::from_bounds(m, m)
+        });
+        let (mw, mu) = split(mid);
+        let mut centered = crate::linalg::squared_columns(mw, mu);
+        let derivatives = crate::dual::squared_columns_derivatives(x);
+        for (k, d) in derivatives.iter().enumerate() {
+            let delta = x[k] - mid[k];
+            for c in 0..3 {
+                for r in 0..3 {
+                    centered[c][r] = centered[c][r] + d[c][r] * delta;
+                }
+            }
+        }
+        Some(core::array::from_fn(|c| {
+            core::array::from_fn(|r| {
+                let (p, q) = (plain[c][r], centered[c][r]);
+                if q.is_finite_enclosure() && p.is_certified() {
+                    Self::meet_readings(p, || q)
+                } else {
+                    p
+                }
+            })
+        }))
+    }
+
     /// A certified point's `f64`: its two ends one bit pattern.
     fn stated_point(self) -> Option<f64> {
         stated_point(self)
@@ -1122,6 +1172,14 @@ impl Real for Interval {
 /// apart is driver/diagnostic code, which sees the decoration through
 /// [`Decide::sign_within`]'s [`MarginKind::Invalid`](crate::MarginKind::Invalid), not through this
 /// trait.)
+impl Interval {
+    /// Certified, with both ends finite: an enclosure a centered form can
+    /// take a point of, and add to.
+    fn is_finite_enclosure(self) -> bool {
+        self.is_certified() && self.0.lo().is_finite() && self.0.hi().is_finite()
+    }
+}
+
 impl Bounds for Interval {
     fn lo(self) -> f64 {
         self.0.lo()
