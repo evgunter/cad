@@ -5,7 +5,7 @@ title: A decided reflex corner that is a graph but is not read in its cell is ty
 status: open
 opened: 2026-11-23
 priority: P2
-cost: S
+cost: E
 ---
 
 ## Finding
