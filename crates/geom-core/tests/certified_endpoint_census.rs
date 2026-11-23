@@ -772,9 +772,9 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/topo/src/injective.rs",
-        208,
-        95,
-        "the 95 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
+        211,
+        98,
+        "the 98 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
          `ends_on_collapse` (3), \
          `present_chart` (22), the pose's four (17, below), \
          `present_plane` (14), `present_plane_corner` (7), `present_vertex_corner` (12), \
