@@ -12,8 +12,7 @@
 //! [`ChartGroups::within`] takes it as face keys, and refuses a key
 //! that does not resolve; [`ChartGroups::of_live`] takes faces already
 //! read off the live arena with their data, so nothing can fail to
-//! resolve; and [`ChartGroups::of_body`] is that door over the whole
-//! body.
+//! resolve.
 
 use geom_core::Real;
 use slotmap::SecondaryMap;
@@ -46,12 +45,6 @@ impl ChartGroups {
             out.push(body.get_face(face).ok_or(face)?.surface, face);
         }
         Ok(out)
-    }
-
-    /// Groups EVERY face of `body`, in face-arena order: the scope of a
-    /// door whose scope is the whole body.
-    pub(crate) fn of_body<T: Real>(body: &Body<T>) -> Self {
-        Self::of_live(body.faces())
     }
 
     /// Groups `scope`, faces read off the live arena with their data, so

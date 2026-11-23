@@ -2350,7 +2350,6 @@ test_utils::f6_variants! {
         UnsupportedJoin,
         UnsupportedUnionName,
         HoldingsUnread,
-        UnsupportedTurnedCell,
         WayInZeroBand,
         JoinedPieceOffRoot,
         BandVerdictsDisagree,
@@ -2590,17 +2589,6 @@ fn naming_error_display_names_its_content_not_its_struct() {
             vec!["two pieces of one member line", "longer than the band"],
         ),
         (
-            NamingError::UnsupportedTurnedCell {
-                read: editor_core::VarId::new(0, tagged(38)),
-                cell: topo::Cell::Edge(topo::EdgeKey::default()),
-            },
-            vec![
-                "turned a sphere",
-                "a piece of its seam",
-                "descends from no cell",
-            ],
-        ),
-        (
             NamingError::SharedRim {
                 node: RecipeNodeId::new(0, tagged(23)),
                 face,
@@ -2716,14 +2704,14 @@ fn naming_error_display_names_its_content_not_its_struct() {
         (
             NamingError::HoldingsUnread {
                 face: None,
-                refusal: topo::HeldRefusal::Recharted {
-                    face: (1, topo::FaceKey::default()),
+                refusal: topo::HeldRefusal::UncutRemainder {
+                    face: topo::FaceKey::default(),
                 },
             },
             vec![
                 "which member faces a region the boolean discarded holds area of",
                 "could not be read",
-                "turned before the boolean",
+                "a region no step cut",
             ],
         ),
         (

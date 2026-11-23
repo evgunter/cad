@@ -98,7 +98,6 @@ const KERNEL_KEYED: &[&str] = &[
     "Naming/UnsupportedCrossingSenses",
     "Naming/UnsupportedSeamSides",
     "Naming/UnsupportedJoin",
-    "Naming/UnsupportedTurnedCell",
     "Naming/WayInZeroBand",
     "Naming/JoinedPieceOffRoot",
     "Naming/BandVerdictsDisagree",
@@ -5143,13 +5142,6 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
                 refusal: topo::HeldRefusal::UncutRemainder {
                     face: topo::FaceKey::default(),
                 },
-            },
-        ),
-        (
-            "UnsupportedTurnedCell",
-            NamingError::UnsupportedTurnedCell {
-                read: editor_core::VarId::new(0, tagged(38)),
-                cell: topo::Cell::Vertex(topo::VertexKey::default()),
             },
         ),
         (

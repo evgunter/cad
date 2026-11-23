@@ -1690,81 +1690,6 @@ impl GraftInverse {
     }
 }
 
-/// **No name reads a cell a sphere re-chart turned**
-/// (`topo::BooleanNaming::recharted`): a live edge whose descent reaches
-/// one, chased as the edge pass chases it ([`chase_edge_to_table`],
-/// through the split hops the kills dropped), or a live vertex that is
-/// one, is a turned seam piece or pole, which descends from no cell of
-/// its operand. A re-charted face is not asked after: a kept piece of a
-/// turned sphere is a band or a cap about the turned axis, which a
-/// turned seam crosses or a turned pole lies in, so its edges or
-/// vertices refuse first. `reads` are the operands' reads, A's then
-/// B's, and `b_body` B's body, which a grafted B's descent is chased in.
-///
-/// # Errors
-///
-/// [`NamingError::UnsupportedTurnedCell`] for the first such edge, in
-/// arena order, else the first such vertex;
-/// [`NamingError::SplitLineage`] for a cycling lineage.
-pub(crate) fn refuse_turned_cells<T: geom_core::Real>(
-    body: &Body<T>,
-    naming: &topo::BooleanNaming,
-    inv: &GraftInverse,
-    reads: [crate::VarId; 2],
-    b_body: &Body<T>,
-) -> Result<(), NamingError> {
-    use topo::Operand;
-    let turned =
-        |operand: Operand, cell: topo::Cell| naming.recharted[operand.index()].contains(cell);
-    if naming
-        .recharted
-        .iter()
-        .all(topo::boolean::Recharts::is_empty)
-    {
-        return Ok(());
-    }
-    let refuse = |operand: Operand, cell| NamingError::UnsupportedTurnedCell {
-        read: reads[operand.index()],
-        cell,
-    };
-    let killed = KilledSplits::of(naming);
-    for (e, _) in body.edges() {
-        let (root, space) = operand_key(naming, &inv.edges, e);
-        let (operand, root) = match (root, space) {
-            (OpSide::A(k), _) | (OpSide::B(k), KeySpace::Arena) => {
-                let operand = root.operand();
-                let at = |k| turned(operand, topo::Cell::Edge(k));
-                (operand, chase_edge_until(body, &killed.arena, at, k)?)
-            }
-            (OpSide::B(_), KeySpace::Graft) => {
-                let at_b = |k| turned(Operand::B, topo::Cell::Edge(k));
-                let root = body.split_root(e, |r| inv.lineage.get(&r).is_none_or(|&k| at_b(k)))?;
-                // A walk that leaves the graft rows is the edge pass's to
-                // refuse.
-                let Some(&kb) = inv.lineage.get(&root) else {
-                    continue;
-                };
-                (
-                    Operand::B,
-                    chase_edge_until(b_body, &killed.graft_b, at_b, kb)?,
-                )
-            }
-        };
-        let cell = topo::Cell::Edge(root);
-        if turned(operand, cell) {
-            return Err(refuse(operand, cell));
-        }
-    }
-    for (v, _) in body.vertices() {
-        let (operand, k, _) = naming.operand_of(&inv.vertices, v);
-        let cell = topo::Cell::Vertex(k);
-        if turned(operand, cell) {
-            return Err(refuse(operand, cell));
-        }
-    }
-    Ok(())
-}
-
 /// Names a boolean result (spec D2's boolean vocabulary; N2/N3).
 #[allow(clippy::too_many_arguments)] // the pair emitter's signature (`PairEmitter`)
 pub(crate) fn name_boolean<T: Decide>(
@@ -1789,7 +1714,6 @@ pub(crate) fn name_boolean<T: Decide>(
         naming.graft_faces.iter().map(|&(s, d)| (d, s)).collect();
     let inv = GraftInverse::of(naming);
     let (inv_edges, lineage_inv, inv_vertices) = (&inv.edges, &inv.lineage, &inv.vertices);
-    refuse_turned_cells(body, naming, &inv, [a.read, b.read], b.body)?;
     let (a_rows, b_rows) = (&naming.face_fragments_a, &naming.face_fragments_b);
     let seam_set: BTreeSet<EdgeKey> = naming.seam_edges.iter().copied().collect();
     let inc = Incidence::of(body);

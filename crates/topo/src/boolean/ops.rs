@@ -139,10 +139,10 @@ use crate::coincidence::{Backing, Cited, Cites};
 use crate::contain::{ContainError, FaceContainment, contfp};
 use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, ShellKey, VertexKey};
 use crate::geometry::{PointKey, SurfaceKey};
-use crate::live::{BoundaryMember, linked, proven};
+use crate::live::{BoundaryMember, proven};
 use crate::merge_faces::{DescribeRefusal, EdgeDescribeFailure};
 use crate::props::AtRestPolicy;
-use crate::solid_contain::{SolidContainment, closed_sphere_group};
+use crate::solid_contain::SolidContainment;
 use crate::validate::decide;
 use geom_brep::recourse::Refused;
 use geom_core::NonzeroSign;
@@ -352,12 +352,6 @@ pub struct BooleanNaming {
     /// pieces (`face_fragments_a`/`face_fragments_b`): a cut of the
     /// face's chart, not an edge of the operand.
     pub chart_cuts: [Vec<EdgeKey>; 2],
-    /// The cells a sphere re-chart turned in each operand before the op
-    /// re-entered on the re-cut operands, A's then B's, in clone keys as
-    /// `chart_cuts`, each with the faces of the input shell it was turned
-    /// over ([`Recharts`]). Such a cell's key, an input key or one the
-    /// re-chart's graft minted, names no operand cell at its place.
-    pub recharted: Box<[Recharts; 2]>,
     /// The two vertices each of the classification's null edges joins,
     /// `(operand, below end, above end)` in clone keys as
     /// `edge_classes`: one point by construction, so a vertex and its
@@ -428,7 +422,6 @@ impl Default for BooleanNaming {
             edge_classes: Default::default(),
             unread_partners: Default::default(),
             chart_cuts: Default::default(),
-            recharted: Default::default(),
             null_copies: Default::default(),
             cone_splits: crate::lineage::ConeCopies::new(crate::lineage::LineageRows::ConeCopies),
             edge_joins: Default::default(),
@@ -940,8 +933,7 @@ where
 /// step's of the n-ary door ([`super::nary`]): `Some` makes those pairs
 /// the operation's only coincidences, and it decides none of its own.
 /// The operation puts its operand clones as its cuts left them in
-/// `clones`, or in a slot of its own ([`Glue::clones`]), and reads its
-/// discarded fragments' regions there.
+/// `clones`, where given ([`Glue::clones`]).
 pub(crate) fn boolean_op_given<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a: &T::Finished,
@@ -953,9 +945,8 @@ pub(crate) fn boolean_op_given<T: Decide + Bounds + crate::props::AtRestPolicy>(
 ) -> Result<BooleanResult<T>, BooleanError> {
     #[cfg(feature = "door-tier3-meter")]
     let door_from = std::time::Instant::now();
-    let clones = clones.unwrap_or_default();
     let glue = Glue {
-        clones: Some(clones.clone()),
+        clones,
         ..Glue::of(inputs, given)
     };
     let mut result = boolean_door(op, a, b, &glue, strategy, tol);
@@ -964,16 +955,7 @@ pub(crate) fn boolean_op_given<T: Decide + Bounds + crate::props::AtRestPolicy>(
     // holdings are read here and nowhere else.
     if let Ok(BooleanResult::Body(out)) = &mut result {
         let band = Band::linear(tol)?;
-        let held = clones
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        out.holdings = Holdings::of_records(
-            op,
-            &out.naming,
-            &out.body,
-            ([a, b], [held[0].as_ref(), held[1].as_ref()]),
-            band,
-        );
+        out.holdings = Holdings::of_records(op, &out.naming, &out.body, [a, b], band);
         holdings_name_input_faces(&out.holdings, [a, b]);
     }
     #[cfg(feature = "door-tier3-meter")]
@@ -1013,9 +995,6 @@ fn holdings_name_input_faces<T: Real>(holdings: &Holdings, inputs: [&Body<T>; 2]
 /// **Every input cell a row names is live in its input**, a meeting's
 /// further cells included: a row is keyed in the op's inputs
 /// (`crate::coincidence`), never in the clones the op minted cells in.
-/// It checks liveness only: a key the input holds but that the op read
-/// at another place (a re-charted shell's input-keyed cell,
-/// [`Recharts`]) passes it.
 ///
 /// # Panics
 ///
@@ -1369,7 +1348,6 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         edge_classes,
         unread_partners,
         chart_cuts: [Vec::new(), Vec::new()],
-        recharted: Default::default(),
         null_copies,
         cone_splits,
         edge_joins,
@@ -1504,8 +1482,8 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
         }
         // M5 S13, the containment-fallback re-cut. Before any vertex
         // is probed, the curved-EXTENT scan certifies the sphere class
-        // structurally: every closed sphere group's true extent
-        // (center ± r) is consulted against every face of the other
+        // structurally: every sphere's true extent (center ± r) is
+        // consulted against every face of the other
         // operand — exact structure and certified enclosures, never a
         // sampled normal. Three outcomes:
         //
@@ -1518,22 +1496,18 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
         //   through a plane face — the S12 finding's
         //   poking-but-not-crossing shape — or two sphere faces cross
         //   in a circle no edge reaches): the operand is RE-CUT —
-        //   a closed group whose escapes share one axis is rigidly
-        //   re-charted onto it (a rotation about its own center: the
-        //   same point set, seams now transverse to the section
-        //   circles), any other escaping face is cut along its chart's
-        //   meridian through each circle ([`SphereCutIn`]), and the
-        //   pipeline re-enters once; the ordinary crossing layer then
+        //   the face holding each circle is cut along its chart's
+        //   meridian through the circle ([`SphereCutIn`]), one cut per
+        //   circle, and the pipeline re-enters once; the ordinary crossing layer then
         //   finds the section circles and the carried lane joins them
         //   exactly on the section value's circle. Both spheres
         //   of a crossing pair are re-cut, so the circle lands as
         //   chords on both and neither keeps it as a ring.
-        // - **uncertifiable** (NURBS re-gate, a trimmed group's circle
-        //   the section certificate does not place inside one face,
-        //   sphere faces meeting other than across a verified `Rest`,
-        //   tangency, boundary-grazing circles,
-        //   one group escaping through NON-PARALLEL faces): typed
-        //   refusal — the S12 silence never re-opens.
+        // - **uncertifiable** (NURBS re-gate, a circle the section
+        //   certificate does not place inside one face, sphere faces
+        //   meeting other than across a verified `Rest`, tangency,
+        //   boundary-grazing circles, a cut its face cannot take):
+        //   typed refusal — the S12 silence never re-opens.
         let recuts = match no_crossings_pass(a, b, &red, band)? {
             NoCrossings::Certified(deferred) => {
                 return fallback(op, &mut red, a, b, &glued, deferred, band, tol)
@@ -1546,12 +1520,8 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 what: "re-cut sphere operands still produced no crossings",
             });
         }
-        let (mut a2, mut b2, recharted) = apply_recuts(a, b, &recuts.rechart, tol)?;
-        // The cut-ins name faces of `a` and `b`; the re-charts carve
-        // and graft other shells, and `carve` keeps every kept
-        // entity's key (`crate::carve::carve`), so those
-        // names still hold on `a2` and `b2`.
-        let cuts = apply_cut_ins(&mut a2, &mut b2, &recuts.cut_in, band, tol)?;
+        let (mut a2, mut b2) = (a.clone(), b.clone());
+        let cuts = apply_cut_ins(&mut a2, &mut b2, &recuts, band, tol)?;
         // The re-entry's operands are not finished (the cut-ins leave
         // joinable vertices), but they hold tiers 1 and 2: carved, turned,
         // grafted and cut from finished operands by operators that each
@@ -1569,7 +1539,7 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
             // A row names the cells of the op's inputs, not of the
             // cut operands ([`crate::coincidence`]), through the one
             // door ([`spell`]).
-            respell_through_cuts(&mut out.coincidences, &cuts, &recharted)?;
+            respell_through_cuts(&mut out.coincidences, &cuts)?;
             // The cut-ins divided faces before the join did, in the
             // operand keys the join's rows are in.
             let n = &mut out.naming;
@@ -1585,7 +1555,6 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 )?;
                 edges.extend(made.edges);
             }
-            *n.recharted = recharted;
         }
         return Ok(Joined::Answered(Box::new(result)));
     }
@@ -2452,7 +2421,7 @@ impl<'r> Evidence<'r> {
 enum NoCrossings<T: Real> {
     /// The extent scan asks for re-cuts; the pipeline re-enters on the
     /// re-cut operands.
-    Recut(Recuts<T>),
+    Recut(Vec<SphereCutIn<T>>),
     /// Every pair is certified, or held for the `On` verdict.
     Certified(OnDeferred),
 }
@@ -2470,7 +2439,7 @@ fn no_crossings_pass<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let events = event_pairs(red);
     let evidence = Evidence::of(red, &events);
     let (recuts, deferred) = sphere_extent_scan(a, b, &evidence, band)?;
-    if !recuts.rechart.is_empty() || !recuts.cut_in.is_empty() {
+    if !recuts.is_empty() {
         return Ok(NoCrossings::Recut(recuts));
     }
     section_extent_pass(a, b, &red.sections, &evidence, deferred, band).map(NoCrossings::Certified)
@@ -2738,7 +2707,7 @@ pub(crate) fn no_crossings_certificates(
 ) -> Result<(usize, usize), BooleanError> {
     let (red, _, band) = reduced_as_the_op_does(op, a, b, tol)?;
     Ok(match no_crossings_pass(a, b, &red, band)? {
-        NoCrossings::Recut(recuts) => (recuts.rechart.len() + recuts.cut_in.len(), 0),
+        NoCrossings::Recut(recuts) => (recuts.len(), 0),
         NoCrossings::Certified(held) => (0, held.0.len()),
     })
 }
@@ -6117,20 +6086,8 @@ fn pinched_at_cone_apex<T: Decide>(body: &Body<T>, band: Band) -> Result<(), Boo
     Ok(())
 }
 
-/// What the extent scan asks of the operands before the pipeline
-/// re-enters: closed groups to re-chart, trimmed faces to cut.
-struct Recuts<T: Real> {
-    /// Closed groups, rotated about their centres ([`apply_recuts`]).
-    rechart: Vec<SphereRecut<T>>,
-    /// Trimmed faces, cut across their section circles
-    /// ([`apply_cut_ins`]).
-    cut_in: Vec<SphereCutIn<T>>,
-}
-
-/// A sphere face that a plane face's carrier (the face's group
-/// TRIMMED) or a sphere face's carrier (the group trimmed, or crossed
-/// along non-parallel axes) cuts in a circle
-/// certified inside both faces with no event (the section
+/// A sphere face that a plane face's carrier or a sphere face's
+/// carrier cuts in a circle certified inside both faces with no event (the section
 /// certificate's R-loop). The face is cut along the meridian of its own
 /// sphere's chart through the circle's centre (through a point of the
 /// circle, `u_ref`'s, where the centre's direction is a pole of the
@@ -6139,8 +6096,7 @@ struct Recuts<T: Real> {
 /// face. Both pieces keep the
 /// surface key (the maximal form a curved operand takes), a meridian
 /// and the face's own edges bound each, and the re-entered crossing
-/// layer meets the circle at the two crossings, as it meets a closed
-/// group's re-charted seams.
+/// layer meets the circle at the two crossings.
 struct SphereCutIn<T: Real> {
     /// The operand holding the face.
     operand: Operand,
@@ -6159,36 +6115,6 @@ struct SphereCutIn<T: Real> {
     /// A unit direction across the circle, which places a point of it
     /// where `foot` lies on the chart's polar axis.
     u_ref: Vec3<T>,
-}
-
-/// One sphere group the extent scan wants re-cut: rigidly re-charted
-/// about `align` (the first escape plane's normal) so its seam
-/// meridians run pole-to-pole TRANSVERSE to the escape planes and the
-/// ordinary crossing layer sees the section circles.
-struct SphereRecut<T: Real> {
-    /// The operand whose group escapes.
-    operand: Operand,
-    /// The group's representative face (its shell is what rotates).
-    representative: FaceKey,
-    /// The sphere's center — the rotation's fixed point.
-    center: Point3<T>,
-    /// Its curvature arm (the alignment trilean's lever arm).
-    arm: geom_core::Lever<T>,
-    /// The stored polar axis (rotation source direction).
-    axis: Vec3<T>,
-    /// The escape plane's normal, or the escape circle's axis (rotation
-    /// target direction).
-    align: Vec3<T>,
-    /// The stored seam direction (`u_ref`), which `seam` turns to.
-    u_ref: Vec3<T>,
-    /// Where the group escapes through a sphere: the seam direction the
-    /// re-chart turns `u_ref` to about `align`. A's group takes the
-    /// first escape's [`pair_seam`] in the plane across `align`, and B's
-    /// that direction turned a quarter about `align`, so two balls
-    /// re-charted along one centre line keep their seams in planes a
-    /// quarter turn apart, and neither seam meets the circle where the
-    /// other does.
-    seam: Option<Vec3<T>>,
 }
 
 /// The sphere extent scan's reading of a refused [`contfp`] on `face`, a
@@ -6219,9 +6145,10 @@ fn extent_scan_refusal(e: ContainError, sphere_is: Operand, face: FaceKey) -> Bo
 /// Two classes, and they get different answers because different
 /// evidence exists for them:
 ///
-/// - **Sphere**: a closed group's true extent is `center ± r`, so the
-///   pairs it can meet are enumerable exactly, and an escape through a
-///   plane face is repairable by a re-chart. Two spheres whose carriers
+/// - **Sphere**: a sphere's true extent is `center ± r`, so the pairs
+///   it can meet are enumerable exactly, and an escape through a plane
+///   face is repairable by a cut of the face holding the circle. Two
+///   spheres whose carriers
 ///   cross or touch, and a sphere touching a plane's carrier, are asked
 ///   whether their FACES meet ([`sphere_faces_apart`]); a crossing
 ///   circle inside both faces is an escape of each sphere through the
@@ -6233,20 +6160,20 @@ fn extent_scan_refusal(e: ContainError, sphere_is: Operand, face: FaceKey) -> Bo
 ///   is an escape face, so disjointness is all the scan would ask of
 ///   them.
 ///
-/// Determinism (D9): face-arena order throughout; the first escape's
-/// normal is the alignment target.
+/// Determinism (D9): face-arena order throughout, so the cuts come in
+/// arena order.
 ///
 /// # Panics
 ///
 /// Where an arena face's surface does not resolve (D2 row 4): a torn
 /// surface is neither NURBS nor a sphere. The operands are at rest
-/// (gated, or a rigid re-chart of gated operands).
+/// (gated).
 fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     evidence: &Evidence<'_>,
     band: Band,
-) -> Result<(Recuts<T>, OnDeferred), BooleanError> {
+) -> Result<(Vec<SphereCutIn<T>>, OnDeferred), BooleanError> {
     let rest = evidence.rest;
     let mut deferred = OnDeferred::default();
     let esc = |question| {
@@ -6299,15 +6226,11 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
             }
         }
     }
-    let mut out: Vec<SphereRecut<T>> = Vec::new();
     let mut cut_ins: Vec<SphereCutIn<T>> = Vec::new();
     for (x_is, x, x_rows, y, y_rows) in [
         (Operand::A, a, &rows[0], b, &rows[1]),
         (Operand::B, b, &rows[1], a, &rows[0]),
     ] {
-        // The scope is the whole operand: what the escape arm re-charts
-        // is the sphere itself, which every wearer shares.
-        let charts = crate::chart_groups::ChartGroups::of_body(x);
         let mut seen: Vec<SurfaceKey> = Vec::new();
         for view in x.face_views() {
             let face = view.key();
@@ -6315,31 +6238,20 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
             let &geom::Surface::Sphere { frame, radius } = x_surface else {
                 continue;
             };
-            let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+            let center = frame.origin();
             if seen.contains(&view.record().surface) {
                 continue;
             }
             seen.push(view.record().surface);
-            // **Closedness is asked where it is USED, not on arrival.**
-            // The certificate this scan spends is `center ± r`, and for
-            // a TRIMMED group that box over-claims — which is the sound
-            // direction for every SEPARATION test below, because a
-            // trimmed face is a subset of the sphere and a box that
-            // proves the whole sphere clear proves the subset clear.
-            // What genuinely needs the closed group is the plane arm's
-            // ESCAPE conclusion: it reasons about the whole section
-            // circle of the sphere CARRIER, and it hands the result to
-            // a re-chart that rotates the group about its own centre —
-            // neither statement survives trimming. A trimmed group's
-            // escape is read off its faces instead, and cut in.
-            let group = closed_sphere_group(x, face, &charts);
+            // The certificate this scan spends is `center ± r`, which
+            // over-claims for a trimmed group: the sound direction for
+            // every SEPARATION test below, since a box that proves the
+            // whole sphere clear proves every face on it clear. An
+            // ESCAPE is read off the group's faces, closed or trimmed
+            // alike: the section certificate places the circle inside
+            // one face (R-loop), and that face takes the cut
+            // ([`SphereCutIn`]).
             let ball_box = boxes::centred_box(center, radius, pad);
-            let mut escape_normals: Vec<Vec3<T>> = Vec::new();
-            // A closed group's sphere escapes, one cut each, for where
-            // one re-chart cannot serve them all.
-            let mut sphere_escapes: Vec<SphereCutIn<T>> = Vec::new();
-            // The first sphere escape's pair seam ([`pair_seam`]).
-            let mut first_pair_seam: Option<Vec3<T>> = None;
             for (y_row, (yf, _)) in y_rows.iter().zip(y.faces()) {
                 if y_row.face != yf {
                     return Err(BooleanError::ClassificationInvariant {
@@ -6380,18 +6292,13 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             // Clear of the whole carrier plane.
                             NonzeroSign::Negative => {}
                             NonzeroSign::Positive => {
-                                // A TRIMMED group's faces may never reach
-                                // the circle the carrier cuts: certified
-                                // apart from this face, they pose no
-                                // escape through it. Otherwise `held` is
-                                // the face of the group the certificate
-                                // refused, with its reason.
-                                let held = match group {
-                                    Some(_) => None,
-                                    None => match faces()?.first() {
-                                        None => continue,
-                                        held => held.copied(),
-                                    },
+                                // Faces certified apart from this face
+                                // pose no escape through it. Otherwise
+                                // `held` is the first face on the sphere
+                                // the certificate refused, with its
+                                // reason.
+                                let Some(&held) = faces()?.first() else {
+                                    continue;
                                 };
                                 // The sphere definitely crosses the
                                 // CARRIER in a circle; classify the
@@ -6438,18 +6345,13 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                     // elsewhere).
                                     FaceContainment::Out => {}
                                     // The whole-circle membership just
-                                    // decided is the CARRIER's. A closed
-                                    // group wears all of the carrier, so
-                                    // the circle is its escape, and the
-                                    // re-chart rotates it about its
-                                    // centre. A trimmed group escapes
-                                    // only where the certificate placed
-                                    // the circle inside one of its faces
-                                    // (R-loop), and that face takes the
-                                    // cut instead ([`SphereCutIn`]).
+                                    // decided is the plane CARRIER's. The
+                                    // sphere escapes where the certificate
+                                    // placed the circle inside one of its
+                                    // faces (R-loop), and that face takes
+                                    // the cut ([`SphereCutIn`]).
                                     FaceContainment::In => match cut_holder(held) {
-                                        Ok(None) => escape_normals.push(normal),
-                                        Ok(Some(holder)) => {
+                                        Ok(holder) => {
                                             cut_ins.push(SphereCutIn {
                                                 operand: x_is,
                                                 face: holder,
@@ -6545,9 +6447,8 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                 // leaves the two boundaries disjoint. A
                                 // circle certified inside both faces is
                                 // an escape off every edge, of each
-                                // sphere through the other: a closed
-                                // group's is re-charted along the centre
-                                // line, a trimmed group's face is cut in
+                                // sphere through the other: the face
+                                // holding it is cut in
                                 // ([`sphere_pair_cut`]), and the other
                                 // pass serves the other sphere; any
                                 // other refusal of the certificate is
@@ -6595,20 +6496,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                                 &y_row.surface,
                                                 band,
                                             )?;
-                                            if group.is_some() {
-                                                if first_pair_seam.is_none() {
-                                                    first_pair_seam = Some(pair_seam(
-                                                        x_is,
-                                                        x_surface,
-                                                        &y_row.surface,
-                                                        band,
-                                                    )?);
-                                                }
-                                                escape_normals.push(cut.normal);
-                                                sphere_escapes.push(cut);
-                                            } else {
-                                                cut_ins.push(cut);
-                                            }
+                                            cut_ins.push(cut);
                                         }
                                         Some((_, refusal)) => {
                                             return Err(BooleanError::FallbackExtentUnsupported {
@@ -6666,87 +6554,9 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     }
                 }
             }
-            // An escape was recorded only on a closed group (a trimmed
-            // one records cut-ins), which has a representative.
-            if let (Some((&align, rest)), Some(representative)) =
-                (escape_normals.split_first(), group)
-            {
-                // ONE alignment per group: the re-chart makes every
-                // section polar only when ALL of this group's escapes
-                // share an axis (antiparallel is the same axis). A group
-                // re-charted for one axis would leave another cap's join
-                // to a tilted-section refusal the re-entered crossing
-                // layer may never reach, and the result could come out
-                // valid and short a cap.
-                let mut parallel = true;
-                for &n in rest {
-                    match decide(
-                        "bool_sphere_escape_parallel",
-                        Margin::levered(
-                            align.cross(n).norm(),
-                            geom_brep::uniform_curvature_arm(x_surface),
-                        ),
-                        band,
-                    )
-                    .map_err(esc(SphereQuestion::EscapeParallel))?
-                    {
-                        Sign::Zero => {}
-                        Sign::Positive | Sign::Negative => parallel = false,
-                    }
-                }
-                if !parallel {
-                    // Escapes through spheres alone are cut in, one cut
-                    // per circle, on the group's own chart. A plane's
-                    // escape is served only by the re-chart, whose graft
-                    // renames the faces a cut would name.
-                    if sphere_escapes.len() == escape_normals.len() {
-                        cut_ins.append(&mut sphere_escapes);
-                        continue;
-                    }
-                    return Err(BooleanError::FallbackExtentUnsupported {
-                        operand: x_is,
-                        face,
-                        what: if sphere_escapes.is_empty() {
-                            "one sphere group escapes through NON-PARALLEL \
-                             plane faces — a single re-chart cannot make \
-                             every section polar, and multi-chart \
-                             re-cutting is not built; refused whole rather \
-                             than metering one cap and dropping the other"
-                        } else {
-                            "one sphere group escapes through a plane face and crosses \
-                             a sphere face off every edge along NON-PARALLEL axes — the \
-                             re-chart the plane asks for would rename the face the \
-                             sphere's cut names"
-                        },
-                    });
-                }
-                let seam = first_pair_seam.map(|pair| {
-                    let first = (pair - align * align.dot(pair)).normalize();
-                    match x_is {
-                        Operand::A => first,
-                        Operand::B => align.cross(first),
-                    }
-                });
-                out.push(SphereRecut {
-                    operand: x_is,
-                    representative,
-                    center,
-                    arm: geom_brep::uniform_curvature_arm(x_surface),
-                    axis,
-                    align,
-                    u_ref,
-                    seam,
-                });
-            }
         }
     }
-    Ok((
-        Recuts {
-            rechart: out,
-            cut_in: cut_ins,
-        },
-        deferred,
-    ))
+    Ok((cut_ins, deferred))
 }
 
 /// **The cut a sphere pair's crossing asks of `holder`**, the face of
@@ -6754,8 +6564,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// `y` in. The circle is the pair's radical-plane section, read from
 /// its owner ([`geom_brep::sphere_sphere_section`]): its centre on the
 /// centre line, its axis the unit centre line from `x` toward `y`, and
-/// a unit `u_ref` across it. A closed group's escape aligns its
-/// re-chart on that axis; a trimmed group's face takes the cut.
+/// a unit `u_ref` across it.
 fn sphere_pair_cut<T: Decide>(
     (operand, holder): (Operand, FaceKey),
     x: &geom::Surface<T>,
@@ -6803,52 +6612,15 @@ fn sphere_pair_cut<T: Decide>(
     }
 }
 
-/// **The seam a sphere pair's re-charts share**: the `u_ref` of the
-/// pair's section circle as read from operand A's sphere
-/// ([`geom_brep::sphere_sphere_section`] with A's sphere first), whichever
-/// operand `x` (on `x_is`) is. Both groups of a pair read the same
-/// direction, and it is a function of the operands, never of the
-/// computing axes (D10 `[placement.frame]`).
-fn pair_seam<T: Decide>(
-    x_is: Operand,
-    x: &geom::Surface<T>,
-    y: &geom::Surface<T>,
-    band: Band,
-) -> Result<Vec3<T>, BooleanError> {
-    let (a, b) = match x_is {
-        Operand::A => (x, y),
-        Operand::B => (y, x),
-    };
-    match geom_brep::sphere_sphere_section(a, b, band) {
-        Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(
-            the_circle @ geom::Circle { .. },
-        ))) => {
-            let frame = the_circle.frame();
-            let u_ref = frame.u_ref();
-            Ok(u_ref)
-        }
-        Err(geom_brep::SectionError::Escalated(diag)) => Err(BooleanError::Escalated {
-            decision: BooleanDecision::Sphere(SphereQuestion::CutIn),
-            diag,
-        }),
-        Ok(_) | Err(_) => Err(BooleanError::ClassificationInvariant {
-            what: "extent scan: spheres the scan decided cross have no section circle",
-        }),
-    }
-}
-
 /// **What a section circle wholly inside a plane face asks of the sphere
 /// group it lies on**, from the section certificate's reading of the
-/// group's faces against that face (`None` for a closed group, which the
-/// certificate is not asked of): `Ok(None)` re-charts the closed group,
-/// `Ok(Some(face))` cuts the trimmed face the certificate placed the
-/// circle inside (R-loop), and any other verdict refuses with its own
-/// reason.
-fn cut_holder(held: Option<(FaceKey, SectionRefusal)>) -> Result<Option<FaceKey>, &'static str> {
-    match held {
-        None => Ok(None),
-        Some((holder, SectionRefusal::Loop)) => Ok(Some(holder)),
-        Some((_, refusal)) => Err(refusal.what()),
+/// first face on the sphere it refused against that face: R-loop cuts
+/// the face the certificate placed the circle inside, and any other
+/// verdict refuses with its own reason.
+fn cut_holder((holder, refusal): (FaceKey, SectionRefusal)) -> Result<FaceKey, &'static str> {
+    match refusal {
+        SectionRefusal::Loop => Ok(holder),
+        refusal => Err(refusal.what()),
     }
 }
 
@@ -6932,266 +6704,6 @@ fn sphere_faces_apart<T: Decide + Bounds + crate::props::AtRestPolicy>(
             p.verdict.err().map(|refusal| (held, refusal))
         })
         .collect())
-}
-
-/// **Whether a re-cut sphere's polar axis leans off the escape normal**
-/// ([`SphereQuestion::RecutAlign`]): the axes' cross levered at the
-/// radius. Definite by construction on a crossing-free escape (an
-/// aligned axis's seam crosses the escape plane, which the crossing
-/// layer sees first), so an aligned or in-band axis refuses, with its
-/// decided margin where it decided zero.
-pub(super) fn recut_lean<T: Decide>(
-    axis: Vec3<T>,
-    align: Vec3<T>,
-    arm: geom_core::Lever<T>,
-    band: Band,
-) -> Result<(), BooleanError> {
-    crate::validate::decide_nonzero(
-        "bool_sphere_recut_align",
-        Margin::levered(axis.cross(align).norm(), arm),
-        band,
-    )
-    .map(|_| ())
-    .map_err(|diag| BooleanError::Escalated {
-        decision: BooleanDecision::Sphere(SphereQuestion::RecutAlign),
-        diag,
-    })
-}
-
-/// **A re-cut's turn carrying `a` onto `b` about the sphere's `center`**
-/// (`bool_sphere_recut_turn`): the decided least turn, consumed over the
-/// sphere (every point it moves stands at the radius from the centre it
-/// turns about, the sphere's curvature arm). A conditioning refusal is the
-/// re-chart the band cannot determine, typed; any other refusal is past
-/// what the alignment trilean and the seam's half-plane choice settled,
-/// so it is an invariant broken.
-#[allow(clippy::too_many_arguments)] // the turn's mint arguments, and the face its refusal names
-fn recut_turn<T: Decide>(
-    a: geom_core::UnitVec3<T>,
-    b: geom_core::UnitVec3<T>,
-    center: Point3<T>,
-    arm: geom_core::Lever<T>,
-    band: Band,
-    tol: Tol,
-    operand: Operand,
-    representative: FaceKey,
-) -> Result<geom_core::RigidMotion<T>, BooleanError> {
-    geom_core::RigidMotion::least_turn(a, b, center, arm, RECUT_TURN, band, tol).map_err(
-        |e| match e {
-            geom_core::TurnError::IllConditioned { .. }
-            | geom_core::TurnError::ConditioningUndecided(_) => {
-                BooleanError::FallbackExtentUnsupported {
-                    operand,
-                    face: representative,
-                    what: "a sphere group whose stored polar axis stands so near opposed to its \
-                       escape normal that the re-chart's turn, levered at the radius, passes \
-                       the run's rounding reach: the turn is not determined at ε",
-                }
-            }
-            _ => BooleanError::ClassificationInvariant {
-                what: "re-cut rotation does not mint a turn",
-            },
-        },
-    )
-}
-
-/// The decision name of a re-cut's turn ([`recut_turn`]).
-const RECUT_TURN: &str = "bool_sphere_recut_turn";
-
-/// Applies the scan's re-cuts: each escaping group's shell is carved
-/// out, rigidly rotated about the sphere's own center so the stored
-/// polar axis lands on the escape normal (the same point set — a
-/// sphere is rotation-invariant about its center — with the seam
-/// meridians now transverse to the escape planes), and grafted back.
-///
-/// Returns the re-cut operands, A's then B's, and what the re-charts
-/// made in each.
-fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
-    a: &Body<T>,
-    b: &Body<T>,
-    recuts: &[SphereRecut<T>],
-    tol: Tol,
-) -> Result<(Body<T>, Body<T>, RechartsPerOperand), BooleanError> {
-    let band = Band::linear(tol)?;
-    let mut out_a = a.clone();
-    let mut out_b = b.clone();
-    let mut made: RechartsPerOperand = Default::default();
-    for ((operand, out), made) in [(Operand::A, &mut out_a), (Operand::B, &mut out_b)]
-        .into_iter()
-        .zip(&mut made)
-    {
-        let mine: Vec<&SphereRecut<T>> = recuts.iter().filter(|r| r.operand == operand).collect();
-        if mine.is_empty() {
-            continue;
-        }
-        let src: &Body<T> = if operand == Operand::A { a } else { b };
-        let corrupt = |what| BooleanError::ClassificationInvariant { what };
-        let solid = single_solid(src).map_err(|e| super::CarveStep::Recut(operand).refused(e))?;
-        let mut rotated: Vec<(Body<T>, Vec<FaceKey>)> = Vec::new();
-        let mut cut_shells: Vec<ShellKey> = Vec::new();
-        for r in &mine {
-            // The representative is a face of the at-rest operand the
-            // scan read, so it and its `shell` link resolve (D2 row 4).
-            let face = r.representative;
-            let shell = proven(&src.faces, face, EntityId::Face).shell;
-            cut_shells.push(shell);
-            let faces = linked(
-                &src.shells,
-                shell,
-                EntityId::Shell,
-                EntityId::Face(face),
-                "shell",
-            )
-            .faces
-            .clone();
-            let ball = carve(src, solid, &[shell])
-                .map_err(|e| super::CarveStep::Recut(operand).refused(e))?;
-            recut_lean(r.axis, r.align, r.arm, band)?;
-            // The alignment turn and the seam spin, each MINTED as the
-            // turn between two unit witnesses (`RigidMotion::least_turn`,
-            // the quaternion of `(1 + a·b, a × b)`: algebraic, no
-            // atan2/sin/cos, so under the Interval scalar exact zeros stay
-            // exact), about the sphere's centre. Rigid by construction,
-            // so no rigidity door is asked of twelve numbers (closing
-            // `work/honepair/the-sphere-re-cut-rotation-is-decided-at-the-door-not-minted.md`).
-            // Its pole verdict, over the radius, is settled by the
-            // alignment trilean above for the axis pair (near opposed
-            // `|axis × align|` is the chord, levered at the same radius)
-            // and by the seam's half-plane choice for the spin. Its
-            // conditioning is not: past the crossover radius `√(Kε·R/2)`
-            // (about 0.16 m at the default ε) the conditioning's edge
-            // `2r/R` is the wider, so an axis that near opposed refuses
-            // here, typed, as a re-chart the band cannot determine.
-            let unit = |v: Vec3<T>| {
-                geom_core::UnitVec3::new(v, RECUT_TURN, band)
-                    .map_err(|_| corrupt("re-cut direction is not a unit direction"))
-            };
-            let turn =
-                |a, b| recut_turn(a, b, r.center, r.arm, band, tol, operand, r.representative);
-            let align = turn(unit(r.axis)?, unit(r.align)?)?;
-            // The spin about `align` that turns the rotated seam to
-            // `seam`; the sign that keeps the turn at most a quarter is
-            // either of the seam's two half-planes.
-            let map = match r.seam {
-                None => align,
-                Some(seam) => {
-                    let a = align.turn(unit(r.u_ref)?);
-                    let flip = matches!(
-                        decide(
-                            "bool_sphere_recut_seam",
-                            Margin::of(a.get().dot(seam)),
-                            band
-                        ),
-                        Ok(Sign::Negative)
-                    );
-                    let b = if flip { -seam } else { seam };
-                    turn(a, unit(b)?)?
-                        .compose(align)
-                        .map_err(|_| corrupt("re-cut rotation's product overflowed"))?
-                }
-            };
-            let turned = crate::transform::transform_rigid(&ball, &map)
-                .map_err(|_| corrupt("re-cut rotation failed to re-certify"))?;
-            rotated.push((turned, faces));
-        }
-        // `single_solid` resolved `solid` on this operand.
-        let keep: Vec<ShellKey> = proven(&src.solids, solid, EntityId::Solid)
-            .shells
-            .iter()
-            .copied()
-            .filter(|s| !cut_shells.contains(s))
-            .collect();
-        let mut rebuilt: Option<Body<T>> = if keep.is_empty() {
-            None
-        } else {
-            Some(
-                carve(src, solid, &keep)
-                    .map_err(|e| super::CarveStep::Recut(operand).refused(e))?,
-            )
-        };
-        // A turned shell that becomes the base keeps its input keys at
-        // turned places, and a grafted one takes new keys: either way its
-        // cells are the ones it adds to the rebuilt body.
-        for (turned, faces) in rotated {
-            let cells = match rebuilt.as_mut() {
-                None => {
-                    let cells = cells_of(&turned);
-                    rebuilt = Some(turned);
-                    cells
-                }
-                Some(base) => {
-                    let base_solid = single_solid(base)
-                        .map_err(|e| super::CarveStep::Recut(operand).refused(e))?;
-                    let before = cells_of(base);
-                    graft_solids_disjoint(base, &[base_solid], &turned)?;
-                    cells_of(base).difference(&before).copied().collect()
-                }
-            };
-            made.add(cells, faces);
-        }
-        out.adopt(rebuilt.ok_or(corrupt("re-cut produced no body"))?);
-    }
-    Ok((out_a, out_b, made))
-}
-
-/// Every cell of `body`.
-fn cells_of<T: Real>(body: &Body<T>) -> BTreeSet<Cell> {
-    body.faces()
-        .map(|(f, _)| Cell::Face(f))
-        .chain(body.edges().map(|(e, _)| Cell::Edge(e)))
-        .chain(body.vertices().map(|(v, _)| Cell::Vertex(v)))
-        .collect()
-}
-
-/// What [`apply_recuts`] made in each operand, A's then B's.
-type RechartsPerOperand = [Recharts; 2];
-
-/// What [`apply_recuts`] made in one operand: the cells of each sphere
-/// shell it turned about its centre, each with the faces of the input
-/// shell it was turned over.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct Recharts {
-    /// Each re-charted shell's cells in the re-cut operand, to that
-    /// shell's place in `shells`.
-    cells: BTreeMap<Cell, usize>,
-    /// The faces of the input shell each re-charted shell was turned
-    /// over, sorted.
-    shells: Vec<Vec<FaceKey>>,
-}
-
-impl Recharts {
-    /// Whether `cell` of the re-cut operand is a re-charted shell's.
-    #[must_use]
-    pub fn contains(&self, cell: Cell) -> bool {
-        self.cells.contains_key(&cell)
-    }
-
-    /// Whether no shell was re-charted.
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.shells.is_empty()
-    }
-
-    /// Records one re-charted shell: its cells in the re-cut operand and
-    /// its input shell's faces.
-    fn add(&mut self, cells: BTreeSet<Cell>, mut faces: Vec<FaceKey>) {
-        faces.sort_unstable();
-        let at = self.shells.len();
-        self.shells.push(faces);
-        self.cells.extend(cells.into_iter().map(|cell| (cell, at)));
-    }
-
-    /// The faces of the input shell whose sphere `cell` of the re-cut
-    /// operand was turned over, where `cell` is a re-charted shell's.
-    ///
-    /// The turn moves the shell's cells over its sphere, so no input
-    /// cell finer than that sphere holds one, and every face of the
-    /// input shell wears that sphere: a closed sphere group
-    /// ([`crate::solid_contain::closed_sphere_group`]) is the whole
-    /// shell.
-    pub(crate) fn input_faces(&self, cell: Cell) -> Option<&[FaceKey]> {
-        self.cells.get(&cell).map(|&at| self.shells[at].as_slice())
-    }
 }
 
 /// Applies the scan's cut-ins ([`SphereCutIn`]): each face is cut along
@@ -7702,41 +7214,18 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
     Ok(made)
 }
 
-/// **The recut's rows read through the cut-ins and the re-charts**
-/// ([`spell`]): each row whose cells the cuts or the re-charts made is
-/// spelled in the op's inputs' cells, one row for one, so the records
-/// cite the rows they cited.
-///
-/// A re-charted shell's cell is read back as the set of its input
-/// shell's faces ([`Recharts::input_faces`]), which wear the sphere the
-/// turn moved it over, as a vertex minted on an edge is read as that
-/// edge. A shell of one face holds a turned face whole, so a row on one
-/// keeps its relation, and a turned edge or vertex reads as that face
-/// through [`spell`]. A set of several faces states only a point decided
-/// on a cell ([`states_a_point`]), as the [`crate::Relation::Meet`] of
-/// every cell the row's cells read as, sorted.
+/// **The recut's rows read through the cut-ins** ([`spell`]): each row
+/// whose cells the cuts made is spelled in the op's inputs' cells, one
+/// row for one, so the records cite the rows they cited.
 ///
 /// # Errors
 ///
-/// [`BooleanError::RechartedRowUnstated`] for a row of any other
-/// decision on a re-charted cell, and for a meeting of more cells than a
-/// row holds; otherwise as [`spell`].
+/// As [`spell`].
 fn respell_through_cuts(
     rows: &mut [crate::Coincidence],
     cuts: &CutsPerOperand,
-    recharted: &RechartsPerOperand,
 ) -> Result<(), BooleanError> {
-    // A cell of a re-cut operand read through the cut-ins, beside the
-    // input shell's faces where a re-chart turned it: a cut-in cuts a
-    // face no re-chart turned.
-    let recut = |(input, cell): End| {
-        let cell = cuts[input.index()].input_cell(cell);
-        (input, cell, recharted[input.index()].input_faces(cell))
-    };
-    let read = |end: End| match recut(end) {
-        (input, _, Some(&[face])) => ((input, Cell::Face(face)), None),
-        (input, cell, _) => ((input, cell), None),
-    };
+    let read = |(input, cell): End| ((input, cuts[input.index()].input_cell(cell)), None);
     let end = |cell| match cell {
         crate::RowCell::Input { input, cell } => Some((input, cell)),
         crate::RowCell::Tool | crate::RowCell::Result { .. } => None,
@@ -7755,85 +7244,9 @@ fn respell_through_cuts(
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let ends: Vec<End> = [x, y].into_iter().chain(through.iter().copied()).collect();
-        let point = states_a_point(row.relation, recut(x).1);
-        // The first cell read as a set of several faces.
-        let mut set = None;
-        for (operand, cell, faces) in ends.iter().copied().map(recut) {
-            let Some(faces) = faces else {
-                continue;
-            };
-            let whole = faces.len() == 1 && matches!(cell, Cell::Face(_));
-            if !whole && !point {
-                return Err(BooleanError::RechartedRowUnstated {
-                    operand,
-                    relation: row.relation,
-                    faces: faces.to_vec(),
-                    what: "only a point decided there is stated by the faces that hold it",
-                });
-            }
-            if faces.len() > 1 && set.is_none() {
-                set = Some((operand, faces));
-            }
-        }
-        let Some((operand, faces)) = set else {
-            (row.cells, row.more, row.relation) = spell([x, y], &through, row.relation, read)?;
-            continue;
-        };
-        let mut all: Vec<crate::RowCell> = Vec::new();
-        for (input, cell, faces) in ends.iter().copied().map(recut) {
-            let read: Vec<Cell> = match faces {
-                Some(faces) => faces.iter().map(|&f| Cell::Face(f)).collect(),
-                None => vec![cell],
-            };
-            all.extend(
-                read.into_iter()
-                    .map(|cell| crate::RowCell::Input { input, cell }),
-            );
-        }
-        all.sort();
-        all.dedup();
-        let (x, y, rest) = match all.as_slice() {
-            [x, y, rest @ ..] if rest.len() <= row.more.len() => (*x, *y, rest),
-            _ => {
-                return Err(BooleanError::RechartedRowUnstated {
-                    operand,
-                    relation: row.relation,
-                    faces: faces.to_vec(),
-                    what: "the faces that hold it and the row's other cells are more cells \
-                           than a row holds",
-                });
-            }
-        };
-        let mut more = [None; 3];
-        for (slot, &c) in more.iter_mut().zip(rest) {
-            *slot = Some(c);
-        }
-        (row.cells, row.more, row.relation) = ([x, y], more, crate::Relation::Meet);
+        (row.cells, row.more, row.relation) = spell([x, y], &through, row.relation, read)?;
     }
     Ok(())
-}
-
-/// Whether a `relation` decided with `first` its first cell is a point
-/// decided on a cell, which holds of every cell that holds that cell: a
-/// meeting, or a vertex on a carrier. Every other relation is decided of
-/// the cells' carriers or of their shapes, which a cell widened to the
-/// cells holding it does not keep.
-fn states_a_point(relation: crate::Relation, first: Cell) -> bool {
-    use crate::Relation;
-    match relation {
-        Relation::Meet => true,
-        Relation::OnCarrier => matches!(first, Cell::Vertex(_)),
-        Relation::SameOriented
-        | Relation::SameOpposite
-        | Relation::CommonFoot
-        | Relation::Tangent { .. }
-        | Relation::SurfaceTangent
-        | Relation::Coaxial
-        | Relation::SameRadius
-        | Relation::AxesMeet
-        | Relation::CoRuled => false,
-    }
 }
 
 /// What [`apply_cut_ins`] made in each operand, A's then B's.
@@ -8533,42 +7946,6 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
 mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-    /// **A re-cut's turn at the dual scalar keeps its derivative where its
-    /// two directions agree only in value**: the seam spin's `a = x̂` and
-    /// `b = (cos t, sin t, 0)` seeded at `t = 0`, about the origin at a
-    /// radius of one. The spin is the rotation about `z` by `t`, so the
-    /// turn moves `x̂` at `ŷ` and `ŷ` at `−x̂`. *Breaks if* the mint's
-    /// identity reads the value channel alone, which drops that derivative
-    /// from the re-charted sphere's ∂m/∂p.
-    #[test]
-    fn a_recut_turn_one_direction_only_in_value_keeps_its_derivative() {
-        use geom_core::{Dual, UnitVec3};
-        let band = geom_core::Band::linear(geom_core::Tol::witness()).expect("a band");
-        let d = |v: f64, dv: f64| Dual {
-            value: v,
-            deriv: dv,
-        };
-        let zero = d(0.0, 0.0);
-        let unit = |v| UnitVec3::new(v, super::RECUT_TURN, band).expect("a unit direction");
-        let a = unit(geom_core::Vec3::new(d(1.0, 0.0), zero, zero));
-        let b = unit(geom_core::Vec3::new(d(1.0, 0.0), d(0.0, 1.0), zero));
-        let m = super::recut_turn(
-            a,
-            b,
-            geom_core::Point3::new(zero, zero, zero),
-            geom_core::test_support::fixture_lever(d(1.0, 0.0)),
-            band,
-            geom_core::Tol::witness(),
-            crate::boolean::Operand::A,
-            crate::entity::FaceKey::default(),
-        )
-        .expect("the turn builds")
-        .linear();
-        let deriv = |v: geom_core::Vec3<Dual<f64>>| [v.x.deriv, v.y.deriv, v.z.deriv];
-        assert_eq!(deriv(m.c0), [0.0, 1.0, 0.0], "S'·x̂ is ŷ");
-        assert_eq!(deriv(m.c1), [-1.0, 0.0, 0.0], "S'·ŷ is −x̂");
-    }
-
     /// **The loop walk reads a carrier decided off its chart as torn, and
     /// one read in band at a pose as unread** (D3): only a definite miss
     /// is a contradiction the kernel holds; a read in band is never a
@@ -8632,117 +8009,6 @@ mod tests {
             assert_eq!(read.is_definite(), want == WalkRefusal::Torn, "{error:?}");
             assert_eq!(walk_refusal(&certify(error.clone())), want, "{error:?}");
         }
-    }
-
-    /// **A re-charted shell's cell reads as its input shell's faces**
-    /// ([`super::respell_through_cuts`]): a meeting on a turned edge, and
-    /// a vertex on a turned face, of a two-face shell are the meeting of
-    /// both faces; a carrier pair on a turned face of a one-face shell
-    /// keeps its relation on that face; a carrier pair on a two-face
-    /// shell, and a meeting of more cells than a row holds, refuse typed.
-    #[test]
-    fn a_re_charted_cell_reads_as_its_input_shells_faces() {
-        use super::{ChartCuts, Recharts, respell_through_cuts};
-        use crate::boolean::{BooleanError, Cell, Operand};
-        use crate::{Coincidence, Relation, RowCell};
-        let key = |n: u64| slotmap::KeyData::from_ffi((1u64 << 32) | n);
-        let face = |n| Cell::Face(key(n).into());
-        let (plane, one, two, three, turned_edge, turned_face) = (1, 2, 3, 4, 5, 6);
-        let a = |cell| RowCell::Input {
-            input: Operand::A,
-            cell,
-        };
-        let b = |cell| RowCell::Input {
-            input: Operand::B,
-            cell,
-        };
-        let row = |first: RowCell, second: RowCell, relation| Coincidence {
-            cells: [first, second],
-            more: [None; 3],
-            relation,
-            site: crate::DecisionSite::VertexFusion,
-            margin: geom_core::MarginDiag::value(0.0),
-            discharge: crate::Discharge::Numeric,
-        };
-        let turned = |faces: &[u64]| {
-            let mut made = Recharts::default();
-            made.add(
-                [Cell::Edge(key(turned_edge).into()), face(turned_face)].into(),
-                faces.iter().rev().map(|&n| key(n).into()).collect(),
-            );
-            made
-        };
-        let b_turned = |faces: &[u64]| [Recharts::default(), turned(faces)];
-        let cuts = [ChartCuts::default(), ChartCuts::default()];
-        let edge = b(Cell::Edge(key(turned_edge).into()));
-        let vertex = a(Cell::Vertex(key(plane).into()));
-        let mut rows = [
-            row(a(face(plane)), edge, Relation::Meet),
-            row(vertex, b(face(turned_face)), Relation::OnCarrier),
-            row(a(face(plane)), b(face(two)), Relation::SameOpposite),
-        ];
-        respell_through_cuts(&mut rows, &cuts, &b_turned(&[one, two])).unwrap();
-        assert_eq!(
-            rows.map(|r| (r.cells, r.more, r.relation)),
-            [
-                (
-                    [a(face(plane)), b(face(one))],
-                    [Some(b(face(two))), None, None],
-                    Relation::Meet
-                ),
-                (
-                    [vertex, b(face(one))],
-                    [Some(b(face(two))), None, None],
-                    Relation::Meet
-                ),
-                (
-                    [a(face(plane)), b(face(two))],
-                    [None; 3],
-                    Relation::SameOpposite
-                ),
-            ],
-            "a point on a two-face shell's turned cell meets both faces; a cell no shell \
-             turned is kept"
-        );
-        let mut whole = [row(
-            a(face(plane)),
-            b(face(turned_face)),
-            Relation::SameOpposite,
-        )];
-        respell_through_cuts(&mut whole, &cuts, &b_turned(&[one])).unwrap();
-        assert_eq!(
-            (whole[0].cells, whole[0].relation),
-            ([a(face(plane)), b(face(one))], Relation::SameOpposite),
-            "a one-face shell holds its turned face whole, so the pair keeps its relation"
-        );
-        for relation in [Relation::SameOpposite, Relation::OnCarrier] {
-            let mut split = [row(a(face(plane)), b(face(turned_face)), relation)];
-            let refused = respell_through_cuts(&mut split, &cuts, &b_turned(&[one, two]));
-            assert!(
-                matches!(
-                    &refused,
-                    Err(BooleanError::RechartedRowUnstated { operand: Operand::B, relation: r, faces, .. })
-                        if *r == relation && *faces == [key(one).into(), key(two).into()]
-                ),
-                "a {relation:?} face pair on a two-face shell's turned face refuses typed: \
-                 {refused:?}"
-            );
-        }
-        let mut crowded = [row(
-            a(Cell::Edge(key(turned_edge).into())),
-            edge,
-            Relation::Meet,
-        )];
-        let both = [turned(&[one, two, three]), turned(&[one, two, three])];
-        let refused = respell_through_cuts(&mut crowded, &cuts, &both);
-        assert!(
-            matches!(
-                &refused,
-                Err(BooleanError::RechartedRowUnstated { operand: Operand::A, faces, .. })
-                    if faces.len() == 3
-            ),
-            "six faces are more than a row holds: {refused:?}"
-        );
     }
 
     #[test]
@@ -10727,7 +9993,7 @@ mod torn_hop_rows {
         assert!(
             {
                 let (r, _) = sphere_extent_scan(&a, &b, &Evidence::NONE, band).unwrap();
-                r.rechart.is_empty() && r.cut_in.is_empty()
+                r.is_empty()
             },
             "two cubes carry no sphere"
         );
@@ -10744,7 +10010,7 @@ mod torn_hop_rows {
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
             |a| {
                 sphere_extent_scan(a, &b, &Evidence::NONE, band)
-                    .map(|(r, _)| r.rechart.len() + r.cut_in.len())
+                    .map(|(r, _)| r.len())
             },
         );
     }
@@ -10788,10 +10054,10 @@ mod torn_hop_rows {
     }
 }
 
-/// **Only an R-loop verdict cuts a trimmed sphere face** ([`cut_holder`]):
-/// a closed group re-charts, the face the certificate placed the circle
-/// inside takes the cut, and every other verdict refuses with its own
-/// reason rather than cutting the face it names.
+/// **Only an R-loop verdict cuts a sphere face** ([`cut_holder`]): the
+/// face the certificate placed the circle inside takes the cut, and every
+/// other verdict refuses with its own reason rather than cutting the face
+/// it names.
 #[cfg(test)]
 mod cut_holder_rows {
     use super::*;
@@ -10799,16 +10065,15 @@ mod cut_holder_rows {
     #[test]
     fn only_the_loop_verdict_cuts_its_face() {
         let face = FaceKey::default();
-        assert_eq!(cut_holder(None), Ok(None), "a closed group re-charts");
         assert_eq!(
-            cut_holder(Some((face, SectionRefusal::Loop))),
-            Ok(Some(face)),
+            cut_holder((face, SectionRefusal::Loop)),
+            Ok(face),
             "R-loop cuts the face it names"
         );
         use strum::IntoEnumIterator;
         for refusal in SectionRefusal::iter().filter(|r| *r != SectionRefusal::Loop) {
             assert_eq!(
-                cut_holder(Some((face, refusal))),
+                cut_holder((face, refusal)),
                 Err(refusal.what()),
                 "{refusal:?} refuses with its own reason"
             );

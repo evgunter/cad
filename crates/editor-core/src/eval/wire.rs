@@ -4342,12 +4342,6 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 j.b,
                 &j.body.naming,
                 &j.body.body,
-                [members[j.a].read, members[j.b].read],
-                // The member as held, not as the run read it: the senses
-                // chase the piece's edges through `b`'s topology and keys,
-                // which a move keeps (`topo::transform::map_isometry`),
-                // and compare no geometry with the result.
-                bodies[j.b].body(),
             )
             .map_err(NodeErrorKind::Naming)?;
     }
@@ -4424,8 +4418,6 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                     1,
                     naming,
                     &out.body,
-                    [members[0].read, members[1].read],
-                    member_body,
                 )
                 .map_err(NodeErrorKind::Naming)?;
         }

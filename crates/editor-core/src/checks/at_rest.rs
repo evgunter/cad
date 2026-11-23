@@ -2168,9 +2168,8 @@ fn could_quiet(
 }
 
 /// The connected solids of `result`, each with the aggregate faces its
-/// faces descend from; `None` when a face's lineage does not reach one
-/// face of either copy (a face a re-chart turned reaches every face of
-/// its shell).
+/// faces descend from; `None` when a face's lineage does not reach a
+/// face of either copy.
 fn components<T: topo::AtRestPolicy + Decide>(
     product: &Product<T>,
     a: usize,
@@ -2192,15 +2191,7 @@ fn components<T: topo::AtRestPolicy + Decide>(
                     topo::Operand::A => a,
                     topo::Operand::B => b,
                 };
-                // A face a re-chart turned stands for every face of its
-                // input shell, of which it may hold no area: as a source it
-                // would let `covered` and the quieting rule read faces the
-                // component does not hold, so the component is unnamed.
-                // Not pinned: no at-rest fixture turns a shell.
-                let [input] = source.inputs[..] else {
-                    return None;
-                };
-                sources.insert((copy, product.copies[copy].keys.face(input)?));
+                sources.insert((copy, product.copies[copy].keys.face(source.root)?));
             }
         }
         out.push(Component { solid, sources });
@@ -2313,12 +2304,10 @@ fn crossing(
         for f in kept.body.faces_of_solid(solid).unwrap_or_default() {
             let source = descent.source(f);
             if source.operand == topo::Operand::A
-                && let Some(&i) = source.inputs.iter().find_map(|&input| {
-                    result
-                        .body
-                        .solid_of_face(input)
-                        .and_then(|s| of_solid.get(&s))
-                })
+                && let Some(&i) = result
+                    .body
+                    .solid_of_face(source.root)
+                    .and_then(|s| of_solid.get(&s))
             {
                 out.insert(i);
                 named = true;
