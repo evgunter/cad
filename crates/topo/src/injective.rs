@@ -8558,7 +8558,7 @@ mod presentation_rows {
             let (b, v) = on_a_ruling(o, d, along, 0.006);
             let cyl = Psi::Carrier(Implicit::Cylinder {
                 o: Point3::origin() + o.map(iv0),
-                axis: geom_core::UnitVec3::checked(d.map(iv0)),
+                axis: geom_core::UnitVec3::chord(d.map(iv0)).0,
                 r: iv0(0.006),
             });
             let rate = cyl.rate(b, v);
@@ -8574,7 +8574,7 @@ mod presentation_rows {
             let (sin, cos) = (0.6, 0.8);
             let cone = Psi::Carrier(Implicit::Cone {
                 apex: Point3::origin() + o.map(iv0),
-                axis: geom_core::UnitVec3::checked(d.map(iv0)),
+                axis: geom_core::UnitVec3::chord(d.map(iv0)).0,
                 cos: iv0(cos),
                 sin: iv0(sin),
                 nappe: iv0(1.0),
@@ -10373,13 +10373,10 @@ mod presentation_rows {
                 Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
             ),
         };
-        let line = |d: Vec3<Interval>, far: u64, plus: bool| Rim {
+        let line = |d: geom_core::UnitVec3<Interval>, far: u64, plus: bool| Rim {
             stated: None,
             key: edge(far),
-            arc: Some((
-                Curve3::line(origin(), geom_core::UnitVec3::checked(d)),
-                (iv0(0.0), iv0(4.0)),
-            )),
+            arc: Some((Curve3::line(origin(), d), (iv0(0.0), iv0(4.0)))),
             ends: [vertex(1), vertex(far)],
             uses: vec![Use {
                 plus,
@@ -10389,8 +10386,8 @@ mod presentation_rows {
                 harmonic: None,
             }],
         };
-        let y = Vec3::new(iv0(0.0), iv0(1.0), iv0(0.0));
-        let x = Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0));
+        let y = geom_core::UnitVec3::<Interval>::exact_y();
+        let x = geom_core::UnitVec3::<Interval>::exact_x();
         // Forward: (0, 4) to the vertex at the origin to (4, 0), the
         // first quadrant on its left.
         let corner = |forward: bool, sense: bool| Boundary {
@@ -11441,8 +11438,7 @@ mod presentation_rows {
             corner: false,
             cache: Cache::default(),
         };
-        let (z, x, y) = (
-            Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+        let (x, y) = (
             Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
             Vec3::new(iv0(0.0), iv0(1.0), iv0(0.0)),
         );
@@ -11465,7 +11461,7 @@ mod presentation_rows {
         );
         let cylinder = Psi::Carrier(Implicit::Cylinder {
             o: origin(),
-            axis: geom_core::UnitVec3::checked(z),
+            axis: geom_core::UnitVec3::exact_z(),
             r: iv0(1.0),
         });
         assert_eq!(
@@ -14788,7 +14784,7 @@ mod presentation_rows {
     fn turning(w: f64) -> (Surface<Interval>, Surface<Interval>, Boundary, Boundary) {
         let s = Interval::from_bounds(-w, w);
         let d = Vec3::new(iv0(1.0), s, iv0(0.0));
-        let line = Curve3::line(origin(), geom_core::UnitVec3::checked(d));
+        let line = Curve3::line(origin(), geom_core::UnitVec3::chord(d).0);
         let face = |sense: bool| Boundary {
             sense,
             edges: vec![Rim {
@@ -18026,7 +18022,7 @@ mod rate_rows {
             }
             seen += 1;
             let v = g.vec(1.0);
-            for (what, psi) in carriers(geom_core::UnitVec3::checked(d().map(iv0)), o()) {
+            for (what, psi) in carriers(geom_core::UnitVec3::chord(d().map(iv0)).0, o()) {
                 let rate = psi.rate(pt(q), v.map(iv0));
                 let want = fd(&psi, q, v);
                 assert!(
@@ -18057,7 +18053,7 @@ mod rate_rows {
             let v = g.vec(1.0);
             for (hq, ha, hv) in [(1e-2, 0.0, 0.0), (1e-3, 1e-6, 1e-3), (1e-5, 1e-4, 1e-2)] {
                 let axis = vbox(d(), ha);
-                for ((what, psi), k) in carriers(geom_core::UnitVec3::checked(axis), o())
+                for ((what, psi), k) in carriers(geom_core::UnitVec3::chord(axis).0, o())
                     .into_iter()
                     .zip(0..)
                 {
@@ -18097,7 +18093,7 @@ mod rate_rows {
     /// cone's apex, no sign is read off the rate.**
     #[test]
     fn no_sign_is_read_off_a_rate_over_a_box_holding_the_axis() {
-        for (what, psi) in carriers(geom_core::UnitVec3::checked(d().map(iv0)), o())
+        for (what, psi) in carriers(geom_core::UnitVec3::chord(d().map(iv0)).0, o())
             .into_iter()
             .take(3)
         {
@@ -18309,7 +18305,7 @@ mod rate_rows {
                 continue;
             }
             seen += 1;
-            for (what, psi) in carriers(geom_core::UnitVec3::checked(d().map(iv0)), o()) {
+            for (what, psi) in carriers(geom_core::UnitVec3::chord(d().map(iv0)).0, o()) {
                 let e = 1e-6;
                 let grad = Vec3::new(
                     fd(&psi, q, Vec3::new(1.0, 0.0, 0.0)),
