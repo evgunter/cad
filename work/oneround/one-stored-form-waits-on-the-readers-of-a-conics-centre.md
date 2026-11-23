@@ -2,12 +2,13 @@
 id: one-stored-form-waits-on-the-readers-of-a-conics-centre
 kind: unit
 title: Every reader that rebuilds or restates a conic from its centre goes through the conic: the sites, and what each showed when the centre was a derived one
-status: dispatched
+status: review
 opened: 2026-11-21
 priority: P1
 cost: H
 refs: [the-section-table-admits-a-curve-on-its-resolution, a-conics-points-are-restated-in-centre-form-outside-its-evaluator, a-section-conic-is-anchored-at-a-general-point-of-its-arc]
 branch: oneround/conic-readers
+pr: 7510
 ---
 
 
