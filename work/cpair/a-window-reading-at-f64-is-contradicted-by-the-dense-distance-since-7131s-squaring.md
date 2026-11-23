@@ -39,4 +39,7 @@ So the draw's circle now carries a frame squared at `f64` (7131's `RigidMotion::
 The row is counted in ONEHOME's `pr-7131s-frame-cost-at-1e-12-is-larger-than-it-counted` (on PR 7402's branch until that merges) as one of the frame cost's two `f64`-squaring rows. Unlike the rest of that count, it is a finding and not a cost. It is not pinned; GREEN greens nothing until Ev rules on the count.
 (GREEN, U12)
 
+## Evidence (germ/co-surface-table, 2026-11-23)
+
+`geom-brep`'s `curve_pair::pose::window::oracle::each_window_reading_holds_on_a_dense_distance` is red on `origin/main` at default ε on seed `0x22eb45feecea31d9` (re-run on a main worktree, 2026-11-23, from PR 7431's review).
 - 2026-11-23 (GERM, PR 7553's fix pass): another seed. At `CAD_FUZZ_SEED=0xabba8ad2f01a1859`, ε 1e-12, `each_window_reading_holds_on_a_dense_distance` reads draw 34 at `f64` as `Recedes` on `(1.68e-8, 2.66e-8)` where the dense distance contradicts it. It does the same on main `9eb483e0c7`.

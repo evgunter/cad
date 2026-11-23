@@ -27,7 +27,7 @@ use editor_core::mate::{
     spin_as_chain_turn, turn_onto,
 };
 use editor_core::{Coord, Formula, Orientation, SlideAxes};
-use pncad::document::pose::{PoseValue, RoleRead};
+use pncad::document::pose::PoseValue;
 use pncad::document::{
     ConstraintId, Doc, DocEdit, Evaluation, Frame, Mate, MateSide, Node, OperandSlot, Placed,
     ProfileProgram, RecipeNodeId, Recording,
@@ -183,7 +183,7 @@ pub(crate) fn loaded_chain_turn<R>(
                 constraint: id,
                 side,
             },
-            RoleRead::plain(var),
+            var,
             tol,
         )
         .ok()
@@ -262,7 +262,7 @@ pub(crate) fn draft_snap(
                 constraint: id,
                 side,
             },
-            RoleRead::plain(var),
+            var,
             tol,
         )
         .ok()
