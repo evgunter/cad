@@ -267,11 +267,7 @@ impl<T: Real> Arc2<T> {
     /// offset makes.
     pub fn on_turned_radial(self, radial: Vec2<T>) -> Point2<T> {
         let (sin, cos) = (self.sweep.sin(), self.sweep.cos());
-        self.centre
-            + Vec2::new(
-                radial.x * cos - radial.y * sin,
-                radial.x * sin + radial.y * cos,
-            ) * self.radius
+        self.centre + Vec2::new(u.x * cos - u.y * sin, u.x * sin + u.y * cos) * self.radius
     }
 
     /// **Registers a tangency at a foot** ([`Real::register_equal`]),
@@ -407,33 +403,13 @@ impl<T: Real> Arc2<T> {
         b: Point2<T>,
         [start, end]: [Vec2<T>; 2],
         tol: Tol,
-    ) -> [(&'static str, SymRegistration); 8] {
+    ) -> [(&'static str, SymRegistration); 4] {
         let (from, to) = (self.on_radial(start), self.on_radial(end));
-        let (turned, back) = (
-            self.on_turned_radial(start),
-            self.reversed().on_turned_radial(end),
-        );
         [
             ("the start radial's x", from.x.register_equal(a.x, tol)),
             ("the start radial's y", from.y.register_equal(a.y, tol)),
             ("the end radial's x", to.x.register_equal(b.x, tol)),
             ("the end radial's y", to.y.register_equal(b.y, tol)),
-            (
-                "the turned start radial's x",
-                turned.x.register_equal(b.x, tol),
-            ),
-            (
-                "the turned start radial's y",
-                turned.y.register_equal(b.y, tol),
-            ),
-            (
-                "the turned-back end radial's x",
-                back.x.register_equal(a.x, tol),
-            ),
-            (
-                "the turned-back end radial's y",
-                back.y.register_equal(a.y, tol),
-            ),
         ]
     }
 }
@@ -616,9 +592,8 @@ mod tests {
     }
 
     /// **The radial facts, and a planted lie, at the exact witness.**
-    /// The quarter circle's radials (1, 0) and (0, 1) meet, as do they
-    /// turned by the sweep and back; swapped, each is refused in both
-    /// components.
+    /// The quarter circle's radials (1, 0) and (0, 1) meet; swapped,
+    /// each is refused in both components.
     #[test]
     fn register_radials_refuses_a_planted_lie_at_the_exact_witness() {
         let (arc, a, b) = quarter_circle::<Interval>();
@@ -632,12 +607,12 @@ mod tests {
         };
         assert_eq!(
             answers([x, y]),
-            [SymRegistration::Witnessed; 8],
+            [SymRegistration::Witnessed; 4],
             "the true radials"
         );
         assert_eq!(
             answers([y, x]),
-            [SymRegistration::Contradicted; 8],
+            [SymRegistration::Contradicted; 4],
             "the radials swapped"
         );
     }

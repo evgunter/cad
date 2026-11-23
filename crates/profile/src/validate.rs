@@ -900,19 +900,10 @@ impl core::fmt::Display for LoopRole {
 /// with a director cannot be written. Each direction is the one the
 /// segment's construction made, carried verbatim, or for a segment that
 /// recorded none (or an arc read as a line) decided once, at validation,
-/// from its vertices. A consumer that needs a direction reads it here.
-///
-/// A table's direction is checked by one reading at the band, the miss
-/// `‖o + ℓ·d − p‖` (`o` the start or centre, `p` the vertex, `ℓ` the
-/// chord or radius), and that is what "unit" means here: the miss
-/// bounds both the direction's turn and its stretch, since
-/// `(|d| − 1)·ℓ ≤ ‖o + ℓ·d − p‖` by the triangle inequality, which is
-/// check 1's measure for a unit datum at arm ℓ
-/// (`geom::convention::frame_margins`). So a radial accepted here is
-/// one check 1 accepts as a `u_ref` at that radius. What it does not
-/// promise: check 1 length-reads no plane or line, so a director stored
-/// as a plane's normal is a unit only at its chord's lever. An accepted
-/// direction is stored as written, never normalised or re-minted.
+/// from its vertices. A table's are checked against its vertices by one
+/// reading at the band, which is what "unit" means for them
+/// ([`crate::SegmentDirections`]); an accepted direction is stored as written,
+/// never normalised or re-minted. The sweep's traversal carries them.
 #[derive(Debug, Clone, Copy)]
 pub enum SegmentKind<T: Real> {
     /// A straight segment on its chord.
@@ -940,7 +931,7 @@ impl<T: Real> SegmentKind<T> {
     /// component (an arc's carrier through [`Arc2::map`]), the turn
     /// carried, nothing derived.
     #[must_use]
-    pub fn map<U: Real>(self, f: impl Fn(T) -> U) -> SegmentKind<U> {
+    pub(crate) fn map<U: Real>(self, f: impl Fn(T) -> U) -> SegmentKind<U> {
         match self {
             Self::Line { director } => SegmentKind::Line {
                 director: director.map(&f),
@@ -2556,15 +2547,16 @@ fn canonicalize_loop<T: Decide>(
                 None => ProfileError::escalated(EscalationSite::Segment(at), source),
             })
         })?;
-        let kind = seg::validated_kind(&s, made.get(k).copied().flatten());
         // The value-channel check the pinned permutation earns: the
         // segments the recorded rotation and reversal produce must
         // classify HERE the way they classified there. A line where an
         // arc was recorded, or an arc turning the other way, is a
-        // structure the lane is watching change under it.
-        let shape = match kind {
-            SegmentKind::Line { .. } => SegmentShape::Line,
-            SegmentKind::Arc { turn, .. } => SegmentShape::Arc { turn },
+        // structure the lane is watching change under it. Read off the
+        // classification before the directions are minted, so a flipped
+        // shape refuses without the mint's readings.
+        let shape = match &s.kind {
+            seg::SegKind::Line => SegmentShape::Line,
+            seg::SegKind::Arc(g) => SegmentShape::Arc { turn: g.turn },
         };
         if let Some(rec) = recorded
             && rec.segments.get(k) != Some(&shape)
@@ -2582,6 +2574,7 @@ fn canonicalize_loop<T: Decide>(
                 None => StructureRefusal::shape(rec.segments.len(), n),
             }));
         }
+        let kind = seg::validated_kind(&s, made.get(k).copied().flatten());
         shapes.push(shape);
         segments.push(ValidatedSegment {
             start: s.a,

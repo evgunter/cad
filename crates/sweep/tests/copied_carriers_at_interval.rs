@@ -4,7 +4,7 @@
 //! into the lane scalar verbatim. Over the reals such a carrier's rim at
 //! its start is the radius only up to the f64 rounding it was built
 //! with, so the sweep may state nothing about it past rigidity
-//! (`sweep::swept::register_rigidity`, `register_placed_carrier_ends`):
+//! (`sweep::swept::register_rigidity`, `register_placed_carrier_end`):
 //! at `Interval` the exact witness would separate any fact that needs
 //! the start on the carrier, and a `Contradicted` aborts live in
 //! release. Each row here extrudes a copied carrier at `Interval` and

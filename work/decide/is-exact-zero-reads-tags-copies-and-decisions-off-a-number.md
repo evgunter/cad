@@ -95,3 +95,12 @@ The family's bulge legs are not this: they pass their decided winding.
 The leg was not made to decide `path_arc_bulge`, since refusing an
 authored bulge in band at `f64` changes what builds; the line-or-arc
 choice and this sign are one question, this row's.
+
+**The second door, closed (DOCTAIL lane, 2026-11-22)**, by `doctail/the-least-turn-and-aligned-read-exactness-off-the-nominal-at-sym`:
+- `Real::is_exact_zero_in_every_channel` is removed.
+- The least turn's identity shortcut is gone: the Rodrigues arm is `v + k × v + k × (k × v)/(1 + c)`, so a pair that is one direction turns by the identity through `k = 0`.
+- `Chart::charted` reads no identity.
+- `UnitVec3::is_exactly` is `f64`-only; its one caller is the sweep skin's still step, at `f64`. That step still gates a step on bit-equality, which this row's class 3 keeps.
+- `mate::turn::zero` reads `SolveScalar::zero_everywhere`, which answers false at `Sym`. `SolveScalar::exactly_zero` answers false at `Sym`.
+
+The `is_exact_zero` callers listed above (classes 1–3) are unchanged.

@@ -1602,4 +1602,52 @@ fn each_arc_verbs_stored_arc_is_exact_over_a_box() {
             assert!(arcs > 0, "{verb} stores an arc");
         });
     }
+
+/// **The value channel keeps each arc's radial at the end it was
+/// recorded at.** A quarter arc's two radials differ, so a channel that
+/// handed the end radial back as the start one reads differently from
+/// the `f64` form it was lifted from.
+#[test]
+fn the_value_channel_keeps_an_arcs_radials_at_their_own_ends() {
+    use profile::SegmentKind;
+    fn radials<T: geom_core::Real>(kind: SegmentKind<T>) -> [Vec2<T>; 2] {
+        match kind {
+            SegmentKind::Arc { radials, .. } => radials,
+            SegmentKind::Line { .. } => panic!("an arc"),
+        }
+    }
+    let q = (std::f64::consts::PI / 8.0).tan();
+    let vp = Profile::new(
+        SketchPlane::<f64>::xy(),
+        vec![profile::test_support::bulge_loop(vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(2.0, 0.0), q),
+            (Point2::new(1.0, 1.0), q),
+        ])],
+    )
+    .validate(geom_core::Tol::witness())
+    .expect("the D validates");
+    let channel = vp
+        .clone()
+        .lift_onto(SketchPlane::<Interval>::xy())
+        .expect("the lift")
+        .value_channel()
+        .expect("a point channel");
+    let bits = |v: Vec2<f64>| (v.x.to_bits(), v.y.to_bits());
+    let mut arcs = 0;
+    for (s, c) in vp.loops()[0]
+        .segments()
+        .iter()
+        .zip(channel.loops()[0].segments())
+    {
+        if matches!(s.kind, SegmentKind::Line { .. }) {
+            continue;
+        }
+        arcs += 1;
+        let ([rs, re], [cs, ce]) = (radials(s.kind), radials(c.kind));
+        assert_ne!(bits(rs), bits(re), "a quarter arc's radials differ");
+        assert_eq!(bits(cs), bits(rs), "the channel's start radial");
+        assert_eq!(bits(ce), bits(re), "the channel's end radial");
+    }
+    assert_eq!(arcs, 2, "the D has two arcs");
 }

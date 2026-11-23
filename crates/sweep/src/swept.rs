@@ -27,7 +27,10 @@
 //! The **swept-traversal builder** is not in that list: it is here.
 //! [`swept_segments`] is the one place a validated loop is relabelled
 //! into traversal order, forward or reversed, and [`SweptSeg`] the
-//! record it fills. Each verb still decides *whether* to reverse for
+//! record it fills, its kind carrying the segment's recorded directions
+//! through the relabelling ([`Traversed`]). No door reads them: each
+//! spells a direction from the segment's points ([`sketch_vector`] says
+//! why). Each verb still decides *whether* to reverse for
 //! its own reason — extrude for `w·n < 0`, revolve for θ > 0, loft
 //! never — but the relabelling is one rule with one implementation.
 //! Extrude needs one field more than the record carries, and takes it
@@ -171,7 +174,7 @@ impl<T: Real> Placing<T> {
     /// **The station's frame turned onto a sketch direction**: the
     /// placing's own frame turned about its normal onto the direction
     /// of the sketch vector `d` ([`RigidMotion::spun_toward`], which
-    /// normalizes `d` once, as [`sketch_direction`] does), then carried
+    /// normalizes `d` once, as [`sketch_chord`] does), then carried
     /// by the turn. Its `u` is [`Self::direction`] of that sketch
     /// direction, its `w` the station's normal, and nothing is decided
     /// or re-squared.
@@ -330,9 +333,10 @@ pub(crate) fn sliver_text(
 }
 
 /// A carrier class in SWEPT traversal order: the validated
-/// [`SegmentKind`] as a traversal carries it, its sweep and turn the
-/// traversal's — negated and flipped where the traversal runs the
-/// canonical segment backwards.
+/// [`SegmentKind`] as a traversal carries it, its sweep, turn and
+/// recorded directions the traversal's — the sweep negated, the turn
+/// flipped, a director negated and an arc's radials swapped where the
+/// traversal runs the canonical segment backwards.
 ///
 /// A type of its own, not the canonical kind: a validated segment's
 /// kind is oriented by the profile's canonical winding, and a body that
@@ -376,7 +380,14 @@ impl<T: Real> Traversed<T> {
     /// This traversal run the other way: the reversal involution
     /// [`swept_segments`] applies to a canonical kind, applied to a
     /// traversed one (an arc's sweep negated and its turn flipped, the
-    /// carrier kept).
+    /// carrier kept). On a collapsed run ([`Self::continued`],
+    /// `revolve::full` reverses one) it swaps what the run carries: the
+    /// reversed run's start radial is the last member's end radial, so
+    /// it misses the run's carrier at its start by up to the cosurface
+    /// margin, and a line run's director is the first member's,
+    /// negated. (`profile::ProfileLoop::reversed` reverses segment by
+    /// segment, never a run, so its directions are each segment's own,
+    /// negated or swapped exactly.)
     pub(crate) fn reversed(self) -> Self {
         Self::backward(self.0)
     }
@@ -422,9 +433,15 @@ impl<T: Real> Traversed<T> {
     /// stored last endpoint. The end the run's carrier implies
     /// therefore differs from that endpoint by at most the margin plus
     /// rounding; the collapsed segment keeps the stored endpoint, and
-    /// certification meters the carrier against it. A pair of
+    /// certification meters the carrier against it. The same holds of
+    /// the end radial: it is `next`'s, about `next`'s centre, so
+    /// `centre + radius·end` with the run's own centre and radius misses
+    /// the stored last endpoint by up to the cosurface margin. A pair of
     /// different kinds is no run: the cosurface verdict never joins
-    /// one.
+    /// one. A line run's carried director is its first member's, not the
+    /// run's chord `a_first → b_last` the doors read: the cosurface
+    /// verdict admits a near-collinear pair within the band, so the two
+    /// can differ by about margin/ℓ.
     pub(crate) fn continued(self, next: Self) -> Self {
         Self(match (self.0, next.0) {
             (line @ SegmentKind::Line { .. }, SegmentKind::Line { .. }) => line,
@@ -459,7 +476,8 @@ impl<T: Real> Traversed<T> {
 
 /// The sketch-level chord data this module's lowering reads from a
 /// swept segment: endpoints in swept traversal order, and the carrier
-/// class (with an arc's carrier and sweep) in that order.
+/// class (with an arc's carrier and sweep, and the directions the kind
+/// records) in that order.
 ///
 /// It is a trait and not just [`SweptSeg`] because a verb may carry
 /// more than a swept traversal does — extrude's record adds a
@@ -712,7 +730,7 @@ pub(crate) fn sketch_vector<T: Real, S: SweptChord<T>>(seg: &S) -> Vec2<T> {
 }
 
 /// The right normal of [`sketch_vector`], `(y, 0 − x)`: normalized, it is
-/// [`Unit2::right`] of the normalized sketch direction, component for
+/// [`Unit2::right`] of the normalized sketch vector, component for
 /// component (negation and division commute exactly, and `0 − x` over
 /// `n` is `0 − x/n`, signed zeros included).
 pub(crate) fn sketch_right_vector<T: Real, S: SweptChord<T>>(seg: &S) -> Vec2<T> {
@@ -722,7 +740,8 @@ pub(crate) fn sketch_right_vector<T: Real, S: SweptChord<T>>(seg: &S) -> Vec2<T>
 
 /// A segment's chord `b − a` as its unit direction and its own length,
 /// read once (`Vec2::direction_and_length`): a line's director and the
-/// span its carrier runs.
+/// span its carrier runs, from its points, as [`sketch_vector`] reads
+/// them.
 pub(crate) fn sketch_chord<T: Real, S: SweptChord<T>>(seg: &S) -> (Unit2<T>, T) {
     let (d, length) = (seg.b() - seg.a()).direction_and_length();
     (Unit2(d), length)
@@ -808,9 +827,9 @@ pub(crate) fn turn_negates(turn: Sign) -> bool {
 /// escalate.
 ///
 /// **What it touches: nothing.** `Curve3::circle_at` over the spec's
-/// own carrier is the node the certifier evaluates; the placed sketch
-/// points are built here and thrown away.
-fn register_placed_carrier_ends<T: Real>(
+/// own carrier and span is the node the certifier evaluates; the
+/// placed carrier end is built here and thrown away.
+fn register_placed_carrier_end<T: Real>(
     carrier: &Curve3<T>,
     param_end: T,
     place: Placing<T>,
@@ -1574,7 +1593,10 @@ mod tests {
 
     /// A line from `a` to `b` with the director validation mints from
     /// its points where no axis is proven: the chord over its length.
-    fn line_from<T: Real>(a: Point2<T>, b: Point2<T>) -> SegmentKind<T> {
+    /// A second spelling of `profile`'s mint (`seg::mint_director`),
+    /// because that one is private to `profile` and this crate cannot
+    /// call it; at `f64` on the rows that use it, the two agree.
+    pub(super) fn line_from<T: Real>(a: Point2<T>, b: Point2<T>) -> SegmentKind<T> {
         SegmentKind::Line {
             director: (b - a) / (b - a).norm(),
         }
@@ -1582,8 +1604,14 @@ mod tests {
 
     /// An arc from `a` to `b` with the radials validation mints from its
     /// points where no axis is proven: each vertex's offset over the
-    /// stored radius.
-    fn arc_from<T: Real>(arc: Arc2<T>, turn: Sign, a: Point2<T>, b: Point2<T>) -> SegmentKind<T> {
+    /// stored radius. A second spelling of `profile`'s private mint, for
+    /// the reason [`line_from`] gives.
+    pub(super) fn arc_from<T: Real>(
+        arc: Arc2<T>,
+        turn: Sign,
+        a: Point2<T>,
+        b: Point2<T>,
+    ) -> SegmentKind<T> {
         SegmentKind::Arc {
             arc,
             turn,
@@ -1893,46 +1921,37 @@ mod tests {
         );
     }
 
-    /// **The placed line's far end folds to the far vertex**, with
-    /// nothing registered. Two directors, each under a quarter turn and a
-    /// translation, `p` a box at `Sym<Interval>`, the carrier's end
-    /// `q_from + L·d·span` against the far vertex `place(b)`:
-    /// - an axis the profile proved, `(1, 0)` from `(0.3, 0.7)` to
-    ///   `(p, 0.7)`: every component decides `Zero` with no rule at all
-    ///   (`SymRules::none`), none of them numeric;
-    /// - the chord's own quotient, `(0.3, 0.7)` to `(2.9, p)`: `Zero`
-    ///   under the shipped rules, none numeric, through
-    ///   `sqrt(X)² = X` ([`line_span`]); with no rule the quotient's
-    ///   square stays an atom, so the plain tier proves nothing there.
-    ///
-    /// A span of `‖b − a‖` fails the first (`√((p − 0.3)²)` is no
-    /// polynomial against `p − 0.3`), so the row goes red on it.
+    /// **The placed line's far end folds to the far vertex in the plain
+    /// tier**, so the line arm registers nothing where the arc arm
+    /// registers its carrier end. This row records why no registration is
+    /// owed; it holds for a direction read off the placed vertices too,
+    /// so it guards no spelling (the span row,
+    /// `a_placed_lines_span_is_its_segments_length_and_it_ends_at_the_far_vertex`,
+    /// does). A segment from `(0.3, 0.7)` to
+    /// `(2.9, p)`, `p` a box at `Sym<Interval>`, under a quarter turn and
+    /// a translation: the carrier's end `q_from + L·dir·span` against the
+    /// far vertex `place(b)` decides `Zero` on every component with no
+    /// rule at all (`SymRules::none`), as many decisions as under the
+    /// shipped rules, and none of them numeric.
     #[test]
-    fn the_placed_lines_far_end_folds_to_the_far_vertex() {
+    fn the_placed_lines_far_end_folds_to_the_far_vertex_in_the_plain_tier() {
         use geom_core::sym::with_session_rules;
         use geom_core::{ParamSymbol, Sym};
         type S = Sym<Interval>;
         let tol = Tol::witness();
         let band = Band::linear(tol).expect("the witness band");
-        let readings = |rules, axis: bool| {
+        let readings = |rules| {
             with_session_rules(budget(), rules, || {
                 let lit = |x: f64| <S as Real>::from_f64(x);
                 let p = S::param(
                     ParamSymbol::new(test_utils::symbol_id("p")),
-                    Interval::from_bounds(2.85, 2.95),
+                    Interval::from_bounds(0.45, 0.55),
                 );
-                let a = Point2::new(lit(0.3), lit(0.7));
-                let (b, kind) = if axis {
-                    let director = Vec2::new(lit(1.0), lit(0.0));
-                    (Point2::new(p, lit(0.7)), SegmentKind::Line { director })
-                } else {
-                    let b = Point2::new(lit(2.9), p - lit(2.4));
-                    (b, line_from(a, b))
-                };
+                let (a, b) = (Point2::new(lit(0.3), lit(0.7)), Point2::new(lit(2.9), p));
                 let seg = SweptSeg {
                     a,
                     b,
-                    kind: Traversed::forward(kind),
+                    kind: Traversed::forward(line_from(a, b)),
                     canonical_vertex: 0,
                     canonical_segment: 0,
                 };
@@ -1952,22 +1971,17 @@ mod tests {
                 ]
             })
         };
-        let (end, plain) = readings(geom_core::SymRules::none(), true);
+        let (end, plain) = readings(geom_core::SymRules::none());
+        assert_eq!(end, [Some(Sign::Zero); 3], "the far end, plain: {plain:?}");
+        assert_eq!(plain.numeric, 0, "no numeric decision: {plain:?}");
+        let (shipped_end, shipped) = readings(geom_core::SymRules::shipped());
         assert_eq!(
-            end,
-            [Some(Sign::Zero); 3],
-            "the axis's far end, plain: {plain:?}"
-        );
-        assert_eq!(plain.numeric, 0, "the axis: no numeric decision: {plain:?}");
-        let (end, shipped) = readings(geom_core::SymRules::shipped(), false);
-        assert_eq!(
-            end,
-            [Some(Sign::Zero); 3],
-            "the quotient's far end: {shipped:?}"
+            shipped_end, end,
+            "the shipped rules read the same: {shipped:?}"
         );
         assert_eq!(
-            shipped.numeric, 0,
-            "the quotient: no numeric decision: {shipped:?}"
+            shipped.symbolic, plain.symbolic,
+            "no rule is needed: {shipped:?} {plain:?}"
         );
     }
 
@@ -2110,7 +2124,7 @@ mod tests {
     /// carrier ends at the placed far vertex.** A segment from `(0.3, 0.7)`
     /// to `(2.9, −1.4)` under a rigid placement that turns the sketch
     /// plane about a tilted axis and moves it off the origin: `param_end`
-    /// is `‖b − a‖` to rounding, the carrier's direction is unit within
+    /// is `‖b − a‖` bit for bit, the carrier's direction is unit within
     /// rounding, and the carrier at `param_end` lies within a few ulps of
     /// `q_to`, the placed far vertex. A span that disagrees with the
     /// placed length (twice it, say) leaves the carrier's end that far
@@ -2149,11 +2163,10 @@ mod tests {
         let Curve3::Line(line) = spec.carrier else {
             panic!("a line places onto a line carrier");
         };
-        let length = a.distance(b);
-        assert!(
-            (spec.param_end - length).abs() <= 4.0 * f64::EPSILON * length,
-            "the span {} is the segment's own length {length} to rounding",
-            spec.param_end
+        assert_eq!(
+            spec.param_end.to_bits(),
+            a.distance(b).to_bits(),
+            "the span is the segment's own length"
         );
         let scale = q_to.x.abs().max(q_to.y.abs()).max(q_to.z.abs());
         assert!(
@@ -2330,5 +2343,165 @@ pub(crate) mod undecided_fixtures {
     /// The sentence `subject` gives each of [`readings`] under `endings`.
     pub(crate) fn expected(subject: &str, endings: [&str; 3]) -> [String; 3] {
         [0, 1, 2].map(|k| format!("{subject} is undecided: {}{}", PAYLOADS[k], endings[k]))
+    }
+}
+
+/// The directions a traversal carries agree with the ends it carries,
+/// through every relabelling — forward, backward and a collapsed run —
+/// so a mutant on `Traversed::backward` or `Traversed::continued` reds
+/// here though no door reads them.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod carried_directions {
+    use super::tests::{arc_from, line_from};
+    use super::*;
+    use geom_core::Tol;
+    use profile::{Profile, SketchPlane, test_support::bulge_loop};
+
+    /// Every carried direction against the ends it is carried with: a
+    /// line's director is the chord's unit, an arc's radials are the
+    /// centre-to-end units over its radius, at `f64` to 1e-12.
+    fn agree(what: &str, seg: &SweptSeg<f64>) {
+        let close = |u: Vec2<f64>, v: Vec2<f64>| (u - v).norm() < 1e-12;
+        match seg.kind.get() {
+            SegmentKind::Line { director } => {
+                let SegmentKind::Line { director: chord } = line_from(seg.a, seg.b) else {
+                    unreachable!("a line's own kind")
+                };
+                assert!(
+                    close(director, chord),
+                    "{what}: the director {director:?} is not {:?}→{:?}'s unit",
+                    seg.a,
+                    seg.b
+                );
+            }
+            SegmentKind::Arc {
+                arc,
+                turn,
+                radials: [rs, re],
+            } => {
+                let SegmentKind::Arc {
+                    radials: [at_a, at_b],
+                    ..
+                } = arc_from(arc, turn, seg.a, seg.b)
+                else {
+                    unreachable!("an arc's own kind")
+                };
+                assert!(
+                    close(rs, at_a),
+                    "{what}: the start radial {rs:?} is not at the start {:?}",
+                    seg.a
+                );
+                assert!(
+                    close(re, at_b),
+                    "{what}: the end radial {re:?} is not at the end {:?}",
+                    seg.b
+                );
+            }
+        }
+    }
+
+    /// A "D": two collinear lines along the bottom, then the upper half
+    /// of the unit circle about (1, 0) as two quarter arcs, so each kind
+    /// has a two-member run, with a corner between the runs.
+    fn d_loop() -> profile::ValidatedLoop<f64> {
+        let q = (std::f64::consts::PI / 8.0).tan();
+        Profile::new(
+            SketchPlane::<f64>::xy(),
+            vec![bulge_loop(vec![
+                (Point2::new(0.0, 0.0), 0.0),
+                (Point2::new(1.0, 0.0), 0.0),
+                (Point2::new(2.0, 0.0), q),
+                (Point2::new(1.0, 1.0), q),
+            ])],
+        )
+        .validate(Tol::witness())
+        .expect("the D validates")
+        .loops()[0]
+            .clone()
+    }
+
+    #[test]
+    fn a_traversal_carries_directions_that_agree_with_its_ends_forward_backward_and_collapsed() {
+        let lp = d_loop();
+        assert_eq!(lp.segments().len(), 4, "the D keeps its four segments");
+        for reverse in [false, true] {
+            let segs = swept_segments(&lp, reverse);
+            for (j, s) in segs.iter().enumerate() {
+                agree(&format!("reverse {reverse}, segment {j}"), s);
+            }
+            // The two runs: a segment continues the one before it where
+            // both are of one kind (the D's runs are exact, so no
+            // cosurface verdict is needed to say so).
+            let n = segs.len();
+            let pair: Vec<bool> = (0..n)
+                .map(|j| {
+                    matches!(
+                        (segs[(j + n - 1) % n].kind.get(), segs[j].kind.get()),
+                        (SegmentKind::Line { .. }, SegmentKind::Line { .. })
+                            | (SegmentKind::Arc { .. }, SegmentKind::Arc { .. })
+                    )
+                })
+                .collect();
+            let collapsed = collapse_runs(&segs, &joins(&segs, &pair), |s, next| s.continued(next));
+            assert_eq!(collapsed.segs.len(), 2, "reverse {reverse}: two runs");
+            for (j, s) in collapsed.segs.iter().enumerate() {
+                agree(&format!("reverse {reverse}, run {j}"), s);
+            }
+        }
+    }
+
+    /// **A collapsed line run carries its FIRST member's director**, not
+    /// the second's: a run joined over two lines whose directors differ
+    /// in bits (a bottom edge bent by 1e-3 at its midpoint) keeps the
+    /// first one bit for bit, and so does that run reversed, negated.
+    #[test]
+    fn a_collapsed_line_run_carries_its_first_members_director() {
+        let lp = Profile::new(
+            SketchPlane::<f64>::xy(),
+            vec![bulge_loop(vec![
+                (Point2::new(0.0, 0.0), 0.0),
+                (Point2::new(1.0, 0.0), 0.0),
+                (Point2::new(2.0, 1e-3), 0.0),
+                (Point2::new(2.0, 1.0), 0.0),
+                (Point2::new(0.0, 1.0), 0.0),
+            ])],
+        )
+        .validate(Tol::witness())
+        .expect("the bent rectangle validates")
+        .loops()[0]
+            .clone();
+        let segs = swept_segments(&lp, false);
+        let director = |s: &SweptSeg<f64>| match s.kind.get() {
+            SegmentKind::Line { director } => director,
+            SegmentKind::Arc { .. } => panic!("the loop is lines"),
+        };
+        let bits = |v: Vec2<f64>| (v.x.to_bits(), v.y.to_bits());
+        let first = segs
+            .iter()
+            .position(|s| s.a.x == 0.0 && s.a.y == 0.0)
+            .expect("the bottom edge's first member");
+        let second = (first + 1) % segs.len();
+        let (d0, d1) = (director(&segs[first]), director(&segs[second]));
+        assert_ne!(bits(d0), bits(d1), "the two members' directors differ");
+        // Join exactly the bent bottom edge, as a cosurface verdict
+        // within the band would.
+        let pair: Vec<bool> = (0..segs.len()).map(|j| j == second).collect();
+        let collapsed = collapse_runs(&segs, &joins(&segs, &pair), |s, next| s.continued(next));
+        let run = collapsed
+            .segs
+            .iter()
+            .find(|s| s.a.x == 0.0 && s.a.y == 0.0)
+            .expect("the joined run");
+        assert_eq!(
+            bits(director(run)),
+            bits(d0),
+            "the run carries the first member's director"
+        );
+        assert_eq!(
+            bits(director(&(*run).reversed(run.canonical_vertex))),
+            bits(-d0),
+            "the run reversed carries it negated"
+        );
     }
 }

@@ -453,7 +453,7 @@ pub enum ExtrudeError {
     },
     /// An Euler operator or attachment gate refused — including every
     /// D4 ¶2 certification failure, which arrives as
-    /// [`EulerOpError::Certification`] carrying the certification
+    /// [`EulerOpError::DescriptionUncertified`] carrying the certification
     /// report.
     Op {
         /// The operator-layer failure.
@@ -773,7 +773,7 @@ struct LoopBase {
 /// extrusion vectors, sliver dihedrals at joins, escalated cosurface
 /// decisions, and every operator/certification
 /// refusal (D4 ¶2 reports surface inside
-/// [`EulerOpError::Certification`]).
+/// [`EulerOpError::DescriptionUncertified`]).
 ///
 /// # Panics
 ///
@@ -1406,7 +1406,6 @@ fn side_surface<T: Real>(
         let key = face_surface_key(body, f);
         return FaceSurface::Shared { key, sense };
     }
-    let d = sketch_direction(&segs[j]);
     let surface = match segs[j].chord.kind.get() {
         // A line wall's origin is the middle of the wall, from the
         // construction alone: the placed start, half the segment's own
@@ -1423,9 +1422,9 @@ fn side_surface<T: Real>(
         // normal is a cross product normalized, which no frame's axis
         // is, and the wall is squared from its two directions.
         SegmentKind::Line { .. } => {
+            let (d, length) = sketch_chord(&segs[j]);
             let along = place.direction(d);
             let half = T::from_f64(0.5);
-            let length = sketch_chord(&segs[j]).1;
             let origin = qs[j] + along.get() * (length * half) + sweep.w * half;
             let frame = match course {
                 // Along the normal the frame is turned onto the segment's
