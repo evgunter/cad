@@ -1,0 +1,35 @@
+== C6: a unit circle across the ellipse through its point, at Interval (truth: they meet)
+a=1e4 theta=0.5 arc-held: f64 Ok, 1 meeting(s), shared false | Interval refused: Unsettled(Meter { row: "curve_pair_pose_basin" })
+a=1e4 theta=0.5 centre-held: f64 Ok, 1 meeting(s), shared false | Interval refused: Unsettled(Meter { row: "curve_pair_pose_basin" })
+a=1e6 theta=2 arc-held: f64 Ok, 0 meeting(s), shared false | Interval refused: Unsettled(Meter { row: "curve_pair_pose_basin" })
+a=1e6 theta=2 centre-held: f64 Ok, 0 meeting(s), shared false | Interval refused: Unsettled(Meter { row: "curve_pair_pose_basin" })
+a=1e2 theta=0.5 arc-held: f64 Ok, 1 meeting(s), shared false | Interval Ok, 1 meeting(s), shared false
+a=1e2 theta=0.5 centre-held: f64 Ok, 1 meeting(s), shared false | Interval refused: Unsettled(Meter { row: "curve_pair_pose_basin" })
+a=1e2 theta=2 arc-held: f64 Ok, 1 meeting(s), shared false | Interval refused: Unsettled(Meter { row: "curve_pair_pose_basin" })
+a=1e2 theta=2 centre-held: f64 Ok, 1 meeting(s), shared false | Interval refused: Unsettled(Meter { row: "curve_pair_pose_basin" })
+a=1e1 theta=0.5 arc-held: f64 Ok, 1 meeting(s), shared false | Interval Ok, 1 meeting(s), shared false
+a=1e1 theta=0.5 centre-held: f64 Ok, 1 meeting(s), shared false | Interval Ok, 1 meeting(s), shared false
+a=1e1 theta=2 arc-held: f64 Ok, 1 meeting(s), shared false | Interval refused: Unsettled(Meter { row: "curve_pair_pose_basin" })
+a=1e1 theta=2 centre-held: f64 Ok, 1 meeting(s), shared false | Interval Ok, 1 meeting(s), shared false
+== C7: pairs in one plane at Interval (0.3 m of arc from the anchor)
+a=1e2: Height along its own axis at Interval: extremes lo [-2.736819280359515e280,7.409177150888855e-14] hi [-7.630269290114782e-14,2.736819280359515e280]
+   circle in the plane lifted 0e0: f64 Ok, 1 meeting(s), shared false | Interval Ok, 1 meeting(s), shared false
+   small ellipse in the plane lifted 0e0: f64 Ok, 1 meeting(s), shared false | Interval Ok, 1 meeting(s), shared false
+   circle in the plane lifted 3e-11: f64 Ok, 0 meeting(s), shared false | Interval Ok, 0 meeting(s), shared false
+   small ellipse in the plane lifted 3e-11: f64 Ok, 0 meeting(s), shared false | Interval Ok, 0 meeting(s), shared false
+   circle in the plane lifted 1e-9: f64 Ok, 0 meeting(s), shared false | Interval Ok, 0 meeting(s), shared false
+   small ellipse in the plane lifted 1e-9: f64 Ok, 0 meeting(s), shared false | Interval Ok, 0 meeting(s), shared false
+a=1e6: Height along its own axis at Interval: extremes lo [-2.736819280359516e288,7.400851033315678e-10] hi [-7.627494565220487e-10,2.736819280359516e288]
+   circle in the plane lifted 0e0: f64 Ok, 1 meeting(s), shared false | Interval refused: Touch(Indeterminate { margin: MarginDiag(Enclosure { lo: -6.394155600678111e-7, hi: 5.694649180812911e-7, tag:
+   small ellipse in the plane lifted 0e0: f64 Ok, 1 meeting(s), shared false | Interval Ok, 1 meeting(s), shared false
+   circle in the plane lifted 3e-11: f64 Ok, 0 meeting(s), shared false | Interval Ok, 0 meeting(s), shared false
+   small ellipse in the plane lifted 3e-11: f64 Ok, 0 meeting(s), shared false | Interval Ok, 0 meeting(s), shared false
+   circle in the plane lifted 1e-9: f64 Ok, 0 meeting(s), shared false | Interval Ok, 0 meeting(s), shared false
+   small ellipse in the plane lifted 1e-9: f64 Ok, 0 meeting(s), shared false | Interval Ok, 0 meeting(s), shared false
+a=1e9: Height along its own axis at Interval: extremes lo [-2.7368192803595163e294,7.400850479314388e-7] hi [-7.627493732830774e-7,2.7368192803595163e294]
+   circle in the plane lifted 0e0: f64 Ok, 1 meeting(s), shared false | Interval refused: Touch(Indeterminate { margin: MarginDiag(Enclosure { lo: -0.03516123777746542, hi: 0.04521898706536145, tag: N
+   small ellipse in the plane lifted 0e0: f64 Ok, 1 meeting(s), shared false | Interval Ok, 1 meeting(s), shared false
+   circle in the plane lifted 3e-11: f64 Ok, 0 meeting(s), shared false | Interval Ok, 0 meeting(s), shared false
+   small ellipse in the plane lifted 3e-11: f64 Ok, 0 meeting(s), shared false | Interval Ok, 0 meeting(s), shared false
+   circle in the plane lifted 1e-9: f64 Ok, 0 meeting(s), shared false | Interval Ok, 0 meeting(s), shared false
+   small ellipse in the plane lifted 1e-9: f64 Ok, 0 meeting(s), shared false | Interval Ok, 0 meeting(s), shared false

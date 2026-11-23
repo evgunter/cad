@@ -16,7 +16,7 @@ for l in open(sys.argv[1]):
     r2 = dict(r, door="line", lane="f64")
     j = oracle.judge(r2)
     j.update(hq=r["hq"], htrue=float(htrue), herr=float(F(r["hq"]) - htrue), zero=r["zero"], esc=r["esc"],
-             dist=float(oracle.norm(sub(q, S))))
+             dist=float(oracle.norm(sub(q, S))), log=r.get("log", ""))
     out.append(j)
 json.dump(out, open(sys.argv[1].replace(".jsonl", ".judged.json"), "w"))
 zero, esc = out[0]["zero"], out[0]["esc"]
@@ -31,3 +31,4 @@ for j in out:
     if j["wrong"]:
         print("WRONG", j["place"], "fat" if j["fat"] else "thin", j["target"], "theta=%g gamma=%.3g shift=%g" % (j["theta"], j["gamma"], j["shift"]),
               "true gap %.3g (%s), said %s, off %s | |q-S| %.3g, height_of(q) %.3e, true %.3e, err %.2e" % (j["gap"], j["truth"], j["said"], ["%.2g" % o for o in j["off"]], j["dist"], j["hq"], j["htrue"], j["herr"]))
+        print("      decided:", j["log"])

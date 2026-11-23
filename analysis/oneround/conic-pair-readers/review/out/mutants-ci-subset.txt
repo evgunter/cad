@@ -1,0 +1,28 @@
+BASELINE-1e-12: 491 passed, 3156 skipped exit 0  
+BASELINE-1e-9: 491 passed, 3156 skipped exit 0  
+K1-height-of-from-centre-1e-12: 483 passed, 8 failed, 3156 skipped exit 100  geom curves::conic::door_rows::a_points_height_over_the_plane_is_read_from_the_stored_point;geom-brep curve_pair::arc_held_rows::a_circle_in_the_plane_crossing_the_arc_meets_it;geom-brep curve_pair::arc_held_rows::a_circle_through_a_point_of_an_arc_held_ellipse_meets_it;geom-brep curve_pair::arc_held_rows::a_line_out_through_the_anchor_vertex_meets_it;geom-brep curve_pair::arc_held_rows::a_line_piercing_the_plane_through_a_point_of_the_arc_meets_it;geom-brep curve_pair::arc_held_rows::a_line_through_a_point_of_an_arc_held_ellipse_meets_it;geom-brep curve_pair::arc_held_rows::a_small_ellipse_in_the_plane_crossing_the_arc_meets_it;geom-brep curve_pair::arc_held_rows::two_arc_held_ellipses_through_one_point_meet;
+K1-height-of-from-centre-1e-9: 484 passed, 7 failed, 3156 skipped exit 100  geom curves::conic::door_rows::a_points_height_over_the_plane_is_read_from_the_stored_point;geom-brep curve_pair::arc_held_rows::a_circle_in_the_plane_crossing_the_arc_meets_it;geom-brep curve_pair::arc_held_rows::a_circle_through_a_point_of_an_arc_held_ellipse_meets_it;geom-brep curve_pair::arc_held_rows::a_line_out_through_the_anchor_vertex_meets_it;geom-brep curve_pair::arc_held_rows::a_line_through_a_point_of_an_arc_held_ellipse_meets_it;geom-brep curve_pair::arc_held_rows::a_small_ellipse_in_the_plane_crossing_the_arc_meets_it;geom-brep curve_pair::arc_held_rows::two_arc_held_ellipses_through_one_point_meet;
+R1-over-level-dropped-1e-12: 491 passed, 3156 skipped exit 0  
+R1-over-level-dropped-1e-9: 491 passed, 3156 skipped exit 0  
+R2-slant-all-round-dropped-1e-12: 491 passed, 3156 skipped exit 0  
+R2-slant-all-round-dropped-1e-9: 491 passed, 3156 skipped exit 0  
+R3-mean-arc-is-the-anchors-height-1e-12: 491 passed, 3156 skipped exit 0  
+R3-mean-arc-is-the-anchors-height-1e-9: 491 passed, 3156 skipped exit 0  
+R4-level-jet-third-sign-1e-12: 491 passed, 3156 skipped exit 0  
+R4-level-jet-third-sign-1e-9: 491 passed, 3156 skipped exit 0  
+R5-level-jet-second-halved-1e-12: 486 passed, 5 failed, 3156 skipped exit 100  geom-brep curve_pair::arc_held_rows::a_circle_in_the_plane_crossing_the_arc_meets_it;geom-brep curve_pair::meet_rows::coplanar_conic_rims_tangent_at_a_vertex_meet_once_there;geom-brep curve_pair::plane_rows::two_circles_at_a_shallow_tilt_meet_twice_near_one_plane_root;geom-brep curve_pair::touch_spread_rows::a_well_conditioned_touch_reads_one_meeting_at_the_touch;geom-brep curve_pair::touch_spread_rows::the_subdivisions_touch_whose_spread_exceeds_the_band_escalates;
+R5-level-jet-second-halved-1e-9: 486 passed, 5 failed, 3156 skipped exit 100  geom-brep curve_pair::arc_held_rows::a_circle_in_the_plane_crossing_the_arc_meets_it;geom-brep curve_pair::meet_rows::coplanar_conic_rims_tangent_at_a_vertex_meet_once_there;geom-brep curve_pair::plane_rows::two_circles_at_a_shallow_tilt_meet_twice_near_one_plane_root;geom-brep curve_pair::touch_spread_rows::a_well_conditioned_touch_reads_one_meeting_at_the_touch;geom-brep curve_pair::touch_spread_rows::the_subdivisions_touch_whose_spread_exceeds_the_band_escalates;
+R7-roots-touch-reads-far-extreme-1e-12: 490 passed, 1 failed, 3156 skipped exit 100  geom curves::conic::door_rows::the_height_along_a_direction_is_read_about_the_stored_point;
+R7-roots-touch-reads-far-extreme-1e-9: 490 passed, 1 failed, 3156 skipped exit 100  geom curves::conic::door_rows::the_height_along_a_direction_is_read_about_the_stored_point;
+R8-extremes-arc-trough-is-crest-mirrored-1e-12: 490 passed, 1 failed, 3156 skipped exit 100  geom curves::conic::door_rows::the_height_along_a_direction_is_read_about_the_stored_point;
+R8-extremes-arc-trough-is-crest-mirrored-1e-9: 490 passed, 1 failed, 3156 skipped exit 100  geom curves::conic::door_rows::the_height_along_a_direction_is_read_about_the_stored_point;
+R9-window-height-fourth-zero-1e-12: 491 passed, 3156 skipped exit 0  
+R9-window-height-fourth-zero-1e-9: 491 passed, 3156 skipped exit 0  
+S1-foot-seed-from-centre-1e-12: 491 passed, 3156 skipped exit 0  
+S1-foot-seed-from-centre-1e-9: 491 passed, 3156 skipped exit 0  
+S2-level-ddp-from-centre-1e-12: 491 passed, 3156 skipped exit 0  
+S2-level-ddp-from-centre-1e-9: 491 passed, 3156 skipped exit 0  
+S3-unit-in-plane-from-centre-1e-12: 491 passed, 3156 skipped exit 0  
+S3-unit-in-plane-from-centre-1e-9: 491 passed, 3156 skipped exit 0  
+S4-one-curve-gap-derived-centres-1e-12: 491 passed, 3156 skipped exit 0  
+S4-one-curve-gap-derived-centres-1e-9: 491 passed, 3156 skipped exit 0  

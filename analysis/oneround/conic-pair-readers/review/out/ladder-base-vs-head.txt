@@ -1,0 +1,182 @@
+== 1e-9 moves (lane, base->head):
+   ('f64', 'WRONG', 'WRONG') 3
+   ('f64', 'WRONG', 'refused') 14
+   ('f64', 'WRONG', 'right') 43
+   ('f64', 'refused', 'WRONG') 2
+   ('f64', 'refused', 'refused') 152
+   ('f64', 'refused', 'right') 80
+   ('f64', 'right', 'WRONG') 2
+   ('f64', 'right', 'refused') 64
+   ('f64', 'right', 'right') 648
+   ('interval', 'WRONG', 'refused') 48
+   ('interval', 'WRONG', 'right') 27
+   ('interval', 'refused', 'refused') 367
+   ('interval', 'refused', 'right') 65
+   ('interval', 'right', 'refused') 134
+   ('interval', 'right', 'right') 367
+  apart twins read as a meeting on head: 0 []
+  head said-by-truth: [(('f64', 'apart', 'apart'), 445), (('f64', 'apart', 'refused'), 55), (('f64', 'between', 'apart'), 61), (('f64', 'between', 'meets'), 9), (('f64', 'between', 'refused'), 135), (('f64', 'meets', 'apart'), 1), (('f64', 'meets', 'meets'), 262), (('f64', 'meets', 'refused'), 40), (('interval', 'apart', 'apart'), 319), (('interval', 'apart', 'refused'), 181), (('interval', 'between', 'refused'), 205), (('interval', 'meets', 'meets'), 140), (('interval', 'meets', 'refused'), 163)]
+  right on base, not right on head, by (lane,door,shape,target,place,now):
+     ('f64', 'circle', 'fat', 10000.0, 'far', 'refused') 1
+     ('f64', 'circle', 'fat', 10000.0, 'near', 'refused') 1
+     ('f64', 'circle', 'fat', 1000000.0, 'near', 'refused') 1
+     ('f64', 'circle', 'fat', 10000000.0, 'near', 'refused') 2
+     ('f64', 'circle', 'fat', 100000000.0, 'near', 'refused') 5
+     ('f64', 'circle', 'fat', 1000000000.0, 'far', 'WRONG') 2
+     ('f64', 'circle', 'fat', 1000000000.0, 'far', 'refused') 2
+     ('f64', 'circle', 'fat', 1000000000.0, 'near', 'refused') 4
+     ('f64', 'circle', 'thin', 100000.0, 'far', 'refused') 1
+     ('f64', 'circle', 'thin', 1000000000.0, 'far', 'refused') 6
+     ('f64', 'circle', 'thin', 1000000000.0, 'near', 'refused') 9
+     ('f64', 'line', 'fat', 10000000.0, 'far', 'refused') 1
+     ('f64', 'line', 'fat', 1000000000.0, 'far', 'refused') 3
+     ('f64', 'line', 'fat', 1000000000.0, 'near', 'refused') 3
+     ('f64', 'line', 'thin', 1000000.0, 'near', 'refused') 3
+     ('f64', 'line', 'thin', 10000000.0, 'far', 'refused') 3
+     ('f64', 'line', 'thin', 10000000.0, 'near', 'refused') 5
+     ('f64', 'line', 'thin', 100000000.0, 'far', 'refused') 3
+     ('f64', 'line', 'thin', 100000000.0, 'near', 'refused') 6
+     ('f64', 'line', 'thin', 1000000000.0, 'far', 'refused') 1
+     ('f64', 'line', 'thin', 1000000000.0, 'near', 'refused') 4
+     ('interval', 'circle', 'fat', 10000.0, 'far', 'refused') 1
+     ('interval', 'circle', 'fat', 100000.0, 'far', 'refused') 2
+     ('interval', 'circle', 'fat', 1000000.0, 'far', 'refused') 1
+     ('interval', 'circle', 'fat', 10000000.0, 'far', 'refused') 6
+     ('interval', 'circle', 'fat', 10000000.0, 'near', 'refused') 9
+     ('interval', 'circle', 'fat', 100000000.0, 'far', 'refused') 15
+     ('interval', 'circle', 'fat', 100000000.0, 'near', 'refused') 9
+     ('interval', 'circle', 'fat', 1000000000.0, 'far', 'refused') 18
+     ('interval', 'circle', 'fat', 1000000000.0, 'near', 'refused') 9
+     ('interval', 'circle', 'thin', 10000.0, 'far', 'refused') 1
+     ('interval', 'circle', 'thin', 100000.0, 'far', 'refused') 2
+     ('interval', 'circle', 'thin', 1000000.0, 'far', 'refused') 1
+     ('interval', 'circle', 'thin', 10000000.0, 'far', 'refused') 6
+     ('interval', 'circle', 'thin', 10000000.0, 'near', 'refused') 9
+     ('interval', 'circle', 'thin', 100000000.0, 'far', 'refused') 12
+     ('interval', 'circle', 'thin', 100000000.0, 'near', 'refused') 9
+     ('interval', 'circle', 'thin', 1000000000.0, 'far', 'refused') 11
+     ('interval', 'circle', 'thin', 1000000000.0, 'near', 'refused') 9
+     ('interval', 'line', 'fat', 10000.0, 'far', 'refused') 1
+     ('interval', 'line', 'fat', 1000000000.0, 'far', 'refused') 1
+     ('interval', 'line', 'thin', 10000.0, 'far', 'refused') 1
+     ('interval', 'line', 'thin', 1000000000.0, 'far', 'refused') 1
+  their faults:
+     ('f64', 'circle', 'Escalated(Indeterminate ') 21
+     ('f64', 'circle', 'Unsettled(Meter ') 11
+     ('f64', 'circle', None) 2
+     ('f64', 'line', 'Escalated(Indeterminate ') 29
+     ('f64', 'line', 'Unsettled(Meter ') 3
+     ('interval', 'circle', 'Escalated(Indeterminate ') 27
+     ('interval', 'circle', 'Unsettled(Meter ') 103
+     ('interval', 'line', 'Escalated(Indeterminate ') 2
+     ('interval', 'line', 'Unsettled(Meter ') 2
+  head WRONG:
+     line f64 fat 100000000.0 far theta=0.5 gamma=0.0873 shift=0 gap=1.28e-09 between meets ['1.51e-08']
+     circle f64 fat 100000000.0 far theta=2 gamma=0.0873 shift=0 gap=2.08e-09 between meets ['1.12e-08']
+     circle f64 fat 1000000000.0 far theta=0.5 gamma=1.57 shift=0 gap=9.06e-09 between meets ['3.09e-08']
+     line f64 fat 1000000000.0 far theta=0.5 gamma=1.57 shift=1e-08 gap=3.83e-10 meets apart []
+     circle f64 fat 1000000000.0 far theta=0.5 gamma=0.524 shift=0 gap=4.79e-09 between meets ['3.48e-08']
+     line f64 thin 100000000.0 far theta=2 gamma=1.57 shift=0 gap=2.83e-09 between meets ['1.48e-08']
+     line f64 thin 100000000.0 far theta=0.5 gamma=0.0873 shift=0 gap=5.31e-10 meets meets ['1.28e-08']
+== 1e-12 moves (lane, base->head):
+   ('f64', 'WRONG', 'WRONG') 6
+   ('f64', 'WRONG', 'refused') 28
+   ('f64', 'WRONG', 'right') 111
+   ('f64', 'refused', 'WRONG') 3
+   ('f64', 'refused', 'refused') 45
+   ('f64', 'refused', 'right') 46
+   ('f64', 'right', 'WRONG') 3
+   ('f64', 'right', 'refused') 122
+   ('f64', 'right', 'right') 644
+   ('interval', 'WRONG', 'refused') 74
+   ('interval', 'WRONG', 'right') 38
+   ('interval', 'refused', 'refused') 343
+   ('interval', 'refused', 'right') 85
+   ('interval', 'right', 'refused') 289
+   ('interval', 'right', 'right') 179
+  apart twins read as a meeting on head: 0 []
+  head said-by-truth: [(('f64', 'apart', 'apart'), 579), (('f64', 'apart', 'refused'), 48), (('f64', 'between', 'apart'), 56), (('f64', 'between', 'meets'), 9), (('f64', 'between', 'refused'), 100), (('f64', 'meets', 'apart'), 6), (('f64', 'meets', 'meets'), 163), (('f64', 'meets', 'refused'), 47), (('interval', 'apart', 'apart'), 239), (('interval', 'apart', 'refused'), 388), (('interval', 'between', 'refused'), 165), (('interval', 'meets', 'meets'), 63), (('interval', 'meets', 'refused'), 153)]
+  right on base, not right on head, by (lane,door,shape,target,place,now):
+     ('f64', 'circle', 'fat', 10000.0, 'far', 'refused') 2
+     ('f64', 'circle', 'fat', 10000.0, 'near', 'refused') 3
+     ('f64', 'circle', 'fat', 100000.0, 'far', 'refused') 5
+     ('f64', 'circle', 'fat', 100000.0, 'near', 'refused') 3
+     ('f64', 'circle', 'fat', 1000000.0, 'far', 'WRONG') 1
+     ('f64', 'circle', 'fat', 1000000.0, 'far', 'refused') 2
+     ('f64', 'circle', 'fat', 1000000.0, 'near', 'refused') 8
+     ('f64', 'circle', 'fat', 100000000.0, 'near', 'refused') 3
+     ('f64', 'circle', 'fat', 1000000000.0, 'near', 'refused') 3
+     ('f64', 'circle', 'thin', 10000.0, 'far', 'refused') 2
+     ('f64', 'circle', 'thin', 10000.0, 'near', 'refused') 2
+     ('f64', 'circle', 'thin', 100000.0, 'far', 'refused') 1
+     ('f64', 'circle', 'thin', 100000.0, 'near', 'refused') 3
+     ('f64', 'circle', 'thin', 1000000.0, 'far', 'refused') 5
+     ('f64', 'circle', 'thin', 1000000.0, 'near', 'refused') 6
+     ('f64', 'circle', 'thin', 10000000.0, 'near', 'refused') 9
+     ('f64', 'circle', 'thin', 100000000.0, 'near', 'refused') 6
+     ('f64', 'circle', 'thin', 1000000000.0, 'near', 'refused') 9
+     ('f64', 'line', 'fat', 10000.0, 'far', 'refused') 1
+     ('f64', 'line', 'fat', 1000000.0, 'far', 'refused') 3
+     ('f64', 'line', 'fat', 1000000.0, 'near', 'refused') 5
+     ('f64', 'line', 'fat', 10000000.0, 'near', 'refused') 6
+     ('f64', 'line', 'fat', 100000000.0, 'near', 'refused') 4
+     ('f64', 'line', 'fat', 1000000000.0, 'near', 'refused') 5
+     ('f64', 'line', 'thin', 10000.0, 'near', 'refused') 4
+     ('f64', 'line', 'thin', 100000.0, 'far', 'refused') 1
+     ('f64', 'line', 'thin', 100000.0, 'near', 'refused') 1
+     ('f64', 'line', 'thin', 1000000.0, 'far', 'refused') 3
+     ('f64', 'line', 'thin', 1000000.0, 'near', 'refused') 1
+     ('f64', 'line', 'thin', 10000000.0, 'near', 'refused') 4
+     ('f64', 'line', 'thin', 100000000.0, 'near', 'WRONG') 1
+     ('f64', 'line', 'thin', 100000000.0, 'near', 'refused') 8
+     ('f64', 'line', 'thin', 1000000000.0, 'near', 'WRONG') 1
+     ('f64', 'line', 'thin', 1000000000.0, 'near', 'refused') 4
+     ('interval', 'circle', 'fat', 10000.0, 'far', 'refused') 6
+     ('interval', 'circle', 'fat', 10000.0, 'near', 'refused') 6
+     ('interval', 'circle', 'fat', 100000.0, 'far', 'refused') 11
+     ('interval', 'circle', 'fat', 100000.0, 'near', 'refused') 9
+     ('interval', 'circle', 'fat', 1000000.0, 'far', 'refused') 16
+     ('interval', 'circle', 'fat', 1000000.0, 'near', 'refused') 9
+     ('interval', 'circle', 'fat', 10000000.0, 'far', 'refused') 18
+     ('interval', 'circle', 'fat', 10000000.0, 'near', 'refused') 9
+     ('interval', 'circle', 'fat', 100000000.0, 'far', 'refused') 18
+     ('interval', 'circle', 'fat', 100000000.0, 'near', 'refused') 9
+     ('interval', 'circle', 'fat', 1000000000.0, 'far', 'refused') 18
+     ('interval', 'circle', 'fat', 1000000000.0, 'near', 'refused') 9
+     ('interval', 'circle', 'thin', 10000.0, 'far', 'refused') 6
+     ('interval', 'circle', 'thin', 10000.0, 'near', 'refused') 6
+     ('interval', 'circle', 'thin', 100000.0, 'far', 'refused') 11
+     ('interval', 'circle', 'thin', 100000.0, 'near', 'refused') 6
+     ('interval', 'circle', 'thin', 1000000.0, 'far', 'refused') 18
+     ('interval', 'circle', 'thin', 1000000.0, 'near', 'refused') 6
+     ('interval', 'circle', 'thin', 10000000.0, 'far', 'refused') 18
+     ('interval', 'circle', 'thin', 10000000.0, 'near', 'refused') 14
+     ('interval', 'circle', 'thin', 100000000.0, 'far', 'refused') 18
+     ('interval', 'circle', 'thin', 100000000.0, 'near', 'refused') 13
+     ('interval', 'circle', 'thin', 1000000000.0, 'far', 'refused') 18
+     ('interval', 'circle', 'thin', 1000000000.0, 'near', 'refused') 15
+     ('interval', 'line', 'fat', 1000000.0, 'far', 'refused') 1
+     ('interval', 'line', 'thin', 1000000.0, 'far', 'refused') 1
+  their faults:
+     ('f64', 'circle', 'Escalated(Indeterminate ') 31
+     ('f64', 'circle', 'Unsettled(Meter ') 41
+     ('f64', 'circle', None) 1
+     ('f64', 'line', 'Escalated(Indeterminate ') 34
+     ('f64', 'line', 'Unsettled(Meter ') 16
+     ('f64', 'line', None) 2
+     ('interval', 'circle', 'Escalated(Indeterminate ') 42
+     ('interval', 'circle', 'Unsettled(Meter ') 245
+     ('interval', 'line', 'Unsettled(Meter ') 2
+  head WRONG:
+     circle f64 fat 100000.0 far theta=2 gamma=0.0873 shift=0 gap=2.19e-13 meets apart []
+     circle f64 fat 1000000.0 far theta=2 gamma=1.57 shift=1e-11 gap=9.77e-13 meets apart []
+     circle f64 fat 1000000.0 far theta=0.5 gamma=0.524 shift=0 gap=5.2e-12 between meets ['1.38e-11']
+     circle f64 fat 1000000.0 far theta=2 gamma=0.524 shift=0 gap=7.63e-14 meets apart []
+     line f64 thin 10000.0 far theta=2 gamma=0.0873 shift=0 gap=1.08e-13 meets meets ['1.19e-11']
+     line f64 thin 100000.0 far theta=2 gamma=0.0873 shift=0 gap=4.16e-13 meets apart []
+     circle f64 thin 100000.0 far theta=2 gamma=0.0873 shift=0 gap=1.07e-12 between meets ['1.08e-11']
+     line f64 thin 1000000.0 far theta=0.5 gamma=0.524 shift=0 gap=9.97e-12 between meets ['1.12e-11']
+     circle f64 thin 100000000.0 near theta=0.05368 gamma=1.57 shift=0 gap=9.35e-13 meets apart []
+     line f64 thin 100000000.0 near theta=0.05368 gamma=0.0873 shift=0 gap=2.71e-12 between meets ['1.69e-11']
+     circle f64 thin 100000000.0 near theta=0.05368 gamma=0.0873 shift=0 gap=7.72e-13 meets apart []
+     line f64 thin 1000000000.0 near theta=0.01697 gamma=1.57 shift=0 gap=2.26e-12 between meets ['1.68e-11']

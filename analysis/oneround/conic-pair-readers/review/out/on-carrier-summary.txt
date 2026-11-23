@@ -1,0 +1,36 @@
+level-head-1e-9.judged.json zero 1e-09 esc 1e-08
+   	re-seamed a quarter turn	far	Off inside the gap	4
+   	re-seamed a quarter turn	far	On inside the gap	39
+   	re-seamed a quarter turn	far	WRONG: On past K eps	27
+   	re-seamed a quarter turn	far	refused	100
+   	re-seamed a quarter turn	far	right	292
+   	re-seamed a quarter turn	near	On inside the gap	17
+   	re-seamed a quarter turn	near	WRONG: On past K eps	10
+   	re-seamed a quarter turn	near	refused	142
+   	re-seamed a quarter turn	near	right	370
+   	seam at the anchor	far	Off inside the gap	4
+   	seam at the anchor	far	On inside the gap	42
+   	seam at the anchor	far	WRONG: On past K eps	26
+   	seam at the anchor	far	refused	106
+   	seam at the anchor	far	right	284
+   	seam at the anchor	near	refused	147
+   	seam at the anchor	near	right	392
+level-head-1e-12.judged.json zero 1e-12 esc 1e-11
+   	re-seamed a quarter turn	far	Off inside the gap	9
+   	re-seamed a quarter turn	far	On inside the gap	2
+   	re-seamed a quarter turn	far	WRONG: On past K eps	211
+   	re-seamed a quarter turn	far	refused	54
+   	re-seamed a quarter turn	far	right	186
+   	re-seamed a quarter turn	near	On inside the gap	12
+   	re-seamed a quarter turn	near	WRONG: On past K eps	93
+   	re-seamed a quarter turn	near	refused	91
+   	re-seamed a quarter turn	near	right	343
+   	seam at the anchor	far	Off inside the gap	4
+   	seam at the anchor	far	On inside the gap	21
+   	seam at the anchor	far	WRONG: Off within eps	1
+   	seam at the anchor	far	WRONG: On past K eps	214
+   	seam at the anchor	far	refused	56
+   	seam at the anchor	far	right	166
+   	seam at the anchor	near	WRONG: On past K eps	16
+   	seam at the anchor	near	refused	141
+   	seam at the anchor	near	right	382

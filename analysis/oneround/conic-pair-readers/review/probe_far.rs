@@ -222,12 +222,23 @@ fn main() {
                     let lo = t - d * 2.0 + n * shift;
                     let line = Curve3::line(lo, d);
                     let (sa, sb) = (Span::new(&line, (0.0, 4.0)), Span::new(&carrier, span_e));
+                    // the kernel's own decision log, its last rows
+                    let bracket = geom_core::k_stats::Bracket::open();
                     let got = meet(&sa, &sb, band);
+                    let rec = bracket.finish();
+                    let mut log: Vec<String> = Vec::new();
+                    for v in &rec.verdicts {
+                        let k = format!("{}:{:?}", v.predicate, v.sign);
+                        if log.last() != Some(&k) {
+                            log.push(k);
+                        }
+                    }
+                    let log = log[log.len().saturating_sub(10)..].join(" > ");
                     let q = lo + d * 2.0;
                     let hq = Conic::height_of(&e, q);
                     writeln!(
                         f,
-                        "{{\"door\":\"far\",{head},\"lo\":{},\"ld\":{},\"q\":{},\"hq\":{hq:?},{}}}",
+                        "{{\"door\":\"far\",{head},\"log\":{log:?},\"lo\":{},\"ld\":{},\"q\":{},\"hq\":{hq:?},{}}}",
                         p3(lo), v3(d), p3(q), reading(&got, (&sa, &sb), |x| x)
                     )
                     .unwrap();

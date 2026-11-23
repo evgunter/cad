@@ -1,0 +1,34 @@
+zero 1e-09 esc 1e-08
+place shape a | n | max |height_of - true| (m) | n with error > zero | meet WRONG
+far fat 10000.0 | 18 | 5.79e-13 | 0 | 0
+far fat 100000.0 | 18 | 6.85e-12 | 0 | 0
+far fat 1000000.0 | 18 | 4.98e-11 | 0 | 0
+far fat 10000000.0 | 18 | 5.29e-10 | 0 | 0
+far fat 100000000.0 | 18 | 7.68e-09 | 9 | 1
+far fat 1000000000.0 | 18 | 8.78e-09 | 15 | 1
+far thin 10000.0 | 18 | 9.85e-13 | 0 | 0
+far thin 100000.0 | 18 | 5.47e-12 | 0 | 0
+far thin 1000000.0 | 18 | 7.88e-11 | 0 | 0
+far thin 10000000.0 | 18 | 8.57e-10 | 0 | 0
+far thin 100000000.0 | 18 | 7.16e-09 | 6 | 2
+far thin 1000000000.0 | 18 | 2.72e-08 | 18 | 0
+near fat 10000.0 | 18 | 2.30e-16 | 0 | 0
+near fat 100000.0 | 27 | 6.63e-14 | 0 | 0
+near fat 1000000.0 | 27 | 3.96e-14 | 0 | 0
+near fat 10000000.0 | 27 | 5.65e-14 | 0 | 0
+near fat 100000000.0 | 27 | 4.45e-14 | 0 | 0
+near fat 1000000000.0 | 27 | 1.92e-14 | 0 | 0
+near thin 10000.0 | 18 | 3.78e-16 | 0 | 0
+near thin 100000.0 | 18 | 2.52e-16 | 0 | 0
+near thin 1000000.0 | 18 | 2.79e-16 | 0 | 0
+near thin 10000000.0 | 27 | 1.08e-12 | 0 | 0
+near thin 100000000.0 | 27 | 6.54e-12 | 0 | 0
+near thin 1000000000.0 | 27 | 6.23e-12 | 0 | 0
+WRONG far fat 100000000.0 theta=0.5 gamma=0.0873 shift=0 true gap 1.28e-09 (between), said meets, off ['1.5e-08'] | |q-S| 1.89e+07, height_of(q) 1.863e-09, true 2.074e-09, err -2.12e-10
+      decided: curve_carrier_piece_clear_by:Positive > conic_harmonic_crest:Negative > curve_pair_pose_level_arc:Positive > curve_carrier_speed:Positive > curve_carrier_piece_clear_by:Positive > curve_pair_walk_pair_gap:Zero > curve_pair_span_end_chord:Positive > curve_pair_span_end_side:Positive > curve_pair_span_end_chord:Positive > curve_pair_span_end_side:Positive
+WRONG far fat 1000000000.0 theta=0.5 gamma=1.57 shift=1e-08 true gap 3.83e-10 (meets), said apart, off [] | |q-S| 1.89e+08, height_of(q) 1.490e-08, true 1.428e-08, err 6.18e-10
+      decided: curve_carrier_piece:Positive > curve_carrier_piece_clear_by:Negative > curve_carrier_piece:Positive > curve_carrier_piece_clear_by:Negative > curve_carrier_piece:Positive > curve_carrier_piece_clear_by:Positive > conic_harmonic_crest:Positive > curve_pair_pose_level_arc:Positive > curve_carrier_speed:Positive > curve_carrier_piece_clear_by:Positive
+WRONG far thin 100000000.0 theta=2 gamma=1.57 shift=0 true gap 2.83e-09 (between), said meets, off ['1.5e-08'] | |q-S| 1.42e+08, height_of(q) 0.000e+00, true -7.158e-09, err 7.16e-09
+      decided: conic_harmonic_crest:Positive > curve_pair_pose_level_arc:Positive > curve_carrier_speed:Positive > curve_carrier_piece_clear_by:Positive > curve_pair_pose_closest:Zero > curve_pair_walk_pair_gap:Zero > curve_pair_span_end_chord:Positive > curve_pair_span_end_side:Positive > curve_pair_span_end_chord:Positive > curve_pair_span_end_side:Positive
+WRONG far thin 100000000.0 theta=0.5 gamma=0.0873 shift=0 true gap 5.31e-10 (meets), said meets, off ['1.3e-08'] | |q-S| 1.22e+07, height_of(q) 0.000e+00, true 7.179e-11, err -7.18e-11
+      decided: conic_harmonic_crest:Positive > curve_pair_pose_level_arc:Positive > curve_carrier_speed:Positive > curve_carrier_piece_clear_by:Positive > curve_pair_pose_closest:Zero > curve_pair_walk_pair_gap:Zero > curve_pair_span_end_chord:Positive > curve_pair_span_end_side:Positive > curve_pair_span_end_chord:Positive > curve_pair_span_end_side:Positive
