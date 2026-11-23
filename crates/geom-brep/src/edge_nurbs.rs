@@ -1420,7 +1420,7 @@ pub fn sub_arc_joint(k: usize, m: usize) -> f64 {
 #[must_use]
 #[allow(clippy::cast_precision_loss)]
 pub fn sub_arc_at(u: f64, m: usize) -> Option<(usize, f64)> {
-    if !(0.0..=1.0).contains(&u) {
+    if m == 0 || !(0.0..=1.0).contains(&u) {
         return None;
     }
     let breaks = uniform_breaks(m)?;
@@ -3832,6 +3832,39 @@ mod tests {
     use crate::recourse::Reading;
 
     use super::*;
+
+    /// **The sub-arc locator reads every joint exactly.** For `m` from 1
+    /// to 12 uniform sub-arcs: each joint `k/m` ([`sub_arc_joint`]) reads
+    /// `(k, 0)`, `u = 0` reads `(0, 0)` and `u = 1` reads `(m − 1, 1)`;
+    /// an interior `u` reads a sub-arc it lies on, at an `s` in `[0, 1)`
+    /// that returns `u` as `(k + s)/m` to rounding; and `m = 0` or a `u`
+    /// off `[0, 1]` reads nothing.
+    #[test]
+    #[allow(clippy::cast_precision_loss)]
+    fn the_sub_arc_locator_reads_every_joint_exactly() {
+        for m in 1..=12 {
+            assert_eq!(sub_arc_at(0.0, m), Some((0, 0.0)), "m = {m}: u = 0");
+            assert_eq!(sub_arc_at(1.0, m), Some((m - 1, 1.0)), "m = {m}: u = 1");
+            for k in 1..m {
+                assert_eq!(
+                    sub_arc_at(sub_arc_joint(k, m), m),
+                    Some((k, 0.0)),
+                    "m = {m}: joint {k}"
+                );
+            }
+            for i in 1..200 {
+                let u = f64::from(i) / 200.0;
+                let (k, s) = sub_arc_at(u, m).unwrap();
+                assert!(k < m && (0.0..1.0).contains(&s), "m = {m}, u = {u}: ({k}, {s})");
+                let back = (k as f64 + s) / m as f64;
+                assert!((back - u).abs() <= 4.0 * f64::EPSILON, "m = {m}, u = {u}: {back}");
+            }
+            assert_eq!(sub_arc_at(-1e-300, m), None, "m = {m}: below 0");
+            assert_eq!(sub_arc_at(1.0 + f64::EPSILON, m), None, "m = {m}: past 1");
+            assert_eq!(sub_arc_at(f64::NAN, m), None, "m = {m}: NaN");
+        }
+        assert_eq!(sub_arc_at(0.5, 0), None, "no sub-arcs");
+    }
 
     /// **A refused bound stalls limb 2.** At an enclosure scalar the
     /// reading's upper end is decided as `[floor, upper]`: a certified

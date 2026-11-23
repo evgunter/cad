@@ -122,12 +122,17 @@ fn a_rim_arc_beside_a_bent_spline_wall_is_taken_on_the_cylinder() {
                 && diag.predicate == Some("spline_composite_past_the_band"),
             "{order}: the seam on the cylinder's rim: {got:?}"
         );
-        // The reading as text, `m` or `[lo, hi]`: its farther end.
-        let margin = format!("{:e}", diag.margin)
-            .trim_matches(['[', ']'])
-            .split(", ")
-            .map(|x| x.parse::<f64>().map_or(f64::NAN, f64::abs))
-            .fold(0.0_f64, f64::max);
+        // The reading's farther end from zero, through the margin's one
+        // door to its numbers.
+        let margin = match diag.margin.diagnostic_f64_for_error_text() {
+            geom_core::ErrorTextReading::Value(m) => m.abs(),
+            geom_core::ErrorTextReading::Enclosure { lo, hi } => lo.abs().max(hi.abs()),
+            geom_core::ErrorTextReading::Invalid => f64::NAN,
+        };
+        // `margin / ε ∈ [1, 2)` records TODAY's reader, which encloses an
+        // exact meeting a few ε wide. It should go red when SPLICE's class
+        // row (`work/splice/a-loop-seam-meeting-the-neck-cylinder-at-its-edge-reads-in-band.md`)
+        // improves the reader, and be re-pinned at the stop that follows.
         assert!(
             (1.0..2.0).contains(&(margin / eps)),
             "{order}: the reading encloses an exact meeting at about 1.5 ε, read {margin:e}"

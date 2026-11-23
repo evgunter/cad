@@ -16,7 +16,7 @@ Ev's ruling on [ev] PR 5913 (2026-10-28, Decision 2: "S, then"), now DESIGN [top
 
 ## Owed
 
-`sweep::skin` writes an arc wider than `MAX_SUB_ARC` (about 95.6°) as rational-quadratic sub-arcs joined at a double knot. A lofted or swept wall over such an arc therefore carries a C⁰ knot where the surface is geometrically smooth.
+`sweep::skin` writes an arc wider than `MAX_SUB_ARC` (about 95.6°) as rational-quadratic sub-arcs joined at a double knot. A lofted or swept wall over such an arc therefore carries a C⁰ knot inside its face, where the surface may be geometrically smooth (every section's joint there one of arcs of one sweep, or v-degree 1) or creased (sections whose arcs differ, at v-degree 2 or more).
 
 The skin, the loft and the sweep should mint one wall per sub-arc, with a smooth seam edge (a 180° wedge) at each joint, and name the new walls and seams. Ev accepted that the face count of a lofted arc wall then follows the sub-arc ceiling: a lofted circle is four walls, and a lofted one-segment loop is no longer one wall.
 

@@ -713,10 +713,8 @@ fn a_lofted_one_segment_section_is_four_quarter_walls() {
 /// about `[0, 1]` that is an `f64` (`1 − fl(1/3)` is not one). Every
 /// stack builds at every degree up to 3 it supports, as four quarter
 /// walls per slab with no C⁰ knot inside any (the skin's cut), closed
-/// (tier 2), and holds the cylinder's `π·h` within its volume pad where
-/// the quadrature reaches its target; where it stops short (at ε 1e-9
-/// and 1e-12 today, as the two-arc wall's does), the stop is read and
-/// the volume is not.
+/// (tier 2), and its volume enclosure holds the cylinder's `π·h`, at
+/// every ε, whether or not the quadrature reached its target there.
 #[test]
 fn every_one_segment_circle_stack_builds_at_every_degree() {
     let stacks: Vec<Vec<f64>> = [&[0.0, 1.0, 3.0][..], &[0.0, 0.7, 2.0]]
@@ -776,13 +774,23 @@ fn every_one_segment_circle_stack_builds_at_every_degree() {
             topo::test_support::pinned_resolution(tol()),
         )
         .unwrap_or_else(|e| panic!("{what}: the volume refused: {e:?}"));
-        if m.stop == topo::Stop::Met {
-            close(
-                (m.enclosure.volume, m.enclosure.volume_pad),
-                PI * z[z.len() - 1],
-                &what,
-            );
-        }
+        // The enclosure brackets the volume whatever stopped its
+        // refinement (`Stop` says why it stopped, not whether it holds),
+        // so the cylinder's `π·h` (identical coaxial sections: the wall is
+        // the cylinder at every degree) is held at every ε; its pad is
+        // read too, so the bracket says something.
+        let want = PI * z[z.len() - 1];
+        close(
+            (m.enclosure.volume, m.enclosure.volume_pad),
+            want,
+            &what,
+        );
+        assert!(
+            m.enclosure.volume_pad <= 1e-3 * want,
+            "{what}: the bracket is {} wide around {want} ({:?})",
+            m.enclosure.volume_pad,
+            m.stop
+        );
     }
 }
 
