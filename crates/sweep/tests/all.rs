@@ -136,6 +136,8 @@ mod a_plane_through_a_pole_cuts_a_cap;
 mod a_point_past_a_spline_solids_reach;
 #[path = "a_pole_and_an_apex_join_nothing.rs"]
 mod a_pole_and_an_apex_join_nothing;
+#[path = "a_profile_touching_its_axis_twice_revolves.rs"]
+mod a_profile_touching_its_axis_twice_revolves;
 #[path = "a_ray_beside_a_shallow_spiric_edge_is_read_by_the_span_walk.rs"]
 mod a_ray_beside_a_shallow_spiric_edge_is_read_by_the_span_walk;
 #[path = "a_ray_meets_a_curved_edge_once_for_both_faces.rs"]

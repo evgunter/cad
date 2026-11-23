@@ -521,7 +521,7 @@ pub struct Source {
 /// `[placement.placement]`: each placement is a copy of its own);
 /// `None` for any other node. A seat never reads through it: a pick on
 /// a copy seats the copy. It is the way from a copy to its original
-/// body, for the placed badge, the placement editor's `on` side and
+/// body, for the placement editor's `on` side and
 /// the re-point offer.
 pub fn copy_source(doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: u32) -> Option<Source> {
     let Some(Node::Place { source, .. }) = doc.node(node) else {
@@ -555,22 +555,6 @@ pub fn copy_source(doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: u32) -> 
     })
 }
 
-/// **The copies of `var`**, in document order: every placement whose
-/// source is `var`, reads it down plain reads of sources, or reads a
-/// body `var` is.
-pub fn placements_of_var(doc: &Doc<ProfileProgram>, var: VarId) -> Vec<RecipeNodeId> {
-    copies_where(doc, |copied| copied == var)
-}
-
-/// **The variables a placement's source read passes through**: the
-/// sources it reads down ([`Doc::source_steps`]) and the body read at the
-/// end (`spare`, `bracket`, `B`).
-fn source_chain(doc: &Doc<ProfileProgram>, var: VarId) -> Vec<VarId> {
-    let mut chain: Vec<VarId> = doc.source_steps(var).iter().map(|&(at, _)| at).collect();
-    chain.push(doc.through_sources(var).read);
-    chain
-}
-
 /// **Whether `placement` repeats its source**: it reaches an index its
 /// source does not, so it is a pattern's family and its values are the
 /// pattern's rule.
@@ -580,30 +564,6 @@ pub fn repeats(doc: &Doc<ProfileProgram>, placement: RecipeNodeId) -> bool {
     };
     let own = doc.node_reach(placement);
     !own.is_none() && own != doc.var_reach(source.read)
-}
-
-/// **The copies of any output of `node`**, in document order.
-pub fn placements_of(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Vec<RecipeNodeId> {
-    let outputs = doc.outputs(node);
-    copies_where(doc, |copied| outputs.contains(&copied))
-}
-
-/// The placements one of whose source's reads ([`source_chain`])
-/// `copies` accepts, in document order.
-fn copies_where(doc: &Doc<ProfileProgram>, copies: impl Fn(VarId) -> bool) -> Vec<RecipeNodeId> {
-    doc.placements()
-        .into_iter()
-        .filter(|&placement| {
-            doc.copied_read(placement)
-                .is_some_and(|read| source_chain(doc, read).into_iter().any(&copies))
-        })
-        .collect()
-}
-
-/// **Whether a copy copies an output of `node`** — what the feature
-/// tree's placed badge marks.
-pub fn is_placed(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
-    !placements_of(doc, node).is_empty()
 }
 
 /// **What `node` is built on**: everything it reads as a body, at any
@@ -805,7 +765,7 @@ pub fn repoint_targets(
         .into_iter()
         .filter(|&source| doc.source(source).is_some_and(|read| !read.is_indexed()))
         .filter_map(|source| {
-            let placements = placements_of_var(doc, source);
+            let placements = doc.placements_of_var(source);
             (!placements.is_empty() && repoint_check(doc, source, onto, tol).is_ok()).then_some(
                 RepointRow {
                     body,
@@ -877,7 +837,7 @@ pub fn place_asks(doc: &Doc<ProfileProgram>, body: &Operand) -> PlaceAsks {
     match source_to_place(doc, body) {
         Err(sources) => PlaceAsks::Source(sources),
         Ok(Some(source))
-            if doc.var_name(source).is_none() && !placements_of_var(doc, source).is_empty() =>
+            if doc.var_name(source).is_none() && !doc.placements_of_var(source).is_empty() =>
         {
             PlaceAsks::Name(source)
         }
@@ -1006,9 +966,10 @@ pub fn seat_read(
 }
 
 /// **Whether something reads a body of `node` along a seen path**: a
-/// copy of one of its outputs ([`placements_of`]), a `⊔` operand reading
-/// one whole, or the product slot — the readers a gesture's takeover
-/// re-points (`crate::session`'s `Takeover`).
+/// copy of one of its bodies ([`Doc::placements_of`]; a pick's copy of
+/// one piece is none), a `⊔` operand reading one whole, or the product
+/// slot — the readers a gesture's takeover re-points
+/// (`crate::session`'s `Takeover`).
 pub fn is_seen(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
     let outputs = doc.outputs(node);
     let assembled = doc.ids().into_iter().any(|id| {
@@ -1017,7 +978,9 @@ pub fn is_seen(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
             outputs.contains(&read.read) && !read.is_indexed()
         }))
     });
-    is_placed(doc, node) || assembled || product_reads(doc).iter().any(|var| outputs.contains(var))
+    !doc.placements_of(node).is_empty()
+        || assembled
+        || product_reads(doc).iter().any(|var| outputs.contains(var))
 }
 
 /// **The member a pick on body `body` of `node` reaches**: the node the
@@ -1073,7 +1036,7 @@ pub fn read_output(
 /// named alone reads its one output, a port the output it names.
 pub fn placements_of_read(doc: &Doc<ProfileProgram>, read: &Operand) -> Vec<RecipeNodeId> {
     read_var(doc, read)
-        .map(|var| placements_of_var(doc, var))
+        .map(|var| doc.placements_of_var(var))
         .unwrap_or_default()
 }
 
