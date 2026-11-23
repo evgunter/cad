@@ -1202,8 +1202,10 @@ sides of a face (`MaterialOnBothSides`).
   the circle's identity (`rim_wedge::shared_rim`, decided Zero or
   refused in band); the routing's π wedge at every station round it
   (`rim_wedge::classify_shared_rim`, whose fold runs
-  `second_order_walk` at each station: a station whose bend lands in
-  the band leaves the seam's bend under-determined, not its wedge);
+  `second_order_walk` at each station, read through
+  `geom_brep::rim_routing_wedge`: a station whose bend lands in the band
+  leaves the seam's bend under-determined, not its wedge; the seam's
+  description still refuses on it);
   the two faces leaving it on opposite sides (`rim_wedge::departures`);
   and each operand's own edges on the circle convex creases
   (`rim_wedge::rim_edges_convex`, `dihedral_sign` at each station of

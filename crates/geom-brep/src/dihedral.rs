@@ -1547,14 +1547,11 @@ pub struct SecondOrder<T: geom_core::Real> {
 ///   is outside the certificate's lane and cannot store one (see the
 ///   variant). The conventional description is the honest one either
 ///   way.
-/// - **[`MustCarryVerdict::InBand`]** — a station's first-order class
-///   was certifiable as neither, carrying that station's escalation
-///   tagged with the rung that raised it ([`WedgeEscalation`]): the
-///   caller refuses TYPED (D4 ¶3). An in-band class is never silently
-///   either side, so no caller may fold it into "conventional". A bend
-///   in band at a station of a join smooth at every station is no
-///   class undecided: it certifies no bound away from zero, so the
-///   verdict is `UnderDetermined`.
+/// - **[`MustCarryVerdict::InBand`]** — a station was certifiable as
+///   neither, carrying that station's escalation tagged with the rung
+///   that raised it ([`WedgeEscalation`]): the caller refuses TYPED
+///   (D4 ¶3). An in-band verdict is never silently either side, so no
+///   caller may fold it into "conventional".
 /// - **[`MustCarryVerdict::Transverse`]** — every station's tangent
 ///   planes are definitely distinct: the join is a corner, not a smooth
 ///   join, and the rule has no description to choose for it.
@@ -1583,7 +1580,8 @@ pub struct SecondOrder<T: geom_core::Real> {
 /// cause would report a margin that passed. The station that decided
 /// is the one a caller has to name, and it is already inside
 /// [`MustCarryVerdict::InBand`]'s [`MustCarryEscalation`]: the rung that
-/// raised it (the first-order arm or wedge), its margin, its band and the predicate it was classified
+/// raised it (the first-order arm or wedge, or the second-order bend),
+/// its margin, its band and the predicate it was classified
 /// under. [`MustCarryVerdict::Mixed`] names the two stations that
 /// bracket its unsampled in-band point. The three other verdicts carry
 /// no cause, and a caller that wants the jet re-reads it at the station
@@ -1593,7 +1591,11 @@ pub struct SecondOrder<T: geom_core::Real> {
 /// [`crate::tangent_certificate_lane`] says whether the jet
 /// certificate can store an intrinsic tangency for this carrier over
 /// this pair, so an out-of-lane edge whose stations all read
-/// `Positive` answers `UnderDetermined`, not `JetDeterminate`.
+/// `Positive` answers `UnderDetermined`, not `JetDeterminate`. Both
+/// readings are every pair's: an in-band bend leaves the description
+/// question open, which the rule refuses typed, lane or not. An
+/// out-of-lane pair answers `UnderDetermined` only once every station
+/// read is `Smooth` and definite second-order.
 ///
 /// **A `Nurbs` or `Approx` surface answers `InBand` at the first
 /// station, whatever its geometry.** Neither kind has an implicit
@@ -1612,9 +1614,9 @@ pub struct SecondOrder<T: geom_core::Real> {
 /// second-order: an in-band station anywhere answers `InBand`, else a
 /// transverse one anywhere answers `Transverse` (every station) or
 /// `Mixed` (some); only an edge smooth at every station descends into
-/// [`second_order_walk`], where a station read `Zero`/`Negative` or in
-/// band leaves the bend under-determined and, past every station, the
-/// span's certified bound decides.
+/// [`second_order_walk`], where a station read `Zero`/`Negative` leaves
+/// the bend under-determined, one in band refuses the description, and,
+/// past every station, the span's certified bound decides.
 /// The tier-3 must-carry arm re-asks
 /// this question of the stored description through the same walk, and
 /// that is what keeps the demanded set and the stored set ONE set: a
@@ -1681,9 +1683,9 @@ pub fn must_carry_over_edge<T: Decide>(
         SecondOrderWalk::Separated | SecondOrderWalk::UnderDetermined => {
             crate::Bend::UnderDetermined
         }
-        // Smooth at every station, its bend undecided at one: no bound
-        // away from zero is certified, so none is demanded.
-        SecondOrderWalk::InBand(_) => crate::Bend::UnderDetermined,
+        SecondOrderWalk::InBand(source) => {
+            return MustCarryVerdict::InBand(MustCarryEscalation::at(MustCarryRung::Bend, source));
+        }
         SecondOrderWalk::Stopped(never) => match never {},
     };
     match Settled::tangency(bend, carrier, s1, s2) {
@@ -2183,17 +2185,16 @@ pub enum MustCarryVerdict {
     ///   is not certified between them (a bend whose `κ_rel` crosses
     ///   zero off the stations): the conventional description is the
     ///   honest one, by this predicate.
-    /// - A station's bend was in band: no bound away from zero is
-    ///   certified there.
     /// - The pair is outside [`crate::tangent_certificate_lane`]: every
     ///   interior station read `Smooth` first-order and `Positive`
     ///   second-order, and the certificate cannot store an intrinsic
-    ///   tangency there. A transverse or in-band station out of lane
-    ///   answers `Transverse` or `InBand`, exactly as in lane.
+    ///   tangency there. A transverse or in-band station out of lane,
+    ///   at either order, answers `Transverse` or `InBand`, exactly as
+    ///   in lane.
     UnderDetermined,
-    /// A station's first-order class was in band, certifiable as neither,
-    /// carrying that station's escalation for the caller to refuse
-    /// typed, tagged with the reading that raised it.
+    /// A station was in-band: near-osculating geometry, certifiable as
+    /// neither, carrying that station's escalation for the caller to
+    /// refuse typed, tagged with the reading that raised it.
     InBand(MustCarryEscalation),
     /// Every station's tangent planes are definitely distinct
     /// ([`DihedralClass::Transverse`]): the join is not first-order
@@ -3066,9 +3067,9 @@ mod tests {
         let len = (2.0 * (band().zero() * band().escalate()).sqrt() / 0.01).sqrt();
         let generator = along(ruling);
         let bend = ask(&cone, &tangent, &generator, (100.0, 100.0 + len));
-        assert_eq!(
-            bend, "Ok(Conventional)",
-            "an in-band sagitta on a smooth join demands nothing: {bend}"
+        assert!(
+            bend.starts_with("Err(Escalated(Bend, ") && bend.contains("tangent_second_order"),
+            "an in-band sagitta escalates as the bend: {bend}"
         );
 
         // A sphere in a cylinder of its own radius, touching along the
@@ -3109,20 +3110,19 @@ mod tests {
         );
     }
 
-    /// **Out of lane, the rule demands nothing at any sagitta.** The
+    /// **The lane gates the demand, never the in-band refusal.** The
     /// plane tangent to a 45° cone (apex at the origin, axis `z`) along
     /// the ruling `(sin 45°, 0, cos 45°)`, over `[100, 100 + L]`: a
     /// `Line` carrier on a cone, which
     /// [`crate::tangent_certificate_lane`] refuses. `κ_rel` is the
     /// cone's transverse curvature `1/t ≈ 0.01` and the folded arm is
     /// the extent `L`, so `L` sets the sagitta `κ_rel·L²/2`: at the
-    /// band's geometric mean every station's bend is in band, which
-    /// certifies no bound away from zero; at ten times the escalation
-    /// edge every station reads `Positive` and the lane leaves nothing to
-    /// demand; and at a hundredth of the zero edge the first station
-    /// reads `Zero`.
+    /// band's geometric mean every station is in band, and the rule
+    /// answers `InBand` lane or not; at ten times the escalation edge every
+    /// station reads `Positive` and the lane leaves nothing to demand, and
+    /// at a hundredth of the zero edge the first station reads `Zero`.
     #[test]
-    fn an_out_of_lane_sagitta_is_under_determined_in_band_or_definite() {
+    fn an_out_of_lane_in_band_sagitta_escalates_and_a_definite_one_is_under_determined() {
         let b = band();
         let (s, c) = std::f64::consts::FRAC_PI_4.sin_cos();
         let cone = Surface::Cone {
@@ -3143,8 +3143,18 @@ mod tests {
             })
         };
         let mean = (b.zero() * b.escalate()).sqrt();
+        for (order, verdict) in verdicts(length_at(mean)).into_iter().enumerate() {
+            assert!(
+                matches!(
+                    verdict,
+                    MustCarryVerdict::InBand(e)
+                        if e.rung() == MustCarryRung::Bend
+                            && e.diag().predicate == Some("tangent_second_order")
+                ),
+                "order {order}: an in-band sagitta out of lane escalates, got {verdict:?}"
+            );
+        }
         for (label, sagitta) in [
-            ("in-band", mean),
             ("positive", 10.0 * b.escalate()),
             ("zero", b.zero() / 100.0),
         ] {
@@ -4603,11 +4613,12 @@ mod bend_rows {
 
     /// **A bend in band at a station is an undecided bend, not an
     /// undecided seam**: the arc's middle station sits `3·10⁻⁸` past a
-    /// neutral point, where the sagitta lands in the band. Every station
-    /// reads the faces smooth, so the must-carry rule demands nothing and
-    /// the seam (the faces facing one way) stands, its bend
-    /// under-determined; facing each other, the bend decides between an
-    /// end and the lamina, and that stays refused, on the bend.
+    /// neutral point, where the sagitta lands in the band. Facing one way,
+    /// the routing's fold reads the π seam, its bend under-determined,
+    /// while every reader of the description (the must-carry rule, the
+    /// whole-edge fold) refuses typed on the bend; facing each other, the
+    /// bend decides between an end and the lamina, and the routing refuses
+    /// it too.
     #[test]
     fn a_bend_in_band_at_a_station_leaves_the_seam_under_determined() {
         let rim = rim();
@@ -4623,36 +4634,42 @@ mod bend_rows {
             "the middle station's sagitta is in band: κ_rel {}",
             jet.kappa_rel
         );
-        assert_eq!(
-            verdict(&pipe(), &bend(), t0, t1),
-            MustCarryVerdict::UnderDetermined,
-            "no intrinsic tangency is demanded"
+        assert!(
+            matches!(
+                verdict(&pipe(), &bend(), t0, t1),
+                MustCarryVerdict::InBand(e) if e.rung() == MustCarryRung::Bend
+            ),
+            "the description question refuses on the bend"
         );
         let (pipe, bend) = (pipe(), bend());
         let side = |surface, sense| crate::SideFace { surface, sense };
-        let read = |sense| {
-            let walk =
-                crate::WedgeWalk::along_edge(side(&pipe, true), side(&bend, sense), &rim, t0, t1);
-            crate::edge_wedge_over(&walk, fixture_lever(1.0), band())
+        let walk = |sense| {
+            crate::WedgeWalk::along_edge(side(&pipe, true), side(&bend, sense), &rim, t0, t1)
         };
+        let routed = |sense| crate::rim_routing_wedge(&walk(sense), fixture_lever(1.0), band());
+        let folded = crate::edge_wedge_over(&walk(true), fixture_lever(1.0), band());
         assert!(
             matches!(
-                read(true),
+                routed(true),
                 crate::WedgeVerdict::Seam {
                     bend: crate::Bend::UnderDetermined,
                     ..
                 }
             ),
-            "aligned, the seam: {:?}",
-            read(true)
+            "aligned, the routing's seam: {:?}",
+            routed(true)
+        );
+        assert!(
+            matches!(folded, crate::WedgeVerdict::InBand(e) if e.rung() == crate::WedgeRung::Bend),
+            "aligned, the description's fold refuses on the bend: {folded:?}"
         );
         assert!(
             matches!(
-                read(false),
+                routed(false),
                 crate::WedgeVerdict::InBand(e) if e.rung() == crate::WedgeRung::Bend
             ),
             "opposed, undecided on the bend: {:?}",
-            read(false)
+            routed(false)
         );
     }
 

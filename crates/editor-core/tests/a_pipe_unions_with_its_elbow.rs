@@ -649,8 +649,9 @@ fn a_long_pipe_whose_ruling_meets_the_bends_carrier_again_passes_the_crossing_la
 /// glues, and the union reaches the crossing layer, where the edge ending
 /// there stops on its end's order or window
 /// (`an_edge_ending_near_a_neutral_point_stops_where_its_distance_says`).
-/// The axis turned `20ε` puts the neutral point in band of an edge's
-/// station, and the union builds.
+/// The axis turned `20ε` puts the neutral point in band of a seam edge's
+/// station: the junction glues, and the seam's description, which its
+/// bend decides, refuses typed on the bend.
 #[test]
 fn an_elbow_whose_neutral_point_sits_in_band_of_a_station_glues_a_junction() {
     for delta in [1e-8, 3e-8, 1e-7] {
@@ -673,10 +674,20 @@ fn an_elbow_whose_neutral_point_sits_in_band_of_a_station_glues_a_junction() {
             "{what}: past the glue door, at the crossing layer's end read: {e:?}"
         );
     }
-    let (off, want) = turned(true, 20.0 * Tol::witness().eps());
+    let (off, _) = turned(true, 20.0 * Tol::witness().eps());
     let j = join(true, CapEnd::End, off);
     glues_its_walls_a_junction(&j, 8, "turned 20ε");
-    builds_at(&j, want, "turned 20ε");
+    let e = refusal(&j, "turned 20ε");
+    assert!(
+        matches!(
+            e,
+            topo::BooleanError::Escalated {
+                decision: topo::BooleanDecision::SeamJet,
+                ..
+            }
+        ),
+        "turned 20ε: the seam's description, on its bend in band: {e:?}"
+    );
 }
 
 /// The ring split in two with its first vertex `phase` round from `+x`.

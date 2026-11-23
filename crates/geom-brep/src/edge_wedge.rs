@@ -357,6 +357,41 @@ pub fn edge_wedge_over_as<T: Decide>(
     band: Band,
     side: Role,
 ) -> WedgeVerdict {
+    fold(walk, reach, band, side, BendInBand::Refuses)
+}
+
+/// **The fold a rim's routing reads** ([`edge_wedge_over_as`] at
+/// [`Role::Check`]), where a bend in band at a station is an undecided
+/// bend and not an undecided wedge: two faces whose outward normals are
+/// aligned at every station meet at π whatever their bend, so the
+/// routing reads that π seam, its bend under-determined. The routing
+/// stores nothing; every reader that stores or judges a description
+/// reads [`edge_wedge_over_as`], where the bend in band refuses.
+#[must_use]
+pub fn rim_routing_wedge<T: Decide>(
+    walk: &WedgeWalk<'_, T>,
+    reach: geom_core::Lever<T>,
+    band: Band,
+) -> WedgeVerdict {
+    fold(walk, reach, band, Role::Check, BendInBand::SeamStands)
+}
+
+/// What an aligned pair's bend in band reads as ([`material_outcome`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum BendInBand {
+    /// The bend's escalation is the verdict.
+    Refuses,
+    /// The seam stands, its bend under-determined.
+    SeamStands,
+}
+
+fn fold<T: Decide>(
+    walk: &WedgeWalk<'_, T>,
+    reach: geom_core::Lever<T>,
+    band: Band,
+    side: Role,
+    in_band: BendInBand,
+) -> WedgeVerdict {
     let (plus, minus) = (walk.plus, walk.minus);
     let senses = [plus.sense, minus.sense];
     let classes = match class_pass(plus.surface, minus.surface, walk.stations(), reach, band) {
@@ -423,7 +458,7 @@ pub fn edge_wedge_over_as<T: Decide>(
         SecondOrderWalk::InBand(cause) => Separation::Undecided(cause),
         SecondOrderWalk::Stopped(escalation) => return WedgeVerdict::InBand(escalation),
     };
-    material_outcome(&reads.pairings, separation, &reads.ends, margin)
+    material_outcome(&reads.pairings, separation, &reads.ends, margin, in_band)
 }
 
 /// One station's class read.
@@ -555,19 +590,25 @@ pub(crate) fn material_outcome(
     separation: Separation,
     ends: &[(u32, WedgeEnd, geom_core::MarginDiag)],
     margin: Option<geom_core::MarginDiag>,
+    in_band: BendInBand,
 ) -> WedgeVerdict {
     let decided: Vec<_> = ends.iter().map(|&(i, end, _)| (i, end)).collect();
     if let Some(mixed) = MixedStations::pairing(pairings) {
         return WedgeVerdict::Mixed(mixed);
     }
     let bend = separation.bend();
+    let aligned = matches!(pairings.first(), Some((_, MaterialPairing::Aligned)));
     match pairings.first() {
-        Some((_, MaterialPairing::Aligned)) => WedgeVerdict::Seam { bend, margin },
-        // Facing each other, an undecided bend is an undecided wedge: an
-        // end where the jets separate, the lamina where they osculate.
-        _ if let Separation::Undecided(cause) = separation => {
+        // An undecided bend: facing each other it is an undecided wedge
+        // (an end where the jets separate, the lamina where they
+        // osculate); facing one way, an undecided description, which
+        // only the routing reads past.
+        _ if let Separation::Undecided(cause) = separation
+            && !(aligned && in_band == BendInBand::SeamStands) =>
+        {
             WedgeVerdict::InBand(WedgeEscalation::at(WedgeRung::Bend, cause))
         }
+        Some((_, MaterialPairing::Aligned)) => WedgeVerdict::Seam { bend, margin },
         _ if separation == Separation::None => WedgeVerdict::Lamina,
         _ => match (MixedStations::end(&decided), ends.first()) {
             (Some(mixed), _) => WedgeVerdict::Mixed(mixed),
@@ -769,7 +810,7 @@ mod tests {
         ];
         for (pairings, separation, ends, want) in rows {
             assert_eq!(
-                material_outcome(pairings, separation, ends, None),
+                material_outcome(pairings, separation, ends, None, BendInBand::Refuses),
                 want,
                 "{pairings:?} {separation:?} {ends:?}"
             );

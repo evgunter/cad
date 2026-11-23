@@ -188,6 +188,7 @@ pub use edge_nurbs::{
 };
 pub use edge_wedge::{
     Bend, WedgeClass, WedgeRefusal, WedgeVerdict, WedgeWalk, edge_wedge_over, edge_wedge_over_as,
+    rim_routing_wedge,
 };
 pub use enters::{
     EntersMaterial, LeverEscalation, LeverRung, NormalAlignment, OutwardNormal, ParallelNormal,

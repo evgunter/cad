@@ -60,19 +60,21 @@ reached it. Both stood until the close below.
 
 `geom_brep::dihedral::second_order_walk` now reads on past a station
 whose bend is in band, and answers `InBand` only once every station is
-read and none decided `Zero`/`Negative`. The must-carry rule takes that
-as `UnderDetermined` (no bound away from zero is certified, so no
-intrinsic tangency is demanded), and the whole-edge fold
-(`edge_wedge::material_outcome`, `Separation::Undecided`) reports a
-seam whose faces face one way as `Seam { bend: UnderDetermined }`. Facing
-each other, the bend decides between an end and the lamina, which is a
-material question, so that stays `InBand` on the `Bend` rung. A station
-whose first-order wedge is in band refuses as before.
+read and none decided `Zero`/`Negative`. The rim routing reads the fold
+through `geom_brep::rim_routing_wedge`, where an aligned pair whose
+bend is in band is the π seam, its bend under-determined, so the
+routing reads the seam and a junction glues. Every reader that stores
+or judges a description (the must-carry rule, `edge_wedge_over`, tier
+3's check 4, the extrude and revolve joins, the blend, the split's
+finish) still refuses `InBand` on the `Bend` rung: the description
+question refuses alone, typed, as this row owed. Facing each other, the
+bend decides between an end and the lamina, so the routing refuses that
+too. A station whose first-order wedge is in band refuses as before.
 
 Pinned: `dihedral::bend_rows::a_bend_in_band_at_a_station_leaves_the_seam_under_determined`
 (geom-brep), and
 `a_pipe_unions_with_its_elbow::an_elbow_whose_neutral_point_sits_in_band_of_a_station_glues_a_junction`
-(editor-core): the 20ε pose builds at its closed form, and the poses
-`neutral_off_the_seam(δ)` at δ = 1e-8, 3e-8, 1e-7, whose neutral point
-sits at a routed rim vertex, glue a junction and reach the crossing
-layer.
+(editor-core): the poses `neutral_off_the_seam(δ)` at δ = 1e-8, 3e-8,
+1e-7, whose neutral point sits at a routed rim vertex, glue a junction
+and reach the crossing layer; the 20ε pose glues a junction and refuses
+`Escalated { SeamJet }` on the seam's description.
