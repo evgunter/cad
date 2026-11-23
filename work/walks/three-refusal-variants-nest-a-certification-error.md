@@ -2,10 +2,12 @@
 id: three-refusal-variants-nest-a-certification-error
 kind: issue
 title: three EulerOpError variants and one BlendError nest a certification error with four spellings of the same refusal
-status: open
+status: review
 opened: 2026-09-14
 priority: P1
 cost: E
+pr: 7477
+branch: walks/refusal-split
 ---
 
 ## What
@@ -65,3 +67,13 @@ does not certify on the moved charts, is the same shape as
 `CertifyError`. It adds one more arm to every list above
 (`merge_faces`' placement match, the `every_*_error_once` table). PR 3580 left the shape alone, as this row
 asks.
+
+## Decided
+
+Two designers converged (fork F3, 2026-11-22). Each variant now has one meaning:
+
+- **`EulerOpError::DescriptionUncertified { edge: Option<EdgeKey>, error }`** is a description a door was asked to write that does not certify. It replaces `Certification` and `RechartFalsifies`, and drops `door`. `edge` is `None` only for an edge the door mints.
+- **`RebasedCarrier { edge, error }`** is only the kept carrier that the move's endpoints falsify, raised at the re-basing gate.
+- **`PcurveSplit`** is unchanged.
+- **`BlendError::PcurveMint { source }`** forwards `mint_pcurves`' refusal. It replaces `Certify { site, source }`, whose `site` was constant.
+- **`EulerOpError::Band(BandError)`** is a tolerance that gives no band, which `Tolerance` admits (K·ε can overflow), and is not a certification failure.
