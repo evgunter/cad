@@ -690,14 +690,15 @@ mod rows {
     /// far end lies about `3e-9` off the bend, in band at the witness
     /// band; the door does not hand that end to the root doors as the rest
     /// of the span's start, and no nearer window holds its spread. The
-    /// pose is placed by hand for that band's `ε = 1e-9`.
+    /// pose is placed by hand for `ε = 1e-9`, so the row reads that band
+    /// whatever the run's ε.
     #[test]
     fn a_window_whose_far_end_reads_in_band_is_not_returned() {
-        let b = band();
-        if b.zero() != 1e-9 {
+        let b = Band::linear_at(Tol::witness(), 1e-9).unwrap();
+        if b.escalate() != 1e-8 {
             test_utils::vacuity::stood_down(
-                "ε ≠ 1e-9",
-                "the far end's clearance is not driven in band: the pose is placed for ε = 1e-9",
+                "K ≠ 10",
+                "the far end's clearance is not driven in band: the pose is placed for K = 10",
             );
             return;
         }

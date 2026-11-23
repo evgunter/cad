@@ -526,21 +526,31 @@ impl<T: Real> Default for Touch<T> {
     }
 }
 
+/// Where an end on a rim lies against the touch there ([`Touch::holds`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum OnTouch {
+    /// Off every stretch of it.
+    Off,
+    /// On a stretch, its ends included: A rides it with this sign there.
+    Inside(geom_core::Sign),
+    /// On two stretches ridden opposite ways, where they meet.
+    Opposed,
+}
+
 impl<T: Decide> Touch<T> {
-    /// **Whether `p`, a point decided on `rim`, lies on the touch**, a
-    /// closed stretch or point of it (`junction_end_in_extent`, metered
-    /// along the rim): the sign A rides it with there, or `None` where no
-    /// piece holds it, or two that do are ridden opposite ways.
+    /// **Where `p`, a point decided on `rim`, lies against the touch**
+    /// (`junction_end_in_extent`, metered along the rim): on a closed
+    /// stretch of it (a touch that is a point included), or off it.
     ///
     /// # Errors
     ///
-    /// The first in-band reading of whether a piece holds it.
+    /// The first in-band reading of whether a stretch holds it.
     pub(crate) fn holds(
         &self,
         rim: Rim<T>,
         p: Point3<T>,
         band: Band,
-    ) -> Result<Option<geom_core::Sign>, Indeterminate> {
+    ) -> Result<OnTouch, Indeterminate> {
         let tau = geom::conic_period::<T>().length();
         let at = locus_param(Locus::Rim(rim), p);
         let meter = |m: T| {
@@ -553,12 +563,12 @@ impl<T: Decide> Touch<T> {
                 || matches!(meter(tau - past)?, geom_core::Sign::Zero);
             if within {
                 match sign {
-                    Some(s) if s != rides => return Ok(None),
+                    Some(s) if s != rides => return Ok(OnTouch::Opposed),
                     _ => sign = Some(rides),
                 }
             }
         }
-        Ok(sign)
+        Ok(sign.map_or(OnTouch::Off, OnTouch::Inside))
     }
 }
 

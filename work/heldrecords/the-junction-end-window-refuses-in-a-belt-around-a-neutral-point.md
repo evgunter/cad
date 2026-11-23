@@ -19,7 +19,10 @@ fix pass, 2026-11-23.
 the pipe (ring 1 / 0.6, length 2) and its elbow bent away off the End cap,
 revolved about the line through `3·(−sin δ, cos δ)` heading `δ`, so the
 bend's neutral point on each rim sits `δ` round the rim from the pipe's
-seam ruling and the rim's vertex. At `Tol::witness()`:
+seam ruling and the rim's vertex. At `ε = 1e-9`, `K = 10` (the
+figures move with the band: the order's in-band stretch scales with
+`ε`, and the belt runs from about `200ε` to about `7√ε`, the spread
+`√(6ε/δ)` meeting the window `√(3δ)`):
 
 | δ (rad) | the union stops at |
 |---|---|

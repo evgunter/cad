@@ -2179,11 +2179,18 @@ fn junction_window<T: Decide + crate::props::AtRestPolicy>(
                 diag,
             ))
         };
-        let Some(a_rides) = junction_end_held(rim, touch, p, band).map_err(in_band)? else {
-            continue;
-        };
-        held = Some((parent, rim, a_rides));
-        break;
+        match junction_end_held(rim, touch, p, band).map_err(in_band)? {
+            crate::rim_wedge::OnTouch::Off => continue,
+            crate::rim_wedge::OnTouch::Opposed => {
+                return Err(refused(JunctionEndUnsettled::Gap(
+                    super::JunctionEndGap::Window,
+                )));
+            }
+            crate::rim_wedge::OnTouch::Inside(a_rides) => {
+                held = Some((parent, rim, a_rides));
+                break;
+            }
+        }
     }
     let Some((parent, rim, a_rides)) = held else {
         return Ok(None);
@@ -2229,9 +2236,20 @@ fn junction_window<T: Decide + crate::props::AtRestPolicy>(
 }
 
 /// **Whether `p` lies on a junction's rim, inside the stretch it was
-/// glued over** (`junction_end_on_rim`, then the touch's own reading):
-/// the sign A's riding half-edge runs the rim with there, or `None` where
-/// `p` is decided off the rim or outside the touch.
+/// glued over** (`junction_end_on_rim`, then the touch's own reading,
+/// [`crate::rim_wedge::Touch::holds`]): `Off` where `p` is decided off
+/// the rim or the touch, and `Opposed` where two stretches meeting at `p`
+/// are ridden opposite ways, which names no side and refuses the window.
+///
+/// **An end where the touch stops is read like one inside it.** There
+/// `face`'s boundary turns off the rim, but `face` does not hold the rim
+/// past the touch: the junction's departures decided it does not (a
+/// stretch both faces held with `face` not riding it reads `NoEdge`, and
+/// no junction is glued). And `face`'s interior starts on its own side of
+/// its riding edge. So near the corner `face` lies in the closed
+/// half-plane on its own side of the rim's tangent, whatever its other
+/// boundary edge does, and a root of the spread standing beyond the band
+/// on `P`'s side is off it, as along the touch.
 ///
 /// # Errors
 ///
@@ -2241,14 +2259,14 @@ fn junction_end_held<T: Decide>(
     touch: &crate::rim_wedge::Touch<T>,
     p: Point3<T>,
     band: Band,
-) -> Result<Option<Sign>, geom_core::Indeterminate> {
+) -> Result<crate::rim_wedge::OnTouch, geom_core::Indeterminate> {
     let w = p - rim.center;
     let height = w.dot(rim.axis);
     let radial = (w - rim.axis * height).norm() - rim.radius;
     let off = (radial.powi(2) + height.powi(2)).sqrt();
     match geom_core::k_stats::decide("junction_end_on_rim", Margin::of(off), band)? {
         Sign::Zero => touch.holds(rim, p, band),
-        Sign::Positive | Sign::Negative => Ok(None),
+        Sign::Positive | Sign::Negative => Ok(crate::rim_wedge::OnTouch::Off),
     }
 }
 
@@ -10298,17 +10316,18 @@ mod junction_end_rows {
     /// off it by a millimetre, and off it within the band's escalation.
     #[test]
     fn an_end_is_read_only_on_the_rim() {
+        use crate::rim_wedge::OnTouch;
         let b = band();
         let r = rim(Point3::new(0.0, 0.0, 2.0), 1.0);
         let all = crate::rim_wedge::Touch::of(vec![(0.0, core::f64::consts::TAU, Sign::Positive)]);
         assert_eq!(
             junction_end_held(r, &all, Point3::new(1.0, 0.0, 2.0), b),
-            Ok(Some(Sign::Positive)),
-            "on the rim"
+            Ok(OnTouch::Inside(Sign::Positive)),
+            "on the rim, where a touch all round has no end"
         );
         assert_eq!(
             junction_end_held(r, &all, Point3::new(1.0, 0.0, 2.001), b),
-            Ok(None),
+            Ok(OnTouch::Off),
             "a millimetre above it"
         );
         let mid = 0.5 * (b.zero() + b.escalate());
@@ -10318,38 +10337,38 @@ mod junction_end_rows {
         );
     }
 
-    /// **The end is read only inside the stretch the junction was glued
-    /// over**: a quarter of the rim, closed at its ends.
+    /// **The end is read only on the stretch the junction was glued
+    /// over**, a quarter of the rim here, its ends included (where it
+    /// stops, the glued face lies on its own side of the rim's tangent:
+    /// [`junction_end_held`]); two stretches ridden opposite ways name no
+    /// side where they meet.
     #[test]
-    fn an_end_is_read_only_inside_the_glued_stretch() {
+    fn an_end_is_read_only_on_the_glued_stretch() {
+        use crate::rim_wedge::{OnTouch, Touch};
+        use core::f64::consts::{FRAC_PI_2, PI};
         let b = band();
         let r = rim(Point3::new(0.0, 0.0, 0.0), 1.0);
-        let quarter =
-            crate::rim_wedge::Touch::of(vec![(0.0, core::f64::consts::FRAC_PI_2, Sign::Negative)]);
         let at = |phi: f64| Point3::new(phi.cos(), phi.sin(), 0.0);
+        let quarter = Touch::of(vec![(0.0, FRAC_PI_2, Sign::Negative)]);
+        let read = |t: &Touch<f64>, phi| junction_end_held(r, t, at(phi), b);
+        let inside = Ok(OnTouch::Inside(Sign::Negative));
+        assert_eq!(read(&quarter, 0.5), inside, "inside");
+        assert_eq!(read(&quarter, 0.0), inside, "where it starts");
+        assert_eq!(read(&quarter, FRAC_PI_2), inside, "where it stops");
+        assert_eq!(read(&quarter, 2.0), Ok(OnTouch::Off), "past it");
+        assert_eq!(read(&quarter, -0.5), Ok(OnTouch::Off), "before it");
+        let opposed = Touch::of(vec![
+            (0.0, FRAC_PI_2, Sign::Negative),
+            (FRAC_PI_2, PI, Sign::Positive),
+        ]);
         assert_eq!(
-            junction_end_held(r, &quarter, at(0.5), b),
-            Ok(Some(Sign::Negative))
+            read(&opposed, FRAC_PI_2),
+            Ok(OnTouch::Opposed),
+            "two stretches ridden opposite ways"
         );
-        assert_eq!(
-            junction_end_held(r, &quarter, at(0.0), b),
-            Ok(Some(Sign::Negative)),
-            "its start"
-        );
-        assert_eq!(
-            junction_end_held(r, &quarter, at(core::f64::consts::FRAC_PI_2), b),
-            Ok(Some(Sign::Negative)),
-            "its end"
-        );
-        assert_eq!(
-            junction_end_held(r, &quarter, at(2.0), b),
-            Ok(None),
-            "past it"
-        );
-        assert_eq!(
-            junction_end_held(r, &quarter, at(-0.5), b),
-            Ok(None),
-            "before it"
-        );
+        assert_eq!(read(&opposed, 1.0), inside, "inside the first");
+        let point = Touch::of(vec![(1.0, 1.0, Sign::Negative)]);
+        assert_eq!(read(&point, 1.0), inside, "a touch at a point");
+        assert_eq!(read(&point, 1.5), Ok(OnTouch::Off), "beside it");
     }
 }
