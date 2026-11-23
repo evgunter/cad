@@ -276,3 +276,35 @@ fn the_height_along_a_direction_is_read_about_the_stored_point() {
         assert!(lo < 0.0 && hi > 0.0 && h.at(0.4).abs() <= 1e-15, "{c:?}");
     }
 }
+
+/// **A measurement, not a gate**: an arc-held ellipse's roots at a touch
+/// on `Interval`, posed about the anchor (as [`Height::roots`] reads them)
+/// beside the centre's posing of the same numbers. Prints each
+/// enclosure's middle offset from the touch and its width. Run with
+/// `cargo nextest run -p geom --run-ignored only an_arc_held_touchs_roots_at_interval --no-capture`.
+#[test]
+#[ignore = "a measurement: prints the touch's root enclosures"]
+fn an_arc_held_touchs_roots_at_interval() {
+    use super::{Height, anchored_roots, centred_roots};
+    let e = far();
+    let ki = Curve3::Ellipse(e).map_scalar(Interval::from_f64);
+    let ki = ki.conic().unwrap();
+    for phi in [1e-9, 1e-6, 1e-3] {
+        let q = beside(&e, phi);
+        let out = e.derivative_at(phi).normalize().cross(e.axis());
+        for by in [0.0, -1e-12, 1e-12, -1e-9] {
+            let o = q + out * by;
+            let h: Height<Interval> = ki.height_along(lift(o), lift_v(out));
+            let anchored = anchored_roots(h.at, h.p, h.q, (Interval::from_f64(1.0), Interval::from_f64(0.0)));
+            let centred = centred_roots(h.at - h.p, h.p, h.q);
+            let show = |r: [Interval; 2]| {
+                r.map(|x| format!("{:+.3e}±{:.1e}", 0.5 * (x.lo() + x.hi()) - phi, 0.5 * (x.hi() - x.lo())))
+            };
+            eprintln!(
+                "φ {phi:e} lift {by:+e}: about the anchor {:?}, about the centre {:?}",
+                show(anchored),
+                show(centred)
+            );
+        }
+    }
+}
