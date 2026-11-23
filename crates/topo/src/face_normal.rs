@@ -136,7 +136,7 @@ pub(crate) fn surface_outward_normal<T: Real>(
 /// a torn surface is not a non-planar one.
 pub fn face_outward_normal<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<OutwardNormal<T>> {
     let f = body.face(face)?;
-    match f.surface() {
+    match f.surface().ok()? {
         geom::Surface::Plane { frame, .. } => {
             let normal = frame.axis();
             Some(plane_outward_normal(f.record(), normal))
@@ -161,7 +161,7 @@ pub fn face_outward_normal<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<O
 /// surface is not a non-planar one.
 pub fn face_plane<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<PlaneDesc<T>> {
     let f = body.face(face)?;
-    match f.surface() {
+    match f.surface().ok()? {
         geom::Surface::Plane { frame, .. } => {
             let (origin, normal) = (frame.origin(), frame.axis());
             Some(plane_desc_of(f.record(), origin, normal))
@@ -203,7 +203,7 @@ pub(crate) fn plane_desc_of<T: Real>(
 /// surface is not a carrier outside the inventory.
 pub fn face_carrier_desc<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierDesc<T>> {
     let f = body.face(face)?;
-    carrier_desc_on(f.record(), f.surface())
+    carrier_desc_on(f.record(), f.surface().ok()?)
 }
 
 /// [`face_carrier_desc`] of a face read from another operand's frame
@@ -216,7 +216,7 @@ pub fn seated_carrier_desc<T: Decide>(
     face: FaceKey,
 ) -> Option<CarrierDesc<T>> {
     let f = seat.body().face(face)?;
-    carrier_desc_on(f.record(), &seat.surface(f.surface())?)
+    carrier_desc_on(f.record(), &seat.surface(f.surface().ok()?)?)
 }
 
 /// The description of a face whose record is `record` on `surface`.
@@ -580,7 +580,10 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
     let Some(f) = body.face(face) else {
         return Ok(None);
     };
-    let surface = f.surface();
+    // A pending face has no arm at a point, as a spline chart has none.
+    let Ok(surface) = f.surface() else {
+        return Ok(None);
+    };
     match surface {
         geom::Surface::Plane { frame, .. } => {
             let normal = frame.axis();
@@ -708,7 +711,7 @@ pub(crate) fn face_outward_normal_at_foot<T: Decide>(
         Ok(Sign::Positive | Sign::Negative) => Ok(()),
         Ok(Sign::Zero) | Err(_) => Err(FootNormalError::NoFoot { band }),
     };
-    let surface = f.surface();
+    let surface = f.surface().map_err(|_| FootNormalError::Unread)?;
     match *surface {
         geom::Surface::Plane { frame, .. } => {
             let normal = frame.axis();
@@ -817,11 +820,8 @@ pub(crate) fn spline_outward_normal_at<T: Decide>(
 ) -> Result<OutwardNormal<T>, SplineNormalError> {
     use geom_brep::ChartPointRefusal;
     let f = body.face(face).ok_or(SplineNormalError::StaleFace)?;
-    let surface = f.surface();
+    let surface = f.surface().map_err(|_| SplineNormalError::PlaceholderChart)?;
     let chart = surface.spline_chart().ok_or(SplineNormalError::NotSpline)?;
-    if surface.is_placeholder_chart() {
-        return Err(SplineNormalError::PlaceholderChart);
-    }
     let uv = (T::from_computed(u), T::from_computed(v));
     let net = geom::cover::Cover::net(chart.control().to_vec());
     let reach = geom_brep::ExtentBall::of_cover_from(net.as_ref(), p).lever();

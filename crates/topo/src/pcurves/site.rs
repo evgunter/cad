@@ -191,7 +191,12 @@ pub(crate) fn split_cache<T: AtRestPolicy>(
         let (carrier, t0, t1) = half_edge_carrier(body, half_edge).unwrap_or_else(|e| {
             unreachable!("split_edge resolved the curve of {half_edge:?}'s edge Certified: {e}")
         });
-        let surface = half_edge_surface(body, half_edge);
+        let surface = half_edge_surface(body, half_edge).unwrap_or_else(|_| {
+            unreachable!(
+                "{half_edge:?} stores a row, and rows are minted only on a described chart \
+                 (`DescribedChart::minting`)"
+            )
+        });
         let image = cache.pcurve().clone();
         let refused = |error| SplitRowError {
             half_edge,
@@ -208,12 +213,7 @@ pub(crate) fn split_cache<T: AtRestPolicy>(
             )
             .map_err(refused)
         };
-        let Some(chart) = DescribedChart::of(&surface) else {
-            unreachable!(
-                "{half_edge:?} stores a row, and rows are minted only on a described chart \
-                 (`DescribedChart::minting`)"
-            )
-        };
+        let chart = DescribedChart::of(&surface);
         let periods = ChartPeriods::of(&surface, band);
         let sense = half_edge_face(body, half_edge).sense();
         // The joint of `image`'s entry onto `onto`, the exit of the image
@@ -1168,10 +1168,10 @@ pub(crate) fn turn_element<T: Decide>(
     let Some(row) = body.pcurve(half_edge) else {
         return Ok(None);
     };
-    let surface = half_edge_surface(body, half_edge);
-    let Some(chart) = DescribedChart::of(&surface) else {
+    let Ok(surface) = half_edge_surface(body, half_edge) else {
         return Ok(None);
     };
+    let chart = DescribedChart::of(&surface);
     let (start, end) = edge_vertex_points(body, half_edge);
     match decide("pcurve_turn_closes", Margin::of(start.distance(end)), band) {
         Ok(Sign::Zero) => {}

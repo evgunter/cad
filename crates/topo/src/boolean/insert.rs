@@ -2642,8 +2642,8 @@ fn record_germ_dir<T: crate::props::AtRestPolicy>(
         }
         return germ_dir((sa, codes_a), (sb, codes_b), read, band);
     }
-    let s_a = a_body.proven_face(sa.face).surface().clone();
-    let s_b = b_body.proven_face(sb.face).surface().clone();
+    let s_a = a_body.proven_face(sa.face).described().clone();
+    let s_b = b_body.proven_face(sb.face).described().clone();
     let reach = declared.reach_of(super::Operand::A, sa.face, super::Operand::B, sb.face)?;
     let d = match geom_brep::tangent_locus(&s_a, &s_b, reach, band) {
         Ok(geom_brep::TangentLocus::Line {

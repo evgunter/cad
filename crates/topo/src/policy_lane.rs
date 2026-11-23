@@ -27,7 +27,7 @@ use geom_brep::{
 };
 use geom_core::{Band, Decide, Point3, TangentTransport};
 
-use crate::geometry::SurfaceKey;
+use crate::geometry::{SurfaceKey, SurfaceMiss};
 use crate::props::AtRestPolicy;
 
 /// **Whose data a certification reads**, named at the call.

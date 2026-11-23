@@ -197,9 +197,9 @@ pub fn tangent_pair_relation<T: Decide>(
         })?,
     );
     Ok(tangent_locus_relation(
-        face_a.surface(),
+        face_a.described(),
         face_a.sense(),
-        face_b.surface(),
+        face_b.described(),
         face_b.sense(),
         carrier,
         t0,

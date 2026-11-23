@@ -47,7 +47,7 @@ use geom_core::Real;
 /// describing door moves the face onto a described slot. Geometry is
 /// only ever handed a described surface: the doors that resolve a slot
 /// for it refuse a pending one with [`SurfaceMiss::Pending`].
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum SurfaceSlot<T: Real> {
     /// The surface the slot's faces are regions of.
     Described(Surface<T>),

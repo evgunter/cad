@@ -822,7 +822,7 @@ pub(crate) fn face_placement<T: Decide>(
     band: Band,
     on_plane: &'static str,
 ) -> Result<CurvedPlacement, PlacementError> {
-    if let geom::Surface::Plane { frame, .. } = *body.proven_face(face).surface() {
+    if let Ok(&geom::Surface::Plane { frame, .. }) = body.proven_face(face).surface() {
         let (origin, normal) = (frame.origin(), frame.axis());
         match decide(
             on_plane,
@@ -855,8 +855,8 @@ pub(crate) fn placement_on_carrier<T: Decide>(
     held: crate::held::Held<T>,
     band: Band,
 ) -> Result<ChartedPlacement, ContainError> {
-    if let Some(view) = body.face(face) {
-        held.check(view.surface(), band);
+    if let Some(Ok(surface)) = body.face(face).map(|view| view.surface()) {
+        held.check(surface, band);
     }
     placement_unheld(body, face, held.point(), band)
 }
@@ -878,8 +878,8 @@ pub(crate) fn placement_unheld<T: Decide>(
     band: Band,
 ) -> Result<ChartedPlacement, ContainError> {
     let view = body.face(face).ok_or(ContainError::StaleFace(face))?;
-    match *view.surface() {
-        geom::Surface::Plane { frame, .. } => {
+    match view.surface() {
+        Ok(&geom::Surface::Plane { frame, .. }) => {
             let normal = frame.axis();
             contfp_decided(body, face, normal, q, band)
                 .map(|(at, margin)| (CurvedPlacement::Trim(Some(at)), margin, None))
@@ -952,7 +952,11 @@ fn curved_interior_placement<T: Decide>(
     cut: Option<&[usize]>,
 ) -> Result<(CurvedPlacement, Option<(f64, f64)>), ContainError> {
     let view = body.proven_face(face);
-    let analytic = match *view.surface() {
+    // A pending face has no trim to read.
+    let Ok(surface) = view.surface() else {
+        return Ok((CurvedPlacement::Trim(None), None));
+    };
+    let analytic = match *surface {
         geom::Surface::Cylinder { frame, radius, .. } => {
             let (origin, axis) = (frame.origin(), frame.axis());
             let radial = geom::Line { origin, dir: axis }.offset(q);

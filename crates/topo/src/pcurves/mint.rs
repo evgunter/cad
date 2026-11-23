@@ -465,7 +465,7 @@ pub(crate) fn derived_pcurve_of<T: AtRestPolicy>(
         });
     }
     let (carrier, t0, t1) = half_edge_carrier(body, half_edge)?;
-    let surface = half_edge_surface(body, half_edge);
+    let surface = half_edge_surface(body, half_edge)?;
     // A SPLINE chart's images are description-driven (M6-3) — the iso
     // derivation, not the closed-form harmonic table. An approximating
     // surface's chart IS its fit's, so it takes the same route.
@@ -829,10 +829,17 @@ pub(crate) fn half_edge_carrier<T: Decide>(
     Ok((curve.carrier().clone(), t0, t1))
 }
 
-/// The surface of the face `half_edge` bounds.
+/// The surface of the face `half_edge` bounds, or
+/// [`PcurveMintError::PlaceholderChart`] where that face is pending.
 #[track_caller]
-pub(super) fn half_edge_surface<T: Decide>(body: &Body<T>, half_edge: HalfEdgeKey) -> Surface<T> {
-    half_edge_face(body, half_edge).surface().clone()
+pub(super) fn half_edge_surface<T: Decide>(
+    body: &Body<T>,
+    half_edge: HalfEdgeKey,
+) -> Result<Surface<T>, PcurveMintError> {
+    let face = half_edge_face(body, half_edge);
+    face.surface()
+        .cloned()
+        .map_err(|_| PcurveMintError::PlaceholderChart { face: face.key() })
 }
 
 /// The surface KEY of the face `half_edge` bounds (the key twin of
@@ -1985,6 +1992,7 @@ fn carry_rows<T: AtRestPolicy>(
         // A producer that moved the edge's interval under the row
         // refuses here, not later at tier 3.
         row_interval(body, he, row, &carrier, band)?;
+        let surface = surface.map_err(|_| PcurveMintError::PlaceholderChart { face })?;
         let restated = row
             .restated(&carrier, surface, band, T::fitted_lane())
             .map_err(|error| PcurveMintError::Certify {
@@ -2043,10 +2051,10 @@ pub(super) fn derive_face<T: AtRestPolicy>(
     band: Band,
 ) -> Result<Certified<T, HalfEdgeKey>, PcurveMintError> {
     let view = body.proven_face(face);
-    let surface = view.surface();
-    let Some(chart) = DescribedChart::minting(surface) else {
+    let Some(chart) = view.surface().ok().and_then(DescribedChart::minting) else {
         return Ok(Vec::new());
     };
+    let surface = chart.surface();
     let loops: Vec<LoopKey> = view.loops().map(|(lk, _, _)| lk).collect();
     let mut walked: Vec<Walked<T>> = Vec::new();
     let mut refused: Vec<PcurveMintError> = Vec::new();

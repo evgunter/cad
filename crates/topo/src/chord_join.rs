@@ -2416,7 +2416,7 @@ fn chord_spec<T: Decide>(
     let wall_key = view.record().surface;
     // The surface is a link of the face the join divides, mid-operation
     // ([`crate::live::OPERATORS_KEEP_LINKS`]): a torn one is not curved.
-    if let geom::Surface::Plane { .. } = view.surface() {
+    if let geom::Surface::Plane { .. } = view.described() {
         // The boolean's planar-side chord of a curved germ pair
         // takes its own lane (M5 PR 9); every other lane keeps
         // the straight chord BIT-IDENTICALLY.
@@ -2526,7 +2526,7 @@ fn chord_spec<T: Decide>(
             // outside the tangent certificate's lane) ⇒ the conventional
             // pair, as `describe_section_boundary` restates a smooth
             // section-boundary edge.
-            let plane = body.get_surface(plane_key).unwrap_or_else(|| {
+            let plane = body.get_surface(plane_key).unwrap_or_else(|_| {
                 unreachable!(
                     "{plane_key:?} is the section plane this split minted into the body it is \
                      dividing, and no operator removes a surface a later chord still names"
@@ -2635,7 +2635,7 @@ pub(crate) fn cone_apex_plane_section<T: Decide>(
 ) -> Result<geom_brep::PlaneConeSection<T>, JoinError> {
     let wall = body
         .face(face)
-        .map(|f| f.surface().clone())
+        .map(|f| f.described().clone())
         .ok_or_else(|| corrupt_face(face))?;
     let SectionReach::Cone(reach) = section_reach(body, at, face, (&wall, None), band)? else {
         return Err(JoinError::SectionInvariant {
@@ -2683,7 +2683,7 @@ pub(crate) fn wall_section<T: Decide>(
 ) -> Result<Option<WallSection<T>>, JoinError> {
     let wall = body
         .face(face)
-        .map(|f| f.surface())
+        .map(|f| f.described())
         .cloned()
         .ok_or_else(|| corrupt_face(face))?;
     match wall {
@@ -2964,7 +2964,7 @@ fn bool_planar_chord_spec<T: Decide>(
             wall: wall.kind(),
         });
     }
-    let plane_s = match body.get_surface(plane_key) {
+    let plane_s = match body.get_surface(plane_key).ok() {
         Some(plane_s @ geom::Surface::Plane { .. }) => plane_s.clone(),
         // The two failures are different things and are typed apart: a
         // key that does not resolve is corruption, a key that resolves
@@ -3790,7 +3790,7 @@ pub(crate) fn chart_island_winding<T: Decide>(
 ) -> Result<Result<Sign, Indeterminate>, JoinError> {
     let view = body.face(face).ok_or_else(|| corrupt_face(face))?;
     let sense = view.sense();
-    let surface = view.surface().clone();
+    let surface = view.described().clone();
     let WallChart {
         origin: centre,
         axis,
@@ -4275,7 +4275,7 @@ impl<T: Decide> IslandReading<T> {
         body: &Body<T>,
         face: FaceKey,
     ) -> Result<(&geom::Surface<T>, Carrier<T>), JoinError> {
-        let surface = body.face(face).ok_or_else(|| corrupt_face(face))?.surface();
+        let surface = body.face(face).ok_or_else(|| corrupt_face(face))?.described();
         let carrier = Carrier::of(surface).ok_or_else(|| ring_island_unread(face, surface))?;
         Ok((surface, carrier))
     }
@@ -4292,7 +4292,7 @@ impl<T: Decide> IslandReading<T> {
         band: Band,
     ) -> Result<Result<Self, Indeterminate>, JoinError> {
         let view = body.face(face).ok_or_else(|| corrupt_face(face))?;
-        let unread = || ring_island_unread(face, view.surface());
+        let unread = || ring_island_unread(face, view.described());
         let outward = match &carrier {
             Carrier::Quadric(quadric) => {
                 match quadric.off_apex(q, band) {
@@ -4305,7 +4305,7 @@ impl<T: Decide> IslandReading<T> {
             Carrier::Wall(wall) => wall.outward(q, view.sense()).ok_or_else(unread)?,
         };
         Ok(Ok(Self {
-            surface: view.surface().clone(),
+            surface: view.described().clone(),
             carrier,
             arcs,
             q,
@@ -5254,7 +5254,7 @@ pub(crate) fn loop_holds_outer<T: Decide + crate::props::AtRestPolicy>(
 ) -> Result<bool, JoinError> {
     let invariant = |what| JoinError::SectionInvariant { face: oldf, what };
     let escalated = |diag| JoinError::Escalated { face: oldf, diag };
-    let surface = body.face(oldf).ok_or_else(|| corrupt_face(oldf))?.surface();
+    let surface = body.face(oldf).ok_or_else(|| corrupt_face(oldf))?.described();
     match LoopSide::of(surface).ok_or_else(|| ring_island_unread(oldf, surface))? {
         LoopSide::Planar => {
             let face_data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
@@ -5617,7 +5617,7 @@ impl ChordJoiner {
             LoneRing::Pierce => {
                 let surface = body
                     .face(oldf)
-                    .map(|f| f.surface())
+                    .map(|f| f.described())
                     .ok_or_else(|| corrupt_face(oldf))?;
                 if !reads_loop_side(surface) {
                     return Err(invariant(
@@ -5716,7 +5716,7 @@ impl ChordJoiner {
         let run = body.get_face(newf).ok_or_else(|| corrupt_face(newf))?.outer;
         let surface = body
             .face(oldf)
-            .map(|f| f.surface())
+            .map(|f| f.described())
             .cloned()
             .ok_or_else(|| corrupt_face(oldf))?;
         // How a ring's side is read: off the plane, or by a path on a
@@ -5835,7 +5835,7 @@ fn face_plane_normal<T: Decide>(
     // Corruption and an unwired arm are different refusals.
     match body
         .face(face)
-        .map(|f| f.surface())
+        .map(|f| f.described())
         .ok_or_else(|| corrupt_face(face))?
     {
         geom::Surface::Plane { frame, .. } => {

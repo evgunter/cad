@@ -1306,11 +1306,10 @@ fn world_carrier<T: Decide + Bounds>(
 }
 
 /// **A face's surface, as this module refuses it**: [`Body::face`]'s [`crate::live::FaceView::surface`],
-/// a stale face key (the caller's argument) [`ChartRegionError::Corrupt`].
+/// a stale face key (the caller's argument) or a pending surface
+/// [`ChartRegionError::Corrupt`].
 fn face_surface<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<&Surface<T>, ChartRegionError> {
-    body.face(face)
-        .map(|f| f.surface())
-        .ok_or(ChartRegionError::Corrupt)
+    body.face_surface(face).map_err(|_| ChartRegionError::Corrupt)
 }
 
 /// A face's plane description as `(origin, unit normal)`; the CHART
@@ -2568,11 +2567,11 @@ fn declared_chart<T: Decide + Bounds>(
 ) -> Result<Surface<T>, ChartRegionError> {
     let fa = body_a.face(face_a).ok_or(ChartRegionError::Corrupt)?;
     let fb = body_b.face(face_b).ok_or(ChartRegionError::Corrupt)?;
-    let s_a = fa.surface();
+    let s_a = fa.surface().map_err(|_| ChartRegionError::Corrupt)?;
     if std::ptr::eq(body_a, body_b) && fa.record().surface == fb.record().surface {
         return Ok(s_a.clone());
     }
-    let s_b = fb.surface();
+    let s_b = fb.surface().map_err(|_| ChartRegionError::Corrupt)?;
     if surface_bits_equal(s_a, s_b) {
         Ok(s_a.clone())
     } else {

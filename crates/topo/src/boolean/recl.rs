@@ -89,7 +89,7 @@ pub(super) fn require_same<T: crate::props::AtRestPolicy>(
         return Ok(relation);
     }
     for (body, operand, s) in [(body1, o1, s1), (body2, o2, s2)] {
-        let kind = body.proven_face(s.face).surface().kind();
+        let kind = body.proven_face(s.face).described().kind();
         if FaceShape::of_kind(kind) != FaceShape::Plane {
             return Err(BooleanError::CurvedBooleanUnsupported {
                 operand,
@@ -173,8 +173,8 @@ pub(super) fn recl_sectors<T: crate::props::AtRestPolicy>(
             &[],
         );
         if read == DeclarationRead::Spent(crate::contact::GlueClass::Tangent) {
-            let s_a = a_body.proven_face(sa.face).surface().clone();
-            let s_b = b_body.proven_face(sb.face).surface().clone();
+            let s_a = a_body.proven_face(sa.face).described().clone();
+            let s_b = b_body.proven_face(sb.face).described().clone();
             let p = a_body.half_edge_start_point(sa.he).ok_or(
                 BooleanError::ClassificationInvariant {
                     what: "v-v site lost its point",
@@ -255,7 +255,7 @@ pub(super) fn recl_sectors<T: crate::props::AtRestPolicy>(
                 return Err(BooleanError::CurvedBooleanUnsupported {
                     operand,
                     face,
-                    kind: body.proven_face(face).surface().kind(),
+                    kind: body.proven_face(face).described().kind(),
                 });
             }
         };
@@ -1637,8 +1637,8 @@ pub(super) fn resolve_edge_edge<T: crate::props::AtRestPolicy>(
             &[],
         );
         let lump = if read == DeclarationRead::Spent(crate::contact::GlueClass::Tangent) {
-            let s_own = own_body.proven_face(own_sec.face).surface().clone();
-            let s_other = other_body.proven_face(other_sec.face).surface().clone();
+            let s_own = own_body.proven_face(own_sec.face).described().clone();
+            let s_other = other_body.proven_face(other_sec.face).described().clone();
             let p = own_body.half_edge_start_point(own_sec.he).ok_or(
                 BooleanError::ClassificationInvariant {
                     what: "edge-edge site lost its point",
@@ -1680,7 +1680,7 @@ pub(super) fn resolve_edge_edge<T: crate::props::AtRestPolicy>(
         let planar = [(body_of(own), own_face), (body_of(other), other_face)]
             .iter()
             .all(|&(body, face)| {
-                FaceShape::of_kind(body.proven_face(face).surface().kind()) == FaceShape::Plane
+                FaceShape::of_kind(body.proven_face(face).described().kind()) == FaceShape::Plane
             });
         let which = if planar {
             Coincide::FlankSense
@@ -1981,8 +1981,8 @@ fn resolve_edge_sector<T: crate::props::AtRestPolicy>(
             let read = tangent_read(own_sec.face);
             let p = site_point(own_sec)?;
             super::sectors::tangent_lump(
-                own_body.proven_face(own_sec.face).surface(),
-                ref_body.proven_face(ref_sector.face).surface(),
+                own_body.proven_face(own_sec.face).described(),
+                ref_body.proven_face(ref_sector.face).described(),
                 declared.reach_of(own_op, own_sec.face, ref_op, ref_sector.face)?,
                 ref_sector.plane(ref_op)?,
                 own_sec.plane(own_op)?,

@@ -1808,7 +1808,7 @@ impl<T: Decide> Body<T> {
         // the last reference — the issue #86 cascade); `f1_data`
         // resolved at entry, so a now-missing key means THIS call
         // removed it — report the kill through either door.
-        let cascade_took_surface = self.get_surface(f1_data.surface).is_none();
+        let cascade_took_surface = self.surface_slot(f1_data.surface).is_none();
         let killed_surface = (self.remove_surface_if_orphaned(f1_data.surface)
             || cascade_took_surface)
             .then_some(f1_data.surface);

@@ -1485,7 +1485,7 @@ fn rounding_bound<T: Decide>(body: &Body<T>, runs: &[FaceRun<T>]) -> Result<T, M
     for run in runs {
         let face = body.proven_face(run.face);
         let loops = face_loops(body, face.record())?;
-        let surface = face_anchored(face.surface(), &loops);
+        let surface = face_anchored(face.described(), &loops);
         let c = run.about.point();
         let about = |p: Point3<T>| one_norm(p.x - c.x, p.y - c.y, p.z - c.z);
         let anchor = match surface {
@@ -1676,7 +1676,7 @@ fn rederive_faces<T: geom_core::Certifies>(
     let mut quadrature = false;
     for run in runs {
         let face = body.proven_face(run.face);
-        let surface = face.surface();
+        let surface = face.described();
         let flat = flat_loops(body, face.record())?;
         let loops = edges_of(&flat);
         let held = face_tips(body, face.record())?;
@@ -1789,7 +1789,7 @@ fn shell_polygons<T: geom_core::Certifies>(
     let mut polygons = Vec::with_capacity(runs.len());
     for run in runs {
         let face = body.proven_face(run.face);
-        let surface = face.surface();
+        let surface = face.described();
         match (
             vertex_rings(body, surface, &flat_loops(body, face.record())?, lane)?,
             surface,
@@ -4186,7 +4186,7 @@ fn face_start<T: Decide>(body: &Body<T>, face: FaceKey) -> Point3<T> {
 /// the walk reads by quadrature: its own read refuses, typed, in its turn.
 fn quadrature_loops<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec<FlatLoop<T>>> {
     let face = body.proven_face(face);
-    let surface = face.surface();
+    let surface = face.surface().ok()?;
     let loops = flat_loops(body, face.record()).ok()?;
     let carriers = loops
         .iter()
@@ -4564,7 +4564,7 @@ fn region_point<T: Decide>(body: &Body<T>, faces: &[FaceKey]) -> Point3<T> {
     let curved = faces
         .iter()
         .copied()
-        .find(|&f| !matches!(body.proven_face(f).surface(), Surface::Plane { .. }));
+        .find(|&f| !matches!(body.proven_face(f).surface(), Ok(Surface::Plane { .. })));
     face_start(body, curved.unwrap_or(faces[0]))
 }
 
@@ -4646,7 +4646,7 @@ fn region_edges<T: Decide>(
     let (mut boundary, mut every) = (Vec::new(), Vec::new());
     for &key in faces {
         let face = body.proven_face(key);
-        let surface = face.surface();
+        let surface = face.surface().ok()?;
         let plane = match *surface {
             Surface::Plane { frame, .. } => {
                 let normal = frame.axis();
@@ -4715,7 +4715,9 @@ pub(crate) fn read_seam_regions<T: Decide>(
 ) -> Vec<ReadRegion<T>> {
     let mut regions: Vec<ReadRegion<T>> = Vec::new();
     for key in faces {
-        let surface = body.proven_face(key).surface();
+        let Ok(surface) = body.proven_face(key).surface() else {
+            continue;
+        };
         if !matches!(surface, Surface::Sphere { .. })
             || regions.iter().any(|r| r.members.contains(&key))
         {
@@ -4815,7 +4817,7 @@ fn seam_refusals<T: Decide>(
     use geom_brep::props::{MaterialSign, SeamCover};
     let own = |member: FaceKey| {
         let rec = body.proven_face(member);
-        let surface = rec.surface();
+        let surface = rec.surface().ok()?;
         let held = face_tips(body, rec.record()).ok()?;
         face_loops(body, rec.record()).ok().and_then(|loops| {
             let loops: Vec<&[LoopEdge<T>]> = loops.iter().map(Vec::as_slice).collect();
@@ -5159,11 +5161,17 @@ fn face_flux_about<T: Decide>(
     resolution: Option<f64>,
 ) -> Result<FaceRun<T>, MassPropsError> {
     let face = body.proven_face(face_key);
-    let surface = face.surface();
     let wrap = |source| MassPropsError::Face {
         face: face_key,
         source,
     };
+    // Every run is minted here, so a run's face is described.
+    let surface = face.surface().map_err(|_| {
+        wrap(PropsError::QuadratureUnsupported {
+            what: "a face whose surface is still pending reached the measure — a \
+                   mid-surgery body has no mass properties (tier 3 refuses it at rest)",
+        })
+    })?;
     let mut flux_pad = 0.0f64;
     let mut area_pad = 0.0f64;
     let mut enclosure = None;

@@ -1976,7 +1976,7 @@ impl<T: crate::props::AtRestPolicy> GluedPairs<T> {
                 continue;
             }
             // The door verified every face a certificate names.
-            let surface = body(target).proven_face(target.1).surface();
+            let surface = body(target).proven_face(target.1).described();
             *side = read_cover_side(body(parent), parent.1, surface, band);
         }
         Ok(pairs)
@@ -2207,7 +2207,7 @@ fn tangent_struts<T: Real>(
             geom_brep::EdgeDescription::TangentIntersection { .. }
         ) && crate::attach::Named::of_description(curve.description()).adjacent_at_rest(sides)
         {
-            let kind = |f| body.proven_face(f).surface().kind();
+            let kind = |f| body.proven_face(f).described().kind();
             let (k1, k2) = (kind(f1), kind(f2));
             out.push((f1, k1, f2, k2));
             out.push((f2, k2, f1, k1));
@@ -7831,7 +7831,7 @@ fn given_verdicts<T: Decide>(
     band: Band,
 ) -> Result<VerifiedGlue<T>, BooleanError> {
     let invariant = |what| BooleanError::ClassificationInvariant { what };
-    let kind = |body: &Body<T>, f| body.proven_face(f).surface().kind();
+    let kind = |body: &Body<T>, f| body.proven_face(f).described().kind();
     let mut verified = VerifiedGlue::default();
     for pair in &decls.pairs {
         let (fa, fb) = (pair.a, pair.b);
@@ -8131,7 +8131,7 @@ pub(crate) fn tangent_pair_at_rest<T: Decide>(
 #[track_caller]
 fn record_face<T: Real>(body: &Body<T>, f: FaceKey) -> (&geom::Surface<T>, bool) {
     let face = body.proven_face(f);
-    (face.surface(), face.sense())
+    (face.described(), face.sense())
 }
 
 /// A record's tangent line known to run through both faces' interiors
@@ -8216,7 +8216,7 @@ fn glued_face<T: Real>(
     let face = body
         .face(f)
         .ok_or_else(|| invalid("a glued face's key does not resolve"))?;
-    Ok((face.surface().clone(), face.sense()))
+    Ok((face.described().clone(), face.sense()))
 }
 
 /// **The glue door's tangency check** (C4's `Tangent`, claiming nothing
@@ -8870,7 +8870,7 @@ fn validate_declarations<T: Decide>(
     let inventory_face = |body: &Body<T>, f: FaceKey, operand| -> Result<(), BooleanError> {
         let surface = body
             .face(f)
-            .map(|f| f.surface())
+            .map(|f| f.described())
             .ok_or_else(|| bad(operand, "declared face key does not resolve"))?;
         if geom_brep::carrier_eq::in_inventory(surface.kind()) {
             Ok(())

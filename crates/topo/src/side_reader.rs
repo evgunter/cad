@@ -346,7 +346,10 @@ fn aim_at<T: Decide>(
     let f = body
         .face(face)
         .ok_or(PointInSolidError::CorruptFace { face })?;
-    let surface = f.surface();
+    // A pending face is aimed at nowhere.
+    let Ok(surface) = f.surface() else {
+        return Ok(None);
+    };
     let aim = match *geo {
         FaceGeo::Cylinder { ref region, .. } | FaceGeo::Cone { ref region, .. } => {
             match region.aim() {

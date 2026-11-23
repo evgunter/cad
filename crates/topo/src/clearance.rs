@@ -3323,8 +3323,8 @@ impl RegionMemo {
         let region = match w.region {
             Region::Whole => CellRegion::Inside,
             Region::Trimmed => match w.body.face(w.face).map(|f| f.surface()) {
-                None => CellRegion::Undecided,
-                Some(stored) => {
+                None | Some(Err(_)) => CellRegion::Undecided,
+                Some(Ok(stored)) => {
                     // The carrier is the window's own lift, which
                     // [`window_of`] admitted only where it certifies.
                     let boundary = self
@@ -3444,7 +3444,9 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
     let Some(f) = body.face(face) else {
         return unsupported("an unreadable face");
     };
-    let stored = f.surface();
+    let Ok(stored) = f.surface() else {
+        return unsupported("the pending face");
+    };
     let Some((bounds, boundary)) = boundary_of(body, face) else {
         return unsupported("a face whose boundary carries no sound enclosure");
     };
@@ -3461,9 +3463,6 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
     };
     match stored {
         Surface::Approx(_) => return unsupported(APPROXIMATED),
-        Surface::Nurbs(net) if net.is_placeholder() => {
-            return unsupported("the placeholder free-form face");
-        }
         _ => {}
     }
     let Some(charted) = certified_lift(|lift| stored.map_scalar(|x| lift.of(x))) else {
@@ -3838,7 +3837,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
             }
             if cycle && let Ok(rows) = crate::pcurves::Lift::read(body, lk) {
                 if role.is_outer() {
-                    let surface = f.surface();
+                    let surface = f.surface().ok()?;
                     let periodic =
                         [Axis::U, Axis::V].map(|axis| injective::periodic(surface, axis));
                     out.extent = extent_of(

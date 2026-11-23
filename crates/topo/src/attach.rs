@@ -73,7 +73,7 @@ use geom_core::{Band, Decide, Margin, Point3, Real, Sign};
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopKey, VertexKey};
 use crate::euler::{EulerOpError, FaceSurface, ParentSide, RechartDoor};
-use crate::geometry::{CurveKey, SurfaceKey, SurfaceSlot};
+use crate::geometry::{CurveKey, SurfaceKey, SurfaceMiss, SurfaceSlot};
 use crate::live::{Arg, linked, lookup, proven, require_key};
 use crate::pcurves::{SiteCarriers, SiteHalf, SiteRows};
 use geom_core::Tol;
@@ -609,13 +609,17 @@ impl<T: Decide> Body<T> {
     }
 
     /// The surface `slot` stands for across a re-chart of `charts`.
-    fn slot_surface<'a>(&'a self, charts: &'a [Rechart<T>], slot: Slot) -> Option<&'a Surface<T>> {
+    fn slot_surface<'a>(
+        &'a self,
+        charts: &'a [Rechart<T>],
+        slot: Slot,
+    ) -> Result<&'a Surface<T>, SurfaceMiss> {
         match slot {
-            Slot::Minted(chart) => match &charts.get(chart)?.surface {
-                ChartSurface::New(surface) => Some(surface),
-                ChartSurface::Shared(_) => None,
+            Slot::Minted(chart) => match charts.get(chart).map(|c| &c.surface) {
+                Some(ChartSurface::New(surface)) => Ok(surface),
+                Some(ChartSurface::Shared(_)) | None => Err(SurfaceMiss::Stale),
             },
-            Slot::Kept(k) => proven(&self.surfaces, k, GeomRef::Surface).described().ok(),
+            Slot::Kept(k) => proven(&self.surfaces, k, GeomRef::Surface).described(),
         }
     }
 
@@ -682,7 +686,7 @@ impl<T: Decide> Body<T> {
                     Reading::Residuals {
                         door, band, charts, ..
                     } => match self.slot_surface(charts, sides.after[side]) {
-                        Some(&Surface::Plane { frame, .. }) => {
+                        Ok(&Surface::Plane { frame, .. }) => {
                             let (origin, normal) = (frame.origin(), frame.axis());
                             Some((*door, origin, normal, *band))
                         }

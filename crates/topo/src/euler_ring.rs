@@ -1407,7 +1407,7 @@ impl<T: Decide> Body<T> {
         from == to
             || !self
                 .get_surface(surface)
-                .is_some_and(crate::pcurves::has_singular_set)
+                .is_ok_and(crate::pcurves::has_singular_set)
     }
 
     /// Do these two surface keys hold one DESCRIPTION, so a pcurve

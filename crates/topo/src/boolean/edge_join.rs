@@ -639,7 +639,7 @@ fn joinable<T: Decide>(
     let (sf, sg) = s1.surfaces();
     let surface = |side: crate::readback::EdgeSide| {
         let face = body.proven_face(side.face);
-        face.surface()
+        face.described()
     };
     let (surf_f, surf_g) = (surface(s1.plus), surface(s1.minus));
     let planar = |s: &geom::Surface<T>| matches!(s, geom::Surface::Plane { .. });

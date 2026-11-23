@@ -279,7 +279,7 @@ impl VoidInserted {
 
     /// The destination key of a cavity-body surface.
     pub fn surface(&self, s: SurfaceKey) -> Option<SurfaceKey> {
-        self.graft.get_surface(s).ok().copied()
+        self.graft.surfaces.get(s).copied()
     }
 
     /// The destination key of a cavity-body shell — the interior

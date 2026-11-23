@@ -118,7 +118,8 @@ pub(crate) fn face_azimuth_window<T: Decide>(
     let Some(halves) = view.outer_cycle() else {
         return Ok(None);
     };
-    let lift = Lift::decided(body, face, view.surface(), &halves, true, band)
+    let surface = view.surface().map_err(|_| ChartWindowError::Unread)?;
+    let lift = Lift::decided(body, face, surface, &halves, true, band)
         .map_err(|refusal| ChartWindowError::of(face, refusal))?;
     Ok(lift.azimuth_window())
 }

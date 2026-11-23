@@ -104,7 +104,11 @@ pub(super) fn spline_face_placement<T: Decide>(
     band: Band,
 ) -> Result<(CurvedPlacement, Option<(f64, f64)>), ContainError> {
     let view = body.proven_face(face);
-    let Some(chart) = view.surface().spline_chart() else {
+    // A pending face has no trim to read.
+    let Ok(linked) = view.surface() else {
+        return Ok((CurvedPlacement::Trim(None), None));
+    };
+    let Some(chart) = linked.spline_chart() else {
         unreachable!("the spline arm is reached on a spline chart")
     };
     Ok(match read(body, face, chart, q, band) {
@@ -147,13 +151,13 @@ pub(super) fn spline_chart_placement<T: Decide>(
     band: Band,
 ) -> Result<Option<FaceContainment>, ContainError> {
     let view = body.proven_face(face);
-    let linked = view.surface();
+    // A pending face has no trim to read.
+    let Ok(linked) = view.surface() else {
+        return Ok(None);
+    };
     let Some(chart) = linked.spline_chart() else {
         unreachable!("the spline arm is reached on a spline chart")
     };
-    if linked.is_placeholder_chart() {
-        return Ok(None);
-    }
     let Some(cells) = bezier_cells(&chart.value_view()) else {
         return Ok(None);
     };
@@ -215,7 +219,7 @@ fn read_capped<T: Decide>(
     caps: Caps,
 ) -> Reading {
     let view = body.proven_face(face);
-    if view.surface().is_placeholder_chart() {
+    if view.surface().is_err() {
         return Reading::Unsettled(None);
     }
     let on_chart = chart.value_view();
