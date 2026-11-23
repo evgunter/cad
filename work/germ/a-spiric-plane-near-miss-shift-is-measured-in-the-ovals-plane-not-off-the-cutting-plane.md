@@ -5,6 +5,7 @@ title: The spiric × plane door's near-miss reread shifts L by the band's escala
 status: open
 opened: 2026-11-23
 priority: P1
+cost: M
 ---
 
 

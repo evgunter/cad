@@ -1861,3 +1861,11 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - Next in the kind-pair line: U4 and U5. Also dispatchable:
     - the P1 residual `a-spiric-plane-near-miss-shift-…`;
     - the ring-path consumer row.
+- 2026-11-23 12:55 — **Next dispatches.** Both run in parallel.
+  - **`a-spiric-plane-near-miss-shift-is-measured-in-the-ovals-plane-not-off-the-cutting-plane`**, P1, priced M.
+    - Letter **M**, tier **single FULL**: a band-semantics change in a door whose sign decisions have to be shown against an oracle.
+    - Logged before its draw.
+  - **The U4 spec** (`docs/GERM-CROSSING-U4-SPEC.md`), written by a spec lane as U3's was.
+    - U4 merges the sweep's two lanes onto `cross`. U3's spec §7 makes local windows its prerequisite.
+    - Specs are outside the model-compare population, so the lane runs on Opus, the default.
+    - The spec states U4's own letter and tier for me to log before U4's draws.
