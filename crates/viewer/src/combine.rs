@@ -56,12 +56,9 @@ use pncad::document::{SpokenVar, VarId, VarKind};
 /// for subtract's kept body only, so only subtract names its picks by
 /// role.
 ///
-/// **A family picked whole is read by its seat's kind**: at a member or
-/// a tool seat (a `Bodies`) it is every member, and at the body kept (a
-/// `Body`) the cut is made once per member, so the panel says "every
-/// member" at the one and "each member" at the other
-/// ([`crate::seats::pick_said`]). A viewport pick on a drawn copy reads
-/// that member (`xs[i]`).
+/// **A family picked whole at a member or a tool seat (a `Bodies`) is
+/// every member**, and the panel says so ([`crate::seats::pick_said`]).
+/// A viewport pick on a drawn copy reads that member (`xs[i]`).
 ///
 /// **Changing the operation re-seats what is held**, in pick order: a
 /// member list becomes the subtraction's body kept and its tools, and

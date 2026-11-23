@@ -1133,10 +1133,7 @@ pub enum ValuePayload<T: topo::AtRestPolicy + Decide> {
     /// refuses an empty one [`NodeErrorKind::EmptyMember`]; an indexed
     /// read takes one member out of it by its tuple, the empty value at
     /// an empty member; a placement copies it whole; the product gather
-    /// takes every body at its place. A `Body` seat never meets it
-    /// whole: its read reaches the family's index, so its operation is
-    /// evaluated once per member and reads that member (D10
-    /// `[repetition]`), as every reader of the same index does.
+    /// takes every body at its place (D10 `[repetition]`).
     Instances(Vec<Option<Framed<T>>>),
     /// A `Measure` node's typed F1 quantity (E3): the measured value
     /// in kernel units with the dimension it was measured in. Not

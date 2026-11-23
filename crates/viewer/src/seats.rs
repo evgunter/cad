@@ -207,9 +207,8 @@ impl Seat {
     }
 
     /// **Whether the seat takes a family read whole as every member at
-    /// once** (a `Bodies` seat: a union's member, a subtraction's tool),
-    /// where a `Body` seat makes its operation once per member (D10
-    /// `[repetition]`).
+    /// once** (a `Bodies` seat: a union's member, a subtraction's tool,
+    /// D10 `[repetition]`).
     pub fn takes_every(self) -> bool {
         match self {
             Self::Member | Self::SubtractTool => true,
@@ -604,17 +603,15 @@ pub(crate) fn member_said(at: &[i64]) -> String {
 /// **A pick as the panel says it**: the node said by `by`, a node `by`
 /// does not hold as the tool kept it (`kept`, its last label), the
 /// member it reads (`[1]`, or the family whole), and the half it reads
-/// or still waits for. A family read whole at `seat` is "every member"
-/// where the seat takes them all at once ([`Seat::takes_every`]) and
-/// "each member" where the operation is made once per member.
+/// or still waits for. A family read whole is "every member" where the
+/// seat takes them all at once ([`Seat::takes_every`]).
 pub(crate) fn pick_said(by: Speaker<'_>, kept: &SpokenNode, port: &Port, seat: Seat) -> String {
     let held: HeldNodes = [kept.clone()].into_iter().collect();
     let node_said = by.or_held(&held).node(kept.id()).to_string();
     let member = match &port.members {
         Members::One(at) => member_said(at),
         Members::Every if seat.takes_every() => ", every member".to_owned(),
-        Members::Every => ", each member".to_owned(),
-        Members::Plain => String::new(),
+        Members::Every | Members::Plain => String::new(),
     };
     let half = match port.output {
         Output::Half(half) => format!(", {} half", half.name()),

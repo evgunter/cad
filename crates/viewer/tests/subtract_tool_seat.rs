@@ -2,8 +2,7 @@
 //! `[repetition]`, REFERENCES DM4): a pattern picked whole in the tree
 //! at the tool seat is every member, so a plate minus a pattern of two
 //! holes is one plate with two holes; a viewport pick on a drawn copy
-//! is that member; and the panel says "every member" at the tool seat
-//! and "each member" at the body kept.
+//! is that member; and the panel says "every member" at the tool seat.
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
@@ -101,10 +100,9 @@ fn a_plate_minus_a_pattern_picked_whole_is_one_plate_with_two_holes() {
 /// **A viewport pick on a drawn copy is that member**, at the tool seat
 /// as at the body kept, and a further pick adds a tool rather than
 /// replacing one: the plate cut by member 1 and then by the pattern
-/// whole is the plate with both holes. Picked whole at the body kept,
-/// the panel says the cut is made once per member.
+/// whole is the plate with both holes.
 #[test]
-fn a_viewport_pick_on_a_copy_is_that_member_and_the_labels_name_the_seat() {
+fn a_viewport_pick_on_a_copy_is_that_member_and_a_further_pick_adds_a_tool() {
     let tol = Tol::witness();
     let (mut session, plate, holes) = plate_and_holes(tol);
     let doc = session.committed_doc().clone();
@@ -133,14 +131,5 @@ fn a_viewport_pick_on_a_copy_is_that_member_and_the_labels_name_the_seat() {
     assert!(
         (v - (C_VOL - 2.0 * OVERLAP)).abs() < 1e-12,
         "a hole cut twice is cut once: {v:e}"
-    );
-
-    let mut kept = BooleanTool::new();
-    kept.set_operation(BooleanOp::Subtract);
-    kept.pick(&doc, holes);
-    let line = kept.line(Speaker::of(&doc));
-    assert!(
-        line.contains(", each member"),
-        "the body kept is cut once per member: {line}"
     );
 }

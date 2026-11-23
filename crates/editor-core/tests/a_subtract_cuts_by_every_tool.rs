@@ -1,8 +1,7 @@
 //! **A subtract's tool is a `Bodies` seat** (DESIGN `[repetition]`,
 //! REFERENCES DM4): `subtract(a, holes)` cuts `a` by every member, as
 //! the fold `a − t₁ − … − tₙ`, which is order-free in the tools and
-//! fuses none of them with another; `subtract(a, holes[k])` cuts it
-//! member by member.
+//! fuses none of them with another.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::blocks::{block, block_on};
@@ -50,8 +49,7 @@ fn plate_and_hole(x: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 /// written out. Each is one solid of the plate's volume less both holes,
 /// and each face is named by the one read it came through: the plate's,
 /// or the row's. The row read whole and spelled as one read name alike.
-/// `subtract(plate, row[k])` is still a family of two plates, each with
-/// one hole. Red if a whole family at the tool makes one cut per member.
+/// Red if a whole family at the tool makes one cut per member.
 #[test]
 fn a_plate_cut_by_a_row_read_whole_is_one_plate_with_every_hole() {
     let (doc, plate, hole) = plate_and_hole(0.25);
@@ -69,14 +67,6 @@ fn a_plate_cut_by_a_row_read_whole_is_one_plate_with_every_hole() {
     let (doc, spelled) = cut(doc, Bodies::one(BodyRead::plain(Operand::Node(row))));
     let (doc, whole) = cut(doc, Bodies::Family(BodyRead::plain(Operand::Node(row))));
     let (doc, written) = cut(doc, Bodies::Spelled(vec![member(0), member(1)]));
-    let k = doc.var_named("k").unwrap();
-    let (doc, each) = cut(
-        doc,
-        Bodies::one(BodyRead::indexed(
-            row,
-            vec![Formula::var(k, editor_core::Dimension::Count)],
-        )),
-    );
     let ev = run(&doc);
     let plate_read = doc.read_of_node(plate).unwrap();
     let row_read = doc.read_of_node(row).unwrap();
@@ -123,20 +113,6 @@ fn a_plate_cut_by_a_row_read_whole_is_one_plate_with_every_hole() {
         names(whole),
         "the row read whole and spelled as one read name alike"
     );
-    match ev.value(each).map(|v| &v.payload) {
-        Some(ValuePayload::Instances(members)) => {
-            assert_eq!(members.len(), 2, "row[k]: one cut per member");
-            for m in members {
-                let m = m.as_ref().expect("a plate");
-                let v = volume(m.body());
-                assert!(
-                    (v - (PLATE - HOLE)).abs() < 1e-9,
-                    "row[k]: each plate has one hole, got {v}"
-                );
-            }
-        }
-        other => panic!("row[k] cuts member by member: {other:?}"),
-    }
 }
 
 /// **Two tools that overlap each other still cut**: the fold cuts each
