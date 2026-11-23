@@ -112,12 +112,21 @@ use crate::m10_9_pins_interval::measured_studies;
 /// count moves, and under `SymRules::without_canonical_root` the plate's
 /// 2,025 recorded decisions answer as on the merge base, each with its
 /// outcome, its 64 blocked residuals the same predicates.
+///
+/// Then the least turn read no exactness off the nominal (`valexact`,
+/// ERROR-DESIGN E12): an identity chart decides its pole verdict and its
+/// conditioning like any other pair, one `mate_chart_pole` and one
+/// `least_turn_conditioning` row a chart. Numeric only: the plate
+/// `1047 → 1051`, the annulus `548 → 550`, the link `943 → 945`, the
+/// bracket `1546 → 1550` and the pad `1709 → 1711`; no symbolic or frozen
+/// count moves, and no dispute fired. Measured per predicate against the
+/// merge's first parent: those two predicates are the whole difference.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
-    ("two_hole_plate", [979, 1047, 36]),
-    ("r1_annulus", [511, 548, 36]),
-    ("r2_link", [786, 943, 2600]),
-    ("r2_filleted_bracket", [1367, 1546, 57]),
-    ("r2_rounded_pad", [1483, 1709, 1967]),
+    ("two_hole_plate", [979, 1051, 36]),
+    ("r1_annulus", [511, 550, 36]),
+    ("r2_link", [786, 945, 2600]),
+    ("r2_filleted_bracket", [1367, 1550, 57]),
+    ("r2_rounded_pad", [1483, 1711, 1967]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal

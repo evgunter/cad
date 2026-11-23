@@ -280,7 +280,12 @@ pub(crate) struct Study {
 /// each placement asks it of where its copy stands
 /// (`topo::session_box_at`) and no measure asks it of an image, door
 /// shut: the bracket, two placements where one measure asked,
-/// (1290, 1611) -> (1290, 1612); the pad, one for one, unmoved.
+/// (1290, 1611) -> (1290, 1612); the pad, one for one, unmoved. Then
+/// the least turn read no exactness off the nominal: an identity chart
+/// decides its pole verdict and its conditioning like any other pair, one
+/// `mate_chart_pole` and one `least_turn_conditioning` numeric row per
+/// chart and nothing else, door shut the bracket's two charts (1290,
+/// 1612) -> (1290, 1616) and the pad's one (1483, 1709) -> (1483, 1711).
 pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
     [
         Study {
@@ -373,7 +378,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // +2 numeric: each of its two placements asks the session box
             // of where its copy stands (`topo::session_box_at`).
             // −2 numeric: its two identity charts owe no pole verdict.
-            without_the_registry: Some(((1290, 1612), None)),
+            without_the_registry: Some(((1290, 1616), None)),
             // One is the fillet run out read against its arrival carrier
             // (`path_run_out_carrier`), a margin the tier proves zero.
             // How many the tier reaches depends on the order the
@@ -406,7 +411,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // +1 numeric: its placement asks the session box of where its
             // copy stands (`topo::session_box_at`).
             // −1 numeric: its identity chart owes no pole verdict.
-            without_the_registry: Some(((1483, 1709), None)),
+            without_the_registry: Some(((1483, 1711), None)),
             // Three are the fillet run outs read against their arrival
             // carriers (`path_run_out_carrier`), margins the tier proves
             // zero.
@@ -969,8 +974,10 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
     // (PR 7088), so the count does not move. Then the carriers held their
     // frames as rigid motions, minted from the sketch frame and read as
     // stored: 2773 -> 1967 frozen, the decisions holding
-    // (`sym11_exact_channel_rows`' `PAST_THE_CEILING`).
-    assert_eq!(got[0], (1483, 1709, 1967), "rule F shut: the pad's receipt");
+    // (`sym11_exact_channel_rows`' `PAST_THE_CEILING`). Then the least
+    // turn read no exactness off the nominal, and the identity chart
+    // decides its pole verdict and its conditioning: 1709 -> 1711 numeric.
+    assert_eq!(got[0], (1483, 1711, 1967), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],
         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"
