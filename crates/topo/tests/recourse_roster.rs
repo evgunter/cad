@@ -238,8 +238,6 @@ const EXCEPTIONS: &[(&str, &Door)] = &[
 /// The carriers that hand a name to a funnel from somewhere other than
 /// the call.
 const CARRIERS: &[NameCarrier] = &[
-    NameCarrier::Const("REACH"),
-    NameCarrier::Const("NEST"),
     NameCarrier::Const("NEAR"),
     NameCarrier::Const("FAR"),
     // The tangent rows' closed table (`TangentRow::predicate`).
@@ -323,6 +321,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("TORUS_REGION_CORNER"),
     NameCarrier::Const("PIERCE_SECTOR_SIDE_CURVED"),
     NameCarrier::Const("CLEARANCE_SUPPORT_GAP"),
+    NameCarrier::Const("CLEARANCE_DEPTH_GAP"),
     NameCarrier::Const("SELF_INTERSECTION_COLUMN"),
     NameCarrier::Const("COMPONENT"),
     NameCarrier::Const("CONES_SHARE_APEX"),
@@ -795,11 +794,44 @@ const INDIRECT: &[(&str, &str)] = &[
     ),
     ("pcurves/mint.rs: net_closes_as: name", FORWARDS),
     ("chain_parity.rs: ray_parity_as: name", FORWARDS),
+    // `Gap::decide`: one channel's gap from the query to a piece's box,
+    // metered by that channel's arm, decided under the name
+    // `ray_parity_as` hands it (`g.decide(name, ..)`, the line above), so
+    // its names are that funnel's callers'. A refusal leaves the piece
+    // not clear; it is halved, and where it cannot be the query reads
+    // `Side::Near` with this diagnostic.
+    ("chain_parity.rs: decide: name", FORWARDS),
+    // `Floor::decide`: a spline cell's floor, the box gap less the read's
+    // and the cut's rounding, decided under the name its caller hands it;
+    // its one caller is the spline region's carrier walk
+    // (`cell.floor(q).decide(SPLINE_REGION_CARRIER, ..)`, a declared
+    // const). A refusal there leaves the cell walked rather than
+    // skipped and is kept as the walk's pending diagnostic: a walk that
+    // ends unsettled on it escalates the face placement as
+    // `ContainError::Escalated` on `ContainDecision::Carrier`.
+    ("spline_trim.rs: decide: name", FORWARDS),
     (
         "pcurves/pole_slit_tests.rs: only_a_net_closed_in_v_decides_a_v_element: super::DescribedChart::of(s).unwrap()",
         NOT_A_NAME,
     ),
     ("pcurves/decision.rs: decide_plain_joint: chart", NOT_A_NAME),
+    // PR 7325 (`charttail/collapsed-column`): `decide_joint` now makes
+    // the element and hands its chart to `decide_joint_by`, which decides
+    // the deck; that call's first argument is the joint's chart, not a
+    // name, like `decide_plain_joint`'s above.
+    ("pcurves/decision.rs: decide_joint: chart", NOT_A_NAME),
+    // PR 7325's collapsed-side rows build their joints through
+    // `decide_plain_joint`, whose first argument is the face's chart
+    // (`DescribedChart::of(surface)`), not a name: the test fixtures
+    // `joint` and `joint_at`.
+    (
+        "pcurves/collapsed_side_rows.rs: joint: DescribedChart::of(surface).unwrap()",
+        NOT_A_NAME,
+    ),
+    (
+        "pcurves/collapsed_side_rows.rs: joint_at: DescribedChart::of(surface).unwrap()",
+        NOT_A_NAME,
+    ),
     ("pcurves/tier3.rs: pcurve_pass: chart", NOT_A_NAME),
     // The pass's closure over one joint of a cycle, by its index.
     ("pcurves/tier3.rs: pcurve_pass: i", NOT_A_NAME),
