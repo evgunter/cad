@@ -167,11 +167,15 @@ pub(crate) const SELF_INTERSECTION_GRAPH: &str = "self_intersection_graph";
 /// The funnel site of a planar presentation's reach along its edge:
 /// how far inside the edge's two ends the cell's extent stays, metres.
 pub(crate) const SELF_INTERSECTION_SPAN: &str = "self_intersection_span";
-/// The funnel site of a planar corner: at two line edges, how far, over
-/// an edge's length, the ray into the face stands on that edge's face
-/// side ([`ray_inside`]); at a line meeting a curve, how far the second
-/// axis leans to the line's face side ([`present_vertex_corner`]).
-/// Metres.
+/// The funnel site of a plane face's corner in a cell, metres. Each
+/// reading is a distance from a line along its unit normal. At a corner
+/// of two line edges: how far, over an edge's length, the ray into the
+/// face stands on that edge's face side ([`ray_inside`]). At a strip's
+/// end: how far the corner's one line edge, at its far end, stands on
+/// the other's face side, and the points of the base the end's cap
+/// stands over from the cap. At a line meeting a curve: how far the
+/// second axis leans to the line's face side
+/// ([`present_vertex_corner`]).
 pub(crate) const SELF_INTERSECTION_CORNER: &str = "self_intersection_corner";
 /// The funnel site of a cone face's nappe: a vertex's signed height
 /// along the axis from the apex, metres. Its sign is the nappe.
@@ -3666,6 +3670,10 @@ fn ray_inside(m: [Interval; 2], u: [Interval; 2], l: Interval, band: Band) -> bo
 /// not presented, and the face is vacuous only where neither is. Each
 /// piece has its own zero: its edge where the pair shares it, else its
 /// corner where the vertex is on the shared cell, else none.
+///
+/// **A strip's end** is not a two-line corner: the cell holds a third
+/// line edge, the end's other neighbour across the face, which caps the
+/// rectangle of the end's convex corner.
 fn present_plane<'a>(
     piece: &Piece<'a>,
     near_edges: &[usize],
@@ -3737,181 +3745,404 @@ fn present_plane<'a>(
         );
         Ok(if u.plus { (p, q) } else { (q, p) })
     };
-    match edges.as_slice() {
-        [e] => {
-            if !piece.local.vertices.is_empty() {
+    // A point's coordinates in the frame `o + x·a + y·b`.
+    let coords =
+        |o: Point2<Interval>, a: [Interval; 2], bv: [Interval; 2], pt: Point2<Interval>| {
+            let det = a[0] * bv[1] - a[1] * bv[0];
+            let d = [pt.x - o.x, pt.y - o.y];
+            (
+                (d[0] * bv[1] - d[1] * bv[0]) / det,
+                (a[0] * d[1] - a[1] * d[0]) / det,
+            )
+        };
+    // How far `w` stands along the unit of `n`.
+    let lean = |n: [Interval; 2], w: [Interval; 2]| {
+        (n[0] * w[0] + n[1] * w[1]) / (n[0].powi(2) + n[1].powi(2)).sqrt()
+    };
+    let positive =
+        |x: Interval, site: &'static str| interval_sign_as(x, site, band) == Some(Sign::Positive);
+    // **The face's part of the cell where the face is convex there**: the
+    // intersection of the half-planes of the line edges the cell holds,
+    // read inside a parallelogram `R` two of whose sides lie on one edge
+    // or on a corner's two edges (the frame), and whose far sides are the
+    // cell's reach or, at a strip's end, the end's other neighbour across
+    // the face from them (the cap). Every point of `R` off the face is a
+    // point of the plane `R`'s reading holds too, so `R` need only hold
+    // the face's part. The face is convex in the cell where each corner in
+    // it is convex and the cap and the edge it caps stand on each other's
+    // face side over the reach: every vertex and every other edge is clear
+    // of the cell's ball, so the plane's disk inside the ball meets the
+    // boundary only in these edges' whole chords, and the region between
+    // them, on each one's face side, is the face's part of the disk.
+    //
+    // Each reading decides that convexity before anything else, `Vacuous`
+    // included: a cell off the frame's face side holds none of the face
+    // only where nothing else in the cell bounds the face, so a cap is
+    // read, and its leans decided, before the cell is placed.
+    //
+    // Two lines with no common end (a strip's middle) are not read: no
+    // measured body needs them
+    // (`work/embed/a-plane-cell-holding-both-sides-of-a-thin-face-is-read-only-below-its-width.md`).
+    //
+    // **The cap**: `f`, the end's other neighbour, a line across the face
+    // from the frame's base line `o + x·a`, through the frame's `(0, 1)`,
+    // its corner with `e2`: the highest its line stands in the frame's `y`
+    // over the reach `x`, where the base stands on its face side there.
+    // That lean is a distance in metres (the base's points along `f`'s
+    // face normal), read at `SELF_INTERSECTION_CORNER` as a corner's lean
+    // is, and linear in `x`, read in the base's own frame, so a face
+    // turned in its chart reads no more slack than one along its axes.
+    // The cap's line, at height 1 at `x = 0` and kept off the base's line
+    // over the reach by that lean, stands above the base there too.
+    let capped = |f: usize,
+                  (o, a, bv): (Point2<Interval>, [Interval; 2], [Interval; 2]),
+                  x: Interval|
+     -> Result<f64, Unpresented> {
+        let ((pf, _), (qf, _)) = segment(f)?;
+        let ((x0, y0), (x1, y1)) = (coords(o, a, bv, pf), coords(o, a, bv, qf));
+        let nf = toward_face([qf.x - pf.x, qf.y - pf.y], orientation);
+        let base = lean(nf, [o.x - pf.x, o.y - pf.y]) + x * lean(nf, a);
+        if !positive(base, SELF_INTERSECTION_CORNER) {
+            return Err(Unpresented::Local);
+        }
+        // A height whose run along `x` is not decided bounds nothing: the
+        // far side is then the cell's reach, which holds the face's part
+        // too.
+        let h = y0 + (y1 - y0) / (x1 - x0) * (x - x0);
+        Ok(if h.is_certified() {
+            h.hi()
+        } else {
+            f64::INFINITY
+        })
+    };
+    // One line edge `e` as `y = 0`, the face `y ≥ 0`.
+    let along = |e: usize| -> Result<Presentation<'a>, Unpresented> {
+        if !piece.local.vertices.is_empty() {
+            return Err(Unpresented::Local);
+        }
+        let ((p, ta), (q, tb)) = segment(e)?;
+        let a = [q.x - p.x, q.y - p.y];
+        let bv = toward_face(a, orientation);
+        let len2 = a[0].powi(2) + a[1].powi(2);
+        let d = [cell_u - p.x, cell_v - p.y];
+        let x = (d[0] * a[0] + d[1] * a[1]) / len2;
+        let y = (d[0] * bv[0] + d[1] * bv[1]) / len2;
+        // Wholly on the edge's non-face side holds none of the face: the
+        // disk's half off the face side is all outside the face. The cell
+        // lies in that half. A `len2` holding zero leaves `y`
+        // uncertified, and a zero-length edge bounds no half.
+        if y.is_certified() && y.hi() <= 0.0 {
+            return Ok(Presentation::Vacuous);
+        }
+        let len = len2.sqrt();
+        let inside = (x * len).min((at(1.0) - x) * len);
+        if !positive(inside, SELF_INTERSECTION_SPAN) {
+            return Err(Unpresented::Local);
+        }
+        let zero = if near_edges.contains(&e) {
+            Zero::Side(
+                Side::YLo,
+                Along::over(piece.surface, b, e, true, || {
+                    segment_params(ta, tb, (x.lo(), x.hi()))
+                }),
+            )
+        } else {
+            Zero::None
+        };
+        Ok(Presentation::Of(Box::new(Presented {
+            surface: piece.surface,
+            map: Map::Affine {
+                o: [p.x, p.y],
+                a,
+                b: bv,
+            },
+            x: (x.lo(), x.hi()),
+            y: (0.0, y.hi()),
+            zero,
+            corner: false,
+            cache: Cache::default(),
+        })))
+    };
+    // A strip's end: two line edges at a convex corner `vtx` as the
+    // positive axes, `e1` along `x`, and `cap`, the line at `e2`'s far end
+    // and that vertex, across the face from `e1`. A corner with no cap is
+    // `pieces`'.
+    //
+    // The far corner, `e2`'s with the cap, is convex wherever the cap's
+    // lean holds at `x = 0`: there it reads `vtx` on the cap's face side,
+    // and the loop runs the cap into `e2` (or out of it) with the face on
+    // one hand of both, so the cap's far end then lies on `e2`'s face
+    // side.
+    //
+    let corner = |e1: usize,
+                  e2: usize,
+                  vtx: VertexKey,
+                  cap: (usize, VertexKey)|
+     -> Result<Presentation<'a>, Unpresented> {
+        let (Some(r1), Some(r2)) = (b.edges.get(e1), b.edges.get(e2)) else {
+            return Err(Unpresented::Local);
+        };
+        let at_a_corner = |w: VertexKey| w == vtx || w == cap.1;
+        if !piece.local.vertices.iter().all(|&w| at_a_corner(w)) {
+            return Err(Unpresented::Local);
+        }
+        let ((p1, s1), (q1, f1)) = segment(e1)?;
+        let ((p2, s2), (q2, f2)) = segment(e2)?;
+        // Each edge's chart point at the vertex, its far point, and
+        // its traversal direction.
+        let start1 = if r1.uses[0].plus {
+            r1.ends[0]
+        } else {
+            r1.ends[1]
+        };
+        let start2 = if r2.uses[0].plus {
+            r2.ends[0]
+        } else {
+            r2.ends[1]
+        };
+        // Each edge's parameters at the vertex and its far end ride
+        // with its points.
+        let ((o, v1), (far1, w1)) = if start1 == vtx {
+            ((p1, s1), (q1, f1))
+        } else {
+            ((q1, f1), (p1, s1))
+        };
+        let ((_, v2), (far2, w2)) = if start2 == vtx {
+            ((p2, s2), (q2, f2))
+        } else {
+            ((q2, f2), (p2, s2))
+        };
+        let t1 = [q1.x - p1.x, q1.y - p1.y];
+        let t2 = [q2.x - p2.x, q2.y - p2.y];
+        let a = [far1.x - o.x, far1.y - o.y];
+        let bv = [far2.x - o.x, far2.y - o.y];
+        let n1 = toward_face(t1, orientation);
+        let n2 = toward_face(t2, orientation);
+        if !(positive(lean(n1, bv), SELF_INTERSECTION_CORNER)
+            && positive(lean(n2, a), SELF_INTERSECTION_CORNER))
+        {
+            return Err(Unpresented::Local);
+        }
+        let det = a[0] * bv[1] - a[1] * bv[0];
+        let d = [cell_u - o.x, cell_v - o.y];
+        let x = (d[0] * bv[1] - d[1] * bv[0]) / det;
+        let y = (a[0] * d[1] - a[1] * d[0]) / det;
+        let z1 = near_edges.contains(&e1);
+        let z2 = near_edges.contains(&e2);
+        let (f, end) = cap;
+        // A shared vertex at the far corner is on no zero side.
+        if near_vertices.contains(&end) && !z2 {
+            return Err(Unpresented::Local);
+        }
+        let capped_at = capped(f, (o, a, bv), iv((0.0, x.hi().max(0.0))))?;
+        if x.hi() <= 0.0 || y.hi() <= 0.0 {
+            return Ok(Presentation::Vacuous);
+        }
+        let la = (a[0].powi(2) + a[1].powi(2)).sqrt();
+        if !positive((at(1.0) - x) * la, SELF_INTERSECTION_SPAN) {
+            return Err(Unpresented::Local);
+        }
+        let top = capped_at.min(y.hi());
+        // Each edge over its coordinate, 0 at the vertex and 1 at its
+        // far end, out to `hi`. A side lies on its edge where `hi` is
+        // decided not past the far end: a capped end's side runs to the
+        // cap's height, which its key places through the far end but not
+        // along `e1`, so a face whose cap leans out has points read off
+        // that side past the edge.
+        let on = |e: usize, (v, w): (Interval, Interval), hi: f64| {
+            Along::over(piece.surface, b, e, hi <= 1.0, || {
+                segment_params(v, w, (0.0, hi))
+            })
+        };
+        let (on1, on2) = (on(e1, (v1, w1), x.hi()), on(e2, (v2, w2), top));
+        let zero = match (z1, z2) {
+            (true, true) => Zero::Corner((Side::YLo, on1), (Side::XLo, on2)),
+            (true, false) => Zero::Side(Side::YLo, on1),
+            (false, true) => Zero::Side(Side::XLo, on2),
+            (false, false) if near_vertices.contains(&vtx) => {
+                Zero::Point(Side::XLo, Side::YLo, vtx)
+            }
+            (false, false) => Zero::None,
+        };
+        Ok(Presentation::Of(Box::new(Presented {
+            surface: piece.surface,
+            map: Map::Affine {
+                o: [o.x, o.y],
+                a,
+                b: bv,
+            },
+            x: (0.0, x.hi()),
+            y: (0.0, top),
+            zero,
+            corner: false,
+            cache: Cache::default(),
+        })))
+    };
+    // Two line edges at their vertex `vtx`, with nothing else in the
+    // cell: the corner's sector cut on the ray into the face into two
+    // convex pieces, whatever its angle.
+    let pieces = |e1: usize, e2: usize, vtx: VertexKey| -> Result<Presentation<'a>, Unpresented> {
+        let (Some(r1), Some(r2)) = (b.edges.get(e1), b.edges.get(e2)) else {
+            return Err(Unpresented::Local);
+        };
+        if piece.local.vertices.iter().any(|&w| w != vtx) {
+            return Err(Unpresented::Local);
+        }
+        let ((p1, s1), (q1, f1)) = segment(e1)?;
+        let ((p2, s2), (q2, f2)) = segment(e2)?;
+        // Each edge's chart point at the vertex, its far point, and
+        // its traversal direction.
+        let start1 = if r1.uses[0].plus {
+            r1.ends[0]
+        } else {
+            r1.ends[1]
+        };
+        let start2 = if r2.uses[0].plus {
+            r2.ends[0]
+        } else {
+            r2.ends[1]
+        };
+        // Each edge's parameters at the vertex and its far end ride
+        // with its points.
+        let ((o, v1), (far1, w1)) = if start1 == vtx {
+            ((p1, s1), (q1, f1))
+        } else {
+            ((q1, f1), (p1, s1))
+        };
+        let ((_, v2), (far2, w2)) = if start2 == vtx {
+            ((p2, s2), (q2, f2))
+        } else {
+            ((q2, f2), (p2, s2))
+        };
+        let t1 = [q1.x - p1.x, q1.y - p1.y];
+        let t2 = [q2.x - p2.x, q2.y - p2.y];
+        let a = [far1.x - o.x, far1.y - o.y];
+        let bv = [far2.x - o.x, far2.y - o.y];
+        let n1 = toward_face(t1, orientation);
+        let n2 = toward_face(t2, orientation);
+        let la = (a[0].powi(2) + a[1].powi(2)).sqrt();
+        let lb = (bv[0].powi(2) + bv[1].powi(2)).sqrt();
+        // The ray into the face: the sum of the two edges' unit
+        // toward-face normals.
+        let unit2 = |n: [Interval; 2]| {
+            let l = (n[0].powi(2) + n[1].powi(2)).sqrt();
+            [n[0] / l, n[1] / l]
+        };
+        let (u1, u2) = (unit2(n1), unit2(n2));
+        let m = [u1[0] + u2[0], u1[1] + u2[1]];
+        if !(ray_inside(m, u1, la, band) && ray_inside(m, u2, lb, band)) {
+            return Err(Unpresented::Local);
+        }
+        let mh = unit2(m);
+        let d = [cell_u - o.x, cell_v - o.y];
+        // One piece: the cone of an edge's direction `e`, of length
+        // `l`, and the ray, as the image of `[0, x] × [0, y]`; `None`
+        // where the cell lies wholly off it.
+        let cone = |e: [Interval; 2],
+                    l: Interval,
+                    r: [Interval; 2],
+                    zero: &dyn Fn(Interval) -> Zero|
+         -> Result<Option<Presented<'a>>, Unpresented> {
+            let r = [r[0] * l, r[1] * l];
+            let det = e[0] * r[1] - e[1] * r[0];
+            let x = (d[0] * r[1] - d[1] * r[0]) / det;
+            let y = (e[0] * d[1] - e[1] * d[0]) / det;
+            if !(x.is_certified() && y.is_certified()) {
                 return Err(Unpresented::Local);
             }
-            let ((p, ta), (q, tb)) = segment(*e)?;
-            let a = [q.x - p.x, q.y - p.y];
-            let bv = toward_face(a, orientation);
-            let len2 = a[0].powi(2) + a[1].powi(2);
-            let d = [cell_u - p.x, cell_v - p.y];
-            let x = (d[0] * a[0] + d[1] * a[1]) / len2;
-            let y = (d[0] * bv[0] + d[1] * bv[1]) / len2;
-            // Wholly on the edge's non-face side holds none of the face:
-            // every vertex and every other edge is clear of the cell's
-            // ball, so the plane's disk inside the ball meets the
-            // boundary only in a whole chord of this edge, and the
-            // disk's half off the face side is all outside the face. The
-            // cell lies in that half. A `len2` holding zero leaves `y`
-            // uncertified, and a zero-length edge bounds no half.
-            if y.is_certified() && y.hi() <= 0.0 {
-                return Ok(Presentation::Vacuous);
+            if x.hi() <= 0.0 || y.hi() <= 0.0 {
+                return Ok(None);
             }
-            let len = len2.sqrt();
-            let inside = (x * len).min((at(1.0) - x) * len);
-            if interval_sign_as(inside, SELF_INTERSECTION_SPAN, band) != Some(Sign::Positive) {
+            if interval_sign_as((at(1.0) - x) * l, SELF_INTERSECTION_SPAN, band)
+                != Some(Sign::Positive)
+            {
                 return Err(Unpresented::Local);
             }
-            let zero = if near_edges.contains(e) {
-                Zero::Side(
-                    Side::YLo,
-                    Along::over(piece.surface, b, *e, true, || {
-                        segment_params(ta, tb, (x.lo(), x.hi()))
-                    }),
-                )
-            } else {
-                Zero::None
-            };
-            Ok(Presentation::Of(Box::new(Presented {
+            Ok(Some(Presented {
                 surface: piece.surface,
                 map: Map::Affine {
-                    o: [p.x, p.y],
-                    a,
-                    b: bv,
+                    o: [o.x, o.y],
+                    a: e,
+                    b: r,
                 },
-                x: (x.lo(), x.hi()),
+                x: (0.0, x.hi()),
                 y: (0.0, y.hi()),
-                zero,
+                zero: zero(x),
                 corner: false,
                 cache: Cache::default(),
-            })))
-        }
-        [e1, e2] => {
-            let (Some(r1), Some(r2)) = (b.edges.get(*e1), b.edges.get(*e2)) else {
-                return Err(Unpresented::Local);
-            };
-            let Some(&vtx) = r1.ends.iter().find(|v| r2.ends.contains(v)) else {
-                return Err(Unpresented::Local);
-            };
-            if piece.local.vertices.iter().any(|&w| w != vtx) {
-                return Err(Unpresented::Local);
+            }))
+        };
+        // A piece's zero: its edge where the pair shares it, else the
+        // vertex where the pair shares that, else none. The shared
+        // cell holds its edges' ends, so the vertex is shared where
+        // the other piece's edge is. The edge runs over its
+        // coordinate, 0 at the vertex and 1 at its far end.
+        let vertex_shared =
+            near_vertices.contains(&vtx) || near_edges.contains(&e1) || near_edges.contains(&e2);
+        let zero = |e: usize, (v, w): (Interval, Interval)| {
+            move |hi: Interval| {
+                if near_edges.contains(&e) {
+                    Zero::Side(
+                        Side::YLo,
+                        Along::over(piece.surface, b, e, true, || {
+                            segment_params(v, w, (0.0, hi.hi()))
+                        }),
+                    )
+                } else if vertex_shared {
+                    Zero::Point(Side::XLo, Side::YLo, vtx)
+                } else {
+                    Zero::None
+                }
             }
-            let ((p1, s1), (q1, f1)) = segment(*e1)?;
-            let ((p2, s2), (q2, f2)) = segment(*e2)?;
-            // Each edge's chart point at the vertex, its far point, and
-            // its traversal direction.
-            let start1 = if r1.uses[0].plus {
-                r1.ends[0]
-            } else {
-                r1.ends[1]
-            };
-            let start2 = if r2.uses[0].plus {
-                r2.ends[0]
-            } else {
-                r2.ends[1]
-            };
-            // Each edge's parameters at the vertex and its far end ride
-            // with its points.
-            let ((o, v1), (far1, w1)) = if start1 == vtx {
-                ((p1, s1), (q1, f1))
-            } else {
-                ((q1, f1), (p1, s1))
-            };
-            let ((_, v2), (far2, w2)) = if start2 == vtx {
-                ((p2, s2), (q2, f2))
-            } else {
-                ((q2, f2), (p2, s2))
-            };
-            let t1 = [q1.x - p1.x, q1.y - p1.y];
-            let t2 = [q2.x - p2.x, q2.y - p2.y];
-            let a = [far1.x - o.x, far1.y - o.y];
-            let bv = [far2.x - o.x, far2.y - o.y];
-            let n1 = toward_face(t1, orientation);
-            let n2 = toward_face(t2, orientation);
-            let la = (a[0].powi(2) + a[1].powi(2)).sqrt();
-            let lb = (bv[0].powi(2) + bv[1].powi(2)).sqrt();
-            // The ray into the face: the sum of the two edges' unit
-            // toward-face normals.
-            let unit2 = |n: [Interval; 2]| {
-                let l = (n[0].powi(2) + n[1].powi(2)).sqrt();
-                [n[0] / l, n[1] / l]
-            };
-            let (u1, u2) = (unit2(n1), unit2(n2));
-            let m = [u1[0] + u2[0], u1[1] + u2[1]];
-            if !(ray_inside(m, u1, la, band) && ray_inside(m, u2, lb, band)) {
+        };
+        let first = cone(a, la, mh, &zero(e1, (v1, w1)))?;
+        let second = cone(bv, lb, mh, &zero(e2, (v2, w2)))?;
+        Ok(match (first, second) {
+            (None, None) => Presentation::Vacuous,
+            (Some(p), None) | (None, Some(p)) => Presentation::Of(Box::new(p)),
+            (Some(p), Some(q)) => Presentation::Pair(Box::new(p), Box::new(q)),
+        })
+    };
+    let meet = |e: usize, f: usize| {
+        let (r, s) = (b.edges.get(e)?, b.edges.get(f)?);
+        r.ends.iter().find(|v| s.ends.contains(v)).copied()
+    };
+    match *edges.as_slice() {
+        [e] => along(e),
+        [e1, e2] => match meet(e1, e2) {
+            Some(vtx) => pieces(e1, e2, vtx),
+            None => Err(Unpresented::Local),
+        },
+        // An edge `m` with a neighbour at each end, the one of a sliver
+        // triangle's three whose ends the cell holds: read at either of
+        // `m`'s corners whose other neighbour, the cap, is not shared.
+        [e1, e2, e3] => {
+            let in_cell = |v: VertexKey| piece.local.vertices.contains(&v);
+            let ends = [(e1, e2, e3), (e2, e3, e1), (e3, e1, e2)]
+                .into_iter()
+                .filter_map(|(m, n1, n2)| Some((m, (n1, meet(m, n1)?), (n2, meet(m, n2)?))));
+            let mut ends: Vec<_> = ends.collect();
+            ends.sort_by_key(|&(_, (_, v1), (_, v2))| !(in_cell(v1) && in_cell(v2)));
+            // Of a sliver triangle whose short side's ends are not both
+            // in the cell, only the first such edge is read.
+            let Some(&(m, (n1, v1), (n2, v2))) = ends.first() else {
                 return Err(Unpresented::Local);
+            };
+            // Each corner decides its own convexity, so where the first
+            // refuses locally the other is read. A structural refusal is
+            // the edges' (an edge neither corner reads), the same from
+            // either corner, and stands.
+            let mut last = Err(Unpresented::Local);
+            for ((n, v), cap) in [((n1, v1), (n2, v2)), ((n2, v2), (n1, v1))] {
+                if near_edges.contains(&cap.0) {
+                    continue;
+                }
+                match corner(n, m, v, cap) {
+                    Err(Unpresented::Local) => last = Err(Unpresented::Local),
+                    read => return read,
+                }
             }
-            let mh = unit2(m);
-            let d = [cell_u - o.x, cell_v - o.y];
-            // One piece: the cone of an edge's direction `e`, of length
-            // `l`, and the ray, as the image of `[0, x] × [0, y]`; `None`
-            // where the cell lies wholly off it.
-            let cone = |e: [Interval; 2],
-                        l: Interval,
-                        r: [Interval; 2],
-                        zero: &dyn Fn(Interval) -> Zero|
-             -> Result<Option<Presented<'a>>, Unpresented> {
-                let r = [r[0] * l, r[1] * l];
-                let det = e[0] * r[1] - e[1] * r[0];
-                let x = (d[0] * r[1] - d[1] * r[0]) / det;
-                let y = (e[0] * d[1] - e[1] * d[0]) / det;
-                if !(x.is_certified() && y.is_certified()) {
-                    return Err(Unpresented::Local);
-                }
-                if x.hi() <= 0.0 || y.hi() <= 0.0 {
-                    return Ok(None);
-                }
-                if interval_sign_as((at(1.0) - x) * l, SELF_INTERSECTION_SPAN, band)
-                    != Some(Sign::Positive)
-                {
-                    return Err(Unpresented::Local);
-                }
-                Ok(Some(Presented {
-                    surface: piece.surface,
-                    map: Map::Affine {
-                        o: [o.x, o.y],
-                        a: e,
-                        b: r,
-                    },
-                    x: (0.0, x.hi()),
-                    y: (0.0, y.hi()),
-                    zero: zero(x),
-                    corner: false,
-                    cache: Cache::default(),
-                }))
-            };
-            // A piece's zero: its edge where the pair shares it, else the
-            // vertex where the pair shares that, else none. The shared
-            // cell holds its edges' ends, so the vertex is shared where
-            // the other piece's edge is. The edge runs over its
-            // coordinate, 0 at the vertex and 1 at its far end.
-            let vertex_shared =
-                near_vertices.contains(&vtx) || near_edges.contains(e1) || near_edges.contains(e2);
-            let zero = |e: usize, (v, w): (Interval, Interval)| {
-                move |hi: Interval| {
-                    if near_edges.contains(&e) {
-                        Zero::Side(
-                            Side::YLo,
-                            Along::over(piece.surface, b, e, true, || {
-                                segment_params(v, w, (0.0, hi.hi()))
-                            }),
-                        )
-                    } else if vertex_shared {
-                        Zero::Point(Side::XLo, Side::YLo, vtx)
-                    } else {
-                        Zero::None
-                    }
-                }
-            };
-            let first = cone(a, la, mh, &zero(*e1, (v1, w1)))?;
-            let second = cone(bv, lb, mh, &zero(*e2, (v2, w2)))?;
-            Ok(match (first, second) {
-                (None, None) => Presentation::Vacuous,
-                (Some(p), None) | (None, Some(p)) => Presentation::Of(Box::new(p)),
-                (Some(p), Some(q)) => Presentation::Pair(Box::new(p), Box::new(q)),
-            })
+            last
         }
         _ => Err(Unpresented::Local),
     }
@@ -8608,20 +8839,12 @@ fn chord_segment(
     a: Point3<Interval>,
     b: Point3<Interval>,
 ) -> (Curve3<Interval>, (Interval, Interval)) {
-    let d = Vec3::new(
-        b.x.lo() - a.x.lo(),
-        b.y.lo() - a.y.lo(),
-        b.z.lo() - a.z.lo(),
-    );
-    let len = d.norm();
-    let unit = (d * (1.0 / len)).map(|x| Interval::from_bounds(x, x));
-    (
-        Curve3::line(a, UnitVec3::checked(unit)),
-        (
-            Interval::from_bounds(0.0, 0.0),
-            Interval::from_bounds(len, len),
-        ),
-    )
+    // The unit chord and its length as enclosures ([`UnitVec3::chord`]):
+    // a point box of the rounded quotient is no unit vector at an
+    // enclosure scalar, and is poison wherever its squares do not sum
+    // to exactly 1.
+    let (dir, len) = UnitVec3::chord(b - a);
+    (Curve3::line(a, dir), (Interval::from_bounds(0.0, 0.0), len))
 }
 
 #[cfg(test)]
@@ -8680,7 +8903,7 @@ mod presentation_rows {
             let (b, v) = on_a_ruling(o, d, along, 0.006);
             let cyl = Psi::Carrier(Implicit::Cylinder {
                 o: Point3::origin() + o.map(iv0),
-                axis: geom_core::UnitVec3::checked(d.map(iv0)),
+                axis: geom_core::UnitVec3::chord(d.map(iv0)).0,
                 r: iv0(0.006),
             });
             let rate = cyl.rate(b, v);
@@ -8696,7 +8919,7 @@ mod presentation_rows {
             let (sin, cos) = (0.6, 0.8);
             let cone = Psi::Carrier(Implicit::Cone {
                 apex: Point3::origin() + o.map(iv0),
-                axis: geom_core::UnitVec3::checked(d.map(iv0)),
+                axis: geom_core::UnitVec3::chord(d.map(iv0)).0,
                 cos: iv0(cos),
                 sin: iv0(sin),
                 nappe: iv0(1.0),
@@ -10501,13 +10724,10 @@ mod presentation_rows {
                 Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
             ),
         };
-        let line = |d: Vec3<Interval>, far: u64, plus: bool| Rim {
+        let line = |d: geom_core::UnitVec3<Interval>, far: u64, plus: bool| Rim {
             stated: None,
             key: edge(far),
-            arc: Some((
-                Curve3::line(origin(), geom_core::UnitVec3::checked(d)),
-                (iv0(0.0), iv0(4.0)),
-            )),
+            arc: Some((Curve3::line(origin(), d), (iv0(0.0), iv0(4.0)))),
             ends: [vertex(1), vertex(far)],
             uses: vec![Use {
                 plus,
@@ -10517,8 +10737,8 @@ mod presentation_rows {
                 harmonic: None,
             }],
         };
-        let y = Vec3::new(iv0(0.0), iv0(1.0), iv0(0.0));
-        let x = Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0));
+        let y = geom_core::UnitVec3::<Interval>::exact_y();
+        let x = geom_core::UnitVec3::<Interval>::exact_x();
         // Forward: (0, 4) to the vertex at the origin to (4, 0), the
         // first quadrant on its left.
         let corner = |forward: bool, sense: bool| Boundary {
@@ -10908,6 +11128,1094 @@ mod presentation_rows {
         );
     }
 
+    /// A side of a plane face: its key, its chart ends in its run, and
+    /// its start and end vertices.
+    type Seg = (u64, (f64, f64), (f64, f64), [u64; 2]);
+
+    /// The plane through `o` with axes `u` and `v`, normal `u × v`, and a
+    /// face of it bounded by line segments, each run with the face on
+    /// its left in the chart.
+    fn faced(
+        o: [f64; 3],
+        u: [f64; 3],
+        v: [f64; 3],
+        sides: &[Seg],
+    ) -> (Surface<Interval>, Boundary) {
+        let vec = |a: [f64; 3]| Vec3::new(iv0(a[0]), iv0(a[1]), iv0(a[2]));
+        let at = |(x, y): (f64, f64)| {
+            Point3::new(
+                iv0(o[0] + x * u[0] + y * v[0]),
+                iv0(o[1] + x * u[1] + y * v[1]),
+                iv0(o[2] + x * u[2] + y * v[2]),
+            )
+        };
+        let normal = vec(u).cross(vec(v));
+        let plane = Surface::Plane {
+            frame: geom::Frame::new(at((0.0, 0.0)), normal, vec(u)),
+        };
+        let rim = |&(key, p, q, [s, e]): &Seg| Rim {
+            stated: None,
+            key: edge(key),
+            arc: Some(chord_segment(at(p), at(q))),
+            ends: [vertex(s), vertex(e)],
+            uses: vec![Use {
+                plus: true,
+                image: None,
+                iso: None,
+                wall: None,
+                harmonic: None,
+            }],
+        };
+        let b = Boundary {
+            sense: true,
+            edges: sides.iter().map(rim).collect(),
+            vertices: BTreeMap::new(),
+            extent: None,
+            outer: None,
+        };
+        (plane, b)
+    }
+
+    /// A face of the plane `z = 0`, `u_ref = x`.
+    fn segments(sides: &[Seg]) -> (Surface<Interval>, Boundary) {
+        faced([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], sides)
+    }
+
+    /// The edges `held` (indices) and the vertices `at` a cell holds.
+    fn holding(held: &[usize], at: &[u64]) -> Local {
+        Local {
+            edges: held.to_vec(),
+            vertices: at.iter().map(|&n| vertex(n)).collect(),
+        }
+    }
+
+    /// [`present_plane`] of `b` in the cell `u × v` holding `local`,
+    /// `shared` the indices of the edges it shares.
+    fn present_in<'a>(
+        plane: &'a Surface<Interval>,
+        b: &'a Boundary,
+        cell: ((f64, f64), (f64, f64)),
+        local: &'a Local,
+        shared: &[usize],
+    ) -> Result<Presentation<'a>, Unpresented> {
+        present_near(plane, b, cell, local, (shared, &[]))
+    }
+
+    /// [`present_in`], the pair sharing the vertices `near` as well.
+    fn present_near<'a>(
+        plane: &'a Surface<Interval>,
+        b: &'a Boundary,
+        (u, v): ((f64, f64), (f64, f64)),
+        local: &'a Local,
+        (shared, near): (&[usize], &[u64]),
+    ) -> Result<Presentation<'a>, Unpresented> {
+        let near: Vec<VertexKey> = near.iter().map(|&n| vertex(n)).collect();
+        let piece = Piece {
+            face: FaceKey::default(),
+            surface: plane,
+            whole: false,
+            boundary: b,
+            u,
+            v,
+            local,
+            ball: Ball::holding(origin(), origin()),
+        };
+        present_plane(&piece, shared, &near, band())
+    }
+
+    /// The rectangle `[0, 10] × [0, 10⁻³]`, run counter-clockwise from
+    /// the origin: its bottom, right, top and left sides, edges 1 to 4.
+    fn thin_face() -> (Surface<Interval>, Boundary) {
+        let (l, w) = (10.0, 1e-3);
+        segments(&[
+            (1, (0.0, 0.0), (l, 0.0), [1, 2]),
+            (2, (l, 0.0), (l, w), [2, 3]),
+            (3, (l, w), (0.0, w), [3, 4]),
+            (4, (0.0, w), (0.0, 0.0), [4, 1]),
+        ])
+    }
+
+    /// **`present_plane` does not read a strip's middle**: a cell across a
+    /// thin face, holding both its long sides and no end, is `Local`
+    /// whichever side is shared. A cell holding one side and a lone
+    /// vertex is `Local`: the side's chord is not all the boundary there.
+    /// Red if a strip's middle is presented again without a body that
+    /// needs it (`work/embed/a-plane-cell-holding-both-sides-of-a-thin-face-is-read-only-below-its-width.md`).
+    #[test]
+    fn a_strip_middle_is_not_read() {
+        let (plane, b) = thin_face();
+        let cell = ((4.0, 5.0), (-1e-3, 2e-3));
+        let pair = holding(&[0, 2], &[]);
+        for shared in [&[][..], &[0], &[2], &[0, 2]] {
+            assert!(
+                matches!(
+                    present_in(&plane, &b, cell, &pair, shared),
+                    Err(Unpresented::Local)
+                ),
+                "{shared:?} shared: a strip's middle is Local"
+            );
+        }
+        assert!(
+            matches!(
+                present_in(&plane, &b, cell, &holding(&[0], &[9]), &[0]),
+                Err(Unpresented::Local)
+            ),
+            "a lone vertex in the cell beside one side: the side's chord is not all there is"
+        );
+    }
+
+    /// **`present_plane`, a strip's end**: a cell holding a thin face's
+    /// whole short side with both its neighbours presents the face's
+    /// end, read at one corner and capped at the other's neighbour: the
+    /// short side shared is the zero side along its whole length, a long
+    /// side shared the zero side along the cell's reach, both shared the
+    /// corner. Red on a planar arm that reads three lines as `Local`.
+    #[test]
+    fn a_cell_holding_a_thin_faces_end_presents_it() {
+        let (plane, b) = thin_face();
+        let cell = ((9.99, 10.5), (-1.0, 1.0));
+        let end = holding(&[0, 1, 2], &[2, 3]);
+        let read = |shared: &[usize]| present_in(&plane, &b, cell, &end, shared);
+        match read(&[1]) {
+            Ok(Presentation::Of(q)) => {
+                assert!(
+                    matches!(&q.zero, Zero::Side(_, a) if a.edges == [edge(2)] && a.on_edges),
+                    "the short side shared is the zero side, on its edge"
+                );
+                let image = q.whole();
+                assert!(
+                    -1e-12 < image.y.lo()
+                        && image.y.hi() < 1e-3 + 1e-12
+                        && 9.99 - 1e-9 < image.x.lo()
+                        && image.x.hi() < 10.0 + 1e-12,
+                    "the image is the face's end in the cell: {image:?}"
+                );
+            }
+            _ => panic!("the end is presented, its short side shared"),
+        }
+        assert!(
+            matches!(read(&[0]), Ok(Presentation::Of(q))
+                if matches!(&q.zero, Zero::Side(_, a) if a.edges == [edge(1)])),
+            "a long side shared is the zero side"
+        );
+        assert!(
+            matches!(read(&[2]), Ok(Presentation::Of(q))
+                if matches!(&q.zero, Zero::Side(_, a) if a.edges == [edge(3)])),
+            "the other long side shared is the zero side"
+        );
+        assert!(
+            matches!(read(&[0, 1]), Ok(Presentation::Of(q))
+                if matches!(&q.zero, Zero::Corner(..))),
+            "a long side and the short one shared are the corner"
+        );
+        assert!(
+            matches!(read(&[0, 2]), Err(Unpresented::Local)),
+            "both long sides shared: no one corner holds the zero"
+        );
+        assert!(
+            matches!(read(&[]), Ok(Presentation::Of(q)) if matches!(q.zero, Zero::None)),
+            "nothing shared: the end is presented with no zero"
+        );
+        assert!(
+            matches!(
+                present_near(&plane, &b, cell, &end, (&[], &[2])),
+                Ok(Presentation::Of(q)) if matches!(q.zero, Zero::Point(_, _, v) if v == vertex(2))
+            ),
+            "a vertex shared alone at one corner: read at that corner, the other neighbour capping"
+        );
+        assert!(
+            matches!(
+                present_in(&plane, &b, cell, &holding(&[0, 1, 2], &[1, 2, 3]), &[1]),
+                Err(Unpresented::Local)
+            ),
+            "a vertex past the end's two in the cell: more than the end"
+        );
+        // A sliver triangle: its sides meet at its apex, out of the cell
+        // at its short side, and in the cell holding it whole.
+        let (plane, triangle) = segments(&[
+            (1, (0.0, 0.0), (10.0, 0.0), [1, 2]),
+            (2, (10.0, 0.0), (10.0, 1e-3), [2, 3]),
+            (3, (10.0, 1e-3), (0.0, 0.0), [3, 1]),
+        ]);
+        assert!(
+            matches!(
+                present_in(&plane, &triangle, cell, &end, &[1]),
+                Ok(Presentation::Of(q)) if matches!(&q.zero, Zero::Side(_, a) if a.edges == [edge(2)])
+            ),
+            "a sliver triangle's short side is a strip's end"
+        );
+        assert!(
+            matches!(
+                present_in(
+                    &plane,
+                    &triangle,
+                    ((-1.0, 11.0), (-1.0, 1.0)),
+                    &holding(&[0, 1, 2], &[1, 2, 3]),
+                    &[1]
+                ),
+                Err(Unpresented::Local)
+            ),
+            "a whole triangle in the cell is more than an end"
+        );
+        // An end whose sides splay apart: the shared short side is the
+        // zero side past its own end, the rectangle reaching the top's
+        // line, so it does not lie on its edge.
+        let (plane, splayed) = segments(&[
+            (1, (0.0, 0.0), (10.0, 0.0), [1, 2]),
+            (2, (10.0, 0.0), (10.0, 1e-3), [2, 3]),
+            (3, (10.0, 1e-3), (0.0, 2e-3), [3, 4]),
+        ]);
+        assert!(
+            matches!(
+                present_in(&plane, &splayed, cell, &end, &[1]),
+                Ok(Presentation::Of(q)) if matches!(&q.zero, Zero::Side(_, a) if a.edges == [edge(2)] && !a.on_edges)
+            ),
+            "a short side read past its end is not on its edge"
+        );
+    }
+
+    /// **Lines that are not of one convex piece are no strip's end**:
+    /// the two sides of a slot or of a hole, each with the face on its far
+    /// side from the other; two sides whose face lies above both; a slit's
+    /// two sides, meeting at its tip; a rim and a hole's side; and ends
+    /// whose far corner turns in, whose sides cross in the cell, or whose
+    /// three edges meet at one vertex. Each is `Local`. Red if the end's
+    /// leans read a face side the wrong way, or not at all, or if two
+    /// lines with no common end are presented.
+    #[test]
+    fn lines_not_of_one_convex_end_are_local() {
+        let (l, w) = (10.0, 1e-3);
+        let cell = ((4.0, 5.0), (-1e-3, 2e-3));
+        // A hole's two long sides, run clockwise: the face below the one
+        // and above the other.
+        let (plane, hole) = segments(&[
+            (1, (l, 0.0), (0.0, 0.0), [2, 1]),
+            (3, (0.0, w), (l, w), [4, 3]),
+        ]);
+        for shared in [&[][..], &[0], &[1]] {
+            assert!(
+                matches!(
+                    present_in(&plane, &hole, cell, &holding(&[0, 1], &[]), shared),
+                    Err(Unpresented::Local)
+                ),
+                "a hole's two sides, {shared:?} shared, are no strip"
+            );
+        }
+        // Two sides whose face lies above both: the lower one stands off
+        // the upper's face side, so they bound no region between them,
+        // and the rectangle they would cap has no height.
+        let (plane, stacked) = segments(&[
+            (1, (0.0, 0.0), (l, 0.0), [1, 2]),
+            (3, (0.0, -w), (l, -w), [3, 4]),
+        ]);
+        assert!(
+            matches!(
+                present_in(&plane, &stacked, cell, &holding(&[0, 1], &[]), &[0]),
+                Err(Unpresented::Local)
+            ),
+            "a side below the shared one, its face above it, caps nothing"
+        );
+        // A slit from the origin along `x`: its two sides meet at its tip.
+        let (plane, slit) = segments(&[
+            (1, (l, 0.0), (0.0, 0.0), [2, 1]),
+            (3, (0.0, 0.0), (l, w), [1, 3]),
+        ]);
+        assert!(
+            matches!(
+                present_in(
+                    &plane,
+                    &slit,
+                    ((-1.0, 1.0), (-1.0, 1.0)),
+                    &holding(&[0, 1], &[1]),
+                    &[0]
+                ),
+                Err(Unpresented::Local)
+            ),
+            "a slit's two sides at its tip are no corner"
+        );
+        // A thin face's end whose far corner turns in: its top side runs
+        // back from `(l, w)` toward the bottom's start.
+        let (plane, notched) = segments(&[
+            (1, (0.0, 0.0), (l, 0.0), [1, 2]),
+            (2, (l, 0.0), (l, w), [2, 3]),
+            (3, (l, w), (l + 1.0, 2.0 * w), [3, 4]),
+        ]);
+        let end = holding(&[0, 1, 2], &[2, 3]);
+        let at_end = ((9.99, 10.5), (-1.0, 1.0));
+        for shared in [&[1][..], &[0]] {
+            assert!(
+                matches!(
+                    present_in(&plane, &notched, at_end, &end, shared),
+                    Err(Unpresented::Local)
+                ),
+                "an end with a reflex corner, {shared:?} shared, is no strip's end"
+            );
+        }
+        // A thin face's end whose top side, past a convex corner, runs
+        // down across the bottom's line inside the cell.
+        let (plane, crossing) = segments(&[
+            (1, (0.0, 0.0), (l, 0.0), [1, 2]),
+            (2, (l, 0.0), (l, w), [2, 3]),
+            (3, (l, w), (l - 0.005, -w), [3, 4]),
+        ]);
+        for shared in [&[1][..], &[0]] {
+            assert!(
+                matches!(
+                    present_in(&plane, &crossing, at_end, &end, shared),
+                    Err(Unpresented::Local)
+                ),
+                "an end whose sides cross in the cell, {shared:?} shared, is no strip's end"
+            );
+        }
+        // Three edges at one vertex: the cap's line meets the corner's,
+        // so it caps nothing.
+        let (plane, three) = segments(&[
+            (1, (0.0, 0.0), (l, 0.0), [1, 2]),
+            (2, (0.0, 0.0), (0.0, w), [1, 3]),
+            (3, (0.0, 0.0), (-l, w), [1, 4]),
+        ]);
+        assert!(
+            matches!(
+                present_in(
+                    &plane,
+                    &three,
+                    ((-1.0, 1.0), (-1.0, 1.0)),
+                    &holding(&[0, 1, 2], &[1]),
+                    &[0]
+                ),
+                Err(Unpresented::Local)
+            ),
+            "three edges at one vertex are no strip's end"
+        );
+        // The face's rim along `y = 0` and a hole's side at `y = w`, its
+        // hole above: a strip's middle, which is not read.
+        let (plane, beside) = segments(&[
+            (1, (0.0, 0.0), (l, 0.0), [1, 2]),
+            (3, (l, w), (0.0, w), [4, 3]),
+        ]);
+        assert!(
+            matches!(
+                present_in(&plane, &beside, cell, &holding(&[0, 1], &[]), &[0]),
+                Err(Unpresented::Local)
+            ),
+            "a rim and a hole facing it: a strip's middle, Local"
+        );
+    }
+
+    /// [`certify_pair`] of a thin face's end against a face sharing its
+    /// short side: the face `[0, 10] × [0, 10⁻³]` of the plane `y = 0`
+    /// (chart `(x, z)`, outward `−y`), its short side `x = 10` shared
+    /// (edge 2, vertices 2 and 3), each face read in a cell holding the
+    /// shared side and both its neighbours.
+    fn against_the_end(
+        other: (Surface<Interval>, Boundary),
+        cell: ((f64, f64), (f64, f64)),
+        held: &[usize],
+        at: usize,
+    ) -> Outcome {
+        let w = 1e-3;
+        let (sa, a) = faced(
+            [0.0; 3],
+            [1.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0],
+            &[
+                (1, (0.0, 0.0), (10.0, 0.0), [1, 2]),
+                (2, (10.0, 0.0), (10.0, w), [2, 3]),
+                (3, (10.0, w), (0.0, w), [3, 4]),
+                (4, (0.0, w), (0.0, 0.0), [4, 1]),
+            ],
+        );
+        let (sb, b) = other;
+        let la = Local {
+            edges: vec![0, 1, 2],
+            vertices: vec![vertex(2), vertex(3)],
+        };
+        let lb = Local {
+            edges: held.to_vec(),
+            vertices: vec![vertex(2), vertex(3)],
+        };
+        let piece = |surface, boundary, (u, v), local, face| Piece {
+            face,
+            surface,
+            whole: false,
+            boundary,
+            u,
+            v,
+            local,
+            ball: Ball::holding(origin(), origin()),
+        };
+        certify_pair(
+            &piece(&sa, &a, ((9.99, 10.5), (-1.0, 1.0)), &la, face(1)),
+            &piece(&sb, &b, cell, &lb, face(2)),
+            &Near {
+                edges: vec![(1, at)],
+                vertices: vec![vertex(2), vertex(3)],
+            },
+            band(),
+        )
+    }
+
+    /// **A thin face's end certifies against the face across its short
+    /// side, and not against one folded back over it**: the slab's end,
+    /// the plane `x = 10` (chart `(y, z)`) beside it at a right angle,
+    /// both thin, certifies; a face of the plane `y = 0` itself, outward
+    /// `+y`, over the end's last unit — M folded back onto itself along
+    /// the shared side — does not. Red on a planar arm that reads the end
+    /// as `Local` (the first), or that reads the fold apart (the second).
+    #[test]
+    fn a_thin_faces_end_certifies_across_its_short_side_and_not_folded() {
+        let w = 1e-3;
+        let beside = faced(
+            [10.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0],
+            &[
+                (5, (0.0, 0.0), (10.0, 0.0), [2, 5]),
+                (6, (10.0, 0.0), (10.0, w), [5, 6]),
+                (7, (10.0, w), (0.0, w), [6, 3]),
+                (2, (0.0, w), (0.0, 0.0), [3, 2]),
+            ],
+        );
+        let got = against_the_end(beside, ((-0.5, 0.01), (-1.0, 1.0)), &[0, 2, 3], 3);
+        assert!(
+            matches!(got, Outcome::Certified { .. }),
+            "the end and the face beside it certify: {got:?}"
+        );
+        let folded = faced(
+            [0.0; 3],
+            [0.0, 0.0, 1.0],
+            [1.0, 0.0, 0.0],
+            &[
+                (5, (0.0, 9.0), (w, 9.0), [5, 6]),
+                (6, (w, 9.0), (w, 10.0), [6, 3]),
+                (2, (w, 10.0), (0.0, 10.0), [3, 2]),
+                (7, (0.0, 10.0), (0.0, 9.0), [2, 5]),
+            ],
+        );
+        let got = against_the_end(folded, ((-1.0, 1.0), (9.99, 10.5)), &[1, 2, 3], 2);
+        assert!(
+            !matches!(got, Outcome::Certified { .. }),
+            "the fold is not certified: {got:?}"
+        );
+    }
+
+    /// **A cell off the frame's face side, across a further edge whose
+    /// face lies beyond it, holds the face there**: a slot's two sides (a
+    /// cell past its far side), a reflex wedge's (its tip clear of the
+    /// cell), and an end whose far corner turns in (a cell past its short
+    /// side). None is `Vacuous`. Red where a frame's `Vacuous` is read
+    /// before its cap's leans.
+    #[test]
+    fn a_cell_past_a_far_edge_facing_away_is_not_vacuous() {
+        let (l, w) = (10.0, 1e-3);
+        let across = ((4.0, 5.0), (2e-4, 3e-3));
+        let pair = holding(&[0, 1], &[]);
+        let (plane, slot) = segments(&[
+            (1, (l, 0.0), (0.0, 0.0), [2, 1]),
+            (3, (0.0, w), (l, w), [4, 3]),
+        ]);
+        for shared in [&[][..], &[0]] {
+            assert!(
+                !matches!(
+                    present_in(&plane, &slot, across, &pair, shared),
+                    Ok(Presentation::Vacuous)
+                ),
+                "a slot, {shared:?} shared: the cell holds the face past its far side"
+            );
+        }
+        let (plane, slit) = segments(&[
+            (1, (l, 0.0), (0.0, 0.0), [2, 1]),
+            (3, (0.0, 0.0), (l, w), [1, 3]),
+        ]);
+        assert!(
+            !matches!(
+                present_in(&plane, &slit, across, &pair, &[0]),
+                Ok(Presentation::Vacuous)
+            ),
+            "a reflex wedge: the cell holds the face past its far side"
+        );
+        let (plane, notched) = segments(&[
+            (1, (0.0, 0.0), (l, 0.0), [1, 2]),
+            (2, (l, 0.0), (l, w), [2, 3]),
+            (3, (l, w), (l + 1.0, 2.0 * w), [3, 4]),
+        ]);
+        assert!(
+            !matches!(
+                present_in(
+                    &plane,
+                    &notched,
+                    ((10.001, 10.5), (-1.0, 1.0)),
+                    &holding(&[0, 1, 2], &[2, 3]),
+                    &[0]
+                ),
+                Ok(Presentation::Vacuous)
+            ),
+            "a reflex end: the cell holds the face past its short side"
+        );
+    }
+
+    /// `b`'s local boundary in the ball about the cell `u × v` of the
+    /// plane `z = 0`, by [`Local::of`] (its vertices filled from its
+    /// edges' ends), and that ball.
+    fn real_local(b: &mut Boundary, (u, v): ((f64, f64), (f64, f64))) -> (Local, Ball) {
+        for e in &b.edges {
+            let (c, (t0, t1)) = e.arc.as_ref().expect("a line");
+            b.vertices.insert(e.ends[0], c.eval(*t0));
+            b.vertices.insert(e.ends[1], c.eval(*t1));
+        }
+        let centre = Point3::new(iv0(0.5 * (u.0 + u.1)), iv0(0.5 * (v.0 + v.1)), iv0(0.0));
+        let patch = Point3::new(
+            Interval::from_bounds(u.0, u.1),
+            Interval::from_bounds(v.0, v.1),
+            iv0(0.0),
+        );
+        let ball = Ball::holding(centre, patch);
+        (Local::of(b, ball, band()), ball)
+    }
+
+    /// A cell of a chart, `u × v`.
+    type Cell = ((f64, f64), (f64, f64));
+
+    /// [`certify_pair`] of `f` and `g`, faces of the plane `z = 0` in the
+    /// cells `cf` and `cg`, each cell's local boundary read by
+    /// [`Local::of`] from its own ball, sharing `near`.
+    fn certify_in_balls(
+        (mut f, cf): (Boundary, Cell),
+        (mut g, cg): (Boundary, Cell),
+        near: Near,
+    ) -> (Outcome, [Local; 2]) {
+        let plane = segments(&[]).0;
+        let (lf, bf) = real_local(&mut f, cf);
+        let (lg, bg) = real_local(&mut g, cg);
+        let piece = |boundary, (u, v): ((f64, f64), (f64, f64)), local, ball, n| Piece {
+            face: face(n),
+            surface: &plane,
+            whole: false,
+            boundary,
+            u,
+            v,
+            local,
+            ball,
+        };
+        let got = certify_pair(
+            &piece(&f, cf, &lf, bf, 1),
+            &piece(&g, cg, &lg, bg, 2),
+            &near,
+            band(),
+        );
+        (got, [lf, lg])
+    }
+
+    /// **A face laid over a slot's far side is not certified**: F, the
+    /// plane with a slot `0 < y < w`; G, a face of the same plane sharing
+    /// the slot's lower side, over the slot and on over F to `y = 5`, M
+    /// folded onto itself past the far side. F's cell lies across the far
+    /// side and holds points of F that G covers. Red where a frame reads
+    /// `Vacuous` before its cap: the pair then certifies.
+    #[test]
+    fn a_face_laid_over_a_slots_far_side_is_not_certified() {
+        let (l, w) = (10.0, 1e-3);
+        let (_, f) = segments(&[
+            (1, (l, 0.0), (0.0, 0.0), [2, 1]),
+            (3, (0.0, w), (l, w), [4, 3]),
+        ]);
+        let (_, g) = segments(&[
+            (1, (0.0, 0.0), (l, 0.0), [1, 2]),
+            (5, (l, 0.0), (l, 5.0), [2, 5]),
+            (6, (l, 5.0), (0.0, 5.0), [5, 6]),
+            (7, (0.0, 5.0), (0.0, 0.0), [6, 1]),
+        ]);
+        let (got, [lf, lg]) = certify_in_balls(
+            (f, ((4.0, 5.0), (2e-4, 3e-3))),
+            (g, ((4.0, 5.0), (-1e-3, 3e-3))),
+            Near {
+                edges: vec![(0, 0)],
+                vertices: vec![],
+            },
+        );
+        assert_eq!(
+            (&lf.edges, lf.vertices.len(), &lg.edges, lg.vertices.len()),
+            (&vec![0, 1], 0, &vec![0], 0),
+            "F's cell holds both slot sides, G's the shared side, no vertex"
+        );
+        assert!(
+            !matches!(got, Outcome::Certified { .. }),
+            "the fold past the far side is not certified: {got:?}"
+        );
+    }
+
+    /// **A strip's end read off a cell's own ball**: a thin face's end,
+    /// the cell's local boundary read by [`Local::of`] (its short side and
+    /// both neighbours), presents with the short side as the zero; its
+    /// middle, both long sides, is `Local`. Red where the end is `Local`.
+    #[test]
+    fn a_strip_end_read_off_a_real_ball_presents() {
+        let (l, w) = (10.0, 1e-3);
+        let thin = || {
+            segments(&[
+                (1, (0.0, 0.0), (l, 0.0), [1, 2]),
+                (2, (l, 0.0), (l, w), [2, 3]),
+                (3, (l, w), (0.0, w), [3, 4]),
+                (4, (0.0, w), (0.0, 0.0), [4, 1]),
+            ])
+        };
+        for (what, cell, shared, held, presented) in [
+            (
+                "the end",
+                ((9.99, 10.5), (-1.0, 1.0)),
+                1,
+                vec![0, 1, 2],
+                true,
+            ),
+            (
+                "the middle",
+                ((4.0, 5.0), (-1e-4, 2e-3)),
+                0,
+                vec![0, 2],
+                false,
+            ),
+        ] {
+            let (plane, mut b) = thin();
+            let (local, ball) = real_local(&mut b, cell);
+            assert_eq!(local.edges, held, "{what}: the cell's own boundary");
+            let piece = Piece {
+                face: FaceKey::default(),
+                surface: &plane,
+                whole: false,
+                boundary: &b,
+                u: cell.0,
+                v: cell.1,
+                local: &local,
+                ball,
+            };
+            let got = present_plane(&piece, &[shared], &[], band());
+            if presented {
+                assert!(
+                    matches!(&got, Ok(Presentation::Of(q)) if matches!(&q.zero, Zero::Side(_, a) if a.edges == [edge(2)])),
+                    "{what}: presented, its short side the zero"
+                );
+            } else {
+                assert!(matches!(got, Err(Unpresented::Local)), "{what}: Local");
+            }
+        }
+    }
+
+    /// **A strip's end turned in its chart presents its short side**, at
+    /// five turns, `w` a millimetre and `100Kε`, in square cells about the
+    /// short side from 0.2 down to `10w`. Red where the cap's lean picks
+    /// up the turn's slack over the reach, read per chart coordinate.
+    #[test]
+    fn a_strip_end_turned_in_its_chart_presents_its_short_side() {
+        let l = 10.0;
+        for w in [1e-3_f64, 100.0 * band().escalate()] {
+            for turn in [0.0_f64, 0.1, 0.7, 1.3, 2.0] {
+                let (c, s) = (turn.cos(), turn.sin());
+                let r = |(x, y): (f64, f64)| (c * x - s * y, s * x + c * y);
+                let (plane, b) = segments(&[
+                    (1, r((0.0, 0.0)), r((l, 0.0)), [1, 2]),
+                    (2, r((l, 0.0)), r((l, w)), [2, 3]),
+                    (3, r((l, w)), r((0.0, w)), [3, 4]),
+                ]);
+                let (cx, cy) = r((l, 0.5 * w));
+                for half in [0.2, 1e-2, 10.0 * w] {
+                    let cell = ((cx - half, cx + half), (cy - half, cy + half));
+                    assert!(
+                        matches!(
+                            present_in(&plane, &b, cell, &holding(&[0, 1, 2], &[2, 3]), &[1]),
+                            Ok(Presentation::Of(q)) if matches!(&q.zero, Zero::Side(_, a) if a.edges == [edge(2)])
+                        ),
+                        "w = {w:e}, turned {turn}, half-size {half:e}: the short side is the zero side"
+                    );
+                }
+            }
+        }
+    }
+
+    /// **A corner's lean is read at the band**: a strip's end `Kε/2` wide
+    /// is not read, its corner's far end standing in the band off the
+    /// other edge (it refuses before the cap is read); `2Kε` wide, it is.
+    /// Red if the corner's leans are read as signs alone.
+    #[test]
+    fn an_end_narrower_than_the_band_is_not_read() {
+        let k = band().escalate();
+        for (w, presented) in [(0.5 * k, false), (2.0 * k, true)] {
+            let (plane, b) = segments(&[
+                (1, (0.0, 0.0), (10.0, 0.0), [1, 2]),
+                (2, (10.0, 0.0), (10.0, w), [2, 3]),
+                (3, (10.0, w), (0.0, w), [3, 4]),
+            ]);
+            let end = holding(&[0, 1, 2], &[2, 3]);
+            let got = present_in(&plane, &b, ((9.99, 10.5), (-1.0, 1.0)), &end, &[1]);
+            assert_eq!(
+                matches!(got, Ok(Presentation::Of(_))),
+                presented,
+                "an end {w:e} wide: presented = {presented}"
+            );
+        }
+    }
+
+    /// **A cap's lean is read at the band**: a sliver triangle's end in a
+    /// cell running along its sides to where they stand `gap` apart, so
+    /// the cap's lean over the base comes down to `gap` over the reach
+    /// while the corner's own lean, the end's width, is a millimetre: not
+    /// read at `0.05Kε`, read at `50Kε`. Red if the cap's lean is read as a
+    /// sign alone.
+    #[test]
+    fn a_cap_lean_inside_the_band_is_not_read() {
+        let (l, w) = (10.0, 1e-3);
+        let (plane, triangle) = segments(&[
+            (1, (0.0, 0.0), (l, 0.0), [1, 2]),
+            (2, (l, 0.0), (l, w), [2, 3]),
+            (3, (l, w), (0.0, 0.0), [3, 1]),
+        ]);
+        let end = holding(&[0, 1, 2], &[2, 3]);
+        let k = band().escalate();
+        for (gap, presented) in [(0.05 * k, false), (50.0 * k, true)] {
+            let from = gap * l / w;
+            let got = present_in(&plane, &triangle, ((from, 10.5), (-1.0, 1.0)), &end, &[1]);
+            assert_eq!(
+                matches!(got, Ok(Presentation::Of(_))),
+                presented,
+                "a cap standing {gap:e} off its base at the cell's far reach: presented = {presented}"
+            );
+        }
+    }
+
+    /// **A cap's lean is read over a reach from the corner**: an end whose
+    /// far corner turns in (the cap runs back across the base's line past
+    /// the frame's corner), in a cell off that corner, read off the cell's
+    /// own ball. The cap's lean at the corner itself refuses it; a reach
+    /// starting at the cell's own range misses the corner, presents, and
+    /// drops the face point here (the fuzz's seed `0x1234`, effort 15,
+    /// case 255). Red if the reach does not start at the corner.
+    #[test]
+    fn a_caps_reach_starts_at_the_corner() {
+        let p1 = (-0.042105173597328_35, 0.280122695629587_14);
+        let p2 = (-0.042105241419911_864, 0.280119192265625_37);
+        let (_, mut b) = segments(&[
+            (1, (334.4823095921917, -942.1069612171361), p1, [1, 2]),
+            (2, p1, p2, [2, 3]),
+            (3, p2, (-875.6944406777136, -482.6618933154106), [3, 4]),
+        ]);
+        let cell = (
+            (-0.042102506762834536, -0.04209062058628329),
+            (0.2801107907952337, 0.2801305986514572),
+        );
+        let (local, ball) = real_local(&mut b, cell);
+        let plane = segments(&[]).0;
+        let piece = Piece {
+            face: FaceKey::default(),
+            surface: &plane,
+            whole: false,
+            boundary: &b,
+            u: cell.0,
+            v: cell.1,
+            local: &local,
+            ball,
+        };
+        assert_eq!(
+            local.edges,
+            vec![0, 1, 2],
+            "the cell holds the end's three edges"
+        );
+        match present_plane(&piece, &[0], &[], band()) {
+            Ok(Presentation::Of(q)) => {
+                let Map::Affine { o, a, b: bv } = q.map else {
+                    panic!("a planar presentation is affine")
+                };
+                let m = |x: Interval| 0.5 * (x.lo() + x.hi());
+                let (o, a, bv) = ([m(o[0]), m(o[1])], [m(a[0]), m(a[1])], [m(bv[0]), m(bv[1])]);
+                let p = (-0.04210201150547824, 0.28011161612257635);
+                let d = [p.0 - o[0], p.1 - o[1]];
+                let det = a[0] * bv[1] - a[1] * bv[0];
+                let (x, y) = (
+                    (d[0] * bv[1] - d[1] * bv[0]) / det,
+                    (a[0] * d[1] - a[1] * d[0]) / det,
+                );
+                assert!(
+                    q.x.0 - 1e-7 <= x
+                        && x <= q.x.1 + 1e-7
+                        && q.y.0 - 1e-7 <= y
+                        && y <= q.y.1 + 1e-7,
+                    "the face point {p:?} lies in the rectangle: ({x}, {y}) in {:?} × {:?}",
+                    q.x,
+                    q.y
+                );
+            }
+            Ok(Presentation::Vacuous) => panic!("the cell holds face points"),
+            Ok(Presentation::Pair(..)) => panic!("a strip's end is one piece"),
+            Err(_) => {}
+        }
+    }
+
+    /// **A structural refusal at a strip's end stands**: an end whose
+    /// shared short side is a seam's (two uses), which no planar reading
+    /// reads, is `Structural` from either corner, not overwritten by the
+    /// second corner's `Local`. Red if the end returns the last corner's
+    /// refusal whatever it is.
+    #[test]
+    fn a_structural_refusal_at_an_end_stands() {
+        let (plane, mut b) = thin_face();
+        let seam = b.edges[1].uses[0].clone();
+        b.edges[1].uses.push(Use {
+            plus: !seam.plus,
+            ..seam
+        });
+        let end = holding(&[0, 1, 2], &[2, 3]);
+        let got = present_in(&plane, &b, ((9.99, 10.5), (-1.0, 1.0)), &end, &[1]);
+        assert!(
+            matches!(got, Err(Unpresented::Structural)),
+            "a shared seam at the end is structural"
+        );
+    }
+
+    /// **A presented end holds the face's part of its cell, and a
+    /// `Vacuous` cell none** (a counterexample search: the seed varies and
+    /// is logged, the count rides `CAD_FUZZ_EFFORT`). Chains of three line
+    /// edges `Q0 → P1 → P2 → Q3`, the face on their left, each corner
+    /// convex or reflex, turned in the chart, `P1 P2` from `0.3Kε` to a
+    /// unit long; cells about either corner, their local boundary read by
+    /// [`Local::of`] off each cell's own ball. The truth is the nearest
+    /// feature's side, skipping cells that reach an edge's free end or a
+    /// convex apex. Every sampled face point of the cell must lie in a
+    /// presentation's rectangle, and none in a `Vacuous` cell. The oracle
+    /// is live: dropping the end's cap lean, capping at the cell's reach,
+    /// reading `Vacuous` before the cap, or the cap's reach starting at
+    /// the cell rather than at the corner each fail it.
+    #[test]
+    fn a_presented_end_holds_the_faces_part_at_random() {
+        const CASES: usize = 4_000;
+        let k = band().escalate();
+        let mut rng = test_utils::fuzz::start("present_plane_end");
+        let (mut of3, mut vac3, mut loc3, mut of2, mut vac, mut of1, mut bad) =
+            (0, 0, 0, 0, 0, 0, 0);
+        let dir = |t: f64| (t.cos(), t.sin());
+        for case in 0..test_utils::fuzz::scaled(CASES) {
+            let w = rng.log_uniform(0.3 * k, 1.0);
+            let (l1, l3) = (rng.log_uniform(w, 20.0), rng.log_uniform(w, 20.0));
+            let turn = |r: &mut test_utils::fuzz::Rng| {
+                let t = 0.02 + r.unit() * 3.0;
+                if r.unit() < 0.75 { t } else { -t }
+            };
+            let (t1, t2) = (turn(&mut rng), turn(&mut rng));
+            let phi = if rng.unit() < 0.2 {
+                0.0
+            } else {
+                rng.unit() * core::f64::consts::TAU
+            };
+            let p1 = (rng.unit() - 0.5, rng.unit() - 0.5);
+            let d2 = dir(phi);
+            let p2 = (p1.0 + w * d2.0, p1.1 + w * d2.1);
+            let d1 = dir(phi - t1);
+            let q0 = (p1.0 - l1 * d1.0, p1.1 - l1 * d1.1);
+            let d3 = dir(phi + t2);
+            let q3 = (p2.0 + l3 * d3.0, p2.1 + l3 * d3.1);
+            let cross = |a: (f64, f64), b: (f64, f64)| a.0 * b.1 - a.1 * b.0;
+            let sub = |a: (f64, f64), b: (f64, f64)| (a.0 - b.0, a.1 - b.1);
+            // The ground truth runs the first edge back and the last on
+            // as rays (a presented or Vacuous cell holds neither's end).
+            // Where the rays cross, at X: the triangle X P1 P2 if both
+            // corners are convex, else the case is skipped; a cell whose
+            // ball reaches X is skipped below.
+            let far = 1e3;
+            let (r, s) = ((-d1.0, -d1.1), d3);
+            let den = cross(r, s);
+            let mut apex: Option<(f64, f64)> = None;
+            if den.abs() > 1e-300 {
+                let t = cross(sub(p2, p1), s) / den;
+                let u = cross(sub(p2, p1), r) / den;
+                if t > 0.0 && u > 0.0 {
+                    if t1 < 0.0 || t2 < 0.0 {
+                        continue;
+                    }
+                    apex = Some((p1.0 + t * r.0, p1.1 + t * r.1));
+                }
+            }
+            let tq0 = apex.unwrap_or((p1.0 - far * d1.0, p1.1 - far * d1.1));
+            let tq3 = apex.unwrap_or((p2.0 + far * d3.0, p2.1 + far * d3.1));
+            let pts = [tq0, p1, p2, tq3];
+            // The edges as the face holds them stop short of the apex.
+            if let Some(x) = apex {
+                let d = |a: (f64, f64)| ((a.0 - x.0).powi(2) + (a.1 - x.1).powi(2)).sqrt();
+                if d(q0) < 1e-6 * l1 || d(q3) < 1e-6 * l3 || l1 > d(p1) || l3 > d(p2) {
+                    continue;
+                }
+            }
+            let (plane, mut b) = segments(&[
+                (1, q0, p1, [1, 2]),
+                (2, p1, p2, [2, 3]),
+                (3, p2, q3, [3, 4]),
+            ]);
+            // The face side of a point: nearest feature's; None at a free end.
+            // Each feature from a point at the end: its anchor, its unit
+            // direction of travel, and its run from the anchor (signed).
+            let norm = |a: (f64, f64)| (a.0 * a.0 + a.1 * a.1).sqrt();
+            let feats = [
+                (p1, d1, -norm(sub(tq0, p1)), 0.0),
+                (p1, d2, 0.0, w),
+                (p2, d3, 0.0, norm(sub(tq3, p2))),
+            ];
+            let in_face = |p: (f64, f64)| -> Option<(bool, f64)> {
+                let mut best: Option<(f64, usize, f64)> = None;
+                for (i, &(a, dv, lo, hi)) in feats.iter().enumerate() {
+                    let r = sub(p, a);
+                    let t = (r.0 * dv.0 + r.1 * dv.1).clamp(lo, hi);
+                    let d = norm((r.0 - t * dv.0, r.1 - t * dv.1));
+                    if best.is_none_or(|(bd, ..)| d < bd) {
+                        best = Some((d, i, t));
+                    }
+                }
+                let (d, i, t) = best?;
+                let (a, dv, lo, hi) = feats[i];
+                if (i == 0 && t == lo) || (i == 2 && t == hi) {
+                    return if apex.is_some() {
+                        Some((false, d))
+                    } else {
+                        None
+                    };
+                }
+                Some(if (i == 0 && t == hi) || (i == 1 && t == lo) {
+                    (t1 < 0.0, d)
+                } else if (i == 1 && t == hi) || (i == 2 && t == lo) {
+                    (t2 < 0.0, d)
+                } else {
+                    (cross(dv, sub(p, a)) > 0.0, d)
+                })
+            };
+            for _ in 0..4 {
+                let anchor = pts[1 + (rng.unit() * 2.0) as usize];
+                let (hu, hv) = (
+                    rng.log_uniform(0.05 * w, 300.0 * w),
+                    rng.log_uniform(0.05 * w, 300.0 * w),
+                );
+                let c = (
+                    anchor.0 + (rng.unit() - 0.5) * 3.0 * hu,
+                    anchor.1 + (rng.unit() - 0.5) * 3.0 * hv,
+                );
+                let cell = ((c.0 - hu, c.0 + hu), (c.1 - hv, c.1 + hv));
+                let (local, ball) = real_local(&mut b, cell);
+                if let Some(x) = apex {
+                    let reach = (hu * hu + hv * hv).sqrt();
+                    if ((x.0 - c.0).powi(2) + (x.1 - c.1).powi(2)).sqrt() < 1.05 * reach {
+                        continue;
+                    }
+                }
+                // The truth is unknown where an edge's real end, or the run
+                // past it, comes into the ball: skip those cells.
+                {
+                    let reach = (hu * hu + hv * hv).sqrt();
+                    let seg = |a: (f64, f64), e: (f64, f64)| {
+                        let v = sub(e, a);
+                        let t = (((c.0 - a.0) * v.0 + (c.1 - a.1) * v.1) / (v.0 * v.0 + v.1 * v.1))
+                            .clamp(0.0, 1.0);
+                        ((c.0 - a.0 - t * v.0).powi(2) + (c.1 - a.1 - t * v.1).powi(2)).sqrt()
+                    };
+                    if seg(q0, tq0) < 1.05 * reach || seg(q3, tq3) < 1.05 * reach {
+                        continue;
+                    }
+                }
+                let shared: &[usize] = [&[][..], &[0], &[1], &[2]][(rng.unit() * 4.0) as usize];
+                if !shared.iter().all(|e| local.edges.contains(e)) {
+                    continue;
+                }
+                let piece = Piece {
+                    face: FaceKey::default(),
+                    surface: &plane,
+                    whole: false,
+                    boundary: &b,
+                    u: cell.0,
+                    v: cell.1,
+                    local: &local,
+                    ball,
+                };
+                let got = present_plane(&piece, shared, &[], band());
+                let n = local.edges.len();
+                let mut samples = Vec::new();
+                for i in 0..12 {
+                    for j in 0..12 {
+                        samples.push((
+                            cell.0.0 + (i as f64 + 0.5) / 12.0 * 2.0 * hu,
+                            cell.1.0 + (j as f64 + 0.5) / 12.0 * 2.0 * hv,
+                        ));
+                    }
+                }
+                let clear = 1e-9 * (hu + hv) + 3e-15;
+                let faced: Vec<(f64, f64)> = samples
+                    .into_iter()
+                    .filter(|&p| in_face(p).is_some_and(|(inside, d)| inside && d > clear))
+                    .collect();
+                let mut fail = None;
+                match &got {
+                    Ok(Presentation::Vacuous) => {
+                        vac += 1;
+                        if n == 3 {
+                            vac3 += 1;
+                        }
+                        if let Some(p) = faced.first() {
+                            fail = Some(format!("Vacuous, yet {p:?} is a face point of the cell"));
+                        }
+                    }
+                    // One piece, or a two-line corner's two: a face point
+                    // lies in some piece's rectangle.
+                    Ok(read) => {
+                        match n {
+                            3 => of3 += 1,
+                            2 => of2 += 1,
+                            _ => of1 += 1,
+                        }
+                        let m = |x: Interval| 0.5 * (x.lo() + x.hi());
+                        let holds = |q: &Presented<'_>, p: (f64, f64)| {
+                            let Map::Affine { o, a, b: bv } = q.map else {
+                                return true;
+                            };
+                            let (o, a, bv) =
+                                ((m(o[0]), m(o[1])), (m(a[0]), m(a[1])), (m(bv[0]), m(bv[1])));
+                            let det = cross(a, bv);
+                            let d = sub(p, o);
+                            let (x, y) = (cross(d, bv) / det, cross(a, d) / det);
+                            let (sx, sy) = (1e-7 * (1.0 + x.abs()), 1e-7 * (1.0 + y.abs()));
+                            !(x < q.x.0 - sx || x > q.x.1 + sx || y < q.y.0 - sy || y > q.y.1 + sy)
+                        };
+                        let pieces = read.pieces();
+                        if let Some(p) =
+                            faced.iter().find(|&&p| !pieces.iter().any(|q| holds(q, p)))
+                        {
+                            fail = Some(format!(
+                                "presented in {} piece(s), none holding the face point {p:?}",
+                                pieces.len()
+                            ));
+                        }
+                    }
+                    Err(_) => {
+                        if n == 3 {
+                            loc3 += 1;
+                        }
+                    }
+                }
+                if let Some(why) = fail {
+                    bad += 1;
+                    if bad <= 8 {
+                        println!(
+                            "[fuzz] case {case}: {why}\n     pts {pts:?} t1 {t1} t2 {t2} w {w:e} cell {cell:?} local {:?}/{} shared {shared:?}",
+                            local.edges,
+                            local.vertices.len()
+                        );
+                    }
+                }
+            }
+        }
+        println!(
+            "[fuzz] band K eps {k:e}: three-edge cells presented {of3}, vacuous {vac3}, refused {loc3}; \
+             two-edge presented {of2}; one-edge presented {of1}; vacuous in all {vac}; FAILURES {bad}"
+        );
+        assert_eq!(
+            bad,
+            0,
+            "a presentation missed a face point, or Vacuous held one ({})",
+            test_utils::fuzz::replay()
+        );
+    }
+
     /// **`edge_piece`**: the hull of an edge's parameters whose points the
     /// boxes may hold, narrowed to them from both ends.
     #[test]
@@ -11142,6 +12450,200 @@ mod presentation_rows {
                 harmonic: None,
             }],
         }
+    }
+
+    /// [`segment`] from `from` over `len`, its direction poison: what
+    /// [`geom_core::UnitVec3::checked`] answers for a box that holds no
+    /// unit vector.
+    fn poisoned_segment(n: u64, ends: [u64; 2], from: (f64, f64), len: f64) -> Rim {
+        let dir = geom_core::UnitVec3::checked(Vec3::new(iv0(0.6), iv0(0.6), iv0(0.0)));
+        assert!(
+            dir.get().x.lo().is_nan(),
+            "the fixture's direction is poison"
+        );
+        let mut rim = segment(n, ends, from, (from.0 + len, from.1));
+        rim.arc = Some((
+            Curve3::line(Point3::new(iv0(from.0), iv0(from.1), iv0(0.0)), dir),
+            (iv0(0.0), iv0(len)),
+        ));
+        rim
+    }
+
+    /// **Every reader of a line edge refuses one whose direction is
+    /// poison.** A `UnitVec3` that its door refused is NaN in every
+    /// component and is announced nowhere before a read
+    /// (`work/embed/a-poisoned-unit-direction-is-announced-nowhere-between-its-door-and-a-read.md`),
+    /// so each reader of the edge's ends or direction has to refuse it
+    /// by its own decision. Injected at each: a plane's one line edge
+    /// ([`present_plane`]); its corner of two lines; a line shared at a
+    /// corner with an arc ([`present_plane_corner`]); the other edge of
+    /// a curve's corner ([`leaving`], the run); [`line_onward`]'s own
+    /// comparisons; and the edge a graph separator would run on along
+    /// ([`graph_run`]). None presents, none is vacuous, none gives a
+    /// graph; each fixture with a sound direction in its place is read,
+    /// so the refusal is the poison's. Red if a reader's comparison
+    /// passes on NaN.
+    #[test]
+    fn a_poisoned_line_direction_is_refused_by_every_reader() {
+        let s = floor();
+        let refused = |r: &Read| matches!(r, Read::Local | Read::Structural);
+        let ask =
+            |b: &Boundary, edges: Vec<usize>, vertices: Vec<VertexKey>, near: &[usize], u, v| {
+                let local = Local { edges, vertices };
+                let piece = Piece {
+                    face: FaceKey::default(),
+                    surface: &s,
+                    whole: false,
+                    boundary: b,
+                    u,
+                    v,
+                    local: &local,
+                    ball: Ball::holding(origin(), origin()),
+                };
+                read(present_plane(&piece, near, &[], band()))
+            };
+        // One line edge, the cell across it.
+        let one = Boundary {
+            sense: true,
+            edges: vec![poisoned_segment(1, [1, 2], (0.0, 0.0), 4.0)],
+            vertices: BTreeMap::new(),
+            extent: None,
+            outer: None,
+        };
+        let r = ask(&one, vec![0], Vec::new(), &[0], (1.0, 2.0), (-0.5, 0.5));
+        assert!(refused(&r), "a plane's one line edge: {r:?}");
+        let mut sound = one.clone();
+        sound.edges[0] = segment(1, [1, 2], (0.0, 0.0), (4.0, 0.0));
+        let r = ask(&sound, vec![0], Vec::new(), &[0], (1.0, 2.0), (-0.5, 0.5));
+        assert!(
+            matches!(r, Read::Of(..)),
+            "with a direction it is read: {r:?}"
+        );
+        // A corner of two lines at the origin, one of them poison.
+        let two = Boundary {
+            sense: true,
+            edges: vec![
+                segment(2, [2, 1], (0.0, 4.0), (0.0, 0.0)),
+                poisoned_segment(3, [1, 3], (0.0, 0.0), 4.0),
+            ],
+            vertices: BTreeMap::new(),
+            extent: None,
+            outer: None,
+        };
+        for near in [&[0][..], &[1][..]] {
+            let r = ask(
+                &two,
+                vec![0, 1],
+                vec![vertex(1)],
+                near,
+                (-0.5, 0.5),
+                (-0.5, 0.5),
+            );
+            assert!(refused(&r), "a corner of two lines, {near:?} shared: {r:?}");
+        }
+        // The tangent joint, its line poison: read from the arc (the
+        // run, `leaving`) and from the line (`present_plane_corner`).
+        let good = quarter(segment(20, [3, 1], (1.0, -1.0), (1.0, 0.0)), Vec::new());
+        let bad = quarter(poisoned_segment(20, [3, 1], (1.0, -1.0), 1.0), Vec::new());
+        let mut sound = two.clone();
+        sound.edges[1] = segment(3, [1, 3], (0.0, 0.0), (4.0, 0.0));
+        for near in [&[0][..], &[1][..]] {
+            let r = ask(
+                &sound,
+                vec![0, 1],
+                vec![vertex(1)],
+                near,
+                (-0.5, 0.5),
+                (-0.5, 0.5),
+            );
+            // A corner of two lines is two pieces.
+            assert!(
+                matches!(r, Read::Pair),
+                "two sound lines, {near:?} shared: {r:?}"
+            );
+            let r = ask(
+                &good,
+                vec![0, 1],
+                vec![vertex(1)],
+                near,
+                (0.98, 1.02),
+                (-0.02, 0.02),
+            );
+            assert!(
+                matches!(r, Read::Of(..)),
+                "the sound joint, {near:?} shared: {r:?}"
+            );
+        }
+        for near in [&[0][..], &[1][..]] {
+            let r = ask(
+                &bad,
+                vec![0, 1],
+                vec![vertex(1)],
+                near,
+                (0.98, 1.02),
+                (-0.02, 0.02),
+            );
+            assert!(refused(&r), "the tangent joint, {near:?} shared: {r:?}");
+        }
+        // `line_onward` on its own, every field of the edge no number.
+        let nan = at(f64::NAN);
+        let l = Leaving {
+            d: [nan; 2],
+            near: [nan; 2],
+            far: [nan; 2],
+            speed: [1.0, 1.0],
+            leaves: Leaves::Undecided,
+        };
+        for onward in [true, false] {
+            assert!(
+                line_onward(&l, Axis::U, onward, (0.0, 1.0), band()).is_err(),
+                "line_onward, onward {onward}"
+            );
+        }
+        // The graph does not run on along a poisoned edge: the run is
+        // presented on the good body, then the separator is asked on
+        // the body whose line is poison.
+        let local = both_arcs();
+        let x = piece_on(&s, &good, &local, 1);
+        let Ok(Presentation::Of(p)) = present_plane(&x, &[0], &[], band()) else {
+            panic!("the run is presented");
+        };
+        let cyl = cylinder();
+        let wall = Presented {
+            surface: &cyl,
+            map: Map::Chart,
+            x: (0.0, 0.02),
+            y: (0.0, 0.02),
+            zero: Zero::Side(
+                Side::YLo,
+                Along {
+                    edges: vec![edge(10)],
+                    vertex: None,
+                    whole: true,
+                    params: Some(Params {
+                        t: (0.0, 0.02),
+                        periodic: true,
+                    }),
+                    on_edges: true,
+                    stops: vec![vertex(1)],
+                },
+            ),
+            corner: false,
+            cache: Cache::default(),
+        };
+        let near = Near {
+            edges: vec![(0, 0)],
+            vertices: Vec::new(),
+        };
+        assert!(
+            graph_of(&x, &x, &near, &p, &wall, band()).is_some(),
+            "the fixture reaches the graph on the good body"
+        );
+        let y = piece_on(&s, &bad, &local, 1);
+        assert!(
+            graph_of(&y, &y, &near, &p, &wall, band()).is_none(),
+            "a graph run on along a poisoned edge"
+        );
     }
 
     /// **A fixture's line is its unit chord as an enclosure, at any
@@ -11913,8 +13415,7 @@ mod presentation_rows {
             corner: false,
             cache: Cache::default(),
         };
-        let (z, x, y) = (
-            Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+        let (x, y) = (
             Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
             Vec3::new(iv0(0.0), iv0(1.0), iv0(0.0)),
         );
@@ -11937,7 +13438,7 @@ mod presentation_rows {
         );
         let cylinder = Psi::Carrier(Implicit::Cylinder {
             o: origin(),
-            axis: geom_core::UnitVec3::checked(z),
+            axis: geom_core::UnitVec3::exact_z(),
             r: iv0(1.0),
         });
         assert_eq!(
@@ -13666,14 +15167,8 @@ mod presentation_rows {
             key: edge(far),
             // The segment is its chord, its span in metres.
             arc: Some({
-                let len = Vec3::new(d[0], d[1], d[2]).norm();
-                (
-                    Curve3::line(
-                        o,
-                        geom_core::UnitVec3::checked(v([d[0] / len, d[1] / len, d[2] / len])),
-                    ),
-                    (iv0(0.0), iv0(len)),
-                )
+                let (dir, len) = geom_core::UnitVec3::chord(v(d));
+                (Curve3::line(o, dir), (iv0(0.0), len))
             }),
             ends: [vertex(key), vertex(far)],
             uses: vec![Use {
@@ -15269,7 +16764,7 @@ mod presentation_rows {
     fn turning(w: f64) -> (Surface<Interval>, Surface<Interval>, Boundary, Boundary) {
         let s = Interval::from_bounds(-w, w);
         let d = Vec3::new(iv0(1.0), s, iv0(0.0));
-        let line = Curve3::line(origin(), geom_core::UnitVec3::checked(d));
+        let line = Curve3::line(origin(), geom_core::UnitVec3::chord(d).0);
         let face = |sense: bool| Boundary {
             sense,
             edges: vec![Rim {
@@ -17983,16 +19478,8 @@ mod presentation_rows {
         // A segment is its chord, its span in metres, read off the
         // stated points.
         let line = |a: Point3<Interval>, b: Point3<Interval>| {
-            let d = Vec3::new(
-                b.x.lo() - a.x.lo(),
-                b.y.lo() - a.y.lo(),
-                b.z.lo() - a.z.lo(),
-            );
-            let len = d.norm();
-            Some((
-                Curve3::line(a, geom_core::UnitVec3::checked((d * (1.0 / len)).map(iv0))),
-                (iv0(0.0), iv0(len)),
-            ))
+            let (dir, len) = geom_core::UnitVec3::chord(b - a);
+            Some((Curve3::line(a, dir), (iv0(0.0), len)))
         };
         let apex = origin();
         let (p0, p1) = (p3(s2, 0.0, s2), p3(0.0, -s2, s2));
@@ -18155,7 +19642,7 @@ mod presentation_rows {
         seam.arc = Some((
             Curve3::line(
                 origin(),
-                geom_core::UnitVec3::checked(Vec3::new(iv0(s2), iv0(0.0), iv0(s2))),
+                geom_core::UnitVec3::chord(Vec3::new(iv0(1.0), iv0(0.0), iv0(1.0))).0,
             ),
             (iv0(0.0), iv0(1.0)),
         ));
@@ -18246,16 +19733,8 @@ mod presentation_rows {
         // A segment is its chord, its span in metres, read off the
         // stated points.
         let line = |a: Point3<Interval>, b: Point3<Interval>| {
-            let d = Vec3::new(
-                b.x.lo() - a.x.lo(),
-                b.y.lo() - a.y.lo(),
-                b.z.lo() - a.z.lo(),
-            );
-            let len = d.norm();
-            Some((
-                Curve3::line(a, geom_core::UnitVec3::checked((d * (1.0 / len)).map(iv0))),
-                (iv0(0.0), iv0(len)),
-            ))
+            let (dir, len) = geom_core::UnitVec3::chord(b - a);
+            Some((Curve3::line(a, dir), (iv0(0.0), len)))
         };
         let apex = origin();
         let (p0, p1) = (p3(s2, 0.0, s2), p3(0.0, -s2, s2));
@@ -18523,7 +20002,7 @@ mod rate_rows {
             }
             seen += 1;
             let v = g.vec(1.0);
-            for (what, psi) in carriers(geom_core::UnitVec3::checked(d().map(iv0)), o()) {
+            for (what, psi) in carriers(geom_core::UnitVec3::chord(d().map(iv0)).0, o()) {
                 let rate = psi.rate(pt(q), v.map(iv0));
                 let want = fd(&psi, q, v);
                 assert!(
@@ -18554,7 +20033,7 @@ mod rate_rows {
             let v = g.vec(1.0);
             for (hq, ha, hv) in [(1e-2, 0.0, 0.0), (1e-3, 1e-6, 1e-3), (1e-5, 1e-4, 1e-2)] {
                 let axis = vbox(d(), ha);
-                for ((what, psi), k) in carriers(geom_core::UnitVec3::checked(axis), o())
+                for ((what, psi), k) in carriers(geom_core::UnitVec3::chord(axis).0, o())
                     .into_iter()
                     .zip(0..)
                 {
@@ -18594,7 +20073,7 @@ mod rate_rows {
     /// cone's apex, no sign is read off the rate.**
     #[test]
     fn no_sign_is_read_off_a_rate_over_a_box_holding_the_axis() {
-        for (what, psi) in carriers(geom_core::UnitVec3::checked(d().map(iv0)), o())
+        for (what, psi) in carriers(geom_core::UnitVec3::chord(d().map(iv0)).0, o())
             .into_iter()
             .take(3)
         {
@@ -18806,7 +20285,7 @@ mod rate_rows {
                 continue;
             }
             seen += 1;
-            for (what, psi) in carriers(geom_core::UnitVec3::checked(d().map(iv0)), o()) {
+            for (what, psi) in carriers(geom_core::UnitVec3::chord(d().map(iv0)).0, o()) {
                 let e = 1e-6;
                 let grad = Vec3::new(
                     fd(&psi, q, Vec3::new(1.0, 0.0, 0.0)),

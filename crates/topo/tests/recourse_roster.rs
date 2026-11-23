@@ -724,6 +724,7 @@ const INDIRECT: &[(&str, &str)] = &[
     ("injective.rs: definite_as: row", FORWARDS),
     ("injective.rs: interval_sign_as: row", FORWARDS),
     ("injective.rs: of: carrier", CARRIER_CALL),
+    ("injective.rs: present_plane: x", CLOSURE_FORWARDS),
     (
         "link.rs: a_corner_off_the_point_by_its_tie_reads_nothing_in_band: band",
         CARRIER_CALL,
