@@ -17,11 +17,11 @@
 //!   interpolant is on the chain's knots exactly. They are found by
 //!   **continuation**: the first is the wall's nearest point to the
 //!   carrier's start, and each next one is Newton's from the last
-//!   ([`follow`]), accepted where the chart step agrees with the step the
-//!   wall's own tangents predict for the carrier's and otherwise reached
-//!   through the halfway parameter. So the path stays on the sheet of a
-//!   folded wall it started on, and reaches a closed wall's seam from the
-//!   side it came by.
+//!   ([`follow`]), accepted where the wall's point moved as the carrier
+//!   did and the chart step is no longer than that motion allows, and
+//!   otherwise reached through the halfway parameter. So the path stays
+//!   on the sheet of a folded wall it started on, and reaches a closed
+//!   wall's seam from the side it came by.
 //! - **The start on a seam.** A start whose nearest point lies on a side
 //!   of the wall's rectangle that the wall closes across has two chart
 //!   points; it takes the one the path leaves into the rectangle from
@@ -89,10 +89,14 @@ const CROSSING_HALVINGS: u32 = 60;
 /// from the last one (D9).
 const FOLLOW_HALVINGS: u32 = 16;
 
-/// The share of the carrier's step by which a foot's chart step, in
-/// metres through the wall's tangents, may differ from the predicted
-/// one ([`follow`]).
+/// The share of the carrier's step by which a foot's motion in space may
+/// differ from it ([`follow`]).
 const FOLLOW_AGREEMENT: f64 = 0.5;
+
+/// How many times the motion in space a foot's chart step may measure,
+/// through the wall's tangents at the foot ([`follow`]): past any jump
+/// of a chart's speed across a knot line the kernel's walls carry.
+const FOLLOW_STRETCH: f64 = 4.0;
 
 /// Why a carrier has no image on a wall.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -699,14 +703,20 @@ where
 }
 
 /// **The next foot of the path**, at the unit fraction `at`, from the
-/// last one: Newton's from the predicted chart point, kept where the
-/// chart step it took agrees with the predicted one to within
-/// [`FOLLOW_AGREEMENT`] of the carrier's step and the carrier's standoff
-/// at the two feet, in metres through the wall's tangents. A foot on another sheet of a folded wall, or across
-/// a closed wall's seam, is a chart step the tangents do not predict; it
-/// is refused and the path is followed through the halfway parameter
-/// instead, `halvings` deep. Where the tangents predict nothing, the
-/// foot Newton reaches from the last one stands.
+/// last one: Newton's from the chart point the wall's tangents predict,
+/// kept where it is the last foot moved as the carrier moved:
+///
+/// - the wall's point moved with the carrier's, to within
+///   [`FOLLOW_AGREEMENT`] of the carrier's step and the carrier's
+///   standoff at the two feet;
+/// - the chart step, as a length through the wall's tangents at the new
+///   foot, is no more than [`FOLLOW_STRETCH`] times that motion. A foot
+///   on another sheet of a folded wall, or across a closed wall's seam,
+///   is near in space and far in the chart; a chart whose speed jumps
+///   across a knot line stretches a step by that jump and no more.
+///
+/// A foot that fails either is refused, and the path is followed through
+/// the halfway parameter instead, `halvings` deep.
 ///
 /// # Errors
 ///
@@ -724,30 +734,21 @@ where
 {
     let p = read.point(at);
     let dc = mid3(p - read.point(last.at));
-    let step = predicted(wall, last.uv, dc);
-    let seed = step.map_or(last.uv, |(du, dv)| Point2::new(last.uv.x + du, last.uv.y + dv));
+    let seed = predicted(wall, last.uv, dc).map_or(last.uv, |(du, dv)| {
+        Point2::new(last.uv.x + du, last.uv.y + dv)
+    });
     let last_distance = match settle(wall, p, (seed.x, seed.y)) {
         Ok(foot) => {
             let (uv, standoff) = (foot.0, foot.2);
-            let agrees = step.is_none_or(|_| {
-                // The seed as the projection clamped it, so a path along
-                // a side of the rectangle is not read as leaving it.
-                let (ud, vd) = (
-                    wall.knots_u_f64_interim().domain(),
-                    wall.knots_v_f64_interim().domain(),
-                );
-                let (eu, ev) = (
-                    uv.x - seed.x.clamp(ud.0, ud.1),
-                    uv.y - seed.y.clamp(vd.0, vd.1),
-                );
-                let jet = wall.ders(T::from_computed(uv.x), T::from_computed(uv.y));
-                let off = (mid3(jet.du) * eu + mid3(jet.dv) * ev).norm();
-                // A foot the rectangle's side holds short of the nearest
-                // point stands off the path by no more than the carrier
-                // stands off the wall there.
-                off <= FOLLOW_AGREEMENT * dc.norm() + last.standoff + standoff
-            });
-            if agrees {
+            let slack = last.standoff + standoff;
+            let jet = wall.ders(T::from_computed(uv.x), T::from_computed(uv.y));
+            let from = wall.eval(T::from_computed(last.uv.x), T::from_computed(last.uv.y));
+            let moved = mid3(jet.point - from);
+            let chart = (mid3(jet.du) * (uv.x - last.uv.x) + mid3(jet.dv) * (uv.y - last.uv.y))
+                .norm();
+            let with_the_carrier = (moved - dc).norm() <= FOLLOW_AGREEMENT * dc.norm() + slack;
+            let on_its_sheet = chart <= FOLLOW_STRETCH * (moved.norm() + dc.norm()) + slack;
+            if with_the_carrier && on_its_sheet {
                 return Ok(settled(at, foot));
             }
             standoff
