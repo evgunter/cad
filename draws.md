@@ -24,3 +24,7 @@ Fable usage was exhausted from 2026-11-20 until 2026-11-22 00:40 UTC (the user, 
 | 2026-11-23 | conic-constructions-from-computed-sizes-unaudited | H | single FULL | implementer | 227 | Fable |
 | 2026-11-23 | turn-defect-speed-sup-bound-sits-one-ulp-under-an-interval-sample-at-the-ceiling | M | single FULL | reviewer (head 91b3e0bd0b) | 62 | Opus |
 | 2026-11-23 | conic-constructions-from-computed-sizes-unaudited | H | single FULL | reviewer (head ab8dd4aca) | 185 | Fable |
+
+## Fable outage (rule 12), from 2026-11-24 about 00:20 UTC
+
+The reviewer of PR 7658 (`conic-constructions-from-computed-sizes-unaudited`, drawn Fable, byte 185) was stopped mid-review by the Fable usage limit. The limit resets 2026-11-29 14:00 UTC. The orchestrator has asked whether to proceed on Opus or pause. Until the user answers, nothing is dispatched in a Fable agent's place.
