@@ -71,6 +71,7 @@
 //! enter recipe data or the kernel (`Formula::literal`'s ruled door 1),
 //! exactly as for raw `f64` authoring today.
 
+#![cfg_attr(not(test), deny(clippy::disallowed_methods))]
 mod decimal;
 mod exact;
 mod fmt;
