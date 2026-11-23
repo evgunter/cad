@@ -2103,10 +2103,12 @@ pub enum EnvelopeTerm {
     /// reads the first; a free (length) channel carries no placement
     /// term.
     FidelityV,
-    /// The chart's frame is not orthonormal: its distance from its
-    /// Gram–Schmidt twin over the stored image, levered by the radius
-    /// and by the image's actual axial reach (the lemma's premise,
-    /// metered rather than assumed).
+    /// The chart's frame rounding: its stored axes' distance from their
+    /// Gram–Schmidt twin, bounded from their distance to the rotation
+    /// they hold ([`geom::Frame::rounding`]), over the stored
+    /// image, levered by the radius and by the image's actual axial reach
+    /// (the lemma's premise, metered rather than assumed). Zero at an
+    /// enclosure scalar, whose frame encloses that rotation.
     Frame,
     /// A projected image's carrier against the chart: the chart's
     /// implicit form composed along the carrier, in metres.
@@ -3228,17 +3230,18 @@ pub enum EnvelopeStatement {
     /// **The frame.** Every arm above is a lemma about an orthonormal
     /// frame (`axis` and `u_ref` unit, `u_ref ⊥ axis`), as every meter
     /// in this lane is ([`chart_stretch_sup`]'s arms, `azimuth_lever`).
-    /// Nothing at rest makes the stored chart's frame one: the cone
-    /// carries no frame margins, and where
-    /// `Surface::representability_margins` does carry them it meters
-    /// them at the radius, while an axis's defect moves a point by the
-    /// defect times its HEIGHT. So check 4 applies the lemma, and
+    /// The stored chart's frame is a [`geom::Frame`], held as the claim
+    /// that it is one; at a point scalar its stored axes stand off the
+    /// rotation they hold by their rounding ([`geom::Frame::rounding`]),
+    /// zero at an enclosure scalar, and an axis's defect moves a point
+    /// by the defect times its HEIGHT. So check 4 applies the lemma, and
     /// derives `P_d`, on the chart's Gram–Schmidt twin `Ŝ` (`n̂ =
     /// axis/‖axis‖`, `ê₁` the normalised part of `u_ref` normal to it,
     /// `ê₂ = n̂ × ê₁`), and adds **frame**: `sup |S − Ŝ|` over the
     /// stored image's chart box. The two maps share every scalar, so
-    /// the radial direction differs by at most `‖u_ref − ê₁‖ + ‖v_ref −
-    /// ê₂‖` and the axis by `‖axis − n̂‖`, each levered by what
+    /// the radial direction differs by at most `√(‖u_ref − ê₁‖² +
+    /// ‖v_ref − ê₂‖²)` and the axis by `‖axis − n̂‖`, both bounded from
+    /// [`geom::Frame::rounding`] (`frame_defect`), each levered by what
     /// multiplies it in the map: the radius, the torus's `R + r` and
     /// `r`, and on a cylinder's axis and both of a cone's channels the
     /// image's own `sup |v|`. On the sphere and the torus's tube the
@@ -6865,47 +6868,57 @@ pub(crate) fn orthonormal_chart<T: Real>(surface: &Surface<T>) -> Surface<T> {
 /// `sup |S(u, v) − Ŝ(u, v)|` over an image whose `|v|` stays within
 /// `v_reach`, `Ŝ` the chart's orthonormal twin ([`orthonormal_chart`]).
 /// Both maps share the chart's scalars and differ only in their frame:
-/// the radial direction moves by at most `‖u_ref − ê₁‖ + ‖v_ref − ê₂‖`
-/// at any azimuth (`ρ(u) − ρ̂(u)` is that pair's difference under
-/// `cos u`, `sin u`), and the axis by `‖axis − n̂‖`. Each is levered by
+/// the radial direction moves by at most
+/// `√(‖u_ref − ê₁‖² + ‖v_ref − ê₂‖²)` at any azimuth (`ρ(u) − ρ̂(u)` is
+/// that pair's difference under the unit pair `cos u`, `sin u`), and the
+/// axis by `‖axis − n̂‖`. Each is levered by
 /// what multiplies it in the chart's own map: the radius, or the
 /// slant `v` on a cylinder's axis and a cone's two channels — the
 /// actual axial reach, not the radius.
 ///
-/// The distances are bounded in the frame's own invariants, never by
-/// differencing the normalised vectors (whose enclosures widen by the
-/// radius times a few ulps at the interval scalar — the wide-arc
-/// widening check 4 was restated to remove). With `A = axis·axis`,
-/// `U = u_ref·u_ref` and `θ = |axis·u_ref|/√A = |n̂·u_ref|`, and since
-/// `|x − 1| ≤ |x² − 1|` for `x ≥ 0`:
+/// The two distances follow from the frame's own rounding
+/// ([`geom::Frame::rounding`]): `d_w` and `d_u`, the stored axis's and
+/// seam's distances from `R`, the polar factor of the stored axes. That
+/// is zero at an enclosure scalar, whose frame encloses the rotation it
+/// holds (fork 274 decision 1, the frame held as the claim it is, never
+/// read back off its brackets). At a point scalar it is measured with
+/// its rounding charged. The twin is Gram–Schmidt's, not `R`, and its
+/// distances are bounded by `R`'s:
+/// - `‖axis − n̂‖ = |‖axis‖ − 1| ≤ ‖axis − Rẑ‖ = d_w`, `Rẑ` being unit;
+/// - `‖u_ref − ê₁‖ ≤ d_u + 2·d_w`. `ê₁` is the unit vector square to `n̂`
+///   nearest `u_ref`, so it is no farther than `x`, `Rx̂` turned by the
+///   least rotation taking `Rẑ` onto `n̂`. That rotation moves a unit
+///   vector by at most the chord `‖n̂ − Rẑ‖ ≤ ‖n̂ − axis‖ + d_w ≤ 2·d_w`.
 ///
-/// - `‖axis − n̂‖ = |√A − 1| ≤ |A − 1|`;
-/// - `‖u_ref − ê₁‖ ≤ ‖u_ref − u⊥‖ + ‖u⊥ − ê₁‖ ≤ θ + |U − θ² − 1| ≤
-///   θ + |U − 1| + θ²`, `u⊥ = u_ref − n̂·θ` its part normal to `n̂`;
-/// - `‖axis × u_ref − n̂ × ê₁‖ ≤ ‖axis − n̂‖·√U + ‖u_ref − ê₁‖`.
+/// The seam's third reading follows from them:
+/// `‖axis × u_ref − n̂ × ê₁‖ ≤ ‖axis − n̂‖·√U + ‖u_ref − ê₁‖`,
+/// `U = u_ref·u_ref`.
 ///
 /// On a literal unit frame every one is the zero form.
 fn frame_defect<T: Real>(surface: &Surface<T>, v_reach: T) -> T {
-    let defect = |axis: Vec3<T>, u_ref: Vec3<T>| {
-        let (a2, u2) = (axis.dot(axis), u_ref.dot(u_ref));
-        let one = T::one();
-        let d_axis = (a2 - one).abs();
-        let tilt = axis.dot(u_ref).abs() / a2.sqrt();
-        let d_u = tilt + (u2 - one).abs() + tilt.powi(2);
-        (d_axis, d_u + d_u + d_axis * u2.sqrt())
+    // `‖axis − n̂‖ ≤ d_w` and `‖u_ref − ê₁‖ ≤ d_u + 2·d_w`, from the polar
+    // distances ([`geom::Frame::rounding`]): zero at an enclosure scalar,
+    // measured at a point scalar.
+    // The radial direction's miss is `cos u·Δu + sin u·Δv`, at most
+    // `√(|Δu|² + |Δv|²)` (Cauchy–Schwarz on the unit pair `(cos u, sin u)`),
+    // `Δv` bounded by `‖axis − n̂‖·√U + ‖u_ref − ê₁‖`.
+    let defect = |frame: &geom::Frame<T>| {
+        let (d_w, d_seam) = frame.rounding();
+        let (d_axis, d_u) = (d_w, d_seam + d_w + d_w);
+        let u2 = frame.u_ref().dot(frame.u_ref());
+        let d_v = d_u + d_axis * u2.sqrt();
+        (d_axis, harmonic_sup_scalar(d_u, d_v))
     };
     match *surface {
         Surface::Cylinder { frame, radius, .. } => {
-            let (axis, u_ref) = (frame.axis(), frame.u_ref());
-            let (d_axis, d_radial) = defect(axis, u_ref);
+            let (d_axis, d_radial) = defect(&frame);
             d_radial * radius + d_axis * v_reach
         }
         Surface::Cone {
             frame, half_angle, ..
         } => {
-            let (axis, u_ref) = (frame.axis(), frame.u_ref());
             let (s_a, c_a) = half_angle.sin_cos();
-            let (d_axis, d_radial) = defect(axis, u_ref);
+            let (d_axis, d_radial) = defect(&frame);
             (d_axis * c_a.abs() + d_radial * s_a.abs()) * v_reach
         }
         // `r·(cos v·Δrad + sin v·Δaxis)`: `(cos v, sin v)` is a unit
@@ -6915,8 +6928,7 @@ fn frame_defect<T: Real>(surface: &Surface<T>, v_reach: T) -> T {
             radius,
             ..
         } => {
-            let (axis, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
-            let (d_axis, d_radial) = defect(axis, u_ref);
+            let (d_axis, d_radial) = defect(&carrier_frame);
             let defect = harmonic_sup_scalar(d_radial, d_axis);
             #[cfg(test)]
             let defect = mutants::frame(d_radial, d_axis).unwrap_or(defect);
@@ -6934,11 +6946,10 @@ fn frame_defect<T: Real>(surface: &Surface<T>, v_reach: T) -> T {
             minor_radius,
             ..
         } => {
-            let (axis, u_ref) = (carrier_frame.axis(), carrier_frame.u_ref());
             // `(R + r·cos v)·Δrad + r·sin v·Δaxis`: the tube's share is
             // the sphere's, `r` levering the two defects at their norm,
             // and the spine's `|R|`, signed on a spindle sheet.
-            let (d_axis, d_radial) = defect(axis, u_ref);
+            let (d_axis, d_radial) = defect(&carrier_frame);
             let tube = harmonic_sup_scalar(d_radial, d_axis);
             #[cfg(test)]
             let tube = mutants::frame(d_radial, d_axis).unwrap_or(tube);
