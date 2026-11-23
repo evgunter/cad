@@ -9,6 +9,7 @@ cost: E
 refs: [7180]
 branch: charttail/speed-census
 pr: 7509
+closed: 2026-11-23
 ---
 
 
