@@ -1066,7 +1066,7 @@ pub fn root_along(
                 surface,
                 spline,
                 seed,
-                geom_brep::edge_extent_inf(region.0, region.1.0, region.1.1),
+                crate::replace_face::corner_arm(region.0, region.1.0, region.1.1),
                 band,
             ) {
                 Ok(SplineRoot::At(t)) => Ok(t),

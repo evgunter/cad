@@ -4188,7 +4188,7 @@ struct Incident<T: Real> {
 /// section's own domain ([`derive_edge`]). An analytic carrier's root is
 /// levered at the span's reach from the root
 /// ([`crate::offset_derive::analytic_root`]).
-fn corner_arm<T: Decide>(carrier: &Curve3<T>, t0: T, t1: T) -> geom_core::Lever<T> {
+pub(crate) fn corner_arm<T: Decide>(carrier: &Curve3<T>, t0: T, t1: T) -> geom_core::Lever<T> {
     geom_brep::edge_extent_inf(carrier, t0, t1)
 }
 

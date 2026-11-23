@@ -105,7 +105,7 @@ arm 1 crates/topo/src/offset_together.rs
 arm 4 crates/topo/src/pcurves/decision.rs
 arm 1 crates/topo/src/props.rs
 arm 3 crates/topo/src/props/quad_lane.rs
-arm 6 crates/topo/src/replace_face.rs
+arm 5 crates/topo/src/replace_face.rs
 arm 1 crates/topo/src/sector_face.rs
 whole 1 crates/topo/src/separating.rs
 arm 3 crates/topo/src/shell.rs
