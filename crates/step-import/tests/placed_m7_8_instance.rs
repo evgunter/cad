@@ -100,7 +100,7 @@ fn offsets_beside_the_wall(body: &topo::Body<f64>, count: usize) {
         match topo::replace_face_offset(&mut outward, cap, 0.25, tol) {
             Err(topo::ReplaceFaceError::Op {
                 error:
-                    topo::EulerOpError::RechartFalsifies {
+                    topo::EulerOpError::DescriptionUncertified {
                         error:
                             geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
                                 limb: geom_brep::SsiLimb::OnLocus,

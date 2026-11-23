@@ -1010,7 +1010,7 @@ fn hexagon_pillow_with_fully_degenerate_coordinates_is_stable() {
             p7,
             tol,
         ),
-        Err(EulerOpError::Certification { .. })
+        Err(EulerOpError::DescriptionUncertified { .. })
     ));
     let a = degenerate_pillow();
     let b = degenerate_pillow();

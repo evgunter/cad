@@ -56,17 +56,18 @@ fn outcome(r: Result<topo::SplitResult<f64>, SplitError>) -> String {
             format!("END {reading:?} {:?}", diag.margin)
         }
         Err(SplitError::Join(JoinError::SectionUnresolved { miss, .. })) => unresolved(miss),
-        Err(SplitError::Join(JoinError::Euler(EulerOpError::Certification { error }))) => {
-            match error {
-                geom_brep::CertifyError::Escalated { check, cause, .. } => {
-                    format!("EULER {check:?} escalated {:?}", cause.margin)
-                }
-                geom_brep::CertifyError::ResidualExceeded { check, margin, .. } => {
-                    format!("EULER {check:?} exceeded {margin:?}")
-                }
-                other => format!("EULER other {other:?}"),
+        Err(SplitError::Join(JoinError::Euler(EulerOpError::DescriptionUncertified {
+            error,
+            ..
+        }))) => match error {
+            geom_brep::CertifyError::Escalated { check, cause, .. } => {
+                format!("EULER {check:?} escalated {:?}", cause.margin)
             }
-        }
+            geom_brep::CertifyError::ResidualExceeded { check, margin, .. } => {
+                format!("EULER {check:?} exceeded {margin:?}")
+            }
+            other => format!("EULER other {other:?}"),
+        },
         Err(e) => {
             let stage = match &e {
                 SplitError::Reduce(_) => "reduce",

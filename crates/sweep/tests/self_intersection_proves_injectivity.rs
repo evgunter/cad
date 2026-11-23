@@ -408,6 +408,7 @@ fn top_wall<T: Scalar>(lofted: &sweep::Lofted<T, Body<T>>) -> FaceKey {
     lofted.side_faces[0]
         .iter()
         .flatten()
+        .flatten()
         .copied()
         .max_by(|&a, &b| centre(a).total_cmp(&centre(b)))
         .unwrap()
@@ -513,6 +514,7 @@ fn the_carvetail_fold_reads_violated_at_its_middle_station() {
         };
         let walls: Vec<FaceKey> = lofted.side_faces[0]
             .iter()
+            .flatten()
             .flatten()
             .copied()
             .filter(|&f| on_seam(f))
@@ -1001,7 +1003,7 @@ fn role<T: topo::AtRestPolicy<Finished = topo::AtRestBody<T>> + Real>(
     }
     lofted.side_faces[0]
         .iter()
-        .position(|seg| seg.contains(&f))
+        .position(|seg| seg.contains(&Some(f)))
         .map_or_else(|| format!("{f:?}"), |j| format!("wall {j}"))
 }
 
@@ -1215,6 +1217,7 @@ fn arc_spine_walls_with_knots_ulps_off_their_splits_hold_against_themselves() {
             .iter()
             .flatten()
             .flatten()
+            .flatten()
             .copied()
             .collect();
         let what = format!("the {curl} rad arc spine");
@@ -1226,6 +1229,7 @@ fn arc_spine_walls_with_knots_ulps_off_their_splits_hold_against_themselves() {
         let walls: Vec<FaceKey> = twin
             .side_faces
             .iter()
+            .flatten()
             .flatten()
             .flatten()
             .copied()
@@ -1270,6 +1274,7 @@ fn the_s_duct_walls_hold_against_themselves() {
         .iter()
         .flatten()
         .flatten()
+        .flatten()
         .copied()
         .collect();
     walls_hold_against_themselves("the S duct", &float.body, &walls);
@@ -1277,6 +1282,7 @@ fn the_s_duct_walls_hold_against_themselves() {
     let walls: Vec<FaceKey> = twin
         .side_faces
         .iter()
+        .flatten()
         .flatten()
         .flatten()
         .copied()
@@ -1555,7 +1561,7 @@ fn a_filleted_drum_certifies_across_its_fillet() {
             .filter(|(_, e)| {
                 matches!(
                     drum.get_curve_geom(e.curve).unwrap().certified().map(|g| g.carrier().clone()),
-                    Some(geom::Curve3::Circle(geom::Circle { frame, .. })) if (mid(frame.origin().z) - 2.0).abs() < 1e-9
+                    Some(geom::Curve3::Circle(the_circle @ geom::Circle { .. })) if (mid(the_circle.frame().origin().z) - 2.0).abs() < 1e-9
                 )
             })
             .map(|(k, _)| k)
@@ -2790,7 +2796,10 @@ fn slab_wall_pair<T: Scalar>(
     let sections: Vec<_> = (0..5).map(|_| lifted(&section)).collect();
     let lofted = sweep::test_support::loft_body_construction::<T>(&sections, &places, 3, tol())
         .expect("the slab lofts");
-    let walls = [lofted.side_faces[0][0][0], lofted.side_faces[0][2][0]];
+    let walls = [
+        lofted.side_faces[0][0][0].unwrap(),
+        lofted.side_faces[0][2][0].unwrap(),
+    ];
     (lofted, walls)
 }
 
@@ -3166,10 +3175,11 @@ fn a_two_ball_union_holds_with_its_poles_read() {
         .get_curve_geom(curve)
         .and_then(|g| g.certified())
         .map(|c| c.carrier().clone());
-    let Some(geom::Curve3::Circle(conic_k @ geom::Circle { frame, .. })) = carrier else {
+    let Some(geom::Curve3::Circle(conic_k)) = carrier else {
         panic!("the refusing edge is a meridian circle: {carrier:?}");
     };
     let radius = conic_k.radius();
+    let frame = conic_k.frame();
     assert!(
         (mid(radius) - 0.8).abs() < 1e-9 && frame.origin().y.lo() < frame.origin().y.hi(),
         "on the small ball, whose centre is a bracket: {radius:?} {frame:?}"

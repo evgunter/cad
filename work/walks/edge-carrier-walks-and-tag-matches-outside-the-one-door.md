@@ -6,7 +6,8 @@ status: open
 opened: 2026-09-14
 refs: [edge-carrier-kind-has-no-readback-door, 2587]
 priority: P1
-cost: E
+cost: M
+design: true
 ---
 
 
@@ -94,3 +95,7 @@ gone with them; a site that reads an edge key out of the body maps
 `Dangling` to `unreachable!` rather than to a refusal of its own.
 
 - 2026-11-21 (TESSLIE) — the chart-coherence examination is retired: `work/tesslie/chart-coherence-ships-off-and-nothing-schedules-turning-it-on.md`. The `coherence.rs` rung (`Unexaminable`) is gone.
+
+## Staleness audit (2026-11-22, WALKS, origin/main 7709b0ea)
+
+Premise changed. split.rs, revert.rs and euler_kill.rs keep hand walks only inside `#[cfg(test)]`; coherence.rs is gone. Production walks survive at attach.rs (5), props.rs `run_edges` and seqgen.rs `split_site`, and every one needs the whole `EdgeCurve`, which `edge_carrier_ref` (returns `&Curve3`) cannot give; `Body::stored_curve` (`Result<&EdgeCurve, EulerOpError>`, ~23 callers) already serves that need, and TOPO's `topo-internal-stored-curve-ladders-can-read-through-body-stored-curve` aims the same sites at it. `CarrierAbsence` has two arms now. `Body::edge_curve_linked` has ~87 non-test callers. Key-only tag reads duplicating `query::edge_carrier_matches`: census `on_circle` (dangling reads false), mesh trimmed.rs `carried_by_a_line`, editor-core names/emit_shell.rs, possibly boolean/arcs.rs and chord_join.rs. Re-priced M with the door question open; weighed as fork F1.

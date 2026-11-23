@@ -85,7 +85,7 @@ const KERNEL_KEYED: &[&str] = &[
     "Blend/BodyNotIntact/Disagrees",
     "Blend/BodyNotIntact/Scaffolding",
     "Blend/SurgeryInvariant",
-    "Blend/Certify",
+    "Blend/PcurveMint",
     "Naming/SplitLineage",
     "Naming/UnsupportedSeamVertex",
     "Naming/SeamVertexPartners",
@@ -602,7 +602,9 @@ mod payloads {
     /// operation, never a bad argument, which a driver's own keys cannot
     /// be ([`topo::EulerOpError::from_driver`]).
     pub(super) fn euler() -> topo::EulerOpError {
-        topo::EulerOpError::DescriptionNotAdjacent { edge: None }
+        topo::EulerOpError::DescriptionNotAdjacent {
+            edge: topo::EdgeSubject::Minted,
+        }
     }
 
     pub(super) fn pcurve() -> topo::PcurveMintError {
@@ -872,7 +874,7 @@ mod kernel {
             ChamferArmUnsupported, WedgeUnsettled, Escalated, RepeatedEdge, NonpositiveSize,
             UnsupportedChain, UnsupportedGeometry, BodyNotIntact,
             NotFinished, SurgeryInvariant,
-            RingClearance, WhollyInside, Certify, Op, Join,
+            RingClearance, WhollyInside, PcurveMint, Op, Join,
         ];
     }
 
@@ -898,7 +900,8 @@ mod kernel {
     test_utils::f6_variants! {
         /// `PathError`'s arms, for the `ProfileReplay/Path/` rows.
         pub(super) const PATH_ERROR: PathError = [
-            JunctionTangent, JunctionCusp, CuspDoublesBackOverLeg, SeamTangent, SeamArrivalOffDirection,
+            JunctionTurnWithinTolerance, JunctionCusp, CuspDoublesBackOverLeg,
+            SeamTurnWithinTolerance, SeamArrivalOffDirection,
             SeamArrivalLeverTooShort, ContinuationTargetOffRay, NoCornerForFillet,
             NoCornerOfPair, FilletOffsetLeverTooShort, FilletArcFlattenedInStorage,
             FilletCarrierBelowSceneResolution, ArcLegOnOpenFillet,
@@ -908,7 +911,7 @@ mod kernel {
             UnderflowedDirection, ArcViaCollinear, DegenerateArcChord,
             ArcCenterNotEquidistant, DegenerateArcCenter, ArcMissesAuthoredPoint,
             ArcMissBelowSceneResolution, FarEndAnchorWithoutFillet,
-            Escalated, Band, Structure, UnderdeterminedLeg, OverdeterminedJunction,
+            Escalated, Band, Structure, UnderdeterminedLeg, OverdeterminedJunction, Deferred,
         ];
     }
 
@@ -3184,9 +3187,12 @@ fn certify_refusal_routes() -> Vec<(String, NodeErrorKind)> {
         .into_iter()
         .map(|(route, source, _)| {
             row(
-                &format!("Extrude/Op/Certification/Routed/{route}"),
+                &format!("Extrude/Op/DescriptionUncertified/Routed/{route}"),
                 NodeErrorKind::Extrude(sweep::ExtrudeError::Op {
-                    source: topo::EulerOpError::Certification { error: source },
+                    source: topo::EulerOpError::DescriptionUncertified {
+                        edge: topo::EdgeSubject::Minted,
+                        error: source,
+                    },
                 }),
             )
         })
@@ -3208,8 +3214,8 @@ fn every_certify_refusal_ends_in_its_routed_sentence() {
             assert_eq!(
                 text,
                 "node 000000000005 failed: the extrude op refused: an Euler operation refused: \
-                 geometry attachment gate: the crossing angle at sample 4 escalated: margin 5e-9 \
-                 lies inside the ambiguity band (1e-9, 1e-8). Recourse: move the geometry so the \
+                 the minted edge's description does not certify: the crossing angle at sample 4 \
+                 escalated: margin 5e-9 lies inside the ambiguity band (1e-9, 1e-8). Recourse: move the geometry so the \
                  surfaces cross at a clearer angle, or, if this angle is intended, tighten the \
                  tolerance below 5e-10 m"
             );
@@ -3631,7 +3637,7 @@ fn loft() -> Vec<(String, NodeErrorKind)> {
             "PinnedCornerUnsupported",
             E::PinnedCornerUnsupported {
                 loop_index: 1,
-                at: sweep::PinnedSite::Segment(12),
+                at: sweep::PinnedSite::Corner(0),
                 slab: 10,
             },
         ),
@@ -4018,13 +4024,7 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
                 margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
             },
         ),
-        (
-            "Certify",
-            E::Certify {
-                site: "blend face pcurves",
-                source: pcurve(),
-            },
-        ),
+        ("PcurveMint", E::PcurveMint { source: pcurve() }),
         (
             "NotFinished",
             E::NotFinished {
@@ -4255,17 +4255,21 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
     }
     use geom_core::Point2;
     use payloads::*;
-    use profile::path::{PathError as P, PathNoCornerReason, TurnLever};
+    use profile::path::{LeveredTurn, PathError as P, PathNoCornerReason, TurnLever};
     use profile::{
         CornerReason, CornerRefusal, FilletLegCarrier, LegFit, NoCornerReason, OverrunLegs,
     };
     use profile::{CornerWindow, FilletLeg, ReplayError, ReplayErrorKind, TipState};
     let path: Vec<(&str, P<f64>)> = vec![
         (
-            "JunctionTangent",
-            P::JunctionTangent {
-                margin: l(1e-12),
-                arm: l(0.5),
+            "JunctionTurnWithinTolerance",
+            P::JunctionTurnWithinTolerance {
+                turn: LeveredTurn {
+                    sin_turn: r(0.9),
+                    align: r(0.44),
+                    lever: l(3e-10),
+                    lever_of: TurnLever::ShorterLeg,
+                },
             },
         ),
         (
@@ -4281,7 +4285,17 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
                 at: Point2::new(2.0, 0.0),
             },
         ),
-        ("SeamTangent", P::SeamTangent { margin: l(1e-12) }),
+        (
+            "SeamTurnWithinTolerance",
+            P::SeamTurnWithinTolerance {
+                turn: LeveredTurn {
+                    sin_turn: r(-0.9),
+                    align: r(0.44),
+                    lever: l(3e-10),
+                    lever_of: TurnLever::ShorterLeg,
+                },
+            },
+        ),
         (
             "SeamArrivalOffDirection",
             P::SeamArrivalOffDirection {
@@ -4468,10 +4482,12 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
             "NoCornerForFillet(turn, leg)",
             P::NoCornerForFillet {
                 reason: PathNoCornerReason::TurnWithinTolerance {
-                    sin_turn: r(0.01),
-                    align: r(-0.99995),
-                    lever: l(5e-8),
-                    lever_of: TurnLever::ShorterLeg,
+                    turn: LeveredTurn {
+                        sin_turn: r(0.01),
+                        align: r(-0.99995),
+                        lever: l(5e-8),
+                        lever_of: TurnLever::ShorterLeg,
+                    },
                     corner: Some(Point2::new(0.25, -0.5)),
                 },
                 radius: gl(0.05),
@@ -4481,10 +4497,12 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
             "NoCornerForFillet(turn, anchors)",
             P::NoCornerForFillet {
                 reason: PathNoCornerReason::TurnWithinTolerance {
-                    sin_turn: r(0.9),
-                    align: r(0.44),
-                    lever: l(6e-10),
-                    lever_of: TurnLever::AnchorSeparation,
+                    turn: LeveredTurn {
+                        sin_turn: r(0.9),
+                        align: r(0.44),
+                        lever: l(6e-10),
+                        lever_of: TurnLever::AnchorSeparation,
+                    },
                     corner: None,
                 },
                 radius: gl(0.05),
@@ -4672,6 +4690,24 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
             "OverdeterminedJunction",
             P::OverdeterminedJunction { site: "arc_to" },
         ),
+        // The stored-form refusal as the close raises it about the
+        // fillet's step: the longest inner sentence a deferral carries.
+        (
+            "Deferred",
+            P::Deferred {
+                step: 2,
+                raised_at: 11,
+                deferral: profile::Deferral::FilletStoredForm,
+                refusal: Box::new(P::FilletCarrierBelowSceneResolution {
+                    turn: a(0.5),
+                    radius: gl(1e-9),
+                    scale: l(10.0),
+                    resolution: l(1e-8),
+                    predicate: "fillet_scene_resolution",
+                    margin: l(1e-12),
+                }),
+            },
+        ),
     ];
     use profile::{EscalatedAt, Gate};
     let routed = [
@@ -4707,21 +4743,18 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
         .collect();
     // The state that takes the most verbs, so its recourse is the
     // longest list a lattice refusal draws.
-    let transition = ReplayError {
-        step: 2,
-        kind: ReplayErrorKind::Transition {
+    let transition = ReplayError::new(
+        2,
+        ReplayErrorKind::Transition {
             state: TipState::DirectedPoint,
             verb: Some(profile::Verb::CloseTo),
         },
-    };
+    );
     path.into_iter()
         .map(|(n, p)| {
             (
                 format!("ProfileReplay/Path/{n}"),
-                ReplayError {
-                    step: 2,
-                    kind: ReplayErrorKind::Path(p),
-                },
+                ReplayError::new(2, ReplayErrorKind::Path(p)),
             )
         })
         .chain([("ProfileReplay/Transition".to_owned(), transition)])
