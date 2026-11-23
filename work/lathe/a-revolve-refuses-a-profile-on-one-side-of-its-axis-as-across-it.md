@@ -13,7 +13,7 @@ Found by PROFILE's elbow probe (2026-11-21), run on hosted CI as the
 throwaway PR 7280 (runs 44883617049 and 44889924284, `test (app)`,
 `editor-core::zz_probe_elbow`), for Ev's question whether a hollow
 cylinder's end loops can be revolved into an elbow
-(`work/profile/a-faces-loop-or-closed-trace-cannot-become-a-profile-loop.md`).
+(`work/faceloop/a-faces-loop-or-closed-trace-cannot-become-a-profile-loop.md`).
 
 ## Measured
 
