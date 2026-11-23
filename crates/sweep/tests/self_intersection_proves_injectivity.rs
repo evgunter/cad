@@ -2665,23 +2665,24 @@ fn a_wall_holds_against_a_face_at_a_vertex_mid_ruling() {
 }
 
 /// **Mirrored across a plane that is no axis plane, the ring refuses at
-/// both scalars and the block holds at `f64` only.** The mirror re-mints
-/// each rim circle's chart row, which then reads as a harmonic image and
-/// not as a coordinate line, so a cell holding that circle beside a
-/// ruling's vertex is handed to the curve presentations and read at no
-/// depth, before the wall's clips are built
-/// (`work/pcert/a-cylinder-rim-on-a-turned-frame-stores-a-rounding-in-its-axial-channel-at-f64.md`,
-/// its third sighting).
+/// both scalars and the block holds at `f64` only.** Two causes.
 ///
-/// - The ring: `Uncertified { Departure }` across an edge of a plane end
-///   face and a cylinder wall, at `f64` and at `Interval`.
-/// - The block, on the grid and off it: embedded at the verdict door at
-///   `f64`, its wall holding against both faces at the vertex; at
-///   `Interval` the whole body refuses.
+/// - **At `f64`, the ring**: the mirror re-mints each rim circle's chart
+///   row with a rounding in its axial channel, so it reads as a harmonic
+///   image and not as a coordinate line, and a cell holding that circle
+///   beside a ruling's vertex is handed to the curve presentations and
+///   read at no depth
+///   (`work/pcert/a-cylinder-rim-on-a-turned-frame-stores-a-rounding-in-its-axial-channel-at-f64.md`,
+///   its third sighting). `Uncertified { Departure }` across an edge of
+///   a plane end face and a cylinder wall. This half goes red the day
+///   that row is fixed.
+/// - **At `Interval`, the ring and the block**: the ring refuses on
+///   another pair, and the block, embedded at `f64` on the grid and off
+///   it with its wall holding against both faces at the vertex, refuses
+///   whole; cause not isolated
+///   (`work/embed/a-generic-mirror-refuses-at-interval-a-body-that-holds-at-f64.md`).
 ///
-/// Mirrored across an axis plane both hold. Red, rightly, the day a
-/// mirrored rim circle is read as the coordinate line it is: the ring
-/// and the `Interval` block then hold.
+/// Mirrored across an axis plane both hold.
 #[test]
 fn the_ring_and_the_interval_block_refuse_mirrored_across_a_generic_plane() {
     use topo::clearance::Embedding;

@@ -161,11 +161,13 @@ hold mirrored across the same plane (a lone circle is read by
 `present_curved`); every body above holds turned about a generic axis,
 moved a hundred units, and mirrored across an axis plane.
 
-**Not this row's, and not traced**: the same ring also refuses at
-`Interval` (`Uncertified { Departure }`, the same pair), and the
-mirrored block refuses at `Interval` (`Budget`) where it holds at
-`f64`. This row's cause is an `f64` point off zero; what the `Interval`
-rows store there was not printed.
+**Not this row's**: the same ring also refuses at `Interval`, on
+another pair (`Uncertified { 3v1, 4v1, Edge(6v1), Departure }`) and at
+`sheets`, not at `curved_walls`; and the mirrored block refuses at
+`Interval` (`Budget`) where it holds at `f64`. This row's cause is an
+`f64` point off zero. The `Interval` half is EMBED's
+`work/embed/a-generic-mirror-refuses-at-interval-a-body-that-holds-at-f64.md`.
 
-Pinned as it reads:
-`self_intersection_proves_injectivity::the_ring_and_the_interval_block_refuse_mirrored_across_a_generic_plane`.
+Pinned as it reads, its `f64` half:
+`self_intersection_proves_injectivity::the_ring_and_the_interval_block_refuse_mirrored_across_a_generic_plane`
+(the ring's `f64` refusal).
