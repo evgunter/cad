@@ -632,11 +632,7 @@ BOUNDS_ALLOWLIST=(
   # (`run_pair`); none of them reads a bound.
   # wire.rs 17 -> 16 (ONEHOME, finished-body doors): `finished_operand`,
   # the consumer re-gate, is deleted with its bound; no seam moved.
-  # 16 -> 17: a subtract's tool is a `Bodies` (DM4), and several tools
-  # are folded by `fold_cuts`, one pair run per tool. Its header is the
-  # boolean lane's own, a caller spelling the pair verb's (`run_pair`),
-  # as `subtract_from`'s is; it reads no bound.
-  'crates/editor-core/src/eval/wire.rs 17 2026-07-29 (M5 PR 8), the driver amendment'
+  'crates/editor-core/src/eval/wire.rs 16 2026-07-29 (M5 PR 8), the driver amendment'
   # M5 PR 11, the certified-quadrature plumbing.
   #
   # 19 -> 23 (TRIM-2 PR-1, the trimmed-region quadrature). The seam is

@@ -825,7 +825,7 @@ fn run_members<T: Decide + Bounds + AtRestPolicy>(
 /// through `prev`, the accumulation's. A face of the joining member holds
 /// that face; an accumulation face holds what `prev` says it does where
 /// that is one member face, and otherwise those of them the region in
-/// question meets in area ([`overlap`]): the finished face's own, or a
+/// question meets in area ([`overlap_as`]): the finished face's own, or a
 /// discarded face's in `clone_a`, the step's A clone before its discards.
 /// A refusal in `prev`, or in the step's own holdings, carries to every
 /// face read through it.

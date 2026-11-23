@@ -1207,7 +1207,7 @@ impl<T: Real> GivenDecision<T> {
     /// The same decision with one face's sense reversed: a one-carrier
     /// pair's senses swap between opposed and aligned; a tangency reads
     /// no sense.
-    pub(crate) fn reversed(self) -> Self {
+    pub(in crate::boolean) fn reversed(self) -> Self {
         match self {
             Self::Rest => Self::Continuation,
             Self::Continuation => Self::Rest,
