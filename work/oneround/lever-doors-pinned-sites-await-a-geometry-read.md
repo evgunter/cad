@@ -16,7 +16,7 @@ The gate counts 47 references (59 when it landed; `oneround/lever-sites-brep` cl
 
 Each conversion moves a reading and wants its own differential.
 
-## Geometry in the function (32)
+## Geometry in the function (31)
 
 The function holds a carrier, a surface, a cover, a `Reach` or extent ball, a pose of carriers, or a body with the face, edge or vertex.
 
