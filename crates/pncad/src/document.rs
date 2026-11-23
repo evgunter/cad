@@ -495,8 +495,8 @@ pub use editor_core::{
 // between two copies' material is an `InterferenceFinding`: its copies
 // (`CopyRef`), its `Overlap` (the bounding faces as `FaceSite`s, or
 // `Unlocalized` with why), the assertion that quiets it, if any, and
-// whether one could (`quietable`): one no assertion could quiet refuses
-// at no severity. A pair the census could not look at is an
+// the faces one would be written over (`quieting`): one no assertion
+// could quiet refuses at no severity. A pair the census could not look at is an
 // `AtRestEvidence`, loud and never refusing. A part's own findings cross the seam with it, each
 // reported once, as the part's: `CarriedInterference`,
 // `CarriedAtRestFinding` and `CarriedCoincidence`, each with the `Route`
@@ -509,6 +509,12 @@ pub use editor_core::{
     CarriedFindings, CarriedInterference, CopyRef, FaceSite, InterferenceFinding, Overlap,
     PinnedDoc, Route, Unlocalized,
 };
+// What a finding's assertion recourse determines, as data: the
+// `Quieting` an unproven coincidence carries (a `Gap` or `Distance`
+// over two `QuietingRef`s, `= 0`, with the edits that author it), and
+// the `OpposedPair` of faces an interference's quieting `Gap` is
+// written over.
+pub use editor_core::{OpposedPair, Quieting, QuietingRef};
 
 // Split, inline and flatten: the first-class
 // recorded refactorings. `split` cuts a closed node set out into a new
