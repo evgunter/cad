@@ -295,10 +295,21 @@ fn an_arc_held_touchs_roots_at_interval() {
         for by in [0.0, -1e-12, 1e-12, -1e-9] {
             let o = q + out * by;
             let h: Height<Interval> = ki.height_along(lift(o), lift_v(out));
-            let anchored = anchored_roots(h.at, h.p, h.q, (Interval::from_f64(1.0), Interval::from_f64(0.0)));
+            let anchored = anchored_roots(
+                h.at,
+                h.p,
+                h.q,
+                (Interval::from_f64(1.0), Interval::from_f64(0.0)),
+            );
             let centred = centred_roots(h.at - h.p, h.p, h.q);
             let show = |r: [Interval; 2]| {
-                r.map(|x| format!("{:+.3e}±{:.1e}", 0.5 * (x.lo() + x.hi()) - phi, 0.5 * (x.hi() - x.lo())))
+                r.map(|x| {
+                    format!(
+                        "{:+.3e}±{:.1e}",
+                        0.5 * (x.lo() + x.hi()) - phi,
+                        0.5 * (x.hi() - x.lo())
+                    )
+                })
             };
             eprintln!(
                 "φ {phi:e} lift {by:+e}: about the anchor {:?}, about the centre {:?}",

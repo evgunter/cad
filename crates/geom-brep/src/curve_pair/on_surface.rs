@@ -755,15 +755,28 @@ impl<'a, T: Decide> OnSurface<'a, T> {
     }
 
     /// **The plane the edge's carrier lies in**: a point, its unit normal
-    /// and a direction in it; a conic's own, stated at the edge's point at
-    /// the middle of its span, a spiric's cutting plane. A line lies in no
+    /// and a direction in it; a circle's own at its centre, an ellipse's
+    /// at the edge's point at the middle of its span, a spiric's cutting
+    /// plane. A line lies in no
     /// one plane (`None`).
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a circle's centre frame, which a circle stores: a circle's datum (work/oneround/a-circles-centre-is-read-as-a-datum-under-the-conic-gate.md)"
+    )]
     pub fn plane(&self) -> Option<(Point3<T>, Vec3<T>, Vec3<T>)> {
         match *self.carrier {
-            Curve3::Circle(_) | Curve3::Ellipse(_) => {
-                let k = self.carrier.conic()?;
+            // A circle's stored centre, the same point on every seam.
+            Curve3::Circle(c) => {
+                let f = c.frame();
+                Some((f.origin(), f.axis(), f.u_ref()))
+            }
+            Curve3::Ellipse(e) => {
                 let (t0, t1) = self.span;
-                Some((k.point_at(geom::mid_param(t0, t1)), k.axis(), k.u_ref()))
+                Some((
+                    geom::Conic::point_at(&e, geom::mid_param(t0, t1)),
+                    e.axis(),
+                    e.u_ref(),
+                ))
             }
             Curve3::Spiric { frame, offset, .. } => {
                 let (center, u_ref) = (frame.origin(), frame.u_ref());

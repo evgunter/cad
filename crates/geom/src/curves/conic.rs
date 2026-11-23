@@ -1006,6 +1006,18 @@ impl<T: Real> Height<T> {
         }
     }
 
+    /// **The height's mean over a turn**: the centre's height, the stored
+    /// one about the centre, and about the anchor the anchor's less the
+    /// crest's and trough's mean offset, which is read at the swing's
+    /// scale.
+    #[must_use]
+    pub fn mean(&self) -> T {
+        match self.held {
+            Held::Centre => self.at,
+            Held::Arc { phase: (c0, s0) } => self.at - (self.p * c0 + self.q * s0),
+        }
+    }
+
     /// **The `(lo, hi)` of the height over `window`**: an end reads as
     /// [`Self::at`] does, and a crest or trough inside the window as
     /// [`Self::extremes`] does.

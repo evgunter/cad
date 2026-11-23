@@ -602,7 +602,7 @@ pub(super) fn plane_line<T: Decide>(
 /// stores), on its rungs: the belly (the extremes one-signed: apart), the
 /// parallel gate (`R` in the zero band: the offset decides lies or
 /// apart), then the belly's two roots ([`geom::Height::roots`], posed per
-/// placement) or its graze, whose side the extremes decide and whose
+/// placement) or its graze, whose side its mean decides and whose
 /// curvature [`kappa`] reads.
 pub(super) fn plane_conic<T: Decide>(
     span: &Span<'_, T>,
@@ -627,11 +627,10 @@ pub(super) fn plane_conic<T: Decide>(
         .map_err(PoseRefusal::in_band(PoseRung::PlaneParallel))?
     {
         Sign::Zero => {
-            let half = T::from_f64(0.5);
             return constant_residual_as(
                 "curve_face_pose_plane_offset",
                 PoseRung::PlaneParallel,
-                ((lo + hi) * half, (hi - lo) * half),
+                (height.mean(), r),
                 band,
             )?
             .pose(PoseRung::PlaneParallel);
@@ -651,9 +650,12 @@ pub(super) fn plane_conic<T: Decide>(
             // The graze's one root is the extremum nearest the plane: the
             // crest with the conic below the plane, the trough above it.
             let crest = height.crest();
-            let below = (hi + lo) * T::from_f64(0.5);
-            let at = match decide_nonzero("curve_face_pose_graze_side", Margin::of(below), band)
-                .map_err(PoseRefusal::in_band(PoseRung::BellyGraze))?
+            let at = match decide_nonzero(
+                "curve_face_pose_graze_side",
+                Margin::of(height.mean()),
+                band,
+            )
+            .map_err(PoseRefusal::in_band(PoseRung::BellyGraze))?
             {
                 NonzeroSign::Negative => crest,
                 NonzeroSign::Positive => crest + T::pi(),
