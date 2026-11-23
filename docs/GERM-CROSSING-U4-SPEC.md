@@ -478,39 +478,27 @@ and SPLICE's rows also edit. Each stage merges main before review, and its PR na
 overlaps.
 
 ## Fork for Ev
-**How does `curve_face::cross` reach the certified lane its spline arms need?** U4d cannot start
-until this is answered. U4a–U4c do not depend on it.
+**How does `curve_face::cross` reach the certified lane its spline arms need?** U4d waits on the answer; U4a–U4c do not.
 
 **The facts.**
-- C5 (PR 7167): every consumer of where a curve meets a surface reads `pose` or `cross`, and a spline
-  arm's enclosures are its one method.
-- `cross` is generic over `T: Decide` (`cross.rs:144`), which includes the dual scalar. The spline arms
-  (`composite::crossings`, `spline_face::isolate` and `settle`) need certification arithmetic, so
-  `cross` answers them with one whole-span window today
-  (`cross-answers-a-spline-arm-with-a-whole-span-window`).
-- The sweep reaches them through `AtRestPolicy::spline_face_crossings` and `spline_chart_meetings`,
-  which answer `None` at a dual, so the sweep refuses by name at run time.
-- DESIGN `[unrepresentable]` (PR 7189): "where code generic over a scalar has no meaning at one of them
-  (a certification at a `Dual` …), its bound excludes that scalar, at compile time and never by a check
-  at run time."
-- The analytic arms of `cross` do mean something at a dual, and the boolean is generic over the scalar.
+- C5 says every consumer of where a curve meets a surface reads `pose` or `cross`.
+- `cross` is generic over `T: Decide` (`cross.rs`), which admits the dual scalar. The analytic arms mean something at a dual, and booleans run at `Dual64` (the corpus registry, E4 sensitivities).
+- The spline arms (`composite::crossings`, `spline_face::isolate`/`settle`) need a certifying lane. Today `cross` answers them with one whole-span window, and the boolean reaches them instead through `AtRestPolicy::spline_face_crossings`/`spline_chart_meetings`, which answer `None` at a dual. `splitting::classify` reads `cross`, sees `Enclosed`, then calls the policy itself.
+- DL5.3 makes a lane an associated type, `NoLane` (no values) at a dual. DL5.2 and fork 293 (PR 7176) say a solved root has nothing owed at a dual.
+- `[unrepresentable]` (PR 7189): code with no meaning at a scalar excludes it by bound, never by a check at run time.
 
-**The answers.**
-- **A. The lane is data.** `cross` takes the scalar's certified lane, `Option<NurbsLane<T>>`, from its
-  caller. At a dual the caller passes `None` and the spline arm refuses typed, naming the scalar. There
-  is one entry point and one reading, and every reader of `cross` threads the lane. It keeps today's
-  run-time refusal at a dual, which `[unrepresentable]`'s letter rules out; the clause would need a
-  sentence admitting it.
-- **B. The bound says it.** `cross` is bounded by a geom-brep trait that only the certifying scalars
-  implement, so a dual cannot call it. A dual's readers (the boolean at a dual included) need their own
-  bound or a different path, and the boolean's genericity changes accordingly. This matches
-  `[unrepresentable]`'s letter. It splits the one reading by scalar at every consumer that is generic
-  over the dual today.
-- **C. The spline arms stay outside `cross`.** The certifying consumers read the enclosures through the
-  lane, and C5's "every consumer reads `pose` or `cross`" gains an exception for spline arms. Nothing
-  changes in the code. Two readings of one question stay, which D3's "one" rules out for every other
-  arm.
+**The answer.**
+- `cross` keeps one signature over every deciding scalar and takes no lane argument.
+- The scalar's NURBS lane is read off the scalar, through a sealed per-scalar trait in geom-brep that `AtRestPolicy` takes as a supertrait.
+- `NurbsLaneOf` carries the two arm readings; its `NoLane` bodies are `match self {}`.
+- At a dual, a spline door answers one typed window that names the scalar.
+- `AtRestPolicy::spline_face_crossings`, `spline_chart_meetings` and `NurbsLane` go, along with `classify`'s fallback. Every consumer reads `cross` alone.
+- C5 gains one sentence: at a scalar that holds no lane, a spline arm is one window naming it.
 
-Each is a coherent final state, and each gives up something ratified: A gives up the letter of
-`[unrepresentable]`, B the boolean's one generic path at a dual, and C the "one" of D3 and C5 for
-spline arms. Which of those to give up is a preference, so the choice is Ev's.
+**Question.** Is the dual's typed window at a spline door within `[unrepresentable]` as written? Or does the clause gain one sentence: a pass total over run-time kinds refuses the kind where the scalar's lane type is empty? The kind is run-time data, so no bound removes that cell.
+
+**Alternatives.**
+- The lane passed as an argument: rejected, because a certifying caller could withhold it.
+- `cross` bounded to certifying scalars: rejected, because it ends booleans at a dual.
+- A second, certified entry: rejected, as two readings of one question.
+- The spline arms on the dual's value channel with the implicit-function tangent: deferred. It reverses PR 7176's "nothing owed at a dual" and buys nothing until the march also runs at a dual.
