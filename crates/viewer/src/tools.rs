@@ -281,7 +281,6 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         | SessionOp::CancelFreeMove
         | SessionOp::NewDocument { .. }
         | SessionOp::AddProfile { .. }
-        | SessionOp::SketchOnFace { .. }
         | SessionOp::DrawOnFace { .. }
         | SessionOp::EditProfile { .. }
         | SessionOp::AddExtrude { .. }

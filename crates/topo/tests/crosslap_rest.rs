@@ -140,7 +140,7 @@ fn declared_crosslap_records_both_contact_patches_as_discarded() {
         .map(|&e| glued.naming.joined_edge(e))
         .collect();
     let edges = crate::boolean_discards::bordered_edges(&glued);
-    for operand in [topo::Operand::A, topo::Operand::B] {
+    for operand in topo::Operand::BOTH {
         let settled = glued
             .naming
             .discards

@@ -582,8 +582,8 @@ pub enum Refusal {
         fault: Option<Box<pncad::document::MateFault>>,
     },
     /// A takeover would re-point a copy a pick reads onto a body that
-    /// holds no pieces — a feature's result, a mirror's or a sketch's
-    /// union, a combine. A pick is never re-pointed (D10
+    /// holds no pieces — a feature's result, a mirror's union, a
+    /// combine. A pick is never re-pointed (D10
     /// `[placement.placement]`), so it would name a piece its copy no
     /// longer holds; the takeover refuses rather than strand it.
     StrandedPick {

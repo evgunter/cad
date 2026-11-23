@@ -135,7 +135,7 @@ pub(super) fn pierced_and_paired<T: Decide>(
         (Operand::A, &contacts.a_on_b),
         (Operand::B, &contacts.b_on_a),
     ] {
-        let theirs = usize::from(operand == Operand::A);
+        let theirs = operand.other().index();
         let declared = |x: FaceKey, y: FaceKey| {
             records[theirs].ff.iter().any(|r| {
                 ([r.contact.a, r.contact.b] == [x, y] || [r.contact.a, r.contact.b] == [y, x])
