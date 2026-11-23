@@ -1255,12 +1255,13 @@ fn is_centred_oval<T: Real>(carrier: &Curve3<T>) -> bool {
     }
 }
 
+/// One piece of a carrier's span, and its cover where it has one
+/// ([`span_pieces`]).
+pub type SpanPiece<T> = ((T, T), Option<Cover<T>>);
+
 /// **A carrier over `span` in `2^` [`LOCUS_HALVINGS`] equal pieces**:
 /// each piece's span and its cover, `None` for a piece with none.
-pub fn span_pieces<T: SpanLocate>(
-    carrier: &Curve3<T>,
-    span: (T, T),
-) -> Vec<((T, T), Option<Cover<T>>)> {
+pub fn span_pieces<T: SpanLocate>(carrier: &Curve3<T>, span: (T, T)) -> Vec<SpanPiece<T>> {
     let mut spans = vec![span];
     for _ in 0..LOCUS_HALVINGS {
         spans = spans

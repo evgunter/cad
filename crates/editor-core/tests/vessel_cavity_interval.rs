@@ -82,9 +82,10 @@ fn sealed_cavity<T: Scalar + topo::CertifiedPolicy>(pot: Body<T>) -> (Body<T>, V
 /// document door's default budget.
 fn injective<T: Scalar>(body: &Body<T>, faces: Vec<FaceKey>) -> BoundReport<()> {
     let tol = Tol::witness();
-    let windows = Side { body, faces }
-        .windows(Which::First)
-        .expect("every face has a window");
+    let geometric = topo::geometric(body, tol)
+        .expect("tier 3's local battery passes the body the question is asked of");
+    let windows =
+        Side::windows_of(&geometric, faces, Which::First).expect("every face has a window");
     let sweep = Sweep {
         bound: ClearanceBound::StrictlyPositive,
         band: Band::linear(tol).unwrap(),

@@ -35,14 +35,10 @@ pub fn cap_wall_pairs(body: &Body<f64>) -> Vec<(FaceKey, FaceKey)> {
 /// budget. `what` names the body in the messages. The receipt's splits
 /// and the deepest cell are returned for the caller to pin.
 pub fn assert_holds(what: &str, body: &Body<f64>, (cap, wall): (FaceKey, FaceKey)) -> (usize, u32) {
-    let window = |f| {
-        Side {
-            body,
-            faces: vec![f],
-        }
-        .windows(Which::First)
-        .expect("a face has a window")
-    };
+    let geometric = pncad::topo::geometric(body, Tol::witness())
+        .expect("tier 3's local battery passes the body the question is asked of");
+    let window =
+        |f| Side::windows_of(&geometric, vec![f], Which::First).expect("a face has a window");
     let sweep = Sweep {
         bound: ClearanceBound::StrictlyPositive,
         band: Band::linear(Tol::witness()).expect("the run's tolerance forms a band"),

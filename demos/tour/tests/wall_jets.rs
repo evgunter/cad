@@ -42,8 +42,10 @@ fn walls<T: Real>(body: &Body<T>) -> Vec<FaceKey> {
 /// The injectivity question on `faces` of `body` alone, at the default
 /// depth and `budget` pairs; no candidate is witnessed.
 fn injective<T: Scalar>(body: &Body<T>, faces: Vec<FaceKey>, budget: usize) -> BoundReport<()> {
-    let side = Side { body, faces };
-    let windows = side.windows(Which::First).expect("every face has a window");
+    let geometric = pncad::topo::geometric(body, Tol::witness())
+        .expect("tier 3's local battery passes the body the question is asked of");
+    let windows =
+        Side::windows_of(&geometric, faces, Which::First).expect("every face has a window");
     let sweep = Sweep {
         bound: ClearanceBound::StrictlyPositive,
         band: Band::linear(tol()).expect("the run's tolerance forms a band"),

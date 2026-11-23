@@ -196,7 +196,7 @@ pub use enters::{
     tied_germ_turn,
 };
 pub use extent::{
-    BoundaryStations, ExtentBall, Forgets, LeverBounds, Reach, anchored_at, centre_line,
+    BoundaryStations, ExtentBall, Forgets, LeverBounds, Reach, SpanPiece, anchored_at, centre_line,
     edge_coordinate_reach_below, edge_extent_inf, edge_extent_sup, edge_reach_bounds,
     oval_clearance, points_diameter, points_lever_from, span_pieces, surface_anchored_at,
 };

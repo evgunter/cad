@@ -4659,9 +4659,15 @@ pub struct ClearanceLane<T: geom_core::Certifies> {
     ) -> BoundReport<()>,
     /// [`Candidate::on_face_stations`].
     face_stations: fn(Candidate<'_, '_, T>) -> (Stations, Stations),
+    /// Windows with tier 3's facts crossed onto each face's boundary
+    /// ([`Windows::reading`]).
+    facts: for<'b> fn(Windows<'b, T>, &crate::Tier3Facts<T>) -> Windows<'b, T>,
+    /// Windows with the facts tier 3's local battery decides on their
+    /// body now ([`crate::geometric`]).
+    battery: for<'b> fn(Windows<'b, T>, &'b Body<T>, geom_core::Tol) -> Windows<'b, T>,
 }
 
-impl<T: geom_core::Certifies + CertifiedBounds> ClearanceLane<T> {
+impl<T: geom_core::Certifies + CertifiedBounds + crate::props::AtRestPolicy> ClearanceLane<T> {
     /// The certified engine: the whole inventory of this door, and the
     /// only constructor there is.
     #[must_use]
@@ -4670,7 +4676,24 @@ impl<T: geom_core::Certifies + CertifiedBounds> ClearanceLane<T> {
             windows: Self::windows_of,
             bound_sweep: Self::sweep_of,
             face_stations: Self::stations_of,
+            facts: Self::facts_of,
+            battery: Self::battery_of,
         }
+    }
+
+    fn battery_of<'b>(
+        windows: Windows<'b, T>,
+        body: &'b Body<T>,
+        tol: geom_core::Tol,
+    ) -> Windows<'b, T> {
+        match crate::geometric(body, tol) {
+            Ok(of) => windows.reading(of.facts()),
+            Err(_) => windows,
+        }
+    }
+
+    fn facts_of<'b>(windows: Windows<'b, T>, kept: &crate::Tier3Facts<T>) -> Windows<'b, T> {
+        windows.reading(kept)
     }
 
     fn windows_of<'b>(
@@ -4732,6 +4755,21 @@ impl<T: geom_core::Certifies + CertifiedBounds> ClearanceLane<T> {
 ///     fn on_face_stations(self, _c: Candidate<'_, '_, f64>) -> (Stations, Stations) {
 ///         unimplemented!()
 ///     }
+///     fn reading<'b>(
+///         self,
+///         _windows: Windows<'b, f64>,
+///         _of: &topo::Geometric<'b, f64>,
+///     ) -> Windows<'b, f64> {
+///         unimplemented!()
+///     }
+///     fn reading_unfinished<'b>(
+///         self,
+///         _windows: Windows<'b, f64>,
+///         _body: &'b topo::Body<f64>,
+///         _tol: geom_core::Tol,
+///     ) -> Windows<'b, f64> {
+///         unimplemented!()
+///     }
 /// }
 /// ```
 pub trait ClearanceLaneOf<T: Decide>: crate::lane_seal::Sealed + Copy + Send + Sync {
@@ -4766,6 +4804,22 @@ pub trait ClearanceLaneOf<T: Decide>: crate::lane_seal::Sealed + Copy + Send + S
 
     /// A candidate's stations on its two faces.
     fn on_face_stations(self, candidate: Candidate<'_, '_, T>) -> (Stations, Stations);
+
+    /// **`windows`, read off `of`'s body, carrying tier 3's facts on
+    /// it**: what the strict question over one body subdivides. A
+    /// touching pair of windows that carry none refuses typed.
+    fn reading<'b>(self, windows: Windows<'b, T>, of: &crate::Geometric<'b, T>) -> Windows<'b, T>;
+
+    /// **[`Self::reading`] for a caller that holds `body` bare**: tier
+    /// 3's local battery is run over it now for the facts
+    /// ([`crate::geometric`]); where it refuses, `windows` come back
+    /// carrying none.
+    fn reading_unfinished<'b>(
+        self,
+        windows: Windows<'b, T>,
+        body: &'b Body<T>,
+        tol: geom_core::Tol,
+    ) -> Windows<'b, T>;
 }
 
 impl<T: geom_core::Certifies> ClearanceLaneOf<T> for ClearanceLane<T> {
@@ -4832,6 +4886,19 @@ impl<T: geom_core::Certifies> ClearanceLaneOf<T> for ClearanceLane<T> {
     fn on_face_stations(self, candidate: Candidate<'_, '_, T>) -> (Stations, Stations) {
         (self.face_stations)(candidate)
     }
+
+    fn reading<'b>(self, windows: Windows<'b, T>, of: &crate::Geometric<'b, T>) -> Windows<'b, T> {
+        (self.facts)(windows, of.facts())
+    }
+
+    fn reading_unfinished<'b>(
+        self,
+        windows: Windows<'b, T>,
+        body: &'b Body<T>,
+        tol: geom_core::Tol,
+    ) -> Windows<'b, T> {
+        (self.battery)(windows, body, tol)
+    }
 }
 
 impl<T: Decide> ClearanceLaneOf<T> for geom_core::NoLane {
@@ -4864,6 +4931,23 @@ impl<T: Decide> ClearanceLaneOf<T> for geom_core::NoLane {
     }
 
     fn on_face_stations(self, _candidate: Candidate<'_, '_, T>) -> (Stations, Stations) {
+        match self {}
+    }
+
+    fn reading<'b>(
+        self,
+        _windows: Windows<'b, T>,
+        _of: &crate::Geometric<'b, T>,
+    ) -> Windows<'b, T> {
+        match self {}
+    }
+
+    fn reading_unfinished<'b>(
+        self,
+        _windows: Windows<'b, T>,
+        _body: &'b Body<T>,
+        _tol: geom_core::Tol,
+    ) -> Windows<'b, T> {
         match self {}
     }
 }
@@ -4934,7 +5018,7 @@ pub struct EmbeddingReport {
 /// candidate's carriers ([`Candidate::enclosure`]), is least at its
 /// upper end, decided at the strict site, where a separation in the band
 /// is a coincidence.
-pub fn embedded<T: geom_core::Certifies + CertifiedBounds>(
+pub fn embedded<T: geom_core::Certifies + CertifiedBounds + crate::props::AtRestPolicy>(
     of: &crate::Geometric<'_, T>,
     faces: Vec<FaceKey>,
     band: Band,
@@ -4946,7 +5030,7 @@ pub fn embedded<T: geom_core::Certifies + CertifiedBounds>(
         faces,
     };
     let windows = match lane.windows(&side, Which::First) {
-        Ok(windows) => windows.reading(of.facts()),
+        Ok(windows) => lane.reading(windows, of),
         Err(refusal) => {
             return EmbeddingReport {
                 verdict: Embedding::Refused(refusal),
@@ -5002,8 +5086,9 @@ mod wiring_rows {
 
     /// `Ok(())` when every field holds its door; otherwise the name of
     /// the first field that does not.
-    fn holds_the_certified_clearance_lane<T: geom_core::Certifies + geom_core::CertifiedBounds>()
-    -> Result<(), &'static str> {
+    fn holds_the_certified_clearance_lane<
+        T: geom_core::Certifies + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
+    >() -> Result<(), &'static str> {
         let lane = ClearanceLane::<T>::certified();
         if !std::ptr::fn_addr_eq(
             lane.windows,
@@ -5022,6 +5107,27 @@ mod wiring_rows {
             ClearanceLane::<T>::stations_of as fn(_) -> _,
         ) {
             return Err("face_stations is not `Candidate::on_face_stations`");
+        }
+        if !std::ptr::fn_addr_eq(
+            lane.facts,
+            ClearanceLane::<T>::facts_of
+                as for<'b> fn(
+                    super::Windows<'b, T>,
+                    &crate::Tier3Facts<T>,
+                ) -> super::Windows<'b, T>,
+        ) {
+            return Err("facts is not `Windows::reading`");
+        }
+        if !std::ptr::fn_addr_eq(
+            lane.battery,
+            ClearanceLane::<T>::battery_of
+                as for<'b> fn(
+                    super::Windows<'b, T>,
+                    &'b crate::Body<T>,
+                    geom_core::Tol,
+                ) -> super::Windows<'b, T>,
+        ) {
+            return Err("battery is not `geometric` then `Windows::reading`");
         }
         Ok(())
     }

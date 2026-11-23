@@ -1392,6 +1392,16 @@ impl crate::eval::AtLeaf for Replayed<'_> {
         // one body can name one face twice, and a face is never at a
         // distance from itself.
         let same_body = a.at == b.at && a.body == b.body;
+        // The strict question over one body reads tier 3's facts on it
+        // (`topo::Geometric`). The leaf here is read as a bare body, so
+        // tier 3's local battery is run over it for them; where it
+        // refuses, the windows carry none and a touching pair refuses
+        // typed, naming that.
+        let windows_a = if same_body && matches!(query.bound, ClearanceBound::StrictlyPositive) {
+            engine.reading_unfinished(windows_a, body_a.body(), query.tol)
+        } else {
+            windows_a
+        };
         if same_body
             && matches!(query.bound, ClearanceBound::StrictlyPositive)
             && let Some((x, y)) = recorded_contact(ev, a, body_a.body(), &faces_a, &faces_b)

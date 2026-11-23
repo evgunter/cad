@@ -399,7 +399,7 @@ struct Witness {
 /// closest pair of its cells' on-face stations, evaluated afresh, is
 /// decided at distance zero; otherwise none is offered, so a
 /// coincidence refuses rather than reads `Violated`.
-fn injectivity<T: Decide + Bounds + CertifiedBounds>(
+fn injectivity<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
     body: &Body<T>,
     faces: Option<Vec<topo::FaceKey>>,
     witnessed: bool,
@@ -411,8 +411,14 @@ fn injectivity<T: Decide + Bounds + CertifiedBounds>(
     use topo::clearance::{Budgets, ClearanceBound, DEFAULT_MAX_CELL_DEPTH, Side, Sweep, Which};
     let band = Band::linear(tol).unwrap();
     let faces = faces.unwrap_or_else(|| body.faces().map(|(k, _)| k).collect());
-    let side = Side { body, faces };
-    let windows = side.windows(Which::First).expect("every face has a window");
+    // The question reads tier 3's facts. A body tier 3's local battery
+    // refuses is asked through bare windows, whose touching pairs
+    // refuse naming that.
+    let windows = match topo::geometric(body, tol) {
+        Ok(geometric) => Side::windows_of(&geometric, faces, Which::First),
+        Err(_) => Side { body, faces }.windows(Which::First),
+    }
+    .expect("every face has a window");
     let bound = ClearanceBound::StrictlyPositive;
     let sweep = Sweep {
         bound,
