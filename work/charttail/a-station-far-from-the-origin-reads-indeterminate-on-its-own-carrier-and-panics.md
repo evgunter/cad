@@ -5,6 +5,7 @@ title: At eps 1e-12 and Interval a station of a face's own chart 30 or more off 
 status: open
 opened: 2026-11-22
 priority: P1
+cost: M
 ---
 
 
