@@ -38,6 +38,17 @@
 //! polygon of at least three points and no lane reads a coarse
 //! schedule as a loop with no region.
 //!
+//! **The coincident-end floor** ([`coincident_end_floors`]): two edges
+//! joining one pair of vertices are never both chorded to the one segment
+//! between them. Where two or more of them are one chord each, every one
+//! that is not a line takes two, through the rule above: one segment
+//! carried by two edges is a side of four triangles, two per edge, which
+//! the census where the patches join counts as two chords' and
+//! [`crate::validate::check_mesh`] refuses as an edge that is not
+//! manifold. Two line edges between one vertex pair are one segment
+//! whatever their counts; that body's mesh is the open question of
+//! `work/tesslie/two-coincident-edges-between-one-vertex-pair-mesh-non-manifold.md`.
+//!
 //! **Crease joints**: an arc rim of `m ≥ 2` sub-arcs meets its face's C⁰
 //! creases at the sub-arc joints, and the trimmed lane cuts its triangles
 //! along those creases, so the count is rounded up to a multiple of `m`:
@@ -200,6 +211,13 @@ pub(crate) fn compute_chords(
     for (ek, floor) in short_loop_floors(body, &counts) {
         let curve = certified(body, ek)?;
         let n = tighten(body, routes, curve, ek, delta, bounds, &mut lattices, floor)?;
+        counts.insert(ek, n);
+    }
+    // The coincident-end floor (module docs), after the short-loop floor,
+    // whose raised counts it reads.
+    for ek in coincident_end_floors(body, &counts)? {
+        let curve = certified(body, ek)?;
+        let n = tighten(body, routes, curve, ek, delta, bounds, &mut lattices, 2)?;
         counts.insert(ek, n);
     }
     for (ek, _) in body.edges() {
@@ -874,6 +892,42 @@ fn short_loop_floors(body: &Body<f64>, counts: &HashMap<EdgeKey, usize>) -> Vec<
     body.edges()
         .filter_map(|(ek, _)| floors.get(&ek).map(|&f| (ek, f)))
         .collect()
+}
+
+/// **The coincident-end floor**: the edges raised to two chords because
+/// another edge between the same two vertices is one chord too and both
+/// would chord to one segment. Every such edge that is not a line, in
+/// edge-arena order.
+///
+/// # Errors
+///
+/// An edge with no ends or no certified curve, named as the tessellator
+/// names it.
+fn coincident_end_floors(
+    body: &Body<f64>,
+    counts: &HashMap<EdgeKey, usize>,
+) -> Result<Vec<EdgeKey>, TessellateError> {
+    let ends =
+        |ek: EdgeKey| -> Result<Option<(topo::VertexKey, topo::VertexKey)>, TessellateError> {
+            let (a, b) = edge_ends(body, ek)?;
+            Ok((a != b && counts[&ek] == 1).then(|| if a < b { (a, b) } else { (b, a) }))
+        };
+    let mut one_chord: HashMap<(topo::VertexKey, topo::VertexKey), usize> = HashMap::new();
+    for (ek, _) in body.edges() {
+        if let Some(pair) = ends(ek)? {
+            *one_chord.entry(pair).or_default() += 1;
+        }
+    }
+    let mut raised = Vec::new();
+    for (ek, _) in body.edges() {
+        if let Some(pair) = ends(ek)?
+            && one_chord[&pair] >= 2
+            && !matches!(*certified(body, ek)?.carrier(), Curve3::Line(_))
+        {
+            raised.push(ek);
+        }
+    }
+    Ok(raised)
 }
 
 /// The two end vertices of `ek` ([`Body::edge_vertices`]), the edge's

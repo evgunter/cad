@@ -281,12 +281,7 @@ pub(crate) fn split(
             );
         }
         let ((ua, sa), (ub, sb)) = ends(one);
-        let u = match (sa, sb) {
-            (true, false) => ub[0],
-            (false, true) => ua[0],
-            _ => 0.5 * (ua[0] + ub[0]),
-        };
-        let m = [u, 0.5 * (ua[1] + ub[1])];
+        let m = midpoint(surface, (ua, sa), (ub, sb));
         let point = surface.eval(m[0], m[1]);
         let mut made: Vec<(usize, [[f64; 2]; 3], [bool; 3])> = Vec::new();
         cut(face, (a, b), positions, point, triangles, |i, q| {
@@ -327,6 +322,51 @@ pub(crate) fn split(
         return Err(TessellateError::FoldedTriangle { face });
     }
     verdict.refusal(face, run.delta)
+}
+
+/// **The chart point a side between chart points `a` and `b` is split at**:
+/// its midpoint in the chart, where an end at a singular point gives it
+/// the other end's `u` (a singular point has no azimuth,
+/// `crate::chart_table`); on a cone, the midpoint of the side in its
+/// development (`trimmed::developed`, unrounded), read back to the chart
+/// on the branch of `u` nearest the chart midpoint. On a cone the two
+/// differ, both on the surface, and the development's is the one whose
+/// pieces fold less often (measured over every side the suite's cone
+/// faces could split: the walk's 685 against 1,675, the rectangle lane's
+/// 10 against 57, the trimmed lane's 0 against 6). At the apex the two
+/// agree: the development puts it at the origin.
+fn midpoint(
+    surface: &geom::Surface<f64>,
+    (a, sa): ([f64; 2], bool),
+    (b, sb): ([f64; 2], bool),
+) -> [f64; 2] {
+    use geom_core::Real;
+    let u = match (sa, sb) {
+        (true, false) => b[0],
+        (false, true) => a[0],
+        _ => 0.5 * (a[0] + b[0]),
+    };
+    let chart = [u, 0.5 * (a[1] + b[1])];
+    let geom::Surface::Cone { half_angle, .. } = *surface else {
+        return chart;
+    };
+    if sa || sb {
+        return chart;
+    }
+    // The nappe both ends lie on: the sign of their slant `v`.
+    let nappe = if a[1] + b[1] < 0.0 { -1.0 } else { 1.0 };
+    let k = nappe * Real::sin(half_angle);
+    let develop = |p: [f64; 2]| {
+        let (sin, cos) = Real::sin_cos(k * p[0]);
+        let r = nappe * p[1];
+        (r * sin, r * cos)
+    };
+    let ((xa, ya), (xb, yb)) = (develop(a), develop(b));
+    let (x, y) = (0.5 * (xa + xb), 0.5 * (ya + yb));
+    let theta = Real::atan2(x, y) / k;
+    let period = core::f64::consts::TAU / k.abs();
+    let turns = ((chart[0] - theta) / period).round();
+    [theta + turns * period, nappe * Real::sqrt(x * x + y * y)]
 }
 
 /// Appends `point` and makes each of the two triangles on side `(a, b)`

@@ -105,6 +105,35 @@ fn a_notched_wall_with_a_split_ruling_answers_as_the_unsplit_wall() {
     }
 }
 
+/// The points of face `fk`'s boundary polygon in `mesh`: each traversal
+/// of an edge of its loops, at that edge's chord count.
+fn boundary_points(body: &Body<f64>, mesh: &mesh::Mesh, fk: topo::FaceKey) -> usize {
+    let chords = |ek: topo::EdgeKey| {
+        mesh.boundaries
+            .iter()
+            .find(|b| b.edge == ek)
+            .expect("every edge has its polyline")
+            .points
+            .len()
+            - 1
+    };
+    body.face(fk)
+        .expect("a live face")
+        .loops()
+        .map(
+            |(lk, _, _)| match body.get_loop(lk).expect("a live loop").boundary {
+                topo::LoopBoundary::Cycle { first } => body
+                    .loop_cycle(first)
+                    .expect("a cycle")
+                    .into_iter()
+                    .map(|he| chords(body.get_half_edge(he).expect("a live half-edge").edge))
+                    .sum(),
+                _ => 0,
+            },
+        )
+        .sum()
+}
+
 /// The traversals of every loop of face `fk`.
 fn traversals(body: &Body<f64>, fk: topo::FaceKey) -> usize {
     body.face(fk)
@@ -223,15 +252,17 @@ fn holds_the_relation(what: &str, split: &Body<f64>, solid: &Body<f64>, delta: f
             .iter()
             .find(|p| p.face == patch.face)
             .expect("the face in the unsplit body");
-        let gained = traversals(split, patch.face) - traversals(solid, patch.face);
+        // The face's boundary points past the unsplit body's: one per
+        // traversal of a split edge, and any a chord count moved by.
+        let count = |n: usize| i64::try_from(n).expect("a count");
+        let gained = count(boundary_points(split, &mesh, patch.face))
+            - count(boundary_points(solid, &base, patch.face));
         // A face's lattice is the same in both bodies, so the interior
         // points one holds past the other are its cut or split points.
-        let points =
-            |m: &mesh::Mesh| i64::try_from(interior_points(m, patch.face)).expect("a count");
-        let owed = i64::try_from(unsplit.triangles.len() + gained).expect("a count")
-            + 2 * (points(&mesh) - points(&base));
+        let points = |m: &mesh::Mesh| count(interior_points(m, patch.face));
+        let owed = count(unsplit.triangles.len()) + gained + 2 * (points(&mesh) - points(&base));
         assert_eq!(
-            i64::try_from(patch.triangles.len()).expect("a count"),
+            count(patch.triangles.len()),
             owed,
             "{what}, δ {delta}: a {:?} face that gained {gained} points",
             crate::reach_probes::kind_of(split, patch.face)
@@ -1377,6 +1408,43 @@ fn a_walked_face_whose_neighbour_holds_both_rims_shares_no_edge() {
         0,
         "the cells whose volume is not read: none"
     );
+}
+
+/// **A shell thinner than δ meshes, split or not.** The ball of radius
+/// 1.05 bored at radius 1 ([`bored_ball`]): a shell 0.05 thick, both arc
+/// signs, unsplit and with its bore's seam split at its middle, δ 3 to
+/// 0.03, so the shell is thinner than δ at every cell but the last. Where
+/// the sphere's or torus's patch and the bore's both make a side between
+/// the rims, the join splits it in each (`mesh::join`), and the mesh is a
+/// closed manifold by `check_mesh`.
+///
+/// The unsplit bore's two seam-side edges join the rims' two vertices:
+/// chorded to one segment each, they are one segment carried twice, an
+/// edge of four triangles the census passes as two chords' and
+/// `check_mesh` refuses. They take two chords each (`chords`' coincident-
+/// end floor), and every cell passes.
+#[test]
+fn a_shell_thinner_than_delta_meshes_split_or_unsplit() {
+    let mut cells = 0usize;
+    for sign in [1.0, -1.0] {
+        let body = bored_ball(sign);
+        let solid = split_and_placed(&body, &[], &[]);
+        let [seam] = rulings(&body)[..] else {
+            panic!("the bore has one seam");
+        };
+        let split = split_and_placed(&body, &[seam], &[0.5]);
+        for (name, b) in [("unsplit", &solid), ("split", &split)] {
+            for delta in [3.0, 1.0, 0.3, 0.1, 0.05, 0.04, 0.03] {
+                let what = format!("the bored ball, sign {sign}, {name}, δ {delta}");
+                let mesh = mesh::tessellate(b, delta, tol())
+                    .unwrap_or_else(|e| panic!("{what}: meshes, got {e:?}"));
+                mesh::validate::check_mesh(&mesh)
+                    .unwrap_or_else(|e| panic!("{what}: a closed manifold, got {e:?}"));
+                cells += 1;
+            }
+        }
+    }
+    assert_eq!(cells, 28, "the cells this row reads");
 }
 
 /// **A run of three on a cone face that is no rectangle meshes.** The
