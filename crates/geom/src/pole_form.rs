@@ -56,10 +56,10 @@ pub fn half_turn_curve<T: Real>(
     match *carrier {
         Curve3::Line(crate::Line { origin: o, dir }) => Some(Curve3::line(place(o), turn(dir))),
         Curve3::Circle(c) => Some(Curve3::circle(
-            place(c.frame.origin()),
-            turn(c.frame.axis()),
+            place(c.frame().origin()),
+            turn(c.frame().axis()),
             c.radius(),
-            turn(c.frame.u_ref()),
+            turn(c.frame().u_ref()),
         )),
         _ => None,
     }
