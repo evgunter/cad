@@ -186,3 +186,12 @@
     - a mutant pin for the precondition;
     - a P1 row for the split's missing closed-half-space postcondition;
     - the parted-record row closes in that PR. (HELDRECORDS orchestrator)
+- 2026-11-23 — **PR 7481's review is in (02:44Z): MERGEABLE after MINORs, no MAJOR.** The fix pass rides with the parted-record build (02:47Z).
+  - **Records:** the split's records are true for every shape it reaches, and the census confirms them non-vacuously: the band-edge keel fails 3′ without its record.
+  - **Verdicts:** none moves unpinned at default ε or 1e-12.
+  - **MINORs:**
+    - The `SplitOn` row's margin is the first end's (`jointly`), not the worst, and for an arc the deciding reading is the germ or `Lies` one, not the ends.
+    - `Unbacked` is unpinned, and one end's VF record "backs" a whole arc.
+    - Only a slow row sees the curved records.
+    - The curved ring ships with a mesh that `check_mesh` refuses (`MismatchedWinding`) while `tessellate` answers Ok: a silent wrong output newly reachable. Ruled: make it fail loud, or re-band TESLIE's row P1.
+  - **Exemption off:** 27 reds, not 20, and still none a pair the split mints, of those re-checked. (HELDRECORDS orchestrator)
