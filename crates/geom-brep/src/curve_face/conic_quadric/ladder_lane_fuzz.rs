@@ -182,7 +182,9 @@ fn judge(
 ) -> Option<String> {
     let (nearest, farthest) = reach(c, s);
     let truth = exact::truth(c, s);
-    let (m, h) = (rng.range(-PI, PI), rng.range(0.01, PI));
+    // The turn about a drawn middle: the row reads the turn's
+    // certificate, and a refusal off a shorter arc is set aside.
+    let (m, h) = (rng.range(-PI, PI), PI);
     let got = crate::curve_face::pose::ladder_lane::forcing(|| {
         conic_quadric_roots(c, m - h, m + h, s, band)
     });

@@ -90,7 +90,7 @@ pub use crate::rows::{HalfAngleRows, SubdivisionRows, TouchRows};
 use geom_core::bisect::{Step, bisect};
 use geom_core::k_stats::decide;
 use geom_core::period::Period;
-use geom_core::{Band, Decide, Indeterminate, Margin, Rounded, Sign};
+use geom_core::{Band, Decide, Indeterminate, Margin, Real, Rounded, Sign};
 
 use crate::piece::{Taylor, sign_change};
 use crate::quartic::depressed_quartic_roots;
@@ -690,7 +690,106 @@ pub fn certified_subdivision<T: Decide>(
     slack: Option<&RootSlack<'_, T>>,
     band: Band,
 ) -> Result<TrigRoots<T>, RootRefusal> {
-    subdivision(terms, residual, frame, rows, slack, None, band).map(|t| t.roots)
+    subdivision(terms, residual, frame, rows, slack, None, None, band).map(|walk| walk.held().roots)
+}
+
+/// **[`certified_subdivision`] read past what it refuses**: a refused
+/// piece is recorded with its window and the walk goes on, so the roots it
+/// answers are every root outside the windows. A piece off the arc
+/// `[t0, t1]` that would be split or refused decides nothing the caller
+/// reads: it is dropped, neither walked to the floor nor a window. A
+/// window is the refused piece, or a refused root's slack about it, each
+/// widened by the band's escalation `Kε` at the carrier's least speed
+/// `speed_lo`, reported within `π` of the arc's midpoint. The turn's parity
+/// and degree checks read only a walk with no window and no dropped piece:
+/// the count inside either is unknown.
+///
+/// # Errors
+///
+/// As [`certified_subdivision`], for the turn as a whole: no first cut,
+/// the piece budget, or an impossible count where every piece was read.
+pub fn certified_subdivision_past<T: Decide>(
+    terms: Terms<'_, T>,
+    residual: &impl Fn(T) -> T,
+    frame: &SubdivisionFrame<T>,
+    rows: &SubdivisionRows,
+    slack: Option<&RootSlack<'_, T>>,
+    speed_lo: T,
+    band: Band,
+) -> Result<ReadPast<T>, RootRefusal> {
+    subdivision(
+        terms,
+        residual,
+        frame,
+        rows,
+        slack,
+        None,
+        Some(speed_lo),
+        band,
+    )
+    .map(|walk| ReadPast {
+        roots: walk.roots,
+        refused: walk.refused,
+    })
+}
+
+/// **[`half_angle_roots`] read past what the subdivision refuses**
+/// ([`certified_subdivision_past`], at the frame's least speed). The
+/// ladder's in-band sign is the turn's, and refuses it whole.
+///
+/// # Errors
+///
+/// As [`half_angle_roots`], for the turn as a whole.
+pub fn half_angle_roots_past<T: Decide>(
+    f: &DegreeTwo<T>,
+    residual: impl Fn(T) -> T,
+    frame: HalfAngleFrame<'_, T>,
+    rows: &HalfAngleRows,
+    slack: &RootSlack<'_, T>,
+    band: Band,
+) -> Result<ReadPast<T>, RootRefusal> {
+    ladder_roots(f, &residual, &frame, rows, band)?;
+    let poly = f.poly();
+    certified_subdivision_past(
+        frame.jet.map_or(Terms::Harmonics(&poly), Terms::Local),
+        &residual,
+        &frame.walk,
+        rows.verify(),
+        Some(slack),
+        frame.speed_lo,
+        band,
+    )
+}
+
+/// **What [`certified_subdivision_past`] read**: the roots outside every
+/// window, each within `π` of the arc's midpoint, and the windows, each
+/// with what refused it, in the walk's order.
+#[derive(Clone, Debug)]
+pub struct ReadPast<T> {
+    /// The roots.
+    pub roots: Vec<T>,
+    /// The windows.
+    pub refused: Vec<((T, T), RootRefusal)>,
+}
+
+/// [`subdivision`]'s walk: its roots, touches and refused pieces.
+struct Walk<T> {
+    roots: Vec<T>,
+    touches: Vec<Touch<T>>,
+    refused: Vec<((T, T), RootRefusal)>,
+}
+
+impl<T: Real> Walk<T> {
+    /// A walk that stopped at its first refusal, which therefore refused
+    /// nothing it answers, as [`Touching`].
+    fn held(self) -> Touching<T> {
+        // At most `2N ≤ 2·MAX_DEGREE` roots: the walk's degree check held.
+        Touching {
+            roots: Roots::of(&self.roots)
+                .unwrap_or_else(|| unreachable!("at most 2N roots, within the capacity")),
+            touches: self.touches,
+        }
+    }
 }
 
 /// **[`certified_subdivision`] that places a touch** where the walk
@@ -747,12 +846,12 @@ pub fn certified_subdivision_touching<T: Decide>(
     touch: &TouchRows,
     band: Band,
 ) -> Result<Touching<T>, RootRefusal> {
-    subdivision(terms, residual, frame, rows, None, Some(touch), band)
+    subdivision(terms, residual, frame, rows, None, Some(touch), None, band).map(Walk::held)
 }
 
 /// [`certified_subdivision`]'s walk, placing touches where `touch` is
 /// given ([`certified_subdivision_touching`]).
-#[allow(clippy::too_many_lines)] // one walk: the cut, the pieces, the bisection
+#[allow(clippy::too_many_lines, clippy::too_many_arguments)] // one walk: the cut, the pieces, the bisection
 fn subdivision<T: Decide>(
     terms: Terms<'_, T>,
     residual: &impl Fn(T) -> T,
@@ -760,8 +859,9 @@ fn subdivision<T: Decide>(
     rows: &SubdivisionRows,
     slack: Option<&RootSlack<'_, T>>,
     touch: Option<&TouchRows>,
+    past: Option<T>,
     band: Band,
-) -> Result<Touching<T>, RootRefusal> {
+) -> Result<Walk<T>, RootRefusal> {
     let SubdivisionFrame {
         t0,
         t1,
@@ -848,7 +948,7 @@ fn subdivision<T: Decide>(
     let reported = |t: T| geom_core::period::Period::angle().near(t, mid);
     let mut roots: Vec<T> = Vec::new();
     let mut touches: Vec<Touch<T>> = Vec::new();
-    let walk = bisect(pieces, |((l, sl), (r, sr)): ((T, Sign), (T, Sign))| {
+    let mut visit = |((l, sl), (r, sr)): ((T, Sign), (T, Sign))| {
         let half = (r - l) / two;
         let m = l + half;
         // The true `F` over the piece, from its jet at `m`.
@@ -893,11 +993,11 @@ fn subdivision<T: Decide>(
                 root = nearer(close(l - turn, r - turn));
                 match decide(rows.side(), Margin::of(residual(root)), band) {
                     Ok(Sign::Zero) => {}
-                    Err(diag) => return Step::Stop(RootRefusal::Touch(diag)),
+                    Err(diag) => return Step::Stop((None, RootRefusal::Touch(diag))),
                     // Definitely off beside a sign change: the residual's
                     // step between adjacent scalars is past the band.
                     Ok(Sign::Positive | Sign::Negative) => {
-                        return Step::Stop(Unsettled::Meter { row: rows.side() }.into());
+                        return Step::Stop((None, Unsettled::Meter { row: rows.side() }.into()));
                     }
                 }
             }
@@ -921,7 +1021,12 @@ fn subdivision<T: Decide>(
                 match decide(meter.row, Margin::of(arc), band) {
                     Ok(Sign::Zero | Sign::Negative) => {}
                     Ok(Sign::Positive) | Err(_) => {
-                        return Step::Stop(Unsettled::Meter { row: meter.row }.into());
+                        // The true root lies within the slack of it.
+                        let slack = reach / lever;
+                        return Step::Stop((
+                            Some((root - slack, root + slack)),
+                            Unsettled::Meter { row: meter.row }.into(),
+                        ));
                     }
                 }
             }
@@ -967,7 +1072,7 @@ fn subdivision<T: Decide>(
                             });
                             return Step::Settled;
                         }
-                        Err(diag) => return Step::Stop(RootRefusal::Touch(diag)),
+                        Err(diag) => return Step::Stop((None, RootRefusal::Touch(diag))),
                         Ok(Sign::Positive | Sign::Negative) => {}
                     }
                 }
@@ -977,21 +1082,63 @@ fn subdivision<T: Decide>(
         // reading of it: a looser bound reads it lower, so where it falls
         // says how good the bound is, not how near the carrier passes.
         if !definitely_as(rows.width(), speed_hi * (r - l)) {
-            return Step::Stop(Unsettled::Tangency.into());
+            return Step::Stop((None, Unsettled::Tangency.into()));
         }
         first_in_gap.set(None);
         let Some((c, sc)) = SPLITS.iter().find_map(|&share| {
             let c = l + (r - l) * T::from_f64(share);
             side(c).map(|s| (c, s))
         }) else {
-            return Step::Stop(uncut());
+            return Step::Stop((None, uncut()));
         };
         Step::Halve([((l, sl), (c, sc)), ((c, sc), (r, sr))])
+    };
+    // Read past (`past`, the carrier's least speed): a refused piece is
+    // recorded and the walk goes on; a piece off the arc that would be
+    // split or refused is dropped unread. Each window is the piece, or a
+    // root's slack, reported as the roots are and widened by `Kε`.
+    let mut refused: Vec<((T, T), RootRefusal)> = Vec::new();
+    let mut unread = false;
+    let walk = bisect(pieces, |piece: ((T, Sign), (T, Sign))| {
+        let ((l, _), (r, _)) = piece;
+        let step = visit(piece);
+        let Some(speed_lo) = past else {
+            return match step {
+                Step::Stop((_, why)) => Step::Stop(why),
+                Step::Settled => Step::Settled,
+                Step::Halve(halves) => Step::Halve(halves),
+            };
+        };
+        let widen = T::from_f64(band.escalate()) / speed_lo;
+        let held = |(lo, hi): (T, T)| (lo - widen, hi + widen);
+        let moved = l - reported(l);
+        match step {
+            Step::Settled => Step::Settled,
+            Step::Halve(halves) => Step::Halve(halves),
+            Step::Stop((window, why)) => {
+                let window = held(window.unwrap_or((l - moved, r - moved)));
+                if off_arc(window, (t0, t1), speed_lo, band) {
+                    unread = true;
+                } else {
+                    refused.push((window, why));
+                }
+                Step::Settled
+            }
+        }
     });
     match walk {
         Ok(None) => {}
         Ok(Some(why)) => return Err(why),
         Err(_) => return Err(Unsettled::Exhausted.into()),
+    }
+    if !refused.is_empty() || unread {
+        // The count inside a window, or on a dropped piece, is unknown:
+        // the turn's parity and degree are not read.
+        return Ok(Walk {
+            roots,
+            touches,
+            refused,
+        });
     }
     // Round the closed turn the ends' signs change an even number of
     // times, and every change on a monotone piece was bisected; an odd
@@ -1002,12 +1149,30 @@ fn subdivision<T: Decide>(
     if roots.len() + 2 * touches.len() > 2 * n_deg || roots.len() % 2 == 1 {
         return Err(RootFault::ImpossibleCount.into());
     }
-    // At most `2N ≤ 2·MAX_DEGREE` roots: the capacity holds them.
-    Ok(Touching {
-        roots: Roots::of(&roots)
-            .unwrap_or_else(|| unreachable!("at most 2N roots, within the capacity")),
+    Ok(Walk {
+        roots,
         touches,
+        refused,
     })
+}
+
+/// **Whether a window misses the arc `(t0, t1)`** (`curve_face_window`,
+/// metred at the carrier's least speed): at each of its turns it stands
+/// past an end by a gap of zero or more. The window is the escalation
+/// wider than where its roots lie, so a zero gap misses them; a gap in
+/// band keeps it.
+fn off_arc<T: Decide>((lo, hi): (T, T), (t0, t1): (T, T), speed_lo: T, band: Band) -> bool {
+    let (a0, a1) = (t0.min(t1), t0.max(t1));
+    let past = |gap: T| {
+        matches!(
+            decide("curve_face_window", Margin::of(gap * speed_lo), band),
+            Ok(Sign::Zero | Sign::Positive)
+        )
+    };
+    let turn = T::tau();
+    [T::zero() - turn, T::zero(), turn]
+        .into_iter()
+        .all(|k| past((lo + k) - a1) || past(a0 - (hi + k)))
 }
 
 #[cfg(test)]

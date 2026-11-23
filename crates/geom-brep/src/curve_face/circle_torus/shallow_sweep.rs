@@ -101,8 +101,10 @@ impl Pose {
 }
 
 fn arc(rng: &mut Rng) -> (f64, f64) {
-    let (m, h) = (rng.range(-PI, PI), rng.range(0.01, PI));
-    (m - h, m + h)
+    // The turn about a drawn middle: the sweep reads the turn's
+    // certificate, and a refusal off a shorter arc is set aside.
+    let m = rng.range(-PI, PI);
+    (m - PI, m + PI)
 }
 
 /// A circle of radius `rho` through the point `depth` off the torus

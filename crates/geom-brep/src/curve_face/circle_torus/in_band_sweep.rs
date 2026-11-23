@@ -74,12 +74,14 @@ fn a_circle_grazing_a_torus_is_answered_truly_or_not_at_all() {
                 _ => 0.0,
             };
             let c = graze(on, normal, tangent, (rho, depth, rng.range(0.0, TAU)));
-            let (m, h) = (rng.range(-PI, PI), rng.range(0.01, PI));
+            // The turn about a drawn middle: the row reads the turn's
+            // certificate, and a refusal off a shorter arc is set aside.
+            let m = rng.range(-PI, PI);
             let truth = exact::truth(&c, &torus);
             if truth.residual_depth >= 10.0 * eps {
                 continue;
             }
-            let got = circle_torus_roots(&c, m - h, m + h, &torus, band);
+            let got = circle_torus_roots(&c, m - PI, m + PI, &torus, band);
             let true_answer = match &got {
                 Ok(Err(_)) | Err(_) => continue,
                 Ok(Ok(CircleRoots::Miss)) => truth.roots.is_empty(),

@@ -41,11 +41,11 @@
 
 use geom_core::{Band, Decide};
 
-use super::circle_roots::{CircleRoots, DoorRefusal, door_refusal};
+use super::circle_roots::{CircleRoots, DoorRefusal};
 use crate::half_angle::{
-    RootSlack, SubdivisionFrame, SubdivisionRows, Terms, TrigPoly, certified_subdivision,
+    RootSlack, SubdivisionFrame, SubdivisionRows, Terms, TrigPoly, certified_subdivision_past,
 };
-use crate::roots::{Roots, Unsettled};
+use crate::roots::Unsettled;
 use geom_core::rounding_charge;
 /// The torus arm's subdivision rows (module docs).
 const TORUS_ROWS: SubdivisionRows = crate::rows::ELLIPSE_TORUS;
@@ -97,7 +97,7 @@ pub(super) fn torus_walk<T: Decide>(
     surface: &geom::Surface<T>,
     floor: T,
     band: Band,
-) -> Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal<crate::TorusRefusal>> {
+) -> Result<super::cross::Walked<T>, &'static str> {
     torus_walk_metered(
         conic,
         torus,
@@ -119,7 +119,7 @@ fn torus_walk_metered<T: Decide>(
     floor: T,
     slack: Option<&'static str>,
     band: Band,
-) -> Result<Result<CircleRoots<T>, Unsettled>, DoorRefusal<crate::TorusRefusal>> {
+) -> Result<super::cross::Walked<T>, &'static str> {
     let (center, axis, major_radius, minor_radius) = torus;
     let h = crate::conic_torus_harmonics(
         conic,
@@ -147,27 +147,30 @@ fn torus_walk_metered<T: Decide>(
         residual: &placed,
         f_per_metre_hi: h.f_per_metre_hi.min(h.f_per_metre_surface),
     });
-    door_refusal(certified_subdivision(
-        Terms::Harmonics(&TrigPoly {
-            cos: h.cos,
-            sin: h.sin,
-            degree: 4,
-        }),
-        &|theta| crate::implicit_residual(surface, conic.point_at(theta)),
-        &SubdivisionFrame {
-            t0,
-            t1,
-            speed_hi: conic.speed_hi(),
-            noise: rounding_charge(h.terms),
-            f_per_metre: floor,
-            f_per_metre_hi: h.f_per_metre_surface,
-            residual_reach: Some(minor_radius / T::from_f64(2.0)),
-        },
-        &TORUS_ROWS,
-        meter.as_ref(),
-        band,
-    ))
-    .map(|found| found.map(Roots::widen))
+    super::cross::Walked::of_walk(
+        (t0, t1),
+        certified_subdivision_past(
+            Terms::Harmonics(&TrigPoly {
+                cos: h.cos,
+                sin: h.sin,
+                degree: 4,
+            }),
+            &|theta| crate::implicit_residual(surface, conic.point_at(theta)),
+            &SubdivisionFrame {
+                t0,
+                t1,
+                speed_hi: conic.speed_hi(),
+                noise: rounding_charge(h.terms),
+                f_per_metre: floor,
+                f_per_metre_hi: h.f_per_metre_surface,
+                residual_reach: Some(minor_radius / T::from_f64(2.0)),
+            },
+            &TORUS_ROWS,
+            meter.as_ref(),
+            conic.speed_lo(),
+            band,
+        ),
+    )
 }
 
 #[cfg(test)]
@@ -475,7 +478,9 @@ mod torus_rows {
         let to_hub = axis.cross(along).normalize();
         let s = crate::curve_face::conic_oracle::torus(core + to_hub * ring, axis, ring, tube);
         let t0 = rng.range(0.0, TAU);
-        let t1 = t0 + rng.range(0.1, TAU);
+        // The whole turn from a drawn start: the row reads the turn's
+        // certificate, and a refusal off a shorter arc is set aside.
+        let t1 = t0 + TAU;
         (e, s, t0, t1)
     }
 
@@ -611,15 +616,25 @@ mod torus_rows {
             let [t0, t1] = self.arc;
             (
                 door_answer(ellipse_torus_roots(&e, t0, t1, &s, band)),
-                door_answer(torus_walk_metered(
-                    &conic,
-                    torus,
-                    (t0, t1),
-                    &s,
-                    crate::implicit::ring_floor_of(torus.2, torus.3),
-                    None,
-                    band,
-                )),
+                door_answer(
+                    torus_walk_metered(
+                        &conic,
+                        torus,
+                        (t0, t1),
+                        &s,
+                        crate::implicit::ring_floor_of(torus.2, torus.3),
+                        None,
+                        band,
+                    )
+                    .map_err(DoorRefusal::<core::convert::Infallible>::Invariant)
+                    .and_then(|walked| {
+                        crate::curve_face::circle_roots::door_shape(
+                            &crate::curve_pair::Span::new(&e, (t0, t1)),
+                            &walked,
+                            band,
+                        )
+                    }),
+                ),
             )
         }
     }
@@ -847,11 +862,26 @@ mod torus_rows {
                 match pose.answers(band).0 {
                     Ok(CircleRoots::Certified(found)) => {
                         let (count, thetas) = (found.count(), found.roots());
-                        assert_eq!(count, 6, "{label}: {:?}", &thetas[..count]);
+                        // Every root certified is a true one, and every true
+                        // one on the arc is certified: off it, a refusal the
+                        // walk set aside leaves its roots unread.
                         for &t in &thetas[..count] {
                             let arc = arc_off(&e, t, &truth);
                             assert!(arc <= eps, "{label}: root {t} is {arc:e} m of arc off");
                         }
+                        let (mid, half) = ((t0 + t1) / 2.0, (t1 - t0) / 2.0);
+                        for &want in &truth {
+                            let turn = (mid - want).rem_euclid(TAU);
+                            if turn.min(TAU - turn) <= half {
+                                assert!(
+                                    arc_off(&e, want, &thetas[..count]) <= eps,
+                                    "{label}: the crossing {want} on the arc is not certified: \
+                                     {:?}",
+                                    &thetas[..count]
+                                );
+                            }
+                        }
+                        assert!(count == 6 || count == 4, "{label}: {:?}", &thetas[..count]);
                     }
                     Err(_) => {
                         assert!(

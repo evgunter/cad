@@ -44,13 +44,32 @@ const OVAL_SIDE: &str = "spiric_plane_oval_side";
 /// near miss in the band), the count on one side differs, and the reading
 /// refuses as a tangency rather than answer a count the band cannot hold.
 ///
+/// Each refusal is the whole span's: a count the shifted lines do not
+/// keep ([`Unsettled::Tangency`]), one the ladder does not certify (a
+/// graze of either oval), a ladder rung or a root's side in band.
+///
 /// # Errors
 ///
-/// [`MeetFault::Unsettled`]: a count the shifted lines do not keep
-/// ([`Unsettled::Tangency`]), or one the ladder does not certify (a graze
-/// of either oval); [`MeetFault::Escalated`] on a ladder rung or a root's
-/// side in band; [`MeetFault::Desync`] on a carrier not a spiric.
+/// A kernel fault's readings: a carrier not a spiric, or readings that
+/// contradict.
 pub(super) fn spiric_plane_method<T: Decide>(
+    span: &Span<'_, T>,
+    (line, across): (geom::Line<T>, Vec3<T>),
+    band: Band,
+) -> Result<super::cross::Walked<T>, &'static str> {
+    use super::cross::Walked;
+    match spiric_roots(span, (line, across), band) {
+        Ok(found) => Ok(Walked::found(found)),
+        Err(MeetFault::Contradiction { readings }) => Err(readings),
+        Err(MeetFault::Desync) => {
+            Err("the spiric × plane method was handed a carrier that is not a spiric")
+        }
+        Err(why) => Ok(Walked::whole(span.params(), why)),
+    }
+}
+
+/// [`spiric_plane_method`]'s reading.
+fn spiric_roots<T: Decide>(
     span: &Span<'_, T>,
     (line, across): (geom::Line<T>, Vec3<T>),
     band: Band,
@@ -68,7 +87,7 @@ pub(super) fn spiric_plane_method<T: Decide>(
     }
     let (t0, t1) = span.params();
     let mid = geom::mid_param(t0, t1);
-    Ok(found.into_iter().map(|y| param_of(span, y, mid)).collect())
+    found.into_iter().map(|y| param_of(span, y, mid)).collect()
 }
 
 /// **Where `line`, a line of the span's own plane, meets the span's oval**:
@@ -135,12 +154,14 @@ fn on_the_oval<T: Decide>(
 }
 
 /// The span's parameter at `y`, a point of its oval, within half a turn
-/// of `mid`: the carrier's own reading.
-fn param_of<T: Decide>(span: &Span<'_, T>, y: Point3<T>, mid: T) -> T {
-    match span.carrier().param_near(y, mid) {
-        Some(t) => t,
-        None => unreachable!("a spiric carrier reads every point's parameter"),
-    }
+/// of `mid`: the carrier's own reading, which a spiric gives at every
+/// point, so none is a fault.
+fn param_of<T: Decide>(span: &Span<'_, T>, y: Point3<T>, mid: T) -> Result<T, MeetFault> {
+    span.carrier()
+        .param_near(y, mid)
+        .ok_or(MeetFault::Contradiction {
+            readings: "a spiric carrier read no parameter at a point of its oval",
+        })
 }
 
 #[cfg(test)]

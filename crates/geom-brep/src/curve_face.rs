@@ -404,6 +404,40 @@ pub fn undecided_over<T: Decide, W>(
         .find(|u| !(past(u.window.0 - b) || past(a - u.window.1)))
 }
 
+/// A span's parameters, ascending.
+pub(crate) fn ascending<T: geom_core::Real>((t0, t1): (T, T)) -> (T, T) {
+    (t0.min(t1), t0.max(t1))
+}
+
+/// **Whether a window misses the span** (`curve_face`'s W3): the span read
+/// as a run past it, as [`undecided_over`] reads one, metred at the span's
+/// least speed. A gap in band keeps it.
+pub(crate) fn misses<T: Decide>(span: &Span<'_, T>, window: (T, T), band: Band) -> bool {
+    let at = [Undecided { window, why: () }];
+    undecided_over(&at, ascending(span.params()), span.speeds().0.get(), band).is_none()
+}
+
+/// **A window held to the span** (W3): `window` clipped to the span's
+/// ascending interval. One that stands past an end by a gap the band
+/// cannot call ([`misses`] keeps it) is that end's escalation, `Kε` at
+/// the span's least speed, on the span.
+pub(crate) fn clip<T: Decide>(span: &Span<'_, T>, (lo, hi): (T, T), band: Band) -> (T, T) {
+    let (t0, t1) = ascending(span.params());
+    let (a, b) = (lo.max(t0), hi.min(t1));
+    let reach = T::from_f64(band.escalate()) / span.speeds().0.get();
+    let before = (t0, (t0 + reach).min(t1));
+    let after = ((t1 - reach).max(t0), t1);
+    let end = (
+        (hi - t0).select_le_zero(before.0, after.0),
+        (hi - t0).select_le_zero(before.1, after.1),
+    );
+    let width = b - a;
+    (
+        width.select_le_zero(end.0, a),
+        width.select_le_zero(end.1, b),
+    )
+}
+
 /// A member of the boundary as the pass reads it.
 enum Member<'s, 'a, T: geom_core::Real> {
     /// A vertex's point, and where it sits on the boundary.
@@ -583,12 +617,13 @@ fn carrier(refusal: geom::CarrierRefusal) -> BoundaryRefusal {
 ///
 /// # Errors
 ///
-/// [`PoseRefusal`].
+/// [`Undecided`]: the stretch of the span the pose could not read, and
+/// its [`PoseRefusal`].
 pub fn pose<T: Decide>(
     span: &Span<'_, T>,
     surface: &geom::Surface<T>,
     band: Band,
-) -> Result<Pose<T>, PoseRefusal> {
+) -> Result<Pose<T>, Undecided<T, PoseRefusal>> {
     pose::pose(span, surface, band)
 }
 
@@ -634,3 +669,5 @@ pub mod spiric_plane;
 pub mod spline_face;
 #[cfg(test)]
 mod window_fuzz;
+#[cfg(test)]
+mod window_rows;

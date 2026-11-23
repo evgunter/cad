@@ -176,7 +176,9 @@ fn no_pose_inside_the_band_is_answered() {
                 _ => 0.0,
             };
             let c = tangent_circle(r, rho, depth, g, b);
-            let (m, h) = (rng.range(-PI, PI), rng.range(0.01, PI));
+            // The turn about a drawn middle: these rows read the turn's
+            // certificate, and a refusal off a shorter arc is set aside.
+            let (m, h) = (rng.range(-PI, PI), PI);
             let truth = exact::truth(&c, &wall(r));
             if truth.residual_depth >= 10.0 * eps {
                 continue;
@@ -436,7 +438,10 @@ fn a_first_harmonic_extreme_at_the_bands_edges_is_answered_truly_or_not_at_all()
                 // The depth `d` whose residual `d + d²/2r` is `target`.
                 let depth = 2.0 * target / (1.0 + (1.0 + 2.0 * target / r).sqrt());
                 let c = tangent_circle(r, rho, depth, g, b);
-                let (m, h) = (rng.range(-PI, PI), rng.range(0.01, PI));
+                // The turn about a drawn middle: these rows read the
+                // turn's certificate, and a refusal off a shorter arc is
+                // set aside.
+                let (m, h) = (rng.range(-PI, PI), PI);
                 let truth = exact::truth(&c, &wall(r));
                 let got = conic_quadric_roots(&c, m - h, m + h, &wall(r), band);
                 posed += 1;

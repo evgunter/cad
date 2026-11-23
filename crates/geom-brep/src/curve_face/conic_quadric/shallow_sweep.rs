@@ -99,7 +99,9 @@ fn draw(rng: &mut Rng, family: usize) -> Pose {
             minor,
         ))
     };
-    let (m, h) = (rng.range(-PI, PI), rng.range(0.01, PI));
+    // The turn about a drawn middle: the sweep reads the turn's
+    // certificate, and a refusal off a shorter arc is set aside.
+    let (m, h) = (rng.range(-PI, PI), PI);
     Pose {
         carrier,
         surface,

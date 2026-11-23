@@ -540,7 +540,9 @@ fn certified_answers_hold_against_the_quadric_form() {
                 ))
             };
             let t0 = rng.range(0.0, TAU);
-            let t1 = t0 + rng.range(0.1, TAU);
+            // The whole turn from a drawn start: the row reads the turn's
+            // certificate, and a refusal off a shorter arc is set aside.
+            let t1 = t0 + TAU;
             let mid = (t0 + t1) / 2.0;
             let label = format!(
                 "ε {eps}, case {i}: {e:?} against {s:?} on [{t0}, {t1}] — {}",
@@ -633,7 +635,9 @@ fn grazes_and_apex_passes_never_certify_what_they_cannot() {
                 geom::Curve3::circle(tip + radial * r + axis * k, side, r, radial * -1.0)
             };
             let t0 = rng.range(0.0, TAU);
-            let t1 = t0 + rng.range(0.1, TAU);
+            // The whole turn from a drawn start: the row reads the turn's
+            // certificate, and a refusal off a shorter arc is set aside.
+            let t1 = t0 + TAU;
             let mid = (t0 + t1) / 2.0;
             let label = format!(
                 "ε {eps}, case {i}: {e:?} against {s:?} on [{t0}, {t1}] — {}",

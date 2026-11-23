@@ -514,7 +514,9 @@ mod fuzz_rows {
                     }
                 };
                 let t0 = rng.range(0.0, TAU);
-                let t1 = t0 + rng.range(0.1, TAU);
+                // The whole turn from a drawn start: the row reads the turn's
+                // certificate, and a refusal off a shorter arc is set aside.
+                let t1 = t0 + TAU;
                 let Ok(found) = conic_quadric_roots(&e, t0, t1, &s, band) else {
                     escalated += 1;
                     continue;
