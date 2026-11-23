@@ -832,6 +832,15 @@ impl FaceInputs {
             })
             .unwrap_or_default();
         for (lk, _, _) in face.loops() {
+            // A lone-vertex ring bounds no area (`topo`'s
+            // `FaceView::area_loops`) and no lane reads it, so the key does
+            // not: a hit is answered for the face a fresh run meshes.
+            if matches!(
+                body.get_loop(lk).map(|l| &l.boundary),
+                Some(topo::LoopBoundary::Empty { .. })
+            ) {
+                continue;
+            }
             let walk = loop_half_edges(body, lk, fk)?;
             let mut edges = Vec::with_capacity(walk.len());
             for (hek, ek, forward) in walk {
