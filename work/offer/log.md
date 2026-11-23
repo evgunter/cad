@@ -266,3 +266,8 @@ The local disk has 8 GB free and two lane targets are live, so these lanes run a
   - **The offers function** `a-refusal-offers-…` (H, so dual review later): session_013QoYWVYtwnKMKDTDPKPUBS, branch `offer/one-offers-function`. Its Commit is filled only from the kernel `Quieting`.
 
   The widget owns how a message is held and drawn; the offers lane owns the controls. Whichever lands second ports. #7548's lane was told #7375 landed and ports in its fix pass. (OFFER orchestrator)
+- 2026-11-23 10:46Z — **#7548 adjudicated on the union of R1 and R2. Both say APPROVE-WITH-FIXES, and both found the same MAJOR:** Open and New leave the old document's search running. `clear_for_new_document` drops the reading first, and the stop is conditional on the reading. No wrong-document reading is ever drawn; the threaded race probes held over 20 and 40 cycles.
+  - **Unpinned:** the ThreadRanger seam, the run-id and generation filters, the `built` filter and the wired admission grey. Mutants on all of them survived.
+  - **The readings:** inward rounding is lost in `shown_text`; the FlipCrossing floor words would overclaim; the side lines are identical. Smaller reading fixes as well.
+  - **Rows:** a wasm frame-thread row is to be filed, and a ciw row closed as moot is reopened.
+  - **The fix pass** went to the lane together with the #7375 port. No row (rule 12). (OFFER orchestrator)
