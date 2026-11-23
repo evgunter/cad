@@ -6044,9 +6044,13 @@ fn a_cap_cut_under_a_generic_tilt_refuses_on_its_cut_cap_alone() {
 /// it, so a second pair of half-cones overlaps the first across the
 /// section. A graft's solids share no cell, so each crossing is found by
 /// distance: the row pins that the section's readings leave a crossing
-/// beside them to be found, at both scalars, and never certify it. A
-/// crossing of two faces that SHARE the corner is built by no kernel
-/// operation; its rows are `injective::focal_rows`'.
+/// beside them to be found, at both scalars, and never certify it. Each
+/// reads `Crosses` at the default ε; at another the walk may run out
+/// of its budget on the crossing pair first (the ball on the section at
+/// 1e-6, the copy at 1e-12), and then refuses on that budget, never
+/// embedded. A crossing of two faces that SHARE the
+/// corner is built by no kernel operation; its rows are
+/// `injective::focal_rows`'.
 #[test]
 fn a_body_through_a_cut_cones_wall_beside_its_section_crosses() {
     use topo::clearance::Embedding;
@@ -6141,11 +6145,18 @@ fn a_body_through_a_cut_cones_wall_beside_its_section_crosses() {
     ];
     for (what, float, twin) in crossings {
         println!("[cone] {what}: f64 {float:?} | Interval {twin:?}");
-        assert!(matches!(float, Embedding::Crosses(_)), "{what}: {float:?}");
-        assert!(
-            !matches!(twin, Embedding::Embedded),
-            "{what} at Interval is never embedded: {twin:?}"
-        );
+        let found = |v: &Embedding| {
+            matches!(
+                v,
+                Embedding::Crosses(_) | Embedding::Refused(EngineRefusal::Budget { .. })
+            )
+        };
+        assert!(found(&float), "{what}: {float:?}");
+        assert!(found(&twin), "{what} at Interval: {twin:?}");
+        if tol().eps() == geom_core::tolerance::DEFAULT_EPS {
+            assert!(matches!(float, Embedding::Crosses(_)), "{what}: {float:?}");
+            assert!(matches!(twin, Embedding::Crosses(_)), "{what}: {twin:?}");
+        }
     }
 }
 
