@@ -393,9 +393,11 @@ fn name_loft_topology<T: Decide>(
     }
     // The rim where loop `l`, segment `k`'s sub-arc `q` meets `cap`: the
     // edge between `cap` and that piece's wall nearest it, or, where the
-    // piece has no wall at all (a segment pinned at both ends, the same
-    // curve in every section, which is a line and so one piece), the edge
-    // the two caps hold.
+    // piece has no wall in any slab (its segment held flat through every
+    // slab, the same line in every section), the edge the two caps hold.
+    // A segment held flat in some slabs only is a line in those slabs'
+    // sections but can be cut there by the other sections' joints, so it
+    // may be several pieces, each with a wall in some other slab.
     let cap_rim = |l: usize, k: usize, q: usize, end: CapEnd, cap: FaceKey| {
         let mut walls = side_faces[l][k][q].iter().flatten();
         let wall = match end {

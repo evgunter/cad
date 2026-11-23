@@ -707,6 +707,85 @@ fn a_lofted_one_segment_section_is_four_quarter_walls() {
     }
 }
 
+/// **Every one-segment circle stack builds, at every degree.** At
+/// degree ≥ 2 the wall's `v` column carries the sections' chord-length
+/// parameters, and on many of these stacks some have no reflection
+/// about `[0, 1]` that is an `f64` (`1 − fl(1/3)` is not one). Every
+/// stack builds at every degree up to 3 it supports, as four quarter
+/// walls per slab with no C⁰ knot inside any (the skin's cut), closed
+/// (tier 2), and holds the cylinder's `π·h` within its volume pad where
+/// the quadrature reaches its target; where it stops short (at ε 1e-9
+/// and 1e-12 today, as the two-arc wall's does), the stop is read and
+/// the volume is not.
+#[test]
+fn every_one_segment_circle_stack_builds_at_every_degree() {
+    let stacks: Vec<Vec<f64>> = [&[0.0, 1.0, 3.0][..], &[0.0, 0.7, 2.0]]
+        .into_iter()
+        .map(<[f64]>::to_vec)
+        .chain((2..=9).map(|k| (0..k).map(f64::from).collect()))
+        .collect();
+    let cases: Vec<(&[f64], usize)> = stacks
+        .iter()
+        .flat_map(|z| (1..z.len().min(4)).map(move |degree| (&z[..], degree)))
+        .collect();
+    assert_eq!(
+        cases.len(),
+        25,
+        "every stack at every degree up to 3 it supports"
+    );
+    for (z, degree) in cases {
+        let what = format!("{z:?} at degree {degree}");
+        let places = sweep::test_support::stacked_at(z);
+        let sections: Vec<_> = z
+            .iter()
+            .map(|_| vec![circle::<f64>(0.0, 0.0, 1.0, TAU)])
+            .collect();
+        let lofted =
+            sweep::loft_body::<f64>(&sections, &places, degree, tol()).unwrap_or_else(|e| {
+                panic!(
+                    "{what}: the loft builds: {e_at}",
+                    e_at = e.render(geom_brep::recourse::Reading::Build)
+                )
+            });
+        let slabs = if degree == 1 { z.len() - 1 } else { 1 };
+        let mut walls = 0;
+        for (k, _) in lofted.body.faces() {
+            let Some(geom::Surface::Nurbs(s)) = lofted.body.face_surface(k) else {
+                continue;
+            };
+            walls += 1;
+            let p = s.knot_values_u().degree();
+            assert!(
+                s.knot_values_u()
+                    .runs()
+                    .collect::<Vec<_>>()
+                    .iter()
+                    .skip(1)
+                    .rev()
+                    .skip(1)
+                    .all(|&(_, m)| m < p),
+                "{what}: face {k:?} carries no C⁰ knot in u"
+            );
+        }
+        assert_eq!(walls, 4 * slabs, "{what}: four quarter walls per slab");
+        assert_eq!(validate(&lofted.body), Ok(()), "{what}: tier 1");
+        assert_eq!(validate_closed(&lofted.body), Ok(()), "{what}: tier 2");
+        let m = topo::mass_properties(
+            &topo::test_support::finished("the stack", topo::Body::clone(&lofted.body), tol()),
+            tol(),
+            topo::test_support::pinned_resolution(tol()),
+        )
+        .unwrap_or_else(|e| panic!("{what}: the volume refused: {e:?}"));
+        if m.stop == topo::Stop::Met {
+            close(
+                (m.enclosure.volume, m.enclosure.volume_pad),
+                PI * z[z.len() - 1],
+                &what,
+            );
+        }
+    }
+}
+
 /// **A lofted one-segment wall measures as the two-arc wall does.**
 /// The rational wall's volume comes from the quadrature lane, whose
 /// enclosure must reach `1024·ε`: where both forms reach it their

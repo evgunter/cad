@@ -601,9 +601,13 @@ pub fn bottle<S: Scalar>(tol: Tol) -> Bottle<S> {
 /// Wall 3's pinned refusal: a seam of the loop, between two of its
 /// spline walls, meets the bulb's neck cylinder within the band of the
 /// cylinder face's own edge, and the curve-pair reading of the meeting
-/// against that edge stays in band (`Crossing(OnEdge)`). The loop's
-/// walls are cut at their sections' sub-arc joints, so its seams lie in
-/// the seam plane `y = 0` where the neck's own edge does. Its edge and
+/// against that edge stays in band (`Crossing(OnEdge)`). The seam is the
+/// loop's at a profile vertex, in the seam plane `y = 0` where the
+/// neck's own edge lies, so the meeting is exact in ℝ and it is the
+/// reading's enclosure that stays a few ε wide
+/// (`work/splice/a-loop-seam-meeting-the-neck-cylinder-at-its-edge-reads-in-band.md`);
+/// cutting the loop's walls at their sub-arc joints changed which pair
+/// the boolean meets first, so this stop is now reached. Its edge and
 /// face are pinned by key, and by kind as the two operands hold them: a
 /// spline edge of the loop between two of its spline walls, and the
 /// bulb's cylinder. Shared with `verbs_gate_r1_probes`, so the two

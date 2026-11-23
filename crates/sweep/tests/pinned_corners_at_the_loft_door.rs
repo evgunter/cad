@@ -58,7 +58,9 @@ fn lift(z: f64) -> Affine3<f64> {
 /// the full turn at its sub-arc joints into four quarter walls, so the
 /// vertex is a corner between two of them: one vertex, no strut, and the
 /// walls beside it each a collapsed side there, as every other pinned
-/// corner builds. The body is at rest.
+/// corner builds. The body is closed (tier 2), at rest (tier 3), a
+/// pseudomanifold (tier 3′), and its volume holds the ruled solid's,
+/// read off the sections alone.
 #[test]
 fn a_full_turns_pinned_vertex_builds() {
     let tol = Tol::witness();
@@ -72,13 +74,11 @@ fn a_full_turns_pinned_vertex_builds() {
             }),
         )])]
     };
-    let ps = places(
-        &[
-            Affine3::identity(),
-            turn([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], 0.5),
-        ],
-        tol,
-    );
+    let ms = [
+        Affine3::identity(),
+        turn([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], 0.5),
+    ];
+    let ps = places(&ms, tol);
     let lofted = loft_body::<f64>(&vec![circle(); 2], &ps, 1, tol)
         .unwrap_or_else(|e| panic!("the full turn with a pinned vertex lofts: {e:?}"));
     assert!(
@@ -94,10 +94,33 @@ fn a_full_turns_pinned_vertex_builds() {
         [None],
         "no strut at the pinned vertex"
     );
+    assert_eq!(topo::validate_closed(&lofted.body), Ok(()), "tier 2");
     assert_eq!(
         topo::validate_geometric(&lofted.body, tol),
         Ok(()),
         "the pinned full turn is at rest"
+    );
+    assert_eq!(
+        topo::validate_pseudomanifold(&lofted.body, &topo::ContactRecords::default(), tol),
+        Ok(()),
+        "tier 3′"
+    );
+    let tau = core::f64::consts::TAU;
+    let want = crate::pinned_corners_build::ruled_curve_volume(
+        |u| ((tau * u).cos(), (tau * u).sin()),
+        |u| (-tau * (tau * u).sin(), tau * (tau * u).cos()),
+        core::f64::consts::PI,
+        (&ms[0], &ms[1]),
+        256,
+    );
+    let m = topo::mass_properties(&lofted.body, tol, topo::test_support::pinned_resolution(tol))
+        .unwrap()
+        .enclosure;
+    assert!(
+        (m.volume - want).abs() <= m.volume_pad + 1e-9 * want,
+        "volume {} ± {}, ruled {want}",
+        m.volume,
+        m.volume_pad
     );
 }
 

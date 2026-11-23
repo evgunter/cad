@@ -123,6 +123,14 @@ fn round_tube(tol: Tol) -> Option<(topo::Body<f64>, topo::Settle<f64>)> {
 }
 
 /// The tube's scale, in [`crate::common::box_unit`]s: `4096` at ε = 1e-9.
+///
+/// The scale is a property of today's meter, not of the tube: it is a
+/// scale at which the walls stop at the work wall, measured, and it
+/// moved from `512` to `4096` when the skin cut the walls into quarter
+/// turns. A change to the quadrature schedule or to how a wall is cut
+/// moves it again; re-measure it by raising `s` by powers of two at
+/// ε = 1e-9 until every wall stops at the work wall with the frustum in
+/// its bracket, as [`round_tube`]'s note records.
 const TUBE: f64 = 4.096e12;
 
 /// The blade certifies: tier 3 admits it on a positive enclosure, the

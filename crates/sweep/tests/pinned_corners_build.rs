@@ -581,7 +581,7 @@ fn a_corner_pinned_through_a_cubic_solve_stays_one_point() {
 /// and the two caps, each its plane's offset from the origin times the
 /// profile's `area`. `p` and `dp` are the profile and its derivative,
 /// counterclockwise.
-fn ruled_curve_volume(
+pub(crate) fn ruled_curve_volume(
     p: impl Fn(f64) -> (f64, f64),
     dp: impl Fn(f64) -> (f64, f64),
     area: f64,

@@ -172,9 +172,12 @@ pub struct Lofted<T: topo::AtRestPolicy, B = <T as topo::AtRestPolicy>::Leaf> {
     /// no strut.
     pub seam_edges: Vec<Vec<Vec<Option<EdgeKey>>>>,
     /// The seams inside a segment, `[loop][segment][joint][slab]`:
-    /// `joints[l][j][q][s]` is the smooth seam between segment `j`'s
+    /// `joints[l][j][q][s]` is the seam between segment `j`'s
     /// sub-arc walls `q` and `q + 1` across slab `s`, the `u = 0`
-    /// boundary iso of wall `q + 1`. Empty for a segment of one wall;
+    /// boundary iso of wall `q + 1`. It is a crease in general: smooth
+    /// only where every row holds one arc's joint, as a sweep's do
+    /// (`crates/sweep/README.md`, the sub-arc walls). Empty for a
+    /// segment of one wall;
     /// `None` where the segment is held flat in the slab, its joints
     /// one point in both sections.
     pub joint_edges: Vec<Vec<Vec<Vec<Option<EdgeKey>>>>>,
@@ -293,18 +296,14 @@ pub enum LoftError {
     /// An interior section's rim found no image on the row `v = 1` of the
     /// slab wall below it (degree 1 through `k ≥ 3` sections only).
     ///
-    /// `None`: no arc-rim image holds the rim. Ordinary input reaches
-    /// this. An arc segment's wall carries every section's sub-arc
-    /// structure at once, so where the sections' arcs split into
-    /// different numbers of sub-arcs (a bulge that varies enough across
-    /// the sections), an arc with fewer sub-arcs reaches its row refined
-    /// at the others' joints. The arc-rim class describes only a row with
-    /// the arc's own uniform sub-arc knots, so it does not describe that
-    /// row. The same class refuses a cap rim of a two-section loft at
-    /// the pcurve mint
+    /// `None`: no arc-rim image holds the rim. No input is known to
+    /// reach this: the loft cuts every wall at each sub-arc joint any
+    /// section puts in it, so a rim is one rational-quadratic span, at
+    /// end weights the arc rim's image states, and the case that did
+    /// reach it (sections whose arcs split into different numbers of
+    /// sub-arcs) builds
     /// (`work/isotail/a-loft-whose-arc-bulge-varies-per-section-refuses-its-arc-rim.md`).
-    /// Recourse: loft at v-degree 2 or more, whose walls span every
-    /// section, so the interior section is no rim.
+    /// It stays typed rather than assumed away.
     ///
     /// `Some`: the pick was undecided in band.
     SectionRim {
@@ -574,10 +573,9 @@ impl LoftError {
                 source: None,
             } => write!(
                 f,
-                "loft section {section}'s arc rim has no image on the degree-1 wall below it: \
-                 the sections' arcs split into different numbers of sub-arcs, so this one \
-                 reaches its row refined, which the arc-rim class does not describe. \
-                 Recourse: loft at v-degree 2 or more, whose walls span every section"
+                "loft section {section}'s arc rim has no image on the degree-1 wall below it, \
+                 though the wall is one rational-quadratic span along it. Recourse: loft at \
+                 v-degree 2 or more, whose walls span every section, so the section is no rim"
             ),
             Self::SectionRim {
                 section,
@@ -1293,14 +1291,22 @@ fn sub_arc_walls<T: geom_core::spline::SpanLocate>(
 /// arc's own sub-arc joint `k/m` is `Arc2::point_from` at `k/m`, the
 /// on-arc control point itself; a crease another section put inside
 /// one of its sub-arcs falls at that sub-arc's rational-quadratic
-/// parameter `s`, whose angle from the sub-arc's middle is
-/// `2·atan((2s − 1)·tan(Δ/4))` for a sub-arc of sweep `Δ`.
+/// parameter `s`, located on the arc rim's own sub-arc breaks
+/// ([`geom_brep::sub_arc_at`]), whose angle from the sub-arc's middle is
+/// the rational-quadratic identity the arc rim's map inverts
+/// ([`geom_brep::sub_arc_angle_at_fraction`]).
+///
+/// # Errors
+///
+/// [`LoftError::SectionStructure`] where the arc's sweep has no bracket
+/// or a crease lies off `[0, 1]`: the skin admitted both before the
+/// arc reached a wall.
 fn segment_pieces<T: geom_core::spline::SpanLocate>(
     seg: SweptSeg<T>,
     cuts: &[f64],
-) -> Vec<SweptSeg<T>> {
+) -> Result<Vec<SweptSeg<T>>, LoftError> {
     if cuts.is_empty() {
-        return vec![seg];
+        return Ok(vec![seg]);
     }
     let piece = |a: Point2<T>, b: Point2<T>, kind| SweptSeg { a, b, kind, ..seg };
     match seg.kind.get() {
@@ -1310,41 +1316,42 @@ fn segment_pieces<T: geom_core::spline::SpanLocate>(
                 .chain(cuts.iter().map(|&u| at(u)))
                 .chain(core::iter::once(seg.b))
                 .collect();
-            points
+            Ok(points
                 .windows(2)
                 .map(|w| piece(w[0], w[1], seg.kind))
-                .collect()
+                .collect())
         }
         profile::SegmentKind::Arc { arc, .. } => {
-            let lo = arc
+            // The skin decided the sub-arc count over the sweep's bracket
+            // (`segment_curve`) before this arc reached a wall, so a
+            // sweep with no bracket here is the two disagreeing.
+            let (lo, _) = arc
                 .sweep
                 .abs()
                 .structure_bracket()
-                .map_or(f64::NAN, |(lo, _)| lo);
+                .ok_or(LoftError::SectionStructure)?;
             let m = crate::skin::sub_arc_count(lo);
             #[allow(clippy::cast_precision_loss)]
-            let steps = m as f64;
-            let fraction = |u: f64| {
-                if (1..m).any(|k| geom_brep::sub_arc_joint(k, m) == u) {
-                    return T::from_f64(u);
+            let steps = T::from_f64(m as f64);
+            let delta = arc.sweep / steps;
+            let tan_q = geom_brep::sub_arc_tan_quarter(delta);
+            let fraction = |u: f64| -> Result<T, LoftError> {
+                let (k, s) = geom_brep::sub_arc_at(u, m).ok_or(LoftError::SectionStructure)?;
+                // The arc's own joint is the on-arc control point itself.
+                if s == 0.0 {
+                    return Ok(T::from_f64(geom_brep::sub_arc_joint(k, m)));
                 }
-                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-                let k = ((u * steps).floor() as usize).min(m - 1);
-                #[allow(clippy::cast_precision_loss)]
-                let s = u * steps - k as f64;
-                let delta = arc.sweep / T::from_f64(steps);
-                let from_middle = T::from_f64(2.0)
-                    * (T::from_f64(2.0 * s - 1.0) * (delta * T::from_f64(0.25)).tan()).atan();
+                let from_middle = geom_brep::sub_arc_angle_at_fraction(T::from_f64(s), tan_q);
                 #[allow(clippy::cast_precision_loss)]
                 let into = T::from_f64(k as f64 + 0.5) + from_middle / delta;
-                into / T::from_f64(steps)
+                Ok(into / steps)
             };
-            let fractions: Vec<T> = core::iter::once(T::zero())
+            let fractions: Vec<T> = core::iter::once(Ok(T::zero()))
                 .chain(cuts.iter().map(|&u| fraction(u)))
-                .chain(core::iter::once(T::one()))
-                .collect();
+                .chain(core::iter::once(Ok(T::one())))
+                .collect::<Result<_, _>>()?;
             let last = fractions.len() - 2;
-            fractions
+            Ok(fractions
                 .windows(2)
                 .enumerate()
                 .map(|(i, f)| {
@@ -1360,7 +1367,7 @@ fn segment_pieces<T: geom_core::spline::SpanLocate>(
                     };
                     piece(a, b, seg.kind.part(arc.sweep * (f[1] - f[0])))
                 })
-                .collect()
+                .collect())
         }
     }
 }
@@ -1526,12 +1533,13 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
                     swept_segments(lp, false)
                         .into_iter()
                         .zip(cuts)
-                        .flat_map(|(seg, c)| segment_pieces(seg, c))
-                        .collect()
+                        .map(|(seg, c)| segment_pieces(seg, c))
+                        .collect::<Result<Vec<_>, _>>()
+                        .map(|pieces| pieces.into_iter().flatten().collect())
                 })
-                .collect()
+                .collect::<Result<_, _>>()
         })
-        .collect();
+        .collect::<Result<_, _>>()?;
     if places.len() < 2
         || places.len() != k
         || canonical.iter().any(|c| {

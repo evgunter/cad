@@ -330,7 +330,10 @@ walls"):
   cap vertex, after `LoftSectionEdge` its interior section's vertex. A
   segment of one piece carries neither, so a polygon's names are
   unchanged. The pieces follow the sub-arc ceiling, so an edit that
-  changes any section's sub-arc count renumbers them.
+  changes any section's sub-arc count renumbers them. A selector's path is
+  matched at its exact length, so a one-segment pattern on `LoftWall` or
+  `RimEdge` does not match a piece of a cut segment
+  (`work/refs/an-exact-length-selector-misses-a-loft-walls-sub-arc-pieces.md`).
 - **Swept walls over a run.** Extrude and revolve build one wall per run of
   profile pieces on one carrier (`crates/sweep/README.md`, "Walls"). The
   wall's role-path segment (`Lateral` for extrude, `Band` for revolve) holds

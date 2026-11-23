@@ -1411,6 +1411,64 @@ pub fn sub_arc_joint(k: usize, m: usize) -> f64 {
     k as f64 / m as f64
 }
 
+/// **Where an arc of `m` uniform sub-arcs is at its fraction `u ∈ [0, 1]`**
+/// of the whole: `(k, s)`, the sub-arc `k` and its own fraction `s`,
+/// located on the [`Pcurve::IsoArc`] sub-arc breaks ([`uniform_breaks`])
+/// as the arc rim's map locates them. A joint [`sub_arc_joint`]`(k, m)`
+/// reads `(k, 0)` exactly, and `u = 1` reads `(m − 1, 1)`. `None` for
+/// `m = 0` or a `u` off `[0, 1]`.
+#[must_use]
+#[allow(clippy::cast_precision_loss)]
+pub fn sub_arc_at(u: f64, m: usize) -> Option<(usize, f64)> {
+    if !(0.0..=1.0).contains(&u) {
+        return None;
+    }
+    let breaks = uniform_breaks(m)?;
+    let k = u
+        .locate_spans(&breaks)?
+        .first
+        .index()
+        .saturating_sub(breaks.degree())
+        .min(m - 1);
+    let s = if u == sub_arc_joint(k, m) {
+        0.0
+    } else if u == 1.0 {
+        1.0
+    } else {
+        u * m as f64 - k as f64
+    };
+    Some((k, s))
+}
+
+/// `tan(Δ/4)` for a rational-quadratic sub-arc of sweep `Δ`, through
+/// the scalar's own `sin_cos` alone: the one constant of
+/// [`sub_arc_fraction_at_angle`] and [`sub_arc_angle_at_fraction`].
+#[must_use]
+pub fn sub_arc_tan_quarter<T: Real>(delta: T) -> T {
+    let (s, c) = (delta * T::from_f64(0.25)).sin_cos();
+    s / c
+}
+
+/// **The rational-quadratic sub-arc's one identity** between its own
+/// parameter `s ∈ [0, 1]` and the angle `φ` from its middle, for a
+/// sub-arc of sweep `Δ` (`tan_q = tan(Δ/4)`, [`sub_arc_tan_quarter`]):
+/// `tan(φ/2) = (2s − 1)·tan(Δ/4)`. This direction, `s` at `φ`, uses
+/// the scalar's `sin_cos` alone; [`sub_arc_angle_at_fraction`] is the
+/// other.
+#[must_use]
+pub fn sub_arc_fraction_at_angle<T: Real>(phi: T, tan_q: T) -> T {
+    let (s_h, c_h) = (phi * T::from_f64(0.5)).sin_cos();
+    T::from_f64(0.5) + (s_h / c_h) / (T::from_f64(2.0) * tan_q)
+}
+
+/// [`sub_arc_fraction_at_angle`]'s identity the other way: the angle
+/// from the sub-arc's middle at its parameter `s`,
+/// `2·atan((2s − 1)·tan(Δ/4))`.
+#[must_use]
+pub fn sub_arc_angle_at_fraction<T: Real>(s: T, tan_q: T) -> T {
+    T::from_f64(2.0) * ((T::from_f64(2.0) * s - T::one()) * tan_q).atan()
+}
+
 /// The uniform clamped degree-1 knot vector on `[0, 1]` with `spans ≥ 1`
 /// spans: an [`Pcurve::IsoArc`]'s sub-arc locator (pure `f64`
 /// structure, which keeps the variant `T`-generic). `None` only where

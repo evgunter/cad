@@ -17,7 +17,7 @@ use geom_core::{Arc2, Point2, Tol};
 use profile::test_support::bulge_loop;
 use profile::{ProfileLoop, RawLoop, Segment};
 use sweep::test_support::{brick, finished, stacked_at};
-use sweep::{Lofted, Section, loft_body};
+use sweep::{Lofted, Section, SketchSegment, loft_body};
 use topo::{Body, ContactRecords};
 
 fn tol() -> Tol {
@@ -72,9 +72,42 @@ impl Shape {
     }
 
     /// Walls per slab: one per segment, cut at every sub-arc joint, so
-    /// either circle is its four quarter turns.
+    /// one per span of each segment's skinned curve
+    /// ([`sweep::segment_curve`]), read off its knots.
     fn walls(self) -> usize {
-        4
+        let p = Point2::new;
+        let arc = |a, b, sweep| SketchSegment::Arc {
+            a,
+            b,
+            arc: Arc2 {
+                centre: p(0.0, 0.0),
+                radius: 1.0,
+                sweep,
+            },
+        };
+        let corners = [p(-1.0, -1.0), p(1.0, -1.0), p(1.0, 1.0), p(-1.0, 1.0)];
+        let segments: Vec<SketchSegment<f64>> = match self {
+            Self::Square => (0..4)
+                .map(|i| SketchSegment::Line {
+                    a: corners[i],
+                    b: corners[(i + 1) % 4],
+                })
+                .collect(),
+            Self::Circle => vec![
+                arc(p(1.0, 0.0), p(-1.0, 0.0), PI),
+                arc(p(-1.0, 0.0), p(1.0, 0.0), PI),
+            ],
+            Self::FullTurn => vec![arc(p(1.0, 0.0), p(1.0, 0.0), TAU)],
+        };
+        assert_eq!(segments.len(), self.segments(), "{self:?}'s segments");
+        segments
+            .into_iter()
+            .map(|s| {
+                let curve = sweep::segment_curve(0, s, geom_core::Affine3::identity())
+                    .expect("the segment converts");
+                curve.knot_values().runs().count() - 1
+            })
+            .sum()
     }
 }
 

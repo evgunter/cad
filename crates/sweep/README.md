@@ -277,8 +277,12 @@ The skin writes an arc wider than the sub-arc ceiling (about 95.6°) as
 rational-quadratic sub-arcs joined at a double knot, and the compatible
 net carries every section's joints in every row, so a segment's skinned
 surface is C⁰ in `u` at the union of its sections' joints. The loft cuts
-the wall at each, one wall per sub-arc, with a smooth seam (a 180°
-wedge) at each joint (DESIGN [topology], quoted below): a lofted circle
+the wall at each, one wall per sub-arc, with a seam at each joint
+(DESIGN [topology], quoted below). The seam's wedge is whatever the
+walls make there, read by `topo::edge_wedge` like any edge's, not
+assumed: 180° where every row holds one arc's joint, as a sweep's
+rigidly moved section does, and not in general: between sections whose
+arcs differ, the two walls' normals part across it. A lofted circle
 is four walls, and a one-segment loop's full turn is four walls with no
 wrap edge. Each section's segment is cut where its own curve reaches
 the joint, so a section whose arc has fewer sub-arcs, or a line, is cut

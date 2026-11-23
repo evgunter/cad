@@ -106,3 +106,11 @@ and they disagreed. What the branch makes true:
 ## Closed (2026-11-23)
 
 By PR 7325, on Ev's ruling on PR 7287: a spline chart's singular set is read exactly off its net, with one home, `singular_points(&Surface)`. A vertex on a collapsed side takes `AzimuthRule::OnCollapsedSide` (the free channel along the side, both ends checked on it), and the loft builds a pinned corner (class 1), a hinge and a lune exactly. `edge_join` and `cell_region` ask the home. The full turn's single pinned vertex is LATHE's `a-full-turns-pinned-vertex-refuses-at-the-loft-door`, and the closed collapsed side is `a-closed-collapsed-side-has-no-turn-or-side-reading`.
+
+- 2026-11-23 — `sweep::LoftError::PinnedCornerUnsupported`, cited above,
+  is deleted (LATHE, `lathe/skin-sub-arc-walls`): the loft cuts a full turn
+  into quarter walls at its sub-arc joints, so the one case it refused, a
+  one-segment loop's pinned vertex, builds as an ordinary pinned corner
+  (`sweep`'s `pinned_corners_at_the_loft_door::a_full_turns_pinned_vertex_builds`,
+  closing `work/lathe/a-full-turns-pinned-vertex-refuses-at-the-loft-door.md`).
+  The citation is left as written, as the record of what the loft did then.
