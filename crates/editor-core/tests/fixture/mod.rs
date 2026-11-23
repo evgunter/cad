@@ -1609,65 +1609,132 @@ pub fn value_bump(
     }
 }
 
-/// **A placement of a pattern's copy, as the fixture writes it** (D10
-/// `[repetition]`): it places each member, reading `xs[k]` at the
-/// pattern binder's indices, `{k in xs: place(xs[k])}`, so it joins the
-/// binder. Any other node as it is.
+/// **A node reading a family at a one-body seat, as the fixture writes
+/// it** (D10 `[repetition]`): each such seat reads `xs[k]` at the
+/// family's binder's indices, `{k in xs: op(xs[k])}`, so the node joins
+/// the binder ([`pattern_yield`] yields it). Any other read as it is.
 fn member_placement(doc: &ProfileDoc, node: AuthoredNode) -> AuthoredNode {
-    // A placement of a pattern's copy places each member (D10
-    // `[repetition]`): it reads `xs[k]` at the pattern binder's indices,
-    // `{k in xs: place(xs[k])}`, so it joins the binder, which yields it.
+    let member = |read: editor_core::BodyRead<Formula>| -> editor_core::BodyRead<Formula> {
+        if read.is_member() {
+            return read;
+        }
+        let family = match &read.read {
+            editor_core::Operand::Source(body) if !body.is_member() => operand_var(doc, &body.read),
+            other => operand_var(doc, other),
+        };
+        let Some(binder) = family.and_then(|var| doc.yielding(var)) else {
+            return read;
+        };
+        let at: Vec<Formula> = doc
+            .binder_indices(binder)
+            .into_iter()
+            .map(|index| Formula::var(index, editor_core::Dimension::Count))
+            .collect();
+        editor_core::BodyRead::indexed(read.read, at)
+    };
+    let selection = |read: editor_core::Operand| match read {
+        editor_core::Operand::Select { body, names } => editor_core::Operand::Select {
+            body: Box::new(member(*body)),
+            names,
+        },
+        other => other,
+    };
     match node {
         Node::Place {
             source,
             target,
             constraints,
-        } if !source.is_member() => {
-            let indexed = operand_var(doc, &source.read)
-                .and_then(|var| doc.yielding(var))
-                .map(|binder| {
-                    doc.binder_indices(binder)
-                        .into_iter()
-                        .map(|index| Formula::var(index, editor_core::Dimension::Count))
-                        .collect::<Vec<_>>()
-                });
-            let source = match (indexed, source.read.clone()) {
-                (Some(at), editor_core::Operand::Source(body)) => {
-                    editor_core::BodyRead::plain(editor_core::Operand::Source(Box::new(
-                        editor_core::BodyRead::indexed(body.read, at),
-                    )))
-                }
-                (Some(at), read) => editor_core::BodyRead::plain(editor_core::Operand::Source(
-                    Box::new(editor_core::BodyRead::indexed(read, at)),
-                )),
-                (None, _) => source,
-            };
-            Node::Place {
-                source,
-                target,
-                constraints,
-            }
-        }
+        } => Node::Place {
+            source: member(source),
+            target,
+            constraints,
+        },
+        Node::Split { target, tool } => Node::Split {
+            target: member(target),
+            tool,
+        },
+        Node::Mirror { body, plane } => Node::Mirror {
+            body: member(body),
+            plane,
+        },
+        Node::Subtract { from, tool } => Node::Subtract {
+            from: member(from),
+            tool: member(tool),
+        },
+        Node::Fillet { selection: sel, radius } => Node::Fillet {
+            selection: selection(sel),
+            radius,
+        },
+        Node::Chamfer { selection: sel, distance } => Node::Chamfer {
+            selection: selection(sel),
+            distance,
+        },
+        Node::Shell { open, thickness } => Node::Shell {
+            open: selection(open),
+            thickness,
+        },
+        // A family in a spelled list is spliced in whole, `[a, …xs]`.
+        Node::Union { members } => Node::Union {
+            members: spliced(doc, members),
+        },
+        Node::Intersect { members } => Node::Intersect {
+            members: spliced(doc, members),
+        },
+        Node::Assemble { members } => Node::Assemble {
+            members: spliced(doc, members),
+        },
         other => other,
     }
 }
 
-/// **The yield a pattern adds to its binder**, as the façade's pattern
-/// writers write it: a placement `id` reading an index is yielded by
-/// that index's binder. `None` for any other node.
+/// `members` with each plain read of a family a binder yields spliced
+/// in whole (D10 `[repetition]`).
+fn spliced(
+    doc: &ProfileDoc,
+    members: editor_core::Bodies<editor_core::BodyRead<Formula>>,
+) -> editor_core::Bodies<editor_core::BodyRead<Formula>> {
+    match members {
+        editor_core::Bodies::Spelled(entries) => editor_core::Bodies::Spelled(
+            entries
+                .into_iter()
+                .map(|entry| match entry {
+                    editor_core::Spell::One(read)
+                        if !read.is_member()
+                            && operand_var(doc, &read.read)
+                                .is_some_and(|var| doc.yielding(var).is_some()) =>
+                    {
+                        editor_core::Spell::All(read)
+                    }
+                    other => other,
+                })
+                .collect(),
+        ),
+        family => family,
+    }
+}
+
+/// **What a node reading a binder's index adds to the binder's yields**,
+/// as the fixture writes a binder (D10 `[repetition]`): its outputs, so
+/// every reader outside reads them as families. `None` for an assertion,
+/// which is its own yield, and for a node that reads no index.
 fn pattern_yield(doc: &ProfileDoc, id: RecipeNodeId) -> Option<DocEdit<ProfileProgram>> {
-    let reached = doc.node_reach(id);
-    let (Some(Node::Place { .. }), Some([first, ..])) = (doc.node(id), reached.chain()) else {
+    if matches!(doc.node(id), Some(Node::Assertion(_)) | None) {
         return None;
-    };
-    let out = doc.output(id, 0)?;
-    let binder = doc.binder_of(*first)?;
-    if doc.yields(binder).contains(&out) {
+    }
+    let reached = doc.node_reach(id);
+    let first = *reached.chain()?.first()?;
+    let binder = doc.binder_of(first)?;
+    let outs: Vec<VarId> = doc
+        .outputs(id)
+        .into_iter()
+        .filter(|out| !doc.yields(binder).contains(out))
+        .collect();
+    if outs.is_empty() {
         return None;
     }
     let mut yields: Vec<editor_core::VarRef> =
         doc.yields(binder).iter().map(|&y| y.into()).collect();
-    yields.push(out.into());
+    yields.extend(outs.into_iter().map(editor_core::VarRef::from));
     Some(DocEdit::SetYields {
         binder: binder.into(),
         yields,

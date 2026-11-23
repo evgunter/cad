@@ -322,11 +322,11 @@ fn a_grid_is_two_indices_one_within_the_other() {
     assert!(named.contains(&vec![(i, 2), (j, 1)]));
 }
 
-/// **Two unrelated indices meet in no reader**: a placement reading
-/// both refuses at the edit door, naming both. Red if the door admits
-/// it (the evaluation would then have to pick an order).
+/// **A reader repeats inside one binder**: a placement reading the
+/// indices of two binders refuses at the edit door, naming both. Red if
+/// the door admits it (it would repeat over both unwritten).
 #[test]
-fn a_reader_of_two_unrelated_indices_refuses_at_the_door() {
+fn a_reader_of_two_binders_indices_refuses_at_the_door() {
     let doc = ProfileDoc::empty_derived("g-unrelated", Tol::witness());
     let (doc, i) = fixture::index(doc, "i", 2);
     let (doc, j) = fixture::index(doc, "j", 2);
@@ -350,11 +350,11 @@ fn a_reader_of_two_unrelated_indices_refuses_at_the_door() {
         ),
     );
     let editor_core::EditError::TwoBinders { a, b, .. } = &refused else {
-        panic!("unrelated indices refuse: {refused:?}")
+        panic!("two binders' indices refuse: {refused:?}")
     };
     assert_eq!([a.id(), b.id()], [i, j], "{refused}");
     assert!(
-        refused.to_string().contains("neither is within the other"),
+        refused.to_string().contains("which are of two binders"),
         "{refused}"
     );
 }

@@ -1698,9 +1698,8 @@ pub(crate) fn written_member<P>(doc: &Doc<P>, body: &crate::BodyRead<VarId>) -> 
 /// index lowered as a `Count` slot of the selection, the names checked
 /// live and in the stored form of the seat's selection kind, and one
 /// anonymous selection variable minted for the seat to read. A
-/// selection authored at two seats is two variables. A member read
-/// whose indices are exactly its family's own index chain is the plain
-/// read, as a per-member reader reads it: `xs[k]` is stored as `xs`.
+/// selection authored at two seats is two variables. A member read is
+/// stored as written: `xs[k]` reads one member, and `xs` the family.
 fn mint_selection<P: crate::ProfilePayload>(
     doc: &mut Doc<P>,
     spoken: &impl Fn() -> SpokenNode,
@@ -1731,14 +1730,7 @@ fn mint_selection<P: crate::ProfilePayload>(
         };
         at.push(lower_index(doc, &spoken(), index, formula)?);
     }
-    let own = doc
-        .var_reach(read)
-        .chain()
-        .is_some_and(|chain| chain == at.as_slice());
-    let body = crate::BodyRead {
-        read,
-        at: if own { Vec::new() } else { at },
-    };
+    let body = crate::BodyRead { read, at };
     let shape = |fault| EditError::SelectionShape {
         node: spoken(),
         slot,
@@ -1854,12 +1846,7 @@ fn mint_pick<P: crate::ProfilePayload>(
 /// each index a `Count` written at the seat. A plain read of a source is
 /// that source, shared: the seat reads it, and VR2 asks for its name where
 /// it is anonymous and read already. Any other read mints one anonymous
-/// source for the seat to read.
-///
-/// A member read at the family's own indices (`xs[i]`, `i` the index the
-/// family is over) reads every member at its own value, which is the family
-/// read whole; it is stored as the plain read, as a selection's body is, so
-/// the two spellings mint one source definition.
+/// source for the seat to read. A member read is stored as written.
 fn mint_source<P: crate::ProfilePayload>(
     doc: &mut Doc<P>,
     spoken: &impl Fn() -> SpokenNode,
@@ -1889,17 +1876,7 @@ fn mint_source<P: crate::ProfilePayload>(
         };
         at.push(lower_index(doc, &spoken(), index, formula)?);
     }
-    let own = doc
-        .var_reach(read)
-        .chain()
-        .is_some_and(|chain| chain == at.as_slice());
-    mint_anonymous(
-        doc,
-        WrittenDef::Source(crate::BodyRead {
-            read,
-            at: if own { Vec::new() } else { at },
-        }),
-    )
+    mint_anonymous(doc, WrittenDef::Source(crate::BodyRead { read, at }))
 }
 
 /// **A declared source's body read as the door writes it** (VR4): a
@@ -8832,8 +8809,19 @@ fn add_constraints<P: Clone + crate::ProfilePayload>(
     let copy = new
         .output(placement, 0)
         .unwrap_or_else(|| unreachable!("a placement defines its copy"));
+    // A copy its binder yields is read as one member, at the binder's
+    // indices (D10 `[repetition]`).
+    let at = new
+        .yielding(copy)
+        .map(|binder| {
+            new.binder_indices(binder)
+                .into_iter()
+                .map(|index| Formula::var(index, Dimension::Count))
+                .collect()
+        })
+        .unwrap_or_default();
     let carrier: Node<P::Authored, Formula> = Node::Place {
-        source: crate::BodyRead::plain(crate::Operand::Var(copy)),
+        source: crate::BodyRead::indexed(crate::Operand::Var(copy), at),
         target: crate::Operand::Var(VarId::WORLD),
         constraints,
     };

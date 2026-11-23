@@ -352,8 +352,10 @@ impl OperandSlot {
             Self::About { .. } => SlotKind::Is(VarKind::Axis),
             Self::Measured(verb, _) => SlotKind::Measured(verb),
             Self::Cleared(_) => SlotKind::Cleared,
-            // A placement copies a body, or a family read whole.
-            Self::Input | Self::Source => SlotKind::Placeable,
+            // A placement copies one body (D10 `[repetition]`): a family
+            // is placed member by member, `{k in xs: place(xs[k])}`.
+            Self::Source => SlotKind::Is(VarKind::Body),
+            Self::Input => SlotKind::Placeable,
         }
     }
 }
@@ -496,9 +498,10 @@ pub enum Bodies<R> {
 /// a family spliced in whole, `…xs` (D10 `[repetition]`), its members in
 /// index order at the splice's place.
 ///
-/// Serialized as the bare read for one body, and as `{"All": …}` for a
-/// splice, so a list of single bodies is spelled as a list of reads.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// Serialized and debug-printed as the bare read for one body, and as
+/// `{"All": …}` (debug `…read`) for a splice, so a list of single bodies
+/// is spelled as a list of reads.
+#[derive(Clone, PartialEq, Eq)]
 pub enum Spell<R> {
     /// One body.
     One(R),
@@ -537,6 +540,15 @@ impl<R> Spell<R> {
             Self::One(read) => Spell::One(f(read)?),
             Self::All(read) => Spell::All(f(read)?),
         })
+    }
+}
+
+impl<R: core::fmt::Debug> core::fmt::Debug for Spell<R> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::One(read) => read.fmt(f),
+            Self::All(read) => write!(f, "…{read:?}"),
+        }
     }
 }
 

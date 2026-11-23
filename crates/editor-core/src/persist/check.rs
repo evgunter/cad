@@ -1039,6 +1039,11 @@ fn first_operand_read_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
             // A minted read no live operation defines is a strand the
             // file keeps (DM7), the reader's refusal at evaluation.
             let held = snapshot.var(var)?;
+            // A placement's mate reads its own copy, one member of a
+            // family its binder yields (D10 `[repetition]`).
+            if snapshot.yielding(var).is_some() && snapshot.outputs(id).contains(&var) {
+                return None;
+            }
             if slot == crate::OperandSlot::Source
                 && matches!(node, crate::Node::Place { .. })
                 && held.def().source().is_none()

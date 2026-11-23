@@ -555,6 +555,26 @@ fn carry<E>(
                     })
                     .map_err(&edit)?;
             }
+            // A yield crosses with its node (D10 `[repetition]`): the
+            // carried binder yields the new output too.
+            if let Some(binder) = source
+                .yielding(output)
+                .and_then(|binder| vars.map.get(&binder).copied())
+            {
+                let mut yields: Vec<crate::VarRef> = target
+                    .doc()
+                    .yields(binder)
+                    .iter()
+                    .map(|&y| y.into())
+                    .collect();
+                yields.push(minted.into());
+                target
+                    .apply(DocEdit::SetYields {
+                        binder: binder.into(),
+                        yields,
+                    })
+                    .map_err(&edit)?;
+            }
         }
         if let (Node::Profile(from), Some(Node::Profile(to))) = (node, target.doc().node(new)) {
             let shape = |ids: &[Vec<StepId>]| ids.iter().map(Vec::len).collect::<Vec<_>>();
@@ -3081,9 +3101,7 @@ pub fn split(
                     && matches!(doc.node(id), Some(Node::Assemble {
                         members: crate::Bodies::Spelled(reads),
                     }) if reads.len() == copies.len()
-                        && reads.iter().all(|read| {
-                            matches!(read, crate::Spell::One(one) if !one.is_indexed())
-                        })
+                        && reads.iter().all(|read| !read.read().is_indexed())
                         && reads.iter().map(|read| read.read().read).collect::<BTreeSet<_>>()
                             == copies)
                     && doc.output(id, 0).is_some_and(|out| doc.is_read(out))
@@ -3844,14 +3862,22 @@ pub fn split(
             None
         }
         (None, several) => {
+            // A family its binder yields is spliced in whole (D10
+            // `[repetition]`).
+            let members = several
+                .iter()
+                .map(|&copy| {
+                    let read = crate::BodyRead::plain(crate::Operand::Var(copy));
+                    if part.doc().yielding(copy).is_some() {
+                        crate::Spell::All(read)
+                    } else {
+                        crate::Spell::One(read)
+                    }
+                })
+                .collect();
             let node = part
                 .insert(Node::Assemble {
-                    members: crate::Bodies::spelled(
-                        several
-                            .iter()
-                            .map(|&copy| crate::BodyRead::plain(crate::Operand::Var(copy)))
-                            .collect(),
-                    ),
+                    members: crate::Bodies::Spelled(members),
                 })
                 .map_err(part_refused)?;
             part_apply(
@@ -4104,13 +4130,42 @@ pub fn split(
                 crate::SlotValue::Read(reread(doc, var, heir_read(key)))
             }
         };
+        // A family spliced into a list whose heir is one piece of the
+        // instance's copy is that one body in the list (D10
+        // `[repetition]`): no binder of the remainder yields it.
+        let spliced = match (slot, &value) {
+            (crate::OperandSlot::Member(i), crate::SlotValue::Read(read)) => {
+                crate::continuation::spelled(remainder.doc(), node).and_then(|members| {
+                    members
+                        .get(i)
+                        .is_some_and(|(stored, _)| stored.is_splice())
+                        .then(|| {
+                            members
+                                .into_iter()
+                                .enumerate()
+                                .map(|(at, (_, written))| match at == i {
+                                    true => crate::Spell::One(crate::BodyRead::plain(read.clone())),
+                                    false => written,
+                                })
+                                .collect::<Vec<_>>()
+                        })
+                })
+            }
+            _ => None,
+        };
         rem_apply(
             &mut remainder,
-            DocEdit::SetParam {
-                node,
-                slot: crate::SlotId::Operand(slot),
-                value,
-                fresh: Vec::new(),
+            match spliced {
+                Some(members) => DocEdit::SetMembers {
+                    node,
+                    members: crate::Bodies::Spelled(members),
+                },
+                None => DocEdit::SetParam {
+                    node,
+                    slot: crate::SlotId::Operand(slot),
+                    value,
+                    fresh: Vec::new(),
+                },
             },
         )?;
         if doc.selection(var).is_some() && !reauthored.contains_key(&var) {

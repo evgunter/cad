@@ -2563,7 +2563,13 @@ impl<P> Doc<P> {
             let read = self.through_sources(var);
             !read.is_indexed() && self.yielding(read.read).is_some()
         };
-        if held.kind() == crate::VarKind::Body && expected.admits(held) && yielded() {
+        // A mate side's selection reads a pattern whole, its names
+        // saying which member (`selection_body_kind`).
+        if held.kind() == crate::VarKind::Body
+            && expected != crate::SlotKind::Placeable
+            && expected.admits(held)
+            && yielded()
+        {
             return Some(ReadFault::Kind {
                 found: crate::VarKind::Bodies,
             });

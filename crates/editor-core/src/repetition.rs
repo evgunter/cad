@@ -515,7 +515,12 @@ impl<P: crate::ProfilePayload> Doc<P> {
         }
         let mut out = Vec::new();
         for (&id, node) in &self.nodes {
+            let own = self.outputs(id);
             for (slot, var) in node.operand_rows() {
+                // A placement's mate reads its own copy, one member.
+                if own.contains(&var) {
+                    continue;
+                }
                 let Some(held) = self.var(var) else { continue };
                 let expected = node.seat_kind(slot);
                 if let Some(crate::doc::ReadFault::Kind { found }) =
