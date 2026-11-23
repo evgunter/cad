@@ -46,18 +46,51 @@ same first pair (`3v1`/`14v1`, `5v1`/`8v3`), while `band_mixed_vertex`
 and `join_rc_probes` refuse earlier on another (`9v3`/`20v1`,
 `3v1`/`12v1`), which the wedge plane certifies.
 
-Why the rectangle has no width is not traced. The likely cause is a
-cell side through the vertex along one of the face's edges, the face on
-the far side of it but for a rounding, so the cell holds the face's
-edge and nothing across it; at every split the vertex stays on a cell
-side. What would separate that from the next likely cause (the
-presentation's affine clip reading the edge's far end) is a print of
-the cell and the vertex's chart point at the refusing pair.
+**The cause, probed** (the review of PR 7318, `CV_ZW` on
+`embed/vertex-bisector-review`'s measuring diff), on
+`split_through_an_apex` at `3v1`/`14v1`, vertex `6v1`: the cell side
+`v = 0` runs through the vertex along `14v1`'s edge, and the face lies
+on the far side of it. The presented rectangle is `x = (0, 2.4e-15)`,
+whose exact extent is 0: `present_plane`'s corner reading
+(`present_vertex_corner`) returns `Vacuous` where a corner coordinate's
+upper end is `≤ 0`, and the outward rounding of
+`(d × b)/det` leaves it `2.4e-15` above. The wedge plane's margins are
+strict and opposite (`+0.0535`, `+0.0528` against `−0.0528`,
+`−0.2377`), and `sign_on` reads `None` only because
+`−0.0528 × 2.4e-15` is inside the band. The same probe on the other three (2026-11-22, `CV_ZW` on
+`embed/vertex-bisector-measure`) finds the same at every refusing pair's
+last cell: a cell side lies on the vertex, inside the vertex's own
+chart bracket, and the face's rectangle has no width across it (the
+wedge plane's slopes strict and opposite on both faces):
+
+| test | pair, vertex | the cell side on the vertex | width | slopes |
+|---|---|---|---|---|
+| `band_mixed_vertex::the_odd_edge_with_one_other_chamfers_at_the_flush_fixture` | `13v1`/`18v1`, `23v1` | `18v1`'s `v = −0.14142135623730967` | `2.0e-16` | `+0.879, +1.884` / `−0.080, −0.184` |
+| `join_rc_probes::reflex_corner_edge_in_face_poses_build_every_op_undeclared` | `3v1`/`14v1`, `7v1` | `14v1`'s `v = 0.8944271909999163` | `1.9e-18` | `+0.279, +0.790` / `−0.312, −0.452` |
+| `join_pierce_runs_sweep::a_shared_vertex_fan_reads_its_cuts_from_its_own_first_entry` | `5v1`/`8v3`, `11v1` | `8v3`'s `v = 2.0000000000000013` | `3.0e-15` | `+0.362, +0.373` / `−0.460, −0.746` |
+
+So all four are this cause.
+
+**This is an instance of the ruling on PR 7095**: a departure margin is
+metered at the reach of the faces it governs, never at a cell of the
+question's own subdivision. Here the margin is metered at the cell's
+`2.4e-15`, where the face reaches the edge's whole length. The
+orchestrator has passed the four tests to `embed/remeter`, which builds
+that metering, as pins for the vertex-only case.
 
 ## What a fix needs
 
-A reading of a quadrant whose rectangle has no width across one axis:
-the face's points in the cell lie on its edge there, so its sign is the
-other axis's alone. That is a change to what `sign_on` requires of a
-`Zero::Point` at the band, so it is the band's question as much as the
-presentation's: settle it with the orchestrator before code.
+Three readings would close it, and the ruling picks among them:
+
+- **meter the margin at the face's reach** (the ruling): `sign_on`'s
+  `Zero::Point` arm reads each axis's departure as `∇ψ·Φ_axis` times the
+  face's reach along that axis (the edge's length from the vertex), not
+  times the rectangle's span, so a rectangle with no span is decided by
+  its slope;
+- **decide the vacuity exactly**: where the cell's bound is the vertex's
+  chart coordinate exactly and the edge lies along it, the face has no
+  point in the cell off its edge, so the cell is `Vacuous` by structure,
+  with no band;
+- **read the vacuity at the band**: a rectangle whose extent across an
+  axis is within the band as `Vacuous`. That is a sliver concession, and
+  the sliver is with Ev to retire (PR 7095), so not this one.
