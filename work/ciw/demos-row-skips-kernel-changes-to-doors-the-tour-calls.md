@@ -2,10 +2,11 @@
 id: demos-row-skips-kernel-changes-to-doors-the-tour-calls
 kind: issue
 title: The PR gate runs the demos row only when demos/ changes, so a kernel change to a door the tour calls reaches the tour only nightly
-status: open
+status: closed
 opened: 2026-10-02
 priority: P2
 cost: E
+closed: 2026-11-22
 ---
 
 
@@ -107,3 +108,14 @@ against the per-PR budget:
 The teapot already has a suite row for its walls
 (`teapot::wall_probes_run_here::every_teapot_wall_is_attempted_by_the_suite`),
 and the `ci` profile excludes it too. The Klein bottle has none.
+
+## Closed
+
+2026-11-22, CIW triage (not worth its latency). - The remedy runs the tour, or its walls, per kernel PR. The demos job
+is a release build and is already PR CI's long pole when it runs (21
+min in today's sample; GREEN's `the-demos-job-is-pr-cis-long-pole-on-its-release-build`).
+`tour_runs_green_at_default_eps` alone is 115 s.
+- Incidents: #5499 (10-21) and PR 6862's teapot wall 3 (11-12, flagged
+in `work/sectarms/main-red-the-teapots-spout-join-…`). That is about
+one every three weeks, each a one-line re-pin the nightly finds.
+- The nightly attribution is the cheaper route.

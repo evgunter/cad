@@ -855,7 +855,7 @@ impl MateFault {
     /// The fault's words, each node it names spoken from the document
     /// it was raised over.
     fn __str__(&self) -> String {
-        d::Said(&self.0, self.1.speaker()).to_string()
+        d::Said(&self.0, self.1.speaker()).sentence().to_string()
     }
 
     fn __repr__(&self) -> String {
@@ -891,7 +891,7 @@ pub(crate) fn mate_err(py: Python<'_>, fault: &d::MateFault, voice: &Voice) -> P
     let err = typed_err(
         py,
         ErrorClass::Mate,
-        d::Said(fault, voice.speaker()).to_string(),
+        d::Said(fault, voice.speaker()).sentence().to_string(),
         &[
             (
                 "variant",
@@ -933,7 +933,7 @@ fn pose_err(
             b: d::VarId::WORLD,
         },
     };
-    let said = d::Said(refusal, d::Speaker::of(doc)).to_string();
+    let said = d::Said(refusal, d::Speaker::of(doc)).sentence().to_string();
     let err = super::value::refused(py, placement, &kind, said, None);
     super::value::with_carried(py, err, kind.carried_chain(), Some(doc))
 }

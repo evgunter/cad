@@ -4,7 +4,7 @@ kind: issue
 title: The features-share row's is_finite conjunct is subsumed by the range beside it
 status: open
 opened: 2026-09-21
-priority: P3
+priority: P4
 cost: E
 ---
 
@@ -66,3 +66,5 @@ point and not a sibling: the subsumed-conjunct shape is not confined
 to `app.rs`, and a hand-built fixture is where it turns up.
 
 Moved from VACUITY to CIW on 2026-11-20, by `git mv`, when VACUITY merged into CIW: VACUITY held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CIW carries.
+
+- 2026-11-22 — **Re-banded P3 → P4 by CIW triage.** A subsumed conjunct is documentation, not a dead guard (per the discipline doc the row quotes), so it is P4 hygiene. Still at `crates/viewer/src/app.rs:3174`.

@@ -86,7 +86,14 @@ struct Tally {
 /// its first edit, `tube_arc` and `hollow_tube_elbow`, open and after
 /// their first edits, moved: grazes 147,955 → 147,952, refused
 /// candidates 17,532 → 16,824, rays with a refusal 8,358 → 8,244.
-const PINNED: (usize, usize, usize, usize) = (451_512, 147_856, 16_596, 8_142);
+///
+/// RE-PINNED when the curved lane's CDT came to run in the lattice
+/// metric (`tesslane/one-slit-band`): grazes 147,850 → 147,844, three in
+/// `tube_arc` after its first edit and three in `hollow_tube_elbow`
+/// open, whose torus patches take other diagonals. The 147,856 →
+/// 147,850 before it is main's, not this change's
+/// (`work/green/main-red-the-viewers-pick-tally-reads-six-grazes-short-of-its-pin.md`).
+const PINNED: (usize, usize, usize, usize) = (451_512, 147_844, 16_596, 8_142);
 
 fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
     let reference = FlatReference::of(index);
