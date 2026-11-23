@@ -44,9 +44,11 @@ pub(in crate::boolean) fn split_sheet() -> (Body<f64>, VertexKey) {
             let curve = body.get_edge(e).unwrap().curve;
             match body.get_curve_geom(curve).unwrap() {
                 crate::CurveGeom::Certified(c) => {
-                    matches!(c.carrier(), Curve3::Circle(geom::Circle { frame, .. }) if frame.origin().z > 0.5)
+                    matches!(c.carrier(), Curve3::Circle(circle @ geom::Circle { .. }) if circle.frame().origin().z > 0.5)
                 }
-                _ => false,
+                _ => {
+false
+},
             }
         })
         .expect("the sheet has a top rim");
