@@ -3711,44 +3711,62 @@ impl Focal {
         })
     }
 
-    /// The Kepler angle `E + 2·atan2(β·sin E, 1 − β·cos E)` at the one
-    /// parameter `t`, enclosed over `β` and `t0`; unbounded where
-    /// `1 − β·cos E` is not certified above zero, off which the arctangent
-    /// stays within a quarter turn of zero and never meets its cut.
-    fn anomaly(&self, t: f64) -> Interval {
-        let e = at(t) - self.t0;
-        let (s, c) = e.sin_cos();
+    /// The image's eight numbers, as the stored row holds them.
+    fn image(&self) -> geom_brep::FocalImage<Interval> {
+        let [v0, va, vb, vl] = self.v;
+        geom_brep::FocalImage {
+            u0: self.u0,
+            t0: self.t0,
+            v0,
+            va,
+            vb,
+            vl,
+            beta: self.beta,
+            sense: at(match self.sense {
+                Sense::With => 1.0,
+                Sense::Against => -1.0,
+            }),
+        }
+    }
+
+    /// **The azimuth at the one parameter `t`**, enclosed over `β`, `u0`
+    /// and `t0`, by the stored row's own evaluator
+    /// (`geom_brep::Pcurve::eval`, the one spelling of the Kepler angle);
+    /// unbounded where `1 − β·cos E` is not certified above zero, off
+    /// which the angle's arctangent never meets its cut, or where the
+    /// evaluation does not certify.
+    fn azimuth_at(&self, t: f64) -> Interval {
+        let c = (at(t) - self.t0).sin_cos().1;
         let x = at(1.0) - self.beta * c;
         if !(x.is_certified() && x.lo() > 0.0) {
             return whole_line();
         }
-        let lead = (self.beta * s).atan2(x);
-        e + lead + lead
+        let u = geom_brep::Pcurve::FocalSection(self.image()).eval(at(t)).x;
+        if u.is_certified() { u } else { whole_line() }
     }
 
     /// The image on `axis` over the parameters `t`, enclosed.
     ///
     /// **The azimuth is the hull of its two end evaluations.** For every
     /// member of `β` (inside `(−1, 1)`) and `t0` the Kepler angle's
-    /// derivative is `(1 − β²)/(1 − 2β·cos E + β²) > 0`, so over `t` it
-    /// lies between its values at `t`'s two ends: above the low end's
-    /// evaluation's lower bound, below the high end's upper bound. The
-    /// sense then adds that hull to `u0` or takes it from `u0`, so with
-    /// the frame the image's lower bound comes from `t`'s low end, and
-    /// against it from `t`'s high end.
+    /// derivative is `(1 − β²)/(1 − 2β·cos E + β²) > 0`, so with the frame
+    /// the azimuth rises over `t` and against it falls: it lies between
+    /// its values at `t`'s two ends. With the frame the hull runs from the
+    /// low end's evaluation's lower bound to the high end's upper bound;
+    /// against it, from the high end's lower bound to the low end's upper
+    /// bound.
     fn on(&self, axis: Axis, t: Interval) -> Interval {
         match axis {
             Axis::U => {
-                let (lo, hi) = (self.anomaly(t.lo()), self.anomaly(t.hi()));
+                let (first, last) = (self.azimuth_at(t.lo()), self.azimuth_at(t.hi()));
                 // A hull of two ends would read an evaluation that did
                 // not certify as one that did.
-                if !(lo.is_certified() && hi.is_certified()) {
+                if !(first.is_certified() && last.is_certified()) {
                     return whole_line();
                 }
-                let angle = Interval::from_bounds(lo.lo(), hi.hi());
                 match self.sense {
-                    Sense::With => self.u0 + angle,
-                    Sense::Against => self.u0 - angle,
+                    Sense::With => Interval::from_bounds(first.lo(), last.hi()),
+                    Sense::Against => Interval::from_bounds(last.lo(), first.hi()),
                 }
             }
             Axis::V => channel_on(self.v, t),
