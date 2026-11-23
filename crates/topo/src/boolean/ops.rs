@@ -6304,7 +6304,7 @@ fn surviving_cut<'p, T: Decide + crate::props::AtRestPolicy>(
             };
             let at_centre = decide(
                 "bool_sphere_cut_survives",
-                Margin::of((circle.frame.origin() - plane.center).norm()),
+                Margin::of((circle.frame().origin() - plane.center).norm()),
                 band,
             )
             .map_err(esc)?;
@@ -6313,7 +6313,7 @@ fn surviving_cut<'p, T: Decide + crate::props::AtRestPolicy>(
             }
             let in_plane = decide(
                 "bool_sphere_cut_survives",
-                lever(circle.frame.axis().normalize().cross(plane.normal).norm()),
+                lever(circle.frame().axis().normalize().cross(plane.normal).norm()),
                 band,
             )
             .map_err(esc)?;
