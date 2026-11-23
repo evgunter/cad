@@ -90,3 +90,5 @@ is the apex's collapsed side: there the image's `v`-rate is the ruling
 direction, which a plane through the shared ruling departs at first
 order wherever the cell is off the ruling (and at the ruling's own
 corner as the two-sided corner reading does).
+
+- 2026-11-23 — **From lane `embed/verdict-read`: a half cone's exit moves with its pose, before and after that unit.** The triangle `(0, 0), (1.1, 0), (0, 0.9)` revolved half a turn about `y` (a cone that owns its apex, cut through its axis) refuses `Uncertified/Departure/Edge` across a ruling as built, mirrored and a hundred units out, and `Budget(Depth 40)` turned 0.7 rad about `(1, 2, 3)`, at `f64` and `Interval` alike; `embed/remeter`'s head reads the same four exits. Pinned refusing in every pose (`a_cone_cut_through_its_axis_refuses_at_its_apex_in_every_pose`), red the day the apex's side is presented.

@@ -87,3 +87,23 @@ over a cell";
 
 Until then the arm is the reach alone, which is the ruling's word
 ("metered at the reach of the faces it governs").
+
+
+## What the question levers at now (lane `embed/verdict-read`, 2026-11-23)
+
+The finding's first paragraph is no longer what the code reads. `arm_of`
+is gone: the pair's parting is levered at `extent_of`, the lesser of
+the two faces' runs from the shared edge's whole line or circle,
+measured across it, kept by tier 3 with its verdict
+(`work/embed/the-embedding-question-reads-tier-3s-class-and-the-pairs-extent-from-the-verdict.md`),
+and what is banded is the two faces' sines summed.
+
+What stays of this row: the question still folds no curvature arm in,
+by Ev's ruling on PR 7456 (the fold "shrinks to zero toward the apex,
+so one number per edge would refuse valid cones"). So beside a face
+whose radius is far below its run, a sine is still signed that check 4
+classes smooth, wherever the NARROWER face's run clears it:
+`margin_reach_rows::the_reach_alone_signs_an_edge_check_4_classes_smooth`
+stands as it was. The curling sliver the ruling was weighed on is no
+longer signed (its own run is `1e-7`):
+`a_curling_sliver_inside_the_band_of_its_plate_refuses`.
