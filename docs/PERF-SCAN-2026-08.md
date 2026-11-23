@@ -3,7 +3,7 @@
 **Status: REPORT ONLY. Nothing here is ratified, nothing is a
 commitment, and no code was changed.** This is a survey, requested by
 Ev, of where this kernel's time actually goes — read against
-`docs/PERF-PLAN.md`, whose ranking was written at M3-start against the
+`work/perf/plan.md`, whose ranking was written at M3-start against the
 M2 codebase and is now three milestones stale in specific, checkable
 ways (§6). Where this report contradicts PERF-PLAN, PERF-PLAN is the
 older document, not the wrong one by fiat; §6 says which claims expired
@@ -1293,7 +1293,7 @@ codebase. Four of its six entries have moved. This is not a criticism of
 the doc — it labelled itself advisory and dated — but the ranking is
 cited as if current, so the deltas should be written down.
 
-**These corrections have been annotated into `docs/PERF-PLAN.md` itself
+**These corrections have been annotated into `work/perf/plan.md` itself
 (2026-08-14), as dated `[STALE …]` / `[SUPERSEDED …]` / `[STATUS …]`
 markers beside each expired claim.** The original prose was left intact
 — that doc's value is partly as a record of what was believed at

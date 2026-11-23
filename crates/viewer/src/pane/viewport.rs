@@ -1602,7 +1602,10 @@ mod tests {
         // The end of that frame: the ranking weighs what the frame
         // said against a batch that did nothing, and the winner
         // becomes the line.
-        frame::apply(&mut status, frame::frame_status(&notices, &[], None));
+        frame::apply(
+            &mut status,
+            frame::frame_status_untargeted(&notices, &[], None),
+        );
         let landed = status.clone().expect("the ranking put the refusal up");
         assert_eq!(
             landed.subject(),
@@ -2321,7 +2324,9 @@ mod tests {
             .iter()
             .map(|face| {
                 let by = pncad::document::Speaker::of(landed).within(eval);
-                pncad::document::Said(&crate::tree::PickedName::face(face), by).to_string()
+                pncad::document::Said(&crate::tree::PickedName::face(face), by)
+                    .sentence()
+                    .to_string()
             })
             .collect();
         (unassigned, from_ray, spoken, news)
@@ -2358,7 +2363,7 @@ mod tests {
             said.contains("Extrude") && !said.contains(&format!("{:?}", face.name.path)),
             "the face's minter is said as the landed document holds it, and no path: {said}"
         );
-        let texts: Vec<&str> = news.iter().map(frame::Message::text).collect();
+        let texts: Vec<String> = news.iter().map(frame::Message::text).collect();
         assert_eq!(
             texts,
             [format!(

@@ -2,10 +2,11 @@
 id: trimmed-slow-canary-for-a-seeded-crate
 kind: issue
 title: a trimmed, fast per-PR slow set that catches most of the reds a seeded crate's whole slow set would
-status: open
+status: closed
 opened: 2026-11-12
 priority: P2
 cost: M
+closed: 2026-11-22
 ---
 
 
@@ -25,3 +26,15 @@ Ev, on PR 6731 (2026-11-12), ruled out running a seeded crate's whole slow set o
 - **A `gated_to!` path marker** on the tests whose inputs are known by path, run when the diff touches one (the census row's option A).
 
 The next step is measurement: for each shape, its gate cost and how many of the recorded reds it would have caught on their own PR.
+
+## Closed
+
+2026-11-22, CIW triage (stale). - Duplicates the P1 reform. That row is the measured trimmed canary this
+one asked for: the reds' own history as the list, under 10 s per row,
+with the price and the catch replayed.
+- Its "cheap body of the slow set" shape costs more: rows under 10 s are
+52.5 nightly cpu-min, which is about 30 min of PR wall time.
+Reform files are in `/tmp/claude-0/-home-user-cad/6cc7c101-ef48-5393-b935-8b70105531d0/scratchpad/triage/reform/`:
+- `a-stored-data-change-runs-none-of-the-slow-rows-that-read-it.md`
+- `dependents-slow-sets-skip-a-kernel-pr.md`
+- `a-slow-rows-eps-pins-run-nowhere-on-the-pr-that-adds-them.md`

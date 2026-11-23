@@ -32,7 +32,7 @@
 //! file asserts `Refusal::GestureInFlight` for it with a drag open —
 //! the union of the ops in those five assertion sites. That union is 19
 //! of the 24 refusals. The five with no external witness are
-//! [`SessionOp::DeleteNode`], [`SessionOp::ProbeBounds`],
+//! [`SessionOp::DeleteNode`], [`SessionOp::ProveRange`],
 //! [`SessionOp::SetSlotUnit`], [`SessionOp::DeclareVar`] and
 //! [`SessionOp::AddMate`]; for those, `expected` is the only place the
 //! answer is written down rather than a check on a written answer.
@@ -103,8 +103,8 @@ use pncad::prelude::{EntityKind, MM, StableName};
 use viewer::display::DisplayFault;
 use viewer::props::SlotValue;
 use viewer::session::{
-    BoundsTarget, CancelDoor, DocSession, FaceSelection, FreeMoveName, GestureName, Hovered,
-    PartSelectSpec, PatternRuleSpec, Refusal, Selection, SessionOp, ValueGestureName,
+    CancelDoor, DocSession, FaceSelection, FreeMoveName, GestureName, Hovered, PartSelectSpec,
+    PatternRuleSpec, RangeTarget, Refusal, Selection, SessionOp, ValueGestureName,
 };
 
 /// The number of `SessionOp` variants, which is also the number of
@@ -171,8 +171,8 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             slot: SlotId::Distance,
             value: SlotValue::Continuous(0.02),
         },
-        SessionOp::ProbeBounds {
-            target: BoundsTarget::Slot {
+        SessionOp::ProveRange {
+            target: RangeTarget::Slot {
                 node,
                 slot: SlotId::Distance,
             },
@@ -223,6 +223,7 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
         SessionOp::Undo,
         SessionOp::Redo,
         SessionOp::CancelEvaluation,
+        SessionOp::StopRange,
         SessionOp::Reevaluate,
         SessionOp::Open(save_to.with_file_name("no-such-document.pncad")),
         SessionOp::Save(save_to.to_path_buf()),
@@ -246,16 +247,6 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
         },
         SessionOp::NewDocument {
             name: "view1b-fresh".to_owned(),
-        },
-        SessionOp::SketchOnFace {
-            face: FaceSelection {
-                name: face(node),
-                node,
-                body: 0,
-            },
-            loops: vec![],
-            distance: len(0.01),
-            spin: Formula::zero(Dimension::Angle),
         },
         SessionOp::AddProfile { loops: vec![] },
         SessionOp::AddExtrude {
@@ -425,7 +416,7 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         SessionOp::Hover(_) => (1, true),
         SessionOp::DeleteNode { .. } => (2, false),
         SessionOp::SetSlot { .. } => (3, false),
-        SessionOp::ProbeBounds { .. } => (4, false),
+        SessionOp::ProveRange { .. } => (4, false),
         SessionOp::SetSlotUnit { .. } => (5, false),
         SessionOp::SetSlotExpression { .. } => (6, false),
         SessionOp::SetVariable { .. } => (7, false),
@@ -454,6 +445,9 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         SessionOp::Undo => (16, false),
         SessionOp::Redo => (17, false),
         SessionOp::CancelEvaluation => (18, true),
+        // Stops a `range?` run, which reads the document and moves
+        // nothing a drag previews against.
+        SessionOp::StopRange => (62, true),
         SessionOp::Reevaluate => (19, true),
         SessionOp::Open(_) => (20, false),
         // Save writes the COMMITTED history, which a preview is not
@@ -471,7 +465,6 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         SessionOp::CancelFreeMove => (26, true),
         SessionOp::AddMate { .. } => (27, false),
         SessionOp::NewDocument { .. } => (28, false),
-        SessionOp::SketchOnFace { .. } => (29, false),
         SessionOp::AddProfile { .. } => (30, false),
         SessionOp::AddExtrude { .. } => (31, false),
         SessionOp::AddRevolve { .. } => (32, false),
@@ -532,7 +525,7 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         SessionOp::AddToProduct { .. } => (60, false),
         // What the placements place: a document edit, fenced with every
         // other one.
-        SessionOp::RepointPlacements { .. } => (62, false),
+        SessionOp::RepointPlacements { .. } => (29, false),
         // An insert door, fenced with every other one.
         SessionOp::AddAssertion { .. } => (45, false),
     }
@@ -1006,7 +999,7 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::SetSlot { .. }
         | SessionOp::SetSlotVariable { .. }
         | SessionOp::DeclineOffer { .. }
-        | SessionOp::ProbeBounds { .. }
+        | SessionOp::ProveRange { .. }
         | SessionOp::SetSlotUnit { .. }
         | SessionOp::SetSlotExpression { .. }
         | SessionOp::SetVariable { .. }
@@ -1024,6 +1017,7 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::Undo
         | SessionOp::Redo
         | SessionOp::CancelEvaluation
+        | SessionOp::StopRange
         | SessionOp::Reevaluate
         | SessionOp::Open(_)
         | SessionOp::Save(_)
@@ -1035,7 +1029,6 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::CommitFreeMove { .. }
         | SessionOp::AddMate { .. }
         | SessionOp::NewDocument { .. }
-        | SessionOp::SketchOnFace { .. }
         | SessionOp::DrawOnFace { .. }
         | SessionOp::AddProfile { .. }
         | SessionOp::EditProfile { .. }

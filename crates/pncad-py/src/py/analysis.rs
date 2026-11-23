@@ -90,6 +90,12 @@
 //! `crates/pncad/src/analysis.rs` is read by the binding census, so a
 //! name crossing into the bound set owes a row there rather than
 //! passing unremarked.
+//!
+//! One family of that half IS bound, in `py/range.rs`: the certified
+//! range of one field. It evaluates at the certified scalar inside the
+//! kernel and answers in plain numbers, so it crosses without the
+//! driver, its box or its config crossing with it — its budget is two
+//! integers at the door.
 
 use pyo3::prelude::*;
 use pyo3::types::PyString;
@@ -112,9 +118,9 @@ use pncad::tolerance::Tol;
 /// fixed under any error analysis), so a `Count` quantity has no
 /// offset to be.
 #[derive(Clone, Copy)]
-struct Offset {
-    canonical: f64,
-    dim: d::Dimension,
+pub(crate) struct Offset {
+    pub(crate) canonical: f64,
+    pub(crate) dim: d::Dimension,
 }
 
 /// Read one offset argument: a `Length`, an `Angle` or a bare
@@ -123,7 +129,7 @@ struct Offset {
 /// Anything else is a `TypeError` naming the three, which is the
 /// boundary refusal for an argument that is not a quantity at all
 /// rather than one whose dimension is wrong.
-fn offset(obj: &Bound<'_, PyAny>) -> PyResult<Offset> {
+pub(crate) fn offset(obj: &Bound<'_, PyAny>) -> PyResult<Offset> {
     if let Ok(length) = obj.extract::<PyRef<'_, super::quantity::Length>>() {
         return Ok(Offset {
             canonical: length.0.meters(),
@@ -154,7 +160,11 @@ fn offset(obj: &Bound<'_, PyAny>) -> PyResult<Offset> {
 /// `DimensionError` from here is about a pair of ARGUMENTS rather
 /// than about an operator, and the attribute that says which pair is
 /// the only place a caller can read it.
-fn agreed(py: Python<'_>, door: &'static str, parts: &[Offset]) -> PyResult<d::Dimension> {
+pub(crate) fn agreed(
+    py: Python<'_>,
+    door: &'static str,
+    parts: &[Offset],
+) -> PyResult<d::Dimension> {
     let Some(first) = parts.first() else {
         // No door calls this with an empty slice; every distribution
         // form carries at least one offset.
@@ -260,14 +270,20 @@ fn measure_err(py: Python<'_>, err: &a::MeasureUnavailable) -> PyErr {
             ),
             (
                 "param",
-                PyString::new(py, &param.to_string()).unbind().into_any(),
+                PyString::new(
+                    py,
+                    &pncad::document::sentence!(pncad::document::Speaker::TAG.var(param))
+                        .to_string(),
+                )
+                .unbind()
+                .into_any(),
             ),
         ],
     )
 }
 
 /// Hand a canonical offset back in the dimension it belongs to.
-fn quantity(py: Python<'_>, canonical: f64, dim: d::Dimension) -> PyResult<Py<PyAny>> {
+pub(crate) fn quantity(py: Python<'_>, canonical: f64, dim: d::Dimension) -> PyResult<Py<PyAny>> {
     Ok(match dim {
         d::Dimension::Length => {
             super::quantity::Length(pncad::quantity::Length::from_meters(canonical))
@@ -774,7 +790,7 @@ fn mc_err(py: Python<'_>, refusal: &a::McRefusal) -> PyErr {
     let text = |s: &str| PyString::new(py, s).unbind().into_any();
     let param = match refusal {
         a::McRefusal::BandHasNoMeasure(a::MeasureUnavailable::BandHasNoMeasure { param }) => {
-            text(&param.to_string())
+            text(&pncad::document::sentence!(pncad::document::Speaker::TAG.var(param)).to_string())
         }
         a::McRefusal::NoSamples
         | a::McRefusal::NominalDoesNotBuild { .. }

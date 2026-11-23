@@ -92,10 +92,10 @@ mod debug_dumps;
 mod display_budget;
 #[path = "doc_io.rs"]
 mod doc_io;
-#[path = "docm9_range_vs_probe.rs"]
-mod docm9_range_vs_probe;
 #[path = "door_at_rest.rs"]
 mod door_at_rest;
+#[path = "drawn_on_face.rs"]
+mod drawn_on_face;
 #[path = "drive.rs"]
 mod drive;
 #[path = "edge_pick.rs"]
@@ -138,6 +138,8 @@ mod mate_tool_flow;
 mod mirror_authoring;
 #[path = "named_source.rs"]
 mod named_source;
+#[path = "range_reading.rs"]
+mod range_reading;
 #[path = "review_bundle_editor_r2.rs"]
 mod review_bundle_editor_r2;
 #[path = "review_intent_e_r1.rs"]
@@ -183,6 +185,8 @@ mod refusal_concision_edits;
 mod review_6302;
 #[path = "review_bundle_r1.rs"]
 mod review_bundle_r1;
+#[path = "review_denotes_body.rs"]
+mod review_denotes_body;
 #[path = "review_gui0_r1.rs"]
 mod review_gui0_r1;
 #[path = "review_gui0_r2.rs"]
@@ -217,8 +221,8 @@ mod scene_build;
 mod screen_view;
 #[path = "select_pick.rs"]
 mod select_pick;
-#[path = "sketch_on_face.rs"]
-mod sketch_on_face;
+#[path = "split_of_a_family.rs"]
+mod split_of_a_family;
 #[path = "story_assembly.rs"]
 mod story_assembly;
 #[path = "story_authoring.rs"]
@@ -235,8 +239,6 @@ mod tree_badges;
 mod tree_shape;
 #[path = "undo_tree.rs"]
 mod undo_tree;
-#[path = "valid_range.rs"]
-mod valid_range;
 #[path = "view_toggles.rs"]
 mod view_toggles;
 #[path = "whole_rim_pick.rs"]

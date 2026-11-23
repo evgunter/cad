@@ -358,7 +358,7 @@ fn the_split_rule_is_relative_width_with_a_lowest_index_tie() {
     let root = ParamBox::from_axes(axes.clone());
     axes.insert(VarId::new(0, 2), BoxAxis::Varying { lo: 0.0, hi: 0.1 });
     assert_eq!(
-        ParamBox::from_axes(axes).split_axis(&root),
+        ParamBox::from_axes(axes).split_axis(&root, |_| true),
         Some(VarId::new(0, 1))
     );
 
@@ -384,13 +384,13 @@ fn the_split_rule_is_relative_width_with_a_lowest_index_tie() {
         },
     );
     assert_eq!(
-        ParamBox::from_axes(root2).split_axis(&root2b),
+        ParamBox::from_axes(root2).split_axis(&root2b, |_| true),
         Some(VarId::new(0, 3))
     );
 
     // The tie — both axes at full relative width — goes to the lowest
     // axis index, which is id order.
-    assert_eq!(root.split_axis(&root), Some(VarId::new(0, 1)));
+    assert_eq!(root.split_axis(&root, |_| true), Some(VarId::new(0, 1)));
     let (lo, hi) = root.split(VarId::new(0, 1)).expect("a splits");
     assert_eq!(lo.get(VarId::new(0, 1)).unwrap().span(), (-1.0, 0.0));
     assert_eq!(hi.get(VarId::new(0, 1)).unwrap().span(), (0.0, 1.0));
@@ -1332,10 +1332,16 @@ fn a_witness_that_does_not_build_refuses_up_front() {
         doc.spoken(node.id()),
         "spoken from the driven document"
     );
-    assert!(node.to_string().contains("\"slab\""), "{node}");
     assert!(
-        err.to_string()
-            .starts_with(&format!("the witness build refuses at {node}: {cause} — ")),
+        editor_core::test_support::node_text(node).contains("\"slab\""),
+        "{node}",
+        node = editor_core::test_support::node_text(node)
+    );
+    assert!(
+        err.to_string().starts_with(&format!(
+            "the witness build refuses at {node}: {cause} — ",
+            node = editor_core::test_support::node_text(node)
+        )),
         "{err}"
     );
 }
