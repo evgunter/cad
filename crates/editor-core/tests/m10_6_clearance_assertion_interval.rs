@@ -1044,3 +1044,52 @@ fn a_clearance_over_a_prior_of_another_box_stands_at_its_own_boxs_midpoint() {
         served.reused
     );
 }
+
+/// REVIEW MEASURE: a clearance that HOLDS (`≥ 0.3` over a 0.4 gap), over
+/// a box of a variable no body reads and again, over that run as its
+/// prior, over another box of it. The verdict cites no point; what is
+/// printed is how much of the second run is served.
+#[test]
+fn review_measure_a_holding_clearance_across_boxes_of_an_unread_variable() {
+    let f = dumbbell(&[ClearanceBounds::AtLeast(0.3)]);
+    let (doc, _) = fixture::step(
+        f.doc,
+        DocEdit::DeclareVar {
+            name: name("idle"),
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
+                dim: Dimension::Length,
+                value: 1.0,
+                display_unit: UnitSym::canonical_for(Dimension::Length),
+                distribution: None,
+            }),
+        },
+    );
+    let idle = doc.var_named("idle").expect("declared");
+    let over = |lo: f64, hi: f64, prior: Option<&editor_core::Evaluation<geom_core::Interval>>| {
+        let axes = [(idle, editor_core::analysis::BoxAxis::Varying { lo, hi })];
+        let opts = EvalOptions {
+            param_box: Some(std::sync::Arc::new(ParamBox::from_axes(
+                axes.into_iter().collect(),
+            ))),
+            ..EvalOptions::default()
+        };
+        editor_core::evaluate(&doc, prior, &CancelToken::new(), &opts, Tol::witness())
+    };
+    let prior = over(-0.05, 0.05, None);
+    let fresh = over(0.1, 0.2, None);
+    let t = std::time::Instant::now();
+    let served = over(0.1, 0.2, Some(&prior));
+    let took = t.elapsed();
+    let said = |ev: &editor_core::Evaluation<geom_core::Interval>| {
+        format!("{:?}", report_of(ev, f.assertions[0]).verdict())
+    };
+    eprintln!(
+        "PROBE holding clearance: verdict {}; served == fresh {}; reused {} recomputed {}; assertion key held {}; {took:?}",
+        said(&fresh),
+        said(&served) == said(&fresh),
+        served.reused,
+        served.recomputed,
+        served.value(f.assertions[0]).map(|v| v.content_key)
+            == prior.value(f.assertions[0]).map(|v| v.content_key),
+    );
+}

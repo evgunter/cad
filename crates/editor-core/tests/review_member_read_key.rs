@@ -135,12 +135,19 @@ fn served_is_fresh<T: OwnRecord>(
                 .position(|(a, b)| a != b)
                 .unwrap_or(0);
             let from = at.saturating_sub(200);
-            panic!(
+            let said = format!(
                 "{what} at {}: node {id:?} served differs from fresh at byte {at}:\n served: {}\n fresh:  {}",
                 T::NAME,
                 &s[from..(at + 200).min(s.len())],
                 &f[from..(at + 200).min(f.len())],
             );
+            // `RV_MEASURE=1` reports a stale node and goes on, so the
+            // counts below are read on a tree that serves one.
+            if std::env::var_os("RV_MEASURE").is_some() {
+                eprintln!("PROBE STALE {said}");
+                break;
+            }
+            panic!("{said}");
         }
     }
     eprintln!(
@@ -501,4 +508,92 @@ fn keys_are_the_same_on_both_schedules() {
         assert!(served.prior_refused.is_none());
         assert!(whole(&served) == fresh, "round {round}: parallel served");
     }
+}
+
+/// Each face of member 0 of `tall`, in the member's own spelling.
+fn member_faces(doc: &ProfileDoc, tall: RecipeNodeId) -> Vec<StableName> {
+    let ev = evaluate::<f64>(doc, None);
+    let table = ev
+        .table(doc.output(tall, 0).expect("tall's read"))
+        .expect("tall's table");
+    table
+        .iter()
+        .filter_map(|(name, entry)| {
+            let [RoleSeg::Member { of, .. }] = name.path.as_slice() else {
+                return None;
+            };
+            matches!(
+                entry,
+                editor_core::Entry::Unique(editor_core::EntityRef {
+                    body: 0,
+                    key: editor_core::EntityKey::Face(_),
+                })
+            )
+            .then(|| (**of).clone())
+        })
+        .collect()
+}
+
+/// A pose at a one-body node: `reader[k] = mirror(tall, plane(tall[next].f))`
+/// for each face `f` of a member, the plane a pose of a selection of
+/// another member. At least one face's plane moves with `p`.
+#[test]
+fn a_mirror_across_another_members_face() {
+    let (doc, k, tall) = tall("rv-mirror");
+    let faces = member_faces(&doc, tall);
+    assert_eq!(faces.len(), 6, "a prism's faces");
+    let mut moved = 0;
+    for face in faces {
+        let plane = fixture::plane(Operand::select(
+            BodyRead::indexed(tall, vec![next(k)]),
+            vec![face.clone()],
+        ));
+        let node = Node::mirror(
+            Operand::Node(tall),
+            editor_core::pose::RoleRead::plain(plane),
+        );
+        let (doc, reader) = insert(doc.clone(), node);
+        assert_eq!(doc.node_reach(reader).chain(), Some(&[k][..]));
+        let prior = evaluate::<f64>(&doc, None);
+        if prior.value(reader).is_none() {
+            eprintln!("PROBE mirror across {face:?}: {:?}", prior.result(reader));
+        }
+        let after = set(doc, "p", FreeValue::Continuous(0.5));
+        let fresh = evaluate::<f64>(&after, None);
+        let at = |ev: &Evaluation<f64>| format!("{:?}", ev.nodes.get(&reader));
+        if at(&prior) != at(&fresh) {
+            moved += 1;
+        }
+        served_is_fresh::<f64>(&prior, &after, "mirror(tall, plane(tall[next].f))");
+        let mid = evaluate::<f64>(&after, Some(&prior));
+        let back = set(after, "p", FreeValue::Continuous(0.25));
+        served_is_fresh::<f64>(&mid, &back, "mirror(tall, plane(tall[next].f)), back");
+    }
+    assert!(moved > 0, "some face's plane moves with p");
+}
+
+/// MEASURE: a member's explicit read of its own index, in a family
+/// whose inner count grows: `reader[k, j] = union([tall[k, j]])`, `n`
+/// from 1 to 2. No member that stood moved; its place did.
+#[test]
+fn measure_an_inner_count_grows_under_a_read_of_ones_own_index() {
+    let doc = declare(with_p("rv-own-index"), "n", FreeVar::Count { value: 1 });
+    let (doc, k) = fixture::index_of(doc, "k", Formula::count(2), None);
+    let (doc, j) = fixture::index_of(doc, "j", named_count("n"), Some(k));
+    let by = Formula::add(scalar(var(k)), scalar(var(j))).unwrap();
+    let (doc, tall) = prism(doc, 0.0, depth(by));
+    let (doc, reader) = union(doc, vec![BodyRead::indexed(tall, vec![var(k), var(j)])]);
+    let one = evaluate::<f64>(&doc, None);
+    let after = set(doc, "n", FreeValue::Count(2));
+    served_is_fresh::<f64>(&one, &after, "n = 2 over n = 1");
+    let two = evaluate::<f64>(&after, Some(&one));
+    let keys = |ev: &Evaluation<f64>, at: &[u32]| {
+        let m = ev.value(reader).unwrap().members.as_ref().unwrap();
+        m.at(at).map(|v| v.content_key)
+    };
+    eprintln!(
+        "PROBE own index: reader[0,0] key held {}, reader[1,0] key held {}",
+        keys(&one, &[0, 0]) == keys(&two, &[0, 0]),
+        keys(&one, &[1, 0]) == keys(&two, &[1, 0]),
+    );
 }
