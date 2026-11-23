@@ -252,6 +252,89 @@ pub(crate) fn mate_picks_row(
     crate::widgets::message_toned(ui, tool.line(row, by), theme, Tone::Advisory);
 }
 
+/// **A text field that buffers what is typed until it loses focus**:
+/// it shows `shown` while `edits` holds no text under `key`, and the
+/// text typed once it does; the frame it loses focus, the text typed is
+/// taken out of `edits` and answered, the field's commit. A field never
+/// typed in commits nothing. The placement editor's value and offset
+/// rows are this one field.
+pub(crate) fn buffered_field<K: PartialEq>(
+    ui: &mut egui::Ui,
+    edits: &mut Vec<(K, String)>,
+    key: K,
+    shown: impl FnOnce() -> String,
+    hover: Option<&str>,
+) -> Option<String> {
+    let held = edits.iter().position(|(k, _)| *k == key);
+    let mut text = match held {
+        Some(at) => edits[at].1.clone(),
+        None => shown(),
+    };
+    let field = ui.text_edit_singleline(&mut text);
+    let field = match hover {
+        Some(hover) => field.on_hover_text(hover),
+        None => field,
+    };
+    let held = match held {
+        Some(at) if field.changed() => {
+            edits[at].1 = text;
+            Some(at)
+        }
+        None if field.changed() => {
+            edits.push((key, text));
+            Some(edits.len() - 1)
+        }
+        held => held,
+    };
+    match held {
+        Some(at) if field.lost_focus() => Some(edits.remove(at).1),
+        _ => None,
+    }
+}
+
+/// **A mate row's offset row** (DESIGN `[placement.mates]`: a standoff
+/// is a construction on the target, never a value): a length field
+/// ([`buffered_field`]) showing how far the row's `to` stands off along
+/// the outward direction of the pose it is read off
+/// ([`crate::matetool::offset_role`]), empty while it does not. It takes
+/// a number or a formula, read as the value rows read theirs
+/// ([`crate::matetool::typed_offset`]); left empty, it takes the offset
+/// off. Drawn for a row whose kind takes an offset; answers the change
+/// the field committed. `edits` holds the text typed and not yet
+/// committed (`Drafts::mate_offset_edits`), keyed by `placement` and
+/// `at`, the row within its draft.
+pub(crate) fn mate_offset_row(
+    ui: &mut egui::Ui,
+    doc: &pncad::document::Doc<pncad::document::ProfileProgram>,
+    placement: pncad::document::RecipeNodeId,
+    row: &crate::matetool::MateRow,
+    at: usize,
+    edits: &mut Vec<((pncad::document::RecipeNodeId, usize), String)>,
+) -> Option<Result<Option<pncad::document::Formula>, crate::matetool::TypedValueError>> {
+    let hover = match crate::matetool::offset_role(row.kind())? {
+        pncad::document::pose::PoseRole::Normal => {
+            "how far `to` stands off along its face's outward normal; empty for none"
+        }
+        _ => "how far `to` slides along its frame's z, its edge's line; empty for none",
+    };
+    let mut committed = None;
+    ui.horizontal(|ui| {
+        ui.label("offset");
+        committed = buffered_field(
+            ui,
+            edits,
+            (placement, at),
+            || {
+                row.offset()
+                    .map(|by| crate::matetool::value_text(doc, by))
+                    .unwrap_or_default()
+            },
+            Some(hover),
+        );
+    });
+    committed.map(|typed| crate::matetool::typed_offset(doc, &typed))
+}
+
 /// **The "Add part" chooser's window**, as wide as the pane its door
 /// is drawn in (`opener`) and never under
 /// [`crate::widgets::message_floor`].
@@ -525,7 +608,7 @@ fn profile_x_extent(value: &pncad::document::NodeValue<f64>) -> Result<(f64, f64
         .flat_map(|lp| {
             let vertices = lp.vertices().iter().map(|p| (p.x, p.x));
             let arcs = lp.segments().iter().filter_map(|s| match s.kind {
-                pncad::profile::SegmentKind::Line => None,
+                pncad::profile::SegmentKind::Line { .. } => None,
                 pncad::profile::SegmentKind::Arc { arc, .. } => {
                     Some((arc.centre.x - arc.radius, arc.centre.x + arc.radius))
                 }
@@ -679,6 +762,9 @@ impl ViewerBehavior<'_> {
             self.drafts.sync_mate_edits(None, &[]);
             return self.tool_door(ui, ToolKind::Mate);
         };
+        // Before any field is drawn: text typed under another draft is
+        // never shown or committed on this one's rows.
+        self.drafts.sync_mate_door(tool.door());
         let by = frame::landed_speaker(self.session.landed_pair());
         let mut edited = tool.clone();
         crate::widgets::message(
@@ -754,6 +840,23 @@ impl ViewerBehavior<'_> {
                     edited.strike(at, struck);
                 }
             });
+            if let Some(door) = tool.door()
+                && let Some(change) = mate_offset_row(
+                    ui,
+                    self.session.committed_doc(),
+                    door.placement,
+                    row,
+                    at,
+                    &mut self.drafts.mate_offset_edits,
+                )
+            {
+                match change {
+                    Ok(by) => edited.set_offset(at, by),
+                    Err(error) => self
+                        .notices
+                        .push(frame::tool_news(&ToolKind::Mate.refuses(&error))),
+                }
+            }
             mate_picks_row(ui, &tool, at, by, &self.theme);
             if let Some(&(_, space)) = off_target
                 .iter()
@@ -824,7 +927,7 @@ impl ViewerBehavior<'_> {
                 .collect(),
             _ => Vec::new(),
         };
-        self.drafts.sync_mate_edits(tool.door(), &coords);
+        self.drafts.retain_mate_values(&coords);
         match proposal {
             Some(Ok(proposal)) => {
                 // Every value row is a field showing its formula as the
@@ -833,34 +936,19 @@ impl ViewerBehavior<'_> {
                 for row in &proposal.values {
                     ui.horizontal(|ui| {
                         ui.label(row.coord.name());
-                        let held = self
-                            .drafts
-                            .mate_value_edits
-                            .iter()
-                            .position(|(coord, _)| *coord == row.coord);
-                        let mut text = held.map_or_else(
+                        let typed = buffered_field(
+                            ui,
+                            &mut self.drafts.mate_value_edits,
+                            row.coord.clone(),
                             || crate::matetool::value_text(doc, &row.by),
-                            |at| self.drafts.mate_value_edits[at].1.clone(),
+                            None,
                         );
-                        let field = ui.text_edit_singleline(&mut text);
                         if row.from == crate::matetool::ValueFrom::Unmeasured {
                             ui.label("not measured: the mate's poses do not evaluate here");
                         }
-                        if field.changed() {
-                            match held {
-                                Some(at) => self.drafts.mate_value_edits[at].1 = text.clone(),
-                                None => self
-                                    .drafts
-                                    .mate_value_edits
-                                    .push((row.coord.clone(), text.clone())),
-                            }
-                        }
-                        if field.lost_focus()
-                            && let Some(at) = held
-                        {
-                            let (coord, typed) = self.drafts.mate_value_edits.remove(at);
-                            match crate::matetool::typed_value(doc, coord.clone(), &typed) {
-                                Ok(by) => edited.type_value(coord, by),
+                        if let Some(typed) = typed {
+                            match crate::matetool::typed_value(doc, row.coord.clone(), &typed) {
+                                Ok(by) => edited.type_value(row.coord.clone(), by),
                                 Err(error) => self
                                     .notices
                                     .push(frame::tool_news(&ToolKind::Mate.refuses(&error))),
@@ -1055,19 +1143,22 @@ impl ViewerBehavior<'_> {
             return;
         };
         let body = doc.through_sources(source).read;
-        let through = match doc.var_name(source) {
-            Some(name) => format!(" through {name}"),
-            None => String::new(),
-        };
+        let files = self.session.part_files();
+        let copied = doc.operation_of(body).map_or_else(
+            || crate::relations::Related::plain(crate::relations::DELETED),
+            |node| crate::relations::Related::node(doc, node, files),
+        );
+        let through = crate::relations::Related::named(doc, source);
         let button = self
             .session
             .repoint_button(source, self.session.selection().node());
-        ui.horizontal(|ui| {
-            let copied = doc.operation_of(body).map_or_else(
-                || doc.spoken_var(body).to_string(),
-                |node| doc.spoken(node).to_string(),
-            );
-            ui.label(format!("copy of: {copied}{through}"));
+        ui.horizontal_wrapped(|ui| {
+            ui.label("copy of:");
+            crate::pane::properties::related_entry(ui, &copied, self.ops);
+            if let Some(through) = &through {
+                ui.label(crate::pane::properties::THROUGH);
+                crate::pane::properties::related_entry(ui, through, self.ops);
+            }
             crate::widgets::repoint_button(ui, button, self.ops);
         });
     }

@@ -142,6 +142,7 @@ a pick route checks its own seats against that doc.
   that caught it; future briefs ask reviewers for one mutation per new
   gate row.
 
+- 2026-11-22 — (FORMWORDS orchestrator) PR 7378 (refused-entry, Ev's report) merged after a full review and a fix pass, on green CI. A class finding with no home yet: app-feature test rows can be neither in the slow set (`check-slow-set-names.py` reads them as dead) nor timed (`check-fast-set-times` times only the default-eps step). So the app-feature job has no time bar, and a 12 s row runs on every viewer PR.
 - 2026-11-22 — (FORMWORDS orchestrator) PR 7372 (dimension-ladders) merged after a style review with correctness claims and a fix pass, on green CI. It closes the three ladder rows. The fix pass added API to editor-core, quantity and geom-core (`Dimension::quantity`, `Notation::unit_of`, `UnitQuantity::units`), and its PR names their owners.
 ## 2026-11-22 — subtract-by-family weighed
 
@@ -161,3 +162,5 @@ after Ev's answer.
 - 2026-11-22 — (FORMWORDS orchestrator) `[ev]` 7386 approved and merged: a subtract's tool is a `Bodies` seat. Ev then questioned implicit mapping itself ("we shouldn't be implicitly mapping over lists!"). Filed `a-family-read-at-a-body-seat-maps-implicitly` (P1, design), with two designers weighing it. The split-of-family lane is told to keep its fix minimal meanwhile.
 - 2026-11-22 — (FORMWORDS orchestrator) Every lane stopped at the weekly usage limit and resumed when usage came back.
 - 2026-11-22 — **From VSEAM:** `SessionOp::SketchOnFace` retires in PR 7466 (`vseam/sketch-on-face-retires`). The viewer's on-face act is now `SessionOp::DrawOnFace`, followed by the ordinary extrude and union. Rows here that cite `SketchOnFace` as evidence keep their history, but its code citation goes stale at that merge. The affected rows are `doors/a-held-face-stays-marked-while-its-form-is-collapsed`, `doors/a-seated-tools-held-node-is-drawn-nowhere`, `formwords/a-plane-other-than-a-face-cannot-be-authored-in-the-viewer` and `vgeom/a-profile-drawn-on-a-frame-is-drawn-at-the-worlds-xy`. (VSEAM orchestrator)
+
+- 2026-11-22 — (FORMWORDS orchestrator) PR 7380 (face-offset, P0) merged after a full review (one MAJOR: the offset sank into the material on a foreign spelling) and a fix pass that closes it. Merged on green CI and the orchestrator's read; no delta review. Edges recorded on the row: a `Spin(Plane)` side takes its spun normal, and a named pose is not unfolded.

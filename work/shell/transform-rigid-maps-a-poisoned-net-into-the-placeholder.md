@@ -62,3 +62,4 @@ control point directly. A regression row: the probe above, asserting the
 typed refusal for both nets.
 
 - 2026-11-02 — moved from SHELF to SHELL by `git mv` when SHELF merged into SHELL, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and SHELF had fallen far under it).
+- 2026-11-22 — (WALKS, `walks/curve-placeholder`) the curve has no placeholder any more: `map_carrier`'s `Curve3::Nurbs` arm maps every net, and `TransformError::NurbsPlaceholder` is the surface's alone. The curve half's second problem (a rotation minting the placeholder) is gone; its first (a poisoned carrier net is mapped rather than refused) stands, and the fix shape's curve option is now the direct non-finite-control-point refusal.
