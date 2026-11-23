@@ -595,7 +595,11 @@ pub fn placed_against_in(
         }
     };
     crate::Placed {
-        mates: vec![crate::Mate { on, to, orient }],
+        mates: vec![crate::Mate {
+            on: on.into(),
+            to: to.into(),
+            orient,
+        }],
         values: vec![
             (Coord::slide(across[0]), slide(coordinate(across[0]))),
             (Coord::slide(across[1]), slide(coordinate(across[1]))),
@@ -1516,7 +1520,7 @@ pub fn assemble_world_copies_edits(
     // A product already the world's copies is kept as it is, so a
     // document written twice is the one document.
     let world: Vec<crate::VarId> = doc
-        .placements()
+        .copies()
         .into_iter()
         .filter(|&p| doc.node_space(p) == Some(crate::VarId::WORLD))
         .filter_map(|p| doc.output(p, 0))
@@ -1749,6 +1753,17 @@ fn spells_a_mention(words: &str) -> bool {
         }
         false
     })
+}
+
+/// **One witness of every [`crate::NodeErrorClass`]**, each with its
+/// class: the census a consumer that answers each class walks, so a
+/// class it answers wrongly, or one added to the kernel, reds there.
+/// `tol` is the band the escalation witnesses carry.
+#[must_use]
+pub fn node_error_witnesses(
+    tol: geom_core::Tol,
+) -> Vec<(crate::NodeErrorClass, crate::NodeErrorKind)> {
+    crate::eval::class::witnesses::all(tol)
 }
 
 #[cfg(test)]

@@ -2649,7 +2649,7 @@ fn record_germ_dir<T: crate::props::AtRestPolicy>(
         Ok(geom_brep::TangentLocus::Line {
             line: geom::Line { dir, .. },
             ..
-        }) => dir.normalize(),
+        }) => dir.get().normalize(),
         Err(geom_brep::TangentLocusError::Escalated(diag)) => {
             return Err(BooleanError::coincidence(
                 Coincide::TangentLocus,

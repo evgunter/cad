@@ -228,7 +228,7 @@ fn harmonic_witness(b: f64) -> (Surface<f64>, Pcurve<f64>, Curve3<f64>, (f64, f6
         Vec2::new(0.0, b),
         Vec2::new(1.0, 0.0),
     );
-    let carrier = Curve3::line(Point3::new(0.0, 0.3, 0.0), Vec3::unit_x());
+    let carrier = Curve3::line(Point3::new(0.0, 0.3, 0.0), geom_core::UnitVec3::exact_x());
     (plane(), image, carrier, (0.0, 8.0 * PI))
 }
 
@@ -323,7 +323,7 @@ fn a_bound_past_the_band_with_no_miss_located_is_the_lever() {
         Vec2::new(0.0, 0.0),
         Vec2::new(1.0, 0.0),
     );
-    let carrier = Curve3::line(Point3::new(0.0, 0.3, 0.0), Vec3::unit_x());
+    let carrier = Curve3::line(Point3::new(0.0, 0.3, 0.0), geom_core::UnitVec3::exact_x());
     for door in DOORS {
         let got = (door.certify)(&plane(), &image, &carrier, (-0.05, 0.05));
         assert_eq!(ended(&got), Ended::Unsettled, "at {}: {got:?}", door.name);
@@ -473,8 +473,15 @@ fn drawn(g: &mut fuzz::Rng, kind: Kind) -> (Surface<f64>, Curve3<f64>, (f64, f64
             let at = o + u_ref * g.range(-5.0, 5.0) + v_ref * g.range(-5.0, 5.0);
             match g.below(3) {
                 0 => {
-                    let dir = perpendicular(g, axis) * g.range(0.3, 3.0);
-                    (surface, Curve3::line(at, dir), length(g))
+                    // The drawn speed scales the span: the same segment
+                    // on its unit direction, its span in metres.
+                    let (dir, speed) = (perpendicular(g, axis), g.range(0.3, 3.0));
+                    let (t0, t1) = length(g);
+                    (
+                        surface,
+                        Curve3::line(at, geom_core::UnitVec3::squared(dir)),
+                        (t0 * speed, t1 * speed),
+                    )
                 }
                 1 => {
                     let r = g.range(0.1, 5.0);
@@ -505,8 +512,13 @@ fn drawn(g: &mut fuzz::Rng, kind: Kind) -> (Surface<f64>, Curve3<f64>, (f64, f64
             match g.below(3) {
                 0 => {
                     let at = o + radial(g.range(-4.0, 4.0)) * r + axis * h;
-                    let dir = axis * (sign(g) * g.range(0.3, 3.0));
-                    (surface, Curve3::line(at, dir), length(g))
+                    let (dir, speed) = (axis * sign(g), g.range(0.3, 3.0));
+                    let (t0, t1) = length(g);
+                    (
+                        surface,
+                        Curve3::line(at, geom_core::UnitVec3::squared(dir)),
+                        (t0 * speed, t1 * speed),
+                    )
                 }
                 1 => (surface, circle(g, o + axis * h, axis, r), turn(g)),
                 _ => {
@@ -544,8 +556,11 @@ fn drawn(g: &mut fuzz::Rng, kind: Kind) -> (Surface<f64>, Curve3<f64>, (f64, f64
                 let (sigma, speed) = (sign(g), g.range(0.3, 3.0));
                 let away = sigma * slant > 0.0;
                 let reach = if away { 10.0 } else { slant.abs() - 0.2 } / speed;
-                let line = Curve3::line(o + generator * slant, generator * (sigma * speed));
-                (surface, line, (0.0, g.range(0.1, 1.0) * reach))
+                let line = Curve3::line(
+                    o + generator * slant,
+                    geom_core::UnitVec3::squared(generator * sigma),
+                );
+                (surface, line, (0.0, g.range(0.1, 1.0) * reach * speed))
             } else {
                 let c = o + axis * (slant * alpha.cos());
                 (
@@ -730,7 +745,10 @@ impl Mirror {
     /// is `axis × u_ref`, so its reflected axis is negated.
     fn carrier(self, c: &Curve3<f64>) -> Curve3<f64> {
         match c {
-            Curve3::Line(l) => Curve3::line(self.point(l.origin), self.vector(l.dir)),
+            Curve3::Line(l) => Curve3::line(
+                self.point(l.origin),
+                geom::stated_direction(self.vector(l.dir.get())),
+            ),
             Curve3::Circle(k) => Curve3::circle(
                 self.point(k.frame().origin()),
                 -self.vector(k.frame().axis()),
@@ -1871,7 +1889,7 @@ fn a_closed_forms_structure_read_wrong_ends_as_its_defect() {
             "an iso arc on a plane",
             plane(),
             iso_arc,
-            Curve3::line(Point3::origin(), Vec3::unit_x()),
+            Curve3::line(Point3::origin(), geom_core::UnitVec3::exact_x()),
         ),
     ];
     let mut g = fuzz::Rng::from_seed(11);
@@ -2180,7 +2198,7 @@ fn a_closed_forms_bound_holds_its_dense_miss() {
         Vec2::new(0.0, 0.0),
         Vec2::new(1.0, 1e-4),
     );
-    let line = Curve3::line(Point3::new(0.0, 0.3, 0.0), Vec3::unit_x());
+    let line = Curve3::line(Point3::new(0.0, 0.3, 0.0), geom_core::UnitVec3::exact_x());
     assert!(check("a slope off", &plane(), &slope, &line, (2.0, 10.0)));
     assert!(check(
         "a height off",

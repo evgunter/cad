@@ -8,6 +8,7 @@ priority: P1
 cost: H
 parent: lower-profiles-to-carrier-and-interval-not-vertex-and-bulge
 branch: profile/circle-lowers-to-one-segment
+pr: 7454
 ---
 
 
@@ -99,8 +100,8 @@ the alternative; a filleted hole is too ordinary a part to break.
 What the branch holds for whoever resumes it: the families that moved
 and the attribution of every regression group (the four the
 predecessor named and seven new ones, each tied to an open row on TANG,
-CONTACTHOLD, ONECOPY, SPLICE or VGEOM), in the PR body draft the lane
-left and in the rows it filed on the branch. No silent wrong body was
+CONTACTHOLD, ONECOPY, SPLICE or VGEOM), in the body of draft PR 7454 and
+in the rows it filed on the branch. No silent wrong body was
 found. Not yet done: a `[render]` pass (the tour's frames move for
 every circle body); the slow set outside the touched shards; merging
 about a day of main.

@@ -126,7 +126,7 @@ use pncad::select::{
 use crate::frame::Tone;
 use crate::parts::PartFiles;
 use crate::props::{Computed, Notation};
-use crate::session::{EdgeSelection, FaceSelection, Selection, VersionOffer};
+use crate::session::{EdgeSelection, FaceSelection, Selection};
 
 /// **One level of a failure's traceback**, as the tree draws it: the
 /// document the level's node is in, as a label of its own, and the
@@ -259,7 +259,7 @@ impl RowStatus {
 }
 
 /// One line of the feature tree.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct TreeRow {
     /// The recipe node this row is.
     pub id: RecipeNodeId,
@@ -293,12 +293,11 @@ pub struct TreeRow {
     /// value that says nothing beyond `Ok`, and on every other row,
     /// whose status says why there is none.
     pub readout: Option<Readout>,
-    /// **The accept a [`RowStatus::Failed`] instance row offers**, when
-    /// its failure is a pin that no longer holds
-    /// ([`crate::frame::version_offer`]); `None` on every other row, and
-    /// on every row while a newer document's run is outstanding
-    /// (`DocSession::tree_rows`).
-    pub version_offer: Option<VersionOffer>,
+    /// **The acts a [`RowStatus::Failed`] row's own failure offers**
+    /// ([`crate::recourse::offers`]), read off the landed run only while
+    /// it is the committed document's (`DocSession::tree_rows`). Empty on
+    /// every other row.
+    pub offers: Vec<crate::recourse::Offer>,
     /// **A placement's constraints, its children** ([`ConstraintRow`]):
     /// a `Place`'s or an instance's bundle, in bundle order. Empty on
     /// every other row. A constraint is no node, so it has no row of its
@@ -351,12 +350,7 @@ fn constraint_rows(id: RecipeNodeId, node: &Node<ProfileProgram>) -> Vec<Constra
 pub fn numbered_constraints(
     node: &Node<ProfileProgram>,
 ) -> impl Iterator<Item = (usize, &Constraint)> {
-    let bundle = match node {
-        Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } => {
-            constraints.as_slice()
-        }
-        _ => &[],
-    };
+    let bundle = node.bundle().unwrap_or(&[]);
     bundle.iter().enumerate().map(|(at, held)| (at + 1, held))
 }
 
@@ -1116,20 +1110,16 @@ pub fn rows(
             continue;
         };
         let status = status_of(doc, id, evaluation, files);
-        let (repair_at, readout, version_offer) = match status {
+        let (repair_at, readout) = match status {
             RowStatus::Failed { .. } => (
                 evaluation.and_then(|ev| repair_of(id, ev).map(|at| doc.spoken(at))),
                 None,
-                evaluation
-                    .and_then(|ev| own_error(id, ev))
-                    .and_then(|error| crate::frame::version_offer(&error.kind, files)),
             ),
             RowStatus::Ok => (
                 None,
                 evaluation.and_then(|ev| readout_of(doc, id, node, ev)),
-                None,
             ),
-            RowStatus::Poisoned { .. } | RowStatus::Unevaluated => (None, None, None),
+            RowStatus::Poisoned { .. } | RowStatus::Unevaluated => (None, None),
         };
         rows.push(TreeRow {
             id,
@@ -1139,7 +1129,7 @@ pub fn rows(
             status,
             repair_at,
             readout,
-            version_offer,
+            offers: Vec::new(),
             constraints: constraint_rows(id, node),
         });
     }
@@ -1193,6 +1183,7 @@ fn readout_of(
         ValuePayload::Body(_)
         | ValuePayload::Boolean(BooleanValue::Body { .. })
         | ValuePayload::Profile(_)
+        | ValuePayload::Datum(_)
         | ValuePayload::Instances(_) => None,
     }
 }
@@ -1673,6 +1664,7 @@ fn poisoned_through(through: RecipeNodeId, ev: &Evaluation<f64>) -> Standing<'_>
 fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
     match fault {
         MateFault::NotOnTheCopy { mate }
+        | MateFault::NotTheDatumsOwn { mate }
         | MateFault::Unleverable { mate, .. }
         | MateFault::KindsDiffer { mate, .. }
         | MateFault::Backwards { mate, .. }

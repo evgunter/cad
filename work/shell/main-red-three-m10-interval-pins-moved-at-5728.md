@@ -124,3 +124,7 @@ green until then.
   | `sym11_…` `r2_link` frozen | 4468 | 4716 |
 
   The pins in the tests are not changed here; the rows were red on main before 6639.
+
+## One of the three gone (CIW, 2026-11-23)
+
+PR 7501 (`ciw/census-digest-goldens`) removes `m10_9`'s per-document `symbolic` counts, the `two_hole_plate` symbolic-count pin among them. The claim they carried is now `Door`'s differential (what the registry buys). The certification half-width and stepped-shaft pins are untouched, and this row stays open for them.

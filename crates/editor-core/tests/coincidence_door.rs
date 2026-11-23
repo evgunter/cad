@@ -3524,8 +3524,8 @@ fn measure_the_stage6_axis_identities() {
                         side,
                     };
                     let (Some(on), Some(to)) = (
-                        axis_of(side(editor_core::MateSide::On), mate.on),
-                        axis_of(side(editor_core::MateSide::To), mate.to),
+                        axis_of(side(editor_core::MateSide::On), mate.on.read),
+                        axis_of(side(editor_core::MateSide::To), mate.to.read),
                     ) else {
                         continue;
                     };
@@ -4257,7 +4257,7 @@ fn every_band_a_revolve_mints_is_about_its_axis_output_at_sym() {
                                 line_on(center, Some(axis))
                             }
                             Curve3::Line(geom::Line { origin, dir }) => {
-                                line_on(*origin, Some(*dir))
+                                line_on(*origin, Some(dir.get()))
                             }
                             other => {
                                 panic!("{}: an edge read about the axis on {other:?}", cd.name)

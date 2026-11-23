@@ -65,6 +65,9 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Table("Meter"),
     NameCarrier::Const("SQUARE_ORDER"),
     NameCarrier::Const("RADII"),
+    // The cone × torus pose's apex rows (`pair_section/cone_torus.rs`).
+    NameCarrier::Const("APEX_ON_TORUS"),
+    NameCarrier::Const("APEX_FORM"),
     NameCarrier::Const("POSE_AXES_PARALLEL"),
     NameCarrier::Const("POSE_AXIS_ALONG_PLANE"),
     NameCarrier::Const("POSE_PLANES_FACING"),

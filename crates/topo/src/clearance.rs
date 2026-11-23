@@ -3489,7 +3489,9 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
     // The box's range of a chart parameter that the carrier evaluates
     // as `origin + dir·v`: `Line::param`, correct for any `dir`.
     let along = |origin: Point3<Interval>, dir: Vec3<Interval>| -> (f64, f64) {
-        let d = geom::Line { origin, dir }.param(extent);
+        // `Line::param`'s coefficient, spelled out: `dir` is the chart's
+        // own, not a unit direction.
+        let d = (extent - origin).dot(dir) / dir.norm_squared();
         (d.lo(), d.hi())
     };
     match stored {
