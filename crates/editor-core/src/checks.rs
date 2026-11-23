@@ -1750,12 +1750,9 @@ pub(crate) fn door_rows<P: crate::ProfilePayload, T: crate::mate::SolveScalar + 
     ev.order
         .iter()
         .filter_map(|&node| {
-            ev.value(node).map(|value| {
-                (
-                    node,
-                    value.coincidences.iter().map(judged).collect::<Vec<_>>(),
-                )
-            })
+            ev.result(node)
+                .and_then(crate::eval::NodeResult::coincidences)
+                .map(|coincidences| (node, coincidences.iter().map(judged).collect::<Vec<_>>()))
         })
         .filter(|(_, rows)| !rows.is_empty())
         .map(|(node, rows)| (FindingSubject::Node(node), node, rows))
@@ -1778,8 +1775,12 @@ pub(crate) fn carried_coincidences<T: topo::AtRestPolicy + Decide>(
     ev: &Evaluation<T>,
 ) -> Vec<at_rest::CarriedCoincidenceRows> {
     let mut rows = Vec::new();
-    for value in ev.order.iter().filter_map(|&node| ev.value(node)) {
-        at_rest::once_per_part_row(&mut rows, value.carry.findings.coincidences.iter().cloned());
+    for carry in ev
+        .order
+        .iter()
+        .filter_map(|&node| ev.result(node).and_then(crate::eval::NodeResult::carry))
+    {
+        at_rest::once_per_part_row(&mut rows, carry.findings.coincidences.iter().cloned());
     }
     rows
 }

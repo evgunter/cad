@@ -153,6 +153,8 @@ pub(crate) fn walk<T: editor_core::test_support::AnyEvaluate>(mut seen: impl FnM
                 NodeResult::Ok(v) => Outcome::Ok {
                     kind: v.payload.kind_name(),
                 },
+                // As its `Family` value was seen: the family word.
+                NodeResult::Members(_) => Outcome::Ok { kind: "family" },
             };
             seen(Seen::Node {
                 doc: doc.name,

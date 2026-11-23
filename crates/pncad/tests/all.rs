@@ -1023,6 +1023,7 @@ fn the_resolution_payloads_are_matchable_through_the_select_list() {
         match cause.standing {
             NodeStanding::Failed { node } => ("target_failed", node),
             NodeStanding::Poisoned { through, .. } => ("target_poisoned", through),
+            NodeStanding::Members { node } => ("target_members", node),
             NodeStanding::NotEvaluated { node } | NodeStanding::NotInDocument { node } => {
                 ("target_not_evaluated", node)
             }

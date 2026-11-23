@@ -501,7 +501,7 @@ fn golden_document_evaluates_green_at_its_pinned_eps() {
         .nodes
         .iter()
         .filter_map(|(id, r)| match r {
-            NodeResult::Ok(_) => None,
+            NodeResult::Ok(_) | NodeResult::Members(_) => None,
             NodeResult::Failed(e) => Some(format!("{id:?} FAILED: {e:?}")),
             NodeResult::Poisoned { through } => {
                 Some(format!("{id:?} poisoned through {through:?}"))

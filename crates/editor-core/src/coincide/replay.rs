@@ -308,11 +308,12 @@ fn prove_row(
             None => Err(((Unreplayed::OtherDecisions, Recourse::Assert), None)),
         });
     }
-    let Some(value) = ev.value(node) else {
+    // A family's rows are its members', in member order, as a value's
+    // are its own.
+    let Some(coincidences) = ev.result(node).and_then(crate::eval::NodeResult::coincidences) else {
         return left(why_no_value(ev, node));
     };
-    let Some(replayed) = value
-        .coincidences
+    let Some(replayed) = coincidences
         .iter()
         .filter(|r| r.site == row.site)
         .nth(at)

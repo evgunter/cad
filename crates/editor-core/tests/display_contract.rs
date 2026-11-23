@@ -297,7 +297,7 @@ fn an_unnamed_entity_names_the_lookup_and_no_hit_test() {
 
 test_utils::f6_variants! {
     /// `NodeStanding`'s census — see [`NODE_PICK_ERROR`].
-    const NODE_STANDING: NodeStanding = [NotEvaluated, NotInDocument, Failed, Poisoned];
+    const NODE_STANDING: NodeStanding = [NotEvaluated, NotInDocument, Members, Failed, Poisoned];
 }
 
 /// The standing names itself — the node, its state, where the repair
@@ -314,6 +314,10 @@ fn node_standing_display_names_its_content_and_no_door() {
         (
             NodeStanding::NotInDocument { node },
             vec!["node 000000000006", "not a node of the document"],
+        ),
+        (
+            NodeStanding::Members { node },
+            vec!["node 000000000006", "once per member", "no one value", "a yield"],
         ),
         (
             NodeStanding::Failed { node },

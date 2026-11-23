@@ -46,6 +46,7 @@ fn dump_corpus_payloads() {
                     }
                     other => out.push_str(&format!("{other:?}\n")),
                 },
+                Some(NodeResult::Members(f)) => out.push_str(&format!("MEMBERS {:?}\n", f.content_key)),
                 Some(NodeResult::Failed(e)) => out.push_str(&format!("FAILED {e:?}\n")),
                 Some(NodeResult::Poisoned { through }) => {
                     out.push_str(&format!("POISONED {through:?}\n"));

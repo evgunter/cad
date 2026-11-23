@@ -484,6 +484,7 @@ impl ProductError {
                 }
                 NodeStanding::Failed { .. } => ProductErrorKind::ReadFailed,
                 NodeStanding::Poisoned { .. } => ProductErrorKind::ReadPoisoned,
+                NodeStanding::Members { .. } => ProductErrorKind::UnknownNode, // PROVISIONAL (C) question
             },
             Self::EmptyProduct => ProductErrorKind::EmptyProduct,
             Self::StrandedProduct { .. } => ProductErrorKind::StrandedProduct,
@@ -583,8 +584,7 @@ pub(crate) fn sources_of<T: topo::AtRestPolicy + Decide>(
         ValuePayload::Profile(_)
         | ValuePayload::Measure { .. }
         | ValuePayload::Assertion(_)
-        | ValuePayload::Datum(_)
-        | ValuePayload::Family => None,
+        | ValuePayload::Datum(_) => None,
     }
 }
 

@@ -18,10 +18,11 @@
 //! payload, one place per member in index order, `None` at a member
 //! that is a boolean's empty result; it is named `Member { at, of }`
 //! over each member's own names, each body at its member's place
-//! ([`crate::names::name_family`]). A family of anything else is
-//! [`ValuePayload::Family`], with no output. Each keeps each member's
-//! whole value ([`Members`]), which is what a reader of one member
-//! reads, and what the memo serves a member from.
+//! ([`crate::names::name_family`]). A family of anything else is no
+//! one value: its result is [`NodeResult::Members`], its members and
+//! nothing whole. Each keeps each member's whole value ([`Members`]),
+//! which is what a reader of one member reads, and what the memo serves
+//! a member from.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -258,21 +259,29 @@ fn overlay<T: topo::AtRestPolicy + Decide>(
         .iter()
         .map(|(&id, result)| {
             let member = match result {
-                NodeResult::Ok(value) => value
-                    .members
-                    .as_ref()
-                    .and_then(|members| members.bound_at(bound))
-                    .map(|member| NodeValue {
-                        family: Some(Arc::new(value.clone())),
+                NodeResult::Ok(value) => value.members.as_ref().and_then(|members| {
+                    members.bound_at(bound).map(|member| NodeValue {
+                        family: Some(super::Whole::Value(Arc::new(value.clone()))),
                         ..member.clone()
-                    }),
-                _ => None,
+                    })
+                }),
+                NodeResult::Members(family) => {
+                    family.members.bound_at(bound).map(|member| NodeValue {
+                        family: Some(super::Whole::Members(Arc::new(family.clone()))),
+                        ..member.clone()
+                    })
+                }
+                NodeResult::Failed(_) | NodeResult::Poisoned { .. } => None,
             };
             // A failed operation stands as the nearest failed ancestor
             // of whatever reads it, which is all a reader asks of it.
             let result = match (member, result) {
                 (Some(member), _) => NodeResult::Ok(member),
                 (None, NodeResult::Ok(value)) => NodeResult::Ok(value.clone()),
+                // A family over indices this member does not bind all of
+                // is read as it stands, which the yield rules confine to
+                // a read of it whole.
+                (None, NodeResult::Members(family)) => NodeResult::Members(family.clone()),
                 (None, NodeResult::Failed(_)) => NodeResult::Poisoned { through: id },
                 (None, NodeResult::Poisoned { through }) => {
                     NodeResult::Poisoned { through: *through }
@@ -285,8 +294,8 @@ fn overlay<T: topo::AtRestPolicy + Decide>(
 
 /// **The node `id`, evaluated once per member** of the indices `chain`
 /// it reaches, its value the family of them; `eval_member` evaluates
-/// it at one member's environment, results, prior value, lane and
-/// index values.
+/// it at one member's environment, results, prior value (the prior
+/// run's member, of `prior`'s), lane and index values.
 ///
 /// # Errors
 ///
@@ -300,7 +309,7 @@ pub(super) fn eval_family<T: topo::AtRestPolicy + Decide>(
     id: RecipeNodeId,
     chain: &[VarId],
     results: &BTreeMap<RecipeNodeId, NodeResult<T>>,
-    prior: Option<&NodeValue<T>>,
+    prior: Option<&Arc<Members<T>>>,
     cancel: &super::CancelToken,
     op_env: &super::wire::OpEnv<'_, T>,
     eval_member: impl Fn(
@@ -329,7 +338,6 @@ pub(super) fn eval_family<T: topo::AtRestPolicy + Decide>(
             doc.bind_member(nominal, at);
         },
     );
-    let prior_members = prior.and_then(|p| p.members.as_ref());
     let mut members = Vec::new();
     let mut reused = true;
     for member in listed {
@@ -367,11 +375,17 @@ pub(super) fn eval_family<T: topo::AtRestPolicy + Decide>(
             },
         };
         let over = overlay(results, &bound);
-        let prior_member = prior_members.and_then(|m| m.at(&narrow));
+        let prior_member = prior.and_then(|m| m.at(&narrow));
         let step = eval_member(&member_env, &over, prior_member, &member_op_env, &at);
         reused &= step.reused;
         match step.result {
             NodeResult::Ok(value) => members.push((narrow, value)),
+            // A family of families is one member per value of all its
+            // indices (`chain` is every index the node reaches), so a
+            // member is one value.
+            NodeResult::Members(_) => {
+                unreachable!("a member binds every index its node reaches, so it is one value")
+            }
             NodeResult::Failed(NodeError { kind, .. }) => {
                 return Ok(fail(NodeErrorKind::MemberRefused {
                     at,
@@ -391,10 +405,7 @@ pub(super) fn eval_family<T: topo::AtRestPolicy + Decide>(
         members,
     };
     Ok(match family_value(id, members) {
-        Ok(value) => NodeStep {
-            result: NodeResult::Ok(value),
-            reused,
-        },
+        Ok(result) => NodeStep { result, reused },
         Err(kind) => fail(kind),
     })
 }
@@ -419,14 +430,14 @@ pub(super) fn member_key(key: ContentKey, at: &[(VarId, i64)]) -> ContentKey {
     h.finish()
 }
 
-/// **The family's value**: a family of bodies as their `Instances`,
-/// each body named at its member's place; any other as
-/// [`ValuePayload::Family`] with no output. Its keys are its members',
-/// in order.
+/// **The family's result**: a family of bodies as one value, their
+/// `Instances`, each body named at its member's place; any other as
+/// [`NodeResult::Members`], its members and no whole value. Its keys
+/// are its members', in order.
 pub(super) fn family_value<T: topo::AtRestPolicy + Decide>(
     id: RecipeNodeId,
     members: Members<T>,
-) -> Result<NodeValue<T>, NodeErrorKind> {
+) -> Result<NodeResult<T>, NodeErrorKind> {
     let bodies: Option<Vec<Option<&super::Framed<T>>>> = members
         .members
         .iter()
@@ -445,7 +456,7 @@ pub(super) fn family_value<T: topo::AtRestPolicy + Decide>(
             h.write_u64((key >> 64) as u64);
         }
     }
-    let (payload, outputs) = match bodies {
+    let whole = match bodies {
         Some(bodies) => {
             let tables: Vec<(crate::names::MemberAt, &crate::names::NameTable)> = members
                 .members
@@ -464,12 +475,12 @@ pub(super) fn family_value<T: topo::AtRestPolicy + Decide>(
                 .collect();
             let table =
                 crate::names::name_family(id, &tables, &raw).map_err(NodeErrorKind::Naming)?;
-            (
+            Some((
                 ValuePayload::Instances(bodies.into_iter().map(|body| body.cloned()).collect()),
                 Arc::from([super::OutputNames::new(table, Arc::default())]),
-            )
+            ))
         }
-        None => (ValuePayload::Family, Arc::from([])),
+        None => None,
     };
     // A family carries its members' carries together, each member's
     // as its own: every member is evaluated on its own, so its records
@@ -494,20 +505,35 @@ pub(super) fn family_value<T: topo::AtRestPolicy + Decide>(
             marks: value.marks.to_vec(),
         });
     }
-    Ok(NodeValue {
-        payload,
-        outputs,
-        carry,
-        coincidences: coincidences.into(),
-        motion: None,
-        members: Some(Arc::new(members)),
-        family: None,
-        verdicts: Arc::new(log.verdicts),
-        escalations: Arc::new(log.escalations),
-        marks: Arc::new(log.marks),
-        witness: super::WitnessSlot {},
-        content_key: content.finish(),
-        naming_key: NamingKey(naming.finish().0),
+    let members = Arc::new(members);
+    let content_key = content.finish();
+    let naming_key = NamingKey(naming.finish().0);
+    Ok(match whole {
+        Some((payload, outputs)) => NodeResult::Ok(NodeValue {
+            payload,
+            outputs,
+            carry,
+            coincidences: coincidences.into(),
+            motion: None,
+            members: Some(members),
+            family: None,
+            verdicts: Arc::new(log.verdicts),
+            escalations: Arc::new(log.escalations),
+            marks: Arc::new(log.marks),
+            witness: super::WitnessSlot {},
+            content_key,
+            naming_key,
+        }),
+        None => NodeResult::Members(super::FamilyResult {
+            members,
+            carry,
+            coincidences: coincidences.into(),
+            verdicts: Arc::new(log.verdicts),
+            escalations: Arc::new(log.escalations),
+            marks: Arc::new(log.marks),
+            content_key,
+            naming_key,
+        }),
     })
 }
 

@@ -1632,8 +1632,11 @@ impl<U: Decide + topo::AtRestPolicy> PriorCtx for Prior<'_, U> {
         path: &BTreeSet<RecipeNodeId>,
     ) -> Option<Diagnosis> {
         path.iter().find_map(|&node| {
-            let (old, now) = (self.ctx.eval.value(node)?, new.eval.value(node)?);
-            let (site, step) = first_turn(vdiff::path(old), vdiff::path(now)).mark()?;
+            let (old, now) = (
+                vdiff::path_in(self.ctx.eval, node)?,
+                vdiff::path_in(new.eval, node)?,
+            );
+            let (site, step) = first_turn(old, now).mark()?;
             Some(Diagnosis::Parted { node, site, step })
         })
     }

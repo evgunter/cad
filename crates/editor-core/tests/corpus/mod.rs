@@ -463,7 +463,7 @@ pub fn failures<T: topo::AtRestPolicy + Decide>(ev: &Evaluation<T>) -> Vec<Strin
     ev.nodes
         .iter()
         .filter_map(|(id, r)| match r {
-            NodeResult::Ok(_) => None,
+            NodeResult::Ok(_) | NodeResult::Members(_) => None,
             NodeResult::Failed(e) => Some(format!("{id:?} FAILED: {e:?}")),
             NodeResult::Poisoned { through } => {
                 Some(format!("{id:?} poisoned through {through:?}"))

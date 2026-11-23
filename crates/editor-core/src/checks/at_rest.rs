@@ -974,15 +974,19 @@ fn holding_measures<'a, P, T: Decide + topo::AtRestPolicy>(
                 }) => (M::Distance, *a, *b),
                 _ => return None,
             };
-            let value = evaluation.value(id)?;
-            let members: Vec<(crate::names::MemberAt, &'a ValuePayload<T>)> = match &value.members {
-                Some(family) => family
-                    .members
-                    .iter()
-                    .map(|(values, member)| (family.member_at(values), &member.payload))
-                    .collect(),
-                None => vec![(Vec::new(), &value.payload)],
-            };
+            // A per-member assertion holds at each member, its family no
+            // one value (D10 `[repetition]`).
+            let result = evaluation.result(id)?;
+            let members: Vec<(crate::names::MemberAt, &'a ValuePayload<T>)> =
+                match (result.members(), result.value()) {
+                    (Some(family), _) => family
+                        .members
+                        .iter()
+                        .map(|(values, member)| (family.member_at(values), &member.payload))
+                        .collect(),
+                    (None, Some(value)) => vec![(Vec::new(), &value.payload)],
+                    (None, None) => return None,
+                };
             Some(members.into_iter().filter_map(move |(at, payload)| {
                 let ValuePayload::Assertion(AssertionVerdict::Holds { bound, .. }) = payload else {
                     return None;

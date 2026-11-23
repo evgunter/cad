@@ -45,7 +45,6 @@ fn bodies_of(payload: &ValuePayload<f64>) -> Vec<(u32, &Body<f64>)> {
             }
             out
         }
-        ValuePayload::Family => vec![],
         ValuePayload::Instances(v) => v
             .iter()
             .enumerate()

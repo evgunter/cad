@@ -12,7 +12,7 @@ Found by the correctness review of PR 6357 (M1).
 
 A clearance seat that reads a pattern's members — a tree pick of the
 pattern node, as a body seat — lifts the assertion over the family:
-its value is `ValuePayload::Family`, at `f64` and at `Interval` alike.
+its result is `NodeResult::Members`, at `f64` and at `Interval` alike.
 Until PR 6357 the certify door (`pncad::analysis::clearances_at_nominal`)
 reached `unreachable!` on that value, and the viewer's certify worker
 took the process down (`Coalescing::crashed`).

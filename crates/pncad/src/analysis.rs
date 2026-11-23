@@ -192,9 +192,6 @@ pub fn clearances_at_nominal(
                     ValuePayload::Assertion(AssertionVerdict::Clearance(report)) => {
                         ClearanceOutcome::of(report.verdict(), crate::document::Speaker::of(doc))
                     }
-                    // A seat over a pattern's members lifts the
-                    // requirement over the family: one per member.
-                    ValuePayload::Family => ClearanceOutcome::over_members(doc, assertion),
                     other => ClearanceOutcome::Unanswered {
                         sentence: editor_core::sentence!(
                             Speaker::of(doc).node(assertion),
@@ -205,6 +202,9 @@ pub fn clearances_at_nominal(
                         ),
                     },
                 },
+                // A seat over a pattern's members lifts the requirement
+                // over the family: one per member.
+                Some(NodeResult::Members(_)) => ClearanceOutcome::over_members(doc, assertion),
                 Some(NodeResult::Failed(_) | NodeResult::Poisoned { .. }) | None => {
                     ClearanceOutcome::Unanswered {
                         sentence: ev.node_error(assertion).map_or_else(

@@ -41,6 +41,7 @@ fn decisions(ev: &Evaluation<Lane>) -> Vec<(editor_core::RecipeNodeId, ContentKe
         .iter()
         .map(|(&id, result)| match result {
             NodeResult::Ok(v) => (id, v.content_key, v.verdicts.to_vec()),
+            NodeResult::Members(f) => (id, f.content_key, f.verdicts.to_vec()),
             NodeResult::Failed(e) => panic!("node {} failed: {}", id.0, e.kind),
             NodeResult::Poisoned { through } => {
                 panic!("node {} poisoned through node {}", id.0, through.0)

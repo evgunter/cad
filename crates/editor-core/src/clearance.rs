@@ -988,6 +988,7 @@ impl SelectionRefusal {
                 let (word, node, through) = match *standing {
                     NodeStanding::NotEvaluated { node } => ("not_evaluated", node, None),
                     NodeStanding::NotInDocument { node } => ("not_in_document", node, None),
+                    NodeStanding::Members { node } => ("members", node, None),
                     NodeStanding::Failed { node } => ("failed", node, None),
                     NodeStanding::Poisoned { node, through } => ("poisoned", node, Some(through)),
                 };

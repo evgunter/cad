@@ -108,7 +108,7 @@ use super::derivation_nodes;
 /// [`VerdictVector::key`], not derived from this enum's shape.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum RunStatus {
-    /// Evaluated to a value (has a verdict log).
+    /// Evaluated (has a verdict log): to a value, or once per member.
     Ok,
     /// Failed typed.
     Failed,
@@ -331,17 +331,25 @@ impl FlipSet {
     }
 }
 
-/// A node value's [`Path`].
-pub(super) fn path<T: topo::AtRestPolicy + Decide>(value: &crate::eval::NodeValue<T>) -> Path<'_> {
-    Path {
-        verdicts: &value.verdicts,
-        marks: &value.marks,
-    }
+/// **A node's [`Path`] in `run`**, if it evaluated: its value's, or a
+/// family's that is no one value, its members' logs in member order.
+pub(super) fn path_in<T: topo::AtRestPolicy + Decide>(
+    run: &Evaluation<T>,
+    id: RecipeNodeId,
+) -> Option<Path<'_>> {
+    let result = run.result(id)?;
+    Some(Path {
+        verdicts: result.verdicts()?,
+        marks: result.marks()?,
+    })
 }
 
 fn status<T: topo::AtRestPolicy + Decide>(run: &Evaluation<T>, id: RecipeNodeId) -> RunStatus {
     match run.usable(id) {
         Ok(_) => RunStatus::Ok,
+        // A family evaluated once per member decided what its members
+        // did, each its own verdicts: it ran, as a value does.
+        Err(NodeStanding::Members { .. }) => RunStatus::Ok,
         Err(NodeStanding::Failed { .. }) => RunStatus::Failed,
         Err(NodeStanding::Poisoned { .. }) => RunStatus::Poisoned,
         Err(NodeStanding::NotEvaluated { .. } | NodeStanding::NotInDocument { .. }) => {
@@ -394,8 +402,8 @@ pub fn diff_verdicts<T: topo::AtRestPolicy + Decide, U: topo::AtRestPolicy + Dec
     let mut out = BTreeMap::new();
     for id in ids {
         let (old_status, new_status) = (status(old, id), status(new, id));
-        let flip = match (old.value(id), new.value(id)) {
-            (Some(a), Some(b)) => first_turn(path(a), path(b)).flip(),
+        let flip = match (path_in(old, id), path_in(new, id)) {
+            (Some(a), Some(b)) => first_turn(a, b).flip(),
             _ => None,
         };
         if old_status != new_status || flip.is_some() {
@@ -514,9 +522,10 @@ pub fn verdict_summary<T: topo::AtRestPolicy + Decide>(run: &Evaluation<T>) -> V
     let mut nodes = BTreeMap::new();
     for &id in &run.order {
         let populations: BTreeMap<String, [u32; 3]> = run
-            .value(id)
-            .map(|v| {
-                populations(&v.verdicts)
+            .result(id)
+            .and_then(crate::eval::NodeResult::verdicts)
+            .map(|verdicts| {
+                populations(verdicts)
                     .into_iter()
                     .map(|(name, counts)| (name.to_owned(), counts))
                     .collect()
@@ -738,8 +747,9 @@ impl VerdictVector {
                 node,
                 outcome: status(ev, node),
                 verdicts: ev
-                    .value(node)
-                    .map_or_else(Vec::new, |v| v.verdicts.to_vec()),
+                    .result(node)
+                    .and_then(crate::eval::NodeResult::verdicts)
+                    .map_or_else(Vec::new, |v| v.to_vec()),
             })
             .collect();
         Self { rows }

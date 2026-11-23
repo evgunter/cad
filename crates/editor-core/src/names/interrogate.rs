@@ -764,7 +764,6 @@ pub(crate) fn output_body<T: topo::AtRestPolicy + Decide>(
         ValuePayload::Profile(_)
         | ValuePayload::Measure { .. }
         | ValuePayload::Assertion(_)
-        | ValuePayload::Datum(_)
-        | ValuePayload::Family => none(payload.kind_name()),
+        | ValuePayload::Datum(_) => none(payload.kind_name()),
     }
 }

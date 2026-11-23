@@ -5411,7 +5411,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "node_standing_tag",
-        values: &["node_failed", "node_not_evaluated", "node_poisoned"],
+        values: &["node_failed", "node_members", "node_not_evaluated", "node_poisoned"],
         delegates: &[],
     },
     TagEntry {
@@ -5747,7 +5747,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "resolve_indeterminate_tag",
-        values: &["target_failed", "target_not_evaluated", "target_poisoned"],
+        values: &["target_failed", "target_members", "target_not_evaluated", "target_poisoned"],
         delegates: &[],
     },
     TagEntry {
