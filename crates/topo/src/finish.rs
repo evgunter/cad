@@ -846,7 +846,7 @@ impl<T: AtRestPolicy<Leaf = Self>> LeafBody for AtRestBody<T> {
         // The image's gate reads its records again; the bar is its
         // source's, which an isometry does not change.
         T::leaf(Built::of(image).recording(self.records().clone()), tol)
-            .map(|image| image.at_bar(self.bar()))
+            .map(|image| image.at_the_bar_of(self))
             .map_err(MoveError::NotFinished)
     }
 }

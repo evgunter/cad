@@ -5,7 +5,7 @@ use geom_core::Band;
 
 use crate::body::Body;
 use crate::boolean::ContactRecords;
-use crate::validate::{CensusUnsupportedCause, ValidationError};
+use crate::validate::{CensusUnsupportedCause, StaleDeclaration, ValidationError};
 
 /// **What the census answered on the records a gate was handed**
 /// ([`confirm_only`]). A record with no finding here is confirmed.
@@ -34,7 +34,7 @@ enum Reading {
 /// deciding door's gate runs this over the records it is handed
 /// (`[topology.tiers]`); it searches for no meeting, so it pays nothing
 /// for the body's other cells.
-pub(crate) fn confirm_only<T: crate::props::AtRestPolicy>(
+pub(crate) fn confirm_only<T: crate::props::AtRestPolicy + geom_core::Bounds>(
     body: &Body<T>,
     contacts: &ContactRecords,
     band: Band,
@@ -58,7 +58,85 @@ pub(crate) fn confirm_only<T: crate::props::AtRestPolicy>(
             Reading::NotConfirmed => out.refused.push(finding),
         }
     }
+    // No record is held on its citation before its separation is read:
+    // a lane that answers "this pair is not mine" has read no distance,
+    // and two cells a definite distance apart do not touch whatever
+    // their kind. A lane that reads the pair says more than a box does
+    // (a verdict, a margin), so the boxes are read only where a lane
+    // declined, and then of every record.
+    if !out.no_lane.is_empty() {
+        out.refused.extend(
+            contacts
+                .rows()
+                .iter()
+                .filter_map(|row| apart(body, row.record.kind(), band))
+                .map(|declaration| ValidationError::StaleContactDeclaration { declaration }),
+        );
+    }
     out
+}
+
+/// **A recorded pair whose cells are decided apart**, as the stale
+/// record it is: each cell's enclosure in the granting direction (a
+/// face's or an edge's cover box, [`crate::cover::face_cover`] and
+/// [`crate::cover::edge_cover`]; a vertex's point), and a lower bound
+/// on the distance between the two ([`bvh::Aabb::separation_lo`]) past
+/// the band's far end. A cell with no cover, or one the body does not
+/// hold, grants nothing: its record goes on to the lanes, which say
+/// what is wrong with it.
+///
+/// It decides apart only what the two boxes decide: cells whose boxes
+/// overlap and that touch nowhere reach the lanes as before.
+fn apart<T: crate::props::AtRestPolicy + geom_core::Bounds>(
+    body: &Body<T>,
+    kind: crate::boolean::ContactKind,
+    band: Band,
+) -> Option<StaleDeclaration> {
+    use crate::boolean::ContactKind;
+    let vertex = |v| {
+        let record = body.get_vertex(v)?;
+        bvh::Aabb::from_points([body.point_of(v, record)])
+    };
+    let edge = |e| {
+        body.get_edge(e)?;
+        Some(crate::cover::edge_cover(body, e).ok()?.aabb(0.0))
+    };
+    let face = |f| {
+        body.get_face(f)?;
+        Some(crate::cover::face_cover(body, f, band).ok()?.aabb(0.0))
+    };
+    let (a, b, declaration) = match kind {
+        ContactKind::VertexVertex(a, b) => (
+            vertex(a)?,
+            vertex(b)?,
+            StaleDeclaration::VertexVertex { a, b },
+        ),
+        ContactKind::VertexEdge(v, e) => (
+            vertex(v)?,
+            edge(e)?,
+            StaleDeclaration::VertexOnEdge { vertex: v, edge: e },
+        ),
+        ContactKind::VertexFace(v, f) => (
+            vertex(v)?,
+            face(f)?,
+            StaleDeclaration::VertexOnFace { vertex: v, face: f },
+        ),
+        ContactKind::EdgeEdge(a, b) => (edge(a)?, edge(b)?, StaleDeclaration::EdgeEdge { a, b }),
+        ContactKind::EdgeFace(e, f) => (
+            edge(e)?,
+            face(f)?,
+            StaleDeclaration::EdgeFace { edge: e, face: f },
+        ),
+        ContactKind::FaceFace(a, b) => (
+            face(a)?,
+            face(b)?,
+            StaleDeclaration::Patch {
+                face_a: a,
+                face_b: b,
+            },
+        ),
+    };
+    (a.separation_lo(&b) > band.escalate()).then_some(declaration)
 }
 
 /// **How a gate takes one finding of the confirmation direction.** The

@@ -10820,6 +10820,43 @@ pub enum Bar {
     Tier3Prime,
 }
 
+impl Bar {
+    /// **A deciding door's gate's**, from its reading of the records it
+    /// was handed. It takes the reading, so no bar is named before the
+    /// records are read.
+    fn of_gate(
+        records: &crate::boolean::ContactRecords,
+        read: &crate::census::Confirmation,
+    ) -> Self {
+        if records.is_empty() || !read.no_lane.is_empty() {
+            Self::Tier3
+        } else {
+            Self::Tier3Prime
+        }
+    }
+
+    /// **A `⊔`'s gate's**, from its reading of what the arrivals
+    /// carried and from the census it ran between them, `joined`
+    /// arrivals: tier 3′ only where every carried record confirmed, the
+    /// census had something to decide (two arrivals, or a record), and
+    /// it left no finding. It takes the census's finished report, so a
+    /// join's bar cannot be named ahead of the reading that decides it,
+    /// which is how one came to stand beside an undecided meeting.
+    fn of_join(
+        carried: &crate::boolean::ContactRecords,
+        read: &crate::census::Confirmation,
+        census: &crate::census::RecordedAtRest,
+        joined: usize,
+    ) -> Self {
+        let decided = joined >= 2 || !carried.is_empty();
+        if decided && read.no_lane.is_empty() && census.findings.is_empty() {
+            Self::Tier3Prime
+        } else {
+            Self::Tier3
+        }
+    }
+}
+
 /// **A finished body at a scalar with certification rights**, and tier
 /// 3's verdict on it kept beside it — so a tier-3′ pass over the same
 /// body pays the census alone — with the certificate its check 7
@@ -10939,11 +10976,7 @@ impl<T: crate::props::CertifiedPolicy<Finished = AtRestBody<T>> + geom_core::Cer
         if !read.refused.is_empty() {
             return Err(read.refused);
         }
-        let bar = if records.is_empty() || !read.no_lane.is_empty() {
-            Bar::Tier3
-        } else {
-            Bar::Tier3Prime
-        };
+        let bar = Bar::of_gate(&records, &read);
         Ok(Self {
             body,
             records,
@@ -10987,18 +11020,6 @@ impl<T: crate::props::CertifiedPolicy<Finished = AtRestBody<T>> + geom_core::Cer
         if !read.refused.is_empty() {
             return Err(read.refused);
         }
-        // Tier 3′ where the census confirmed all it carried in and had
-        // two arrivals to decide between, or records to confirm.
-        let joined = arrivals
-            .values()
-            .collect::<std::collections::BTreeSet<_>>()
-            .len()
-            >= 2;
-        let bar = if read.no_lane.is_empty() && (joined || !carried.is_empty()) {
-            Bar::Tier3Prime
-        } else {
-            Bar::Tier3
-        };
         let recorded = crate::census::record_at_rest(
             &body,
             &carried,
@@ -11006,6 +11027,14 @@ impl<T: crate::props::CertifiedPolicy<Finished = AtRestBody<T>> + geom_core::Cer
             &|solid| arrivals.get(&solid).copied(),
             first_row,
         );
+        let joined = arrivals
+            .values()
+            .collect::<std::collections::BTreeSet<_>>()
+            .len();
+        let bar = Bar::of_join(&carried, &read, &recorded, joined);
+        // A record the census minted beside a finding is still a touch
+        // it decided, with its row, and is held; what the findings take
+        // away is the bar ([`crate::census::RecordedAtRest::records`]).
         let mut records = carried;
         records.extend(recorded.records.rows().iter().cloned());
         Ok(crate::finish::Censused {
@@ -11037,10 +11066,17 @@ impl<T: crate::props::AtRestPolicy> AtRestBody<T> {
         self.bar
     }
 
-    /// This body at `bar`: a leaf's image, finished again where it
-    /// stands, keeps the bar its source paid.
-    pub(crate) fn at_bar(self, bar: Bar) -> Self {
-        Self { bar, ..self }
+    /// This body, the image of `source` under an isometry and finished
+    /// again where it stands, at the bar `source`'s gate paid: an
+    /// isometry changes no reading, and the image's gate, which reads
+    /// the records again, does not see what a `⊔`'s census decided
+    /// between the source's arrivals. It takes the source, not a bar,
+    /// so no caller names a bar no gate computed.
+    pub(crate) fn at_the_bar_of(self, source: &Self) -> Self {
+        Self {
+            bar: source.bar,
+            ..self
+        }
     }
 
     /// **Maps its records' citations**
