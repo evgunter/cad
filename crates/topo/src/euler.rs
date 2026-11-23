@@ -259,7 +259,7 @@ use crate::entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
     LoopKey, Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
-use crate::geometry::{CurveKey, PointKey, SurfaceKey};
+use crate::geometry::{CurveKey, PointKey, SurfaceKey, SurfaceSlot};
 use crate::joint::JointElement;
 use crate::live::{Arg, KeySource, Live, link, linked, lookup, proven, require_key};
 use crate::pcurves::{SiteFace, SiteHalf, SiteLoop, SiteRows};

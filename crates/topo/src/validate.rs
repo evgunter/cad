@@ -3528,6 +3528,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         CertifyError::StatedImageUnsettled => {
             geom_core::undecided!("whether the chart image it states follows it")
         }
+        CertifyError::PendingSurface { .. } => geom_brep::PENDING_SURFACE,
         CertifyError::ChartImageUnavailable { .. }
         | CertifyError::UnresolvedSurface { .. }
         | CertifyError::IntersectionSameSurface { .. }
@@ -3711,6 +3712,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             | CertifyError::IntersectionSameSurface { .. }
             | CertifyError::PeriodicView(_)
             | CertifyError::WrapOnNonPeriodic => DEFECT,
+            CertifyError::PendingSurface { .. } => crate::pcurves::PLACEHOLDER_RECOURSE,
             CertifyError::Unimplemented
             | CertifyError::Row {
                 refusal: geom_brep::RowRefusal::OffSide | geom_brep::RowRefusal::Singular,
@@ -7939,7 +7941,7 @@ pub(crate) fn tier3_local_checks_marked<
     // not depend on which side the material is.
     // ------------------------------------------------------------------
     for (face_key, face) in body.faces.iter() {
-        let Some(plane @ Surface::Plane { .. }) = body.surfaces.get(face.surface) else {
+        let Some(plane @ Surface::Plane { .. }) = body.get_surface(face.surface).ok() else {
             continue;
         };
         for loop_key in face.loop_keys() {
@@ -8031,7 +8033,7 @@ pub(crate) fn tier3_local_checks_marked<
         let (f_plus, fs_plus) = (sides.plus.face, sides.plus.surface);
         let (f_minus, fs_minus) = (sides.minus.face, sides.minus.surface);
         let (Some(s_plus), Some(s_minus)) =
-            (body.surfaces.get(fs_plus), body.surfaces.get(fs_minus))
+            (body.get_surface(fs_plus).ok(), body.get_surface(fs_minus).ok())
         else {
             continue;
         };
@@ -8111,7 +8113,7 @@ pub(crate) fn tier3_local_checks_marked<
         // its whole turn, so an arc on the face whose circle leaves it past
         // the arc's ends is on the face.
         for (face_key, surface_key) in adjacent {
-            let Some(plane @ Surface::Plane { .. }) = body.surfaces.get(surface_key) else {
+            let Some(plane @ Surface::Plane { .. }) = body.get_surface(surface_key).ok() else {
                 continue;
             };
             match geom_brep::read_edge_incidence(curve.carrier(), t0, t1, plane, band)
@@ -8209,7 +8211,7 @@ pub(crate) fn tier3_local_checks_marked<
     // be falsified rather than as a sign to be honored.
     // ------------------------------------------------------------------
     for (face_key, face) in body.faces.iter() {
-        let Some(&Surface::Plane { frame, .. }) = body.surfaces.get(face.surface) else {
+        let Some(&Surface::Plane { frame, .. }) = body.get_surface(face.surface).ok() else {
             continue;
         };
         let normal = frame.axis();
@@ -8312,7 +8314,7 @@ pub(crate) fn tier3_local_checks_marked<
         }
     }
     for (face_key, face) in body.faces.iter() {
-        let Some(surface) = body.surfaces.get(face.surface) else {
+        let Some(surface) = body.get_surface(face.surface).ok() else {
             continue; // unreachable on tier-1 input
         };
         if matches!(surface, Surface::Plane { .. }) || surface.spline_chart().is_some() {
@@ -8434,7 +8436,7 @@ pub(crate) fn tier3_local_checks_marked<
         let Some(chart) = body
             .faces
             .get(face)
-            .and_then(|f| body.surfaces.get(f.surface))
+            .and_then(|f| body.get_surface(f.surface).ok())
             .and_then(|s| geom::ChartInverse::of(s).ok())
         else {
             return;
@@ -8455,7 +8457,7 @@ pub(crate) fn tier3_local_checks_marked<
         let Some(surface) = body
             .faces
             .get(face_key)
-            .and_then(|face| body.surfaces.get(face.surface))
+            .and_then(|face| body.get_surface(face.surface).ok())
         else {
             continue; // unreachable: the curved arm read both
         };
@@ -10306,7 +10308,7 @@ fn plane_chart_normal<T: Real>(
     body: &Body<T>,
     surface: crate::geometry::SurfaceKey,
 ) -> Option<geom_core::Vec3<T>> {
-    match body.surfaces.get(surface) {
+    match body.get_surface(surface).ok() {
         Some(&Surface::Plane { frame, .. }) => {
             let normal = frame.axis();
             Some(normal)
@@ -15634,7 +15636,7 @@ mod tests {
             )
         {
             let f = body.get_face(face).unwrap();
-            let Some(&Surface::Plane { frame, .. }) = body.surfaces.get(f.surface) else {
+            let Some(&Surface::Plane { frame, .. }) = body.get_surface(f.surface).ok() else {
                 panic!("a plane")
             };
             let normal = frame.axis();
@@ -15849,7 +15851,7 @@ mod tests {
             });
             b.faces.get_mut(face).unwrap().rings.push(lone);
             let f = b.get_face(face).unwrap();
-            let Some(&Surface::Plane { frame, .. }) = b.surfaces.get(f.surface) else {
+            let Some(&Surface::Plane { frame, .. }) = b.get_surface(f.surface).ok() else {
                 panic!("a plane")
             };
             let normal = frame.axis();

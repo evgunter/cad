@@ -44,7 +44,7 @@ fn walk_of<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<EdgeRead<'_, T>> 
     let sides = crate::readback::edge_sides(body, edge).ok()?;
     let side = |side: crate::readback::EdgeSide| {
         Some(geom_brep::SideFace {
-            surface: body.surfaces.get(side.surface)?,
+            surface: body.get_surface(side.surface).ok()?,
             sense: body.get_face(side.face)?.sense,
         })
     };

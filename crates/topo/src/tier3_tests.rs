@@ -3622,7 +3622,7 @@ mod line_conic_review {
             .iter()
             .find(|(_, f)| {
                 matches!(
-                    body.surfaces.get(f.surface),
+                    body.get_surface(f.surface).ok(),
                     Some(Surface::Plane { frame, .. })
                         if frame.axis().z == 1.0 && frame.origin().z == 0.5
                 )

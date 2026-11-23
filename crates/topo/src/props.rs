@@ -8750,7 +8750,7 @@ mod face_list_door_tests {
                     .faces()
                     .filter(|&(_, face)| {
                         matches!(
-                            body.surfaces.get(face.surface),
+                            body.get_surface(face.surface).ok(),
                             Some(Surface::Plane { .. } | Surface::Cylinder { .. })
                         )
                     })

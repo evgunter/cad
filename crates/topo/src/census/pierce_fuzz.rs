@@ -173,7 +173,7 @@ fn exact_crossing(o: Point3<f64>, n: Vec3<f64>, [p0, p1]: [Point3<f64>; 2]) -> O
 fn plane(pose: &Pose) -> (Point3<f64>, Vec3<f64>) {
     let prism = crate::test_support_fixtures::prism_z::<f64>(&PROFILE, 0.0, 1.0, Tol::witness());
     let s = prism.body.get_face(prism.side_faces[0]).unwrap().surface;
-    let geom::Surface::Plane { frame, .. } = *prism.body.surfaces.get(s).unwrap() else {
+    let geom::Surface::Plane { frame, .. } = *prism.body.get_surface(s).ok().unwrap() else {
         panic!("a prism's side is a plane")
     };
     let (origin, normal) = (frame.origin(), frame.axis());

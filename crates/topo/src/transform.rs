@@ -66,7 +66,7 @@ use slotmap::SecondaryMap;
 
 use crate::body::Body;
 use crate::entity::EdgeKey;
-use crate::geometry::CurveKey;
+use crate::geometry::{CurveKey, SurfaceSlot};
 use crate::null::CurveGeom;
 
 /// Typed failure of [`transform_rigid`] (closed enum, D4 ¶3).
@@ -91,10 +91,10 @@ pub enum TransformError {
         /// The offending edge.
         edge: EdgeKey,
     },
-    /// A `Nurbs` placeholder surface or carrier — the "no description
-    /// yet" net, whose control points are all-poison, so transforming
-    /// it would launder poison as geometry. A DESCRIBED net is not
-    /// this arm: it maps, by its control points.
+    /// A `Nurbs` placeholder carrier — the "no description yet" net,
+    /// whose control points are all-poison, so transforming it would
+    /// launder poison as geometry. A DESCRIBED net is not this arm: it
+    /// maps, by its control points.
     NurbsPlaceholder,
     /// The body is corrupt (the validators would refuse it too): a
     /// reference that does not resolve, an arena entry nothing
@@ -341,19 +341,11 @@ fn map_surface<T: Real>(
             major_radius,
             minor_radius,
         },
-        // A DESCRIBED net maps by its control points, weights and
-        // knots untouched — the exact image, not a re-fit, so there is
-        // no certificate to re-derive and no fit door to reach
+        // A net maps by its control points, weights and knots
+        // untouched — the exact image, not a re-fit, so there is no
+        // certificate to re-derive and no fit door to reach
         // (`NurbsSurface::map_points` states what the caller owes).
-        // The PLACEHOLDER is the state this refusal's text describes
-        // and the only state it refuses: its net is all-poison, so
-        // mapping it would launder poison as geometry.
-        Surface::Nurbs(ref n) => {
-            if n.is_placeholder() {
-                return Err(TransformError::NurbsPlaceholder);
-            }
-            Surface::Nurbs(Arc::new(n.map_points(|p| map.transform_point(p))))
-        }
+        Surface::Nurbs(ref n) => Surface::Nurbs(Arc::new(n.map_points(|p| map.transform_point(p)))),
         Surface::Approx(ref a) => Surface::Approx(Arc::new(map_approx(map, hand, a))),
     })
 }
@@ -539,7 +531,7 @@ fn mapped_image<T: Real>(
     match hand {
         Hand::Proper => Ok(image.clone()),
         Hand::Improper => {
-            let class = body.surfaces.get(surface).map(OrientationClass::of).ok_or(
+            let class = body.get_surface(surface).ok().map(OrientationClass::of).ok_or(
                 TransformError::Corrupt {
                     found: "a chart image lies on a missing surface",
                 },
@@ -675,8 +667,12 @@ pub(crate) fn map_isometry<T: Decide>(
         *p = map.transform_point(*p);
     }
     let mut mapped_surfaces = Vec::new();
-    for (k, s) in &out.surfaces {
-        mapped_surfaces.push((k, map_surface(map, hand, iso.motion(), s)?));
+    for (k, slot) in &out.surfaces {
+        // A pending slot has no geometry to move.
+        if let SurfaceSlot::Described(s) = slot {
+            let moved = map_surface(map, hand, iso.motion(), s)?;
+            mapped_surfaces.push((k, SurfaceSlot::Described(moved)));
+        }
     }
     for (k, s) in mapped_surfaces {
         out.surfaces[k] = s;
@@ -774,9 +770,8 @@ pub(crate) fn map_isometry<T: Decide>(
             .faces
             .iter()
             .filter(|(_, f)| {
-                out.surfaces
-                    .get(f.surface)
-                    .is_some_and(|s| OrientationClass::of(s) == OrientationClass::Analytic)
+                out.get_surface(f.surface)
+                    .is_ok_and(|s| OrientationClass::of(s) == OrientationClass::Analytic)
             })
             .map(|(k, _)| k)
             .collect();

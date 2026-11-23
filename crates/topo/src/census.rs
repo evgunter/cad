@@ -2916,7 +2916,7 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
     let mut vertex_faces: std::collections::BTreeMap<VertexKey, BTreeSet<FaceKey>> =
         std::collections::BTreeMap::new();
     for (key, face) in body.faces.iter() {
-        let plane = match body.surfaces.get(face.surface) {
+        let plane = match body.get_surface(face.surface).ok() {
             Some(&geom::Surface::Plane { frame, .. }) => {
                 let (origin, normal) = (frame.origin(), frame.axis());
                 Some((origin, normal))
@@ -6708,7 +6708,7 @@ fn curved_same_side_pairs<T: Decide>(
     cands: &Candidates,
     mut trace: Option<&mut CensusTrace>,
 ) -> CurvedSameSide {
-    let surface = |f: FaceKey| body.surfaces.get(body.get_face(f)?.surface);
+    let surface = |f: FaceKey| body.get_surface(body.get_face(f)?.surface).ok();
     let kind = |f: FaceKey| {
         surface(f)
             .filter(|s| geom_brep::carrier_eq::exact_curved(s))
@@ -10321,7 +10321,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
         // tier 3's bar, and their seed faces still carry the mvfs
         // placeholder. They are why this line is reachable at all.)
         if matches!(
-            body.get_face(f).and_then(|d| body.surfaces.get(d.surface)),
+            body.get_face(f).and_then(|d| body.get_surface(d.surface).ok()),
             Some(geom::Surface::Nurbs(p)) if p.is_placeholder()
         ) {
             continue;

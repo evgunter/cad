@@ -506,6 +506,24 @@ impl<'a, T: Real> FaceView<'a, T> {
         self.slot().described()
     }
 
+    /// The surface of a face a finished body holds: tier 3 refuses a
+    /// pending slot at rest, so a reader that takes only bodies past it
+    /// never meets one, and meeting one is a kernel bug (D2 row 4).
+    ///
+    /// # Panics
+    ///
+    /// On a pending slot.
+    #[track_caller]
+    pub(crate) fn described(self) -> &'a Surface<T> {
+        self.surface().unwrap_or_else(|_| {
+            unreachable!(
+                "{} is pending at a reader of finished bodies: tier 3 refuses a pending \
+                 surface slot at rest",
+                EntityId::Face(self.key)
+            )
+        })
+    }
+
     /// The face's loops, each a link its record holds, in
     /// [`Face::loop_roles`]' order, each with its role: the outer loop,
     /// then its rings. A miss names the role's field.

@@ -5782,7 +5782,7 @@ impl OneRecordTokens {
                     // A-clone surface keys ARE result keys (carve/clone
                     // preserve them); B bridges through the graft.
                     let ka = fa.surface;
-                    let kb = graft.surfaces.get(fb.record().surface).copied()?;
+                    let kb = graft.get_surface(fb.record().surface).ok().copied()?;
                     (ka != kb
                         && result.get_surface(ka).is_some()
                         && result.get_surface(kb).is_some())

@@ -69,7 +69,7 @@ pub(crate) fn region_errors<T: Decide>(
         if inverted.contains(&face) {
             continue;
         }
-        let Some(surface) = body.surfaces.get(f.surface) else {
+        let Some(surface) = body.get_surface(f.surface).ok() else {
             continue; // unreachable on tier-1 input
         };
         let torus = match surface {
