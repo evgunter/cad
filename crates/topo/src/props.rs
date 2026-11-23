@@ -5368,7 +5368,8 @@ pub fn loop_edges<T: Decide>(
 /// **A loop's chart image, flattened**: [`loop_edges`] over the loop's
 /// cycle with its spurs taken out ([`crate::surface_boundary::chart_image`]),
 /// its seams kept. The view every integrator and chart reader takes; empty
-/// where the loop is all spurs.
+/// where the loop is all spurs. It is [`chart_image_with_tips`] without
+/// the tips, which a reader of the face's side must not drop.
 ///
 /// # Errors
 ///
@@ -5378,13 +5379,13 @@ pub fn chart_image_edges<T: Decide>(
     body: &Body<T>,
     lk: LoopKey,
 ) -> Result<(Vec<LoopEdge<T>>, Vec<crate::entity::HalfEdgeKey>), LoopEdgesError> {
-    let (_, cycle) = loop_edges(body, lk)?;
-    image_of_cycle(body, &cycle)
+    chart_image_with_tips(body, lk).map(|(image, _)| image)
 }
 
-/// [`chart_image_edges`] with the stored point of every tip the image
-/// drops ([`image_with_tips`]): the image and the datum of the face's
-/// side together, so no reader of the side reads the image without it.
+/// **A loop's chart image and its tips**: the image
+/// ([`chart_image_edges`]) with the stored point of every tip it drops
+/// ([`image_with_tips`]), the datum of the face's side, read together
+/// so that no reader of the side reads the image without them.
 ///
 /// # Errors
 ///
@@ -5397,21 +5398,10 @@ pub(crate) fn chart_image_with_tips<T: Decide>(
     image_with_tips(body, &cycle)
 }
 
-/// [`chart_image_edges`] of a loop's cycle the caller has walked.
-///
-/// # Errors
-///
-/// As [`loop_edges`].
-pub(crate) fn image_of_cycle<T: Decide>(
-    body: &Body<T>,
-    cycle: &[crate::entity::HalfEdgeKey],
-) -> Result<FlatLoop<T>, LoopEdgesError> {
-    Ok(image_with_tips(body, cycle)?.0)
-}
-
-/// [`image_of_cycle`] with the stored point of every tip the chart image
-/// drops ([`crate::surface_boundary::tips`]), the datum of the face's
-/// side ([`geom_brep::props::boundary_material_sign_holding`]).
+/// [`chart_image_with_tips`] of a loop's cycle the caller has walked:
+/// its chart image with the stored point of every tip the image drops
+/// ([`crate::surface_boundary::tips`]), the datum of the face's side
+/// ([`geom_brep::props::boundary_material_sign_holding`]).
 ///
 /// # Errors
 ///

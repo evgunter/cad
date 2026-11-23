@@ -618,23 +618,25 @@ pub(crate) const SPHERE_SEAM_UNIT: &str = "cover_sphere_seam_unit";
 /// the azimuth window of its boundary walk, as the chart patch
 /// ([`Cover::patch`], `R = 0`) of the rectangle or the latitude zone.
 ///
-/// The trim reads the window off the boundary, and the boundary of a
-/// rectangle is also the boundary of its complement. The rectangle is
-/// therefore taken only when the side the outer loop encodes
-/// (`boundary_material_sign`: the side of the loop that holds no chart
-/// pole, the reading tier 3's curved sense check runs) agrees with the
-/// face's `sense`, which places the face on the rectangle's side of its
-/// boundary. The trim's class then holds no pole inside the face, so
-/// the face lies in the rectangle its boundary spans. The side is read
-/// with the tips the chart image drops, which the face holds
-/// ([`crate::props::chart_image_with_tips`]): a wrap-tip cap's image is
-/// its rim alone, which bounds a cap either way, and the pole at its
-/// tip is the datum that says which; the trim folds that pole in as a
-/// level the face reaches. A face whose side is unencoded, refused, or in disagreement,
-/// one whose outer loop is a lone vertex or carries null scaffolding,
-/// one outside the trim's class, one whose trim escalates, one whose
-/// axis is not decided unit, and one whose radius is not positive (the
-/// patch's premise) read no window. A face that wraps the azimuth
+/// The trim reads the window off the boundary, and a boundary bounds
+/// the face and its complement alike. So the window is taken only when
+/// the side the face's outer loop encodes agrees with its `sense`
+/// (`boundary_material_sign_holding`, the reading tier 3's curved
+/// sense check runs). That side is read with the tips the loop's chart
+/// image drops ([`crate::props::chart_image_with_tips`]), which the face
+/// holds. A one-loop face lies on the side of its loop that holds its
+/// own tips at chart poles and no other pole. A wrap-tip cap's image is
+/// its rim alone, which bounds a cap on either side, and the pole at its
+/// tip says which. With the two in agreement, every pole the face holds
+/// is a vertex of it, which the trim folds in as a level the face
+/// reaches, so the face lies in the rectangle or zone the trim
+/// spans.
+///
+/// These faces read no window: one whose side is unencoded, refused or
+/// in disagreement; one whose outer loop is a lone vertex or carries
+/// null scaffolding; one outside the trim's class; one whose trim
+/// escalates; one whose axis is not decided unit; and one whose radius
+/// is not positive (the patch's premise). A face that wraps the azimuth
 /// alone, or whose seam direction is not decided a unit normal of the
 /// axis, reads its latitude zone.
 ///
