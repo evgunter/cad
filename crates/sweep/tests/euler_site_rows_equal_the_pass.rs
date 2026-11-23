@@ -109,14 +109,15 @@ fn rims(body: &Body<f64>, face: FaceKey) -> Vec<EdgeKey> {
         if out.contains(&e) {
             continue;
         }
-        if let Curve3::Circle(geom::Circle { frame, .. }) = curve_of(body, e).carrier()
-            && frame.axis().y.abs() > 0.999
+        if let Curve3::Circle(the_circle @ geom::Circle { .. }) = curve_of(body, e).carrier()
+            && the_circle.frame().axis().y.abs() > 0.999
         {
             out.push(e);
         }
     }
     let height = |e: &EdgeKey| match curve_of(body, *e).carrier() {
-        Curve3::Circle(geom::Circle { frame, .. }) => {
+        Curve3::Circle(circle_2 @ geom::Circle { .. }) => {
+            let frame = circle_2.frame();
             let center = frame.origin();
             center.y
         }
@@ -144,9 +145,10 @@ fn split_at(body: &mut Body<f64>, e: EdgeKey, angle: Option<f64>) -> VertexKey {
 
 /// The angle of `p` on a circle carrier.
 fn angle_on(c: &Curve3<f64>, p: Point3<f64>) -> f64 {
-    let Curve3::Circle(geom::Circle { frame, .. }) = c else {
+    let Curve3::Circle(the_circle @ geom::Circle { .. }) = c else {
         panic!("not a circle")
     };
+    let frame = the_circle.frame();
     let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
     let d = p - center;
     d.dot(axis.cross(u_ref)).atan2(d.dot(u_ref))

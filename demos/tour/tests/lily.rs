@@ -7,11 +7,11 @@ mod review_probes {
     use pncad::authoring::p2;
     use pncad::geom_core::Tol;
     use pncad::geom_core::{Point3, Vec3};
-    use pncad::prelude::{Open, SurfaceKind};
+    use pncad::prelude::Open;
     use pncad::profile::{ArcSweep, Center};
     use pncad::sweep::WedgeFrames;
+    use pncad::topo::Body;
     use pncad::topo::Surface;
-    use pncad::topo::{AtRestBody, Body, BooleanError, Operand, PairRefusalSite};
 
     fn pieces() -> Vec<Piece<f64>> {
         plant::<f64>(Tol::witness())
@@ -352,9 +352,8 @@ mod review_probes {
         }
     }
 
-    /// **The weld's door sequence, measured** — VERBS-LILYWELD PR-2's
-    /// opening measurement, carried past the cone's admission to the
-    /// boolean.
+    /// **The weld builds** — VERBS-LILYWELD PR-2's opening measurement,
+    /// carried through the boolean.
     ///
     /// The lantern's throat disk against the arch's end cap is an exact
     /// coincident planar Rest pair, which the union decides on its
@@ -362,13 +361,13 @@ mod review_probes {
     /// the crossing layer reads the WELD CIRCLE — the lantern's neck
     /// rim, which lies on the arch's torus wall as its terminal
     /// meridian circle — as an edge lying on that wall, the carrier
-    /// ladder having decided the neck cone distinct from the torus. The
-    /// union stops at the interior-loop guard on the neck cone against
-    /// the torus wall: a cone and a torus that are not coaxial have no
-    /// section certificate arm. This row is what shows it moving when
-    /// that pair gets one.
+    /// ladder having decided the neck cone distinct from the torus, and
+    /// the interior-loop guard reads the neck cone against the torus
+    /// wall through the section value's cone × torus pose. The union is
+    /// one shell, valid at tier 3, its volume the two parts' sum (they
+    /// meet on the disc and the circle alone).
     #[test]
-    fn the_weld_refuses_at_the_cone_torus_pair() {
+    fn the_weld_builds_through_the_cone_torus_pair() {
         let tol = Tol::witness();
         let ps = pieces();
         let (lant, arch) = (body(&ps, "lily_lantern"), body(&ps, "lily_arch"));
@@ -376,45 +375,19 @@ mod review_probes {
             &finished("lily_lantern", lant.clone(), tol),
             &finished("lily_arch", arch.clone(), tol),
         );
-        let refused = pncad::topo::union(lant, arch, tol).expect_err("the weld still refuses");
-        println!("weld: {refused:?}");
-        let BooleanError::CurvedPairUnsupported {
-            site: PairRefusalSite::InteriorLoopGuard,
-            operand: Operand::A,
-            face,
-            other_face,
-            ..
-        } = refused
-        else {
-            panic!("the weld stops at the interior-loop guard: {refused:?}");
-        };
-        let kind_of = |body: &AtRestBody<f64>, f| body.face_surface(f).map(|s| s.kind());
+        let welded = pncad::topo::union(lant, arch, tol).expect("the weld builds");
+        let welded = &welded.body().expect("a welded body").body;
+        assert_eq!(welded.shells().count(), 1, "one welded shell");
         assert_eq!(
-            (kind_of(lant, face), kind_of(arch, other_face)),
-            (Some(SurfaceKind::Cone), Some(SurfaceKind::Torus)),
-            "the refused pair is the lantern's neck cone against the arch's torus wall"
+            pncad::topo::validate_geometric(welded, tol),
+            Ok(()),
+            "the weld is valid at tier 3"
         );
-        // The neck cone is the face the weld circle bounds.
-        let bounds_the_weld = lant.get_face(face).is_some_and(|_| {
-            lant.edges().any(|(_, e)| {
-                [e.he_plus, e.he_minus]
-                    .into_iter()
-                    .any(|he| lant.face_of_half_edge(he) == Some(face))
-                    && lant
-                        .get_curve_geom(e.curve)
-                        .and_then(|g| g.certified())
-                        .is_some_and(|c| {
-                            matches!(
-                                c.carrier(),
-                                pncad::geom::Curve3::Circle(circle)
-                                    if (circle.radius() - ARCH_R).abs() < 1e-12
-                            )
-                        })
-            })
-        });
+        let (got, parts) = (volume(welded, tol), volume(lant, tol) + volume(arch, tol));
+        println!("weld: {got} vs the parts' {parts}");
         assert!(
-            bounds_the_weld,
-            "the refused cone face is bounded by the weld circle"
+            (got - parts).abs() <= 1e-9 * parts,
+            "the weld's volume is the parts' sum: {got} vs {parts}"
         );
     }
 
@@ -1361,16 +1334,10 @@ mod review_probes {
         b.edges()
             .filter_map(|(_, e)| {
                 let geom = b.get_curve_geom(e.curve)?.certified()?;
-                let pncad::geom::Curve3::Circle(
-                    conic_k @ pncad::geom::Circle {
-                        frame: carrier_frame,
-                        ..
-                    },
-                ) = *geom.carrier()
-                else {
+                let pncad::geom::Curve3::Circle(conic_k) = *geom.carrier() else {
                     return None;
                 };
-                let center = carrier_frame.origin();
+                let center = conic_k.frame().origin();
                 let radius = conic_k.radius();
                 ((center - origin).dot(normal).abs() < 1e-9).then(|| {
                     let out = mid - center;
@@ -1526,9 +1493,8 @@ mod verbs_gate_r1_probes {
     use demo_tour::scalar::Scalar;
     use pncad::geom_core::Point3;
     use pncad::geom_core::Tol;
-    use pncad::prelude::SurfaceKind;
     use pncad::topo::Surface;
-    use pncad::topo::{Body, BooleanError, Operand, PairRefusalSite};
+    use pncad::topo::{Body, BooleanError};
 
     /// The wall-7 finding, re-derived with the reviewer's own
     /// arithmetic. A slab box of the pucker (max-generator radius along
@@ -1827,22 +1793,11 @@ mod verbs_gate_r1_probes {
             STEM_R - ARCH_R
         );
 
-        let welded = pncad::topo::union(lant, arch, tol)
-            .expect_err("the lantern still cannot be welded to the arch");
-        println!("lily wall 2: {welded:?}");
-        assert!(
-            matches!(
-                welded,
-                BooleanError::CurvedPairUnsupported {
-                    site: PairRefusalSite::InteriorLoopGuard,
-                    operand: Operand::A,
-                    kind: SurfaceKind::Cone,
-                    other_kind: SurfaceKind::Torus,
-                    ..
-                }
-            ),
-            "wall 2 must stop at the interior-loop guard on the lantern's neck cone \
-             against the arch's torus wall: {welded:?}"
+        let welded = pncad::topo::union(lant, arch, tol).expect("the lantern welds onto the arch");
+        assert_eq!(
+            welded.body().map(|b| b.body.shells().count()),
+            Some(1),
+            "wall 2 is retired: the lantern welds onto the arch in one shell"
         );
     }
 

@@ -112,7 +112,9 @@
 
 use geom::Surface;
 use geom::{Curve3, EllipseInvalid, Frame, SpiricInvalid, SquareFrame, SurfaceKind};
-use geom_core::{Band, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, Vec3};
+use geom_core::{
+    Band, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Rounded, Sign, Vec3,
+};
 
 use geom_core::k_stats::{decide_across, decide_across_reported};
 
@@ -285,10 +287,12 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
                    radius, at ±R·cot α from the apex (cone_cylinder_section) — no \
                    tangency sub-case exists, a coaxial cylinder always cuts \
                    transversally; a tilted cylinder and a parallel-but-OFFSET one \
-                   both cut a QUARTIC and route to the general rung, whose \
-                   cone×cylinder arm has not retired — the uniqueness tube has no \
-                   cone arm, so its certificate, not its trace, is what is missing \
-                   (arms retire one at a time, each with its proof)",
+                   both cut a QUARTIC, classified by the section value \
+                   (geom_brep::pair_section) on the sweep along the cone's rulings \
+                   and not marched: the general rung has no march door for the pair, \
+                   and the uniqueness tube has no cone arm, so its certificate, not its \
+                   trace, is what is missing (arms retire one at a time, each with its \
+                   proof)",
         },
         // ---- Rung 3, IMPLEMENTED (M5 PR 7): the ℝ³ implicit-pair
         // march. Both operands' C9 composites convert to meters
@@ -314,9 +318,11 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
             rung: Rung::General,
             implemented: false,
             note: "this pair routes to the general rung with the ℝ³ IMPLICIT-PAIR \
-                   trace shape (the general-rung marcher), blocked on the uniqueness \
-                   tube's cone arm; the common-apex line-pair special case is \
-                   not classified here",
+                   trace shape (the general-rung marcher): classified by the section \
+                   value (geom_brep::pair_section) on the sweep along one cone's \
+                   rulings, and not marched, blocked on the uniqueness tube's cone arm \
+                   and a march door for the pair; the common-apex line-pair special \
+                   case is not classified here",
         },
         (Cone, Sphere) | (Sphere, Cone) => PairRoute {
             rung: Rung::General,
@@ -328,11 +334,15 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
         },
         (Cone, Torus) | (Torus, Cone) => PairRoute {
             rung: Rung::General,
-            implemented: false,
-            note: "this pair routes to the general rung with the ℝ³ IMPLICIT-PAIR \
-                   trace shape (the general-rung marcher), blocked on the uniqueness \
-                   tube's cone arm; the coaxial pose has a closed form \
-                   (cone_torus_section), which this dispatch does not route to",
+            implemented: true,
+            note: "marched in ℝ³ on the IMPLICIT PAIR and fitted, with the full \
+                   three-limb certificate and in-op exhaustiveness \
+                   (geom_brep::ssi::cone_torus_ssi), the torus read through its \
+                   quartic and the cone as the double cone through its elevation, past \
+                   the pose's critical gap; the coaxial pose is the closed form's \
+                   (cone_torus_section), and a cone whose apex lies on the torus is \
+                   classified, a node or a touch, and not marched; a torus outside its \
+                   ring convention is refused as a shape",
         },
         // ---- Rung 3, IMPLEMENTED: the ℝ³ implicit-pair march, each
         // torus read through its quartic. ----
@@ -561,7 +571,7 @@ pub fn route_pose<T: Decide>(
         (Torus, Plane) => plane_torus_section(b, a, extent(), band).map(drop),
         (Cone, Cylinder) => cone_cylinder_section(a, b, extent(), band).map(drop),
         (Sphere, Torus) | (Torus, Sphere) => torus_pose(crate::SphereTorusPose::decide(a, b, band)),
-        (Cylinder, Torus) | (Torus, Cylinder) | (Torus, Torus) => {
+        (Cylinder, Torus) | (Torus, Cylinder) | (Torus, Torus) | (Cone, Torus) | (Torus, Cone) => {
             crate::pair_section(a, b, None, None::<geom_core::NoLane>, band).map(drop)
         }
         (Cylinder, Cone) => cone_cylinder_section(b, a, extent(), band).map(drop),
@@ -587,8 +597,8 @@ pub fn route_pose<T: Decide>(
         | (Nurbs | Approx, Nurbs | Approx) => Ok(()),
         // Unimplemented at the kind level: `route`'s answer stands.
         (Cylinder, Nurbs)
-        | (Torus, Cone | Nurbs)
-        | (Cone, Cone | Sphere | Torus | Nurbs)
+        | (Torus, Nurbs)
+        | (Cone, Cone | Sphere | Nurbs)
         | (Sphere, Cone | Nurbs)
         | (Nurbs, Cylinder | Cone | Sphere | Torus)
         | (Approx, Cylinder | Cone | Sphere | Torus)
@@ -1051,8 +1061,8 @@ fn closed_form_shown<T: Decide>(
 ///    the axis' angle off the plane levered over `reach` from the
 ///    rulings' hinge, the line through the foot's projection on the
 ///    plane: the consumed region's axial distance from the hinge's
-///    station ([`Reach::hinge_lever`]), plus its distance across the
-///    wall from the hinge at second order ([`Reach::turn_lever`]): Zero
+///    station (`hinge_lever`), plus its distance across the
+///    wall from the hinge at second order (`turn_lever`): Zero
 ///    ⇒ the axis lies in the plane
 ///    (the parallel degenerate lane, step 2); definite ⇒ a bounded cut
 ///    (step 3).
@@ -1197,7 +1207,7 @@ pub(crate) enum RuledSection<T: Real> {
 }
 
 /// Steps 1–2 of [`plane_cylinder_section`]: the axis-in-plane lane, at
-/// `reach`'s frame ([`ruled_frame`]): the tilt row
+/// `reach`'s frame ([`Reach::ruled_pivot_lever`]): the tilt row
 /// ([`ruled_parallel`]), then, with the axis in the plane, the gap row
 /// ([`ruled_section`]). The tangent-locus lane reads its ruling
 /// tangency through the same two rows on the same frame, so the
@@ -1207,7 +1217,7 @@ fn plane_cylinder_ruled_read<T: Decide>(
     reach: &Reach<T>,
     band: Band,
 ) -> Result<(Decided, Option<RuledSection<T>>), Indeterminate> {
-    let frame = ruled_frame(pc, reach);
+    let frame = reach.ruled_pivot_lever(pc);
     let parallel = ruled_parallel(&frame, band)?;
     Ok((parallel, ruled_section(pc, &frame, parallel, band)?))
 }
@@ -1274,34 +1284,15 @@ pub(crate) fn ruled_section<T: Decide>(
     }))
 }
 
-/// The axis-in-plane lane's frame: `reach`'s pivot on the axis
-/// ([`Reach::foot_on`]), the axis' normal component `c`, the foot's signed height over
-/// the plane, and the lever the tilt is read at.
+/// The axis-in-plane lane's frame ([`Reach::ruled_pivot_lever`]):
+/// `reach`'s pivot on the axis, the axis' normal component `c`, the
+/// pivot's signed height over the plane, and the lever the tilt is read
+/// at.
 pub(crate) struct RuledFrame<T: Real> {
     pub(crate) o: Point3<T>,
     pub(crate) c: T,
     pub(crate) gap_signed: T,
     pub(crate) lever: geom_core::Lever<T>,
-}
-
-/// [`RuledFrame`] of the pair at `reach`.
-pub(crate) fn ruled_frame<T: Decide>(pc: &PlaneCylinder<T>, reach: &Reach<T>) -> RuledFrame<T> {
-    let &PlaneCylinder { q, n, o, a, .. } = pc;
-    let o = reach.foot_on(geom::Line { origin: o, dir: a });
-    let c = a.dot(n);
-    let gap_signed = (o - q).dot(n);
-    // The rulings this lane mints stand on the hinge through `o − n·gap`,
-    // `−gap·c` along the axis from the foot; the reach is levered from
-    // there (`geom_brep::extent`'s module docs).
-    let hinge = o - n * gap_signed;
-    let cos = (T::one() - c.powi(2)).max(T::zero()).sqrt();
-    let lever = reach.ruled_lever((o, -(gap_signed * c)), hinge, (n, a), (c, cos));
-    RuledFrame {
-        o,
-        c,
-        gap_signed,
-        lever,
-    }
 }
 
 /// **The axis-in-plane lane's gap row**, `pc_parallel_gap`: a consumed
@@ -2504,8 +2495,11 @@ pub fn plane_cone_section<T: Decide>(
         let rounding = |x: Vec3<T>, y: Vec3<T>, per_unit: T| {
             per_unit * (x.x.abs() * y.x.abs() + x.y.abs() * y.y.abs() + x.z.abs() * y.z.abs())
         };
-        let gap_err = rounding(apex - q, n, T::from_f64(2.5 * f64::EPSILON));
-        let size = apex_gap.abs() + gap_err;
+        let gap = Rounded {
+            value: apex_gap,
+            error: rounding(apex - q, n, T::from_f64(2.5 * f64::EPSILON)),
+        };
+        let size = gap.magnitude();
         const PN_APEX_PAIR_REACH: &str = "pn_apex_pair_reach";
         const PN_APEX_TANGENT_REACH: &str = "pn_apex_tangent_reach";
         const PN_APEX_POINT_REACH: &str = "pn_apex_point_reach";
@@ -2514,23 +2508,23 @@ pub fn plane_cone_section<T: Decide>(
                 PN_APEX_PAIR_REACH,
                 pair_bound(
                     reach,
-                    (apex, a, cos_a, sin_a, seam_width),
+                    (apex, a, half_angle, seam_width),
                     (discr, steep, s),
-                    (apex_gap, gap_err),
-                    (
-                        c,
-                        rounding(a, n, T::from_f64(2.0 * f64::EPSILON))
+                    gap,
+                    Rounded {
+                        value: c,
+                        error: rounding(a, n, T::from_f64(2.0 * f64::EPSILON))
                             + T::from_f64(0.5 * f64::EPSILON) * s,
-                    ),
+                    },
                 ),
             ),
-            // Unsourced lever: the plane's stand-off from the apex plus its rounding, a datum
-            // length rather than an extent; its honest door `levered_inv(size, steep)` rounds apart.
+            // Unsourced lever: no lever. The plane's stand-off from the apex over the sine it is
+            // read across is a computed distance that enters `Margin::of` (`work/oneround/unsourced-levers-with-no-door-that-names-them.md`).
             Sign::Zero => (
                 PN_APEX_TANGENT_REACH,
                 Margin::levered(T::one() / steep, geom_core::Lever::unsourced(size)),
             ),
-            // Unsourced lever: as `pn_apex_tangent_reach`'s, over the discriminant.
+            // Unsourced lever: no lever, as `pn_apex_tangent_reach`'s, over the discriminant.
             Sign::Negative => (
                 PN_APEX_POINT_REACH,
                 Margin::levered(T::one() / discr.abs(), geom_core::Lever::unsourced(size)),
@@ -2624,13 +2618,18 @@ pub fn plane_cone_section<T: Decide>(
                     // off the zero band, so the minor direction is
                     // defined.
                     let u_major = tilted_section_major(n, s_vec);
-                    // The centre is the apex's foot on the plane moved
-                    // along the major axis: in the plane by
-                    // construction, where `apex − (c·a − sin²α·n)·δ/K`
-                    // reads a vector that cancels to K along the normal
-                    // and then divides it by K.
-                    let center = apex - n * apex_gap + u_major * tilt.centre(apex_gap);
-                    let e = Curve3::ellipse(center, n, major, minor, u_major, band)?;
+                    // The ellipse is held on its arc at its vertex nearer
+                    // the apex's foot, read where the plane meets that
+                    // ruling (`ConeTilt::near_vertex`, finite toward the
+                    // parabola): the apex's foot on the plane moved along
+                    // the major axis, in the plane by construction. The
+                    // arc there is stored at its own scale however far
+                    // the centre lies; the centre lies from it along
+                    // `δσ·û` and is not computed here.
+                    let delta_sigma = apex_gap * tilt.c.unit_sign();
+                    let vertex = apex - n * apex_gap + u_major * tilt.near_vertex(delta_sigma);
+                    let toward = u_major * (T::zero() - delta_sigma.unit_sign());
+                    let e = Curve3::ellipse_anchored(vertex, n, toward, (major, minor), band)?;
                     Ok(PlaneConeSection::TiltedEllipse(e))
                 }
                 verdict @ (Sign::Zero | Sign::Positive) => {
@@ -2739,29 +2738,39 @@ pub fn plane_cone_section<T: Decide>(
 #[allow(clippy::many_single_char_names)] // the derivation's own symbols
 fn pair_bound<T: geom_core::spline::SpanLocate>(
     reach: &Reach<T>,
-    (apex, a, cos_a, sin_a, seam_width): (Point3<T>, Vec3<T>, T, T, T),
+    (apex, a, half_angle, seam_width): (Point3<T>, Vec3<T>, T, T),
     (d, m, s): (T, T, T),
-    (gap, gap_err): (T, T),
-    (c, c_err): (T, T),
+    gap: Rounded<T>,
+    c: Rounded<T>,
 ) -> Margin<T> {
     let zero = T::zero();
-    let size = gap.abs() + gap_err;
-    // Unsourced lever: the plane's stand-off from the apex plus its rounding, a datum length
-    // rather than an extent; its honest door `levered_inv(size, d)` rounds apart.
+    let size = gap.magnitude();
+    // Unsourced lever: no lever. The plane's stand-off from the apex over `d` is plain
+    // arithmetic inside the bound (`work/oneround/unsourced-levers-with-no-door-that-names-them.md`).
     let far = Margin::levered(T::one() / d, geom_core::Lever::unsourced(size)).value();
-    // Unsourced lever: as `far`'s, over `m`.
+    // Unsourced lever: no lever, as `far`'s, over `m`.
     let near = Margin::levered(T::one() / m, geom_core::Lever::unsourced(size)).value();
-    let (lo, hi) = reach.range_along(apex, a);
+    let crate::extent::GeneratorReach {
+        window: (lo, hi),
+        sin_cos: (sin_a, cos_a),
+        lever: generator,
+    } = reach.generator_lever(
+        geom::Line {
+            origin: apex,
+            dir: a,
+        },
+        half_angle,
+    );
     let rho = lo.max(zero - hi).max(zero) / cos_a;
     // `δ·c < 0` puts the near start on `+a`; read only where both signs
     // clear their rounding (step 4).
-    let undecided = (gap.abs() - gap_err).min(c.abs() - c_err);
+    let undecided = gap.room().min(c.room());
     let unlike = |when_unlike: T, when_like: T| {
         undecided.select_le_zero(
             far,
-            gap.select_le_zero(
-                c.select_le_zero(when_like, when_unlike),
-                c.select_le_zero(when_unlike, when_like),
+            gap.value.select_le_zero(
+                c.value.select_le_zero(when_like, when_unlike),
+                c.value.select_le_zero(when_unlike, when_like),
             ),
         )
     };
@@ -2773,7 +2782,7 @@ fn pair_bound<T: geom_core::spline::SpanLocate>(
     let sigma_sq = d * m / sin_a.powi(2);
     let floor = T::from_f64(f64::MIN_POSITIVE);
     let lean = T::from_f64(2.0) * s * size / (sin_a * rho.max(floor));
-    // Unsourced lever: as `far`'s, over the pair's own divisor.
+    // Unsourced lever: no lever, as `far`'s, over the pair's own divisor.
     let offset = Margin::levered(
         T::from_f64(2.0) / (sigma_sq.sqrt() + (sigma_sq - lean).max(zero).sqrt()),
         geom_core::Lever::unsourced(size),
@@ -2787,11 +2796,7 @@ fn pair_bound<T: geom_core::spline::SpanLocate>(
         + (T::from_f64(6.0) + tau) * sin_a / s
         + (T::from_f64(12.0) + tau) * sin_a
         + T::from_f64(4.0);
-    let azimuth = Margin::levered(
-        T::from_f64(0.5 * f64::EPSILON) * turn,
-        reach.generator_lever(apex, a, cos_a),
-    )
-    .value();
+    let azimuth = Margin::levered(T::from_f64(0.5 * f64::EPSILON) * turn, generator).value();
     Margin::of(far.min(start + offset) + azimuth)
 }
 
@@ -3436,8 +3441,8 @@ fn coaxial_cone_torus<T: Decide>(
             Sign::Positive | Sign::Negative => {
                 return Err(SectionError::RoutesToGeneralRung {
                     pair: "cone×torus",
-                    why: "a torus off the cone's axis cuts a curve of degree eight, and the \
-                          pair's general-rung arm has not retired",
+                    why: "a torus off the cone's axis cuts a curve of degree eight, which has \
+                          no closed form",
                 });
             }
         }

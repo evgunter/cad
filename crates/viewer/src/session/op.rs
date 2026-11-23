@@ -26,7 +26,7 @@ use crate::display::PruneReport;
 use crate::layout::LayoutReport;
 use crate::props::SlotValue;
 use crate::session::author::{PartSelectSpec, PatternRuleSpec};
-use crate::session::probe::BoundsTarget;
+use crate::session::range::RangeTarget;
 use crate::session::refuse::Refusal;
 use crate::session::select::{FaceSelection, Hovered, Selection};
 
@@ -89,8 +89,10 @@ pub enum SessionOp {
         /// The placement: a `Place` or an instance.
         placement: RecipeNodeId,
     },
-    /// Write a value into a node's slot. Refused if the slot is
-    /// driven by an expression.
+    /// Write a value into a node's slot: the slot reads a literal of
+    /// it in the unit it is written in, whatever it read before, so a
+    /// number written over an expression replaces the expression. Only a
+    /// drag over an expression is refused ([`SessionOp::BeginGesture`]).
     SetSlot {
         /// The node.
         node: RecipeNodeId,
@@ -99,28 +101,19 @@ pub enum SessionOp {
         /// The new value.
         value: SlotValue,
     },
-    /// Take a locally-valid-range probe for one field: how far it can
-    /// move, in each direction, before the document acquires a failure
-    /// it does not have now.
+    /// **`range?`**: start the certified search of one field — over
+    /// which interval around its current value the document is PROVABLY
+    /// the same build ([`super::DocSession::range`]).
     ///
-    /// **Explicitly asked for, never automatic.** The probe costs tens
-    /// of evaluations (`bounds`'s cost note), which is a price worth
-    /// paying when a user is about to change a number and not worth
-    /// paying on every selection. The answer lands in the session
-    /// ([`super::DocSession::bounds`]) and is discarded on the next document
-    /// change.
-    ///
-    /// It changes no document, commits nothing and enters no history:
-    /// every candidate is applied to a scratch copy that is dropped.
-    ///
-    /// A slot driven by an expression is refused, exactly as
-    /// [`SessionOp::SetSlot`] and [`SessionOp::BeginGesture`] refuse
-    /// it: the range would be a range of numbers for a field that
-    /// takes no number. The affordance names the driving variables,
-    /// which are the fields to probe instead.
-    ProbeBounds {
-        /// The field to probe.
-        target: BoundsTarget,
+    /// It runs on its own seam, off the frame, and its busy state is
+    /// not [`super::DocSession::busy`]'s. It changes no document, commits
+    /// nothing and enters no history. An edit, a value gesture or
+    /// another `range?` stops the run and drops its reading; a request
+    /// the kernel's admission refuses is refused here in its words
+    /// ([`super::DocSession::range_refusal`]).
+    ProveRange {
+        /// The field to search.
+        target: RangeTarget,
     },
     /// Change how a slot's literal is WRITTEN — its display unit —
     /// leaving the canonical value bit-identical.
@@ -148,7 +141,7 @@ pub enum SessionOp {
     },
     /// Replace a slot's expression from source text, through the
     /// shipped `parse_formula` door. This is the affordance's editing
-    /// half: a driven slot refuses a NUMBER, never an expression.
+    /// half: a driven slot refuses a DRAG, never an expression.
     SetSlotExpression {
         /// The node.
         node: RecipeNodeId,
@@ -376,6 +369,9 @@ pub enum SessionOp {
     Redo,
     /// Cancel the evaluation in flight.
     CancelEvaluation,
+    /// Stop the `range?` run in flight, keeping what it has proven.
+    /// Nothing in flight is nothing to stop.
+    StopRange,
     /// Ask for the current document to be evaluated again.
     ///
     /// The pair to [`SessionOp::CancelEvaluation`], and the only way
@@ -400,7 +396,7 @@ pub enum SessionOp {
     /// That folder's scan decides the act before anything is written:
     /// a resave, a create at the chosen name, or a refusal. A folder
     /// that already holds this document under another name refuses
-    /// `SaveWouldDuplicateId` ([`Refusal::save_choice`] reads the two
+    /// `SaveWouldDuplicateId` ([`crate::recourse::offers`] reads the two
     /// ways on out of it), and a folder whose scan refuses gives that
     /// refusal; both arrive as [`Refusal::Workspace`].
     ///
@@ -409,8 +405,7 @@ pub enum SessionOp {
     /// does not hold its parts silently rebinds to that directory and
     /// its instances refuse at the next evaluation — typed on the tree
     /// badges, and recoverable by saving back, but nothing warns
-    /// first. Recorded with the rest of the seam's newly-reachable
-    /// edges in issue #1387.
+    /// first (`work/versions/document-seam-no-in-session-change-detection.md`).
     Save(PathBuf),
     /// **Save as a new document** (DI4): the committed document under
     /// a fresh random id, written at the path through that folder's
@@ -613,30 +608,15 @@ pub enum SessionOp {
         /// The loop programs, in description order.
         loops: Vec<LoopProgram<Formula>>,
     },
-    /// **"Sketch on this face"** (spec §5): `loops` drawn as a profile
-    /// on its own plane, extruded `distance` up its own `z`, the
-    /// extrude's copy placed against the picked face — a `Plane` mate
-    /// from its start cap, flipped, to the face's plane, its origin
-    /// over the face body's own and turned `spin` about the face's
-    /// normal — and the face's body and the copy fused, as ONE action
-    /// (`Recording::sketch_on_face`), the union taking over the `⊔`
-    /// operands and the product slot that read the face's body (A10).
-    /// The made node is the profile, the piece the gesture adds.
-    ///
-    /// A pick on a copy is read on that copy (Ev, PR 6353). A face whose
-    /// node is no body refuses [`Refusal::WrongNodeKind`]; every other
-    /// refusal is the edit door's ([`Refusal::Edit`]), and a face that
-    /// is not planar or does not resolve refuses at evaluation, on the
-    /// placement's badge.
-    SketchOnFace {
-        /// The picked face.
-        face: FaceSelection,
-        /// The loop programs, in description order.
-        loops: Vec<LoopProgram<Formula>>,
-        /// The extrusion depth (`Length`).
-        distance: Formula,
-        /// The turn about the face's normal (`Angle`).
-        spin: Formula,
+    /// **A datum** (D10 `[placement.datums]`): a bare frame inserted into
+    /// `space` at its origin, every value zero, which the placement
+    /// editor then places (create, then edit). A plane or an axis is
+    /// read off it through a role; which one the editor's first row
+    /// reads is the tool's, not the document's.
+    AddDatum {
+        /// The space it is placed into: where the selected body is
+        /// drawn, or the world.
+        space: VarId,
     },
     /// **A profile drawn on a face, tracing faces of its body** (D10
     /// `[placement]`; REFERENCES DM1; "Constructing a coincidence"):
@@ -681,11 +661,11 @@ pub enum SessionOp {
     ///
     /// Every argument of a kept step that did not move is written as
     /// the document holds it, so only what moved takes the editor's
-    /// notation. A kept step's argument an expression drives refuses
-    /// with the affordance if the program does not hold it unmoved
-    /// ([`Refusal::DrivenByExpression`]), exactly as the slot field
-    /// does. The program itself, and `ids`' shape, are the edit door's
-    /// to judge, and refuse in its words ([`Refusal::Edit`]).
+    /// notation. A kept step's argument the program writes anew is
+    /// written as the program holds it, over an expression as over a
+    /// literal, exactly as [`SessionOp::SetSlot`] writes a slot. The
+    /// program itself, and `ids`' shape, are the edit door's to judge,
+    /// and refuse in its words ([`Refusal::Edit`]).
     ///
     /// A name on a step the program does not keep, or on a kept step's
     /// piece it stops drawing, is stranded, and the door's report of it
@@ -855,6 +835,21 @@ pub enum SessionOp {
         b: AssertedSeat,
         /// What is claimed between them.
         claim: AssertedClaim,
+    },
+    /// **Author the assertion a check's finding carries**
+    /// ([`pncad::document::Quieting`]): the kernel's own edits for it
+    /// (`Quieting::record`), the measure and the assertion `= 0` over
+    /// it, as one action and one undo — a check's Commit offer
+    /// ([`crate::recourse::Offer::Commit`]).
+    ///
+    /// **It takes the kernel's value, not seats.** A finding names its
+    /// cells keyed by the `⊔` that gathered them, so seats built from
+    /// those names would be admitted and then fail to resolve; the
+    /// value is the one the quieting rule reads back as the row's cells,
+    /// and no other caller can build one.
+    AssertQuieting {
+        /// The assertion, as the finding carries it.
+        quieting: pncad::document::Quieting,
     },
     /// Insert one pattern of an existing body — the pattern tool's one
     /// committed edit: an index `k = index(count)` and one placement of
@@ -1301,6 +1296,20 @@ pub struct PlacementBase {
 }
 
 impl SessionOp {
+    /// **The slot a value field's typed entry is aimed at**: a number
+    /// ([`Self::SetSlot`]) and text ([`Self::SetSlotExpression`]) are
+    /// the two doors of one field, so either is that field's edit.
+    /// `None` for every other op.
+    #[must_use]
+    pub fn field_entry(&self) -> Option<(RecipeNodeId, SlotId)> {
+        match self {
+            Self::SetSlot { node, slot, .. } | Self::SetSlotExpression { node, slot, .. } => {
+                Some((*node, *slot))
+            }
+            _ => None,
+        }
+    }
+
     /// **The viewer's Place of `body`**: into the space the body is in,
     /// so the copy stands where the body is. `None` for a read in no
     /// space, which names no body to place.
@@ -1321,7 +1330,7 @@ impl SessionOp {
     pub fn creates_a_node(&self) -> bool {
         match self {
             Self::AddProfile { .. }
-            | Self::SketchOnFace { .. }
+            | Self::AddDatum { .. }
             | Self::DrawOnFace { .. }
             | Self::AddExtrude { .. }
             | Self::AddRevolve { .. }
@@ -1329,6 +1338,7 @@ impl SessionOp {
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
             | Self::AddAssertion { .. }
+            | Self::AssertQuieting { .. }
             | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
@@ -1347,7 +1357,7 @@ impl SessionOp {
             | Self::SetSlot { .. }
             | Self::SetSlotVariable { .. }
             | Self::DeclineOffer { .. }
-            | Self::ProbeBounds { .. }
+            | Self::ProveRange { .. }
             | Self::SetSlotUnit { .. }
             | Self::SetSlotExpression { .. }
             | Self::SetVariable { .. }
@@ -1366,6 +1376,7 @@ impl SessionOp {
             | Self::Undo
             | Self::Redo
             | Self::CancelEvaluation
+            | Self::StopRange
             | Self::Reevaluate
             | Self::Open(_)
             | Self::Save(_)
@@ -1426,7 +1437,7 @@ impl SessionOp {
             | Self::SetSlot { .. }
             | Self::SetSlotVariable { .. }
             | Self::DeclineOffer { .. }
-            | Self::ProbeBounds { .. }
+            | Self::ProveRange { .. }
             | Self::SetSlotUnit { .. }
             | Self::SetSlotExpression { .. }
             | Self::SetVariable { .. }
@@ -1438,6 +1449,7 @@ impl SessionOp {
             | Self::Undo
             | Self::Redo
             | Self::CancelEvaluation
+            | Self::StopRange
             | Self::Reevaluate
             | Self::Open(_)
             | Self::Save(_)
@@ -1448,7 +1460,7 @@ impl SessionOp {
             | Self::SetBundle { .. }
             | Self::NewDocument { .. }
             | Self::AddProfile { .. }
-            | Self::SketchOnFace { .. }
+            | Self::AddDatum { .. }
             | Self::DrawOnFace { .. }
             | Self::EditProfile { .. }
             | Self::AddExtrude { .. }
@@ -1457,6 +1469,7 @@ impl SessionOp {
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
             | Self::AddAssertion { .. }
+            | Self::AssertQuieting { .. }
             | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
@@ -1628,7 +1641,7 @@ impl SessionOp {
     /// the document, the history or the file the drag is previewing
     /// against — stated as "all but one" rather than as a count,
     /// because the count is a property of the enum and goes stale the
-    /// day an operation joins it. [`SessionOp::ProbeBounds`] is the
+    /// day an operation joins it. [`SessionOp::ProveRange`] is the
     /// exception and moves none of them: it READS the shown document,
     /// which
     /// mid-drag is the scratch, so a range taken there would be a
@@ -1645,6 +1658,7 @@ impl SessionOp {
             | Self::CommitVariableGesture { .. }
             | Self::CancelGesture
             | Self::CancelEvaluation
+            | Self::StopRange
             | Self::Reevaluate
             | Self::Save(_)
             | Self::SetBodyOn { .. }
@@ -1661,7 +1675,7 @@ impl SessionOp {
             | Self::IntoOwnSpace { .. }
             | Self::SetSlot { .. }
             | Self::SetSlotVariable { .. }
-            | Self::ProbeBounds { .. }
+            | Self::ProveRange { .. }
             | Self::SetSlotUnit { .. }
             | Self::SetSlotExpression { .. }
             | Self::SetVariable { .. }
@@ -1678,7 +1692,7 @@ impl SessionOp {
             | Self::AddMate { .. }
             | Self::SetBundle { .. }
             | Self::AddProfile { .. }
-            | Self::SketchOnFace { .. }
+            | Self::AddDatum { .. }
             | Self::DrawOnFace { .. }
             | Self::EditProfile { .. }
             | Self::AddExtrude { .. }
@@ -1687,6 +1701,7 @@ impl SessionOp {
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
             | Self::AddAssertion { .. }
+            | Self::AssertQuieting { .. }
             | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
@@ -1781,6 +1796,7 @@ impl SessionOp {
             | Self::CommitVariableGesture { .. }
             | Self::CancelGesture
             | Self::CancelEvaluation
+            | Self::StopRange
             | Self::Reevaluate
             | Self::Save(_)
             | Self::SaveAsNewDocument(_)
@@ -1796,7 +1812,7 @@ impl SessionOp {
             | Self::SetSlot { .. }
             | Self::SetSlotVariable { .. }
             | Self::DeclineOffer { .. }
-            | Self::ProbeBounds { .. }
+            | Self::ProveRange { .. }
             | Self::SetSlotUnit { .. }
             | Self::SetSlotExpression { .. }
             | Self::SetVariable { .. }
@@ -1812,7 +1828,7 @@ impl SessionOp {
             | Self::AddMate { .. }
             | Self::SetBundle { .. }
             | Self::AddProfile { .. }
-            | Self::SketchOnFace { .. }
+            | Self::AddDatum { .. }
             | Self::DrawOnFace { .. }
             | Self::EditProfile { .. }
             | Self::AddExtrude { .. }
@@ -1821,6 +1837,7 @@ impl SessionOp {
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
             | Self::AddAssertion { .. }
+            | Self::AssertQuieting { .. }
             | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
@@ -1850,6 +1867,7 @@ impl SessionOp {
             op => matches!(
                 op,
                 Self::AddProfile { .. }
+                    | Self::AddDatum { .. }
                     | Self::DrawOnFace { .. }
                     | Self::AddExtrude { .. }
                     | Self::AddRevolve { .. }
@@ -1880,6 +1898,7 @@ impl SessionOp {
             | Self::CommitVariableGesture { .. }
             | Self::CancelGesture
             | Self::CancelEvaluation
+            | Self::StopRange
             | Self::Reevaluate
             | Self::Save(_)
             | Self::SaveAsNewDocument(_)
@@ -1895,7 +1914,7 @@ impl SessionOp {
             | Self::SetSlot { .. }
             | Self::SetSlotVariable { .. }
             | Self::DeclineOffer { .. }
-            | Self::ProbeBounds { .. }
+            | Self::ProveRange { .. }
             | Self::SetSlotUnit { .. }
             | Self::SetSlotExpression { .. }
             | Self::SetVariable { .. }
@@ -1911,7 +1930,7 @@ impl SessionOp {
             | Self::AddMate { .. }
             | Self::SetBundle { .. }
             | Self::AddProfile { .. }
-            | Self::SketchOnFace { .. }
+            | Self::AddDatum { .. }
             | Self::DrawOnFace { .. }
             | Self::EditProfile { .. }
             | Self::AddExtrude { .. }
@@ -1920,6 +1939,7 @@ impl SessionOp {
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
             | Self::AddAssertion { .. }
+            | Self::AssertQuieting { .. }
             | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
@@ -1957,15 +1977,13 @@ pub enum AssertedSeat {
     Body(Operand),
     /// A face, read on the body it was picked on.
     Face(FaceSelection),
-    /// **An operand as the measure reads it**, written as given: a
-    /// selection of one name in the body read plainly, a pose defined
-    /// off such a selection, or a variable — what the measure's insert
-    /// mints its references from. A check's finding names its cells
-    /// keyed by the `⊔` that gathered them, which is not this: a seat
-    /// built from a finding's raw name is admitted and then fails to
-    /// resolve. A finding's quieting assertion is converted to seats by
-    /// the kernel's own reading of the row.
-    Read(Operand),
+    /// **A reference a check's finding carries**, as the kernel minted
+    /// it for the measure to read ([`pncad::document::QuietingRef`]): a
+    /// selection of one name in the body read plainly, a pose read off
+    /// it, or a variable. Only the kernel mints one, so a seat cannot be
+    /// built from a finding's raw cell name, which is keyed by the `⊔`
+    /// that gathered it and would be admitted and then fail to resolve.
+    Minted(pncad::document::QuietingRef),
 }
 
 /// **What an assertion claims** ([`SessionOp::AddAssertion`]): the

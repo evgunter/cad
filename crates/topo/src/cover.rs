@@ -18,8 +18,8 @@ use geom_core::spline::SpanLocate;
 use geom_core::{Band, Decide, Point3, Real, UnitVec3, Vec3};
 
 use crate::body::Body;
-use crate::entity::{Edge, EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, VertexKey};
-use crate::live::{BoundaryMember, FaceView, linked, proven};
+use crate::entity::{Edge, EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
+use crate::live::{BoundaryMember, EdgeView, FaceView, linked, proven};
 
 /// **Why a face has no cover** ([`face_cover`]): its carrier's own
 /// refusal (a plane, a cylinder and a cone are unbounded whole; a net
@@ -314,9 +314,9 @@ fn face_cover_in<T: Decide>(
     let f = body.proven_face(face);
     let surface = f.surface();
     let carrier = surface.cover().map_err(FaceUncovered::of_carrier);
-    // A lone-vertex outer loop bounds nothing: a ruled face holds no
-    // hull of it.
-    let bounded = matches!(f.outer().1.boundary, LoopBoundary::Cycle { .. });
+    // A face with no outline bounds no region: no hull of its boundary
+    // holds it, and its carrier's cover is the one that does.
+    let bounded = f.area_loops().is_ok();
     match surface {
         Surface::Plane { .. } | Surface::Cylinder { .. } | Surface::Cone { .. } if !bounded => {
             carrier
@@ -541,12 +541,14 @@ pub(crate) fn boundary_cover<T: Decide>(body: &Body<T>, f: FaceView<'_, T>) -> B
             }
             // A placeholder is a zero-length copy of its one point
             // (`crate::null::is_placeholder`), which its neighbours hold.
-            BoundaryMember::Edge { ek, .. } if crate::null::is_placeholder(body, ek) => {
+            BoundaryMember::Edge { edge, .. } if crate::null::is_placeholder(body, edge.key()) => {
                 Cover::points(vec![body.member_point(&member)])
-                    .ok_or_else(|| vec![BoundaryUnknown::Edge(ek, EdgeUncovered::Ends)])
+                    .ok_or_else(|| vec![BoundaryUnknown::Edge(edge.key(), EdgeUncovered::Ends)])
             }
-            BoundaryMember::Edge { ek, edge, .. } => edge_cover_linked(body, ek, edge)
-                .map_err(|why| vec![BoundaryUnknown::Edge(ek, why)]),
+            BoundaryMember::Edge { edge, .. } => {
+                let ek = edge.key();
+                edge_cover_linked(body, edge).map_err(|why| vec![BoundaryUnknown::Edge(ek, why)])
+            }
         };
         acc = Some(match (acc, one) {
             (None, one) => one,
@@ -637,7 +639,7 @@ pub(crate) const SPHERE_SEAM_UNIT: &str = "cover_sphere_seam_unit";
 /// axis, reads its latitude zone.
 ///
 /// `face` resolved to `f` in the caller, so its outer loop and that
-/// loop's members are links ([`Body::loop_members_linked`]), and a
+/// loop's members are links ([`FaceView::area_loops`]), and a
 /// record the flattening of that loop names is one too: a flattening
 /// that refuses past a cycle loop is a torn body and panics
 /// ([`crate::live::OPERATORS_KEEP_LINKS`]). The trim's `CorruptFace` is
@@ -658,14 +660,10 @@ fn sphere_window<T: Decide>(
     if !radius.structure_positive() {
         return None;
     }
-    let (outer, outer_loop) = f.outer();
-    if matches!(
-        body.loop_members_linked(outer, outer_loop).as_slice(),
-        [BoundaryMember::Isolated { .. }]
-    ) {
+    let Ok(area) = f.area_loops() else {
         return None;
-    }
-    let outer = match crate::props::chart_image_edges(body, outer) {
+    };
+    let outer = match crate::props::chart_image_edges(area.outer()) {
         Ok((outer, _)) if outer.is_empty() => return None,
         Ok((outer, _)) => outer,
         Err(LoopEdgesError::NullScaffoldEdge { .. }) => return None,
@@ -742,8 +740,8 @@ fn torn_outer_loop<T: Decide>(
     f.surface();
     let (outer, outer_loop) = f.outer();
     for member in body.loop_members_linked(outer, outer_loop) {
-        if let BoundaryMember::Edge { he, half, ek, edge } = member {
-            body.edge_curve_linked(ek, edge);
+        if let BoundaryMember::Edge { he, half, edge, .. } = member {
+            edge.curve();
             body.linked_vertex_point(half.start, EntityId::HalfEdge(he), "start");
             body.proven_half_edge_end(he);
         }
@@ -981,7 +979,7 @@ pub(crate) fn face_window_steps<T: Decide>(
             let cycle: Vec<(HalfEdgeKey, &Edge)> = members
                 .into_iter()
                 .filter_map(|member| match member {
-                    BoundaryMember::Edge { he, edge, .. } => Some((he, edge)),
+                    BoundaryMember::Edge { he, edge, .. } => Some((he, edge.record())),
                     BoundaryMember::Isolated { .. } => None,
                 })
                 .collect();
@@ -1111,19 +1109,18 @@ pub(crate) fn arc_cover<T: SpanLocate>(
         .map_err(EdgeUncovered::Carrier)
 }
 
-/// **How far `edge` reaches from `pivot`, bounded from both sides**
+/// **How far `e` reaches from `pivot`, bounded from both sides**
 /// ([`geom_brep::edge_reach_bounds`]), its bound from above the far
 /// distance of the edge's cover ([`edge_cover_linked`]) from `pivot`,
 /// poison where the edge has no cover, which the reading levered at it
 /// escalates. `None` for null scaffolding.
 pub(crate) fn edge_reach_bounds<T: SpanLocate>(
     body: &Body<T>,
-    edge: EdgeKey,
-    e: &Edge,
+    e: EdgeView<'_, T>,
     pivot: Point3<T>,
 ) -> Option<geom_brep::LeverBounds<T>> {
-    let curve = body.edge_curve_linked(edge, e).certified()?;
-    let cover = edge_cover_linked(body, edge, e).ok();
+    let curve = e.certified()?;
+    let cover = edge_cover_linked(body, e).ok();
     Some(reach_bounds_in(
         curve.carrier(),
         curve.params(),
@@ -1171,7 +1168,7 @@ fn reach_bounds_in<T: SpanLocate>(
 /// record on the way to its ends does not resolve (D2 row 4): a torn
 /// curve is not an uncertified one.
 pub fn edge_cover<T: SpanLocate>(body: &Body<T>, edge: EdgeKey) -> Result<Cover<T>, EdgeUncovered> {
-    edge_cover_linked(body, edge, proven(&body.edges, edge, EntityId::Edge))
+    edge_cover_linked(body, body.proven_edge(edge))
 }
 
 impl<T: SpanLocate> Body<T> {
@@ -1209,21 +1206,21 @@ impl<T: Decide> Body<T> {
     }
 }
 
-/// [`edge_cover`] past its edge's lookup: `e` is `edge`'s record.
+/// [`edge_cover`] for an edge already resolved, `e`.
 ///
 /// # Errors
 ///
 /// As [`edge_cover_of`].
 pub(crate) fn edge_cover_linked<T: SpanLocate>(
     body: &Body<T>,
-    edge: EdgeKey,
-    e: &Edge,
+    e: EdgeView<'_, T>,
 ) -> Result<Cover<T>, EdgeUncovered> {
+    let (edge, record) = (e.key(), e.record());
     let ends = (
-        edge_end_point(body, edge, e.he_plus, "he_plus"),
-        edge_end_point(body, edge, e.he_minus, "he_minus"),
+        edge_end_point(body, edge, record.he_plus, "he_plus"),
+        edge_end_point(body, edge, record.he_minus, "he_minus"),
     );
-    edge_cover_of(body.edge_curve_linked(edge, e).certified(), ends)
+    edge_cover_of(e.certified(), ends)
 }
 
 /// **Why an edge has no cover** ([`edge_cover_of`]). A reader states its

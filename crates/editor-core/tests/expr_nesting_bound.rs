@@ -182,8 +182,8 @@ fn pose_chain_document(levels: usize, slides: usize) -> Recorder {
     let placed = editor_core::Placed::of(
         &r.doc,
         vec![Mate {
-            on: cap(editor_core::CapEnd::Start),
-            to: fixture::flip(to),
+            on: cap(editor_core::CapEnd::Start).into(),
+            to: fixture::flip(to).into(),
             orient: editor_core::Orientation::IDENTITY,
         }],
         Vec::new(),

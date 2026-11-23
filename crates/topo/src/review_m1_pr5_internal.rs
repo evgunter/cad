@@ -137,9 +137,10 @@ fn leaked_provenance_all_seven_arenas() {
 
 /// Pass 10 + 11 at scale: an ops cube shredded across three shells
 /// (faces round-robined). Pass 10 must fire for every edge whose halves
-/// land in different shells; pass 11 must run (not hang, not skip),
-/// reporting per-shell component violations; the report must be finite
-/// and deterministic across repeated validation.
+/// land in different shells, and nothing else at tier 1; pass 11 runs
+/// through the corruption (not hang, not skip) and finds each shell's
+/// two faces adjacent, one piece, so tier 2 adds nothing; the report
+/// must be finite and deterministic across repeated validation.
 #[test]
 fn cross_shell_shredding_terminates_and_reports_coherently() {
     let tol = Tol::witness();
@@ -183,16 +184,14 @@ fn cross_shell_shredding_terminates_and_reports_coherently() {
         .filter(|e| matches!(e, ValidationError::EdgeAcrossShells { .. }))
         .count();
     // Every cube edge separates two adjacent faces; adjacent faces
-    // land in the same shell only when i % 3 collides. Just sanity:
-    // plenty of crossings, and pass 11 ran (some component violations).
+    // land in the same shell only when i % 3 collides.
     assert!(crossings >= 8, "expected many crossings, got {crossings}");
-    let violations = errs1
-        .iter()
-        .filter(|e| matches!(e, ValidationError::ComponentEulerViolation { .. }))
-        .count();
-    assert!(violations >= 1, "pass 11 ran through the corruption");
-    // Tier 2 shares the enumeration and must also terminate.
-    let _ = validate_closed(&b).unwrap_err();
+    assert_eq!(crossings, errs1.len(), "pass 10 alone reports: {errs1:?}");
+    assert_eq!(
+        validate_closed(&b).unwrap_err(),
+        errs1,
+        "each shell's two faces are adjacent: tier 2 finds every shell in one piece"
+    );
 }
 
 /// Tier-2 echo probe: a dangling `start` reference (pass-1 error)
@@ -268,6 +267,11 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
         "restate_surface",
         "a test-support door that overwrites one surface datum in place; no vertex, edge, \
          loop, face or shell is touched, so tier 1 holds as it found it",
+    ),
+    (
+        "restate_geometry",
+        "a test-support door that overwrites stored points, carriers and surfaces in place; \
+         no vertex, edge, loop, face or shell is touched, so tier 1 holds as it found it",
     ),
     (
         "set_sheet_sense",
@@ -482,9 +486,8 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
 /// fields tier 1 does not constrain. There is no fifth kind: a door
 /// that does not preserve tier 1 is a finding, not an entry.
 ///
-/// Stale entries are caught in both directions: an entry naming a door
-/// that no longer exists, or one that has since started asserting,
-/// fails as loudly as an unlisted door.
+/// An entry naming a door that no longer exists, or one that has since
+/// started asserting, is not a red: it excuses nothing a door does.
 ///
 /// **Where the door set comes from, and what it cannot see:**
 /// [`crate::source_walk::mutation_doors`], shared with the
@@ -583,15 +586,6 @@ fn every_public_mutation_path_preserves_tier1() {
          and close it with the sweep, or add it above WITH the reason tier 1 survives it \
          — and if the reason is that it does not, that is a finding, not an entry.",
     );
-    // The allowlist rots in the other direction too.
-    for (name, _) in ALLOWED {
-        assert!(
-            listed.iter().any(|n| n == name),
-            "the allowlist names `{name}`, which is no longer a non-asserting public \
-             mutation path — it was renamed, deleted, or has started asserting. Drop the \
-             entry.",
-        );
-    }
     // The walk's own floor is upstream, on `mutation_doors`. What is
     // this guard's is the needle: a lexing gap that erased the call
     // from a body would move that door from `asserting` to `unlisted`

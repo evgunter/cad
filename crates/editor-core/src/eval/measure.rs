@@ -95,6 +95,8 @@
 //! which face stands outside the other, positive where the inner stands
 //! out of the outer's material: no clearance and no interference.
 
+use crate::Said;
+use crate::say;
 use geom::{Curve3, Surface};
 use geom_brep::OutwardNormal;
 use geom_core::{Band, Decide, Point3, Vec3};
@@ -468,8 +470,8 @@ pub(crate) fn carrier_of<'b, T: Decide>(
                 return Carrier::Other("an unreadable edge");
             };
             let carrier = body
-                .get_curve_geom(edge.curve)
-                .and_then(|g| g.certified())
+                .edge(k)
+                .and_then(topo::EdgeView::certified)
                 .map(topo::EdgeCurve::carrier);
             match carrier {
                 Some(Curve3::Line(geom::Line { dir, .. })) => Carrier::Line {
@@ -1349,12 +1351,19 @@ pub enum ObservedRefusal {
     Expr(crate::expr::EvalError),
 }
 
-impl core::fmt::Display for ObservedRefusal {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::Say for ObservedRefusal {
+    fn say(&self, f: &mut crate::Sentence, by: crate::Speaker<'_>) -> core::fmt::Result {
         match self {
-            Self::Measure(standing) => write!(f, "{standing}"),
+            Self::Measure(standing) => say!(f, Said(&standing, by)),
             Self::Expr(source) => write!(f, "{source}"),
         }
+    }
+}
+
+/// Its sentence, each node said by tag.
+impl core::fmt::Display for ObservedRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 

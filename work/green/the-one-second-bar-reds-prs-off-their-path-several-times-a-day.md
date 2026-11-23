@@ -2,10 +2,11 @@
 id: the-one-second-bar-reds-prs-off-their-path-several-times-a-day
 kind: issue
 title: The fast set's one-second bar redded five PRs off their path in one evening, on four rows none of them touches
-status: open
+status: dispatched
 opened: 2026-11-22
 priority: P1
 cost: M
+design: true
 ---
 
 
@@ -65,3 +66,27 @@ on some runner. The candidates, none chosen here:
 The second and third change a standing rule (`docs/prompts/implementer-discipline.md`,
 the per-PR gate), so they are GREEN's to propose with this cost in hand.
 The first changes nothing but the list.
+
+## Measured (2026-11-22, green/fast-set-margin)
+
+The default-eps step's PASS lines from 40 PR runs (76 jobs of `test
+(kernel)` and `test (app)`, the gate's own build and parallelism), the
+nightly's opt-2 junit from three runs, and a push-triggered probe that ran
+the 330 fast-set tests with gate p90 >= 0.4 s at `-j1` on the gate's build,
+twice on each of two runners (run 45050967584, two attempts). Scripts in
+`local-scripts/fast-set-times/`, data in `docs/perf-data/fast-set-times/`.
+
+- Each job's median ratio to the tests' medians clusters at about 0.8,
+  1.0 and 1.33: three runner classes. Every reading over 1.0 s of a test
+  still in the fast set came from a 1.33-1.41 job, except one 2.13 s
+  reading of a test that exists only on a PR branch.
+- Fast-set tests at each gate p90: 330 at >= 0.4 s, 162 at >= 0.5 s, 87 at
+  >= 0.6 s, 47 at >= 0.7 s, 17 at >= 0.8 s, 5 at >= 0.9 s. At `-j1` none
+  of the 330 reaches 0.5 s (top 0.458 s). Gate median is 1.73x `-j1` and
+  gate p90 2.36x; `-j1` at opt 0 is 1.13x the nightly at opt 2.
+- The four that exist on main at p90 >= 0.9 s moved to the slow set as an
+  interim (`.config/nextest.toml` says so), which by §2's rule they would
+  not: the 0.5 s rule read off gate times would move 162 tests that cost
+  0.2-0.46 s alone.
+
+Left open: PR 7397 decides the policy.

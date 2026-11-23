@@ -74,7 +74,7 @@ fn the_chamfered_cube() {
     let counts = euler_counts(&out_body);
     assert_eq!((counts.v, counts.e, counts.f), (24, 48, 26), "census");
     assert_eq!(
-        (counts.r, counts.s, counts.genus()),
+        (counts.r, counts.s, counts.h()),
         (0, 1, Ok(0)),
         "Euler–Poincaré: one closed shell, no rings, genus 0"
     );

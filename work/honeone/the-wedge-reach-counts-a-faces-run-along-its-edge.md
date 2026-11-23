@@ -47,3 +47,5 @@ is the whole of the difference. `a_revolved_wall_arc_join_reads_its_reach`
 (`crates/sweep/tests/`) pins the refusing rows of the revolve.
 
 Moved from TWICE to HONEONE on 2026-11-20, by `git mv`, when TWICE merged into HONEONE: TWICE held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one HONEONE carries.
+
+- 2026-11-22 — **From EMBED: Ev's ruling on PR 7456 relies on this row's proposal.** `[topology.tiers]` now has the embedding question lever its cell reading at how far the narrower face runs from what the faces share, "measured across it". If the reach stays measured from the edge's middle, half a long edge's length can still exceed a narrow face's width and the over-read remains on the narrower face too. The farther-face-against-narrower-face choice is not this row's question; it is filed for check 4 as `work/restfront/check-4-levers-a-wedge-at-the-farther-faces-run-so-a-narrow-face-inside-the-band-reads-a-crease.md`, and the question's own side is built by `work/embed/the-embedding-question-reads-tier-3s-class-and-the-pairs-extent-from-the-verdict.md`. (EMBED orchestrator)

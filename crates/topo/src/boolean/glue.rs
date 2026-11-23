@@ -577,6 +577,11 @@ fn coincidence_site(decided: geom_brep::Coincident) -> (crate::Relation, crate::
         C::TorusTorus => (Relation::Coaxial, Site::CoaxialTori),
         C::CylinderRadii => (Relation::SameRadius, Site::CrossingCylinders),
         C::CylinderAxesMeet => (Relation::AxesMeet, Site::CrossingCylinders),
+        C::ConeApex => unreachable!(
+            "a cone's apex on its partner is recorded by a cone against a cylinder or a cone, \
+             which `pair_section::serves` does not admit; the cone × torus pose it admits \
+             records no coincidence"
+        ),
     }
 }
 
@@ -636,7 +641,8 @@ fn face_closures<T: geom_core::Real>(
         .map(|view| {
             let mut cells = vec![Cell::Face(view.key())];
             for member in view.boundary() {
-                if let crate::live::BoundaryMember::Edge { ek, .. } = member {
+                if let crate::live::BoundaryMember::Edge { edge, .. } = member {
+                    let ek = edge.key();
                     cells.push(Cell::Edge(ek));
                 }
                 cells.push(Cell::Vertex(member.vertex()));
@@ -653,9 +659,10 @@ mod face_read_rows {
     /// **A face is read wherever a pair it forms is built**: a torus, a
     /// cylinder or a sphere against a body of spline walls (with planar
     /// caps or with cone faces) is read through the march door, as a
-    /// plane is; against cones and planes alone a torus forms no pair the
-    /// value builds. Red where the filter reads only classified pairs and
-    /// excepts planes alone.
+    /// plane is; against planes alone a torus forms no pair the value
+    /// builds, and against a cone it forms the cone × torus pair. Red
+    /// where the filter reads only classified pairs and excepts planes
+    /// alone.
     #[test]
     fn a_face_is_read_wherever_a_pair_it_forms_is_built() {
         for kind in [Torus, Cylinder, Sphere, Plane] {
@@ -666,7 +673,9 @@ mod face_read_rows {
                 );
             }
         }
-        assert!(!super::face_read(Torus, &[Cone, Plane]));
+        assert!(!super::face_read(Torus, &[Plane]));
+        assert!(super::face_read(Torus, &[Cone, Plane]));
+        assert!(super::face_read(Cone, &[Torus]));
         assert!(!super::face_read(Nurbs, &[Nurbs, Cone]));
     }
 }

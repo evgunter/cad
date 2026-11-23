@@ -22,6 +22,7 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::AuthoredNode;
+use pncad::document::say;
 use pncad::document::{
     Doc, Evaluation, Formula, HeldNodes, Node, NodeStanding, Operand, ProfileProgram, RecipeNodeId,
     Said, Say, Speaker, SpokenNode, held_by,
@@ -429,12 +430,17 @@ impl PlaneSeats {
     }
 
     /// **Feed one selection**: a face is the plane ([`Self::pick_plane`]),
-    /// a variable the plane where it is one ([`Self::pick_defined`]), and
-    /// any other pick of a node ([`Selection::seat_node`]) the body.
+    /// a variable the plane where it is one ([`Self::pick_defined`]), a
+    /// datum picked whole its frame through its xy plane, and any other
+    /// pick of a node ([`Selection::seat_node`]) the body.
     fn feed(&mut self, doc: &Doc<ProfileProgram>, selection: &Selection) -> Option<PlaneEvent> {
         match selection {
             Selection::Face(face) => self.pick_plane(doc, face.clone()),
             Selection::Variable(var) => return self.pick_defined(doc, *var),
+            // A datum picked whole is its frame, read through its xy plane.
+            Selection::Node(node) if let Some(frame) = crate::tools::datum_frame(doc, *node) => {
+                return self.pick_defined(doc, frame);
+            }
             _ => {
                 if let Some(node) = selection.seat_node() {
                     self.seats.pick(doc, node);
@@ -537,8 +543,8 @@ impl PlaneSeats {
     fn line(&self, by: Speaker<'_>) -> String {
         let body = self.seats.said(by, 0);
         let plane = self.plane.as_ref().map(|plane| match plane {
-            HeldPlane::Face(held) => Said(held, by).to_string(),
-            HeldPlane::Defined { var, .. } => var.to_string(),
+            HeldPlane::Face(held) => Said(held, by).sentence().to_string(),
+            HeldPlane::Defined { var, .. } => crate::tree::spelled_var(var),
         });
         picks_line([(self.seat.name(), body), (self.role.name(), plane)])
     }
@@ -750,16 +756,19 @@ pub enum PlaneEvent {
 
 /// A node `by` does not hold is said as the tool kept it.
 impl Say for PlaneEvent {
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::PlaneLost { role, plane, .. } => {
                 crate::matetool::pick_lost(f, role.name(), plane, by)
             }
-            Self::DefinedLost { role, var } => crate::seats::pick_gone(f, role.name(), var),
-            Self::NotAPlane { role, var } => write!(
+            Self::DefinedLost { role, var } => crate::seats::pick_gone(f, role.name(), by.var(var)),
+            Self::NotAPlane { role, var } => say!(
                 f,
-                "{var} is neither a plane nor a frame, so it is not taken as the {}",
-                role.name()
+                by.var(var),
+                format_args!(
+                    " is neither a plane nor a frame, so it is not taken as the {}",
+                    role.name()
+                )
             ),
         }
     }
@@ -770,8 +779,12 @@ impl Say for PlaneEvent {
 impl core::fmt::Display for PlaneEvent {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::PlaneLost { plane, .. } => self.say(f, Speaker::held(plane.said())),
-            Self::DefinedLost { .. } | Self::NotAPlane { .. } => self.say(f, Speaker::TAG),
+            Self::PlaneLost { plane, .. } => {
+                pncad::document::display_said(self, Speaker::held(plane.said()), f)
+            }
+            Self::DefinedLost { .. } | Self::NotAPlane { .. } => {
+                pncad::document::display_said(self, Speaker::TAG, f)
+            }
         }
     }
 }
@@ -907,6 +920,9 @@ enum AssertedPick {
     Body(SpokenNode),
     /// A face, held as the mirror tool holds its plane.
     Face(HeldPick),
+    /// A reference a check's finding carries, seated by the offer that
+    /// leads to the tool ([`AssertionTool::led`]).
+    Minted(pncad::document::QuietingRef),
 }
 
 /// **The assertion tool**: a claim's two seats, a body or a face each,
@@ -937,6 +953,20 @@ impl AssertionTool {
     pub const fn new() -> Self {
         Self {
             picks: [None, None],
+        }
+    }
+
+    /// **The tool a finding's opposed pair leads to**
+    /// ([`crate::recourse::Lead::AssertGap`]): its two references
+    /// seated, outer then inner, as the kernel minted them for the
+    /// `Gap` that would quiet the overlap. The bound is the person's.
+    pub fn led(pair: &pncad::document::OpposedPair) -> Self {
+        let [outer, inner] = pair.references.clone();
+        Self {
+            picks: [
+                Some(AssertedPick::Minted(outer)),
+                Some(AssertedPick::Minted(inner)),
+            ],
         }
     }
 
@@ -976,7 +1006,7 @@ impl AssertionTool {
     pub fn face(&self, i: usize) -> Option<&FaceSelection> {
         match self.picks.get(i)? {
             Some(AssertedPick::Face(held)) => Some(held.face()),
-            Some(AssertedPick::Body(_)) | None => None,
+            Some(AssertedPick::Body(_) | AssertedPick::Minted(_)) | None => None,
         }
     }
 
@@ -984,7 +1014,7 @@ impl AssertionTool {
     pub fn body(&self, i: usize) -> Option<RecipeNodeId> {
         match self.picks.get(i)? {
             Some(AssertedPick::Body(node)) => Some(node.id()),
-            Some(AssertedPick::Face(_)) | None => None,
+            Some(AssertedPick::Face(_) | AssertedPick::Minted(_)) | None => None,
         }
     }
 
@@ -995,9 +1025,18 @@ impl AssertionTool {
 
     /// **The body seats' survival step** ([`crate::seats`]): a seat
     /// whose node the document no longer holds is dropped, said by the
-    /// last label it had.
+    /// last label it had. A minted seat whose read the document no
+    /// longer holds is dropped with it: the finding it came from is
+    /// gone.
     pub fn reconcile(&mut self, doc: &Doc<ProfileProgram>) -> Vec<SeatEvent> {
         let mut events = Vec::new();
+        for pick in &mut self.picks {
+            if let Some(AssertedPick::Minted(reference)) = pick
+                && doc.var(reference.read()).is_none()
+            {
+                *pick = None;
+            }
+        }
         for (i, pick) in self.picks.iter_mut().enumerate() {
             let (seat, _) = asserted(i);
             if let Some(AssertedPick::Body(node)) = pick
@@ -1047,6 +1086,7 @@ impl AssertionTool {
             match pick {
                 AssertedPick::Body(node) => *node = node.respoken(doc),
                 AssertedPick::Face(held) => *held = held.respoken(doc),
+                AssertedPick::Minted(_) => {}
             }
         }
     }
@@ -1057,7 +1097,7 @@ impl AssertionTool {
             .iter_mut()
             .filter_map(|pick| match pick {
                 Some(AssertedPick::Face(held)) => Some(crate::session::select::Held::One(held)),
-                Some(AssertedPick::Body(_)) | None => None,
+                Some(AssertedPick::Body(_) | AssertedPick::Minted(_)) | None => None,
             })
             .collect()
     }
@@ -1067,7 +1107,8 @@ impl AssertionTool {
     pub fn line(&self, by: Speaker<'_>) -> String {
         let said = |i: usize| match &self.picks[i] {
             Some(AssertedPick::Body(node)) => Some(pick_said(by, node, &Port::ALONE)),
-            Some(AssertedPick::Face(held)) => Some(Said(held, by).to_string()),
+            Some(AssertedPick::Face(held)) => Some(Said(held, by).sentence().to_string()),
+            Some(AssertedPick::Minted(reference)) => Some(minted_said(reference, by)),
             None => None,
         };
         picks_line([
@@ -1085,6 +1126,7 @@ impl AssertionTool {
         let seat = |i: usize| match &self.picks[i] {
             Some(AssertedPick::Body(node)) => Ok(AssertedSeat::Body(Operand::Node(node.id()))),
             Some(AssertedPick::Face(held)) => Ok(AssertedSeat::Face(held.face().clone())),
+            Some(AssertedPick::Minted(reference)) => Ok(AssertedSeat::Minted(reference.clone())),
             None => Err(SeatError::Empty {
                 seat: asserted(i).0,
             }),
@@ -1094,6 +1136,15 @@ impl AssertionTool {
             b: seat(1)?,
             claim,
         })
+    }
+}
+
+/// A minted seat as the panel says it: its cell by its name, or the
+/// variable as `by` reads it.
+fn minted_said(reference: &pncad::document::QuietingRef, by: Speaker<'_>) -> String {
+    match reference.name() {
+        Some(name) => pncad::document::sentence!(by.name(name)).to_string(),
+        None => by.read(reference.read()).to_string(),
     }
 }
 
@@ -1123,18 +1174,20 @@ pub enum AssertionEvent {
 
 /// A node `by` does not hold is said as the tool kept it.
 impl Say for AssertionEvent {
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::FaceLost { role, face, .. } => {
                 crate::matetool::pick_lost(f, role.name(), face, by)
             }
             Self::SeveralCopies { node, copies } => {
-                let held: HeldNodes = [node.clone()].into_iter().collect();
-                write!(
+                let held = HeldNodes::of_nodes(by.document(), [node.clone()]);
+                say!(
                     f,
-                    "{} stands in the world {copies} times, so it names no one part — pick a \
-                     face of the copy you mean in the picture",
-                    by.or_held(&held).node(node.id())
+                    by.or_held(&held).node(node.id()),
+                    format_args!(
+                        " stands in the world {copies} times, so it names no one part — pick a \
+                     face of the copy you mean in the picture"
+                    )
                 )
             }
         }
@@ -1146,10 +1199,12 @@ impl Say for AssertionEvent {
 impl core::fmt::Display for AssertionEvent {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::FaceLost { face, .. } => self.say(f, Speaker::held(face.said())),
+            Self::FaceLost { face, .. } => {
+                pncad::document::display_said(self, Speaker::held(face.said()), f)
+            }
             Self::SeveralCopies { node, .. } => {
-                let held: HeldNodes = [node.clone()].into_iter().collect();
-                self.say(f, Speaker::held(&held))
+                let held = HeldNodes::of_nodes(None, [node.clone()]);
+                pncad::document::display_said(self, Speaker::held(&held), f)
             }
         }
     }
@@ -1637,25 +1692,32 @@ impl StepClearFault {
             Self::NoValue { standing, held } => write!(
                 f,
                 "there is no body to copy: {}",
-                Said(standing, Speaker::held(held))
+                Said(standing, Speaker::held(held)).sentence()
             ),
             Self::NotOneBody { input } => write!(
                 f,
                 "{input}'s value is several bodies; a step clears ONE — project the one you \
-                 mean first"
+                 mean first",
+                input = crate::tree::spelled(input)
             ),
             Self::EmptyHalf { input, half } => write!(
                 f,
                 "{input}'s {} half holds no material: its plane misses the body on that side",
-                half.name()
+                half.name(),
+                input = crate::tree::spelled(input)
             ),
             Self::Unmeasured { input, error } => write!(
                 f,
                 "{input}'s body could not be measured for the copy's step: {}",
-                pncad::geom_brep::recourse::read_at(error, at)
+                pncad::geom_brep::recourse::read_at(error, at),
+                input = crate::tree::spelled(input)
             ),
             Self::NoExtent { input } => {
-                write!(f, "{input}'s body has no width to step a copy by")
+                write!(
+                    f,
+                    "{input}'s body has no width to step a copy by",
+                    input = crate::tree::spelled(input)
+                )
             }
         }
     }
@@ -1873,39 +1935,4 @@ pub fn part_node(
 /// part form's and a boolean seat's (`seats::Port::body_read`).
 pub fn member_read(read: impl Into<Operand>, at: &[i64]) -> pncad::document::BodyRead<Formula> {
     pncad::document::BodyRead::indexed(read, at.iter().map(|&i| Formula::count(i)).collect())
-}
-
-/// **Whether a node, named alone, reads as a single body** — the
-/// question every body seat asks, answered by the edit door's own
-/// rule: the read [`Doc::read_of_node`] takes is one a body seat admits
-/// (`SlotKind::admits`, the door's kind check).
-///
-/// A node named alone reads its one output (spec Q5): a split's two
-/// sides, or a revolve's body beside its axis, are several, so the read
-/// refuses and the seat names a port; a family's members are a list of
-/// bodies. A
-/// seat filled with one refuses at the door rather than after the edit
-/// lands. The recipe's way of saying which of several is meant is
-/// a read of one of its outputs (`crates/editor-core/REFERENCES.md`
-/// DM3: a split's half by its port), or a read of one member of a
-/// family; either is ONE `Body`.
-///
-/// A node this admits may still refuse downstream — an empty boolean
-/// result is a typed success that is not a body, and `wire_sweep`
-/// refuses every recipe-expressible sweep today (the curved-solid
-/// frontier) — and that refusal is the node's own, arriving by poison
-/// propagation. `combine_ops::the_body_seat_is_the_operand_doors_body_slot`
-/// offers each kind to the real door and asserts the two agree.
-///
-/// **Not `product`'s "body-denoting"**, which is a WIDER set: the
-/// product gather counts a family's members and a split's sides
-/// among the bodies it collects, because collecting several is what it
-/// does. This answers the narrower question a single-body operand seat
-/// asks.
-pub fn denotes_body(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
-    doc.read_of_node(node)
-        .and_then(|read| doc.var(read))
-        .is_some_and(|var| {
-            pncad::document::SlotKind::Is(pncad::document::VarKind::Body).admits(var)
-        })
 }

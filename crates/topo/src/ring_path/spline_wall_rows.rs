@@ -455,3 +455,67 @@ fn a_wall_paths_lean_is_levered_within_its_arriving_pieces_chord_and_turn() {
         "a product net with both factors varying"
     );
 }
+
+/// **At a dual a wall's paths are the `f64` ones**: a wall and ends
+/// whose every coordinate carries a tangent decide a foot on the wall on
+/// the chart without its tangent, so they are offered the paths the same
+/// wall and ends are offered at `f64`, arriving the same way, bit for
+/// bit, or refuse the same refusal. The ends are moved off the wall from
+/// on it, through the band, to well clear. Red where the view keeps the
+/// tangent in what it decides or folds it into the value.
+#[test]
+fn at_a_dual_the_walls_paths_are_the_f64_ones_across_the_band() {
+    use geom_core::Dual64;
+    let chart = wall();
+    let plain = SplineWall::of(&geom::Surface::Nurbs(Arc::new(chart.clone()))).unwrap();
+    let dual = SplineWall::of(&geom::Surface::Nurbs(Arc::new(
+        chart.map_scalar(Dual64::variable),
+    )))
+    .unwrap();
+    let band = band();
+    let (mut offered, mut none) = (0, 0);
+    for lift in [
+        0.0,
+        0.3 * band.zero(),
+        0.5 * (band.zero() + band.escalate()),
+        3.0 * band.escalate(),
+        1e-3,
+    ] {
+        for ((ua, va), (ub, vb)) in [((0.1, 0.12), (0.9, 0.85)), ((0.45, 0.55), (0.6, 0.4))] {
+            let off = geom_core::Vec3::new(0.0, lift, 0.0);
+            let (a, b) = (chart.eval(ua, va) + off, chart.eval(ub, vb) + off);
+            let at_f64 = plain.paths((a, b), band);
+            let at_dual = dual.paths((a.map(Dual64::variable), b.map(Dual64::variable)), band);
+            assert_eq!(
+                at_f64.is_ok(),
+                at_dual.is_ok(),
+                "lift {lift}: both read or both refuse"
+            );
+            match (&at_f64, &at_dual) {
+                (Ok(f), Ok(d)) => {
+                    assert_eq!(f.len(), d.len(), "lift {lift}: the paths offered");
+                    if f.is_empty() {
+                        none += 1;
+                    } else {
+                        offered += 1;
+                    }
+                    for (f, d) in f.iter().zip(d) {
+                        let (f, d) = (f.arrival, d.arrival);
+                        for (x, y) in [(f.x, d.x), (f.y, d.y), (f.z, d.z)] {
+                            assert_eq!(x.to_bits(), y.value.to_bits(), "lift {lift}: arrival");
+                        }
+                    }
+                }
+                (Err(f), Err(d)) => {
+                    assert_eq!(
+                        format!("{f:?}"),
+                        format!("{d:?}"),
+                        "lift {lift}: the refusal"
+                    );
+                }
+                _ => {}
+            }
+        }
+    }
+    assert!(offered > 0 && none > 0, "offered {offered}, none {none}");
+}

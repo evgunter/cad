@@ -2,13 +2,21 @@
 id: the-cone-ruled-side-on-the-section-value
 kind: unit
 title: The section value takes a cone ruled side: cone × oblique cylinder and cone × cone poses, classified on pair_section
-status: dispatched
+status: closed
 opened: 2026-11-21
 priority: P1
 cost: H
 parent: cone-germ-pairs-against-a-curved-face-have-no-section-frame
 branch: sectcone/cone-ruled-side
+closed: 2026-11-22
+pr: 7357
 ---
+
+## Closed (2026-11-22, PR 7357)
+
+Cone × oblique cylinder and cone × cone are classified on the section value (`pair_section/ruling.rs`, `pair_section/cones.rs`). A ruling sweep finds both nappes' components. A crossing tangency is a C5 node, whose arcs form one `NodeSet`, and an apex meeting is a node, a touch or a refusal. The cone pair is `Arm::ConeRuled`, which is classified but has no march: `uncarried` refuses `SECTION_LANE` with "no march carries it" until the cone pair doors land.
+
+- Review: dual Opus on `ed50ae6f45`, both APPROVE-WITH-FIXES with one MAJOR (a crossing tangency was listed as two components), fixed as a node. A fix-verification review on `94e2110b42` found a second, demonstrated MAJOR: an arc across the cone's seam took the other arc's witnesses. It was fixed in the walk and pinned by a row over 48 seam angles. A re-verification on `3335b164d8` returned APPROVE-WITH-FIXES with no MAJOR. Its two MINORs are filed as `checked-is-blind-to-a-wrong-arc-witness-by-a-node`.
 
 
 The first of three units on `cone-germ-pairs-against-a-curved-face-have-no-section-frame`:

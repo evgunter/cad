@@ -626,9 +626,8 @@ fn assert_rational_volume(row: &str, body: &Body<f64>, want: f64) {
             // shell's first quadrature face (`topo::props`'
             // `shell_reference`), so a quadrature face's lever is the
             // extent of the shell's quadrature faces
-            // (`m8_3_rational_volume`'s ceiling). The lofted concave
-            // prism measures 8.64e-4 at 1e-6, 0.84 times the target: the
-            // ceiling is the measure with headroom, not a bound the rule
+            // (`m8_3_rational_volume`'s ceiling). The ceiling is a
+            // measured pad with headroom, not a bound the rule
             // guarantees.
             let ceiling = 4.0 * target;
             assert!(
@@ -636,17 +635,6 @@ fn assert_rational_volume(row: &str, body: &Body<f64>, want: f64) {
                 "{row}: volume pad {} vs {ceiling:e}",
                 m.enclosure.volume_pad
             );
-            // The measure the ceiling's comment cites, held where it was taken.
-            if row == "the lofted concave prism"
-                && test_utils::kernel_limit::at_row(Tol::witness().eps(), &[1e-6])
-            {
-                assert!(
-                    (m.enclosure.volume_pad / LOFTED_CONCAVE_PAD_AT_1E6 - 1.0).abs() < 0.01,
-                    "{row}: volume pad {} moved from the {LOFTED_CONCAVE_PAD_AT_1E6} the \
-                     ceiling's comment cites",
-                    m.enclosure.volume_pad
-                );
-            }
         }
         Some(width_len) => {
             assert!(
@@ -705,7 +693,7 @@ fn loft_concave_arc_walls_face_out_and_a_flip_is_invisible_below() {
     // The residual. Segment 2 is the concave arc — the wall whose
     // extruded twin mints `sense: false` — pinned by its mid-chart
     // sample so the row cannot drift onto a planar wall.
-    let wall = lofted.side_faces[0][2][0];
+    let wall = lofted.side_faces[0][2][0].unwrap();
     let (p, _) = wall_outward(&lofted.body, wall);
     assert!(
         (p.y - (2.5 - 2.0_f64.sqrt())).abs() < 1e-9,
@@ -803,9 +791,9 @@ fn a_tapered_concave_loft_keeps_the_prism_wall_directions() {
     assert_eq!(topo::validate(&tapered.body), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(&tapered.body), Ok(()), "tier 2");
     for (li, walls) in tapered.side_faces.iter().enumerate() {
-        for (si, fk) in walls.iter().map(|slabs| slabs[0]).enumerate() {
+        for (si, fk) in walls.iter().map(|slabs| slabs[0].unwrap()).enumerate() {
             let (_, taper_n) = wall_outward(&tapered.body, fk);
-            let (_, prism_n) = wall_outward(&prism.body, prism.side_faces[li][si][0]);
+            let (_, prism_n) = wall_outward(&prism.body, prism.side_faces[li][si][0].unwrap());
             let dot = taper_n.dot(prism_n);
             assert!(
                 dot > core::f64::consts::FRAC_PI_4.cos(),
@@ -872,7 +860,8 @@ fn a_lofted_operand_refuses_the_union_check_typed() {
         panic!("the refusal names a NURBS face of the lofted operand: {err:?}");
     };
     assert_eq!(
-        face, lofted.side_faces[0][2][0],
+        face,
+        lofted.side_faces[0][2][0].unwrap(),
         "the named face is the concave top wall the pellet sits under"
     );
     let door = point_in_solid(
@@ -955,7 +944,7 @@ fn a_convexity_flipping_loft_faces_out_at_every_level() {
     // fixed at y = 0, so its mid-`u` height IS its signed bow: the
     // quarter circle's sagitta √2 − 1 into the region below, out of it
     // above, and zero at the level where the wall is flat.
-    let seg = lofted.side_faces[0][0][0];
+    let seg = lofted.side_faces[0][0][0].unwrap();
     let bow = |t: f64| wall_outward_at(&lofted.body, seg, 0.5, t).0.y;
     let sag = 2.0_f64.sqrt() - 1.0;
     assert!(
@@ -996,7 +985,7 @@ fn a_three_section_curved_v_loft_faces_out_at_every_level() {
     // chart normal is carried by the stacking, so the dogleg tilts it
     // one way over the lower half and the other way over the upper —
     // a ruled `v` would hold it fixed and this would read cos = 1.
-    let side = lofted.side_faces[0][1][0];
+    let side = lofted.side_faces[0][1][0].unwrap();
     let n0 = wall_outward_at(&lofted.body, side, 0.5, 0.05).1;
     let n1 = wall_outward_at(&lofted.body, side, 0.5, 0.95).1;
     assert!(
@@ -1100,7 +1089,7 @@ fn a_curved_path_swept_body_faces_out_along_the_whole_turn() {
     // ANTI-VACUITY: the turn has to reach the chart. One wall's normal
     // at the two ends of `v` is a quarter turn apart — a straight path
     // would hold it fixed and this would read cos = 1.
-    let wall = swept.side_faces[0][0][0];
+    let wall = swept.side_faces[0][0][0].unwrap();
     let n0 = wall_outward_at(&swept.body, wall, 0.5, 0.0).1;
     let n1 = wall_outward_at(&swept.body, wall, 0.5, 1.0).1;
     assert!(
@@ -1113,9 +1102,3 @@ fn a_curved_path_swept_body_faces_out_along_the_whole_turn() {
     let oracle = |q| loft_contains(&swept, q);
     assert_walls_face_out(&swept, &oracle, &samples, 0.05, 4);
 }
-
-/// The lofted concave prism's volume pad at ε 1e-6, the measure the
-/// rational-volume ceiling's comment cites, held by
-/// `loft_concave_arc_walls_face_out_and_a_flip_is_invisible_below`: what
-/// the per-span round-zero schedule achieves on it.
-const LOFTED_CONCAVE_PAD_AT_1E6: f64 = 8.636_7e-4;

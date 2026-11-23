@@ -468,11 +468,24 @@ the profile's loops resolve) is a selection: its pose is decided over the
 session box, and its conditioning by the carriage that consumes it. A formula that loses digits where its
   result is decided (a squared residual over a small `2r`) is re-posed
   (as a distance). A stored form that loses digits is re-minted in a
-  well-conditioned form: a conic is stored anchored on the arc it
-  serves, its parameter zero at the anchor and its centre derived,
-  never stored. No `Margin` door takes hand-written slack. The backstop is a
+  well-conditioned form: a conic is one of a family of placements
+  behind the one `Conic` reading, held about its centre or about a
+  point of the arc it serves with its parameter zero there; its
+  construction fixes which, the same at every size, and a construction
+  whose centre runs off at a pose it can reach holds the arc. A conic
+  is the curve its stored numbers state, and no reading replaces it
+  with a rounded copy: one held at its centre is read from its centre,
+  and so fixes a point of its arc only to the rounding of the centre's
+  distance and directions. A conic's position is the point it stores
+  plus two vectors times two functions of its parameter, and every
+  reading of where the conic is (at a parameter, along it, or of a
+  point against it) is read from that position. Its centre is a datum
+  of the whole conic, stored or derived. No
+  `Margin` door takes hand-written slack. The backstop is a
   tree gate on bare `f64::EPSILON` and on every use of
-  `running`'s charge doors (its `pub` items) outside this crate. Every
+  `running`'s charge doors (its `pub` items, and every call of a
+  `with_…` method that adds a charge to a `Rounded`'s bound) outside
+  this crate. Every
   site is a listed entry with its reason: in production, a formula or a
   stored form owed a re-posing, an error-free transformation, or
   test-support code; in a test, its oracle. An entry whose site has gone

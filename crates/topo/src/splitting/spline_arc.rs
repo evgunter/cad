@@ -35,7 +35,7 @@ use geom_brep::pcurve_cache::projected::piece_controls;
 use geom_core::spline::ParamRange;
 use geom_core::{Band, Decide, Margin, Point3, Sign};
 
-use crate::splitting::pieced_arc::{PieceBall, PiecedArc, Ray};
+use crate::splitting::pieced_arc::{PieceBall, PiecedArc, PiecedCrossing, Ray};
 use crate::validate::decide;
 
 /// The rows of a ray's crossing of a spline arc — the walk's alone.
@@ -142,7 +142,9 @@ impl<T: Decide> PiecedArc<T> for SplineArc<T> {
             on: self.curve.eval(T::from_f64(m)),
         }
     }
+}
 
+impl<T: Decide> PiecedCrossing<T> for SplineArc<T> {
     /// Settled when every control point lies definitely on one side of
     /// the ray line, or definitely behind `q` along `d`: no crossing.
     /// Or when the control points' offsets `s_k` from the ray line are

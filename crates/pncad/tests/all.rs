@@ -1532,6 +1532,10 @@ fn normalization_kind_is_readable(kind: &NormalizationKind) -> &'static str {
             SingularityFound::ValenceOneVertex => "chart_singularity_vertex_valence_one",
         },
         NormalizationKind::SeamlessPeriodicBand => "seamless_periodic_band",
+        NormalizationKind::CollapsedSideMadeOne { moved_by } => {
+            named::<&f64>(moved_by);
+            "collapsed_side_made_one"
+        }
         NormalizationKind::JoinedEdges => "joined_edges",
         NormalizationKind::EdgeSplitAtC0Knot => "edge_split_at_c0_knot",
         NormalizationKind::FaceSplitAtC0Knot => "face_split_at_c0_knot",
@@ -4077,8 +4081,8 @@ fn asm_r2a_mated_assembly(
         doc,
         ids[1],
         Mate {
-            on: plane(ids[1]),
-            to: plane(ids[0]),
+            on: plane(ids[1]).into(),
+            to: plane(ids[0]).into(),
             orient: pncad::document::Orientation::IDENTITY,
         },
         values,
@@ -5121,23 +5125,12 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   answer `stackup` already carries. `VerdictVector`, `VerdictRow`
 ///   and `VerdictVectorKey` are the STRICT form of the verdict diff and
 ///   are argued with the instrumentation family above.
-///
-///   **The CERTIFIED-RANGE query is interior** (`CertifiedRange`,
-///   `DerivedRange`, `RangeField`, `RangeRefusal`, `RangeSeed`,
-///   `RangeSide`, `certified_range`). It is the on-demand answer to
-///   "how far can this field move before the build stops being this
-///   build" — the proof the sampling probe stands in for — and the
-///   Python door for it is FILED and not built, which is the whole of
-///   why these are here rather than in `crate::analysis`. The row is
-///   `work/pydoor/certified-range-has-no-python-door`, and carrying this
-///   family is part of what it schedules; a promise made only in this
-///   comment would be gone the moment someone edited it.
 /// - **The mint** (`Mint` and its log's `Minted` entries): the chain
 ///   and log a document mints its node and profile step ids from,
 ///   which `Doc::mint` answers. The doors read it and a consumer never
 ///   writes it; what a consumer holds is the ids themselves
 ///   (`RecipeNodeId`, `StepId`), carried.
-const NOT_CARRIED: [&str; 102] = [
+const NOT_CARRIED: [&str; 95] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceKey",
@@ -5151,11 +5144,9 @@ const NOT_CARRIED: [&str; 102] = [
     "BindingViolation",
     "BranchCertification",
     "BranchMarginEvidence",
-    "CertifiedRange",
     "ClearanceSeat",
     "ContentKey",
     "Coset",
-    "DerivedRange",
     "Diagnosis",
     "DocDiff",
     "EntityKey",
@@ -5184,10 +5175,6 @@ const NOT_CARRIED: [&str; 102] = [
     "ProfilePartition",
     "ProfilePayload",
     "Qualifier",
-    "RangeField",
-    "RangeRefusal",
-    "RangeSeed",
-    "RangeSide",
     "RecipeEditRef",
     "Resolved",
     "Rgba8",
@@ -5213,7 +5200,6 @@ const NOT_CARRIED: [&str; 102] = [
     "appearance_rebind_suggestions",
     "apply_with_names",
     "body_name",
-    "certified_range",
     "derivation_nodes",
     "derivation_reads",
     "diff_summaries",
@@ -7157,7 +7143,7 @@ fn far_d_shape(tol: Tol) -> ClosedLoop<f64> {
 fn validated_decides_no_consistency_check_on_a_lattice_built_loop() {
     let tol = Tol::witness();
     if 0.25 * landing_reach(tol) < d_shape_reach() {
-        match d_shape(1.0, tol) {
+        match d_shape(1.0, tol).map_err(|e| e.refusal().clone()) {
             Err(PathError::ArcMissBelowSceneResolution { read, .. }) => {
                 assert_eq!(read.gate().predicate(), "path_arc_landing");
             }

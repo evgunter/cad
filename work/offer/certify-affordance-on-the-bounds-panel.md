@@ -2,12 +2,14 @@
 id: certify-affordance-on-the-bounds-panel
 kind: unit
 title: The bounds panel has no on-demand certify affordance for the certified range query
-status: parked
+status: closed
 opened: 2026-09-13
 refs: [1183]
 priority: P1
 cost: H
-blocked_on: [the-certified-range-refines-away-from-the-current-value]
+branch: offer/range-is-the-certified-search
+pr: 7548
+closed: 2026-11-23
 ---
 
 Filed by DOCM-9, which built the kernel side and was forbidden by its
@@ -187,3 +189,19 @@ The sampling probe goes. `range?` was never meant to sample, and nothing is to b
   - "holding names at their current values".
 - **Admission.** One kernel admission door, which runs no geometry, greys `range?` with the refusal's own words.
 - **What is deleted.** The sampling probe: `viewer::bounds`'s probe and `BoundsProbe`, `Session::probe_bounds`, `SessionOp::ProbeBounds` as a sampler, and `crates/viewer/tests/docm9_range_vs_probe.rs`. `work/offer/the-bounds-probe-runs-inline-on-the-frame` therefore has nothing left to fix.
+
+## What the kernel unit hands this one (2026-11-22)
+
+From `the-certified-range-refines-away-from-the-current-value`; the surface is `editor_core::range`, and its module docs are the reference.
+
+- **The search**: `RangeSearch::new(doc, field, seed, budget, resolver, stop, tol)`, `step(&Stop) -> Step`, `answer()`. One step is one replay; `Step::Stopped` leaves the answer where it stood and a later step continues it, so a cancel token on the step's `Stop` is the stop control.
+- **Admission**: `admit(doc, field, seed, built)` runs no geometry. Handed the session's own finished `f64` build as `built`, it also refuses a document that does not build now, in the witness's words, and a build of another document (`EvaluationOfAnotherDocument`).
+- **The seed**: `RangeSeed::of(doc, field)` is `±|current value|`, and `±1` at zero. No field of the kernel states an admissible domain, so there is no domain to read; the answer states the seed (`CertifiedRange::seed`) for "checked to …".
+- **The budget is `RangeBudget`, the search's own; pass `RangeBudget::for_seed(seed, tol, usize::MAX)` and stop the search with the step's `Stop`.**
+  - `max_depth` is halvings of one side. It bounds a side only until that side's first proof: after it, an end of the answer stops being refined `STALL_LEVELS` (4) halvings past the width that last moved it, whatever the depth. A deeper bound costs two replays a level on a side that never proves anything.
+  - So the depth is sized to reach the width a curved field certifies at, near `ε/4`: `for_seed` reaches `ε/16` on the wider side, about 32 halvings for the plate's `hole_r` under `RangeSeed::of`. At the old default of 24 that field proves nothing.
+  - The `f64` grid is no bound near the current value, so a depth of 64 is not free on a side that never proves.
+  - `max_replays` is a cap, and the search is stepped, so the panel's stop is the real budget: a field that certifies only near `ε` grows its proof by about that much every two replays and never finishes a wide seed. `Step::Finished` means the answer can no longer move.
+- **The readings**: `RangeSide::proven_to`, `reached_seed_end`, `different()` (`at`, `kind()`: `StandingChange { node }` or `BuildsDifferently`), `not_decided()` (`past`, `reason()`: `Unproven::Unfinished { replays }`, `Stalled { width }` or the driver's `Floor(reason)`, and `more_time_helps()`, true only for `Unfinished`); `CertifiedRange::nothing_proven`, `pinned`, and `proven_interval`, whose absolute ends are rounded toward the nominal. Render the ends from `proven_interval`, not from `absolute` of the offsets.
+- **What a replay costs** is in `range.rs`'s module docs and on `work/scalar/a-replay-that-nearly-certifies-costs-fifty-times-one-that-stops-early`: seconds while the interval is wide, 20 s to 2 min near a width that certifies. The first proof on the plate arrives after about 47 replays from a seed of `±1e-6`, and later from the chosen one.
+- `crates/viewer/tests/docm9_range_vs_probe.rs` and `viewer::bounds`'s module docs were kept compiling and true on the new answer type, nothing more.

@@ -13,6 +13,8 @@
 //! [`Subgroup`] the mates fold is the one a pose is known up to, read
 //! here once ([`crate::VarKind::symmetry`] names its family).
 
+use crate::Said;
+use crate::say;
 use geom_core::linalg::{Point3, RigidMotion, UnitVec3};
 use geom_core::predicate::{Band, Indeterminate, Margin, Sign};
 use geom_core::{Decide, Real};
@@ -448,6 +450,20 @@ impl PoseRole {
         }
     }
 
+    /// **The frame axis normal to this coordinate plane**: `z` for `xy`,
+    /// `x` for `yz`, `y` for `zx` — the axis a frame's coordinate plane
+    /// is read about ([`Self::read`]), and the one it stands off along.
+    /// `None` for a role that is no coordinate plane.
+    #[must_use]
+    pub fn normal_axis(self) -> Option<Self> {
+        match self {
+            Self::Xy => Some(Self::Z),
+            Self::Yz => Some(Self::X),
+            Self::Zx => Some(Self::Y),
+            Self::X | Self::Y | Self::Z | Self::Origin | Self::Normal | Self::Direction => None,
+        }
+    }
+
     /// **`value` read through this role**, `None` where its kind offers
     /// no such role (a read the door refuses).
     #[must_use]
@@ -459,17 +475,9 @@ impl PoseRole {
             (PoseValue::Frame(f), Self::Origin) => PoseValue::Point {
                 position: f.origin(),
             },
-            (PoseValue::Frame(f), Self::Xy | Self::Yz | Self::Zx) => PoseValue::plane_through(
-                f.origin(),
-                Self::frame_axis(
-                    f,
-                    match self {
-                        Self::Xy => Self::Z,
-                        Self::Yz => Self::X,
-                        _ => Self::Y,
-                    },
-                ),
-            ),
+            (PoseValue::Frame(f), Self::Xy | Self::Yz | Self::Zx) => {
+                PoseValue::plane_through(f.origin(), Self::frame_axis(f, self.normal_axis()?))
+            }
             (PoseValue::Plane { normal: dir, .. }, Self::Normal) => {
                 PoseValue::Direction { dir: *dir }
             }
@@ -525,6 +533,15 @@ impl<R> RoleRead<R> {
         }
     }
 
+    /// This read in another form by an infallible `f`, its role kept.
+    #[must_use]
+    pub fn map<R2>(&self, f: impl FnOnce(&R) -> R2) -> RoleRead<R2> {
+        RoleRead {
+            read: f(&self.read),
+            role: self.role,
+        }
+    }
+
     /// This read in another form, its role kept.
     ///
     /// # Errors
@@ -544,6 +561,22 @@ impl<R> RoleRead<R> {
     pub fn admits(&self, admits: crate::SlotKind) -> crate::SlotKind {
         self.role
             .map_or(admits, |role| crate::SlotKind::Is(role.of()))
+    }
+}
+
+impl<R> RoleRead<R> {
+    /// **Whether this read keeps its pose's sense**: plainly, or through
+    /// a role that is the pose's own direction (a plane's normal, an
+    /// axis's direction), so a flip of the pose flips what is read. A
+    /// frame's axis or coordinate plane is a pose of its own, whose sense
+    /// no flip beneath it reaches. The one rule [`crate::mate::flipped`],
+    /// [`crate::mate::side_flipped`] and the mate's equated poses read.
+    #[must_use]
+    pub fn keeps_sense(&self) -> bool {
+        matches!(
+            self.role,
+            None | Some(PoseRole::Normal | PoseRole::Direction)
+        )
     }
 }
 
@@ -1216,8 +1249,8 @@ pub enum PoseConstruction {
     FaceChartUnseated,
 }
 
-impl core::fmt::Display for PoseConstruction {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::Say for PoseConstruction {
+    fn say(&self, f: &mut crate::Sentence, by: crate::Speaker<'_>) -> core::fmt::Result {
         f.write_str(match self {
             Self::Through => {
                 "the frame through an axis and a point has no x direction: the point lies on \
@@ -1240,9 +1273,10 @@ impl core::fmt::Display for PoseConstruction {
                 );
             }
             Self::FaceChartUnleverable { refusal } => {
-                return write!(
+                return say!(
                     f,
-                    "the face's chart's turn cannot be levered over what it carries: {refusal}"
+                    "the face's chart's turn cannot be levered over what it carries: ",
+                    Said(&refusal, by)
                 );
             }
             Self::FaceChartUnseated => {
@@ -1251,6 +1285,13 @@ impl core::fmt::Display for PoseConstruction {
                  writing its spin and slides there, or read the face as a plane"
             }
         })
+    }
+}
+
+/// Its sentence, each node said by tag.
+impl core::fmt::Display for PoseConstruction {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 

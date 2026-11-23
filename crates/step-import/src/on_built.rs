@@ -102,7 +102,11 @@ pub(crate) fn printed_on(spec: &EdgeSpec, built: &Curve3<f64>) -> Option<f64> {
     let bound = match (&spec.carrier, built) {
         (Curve3::Nurbs(printed), Curve3::Circle(circle)) => circle_locus_within(
             printed,
-            (circle.frame.origin(), circle.frame.axis(), circle.radius()),
+            (
+                circle.frame().origin(),
+                circle.frame().axis(),
+                circle.radius(),
+            ),
             trim,
         ),
         (Curve3::Nurbs(printed), Curve3::Nurbs(built)) => {
@@ -264,14 +268,14 @@ fn arc_on_circle(
 ) -> f64 {
     let iv = Interval::point;
     let (c1, u, n1, r1) = (
-        printed.frame.origin(),
-        printed.frame.u_ref(),
-        printed.frame.axis(),
+        printed.frame().origin(),
+        printed.frame().u_ref(),
+        printed.frame().axis(),
         printed.radius(),
     );
     let v = n1.cross(u);
     let v_dir = v;
-    let (c2, n, r2) = (built.frame.origin(), built.frame.axis(), built.radius());
+    let (c2, n, r2) = (built.frame().origin(), built.frame().axis(), built.radius());
     let off = sub(pt(c1), pt(c2));
     let (u, v, n) = (vc(u), vc(v), vc(n));
     let dot = geom_core::interval::dot;
@@ -288,7 +292,7 @@ fn arc_on_circle(
     // Whether the printed point along `(cos, sin)` lies within `slack` of
     // the trim, its angle read through the circle's own azimuth.
     let inside = |(cs, sn): (f64, f64), slack: f64| {
-        let q = c1 + printed.frame.u_ref() * cs + v_dir * sn;
+        let q = c1 + printed.frame().u_ref() * cs + v_dir * sn;
         let theta = geom::Conic::azimuth(printed, q).near(0.0);
         t1 - t0 >= period - slack || printed.period().above(theta, t0 - slack) <= t1 + slack
     };
@@ -368,9 +372,9 @@ impl Conic {
     fn of(curve: &Curve3<f64>) -> Option<Self> {
         match curve {
             Curve3::Circle(c) => {
-                let (u, n, r) = (c.frame.u_ref(), c.frame.axis(), c.radius());
+                let (u, n, r) = (c.frame().u_ref(), c.frame().axis(), c.radius());
                 Some(Self {
-                    center: c.frame.origin(),
+                    center: c.frame().origin(),
                     a: u * r,
                     b: n.cross(u) * r,
                     normal: n,
@@ -378,9 +382,9 @@ impl Conic {
                 })
             }
             Curve3::Ellipse(e) => {
-                let (u, n) = (e.frame.u_ref(), e.frame.axis());
+                let (u, n) = (e.frame().u_ref(), e.frame().axis());
                 Some(Self {
-                    center: e.frame.origin(),
+                    center: e.frame().origin(),
                     a: u * e.semi_u(),
                     b: n.cross(u) * e.semi_v(),
                     normal: n,

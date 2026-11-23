@@ -2,11 +2,13 @@
 id: circle-lowers-to-one-segment
 kind: unit
 title: circle and circle_split(n ≥ 1) lower to one full-turn segment per arc; lily migrates; re-baseline
-status: open
+status: dispatched
 opened: 2026-09-25
 priority: P1
 cost: H
 parent: lower-profiles-to-carrier-and-interval-not-vertex-and-bulge
+branch: profile/circle-lowers-to-one-segment
+pr: 7454
 ---
 
 
@@ -79,3 +81,27 @@ the one-segment tangent forms whose two-arc forms build:
 Moved from `work/paths/` to PROFILE (`work/profile/`) when PATHS closed. PATHS's live rows went to four programs opened at this close and cut along the priority seam; PROFILE holds the goal (`docs/doc-ledger/paths-leaves-the-tracker.md`). The item's id, content and history are unchanged.
 
 The four regression groups PATHS's log named on 2026-10-14, still to be attributed when the unit resumes: `CurvedPierceUnsupported`, `CarryRefused{Found, Unread}`, the containment verdict `None`, and `verbs_germarms`. The log goes with PATHS's directory; its ledger note gives the SHA to read it at.
+
+## Built, and parked on the mesher (2026-11-22)
+
+The whole unit is built on `profile/circle-lowers-to-one-segment`
+(head `49036ee08c`, hosted CI green, run 44914292889) and is not
+merged. One thing it does to everyday geometry is not a re-baseline: a
+plate with a round hole whose rim is filleted intermittently refuses to
+mesh (`CertificateExceeded`, 7.7× over at r = 0.005 and δ = 1e-3, at
+every ε row; other radii and deviations mesh), where the two-arc form
+meshes, and the viewer's startup document is one of the cases that
+refuse. That is TESSLANE's ground and not a small repair, so the unit
+is parked on
+`work/tesslane/a-filleted-one-segment-hole-rims-band-exceeds-its-mesh-certificate.md`
+and does not land a regression. Landing it with the refusal pinned was
+the alternative; a filleted hole is too ordinary a part to break.
+
+What the branch holds for whoever resumes it: the families that moved
+and the attribution of every regression group (the four the
+predecessor named and seven new ones, each tied to an open row on TANG,
+CONTACTHOLD, ONECOPY, SPLICE or VGEOM), in the body of draft PR 7454 and
+in the rows it filed on the branch. No silent wrong body was
+found. Not yet done: a `[render]` pass (the tour's frames move for
+every circle body); the slow set outside the touched shards; merging
+about a day of main.

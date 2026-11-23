@@ -75,12 +75,16 @@ gate() {
   mapfile -t files < <(find crates/*/src crates/*/tests crates/*/examples crates/*/benches \
     -type f -name '*.rs' -not -path '*/target/*' 2>/dev/null | sort)
   GATE_SCAN_FILES=${#files[@]}
-  if ! code=$(gate_rust_code --statements "${files[@]}"); then
+  # Through a file, not a shell variable, as `lever-sources.sh` reads
+  # its view; an empty view reads as one empty line, as a variable did.
+  code=$GATE_VIEW_FILE.statements
+  if ! (gate_rust_code --statements "${files[@]}") > "$code"; then
     gate_error "$(gate_name): could not read the sources under $PWD — the gate could not read its subject, which is not a pass"
     exit 1
   fi
+  [ -s "$code" ] || printf '\n' > "$code"
   local shape
-  hits=$(for shape in "${SHAPES[@]}"; do gate_grep -E "$shape" <<<"$code"; done \
+  hits=$(for shape in "${SHAPES[@]}"; do gate_grep -E "$shape" < "$code"; done \
     | sort -u | gate_grep -vE "^$HOME_FILES:")
   if [ -n "$hits" ]; then
     printf '%s\n' "$hits"

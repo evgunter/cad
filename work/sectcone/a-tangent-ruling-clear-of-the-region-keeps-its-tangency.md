@@ -16,6 +16,7 @@ Where a pair's section is a tangent ruling and the operation's region does not r
 
 - plane × cylinder: `crates/geom-brep/src/pair_section/conic_pairs.rs`, `plane_cylinder` (~323: `TangentLine` → `ruling(..)` is `None` past the region; ~326: `decided` keeps `pc_parallel_gap`);
 - two parallel cylinders: `crates/geom-brep/src/pair_section/cylinders.rs`, `cylinder_cylinder` (~899: `ParallelSection::Tangent` → `ruling(p)` is `None`; ~1059: `decided.extend(pose.tangency())`).
+- a cone against a cylinder or a cone (PR 7357's review): `crates/geom-brep/src/pair_section/cones.rs`, `cone_ruled`, the `Sheets` arm. Every double root the sweep decides a tangency (`ruling::Touch`) pushes `Tangency(ruling::TANGENCY)` into `decided`, including a touch at a point the region does not hold. Only the `Point` component is filtered (by `placement_of`), and a crossing node by the sweep's `crossings`. Step-import no longer reads this flag for cone pairs, since it refuses them earlier by `pair_section::uncarried`. The section certificate will read it once it reads cone pairs on the value (`the-section-certificate-reads-the-cone-pairs-on-the-value.md`).
 
 The guard (`section_cert::of_pair_section`) reads a section with a tangency and no crossed or unbounded component as R-tan. So a pair whose surfaces touch only beyond every face the operation holds refuses as tangent, when it cannot meet inside the region at all.
 

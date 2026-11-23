@@ -1752,19 +1752,24 @@ impl<T: Decide> RigidMotion<T> {
     ///   no cancellation, so both parts hold to a few ulps relative to
     ///   their own size, and `a` lands on `b` to a few ulps.
     /// - Where `c` reads non-negative: the Rodrigues form
-    ///   `S·v = c·v + k × v + k (k·v)/(1 + c)`, `k = a × b`.
+    ///   `S·v = v + k × v + k × (k × v)/(1 + c)`, `k = a × b`.
     ///
     /// Over 400 drawn pairs a class, at `Interval` over boxes of `±1e-15`
     /// to `±1e-9` on every input, the quaternion's widest entry is about
-    /// `0.6×` the Rodrigues form's near opposed (narrower on 365–400 of
-    /// 400 pairs at `δ` from `1e-1` to `1e-7`), and the Rodrigues form is
-    /// narrower on the majority of generic pairs (247 of 400); the choice
-    /// is wider than the narrower of the two on 35 of 400 generic pairs over
-    /// boxes of `±1e-12` and `±1e-9`, 39 at `±1e-15` and 59 at point inputs,
-    /// and matches the quaternion near opposed. The row
+    /// `0.5×` the Rodrigues form's near opposed (narrower on all 400 pairs
+    /// at `δ` from `1e-1` to `1e-7`), and the Rodrigues form is narrower
+    /// on the majority of generic pairs (215 of 400 over boxes, 221 at
+    /// points); the choice is wider than the narrower of the two on 3 of
+    /// 400 generic pairs over boxes of `±1e-12` and `±1e-9`, 2 at `±1e-15`
+    /// and 9 at point inputs, and matches the quaternion near opposed. The row
     /// `least_turn_spelling_probe::the_mint_spells_each_class_by_its_narrower_form`
-    /// pins each of these. A pair that is one direction exactly turns by
-    /// the identity, exactly.
+    /// pins each of these. A pair that is one direction turns by the
+    /// identity through the Rodrigues form's arithmetic, `k` being zero:
+    /// nothing reads whether the pair is one direction, so a lane whose
+    /// numbers stand for more than one value (`Sym`'s symbols) turns by
+    /// what its inputs are as functions, not by their value at one point.
+    /// Such a pair pays both decisions below like any other, so past the
+    /// rounding reach it refuses `IllConditioned` too.
     ///
     /// **Its two decisions**, both about the one pole `a = −b`, where
     /// every axis perpendicular to the pair is a least turn and none is
@@ -1787,7 +1792,7 @@ impl<T: Decide> RigidMotion<T> {
     /// consumed extent, a curvature arm, or the session box where no
     /// geometry is in hand.
     ///
-    /// Evaluation order (fixed, D9): the exact-identity read, `h = a + b`,
+    /// Evaluation order (fixed, D9): `h = a + b`,
     /// `d = (h·h)/2`, `k = a × h`, the two decisions on `|h|`, the spelling
     /// `c` chooses, then the translation `q − R·q` for
     /// `q = about − Point3::origin()`.
@@ -1859,7 +1864,6 @@ impl<T: Decide> RigidMotion<T> {
         band: Band,
         reach: Option<f64>,
     ) -> Result<Self, TurnError> {
-        let identity = a.is_exactly(b);
         let (a, b) = (a.get(), b.get());
         let anchored = |r: Mat3<T>| {
             let anchor = |_| TurnError::NonFinite(MotionPart::Anchor);
@@ -1867,17 +1871,6 @@ impl<T: Decide> RigidMotion<T> {
             let origin = finite(at(q - r * q), MotionPart::Anchor).map_err(anchor)?;
             Ok(Self::from_linear(r, origin))
         };
-        // A pair that is one direction exactly turns by the identity,
-        // exactly (the exact value, W1): its chord is 2, so no pole verdict
-        // is owed, and neither spelling below reads it bit for bit at every
-        // scalar. The identity fixes every point, so it is the world motion
-        // whatever `about` is, and no anchor arithmetic is spent on it; the
-        // anchor is still checked finite.
-        if identity {
-            finite(about, MotionPart::Anchor)
-                .map_err(|_| TurnError::NonFinite(MotionPart::Anchor))?;
-            return Ok(Self::world());
-        }
         let two = T::one() + T::one();
         let h = a + b;
         let d = h.dot(h) / two;
@@ -2005,15 +1998,19 @@ fn least_turn_linear<T: Real>(d: T, k: Vec3<T>) -> Mat3<T> {
 }
 
 /// **The least turn's rotation in the Rodrigues form**, for `a·b`
-/// reading non-negative: `S·v = c·v + k × v + k (k·v)/(1 + c)` with
+/// reading non-negative: `S·v = v + k × v + k × (k × v)/(1 + c)` with
 /// `c = a·b` and `k = a × b`, the rational form with its angle
 /// eliminated ([`RigidMotion::least_turn`]'s spelling away from the pole,
-/// where it is the narrower of the two over a box).
+/// where it is the narrower of the two over a box). Every term past `v`
+/// is a multiple of `k`, so a pair that is one direction turns by the
+/// identity through the arithmetic alone: bit for bit at a point, where
+/// `a × a` is exactly zero, and as a form wherever `k` is the zero form,
+/// with no read of whether the pair is one direction.
 fn least_turn_rodrigues<T: Real>(a: Vec3<T>, b: Vec3<T>) -> Mat3<T> {
     let c = a.dot(b);
     let k = a.cross(b);
     let one_plus_c = T::one() + c;
-    let apply = |v: Vec3<T>| v * c + k.cross(v) + k * (k.dot(v) / one_plus_c);
+    let apply = |v: Vec3<T>| v + k.cross(v) + k.cross(k.cross(v)) / one_plus_c;
     Mat3::from_cols(
         apply(Vec3::unit_x()),
         apply(Vec3::unit_y()),
@@ -3455,10 +3452,10 @@ mod crossing_and_turn_rows {
     /// `t = 0`, so `b`'s value is `x̂` while its derivative is `ŷ`. The
     /// least turn there is the rotation about `z` by `t`, whose derivative
     /// at `t = 0` is the quarter-turn generator: `S'·x̂ = ŷ`, `S'·ŷ = −x̂`,
-    /// `S'·ẑ = 0`. The mint's identity is an exact test, so it must hold in
-    /// every channel (`Real::is_exact_zero_in_every_channel`). *Breaks if*
-    /// the identity reads the value channel alone, which returns the world
-    /// motion and a zero derivative.
+    /// `S'·ẑ = 0`. The mint reads no exactness, so its arithmetic carries
+    /// the derivative. *Breaks if* the mint reads whether the pair is one
+    /// direction off the value channel, which returns the world motion and
+    /// a zero derivative.
     #[test]
     fn a_dual_pair_one_direction_only_in_value_keeps_its_derivative() {
         use crate::Dual;
@@ -4129,7 +4126,7 @@ mod construction_mint_rows {
                 continue;
             }
             seen += 1;
-            let col = |v: Vec3<f64>| v * c + k.cross(v) + k * (k.dot(v) / (1.0 + c));
+            let col = |v: Vec3<f64>| v + k.cross(v) + k.cross(k.cross(v)) / (1.0 + c);
             let want = Mat3::from_cols(
                 col(Vec3::unit_x()),
                 col(Vec3::unit_y()),
@@ -4251,7 +4248,7 @@ mod construction_mint_rows {
 
 /// **The least turn's two spellings, measured** (fork 270's Decision 3,
 /// by W1): the quaternion matrix over `n²` ([`least_turn_linear`]) and
-/// the Rodrigues form `S·v = c·v + k × v + k(k·v)/(1 + c)` with
+/// the Rodrigues form `S·v = v + k × v + k × (k × v)/(1 + c)` with
 /// `k = a × (a + b)` and `1 + c = |k|²/(1 − c)` where `c` reads negative.
 /// Prints, per pair class and box width, each form's widest entry at
 /// `Interval` and the `f64` landing and rigidity defects. A measurement,
@@ -4281,7 +4278,7 @@ mod least_turn_spelling_probe {
         } else {
             one + c
         };
-        let ap = |v: Vec3<T>| v * c + k.cross(v) + k * (k.dot(v) / opc);
+        let ap = |v: Vec3<T>| v + k.cross(v) + k.cross(k.cross(v)) / opc;
         Mat3::from_cols(ap(Vec3::unit_x()), ap(Vec3::unit_y()), ap(Vec3::unit_z()))
     }
 
@@ -4450,11 +4447,11 @@ mod least_turn_spelling_probe {
                              ({q_wider} against {r_wider})"
                         );
                         let most = if w == 0.0 {
-                            59
+                            9
                         } else if w < 1e-12 {
-                            39
+                            2
                         } else {
-                            35
+                            3
                         };
                         assert!(
                             h_worse <= most,

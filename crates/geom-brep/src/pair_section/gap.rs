@@ -2,9 +2,9 @@
 //! [`super`], the torus poses): whether the two surfaces are tangent,
 //! read on their spines by a certified sweep of the torus's core angle.
 //! It serves the pairs whose critical values have no closed form, a
-//! cylinder's or a torus's partner; a sphere's spine is a point, whose
-//! critical values against a core circle are its two meridian distances
-//! ([`super::torus`]).
+//! cylinder's, a cone's or a torus's partner; a sphere's spine is a
+//! point, whose critical values against a core circle are its two
+//! meridian distances ([`super::torus`]).
 //!
 //! It decides whether the pair is tangent and where, and says nothing of
 //! whether a given curve on both surfaces runs along the tangency within
@@ -20,6 +20,16 @@
 //! the two feet and the point are collinear, which is the critical-point
 //! condition of the spine distance. The gap is how far the critical
 //! values stand from those two levels.
+//!
+//! A cone is its own spine, at distance zero, so its levels are both the
+//! torus's `r`. Its distance from a point `p` off its axis is critical at
+//! the feet on the two lines of the double cone in `p`'s meridian plane
+//! through the axis, at signed distances `g± = ρ cos α ∓ h sin α` (`ρ`
+//! and `h` the point's distance from the axis and station along it from
+//! the apex), each line whole and lying on the double cone, so every
+//! foot is on the surface, the apex's included; `|g±|` is the spine
+//! distance of each branch. Where the core crosses the cone's axis every
+//! generator is a foot, and `D` has a kink, as for a circle's axis.
 //!
 //! The first spine is the torus's core circle, swept by its angle `φ`.
 //! At each point `p(φ)` the spine distance is critical along the second
@@ -38,10 +48,10 @@
 //! space and `p` moves at the core's speed `R`, kinks included). The
 //! squared distance `G = D²` is smooth off the kinks (a line's is a
 //! trigonometric polynomial, a circle's `|w|² ∓ 2R₂ρ + R₂²` with `ρ` the
-//! distance from its axis), so its slope over the cell is bounded by
+//! distance from its axis, a cone's `(ρ cos α ∓ h sin α)²`), so its slope over the cell is bounded by
 //! Taylor's theorem: `G′(m)` and `G″(m)` read at the point, and a bound
 //! on `|G‴|` over the cell from `|p′| = |p″| = |p‴| = R` (and, for the
-//! circle, `ρ` bounded below over the cell, the kink's distance). A cell
+//! circle and the cone, `ρ` bounded below over the cell, the kink's distance). A cell
 //! clears when every branch either
 //!
 //! - stands past the band from both levels over the whole cell
@@ -58,7 +68,7 @@
 //! # The scale of each margin
 //!
 //! Every margin is a length, and carries the rounding of the reading it
-//! is made of ([`Rounding`]):
+//! is made of ([`Reading`]):
 //!
 //! - a value test reads `D` against a level, metres of spine distance,
 //!   less `D`'s rounding;
@@ -114,18 +124,17 @@ use geom::Conic as _;
 use geom_core::bisect::{Budget, Exhausted, Step, bisect_within};
 use geom_core::k_stats::{decide, decide_reported, gate_rejection, straddle};
 use geom_core::{
-    Band, Decide, Decided, Indeterminate, Margin, Point3, Real, Sign, SizedPass, Vec3,
+    Band, Decide, Decided, Indeterminate, Margin, Point3, Real, Rounded, Sign, SizedPass, Vec3,
     rounding_charge,
 };
 
 use crate::ladder::{Answering, Climb, Rung, climb};
+use crate::piece::{Taylor, sign_change};
 
 /// The cells the first cut makes of the turn.
 const GAP_START: usize = 32;
 /// The most cells one sweep reads before it escalates.
 const GAP_CELLS: usize = 1 << 14;
-/// The bisection steps that place a sign change of `D′` in its cell.
-const GAP_BISECTIONS: u32 = 64;
 /// The window sizes a turn is tried at, each half the last.
 const GAP_WINDOWS: u32 = 32;
 
@@ -169,6 +178,16 @@ pub(crate) enum Spine<T: Real> {
         axis: geom::Line<T>,
         radius: T,
     },
+    /// A double cone, its own spine: the axis line through the apex, and
+    /// the half-angle's cosine and sine.
+    Cone {
+        /// The axis line, through the apex.
+        axis: geom::Line<T>,
+        /// `cos α`.
+        cos: T,
+        /// `sin α`.
+        sin: T,
+    },
 }
 
 impl<T: Real> Spine<T> {
@@ -176,7 +195,7 @@ impl<T: Real> Spine<T> {
     /// reading: what the reading's coordinates are made of.
     fn anchor(self) -> (Point3<T>, T) {
         match self {
-            Self::Line(line) => (line.origin, T::zero()),
+            Self::Line(line) | Self::Cone { axis: line, .. } => (line.origin, T::zero()),
             Self::Circle { axis, radius } => (axis.origin, radius),
         }
     }
@@ -198,10 +217,11 @@ pub enum Gap<T: Real> {
     },
 }
 
-/// **The rounding a reading carries**, a first-order estimate in the
-/// `f64` lane's sense ([`rounding_charge`]): bounds on how far `D`, `G′`
-/// and `G″` as evaluated stand from their values in real arithmetic at
-/// the same angle.
+/// One branch of the spine distance read at one angle: `D`, and the
+/// squared distance `G = D²`'s first two derivatives there, in metres
+/// squared per radian, each with a first-order estimate of its rounding
+/// in the `f64` lane's sense ([`rounding_charge`]): how far it stands,
+/// as evaluated, from its value in real arithmetic at the same angle.
 ///
 /// A reading is made of coordinates of size `s`, the core's centre and
 /// radius and the spine's anchor and radius, so the offset `w = p − o`
@@ -211,36 +231,46 @@ pub enum Gap<T: Real> {
 /// `2R·|w|`; `G″ = 2(|Πp′|² + Πw·Πp″)` the same with `|p″| = R`. A
 /// circle's branch adds `2R₂` times the rounding of `ρ′` and `ρ″`, whose
 /// quotients by `ρ` grow as the core nears the circle's axis: at a kink
-/// no slope reads at all.
-#[derive(Clone, Copy)]
-struct Rounding<T> {
-    d: T,
-    g1: T,
-    g2: T,
-}
-
-/// One branch of the spine distance read at one angle: `D`, and the
-/// squared distance `G = D²`'s first two derivatives there, in metres
-/// squared per radian, with their rounding.
+/// no slope reads at all. A cone's branch reads `g = ρ cos α ∓ h sin α`,
+/// charged `cos α` times `ρ`'s and `sin α` times `h`'s, and carries `g`'s
+/// rounding into `G = g²` by the product rule.
 #[derive(Clone, Copy)]
 struct Reading<T: Real> {
-    d: T,
-    g1: T,
-    g2: T,
-    /// `|p − c|` for the circle, `D` for the line: what `G‴`'s bound
+    d: Rounded<T>,
+    g1: Rounded<T>,
+    g2: Rounded<T>,
+    /// `|p − c|` for the circle, `D` for the line and the cone: what `G‴`'s bound
     /// reads.
     reach: T,
-    /// The core point's distance from the partner circle's axis, less
-    /// its rounding.
+    /// The core point's distance from the partner circle's or cone's
+    /// axis, less its rounding.
     kink: Option<T>,
-    err: Rounding<T>,
 }
 
 impl<T: Real> Reading<T> {
-    /// The rounding of `G = D²` and of its Taylor swing over `w`.
-    fn swing_rounding(&self, w: T) -> T {
-        let two = T::from_f64(2.0);
-        two * self.d * self.err.d + self.err.g1 * w + self.err.g2 * w.powi(2) / two
+    /// `G = D²` over the window of half-width `w` about the reading, its
+    /// third derivative at most `third` there.
+    fn swing(&self, third: T, w: T) -> Taylor<T> {
+        Taylor::over([self.d.square(), self.g1, self.g2], third, w)
+    }
+
+    /// Lower and upper bounds on `|D − L|` over a cell `reach` metres of
+    /// core about the reading, `L` the level nearer `D`.
+    fn apart(&self, levels: [T; 2], reach: T) -> (T, T) {
+        let near = nearest(self.d, levels);
+        (near.room() - reach, near.magnitude() + reach)
+    }
+
+    /// `G′` moved toward zero by its bound, so a sign read on it is the
+    /// exact `G′`'s, and the most `D` can be: what a turn reads.
+    fn turning(&self) -> (T, T) {
+        (self.g1.toward_zero(), self.d.magnitude())
+    }
+
+    /// Bounds on `D` over that window, `G`'s read back through `√`.
+    fn spread(&self, third: T, w: T) -> (T, T) {
+        let g = self.swing(third, w);
+        (g.least.max(T::zero()).sqrt(), g.most.sqrt())
     }
 }
 
@@ -259,11 +289,11 @@ fn squared<T: Real>(w: Vec3<T>, dp: Vec3<T>, ddp: Vec3<T>, axis: Option<Vec3<T>>
 
 fn read<T: Real>(core: Core<T>, spine: Spine<T>, far: bool, phi: T) -> Reading<T> {
     let (p, dp) = (core.point(phi), core.velocity(phi));
-    let ddp = core.circle.frame.origin() - p;
+    let ddp = core.circle.frame().origin() - p;
     let big = core.circle.radius();
     let (two, four) = (T::from_f64(2.0), T::from_f64(4.0));
     let (anchor, spread) = spine.anchor();
-    let size = (core.circle.frame.origin() - Point3::origin()).norm()
+    let size = (core.circle.frame().origin() - Point3::origin()).norm()
         + big
         + (anchor - Point3::origin()).norm()
         + spread;
@@ -276,16 +306,20 @@ fn read<T: Real>(core: Core<T>, spine: Spine<T>, far: bool, phi: T) -> Reading<T
             let [g, g1, g2] = squared(p - line.origin, dp, ddp, Some(line.dir));
             let d = g.sqrt();
             Reading {
-                d,
-                g1,
-                g2,
+                d: Rounded {
+                    value: d,
+                    error: e_w + rounding_charge(d),
+                },
+                g1: Rounded {
+                    value: g1,
+                    error: e1,
+                },
+                g2: Rounded {
+                    value: g2,
+                    error: e2,
+                },
                 reach: d,
                 kink: None,
-                err: Rounding {
-                    d: e_w + rounding_charge(d),
-                    g1: e1,
-                    g2: e2,
-                },
             }
         }
         Spine::Circle {
@@ -296,44 +330,133 @@ fn read<T: Real>(core: Core<T>, spine: Spine<T>, far: bool, phi: T) -> Reading<T
                 },
             radius,
         } => {
-            // `G = |w|² ∓ 2R₂ρ + R₂²`, `ρ = √S` the distance from the
-            // circle's axis: `ρ′ = S′/2ρ`, `ρ″ = S″/2ρ − S′²/4ρ³`.
+            // `G = |w|² ∓ 2R₂ρ + R₂²`.
             let w = p - center;
             let [n, n1, n2] = squared(w, dp, ddp, None);
-            let [s0, s1, s2] = squared(w, dp, ddp, Some(axis));
-            let rho = s0.sqrt();
-            let r1 = s1 / (two * rho);
-            let r2 = s2 / (two * rho) - s1.powi(2) / (four * rho.powi(3));
-            // `ρ`'s rounding, and its quotients' through `|S′| ≤ 2ρR`.
-            let e_rho = e_w + rounding_charge(rho);
-            let e_r1 = (e1 / two + big * e_rho) / rho + rounding_charge(r1.abs());
-            let e_r2 = e2 / (two * rho)
-                + s2.abs() * e_rho / (two * rho.powi(2))
-                + (big * e1 + T::from_f64(3.0) * big.powi(2) * e_rho) / rho.powi(2)
-                + rounding_charge(r2.abs());
+            let Radial {
+                rho,
+                r1,
+                r2,
+                e_rho,
+                e_r1,
+                e_r2,
+            } = radial(w, (dp, ddp), axis, (big, e_w, e1, e2));
             let sigma = if far { T::one() } else { -T::one() };
             let h = w.dot(axis);
             let across = rho + sigma * radius;
             let d = (across.powi(2) + h.powi(2)).sqrt();
             Reading {
-                d,
-                g1: n1 + two * sigma * radius * r1,
-                g2: n2 + two * sigma * radius * r2,
+                d: Rounded {
+                    value: d,
+                    error: e_rho + e_w + rounding_charge(d),
+                },
+                g1: Rounded {
+                    value: n1 + two * sigma * radius * r1,
+                    error: e1 + two * radius * e_r1,
+                },
+                g2: Rounded {
+                    value: n2 + two * sigma * radius * r2,
+                    error: e2 + two * radius * e_r2,
+                },
                 reach: n.sqrt(),
                 kink: Some(rho - e_rho),
-                err: Rounding {
-                    d: e_rho + e_w + rounding_charge(d),
-                    g1: e1 + two * radius * e_r1,
-                    g2: e2 + two * radius * e_r2,
+            }
+        }
+        Spine::Cone {
+            axis:
+                geom::Line {
+                    origin: apex,
+                    dir: axis,
                 },
+            cos,
+            sin,
+        } => {
+            // `g = ρ cos α ∓ h sin α`, the near branch `−`, and
+            // `G = g²`: `G′ = 2g·g′`, `G″ = 2(g′² + g·g″)`.
+            let w = p - apex;
+            let Radial {
+                rho,
+                r1,
+                r2,
+                e_rho,
+                e_r1,
+                e_r2,
+            } = radial(w, (dp, ddp), axis, (big, e_w, e1, e2));
+            let tilt = if far { -sin } else { sin };
+            let g = rho * cos - tilt * w.dot(axis);
+            let g1 = r1 * cos - tilt * dp.dot(axis);
+            let g2 = r2 * cos - tilt * ddp.dot(axis);
+            let e_g = cos * e_rho + sin * e_w + rounding_charge(g.abs());
+            let e_g1 = cos * e_r1 + sin * rounding_charge(big) + rounding_charge(g1.abs());
+            let e_g2 = cos * e_r2 + sin * rounding_charge(big) + rounding_charge(g2.abs());
+            Reading {
+                d: Rounded {
+                    value: g.abs(),
+                    error: e_g,
+                },
+                g1: Rounded {
+                    value: two * g * g1,
+                    error: two * (g.abs() * e_g1 + g1.abs() * e_g),
+                },
+                g2: Rounded {
+                    value: two * (g1.powi(2) + g * g2),
+                    error: two * (two * g1.abs() * e_g1 + g.abs() * e_g2 + g2.abs() * e_g),
+                },
+                reach: g.abs(),
+                kink: Some(rho - e_rho),
             }
         }
     }
 }
 
-/// The least of `|D − L|` over the two levels.
-fn nearest<T: Real>(d: T, levels: [T; 2]) -> T {
-    (d - levels[0]).abs().min((d - levels[1]).abs())
+/// A core point's distance `ρ` from an axis and its first two
+/// derivatives along the core, with their rounding.
+struct Radial<T> {
+    rho: T,
+    r1: T,
+    r2: T,
+    e_rho: T,
+    e_r1: T,
+    e_r2: T,
+}
+
+/// **`ρ = √S` read along the core**, `S = |Πw|²` and `Π` the projection
+/// square to `axis`: `ρ′ = S′/2ρ`, `ρ″ = S″/2ρ − S′²/4ρ³`, with `ρ`'s
+/// rounding and its quotients' through `|S′| ≤ 2ρR` (`big` the core
+/// radius, `e_w`, `e1`, `e2` the offset's charges).
+fn radial<T: Real>(
+    w: Vec3<T>,
+    (dp, ddp): (Vec3<T>, Vec3<T>),
+    axis: Vec3<T>,
+    (big, e_w, e1, e2): (T, T, T, T),
+) -> Radial<T> {
+    let (two, four) = (T::from_f64(2.0), T::from_f64(4.0));
+    let [s0, s1, s2] = squared(w, dp, ddp, Some(axis));
+    let rho = s0.sqrt();
+    let r1 = s1 / (two * rho);
+    let r2 = s2 / (two * rho) - s1.powi(2) / (four * rho.powi(3));
+    let e_rho = e_w + rounding_charge(rho);
+    let e_r1 = (e1 / two + big * e_rho) / rho + rounding_charge(r1.abs());
+    let e_r2 = e2 / (two * rho)
+        + s2.abs() * e_rho / (two * rho.powi(2))
+        + (big * e1 + T::from_f64(3.0) * big.powi(2) * e_rho) / rho.powi(2)
+        + rounding_charge(r2.abs());
+    Radial {
+        rho,
+        r1,
+        r2,
+        e_rho,
+        e_r1,
+        e_r2,
+    }
+}
+
+/// `D − L` for the level `L` nearer `D` as read. A level is read exact:
+/// `ρ₁ + ρ₂` and `|ρ₁ − ρ₂|` are two-term sums of stored radii, a short
+/// division-free chain the run's admission rule covers.
+fn nearest<T: Real>(d: Rounded<T>, levels: [T; 2]) -> Rounded<T> {
+    let [a, b] = levels.map(|level| d - Rounded::exact(level));
+    Rounded::select_le_zero(a.value.abs() - b.value.abs(), a, b)
 }
 
 /// One sweep's frame: what it reads and at which band.
@@ -375,22 +498,35 @@ impl<T: Decide> Sweep<'_, T> {
     /// hold a kink. With `|p′| = |p″| = |p‴| = R` and `p′·p″ = 0`,
     /// `⟨Πw, Πw⟩‴ = 2(3⟨Πp′, Πp″⟩ + ⟨Πw, Πp‴⟩)` is at most
     /// `2R(3R + |Πw|)`, and for the circle `ρ‴`, from `ρ = √S`, at most
-    /// `(3R² + ρR)/ρ + 3R(R² + ρR)/ρ² + 3R³/ρ²` over `ρ ≥ ρ_lo`.
+    /// `(3R² + ρR)/ρ + 3R(R² + ρR)/ρ² + 3R³/ρ²` over `ρ ≥ ρ_lo`. For the
+    /// cone, `G‴ = 2(3g′g″ + g·g‴)` with `|g′| ≤ R`, `|g″| ≤ cos α·(2R²/ρ
+    /// + R) + sin α·R` and `|g‴| ≤ cos α·ρ‴ + sin α·R`.
     fn third(&self, r: Reading<T>, reach: T) -> Option<T> {
         let big = self.core.circle.radius();
         let (two, three) = (T::from_f64(2.0), T::from_f64(3.0));
         let far = r.reach + reach;
+        let smooth_lo = |rho: T| {
+            self.positive_as(self.rows.smooth(), Margin::of(rho - reach))
+                .then_some(rho - reach)
+        };
+        let rho3 = |lo: T| {
+            (three * big.powi(2) + lo * big) / lo
+                + three * big * (big.powi(2) + lo * big) / lo.powi(2)
+                + three * big.powi(3) / lo.powi(2)
+        };
         match (self.spine, r.kink) {
             (Spine::Circle { radius, .. }, Some(rho)) => {
-                if !self.positive_as(self.rows.smooth(), Margin::of(rho - reach)) {
-                    return None;
-                }
-                let lo = rho - reach;
-                let rho3 = (three * big.powi(2) + lo * big) / lo
-                    + three * big * (big.powi(2) + lo * big) / lo.powi(2)
-                    + three * big.powi(3) / lo.powi(2);
+                let lo = smooth_lo(rho)?;
                 // `|w|²‴ = 2w·p‴`, the other terms vanishing on a circle.
-                Some(two * far * big + two * radius * rho3)
+                Some(two * far * big + two * radius * rho3(lo))
+            }
+            (Spine::Cone { cos, sin, .. }, Some(rho)) => {
+                // `G‴ = 2(3g′g″ + g·g‴)`, `|g′| ≤ R` (`g` is 1-Lipschitz),
+                // `|ρ″| ≤ 2R²/ρ + R` from `S`'s bounds and `|h^(k)| ≤ R`.
+                let lo = smooth_lo(rho)?;
+                let g2 = cos * (two * big.powi(2) / lo + big) + sin * big;
+                let g3 = cos * rho3(lo) + sin * big;
+                Some(two * (three * big * g2 + far * g3))
             }
             _ => Some(two * big * (three * big + far)),
         }
@@ -401,19 +537,8 @@ impl<T: Decide> Sweep<'_, T> {
     /// reads no sign, whatever `D` is), then read as the crossing it
     /// bounds.
     fn turn(&self, far: bool, phi: T) -> Option<Sign> {
-        let r = read(self.core, self.spine, far, phi);
-        match decide(
-            self.rows.turn(),
-            self.slope(
-                geom_core::Rounded {
-                    value: r.g1,
-                    error: r.err.g1,
-                }
-                .toward_zero(),
-                r.d + r.err.d,
-            ),
-            self.band,
-        ) {
+        let (slope, d_hi) = read(self.core, self.spine, far, phi).turning();
+        match decide(self.rows.turn(), self.slope(slope, d_hi), self.band) {
             Ok(s @ (Sign::Positive | Sign::Negative)) => Some(s),
             Ok(Sign::Zero) | Err(_) => None,
         }
@@ -421,13 +546,9 @@ impl<T: Decide> Sweep<'_, T> {
 
     fn cell(&self, far: bool, (lo, m, hi): (T, T, T), w: T) -> Cell<T> {
         let big = self.core.circle.radius();
-        let two = T::from_f64(2.0);
         let reach = big * w;
         let r = read(self.core, self.spine, far, m);
-        if self.positive_as(
-            self.rows.clear(),
-            Margin::of(nearest(r.d, self.levels) - reach - r.err.d),
-        ) {
+        if self.positive_as(self.rows.clear(), Margin::of(r.apart(self.levels, reach).0)) {
             return Cell::Clear;
         }
         if let Ok(Decided {
@@ -435,7 +556,7 @@ impl<T: Decide> Sweep<'_, T> {
             margin,
         }) = decide_reported(
             self.rows.gap(),
-            Margin::of((r.d + r.err.d).max(self.levels[1])),
+            Margin::of(r.d.magnitude().max(self.levels[1])),
             self.band,
         ) {
             return Cell::Tangent(Gap::Tangent {
@@ -448,12 +569,7 @@ impl<T: Decide> Sweep<'_, T> {
         };
         // `D` over the cell from `G`'s Taylor bound, which stays tight
         // where `D` is small and `R·w` is not.
-        let g = r.d.powi(2);
-        let swing = r.g1.abs() * w
-            + r.g2.abs() * w.powi(2) / two
-            + third * w.powi(3) / T::from_f64(6.0)
-            + r.swing_rounding(w);
-        let (d_lo, d_hi) = ((g - swing).max(T::zero()).sqrt(), (g + swing).sqrt());
+        let (d_lo, d_hi) = r.spread(third, w);
         let apart = |level: T| (level - d_hi).max(d_lo - level);
         if self.positive_as(
             self.rows.clear(),
@@ -463,10 +579,10 @@ impl<T: Decide> Sweep<'_, T> {
         }
         // The least `|G′|` over the cell, less its rounding, as the least
         // crossing it bounds against `D`'s most over the cell.
-        let least = r.g1.abs() - r.err.g1 - (r.g2.abs() + r.err.g2) * w - third * w.powi(2) / two;
+        let least = r.swing(third, w).least_slope;
         if self.positive_as(
             self.rows.monotone(),
-            self.slope(least, r.d + r.err.d + reach),
+            self.slope(least, r.d.magnitude() + reach),
         ) {
             return Cell::Clear;
         }
@@ -488,29 +604,17 @@ impl<T: Decide> Sweep<'_, T> {
     /// Taylor bound about the turn, its value read back through `√`.
     fn turn_window(&self, far: bool, (lo, hi): (T, T), w: T) -> Option<Gap<T>> {
         let big = self.core.circle.radius();
-        let (two, six) = (T::from_f64(2.0), T::from_f64(6.0));
-        let slope = |phi: T| read(self.core, self.spine, far, phi).g1;
-        let (mut a, mut b) = (lo, hi);
-        let at_lo = slope(lo);
-        for _ in 0..GAP_BISECTIONS {
-            let c = (a + b) / two;
-            let product = slope(c) * at_lo;
-            a = product.select_le_zero(a, c);
-            b = product.select_le_zero(c, b);
-        }
+        let two = T::from_f64(2.0);
+        let slope = |phi: T| read(self.core, self.spine, far, phi).g1.value;
+        let (a, b) = sign_change(&slope, lo, hi);
         let mid = (a + b) / two;
         let r = read(self.core, self.spine, far, mid);
-        let g = r.d.powi(2);
         let mut h = w;
         for _ in 0..GAP_WINDOWS {
             if let Some(third) = self.third(r, big * h) {
                 let (left, right) = (self.turn(far, mid - h), self.turn(far, mid + h));
                 if matches!((left, right), (Some(x), Some(y)) if x != y) {
-                    let swing = r.g1.abs() * h
-                        + r.g2.abs() * h.powi(2) / two
-                        + third * h.powi(3) / six
-                        + r.swing_rounding(h);
-                    let (d_lo, d_hi) = ((g - swing).max(T::zero()).sqrt(), (g + swing).sqrt());
+                    let (d_lo, d_hi) = r.spread(third, h);
                     for level in self.levels {
                         let bound = (d_lo - level).abs().max((d_hi - level).abs());
                         if let Ok(Decided {
@@ -537,10 +641,9 @@ impl<T: Decide> Sweep<'_, T> {
     /// decided `Zero` stand for a critical value no reading certified, a
     /// `Zero` the gap cannot pass.
     fn floor_refusal(&self, r: Reading<T>, reach: T) -> Indeterminate {
-        let near = nearest(r.d, self.levels);
-        let reach = reach + r.err.d;
+        let (lower, upper) = r.apart(self.levels, reach);
         let bound = |m: T| decide_reported(self.rows.gap(), Margin::of(m), self.band);
-        match (bound(near - reach), bound(near + reach)) {
+        match (bound(lower), bound(upper)) {
             (Err(e), _) | (_, Err(e)) => e,
             (Ok(lower), Ok(upper)) if lower.sign < upper.sign => {
                 straddle(self.rows.straddle(), lower, upper, self.band)
@@ -572,8 +675,8 @@ pub(crate) fn critical_gap<T: Decide>(
         core_lever: crate::ExtentBall::of_covered(
             geom::cover::Cover::circle(geom::cover::Core {
                 axis: geom::Line {
-                    origin: core.circle.frame.origin(),
-                    dir: core.circle.frame.axis(),
+                    origin: core.circle.frame().origin(),
+                    dir: core.circle.frame().axis(),
                 },
                 radius: core.circle.radius(),
             })
@@ -586,7 +689,7 @@ pub(crate) fn critical_gap<T: Decide>(
         band,
     };
     let branches: &[bool] = match spine {
-        Spine::Circle { .. } => &[false, true],
+        Spine::Circle { .. } | Spine::Cone { .. } => &[false, true],
         Spine::Line(_) => &[false],
     };
     let two = T::from_f64(2.0);
@@ -642,4 +745,99 @@ pub(crate) fn critical_gap<T: Decide>(
         Err(Exhausted) => unreachable!("a gap's walk spends its cells before its reads"),
     }
     held.map_or(Ok(Gap::Transverse), Err)
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+
+    /// A reading of `D = 1 ± 0.1` whose `G′ = −0.3` lies within its
+    /// bound of `0.5`, and no kink.
+    fn reading() -> Reading<f64> {
+        let at = |value: f64, error: f64| Rounded { value, error };
+        Reading {
+            d: at(1.0, 0.1),
+            g1: at(-0.3, 0.5),
+            g2: at(0.0, 0.0),
+            reach: 1.0,
+            kink: None,
+        }
+    }
+
+    /// **A reading's gap from its nearer level is bounded past its own
+    /// rounding, both ways.** `D = 1 ± 0.1` against the levels `2` and
+    /// `0.95`: the nearer is `0.95`, `0.05` off, inside `D`'s bound, so
+    /// over a cell of reach `0.01` the gap is at least `−0.01` (no room
+    /// past zero) and at most `0.16`. Read on the value, or past its
+    /// bound the wrong way, the cell would clear a level it may touch.
+    #[test]
+    fn a_readings_gap_is_bounded_past_its_rounding() {
+        let (lower, upper) = reading().apart([2.0, 0.95], 0.01);
+        assert!(
+            (lower + 0.01).abs() < 1e-15,
+            "the least gap is the reach below zero: {lower}"
+        );
+        assert!((upper - 0.16).abs() < 1e-12, "the most gap: {upper}");
+    }
+
+    /// **A floor cell whose gap lies within its rounding of a level
+    /// escalates as the straddle it is.** `D = 1 + 6·10⁻⁹` within
+    /// `9·10⁻⁹`, by the level `1`, over a cell of reach `10⁻¹²`, at
+    /// ε = 10⁻⁹: the gap's least is zero (a magnitude is never negative)
+    /// and its most, `1.5·10⁻⁸`, is past the band, so the floor refuses on
+    /// the straddle row. Read unclamped, the least is `−3·10⁻⁹`, in the
+    /// band's gap, and the floor refuses on the gap row as if a negative
+    /// distance were undecided.
+    #[test]
+    fn a_floor_gap_within_its_rounding_escalates_as_a_straddle() {
+        let core = Core::of(
+            &geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
+            2.0,
+        );
+        let sweep = Sweep {
+            core,
+            core_lever: crate::ExtentBall::of_covered(
+                geom::cover::Cover::circle(geom::cover::Core {
+                    axis: geom::Line {
+                        origin: core.circle.frame().origin(),
+                        dir: core.circle.frame().axis(),
+                    },
+                    radius: core.circle.radius(),
+                })
+                .as_ref(),
+            )
+            .lever(),
+            spine: Spine::Line(geom::Line {
+                origin: Point3::new(0.0, 0.0, 0.0),
+                dir: Vec3::new(0.0, 0.0, 1.0),
+            }),
+            levels: [3.0, 1.0],
+            rows: &crate::rows::CT_GAP,
+            band: Band::new(1e-9, 1e-8).unwrap(),
+        };
+        let at = |value: f64, error: f64| Rounded { value, error };
+        let mut r = reading();
+        r.d = at(1.0 + 6e-9, 9e-9);
+        let got = sweep.floor_refusal(r, 1e-12);
+        assert_eq!(
+            got.predicate,
+            Some("ct_critical_gap_straddle"),
+            "{got:?}: a gap within its rounding of a level refused off the straddle"
+        );
+    }
+
+    /// **A turn reads no sign on a slope within its bound.** `G′ = −0.3`
+    /// within `0.5` reads zero, not negative, and `D` is read at its
+    /// most, `1.1`.
+    #[test]
+    fn a_turn_reads_no_sign_on_a_slope_within_its_bound() {
+        let (slope, d_hi) = reading().turning();
+        assert_eq!(slope, 0.0, "a slope within its bound has no sign");
+        assert!((d_hi - 1.1).abs() < 1e-15, "D at its most: {d_hi}");
+    }
 }

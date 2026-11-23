@@ -85,7 +85,7 @@ use super::{
 use crate::body::Body;
 use crate::chord_join::StaleSite;
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
-use crate::live::{Proven, linked, proven};
+use crate::live::{Proven, proven};
 use crate::sector_face::{ConeApex, SectorFaceError};
 use crate::sector_shape::SlitTips;
 use crate::star::{Datum, Star, StarFace, StarFault};
@@ -308,8 +308,8 @@ pub(super) fn pair_sectors<T: Decide>(
     sites: [(&Body<T>, VertexKey, &SlitTips); 2],
     band: Band,
 ) -> Result<[Vec<BoolSector<T>>; 2], BooleanError> {
-    let [a, b] = [Operand::A, Operand::B].map(|operand| {
-        let (body, vertex, tips) = sites[operand as usize];
+    let [a, b] = Operand::BOTH.map(|operand| {
+        let (body, vertex, tips) = sites[operand.index()];
         Star::walk(body, vertex, tips, band)
             .map_err(|fault| star_fault(fault, operand, vertex, band))
     });
@@ -1315,7 +1315,7 @@ pub(super) fn exact_lever<T: geom_core::Real>(bound: Lever<T>, own: Option<Lever
 
 pub(super) use crate::star::Leaned;
 
-pub(super) use crate::star::leaned_lever;
+pub(super) use crate::star::leaned;
 
 /// The star's order refusals ([`crate::star::OrderFault`]) as the
 /// Boolean's: germs coincident to the tolerance are the sectors'
@@ -1362,8 +1362,8 @@ fn within_signs<T: Decide>(
 /// `(+line, −line)`, each `true` where [`within`] holds it in all.
 ///
 /// The line is read scaled by its lean ([`Leaned::line`]): two faces'
-/// line is read un-normalized, `m = n_a × n_b`, the bounds' reaches its
-/// lever as [`leaned_lever`] would give them. Read against a bound `e`
+/// line is read un-normalized, `m = n_a × n_b`, so its lean scales the
+/// reading as [`leaned`] scales one. Read against a bound `e`
 /// of `a`'s sector at `e`'s reach `L`, it measures
 /// `L·(m × e)·n_a = L·((n_a·e) cos φ − n_b·e)`: the bound's own
 /// departure from `a`'s plane, foreshortened by `cos φ`, less its far
@@ -1647,7 +1647,7 @@ fn germ_curve<T: Decide>(
     body: &Body<T>,
     edge: crate::entity::EdgeKey,
 ) -> Result<&geom_brep::EdgeCurve<T>, BooleanError> {
-    body.edge_curve_linked(edge, proven(&body.edges, edge, EntityId::Edge))
+    body.proven_edge(edge)
         .certified()
         .ok_or(BooleanError::ClassificationInvariant {
             what: "a germ edge is null scaffolding",
@@ -2101,14 +2101,8 @@ pub(super) fn faces_at<T: Decide>(
     for v in crate::chord_join::null_site(body, &[vertex])? {
         for he in body.vertex_orbit_linked(v) {
             let edge = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
-            let data = linked(
-                &body.edges,
-                edge,
-                EntityId::Edge,
-                EntityId::HalfEdge(he),
-                "edge",
-            );
-            if body.edge_curve_linked(edge, data).null_scaffold().is_some() {
+            let data = body.linked_edge(edge, EntityId::HalfEdge(he), "edge");
+            if data.curve().null_scaffold().is_some() {
                 continue;
             }
             let f = body.face_of_linked(he);

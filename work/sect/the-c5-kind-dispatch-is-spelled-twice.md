@@ -76,3 +76,6 @@ Moved from SECTRUNG to SECT on 2026-11-02, by `git mv`, when SECTRUNG merged bac
 
 `pair_section` now dispatches through a private `Arm` enum (`crates/geom-brep/src/pair_section.rs`, `fn arm`), and `serves(a, b)` and `builds(a, b)` read that one dispatch. That ends `serves`' second spelling, but `Arm` is a third near-parallel enum, beside `PairPose` (one variant per built pair) and `intersect::route`'s `PairRoute`. Each needs a visit when a pair is added: `arm`, `PairPose`'s matches, and `route`.
 
+
+`pair_section::uncarried(a, b)` (PR 7357), the kind pairs the value classifies but no march carries (a cone against a cylinder or a cone, its `Arm::ConeRuled`), reads the same dispatch, so it is no fourth spelling.
+

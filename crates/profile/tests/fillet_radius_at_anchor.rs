@@ -288,7 +288,7 @@ fn refused_by_the_fit(res: &Built, at: Point2<f64>) -> bool {
 
 /// The name a refusal by another gate is counted under.
 fn refusal_name(e: &PathError<f64>) -> String {
-    match e {
+    match e.refusal() {
         PathError::Escalated { gate, .. } => format!("Escalated({gate:?})"),
         e => format!("{e:?}")
             .split([' ', '{', '('])

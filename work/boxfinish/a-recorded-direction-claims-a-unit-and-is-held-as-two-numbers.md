@@ -6,7 +6,7 @@ status: parked
 opened: 2026-11-22
 priority: P1
 cost: H
-blocked_on: [the-sweep-doors-read-the-profiles-recorded-directions, the-axis-mint-asks-for-proof-only-where-the-value-reads-zero, a-verb-stores-a-radius-as-a-magnitude-and-the-symbolic-tier-cannot-use-the-sign-its-gate-decided]
+blocked_on: [the-axis-mint-asks-for-proof-only-where-the-value-reads-zero, a-verb-stores-a-radius-as-a-magnitude-and-the-symbolic-tier-cannot-use-the-sign-its-gate-decided]
 ---
 
 
@@ -99,6 +99,19 @@ a misaimed-fixture row replace them);
 (`f64` to `Interval` becomes an enclosure); the `from-f64-sites.tsv`
 row for `profile/src/validate.rs` shrinks.
 
+**Corrected by the signed-radius lane's trace (2026-11-22):** a lifted
+radial DID reach the door on that lane's branch.
+`ValidatedProfile::lift_onto`'s one production caller is the loft's
+enclosure arm, and its lifted sections go to the stacking door and to
+`assemble`, both of which build each rim through
+`placed_segment_spec`, whose arc arm is `frame_onto`. (The designers
+read the stacking check and missed `assemble`.) On main that arm
+normalizes; the lane's un-normalized door opened it, and the lane
+closes it in its own unit by normalizing an arc's radials in
+`ValidatedSegment::lift` at the target scalar. So when this row is
+built the lift's crossing is already a normalization for arcs, and
+what remains is to make it the witness's own read for every direction.
+
 **Not established:** whether every verb's identity radial (tangent,
 via, onto, the fillet paths) is one of the listed makers; what
 `lift_computed` (`f64` to `Sym`) callers do at `Sym`; whether a lifted
@@ -110,3 +123,12 @@ read).
 (`Real::Expression`; the line mint's two branches are two makers), and
 signed-radius (which adds the door). Dual tier when it is dispatched:
 a witness type every profile and sweep reader holds.
+
+**From PR 7384's second review (2026-11-23), three more places this
+unit takes:** `swept::Traversed::half_turn(…, radial: Vec2<T>)` takes a
+bare vector for a unit claim (new in that PR); every field of
+`ValidatedSegment` and `SegmentKind` is public, so another crate can
+write a free-standing segment whose director has length 5 (it cannot
+enter a `ValidatedLoop`); and `SegmentKind::map` accepts any closure,
+so nothing in its signature keeps a mapped director a unit or the map
+upward.

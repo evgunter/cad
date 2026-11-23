@@ -30,7 +30,7 @@ fn edge_names(t: &NameTable, body: &Body<f64>, z: Option<f64>) -> Vec<StableName
                 body.get_curve_geom(e.curve)
                     .and_then(|g| g.certified())
                     .map(|c| c.carrier()),
-                Some(geom::Curve3::Circle(geom::Circle { frame, .. })) if (frame.origin().z - z).abs() < 1e-9
+                Some(geom::Curve3::Circle(the_circle @ geom::Circle { .. })) if (the_circle.frame().origin().z - z).abs() < 1e-9
             )
         })
         .map(|(k, _)| k)

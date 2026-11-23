@@ -545,16 +545,11 @@ fn perturbed(s: &mut fuzz::Rng, carrier: &Curve3<f64>, delta: f64) -> Curve3<f64
         Curve3::Line(geom::Line { origin, dir }) => {
             Curve3::line(origin + nudge(s, 1), dir + nudge(s, 3) * dir.norm())
         }
-        Curve3::Circle(
-            conic_k @ geom::Circle {
-                frame: carrier_frame_33,
-                ..
-            },
-        ) => {
+        Curve3::Circle(conic_k) => {
             let (center, axis, u_ref) = (
-                carrier_frame_33.origin(),
-                carrier_frame_33.axis(),
-                carrier_frame_33.u_ref(),
+                conic_k.frame().origin(),
+                conic_k.frame().axis(),
+                conic_k.frame().u_ref(),
             );
             let radius = conic_k.radius();
             let axis = (axis + nudge(s, 3)).normalize();
@@ -578,16 +573,11 @@ fn perturbed(s: &mut fuzz::Rng, carrier: &Curve3<f64>, delta: f64) -> Curve3<f64
             }
             Curve3::circle(center, axis, scaled(s, radius), u_ref)
         }
-        Curve3::Ellipse(
-            ellipse @ geom::Ellipse {
-                frame: carrier_frame_32,
-                ..
-            },
-        ) => {
+        Curve3::Ellipse(ellipse) => {
             let (center, axis, u_ref) = (
-                carrier_frame_32.origin(),
-                carrier_frame_32.axis(),
-                carrier_frame_32.u_ref(),
+                ellipse.frame().origin(),
+                ellipse.frame().axis(),
+                ellipse.frame().u_ref(),
             );
             let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             let axis = (axis + nudge(s, 3)).normalize();
@@ -2327,19 +2317,13 @@ fn a_moved_villarceau_circle_is_refused_typed_and_never_off_within_the_band() {
             unreachable!("villarceau draws a torus")
         };
         let (tc, axis) = (carrier_frame.origin(), carrier_frame.axis());
-        let Curve3::Circle(
-            conic_k @ geom::Circle {
-                frame: carrier_frame_31,
-                ..
-            },
-        ) = carrier
-        else {
+        let Curve3::Circle(conic_k) = carrier else {
             unreachable!("villarceau draws a circle")
         };
         let (center, n, u_ref) = (
-            carrier_frame_31.origin(),
-            carrier_frame_31.axis(),
-            carrier_frame_31.u_ref(),
+            conic_k.frame().origin(),
+            conic_k.frame().axis(),
+            conic_k.frame().u_ref(),
         );
         let radius = conic_k.radius();
         let delta = match s.below(3) {

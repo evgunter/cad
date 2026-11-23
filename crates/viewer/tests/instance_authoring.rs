@@ -675,7 +675,7 @@ fn failed_badge(path: &Path, node: RecipeNodeId, tol: Tol) -> String {
     let rows = session.tree_rows();
     let row = common::row_of(&rows, node);
     let message = match &row.status {
-        RowStatus::Failed { message, .. } => message.clone(),
+        RowStatus::Failed { message, .. } => message.to_string(),
         other => panic!("expected the instance to fail, got {other:?}"),
     };
     assert_eq!(row.status.badge(), "FAILED");
@@ -808,7 +808,7 @@ fn every_unresolved_part_badge_meets_the_refusal_standard() {
     let mut session = DocSession::inline(held.doc().clone(), tol);
     session.pump();
     let none = match &common::status_of(&session.tree_rows(), instance) {
-        RowStatus::Failed { message, .. } => message.clone(),
+        RowStatus::Failed { message, .. } => message.to_string(),
         other => panic!("an instance with no file fails, got {other:?}"),
     };
     assert!(
@@ -888,29 +888,28 @@ fn a_pin_mismatched_instance_offers_the_accept_and_accepting_is_one_undo() {
         [bench.post_a, bench.post_b].map(|post| {
             let row = row_of(session, post);
             assert_eq!(row.status.badge(), "FAILED", "the post refuses: {row:?}");
-            let offer = row
-                .version_offer
-                .clone()
-                .unwrap_or_else(|| panic!("a pin-mismatched instance offers the accept: {row:?}"));
+            let [viewer::recourse::Offer::Commit(offer)] = &row.offers[..] else {
+                panic!("a pin-mismatched instance offers the accept alone: {row:?}")
+            };
             assert!(
-                matches!(offer.accept(), SessionOp::AcceptPartVersion { id } if id == bench.post.id),
+                matches!(offer.op, SessionOp::AcceptPartVersion { id } if id == bench.post.id),
                 "the accept names the post: {:?}",
-                offer.accept()
+                offer.op
             );
-            offer
+            (**offer).clone()
         })
     };
     let [offer, other] = offered(&session);
     assert_eq!(offer, other, "both sites of one part offer one accept");
     assert!(
-        Refusal::version_question(&offer).contains(&post_file_name),
-        "the question names the post's file: {}",
-        Refusal::version_question(&offer)
+        offer.label.contains(&post_file_name),
+        "the control names the post's file: {}",
+        offer.label
     );
     let shelf = row_of(&session, bench.shelf_i);
     assert_eq!(shelf.status, RowStatus::Ok, "the shelf still resolves");
-    assert_eq!(
-        shelf.version_offer, None,
+    assert!(
+        shelf.offers.is_empty(),
         "a resolving instance offers nothing"
     );
 
@@ -925,7 +924,7 @@ fn a_pin_mismatched_instance_offers_the_accept_and_accepting_is_one_undo() {
     .expect("the store holds a newer post");
     assert_eq!(kernel.len(), 2, "the premise: one edit per post instance");
 
-    let outcome = session.perform(offer.accept());
+    let outcome = session.perform(offer.op.clone());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(
         outcome.committed, kernel,
@@ -937,14 +936,14 @@ fn a_pin_mismatched_instance_offers_the_accept_and_accepting_is_one_undo() {
     let unlanded = session.tree_rows();
     assert_eq!(row_of(&session, bench.post_a).status.badge(), "FAILED");
     assert!(
-        unlanded.iter().all(|row| row.version_offer.is_none()),
+        unlanded.iter().all(|row| row.offers.is_empty()),
         "no offer stands while the accept's run is outstanding: {unlanded:?}"
     );
     session.pump();
     let rows = session.tree_rows();
     assert!(!tree::has_faults(&rows), "the posts now evaluate: {rows:?}");
     assert!(
-        rows.iter().all(|row| row.version_offer.is_none()),
+        rows.iter().all(|row| row.offers.is_empty()),
         "and nothing offers any more"
     );
 
@@ -984,7 +983,7 @@ fn accepting_with_no_newer_version_or_no_file_says_the_kernels_refusal() {
         )
         .expect_err("the kernel refuses too");
         assert_eq!(
-            viewer::frame::refusal_message(&refusal).text(),
+            viewer::frame::refusal_message_untargeted(&refusal).text(),
             kernel.to_string(),
             "the status line is the kernel's sentence"
         );
@@ -995,10 +994,7 @@ fn accepting_with_no_newer_version_or_no_file_says_the_kernels_refusal() {
     let bench = asm::bench("auth15-current", tol);
     let mut session = asm::open_bench(&bench, tol);
     assert!(
-        session
-            .tree_rows()
-            .iter()
-            .all(|row| row.version_offer.is_none()),
+        session.tree_rows().iter().all(|row| row.offers.is_empty()),
         "a resolving assembly offers nothing"
     );
     let kernel = said(&mut session, &bench);
@@ -1014,7 +1010,7 @@ fn accepting_with_no_newer_version_or_no_file_says_the_kernels_refusal() {
 
     // An offer drawn, then its part's file removed.
     let (bench, mut session) = bench_with_the_post_moved("auth15-gone", tol);
-    assert!(row_of(&session, bench.post_a).version_offer.is_some());
+    assert!(!row_of(&session, bench.post_a).offers.is_empty());
     std::fs::remove_file(post_file(&bench)).expect("the post is removed");
     let kernel = said(&mut session, &bench);
     assert!(
@@ -1026,7 +1022,7 @@ fn accepting_with_no_newer_version_or_no_file_says_the_kernels_refusal() {
     let reopened = asm::open_bench(&bench, tol);
     let gone = row_of(&reopened, bench.post_a);
     assert_eq!(gone.status.badge(), "FAILED");
-    assert_eq!(gone.version_offer, None, "a missing part offers nothing");
+    assert!(gone.offers.is_empty(), "a missing part offers nothing");
 }
 
 /// **The accept is computed against the committed document, not the
@@ -1172,4 +1168,108 @@ fn a_gesture_under_a_root_that_comes_to_refuse_dies_at_the_landing() {
         killed.cause
     );
     assert!(session.display().probing().is_none());
+}
+
+/// **An instance's part row names the file and selects nothing**: the
+/// part is another document, so there is no node here to select.
+///
+/// *Breaks if* the row is dropped, says no file, or links.
+#[test]
+fn an_instances_part_row_names_its_file_and_is_no_link() {
+    let tol = Tol::witness();
+    let bench = asm::bench("offer-part-row", tol);
+    let (mut session, _) = authored_session(&bench, "offer-part-row", tol);
+    let instance = common::instance_in(&mut session, bench.post.id);
+    let files = session.part_files();
+    let doc = session.committed_doc();
+    let reads = viewer::relations::relations(doc, &doc.read_index(), instance, files).reads;
+    let part = reads
+        .iter()
+        .find(|row| row.seat == viewer::relations::Seat::Part)
+        .expect("an instance has a part row");
+    let [entry] = &part.entries[..] else {
+        panic!("one file: {part:?}")
+    };
+    assert_eq!(
+        entry.said().to_string(),
+        files.name(bench.post.id),
+        "the part's file"
+    );
+    assert!(
+        entry.said().to_string().ends_with(".pncad"),
+        "a file name: {entry:?}"
+    );
+    assert_eq!(
+        entry.selects(),
+        None,
+        "the part is no node of this document"
+    );
+}
+
+/// **An instance's constraint reading its own copy links nowhere, both
+/// ways**: the seat mate's instance reads its own copy on its `on`
+/// side, which is no other node, so its reads say so in words and its
+/// read-by holds no row of itself.
+///
+/// *Breaks if* either direction drops the own-copy rule: the reads row
+/// links the instance to itself, or the instance reads itself in its
+/// read-by.
+#[test]
+fn an_instances_own_copy_side_links_nowhere_either_way() {
+    use viewer::relations::{OWN_COPY, relations};
+    use viewer::session::Selection;
+    let tol = Tol::witness();
+    let bench = asm::bench("offer-own-copy", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    common::commit_mate(
+        &mut session,
+        asm::seat_op(&bench, bench.post_b, asm::middle_seat_values()),
+    );
+    let doc = session.committed_doc();
+    let index = doc.read_index();
+    let owners: Vec<_> = doc
+        .ids()
+        .into_iter()
+        .filter(|&id| doc.operand_reads(id).iter().any(|read| read.own_copy))
+        .collect();
+    let [shelf] = owners[..] else {
+        panic!("one instance reads its own copy: {owners:?}")
+    };
+    let related = relations(doc, &index, shelf, session.part_files());
+    assert!(
+        related.reads.iter().any(|row| row
+            .entries
+            .iter()
+            .any(|entry| *entry.said() == *OWN_COPY && entry.selects().is_none())),
+        "the own-copy side reads as words: {:?}",
+        related.reads
+    );
+    assert!(
+        !related.reads.iter().any(|row| row
+            .entries
+            .iter()
+            .any(|entry| entry.selects() == Some(Selection::Node(shelf)))),
+        "no read links the instance to itself: {:?}",
+        related.reads
+    );
+    // A constraint's seats are said by its position, never its minted id.
+    let labels: Vec<String> = related.reads.iter().map(|row| row.seat.label()).collect();
+    assert!(
+        labels
+            .iter()
+            .any(|label| label.starts_with("constraint 1 side ")),
+        "a mate's sides by the constraint's position: {labels:?}"
+    );
+    assert!(
+        labels.iter().all(|label| !label.contains('#')),
+        "no seat spells an arena key: {labels:?}"
+    );
+    assert!(
+        index
+            .read_by(shelf)
+            .iter()
+            .all(|&(reader, _)| reader != shelf),
+        "the instance is no reader of itself: {:?}",
+        index.read_by(shelf)
+    );
 }

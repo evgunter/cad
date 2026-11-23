@@ -65,6 +65,14 @@ pub enum UnitQuantity {
     Scalar,
 }
 
+impl UnitQuantity {
+    /// Every row of [`UNITS`] that measures this quantity, in table
+    /// order — read off the table, so a row added there is a row here.
+    pub fn units(self) -> impl Iterator<Item = UnitDef> {
+        UNITS.into_iter().filter(move |row| row.quantity() == self)
+    }
+}
+
 /// One row of the unit table: a display/parse symbol, the quantity it
 /// measures, and the exact factor into canonical units.
 ///

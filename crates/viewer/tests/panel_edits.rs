@@ -339,7 +339,7 @@ fn the_load_door_refuses_a_count_literal_in_a_continuous_slot() {
 }
 
 #[test]
-fn an_expression_driven_dimension_refuses_with_the_affordance() {
+fn an_expression_driven_dimension_refuses_a_drag_with_the_affordance() {
     let tol = Tol::witness();
     let (doc, _profile, extrude) = common::parametric_plate(tol);
     let mut session = DocSession::inline(doc, tol);
@@ -358,10 +358,9 @@ fn an_expression_driven_dimension_refuses_with_the_affordance() {
     );
 
     let before = session.history().len();
-    let outcome = session.perform(SessionOp::SetSlot {
+    let outcome = session.perform(SessionOp::BeginGesture {
         node: extrude,
         slot: SlotId::Distance,
-        value: SlotValue::Continuous(0.02),
     });
     assert!(outcome.committed.is_empty(), "a refusal commits nothing");
     assert_eq!(session.history().len(), before, "and mints no history");
@@ -390,6 +389,47 @@ fn an_expression_driven_dimension_refuses_with_the_affordance() {
     }
 }
 
+/// **A number written over an expression-driven dimension replaces the
+/// expression**, as one undo step: the slot is then a literal of the
+/// number, its unit pickable, and one undo makes it driven again.
+#[test]
+fn a_number_over_an_expression_driven_dimension_replaces_it() {
+    let tol = Tol::witness();
+    let (doc, _profile, extrude) = common::parametric_plate(tol);
+    let mut session = DocSession::inline(doc, tol);
+    let driven = session.committed_doc().clone();
+    let before = session.history().len();
+    let outcome = session.perform(SessionOp::SetSlot {
+        node: extrude,
+        slot: SlotId::Distance,
+        value: SlotValue::Continuous(0.02),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert_eq!(session.history().len(), before + 1, "one history state");
+    let row = props::slot_rows(session.committed_doc(), extrude)
+        .into_iter()
+        .find(|row| row.slot == SlotId::Distance)
+        .expect("still there");
+    assert!(!row.driver.is_driven(), "a literal now: {row:?}");
+    assert_eq!(
+        row.value,
+        Ok(viewer::Reading::One(SlotValue::Continuous(0.02))),
+        "of the number written"
+    );
+    assert!(
+        session
+            .slot_unit_refusal(extrude, SlotId::Distance)
+            .is_none(),
+        "its unit can be picked"
+    );
+    let undone = session.perform(SessionOp::Undo);
+    assert!(undone.refusal.is_none(), "{:?}", undone.refusal);
+    assert!(
+        session.committed_doc().bit_eq(&driven),
+        "one undo makes it driven again"
+    );
+}
+
 #[test]
 fn the_affordance_navigates_to_the_driving_parameter_and_the_edit_lands_there() {
     let tol = Tol::witness();
@@ -397,10 +437,9 @@ fn the_affordance_navigates_to_the_driving_parameter_and_the_edit_lands_there() 
     let mut session = DocSession::inline(doc, tol);
     session.perform(SessionOp::Select(Selection::Node(extrude)));
     let Some(Refusal::DrivenByExpression { variables, .. }) = session
-        .perform(SessionOp::SetSlot {
+        .perform(SessionOp::BeginGesture {
             node: extrude,
             slot: SlotId::Distance,
-            value: SlotValue::Continuous(0.02),
         })
         .refusal
     else {
@@ -676,7 +715,9 @@ fn the_affordance_outranks_the_bookkeeping_refusal_it_causes() {
         "expected the affordance, got {shown:?}"
     );
     assert!(
-        shown.to_string().contains("edit the expression?"),
+        shown
+            .to_string()
+            .contains("edit the expression, or type a number over it"),
         "and it renders the affordance's wording: {shown}"
     );
     assert!(shown.rank() < Refusal::NoGesture.rank());
@@ -693,7 +734,6 @@ test_utils::f6_variants! {
         DrivenByExpression,
         NoSuchSlot,
         NoSuchVariable,
-        VariableIsDefined,
         NotOffered,
         OfferIsNamed,
         ConstantRefused,
@@ -713,6 +753,7 @@ test_utils::f6_variants! {
         NothingToDo,
         Display,
         SlotUnit,
+        Range,
         NoDocumentDirectory,
         Workspace,
         SelfInstance,
@@ -729,6 +770,7 @@ test_utils::f6_variants! {
         PlacementFails,
         StrandedPick,
         InTheProduct,
+        ClaimHeld,
     ];
 }
 

@@ -15,19 +15,22 @@
 //! **Most of what is here draws one row or one field** from values the
 //! caller already holds, and returns what the user did with it. The
 //! rule that produces the exceptions is *a function that takes no
-//! `ui: &mut egui::Ui`*, and there are twelve — re-derived from this
+//! `ui: &mut egui::Ui`*, and there are fifteen — re-derived from this
 //! file's own text by
 //! `roster_tests::the_helpers_that_take_no_ui_are_the_ones_named_here`,
 //! so the list below goes red rather than stale: `wrapped_in_region`,
 //! which lays a sentence out without drawing it; [`message_floor`] and
 //! [`widest_number`], which measure the width it is laid out at;
-//! [`number_text`] and
-//! [`number_field`], which render and build rather than draw;
+//! [`number_text`], [`number_field`] and [`count_field`], which render
+//! and build rather than draw;
+//! [`unit_choices`], which reads the unit table for a chooser;
 //! [`install_number_formatter`], which writes a style; [`new_row_step`],
 //! which mints a value; `twin`, which picks a fused step's arrival
 //! role; [`value_gesture`] and [`free_move_gesture`],
 //! which mint a gesture's operations from its name; and [`drag_ops`]
-//! with [`drag_gesture_ops`], which read a `Response`.
+//! with [`drag_gesture_ops`], which read a `Response`; and
+//! [`let_go_of_the_focused_edit`], which writes a context's focus and
+//! memory.
 //!
 //! [`drag_ops`] is the one worth naming — it is the one mapping from a
 //! `DragValue` to session operations, and the whole reason a dragged
@@ -46,8 +49,7 @@ use pncad::profile::{
 use pncad::quantity::{AngleUnit, LengthUnit, UnitDef};
 
 use crate::forms::{
-    ANGLE_DRAG_SPEED, COUNT_DRAG_SPEED, FIELD_DRAG_SPEED, MAX_CIRCLE_SPLIT, MIN_CIRCLE_SPLIT,
-    UNIT_DRAG_SPEED, arc_mode_label, target_kind_label,
+    FieldWriting, MAX_CIRCLE_SPLIT, MIN_CIRCLE_SPLIT, arc_mode_label, target_kind_label,
 };
 use crate::props;
 use crate::readout;
@@ -183,9 +185,28 @@ pub(crate) fn message(ui: &mut egui::Ui, text: impl Into<egui::WidgetText>) -> e
 /// A message that points at the row to fix is one gesture from it
 /// rather than an id to hunt for, and a pointer long enough to need
 /// wrapping is exactly the one worth clicking.
-pub(crate) fn message_link(ui: &mut egui::Ui, text: impl Into<egui::WidgetText>) -> egui::Response {
+///
+/// It wears the one link look ([`as_link`]), the look a mention in a
+/// [`sentence`] wears, and the same hover ground behind it.
+pub(crate) fn message_link(ui: &mut egui::Ui, text: impl Into<String>) -> egui::Response {
+    let text = as_link(ui, egui::RichText::new(text));
     let galley = wrapped_in_region(ui, text);
-    ui.add(egui::Link::new(galley))
+    let ground = ui.painter().add(egui::Shape::Noop);
+    let response = ui.add(egui::Label::new(galley).sense(egui::Sense::click()));
+    if response.hovered() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+        let fill = ui.visuals().widgets.hovered.weak_bg_fill;
+        ui.painter()
+            .set(ground, egui::Shape::rect_filled(response.rect, 2.0, fill));
+    }
+    response
+}
+
+/// **The one look of a link in the chrome**: the hyperlink colour,
+/// underlined — a [`message_link`], and each linkable mention a
+/// [`sentence`] draws.
+fn as_link(ui: &mut egui::Ui, text: egui::RichText) -> egui::RichText {
+    text.color(ui.visuals().hyperlink_color).underline()
 }
 
 /// [`message`] in the voice its [`frame::Tone`] asks for — the one
@@ -205,6 +226,131 @@ pub(crate) fn message_toned(
     tone: crate::frame::Tone,
 ) -> egui::Response {
     message(ui, crate::app::toned(text, theme, tone))
+}
+
+/// **A kernel sentence, drawn**: [`message`]'s wrap, its words in
+/// `tone`'s voice where it has one ([`crate::app::toned`]'s mapping),
+/// and each mention [`crate::relations::link`] answers for `on_screen`
+/// in the one link look ([`as_link`]); a mention it answers nothing for
+/// — another document's, or a node `on_screen` no longer holds — is
+/// drawn as words. Answers what the mention clicked this frame
+/// selects, if one was.
+///
+/// The sentence is ONE galley, one section per run, so it wraps as the
+/// same text drawn by [`message`] does, a mention included, and it is
+/// an `egui::Label` over that galley: its text selects and copies as a
+/// message's does, and it carries the label's widget info. A click is
+/// placed on its character by `egui::Galley::cursor_from_pos` and
+/// confirmed against that character's box (`pos_from_cursor` either
+/// side of it), so a click past a row's end, or between two rows,
+/// lands on nothing; the character's run is found by counting
+/// characters, since a glyph's section index is epaint's own. The
+/// mention under the pointer is drawn on the hover ground.
+pub(crate) fn sentence(
+    ui: &mut egui::Ui,
+    said: &pncad::document::Sentence,
+    on_screen: &pncad::document::Doc<pncad::document::ProfileProgram>,
+    tone: Option<(&Theme, crate::frame::Tone)>,
+) -> Option<crate::session::Selection> {
+    use pncad::document::{Mentioned, Run};
+    // A mention's text: the kernel's one spelling, which is what
+    // `Sentence::from(mention)` spells too — the text
+    // `frame::Message::new`'s mark rule reads.
+    let said_runs: Vec<(String, Option<crate::session::Selection>)> = said
+        .runs()
+        .iter()
+        .map(|run| match run {
+            Run::Words(words) => (words.clone(), None),
+            Run::Mention(mention) => (
+                match mention.mentioned() {
+                    Mentioned::Node(node) => crate::tree::spelled(node),
+                    Mentioned::Var(var) => crate::tree::spelled_var(var),
+                },
+                crate::relations::link(on_screen, mention),
+            ),
+        })
+        .collect();
+    let linked = said_runs.iter().any(|(_, selects)| selects.is_some());
+    let mut job = egui::text::LayoutJob::default();
+    // Each run's first character, and its selection where it is a link.
+    let mut runs: Vec<(usize, Option<crate::session::Selection>)> = Vec::new();
+    let mut chars = 0;
+    for (text, selects) in said_runs {
+        runs.push((chars, selects.clone()));
+        chars += text.chars().count();
+        let rich = egui::RichText::new(text);
+        let rich = match (selects.is_some(), tone) {
+            (true, _) => as_link(ui, rich),
+            (false, Some((theme, tone))) => crate::app::voiced(rich, theme, tone),
+            // A linked sentence's label is interactive, and egui tints
+            // an interactive label's unset colour on hover: its words
+            // keep the text colour.
+            (false, None) if linked => rich.color(ui.visuals().text_color()),
+            (false, None) => rich,
+        };
+        rich.append_to(
+            &mut job,
+            ui.style(),
+            egui::FontSelection::Default,
+            ui.text_valign(),
+        );
+    }
+    if !linked {
+        ui.add(egui::Label::new(wrapped_in_region(ui, job)));
+        return None;
+    }
+    let galley = wrapped_in_region(ui, job);
+    let ground = ui.painter().add(egui::Shape::Noop);
+    let response =
+        ui.add(egui::Label::new(std::sync::Arc::clone(&galley)).sense(egui::Sense::click()));
+    let origin = response.rect.min;
+    // The run whose character the pointer is on, if it is a link's.
+    let under = |at: egui::Pos2| -> Option<usize> {
+        let local = at - origin;
+        let near = galley.cursor_from_pos(local).index.0;
+        let on = [near.checked_sub(1), Some(near)]
+            .into_iter()
+            .flatten()
+            .filter(|&at| at < chars)
+            .find(|&at| {
+                let from = galley.pos_from_cursor(egui::text::CCursor::new(at));
+                let to = galley.pos_from_cursor(egui::text::CCursor::new(at + 1));
+                (from.min.x..to.min.x).contains(&local.x)
+                    && (from.min.y..=from.max.y).contains(&local.y)
+            })?;
+        let run = runs.partition_point(|(first, _)| *first <= on) - 1;
+        runs[run].1.is_some().then_some(run)
+    };
+    if let Some(run) = response.hover_pos().and_then(&under) {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+        let end = runs.get(run + 1).map_or(chars, |(first, _)| *first);
+        let fill = ui.visuals().widgets.hovered.weak_bg_fill;
+        let mut ground_rects: Vec<egui::Rect> = Vec::new();
+        for at in runs[run].0..end {
+            let from = galley.pos_from_cursor(egui::text::CCursor::new(at));
+            let to = galley.pos_from_cursor(egui::text::CCursor::new(at + 1));
+            let char_box = egui::Rect::from_min_max(from.min, egui::pos2(to.min.x, from.max.y));
+            match ground_rects.last_mut() {
+                Some(last) if (last.min.y - char_box.min.y).abs() < 0.5 => {
+                    *last = last.union(char_box);
+                }
+                _ => ground_rects.push(char_box),
+            }
+        }
+        let shapes = ground_rects
+            .into_iter()
+            .map(|rect| egui::Shape::rect_filled(rect.translate(origin.to_vec2()), 2.0, fill))
+            .collect();
+        ui.painter().set(ground, egui::Shape::Vec(shapes));
+    }
+    if response.clicked() {
+        response
+            .interact_pointer_pos()
+            .and_then(&under)
+            .and_then(|run| runs[run].1.clone())
+    } else {
+        None
+    }
 }
 
 /// The one place the wrap rule [`message`]'s doc states is spelled,
@@ -272,9 +418,9 @@ pub(crate) fn widest_number(ui: &egui::Ui, font: &egui::FontId) -> f32 {
 /// from its DRAG SPEED and the display scaling, and from nothing about
 /// the value — `auto_decimals` is `ceil(log10(aim_radius / speed))` and
 /// the range handed to a formatter is `auto_decimals ..= auto_decimals
-/// + 2`. A length field at [`FIELD_DRAG_SPEED`] shown in millimetres is
-/// handed `1..=3` at one point per pixel, so its coarsest spelling is
-/// `{:.3}` over millimetres.
+/// + 2`. A length field at a length's tick ([`props::drag_tick`])
+/// shown in millimetres is handed `1..=3` at one point per pixel, so
+/// its coarsest spelling is `{:.3}` over millimetres.
 ///
 /// Inside that range the widget already picks the shortest spelling
 /// that reads back, which is this rule. What it does when NONE of them
@@ -328,7 +474,7 @@ pub(crate) fn widest_number(ui: &egui::Ui, font: &egui::FontId) -> f32 {
 /// **It is still invisible to a drag**, and that is a measurement
 /// rather than a hope. The widest spelling a millimetre field's range
 /// offers is `{:.1}`, which passes ten characters only at `1e8`
-/// (`1e7` once a sign is spent) — and a drag moves `FIELD_DRAG_SPEED`
+/// (`1e7` once a sign is spent) — and a drag moves a length's tick
 /// per pixel, so reaching either would take twenty million pixels of
 /// dragging. The substituted band is out of a drag's reach at the top
 /// exactly as it is at the bottom. Millimetres are the worst case
@@ -548,15 +694,16 @@ pub(crate) struct GestureVocabulary<Preview, Op = SessionOp> {
 
 impl<Preview, Op> GestureVocabulary<Preview, Op> {
     /// **A gesture over a HELD value** — one a draft holds rather than
-    /// the session: every frame the value moves is `preview` of it, and
-    /// the press, the release and Escape are `rest`, since nothing is
-    /// opened to land or abandon.
-    pub(crate) fn held(preview: Preview, rest: Op) -> Self
+    /// the session: the press is `begin`, where the held field judges
+    /// the drag as the session judges a slot's, every frame the value
+    /// moves is `preview` of it, and the release and Escape are `rest`,
+    /// since nothing is opened to land or abandon.
+    pub(crate) fn held(begin: Op, preview: Preview, rest: Op) -> Self
     where
         Op: Clone,
     {
         Self {
-            begin: rest.clone(),
+            begin,
             preview,
             commit: rest.clone(),
             cancel: rest,
@@ -802,6 +949,27 @@ pub(crate) struct FieldShowing {
     /// ([`crate::props::field_source`]). `None` is an edit seeded with
     /// what the field shows, which is egui's own seed.
     pub(crate) source: Option<String>,
+}
+
+/// **Let go of the focused field's keyboard edit, unwritten** — what a
+/// replaced document owes the field typed into over the outgoing one.
+///
+/// The focus is surrendered and egui's text buffer for the field is
+/// removed with it, so the field's next draw neither keeps editing nor
+/// parses the buffer at its loss of focus (`egui::DragValue` applies a
+/// buffer it finds on the frame focus leaves); every [`OpenEdit`] goes
+/// with them.
+pub(crate) fn let_go_of_the_focused_edit(ctx: &egui::Context) {
+    let focused = ctx.memory(egui::Memory::focused);
+    if let Some(id) = focused {
+        ctx.memory_mut(|memory| memory.surrender_focus(id));
+    }
+    ctx.data_mut(|data| {
+        if let Some(id) = focused {
+            data.remove::<String>(id);
+        }
+        data.remove_by_type::<OpenEdit>();
+    });
 }
 
 /// **One open keyboard edit**, remembered under its field's own
@@ -1105,7 +1273,7 @@ pub(crate) fn value_field_ops<Op>(
         Some(props::FieldEdit::Number(written)) => {
             match props::SlotValue::of(dimension, writing.authored(written)) {
                 Ok(value) => ops.push((doors.number)(value)),
-                Err(error) => notices.push(crate::frame::refusal_message(
+                Err(error) => notices.push(crate::frame::refusal_message_untargeted(
                     &crate::session::Refusal::Dimension(error),
                 )),
             }
@@ -1173,51 +1341,33 @@ fn seed_edit(ui: &mut egui::Ui, id: egui::Id, text: &str) {
 /// sentence that carries the unit.
 pub(crate) fn vec3_row_ops(
     ui: &mut egui::Ui,
-    speed: f64,
+    writing: FieldWriting,
     components: &mut [f64; 3],
     gesture: GestureVocabulary<impl Fn([f64; 3]) -> SessionOp>,
     typed: impl Fn([f64; 3]) -> Vec<SessionOp>,
     ops: &mut Vec<SessionOp>,
 ) {
     let [x, y, z] = components;
-    let row = ui.add(number_field(x, speed))
-        | ui.add(number_field(y, speed))
-        | ui.add(number_field(z, speed));
+    let row = ui.add(number_field(x, writing.tick))
+        | ui.add(number_field(y, writing.tick))
+        | ui.add(number_field(z, writing.tick));
     drag_ops(&row, *components, gesture, typed, ops);
 }
 
-/// **One dimensioned field of a creation form.**
+/// **One dimensioned field of a creation form**, with the quantity's
+/// NAME written into the field itself (none where `name` is empty).
 ///
 /// The draft behind it is CANONICAL (metres, radians) and the field
-/// is what that value looks like written in `unit` — the property
-/// panel's own rule ([`crate::props::in_written`] / [`crate::props::from_written`], the
-/// text door's one multiply), applied to the forms so a number typed
-/// into a form and the same number typed into a panel field mean the
-/// same thing.
+/// is what that value looks like written as `writing` says — the
+/// property panel's own rule ([`FieldWriting`], the text door's one
+/// multiply), applied to the forms so a number typed into a form and
+/// the same number typed into a panel field mean the same thing, at
+/// the same tick.
 ///
 /// Held canonical rather than as-typed for the reason the panel holds
 /// it that way: switching the unit is a change of NOTATION, and a
 /// draft that stored what was typed would silently become a different
 /// length when the picker moved.
-///
-/// **The drag speed travels through the same conversion**, which is
-/// the half of this that is easy to leave out: a tick in metres
-/// applied to a field showing millimetres is the same gesture made a
-/// thousand times finer by a change of notation.
-///
-/// Answers whether the person edited the value this frame
-/// ([`named_field`]).
-pub(crate) fn unit_field(
-    ui: &mut egui::Ui,
-    unit: UnitDef,
-    speed: f64,
-    canonical: &mut f64,
-) -> bool {
-    named_field(ui, "", unit, speed, canonical)
-}
-
-/// [`unit_field`] with the quantity's NAME written into the field
-/// itself.
 ///
 /// A prefix rather than a `Label` beside it, and that is the point: a
 /// path step's row is a horizontal strip of controls, and the labels
@@ -1239,7 +1389,8 @@ pub(crate) fn unit_field(
 /// ([`crate::props::written`]). Forming it anyway puts `inf` in a
 /// `DragValue`, and that text is what an edit would start from.
 ///
-/// So the refusal is asked AT the conversion and the row draws
+/// So the refusal is asked AT the conversion
+/// ([`crate::props::shown_value`]) and the row draws
 /// [`crate::props::no_reading`] where the field would be. A disabled
 /// field is not the alternative it sounds like: a `DragValue` is
 /// handed the `f64` it holds and the only `f64` here is the `inf`
@@ -1254,20 +1405,29 @@ pub(crate) fn unit_field(
 pub(crate) fn named_field(
     ui: &mut egui::Ui,
     name: &str,
-    unit: UnitDef,
-    speed: f64,
+    writing: FieldWriting,
     canonical: &mut f64,
 ) -> bool {
-    let Some(mut written) = props::written(*canonical, unit) else {
-        let marker = props::no_reading(unit);
-        ui.weak(if name.is_empty() {
-            marker
-        } else {
-            format!("{name} {marker}")
-        });
-        return false;
+    // A draft that is itself not finite is the same non-number in every
+    // notation, so it is shown as it is and stays a field to type over.
+    let shown = if canonical.is_finite() {
+        props::shown_value(writing.unit, *canonical)
+    } else {
+        Ok(*canonical)
     };
-    let mut field = number_field(&mut written, props::in_written(speed, unit));
+    let mut written = match shown {
+        Ok(written) => written,
+        Err(unit) => {
+            let marker = props::no_reading(unit);
+            ui.weak(if name.is_empty() {
+                marker
+            } else {
+                format!("{name} {marker}")
+            });
+            return false;
+        }
+    };
+    let mut field = number_field(&mut written, writing.tick);
     if !name.is_empty() {
         field = field.prefix(format!("{name} "));
     }
@@ -1276,16 +1436,16 @@ pub(crate) fn named_field(
     // otherwise round-trip its value through a divide and a multiply
     // every frame, which is a drift nobody asked for.
     if response.changed() {
-        *canonical = props::from_written(written, unit);
+        *canonical = writing.authored(written);
     }
     response.changed()
 }
 
-/// A dimensionless field with its own name written in — the scalar
-/// twin of [`named_field`], for the components and bulges that carry
-/// no unit at all.
-pub(crate) fn named_scalar(ui: &mut egui::Ui, name: &str, speed: f64, value: &mut f64) {
-    ui.add(number_field(value, speed).prefix(format!("{name} ")));
+/// **A whole-number field** — an index, an instance, a subdivision
+/// count — at a count's tick ([`props::drag_tick`]), so a form's
+/// count steps the way the panel's does.
+pub(crate) fn count_field<Num: egui::emath::Numeric>(value: &mut Num) -> egui::DragValue<'_> {
+    number_field(value, props::drag_tick(Some(Dimension::Count)))
 }
 
 /// **What a step row's fields draw for each argument** — the seam
@@ -1309,38 +1469,20 @@ pub(crate) trait ArgDoors {
 }
 
 /// **Plain numbers in one notation**: the profile editor's arguments
-/// where a field is no committed slot yet. Each field is written in the
-/// unit its role's dimension is noted in, and the editor's notation row
-/// says the units ([`length_picker`]).
+/// where a field is no committed slot yet. Each field is written as
+/// its role's dimension is in that notation ([`FieldWriting`]), and
+/// the editor's notation row says the units ([`length_picker`]).
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct WrittenIn {
-    /// Every length field's unit.
-    pub(crate) length: UnitDef,
-    /// Every angle field's unit.
-    pub(crate) angle: UnitDef,
-}
-
-impl WrittenIn {
-    /// The units `notation` writes lengths and angles in.
-    pub(crate) fn of(notation: props::Notation) -> Self {
-        Self {
-            length: notation.length.def(),
-            angle: notation.angle.def(),
-        }
-    }
-}
+pub(crate) struct WrittenIn(pub(crate) props::Notation);
 
 impl ArgDoors for WrittenIn {
     fn field(&mut self, ui: &mut egui::Ui, _: usize, arg: StepArg, name: &str, value: &mut f64) {
-        match arg.dimension() {
-            Dimension::Length => {
-                named_field(ui, name, self.length, FIELD_DRAG_SPEED, value);
-            }
-            Dimension::Angle => {
-                named_field(ui, name, self.angle, ANGLE_DRAG_SPEED, value);
-            }
-            Dimension::Scalar | Dimension::Count => named_scalar(ui, name, UNIT_DRAG_SPEED, value),
-        }
+        named_field(
+            ui,
+            name,
+            FieldWriting::of(arg.dimension(), None, self.0),
+            value,
+        );
     }
 
     fn unit(&mut self, _: &mut egui::Ui, _: usize, _: &[StepArg]) {}
@@ -1715,7 +1857,7 @@ pub(crate) fn path_step_fields(
             // The count is the step's shape, not an argument: no slot
             // addresses it.
             ui.add(
-                number_field(n, COUNT_DRAG_SPEED)
+                count_field(n)
                     .range(MIN_CIRCLE_SPLIT..=MAX_CIRCLE_SPLIT)
                     .clamp_existing_to_range(false)
                     .prefix("n "),
@@ -1740,7 +1882,7 @@ pub(crate) fn path_step_fields(
 /// **The creation forms' written-unit picker.**
 ///
 /// The panel's picker as a form control: the same options
-/// ([`crate::props::unit_options`], read off the closed unit table) and the
+/// ([`unit_choices`], read off the closed unit table) and the
 /// same rule about what the label beside a field may say. There is no
 /// "nothing chosen" state to fall back from — a form is always
 /// authoring in some notation, and says which. **The unit is the picker's
@@ -1782,6 +1924,28 @@ pub(crate) fn angle_picker(ui: &mut egui::Ui, salt: &str, chosen: &mut AngleUnit
     }
 }
 
+/// The picker for a field of `dimension` over a whole working
+/// `notation` — for a form whose dimension is itself a choice, where
+/// [`length_picker`] and [`angle_picker`] are for one whose dimension
+/// is fixed. It draws nothing for a dimension with no units to offer
+/// ([`crate::props::unit_options`]), and a pick lands in the one
+/// component of `notation` its unit measures (`Notation::with`), so the
+/// typed pairing holds here too.
+pub(crate) fn notation_picker(
+    ui: &mut egui::Ui,
+    salt: &str,
+    dimension: Dimension,
+    notation: &mut props::Notation,
+) {
+    use props::WorkingNotation as _;
+    let Some(shown) = notation.unit(dimension) else {
+        return;
+    };
+    if let Some(row) = pick_unit(ui, "creation_unit", salt, dimension, shown) {
+        *notation = notation.with(row);
+    }
+}
+
 /// **How wide a written-unit combo is drawn**, in points.
 ///
 /// Wide enough for the longest symbol the table carries (`pi rad`)
@@ -1791,6 +1955,17 @@ pub(crate) fn angle_picker(ui: &mut egui::Ui, salt: &str, chosen: &mut AngleUnit
 /// property of that table and a second spelling of it is free to be
 /// narrower than the symbol it has to show.
 pub(crate) const UNIT_PICKER_WIDTH: f32 = 72.0;
+
+/// **The units a chooser offers for `dimension`**: its rows
+/// ([`crate::props::unit_options`]) where there are two or more to
+/// choose between, and none otherwise — a count has no unit and a
+/// bare scalar one, and one option is not a choice
+/// (`UnitQuantity::Scalar`'s rule for whatever draws the chooser). Every
+/// unit combo in the chrome draws these.
+pub(crate) fn unit_choices(dimension: Dimension) -> Vec<UnitDef> {
+    let rows = props::unit_options(dimension);
+    if rows.len() < 2 { Vec::new() } else { rows }
+}
 
 /// The combo itself: the rows `dimension` admits, with `shown`
 /// selected; `Some(row)` when this frame's click chose one.
@@ -1807,7 +1982,7 @@ pub(crate) fn pick_unit(
     dimension: Dimension,
     shown: UnitDef,
 ) -> Option<UnitDef> {
-    let options = props::unit_options(dimension);
+    let options = unit_choices(dimension);
     if options.is_empty() {
         return None;
     }
@@ -1940,6 +2115,8 @@ mod roster_tests {
             "widest_number",
             "number_text",
             "number_field",
+            "count_field",
+            "unit_choices",
             "install_number_formatter",
             "new_row_step",
             "twin",
@@ -1947,6 +2124,7 @@ mod roster_tests {
             "free_move_gesture",
             "drag_ops",
             "drag_gesture_ops",
+            "let_go_of_the_focused_edit",
         ];
         found.sort_unstable();
         let mut named_sorted = named;
@@ -2513,6 +2691,43 @@ mod tests {
 
     const NODE: RecipeNodeId = RecipeNodeId::new(0, 7);
 
+    /// **A count field steps by one**: `egui` moves a focused field by
+    /// one tick per arrow key and then rounds an integer field to a
+    /// whole number, so the count tick is what the keyboard can reach.
+    /// Red at any tick below one half, which rounds the step away and
+    /// leaves the field where it was.
+    #[test]
+    fn a_count_field_steps_by_one_at_the_keyboard() {
+        let ctx = egui::Context::default();
+        let mut count: i64 = 3;
+        let mut frame = |events: Vec<egui::Event>| {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(800.0, 600.0),
+                )),
+                events,
+                ..Default::default()
+            };
+            let mut output = ctx.run_ui(input, |ui| {
+                ui.add(super::count_field(&mut count));
+            });
+            output.textures_delta.clear();
+        };
+        let key = |key| egui::Event::Key {
+            key,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        };
+        frame(Vec::new());
+        frame(vec![key(egui::Key::Tab)]);
+        frame(vec![key(egui::Key::ArrowUp)]);
+        frame(Vec::new());
+        assert_eq!(count, 4, "one arrow key is one more instance");
+    }
+
     /// How many Tab/ArrowUp pairs the row spends looking for the
     /// focus. A budget rather than a count: which step the focus
     /// reaches a second component on is egui's Tab order, not this
@@ -2592,7 +2807,12 @@ mod tests {
                     Vocabulary::FreeMove => {
                         let frame_of = |mm: [f64; 3]| Frame::translation(mm.map(|v| v * 1.0e-3));
                         let ProbeOps { gesture, typed } = free_move_gesture(NODE, frame_of);
-                        vec3_row_ops(ui, 0.5, mm, gesture, typed, ops_ref);
+                        let writing = crate::forms::FieldWriting::of(
+                            pncad::document::Dimension::Length,
+                            None,
+                            crate::props::Notation::CANONICAL.with(pncad::quantity::MM.def()),
+                        );
+                        vec3_row_ops(ui, writing, mm, gesture, typed, ops_ref);
                     }
                     Vocabulary::Slot => {
                         // Three components, three SLOTS, three
@@ -2997,7 +3217,7 @@ mod field_tests {
     }
 
     /// The decimal range a length field shown in millimetres is handed:
-    /// `FIELD_DRAG_SPEED` written in millimetres is 0.5, one point per
+    /// a length's tick written in millimetres is 0.5, one point per
     /// pixel makes `auto_decimals` `ceil(log10(1.0 / 0.5))`, and egui
     /// adds two. Derived here rather than asserted off the widget
     /// because these rows are about the RULE over a range, and the
@@ -3327,8 +3547,12 @@ mod field_tests {
                             super::named_field(
                                 ui,
                                 "",
-                                pncad::quantity::MM.def(),
-                                crate::forms::FIELD_DRAG_SPEED,
+                                crate::forms::FieldWriting::of(
+                                    pncad::document::Dimension::Length,
+                                    None,
+                                    crate::props::Notation::CANONICAL
+                                        .with(pncad::quantity::MM.def()),
+                                ),
                                 value,
                             );
                         })
@@ -3996,8 +4220,8 @@ mod value_field_tests {
                 self.emitted.push(op.clone());
                 let outcome = self.session.perform(op.clone());
                 // The harness drives the paths a row can DRIVE: every
-                // refusal this field can reach (a driven slot's number
-                // door, an unparseable text) is a path `Row` cannot
+                // refusal this field can reach (a drag over a driven
+                // slot, an unparseable text) is a path `Row` cannot
                 // hold, because a refused frame stops here. Those stay
                 // with `tests/panel_edits.rs`, which reads them at the
                 // session door.
@@ -4142,7 +4366,7 @@ mod value_field_tests {
         );
         assert_eq!(row.session.history().len(), before, "and nothing lands");
         assert_eq!(row.showing().0, 2.0, "and the field keeps the count");
-        let typed = frame::frame_status(&row.notices, &typed_ops, None);
+        let typed = frame::frame_status_untargeted(&row.notices, &typed_ops, None);
         let RankedVerdict::Show(said) = &typed else {
             panic!("the typed refusal reaches the line: {typed:?}");
         };
@@ -4170,7 +4394,7 @@ mod value_field_tests {
             dragged.refusal
         );
         assert_eq!(
-            frame::frame_status(&[], &[preview], dragged.refusal.as_ref()),
+            frame::frame_status_untargeted(&[], &[preview], dragged.refusal.as_ref()),
             typed,
             "a drag and a keyboard say the same thing about the same value"
         );
@@ -4393,8 +4617,8 @@ mod value_field_tests {
     /// the no-reading marker after the driven mark, and still opens its
     /// keyboard edit on its SOURCE, because the field under that text is
     /// the slot's only door to its expression; the number the field
-    /// holds is one the driven guard refuses to write. In metres the
-    /// same row reads a number.
+    /// holds is one no drag writes, since the driven guard refuses it.
+    /// In metres the same row reads a number.
     #[test]
     fn a_driven_slot_past_its_notations_range_keeps_its_text_door() {
         let mut row = Row::extrude_distance("vgeom-driven-unnameable", 0.008);
@@ -4944,5 +5168,719 @@ mod repoint_button_tests {
             repoint_button(ui, button(Ok(SessionOp::Reevaluate)), &mut ops);
         });
         assert_eq!(ops, [SessionOp::Reevaluate], "a live click pushes the op");
+    }
+}
+
+/// **Every whole-number field steps by one, by keyboard and by
+/// pointer**, at each site that draws one through [`count_field`]: the
+/// part form's instance, a member row's position, and a circle split's
+/// `n`. Each site is drawn as the form draws it, the field is found by
+/// Tab and bumped by ArrowUp, then dragged by the pointer; a tick
+/// below a half leaves the keyboard bump at zero and a tenth-of-one
+/// tick moves a twenty-point drag by two.
+#[cfg(test)]
+mod count_site_tests {
+    #![allow(clippy::expect_used, clippy::panic)]
+    use eframe::egui;
+    use pncad::profile::{Step, Verb};
+
+    /// Every text a frame painted.
+    fn texts(shapes: &[egui::epaint::ClippedShape]) -> Vec<String> {
+        fn walk(shape: &egui::Shape, out: &mut Vec<String>) {
+            match shape {
+                egui::Shape::Text(text) => out.push(text.galley.text().to_owned()),
+                egui::Shape::Vec(shapes) => shapes.iter().for_each(|s| walk(s, out)),
+                _ => {}
+            }
+        }
+        let mut out = Vec::new();
+        for clipped in shapes {
+            walk(&clipped.shape, &mut out);
+        }
+        out
+    }
+
+    struct Site<S> {
+        ctx: egui::Context,
+        state: S,
+        painted: Vec<String>,
+    }
+
+    impl<S> Site<S> {
+        fn frame(&mut self, events: Vec<egui::Event>, draw: &impl Fn(&mut egui::Ui, &mut S)) {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1200.0, 600.0),
+                )),
+                events,
+                ..Default::default()
+            };
+            let state = &mut self.state;
+            let mut output = self.ctx.run_ui(input, |ui| draw(ui, state));
+            output.textures_delta.clear();
+            self.painted = texts(&output.shapes);
+        }
+    }
+
+    fn key(key: egui::Key) -> egui::Event {
+        egui::Event::Key {
+            key,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        }
+    }
+
+    /// What one ArrowUp and one twenty-point drag move the site's count
+    /// by, read by `read`.
+    fn bumped<S>(
+        state: S,
+        draw: impl Fn(&mut egui::Ui, &mut S),
+        read: impl Fn(&S, &[String]) -> i64,
+    ) -> (i64, i64) {
+        let mut site = Site {
+            ctx: egui::Context::default(),
+            state,
+            painted: Vec::new(),
+        };
+        site.frame(Vec::new(), &draw);
+        site.frame(Vec::new(), &draw);
+        let mut field = None;
+        let mut keyboard = 0;
+        for _ in 0..12 {
+            site.frame(vec![key(egui::Key::Tab)], &draw);
+            let before = read(&site.state, &site.painted);
+            site.frame(vec![key(egui::Key::ArrowUp)], &draw);
+            site.frame(Vec::new(), &draw);
+            let after = read(&site.state, &site.painted);
+            if after != before {
+                keyboard = after - before;
+                field = site.ctx.memory(|m| m.focused());
+                break;
+            }
+        }
+        let field = match field {
+            Some(id) => id,
+            // The keyboard never moved it: walk the focus again and
+            // keep the first widget a pointer drag moves the count by.
+            None => return (0, drag_some(&mut site, &draw, &read)),
+        };
+        site.frame(vec![key(egui::Key::Escape)], &draw);
+        site.frame(Vec::new(), &draw);
+        let rect = site
+            .ctx
+            .read_response(field)
+            .expect("the count field was laid out")
+            .rect;
+        (keyboard, drag(&mut site, &draw, &read, rect.center()))
+    }
+
+    fn drag<S>(
+        site: &mut Site<S>,
+        draw: &impl Fn(&mut egui::Ui, &mut S),
+        read: &impl Fn(&S, &[String]) -> i64,
+        at: egui::Pos2,
+    ) -> i64 {
+        site.frame(Vec::new(), draw);
+        let before = read(&site.state, &site.painted);
+        site.frame(vec![egui::Event::PointerMoved(at)], draw);
+        site.frame(
+            vec![egui::Event::PointerButton {
+                pos: at,
+                button: egui::PointerButton::Primary,
+                pressed: true,
+                modifiers: egui::Modifiers::NONE,
+            }],
+            draw,
+        );
+        for step in 1..=4 {
+            site.frame(
+                vec![egui::Event::PointerMoved(
+                    at + egui::vec2(5.0 * step as f32, 0.0),
+                )],
+                draw,
+            );
+        }
+        let end = at + egui::vec2(20.0, 0.0);
+        site.frame(
+            vec![egui::Event::PointerButton {
+                pos: end,
+                button: egui::PointerButton::Primary,
+                pressed: false,
+                modifiers: egui::Modifiers::NONE,
+            }],
+            draw,
+        );
+        site.frame(Vec::new(), draw);
+        read(&site.state, &site.painted) - before
+    }
+
+    /// The fallback when the keyboard reached nothing: Tab to each
+    /// focus in turn and drag it, keeping the first that moves.
+    fn drag_some<S>(
+        site: &mut Site<S>,
+        draw: &impl Fn(&mut egui::Ui, &mut S),
+        read: &impl Fn(&S, &[String]) -> i64,
+    ) -> i64 {
+        for _ in 0..12 {
+            site.frame(vec![key(egui::Key::Tab)], draw);
+            let Some(id) = site.ctx.memory(|m| m.focused()) else {
+                continue;
+            };
+            let Some(rect) = site.ctx.read_response(id).map(|r| r.rect) else {
+                continue;
+            };
+            site.frame(vec![key(egui::Key::Escape)], draw);
+            let moved = drag(site, draw, read, rect.center());
+            if moved != 0 {
+                return moved;
+            }
+        }
+        0
+    }
+
+    fn assert_steps_by_one(site: &str, (keyboard, dragged): (i64, i64)) {
+        assert_eq!(keyboard, 1, "{site}: one arrow key is one more");
+        assert!(
+            (10..=30).contains(&dragged),
+            "{site}: a twenty-point drag moves the count about twenty, not two: {dragged}"
+        );
+    }
+
+    #[test]
+    fn the_part_forms_instance_steps_by_one() {
+        let moved = bumped(
+            1_i64,
+            |ui, instance| {
+                crate::pane::create::part_selector_rows(
+                    ui,
+                    &crate::theme::Theme::DEFAULT,
+                    instance,
+                );
+            },
+            |instance, _| *instance,
+        );
+        assert_steps_by_one("part instance", moved);
+    }
+
+    #[test]
+    fn a_member_rows_position_steps_by_one() {
+        let members: Vec<Vec<i64>> = (0..60).map(|i| vec![i]).collect();
+        let moved = bumped(
+            (),
+            move |ui, ()| {
+                crate::pane::create::member_rows(ui, [(0, "pick".to_owned(), members.clone())]);
+            },
+            |(), painted| {
+                painted
+                    .iter()
+                    .find_map(|run| {
+                        run.strip_prefix("read [")
+                            .and_then(|rest| rest.strip_suffix(']'))
+                            .and_then(|n| n.parse().ok())
+                    })
+                    .unwrap_or_else(|| panic!("a read button is drawn: {painted:?}"))
+            },
+        );
+        assert_steps_by_one("member position", moved);
+    }
+
+    #[test]
+    fn a_circle_splits_count_steps_by_one() {
+        let moved = bumped(
+            crate::sketch::fresh_step(Verb::CircleSplit),
+            |ui, step| {
+                ui.horizontal(|ui| {
+                    super::path_step_fields(
+                        ui,
+                        "probe",
+                        (&mut super::WrittenIn(crate::props::Notation::CANONICAL), 0),
+                        None,
+                        step,
+                    );
+                });
+            },
+            |step, _| match step {
+                Step::CircleSplit { n, .. } => i64::try_from(*n).expect("a small count"),
+                other => panic!("still a circle split: {other:?}"),
+            },
+        );
+        assert_steps_by_one("circle split n", moved);
+    }
+}
+
+/// **What a click on a drawn offer asked for** ([`offer_controls`]).
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum Taken {
+    /// A [`crate::recourse::Commit`]'s op, to perform.
+    Op(SessionOp),
+    /// A [`crate::recourse::Lead`], to open its form.
+    Lead(crate::recourse::Lead),
+}
+
+/// **A failure's offers, drawn** — the one drawer of
+/// [`crate::recourse::offers`]: a [`crate::recourse::Commit`] or a
+/// [`crate::recourse::Lead`] as a button, in a wrapping row, and an
+/// act no door here takes as its words. A lead with no control
+/// ([`crate::recourse::Heard::CreateVariable`], taken when its refusal
+/// is heard) draws nothing. The offer whose button was clicked.
+pub(crate) fn offer_controls(
+    ui: &mut egui::Ui,
+    offers: &[crate::recourse::Offer],
+    theme: &Theme,
+) -> Option<Taken> {
+    use crate::recourse::Offer;
+    let mut taken = None;
+    let controls: Vec<_> = offers
+        .iter()
+        .filter_map(|offer| Some((offer.label()?, offer)))
+        .collect();
+    if !controls.is_empty() {
+        ui.horizontal_wrapped(|ui| {
+            for (label, offer) in controls {
+                if ui.button(label).clicked() {
+                    taken = Some(match offer {
+                        Offer::Commit(commit) => Taken::Op(commit.op.clone()),
+                        Offer::Lead(lead) => Taken::Lead(lead.clone()),
+                        Offer::Unoffered(_) => unreachable!("words have no control"),
+                    });
+                }
+            }
+        });
+    }
+    for offer in offers {
+        if let Offer::Unoffered(act) = offer {
+            message_toned(ui, act.words(), theme, crate::frame::Tone::Advisory);
+        }
+    }
+    taken
+}
+
+/// **A kernel sentence drawn by [`sentence`]**: a mention inside one
+/// laid-out, wrapped galley is hit on its own characters and nowhere
+/// else, it is a link only for the document on screen while that
+/// document holds it, and the sentence wraps where its text does.
+#[cfg(test)]
+mod sentence_tests {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used, clippy::panic)]
+
+    use eframe::egui;
+    use pncad::document::{Doc, DocumentId, ProfileProgram, RecipeNodeId, Sentence, Speaker};
+
+    use crate::session::{DocSession, SessionOp};
+
+    use crate::pane::headless::Landed;
+    use crate::session::Selection;
+
+    /// Narrow enough that [`said`] wraps to several rows, the mention
+    /// on one past the first.
+    const REGION: f32 = 260.0;
+
+    /// The startup plate, and its extrude.
+    fn plate() -> (Doc<ProfileProgram>, RecipeNodeId) {
+        let (doc, _) = crate::scene::plate_with_hole(pncad::tolerance::witness())
+            .expect("the startup document");
+        let extrude = doc.ids()[1];
+        (doc, extrude)
+    }
+
+    /// A refusal-length sentence naming `node` as `by` says it, with
+    /// words on both sides.
+    fn said(by: Speaker<'_>, doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Sentence {
+        pncad::document::sentence!(
+            "the chain does not close yet — its last step reads ",
+            by.mention(&doc.spoken(node)),
+            " which is not the start of the loop it began",
+        )
+    }
+
+    /// One frame of `said` drawn in [`REGION`] on `ctx` against
+    /// `on_screen`, with `events`: what it painted, and what a click
+    /// selected.
+    fn frame(
+        ctx: &egui::Context,
+        said: &Sentence,
+        on_screen: &Doc<ProfileProgram>,
+        events: Vec<egui::Event>,
+    ) -> (Vec<Landed>, Option<Selection>) {
+        let mut selects = None;
+        let mut output = ctx.run_ui(
+            egui::RawInput {
+                events,
+                ..Default::default()
+            },
+            |ui| {
+                ui.allocate_ui(egui::vec2(REGION, 400.0), |ui| {
+                    selects = super::sentence(ui, said, on_screen, None);
+                });
+            },
+        );
+        output.textures_delta.clear();
+        (crate::pane::headless::landed_in(&output.shapes), selects)
+    }
+
+    /// What a click at `at` selects, on a context that has drawn the
+    /// sentence once.
+    fn click(
+        said: &Sentence,
+        on_screen: &Doc<ProfileProgram>,
+        at: egui::Pos2,
+    ) -> Option<Selection> {
+        let ctx = egui::Context::default();
+        let _ = frame(&ctx, said, on_screen, Vec::new());
+        let _ = frame(&ctx, said, on_screen, vec![egui::Event::PointerMoved(at)]);
+        let press = |pressed| egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::default(),
+        };
+        frame(&ctx, said, on_screen, vec![press(true), press(false)]).1
+    }
+
+    /// The one galley the sentence painted.
+    fn galley(said: &Sentence, on_screen: &Doc<ProfileProgram>) -> Landed {
+        let (painted, _) = frame(&egui::Context::default(), said, on_screen, Vec::new());
+        let [only] = &painted[..] else {
+            panic!("a sentence is one galley: {painted:?}")
+        };
+        only.clone()
+    }
+
+    /// **A click lands on the mention's characters and on nothing
+    /// beside them**, inside one wrapped galley: its first and last
+    /// characters select the node; the characters either side of it and
+    /// a point past a row's end select nothing.
+    ///
+    /// *Breaks if* a click is mapped to the wrong run (an off-by-one at
+    /// the cursor, or a run boundary counted in bytes rather than
+    /// characters), or a point outside every glyph is taken as the
+    /// nearest one.
+    #[test]
+    fn a_click_selects_the_mention_it_lands_on_and_nothing_beside_it() {
+        let (doc, extrude) = plate();
+        let said = said(Speaker::of(&doc), &doc, extrude);
+        let landed = galley(&said, &doc);
+        assert!(
+            landed.rows.len() >= 3,
+            "the sentence wraps at {REGION}: {:?}",
+            landed.rows
+        );
+        let name = crate::tree::spelled(&doc.spoken(extrude));
+        let start = landed.text[..landed.text.find(&name).expect("the mention is painted")]
+            .chars()
+            .count();
+        let end = start + name.chars().count();
+        let [first, last, before, after] =
+            [start, end - 1, start - 1, end].map(|index| landed.char_centre(index));
+        assert!(
+            first.y > landed.rows[0].max.y,
+            "the mention is on a row past the first, so a row's offset counts"
+        );
+        let short = landed.rows.last().expect("a painted sentence has rows");
+        assert!(
+            short.max.x < landed.allocated.max.x - 2.0,
+            "the last row stops short of the galley's edge: {short:?}"
+        );
+        let past_row_end = egui::pos2(landed.allocated.max.x - 1.0, short.center().y);
+        for (at, selects, what) in [
+            (first, Some(Selection::Node(extrude)), "its first character"),
+            (last, Some(Selection::Node(extrude)), "its last character"),
+            (before, None, "the character before it"),
+            (after, None, "the character after it"),
+            (past_row_end, None, "past the last row's end"),
+        ] {
+            assert_eq!(
+                click(&said, &doc, at),
+                selects,
+                "a click on {what}, at {at:?}"
+            );
+        }
+    }
+
+    /// Where the run reading `name` in `said`'s galley is, drawn against
+    /// `on_screen`.
+    fn mention_at(said: &Sentence, on_screen: &Doc<ProfileProgram>, name: &str) -> egui::Pos2 {
+        galley(said, on_screen)
+            .at(name)
+            .expect("the mention is painted")
+    }
+
+    /// Whether some run of `said` is drawn in a voice of its own — the
+    /// link's — rather than the words'.
+    fn is_voiced_apart(said: &Sentence, on_screen: &Doc<ProfileProgram>) -> bool {
+        galley(said, on_screen).ink.is_none()
+    }
+
+    /// **A mention of another document's node is words**: the same
+    /// node, said by a document with another identity, drawn against
+    /// the plate, is neither underlined in the link's voice nor
+    /// clicked through.
+    ///
+    /// *Breaks if* a link is decided by the node's id alone — an id is
+    /// not document-scoped, so the click would select whatever this
+    /// document holds under it.
+    #[test]
+    fn a_mention_of_another_documents_node_is_not_a_link() {
+        let (doc, extrude) = plate();
+        let other = doc
+            .clone()
+            .under_identity(DocumentId::derive("another part"));
+        let name = crate::tree::spelled(&doc.spoken(extrude));
+        let here = said(Speaker::of(&doc), &doc, extrude);
+        let there = said(Speaker::of(&other), &other, extrude);
+        assert!(
+            is_voiced_apart(&here, &doc),
+            "the document's own mention is a link"
+        );
+        assert!(
+            !is_voiced_apart(&there, &doc),
+            "another document's mention is drawn as words"
+        );
+        assert_eq!(
+            click(&there, &doc, mention_at(&there, &doc, &name)),
+            None,
+            "and a click on it selects nothing"
+        );
+    }
+
+    /// **A node the document no longer holds is words**: a profile
+    /// added, mentioned, then undone is a link while the document holds
+    /// it and words once it does not.
+    ///
+    /// *Breaks if* a link is decided by the mention's document alone.
+    #[test]
+    fn a_node_the_document_no_longer_holds_is_not_a_link() {
+        let (doc, _) = plate();
+        let mut session = DocSession::inline(doc, pncad::tolerance::witness());
+        session.perform(SessionOp::AddProfile {
+            loops: vec![
+                pncad::document::LoopProgram::circle(0.02, 0.0, 0.005).expect("a finite circle"),
+            ],
+        });
+        let added = *session
+            .committed_doc()
+            .ids()
+            .last()
+            .expect("the profile is added");
+        let held = session.committed_doc().clone();
+        let mentioned = said(Speaker::of(&held), &held, added);
+        let name = crate::tree::spelled(&held.spoken(added));
+        assert_eq!(
+            click(&mentioned, &held, mention_at(&mentioned, &held, &name)),
+            Some(Selection::Node(added)),
+            "a link while the document holds it"
+        );
+        session.perform(SessionOp::Undo);
+        let after = session.committed_doc();
+        assert!(after.node(added).is_none(), "the undo took the profile out");
+        assert!(
+            !is_voiced_apart(&mentioned, after),
+            "drawn as words once the document does not hold it"
+        );
+        assert_eq!(
+            click(&mentioned, after, mention_at(&mentioned, after, &name)),
+            None,
+            "and a click on it selects nothing"
+        );
+    }
+
+    /// **A sentence wraps where its text does**: a refusal-length
+    /// sentence with a mention in it, drawn by [`super::sentence`], lands
+    /// in the same rows as its text drawn by [`super::message`], at
+    /// three region widths.
+    ///
+    /// *Breaks if* the widget lays its runs out in a font, a wrap mode
+    /// or a width of its own, or breaks a line at a run boundary.
+    #[test]
+    fn a_sentence_wraps_where_its_text_does() {
+        let (doc, extrude) = plate();
+        let said = said(Speaker::of(&doc), &doc, extrude);
+        let text = said.to_string();
+        for width in [200.0, 260.0, 420.0] {
+            let rows = |draw: &dyn Fn(&mut egui::Ui)| {
+                let painted = crate::pane::headless::landed(|ui| {
+                    ui.allocate_ui(egui::vec2(width, 400.0), |ui| draw(ui));
+                });
+                crate::pane::headless::find(&painted, &text).rows.clone()
+            };
+            let drawn = rows(&|ui| {
+                super::sentence(ui, &said, &doc, None);
+            });
+            let message = rows(&|ui| {
+                super::message(ui, text.as_str());
+            });
+            assert!(drawn.len() > 1, "the sentence wraps at {width}");
+            assert_eq!(drawn, message, "the rows at {width}");
+        }
+    }
+
+    /// **A sentence that holds a link selects and copies as a message
+    /// does**: a drag across the whole galley, then a copy, puts the
+    /// sentence's text, mention included, on the clipboard.
+    ///
+    /// *Breaks if* the link path paints its galley itself rather than
+    /// through a label, which takes away egui's text selection.
+    #[test]
+    fn a_linked_sentence_selects_and_copies_its_text() {
+        let (doc, extrude) = plate();
+        let said = said(Speaker::of(&doc), &doc, extrude);
+        let landed = galley(&said, &doc);
+        let start = landed.char_centre(0);
+        let end = landed.char_centre(landed.text.chars().count() - 1);
+        let ctx = egui::Context::default();
+        let button = |pressed, at| egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::default(),
+        };
+        let mut copied = Vec::new();
+        for events in [
+            Vec::new(),
+            vec![egui::Event::PointerMoved(start)],
+            vec![button(true, start)],
+            vec![egui::Event::PointerMoved(end)],
+            vec![button(false, end)],
+            vec![egui::Event::Copy],
+        ] {
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    events,
+                    ..Default::default()
+                },
+                |ui| {
+                    ui.allocate_ui(egui::vec2(REGION, 400.0), |ui| {
+                        super::sentence(ui, &said, &doc, None);
+                    });
+                },
+            );
+            output.textures_delta.clear();
+            copied.extend(
+                output
+                    .platform_output
+                    .commands
+                    .into_iter()
+                    .filter_map(|command| match command {
+                        egui::OutputCommand::CopyText(text) => Some(text),
+                        _ => None,
+                    }),
+            );
+        }
+        let text = said.to_string();
+        assert!(
+            copied.iter().any(
+                |copy| copy.contains(&crate::tree::spelled(&doc.spoken(extrude)))
+                    && text.contains(copy.as_str())
+                    && copy.len() > text.len() / 2
+            ),
+            "the copy is the sentence's text, its mention in it: {copied:?} of {text:?}"
+        );
+    }
+
+    /// **The mention under the pointer is drawn on the hover ground**,
+    /// and the sentence's words are not: hovering the mention paints a
+    /// filled box in egui's hovered fill under it; hovering the words
+    /// paints none.
+    ///
+    /// *Breaks if* a link's only hover feedback is the cursor icon.
+    #[test]
+    fn a_hovered_mention_is_drawn_on_the_hover_ground() {
+        let (doc, extrude) = plate();
+        let said = said(Speaker::of(&doc), &doc, extrude);
+        let landed = galley(&said, &doc);
+        let name = crate::tree::spelled(&doc.spoken(extrude));
+        let grounds = |at: egui::Pos2| {
+            let ctx = egui::Context::default();
+            let mut found = 0;
+            for events in [Vec::new(), vec![egui::Event::PointerMoved(at)]] {
+                let fill = egui::Visuals::default().widgets.hovered.weak_bg_fill;
+                let mut output = ctx.run_ui(
+                    egui::RawInput {
+                        events,
+                        ..Default::default()
+                    },
+                    |ui| {
+                        ui.allocate_ui(egui::vec2(REGION, 400.0), |ui| {
+                            super::sentence(ui, &said, &doc, None);
+                        });
+                    },
+                );
+                output.textures_delta.clear();
+                fn count(shape: &egui::Shape, fill: egui::Color32) -> usize {
+                    match shape {
+                        egui::Shape::Rect(rect) if rect.fill == fill => 1,
+                        egui::Shape::Vec(inner) => inner.iter().map(|s| count(s, fill)).sum(),
+                        _ => 0,
+                    }
+                }
+                found = output
+                    .shapes
+                    .iter()
+                    .map(|clipped| count(&clipped.shape, fill))
+                    .sum();
+            }
+            found
+        };
+        assert!(
+            grounds(landed.at(&name).expect("the mention is painted")) > 0,
+            "the hovered mention is on the hover ground"
+        );
+        assert_eq!(
+            grounds(landed.at("the chain").expect("the words are painted")),
+            0,
+            "hovered words are not"
+        );
+    }
+
+    /// **A mention is drawn as the kernel spells it**: the galley of a
+    /// sentence of one mention reads `Sentence::from(mention)`'s text,
+    /// linked or not — the text `frame::Message::new`'s mark rule reads.
+    ///
+    /// *Breaks if* the widget spells a mention its own way.
+    #[test]
+    fn a_mention_is_drawn_as_the_kernel_spells_it() {
+        let (doc, extrude) = plate();
+        let other = doc
+            .clone()
+            .under_identity(DocumentId::derive("another part"));
+        for by in [Speaker::of(&doc), Speaker::of(&other), Speaker::TAG] {
+            let said = pncad::document::sentence!(by.mention(&doc.spoken(extrude)));
+            let mention = said.mentions().next().expect("one mention").clone();
+            assert_eq!(
+                galley(&said, &doc).text,
+                Sentence::from(mention).to_string(),
+                "drawn as spelled"
+            );
+        }
+    }
+
+    /// **A refusal's kernel payload keeps its mentions**: a placement
+    /// draft that would not stand, refused for the placement's unset
+    /// freedom, names the placement as a link in the document that
+    /// raised it — the fault is said, never spelled into words first.
+    ///
+    /// *Breaks if* `Refusal::write` spells a payload that has `Say`
+    /// before it writes the sentence.
+    #[test]
+    fn a_refusals_said_payload_names_its_node_as_a_link() {
+        let (doc, _) = plate();
+        let placement = doc.ids()[2];
+        let refusal = crate::session::Refusal::PlacementFails {
+            fault: Some(Box::new(pncad::document::MateFault::Unpinned {
+                placement,
+                free: 1,
+            })),
+        };
+        let said = refusal.said(Speaker::of(&doc), None);
+        assert!(
+            said.mentions()
+                .any(|mention| crate::relations::link(&doc, mention)
+                    == Some(Selection::Node(placement))),
+            "the placement is a link: {said:?}"
+        );
     }
 }

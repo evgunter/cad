@@ -114,10 +114,15 @@ pub fn prefix(state: TipState) -> Vec<Step<f64>> {
     [lead, way_in(state).unwrap_or_default()].concat()
 }
 
-/// **Every scalar a validated profile stores**, in one fixed order: the
-/// plane's twelve placement components, then per loop each vertex, each
-/// segment's ends, and an arc's centre, radius and sweep. The walk the
-/// rows that hold one canonical form against another read bits off.
+/// **Every scalar a validated profile stores but its directions**, in one
+/// fixed order: the plane's twelve placement components, then per loop
+/// each vertex, each segment's ends, and an arc's centre, radius and
+/// sweep. The walk the rows that hold one canonical form against another
+/// read bits off. The directions a kind holds are left out: a lift
+/// carries the `f64` mint's directions as points, where validating at an
+/// interval scalar mints them with the scalar's own width, so the two
+/// forms differ there by construction (`validated_map`'s lift row).
+/// Their own rows hold them (`recorded_directions`).
 #[must_use]
 pub fn stored_scalars<T: Real>(vp: &crate::ValidatedProfile<T>) -> Vec<T> {
     let mut out = vp.plane().placement().components().to_vec();
@@ -153,7 +158,7 @@ pub fn decided_facts<T: Real>(vp: &crate::ValidatedProfile<T>) -> String {
         );
         for s in lp.segments() {
             match s.kind {
-                crate::SegmentKind::Line => out.push_str(" L"),
+                crate::SegmentKind::Line { .. } => out.push_str(" L"),
                 crate::SegmentKind::Arc { turn, .. } => {
                     let _ = write!(out, " {turn:?}");
                 }

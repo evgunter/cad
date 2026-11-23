@@ -178,7 +178,7 @@ fn a_graze_within_the_gaps_band_escalates_and_the_next_path_decides() {
     let (graze, arcs) = case(q, o, r, phi, beta, -gap, 0.3, (Vec3::unit_x(), 0.0));
     let got = path_parity(&graze, &arcs, None, band);
     assert!(
-        matches!(&got, Err(diag) if diag.predicate == Some("split_ring_path_meets_plane")),
+        matches!(&got, Err(diag) if diag.predicate == Some("curve_face_pose_belly_graze")),
         "the graze escalates on the gap: {got:?}"
     );
     let Piece::Arc(piece) = graze.pieces[0] else {
@@ -377,25 +377,19 @@ fn split_ellipse(
     (dir, jitter): (Vec3<f64>, f64),
     size: f64,
 ) -> [LoopArc<f64>; 2] {
-    let geom::Curve3::Ellipse(
-        conic_k @ geom::Ellipse {
-            frame: carrier_frame_7,
-            ..
-        },
-    ) = *c
-    else {
+    let geom::Curve3::Ellipse(conic_k) = *c else {
         panic!("a tilted section is an ellipse")
     };
     let (center, axis, u_ref) = (
-        carrier_frame_7.origin(),
-        carrier_frame_7.axis(),
-        carrier_frame_7.u_ref(),
+        conic_k.frame().origin(),
+        conic_k.frame().axis(),
+        conic_k.frame().u_ref(),
     );
     let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
     let pi = core::f64::consts::PI;
     [
         LoopArc::Conic(ConicArc::of_frame(
-            carrier_frame_7,
+            conic_k.frame(),
             (semi_u, semi_v),
             (v - pi, v),
             None,
