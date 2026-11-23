@@ -707,8 +707,7 @@ fn the_material_side_offer_names_the_margin_it_carries() {
 /// every roster makes of what it reports are one harness
 /// (`test_utils::source::roster_violations`): an indirect site not
 /// declared in INDIRECT, a const site whose const is not a carrier, a
-/// stale carrier, a spelling it cannot parse, and a file it does not
-/// walk.
+/// spelling it cannot parse, and a file it does not walk.
 #[test]
 fn nothing_in_src_is_invisible_to_the_reader() {
     let src = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src");

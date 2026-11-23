@@ -590,7 +590,8 @@ fn losing_the_target_voids_the_whole_set_and_says_so() {
     assert_eq!(
         node.kind(),
         Some("Extrude"),
-        "the lost body is said as the document held it when it was picked: {node}"
+        "the lost body is said as the document held it when it was picked: {node}",
+        node = viewer::tree::spelled(node)
     );
     assert_eq!(*edges, BOX_EDGES);
     assert_eq!(blend(&tools).count(), 0);
@@ -1246,7 +1247,7 @@ fn the_strand_check_is_not_asked_without_an_answer() {
         Some(format!(
             "{} has no edges to select: {}",
             whole(&session, target),
-            Said(&standing, Speaker::TAG.about(target))
+            Said(&standing, Speaker::TAG.about(target)).sentence()
         )),
     );
     assert_eq!(

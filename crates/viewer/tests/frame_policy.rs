@@ -1442,7 +1442,7 @@ fn a_held_edge_refusal_is_said_from_its_own_document_and_by_tag_from_another() {
     };
     let own = label(&frame::Spelled::in_landed(refused.clone(), Some(landed)));
     assert!(
-        own.contains(&landed.spoken(extrude).to_string()) && own.contains("Extrude"),
+        own.contains(&viewer::tree::spelled(&landed.spoken(extrude))) && own.contains("Extrude"),
         "spoken from the document it is spelled in: {own}"
     );
     let other: Doc<ProfileProgram> = Doc::empty_derived("another", tol);
@@ -2008,10 +2008,11 @@ fn the_status_line_renders_two_tied_faces_as_two_different_phrases() {
         .text()
         .to_owned();
     let rendered = |name: &StableName| {
-        pncad::document::Speaker::of(landed)
-            .within(evaluation)
-            .name(name)
-            .to_string()
+        editor_core::test_support::text(
+            pncad::document::Speaker::of(landed)
+                .within(evaluation)
+                .name(name),
+        )
     };
     assert!(
         text.contains("of Extrude"),

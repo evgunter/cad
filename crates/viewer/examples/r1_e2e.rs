@@ -38,7 +38,11 @@ fn show_tree(session: &DocSession) {
             .message()
             .map(|m| format!("  [{m}]"))
             .unwrap_or_default();
-        println!("   {} {}{world}{message}", row.status.badge(), row.spoken);
+        println!(
+            "   {} {}{world}{message}",
+            row.status.badge(),
+            viewer::tree::spelled(&row.spoken)
+        );
     }
 }
 
@@ -220,7 +224,10 @@ fn main() {
     // The seam recovers: an edit resubmits and the run completes.
     let variables = viewer::props::variable_rows(session.doc());
     if let Some(param) = variables.first() {
-        println!("   nudging variable {} to resubmit", param.label);
+        println!(
+            "   nudging variable {} to resubmit",
+            viewer::tree::spelled_var(&param.label)
+        );
         session.perform(SessionOp::SetVariable {
             var: param.var,
             value: param.value,

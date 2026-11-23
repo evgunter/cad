@@ -36,7 +36,7 @@ fn each_pip_moved_into_its_neighbour_refuses_at_the_unions_turned_seam() {
         let (var, value) = d
             .doc
             .free_vars()
-            .find(|&(id, _)| d.doc.spoken_var(id).to_string() == spoken)
+            .find(|&(id, _)| editor_core::test_support::var_text(&d.doc.spoken_var(id)) == spoken)
             .unwrap_or_else(|| panic!("{spoken}: a variable of the document"));
         let FreeVar::Continuous { value, .. } = value else {
             panic!("{spoken}: a continuous variable, not {value:?}");
@@ -74,7 +74,7 @@ fn each_pip_moved_into_its_neighbour_refuses_at_the_unions_turned_seam() {
         assert!(
             matches!(doc.node(node), Some(Node::Union { .. })),
             "{spoken} = {to}: the pips' union refuses, not {}",
-            doc.spoken(node)
+            editor_core::test_support::node_text(&doc.spoken(node))
         );
         assert!(
             matches!(
