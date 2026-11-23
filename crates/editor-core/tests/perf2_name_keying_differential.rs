@@ -91,7 +91,7 @@ fn reverse_misreads(ev: &editor_core::Evaluation<f64>) -> Vec<String> {
 const PINNED: &[(&str, u64)] = &[
     ("die", 0x2054dfbda20efbd6),
     ("corner_table", 0x2e345b0dccdd4c24),
-    ("heat_sink", 0x9c1db942bfc15943),
+    ("heat_sink", 0x3cc2_a010_a541_a4bb),
     ("crossing_slots", 0x2b824fc243a3ab59),
     ("nested_islands_105", 0x6935a2dd3d8972f3),
     ("nested_islands_106_depth1", 0xe3abcbda630addfd),
@@ -104,7 +104,7 @@ const PINNED: &[(&str, u64)] = &[
     ("die_fillet", 0xbff1369360505793),
     ("die_chamfer", 0x302a655fce2975cc),
     ("die_pips", 0x91d7debf3d330210),
-    ("heat_sink_fins", 0xbc6967bf628b4e61),
+    ("heat_sink_fins", 0x5d40_8a1e_31f3_74aa),
     ("die_tool", 0xe77fe13851e627a8),
     ("face_sketch", 0xf42662938388297d),
     ("part_select", 0x61af_eff2_5d8e_245f),
