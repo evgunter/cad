@@ -29,3 +29,10 @@
 
   Three lanes now share `pair_section`: these two and the cone × torus door. Each is told to merge main often and announce its seams.
 - 2026-11-22 — **U2 stopped before building.** The section value never claims that a cone pair's loop winds about the partner, while topo's certificate claims it on both carriers. Routing as specced would weaken most of the oracle rows' classes, and could turn coaxial or parallel cone × cylinder clears (pencil tips, countersinks) into refusals. The lane recommended A: the value claims partner winding first. The orchestrator took A as a sequencing decision with a dominant argument. No ratified text moves and every class is kept, so no Ev ruling is needed. A new unit, `the-section-value-claims-a-cone-pairs-winding-on-the-partner` (P1, dual), is dispatched to the same lane. U2 is re-parked on it, with the lane's four seam facts folded into its spec: `Elsewhere` keeps its closed forms; the apex touch is mapped explicitly; `serves` stays false and U2 calls `pair_section` directly; the overlap ball is the region.
+- 2026-11-22 — **PR 7395** (`the-cone-torus-pair-door`): dual Opus review on `b68b49ec6e`. Both APPROVE-WITH-FIXES, no MAJOR, all by inspection because the local build slot was held for 7 h by another lane's battery. Both found:
+  - a coaxial cone × torus germ turning from `GermFrameUnsupported` into `JoinDesync`;
+  - a tautological volume witness;
+  - a false premise in the turn-row re-pin;
+  - a crossing row with no count.
+
+  The fix pass is running on the union. **PR 7455** (`the-section-value-claims-a-cone-pairs-winding-on-the-partner`): dual Opus review on `7447c5a47f`, both APPROVE-WITH-FIXES, no MAJOR. Orchestrator's ruling: a winding read that doesn't settle claims nothing rather than refusing the section. A missing claim is weaker, never wrong, and this keeps the poses main reads. Its fix pass is running. **PR 7457** (cone × sphere / cone × cone doors) is open, and the lane is bringing CI to green. Ev asked about local build contention; the investigation is in `[ev]` PR 7539 (a hold cap, `--status`, nice for long jobs).
