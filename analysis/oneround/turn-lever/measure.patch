@@ -165,6 +165,15 @@ index 67332a72..801fe986 100644
 +        v
 +    })
 +}
+diff --git a/crates/sweep/tests/all.rs b/crates/sweep/tests/all.rs
+index f9bf6227..efcb6a96 100644
+--- a/crates/sweep/tests/all.rs
++++ b/crates/sweep/tests/all.rs
+@@ -1477,3 +1477,4 @@ mod a_partner_across_a_lofted_wall_is_joined_on_its_section_value;
+ mod a_peg_in_a_two_segment_bore_moves_only_its_wall;
+ #[path = "a_station_frame_is_minted_to_its_floor.rs"]
+ mod a_station_frame_is_minted_to_its_floor;
++mod tl_g1_row_table;
 diff --git a/crates/topo/src/boolean/edge_join.rs b/crates/topo/src/boolean/edge_join.rs
 index 53163520..d2894b60 100644
 --- a/crates/topo/src/boolean/edge_join.rs
@@ -398,7 +407,7 @@ index af5756d1..ef9efb3c 100644
          Ok(band) => band,
          Err(error) => return (vec![ValidationError::Band { error }], None),
 diff --git a/crates/topo/src/wedge_reach.rs b/crates/topo/src/wedge_reach.rs
-index ff643caa..d6db946d 100644
+index ff643caa..07d3bb74 100644
 --- a/crates/topo/src/wedge_reach.rs
 +++ b/crates/topo/src/wedge_reach.rs
 @@ -64,6 +64,7 @@ use crate::live::BoundaryMember;
@@ -425,7 +434,7 @@ index ff643caa..d6db946d 100644
      faces: RefCell<SecondaryMap<FaceKey, Rc<FaceRead<T>>>>,
  }
  
-@@ -107,17 +110,24 @@ pub struct WedgeReach<'a, T: Decide> {
+@@ -107,17 +110,29 @@ pub struct WedgeReach<'a, T: Decide> {
  /// vertices, points of the face, and its cover, which holds it.
  struct FaceRead<T: geom_core::Real> {
      points: Vec<Point3<T>>,
@@ -433,6 +442,11 @@ index ff643caa..d6db946d 100644
      cover: FaceCovered<T>,
  }
  
++fn tl_line_site() -> bool {
++    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
++    *ON.get_or_init(|| std::env::var("TL_SITE").is_ok_and(|v| v == "line"))
++}
++
 +fn tl_f64<X: core::fmt::Debug>(x: X) -> Option<f64> {
 +    format!("{x:?}").parse::<f64>().ok()
 +}
@@ -450,7 +464,7 @@ index ff643caa..d6db946d 100644
              lifts: true,
              faces: RefCell::new(SecondaryMap::new()),
          }
-@@ -127,9 +137,11 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
+@@ -127,9 +142,11 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
      /// without its lift ([`crate::cover::face_cover_unlifted`]), since
      /// a face's cover can ask that lift.
      #[must_use]
@@ -462,7 +476,7 @@ index ff643caa..d6db946d 100644
              ..Self::new(body, band)
          }
      }
-@@ -152,22 +164,127 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
+@@ -152,22 +169,132 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
          let [a, b] = faces;
          let reads = [Some(self.face(a)), (b != a).then(|| self.face(b))];
          let reads = reads.iter().flatten();
@@ -486,6 +500,11 @@ index ff643caa..d6db946d 100644
 +        let above = reads.clone().fold(far(own.as_ref()).max(below), |above, f| {
 +            above.max(far(f.cover.as_ref().ok()))
 +        });
++        if self.lifts && tl_line_site() {
++            if let Curve3::Line(line) = carrier {
++                return self.tl_g1(a, b, *line, &tl_points, below, own.as_ref(), reads.clone().map(|f| f.cover.as_ref().ok()).collect());
++            }
++        }
 +        if geom_brep::tl_shadow::active() {
 +            let loc = format!("{}:{}", self.at.file(), self.at.line());
 +            let lane = std::any::type_name::<T>();
@@ -596,10 +615,106 @@ index ff643caa..d6db946d 100644
      }
  
      /// [`edge_wedge_reach`], reading faces through this cache.
-@@ -182,6 +299,196 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
+@@ -182,6 +309,292 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
          Some(self.reach(edge_faces(self.body, edge), curve.carrier(), curve.params()))
      }
  
++    /// G1: the wedge lever read from the edge's line, at both bounds.
++    #[allow(clippy::too_many_arguments)]
++    fn tl_g1(
++        &self,
++        a: FaceKey,
++        b: FaceKey,
++        line: geom::Line<T>,
++        points: &[Point3<T>],
++        mid_below: geom_core::Lever<T>,
++        own: Option<&Cover<T>>,
++        covers: Vec<Option<&Cover<T>>>,
++    ) -> LeverBounds<T> {
++        use geom::cover::Site;
++        let d = line.dir;
++        let to_line = |x: Point3<T>| (x - line.origin).cross(d).norm() / d.norm();
++        let lo = points.iter().fold(T::zero(), |m, &x| m.max(to_line(x)));
++        let far = |c: Option<&Cover<T>>| c.map_or(geom_core::poison(), |c| c.distance_range(&Site::Line(line)).1);
++        let hi = covers.iter().fold(far(own).max(lo), |m, c| m.max(far(*c)));
++        let below = geom_core::Lever::of_consumed_extent(lo);
++        let above = geom_core::Lever::of_consumed_extent(hi);
++        if geom_brep::tl_shadow::active() {
++            let body = self.body;
++            let kind = |f: FaceKey| body.proven_face(f).surface().kind();
++            let both_planes = [a, b].iter().all(|&f| matches!(body.proven_face(f).surface(), geom::Surface::Plane { .. }));
++            let lane = std::any::type_name::<T>() == "f64";
++            // The exact truth on two plane faces whose boundary edges are
++            // lines, circle arcs or ellipse arcs: the largest distance of
++            // the boundary from the line (a convex function's maximum over
++            // a planar region is on its boundary).
++            let mut class = String::new();
++            let mut truth: Option<f64> = None;
++            if both_planes && lane {
++                let mut t = 0.0_f64;
++                let mut arcs = false;
++                let mut ok = true;
++                for &f in &[a, b] {
++                    for &e in &self.face(f).edges {
++                        let Some(g) = body.curves.get(body.edges[e].curve).and_then(|g| g.certified()) else { ok = false; continue };
++                        let c = g.carrier();
++                        let (t0, t1) = g.params();
++                        let ev = |s: T| tl_f64(to_line(c.eval(s))).unwrap_or(f64::NAN);
++                        match c {
++                            Curve3::Line(_) => { t = t.max(ev(t0)).max(ev(t1)); }
++                            Curve3::Circle(_) | Curve3::Ellipse(_) => {
++                                arcs = true;
++                                // In-plane signed distance g(θ) = A + p cos θ + q sin θ.
++                                let n = match body.proven_face(f).surface() { geom::Surface::Plane { normal, .. } => *normal, _ => unreachable!() };
++                                let m = n.cross(d);
++                                let sg = |s: T| tl_f64((c.eval(s) - line.origin).dot(m) / m.norm()).unwrap_or(f64::NAN);
++                                let pi = std::f64::consts::PI;
++                                let (g0, g1, g2) = (sg(T::zero()), sg(T::from_f64(pi / 2.0)), sg(T::from_f64(pi)));
++                                let (aa, p, q) = ((g0 + g2) / 2.0, (g0 - g2) / 2.0, g1 - (g0 + g2) / 2.0);
++                                let (s0, s1) = (tl_f64(t0).unwrap_or(f64::NAN), tl_f64(t1).unwrap_or(f64::NAN));
++                                let mut best = ev(t0).max(ev(t1));
++                                let phi = q.atan2(p);
++                                for base in [phi, phi + pi] {
++                                    for k in -3..=3 {
++                                        let th = base + 2.0 * pi * f64::from(k);
++                                        if th >= s0.min(s1) && th <= s0.max(s1) {
++                                            best = best.max((aa + p * th.cos() + q * th.sin()).abs());
++                                        }
++                                    }
++                                }
++                                t = t.max(best);
++                            }
++                            _ => ok = false,
++                        }
++                    }
++                }
++                class = if !ok { "plane-plane-other".into() } else if arcs { "plane-plane-arc".into() } else { "plane-plane-straight".into() };
++                if ok { truth = Some(t); }
++            } else {
++                class = format!("{:?}-{:?}", kind(a), kind(b));
++            }
++            let (lf, hf, mf) = (tl_f64(lo).unwrap_or(f64::NAN), tl_f64(hi).unwrap_or(f64::NAN), tl_f64(mid_below.length()).unwrap_or(f64::NAN));
++            let c = |k: String| geom_brep::tl_shadow::count(format!("G1\t{class}\t{k}"));
++            c("reads".into());
++            if let Some(t) = truth {
++                let tol = 1e-12 * (1.0 + t);
++                if lf > t + tol { c("below_ABOVE_truth".into()); }
++                if hf < t - tol { c("above_BELOW_truth".into()); }
++                if lf < t - tol { c("below_UNDER_truth".into()); }
++                let bin = |r: f64| if !r.is_finite() { "inf" } else if r <= 1.000_001 { "=1" } else if r <= 1.01 { "(1,1.01]" } else if r <= 1.1 { "(1.01,1.1]" } else if r <= 2.0 { "(1.1,2]" } else if r <= 10.0 { "(2,10]" } else { ">10" };
++                if t > 0.0 { c(format!("above/truth={}", bin(hf / t))); c(format!("below/truth={}", bin(lf / t))); } else { c("truth=0".into()); }
++            }
++            if lf > 0.0 {
++                let r = hf / lf;
++                let bin = if !r.is_finite() { "poison" } else if r <= 1.000_001 { "=1" } else if r <= 1.01 { "(1,1.01]" } else if r <= 1.1 { "(1.01,1.1]" } else if r <= 2.0 { "(1.1,2]" } else if r <= 10.0 { "(2,10]" } else { ">10" };
++                c(format!("above/below={bin}"));
++            } else { c("below=0".into()); }
++            if mf.is_finite() && lf.is_finite() { c(format!("line_vs_middle={}", if lf < mf * (1.0 - 1e-12) { "shorter" } else if lf > mf * (1.0 + 1e-12) { "LONGER" } else { "same" })); }
++            geom_brep::tl_shadow::register_tagged(below, above, mid_below, &class, truth);
++        }
++        LeverBounds::Between { below, above }
++    }
++
 +    #[allow(clippy::too_many_arguments)]
 +    fn tl_me(
 +        &self,
@@ -793,7 +908,7 @@ index ff643caa..d6db946d 100644
      /// `face`'s read (module docs): every loop's vertices, a lone vertex
      /// included, and its cover. Read on first ask.
      fn face(&self, face: FaceKey) -> Rc<FaceRead<T>> {
-@@ -191,11 +498,13 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
+@@ -191,11 +604,13 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
          let body = self.body;
          let view = body.proven_face(face);
          let mut points = Vec::new();
@@ -807,7 +922,7 @@ index ff643caa..d6db946d 100644
                          points.push(body.linked_vertex_point(
                              half.start,
                              EntityId::HalfEdge(he),
-@@ -205,13 +514,23 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
+@@ -205,13 +620,23 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
                  }
              }
          }
