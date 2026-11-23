@@ -195,22 +195,19 @@ certifiable: nominal Holds Holds { measured: 4558673246493684320, bound: 4558673
                         use pncad::topo::ValidationError::{
                             CurveDatumUndecided, SurfaceDatumUndecided,
                         };
-                        let length = pncad::geom::ConventionMeasure::Length;
                         let (mut walls, mut rims, mut other) = (0, 0, 0);
                         for f in findings.as_slice() {
                             match f {
                                 SurfaceDatumUndecided {
                                     kind: pncad::geom::SurfaceKind::Cylinder,
                                     datum: pncad::geom::SurfaceDatum::URef,
-                                    measure,
                                     ..
-                                } if *measure == length => walls += 1,
+                                } => walls += 1,
                                 CurveDatumUndecided {
                                     kind: pncad::geom::CurveKind::Circle,
                                     datum: pncad::geom::CurveDatum::URef,
-                                    measure,
                                     ..
-                                } if *measure == length => rims += 1,
+                                } => rims += 1,
                                 _ => other += 1,
                             }
                         }
