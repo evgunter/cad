@@ -254,6 +254,10 @@ impl<T: Real> Curve3<T> {
     /// certificate's support compare reads it with
     /// [`geom_core::Real::same_value`].
     #[must_use]
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     pub fn same_content_by(&self, other: &Self, same: impl Fn(T, T) -> bool) -> bool {
         let point = |p: Point3<T>, q: Point3<T>| same(p.x, q.x) && same(p.y, q.y) && same(p.z, q.z);
         let vec = |v: Vec3<T>, w: Vec3<T>| same(v.x, w.x) && same(v.y, w.y) && same(v.z, w.z);
@@ -1180,6 +1184,10 @@ impl<T: Real> Curve3<T> {
     /// spiric's torus's (centre, axis and seam). `None` for a line and a
     /// spline.
     #[must_use]
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     pub fn frame(&self) -> Option<Frame<T>> {
         match *self {
             Self::Circle(c) => Some(c.frame()),
@@ -1210,6 +1218,10 @@ impl<T: Real> Curve3<T> {
     /// that takes a kind past the walk's width is caught later, by the
     /// build that first instantiates the walk (`AnalyticData::new`'s
     /// bound), which `cargo check` does not reach.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     pub fn data(&self) -> CurveData<'_, T> {
         use crate::AnalyticData;
         use crate::DatumValue::{Direction, Point, Scalar};
@@ -2702,13 +2714,9 @@ mod tests {
             );
             assert_eq!((turned.semi_u(), turned.semi_v()), (2.0, 5.0), "pose {k}");
             if bits(
-                geom_core::RigidMotion::squared_about(
-                    e.frame().origin(),
-                    e.frame().axis_unit(),
-                    base,
-                )
-                .u()
-                .get(),
+                geom_core::RigidMotion::squared_about(e.frame().origin(), e.axis_unit(), base)
+                    .u()
+                    .get(),
             ) != bits(base)
             {
                 parted_squared += 1;

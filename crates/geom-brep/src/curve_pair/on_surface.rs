@@ -617,11 +617,15 @@ impl<T: Decide> SurfaceCurve<T> {
     /// `1e-6·max(r, 1)`: `1e-6` of the radius `r`, and an absolute `1e-6`
     /// below a radius of 1 (point values only; an enclosure is not checked).
     #[must_use]
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     pub fn starting_at(self, p: Point3<T>) -> Self {
         let Shape::Circle(c) = self.shape else {
             unreachable!("only a circle's start moves: a line's origin is its locus")
         };
-        let (centre, axis) = (c.frame().origin(), c.frame().axis());
+        let (centre, axis) = (c.frame().origin(), c.axis());
         let w = p - centre;
         let w = w - axis * w.dot(axis);
         debug_assert!(
@@ -1028,7 +1032,7 @@ impl<'a, T: Decide> OnSurface<'a, T> {
         // The plane is charted along the curve: a circle's reference, or a
         // line's direction, each in its plane.
         let u_ref = match curve.shape {
-            Shape::Circle(c) => c.frame().u_ref(),
+            Shape::Circle(c) => c.u_ref(),
             Shape::Line(l) => l.dir.get(),
         };
         // A circle's seam and a line's direction lie in the curve's own
@@ -1048,6 +1052,10 @@ impl<'a, T: Decide> OnSurface<'a, T> {
     /// its unit normal: a conic's own frame, its axes as stored, a spiric's cutting
     /// plane with the spiric's `u_ref` kept bit for bit as its axis. A line
     /// lies in no one plane (`None`).
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     pub fn plane(&self) -> Option<Frame<T>> {
         match *self.carrier {
             Curve3::Circle(_) | Curve3::Ellipse(_) => self.carrier.frame(),
@@ -1093,6 +1101,10 @@ impl<'a, T: Decide> OnSurface<'a, T> {
     /// **The edge's own section of its plane** ([`Section`]): a circle's
     /// own of the plane's curves, a spiric's oval on its side of the
     /// axis's projection; the whole section for any other edge.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     pub fn section(&self) -> Section<T> {
         match *self.carrier {
             Curve3::Circle(c) => Section::Circle {

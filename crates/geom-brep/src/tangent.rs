@@ -218,6 +218,10 @@ pub fn tangent_certificate_lane<T: Real>(
 
 /// The span bounds for `carrier` over `[t0, t1]` at the 9-sample
 /// schedule (docs on [`TangentSpanBounds`]).
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub fn tangent_span_bounds<T: Real>(
     s1: &Surface<T>,
     s2: &Surface<T>,

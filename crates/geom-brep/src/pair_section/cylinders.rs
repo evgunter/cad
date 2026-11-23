@@ -778,7 +778,7 @@ fn bisector_nodes<T: Decide>(
     band: Band,
 ) -> (Vec<SectionNode<T>>, [NodeEnds; 4]) {
     let u = |e: &Curve3<T>| match e {
-        Curve3::Ellipse(e) => e.frame().u_ref(),
+        Curve3::Ellipse(e) => e.u_ref(),
         _ => unreachable!("the bisector pose's sections are ellipses"),
     };
     let (u1, u2) = (u(e1), u(e2));

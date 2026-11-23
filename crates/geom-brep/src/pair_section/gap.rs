@@ -284,6 +284,10 @@ fn squared<T: Real>(w: Vec3<T>, dp: Vec3<T>, ddp: Vec3<T>, axis: Option<Vec3<T>>
     [w.dot(w), two * w.dot(dp), two * (dp.dot(dp) + w.dot(ddp))]
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn read<T: Real>(core: Core<T>, spine: Spine<T>, far: bool, phi: T) -> Reading<T> {
     let (p, dp) = (core.point(phi), core.velocity(phi));
     let ddp = core.circle.frame().origin() - p;
@@ -660,6 +664,10 @@ impl<T: Decide> Sweep<'_, T> {
 ///
 /// The [`Indeterminate`] of the first cell the sweep could not settle
 /// at its floor or its budget, where no cell decided a tangency.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(crate) fn critical_gap<T: Decide>(
     core: Core<T>,
     spine: Spine<T>,
@@ -673,7 +681,7 @@ pub(crate) fn critical_gap<T: Decide>(
             geom::cover::Cover::circle(geom::cover::Core {
                 axis: geom::Line {
                     origin: core.circle.frame().origin(),
-                    dir: core.circle.frame().axis_unit(),
+                    dir: core.circle.axis_unit(),
                 },
                 radius: core.circle.radius(),
             })
@@ -802,7 +810,7 @@ mod tests {
                 geom::cover::Cover::circle(geom::cover::Core {
                     axis: geom::Line {
                         origin: core.circle.frame().origin(),
-                        dir: core.circle.frame().axis_unit(),
+                        dir: core.circle.axis_unit(),
                     },
                     radius: core.circle.radius(),
                 })
