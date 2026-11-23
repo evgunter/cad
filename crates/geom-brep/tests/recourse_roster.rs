@@ -117,6 +117,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("shown"),
     NameCarrier::Call("unit_winding"),
     NameCarrier::Call("spline_incidence_as"),
+    NameCarrier::Call("span_incidence_as"),
     NameCarrier::Call("spline_point_incidence_as"),
     NameCarrier::Call("spread_readings"),
     NameCarrier::Call("harmonic_roots_as"),
@@ -575,6 +576,10 @@ const INDIRECT: &[(&str, &str)] = &[
     ),
     (
         "pcurve_cache/spline_incidence.rs: span_incidence_as: name",
+        FORWARDS,
+    ),
+    (
+        "pcurve_cache/spline_incidence.rs: spline_incidence_as: name",
         FORWARDS,
     ),
     (
