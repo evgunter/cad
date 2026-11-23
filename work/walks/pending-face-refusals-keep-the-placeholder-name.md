@@ -18,8 +18,11 @@ cost: E
 - `face_normal::SplineNormalError::PlaceholderChart`;
 - `pcurves_rings` / `spline_trim`'s `SplineTrimGap::Placeholder`;
 - `replace_face::ReplaceFaceError::PlaceholderSurface { face }`;
-- `splitting::finish`'s `MergePlaceholders`.
+- `splitting::finish`'s `MergePlaceholders`;
+- the pcurves alias of the recourse, `topo::pcurves::PLACEHOLDER_RECOURSE` (beside geom-brep's);
+- editor-core's mirror of the replace-face refusal, `R::PlaceholderSurface` (`crates/editor-core/src/verbs/shell.rs`, the shell verb's map) and its concision rows;
+- attach's "chartless" names for the same fact (`Body::slot_chartless`, `Landing::chartless`, `wears_no_chart`), which read "no chart" where the slot says pending.
 
 Meanwhile `topo::null::is_placeholder` (`null.rs`) means something unrelated: a null edge whose two ends are one point. A reader meeting "placeholder" in topo now has two meanings to tell apart. Renaming the face-side names to the pending vocabulary would leave the null-edge reading the only one. The names are public (pncad-py tag strings and asserted texts read some of them), so the rename is its own small unit, not a drive-by of the slot change.
 
-`TransformError::NurbsPlaceholder` is the curve placeholder's and leaves with `walks/curve-placeholder`.
+`TransformError::NurbsPlaceholder` lost its last producer when both placeholders were gone and retired in `walks/surface-slot`.
