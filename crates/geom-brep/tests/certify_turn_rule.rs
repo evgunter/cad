@@ -77,7 +77,12 @@ impl Steep {
             spec,
             e.eval(t0),
             e.eval(t1),
-            |k| self.surfaces.get(k).cloned().ok_or(geom_brep::SurfaceMiss::Stale),
+            |k| {
+                self.surfaces
+                    .get(k)
+                    .cloned()
+                    .ok_or(geom_brep::SurfaceMiss::Stale)
+            },
             geom_core::test_support::fixture_lever(1.0),
             band,
             geom_brep::NurbsLane::certified(),

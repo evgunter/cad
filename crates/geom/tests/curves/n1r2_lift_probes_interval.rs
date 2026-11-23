@@ -98,10 +98,7 @@ fn n1r2_surface_interval_lift_encloses_source_on_adversarial_nets() {
     for (name, s) in surfaces() {
         let e = Surface::Nurbs(Arc::new(s.clone()));
         let ei: Surface<Interval> = e.map_scalar(Interval::from_f64);
-        assert!(
-            matches!(&ei, Surface::Nurbs(_)),
-            "{name}"
-        );
+        assert!(matches!(&ei, Surface::Nurbs(_)), "{name}");
         for u in params(s.knots_u_f64_interim()) {
             for v in params(s.knots_v_f64_interim()) {
                 let (ui, vi) = (Interval::from_f64(u), Interval::from_f64(v));

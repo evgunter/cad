@@ -482,9 +482,7 @@ fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
             // The arc wall is the rational one; the bowed `x = −1`
             // wall is integral.
             let rational = |s: &geom::Surface<f64>| match s {
-                geom::Surface::Nurbs(n) if n.constant_weight().is_none() => {
-                    Some((**n).clone())
-                }
+                geom::Surface::Nurbs(n) if n.constant_weight().is_none() => Some((**n).clone()),
                 _ => None,
             };
             let wall = body

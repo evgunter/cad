@@ -6778,7 +6778,10 @@ mod tests {
     /// slotmap, mirroring how a Body resolves).
     fn table(
         surfs: Vec<Surface<f64>>,
-    ) -> (Vec<SurfaceKey>, impl Fn(SurfaceKey) -> Result<Surface<f64>, SurfaceMiss>) {
+    ) -> (
+        Vec<SurfaceKey>,
+        impl Fn(SurfaceKey) -> Result<Surface<f64>, SurfaceMiss>,
+    ) {
         let mut map: slotmap::SlotMap<SurfaceKey, Surface<f64>> = slotmap::SlotMap::with_key();
         let keys: Vec<SurfaceKey> = surfs.into_iter().map(|s| map.insert(s)).collect();
         (keys, move |k| map.get(k).cloned().ok_or(SurfaceMiss::Stale))

@@ -101,4 +101,3 @@ fn f1_surface_kink_line_boxes_contain_f64() {
         }
     }
 }
-

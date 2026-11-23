@@ -1013,12 +1013,16 @@ fn the_lattice_keeps_what_was_proved_and_what_was_not_known() {
             "{kind:?} is unbounded"
         );
     }
-    let kv = || geom_core::spline::Knots::from(KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap())
-        .lift(f64::from_f64);
+    let kv = || {
+        geom_core::spline::Knots::from(KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap())
+            .lift(f64::from_f64)
+    };
     let infinite = crate::NurbsSurface::new(
         kv(),
         kv(),
-        (0..4).map(|i| Point3::new(f64::INFINITY, f64::from(i), 0.0)).collect(),
+        (0..4)
+            .map(|i| Point3::new(f64::INFINITY, f64::from(i), 0.0))
+            .collect(),
         vec![1.0; 4],
     )
     .unwrap();

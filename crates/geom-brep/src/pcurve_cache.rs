@@ -3472,9 +3472,9 @@ pub(crate) fn chart_foot_lane<T: Decide + geom_core::Bounds + geom_core::Certifi
             magnitude: Some(FittedMagnitude::EndpointFootDistance { last_distance }),
             ending: FittedEnding::FootUnsettled,
         }),
-        Err(other) => unreachable!(
-            "the chart foot producer refuses an unsettled foot alone: {other:?}"
-        ),
+        Err(other) => {
+            unreachable!("the chart foot producer refuses an unsettled foot alone: {other:?}")
+        }
     }
 }
 

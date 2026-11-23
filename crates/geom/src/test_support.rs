@@ -252,7 +252,6 @@ pub fn unit_patch() -> Surface<f64> {
         geom_core::spline::Knots::from(
             geom_core::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
         )
-        .lift(geom_core::Real::from_f64)
     };
     let control = [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0), (1.0, 1.0)]
         .map(|(x, y)| Point3::new(x, y, 0.0))

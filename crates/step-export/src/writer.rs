@@ -776,16 +776,19 @@ impl<'a> Writer<'a> {
         // The S10 orientation bit, emitted as `same_sense` (fn docs:
         // the two are the same predicate), turned over on a void's face.
         let same_sense = if face.sense != reversed { ".T." } else { ".F." };
-        let surface = self.body.face_surface(face_key).map_err(|miss| match miss {
-            SurfaceMiss::Stale => StepExportError::Corrupt {
-                what: "face key does not resolve",
-            },
-            // A mid-surgery fact, never exportable.
-            SurfaceMiss::Pending => StepExportError::UnsupportedSurface {
-                face: face_key,
-                kind: "pending",
-            },
-        })?;
+        let surface = self
+            .body
+            .face_surface(face_key)
+            .map_err(|miss| match miss {
+                SurfaceMiss::Stale => StepExportError::Corrupt {
+                    what: "face key does not resolve",
+                },
+                // A mid-surgery fact, never exportable.
+                SurfaceMiss::Pending => StepExportError::UnsupportedSurface {
+                    face: face_key,
+                    kind: "pending",
+                },
+            })?;
         // The surface printers: every ELEMENTARY_SURFACE of the
         // kernel's closed enum maps to its exact AP214 twin, the
         // kernel frame going in verbatim as the placement (see
@@ -877,9 +880,7 @@ impl<'a> Writer<'a> {
             // curve writer arm for arm — the non-rational simple
             // entity when every weight is exactly 1.0, otherwise the
             // `RATIONAL_B_SPLINE_SURFACE` complex instance.
-            Surface::Nurbs(ref payload) => {
-                self.b_spline_surface(payload)?
-            }
+            Surface::Nurbs(ref payload) => self.b_spline_surface(payload)?,
             // An approximating surface refuses TYPED, and does not
             // print its fit. Printing the fit would be a lie of
             // omission in the file: AP214 has no way to carry "this

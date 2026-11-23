@@ -98,7 +98,10 @@ fn n2r2_masquerade_channel_positions_f64() {
         ),
     ];
     for (name, s) in &srows {
-        assert!(!s.is_finite(), "surface {name}: a poisoned net is not finite");
+        assert!(
+            !s.is_finite(),
+            "surface {name}: a poisoned net is not finite"
+        );
     }
     assert!(curve::<f64>(|_| Point3::new(nan(), nan(), nan())).is_placeholder());
     assert!(!surf::<f64>(|_| Point3::new(nan(), nan(), nan())).is_finite());

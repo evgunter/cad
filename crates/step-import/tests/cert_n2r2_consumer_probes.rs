@@ -89,7 +89,10 @@ fn masqueraded(
         unreachable!()
     };
     let masq = corrupt(&payload, f);
-    assert!(!masq.is_finite(), "the masquerade is a net that is not finite");
+    assert!(
+        !masq.is_finite(),
+        "the masquerade is a net that is not finite"
+    );
     // Lifts RechartStrandsDescriptions: the masquerade wall is the consumer's input, edges as they were.
     body.set_face_surface_unvouched_for_tests(
         wall,

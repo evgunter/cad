@@ -73,7 +73,10 @@ fn a_net_poisoned_in_one_channel_is_described_at_the_interval_scalar() {
         vec![Real::one(); 4],
     )
     .unwrap();
-    assert!(!s.is_finite(), "a surface net poisoned in one channel is not finite");
+    assert!(
+        !s.is_finite(),
+        "a surface net poisoned in one channel is not finite"
+    );
 }
 
 /// The state the predicate names still answers it at this scalar, and
