@@ -257,3 +257,59 @@ fn a_datum_picked_whole_is_a_plane_seats_plane_through_its_xy() {
         );
     }
 }
+
+/// **A datum offset from a face** is its plane mate's far side slid along
+/// the face's outward normal (the editor's offset row, `set_offset`):
+/// the datum stands `0.005` above the block's top cap, its `z` the cap's
+/// outward normal.
+#[test]
+fn a_datum_offset_from_a_face_stands_off_it_along_its_normal() {
+    let tol = Tol::witness();
+    let (doc, block, _) = viewer::test_support::boss_on_block("datum-offset", tol);
+    let space = doc.node_space(block).expect("the block is in its space");
+    let depth = viewer::test_support::BOSS_BLOCK[2];
+    let mut session = DocSession::inline(doc, tol);
+    let datum = session
+        .perform(SessionOp::AddDatum {
+            space,
+            kind: VarKind::Plane,
+        })
+        .made
+        .expect("the op makes the datum");
+    let mut tool = MateTool::edit(session.doc(), datum).expect("the editor opens on a datum");
+    tool.add_mate(VarKind::Plane);
+    let top = FaceSelection {
+        name: StableName {
+            kind: EntityKind::Face,
+            node: block,
+            path: vec![RoleSeg::Cap(CapEnd::End)],
+        },
+        node: block,
+        body: 0,
+    };
+    assert!(tool.pick(session.doc(), top).is_none(), "the pick is taken");
+    tool.set_offset(0, Some(viewer::test_support::len(0.005)));
+    session.pump();
+    let (doc, ev) = session.landed_pair().expect("landed");
+    let proposal = tool
+        .proposal(doc, ev, tol)
+        .expect("the datum's bundle proposes");
+    let outcome = session.perform(proposal.op());
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+    let (_, ev) = session.landed_pair().expect("landed");
+    let Some(pncad::document::NodeResult::Ok(value)) = ev.nodes.get(&datum) else {
+        panic!("the datum evaluates: {:?}", ev.nodes.get(&datum))
+    };
+    let frame = value.motion.expect("the datum is off its space's origin");
+    let origin = frame.origin();
+    let z = frame.w().get();
+    assert!(
+        (origin.z - (depth + 0.005)).abs() < 1e-12,
+        "the datum stands 0.005 above the cap at {depth}: {origin:?}"
+    );
+    assert!(
+        (z.z - 1.0).abs() < 1e-12,
+        "its z is the cap's outward normal: {z:?}"
+    );
+}
