@@ -5536,6 +5536,7 @@ where
                 // An operation the walk named no view of is keyed whole.
                 let (value, place) = seen.get(&at).unwrap_or(&wire::Seen::Whole).of(at, value);
                 UpstreamRead {
+                    read: var,
                     at,
                     port,
                     place,
@@ -5555,8 +5556,11 @@ where
             seats: upstream
                 .iter()
                 .map(|read| {
-                    let built = witness.results.get(&read.at).and_then(NodeResult::value);
-                    built.map(|value| value.content_key)
+                    usable_in(witness.results, read.at, || NodeStanding::NotInDocument {
+                        node: read.at,
+                    })
+                    .ok()
+                    .map(|built| built.content_key)
                 })
                 .collect(),
         }),
@@ -5758,6 +5762,12 @@ mod tag {
         /// Keys are process-internal and never persisted, so a bump
         /// costs one whole-memo invalidation and no migration.
         format {
+            /// v25: a read's upstream key is the key of the value the
+            /// read sees (`wire::reads_seen`): the member its index
+            /// picks, with that member's place (`member`'s `PLACE`), or
+            /// the family where it takes it whole, where it was the
+            /// value standing in the reader's results; and a clearance
+            /// writes the `f64` rebuild its verifier reads.
             /// v24: an extrude's depth is signed, so a negative depth's
             /// stream is a pocket's tool where it was a refusal. v23: a
             /// slide beside a mate whose direction is oblique in
@@ -5802,7 +5812,7 @@ mod tag {
             /// operation. v9: an extrude writes its side. v8: a mate
             /// frame writes its arm word before its payload, and a mate
             /// writes the parts its face frames resolve against.)
-            VERSION = 24,
+            VERSION = 25,
         }
         /// The first word of every naming key: the naming-key domain,
         /// which keeps a naming key's stream apart from a content key's.
@@ -6889,6 +6899,10 @@ struct Rebuild<'a> {
 /// One read of an operation's output, as its reader's keys hash it.
 #[derive(Clone, Copy)]
 struct UpstreamRead<K> {
+    /// The variable the read comes through, which its reader's names
+    /// and carried records cite: a body's own read and a source of it
+    /// reach one output and name apart.
+    read: crate::VarId,
     at: RecipeNodeId,
     port: u8,
     /// The place of the member the read picks among its family's
@@ -6901,6 +6915,7 @@ impl<K> UpstreamRead<K> {
     /// This read under another key.
     fn keyed<L>(&self, key: L) -> UpstreamRead<L> {
         UpstreamRead {
+            read: self.read,
             at: self.at,
             port: self.port,
             place: self.place,
@@ -6927,6 +6942,7 @@ fn naming_key(content: ContentKey, upstream: &[UpstreamRead<NamingKey>]) -> Nami
     h.write_key(content);
     h.write_u64(upstream.len() as u64);
     for read in upstream {
+        h.write_id(read.read.0);
         h.write_id(read.at.0);
         feed_port(&mut h, read.port);
         h.write_u64(read.key.0 as u64);

@@ -458,3 +458,64 @@ fn a_member_reads_key_moves_with_the_members_place() {
         "the reader's key moves with the place"
     );
 }
+
+/// **A read's variable is an input of its reader's names**: a body's
+/// own read and a source of it reach one output, so re-pointing a seat
+/// from the one to the other moves no upstream key, and the reader's
+/// names and carried records cite the read they came through
+/// (`RoleSeg::From`). `reader = assemble([body])`, then the same seat
+/// reading `spare`, a plain source of `body`: the evaluation over the
+/// prior names as the fresh one does. Red if the naming key leaves out
+/// the variable a read comes through: both keys are then the prior's,
+/// and the reader is served the names keyed by `body`'s own read.
+#[test]
+fn a_seat_re_pointed_to_a_source_of_the_same_body_is_named_through_it() {
+    let doc = ProfileDoc::empty_derived("member-read-key-read-var", Tol::witness());
+    let (doc, body) = prism(doc, 0.0, fixture::len(1.0));
+    let (doc, _) = step(
+        doc,
+        DocEdit::DeclareVar {
+            name: VarName::from_static("spare"),
+            def: VarDecl::Source(BodyRead::plain(Operand::Node(body))),
+        },
+    );
+    let spare = doc.var_named("spare").expect("declared");
+    let (doc, reader) = insert(
+        doc,
+        Node::Assemble {
+            members: Bodies::Spelled(vec![BodyRead::plain(Operand::Node(body))]),
+        },
+    );
+    let prior = evaluate::<f64>(&doc, None);
+    let (after, _) = step(
+        doc,
+        DocEdit::SetMembers {
+            node: reader,
+            members: Bodies::Spelled(vec![BodyRead::plain(Operand::Var(spare))]),
+        },
+    );
+    let names = |ev: &Evaluation<f64>| -> Vec<StableName> {
+        let read = after.output(reader, 0).expect("the reader's read");
+        let table = ev.table(read).expect("the reader's table");
+        let mut names: Vec<StableName> = table.iter().map(|(name, _)| name.clone()).collect();
+        names.sort();
+        names
+    };
+    let fresh = evaluate::<f64>(&after, None);
+    assert_ne!(
+        names(&prior),
+        names(&fresh),
+        "the two reads name apart, or the row sees nothing"
+    );
+    let served = evaluate(&after, Some(&prior));
+    assert_eq!(
+        names(&served),
+        names(&fresh),
+        "over the prior, the reader is named through the read it now holds"
+    );
+    assert_eq!(
+        served.value(reader).map(|v| v.content_key),
+        prior.value(reader).map(|v| v.content_key),
+        "the content key holds: the body read is the same"
+    );
+}

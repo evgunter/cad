@@ -34,12 +34,13 @@ use geom_core::Real;
 pub struct ContentKey(pub u128);
 
 /// A node's NAMING key (issue #95, disposition 2 — M4 PR 5):
-/// `naming_key(N) = H(content_key(N), [(input_id_i,
+/// `naming_key(N) = H(content_key(N), [(read_i, input_id_i,
 /// naming_key(input_i)), …])` — computed like a content key but
-/// INCLUDING input node ids, composing recursively through the DAG.
-/// Names embed minting node ids (N1) while content keys exclude them
-/// (D8), so the naming half of a memoized value is a pure function of
-/// THIS key, not of the content key; a memo hit additionally requires
+/// INCLUDING input node ids and the variable each read comes through,
+/// composing recursively through the DAG. Names embed minting node ids
+/// (N1) and the reads they are carried through, while content keys
+/// exclude both (D8), so the naming half of a memoized value is a pure
+/// function of THIS key, not of the content key; a memo hit additionally requires
 /// naming-key equality, else the op re-runs (geometry bit-identical
 /// by D9, names honestly re-derived). The recursion is what catches
 /// the grandparent case: re-pointing an input two hops up changes
