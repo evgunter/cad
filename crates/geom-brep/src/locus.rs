@@ -778,6 +778,36 @@ mod tests {
     use super::*;
     use geom_core::Tol;
 
+    /// **Two parallel cylinders' gap read across their axes' swing
+    /// offers a tolerance that decides it.** Radii `1` and `0.5`, axes
+    /// `6e-9` past touching, a swing of `2e-9`, in a band of `1e-9`:
+    /// the far row, `8e-9`, is in band. The tolerance its refusal
+    /// offers, off the floor `4e-9`, reads the pair apart; the one the
+    /// far reading alone would offer, `8e-10`, refuses again on the
+    /// floor.
+    #[test]
+    fn a_parallel_gap_across_a_swing_offers_a_tolerance_that_decides_it() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let gaps = |band: Band| parallel_cylinder_gaps((1.0, 0.5), 1.5 + 6e-9, 2e-9, band);
+        let refused = gaps(band).err().expect("the far row in band");
+        assert_eq!(refused.predicate, Some("cc_parallel_gap"));
+        let offered = refused.offered_band().expect("a floor with a size");
+        assert!(
+            matches!(
+                gaps(offered),
+                Ok(CylinderGap::NotTangent { apart: true, .. })
+            ),
+            "at the offered band: {:?}",
+            gaps(offered).err()
+        );
+        let far_offer = Band::new(8e-10, 8e-9).unwrap();
+        assert_eq!(
+            gaps(far_offer).err().and_then(|e| e.predicate),
+            Some("cc_parallel_gap_floor"),
+            "at the far reading's own offer"
+        );
+    }
+
     /// **The kinds the lane holds are the kinds its dispatch reads.** A
     /// pair outside [`tangent_locus_kinds`] is `Unsupported`, and a pair
     /// inside it is not. Red when either side moves alone.

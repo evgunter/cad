@@ -6389,12 +6389,19 @@ mod travel_rows {
     /// [`germ_arm`] of the germ at `t = −π/4` turning clockwise and a
     /// partner `bands` bands of arc past its antipode, on lane `T`.
     fn half_turn_arm_on<T: geom_core::Decide>(k: f64, bands: f64) -> Result<GermArm, BooleanError> {
+        half_turn_arm_in::<T>(k, bands * band().zero(), band())
+    }
+
+    /// [`germ_arm`] in `band` of the germ at `t = −π/4` turning
+    /// clockwise and a partner `arc` metres past its antipode.
+    fn half_turn_arm_in<T: geom_core::Decide>(
+        k: f64,
+        arc: f64,
+        band: Band,
+    ) -> Result<GermArm, BooleanError> {
         let (germ, dir) = at(k, -FRAC_PI_4);
         let speed = (k * k * 0.5 + 0.5).sqrt();
-        let (site, tangent) = at(
-            k,
-            -FRAC_PI_4 + core::f64::consts::PI + bands * band().zero() / speed,
-        );
+        let (site, tangent) = at(k, -FRAC_PI_4 + core::f64::consts::PI + arc / speed);
         let turn = Turn::<T>::facing(
             geom::Line {
                 origin: Point3::origin(),
@@ -6402,11 +6409,11 @@ mod travel_rows {
             },
             (germ.map(T::from_f64), (dir * -1.0).map(T::from_f64)),
             (site.map(T::from_f64), tangent.map(T::from_f64)),
-            band(),
+            band,
         )
         .unwrap();
         assert!(turn.is_some(), "the germ and its partner face");
-        germ_arm(turn, band())
+        germ_arm(turn, band)
     }
 
     /// [`half_turn_arm_on`] at `f64`.
@@ -6432,6 +6439,50 @@ mod travel_rows {
             ),
             "k = 10: {:?}",
             arm(10.0).err()
+        );
+    }
+
+    /// **A tie the sites' slack hides offers a tolerance only where
+    /// one decides it.** The slack is the band's own zero times
+    /// `2·cot ψ`, so it shrinks with the tolerance and the bracket
+    /// about the reading shrinks with it:
+    ///
+    /// - at aspect 10 (`cot ψ` 4.95) a partner at the half-turn reads
+    ///   zero, and the slack is all there is: no tolerance decides it,
+    ///   and the refusal offers none;
+    /// - at aspect `0.4 + √1.16` (`cot ψ` 0.4) a partner `3e-9 m` past
+    ///   the half-turn reads `3.8e-9` across its slack in a band of
+    ///   `1e-9`: the refusal offers the tolerance its floor, `2.2e-9`,
+    ///   decides at, and the same pair read in that band is ordered.
+    #[test]
+    fn a_tie_across_the_slack_offers_only_a_tolerance_that_orders_the_pair() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let refused = |k: f64, arc: f64| match half_turn_arm_in::<f64>(k, arc, band) {
+            Err(BooleanError::Escalated { diag, .. })
+                if diag.predicate == Some("bool_join_arc_ahead") =>
+            {
+                diag
+            }
+            other => panic!("k = {k}, {arc:e} m: {:?}", other.err()),
+        };
+        assert!(
+            !refused(10.0, 0.0).offers_tolerance(),
+            "a reading that is all slack: {}",
+            refused(10.0, 0.0)
+        );
+        let k = 0.4 + 1.16_f64.sqrt();
+        let offered = refused(k, 3e-9)
+            .offered_band()
+            .expect("a floor with a size");
+        assert!(
+            (offered.zero() - 2.2e-10).abs() < 1e-12,
+            "the floor's size over K: {:e}",
+            offered.zero()
+        );
+        assert!(
+            half_turn_arm_in::<f64>(k, 3e-9, offered).is_ok(),
+            "read in the offered band: {:?}",
+            half_turn_arm_in::<f64>(k, 3e-9, offered).err()
         );
     }
 

@@ -466,6 +466,21 @@ fn classify<T: Decide, A: MarginTerms>(
     margin: Margin<T, A>,
     band: Band,
 ) -> Result<Decided, Indeterminate> {
+    classify_quoting(name, margin, band, |source| source)
+}
+
+/// [`classify`], its escalation minted as `quote` restates it: for a row
+/// whose refusal quotes another reading of the same decision than the
+/// one classified ([`decide_across`]'s far row, which quotes the
+/// bracket's floor). `quote` keeps the predicate, the band and the
+/// classifier's verdict on subdivision; the verdict channel never sees
+/// it.
+fn classify_quoting<T: Decide, A: MarginTerms>(
+    name: &'static str,
+    margin: Margin<T, A>,
+    band: Band,
+    quote: impl FnOnce(Indeterminate) -> Indeterminate,
+) -> Result<Decided, Indeterminate> {
     // The name is SCOPED to this classification: it is restored on the
     // way out, so a decision taken outside any named door (a bare
     // `sign_within`, a comparison inside a builder) is recorded under
@@ -490,17 +505,17 @@ fn classify<T: Decide, A: MarginTerms>(
     };
     // Both channels of the innermost open bracket: a definite sign as
     // a verdict, an indeterminate outcome as an escalation.
-    match &outcome {
-        Ok(decided) => record_verdict(Verdict {
-            predicate: name,
-            sign: decided.sign,
-            role: current_role(),
-        }),
-        Err(source) => {
-            record_escalation(*source);
+    match outcome {
+        Ok(decided) => {
+            record_verdict(Verdict {
+                predicate: name,
+                sign: decided.sign,
+                role: current_role(),
+            });
+            Ok(decided)
         }
+        Err(source) => Err(record_escalation(quote(source))),
     }
-    outcome
 }
 
 /// **THE STAGED-CEILING DIAL** (`identity-pass-testing`, a test-only
@@ -1214,10 +1229,19 @@ pub fn decide_magnitude_reported<T: Decide, A: MarginTerms>(
 /// band would sum to nearly twice it. At zero swing it is the plain
 /// two-sided reading of `datum`, under two names.
 ///
+/// **What a refusal offers.** A smaller tolerance decides the row only
+/// by deciding its floor past the band, so the far row left in band
+/// quotes the floor's size, `|datum| − swing`, not its own: tightening
+/// below that size over `K` decides the floor, and the far row with it,
+/// for a swing that does not grow as the tolerance shrinks. Where the
+/// bracket holds zero the floor has no size, and the refusal offers no
+/// tolerance: none decides a reading that is its own swing.
+///
 /// # Errors
 ///
 /// The [`Indeterminate`] of the row left undecided, naming it: the far
-/// row in its band, or a floor decided Zero beside a definite far row.
+/// row in its band, quoting the floor, or a floor decided Zero beside a
+/// definite far row.
 pub fn decide_across<T: Decide>(
     names: [&'static str; 2],
     datum: T,
@@ -1241,17 +1265,46 @@ pub fn decide_across_reported<T: Decide>(
     band: Band,
 ) -> Result<(Sign, MarginDiag), Indeterminate> {
     let swing = swing.abs();
-    let (far_side, margin) = decide_magnitude_reported(far, Margin::of(datum.abs() + swing), band)?;
-    match far_side {
-        Magnitude::Zero => Ok((Sign::Zero, margin)),
-        Magnitude::Positive => {
+    let Decided { sign, margin } =
+        classify_quoting(far, Margin::of(datum.abs() + swing), band, |source| {
+            quoting_floor(source, (datum.abs() - swing).max(T::zero()), band)
+        })?;
+    match sign {
+        Sign::Zero => Ok((Sign::Zero, margin)),
+        Sign::Positive => {
             let near = (datum - swing).max(T::zero()) + (datum + swing).min(T::zero());
             Ok(match decide_nonzero(floor, Margin::of(near), band)? {
                 NonzeroSign::Positive => (Sign::Positive, margin),
                 NonzeroSign::Negative => (Sign::Negative, margin),
             })
         }
+        Sign::Negative => unreachable!(
+            "`{far}` decided a far row Negative (margin {margin:e}, band ({:e}, {:e})): a \
+             magnitude plus a swing's magnitude is nonnegative by construction",
+            band.zero(),
+            band.escalate()
+        ),
     }
+}
+
+/// The far row's escalation `source`, quoting the bracket's `floor` (a
+/// magnitude, zero where the bracket holds zero) in place of the far
+/// reading: the floor's own reading against `band`, which is in band or
+/// in the zero band since it is no larger than the far reading. An
+/// unreadable far row keeps its own reading.
+fn quoting_floor<T: Decide>(source: Indeterminate, floor: T, band: Band) -> Indeterminate {
+    if source.margin.is_invalid() {
+        return source;
+    }
+    let margin = match Margin::of(floor).sign_within(band) {
+        Ok(Decided {
+            sign: Sign::Zero,
+            margin,
+        }) => margin,
+        Err(in_band) => in_band.margin,
+        Ok(_) => return source,
+    };
+    Indeterminate { margin, ..source }
 }
 
 /// **The measurement gate** — the funnel's door for a value an op is
