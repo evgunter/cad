@@ -6,7 +6,7 @@
 use eframe::egui;
 use pncad::document::{
     Axis3, Dimension, Doc, Evaluation, Frame, HeldNodes, ProfileProgram, RecipeNodeId, Said,
-    SlotId, VarId, VarName,
+    Sentence, SlotId, VarId, VarName,
 };
 use pncad::quantity::UnitDef;
 use pncad::select::{AboutReference, Resolution};
@@ -83,8 +83,8 @@ impl ViewerBehavior<'_> {
                     node,
                     self.session.part_files(),
                 );
-                relation_rows(ui, Direction::Reads, &related.reads, self.ops);
-                relation_rows(ui, Direction::ReadBy, &related.read_by, self.ops);
+                relation_rows(ui, doc, Direction::Reads, &related.reads, self.ops);
+                relation_rows(ui, doc, Direction::ReadBy, &related.read_by, self.ops);
             }
             // Slot rows for the feature that MADE the picked entity —
             // the node `slot_groups` itself answered for, so the rows
@@ -491,12 +491,15 @@ impl ViewerBehavior<'_> {
             Standing::Empty | Standing::Variable { .. } => {}
             Standing::Node { node, present } => {
                 ui.horizontal(|ui| {
-                    ui.label(selected_node_heading(
+                    let heading = selected_node_heading(
                         landed.map(|(doc, _)| doc),
                         self.session.part_files(),
                         said,
                         *node,
-                    ));
+                    );
+                    let heading =
+                        crate::widgets::sentence(ui, &heading, self.session.doc(), |text| text);
+                    self.ops.extend(heading.selects.map(SessionOp::Select));
                     if *present && delete_button(ui, self.session, *node) {
                         self.ops.push(SessionOp::DeleteNode { node: *node });
                     }
@@ -618,11 +621,9 @@ impl ViewerBehavior<'_> {
             return;
         }
         ui.separator();
-        ui.label(crate::tree::node_label(
-            doc,
-            node,
-            self.session.part_files(),
-        ));
+        let heading = crate::relations::Related::node(doc, node, self.session.part_files());
+        let heading = crate::widgets::sentence(ui, heading.said(), self.session.doc(), |text| text);
+        self.ops.extend(heading.selects.map(SessionOp::Select));
         let mut on = self.toggles.body_on(node);
         if body_toggle(ui, &mut on) {
             self.ops.push(SessionOp::SetBodyOn { node, on });
@@ -1359,10 +1360,12 @@ fn selected_node_heading(
     files: &crate::parts::PartFiles,
     said: &HeldNodes,
     node: RecipeNodeId,
-) -> String {
+) -> Sentence {
     match landed.filter(|doc| doc.node(node).is_some()) {
-        Some(doc) => crate::tree::node_label(doc, node, files),
-        None => crate::tree::spelled(&said.spoken(node)),
+        Some(doc) => crate::relations::Related::node(doc, node, files)
+            .said()
+            .clone(),
+        None => Sentence::from(crate::tree::spelled(&said.spoken(node))),
     }
 }
 
@@ -1401,6 +1404,7 @@ impl Direction {
 /// nothing this document holds. Nothing at all for no rows.
 pub(crate) fn relation_rows(
     ui: &mut egui::Ui,
+    on_screen: &Doc<ProfileProgram>,
     direction: Direction,
     rows: &[crate::relations::RelationRow],
     ops: &mut Vec<SessionOp>,
@@ -1413,11 +1417,11 @@ pub(crate) fn relation_rows(
         ui.horizontal_wrapped(|ui| {
             ui.label(direction.seat(row.seat));
             for entry in &row.entries {
-                related_entry(ui, entry, ops);
+                related_entry(ui, on_screen, entry, ops);
             }
             if let Some(through) = &row.through {
                 ui.label(THROUGH);
-                related_entry(ui, through, ops);
+                related_entry(ui, on_screen, through, ops);
             }
         });
     }
@@ -1427,24 +1431,17 @@ pub(crate) fn relation_rows(
 /// reads it through; the placement editor's "copy of" row says it too.
 pub(crate) const THROUGH: &str = "through";
 
-/// One [`crate::relations::Related`], drawn: a link pushing its
-/// selection, or its words.
+/// One [`crate::relations::Related`], drawn ([`crate::widgets::sentence`]
+/// against `on_screen`): its mention a link pushing its selection, the
+/// rest words.
 pub(crate) fn related_entry(
     ui: &mut egui::Ui,
+    on_screen: &Doc<ProfileProgram>,
     entry: &crate::relations::Related,
     ops: &mut Vec<SessionOp>,
 ) {
-    let said = entry.said().to_string();
-    match entry.selects() {
-        Some(selection) => {
-            if crate::widgets::message_link(ui, said.as_str()).clicked() {
-                ops.push(SessionOp::Select(selection));
-            }
-        }
-        None => {
-            crate::widgets::message(ui, said.as_str());
-        }
-    }
+    let said = crate::widgets::sentence(ui, entry.said(), on_screen, |text| text);
+    ops.extend(said.selects.map(SessionOp::Select));
 }
 
 /// **A picked entity's header**: the pick as the chrome says one

@@ -571,7 +571,10 @@ pub(crate) fn edit_door_ui(
             }
             (Err(refusal), _) => {
                 news.standing = None;
-                news.notices.push(frame::refusal_message(&refusal));
+                news.notices.push(frame::refusal_message_by(
+                    &refusal,
+                    pncad::document::Speaker::of(session.committed_doc()),
+                ));
             }
         }
     }

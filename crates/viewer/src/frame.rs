@@ -231,7 +231,7 @@ use std::path::Path;
 use pncad::document::{
     CheckEvidence, CheckFinding, ChecksReport, Doc, DocumentId, Evaluation, FindingSubject,
     Maintenance, NamedCell, NodeErrorKind, ParseError, PartFault, ProductError, ProductErrorKind,
-    ProfileProgram, RecipeNodeId, ResolveFault, Said, SlotId, Speaker, VarName,
+    ProfileProgram, RecipeNodeId, ResolveFault, Run, Said, Sentence, SlotId, Speaker, VarName,
 };
 use pncad::prelude::EntityKind;
 use pncad::quantity::LengthUnit;
@@ -434,7 +434,7 @@ partial_mirror! {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Message {
     subject: Subject,
-    text: String,
+    said: Sentence,
     retold: Retold,
 }
 
@@ -495,10 +495,29 @@ impl Message {
     /// is the under-admission [`frame_status`]'s rank 1 exists to
     /// stop: a producer added later would drop its news beside a
     /// refusal without ever being asked whether it could.
-    pub fn new(subject: Subject, text: impl Into<String>, retold: Retold) -> Self {
+    ///
+    /// A mention whose spelling carries the mark — a label typed with
+    /// it — is rewritten as words, since its spelling is the kernel's
+    /// and only words can be rewritten; it is then no link.
+    pub fn new(subject: Subject, said: impl Into<Sentence>, retold: Retold) -> Self {
+        let unmarked = |words: &str| Sentence::from(words.replace(NOTICE_MARK, LIST_SEPARATOR.trim()));
+        let mut out = Sentence::new();
+        for run in said.into().runs() {
+            out.append(match run {
+                Run::Words(words) => unmarked(words),
+                Run::Mention(mention) => {
+                    let spelled = Sentence::from(mention.clone()).to_string();
+                    if spelled.contains(NOTICE_MARK) {
+                        unmarked(&spelled)
+                    } else {
+                        Sentence::from(mention.clone())
+                    }
+                }
+            });
+        }
         Self {
             subject,
-            text: text.into().replace(NOTICE_MARK, LIST_SEPARATOR.trim()),
+            said: out,
             retold,
         }
     }
@@ -527,11 +546,10 @@ impl Message {
         let never = notices.iter().any(|notice| notice.retold == Retold::Never);
         Self {
             subject,
-            text: notices
-                .iter()
-                .map(Message::text)
-                .collect::<Vec<_>>()
-                .join(NOTICE_SEPARATOR),
+            said: Sentence::joined(
+                notices.iter().map(|notice| notice.said.clone()),
+                NOTICE_SEPARATOR,
+            ),
             retold: if never { Retold::Never } else { Retold::Again },
         }
     }
@@ -541,9 +559,15 @@ impl Message {
         self.subject
     }
 
-    /// The sentence shown on the line.
-    pub fn text(&self) -> &str {
-        &self.text
+    /// The sentence shown on the line, its mentions kept: what the
+    /// chrome draws (`widgets::sentence`).
+    pub fn said(&self) -> &Sentence {
+        &self.said
+    }
+
+    /// The sentence shown on the line, as text.
+    pub fn text(&self) -> String {
+        self.said.to_string()
     }
 
     /// Whether anything will say its news again.
@@ -573,10 +597,10 @@ impl core::fmt::Display for Message {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let Self {
             subject: _,
-            text,
+            said,
             retold: _,
         } = self;
-        f.write_str(text)
+        write!(f, "{said}")
     }
 }
 
@@ -842,12 +866,12 @@ pub fn acts(op: &SessionOp) -> bool {
 /// produced. Outside this module the batch's verdict is spelled
 /// `frame_status(&[], ops, refusal)`, which is the same answer and
 /// cannot be asked of a frame with news without weighing it.
-fn batch_status(ops: &[SessionOp], refusal: Option<&Refusal>) -> RankedVerdict {
+fn batch_status(ops: &[SessionOp], refusal: Option<&Refusal>, by: Speaker<'_>) -> RankedVerdict {
     // A refusal on the line is a sentence made once; the next batch that
     // acts retires it, so its labels stay fresh only while every op that
     // changes a label answers `acts` true (`crates/viewer/README.md`).
     match (ops.iter().any(acts), refusal) {
-        (_, Some(refusal)) => RankedVerdict::Show(refusal_message(refusal)),
+        (_, Some(refusal)) => RankedVerdict::Show(refusal_message_by(refusal, by)),
         (true, None) => RankedVerdict::Clear,
         (false, None) => RankedVerdict::Keep,
     }
@@ -891,8 +915,38 @@ pub fn batch_refusal(
 /// arrives as a NOTICE stays under a batch refusal in the same frame
 /// ([`frame_status`]'s rank 1), as a second refusal of one frame does
 /// under [`Refusal::preferred`].
+///
+/// `by` says the nodes it names: the document it was raised in, so
+/// each is a mention a reader can follow there, or [`Speaker::TAG`]
+/// where no document on screen is the refusal's ([`refusal_speaker`]).
+pub fn refusal_message_by(refusal: &Refusal, by: Speaker<'_>) -> Message {
+    Message::new(
+        Subject::Document,
+        refusal.said(
+            by,
+            Some(pncad::geom_brep::recourse::Reading::AtRest.into()),
+        ),
+        Retold::Again,
+    )
+}
+
+/// [`refusal_message_by`] in no document: for a refusal no document on
+/// screen raised (a typed number the dimension cannot carry), whose
+/// mentions, if any, link nowhere.
 pub fn refusal_message(refusal: &Refusal) -> Message {
-    Message::new(Subject::Document, crate::shown(refusal), Retold::Again)
+    refusal_message_by(refusal, Speaker::TAG)
+}
+
+/// **Who says a batch's refusal** ([`refusal_message_by`]): `doc`, the
+/// document [`batch_refusal`] spoke it again from — unless an op in the
+/// batch replaced the document, whose ids say nothing about the
+/// refusal's, and then no document.
+pub fn refusal_speaker<'d>(ops: &[SessionOp], doc: &'d Doc<ProfileProgram>) -> Speaker<'d> {
+    if ops.iter().any(SessionOp::replaces_the_document) {
+        Speaker::TAG
+    } else {
+        Speaker::of(doc)
+    }
 }
 
 /// **The status line after a whole FRAME**: what the open tool said
@@ -1001,7 +1055,18 @@ pub fn frame_status(
     ops: &[SessionOp],
     refusal: Option<&Refusal>,
 ) -> RankedVerdict {
-    match batch_status(ops, refusal) {
+    frame_status_by(notices, ops, refusal, Speaker::TAG)
+}
+
+/// [`frame_status`], the refusal said by `by` ([`refusal_speaker`]):
+/// the app's door, so a node the refusal names is a link.
+pub fn frame_status_by(
+    notices: &[Message],
+    ops: &[SessionOp],
+    refusal: Option<&Refusal>,
+    by: Speaker<'_>,
+) -> RankedVerdict {
+    match batch_status(ops, refusal, by) {
         RankedVerdict::Show(refused) => {
             let line: Vec<Message> = core::iter::once(refused)
                 .chain(
@@ -2401,8 +2466,9 @@ pub struct CheckRow {
     pub select: Selection,
     /// That node or variable, spoken.
     pub button: String,
-    /// The finding, its copies spoken.
-    pub sentence: String,
+    /// The finding, its copies spoken, each node it names a mention in
+    /// the landed document the report was spoken from.
+    pub sentence: Sentence,
     /// The cells an unproven coincidence names, each a button that
     /// selects it: a face or an edge as itself, any other cell as the
     /// node whose table names it. Empty for every other finding.
@@ -2501,7 +2567,7 @@ pub fn check_rows(report: &ChecksReport, landed: &Doc<ProfileProgram>) -> Vec<Ch
                     return CheckRow {
                         select: Selection::Variable(var),
                         button: by.read(var).to_string(),
-                        sentence: Said(finding, by).sentence().to_string(),
+                        sentence: Said(finding, by).sentence(),
                         cells: Vec::new(),
                         add_to_product: None,
                     };
@@ -2534,7 +2600,7 @@ pub fn check_rows(report: &ChecksReport, landed: &Doc<ProfileProgram>) -> Vec<Ch
             CheckRow {
                 select: Selection::Node(node),
                 button: (pncad::document::sentence!(by.node(node))).to_string(),
-                sentence: Said(finding, by).sentence().to_string(),
+                sentence: Said(finding, by).sentence(),
                 cells: coincidence_cells(finding, by, landed),
                 add_to_product,
             }
@@ -4002,7 +4068,7 @@ mod tests {
 
         let acting = [SessionOp::Undo];
         assert_eq!(
-            batch_status(&acting, None),
+            batch_status(&acting, None, Speaker::TAG),
             RankedVerdict::Clear,
             "the frame this row is about CLEARS the line on its own — without \
              that, the composition below would be asserting about a case \

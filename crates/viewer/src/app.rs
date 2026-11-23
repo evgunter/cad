@@ -1610,7 +1610,12 @@ impl ViewerApp {
         } else if answered_save_choice {
             self.save_choice = None;
         }
-        let verdict = frame::frame_status(&notices, &performed, refusal.as_ref());
+        let verdict = frame::frame_status_by(
+            &notices,
+            &performed,
+            refusal.as_ref(),
+            frame::refusal_speaker(&performed, self.session.committed_doc()),
+        );
         // The refuse-then-offer pair for a parse refusal: hold the
         // refused text in the field it was typed into so acting on the
         // refusal does not cost it, and — for an unknown variable
@@ -1835,8 +1840,13 @@ impl ViewerApp {
                                 {
                                     ops.push(SessionOp::Select(row.select));
                                 }
-                                // A sentence, so `widgets::message`.
-                                crate::widgets::message(ui, row.sentence);
+                                let said = crate::widgets::sentence(
+                                    ui,
+                                    &row.sentence,
+                                    self.session.doc(),
+                                    |text| text,
+                                );
+                                ops.extend(said.selects.map(SessionOp::Select));
                             });
                             if let Some(node) = row.add_to_product
                                 && ui
@@ -2351,7 +2361,13 @@ impl ViewerApp {
                 ui.separator();
                 egui::ScrollArea::horizontal()
                     .id_salt("viewer_status_line")
-                    .show(ui, |ui| crate::widgets::message(ui, status.text()));
+                    .show(ui, |ui| {
+                        let said =
+                            crate::widgets::sentence(ui, status.said(), self.session.doc(), |text| {
+                                text
+                            });
+                        ops.extend(said.selects.map(SessionOp::Select));
+                    });
             });
         }
     }

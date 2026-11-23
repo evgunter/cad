@@ -2360,7 +2360,7 @@ mod tests {
             said.contains("Extrude") && !said.contains(&format!("{:?}", face.name.path)),
             "the face's minter is said as the landed document holds it, and no path: {said}"
         );
-        let texts: Vec<&str> = news.iter().map(frame::Message::text).collect();
+        let texts: Vec<String> = news.iter().map(frame::Message::text).collect();
         assert_eq!(
             texts,
             [format!(

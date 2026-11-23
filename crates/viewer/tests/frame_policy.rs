@@ -199,7 +199,7 @@ fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
         panic!("two notices are shown, got {both:?}");
     };
     assert!(
-        line.text().contains(notice.text()) && line.text().contains(second.text()),
+        line.text().contains(&notice.text()) && line.text().contains(&second.text()),
         "{line}"
     );
     assert_eq!(

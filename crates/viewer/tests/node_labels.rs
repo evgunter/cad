@@ -1019,7 +1019,7 @@ fn the_checks_window_speaks_from_the_landed_document() {
     // placements (A10).
     let copy = |body| tag(common::copy_of(landed, body).0.digest());
     assert!(
-        row.sentence.contains(&format!(
+        row.sentence.to_string().contains(&format!(
             "Place {} and Place {} overlap",
             copy(big),
             copy(small)
@@ -1028,7 +1028,7 @@ fn the_checks_window_speaks_from_the_landed_document() {
         row.sentence
     );
     assert!(
-        !row.sentence.contains("renamed") && !row.button.contains("renamed"),
+        !row.sentence.to_string().contains("renamed") && !row.button.contains("renamed"),
         "and never the committed label: {row:?}"
     );
 }
@@ -1082,6 +1082,7 @@ fn an_unused_variables_row_selects_the_variable() {
     assert!(
         rows[1]
             .sentence
+            .to_string()
             .contains("check unused: spare: used by nothing"),
         "{}",
         rows[1].sentence

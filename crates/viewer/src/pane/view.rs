@@ -58,10 +58,12 @@ impl ViewerBehavior<'_> {
         };
         if let Some(status) = self.status.as_ref() {
             ui.separator();
-            // A sentence, so `widgets::message` — here in a layout
+            // A sentence, so `widgets::sentence` — here in a layout
             // egui would have wrapped it in anyway, which is a fact
             // about the column and not about the message.
-            crate::widgets::message(ui, status.text());
+            let said = crate::widgets::sentence(ui, status.said(), self.session.doc(), |text| text);
+            self.ops
+                .extend(said.selects.map(crate::session::SessionOp::Select));
         }
     }
 
@@ -764,7 +766,7 @@ mod tests {
             ]);
             field.tab();
             assert_eq!(field.request, None, "{typed} {unit:?} commits nothing");
-            let said_texts: Vec<&str> = field.notices.iter().map(frame::Message::text).collect();
+            let said_texts: Vec<String> = field.notices.iter().map(frame::Message::text).collect();
             assert!(
                 matches!(said_texts.as_slice(), [one] if one.starts_with(said)),
                 "{typed} in {unit:?} is refused as typed: {said_texts:?}"
