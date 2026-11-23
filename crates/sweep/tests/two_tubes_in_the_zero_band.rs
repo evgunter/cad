@@ -253,10 +253,12 @@ fn a_quarter_rod_in_the_bore() {
 /// A rod `r = 0.25` lying along `x` over `[−1.5, 1.5]` on a unit puck's
 /// top face `y = 0` (the puck `y ∈ [−0.3, 0]`, spun 1 rad), its axis
 /// `0.5·ε` above the tangency and its seam on the contact ruling, which
-/// the puck's rim circle crosses at `x = ±1`. ∪ records the rim's two
-/// touches on the seam and the seam lying in the top face between them
-/// (the sweep's record of a line in a plane face), which the result
-/// carries on its seam edge, the rod's whole length.
+/// the puck's rim circle crosses at `x = ±1`. ∪ records the rim touching
+/// the seam and the seam lying in the top face (the sweep's record of a
+/// line in a plane face): the join takes the rim's two touches off the
+/// seam, a wrap edge of the rod's one wall, so both records name the
+/// whole seam, the rod's length, and the rim, one closed edge, touches
+/// it in one record.
 #[test]
 fn a_rod_on_a_puck_with_its_seam_on_the_ruling() {
     let gap = 0.5 * band().zero();
@@ -278,13 +280,9 @@ fn a_rod_on_a_puck_with_its_seam_on_the_ruling() {
         ),
         (rod, PI * r * r * 3.0),
         &Want {
-            records: 3,
+            records: 2,
             findings: &[
                 "undecided Cylinder / Cylinder",
-                "undecided Cylinder / Cylinder",
-                "undecided Cylinder / Cylinder",
-                "undecided Cylinder / Cylinder",
-                "undecided Cylinder / Plane",
                 "undecided Cylinder / Plane",
                 "undecided Solid / Solid",
             ],

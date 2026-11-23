@@ -26,8 +26,11 @@
 //! (`[coincidence.door]`).
 //!
 //! Joinable is one predicate ([`joinable`]), shared by the join and by
-//! [`joinable_vertices`]. The two edges' face pairs are one pair of
-//! distinct faces, and the edges lie on one carrier by structure:
+//! [`joinable_vertices`]. The two edges' face pairs are one pair: two
+//! distinct faces, or one face both edges are the wrap edge of, a
+//! station on that face's seam (DESIGN `[topology]`'s seam clause), the
+//! one loop passing the vertex twice and the kill taking both of its
+//! visits. The edges lie on one carrier by structure:
 //! - **planar**: both faces on `Plane` carriers of distinct keys, both
 //!   edges certified lines described as the `Intersection` of those
 //!   keys. Two planes that cross meet in one line; two that do not
@@ -610,7 +613,10 @@ fn joinable<T: Decide>(
         if f <= g { (f, g) } else { (g, f) }
     };
     let (f, g) = pair(s1);
-    if f == g || pair(s2) != (f, g) {
+    // One face on both sides: both pieces are its wrap edge, or neither
+    // is a station on one edge.
+    let wrap_station = || crate::validate::wraps(body, e1) && crate::validate::wraps(body, e2);
+    if pair(s2) != (f, g) || (f == g && !wrap_station()) {
         return Ok(None);
     }
     let Some(he) = body.mate(*h1) else {
