@@ -2497,8 +2497,12 @@ impl<T: geom_core::Certifies + geom_core::CertifiedBounds> EdgeCurve<T> {
     ///    `start` and `end` ([`crate::session_box::edge_in_box`]):
     ///    [`CertifyError::OutsideSessionBox`], or a limit
     ///    ([`CertifyError::SessionBoxUnshown`]), or an edge with no
-    ///    cover, by its cause ([`CertifyError::SessionBoxUncovered`]).
-    ///    Nothing else is decided on an edge the box has not shown inside.
+    ///    cover, by its cause ([`CertifyError::SessionBoxUncovered`]),
+    ///    save that an edge with no cover whose stated span runs no length
+    ///    forward is refused by its span (check 2), the caller's input: a
+    ///    chord between coincident points has no cover for that reason
+    ///    alone. Nothing else is decided on an edge the box has not shown
+    ///    inside.
     /// 1. Implementedness: described surfaces resolve and are not
     ///    `Nurbs`, except the described NURBS wall of an `Intersection`
     ///    with a plane, sphere, cylinder or torus, the two charts of a
@@ -5283,7 +5287,22 @@ fn run_checks<T: geom_core::Certifies + geom_core::CertifiedBounds>(
     kept: &[&LocusCertificate<T>],
 ) -> Result<Checked<T>, CertifyError> {
     // ---- Check 0: the session box, of the edge's region with its ends.
-    in_the_box(spec, (start, end), band)?;
+    match in_the_box(spec, (start, end), band) {
+        Ok(()) => {}
+        // An edge with no cover may owe it to its caller's own span: a
+        // chord between coincident points divides its direction by their
+        // zero distance. The span is the door's input, so where it is
+        // decided to run no length forward that is the refusal the caller
+        // is owed (the door's, `StatedInterval`); where it is forward, or
+        // its reading meets the same poison, the box's, by its cause.
+        Err(uncovered @ CertifyError::SessionBoxUncovered { .. }) => {
+            return Err(match decide_turn(spec, band) {
+                Err(empty @ CertifyError::IntervalNotForward { .. }) => empty,
+                _ => uncovered,
+            });
+        }
+        Err(refused) => return Err(refused),
+    }
     let stored = &spec.carrier;
     let read = ReadSpec::of(spec, band)?;
     let (spec, reading) = (read.spec(spec), read.reading());
@@ -6897,45 +6916,43 @@ mod tests {
         EdgeCurveSpec::line_between(p0, p1)
     }
 
-    /// **A chord between coincident points, spelled finitely** as the
-    /// import door spells a line (a stored direction, here unit, over a
-    /// span of no length): its cover is the point, so the session box
-    /// shows it inside and the span check reads it.
-    /// [`EdgeCurveSpec::line_between`] of coincident points divides by
-    /// their zero distance, so its carrier is not finite, which the box
-    /// refuses first, by that cause
-    /// (`coincident_points_spelled_by_their_zero_distance_have_no_cover`).
-    fn coincident_chord(p: Point3<f64>) -> EdgeCurveSpec<f64> {
-        EdgeCurveSpec {
-            carrier: Curve3::line(p, geom_core::Vec3::unit_x()),
-            param_start: 0.0,
-            param_end: 0.0,
-            ..EdgeCurveSpec::line_between(p, p)
-        }
-    }
-
-    /// **Coincident points spelled by their zero distance have no
-    /// cover**: [`EdgeCurveSpec::line_between`] of one point twice divides
-    /// its direction by zero, so the box refuses the edge first, by that
-    /// cause (a datum of its line is not finite: a defect), at the
-    /// minting door; nothing else is decided on it. *Breaks if* an edge
-    /// with no cover is left to the checks.
+    /// **Coincident points spelled by their zero distance are refused by
+    /// their span**: [`EdgeCurveSpec::line_between`] of one point twice
+    /// divides its direction by zero, so the edge has no cover, and the
+    /// box asks first; but the reason is the caller's own span, which runs
+    /// no length, so the door's refusal of its input is what the caller
+    /// gets ([`CertifyError::StatedInterval`], the span's lever), not the
+    /// box's defect. The same uncovered carrier over a forward span is the
+    /// box's, by its cause. *Breaks if* an uncovered edge is left to the
+    /// checks (the forward row), or the box's defect hides the caller's
+    /// empty span.
     #[test]
-    fn coincident_points_spelled_by_their_zero_distance_have_no_cover() {
+    fn coincident_points_spelled_by_their_zero_distance_are_refused_by_their_span() {
         let p = Point3::new(1.0, 2.0, 3.0);
-        let err = EdgeCurve::certify(
-            EdgeCurveSpec::line_between(p, p),
-            p,
-            p,
-            |_| None,
-            geom_core::test_support::fixture_lever(1.0),
-            band(),
-            NurbsLane::certified(),
-        )
-        .unwrap_err();
+        let certify = |spec: EdgeCurveSpec<f64>| {
+            EdgeCurve::certify(
+                spec,
+                p,
+                p,
+                |_| None,
+                geom_core::test_support::fixture_lever(1.0),
+                band(),
+                NurbsLane::certified(),
+            )
+            .unwrap_err()
+        };
+        let empty = certify(EdgeCurveSpec::line_between(p, p));
+        assert!(
+            matches!(empty, CertifyError::StatedInterval { .. }),
+            "{empty:?}"
+        );
+        let forward = certify(EdgeCurveSpec {
+            param_end: 1.0,
+            ..EdgeCurveSpec::line_between(p, p)
+        });
         assert!(
             matches!(
-                err,
+                forward,
                 CertifyError::SessionBoxUncovered {
                     why: crate::session_box::UncoveredCause::Carrier {
                         kind: "line",
@@ -6944,10 +6961,10 @@ mod tests {
                     }
                 }
             ),
-            "{err:?}"
+            "{forward:?}"
         );
         assert_eq!(
-            err.render(crate::recourse::Reading::Build),
+            forward.render(crate::recourse::Reading::Build),
             format!(
                 "the edge's line carrier has no cover over its span: a datum of it is not a \
                  finite number, so the kernel cannot show the edge inside the 1e3 m session box. \
@@ -9210,7 +9227,7 @@ mod tests {
                     ..EdgeCurveSpec::line_between(Point3::origin(), Point3::new(1.0, 0.0, 0.0))
                 },
             ),
-            ("coincident", coincident_chord(p)),
+            ("coincident", EdgeCurveSpec::line_between(p, p)),
             ("past a turn", arc(3.0 * core::f64::consts::PI)),
             ("past a turn within a coarse band", arc(slightly_past)),
         ];
@@ -9373,16 +9390,7 @@ mod tests {
             )
             .unwrap_err()
         };
-        let coincident = EdgeCurve::certify(
-            coincident_chord(p),
-            p,
-            p,
-            |_| None,
-            geom_core::test_support::fixture_lever(1.0),
-            band,
-            NurbsLane::certified(),
-        )
-        .unwrap_err();
+        let coincident = refused(p);
         let sibling = refused(Point3::new(1.0 + 5e-12, 2.0, 3.0));
         assert!(
             matches!(coincident, CertifyError::StatedInterval { .. }),

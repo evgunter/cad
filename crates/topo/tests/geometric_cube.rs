@@ -385,6 +385,8 @@ fn totality_no_panics_on_poison_inputs() {
     let mut spec =
         EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
     spec.carrier = Curve3::nurbs_placeholder();
+    // The placeholder's net is all poison: the edge has no cover, and the
+    // session box refuses it first, by that cause.
     assert!(matches!(
         body.mev(
             MevSite::Lone {
@@ -395,7 +397,7 @@ fn totality_no_panics_on_poison_inputs() {
             Tol::witness(),
         ),
         Err(EulerOpError::Certification {
-            error: CertifyError::Unimplemented
+            error: CertifyError::SessionBoxUncovered { .. }
         })
     ));
     assert_eq!(validate(&body), Ok(()));

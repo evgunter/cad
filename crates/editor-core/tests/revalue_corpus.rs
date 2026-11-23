@@ -552,12 +552,15 @@ fn holds_until_parting(
 }
 
 /// `plate_param` under the apart move, to the ray-schedule gate's exact
-/// zero it parts at.
+/// zero it parts at. Each edge's certification asks the session box of
+/// the edge first, one `session_box_reach` per certified edge, so 78 more
+/// decisions and as many checks come before the parting (`3246 → 3324`,
+/// `7228 → 7306`) at every ε row; nothing parts or flips earlier.
 #[test]
 fn revalue_plate_param_apart_to_its_parting() {
     holds_until_parting(
         "plate_param",
-        (3246, 7228),
+        (3324, 7306),
         PerRow {
             at_1e6: 1955,
             at_1e9: 1993,
