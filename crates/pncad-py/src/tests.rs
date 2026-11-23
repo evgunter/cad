@@ -3011,6 +3011,10 @@ fn import_report_row_tags_are_stable() {
             "carrier_built",
         ),
         (
+            NormalizationKind::CollapsedSideMadeOne { moved_by: 3e-9 },
+            "collapsed_side_made_one",
+        ),
+        (
             NormalizationKind::CurvePromoted {
                 kind: pncad::step_import::PromotedCurveKind::Circle,
                 residual: 1e-17,
@@ -3068,7 +3072,7 @@ fn path_error_tags_are_stable() {
         .expect("a leg east")
         .angle(0.0, Tol::witness())
         .expect_err("a corner tangent to its incoming leg refuses");
-    assert_eq!(path_error_tag(&tangent), "junction_tangent");
+    assert_eq!(path_error_tag(&tangent), "junction_turn_within_tolerance");
 
     // The collinear tangent-arc close: carrier identity is no longer a
     // refusal (Ev, in-chat, 2026-09-02 — every zero-turn joint is a
@@ -3100,7 +3104,7 @@ fn path_error_tags_are_stable() {
         .to(p2(3.0, 2.0), Tol::witness())
         .expect_err("the setback outruns the arrival leg");
     assert_eq!(path_error_tag(&overrun), "no_corner_of_pair");
-    let pncad::profile::PathError::NoCornerOfPair { corners, .. } = &overrun else {
+    let pncad::profile::PathError::NoCornerOfPair { corners, .. } = overrun.refusal() else {
         panic!("expected the envelope, got {overrun:?}")
     };
     let entries: Vec<&'static str> = corners
@@ -5370,6 +5374,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "carrier_built",
             "chart_singularity_vertex",
+            "collapsed_side_made_one",
             "curve_promoted",
             "edge_free_sphere",
             "edge_split_at_c0_knot",
@@ -5466,7 +5471,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "fillet_offset_lever_too_short",
             "guided_structure",
             "junction_cusp",
-            "junction_tangent",
+            "junction_turn_within_tolerance",
             "no_corner_for_fillet",
             "no_corner_of_pair",
             "non_finite_direction",
@@ -5479,7 +5484,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "seam_arrival_lever_too_short",
             "seam_arrival_off_direction",
             "seam_retrims_arc_first_side",
-            "seam_tangent",
+            "seam_turn_within_tolerance",
             "underdetermined_leg",
             "underflowed_direction",
             "zero_direction",

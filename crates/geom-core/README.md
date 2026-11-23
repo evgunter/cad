@@ -468,9 +468,17 @@ the profile's loops resolve) is a selection: its pose is decided over the
 session box, and its conditioning by the carriage that consumes it. A formula that loses digits where its
   result is decided (a squared residual over a small `2r`) is re-posed
   (as a distance). A stored form that loses digits is re-minted in a
-  well-conditioned form: a conic is stored anchored on the arc it
-  serves, its parameter zero at the anchor and its centre derived,
-  never stored. No `Margin` door takes hand-written slack. The backstop is a
+  well-conditioned form: a conic is one of a family of placements
+  behind the one `Conic` reading, held about its centre or about a
+  point of the arc it serves with its parameter zero there; its
+  construction fixes which, the same at every size, and a construction
+  whose centre runs off at a pose it can reach holds the arc. A conic
+  is the curve its stored numbers state, and no reading replaces it
+  with a rounded copy: one held at its centre is read from its centre,
+  and so fixes a point of its arc only to the rounding of the centre's
+  distance and directions. Every reading of where a conic is goes
+  through the conic. No
+  `Margin` door takes hand-written slack. The backstop is a
   tree gate on bare `f64::EPSILON` and on every use of
   `running`'s charge doors (its `pub` items) outside this crate. Every
   site is a listed entry with its reason: in production, a formula or a
@@ -481,7 +489,11 @@ session box, and its conditioning by the carriage that consumes it. A formula th
   merge base
   (`work/ciw/the-bare-rounding-list-rises-in-the-diff-that-adds-its-site.md`).
 - **A verdict's lever arm** (`Lever<T>`, the arm of
-  `Margin::levered`). It is built only from its sources: a read of the
+  `Margin::levered`). It is the length at which a tilt (a sine, a
+  cosine, an angle between directions) displaces the geometry it
+  governs, and a reading is levered only where that displacement is
+  what is held against the tolerance. It is built only from its
+  sources: a read of the
   consumed extent, a curvature arm `1/κ_rel`, or the session box where
   no geometry is in hand. Rates are not levers: they go through
   `levered_inv` and the metric doors. A length that is the reading

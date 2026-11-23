@@ -2,10 +2,14 @@
 id: a-per-kind-sentence-lives-in-the-widget-not-on-the-choice
 kind: issue
 title: A sentence true of one datum kind is hardcoded in the widget rather than beside the choice it describes
-status: open
+status: closed
 opened: 2026-09-21
 priority: P4
 cost: E
+rides_with: four-pick-state-vocabularies-in-one-create-module
+pr: 7374
+branch: formwords/seat-vocab
+closed: 2026-11-22
 ---
 
 
@@ -54,3 +58,19 @@ the fix caught it. Where else to look, per the reviewer:
 ## Note (INTENT stage 3 A, 2026-10-10)
 
 The `AxisInPlane` arm is gone: INTENT stage 3 A removed the axis-in-sketch datum kind from the add-datum form, since a revolve writes its axis on itself.
+
+## Re-read (formwords/seat-vocab, 2026-11-22)
+
+Every instance is gone: `add_datum_ui` and `DatumKindChoice` left
+`crates/viewer/src/pane/create.rs` and `forms.rs` with the datum forms,
+and `add_profile_ui`'s `blocked` strings with that form. A sweep of
+`pane/create.rs`, `pane/properties.rs` and `pane/profile.rs` for a
+sentence hardcoded in an arm of a match over a form's choice finds
+none; the per-choice words left are `Picked::drops` (on the enum) and
+`ViewerBehavior::tool_noun`'s kind nouns, which are node-kind nouns and
+are `work/refs/the-seated-tools-label-nouns-are-not-pinned-to-the-nodes-they-mint.md`'s
+subject. Closed by retirement, riding the seat-vocabulary unit.
+
+## Closed (2026-11-22)
+
+PR 7374: `seats::SeatError` is the one home of "what a commit is waiting for". `tool_commit_row` takes the formed work and derives the withheld reason through `CommitFault::withholds`, and the reason is drawn in plain view. Stragglers that gate their own controls are filed as `work/chrome/disabled-reasons-still-pass-as-strings-through-gated-button.md`.
