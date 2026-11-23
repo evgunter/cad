@@ -1807,9 +1807,11 @@ const KNOWN_BRACED: &[(&str, &str, &str, usize, &str)] = &[];
 /// The blind spot, written down WITH ITS REASON.
 ///
 /// A site here is one this census could not decide. It is not a pass:
-/// the row over this list fails when a site arrives beyond what its
-/// line's count admits, so the population cannot grow in silence —
-/// which is the only property a blind spot can honestly be given.
+/// the row over this list
+/// (`every_site_this_census_cannot_decide_is_named_with_its_reason`)
+/// fails when a site arrives beyond what its line's count admits, so
+/// the population cannot grow in silence — which is the only property
+/// a blind spot can honestly be given.
 ///
 /// **Reducing it is scheduled**, at
 /// `work/bind/prose-census-undecided-residue.md`. A disclosed list with
