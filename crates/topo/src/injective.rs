@@ -8697,7 +8697,7 @@ mod presentation_rows {
             let (b, v) = on_a_ruling(o, d, along, 0.006);
             let cyl = Psi::Carrier(Implicit::Cylinder {
                 o: Point3::origin() + o.map(iv0),
-                axis: geom_core::UnitVec3::checked(d.map(iv0)),
+                axis: geom_core::UnitVec3::chord(d.map(iv0)).0,
                 r: iv0(0.006),
             });
             let rate = cyl.rate(b, v);
@@ -8713,7 +8713,7 @@ mod presentation_rows {
             let (sin, cos) = (0.6, 0.8);
             let cone = Psi::Carrier(Implicit::Cone {
                 apex: Point3::origin() + o.map(iv0),
-                axis: geom_core::UnitVec3::checked(d.map(iv0)),
+                axis: geom_core::UnitVec3::chord(d.map(iv0)).0,
                 cos: iv0(cos),
                 sin: iv0(sin),
                 nappe: iv0(1.0),
@@ -10512,13 +10512,10 @@ mod presentation_rows {
                 Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
             ),
         };
-        let line = |d: Vec3<Interval>, far: u64, plus: bool| Rim {
+        let line = |d: geom_core::UnitVec3<Interval>, far: u64, plus: bool| Rim {
             stated: None,
             key: edge(far),
-            arc: Some((
-                Curve3::line(origin(), geom_core::UnitVec3::checked(d)),
-                (iv0(0.0), iv0(4.0)),
-            )),
+            arc: Some((Curve3::line(origin(), d), (iv0(0.0), iv0(4.0)))),
             ends: [vertex(1), vertex(far)],
             uses: vec![Use {
                 plus,
@@ -10528,8 +10525,8 @@ mod presentation_rows {
                 harmonic: None,
             }],
         };
-        let y = Vec3::new(iv0(0.0), iv0(1.0), iv0(0.0));
-        let x = Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0));
+        let y = geom_core::UnitVec3::<Interval>::exact_y();
+        let x = geom_core::UnitVec3::<Interval>::exact_x();
         // Forward: (0, 4) to the vertex at the origin to (4, 0), the
         // first quadrant on its left.
         let corner = |forward: bool, sense: bool| Boundary {
@@ -11896,6 +11893,199 @@ mod presentation_rows {
         }
     }
 
+    /// [`segment`] from `from` over `len`, its direction poison: what
+    /// [`geom_core::UnitVec3::checked`] answers for a box that holds no
+    /// unit vector.
+    fn poisoned_segment(n: u64, ends: [u64; 2], from: (f64, f64), len: f64) -> Rim {
+        let dir = geom_core::UnitVec3::checked(Vec3::new(iv0(0.6), iv0(0.6), iv0(0.0)));
+        assert!(
+            dir.get().x.lo().is_nan(),
+            "the fixture's direction is poison"
+        );
+        let mut rim = segment(n, ends, from, (from.0 + len, from.1));
+        rim.arc = Some((
+            Curve3::line(Point3::new(iv0(from.0), iv0(from.1), iv0(0.0)), dir),
+            (iv0(0.0), iv0(len)),
+        ));
+        rim
+    }
+
+    /// **Every reader of a line edge refuses one whose direction is
+    /// poison.** A `UnitVec3` that its door refused is NaN in every
+    /// component and is announced nowhere before a read
+    /// (`work/embed/a-poisoned-unit-direction-is-announced-nowhere-between-its-door-and-a-read.md`),
+    /// so each reader of the edge's ends or direction has to refuse it
+    /// by its own decision. Injected at each: a plane's one line edge
+    /// ([`present_plane`]); its corner of two lines; a line shared at a
+    /// corner with an arc ([`present_plane_corner`]); the other edge of
+    /// a curve's corner ([`leaving`], the run); [`line_onward`]'s own
+    /// comparisons; and the edge a graph separator would run on along
+    /// ([`graph_run`]). None presents, none is vacuous, none gives a
+    /// graph; each fixture with a sound direction in its place is read,
+    /// so the refusal is the poison's. Red if a reader's comparison
+    /// passes on NaN.
+    #[test]
+    fn a_poisoned_line_direction_is_refused_by_every_reader() {
+        let s = floor();
+        let refused = |r: &Read| matches!(r, Read::Local | Read::Structural);
+        let ask =
+            |b: &Boundary, edges: Vec<usize>, vertices: Vec<VertexKey>, near: &[usize], u, v| {
+                let local = Local { edges, vertices };
+                let piece = Piece {
+                    face: FaceKey::default(),
+                    surface: &s,
+                    whole: false,
+                    boundary: b,
+                    u,
+                    v,
+                    local: &local,
+                    ball: Ball::holding(origin(), origin()),
+                };
+                read(present_plane(&piece, near, &[], band()))
+            };
+        // One line edge, the cell across it.
+        let one = Boundary {
+            sense: true,
+            edges: vec![poisoned_segment(1, [1, 2], (0.0, 0.0), 4.0)],
+            vertices: BTreeMap::new(),
+            extent: None,
+            outer: None,
+        };
+        let r = ask(&one, vec![0], Vec::new(), &[0], (1.0, 2.0), (-0.5, 0.5));
+        assert!(refused(&r), "a plane's one line edge: {r:?}");
+        let mut sound = one.clone();
+        sound.edges[0] = segment(1, [1, 2], (0.0, 0.0), (4.0, 0.0));
+        let r = ask(&sound, vec![0], Vec::new(), &[0], (1.0, 2.0), (-0.5, 0.5));
+        assert!(
+            matches!(r, Read::Of(..)),
+            "with a direction it is read: {r:?}"
+        );
+        // A corner of two lines at the origin, one of them poison.
+        let two = Boundary {
+            sense: true,
+            edges: vec![
+                segment(2, [2, 1], (0.0, 4.0), (0.0, 0.0)),
+                poisoned_segment(3, [1, 3], (0.0, 0.0), 4.0),
+            ],
+            vertices: BTreeMap::new(),
+            extent: None,
+            outer: None,
+        };
+        for near in [&[0][..], &[1][..]] {
+            let r = ask(
+                &two,
+                vec![0, 1],
+                vec![vertex(1)],
+                near,
+                (-0.5, 0.5),
+                (-0.5, 0.5),
+            );
+            assert!(refused(&r), "a corner of two lines, {near:?} shared: {r:?}");
+        }
+        // The tangent joint, its line poison: read from the arc (the
+        // run, `leaving`) and from the line (`present_plane_corner`).
+        let good = quarter(segment(20, [3, 1], (1.0, -1.0), (1.0, 0.0)), Vec::new());
+        let bad = quarter(poisoned_segment(20, [3, 1], (1.0, -1.0), 1.0), Vec::new());
+        let mut sound = two.clone();
+        sound.edges[1] = segment(3, [1, 3], (0.0, 0.0), (4.0, 0.0));
+        for near in [&[0][..], &[1][..]] {
+            let r = ask(
+                &sound,
+                vec![0, 1],
+                vec![vertex(1)],
+                near,
+                (-0.5, 0.5),
+                (-0.5, 0.5),
+            );
+            assert!(
+                matches!(r, Read::Of(..)),
+                "two sound lines, {near:?} shared: {r:?}"
+            );
+            let r = ask(
+                &good,
+                vec![0, 1],
+                vec![vertex(1)],
+                near,
+                (0.98, 1.02),
+                (-0.02, 0.02),
+            );
+            assert!(
+                matches!(r, Read::Of(..)),
+                "the sound joint, {near:?} shared: {r:?}"
+            );
+        }
+        for near in [&[0][..], &[1][..]] {
+            let r = ask(
+                &bad,
+                vec![0, 1],
+                vec![vertex(1)],
+                near,
+                (0.98, 1.02),
+                (-0.02, 0.02),
+            );
+            assert!(refused(&r), "the tangent joint, {near:?} shared: {r:?}");
+        }
+        // `line_onward` on its own, every field of the edge no number.
+        let nan = at(f64::NAN);
+        let l = Leaving {
+            d: [nan; 2],
+            near: [nan; 2],
+            far: [nan; 2],
+            speed: [1.0, 1.0],
+            leaves: Leaves::Undecided,
+        };
+        for onward in [true, false] {
+            assert!(
+                line_onward(&l, Axis::U, onward, (0.0, 1.0), band()).is_err(),
+                "line_onward, onward {onward}"
+            );
+        }
+        // The graph does not run on along a poisoned edge: the run is
+        // presented on the good body, then the separator is asked on
+        // the body whose line is poison.
+        let local = both_arcs();
+        let x = piece_on(&s, &good, &local, 1);
+        let Ok(Presentation::Of(p)) = present_plane(&x, &[0], &[], band()) else {
+            panic!("the run is presented");
+        };
+        let cyl = cylinder();
+        let wall = Presented {
+            surface: &cyl,
+            map: Map::Chart,
+            x: (0.0, 0.02),
+            y: (0.0, 0.02),
+            zero: Zero::Side(
+                Side::YLo,
+                Along {
+                    edges: vec![edge(10)],
+                    vertex: None,
+                    whole: true,
+                    params: Some(Params {
+                        t: (0.0, 0.02),
+                        periodic: true,
+                    }),
+                    on_edges: true,
+                    stops: vec![vertex(1)],
+                },
+            ),
+            corner: false,
+            cache: Cache::default(),
+        };
+        let near = Near {
+            edges: vec![(0, 0)],
+            vertices: Vec::new(),
+        };
+        assert!(
+            graph_of(&x, &x, &near, &p, &wall, band()).is_some(),
+            "the fixture reaches the graph on the good body"
+        );
+        let y = piece_on(&s, &bad, &local, 1);
+        assert!(
+            graph_of(&y, &y, &near, &p, &wall, band()).is_none(),
+            "a graph run on along a poisoned edge"
+        );
+    }
+
     /// **A fixture's line is its unit chord as an enclosure, at any
     /// angle.** [`segment`] from `(1.5, 0.5)` to `(1, 0)`, at 45 degrees,
     /// where the rounded quotient's squares sum past 1: its direction is
@@ -12665,8 +12855,7 @@ mod presentation_rows {
             corner: false,
             cache: Cache::default(),
         };
-        let (z, x, y) = (
-            Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+        let (x, y) = (
             Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
             Vec3::new(iv0(0.0), iv0(1.0), iv0(0.0)),
         );
@@ -12689,7 +12878,7 @@ mod presentation_rows {
         );
         let cylinder = Psi::Carrier(Implicit::Cylinder {
             o: origin(),
-            axis: geom_core::UnitVec3::checked(z),
+            axis: geom_core::UnitVec3::exact_z(),
             r: iv0(1.0),
         });
         assert_eq!(
@@ -16012,7 +16201,7 @@ mod presentation_rows {
     fn turning(w: f64) -> (Surface<Interval>, Surface<Interval>, Boundary, Boundary) {
         let s = Interval::from_bounds(-w, w);
         let d = Vec3::new(iv0(1.0), s, iv0(0.0));
-        let line = Curve3::line(origin(), geom_core::UnitVec3::checked(d));
+        let line = Curve3::line(origin(), geom_core::UnitVec3::chord(d).0);
         let face = |sense: bool| Boundary {
             sense,
             edges: vec![Rim {
@@ -19250,7 +19439,7 @@ mod rate_rows {
             }
             seen += 1;
             let v = g.vec(1.0);
-            for (what, psi) in carriers(geom_core::UnitVec3::checked(d().map(iv0)), o()) {
+            for (what, psi) in carriers(geom_core::UnitVec3::chord(d().map(iv0)).0, o()) {
                 let rate = psi.rate(pt(q), v.map(iv0));
                 let want = fd(&psi, q, v);
                 assert!(
@@ -19281,7 +19470,7 @@ mod rate_rows {
             let v = g.vec(1.0);
             for (hq, ha, hv) in [(1e-2, 0.0, 0.0), (1e-3, 1e-6, 1e-3), (1e-5, 1e-4, 1e-2)] {
                 let axis = vbox(d(), ha);
-                for ((what, psi), k) in carriers(geom_core::UnitVec3::checked(axis), o())
+                for ((what, psi), k) in carriers(geom_core::UnitVec3::chord(axis).0, o())
                     .into_iter()
                     .zip(0..)
                 {
@@ -19321,7 +19510,7 @@ mod rate_rows {
     /// cone's apex, no sign is read off the rate.**
     #[test]
     fn no_sign_is_read_off_a_rate_over_a_box_holding_the_axis() {
-        for (what, psi) in carriers(geom_core::UnitVec3::checked(d().map(iv0)), o())
+        for (what, psi) in carriers(geom_core::UnitVec3::chord(d().map(iv0)).0, o())
             .into_iter()
             .take(3)
         {
@@ -19533,7 +19722,7 @@ mod rate_rows {
                 continue;
             }
             seen += 1;
-            for (what, psi) in carriers(geom_core::UnitVec3::checked(d().map(iv0)), o()) {
+            for (what, psi) in carriers(geom_core::UnitVec3::chord(d().map(iv0)).0, o()) {
                 let e = 1e-6;
                 let grad = Vec3::new(
                     fd(&psi, q, Vec3::new(1.0, 0.0, 0.0)),
