@@ -10,7 +10,10 @@ fn band() -> Band {
 
 /// The residual of `t` against the root `root`, widened by `spread`
 /// on each side: the gap a family of carriers reads at one parameter.
-fn residual_about<T: Real>(root: f64, spread: f64) -> impl FnOnce(T) -> (Margin<T>, T) {
+fn residual_about<T: Real + crate::SpanLocate>(
+    root: f64,
+    spread: f64,
+) -> impl FnOnce(T) -> (Margin<T>, T) {
     move |t: T| {
         let off = t - T::from_f64(root);
         let widened = off + T::from_f64(-spread).enclosure_hull(T::from_f64(spread));
