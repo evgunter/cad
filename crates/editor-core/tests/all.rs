@@ -820,6 +820,8 @@ mod a_mate_on_a_full_turn_bore_names;
 mod a_mirror_is_a_construction;
 #[path = "a_subtract_cuts_by_every_tool.rs"]
 mod a_subtract_cuts_by_every_tool;
+#[path = "a_subtract_of_tools_meeting_on_a_rim.rs"]
+mod a_subtract_of_tools_meeting_on_a_rim;
 #[path = "datum_review_a.rs"]
 mod datum_review_a;
 #[path = "decide_1_self_dot_interval.rs"]

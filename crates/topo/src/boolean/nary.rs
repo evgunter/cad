@@ -1606,6 +1606,41 @@ mod tests {
     use crate::test_support::meeting::{posed_boxes, poses};
     use crate::{ContactRecords, SolidKey};
 
+    /// **A subtract holds its tools' faces turned, and a rim junction
+    /// has no turned reading**: the fold reads a verdict through a tool
+    /// face of its accumulation with its senses reversed, and refuses a
+    /// junction there rather than glue one its own door would not (the
+    /// two outward normals aligned on the rim, which one face turned is
+    /// not). Red where a junction is read through a turned face as it
+    /// stands, or where a union, an intersect or a subtract's kept body
+    /// reads turned.
+    #[test]
+    fn a_subtract_reads_its_tools_turned_and_a_junction_has_no_turned_reading() {
+        use super::super::GivenDecision;
+        for op in [NaryOp::Union, NaryOp::Intersect, NaryOp::Subtract] {
+            assert!(!op.holds_turned(0), "{op:?}: member 0 stands as it is");
+            assert_eq!(
+                op.holds_turned(1),
+                op == NaryOp::Subtract,
+                "{op:?}: only a subtract's tools are held turned"
+            );
+        }
+        assert!(matches!(
+            GivenDecision::<f64>::Rest.reversed(),
+            Some(GivenDecision::Continuation)
+        ));
+        assert!(matches!(
+            GivenDecision::<f64>::Continuation.reversed(),
+            Some(GivenDecision::Rest)
+        ));
+        assert!(
+            GivenDecision::<f64>::Junction { rim: None }
+                .reversed()
+                .is_none(),
+            "a junction read through a turned face is no junction"
+        );
+    }
+
     /// **A cut's tool is fused on its seat's record, decided nowhere**:
     /// the bolt on the plate, one body of two solids, its seat recorded
     /// as the census at a `⊔`'s door records it, read as material is one
