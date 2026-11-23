@@ -20,3 +20,5 @@ Dispatched 2026-11-23, concurrently, one identical prompt (the statement under a
 
 Owed to both at once when it arrives: the implementer's row with the headroom kept and the rows off.
 
+00:15Z: the owed row sent to both in one identical note (interrupt priority, both still reading): headroom kept, rows off on the cylinder: 210 of 210 cylinder cells at 1.00 / 1.40 / 1.50 with no refinement (it never fires); spheres as today; so the rows alone carry most of the cylinder gain, sizing at δ is worth about 1.4 on cylinders and 2 on spheres, and the refinement is reached only by a cylinder face sized at δ.
+
