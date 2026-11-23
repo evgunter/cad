@@ -206,13 +206,17 @@ impl<T: topo::AtRestPolicy> Lofted<T, Body<T>> {
             section_params,
         } = self;
         let sections = section_params.len();
+        let side_plain: Vec<Vec<Vec<FaceKey>>> = side_faces
+            .iter()
+            .map(|a| a.iter().map(|b| b.iter().flatten().copied().collect()).collect())
+            .collect();
         let meeting = |face, station| LoftedMeeting {
-            face: role_of(face, top, bottom, &side_faces)
+            face: role_of(face, top, bottom, &side_plain)
                 .unwrap_or_else(|| unreachable!("the finish names faces of the loft it finished")),
-            sections: match role_of(face, top, bottom, &side_faces) {
+            sections: match role_of(face, top, bottom, &side_plain) {
                 Some(LoftedFace::Top) => sections - 1..=sections - 1,
                 Some(LoftedFace::Bottom) => 0..=0,
-                Some(LoftedFace::Wall { slab, .. }) if side_faces_per_slab(&side_faces) => {
+                Some(LoftedFace::Wall { slab, .. }) if side_faces_per_slab(&side_plain) => {
                     slab..=slab + 1
                 }
                 _ => 0..=sections - 1,

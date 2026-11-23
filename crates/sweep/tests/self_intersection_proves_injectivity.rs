@@ -4487,7 +4487,7 @@ fn door_class<T: Scalar + geom_core::Certifies>(body: &Body<T>) -> String {
 fn door_over<T: Scalar + geom_core::Certifies>(body: &Body<T>, faces: Vec<FaceKey>) -> String {
     use topo::clearance::{Embedding, embedded};
     let report = embedded(
-        &Side { body, faces },
+        &Side { body, faces, excluded: Default::default() },
         band(),
         Budgets {
             max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
@@ -4705,6 +4705,7 @@ fn a_support_face_c1_through_a_vertex_at_interval() {
             asked += 1;
             let verdict = embedded(
                 &Side {
+                    excluded: Default::default(),
                     body: &*body,
                     faces: vec![a, b],
                 },
