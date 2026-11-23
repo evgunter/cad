@@ -301,6 +301,8 @@ mod records_cite_their_decision;
 mod recourse_roster;
 #[path = "result_gate_sites.rs"]
 mod result_gate_sites;
+#[path = "review_records_delta_probes.rs"]
+mod review_records_delta_probes;
 #[path = "review_records_probes.rs"]
 mod review_records_probes;
 #[path = "review_4996_carry_probes.rs"]
