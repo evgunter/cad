@@ -620,17 +620,22 @@ fn circle_traversal<T: Real>(
         Point2::new(centre.x - radius, T::zero()),
         Point2::new(centre.x + radius, T::zero()),
     );
-    let arc = |a, b, canonical_vertex, canonical_segment| SweptSeg {
+    // The radial at `hi` is `+x` and at `lo` `−x`: the vertices are
+    // the centre moved by the radius along the sketch `x` axis, which
+    // is the construction itself, for the positive radius a circle
+    // carrier stores.
+    let x = Vec2::new(T::one(), T::zero());
+    let arc = |a, b, radial, canonical_vertex, canonical_segment| SweptSeg {
         a,
         b,
-        kind: Traversed::half_turn(centre, radius, turn),
+        kind: Traversed::half_turn(centre, radius, turn, radial),
         canonical_vertex,
         canonical_segment,
     };
     if reversed {
-        vec![arc(hi, lo, 0, 1), arc(lo, hi, 1, 0)]
+        vec![arc(hi, lo, x, 0, 1), arc(lo, hi, -x, 1, 0)]
     } else {
-        vec![arc(hi, lo, 0, 0), arc(lo, hi, 1, 1)]
+        vec![arc(hi, lo, x, 0, 0), arc(lo, hi, -x, 1, 1)]
     }
 }
 
@@ -692,6 +697,30 @@ mod tests {
         }
     }
 
+    /// **Each half turn's carried radials point at its own ends**: the
+    /// directions from the centre to the vertices it is carried with, bit
+    /// for bit, at every turn and orientation the tube uses.
+    #[test]
+    fn a_half_turns_radials_point_at_its_own_ends() {
+        for turn in [Sign::Positive, Sign::Negative] {
+            for reversed in [false, true] {
+                let (c, r) = (Point2::new(2.0_f64, 0.0), 0.75);
+                for (k, seg) in circle_traversal(c, r, turn, reversed).iter().enumerate() {
+                    let SegmentKind::Arc {
+                        radials: [rs, re], ..
+                    } = seg.kind.get()
+                    else {
+                        panic!("a circle traversal is arcs");
+                    };
+                    let what = format!("turn {turn:?}, reversed {reversed}, half {k}");
+                    let bits = |p: Point2<f64>| (p.x.to_bits(), p.y.to_bits());
+                    assert_eq!(bits(c + rs * r), bits(seg.a), "{what}: the start radial");
+                    assert_eq!(bits(c + re * r), bits(seg.b), "{what}: the end radial");
+                }
+            }
+        }
+    }
+
     /// **The traversal's sweep agrees with the crate's reading of its
     /// turn**, at every turn `Sign` has, `Zero` included: each half-turn
     /// arc's span (its sweep signed by its turn) is `π`, bit for bit. A
@@ -701,7 +730,7 @@ mod tests {
         for turn in [Sign::Positive, Sign::Negative, Sign::Zero] {
             for reversed in [false, true] {
                 for seg in circle_traversal(Point2::new(2.0_f64, 0.0), 1.0, turn, reversed) {
-                    let SegmentKind::Arc { arc, turn: t } = seg.kind.get() else {
+                    let SegmentKind::Arc { arc, turn: t, .. } = seg.kind.get() else {
                         panic!("a circle traversal is arcs");
                     };
                     let span = arc_span(t, arc);
