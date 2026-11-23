@@ -314,14 +314,14 @@ pub fn conic_quadric_roots<T: Decide>(
         Pose::Apart => Ok(CircleRoots::Miss),
         Pose::Tangent(_) => Err(Unsettled::Tangency),
         Pose::Through(apex) => {
-            shaped(through_the_apex(&span, surface, apex, band))?.and_then(|found| {
+            shaped(through_the_apex(&span, surface, apex, band))?.map(|found| {
                 let mut all = vec![apex.at, apex.at];
                 if let CircleRoots::Certified(found) = found {
                     all.extend_from_slice(found.roots());
                 }
-                CircleRoots::of(&all).ok_or(Unsettled::Meter {
-                    row: CONE_DEFLATED_CLEAR,
-                })
+                // The apex's double root and the deflated form's at most
+                // two: four, inside the eight a `CircleRoots` holds.
+                CircleRoots::of(&all).unwrap_or_else(|| unreachable!("at most four roots"))
             })
         }
         Pose::Isolated(form) => shaped(conic_quadric_method(&span, surface, form.0, band))?,
@@ -364,14 +364,14 @@ pub(super) fn conic_quadric_method<T: Decide>(
                 Roots::Miss | Roots::On(_) => Vec::new(),
             }),
             Err(refused) => {
-                let reach = refused.slack + T::from_f64(band.escalate()) / conic.speed_lo();
+                let slack = refused.slack;
                 let fault = MeetFault::Unsettled(Unsettled::Meter { row: refused.row });
                 Walked {
                     roots: Vec::new(),
                     windows: refused
                         .roots
                         .iter()
-                        .map(|&t| ((t - reach, t + reach), fault))
+                        .map(|&t| ((t - slack, t + slack), fault))
                         .collect(),
                 }
             }

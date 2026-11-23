@@ -90,7 +90,8 @@ fn refused(
 
 /// **A graze in band on each graze rung answers a local window holding
 /// every meeting** (§2.2's table): a circle's belly on a plane, a line on a
-/// wall and on a sphere, a circle's first-harmonic extreme on a sphere,
+/// wall and on a sphere, a circle's first-harmonic extreme on a sphere
+/// and on a cone,
 /// each read in the escalation gap (three zero bands deep or high), and a
 /// line's higher-order contact on a wall (`Kappa`). Red where the window
 /// is widened to the span, or the reach read at `ε` for `Kε` (the points
@@ -169,6 +170,40 @@ fn a_graze_in_band_on_each_rung_is_a_window_over_its_reach() {
             (-PI, PI),
             window,
             |t| distance(&sphere, c.eval(t)),
+            b,
+        );
+
+        // A circle square to a π/4 cone's axis, its far point `lift`
+        // from the cone: the extreme's window is read on the quadric
+        // form `F`, and holds the residual's `Kε` reach (`|F| ≤ |res|`
+        // on a cone).
+        let cone = Surface::Cone {
+            frame: Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+            half_angle: core::f64::consts::FRAC_PI_4,
+        };
+        let c = Curve3::circle(
+            Point3::new(0.3, 0.0, 1.0),
+            Vec3::unit_z(),
+            0.7 + lift,
+            Vec3::unit_y(),
+        );
+        let label = format!("cone's first harmonic, lift {lift:e}");
+        let (window, why) = refused(&label, pose(&Span::new(&c, (-PI, PI)), &cone, b));
+        assert!(
+            matches!(
+                why,
+                PoseRefusal::InBand {
+                    rung: PoseRung::Extreme,
+                    ..
+                }
+            ),
+            "{label}: {why:?}"
+        );
+        holds(
+            &label,
+            (-PI, PI),
+            window,
+            |t| crate::implicit_residual(&cone, c.eval(t)),
             b,
         );
     }
@@ -419,7 +454,6 @@ fn a_walk_with_a_window_skips_its_parity_check() {
         &turn_frame(),
         &WALK_ROWS,
         None,
-        1.0,
         b,
     )
     .unwrap_or_else(|r| panic!("the walk read past its refusal: {r:?}"));
@@ -471,7 +505,6 @@ fn a_refused_root_slack_is_a_window_over_the_slack() {
         &turn_frame(),
         &WALK_ROWS,
         Some(&meter),
-        1.0,
         b,
     )
     .unwrap_or_else(|r| panic!("the walk read past its refusals: {r:?}"));
@@ -479,8 +512,8 @@ fn a_refused_root_slack_is_a_window_over_the_slack() {
     assert_eq!(got.refused.len(), 2, "two windows: {:?}", got.refused);
     for (want, &((lo, hi), _)) in [-FRAC_PI_3, FRAC_PI_3].iter().zip(&got.refused) {
         assert!(
-            lo <= *want && *want <= hi,
-            "the window {:?} holds {want}",
+            lo <= *want - 1e-6 && *want + 1e-6 <= hi,
+            "the window {:?} holds {want} and its slack",
             (lo, hi)
         );
         assert!(
@@ -674,8 +707,8 @@ fn overlapping_windows_merge_and_a_fault_is_never_merged_away() {
 }
 
 /// **A window past an end by a gap in band is the end's escalation**
-/// (W3, `clip`): a window starting a hair past the span's end, which the
-/// band cannot call apart from it, is held to the span as its last
+/// (W3, `on_span`): a window starting a hair past the span's end, which
+/// the band cannot call apart from it, is held to the span as its last
 /// `Kε` of arc, never an inverted window; one past by a clear gap is
 /// dropped. Red where the clip keeps the inverted bounds.
 #[test]
@@ -684,17 +717,19 @@ fn a_window_past_an_end_in_band_is_held_to_the_end() {
     let span = Span::new(&c, (0.0, 1.0));
     let b = band(1e-9);
     let past = (1.0 + 2e-9, 1.5);
-    assert!(
-        !super::misses(&span, past, b),
-        "a gap in band keeps the window"
-    );
-    let (lo, hi) = super::clip(&span, past, b);
+    let held = super::on_span(&span, past, b);
+    let [(lo, hi)] = held[..] else {
+        panic!("a gap in band keeps one window: {held:?}")
+    };
     assert!(
         lo < hi && hi <= 1.0 && 1.0 - lo <= 2.0 * b.escalate(),
         "{:?}",
         (lo, hi)
     );
-    assert!(super::misses(&span, (1.1, 1.5), b), "a clear gap drops it");
+    assert!(
+        super::on_span(&span, (1.1, 1.5), b).is_empty(),
+        "a clear gap drops it"
+    );
 }
 
 /// **A first harmonic's refused root slack is a window over each root,
@@ -755,9 +790,12 @@ fn a_first_harmonics_refused_slack_is_local_and_refuses_nothing_off_the_arc() {
     );
 }
 
-/// **No found meeting lies in a window** (W1, `finish`): a meeting the
-/// band cannot read outside a window is taken into it, and one apart from
-/// every window is found. Red where a meeting inside a window is kept.
+/// **No found meeting lies in a window** (W1, W2, `finish`): a meeting
+/// inside a window, and one past its edge by a gap the band cannot read,
+/// are taken into it, the window then reaching `Kε` of arc past the
+/// latter; one apart from every window is found. Red where a meeting
+/// inside a window is kept, or where the taken one's hull is not widened
+/// by its escalation.
 #[test]
 fn a_meeting_inside_a_window_is_taken_into_it() {
     use crate::curve_pair::MeetFault;
@@ -781,10 +819,13 @@ fn a_meeting_inside_a_window_is_taken_into_it() {
             fault: MeetFault::Unsettled(crate::roots::Unsettled::Tangency),
         },
     };
+    // Past the window's edge by five zero bands, in the band's gap: the
+    // band cannot call it apart from the window.
+    let edge = 0.6 + 5e-9;
     let got = super::cross::finish(
         &span,
         Pose::Apart,
-        vec![meeting(0.5), meeting(0.9)],
+        vec![meeting(0.5), meeting(edge), meeting(0.9)],
         vec![window],
         b,
     );
@@ -797,6 +838,55 @@ fn a_meeting_inside_a_window_is_taken_into_it() {
         "{r:?}"
     );
     assert_eq!(r.windows.len(), 1, "{r:?}");
+    // The circle's speed is one: a metre of arc per radian.
+    let (lo, hi) = r.windows[0].window;
+    assert_eq!(lo, 0.4, "{r:?}");
+    assert!(
+        hi >= edge + 0.99 * b.escalate() && hi <= edge + 1.01 * b.escalate(),
+        "the window {:?} reaches Kε past the taken meeting at {edge}",
+        (lo, hi)
+    );
+}
+
+/// **Windows merged keep the earlier one's why** (W4, `merged`): two
+/// escalations read in turn, the later read starting first, are one
+/// window whose why is the one starting first. Red where the merged why
+/// is the first read.
+#[test]
+fn merged_windows_keep_the_why_of_the_one_starting_first() {
+    use crate::curve_pair::MeetFault;
+    let c = hanging(1.0, -0.5);
+    let span = Span::new(&c, (0.0, 1.0));
+    let b = band(1e-9);
+    let diag = geom_core::k_stats::decide("curve_face_window", geom_core::Margin::of(5e-9), b)
+        .expect_err("a reading in the gap");
+    let read_first = super::Undecided {
+        window: (0.4, 0.6),
+        why: CrossWhy::Method {
+            door: super::Door::PlaneCrossing,
+            fault: MeetFault::Escalated(diag),
+        },
+    };
+    let starts_first = super::Undecided {
+        window: (0.1, 0.5),
+        why: CrossWhy::Method {
+            door: super::Door::PlaneCrossing,
+            fault: MeetFault::Unsettled(crate::roots::Unsettled::Tangency),
+        },
+    };
+    let merged = super::cross::merged(&span, vec![read_first, starts_first], b);
+    assert_eq!(merged.len(), 1, "{merged:?}");
+    assert_eq!(merged[0].window, (0.1, 0.6), "{merged:?}");
+    assert!(
+        matches!(
+            merged[0].why,
+            CrossWhy::Method {
+                fault: MeetFault::Unsettled(_),
+                ..
+            }
+        ),
+        "the why of the window starting first: {merged:?}"
+    );
 }
 
 /// **A line × cone root whose slack the meter refuses is a window over
@@ -831,4 +921,467 @@ fn a_line_cones_refused_slack_is_a_window_over_each_root() {
             "a local window holds the root at {root}: {got:?}"
         );
     }
+}
+
+/// **A line along a cone's generator, beside its apex in band, is
+/// refused over the whole of what it lies near** (the apex window is
+/// local only once `Lies` is excluded): a π/4 cone, the line
+/// `(0, 3ε, 0) + s·(1, 0, 1 + tilt)` on `[−10, 10]`, tilted off the
+/// generator by `tilt`. Every point of the span within `Kε` of the cone
+/// (by its form `ρ cos α − |z| sin α`, the distance to the nearest
+/// generator) lies inside a window, through `pose` and `cross` alike. Red
+/// where the apex window is answered before `Lies` is read: it is then
+/// `±2e-3` about the apex, with the rest of the line within `ε` outside
+/// it.
+#[test]
+fn a_line_lying_near_a_cone_by_its_apex_is_refused_over_all_it_lies_near() {
+    let cone = Surface::Cone {
+        frame: Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+        half_angle: core::f64::consts::FRAC_PI_4,
+    };
+    let span = (-10.0, 10.0);
+    for (eps, tilts) in [(1e-9, &[1e-12][..]), (1e-6, &[1e-12, 1e-10, 1e-8][..])] {
+        let b = band(eps);
+        for &tilt in tilts {
+            let l = Curve3::Line(geom::Line {
+                origin: Point3::new(0.0, 3.0 * eps, 0.0),
+                dir: geom_core::UnitVec3::squared(Vec3::new(1.0, 0.0, 1.0 + tilt)),
+            });
+            let label = format!("ε {eps:e}, tilt {tilt:e}");
+            let form = |t: f64| {
+                let p = l.eval(t);
+                let s = core::f64::consts::FRAC_1_SQRT_2;
+                (p.x.powi(2) + p.y.powi(2)).sqrt() * s - p.z.abs() * s
+            };
+            let (window, why) = refused(&label, pose(&Span::new(&l, span), &cone, b));
+            let near = |t: f64| form(t).abs() < b.escalate();
+            let dense = (0..=200_000).map(|i| span.0 + (span.1 - span.0) * f64::from(i) / 2e5);
+            for t in dense.clone().filter(|&t| near(t)) {
+                assert!(
+                    window.0 <= t && t <= window.1,
+                    "{label}: the point at {t}, {:e} from the cone, lies outside the pose's \
+                     window {window:?} ({why:?})",
+                    form(t)
+                );
+            }
+            let windows = match cross(&Span::new(&l, span), &cone, b) {
+                Ok(got) => panic!("{label}: cross answered {got:?}"),
+                Err(r) => r.windows,
+            };
+            for t in dense.filter(|&t| near(t)) {
+                assert!(
+                    windows.iter().any(|w| w.window.0 <= t && t <= w.window.1),
+                    "{label}: the point at {t} lies outside every window of cross, {windows:?}"
+                );
+            }
+        }
+    }
+}
+
+/// Every true crossing of `c` with `s` on the span, clear of its ends,
+/// is found or lies in a window, at any turn; every found meeting is a
+/// true one. `roots` are the true crossings in `[0, 2π)`; `rho` the
+/// carrier's radius.
+fn every_crossing_answered(
+    label: &str,
+    c: &Curve3<f64>,
+    s: &Surface<f64>,
+    span: (f64, f64),
+    roots: &[f64],
+    rho: f64,
+    b: Band,
+) {
+    let eps = b.zero();
+    let near = |t: f64, u: f64| ((t - u + PI).rem_euclid(TAU) - PI).abs() * rho;
+    let (m, h) = ((span.0 + span.1) / 2.0, (span.1 - span.0) / 2.0);
+    let on_span = |t: f64| {
+        let turn = (m - t).rem_euclid(TAU);
+        turn.min(TAU - turn) <= h
+    };
+    let (found, windows) = match cross(&Span::new(c, span), s, b) {
+        Ok(got) => (got.meetings, Vec::new()),
+        Err(r) => (r.found, r.windows),
+    };
+    let at = |m: &super::Meeting<f64>| match m.on_span {
+        super::OnSpan::Inside { t } => t,
+        super::OnSpan::End(crate::curve_pair::SpanEnd::Start) => span.0,
+        super::OnSpan::End(crate::curve_pair::SpanEnd::Stop) => span.1,
+    };
+    let inside = |t: f64| {
+        windows.iter().any(|w| {
+            (0..3).any(|k| {
+                let t = t + TAU * f64::from(k - 1);
+                w.window.0 - eps / rho <= t && t <= w.window.1 + eps / rho
+            })
+        })
+    };
+    for w in &windows {
+        assert!(
+            span.0 <= w.window.0 && w.window.0 < w.window.1 && w.window.1 <= span.1,
+            "{label}: the window {:?} is on the span",
+            w.window
+        );
+    }
+    for meeting in &found {
+        let t = at(meeting);
+        let touch = matches!(meeting.kind, super::MeetingKind::Touch { .. });
+        let off = roots
+            .iter()
+            .map(|&u| near(t, u))
+            .fold(f64::INFINITY, f64::min);
+        assert!(
+            touch || off <= 10.0 * eps,
+            "{label}: a found meeting at {t} is {off:e} m from every crossing"
+        );
+    }
+    let reach = b.escalate();
+    for &u in roots
+        .iter()
+        .filter(|&&u| on_span(u) && near(u, span.0) > 2.0 * reach && near(u, span.1) > 2.0 * reach)
+    {
+        if inside(u) {
+            continue;
+        }
+        let got = found
+            .iter()
+            .map(|m| near(at(m), u))
+            .fold(f64::INFINITY, f64::min);
+        assert!(
+            got <= 10.0 * eps,
+            "{label}: the crossing at {u} is neither found nor in a window \
+             (found {found:?}, windows {windows:?})"
+        );
+    }
+}
+
+/// A circle of radius `r` in `y = 0` about `center`, its point at
+/// `θ = 0` at `center + r·u`.
+fn ring(center: Point3<f64>, r: f64, u: Vec3<f64>) -> Curve3<f64> {
+    Curve3::circle(center, Vec3::unit_y(), r, u)
+}
+
+/// **A window across the seam holds its crossings at either end**
+/// (W3 at the turn): a circle dipping into each window source a few
+/// zero bands deep at `θ = 0`, read on arcs that begin and end at (or a
+/// hair inside) the seam — a plane's belly, a torus's walk, a wall's
+/// ladder, a sphere's first-harmonic extreme, each dipped `3ε`, `30ε` and
+/// a slack's depth. Each true crossing clear of the arc's ends is found
+/// or lies in a window, at every `ε`. Red where a window crossing the
+/// seam is clipped at the span's ends by its one copy (it then keeps
+/// only `(2π − w, 2π)` and drops the crossing at `θ ≈ w`).
+#[test]
+fn a_window_across_the_seam_holds_its_crossings_at_either_end() {
+    use super::conic_oracle::exact;
+    let spans = [(0.0, TAU), (1e-5, TAU - 1e-5), (1e-7, TAU - 1e-7)];
+    for eps in [1e-6, 1e-9, 1e-12] {
+        let b = band(eps);
+        for dip in [3.0 * eps, 30.0 * eps, 1e-8_f64.max(300.0 * eps)] {
+            // A plane: the unit circle's belly `dip` under `z = 0`.
+            let z0 = 1.0 - dip;
+            let belly = ring(Point3::new(0.0, 0.0, z0), 1.0, Vec3::new(0.0, 0.0, -1.0));
+            let w = 2.0 * ((1.0 - z0) / 2.0).sqrt().asin();
+            // A torus (about z, radii 1 and 1/4), a wall (radius 1 about
+            // z) and the unit sphere, each entered at `θ = 0` from
+            // outside along −x.
+            let torus = torus(Point3::origin(), Vec3::unit_z(), 1.0, 0.25);
+            let wall = Surface::Cylinder {
+                frame: Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+                radius: 1.0,
+            };
+            let sphere = Surface::Sphere {
+                frame: Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+                radius: 1.0,
+            };
+            let in_x = Vec3::new(-1.0, 0.0, 0.0);
+            let cases = [
+                (
+                    "torus",
+                    ring(Point3::new(1.75 - dip, 0.0, 0.0), 0.5, in_x),
+                    torus,
+                ),
+                (
+                    "wall",
+                    ring(Point3::new(1.5 - dip, 0.0, 0.0), 0.5, in_x),
+                    wall,
+                ),
+                (
+                    "sphere",
+                    ring(Point3::new(1.5 - dip, 0.0, 0.0), 0.5, in_x),
+                    sphere,
+                ),
+            ];
+            for &span in &spans {
+                let label = format!("plane, ε {eps:e}, dip {dip:e}, span {span:?}");
+                every_crossing_answered(&label, &belly, &plane_z(), span, &[w, TAU - w], 1.0, b);
+                for (name, c, s) in &cases {
+                    let label = format!("{name}, ε {eps:e}, dip {dip:e}, span {span:?}");
+                    let truth = exact::truth(c, s);
+                    every_crossing_answered(&label, c, s, span, &truth.roots, 0.5, b);
+                }
+            }
+        }
+    }
+}
+
+/// **A touch on the arc near its start, the arc ending short of the
+/// turn, is never a miss** (the measured touch turned to `θ = a`): the
+/// circle × torus touch of [`measured_touch`] turned so it sits at
+/// `θ = a ∈ {1e-3, 2e-3}`, read on `[0, 2π − 0.003]` at `ε = 1e-6`;
+/// the touch's window runs back past `θ = 0` to the arc's far end. `cross`
+/// answers a meeting there or refuses, and the sweep's wrapper never
+/// answers `Miss`. Red where the window's copy is clipped at the span's
+/// start alone and then judged against the far end (both answered a miss).
+#[test]
+fn a_touch_near_the_start_of_an_arc_short_of_the_turn_is_never_a_miss() {
+    let (_, s) = measured_touch();
+    let b = band(1e-6);
+    for a in [1e-3_f64, 2e-3] {
+        let ring = ring(
+            Point3::new(1.75, 0.0, 0.0),
+            0.5,
+            Vec3::new(-a.cos(), 0.0, -a.sin()),
+        );
+        let label = format!("a = {a:e}");
+        let span = (0.0, TAU - 0.003);
+        match cross(&Span::new(&ring, span), &s, b) {
+            Ok(got) => assert!(
+                got.meetings
+                    .iter()
+                    .any(|m| (m.point - Point3::new(1.25, 0.0, 0.0)).norm() < 1e-3),
+                "{label}: cross answered without the touch, {got:?}"
+            ),
+            Err(r) => assert!(
+                r.windows.iter().any(|w| w.window.0 <= a && a <= w.window.1),
+                "{label}: no window holds the touch, {r:?}"
+            ),
+        }
+        let wrapped = super::circle_torus::circle_torus_roots(&ring, span.0, span.1, &s, b);
+        assert!(
+            !matches!(wrapped, Ok(Ok(crate::roots::Roots::Miss))),
+            "{label}: the wrapper answered a miss, {wrapped:?}"
+        );
+    }
+}
+
+/// **A crossing in band of an end, just before it, is a window on the
+/// span** (W3 for the placement's `End` window): the line `z = t` on
+/// `[3ε, 1]` crosses `z = 0` at `t = 0`, `3ε` before the span's start,
+/// which the band cannot call apart from it. The window the placement
+/// answers, `(−Kε, Kε)` about the root, is held to the span: it starts
+/// at `3ε` and holds the start. Red where the placement's window is left
+/// unclipped.
+#[test]
+fn a_crossing_in_band_just_before_the_start_is_a_window_on_the_span() {
+    for eps in [1e-6, 1e-9, 1e-12] {
+        let b = band(eps);
+        let l = Curve3::line(Point3::origin(), geom_core::UnitVec3::exact_z());
+        let span = (3.0 * eps, 1.0);
+        let label = format!("ε {eps:e}");
+        let windows = match cross(&Span::new(&l, span), &plane_z(), b) {
+            Ok(got) => {
+                assert!(
+                    got.meetings.iter().all(|m| matches!(
+                        m.on_span,
+                        super::OnSpan::End(crate::curve_pair::SpanEnd::Start)
+                    )),
+                    "{label}: {got:?}"
+                );
+                continue;
+            }
+            Err(r) => r.windows,
+        };
+        assert!(!windows.is_empty(), "{label}");
+        for w in &windows {
+            assert!(
+                span.0 <= w.window.0 && w.window.0 < w.window.1 && w.window.1 <= span.1,
+                "{label}: the window {:?} is on the span {span:?}",
+                w.window
+            );
+        }
+        assert!(
+            windows.iter().any(|w| w.window.0 == span.0),
+            "{label}: a window holds the start, {windows:?}"
+        );
+    }
+}
+
+/// **Every point the band cannot read lies in a window, `Kε` of arc
+/// inside its edge** (W1, W2, through `cross`): each span point within
+/// `Kε` of the surface by the residual the band classifies, and every
+/// point within `Kε` of arc of one, lies in a window of the refusal. The
+/// residual is the oracle's own, sampled densely; `speed` the carrier's
+/// least.
+fn every_unread_point_is_in_a_window(
+    label: &str,
+    c: &Curve3<f64>,
+    s: &Surface<f64>,
+    span: (f64, f64),
+    speed: f64,
+    b: Band,
+) {
+    let windows = match cross(&Span::new(c, span), s, b) {
+        Ok(got) => panic!("{label}: answered {got:?}"),
+        Err(r) => r.windows,
+    };
+    let k_eps = b.escalate();
+    let reach = 0.99 * k_eps / speed;
+    let inside = |t: f64| windows.iter().any(|w| w.window.0 <= t && t <= w.window.1);
+    let n = 200_000;
+    for i in 0..=n {
+        let u = span.0 + (span.1 - span.0) * f64::from(i) / f64::from(n);
+        if crate::implicit_residual(s, c.eval(u)).abs() >= k_eps {
+            continue;
+        }
+        for t in [u - reach, u, u + reach] {
+            if span.0 <= t && t <= span.1 {
+                assert!(
+                    inside(t),
+                    "{label}: the point at {t}, within Kε of arc of {u} (residual {:e}), lies \
+                     outside every window {windows:?}",
+                    crate::implicit_residual(s, c.eval(u))
+                );
+            }
+        }
+    }
+}
+
+/// **Each window source holds what the band cannot read, `Kε` of arc
+/// wider** (W2 by oracles independent of the windows' own sums): a
+/// circle × torus touch (the walk's refused piece), a line by a cone's
+/// apex (the apex window), and a circle's belly and first-harmonic
+/// extreme in band (the graze windows), each holding every point within
+/// `Kε` of the surface and `Kε` of arc about it; a circle crossing a
+/// sphere `1e-8` deep (the first harmonic's refused slack) and a line
+/// crossing a cone `1e-6` deep (the line × cone slack), each holding its
+/// double-double root and `Kε` of arc about it. Red where any of them is
+/// understated: its `Kε` widening dropped, the apex's `+Kε` dropped, or a
+/// slack dropped or shrunk to its root.
+#[test]
+fn each_window_source_holds_what_the_band_cannot_read() {
+    let (ring, torus) = measured_touch();
+    for eps in [1e-6, 1e-9, 1e-12] {
+        every_unread_point_is_in_a_window(
+            &format!("torus touch, ε {eps:e}"),
+            &ring,
+            &torus,
+            (-0.5, 0.5),
+            0.5,
+            band(eps),
+        );
+    }
+    let b = band(1e-9);
+    let cone = Surface::Cone {
+        frame: Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+        half_angle: 0.5,
+    };
+    let l = Curve3::Line(geom::Line {
+        origin: Point3::new(-3.0, 3e-9, 0.0),
+        dir: geom_core::UnitVec3::exact_x(),
+    });
+    every_unread_point_is_in_a_window("apex", &l, &cone, (0.0, 6.0), 1.0, b);
+    let sphere = Surface::Sphere {
+        frame: Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+        radius: 1.0,
+    };
+    // A refused root's window holds the true root `Kε` of arc inside its
+    // edges, the root in double-double. The circle about `(d, 0, 0)` of
+    // radius `ρ = ½` meets the unit sphere where
+    // `1 − cos θ = ((d + ρ)² − 1)/(2dρ)`, so `θ = ±2 asin √(that/2)`.
+    let b12 = band(1e-12);
+    let d = 0.5 + 1e-8;
+    let c = Curve3::circle(
+        Point3::new(d, 0.0, 0.0),
+        Vec3::unit_z(),
+        0.5,
+        Vec3::unit_x(),
+    );
+    let lift = Dd::of(d)
+        .add(Dd::of(0.5))
+        .mul(Dd::of(d).add(Dd::of(0.5)))
+        .sub(Dd::of(1.0));
+    let half_chord = lift.mul(Dd::of(1.0 / (4.0 * d * 0.5))).sqrt();
+    let theta = 2.0 * asin_dd(half_chord);
+    let root_held =
+        |label: &str, windows: &[super::Undecided<f64, CrossWhy>], root: f64, reach: f64| {
+            assert!(
+                windows
+                    .iter()
+                    .any(|w| w.window.0 <= root - reach && root + reach <= w.window.1),
+                "{label}: no window holds the root {root} and Kε of arc either side: {windows:?}"
+            );
+        };
+    let Err(r) = cross(&Span::new(&c, (-PI, PI)), &sphere, b12) else {
+        panic!("the first harmonic's slack refuses")
+    };
+    for root in [-theta, theta] {
+        root_held(
+            "first harmonic's slack",
+            &r.windows,
+            root,
+            b12.escalate() / 0.5,
+        );
+    }
+    let rc = 0.5_f64.tan();
+    let y = rc - 1e-6;
+    let l = Curve3::Line(geom::Line {
+        origin: Point3::new(-2.0, y, 1.0),
+        dir: geom_core::UnitVec3::exact_x(),
+    });
+    let depth = Dd::of(rc).sub(Dd::of(y));
+    let half = depth.mul(Dd::of(2.0 * rc).sub(depth)).sqrt().to_f64();
+    let Err(r) = cross(&Span::new(&l, (0.0, 4.0)), &cone, b12) else {
+        panic!("the line × cone slack refuses")
+    };
+    for root in [2.0 - half, 2.0 + half] {
+        root_held("line × cone slack", &r.windows, root, b12.escalate());
+    }
+    for lift in [-3e-9, 3e-9] {
+        let c = hanging(1.0, lift);
+        every_unread_point_is_in_a_window(
+            &format!("belly, lift {lift:e}"),
+            &c,
+            &plane_z(),
+            (0.0, TAU),
+            1.0,
+            b,
+        );
+        let c = Curve3::circle(
+            Point3::new(0.3, 0.0, 0.0),
+            Vec3::unit_z(),
+            0.7 + lift,
+            Vec3::unit_y(),
+        );
+        every_unread_point_is_in_a_window(
+            &format!("first harmonic, lift {lift:e}"),
+            &c,
+            &sphere,
+            (-PI, PI),
+            0.7,
+            b,
+        );
+    }
+}
+
+/// **A span starting just past a graze's reach, by a gap the band cannot
+/// read, is refused** (`reaches`, a gap in band reads in band): the
+/// unit circle's belly `3ε` under `z = 0`, read from `5ε` of arc past
+/// the reach the pose answers on the whole turn. Red where an overlap in
+/// the band's gap is read `Apart`: the span is then answered with no
+/// meeting.
+#[test]
+fn a_span_just_past_a_grazes_reach_is_refused() {
+    let eps = 1e-9;
+    let b = band(eps);
+    let c = hanging(1.0, -3.0 * eps);
+    let (window, _) = refused("belly", pose(&Span::new(&c, (0.0, PI)), &plane_z(), b));
+    let span = (window.1 + 5.0 * eps, PI);
+    let got = pose(&Span::new(&c, span), &plane_z(), b);
+    assert!(
+        matches!(got, Err(ref u) if matches!(u.why, PoseRefusal::InBand { .. })),
+        "a reach the band cannot call apart from the span: {got:?}"
+    );
+    assert!(
+        cross(&Span::new(&c, span), &plane_z(), b).is_err(),
+        "cross refuses it too"
+    );
 }

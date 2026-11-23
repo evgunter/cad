@@ -167,7 +167,6 @@ fn torus_walk_metered<T: Decide>(
             },
             &TORUS_ROWS,
             meter.as_ref(),
-            conic.speed_lo(),
             band,
         ),
     )
@@ -478,9 +477,7 @@ mod torus_rows {
         let to_hub = axis.cross(along).normalize();
         let s = crate::curve_face::conic_oracle::torus(core + to_hub * ring, axis, ring, tube);
         let t0 = rng.range(0.0, TAU);
-        // The whole turn from a drawn start: the row reads the turn's
-        // certificate, and a refusal off a shorter arc is set aside.
-        let t1 = t0 + TAU;
+        let t1 = t0 + rng.range(0.1, TAU);
         (e, s, t0, t1)
     }
 
@@ -500,12 +497,14 @@ mod torus_rows {
     /// ([`exact::truth`]), which places every true crossing round the turn,
     /// a graze pair however close included:
     ///
-    /// - a certified count is the TRUE count;
+    /// - a certified count is the TRUE count on the drawn arc (each pose
+    ///   is judged on its arc alone, one whose end stands in band set
+    ///   aside: `conic_oracle::arc_truth`);
     /// - every certified root lies on the torus (its true distance inside
     ///   the zero band) and, as arc length, within the zero band of a true
     ///   crossing;
-    /// - a `Miss` has no true crossing and comes no nearer than `Kε` in
-    ///   the residual the band classifies.
+    /// - a `Miss` has no true crossing on the arc and comes no nearer than
+    ///   `Kε` there in the residual the band classifies.
     ///
     /// The counts per answer are printed. The 40-digit check of the same
     /// families is [`dump_for_the_mpmath_oracle`]; the slack meter's
@@ -525,15 +524,30 @@ mod torus_rows {
                         "ε {eps}, {name} {i}: {e:?} against {s:?} on [{t0}, {t1}] — {}",
                         fuzz::replay()
                     );
+                    // Judged on the arc alone; an arc whose end stands in
+                    // band is the end's to read, and is set aside.
+                    let on_arc = crate::curve_face::conic_oracle::arc_truth(
+                        |t| crate::implicit_residual(&s, e.eval(t)),
+                        (t0, t1),
+                        &truth.roots,
+                        10.0 * eps,
+                    );
+                    if on_arc.at_an_end {
+                        continue;
+                    }
                     match found {
                         Ok(CircleRoots::Certified(found)) => {
                             let (count, thetas) = (found.count(), found.roots());
                             certified += 1;
+                            let placed = thetas[..count]
+                                .iter()
+                                .filter(|&&t| crate::curve_face::conic_oracle::on_arc((t0, t1), t))
+                                .count();
                             assert_eq!(
-                                count,
-                                truth.roots.len(),
-                                "{label}: certified {count} of {:?}",
-                                truth.roots
+                                placed,
+                                on_arc.roots.len(),
+                                "{label}: certified {count}, {:?} on the arc",
+                                on_arc.roots
                             );
                             for &t in &thetas[..count] {
                                 let off = distance(&s, e.eval(t)).abs();
@@ -550,10 +564,10 @@ mod torus_rows {
                         Ok(CircleRoots::Miss) => {
                             misses += 1;
                             assert!(
-                                truth.roots.is_empty() && truth.residual_depth >= 10.0 * eps,
+                                on_arc.roots.is_empty() && on_arc.least >= 10.0 * eps,
                                 "{label}: a Miss {} from the torus, crossings {:?}",
-                                truth.residual_depth,
-                                truth.roots
+                                on_arc.least,
+                                on_arc.roots
                             );
                         }
                         Err(_) => uncertain += 1,

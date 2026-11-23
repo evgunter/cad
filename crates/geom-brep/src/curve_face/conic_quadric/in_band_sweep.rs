@@ -129,24 +129,25 @@ fn permitted(
     (r, span): (f64, (f64, f64)),
     eps: f64,
 ) -> bool {
-    let clear = truth.residual_depth >= 10.0 * eps;
-    // A graze past the span leaves the span itself apart (the pose's
-    // `kappa`): its residual over the span one-signed past `Kε`, read
-    // only for a `Miss`.
-    let span_clear = || {
-        let (lo, hi) = crate::curve_face::conic_oracle::extremes(
+    use crate::curve_face::conic_oracle::{arc_truth, holds_on_arc};
+    // Judged on the arc alone: a graze off it leaves the arc's own
+    // reading to be answered.
+    let on_arc = || {
+        arc_truth(
             |t| crate::implicit_residual(&wall(r), c.eval(t)),
-            span.0,
-            span.1,
-        );
-        lo >= 10.0 * eps || hi <= -10.0 * eps
+            span,
+            &truth.roots,
+            10.0 * eps,
+        )
     };
     match got {
         Ok(Err(Unsettled::AtApex)) => false,
         Ok(Err(_)) | Err(_) => true,
         Ok(Ok(CircleRoots::On(_))) => farthest(c, r) <= 10.0 * eps,
-        Ok(Ok(CircleRoots::Miss)) => (clear && truth.roots.is_empty()) || span_clear(),
-        Ok(Ok(CircleRoots::Certified(found))) => clear && found.count() == truth.roots.len(),
+        Ok(Ok(CircleRoots::Miss)) => holds_on_arc(&[], &on_arc(), span, 10.0 * eps).unwrap_or(true),
+        Ok(Ok(CircleRoots::Certified(found))) => {
+            holds_on_arc(found.roots(), &on_arc(), span, 10.0 * eps).unwrap_or(true)
+        }
     }
 }
 
@@ -176,9 +177,7 @@ fn no_pose_inside_the_band_is_answered() {
                 _ => 0.0,
             };
             let c = tangent_circle(r, rho, depth, g, b);
-            // The turn about a drawn middle: these rows read the turn's
-            // certificate, and a refusal off a shorter arc is set aside.
-            let (m, h) = (rng.range(-PI, PI), PI);
+            let (m, h) = (rng.range(-PI, PI), rng.range(0.01, PI));
             let truth = exact::truth(&c, &wall(r));
             if truth.residual_depth >= 10.0 * eps {
                 continue;
@@ -438,10 +437,7 @@ fn a_first_harmonic_extreme_at_the_bands_edges_is_answered_truly_or_not_at_all()
                 // The depth `d` whose residual `d + d²/2r` is `target`.
                 let depth = 2.0 * target / (1.0 + (1.0 + 2.0 * target / r).sqrt());
                 let c = tangent_circle(r, rho, depth, g, b);
-                // The turn about a drawn middle: these rows read the
-                // turn's certificate, and a refusal off a shorter arc is
-                // set aside.
-                let (m, h) = (rng.range(-PI, PI), PI);
+                let (m, h) = (rng.range(-PI, PI), rng.range(0.01, PI));
                 let truth = exact::truth(&c, &wall(r));
                 let got = conic_quadric_roots(&c, m - h, m + h, &wall(r), band);
                 posed += 1;

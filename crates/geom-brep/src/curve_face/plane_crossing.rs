@@ -179,7 +179,7 @@ fn conic_plane_meet<T: Decide>(
             super::cross::PlaceWhy::Apart(diag) => Err(ConicRootFault::RootOrder(diag)),
             super::cross::PlaceWhy::Together(t) => Ok(vec![t]),
             // A kernel fault this wrapper's shape has no arm for: it fails
-            // loud, as the placement did before it answered the fault.
+            // loud.
             super::cross::PlaceWhy::Contradiction(what) => {
                 unreachable!("the plane lane's placement read a contradiction: {what}")
             }

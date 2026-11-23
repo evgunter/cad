@@ -289,14 +289,18 @@ pub(super) fn edge_face<T: Decide>(
             }
         },
         Err(refusal) => {
-            let cause = refusal.windows.first().and_then(|w| match w.why {
+            let leading = refusal.leading();
+            if let Some(what) = leading.why.fault() {
+                unreachable!("the curve × face reading faulted: {what}")
+            }
+            let cause = match leading.why {
                 CrossWhy::Pose(PoseRefusal::InBand { diag, .. }) => Some(diag),
                 CrossWhy::Method { fault, .. } => match fault.kind() {
                     MeetKind::Escalated(diag) | MeetKind::Touch(diag) => Some(diag),
                     MeetKind::Unread(_) | MeetKind::Fault { .. } => None,
                 },
                 CrossWhy::Pose(_) => None,
-            });
+            };
             errors.push(cause.map_or_else(
                 || {
                     refused(

@@ -138,6 +138,24 @@ pub struct CrossRefusal<T: Real> {
     pub windows: Vec<Undecided<T, CrossWhy>>,
 }
 
+impl<T: Real> CrossRefusal<T> {
+    /// **The window a reader of one window reads**: the first whose why is
+    /// a fault ([`CrossWhy::fault`]), so no fault is read past behind an
+    /// escalation, else the first.
+    ///
+    /// # Panics
+    ///
+    /// On a refusal with no window, which `cross` never answers.
+    #[must_use]
+    pub fn leading(&self) -> &Undecided<T, CrossWhy> {
+        self.windows
+            .iter()
+            .find(|w| w.why.fault().is_some())
+            .or_else(|| self.windows.first())
+            .unwrap_or_else(|| unreachable!("a crossing refusal holds a window"))
+    }
+}
+
 /// **What a door's method found, and where it could not read**: the
 /// roots it read outside its windows, each within half a turn of the
 /// span's middle on a conic, and each window with what refused it. A
@@ -211,14 +229,26 @@ impl<T: Decide> Walked<T> {
         }
     }
 
-    /// **The windows that meet the span** (W3: [`super::misses`] drops the
-    /// rest, with the meetings they could hold), each held to it
-    /// ([`super::clip`]), in the method's order.
-    pub(super) fn on_span(&self, span: &Span<'_, T>, band: Band) -> Vec<((T, T), MeetFault)> {
+    /// **The windows, each the band's escalation wider than where its
+    /// meetings lie** ([`super::escalation_reach`]): a method's window
+    /// holds its unread meetings and no more.
+    fn widened(&self, span: &Span<'_, T>, band: Band) -> impl Iterator<Item = ((T, T), MeetFault)> {
+        let reach = super::escalation_reach(span, band);
         self.windows
             .iter()
-            .filter(|(window, _)| !super::misses(span, *window, band))
-            .map(|&(window, fault)| (super::clip(span, window, band), fault))
+            .map(move |&((lo, hi), fault)| ((lo - reach, hi + reach), fault))
+    }
+
+    /// **The windows that meet the span**, widened, each piece of each
+    /// where it meets the span ([`super::on_span`]: W3, at every turn), in
+    /// the method's order.
+    pub(super) fn on_span(&self, span: &Span<'_, T>, band: Band) -> Vec<((T, T), MeetFault)> {
+        self.widened(span, band)
+            .flat_map(|(window, fault)| {
+                super::on_span(span, window, band)
+                    .into_iter()
+                    .map(move |piece| (piece, fault))
+            })
             .collect()
     }
 }
@@ -258,11 +288,10 @@ pub fn cross<T: Decide>(
             if past {
                 // A touch past the span is not `Apart` only where its reach
                 // at `Kε` covers part of the span (`pose`'s `reaches`,
-                // decided definitely positive): that part is the window,
-                // never nothing and never a point.
-                let (t0, t1) = super::ascending(params);
+                // decided definitely positive at some turn): that part is
+                // the window ([`finish`] holds it to the span).
                 windows.push(Undecided {
-                    window: (t0.max(touch.reach.0), t1.min(touch.reach.1)),
+                    window: touch.reach,
                     why: CrossWhy::Method {
                         door,
                         fault: MeetFault::Unsettled(Unsettled::Tangency),
@@ -312,27 +341,42 @@ pub fn cross<T: Decide>(
         },
     };
     let windows = walked
-        .on_span(span, band)
-        .into_iter()
+        .widened(span, band)
         .map(|(window, fault)| Undecided {
             window,
             why: CrossWhy::Method { door, fault },
-        });
+        })
+        .collect::<Vec<_>>();
     let (meetings, placed) = place(span, &walked.roots, band).read(door, None);
-    finish(span, pose, meetings, windows.chain(placed).collect(), band)
+    finish(
+        span,
+        pose,
+        meetings,
+        windows.into_iter().chain(placed).collect(),
+        band,
+    )
 }
 
-/// **The answer, or the refusal where any window stands** (W1, W4): a
-/// found meeting the band cannot read outside a window is taken into it,
-/// so no found meeting lies in one; then windows that overlap or touch
-/// within the band are one ([`merged`]).
+/// **The answer, or the refusal where any window stands** (W1, W3, W4):
+/// each window held to the span where it meets it ([`super::on_span`],
+/// at every turn); a found meeting the band cannot read outside a window
+/// is taken into it, so no found meeting lies in one; then windows that
+/// overlap or touch within the band are one ([`merged`]).
 pub(super) fn finish<T: Decide>(
     span: &Span<'_, T>,
     pose: Pose<T>,
     meetings: Vec<(Meeting<T>, T)>,
-    mut windows: Vec<Undecided<T, CrossWhy>>,
+    windows: Vec<Undecided<T, CrossWhy>>,
     band: Band,
 ) -> Result<Crossings<T>, CrossRefusal<T>> {
+    let mut windows: Vec<Undecided<T, CrossWhy>> = windows
+        .into_iter()
+        .flat_map(|w| {
+            super::on_span(span, w.window, band)
+                .into_iter()
+                .map(move |window| Undecided { window, why: w.why })
+        })
+        .collect();
     if windows.is_empty() {
         return Ok(Crossings {
             pose,
@@ -345,9 +389,13 @@ pub(super) fn finish<T: Decide>(
         match windows.iter().position(|w| {
             super::undecided_over(core::slice::from_ref(w), (t, t), speed, band).is_some()
         }) {
+            // Taken into the window as a window of its own escalation
+            // about it (W2), held to the span.
             Some(k) => {
                 let (lo, hi) = windows[k].window;
-                windows[k].window = (lo.min(t), hi.max(t));
+                let reach = super::escalation_reach(span, band);
+                let (t0, t1) = super::ascending(span.params());
+                windows[k].window = ((t - reach).max(t0).min(lo), (t + reach).min(t1).max(hi));
             }
             None => found.push(meeting),
         }
@@ -518,7 +566,7 @@ pub(super) fn place<T: Decide>(span: &Span<'_, T>, roots: &[T], band: Band) -> P
     let (t0, t1) = span.params();
     let mid = geom::mid_param(t0, t1);
     let periodic = carrier.conic().is_some();
-    let reach = T::from_f64(band.escalate()) / span.speeds().0.get();
+    let reach = super::escalation_reach(span, band);
     let mut inside: Vec<(T, OnSpan<T>, Point3<T>)> = Vec::new();
     let mut refused = Vec::new();
     for &root in roots {

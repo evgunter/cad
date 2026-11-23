@@ -488,7 +488,7 @@ fn arc<T: Real>(g: &Graze<T>, width: T) -> T {
 fn kappa<T: Decide>(span: &Span<'_, T>, g: Graze<T>, band: Band) -> Result<Pose<T>, Refused<T>> {
     let local = |why| Refused {
         why,
-        window: Some(super::clip(span, graze_reach(&g, band), band)),
+        window: local(span, graze_reach(&g, band), band),
     };
     match reaches(span, g, band).map_err(local)? {
         Ok(reaching) => reaching
@@ -496,6 +496,16 @@ fn kappa<T: Decide>(span: &Span<'_, T>, g: Graze<T>, band: Band) -> Result<Pose<
             .and_then(|confirmed| curvature(span, confirmed, band))
             .map_err(local),
         Err(apart) => Ok(apart),
+    }
+}
+
+/// **A refusal's window**, where it meets the span ([`super::on_span`])
+/// in one piece: one that meets it in two, across the turn's seam, or
+/// that the reading has no piece of, is the whole span's.
+fn local<T: Decide>(span: &Span<'_, T>, window: (T, T), band: Band) -> Option<(T, T)> {
+    match super::on_span(span, window, band)[..] {
+        [piece] => Some(piece),
+        _ => None,
     }
 }
 
@@ -520,7 +530,7 @@ fn graze_window<T: Decide>(
         Ok(Err(apart)) => Ok(apart),
         Ok(Ok(_)) | Err(_) => Err(Refused {
             why,
-            window: Some(super::clip(span, graze_reach(&g, band), band)),
+            window: local(span, graze_reach(&g, band), band),
         }),
     }
 }
@@ -548,26 +558,44 @@ fn reaches<T: Decide>(
     let in_band = PoseRefusal::in_band(PoseRung::Kappa);
     let reach = graze_reach(&g, band);
     if span.place_param(g.at, band).map_err(&in_band)? == crate::curve_pair::Place::Past {
-        let (t0, t1) = span.params();
-        let overlap = t1.max(t0).min(reach.1) - t0.min(t1).max(reach.0);
-        let read = geom_core::k_stats::decide_reported(
-            "curve_face_pose_graze_reach",
-            Margin::metered(overlap, span.speeds().0),
-            band,
-        )
-        .map_err(&in_band)?;
-        match read.sign {
-            Sign::Negative => return Ok(Err(Pose::Apart)),
-            Sign::Zero => {
-                return Err(zero_band(
-                    PoseRung::Kappa,
-                    "curve_face_pose_graze_reach",
-                    read,
-                    band,
-                ));
+        // The overlap at each turn of the reach on a conic: one that
+        // crosses the turn's seam meets a span near a whole turn at its
+        // far end too.
+        let (t0, t1) = super::ascending(span.params());
+        let turns: &[f64] = if span.carrier().conic().is_some() {
+            &[-1.0, 0.0, 1.0]
+        } else {
+            &[0.0]
+        };
+        let (mut gap, mut zero) = (None, None);
+        for &k in turns {
+            let shift = T::tau() * T::from_f64(k);
+            let overlap = t1.min(reach.1 + shift) - t0.max(reach.0 + shift);
+            match geom_core::k_stats::decide_reported(
+                "curve_face_pose_graze_reach",
+                Margin::metered(overlap, span.speeds().0),
+                band,
+            ) {
+                Ok(read) if read.sign == Sign::Positive => return Ok(Ok(Reaching(g, reach))),
+                Ok(read) if read.sign == Sign::Zero => {
+                    zero.get_or_insert(read);
+                }
+                Ok(_) => {}
+                Err(diag) => {
+                    gap.get_or_insert(diag);
+                }
             }
-            Sign::Positive => {}
         }
+        return match (gap, zero) {
+            (Some(diag), _) => Err(in_band(diag)),
+            (None, Some(read)) => Err(zero_band(
+                PoseRung::Kappa,
+                "curve_face_pose_graze_reach",
+                read,
+                band,
+            )),
+            (None, None) => Ok(Err(Pose::Apart)),
+        };
     }
     Ok(Ok(Reaching(g, reach)))
 }
@@ -1227,6 +1255,20 @@ pub(super) enum ConeRead<T: Real> {
         /// The roots' spread about it, in the line's parameter.
         reach: T,
     },
+    /// The run may reach the apex, a reading of the apex or of the roots'
+    /// spread in band, `Lies` excluded: its roots lie within `reach` of
+    /// `at` along the line's parameter, the quadratic's own two
+    /// ([`super::line_quadric`]'s `apex_root_spread`), and `why` is the
+    /// rung that read in band.
+    ApexUndecided {
+        /// The point the spread is read about: the end the apex is decided
+        /// at, else the line's foot from it.
+        at: T,
+        /// The roots' spread about it.
+        reach: T,
+        /// The rung in band.
+        why: PoseRefusal,
+    },
     /// A definitely negative depth.
     Apart,
     /// A definitely positive depth: two roots, the method's.
@@ -1298,7 +1340,7 @@ pub(super) fn line_cone_read<T: Decide>(
     let w0 = origin - apex;
     let dd = dir.get().norm_squared();
     let at = |t: T| w0 + dir.get() * t;
-    let (lo, hi) = (t0.min(t1), t0.max(t1));
+    let (lo, hi) = super::ascending((t0, t1));
     let foot = line.param_within(apex, (lo, hi));
     let centred = line_cone_quadratic(line, cone, half_angle, (lo, hi));
     let [a2, b2, c2] = centred.coeffs;
@@ -1337,42 +1379,65 @@ pub(super) fn line_cone_read<T: Decide>(
             Sign::Positive | Sign::Negative => Ok(false),
         }
     };
-    match decide("curve_face_pose_cone_apex", Margin::norm3(at(foot)), band)
-        .map_err(PoseRefusal::in_band(PoseRung::Apex))?
-    {
-        Sign::Positive => {}
-        Sign::Zero | Sign::Negative => {
-            // The end the apex is decided at, else the foot: WHICH, not a
-            // search a later end may answer past, an end in band ahead
-            // refusing.
-            let mut at_apex = foot;
+    // The apex's rung in its gap: the run may reach it, which only a
+    // reading past `Lies` may answer locally ([`ConeRead::ApexUndecided`]).
+    let mut apex_gap = None;
+    let near_apex = match decide("curve_face_pose_cone_apex", Margin::norm3(at(foot)), band) {
+        Ok(Sign::Positive) => false,
+        Ok(Sign::Zero | Sign::Negative) => true,
+        Err(diag) => {
+            apex_gap = Some(PoseRefusal::in_band(PoseRung::Apex)(diag));
+            true
+        }
+    };
+    if near_apex {
+        // The end the apex is decided at, else the foot: WHICH, not a
+        // search a later end may answer past, an end in band ahead
+        // refusing.
+        let mut at_apex = foot;
+        if apex_gap.is_none() {
             for end in [t0, t1] {
-                if decide("curve_face_pose_cone_apex", Margin::norm3(at(end)), band)
-                    .map_err(PoseRefusal::in_band(PoseRung::Apex))?
-                    == Sign::Zero
-                {
-                    at_apex = end;
-                    break;
+                match decide("curve_face_pose_cone_apex", Margin::norm3(at(end)), band) {
+                    Ok(Sign::Zero) => {
+                        at_apex = end;
+                        break;
+                    }
+                    Ok(Sign::Positive | Sign::Negative) => {}
+                    Err(diag) => {
+                        apex_gap = Some(PoseRefusal::in_band(PoseRung::Apex)(diag));
+                        break;
+                    }
                 }
             }
-            if lead()? == Sign::Zero && on_surface()? {
-                return Ok(ConeRead::Lies);
-            }
-            not_lies_over((t0, t1), residual, band)?;
-            let spread = apex_root_spread(at(at_apex), dir.get(), (axis.get(), half_angle));
-            return match decide("curve_face_pose_cone_apex_spread", Margin::of(spread), band)
-                .map_err(PoseRefusal::in_band(PoseRung::ApexSpread))?
-            {
-                Sign::Zero => Ok(ConeRead::Through {
-                    at: at_apex,
-                    reach: spread / dir.get().norm(),
-                }),
-                Sign::Positive | Sign::Negative => Err(PoseRefusal::Meter {
-                    rung: PoseRung::ApexSpread,
-                    row: "curve_face_pose_cone_apex_spread",
-                }),
-            };
         }
+        if lead()? == Sign::Zero && on_surface()? {
+            return Ok(ConeRead::Lies);
+        }
+        // `Lies` unexcluded, the apex's gap refuses the whole run.
+        if let Err(not_lies) = not_lies_over((t0, t1), residual, band) {
+            return Err(apex_gap.unwrap_or(not_lies));
+        }
+        let spread = apex_root_spread(at(at_apex), dir.get(), (axis.get(), half_angle));
+        let reach = spread / dir.get().norm();
+        return match decide("curve_face_pose_cone_apex_spread", Margin::of(spread), band) {
+            Ok(Sign::Zero) => Ok(apex_gap.map_or(
+                ConeRead::Through { at: at_apex, reach },
+                |why| ConeRead::ApexUndecided {
+                    at: at_apex,
+                    reach,
+                    why,
+                },
+            )),
+            Err(diag) => Ok(ConeRead::ApexUndecided {
+                at: at_apex,
+                reach,
+                why: apex_gap.unwrap_or(PoseRefusal::in_band(PoseRung::ApexSpread)(diag)),
+            }),
+            Ok(Sign::Positive | Sign::Negative) => Err(PoseRefusal::Meter {
+                rung: PoseRung::ApexSpread,
+                row: "curve_face_pose_cone_apex_spread",
+            }),
+        };
     }
     if lead()? == Sign::Zero {
         // A segment of a generator off the apex lies on the cone too.
@@ -1434,40 +1499,17 @@ pub(super) fn line_cone_read<T: Decide>(
 }
 
 /// **A line against a cone** ([`line_cone_read`]), a graze's curvature
-/// read on `span`. The apex's rungs in band are a window over the
-/// line's two roots' spread about its foot from the apex
-/// (`super::line_quadric`'s `apex_root_spread`, the quadratic's own
-/// roots, so no meeting lies past it), widened by `Kε`.
+/// read on `span`. A reading of the apex in band, once `Lies` is excluded,
+/// is a window over the line's two roots' spread about the apex
+/// ([`ConeRead::ApexUndecided`], the read's own datum, so no meeting lies
+/// past it), widened by `Kε`.
 fn line_cone<T: Decide>(
     span: &Span<'_, T>,
     line: geom::Line<T>,
     cone: (geom::Line<T>, T),
     band: Band,
 ) -> Result<Pose<T>, Refused<T>> {
-    let read = match line_cone_read(line, cone, span.params(), band) {
-        Ok(read) => read,
-        Err(
-            why @ PoseRefusal::InBand {
-                rung: PoseRung::Apex | PoseRung::ApexSpread,
-                ..
-            },
-        ) => {
-            let run = super::ascending(span.params());
-            let foot = line.param_within(cone.0.origin, run);
-            // The line's direction is a unit: its parameter is arc length.
-            let spread = super::line_quadric::apex_root_spread(
-                line.at(foot) - cone.0.origin,
-                line.dir.get(),
-                (cone.0.dir.get(), cone.1),
-            ) + T::from_f64(band.escalate());
-            // A line along a generator has no quadratic: its spread is no
-            // length, and its window the whole span.
-            let window = geom_core::is_finite_length(spread)
-                .then(|| super::clip(span, (foot - spread, foot + spread), band));
-            return Err(Refused { why, window });
-        }
-        Err(why) => return Err(why.into()),
-    };
+    let read = line_cone_read(line, cone, span.params(), band)?;
     Ok(match read {
         ConeRead::Lies => Pose::Lies,
         ConeRead::Parallel => Pose::Isolated(Form(Formed::LineCone { parallel: true })),
@@ -1476,6 +1518,15 @@ fn line_cone<T: Decide>(
             point: cone.0.origin,
             spread: (at - reach, at + reach),
         }),
+        ConeRead::ApexUndecided { at, reach, why } => {
+            // A line along a generator has no quadratic: its spread is no
+            // length, and its window the whole span.
+            let reach = reach + super::escalation_reach(span, band);
+            let window = geom_core::is_finite_length(reach)
+                .then(|| local(span, (at - reach, at + reach), band))
+                .flatten();
+            return Err(Refused { why, window });
+        }
         ConeRead::Apart => Pose::Apart,
         ConeRead::Two => Pose::Isolated(Form(Formed::LineCone { parallel: false })),
         ConeRead::Graze {
@@ -1715,8 +1766,10 @@ fn first_harmonic<T: Decide>(
     };
     // An extreme in its gap, the other read definitely on the far side of
     // zero: the residual's roots, if any, lie in that extreme's reach
-    // ([`graze_window`]). `F` bounds the residual from below on a cone, so
-    // its reach holds the residual's roots there too.
+    // ([`graze_window`]). On a cone `|F| ≤ |res|` (the implicit's docs), so
+    // wherever the residual is within `Kε` so is `F`: `F`'s reach holds
+    // the residual's `Kε` reach, its roots with it (`window_rows`' cone
+    // row).
     let (lo, lo_read) = match extreme(h.lo) {
         Ok(read) => read,
         Err(why) => {

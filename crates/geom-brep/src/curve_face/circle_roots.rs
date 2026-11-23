@@ -133,8 +133,8 @@ pub type CircleRoots<T> = Roots<T, { 2 * MAX_DEGREE }, OnCarrier>;
 
 /// **A method's answer in the root doors' shape** (their wrappers): its
 /// roots where no window meets the span, else the first window that does
-/// ([`super::cross::Walked::on_span`]), as the door refused it before. A
-/// window off the arc refuses nothing.
+/// ([`super::cross::Walked::on_span`]), refused as the door's escalation.
+/// A window off the arc refuses nothing.
 ///
 /// # Errors
 ///
@@ -240,9 +240,9 @@ pub fn harmonic_roots_as<T: Decide>(
     let slope = ((T::zero() - lo_value) * hi_value).max(T::zero()).sqrt();
     let at_root = (hi_value * lo.error - lo_value * hi.error) / swing;
     let phase = phase_noise / (cos_part.powi(2) + sin_part.powi(2)).sqrt();
-    let turns = at_root / slope + phase + geom_core::rounding_charge(T::tau());
+    let angle = at_root / slope + phase + geom_core::rounding_charge(T::tau());
     let held = matches!(
-        decide(root_slack, Margin::of(speed * turns), band),
+        decide(root_slack, Margin::of(speed * angle), band),
         Ok(Sign::Zero | Sign::Negative)
     );
     // The half-chord `acos(−c₀/A₁)`, measured from the extreme nearer
@@ -263,7 +263,7 @@ pub fn harmonic_roots_as<T: Decide>(
         Err(SlackRefused {
             row: root_slack,
             roots,
-            slack: turns,
+            slack: angle,
         })
     }
 }

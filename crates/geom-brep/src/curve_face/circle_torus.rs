@@ -11,7 +11,7 @@
 //! v̂ sin θ`, the cross term `2ρ(C₀ − c)·e(θ)` is the only
 //! `θ`-dependence of `S`, since `|e(θ)| = 1`), so `F` is a
 //! trigonometric polynomial of degree TWO, and the shared half-angle
-//! ladder ([`crate::half_angle::half_angle_roots`]) solves it — Bézout's
+//! ladder ([`crate::half_angle::half_angle_roots_past`]) solves it — Bézout's
 //! eight for a conic against a quartic surface loses four to the
 //! circular points at infinity, through which both the circle and the
 //! (bicircular) torus pass. At most four crossings per turn. The

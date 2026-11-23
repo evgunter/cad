@@ -514,14 +514,29 @@ mod fuzz_rows {
                     }
                 };
                 let t0 = rng.range(0.0, TAU);
-                // The whole turn from a drawn start: the row reads the turn's
-                // certificate, and a refusal off a shorter arc is set aside.
-                let t1 = t0 + TAU;
+                let t1 = t0 + rng.range(0.1, TAU);
                 let Ok(found) = conic_quadric_roots(&e, t0, t1, &s, band) else {
                     escalated += 1;
                     continue;
                 };
+                // Judged on the arc alone; an arc whose end stands in band
+                // is the end's to read, and is set aside.
                 let truth = exact::truth(&e, &s);
+                let on_arc = crate::curve_face::conic_oracle::arc_truth(
+                    |t| crate::implicit_residual(&s, e.eval(t)),
+                    (t0, t1),
+                    &truth.roots,
+                    10.0 * eps,
+                );
+                if on_arc.at_an_end {
+                    continue;
+                }
+                let placed = |roots: &[f64]| {
+                    roots
+                        .iter()
+                        .filter(|&&t| crate::curve_face::conic_oracle::on_arc((t0, t1), t))
+                        .count()
+                };
                 let label = format!(
                     "ε {eps}, case {i}: {e:?} against {s:?} on [{t0}, {t1}] — {}",
                     fuzz::replay()
@@ -535,19 +550,19 @@ mod fuzz_rows {
                             assert!(off <= eps, "{label}: root {t} lies {off} off the surface");
                         }
                         assert_eq!(
-                            count,
-                            truth.roots.len(),
-                            "{label}: certified {count} of {:?}",
-                            truth.roots
+                            placed(found.roots()),
+                            on_arc.roots.len(),
+                            "{label}: certified {count}, {:?} on the arc",
+                            on_arc.roots
                         );
                     }
                     Ok(CircleRoots::Miss) => {
                         misses += 1;
                         assert!(
-                            truth.roots.is_empty() && truth.residual_depth >= 10.0 * eps,
+                            on_arc.roots.is_empty() && on_arc.least >= 10.0 * eps,
                             "{label}: a Miss {} from the surface, true crossings {:?}",
-                            truth.residual_depth,
-                            truth.roots
+                            on_arc.least,
+                            on_arc.roots
                         );
                     }
                     Err(Unsettled::AtApex) => panic!("{label}: no apex on a sphere or a wall"),

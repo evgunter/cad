@@ -99,9 +99,7 @@ fn draw(rng: &mut Rng, family: usize) -> Pose {
             minor,
         ))
     };
-    // The turn about a drawn middle: the sweep reads the turn's
-    // certificate, and a refusal off a shorter arc is set aside.
-    let (m, h) = (rng.range(-PI, PI), PI);
+    let (m, h) = (rng.range(-PI, PI), rng.range(0.01, PI));
     Pose {
         carrier,
         surface,
@@ -228,6 +226,19 @@ fn no_certified_root_of_a_shallow_ladder_crossing_is_placed_past_the_band() {
             if truth.residual_depth < 10.0 * eps {
                 continue;
             }
+            // Judged on the arc alone: the roots on it, an arc whose end
+            // stands in band set aside.
+            let arc = (pose.t0, pose.t1);
+            let on_arc = crate::curve_face::conic_oracle::arc_truth(
+                |t| crate::implicit_residual(&pose.surface, pose.carrier.eval(t)),
+                arc,
+                &truth.roots,
+                10.0 * eps,
+            );
+            if on_arc.at_an_end {
+                continue;
+            }
+            let truth_roots = &on_arc.roots;
             let at = Interval::from_f64;
             for (lane, got) in [
                 (
@@ -246,23 +257,30 @@ fn no_certified_root_of_a_shallow_ladder_crossing_is_placed_past_the_band() {
                 ),
             ] {
                 judged += 1;
+                let got = got.map(|roots| {
+                    roots
+                        .into_iter()
+                        .filter(|&(lo, hi)| {
+                            crate::curve_face::conic_oracle::on_arc(arc, (lo + hi) / 2.0)
+                        })
+                        .collect::<Vec<_>>()
+                });
                 let why = match &got {
-                    Ok(roots) if roots.len() != truth.roots.len() => Some(format!(
+                    Ok(roots) if roots.len() != truth_roots.len() => Some(format!(
                         "certified {} roots, the truth has {}",
                         roots.len(),
-                        truth.roots.len()
+                        truth_roots.len()
                     )),
                     Ok(roots) => {
                         let worst = roots
                             .iter()
                             .map(|&r| {
-                                truth
-                                    .roots
+                                truth_roots
                                     .iter()
                                     .map(|&t| arc_off(r, t, pose.speed))
                                     .fold(f64::INFINITY, f64::min)
                             })
-                            .chain(truth.roots.iter().map(|&t| {
+                            .chain(truth_roots.iter().map(|&t| {
                                 roots
                                     .iter()
                                     .map(|&r| arc_off(r, t, pose.speed))
@@ -271,8 +289,8 @@ fn no_certified_root_of_a_shallow_ladder_crossing_is_placed_past_the_band() {
                             .fold(0.0, f64::max);
                         (worst > 10.0 * eps).then(|| format!("a root {worst:.3e} m from the truth"))
                     }
-                    Err(what) if what == "Miss" => (!truth.roots.is_empty())
-                        .then(|| format!("Miss on {} true roots", truth.roots.len())),
+                    Err(what) if what == "Miss" => (!truth_roots.is_empty())
+                        .then(|| format!("Miss on {} true roots", truth_roots.len())),
                     Err(what) if what.starts_with("unsettled") || what.starts_with("refused") => {
                         None
                     }

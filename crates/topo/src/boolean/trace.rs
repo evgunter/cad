@@ -145,9 +145,7 @@ impl core::error::Error for TraceFault {}
 /// On a kernel fault: the pose's or the method's readings contradict.
 fn refused<T: Real>(surface: &Surface<T>, refusal: &CrossRefusal<T>) -> TraceFault {
     use geom_brep::curve_pair::MeetFault;
-    let Some(window) = refusal.windows.first() else {
-        unreachable!("a crossing refusal holds a window");
-    };
+    let window = refusal.leading();
     match window.why {
         CrossWhy::Pose(PoseRefusal::InBand { diag, .. }) => TraceFault::Escalated(diag),
         CrossWhy::Pose(PoseRefusal::Torus(torus)) => TraceFault::Torus(torus),

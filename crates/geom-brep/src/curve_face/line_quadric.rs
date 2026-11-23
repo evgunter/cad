@@ -187,15 +187,13 @@ pub(super) fn line_method<T: Decide>(
                 origin: apex,
                 dir: axis,
             };
-            let widen = T::from_f64(band.escalate());
             let mut walked = Walked::found(Vec::new());
             for (t, slack, held) in cone_roots_read(line, (cone, half_angle), (t0, t1), band) {
                 if held {
                     walked.roots.push(t);
                 } else {
-                    let about = slack + widen;
                     walked.windows.push((
-                        (t - about, t + about),
+                        (t - slack, t + slack),
                         MeetFault::Unsettled(Unsettled::Meter {
                             row: "line_quadric_cone_root_slack",
                         }),
@@ -803,6 +801,20 @@ pub fn line_cone_roots<T: Decide>(
         // A ruling, or a line parallel to one: the quadratic degenerates.
         Ok(ConeRead::Lies | ConeRead::Parallel) => Ok(Err(Unsettled::Degenerate)),
         Ok(ConeRead::Through { at, .. }) => Ok(Ok(ConeRoots::Apex(at))),
+        // The apex or its spread in band: refused as the rung refused it.
+        Ok(ConeRead::ApexUndecided {
+            why:
+                PoseRefusal::InBand {
+                    rung: PoseRung::ApexSpread,
+                    ..
+                },
+            ..
+        }) => Ok(Err(Unsettled::AtApex)),
+        Ok(ConeRead::ApexUndecided {
+            why: PoseRefusal::InBand { diag, .. },
+            ..
+        }) => Err(diag),
+        Ok(ConeRead::ApexUndecided { .. }) => Ok(Err(Unsettled::AtApex)),
         Ok(ConeRead::Apart) => Ok(Ok(ConeRoots::Miss)),
         Ok(ConeRead::Graze { .. }) => Ok(Err(Unsettled::Tangency)),
         Ok(ConeRead::Two) => Ok(match cone_roots(line, (cone, half_angle), (t0, t1), band) {
@@ -865,7 +877,7 @@ fn cone_roots_read<T: Decide>(
     (t0, t1): (T, T),
     band: Band,
 ) -> [(T, T, bool); 2] {
-    let (lo, hi) = (t0.min(t1), t0.max(t1));
+    let (lo, hi) = super::ascending((t0, t1));
     let centred = line_cone_quadratic(line, cone, half_angle, (lo, hi));
     let disc = centred.disc();
     let (roots, _) = centred.roots(disc);

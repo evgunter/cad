@@ -409,33 +409,67 @@ pub(crate) fn ascending<T: geom_core::Real>((t0, t1): (T, T)) -> (T, T) {
     (t0.min(t1), t0.max(t1))
 }
 
-/// **Whether a window misses the span** (`curve_face`'s W3): the span read
-/// as a run past it, as [`undecided_over`] reads one, metred at the span's
-/// least speed. A gap in band keeps it.
-pub(crate) fn misses<T: Decide>(span: &Span<'_, T>, window: (T, T), band: Band) -> bool {
-    let at = [Undecided { window, why: () }];
-    undecided_over(&at, ascending(span.params()), span.speeds().0.get(), band).is_none()
+/// **The band's escalation along the span**: `Kε` as the span's own
+/// parameter, at its least speed. The one widening a window takes, so a
+/// run past it by a gap in the zero band misses every meeting it holds.
+pub(crate) fn escalation_reach<T: Decide>(span: &Span<'_, T>, band: Band) -> T {
+    T::from_f64(band.escalate()) / span.speeds().0.get()
 }
 
-/// **A window held to the span** (W3): `window` clipped to the span's
-/// ascending interval. One that stands past an end by a gap the band
-/// cannot call ([`misses`] keeps it) is that end's escalation, `Kε` at
-/// the span's least speed, on the span.
-pub(crate) fn clip<T: Decide>(span: &Span<'_, T>, (lo, hi): (T, T), band: Band) -> (T, T) {
+/// **Where a window meets the span** (W3), the one reading of it: each
+/// copy of the window that does not miss the span, held to it. On a conic,
+/// whose parameter is an angle, the copies are the window and its turns
+/// either way, so a window across the turn's seam answers its piece at
+/// each end of a span that runs near a whole turn; on any other carrier,
+/// the window as spelled. A copy misses where the span stands past it by
+/// a gap of zero or more (`curve_face_window`, at the span's least speed:
+/// the window is the escalation wider than its meetings); a gap in band
+/// keeps it, as that end's escalation on the span. A window a turn or
+/// wider is the whole span.
+pub(crate) fn on_span<T: Decide>(span: &Span<'_, T>, (lo, hi): (T, T), band: Band) -> Vec<(T, T)> {
     let (t0, t1) = ascending(span.params());
-    let (a, b) = (lo.max(t0), hi.min(t1));
-    let reach = T::from_f64(band.escalate()) / span.speeds().0.get();
-    let before = (t0, (t0 + reach).min(t1));
-    let after = ((t1 - reach).max(t0), t1);
-    let end = (
-        (hi - t0).select_le_zero(before.0, after.0),
-        (hi - t0).select_le_zero(before.1, after.1),
-    );
-    let width = b - a;
-    (
-        width.select_le_zero(end.0, a),
-        width.select_le_zero(end.1, b),
-    )
+    let speed = span.speeds().0.get();
+    let turns: &[f64] = if span.carrier().conic().is_some() {
+        if matches!(
+            geom_core::k_stats::decide(
+                "curve_face_window",
+                geom_core::Margin::of((hi - lo - T::tau()) * speed),
+                band
+            ),
+            Ok(geom_core::Sign::Zero | geom_core::Sign::Positive)
+        ) {
+            return vec![(t0, t1)];
+        }
+        &[-1.0, 0.0, 1.0]
+    } else {
+        &[0.0]
+    };
+    let reach = escalation_reach(span, band);
+    turns
+        .iter()
+        .map(|&k| {
+            let shift = T::tau() * T::from_f64(k);
+            (lo + shift, hi + shift)
+        })
+        .filter(|&window| {
+            let at = [Undecided { window, why: () }];
+            undecided_over(&at, (t0, t1), speed, band).is_some()
+        })
+        .map(|(lo, hi)| {
+            let (a, b) = (lo.max(t0), hi.min(t1));
+            let before = (t0, (t0 + reach).min(t1));
+            let after = ((t1 - reach).max(t0), t1);
+            let end = (
+                (hi - t0).select_le_zero(before.0, after.0),
+                (hi - t0).select_le_zero(before.1, after.1),
+            );
+            let width = b - a;
+            (
+                width.select_le_zero(end.0, a),
+                width.select_le_zero(end.1, b),
+            )
+        })
+        .collect()
 }
 
 /// A member of the boundary as the pass reads it.
