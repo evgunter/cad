@@ -2020,6 +2020,32 @@ pub fn renoded(name: &StableName, from: RecipeNodeId, to: RecipeNodeId) -> Stabl
     name
 }
 
+/// **A union of every member of each of `families`**, each spliced in
+/// whole, `[…xs, …ys]` (D10 `[repetition]`): one body. Panics where one
+/// of `families` is no yield.
+pub fn union_of_families(
+    doc: ProfileDoc,
+    families: &[RecipeNodeId],
+) -> (ProfileDoc, RecipeNodeId) {
+    let members = families
+        .iter()
+        .map(|&family| {
+            let read = body_read(&doc, family.into());
+            assert!(
+                operand_var(&doc, &read).is_some_and(|var| doc.yielding(var).is_some()),
+                "union_of_families splices families; {family:?} is no yield"
+            );
+            editor_core::Spell::All(editor_core::BodyRead::plain(read))
+        })
+        .collect();
+    insert(
+        doc,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(members),
+        },
+    )
+}
+
 /// **A union whose members stand in `members`' order**, reached the way
 /// one union is reordered rather than by inserting another: the union
 /// is inserted over the members in document order, and `SetMembers`

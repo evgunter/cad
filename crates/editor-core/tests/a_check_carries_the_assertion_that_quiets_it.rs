@@ -482,7 +482,10 @@ pub(crate) fn family(
         editor_core::BodyRead::plain(Operand::Node(body)),
         placed.bundle(),
     );
-    insert(doc, node)
+    // A pattern writer yields its placement from the binder it reads
+    // (D10 `[repetition]`).
+    let (doc, copies) = insert(doc, node);
+    (fixture::yielded(doc, copies), copies)
 }
 
 /// `n` fins standing over a unit-high base, one placement whose slide
@@ -606,7 +609,7 @@ fn two_families_on_one_index_carry_the_assertion_over_both() {
         let (doc, cap) = block(doc, (0.25, 0.5), (0.5, 1.5), 0.5);
         let (doc, caps) = family(doc, cap, k, 0.75, (2.25, 0.0));
         let (doc, what) = if union {
-            let (doc, _) = fixture::union_over(doc, &[fins, caps]);
+            let (doc, _) = fixture::union_of_families(doc, &[fins, caps]);
             (doc, "a union of two families")
         } else {
             (
@@ -719,7 +722,7 @@ fn the_law_holds_over_steps_stacks_and_unrelated_indices() {
         let (doc, hat) = block(doc, (0.25, 0.5), (0.5, 1.5), 0.25);
         let (doc, hats) = family(doc, hat, k, 0.75, (2.75, 0.0));
         if union {
-            fixture::union_over(doc, &[fins, caps, hats]).0
+            fixture::union_of_families(doc, &[fins, caps, hats]).0
         } else {
             editor_core::test_support::assemble_world_copies(doc, Tol::witness())
         }
