@@ -923,7 +923,7 @@ pub fn batch_refusal(
 pub fn refusal_message_by(refusal: &Refusal, by: Speaker<'_>) -> Message {
     Message::new(
         Subject::Document,
-        refusal.said(by, Some(pncad::geom_brep::recourse::Reading::AtRest.into())),
+        crate::shown_said(refusal, by),
         Retold::Again,
     )
 }
