@@ -1381,6 +1381,9 @@ impl<P> Doc<P> {
     /// every node's slot expressions (a profile's program arguments
     /// among them) and its payload expressions, a reader of a defined
     /// variable reading what its definition reads.
+    /// A node's expressions alone: what can move a node's result, its
+    /// operand rows and the operations it reads included, is
+    /// [`Self::free_reads`].
     pub fn var_readers(&self, var: VarId) -> Vec<RecipeNodeId>
     where
         P: crate::ProfilePayload,
@@ -2503,22 +2506,24 @@ impl<P> Doc<P> {
 
     /// **The free variables each node reads**, directly, through
     /// definitions, or through the operations it reads (D10: reading is
-    /// the only dependency), for every node of the document.
+    /// the only dependency), for every node of the document: what can
+    /// move the node's result. [`Self::var_readers`] is the narrower
+    /// question an edit asks, which nodes' own expressions read one
+    /// variable, and follows neither operand rows nor operations.
     ///
     /// A node's own reads are `Doc::read_sites`'s node arm, its
-    /// expressions and its operand rows. Each is followed through its
-    /// definition ([`Self::definition_reads`]) down to free variables
-    /// and to outputs; an output reads what its operation reads, as does
-    /// every operation the node is scheduled after ([`Self::upstream`]).
+    /// expressions and its operand rows, each followed through its
+    /// definition ([`Self::definition_reads`]) down to free variables.
+    /// The operations it reads are [`Self::upstream`]'s, the edges it is
+    /// scheduled by, and it reads what each of them reads.
     pub fn free_reads(&self) -> BTreeMap<RecipeNodeId, BTreeSet<VarId>>
     where
         P: crate::ProfilePayload,
     {
         let mut sets: BTreeMap<RecipeNodeId, BTreeSet<VarId>> = BTreeMap::new();
-        let mut operations: BTreeMap<RecipeNodeId, BTreeSet<RecipeNodeId>> = BTreeMap::new();
+        let mut operations: BTreeMap<RecipeNodeId, Vec<RecipeNodeId>> = BTreeMap::new();
         for (&id, node) in &self.nodes {
             let mut free = BTreeSet::new();
-            let mut read: BTreeSet<RecipeNodeId> = self.upstream_of(id, node).into_iter().collect();
             let mut seen = BTreeSet::new();
             let mut stack: Vec<VarId> = node
                 .exprs()
@@ -2534,18 +2539,12 @@ impl<P> Doc<P> {
                     Some(VarDef::Free(_)) => {
                         free.insert(var);
                     }
-                    Some(VarDef::Output { node, .. }) => {
-                        read.insert(*node);
-                    }
                     Some(_) => stack.extend(self.definition_reads(var)),
                     None => {}
                 }
             }
-            // A placement's side reading its own copy names the node
-            // itself, which adds nothing to what it reads.
-            read.remove(&id);
             sets.insert(id, free);
-            operations.insert(id, read);
+            operations.insert(id, self.upstream_of(id, node));
         }
         // To a fixed point rather than in an evaluation's order: the set
         // is the document's, whether or not it schedules.

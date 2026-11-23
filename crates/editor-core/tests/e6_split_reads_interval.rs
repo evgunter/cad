@@ -15,7 +15,7 @@ use std::collections::BTreeSet;
 use crate::fixture;
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::drive::{
-    BudgetKind, DriveConfig, ParamBoxVerdict, ReasonClass, Receipt, RefusalReason, drive,
+    BudgetKind, DriveConfig, ParamBoxVerdict, ReasonClass, Receipt, RefusalReason, Unsettled, drive,
 };
 use editor_core::{
     Dimension, Distribution, DocEdit, Formula, FreeVar, LoopProgram, Node, ProfileDoc,
@@ -173,7 +173,7 @@ fn whole(v: &ParamBoxVerdict, var: VarId) -> BTreeSet<(u64, u64)> {
 /// **A variable the deciding node does not read is never split.** The
 /// first slab's extrude is undecided wherever `depth` reaches zero and
 /// reads `depth` alone; `other`, declared first and as wide, feeds a
-/// slab every leaf decides. Eight leaves hold the whole of `other`.
+/// slab every leaf decides. Four leaves hold the whole of `other`.
 ///
 /// Red when `drive::bisect` admits every varying axis (its `read(var)`
 /// filter dropped): the root's tie then goes to `other`.
@@ -184,7 +184,7 @@ fn a_variable_the_deciding_node_does_not_read_is_never_split() {
     declare_in_eps(&mut r, "depth", UNDECIDED);
     slab(&mut r, len(1.0), read("depth"));
     slab(&mut r, len(1.0), read("other"));
-    let v = run(&r.doc, leaves(8));
+    let v = run(&r.doc, leaves(4));
     assert!(
         v.receipt().holds() && v.receipt().splits >= 3,
         "{:?}",
@@ -269,13 +269,34 @@ fn a_read_through_a_definition_counts() {
     );
 }
 
+/// The human form says the node failed, with its cause, on the line
+/// under its own class's count.
+fn assert_spoken_under_its_class(said: &str, leaves: usize, node: &str, cause: &str) {
+    let lines: Vec<&str> = said.lines().collect();
+    let at = lines
+        .iter()
+        .position(|l| *l == format!("  {leaves} leaf/leaves refused reads_no_variable"))
+        .unwrap_or_else(|| panic!("no count line for the class:\n{said}"));
+    assert_eq!(
+        lines.get(at + 1).copied(),
+        Some(
+            format!(
+                "    {node} fails and reads no variable of the box: no split changes it ({cause})"
+            )
+            .as_str()
+        ),
+        "the node's line follows its class's count:\n{said}"
+    );
+}
+
 /// **A deciding node that reads no variable of the box refuses the
 /// leaf, naming the node**: at the root, and at a child. The arc loft
 /// is undecided at every box and reads nothing.
 ///
 /// Alone under a box elsewhere it is the root's deciding node: one
-/// leaf, refused `ReadsNoVariable`, priced under its own class and
-/// written in both forms. Behind a slab whose depth straddles zero the
+/// leaf, refused `ReadsNoVariable` as a node that failed (the carrier's
+/// refusal of an arc's weight, a `Skin` failure), priced under its own
+/// class and written in both forms, the spoken line under its class. Behind a slab whose depth straddles zero the
 /// slab's extrude speaks first at the root, which splits `depth`; a
 /// child clear of zero decides the slab, the loft speaks, and that
 /// child refuses for the loft.
@@ -298,17 +319,26 @@ fn a_deciding_node_that_reads_nothing_refuses_naming_it_at_the_root_and_at_a_chi
             splits: 0
         }
     );
-    assert_eq!(
-        v.refused()[0].reason,
-        RefusalReason::ReadsNoVariable { node: loft }
-    );
+    // The loft did not come back undecided: it failed, and the reason
+    // says which failure.
+    let RefusalReason::ReadsNoVariable {
+        node,
+        unsettled: Unsettled::Failed { class, cause },
+    } = &v.refused()[0].reason
+    else {
+        panic!(
+            "the root refuses for a node that failed: {:?}",
+            v.refused()[0].reason
+        );
+    };
+    assert_eq!((*node, *class), (loft, editor_core::NodeErrorClass::Skin));
     assert_eq!(v.refused()[0].reason.class(), ReasonClass::ReadsNoVariable);
     assert_eq!(
         v.accounting().refused.get(&ReasonClass::ReadsNoVariable),
         Some(&Ok(1.0)),
         "the whole box is priced under the reason's own class"
     );
-    let line = format!("reads_no_variable {}", loft.full());
+    let line = format!("reads_no_variable {} failed:Skin", loft.full());
     assert!(
         v.serialize().contains(&line),
         "the goldening form names the node:\n{}",
@@ -316,14 +346,7 @@ fn a_deciding_node_that_reads_nothing_refuses_naming_it_at_the_root_and_at_a_chi
     );
     let analyzed = analyzed_box(&r.doc, &AnalysisPolicy::default());
     let said = v.render(&r.doc, &analyzed);
-    assert!(
-        said.contains("1 leaf/leaves refused reads_no_variable")
-            && said.contains(&format!(
-                "{} is undecided and reads no variable of the box",
-                r.doc.spoken(loft)
-            )),
-        "the human form names the node:\n{said}"
-    );
+    assert_spoken_under_its_class(&said, 1, &r.doc.spoken(loft).to_string(), cause);
 
     let mut r = Recorder::new();
     declare_in_eps(&mut r, "depth", UNDECIDED);
@@ -339,12 +362,28 @@ fn a_deciding_node_that_reads_nothing_refuses_naming_it_at_the_root_and_at_a_chi
     let named: Vec<_> = v
         .refused()
         .iter()
-        .filter(|l| l.reason == RefusalReason::ReadsNoVariable { node: loft })
+        .filter(|l| {
+            matches!(&l.reason, RefusalReason::ReadsNoVariable { node, unsettled: Unsettled::Failed { .. } } if *node == loft)
+        })
         .collect();
     assert!(
         !named.is_empty(),
         "no child refused for the loft: {:?}",
         v.refused().iter().map(|l| &l.reason).collect::<Vec<_>>()
+    );
+    let analyzed = analyzed_box(&r.doc, &AnalysisPolicy::default());
+    let RefusalReason::ReadsNoVariable {
+        unsettled: Unsettled::Failed { cause, .. },
+        ..
+    } = &named[0].reason
+    else {
+        unreachable!("filtered above");
+    };
+    assert_spoken_under_its_class(
+        &v.render(&r.doc, &analyzed),
+        named.len(),
+        &r.doc.spoken(loft).to_string(),
+        cause,
     );
     for leaf in named {
         assert_ne!(

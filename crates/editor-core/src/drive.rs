@@ -618,13 +618,30 @@ pub enum RefusalReason {
     /// partial answer, and never a leaf quietly dropped from the
     /// receipt.
     Budget(BudgetKind),
-    /// The leaf's deciding node, the first undecided node in evaluation
-    /// order, reads no variable of the box, so both halves of any split
-    /// replay it on the inputs it had here. Not a budget: no setting
-    /// changes it.
+    /// The leaf's deciding node, the first node in evaluation order
+    /// that did not settle, reads no variable of the box, so both
+    /// halves of any split replay it on the inputs it had here. Not a
+    /// budget: no setting changes it.
     ReadsNoVariable {
         /// The deciding node.
         node: RecipeNodeId,
+        /// What it did instead of settling.
+        unsettled: Unsettled,
+    },
+}
+
+/// How a leaf's deciding node left the leaf unsettled.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Unsettled {
+    /// A decision of its own came back indeterminate.
+    Undecided,
+    /// It failed typed, for a reason the driver does not prove definite
+    /// over the box and so does not read as a flip.
+    Failed {
+        /// Which failure, without its payload.
+        class: crate::NodeErrorClass,
+        /// The failure as the document speaks it.
+        cause: String,
     },
 }
 
@@ -1005,21 +1022,33 @@ impl ParamBoxVerdict {
         }
         for (class, n) in &classes {
             let _ = writeln!(s, "  {n} leaf/leaves refused {class}");
-        }
-        let unread: BTreeSet<RecipeNodeId> = self
-            .refused
-            .iter()
-            .filter_map(|leaf| match leaf.reason {
-                RefusalReason::ReadsNoVariable { node } => Some(node),
-                _ => None,
-            })
-            .collect();
-        for node in unread {
-            let _ = writeln!(
-                s,
-                "    {} is undecided and reads no variable of the box: no split changes it",
-                doc.spoken(node)
-            );
+            if *class != ReasonClass::ReadsNoVariable.name() {
+                continue;
+            }
+            // Each node once, with what it did.
+            let named: BTreeMap<RecipeNodeId, &Unsettled> = self
+                .refused
+                .iter()
+                .filter_map(|leaf| match &leaf.reason {
+                    RefusalReason::ReadsNoVariable { node, unsettled } => Some((*node, unsettled)),
+                    _ => None,
+                })
+                .collect();
+            for (node, unsettled) in named {
+                let said = doc.spoken(node);
+                let _ = match unsettled {
+                    Unsettled::Undecided => writeln!(
+                        s,
+                        "    {said} is undecided and reads no variable of the box: \
+                         no split changes it"
+                    ),
+                    Unsettled::Failed { cause, .. } => writeln!(
+                        s,
+                        "    {said} fails and reads no variable of the box: \
+                         no split changes it ({cause})"
+                    ),
+                };
+            }
         }
         let d = self.decisions;
         if d != SymCounts::default() {
@@ -1414,9 +1443,18 @@ pub fn drive(
                 //
                 // A deciding node that reads nothing of the box is asked
                 // first: no budget is why that leaf stops.
-                LeafVerdict::Bisect { deciding } => {
+                LeafVerdict::Bisect {
+                    deciding,
+                    unsettled,
+                } => {
                     let pending = level - i - 1;
                     let committed = certified.len() + refused.len() + pending + next.len();
+                    // Every node an evaluation orders is a node of the
+                    // document, and `free_reads` holds every one.
+                    debug_assert!(
+                        reads.contains_key(&deciding),
+                        "the deciding node {deciding:?} is in no read set"
+                    );
                     let split = bisect(
                         &b,
                         &root,
@@ -1424,7 +1462,10 @@ pub fn drive(
                         config.max_depth,
                     );
                     let reason = match split {
-                        Err(Unsplit::Unread) => RefusalReason::ReadsNoVariable { node: deciding },
+                        Err(Unsplit::Unread) => RefusalReason::ReadsNoVariable {
+                            node: deciding,
+                            unsettled,
+                        },
                         _ if committed + 2 > config.max_leaves => {
                             RefusalReason::Budget(BudgetKind::Leaves {
                                 max_leaves: config.max_leaves,
@@ -1535,10 +1576,12 @@ struct Box_ {
 enum LeafVerdict {
     Certified(CertifiedLeaf),
     Refused(RefusalReason),
-    /// Undecided at `deciding`, the first undecided node in evaluation
-    /// order: the node whose reads choose the split ([`bisect`]).
+    /// Unsettled at `deciding`, the first node in evaluation order
+    /// that did not settle: the node whose reads choose the split
+    /// ([`bisect`]).
     Bisect {
         deciding: RecipeNodeId,
+        unsettled: Unsettled,
     },
 }
 
@@ -1693,15 +1736,15 @@ fn classify_replay<T: topo::AtRestPolicy + geom_core::Decide>(
     // holds. What HAS been discharged is the precondition the arms were
     // kept for: the log now carries the op-minted escalations too.
     // ITERATION ORDER IS THE LEAF'S EVALUATION ORDER, AND THE SPLIT
-    // DEPENDS ON IT: the FIRST indeterminacy in that order settles the
-    // leaf as a sliver or a bisect, a definite structure flip at a later
-    // node never gets to argue, and the node that speaks is the leaf's
-    // DECIDING node, whose reads are the only variables the leaf may be
-    // split on ([`bisect`]). First in evaluation order because that
-    // node's inputs are all decided: splitting what it reads is the one
-    // refinement that can change what it says, and a later undecided
-    // node is replayed on whatever the first one becomes. Deterministic
-    // (the schedule's order, the same in both schedules).
+    // DEPENDS ON IT: the FIRST node in that order that did not settle
+    // decides the leaf as a sliver or a bisect, a definite structure
+    // flip at any node never gets to argue against it, and that node is
+    // the leaf's DECIDING node, whose reads are the only variables the
+    // leaf may be split on ([`bisect`]). Every node before it settled
+    // (definitely, on the witness's branch or on another), so its
+    // inputs are definite over the leaf and a split of what it reads is
+    // the only one that can change what it says. Deterministic (the
+    // schedule's order, the same in both schedules).
     let mut structure_flips = Vec::new();
     for (node, result) in leaf
         .order
@@ -1742,7 +1785,15 @@ fn classify_replay<T: topo::AtRestPolicy + geom_core::Decide>(
                     });
                 }
             },
-            _ => return LeafVerdict::Bisect { deciding: node },
+            _ => {
+                return LeafVerdict::Bisect {
+                    deciding: node,
+                    unsettled: Unsettled::Failed {
+                        class: err.kind.class(),
+                        cause: err.kind_spoken(doc),
+                    },
+                };
+            }
         }
     }
 
@@ -1813,7 +1864,10 @@ impl Undecided {
             Self::Sliver(predicate) => {
                 LeafVerdict::Refused(RefusalReason::SliverTerminal { predicate })
             }
-            Self::Refinable => LeafVerdict::Bisect { deciding: node },
+            Self::Refinable => LeafVerdict::Bisect {
+                deciding: node,
+                unsettled: Unsettled::Undecided,
+            },
         }
     }
 }
@@ -1860,23 +1914,29 @@ fn bisect(
     max_depth: u32,
 ) -> Result<(Box_, Box_), Unsplit> {
     let depth = |var: VarId| b.depths.get(&var).copied().unwrap_or(0);
-    let read = |var: VarId| reads.contains(&var);
-    if !b.box_.varying().any(|(var, _, _)| read(var)) {
+    // Each variable the node reads, with its halves where the grid has
+    // room for them.
+    let mut halves: BTreeMap<VarId, Option<(ParamBox, ParamBox)>> = b
+        .box_
+        .varying()
+        .filter(|(var, _, _)| reads.contains(var))
+        .map(|(var, _, _)| (var, b.box_.split(var)))
+        .collect();
+    if halves.is_empty() {
         return Err(Unsplit::Unread);
     }
-    let splits = |var: VarId| b.box_.split(var).is_some();
-    let Some(axis) = b.box_.split_axis(root, |var| {
-        read(var) && depth(var) < max_depth && splits(var)
-    }) else {
-        let at_depth = b.box_.varying().any(|(var, _, _)| read(var) && splits(var));
+    let open = |var: VarId| depth(var) < max_depth && halves.get(&var).is_some_and(Option::is_some);
+    let Some((axis, (lo, hi))) = b
+        .box_
+        .split_axis(root, open)
+        .and_then(|axis| Some((axis, halves.remove(&axis)??)))
+    else {
+        let at_depth = halves.values().any(Option::is_some);
         return Err(Unsplit::Budget(if at_depth {
             BudgetKind::Depth { max_depth }
         } else {
             BudgetKind::Resolution
         }));
-    };
-    let Some((lo, hi)) = b.box_.split(axis) else {
-        unreachable!("the split axis was chosen among the axes that split");
     };
     let mut depths = b.depths.clone();
     depths.insert(axis, depth(axis) + 1);
@@ -2103,7 +2163,12 @@ fn render_reason(r: &RefusalReason) -> String {
             BudgetKind::Leaves { max_leaves } => format!("budget leaves={max_leaves}"),
             BudgetKind::Resolution => "budget resolution".to_owned(),
         },
-        RefusalReason::ReadsNoVariable { node } => format!("reads_no_variable {}", node.full()),
+        RefusalReason::ReadsNoVariable { node, unsettled } => match unsettled {
+            Unsettled::Undecided => format!("reads_no_variable {} undecided", node.full()),
+            Unsettled::Failed { class, .. } => {
+                format!("reads_no_variable {} failed:{class:?}", node.full())
+            }
+        },
     }
 }
 

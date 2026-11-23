@@ -141,10 +141,21 @@ fn assert_refused_at_the_root_for(
         },
         "{label}"
     );
-    assert_eq!(
-        reasons,
-        [RefusalReason::ReadsNoVariable { node }],
-        "{label}"
+    // The loft fails (`with_no_box_an_arc_section_refuses_and_a_rotated_copy_places`
+    // names the failure); the refusal says so and does not call it
+    // undecided.
+    assert!(
+        matches!(
+            reasons.as_slice(),
+            [RefusalReason::ReadsNoVariable {
+                node: named,
+                unsettled: editor_core::drive::Unsettled::Failed {
+                    class: editor_core::NodeErrorClass::Skin,
+                    ..
+                },
+            }] if *named == node
+        ),
+        "{label}: {reasons:?}"
     );
 }
 
