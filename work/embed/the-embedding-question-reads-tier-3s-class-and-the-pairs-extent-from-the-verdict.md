@@ -90,7 +90,8 @@ supremum, over the face, of the distance from the shared locus (a
 shared edge's whole carrier line or circle; a shared vertex). The
 pair's extent is the lesser run. Every reading built is a lower bound
 of that, never more; each bound is argued at its site
-(`geom_brep::BoundaryStations`, `geom_brep::spanned_curve_run`).
+(`geom_brep::BoundaryStations`, `geom_brep::centre_line`,
+`injective::crossings`).
 
 **What tier 3 keeps** (`topo::Tier3Facts`, `crates/topo/src/rest_facts.rs`):
 - per edge, its class as check 4's fold read it: `EdgeClass::Crease`
@@ -138,8 +139,13 @@ ends and its middle, and each lone vertex: points of its boundary.
 - **the spanned bound (R, 8a)**: a face that meets the centre line of
   the closed curve one of its edges lies on (a circle, an ellipse, a
   spiric oval; the line through the curve's centre square to its
-  plane) runs at least as far from the curve as that line stands from
-  it. The face meets the line where its boundary crosses a half-plane
+  plane, read from the curve's own points: through the middle of its
+  points at parameters `0` and `π`, along its tangent at `0` crossed
+  with that chord, so nothing is asked of how a frame is stored) runs
+  at least as far from the curve as that line stands from it: the
+  least distance from the line of the covers of the curve's whole
+  turn, the radius for a circle about its axis and no more than the
+  semi-minor axis for an ellipse. The face meets the line where its boundary crosses a half-plane
   the line bounds an odd number of times
   (`injective::crosses_oddly`): a disc's rim once, however it is cut
   into arcs; an annulus's two rims once each. No arc is compared with
@@ -161,14 +167,19 @@ the stations itself.
 
 | class | other face's carrier | plane through the edge, conic's own plane | edge graph | second order |
 |---|---|---|---|---|
-| crease | runs; the side proved must be the verdict's turn, else `TurnContradicted` | runs | runs | never |
+| crease | runs; where the other face's cell lies along the edge, the side proved must be the verdict's turn, else `TurnContradicted` | runs | runs | never |
 | seam | barred | runs | runs | never |
 | end | barred | barred | barred | refused `SecondOrder` at once |
 | none | as before | as before | as before | the engine's own `cusp` reading, kept only here |
 
 A plane or the graph parts the faces of a wedge θ and of 2π − θ alike,
 so it carries no turn: turn agreement is checked in the carrier arm
-only. An apex is read by the verdict's key.
+only, and only on a cell of the other face whose zero set lies along
+the edge. A cell that meets the edge at a vertex alone, or not at all,
+stands on whichever side of the carrier the face has turned to by
+there (a cone wedge past a half turn, at its apex; a notched rod's
+reflex corners), and proves nothing about the turn. An apex is read by
+the verdict's key.
 
 **The reading (R, 8b).** Each face's own side of the separator is the
 sign of its sine's enclosure, through `Margin::sign_of` under
@@ -187,57 +198,85 @@ with EMBEDGATE's lane C.
 
 ## Measured and landed (lane `embed/verdict-read`, 2026-11-23)
 
-Before is `embed/remeter` at `18d52c6e9`; after is this lane's head.
-Every figure names the population it was measured on.
+The unit lands on `embed/wave3-land`; `origin/embed/wave3-land` at
+`8d34076a9e` is merged in, and "before" below is that commit unless a
+line says otherwise. Every figure names the population it was measured
+on.
 
 **Verdicts.** None moved, on any population read:
 
 | population | before | after |
 |---|---|---|
-| `crates/sweep/tests/self_intersection_proves_injectivity.rs`, default ε, 1e-6 and 1e-12, `f64` and `Interval` twins | 52 of 52 rows pass at each ε | the same 52 and 3 new, 55 of 55 at each ε |
-| the tour's walk, 85 bodies at `f64`, default ε | 78 hold, 7 refuse | 78 hold, 7 refuse; no line of the walk differs, exits included |
-| the 43 `sweep::all` tests the census (`c2a0c41f40`) read `Uncertified/SecondOrder/Edge`, every finish asked through a log-and-pass gate hook (`embed/verdict-read-measure`), 180 s cap per test | 1 of 43 has every ask embedded; asks read 234 second-order, 72 + 14 departure (edge, vertex), 26 out of depth, 2 crossings | the same counts, class for class |
-| `editor-core`'s clearance rows (the document's strict same-body question) | pass | 94 of 94 pass |
-| the shell rows of `sweep::all` (`shell_cavity_embedded`, 287 tests with the filter `shell`) | 287 pass | 287 pass |
+| `crates/sweep/tests/self_intersection_proves_injectivity.rs`, default ε, 1e-6 and 1e-12, `f64` and `Interval` twins | the landing branch's rows | 92 of 92 pass at each ε, the landing branch's rows among them with no verdict re-pinned |
+| 24 probes: the half cone, a stepped ring and a stepped drum built off the dyadic grid, each as built, turned 0.7 rad about `(1, 2, 3)`, mirrored across a generic plane and a hundred units out, at `f64` and `Interval` | 23 embedded, 1 refused | the same 23 and the same 1, with the same receipts but the drum's as built (52 and 47 cells against 57 and 57) |
+| the tour's walk, 85 bodies at `f64`, default ε | @@BASEWALK@@ | 82 hold, 3 cross (`bench`, `bench60`, `bench90`) |
+| `editor-core`'s clearance rows (the document's strict same-body question) | — | 97 of 97 pass |
+| `topo` and `sweep`, every test (8333) | five red on main's own list | 8328 pass; the 4 red are on that list (`work/green/log.md`, 23 Nov, "nine topo and sweep slow rows red on main") |
 
-One COUNT moved: `a_rod_less_a_tilted_slab_holds_across_its_curved_corners`
-read 14 certificates through a corner at both scalars; it reads 16 at
-`f64` and 18 at `Interval`, the verdict `Holds` at both. Re-pinned per
-scalar.
+Before the merge, against `embed/remeter` at `18d52c6e9`: the 43
+`sweep::all` tests the census (`c2a0c41f40`) read
+`Uncertified/SecondOrder/Edge`, every finish asked through a
+log-and-pass gate hook (`embed/verdict-read-measure`), read the same
+classes before and after, count for count (234 second-order, 72 + 14
+departure, 26 out of depth, 2 crossings). That census was not taken
+again on the merged tree.
 
-The wider census set (the 507 `sweep::all` tests of the three
-departure shapes) was started through the same hook and stopped: 131
-ran in an hour, several past 30 minutes each, every finish in them
-being asked. It is not reported.
+Two COUNTS moved, verdicts unchanged:
+`a_rod_less_a_tilted_slab_holds_across_its_curved_corners` read 14
+certificates through a corner at both scalars and reads 16 at `f64`
+and 18 at `Interval`, re-pinned per scalar; the off-grid drum as built
+discharges 52 cells at `f64` and 47 at `Interval` where the landing
+branch discharges 57.
 
-**What does not hold that the spec's pins expected.**
-- *The cone that owns its apex, cut through its axis, refuses, before
-  and after.* The triangle `(0, 0), (1.1, 0), (0, 0.9)` revolved half
-  a turn: tier 3 classes each ruling a convex crease and keeps one
-  extent (0.70, the cut plane's run, against the cone's 1.39). Four
-  cells at the apex's collapsed side are presented by no reading, on
-  `embed/remeter` too, and the exit moves with the pose there as here
-  (`a-cone-cell-presented-by-its-apex-side-is-signed-by-no-separator`).
-  Pinned refusing in every pose.
+**The spec's pins.**
+- *The cone that owns its apex, cut through its axis, holds.* The
+  triangle `(0, 0), (1.1, 0), (0, 0.9)` revolved half a turn: tier 3
+  classes each ruling a convex crease and keeps one extent (0.70, the
+  cut plane's run, against the cone's 1.39). On `embed/remeter` it
+  refused at its apex's collapsed side, the exit moving with the pose;
+  the landing branch reads that side, and the body holds in all four
+  poses at both scalars there and here. **The "cone holds" pin is
+  struck from this unit's acceptance** (EMBED orchestrator): the
+  holding is the landing branch's, and this unit's row
+  (`a_cone_cut_through_its_axis_holds_at_its_apex_in_every_pose`)
+  pins that reading the verdict's facts does not lose it.
 - *The curling sliver is not buildable through the profile door*
   (`NonSimple`, as `embed/wedge-measure` found), so it and the flat
   twin are unit rows on fixtures whose extent the real door reads.
 
 **Newly refusing valid-looking bodies.** None on the populations
-above. Class (a), truly inside the band at the narrower face's far
-side: the two fixtures the ruling was weighed on, and no built body.
-Class (c), no bound available: one shape is known and filed, a face
-bounded by one closed spline edge
+above; the mirrored build among them. One body refuses that looks
+valid, on the landing branch as here: the off-grid stepped drum
+mirrored across a generic plane, at `Interval`, between the two faces
+of one cylinder wall across their seam
+(`a-stepped-drum-mirrored-across-a-generic-plane-refuses-departure-at-interval`).
+Class (a), truly inside the band at the narrower face's far side: the
+two fixtures the ruling was weighed on, and no built body. Class (c),
+no bound available: one shape is known and filed, a face bounded by
+one closed spline edge
 (`a-face-bounded-by-one-closed-spline-edge-has-no-spanned-run`); no
 body of the suite or the tour builds it.
 
-**A consequence found on the way.** With "one stored conic" read by
-`injective::one_conic`, ten of the suite's rows held at `f64` and
-refused at `Interval` (every revolved cap, every tilted cut: `revolve`
-cuts a rim in two arcs, and at a box scalar no two arcs are one
-value), and the shell's cavity gate refused those bodies at
-`Interval`. The crossing count above replaced it before anything
-landed.
+**A turn contradicted on two valid bodies, found at the merge and
+fixed.** The carrier arm checked the side it proved against the
+verdict's turn on every cell near the edge. A cone wedge past a half
+turn and a notched rod turned about a generic axis each have a cell of
+the other face that meets the edge at a vertex alone (the wedge's
+apex) or not at all, on the far side of the carrier from the one the
+edge's turn names, and were refused `TurnContradicted`. The check is
+made only on a cell whose zero set lies along the edge
+(`injective::Zero::along`); both bodies hold, as on the landing
+branch.
+
+**Pairs near a vertex with no kept run.** Tier 3 keeps a face's run
+from a vertex only where more than three edges meet at it. Counted
+over every cell pair the suite's 92 rows and the walk's 85 bodies
+read: none is near a vertex alone that a face holds no run from.
+
+**A spline shared edge is read from its own arc** (more than the
+definition, which reads the whole carrier). 19 of the suite's rows
+and the walk read such loci (924 and 520 readings). @@SPLINE@@ Noted
+on `work/honeone/the-wedge-reach-counts-a-faces-run-along-its-edge.md`.
 
 **Callers found beyond the spec's list.** The strict same-body sweep
 is reachable without `embedded`, through `Sweep::run` and the lane's
@@ -246,8 +285,9 @@ helpers in `sweep`, `topo`, `editor-core` and `demos/tour`. A touching
 pair whose windows carry no facts refuses typed. The document door
 runs tier 3's local battery for the facts
 (`ClearanceLaneOf::reading_unfinished`); hand-built construction state
-in tests is asked on fixture facts (`topo::Geometric::fixture`,
-test-support).
+in tests, and a body tier 3's battery refuses (the uneven plate
+mirrored across a generic plane), are asked on fixture facts
+(`topo::Geometric::fixture`, test-support).
 
 - 2026-11-23 — **Two of PR 7329's rows are this unit's to turn** (both of its reviewers, delta re-reads): `injective::margin_reach_rows::the_arm_counts_a_strips_run_along_its_edge` pins today's over-read (the arm counts a strip's run along its edge), and `the_reach_alone_signs_an_edge_check_4_classes_smooth` pins the question signing an edge check 4 classes smooth. Each goes red when the lever is the narrower face's run across the edge and the class is read from the verdict; this unit re-pins them and lists them among its pins. (EMBED orchestrator)
 
