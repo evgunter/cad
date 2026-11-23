@@ -108,7 +108,7 @@ fn shell() -> Body<f64> {
 /// `normal`.
 fn mirrored(body: &Body<f64>, normal: Vec3<f64>) -> Body<f64> {
     let r = topo::Reflection::across(Point3::new(0.0, 0.0, 0.0), normal, Tol::witness()).unwrap();
-    topo::mirror_body(body, &r, Tol::witness()).unwrap()
+    topo::mirror_body(body, &r).unwrap()
 }
 
 /// A move by `v`.

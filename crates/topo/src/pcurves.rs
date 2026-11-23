@@ -406,6 +406,7 @@
 //! [`Winding`]: crate::joint::Winding
 //! [`Winding::closes`]: crate::joint::Winding::closes
 
+mod complete;
 mod decision;
 mod lift;
 mod mint;
@@ -417,6 +418,7 @@ pub use lift::*;
 pub use mint::*;
 pub use site::*;
 pub use tier3::*;
+pub(crate) use complete::complete_pcurves;
 
 #[path = "pcurves_rings.rs"]
 mod rings;

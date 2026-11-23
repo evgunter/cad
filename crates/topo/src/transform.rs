@@ -72,14 +72,6 @@ use crate::null::CurveGeom;
 /// Typed failure of [`transform_rigid`] (closed enum, D4 ¶3).
 #[derive(Debug)]
 pub enum TransformError {
-    /// The mirror's re-mint of the image's pcurve rows refused
-    /// ([`crate::mirror`]): a row on an analytic chart, restated with its
-    /// azimuth, lands on a branch other than the one a fresh mint takes,
-    /// so the mirror derives its rows afresh.
-    Pcurve {
-        /// The typed pcurve-pass refusal, nested whole.
-        source: crate::pcurves::PcurveMintError,
-    },
     /// The body carries a null-scaffold edge: what an unfinished edit
     /// leaves behind (a lone `mev_null` on a fresh face, say). At a
     /// build, a caller reaches it by moving a body in the middle of its
@@ -120,7 +112,6 @@ impl TransformError {
         let defect = at.map(geom_brep::recourse::defect_ending);
         let ended = |defect: Option<&str>| defect.map(|d| format!(". {d}")).unwrap_or_default();
         match self {
-            Self::Pcurve { source } => write!(f, "{}", geom_brep::recourse::read_at(source, at)),
             Self::NullScaffold { .. } if at.is_some_and(ReadAt::is_build) => write!(
                 f,
                 "the body still carries what an edit left behind, which the map cannot \

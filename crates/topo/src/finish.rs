@@ -102,9 +102,8 @@ pub trait FinishedBody:
 /// finding where the move asks one ([`FinishedBody::moved_by`]).
 #[derive(Debug)]
 pub enum MoveError {
-    /// The data map refused ([`moved_body`]): under a reflection, a
-    /// re-minted row ([`crate::mirror`]); otherwise a state a finished
-    /// body or a leaf never holds.
+    /// The data map refused ([`moved_body`]): a state a finished body or
+    /// a leaf never holds.
     Map(crate::TransformError),
     /// The image's finding: the session box, or a leaf's finish.
     NotFinished(NotFinished),
@@ -120,7 +119,6 @@ impl MoveError {
         use crate::transform::TransformError as E;
         let found = match self {
             Self::NotFinished(findings) => return findings,
-            Self::Map(E::Pcurve { .. }) => "a re-minted pcurve row",
             Self::Map(E::NullScaffold { .. }) => "a null-scaffold edge",
             Self::Map(E::NurbsPlaceholder) => "a placeholder net",
             Self::Map(E::Corrupt { found }) => found,
@@ -151,6 +149,42 @@ impl<T: AtRestPolicy<Finished = Self>> FinishedBody for AtRestBody<T> {
     fn moved_by(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, MoveError> {
         AtRestBody::moved_by(self, iso, tol)
     }
+}
+
+/// **A body whose pcurve rows are complete**: the argument of a
+/// scalar's verdict ([`AtRestPolicy::finish_completed`],
+/// [`AtRestPolicy::leaf_completed`]), constructed only by the completion
+/// [`AtRestPolicy::finish`] and [`AtRestPolicy::leaf`] run first. It
+/// drops the rows on dead half-edges, keeps every stored row and derives
+/// each missing one (`crate::pcurves`' completion), so no producer mints
+/// to close and a stale row reaches the verdict to be refused.
+#[derive(Debug)]
+pub struct Completed<T: Real> {
+    body: Body<T>,
+}
+
+impl<T: Real> Completed<T> {
+    /// The body, its rows complete.
+    #[must_use]
+    pub fn into_body(self) -> Body<T> {
+        self.body
+    }
+}
+
+/// **`body` completed** ([`Completed`]). Its derivations are a build's,
+/// not the verdict's: they run before, and outside, the checking scope.
+///
+/// # Errors
+///
+/// [`NotFinished`] holding completion's refusal as
+/// [`ValidationError::Pcurve`].
+pub(crate) fn complete<T: AtRestPolicy>(
+    mut body: Body<T>,
+    tol: Tol,
+) -> Result<Completed<T>, NotFinished> {
+    crate::pcurves::complete_pcurves(&mut body, tol)
+        .map_err(|finding| NotFinished::new(vec![ValidationError::Pcurve { finding }]))?;
+    Ok(Completed { body })
 }
 
 /// **A body that passed tier 2 alone** ([`crate::validate_closed`]),
@@ -287,7 +321,12 @@ pub(crate) fn moved_and_asked<T: AtRestPolicy>(
     logged: bool,
     tol: Tol,
 ) -> Result<Body<T>, MoveError> {
-    let body = moved_body(body, iso, tol).map_err(MoveError::Map)?;
+    let mut body = moved_body(body, iso).map_err(MoveError::Map)?;
+    if let crate::Isometry::Improper(_) = iso {
+        crate::pcurves::complete_pcurves(&mut body, tol).map_err(|finding| {
+            MoveError::NotFinished(NotFinished::new(vec![ValidationError::Pcurve { finding }]))
+        })?;
+    }
     let scope = geom_core::k_stats::Bracket::open();
     let asked = asked_after_isometry(&body, tol);
     let record = scope.finish();
@@ -357,22 +396,22 @@ pub fn session_box_at<T: geom_core::Decide>(
     }
 }
 
-/// **`body` under `iso`**, the reflection's reversal and re-minted rows
-/// included ([`crate::mirror`]): the data map behind every `moved` door.
+/// **`body` under `iso`**, the reflection's reversal included and its
+/// rows dropped ([`crate::mirror`]): the data map behind every `moved`
+/// door. A reflected image's rows are derived again by the door that
+/// takes it ([`moved_and_asked`], a leaf's finish).
 ///
 /// # Errors
 ///
-/// The map's own refusal: under a reflection a re-minted row's
-/// ([`crate::TransformError::Pcurve`]); otherwise a state the gate
-/// refuses, which a finished body or a leaf never holds.
+/// The map's own refusal: a state the gate refuses, which a finished
+/// body or a leaf never holds.
 pub(crate) fn moved_body<T: AtRestPolicy>(
     body: &Body<T>,
     iso: &crate::Isometry<T>,
-    tol: Tol,
 ) -> Result<Body<T>, crate::TransformError> {
     match iso {
         crate::Isometry::Proper(_) => crate::transform::map_isometry(body, iso),
-        crate::Isometry::Improper(r) => crate::mirror::mirror_body(body, r, tol),
+        crate::Isometry::Improper(r) => crate::mirror::mirror_body(body, r),
     }
 }
 
@@ -472,7 +511,7 @@ impl<T: AtRestPolicy<Leaf = Self>> LeafBody for AtRestBody<T> {
     /// decisions off the log as the leaf's rule says
     /// ([`Self::MOVE_LOGS_ITS_ASK`]).
     fn moved_by(&self, iso: &crate::Isometry<T>, tol: Tol) -> Result<Self, MoveError> {
-        T::leaf(moved_body(self, iso, tol).map_err(MoveError::Map)?, tol)
+        T::leaf(moved_body(self, iso).map_err(MoveError::Map)?, tol)
             .map_err(MoveError::NotFinished)
     }
 }

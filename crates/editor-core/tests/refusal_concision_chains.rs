@@ -2952,7 +2952,6 @@ fn transform() -> Vec<(String, NodeErrorKind)> {
     use payloads::*;
     use topo::TransformError as E;
     [
-        ("Pcurve", E::Pcurve { source: pcurve() }),
         (
             "NullScaffold",
             E::NullScaffold {

@@ -1595,7 +1595,8 @@ pub use face_boxes::{FaceBox, FaceBoxes};
 #[cfg(debug_assertions)]
 pub use finish::finishes_on_this_thread;
 pub use finish::{
-    FindingFamily, FinishedBody, HeldKind, LeafBody, MoveError, NotFinished, Replay, finish,
+    Completed, FindingFamily, FinishedBody, HeldKind, LeafBody, MoveError, NotFinished, Replay,
+    finish,
     session_box_at, take,
 };
 pub use geom_brep::curve_face::CrossWhy;

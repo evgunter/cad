@@ -2137,7 +2137,7 @@ pub(super) fn derive_face<T: AtRestPolicy>(
 /// face is excused only when every refusal it meets is, whichever edge
 /// the walk meets first. Asked only of a face that refused, so
 /// `refused` holds at least one.
-fn first_owed<T: AtRestPolicy>(refused: Vec<PcurveMintError>) -> PcurveMintError {
+pub(super) fn first_owed<T: AtRestPolicy>(refused: Vec<PcurveMintError>) -> PcurveMintError {
     let at = refused.iter().position(|e| !not_owed::<T>(e)).unwrap_or(0);
     refused.into_iter().nth(at).unwrap_or_else(|| {
         unreachable!("first_owed is asked only of a face that refused at least once")

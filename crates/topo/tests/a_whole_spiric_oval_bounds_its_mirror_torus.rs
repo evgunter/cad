@@ -155,7 +155,7 @@ fn the_oval_on_its_mirror_torus_mirrors<T: AtRestPolicy + Bounds>() {
         ] {
             let at = format!("axis {sigma}, across {plane} = 0");
             let reflection = topo::Reflection::across(Point3::origin(), normal, tol).unwrap();
-            let image = topo::mirror_body(&body, &reflection, tol).unwrap_or_else(|e| {
+            let image = topo::mirror_body(&body, &reflection).unwrap_or_else(|e| {
                 panic!(
                     "{at}: the mirror refuses: {e_at}",
                     e_at = e.render(geom_brep::recourse::Reading::Build)
