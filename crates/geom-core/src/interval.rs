@@ -800,7 +800,9 @@ impl Real for Interval {
     /// whose digits an exact expansion keeps
     /// ([`crate::exact::harmonic_belly`]) and the denominator is
     /// definitely positive; the plain enclosure elsewhere, which is
-    /// sound.
+    /// sound. A frame lifted from `f64` states its axis and seam as
+    /// enclosures of the polar factor, not as points, so it reads the
+    /// plain enclosure ([`Real::harmonic_belly`]'s docs).
     fn harmonic_belly(curve: crate::StoredHarmonic<Self>, o: [Self; 3], n: [Self; 3]) -> Self {
         let plain = || crate::real::plain_harmonic_belly(curve, o, n);
         let point = |x: Self| stated_point(x).ok_or(());

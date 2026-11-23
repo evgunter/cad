@@ -1801,3 +1801,7 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - The belly moved onto `Conic::belly_along`, read from the stored placement with the across-seam term crossed exactly (review MAJOR-1). The rows graze at any angle and on both placements, against an exact dyadic oracle, and the swept readers have rows that red under their mutants.
   - The sibling `an-arc-held-ellipses-plane-is-read-at-its-derived-centre` is closed, folded into ONEROUND's unit.
   - Filed `a-plane-misses-a-far-radius-cylinder-on-terms-that-cancel` (P2).
+- 2026-11-23 — **PR 7553's confirmation pass.**
+  - Added the screen call-site row; the transverse call site is unwitnessed.
+  - The arc-held rows now cover four phases.
+  - Filed `a-lifted-frames-interval-belly-reads-the-plain-enclosure` (P2), and added two dated notes to ONEROUND's unit.

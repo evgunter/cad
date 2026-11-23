@@ -25,8 +25,9 @@ pub(crate) fn band() -> Band {
 /// orientation, its point `crest` at the angle `θ*` round the turn lying
 /// in the box, and its centre `far` off; `outward` the in-plane unit
 /// normal there and `along` the unit tangent. Held at its centre, or on
-/// its arc at its seam's vertex (`Ellipse::anchored`), `stored` the
-/// placement it stores.
+/// its arc (`Ellipse::anchored`, its seam then turned under the anchor so
+/// the anchor sits at any of the four vertices' phases: no public door
+/// anchors one at a general phase), `stored` the placement it stores.
 pub(crate) struct Graze {
     pub(crate) conic: Curve3<f64>,
     pub(crate) stored: StoredHarmonic<f64>,
@@ -57,29 +58,50 @@ pub(crate) fn graze(rng: &mut test_utils::fuzz::Rng, far: f64, arc_held: bool) -
     );
     let centre = crest - (u * (a * theta.cos()) + v * (b * theta.sin()));
     let outward = (u * (b * theta.cos()) + v * (a * theta.sin())).normalize();
-    let (frame, phase, conic) = if arc_held {
-        let anchor = centre + u * a;
-        let conic = geom::Ellipse::anchored(anchor, axis, u, a, b);
-        (geom::Frame::new(anchor, axis, u), (1.0, 0.0), conic)
+    let conic = Curve3::Ellipse(if arc_held {
+        // Anchored at its seam vertex, then the seam turned a random
+        // quarter or half turn under the anchor, so the anchor's phase is
+        // any of the four vertices'.
+        let turn = rng.range(0.0, TAU);
+        geom::Ellipse::anchored(centre + u * a, axis, u, a, b).seamed_toward(turn.cos(), turn.sin())
     } else {
-        let frame = geom::Frame::new(centre, axis, u);
-        (frame, (0.0, 0.0), geom::Ellipse::new(frame, a, b))
-    };
-    let arr = |p: Vec3<f64>| [p.x, p.y, p.z];
-    let o = frame.origin();
+        geom::Ellipse::new(geom::Frame::new(centre, axis, u), a, b)
+    });
     Graze {
-        conic: Curve3::Ellipse(conic),
-        stored: StoredHarmonic {
-            at: [o.x, o.y, o.z],
-            axis: arr(frame.axis()),
-            u_ref: arr(frame.u_ref()),
-            semi: (a, b),
-            phase,
-        },
+        stored: stored_placement(&conic),
+        conic,
         crest,
         outward,
         along: axis.cross(outward),
         axis,
+    }
+}
+
+/// **The placement `conic` stores**, read through its datum walk
+/// ([`Curve3::data`]): the stored point (centre or anchor), axis, seam,
+/// semi-axes, and an anchor's phase.
+fn stored_placement(conic: &Curve3<f64>) -> StoredHarmonic<f64> {
+    use geom::{CurveDatum as D, DatumValue as V};
+    let point = |d| match conic.data().named(d) {
+        Some(V::Point(p)) => Some([p.x, p.y, p.z]),
+        Some(V::Direction(v)) => Some([v.x, v.y, v.z]),
+        _ => None,
+    };
+    let scalar = |d| match conic.data().named(d) {
+        Some(V::Scalar(x)) => x,
+        other => panic!("{d:?} is no scalar: {other:?}"),
+    };
+    let (at, phase) = match (point(D::Center), point(D::Anchor), point(D::Phase)) {
+        (Some(c), None, None) => (c, (0.0, 0.0)),
+        (None, Some(x), Some(p)) => (x, (p[0], p[1])),
+        other => panic!("no stored point: {other:?}"),
+    };
+    StoredHarmonic {
+        at,
+        axis: point(D::Axis).unwrap(),
+        u_ref: point(D::URef).unwrap(),
+        semi: (scalar(D::SemiU), scalar(D::SemiV)),
+        phase,
     }
 }
 

@@ -81,3 +81,7 @@ reading 0 wrong at 1e5 and 1e6, with no charge.
   - **Rows added for each swept reader:** the parallel screen, the near extreme, and `line_clears_conic`.
   - **The probe:** 0 wrong at far 1e4 / 1e5 / 1e6 on seeds 0x1 and 0x2. Under the old belly (M1, seed 0x1) it reads 50 / 317 / 406 centre-held and 52 / 308 / 395 arc-held.
   - **The sibling** is closed as a duplicate of ONEROUND's unit, its plane readers folded in there.
+- 2026-11-23, confirmation pass on PR 7553 (APPROVE-WITH-FIXES).
+  - **The screen's call site has an end-to-end row:** `curve_pair::pose::far_rows::a_far_conic_grazing_a_circle_through_its_vertex_is_never_apart`. A far ellipse grazes a unit circle's plane at its vertex, and the circle passes through that point. It reads 0 `Apart` of 2000, and 0 / 12 / 1 with the call reverted.
+  - **The arc-held probe** anchors at all four vertex phases.
+  - **The Interval docs** are corrected: a production-lifted frame reads the plain enclosure. Filed as `a-lifted-frames-interval-belly-reads-the-plain-enclosure`.

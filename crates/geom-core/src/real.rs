@@ -614,7 +614,12 @@ pub trait Real:
     /// **At an enclosure** stated at points the same expansions are
     /// enclosed, each step widened outward by an ulp or two (the row pins
     /// the width at `32u`); anywhere else, the plain enclosure, which is
-    /// sound. The default is the plain formula ([`plain_harmonic_belly`]);
+    /// sound but carries the curve's size. A frame lifted from `f64` the
+    /// production way (`Curve3::map_scalar(Interval::from_f64)`) states
+    /// its axis and seam as enclosures of the polar factor, not as
+    /// points, so it reads the plain enclosure, about `10¹⁶u` of the
+    /// belly wide at a far scale, and a decision on it escalates
+    /// (`work/germ/a-lifted-frames-interval-belly-reads-the-plain-enclosure.md`). The default is the plain formula ([`plain_harmonic_belly`]);
     /// a scalar that carries `T`'s value channel computes it through
     /// `T`'s own.
     #[must_use]

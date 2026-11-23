@@ -185,3 +185,10 @@ Evidence for item 1 (the router and the slant), from PR 7553's rows:
 - **The shape.** A line in an arc-held ellipse's plane (semi-axes 1e6 and 3.3e5), along its tangent at a point at any angle round the turn, set off it within ±2× the escalation at ε 1e-12.
 - **The answers.** At seeds `0x7efbaa71e6759d86` and `0xf0ab266f92cdb939`, one pose in 1000 each is answered `Apart` where the exact belly is +9.3e-14 m, inside the zero band. `Conic::belly_along` reads 9.28e-14, so the `Apart` is decided by a reader of the derived centre, not by the belly.
 - **The row.** PR 7553's line row (`curve_pair::far_graze_rows`) runs centre-held only until this unit lands, and it says so.
+
+## From GERM (2026-11-23, PR 7553's confirmation review): two notes
+
+- **Two first-harmonic doors on `Conic` once both merge.** This branch's `Height` holds `(p, q)` from `Conic::along`, which reads the rounded `v_ref` (`axis × u_ref` crossed on each read). PR 7553's `Conic::belly_along` reads `B = b·((axis × u_ref)·n)` crossed exactly, because a `B` from the rounded `v_ref` carries `u·b`. With a graze away from the seam vertex, that is `u·far` in the belly: the reviewer's probe at θ ∈ (0.5, 1.2) read 6 / 40 / 121 wrong at far 1e4 / 1e5 / 1e6.
+  - So a belly read off `Height` (`extremes`, or `at ± swing`) would bring the far-centre loss back.
+  - Whichever of the two merges second reconciles them: the extreme nearer zero is read through `belly_along`, or `Height` takes its parts from the stored terms.
+- **Correction to the line-row evidence above.** PR 7553's reviewer traced the arc-held line-row residual (seeds `0x7efbaa71e6759d86` and `0xf0ab266f92cdb939`). It exits through `Harmonic::Touch` → `place(theta)` returning `None`: the slant `H` from the derived centre, or `clear_by`. It does not go through the router.
