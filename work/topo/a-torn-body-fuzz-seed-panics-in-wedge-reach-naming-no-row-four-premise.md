@@ -21,3 +21,5 @@ CAD_FUZZ_SEED=0x74818d5bf00d4475 CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS=false \
 ```
 
 A counterexample the fuzz found, not a flake. It makes the job red on any PR that draws this seed, and the nightly whenever it is drawn. Pin it as a deterministic row beside the fix. The torn half reached by the walk should refuse typed, or its panic should name the premise.
+
+- 2026-11-21 — **another seed, from ONEROUND's PR 7227** (its diff touches no file under `wedge_reach`, `splitting/` or `review_d18.rs`): CI's `corrupt input (release profile)` job drew `0x2dc7388623d34e51` on head `59e6e11f` and panicked at `crates/topo/src/wedge_reach.rs:182` ("HalfEdgeKey(5v1), a half of live EdgeKey(3v1), has no face"), reached from `classify_neighborhood`.
