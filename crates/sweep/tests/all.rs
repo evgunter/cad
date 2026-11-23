@@ -226,6 +226,8 @@ mod an_edge_on_a_ruling_lying_in_its_own_face;
 mod an_edge_running_past_a_face_reads_its_crossings;
 #[path = "an_inside_out_thin_tube_operand.rs"]
 mod an_inside_out_thin_tube_operand;
+#[path = "an_interior_loop_on_a_one_band_ball_is_cut_in_and_glued_away.rs"]
+mod an_interior_loop_on_a_one_band_ball_is_cut_in_and_glued_away;
 #[path = "at_rest_pcurve_faces.rs"]
 mod at_rest_pcurve_faces;
 #[path = "band_apart_partners_on_a_steep_ellipse.rs"]

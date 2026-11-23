@@ -279,12 +279,11 @@ fn curved_revert_reverts_the_ball_instead_of_refusing() {
 /// crossings path's interior-loop guard cannot certify the sphere and
 /// the top face free of a section loop interior to both, and refuses
 /// the pair typed (`CurvedPairUnsupported` at `InteriorLoopGuard`). The
-/// cause is that class, not the tangency: the slab of height 0.7 cuts
-/// the sphere in a circle inside its top face and refuses the same way,
+/// cause is the tangency: the slab of height 0.7 cuts the sphere in a
+/// circle inside its top face, which the crossings path cuts in
+/// ([`the_die_slab_cutting_the_ball_in_its_top_builds_at_its_closed_form`]),
 /// and above the ball (height 1.3) every op builds
-/// ([`the_die_slab_above_the_ball_builds_at_its_closed_form`]). The
-/// interior loop waits on
-/// `work/germ/interior-loop-cut-in.md`. (Nudge the ball off both
+/// ([`the_die_slab_above_the_ball_builds_at_its_closed_form`]). (Nudge the ball off both
 /// coincidences and the S13 lanes cut it — the pips suite.)
 #[test]
 fn the_die_pips_shape_stops_typed_at_its_tangent_top() {
@@ -336,39 +335,59 @@ fn die_slab_and_ball(h: f64) -> (topo::AtRestBody<f64>, topo::AtRestBody<f64>) {
     )
 }
 
-/// **The die pip's slab cut in a circle by its top refuses as the
-/// tangent one does**, at the interior-loop guard
-/// ([`the_die_pips_shape_stops_typed_at_its_tangent_top`]).
+/// **The die pip's slab cut in a circle by its top builds every op at
+/// its closed form.** The top face meets the ball in the circle
+/// `z = 0.7`, inside the ball's one face and clear of its seam, which
+/// the slab's bottom face holds: the interior-loop guard proves the
+/// circle, and the crossings path cuts the ball's face in through it and
+/// re-enters. The slab holds the half ball `z > 0` less its cap above
+/// `0.7`.
 #[test]
-fn the_die_slab_cutting_the_ball_in_its_top_refuses_at_the_interior_loop() {
+fn the_die_slab_cutting_the_ball_in_its_top_builds_at_its_closed_form() {
+    use crate::common::membership::{Region, ball as round, cuboid, holds};
     let (a, b) = die_slab_and_ball(0.7);
-    for (op, r) in [
+    let (vs, vb) = (16.0 * 0.7, 4.0 * core::f64::consts::PI / 3.0);
+    let both = vb / 2.0 - core::f64::consts::PI * 0.09 * (3.0 - 0.3) / 3.0;
+    let sphere = || round(Point3::origin(), 1.0);
+    let slab = || cuboid((-2.0, 2.0), (-2.0, 2.0), (0.0, 0.7));
+    let lattice = (Point3::new(-1.3, -1.3, -1.3), Point3::new(1.3, 1.3, 1.3));
+    for (op, r, want, region) in [
         (
             "slab ∖ ball",
             topo::boolean::subtract(&a, &b, Tol::witness()),
+            vs - both,
+            Box::new(move |p| slab()(p).min(-sphere()(p))) as Region,
         ),
         (
             "ball ∖ slab",
             topo::boolean::subtract(&b, &a, Tol::witness()),
+            vb - both,
+            Box::new(move |p| sphere()(p).min(-slab()(p))),
         ),
         (
             "slab ∩ ball",
             topo::boolean::intersect(&a, &b, Tol::witness()),
+            both,
+            Box::new(move |p| slab()(p).min(sphere()(p))),
         ),
-        ("slab ∪ ball", topo::boolean::union(&a, &b, Tol::witness())),
+        (
+            "slab ∪ ball",
+            topo::boolean::union(&a, &b, Tol::witness()),
+            vs + vb - both,
+            Box::new(move |p| slab()(p).max(sphere()(p))),
+        ),
     ] {
-        assert!(
-            matches!(
-                r,
-                Err(topo::BooleanError::CurvedPairUnsupported {
-                    site: topo::PairRefusalSite::InteriorLoopGuard,
-                    kind: geom::SurfaceKind::Sphere,
-                    other_kind: geom::SurfaceKind::Plane,
-                    ..
-                })
-            ),
-            "{op}: {r:?}"
-        );
+        let body = match r {
+            Ok(r @ topo::BooleanResult::Body(_)) => {
+                crate::common::cut_trace::assert_no_cut_trace(op, &r);
+                match r {
+                    topo::BooleanResult::Body(b) => b.body,
+                    topo::BooleanResult::Empty => unreachable!("matched a body"),
+                }
+            }
+            other => panic!("{op}: {other:?}"),
+        };
+        holds(op, &body, want, &region, lattice, 9);
     }
 }
 
