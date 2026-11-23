@@ -308,7 +308,9 @@ pub use editor_core::DocParamField;
 // undeclared-coincidence
 // REFUSAL is the detect/declare protocol's trigger, and
 // `NodeError`/`NodeErrorKind` were unreachable without the result
-// enum that carries them.
+// enum that carries them. `FamilyResult` is `NodeResult::Members`' payload,
+// a family of members that is no one value, and `Whole` a member's view
+// of its family (`NodeValue::family`).
 // `PoseValue`'s direction fields are `geom_core::UnitVec3`, reached
 // through the re-exported `geom_core` crate rather than curated here:
 // a consumer cannot read a pose's normal, or build a pose at all,
@@ -349,8 +351,9 @@ pub use editor_core::DocParamField;
 pub use editor_core::{
     BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, ComputingTwist,
     DEFAULT_MEMBER_BUDGET, DirectionRefusal, EvalCounters, EvalOptions, EvalOutcome, Evaluation,
-    Framed, Held, Mispaired, NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult,
-    NodeStanding, NodeValue, PoseValue, SplitSide, Stop, Stopped, ValuePayload, evaluate,
+    FamilyResult, Framed, Held, Mispaired, NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal,
+    NodeResult, NodeStanding, NodeValue, PoseValue, SplitSide, Stop, Stopped, ValuePayload, Whole,
+    evaluate,
 };
 // A dual evaluates bound to its build of record (DUAL-DESIGN DL3):
 // `evaluate_recorded` takes the base-scalar evaluation and refuses every

@@ -2609,6 +2609,12 @@ NOT_BOUND = {
     "NameTextError": SHAPE,
     "NodeError": SHAPE,
     "NodeResult": SHAPE,
+    # A family of members that is no one value (`NodeResult::Members`),
+    # and a member's view of its family (`NodeValue::family`): Python
+    # reads a family through its members (`Value.members`), never as a
+    # result shape of its own.
+    "FamilyResult": SHAPE,
+    "Whole": SHAPE,
     # The display-unit CODE a `FreeVar` carries. A one-byte index into
     # the unit table has no Python spelling and should not get one: a
     # notation reaches Python as its SYMBOL, which is what
