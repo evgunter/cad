@@ -62,6 +62,16 @@ if [ "$mode" = plain ]; then
   else
     fail "the view cache could not be built (above); every gate reads the tree directly"
   fi
+else
+  # The Python gates' shared lexer is no gate of its own, so its table
+  # runs here, beside the gates that import it.
+  if ! out=$(python3 "$(dirname "$0")/gates/rust_strip.py" --selftest 2>&1) \
+      || ! grep -q '^rust_strip selftest OK' <<<"$out"; then
+    printf '%s\n' "$out"
+    fail "scripts/gates/rust_strip.py --selftest failed"
+  else
+    printf '%s\n' "$out"
+  fi
 fi
 
 # One gate, its output and exit status written under $held/<name>.

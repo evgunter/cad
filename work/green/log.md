@@ -488,3 +488,4 @@ Window: the 170 completed `ci.yml` PR runs from 11-01 18:33Z to 11-02
   - The saving is re-attributed: about 13 min from opt 1 and about 10 from the scalpel move.
   - The P1 shutdown row closes on the change, watched by `the-nightly-build-job-holds-over-five-scheduled-main-nights` (P2). The margin row (P2) carries the trend.
   - FULL single review, Opus; no model-compare row (Fable outage).
+- 2026-11-23 — `the-gates-step-rescans-the-tree-once-per-gate` closes as done by CIW's PR 7439: the gates step is 1:06 on a hosted runner, down from 5:22–10:54 (run 45069292031).

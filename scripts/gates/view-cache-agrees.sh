@@ -93,6 +93,20 @@ gate() {
   mapfile -t files < <(indexed "$cache")
   GATE_SCAN_FILES=$(wc -w < "$cache/complete")
   diffs=$(agree "$cache" ${files[@]+"${files[@]}"})
+  # THE LOOKUP, not only the cut: the whole index in index order is the
+  # one list the lookup can answer by reading entries in order, so two
+  # real files are also asked for reversed, with one named twice and
+  # with one spelled as the index does not spell it.
+  local -a probe=()
+  mapfile -t probe < <(printf '%s\n' ${files[@]+"${files[@]}"} | grep -E '^crates/[^/]+/src/lib\.rs$' | head -2)
+  if [ "${#probe[@]}" -eq 2 ]; then
+    diffs+=$'\n'$(agree "$cache" "${probe[1]}" "${probe[0]}")
+    diffs+=$'\n'$(agree "$cache" "${probe[0]}" "${probe[0]}" "${probe[1]}")
+    diffs+=$'\n'$(agree "$cache" "./${probe[0]}" "${probe[1]}")
+  else
+    diffs+=$'\nno two crates/*/src/lib.rs in the index to probe the lookup with'
+  fi
+  diffs=$(printf '%s\n' "$diffs" | sed '/^$/d')
   [ -z "$own" ] || rm -rf "$own"
   if [ -n "$diffs" ]; then
     printf '%s\n' "$diffs"

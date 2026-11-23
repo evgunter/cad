@@ -906,8 +906,10 @@ gate_view_cache_cut() {
 
 # The test-only mount set of `crates/*/src`, the list
 # `gate_require_crate_sources` reads, keyed by that list and its stats.
-# A resolver that refused leaves no entry, so each gate resolves the
-# set itself and says why.
+# The resolver runs in a subshell of its own, so a refusal inside it
+# (which exits) ends that subshell and not the build: the set is then
+# not cached, the resolver's own diagnosis goes to the run log, and each
+# gate that asks resolves the set itself and refuses with its own name.
 gate_view_cache_mounts() {
   local dir=$1
   local GATE_MATCHER_FAILED=$dir/mounts.resolver-failed
@@ -915,8 +917,13 @@ gate_view_cache_mounts() {
   [ -d crates ] || return 0
   mapfile -t src < <(find crates/*/src -type f -name '*.rs' 2>/dev/null | sort)
   [ "${#src[@]}" -gt 0 ] || return 0
-  gate_test_only_mounts "${src[@]}" > "$dir/mounts.out" 2>/dev/null || true
-  if [ -e "$GATE_MATCHER_FAILED" ]; then rm -f "$dir/mounts.out"; return 0; fi
+  if ! (gate_test_only_mounts "${src[@]}") > "$dir/mounts.out" 2> "$dir/mounts.err" \
+      || [ -e "$GATE_MATCHER_FAILED" ]; then
+    rm -f "$dir/mounts.out" "$GATE_MATCHER_FAILED"
+    printf 'view cache: the test-only mount set is not cached, so each gate resolves it itself; the resolver said:\n' >&2
+    cat "$dir/mounts.err" >&2
+    return 0
+  fi
   gate_view_cache_mounts_key "${src[@]}" > "$dir/mounts.key"
 }
 

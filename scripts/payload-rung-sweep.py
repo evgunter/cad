@@ -412,73 +412,21 @@ CROSS_LIST_DISPOSITIONS: dict[str, tuple[str, str]] = {
 
 # --- reading Rust ----------------------------------------------------------
 
-# A string literal's opening token: an optional `b` byte prefix, an optional
-# `r` raw prefix and its hash run. Matched only where the preceding character
-# cannot be part of an identifier, so the `b` of `numb"…"` is not read as a
-# byte-string prefix.
-_STRING_OPEN = re.compile(r'(b?r?)(#*)"')
-# The next place a comment or a literal can start: a comment opener, a string
-# opener not preceded by an identifier character, or a char literal (which is
-# what separates `'a'` from the lifetime `'a`).
-_NEXT_LEXEME = re.compile(r"""//|/\*|(?<!\w)b?r?#*"|'(?:\\.|[^\\'\n])'""")
-_COMMENT_TOKEN = re.compile(r"/\*|\*/")
-_STRING_END = re.compile(r'\\.|"', re.S)
-_NOT_NEWLINE = re.compile(r"[^\n]")
+sys.path.insert(0, str(Path(__file__).resolve().parent / "gates"))
+import rust_strip  # noqa: E402  (the gates' one Rust lexer)
 
 
 def code_only(src: str) -> str:
-    """`src` with every comment and string literal blanked, newlines kept.
+    """`src` with every comment and string and char literal blanked,
+    newlines kept (`rust_strip.blank`).
 
     Blanked rather than cut so a byte offset still names its line. The façade
     lists argue at length about types they deliberately do NOT export, and a
     scan that read prose would count a name a comment mentions as carried; the
     same holds one level down, where a doc comment on a refusal names the very
     payload types this sweep is looking for.
-
-    Rust's lexical forms that can hide a `//`, a brace or a type name are all
-    handled: line comments, NESTED block comments, strings with escapes, raw
-    strings with any hash count, byte strings, and char literals. A `'` that
-    does not open a char literal is a lifetime and is left alone.
-
-    It jumps from one lexeme that can hide code to the next rather than
-    walking every character: the sweep spent most of its time in the walk.
     """
-    out, i, n = [], 0, len(src)
-    while i < n:
-        lex = _NEXT_LEXEME.search(src, i)
-        if not lex:
-            out.append(src[i:])
-            break
-        out.append(src[i:lex.start()])
-        i = lex.start()
-        if src.startswith("//", i):
-            j = src.find("\n", i)
-            j = n if j < 0 else j
-        elif src.startswith("/*", i):
-            depth, j = 1, i + 2
-            while depth:
-                t = _COMMENT_TOKEN.search(src, j)
-                if not t:
-                    j = n
-                    break
-                depth += 1 if t.group() == "/*" else -1
-                j = t.end()
-        elif src[i] == "'":
-            j = lex.end()
-        else:
-            m = _STRING_OPEN.match(src, i)
-            if "r" in m.group(1):
-                close = '"' + m.group(2)
-                j = src.find(close, m.end())
-                j = n if j < 0 else j + len(close)
-            else:
-                t = _STRING_END.search(src, m.end())
-                while t and t.group() != '"':
-                    t = _STRING_END.search(src, t.end())
-                j = t.end() if t else n
-        out.append(_NOT_NEWLINE.sub(" ", src[i:j]))
-        i = j
-    return "".join(out)
+    return rust_strip.blank(src)
 
 
 # A bare-`pub` type declaration. `pub(crate)` and `pub(super)` do not match —
