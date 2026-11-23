@@ -593,9 +593,12 @@ pub(super) fn cone_ruled<T: Decide>(
     } else {
         &pose.first
     };
-    let about = partner.frame().ok_or_else(|| SectionError::Unaccounted {
-        cause: "a cone pair's partner, a cylinder or a cone, has no frame".to_owned(),
-    })?;
+    // The axis a loop winds about on the partner: a cylinder's or a
+    // cone's. A partner with no essential channel claims none.
+    let about = match partner {
+        Surface::Cylinder { frame, .. } | Surface::Cone { frame, .. } => Some(*frame),
+        _ => None,
+    };
     let (arcs, found) = match pose.stance {
         ConeStance::Sheets => {
             let swept = ruling::sweep_about(&pose.ruled, region, band, about)?;

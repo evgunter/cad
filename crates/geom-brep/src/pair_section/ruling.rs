@@ -1533,7 +1533,9 @@ pub(crate) fn sweep<T: Decide, R: Ruled<T>>(
 }
 
 /// [`sweep`], each loop the ball holds whole also read for its winding
-/// about the axis of `about`, the partner's frame (`Sweeper::winds_about`).
+/// about the axis of `about`, the partner's frame, where the partner has
+/// an essential channel (`Sweeper::winds_about`): a cylinder or a cone,
+/// not a sphere.
 ///
 /// # Errors
 ///
@@ -1543,9 +1545,9 @@ pub(crate) fn sweep_about<T: Decide, R: Ruled<T>>(
     ruled: &R,
     ball: ExtentBall<T>,
     band: Band,
-    about: geom::Frame<T>,
+    about: Option<geom::Frame<T>>,
 ) -> Result<Sweep<T>, SweepRefusal> {
-    Sweeper::new(ruled, ball, band, Some(about)).run()
+    Sweeper::new(ruled, ball, band, about).run()
 }
 
 /// **An end of an arc of a sheet** ([`Swept::ends`]): a cut end on the
@@ -1577,10 +1579,10 @@ pub(crate) fn sweep_divided<T: Decide>(
     cone: &RuledCone<T>,
     ball: ExtentBall<T>,
     band: Band,
-    about: geom::Frame<T>,
+    about: Option<geom::Frame<T>>,
 ) -> Result<Divided<T>, SweepRefusal> {
     let side = DividedCone(cone);
-    let mut sweeper = Sweeper::new(&side, ball, band, Some(about));
+    let mut sweeper = Sweeper::new(&side, ball, band, about);
     let cells = sweeper.tiled()?;
     let mut events = Vec::new();
     for &(cell, disc) in &cells {
