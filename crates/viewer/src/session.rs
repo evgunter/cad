@@ -804,7 +804,6 @@ impl<'a> Current<'a> {
     }
 }
 
-
 /// One completed evaluation, landed: the pair it answers and every
 /// verdict taken for that pair.
 ///
@@ -2482,9 +2481,7 @@ impl DocSession {
             SessionOp::AddSplit { target, plane } => self.add_split(target, &plane),
             SessionOp::AddMirror { body, plane } => self.add_mirror(body, &plane),
             SessionOp::AddAssertion { a, b, claim } => self.add_assertion(a, b, claim),
-            SessionOp::AssertQuieting { quieting } => {
-                Ok(creating(move |run| quieting.record(run)))
-            }
+            SessionOp::AssertQuieting { quieting } => Ok(creating(move |run| quieting.record(run))),
             SessionOp::Place { body, target, name } => self.place(body, target, name),
             SessionOp::AddPattern { input, count, rule } => {
                 self.add_pattern(input, count, rule, PatternOutputChoice::Instances)

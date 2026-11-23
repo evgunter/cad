@@ -1061,3 +1061,55 @@ fn valued(
     }));
     bundle
 }
+
+/// **The product fault's commits** — the label and op of each act the
+/// landed run's gather refusal offers ([`crate::recourse::offers`]),
+/// read off `session`'s run while it is the committed document's. Empty
+/// with no fault, and while the run is not current.
+pub fn product_commits(session: &crate::session::DocSession) -> Vec<crate::recourse::Commit> {
+    use crate::recourse::{Failure, Offer, Ran, offers};
+    let Some(current) = session.current() else {
+        return Vec::new();
+    };
+    let Some(fault) = current.product_fault() else {
+        return Vec::new();
+    };
+    offers(Failure::Run(current, Ran::Product(fault)))
+        .into_iter()
+        .map(|offer| match offer {
+            Offer::Commit(commit) => *commit,
+            other => panic!("a product fault offers commits alone: {other:?}"),
+        })
+        .collect()
+}
+
+/// **What each of `session`'s check findings offers**, in report
+/// order, read off its run while it is the committed document's; `None`
+/// while it is not, or nothing was checked.
+pub fn finding_offers(
+    session: &crate::session::DocSession,
+) -> Option<Vec<Vec<crate::recourse::Offer>>> {
+    use crate::recourse::{Failure, Ran, offers};
+    let current = session.current()?;
+    Some(
+        current
+            .checks()?
+            .findings
+            .iter()
+            .map(|finding| offers(Failure::Run(current, Ran::Finding(finding))))
+            .collect(),
+    )
+}
+
+/// **The commits a refused batch offers** ([`crate::recourse::offers`]),
+/// in order; a lead or words among them is the test's failure.
+pub fn refusal_commits(refusal: &crate::session::Refusal) -> Vec<crate::recourse::Commit> {
+    use crate::recourse::{Failure, Offer, offers};
+    offers(Failure::Refused(refusal))
+        .into_iter()
+        .map(|offer| match offer {
+            Offer::Commit(commit) => *commit,
+            other => panic!("the refusal offers commits alone: {other:?}"),
+        })
+        .collect()
+}

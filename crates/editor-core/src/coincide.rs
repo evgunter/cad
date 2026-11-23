@@ -640,9 +640,10 @@ impl Recourse {
                 Some(claim) => crate::sentence!(ONE_CONSTRUCTION, ", or assert ", claim),
                 None => crate::Sentence::from(ONE_CONSTRUCTION),
             },
-            Self::Assert | Self::Budget => either(self.why_asserted().unwrap_or_else(|| {
-                unreachable!("an asserting recourse says why it asserts")
-            })),
+            Self::Assert | Self::Budget => either(
+                self.why_asserted()
+                    .unwrap_or_else(|| unreachable!("an asserting recourse says why it asserts")),
+            ),
             Self::ReadTheAxis => {
                 "Recourse: draw the profile on the face the traced face's sweep was drawn on or a \
                  face mated flat onto its cap, or on a frame whose z is read off the traced face's \

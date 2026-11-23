@@ -113,7 +113,7 @@ use viewer::session::{
 /// `the_table_answers_for_every_op` checks the samples land on each
 /// exactly once — so a variant added without a sample fails, and one
 /// added without an answer does not compile.
-const OP_COUNT: usize = 62;
+const OP_COUNT: usize = 63;
 
 /// A document with a literal-driven extrude — a slot a gesture can
 /// actually open on, which the expression-driven fixture is not.
@@ -392,6 +392,17 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
                 body: 0,
             }),
         },
+        // A finding's assertion, authored as the kernel's value: the
+        // fixture's own output read as itself at both references.
+        SessionOp::AssertQuieting {
+            quieting: pncad::document::Quieting {
+                measure: pncad::document::MeasureVerb::Distance,
+                references: [
+                    pncad::document::QuietingRef::Read(pncad::document::VarId::WORLD),
+                    pncad::document::QuietingRef::Read(pncad::document::VarId::WORLD),
+                ],
+            },
+        },
         // A value claim, the op's two-node arm: the measure and the
         // assertion over its output.
         SessionOp::AddAssertion {
@@ -524,6 +535,8 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         SessionOp::RepointPlacements { .. } => (29, false),
         // An insert door, fenced with every other one.
         SessionOp::AddAssertion { .. } => (45, false),
+        // The same insert door, from a finding's value.
+        SessionOp::AssertQuieting { .. } => (62, false),
     }
 }
 
@@ -1033,6 +1046,7 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::AddSplit { .. }
         | SessionOp::AddMirror { .. }
         | SessionOp::AddAssertion { .. }
+        | SessionOp::AssertQuieting { .. }
         | SessionOp::AddPattern { .. }
         | SessionOp::AddFusedPattern { .. }
         | SessionOp::AddFillet { .. }

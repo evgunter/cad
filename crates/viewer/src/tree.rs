@@ -1117,7 +1117,10 @@ pub fn rows(
                 evaluation.and_then(|ev| repair_of(id, ev).map(|at| doc.spoken(at))),
                 None,
             ),
-            RowStatus::Ok => (None, evaluation.and_then(|ev| readout_of(doc, id, node, ev))),
+            RowStatus::Ok => (
+                None,
+                evaluation.and_then(|ev| readout_of(doc, id, node, ev)),
+            ),
             RowStatus::Poisoned { .. } | RowStatus::Unevaluated => (None, None),
         };
         rows.push(TreeRow {

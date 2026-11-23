@@ -22,14 +22,17 @@
 //! generation to its door: each door keeps its own check.
 //!
 //! Every match below is exhaustive, so a failure kind added to the
-//! kernel or the session fails to compile here until it is answered.
+//! kernel or the session fails to compile here until it is answered; a
+//! catch-all arm is a lint error in this module, so none can be added.
 //!
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
+#![deny(clippy::wildcard_enum_match_arm)]
+
 use pncad::document::{
-    CheckEvidence, CheckFinding, NodeErrorClass, NodeErrorKind, OpposedPair,
-    ParseError, ProductError, ProductErrorKind, Speaker, VarName,
+    CheckEvidence, CheckFinding, NodeErrorClass, NodeErrorKind, OpposedPair, ParseError,
+    ProductError, ProductErrorKind, Speaker, VarName,
 };
 use pncad::workspace::WorkspaceError;
 
@@ -39,7 +42,7 @@ use crate::session::{Current, Refusal, SaveChoice, SessionOp};
 #[derive(Debug, Clone, PartialEq)]
 pub enum Offer {
     /// One click, one undo.
-    Commit(Commit),
+    Commit(Box<Commit>),
     /// Opens the act's form, pre-filled.
     Lead(Lead),
     /// An act the failure names that this viewer has no door for.
@@ -65,7 +68,7 @@ pub enum Lead {
     /// the person's.
     AssertGap {
         /// The two faces, as the kernel minted their references.
-        pair: OpposedPair,
+        pair: Box<OpposedPair>,
         /// The control's label.
         label: String,
     },
@@ -100,6 +103,14 @@ impl Unoffered {
 }
 
 impl Offer {
+    /// The commit of `op`, its control labelled `label`.
+    pub fn commit(label: impl Into<String>, op: SessionOp) -> Self {
+        Self::Commit(Box::new(Commit {
+            label: label.into(),
+            op,
+        }))
+    }
+
     /// The control's label, `None` for words.
     pub fn label(&self) -> Option<&str> {
         match self {
@@ -114,7 +125,7 @@ impl Offer {
     /// ([`CheckFinding::said_beside_its_assertion`]).
     pub fn authors_the_findings_assertion(&self) -> bool {
         match self {
-            Self::Commit(Commit { op, .. }) => matches!(op, SessionOp::AssertQuieting { .. }),
+            Self::Commit(commit) => matches!(commit.op, SessionOp::AssertQuieting { .. }),
             Self::Lead(Lead::AssertGap { .. }) => true,
             Self::Lead(Lead::CreateVariable { .. }) | Self::Unoffered(_) => false,
         }
@@ -165,10 +176,7 @@ pub fn offers(failure: Failure<'_>) -> Vec<Offer> {
         Failure::Refused(refusal) => refusal_offers(refusal),
         // A cancel stops the run of the document as it stands, so the
         // same document re-evaluates whatever it is now.
-        Failure::Canceled => vec![Offer::Commit(Commit {
-            label: REEVALUATE.to_owned(),
-            op: SessionOp::Reevaluate,
-        })],
+        Failure::Canceled => vec![Offer::commit(REEVALUATE.to_owned(), SessionOp::Reevaluate)],
     }
 }
 
@@ -187,12 +195,12 @@ fn finding_offers(current: Current<'_>, finding: &CheckFinding) -> Vec<Offer> {
         CheckEvidence::UnprovenCoincidence { quieting, .. } => quieting
             .iter()
             .map(|quieting| {
-                Offer::Commit(Commit {
-                    label: format!("Assert {}", quieting.said(by)),
-                    op: SessionOp::AssertQuieting {
+                Offer::commit(
+                    format!("Assert {}", quieting.said(by)),
+                    SessionOp::AssertQuieting {
                         quieting: quieting.clone(),
                     },
-                })
+                )
             })
             .collect(),
         CheckEvidence::Interference { finding } => finding
@@ -201,7 +209,7 @@ fn finding_offers(current: Current<'_>, finding: &CheckFinding) -> Vec<Offer> {
             .map(|pair| {
                 Offer::Lead(Lead::AssertGap {
                     label: format!("Assert a negative Gap between {}…", pair.said(by)),
-                    pair: pair.clone(),
+                    pair: Box::new(pair.clone()),
                 })
             })
             .collect(),
@@ -210,10 +218,10 @@ fn finding_offers(current: Current<'_>, finding: &CheckFinding) -> Vec<Offer> {
         CheckEvidence::Unused { .. } => crate::frame::finding_node(finding, doc)
             .filter(|&node| crate::world::body_read(doc, node, None).is_some())
             .map(|node| {
-                Offer::Commit(Commit {
-                    label: ADD_TO_THE_PRODUCT.to_owned(),
-                    op: SessionOp::AddToProduct { node, body: None },
-                })
+                Offer::commit(
+                    ADD_TO_THE_PRODUCT.to_owned(),
+                    SessionOp::AddToProduct { node, body: None },
+                )
             })
             .into_iter()
             .collect(),
@@ -240,12 +248,8 @@ fn finding_offers(current: Current<'_>, finding: &CheckFinding) -> Vec<Offer> {
 fn product_offers(current: Current<'_>, fault: &ProductError) -> Vec<Offer> {
     let doc = current.doc();
     let by = Speaker::of(doc);
-    let add = |label: String, node| {
-        Offer::Commit(Commit {
-            label,
-            op: SessionOp::AddToProduct { node, body: None },
-        })
-    };
+    let add =
+        |label: String, node| Offer::commit(label, SessionOp::AddToProduct { node, body: None });
     match fault.kind() {
         ProductErrorKind::EmptyProduct | ProductErrorKind::StrandedProduct => {
             let picture = crate::world::Picture::of(doc);
@@ -302,13 +306,13 @@ fn node_offers(kind: &NodeErrorKind, files: &crate::parts::PartFiles) -> Vec<Off
             let NodeErrorKind::Part { doc_ref, .. } = kind else {
                 unreachable!("a part's pin mismatch is its Part arm")
             };
-            vec![Offer::Commit(Commit {
-                label: format!(
+            vec![Offer::commit(
+                format!(
                     "{ACCEPT_UPDATED_VERSION} of {}, at every instance of it",
                     files.name(doc_ref.id)
                 ),
-                op: SessionOp::AcceptPartVersion { id: doc_ref.id },
-            })]
+                SessionOp::AcceptPartVersion { id: doc_ref.id },
+            )]
         }
         // The part records another ε, or the document does: the edit is
         // the tolerance's.
@@ -488,14 +492,8 @@ fn workspace_offers(error: &WorkspaceError) -> Vec<Offer> {
         } => {
             let choice = SaveChoice::new(existing.clone(), requested.clone());
             vec![
-                Offer::Commit(Commit {
-                    label: choice.over_label(),
-                    op: choice.over(),
-                }),
-                Offer::Commit(Commit {
-                    label: choice.fork_label(),
-                    op: choice.fork(),
-                }),
+                Offer::commit(choice.over_label(), choice.over()),
+                Offer::commit(choice.fork_label(), choice.fork()),
             ]
         }
         WorkspaceError::Io { .. }
@@ -515,6 +513,9 @@ fn workspace_offers(error: &WorkspaceError) -> Vec<Offer> {
 
 #[cfg(test)]
 mod tests {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::panic)]
+
     use pncad::document::{PartFault, ProductError, RecipeNodeId, ResolveFault};
     use pncad::workspace::PIN_MISMATCH_RECOURSE;
 
@@ -612,16 +613,19 @@ mod tests {
             let (kind, files) = part_refused(fault);
             let made = node_offers(&kind, &files);
             if arm == part_fault_arm(&unresolved(ResolveFault::PinMismatch)) {
-                let [Offer::Commit(Commit { label, op })] = &made[..] else {
+                let [Offer::Commit(commit)] = &made[..] else {
                     panic!("a pin mismatch offers the accept alone: {made:?}");
                 };
                 assert!(
-                    matches!(op, SessionOp::AcceptPartVersion { id } if *id == doc_ref.id),
-                    "{op:?}"
+                    matches!(commit.op, SessionOp::AcceptPartVersion { id } if id == doc_ref.id),
+                    "{:?}",
+                    commit.op
                 );
                 assert!(
-                    label.starts_with(ACCEPT_UPDATED_VERSION) && label.contains(PART_FILE),
-                    "the accept names the act and the part by its file: {label}"
+                    commit.label.starts_with(ACCEPT_UPDATED_VERSION)
+                        && commit.label.contains(PART_FILE),
+                    "the accept names the act and the part by its file: {}",
+                    commit.label
                 );
             } else if arm == part_fault_arm(&unresolved(ResolveFault::EpsilonSeam)) {
                 assert_eq!(
@@ -630,7 +634,10 @@ mod tests {
                     "the ε seam's act is the tolerance, which no door here takes"
                 );
             } else {
-                assert!(made.is_empty(), "only the pin and the ε seam offer: {kind:?}");
+                assert!(
+                    made.is_empty(),
+                    "only the pin and the ε seam offer: {kind:?}"
+                );
             }
         }
         assert!(seen.iter().all(|&s| s), "arms with no witness: {seen:?}");

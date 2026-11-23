@@ -3163,7 +3163,7 @@ mod tests {
     #![allow(clippy::panic)]
 
     use super::{CANCELED_LINE, FEATURES_SHARE_CAP, Polarity, Theme, ViewerApp, features_fraction};
-    use crate::session::{SaveChoice, SessionOp};
+    use crate::session::SessionOp;
     use eframe::egui;
 
     /// **A share that could not be computed is not a share.**
@@ -4151,7 +4151,7 @@ mod tests {
             |app| {
                 app.perform_batch(vec![SessionOp::Save(original.clone())]);
                 assert!(
-                    app.save_choice.is_none(),
+                    app.standing_save.is_none(),
                     "a save that lands offers nothing"
                 );
                 app.perform_batch(vec![SessionOp::Save(copy.clone())]);
@@ -4175,14 +4175,29 @@ mod tests {
             .expect("startup that needs no graphics device");
         app.perform_batch(vec![SessionOp::Open(original.clone())]);
         app.perform_batch(vec![SessionOp::Save(copy.clone())]);
-        let standing = app.save_choice.clone();
-        let fork = standing.as_ref().map(SaveChoice::fork);
+        let standing = |app: &ViewerApp| -> Vec<crate::recourse::Offer> {
+            app.standing_save
+                .iter()
+                .flat_map(|refused| {
+                    crate::recourse::offers(crate::recourse::Failure::Refused(refused))
+                })
+                .collect()
+        };
+        let before = standing(&app);
+        let fork = before.iter().find_map(|offer| match offer {
+            crate::recourse::Offer::Commit(commit)
+                if matches!(commit.op, SessionOp::SaveAsNewDocument(_)) =>
+            {
+                Some(commit.op.clone())
+            }
+            _ => None,
+        });
         // A refusal that answers nothing leaves the choice standing.
         app.perform_batch(vec![SessionOp::SaveAsNewDocument(dir.join("notes.txt"))]);
-        assert_eq!(app.save_choice, standing, "a refused fork answers nothing");
+        assert_eq!(standing(&app), before, "a refused fork answers nothing");
         app.perform_batch(vec![fork.expect("the refusal left its choice standing")]);
         let removed = std::fs::remove_dir_all(&dir);
-        assert!(app.save_choice.is_none(), "the fork answered the choice");
+        assert!(app.standing_save.is_none(), "the fork answered the choice");
         assert_eq!(app.session.path(), Some(copy.as_path()));
         removed.expect("the fixture removes its folder");
     }
@@ -7609,11 +7624,14 @@ mod properties_pane_tests {
 
         // The empty product's recourse: the door, on the drawn copy.
         driven.perform(SessionOp::Select(Selection::None));
-        let recourse = crate::frame::product_recourse(
-            driven.app.session.product_fault(),
-            driven.app.session.committed_doc(),
-        );
-        let [(label, SessionOp::AddToProduct { node, body: None })] = &recourse[..] else {
+        let recourse = crate::test_support::product_commits(&driven.app.session);
+        let [
+            crate::recourse::Commit {
+                label,
+                op: SessionOp::AddToProduct { node, body: None },
+            },
+        ] = &recourse[..]
+        else {
             panic!("the recourse offers the door on the one drawn copy: {recourse:?}")
         };
         assert_eq!(*node, placement());
@@ -7625,11 +7643,7 @@ mod properties_pane_tests {
             "the recourse's door adds the copy"
         );
         assert!(
-            crate::frame::product_recourse(
-                driven.app.session.product_fault(),
-                driven.app.session.committed_doc(),
-            )
-            .is_empty(),
+            crate::test_support::product_commits(&driven.app.session).is_empty(),
             "a product that gathers names no recourse"
         );
     }
@@ -7654,11 +7668,8 @@ mod properties_pane_tests {
                 && !painted.iter().any(|(run, _)| run == ADD_TO_THE_PRODUCT),
             "the stray copy is in the product, not offered again: {painted:?}"
         );
-        let recourse = crate::frame::product_recourse(
-            driven.app.session.product_fault(),
-            driven.app.session.committed_doc(),
-        );
-        let [(label, _)] = &recourse[..] else {
+        let recourse = crate::test_support::product_commits(&driven.app.session);
+        let [crate::recourse::Commit { label, .. }] = &recourse[..] else {
             panic!("the fault offers one action: {recourse:?}")
         };
         driven.click(label);
@@ -7863,9 +7874,15 @@ mod properties_pane_tests {
         let rows = crate::frame::check_rows(
             driven.app.session.checks().expect("the landing checked"),
             driven.app.session.landed_pair().expect("landed").0,
+            driven.app.session.current(),
         );
         assert!(
-            rows.iter().any(|row| row.add_to_product == Some(revolve)),
+            rows.iter()
+                .any(|row| row.offers.iter().any(|offer| matches!(
+                    offer,
+                    crate::recourse::Offer::Commit(commit)
+                        if commit.op == SessionOp::AddToProduct { node: revolve, body: None }
+                ))),
             "the revolve's unused finding offers the door"
         );
         let painted = driven.quiet();

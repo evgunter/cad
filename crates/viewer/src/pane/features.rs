@@ -1704,47 +1704,50 @@ mod tests {
         );
     }
 
-    /// **An instance row whose pin no longer holds draws the accept its
-    /// failure offers, and the button is that offer's operation.**
+    /// **A failed row's offers are drawn under it, and a control's click
+    /// answers that offer's operation**; an act with no door here is its
+    /// words alone.
     ///
-    /// The row is assembled here with the two fields `tree::rows` fills
-    /// from such a failure: its words, and the offer the real
-    /// `frame::version_offer` reads off it. The session's own rows are
-    /// `tests/instance_authoring.rs`'s. Red if
-    /// the question or the button is not drawn, if clicking the button
-    /// answers anything but the offer's op or also selects, or if a row
-    /// with no offer draws either.
+    /// The row is assembled here with the fields `tree::rows` and
+    /// `DocSession::tree_rows` fill from a pin that no longer holds: its
+    /// words, and the accept `recourse::offers` reads off it. The
+    /// session's own rows are `tests/instance_authoring.rs`'s. Red if the
+    /// control is not drawn, if clicking it answers anything but the
+    /// offer's op or also selects, if a row with no offer draws it, or if
+    /// the tolerance's words are not drawn.
     #[test]
-    fn a_pin_mismatched_instance_row_draws_the_accept_and_its_button_is_the_offer() {
-        use pncad::document::{PartFault, ResolveFault};
+    fn a_failed_rows_offers_are_drawn_under_it_and_a_click_is_the_offers_op() {
+        use pncad::document::{NodeErrorKind, PartFault, ResolveFault};
 
-        use crate::session::{Refusal, SessionOp, VersionOffer};
+        use crate::recourse::{Offer, Unoffered};
+        use crate::session::SessionOp;
         use crate::test_support::part_refused;
+        use crate::widgets::Taken;
 
-        let (kind, files) = part_refused(PartFault::Unresolved {
+        let (kind, _) = part_refused(PartFault::Unresolved {
             fault: ResolveFault::PinMismatch,
             message: "the store's own words".to_owned(),
         });
-        let offer = crate::frame::version_offer(&kind, &files).expect("a pin mismatch offers");
+        let NodeErrorKind::Part { doc_ref, .. } = &kind else {
+            unreachable!("the fixture is a part refusal")
+        };
+        let label = "Accept updated version of part.pncad, at every instance of it";
+        let accept = SessionOp::AcceptPartVersion { id: doc_ref.id };
         let row = TreeRow {
             status: RowStatus::Failed {
                 message: kind.to_string(),
                 carried: Vec::new(),
             },
-            version_offer: Some(offer.clone()),
+            offers: vec![Offer::commit(label, accept.clone())],
             ..instance_row()
         };
 
         let drawn = painted_text(|ui| feature_row_drawn(ui, &row, &Theme::DEFAULT));
-        assert!(
-            drawn.contains(&Refusal::version_question(&offer))
-                && drawn.contains(VersionOffer::LABEL),
-            "{drawn}"
-        );
+        assert!(drawn.contains(label), "{drawn}");
 
         let clicked = core::cell::RefCell::new(None);
         let mut selected = None;
-        painted_after_clicking(VersionOffer::LABEL, |ui| {
+        painted_after_clicking(label, |ui| {
             let clicks = feature_row_ui(
                 ui,
                 &row,
@@ -1755,32 +1758,30 @@ mod tests {
                 Notation::DEFAULT,
             );
             selected = selected.or(clicks.select);
-            if let Some(op) = clicks.accept {
-                *clicked.borrow_mut() = Some(op);
+            if let Some(taken) = clicks.offered {
+                *clicked.borrow_mut() = Some(taken);
             }
         });
-        let clicked = clicked.into_inner();
-        assert!(
-            matches!(
-                (&clicked, offer.accept()),
-                (
-                    Some(SessionOp::AcceptPartVersion { id }),
-                    SessionOp::AcceptPartVersion { id: offered },
-                ) if *id == offered
-            ),
-            "{clicked:?}"
-        );
-        assert_eq!(selected, None, "the button selects nothing");
+        assert_eq!(clicked.into_inner(), Some(Taken::Op(accept)));
+        assert_eq!(selected, None, "the control selects nothing");
 
         let unoffered = TreeRow {
             offers: Vec::new(),
-            ..row
+            ..row.clone()
         };
         let drawn = painted_text(|ui| feature_row_drawn(ui, &unoffered, &Theme::DEFAULT));
-        assert!(
-            !drawn.contains(VersionOffer::LABEL)
-                && !drawn.contains(&Refusal::version_question(&offer)),
-            "{drawn}"
+        assert!(!drawn.contains(label), "{drawn}");
+
+        let words = TreeRow {
+            offers: vec![Offer::Unoffered(Unoffered::Tolerance)],
+            ..row
+        };
+        let drawn = painted_text(|ui| feature_row_drawn(ui, &words, &Theme::DEFAULT));
+        assert!(drawn.contains(Unoffered::Tolerance.words()), "{drawn}");
+        assert_eq!(
+            Offer::Unoffered(Unoffered::Tolerance).label(),
+            None,
+            "an act with no door has no control"
         );
     }
 

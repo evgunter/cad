@@ -554,8 +554,8 @@ fn a_mated_product_copy_outside_the_world_keeps_its_recourse() {
         ),
         "the premise: the product reads a copy outside the world: {fault:?}"
     );
-    let recourse = viewer::frame::product_recourse(fault, session.committed_doc());
-    let [(label, op)] = &recourse[..] else {
+    let recourse = viewer::test_support::product_commits(&session);
+    let [viewer::recourse::Commit { label, op }] = &recourse[..] else {
         panic!("one recourse: {recourse:?}")
     };
     assert!(label.starts_with("Move "), "{label}");

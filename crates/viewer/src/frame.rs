@@ -242,16 +242,16 @@ use crate::display::{PruneReport, Withdrawn};
 use crate::idpass::IdStep;
 use crate::layout::LayoutReport;
 use crate::matetool::MateToolEvent;
-use crate::recourse::{Failure, Ran};
 use crate::pickcache::{IndexSeam, NotIndexed};
 use crate::pickindex::{EdgeNamesRefused, PickError, PickIndex, PickIndexError, UndrawnBody};
 use crate::prefs::{StoreError, Unusable};
+use crate::recourse::{Failure, Ran};
 use crate::scene::FittedDelta;
 use crate::scene::SceneError;
 use crate::seats::SeatEvent;
 use crate::session::{
-    AtRestBadge, Current, EdgeSelection, FaceSelection, OpOutcome, Outstanding, Refusal,
-    Selection, SessionOp,
+    AtRestBadge, Current, EdgeSelection, FaceSelection, OpOutcome, Outstanding, Refusal, Selection,
+    SessionOp,
 };
 use crate::tools::{PanelRefusal, ToolKind, ToolNotice};
 use crate::vocab::{partial_mirror, vocabulary};
@@ -2496,9 +2496,9 @@ pub fn finding_node(finding: &CheckFinding, landed: &Doc<ProfileProgram>) -> Opt
                 CheckEvidence::Interference { finding } => finding.a.var,
                 _ => read,
             };
-            let node = landed.operation_of(at).unwrap_or_else(|| {
-                unreachable!("a census is taken over an operation's output")
-            });
+            let node = landed
+                .operation_of(at)
+                .unwrap_or_else(|| unreachable!("a census is taken over an operation's output"));
             crate::world::original_of(landed, node)
         }
         // The earlier copy's placement: the row's cells name both.
@@ -3416,7 +3416,7 @@ mod tests {
             name: name.clone(),
         };
         let report = coincidence_report(&doc, split, vec![cell(0), cell(1)]);
-        let rows = check_rows(&report, &doc);
+        let rows = check_rows(&report, &doc, None);
         let s = test_utils::refusal::tag(split.0.digest());
         let face = |body| {
             Selection::Face(FaceSelection {
