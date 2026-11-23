@@ -164,7 +164,7 @@
 //! (`work/tesslane/a-needle-cone-face-meshes-thin-triangles-beside-its-rulings.md`).
 //!
 //! Near a small end the development puts points far apart in azimuth
-//! close together, and its Delaunay triangulation joins them. Two things
+//! close together, and its Delaunay triangulation joins them. Three things
 //! answer that. The certificate is the flat triangle's own deviation
 //! ([`cert::cert_cone`]): each chord at its own two radii and its own
 //! azimuth difference, no chart box, so such a triangle is charged what it
@@ -172,7 +172,11 @@
 //! their own radius ([`AnalyticRow::lattice_rows`]), so the row next to a
 //! small end stands a chord of the lattice's target from it rather than
 //! many: under rows uniform in `v` a face ending near its apex holds
-//! triangles truly past δ.
+//! triangles truly past δ. And every gap between rows is graded to its
+//! lower radius, no taller than the developed arc an eighth of a turn
+//! spans there, so no triangle across it reaches far round the axis: a
+//! triangle reaching past a quarter turn from two points of a small end
+//! certifies and still winds into the surface.
 //!
 //! - **Which points are one CDT vertex.** Every copy of the apex is the
 //!   origin. The development rounds, so it is not injective: the cut
@@ -647,7 +651,7 @@ pub(crate) fn tessellate_trimmed(
             let (hu, hv) =
                 a.lattice_steps(arm_steps(a, face_target(surface, Lane::Trimmed, tol.delta)));
             let nu = repeat_columns(&polygon, (u0, u1), ceil_count(u1 - u0, hu)?)?;
-            let rows = a.lattice_rows((v0, v1), (hu, hv))?;
+            let rows = a.lattice_rows((v0, v1), (hu, hv), !singular.is_empty())?;
             (
                 lattice_candidates((u0, u1), (v0, v1), nu, &rows),
                 None,
