@@ -1800,3 +1800,14 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - `recourse_roster` in geom-brep and topo, reproduced on a main worktree;
   - `payload-rung-sweep`.
   - Owed at merge: extend its filed row `the-ring-paths-arcloop-copies-the-co-surface-arms-edge-section` with `ring_path::plane_roots`. Since PR 7411, it reads `cross` directly with no `same_record` and spells its own direction, so it should route through `on_surface::direction` via `OnSurface::meet`. This makes C5's ratified sentence ("through the co-surface arm") true.
+- 2026-11-23 10:30 — **PR 7431 review adjudicated: NOT-MERGEABLE-AS-IS** (single FULL, drawn arm).
+  - **MAJOR, demonstrated: the spiric × plane door's `P ∩ Q` line loses digits.** It is formed as `(…)/(1 − k²)` and cancels at a small tilt (about 1e-16/θ², beyond the intrinsic 1/θ). It answers `Isolated` with meetings 1.4e-8 off at θ = 1e-4 and 6.2 mm off at θ = 1e-7, with no refusal. 522 of 3546 near-parallel probe answers are wrong at default ε, and one root count is wrong.
+  - **Minors:**
+    - a sub-ε miss reads as a definite "no meeting";
+    - an in-band regime margin hits `unreachable!` on literal-built data;
+    - four rows cannot fail, plus the fuzz abandon ceiling.
+  - **Held under execution:** the direction table and `same_record`, `meet`'s placement (4447 cases per ε, 0 wrong), and the fuzz at fresh seeds.
+  - The fix pass is sent to the lane. It must re-pose the line with a proved bound and escalate where the bound cannot decide, plus a near-parallel row that reds on the old formula.
+  - **NOTE for Ev's eye, a row the lane files:** Parallel × Villarceau reads `Touch` at the latitude cos v = −r/R, where the two cross transversally. C5's "both planes touch" premise for that fixed row fails there; it is conservative today.
+  - Reds outside the diff are routed to their owners' rows.
+  - Once the fix pass lands, the same reviewer confirms the MAJOR's fix on the new head. This is a confirmation, not a second review arm.
