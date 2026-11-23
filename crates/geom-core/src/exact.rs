@@ -346,10 +346,13 @@ impl Dd {
 /// operands' magnitudes and no path takes more than a dozen steps, so
 /// `A`, `B`, `D` err by at most `2⁶u²` of their magnitudes and the
 /// numerator by at most `2¹⁰u²·M`, `M = m_A² + m_B² + m_D²`. The reading
-/// answers only where the numerator's head clears `2¹¹u·M` and the
-/// denominator `2¹¹u·(m_A + m_B + m_D)`: then each errs by less than a
-/// part in `2¹¹` of a `u` of itself beyond the roundings the exact
-/// reading also makes, and the belly is within the same `7u`. A belly
+/// answers only where the numerator's head clears `2¹¹u·M`. The
+/// denominator then clears its own error by as much: the numerator is
+/// `(√(A² + B²) − |D|)(√(A² + B²) + |D|)`, at most the denominator's
+/// square, so the denominator is at least `√(2¹¹u·M)`, far past
+/// `2⁶u²·(m_A + m_B + m_D)`. Each errs by less than a part in `2¹¹` of a
+/// `u` of itself beyond the roundings the exact reading also makes, and
+/// the belly is within the same `7u`. A belly
 /// that cancels against the curve's size never clears it, and is read
 /// from the expansions.
 #[must_use]
@@ -401,9 +404,7 @@ pub fn harmonic_belly_near(
     let u_ = f64::EPSILON / 2.0;
     let magnitude = m_a * m_a + m_b * m_b + m_d * m_d;
     let rise = big_a.hi.hypot(big_b.hi) + d.hi.abs();
-    let clear = squares.hi.abs() > 2048.0 * u_ * magnitude
-        && rise > 2048.0 * u_ * (m_a + m_b + m_d)
-        && magnitude.is_finite();
+    let clear = squares.hi.abs() > 2048.0 * u_ * magnitude && magnitude.is_finite();
     clear.then(|| squares.hi / rise)
 }
 

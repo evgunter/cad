@@ -3255,7 +3255,7 @@ mod tests {
 
     /// **A belly at the stored data's own rounding is read from the
     /// expansions, not the double-double** ([`Real::harmonic_belly`]'s
-    /// filter): a draw of the row above at semi-axis 8.5e8, where the
+    /// filter): a draw of the row above at semi-axis 8.9e8, where the
     /// belly is of the order of `u` of the curve's size. A double-double
     /// reading errs there by more than `8u` of the belly, so it holds only
     /// if the filter hands it to the expansions. Red against the filter
@@ -3263,31 +3263,27 @@ mod tests {
     #[test]
     fn a_belly_at_the_datas_own_rounding_is_read_from_the_expansions() {
         let draw = BellyDraw {
-            far: 851_683_219.375_316_5,
-            k: 0.157_504_165_797_794_22,
-            by: [7.957_220_486_622_747, 0.0, -0.366_087_286_095_782_45],
+            far: 888128454.2190003,
+            k: 0.47112202864400915,
+            by: [0.0, 0.0, -6.179153848113178],
             axis: [
-                0.220_995_106_655_226_06,
-                -0.528_969_050_180_594_7,
-                0.954_794_496_324_708_3,
+                -0.8602968179554397,
+                -0.1678607116122417,
+                0.11944456902113416,
             ],
-            seam: [
-                0.510_799_693_076_673_2,
-                0.657_556_726_575_884_8,
-                0.668_758_451_103_263_9,
-            ],
-            graze: 6.161_413_575_346_425,
-            anchor: 3.379_873_348_826_776_7,
+            seam: [0.41905906378434005, 0.5317759491401944, -0.8204683221011131],
+            graze: 2.454010139702463,
+            anchor: 5.21957173226654,
             arc_held: false,
-            tilt: -1.055_442_095_410_990_9,
+            tilt: -0.14796864220551767,
             across: [
-                -0.924_923_913_156_334_7,
-                0.519_370_600_166_168_2,
-                0.997_924_939_694_345_9,
+                -0.21743992587270297,
+                -0.12484256262884375,
+                -0.6085511504449894,
             ],
-            depth: 15.886_290_740_898_609,
-            below: false,
-            slide: 5.315_320_982_006_195,
+            depth: 15.904608451721286,
+            below: true,
+            slide: 3.9130836524939507,
         };
         assert_eq!(belly_draw(&draw), Ok(true));
     }
