@@ -1287,13 +1287,15 @@ enum Locus<T: Real> {
     /// exact. A face's run along the line or round the circle is no
     /// distance from it.
     About(Around<T>),
-    /// Any other carrier, over the edge's own span in `2^`
-    /// [`LOCUS_HALVINGS`] pieces: the nearest any piece's cover stands
-    /// to the station. A cover holds its piece, so that is never past
-    /// the distance from the arc. A piece with no cover reads zero.
+    /// Any other carrier, in `2^` [`LOCUS_HALVINGS`] pieces: the
+    /// nearest any piece's cover stands to the station. A cover holds
+    /// its piece, so that is never past the distance from the curve. A
+    /// piece with no cover reads zero.
     ///
-    /// The locus here is the edge's arc, not the carrier past its ends,
-    /// so a face's run along such an edge past an end still counts.
+    /// An ellipse and a spiric oval are read over their whole turn. A
+    /// spline is read over the edge's own span: there the locus is the
+    /// edge's arc, not the carrier past its ends, so a face's run along
+    /// a spline edge past an end still counts.
     Pieces(Vec<Option<Cover<T>>>),
 }
 
@@ -1311,6 +1313,13 @@ impl<T: SpanLocate> Locus<T> {
                 radius: circle.radius(),
             }));
         }
+        // An ellipse and a spiric oval close over one turn of their
+        // parameter, and are read whole, as a line and a circle are.
+        let span = if is_centred_oval(carrier) {
+            (T::zero(), T::tau())
+        } else {
+            span
+        };
         Self::Pieces(halved(carrier, span))
     }
 

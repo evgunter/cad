@@ -13910,6 +13910,228 @@ mod margin_reach_rows {
         assert!(!certified(0.7), "inside the band at the narrower run");
     }
 
+    /// The floor's square beside its edge on the `x` axis against a face
+    /// folded up about that axis by `phi`, the one shared edge classed
+    /// `class` on both faces, near it alone: the pair's outcome. Both
+    /// faces run at least 1 from the edge, so the extent is 1.
+    fn fold_classed(phi: f64, class: Option<crate::EdgeClass>) -> Outcome {
+        let o = [0.0; 3];
+        let classed = |b: Boundary| match class {
+            Some(class) => b.with_class(key(1), class),
+            None => b,
+        };
+        let x = classed(boundary(
+            vec![line(1, [1, 2], o, [1.0, 0.0, 0.0])],
+            &[
+                (1, o),
+                (2, [1.0, 0.0, 0.0]),
+                (3, [1.0, 1.0, 0.0]),
+                (4, [0.0, 1.0, 0.0]),
+            ],
+        ));
+        let y = classed(boundary(
+            vec![line(1, [1, 2], o, [1.0, 0.0, 0.0])],
+            &[
+                (1, o),
+                (2, [1.0, 0.0, 0.0]),
+                (5, [0.5, phi.cos(), phi.sin()]),
+            ],
+        ));
+        let (sx, sy) = (floor(), folded(phi));
+        let here = Local {
+            edges: vec![0],
+            vertices: Vec::new(),
+        };
+        let near = Near {
+            edges: vec![(0, 0)],
+            vertices: Vec::new(),
+        };
+        let cell = ((0.4, 0.6), (0.0, 0.1));
+        certify_pair(
+            &piece(1, &sx, &x, &here, cell),
+            &piece(2, &sy, &y, &here, cell),
+            &near,
+            band(),
+        )
+    }
+
+    /// **The class tier 3 kept decides which arguments run.** One fold,
+    /// half a radian, far past the band, under each class:
+    /// - no class, and a crease of the turn the carrier arm reads
+    ///   (the folded face stands on the floor's outward side: concave):
+    ///   certified;
+    /// - a crease of the other turn: the sign proved contradicts the
+    ///   verdict, refused naming the edge;
+    /// - an end: no first-order separator runs, refused naming the
+    ///   second-order arm, at once;
+    /// - a seam: the other face's carrier is barred, and the plane
+    ///   through the edge certifies with no turn read.
+    ///
+    /// Red if an end is split or certified, if a contradicted turn
+    /// certifies, or if a class is ignored.
+    #[test]
+    fn the_class_decides_which_separators_run() {
+        use crate::EdgeClass as C;
+        use geom_brep::{Convexity, WedgeEnd};
+        let certified = |class| matches!(fold_classed(0.5, class), Outcome::Certified { .. });
+        assert!(certified(None), "no class");
+        assert!(
+            certified(Some(C::Crease(Convexity::Concave))),
+            "the turn read"
+        );
+        assert!(
+            matches!(
+                fold_classed(0.5, Some(C::Crease(Convexity::Convex))),
+                Outcome::Refuse(EngineRefusal::TurnContradicted { edge, .. }) if edge == key(1)
+            ),
+            "the other turn: {:?}",
+            fold_classed(0.5, Some(C::Crease(Convexity::Convex)))
+        );
+        for end in [WedgeEnd::Cusp, WedgeEnd::Slit] {
+            assert!(
+                matches!(
+                    fold_classed(0.5, Some(C::End(end))),
+                    Outcome::Refuse(EngineRefusal::Uncertified {
+                        shared: SharedCell::Edge(e),
+                        arm: CertificateArm::SecondOrder,
+                        ..
+                    }) if e == key(1)
+                ),
+                "an end: {:?}",
+                fold_classed(0.5, Some(C::End(end)))
+            );
+        }
+        assert!(certified(Some(C::Seam)), "a seam, through the plane");
+    }
+
+    /// **A crease read under the carrier arm and under the bisecting
+    /// plane decides alike.** The fold at `sin φ` 1.2 and 0.7 times the
+    /// band over the extent 1: under a crease the other face's carrier
+    /// reads the wedge's sine; under a seam class that arm is barred and
+    /// the plane bisecting the faces reads each at half the wedge, the
+    /// two summed. Both certify the first and neither the second.
+    ///
+    /// Red if the plane's two sines are each banded alone (1.2 then
+    /// reads 0.6 twice and fails), or if the carrier arm runs under a
+    /// seam.
+    #[test]
+    fn a_crease_under_the_carrier_and_under_the_bisecting_plane_decides_alike() {
+        use crate::EdgeClass as C;
+        let phi = |times: f64| (times * band().escalate()).asin();
+        for class in [
+            Some(C::Crease(geom_brep::Convexity::Concave)),
+            Some(C::Seam),
+        ] {
+            assert!(
+                matches!(
+                    fold_classed(phi(1.2), class),
+                    Outcome::Certified { .. }
+                ),
+                "{class:?} above the band: {:?}",
+                fold_classed(phi(1.2), class)
+            );
+            assert!(
+                matches!(fold_classed(phi(0.7), class), Outcome::Split { .. }),
+                "{class:?} inside the band: {:?}",
+                fold_classed(phi(0.7), class)
+            );
+        }
+    }
+
+    /// **The banded reading is the two faces' sines summed, and each
+    /// face's own side is its enclosure's sign.**
+    /// - one face's sine a millionth of the band and the other's well
+    ///   past it: the pair parts;
+    /// - each at 0.4 of the band, the sum inside it: it does not;
+    /// - each at 0.7: the sum is past the band, and it parts;
+    /// - a sine whose enclosure holds zero has no side, however large
+    ///   its far end; one a rounding off zero has one.
+    ///
+    /// Red if each face is banded alone (the first and third fail), if
+    /// one sine is counted twice or the larger alone is read (the second
+    /// passes at 0.8), or if a side is read at an enclosure's middle.
+    #[test]
+    fn the_pairs_sines_are_summed_and_each_side_is_its_enclosures_sign() {
+        let unit = Some(fixture_lever(iv0(1.0)));
+        let band_edge = band().escalate();
+        let parts_at = |a: f64, b: f64| {
+            parts(
+                [iv0(a * band_edge), iv0(b * band_edge)],
+                iv0(1.0),
+                unit,
+                band(),
+            )
+        };
+        assert!(parts_at(1e-6, 5.0), "a tiny sine and a large one");
+        assert!(!parts_at(0.4, 0.4), "two small sines, their sum in band");
+        assert!(parts_at(0.7, 0.7), "two sines, their sum past the band");
+        assert!(
+            !parts([iv0(5.0 * band_edge)], iv0(1.0), None, band()),
+            "no extent"
+        );
+        assert!(
+            leaves(Interval::from_bounds(-1e-12, 0.9)).is_none(),
+            "an enclosure holding zero"
+        );
+        assert!(
+            matches!(
+                leaves(Interval::from_bounds(1e-15, 2e-15)),
+                Some(Leaves::At(Sign::Positive, _))
+            ),
+            "a sine a rounding off zero has a side"
+        );
+        assert!(
+            matches!(
+                leaves(Interval::from_bounds(-0.5, -0.4)),
+                Some(Leaves::At(Sign::Negative, r)) if r.lo() == 0.4
+            ),
+            "the magnitude is the sine's"
+        );
+    }
+
+    /// **A touching pair lifted with no tier-3 verdict refuses typed.**
+    /// The fold, one face's boundary holding no facts. Red if a pair
+    /// with no facts is split until a budget, or certified.
+    #[test]
+    fn a_pair_lifted_with_no_verdict_refuses_naming_it() {
+        let o = [0.0; 3];
+        let mut bare = boundary(
+            vec![line(1, [1, 2], o, [1.0, 0.0, 0.0])],
+            &[(1, o), (2, [1.0, 0.0, 0.0]), (3, [1.0, 1.0, 0.0])],
+        );
+        let read = bare.clone();
+        bare.facts = None;
+        let (s, here) = (
+            floor(),
+            Local {
+                edges: vec![0],
+                vertices: Vec::new(),
+            },
+        );
+        let near = Near {
+            edges: vec![(0, 0)],
+            vertices: Vec::new(),
+        };
+        let cell = ((0.4, 0.6), (0.0, 0.1));
+        let got = certify_pair(
+            &piece(1, &s, &read, &here, cell),
+            &piece(2, &s, &bare, &here, cell),
+            &near,
+            band(),
+        );
+        assert!(
+            matches!(
+                got,
+                Outcome::Refuse(EngineRefusal::Unsupported {
+                    carrier: NO_VERDICT,
+                    side: Which::Second,
+                    ..
+                })
+            ),
+            "{got:?}"
+        );
+    }
+
     /// **A sine that changes sign over the rectangle decides nothing.** A
     /// cylinder beside its ruling at `u = 0`, half a radian wide, against
     /// a plane through that ruling it has already crossed a tenth of a

@@ -126,10 +126,12 @@ no tier-3 verdict").
 ends and its middle, and each lone vertex: points of its boundary.
 - line edge: the station's perpendicular distance from the whole line;
 - circular edge: its distance from the whole circle;
-- any other carrier (an ellipse, a spiric, a spline): the nearest the
-  station stands to the edge's own span, covered in 64 pieces. Here
-  the locus is the edge's arc, so a run along the edge past an end
-  still counts: more than the definition, stated at the door;
+- an ellipse or a spiric oval: the nearest the station stands to the
+  whole curve, covered over its turn in 64 pieces;
+- a spline: the nearest the station stands to the edge's own span,
+  covered in 64 pieces. Here the locus is the edge's arc, so a run
+  along a spline edge past an end still counts: more than the
+  definition, stated at the door;
 - shared vertex: the station's distance from it.
 - **the spanned bound (R, 8a)**: a face whose whole boundary is one
   loop on one closed planar curve with a centre (a circle, an ellipse,
