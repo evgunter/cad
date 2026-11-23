@@ -2,11 +2,13 @@
 id: transform-rigid-maps-a-poisoned-net-into-the-placeholder
 kind: issue
 title: transform_rigid maps a poisoned NURBS net instead of refusing it, and a rotation can turn it into the placeholder
-status: open
+status: closed
 opened: 2026-10-10
 priority: P3
 cost: E
 refs: [described-net-two-state-reads-hand-a-poisoned-net-the-described-arm]
+closed: 2026-11-23
+parent: placeholder-question-has-two-spellings-across-topo
 ---
 
 
@@ -62,3 +64,7 @@ control point directly. A regression row: the probe above, asserting the
 typed refusal for both nets.
 
 - 2026-11-02 — moved from SHELF to SHELL by `git mv` when SHELF merged into SHELL, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and SHELF had fallen far under it).
+
+## Closed
+
+2026-11-23 (WALKS, `walks/surface-slot`): unrepresentable under Ev's ruling on PR 7423. "No surface yet" is a pending surface slot in `topo`, not an all-NaN net, so no rotation of a corrupt net can mint it: `map_isometry` moves described slots and leaves pending ones pending, and `map_surface`'s placeholder gate is gone. A net that is not finite is mapped as found and refused at rest (check 1's `PoisonedSurfaceDescription`) and by the edge re-certification `transform_rigid` runs. Whether `transform` should also refuse a non-finite net up front is a small call left to SHELL; not filed, because nothing now turns such a net into a benign answer. The curve arm's `is_placeholder` gate is `walks/curve-placeholder`'s.
