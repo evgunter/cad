@@ -68,7 +68,7 @@ pub(crate) struct Drafts {
     pub(crate) name_draft: Option<NameDraft>,
     /// **Whether the add-variable form is open** — its `New variable…`
     /// door clicked, or an unknown-variable refusal's offer landed
-    /// ([`crate::frame::creation_offer`]). Closed, the form's fields
+    /// ([`crate::recourse::Lead::CreateVariable`]). Closed, the form's fields
     /// below are not drawn.
     pub(crate) new_variable_open: bool,
     /// The add-variable form's name field.
@@ -82,7 +82,7 @@ pub(crate) struct Drafts {
     /// Its value field.
     pub(crate) new_variable_value: f64,
     /// The name an unknown-variable refusal offered to create
-    /// ([`crate::frame::creation_offer`]); shown over the form while the
+    /// ([`crate::recourse::Lead::CreateVariable`]); shown over the form while the
     /// name field still says it.
     pub(crate) new_variable_offer: Option<VarName>,
     /// The placement editor's value fields being typed in, by freedom:

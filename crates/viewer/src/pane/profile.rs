@@ -376,7 +376,7 @@ pub(crate) struct FieldNews {
     /// to the draft.
     pub(crate) standing: Option<(SlotId, String)>,
     /// The refusal of text typed this frame, for the offer the slot
-    /// door's refusal makes ([`frame::creation_offer`]).
+    /// door's refusal makes ([`crate::recourse::Lead::CreateVariable`]).
     pub(crate) refused: Option<crate::session::Refusal>,
     /// What the fields said this frame.
     pub(crate) notices: Vec<frame::Message>,

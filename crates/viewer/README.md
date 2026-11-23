@@ -2946,7 +2946,7 @@ and `sketch`'s frame list and frame placement), `session::select::resolves`
 (a live selection, an unresolved one, and a mate pick that survives a
 landing), `sketch::PreviewError::is_unfinished` (the preview's retry and
 `PreviewError::tone`, which the profile pane draws with), and `session::refuse::Refusal::parse_error`
-(`frame::creation_offer` and `frame::retype_draft`). A decision over
+(`frame::retype_draft`). A decision over
 TWO enums names both: `ToolKind::commits` matches every tool and reads
 `tools::committed_by`, which matches every operation, so a new tool
 and a new operation each red.
@@ -2966,8 +2966,8 @@ its shape is not one of these:
 
 - **A composer on the vocabulary type, one home, called by every
   surface that shows the sentence** — `Refusal::affordance`,
-  `::exists_wording`, `::offer_wording`, `::undeclared_wording`,
-  `::version_question` (`session::refuse`), and
+  `::exists_wording`, `::offer_wording`, `::undeclared_wording`
+  (`session::refuse`), and
   `ChooserBackend::unusable` (`platform`, spent at two
   `on_disabled_hover_text` calls in `app`).
 - **Composed in the vocabulary's own `Display`, riding the sentence**

@@ -402,7 +402,7 @@ pub enum SessionOp {
     /// That folder's scan decides the act before anything is written:
     /// a resave, a create at the chosen name, or a refusal. A folder
     /// that already holds this document under another name refuses
-    /// `SaveWouldDuplicateId` ([`Refusal::save_choice`] reads the two
+    /// `SaveWouldDuplicateId` ([`crate::recourse::offers`] reads the two
     /// ways on out of it), and a folder whose scan refuses gives that
     /// refusal; both arrive as [`Refusal::Workspace`].
     ///

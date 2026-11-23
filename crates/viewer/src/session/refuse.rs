@@ -708,8 +708,7 @@ impl Refusal {
     /// **The parse error, when the refusal is the expression door's
     /// parse refusal** — the text an author typed did not parse, so
     /// nothing reached the document and the typed source is still the
-    /// author's. The one reading `frame::creation_offer` and
-    /// `frame::retype_draft` both take.
+    /// author's. The reading `frame::retype_draft` takes.
     pub fn parse_error(&self) -> Option<&ParseError> {
         match self {
             Self::Parse(error) => Some(&**error),
