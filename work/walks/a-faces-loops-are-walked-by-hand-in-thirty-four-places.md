@@ -3,6 +3,7 @@ id: a-faces-loops-are-walked-by-hand-in-thirty-four-places
 kind: issue
 title: once(face.outer).chain(face.rings) is written out at every face-loop walk in topo/src — 33 copies at last count, each re-deciding what a non-Cycle boundary means
 status: review
+pr: 7474
 branch: walks/face-region
 opened: 2026-09-14
 priority: P1
