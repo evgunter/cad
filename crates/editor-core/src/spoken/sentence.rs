@@ -56,7 +56,7 @@ fn flattening() {
 }
 
 /// A name said ([`Speaker::name`]), for [`Sentence::name`]: the one
-/// spelling of a name in words ([`crate::LeafRole`]), [`SpokenName`]'s
+/// spelling of a name in words ([`crate::LeafRole`]), [`crate::SpokenName`]'s
 /// and [`StableName`]'s too.
 #[must_use]
 pub struct SaidName<'a>(pub(super) &'a StableName, pub(super) Speaker<'a>);
