@@ -702,3 +702,21 @@ read the rectangle `Vacuous`.
 So in four of the six, the plane's rate times the sliver's own width is
 the only failing reading. In two, the cylinder's departure straddles as
 well. The bodies are valid, built as their tests' ordinary results.
+
+## Plane reflex corners whose partner is a sliver at the vertex (EMBED lane `embed/iso-end`, 2026-11-22)
+
+Plane/plane departure census, 212 tests (vertex and edge buckets, ≤30 s each) on main `a29fd3695`, with the trace prints on `embed/iso-end-measure`. In these 13 the refusing pair holds a reflex corner (both leans < 0) on one face, and the partner is presented at the vertex as a rectangle whose span across its zero side is 2e-16 to 3e-14. The carrier arm's departure there is read at the band (`across` about 1e-16) and decides nothing (`departs=None`).
+
+- `editor-core::all emit_union_borders::a_bar_that_divides_no_tied_face_leaves_the_tie`
+- `editor-core::all emit_union_borders::a_staircase_cites_every_wall_along_its_side`
+- `editor-core::all emit_union_member_order::a_seam_passed_through_a_split_and_cut_later_is_named`
+- `editor-core::all remap_reorders_ids::a_second_cut_of_a_union_seams_pieces_follows_it_too`
+- `editor-core::all resolve_group_membership::a_unions_seam_of_a_tied_parent_counts_its_pieces`
+- `pncad::all the_nominal_clearance_door_answers_each_assertion_and_stops_on_cancel`
+- `sweep::all band_mixed_corner_odd_plus_one::the_bracket_chamfers_with_the_odd_edge_and_one_other_at_every_mixed_corner`
+- `sweep::all band_subdivided_side_walls::revolved_continuation_builds_one_wall_per_run_and_unions_as_built`
+- `sweep::all join1_delta_probes::the_seam_body_is_an_operand`
+- `sweep::all join1_r1_rows::a_hexagon_unions_a_box_on_its_corner_edge_soundly`
+- `topo::all vertex_on_edge_records::a_split_at_the_crossing_records_its_vertex_on_the_other_edge`
+- `topo::all vertex_on_edge_records::a_split_at_the_other_edges_end_records_a_vertex_vertex_pair`
+- `viewer::all blend_authoring::an_upstream_edit_that_strands_held_edges_drops_them_and_says_so`

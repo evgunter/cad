@@ -67,3 +67,11 @@ sentences end in their recourse (`ClearanceRefusal::NotADistance`,
 say no recourse, which is `ClearanceRefusal`'s, not this row's.
 
 - 2026-11-02 — moved from CLEARTAIL to CLEAR when CLEARTAIL merged back into CLEAR (the budget rule now counts P0/P1 only); id and body unchanged.
+
+## Evidence (2026-11-22, `embed/first-finding`)
+
+`EngineRefusal::payload` now ends `Budget`, `Sliver` and
+`WitnessUnverified` with the two faces of the cell pair the refusal
+was made on (`first=FaceKey(..) second=FaceKey(..)`), so the goldening
+form this row quotes for `Budget` is `CellBudget`'s `Debug` and then
+those two keys.

@@ -683,6 +683,42 @@ fn self_intersection_over_a_sound_body_examines_every_face_pair() {
     assert_ne!(r, CellReceipt::default());
 }
 
+/// **The door's self-intersection question ends at its first
+/// finding.** The comb asked with no depth to split in: the first
+/// touching pair that would split refuses, naming its two faces, and
+/// the question ends there, one cell pair refused and the rest
+/// abandoned. Red where the walk reads on past a refusal: every
+/// touching pair refuses in its turn and nothing is abandoned.
+#[test]
+fn self_intersection_ends_at_its_first_refusal() {
+    let (doc, minted, _placed) = comb();
+    let stop = editor_core::Stop::default();
+    let of = Selection::body_of(minted);
+    let shipped = ClearanceConfig::default();
+    let query = ClearanceQuery {
+        config: ClearanceConfig {
+            budgets: Budgets {
+                max_cell_depth: 0,
+                ..shipped.budgets
+            },
+            ..shipped
+        },
+        ..ClearanceQuery::strictly_positive(&stop, Tol::witness())
+    };
+    let report = clearance_at_dials(&doc, &box_of(&doc, "place"), &of, &of, &query);
+    match report.verdict() {
+        ClearanceVerdict::Refused(ClearanceRefusal::Engine {
+            refusal: EngineRefusal::Uncertified { a, b, .. },
+            ..
+        }) => assert_ne!(a, b, "two faces"),
+        other => panic!("the first touching pair refuses, got {other:?}"),
+    }
+    let r = report.receipt();
+    assert!(r.holds(), "{r:?}");
+    assert_eq!(r.refused, 1, "one finding: {r:?}");
+    assert!(r.abandoned > 0, "the rest unread: {r:?}");
+}
+
 // ------------------------------ 3. D3: a witness outside the trimmed face
 
 /// **Deviation D3, as a number — FLIPPED, and now the contract.** The
@@ -1261,7 +1297,7 @@ fn a_one_pair_budget_refuses_and_still_accounts_for_every_candidate() {
         matches!(
             report.verdict(),
             ClearanceVerdict::Refused(ClearanceRefusal::Engine {
-                refusal: EngineRefusal::Budget(_),
+                refusal: EngineRefusal::Budget { .. },
                 ..
             }) | ClearanceVerdict::Violated(_)
         ),
@@ -1368,7 +1404,7 @@ fn the_cost_curve_is_flat_where_the_bound_is_broken() {
         matches!(
             frontier.verdict(),
             ClearanceVerdict::Refused(ClearanceRefusal::Engine {
-                refusal: EngineRefusal::Budget(_),
+                refusal: EngineRefusal::Budget { .. },
                 ..
             })
         ),
