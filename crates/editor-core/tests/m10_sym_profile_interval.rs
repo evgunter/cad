@@ -334,32 +334,34 @@ fn eps_row(eps: f64) -> usize {
 /// margins are built on the literal axes: `Plain/Decision` 7727 → 7730
 /// forms, `Plain/Assertion` 2554 → 2558 and `Early/Assertion` 2878 →
 /// 2885 over the same 992 calls, with their digests; `Early/Decision`
-/// does not move.
+/// does not move. Each ask starts from the expression alone and keeps
+/// nothing for the next, so its walk builds its forms afresh: the 16
+/// asks build 40 forms.
 const SLAB_LEDGER: [&str; 3] = [
     "\
      Plain/Decision calls 928 forms 7730 frozen 0 digest 09a772790e4dea3108f93bf30b1d7091\n\
      Plain/Assertion calls 992 forms 2558 frozen 0 digest 1e4740e7b64f440555740f98c101ebca\n\
-     Plain/Question calls 16 forms 6 frozen 0 digest f93fccfe9113e4327793dc4f18bcb67d\n\
+     Plain/Question calls 16 forms 40 frozen 0 digest b78d6377e1913b91988c782ea0970c62\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
      Early/Assertion calls 992 forms 2885 frozen 0 digest 9c05ee0d1ff1e97e6c981164e85b5328\n\
-     Early/Question calls 8 forms 4 frozen 0 digest 4557b15d1992df12b536a5be900ed6df\n\
-     RetryEarly/Question calls 16 forms 8 frozen 0 digest 8fd57c0cc6877f1ee0857385e9e865a8",
+     Early/Question calls 8 forms 24 frozen 0 digest 1369b95427b068e6d82b5cef68c87d35\n\
+     RetryEarly/Question calls 16 forms 48 frozen 0 digest cb5efb44beb021b3db429ffdfb9ed112",
     "\
      Plain/Decision calls 928 forms 7730 frozen 0 digest cbca174230d92086f21c044263bf576a\n\
      Plain/Assertion calls 992 forms 2558 frozen 0 digest 6daa8d9213946aa548230444b7329649\n\
-     Plain/Question calls 16 forms 6 frozen 0 digest f93fccfe9113e4327793dc4f18bcb67d\n\
+     Plain/Question calls 16 forms 40 frozen 0 digest b78d6377e1913b91988c782ea0970c62\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
      Early/Assertion calls 992 forms 2885 frozen 0 digest 892cb6d895d73b73c5b04e0001716e3a\n\
-     Early/Question calls 8 forms 4 frozen 0 digest 4557b15d1992df12b536a5be900ed6df\n\
-     RetryEarly/Question calls 16 forms 8 frozen 0 digest 8fd57c0cc6877f1ee0857385e9e865a8",
+     Early/Question calls 8 forms 24 frozen 0 digest 1369b95427b068e6d82b5cef68c87d35\n\
+     RetryEarly/Question calls 16 forms 48 frozen 0 digest cb5efb44beb021b3db429ffdfb9ed112",
     "\
      Plain/Decision calls 928 forms 7730 frozen 0 digest 9a356ac7d15347d0d846301e339b6513\n\
      Plain/Assertion calls 992 forms 2558 frozen 0 digest 658e21290721d6a69a04a097acba263d\n\
-     Plain/Question calls 16 forms 6 frozen 0 digest f93fccfe9113e4327793dc4f18bcb67d\n\
+     Plain/Question calls 16 forms 40 frozen 0 digest b78d6377e1913b91988c782ea0970c62\n\
      Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
      Early/Assertion calls 992 forms 2885 frozen 0 digest 8aef7016f40ad6b5e275b0a4332325b5\n\
-     Early/Question calls 8 forms 4 frozen 0 digest 4557b15d1992df12b536a5be900ed6df\n\
-     RetryEarly/Question calls 16 forms 8 frozen 0 digest 8fd57c0cc6877f1ee0857385e9e865a8",
+     Early/Question calls 8 forms 24 frozen 0 digest 1369b95427b068e6d82b5cef68c87d35\n\
+     RetryEarly/Question calls 16 forms 48 frozen 0 digest cb5efb44beb021b3db429ffdfb9ed112",
 ];
 
 /// The largest form (numerator plus denominator terms) any op built
@@ -509,12 +511,12 @@ const PLATE_MAX_TERMS: usize = 38;
 const PLATE_LEDGER: &str = "\
      Plain/Decision calls 975 forms 33089 frozen 36 digest 027b7862f1133eb0390c36a50c0c1e58\n\
      Plain/Assertion calls 1047 forms 12229 frozen 0 digest dc1ebd36fae2d9ccdbac306379f89bf9\n\
-     Plain/Question calls 8 forms 12 frozen 0 digest 2502334591e44fea866b054a3898e50b\n\
+     Plain/Question calls 8 forms 20 frozen 0 digest d20e3a4718c4d8bcad22bab5a23a9f82\n\
      Early/Decision calls 308 forms 22928 frozen 0 digest a0bc99f42c355fffd211b273bb594e1f\n\
      Early/Assertion calls 1047 forms 12680 frozen 0 digest af6ba18fe0993157a06e4f32c13be8a3\n\
-     Early/Question calls 4 forms 8 frozen 0 digest ae422f6884c648819f90eb4f9453edd1\n\
+     Early/Question calls 4 forms 12 frozen 0 digest 1d09968834171850bb23c3a62df6c9da\n\
      Door/Decision calls 550 forms 12366 frozen 0 digest 75aa7cd508fc1005ee274141b4e539c1\n\
-     RetryEarly/Question calls 8 forms 16 frozen 0 digest 6b271a31d573f632ce0f8e740d532cf9";
+     RetryEarly/Question calls 8 forms 24 frozen 0 digest 6ec6eda7d150da47e0bf10ec7f9a107c";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)
