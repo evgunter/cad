@@ -24,3 +24,5 @@ PR 7408 declares every one of them, but the next merge that adds a site reds the
 The fix is the gate's, not a roster's. Two options:
 - select `recourse_roster` (and the sibling crates' rosters) whenever a diff touches a `decide*` spelling under `crates/geom-brep/src`;
 - or move the walk out of the slow set: it takes about 2–3 s on CI (`FAIL [ 2.781s]`), above the 0.5 s line, so this would need a cheaper census.
+
+Main has since rewritten the roster (`b8ca8a4118`'s line): it no longer lists indirect sites. What remains is the const-carrier check. A merge that adds a `decide*` through an undeclared const still reds the roster unseen, since it runs only in the slow set.

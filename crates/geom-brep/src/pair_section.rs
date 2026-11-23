@@ -2228,7 +2228,7 @@ impl<T: Decide> PairSection<T> {
     }
 
     /// **The one branch a listed component's two cut ends end**: each cut
-    /// end lies on exactly one of the march's branches ([`CarriedComponent::reads`]),
+    /// end lies on exactly one of the march's branches ([`CarriedComponent::witness`]),
     /// an open one that ends there, its nearer end within the band
     /// (padded by the branch's pad) of the cut end; the two lie on the
     /// same branch, at its two ends. Anything else is a desync, and a
@@ -3183,7 +3183,7 @@ pub struct CarriedComponent<T: Real> {
     pub winds: [bool; 2],
     /// **How far from its carrier a point of this component is read**,
     /// in metres; zero for a closed form. Every reading of a point
-    /// against the component pads its band by it ([`Self::reads`]), and
+    /// against the component pads its band by it ([`Self::witness`]), and
     /// the certificate's W3 rests on it. It is [`pad_and_reach`]'s over
     /// the component's tube: a marched loop's chain boxes ([`Tube::of`]),
     /// or a fitted spline × implicit arc's chart windows imaged on the
@@ -3221,7 +3221,7 @@ pub struct CarriedComponent<T: Real> {
     /// tube, each the farthest that window's image stands from the
     /// carrier, narrowing toward the node, so a site reads the pad of the
     /// boxes it lies in, and a site in none is not on the component
-    /// ([`Self::reads`]). A node's own box is marked with the node
+    /// ([`Self::witness`]). A node's own box is marked with the node
     /// ([`PadBox::node`]): a site in it and not at the node escalates
     /// ([`CarriedSection::site`]). [`Self::pad`] is the widest of them.
     pub boxes: Vec<PadBox>,
@@ -3229,7 +3229,7 @@ pub struct CarriedComponent<T: Real> {
     /// 3), in the tube's order; empty for a closed form, whose foot is
     /// found in closed form. A site's foot is read over the run of every
     /// piece it lies in, the least gap kept, and a site in none is not on
-    /// the component ([`Self::reads`]), so its parameter is the
+    /// the component ([`Self::witness`]), so its parameter is the
     /// certificate's place for it and the sites' order along the
     /// component follows from the pieces'.
     pub runs: Vec<TubeRun>,
@@ -3287,7 +3287,7 @@ fn box_holds<T: Decide>(
 /// marched loop's chain box, a fitted arc's chart window's image), and
 /// the carrier's parameter run over that piece (C2 limb 3: the piece holds
 /// a piece of the component, the carrier's over the run). It is where on
-/// the carrier a site in the box lies: [`CarriedComponent::reads`] reads
+/// the carrier a site in the box lies: [`CarriedComponent::witness`] reads
 /// its foot over the run.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TubeRun {
@@ -3343,15 +3343,16 @@ impl<T: Decide> CarriedComponent<T> {
     /// band, so the foot is certified too: its along-residual is decided
     /// zero ([`Self::foot_along`]), and the parameter returned is the
     /// site's orthogonal foot within the band's zero, its place along the
-    /// component, or the end of an open one it stands past; otherwise the
-    /// reading escalates. A point in no piece is not on the component: every point
+    /// component, or the span's end of an open one it stands past;
+    /// otherwise the reading escalates. A point in no piece is not on the component: every point
     /// of it lies in its tube's pieces. A component with no runs (a closed
     /// form) reads its foot on the whole carrier. Where the pad is read box by box
     /// ([`Self::boxes`]) it is the widest of the boxes `p` lies in,
     /// each widened by the band's escalation, and `None` where it lies in
-    /// none: every point of the component lies in its tube's windows. The one reading of "a point on this
-    /// component", by [`CarriedSection::site`] and the counted section's
-    /// cross-check alike.
+    /// none: every point of the component lies in its tube's windows. Which
+    /// component a point lies on is [`Self::witness`]'s reading alone, the
+    /// carry's and [`CarriedSection::site`]'s; this is the site's place on
+    /// it.
     ///
     /// # Errors
     ///
@@ -3360,8 +3361,7 @@ impl<T: Decide> CarriedComponent<T> {
         let Some(t) = self.witness(p, band)? else {
             return Ok(None);
         };
-        self.foot_along(p, t, band)?;
-        Ok(Some(t))
+        self.foot_along(p, t, band).map(Some)
     }
 
     /// **Whether `p` lies on this component, and where the carrier
@@ -3416,29 +3416,36 @@ impl<T: Decide> CarriedComponent<T> {
         }
     }
 
-    /// **That `t` is the site `p`'s orthogonal foot, within the band's
-    /// zero along the carrier** (`section_site_foot_along`), or the end
-    /// of an open component that `p` stands past. `On` decides only that
-    /// the carrier passes within the padded band of `p` at `t`, so a
-    /// witness may stand along from the foot by up to the pad. The
-    /// along-residual `a = t̂·(p − C(t))` is read instead: along the
-    /// carrier `d/ds [t̂·(p − C)] = κ n̂·(p − C) − 1`, so within an arc `L`
-    /// of `t`, where `p` stands within `r = |p − C(t)| + L` of the carrier
+    /// **The site `p`'s place on this component, from its witness `t`**:
+    /// `t` where it is the site's orthogonal foot within the band's zero
+    /// along the carrier (`section_site_foot_along`), or the end of an
+    /// open component that `p` stands past. `On` decides only that the
+    /// carrier passes within the padded band of `p` at `t`, so a witness
+    /// may stand along from the foot by up to the pad. The along-residual
+    /// `a = t̂·(p − C(t))` is read instead: along the carrier
+    /// `d/ds [t̂·(p − C)] = κ n̂·(p − C) − 1`, so within an arc `L` of
+    /// `t`, where `p` stands within `r = |p − C(t)| + L` of the carrier
     /// and its curvature is at most `κ`
     /// ([`geom::carrier_speed::curvature_hi_over`]), the residual falls at
     /// least `1 − κ·r` per metre, and its zero, the orthogonal foot, lies
-    /// within `|a| / (1 − κ·r)` of `t`. That bound is decided zero, with
-    /// `L` the band's escalation, which a zero verdict lies inside.
-    /// Otherwise the foot stands at an end ([`Self::past_its_end`]), or
-    /// the reading escalates.
+    /// within `|a| / (1 − κ·r)` of `t`. The fall is positive where `p`
+    /// stands nearer the carrier than its curvature radius, `1/κ − r`
+    /// decided positive (`section_site_foot_bend`); the bound is then
+    /// decided zero, with `L` the band's escalation, which a zero verdict
+    /// lies inside. Otherwise the place is an end
+    /// ([`Self::past_its_end`]), or the reading escalates.
     ///
     /// # Errors
     ///
-    /// [`SiteRefusal::Escalated`] where neither holds: the residual in
-    /// the band, or past it, a witness standing off its foot.
-    fn foot_along(&self, p: Point3<T>, t: T, band: Band) -> Result<(), SiteRefusal> {
+    /// [`SiteRefusal::Escalated`] where neither holds: a site past the
+    /// carrier's curvature radius (the bend's refusal), or the residual
+    /// in the band or past it, a witness standing off its foot.
+    fn foot_along(&self, p: Point3<T>, t: T, band: Band) -> Result<T, SiteRefusal> {
         use geom::carrier_speed::{curvature_hi_over, speed_range};
-        use geom_core::k_stats::{decide_reported, detached, splice, splice_superseded};
+        use geom_core::SizedPass;
+        use geom_core::k_stats::{
+            decide_reported, detached, gate_rejection, splice, splice_superseded,
+        };
         let (at, d1) = self.carrier.ders1(t);
         let off = p - at;
         let along = d1.dot(off) / d1.norm();
@@ -3447,53 +3454,65 @@ impl<T: Decide> CarriedComponent<T> {
         // which over-states it, the side a curvature bound over it needs.
         let w = arc / speed_range(&self.carrier).0.get();
         let kappa = curvature_hi_over(&self.carrier, (t - w, t + w));
-        let fall = (T::one() - kappa * (off.norm() + arc)).max(T::zero());
-        // A projection onto the unit tangent, in metres, over the
-        // residual's least fall per metre, a pure number at most one.
-        let (decided, record) =
-            detached(|| decide_reported(SITE_FOOT_ALONG, Margin::of(along.abs() / fall), band));
-        if let Ok(Decided {
-            sign: Sign::Zero, ..
-        }) = decided
-        {
+        let r = off.norm() + arc;
+        let (decided, record) = detached(|| {
+            // The curvature radius less the site's reach, a length: an
+            // infinite radius (a straight carrier) is maximally clear.
+            let bend = decide_reported(SITE_FOOT_BEND, Margin::of(T::one() / kappa - r), band)?;
+            if bend.sign != Sign::Positive {
+                return Err(gate_rejection(
+                    SITE_FOOT_BEND,
+                    bend,
+                    band,
+                    SizedPass::Positive,
+                ));
+            }
+            let fall = T::one() - kappa * r;
+            // The arc to the foot in metres: the residual, a projection
+            // onto the unit tangent, lengthened by the pure number
+            // `1 / fall ≥ 1`. A length scaled by a dimensionless factor.
+            let to_foot = decide_reported(SITE_FOOT_ALONG, Margin::of(along.abs() / fall), band)?;
+            if to_foot.sign == Sign::Zero {
+                return Ok(());
+            }
+            Err(gate_rejection(
+                SITE_FOOT_ALONG,
+                to_foot,
+                band,
+                SizedPass::Zero,
+            ))
+        });
+        if decided.is_ok() {
             splice(record);
-            return Ok(());
+            return Ok(t);
         }
-        let (past, end_record) = detached(|| self.past_its_end(t, along, band));
-        if past {
+        let (end, end_record) = detached(|| self.past_its_end(t, along, band));
+        if let Some(end) = end {
             splice_superseded(record);
             splice(end_record);
-            return Ok(());
+            return Ok(end);
         }
         splice_superseded(end_record);
         splice(record);
-        Err(SiteRefusal::Escalated(match decided {
-            Err(diag) => diag,
-            Ok(decided) => geom_core::k_stats::gate_rejection(
-                SITE_FOOT_ALONG,
-                decided,
-                band,
-                geom_core::SizedPass::Zero,
-            ),
-        }))
+        decided.map(|()| t).map_err(SiteRefusal::Escalated)
     }
 
-    /// **Whether `t` is the end of this open component that the site
-    /// stands past**: the along-residual `along` decided pointing out of
-    /// the span (`section_site_foot_past_end`), and `t` within the zero
-    /// of that end (`section_site_foot_at_end`, metered at the speed's sup
-    /// between them). There the end is the component's nearest point to
-    /// the site, its foot on the arc: a cut end or a node a march stops
-    /// short of reads there.
-    fn past_its_end(&self, t: T, along: T, band: Band) -> bool {
+    /// **The end of this open component that the site stands past**,
+    /// `t` its witness: the along-residual `along` decided pointing out
+    /// of the span (`section_site_foot_past_end`), and `t` within the
+    /// zero of that end (`section_site_foot_at_end`, metered at the
+    /// speed's sup between them). There the end is the component's
+    /// nearest point to the site, its foot on the arc: a cut end or a
+    /// node a march stops short of reads there. `None` otherwise.
+    fn past_its_end(&self, t: T, along: T, band: Band) -> Option<T> {
         use geom_core::k_stats::decide;
         if self.closed() {
-            return false;
+            return None;
         }
         let end = match decide(SITE_FOOT_PAST_END, Margin::of(along), band) {
             Ok(Sign::Positive) => self.span.1,
             Ok(Sign::Negative) => self.span.0,
-            _ => return false,
+            _ => return None,
         };
         let sup = geom::carrier_speed::speed_between(&self.carrier, t, end).1;
         matches!(
@@ -3504,6 +3523,7 @@ impl<T: Decide> CarriedComponent<T> {
             ),
             Ok(Sign::Zero)
         )
+        .then_some(end)
     }
 
     /// **Whether the foot parameter `t` lies within the span**, where
@@ -3717,7 +3737,7 @@ fn held_per_set<T: Real>(
 
 /// **The march's branches, each a distinct loop**: each branch's
 /// witness, `carrier(mid)`, lies on that branch alone
-/// ([`CarriedComponent::reads`]). A march that found one loop twice
+/// ([`CarriedComponent::witness`]). A march that found one loop twice
 /// holds a witness on two branches, which the count cannot see: a desync.
 /// The tube's uniqueness is what makes this a test of identity: no point
 /// of another loop lies within a branch's tube.
@@ -3832,8 +3852,12 @@ pub enum ArcPlace<T: Real> {
 const SITE_AT_NODE: &str = "section_site_at_node";
 
 /// The site's along-residual at its foot, decided zero
-/// ([`CarriedComponent::reads`]).
+/// ([`CarriedComponent::foot_along`]).
 const SITE_FOOT_ALONG: &str = "section_site_foot_along";
+
+/// The site's reach within its carrier's curvature radius, decided
+/// positive (`CarriedComponent::foot_along`).
+const SITE_FOOT_BEND: &str = "section_site_foot_bend";
 
 /// The site's along-residual pointing out of an open component's span
 /// (`CarriedComponent::past_its_end`).
@@ -3910,9 +3934,12 @@ impl<T: Decide> CarriedSection<T> {
     }
 
     /// **The site `p`, read** (C5): the node it stands at, tested first,
-    /// and otherwise the one component it lies on
-    /// ([`CarriedComponent::reads`]), with the foot parameter and the
-    /// carrier's tangent there. A site at a node names no arc.
+    /// and otherwise the one component it lies on, with its foot there
+    /// and the carrier's tangent at it ([`CarriedComponent::reads`]). Which
+    /// component is decided on every component first
+    /// ([`CarriedComponent::witness`]), and only then is the one foot
+    /// certified, so a site on two components is that refusal whichever
+    /// order they are listed in. A site at a node names no arc.
     ///
     /// # Errors
     ///
@@ -3926,14 +3953,14 @@ impl<T: Decide> CarriedSection<T> {
         if let Some(n) = node {
             return Ok(SiteReading::AtNode(n));
         }
-        let mut found: Option<SiteFoot<T>> = None;
+        let mut found: Option<(usize, T)> = None;
         for (k, c) in self.components.iter().enumerate() {
-            let Some(t) = c.reads(p, band)? else {
+            let Some(t) = c.witness(p, band)? else {
                 continue;
             };
-            if let Some(first) = found {
+            if let Some((first, _)) = found {
                 // The nearest node the two arcs share.
-                let shared = self.components[first.component]
+                let shared = self.components[first]
                     .shape
                     .nodes()
                     .into_iter()
@@ -3961,13 +3988,9 @@ impl<T: Decide> CarriedSection<T> {
                     None => SiteRefusal::Desync("a site lies on two components of its section"),
                 });
             }
-            found = Some(SiteFoot {
-                component: k,
-                t,
-                tangent: c.carrier.ders1(t).1,
-            });
+            found = Some((k, t));
         }
-        let found = found.ok_or(SiteRefusal::Desync(
+        let (component, witness) = found.ok_or(SiteRefusal::Desync(
             "a site lies on no component of its section",
         ))?;
         // A site in a node's own box and not at the node: within the
@@ -3993,7 +4016,13 @@ impl<T: Decide> CarriedSection<T> {
                 geom_core::SizedPass::Zero,
             )));
         }
-        Ok(SiteReading::OnArc(found))
+        let on = &self.components[component];
+        let t = on.foot_along(p, witness, band)?;
+        Ok(SiteReading::OnArc(SiteFoot {
+            component,
+            t,
+            tangent: on.carrier.ders1(t).1,
+        }))
     }
 
     /// **Component `k`'s end at the node `n`** ([`ArcPlace::AtEnd`]),
@@ -4477,6 +4506,123 @@ mod wiring {
             read.len() < 2 || read[0] < read[1],
             "the two sites read in their order along the component: {read:?}"
         );
+    }
+
+    /// An open spline component over `(0, 1)` through `points`, of
+    /// `degree`, carried with a pad of `10⁻³` over one tube piece, the
+    /// carrier's run `run` under a box about the whole carrier.
+    fn one_piece(
+        points: Vec<geom_core::Point3<f64>>,
+        degree: usize,
+        run: (f64, f64),
+    ) -> super::CarriedComponent<f64> {
+        use geom_core::spline::KnotVector;
+        let n = points.len();
+        let mut knots = vec![0.0; degree + 1];
+        knots.extend(vec![1.0; degree + 1]);
+        assert_eq!(knots.len(), n + degree + 1, "a single-span net");
+        let net = geom::NurbsCurve3::new(
+            KnotVector::clamped(knots, degree).unwrap(),
+            points.clone(),
+            vec![1.0; n],
+        )
+        .unwrap();
+        let carrier = geom::Curve3::Nurbs(std::sync::Arc::new(net));
+        let (mut lo, mut hi) = ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]);
+        for q in &points {
+            for (i, x) in [q.x, q.y, q.z].into_iter().enumerate() {
+                lo[i] = lo[i].min(x - 1e-2);
+                hi[i] = hi[i].max(x + 1e-2);
+            }
+        }
+        super::CarriedComponent {
+            witness: carrier.eval(0.5),
+            boxes: Vec::new(),
+            runs: vec![super::TubeRun { lo, hi, run }],
+            carrier,
+            span: (0.0, 1.0),
+            shape: super::ComponentShape::Open {
+                ends: super::ComponentEnds::default(),
+            },
+            certificate: None,
+            winds: [false, false],
+            pad: 1e-3,
+            reach: 0.0,
+        }
+    }
+
+    /// **A site past an open component's end reads at that end, `t`
+    /// metered to it**: straight splines along `+x` over `(0, 1)`, the
+    /// tube's run stopping short of the span's last end by `δ`, and a site
+    /// past the carrier's end by `2·10⁻⁴` and `3·10⁻⁴` off it, so its
+    /// witness is the run's end and its along-residual points out of the
+    /// span. At speed `0.1` a `δ` of five zeros is half a zero in metres:
+    /// the site reads at the span's end, `1`, exactly. At speed `10` a `δ`
+    /// of three tenths of a zero is three zeros in metres, in the band:
+    /// it escalates. A site inside reads its own foot. Red against the
+    /// span's ends swapped (the end the residual points past is `0`, a
+    /// metre away), against the gap read in parameter units (each speed's
+    /// verdict flips), and against the witness returned in place of the
+    /// end.
+    #[test]
+    fn a_site_past_an_open_end_reads_at_that_end() {
+        use geom_core::Point3;
+        let zero = band().zero();
+        let line = |speed: f64, delta: f64| {
+            one_piece(
+                vec![Point3::origin(), Point3::new(speed, 0.0, 0.0)],
+                1,
+                (0.0, 1.0 - delta),
+            )
+        };
+        let slow = line(0.1, 5.0 * zero);
+        let past = |speed: f64| Point3::new(speed + 2e-4, 3e-4, 0.0);
+        assert_eq!(
+            slow.reads(past(0.1), band()),
+            Ok(Some(1.0)),
+            "half a zero short of the end in metres: the site reads at the end"
+        );
+        let inside = slow.reads(Point3::new(0.05, 3e-4, 0.0), band());
+        assert!(
+            matches!(inside, Ok(Some(t)) if (0.1 * (t - 0.5)).abs() <= zero),
+            "a site inside reads its foot: {inside:?}"
+        );
+        let fast = line(10.0, 0.3 * zero);
+        let got = fast.reads(past(10.0), band());
+        assert!(
+            matches!(got, Err(super::SiteRefusal::Escalated(_))),
+            "three zeros short of the end in metres, in the band: {got:?}"
+        );
+    }
+
+    /// **A curved component certifies its foot**: a quadratic arch, its
+    /// curvature positive, so the along-residual falls slower than one per
+    /// metre, and sites `5·10⁻⁴` off it along its normal at several
+    /// parameters. Each reads at its own foot within the zero: the bound
+    /// is read through the curvature, not refused for it. Red against a
+    /// reading that escalates wherever the carrier bends.
+    #[test]
+    fn a_curved_components_foot_is_certified() {
+        use geom_core::Point3;
+        let arch = one_piece(
+            vec![
+                Point3::origin(),
+                Point3::new(0.5, 0.5, 0.0),
+                Point3::new(1.0, 0.0, 0.0),
+            ],
+            2,
+            (0.0, 1.0),
+        );
+        for s in [0.15, 0.3, 0.5, 0.8] {
+            let (at, d1) = arch.carrier.ders1(s);
+            let normal = geom_core::Vec3::new(-d1.y, d1.x, 0.0).normalize();
+            let p = at + normal * 5e-4;
+            let got = arch.reads(p, band());
+            assert!(
+                matches!(got, Ok(Some(t)) if (arch.carrier.eval(t) - at).norm() <= band().zero()),
+                "s {s}: the site reads its foot: {got:?}"
+            );
+        }
     }
 
     fn band() -> geom_core::Band {

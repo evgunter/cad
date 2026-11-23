@@ -20,3 +20,5 @@ It arrived with `NodeErrorClass::HalfOfAFamily` (commit a9c18332b0, "eval: narro
 ## What a fix is
 
 What the gate's message says: carry `NodeErrorClass` where `Unsettled`'s carrier is carried, or argue its non-carriage beside that carrier, and add the disposition to `CROSS_LIST_DISPOSITIONS`.
+
+**Seen again** on PR 7408 (`sectcone/certified-foot`, run 45147103119, 2026-11-23). The same merges left a second red, in `test (app)`: `.config/nextest.toml`'s slow-set entry `e6_drive_over_a_loft_at_interval::an_arc_loft_bisects_to_its_budget_under_a_box_elsewhere` matches no test. `85a85f0f54` renamed that test to `an_arc_loft_refuses_the_root_under_a_box_elsewhere` and left the entry behind.
