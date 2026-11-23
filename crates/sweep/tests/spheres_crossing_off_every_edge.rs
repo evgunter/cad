@@ -238,22 +238,23 @@ fn both_witnesses_build_under_every_boolean() {
 /// inputs and each op builds, its volume bracketing the oracle's.
 #[test]
 fn the_plain_witness_builds_its_seam_crossing_at_the_interval_scalar() {
-    // Pinned red at ε 1e-12: the Interval union escalates a pcurve envelope
-    // (`work/onehome/the-plain-sphere-witness-escalates-its-pcurve-envelope-at-1e-12-since-the-rigid-motion`),
-    // on its per-term `EnvelopeTerm(Radius)` at half-edge 3v1, sample 0,
-    // margin in (3.2e-12, 3.35e-12] (measured 3.277e-12). Cause: the frame
-    // cost, a frame built at Interval from bracket inputs (fork 274,
+    // Pinned at ε 1e-12: a ∪ b and a ∖ b build, and b ∖ a refuses its
+    // seam crossing, the jet's `tangent_second_order` escalating, margin
+    // in (1.3e-12, 1.45e-12] (measured 1.380e-12). Cause: the frame cost,
+    // the balls' frames built at Interval from bracket inputs (fork 274,
     // `geom_core::test_support::at_the_frame_cost_band`); mutant F1X
-    // reaches the aggregate `Envelope` stop again, and turns this pin red.
+    // builds every op, and turns this pin red. The pcurve envelope
+    // `work/onehome/the-plain-sphere-witness-escalates-its-pcurve-envelope-at-1e-12-since-the-rigid-motion`
+    // names is not reached.
     test_utils::pinned_red::row(
         geom_core::Tol::witness().eps(),
         &[1e-12],
         "the plain witness",
         &[
-            "Interval a ∪ b: wanted a body",
-            "half_edge: HalfEdgeKey(3v1), error: Escalated { check: EnvelopeTerm(Radius), sample: 0",
-            "hi: 3.2",
-            "pcurve_envelope",
+            "Interval b ∖ a: wanted a body",
+            "Escalated { decision: SeamJet",
+            "hi: 1.3",
+            "predicate: Some(\"tangent_second_order\")",
         ],
         the_plain_witness_builds_its_seam_crossing_at_the_interval_scalar_row,
     );

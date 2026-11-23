@@ -432,15 +432,22 @@ fn arcs(list: &[(P, f64, f64, f64)]) -> Outline {
 /// other ε, and at `f64` everywhere
 /// (`work/band/every-mixed-rims-section-escalates-its-touch-reading-at-interval-at-eps-1e-12.md`).
 /// The rows pin it both ways: at `Interval` and ε = 1e-12 a mixed rim
-/// refuses with exactly that escalation ([`assert_touch_escalation`]),
+/// refuses with exactly that escalation, or the earlier refusal
+/// [`UNADMITTED_AT_THE_FRAME_COST`] names ([`assert_touch_escalation`]),
 /// and anywhere else it builds.
 pub(crate) fn tightest_interval<T>() -> bool {
     core::any::type_name::<T>().contains("Interval") && tol().eps().to_bits() == 1e-12_f64.to_bits()
 }
 
 /// The refusal [`tightest_interval`] pins: the description pass's
-/// certificate escalating the section's `shared_row_touch`.
+/// certificate escalating the section's `shared_row_touch`, or, for a
+/// rim [`UNADMITTED_AT_THE_FRAME_COST`] names, its section's shared row
+/// not admitted ahead of that reading.
 pub(crate) fn assert_touch_escalation(what: &str, e: &BlendError) {
+    if UNADMITTED_AT_THE_FRAME_COST.contains(&what) {
+        crate::band_open_mixed_chain::assert_shared_row_unadmitted(what, e);
+        return;
+    }
     let text = format!("{e:?}");
     assert!(
         text.contains("surgery contact edge")
@@ -449,6 +456,32 @@ pub(crate) fn assert_touch_escalation(what: &str, e: &BlendError) {
         "{what}: at Interval at ε 1e-12 the section's shared row escalates its touch, got {e:?}"
     );
 }
+
+/// **The mixed rims whose fillet at `Interval` at ε 1e-12 refuses
+/// before its touch is read**: a junction's section does not certify as
+/// the shared row of its two bands
+/// ([`crate::band_open_mixed_chain::assert_shared_row_unadmitted`]), so
+/// the refusal carries no margin. Cause: bracket, the frame cost
+/// (`geom_core::test_support::at_the_frame_cost_band`): the section's
+/// frames are built at `Interval` from bracket inputs (fork 274), and
+/// their squaring's width leaves the shared row undecided. Mutant F1X
+/// (PR 7131's body: that squaring stores the stated vectors raw) lets
+/// each section admit and escalate `shared_row_touch` again, and turns
+/// this pin red; mutant A does not. The rectangles at 7° and 90° still
+/// read their touch.
+const UNADMITTED_AT_THE_FRAME_COST: [&str; 11] = [
+    "barrel at Interval",
+    "triangle at Interval",
+    "pentagon at Interval",
+    "hexagon at Interval",
+    "rectangle at 30° at Interval",
+    "rectangle at 45° at Interval",
+    "slot at 30° at Interval",
+    "L-plate, Interval, r = 0.1",
+    "L-plate, Interval, r = 0.14",
+    "S-run, Interval",
+    "two arcs, Interval",
+];
 
 /// A plate of outline `o`, `z ∈ [0, h]`, every edge filleted at `r`, at
 /// any scalar: tier 3, one band face per link of each rim, Euler, and

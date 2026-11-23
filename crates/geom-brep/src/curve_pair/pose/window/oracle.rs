@@ -315,7 +315,8 @@ const CONTRADICTED_SEED: u64 = 0x4071_461b_4c68_8a45;
 /// 290 m out, where the dense distance does not recede. That is an
 /// answer, not a refusal, so it is a wrong one until shown to be the
 /// oracle's; the pin is the whole failure text, and goes red the day the
-/// reading holds or a different one is contradicted. Cause: the circle's
+/// reading holds or a different one is contradicted. The sweep's bands
+/// are its own, so it stops so at every ε row. Cause: the circle's
 /// frame squared at `f64` from stated directions, where it was stored
 /// raw (fork 274); mutant F1F (PR 7131's body: squaring at an `Inexact`
 /// kind stores the stated vectors raw) turns the sweep green, and this
@@ -324,9 +325,9 @@ const CONTRADICTED_SEED: u64 = 0x4071_461b_4c68_8a45;
 fn a_window_reading_the_dense_distance_contradicts_is_pinned_red() {
     test_utils::pinned_red::row(
         geom_core::Tol::witness().eps(),
-        &CONTRADICTED_AT,
+        &test_utils::pinned_red::EVERY_ROW,
         "the window oracle on its contradicted seed",
-        &[CONTRADICTED],
+        &CONTRADICTED,
         || {
             dense_distance_sweep(
                 fuzz::pinned_sweep("curve_pair::pose::window::oracle", CONTRADICTED_SEED),
@@ -337,12 +338,18 @@ fn a_window_reading_the_dense_distance_contradicts_is_pinned_red() {
     );
 }
 
-/// The ε rows at which [`CONTRADICTED_SEED`]'s sweep stops.
-const CONTRADICTED_AT: [f64; 1] = [1e-12];
-
 /// [`a_window_reading_the_dense_distance_contradicts_is_pinned_red`]'s
-/// stop, whole.
-const CONTRADICTED: &str = "MEASURE";
+/// stop, whole: the count and the one contradicted reading, as the sweep
+/// reports them with its replay told as `pinned seed`.
+const CONTRADICTED: [&str; 2] = [
+    "ε 0.000000000001: 1 readings contradicted (pinned seed): [",
+    "\"draw 7 f64: Recedes on (3.2272599256367685e-10, 3.228751041377335e-10) ring None: a \
+     Circle(Circle { at: Frame { origin: Point3 { x: -293.9481167401991, y: 168.2692198219998, \
+     z: 1.1866774119181317e-7 }, axis: Vec3 { x: 1.9599143542866378e-10, y: \
+     -1.819360637945598e-10, z: 1.0 }, u_ref: Vec3 { x: 0.8761920509866891, y: \
+     -0.4819621248477306, z: -2.5941242967692446e-10 } }, radius: 457.44658154992277 }) b \
+     (120.366928440912, 113.43223485221837)\",\n]",
+];
 
 /// The sweep [`each_window_reading_holds_on_a_dense_distance`] runs: `draws`
 /// pairs per band from `rng`, every contradiction reported with `replay`.

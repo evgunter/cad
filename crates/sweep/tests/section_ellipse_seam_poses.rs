@@ -402,14 +402,32 @@ const THROUGH_1E6: &[(&str, &str)] = &[
     ("θ 1e-4 φ 4.6 z 0.3", "refused Reduce SliverSector"),
 ];
 const THROUGH_1E9: &[(&str, &str)] = &[];
+/// The through-axis family at ε 1e-12, each refusal tier 3's frame check
+/// on a section ellipse ([`FRAME_RESIDUE`]). The ellipse's frame is
+/// squared at `f64` from stated directions (fork 274, the frame cost of
+/// `geom_core::test_support::at_the_frame_cost_band`), so its rounding,
+/// amplified by the semi-axis, reads on either side of the check's
+/// band edge where a raw frame read on the other: fourteen poses at θ
+/// 1e-6, 3e-6 and 3e-5 refuse on a different measure, or pass, or refuse
+/// where it passed. Cause: f64 squaring; mutant F1F (PR 7131's body:
+/// squaring at an `Inexact` kind stores the stated vectors raw) moves
+/// them back, and turns this table red; mutants A and F1X do not.
 const THROUGH_1E12: &[(&str, &str)] = &[
     (
-        "θ 1e-6 φ 3.9 z 0.5",
-        "at-rest gate above URef Length Upper & URef Length Upper",
+        "θ 1e-6 φ 0.4 z 0.5",
+        "at-rest gate above URef Tilt Lower & URef Tilt Upper",
     ),
     (
-        "θ 1e-6 φ 3.9 z 0.3",
-        "at-rest gate above URef Length Upper & URef Length Upper",
+        "θ 1e-6 φ 0.4 z 0.3",
+        "at-rest gate above URef Tilt Lower & URef Tilt Upper",
+    ),
+    (
+        "θ 1e-6 φ 2.5 z 0.5",
+        "at-rest gate above URef Tilt Upper & URef Tilt Lower",
+    ),
+    (
+        "θ 1e-6 φ 2.5 z 0.3",
+        "at-rest gate above URef Tilt Upper & URef Tilt Lower",
     ),
     (
         "θ 1e-6 φ 5.3 z 0.5",
@@ -421,11 +439,11 @@ const THROUGH_1E12: &[(&str, &str)] = &[
     ),
     (
         "θ 3e-6 φ 1.1 z 0.5",
-        "at-rest gate above URef Length Upper & URef Length Upper",
+        "at-rest gate above URef Tilt Lower & URef Tilt Upper",
     ),
     (
         "θ 3e-6 φ 1.1 z 0.3",
-        "at-rest gate above URef Length Upper & URef Length Upper",
+        "at-rest gate above URef Tilt Lower & URef Tilt Upper",
     ),
     (
         "θ 3e-6 φ 1.8 z 0.5",
@@ -492,20 +510,20 @@ const THROUGH_1E12: &[(&str, &str)] = &[
         "at-rest gate above URef Length Lower & URef Length Lower",
     ),
     (
-        "θ 3e-5 φ 2.5 z 0.5",
-        "at-rest gate above URef Length Lower & URef Length Lower",
+        "θ 3e-5 φ 1.8 z 0.5",
+        "at-rest gate above URef Tilt Upper & URef Tilt Lower",
     ),
     (
-        "θ 3e-5 φ 2.5 z 0.3",
-        "at-rest gate above URef Length Lower & URef Length Lower",
+        "θ 3e-5 φ 1.8 z 0.3",
+        "at-rest gate above URef Tilt Upper & URef Tilt Lower",
     ),
     (
         "θ 3e-5 φ 3.9 z 0.5",
-        "at-rest gate above URef Tilt Lower & URef Tilt Upper",
+        "at-rest gate above URef Tilt Upper & URef Tilt Lower",
     ),
     (
         "θ 3e-5 φ 3.9 z 0.3",
-        "at-rest gate above URef Tilt Lower & URef Tilt Upper",
+        "at-rest gate above URef Tilt Upper & URef Tilt Lower",
     ),
     (
         "θ 3e-5 φ 5.3 z 0.5",

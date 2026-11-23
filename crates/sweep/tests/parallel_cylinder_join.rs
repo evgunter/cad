@@ -430,21 +430,62 @@ fn the_lens_oracle_agrees_with_a_second_slicing() {
 /// of radius `r` about `(c, 0)` over `z ∈ [−half, half]`, tipped `theta`
 /// about the `x` axis through its centre.
 fn tipped(r: f64, c: f64, half: f64, theta: f64) -> Pose {
+    try_tipped(r, c, half, theta)
+        .unwrap_or_else(|e| panic!("the tipped rod is not a finished body: {e:?}"))
+}
+
+/// [`tipped`], or the tipped rod's own finish refusal.
+fn try_tipped(r: f64, c: f64, half: f64, theta: f64) -> Result<Pose, topo::NotFinished> {
     let tol = Tol::witness();
     let m = Affine3::rotation_about_axis(Point3::new(c, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0), theta);
     let rod_b = rod(r, (c, 0.0), (-half, half));
-    Pose {
+    let b = topo::finish(
+        topo::transform_rigid(&rod_b, &geom_core::test_support::rigid(&m, tol)).unwrap(),
+        tol,
+    )?;
+    Ok(Pose {
         label: format!("drum × rod r {r} at {c}, half-length {half}, tipped {theta:e}"),
         a: rod(0.5, (0.0, 0.0), (-half - 1.0, half + 1.0)),
-        b: finished(
-            "the tipped rod",
-            topo::transform_rigid(&rod_b, &geom_core::test_support::rigid(&m, tol)).unwrap(),
-            tol,
-        ),
+        b,
         va: PI * 0.25 * (2.0 * half + 2.0),
         vb: PI * r * r * 2.0 * half,
         shared: lens((0.0, 0.0), 0.5, (c, 0.0), r).0 * 2.0 * half,
+    })
+}
+
+/// **The half-lengths at which a tipped rod past the band refuses its
+/// own finish at ε 1e-12** (`crate::common::frame_cost::at_the_least_band`):
+/// its wall's volume escalates `props_cylinder_circle_off_axis`, margin
+/// in `(1.15e-12, 1.25e-12]` (measured 1.194e-12 at every tip and both
+/// radii), so [`a_rod_tipped_off_parallel_over_a_long_wall_takes_a_decided_door`]
+/// and [`a_tipped_rod_refuses_alike_in_both_operand_orders`] read no op
+/// of it there. Cause: polar, the rod's stored frame read as its polar
+/// enclosure, levered by its length; mutant A (PR 7131's body) finishes
+/// it, and turns this pin red; mutant F1X does not. At half-length 50
+/// the rod finishes and every op refuses `CurvedPierceUnsupported`.
+const TIPPED_ROD_FRAME_COST: [f64; 1] = [200.0];
+
+/// Whether the rod [`try_tipped`] builds at `(r, c, half, theta)` is
+/// pinned by [`TIPPED_ROD_FRAME_COST`] here, after checking that it
+/// refuses as pinned.
+fn tipped_rod_refuses_as_pinned(r: f64, c: f64, half: f64, theta: f64) -> bool {
+    if !(crate::common::frame_cost::at_the_least_band() && TIPPED_ROD_FRAME_COST.contains(&half)) {
+        return false;
     }
+    let got = try_tipped(r, c, half, theta).map(|_| ());
+    assert!(
+        matches!(
+            &got,
+            Err(findings) if crate::common::frame_cost::volume_escalates(
+                findings.as_slice(),
+                "props_cylinder_circle_off_axis",
+                (1.15e-12, 1.25e-12),
+            )
+        ),
+        "the rod r {r} at {c}, half-length {half}, tipped {theta:e}: pinned to refuse its own \
+         finish, props_cylinder_circle_off_axis in (1.15e-12, 1.25e-12], at ε 1e-12: {got:?}"
+    );
+    true
 }
 
 /// **A rod tipped off parallel over a long wall takes a decided door.**
@@ -455,7 +496,9 @@ fn tipped(r: f64, c: f64, half: f64, theta: f64) -> Pose {
 /// rulings arm and failing at the result's pcurve pass, as it did with
 /// the parallelism levered by the radius alone. A tip whose drift stays
 /// inside the zero band is parallel, and builds. The tips are set from
-/// the band, so the row asks the same question at every tolerance.
+/// the band, so the row asks the same question at every tolerance. At
+/// ε 1e-12 the longer rods refuse their own finish
+/// ([`TIPPED_ROD_FRAME_COST`]).
 #[test]
 fn a_rod_tipped_off_parallel_over_a_long_wall_takes_a_decided_door() {
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
@@ -482,6 +525,9 @@ fn a_rod_tipped_off_parallel_over_a_long_wall_takes_a_decided_door_row() {
     for half in [50.0, 200.0] {
         for drift in [2.0 * band.escalate(), 20.0 * band.escalate()] {
             for (r, c) in [(0.2, 0.5), (0.3, 0.6)] {
+                if tipped_rod_refuses_as_pinned(r, c, half, drift / (2.0 * half)) {
+                    continue;
+                }
                 let pose = tipped(r, c, half, drift / (2.0 * half));
                 for (op, res, _) in pose.runs() {
                     assert!(
@@ -934,7 +980,8 @@ fn one_face_walls_read_their_axes_as_an_angle_row() {
 /// honest in-band reading, while the rod's own rim vertex on the drum's
 /// wall reads the pair's definite skew frame. Whichever operand's
 /// vertices are read first, the definite refusal is the answer: every
-/// op of the pose, in both orders, refuses alike.
+/// op of the pose, in both orders, refuses alike. At ε 1e-12 the longer
+/// rods refuse their own finish ([`TIPPED_ROD_FRAME_COST`]).
 #[test]
 fn a_tipped_rod_refuses_alike_in_both_operand_orders() {
     // At 1e-6 the first tip past the band builds its union, as above.
@@ -956,6 +1003,9 @@ fn a_tipped_rod_refuses_alike_in_both_operand_orders_row() {
     for half in [50.0, 200.0] {
         for drift in [2.0 * band.escalate(), 20.0 * band.escalate()] {
             for (r, c) in [(0.2, 0.5), (0.3, 0.6)] {
+                if tipped_rod_refuses_as_pinned(r, c, half, drift / (2.0 * half)) {
+                    continue;
+                }
                 let pose = tipped(r, c, half, drift / (2.0 * half));
                 let kinds: Vec<_> = pose
                     .runs()

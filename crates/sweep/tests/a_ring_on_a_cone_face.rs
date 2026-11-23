@@ -381,17 +381,10 @@ fn the_rings_volume_brackets_its_closed_form_at_the_certified_scalar() {
         if crate::common::frame_cost::at_the_least_band() && RING_FRAME_COST.contains(&op) {
             // A frame built at Interval from bracket inputs (fork 274).
             assert!(
-                matches!(
-                    &r,
-                    Err(topo::BooleanError::ResultInvalid { findings })
-                        if crate::common::frame_cost::volume_escalates(
-                            findings.as_slice(),
-                            "props_cone_ellipse_on_cone",
-                            (1.05e-12, 1.15e-12),
-                        )
-                ),
-                "{op}: pinned to refuse its result's volume, props_cone_ellipse_on_cone in \
-                 (1.05e-12, 1.15e-12], at ε 1e-12: {r:?}"
+                ring_join_escalates(&r),
+                "{op}: pinned to refuse a joined edge's description, carrier_on_surface_2 in \
+                 (1.0e-12, 1.1e-12], at ε 1e-12: {:?}",
+                r.as_ref().map(|_| "a result")
             );
             continue;
         }
@@ -417,13 +410,31 @@ fn the_rings_volume_brackets_its_closed_form_at_the_certified_scalar() {
 }
 
 /// The ops of [`the_rings_volume_brackets_its_closed_form_at_the_certified_scalar`]
-/// that refuse at ε 1e-12 (`crate::common::frame_cost::at_the_least_band`):
-/// the result's cone face cannot read its volume, `props_cone_ellipse_on_cone`
-/// escalating with its margin in `(1.05e-12, 1.15e-12]` (measured
-/// 1.094e-12). Cause: bracket, the frames the turn and the move build
-/// at `Interval` from bracket inputs (fork 274); mutant F1X (PR 7131's
-/// body) builds them, and turns this pin red; mutant A does not.
+/// that refuse at ε 1e-12 (`crate::common::frame_cost::at_the_least_band`),
+/// as [`ring_join_escalates`] reads. Cause: bracket, the frames the turn
+/// and the move build at `Interval` from bracket inputs (fork 274);
+/// mutant F1X (PR 7131's body: that squaring stores the stated vectors
+/// raw) builds every op, and turns this pin red.
 const RING_FRAME_COST: [&str; 3] = ["cone ∪ box", "box ∪ cone", "cone ∖ box"];
+
+/// Whether `r` is the refusal [`RING_FRAME_COST`] pins: the join mints
+/// an edge whose description does not certify on the cone face, its
+/// surface residual `carrier_on_surface_2` escalating with its margin's
+/// upper end in `(1.0e-12, 1.1e-12]` (measured 1.058e-12).
+fn ring_join_escalates(
+    r: &Result<topo::BooleanResult<geom_core::Interval>, topo::BooleanError>,
+) -> bool {
+    let Err(topo::BooleanError::Join(j)) = r else {
+        return false;
+    };
+    matches!(
+        j.error(),
+        topo::JoinError::Euler(topo::EulerOpError::DescriptionUncertified {
+            error: geom_brep::CertifyError::Escalated { cause, .. },
+            ..
+        }) if crate::common::frame_cost::escalated(cause, "carrier_on_surface_2", (1.0e-12, 1.1e-12))
+    )
+}
 
 /// **A ringed cone face's sense is checked against its boundary.** In
 /// ∪ and cone ∖ box, both member orders where the op has them, the cone
