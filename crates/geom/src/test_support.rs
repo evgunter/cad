@@ -10,6 +10,7 @@
 //! fails this module until it is given a builder or declared as not
 //! read field by field.
 
+pub mod collapsed;
 pub mod held_arc;
 
 use crate::datum::ANALYTIC_DATA_MAX;

@@ -167,13 +167,8 @@ impl<T: Real> Curve3<T> {
     pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> Curve3<U> {
         match self {
             Curve3::Line(crate::Line { origin, dir }) => Curve3::line(origin.map(&f), dir.map(&f)),
-            Curve3::Circle(c) => {
-                Curve3::Circle(crate::Circle::new(c.frame.map_scalar(&f), f(c.radius())))
-            }
-            Curve3::Ellipse(e) => {
-                let (a, b) = (e.semi_u(), e.semi_v());
-                Curve3::Ellipse(crate::Ellipse::new(e.frame.map_scalar(&f), f(a), f(b)))
-            }
+            Curve3::Circle(c) => Curve3::Circle(c.map_scalar(|at| at.map_scalar(&f), &f)),
+            Curve3::Ellipse(e) => Curve3::Ellipse(e.map_scalar(|at| at.map_scalar(&f), &f)),
             Curve3::Spiric {
                 frame,
                 major_radius,

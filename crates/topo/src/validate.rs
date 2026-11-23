@@ -4576,6 +4576,9 @@ fn singularity_noun(point: geom_brep::chart_singularity::Singularity) -> &'stati
         geom_brep::chart_singularity::Singularity::Apex => "the apex of a cone",
         geom_brep::chart_singularity::Singularity::SheetApexUp
         | geom_brep::chart_singularity::Singularity::SheetApexDown => "an apex of a spindle sheet",
+        geom_brep::chart_singularity::Singularity::Side(_) => {
+            "a collapsed side of a spline surface"
+        }
     }
 }
 
@@ -5018,6 +5021,12 @@ impl ValidationError {
                         f,
                         "which side of a face's boundary on that surface {what} lies on cannot \
                          be read: the reading lies within its own error bound{}",
+                        ended(ending)
+                    ),
+                    Undecided::SplineSide => write!(
+                        f,
+                        "whether {what} lies in a face on that surface cannot be read: it is off \
+                         the face's boundary, and no side is read through a spline chart yet{}",
                         ended(ending)
                     ),
                 }
@@ -8297,12 +8306,14 @@ pub(crate) fn tier3_local_checks_marked<
     // the pole read below for a member whose own boundary encodes no side.
     let mut regions = crate::props::read_seam_regions(body, body.faces.keys(), band);
     // Each sphere, cone and spindle face's loops as this arm flattens
-    // them, kept for the chart-singularity arm below. A sphere or cone
+    // them, and each spline face's with a collapsed side, kept for the
+    // chart-singularity arm below. A sphere or cone
     // face is kept once its side is read (a face whose images refuse is
     // exempt there, as here); a spindle face as soon as its loops
     // flatten, since its apex must be shown clear whatever this arm
     // reads, and one whose loops do not flatten is kept in `unflattened`
-    // and refused there unshown.
+    // and refused there unshown, as a spline face with a collapsed side
+    // whose loops do not flatten is.
     let mut flattened: SecondaryMap<FaceKey, FlatLoops<T>> = SecondaryMap::new();
     let mut unflattened: Vec<FaceKey> = Vec::new();
     for region in &regions {
@@ -8318,7 +8329,22 @@ pub(crate) fn tier3_local_checks_marked<
             // Planar: the Newell arm above. Spline charts: the quadrature lane
             // is winding-derived end to end, bit-free by design (S10
             // module docs) — recorded residual, out of this arm's
-            // scope.
+            // scope. A spline face with a collapsed side is kept for the
+            // chart-singularity arm below, which reads its loops alone.
+            // One whose loops do not flatten is kept in `unflattened`, as
+            // a spindle face is, and its sides refused there unshown.
+            if !geom_brep::chart_singularity::singular_points(surface).is_empty() {
+                match face
+                    .loop_keys()
+                    .map(|l| crate::props::loop_edges(body, l))
+                    .collect::<Result<FlatLoops<T>, _>>()
+                {
+                    Ok(full) => {
+                        flattened.insert(face_key, full);
+                    }
+                    Err(_) => unflattened.push(face_key),
+                }
+            }
             continue;
         }
         // Every loop's chart image: a cylinder face reads its side off
@@ -8430,17 +8456,26 @@ pub(crate) fn tier3_local_checks_marked<
     // ------------------------------------------------------------------
     let sheet_unshown = |face: FaceKey, errors: &mut Vec<ValidationError>| {
         use geom_brep::chart_singularity::{Singularity, singular_points};
-        let Some(chart) = body
+        let Some(surface) = body
             .faces
             .get(face)
             .and_then(|f| body.get_surface(f.surface).ok())
-            .and_then(|s| geom::ChartInverse::of(s).ok())
         else {
             return;
         };
-        for (point, _) in singular_points(&chart) {
-            if matches!(point, Singularity::SheetApexUp | Singularity::SheetApexDown) {
-                errors.push(ValidationError::SheetApexReached { face, point });
+        for (point, _) in singular_points(surface) {
+            match point {
+                Singularity::SheetApexUp | Singularity::SheetApexDown => {
+                    errors.push(ValidationError::SheetApexReached { face, point });
+                }
+                // A spline face's side, unplaced: no side is read through
+                // a spline chart, and its loops gave nothing to place it on.
+                Singularity::Side(_) => errors.push(ValidationError::ChartSingularityUndecided {
+                    face,
+                    point,
+                    reading: geom_brep::chart_singularity::Undecided::SplineSide,
+                }),
+                Singularity::North | Singularity::South | Singularity::Apex => {}
             }
         }
     };
@@ -8458,9 +8493,10 @@ pub(crate) fn tier3_local_checks_marked<
         else {
             continue; // unreachable: the curved arm read both
         };
-        let Ok(chart) = geom::ChartInverse::of(surface) else {
-            continue; // no chart, no singular point
-        };
+        let points = singular_points(surface);
+        if points.is_empty() {
+            continue;
+        }
         let Some(corners) = flat
             .iter()
             .map(|(_, hes)| {
@@ -8499,7 +8535,7 @@ pub(crate) fn tier3_local_checks_marked<
                 .collect()
         };
         let sense = body.faces.get(face_key).is_some_and(|f| f.sense);
-        for (point, x) in singular_points(&chart) {
+        for (point, x) in points {
             let face = face_key;
             let sheet_apex = matches!(
                 point,
@@ -8562,6 +8598,18 @@ pub(crate) fn tier3_local_checks_marked<
                                 errors.push(ValidationError::SheetApexReached { face, point });
                             }
                         }
+                    }
+                    // A spline net's collapsed side the face's door does
+                    // not place: no reading through a spline chart states
+                    // its side yet.
+                    Ok(None)
+                        if matches!(point, geom_brep::chart_singularity::Singularity::Side(_)) =>
+                    {
+                        errors.push(ValidationError::ChartSingularityUndecided {
+                            face,
+                            point,
+                            reading: Undecided::SplineSide,
+                        });
                     }
                     Ok(Some(false) | None) => {}
                     // The door's boundary reading in band is the same
@@ -9786,7 +9834,12 @@ fn ring_outer_meeting<T: Decide>(
         crate::contain::loop_circle(body, ring, band),
     ) {
         return match circle_pair(
-            circles_of(o.frame.origin(), o.radius(), r.frame.origin(), r.radius()),
+            circles_of(
+                o.frame().origin(),
+                o.radius(),
+                r.frame().origin(),
+                r.radius(),
+            ),
             band,
         ) {
             Ok(CirclePair::Apart | CirclePair::Nested) => RingOuterVerdict::Disjoint,
@@ -9926,16 +9979,11 @@ fn meet_segment<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<(EdgeKey, Me
             let (a, b) = edge_endpoints(body, he)?;
             MeetSegment::Line { a, b }
         }
-        geom::Curve3::Circle(
-            circle @ geom::Circle {
-                frame: carrier_frame_47,
-                ..
-            },
-        ) => {
+        geom::Curve3::Circle(circle) => {
             let (center, axis, u_ref) = (
-                carrier_frame_47.origin(),
-                carrier_frame_47.axis(),
-                carrier_frame_47.u_ref(),
+                circle.frame().origin(),
+                circle.frame().axis(),
+                circle.frame().u_ref(),
             );
             let radius = circle.radius();
             let (t0, t1) = geom.params();
@@ -10488,8 +10536,8 @@ fn locus_gap<T: Real>(carrier: &geom::Curve3<T>, p: geom_core::Point3<T>) -> Opt
         geom::Curve3::Line(line) => Some(line.distance(p)),
         // The distance from a point to a full circle: the in-plane
         // radial defect and the out-of-plane offset, in quadrature.
-        geom::Curve3::Circle(circle @ geom::Circle { frame, .. }) => {
-            let (center, axis) = (frame.origin(), frame.axis());
+        geom::Curve3::Circle(circle) => {
+            let (center, axis) = (circle.frame().origin(), circle.frame().axis());
             let radius = circle.radius();
             let (along, rho) = geom::Line {
                 origin: center,

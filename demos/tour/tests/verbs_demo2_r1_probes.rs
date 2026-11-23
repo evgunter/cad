@@ -152,7 +152,8 @@ fn bore_base(body: &Body<f64>) -> EdgeKey {
                 .unwrap()
                 .carrier()
             {
-                pncad::geom::Curve3::Circle(pncad::geom::Circle { frame, .. }) => {
+                pncad::geom::Curve3::Circle(the_circle @ pncad::geom::Circle { .. }) => {
+                    let frame = the_circle.frame();
                     let center = frame.origin();
                     center.y
                 }

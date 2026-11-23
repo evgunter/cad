@@ -1940,8 +1940,8 @@ fn circle_column_match(
     // A closed column's ends read both ways round: it runs with the edge
     // about the circle's axis or against it about the reversed one.
     [
-        (order.forward, circle.frame.axis()),
-        (order.reversed, -circle.frame.axis()),
+        (order.forward, circle.frame().axis()),
+        (order.reversed, -circle.frame().axis()),
     ]
     .into_iter()
     .filter(|&(holds, _)| holds)
@@ -1950,9 +1950,9 @@ fn circle_column_match(
             crate::recognize_curve::arc_residual(
                 curve,
                 (
-                    circle.frame.origin(),
+                    circle.frame().origin(),
                     axis,
-                    circle.frame.u_ref(),
+                    circle.frame().u_ref(),
                     circle.radius(),
                 ),
                 closed,
@@ -1969,7 +1969,7 @@ fn circle_column_match(
             let (lo, hi) = spline.domain();
             spec.t0 <= lo
                 && spec.t1 >= hi
-                && arc(spline, circle.frame.axis()).is_some_and(|own| {
+                && arc(spline, circle.frame().axis()).is_some_and(|own| {
                     let gap = geom_core::interval::add_up(own, column);
                     file.read(STEP_EDGE_ON_DESCRIPTION, gap) == Read::Zero
                 })
@@ -1999,10 +1999,10 @@ fn column_circle(
         return Some(circle);
     }
     match Curve3::circle(
-        circle.frame.origin(),
-        -circle.frame.axis(),
+        circle.frame().origin(),
+        -circle.frame().axis(),
         circle.radius(),
-        circle.frame.u_ref(),
+        circle.frame().u_ref(),
     ) {
         Curve3::Circle(reversed) => Some(reversed),
         _ => None,
@@ -2066,6 +2066,9 @@ fn carrier_sig(carrier: &Curve3<f64>) -> Vec<u64> {
                     unreachable!("a spline carrier's data is not analytic")
                 }
             };
+            // An ellipse stores its centre or its anchor, and the two
+            // read as one value: an anchor's walk is three scalars
+            // longer, its phase, and a signature is compared whole.
             core::iter::once(tag)
                 .chain(
                     data.into_iter()
@@ -2632,6 +2635,24 @@ mod tests {
     use super::*;
     use geom_core::spline::KnotVector;
 
+    /// **A carrier's signature parts an ellipse held at a point as its
+    /// centre from one held there on its arc**: one frame and one pair of
+    /// semi-axes, two ellipses a semi-axis apart, two signatures. Red
+    /// where the signature reads fewer scalars than the walk yields.
+    #[test]
+    fn a_carriers_signature_parts_a_centre_from_an_anchor() {
+        let (at, axis, u) = (Point3::new(0.3, -1.2, 2.5), Vec3::unit_z(), Vec3::unit_x());
+        let centred = Curve3::Ellipse(geom::Ellipse::new(geom::Frame::new(at, axis, u), 2.0, 0.75));
+        let anchored = Curve3::Ellipse(geom::Ellipse::anchored(at, axis, u, 2.0, 0.75));
+        assert!(centred.eval(1.0).distance(anchored.eval(1.0)) > 0.5);
+        assert_ne!(carrier_sig(&centred), carrier_sig(&anchored));
+        assert_eq!(carrier_sig(&anchored), carrier_sig(&anchored.clone()));
+        assert_eq!(
+            carrier_sig(&anchored).len(),
+            carrier_sig(&centred).len() + 3
+        );
+    }
+
     /// **The line arm's selection table** ([`line_on_column`]): forward
     /// vertex order answers the column's start control and its chord,
     /// reversed answers its end control and the chord turned; a column
@@ -2793,7 +2814,7 @@ mod tests {
         );
         // On the circle printed the other way round (its axis reversed),
         // the edge from `p1` to `p0` IS the piece, run against it.
-        let reversed = circle.with_frame(circle.frame.reversed());
+        let reversed = circle.placed(geom::Frame::reversed);
         assert!(
             circle_column_match(&piece, &reversed, (p1, p0), None, file),
             "a column run against the edge matches the reversed circle"
@@ -2808,7 +2829,7 @@ mod tests {
         // the ends read Zero and the turning holds, and the deciding read
         // is the residual's.
         let mut bowed_net = piece.control().to_vec();
-        let mid = bowed_net[1] - circle.frame.origin();
+        let mid = bowed_net[1] - circle.frame().origin();
         bowed_net[1] = bowed_net[1] + mid * (1e-9 / mid.norm());
         let bowed =
             geom::NurbsCurve3::new(kv_piece.clone(), bowed_net, piece.weights().to_vec()).unwrap();
