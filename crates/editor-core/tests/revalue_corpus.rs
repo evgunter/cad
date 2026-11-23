@@ -558,10 +558,13 @@ fn revalue_plate_param_apart_to_its_parting() {
     holds_until_parting(
         "plate_param",
         (3246, 7228),
+        // At ε = 1e-12, 1802 until a point's distance from a wall read
+        // the rationalized gap (`geom_core::radius_gap`): nineteen of the
+        // margins that moved are the zero form there.
         PerRow {
             at_1e6: 1955,
             at_1e9: 1993,
-            at_1e12: 1802,
+            at_1e12: 1783,
         },
         &[],
         "point_in_loop_arm",
