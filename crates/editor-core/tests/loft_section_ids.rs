@@ -604,40 +604,8 @@ fn set_members_on_a_loft_keeps_its_section_ids() {
 /// or left unnamed.
 #[test]
 fn a_lofted_half_turn_names_its_quarter_walls_after_the_whole() {
-    use editor_core::{CapEnd, EntityKind, ProgramArcData, ProgramStep, ProgramTarget};
-    let half_disc = |r: f64| {
-        LoopProgram::Chain(vec![
-            ProgramStep::At(fixture::len2([r, 0.0])),
-            ProgramStep::ArcTo(ProgramArcData::Bulge {
-                target: ProgramTarget::Point(fixture::len2([-r, 0.0])),
-                b: fixture::scl(1.0),
-            }),
-            ProgramStep::LineTo(ProgramTarget::Start),
-        ])
-    };
-    let mut doc = ProfileDoc::empty_derived("lofted-half-turn-names", Tol::witness());
-    let mut profiles = Vec::new();
-    for r in [1.0, 0.8] {
-        let (d, p) = insert(
-            doc,
-            Node::Profile(editor_core::ProfileProgram {
-                loops: vec![half_disc(r)],
-                ids: Vec::new(),
-                on: None,
-            }),
-        );
-        doc = d;
-        profiles.push(p);
-    }
-    let (doc, loft) = insert(
-        doc,
-        Node::Loft {
-            first: profiles[0].into(),
-            first_id: None,
-            then: vec![up(profiles[1], 1.0)],
-            v_degree: Formula::count(1),
-        },
-    );
+    use editor_core::{CapEnd, EntityKind};
+    let (doc, _, loft) = half_disc_loft();
     let all = names(&doc, loft);
     let count = |kind: EntityKind, head: fn(&RoleSeg) -> bool, part: fn(&RoleSeg) -> bool| {
         all.iter()
@@ -691,5 +659,112 @@ fn a_lofted_half_turn_names_its_quarter_walls_after_the_whole() {
     assert!(
         said.starts_with("the joint of sub-arcs 1 and 2 of the start rim edge over "),
         "{said}"
+    );
+}
+
+/// Two half discs (a half turn of bulge 1 closed by its diameter) of
+/// radii 1 and 0.8, lofted at degree 1, section `k` at `z = k`.
+fn half_disc_loft() -> (ProfileDoc, Vec<RecipeNodeId>, RecipeNodeId) {
+    use editor_core::{ProgramArcData, ProgramStep, ProgramTarget};
+    let half_disc = |r: f64| {
+        LoopProgram::Chain(vec![
+            ProgramStep::At(fixture::len2([r, 0.0])),
+            ProgramStep::ArcTo(ProgramArcData::Bulge {
+                target: ProgramTarget::Point(fixture::len2([-r, 0.0])),
+                b: fixture::scl(1.0),
+            }),
+            ProgramStep::LineTo(ProgramTarget::Start),
+        ])
+    };
+    let mut doc = ProfileDoc::empty_derived("lofted-half-turn-names", Tol::witness());
+    let mut profiles = Vec::new();
+    for r in [1.0, 0.8] {
+        let (d, p) = insert(
+            doc,
+            Node::Profile(editor_core::ProfileProgram {
+                loops: vec![half_disc(r)],
+                ids: Vec::new(),
+                on: None,
+            }),
+        );
+        doc = d;
+        profiles.push(p);
+    }
+    let (doc, loft) = insert(
+        doc,
+        Node::Loft {
+            first: profiles[0].into(),
+            first_id: None,
+            then: vec![up(profiles[1], 1.0)],
+            v_degree: Formula::count(1),
+        },
+    );
+    (doc, profiles, loft)
+}
+
+/// The sub-arc indices of `all`'s quarter-wall faces, `[LoftWall(..),
+/// SubArc(q)]`, sorted.
+fn sub_arc_walls(all: &BTreeSet<StableName>) -> Vec<u32> {
+    let mut qs: Vec<u32> = all
+        .iter()
+        .filter_map(|n| match n.path.as_slice() {
+            [RoleSeg::LoftWall(_), RoleSeg::SubArc(q)] => Some(*q),
+            _ => None,
+        })
+        .collect();
+    qs.sort_unstable();
+    qs
+}
+
+/// **A sub-arc's name holds while every section's sub-arc count holds,
+/// and the pieces renumber when one changes.** The second half disc's
+/// bulge set to 0.8 keeps its arc at two sub-arcs, so every name is
+/// published again. Set to 1.2, its arc sweeps about 200°, three
+/// sub-arcs, and the wall is cut at `⅓`, `½` and `⅔`: four pieces, and
+/// `SubArc(1)` still published but now the second of four
+/// (`work/refs/a-lofted-segments-sub-arc-pieces-are-named-by-position.md`).
+/// Broken by a name keyed on a value the edit moves, or by pieces that do
+/// not follow the cut.
+#[test]
+fn a_sub_arc_name_holds_while_the_counts_hold_and_renumbers_when_they_change() {
+    let (doc, profiles, loft) = half_disc_loft();
+    let before = names(&doc, loft);
+    let bulge = |b: f64| {
+        doc.apply(
+            &DocEdit::SetParam {
+                node: profiles[1],
+                slot: SlotId::Profile {
+                    loop_: 0,
+                    step: 1,
+                    arg: editor_core::StepArg::Bulge,
+                },
+                value: SlotValue::Formula(fixture::scl(b)),
+                fresh: Vec::new(),
+            },
+            Tol::witness(),
+        )
+        .expect("the bulge set")
+        .doc
+    };
+    assert_eq!(sub_arc_walls(&before), [0, 1], "two quarter walls");
+    assert_eq!(
+        names(&bulge(0.8), loft),
+        before,
+        "a bulge that keeps the sub-arc counts renames nothing"
+    );
+    let after = names(&bulge(1.2), loft);
+    assert_eq!(sub_arc_walls(&after), [0, 1, 2, 3], "cut at ⅓, ½ and ⅔");
+    let second = before
+        .iter()
+        .find(|n| {
+            matches!(
+                n.path.as_slice(),
+                [RoleSeg::LoftWall(_), RoleSeg::SubArc(1)]
+            )
+        })
+        .expect("the second quarter wall");
+    assert!(
+        after.contains(second),
+        "the second piece's name is published again, on the second of four"
     );
 }
