@@ -39,7 +39,10 @@ fn certify_with_offset(offset: f64) -> Result<EdgeCurve<f64>, CertifyError> {
             ),
         },
     ]);
-    let carrier = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
+    let carrier = Curve3::line(
+        Point3::new(0.0, 0.0, 0.0),
+        geom::stated_direction(Vec3::new(1.0, 0.0, 0.0)),
+    );
     let (t0, t1) = (0.0, 2.0);
     let mid_i = (CERT_SAMPLES - 1) / 2;
     let mid_t = geom_brep::sample_param(t0, t1, mid_i);

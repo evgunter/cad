@@ -690,11 +690,11 @@ fn line_drifting_off_a_walls_axis(drift: f64) -> Result<(), BooleanError> {
     geom_brep::curve_face::line_quadric::line_wall_roots(
         geom::Line {
             origin: Point3::new(0.5, 0.0, 0.0),
-            dir: Vec3::new(drift, 0.0, 1.0),
+            dir: geom_core::UnitVec3::squared(Vec3::new(drift, 0.0, 1.0)),
         },
         geom::Line {
             origin: Point3::new(0.0, 0.0, 0.0),
-            dir: z,
+            dir: geom::stated_direction(z),
         },
         1.0,
         1.0,
@@ -1439,7 +1439,10 @@ fn seam_bend(sagitta: f64) -> Result<(), BooleanError> {
     let y = Vec3::new(0.0, 1.0, 0.0);
     let floor = plane_through(o, y, Vec3::new(0.0, 0.0, 1.0));
     let extent = (2.0 * sagitta).sqrt();
-    let ruling = geom::Curve3::Line(geom::Line { origin: o, dir: y });
+    let ruling = geom::Curve3::Line(geom::Line {
+        origin: o,
+        dir: geom::stated_direction(y),
+    });
     super::super::ops::seam_must_carry(
         &floor,
         &resting_cylinder(1.0),

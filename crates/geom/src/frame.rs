@@ -178,7 +178,7 @@ impl<T: Real> Frame<T> {
     pub fn axis_line(&self) -> Line<T> {
         Line {
             origin: self.origin(),
-            dir: self.axis(),
+            dir: self.axis_unit(),
         }
     }
 

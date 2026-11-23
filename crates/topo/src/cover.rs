@@ -162,7 +162,7 @@ pub fn face_nearest<T: Decide>(
     let Surface::Plane { frame, .. } = *f.surface() else {
         return near;
     };
-    let (origin, normal) = (frame.origin(), frame.axis());
+    let (origin, normal) = (frame.origin(), frame.axis_unit());
     let least = match *site {
         geom::cover::Site::Point(q) => geom::Line {
             origin,
@@ -170,7 +170,7 @@ pub fn face_nearest<T: Decide>(
         }
         .square_foot(q),
         geom::cover::Site::Line(geom::Line { origin: o, dir }) => {
-            o + dir * ((origin - o).dot(normal) / dir.dot(normal))
+            o + dir.get() * ((origin - o).dot(normal.get()) / dir.get().dot(normal.get()))
         }
     };
     let finite = [least.x, least.y, least.z]
@@ -656,7 +656,7 @@ fn sphere_window<T: Decide>(
     let Surface::Sphere { frame, radius } = surface else {
         unreachable!("a sphere's window is read of a sphere")
     };
-    let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+    let (center, axis, u_ref) = (frame.origin(), frame.axis_unit(), frame.u_ref());
     if !radius.structure_positive() {
         return None;
     }
@@ -690,7 +690,7 @@ fn sphere_window<T: Decide>(
             Ok(None) | Err(PointInSolidError::Escalated { .. }) => return Err(()),
             Err(refusal) => torn_outer_loop(body, f, refusal),
         };
-        let unit = UnitVec3::new(axis, SPHERE_AXIS, band).map_err(|_| ())?;
+        let unit = UnitVec3::new(axis.get(), SPHERE_AXIS, band).map_err(|_| ())?;
         Ok((trim, unit))
     })?;
     let pole = |sign: T| (sign * *radius, T::zero());
