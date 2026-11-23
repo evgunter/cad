@@ -214,7 +214,7 @@ use geom_core::{Band, Decide, Indeterminate, Lever, Margin, Point3, Sign, Vec3};
 
 use crate::body::Body;
 use crate::chart_groups::ChartGroups;
-use crate::entity::{EntityId, FaceKey, LoopBoundary, SolidKey};
+use crate::entity::{EntityId, FaceKey, SolidKey};
 use crate::face_normal::plane_desc_of;
 use crate::live::proven;
 use crate::ray_walk::{self, Crossings, RayFault};
@@ -1171,23 +1171,25 @@ fn partial_reach<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`PointInSolidError::CorruptFace`] for a face whose outer loop has no
-/// cycle or does not resolve.
+/// [`PointInSolidError::CorruptFace`] for a face whose loops do not
+/// resolve or walk; a face with no outline as [`no_outline`] reads it.
 fn boundary_point<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<Point3<T>, PointInSolidError> {
     let corrupt = PointInSolidError::CorruptFace { face };
-    let outer = body.get_face(face).ok_or(corrupt.clone())?.outer;
-    let LoopBoundary::Cycle { first } = body.get_loop(outer).ok_or(corrupt.clone())?.boundary
-    else {
-        return Err(corrupt);
+    let area = body
+        .face(face)
+        .ok_or(corrupt.clone())?
+        .area_loops_unchecked()
+        .map_err(|miss| match miss {
+            crate::live::AreaMiss::NoOutline(no) => no_outline(no),
+            crate::live::AreaMiss::Torn(_) => corrupt,
+        })?;
+    let Some(first) = area.outer().edges().first().map(|m| m.point) else {
+        unreachable!("a cycle loop has a member")
     };
-    let start = body.get_half_edge(first).ok_or(corrupt.clone())?.start;
-    body.get_vertex(start)
-        .and_then(|v| body.get_point(v.point))
-        .copied()
-        .ok_or(corrupt)
+    Ok(first)
 }
 
 /// **A torus face's closed group**: its representative when every edge
@@ -1335,7 +1337,8 @@ pub(crate) fn trim_window_short<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`PointInSolidError`] — escalations from the class predicates.
+/// [`PointInSolidError`] — escalations from the class predicates; a
+/// face with no outline as [`no_outline`] reads it.
 ///
 /// # Panics
 ///
@@ -1352,13 +1355,13 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
 ) -> Result<Option<SphereChartTrim<T>>, PointInSolidError> {
     let escalate = |diag| PointInSolidError::Escalated { face, diag };
     let f = body.proven_face(face);
+    // The class is a face bounded by its outline alone: a ring of
+    // either kind takes it out.
     if !f.record().rings.is_empty() {
         return Ok(None);
     }
     let arm = geom_brep::uniform_curvature_arm(sphere);
-    let LoopBoundary::Cycle { first } = f.outer().1.boundary else {
-        return Ok(None);
-    };
+    let first = f.area_loops().map_err(no_outline)?.outer().first();
     // A definite class miss is `None` (the honest remainder); an
     // in-band one escalates — the two-tolerance pair.
     let zero_as = |name: &'static str, m: Margin<T>| -> Result<bool, PointInSolidError> {
@@ -1755,26 +1758,22 @@ pub(crate) fn point_in_face<T: Decide>(
     let f = body
         .face(face)
         .ok_or(PointInSolidError::CorruptFace { face })?;
-    let region = |lk| -> Result<LoopContainment, PointInSolidError> {
-        point_in_loop_projected(body, lk, normal, p, band).map_err(|e| match e {
+    let area = f.area_loops().map_err(no_outline)?;
+    // A lone ring vertex bounds no area and is a point of the boundary:
+    // a hit on it, or in its band, is a graze.
+    for lone in area.lone_rings() {
+        if !matches!(crate::contain::one_vertex_at(p, lone.point, band), Ok(None)) {
+            return Ok(None);
+        }
+    }
+    for (lp, role) in area.cycles() {
+        let read = point_in_loop_projected(lp, normal, p, band).map_err(|e| match e {
             PointInLoopError::Uncrossable(cause) => {
                 PointInSolidError::EdgeCarrierUnsupported { face, cause }
             }
             e => PointInSolidError::Loop(e),
-        })
-    };
-    for (lk, l, role) in f.loops() {
-        let outer = role.is_outer();
-        if let LoopBoundary::Empty { .. } = l.boundary {
-            // An empty outer loop bounds no region (mid-op scaffolding
-            // never reaches this query; treat as no-hit); a lone ring
-            // vertex excludes no area.
-            if outer {
-                return Ok(Some(false));
-            }
-            continue;
-        }
-        match (region(lk)?, outer) {
+        })?;
+        match (read, role.is_outer()) {
             (LoopContainment::OnBoundary, _) => return Ok(None),
             (LoopContainment::Out, true) | (LoopContainment::In, false) => {
                 return Ok(Some(false));
@@ -1783,6 +1782,13 @@ pub(crate) fn point_in_face<T: Decide>(
         }
     }
     Ok(Some(true))
+}
+
+/// **A face with no outline, refused** ([`crate::NoOutline`]): its outer
+/// loop is a lone vertex, which the loop walk refuses as
+/// [`PointInLoopError::LoneLoop`], the crate's one lone-loop standing.
+pub(crate) fn no_outline(no: crate::NoOutline) -> PointInSolidError {
+    PointInSolidError::Loop(PointInLoopError::LoneLoop { r#loop: no.r#loop })
 }
 
 /// Trilean containment of `q` in `body`'s material (module docs).
@@ -2488,10 +2494,12 @@ fn ray_passes_beside<T: Decide>(
     rows: RayRows,
 ) -> Result<bool, RayFault<PointInSolidError>> {
     let geom::Line { origin: q, dir: d } = ray.line();
-    let f = body
-        .get_face(face)
-        .ok_or(RayFault::Fatal(PointInSolidError::CorruptFace { face }))?;
-    let (verts, covers) = crate::splitting::containment::loop_hull(body, f.outer)
+    let area = body
+        .face(face)
+        .ok_or(RayFault::Fatal(PointInSolidError::CorruptFace { face }))?
+        .area_loops()
+        .map_err(|no| RayFault::Fatal(no_outline(no)))?;
+    let (verts, covers) = crate::splitting::containment::loop_hull(area.outer())
         .map_err(|e| RayFault::Fatal(PointInSolidError::Loop(e)))?;
     let m = normal.cross(d);
     let m = m.normalize();
@@ -2512,7 +2520,7 @@ fn ray_passes_beside<T: Decide>(
         below = Some(below.map_or(b, |x| x.min(b)));
     }
     let (Some(above), Some(below)) = (above, below) else {
-        return Ok(true); // no vertex: the loop bounds no region
+        unreachable!("a cycle loop has a vertex")
     };
     Ok(decide(rows.beside(), Margin::of(above.max(below)), band)
         .map_err(|diag| RayFault::InBand(PointInSolidError::Escalated { face, diag }))?
@@ -4589,6 +4597,7 @@ fn volume_refusal(
         M::Corrupt { .. } | M::NullScaffoldEdge { .. } => {
             PointInSolidError::CorruptFace { face: first }
         }
+        M::NoOutline(no) => no_outline(no),
         M::Band { .. }
         | M::RingOnCurvedFace { .. }
         | M::Face { .. }
@@ -5216,7 +5225,7 @@ mod torn_hop_rows {
     /// Drops the curve of the first edge of `face`'s outer walk.
     fn drop_first_curve(body: &mut Body<f64>, face: FaceKey) -> String {
         let outer = body.get_face(face).unwrap().outer;
-        let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+        let crate::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
             panic!("the fixture's loop is a cycle");
         };
         let edge = body.get_half_edge(first).unwrap().edge;
