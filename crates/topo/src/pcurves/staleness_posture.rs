@@ -507,8 +507,8 @@ pub(crate) const DECLARED: &[(&str, Posture, &str)] = {
             "`set_face_surface`'s swap per face, on its terms: a face's rows are kept \
              across a move onto the same chart and dropped on any other. The edges it \
              re-describes are the listed certified ones, whose rows it drops on every \
-             face, since a caller's spec may move the carrier or interval they are \
-             stated over",
+             face where the spec moves the carrier or interval they are stated over, \
+             and keeps where it restates both",
         ),
         (
             "one_record_across",

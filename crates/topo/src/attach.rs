@@ -448,14 +448,20 @@ impl<T: Decide> Body<T> {
         let mut dropped = self
             .half_edges_proven_whole(recharted.map(|m| self.proven_face(m.face)))
             .concat();
-        // A caller's spec may move a listed edge's carrier or interval,
-        // and every row of the edge is stated over both, on a face that
-        // keeps its chart too. The kernel's restatements keep both.
-        if let crate::policy_lane::Origin::Callers = origin {
-            dropped.extend(written.rows.iter().flat_map(|&(edge, ..)| {
-                let e = proven(&self.edges, edge, EntityId::Edge);
-                [e.he_plus, e.he_minus]
-            }));
+        // Every row of a listed edge is stated over its carrier and
+        // interval, on a face that keeps its chart too, so a spec that
+        // moves either drops them; one that restates both keeps them.
+        for (edge, _, curve) in &written.rows {
+            let e = proven(&self.edges, *edge, EntityId::Edge);
+            let kept = self.edge_curve_linked(*edge, e).certified().is_some_and(|old| {
+                let ((a0, a1), (b0, b1)) = (old.params(), curve.params());
+                old.carrier().same_content_by(curve.carrier(), T::same_value)
+                    && T::same_value(a0, b0)
+                    && T::same_value(a1, b1)
+            });
+            if !kept {
+                dropped.extend([e.he_plus, e.he_minus]);
+            }
         }
 
         // ---- Mutation (infallible from here on). ----
