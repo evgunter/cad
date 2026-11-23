@@ -2197,7 +2197,6 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::NormalAtConeApex
         | BooleanErrorKind::VertexPairAtConeApex
         | BooleanErrorKind::VertexNearConeAxis
-        | BooleanErrorKind::ResultPinchedAtConeApex
         | BooleanErrorKind::ApexSection
         | BooleanErrorKind::NormalAtSplineCrease
         | BooleanErrorKind::PierceLeverUnread
