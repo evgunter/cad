@@ -117,6 +117,17 @@ fn join(hollow: bool, end: CapEnd, off: OffCap) -> Joined {
 
 /// [`join`], the pipe `length` long.
 fn join_at(hollow: bool, length: f64, end: CapEnd, off: OffCap) -> Joined {
+    join_drawn(hollow, length, end, off, loops(hollow))
+}
+
+/// [`join_at`], drawing `drawn` on the cap for the elbow's profile.
+fn join_drawn(
+    hollow: bool,
+    length: f64,
+    end: CapEnd,
+    off: OffCap,
+    drawn: Vec<LoopProgram<Formula>>,
+) -> Joined {
     let doc = ProfileDoc::empty_derived("a_pipe_and_its_elbow", Tol::witness());
     let (doc, section) = insert(
         doc,
@@ -142,7 +153,7 @@ fn join_at(hollow: bool, length: f64, end: CapEnd, off: OffCap) -> Joined {
         &doc,
         BodyRead::plain(Operand::output(pipe, 0)),
         cap,
-        loops(hollow),
+        drawn,
         OnFace::nearest(),
         &EvalOptions::default(),
         &CancelToken::new(),
@@ -666,4 +677,38 @@ fn an_elbow_whose_neutral_point_sits_in_band_of_a_station_glues_a_junction() {
     let j = join(true, CapEnd::End, off);
     glues_its_walls_a_junction(&j, 8, "turned 20ε");
     builds_at(&j, want, "turned 20ε");
+}
+
+/// The ring split in two with its first vertex `phase` round from `+x`.
+fn split_loops(hollow: bool, phase: f64) -> Vec<LoopProgram<Formula>> {
+    let split = |r: f64| LoopProgram::CircleSplit {
+        centre: [len(0.0), len(0.0)],
+        radius: len(r),
+        n: 2,
+        phase: ang(phase),
+    };
+    if hollow {
+        vec![split(OUTER), split(INNER)]
+    } else {
+        vec![split(OUTER)]
+    }
+}
+
+/// **An elbow whose rim vertices sit off the pipe's**: its profile is
+/// the ring drawn as two half arcs whose first vertex is `phase` round
+/// from the pipe's, so each of its rim vertices lies inside a rim edge of
+/// the pipe. The pipe and the rod each union at the closed form.
+#[test]
+fn an_elbow_drawn_with_its_rim_vertices_off_the_pipes_unions() {
+    let (end, off) = the_eight_poses()[1];
+    for phase in [0.3, 1.0] {
+        for hollow in [true, false] {
+            let j = join_drawn(hollow, LENGTH, end, off, split_loops(hollow, phase));
+            builds_at(
+                &j,
+                closed_form(hollow, off),
+                &format!("phase {phase}, hollow {hollow}"),
+            );
+        }
+    }
 }
