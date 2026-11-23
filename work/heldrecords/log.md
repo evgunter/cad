@@ -148,3 +148,18 @@
   - **Exemption measured, not retired:** 20 reds with it off, and none of them is a pair the split mints. Filed: `the-booleans-straight-slit-and-pinch-lanes-record-no-edge-edge-pair` (P1) and `a-splits-curved-pinch-along-a-closed-keel-records-no-edge-edge-pair` (P2).
   - **The exemption's own pins** claim the shared-ends reading was "ratified on PR 4793". The README's "infers no record from shared bounds" came in with `a969fd87c0`, the question as stated on Ev's PR 5967, and Ev ratified it there. So the exemption's retirement needs no new ruling, and the pins' text is what changes.
   - **One verdict moved toward refusing a valid body:** a cut along a recorded ring now refuses `Carry { Parted }`. That is DOCTAIL's `a-record-the-split-parts-has-no-consumption-rule`, **claimed here and re-banded P1** (a blocker of step 3). **Two Opus designers dispatched (01:20Z)** on a problem statement (`briefs/fork-parted-record.md`). PR 7481 does not land until that answer is built or ruled. (HELDRECORDS orchestrator)
+- 2026-11-23 — **PR 7436's review is in (01:22Z): not mergeable as frozen; the fix pass is ruled (01:25Z).**
+  - **The core holds:** `arc_clears` read no false clear across 24k random poses.
+  - **MAJOR:** the new counterbore pin is red at ε 1e-6. The pose refuses `SliverSector` upstream, and the nightly runs that ε.
+  - **MINOR, a moved verdict:** the segment–arc arm dropped the closed-form carrier test, so near-flat-side cases main decided now refuse `UnplacedHole`.
+  - **Mutation:** with the reach set to zero, no PR row goes red.
+  - **`arc_clears`** is a third spelling of the gap − reach walk (beside `geom` `clear_by` and `geom-brep` `Piece::reach`), hosted in a consumer.
+  - **Ruled:**
+    - pin the 1e-6 refusal as what it is;
+    - the carrier test goes back first in both arms;
+    - unit rows that go red under the reach mutation;
+    - one home for the walk in `geom`, or a P1 row;
+    - one type for "unplaced hole";
+    - a P2 row for `NestingContradiction` on an undecided case.
+
+  **The class across every review this sitting:** a mutant of the certificate or the gate survives the PR's own pins. Six reviews have shown it now, on five PRs. The pins prove "it builds", and none proves "it refuses where it must". (HELDRECORDS orchestrator)
