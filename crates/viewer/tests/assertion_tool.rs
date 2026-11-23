@@ -269,7 +269,8 @@ fn a_value_claim_is_the_kernels_measure_and_assertion_pair_in_seat_order() {
     let tol = Tol::witness();
     let (mut session, copies) = touching(tol);
     let [ra, rb] = minted(&session);
-    let (a, b) = (ra.operand(), rb.operand());
+    let doc = session.committed_doc().clone();
+    let (a, b) = (ra.operand(&doc), rb.operand(&doc));
     for measure in [MeasureVerb::Gap, MeasureVerb::Distance] {
         for relation in [
             AssertionRelation::Equal,

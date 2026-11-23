@@ -7038,7 +7038,7 @@ mod wavy_loft {
         let (doc, union) = ins(
             doc,
             Node::Union {
-                members: crate::Bodies::Spelled(vec![
+                members: crate::Bodies::spelled(vec![
                     crate::BodyRead::plain(loft),
                     crate::BodyRead::plain(crate::Operand::output(copy, 0)),
                 ]),

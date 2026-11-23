@@ -125,7 +125,7 @@ fn a_slab_across_a_round_boss_builds_in_every_order() {
         let (doc, n) = insert(
             doc.clone(),
             Node::Union {
-                members: editor_core::Bodies::Spelled(
+                members: editor_core::Bodies::spelled(
                     order.iter().map(|&i| ids[i].into()).collect(),
                 ),
             },

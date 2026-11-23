@@ -29,6 +29,9 @@ probe = ["topo/probe"]
 # geom-core.
 geom-brep = { path = "../geom-brep" }
 geom-core = { path = "../geom-core" }
+# A number the file states in its unit is read through the unit door's
+# arithmetic: its decimal times the exact factor, rounded once.
+quantity = { path = "../quantity" }
 geom = { path = "../geom" }
 topo = { path = "../topo" }
 
@@ -74,9 +77,6 @@ mesh = { path = "../mesh" }
 # The must-carry rung's row mints the surface keys its pair names.
 # Dev-only.
 slotmap = { workspace = true }
-# The certified body's refusal rows state a resolution, a `quantity`
-# length, as every measurement does. Dev-only.
-quantity = { path = "../quantity" }
 
 # The single aggregated test binary (see tests/all.rs header). `autotests
 # = false` above means this is the ONLY test target: a suite file not

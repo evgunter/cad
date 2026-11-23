@@ -536,11 +536,7 @@ where
             let each = project_each(&[(O::From, from.read)])?;
             let ra = each[0].as_ref().unwrap_or(unprojected);
             let tools = member_reads(
-                (
-                    BooleanOp::Subtract,
-                    node,
-                    &tool.rows_in(crate::operand::Seats::CUTS),
-                ),
+                (BooleanOp::Subtract, node, tool, crate::operand::Seats::CUTS),
                 id,
                 (unprojected, vals, env.lane.params),
                 doc,
@@ -612,6 +608,7 @@ where
                         at(seat, read)?,
                         read,
                         projected.as_ref().unwrap_or(unprojected),
+                        doc.yielding(read).is_some(),
                     ))
                 })
                 .collect::<Result<Vec<_>, NodeErrorKind>>()?;
@@ -3268,11 +3265,43 @@ fn reads_projected<T: topo::AtRestPolicy + Decide>(
             },
         };
         if let Some((family, at)) = member {
-            replaced.push(member_projected(
-                family,
-                value_of(results, family)?.whole(),
-                &at,
-            )?);
+            let held = value_of(results, family)?;
+            // A member of a yielded half of a split of each member is
+            // that member's half (D10 `[repetition]`).
+            let halves = split_halves(var, doc, family, held.whole())?;
+            let whole = halves.as_ref().map_or(held.whole(), |(_, family)| family);
+            let (family, index, mut value) = member_projected(family, whole, &at)?;
+            // A member read at its binder's own indices, inside the
+            // binder, is the member the reader stands at (D10
+            // `[repetition]`): it answers that member's own table, as
+            // the member evaluated.
+            let written = match select {
+                Some(select) => doc.selected_body(select),
+                None if sourced.is_indexed() => sourced.clone(),
+                None => node
+                    .body_read(seat)
+                    .cloned()
+                    .unwrap_or_else(|| crate::BodyRead::plain(var)),
+            };
+            let own = held.family.is_some()
+                && doc
+                    .operation_of(written.read)
+                    .is_some_and(|at| at == family)
+                && doc
+                    .outputs(family)
+                    .iter()
+                    .find_map(|&out| doc.yielding(out))
+                    .is_some_and(|binder| doc.binder_indices(binder) == written.at);
+            if own {
+                value.outputs = match halves {
+                    Some((port, _)) => held
+                        .output(port)
+                        .map(|names| Arc::from([names.clone()]))
+                        .unwrap_or_else(|| held.outputs.clone()),
+                    None => held.outputs.clone(),
+                };
+            }
+            replaced.push((family, index, value));
             continue;
         }
         replaced.extend(split_port(var, doc, results)?);
@@ -3458,16 +3487,17 @@ fn split_port<T: topo::AtRestPolicy + Decide>(
         .unwrap_or_else(|| unreachable!("a split defines a port per half"));
     let value = value_of(results, split)?;
     let ValuePayload::Split { above, below } = &value.payload else {
-        // A split of a family is a family of splits (D10
-        // `[repetition]`), read here by a reader of no member of it.
-        return Err(match value.payload {
-            ValuePayload::Family => NodeErrorKind::HalfOfAFamily {
-                read: var,
-                input: split,
-                half,
-            },
-            _ => wrong_operand(value, split, super::family::SPLIT),
-        });
+        // A split inside a binder, `{k in xs: split(xs[k])}`, is a family
+        // of splits (D10 `[repetition]`); a reader of its yielded half
+        // reads that half of every member, a family of bodies.
+        return match (&value.payload, &value.members) {
+            (ValuePayload::Family, Some(members)) => half_of_each(split, port, half, members)
+                .map(|family| Some((split, half.output_body(), family))),
+            (ValuePayload::Family, None) => {
+                unreachable!("family of splits {split:?} keeps no members")
+            }
+            _ => Err(wrong_operand(value, split, super::family::SPLIT)),
+        };
     };
     let body = split_side(split, half, above, below)?;
     // The half's names are its own output's (N1, the scope).
@@ -3482,6 +3512,77 @@ fn split_port<T: topo::AtRestPolicy + Decide>(
     let at = half.output_body() as usize;
     let carry = value.carry.member(at).clone();
     Ok(Some((of, index, super::NodeValue { carry, ..projected })))
+}
+
+/// **The family of halves a read of `var` reads off `held`**, with the
+/// split's port: `Some` where `var` is a half of the split `split` and
+/// `held` is a family of splits, a split inside a binder; `None` for any
+/// other read, which reads `held` itself.
+fn split_halves<T: topo::AtRestPolicy + Decide>(
+    var: crate::VarId,
+    doc: &crate::doc::Doc<ProfileProgram>,
+    split: RecipeNodeId,
+    held: &super::NodeValue<T>,
+) -> Result<Option<(u8, super::NodeValue<T>)>, NodeErrorKind> {
+    let (ValuePayload::Family, Some(members)) = (&held.payload, &held.members) else {
+        return Ok(None);
+    };
+    let Some(port) = doc
+        .var(var)
+        .and_then(|v| v.def().output())
+        .filter(|&(at, _)| at == split && matches!(doc.node(at), Some(Node::Split { .. })))
+        .map(|(_, port)| port)
+    else {
+        return Ok(None);
+    };
+    let half = SplitHalf::of_output_body(u32::from(port))
+        .unwrap_or_else(|| unreachable!("a split defines a port per half"));
+    half_of_each(split, port, half, members).map(|family| Some((port, family)))
+}
+
+/// **The half `half` (the split's port `port`) of each member of a
+/// family of splits**, as the family of those halves: each member's half
+/// projected as one split's half is ([`projected`]), then gathered as
+/// any family of bodies is ([`super::members::family_value`]), each
+/// half named at its member's place. A member whose half is empty
+/// refuses the family ([`NodeErrorKind::EmptyHalf`]).
+fn half_of_each<T: topo::AtRestPolicy + Decide>(
+    split: RecipeNodeId,
+    port: u8,
+    half: SplitHalf,
+    members: &super::members::Members<T>,
+) -> Result<super::NodeValue<T>, NodeErrorKind> {
+    let halves = members
+        .members
+        .iter()
+        .map(|(at, member)| {
+            let ValuePayload::Split { above, below } = &member.payload else {
+                return Err(wrong_operand(member, split, super::family::SPLIT));
+            };
+            let body = split_side(split, half, above, below)?;
+            let names = member.output(port).cloned().unwrap_or_else(|| {
+                unreachable!("a member of split {split:?} names its {half:?} half (port {port})")
+            });
+            let (_, _, projected) = projected(split, member, body, names, 0)?;
+            let carry = member.carry.member(half.output_body() as usize).clone();
+            Ok((
+                at.clone(),
+                super::NodeValue {
+                    carry,
+                    members: None,
+                    family: None,
+                    ..projected
+                },
+            ))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    super::members::family_value(
+        split,
+        super::members::Members {
+            over: members.over.clone(),
+            members: halves,
+        },
+    )
 }
 
 /// `value`'s output `index` as the body alone, at output 0, with that
@@ -4062,7 +4163,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     tol: Tol,
 ) -> OpResult<T> {
     let members = member_reads(
-        (op, node, &bodies.rows()),
+        (op, node, bodies, crate::operand::Seats::MEMBERS),
         id,
         (results, vals, params),
         doc,
@@ -4081,19 +4182,21 @@ fn own_read(doc: &crate::doc::Doc<ProfileProgram>, id: RecipeNodeId) -> crate::V
     })
 }
 
-/// One read of a `Bodies` argument, with the seat it sits in.
-type SeatedRead<'a> = (crate::OperandSlot, &'a crate::BodyRead<crate::VarId>);
-
 /// **The members a `Bodies` argument reads** (DM4), in list order: each
 /// spelled read, projected one by one (two ports of one split are two
-/// bodies, which one map keyed by the split cannot hold), a family
-/// spelled as one read its every member (D10 `[repetition]`), and a
+/// bodies, which one map keyed by the split cannot hold), a splice
+/// `…xs` its family's every member (D10 `[repetition]`), and a
 /// family read whole every member in index order, its table the
 /// family's rows for that member. A union's, an intersect's and an
 /// assemble's members, and a subtract's tools, are read alike; an
 /// intersect's member that holds pieces is met piece by piece.
 fn member_reads<T: Decide + topo::AtRestPolicy>(
-    (op, node, rows): (BooleanOp, &Node<ProfileProgram>, &[SeatedRead<'_>]),
+    (op, node, bodies, seats): (
+        BooleanOp,
+        &Node<ProfileProgram>,
+        &crate::Bodies<crate::BodyRead<crate::VarId>>,
+        crate::operand::Seats,
+    ),
     id: RecipeNodeId,
     (results, vals, params): (&Results<T>, &SlotValues<T>, &crate::expr::VarEnv<T>),
     doc: &crate::doc::Doc<ProfileProgram>,
@@ -4128,47 +4231,68 @@ fn member_reads<T: Decide + topo::AtRestPolicy>(
             })
             .collect::<Result<Vec<_>, NodeErrorKind>>()
     };
-    let mut members = Vec::with_capacity(rows.len());
-    for &(slot, member) in rows {
-        let read = member.read;
-        if matches!(slot, O::Members | O::Cuts) {
+    let mut members = Vec::new();
+    match bodies {
+        crate::Bodies::Family(family) => {
             // Every door refuses an indexed family argument
             // (`InputFault::IndexedFamily`); one reaching here would
             // read the whole family, so it is refused, not read.
-            if member.is_member() {
+            if family.is_member() {
                 unreachable!(
-                    "boolean {id:?}'s family argument {member:?} carries an index, though every \
+                    "boolean {id:?}'s family argument {family:?} carries an index, though every \
                      door refuses an indexed family argument (`InputFault::IndexedFamily`)"
                 );
             }
-            let at = super::read_at(doc, slot, read)?;
-            members.extend(whole(read, at, value_of(results, at)?.whole())?);
-            continue;
+            let slot = seats.of(O::Members);
+            let at = super::read_at(doc, slot, family.read)?;
+            let held = value_of(results, at)?;
+            let value = if doc.yielding(family.read).is_some() {
+                held.whole()
+            } else {
+                held
+            };
+            members.extend(whole(family.read, at, value)?);
         }
-        let at = super::read_at(doc, slot, read)?;
-        let projected = reads_projected(node, &[(slot, read)], doc, (results, vals, params))?;
-        let results = projected.as_ref().unwrap_or(results);
-        let value = value_of(results, at)?.whole();
-        // A family spelled as one read is its every member
-        // (D10 `[repetition]`).
-        if value.members.is_some() && !member.is_member() {
-            members.extend(whole(read, at, value)?);
-            continue;
+        crate::Bodies::Spelled(entries) => {
+            for (i, entry) in entries.iter().enumerate() {
+                let member = entry.read();
+                let read = member.read;
+                let slot = seats.of(O::Member(i));
+                let at = super::read_at(doc, slot, read)?;
+                let projected =
+                    reads_projected(node, &[(slot, read)], doc, (results, vals, params))?;
+                let results = projected.as_ref().unwrap_or(results);
+                // A yield is a family to every reader, and a member read
+                // takes its member out of it; any other read inside a
+                // binder is of the member at the reader's own values
+                // (D10 `[repetition]`).
+                let held = value_of(results, at)?;
+                let value = if member.is_member() || doc.yielding(read).is_some() {
+                    held.whole()
+                } else {
+                    held
+                };
+                // A splice, `…xs`, is the family's every member.
+                if entry.is_splice() {
+                    members.extend(whole(read, at, value)?);
+                    continue;
+                }
+                let pieces = match op {
+                    BooleanOp::Intersect if value.carry.pieces.is_some() => Some(Arc::new(
+                        distribute::Operand::read(results, at, read, doc, tol)?,
+                    )),
+                    _ => None,
+                };
+                members.push(MemberRead {
+                    read,
+                    node: at,
+                    framed: read_body(results, at)?,
+                    table: read_table(value),
+                    carry: value.carry.kept(doc, tol),
+                    pieces,
+                });
+            }
         }
-        let pieces = match op {
-            BooleanOp::Intersect if value.carry.pieces.is_some() => Some(Arc::new(
-                distribute::Operand::read(results, at, read, doc, tol)?,
-            )),
-            _ => None,
-        };
-        members.push(MemberRead {
-            read,
-            node: at,
-            framed: read_body(results, at)?,
-            table: read_table(value),
-            carry: value.carry.kept(doc, tol),
-            pieces,
-        });
     }
     Ok(members)
 }
@@ -4914,17 +5038,17 @@ fn wire_place<T: Decide + topo::AtRestPolicy>(
 /// each member's records keyed in its own arena.
 fn wire_assemble<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
-    members: &[(RecipeNodeId, crate::VarId, &Results<T>)],
+    members: &[(RecipeNodeId, crate::VarId, &Results<T>, bool)],
     tol: Tol,
 ) -> OpResult<T> {
     let mut fused = Body::new();
-    // Each operand's bodies, read once: every seat of an assemble takes
-    // a family whole, so a member is its family's every body, and an
-    // empty one refuses.
+    // Each operand's bodies, read once: a yield is its family's every
+    // body, and an empty one refuses; any other read is one body.
     let operands = members
         .iter()
-        .map(|&(of, read, results)| {
-            let value = value_of(results, of)?.whole();
+        .map(|&(of, read, results, yielded)| {
+            let held = value_of(results, of)?;
+            let value = if yielded { held.whole() } else { held };
             let (bodies, family) = match value.payload.one_body() {
                 Some(Some(body)) => (vec![body.clone()], false),
                 Some(None) => return Err(NodeErrorKind::EmptyOperand { input: of }),

@@ -1010,6 +1010,7 @@ test_utils::f6_variants! {
         OutputSignature,
         VarNotMinted,
         NameOnMissingVar,
+        IndexSeat,
         VarNameTwice,
         ReaderOfUnmintedVar,
         SlotVarKind,
@@ -1365,6 +1366,14 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 "the name width is attached to variable #0:0000000000070000",
                 "not live",
             ],
+        ),
+        (
+            SnapshotError::IndexSeat {
+                var: editor_core::VarId::new(0, tagged(7)),
+                other: editor_core::VarId::new(0, tagged(8)),
+                fault: editor_core::persist::IndexSeatFault::YieldIndex,
+            },
+            vec!["yields #0:0000000000080000, which is an index"],
         ),
         (
             SnapshotError::VarNameTwice {
@@ -2871,6 +2880,7 @@ test_utils::f6_variants! {
         ProductOutsideWorld,
         ValueDropped,
         AnonymousVarRemoved,
+        YieldRemoved,
     ];
 }
 
@@ -3015,6 +3025,13 @@ fn maintenance_display_says_what_the_edit_did() {
                 "nothing reading #0:0000000000070000",
                 "the tolerance it carried went with it",
             ],
+        ),
+        (
+            Maintenance::YieldRemoved {
+                binder: editor_core::SpokenVar::new(editor_core::VarId::new(0, tagged(3)), None),
+                var: editor_core::SpokenVar::new(editor_core::VarId::new(0, tagged(7)), None),
+            },
+            vec!["yields #0:0000000000070000 no more", "the edit removed it"],
         ),
     ];
     assert_f6_every_variant(&cases, &MAINTENANCE, &[]);

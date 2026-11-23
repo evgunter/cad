@@ -392,14 +392,16 @@ fn reads_by_index(
 ) -> (Doc<ProfileProgram>, RecipeNodeId) {
     let (doc, k) = crate::fixture::index(doc, name, count);
     let space = crate::fixture::space(&doc, family);
-    crate::fixture::insert(
+    let (doc, reads) = crate::fixture::insert(
         doc,
         Node::place(
             pncad::document::BodyRead::indexed(family, vec![at(k)]),
             pncad::document::Operand::Var(space),
             pncad::document::stand().bundle(),
         ),
-    )
+    );
+    // The reads are their binder's yield (D10 `[repetition]`).
+    (crate::fixture::yielded(doc, reads), reads)
 }
 
 /// The members of `node` the picture draws, as the index holds them.
@@ -512,7 +514,7 @@ fn a_piece_two_unions_draw_stays_until_both_are_hidden() {
     let (doc, other) = common::inserted(
         &doc,
         Node::Assemble {
-            members: Bodies::Spelled(vec![BodyRead::plain(pncad::document::Operand::Node(
+            members: Bodies::spelled(vec![BodyRead::plain(pncad::document::Operand::Node(
                 a_copy,
             ))]),
         },
@@ -557,7 +559,7 @@ fn the_products_body_is_drawn_whatever_reads_it() {
     let (doc, union) = common::inserted(
         &doc,
         Node::Union {
-            members: Bodies::Spelled(vec![
+            members: Bodies::spelled(vec![
                 BodyRead::plain(pncad::document::Operand::Node(a_copy)),
                 BodyRead::plain(pncad::document::Operand::Node(b_copy)),
             ]),

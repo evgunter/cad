@@ -38,10 +38,10 @@ fn document(op: &str, ball_first: bool) -> (ProfileDoc, [RecipeNodeId; 3]) {
             tool: y.into(),
         },
         "union" => Node::Union {
-            members: editor_core::Bodies::Spelled(vec![x.into(), y.into()]),
+            members: editor_core::Bodies::spelled(vec![x.into(), y.into()]),
         },
         _ => Node::Intersect {
-            members: editor_core::Bodies::Spelled(vec![x.into(), y.into()]),
+            members: editor_core::Bodies::spelled(vec![x.into(), y.into()]),
         },
     };
     let (doc, out) = insert(doc, node);
