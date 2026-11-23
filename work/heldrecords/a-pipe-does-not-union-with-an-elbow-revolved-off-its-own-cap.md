@@ -14,7 +14,7 @@ Found by PROFILE's elbow probe (2026-11-21), run on hosted CI as the
 throwaway PR 7280 (run 44889924284, `test (app)`,
 `editor-core::zz_probe_elbow`), for Ev's question whether a hollow
 cylinder's end loops can be revolved into an elbow
-(`work/profile/a-faces-loop-or-closed-trace-cannot-become-a-profile-loop.md`).
+(`work/faceloop/a-faces-loop-or-closed-trace-cannot-become-a-profile-loop.md`).
 Filed here because the refusal is about a recorded contact
 (`crates/topo/src/boolean/refusal_routes.rs`, `Coincide::Contact`,
 "whether a recorded contact holds along its witness"); re-home it if
@@ -48,7 +48,7 @@ losing a close call. The recourse cannot be followed: the parts meet
 by construction.
 
 Banded P0: a normal verb broken on normal geometry. It also gates
-`work/profile/a-faces-loop-or-closed-trace-cannot-become-a-profile-loop.md`:
+`work/faceloop/a-faces-loop-or-closed-trace-cannot-become-a-profile-loop.md`:
 once a face's loop can be a profile loop, the elbow the person makes
 by two clicks and a revolve is this union.
 

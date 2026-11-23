@@ -46,8 +46,9 @@ crates/geom-brep/src/implicit.rs	prod	68	re-pose,far-centre
 crates/geom-brep/src/implicit.rs	test	4	oracle
 crates/geom-brep/src/intersect.rs	prod	6	re-pose
 crates/geom-brep/src/intersect.rs	test	1	oracle
+crates/geom-brep/src/pair_section/cones.rs	prod	1	re-pose
 crates/geom-brep/src/pair_section/gap.rs	prod	9	re-pose
-crates/geom-brep/src/pair_section/ruling.rs	prod	5	re-pose
+crates/geom-brep/src/pair_section/ruling.rs	prod	16	re-pose
 crates/geom-brep/src/pair_section/spline_implicit.rs	prod	1	re-pose
 crates/geom-brep/src/pair_section/torus.rs	prod	2	re-pose
 crates/geom-brep/src/pair_section/torus_arms.rs	prod	2	re-pose
@@ -194,6 +195,7 @@ crates/sweep/tests/spiric_rim.rs	test	1	oracle
 crates/sweep/tests/split_through_a_ruling.rs	test	2	oracle
 crates/sweep/tests/the_football_revolves.rs	test	1	oracle
 crates/sweep/tests/torax_axial.rs	test	1	oracle
+crates/sweep/tests/volume_premises_door_bodies.rs	test	1	oracle
 crates/sweep/tests/vrev_acceptance_set.rs	test	1	oracle
 crates/topo/src/contain.rs	test	1	oracle
 crates/topo/src/boolean/fan.rs	prod	1	pose

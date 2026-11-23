@@ -536,13 +536,13 @@ mod tests {
             C::Profile => K::Profile(profile::ProfileError::PlaneNotFinite),
             C::ProfileReplay => K::ProfileReplay {
                 loop_: 0,
-                error: profile::ReplayError {
-                    step: 2,
-                    kind: profile::ReplayErrorKind::Transition {
+                error: profile::ReplayError::new(
+                    2,
+                    profile::ReplayErrorKind::Transition {
                         state: profile::TipState::Closed,
                         verb: None,
                     },
-                },
+                ),
             },
             C::ProfileLaneReplay => K::ProfileLaneReplay {
                 loop_: 0,
