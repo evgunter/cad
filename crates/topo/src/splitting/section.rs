@@ -27,7 +27,7 @@ use super::section_loops::{self, NestFault, SenseFault};
 use super::{KnifeEdge, PlaneSide, SplitError, SplitPlane, SplitReduceError, split_scratch};
 use crate::body::Body;
 use crate::entity::{HalfEdgeKey, LoopKey};
-use crate::live::{BoundaryMember, NoCycle};
+use crate::live::{EdgeMember, NoCycle};
 use geom_brep::props::chord_bulge;
 use geom_core::Tol;
 
@@ -538,6 +538,7 @@ fn section_walk<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<Half<T>>, S
                 .into(),
             );
         }
+        Err(NoCycle::Torn) => body.torn_loop(l),
         Err(NoCycle::Stale) => unreachable!(
             "the join's completed section names below loop {l:?}, which does not resolve: the \
              join walks a section's below loop and files it in its null face's pair as it \
@@ -546,11 +547,14 @@ fn section_walk<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<Half<T>>, S
         ),
     };
     let mut halves = Vec::new();
-    for member in lp.members() {
-        let BoundaryMember::Edge { he, ek, edge, .. } = member else {
-            unreachable!("a cycle loop's members are edges")
-        };
-        let corner = body.member_point(&member);
+    for EdgeMember {
+        he,
+        ek,
+        edge,
+        point: corner,
+        ..
+    } in lp.edges()
+    {
         let forward = crate::live::claimed(he, ek, edge).plus;
         let curve = body.edge_curve_linked(ek, edge).certified();
         let carrier = match curve {

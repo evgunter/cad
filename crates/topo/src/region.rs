@@ -32,7 +32,6 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Point2, Point3, Sign, Vec3}
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, LoopKey};
-use crate::live::BoundaryMember;
 use crate::ray_walk::{self, Crossings, RayFault};
 use crate::solid_contain::PointInSolidError;
 use crate::splitting::containment::{ConicArc, ConicArcError, ConicHit, ConicRows};
@@ -526,13 +525,10 @@ pub(crate) fn boundary<T: Decide>(
     let area = f.area_loops().map_err(crate::solid_contain::no_outline)?;
     let mut null = Vec::new();
     for (lp, _) in area.cycles() {
-        for member in lp.members() {
-            let BoundaryMember::Edge {
-                ek: edge_key, edge, ..
-            } = member
-            else {
-                unreachable!("a cycle loop's members are edges")
-            };
+        for crate::live::EdgeMember {
+            ek: edge_key, edge, ..
+        } in lp.edges()
+        {
             let Some(curve) = body.edge_curve_linked(edge_key, edge).certified() else {
                 if crate::null::is_placeholder(body, edge_key) {
                     null.push(edge_key);

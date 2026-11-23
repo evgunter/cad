@@ -671,6 +671,9 @@ pub(crate) fn pinches(body: &Body<f64>, lk: LoopKey) -> Result<bool, TessellateE
         // A lone vertex has no corners, so passes no point twice.
         Err(topo::NoCycle::Lone(_)) => Ok(false),
         Err(topo::NoCycle::Stale) => Err(TessellateError::MissingEntity { what: "loop" }),
+        Err(topo::NoCycle::Torn) => Err(TessellateError::MissingEntity {
+            what: "a loop that does not walk",
+        }),
     }
 }
 

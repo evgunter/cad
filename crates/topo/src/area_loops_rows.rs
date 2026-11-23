@@ -159,7 +159,10 @@ fn probe_raw_door_on_a_parent_loop_tear() {
         .unwrap();
     body.half_edges.get_mut(he).unwrap().parent_loop = other;
     let r = raw(&body);
-    eprintln!("PROBE parent_loop tear: {:?}", r.as_ref().map_err(|_| "PANIC"));
+    eprintln!(
+        "PROBE parent_loop tear: {:?}",
+        r.as_ref().map_err(|_| "PANIC")
+    );
     assert!(r.is_ok(), "the raw door panics on a parent_loop tear");
 }
 
@@ -169,7 +172,10 @@ fn probe_raw_door_on_a_dead_lone_ring_vertex() {
     let (mut body, _, lone) = box_with_a_lone_ring(Tol::witness());
     body.vertices.remove(lone);
     let r = raw(&body);
-    eprintln!("PROBE dead lone vertex: {:?}", r.as_ref().map_err(|_| "PANIC"));
+    eprintln!(
+        "PROBE dead lone vertex: {:?}",
+        r.as_ref().map_err(|_| "PANIC")
+    );
     assert!(r.is_ok(), "the raw door panics on a dead lone-ring vertex");
 }
 
@@ -184,12 +190,25 @@ fn probe_raw_door_on_the_lone_ring_box() {
 /// A plain brick, one top half-edge's parent_loop re-pointed.
 #[test]
 fn probe_raw_door_on_a_brick_parent_loop_tear() {
-    let mut body = crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let mut body = crate::test_support_fixtures::brick::<f64>(
+        (0.0, 1.0),
+        (0.0, 1.0),
+        (0.0, 1.0),
+        Tol::witness(),
+    );
     let fk = body.faces.iter().next().map(|(k, _)| k).unwrap();
     let he = body.proven_face(fk).half_edges()[1];
-    let other = body.faces.iter().find(|(k, _)| *k != fk).map(|(_, f)| f.outer).unwrap();
+    let other = body
+        .faces
+        .iter()
+        .find(|(k, _)| *k != fk)
+        .map(|(_, f)| f.outer)
+        .unwrap();
     body.half_edges.get_mut(he).unwrap().parent_loop = other;
     let r = raw(&body);
-    eprintln!("PROBE brick parent_loop tear: {:?}", r.as_ref().map_err(|_| "PANIC"));
+    eprintln!(
+        "PROBE brick parent_loop tear: {:?}",
+        r.as_ref().map_err(|_| "PANIC")
+    );
     assert!(r.is_ok(), "the raw door panics on a parent_loop tear");
 }

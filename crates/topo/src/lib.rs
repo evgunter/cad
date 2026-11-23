@@ -228,11 +228,11 @@ pub mod replace_face;
 pub(crate) mod revalue_pin;
 pub mod revert;
 #[cfg(test)]
+mod review_7474_probes;
+#[cfg(test)]
 mod review_d18;
 #[cfg(test)]
 mod review_d18_probes;
-#[cfg(test)]
-mod review_7474_probes;
 #[cfg(test)]
 mod review_d21_probes;
 #[cfg(test)]

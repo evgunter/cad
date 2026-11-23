@@ -430,9 +430,14 @@ pub(crate) const LONE_LOOP_REFUSAL: geom_brep::ladder::Refusal = geom_brep::ladd
 /// **A loop of a face that is a cycle**, resolved and checked once: the
 /// handle every per-loop reader of a region takes (a loop's edges, its
 /// carriers, its corners, its pcurve rows). Only this module builds one,
-/// at [`FaceView::area_loops`] (a face's loops that bound area) and
-/// [`Body::cycle_loop`] (a loop key a caller passed), so a reader
-/// holding one has no lone-vertex arm and no torn arm to write.
+/// and only once its walk is proven ([`prove_cycle`]): the claims walk
+/// closes, every member's half-edge, edge, start vertex and point
+/// resolve, and the face the loop names lists it. The body is borrowed
+/// for the handle's life, so the proof holds while it does, and a reader
+/// holding one has no lone-vertex arm and no torn arm to write. The
+/// doors are [`FaceView::area_loops`] (a face's loops that bound area),
+/// [`FaceView::cycle_loops`] (a face's cycle loops) and
+/// [`Body::cycle_loop`] (a loop key a caller passed).
 #[derive(Clone, Copy)]
 pub struct CycleLoop<'a, T: Real> {
     body: &'a Body<T>,
@@ -462,21 +467,125 @@ impl<'a, T: Real> CycleLoop<'a, T> {
         self.first
     }
 
-    /// The loop's half-edges in `next` order. The walk closes on the
-    /// half-edges that claim the loop (tier 1 at rest,
-    /// [`OPERATORS_KEEP_LINKS`] mid-operation); one that does not panics
-    /// naming the loop ([`crate::body::Walk::closed_in`]).
-    #[track_caller]
+    /// The loop's half-edges in `next` order: the walk the handle proved.
     pub(crate) fn cycle(self) -> Vec<HalfEdgeKey> {
         self.body
             .loop_walk_of(self.first, self.key)
             .closed_in(self.key, self.first)
     }
 
-    /// The loop's members ([`FaceView::boundary`]'s, every one an edge).
+    /// The loop's members in `next` order, each an edge
+    /// ([`EdgeMember`]): the walk the handle proved, every record on it
+    /// resolving.
+    pub(crate) fn edges(self) -> Vec<EdgeMember<'a, T>> {
+        let body = self.body;
+        self.cycle()
+            .into_iter()
+            .map(|he| {
+                let half = proven(&body.half_edges, he, EntityId::HalfEdge);
+                let ek = half.edge;
+                let edge = linked(
+                    &body.edges,
+                    ek,
+                    EntityId::Edge,
+                    EntityId::HalfEdge(he),
+                    "edge",
+                );
+                let point = body.linked_vertex_point(half.start, EntityId::HalfEdge(he), "start");
+                EdgeMember {
+                    he,
+                    half,
+                    ek,
+                    edge,
+                    point,
+                }
+            })
+            .collect()
+    }
+}
+
+/// One member of a [`CycleLoop`] ([`CycleLoop::edges`]): a half-edge
+/// `he` (its record `half`), its edge `ek` (its record `edge`), and the
+/// point it starts at.
+#[derive(Clone, Copy)]
+pub(crate) struct EdgeMember<'a, T: Real> {
+    pub(crate) he: HalfEdgeKey,
+    pub(crate) half: &'a HalfEdge,
+    pub(crate) ek: EdgeKey,
+    pub(crate) edge: &'a Edge,
+    pub(crate) point: Point3<T>,
+}
+
+/// **The proof a [`CycleLoop`] carries**, the one walk that decides
+/// whether a cycle loop walks: `lk` (its record `record`, first
+/// half-edge `first`) is built only where the claims walk from `first`
+/// closes ([`Body::loop_walk_of`]), each member's half-edge, edge, start
+/// vertex and point resolve, and the face the loop names lists it.
+/// `None` is a torn loop.
+fn prove_cycle<'a, T: Real>(
+    body: &'a Body<T>,
+    key: LoopKey,
+    record: &'a Loop,
+    first: HalfEdgeKey,
+) -> Option<CycleLoop<'a, T>> {
+    let crate::body::Walk::Closed(members) = body.loop_walk_of(first, key) else {
+        return None;
+    };
+    let resolves = members.iter().all(|&he| {
+        body.half_edges.get(he).is_some_and(|half| {
+            body.edges.contains_key(half.edge)
+                && body
+                    .vertices
+                    .get(half.start)
+                    .is_some_and(|v| body.points.contains_key(v.point))
+        })
+    });
+    let listed = body
+        .faces
+        .get(record.face)
+        .is_some_and(|f| f.holds_loop(key));
+    (resolves && listed).then_some(CycleLoop {
+        body,
+        key,
+        record,
+        first,
+    })
+}
+
+/// [`prove_cycle`] for a loop a face record links: a torn one panics
+/// naming it (D2 row 4).
+#[track_caller]
+fn proven_cycle<'a, T: Real>(
+    body: &'a Body<T>,
+    key: LoopKey,
+    record: &'a Loop,
+    first: HalfEdgeKey,
+) -> CycleLoop<'a, T> {
+    prove_cycle(body, key, record, first).unwrap_or_else(|| body.torn_loop(key))
+}
+
+impl<T: Real> Body<T> {
+    /// **A loop met torn where every hop is a link**: panics naming the
+    /// hop that broke. The linked walk ([`Body::loop_members_linked`])
+    /// names a hop that does not resolve or leaves the loop, and each
+    /// member's point ([`Body::member_point`]) a vertex or point that does
+    /// not; what both pass is a face that does not list the loop.
     #[track_caller]
-    pub(crate) fn members(self) -> Vec<BoundaryMember<'a, T>> {
-        self.body.loop_members_linked(self.key, self.record)
+    pub(crate) fn torn_loop(&self, key: LoopKey) -> ! {
+        let record = linked(
+            &self.loops,
+            key,
+            EntityId::Loop,
+            EntityId::Loop(key),
+            "itself",
+        );
+        for member in self.loop_members_linked(key, record) {
+            let _ = self.member_point(&member);
+        }
+        unreachable!(
+            "loop {key:?} names face {:?}, which does not list it: {NAMES_ONLY_LIVE}; {}",
+            record.face, OPERATORS_KEEP_LINKS
+        )
     }
 }
 
@@ -548,6 +657,23 @@ pub enum NoCycle {
     Stale,
     /// The loop is a lone vertex: it bounds no area.
     Lone(VertexKey),
+    /// The loop is a cycle that does not walk: its claims walk does not
+    /// close, a record on it does not resolve, or its face does not list
+    /// it. A broken link, which a body every door keeps valid never
+    /// holds.
+    Torn,
+}
+
+/// What [`FaceView::area_loops_unchecked`] found where a face bounds no
+/// region it can read.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum AreaMiss {
+    /// The face has no outline.
+    NoOutline(NoOutline),
+    /// A loop of the face does not resolve or does not walk
+    /// ([`NoCycle::Torn`]), or a lone loop's vertex or point does not
+    /// resolve.
+    Torn(LoopKey),
 }
 
 /// One loop of a face as [`Body::unchecked_face_boundary`] reads it: a
@@ -692,21 +818,19 @@ impl<'a, T: Real> FaceView<'a, T> {
     /// a lone-vertex loop, outer or ring, answers nothing
     /// ([`BoundaryMember::half_edge`]'s disposition). A question about
     /// the region reads [`FaceView::area_loops`].
+    ///
+    /// # Panics
+    ///
+    /// Where a loop does not resolve or a cycle does not walk
+    /// ([`prove_cycle`]): a torn link (D2 row 4).
+    #[track_caller]
     pub fn cycle_loops(self) -> impl Iterator<Item = (CycleLoop<'a, T>, LoopRole)> + 'a {
         let body = self.body;
         self.loops().filter_map(move |(key, record, role)| {
             let LoopBoundary::Cycle { first } = record.boundary else {
                 return None;
             };
-            Some((
-                CycleLoop {
-                    body,
-                    key,
-                    record,
-                    first,
-                },
-                role,
-            ))
+            Some((proven_cycle(body, key, record, first), role))
         })
     }
 
@@ -715,45 +839,72 @@ impl<'a, T: Real> FaceView<'a, T> {
     /// each ring cycle ([`CycleLoop`]); a lone-vertex ring bounds no area
     /// and is yielded as a boundary point ([`AreaLoops::lone_rings`]); a
     /// lone-vertex outer loop is a face with no outline, [`NoOutline`].
-    /// Every hop is a link, and a torn one panics as
-    /// [`FaceView::loops`]' does; a cycle's walk is read by its readers
-    /// ([`CycleLoop::cycle`]).
     ///
     /// # Errors
     ///
     /// [`NoOutline`] where the outer loop is a lone vertex.
+    ///
+    /// # Panics
+    ///
+    /// Where a loop does not resolve or walk ([`AreaMiss::Torn`]): every
+    /// hop is a link (D2 row 4).
     #[track_caller]
     pub fn area_loops(self) -> Result<AreaLoops<'a, T>, NoOutline> {
+        match self.area_loops_unchecked() {
+            Ok(area) => Ok(area),
+            Err(AreaMiss::NoOutline(no)) => Err(no),
+            Err(AreaMiss::Torn(lk)) => {
+                // A loop the face lists that does not resolve panics
+                // naming the face's field that holds it.
+                let _ = self.loops().count();
+                self.body.torn_loop(lk)
+            }
+        }
+    }
+
+    /// [`FaceView::area_loops`] for a reader that reports a miss itself
+    /// (the raw measuring door over a body no validator certified): the
+    /// same reading, with a loop that does not resolve or walk answered
+    /// [`AreaMiss::Torn`] rather than met as a broken link. One walk
+    /// decides it, [`prove_cycle`]'s.
+    ///
+    /// # Errors
+    ///
+    /// [`AreaMiss`].
+    pub(crate) fn area_loops_unchecked(self) -> Result<AreaLoops<'a, T>, AreaMiss> {
         let body = self.body;
         let mut outer = None;
         let mut rings = Vec::new();
         let mut lone = Vec::new();
-        for (lk, l, role) in self.loops() {
+        for (role, lk) in self.record.loop_roles() {
+            let l = body.loops.get(lk).ok_or(AreaMiss::Torn(lk))?;
             match (l.boundary, role) {
                 (LoopBoundary::Cycle { first }, _) => {
-                    let cycle = CycleLoop {
-                        body,
-                        key: lk,
-                        record: l,
-                        first,
-                    };
+                    let cycle = prove_cycle(body, lk, l, first).ok_or(AreaMiss::Torn(lk))?;
                     match role {
                         LoopRole::Outer => outer = Some(cycle),
                         LoopRole::Ring(i) => rings.push((i, cycle)),
                     }
                 }
                 (LoopBoundary::Empty { vertex }, LoopRole::Outer) => {
-                    return Err(NoOutline {
+                    return Err(AreaMiss::NoOutline(NoOutline {
                         face: self.key,
                         r#loop: lk,
                         vertex,
+                    }));
+                }
+                (LoopBoundary::Empty { vertex }, LoopRole::Ring(_)) => {
+                    let point = body
+                        .vertices
+                        .get(vertex)
+                        .and_then(|v| body.points.get(v.point))
+                        .ok_or(AreaMiss::Torn(lk))?;
+                    lone.push(LoneRing {
+                        r#loop: lk,
+                        vertex,
+                        point: *point,
                     });
                 }
-                (LoopBoundary::Empty { vertex }, LoopRole::Ring(_)) => lone.push(LoneRing {
-                    r#loop: lk,
-                    vertex,
-                    point: body.linked_vertex_point(vertex, EntityId::Loop(lk), "boundary"),
-                }),
             }
         }
         let Some(outer) = outer else {
@@ -948,7 +1099,8 @@ impl<T: Real> Body<T> {
     /// **Loop `lk`, a key a caller passed, as a cycle**: the door for a
     /// per-loop reader handed a bare key ([`crate::point_in_loop`]).
     /// [`NoCycle::Stale`] where it does not resolve, [`NoCycle::Lone`]
-    /// where it is a lone vertex; a foreign key is not caught.
+    /// where it is a lone vertex, [`NoCycle::Torn`] where it does not walk
+    /// ([`prove_cycle`]); a foreign key is not caught.
     ///
     /// # Errors
     ///
@@ -956,12 +1108,9 @@ impl<T: Real> Body<T> {
     pub fn cycle_loop(&self, lk: LoopKey) -> Result<CycleLoop<'_, T>, NoCycle> {
         let record = self.loops.get(lk).ok_or(NoCycle::Stale)?;
         match record.boundary {
-            LoopBoundary::Cycle { first } => Ok(CycleLoop {
-                body: self,
-                key: lk,
-                record,
-                first,
-            }),
+            LoopBoundary::Cycle { first } => {
+                prove_cycle(self, lk, record, first).ok_or(NoCycle::Torn)
+            }
             LoopBoundary::Empty { vertex } => Err(NoCycle::Lone(vertex)),
         }
     }

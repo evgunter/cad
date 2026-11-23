@@ -531,8 +531,7 @@ pub(crate) fn contfp_decided<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`ContainError`] — a carrier-agreement escalation, or a loop this
-/// walk cannot read.
+/// [`ContainError`] — a carrier-agreement escalation.
 pub(crate) fn loop_circle<T: Decide>(
     r#loop: CycleLoop<'_, T>,
     band: Band,
@@ -1232,15 +1231,9 @@ pub(super) fn solid_err(e: crate::solid_contain::PointInSolidError) -> ContainEr
 fn loop_cycle_points<T: Decide>(
     lp: CycleLoop<'_, T>,
 ) -> Vec<(VertexKey, crate::entity::HalfEdgeKey, Point3<T>)> {
-    let body = lp.body();
-    lp.members()
+    lp.edges()
         .iter()
-        .map(|member| {
-            let Some(he) = member.half_edge() else {
-                unreachable!("a cycle loop's members are edges")
-            };
-            (member.vertex(), he, body.member_point(member))
-        })
+        .map(|m| (m.half.start, m.he, m.point))
         .collect()
 }
 

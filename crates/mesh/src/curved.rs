@@ -621,6 +621,9 @@ pub(crate) fn iso_rectangle_shape(
     use geom_brep::props::PropsError as P;
     let lp = body.cycle_loop(lk).map_err(|miss| match miss {
         topo::NoCycle::Stale => TessellateError::MissingEntity { what: "loop" },
+        topo::NoCycle::Torn => TessellateError::MissingEntity {
+            what: "a loop that does not walk",
+        },
         topo::NoCycle::Lone(_) => TessellateError::EmptyLoop { face: fk },
     })?;
     // `loop_edges` reports exactly the two states a flatten can reach,

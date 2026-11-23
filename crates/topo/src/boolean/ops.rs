@@ -7414,16 +7414,13 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
             return Err(lone());
         }
         for (lp, _) in area.cycles() {
-            for member in lp.members() {
-                let BoundaryMember::Edge {
-                    half: hd,
-                    ek: edge,
-                    edge: ed,
-                    ..
-                } = member
-                else {
-                    unreachable!("a cycle loop's members are edges")
-                };
+            for crate::live::EdgeMember {
+                half: hd,
+                ek: edge,
+                edge: ed,
+                ..
+            } in lp.edges()
+            {
                 let Some(curve) = body.edge_curve_linked(edge, ed).certified() else {
                     return Err(corrupt("cut-in: a boundary edge has no carrier"));
                 };
@@ -7635,10 +7632,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         let mut ends = [None, None];
         for (lp, _) in view.cycle_loops() {
             let lk = lp.key();
-            for member in lp.members() {
-                let BoundaryMember::Edge { he, half, .. } = member else {
-                    unreachable!("a cycle loop's members are edges")
-                };
+            for crate::live::EdgeMember { he, half, .. } in lp.edges() {
                 let start = half.start;
                 for (slot, v) in ends.iter_mut().zip([v_lo, v_hi]) {
                     if start == v {

@@ -21,7 +21,7 @@ use super::containment::{LoopContainment, point_in_loop};
 use crate::body::Body;
 use crate::chord_join::ring_representative;
 use crate::entity::{EntityId, LoopBoundary, LoopKey};
-use crate::live::{BoundaryMember, CycleLoop, NoCycle};
+use crate::live::{CycleLoop, EdgeMember, NoCycle};
 use crate::unresolved::Unresolved;
 use crate::validate::definitely_positive as positive;
 use crate::validate::{RingOuterVerdict, ring_outer_contact_about_as};
@@ -302,6 +302,7 @@ pub(super) fn outlines_disjoint<T: Decide>(
         Ok(lp) => Ok(Some(lp)),
         Err(NoCycle::Lone(_)) => Ok(None),
         Err(NoCycle::Stale) => Err(Torn(Unresolved::Record(EntityId::Loop(l)))),
+        Err(NoCycle::Torn) => Err(Torn(Unresolved::Walk(EntityId::Loop(l)))),
     };
     let (Some(a), Some(b)) = (cycle(a)?, cycle(b)?) else {
         return Ok(false);
@@ -346,38 +347,43 @@ fn conic<T: Real>(carrier: &geom::Curve3<T>) -> &dyn Conic<T> {
         .unwrap_or_else(|| unreachable!("an outline conic is a circle or an ellipse"))
 }
 
-/// A cycle's edges in walk order, as [`outlines_disjoint`] reads them.
-/// The section's body is mid-operation, where every record on the walk
-/// is a link ([`crate::live::OPERATORS_KEEP_LINKS`]), so a torn one
-/// panics where null scaffolding reads [`OutlineEdge::Undecided`].
+/// A cycle's edges in walk order, as [`outlines_disjoint`] reads them:
+/// null scaffolding, or a carrier nothing here decides, reads
+/// [`OutlineEdge::Undecided`]. The walk is the [`CycleLoop`]'s proven
+/// one; an edge's curve is a link ([`crate::live::OPERATORS_KEEP_LINKS`]).
 fn loop_edges<T: Decide>(lp: CycleLoop<'_, T>) -> Vec<OutlineEdge<T>> {
     let body = lp.body();
-    lp.members()
+    lp.edges()
         .iter()
-        .map(|member| {
-            let BoundaryMember::Edge { he, ek, edge, .. } = *member else {
-                unreachable!("a cycle loop's members are edges")
-            };
-            let Some(curve) = body.edge_curve_linked(ek, edge).certified() else {
-                return OutlineEdge::Undecided;
-            };
-            match *curve.carrier() {
-                geom::Curve3::Line(_) => OutlineEdge::Line(
-                    body.member_point(member),
-                    body.linked_vertex_point(
-                        body.proven_half_edge_end(he),
-                        EntityId::HalfEdge(he),
-                        "next",
+        .map(
+            |&EdgeMember {
+                 he,
+                 ek,
+                 edge,
+                 point,
+                 ..
+             }| {
+                let Some(curve) = body.edge_curve_linked(ek, edge).certified() else {
+                    return OutlineEdge::Undecided;
+                };
+                match *curve.carrier() {
+                    geom::Curve3::Line(_) => OutlineEdge::Line(
+                        point,
+                        body.linked_vertex_point(
+                            body.proven_half_edge_end(he),
+                            EntityId::HalfEdge(he),
+                            "next",
+                        ),
                     ),
-                ),
-                geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_) => {
-                    OutlineEdge::Conic(curve.carrier().clone())
+                    geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_) => {
+                        OutlineEdge::Conic(curve.carrier().clone())
+                    }
+                    geom::Curve3::Spiric { .. }
+                    | geom::Curve3::Nurbs(_)
+                    | geom::Curve3::Periodic(_) => OutlineEdge::Undecided,
                 }
-                geom::Curve3::Spiric { .. }
-                | geom::Curve3::Nurbs(_)
-                | geom::Curve3::Periodic(_) => OutlineEdge::Undecided,
-            }
-        })
+            },
+        )
         .collect()
 }
 

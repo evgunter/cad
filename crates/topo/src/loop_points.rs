@@ -100,14 +100,9 @@ impl PointCorners {
 }
 
 /// **A loop's corners, grouped by point key** ([`LoopCorners`]). A
-/// lone-vertex loop has none, and is no [`CycleLoop`].
-///
-/// # Panics
-///
-/// Where the loop's walk or a corner's vertex does not resolve: each is
-/// a link the loop's records hold (D2 row 4).
+/// lone-vertex loop has none, and is no [`CycleLoop`]; the handle's
+/// proof is that every corner's vertex resolves.
 #[must_use]
-#[track_caller]
 pub fn loop_corners<T: Real>(lp: CycleLoop<'_, T>) -> LoopCorners {
     let body = lp.body();
     let cycle = lp.cycle();
@@ -142,12 +137,7 @@ pub fn loop_corners<T: Real>(lp: CycleLoop<'_, T>) -> LoopCorners {
 
 /// **Whether a loop pinches**: passes one point key at two distinct
 /// vertices ([`LoopCorners::pinches`]).
-///
-/// # Panics
-///
-/// As [`loop_corners`].
 #[must_use]
-#[track_caller]
 pub fn loop_pinches<T: Real>(lp: CycleLoop<'_, T>) -> bool {
     loop_corners(lp).pinches()
 }
@@ -255,16 +245,53 @@ mod tests {
         assert!(!corners.pinches(), "one vertex met twice is no pinch");
     }
 
-    /// A torn cycle is a broken link, not a loop with no corners: the
-    /// walk panics naming the loop.
+    /// A loop key that misses, a cycle that does not walk and a corner
+    /// whose vertex is dead are each named at the door that hands out a
+    /// [`CycleLoop`] ([`Body::cycle_loop`](crate::Body::cycle_loop)),
+    /// never met inside the corners' walk.
     #[test]
-    #[should_panic(expected = "leaving loop")]
-    fn a_torn_cycle_panics() {
-        let p = prism::<f64>(&[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)], 1.0, Tol::witness());
-        let mut body = p.body;
-        let outer = body.faces[p.bottom_face].outer;
-        let cycle = body.loop_halves(outer).expect("the cap's cycle");
+    fn a_miss_is_named_at_the_door() {
+        use crate::NoCycle;
+        let fresh = || {
+            let p = prism::<f64>(&[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)], 1.0, Tol::witness());
+            let outer = p.body.faces[p.bottom_face].outer;
+            let cycle = p.body.loop_halves(outer).expect("the cap's cycle");
+            (p.body, outer, cycle)
+        };
+        let (mut body, outer, _) = fresh();
+        body.loops.remove(outer);
+        assert_eq!(
+            body.cycle_loop(outer).err(),
+            Some(NoCycle::Stale),
+            "a dead loop"
+        );
+        let (mut body, outer, cycle) = fresh();
+        let vertex = body.half_edges[cycle[1]].start;
+        body.vertices.remove(vertex);
+        assert_eq!(
+            body.cycle_loop(outer).err(),
+            Some(NoCycle::Torn),
+            "a dead corner vertex"
+        );
+        let (mut body, outer, cycle) = fresh();
         body.half_edges.remove(cycle[1]);
-        let _ = loop_corners(body.cycle_loop(outer).expect("a cycle"));
+        assert_eq!(
+            body.cycle_loop(outer).err(),
+            Some(NoCycle::Torn),
+            "a torn cycle"
+        );
+        let (mut body, outer, cycle) = fresh();
+        let other = body
+            .faces
+            .iter()
+            .map(|(_, f)| f.outer)
+            .find(|&l| l != outer)
+            .unwrap();
+        body.half_edges.get_mut(cycle[1]).unwrap().parent_loop = other;
+        assert_eq!(
+            body.cycle_loop(outer).err(),
+            Some(NoCycle::Torn),
+            "a member that claims another loop"
+        );
     }
 }

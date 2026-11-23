@@ -56,7 +56,7 @@ use slotmap::Key;
 use crate::body::Body;
 use crate::boolean::ContactRecords;
 use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, ShellKey, SolidKey, VertexKey};
-use crate::live::{AreaLoops, CycleLoop, FaceView, UncheckedLoop};
+use crate::live::{AreaLoops, AreaMiss, CycleLoop, FaceView};
 use crate::shell::{ShellError, Shelled};
 use crate::validate::ValidationError;
 
@@ -197,9 +197,10 @@ pub struct VolumeEnclosure<T: Real> {
 /// consumer (`mesh`'s shape door).
 #[derive(Clone, Debug, PartialEq)]
 pub enum LoopEdgesError {
-    /// A loop is empty or a referenced key fails to resolve —
-    /// tier-1/tier-2 scaffolding or corruption; the structural
-    /// validators own the diagnosis, this is the fail-loud surface.
+    /// A key the flattening reads past the loop's proven walk fails to
+    /// resolve (an edge's curve, a half-edge's mate) — corruption the
+    /// structural validators own the diagnosis of; this is the
+    /// fail-loud surface.
     Corrupt {
         /// What failed to resolve (static description).
         what: &'static str,
@@ -4162,8 +4163,11 @@ fn closed_form_about<U: Decide>(
 }
 
 /// The stored start vertex of the outer loop of the face `face`, a face
-/// the walk read out of the arena or a solid's record: every hop past
-/// the face is a link, and a miss panics naming its holder.
+/// the walk read out of the arena or a solid's record: a boundary point
+/// of the face, which a lone outer loop's vertex is too. Every hop past
+/// the face is a link, and a miss panics naming its holder; only the
+/// first hop of the walk is read, so a raw door's torn body panics here
+/// only where the face's first corner is torn.
 fn face_start<T: Decide>(body: &Body<T>, face: FaceKey) -> Point3<T> {
     use crate::entity::EntityId;
     let (outer, l) = body.proven_face(face).outer();
@@ -4919,17 +4923,19 @@ pub(crate) fn seam_region<T: Decide>(
     let mut half_edges = Vec::new();
     let mut i = 0;
     while let Some(&f) = members.get(i) {
-        let rec = face(f)?;
+        let view = body.face(f).ok_or(unresolved)?;
         let first = loops.len();
-        for (read, role) in body.unchecked_face_boundary(rec).zip(rec.loop_roles()) {
-            let hes = match read {
-                Ok(UncheckedLoop::Cycle(cycle)) => cycle,
-                // A lone ring bounds no area and has no edge to cross; a
-                // lone outer loop leaves the face no region to read.
-                Ok(UncheckedLoop::Lone(_)) if role.0.is_outer() => return Ok(None),
-                Ok(UncheckedLoop::Lone(_)) => continue,
-                Err(_) => return Err("a seam region walked a loop that does not close"),
-            };
+        // A face with no outline leaves the region unread; a lone ring
+        // bounds no area and holds no edge a seam crosses.
+        let area = match view.area_loops_unchecked() {
+            Ok(area) => area,
+            Err(AreaMiss::NoOutline(_)) => return Ok(None),
+            Err(AreaMiss::Torn(_)) => {
+                return Err("a seam region walked a loop that does not walk");
+            }
+        };
+        for (lp, _) in area.cycles() {
+            let hes = lp.cycle();
             let Ok(edges) = run_edges(body, &hes) else {
                 return Ok(None);
             };
@@ -4942,7 +4948,7 @@ pub(crate) fn seam_region<T: Decide>(
             loops.push(edges);
             half_edges.extend(hes);
         }
-        claims.push((rec.sense, first..loops.len()));
+        claims.push((view.sense(), first..loops.len()));
         i += 1;
     }
     let mut inside_of = Vec::with_capacity(half_edges.len());
@@ -5356,9 +5362,17 @@ fn quadrature_contribution<T: Real>(
 /// walking it, and this is the same half-edge cycle that walk reads —
 /// one flattening, not two. Its error type is its own
 /// ([`LoopEdgesError`]) so that a consumer across the crate boundary
-/// matches exactly the two states a flatten can reach, and a third
-/// arm added here is a compile error there rather than an
-/// `unreachable!`.
+/// matches exactly the states a flatten can reach, and an arm added
+/// here is a compile error there rather than an `unreachable!`. The
+/// loop's own walk is proven by the [`CycleLoop`] it is handed, so a
+/// torn loop is that handle's refusal ([`crate::NoCycle::Torn`]), never
+/// this one's.
+///
+/// # Errors
+///
+/// [`LoopEdgesError::Corrupt`] where an edge's curve or a half-edge's
+/// mate does not resolve; [`LoopEdgesError::NullScaffoldEdge`] for a
+/// null scaffolding edge.
 #[allow(clippy::type_complexity)]
 pub fn loop_edges<T: Decide>(
     lp: CycleLoop<'_, T>,
@@ -5443,22 +5457,19 @@ pub(crate) fn face_tips<T: Decide>(
     Ok(held)
 }
 
-/// [`FaceView::area_loops`], a face with no outline refused as
-/// [`MassPropsError::NoOutline`]. The raw door measures a body no
-/// validator has certified, so a loop that does not resolve or walk is
-/// read first ([`Body::unchecked_face_boundary`]) and refused
-/// [`MassPropsError::Corrupt`] rather than met as a broken link.
+/// The region `face` bounds ([`FaceView::area_loops`]), read as the raw
+/// door reads a body no validator has certified
+/// ([`FaceView::area_loops_unchecked`]): a face with no outline refused
+/// [`MassPropsError::NoOutline`], and a loop that does not resolve or
+/// walk refused [`MassPropsError::Corrupt`] rather than met as a broken
+/// link.
 fn area_of<T: Real>(face: FaceView<'_, T>) -> Result<AreaLoops<'_, T>, MassPropsError> {
-    if face
-        .body()
-        .unchecked_face_boundary(face.record())
-        .any(|read| read.is_err())
-    {
-        return Err(MassPropsError::Corrupt {
+    face.area_loops_unchecked().map_err(|miss| match miss {
+        AreaMiss::NoOutline(no) => MassPropsError::NoOutline(no),
+        AreaMiss::Torn(_) => MassPropsError::Corrupt {
             what: "a face's loop does not resolve or does not walk",
-        });
-    }
-    face.area_loops().map_err(MassPropsError::NoOutline)
+        },
+    })
 }
 
 /// The stored point of each vertex of `tips`.

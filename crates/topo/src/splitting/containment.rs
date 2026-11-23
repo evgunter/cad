@@ -656,12 +656,7 @@ pub(crate) const SCHEDULE: [Vec3<f64>; 16] = [
 
 /// Collects the loop's vertex points in cycle order.
 fn loop_points<T: Decide>(lp: CycleLoop<'_, T>) -> Result<Vec<Point3<T>>, PointInLoopError> {
-    let body = lp.body();
-    let points: Vec<Point3<T>> = lp
-        .members()
-        .iter()
-        .map(|member| body.member_point(member))
-        .collect();
+    let points: Vec<Point3<T>> = lp.edges().iter().map(|member| member.point).collect();
     if points.len() < 2 {
         return Err(PointInLoopError::CorruptLoop { r#loop: lp.key() });
     }
@@ -680,8 +675,8 @@ fn loop_points<T: Decide>(lp: CycleLoop<'_, T>) -> Result<Vec<Point3<T>>, PointI
 ///
 /// # Errors
 ///
-/// [`PointInLoopError`] — escalation, ray exhaustion, or an
-/// unwalkable loop.
+/// [`PointInLoopError`] — escalation, ray exhaustion, or a loop of
+/// fewer than two corners.
 pub(crate) fn point_in_vertex_polygon<T: Decide>(
     lp: CycleLoop<'_, T>,
     normal: Vec3<T>,
@@ -1313,9 +1308,8 @@ fn step_cover<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`PointInLoopError::LoneLoop`] for a lone-vertex loop;
-/// [`PointInLoopError::CorruptLoop`] for a loop that does not walk, a
-/// conic wound past a period, or a whole-turn SCAFFOLD conic;
+/// [`PointInLoopError::CorruptLoop`] for an edge with no cover, a conic
+/// wound past a period, or a whole-turn SCAFFOLD conic;
 /// [`PointInLoopError::Escalated`] for an ellipse's span the band cannot
 /// place, or a scaffold conic's span in the band.
 pub(crate) fn carrier_loop<T: Decide>(
@@ -1675,9 +1669,11 @@ enum Boundary<'a> {
 ///
 /// # Errors
 ///
-/// [`PointInLoopError`] — an escalation, exhaustion, an unwalkable
-/// loop, a spiric or spline edge whose reading ran out, or a broken
-/// precondition ([`PointInLoopError::OffPlane`]).
+/// [`PointInLoopError`] — an escalation, exhaustion, a loop key that
+/// does not resolve or does not walk ([`PointInLoopError::CorruptLoop`]),
+/// a lone-vertex loop ([`PointInLoopError::LoneLoop`]), a spiric or
+/// spline edge whose reading ran out, or a broken precondition
+/// ([`PointInLoopError::OffPlane`]).
 pub fn point_in_loop<T: Decide>(
     body: &Body<T>,
     r#loop: LoopKey,
@@ -1686,7 +1682,7 @@ pub fn point_in_loop<T: Decide>(
     band: Band,
 ) -> Result<LoopContainment, PointInLoopError> {
     let lp = body.cycle_loop(r#loop).map_err(|miss| match miss {
-        NoCycle::Stale => PointInLoopError::CorruptLoop { r#loop },
+        NoCycle::Stale | NoCycle::Torn => PointInLoopError::CorruptLoop { r#loop },
         NoCycle::Lone(_) => PointInLoopError::LoneLoop { r#loop },
     })?;
     certify_plane(lp, normal, q, band)?;
@@ -1703,7 +1699,8 @@ pub fn point_in_loop<T: Decide>(
 ///
 /// # Errors
 ///
-/// As [`point_in_loop`], but never [`PointInLoopError::OffPlane`].
+/// As [`point_in_loop`], but never [`PointInLoopError::OffPlane`], and
+/// never a lone or an unwalkable loop, which the [`CycleLoop`] rules out.
 pub(crate) fn point_in_loop_projected<T: Decide>(
     cycle: CycleLoop<'_, T>,
     normal: Vec3<T>,

@@ -39,19 +39,24 @@ fn raw_door_on_a_claimant_tear_refuses_rather_than_panics() {
 }
 
 /// Claim 5: public `props::loop_edges` on a torn walk. Base answered
-/// `LoopEdgesError::Corrupt { "broken half-edge cycle" }`; this asserts
-/// it still refuses rather than panics.
+/// `LoopEdgesError::Corrupt { "broken half-edge cycle" }`; the torn walk
+/// is now refused, typed, at the door that hands out the loop
+/// (`NoCycle::Torn`), so `loop_edges` never meets it and nothing panics.
 #[test]
 fn loop_edges_on_a_torn_walk_refuses() {
     let mut body = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol());
     let lk = body.faces().next().unwrap().1.outer;
     let cycle = body.loop_halves(lk).unwrap();
     body.half_edges.remove(cycle[1]);
-    let lp = body.cycle_loop(lk).expect("the record is still a Cycle");
     let got = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        crate::props::loop_edges(lp).map(|_| ())
+        body.cycle_loop(lk)
+            .map(|lp| crate::props::loop_edges(lp).map(|_| ()))
     }));
-    assert!(matches!(got, Ok(Err(_))), "panicked or answered: {:?}", got.is_err());
+    assert!(
+        matches!(got, Ok(Err(crate::NoCycle::Torn))),
+        "panicked or answered: {:?}",
+        got.as_ref().map(|r| r.as_ref().err())
+    );
 }
 
 /// Claim 2: the public measure reads past a lone ring.
