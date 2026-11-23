@@ -393,16 +393,10 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
                 body: 0,
             }),
         },
-        // A finding's assertion, authored as the kernel's value: the
-        // fixture's own output read as itself at both references.
+        // A finding's assertion, as the kernel minted it: the touching
+        // blocks' rest, in a document of its own.
         SessionOp::AssertQuieting {
-            quieting: pncad::document::Quieting {
-                measure: pncad::document::MeasureVerb::Distance,
-                references: [
-                    pncad::document::QuietingRef::Read(pncad::document::VarId::WORLD),
-                    pncad::document::QuietingRef::Read(pncad::document::VarId::WORLD),
-                ],
-            },
+            quieting: minted_rest(),
         },
         // A value claim, the op's two-node arm: the measure and the
         // assertion over its output.
@@ -416,6 +410,31 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             },
         },
     ]
+}
+
+/// **The assertion two touching blocks' rest carries**, as the kernel
+/// minted it ([`crate::offers::blocks`]); checked once per process.
+fn minted_rest() -> pncad::document::Quieting {
+    static MINTED: std::sync::OnceLock<pncad::document::Quieting> = std::sync::OnceLock::new();
+    MINTED
+        .get_or_init(|| {
+            let session =
+                crate::offers::blocks(Tol::witness(), viewer::test_support::CLEARANCE_SIDE);
+            session
+                .checks()
+                .expect("the registry ran")
+                .findings
+                .iter()
+                .find_map(|f| match &f.evidence {
+                    pncad::document::CheckEvidence::UnprovenCoincidence {
+                        quieting: Some(quieting),
+                        ..
+                    } => Some(quieting.clone()),
+                    _ => None,
+                })
+                .expect("the blocks' rest carries its claim")
+        })
+        .clone()
 }
 
 /// The answers, restated by hand: `(index, permitted mid-drag)`.

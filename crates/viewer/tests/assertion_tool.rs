@@ -251,8 +251,8 @@ fn minted(session: &DocSession) -> [pncad::document::QuietingRef; 2] {
     else {
         panic!("the walls' contact carries the assertion that quiets it")
     };
-    assert_eq!(quieting.measure, MeasureVerb::Gap, "a rest is a Gap");
-    quieting.references
+    assert_eq!(quieting.measure(), MeasureVerb::Gap, "a rest is a Gap");
+    quieting.references().clone()
 }
 
 /// **A value claim is the kernel's measure and assertion pair**, bit

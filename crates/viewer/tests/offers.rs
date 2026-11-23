@@ -328,9 +328,9 @@ fn an_interferences_lead_seats_its_pair_and_the_persons_bound_quiets_it() {
     let by = Speaker::of(session.committed_doc());
     let line = tool.line(by);
     for reference in &pair.references {
-        let pncad::document::QuietingRef::Entity { name, .. } = reference else {
-            panic!("a face is a cell's reference: {reference:?}")
-        };
+        let name = reference
+            .name()
+            .unwrap_or_else(|| panic!("a face is a cell's reference: {reference:?}"));
         let said = pncad::document::sentence!(by.name(name)).to_string();
         assert!(line.contains(&said), "the tool says {said}: {line}");
     }

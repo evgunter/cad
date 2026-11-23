@@ -1027,7 +1027,7 @@ impl AssertionTool {
         let mut events = Vec::new();
         for pick in &mut self.picks {
             if let Some(AssertedPick::Minted(reference)) = pick
-                && doc.var(minted_read(reference)).is_none()
+                && doc.var(reference.read()).is_none()
             {
                 *pick = None;
             }
@@ -1134,22 +1134,12 @@ impl AssertionTool {
     }
 }
 
-/// The variable a minted reference reads: the body read its cell is
-/// named in, or the variable read as it is.
-fn minted_read(reference: &pncad::document::QuietingRef) -> pncad::document::VarId {
-    use pncad::document::QuietingRef as R;
-    match reference {
-        R::Entity { read, .. } | R::Read(read) => *read,
-    }
-}
-
 /// A minted seat as the panel says it: its cell by its name, or the
 /// variable as `by` reads it.
 fn minted_said(reference: &pncad::document::QuietingRef, by: Speaker<'_>) -> String {
-    use pncad::document::QuietingRef as R;
-    match reference {
-        R::Entity { name, .. } => pncad::document::sentence!(by.name(name)).to_string(),
-        R::Read(var) => by.read(*var).to_string(),
+    match reference.name() {
+        Some(name) => pncad::document::sentence!(by.name(name)).to_string(),
+        None => by.read(reference.read()).to_string(),
     }
 }
 
