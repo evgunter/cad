@@ -13,7 +13,7 @@ Filed by QML T4 (`onecopy/refusal-standing`) on the orchestrator's ruling (c), 2
 
 T4 pins four:
 - `ray_walk::on_boundary`;
-- `boolean::region::Region::on_boundary`, by a stub region over the production method;
+- `region::Region::on_boundary`, by a stub region over the production method;
 - `boolean::sectors::rays_within`;
 - `chart_region::polygon_relation`.
 
@@ -61,9 +61,9 @@ A pin's name is checked by the gate (it must be a `#[test]` or `#[rstest]` fn); 
 The 19 beyond the seven above (18 at filing, and `loop_circle` since), each with the fixture its pin needs (a kept rung read ahead of an answering one, through the production function):
 - `geom-brep` `chart_singularity::holds`: a chart point whose first bounding reading is in band of the singular point, a later one decided outside.
 - `geom-brep` `edge_nurbs::measured_ends`: a spline edge whose first end measures in band, its second decided.
-- `topo` `boolean::contain::loop_circle` (PR 6750, after filing): a loop of three arcs, the second in band of the first's circle and the third decided off it (`None` past the kept arc).
+- `topo` `contain::loop_circle` (PR 6750, after filing): a loop of three arcs, the second in band of the first's circle and the third decided off it (`None` past the kept arc).
 - `topo` `boolean::fate::rehome`: a ring whose first vertex reads in band of the run's loop, a later one decided.
-- `topo` `boolean::rim_wedge::rim_exists` and `departures` (the abut climb): rim ends, one pair in band ahead of one that abuts.
+- `topo` `rim_wedge::rim_exists` and `departures` (the abut climb): rim ends, one pair in band ahead of one that abuts.
 - `topo` `boolean::sectors::crescent`: a sector pair whose first bound pair is in band, a later one opening a crescent.
 - `topo` `census::arc_interiors_meet`: two interiors whose first piece reads in band and a later one meets (its own `climb_evidence` over ordered steps). `a_lens_across_the_band_is_never_read_apart` reaches it but is not decided there (a site-restricted mutant leaves it green).
 - `topo` `link::place`: a link whose first piece reads in band ahead of a placing one. `a_degenerate_note_outranks_a_piece_in_band` reads `unread_or_rest`, not `place`.

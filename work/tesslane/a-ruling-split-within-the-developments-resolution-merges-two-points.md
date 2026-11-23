@@ -2,8 +2,9 @@
 id: a-ruling-split-within-the-developments-resolution-merges-two-points
 kind: issue
 title: a cone face with two points of one ruling closer than its development resolves refuses DevelopedMerge
-status: open
+status: closed
 opened: 2026-11-17
+closed: 2026-11-17
 priority: P1
 cost: M
 ---
@@ -48,19 +49,46 @@ radius `r / sin α` is cut to 27 significant bits and its direction to 26,
 so every product is exact and a ruling's points lie on one exact line
 through the apex, which is the rule that keeps a triangle off one ruling.
 Two points of one ruling whose slant radii fall in one 27-bit bin develop
-to one point, and `trimmed::developed_merge` refuses the face, since the
+to one point, and the lane refused the face before its first attempt, since the
 CDT would hold two mesh vertices as one. The bin is a length along the
 ruling of up to `2⁻²⁷·r / sin α`, which grows as the cone flattens to a
 cylinder: about `8.5·10⁻⁵` at α = 0.01° and radius 2.
 
-Pinned: `split_rulings::a_draft_cone_ruling_split_within_the_developments_resolution_refuses`
-(default ε) and
-`split_rulings::a_ruling_split_within_the_developments_resolution_refuses`
-(ε `10⁻¹²`).
+Pinned while it was open; the rows it became are under Closed, below.
 
 ## The cure
 
 Its cure is specified in
 `work/tesslane/a-run-of-ruling-points-the-development-merges-is-re-split-after-the-triangulation.md`.
-The strip unit (`a-ruled-face-is-meshed-as-a-strip`, parked on Ev's
-answer) would take these faces out of the development altogether.
+Unit 4c (`a-ruled-face-with-a-split-side-meshes-at-the-density-of-the-face-without-it`),
+which writes a split-ruling rectangle by walking its rows, takes those
+faces out of the development altogether.
+
+## Closed (2026-11-17)
+
+By `a-run-of-ruling-points-the-development-merges-is-re-split-after-the-triangulation`:
+the chart lane holds a run of consecutive ruling points its development
+merges as one vertex of the triangulation and tells them apart again
+when it emits (`trimmed::Run`).
+
+- **What it reaches.** Every cell above: the wall and the solid at
+  half-angles 0.01° to 26.6°, full and half turns, a split beside either
+  end of a cone ruling, two and three splits beside each other, δ 0.1,
+  0.01 and 0.001. Of 7480 such cells at the default ε, the 1296 that
+  refused `DevelopedMerge` mesh, pass `check_mesh` and are the body's;
+  at ε `10⁻¹²`, the 1479 that refused mesh (516 of them on the 0.1°
+  bodies, whose volume is not computable there, so it is not read). The
+  pins are meshing rows: `split_rulings::a_run_of_ruling_points_the_development_merges_meshes`,
+  its grid `every_run_of_a_draft_cones_rulings_meshes`,
+  `a_draft_cone_ruling_split_within_the_developments_resolution_meshes`
+  and `a_frustum_seam_split_within_the_developments_resolution_meshes`.
+- **What it leaves refusing `DevelopedMerge`**: a merge that is no run.
+  A point merged with the apex and points of two sides or two loops
+  (unit rows, `trimmed`'s `a_run_is_read_from_the_polygons_order`; no
+  body builds either), and a ruling side wholly inside the cut
+  (`split_rulings::a_cone_band_shorter_than_the_developments_resolution_refuses`).
+- **What it found beside it**:
+  `a-run-anchored-on-a-needle-triangle-makes-triangles-f64-cannot-wind`,
+  `a-planar-face-makes-a-triangle-of-three-close-points-of-one-straight-edge`,
+  `a-rulings-end-vertex-read-through-its-rims-image-is-off-the-rulings-exact-line`.
+

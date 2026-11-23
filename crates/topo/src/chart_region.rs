@@ -138,9 +138,11 @@
 //! (edge index, advance). Every decision goes through a named
 //! `decide` row with a `Margin` door (no `decide_flagged` site
 //! exists in this module); each row's metering derivation lives at
-//! its call site. Three-outcome honesty everywhere: definite margins
-//! walk on, exact zeros take their stated branch, the in-band residue
-//! escalates typed.
+//! its call site. Three-outcome honesty everywhere: a definite margin
+//! walks on where its row passes that sign, and a band-decided zero
+//! takes its stated branch. A row that cannot use a decided sign refuses
+//! it through its gate (`decide_positive`, `decide_nonzero`), which names
+//! that sign. The in-band residue escalates typed.
 
 use geom::Surface;
 use geom_core::k_stats::{Magnitude, decide_magnitude};
@@ -155,7 +157,7 @@ use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, LoopKey};
 use crate::live::BoundaryMember;
 use crate::null::CurveGeom;
 use crate::ray_walk::{self, ParityRows, RayFault};
-use crate::validate::decide;
+use crate::validate::{decide, decide_nonzero, decide_positive};
 
 /// The certified overlap answer (both outcomes are *definite*; every
 /// non-definite configuration is a typed error).
@@ -640,7 +642,7 @@ impl std::error::Error for ChartRegionError {}
 /// scalar with a bracket, a [`Dual`](geom_core::Dual) included, and
 /// no bound on a whole function can say *"this arm certifies, the rest
 /// does not"*; so the passes that run at both kinds of scalar take the
-/// door as `Option<RegionLane<T>>`, and `None` is the arm's own typed
+/// door as `Option<T::RegionLane>`, and `None` is the arm's own typed
 /// refusal ([`crate::ValidationError::CensusLaneUnsupported`] at the
 /// two reporting arms, a `false` at the crossing rung's backing
 /// consult) rather than a silent skip.
@@ -674,21 +676,18 @@ impl std::error::Error for ChartRegionError {}
 /// CertifiedBounds` whenever `T` is, so the constructor is there for
 /// it.
 ///
-/// A scalar that may not certify cannot hold one — the constructor's
-/// `impl` block is bounded on the right, so the value cannot be
-/// written, let alone handed to the census:
+/// A scalar that does not certify has no such type
+/// ([`crate::QuadLane`]'s paragraph), and the census holds
+/// [`crate::AtRestPolicy::RegionLane`] with no values there:
 ///
-/// ```compile_fail,E0599
+/// ```compile_fail,E0277
 /// use geom_core::Dual64;
 /// use topo::RegionLane;
 /// let _ = RegionLane::<Dual64>::certified();
 /// ```
-///
-/// Why the code is `E0599`, and what the fence does not check:
-/// [`crate::QuadLane`]'s paragraph.
 #[derive(Clone, Copy)]
 #[allow(clippy::type_complexity)]
-pub struct RegionLane<T: Decide> {
+pub struct RegionLane<T: geom_core::Certifies> {
     /// [`chart_region_overlap`], and nothing else can be written here
     /// (`wiring_rows` pins the pointer).
     chart_overlap:
@@ -707,7 +706,7 @@ pub struct RegionLane<T: Decide> {
     ) -> Result<ChartOverlap, ChartRegionError>,
 }
 
-impl<T: Decide + CertifiedBounds> RegionLane<T> {
+impl<T: geom_core::Certifies + CertifiedBounds> RegionLane<T> {
     /// The certified chart-region doors — the whole inventory of this
     /// value, and the only constructor there is.
     #[must_use]
@@ -731,14 +730,67 @@ impl<T: Decide + CertifiedBounds> RegionLane<T> {
     }
 }
 
-impl<T: Decide> RegionLane<T> {
-    /// The structural door, reached by the census's conformal face-pair
-    /// arm.
-    ///
-    /// # Errors
-    ///
-    /// As [`chart_region_overlap`].
-    pub(crate) fn chart_overlap(
+/// **A [`RegionLane`] as a pass that runs at every scalar holds it**:
+/// the lane at a scalar that certifies, [`geom_core::NoLane`] (no
+/// values) at one that does not (`geom-core` README, DL5.3). Sealed: the lane and
+/// `NoLane` are its only implementors, so a pass that holds one holds
+/// the value of the lane's one constructor or nothing. In the block
+/// below every method is written out, so the seal is what refuses it:
+///
+/// ```compile_fail,E0277
+/// use geom_core::Band;
+/// use topo::{Body, CarrierPremise, ChartOverlap, ChartRegionError, FaceKey};
+/// #[derive(Clone, Copy)]
+/// struct Mine;
+/// impl topo::RegionLaneOf<f64> for Mine {
+///     fn chart_overlap(
+///         self,
+///         _a: &Body<f64>,
+///         _fa: FaceKey,
+///         _b: &Body<f64>,
+///         _fb: FaceKey,
+///         _band: Band,
+///     ) -> Result<ChartOverlap, ChartRegionError> {
+///         unimplemented!()
+///     }
+///     fn declared_overlap(
+///         self,
+///         _a: &Body<f64>,
+///         _fa: FaceKey,
+///         _b: &Body<f64>,
+///         _fb: FaceKey,
+///         _premise: CarrierPremise,
+///         _band: Band,
+///     ) -> Result<ChartOverlap, ChartRegionError> {
+///         unimplemented!()
+///     }
+/// }
+/// ```
+pub trait RegionLaneOf<T: Decide>: crate::lane_seal::Sealed + Copy + Send + Sync {
+    /// The chart-region overlap of two faces (`chart_region_overlap`).
+    fn chart_overlap(
+        self,
+        body_a: &Body<T>,
+        face_a: FaceKey,
+        body_b: &Body<T>,
+        face_b: FaceKey,
+        band: Band,
+    ) -> Result<ChartOverlap, ChartRegionError>;
+
+    /// The overlap of a pair declared on one carrier (`glued_pair_overlap`).
+    fn declared_overlap(
+        self,
+        body_a: &Body<T>,
+        face_a: FaceKey,
+        body_b: &Body<T>,
+        face_b: FaceKey,
+        premise: CarrierPremise,
+        band: Band,
+    ) -> Result<ChartOverlap, ChartRegionError>;
+}
+
+impl<T: geom_core::Certifies> RegionLaneOf<T> for RegionLane<T> {
+    fn chart_overlap(
         self,
         body_a: &Body<T>,
         face_a: FaceKey,
@@ -749,13 +801,7 @@ impl<T: Decide> RegionLane<T> {
         (self.chart_overlap)(body_a, face_a, body_b, face_b, band)
     }
 
-    /// The declared-pair door, reached by the census's confirm pass and
-    /// the crossing rung's backing consult.
-    ///
-    /// # Errors
-    ///
-    /// As [`glued_pair_overlap`].
-    pub(crate) fn declared_overlap(
+    fn declared_overlap(
         self,
         body_a: &Body<T>,
         face_a: FaceKey,
@@ -765,6 +811,31 @@ impl<T: Decide> RegionLane<T> {
         band: Band,
     ) -> Result<ChartOverlap, ChartRegionError> {
         (self.declared_overlap)(body_a, face_a, body_b, face_b, premise, band)
+    }
+}
+
+impl<T: Decide> RegionLaneOf<T> for geom_core::NoLane {
+    fn chart_overlap(
+        self,
+        _body_a: &Body<T>,
+        _face_a: FaceKey,
+        _body_b: &Body<T>,
+        _face_b: FaceKey,
+        _band: Band,
+    ) -> Result<ChartOverlap, ChartRegionError> {
+        match self {}
+    }
+
+    fn declared_overlap(
+        self,
+        _body_a: &Body<T>,
+        _face_a: FaceKey,
+        _body_b: &Body<T>,
+        _face_b: FaceKey,
+        _premise: CarrierPremise,
+        _band: Band,
+    ) -> Result<ChartOverlap, ChartRegionError> {
+        match self {}
     }
 }
 
@@ -784,7 +855,7 @@ mod wiring_rows {
 
     /// `Ok(())` when both fields hold their door; otherwise the name of
     /// the first field that does not, so a red says which pointer moved.
-    fn holds_the_certified_region_doors<T: super::Decide + geom_core::CertifiedBounds>()
+    fn holds_the_certified_region_doors<T: geom_core::Certifies + geom_core::CertifiedBounds>()
     -> Result<(), &'static str> {
         let lane = RegionLane::<T>::certified();
         if !std::ptr::fn_addr_eq(
@@ -839,24 +910,6 @@ mod wiring_rows {
             Ok(()),
             "`RegionLane::<Interval>::certified()` holds something other than the two doors"
         );
-    }
-}
-
-/// The diagnostic for a DEFINITE margin whose outcome is nevertheless
-/// uncertifiable (the conservative-deduction escalations): the margin
-/// was validly posed and classified — `MarginKind::Invalid` would
-/// claim otherwise — so the diag echoes the classified value itself
-/// (its conservative bracket end), named to its row.
-fn definite_diag<T: Bounds>(
-    band: Band,
-    predicate: &'static str,
-    margin: Margin<T>,
-) -> Indeterminate {
-    Indeterminate {
-        margin: geom_core::MarginDiag::value(margin.value().lo()),
-        band,
-        predicate: Some(predicate),
-        terminal_sliver: false,
     }
 }
 
@@ -1268,7 +1321,10 @@ fn plane_frame<T: Decide>(
     face: FaceKey,
 ) -> Result<(geom_core::Point3<T>, geom_core::Vec3<T>), ChartRegionError> {
     match face_surface(body, face)? {
-        Surface::Plane { origin, normal, .. } => Ok((*origin, *normal)),
+        Surface::Plane { frame, .. } => {
+            let (origin, normal) = (frame.origin(), frame.axis());
+            Ok((origin, normal))
+        }
         _ => Err(ChartRegionError::Corrupt),
     }
 }
@@ -1543,7 +1599,7 @@ fn cyl_frame<T: Decide>(
 /// of that reaches this arm, and the reason is worth naming exactly,
 /// because it is no longer the schedule. The schedule's completion is
 /// a decomposition of the CHART plus a certificate from
-/// [`crate::boolean::contfp`], and the decomposition transfers to
+/// [`crate::contain::contfp`], and the decomposition transfers to
 /// `(θ·r, z)` unchanged — the blocker is the certificate: `contfp`
 /// requires the query point already on the PLANE of the face, and a
 /// cylinder pair has no plane to put it on. What this arm needs is
@@ -1638,8 +1694,8 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
     for (body, face) in [(body_a, face_a), (body_b, face_b)] {
         let cover = pair_cover(body, face, band)?;
         for frame in [a, b] {
-            let (lo, hi) = cover.range_along(frame.axis);
-            let base = (frame.origin - geom_core::Point3::origin()).dot(frame.axis);
+            let (lo, hi) = cover.range_along(frame.axis());
+            let base = (frame.origin() - geom_core::Point3::origin()).dot(frame.axis());
             reach = reach.max((lo - base).abs()).max((hi - base).abs());
         }
     }
@@ -1667,48 +1723,39 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
     norm_gate(
         "chart_region_cyl_tilt",
         Margin::levered(
-            a.axis.cross(b.axis).norm(),
+            a.axis().cross(b.axis()).norm(),
             // Unsourced lever: `hyp`, √(reach² + r_max²) from the boundary vertices' axial reach
             // and the larger radius; no extent read computes it.
             geom_core::Lever::unsourced(hyp),
         ),
     )?;
-    let perp_a = a.axis_line().distance(b.origin);
-    let perp_b = b.axis_line().distance(a.origin);
+    let perp_a = a.axis_line().distance(b.origin());
+    let perp_b = b.axis_line().distance(a.origin());
     norm_gate("chart_region_cyl_offset", Margin::of(perp_a.max(perp_b)))?;
 
     // --- The transfer parameters (doc above). The sense margin is the
     //     axial-direction cosine LEVERED BY `hyp`: metres of travel at
     //     the pair's own extent per unit axial step, so the sign read
-    //     goes through the metres door with an honest length.
-    let sigma: T = match decide(
+    //     goes through the metres door with an honest length. With unit
+    //     axes, (a·b)² + |a×b|² = 1, so `hyp` is at most
+    //     √(ε² + ε_gate²) when this row and the tilt gate both decide
+    //     Zero. Because `hyp ≥ r_max`, that happens only for a pair
+    //     smaller than the band, and the Zero it decides is honest.
+    let sigma: T = decide_nonzero(
         "chart_region_cyl_axis_sense",
         Margin::levered(
-            a.axis.dot(b.axis),
+            a.axis().dot(b.axis()),
             // Unsourced lever: `hyp`, √(reach² + r_max²) from the boundary vertices' axial reach
             // and the larger radius; no extent read computes it.
             geom_core::Lever::unsourced(hyp),
         ),
         band,
-    ) {
-        Ok(sense) => match sense.nonzero() {
-            Some(side) => side.unit(),
-            // A zero-band axis dot contradicts the tilt gate's Zero (the
-            // dot of near-parallel units is near ±1): poisoned input.
-            None => {
-                return Err(ChartRegionError::Escalated(Indeterminate {
-                    margin: geom_core::MarginDiag::INVALID,
-                    band,
-                    predicate: Some("chart_region_cyl_axis_sense"),
-                    terminal_sliver: false,
-                }));
-            }
-        },
-        Err(diag) => return Err(ChartRegionError::Escalated(diag)),
-    };
+    )
+    .map_err(ChartRegionError::Escalated)?
+    .unit();
     let w_a = a.v_ref();
-    let delta = b.u_ref.dot(w_a).atan2(b.u_ref.dot(a.u_ref));
-    let c = a.height(b.origin);
+    let delta = b.u_ref().dot(w_a).atan2(b.u_ref().dot(a.u_ref()));
+    let c = a.height(b.origin());
 
     // --- Extraction (each face read in its OWN minted chart). ---
     let surface_a = face_surface(body_a, face_a)?.clone();
@@ -2002,15 +2049,9 @@ fn band_overlap<T: Decide + Bounds>(
         }
     }
     let area_margin = Margin::over_lever(net_2a, tot_p);
-    match decide("chart_region_cyl_band_area", area_margin, band) {
-        Ok(Sign::Positive) => Ok(ChartOverlap::PositiveArea),
-        Ok(_) => Err(ChartRegionError::Escalated(definite_diag(
-            band,
-            "chart_region_cyl_band_area",
-            area_margin,
-        ))),
-        Err(diag) => Err(ChartRegionError::Escalated(diag)),
-    }
+    decide_positive("chart_region_cyl_band_area", area_margin, band)
+        .map(|()| ChartOverlap::PositiveArea)
+        .map_err(ChartRegionError::Escalated)
 }
 
 /// **The interior-witness rung** — `true` when the candidate schedule
@@ -2124,24 +2165,20 @@ fn interior_witness<T: Decide + Bounds>(
     if premise == CarrierPremise::InBand {
         return WitnessOutcome::Declined;
     }
-    let Surface::Plane {
-        origin,
-        normal,
-        u_ref,
-    } = *carrier
-    else {
+    let Surface::Plane { frame } = *carrier else {
         return WitnessOutcome::Declined;
     };
+    let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
     let v_ref = normal.cross(u_ref);
     let Ok((_, normal_b)) = plane_frame(body_b, face_b) else {
         return WitnessOutcome::Declined;
     };
-    let inside = |body: &Body<T>, face: FaceKey, n, q| match crate::boolean::contfp(
+    let inside = |body: &Body<T>, face: FaceKey, n, q| match crate::contain::contfp(
         body, face, n, q, band,
     ) {
-        Ok(at) => at == crate::boolean::FaceContainment::In,
-        Err(crate::boolean::ContainError::StaleFace(face)) => {
-            crate::boolean::driver_face_stale(face)
+        Ok(at) => at == crate::contain::FaceContainment::In,
+        Err(crate::contain::ContainError::StaleFace(face)) => {
+            crate::contain::driver_face_stale(face)
         }
         Err(_) => false,
     };
@@ -3630,17 +3667,8 @@ fn intersection_pieces<T: Decide + Bounds>(
             }
             let edge_len = (poly[(ei + 1) % poly.len()] - poly[ei]).norm();
             let sep = Margin::metered(fj - fi, InfSpeed::new(edge_len));
-            match decide("chart_region_cross_order", sep, band) {
-                Ok(Sign::Positive) => {}
-                Ok(_) => {
-                    return Err(ChartRegionError::Escalated(definite_diag(
-                        band,
-                        "chart_region_cross_order",
-                        sep,
-                    )));
-                }
-                Err(diag) => return Err(ChartRegionError::Escalated(diag)),
-            }
+            decide_positive("chart_region_cross_order", sep, band)
+                .map_err(ChartRegionError::Escalated)?;
         }
         Ok(idx)
     };
@@ -3851,10 +3879,10 @@ fn overlap_of_regions<T: Decide + Bounds>(
     // here (a ring deduction may legitimately drive this one
     // negative), and one K row each.
     //
-    // Positive certifies; an exact Zero or a definite Negative after
+    // Positive certifies; a band-decided Zero or a definite Negative after
     // the conservative ring deduction cannot certify EITHER direction
-    // (the region exists; only its hole-adjusted area is unresolved)
-    // and escalates typed.
+    // (the region exists; only its hole-adjusted area is unresolved),
+    // so the positive gate rejects it with the sign it decided.
     // The mean width of the METRED CHART region. On an exact-arm
     // chart (plane, cylinder) that is the model region's mean width;
     // on a bounded-arm chart it is a reading on the contraction, and
@@ -3862,20 +3890,9 @@ fn overlap_of_regions<T: Decide + Bounds>(
     // [`ChartOverlap::PositiveArea`] — the claim is written to what
     // this margin establishes, not past it.
     let area_margin = Margin::over_lever(net_2a, tot_p);
-    match decide("chart_region_area", area_margin, band) {
-        Ok(Sign::Positive) => Ok(ChartOverlap::PositiveArea),
-        // A definite Zero/Negative here is NOT an invalid question
-        // (union fix U5: `MarginKind::Invalid` means never-posed —
-        // NaN/poison — which this is not): the margin was posed and
-        // answered; the conservative ring deduction just leaves no
-        // certifiable direction. Echo the classified margin itself.
-        Ok(_) => Err(ChartRegionError::Escalated(definite_diag(
-            band,
-            "chart_region_area",
-            area_margin,
-        ))),
-        Err(diag) => Err(ChartRegionError::Escalated(diag)),
-    }
+    decide_positive("chart_region_area", area_margin, band)
+        .map(|()| ChartOverlap::PositiveArea)
+        .map_err(ChartRegionError::Escalated)
 }
 
 /// The uniform relation of polygon `of`'s region to polygon `to`'s,
@@ -4039,7 +4056,7 @@ mod tests {
         let diag = Indeterminate {
             margin: geom_core::MarginDiag::value(5e-10),
             band: band(),
-            predicate: Some("pcurve_incidence"),
+            predicate: Some("pcurve_plane_chart_incident"),
             terminal_sliver: false,
         };
         let trim = |read| ChartRegionError::TrimOffFace {
@@ -4264,20 +4281,68 @@ mod tests {
     /// A `ScaledFace` from raw polygons (already metred), rings by
     /// their measures.
     pub(super) fn face_of(outer: Vec<Point2<f64>>, rings: &[Vec<Point2<f64>>]) -> ScaledFace<f64> {
-        let (a2, p) = loop_measures(&outer);
-        assert!(a2 > 0.0, "test polygons are CCW");
+        face_in(&outer, rings)
+    }
+
+    /// [`face_of`] at the lane `T`, its polygons lifted from `f64`.
+    pub(super) fn face_in<T: Decide>(
+        outer: &[Point2<f64>],
+        rings: &[Vec<Point2<f64>>],
+    ) -> ScaledFace<T> {
+        assert!(loop_measures(outer).0 > 0.0, "test polygons are CCW");
+        let lift = |poly: &[Point2<f64>]| -> Vec<Point2<T>> {
+            poly.iter()
+                .map(|p| Point2::new(T::from_f64(p.x), T::from_f64(p.y)))
+                .collect()
+        };
+        let outer = lift(outer);
+        let (outer_2a, outer_p) = loop_measures(&outer);
         ScaledFace {
             outer,
-            outer_2a: a2,
-            outer_p: p,
+            outer_2a,
+            outer_p,
             rings: rings
                 .iter()
                 .map(|r| {
-                    let (a2, p) = loop_measures(r);
+                    let (a2, p) = loop_measures(&lift(r));
                     (a2.abs(), p)
                 })
                 .collect(),
         }
+    }
+
+    /// The escalation `got` carries, which must be a gate's rejection of
+    /// `sign` under `predicate` on a reading of `kind`. The payload must
+    /// tell the decided verdict, not an in-band one.
+    pub(super) fn gate_rejected(
+        what: &str,
+        got: Result<ChartOverlap, ChartRegionError>,
+        predicate: &str,
+        sign: Sign,
+        kind: geom_core::MarginKind,
+    ) {
+        let Err(ChartRegionError::Escalated(diag)) = got else {
+            panic!("{what}: a gate's rejection escalates, got {got:?}")
+        };
+        assert_eq!(diag.predicate, Some(predicate), "{what}");
+        assert_eq!(
+            diag.margin.rejected_sign(),
+            Some(sign),
+            "{what}: the refusal names the decided sign"
+        );
+        assert_eq!(diag.margin.kind(), kind, "{what}: the lane's own reading");
+        let text = diag.payload().to_string();
+        let placed = match sign {
+            Sign::Zero => text.contains("within the zero band"),
+            Sign::Positive | Sign::Negative => {
+                text.contains("past the ambiguity band")
+                    && text.contains("a decided sign this decision cannot use")
+            }
+        };
+        assert!(
+            placed && !text.contains("inside the ambiguity band"),
+            "{what}: a decided {sign:?} reads as decided, not in band: {text}"
+        );
     }
 
     // ------------------------------------------------------------------
@@ -4398,16 +4463,19 @@ mod tests {
             Err(ChartRegionError::TouchingBoundary)
         ));
         // A ring swallowing the thin overlap: the conservative
-        // deduction drives the mean width out of the certifiable
-        // range and the query escalates — never a false positive,
+        // deduction drives the mean width definitely negative, and the
+        // positive gate refuses that sign — never a false positive,
         // never an Empty.
         let thin = uv(wrap_rect(4.4, 0.999, 1.2), vec![]);
         let bt = wrap_band(&thin.outer, r, band()).unwrap().unwrap();
         let ringed = uv(wrap_rect(0.3, 0.0, 1.0), vec![rect(0.1, 0.99, 6.1, 1.0)]);
-        assert!(matches!(
+        gate_rejected(
+            "a ring swallowing the band",
             band_overlap(&ringed, &thin, ba, bt, r, band()),
-            Err(ChartRegionError::Escalated(_))
-        ));
+            "chart_region_cyl_band_area",
+            Sign::Negative,
+            geom_core::MarginKind::Value,
+        );
     }
 
     // ------------------------------------------------------------------
@@ -4785,6 +4853,73 @@ mod tests {
         }
     }
 
+    /// **A definite Negative area is refused as the verdict it is**, at
+    /// both lanes: a hole that swallows the probe drives the conservative
+    /// mean width to a sign the band decides, and the refusal is the
+    /// positive gate's, tagged with that sign and carrying the lane's own
+    /// reading — never an in-band reading, nor an enclosure's lower end
+    /// labelled as a point value.
+    #[test]
+    fn a_swallowed_overlap_refuses_its_decided_negative_area_at_both_lanes() {
+        let outer = rect(0.0, 0.0, 3.0, 3.0);
+        let hole = vec![
+            Point2::new(0.5, 0.5),
+            Point2::new(0.5, 2.5),
+            Point2::new(2.5, 2.5),
+            Point2::new(2.5, 0.5),
+        ];
+        let inner = rect(1.0, 1.0, 2.0, 2.0);
+        let holes = [hole];
+        gate_rejected(
+            "f64",
+            overlap_of_regions(
+                &face_in::<f64>(&outer, &holes),
+                &face_in::<f64>(&inner, &[]),
+                false,
+                band(),
+            ),
+            "chart_region_area",
+            Sign::Negative,
+            geom_core::MarginKind::Value,
+        );
+        gate_rejected(
+            "Interval",
+            overlap_of_regions(
+                &face_in::<geom_core::Interval>(&outer, &holes),
+                &face_in::<geom_core::Interval>(&inner, &[]),
+                false,
+                band(),
+            ),
+            "chart_region_area",
+            Sign::Negative,
+            geom_core::MarginKind::Enclosure,
+        );
+    }
+
+    /// **A pair smaller than the band decides its axis sense Zero**,
+    /// and the nonzero gate refuses that sign. Here a unit patch is
+    /// read against a band wider than the patch. Every carrier gate
+    /// decides Zero, and so does the axis dot levered by `hyp`.
+    #[test]
+    fn a_pair_inside_the_band_refuses_its_zero_axis_sense() {
+        let twin = crate::pcurves::pole_slit_tests::cylinder_patch_below(0.0).unwrap();
+        let (face, _) = twin.faces().next().unwrap();
+        gate_rejected(
+            "a patch inside a 10 m band",
+            cylinder_pair_overlap(
+                &twin,
+                face,
+                &twin,
+                face,
+                CarrierPremise::Decided,
+                Band::new(10.0, 100.0).unwrap(),
+            ),
+            "chart_region_cyl_axis_sense",
+            Sign::Zero,
+            geom_core::MarginKind::Value,
+        );
+    }
+
     // ------------------------------------------------------------------
     // The seam-branch gate (item 5).
     // ------------------------------------------------------------------
@@ -4897,9 +5032,7 @@ mod tests {
     /// ẑ ⇒ v_ref = ẑ × x̂ = ŷ).
     pub(super) fn xy_plane() -> Surface<f64> {
         Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
         }
     }
 
@@ -4907,9 +5040,7 @@ mod tests {
     /// (`u_ref` rotated 90°).
     pub(super) fn xy_plane_rotated() -> Surface<f64> {
         Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_y(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_y()),
         }
     }
 
@@ -5213,10 +5344,8 @@ mod tests {
             (0.25, 1.0)
         );
         let sphere = Surface::Sphere {
-            center: Point3::origin(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             radius: 1.0,
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
         };
         // A window clear of the poles certifies `r·cos v_max`.
         let (arm_u, arm_v) = arm_values(certified_arms(&sphere, -0.5, 0.5, band())).unwrap();
@@ -5500,6 +5629,31 @@ mod tests {
             }
         }
 
+        /// Two crossings of one edge closer than the zero band: the
+        /// sorted order's separation decides Zero, and the positive
+        /// gate refuses it — the order is not certified.
+        #[test]
+        fn r1_crossings_inside_the_zero_band_refuse_their_order() {
+            let (w, x) = (2e-10, 0.5);
+            let a = face_of(rect(0.0, 0.0, 1.0, 1.0), &[]);
+            let needle = face_of(
+                vec![
+                    Point2::new(x - w, -1.0),
+                    Point2::new(x + w, -1.0),
+                    Point2::new(x + w, 0.5),
+                    Point2::new(x - w, 0.5),
+                ],
+                &[],
+            );
+            gate_rejected(
+                "a needle narrower than the zero band",
+                overlap_of_regions(&a, &needle, false, band()),
+                "chart_region_cross_order",
+                Sign::Zero,
+                geom_core::MarginKind::Value,
+            );
+        }
+
         #[test]
         fn r1_a_vertex_touch_on_an_edge_interior_refuses_typed() {
             let a = face_of(rect(0.0, 0.0, 2.0, 1.0), &[]);
@@ -5615,29 +5769,35 @@ mod inf_arms {
 
     fn sphere(radius: f64) -> Surface<f64> {
         Surface::Sphere {
-            center: Point3::new(0.0, 0.0, 0.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
     }
 
     fn cone(half_angle: f64) -> Surface<f64> {
         Surface::Cone {
-            apex: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             half_angle,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
     }
 
     fn torus(major: f64, minor: f64) -> Surface<f64> {
         Surface::Torus {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             major_radius: major,
             minor_radius: minor,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
     }
 
@@ -6002,10 +6162,12 @@ mod inf_arms {
             (1.0, 1.0)
         );
         let c: Surface<f64> = Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
+            frame: geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
             radius: 3.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         assert_eq!(
             arm_values(certified_arms(&c, -5.0, 5.0, band())).unwrap(),

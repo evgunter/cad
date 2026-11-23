@@ -218,7 +218,7 @@ impl<T: Real> Dual<T> {
 /// `pub(crate)` seals it: downstream code cannot implement it, so
 /// `Dual<T>` instantiates only at the kernel's own base scalars (nesting
 /// duals is an M6 design question, not a backdoor left ajar).
-pub(crate) trait KinkJacobian: Real {
+pub(crate) trait KinkJacobian: crate::Decide<Value = Self> {
     /// The Jacobian factor of `abs` at `self`: the value the tangent gets
     /// multiplied by, `d|x|/dx` evaluated (or enclosed) at the value.
     /// Conventions per scalar are in the [module docs](self): `f64` gives
@@ -468,6 +468,22 @@ impl<T: KinkJacobian> Real for Dual<T> {
 
     const NAME: &'static str = "dual";
 
+    /// The base scalar: the value part, bit-identical to the plain-`T`
+    /// computation of the same recipe.
+    type Value = T;
+
+    fn without_tangent(self) -> T {
+        self.value
+    }
+
+    /// Mapped: a dual is the one scalar that is not its own value
+    /// channel, so its view is a copy.
+    fn view<F: crate::value_view::OverScalar>(
+        x: &F::At<Self>,
+    ) -> crate::value_view::ValueView<'_, F::At<T>> {
+        crate::value_view::ValueView::Stripped(F::map(x, |d: Self| d.value))
+    }
+
     /// **Nothing**: a dual never certifies (DL1), so a dual body
     /// carries no certificate (DL3).
     type Carries<C: Copy + core::fmt::Debug + Send + Sync + 'static> = crate::real::Uncertified;
@@ -485,6 +501,11 @@ impl<T: KinkJacobian> Real for Dual<T> {
     /// `Dual<Sym<_>>` would still carry its unknown.
     fn from_computed(x: f64) -> Self {
         Self::constant(T::from_computed(x))
+    }
+
+    /// The value channel's: a sentence tells no tangent.
+    fn told_reading(&self) -> crate::told::Reading {
+        self.value.told_reading()
     }
 
     /// `(0, 0)`.
@@ -671,6 +692,17 @@ impl<T: KinkJacobian> Real for Dual<T> {
                 deriv: -(s * self.deriv),
             },
         )
+    }
+
+    /// `(a − sin a, 2·sin²(a/2)·a')`: the value is `T`'s door verbatim,
+    /// and the derivative `1 − cos a` is read as the half-angle square,
+    /// which cancels nowhere.
+    fn less_sin(self) -> Self {
+        let half = self.value.scale_pow2(0.5).sin();
+        Self {
+            value: self.value.less_sin(),
+            deriv: half.powi(2).scale_pow2(2.0) * self.deriv,
+        }
     }
 
     /// `(tan a, (1 + t.powi(2))·a')` where `t` is the value-channel
@@ -935,10 +967,11 @@ where
 /// and this impl does not change that: every C9 certification door is bounded by it
 /// and stays uninstantiable at a dual. What opens is the bracket half —
 /// boxes, pruning, the `f64` margin payloads a typed refusal reports,
-/// and **selections**, which are the ones with a condition on them: a
-/// frozen `f64` choice is free of the tangent only while the quantity
-/// chosen is locally constant in the input. `geom::projection_policy::mid` is
-/// where that condition currently fails, and is issue **#874**.
+/// and picks among constructions (DL5.1, the crate README's "Reading a
+/// bracket where nothing certifies"). A bracket's `f64` that comes back
+/// as a `T` is the case with a condition on it (DL5.2):
+/// `geom::projection_policy::mid` is where that condition currently
+/// fails, and is issue **#874**.
 /// One `Decide + Bounds` door *grants* without that guard
 /// (`topo::separation`, sound at a dual by delegation); the scope rule in
 /// `real.rs` is the home for that, and its DL5 delegation rule is the

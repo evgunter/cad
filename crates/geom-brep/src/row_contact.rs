@@ -525,34 +525,24 @@ mod tests {
         let o = geom_core::Point3::new(0.4, -0.7, 1.3);
         let charts = [
             Surface::Plane {
-                origin: o,
-                normal: x,
-                u_ref,
+                frame: geom::Frame::new(o, x, u_ref),
             },
             Surface::Cylinder {
-                origin: o,
-                axis: x,
+                frame: geom::Frame::new(o, x, u_ref),
                 radius: 0.6,
-                u_ref,
             },
             Surface::Cone {
-                apex: o,
-                axis: x,
+                frame: geom::Frame::new(o, x, u_ref),
                 half_angle: 0.5,
-                u_ref,
             },
             Surface::Sphere {
-                center: o,
+                frame: geom::Frame::new(o, x, u_ref),
                 radius: 0.8,
-                axis: x,
-                u_ref,
             },
             Surface::Torus {
-                center: o,
-                axis: x,
+                frame: geom::Frame::new(o, x, u_ref),
                 major_radius: 1.1,
                 minor_radius: 0.3,
-                u_ref,
             },
         ];
         let angle = |phase: f64, winding: i32| Channel::Angle { phase, winding };

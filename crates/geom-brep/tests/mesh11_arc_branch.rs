@@ -214,10 +214,8 @@ fn an_equatorial_rim_is_not_a_meridian_and_is_admitted() {
 
 fn cone<T: Real>() -> Surface<T> {
     Surface::Cone {
-        apex: p3(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
         half_angle: T::from_f64(core::f64::consts::FRAC_PI_4),
-        u_ref: v3(1.0, 0.0, 0.0),
     }
 }
 
@@ -312,6 +310,40 @@ fn a_single_nappe_cone_band_and_an_apex_endpoint_are_admitted() {
     );
 }
 
+/// **An apex the band cannot place escalates.** The cone cap above
+/// with one generator run past the apex by a slant between the zero
+/// band and the escalation band: whether its span holds the apex is
+/// undecided, and the branch door answers with that decision's cause
+/// rather than "one branch", so its `Ok` means decided. Four escalation
+/// widths past it, the crossing is definite.
+#[test]
+fn an_apex_the_band_cannot_place_escalates_at_the_branch_door() {
+    let (zero, esc) = (band().zero(), band().escalate());
+    let cap = |past: f64| -> Vec<LoopEdge<f64>> {
+        vec![
+            cone_rim(1.0, 0.0, core::f64::consts::PI, 0, 1),
+            generator(core::f64::consts::PI, -past, 1.0, 1, 2),
+            generator(0.0, 1.0, 0.0, 2, 0),
+        ]
+    };
+    let undecided = require_one_chart_branch(&cone::<f64>(), &cap(0.5 * (zero + esc)), band());
+    assert!(
+        matches!(
+            &undecided,
+            Err(PropsError::Escalated { cause, .. })
+                if cause.predicate == Some("props_cone_apex")
+        ),
+        "{undecided:?}"
+    );
+    assert!(
+        matches!(
+            require_one_chart_branch(&cone::<f64>(), &cap(4.0 * esc), band()),
+            Err(PropsError::NotOneChartBranch { edge: 1, .. })
+        ),
+        "four escalation widths past the apex is a definite crossing"
+    );
+}
+
 // ---------------------------------------------------------------------
 // The immune kinds, executed rather than asserted in prose
 // ---------------------------------------------------------------------
@@ -331,10 +363,8 @@ fn a_single_nappe_cone_band_and_an_apex_endpoint_are_admitted() {
 #[test]
 fn a_cylinder_has_no_chart_singularity_for_an_arc_to_cross() {
     let cyl = Surface::Cylinder {
-        origin: p3(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
         radius: 1.0,
-        u_ref: v3(1.0, 0.0, 0.0),
     };
     let rim_at = |z: f64, t0: f64, t1: f64, a, b| {
         edge(
@@ -373,11 +403,9 @@ fn a_cylinder_has_no_chart_singularity_for_an_arc_to_cross() {
 #[test]
 fn a_torus_minor_circle_arc_stays_on_one_meridian_at_any_span() {
     let tor = Surface::Torus {
-        center: p3(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
         major_radius: 1.0,
         minor_radius: 0.25,
-        u_ref: v3(1.0, 0.0, 0.0),
     };
     let minor = |u: f64, t0: f64, t1: f64, a, b| {
         edge(
@@ -405,13 +433,11 @@ fn a_torus_minor_circle_arc_stays_on_one_meridian_at_any_span() {
 #[test]
 fn a_plane_is_refused_typed_rather_than_answered() {
     let plane: Surface<f64> = Surface::Plane {
-        origin: p3(0.0, 0.0, 0.0),
-        normal: v3(0.0, 0.0, 1.0),
-        u_ref: v3(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(p3(0.0, 0.0, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0)),
     };
     assert!(matches!(
         require_one_chart_branch(&plane, &[], band()),
-        Err(PropsError::NotIsoRectangle { .. })
+        Err(PropsError::Defect { .. })
     ));
 }
 

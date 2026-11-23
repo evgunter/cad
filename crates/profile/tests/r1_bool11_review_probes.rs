@@ -120,6 +120,7 @@ fn r1_no_lever_is_scale_free_in_the_director() {
             .expect_err("definitely off the ray whatever the director's magnitude");
         match err {
             PathError::ContinuationTargetOffRay { across, along } => {
+                let (across, along) = (crate::common::told(&across), crate::common::told(&along));
                 println!("R1: director magnitude {mag:e} -> across={across:e} along={along:e}");
                 assert!(
                     (across - miss).abs() <= 8.0 * f64::EPSILON * miss,
@@ -286,8 +287,8 @@ fn r1_site_seam_is_reachable_from_the_declared_verb() {
         .line(1.0, t)
         .unwrap();
     match chain.continue_to(Start, t) {
-        Err(PathError::SeamTangent { margin }) => {
-            println!("R1: SeamTangent margin={margin:e}");
+        Err(PathError::SeamTurnWithinTolerance { turn }) => {
+            println!("R1: SeamTurnWithinTolerance {turn}");
         }
         other => panic!("expected a seam refusal, got {other:?}"),
     }

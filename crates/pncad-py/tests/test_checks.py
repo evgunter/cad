@@ -157,9 +157,8 @@ class TestTheConnectednessResident(unittest.TestCase):
         assemble_world_copies(doc)
         report = run_checks(doc, evaluate(doc))
         self.assertEqual(report.findings, [])
-        # The chart-coherence resident is Off by default and says so:
-        # "not checked" is an answer this report carries.
-        self.assertEqual(report.skipped, [CheckId.ChartCoherence])
+        # Every resident runs by default, so nothing is skipped.
+        self.assertEqual(report.skipped, [])
         self.assertEqual(len(report), 0)
 
     def test_an_interior_void_is_boundary_and_not_a_component(self):
@@ -285,12 +284,12 @@ class TestTheReportGateSplit(unittest.TestCase):
         report = run_checks(doc, ev, off)
         self.assertEqual(report.findings, [])
         self.assertEqual(
-            report.skipped, [CheckId.Connectedness, CheckId.ChartCoherence]
+            report.skipped, [CheckId.Connectedness]
         )
         both = ChecksConfig(connectedness=Severity.Off, at_rest=Severity.Off)
         self.assertEqual(
             run_checks(doc, ev, both).skipped,
-            [CheckId.Connectedness, CheckId.ChartCoherence, CheckId.AtRest],
+            [CheckId.Connectedness, CheckId.AtRest],
         )
 
 
@@ -298,7 +297,6 @@ class TestTheRegistryVocabulary(unittest.TestCase):
     def test_every_resident_carries_its_honesty_label(self):
         self.assertEqual(CheckId.Connectedness.kind, CheckKind.Certified)
         self.assertEqual(CheckId.AtRest.kind, CheckKind.Certified)
-        self.assertEqual(CheckId.ChartCoherence.kind, CheckKind.Certified)
         self.assertEqual(str(CheckId.Connectedness), "connectedness")
         self.assertEqual(str(CheckId.AtRest), "at-rest")
 
@@ -705,7 +703,7 @@ class TestAProfileJunctionTheDoorDecides(unittest.TestCase):
         tip = Open.at((0 * m, 0 * m)).line_to((10 * m, 0 * m))
         with self.assertRaises(pncad.PathError) as caught:
             tip.line_to((10.001 * m, 1e-10 * m))
-        self.assertEqual(caught.exception.variant, "junction_tangent")
+        self.assertEqual(caught.exception.variant, "junction_turn_within_tolerance")
 
 
 if __name__ == "__main__":

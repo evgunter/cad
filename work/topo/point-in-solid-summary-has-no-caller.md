@@ -11,7 +11,7 @@ opened: 2026-10-06
 
 ## What
 
-`boolean/solid_contain.rs` `PointInSolidError::summary` is `pub` and
+`solid_contain.rs` `PointInSolidError::summary` is `pub` and
 its doc says it is "the one vocabulary a consumer that carries a
 `&'static str` reads (the census's containment arm names the witness
 it could not decide with it)". Nothing calls it: a grep for

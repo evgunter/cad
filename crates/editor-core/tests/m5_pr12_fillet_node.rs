@@ -156,11 +156,11 @@ fn the_extrude_bump_recomputes_the_cone_and_the_fillet_needs_no_reselection() {
 #[test]
 fn die_fillet_round_trips_and_replays_identically() {
     let d = die_fillet::document();
-    let text = editor_core::save(&d.doc, &[], Tol::witness()).expect("save");
+    let text = editor_core::save(&d.doc, Tol::witness()).expect("save");
     let loaded = editor_core::load(&text, Tol::witness()).expect("load");
-    assert!(loaded.doc.bit_eq(&d.doc), "round-trip bit identity");
+    assert!(loaded.bit_eq(&d.doc), "round-trip bit identity");
     let before = eval::<f64>(&d.doc);
-    let after = eval::<f64>(&loaded.doc);
+    let after = eval::<f64>(&loaded);
     assert_eq!(
         format!("{:?}|{:?}", before.order, before.nodes),
         format!("{:?}|{:?}", after.order, after.nodes),

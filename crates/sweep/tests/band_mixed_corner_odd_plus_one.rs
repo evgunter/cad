@@ -27,11 +27,12 @@ use core::f64::consts::PI;
 
 use geom::Surface;
 use geom_core::Interval;
+use sweep::blend::battery::Convexity;
 use sweep::blend::build::{Blended, fillet_edges};
-use sweep::blend::{BlendError, CornerConfig, FILLET3_MIXED_CORNER_RECOURSE};
+use sweep::blend::{BlendError, FILLET3_MIXED_CORNER_RECOURSE, UnbuiltEnd};
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::{assert_naming_totality, at_rest, corners, prism_at};
-use topo::boolean::solid_contain::{SolidContainment, point_in_solid};
+use topo::solid_contain::{SolidContainment, point_in_solid};
 use topo::{Body, EdgeKey, validate_geometric};
 
 use crate::band_closed_mixed_chain_shapes::tightest_interval;
@@ -58,8 +59,9 @@ fn chamfer<T: Scalar>(body: &Body<T>, edges: &[EdgeKey], s: f64) -> Result<Blend
 /// bounds allow.
 fn off<T: Scalar>(s: &Surface<T>, p: geom_core::Point3<T>) -> f64 {
     match s {
-        Surface::Plane { origin, normal, .. } => {
-            let d = (p - *origin).dot(*normal);
+        Surface::Plane { frame, .. } => {
+            let (origin, normal) = (frame.origin(), frame.axis());
+            let d = (p - origin).dot(normal);
             d.lo().abs().max(d.hi().abs())
         }
         other => panic!("a chamfer's corner edge joins a {other:?}"),
@@ -73,7 +75,7 @@ fn off<T: Scalar>(s: &Surface<T>, p: geom_core::Point3<T>) -> f64 {
 /// minted (the end curves, the mitres, the trimlines) on both its faces
 /// within `1e-12`. A single corner's end curves are three: the odd
 /// strip's chord in `E`, and each strip's far end.
-fn builds<T: Scalar>(
+fn builds<T: Scalar + topo::CertifiedPolicy>(
     body: &Body<T>,
     edges: &[EdgeKey],
     (s, truth, corners, arcs): (f64, f64, usize, usize),
@@ -144,7 +146,7 @@ fn builds<T: Scalar>(
 
 /// The flush and inset corners at a right angle, each pair edge, at
 /// scalar `T`.
-fn right_angle_rows<T: Scalar>(scalar: &str) {
+fn right_angle_rows<T: Scalar + topo::CertifiedPolicy>(scalar: &str) {
     for (kind, (body, [odd, y, z]), (l, sign)) in [
         ("flush", flush::<T>(), (2.0, 1.0)),
         ("inset", inset::<T>(), (1.0, -1.0)),
@@ -184,7 +186,7 @@ fn assert_endpoint_escalation<T: Scalar>(what: &str, got: Result<Blended<T>, Ble
 
 /// The flush and inset corners at plan angles 60° and 120°, each pair
 /// edge, at scalar `T`.
-fn plan_angle_rows<T: Scalar>(scalar: &str) {
+fn plan_angle_rows<T: Scalar + topo::CertifiedPolicy>(scalar: &str) {
     for phi in [PI / 3.0, 2.0 * PI / 3.0] {
         let deg = phi.to_degrees();
         for (kind, (body, [odd, y, z]), (l, sign)) in [
@@ -234,7 +236,7 @@ pub(crate) fn bracket_request<T: Scalar>(body: &Body<T>) -> Vec<EdgeKey> {
 /// the flush verticals and side edges (convex, 1.5 and 0.5) pair; the
 /// inset verticals (convex, 1.5) odd. The `s³` terms of the flush and
 /// inset corners cancel: `ΔV = (s²/2)(2·0.5 − 1.5 − 0.5 − 2·1.5) = −2s²`.
-fn bracket_rows<T: Scalar>(scalar: &str) {
+fn bracket_rows<T: Scalar + topo::CertifiedPolicy>(scalar: &str) {
     let body = boreless::<T>();
     let s = 0.05;
     builds(
@@ -278,16 +280,17 @@ fn pair_of_length<T: Scalar>(y: f64) -> (Body<T>, [EdgeKey; 2]) {
 
 /// The short-edge boundaries at scalar `T`, each read `d = 100ε` either
 /// side (outside the predicates' bands at every ε) and 5% either side.
-fn short_edge_rows<T: Scalar>(scalar: &str) {
-    let run_out = |got: Result<Blended<T>, BlendError>, needle: &str, what: &str| {
-        assert!(
-            matches!(&got, Err(BlendError::UnsupportedRunOut { detail, .. }) if detail.contains(needle)),
-            "{what}, {scalar}: refuses with {needle:?}, got {got:?}",
-            got = got.as_ref().map(|_| ())
-        );
-    };
-    const CROSS: &str = "shorter than its two ends' feet need";
-    const INSIDE: &str = "its foot lands inside a face";
+fn short_edge_rows<T: Scalar + topo::CertifiedPolicy>(scalar: &str) {
+    let run_out =
+        |got: Result<Blended<T>, BlendError>, want: fn(&UnbuiltEnd) -> bool, what: &str| {
+            assert!(
+                matches!(&got, Err(BlendError::UnbuiltEnd(end)) if want(end)),
+                "{what}, {scalar}: refuses the end's tag, got {got:?}",
+                got = got.as_ref().map(|_| ())
+            );
+        };
+    let cross: fn(&UnbuiltEnd) -> bool = |e| matches!(e, UnbuiltEnd::FeetCross { .. });
+    let inside: fn(&UnbuiltEnd) -> bool = |e| matches!(e, UnbuiltEnd::FootInsideAFace { .. });
     let d = 100.0 * tol().eps();
     // The pair edge: the near band's foot on `E` stands `2s` along it,
     // and under `s` long its crossing on the shared face lands past its
@@ -302,17 +305,17 @@ fn short_edge_rows<T: Scalar>(scalar: &str) {
             &format!("the pair edge {y} long, {scalar}"),
         );
     }
-    for (y, needle) in [
-        (2.0 * S - d, CROSS),
-        (0.95 * 2.0 * S, CROSS),
-        (S + d, CROSS),
-        (S - d, INSIDE),
-        (0.9 * S, INSIDE),
+    for (y, want) in [
+        (2.0 * S - d, cross),
+        (0.95 * 2.0 * S, cross),
+        (S + d, cross),
+        (S - d, inside),
+        (0.9 * S, inside),
     ] {
         let (body, edges) = pair_of_length::<T>(y);
         run_out(
             chamfer(&body, &edges, S),
-            needle,
+            want,
             &format!("the pair edge {y} long"),
         );
     }
@@ -337,7 +340,7 @@ fn short_edge_rows<T: Scalar>(scalar: &str) {
         let (body, edges) = tall(h);
         run_out(
             chamfer(&body, &edges, S),
-            INSIDE,
+            inside,
             &format!("the odd edge {h} long"),
         );
     }
@@ -358,33 +361,36 @@ fn a_short_odd_or_pair_edge_refuses_at_its_meter() {
 }
 
 /// **What the odd edge with one other still refuses**: the fillet at the
-/// flush and the inset corner (its pair band would have to stop where
-/// its edge runs smoothly into the cut-off arc), and the chamfer where
-/// `E` leans off square to the odd edge, with either pair edge.
+/// flush and the inset corner, its pair band having to stop where its
+/// edge runs smoothly into the cut-off arc — the run-out, naming the pair
+/// edge the request leaves out and the odd edge with its convexity — and
+/// the chamfer where `E` leans off square to the odd edge, with either
+/// pair edge, `ObliqueMixedCorner` naming the odd edge.
 #[test]
 fn the_odd_edge_with_one_other_refuses_the_fillet_and_an_oblique_shared_face() {
-    let mixed = |got: Result<(), BlendError>, convex: usize, what: &str| {
-        assert!(
-            matches!(
-                got,
-                Err(BlendError::UnsupportedCorner {
-                    corner: CornerConfig::MixedConvexity { convex: c },
-                    policy: None,
-                    ..
-                }) if c == convex
-            ),
-            "{what}: refuses MixedConvexity {{ convex: {convex} }}, got {got:?}"
-        );
-    };
-    for (kind, (body, [odd, y, z]), convex) in
-        [("flush", flush::<f64>(), 2), ("inset", inset::<f64>(), 1)]
-    {
-        for pair in [y, z] {
-            let got = fillet_edges(&at_rest(&body, tol()), &[odd, pair], S, tol());
-            mixed(
-                got.map(|_| ()).map_err(|r| r.error),
-                convex,
-                &format!("the {kind} fillet"),
+    for (kind, (body, [odd, y, z]), convexity) in [
+        ("flush", flush::<f64>(), Convexity::Concave),
+        ("inset", inset::<f64>(), Convexity::Convex),
+    ] {
+        for (pair, left) in [(y, z), (z, y)] {
+            let got = fillet_edges(&at_rest(&body, tol()), &[odd, pair], S, tol())
+                .map(|_| ())
+                .map_err(|r| r.error);
+            assert!(
+                matches!(
+                    got,
+                    Err(BlendError::UnbuiltEnd(UnbuiltEnd::RunOut {
+                        unrequested,
+                        odd: Some(o),
+                        ..
+                    })) if unrequested == left && o.edge == odd && o.convexity == convexity
+                ),
+                "the {kind} fillet: the run-out at the left-out pair edge, got {got:?}"
+            );
+            assert_eq!(
+                got.unwrap_err().edge(),
+                Some(left),
+                "{kind}: names the edge to add"
             );
         }
     }
@@ -393,10 +399,10 @@ fn the_odd_edge_with_one_other_refuses_the_fillet_and_an_oblique_shared_face() {
     let [odd, up] = leaning_odd_and_one(&body);
     assert_eq!(at(&body, o).len(), 3, "the leaning corner's three edges");
     for pair in [up, edge(&body, o, (1.0, 1.0, 0.0))] {
-        mixed(
-            chamfer(&body, &[odd, pair], S).map(|_| ()),
-            2,
-            "the chamfer on an oblique E",
+        let got = chamfer(&body, &[odd, pair], S).map(|_| ());
+        assert!(
+            matches!(got, Err(BlendError::ObliqueMixedCorner { odd: e, .. }) if e == odd),
+            "the chamfer on an oblique E, got {got:?}"
         );
     }
 }
@@ -437,7 +443,7 @@ fn a_curved_link_at_the_corner_refuses_the_chamfer_arm() {
 /// **The mixed corner's recourse builds where it says**, on the flush
 /// and inset corners at 60°, 90° and 120° (`E` square to the odd edge,
 /// the faces flat) and on the leaning one (`E` oblique), both verbs: the
-/// odd edge with one other refuses the fillet `MixedConvexity` with the
+/// odd edge with one other refuses the fillet's run-out with the
 /// recourse, and then the odd edge alone builds everywhere; the two that
 /// round alike build where `E` is square to the odd edge and refuse on
 /// the oblique one; all three, and the chamfer of the odd edge with one
@@ -467,10 +473,7 @@ fn the_mixed_corner_recourse_builds_where_it_says() {
         assert!(
             matches!(
                 refused,
-                BlendError::UnsupportedCorner {
-                    corner: CornerConfig::MixedConvexity { .. },
-                    ..
-                }
+                BlendError::UnbuiltEnd(UnbuiltEnd::RunOut { odd: Some(_), .. })
             ) && refused
                 .render(geom_brep::recourse::Reading::Build)
                 .contains(FILLET3_MIXED_CORNER_RECOURSE),

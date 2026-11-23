@@ -2,8 +2,9 @@
 id: main-red-predicate-name-coverage-reads-three-topo-test-literals-no-crate-decides
 kind: issue
 title: "main red (slow set): predicate_name_coverage reads three topo test literals no crate decides"
-status: open
+status: closed
 opened: 2026-11-16
+closed: 2026-11-17
 priority: P0
 cost: E
 ---
@@ -36,3 +37,7 @@ negative `// UNDECIDED-NAME: <why>` on the line above.
 SIDETIES. `curved_edges.rs` is under many programs, and BOXFINISH wrote
 its curved arm (`39196518c6`, `d4a20c1326`). The roster check reads
 `tests/` references since `3bdf8fadab` (the 6715 review).
+
+## Closed (2026-11-17, GREEN)
+
+Green on main `8466ca3d` plus PR 7060. The three sites above were resolved on main before the 11-17 nightly (`curved_edges.rs` is gone; `side_reader.rs`'s `ray_order` carries an `// UNDECIDED-NAME:` mark). The nightly of 11-17 (main `cdee7461`) named one more, `crates/topo/src/chart_region.rs:4042`'s `"pcurve_incidence"` in `a_trim_off_its_face_stands_by_its_read` (ONECOPY's section-error-standing work); PR 7060 spells it as the plane chart's door, `pcurve_plane_chart_incident`. `predicate_name_coverage` passes locally on that tree. (GREEN)

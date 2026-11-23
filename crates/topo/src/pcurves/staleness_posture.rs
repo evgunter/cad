@@ -182,6 +182,13 @@ pub(crate) const DECLARED: &[(&str, Posture, &str)] = {
             "the graft — see `graft_disjoint_all_keyed`",
         ),
         (
+            "graft_placed",
+            Transfers,
+            "the graft — see `graft_disjoint_all_keyed`; a placed source's image is its \
+             data under a proper motion, which carries every pcurve row unchanged (a chart \
+             image is a parameter-space fact), then grafted",
+        ),
+        (
             "graft_disjoint_all_keyed",
             Transfers,
             "remaps each row onto the transplanted half-edge's fresh key and DROPS any \
@@ -440,6 +447,11 @@ pub(crate) const DECLARED: &[(&str, Posture, &str)] = {
             "move_shells_to_new_solid",
             Neither,
             "re-parents shells between solids; no half-edge key changes meaning",
+        ),
+        (
+            "fold_solid_into",
+            Neither,
+            "re-parents one solid's shells under another; no half-edge key changes meaning",
         ),
         // ---- Neither: the caller's own row-level control of the
         // map, and writes the map is not keyed on. ----

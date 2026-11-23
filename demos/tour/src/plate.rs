@@ -23,7 +23,7 @@
 //! - **sketched**: one extrude of a profile with the two circles as
 //!   inner loops. No boolean, so no tie: it certifies whole boxes up to
 //!   `1e-2` of the study, and 0 of 512 leaves over the real study
-//!   (`work/profiletail/inner-loop-circles-bound-the-plate-study-at-arc-span.md`).
+//!   (`work/profile/inner-loop-circles-bound-the-plate-study-at-arc-span.md`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -302,8 +302,7 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
         &placement.doc,
         &[pncad::document::Operand::Node(placement.placement)],
         tol,
-    )
-    .doc;
+    );
 
     // The wall names come from the SELECTION door, the way a user gets
     // them: evaluate what is built so far, then ask for each hole's

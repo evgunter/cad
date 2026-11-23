@@ -97,9 +97,7 @@ fn carrier(rng: &mut Rng, kind: usize) -> (geom::Curve3<f64>, (f64, f64)) {
             let offset = (big - r) * rng.range(-0.95, 0.95);
             (
                 geom::Curve3::Spiric {
-                    center,
-                    axis,
-                    u_ref,
+                    frame: geom::Frame::new(center, axis, u_ref),
                     major_radius: big,
                     minor_radius: r,
                     offset,

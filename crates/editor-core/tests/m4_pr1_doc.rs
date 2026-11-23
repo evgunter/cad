@@ -38,13 +38,8 @@ impl editor_core::ProfilePayload for FakeProfile {
     ) -> Self {
         self.clone()
     }
-    fn drawn_pieces(
-        &self,
-        _env: &editor_core::VarEnv<f64>,
-        _tol: geom_core::Tol,
-    ) -> Result<std::collections::BTreeSet<editor_core::ProfileEdgeRef>, editor_core::ProgramRefusal>
-    {
-        Ok(std::collections::BTreeSet::new())
+    fn partition(&self) -> Result<editor_core::ProfilePartition, editor_core::ProgramRefusal> {
+        Ok(editor_core::ProfilePartition::default())
     }
 }
 

@@ -2,10 +2,11 @@
 id: persist-edit-replay-forwards-the-edit-doors-recourse
 kind: issue
 title: edit: persist's EditReplay forwards the edit door's recourse to a load that made no edit
-status: open
+status: closed
 opened: 2026-09-29
 priority: P3
 cost: E
+closed: 2026-11-17
 ---
 
 
@@ -39,3 +40,9 @@ Split the arm by door (or carry the door), render
 `EditError::problem`, and end the load arm in
 `geom_core::KERNEL_OR_FILE_DEFECT_ENDING`; keep the edit door's
 recourse at save only if a caller-assembled log is a supported input.
+
+## Closed
+
+The arm is gone. A save file no longer carries an edit log
+(`the-save-format-drops-its-edit-log`), so neither door replays edits
+and `PersistError::EditReplay` was removed with the log.

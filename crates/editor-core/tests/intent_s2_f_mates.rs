@@ -508,7 +508,7 @@ fn a_selection_of_one_member_of_a_family_reads_that_member() {
         },
     );
     assert!(
-        editor_core::persist::save(&doc, &[], Tol::witness()).is_ok(),
+        editor_core::persist::save(&doc, Tol::witness()).is_ok(),
         "a pose reading a family's member saves"
     );
     let measured = editor_core::measure(
@@ -533,7 +533,7 @@ fn a_selection_of_one_member_of_a_family_reads_that_member() {
         "the selection reads one member at a written index, so the measure is one measure"
     );
     assert!(
-        editor_core::persist::save(&measured.doc, &[], Tol::witness()).is_ok(),
+        editor_core::persist::save(&measured.doc, Tol::witness()).is_ok(),
         "the door's measure saves"
     );
 }

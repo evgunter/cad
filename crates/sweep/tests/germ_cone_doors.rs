@@ -9,7 +9,7 @@
 //!
 //! - **Face containment on a cone face** answered nothing. It now reads
 //!   the double-cone carrier first, then the face's OWN region, read from
-//!   its boundary edges (`topo::boolean::ruled_region`), never its
+//!   its boundary edges (`topo::ruled_region`), never its
 //!   surface group's — and the rows hold what a wrong
 //!   answer would break: two half-bands of one frustum PARTITION their
 //!   wall, a quarter cone holds its quadrant and not the others, the
@@ -375,7 +375,7 @@ fn partial_revolves_partition_their_window_and_hold_nothing_outside() {
 fn wedge_caps(body: &Body<f64>) -> Vec<FaceKey> {
     faces_where(
         body,
-        |s| matches!(s, geom::Surface::Plane { normal, .. } if normal.y.abs() < 0.5),
+        |s| matches!(s, geom::Surface::Plane { frame, .. } if frame.axis().y.abs() < 0.5),
     )
 }
 
@@ -439,13 +439,14 @@ fn an_offset_axis_normal_cap_passes_the_pose_gate() {
     let body = quarter_cone();
     let [disc] = faces_where(
         &body,
-        |s| matches!(s, geom::Surface::Plane { normal, .. } if normal.y.abs() > 0.5),
+        |s| matches!(s, geom::Surface::Plane { frame, .. } if frame.axis().y.abs() > 0.5),
     )[..] else {
         panic!("one base disc");
     };
-    let Some(geom::Surface::Plane { origin, normal, .. }) = body.face_surface(disc).cloned() else {
+    let Some(geom::Surface::Plane { frame, .. }) = body.face_surface(disc).cloned() else {
         unreachable!("the disc is a plane")
     };
+    let (origin, normal) = (frame.origin(), frame.axis());
     for d in [0.05, -0.05] {
         let mut work = body.clone();
         topo::replace_face_offset(&mut work, disc, d, Tol::witness()).unwrap_or_else(|e| {

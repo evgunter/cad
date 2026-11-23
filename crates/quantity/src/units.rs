@@ -65,6 +65,14 @@ pub enum UnitQuantity {
     Scalar,
 }
 
+impl UnitQuantity {
+    /// Every row of [`UNITS`] that measures this quantity, in table
+    /// order — read off the table, so a row added there is a row here.
+    pub fn units(self) -> impl Iterator<Item = UnitDef> {
+        UNITS.into_iter().filter(move |row| row.quantity() == self)
+    }
+}
+
 /// One row of the unit table: a display/parse symbol, the quantity it
 /// measures, and the exact factor into canonical units.
 ///
@@ -168,6 +176,27 @@ impl UnitDef {
     /// Canonical units (meters/radians) per one of this unit.
     pub const fn factor(&self) -> f64 {
         self.factor
+    }
+
+    /// The number of this unit that `canonical` is, rounded to a float
+    /// (one divide by the factor); `None` where the factor carries a
+    /// finite value out of the format or a nonzero one to zero, so the
+    /// unit has no number for it. A value that is not finite divides
+    /// to itself.
+    #[must_use]
+    pub fn number_of(self, canonical: f64) -> Option<f64> {
+        let q = canonical / self.factor;
+        let lost = canonical.is_finite() && (!q.is_finite() || (q == 0.0 && canonical != 0.0));
+        (!lost).then_some(q)
+    }
+
+    /// The number that, typed in this unit, is `canonical` to the bit
+    /// (the text door's `number * factor`), choosing the one with the
+    /// shortest spelling. `None` where no number is (a multiply by the
+    /// factor can step over a float), or `canonical` is not finite.
+    #[must_use]
+    pub fn authored(self, canonical: f64) -> Option<f64> {
+        crate::fmt::authored(canonical, self.factor)
     }
 
     /// This row as a [`LengthUnit`], or `None` when the row measures an

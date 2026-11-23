@@ -617,7 +617,7 @@ fn post_file(bench: &asm::Bench) -> PathBuf {
 fn move_the_posts_pin(bench: &asm::Bench, tol: Tol) {
     let text = std::fs::read_to_string(post_file(bench)).expect("the post reads");
     let loaded = pncad::document::load(&text, tol).expect("the post loads");
-    let (edited, _) = common::square_profile(&loaded.doc, 0.005, tol);
+    let (edited, _) = common::square_profile(&loaded, 0.005, tol);
     let mut ws = Workspace::open(&bench.dir).expect("the directory scans");
     ws.resave(&edited, tol).expect("the post rewrites");
 }
@@ -1113,7 +1113,7 @@ fn a_gesture_under_a_root_that_comes_to_refuse_dies_at_the_landing() {
         .clone();
     let text = std::fs::read_to_string(&shelf_file).expect("the shelf reads");
     let loaded = pncad::document::load(&text, tol).expect("the shelf loads");
-    let (edited, _) = common::square_profile(&loaded.doc, 0.005, tol);
+    let (edited, _) = common::square_profile(&loaded, 0.005, tol);
     Workspace::open(&bench.dir)
         .expect("the directory scans")
         .resave(&edited, tol)

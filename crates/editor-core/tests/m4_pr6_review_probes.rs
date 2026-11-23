@@ -44,7 +44,7 @@ fn small() -> (ProfileDoc, String) {
     )
     .unwrap()
     .doc;
-    let text = save(&doc, &[], Tol::witness()).unwrap();
+    let text = save(&doc, Tol::witness()).unwrap();
     (doc, text)
 }
 
@@ -84,7 +84,7 @@ fn attack_all_ones_nan_slips_save_door() {
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (1.0, 0.0), (0.5, 1.0)]],
     );
-    save(&doc, &[], Tol::witness()).expect("a float-free profile saves");
+    save(&doc, Tol::witness()).expect("a float-free profile saves");
     assert!(
         matches!(doc.node(p), Some(Node::Profile(_))),
         "the profile is in the document that saved"
@@ -221,7 +221,7 @@ fn attack_long_decimal_strings() {
         let crafted = text.replace("\"value\": 2.5", &format!("\"value\": {s}"));
         assert_ne!(crafted, text);
         let loaded = load(&crafted, Tol::witness()).expect("valid file");
-        let Some(FreeVar::Continuous { value, .. }) = loaded.doc.free_named("q") else {
+        let Some(FreeVar::Continuous { value, .. }) = loaded.free_named("q") else {
             panic!("param lost")
         };
         assert_eq!(
@@ -241,14 +241,15 @@ fn attack_inf_via_big_exponent() {
         assert_ne!(crafted, text);
         match load(&crafted, Tol::witness()) {
             Err(PersistError::Parse { .. }) => {}
-            Ok(l) => panic!("{s} loaded as {:?}", l.doc.free_named("q")),
+            Ok(l) => panic!("{s} loaded as {:?}", l.free_named("q")),
             Err(e) => panic!("unexpected refusal for {s}: {e:?}"),
         }
     }
 }
 
-/// ATTACK 5: every DocEdit variant in one log — round-trip + replay
-/// fingerprint identity (independent of the shipped kitchen sink).
+/// ATTACK 5: a document every DocEdit variant authored — round-trip +
+/// evaluation fingerprint identity (independent of the shipped kitchen
+/// sink).
 #[test]
 fn attack_all_fourteen_edit_variants_round_trip() {
     let quad = |o: f64| {
@@ -260,12 +261,10 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         ]])
     };
     let mut doc = ProfileDoc::empty_derived("m4_pr6_review_probes", Tol::witness());
-    let mut edits: Vec<DocEdit<ProfileProgram>> = Vec::new();
-    let mut push = |doc: &mut ProfileDoc, e: DocEdit<ProfileProgram>| -> Option<RecipeNodeId> {
+    let push = |doc: &mut ProfileDoc, e: DocEdit<ProfileProgram>| -> Option<RecipeNodeId> {
         let a = apply(doc, &e, Tol::witness())
             .unwrap_or_else(|err| panic!("edit {e:?} refused: {err:?}"));
         *doc = a.doc;
-        edits.push(e);
         a.record.minted
     };
     // 1 DeclareVar
@@ -543,21 +542,10 @@ fn attack_all_fourteen_edit_variants_round_trip() {
     let amb = geom_core::Tol::witness().get().eps;
     push(&mut doc, DocEdit::SetTolerance { eps: amb });
 
-    // Round-trip as a FULL LOG from an empty snapshot.
-    let text = save(
-        &ProfileDoc::empty_derived("m4_pr6_review_probes", Tol::witness()),
-        &edits.to_vec(),
-        Tol::witness(),
-    )
-    .expect("save log");
-    let loaded = load(&text, Tol::witness()).expect("load log");
-    assert_eq!(loaded.edits, edits.to_vec(), "edit log round-trip");
-    assert!(loaded.doc.bit_eq(&doc), "replayed doc bit-identical");
-    // AND as a snapshot.
-    let text2 = save(&doc, &[], Tol::witness()).expect("save snapshot");
-    let loaded2 = load(&text2, Tol::witness()).expect("load snapshot");
-    assert!(loaded2.doc.bit_eq(&doc));
-    // Replay identity fingerprint.
+    let text = save(&doc, Tol::witness()).expect("save");
+    let loaded = load(&text, Tol::witness()).expect("load");
+    assert!(loaded.bit_eq(&doc), "loaded doc bit-identical");
+    // Evaluation identity fingerprint.
     let fp = |d: &ProfileDoc| {
         let ev = evaluate::<f64>(
             d,
@@ -568,10 +556,9 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         );
         format!("{:?}|{:?}|{:?}", ev.order, ev.nodes, ev.appearance)
     };
-    assert_eq!(fp(&doc), fp(&loaded.doc), "log replay fingerprint");
-    assert_eq!(fp(&doc), fp(&loaded2.doc), "snapshot replay fingerprint");
+    assert_eq!(fp(&doc), fp(&loaded), "evaluation fingerprint");
     // Canonical bytes.
-    assert_eq!(save(&loaded2.doc, &[], Tol::witness()).unwrap(), text2);
+    assert_eq!(save(&loaded, Tol::witness()).unwrap(), text);
 }
 
 /// ATTACK 6: truncation ladder — typed refusal at every cut, never a
@@ -687,7 +674,7 @@ fn attack_meta_order_canonical() {
         )
         .unwrap()
         .doc;
-        save(&d, &[], Tol::witness()).unwrap()
+        save(&d, Tol::witness()).unwrap()
     };
     assert_eq!(
         mk(true),
@@ -746,7 +733,7 @@ fn duplicate_keys_refuse_in_every_map() {
     )
     .unwrap()
     .doc;
-    let text = save(&doc, &[], Tol::witness()).unwrap();
+    let text = save(&doc, Tol::witness()).unwrap();
     // The key the document ALREADY carries (the profile's): the row is
     // about the strict map's duplicate refusal, and a second, unused
     // node id would be a witness on a node that cannot hold one — a

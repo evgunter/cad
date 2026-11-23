@@ -77,7 +77,7 @@
 //! loop bearing any other edge, its walk and the one boundary reading
 //! of an edge on its carrier ([`LoopEdge::contact`]) carry their own
 //! rows, each caller naming them through a [`BoundaryRows`] value
-//! (the walk's are `WALK_ROWS`; `boolean::contain`'s pre-pass passes
+//! (the walk's are `WALK_ROWS`; `contain`'s pre-pass passes
 //! `bool_contact_*` names):
 //!
 //! - **`point_in_arc_loop_{segment,boundary,side,advance}`**: the four
@@ -120,13 +120,13 @@
 //!   reading of its ends (`curve_pair_span_end_*`).
 //! - **A ray's crossing of a conic arc** ([`conic_crossings`]) is a
 //!   co-surface pair's (C5): the arc across the ray's square plane through
-//!   `geom_brep`'s co-surface arm, on the plane door's rows
-//!   (`plane_crossing_*`, the root's place on the arc's span included),
+//!   `geom_brep`'s co-surface arm, on the curve × face pose's and
+//!   crossing's rows (`curve_face_pose_*`, `curve_face_cross_*`, the
+//!   root's place on the arc's span included),
 //!   then **`point_in_arc_loop_conic_advance`**, the root's distance
-//!   along the ray in metres, and **`point_in_arc_loop_conic_in_plane`**,
-//!   an arc's offset from the ray's square plane it is parallel to (only
-//!   on the projected read). A `Zero` grazes the ray and an in-band
-//!   margin sets it aside.
+//!   along the ray in metres; an arc parallel to the ray's square plane
+//!   (only on the projected read) is the pose's offset. A `Zero` grazes
+//!   the ray and an in-band margin sets it aside.
 //!
 //! **`point_in_arc_loop_conic_straddle`** classifies nothing: it names an
 //! ellipse's two decided bounds on its span's overlap straddling the
@@ -508,7 +508,7 @@ impl PointInLoopError {
                 "{doing}: {}",
                 diag.undecided(
                     decision.subject(),
-                    crate::boolean::ContainDecision::Loop(*decision)
+                    crate::contain::ContainDecision::Loop(*decision)
                         .lever_ending(*escalation, diag),
                 )
             ),
@@ -612,8 +612,8 @@ impl PointInLoopError {
 /// skips the near-parallel members), [`crate::splitting::order`]'s
 /// point ordering (whose frame takes the three axes for an axis plane
 /// and the members after them for any other, so the axes stay first),
-/// [`crate::boolean::solid_contain`]'s containment sweep (which
-/// normalizes the raw triple), and [`crate::boolean::sphere_region`]'s
+/// [`crate::solid_contain`]'s containment sweep (which
+/// normalizes the raw triple), and [`crate::sphere_region`]'s
 /// ray directions. They do not
 /// sweep the same directions. What each needs is only that its own
 /// schedule is a `const` in a fixed order every run, which holds per
@@ -797,7 +797,8 @@ fn walk_schedule<T: Decide>(
 /// `point_in_arc_loop_arm` (the schedule gate), `point_in_arc_loop_reach`
 /// (a spiric piece's ball's clearance from a ray), and the
 /// conic arm's `point_in_arc_loop_conic_{span,advance,in_plane}` beside
-/// the plane door's own (`plane_crossing_*`, [`conic_crossings`]).
+/// the curve × face pose's and crossing's (`curve_face_pose_*`,
+/// `curve_face_cross_*`, [`conic_crossings`]).
 const ARC_LOOP_ROWS: ParityRows = crate::rows::ARC_LOOP;
 
 pub(crate) use crate::rows::ConicRows;
@@ -984,17 +985,47 @@ impl<T: Decide> ConicArc<T> {
     /// carrier's reading at `q`'s foot ([`geom::Foot::on_carrier`], off
     /// only on a lower bound on its distance from the whole conic, the
     /// ellipse's Hessian-bounded root) with the span's reading of its ends
-    /// ([`geom_brep::curve_pair::Span::place`]). A point past the arc is
-    /// off the edge, on its carrier ([`ConicHit::Carrier`]) or not; the
-    /// ellipse's straddle stays a straddle, and a span walk that cannot
-    /// certify its `Past` is [`ConicHit::Unsettled`].
+    /// ([`geom_brep::curve_pair::Span::place`]). A point off the arc is
+    /// off the edge. Off the carrier ([`OffBy::Carrier`]) it is
+    /// [`ConicHit::Off`], and on it at the foot ([`AtFoot::On`])
+    /// [`ConicHit::Carrier`], each read once. Past the arc with the
+    /// carrier undecided at the foot ([`AtFoot::Undecided`]), whether it
+    /// lies on the arc's carrier is the whole conic's own question
+    /// ([`geom::Curve3::on_carrier`]), asked here since the ray count
+    /// reads it: on it, [`ConicHit::Carrier`], and otherwise, an
+    /// undecided carrier included, [`ConicHit::Off`], as no answer to it
+    /// puts the point on the edge (its escalation is superseded, and a
+    /// decided reading spliced). The ellipse's straddle stays a straddle,
+    /// and a span walk that cannot certify its `Past` is
+    /// [`ConicHit::Unsettled`].
+    ///
+    /// [`OffBy::Carrier`]: geom_brep::curve_pair::OffBy::Carrier
+    /// [`AtFoot::On`]: geom_brep::curve_pair::AtFoot::On
+    /// [`AtFoot::Undecided`]: geom_brep::curve_pair::AtFoot::Undecided
     pub(crate) fn hit(&self, q: Point3<T>, band: Band) -> Result<ConicHit, ReadEscalation> {
-        use geom_brep::curve_pair::{Reading, Span};
+        use geom_brep::curve_pair::{AtFoot, OffBy, Reading, Span};
         let span = Span::new(&self.carrier, self.span);
         let near = geom::mid_param(self.span.0, self.span.1);
         Ok(match span.read(q, near, band).map_err(|r| r.refused()) {
-            Ok(Reading::Off) => ConicHit::Off,
-            Ok(Reading::Carrier) => ConicHit::Carrier,
+            Ok(Reading::Off(OffBy::Carrier)) => ConicHit::Off,
+            Ok(Reading::Off(OffBy::Span {
+                carrier: AtFoot::On,
+            })) => ConicHit::Carrier,
+            Ok(Reading::Off(OffBy::Span {
+                carrier: AtFoot::Undecided,
+            })) => {
+                let (on, record) =
+                    geom_core::k_stats::detached(|| self.carrier.on_carrier(q, near, band));
+                if on.is_ok() {
+                    geom_core::k_stats::splice(record);
+                } else {
+                    geom_core::k_stats::splice_superseded(record);
+                }
+                match on {
+                    Ok(geom::OnCarrier::On { .. }) => ConicHit::Carrier,
+                    _ => ConicHit::Off,
+                }
+            }
             Ok(Reading::On { margin, .. }) => ConicHit::On(margin),
             Ok(Reading::End(_)) => ConicHit::End,
             Err(geom::CarrierRefusal::Escalated(geom::CarrierEscalation::InBand(diag))) => {
@@ -1340,6 +1371,7 @@ pub(crate) fn carrier_loop<T: Decide>(
                     geom_core::k_stats::relog(&geom_core::k_stats::Recorded {
                         verdicts: Vec::new(),
                         escalations: vec![geom_core::k_stats::Escalation { source: diag }],
+                        marks: Vec::new(),
                     });
                     return Err(PointInLoopError::on_margin(r#loop, LoopDecision::ArcSpan)(
                         diag,
@@ -1354,17 +1386,13 @@ pub(crate) fn carrier_loop<T: Decide>(
                 // A line: its segment is its two end vertices'.
                 geom::Curve3::Line(_) => LoopEdge::Chord,
                 geom::Curve3::Spiric {
-                    center,
-                    axis,
-                    u_ref,
+                    frame,
                     major_radius,
                     minor_radius,
                     offset,
                 } => LoopEdge::Spiric(SpiricArc::new(
                     Oval {
-                        center,
-                        axis,
-                        u_ref,
+                        frame,
                         major: major_radius,
                         minor: minor_radius,
                         offset,
@@ -1674,7 +1702,7 @@ pub fn point_in_loop<T: Decide>(
 }
 
 /// [`point_in_loop`] with no precondition certified: the loop is read
-/// as its projection along `normal`. For `boolean::solid_contain`'s
+/// as its projection along `normal`. For `solid_contain`'s
 /// in-face test alone, which reads a face's trim at the face's OWN
 /// surface plane, `q` a ray's hit on that plane: an operand the
 /// boolean's gates admit may hold a vertex off that plane by more than
@@ -1913,9 +1941,9 @@ pub(crate) fn loop_reach<T: Decide>(
 /// the projected read (`point_in_loop_projected`) an arc a little off the
 /// plane is read as its projection along `normal`, the region the walk
 /// reads there. Each root is then read along the ray
-/// (`point_in_arc_loop_conic_advance`) and on the arc's span by the plane
-/// door ([`RootPlace`](geom_brep::curve_face::plane_crossing::RootPlace)): a root at an end grazes, one in band of an end
-/// sets the ray aside.
+/// (`point_in_arc_loop_conic_advance`) and on the arc's span by the
+/// crossing reading ([`OnSpan`](geom_brep::curve_face::OnSpan)): a meeting
+/// at an end grazes, and a window sets the ray aside.
 ///
 /// **The ray's plane is built, not read off `face`'s record**: the plane
 /// through `q` with `u_ref = d` and the caller's `normal`
@@ -1925,7 +1953,7 @@ pub(crate) fn loop_reach<T: Decide>(
 /// `normal`, and each way in holds it differently:
 /// - [`point_in_loop`] certifies it ([`certify_plane`]).
 /// - On the projected read it is that read's own premise, above.
-/// - [`contfp`](crate::boolean::contfp), through
+/// - [`contfp`](crate::contain::contfp), through
 ///   [`carrier_loop_side`], takes it unchecked from its caller: "`q`
 ///   already on the plane of `face`, with unit plane normal `normal`".
 ///
@@ -1945,45 +1973,49 @@ fn conic_crossings<T: Decide>(
     d: Vec3<T>,
     band: Band,
 ) -> Result<Option<usize>, Indeterminate> {
-    use geom_brep::curve_face::plane_crossing::RootPlace;
+    use geom_brep::curve_face::OnSpan;
     use geom_brep::curve_pair::on_surface::{
         AcrossRefusal, Charted, CoSurface, OnSurface, SurfaceCurve,
     };
     let plane = Charted::held(
         face,
         geom::Surface::Plane {
-            origin: q,
-            normal,
-            u_ref: d,
+            frame: geom::Frame::new(q, normal, d),
         },
     );
     let Ok(ray) = SurfaceCurve::u_line(&plane, geom_core::Point2::new(T::zero(), T::zero())) else {
         unreachable!("a plane has its u-lines")
     };
-    let read = OnSurface::edge(face, &k.carrier, k.span).across(
-        &ray,
-        "point_in_arc_loop_conic_in_plane",
-        band,
-    );
-    let roots = match read {
-        Ok(found) => found,
-        Err(AcrossRefusal::InBand(diag)) => return Err(diag),
+    let meetings = match OnSurface::edge(face, &k.carrier, k.span).across(&ray, band) {
+        Ok(CoSurface::Roots(meetings)) => meetings,
+        // Tangent to the conic where a root can reach the arc, or the arc
+        // wholly in the ray's square plane (a conic stood on edge, only
+        // on the projected read): a graze.
+        Ok(CoSurface::Touch | CoSurface::InPlane) => return Ok(None),
+        // A count needs every root: a stretch of the arc the reading
+        // could not read sets the ray aside, on its margin where it was
+        // read in band, else as a graze. A fault among the windows is a
+        // kernel fault, whatever else stands.
+        Err(AcrossRefusal::Windows(refusal)) => {
+            if let Some(fault) = refusal.windows.iter().find_map(|w| w.why.fault()) {
+                unreachable!("the ray's crossing reading is a kernel fault: {fault}");
+            }
+            return refusal
+                .windows
+                .iter()
+                .find_map(|w| w.why.diag())
+                .map_or(Ok(None), Err);
+        }
         Err(AcrossRefusal::OffRecord { edge, curve }) => {
             unreachable!("the walk keys its arc and its ray by one face: {edge:?}, {curve:?}")
         }
-    };
-    let roots = match roots {
-        CoSurface::Roots(roots) => roots,
-        // Tangent to the conic where a root can reach the arc (the door
-        // reads a graze's root spread against the span itself), or the
-        // arc wholly in the ray's square plane (a conic stood on edge,
-        // only on the projected read): a graze.
-        CoSurface::Touch | CoSurface::InPlane => return Ok(None),
-        CoSurface::Unlaned => unreachable!("a conic arc crosses a plane in closed form"),
+        Err(AcrossRefusal::NoPlane) => {
+            unreachable!("the walk reads its arc across the ray's plane")
+        }
     };
     let mut crossings = 0;
-    for (root, y) in roots {
-        let advance = Margin::of((y - q).dot(d));
+    for m in meetings {
+        let advance = Margin::of((m.point - q).dot(d));
         match decide("point_in_arc_loop_conic_advance", advance, band)? {
             Sign::Positive => {}
             Sign::Negative => continue,
@@ -1991,18 +2023,14 @@ fn conic_crossings<T: Decide>(
             // A crossing at `q` the pre-pass did not see.
             Sign::Zero => return Ok(None),
         }
-        match root.place {
-            RootPlace::Inside => crossings += 1,
+        match m.on_span {
+            OnSpan::Inside { .. } => crossings += 1,
             // An endpoint's neighbourhood. The endpoint is a vertex of
             // the loop, and a ray through a vertex has already grazed on
             // its side row, so this arm answers only where that row and
-            // the door's span reading disagree inside the band — a graze
-            // all the same, never a count.
-            RootPlace::AtEnd => return Ok(None),
-            // A count needs every root: one in band of an end sets the
-            // ray aside (not a search's kept reading; the callee register
-            // names it).
-            RootPlace::Undecided(diag) => return Err(diag),
+            // the crossing reading's span reading disagree inside the
+            // band — a graze all the same, never a count.
+            OnSpan::End(_) => return Ok(None),
         }
     }
     Ok(Some(crossings))
@@ -2115,6 +2143,47 @@ mod tests {
                 ConicHit::End,
                 "w = {t1}: within the band of the start"
             );
+        }
+    }
+
+    /// **A point the span reads off is read once** ([`ConicArc::hit`]):
+    /// off the carrier ([`OffBy::Carrier`]), or on it at the foot past
+    /// the arc ([`AtFoot::On`]), the whole conic's question is already
+    /// decided, so `hit` does not ask it again. A point off a circle arc's carrier, inside and outside it,
+    /// is `Off`, and a point on the carrier past the arc is `Carrier`,
+    /// each on one `curve_carrier_gap` verdict. Red where `hit` asks the
+    /// whole carrier on every `Off`, or on an `AtFoot::On`: that point
+    /// reads two.
+    ///
+    /// [`OffBy::Carrier`]: geom_brep::curve_pair::OffBy::Carrier
+    /// [`AtFoot::On`]: geom_brep::curve_pair::AtFoot::On
+    #[test]
+    fn a_point_the_span_reads_off_is_read_once() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let carrier = geom::Curve3::circle(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            1.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
+        let Ok(Some(k)) = conic_of(&carrier, (0.0, 1.0), WALK_ROWS.conic(), band) else {
+            panic!("a circle arc under a period");
+        };
+        for (q, want) in [
+            (Point3::new(0.2, 0.1, 0.0), ConicHit::Off),
+            (Point3::new(1.5, 0.3, 0.0), ConicHit::Off),
+            (Point3::new(-1.0, 0.0, 0.0), ConicHit::Carrier),
+        ] {
+            let bracket = geom_core::k_stats::Bracket::open();
+            let got = k.hit(q, band).expect("decided");
+            let recorded = bracket.finish();
+            assert_eq!(got, want, "{q:?}");
+            let read = recorded
+                .verdicts
+                .iter()
+                .filter(|v| v.predicate == "curve_carrier_gap")
+                .count();
+            assert_eq!(read, 1, "{q:?}: the carrier read once");
         }
     }
 
@@ -2305,14 +2374,14 @@ mod tests {
             );
         }
         // A circle: an overlap in its band escalates, one past it is wound.
-        let circle = geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame {
-                origin: Point3::new(0.0, 0.0, 0.0),
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            },
-            radius: 1.0,
-        });
+        let circle = geom::Curve3::Circle(geom::Circle::new(
+            geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+            ),
+            1.0,
+        ));
         let tau = core::f64::consts::TAU;
         assert!(matches!(
             conic_of(&circle, (0.0, tau + 5.0 * eps), WALK_ROWS.conic(), band),
@@ -2501,6 +2570,56 @@ mod tests {
         );
     }
 
+    /// **A straddle, or an `Off` that rests on no undecided reading**: the
+    /// reading of a point the carrier's two bounds straddle, `distance`
+    /// off the whole carrier (known in closed form). Where the walk over
+    /// the arc's span clears the point, an `Off` stands on that
+    /// certificate: the point is truly off (`distance` past the band's
+    /// zero), the reading's record holds no escalation but the walk's own
+    /// pieces refined on the way to its `Clear` (`curve_carrier_piece` and
+    /// `curve_carrier_piece_clear`;
+    /// the carrier's straddle superseded), and the closed-form lower bound
+    /// (`curve_carrier_clear`) is not what decided it. Otherwise the
+    /// straddle stands
+    /// ([`assert_straddle`]). Never `On`.
+    fn assert_straddle_or_walked_off(
+        got: Result<ConicHit, ReadEscalation>,
+        recorded: &geom_core::k_stats::Recorded,
+        (bounds, distance, band): ((f64, f64), f64, Band),
+        label: &str,
+    ) {
+        match got {
+            Err(got) => assert_straddle(
+                got,
+                recorded,
+                (LoopDecision::Boundary, "curve_carrier_straddle"),
+                bounds,
+                label,
+            ),
+            Ok(ConicHit::Off) => {
+                assert!(
+                    distance > band.zero(),
+                    "{label}: an Off of a point {distance:e} off the carrier"
+                );
+                assert!(
+                    recorded.escalations.iter().all(|e| matches!(
+                        e.source.predicate,
+                        Some("curve_carrier_piece" | "curve_carrier_piece_clear")
+                    )),
+                    "{label}: an Off resting on an undecided reading: {:?}",
+                    recorded.escalations
+                );
+                assert!(
+                    !recorded.verdicts.iter().any(|v| {
+                        v.predicate == "curve_carrier_clear" && v.sign == geom_core::Sign::Positive
+                    }),
+                    "{label}: an Off on the closed-form lower bound"
+                );
+            }
+            Ok(got) => panic!("{label}: expected a straddle or a walked Off, got {got:?}"),
+        }
+    }
+
     /// The lower bound and the upper bound `ConicArc::hit` reads on the
     /// distance from the ellipse of semi-axes `a` (along x) and `b` to the
     /// point `x` out along its major axis: the Hessian-bounded root of the
@@ -2518,10 +2637,13 @@ mod tests {
     /// its major vertex the lower bound on a point `kε` out reads within
     /// the zero band while the upper bound — here the distance itself —
     /// reads definitely beyond it. The answer escalates as a straddle of
-    /// the two ([`assert_straddle`]); it is never `On`, which reading ON
-    /// off the lower bound would give.
+    /// the two ([`assert_straddle`]), or is `Off` where the walk over the
+    /// arc's span `(0, τ)` clears the point, as `geom_brep`'s
+    /// `Span::read` reads it before any place (its early clearance) at
+    /// ε 1e-6 ([`assert_straddle_or_walked_off`]). It is never `On`,
+    /// which reading ON off the lower bound would give.
     #[test]
-    fn an_ellipse_tighter_than_the_band_straddles_it() {
+    fn an_ellipse_tighter_than_the_band_straddles_or_is_walked_off() {
         let band = Band::linear(Tol::witness()).unwrap();
         let eps = band.zero();
         for a in [1.0, 4.0] {
@@ -2545,16 +2667,13 @@ mod tests {
             };
             for out in [15.0, 20.0, 40.0] {
                 let bracket = geom_core::k_stats::Bracket::open();
-                let got = k.hit(Point3::new(a + out * eps, 0.0, 0.0), band);
+                let q = Point3::new(a + out * eps, 0.0, 0.0);
+                let got = k.hit(q, band);
                 let recorded = bracket.finish();
-                let Err(got) = got else {
-                    panic!("a {a}, {out}ε out: expected a straddle, got {got:?}");
-                };
-                assert_straddle(
+                assert_straddle_or_walked_off(
                     got,
                     &recorded,
-                    (LoopDecision::Boundary, "curve_carrier_straddle"),
-                    major_vertex_bounds(a, b, a + out * eps),
+                    (major_vertex_bounds(a, b, a + out * eps), out * eps, band),
                     &format!("a {a}, {out}ε"),
                 );
             }
@@ -2578,17 +2697,20 @@ mod tests {
         ))
     }
 
-    /// **[`an_ellipse_tighter_than_the_band_straddles_it`], stored minor
-    /// first.** The lower bound's Hessian term is the SMALLER semi-axis
+    /// **[`an_ellipse_tighter_than_the_band_straddles_or_is_walked_off`],
+    /// stored minor first.** The lower bound's Hessian term is the SMALLER semi-axis
     /// whichever field holds it; read off `b` (here the larger), it
-    /// over-states the distance and reads the point `Off`.
+    /// over-states the distance and reads the point `Off` on the
+    /// closed-form bound, which an `Off` here never rests on: it stands
+    /// only on the walk over the span ([`assert_straddle_or_walked_off`]).
     #[test]
-    fn an_ellipse_stored_minor_first_tighter_than_the_band_straddles_it() {
+    fn an_ellipse_stored_minor_first_tighter_than_the_band_straddles_or_is_walked_off() {
         let band = Band::linear(Tol::witness()).unwrap();
         let eps = band.zero();
         let (a, b) = (1.0, (eps / 100.0).sqrt());
+        let carrier = stored_minor_first(a, b);
         let Ok(Some(k)) = conic_of(
-            &stored_minor_first(a, b),
+            &carrier,
             (0.0, core::f64::consts::TAU),
             WALK_ROWS.conic(),
             band,
@@ -2596,16 +2718,13 @@ mod tests {
             panic!("the full ellipse is read");
         };
         let bracket = geom_core::k_stats::Bracket::open();
-        let got = k.hit(Point3::new(a + 20.0 * eps, 0.0, 0.0), band);
+        let q = Point3::new(a + 20.0 * eps, 0.0, 0.0);
+        let got = k.hit(q, band);
         let recorded = bracket.finish();
-        let Err(got) = got else {
-            panic!("expected a straddle, got {got:?}");
-        };
-        assert_straddle(
+        assert_straddle_or_walked_off(
             got,
             &recorded,
-            (LoopDecision::Boundary, "curve_carrier_straddle"),
-            major_vertex_bounds(a, b, a + 20.0 * eps),
+            (major_vertex_bounds(a, b, a + 20.0 * eps), 20.0 * eps, band),
             "stored minor first",
         );
     }
@@ -2726,8 +2845,14 @@ mod tests {
         use geom_core::k_stats::decide_reported;
         let rows = WALK_ROWS.conic();
         let (ellipse, a, b) = match *carrier {
-            geom::Curve3::Circle(geom::Circle { radius, .. }) => (false, radius, radius),
-            geom::Curve3::Ellipse(geom::Ellipse { semi_u, semi_v, .. }) => (true, semi_u, semi_v),
+            geom::Curve3::Circle(circle) => {
+                let radius = circle.radius();
+                (false, radius, radius)
+            }
+            geom::Curve3::Ellipse(ellipse) => {
+                let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
+                (true, semi_u, semi_v)
+            }
             _ => unreachable!("a conic fixture"),
         };
         let lever = a.min(b);
@@ -3021,7 +3146,7 @@ mod tests {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod spline_cap_rows {
     use super::*;
-    use crate::boolean::FaceContainment;
+    use crate::contain::FaceContainment;
     use crate::entity::FaceKey;
     use crate::euler::{MefSite, MevSite};
     use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
@@ -3153,7 +3278,7 @@ mod spline_cap_rows {
                 "{name}: the walk"
             );
             assert_eq!(
-                crate::boolean::contfp(&body, face, z, q, band),
+                crate::contain::contfp(&body, face, z, q, band),
                 Ok(face_wise),
                 "{name}: the face's containment"
             );

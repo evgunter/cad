@@ -7,11 +7,11 @@
 //! straight spine whose two trimlines are lines along the ruling. It
 //! terminates where its supports do: at each end of the requested edge
 //! the two unrequested edges lie in one plane face — the CAP,
-//! classified `CornerConfig::EndFace` by the battery's predicate 6 —
+//! classified a cut-off by the battery's predicate 6 —
 //! and the band is cut off there ([`super::end_face`]) in the cap's
 //! section of it about the spine's crossing: an arc of the band's
 //! radius where the cap is perpendicular to the ruling, of an ellipse
-//! where it is oblique (`RunOutPolicy::CutOffAtEndFace`). Exact and
+//! where it is oblique. Exact and
 //! stored; no new surface kind.
 //!
 //! # The walk, per link
@@ -101,7 +101,7 @@ impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
     /// nor a circle ([`EndCut::plan`]);
     /// [`BlendError::UnsupportedChain`]
     /// when a curved support carries a ring, or when a cap rim is itself
-    /// requested; [`BlendError::UnsupportedRunOut`] when a foot lands
+    /// requested; [`BlendError::UnbuiltEnd`] when a foot lands
     /// off its rim; [`BlendError::BodyNotIntact`] when the crease's
     /// halves do not lie in the supports the verdict names, an end is
     /// not among the verdict's end faces, or its incidence is not the
@@ -114,12 +114,13 @@ impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
     ) -> Result<Self, BlendError> {
         let l = link.link();
         let edge = l.edge;
-        let Surface::Cylinder { axis: tau, .. } = l.blend.surface else {
+        let Surface::Cylinder { frame, .. } = l.blend.surface else {
             return Err(unbuilt_geometry(
                 EntityId::Edge(edge),
                 "a ruled link's band is not a cylinder about its ruling",
             ));
         };
+        let tau = frame.axis();
         let (q_a, q_b) = (
             open_trimline(l, l.face_a)?.origin,
             open_trimline(l, l.face_b)?.origin,
@@ -219,7 +220,7 @@ impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
 /// # Errors
 ///
 /// [`BlendError::Op`] when an Euler operator refuses;
-/// [`BlendError::UnsupportedRunOut`] / [`BlendError::UnsupportedGeometry`]
+/// [`BlendError::UnbuiltEnd`] / [`BlendError::UnsupportedGeometry`]
 /// from a cut-off ([`cut_off`]); [`BlendError::BodyNotIntact`] where a
 /// cycle read disagrees with the plan.
 pub(in crate::blend) fn ruled_phase<T: Decide + Bounds + topo::AtRestPolicy>(

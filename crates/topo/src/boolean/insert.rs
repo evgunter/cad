@@ -97,7 +97,7 @@
 use geom_core::ladder::{Answering, Climb, Rung, climb};
 use geom_core::{Band, Decide, Margin, Sign, Vec3};
 
-use super::sectors::{BoolSector, Leaned, PairRecord, leaned_lever};
+use super::sectors::{BoolSector, Leaned, PairRecord, leaned};
 use super::{
     BoolNullEdgeRecord, BooleanError, BooleanOp, NullEdgePairRecord, Operand, PairSite, SideCode,
     VvContact,
@@ -122,7 +122,7 @@ pub(super) struct InsertOut<T: geom_core::Real> {
 /// mint (module docs).
 #[cfg(test)]
 #[allow(clippy::too_many_arguments)]
-fn insert_null_pairs<T: Decide>(
+fn insert_null_pairs<T: crate::props::AtRestPolicy>(
     a_body: &mut Body<T>,
     b_body: &mut Body<T>,
     contact: VvContact,
@@ -440,7 +440,7 @@ pub(super) struct NullPlan<T: geom_core::Real> {
 /// direction and each run's direction (module docs), touching neither
 /// body.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn plan_null_pairs<T: Decide>(
+pub(super) fn plan_null_pairs<T: crate::props::AtRestPolicy>(
     a_body: &Body<T>,
     b_body: &Body<T>,
     contact: VvContact,
@@ -1901,9 +1901,10 @@ fn flankers_of<T: Decide>(
 /// its end bound toward its start: the sign of `(x × y)·n`, `Negative`
 /// where `y` lies after `x`, `Zero` where the two lie along one
 /// direction. The rotation from start to end is positive about the
-/// sector's normal, the convention `sectors::within` reads. It is
-/// levered at the sector's arm and the two directions' leans
-/// (`sectors::leaned_lever`). An in-band reading refuses as the
+/// sector's normal, the convention `sectors::within` reads. The reading
+/// is foreshortened by the two directions' smaller lean
+/// (`sectors::leaned`) and levered at the sector's arm, the metering
+/// arm the sector carries. An in-band reading refuses as the
 /// coincidence it is, as the strut order's does.
 fn walks_after<T: Decide>(
     s: &BoolSector<T>,
@@ -1931,8 +1932,8 @@ fn walks_after<T: Decide>(
     }
 }
 
-/// **A fan's turn from `x`'s ruling to `y`'s**, levered as the sector's
-/// sides are ([`leaned_lever`]): the one margin [`walks_after`] and
+/// **A fan's turn from `x`'s ruling to `y`'s**, read as the sector's
+/// sides are ([`leaned`]): the one margin [`walks_after`] and
 /// [`walk_faces_first`] read a fan's order by
 /// ([`crate::sector_face::ConeApex::turn`]).
 fn fan_turn<T: Decide>(
@@ -1941,10 +1942,7 @@ fn fan_turn<T: Decide>(
     x: Leaned<T>,
     y: Leaned<T>,
 ) -> Margin<T> {
-    Margin::levered(
-        apex.turn(x.dir, y.dir),
-        leaned_lever(s.arm, (x.lean, y.lean)),
-    )
+    Margin::levered(leaned(apex.turn(x.dir, y.dir), (x.lean, y.lean)), s.arm)
 }
 
 /// A germ in one solid.
@@ -2617,7 +2615,7 @@ pub(super) fn strut_order<T: Decide>(
 /// against a face the locus lies in, name no ray of it. Membership in
 /// both sectors is the one datum that names its ray. The fan's meeting
 /// rays are rulings, each a ray of its own, singled out the same way.
-fn record_germ_dir<T: Decide>(
+fn record_germ_dir<T: crate::props::AtRestPolicy>(
     (a_body, a_vertex): (&Body<T>, VertexKey),
     (b_body, b_vertex): (&Body<T>, VertexKey),
     (sa, codes_a): (&BoolSector<T>, (SideCode, SideCode)),

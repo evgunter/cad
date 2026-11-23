@@ -109,20 +109,17 @@ fn rims(body: &Body<f64>, face: FaceKey) -> Vec<EdgeKey> {
         if out.contains(&e) {
             continue;
         }
-        if let Curve3::Circle(geom::Circle {
-            frame: geom::Frame { axis, .. },
-            ..
-        }) = curve_of(body, e).carrier()
-            && axis.y.abs() > 0.999
+        if let Curve3::Circle(geom::Circle { frame, .. }) = curve_of(body, e).carrier()
+            && frame.axis().y.abs() > 0.999
         {
             out.push(e);
         }
     }
     let height = |e: &EdgeKey| match curve_of(body, *e).carrier() {
-        Curve3::Circle(geom::Circle {
-            frame: geom::Frame { origin: center, .. },
-            ..
-        }) => center.y,
+        Curve3::Circle(geom::Circle { frame, .. }) => {
+            let center = frame.origin();
+            center.y
+        }
         _ => unreachable!("a rim is a circle"),
     };
     out.sort_by(|a, b| height(a).total_cmp(&height(b)));
@@ -147,20 +144,12 @@ fn split_at(body: &mut Body<f64>, e: EdgeKey, angle: Option<f64>) -> VertexKey {
 
 /// The angle of `p` on a circle carrier.
 fn angle_on(c: &Curve3<f64>, p: Point3<f64>) -> f64 {
-    let Curve3::Circle(geom::Circle {
-        frame:
-            geom::Frame {
-                origin: center,
-                axis,
-                u_ref,
-            },
-        ..
-    }) = c
-    else {
+    let Curve3::Circle(geom::Circle { frame, .. }) = c else {
         panic!("not a circle")
     };
-    let d = p - *center;
-    d.dot(axis.cross(*u_ref)).atan2(d.dot(*u_ref))
+    let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
+    let d = p - center;
+    d.dot(axis.cross(u_ref)).atan2(d.dot(u_ref))
 }
 
 /// Asserts the body is tier-3 clean and that the minting pass over it
@@ -336,16 +325,19 @@ fn meridian(
             let end = p0 + (p1 - p0) * frac;
             (EdgeCurveSpec::line_between(p0, end), end)
         }
-        Surface::Sphere { center, .. } => arc_about(*center),
+        Surface::Sphere { frame, .. } => {
+            let center = frame.origin();
+            arc_about(center)
+        }
         Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             ..
         } => {
-            let d = p0 - *center;
-            let h = (d - *axis * d.dot(*axis)).normalize();
-            arc_about(*center + h * *major_radius)
+            let (center, axis) = (frame.origin(), frame.axis());
+            let d = p0 - center;
+            let h = (d - axis * d.dot(axis)).normalize();
+            arc_about(center + h * *major_radius)
         }
         other => panic!("no meridian on {other:?}"),
     }

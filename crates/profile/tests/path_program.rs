@@ -111,6 +111,15 @@ fn validate_ok(lp: &ProfileLoop<f64>) {
 /// tautology the census retired into; this row smokes the plumbing
 /// (recording, driver arms, the state walk) rather than proving two
 /// implementations equivalent.
+/// A tip state's identifier, which the lattice refusal writes, is the
+/// name its declaration gives it.
+#[test]
+fn every_tip_state_is_identified_by_its_declared_name() {
+    for state in profile::test_support::every_state() {
+        assert_eq!(state.identifier(), format!("{state:?}"));
+    }
+}
+
 #[test]
 fn the_fused_family_records_and_replays_bit_identically() {
     use profile::{ArcSide, Center, Radius, Sweep};
@@ -794,15 +803,14 @@ fn every_arc_mode_is_replayed_by_the_corpus() {
 }
 
 fn assert_transition(program: &[Step<f64>], step: usize, state: TipState, verb: Option<Verb>) {
-    match replay(program, Tol::witness()) {
-        Err(ReplayError {
-            step: s,
-            kind:
-                ReplayErrorKind::Transition {
-                    state: st,
-                    verb: vb,
-                },
-        }) => {
+    match replay(program, Tol::witness()).map_err(|e| (e.step(), e.kind)) {
+        Err((
+            s,
+            ReplayErrorKind::Transition {
+                state: st,
+                verb: vb,
+            },
+        )) => {
             assert_eq!((s, st, vb), (step, state, verb), "transition refusal");
         }
         other => panic!("expected a lattice violation, got {other:?}"),
@@ -1070,10 +1078,12 @@ fn geometry_refusals_are_the_path_class_and_are_binding_dependent() {
         }],
         Tol::witness(),
     ) {
-        Err(ReplayError {
-            step: 0,
-            kind: ReplayErrorKind::Path(PathError::NonpositiveCircleRadius { .. }),
-        }) => {}
+        Err(
+            e @ ReplayError {
+                kind: ReplayErrorKind::Path(PathError::NonpositiveCircleRadius { .. }),
+                ..
+            },
+        ) if e.step() == 0 => {}
         other => panic!("a zero radius must refuse NonpositiveCircleRadius, got {other:?}"),
     }
     match replay(
@@ -1084,10 +1094,12 @@ fn geometry_refusals_are_the_path_class_and_are_binding_dependent() {
         ],
         Tol::witness(),
     ) {
-        Err(ReplayError {
-            step: 2,
-            kind: ReplayErrorKind::Path(PathError::NonpositiveFilletRadius { .. }),
-        }) => {}
+        Err(
+            e @ ReplayError {
+                kind: ReplayErrorKind::Path(PathError::NonpositiveFilletRadius { .. }),
+                ..
+            },
+        ) if e.step() == 2 => {}
         other => panic!("a negative fillet radius must refuse typed, got {other:?}"),
     }
 }

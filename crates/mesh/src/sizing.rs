@@ -261,9 +261,8 @@ impl Eps {
     /// and [`crate::cert::verdict`], which applies a certificate's
     /// rounding allowance only while the band dominates it (four times
     /// over, `cert::ALLOWANCE_SHARE`). Nothing reads it to measure the
-    /// quality of a body's own coordinates: that question is
-    /// `topo::coherence`'s, and it carries its own band. So this
-    /// operation has no deviation to record.
+    /// quality of a body's own coordinates. So this operation has no
+    /// deviation to record.
     pub(crate) fn dominates(self, scaled: f64) -> bool {
         scaled < self.0
     }
@@ -355,16 +354,17 @@ pub(crate) struct SizingTols {
     pub eps: Eps,
     /// The linear decision band props classifies with, minted from
     /// the same [`Tol`] as `eps` at operation entry (the calling
-    /// convention `Band::linear` prescribes). Consumed by three sites —
-    /// `curved`'s shape door, which hands it to
-    /// `geom_brep::props::require_iso_rectangle` and then to
-    /// `require_one_chart_branch` (asked by the curved lane and by the
-    /// dispatch, `tessellate::lane_of`, which the chord pass reads too),
-    /// the walk's wrap strip, and the trimmed lane's singular vertices
-    /// (`crate::chart_table::AnalyticRow::is_singular`), both of which
-    /// hand it to
-    /// `geom_brep::chart_singularity::vertex_at_singular_point` — and by
-    /// no rule of this crate's own: `mesh` decides nothing
+    /// convention `Band::linear` prescribes). The same band routes every
+    /// face before this value exists (`tessellate::Routes::of`, whose
+    /// doors hand it to `geom_brep::props::require_iso_rectangle` and then
+    /// to `require_one_chart_branch`). This field is consumed by three
+    /// sites — the walk's wrap strip and the trimmed lane's singular
+    /// vertices (`crate::chart_table::AnalyticRow::is_singular`), both of
+    /// which hand it to
+    /// `geom_brep::chart_singularity::vertex_at_singular_point`, and a
+    /// trimmed face's domain read at its turn (`tessellate::Route::ready`,
+    /// which hands it to `topo::Body::face_lift`) — and
+    /// by no rule of this crate's own: `mesh` decides nothing
     /// against it, it carries the band to geom-brep's predicates. Not an
     /// ε read of this crate, and the inventory pin does not count it as
     /// one.
@@ -589,9 +589,8 @@ pub(crate) fn sphere_face_widest_cos(
     surface: &geom::Surface<f64>,
 ) -> Result<f64, TessellateError> {
     let geom::Surface::Sphere {
-        center,
+        frame: carrier_frame,
         radius,
-        axis,
         ..
     } = *surface
     else {
@@ -599,13 +598,12 @@ pub(crate) fn sphere_face_widest_cos(
             what: "a sphere face's widest latitude on a non-sphere surface",
         });
     };
+    let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
     let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
     for (hek, ek, curve) in outer_loop_curves(body, fk)? {
         let (z0, z1) = match *curve.carrier() {
-            geom::Curve3::Circle(geom::Circle {
-                frame: geom::Frame { origin: cc, .. },
-                ..
-            }) => {
+            geom::Curve3::Circle(geom::Circle { frame, .. }) => {
+                let cc = frame.origin();
                 let height = |p: geom_core::Point3<f64>| (p - center).dot(axis);
                 let c = height(cc);
                 let a = height(curve.carrier().eval(0.0)) - c;
@@ -856,7 +854,7 @@ pub(crate) fn cone_face_rho_max(
     let mut rho_max: Option<f64> = None;
     for (hek, ek, curve) in outer_loop_curves(body, fk)? {
         let rho = match *curve.carrier() {
-            geom::Curve3::Circle(geom::Circle { radius, .. }) => radius,
+            geom::Curve3::Circle(circle) => circle.radius(),
             geom::Curve3::Line(_) => continue,
             geom::Curve3::Ellipse(..)
             | geom::Curve3::Nurbs(_)

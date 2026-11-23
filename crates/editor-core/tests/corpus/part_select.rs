@@ -144,7 +144,7 @@ pub fn document() -> CorpusDoc {
     CorpusDoc {
         name: "part_select",
         about: "DOCM-2: a split's two halves read by port, and a row's middle member read as row[1]",
-        edits: r.edits,
+        edits: Some(r.edits),
         doc: r.doc,
         result: Some(whole),
         pin: Some(MassPin {

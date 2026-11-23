@@ -683,7 +683,7 @@ pub(super) fn corner_holds<T: Decide>(
         crate::validate::decide_at_lever(
             ("bool_fate_corner_bend", "bool_fate_corner_bend_straddle"),
             lever,
-            |l| geom_brep::parting(k - kb, u, l.length()),
+            |l| geom_brep::parting(k - kb, u, l),
             band,
         )
         .map(Some)
@@ -1033,7 +1033,7 @@ enum End {
 
 /// Where the dropped operand meets kept vertex `x`, which lies in the
 /// face divided from `root`.
-fn end_at<T: geom_core::Real>(
+fn end_at<T: crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     holder: Operand,
     x: VertexKey,
@@ -1172,7 +1172,7 @@ fn lies<T: Decide>(
     for f in pieces(body, root, divisions) {
         let end =
             crate::held::Held::constructed(p, "a fate cut's end, a point of the face it divides");
-        let at = match super::contain::placement_on_carrier(body, f, end, band)
+        let at = match crate::contain::placement_on_carrier(body, f, end, band)
             .map_err(unplaced)?
             .0
         {
@@ -1402,7 +1402,7 @@ fn rehome<T: Decide>(
                 "a vertex of a ring of the face divided into this one",
             );
             let at =
-                super::contain::placement_on_carrier(body, new, held, band).map(|(at, _, _)| {
+                crate::contain::placement_on_carrier(body, new, held, band).map(|(at, _, _)| {
                     match at {
                         // OffCarrier → Out (trusted on carrier).
                         super::CurvedPlacement::OffCarrier => Some(super::FaceContainment::Out),
@@ -1415,7 +1415,7 @@ fn rehome<T: Decide>(
                 // The face was just made by the driver: one that does not
                 // resolve is a desync.
                 Err(super::ContainError::StaleFace(face)) => {
-                    super::contain::driver_face_stale(face)
+                    crate::contain::driver_face_stale(face)
                 }
                 // Every other refusal is kept, or aborts, as the door's
                 // refusal states it is ([`super::ContainError::refusal`]).

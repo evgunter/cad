@@ -36,19 +36,23 @@ fn spline(controls: &[Point3<f64>]) -> Curve3<f64> {
 
 fn cylinder() -> Surface<f64> {
     Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
 fn sphere() -> Surface<f64> {
     Surface::Sphere {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
@@ -88,10 +92,12 @@ fn chord(spans: usize) -> Curve3<f64> {
 /// The cone of half-angle 30° about `z`, its apex at the origin.
 fn cone() -> Surface<f64> {
     Surface::Cone {
-        apex: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         half_angle: core::f64::consts::FRAC_PI_6,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
@@ -110,11 +116,13 @@ fn on_cone(h: f64) -> Curve3<f64> {
 /// The ring torus `R = 2`, `r = 0.5` about `z`.
 fn torus() -> Surface<f64> {
     Surface::Torus {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
         major_radius: 2.0,
         minor_radius: 0.5,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
@@ -190,8 +198,12 @@ fn by_turn(carrier: &Curve3<f64>, surface: &Surface<f64>) -> Vec<usize> {
 /// `parts`.
 fn widest(carrier: &Curve3<f64>, surface: &Surface<f64>, parts: Parts) -> f64 {
     let (net, twin, _) = twin_net(carrier, surface);
-    let nappe = matches!(surface, Surface::Cone { .. }).then_some(crate::offset::Nappe::Opening);
-    twin_span_hulls(&net, &twin, nappe, parts, &[])
+    let locus = if matches!(surface, Surface::Cone { .. }) {
+        projected::Locus::Nappe(crate::offset::Nappe::Opening)
+    } else {
+        projected::Locus::Carrier
+    };
+    twin_span_hulls(&net, &twin, locus, parts, &[])
         .unwrap()
         .iter()
         .map(|s| s.meters)
@@ -208,7 +220,14 @@ fn limb2(
 ) -> (projected::OffsetRead<f64>, u64) {
     limb2_memo::clear();
     let (_, before) = limb2_memo::counts();
-    let read = limb2_offset_sup(carrier, (0.0, 1.0), surface, band).unwrap();
+    let read = limb2_offset_sup(
+        carrier,
+        (0.0, 1.0),
+        surface,
+        crate::pcurve_cache::Limb2Locus::Face,
+        band,
+    )
+    .unwrap();
     (read, limb2_memo::counts().1 - before)
 }
 
@@ -223,9 +242,11 @@ fn limb2(
 fn a_span_reads_the_parts_its_own_turn_needs() {
     let most = projected::INCIDENCE_CUTS;
     let plane = Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.5),
-        normal: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        frame: geom::Frame::new(
+            Point3::new(0.0, 0.0, 0.5),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
     };
     for (what, got, want) in [
         ("a long span", by_turn(&quarter(), &cylinder()), vec![most]),
@@ -341,7 +362,8 @@ fn a_short_span_on_a_cone_or_a_torus_decides_at_the_first_reading() {
 fn a_chord_of_short_spans_reads_one_part_a_span() {
     let (c, s) = (chord(40), cylinder());
     let (net, twin, _) = twin_net(&c, &s);
-    let parts = twin_span_hulls(&net, &twin, None, Parts::ByTurn, &[]).unwrap();
+    let parts =
+        twin_span_hulls(&net, &twin, projected::Locus::Carrier, Parts::ByTurn, &[]).unwrap();
     assert_eq!(parts.len(), 40, "one part a span");
     let one = widest(&c, &s, Parts::ByTurn);
     let band = Band::new(4.0 * one, 40.0 * one).unwrap();
@@ -386,8 +408,9 @@ fn the_rounds_start_at_eight_parts_a_span() {
     let band = Band::new(0.25 * eight, 2.5 * eight).unwrap();
     let (_, composed) = limb2(&c, &s, band);
     assert!(composed > 1, "the rounds read after the first reading");
-    let key =
-        limb2_memo::Key::of(&c, (0.0, 1.0), &s, band).with(Parts::Each(projected::INCIDENCE_CUTS));
+    let key = limb2_memo::Key::of(&c, (0.0, 1.0), &s, band)
+        .on(projected::Locus::Carrier)
+        .with(Parts::Each(projected::INCIDENCE_CUTS));
     let computed = core::cell::Cell::new(false);
     let round = limb2_memo::read(&key, &[], || {
         computed.set(true);

@@ -391,8 +391,8 @@ pub enum SessionOp {
     /// [`OpOutcome::layout`], and refuses nothing.
     Open(PathBuf),
     /// Write the committed document at a path, identity kept (DI4):
-    /// through the store of the folder the file lands in, with no
-    /// edit log (GQ3). Save and Save As… both push this. The committed
+    /// through the store of the folder the file lands in, as the
+    /// document's state (GQ3). Save and Save As… both push this. The committed
     /// display frames are kept beside the file, in its layout
     /// ([`crate::layout`]), never in it; a layout not written is the
     /// outcome's [`OpOutcome::layout`], and the save stands.
@@ -603,11 +603,11 @@ pub enum SessionOp {
     /// (`profile::structure`), never by list position — a list
     /// written holes-first describes the same profile. An empty list
     /// inserts the empty region, a profile with no loops. Every refusal
-    /// is the edit door's own: a degenerate loop and a non-nested pair
-    /// both refuse through the authoring-time check
-    /// ([`Refusal::Edit`]), one rule for authored and hand-written
-    /// programs alike (only a non-finite field refuses earlier, at
-    /// the literal door). A profile reads no frame: where it stands is
+    /// is the edit door's own ([`Refusal::Edit`]), one rule for
+    /// authored and hand-written programs alike (only a non-finite
+    /// field refuses earlier, at the literal door); a degenerate loop
+    /// or a non-nested pair is a value, admitted and refused at the
+    /// profile's evaluation. A profile reads no frame: where it stands is
     /// the placement of what is built from it.
     AddProfile {
         /// The loop programs, in description order.
@@ -638,26 +638,26 @@ pub enum SessionOp {
         /// The turn about the face's normal (`Angle`).
         spin: Formula,
     },
-    /// **A profile drawn on a frame, continuing tangent to a face's
-    /// trace** (D10, "Constructing a coincidence"): `chains` drawn on the
-    /// frame `Through` the first traced face's own axis and a vertex of
-    /// `plane`, a plane face square to that axis — its origin the
-    /// vertex's foot on the axis — tracing `traced`, by place
-    /// ([`pncad::trace::traced_frame`], [`pncad::trace::drawn_profile`]).
-    /// One `InsertNode`, in the frame's space.
+    /// **A profile drawn on a face, tracing faces of its body** (D10
+    /// `[placement]`; REFERENCES DM1; "Constructing a coincidence"):
+    /// `chains` drawn on `face`'s chart at its nearest orientation, no
+    /// spin and no slide, reading the traces of `traced`, by place
+    /// (`Recording::draw_on_face`, the loops checked by
+    /// [`pncad::trace::chain_loops`]). One `InsertNode`, in the face's
+    /// body's space; with nothing traced and no chain, an empty profile
+    /// the editor fills.
     ///
-    /// What is proven: a sweep up the frame's `z` of a chain that leaves
-    /// a traced wall's trace along its tangent (`OnTrace`, then
-    /// `AlongTrace`) is tangent to that wall by construction, and the
-    /// coincidence door reports the union's row `SameConstruction`.
+    /// What is proven: an extrude of a chain that leaves a traced wall's
+    /// trace along its tangent (`OnTrace`, then `AlongTrace`), drawn on a
+    /// cap of that wall's own extrude, is tangent to the wall by
+    /// construction, and the coincidence door proves the union's row.
     ///
-    /// A traced face with no axis, or a picked face that is no plane
-    /// square to it, refuses [`Refusal::Frame`]; an argument of the
-    /// wrong dimension [`Refusal::Edit`]. A crossing the piece does not
-    /// make builds, and refuses at evaluation on the profile's badge.
-    AddDrawnProfile {
-        /// The plane face the frame's origin is stood in.
-        plane: FaceSelection,
+    /// An argument of the wrong dimension refuses [`Refusal::Edit`]. A
+    /// face that is no plane, or a crossing the piece does not make,
+    /// builds, and refuses at evaluation on the profile's badge.
+    DrawOnFace {
+        /// The face the profile is drawn on.
+        face: FaceSelection,
         /// The faces the profile traces, by place.
         traced: Vec<FaceSelection>,
         /// The loops, outer first, in the document's vocabulary.
@@ -794,9 +794,8 @@ pub enum SessionOp {
     /// (`work/doors/a-takeover-re-points-a-union-operand-but-rebinds-no-mate-through-it.md`).
     ///
     /// The plane is any plane the document reads in the target's space
-    /// ([`SplitPlane`]): a picked face's own, read where it was picked
-    /// as the mirror reads its plane, or a plane read the caller
-    /// writes. A target seat of the wrong kind refuses
+    /// ([`ToolPlane`]): a picked face's own, read where it was picked,
+    /// or a plane read the caller writes. A target seat of the wrong kind refuses
     /// [`Refusal::WrongNodeKind`]; a plane read in another space refuses
     /// at the insert door (`EditError::SpaceMismatch`). Whether the
     /// face is planar, and which side is empty, are the split's own to
@@ -805,12 +804,14 @@ pub enum SessionOp {
         /// The body split.
         target: Operand,
         /// The plane it is cut along.
-        plane: SplitPlane,
+        plane: ToolPlane,
     },
-    /// **Mirror an existing body across the plane of a picked face** —
-    /// the mirror tool's one committed action. The plane is the face's
-    /// own, read where it was picked: a pick on a copy is read on that
-    /// copy, in the copy's space, where the mirrored body stands.
+    /// **Mirror an existing body across a plane** — the mirror tool's
+    /// one committed action. The plane is any plane the document reads
+    /// in the body's space ([`ToolPlane`]), as the split's is: a picked
+    /// face's own, read where it was picked — a pick on a copy is read
+    /// on that copy, in the copy's space, where the mirrored body
+    /// stands — or a plane read the caller writes.
     ///
     /// The body becomes the symmetric part: the image (`Node::Mirror`)
     /// and the union of the body and its image, in the body's space,
@@ -821,28 +822,39 @@ pub enum SessionOp {
     /// PR 6353). The made node is the image, the piece the gesture adds.
     ///
     /// A body seat of the wrong kind refuses [`Refusal::WrongNodeKind`];
-    /// a face read in another space — another construction's, or its
+    /// a plane read in another space — another construction's, or its
     /// image's — refuses at the insert door (`EditError::SpaceMismatch`).
-    /// Whether the face is planar is the mirror's own refusal where it
+    /// Whether a face is planar is the mirror's own refusal where it
     /// evaluates.
     AddMirror {
         /// The body reflected.
         body: Operand,
-        /// The face whose plane it is reflected across.
-        plane: FaceSelection,
+        /// The plane it is reflected across.
+        plane: ToolPlane,
     },
-    /// **Add a clearance requirement** — the clearance tool's one
-    /// committed action: an assertion that `clearance(a, b)` lies within
-    /// `bounds` (`Node::clearance`), each seat a body or a face. The
-    /// bounds are written as typed: a reversed band and a negative
-    /// bound are the evaluation's to refuse, on the requirement's row.
-    AddClearance {
-        /// The first seat.
-        a: ClearedSeat,
+    /// **Add an assertion** — the assertion tool's one committed action:
+    /// a recorded claim between two seats, each a body, a face picked in
+    /// the picture, or a read written as given.
+    ///
+    /// A clearance claim is `clearance(a, b)` within its bounds
+    /// (`Node::clearance`). A `Gap` or `Distance` claim is the measure
+    /// node over the two seats and a `Node::Assertion` relating its
+    /// output to the bound: the vocabulary `[assertions.quiet]` reads,
+    /// so a holding `Gap = 0` over a coincidence's two cells quiets it.
+    /// Either is one action and one undo. What a measure cannot read is
+    /// the insert door's to refuse, in its own words; a bound is written
+    /// as typed, and what is wrong with it is the evaluation's to say.
+    ///
+    /// **Built from values** ([`AssertedSeat`], [`AssertedClaim`]), so
+    /// a caller that already holds the claim — a check's finding — can
+    /// author it without the tool.
+    AddAssertion {
+        /// The first seat: a `Gap`'s outer, a `Distance`'s first.
+        a: AssertedSeat,
         /// The second seat.
-        b: ClearedSeat,
-        /// The bounds, each a length.
-        bounds: pncad::document::ClearanceBounds<Formula>,
+        b: AssertedSeat,
+        /// What is claimed between them.
+        claim: AssertedClaim,
     },
     /// Insert one pattern of an existing body — the pattern tool's one
     /// committed edit: an index `k = index(count)` and one placement of
@@ -1310,13 +1322,13 @@ impl SessionOp {
         match self {
             Self::AddProfile { .. }
             | Self::SketchOnFace { .. }
-            | Self::AddDrawnProfile { .. }
+            | Self::DrawOnFace { .. }
             | Self::AddExtrude { .. }
             | Self::AddRevolve { .. }
             | Self::AddBoolean { .. }
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
-            | Self::AddClearance { .. }
+            | Self::AddAssertion { .. }
             | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
@@ -1437,14 +1449,14 @@ impl SessionOp {
             | Self::NewDocument { .. }
             | Self::AddProfile { .. }
             | Self::SketchOnFace { .. }
-            | Self::AddDrawnProfile { .. }
+            | Self::DrawOnFace { .. }
             | Self::EditProfile { .. }
             | Self::AddExtrude { .. }
             | Self::AddRevolve { .. }
             | Self::AddBoolean { .. }
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
-            | Self::AddClearance { .. }
+            | Self::AddAssertion { .. }
             | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
@@ -1667,14 +1679,14 @@ impl SessionOp {
             | Self::SetBundle { .. }
             | Self::AddProfile { .. }
             | Self::SketchOnFace { .. }
-            | Self::AddDrawnProfile { .. }
+            | Self::DrawOnFace { .. }
             | Self::EditProfile { .. }
             | Self::AddExtrude { .. }
             | Self::AddRevolve { .. }
             | Self::AddBoolean { .. }
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
-            | Self::AddClearance { .. }
+            | Self::AddAssertion { .. }
             | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
@@ -1801,14 +1813,14 @@ impl SessionOp {
             | Self::SetBundle { .. }
             | Self::AddProfile { .. }
             | Self::SketchOnFace { .. }
-            | Self::AddDrawnProfile { .. }
+            | Self::DrawOnFace { .. }
             | Self::EditProfile { .. }
             | Self::AddExtrude { .. }
             | Self::AddRevolve { .. }
             | Self::AddBoolean { .. }
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
-            | Self::AddClearance { .. }
+            | Self::AddAssertion { .. }
             | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
@@ -1838,7 +1850,7 @@ impl SessionOp {
             op => matches!(
                 op,
                 Self::AddProfile { .. }
-                    | Self::AddDrawnProfile { .. }
+                    | Self::DrawOnFace { .. }
                     | Self::AddExtrude { .. }
                     | Self::AddRevolve { .. }
                     | Self::AddSplit { .. }
@@ -1900,14 +1912,14 @@ impl SessionOp {
             | Self::SetBundle { .. }
             | Self::AddProfile { .. }
             | Self::SketchOnFace { .. }
-            | Self::AddDrawnProfile { .. }
+            | Self::DrawOnFace { .. }
             | Self::EditProfile { .. }
             | Self::AddExtrude { .. }
             | Self::AddRevolve { .. }
             | Self::AddBoolean { .. }
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
-            | Self::AddClearance { .. }
+            | Self::AddAssertion { .. }
             | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
@@ -1925,9 +1937,10 @@ impl SessionOp {
     }
 }
 
-/// **The plane a split cuts along** ([`SessionOp::AddSplit`]).
+/// **The plane a split cuts along or a mirror reflects across**
+/// ([`SessionOp::AddSplit`], [`SessionOp::AddMirror`]).
 #[derive(Debug, Clone, PartialEq)]
-pub enum SplitPlane {
+pub enum ToolPlane {
     /// A face, read as its plane on the body it was picked on
     /// (`crate::matetool::plane_of`).
     Face(FaceSelection),
@@ -1936,14 +1949,57 @@ pub enum SplitPlane {
     Read(pncad::document::pose::RoleRead<Operand>),
 }
 
-/// **One seat of a clearance requirement** ([`SessionOp::AddClearance`]):
-/// a body, all of its faces, or one face picked in the picture.
+/// **One seat of an assertion** ([`SessionOp::AddAssertion`]).
 #[derive(Debug, Clone, PartialEq)]
-pub enum ClearedSeat {
-    /// A body read.
+pub enum AssertedSeat {
+    /// A body read, where it is drawn; a clearance reads all of its
+    /// faces.
     Body(Operand),
     /// A face, read on the body it was picked on.
     Face(FaceSelection),
+    /// **An operand as the measure reads it**, written as given: a
+    /// selection of one name in the body read plainly, a pose defined
+    /// off such a selection, or a variable — what the measure's insert
+    /// mints its references from. A check's finding names its cells
+    /// keyed by the `⊔` that gathered them, which is not this: a seat
+    /// built from a finding's raw name is admitted and then fails to
+    /// resolve. A finding's quieting assertion is converted to seats by
+    /// the kernel's own reading of the row.
+    Read(Operand),
+}
+
+/// **What an assertion claims** ([`SessionOp::AddAssertion`]): the
+/// measure over its two seats and how it is bounded.
+#[derive(Debug, Clone, PartialEq)]
+pub enum AssertedClaim {
+    /// `clearance(a, b)` within the bounds, each a length.
+    Clearance(pncad::document::ClearanceBounds<Formula>),
+    /// The output of the measure `measure` names, over the two seats in
+    /// order (a `Gap`'s outer then inner), related to the bound
+    /// (`pncad::document::Claim::Value`).
+    Value {
+        /// The measure.
+        measure: pncad::document::MeasureVerb,
+        /// How the output must relate to the bound.
+        relation: pncad::document::AssertionRelation,
+        /// The bound, in the output's dimension.
+        bound: Formula,
+    },
+}
+
+/// **The primitive `verb` names over `a` and `b`**, in seat order.
+#[must_use]
+pub fn measured(
+    verb: pncad::document::MeasureVerb,
+    a: Operand,
+    b: Operand,
+) -> pncad::document::MeasurePrimitive<Operand> {
+    use pncad::document::{MeasurePrimitive as M, MeasureVerb as V};
+    match verb {
+        V::Gap => M::Gap { outer: a, inner: b },
+        V::Distance => M::Distance { a, b },
+        V::Angle => M::Angle { a, b },
+    }
 }
 
 /// **An operation that creates a node** — the only operation

@@ -9,7 +9,8 @@
 //!   revolve, DECIDES its dihedral on both (the closed rim no longer
 //!   misreports a zero wedge on a transverse corner) — and past
 //!   that decision the closed rim's band is BUILT while the open arc
-//!   reaches the unimplemented seam-meridian corner;
+//!   ends at the revolve's cut faces, where an open chain's curved link
+//!   has no built end (`UnsupportedChain`);
 //! - the differential: a co-surface seam meridian — dihedral sine
 //!   exactly zero — still reads Zero at a margin of exactly 0.0, a
 //!   smooth seam the blend leaves as it is, at a lever that is now
@@ -90,9 +91,9 @@ fn neck_flare(rev: Revolution<f64>) -> Body<f64> {
 ///
 /// Past that decision the two forms part company, and where they part
 /// is the state of the verb: the closed rim is a one-edge band the
-/// cylinder×cone arm BUILDS, and the open arc terminates at the
-/// revolve's seam-meridian vertices, whose corner configuration is
-/// unimplemented.
+/// cylinder×cone arm BUILDS, and the open arc ends at the revolve's cut
+/// faces, where an open chain's curved link has no built end
+/// (`UnsupportedChain`, in the open-chain door's words).
 #[test]
 fn full_and_partial_revolve_decide_the_same_honest_dihedral() {
     let full = neck_flare(Revolution::Full);
@@ -123,9 +124,9 @@ fn full_and_partial_revolve_decide_the_same_honest_dihedral() {
         "open rim: a transverse 30° corner is not a tangency, got {open:?}"
     );
     assert!(
-        matches!(open, Err(BlendError::UnsupportedCorner { .. })),
-        "open rim: the arc terminates at the revolve's seam-meridian vertices, whose \
-         corner configuration is unimplemented, got {open:?}"
+        matches!(open, Err(BlendError::UnsupportedChain { edge, .. }) if edge == arc),
+        "open rim: the arc ends at the revolve's cut faces, where an open chain's curved \
+         link has no built end, got {open:?}"
     );
 }
 

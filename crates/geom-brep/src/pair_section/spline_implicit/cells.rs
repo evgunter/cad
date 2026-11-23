@@ -24,8 +24,8 @@ use geom::NurbsSurface;
 use geom_core::{Band, Bounds as _, Interval, Point3, Real};
 
 use super::super::{
-    CarriedComponent, CarryError, CarryRefusal, ComponentShape, LoopTubeRefusal, PadBox, farthest,
-    parts,
+    CarriedComponent, CarryError, CarryRefusal, ComponentShape, LoopTubeRefusal, PadBox, TubeRun,
+    farthest, parts,
 };
 use super::{Bracketed, box_gap};
 use crate::descent::{Descent, Work};
@@ -496,7 +496,8 @@ impl<'a> Enclosure<'a> {
     /// **The component the arc carries** (`ClassCarrier::Fitted`): the
     /// branch's certified carrier over its span, its certificate, its
     /// witness `carrier(mid)`, its cells as the boxes a site is read in
-    /// ([`CarriedComponent::boxes`]), its pad the widest of theirs, and
+    /// ([`CarriedComponent::boxes`]) and, hulled window by window, the
+    /// runs its foot is read over ([`CarriedComponent::runs`]), its pad the widest of theirs, and
     /// its reach: the farthest the cells of a window whose span holds
     /// the witness's parameter stand from the witness, the least over
     /// such windows. It claims no winding: an open arc winds about
@@ -570,6 +571,8 @@ impl<'a> Enclosure<'a> {
                 core::slice::from_ref(&witness),
             )));
         }
+        // A cell's pad read finite, which `farthest` gives only where
+        // every side of its image certifies.
         let boxes = self
             .cells
             .iter()
@@ -584,6 +587,22 @@ impl<'a> Enclosure<'a> {
                 }
             })
             .collect();
+        // Each window's cells hulled, with the carrier's span over the
+        // window: where on the carrier a site in them lies.
+        let runs = self
+            .spans
+            .iter()
+            .enumerate()
+            .filter_map(|(k, &span)| {
+                let hull = self
+                    .cells
+                    .iter()
+                    .filter(|c| c.window == k)
+                    .map(|c| c.image)
+                    .reduce(Box3::hull)?;
+                Some(TubeRun::of(hull, span).ok_or_else(|| unread(LoopTubeRefusal::NotFinite)))
+            })
+            .collect::<Result<Vec<_>, CarryError>>()?;
         Ok(CarriedComponent {
             carrier: b.carrier.clone(),
             span: b.params,
@@ -594,6 +613,7 @@ impl<'a> Enclosure<'a> {
             reach,
             witness: b.witness,
             boxes,
+            runs,
         })
     }
 }
@@ -740,27 +760,6 @@ pub(super) fn apart(arcs: &mut [Arc<'_>], band: Band) -> Vec<Option<CarryRefusal
                 .map(|w| w.map(|(gap, pads)| CarryRefusal::PadsMeet { pads, gap }))
                 .collect()
         };
-        if std::env::var_os("RIMPAD_TRACE").is_some() && worst.iter().all(Option::is_none) {
-            eprintln!(
-                "RIMPAD apart: spent {} cells {:?} pads {:?}",
-                work.spent(),
-                arcs.iter()
-                    .map(|a| a
-                        .as_ref()
-                        .and_then(|a| a.as_ref().ok())
-                        .map_or(0, |e| e.cells.len()))
-                    .collect::<Vec<_>>(),
-                arcs.iter()
-                    .map(
-                        |a| a.as_ref().and_then(|a| a.as_ref().ok()).map_or(0.0, |e| e
-                            .cells
-                            .iter()
-                            .map(|c| c.pad)
-                            .fold(0.0, f64::max))
-                    )
-                    .collect::<Vec<_>>()
-            );
-        }
         if worst.iter().all(Option::is_none) {
             return refusals(&worst);
         }
@@ -773,19 +772,6 @@ pub(super) fn apart(arcs: &mut [Arc<'_>], band: Band) -> Vec<Option<CarryRefusal
                 bound = bound.max(c.pad);
                 cost += usize::from(c.node.is_none());
             }
-        }
-        if std::env::var_os("RIMPAD_TRACE").is_some() {
-            eprintln!(
-                "RIMPAD round: meeting {cost} bound {bound:e} spent {} cells {:?} worst {:?}",
-                work.spent(),
-                arcs.iter()
-                    .map(|a| a
-                        .as_ref()
-                        .and_then(|a| a.as_ref().ok())
-                        .map_or(0, |e| e.cells.len()))
-                    .collect::<Vec<_>>(),
-                worst
-            );
         }
         let round = Descent::after(descent.take(), bound, ());
         let wall = (!work.admits(cost)).then_some(());

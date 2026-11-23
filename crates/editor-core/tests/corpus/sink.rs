@@ -357,7 +357,7 @@ pub fn document() -> CorpusDoc {
     CorpusDoc {
         name: "kitchen_sink",
         about: "every v1 node kind and every DocEdit kind in one document",
-        edits: r.edits,
+        edits: Some(r.edits),
         doc: r.doc,
         result: None,
         pin: None,

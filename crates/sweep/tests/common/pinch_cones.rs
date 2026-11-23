@@ -22,7 +22,7 @@
 //! (cubes, frames, clipped volumes) of `join_pierce_runs_sweep.rs` and
 //! `join_pierce_strut_facing.rs`, each one suite's.
 
-use topo::{Body, LoopBoundary, VertexKey};
+use topo::{Body, VertexKey};
 
 /// A point direction or a plane normal.
 pub type V3 = [f64; 3];
@@ -310,23 +310,22 @@ pub fn vertices_at(body: &Body<f64>, at: V3) -> Vec<VertexKey> {
         .collect()
 }
 
-/// How many faces of `body` run through two distinct vertices at `at`.
+/// How many faces of `body` have a loop that pinches at `at`: passes one
+/// point key there at two distinct vertices (`topo::loop_points`).
 pub fn faces_through_two_vertices_at(body: &Body<f64>, at: V3) -> usize {
     let at_v = vertices_at(body, at);
     body.faces()
         .filter(|(fk, _)| {
-            let mut met = Vec::new();
-            for (l, _, _) in body.face(*fk).expect("a live face").loops() {
-                if let LoopBoundary::Cycle { first } = body.get_loop(l).unwrap().boundary {
-                    for he in body.loop_cycle(first).unwrap() {
-                        let v = body.get_half_edge(he).unwrap().start;
-                        if at_v.contains(&v) && !met.contains(&v) {
-                            met.push(v);
-                        }
-                    }
-                }
-            }
-            met.len() > 1
+            body.face(*fk)
+                .expect("a live face")
+                .loops()
+                .any(|(l, _, _)| {
+                    topo::loop_points::loop_corners(body, l)
+                        .expect("a live loop")
+                        .groups()
+                        .iter()
+                        .any(|g| g.pinches() && at_v.contains(&g.vertices()[0]))
+                })
         })
         .count()
 }

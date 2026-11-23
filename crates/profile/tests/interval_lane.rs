@@ -450,7 +450,6 @@ fn the_value_channel_refuses_an_arc_carrier_at_its_segment() {
 /// refuses as the tangent it is, with a margin narrow around zero.
 #[test]
 fn a_chord_along_minus_x_from_a_computed_point_reads_a_narrow_turn() {
-    use geom_core::Bounds;
     use std::f64::consts::{FRAC_PI_2, PI};
     let t = Tol::witness();
     let one = |v: f64| Interval::from_f64(v);
@@ -527,12 +526,14 @@ fn a_chord_along_minus_x_from_a_computed_point_reads_a_narrow_turn() {
         .expect("the computed point beside (1, 3)")
         .line_to(ip2(0.0, 3.0), t)
         .expect_err("a chord continuing the incoming direction is a tangent junction");
-    let profile::PathError::JunctionTangent { margin, .. } = err else {
-        panic!("expected the tangent refusal, got {err:?}");
+    let profile::PathError::JunctionTurnWithinTolerance { turn } = err else {
+        panic!("expected the zero-turn refusal, got {err:?}");
     };
+    let (lo, hi) = turn.sin_turn.pinned_ends();
     assert!(
-        margin.lo() <= 0.0 && 0.0 <= margin.hi() && margin.hi() - margin.lo() < 1e-12,
-        "the tangent junction's turn margin encloses zero narrowly, got {margin:?}"
+        lo <= 0.0 && 0.0 <= hi && hi - lo < 1e-12,
+        "the tangent junction's turn encloses zero narrowly, got {:?}",
+        turn.sin_turn
     );
 }
 

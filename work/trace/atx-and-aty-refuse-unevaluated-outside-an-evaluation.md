@@ -8,7 +8,7 @@ priority: P3
 cost: E
 ---
 
-Found by a designer weighing `work/vseam/a-profile-cannot-refer-to-its-own-earlier-parts`
+Found by a designer weighing `work/selfref/a-profile-cannot-refer-to-its-own-earlier-parts`
 (2026-11-02); filed by the VSEAM orchestrator.
 
 `trace::resolve_chain` (`crates/editor-core/src/trace.rs`) refuses
@@ -18,3 +18,11 @@ and the records with the faces. As a result the VQ9 edit-door check and
 `drawn_pieces` skip programs holding them, so "checks bind twice" is
 false for those programs. Untested claim from a designer's reading.
 Verify before fixing.
+
+## Note (2026-11-18, DOCTAIL)
+
+The consequence named above is gone: after #7075 neither the edit door
+nor the strand report resolves a program (they ask
+`ProfileProgram::lattice` and `partition`, values erased). The
+cause stands for the callers that still resolve outside an evaluation,
+`ProfileProgram::pieces` among them.

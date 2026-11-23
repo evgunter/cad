@@ -23,7 +23,7 @@
 //!    or wholly out of it. A seam is no boundary: the face lies on both
 //!    sides of it. The centre station, placed by the face's
 //!    point-in-face door ([`crate::contfp`] on a plane,
-//!    [`crate::boolean::curved_face_placement`] on a curved carrier),
+//!    [`crate::contain::curved_face_placement`] on a curved carrier),
 //!    says which; a station the curved door reads off its own carrier
 //!    is the kernel's defect, and panics.
 //!
@@ -34,9 +34,8 @@
 //! subdivision consumer's looseness has to run.
 //!
 //! Both doors read a body at any certifying scalar `T`. The station is
-//! evaluated at `T`, its chart point entering as
-//! [`Real::from_computed`](geom_core::Real::from_computed), and the
-//! point-in-face doors place it at `T`. The ball is interval
+//! evaluated at `T`, its chart point a place handed over as an `f64`, and
+//! the point-in-face doors place it at `T`. The ball is interval
 //! arithmetic: the carrier, the station and every boundary feature are
 //! lifted through [`Interval::from_certified`], which keeps every bound
 //! at `T = Interval`.
@@ -46,7 +45,7 @@ use geom_core::interval::Interval;
 use geom_core::{Band, CertifiedBounds, Decide, Margin, Point3, Sign};
 
 use crate::Body;
-use crate::boolean::{CurvedPlacement, FaceContainment, contfp, curved_face_placement};
+use crate::contain::{CurvedPlacement, FaceContainment, contfp, curved_face_placement};
 use crate::entity::FaceKey;
 use crate::live::BoundaryMember;
 use crate::splitting::containment::{ArcFloor, arc_distance_floor};
@@ -137,10 +136,7 @@ pub(crate) fn cell_region_lifted<T: Decide + CertifiedBounds>(
 ) -> CellRegion {
     let span = |(lo, hi): (f64, f64)| Interval::from_bounds(lo, hi);
     let (mu, mv) = centre(u, v);
-    let station = surface.eval(
-        <Interval as geom_core::Real>::from_computed(mu),
-        <Interval as geom_core::Real>::from_computed(mv),
-    );
+    let station = surface.eval_at(mu, mv);
     let reach = (surface.eval(span(u), span(v)) - station).norm();
     let clear_as = |row: &'static str, distance: Interval| {
         matches!(
@@ -153,7 +149,7 @@ pub(crate) fn cell_region_lifted<T: Decide + CertifiedBounds>(
     {
         return CellRegion::Undecided;
     }
-    let at = stored.eval(T::from_computed(mu), T::from_computed(mv));
+    let at = stored.eval_at(mu, mv);
     match place(body, face, stored, at, band) {
         Some(FaceContainment::In) => CellRegion::Inside,
         Some(FaceContainment::Out) => CellRegion::Outside,
@@ -165,7 +161,7 @@ pub(crate) fn cell_region_lifted<T: Decide + CertifiedBounds>(
 
 /// **Where the face's point door places the point `(u, v)` of `face`'s
 /// stored chart**: [`crate::contfp`] on a plane,
-/// [`crate::boolean::curved_face_placement`] on a curved carrier. `None`
+/// [`crate::contain::curved_face_placement`] on a curved carrier. `None`
 /// for a face that does not resolve, a door that refuses, and a curved
 /// door's unread remainder.
 ///
@@ -185,7 +181,7 @@ pub fn station_region<T: Decide + CertifiedBounds>(
     band: Band,
 ) -> Option<FaceContainment> {
     let surface = body.face(face)?.surface();
-    let station = surface.eval(T::from_computed(u), T::from_computed(v));
+    let station = surface.eval_at(u, v);
     place(body, face, surface, station, band)
 }
 
@@ -199,7 +195,10 @@ fn place<T: Decide>(
     crate::held::Held::constructed(station, "a station of the face's own stored chart")
         .check(surface, band);
     match *surface {
-        Surface::Plane { normal, .. } => contfp(body, face, normal, station, band).ok(),
+        Surface::Plane { frame, .. } => {
+            let normal = frame.axis();
+            contfp(body, face, normal, station, band).ok()
+        }
         _ => match curved_face_placement(body, face, station, band).ok()? {
             CurvedPlacement::Trim(at) => at,
             // A spline chart's station is read by the spline region's own
@@ -294,8 +293,12 @@ fn clear_of_singular(
     clear_as: &dyn Fn(&'static str, Interval) -> bool,
 ) -> bool {
     match *surface {
-        Surface::Cone { apex, .. } => clear_as(CELL_REGION_SINGULAR, (station - apex).norm()),
-        Surface::Torus { center, axis, .. } | Surface::Spindle { center, axis, .. } => {
+        Surface::Cone { frame, .. } => {
+            let apex = frame.origin();
+            clear_as(CELL_REGION_SINGULAR, (station - apex).norm())
+        }
+        Surface::Torus { frame, .. } | Surface::Spindle { frame, .. } => {
+            let (center, axis) = (frame.origin(), frame.axis());
             let axis_line = geom::Line {
                 origin: center,
                 dir: axis,

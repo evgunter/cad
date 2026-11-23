@@ -174,11 +174,19 @@ pub struct PeriodicNurbs3<T: Real> {
 
 impl<T: Real> core::fmt::Debug for PeriodicNurbs3<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self {
+            knots,
+            control,
+            period,
+            base: _,
+            two_turns: _,
+            flipped,
+        } = self;
         f.debug_struct("PeriodicNurbs3")
-            .field("knots", &self.knots)
-            .field("control", &self.control)
-            .field("period", &self.period)
-            .field("flipped", &self.flipped)
+            .field("knots", knots)
+            .field("control", control)
+            .field("period", period)
+            .field("flipped", flipped)
             .finish_non_exhaustive()
     }
 }

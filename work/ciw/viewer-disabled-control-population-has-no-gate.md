@@ -28,7 +28,7 @@ asserted correct.
 **Nothing goes red when a thirty-first lands.** No test enumerates
 them, no gate greps for them, no register re-measures. The claim lives
 in a tracker file that is deleted when VNEWS closes, and the clause
-`work/vdoc/a-disabled-controls-reason-has-one-home` asks
+`work/chrome/a-disabled-controls-reason-has-one-home` asks
 `crates/viewer/README.md` for carries the sweep rule but not the
 membership.
 

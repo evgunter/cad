@@ -2,10 +2,11 @@
 id: set-program-on-a-traced-profile-with-named-steps-refuses
 kind: issue
 title: SetProgram on a traced profile whose kept steps carry names refuses, because drawn_pieces resolves with no traces
-status: open
+status: closed
 opened: 2026-10-29
 priority: P1
 cost: E
+closed: 2026-11-18
 ---
 
 
@@ -34,3 +35,12 @@ the traces the evaluation read. A test in
 `crates/editor-core/tests/intent_s6_c_trace.rs` then writes a
 `SetProgram` that keeps a named step of a traced boss and is not
 refused.
+
+## Closed
+
+2026-11-18, by DOCTAIL's value-free-door build (#7075). The strand report
+reads no values and so resolves no trace. It compares each program's
+structure (`ProfileProgram::drawable_pieces` over `profile::chain_shape`),
+and a step found from the pen lowers to the verb its trace lowering
+gives it (`LoopProgram::erased_steps`):
+`intent_s6_c_trace::a_traced_boss_rewritten_with_a_named_step_kept_is_admitted`.

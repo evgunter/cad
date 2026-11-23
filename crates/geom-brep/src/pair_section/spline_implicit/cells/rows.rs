@@ -199,10 +199,8 @@ fn a_bending_one_span_arcs_pad_stands_within_two_rungs() {
     .unwrap();
     let (radius, rung) = (0.9f64, 0.02);
     let p = Surface::Cylinder {
-        origin: pt(0.5, -0.5, 0.0),
-        axis: Vec3::unit_z(),
+        frame: geom::Frame::new(pt(0.5, -0.5, 0.0), Vec3::unit_z(), Vec3::unit_x()),
         radius,
-        u_ref: Vec3::unit_x(),
     };
     // The arc as one rational quadratic span: its ends on the sides, its
     // middle control point where their tangents meet, weighted by the

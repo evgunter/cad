@@ -28,7 +28,7 @@ row waits on its answer. The door an outside caller reads for the
 origin and outward normal is `topo::face_normal::face_plane`.
 
 The sibling in `sweep`, `blend/build.rs` `fn outward_of`, is already
-`work/census/S57.md`'s.
+`work/bind/S57.md`'s.
 
 Found by S173's sweep for hand-built planar folds: a call to
 `from_chart(`, `chart_outward_normal(` or `plane_outward_normal(` in a

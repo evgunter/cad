@@ -5,7 +5,7 @@
 //! roles by it; tier 3's check 6 planar arm (`validate`), which
 //! FALSIFIES a stored role and sense by it; the splitter's
 //! `splitting::section_loops::loop_sense`, which reads a section loop's
-//! role; and the chord joiner's `RimSide::holds_outer`, which reads
+//! role; and the chord joiner's `loop_holds_outer`, which reads
 //! which side of a one-site loop holds a face's outer. Of an OPEN run
 //! closed by the chord the join will mint: the boolean join's ring lane
 //! (`boolean::join::ring_run_ccw`), to pick an island's new outer
@@ -119,6 +119,7 @@ use geom_core::{Decided, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 use crate::body::Body;
 use crate::entity::{EntityId, HalfEdgeKey, LoopKey, VertexKey};
 use crate::live::linked;
+use crate::props::QuadLaneOf;
 
 /// The winding decision's predicate name: the K-stats key its margin is
 /// recorded under, and the name an escalation of it carries.
@@ -167,7 +168,7 @@ const ENCLOSURE_PIECES: [usize; 4] = [16, 128, 1024, 8192];
 
 /// A curve as one traversal reads it: its carrier and the interval it
 /// spans, and whether the traversal runs with the carrier's parameter.
-type Traversed<'a, T> = ((&'a Curve3<T>, (T, T)), bool);
+pub(crate) type Traversed<'a, T> = ((&'a Curve3<T>, (T, T)), bool);
 
 /// The curve that closes an open run from the run's end back to its
 /// start: the straight chord, or a curve the caller has (the boolean
@@ -207,7 +208,7 @@ enum Closing<'a, T: Real> {
 /// What the sum reads of one traversed half: its start point, and its
 /// certified curve as traversed (`None` for a null-edge scaffold, which
 /// is its chord).
-type Step<'a, T> = (Point3<T>, Option<Traversed<'a, T>>);
+pub(crate) type Step<'a, T> = (Point3<T>, Option<Traversed<'a, T>>);
 
 impl<T: crate::props::AtRestPolicy> Body<T> {
     /// The signed winding of cycle loop `l` around `normal` (module
@@ -462,62 +463,76 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         band: geom_core::Band,
     ) -> Winding {
         let lane = T::quad_lane().ok_or(Unwound::Uncertified)?;
-        let point = |p: Point3<T>| Point3::new(lane.lift(p.x), lane.lift(p.y), lane.lift(p.z));
-        let edge = |((c, (t0, t1)), fwd): Traversed<'_, T>| {
-            SegmentQ::of(
-                (
-                    &c.map_scalar(|x| lane.lift(x)),
-                    (lane.lift(t0), lane.lift(t1)),
-                ),
-                fwd,
-            )
-            .ok_or(Unwound::Uncertified)
-        };
-        let lifted = walked
-            .iter()
-            .map(|&(p, c)| Ok((point(p), c.map(edge).transpose()?)))
-            .collect::<Result<Vec<_>, Unwound>>()?;
-        let closing = closing.map(edge).transpose()?;
-        let normal = Vec3::new(
-            lane.lift(normal.x),
-            lane.lift(normal.y),
-            lane.lift(normal.z),
-        );
-        let Some((&finest, coarser)) = ENCLOSURE_PIECES.split_last() else {
-            unreachable!("the piece counts are a non-empty constant")
-        };
-        // An edge with no term at `pieces` would be summed as its chord:
-        // that count reads nothing, and the finest refuses.
-        let margin = |pieces| {
-            let term = |edge: &Option<SegmentQ>| match edge {
-                None => Ok(None),
-                Some(edge) => edge.term(pieces).map_err(|NoTermAt| Unwound::Uncertified),
-            };
-            let points = lifted
-                .iter()
-                .map(|(p, c)| Ok((*p, term(c)?)))
-                .collect::<Result<Vec<_>, Unwound>>()?;
-            let (area, perimeter) = winding_sum(&points, point(end), term(&closing)?, open, normal);
-            Ok::<_, Unwound>(Margin::over_lever(area, perimeter))
-        };
-        for &pieces in coarser {
-            let Ok(read) = margin(pieces) else {
-                continue;
-            };
-            if crate::validate::decide("planar_winding_enclosure_refine", read, band).is_ok() {
-                return Ok(crate::validate::decide_reported(
-                    WINDING_PREDICATE,
-                    read,
-                    band,
-                ));
-            }
-        }
-        Ok(crate::validate::decide_reported(
-            WINDING_PREDICATE,
-            margin(finest)?,
-            band,
-        ))
+        lane.enclosed_winding(walked, end, closing, open, normal, band)
     }
+}
+
+/// [`Body::enclosed_winding`] with the lane in hand: the lift of every
+/// point and carrier through it, and the refinement of the interval sum.
+pub(crate) fn enclosed_winding_with<T: geom_core::Certifies>(
+    lane: crate::props::QuadLane<T>,
+    walked: &[Step<'_, T>],
+    end: Point3<T>,
+    closing: Option<Traversed<'_, T>>,
+    open: bool,
+    normal: Vec3<T>,
+    band: geom_core::Band,
+) -> Winding {
+    let point = |p: Point3<T>| Point3::new(lane.lift(p.x), lane.lift(p.y), lane.lift(p.z));
+    let edge = |((c, (t0, t1)), fwd): Traversed<'_, T>| {
+        SegmentQ::of(
+            (
+                &c.map_scalar(|x| lane.lift(x)),
+                (lane.lift(t0), lane.lift(t1)),
+            ),
+            fwd,
+        )
+        .ok_or(Unwound::Uncertified)
+    };
+    let lifted = walked
+        .iter()
+        .map(|&(p, c)| Ok((point(p), c.map(edge).transpose()?)))
+        .collect::<Result<Vec<_>, Unwound>>()?;
+    let closing = closing.map(edge).transpose()?;
+    let normal = Vec3::new(
+        lane.lift(normal.x),
+        lane.lift(normal.y),
+        lane.lift(normal.z),
+    );
+    let Some((&finest, coarser)) = ENCLOSURE_PIECES.split_last() else {
+        unreachable!("the piece counts are a non-empty constant")
+    };
+    // An edge with no term at `pieces` would be summed as its chord:
+    // that count reads nothing, and the finest refuses.
+    let margin = |pieces| {
+        let term = |edge: &Option<SegmentQ>| match edge {
+            None => Ok(None),
+            Some(edge) => edge.term(pieces).map_err(|NoTermAt| Unwound::Uncertified),
+        };
+        let points = lifted
+            .iter()
+            .map(|(p, c)| Ok((*p, term(c)?)))
+            .collect::<Result<Vec<_>, Unwound>>()?;
+        let (area, perimeter) = winding_sum(&points, point(end), term(&closing)?, open, normal);
+        Ok::<_, Unwound>(Margin::over_lever(area, perimeter))
+    };
+    for &pieces in coarser {
+        let Ok(read) = margin(pieces) else {
+            continue;
+        };
+        if crate::validate::decide("planar_winding_enclosure_refine", read, band).is_ok() {
+            return Ok(crate::validate::decide_reported(
+                WINDING_PREDICATE,
+                read,
+                band,
+            ));
+        }
+    }
+    Ok(crate::validate::decide_reported(
+        WINDING_PREDICATE,
+        margin(finest)?,
+        band,
+    ))
 }
 
 /// **The winding sum's area and perimeter** (module docs), at any

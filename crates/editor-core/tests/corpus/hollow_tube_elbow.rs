@@ -68,7 +68,7 @@ pub fn document() -> CorpusDoc {
     CorpusDoc {
         name: "hollow_tube_elbow",
         about: "an open elbow of annular section, R = 2, outer 0.5, wall 0.125",
-        edits: r.edits,
+        edits: Some(r.edits),
         doc: r.doc,
         result: Some(elbow),
         // The Pappus forms carry π — module docs.

@@ -619,8 +619,8 @@ impl Mint {
             .and_then(|minted| minted.checked_add(1))
         else {
             // One mint per edit's node, step or variable: a document
-            // reaches 2^32 of them only by an edit log no door replays
-            // in this process's lifetime.
+            // reaches 2^32 of them only by more edits than a process
+            // applies in its lifetime.
             unreachable!(
                 "a document has minted {} ids, the most a mint ordinal counts",
                 log.len()

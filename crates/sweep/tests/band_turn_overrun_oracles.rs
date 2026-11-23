@@ -118,8 +118,10 @@ pub(crate) fn a_clearance(e: &BlendError) -> bool {
 /// Whether a refusal is a cut-off's foot landing inside a face
 /// (`end_face.rs`'s `FOOT_INSIDE_A_FACE`).
 pub(crate) fn foot_inside_a_face(e: &BlendError) -> bool {
-    matches!(e, BlendError::UnsupportedRunOut { detail, .. }
-        if detail.contains("trimline meets the end face's plane past its rim"))
+    matches!(
+        e,
+        BlendError::UnbuiltEnd(sweep::blend::UnbuiltEnd::FootInsideAFace { .. })
+    )
 }
 
 // ------------------------------------------------------------------
@@ -862,8 +864,7 @@ fn two_turns_on_one_l_match_the_slab_oracle() {
                         }
                     }
                     Err(e) => {
-                        let typed =
-                            a_clearance(&e) || matches!(e, BlendError::UnsupportedRunOut { .. });
+                        let typed = a_clearance(&e) || matches!(e, BlendError::UnbuiltEnd(_));
                         if !typed {
                             failures.push(format!(
                                 "{what}: refused untyped, {e_at}",
@@ -1098,7 +1099,7 @@ fn a_void_in_the_overruns_volume_refuses() {
 }
 
 /// **A boss clear of the overrun, inside the far band's whole cut-off
-/// sliver, refuses** (`work/bandmeter/a-turns-overrun-meters-the-whole-cut-off-sliver.md`).
+/// sliver, refuses** (`work/band/a-turns-overrun-meters-the-whole-cut-off-sliver.md`).
 /// At `(1.15·d, 0.4·d)` on the bracket's `y = 0` leaning wall the boss
 /// stands `0.13·d` past the overrun chord's line and `0.11·d` past band
 /// `j`'s trimline, so nothing the chamfer takes reaches it; but it lies
@@ -1126,7 +1127,7 @@ fn a_boss_clear_of_the_overrun_inside_the_far_bands_sliver_refuses() {
 
 /// **A short near edge at an obtuse shared-face angle refuses
 /// `FOOT_INSIDE_A_FACE` where the overrun itself fits**
-/// (`work/bandmeter/an-overruns-sliver-refuses-a-short-near-edge.md`). The
+/// (`work/band/an-overruns-sliver-refuses-a-short-near-edge.md`). The
 /// far band's whole sliver on the near face needs that band's trimline on
 /// the shared face to meet the near band's requested edge inside its
 /// span, at `d / sin θ_S` from the vertex; a near edge shorter than that
@@ -1183,7 +1184,7 @@ fn a_short_near_edge_refuses_foot_inside_a_face_where_the_overrun_fits() {
         match chamfered(&p.body, &p.edges(&TURN), D, &what) {
             Err(e) => assert!(
                 foot_inside_a_face(&e),
-                "{what}: refuses FOOT_INSIDE_A_FACE, got {e_at}",
+                "{what}: refuses FootInsideAFace, got {e_at}",
                 e_at = e.render(geom_brep::recourse::Reading::Build)
             ),
             Ok(_) => panic!(
@@ -1226,7 +1227,7 @@ fn a_short_near_edge_refuses_foot_inside_a_face_where_the_overrun_fits() {
             match turn {
                 Err(e) => assert!(
                     foot_inside_a_face(&e),
-                    "{what}: refuses FOOT_INSIDE_A_FACE, got {e_at}",
+                    "{what}: refuses FootInsideAFace, got {e_at}",
                     e_at = e.render(geom_brep::recourse::Reading::Build)
                 ),
                 Ok(_) => panic!(

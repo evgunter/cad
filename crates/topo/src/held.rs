@@ -3,7 +3,7 @@
 //!
 //! A placement reads a point against a face's region; whether the point
 //! is on the face's carrier at all is a separate question, decided where
-//! the caller does not already know it (`boolean::contain`'s
+//! the caller does not already know it (`contain`'s
 //! `face_placement`, and the unheld placement beside it, where an
 //! `OffCarrier` is a reading). A [`Held`] point is one the caller
 //! knows: its construction put it there, or the caller decided it.

@@ -37,8 +37,8 @@ use sweep::blend::{BlendError, BlendKind, BlendRefusal};
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::cube;
 use sweep::{Extrusion, extrude};
+use topo::Body;
 use topo::query;
-use topo::{Body, EntityId};
 
 /// The cube side, meters.
 const L: f64 = 1.0;
@@ -69,15 +69,11 @@ fn shipped_fillet_guard_is_green(text: &str) -> bool {
 #[test]
 fn the_shipped_fillet_single_render_guard_is_blind_to_the_prefix_family() {
     let body = cube::<f64>(L, Tol::witness());
-    let vertex = body
-        .vertices()
-        .map(|(k, _)| k)
-        .next()
-        .expect("a cube vertex");
+    let edge = body.edges().map(|(k, _)| k).next().expect("a cube edge");
     let regressed = BlendRefusal {
         verb: BlendKind::Fillet,
-        error: BlendError::UnsupportedRunOut {
-            at: EntityId::Vertex(vertex),
+        error: BlendError::UnsupportedChain {
+            edge,
             detail: "fillet assembly: a chain terminates at a trivalent vertex whose three \
                      edges are not all requested",
         },
@@ -120,13 +116,9 @@ fn no_inner_error_opens_with_a_verb_word_on_either_door() {
 
     // The regressed shape 1a builds is what this invariant catches.
     let body = cube::<f64>(L, Tol::witness());
-    let vertex = body
-        .vertices()
-        .map(|(k, _)| k)
-        .next()
-        .expect("a cube vertex");
-    let regressed = BlendError::UnsupportedRunOut {
-        at: EntityId::Vertex(vertex),
+    let edge = body.edges().map(|(k, _)| k).next().expect("a cube edge");
+    let regressed = BlendError::UnsupportedChain {
+        edge,
         detail: "fillet assembly: a chain terminates at a trivalent vertex",
     };
     assert!(
@@ -263,7 +255,7 @@ fn reachable_refusals() -> Vec<(&'static str, BlendError)> {
     out.push((
         "fillet run-out",
         fillet_edges(&sweep::test_support::at_rest(&round, t), &[end], D, t)
-            .expect_err("a curved end face is a run-out")
+            .expect_err("a curved end face is an unbuilt end")
             .error,
     ));
     out.push((
@@ -314,7 +306,7 @@ fn chamfer_refusals() -> Vec<(&'static str, BlendError)> {
     out.push((
         "run-out",
         chamfer_edges(&sweep::test_support::at_rest(&round, t), &[end], D, t)
-            .expect_err("a curved end face is a run-out")
+            .expect_err("a curved end face is an unbuilt end")
             .error,
     ));
     let (leaning, turn) = crate::common::operands::leaning_turn_in_band(t);

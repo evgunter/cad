@@ -21,7 +21,7 @@ use crate::band_closed_mixed_chain_shapes::{assert_touch_escalation, tightest_in
 use crate::common::interval::iv;
 use geom_core::{Bounds, CertifiedBounds, Decide, Interval, Point2, Point3, Tol};
 use profile::{SketchPlane, test_support::bulge_loop};
-use sweep::blend::{BlendError, chamfer_edges, fillet_edges};
+use sweep::blend::{BlendError, UnbuiltEnd, chamfer_edges, fillet_edges};
 use sweep::test_support::{assert_naming_totality, at_rest, extruded};
 use topo::{Body, EdgeKey, validate_geometric};
 
@@ -119,7 +119,7 @@ pub(crate) fn edges_at<T: Decide + Bounds>(
 }
 
 /// A body's volume and the half-width of its certified enclosure.
-pub(crate) fn volume<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+pub(crate) fn volume<T: Decide + Bounds + CertifiedBounds + topo::CertifiedPolicy>(
     body: &Body<T>,
 ) -> (f64, f64) {
     let p = topo::mass_properties(
@@ -173,7 +173,7 @@ pub(crate) fn assert_chamfer_unbuilt_at_the_tightest(what: &str, e: &BlendError)
 /// at ε = 1e-12 the row refuses as `tightest` says instead
 /// ([`tightest_interval`]).
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn run_row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+pub(crate) fn run_row<T: Decide + Bounds + CertifiedBounds + topo::CertifiedPolicy>(
     what: &str,
     body: &Body<T>,
     edges: &[EdgeKey],
@@ -228,7 +228,7 @@ pub(crate) fn run_row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>
 
 /// The L-plate's run: the two lines' prisms, `2 − R` and `1 − R` long,
 /// and the quarter arc's piece at centroid radius `R − d`.
-fn l_plate_row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+fn l_plate_row<T: Decide + Bounds + CertifiedBounds + topo::CertifiedPolicy>(
     what: &str,
     r: f64,
     size: T,
@@ -262,7 +262,7 @@ fn an_l_plates_rounded_corner_run_fillets_whole_at_interval() {
 
 /// The teardrop's rim: each line's centroid runs `√3 − d·cot 30°` from
 /// its junction to the mitre plane, and the arc's `240°` at `1 − d`.
-fn teardrop_row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+fn teardrop_row<T: Decide + Bounds + CertifiedBounds + topo::CertifiedPolicy>(
     what: &str,
     r: f64,
     size: T,
@@ -364,7 +364,7 @@ fn a_notchs_rounded_floor_run_fillets_whole_adding_pappuss_volume() {
 /// (`junctions`), and the signed volume change `V₁ − V₀` at `dv` within
 /// the certified enclosure. At `Interval` at ε = 1e-12 the row pins the
 /// refusal there instead ([`assert_chamfer_unbuilt_at_the_tightest`]).
-pub(crate) fn chamfer_row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+pub(crate) fn chamfer_row<T: Decide + Bounds + CertifiedBounds + topo::CertifiedPolicy>(
     what: &str,
     body: &Body<T>,
     (edges, requested): (&[EdgeKey], &[EdgeKey]),
@@ -435,7 +435,7 @@ pub(crate) fn chamfer_row<T: Decide + Bounds + CertifiedBounds + topo::AtRestPol
 /// The L-plate's run ends square at both walls; the teardrop's lines
 /// meet in its 60° point's mitre, each centroid line `√3 − (s/3)·cot 30°`
 /// long; the notch's floor adds what the others remove.
-fn open_chamfer_rows<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(scalar: &str) {
+fn open_chamfer_rows<T: Decide + Bounds + CertifiedBounds + topo::CertifiedPolicy>(scalar: &str) {
     let tri = |s: f64| 0.5 * s * s;
     let l = l_plate::<T>();
     let run = edges_at(&l, 0.5, |x, y| y.abs() < 1e-9 || (x > 1.5 && y < 0.9));
@@ -482,8 +482,8 @@ fn a_notchs_rounded_floor_run_chamfers_whole_adding_pappuss_volume() {
 /// that do not hold its axis; even a wall that does, whose section of the
 /// torus is a circle, has no built cut-off
 /// (`work/band/an-end-torus-link-cut-off-in-its-meridian-plane-is-unbuilt.md`).
-/// The chamfer's frustum there refuses before the door, at predicate 6,
-/// which finds no corner its arms close at either sharp end.
+/// The chamfer's frustum there refuses the same, at predicate 6, which
+/// asks the door before it reads a corner at either sharp end.
 #[test]
 fn a_torus_link_at_an_open_chains_end_refuses_at_the_open_door() {
     let body = outline::<f64>(
@@ -493,35 +493,31 @@ fn a_torus_link_at_an_open_chains_end_refuses_at_the_open_door() {
     );
     let arc = edges_at(&body, 0.5, |x, y| x.abs() < 0.1 && y > -0.1);
     assert_eq!(arc.len(), 1, "the D's arc");
-    let got = fillet_edges(&at_rest(&body, tol()), &arc, 0.1, tol()).map_err(|r| r.error);
-    assert!(
-        matches!(
-            &got,
-            Err(BlendError::UnsupportedChain { detail, .. })
-                if detail.contains("a band of revolution between two junctions")
-        ),
-        "a torus at an open chain's end has no built end, got {got:?}"
-    );
-    let got = chamfer_edges(&at_rest(&body, tol()), &arc, 0.1, tol()).map_err(|r| r.error);
-    assert!(
-        matches!(
-            &got,
-            Err(BlendError::UnsupportedCorner {
-                corner: sweep::blend::CornerConfig::Indeterminate,
-                ..
-            })
-        ),
-        "a frustum at an open chain's end has no corner, got {got:?}"
-    );
+    let fillet = fillet_edges(&at_rest(&body, tol()), &arc, 0.1, tol()).map_err(|r| r.error);
+    let chamfer = chamfer_edges(&at_rest(&body, tol()), &arc, 0.1, tol()).map_err(|r| r.error);
+    for (what, got) in [("a torus", fillet), ("a frustum", chamfer)] {
+        assert!(
+            matches!(
+                &got,
+                Err(BlendError::UnsupportedChain { edge, detail })
+                    if *edge == arc[0]
+                        && detail.contains("a band of revolution between two junctions")
+            ),
+            "{what} at an open chain's end has no built end, got {got:?}"
+        );
+    }
 }
 
 /// **A smooth outline filleted in part stays refused**, at the end
 /// where the request stops while its edge runs on smoothly into one it
 /// does not name, whatever the arm of the link that stops there
 /// (`work/band/a-smooth-outline-filleted-in-part-stops-at-a-tangent-junction.md`):
-/// the rounded plate's run of line, arc and line requested alone, and
-/// the L-plate's line alone, line and arc, and arc alone. The recourse
-/// names the whole smooth run.
+/// the rounded plate's run of line, arc and line requested alone, the
+/// L-plate's line alone, line and arc, and arc alone, and a stadium's
+/// line alone. The refusal names exactly the edge the run goes on into —
+/// the next top edge of the outline at the refusing vertex, never the
+/// vertical tangency seam beside it — and its recourse names the whole
+/// smooth run. Following `edge()` one edge at a time builds the run.
 #[test]
 fn a_smooth_outline_filleted_in_part_refuses_naming_the_whole_run() {
     let q = (FRAC_PI_2 / 4.0).tan();
@@ -542,6 +538,16 @@ fn a_smooth_outline_filleted_in_part_refuses_naming_the_whole_run() {
         0.5,
     );
     let l = l_plate::<f64>();
+    let stadium = outline::<f64>(
+        &[
+            (0.0, 0.0, 0.0),
+            (2.0, 0.0, 1.0),
+            (2.0, 1.0, 0.0),
+            (0.0, 1.0, 1.0),
+        ],
+        0.0,
+        0.5,
+    );
     let rows = [
         (
             "rounded plate's run",
@@ -571,16 +577,45 @@ fn a_smooth_outline_filleted_in_part_refuses_naming_the_whole_run() {
             edges_at(&l, 0.5, |x, y| x > 1.5 && x < 1.99 && y > 1e-9 && y < 0.9),
             1,
         ),
+        (
+            "stadium's line",
+            &stadium,
+            edges_at(&stadium, 0.5, |_, y| y.abs() < 1e-9),
+            1,
+        ),
     ];
     for (what, body, run, n) in rows {
         assert_eq!(run.len(), n, "{what}: the request");
         let got = fillet_edges(&at_rest(body, tol()), &run, 0.1, tol()).map_err(|r| r.error);
-        let Err(e @ BlendError::UnsupportedRunOut { detail, .. }) = &got else {
+        let Err(
+            e @ BlendError::UnbuiltEnd(UnbuiltEnd::RunOut {
+                vertex,
+                unrequested,
+                odd: None,
+            }),
+        ) = &got
+        else {
             panic!("{what}: a part of a smooth outline refuses at its tangent end, got {got:?}");
         };
+        // The next top edge at the refusing vertex: one of the outline's
+        // own edges, not in the request, and the only such edge there.
+        let top = edges_at(body, 0.5, |_, _| true);
+        let next: Vec<EdgeKey> = top
+            .iter()
+            .copied()
+            .filter(|t| !run.contains(t))
+            .filter(|&t| {
+                body.edge_vertices(t)
+                    .is_some_and(|(a, b)| a == *vertex || b == *vertex)
+            })
+            .collect();
         assert_eq!(
-            *detail,
-            sweep::blend::battery::PARTIAL_TANGENT_RUN,
+            (next.as_slice(), e.edge()),
+            ([*unrequested].as_slice(), Some(*unrequested)),
+            "{what}: the refusal names exactly the edge the tangent run goes on into"
+        );
+        assert!(
+            e.to_string().contains(sweep::blend::PARTIAL_TANGENT_RUN),
             "{what}: the refusal names the tangent run requested in part"
         );
         let shown = e.to_string();
@@ -588,5 +623,28 @@ fn a_smooth_outline_filleted_in_part_refuses_naming_the_whole_run() {
             shown.contains("requesting its whole smooth run"),
             "{what}: {shown}"
         );
+        // Followed: each refusal's edge, added, moves the refusal or
+        // builds, until the run is whole.
+        let mut request = run.clone();
+        let whole = top.len();
+        loop {
+            match fillet_edges(&at_rest(body, tol()), &request, 0.1, tol()).map_err(|r| r.error) {
+                Ok(_) => break,
+                Err(e) => {
+                    let Some(next) = e.edge() else {
+                        panic!("{what}: following the run-out met {e:?}");
+                    };
+                    assert!(
+                        matches!(
+                            e,
+                            BlendError::UnbuiltEnd(UnbuiltEnd::RunOut { odd: None, .. })
+                        ) && !request.contains(&next),
+                        "{what}: each step names a new edge of the run, got {e:?}"
+                    );
+                    request.push(next);
+                    assert!(request.len() <= whole, "{what}: the run is whole by now");
+                }
+            }
+        }
     }
 }

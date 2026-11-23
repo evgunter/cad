@@ -91,7 +91,7 @@ use geom_brep::{OutwardNormal, SectionPick};
 use geom_core::ladder::{Answering, Differing, Evidence, Rung, climb_differing, climb_evidence};
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
-use super::contain::FaceContainment;
+use crate::contain::FaceContainment;
 use crate::face_normal::face_plane;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -656,6 +656,28 @@ enum EntryTie {
     Bend(geom_core::Indeterminate),
 }
 
+impl EntryTie {
+    /// The tie, where it is the first order's own
+    /// ([`crate::bound_side::TiedBy::at_first_order`]): the bound lies in
+    /// the face's tangent plane at first order. A tie the charge made
+    /// read its first order off the plane, and is no tie here.
+    fn at_first_order(self) -> Option<Self> {
+        match self {
+            Self::Tie(on) if !on.by.at_first_order() => None,
+            Self::Tie(_) | Self::Bend(_) => Some(self),
+        }
+    }
+}
+
+/// **A sector both of whose bounds tie at first order**, which Delta 2
+/// lumps: the two ties, `None` where either bound was read off the
+/// pierced face's tangent plane at first order (a tie the charge made
+/// included, [`EntryTie::at_first_order`]).
+fn flat_ties(start: Option<EntryTie>, end: Option<EntryTie>) -> Option<[EntryTie; 2]> {
+    let first = |tie: Option<EntryTie>| tie.and_then(EntryTie::at_first_order);
+    first(start).zip(first(end)).map(|(a, b)| [a, b])
+}
+
 /// What [`read_vertex_on_face`] read of one pierce, writing nothing,
 /// for [`mint_pierce`] to write.
 pub(super) struct PierceRead<T: geom_core::Real> {
@@ -962,7 +984,8 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // back on a planar face, so the planar lane's margin is unmoved.
     //
     // Lumping overwrites both bounds' readings, so both must tie at
-    // first order, each at its reach — a line bound at its far vertex,
+    // first order ([`flat_ties`]: a tie the charge made does not), each
+    // at its reach — a line bound at its far vertex,
     // in metres; a bound read definitely off the plane decides the
     // sector off it. A conic bound that ties may read its bend off the
     // plane, and the lump's second order supersedes it.
@@ -981,7 +1004,7 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // two, and the walk subdivided it where the plane's side turns, so
     // no sub-sector there has both bounds in the plane.
     let flat = |k: usize| {
-        let both = ties[k].zip(ties[(k + 1) % n]).map(|(a, b)| [a, b]);
+        let both = flat_ties(ties[k], ties[(k + 1) % n]);
         debug_assert!(
             !(both.is_some() && sectors[k].apex().is_some()),
             "a sub-sector at a cone's apex has both bounds in the pierced plane"
@@ -1290,7 +1313,7 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 let in_plane = match &section.components()[k].carrier {
                     geom::Curve3::Ellipse(e) => e
                         .frame
-                        .axis
+                        .axis()
                         .normalize()
                         .cross(datum.vec().normalize())
                         .norm()
@@ -1824,13 +1847,7 @@ fn ring_struts<T: Decide>(
         let (Some(x), Some(y)) = (bends[from], bends[to]) else {
             return Ok(None);
         };
-        match geom_brep::tied_germ_turn(
-            normal,
-            germs[from].0.dir,
-            [x.bend, y.bend],
-            arm.length(),
-            band,
-        ) {
+        match geom_brep::tied_germ_turn(normal, germs[from].0.dir, [x.bend, y.bend], arm, band) {
             Ok(Sign::Zero) => Ok(None),
             Ok(sign) => Ok(Some(sign)),
             Err(geom_brep::TiedGermsError::Singular) => {
@@ -2298,35 +2315,35 @@ fn held_reads<T: Decide + crate::props::AtRestPolicy>(
                 // Held where the residual above decided it (`Zero`, or in
                 // band); a spline face's trim decides its own carrier.
                 let placed = match &side {
-                    Some(Ok(d)) => super::contain::placement_on_carrier(
+                    Some(Ok(d)) => crate::contain::placement_on_carrier(
                         piercing_body,
                         face,
                         crate::held::Held::decided(p, d.margin),
                         band,
                     ),
-                    Some(Err(_)) => super::contain::placement_on_carrier(
+                    Some(Err(_)) => crate::contain::placement_on_carrier(
                         piercing_body,
                         face,
                         crate::held::Held::in_band(p),
                         band,
                     ),
-                    None => super::contain::placement_unheld(piercing_body, face, p, band),
+                    None => crate::contain::placement_unheld(piercing_body, face, p, band),
                 };
                 let (placement, _, _) =
                     placed.map_err(|e| super::reduce::esc(e, piercing, face))?;
                 let kind = kind_of(piercing_body, face);
                 match placement {
-                    super::contain::CurvedPlacement::Trim(Some(FaceContainment::In)) => {}
+                    crate::contain::CurvedPlacement::Trim(Some(FaceContainment::In)) => {}
                     // Where the trim cannot say, nothing is guessed: the
                     // face may hold the point (D4).
-                    super::contain::CurvedPlacement::Trim(None) => {
+                    crate::contain::CurvedPlacement::Trim(None) => {
                         return Err(unbuilt(face, kind, false));
                     }
                     // Off the face, or on its boundary, which the sweep's
                     // pierces and splits hold. OffCarrier → not held (the
                     // residual above decided `p` on the carrier).
-                    super::contain::CurvedPlacement::OffCarrier
-                    | super::contain::CurvedPlacement::Trim(Some(_)) => return Ok(None),
+                    crate::contain::CurvedPlacement::OffCarrier
+                    | crate::contain::CurvedPlacement::Trim(Some(_)) => return Ok(None),
                 }
                 // A spline face read In has no residual to put the point on
                 // its carrier, and no arm reads its normal: no operand
@@ -2367,10 +2384,10 @@ fn held_reads<T: Decide + crate::props::AtRestPolicy>(
                     Err(_) => crate::held::Held::in_band(p),
                 };
                 let (at, _, _) =
-                    super::contain::placement_on_carrier(piercing_body, face, held, band)
+                    crate::contain::placement_on_carrier(piercing_body, face, held, band)
                         .map_err(|e| super::reduce::esc(e, piercing, face))?;
                 // OffCarrier → not held (the side above decided `p` on the plane).
-                if at != super::contain::CurvedPlacement::Trim(Some(FaceContainment::In)) {
+                if at != crate::contain::CurvedPlacement::Trim(Some(FaceContainment::In)) {
                     return Ok(None);
                 }
                 (plane.normal, None, side)
@@ -2804,7 +2821,9 @@ const fn bend_refusal(diag: geom_core::Indeterminate) -> BooleanError {
 /// ([`super::sectors::bisector_zero_refusal`]) rather than resolve. A
 /// neighbour tied at first order reads its side one order down, which
 /// the argument does not bound: the bisector's Zero is then its
-/// sector's tangency, and it folds.
+/// sector's tangency, and it folds. A neighbour tied by its charge
+/// ([`EntryTie::at_first_order`]) was decided at first order, so the
+/// argument holds there and the bisector refuses.
 fn resolve_on_entries(entries: &mut [Entry], band: Band) -> Result<(), BooleanError> {
     let n = entries.len();
     for k in 0..n {
@@ -2823,8 +2842,8 @@ fn resolve_on_entries(entries: &mut [Entry], band: Band) -> Result<(), BooleanEr
         if !entries[k].is_edge
             && !before.lumped
             && !after.lumped
-            && before.tie.is_none()
-            && after.tie.is_none()
+            && before.tie.and_then(EntryTie::at_first_order).is_none()
+            && after.tie.and_then(EntryTie::at_first_order).is_none()
             && prev == next
         {
             let Some(EntryTie::Tie(on)) = entries[k].tie else {
@@ -2988,7 +3007,7 @@ type Germ<T> = (
 /// A pierce germ's branch ([`super::join::germ_branch`]), read at the
 /// pierce point `p` along the germ's direction `dir`, with the piercing
 /// and pierced bodies in that order.
-fn germ_branch<T: Decide>(
+fn germ_branch<T: crate::props::AtRestPolicy>(
     sections: &super::section_table::SectionTable<T>,
     (piercing_body, pierced_body): (&Body<T>, &Body<T>),
     piercing: Operand,
@@ -3229,6 +3248,62 @@ mod tests {
         }
     }
 
+    /// **A tie the charge made is no first-order tie here.** Its bound's
+    /// first order was decided off the pierced face's tangent plane, so:
+    ///
+    /// - a sector whose bounds tie on their charges is not flat, and
+    ///   Delta 2 does not lump it ([`flat_ties`]); red if any tie counts;
+    /// - a bisector read `On` between two bounds read `Out`, one tied on
+    ///   its charge, still refuses on its own Zero; red if a neighbour's
+    ///   charge tie folds it, as a first-order tie's does.
+    #[test]
+    fn a_charge_tie_is_no_first_order_tie() {
+        use crate::bound_side::TiedBy;
+        let band = Band::linear(Tol::witness()).unwrap();
+        let tie = |by| {
+            EntryTie::Tie(super::super::sectors::OnReading {
+                predicate: "bool_pierce_sector_side_curved",
+                decided: geom_core::Decided {
+                    sign: geom_core::Sign::Zero,
+                    margin: geom_core::MarginDiag::value(0.0),
+                },
+                by,
+            })
+        };
+        let (first, charge) = (tie(TiedBy::Band), tie(TiedBy::Charge));
+        assert!(
+            flat_ties(Some(first), Some(first)).is_some(),
+            "two first-order ties"
+        );
+        assert!(
+            flat_ties(Some(charge), Some(charge)).is_none(),
+            "two charge ties"
+        );
+        assert!(
+            flat_ties(Some(first), Some(charge)).is_none(),
+            "one charge tie"
+        );
+        for (neighbour, refuses) in [(None, true), (Some(charge), true), (Some(first), false)] {
+            let mut entries = [
+                Entry {
+                    tie: neighbour,
+                    ..entry(true, Out, 0.0)
+                },
+                entry(false, On, 0.1 * band.zero()),
+                entry(true, Out, 0.0),
+            ];
+            assert_eq!(
+                resolve_on_entries(&mut entries, band).is_err(),
+                refuses,
+                "a neighbour tied {:?}",
+                neighbour.map(|t| match t {
+                    EntryTie::Tie(on) => Some(on.by),
+                    EntryTie::Bend(_) => None,
+                })
+            );
+        }
+    }
+
     /// A bisector reading On between two bounds read Out is the band's
     /// Zero (reachable only at K ≤ 2, which no suite runs), and it
     /// refuses as the nonzero gate's rejection of the Zero the bisector's
@@ -3437,7 +3512,7 @@ mod tests {
         let (x, z) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
         let arc = geom::Curve3::circle(o + z, x.cross(z), 1.0, -z);
         let span = core::f64::consts::FRAC_PI_2;
-        let extent = geom_brep::edge_extent_inf(&arc, 0.0, span, (arc.eval(0.0), arc.eval(span)));
+        let extent = geom_brep::edge_extent_inf(&arc, 0.0, span);
         let bend = ConicBend::of(&arc, arc.deriv(0.0), arc.deriv2(0.0), span);
         let partner = [BoolSector {
             he: HalfEdgeKey::default(),
@@ -4024,8 +4099,10 @@ mod tests {
             "a bound in band beside two decided across"
         );
         // A bound rising at a slope whose side a unit radius of curvature
-        // bends back within the band: off a plane, and undecided on the
-        // bent face, where the lever charges it.
+        // could bend back within the band: off a plane, and on a bent face,
+        // where the lever charges it, read by its jet: a ball bending away
+        // leaves it off, a hollow bending toward it takes it back across,
+        // against the two steep bounds.
         let slope = (2.0 * z).sqrt();
         let rays = [[1.0, 0.0, slope], [0.0, 1.0, 1.0], [0.0, -1.0, 1.0]];
         assert_eq!(
@@ -4033,15 +4110,21 @@ mod tests {
             Side { along: false },
             "on a plane"
         );
-        let bent = PierceDatum {
-            normal,
-            bend: crate::bound_side::FaceBend::ball(Vec3::new(0.0, 0.0, 1.0), 1.0),
-            lever: PierceLever::Everywhere(1.0),
-        };
-        assert!(
-            read(&rays, bent, false).is_err(),
-            "on a face bent at a unit radius"
-        );
+        for (gradient, want, what) in [
+            (1.0, Side { along: false }, "on a ball"),
+            (-1.0, Across, "on a hollow"),
+        ] {
+            let bent = PierceDatum {
+                normal,
+                bend: crate::bound_side::FaceBend::ball(Vec3::new(0.0, 0.0, gradient), 1.0),
+                lever: PierceLever::Everywhere(1.0),
+            };
+            assert_eq!(
+                read(&rays, bent, false).unwrap(),
+                want,
+                "{what} of unit radius"
+            );
+        }
     }
 
     /// **A pierce germ is the section line's ray its transition names,

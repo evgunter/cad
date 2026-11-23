@@ -403,6 +403,7 @@ fn render_indet(sess: &Session, id: u128, depth: usize) -> String {
             SymOp::Acos => "acos",
             SymOp::Atan => "atan",
             SymOp::Floor => "floor",
+            SymOp::LessSin => "less_sin",
             SymOp::Atan2 => "atan2",
             SymOp::Min => "min",
             SymOp::Max => "max",

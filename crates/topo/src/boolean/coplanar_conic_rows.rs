@@ -44,7 +44,7 @@ pub(in crate::boolean) fn split_sheet() -> (Body<f64>, VertexKey) {
             let curve = body.get_edge(e).unwrap().curve;
             match body.get_curve_geom(curve).unwrap() {
                 crate::CurveGeom::Certified(c) => {
-                    matches!(c.carrier(), Curve3::Circle(geom::Circle { frame: geom::Frame { origin: center, .. }, .. }) if center.z > 0.5)
+                    matches!(c.carrier(), Curve3::Circle(geom::Circle { frame, .. }) if frame.origin().z > 0.5)
                 }
                 _ => false,
             }
@@ -173,7 +173,7 @@ fn a_rim_arc_at_an_undecided_offset_refuses_typed() {
     match sweep(&a, &b) {
         Err(BooleanError::Escalated { diag, .. }) => assert_eq!(
             diag.predicate,
-            Some("bool_conic_face_plane_offset"),
+            Some("curve_face_pose_plane_offset"),
             "the refusal names the offset: {diag:?}"
         ),
         other => panic!("expected the offset's escalation, got {other:?}"),

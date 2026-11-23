@@ -328,15 +328,39 @@ fn assert_shape(err: &EditError, fault: &LoftFault, what: &str) {
     );
 }
 
-/// **A shape no evaluation can loft refuses at both doors alike**: one
-/// section, a section with an empty station or one whose moves carry
-/// the first section's plane onto itself under the current values (it
-/// stands in that plane), and a degree the sections cannot carry, each
-/// through `InsertNode` and through `SetLoftSections`. Broken by a
-/// shape check that one door asks and the other does not, or that
-/// either leaves to evaluation.
+/// Whether `loft`'s evaluation in `doc` refuses as `refused` says,
+/// with the refusal rendered for the message.
+fn evaluation_refusal(
+    doc: &ProfileDoc,
+    loft: RecipeNodeId,
+    refused: &dyn Fn(&editor_core::NodeErrorKind) -> bool,
+) -> (bool, String) {
+    let ev = editor_core::evaluate::<f64>(
+        doc,
+        None,
+        &editor_core::CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
+    match ev.result(loft) {
+        Some(NodeResult::Failed(editor_core::NodeError { kind, .. })) => {
+            (refused(kind), format!("{kind:?}"))
+        }
+        other => panic!("{loft} refuses at evaluation: {other:?}"),
+    }
+}
+
+/// **A loft written with too few sections or an empty station refuses
+/// at both doors alike; one whose values make it degenerate is
+/// admitted by both and refused typed at evaluation** (`[recipe.doors]`):
+/// a station whose moves carry the first section's plane onto itself at
+/// the current values is `LoftError::DegenerateStacking` (or
+/// `ReversedStacking`, after a section above it), and a degree
+/// the sections cannot carry is the count's range. Broken by a shape
+/// check one door asks and the other does not, by a door that reads a
+/// value, or by an evaluation that lofts what no loft can.
 #[test]
-fn a_loft_shape_no_evaluation_lofts_refuses_at_both_doors() {
+fn a_loft_shape_refuses_at_the_doors_and_its_values_at_evaluation() {
     let (doc, [a, b, c], loft) = two_section_loft();
     let empty = || LoftSection {
         id: None,
@@ -349,23 +373,60 @@ fn a_loft_shape_no_evaluation_lofts_refuses_at_both_doors() {
         station,
     };
     let slide = |along, by| StationMove::Slide { along, by: len(by) };
-    let rows: [(Sections, i64, LoftFault, &str); 6] = [
+    let written: [(Sections, LoftFault, &str); 2] = [
         (
             Vec::new(),
-            1,
             LoftFault::TooFewSections { have: 1 },
             "one section",
         ),
         (
             vec![up(b, 1.0), empty()],
-            1,
             LoftFault::EmptyStation { section: 2 },
             "an empty station",
         ),
+    ];
+    for (then, fault, what) in written {
+        let inserted = fixture::insert_refused(&doc, lofted(a, then.clone(), 1));
+        assert_shape(&inserted, &fault, &format!("insert, {what}"));
+        let kept: Vec<Option<usize>> = (0..=then.len()).map(|_| None).collect();
+        let rewritten = set(&doc, loft, a, then, &kept).expect_err(what);
+        assert_shape(&rewritten, &fault, &format!("SetLoftSections, {what}"));
+    }
+    let err = fixture::insert_refused(&doc, lofted(a, Vec::new(), 1));
+    assert!(
+        err.to_string().contains("through 1 section"),
+        "the sentence: {err}"
+    );
+    // A section in the first one's plane stacks on nothing; after a
+    // section above it, it stacks backward. Each names its slab.
+    let degenerate_at_slab_0 = |kind: &editor_core::NodeErrorKind| {
+        matches!(
+            kind,
+            editor_core::NodeErrorKind::Loft(sweep::LoftError::DegenerateStacking { slab: 0 })
+        )
+    };
+    let reversed_at_slab_1 = |kind: &editor_core::NodeErrorKind| {
+        matches!(
+            kind,
+            editor_core::NodeErrorKind::Loft(sweep::LoftError::ReversedStacking { slab: 1 })
+        )
+    };
+    let degree = |kind: &editor_core::NodeErrorKind| {
+        matches!(
+            kind,
+            editor_core::NodeErrorKind::CountOutOfRange {
+                slot: SlotId::VDegree,
+                count: 2,
+                ..
+            }
+        )
+    };
+    type Refused<'a> = &'a dyn Fn(&editor_core::NodeErrorKind) -> bool;
+    let valued: [(Sections, i64, Refused, &str); 4] = [
         (
             vec![up(b, 0.0)],
             1,
-            LoftFault::StationInFirstPlane { section: 1 },
+            &degenerate_at_slab_0,
             "a slide by nothing",
         ),
         (
@@ -380,61 +441,52 @@ fn a_loft_shape_no_evaluation_lofts_refuses_at_both_doors() {
                 ]),
             ],
             1,
-            LoftFault::StationInFirstPlane { section: 2 },
+            &reversed_at_slab_1,
             "a slide and a spin within the plane",
         ),
         (
             vec![in_plane(vec![slide(Axis3::Z, 1.0), slide(Axis3::Z, -1.0)])],
             1,
-            LoftFault::StationInFirstPlane { section: 1 },
+            &degenerate_at_slab_0,
             "a slide up and back",
         ),
         (
             vec![up(c, 2.0)],
             2,
-            LoftFault::DegreeOutOfRange {
-                degree: 2,
-                sections: 2,
-            },
+            &degree,
             "degree 2 through two sections",
         ),
     ];
-    for (then, degree, fault, what) in rows {
-        let inserted = fixture::insert_refused(&doc, lofted(a, then.clone(), degree));
-        assert_shape(&inserted, &fault, &format!("insert, {what}"));
+    for (then, v_degree, refused, what) in valued {
+        let (inserted, id) = insert(doc.clone(), lofted(a, then.clone(), v_degree));
+        let (ok, kind) = evaluation_refusal(&inserted, id, refused);
+        assert!(ok, "insert, {what}: {kind}");
         // The degree is the loft's own, kept by the edit: a degree-2
         // loft through three sections dropped to two.
-        let (base, target) = if degree == 1 {
+        let (base, target) = if v_degree == 1 {
             (doc.clone(), loft)
         } else {
-            insert(doc.clone(), lofted(a, vec![up(b, 1.0), up(c, 2.0)], degree))
+            insert(
+                doc.clone(),
+                lofted(a, vec![up(b, 1.0), up(c, 2.0)], v_degree),
+            )
         };
         let kept: Vec<Option<usize>> = (0..=then.len()).map(|_| None).collect();
-        let rewritten = set(&base, target, a, then, &kept).expect_err(what);
-        assert_shape(&rewritten, &fault, &format!("SetLoftSections, {what}"));
+        let rewritten = set(&base, target, a, then, &kept)
+            .unwrap_or_else(|e| panic!("SetLoftSections, {what}: admitted, refused {e}"));
+        let (ok, kind) = evaluation_refusal(&rewritten, target, refused);
+        assert!(ok, "SetLoftSections, {what}: {kind}");
     }
-    let err = fixture::insert_refused(&doc, lofted(a, Vec::new(), 1));
-    assert!(
-        err.to_string().contains("through 1 section"),
-        "the sentence: {err}"
-    );
-    let err = fixture::insert_refused(&doc, lofted(a, vec![up(b, 0.0)], 1));
-    let said = err.to_string();
-    assert!(
-        said.contains("onto itself under the current values")
-            && said.contains("slide it along the first section's z"),
-        "the sentence and its recourse: {said}"
-    );
 }
 
-/// **A degree written past the sections refuses at the slot door
-/// too**, so no edit leaves a loft in a shape the insert door refuses.
-/// Broken by a slot door that writes the degree without asking the
-/// loft's shape.
+/// **A degree written past the sections is admitted at the slot door
+/// and refused at evaluation**: the degree is a value, judged where
+/// every binding is. Broken by a slot door that reads it, or an
+/// evaluation that lofts at a degree the sections cannot carry.
 #[test]
-fn a_degree_written_past_the_sections_refuses() {
+fn a_degree_written_past_the_sections_is_refused_at_evaluation() {
     let (doc, _, loft) = two_section_loft();
-    let err = doc
+    let doc = doc
         .apply(
             &DocEdit::SetStructuralParam {
                 node: loft,
@@ -444,15 +496,19 @@ fn a_degree_written_past_the_sections_refuses() {
             },
             Tol::witness(),
         )
-        .expect_err("two sections admit degree 1 alone");
-    assert_shape(
-        &err,
-        &LoftFault::DegreeOutOfRange {
-            degree: 2,
-            sections: 2,
-        },
-        "SetStructuralParam",
-    );
+        .expect("a degree is a value, which no door reads")
+        .doc;
+    let (ok, kind) = evaluation_refusal(&doc, loft, &|kind| {
+        matches!(
+            kind,
+            editor_core::NodeErrorKind::CountOutOfRange {
+                slot: SlotId::VDegree,
+                count: 2,
+                ..
+            }
+        )
+    });
+    assert!(ok, "{kind}");
 }
 
 /// **`SetMembers` handed a loft a different count refuses**, and its
@@ -515,9 +571,8 @@ fn assert_degenerate_stacking(doc: &ProfileDoc, loft: RecipeNodeId) {
 
 /// **A station rounding leaves next to the first plane is the skin's to
 /// refuse**: two half turns about x compose, in `f64`, to a plane a
-/// rounding off the first, which the door's exact check admits and the
-/// evaluation refuses typed. Broken by a door that judges coincidence
-/// within a tolerance of its own, or a skin that lofts the sliver.
+/// rounding off the first, and the evaluation refuses it typed. Broken
+/// by a skin that lofts the sliver.
 #[test]
 fn a_station_rounded_next_to_the_first_plane_is_refused_by_the_skin() {
     let (doc, [a, b, _], _) = two_section_loft();
@@ -541,11 +596,10 @@ fn a_station_rounded_next_to_the_first_plane_is_refused_by_the_skin() {
 }
 
 /// **A value edit that brings a station's slide to 0 is admitted, and
-/// evaluation refuses the loft**: the door reads a station's values
-/// when it writes the loft, and `SetVarValue` writes no loft. The next
-/// edit that does write it (here its own degree, unchanged) refuses it
-/// at the door. Broken by a value edit that re-asks the loft's shape
-/// (this row then pins the wrong door), or by a skin that lofts the
+/// evaluation refuses the loft**; the next edit that writes the loft
+/// (here its own degree, unchanged) is admitted too, since no door
+/// reads a value and that edit did not write the fault. Broken by a
+/// door that reads the station's values, or by a skin that lofts the
 /// coincident section.
 #[test]
 fn a_value_edit_to_a_zero_slide_is_refused_at_evaluation() {
@@ -570,7 +624,7 @@ fn a_value_edit_to_a_zero_slide_is_refused_at_evaluation() {
         .expect("a value edit does not re-ask the loft's shape")
         .doc;
     assert_degenerate_stacking(&doc, loft);
-    let err = doc
+    let doc = doc
         .apply(
             &DocEdit::SetStructuralParam {
                 node: loft,
@@ -580,12 +634,9 @@ fn a_value_edit_to_a_zero_slide_is_refused_at_evaluation() {
             },
             Tol::witness(),
         )
-        .expect_err("a slot edit of the loft asks its shape");
-    assert_shape(
-        &err,
-        &LoftFault::StationInFirstPlane { section: 1 },
-        "SetStructuralParam after the value edit",
-    );
+        .expect("an edit is never refused for a fault it did not write")
+        .doc;
+    assert_degenerate_stacking(&doc, loft);
 }
 
 /// **A saved loft no door would write refuses at load**: one section,
@@ -595,7 +646,7 @@ fn a_value_edit_to_a_zero_slide_is_refused_at_evaluation() {
 #[test]
 fn a_saved_loft_of_one_section_or_an_empty_station_refuses_at_load() {
     let (doc, _, loft) = two_section_loft();
-    let text = editor_core::save(&doc, &[], Tol::witness()).expect("the fixture saves");
+    let text = editor_core::save(&doc, Tol::witness()).expect("the fixture saves");
     editor_core::load(&text, Tol::witness()).expect("the fixture loads");
     let key = loft.0.to_string();
     // Each station's slides and spins read an anonymous variable that

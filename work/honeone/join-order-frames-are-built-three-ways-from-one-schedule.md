@@ -23,9 +23,9 @@ and take `v = n × u`" is written twice and read a third way:
 - `splitting::order::in_plane_frame` (the join order's frame: the same
   projection, gate (`split_join_frame_arm`), normalization and cross,
   over the axis or the oblique half of the table);
-- `boolean::solid_contain`'s closest-hit sweep walks the same table as
+- `solid_contain`'s closest-hit sweep walks the same table as
   raw space directions (`r.map(T::from_f64).normalize()`), and
-  `boolean::sphere_region` maps the table again.
+  `sphere_region` maps the table again.
 
 The two projecting copies differ only in their arm row, their refusal
 and which members they walk (the loop walk takes the whole table in

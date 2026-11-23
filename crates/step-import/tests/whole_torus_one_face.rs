@@ -37,6 +37,7 @@ fn whole_torus() -> Body<f64> {
             normalizations,
             ..
         }) => {
+            let normalizations = crate::common::structural(normalizations);
             assert!(
                 normalizations.is_empty(),
                 "the whole torus adopts as stated: {normalizations:?}"

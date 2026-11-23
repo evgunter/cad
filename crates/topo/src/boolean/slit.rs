@@ -51,8 +51,8 @@
 //! one edge: an edge one of whose faces is tangent to the face leaves a
 //! cusp per edge, whose reading on a line of coincident edges is not
 //! built, an arc leaves two coincident arcs the census does not read,
-//! and a curved face would carry a slit or a ring that is neither meshed
-//! nor measured ([`EdgeInFaceGap::Tangent`], [`EdgeInFaceGap::Curved`],
+//! and a curved face would carry a slit or a ring, and a zero-area ring
+//! there is not measured ([`EdgeInFaceGap::Tangent`], [`EdgeInFaceGap::Curved`],
 //! [`EdgeInFaceGap::CurvedFace`]). The reading
 //! ([`holding`]) finds an edge whose carrier lies on the face's surface,
 //! a line on a plane, cylinder or cone and a circle or an ellipse on a
@@ -126,13 +126,13 @@ use geom_brep::curve_pair::{Hit, MeetFault, MeetKind, Span, SpanEnd, meet};
 use geom_brep::ladder::{Answering, Climb, Rung, climb};
 use geom_core::{Band, Decide, Margin, Point3, Sign, Tol};
 
-use super::contain::ContainError;
 use super::ops::{DoorInBand, PieceRead, piece_reading};
 use super::{BooleanDecision, BooleanError, Coincide, DeclarationRead};
 use crate::Cell;
 use crate::body::Body;
 use crate::boolean::records::{Contact, ContactKind, ContactPairError, ContactRecords};
 use crate::coincidence::Cited;
+use crate::contain::ContainError;
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::euler::{FaceSurface, MefSite, MevSite};
 use crate::lineage::{Fusions, LineageRows};
@@ -182,11 +182,11 @@ pub enum EdgeInFaceGap {
     /// (`work/heldrecords/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`).
     Curved,
     /// The face is no plane: the parting would leave a slit or a
-    /// zero-area ring in a curved face, which the chart walk does not
-    /// mesh and the curved mass-properties lane does not measure
-    /// (`work/tesslie/the-walk-panics-on-a-slit-in-a-curved-face.md`,
-    /// `work/nearpoint/a-zero-area-ring-in-a-cylinder-face-measures-degenerate.md`).
-    /// It retires when both read it: the parting itself builds there.
+    /// zero-area ring in a curved face. A slit meshes (the trimmed lane
+    /// takes a face that passes one point at two vertices); a zero-area
+    /// ring is not measured by the curved mass-properties lane
+    /// (`work/nearpoint/a-zero-area-ring-in-a-cylinder-face-measures-degenerate.md`).
+    /// It retires when that row closes: the parting itself builds there.
     CurvedFace,
     /// The face is a spline, which holds the edge where both its ends lie
     /// on the face and its midpoint reads inside it, as far as this
@@ -303,8 +303,8 @@ impl EdgeInFaceGap {
                  backs (`work/heldrecords/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`)"
             }
             Self::CurvedFace => {
-                "the face is curved, and a slit or a zero-area ring in a curved face is neither \
-                 meshed nor measured (`work/tesslie/the-walk-panics-on-a-slit-in-a-curved-face.md`)"
+                "the face is curved, and a zero-area ring in a curved face is not measured \
+                 (`work/nearpoint/a-zero-area-ring-in-a-cylinder-face-measures-degenerate.md`)"
             }
             Self::SplineFace => {
                 "the face is a spline, which holds the edge's ends and its midpoint, and whether \
@@ -460,9 +460,8 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
         if !crate::census::edge_is_line(body, edge) {
             return Err(refused(EdgeInFaceGap::Curved));
         }
-        // A slit or a zero-area ring in a curved face is neither meshed
-        // nor measured, so the parting refuses on any face it would part
-        // that is no plane.
+        // A zero-area ring in a curved face is not measured, so the
+        // parting refuses on any face it would part that is no plane.
         let plane =
             |f: FaceKey| matches!(body.proven_face(f).surface(), geom::Surface::Plane { .. });
         if let Some(&(curved, ..)) = parting.iter().find(|&&(f, ..)| !plane(f)) {
@@ -1299,7 +1298,7 @@ pub(super) enum Placed {
 /// (`bool_line_face_carrier_offset`); no line lies along a piece of a
 /// sphere or of any torus, a quartic, which meets a line in four points
 /// at most. A conic in a plane is read by its own plane's
-/// offset from it (`bool_conic_face_plane_offset`), and on a sphere,
+/// offset from it (the curve × face pose, `curve_face_pose_plane_offset`), and on a sphere,
 /// cylinder, cone or torus at points equispaced over its carrier's whole
 /// turn from `t0`, five and nine ([`Samples`], [`even_points`]). A line
 /// or a conic lies on such a surface along a piece exactly where its
@@ -1374,26 +1373,23 @@ fn conic_or_line_on<T: Decide>(
         }
         (
             geom::Curve3::Circle(..) | geom::Curve3::Ellipse(..),
-            &geom::Surface::Plane { origin, normal, .. },
+            &geom::Surface::Plane {
+                frame: plane_frame, ..
+            },
         ) => {
-            return match geom_brep::curve_face::plane_crossing::plane_crossing_lane(
-                carrier, t0, t1, origin, normal, band,
-            ) {
-                geom_brep::curve_face::plane_crossing::PlaneCrossingLane::Conic(
-                    geom_brep::curve_face::plane_crossing::ConicPlaneMeet::Parallel { offset },
-                ) => match crate::validate::decide(
-                    "bool_conic_face_plane_offset",
-                    Margin::of(offset),
-                    band,
-                ) {
-                    Ok(Sign::Zero) => Ok(Placed::On),
-                    Ok(Sign::Positive | Sign::Negative) => Ok(Placed::Off),
-                    Err(diag) => Err(BooleanError::coincidence(
-                        Coincide::EdgeOnPlane,
-                        DeclarationRead::Moot,
-                        diag,
-                    )),
-                },
+            let (origin, normal) = (plane_frame.origin(), plane_frame.axis());
+            use geom_brep::curve_face::plane_crossing::{
+                ConicPlaneMeet, ConicRootFault, PlaneCrossingLane, plane_crossing_lane,
+            };
+            return match plane_crossing_lane(carrier, t0, t1, origin, normal, band) {
+                PlaneCrossingLane::Conic(ConicPlaneMeet::InPlane) => Ok(Placed::On),
+                PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Err(
+                    ConicRootFault::PlaneParallel(diag),
+                ))) => Err(BooleanError::coincidence(
+                    Coincide::EdgeOnPlane,
+                    DeclarationRead::Moot,
+                    diag,
+                )),
                 // A conic out of the plane meets it at two points at most.
                 _ => Ok(Placed::Off),
             };
@@ -1452,15 +1448,18 @@ fn conic_or_line_on<T: Decide>(
         // meeting it at four points at most.
         (
             &geom::Curve3::Spiric {
-                center,
-                u_ref,
+                frame: spiric_frame,
                 major_radius,
                 minor_radius,
                 offset,
                 ..
             },
-            &geom::Surface::Plane { origin, normal, .. },
+            &geom::Surface::Plane {
+                frame: plane_frame, ..
+            },
         ) => {
+            let (center, u_ref) = (spiric_frame.origin(), spiric_frame.u_ref());
+            let (origin, normal) = (plane_frame.origin(), plane_frame.axis());
             let (n, u) = (normal.normalize(), u_ref.normalize());
             let refused = |diag| {
                 BooleanError::coincidence(Coincide::EdgeOnPlane, DeclarationRead::Moot, diag)
@@ -1508,21 +1507,23 @@ fn conic_or_line_on<T: Decide>(
     }
     match *surface {
         geom::Surface::Torus {
-            center,
-            axis,
+            frame,
             major_radius,
             minor_radius,
             ..
-        } => torus_between(
-            &points,
-            geom::Line {
-                origin: center,
-                dir: axis,
-            },
-            (major_radius, minor_radius),
-            band,
-        )
-        .map_err(refused),
+        } => {
+            let (center, axis) = (frame.origin(), frame.axis());
+            torus_between(
+                &points,
+                geom::Line {
+                    origin: center,
+                    dir: axis,
+                },
+                (major_radius, minor_radius),
+                band,
+            )
+            .map_err(refused)
+        }
         _ => Ok(Placed::On),
     }
 }
@@ -1539,9 +1540,10 @@ fn clears_plane<T: Decide>(
     surface: &geom::Surface<T>,
     band: Band,
 ) -> bool {
-    let &geom::Surface::Plane { origin, normal, .. } = surface else {
+    let &geom::Surface::Plane { frame, .. } = surface else {
         return false;
     };
+    let (origin, normal) = (frame.origin(), frame.axis());
     let height = |p: Point3<T>| (p - origin).dot(normal) / normal.norm();
     let side = |m: T| crate::validate::decide(RIDER_HULL_OFF, Margin::of(m), band).ok();
     match carrier {
@@ -1712,14 +1714,10 @@ mod torus_rows {
         radius: f64,
         u_ref: Vec3<f64>,
     ) -> geom::Curve3<f64> {
-        geom::Curve3::Circle(geom::Circle {
-            frame: geom::Frame {
-                origin: center,
-                axis,
-                u_ref,
-            },
+        geom::Curve3::Circle(geom::Circle::new(
+            geom::Frame::new(center, axis, u_ref),
             radius,
-        })
+        ))
     }
 
     #[test]
@@ -1834,11 +1832,9 @@ mod torus_rows {
 
     fn fat_torus() -> geom::Surface<f64> {
         geom::Surface::Torus {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), Vec3::unit_x()),
             major_radius: 1.0,
             minor_radius: 0.98,
-            u_ref: Vec3::unit_x(),
         }
     }
 
@@ -2056,7 +2052,7 @@ fn walls_inside<T: Decide>(
             // metres. Bent alike, the two sheets are one to that order
             // ([`coplanar_wall_inside`]). On a curved face a wall going
             // in, or bent as the face is, would part the edge there,
-            // which is neither meshed nor measured: it refuses
+            // which may leave a zero-area ring there, not measured: it refuses
             // `CurvedFace`. A wall bending away leaves the face's material
             // alone.
             Sign::Zero => {
@@ -2072,7 +2068,7 @@ fn walls_inside<T: Decide>(
                 ) else {
                     return Err(refused(unread));
                 };
-                let apart = geom_brep::parting(floor_bend - wall_bend, floor, arm.length());
+                let apart = geom_brep::parting(floor_bend - wall_bend, floor, arm);
                 let side = crate::validate::decide(RIDER_WALL_BEND_ACROSS, apart, band)
                     .map_err(sectors)?;
                 match side {
@@ -2100,7 +2096,7 @@ fn walls_inside<T: Decide>(
 }
 
 /// **A spline face `f`'s outward normal at the in-trim foot its placement
-/// reads `p` at** ([`super::spline_region::spline_face_placement`],
+/// reads `p` at** ([`crate::spline_region::spline_face_placement`],
 /// [`crate::face_normal::spline_outward_normal_at`]): `None` where `p`
 /// reads at no in-trim foot, or where the placement or the normal
 /// refuses as a refusal that keeps its query ([`ContainError::refusal`],
@@ -2118,7 +2114,7 @@ fn walls_inside<T: Decide>(
 /// # Panics
 ///
 /// Where the door answers that `f`, read out of `body`, does not
-/// resolve ([`super::contain::driver_face_stale`]).
+/// resolve ([`crate::contain::driver_face_stale`]).
 fn spline_floor<T: Decide>(
     body: &Body<T>,
     f: FaceKey,
@@ -2130,7 +2126,7 @@ fn spline_floor<T: Decide>(
     if chart.spline_chart().is_none() {
         return Ok(None);
     }
-    let uv = match super::spline_region::spline_face_placement(body, f, p, band) {
+    let uv = match crate::spline_region::spline_face_placement(body, f, p, band) {
         Ok((_, Some(uv))) => uv,
         Ok((_, None)) => return Ok(None),
         Err(ContainError::Escalated {
@@ -2146,7 +2142,7 @@ fn spline_floor<T: Decide>(
                 diag,
             });
         }
-        Err(ContainError::StaleFace(face)) => super::contain::driver_face_stale(face),
+        Err(ContainError::StaleFace(face)) => crate::contain::driver_face_stale(face),
         Err(why) => {
             return match why.refusal() {
                 Ok(_) => Ok(None),
@@ -2164,7 +2160,7 @@ fn spline_floor<T: Decide>(
                 diag,
             })
         }
-        Err(SplineNormalError::StaleFace) => super::contain::driver_face_stale(f),
+        Err(SplineNormalError::StaleFace) => crate::contain::driver_face_stale(f),
         // The chart was read as a spline above, so the point door's arm
         // and the placeholder's are a chart with no one normal here.
         Err(SplineNormalError::NotSpline | SplineNormalError::PlaceholderChart) => Ok(None),
@@ -3104,9 +3100,7 @@ mod spline_rider {
     /// The plane `x = 0`.
     fn wall_plane() -> geom::Surface<f64> {
         geom::Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::unit_x(),
-            u_ref: Vec3::unit_y(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_x(), Vec3::unit_y()),
         }
     }
 
@@ -3302,18 +3296,14 @@ mod spline_rider {
     #[test]
     fn a_spiric_reads_on_its_own_plane_and_off_any_other() {
         let spiric = geom::Curve3::Spiric {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             major_radius: 2.0,
             minor_radius: 1.0,
             offset: 0.5,
         };
         let plane =
             |origin: Point3<f64>, normal: Vec3<f64>, u_ref: Vec3<f64>| geom::Surface::Plane {
-                origin,
-                normal,
-                u_ref,
+                frame: geom::Frame::new(origin, normal, u_ref),
             };
         for (what, surface, want) in [
             (
@@ -3384,8 +3374,8 @@ mod spline_rider {
         crate::instance::graft_disjoint(&mut body, &keel_body).unwrap();
         let normal = body.proven_face(face).surface().clone();
         assert!(
-            matches!(normal, geom::Surface::Plane { origin, normal, .. }
-                if (origin.x - 1.0).abs() < 1e-12 && normal.x.abs() > 0.99),
+            matches!(normal, geom::Surface::Plane { frame, .. }
+                if (frame.origin().x - 1.0).abs() < 1e-12 && frame.axis().x.abs() > 0.99),
             "the U face is the plane x = 1: {normal:?}"
         );
         let lo = vertex_at(&body, Point3::new(1.0, 0.5, 1.5));
@@ -3540,11 +3530,9 @@ mod curved_carrier_rows {
     fn ring_in_band(center: Point3<f64>, axis: Vec3<f64>, u_ref: Vec3<f64>) -> geom::Surface<f64> {
         let b = band();
         geom::Surface::Torus {
-            center,
-            axis,
+            frame: geom::Frame::new(center, axis, u_ref),
             major_radius: 0.3 + 0.5 * (b.zero() + b.escalate()),
             minor_radius: 0.3,
-            u_ref,
         }
     }
 
@@ -3562,9 +3550,7 @@ mod curved_carrier_rows {
     /// `x = d`.
     fn spiric(offset: f64) -> geom::Curve3<f64> {
         geom::Curve3::Spiric {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             major_radius: 2.0,
             minor_radius: 1.0,
             offset,
@@ -3582,18 +3568,18 @@ mod curved_carrier_rows {
     fn the_tilted_rods_cap_chord_reads_off_the_rods_wall() {
         let u = Vec3::new(0.644_217_687_237_691, 0.0, 0.764_842_187_284_488_5);
         let chord = geom::Curve3::Spiric {
-            center: Point3::origin(),
-            axis: -Vec3::unit_y(),
-            u_ref: -u,
+            frame: geom::Frame::new(Point3::origin(), -Vec3::unit_y(), -u),
             major_radius: 2.0,
             minor_radius: 0.5,
             offset: 0.240_408_162_972_156_28,
         };
         let wall = geom::Surface::Cylinder {
-            origin: Point3::new(0.898_095_237_867_232_8, 0.0, -1.070_779_062_198_284),
-            axis: u,
+            frame: geom::Frame::new(
+                Point3::new(0.898_095_237_867_232_8, 0.0, -1.070_779_062_198_284),
+                u,
+                Vec3::new(u.z, 0.0, -u.x),
+            ),
             radius: 0.15,
-            u_ref: Vec3::new(u.z, 0.0, -u.x),
         };
         let span = (2.944_616_507_758_367_7, 3.338_568_799_421_218_5);
         let off = |t: f64| {
@@ -3636,28 +3622,22 @@ mod curved_carrier_rows {
             (
                 "a cylinder",
                 geom::Surface::Cylinder {
-                    origin: hub,
-                    axis: Vec3::unit_x(),
+                    frame: geom::Frame::new(hub, Vec3::unit_x(), Vec3::unit_y()),
                     radius: 0.3,
-                    u_ref: Vec3::unit_y(),
                 },
             ),
             (
                 "a cone",
                 geom::Surface::Cone {
-                    apex: hub - Vec3::unit_x(),
-                    axis: Vec3::unit_x(),
+                    frame: geom::Frame::new(hub - Vec3::unit_x(), Vec3::unit_x(), Vec3::unit_y()),
                     half_angle: tan,
-                    u_ref: Vec3::unit_y(),
                 },
             ),
             (
                 "a sphere",
                 geom::Surface::Sphere {
-                    center: hub,
+                    frame: geom::Frame::new(hub, Vec3::unit_z(), Vec3::unit_x()),
                     radius: 0.3,
-                    axis: Vec3::unit_z(),
-                    u_ref: Vec3::unit_x(),
                 },
             ),
         ] {
@@ -3687,10 +3667,12 @@ mod curved_carrier_rows {
         ] {
             let s = spiric(offset);
             let wall = geom::Surface::Cylinder {
-                origin: Point3::new(offset, 2.5, 0.0),
-                axis: Vec3::unit_x(),
+                frame: geom::Frame::new(
+                    Point3::new(offset, 2.5, 0.0),
+                    Vec3::unit_x(),
+                    Vec3::unit_y(),
+                ),
                 radius: 0.3,
-                u_ref: Vec3::unit_y(),
             };
             assert_eq!(
                 conic_or_line_on(&s, (-0.5, 0.5), &wall, band()).unwrap(),
@@ -3721,11 +3703,9 @@ mod curved_carrier_rows {
     fn the_mint_the_section_and_the_rider_read_one_regime() {
         let eps = Tol::witness().eps();
         let torus = geom::Surface::Torus {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             major_radius: 2.0,
             minor_radius: 1.0,
-            u_ref: Vec3::unit_x(),
         };
         let mint = |offset: f64| {
             geom::Curve3::spiric(
@@ -3741,9 +3721,11 @@ mod curved_carrier_rows {
         let lever = geom_brep::ExtentBall::of_covered(torus.cover().as_ref().ok()).lever();
         let section = |offset: f64, tilt: f64| {
             let plane = geom::Surface::Plane {
-                origin: Point3::new(offset, 0.0, 0.0),
-                normal: Vec3::new(tilt.cos(), 0.0, tilt.sin()),
-                u_ref: Vec3::unit_y(),
+                frame: geom::Frame::new(
+                    Point3::new(offset, 0.0, 0.0),
+                    Vec3::new(tilt.cos(), 0.0, tilt.sin()),
+                    Vec3::unit_y(),
+                ),
             };
             geom_brep::plane_torus_section(&plane, &torus, lever, band())
         };
@@ -3756,10 +3738,8 @@ mod curved_carrier_rows {
                 Point3::origin()
             };
             let ball = geom::Surface::Sphere {
-                center,
+                frame: geom::Frame::new(center, Vec3::unit_z(), Vec3::unit_x()),
                 radius: 0.3,
-                u_ref: Vec3::unit_x(),
-                axis: Vec3::unit_z(),
             };
             conic_or_line_on(&s, (-0.5, 0.5), &ball, band())
         };
@@ -3822,18 +3802,14 @@ mod curved_carrier_rows {
     fn a_spiric_within_the_band_of_a_cylinder_stays_unread() {
         let d = Tol::witness().eps().sqrt() / 10.0;
         let s = geom::Curve3::Spiric {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             major_radius: 2.0,
             minor_radius: 0.5,
             offset: d,
         };
         let wall = geom::Surface::Cylinder {
-            origin: Point3::new(0.0, 2.0, 0.0),
-            axis: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::new(0.0, 2.0, 0.0), Vec3::unit_x(), Vec3::unit_y()),
             radius: 0.5,
-            u_ref: Vec3::unit_y(),
         };
         let span = (-1.0, 1.0);
         let far = (0..=8)
@@ -3856,9 +3832,7 @@ mod curved_carrier_rows {
     /// The spiric about `z` with radii `(R, r)`, in the plane `x = d`.
     fn spiric_of(major: f64, minor: f64, offset: f64) -> geom::Curve3<f64> {
         geom::Curve3::Spiric {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             major_radius: major,
             minor_radius: minor,
             offset,
@@ -3889,10 +3863,8 @@ mod curved_carrier_rows {
         let normal = Vec3::unit_x().cross(tangent);
         let radius = 0.3;
         let wall = geom::Surface::Cylinder {
-            origin: p + normal * radius,
-            axis: Vec3::unit_x(),
+            frame: geom::Frame::new(p + normal * radius, Vec3::unit_x(), Vec3::unit_y()),
             radius,
-            u_ref: Vec3::unit_y(),
         };
         assert_eq!(read(&wall, p), Ok(Sign::Zero), "the touch at the midpoint");
         for f in [0.25_f64, 0.75] {
@@ -3919,11 +3891,9 @@ mod curved_carrier_rows {
     fn a_spiric_crossing_another_ring_torus_reads_off() {
         let s = spiric(0.5);
         let other = geom::Surface::Torus {
-            center: s.eval(0.0),
-            axis: Vec3::unit_x(),
+            frame: geom::Frame::new(s.eval(0.0), Vec3::unit_x(), Vec3::unit_y()),
             major_radius: 0.3,
             minor_radius: 0.1,
-            u_ref: Vec3::unit_y(),
         };
         assert!(
             matches!(
@@ -3946,11 +3916,9 @@ mod curved_carrier_rows {
     fn a_spiric_on_its_own_torus_stays_unread() {
         let s = spiric(0.5);
         let own = geom::Surface::Torus {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             major_radius: 2.0,
             minor_radius: 1.0,
-            u_ref: Vec3::unit_x(),
         };
         for f in [0.25_f64, 0.5, 0.75] {
             assert_eq!(
@@ -3975,11 +3943,9 @@ mod curved_carrier_rows {
     fn a_spiric_against_a_torus_not_a_ring_is_unread_or_escalates() {
         let s = spiric(0.5);
         let at = |major_radius: f64| geom::Surface::Torus {
-            center: s.eval(0.0),
-            axis: Vec3::unit_x(),
+            frame: geom::Frame::new(s.eval(0.0), Vec3::unit_x(), Vec3::unit_y()),
             major_radius,
             minor_radius: 0.3,
-            u_ref: Vec3::unit_y(),
         };
         let spindle = at(0.1);
         assert!(
@@ -4012,11 +3978,9 @@ mod curved_carrier_rows {
     fn a_conic_against_a_torus_whose_ring_is_in_band_escalates() {
         let b = band();
         let ring = geom::Surface::Torus {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             major_radius: 2.0,
             minor_radius: 0.3,
-            u_ref: Vec3::unit_x(),
         };
         let circle = geom::Curve3::circle(
             Point3::new(0.0, 0.0, 5.0),
@@ -4046,11 +4010,9 @@ mod curved_carrier_rows {
     fn a_spindles_meridian_circle_is_unread_not_off() {
         let (big, small) = (0.5, 1.0);
         let spindle = geom::Surface::Torus {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             major_radius: big,
             minor_radius: small,
-            u_ref: Vec3::unit_x(),
         };
         let meridian = geom::Curve3::circle(
             Point3::new(big, 0.0, 0.0),
@@ -4088,11 +4050,9 @@ mod curved_carrier_rows {
             Vec3::unit_x(),
         );
         let spindle = geom::Surface::Torus {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
             major_radius: 0.5,
             minor_radius: 1.0,
-            u_ref: Vec3::unit_x(),
         };
         assert!(
             matches!(
@@ -4123,10 +4083,12 @@ mod curved_carrier_rows {
         };
         let b = band();
         let wall = |offset: f64, big: f64, small: f64| geom::Surface::Cylinder {
-            origin: Point3::new(offset, big, 0.0),
-            axis: Vec3::unit_x(),
+            frame: geom::Frame::new(
+                Point3::new(offset, big, 0.0),
+                Vec3::unit_x(),
+                Vec3::unit_y(),
+            ),
             radius: small,
-            u_ref: Vec3::unit_y(),
         };
         let gap = (b.zero() + b.escalate()) / 2.0;
         let r = conic_or_line_on(&spiric(gap), (-0.5, 0.5), &wall(gap, 2.5, 0.3), b);

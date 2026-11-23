@@ -51,14 +51,19 @@ let refused = Open
     .expect("the leg is fine")
     .toward(1.0, 0.0, tol);
 
-assert!(matches!(refused, Err(PathError::JunctionTangent { margin, .. }) if margin == 0.0));
+let Err(refusal @ PathError::JunctionTurnWithinTolerance { .. }) = refused else {
+    panic!("a tangent departure is refused");
+};
+assert!(refusal.to_string().contains("sin φ = 0 (cos φ = 1) over the shorter leg's arm of 1 m"));
 ```
 
-The payload carries the **margin** — how far from tangent the
-junction actually was. Zero here, because the two directions are
-exactly equal; a near-miss would report the small number instead, and
-that number is what tells you whether you have a modelling error or a
-sliver.
+The refusal tells the **turn** and the **lever** it was read over:
+the sine of the angle between the two directions, and the shorter
+leg's length. The kernel decides their product, so a zero turn on a
+long leg and a real angle on a leg shorter than the tolerance refuse
+alike, and the two factors are what tell you which you have. Zero
+here, because the two directions are exactly equal. The payload holds
+them as quantities to be told, not numbers to branch on.
 
 The second class is structural: a fillet needs a corner, meaning two
 rays that actually meet. Turn north, then arrive north, and there is
@@ -82,16 +87,29 @@ let refused = Open
     .expect("north again")
     .to(p2(1.0, 2.0), tol);         // ...so the two carriers never meet
 
-assert!(matches!(
-    refused,
-    Err(PathError::NoCornerForFillet {
-        reason: PathNoCornerReason::TurnWithinTolerance { sin_turn, .. },
-        ..
-    }) if sin_turn == 0.0
-));
+let Err(refused) = refused else {
+    panic!("two rays that never meet have no corner");
+};
+// The fillet is step 3; the `.to` at step 5 fixed its arrival.
+assert_eq!(refused.step(), Some(3));
+let refusal @ PathError::NoCornerForFillet {
+    reason: PathNoCornerReason::TurnWithinTolerance { .. },
+    ..
+} = refused.refusal()
+else {
+    panic!("two rays that never meet have no corner");
+};
+assert!(refusal.to_string().contains("sin φ = 0 (cos φ = 1)"));
+assert!(refused.to_string().starts_with("step 3's fillet, not resolved at step 5: "));
 ```
 
-The reason carries the turn's sine and the length it was levered by,
+A fillet is resolved by the step that fixes its arrival, so its
+refusal comes back from that call, filed against the fillet's own step
+(`PathError::Deferred`): `step()` is the step whose radius you edit,
+`refusal()` is what the fit refused, and the sentence names the step
+that raised it.
+
+The reason tells the turn's sine and the length it was levered by,
 because the refusal is a product: a turn of zero at tolerance is either
 no angle at all, as here, or a real angle stated over a lever too short
 to resolve it. The kernel does not guess which; the numbers say.
@@ -499,16 +517,14 @@ sweep's result is finished where it is read), so a body the
 at-rest gate refuses never reaches the writer — the operation that made
 it refused instead. On the Rust side `step_export::step_string` takes a
 `topo::AtRestBody`, which only the scalar's finish constructs.
-Past the gate, STEP export has three refusals you should *expect*
-rather than fix — `UnsupportedSurface`, `UnsupportedCurve`,
-`VoidShellUnsupported` — meaning the AP214 writer has no
-representation for a surface or a cavity the modeller can legitimately
-build. A fourth, `ShellUnclassified`, is not a frontier: it is the
-shell-role door failing to measure a cavity's volume at the reporting
-target, and it carries that door's refusal whole. The tour tolerates
-exactly the three, per scene, and panics on anything else. That is the
-right posture to copy: enumerate the refusals you accept, and let
-every other one be loud.
+Past the gate, STEP export has two refusals you should *expect*
+rather than fix — `UnsupportedSurface`, `UnsupportedCurve` — meaning
+the AP214 writer has no representation for a surface or a curve the
+modeller can legitimately build. A third, `ShellUnclassified`, is not
+a frontier: it is the shell-role door failing to measure a cavity's
+volume at the reporting target, and it carries that door's refusal
+whole. The right posture to copy: enumerate the refusals you accept,
+and let every other one be loud.
 
 ## 8. The mesh door: budgets and files
 

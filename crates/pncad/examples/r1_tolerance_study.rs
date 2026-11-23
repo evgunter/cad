@@ -86,11 +86,9 @@ fn main() {
 
     // Save, forget everything, reload — the tolerance study starts
     // from the file, as a colleague's would.
-    let text = save(&doc, &[], tol).expect("saves");
+    let text = save(&doc, tol).expect("saves");
     std::fs::write(&out, &text).expect("writes");
-    let doc = load(&std::fs::read_to_string(&out).expect("reads"), tol)
-        .expect("loads")
-        .doc;
+    let doc = load(&std::fs::read_to_string(&out).expect("reads"), tol).expect("loads");
     println!("reloaded {out}: {} variables", doc.vars().len());
 
     // The analyzed box under the default (±3σ) policy.

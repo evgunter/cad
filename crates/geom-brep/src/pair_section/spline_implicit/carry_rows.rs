@@ -45,19 +45,19 @@ pub(super) fn wall(s: f64) -> Surface<f64> {
 /// The plane `z = s`.
 fn level(s: f64) -> Surface<f64> {
     Surface::Plane {
-        origin: pt(0.0, 0.0, s),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
+        frame: geom::Frame::new(pt(0.0, 0.0, s), Vec3::unit_z(), Vec3::unit_x()),
     }
 }
 
 /// The sphere about `s·c` of radius `s·r`.
 pub(super) fn ball(s: f64, c: (f64, f64, f64), r: f64) -> Surface<f64> {
     Surface::Sphere {
-        center: pt(s * c.0, s * c.1, s * c.2),
+        frame: geom::Frame::new(
+            pt(s * c.0, s * c.1, s * c.2),
+            Vec3::unit_z(),
+            Vec3::unit_x(),
+        ),
         radius: s * r,
-        axis: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
     }
 }
 
@@ -187,10 +187,8 @@ fn a_rim_arc_is_carried_as_its_reading_fitted_it_with_its_pad_in_metres() {
             on_wall(&w, u, root(f, (0.3, 0.8), "the cylinder"))
         };
         let tube = Surface::Cylinder {
-            origin: pt(0.0, 1.15 * s, 1.6 * s),
-            axis: Vec3::unit_x(),
+            frame: geom::Frame::new(pt(0.0, 1.15 * s, 1.6 * s), Vec3::unit_x(), Vec3::unit_z()),
             radius: 0.5 * s,
-            u_ref: Vec3::unit_z(),
         };
         let cases = [
             (
@@ -301,10 +299,8 @@ fn a_rim_arc_is_carried_as_its_reading_fitted_it_with_its_pad_in_metres() {
 /// from side to side, about `2·r·s` apart.
 pub(super) fn rod(s: f64, r: f64) -> Surface<f64> {
     Surface::Cylinder {
-        origin: pt(0.0, 1.15 * s, s),
-        axis: Vec3::unit_x(),
+        frame: geom::Frame::new(pt(0.0, 1.15 * s, s), Vec3::unit_x(), Vec3::unit_z()),
         radius: r * s,
-        u_ref: Vec3::unit_z(),
     }
 }
 
@@ -430,10 +426,8 @@ fn two_arcs_a_ninth_of_a_rung_apart_on_a_quickening_wall_are_carried() {
         let w = quickening(s);
         let (z0, r) = (0.06 * s, 0.02 * s);
         let partner = Surface::Cylinder {
-            origin: pt(0.0, s, z0),
-            axis: Vec3::unit_x(),
+            frame: geom::Frame::new(pt(0.0, s, z0), Vec3::unit_x(), Vec3::unit_z()),
             radius: r,
-            u_ref: Vec3::unit_z(),
         };
         let carried = listed(&w, &partner)
             .carry(Some(SsiLane::marched()), band())
