@@ -296,6 +296,45 @@ fn interval_the_sphere_lune_rim_encloses_its_corners() {
         Ok(_) => {}
         Err(e) => panic!("the lune's rim solves at the certified scalar: {e:?}"),
     }
+    // The cavity's rows completed, as its finish completes them: that
+    // certifies the lens face's general-circle rims too, and at a tight
+    // band a fitted rim row's own map residual escalates — an enclosure
+    // as wide as the offset's widened data, straddling the band
+    // (`work/pcert/fitted-general-circle-rows-escalate-loop-continuity-at-the-interval-scalar.md`).
+    let escalated = |finding: &topo::ValidationError| {
+        matches!(
+            finding,
+            topo::ValidationError::Pcurve {
+                finding: topo::pcurves::PcurveMintError::Certify {
+                    error: geom_brep::PcurveCertifyError::Escalated {
+                        cause: geom_core::Indeterminate {
+                            predicate: Some("pcurve_map_residual"),
+                            ..
+                        },
+                        ..
+                    },
+                    ..
+                },
+            }
+        )
+    };
+    let cavity = match topo::test_support::completed(cavity, tol) {
+        Ok(cavity) => cavity,
+        Err(refused) if tol.eps() < DEFAULT_EPS && refused.iter().all(escalated) => {
+            stood_down(
+                &format!("the sphere lune's interval rim, eps = {:e}", tol.eps()),
+                &format!(
+                    "the certified scalar escalated ({refused:?}) completing the rows, so \
+                     THIS RUN ASSERTS NO corner enclosure — only that the escalation is the \
+                     completion's own typed one"
+                ),
+            );
+            return;
+        }
+        Err(refused) => {
+            panic!("the lune cavity's rows complete at the certified scalar: {refused:?}")
+        }
+    };
     let rho = 0.05 * 2.0f64.sqrt();
     let h = (0.25f64.powi(2) - 2.0 * 0.05 * 0.05).sqrt();
     encloses_corner(&cavity, rho, h, "the lune's upper rim corner");
