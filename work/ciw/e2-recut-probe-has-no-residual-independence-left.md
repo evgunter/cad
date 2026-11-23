@@ -4,7 +4,7 @@ kind: issue
 title: review_arceval's E2 now re-executes the shipped row's fixture, constant and predicate, and can no longer disagree with it
 status: open
 opened: 2026-09-19
-priority: P3
+priority: P4
 cost: E
 ---
 
@@ -59,3 +59,5 @@ That is what was there before and it is what the header of that file
 now explains at length.
 
 Moved from VACUITY to CIW on 2026-11-20, by `git mv`, when VACUITY merged into CIW: VACUITY held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CIW carries.
+
+- 2026-11-22 — **Re-banded P3 → P4 by CIW triage.** The probe re-runs the shipped row's fixture, constant and predicate (`crates/sweep/tests/review_arceval_r1_probes.rs:131`). It cannot red on its own, so it is a duplicate execution: a small suite cost, not a missing guard. "Suite costing less" is P4.

@@ -3829,10 +3829,10 @@ mod tests {
     /// fourth control
     /// added to `toolbar_ui` is not caught by this row. The instrument
     /// that finds one is the `add_enabled` sweep
-    /// (`crates/viewer/README.md`, the disabled-control rule), and the
+    /// (`crates/viewer/README.md`, the disabled-control rule), and a
     /// gate that would hold the population rather than a reader's
-    /// attention is filed as
-    /// `work/ciw/viewer-disabled-control-population-has-no-gate`.
+    /// attention was weighed and declined
+    /// (`work/ciw/viewer-disabled-control-population-has-no-gate`, closed).
     #[test]
     fn a_disabled_toolbar_control_says_what_its_own_operation_refuses() {
         let mut toolbar = Toolbar::open();
