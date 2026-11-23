@@ -739,7 +739,7 @@ fn extruded_strut_spec<T: Real>(
                 vec: sweep.w,
             },
         )),
-        carrier: Curve3::line(q_bottom, sweep.dir().get()),
+        carrier: Curve3::line(q_bottom, sweep.dir().unit()),
         param_start: T::zero(),
         param_end: sweep.length,
     }
@@ -1334,7 +1334,7 @@ fn sweep_full_turn<T: Decide + topo::AtRestPolicy>(
                 vec: back,
             },
         )),
-        carrier: Curve3::line(far, sweep.dir().reversed().get()),
+        carrier: Curve3::line(far, sweep.dir().reversed().unit()),
         param_start: T::zero(),
         param_end: sweep.length,
     };

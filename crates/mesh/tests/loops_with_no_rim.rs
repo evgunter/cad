@@ -258,7 +258,8 @@ fn doors(body: &Body<f64>, kind: SurfaceKind) -> (bool, bool) {
         .find(|(fk, _)| body.face_surface(*fk).unwrap().kind() == kind)
         .expect("the body carries a face of that kind");
     let surface = body.face_surface(fk).unwrap();
-    let (outer, _) = topo::props::loop_edges(body, f.outer).unwrap();
+    let (outer, _) =
+        topo::props::loop_edges(body.cycle_loop(f.outer).expect("a cycle loop")).unwrap();
     (
         geom_brep::props::require_iso_rectangle(surface, &outer, band).is_ok(),
         geom_brep::props::require_one_chart_branch(surface, &outer, band).is_ok(),

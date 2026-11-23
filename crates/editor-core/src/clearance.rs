@@ -103,6 +103,9 @@
 //! the path and no re-witnessing: this lane cannot express a document
 //! write, which is a stronger statement than one it does not perform.
 
+use crate::Said;
+use crate::say;
+use crate::sentence;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -689,11 +692,7 @@ impl ClearanceRefusal {
 // It holds ids, said by whichever speaker renders it; an engine
 // refusal's pair is named by the selection each face is of.
 impl crate::spoken::Say for ClearanceRefusal {
-    fn say(
-        &self,
-        f: &mut core::fmt::Formatter<'_>,
-        by: crate::spoken::Speaker<'_>,
-    ) -> core::fmt::Result {
+    fn say(&self, f: &mut crate::Sentence, by: crate::spoken::Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::Engine {
                 refusal,
@@ -701,8 +700,12 @@ impl crate::spoken::Say for ClearanceRefusal {
             } => refusal.say(
                 f,
                 [
-                    &format_args!("body {i} of {}", by.node(*first)),
-                    &format_args!("body {j} of {}", by.node(*second)),
+                    &|f: &mut crate::Sentence| {
+                        say!(f, format_args!("body {i} of "), by.node(*first))
+                    },
+                    &|f: &mut crate::Sentence| {
+                        say!(f, format_args!("body {j} of "), by.node(*second))
+                    },
                 ],
             ),
             Self::Selection(r) => r.say(f, by),
@@ -744,7 +747,7 @@ impl crate::spoken::Say for ClearanceRefusal {
 /// The refusal where no document is at hand: each node by its tag.
 impl core::fmt::Display for ClearanceRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 
@@ -834,50 +837,50 @@ pub enum SelectionRefusal {
 
 // It holds ids, said by whichever speaker renders it.
 impl crate::spoken::Say for SelectionRefusal {
-    fn say(
-        &self,
-        f: &mut core::fmt::Formatter<'_>,
-        by: crate::spoken::Speaker<'_>,
-    ) -> core::fmt::Result {
+    fn say(&self, f: &mut crate::Sentence, by: crate::spoken::Speaker<'_>) -> core::fmt::Result {
         match self {
-            Self::NodeDidNotBuild(standing) => write!(
+            Self::NodeDidNotBuild(standing) => say!(
                 f,
                 "the selection has no faces to measure a clearance between in this leaf's \
-                 replay: {}",
+                 replay: ",
                 crate::spoken::Said(standing, by)
             ),
             Self::NoSuchBody { node, index } => {
-                write!(
+                say!(
                     f,
-                    "{}'s value carries no body at index {index}",
-                    by.node(*node)
+                    by.node(*node),
+                    format_args!("'s value carries no body at index {index}")
                 )
             }
-            Self::NoBodies { node, payload } => write!(
+            Self::NoBodies { node, payload } => say!(
                 f,
-                "{}'s value {}, so there is no face to measure a clearance between. {}",
                 by.node(*node),
-                crate::sentence::CarriesNoBodies(payload),
-                crate::sentence::Recourse("select a node whose value is a body")
+                format_args!(
+                    "'s value {}, so there is no face to measure a clearance between. {}",
+                    crate::sentence::CarriesNoBodies(payload),
+                    crate::sentence::Recourse("select a node whose value is a body")
+                )
             ),
-            Self::Unresolved { name } => write!(
+            Self::Unresolved { name } => say!(
                 f,
-                "nothing in the selected node's name table answers to {}",
+                "nothing in the selected node's name table answers to ",
                 by.name(name)
             ),
-            Self::NotAFace { name, found } => write!(
+            Self::NotAFace { name, found } => say!(
                 f,
-                "{} denotes {} {}, and a clearance is measured between faces",
                 by.name(name),
-                found.article(),
-                found.noun()
+                format_args!(
+                    " denotes {} {}, and a clearance is measured between faces",
+                    found.article(),
+                    found.noun()
+                )
             ),
             Self::Tied { name, candidates } => {
-                write!(
+                say!(
                     f,
-                    "{} faces answer to {} equally well (",
-                    candidates.len(),
-                    by.name(name)
+                    format_args!("{} faces answer to ", candidates.len()),
+                    by.name(name),
+                    " equally well ("
                 )?;
                 for (n, c) in candidates.iter().enumerate() {
                     let sep = if n == 0 { "" } else { ", " };
@@ -892,33 +895,45 @@ impl crate::spoken::Say for SelectionRefusal {
                     crate::sentence::Recourse(crate::sentence::REFINE_THE_TIE)
                 )
             }
-            Self::OtherBody { name, body } => write!(
+            Self::OtherBody { name, body } => say!(
                 f,
-                "{} denotes a face of body {body}, not of the selected body",
-                by.name(name)
-            ),
-            Self::KeyOfAnotherKind { name, found } => write!(
-                f,
-                "{} names a face, and its row in the name table holds {} {} — the table seated a \
-                 row against its name's kind. {}",
                 by.name(name),
-                found.article(),
-                found.noun(),
-                geom_core::KERNEL_DEFECT_ENDING
+                format_args!(" denotes a face of body {body}, not of the selected body")
             ),
-            Self::AcrossSpaces { a, b } => write!(
+            Self::KeyOfAnotherKind { name, found } => say!(
                 f,
-                "the two selections live in different spaces, {} and {}, and {}. {}",
+                by.name(name),
+                format_args!(
+                    " names a face, and its row in the name table holds {} {} — the table seated a \
+                 row against its name's kind. {}",
+                    found.article(),
+                    found.noun(),
+                    geom_core::KERNEL_DEFECT_ENDING
+                )
+            ),
+            Self::AcrossSpaces { a, b } => say!(
+                f,
+                "the two selections live in different spaces, ",
                 by.space(*a),
-                by.space(*b),
-                crate::sentence::ONLY_A_PLACEMENT_RELATES_TWO_SPACES,
-                crate::sentence::Recourse(crate::sentence::place_into_one_space("measure within"))
+                sentence!(
+                    " and ",
+                    by.space(*b),
+                    format_args!(
+                        ", and {}. {}",
+                        crate::sentence::ONLY_A_PLACEMENT_RELATES_TWO_SPACES,
+                        crate::sentence::Recourse(crate::sentence::place_into_one_space(
+                            "measure within"
+                        ))
+                    )
+                )
             ),
-            Self::Frame { node, refusal } => write!(
+            Self::Frame { node, refusal } => say!(
                 f,
-                "{}'s body could not be read into the frame the clearance is asked in: {}",
                 by.node(*node),
-                refusal.kind()
+                sentence!(
+                    "'s body could not be read into the frame the clearance is asked in: ",
+                    Said(&refusal.kind(), by)
+                )
             ),
         }
     }
@@ -927,7 +942,7 @@ impl crate::spoken::Say for SelectionRefusal {
 /// The refusal where no document is at hand: each node by its tag.
 impl core::fmt::Display for SelectionRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 

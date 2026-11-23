@@ -2,10 +2,13 @@
 id: a-creation-forms-held-pick-survives-a-document-swap
 kind: issue
 title: A creation form's held pick survives a document swap and resolves against the new document
-status: open
+status: closed
 opened: 2026-09-21
 priority: P1
 cost: D
+pr: 7376
+branch: formwords/held-pick
+closed: 2026-11-22
 ---
 
 
@@ -66,3 +69,7 @@ new document. `Drafts::datum_frame` (and any other held node pick on
 `Drafts`) still carries the hazard, and the choice among the shapes
 above is still this row's — the one-field reset is shape 1 taken for
 the pick that is drawn, not a ruling for the rest.
+
+## Closed (2026-11-22)
+
+PR 7376. `Drafts::document_replaced` destructures `Drafts` with no `..`, keeps the chrome and rebuilds everything else from its default, so a new field does not compile until it is put on one side. `Tools` sorts the same way. A replacement also releases egui focus and every typed field buffer (`widgets::let_go_of_the_focused_edit`), so a focused edit cannot commit into the incoming document.

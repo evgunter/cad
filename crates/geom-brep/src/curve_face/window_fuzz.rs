@@ -28,7 +28,7 @@ fn line(origin: [f64; 3], dir: [f64; 3]) -> Curve3<f64> {
     let [x, y, z] = dir;
     Curve3::line(
         Point3::new(origin[0], origin[1], origin[2]),
-        Vec3::new(x, y, z).normalize(),
+        geom_core::UnitVec3::squared(Vec3::new(x, y, z)),
     )
 }
 
@@ -60,7 +60,10 @@ fn a_refused_members_near_points_lie_in_a_window() {
         let (cv, sp) = if case % 2 == 0 {
             let a = at(rng.range(-2.0, 0.0), off);
             let b = at(rng.range(0.0, 2.0), off + (rng.unit() - 0.5) * 4.0 * esc);
-            (Curve3::line(a, b - a), (0.0, 1.0))
+            (
+                Curve3::Line(geom::Line::chord(a, b).0),
+                (0.0, (b - a).norm()),
+            )
         } else {
             let r = 10f64.powf(rng.range(-2.0, 2.0));
             let top = ang + FRAC_PI_2;

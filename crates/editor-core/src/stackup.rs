@@ -116,6 +116,8 @@
 //! (floats as exact bits, one line per row) and [`Stackup::content_key`]
 //! keys it, derived on demand; [`Stackup::render`] is the human form.
 
+use crate::Said;
+use crate::{say, sentence};
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
@@ -320,8 +322,8 @@ pub enum BindingViolation {
     Options,
 }
 
-impl core::fmt::Display for BindingViolation {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::Say for BindingViolation {
+    fn say(&self, f: &mut crate::Sentence, by: crate::Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::Incomplete => f.write_str(
                 "the f64 build of record is a canceled prefix — an incomplete run \
@@ -344,10 +346,11 @@ impl core::fmt::Display for BindingViolation {
             ),
             Self::Unpinned {
                 refusal: Some(refusal),
-            } => write!(
+            } => say!(
                 f,
                 "the document does not canonicalize, so no build of it can be bound by \
-                 revision: {refusal}"
+                 revision: ",
+                Said(&refusal, by)
             ),
             Self::EvaluationOfAnotherDocument { expected, found } => write!(
                 f,
@@ -363,9 +366,11 @@ impl core::fmt::Display for BindingViolation {
                 "the f64 build of record decided at another tolerance than the \
                  sensitivity passes",
             ),
-            Self::Binding { var } => write!(
+            Self::Binding { var } => say!(
                 f,
-                "the f64 build of record bound {var} to other bits than the \
+                "the f64 build of record bound ",
+                by.var(var),
+                " to other bits than the \
                  sensitivity passes did"
             ),
             Self::Options => f.write_str(
@@ -378,6 +383,13 @@ impl core::fmt::Display for BindingViolation {
                  another pin",
             ),
         }
+    }
+}
+
+/// Its sentence, each node said by tag ([`crate::Speaker::TAG`]).
+impl core::fmt::Display for BindingViolation {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 
@@ -466,21 +478,29 @@ impl DivergedAt {
     }
 }
 
-impl core::fmt::Display for DivergedAt {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::Say for DivergedAt {
+    fn say(&self, f: &mut crate::Sentence, by: crate::Speaker<'_>) -> core::fmt::Result {
         match self {
-            Self::Replayed(node) => write!(f, "{node}"),
+            Self::Replayed(node) => say!(f, by.mention(node)),
             Self::Recorded(id) => write!(f, "the drive record's node {id}"),
         }
     }
 }
 
-impl core::fmt::Display for SensitivityRefusal {
+/// Its sentence, each node said by tag ([`crate::Speaker::TAG`]).
+impl core::fmt::Display for DivergedAt {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
+    }
+}
+
+impl crate::Say for SensitivityRefusal {
+    fn say(&self, f: &mut crate::Sentence, by: crate::Speaker<'_>) -> core::fmt::Result {
         match self {
-            Self::NotAScalar { var } => write!(
+            Self::NotAScalar { var } => say!(
                 f,
-                "{var} is not a scalar variable of this document: a stackup is over a value, \
+                by.var(var),
+                " is not a scalar variable of this document: a stackup is over a value, \
                  typically a measure's output or a definition over measures' outputs"
             ),
             Self::ForeignVerdict => f.write_str(
@@ -488,20 +508,33 @@ impl core::fmt::Display for SensitivityRefusal {
                  parameters — it was driven over a different parameter set and certifies \
                  nothing here",
             ),
-            Self::VerdictNotOfThisBuild { node, .. } => write!(
+            Self::VerdictNotOfThisBuild { node, .. } => say!(
                 f,
                 "the chamber verdict is not of this build: its certified leaf replays with \
-                 a different content key at {node} — the document changed since the \
+                 a different content key at ",
+                Said(&node, by),
+                " — the document changed since the \
                  drive, or the verdict is another document's; drive again"
             ),
-            Self::Binding(v) => write!(f, "binding violation: {v}"),
+            Self::Binding(v) => say!(f, "binding violation: ", Said(&v, by)),
             Self::LeafStopped(stopped) => write!(f, "a certified leaf's replay stopped: {stopped}"),
-            Self::MeasuredValueDrift { param, pass, base } => write!(
+            Self::MeasuredValueDrift { param, pass, base } => say!(
                 f,
-                "the sensitivity pass for {param} measured {pass:e} where {base} — the \
+                "the sensitivity pass for ",
+                by.var(param),
+                format_args!(
+                    " measured {pass:e} where {base} — the \
                  dual's value channel is not the f64 build's (a D9 break)"
+                )
             ),
         }
+    }
+}
+
+/// Its sentence, each node said by tag ([`crate::Speaker::TAG`]).
+impl core::fmt::Display for SensitivityRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 
@@ -1233,12 +1266,14 @@ impl Unavailable {
     }
 }
 
-impl core::fmt::Display for Unavailable {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::Say for Unavailable {
+    fn say(&self, f: &mut crate::Sentence, by: crate::Speaker<'_>) -> core::fmt::Result {
         match self {
-            Self::TangentDegraded { var } => write!(
+            Self::TangentDegraded { var } => say!(
                 f,
-                "parameter {var}'s tangent degraded at the nominal (E9: forfeits its \
+                "parameter ",
+                by.var(var),
+                "'s tangent degraded at the nominal (E9: forfeits its \
                  advisory uses, refuses nothing)"
             ),
             Self::MeasureRefused {
@@ -1247,9 +1282,14 @@ impl core::fmt::Display for Unavailable {
                 cause,
                 record,
             } => {
-                write!(f, "parameter {var}'s pass could not read the measure")?;
+                say!(
+                    f,
+                    "parameter ",
+                    by.var(var),
+                    "'s pass could not read the measure"
+                )?;
                 if let Some(node) = node {
-                    write!(f, " at {node}")?;
+                    say!(f, " at ", by.mention(node))?;
                 }
                 write!(f, ": {cause}")?;
                 match record {
@@ -1262,16 +1302,27 @@ impl core::fmt::Display for Unavailable {
                     RecordReading::Refused { .. } => write!(f, " ({record})"),
                 }
             }
-            Self::Unliftable { var } => write!(
+            Self::Unliftable { var } => say!(
                 f,
-                "parameter {var}'s seed could not reach the measure: the lift refused typed"
+                "parameter ",
+                by.var(var),
+                "'s seed could not reach the measure: the lift refused typed"
             ),
-            Self::BandHasNoMeasure { var } => write!(
+            Self::BandHasNoMeasure { var } => say!(
                 f,
-                "parameter {var} carries a band: worst-case limits with no shape have \
+                "parameter ",
+                by.var(var),
+                " carries a band: worst-case limits with no shape have \
                  no σ, and a partial RSS is still a lie"
             ),
         }
+    }
+}
+
+/// Its sentence, each node said by tag ([`crate::Speaker::TAG`]).
+impl core::fmt::Display for Unavailable {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 
@@ -1430,7 +1481,10 @@ impl Stackup {
                 s,
                 "param {} sensitivity={} contribution={} chamber_span={}",
                 row.param.full(),
-                sensitivity_text(&row.sensitivity, |id| format!("node {}", id.full()),),
+                sensitivity_text(&row.sensitivity, |id| crate::Sentence::from(format!(
+                    "node {}",
+                    id.full()
+                ))),
                 match &row.contribution {
                     Ok(v) => format!("{:016x}", v.to_bits()),
                     Err(u) => format!("unavailable:{}", u.var().id().full()),
@@ -1504,10 +1558,15 @@ impl Stackup {
         doc: &Doc<P>,
         analyzed: &crate::analysis::AnalyzedBox,
     ) -> String {
-        use core::fmt::Write as _;
         crate::spoken::assert_taken_of("this stackup", self.document, doc);
-        let mut s = String::new();
-        let _ = writeln!(s, "stackup of {}", doc.spoken_value(self.measurement));
+        let by = crate::Speaker::of(doc);
+        let mut s = crate::Sentence::new();
+        let _ = say!(
+            &mut s,
+            "stackup of ",
+            doc.spoken_value(self.measurement),
+            "\n"
+        );
         let _ = writeln!(
             s,
             "  CERTIFIED WORST CASE (the only gating number): [{}, {}] over {} certified \
@@ -1528,15 +1587,18 @@ impl Stackup {
         let _ = writeln!(s, "  ADVISORY, never gating:");
         let _ = write!(s, "{}", render_rss(&self.rss, doc));
         for row in &self.per_param {
-            let _ = writeln!(
-                s,
-                "    ∂m/∂{}: {}   contribution {}",
-                doc.spoken_var(row.param),
-                sensitivity_text(&row.sensitivity, |id| doc.spoken(id).to_string(),),
+            let _ = say!(
+                &mut s,
+                "    ∂m/∂",
+                by.var(&doc.spoken_var(row.param)),
+                ": ",
+                sensitivity_text(&row.sensitivity, |id| sentence!(by.node(id))),
+                "   contribution ",
                 match &row.contribution {
-                    Ok(v) => Readable(*v).to_string(),
-                    Err(u) => format!("[{}]", u.respoken(doc)),
-                }
+                    Ok(v) => crate::Sentence::from(Readable(*v).to_string()),
+                    Err(u) => sentence!("[", crate::Said(&u.respoken(doc), by), "]"),
+                },
+                "\n"
             );
         }
         let _ = write!(
@@ -1544,7 +1606,7 @@ impl Stackup {
             "{}",
             crate::report::MassBudget::of(&self.coverage, analyzed).render(doc)
         );
-        s
+        s.to_string()
     }
 }
 
@@ -1610,45 +1672,50 @@ const RSS_BLOCKER_LEAD: &str = "      - ";
 /// # Panics
 ///
 /// When `doc` is not the document the entry was taken of.
-pub fn render_sensitivity<P>(entry: &Sensitivity, doc: &Doc<P>) -> String {
+pub fn render_sensitivity<P: crate::ProfilePayload>(entry: &Sensitivity, doc: &Doc<P>) -> String {
     crate::spoken::assert_taken_of("this sensitivity", entry.document, doc);
-    sensitivity_text(&entry.outcome, |id| doc.spoken(id).to_string())
+    let by = crate::Speaker::of(doc);
+    sensitivity_text(&entry.outcome, |id| sentence!(by.node(id))).to_string()
 }
 
 /// One sensitivity reading, each node it names written by `node`:
 /// spoken in the human form, the full id in the goldening form.
-fn sensitivity_text(outcome: &SensitivityOutcome, node: impl Fn(RecipeNodeId) -> String) -> String {
+fn sensitivity_text(
+    outcome: &SensitivityOutcome,
+    node: impl Fn(RecipeNodeId) -> crate::Sentence,
+) -> crate::Sentence {
     match outcome {
-        SensitivityOutcome::Derivative { value, chamber } => format!(
+        SensitivityOutcome::Derivative { value, chamber } => crate::Sentence::from(format!(
             "{value} ({})",
             match chamber {
                 Chamber::ChamberCertified { .. } => "chamber-certified",
                 Chamber::LocalOnly => "LOCAL ONLY",
             }
-        ),
+        )),
         SensitivityOutcome::TangentDegraded { tangent } => {
-            format!("degraded tangent ({tangent})")
+            crate::Sentence::from(format!("degraded tangent ({tangent})"))
         }
         SensitivityOutcome::MeasureRefused {
             node: refusing,
             cause,
             record,
         } => {
-            let at = refusing.map_or(String::new(), |id| format!(" at {}", node(id)));
+            let at = refusing.map_or(crate::Sentence::new(), |id| sentence!(" at ", node(id)));
             let alone = match record {
                 RecordReading::Measured(v) => {
                     format!(" (the f64 build of record measured {v:e}: the dual's refusal alone)")
                 }
                 RecordReading::Refused { .. } => String::new(),
             };
-            format!("refused{at}: {cause}{alone}")
+            sentence!("refused", at, format_args!(": {cause}{alone}"))
         }
         // Spelled out rather than `Debug`-printed: this string is read
         // by a person in `render` and compared by a golden in
         // `serialize`, and `Debug` is a form neither of those wants.
-        SensitivityOutcome::Unliftable { node: id, refusal } => format!(
-            "unliftable at {}: {}",
+        SensitivityOutcome::Unliftable { node: id, refusal } => sentence!(
+            "unliftable at ",
             node(*id),
+            ": ",
             match refusal {
                 LiftRefusal::GuidedReplay { loop_, step } => format!(
                     "the guided elaboration could not re-confirm loop {loop_} step {step} \
@@ -1753,20 +1820,24 @@ pub enum StackupRefusal {
     },
 }
 
-impl core::fmt::Display for StackupRefusal {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::Say for StackupRefusal {
+    fn say(&self, f: &mut crate::Sentence, by: crate::Speaker<'_>) -> core::fmt::Result {
         match self {
-            Self::Sensitivity(r) => write!(f, "{r}"),
+            Self::Sensitivity(r) => say!(f, Said(&r, by)),
             Self::ForeignBox => f.write_str(
                 "the analyzed box is not the box the verdict was driven over — the two \
                  name different axes or spans, and pairing them would price one box's \
                  leaves with another box's spreads",
             ),
-            Self::MeasureRefusedAtNominal { node, cause } => write!(
+            Self::MeasureRefusedAtNominal { node, cause } => say!(
                 f,
-                "{} refuses at the nominal build, so there is no nominal to report: {cause}",
-                node.as_ref()
-                    .map_or_else(|| "the value".to_owned(), ToString::to_string)
+                match node {
+                    Some(node) => sentence!(by.mention(node)),
+                    None => crate::Sentence::from("the value"),
+                },
+                format_args!(
+                    " refuses at the nominal build, so there is no nominal to report: {cause}"
+                )
             ),
             Self::NothingCertified { receipt, .. } => write!(
                 f,
@@ -1775,13 +1846,18 @@ impl core::fmt::Display for StackupRefusal {
                  decoration; the accounting carried here says where the mass went",
                 receipt.refused
             ),
-            Self::LeafDiverged { node, cause, .. } => write!(
+            Self::LeafDiverged { node, cause, .. } => say!(
                 f,
-                "a certified leaf tied to this build by its content keys refused at {} on \
+                "a certified leaf tied to this build by its content keys refused at ",
+                match node {
+                    Some(node) => sentence!(by.mention(node)),
+                    None => crate::Sentence::from("the value"),
+                },
+                format_args!(
+                    " on \
                  replay — same inputs, a different result (a D9 replay-identity break): \
-                 {cause}",
-                node.as_ref()
-                    .map_or_else(|| "the value".to_owned(), ToString::to_string)
+                 {cause}"
+                )
             ),
             Self::WorstCaseUncertified { .. } => f.write_str(
                 "a certified leaf's measure enclosure carries a domain violation — a \
@@ -1789,6 +1865,13 @@ impl core::fmt::Display for StackupRefusal {
                  refusal names the leaf rather than hulling around it",
             ),
         }
+    }
+}
+
+/// Its sentence, each node said by tag ([`crate::Speaker::TAG`]).
+impl core::fmt::Display for StackupRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 

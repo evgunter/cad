@@ -1,7 +1,7 @@
 ---
 id: an-interval-cone-cut-refuses-at-its-caps-two-arcs-and-beside-its-rulings
 kind: issue
-title: At Interval a cut cone refuses where it is embedded at f64: its plane caps' two arcs of one conic are never one value, and a cone cell a rounding past a ruling is kept where the face's extent reaches past the ruling by its bracket
+title: At Interval the two halves of a cut cone's wall refuse where they hold at f64: a cone cell a rounding past a ruling is kept where the face's extent reaches past the ruling by its bracket; and the plane caps' two arcs of one conic are never one value
 status: open
 opened: 2026-11-23
 priority: P1
@@ -13,12 +13,15 @@ cost: M
 
 From `embed/cone-image` (2026-11-23). A frustum split by a tilted plane
 (`cone_cut` in
-`crates/sweep/tests/self_intersection_proves_injectivity.rs`) is
-`Embedded` at `f64` through `topo::clearance::embedded` in every
-placement tried (as built, turned, a hundred units out, mirrored across
-a generic plane, on and off the dyadic grid). The same body built at
-`Interval` refuses in every one of them, `Uncertified { Departure }` or
-`Budget(Depth)`. Two exits, traced on the measuring branch
+`crates/sweep/tests/self_intersection_proves_injectivity.rs`): the two
+halves of its wall, asked alone through `topo::clearance::embedded`,
+hold at `f64` in every placement tried (as built, turned, a hundred
+units out, mirrored across a generic plane, on and off the dyadic
+grid), and the whole body was `Embedded` at `f64` before main's
+anchored ellipse (it refuses on a plane cap since; the last section).
+The same body built at `Interval` refuses in every one of them,
+`Uncertified { Departure }` or `Budget(Depth)`, and its halves alone in
+most. Two exits, traced on the measuring branch
 (`embed/cone-image-measure`, `CV_TRACE`):
 
 1. **The plane caps.** A cap bounded by two arcs of one conic (the cut's
@@ -47,13 +50,29 @@ toward a ruling, and refuse (`Uncertified`, `Budget`) mirrored, under a
 generic tilt, and where the cut runs out through the cap: 28 placements
 probed, all 28 hold at `f64`, 6 at `Interval`.
 
-**Cause of 2, not isolated.** The face's extent now holds the section
-arc's enclosure (`row_of`, `crates/topo/src/clearance.rs`), whose ends
-are brackets as wide as the stored row's `u0` (3.5e-14 on the traced
-body), where the ruling's line is a point; a cell overlapping the
-extent by more than `chart_slack` is not dropped. That is the likeliest
-cause and was not separated from the next one (the cover's reading of
-the shortened ruling at `Interval`). The cylinder analogue takes the
+**Cause of 2, isolated for the generic tilt** (the unit's review,
+`embed/cone-image-review-7c3e9a`, its `extent_u_nudged` probe). The
+face's extent holds the section arc's enclosure (`row_of`,
+`crates/topo/src/clearance.rs`), whose ends are brackets as wide as the
+stored row's `u0` (3.5e-14 on the traced body), where the ruling's line
+is a point; a cell overlapping the extent by more than `chart_slack` is
+not dropped. With the arc's azimuth hull drawn `1e-9` rad inside
+itself, at the extent only, the halves `Holds` at `Interval` under the
+generic tilt as built and turned: the extent's reach past the ruling by
+its bracket is that refusal's whole cause. Mirrored and tilted toward a
+ruling the halves still refuse with the hull drawn in, so that
+placement has another cause, not traced.
+
+**What should read that cell.** Not the extent: an enclosure of the arc
+has to hold the arc, and an arc that ends on the ruling has an
+enclosure that straddles it. The cell is beside the vertex the ruling
+and the arc share, so it is the corner's to read: the ruling's corner
+reading (`present_line_corner`) already decides that the arc leaves the
+ruling onto the face's side and that the ruling's other side holds no
+face there. A cell past the ruling, in reach of that vertex, would be
+read outside by the corner where the extent cannot say so.
+
+The cylinder analogue takes the
 same class on unchanged code: the rod less a slab tilted 0.3 about `x`
 and spun 0.7 about `z` is `Embedded` at `f64` and
 `Uncertified { a: 1v1, b: 4v1, shared: Edge(6v1), arm: Departure }` at

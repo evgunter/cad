@@ -22,3 +22,8 @@ The same tally on PR 7096's head, so that pull request did not move it. The test
 Find the merge between the pin's last re-baseline and `54e6a5c5b8` that moved the six rays (the row's doc comment names the bodies each earlier re-pin moved), say whether the new answers are right, and re-pin with that sentence or fix the cause. The lane that moved it owes this; until it is found the debt is recorded here.
 
 Neighbouring rows: `work/pcert/review-pick-r2-tally-moved-at-5225-azimuth-placement.md`, `work/tesslane/review-pick-r2-refusals-halved-at-the-sphere-arms-pole-side.md`.
+
+## Re-pinned through, cause still unknown (2026-11-23)
+
+TESSLANE's PR 7498 moves six more rays on two documents for a known reason (the rectangle lane's triangulation metric: three on `tube_arc` after its first edit, three on the open `hollow_tube_elbow`) and re-pins the tally to 147,844, with both parts named at the pin. So the test is green on main once that PR is in, and it stays green whatever caused the six this row is about. This row stays open for that cause: 147,856 to 147,850 on main, between the pin's commit and `54e6a5c5b8`, by no change anyone has named. Whoever takes it bisects main over that range with the slow set.
+

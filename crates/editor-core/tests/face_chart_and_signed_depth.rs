@@ -479,11 +479,13 @@ fn placed_twin(
             fixture::flip(own(CapEnd::Start))
         } else {
             own(CapEnd::End)
-        },
+        }
+        .into(),
         to: fixture::plane(Operand::select(
             BodyRead::plain(Operand::from(copy)),
             vec![face],
-        )),
+        ))
+        .into(),
         orient,
     };
     let [a, b] = face_chart_slides(orient);

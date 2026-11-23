@@ -2789,8 +2789,11 @@ fn envelope_at_the_tightest_eps(refusal: &str) -> bool {
 /// share, `Uncertified` on the departure arm, the tangent seam of
 /// `work/embed/the-filleted-drum-at-interval-refuses-on-a-straddling-rate-at-its-tangent-seam.md`,
 /// which the band's sliver closed until the sliver retired. It is asked
-/// of the body as built; the other poses' twins are built and not asked
-/// (each refuses at the same seam, a minute a pose). The pin flips to
+/// of the body as built; the other poses' twins are built and not asked,
+/// as each spends its budget refusing at the same seam (95 s for the
+/// three). Measured once on this tree: turned and a hundred units off
+/// read the same `Uncertified` at the plane against the band, and the
+/// mirrored twin exhausts the pair budget on that pair. The pin flips to
 /// holding the day a tangent seam is read at `Interval`. At ε = 1e-12
 /// the twin's pcurve envelope escalates
 /// ([`envelope_at_the_tightest_eps`]) and that half is skipped, said.
@@ -2889,7 +2892,9 @@ fn is_ellipse<T: Real>(body: &Body<T>, e: topo::EdgeKey) -> bool {
 /// `b` moved rigidly by `m`, at rest.
 fn moved<T: Scalar>(b: &topo::AtRestBody<T>, m: &geom_core::Affine3<f64>) -> topo::AtRestBody<T> {
     use sweep::test_support::finished;
-    let rigid = geom_core::test_support::rigid(&m.map(T::from_f64), tol());
+    // The motion stated at `f64` and lifted as the type lifts a stated
+    // frame (its polar enclosure at `Interval`).
+    let rigid = geom_core::test_support::rigid(m, tol()).map_scalar(T::from_f64);
     finished("moved", topo::transform_rigid(b, &rigid).unwrap(), tol())
 }
 
@@ -6651,8 +6656,17 @@ const OFF_GRID: Frustum = (0.7, 0.31, 0.9);
 /// `one_stated_conic` reads as two conics, so the cap's corner of two
 /// arcs has no reading
 /// (`work/embed/two-arcs-of-one-ellipse-stated-a-quarter-turn-apart-are-not-one-conic.md`).
-/// The cone's side of that pair is presented. When the cap's corner is
-/// read this row's bodies are embedded, and the pin moves.
+/// When the cap's corner is read this row's bodies are embedded, and the
+/// pin moves.
+///
+/// **What this row pins on this tree**: the first reading (the halves
+/// hold, with a corner read, only by the ruling's corner with the arc),
+/// and that a focal row is read at all (without it a half-cone has no
+/// extent and no sheet, and the halves refuse). It does NOT pin the
+/// second and third readings, the cone's side of the cone/cap pair: that
+/// pair refuses on the cap whichever of its two faces is unread, and the
+/// refusal names the pair and not the face. Those two are pinned at
+/// `injective::focal_rows` until a whole cut cone is embedded.
 ///
 /// **At `Interval`** the halves hold in one class with `f64` wherever
 /// the cut is as built, turned or a hundred out under a tilt toward a
@@ -6753,9 +6767,9 @@ fn a_cut_cones_wall_holds_in_every_placement_and_its_body_refuses_on_a_cap() {
 /// **A cap cut under a generic tilt refuses on its cut cap, not on its
 /// cone.** Off the dyadic grid and tilted toward no ruling, the two arcs
 /// the split mints on the cut's cap are one ellipse stated with frames a
-/// quarter turn apart, their semi-axes exchanged, which `one_stated_conic`
-/// does not read as one conic: the cap's corner of two arcs is read by
-/// no presentation
+/// half turn apart (`u_ref` opposed), as every cut cap's are, which
+/// `one_stated_conic` does not read as one conic: the cap's corner of two
+/// arcs is read by no presentation
 /// (`work/embed/two-arcs-of-one-ellipse-stated-a-quarter-turn-apart-are-not-one-conic.md`).
 /// The pair refused holds the cap; the two halves of the wall alone hold.
 #[test]
@@ -6872,14 +6886,20 @@ fn a_body_through_a_cut_cones_wall_beside_its_section_crosses() {
             "a ball on the section",
             ball(wall, true, on_section(OFF_GRID, wall, 1.3)),
         ),
-        // The face's extent is read off the arc's enclosure: a ball
-        // through the wall just inside the face beside the arc's far end,
-        // and beside its lowest point, which is interior to the arc under
-        // a generic tilt, is in a part of the face an extent drawn from
-        // the arc's end values alone would leave unasked. Off every edge
-        // the walk runs out of depth on the crossing pair at `f64` (a ball
-        // or a block alike) and finds it at `Interval`, so these two are
-        // read as never embedded and never certified, at every ε.
+        // A block through the wall just inside the face beside the arc's
+        // far end, and beside its lowest point, which is interior to the
+        // arc under a generic tilt. Off every edge the walk runs out of
+        // depth on the crossing pair at `f64` (a ball or a block alike)
+        // and finds it at `Interval`, so these two are read as never
+        // embedded and never certified, at every ε. They do NOT pin the
+        // face's extent: a grafted solid shares no cell with the wall, so
+        // its crossing is found by distance, which reads no extent, and
+        // the verdict is the same with the extent drawn a tenth inside
+        // the arc. An extent too small costs a verdict only where a face
+        // that SHARES a cell with the wall crosses it in the part left
+        // out, and no kernel operation builds that; the extent's reader
+        // is pinned at `clearance::extent_rows`'
+        // `a_focal_rows_extent_holds_its_arc_and_its_slants_extreme`.
         (
             "a block beside the arc's far end",
             block(tilted, beside(tilted, core::f64::consts::PI - 0.05, 0.03)),
@@ -6912,6 +6932,183 @@ fn a_body_through_a_cut_cones_wall_beside_its_section_crosses() {
             assert!(matches!(float, Embedding::Crosses(_)), "{what}: {float:?}");
             assert!(matches!(twin, Embedding::Crosses(_)), "{what}: {twin:?}");
         }
+    }
+}
+
+/// Whether the cut's section stays on the wall alone, clear of both
+/// caps by `clear`.
+fn cuts_the_wall_alone(shape: Frustum, cut: Cut, clear: f64) -> bool {
+    (0..64).all(|i| {
+        let y = on_section(shape, cut, f64::from(i) * TAU / 64.0).y;
+        clear < y && y < shape.2 - clear
+    })
+}
+
+/// **The two halves of a cut cone's wall never cross, at any half-angle
+/// or tilt**: frusta of half-angles from 7.6° to 69°, one that widens
+/// upward (the other slant sense), each cut at mid height under tilts of
+/// `±0.3` and `0.08` toward five azimuths, on and off the rulings, both
+/// sides of the cut kept: 150 placements, less those whose plane runs
+/// out through a cap or does not split. The halves are asked alone at
+/// the verdict door, at `f64`. None reads `Crosses`: the bodies are
+/// honest. How many read `Embedded` is printed and is not a floor: a
+/// placement the readings do not reach refuses, which is the row's
+/// other allowed answer.
+#[test]
+fn a_cut_cones_halves_never_cross_at_any_half_angle_or_tilt() {
+    let shapes: [(&str, Frustum); 5] = [
+        ("half-angle 26.6°", (1.0, 0.5, 1.0)),
+        ("off the grid", (0.7, 0.31, 0.9)),
+        ("flat, 69°", (1.0, 0.2, 0.3)),
+        ("narrow, 7.6°", (0.3, 0.1, 1.5)),
+        ("widening", (0.4, 0.9, 0.8)),
+    ];
+    let (mut asked, mut held) = (0, 0);
+    for (name, shape) in shapes {
+        for phi in [0.3, -0.3, 0.08] {
+            for psi in [0.0, 0.7, core::f64::consts::FRAC_PI_2, 2.5, 3.9] {
+                let tilt = phi * if name.starts_with("flat") { 0.2 } else { 1.0 };
+                let cut = (shape.2 * 0.5, tilt, psi);
+                if !cuts_the_wall_alone(shape, cut, 0.02 * shape.2) {
+                    continue;
+                }
+                for above in [true, false] {
+                    let Ok(body) = try_cone_cut::<f64>(shape, cut, above) else {
+                        continue;
+                    };
+                    let body = body.into_body();
+                    let class = door_over(&body, cone_faces(&body));
+                    asked += 1;
+                    held += usize::from(class == "Embedded");
+                    assert_ne!(
+                        class, "Crosses",
+                        "{name}, tilt {tilt} toward {psi}, above {above}"
+                    );
+                }
+            }
+        }
+    }
+    println!("[cone] halves: {held} of {asked} placements Embedded at f64");
+    assert!(asked > 0, "the sweep builds a cut");
+}
+
+/// **A flap through a cut cone's wall at its ruling's corner is never
+/// embedded**: a thin brick about the vertex where a ruling meets the
+/// section, in each of its three thin orientations, at both of the
+/// ruling's corners, for a cut tilted off the rulings, toward one and
+/// away from it: eighteen asks, at both scalars, over the cone's faces
+/// and the flap's (no cap, so a cap's refusal answers nothing here).
+#[test]
+fn a_flap_through_a_cut_cones_wall_at_its_rulings_corner_is_never_embedded() {
+    fn flapped<T: Scalar + geom_core::Certifies>(
+        cut: Cut,
+        at: Point3<f64>,
+        half: [f64; 3],
+    ) -> String {
+        let mut body = cone_cut::<T>(OFF_GRID, cut, true).into_body();
+        let before: BTreeSet<FaceKey> = body.faces().map(|(k, _)| k).collect();
+        let side = |c: f64, w: f64| (c - w, c + w);
+        let flap = sweep::test_support::brick::<T>(
+            side(at.x, half[0]),
+            side(at.y, half[1]),
+            side(at.z, half[2]),
+            tol(),
+        );
+        topo::graft_disjoint_all_keyed(&mut body, &flap).expect("the flap grafts");
+        let mut faces = cone_faces(&body);
+        faces.extend(body.faces().map(|(k, _)| k).filter(|k| !before.contains(k)));
+        door_over(&body, faces)
+    }
+    for cut in [(0.43, 0.3, 0.7), (0.43, -0.3, 0.0), (0.43, 0.3, 0.0)] {
+        for theta in [0.0, core::f64::consts::PI] {
+            let at = on_section(OFF_GRID, cut, theta);
+            for half in [
+                [0.02, 0.02, 0.002],
+                [0.002, 0.02, 0.02],
+                [0.02, 0.002, 0.02],
+            ] {
+                let (float, twin) = (
+                    flapped::<f64>(cut, at, half),
+                    flapped::<Interval>(cut, at, half),
+                );
+                assert!(
+                    float != "Embedded" && twin != "Embedded",
+                    "the flap {half:?} at {theta} of {cut:?}: f64 {float} | Interval {twin}"
+                );
+            }
+        }
+    }
+}
+
+/// A whole cone of base radius `r` and height `h`, its apex up, cut by
+/// `cut`, the side holding the apex.
+fn apex_cut<T: Scalar>(r: f64, h: f64, cut: Cut) -> Result<Body<T>, String> {
+    use sweep::test_support::finished;
+    use topo::splitting::{SplitPart, SplitPlane, split};
+    let p = |x: f64, y: f64| (Point2::new(T::from_f64(x), T::from_f64(y)), T::zero());
+    let cone = finished(
+        "the cone",
+        revolved_about_y_at::<T>(
+            vec![p(0.0, 0.0), p(r, 0.0), p(0.0, h)],
+            Revolution::Full,
+            tol(),
+        ),
+        tol(),
+    );
+    let plane = SplitPlane {
+        origin: Point3::new(0.0, cut.0, 0.0).map(T::from_f64),
+        normal: geom_core::UnitVec3::new(
+            cut_normal(cut).map(T::from_f64),
+            topo::POSE_UNIT_NORM,
+            band(),
+        )
+        .expect("a cut normal has a length"),
+    };
+    match split(&cone, &plane, tol())
+        .map_err(|e| format!("{e:?}"))?
+        .above
+    {
+        SplitPart::Body(b) => Ok(b.into_body()),
+        SplitPart::Empty => panic!("the apex side carries material"),
+    }
+}
+
+/// **A cut cone that keeps its apex holds between its halves.** A whole
+/// cone of radius 0.7 and height 1, cut obliquely through its wall, the
+/// side holding the apex: each half of the wall is bounded by its two
+/// rulings, which meet at the apex, and its arc of the section. The
+/// halves' cells run down their shared rulings to the apex, where the
+/// chart collapses (`v = 0`: every azimuth one point) and no rectangle
+/// holding it is a homeomorphic image for the ruling's or the arc's
+/// reading to argue on (`injective`'s `cone_regular`). The halves alone
+/// hold at `f64` with a corner read, tilted toward a ruling and off
+/// them; at `Interval` they hold tilted toward a ruling and are never
+/// read crossing. The whole body refuses on its cap as every cut cone
+/// does ([`refuses_on_a_cap_and_its_wall_holds`]).
+///
+/// **What is left**: this row does not pin `cone_regular`. With the
+/// guard off it still passes: on a kernel-built body the apex is a
+/// vertex of both halves, and the readings' own vertex checks refuse a
+/// rectangle that holds it before the guard is asked. The guard is
+/// pinned at `injective::focal_rows`'
+/// `a_cone_rectangle_holding_its_apex_is_read_by_no_curved_reading`,
+/// whose fixture has no apex vertex.
+#[test]
+fn a_cut_cone_that_keeps_its_apex_holds_between_its_halves() {
+    for (what, cut, twin_holds) in [
+        ("tilted toward a ruling", (0.5, 0.3, 0.0), true),
+        ("tilted off the rulings", (0.5, 0.3, 0.7), false),
+        ("cut near the apex", (0.8, 0.2, 0.7), false),
+    ] {
+        let float = apex_cut::<f64>(0.7, 1.0, cut).expect("the cone splits");
+        let twin = apex_cut::<Interval>(0.7, 1.0, cut).expect("the cone splits at Interval");
+        assert_eq!(cone_faces(&float).len(), 2, "{what}: two halves");
+        refuses_on_a_cap_and_its_wall_holds(what, &float);
+        let at_interval = door_over(&twin, cone_faces(&twin));
+        assert!(
+            at_interval != "Crosses" && (!twin_holds || at_interval == "Embedded"),
+            "{what}: the halves at Interval: {at_interval}"
+        );
     }
 }
 
@@ -6967,5 +7164,237 @@ fn a_needle_and_a_near_flat_cone_cut_read_as_any_cone() {
                 r.verdict
             );
         }
+    }
+}
+
+// ------------------------------------------------------ thin plane faces
+
+/// `topo::clearance::embedded`'s verdict on `body`, every face, at the
+/// default depth and budget.
+fn embedded_verdict<T: Scalar + geom_core::Certifies>(
+    body: &Body<T>,
+) -> topo::clearance::Embedding {
+    let side = Side {
+        body,
+        faces: body.faces().map(|(k, _)| k).collect(),
+    };
+    let budgets = Budgets {
+        max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+        max_cell_pairs: BUDGET,
+    };
+    topo::clearance::embedded(&side, band(), budgets).verdict
+}
+
+/// An embedding verdict's class: `Embedded`, `Crosses`, or the
+/// refusal's arm and the kind of cell it shares, or its kind.
+fn embedding_class(verdict: &topo::clearance::Embedding) -> String {
+    use topo::clearance::Embedding;
+    match verdict {
+        Embedding::Embedded => "Embedded".to_owned(),
+        Embedding::Crosses(_) => "Crosses".to_owned(),
+        Embedding::Refused(refusal) => class::<()>(&BoundVerdict::Refused(refusal.clone())),
+    }
+}
+
+/// A pose of a body row: the plain sketch plane, a rigid turn about a
+/// generic axis, and another turn a hundred units from the origin.
+fn thin_pose(k: usize) -> SketchPlane<f64> {
+    use geom_core::{Affine3, Mat3, Vec3};
+    let Some((ax, th, off)) = [
+        None,
+        Some(((1.0, 2.0, 3.0), 0.7, (0.0, 0.0, 0.0))),
+        Some(((-0.4, 0.1, 0.9), 2.3, (100.0, 0.0, 0.0))),
+    ][k] else {
+        return SketchPlane::xy();
+    };
+    let a = Vec3::new(ax.0, ax.1, ax.2) * (1.0 / (ax.0 * ax.0 + ax.1 * ax.1 + ax.2 * ax.2).sqrt());
+    let (c, s) = (f64::cos(th), f64::sin(th));
+    let col = |e: Vec3<f64>| e * c + a.cross(e) * s + a * (a.dot(e) * (1.0 - c));
+    let m = Mat3::from_cols(
+        col(Vec3::new(1.0, 0.0, 0.0)),
+        col(Vec3::new(0.0, 1.0, 0.0)),
+        col(Vec3::new(0.0, 0.0, 1.0)),
+    );
+    SketchPlane::from_frame(geom_core::test_support::rigid(
+        &Affine3::from_parts(m, Vec3::new(off.0, off.1, off.2)),
+        tol(),
+    ))
+}
+
+/// The prism over the polygon `pts` on `place`, extruded `d` along its
+/// normal.
+fn prism<T: Scalar>(place: &SketchPlane<f64>, pts: &[(f64, f64)], d: f64) -> Body<T> {
+    let profile = Profile::new(
+        plane_at::<T>(place),
+        lifted(&[ProfileLoop::polygon(
+            pts.iter().map(|&(x, y)| Point2::new(x, y)),
+        )]),
+    )
+    .validate(tol())
+    .expect("the polygon validates");
+    Body::clone(
+        &extrude(&profile, to_offset(d), tol())
+            .expect("the prism extrudes")
+            .body,
+    )
+}
+
+/// The box `[0, w] × [0, h]` on `place`, extruded `d` along its normal.
+fn block<T: Scalar>(place: &SketchPlane<f64>, (w, h, d): (f64, f64, f64)) -> Body<T> {
+    prism(place, &rectangle(w, h), d)
+}
+
+/// The rectangle `w × h` from the origin.
+fn rectangle(w: f64, h: f64) -> Vec<(f64, f64)> {
+    vec![(0.0, 0.0), (w, 0.0), (w, h), (0.0, h)]
+}
+
+/// The poses of a thin body row: plain; turned about a generic axis;
+/// turned a hundred units out; extruded the other way; mirrored in its
+/// sketch's `x`; turned by 0.3 and by 0.785 in its sketch plane, so its
+/// thin faces' sides lie off their charts' axes; and at half the session
+/// box's extent and two units inside its wall. A face turned in its own
+/// chart is pinned by `injective`'s
+/// `a_strip_end_turned_in_its_chart_presents_its_short_side`; the turns
+/// here read it through whole bodies.
+const POSES: [&str; 9] = [
+    "plain",
+    "turned",
+    "a hundred units out",
+    "extruded the other way",
+    "mirrored",
+    "turned 0.3 in its plane",
+    "turned 0.785 in its plane",
+    "at half the session box",
+    "at the session box's wall",
+];
+
+/// The profile `pts` extruded `d` in pose `k` of [`POSES`]: its sketch
+/// plane, its points and its depth.
+fn thin_posed(k: usize, pts: &[(f64, f64)], d: f64) -> (SketchPlane<f64>, Vec<(f64, f64)>, f64) {
+    use geom_core::{Affine3, Vec3};
+    let turn = |th: f64| {
+        let (c, s) = (th.cos(), th.sin());
+        pts.iter()
+            .map(|&(x, y)| (c * x - s * y, s * x + c * y))
+            .collect()
+    };
+    let at = |off: f64| {
+        SketchPlane::from_frame(geom_core::test_support::rigid(
+            &Affine3::translation(Vec3::new(off, off, off)),
+            tol(),
+        ))
+    };
+    let extent = geom_core::tolerance::SESSION_BOX_EXTENT;
+    match k {
+        0..=2 => (thin_pose(k), pts.to_vec(), d),
+        3 => (SketchPlane::xy(), pts.to_vec(), -d),
+        4 => (
+            SketchPlane::xy(),
+            pts.iter().rev().map(|&(x, y)| (-x, y)).collect(),
+            d,
+        ),
+        5 => (SketchPlane::xy(), turn(0.3), d),
+        6 => (SketchPlane::xy(), turn(0.785), d),
+        7 => (at(0.5 * extent), pts.to_vec(), d),
+        _ => (at(extent - 2.0), pts.to_vec(), d),
+    }
+}
+
+/// Each prism `(what, profile)`, extruded a unit, reads `Embedded` at
+/// `f64` and at `Interval` in every pose of [`POSES`].
+fn thin_prisms_embedded(prisms: &[(&str, Vec<(f64, f64)>)]) {
+    for (what, pts) in prisms {
+        for (k, pose) in POSES.iter().enumerate() {
+            let (place, pts, d) = thin_posed(k, pts, 1.0);
+            let float = embedded_verdict(&prism::<f64>(&place, &pts, d));
+            let interval = embedded_verdict(&prism::<Interval>(&place, &pts, d));
+            println!(
+                "[thin] {what}, {pose}: f64 {float:?} | Interval {}",
+                embedding_class(&interval)
+            );
+            assert_eq!(
+                embedding_class(&float),
+                "Embedded",
+                "{what}, {pose}: embedded at f64: {float:?}"
+            );
+            assert_eq!(
+                embedding_class(&interval),
+                "Embedded",
+                "{what}, {pose}: embedded at Interval: {interval:?}"
+            );
+        }
+    }
+}
+
+/// The plain sketch plane moved by `(x, y, 0)`.
+fn shifted(x: f64, y: f64) -> SketchPlane<f64> {
+    use geom_core::{Affine3, Vec3};
+    SketchPlane::from_frame(geom_core::test_support::rigid(
+        &Affine3::translation(Vec3::new(x, y, 0.0)),
+        tol(),
+    ))
+}
+
+/// **A thin slab is embedded**, a unit square `t` thick at `2Kε` and at
+/// `20Kε`: its four thin faces meet in pairs at edges `t` long, where
+/// the metric split cuts a cell's length a few dozen times before its
+/// width, and each pair is read at the thin faces' ends. In every pose of
+/// [`POSES`]. Red on a planar arm that reads a cell holding a thin face's
+/// whole end as `Local`: the slab refuses `Departure` at an edge there.
+#[test]
+fn a_thin_slab_is_embedded_across_its_ends_in_every_pose() {
+    let k_eps = band().escalate();
+    thin_prisms_embedded(&[
+        ("a slab 2Kε thick", rectangle(1.0, 2.0 * k_eps)),
+        ("a slab 20Kε thick", rectangle(1.0, 20.0 * k_eps)),
+    ]);
+}
+
+/// **A needle is embedded**, a unit length `t` square at `20Kε` and at
+/// `1000Kε`. Its long faces are thin rectangles, and the first split of
+/// each leaves two halves that each hold an end, so every cell the
+/// certificate asks is read at a thin face's end: a slab's reading. In
+/// every pose of [`POSES`]. Red on a planar arm that reads a cell
+/// holding an end as `Local`: the needle then spends the pair budget.
+#[test]
+fn a_needle_is_embedded_along_its_sides_in_every_pose() {
+    let k_eps = band().escalate();
+    thin_prisms_embedded(&[
+        (
+            "a needle 20Kε square",
+            rectangle(20.0 * k_eps, 20.0 * k_eps),
+        ),
+        (
+            "a needle 1000Kε square",
+            rectangle(1e3 * k_eps, 1e3 * k_eps),
+        ),
+    ]);
+}
+
+/// **Two thin slabs through each other cross**: a slab `20Kε` thick
+/// along `y` and one along `x`, grafted as two solids, pass through each
+/// other in a column `20Kε` square, at both scalars. Their faces share
+/// nothing, so the crossing is found by distance and no presentation is
+/// on its path: the row pins that thin faces' cells reach the distance
+/// test, not any reading of a strip.
+#[test]
+fn two_thin_slabs_through_each_other_cross() {
+    fn crossed<T: Scalar>(t: f64) -> Body<T> {
+        let mut along = block::<T>(&SketchPlane::xy(), (1.0, t, 1.0));
+        let across = block::<T>(&shifted(0.5 - 0.5 * t, -0.5), (t, 1.0, 1.0));
+        topo::graft_disjoint(&mut along, &across).expect("the slab grafts");
+        along
+    }
+    let t = 20.0 * band().escalate();
+    let float = embedded_verdict(&crossed::<f64>(t));
+    let interval = embedded_verdict(&crossed::<Interval>(t));
+    println!("[thin] crossed slabs: f64 {float:?} | Interval {interval:?}");
+    for (scalar, verdict) in [("f64", &float), ("Interval", &interval)] {
+        assert_eq!(
+            embedding_class(verdict),
+            "Crosses",
+            "{scalar}: the slabs cross: {verdict:?}"
+        );
     }
 }

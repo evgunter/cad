@@ -1,8 +1,12 @@
-//! **The n-ary union and intersect** (DM4, `[operations.operators]`):
-//! one operation over a list of members in the author's order.
+//! **The n-ary union, intersect and subtract** (DM4,
+//! `[operations.operators]`): one operation over a list of members in
+//! the author's order. A subtract's first member is the body kept and
+//! every other a tool, `((m0 − m1) − m2) − …`, no tool fused with
+//! another.
 //!
 //! It judges every member pair whose boxes meet once, as a pair
-//! boolean, then folds the members in list order, `((m0 ∘ m1) ∘ m2) ∘ …`.
+//! boolean — a subtract's body kept against each tool as a subtract,
+//! and two tools as a union, for their verdicts alone — then folds the members in list order, `((m0 ∘ m1) ∘ m2) ∘ …`.
 //! Each fold step is given the judgements' verdicts on the member it
 //! joins, read through the face lineage the door advances from its own
 //! steps' naming ([`MemberLineage`]), and decides no carrier pair of its
@@ -23,8 +27,8 @@
 //! can refuse a face's holdings where another reads them. So does which
 //! member's carrier description a glued face keeps.
 //!
-//! Where the operation stops, at a refusal or an intersect's empty
-//! result, the door returns what it built up to there
+//! Where the operation stops, at a refusal or an empty result (an
+//! intersect's, or a subtract whose tools take the whole kept body), the door returns what it built up to there
 //! ([`NaryRun::end`]), so a caller that reads each judgement and step in
 //! turn meets the operation's events in the order they happened.
 //!
@@ -37,7 +41,7 @@ use geom_core::{Band, Bounds, Decide, Real, Tol};
 
 use super::holdings::{Held, HeldRefusal, Holdings};
 use super::ops::boolean_op_given;
-use super::overlap::overlap;
+use super::overlap::overlap_as;
 use super::{
     BooleanBody, BooleanError, BooleanInputs, BooleanNaming, BooleanOp, BooleanResult,
     GivenDecision, GlueVerdict, GluedPair, Operand, OperandRecords, SweepStrategy,
@@ -46,13 +50,16 @@ use crate::body::Body;
 use crate::entity::FaceKey;
 use crate::props::AtRestPolicy;
 
-/// The two operators that take a list of members.
+/// The operators that take a list of members.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NaryOp {
     /// The material in any member.
     Union,
     /// The material in every member.
     Intersect,
+    /// The material in the first member and in no other: the first cut
+    /// by each of the rest, which are not fused with one another.
+    Subtract,
 }
 
 impl NaryOp {
@@ -61,7 +68,17 @@ impl NaryOp {
         match self {
             Self::Union => BooleanOp::Union,
             Self::Intersect => BooleanOp::Intersect,
+            Self::Subtract => BooleanOp::Subtract,
         }
+    }
+
+    /// **Whether the fold's result holds member `member`'s faces
+    /// turned**: the pair rule ([`BooleanOp::holds_turned`]) with member
+    /// 0 in operand A's place and every other member in B's, as each
+    /// step folds a member into the accumulation of member 0's.
+    fn holds_turned(self, member: usize) -> bool {
+        let operand = if member == 0 { Operand::A } else { Operand::B };
+        self.op().holds_turned(operand)
     }
 }
 
@@ -144,11 +161,17 @@ pub type MemberFace = (usize, FaceKey);
 /// **Which member faces each face of an accumulation descends from**,
 /// read off each step's naming, never off a name: a piece of a face
 /// descends from what the face does, a merged face from what each face
-/// it absorbed does, and a face of the joining member from that face.
+/// it absorbed does, a face a re-chart turned from every face of the
+/// sphere shell it was turned over ([`FaceSource::inputs`]), and a face
+/// of the joining member from that face.
 ///
-/// It routes the judgements' verdicts to the steps, where a superset is
-/// harmless; it lists member faces a piece holds no area of, and grows
-/// along the fold. What a face holds is its [`Holdings`].
+/// It routes the judgements' verdicts to the steps
+/// ([`given_pairs`], [`restated_rows`]), where a superset is harmless:
+/// a verdict decides a carrier pair, so handing it to a face that wears
+/// the carrier of a member face it lists but holds no area of decides
+/// the same pair. A turned face lists every face of its shell, all of
+/// which wear its one sphere. It grows along the fold. What a face holds
+/// is its [`Holdings`].
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct MemberLineage {
     faces: BTreeMap<FaceKey, BTreeSet<MemberFace>>,
@@ -181,21 +204,17 @@ impl MemberLineage {
         })
     }
 
-    /// **The member faces an operand face of the step joining `member`
-    /// to this accumulation descends from**: an accumulation face's
-    /// lineage for operand A, the member's own face for operand B. `f`
-    /// is a root face in that operand's keys ([`FaceDescent`]).
+    /// **The member faces an input face of the step joining `member` to
+    /// this accumulation descends from**: an accumulation face's lineage
+    /// for operand A, the member's own face for operand B. `f` is a face
+    /// of that operand as the step was given it
+    /// ([`FaceSource::inputs`]).
     ///
     /// # Panics
     ///
     /// Where an operand-A face has no lineage here.
     #[track_caller]
-    pub(crate) fn operand_faces(
-        &self,
-        member: usize,
-        operand: Operand,
-        f: FaceKey,
-    ) -> BTreeSet<MemberFace> {
+    fn operand_faces(&self, member: usize, operand: Operand, f: FaceKey) -> BTreeSet<MemberFace> {
         match operand {
             Operand::A => self.of(f).clone(),
             Operand::B => BTreeSet::from([(member, f)]),
@@ -206,20 +225,41 @@ impl MemberLineage {
     /// this accumulation with the naming `naming`.
     fn step<T: Real>(&self, member: usize, naming: &BooleanNaming, result: &Body<T>) -> Self {
         let descent = FaceDescent::of(naming);
-        let from = |(operand, f): (Operand, FaceKey)| self.operand_faces(member, operand, f);
         let merged = descent.merged();
         let faces = result
             .faces()
             .map(|(f, _)| {
                 let mut set = BTreeSet::new();
                 for &g in merged.get(&f).map_or(&[f][..], Vec::as_slice) {
-                    set.extend(from(descent.result_face(g)));
+                    let source = descent.source(g);
+                    for k in source.inputs {
+                        set.extend(self.operand_faces(member, source.operand, k));
+                    }
                 }
                 (f, set)
             })
             .collect();
         Self { faces }
     }
+}
+
+/// **Where a face of a boolean result comes from**: its operand, the
+/// operand face it is a piece of in the keys the op ran on, and the faces
+/// of the op's input that one stands for.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FaceSource {
+    /// The operand.
+    pub operand: Operand,
+    /// The operand face the result face is a piece of, in the keys of the
+    /// operand as the op ran on it. Where a re-chart turned that face's
+    /// sphere shell before the op ran (`BooleanNaming::recharted`), it is
+    /// the turned face, whose key names no face of the input at its
+    /// place, or none.
+    pub root: FaceKey,
+    /// The faces of the op's input `root` stands for: `root` itself, or,
+    /// for a turned face, every face of the input shell it was turned
+    /// over, any of which its region may meet.
+    pub inputs: Vec<FaceKey>,
 }
 
 /// **Which operand face each face of a boolean result descends from**,
@@ -239,25 +279,33 @@ impl<'n> FaceDescent<'n> {
         }
     }
 
-    /// The operand face result face `f` descends from. A merged face
-    /// descends from each face it absorbed as well: see
+    /// **Where result face `f` comes from** ([`FaceSource`]). A merged
+    /// face descends from each face it absorbed as well: see
     /// [`FaceDescent::merged`].
     ///
     /// # Panics
     ///
     /// As [`BooleanNaming::operand_of`].
     #[track_caller]
-    pub fn result_face(&self, f: FaceKey) -> (Operand, FaceKey) {
+    pub fn source(&self, f: FaceKey) -> FaceSource {
         let (operand, k, _) = self.naming.operand_of(&self.inv_faces, f);
-        (operand, self.clone_face(operand, k))
+        self.clone_source(operand, k)
     }
 
-    /// The operand face a face in `operand`'s CLONE keys is a fragment
-    /// of (a discarded face's key is one).
-    pub fn clone_face(&self, operand: Operand, f: FaceKey) -> FaceKey {
-        match operand {
+    /// Where a face in `operand`'s CLONE keys comes from (a discarded
+    /// face's key is one). A source's own `root` reads back to itself.
+    pub(crate) fn clone_source(&self, operand: Operand, f: FaceKey) -> FaceSource {
+        let root = match operand {
             Operand::A => self.naming.face_fragments_a.root(f),
             Operand::B => self.naming.face_fragments_b.root(f),
+        };
+        let inputs = self.naming.recharted[operand.index()]
+            .input_faces(super::Cell::Face(root))
+            .map_or_else(|| vec![root], <[FaceKey]>::to_vec);
+        FaceSource {
+            operand,
+            root,
+            inputs,
         }
     }
 
@@ -494,8 +542,8 @@ struct PairVerdict<T: Real> {
     row: Option<JudgedRow>,
 }
 
-/// **The n-ary union or intersect of `members`, in their order**
-/// (module docs).
+/// **The n-ary union, intersect or subtract of `members`, in their
+/// order** (module docs).
 ///
 /// Each member pair whose boxes meet ([`crate::Separation::hull`]) is
 /// judged as its own pair boolean, operand A the member of the lesser
@@ -507,8 +555,9 @@ struct PairVerdict<T: Real> {
 /// other face, carrying the accumulation's records and the member's.
 /// Two members are one step, `m0 ∘ m1`, and no rank is read.
 ///
-/// The operation stops at the first refusal, and an intersect at the
-/// first empty judgement or step (the typed empty result); the run
+/// The operation stops at the first refusal, and an intersect or a
+/// subtract at the first empty judgement or step (the typed empty
+/// result); the run
 /// holds what came before ([`NaryRun::end`]).
 ///
 /// # The given channel is this door's own
@@ -665,7 +714,7 @@ fn run_members<T: Decide + Bounds + AtRestPolicy>(
     }
     let refused = NaryEnd::Refused;
     let empty = |what: &str| match op {
-        NaryOp::Intersect => Err(NaryEnd::Empty),
+        NaryOp::Intersect | NaryOp::Subtract => Err(NaryEnd::Empty),
         NaryOp::Union => unreachable!(
             "a union's {what} returned empty, though both operands are finished non-empty \
              bodies and their union holds each"
@@ -694,8 +743,18 @@ fn run_members<T: Decide + Bounds + AtRestPolicy>(
     if pairwise {
         let ranks: Vec<u32> = members.iter().map(|m| m.inputs.rank).collect();
         for (a, b) in judged_pairs(&hulls, &ranks).filter(|&(a, b)| !apart.holds(a, b)) {
+            // A subtract judges its kept body against a tool as that cut,
+            // the kept body its operand A, and two tools as their union:
+            // the verdicts are the carriers' own, and the tools are fused
+            // nowhere, since a judgement's body is read for its verdicts
+            // and rows alone.
+            let (a, b, pair_op) = match op {
+                NaryOp::Subtract if a == 0 || b == 0 => (0, a.max(b), BooleanOp::Subtract),
+                NaryOp::Subtract => (a, b, BooleanOp::Union),
+                NaryOp::Union | NaryOp::Intersect => (a, b, op.op()),
+            };
             let judgement = boolean_op_given(
-                op.op(),
+                pair_op,
                 members[a].body,
                 members[b].body,
                 &BooleanInputs::default(),
@@ -737,7 +796,9 @@ fn run_members<T: Decide + Bounds + AtRestPolicy>(
     for member in 1..members.len() {
         let acc = steps.last().map_or(members[0].body, |s| &s.body.body);
         let given = match verdicts {
-            Some(verdicts) => Some(given_pairs(verdicts, member, &lineage, acc).map_err(refused)?),
+            Some(verdicts) => {
+                Some(given_pairs(op, verdicts, member, &lineage, acc).map_err(refused)?)
+            }
             None => None,
         };
         let inputs = BooleanInputs {
@@ -781,7 +842,15 @@ fn run_members<T: Decide + Bounds + AtRestPolicy>(
                 "the fold step joining member {member} built at a band it cannot read: {e}"
             )
         });
-        holdings = lift(&holdings, member, &body, clone_a.as_ref(), members, band);
+        holdings = lift(
+            op,
+            &holdings,
+            member,
+            &body,
+            clone_a.as_ref(),
+            members,
+            band,
+        );
         records_a = body.contacts.carried();
         steps.push(NaryStep {
             member,
@@ -798,7 +867,7 @@ fn run_members<T: Decide + Bounds + AtRestPolicy>(
 /// through `prev`, the accumulation's. A face of the joining member holds
 /// that face; an accumulation face holds what `prev` says it does where
 /// that is one member face, and otherwise those of them the region in
-/// question meets in area ([`overlap`]): the finished face's own, or a
+/// question meets in area ([`overlap_as`]): the finished face's own, or a
 /// discarded face's in `clone_a`, the step's A clone before its discards.
 /// A refusal in `prev`, or in the step's own holdings, carries to every
 /// face read through it.
@@ -813,6 +882,7 @@ fn run_members<T: Decide + Bounds + AtRestPolicy>(
 /// its final records, the pair door keeps its A clone wherever it
 /// discards A's faces, and every finished face is a piece of a member's.
 fn lift<T: Decide + crate::AtRestPolicy>(
+    op: NaryOp,
     prev: &Holdings,
     member: usize,
     step: &BooleanBody<T>,
@@ -826,7 +896,7 @@ fn lift<T: Decide + crate::AtRestPolicy>(
         let mut exact = BTreeSet::new();
         let mut maybe = BTreeSet::new();
         for &(place, f) in operand_faces {
-            if place == 1 {
+            if place == Operand::B.index() {
                 exact.insert((member, f));
                 continue;
             }
@@ -850,7 +920,11 @@ fn lift<T: Decide + crate::AtRestPolicy>(
             if exact.contains(&m) {
                 continue;
             }
-            match overlap(region, (members[m.0].body, m.1), band) {
+            match overlap_as(
+                region,
+                ((members[m.0].body, m.1), op.holds_turned(m.0)),
+                band,
+            ) {
                 Ok(true) => {
                     exact.insert(m);
                 }
@@ -1060,8 +1134,11 @@ fn sides<T: Real>(v: &PairVerdict<T>, member: usize) -> Option<(MemberFace, Face
 /// # Errors
 ///
 /// [`NaryRefusal::VerdictsDisagree`] where two verdicts glue one pair
-/// under two relations.
+/// under two relations; [`NaryRefusal::Step`] with
+/// [`BooleanError::TangencyUnsupported`] where a rim junction would be
+/// given through a face the accumulation holds turned.
 fn given_pairs<T: Real>(
+    op: NaryOp,
     verdicts: &[PairVerdict<T>],
     member: usize,
     lineage: &MemberLineage,
@@ -1077,8 +1154,21 @@ fn given_pairs<T: Real>(
             if !parents.contains(&at) {
                 continue;
             }
-            let prior = given.entry((f, joining)).or_insert(v.decision);
-            if prior.class() != v.decision.class() {
+            // A verdict read through a face the accumulation holds turned
+            // has its senses reversed ([`NaryOp::holds_turned`]). A rim
+            // junction has no reversed reading, so the step that would be
+            // given one through a turned face refuses it, typed, rather
+            // than glue a junction its own door would not.
+            let decision = if op.holds_turned(at.0) {
+                v.decision.reversed().ok_or_else(|| NaryRefusal::Step {
+                    member,
+                    error: Box::new(BooleanError::TangencyUnsupported),
+                })?
+            } else {
+                v.decision
+            };
+            let prior = given.entry((f, joining)).or_insert(decision);
+            if prior.class() != decision.class() {
                 return Err(NaryRefusal::VerdictsDisagree {
                     member,
                     face: f,
@@ -1516,6 +1606,41 @@ mod tests {
     };
     use crate::test_support::meeting::{posed_boxes, poses};
     use crate::{ContactRecords, SolidKey};
+
+    /// **A subtract holds its tools' faces turned, and a rim junction
+    /// has no turned reading**: the fold reads a verdict through a tool
+    /// face of its accumulation with its senses reversed, and refuses a
+    /// junction there rather than glue one its own door would not (the
+    /// two outward normals aligned on the rim, which one face turned is
+    /// not). Red where a junction is read through a turned face as it
+    /// stands, or where a union, an intersect or a subtract's kept body
+    /// reads turned.
+    #[test]
+    fn a_subtract_reads_its_tools_turned_and_a_junction_has_no_turned_reading() {
+        use super::super::GivenDecision;
+        for op in [NaryOp::Union, NaryOp::Intersect, NaryOp::Subtract] {
+            assert!(!op.holds_turned(0), "{op:?}: member 0 stands as it is");
+            assert_eq!(
+                op.holds_turned(1),
+                op == NaryOp::Subtract,
+                "{op:?}: only a subtract's tools are held turned"
+            );
+        }
+        assert!(matches!(
+            GivenDecision::<f64>::Rest.reversed(),
+            Some(GivenDecision::Continuation)
+        ));
+        assert!(matches!(
+            GivenDecision::<f64>::Continuation.reversed(),
+            Some(GivenDecision::Rest)
+        ));
+        assert!(
+            GivenDecision::<f64>::Junction { rim: None }
+                .reversed()
+                .is_none(),
+            "a junction read through a turned face is no junction"
+        );
+    }
 
     /// **A cut's tool is fused on its seat's record, decided nowhere**:
     /// the bolt on the plate, one body of two solids, its seat recorded

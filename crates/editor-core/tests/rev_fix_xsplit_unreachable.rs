@@ -53,7 +53,7 @@ fn rested_names(
         )),
         _ => None,
     };
-    Some((face(mate.on)?, face(mate.to)?))
+    Some((face(mate.on.read)?, face(mate.to.read)?))
 }
 
 /// What one exhaustive sweep saw, so a row can refuse a VACUOUS pass.

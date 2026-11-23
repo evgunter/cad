@@ -1,80 +1,34 @@
 ---
 id: door-table-reason-strings-are-unguarded-prose
 kind: issue
-title: review_m1_pr5_internal's allowlist checks membership, never an entry's stated reason against its door
+title: Read each reason string in review_m1_pr5_internal's ALLOWED table against its door's body, and fix the wrong ones
 status: open
 opened: 2026-09-19
-priority: P3
+priority: P4
 cost: E
 ---
 
+`crates/topo/src/review_m1_pr5_internal.rs:237-459` holds `ALLOWED`, a
+list of `(door, why tier 1 survives it)` pairs. Two guards read it,
+`every_public_mutation_path_preserves_tier1` (`:527`) and
+`the_two_door_tables_cover_the_same_surface` (`:655`). Both look only
+at the door name (`:552`, `:587`) and never at the reason string. A
+reason has been wrong once: `cyl_wall_sheet`'s reason left out
+`set_surface_source` and `mint_pcurves`, and PR #2887 fixed it on
+2026-09-19. Two of about 25 reasons have been checked against their
+doors.
 
-## Finding
+The work is a reading. For each entry, check that every door the
+reason names in backticks is one the body calls, and that every
+non-asserting door the body calls is named. Correct each reason that
+fails, together with the section comment above the test-support
+builders. Report the count either way, including zero. Do not add a
+test that compares reason strings with door bodies. A check like that
+would red whenever someone edits a door body until the prose is
+updated. The class has one recorded instance, and that was a stale
+reason, not a broken tier-1 guarantee, so the extra fix cycles it would
+cause cost more than it would catch.
 
-`crates/topo/src/review_m1_pr5_internal.rs` carries `ALLOWED`, a table
-of `(door, why tier 1 survives it)` read by two guards —
-`every_public_mutation_path_preserves_tier1` and
-`the_two_door_tables_cover_the_same_surface`. Both read the **first**
-element. **Neither reads the second.** The guards check that a door
-naming no tier-1 postcondition is on the list, and that the list has
-no entry without a door; the reason string beside it is never compared
-with anything in the door's body.
+What would close it: every ALLOWED reason has been read against its door, the wrong ones are corrected, and the count is recorded on the closing PR.
 
-So every entry's reason is unguarded prose, and the guards go green
-whether it is right, stale or wrong. The section comment above the
-test-support builders makes a claim over a whole group of entries
-(*"each writes only through … the asserting operators above"*) and is
-equally unread.
-
-## Evidence that the class is real, not hypothetical
-
-Two entries have been read against their doors, both on 2026-09-19, on
-PR #2887:
-
-- **`cyl_wall_sheet` — was wrong.** Its entry said "every mutation is
-  one of those, each asserting" while the door also calls
-  `set_surface_source` and `mint_pcurves`. Tier 1 does survive
-  (both are separately allowlisted for writing fields tier 1 does not
-  constrain), so the guard was not silenced — the REASON was false.
-  Fixed on that PR, and the section comment with it.
-- **`prism_ops` — was right**, and is the precedent the fix was written
-  to.
-
-**No count of how many of the rest are wrong is published here, because
-nobody has measured one.** What is measured is that ~25 entries carry a
-reason string and two of them have been checked.
-
-## What a unit here owes
-
-Read every entry against its door and say which are wrong — that is the
-measurement, and it is the deliverable even if the answer is none.
-Then decide whether the reason can be guarded at all. A cheap arm
-exists and would have caught the one defect above: each reason names
-doors in backticks, and `mutation_doors()` already parses door bodies,
-so a check that every backticked name the reason cites is a door the
-body actually calls, and that every non-asserting door the body calls
-is cited, is mechanical. It would not check that the reason is a good
-argument; it would check that it is not about a different function.
-
-## Why this row is not on a territory GUARD claims
-
-GUARD's `paths` is `scripts/gates/*`, and this guard is an in-crate
-`#[test]` under `crates/topo/src`. The charter is what routes it —
-*"every finding since about what the gates cannot see … the selftests
-that cannot observe what a gate names"* — and this is a guard that
-cannot observe what its own table claims. Filed here; whoever owns the
-file is free to take it.
-
-Found by the S-DUP unit
-`the-cylindrical-patch-rim-builder-is-written-nine-times`, whose own
-entry was the wrong one.
-
-## Moved to UNREAD (2026-10-26, GUARD's split)
-
-GUARD measured 43 points against 30 and split three ways. This row is a
-claim the tree carries with no gate reading it at all, which is UNREAD's
-charter (`work/unread/plan.md`). Id and body unchanged.
-
-## Moved to CIW (2026-11-02)
-
-- 2026-11-02 — moved from UNREAD to CIW when UNREAD merged into CIW (budget rule now counts P0/P1 only). UNREAD's rows are claims no gate reads and CIW's are what the hosted gate does not run or see: one question, what goes red if this stops being true. Id and body unchanged.
+- 2026-11-22 — **Reformulated by CIW triage** (the earlier body is in git history): The `ALLOWED` table (review_m1_pr5_internal.rs:237-459) is read only by name (:552, :587). The one recorded wrong reason (cyl_wall_sheet) was fixed on PR #2887 on 2026-09-19, and nothing has been recorded since. The proposed reason-vs-body test would red on every door-body edit until the prose catches up, so it would cause fix cycles without having caught anything yet. Keep only the reading. See reform/door-table-reason-strings-are-unguarded-prose.md.

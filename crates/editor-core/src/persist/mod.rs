@@ -152,6 +152,8 @@ pub(crate) mod refusal;
 pub(crate) mod strict;
 pub(crate) mod wire;
 
+use crate::Said;
+use crate::say;
 use std::collections::BTreeMap;
 
 use geom_core::tolerance::{Tolerance, ToleranceError};
@@ -457,23 +459,42 @@ impl core::fmt::Display for PersistError {
 impl Staged for PersistError {
     const STAGE: &'static str = "persist";
 
-    fn fmt_labelled(&self, f: &mut core::fmt::Formatter<'_>, _: Labels) -> core::fmt::Result {
+    fn fmt_labelled(&self, f: &mut crate::Sentence, _: Labels) -> core::fmt::Result {
+        self.fmt_said(f, crate::Speaker::TAG)
+    }
+}
+
+/// The refusal under its stage word, each node it captured mentioned in
+/// the speaker's document.
+impl crate::Say for PersistError {
+    fn say(&self, f: &mut crate::Sentence, by: crate::Speaker<'_>) -> core::fmt::Result {
+        crate::sentence::Labelled::<Self>::open(f, Labels::Kept)?;
+        self.fmt_said(f, by)
+    }
+}
+
+impl PersistError {
+    /// The sentence after the stage word, each node mentioned by `by`.
+    fn fmt_said(&self, f: &mut crate::Sentence, by: crate::Speaker<'_>) -> core::fmt::Result {
         match self {
-            Self::NonFinite { site } => write!(f, "non-finite float at {site}"),
+            Self::NonFinite { site } => say!(f, "non-finite float at ", Said(&site, by)),
             Self::ProfileProgram { node, refusal } => {
-                write!(f, "{node}'s program: {refusal}")
+                say!(f, by.mention(node), format_args!("'s program: {refusal}"))
             }
             Self::Distribution { var, fault } => {
-                write!(f, "{var}: {fault}")
+                say!(f, by.var(var), format_args!(": {fault}"))
             }
             Self::DisplayUnit {
                 var,
                 unit,
                 declared,
-            } => write!(
+            } => say!(
                 f,
-                "{var} is declared {declared} but its display \
+                by.var(var),
+                format_args!(
+                    " is declared {declared} but its display \
                  unit measures {unit}"
+                )
             ),
             Self::Serialize { message } => write!(f, "serializer failed: {message}"),
             Self::HeaderId { found } => {
@@ -511,7 +532,7 @@ impl Staged for PersistError {
                 "body line {line} column {column}: refused by the document \
                  layer's dimension checker: {error}"
             ),
-            Self::Snapshot(e) => write!(f, "invalid snapshot: {e}"),
+            Self::Snapshot(e) => say!(f, "invalid snapshot: ", Said(&e, by)),
             Self::ToleranceConflict { process, document } => write!(
                 f,
                 "document ε {document:e} conflicts with the process ε {process:e} \

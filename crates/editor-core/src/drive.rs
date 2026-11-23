@@ -96,6 +96,7 @@
 //! write is not something this API can express, which is a stronger
 //! statement than one it does not perform.
 
+use crate::say;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
@@ -1035,7 +1036,7 @@ impl ParamBoxVerdict {
                 })
                 .collect();
             for (node, unsettled) in named {
-                let said = doc.spoken(node);
+                let said = crate::spoken::node_text(&doc.spoken(node));
                 let _ = match unsettled {
                     Unsettled::Undecided => writeln!(
                         s,
@@ -1245,13 +1246,17 @@ pub enum DriveRefusal {
     Stopped(crate::Stopped),
 }
 
-impl core::fmt::Display for DriveRefusal {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::Say for DriveRefusal {
+    fn say(&self, f: &mut crate::Sentence, by: crate::Speaker<'_>) -> core::fmt::Result {
         match self {
-            Self::WitnessDoesNotBuild { node, cause } => write!(
+            Self::WitnessDoesNotBuild { node, cause } => say!(
                 f,
-                "the witness build refuses at {node}: {cause} — there is no branch to certify \
+                "the witness build refuses at ",
+                by.mention(node),
+                format_args!(
+                    ": {cause} — there is no branch to certify \
                  leaves against until the nominal document builds"
+                )
             ),
             Self::NothingVaries => f.write_str(
                 "no parameter of this document declares a distribution, so the analyzed box has \
@@ -1259,6 +1264,13 @@ impl core::fmt::Display for DriveRefusal {
             ),
             Self::Stopped(stopped) => write!(f, "the drive stopped: {stopped}"),
         }
+    }
+}
+
+/// Its sentence, each node said by tag ([`crate::Speaker::TAG`]).
+impl core::fmt::Display for DriveRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 
@@ -1276,6 +1288,65 @@ pub fn witness_options(analyzed: &AnalyzedBox, stop: &crate::Stop) -> EvalOption
         param_box: Some(Arc::new(ParamBox::of(analyzed).at_nominal())),
         ..lane_opts(stop)
     }
+}
+
+/// **The witness build of a drive**: the document at its nominals, at
+/// `f64`, under [`witness_options`] and `resolver`. Its profile nodes
+/// log both passes, as a leaf's do (`ProfileLane`), so the two verdict
+/// vectors compare.
+///
+/// # Errors
+///
+/// [`DriveRefusal::Stopped`] for a run that stopped short, and
+/// [`DriveRefusal::WitnessDoesNotBuild`] unless every node is usable.
+pub(crate) fn witness_build(
+    doc: &Doc<ProfileProgram>,
+    analyzed: &AnalyzedBox,
+    resolver: Option<&Arc<dyn crate::part::PartResolver>>,
+    stop: &crate::Stop,
+    tol: Tol,
+) -> Result<Evaluation<f64>, DriveRefusal> {
+    let opts = EvalOptions {
+        resolver: resolver.cloned(),
+        ..witness_options(analyzed, stop)
+    };
+    let witness: Evaluation<f64> = evaluate(doc, None, &stop.cancel, &opts, tol);
+    if let Some(stopped) = crate::Stopped::of(witness.outcome) {
+        return Err(DriveRefusal::Stopped(stopped));
+    }
+    match does_not_build(doc, &witness) {
+        Some(refusal) => Err(refusal),
+        None => Ok(witness),
+    }
+}
+
+/// [`DriveRefusal::WitnessDoesNotBuild`] for a finished `f64` build
+/// with a node that is not usable, naming the first in evaluation
+/// order; `None` when every node is.
+pub(crate) fn does_not_build(
+    doc: &Doc<ProfileProgram>,
+    built: &Evaluation<f64>,
+) -> Option<DriveRefusal> {
+    let standing = built.order.iter().find_map(|&id| built.usable(id).err())?;
+    let node = standing.node();
+    let cause = built
+        .node_error(node)
+        .map_or_else(|| standing.to_string(), |e| e.kind_spoken(doc).to_string());
+    Some(DriveRefusal::WitnessDoesNotBuild {
+        node: doc.spoken(node),
+        cause,
+    })
+}
+
+/// The plain-form memo one drive's leaves share
+/// ([`DriveConfig::plain_memo`]): serving forms, or only counting the
+/// freezes with the dial off.
+pub(crate) fn drive_memo(plain_memo: bool, symbolic: SymbolicDials) -> Arc<sym::DriveMemo> {
+    Arc::new(if plain_memo {
+        sym::DriveMemo::new(symbolic.budget(), symbolic.rules)
+    } else {
+        sym::DriveMemo::counting_only(symbolic.budget(), symbolic.rules)
+    })
 }
 
 /// **Drives the document over the analyzed box** (E6).
@@ -1303,33 +1374,7 @@ pub fn drive(
         return Err(DriveRefusal::NothingVaries);
     }
 
-    // The WITNESS build: the document at its nominals, at f64. Its
-    // profile nodes log both passes, as a leaf's do (`ProfileLane`), so
-    // the two vectors compare.
-    let witness: Evaluation<f64> = evaluate(
-        doc,
-        None,
-        &stop.cancel,
-        &witness_options(analyzed, stop),
-        tol,
-    );
-    if let Some(stopped) = crate::Stopped::of(witness.outcome) {
-        return Err(DriveRefusal::Stopped(stopped));
-    }
-    if let Some(standing) = witness
-        .order
-        .iter()
-        .find_map(|&id| witness.usable(id).err())
-    {
-        let node = standing.node();
-        let cause = witness
-            .node_error(node)
-            .map_or_else(|| standing.to_string(), |e| e.kind_spoken(doc));
-        return Err(DriveRefusal::WitnessDoesNotBuild {
-            node: doc.spoken(node),
-            cause,
-        });
-    }
+    let witness = witness_build(doc, analyzed, None, stop, tol)?;
     let witness_vector = Arc::new(certifying_vector(doc, &witness));
     let witness_key = witness_vector.key();
     // What each node reads is the document's, so it is taken once.
@@ -1358,11 +1403,7 @@ pub fn drive(
     // alternative is an `Option` that every call site below would have
     // to open for a case that is already answered by `symbolic.enabled`
     // three lines down.
-    let memo = Arc::new(if config.plain_memo {
-        sym::DriveMemo::new(config.symbolic.budget(), config.symbolic.rules)
-    } else {
-        sym::DriveMemo::counting_only(config.symbolic.budget(), config.symbolic.rules)
-    });
+    let memo = drive_memo(config.plain_memo, config.symbolic);
 
     // A level-synchronous frontier, so the sequential and the parallel
     // schedule visit the same boxes in the same order and combine them
@@ -1399,6 +1440,7 @@ pub fn drive(
                 witness_key,
                 config.symbolic,
                 &memo,
+                None,
                 stop,
                 tol,
             )
@@ -1573,7 +1615,7 @@ struct Box_ {
 }
 
 /// What one leaf's replay decided.
-enum LeafVerdict {
+pub(crate) enum LeafVerdict {
     Certified(CertifiedLeaf),
     Refused(RefusalReason),
     /// Unsettled at `deciding`, the first node in evaluation order
@@ -1613,12 +1655,13 @@ enum LeafVerdict {
 /// otherwise hide, since an expression that is identically zero on
 /// paper says nothing about whether the code computed it.
 // One parameter per named input the leaf replay needs: the document,
-// the box, the witness build and its vector, the tier's dials and the
-// drive's plain memo. Nothing here is state to thread — every one is
-// read by the leaf and none is written — so a bundle would be a struct
-// that exists to satisfy a count.
+// the box, the witness build and its vector, the tier's dials, the
+// drive's plain memo and the part resolver (`None` from [`drive`]).
+// Nothing here is state to thread — every one is read by the leaf and
+// none is written — so a bundle would be a struct that exists to
+// satisfy a count.
 #[allow(clippy::too_many_arguments)]
-fn classify(
+pub(crate) fn classify(
     doc: &Doc<ProfileProgram>,
     box_: &ParamBox,
     witness: &Evaluation<f64>,
@@ -1626,11 +1669,13 @@ fn classify(
     witness_key: VerdictVectorKey,
     symbolic: SymbolicDials,
     memo: &Arc<sym::DriveMemo>,
+    resolver: Option<&Arc<dyn crate::part::PartResolver>>,
     stop: &crate::Stop,
     tol: Tol,
 ) -> Result<(LeafVerdict, SymCounts), crate::Stopped> {
     let opts = EvalOptions {
         param_box: Some(Arc::new(box_.clone())),
+        resolver: resolver.cloned(),
         ..lane_opts(stop)
     };
     if symbolic.enabled {
@@ -1790,7 +1835,7 @@ fn classify_replay<T: topo::AtRestPolicy + geom_core::Decide>(
                     deciding: node,
                     unsettled: Unsettled::Failed {
                         class: err.kind.class(),
-                        cause: err.kind_spoken(doc),
+                        cause: err.kind_spoken(doc).to_string(),
                     },
                 };
             }
@@ -2298,8 +2343,11 @@ mod tests {
             slotmap::SlotMap::with_key();
         let k1 = arena.insert(s1.map_scalar(lift));
         let k2 = arena.insert(s2.map_scalar(lift));
-        let carrier =
-            Curve3::line(Point3::new(x, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0)).map_scalar(lift);
+        let carrier = Curve3::line(
+            Point3::new(x, 0.0, 0.0),
+            geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
+        )
+        .map_scalar(lift);
         let (t0, t1) = (lift(0.0), lift(1.0));
         let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
         let spec = EdgeCurveSpec {

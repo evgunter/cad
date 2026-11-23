@@ -168,6 +168,8 @@ pub mod entity;
 pub mod euler;
 pub mod euler_kill;
 pub mod euler_ring;
+#[cfg(test)]
+pub(crate) mod euler_theorem;
 pub(crate) mod face_boundary;
 pub mod face_boxes;
 pub mod face_normal;
@@ -228,6 +230,8 @@ pub mod replace_face;
 #[cfg(test)]
 pub(crate) mod revalue_pin;
 pub mod revert;
+#[cfg(test)]
+mod review_7474_probes;
 #[cfg(test)]
 mod review_d18;
 #[cfg(test)]
@@ -888,7 +892,10 @@ pub mod test_support {
         origin: geom_core::Point3<f64>,
         dir: geom_core::Vec3<f64>,
     ) -> (Vec<(f64, f64)>, Vec<f64>) {
-        let line = geom::Line { origin, dir };
+        let line = geom::Line {
+            origin,
+            dir: geom::stated_direction(dir),
+        };
         let at = |v: crate::entity::VertexKey| {
             let p = crate::readback::vertex_point(body, v).expect("a vertex's point");
             let off = line.distance(p);
@@ -1491,8 +1498,8 @@ pub use boolean::{
     BooleanReduction, BooleanResult, BooleanResultKind, CarriedRecord, CarryRefusal, Cell,
     Coincide, CompletedPolygonPair, Contact, ContactKind, ContactPairError, ContactRecords,
     DeclarationRead, DiscardRow, EdgeCarrierSite, EdgeInBand, EdgeInFaceGap, EdgeJoin,
-    EdgePieceClass, EeContact, EfContact, FaceDescent, FfContact, Fusions, GlueVerdict, Held,
-    HeldRefusal, Holdings, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided,
+    EdgePieceClass, EeContact, EfContact, FaceDescent, FaceSource, FfContact, Fusions, GlueVerdict,
+    Held, HeldRefusal, Holdings, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided,
     JudgedRow, LeverArm, LineUnread, LineWedgeFault, MemberFace, MemberInputs, NaryEnd,
     NaryJudgement, NaryMember, NaryOp, NaryPlaced, NaryPlacedRun, NaryRefusal, NaryRun, NaryStep,
     NaryTaken, NodeWhy, NullEdgePairRecord, Operand, OperandKeys, OperandRecords, OverlapRefusal,
@@ -1554,7 +1561,7 @@ pub use entity::{
 };
 pub use euler::{BadArgument, EdgeSubject, EulerOpError, RechartDoor};
 pub use link::{CurvedUnread, Link, LinkRefusal, Material, Round, TouchUnread};
-pub use live::FaceView;
+pub use live::{AreaLoops, CycleLoop, EdgeView, FaceView, LoneRing, NoCycle, NoOutline};
 pub use sweep_trace::SweepPairs;
 // The types that appear in this crate's own operator signatures, so a
 // consumer of the ops needs no direct geom-* imports for the common

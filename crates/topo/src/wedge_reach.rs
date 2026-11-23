@@ -179,8 +179,7 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
     /// As [`edge_wedge_reach`].
     #[must_use]
     pub fn edge(&self, edge: EdgeKey) -> Option<geom_core::Lever<T>> {
-        let data = &self.body.edges[edge];
-        let curve = self.body.curves.get(data.curve)?.certified()?;
+        let curve = self.body.proven_edge(edge).certified()?;
         Some(self.reach(edge_faces(self.body, edge), curve.carrier(), curve.params()))
     }
 

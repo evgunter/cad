@@ -2,10 +2,11 @@
 id: two-arcs-of-one-ellipse-stated-a-quarter-turn-apart-are-not-one-conic
 kind: issue
 title: one_stated_conic reads two arcs of one section ellipse as two conics where they are stated a half turn apart (every plane cap a cone's split mints, since the anchored ellipse) or a quarter turn apart with the semi-axes exchanged, so the cap refuses at its two-arc corner and no cut cone is embedded
-status: open
+status: dispatched
 opened: 2026-11-23
 priority: P0
 cost: E
+branch: embed/conic-symmetry
 ---
 
 
@@ -103,3 +104,13 @@ changes what `continues` certifies, so it is a ruling, not a repair.
 `self_intersection_proves_injectivity::a_cut_cones_wall_holds_in_every_placement_and_its_body_refuses_on_a_cap`
 and `…::a_needle_and_a_near_flat_cone_cut_read_as_any_cone`
 (`refuses_on_a_cap_and_its_wall_holds`).
+
+## 2026-11-23: the unit (EMBED orchestrator)
+
+**Unit `embed/conic-symmetry`. Letter S. Tier: single FULL** (a small change, but to what a certifying reading accepts as one curve). Cut from main, where `one_stated_conic` now is (PR 7491).
+
+**The rule the unit builds, and why it is not a fork.** `crates/geom-core/README.md` (ratified; Ev on PR 7523): "A conic is the curve its stored numbers state … A conic's position is the point it stores plus two vectors times two functions of its parameter." Two statements are one stated conic exactly where their numbers state one curve, and that holds for more than identical content: the statement has exact symmetries. Negating an axis vector together with its phase component, or exchanging the two axis vectors with their semi-axes and phase components (with the sign that keeps the position), maps a statement to another statement of the same point set, and negation and exchange are exact in floating point. `same_content` plus `v` (PR 7491's ellipse arm) is narrower than that, and every plane cap a cone's split mints states its two arcs a half turn apart. What stays refused: two statements that differ by any rounding (an anchor 2⁻⁶⁰ away, a derived centre equal to the bit), which state two curves.
+
+**Acceptance.** Each symmetry admitted has a unit row that states it and a negative beside it (the axis negated WITHOUT its phase component; the semi-axes exchanged without the vectors; the anchored pair 2⁻⁶⁰ apart from PR 7491's row still two); the first landing's ten mutants on `one_stated_conic` still die and each new admission has its own; the cut cones of `embed/cone-image` (PR 7605) read `Embedded` at f64 again once both are in one tree, measured by that lane or this one. Where the symmetry belongs (a method beside `same_content` in `geom`, ONEROUND's ground, or in `injective.rs`) is the lane's to propose in one paragraph before building.
+
+**The per-arc restatement itself** (which door states a section's two arcs a half turn apart, and whether it should state them alike) is on `work/oneround/a-cone-sections-two-arcs-are-restated-per-arc-a-half-turn-apart.md` (P2). The census of 24 re-run on the merged tree without the unit above: 1 pass.

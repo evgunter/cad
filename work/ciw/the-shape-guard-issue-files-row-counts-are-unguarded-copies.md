@@ -2,10 +2,11 @@
 id: the-shape-guard-issue-files-row-counts-are-unguarded-copies
 kind: issue
 title: The shape-guard issue files carry hand-written row counts of FILED_NO_RECOURSE that nothing checks
-status: open
+status: closed
 opened: 2026-11-02
 priority: P4
 cost: C
+closed: 2026-11-22
 ---
 
 
@@ -44,3 +45,7 @@ count adds nothing), or make the list structured — `(file, row)` pairs
 — and derive or check each file's count from it.
 
 Moved from TINT to CIW on 2026-11-20, by `git mv`, when TINT merged into CIW: TINT held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CIW carries.
+
+## Closed
+
+Dropped the counts: the five issue files that admit `FILED_NO_RECOURSE` rows (hone, lathe, msolve, profile, shell; the wire file is gone) now say "its feature-tree rows" / "its status-line rows", so the test's list is the only count.

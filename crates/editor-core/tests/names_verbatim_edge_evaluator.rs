@@ -91,6 +91,7 @@ test_utils::f6_variants! {
         Union,
         Assemble,
         Place,
+        Datum,
         World,
         Space,
         InstantiatePart,
@@ -104,7 +105,7 @@ test_utils::f6_variants! {
 /// their tables are empty and the equivalence holds of them vacuously.
 /// Listed so that vacuity is asserted — every sample publishes zero rows — rather than counted as
 /// coverage.
-const ROW_FREE: [&str; 3] = ["Profile", "Measure", "Assertion"];
+const ROW_FREE: [&str; 4] = ["Profile", "Datum", "Measure", "Assertion"];
 
 /// The unit cube `[0,1]³` as a whole part document, and its body.
 fn block(label: &str) -> (ProfileDoc, RecipeNodeId) {
@@ -173,7 +174,35 @@ fn samples() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
         .collect();
     let (doc, opts) = stacked_blocks();
     out.push(("stacked_blocks", doc, opts));
+    out.push(("datum_mirror", datum_mirror(), EvalOptions::default()));
     out
+}
+
+/// **A block mirrored across a datum in its space** — the node kind no
+/// corpus document authors (`Datum`, row-free: its frame has no cells),
+/// read by a mirror through its yz plane.
+fn datum_mirror() -> ProfileDoc {
+    let (doc, body) = block("vedge-datum");
+    let space = doc.output(body, 1).expect("an extrude defines its space");
+    let bundle = editor_core::Placed::of(
+        &doc,
+        Vec::new(),
+        vec![(Coord::slide(TargetAxis::X), len(2.0))],
+    )
+    .bundle();
+    let (doc, datum) = insert(doc, Node::datum(editor_core::Operand::Var(space), bundle));
+    let frame = doc.output(datum, 0).expect("a datum defines its frame");
+    let (doc, _) = insert(
+        doc,
+        Node::Mirror {
+            body: editor_core::Operand::output(body, 0).into(),
+            plane: editor_core::pose::RoleRead::through(
+                editor_core::Operand::Var(frame),
+                editor_core::pose::PoseRole::Yz,
+            ),
+        },
+    );
+    doc
 }
 
 /// One evaluated node, as the two rows below read it.

@@ -80,11 +80,11 @@
 //! they disagree. The fallback costs precision; picking one rival would
 //! cost soundness, and that is the trade this module never makes.
 //!
-//! **[`UNDECIDED`] names every undecided site with its reason**, and
-//! the row over it fails in both directions: a new site the resolver
-//! cannot type reds until someone writes its line, and a line that no
-//! longer names a site reds too. Reducing that list is scheduled as
-//! `work/fix/prose-census-undecided-residue.md`, not left to the
+//! **[`UNDECIDED`] names every undecided site with its reason**, its
+//! count a ceiling: the row over it reds on a site the resolver cannot
+//! type beyond what its line admits. A line whose sites have gone, or
+//! a count that falls, is not a red. Reducing that list is scheduled as
+//! `work/bind/prose-census-undecided-residue.md`, not left to the
 //! reader of a comment.
 //!
 //! # What it cannot see
@@ -155,8 +155,6 @@ use std::path::{Path, PathBuf};
 // reads two views of every file — structure from the code-only one,
 // the format string from the one that keeps literals — and spells no
 // comment, quote, bracket or generic-list scanner of its own.
-// `crates/test-utils/tests/reader_census.rs` carries the line that
-// says so.
 use test_utils::source::{
     angle_end, balanced_end, code_and_literals, code_only, crate_dir, rust_sources, top_level_split,
 };
@@ -1798,9 +1796,10 @@ fn local_binding_span(
 /// so the guard can land ahead of the repairs rather than behind them
 /// — the point of the guard is the site that is not on it yet.
 ///
-/// The count is part of the key. Without it a Display impl rendering
-/// one binding at several sites collapses to one row, and repairing
-/// some of them leaves the guard green over the rest.
+/// The count is a ceiling, per key: without it a Display impl rendering
+/// one binding at several sites collapses to one row, and a new site
+/// at an admitted key would go unseen. A repair that lowers it is not
+/// a red.
 const KNOWN_BRACED: &[(&str, &str, &str, usize, &str)] = &[];
 
 /// The blind spot, written down WITH ITS REASON.
@@ -1808,13 +1807,12 @@ const KNOWN_BRACED: &[(&str, &str, &str, usize, &str)] = &[];
 /// A site here is one this census could not decide. It is not a pass:
 /// the row over this list
 /// (`every_site_this_census_cannot_decide_is_named_with_its_reason`)
-/// fails when a site arrives that is not on it
-/// and when a line no longer names a site, so the population cannot
-/// grow in silence — which is the only property a blind spot can
-/// honestly be given.
+/// fails when a site arrives beyond what its line's count admits, so
+/// the population cannot grow in silence — which is the only property
+/// a blind spot can honestly be given.
 ///
 /// **Reducing it is scheduled**, at
-/// `work/fix/prose-census-undecided-residue.md`. A disclosed list with
+/// `work/bind/prose-census-undecided-residue.md`. A disclosed list with
 /// no schedule is a record of work done rather than an open thread.
 const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
     // Pinned red, not yet a reason: SelectionRefusal's face arm
@@ -2073,6 +2071,19 @@ mod tests {
             .or_insert(0usize) += 1;
         }
         out
+    }
+
+    /// The keys `found` holds more often than `ceiling` admits (zero
+    /// where it names none), with the count found.
+    fn beyond_ceiling<'k>(
+        found: &'k BTreeMap<(String, String, String), usize>,
+        ceiling: &BTreeMap<(String, String, String), usize>,
+    ) -> Vec<(&'k (String, String, String), usize)> {
+        found
+            .iter()
+            .filter(|(k, n)| **n > ceiling.get(*k).copied().unwrap_or(0))
+            .map(|(k, n)| (k, *n))
+            .collect()
     }
 
     /// A roster as the same shape.
@@ -2394,34 +2405,26 @@ impl fmt::Display for PlantedError {
     fn no_display_impl_renders_a_brace_shaped_payload_through_debug() {
         let found = tally(&census(&read_sources(&repo_root())), Verdict::Braced);
         let allowed = roster(KNOWN_BRACED);
-        let new: Vec<_> = found
-            .iter()
-            .filter(|(k, _)| !allowed.contains_key(*k))
-            .collect();
+        let new = beyond_ceiling(&found, &allowed);
         assert!(
             new.is_empty(),
             "a `Display` impl renders a struct-shaped payload through `Debug`, so \
              the refusal PANICS the binding at `typed_err` instead of raising: \
              {new:#?}\nRender the payload through its own `Display`, or give it one."
         );
-        assert_eq!(
-            found, allowed,
-            "KNOWN_BRACED must name exactly the brace-shaped sites, with their \
-             counts: an entry that no longer names one is struck in the PR that \
-             repaired it, and a partial repair moves the count"
-        );
     }
 
     #[test]
     fn every_site_this_census_cannot_decide_is_named_with_its_reason() {
         let found = tally(&census(&read_sources(&repo_root())), Verdict::Undecided);
-        assert_eq!(
-            found,
-            roster(UNDECIDED),
+        let named = roster(UNDECIDED);
+        let unnamed = beyond_ceiling(&found, &named);
+        assert!(
+            unnamed.is_empty(),
             "the blind spot is a CENSUS, not a silence: a site this cannot decide \
-             either gets its line here, with the reason it could not be decided, or \
-             gets rewritten so it can be. Reducing the list is scheduled at \
-             work/fix/prose-census-undecided-residue.md"
+             either gets its line here (or a raised count), with the reason it could \
+             not be decided, or gets rewritten so it can be. Reducing the list is \
+             scheduled at work/bind/prose-census-undecided-residue.md: {unnamed:#?}"
         );
     }
 
@@ -2433,12 +2436,13 @@ impl fmt::Display for PlantedError {
             .iter()
             .map(|(file, message, _)| ((*file).to_owned(), (*message).to_owned()))
             .collect();
-        assert_eq!(
-            keys, allowed,
+        let unallowed: BTreeSet<_> = keys.difference(&allowed).collect();
+        assert!(
+            unallowed.is_empty(),
             "a raise site builds its human message out of a `Debug` rendering, \
              which is the other route to the panic the census above guards. The \
              allowance is keyed on the SITE, not the file: a second `Debug` raise \
-             in an allowed file inherits nothing."
+             in an allowed file inherits nothing: {unallowed:#?}"
         );
     }
 

@@ -777,6 +777,25 @@ impl Real for Interval {
         stated_point(self)
     }
 
+    /// The exact sum enclosed where every input is a stated point
+    /// ([`Real::stated_point`]) each of whose products is exact as an
+    /// expansion (every nonzero input within `2^±450`, so no product's
+    /// residual leaves the normal range); the plain enclosure elsewhere.
+    fn difference_dot(q: [Self; 3], o: [Self; 3], n: [Self; 3]) -> Self {
+        let plain = || crate::real::plain_difference_dot(q, o, n);
+        let in_range = |x: &f64| *x == 0.0 || (2f64.powi(-450)..=2f64.powi(450)).contains(&x.abs());
+        let Some([q, o, n]) =
+            stated_points(&[q, o, n]).filter(|a| a.iter().flatten().all(in_range))
+        else {
+            return plain();
+        };
+        let e = crate::exact::Expansion::difference_dot(q, o, n);
+        if !e.is_finite() {
+            return plain();
+        }
+        enclose_expansion(&e, 0.0)
+    }
+
     /// **The unit's enclosure**, the one-column case of
     /// [`Real::enclose_rotation`]'s argument: for `v` with `g = |v|² − 1`
     /// and `η ≥ |g|`, `v/|v| = v·(1 + g)^(−1/2) = v − ½·g·v + v·Σₖ₌₂ cₖgᵏ`,

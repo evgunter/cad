@@ -625,7 +625,7 @@ fn a_gesture_reads_a_copy_through_one_door() {
         "a pick on the row seats it"
     );
     assert_eq!(placed_whole(&doc, row), Some(w_out));
-    assert_eq!(world::placements_of_var(&doc, w_out), vec![row]);
+    assert_eq!(doc.placements_of_var(w_out), vec![row]);
 
     // A copy of member 1 of a family, placed into the world.
     let (doc, xs) = row_of(doc, body, "j", 3);
@@ -656,12 +656,15 @@ fn a_gesture_reads_a_copy_through_one_door() {
     );
     let body_out = doc.output(body, 0).expect("a body");
     assert_eq!(
-        world::placements_of_var(&doc, body_out),
+        doc.placements_of_var(body_out),
         vec![w, xs, inside],
         "the row and the copy into the body's own space are copies of the body"
     );
     assert_eq!(world::original_of(&doc, inside), body);
-    assert!(world::is_placed(&doc, body), "the body is badged placed");
+    assert!(
+        !doc.placements_of(body).is_empty(),
+        "the body is badged placed"
+    );
 }
 
 /// The body `copy` places whole, through its source; `None` for a copy

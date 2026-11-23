@@ -784,95 +784,148 @@ impl EngineRefusal {
         }
     }
 
-    /// **The refusal in words**, each face and scope named with its
-    /// side as `sides` names it: the first side's, then the second's.
-    pub fn say(
+    /// **The refusal in words, into `f`**, each face and scope named with
+    /// its side as `sides` writes it: the first side's, then the
+    /// second's. A side is written by its caller, so a caller writing a
+    /// sentence of its own says each side in its own terms.
+    ///
+    /// # Errors
+    ///
+    /// The writer's.
+    pub fn say<W: core::fmt::Write + ?Sized>(
         &self,
-        f: &mut core::fmt::Formatter<'_>,
-        sides: [&dyn core::fmt::Display; 2],
+        f: &mut W,
+        sides: [&dyn Fn(&mut W) -> core::fmt::Result; 2],
     ) -> core::fmt::Result {
         let [first, second] = sides;
         match self {
-            Self::Sliver { predicate, a, b } => write!(
-                f,
-                "the separation of face {a:?} of {first} and face {b:?} of {second} sits wholly \
-                 inside {predicate}'s ambiguity band, so no refinement can decide it"
-            ),
+            Self::Sliver { predicate, a, b } => {
+                write!(f, "the separation of face {a:?} of ")?;
+                first(f)?;
+                write!(f, " and face {b:?} of ")?;
+                second(f)?;
+                write!(
+                    f,
+                    " sits wholly inside {predicate}'s ambiguity band, so no refinement can \
+                     decide it"
+                )
+            }
             Self::Budget { stop, a, b } => {
-                let of = format_args!("face {a:?} of {first} and face {b:?} of {second}");
+                let pair = |f: &mut W| -> core::fmt::Result {
+                    write!(f, "face {a:?} of ")?;
+                    first(f)?;
+                    write!(f, " and face {b:?} of ")?;
+                    second(f)
+                };
                 match stop {
-                    CellBudget::Depth { max_cell_depth } => write!(
-                        f,
-                        "a cell pair of {of} was split {max_cell_depth} times, the depth \
-                         budget, and is still undecided"
-                    ),
-                    CellBudget::Pairs { max_cell_pairs } => write!(
-                        f,
-                        "the query examined {max_cell_pairs} cell pairs, its budget, with pairs \
-                         still undecided, the first of them of {of}"
-                    ),
-                    CellBudget::Resolution => write!(
-                        f,
-                        "a cell pair of {of} could not be bisected: its midpoint lands on an \
-                         endpoint, so the f64 grid itself is the bound"
-                    ),
+                    CellBudget::Depth { max_cell_depth } => {
+                        f.write_str("a cell pair of ")?;
+                        pair(f)?;
+                        write!(
+                            f,
+                            " was split {max_cell_depth} times, the depth budget, and is still \
+                             undecided"
+                        )
+                    }
+                    CellBudget::Pairs { max_cell_pairs } => {
+                        write!(
+                            f,
+                            "the query examined {max_cell_pairs} cell pairs, its budget, with \
+                             pairs still undecided, the first of them of "
+                        )?;
+                        pair(f)
+                    }
+                    CellBudget::Resolution => {
+                        f.write_str("a cell pair of ")?;
+                        pair(f)?;
+                        f.write_str(
+                            " could not be bisected: its midpoint lands on an endpoint, so the \
+                             f64 grid itself is the bound",
+                        )
+                    }
                 }
             }
             Self::Unsupported {
                 carrier,
                 face,
                 side,
-            } => write!(
-                f,
-                "the clearance engine cannot answer for face {face:?} of {}: it is {carrier}",
-                side.of(sides)
-            ),
-            Self::WitnessUnverified { what, a, b } => write!(
-                f,
-                "a pair of face {a:?} of {first} and face {b:?} of {second} the interval pass \
-                 found below the lower bound or within the upper one was not confirmed by the \
-                 verifier: {what}"
-            ),
-            Self::PoisonEnclosure { a, b } => write!(
-                f,
-                "the enclosure between face {a:?} of {first} and face {b:?} of {second} did \
-                 not evaluate, which is geometry, not a budget"
-            ),
-            Self::BoxDependent { a, b, separation } => write!(
-                f,
-                "the closest pair of face {a:?} of {first} and face {b:?} of {second} reaches \
-                 [{}, {}] over the parameter box, within the upper bound at some of its \
-                 points and past it at others, so the box does not decide it; a narrower box \
-                 can",
-                separation.0, separation.1
-            ),
-            Self::EmptyScope { side } => write!(
-                f,
-                "the scope of {} names no face, so there is nothing to measure",
-                side.of(sides)
-            ),
-            Self::Uncertified { a, b, shared, arm } => write!(
-                f,
-                "face {a:?} of {first} and face {b:?} of {second} touch through {}, and the \
-                 {} certificate did not discharge them",
-                shared.payload(),
-                arm.name()
-            ),
-            Self::CollapsedChart { face, side, vertex } => write!(
-                f,
-                "the chart of face {face:?} of {} collapses an edge to its vertex {vertex:?} \
-                 near a touching pair, and the monotone certificate reads no collapsed chart",
-                side.of(sides)
-            ),
+            } => {
+                write!(
+                    f,
+                    "the clearance engine cannot answer for face {face:?} of "
+                )?;
+                side.of(sides)(f)?;
+                write!(f, ": it is {carrier}")
+            }
+            Self::WitnessUnverified { what, a, b } => {
+                write!(f, "a pair of face {a:?} of ")?;
+                first(f)?;
+                write!(f, " and face {b:?} of ")?;
+                second(f)?;
+                write!(
+                    f,
+                    " the interval pass found below the lower bound or within the upper one was \
+                     not confirmed by the verifier: {what}"
+                )
+            }
+            Self::PoisonEnclosure { a, b } => {
+                write!(f, "the enclosure between face {a:?} of ")?;
+                first(f)?;
+                write!(f, " and face {b:?} of ")?;
+                second(f)?;
+                f.write_str(" did not evaluate, which is geometry, not a budget")
+            }
+            Self::BoxDependent { a, b, separation } => {
+                write!(f, "the closest pair of face {a:?} of ")?;
+                first(f)?;
+                write!(f, " and face {b:?} of ")?;
+                second(f)?;
+                write!(
+                    f,
+                    " reaches [{}, {}] over the parameter box, within the upper bound at some \
+                     of its points and past it at others, so the box does not decide it; a \
+                     narrower box can",
+                    separation.0, separation.1
+                )
+            }
+            Self::EmptyScope { side } => {
+                f.write_str("the scope of ")?;
+                side.of(sides)(f)?;
+                f.write_str(" names no face, so there is nothing to measure")
+            }
+            Self::Uncertified { a, b, shared, arm } => {
+                write!(f, "face {a:?} of ")?;
+                first(f)?;
+                write!(f, " and face {b:?} of ")?;
+                second(f)?;
+                write!(
+                    f,
+                    " touch through {}, and the {} certificate did not discharge them",
+                    shared.payload(),
+                    arm.name()
+                )
+            }
+            Self::CollapsedChart { face, side, vertex } => {
+                write!(f, "the chart of face {face:?} of ")?;
+                side.of(sides)(f)?;
+                write!(
+                    f,
+                    " collapses an edge to its vertex {vertex:?} near a touching pair, and the \
+                     monotone certificate reads no collapsed chart"
+                )
+            }
             Self::TorusNotRing {
                 face,
                 side,
                 refusal,
-            } => write!(
-                f,
-                "face {face:?} of {} lies on a torus not decided a ring (R > r > 0): {refusal}",
-                side.of(sides)
-            ),
+            } => {
+                write!(f, "face {face:?} of ")?;
+                side.of(sides)(f)?;
+                write!(
+                    f,
+                    " lies on a torus not decided a ring (R > r > 0): {refusal}"
+                )
+            }
         }
     }
 }
@@ -881,7 +934,13 @@ impl EngineRefusal {
 /// the second.
 impl core::fmt::Display for EngineRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.say(f, [&"the first side", &"the second side"])
+        self.say(
+            f,
+            [
+                &|f: &mut core::fmt::Formatter<'_>| f.write_str("the first side"),
+                &|f: &mut core::fmt::Formatter<'_>| f.write_str("the second side"),
+            ],
+        )
     }
 }
 
@@ -3919,7 +3978,9 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
     // The box's range of a chart parameter that the carrier evaluates
     // as `origin + dir·v`: `Line::param`, correct for any `dir`.
     let along = |origin: Point3<Interval>, dir: Vec3<Interval>| -> (f64, f64) {
-        let d = geom::Line { origin, dir }.param(extent);
+        // `Line::param`'s coefficient, spelled out: `dir` is the chart's
+        // own, not a unit direction.
+        let d = (extent - origin).dot(dir) / dir.norm_squared();
         (d.lo(), d.hi())
     };
     match stored {
@@ -4324,7 +4385,8 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                 let p = point(&body.member_point(member));
                 out.vertices.insert(member.vertex(), p);
                 pts.push(p);
-                if let BoundaryMember::Edge { he, ek, .. } = *member {
+                if let BoundaryMember::Edge { edge, he, .. } = *member {
+                    let ek = edge.key();
                     halves.entry(ek).or_default().push(he);
                     cycle = true;
                     if role.is_outer() {
@@ -4404,8 +4466,8 @@ fn boundary_of<T: Decide + CertifiedBounds>(
             .flat_map(|(&ek, hes)| hes.iter().map(move |&he| (he, ek)))
             .collect();
         for (ek, hes) in halves {
-            let e = proven(&body.edges, ek, EntityId::Edge);
-            let curve = body.edge_curve_linked(ek, e).certified()?;
+            let e = body.proven_edge(ek);
+            let curve = e.certified()?;
             let (t0, t1) = curve.params();
             let span = (lift.of(t0), lift.of(t1));
             let carrier = curve.carrier().map_scalar(|x| lift.of(x)).with_span_memo();
@@ -4426,7 +4488,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                 .map(|he| {
                     let found = images.get(he);
                     Use {
-                        plus: e.he_plus == *he,
+                        plus: e.record().he_plus == *he,
                         image: found.map(|(image, ..)| *image),
                         curve: found.and_then(|(.., c)| *c),
                         iso: found
@@ -4500,8 +4562,8 @@ enum Row {
     /// ([`monotone_line`]): its two ends' chart points `[u, v]`, whose
     /// hull is the row's.
     Ends([[Interval; 2]; 2]),
-    /// A harmonic or wall image that may bulge past its ends: its enclosure over
-    /// its whole span, `[u, v]`, which holds it.
+    /// A harmonic, wall or focal image, which may bulge past its ends: its
+    /// enclosure over its whole span, `[u, v]`, which holds it.
     Bulging([Interval; 2]),
 }
 
@@ -4509,6 +4571,16 @@ enum Row {
 /// coordinate line by its `ends`, its chart points at `t0` and `t1`; a
 /// harmonic, spiric wall or focal image by its enclosure over its whole span,
 /// its coefficients crossed by `lift`; `None` for any other image.
+///
+/// **A row that is no monotone line is never read by its ends.** Its
+/// extreme on an axis can lie between them: a harmonic channel's
+/// anywhere, and a focal image's slant at the section's far or near
+/// vertex wherever the arc runs through one, which an arc cut under a
+/// generic tilt does. An extent drawn too small is not a refusal that a
+/// smaller cell repairs: a cell that misses it reads the face as absent
+/// ([`injective`]'s `sheets`), so the part of the face it leaves out is
+/// never asked. The enclosure over the whole span holds every point of
+/// the row, so the hull it enters is a superset.
 fn row_of<T: CertifiedBounds>(
     pcurve: &Pcurve<T>,
     (t0, t1): (Interval, Interval),
@@ -4525,8 +4597,8 @@ fn row_of<T: CertifiedBounds>(
 /// **The face's own extent in its chart** ([`Boundary::extent`]): the
 /// hull, on each axis, of the outer loop's lifted chain. A row that is a
 /// monotone coordinate line contributes its ends, which are its hull; a
-/// harmonic or wall row its enclosure over its span, which holds it, so the
-/// extent is then a superset. A superset spanning a whole turn on an
+/// harmonic, wall or focal row its enclosure over its span, which holds
+/// it, so the extent is then a superset. A superset spanning a whole turn on an
 /// axis `periodic` marks is not taken: a reader would read it as a loop
 /// that wraps. On an axis that is not periodic no width means a wrap. Any
 /// other row, or an end or enclosure not certified, is `None` (`None`
@@ -4593,8 +4665,8 @@ fn monotone_line<T: CertifiedBounds>(p: &Pcurve<T>, lift: Lift<'_, T>) -> bool {
 type IsoImage = (Axis, Interval, bool);
 
 /// A half-edge's chart image as the boundary lifts it: its two end
-/// points, the coordinate line it is, its harmonic form, and its spiric
-/// wall form.
+/// points, the coordinate line it is, and its closed form on the curve's
+/// parameter where it has one (harmonic, spiric wall or focal).
 type Image = (
     [Point2<Interval>; 2],
     Option<IsoImage>,
@@ -6246,6 +6318,86 @@ mod extent_rows {
         )
         .expect("an extent");
         assert!(top >= 1.0, "the extent reaches the bulge: {top}");
+    }
+
+    /// A section ellipse's focal image on a cone: its slant
+    /// `2 − 0.6·cos t`, greatest at the far vertex `t = π`.
+    fn focal(sense: f64) -> Pcurve<f64> {
+        Pcurve::FocalSection(geom_brep::FocalImage {
+            u0: 0.4,
+            t0: 0.0,
+            v0: 2.0,
+            va: -0.6,
+            vb: 0.0,
+            vl: 0.0,
+            beta: 0.3,
+            sense,
+        })
+    }
+
+    /// **A focal row's extent holds its arc: the slant's extreme between
+    /// its ends, and every point of it.** The arc runs through the
+    /// section's far vertex, where the slant is `2.6` and neither end's
+    /// is over `2.38`; the reader itself ([`row_of`], and [`extent_of`]
+    /// over it) is asked, with the row's own evaluator's ends, either
+    /// sense. The extent holds the far vertex, the stored row at 201
+    /// parameters of the span, both ends among them; on the azimuth,
+    /// which is monotone, it is the two ends' hull and no wider (on the
+    /// slant it is a superset, the chord-dip box). Red if the row is
+    /// read by its ends, or its enclosure is drawn inside the arc on
+    /// either axis.
+    #[test]
+    fn a_focal_rows_extent_holds_its_arc_and_its_slants_extreme() {
+        for sense in [1.0, -1.0] {
+            let p = focal(sense);
+            let (t0, t1) = (PI - 1.2, PI + 0.9);
+            let end = |t: f64| {
+                let q = p.eval(t);
+                [q.x, q.y].map(|x| Interval::from_bounds(x, x))
+            };
+            let row = || {
+                super::certified_lift(|lift| {
+                    row_of(
+                        &p,
+                        (Interval::from_f64(t0), Interval::from_f64(t1)),
+                        [end(t0), end(t1)],
+                        lift,
+                    )
+                })
+                .flatten()
+            };
+            assert!(
+                matches!(row(), Some(Row::Bulging(_))),
+                "sense {sense}: the arc is read by its enclosure"
+            );
+            let [(u_lo, u_hi), (v_lo, v_hi)] =
+                extent_of([true, false], [row()].into_iter()).expect("an extent");
+            let far = p.eval(PI);
+            assert!(
+                far.y > p.eval(t0).y.max(p.eval(t1).y) + 0.2,
+                "the slant's extreme is between the ends: {far:?}"
+            );
+            assert!(
+                v_hi >= far.y && u_lo <= far.x && far.x <= u_hi,
+                "sense {sense}: the extent holds the far vertex {far:?}: {v_lo} {v_hi}"
+            );
+            let samples: Vec<_> = (0..=200)
+                .map(|k| p.eval(t0 + (t1 - t0) * f64::from(k) / 200.0))
+                .collect();
+            for q in &samples {
+                assert!(
+                    u_lo <= q.x && q.x <= u_hi && v_lo <= q.y && q.y <= v_hi,
+                    "sense {sense}: the extent holds the arc's point {q:?}: \
+                     [{u_lo}, {u_hi}] × [{v_lo}, {v_hi}]"
+                );
+            }
+            let (first, last) = (p.eval(t0).x, p.eval(t1).x);
+            assert!(
+                (u_hi - u_lo) <= (last - first).abs() * (1.0 + 1e-9),
+                "sense {sense}: on the azimuth the extent is the two ends' hull: \
+                 [{u_lo}, {u_hi}] against {first} {last}"
+            );
+        }
     }
 
     /// **A superset extent a whole turn wide is not taken on a periodic

@@ -121,8 +121,10 @@
 //! diff that teaches the reader too, never a silent hole.
 
 use crate::errors::{BoundaryEdit, EvalReason, StlRefusal, UnmirroredSelect, ValidationRefusal};
+use pncad::analysis::range::Step as RangeStep;
 use pncad::analysis::{
-    AnalysisPolicyError, McRefusal, MeasureUnavailable, ParamBoxError, SeedError,
+    AnalysisPolicyError, BudgetKind, DifferenceKind, DriveRefusal, McRefusal, MeasureUnavailable,
+    ParamBoxError, RangeRefusal, RefusalReason, SeedError, Unproven,
 };
 use pncad::document::LabelFault;
 use pncad::document::{
@@ -376,6 +378,7 @@ pub fn mass_props_error_tag(err: &pncad::topo::MassPropsError) -> &'static str {
         M::RingOnCurvedFace { .. } => "ring_on_curved_face",
         M::Corrupt { .. } => "corrupt",
         M::NullScaffoldEdge { .. } => "null_scaffold_edge",
+        M::NoOutline(_) => "no_outline",
         M::ResolutionFinerThanEps { .. } => "resolution_finer_than_eps",
         M::EmptyContains => "empty_contains",
         M::Poisoned { .. } => "poisoned",
@@ -567,7 +570,8 @@ pub fn operand_slot_tag(slot: &pncad::document::OperandSlot) -> &'static str {
         S::Cleared(_) => "cleared",
         S::Tool => "tool",
         S::From => "from",
-        S::Cut => "cut",
+        S::Cut(_) => "cut",
+        S::Cuts => "cuts",
         S::Member(_) => "member",
         S::Members => "members",
         S::Input => "input",
@@ -795,6 +799,92 @@ pub fn mc_refusal_tag(refusal: &McRefusal) -> &'static str {
     }
 }
 
+/// The stable tag for a range request that could not be searched
+/// (`RangeRefusal.variant`).
+///
+/// The driver's arm DELEGATES to [`drive_refusal_tag`]: it carries that
+/// refusal verbatim, so the word a caller reads is the witness build's
+/// own.
+pub fn range_refusal_tag(refusal: &RangeRefusal) -> &'static str {
+    match refusal {
+        RangeRefusal::SeedNotABracket { .. } => "seed_not_a_bracket",
+        RangeRefusal::NotAContinuousParam { .. } => "not_a_continuous_param",
+        RangeRefusal::UnknownNode { .. } => "unknown_node",
+        RangeRefusal::UnknownSlot { .. } => "unknown_slot",
+        RangeRefusal::StructuralSlot { .. } => "structural_slot",
+        RangeRefusal::SlotIsDefined { .. } => "slot_is_defined",
+        RangeRefusal::Derivation(_) => "derivation",
+        RangeRefusal::SeedIsNotTheAnalyzedAxis { .. } => "seed_is_not_the_analyzed_axis",
+        RangeRefusal::MoreThanOneAxisVaries { .. } => "more_than_one_axis_varies",
+        RangeRefusal::EvaluationOfAnotherDocument(_) => "evaluation_of_another_document",
+        RangeRefusal::Drive(refusal) => drive_refusal_tag(refusal),
+    }
+}
+
+/// The stable tag for why a side of a range is not decided
+/// (`NotDecided.reason`): the search's own two, or the driver's reason
+/// at the frontier.
+pub fn unproven_tag(reason: &Unproven) -> &'static str {
+    match reason {
+        Unproven::Unfinished { .. } => "unfinished",
+        Unproven::Stalled { .. } => "stalled",
+        Unproven::Floor(reason) => refusal_reason_tag(reason),
+        Unproven::FlipUnfounded => "flip_unfounded",
+    }
+}
+
+/// The stable tag for a witness build the driver could not take.
+pub fn drive_refusal_tag(refusal: &DriveRefusal) -> &'static str {
+    match refusal {
+        DriveRefusal::WitnessDoesNotBuild { .. } => "witness_does_not_build",
+        DriveRefusal::NothingVaries => "nothing_varies",
+        DriveRefusal::Stopped(_) => "stopped",
+    }
+}
+
+/// The stable tag for why an interval is undecided
+/// (`NotDecided.reason`): the reason's class. Which budget a `budget`
+/// ran out of is [`budget_kind_tag`]'s word, beside it.
+pub fn refusal_reason_tag(reason: &RefusalReason) -> &'static str {
+    match reason {
+        RefusalReason::SliverTerminal { .. } => "sliver_terminal",
+        RefusalReason::FlipCrossing { .. } => "flip_crossing",
+        RefusalReason::Bifurcation(_) => "bifurcation",
+        RefusalReason::Infeasible => "infeasible",
+        RefusalReason::ReadsNoVariable { .. } => "reads_no_variable",
+        RefusalReason::Budget(_) => "budget",
+    }
+}
+
+/// The stable tag for the bound that stopped a refinement
+/// (`NotDecided.budget`).
+pub fn budget_kind_tag(kind: &BudgetKind) -> &'static str {
+    match kind {
+        BudgetKind::Depth { .. } => "depth",
+        BudgetKind::Leaves { .. } => "leaves",
+        BudgetKind::Resolution => "resolution",
+    }
+}
+
+/// The stable tag for what a proven difference is
+/// (`ProvenDifferent.kind`).
+pub fn difference_kind_tag(kind: &DifferenceKind) -> &'static str {
+    match kind {
+        DifferenceKind::StandingChange { .. } => "standing_change",
+        DifferenceKind::BuildsDifferently => "builds_differently",
+    }
+}
+
+/// The stable tag for what one step of a range search did
+/// (`RangeSearch.step`'s answer).
+pub fn range_step_tag(step: &RangeStep) -> &'static str {
+    match step {
+        RangeStep::Advanced => "advanced",
+        RangeStep::Finished => "finished",
+        RangeStep::Stopped(_) => "stopped",
+    }
+}
+
 /// The stable tag for a policy the analysis lane cannot honour.
 pub fn analysis_policy_error_tag(err: &AnalysisPolicyError) -> &'static str {
     match err {
@@ -948,7 +1038,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::IndexCountOutOfRange => "index_count_out_of_range",
         C::UnschedulableCycle => "unschedulable_cycle",
         C::Naming => "naming",
-        C::UnionFoldStep => "union_fold_step",
+        C::FoldStep => "fold_step",
         // The shell: ONE tag for the op's refusal family (the
         // `revolve`/`tube` treatment — the kernel's `ShellError` arms
         // are prose in the message), and the lane refusal.
@@ -956,6 +1046,8 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::ShellLaneUnsupported => "shell_lane_unsupported",
         // A read of a split's half with no material (DOCM-2).
         C::EmptyHalf => "empty_half",
+        // A read of a half of a split whose target is a family.
+        C::HalfOfAFamily => "half_of_a_family",
         C::WitnessBifurcation => "witness_bifurcation",
         // The seam faults stay separable at the tag level:
         // "the pin does not hold" and "the tolerances disagree" are
@@ -981,6 +1073,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::MateOverconstrained => "mate_overconstrained",
         C::MateUnpinned => "mate_unpinned",
         C::MateNotOnTheCopy => "mate_not_on_the_copy",
+        C::MateNotTheDatumsOwn => "mate_not_the_datums_own",
         C::MateUnleverable => "mate_unleverable",
         C::MateKindsDiffer => "mate_kinds_differ",
         C::MateSideUnevaluated => "mate_side_unevaluated",
@@ -1074,6 +1167,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         // `half` is WHICH side was empty, a value the caller asked
         // for — the payload question, not the fault one.
         NodeErrorKind::EmptyHalf { .. } => None,
+        NodeErrorKind::HalfOfAFamily { .. } => None,
         NodeErrorKind::MemberOutOfRange { .. } => None,
         // The member's own refusal crosses in the message.
         NodeErrorKind::MemberRefused { .. } => None,
@@ -1110,7 +1204,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::UnschedulableCycle => None,
         NodeErrorKind::Naming(inner) => Some(naming_error_tag(inner)),
         // The step's own refusal crosses in the message.
-        NodeErrorKind::UnionFoldStep { .. } => None,
+        NodeErrorKind::FoldStep { .. } => None,
         NodeErrorKind::Shell(inner) => Some(shell_error_tag(inner)),
         NodeErrorKind::ShellLaneUnsupported { .. } => None,
         NodeErrorKind::WitnessBifurcation(_) => None,
@@ -3036,6 +3130,7 @@ pub fn coincidence_relation_tag(relation: pncad::document::coincidence::Relation
         R::Tangent { aligned: true } => "tangent",
         R::Tangent { aligned: false } => "cusp",
         R::SurfaceTangent => "surface_tangent",
+        R::RimJunction => "rim_junction",
         R::Coaxial => "coaxial",
         R::SameRadius => "same_radius",
         R::AxesMeet => "axes_meet",
@@ -3052,6 +3147,7 @@ pub fn decision_site_tag(site: pncad::document::coincidence::DecisionSite) -> &'
         S::PlaneLadder => "plane_ladder",
         S::CarrierLadder => "carrier_ladder",
         S::TangentWitness => "tangent_witness",
+        S::RimJunction => "rim_junction",
         S::CoaxialSphere => "coaxial_sphere",
         S::SphereOnTorusAxis => "sphere_on_torus_axis",
         S::CoaxialCylinderTorus => "coaxial_cylinder_torus",
@@ -3245,7 +3341,6 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::SolidWithoutShells { .. } => "solid_without_shells",
         ValidationError::ShellWithoutFaces { .. } => "shell_without_faces",
         ValidationError::EdgeAcrossShells { .. } => "edge_across_shells",
-        ValidationError::ComponentEulerViolation { .. } => "component_euler_violation",
         ValidationError::MissingProvenance { .. } => "missing_provenance",
         ValidationError::LeakedProvenance { .. } => "leaked_provenance",
         ValidationError::ScaffoldingEmptyLoop { .. } => "scaffolding_empty_loop",

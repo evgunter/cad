@@ -31,7 +31,7 @@ The column argument does not depend on the carrier. What is carrier-specific:
 - an enclosure of the chart curve and its derivative over a parameter piece (`Harmonic::on`/`rate`);
 - a separator's value along the face's image of the curve, tight at any parameter width (`Trig::psi`). A centred form over the piece is too loose.
 
-For a cone's section ellipse the value form was not needed and is not built (2026-11-23): every separator that signs a cell beside one is zero along it by membership (the conic's own plane, the plane through a shared ruling) or is the cone's own carrier read along the PLANE face's `Trig`. Were a pair to need a plane's value along the cone's image: the image `apex + v·(cos α·axis + sin α·radial(u))` over a focal chart curve is a trigonometric polynomial of degree 2 in the eccentric anomaly over `1 − e·cos E`.
+For a cone's section ellipse the value form was not needed and is not built (2026-11-23): no separator that signs a cell beside one reads a value along the cone's image of it. The conic's own plane is zero along the arc by membership. At a ruling's corner the bisector plane through the shared ruling is zero along the RULING; the arc does not lie on it and is only decided to leave the ruling onto the face's side. And the cone's own carrier is read along the PLANE face's `Trig`. Were a pair to need a plane's value along the cone's image: the image `apex + v·(cos α·axis + sin α·radial(u))` over a focal chart curve is a trigonometric polynomial of degree 2 in the eccentric anomaly over `1 − e·cos E`.
 
 - 2026-11-02 — moved from CLEARTAIL to CLEAR when CLEARTAIL merged back into CLEAR (the budget rule now counts P0/P1 only); id and body unchanged.
 
@@ -140,7 +140,7 @@ Why now: `embed/wedge-measure`'s final count (`work/embed/log.md`, 23 Nov) puts 
 - The two cone cavities' hyperbolas print `pcurve=Projected carrier=Nurbs` on the cone and bound their plane caps as spline carriers. Nothing mints a hyperbola or parabola as `FocalSection`. They refuse as before and stay here.
 
 **What landed.**
-- `Use::curve: Option<ChartCurve>` replaces `harmonic` and `wall`; `ChartCurve::Focal(Focal)` is the focal image: a Kepler azimuth enclosed by the hull of its two end evaluations (it is monotone for `|β| < 1`, which `Focal::of` requires of `β`'s enclosure) and a harmonic slant.
+- `Use::curve: Option<ChartCurve>` replaces `harmonic` and `wall`; `ChartCurve::Focal(Focal)` is the focal image, a Kepler azimuth and a harmonic slant. It holds the stored row's own image and is enclosed over a span by that row's chart box (`geom_brep::Pcurve::closed_form_span_box`, read at the interval scalar: the azimuth's hull of its two end evaluations, which is its range since it is monotone for `|β| < 1`, and the slant's chord-dip box, a superset). `Focal::of` requires `|β| < 1` of `β`'s whole enclosure.
 - `Form::Focal`: `present_curved` reads the arc as a graph, alone in a cell and through a corner whose other edge is straight in the chart. Its image is read by no value (`Curved::psi` is `None`).
 - `reading`'s line arm admits a cone: a ruling or a rim's arc shared, a section arc leaving it (`present_line_corner`).
 - `cone_regular`: every one of those readings refuses a rectangle that holds `v = 0` or is a turn wide.
@@ -160,3 +160,13 @@ Why now: `embed/wedge-measure`'s final count (`work/embed/log.md`, 23 Nov) puts 
 - `mesh::all reach_probes::the_unit_funnel_cut_near_its_apex_meshes_at_every_delta` passes as a test with 72 asks `Embedded` and one `Budget { stop: Pairs { max_cell_pairs: 65536 }, a: 4v1, b: 7v3 }` (the gate log prints no kinds for it): a budget stop, the walk's (EMBEDWALK), not traced.
 
 **On the landing branch once it took main (`8d34076a9e`), same day:** the bodies above refuse again at `f64`, not on the cone: main's anchored ellipse states a cap's two section arcs a half turn apart and `one_stated_conic` (now `same_content`) reads two conics, so the plane cap has no corner reading (`two-arcs-of-one-ellipse-stated-a-quarter-turn-apart-are-not-one-conic`, re-banded P0 there). The two halves of the wall hold when asked alone, in every placement. The 12-of-24 above was measured before that merge and was not re-run after it.
+
+**Re-run on the merged tree** (`embed/cone-image-measure`): **1 of 24 pass** (`near_circular_sections::a_near_square_frustum_minus_a_box_builds`); the 11 lost each refuse on a Cone/Plane pair across a section arc. The cause is not this row's: the cap's two section arcs are stated a half turn apart and `one_stated_conic` did not read them one, which `embed/conic-symmetry` widens (`two-arcs-of-one-ellipse-stated-a-quarter-turn-apart-are-not-one-conic`). On the landing tree this unit delivers the cone's side of those pairs and the wall's own corners; the 11 return when that unit lands.
+
+**After the dual review (the fix pass, same day).** No code defect; pins and one fold:
+- the focal enclosure had re-derived `geom-brep`'s closed-form chart box; it now reads it, and `Focal` holds the image it evaluates;
+- the extent's own reader is pinned (`clearance::extent_rows::a_focal_rows_extent_holds_its_arc_and_its_slants_extreme`); no body the kernel builds observes an extent drawn too small, since that takes a face sharing a cell with the wall and crossing it in the part left out;
+- the side each reading presents, and the rectangle, are asserted (`injective::focal_rows`); the far-slant speed is pinned at each of its two call sites by a tall rectangle whose near speed would grant the vertex concession;
+- a kept-apex cut is a body row (`a_cut_cone_that_keeps_its_apex_holds_between_its_halves`); 150 placements of the halves and 18 flaps at the ruling's corner are rows.
+
+Left unpinned at body level on this tree: the cone's side of a cone/cap pair (the pair refuses on the cap), and `Reading::Conic` on a cone, which goes live with `embed/conic-symmetry`.
