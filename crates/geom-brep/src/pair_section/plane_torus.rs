@@ -18,8 +18,8 @@
 //!    torus's normal there, which lies in that point's meridian plane, so
 //!    the plane touches the torus only at the tube circle about `k±`,
 //!    where that circle's distance from it is `r`: the rows `r − |h ∓
-//!    s·R|` (`pt_near_tube`, `pt_far_tube`), each read across its
-//!    rounding. `Zero` on either is a tangency.
+//!    s·R|` (`pt_near_tube`, `pt_far_tube`), distances the band reads
+//!    as they stand. `Zero` on either is a tangency.
 //!
 //! # The section
 //!
@@ -37,8 +37,8 @@
 //! circle it touches.
 
 use geom::Surface;
-use geom_core::k_stats::decide_across_reported;
-use geom_core::{Band, Decide, Indeterminate, MarginDiag, Point3, Real, Sign, rounding_charge};
+use geom_core::k_stats::decide_reported;
+use geom_core::{Band, Decide, Indeterminate, Margin, MarginDiag, Point3, Real, Sign};
 
 use super::torus::{Ring, TorusGap, TorusPoseRefusal, TorusQuestion, lever, tangent_component};
 use super::{
@@ -48,11 +48,11 @@ use crate::ExtentBall;
 use crate::intersect::SectionError;
 
 /// The near-tube row: the plane against the tube circle about `k₊`.
-const NEAR: [&str; 2] = ["pt_near_tube", "pt_near_tube_floor"];
+const NEAR: &str = "pt_near_tube";
 /// The far-tube row: the plane against the tube circle about `k₋`.
-const FAR: [&str; 2] = ["pt_far_tube", "pt_far_tube_floor"];
+const FAR: &str = "pt_far_tube";
 /// The between row: the plane passes between the two tube circles.
-const BETWEEN: [&str; 2] = ["pt_between_tubes", "pt_between_tubes_floor"];
+const BETWEEN: &str = "pt_between_tubes";
 
 /// **How the plane cuts the torus**, decided over a transverse gap.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -109,9 +109,7 @@ impl<T: Decide> PlaneTorusPose<T> {
             (Surface::Torus { .. }, Surface::Plane { .. }) => (b, a, false),
             _ => return None,
         };
-        let &Surface::Plane { frame } = plane else {
-            return None;
-        };
+        let site = crate::intersect::SectionPlane::site(plane)?;
         let ring = Ring::of(torus, band)?;
         Some((|| {
             let ring = ring?;
@@ -136,7 +134,7 @@ impl<T: Decide> PlaneTorusPose<T> {
             let (stance, gap) = if closed {
                 (PtStance::Closed, TorusGap::Transverse)
             } else {
-                tilted(ring, (frame.origin(), frame.axis()), band)?
+                tilted(ring, site, band)?
             };
             Ok(Self {
                 plane: plane.clone(),
@@ -196,17 +194,16 @@ impl<T: Decide> PlaneTorusPose<T> {
 
 /// A gap row's reading, or the pose's refusal on it.
 fn row<T: Decide>(
-    names: [&'static str; 2],
+    name: &'static str,
     datum: T,
-    slack: T,
     band: Band,
 ) -> Result<(Sign, MarginDiag), TorusPoseRefusal> {
-    decide_across_reported(names, datum, slack, band).map_err(|diag: Indeterminate| {
-        TorusPoseRefusal::Undecided {
+    decide_reported(name, Margin::of(datum), band)
+        .map(|d| (d.sign, d.margin))
+        .map_err(|diag: Indeterminate| TorusPoseRefusal::Undecided {
             question: TorusQuestion::Gap,
             diag,
-        }
-    })
+        })
 }
 
 /// The tilted pose's gap and count (module docs), the plane through `q`
@@ -220,7 +217,6 @@ fn tilted<T: Decide>(
     let (c, [big_r, r]) = (ring.center(), ring.radii());
     let (perp, s) = square_part(n, ring.axis());
     let h = n.dot(q - c);
-    let slack = rounding_charge(ring.size() + (q - Point3::origin()).norm());
     let tangent = |row: &'static str, margin, sigma: Option<T>| {
         // The touch is on the tube circle about the core point toward
         // `σ·m`, `r` from it along the plane's normal.
@@ -238,24 +234,24 @@ fn tilted<T: Decide>(
             TorusGap::Tangent { row, margin, at },
         ))
     };
-    let near = row(NEAR, r - (h - s * big_r).abs(), slack, band)?;
+    let near = row(NEAR, r - (h - s * big_r).abs(), band)?;
     if near.0 == Sign::Zero {
-        return tangent(NEAR[0], near.1, Some(T::one()));
+        return tangent(NEAR, near.1, Some(T::one()));
     }
-    let far = row(FAR, r - (h + s * big_r).abs(), slack, band)?;
+    let far = row(FAR, r - (h + s * big_r).abs(), band)?;
     if far.0 == Sign::Zero {
-        return tangent(FAR[0], far.1, Some(T::zero() - T::one()));
+        return tangent(FAR, far.1, Some(T::zero() - T::one()));
     }
     let cut = match (near.0 == Sign::Positive, far.0 == Sign::Positive) {
         (true, true) => PtCut::AroundAxis,
         (true, false) => PtCut::Null { near: true },
         (false, true) => PtCut::Null { near: false },
         (false, false) => {
-            let between = row(BETWEEN, s * big_r - r - h.abs(), slack, band)?;
+            let between = row(BETWEEN, s * big_r - r - h.abs(), band)?;
             match between.0 {
                 Sign::Positive => PtCut::AroundTube,
                 Sign::Negative => PtCut::Empty,
-                Sign::Zero => return tangent(BETWEEN[0], between.1, None),
+                Sign::Zero => return tangent(BETWEEN, between.1, None),
             }
         }
     };
@@ -271,14 +267,12 @@ fn tilted<T: Decide>(
 /// d·(n·a))` its foot, and the point `√(r² − d²)` from the foot along the
 /// line lies on both surfaces. `None` where it is not finite.
 fn null_witness<T: Decide>(pose: &PlaneTorusPose<T>, near: bool) -> Option<Point3<T>> {
-    let &Surface::Plane { frame } = &pose.plane else {
-        return None;
-    };
+    let (q, n) = crate::intersect::SectionPlane::site(&pose.plane)?;
     let ring = pose.ring;
     let (c, a, [big_r, r]) = (ring.center(), ring.axis(), ring.radii());
-    let n = frame.axis().normalize();
+    let n = n.normalize();
     let (perp, s) = square_part(n, a);
-    let (h, na) = (n.dot(frame.origin() - c), n.dot(a));
+    let (h, na) = (n.dot(q - c), n.dot(a));
     let sigma = if near { T::one() } else { T::zero() - T::one() };
     let d = h - sigma * s * big_r;
     let half = ((r - d.abs()) * (r + d.abs())).sqrt();

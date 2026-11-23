@@ -21,10 +21,10 @@ decided more than once (C5: "decided once, and every reader reads it").
   `classify_known`'s plane × torus arm, `torus_pair` → `torus_plane` →
   `plane_cut`) counts the same loops on
   `section_torus_plane_near_tube`, `section_torus_plane_far_tube` and
-  `section_torus_plane_between`, unlevered and with no rounding slack,
-  and reads every pose that way, axis-aligned ones included. The pose's
-  rows read the same margins across `rounding_charge`, so near a
-  tangency the two can disagree in band.
+  `section_torus_plane_between`, and reads every pose that way,
+  axis-aligned ones included. The margins are the pose's, computed
+  apart, so their roundings can still differ in the band's last digits
+  near a tangency, and two names log one decision.
 - **The join's germ frame** (`topo::boolean::join::pt_germ_frame`)
   reads `plane_torus_section` levered at the torus face's reach, while
   the pose reads it levered over the torus's ball. Where the pose reads
