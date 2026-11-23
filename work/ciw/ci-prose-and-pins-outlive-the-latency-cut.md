@@ -2,10 +2,11 @@
 id: ci-prose-and-pins-outlive-the-latency-cut
 kind: issue
 title: doc-gate.sh, render.yml and test-fast.sh still argue in billed minutes and archive jobs, and ci.yml pins an sccache nothing installs
-status: open
+status: closed
 opened: 2026-09-28
 priority: P4
 cost: E
+closed: 2026-11-22
 ---
 
 Found by the 2026-09-28 tracker sweep after the CI-latency cut
@@ -31,3 +32,7 @@ take a billed minute or an archive job for a live consideration.
 
 The fix is prose in the present tense and the deletion of the unused
 action; no measurement is owed.
+
+## Closed
+
+Deleted `.github/actions/install-sccache/` and `ci.yml`'s `SCCACHE_VERSION` pin; `scripts/ci-pin.py`'s selftest fixture reads `MATURIN_VERSION` instead. The billed-minute and archive-job prose in `scripts/doc-gate.sh`, `render.yml` and `local-scripts/test-fast.sh` is rewritten in the present tense (the gate runs in nightly's `rustdoc-roots`; test-fast mirrors ci.yml's `test` job).

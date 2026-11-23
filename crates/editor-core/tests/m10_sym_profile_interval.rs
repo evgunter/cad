@@ -323,22 +323,27 @@ fn eps_row(eps: f64) -> usize {
 /// the same calls (at every ε row `Plain/Decision` 8308 → 7727,
 /// `Plain/Assertion` 2572 → 2554, `Early/Assertion` 3001 → 2878), with
 /// their digests; `Early/Decision` does not move.
+///
+/// **Then moved with validation reading no adjacent line pair's shared
+/// vertex** (`profile::seg`'s `line_line`): its two sides, two spans and
+/// two coincidences at each of the slab's four corners are asked no
+/// more. `Plain/Decision` 936 → 888 calls (7727 → 7648 forms), and the
+/// `Early/Decision` line, 16 calls, goes with them; the assertions build
+/// a few more forms (`Plain/Assertion` 2554 → 2577, `Early/Assertion`
+/// 2878 → 2888), and every digest moves.
 const SLAB_LEDGER: [&str; 3] = [
     "\
-     Plain/Decision calls 936 forms 7727 frozen 0 digest 7dd354c68900f9bd2642e7867aa7117d\n\
-     Plain/Assertion calls 992 forms 2554 frozen 0 digest d06777ecab62fd486c6cf3d10ffa4292\n\
-     Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 992 forms 2878 frozen 0 digest e261649c69c74804b353deb36837b75e",
+     Plain/Decision calls 888 forms 7648 frozen 0 digest d86835b79b50d1c5ef55ab38d228d828\n\
+     Plain/Assertion calls 992 forms 2577 frozen 0 digest b7a91079edab43973927c324069574b6\n\
+     Early/Assertion calls 992 forms 2888 frozen 0 digest 0a809129bdc03cfb7c8e66010f4dfd2c",
     "\
-     Plain/Decision calls 936 forms 7727 frozen 0 digest 25ebd6ec55ec27aac257c5ae03962bd8\n\
-     Plain/Assertion calls 992 forms 2554 frozen 0 digest fed7a07a0b2a1819fbca55e6034725c4\n\
-     Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 992 forms 2878 frozen 0 digest 3852450066b87648d9a47dabcbf4b3c6",
+     Plain/Decision calls 888 forms 7648 frozen 0 digest af8e5beae0f90d3f33486745e1b13e7e\n\
+     Plain/Assertion calls 992 forms 2577 frozen 0 digest e6e436c6ee4b65f7b71c54be8168ff28\n\
+     Early/Assertion calls 992 forms 2888 frozen 0 digest 97b8d8e776052fead928fb324612ad0a",
     "\
-     Plain/Decision calls 936 forms 7727 frozen 0 digest 0e443c7d8ad35608774883e83ff66472\n\
-     Plain/Assertion calls 992 forms 2554 frozen 0 digest 38013c4c51f3bafaf35bcb087fe3f8f2\n\
-     Early/Decision calls 16 forms 38 frozen 0 digest 9da516ca1875052288aafee2b397dd61\n\
-     Early/Assertion calls 992 forms 2878 frozen 0 digest 82f29cc0f25c0a1ecead88a1ad9741a0",
+     Plain/Decision calls 888 forms 7648 frozen 0 digest e3a337d413b4feda05d87057c0acc510\n\
+     Plain/Assertion calls 992 forms 2577 frozen 0 digest 1ba353afe68841544522dca33e7b9a5b\n\
+     Early/Assertion calls 992 forms 2888 frozen 0 digest 85218b8d5de1b2f19bed4cb61738c8a5",
 ];
 
 /// The largest form (numerator plus denominator terms) any op built
@@ -485,11 +490,19 @@ const PLATE_MAX_TERMS: usize = 38;
 ///
 /// The pinned lines are main's reading; each move of them, with its
 /// cause, is recorded on the work row that re-pinned it.
+///
+/// Then validation stopped reading an adjacent line pair's shared vertex
+/// (`profile::seg`'s `line_line`), its rectangle's four corners each two
+/// sides, two spans and two coincidences: `Plain/Decision` 979 -> 955
+/// calls (33088 -> 33009 forms), `Early/Decision` 308 -> 300 (22928 ->
+/// 22890), the assertions a few forms more (`Plain/Assertion` 12224 ->
+/// 12247, `Early/Assertion` 12674 -> 12684), and those digests;
+/// `Door/Decision` does not move. The same at every ε row.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 979 forms 33088 frozen 36 digest 2e82fe8fa43fb62fa0d4e6e57e62412f\n\
-     Plain/Assertion calls 1047 forms 12224 frozen 0 digest 60d5dc286b65a810dedda6cba84213dc\n\
-     Early/Decision calls 308 forms 22928 frozen 0 digest a0bc99f42c355fffd211b273bb594e1f\n\
-     Early/Assertion calls 1047 forms 12674 frozen 0 digest 39cefb42a8a949bb6fc643ee9c474a35\n\
+     Plain/Decision calls 955 forms 33009 frozen 36 digest ed0a1960b7099e367a313c33b8620489\n\
+     Plain/Assertion calls 1047 forms 12247 frozen 0 digest c977d4ea3ceb0fe8c179872ce239dddc\n\
+     Early/Decision calls 300 forms 22890 frozen 0 digest cef7831681d7200d44eeba5ff785c322\n\
+     Early/Assertion calls 1047 forms 12684 frozen 0 digest d7412816fab752f51b11276a242f167d\n\
      Door/Decision calls 550 forms 12366 frozen 0 digest 75aa7cd508fc1005ee274141b4e539c1";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**

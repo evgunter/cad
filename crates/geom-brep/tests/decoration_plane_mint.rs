@@ -1,7 +1,7 @@
 //! **Where a plane normal that cannot certify is stopped.**
 //!
 //! `ssi::certify`'s chart tube reads the three components of a
-//! `Surface::Plane` normal into the C9 ring, and that crossing now takes
+//! `Surface::Plane` normal into certification arithmetic (C9), and that crossing takes
 //! the certified door (`certify.rs`'s `normal_crossing_tests`). This
 //! suite asks the other half of the question: can a normal that fails
 //! `CertifiedEnclosure` be *minted* by the kernel in the first place?

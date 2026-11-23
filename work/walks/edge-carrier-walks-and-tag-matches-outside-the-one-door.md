@@ -2,13 +2,14 @@
 id: edge-carrier-walks-and-tag-matches-outside-the-one-door
 kind: issue
 title: Nine hand-written edge to carrier walks and six tag-only carrier comparisons still read past readback::edge_carrier_ref
-status: review
+status: closed
 opened: 2026-09-14
 refs: [edge-carrier-kind-has-no-readback-door, 2587]
 priority: P1
 cost: M
 branch: walks/edge-view
 pr: 7437
+closed: 2026-11-23
 ---
 
 
@@ -139,3 +140,7 @@ does not re-validate and refuses a dangling key typed),
 `transform::map_isometry`'s arena remap and `euler_kill`'s
 `kev_merge_moves`, beside the doors themselves.
 
+
+## Closed
+
+2026-11-23: PR 7437 merged — `EdgeView` beside `FaceView`; `edge_carrier_ref`, `CarrierAbsence` and `edge_curve_linked` retired; a source pin holds the edge-to-curve read to the view.
