@@ -1,5 +1,5 @@
 //! **A ring vertex's containment refusal stands by its own standing**
-//! ([`crate::loop_side::of_loop`], [`PointInLoopError::refusal`]): an exhausted ray
+//! (`side_rung`, [`PointInLoopError::refusal`]): an exhausted ray
 //! schedule (in band), an edge no ray crosses (a limit) or an escalation
 //! (its margin) at the first vertex is kept, and a later vertex's `In`
 //! answers; a loop that does not walk, or a point off its plane, aborts
@@ -10,8 +10,8 @@
 use geom_brep::ladder::{Answering, Climb, climb};
 use geom_core::{Band, Indeterminate, MarginDiag};
 
+use super::side_rung;
 use crate::entity::{EdgeKey, LoopKey};
-use crate::loop_side::{Placed, of_loop, sided};
 use crate::splitting::Uncrossable;
 use crate::splitting::containment::{LoopContainment, PointInLoopError, UncrossableCarrier};
 
@@ -19,7 +19,7 @@ fn side(first: PointInLoopError) -> Climb<Result<bool, PointInLoopError>, PointI
     climb(
         Answering::Any,
         [Err(first), Ok(LoopContainment::In)],
-        |reading| sided(of_loop(reading.map(Placed::from))),
+        side_rung,
     )
 }
 

@@ -51,7 +51,7 @@ use geom_core::{Band, Decide};
 use crate::body::Body;
 use crate::contain::{ContainError, CurvedPlacement, FaceContainment};
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
-use crate::loop_side::{EveryVertex, Placed, inside_at_every_vertex};
+use crate::loop_side::{EveryVertex, VertexPlaced, inside_at_every_vertex};
 use crate::solid_contain::PointInSolidError;
 use crate::surface_boundary::WoundCycle;
 use crate::validate::ValidationError;
@@ -254,8 +254,8 @@ fn read_cycle<T: Decide>(
             return Rung::Passes;
         };
         match door_side(body, face, cut, *q, band) {
-            Ok(Some(true)) => Rung::Answers(Ok(Placed::<()>::Inside)),
-            Ok(Some(false)) => Rung::Answers(Ok(Placed::Outside)),
+            Ok(Some(true)) => Rung::Answers(Ok(VertexPlaced::<()>::Inside)),
+            Ok(Some(false)) => Rung::Answers(Ok(VertexPlaced::Outside)),
             Ok(None) => Rung::Passes,
             Err(diag) => Kept::of(diag).map(|d| (vertex, d)).into(),
         }

@@ -8951,17 +8951,11 @@ pub(crate) fn tier3_local_checks_marked<
                                 ring_vertex,
                             });
                         }
-                        RingNestingVerdict::OnOuter {
-                            ring_vertex,
-                            outer_edge,
-                        } => {
+                        RingNestingVerdict::OnOuter(contact) => {
                             errors.push(ValidationError::RingMeetsOuter {
                                 face: face_key,
                                 ring,
-                                contact: RingContact::VertexOnEdge {
-                                    ring_vertex,
-                                    outer_edge,
-                                },
+                                contact,
                             });
                         }
                         RingNestingVerdict::Undecided(source) => {
@@ -10423,14 +10417,9 @@ enum RingNestingVerdict {
         ring_vertex: VertexKey,
     },
     /// Every vertex of the ring read lies ON the outer loop: the two
-    /// loops meet, at `outer_edge`, the edge the walk's boundary pass
-    /// placed the first vertex on.
-    OnOuter {
-        /// The first ring vertex read.
-        ring_vertex: VertexKey,
-        /// The outer edge it lies on.
-        outer_edge: EdgeKey,
-    },
+    /// loops meet, where the boundary pass placed the first vertex (on
+    /// an outer edge's interior, or on an outer vertex).
+    OnOuter(RingContact),
     /// No vertex was placed either way and at least one query
     /// REFUSED: the first refusal by rank, kept. **Never read as
     /// "inside"**: the same escalate-never-guess posture the contact
@@ -10470,13 +10459,15 @@ enum RingNestingVerdict {
 /// residue), and a ring vertex on such an edge reaches the walk, whose
 /// boundary pass reads it on that edge's own carrier and window.
 ///
-/// **One instrument, every class**:
-/// [`crate::splitting::containment::point_in_loop_at_edge`], the walk
-/// that reads each outer edge on its own carrier (a line as its
-/// segment, a circle or ellipse arc on its conic inside its window), so
-/// the region it decides IS the loop's region, whatever mix of lines and
-/// arcs the loop carries. It names the edge a boundary point lies on,
-/// which the meeting is reported at. An outer edge on a spiric or
+/// **One instrument, every class**: [`crate::contain::loop_placement`],
+/// the face door's boundary pass and walk on the outer loop alone, which
+/// read each outer edge on its own carrier (a line as its segment, a
+/// circle or ellipse arc on its conic inside its window), so the region
+/// it decides IS the loop's region, whatever mix of lines and arcs the
+/// loop carries. It names the outer vertex or edge a boundary point lies
+/// on, which the meeting is reported at. Like the face door it certifies
+/// no plane: the ring's vertices lie in the face's plane by check 5. An
+/// outer edge on a spiric or
 /// spline carrier is read piece by piece, and where its pieces run out
 /// before the query is placed against it the walk refuses
 /// ([`crate::splitting::PointInLoopError::Uncrossable`]): that refusal
@@ -10517,9 +10508,28 @@ fn ring_nesting<T: Decide>(
         let Some(rp) = vertex_point(body, rv) else {
             return geom_brep::ladder::Rung::Passes;
         };
-        crate::loop_side::of_loop(crate::splitting::containment::point_in_loop_at_edge(
-            body, outer, plane, rp, band,
-        ))
+        let placed =
+            crate::contain::loop_placement(body, outer, plane.axis(), rp, band).map(|at| {
+                use crate::contain::FaceContainment;
+                use crate::loop_side::VertexPlaced;
+                match at {
+                    FaceContainment::In => VertexPlaced::Inside,
+                    FaceContainment::Out => VertexPlaced::Outside,
+                    FaceContainment::OnEdge(outer_edge) => {
+                        VertexPlaced::On(RingContact::VertexOnEdge {
+                            ring_vertex: rv,
+                            outer_edge,
+                        })
+                    }
+                    FaceContainment::OnVertex(outer_vertex) => {
+                        VertexPlaced::On(RingContact::Vertex {
+                            ring_vertex: rv,
+                            outer_vertex,
+                        })
+                    }
+                }
+            });
+        crate::loop_side::of_reading(placed, ContainError::refusal)
     }) {
         crate::loop_side::EveryVertex::Inside | crate::loop_side::EveryVertex::NoAnswer => {
             RingNestingVerdict::Inside
@@ -10527,13 +10537,8 @@ fn ring_nesting<T: Decide>(
         crate::loop_side::EveryVertex::Outside { at } => {
             RingNestingVerdict::Outside { ring_vertex: at }
         }
-        crate::loop_side::EveryVertex::OnBoundary { at, on } => RingNestingVerdict::OnOuter {
-            ring_vertex: at,
-            outer_edge: on,
-        },
-        crate::loop_side::EveryVertex::Undecided(source) => {
-            RingNestingVerdict::Undecided(ContainError::from(source))
-        }
+        crate::loop_side::EveryVertex::OnBoundary { on, .. } => RingNestingVerdict::OnOuter(on),
+        crate::loop_side::EveryVertex::Undecided(source) => RingNestingVerdict::Undecided(source),
     }
 }
 
@@ -15769,10 +15774,7 @@ mod tests {
             let render = |v: RingNestingVerdict| match v {
                 RingNestingVerdict::Inside => "Inside".to_string(),
                 RingNestingVerdict::Outside { ring_vertex } => format!("Outside({ring_vertex:?})"),
-                RingNestingVerdict::OnOuter {
-                    ring_vertex,
-                    outer_edge,
-                } => format!("OnOuter({ring_vertex:?}, {outer_edge:?})"),
+                RingNestingVerdict::OnOuter(contact) => format!("OnOuter({contact:?})"),
                 RingNestingVerdict::Undecided(e) => format!("Undecided({e})"),
             };
             assert_eq!(
@@ -16236,7 +16238,7 @@ mod tests {
                     vertex_point(&body, b).unwrap(),
                 ];
                 ends.sort_by(|p, q| q.x.total_cmp(&p.x));
-                (ends[0] - outer[0]).norm() == 0.0 && (ends[1] - outer[1]).norm() == 0.0
+                ends[0].equals_exactly(outer[0]) && ends[1].equals_exactly(outer[1])
             })
             .expect("the arc from the first corner to the second");
         let point = body.add_point(at(std::f64::consts::TAU / 6.0));

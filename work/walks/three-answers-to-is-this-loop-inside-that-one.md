@@ -131,7 +131,7 @@ Premise moved; renames: `point_in_carrier_loop` → `splitting::containment::poi
 - Check 9: a lone-vertex ring is read by contact arms 1 and 2 as the
   point it stands at, and a ring on its outer loop at every vertex is
   `RingMeetsOuter { VertexOnEdge }` at the edge the walk's boundary pass
-  placed it on (`containment::point_in_loop_at_edge`). No new public
+  placed it on (`contain::loop_placement`, the face door's boundary pass on one loop). No new public
   variant. `one_region::read_cycle` keeps exempting a cycle on the cut,
   with the pinch reason written there.
 - `Body::loop_vertices` is the one walk of a loop's vertices, a lone

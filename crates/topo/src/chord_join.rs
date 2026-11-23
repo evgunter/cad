@@ -148,7 +148,7 @@ use crate::live::{Proven, linked, proven};
 use crate::loop_side;
 use crate::null::CurveGeom;
 use crate::ring_path::{Carrier, LoopArc, LoopSplit, Path, Quadric, SplineArc, path_parity};
-use crate::splitting::containment::{PointInLoopError, point_in_loop};
+use crate::splitting::containment::{LoopContainment, PointInLoopError, point_in_loop};
 use crate::unresolved::Unresolved;
 use crate::validate::decide;
 use geom_core::Tol;
@@ -5859,9 +5859,12 @@ fn ring_side<T: Decide>(
     band: Band,
 ) -> Result<RingSide, JoinError> {
     let read = |v: VertexKey| {
-        let at = body.resolve_vertex_point(v, Proven);
-        loop_side::sided(loop_side::of_loop(
-            point_in_loop(body, run, plane, at, band).map(loop_side::Placed::from),
+        side_rung(point_in_loop(
+            body,
+            run,
+            plane,
+            body.resolve_vertex_point(v, Proven),
+            band,
         ))
     };
     let vertices = body.loop_vertices(ring).ok_or_else(|| corrupt_loop(ring))?;
@@ -5870,6 +5873,24 @@ fn ring_side<T: Decide>(
         Climb::Passed => Ok(RingSide::OnRun),
         Climb::Undecided(e) => Err(JoinError::RingHoming(e)),
     }
+}
+
+/// One ring vertex's reading against the run as [`ring_side`]'s rung
+/// ([`loop_side::of_reading`], [`loop_side::sided`]): a decided side
+/// answers, a vertex on the run passes, and a refusal stands by its own
+/// standing ([`PointInLoopError::refusal`]).
+fn side_rung(
+    reading: Result<LoopContainment, PointInLoopError>,
+) -> Rung<Result<bool, PointInLoopError>, PointInLoopError> {
+    let placed = |at| match at {
+        LoopContainment::In => loop_side::VertexPlaced::Inside,
+        LoopContainment::Out => loop_side::VertexPlaced::Outside,
+        LoopContainment::OnBoundary => loop_side::VertexPlaced::On(()),
+    };
+    loop_side::sided(loop_side::of_reading(
+        reading.map(placed),
+        PointInLoopError::refusal,
+    ))
 }
 
 /// Where ring re-homing puts a bystander ring.

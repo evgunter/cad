@@ -23,6 +23,5 @@ was dropped.
 What follows: drop the unit datum from `certify_plane` and retire
 `OffPlaneCause::NormalNotUnit`, a public variant read by
 `validate.rs`'s refusal text, `census.rs`, `test_support_samples.rs` and
-the sweep row's exhaustive match. `point_in_loop_at_edge` shares the
-certifier. Left out of the walks unit because retiring a public variant
+the sweep row's exhaustive match. Left out of the walks unit because retiring a public variant
 is its own change across those readers.
