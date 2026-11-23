@@ -1518,7 +1518,7 @@ fn kfmrh_reaps_private_surfaces_and_keeps_shared_ones() {
     let reaped = body2.kfmrh(seed2.face, split2.face).unwrap();
     assert_eq!(validate(&body2), Ok(()));
     assert_eq!(reaped.killed_surface, Some(private));
-    assert!(body2.get_surface(private).is_err());
+    assert!(body2.get_surface(private).err() == Some(crate::SurfaceMiss::Stale));
     assert_eq!(body2.surface_slots().count(), 1);
 }
 

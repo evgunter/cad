@@ -133,7 +133,7 @@ fn kef_cascade_reports_killed_surface() {
     let result = body.kef(edge.he_plus).unwrap();
     assert_eq!(result.killed_face, f_plus);
     assert!(
-        body.get_surface(s_plus).is_err(),
+        body.get_surface(s_plus).err() == Some(topo::SurfaceMiss::Stale),
         "dying face's surface must be reaped (tier 1 forbids orphans)"
     );
     assert_eq!(

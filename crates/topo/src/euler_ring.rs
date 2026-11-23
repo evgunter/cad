@@ -3193,7 +3193,7 @@ mod tests {
         // Face C's private surface was orphaned by the kill and removed
         // (geometry hygiene).
         assert_eq!(result.killed_surface, Some(surface));
-        assert!(t.body.get_surface(surface).is_err());
+        assert!(t.body.get_surface(surface).err() == Some(crate::SurfaceMiss::Stale));
     }
 
     #[test]

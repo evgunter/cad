@@ -714,7 +714,9 @@ pub(crate) fn face_outward_normal_at_foot<T: Decide>(
         Ok(Sign::Positive | Sign::Negative) => Ok(()),
         Ok(Sign::Zero) | Err(_) => Err(FootNormalError::NoFoot { band }),
     };
-    let surface = f.surface().map_err(|_| FootNormalError::Pending)?;
+    let surface = f
+        .surface()
+        .map_err(|crate::Pending| FootNormalError::Pending)?;
     match *surface {
         geom::Surface::Plane { frame, .. } => {
             let normal = frame.axis();

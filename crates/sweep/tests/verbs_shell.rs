@@ -3287,7 +3287,7 @@ fn audit_record(what: &str, source: &Body<f64>, chart: &[FaceKey], shelled: &top
     }
     for &sk in &record.dead.surfaces {
         assert!(
-            body.get_surface(sk).is_err(),
+            body.get_surface(sk).err() == Some(topo::SurfaceMiss::Stale),
             "{what}: a retired surface still resolves"
         );
     }

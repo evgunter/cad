@@ -1567,7 +1567,7 @@ pub use geom_brep::{
     EdgeDescription, EdgeDescriptionSpec, Pcurve, PcurveCache, PcurveCertifyError, SharedRow,
     StoredSpan, Structural, SurfacePair,
 };
-pub use geometry::{CurveKey, PointKey, SurfaceKey, SurfaceMiss, SurfaceSlot};
+pub use geometry::{CurveKey, Pending, PointKey, SurfaceKey, SurfaceMiss, SurfaceSlot};
 pub use instance::{
     GraftKeys, graft_disjoint, graft_disjoint_all, graft_disjoint_all_keyed, per_part_gate_owed,
 };

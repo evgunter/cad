@@ -98,7 +98,7 @@ use crate::entity::{
     LoopKey, LoopRole, VertexKey,
 };
 use crate::euler::{BadArgument, EulerOpError};
-use crate::geometry::{PointKey, SurfaceMiss, SurfaceSlot};
+use crate::geometry::{Pending, PointKey, SurfaceMiss, SurfaceSlot};
 use crate::null::CurveGeom;
 use geom::Surface;
 use geom_brep::EdgeCurve;
@@ -535,14 +535,14 @@ impl<'a, T: Real> FaceView<'a, T> {
     }
 
     /// The surface the face is a region of, a link its record holds;
-    /// [`SurfaceMiss::Pending`] while the face has none yet.
+    /// [`Pending`] while the face has none yet.
     ///
     /// # Errors
     ///
-    /// [`SurfaceMiss::Pending`] for a pending slot.
+    /// [`Pending`] for a pending slot.
     #[track_caller]
-    pub fn surface(self) -> Result<&'a Surface<T>, SurfaceMiss> {
-        self.slot().described()
+    pub fn surface(self) -> Result<&'a Surface<T>, Pending> {
+        self.slot().described().map_err(|_| Pending)
     }
 
     /// The surface of a face a finished body holds: tier 3 refuses a
@@ -1905,7 +1905,7 @@ fn wrong_key(&self, he: K, other: K, from: F) -> Result<Live, E> {
 
     /// **No code in this crate reads a face's surface through the public
     /// door** ([`Body::face_surface`]): inside the crate a face is read
-    /// through a resolved [`FaceView`], so the door's `Option` is never
+    /// through a resolved [`FaceView`], so the door's `Result` is never
     /// a second spelling of [`Body::face`]'s.
     #[test]
     fn the_public_surface_door_is_read_only_outside_the_crate() {

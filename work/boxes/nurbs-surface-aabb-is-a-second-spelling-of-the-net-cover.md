@@ -23,8 +23,8 @@ comment naming it. The spline carrier's cover is
 with poison anywhere, and whose `aabb` is the same box.
 
 Its readers are tests: `geom/tests/surfaces/boxes.rs`,
-`geom/tests/net_placeholder_width.rs` (the poison box never prunes)
-and `geom/tests/net_placeholder_width_interval.rs`, plus the
+`geom/tests/net_finiteness.rs` (the poison box never prunes)
+and `geom/tests/net_finiteness_interval.rs`, plus the
 `geom-core/tests/bounds_census.rs` roster line.
 
 **The fix:** delete the door and its module; re-point the

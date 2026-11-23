@@ -1,7 +1,7 @@
 //! The finiteness question at the interval scalar, where poison is NaI
 //! or the empty interval rather than NaN.
 //!
-//! The default lane's twin (`net_placeholder_width.rs`) carries the
+//! The default lane's twin (`net_finiteness.rs`) carries the
 //! argument; this lane exists because `NurbsSurface::is_finite` has to
 //! see the interval scalar's poison and its unbounded enclosures. A
 //! poisoned channel here is `Interval::from_f64(f64::NAN)`, whose

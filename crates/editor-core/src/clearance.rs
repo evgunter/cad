@@ -2061,7 +2061,9 @@ pub(crate) fn closest_pair(
     (ask, band): (Ask, Band),
     over: &topo::clearance::Enclosure<'_>,
 ) -> Result<GeometryWitness, String> {
-    // Each face's carrier in the frame the pair is decided in.
+    // Each face's carrier in the frame the pair is decided in. Both
+    // bodies are at rest, which carries no pending face, so the miss
+    // `.ok()?` folds is a key that did not survive the rebuild.
     let surface_at = |seat: topo::Seat<'_, f64>, face: FaceKey| -> Option<Surface<f64>> {
         seat.surface(seat.body().face_surface(face).ok()?)
     };

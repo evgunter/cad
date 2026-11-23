@@ -166,10 +166,10 @@ mod curves_split_at;
 mod curves_swaying_corner_meter;
 #[path = "dual_foot_tangent.rs"]
 mod dual_foot_tangent;
-#[path = "net_placeholder_width.rs"]
-mod net_placeholder_width;
-#[path = "net_placeholder_width_interval.rs"]
-mod net_placeholder_width_interval;
+#[path = "net_finiteness.rs"]
+mod net_finiteness;
+#[path = "net_finiteness_interval.rs"]
+mod net_finiteness_interval;
 #[path = "r2_turn_probes.rs"]
 mod r2_turn_probes;
 #[path = "recourse_roster.rs"]

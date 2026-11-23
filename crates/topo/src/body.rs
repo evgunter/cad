@@ -1218,7 +1218,7 @@ impl<T: Real> Body<T> {
     /// kernel bug reaches (D2 row 4).
     #[track_caller]
     pub fn face_surface(&self, face: FaceKey) -> Result<&Surface<T>, SurfaceMiss> {
-        self.face(face).ok_or(SurfaceMiss::Stale)?.surface()
+        Ok(self.face(face).ok_or(SurfaceMiss::Stale)?.surface()?)
     }
 
     /// The D5 provenance of a topology entity, or `None` if the key is

@@ -9954,7 +9954,9 @@ fn round_face<T: Decide>(
     p: Point3<T>,
 ) -> Result<Option<(crate::link::Round<T>, T)>, TouchUnread> {
     let face = body.face(f).ok_or(TouchUnread::Corrupt)?;
-    let surface = face.surface().map_err(|_| TouchUnread::PendingFace)?;
+    let surface = face
+        .surface()
+        .map_err(|crate::Pending| TouchUnread::PendingFace)?;
     let Some(round) = crate::link::Round::of(surface, face.sense()) else {
         return Ok(None);
     };

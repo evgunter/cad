@@ -152,7 +152,7 @@ fn a_same_key_merge_is_not_refused() {
     // named it.
     describe_as_intersections(&mut body, tol);
     assert!(
-        body.get_surface(ka).is_err(),
+        body.get_surface(ka).err() == Some(crate::SurfaceMiss::Stale),
         "nothing holds the old key any more"
     );
 

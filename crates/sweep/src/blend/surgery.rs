@@ -1151,6 +1151,9 @@ fn resolve_rim<'a, T: Decide + Bounds>(
     chain: &'a Chain<T>,
 ) -> Result<RimPlan<'a, T>, BlendError> {
     let link0 = chain.first();
+    // The battery read every link's two supports through
+    // `surface_missed` before this verdict existed, so a pending support
+    // never reaches here: the miss `.ok()?` folds is unreachable for it.
     let is_plane = |f: FaceKey| -> Option<bool> {
         Some(matches!(body.face_surface(f).ok()?, Surface::Plane { .. }))
     };

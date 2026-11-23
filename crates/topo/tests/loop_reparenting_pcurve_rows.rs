@@ -2072,7 +2072,7 @@ fn a_swap_orphaning_the_old_key_carries_every_row_across_one_payload() {
                 .unwrap();
         }
         assert!(
-            s.body.get_surface(keys[0]).is_err(),
+            s.body.get_surface(keys[0]).err() == Some(topo::SurfaceMiss::Stale),
             "the old key was reaped"
         );
         let want = if tied { (4, 0) } else { (0, 4) };
@@ -2096,7 +2096,7 @@ fn kef_reaping_the_dying_key_carries_the_remnant_across_one_payload() {
             .unwrap();
         assert_eq!(killed.killed_face, s.low);
         assert!(
-            s.body.get_surface(keys[0]).is_err(),
+            s.body.get_surface(keys[0]).err() == Some(topo::SurfaceMiss::Stale),
             "the dying key was reaped"
         );
         let want = if tied { (6, 0) } else { (3, 3) };

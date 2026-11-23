@@ -74,6 +74,19 @@ impl<T: Real> SurfaceSlot<T> {
     }
 }
 
+/// **A resolved face's one surface miss**: its slot is pending. A read
+/// through a face the body resolved ([`crate::live::FaceView::surface`])
+/// cannot meet a stale surface key — a dangling link panics (D2 row 4)
+/// — so this is the whole of what it refuses.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct Pending;
+
+impl From<Pending> for SurfaceMiss {
+    fn from(Pending: Pending) -> Self {
+        SurfaceMiss::Pending
+    }
+}
+
 impl<T: Real> From<Surface<T>> for SurfaceSlot<T> {
     fn from(surface: Surface<T>) -> Self {
         Self::Described(surface)

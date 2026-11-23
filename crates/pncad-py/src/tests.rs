@@ -5170,6 +5170,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "empty_contains",
             "face",
             "null_scaffold_edge",
+            "pending_face",
             "poisoned",
             "resolution_finer_than_eps",
             "ring_on_curved_face",

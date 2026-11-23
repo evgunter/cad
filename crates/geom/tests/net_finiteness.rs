@@ -16,7 +16,7 @@
 //! - the box screen answers the poison box for it, and for a net with
 //!   a `±∞` coordinate.
 //!
-//! The interval lane's twin is `net_placeholder_width_interval.rs`.
+//! The interval lane's twin is `net_finiteness_interval.rs`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

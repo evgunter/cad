@@ -2610,7 +2610,10 @@ mod tests {
         };
         assert_eq!(carried.get_face(top).unwrap().surface, new);
         assert_eq!(edges_naming(&carried, new), named, "all four carried");
-        assert!(carried.get_surface(old).is_err(), "the old cap is reaped");
+        assert!(
+            carried.get_surface(old).err() == Some(crate::SurfaceMiss::Stale),
+            "the old cap is reaped"
+        );
         assert_eq!(validate_geometric(&carried, tol()), Ok(()));
 
         let eps = tol().eps();
@@ -2706,7 +2709,10 @@ mod tests {
         );
         assert_eq!(surf(&body, top), shared);
         assert_eq!(edges_naming(&body, shared), named);
-        assert!(body.get_surface(old).is_err(), "the old cap is reaped");
+        assert!(
+            body.get_surface(old).err() == Some(crate::SurfaceMiss::Stale),
+            "the old cap is reaped"
+        );
         assert_eq!(validate_geometric(&body, tol()), Ok(()));
     }
 
@@ -2850,7 +2856,10 @@ mod tests {
             body.set_face_surface(membrane, FaceSurface::Shared { key: cap, sense }),
             Ok(cap)
         );
-        assert!(body.get_surface(copy).is_err(), "the copy is reaped");
+        assert!(
+            body.get_surface(copy).err() == Some(crate::SurfaceMiss::Stale),
+            "the copy is reaped"
+        );
         assert_eq!(validate_geometric(&body, tol()), Ok(()));
     }
 

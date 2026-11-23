@@ -221,7 +221,7 @@ pub(crate) fn carrier_surface<T: Real>(
     })?;
     let surface = f
         .surface()
-        .map_err(|_| ReadbackError::PendingSurface { face })?;
+        .map_err(|crate::Pending| ReadbackError::PendingSurface { face })?;
     Ok((f.record().surface, surface, f.sense()))
 }
 
@@ -241,6 +241,7 @@ pub(crate) fn carrier_surface<T: Real>(
 /// # Errors
 ///
 /// [`ReadbackError::Dangling`] for a stale face key;
+/// [`ReadbackError::PendingSurface`] for a face with no surface yet;
 /// [`ReadbackError::NoCanonicalFrame`] for a NURBS carrier.
 ///
 /// ```
@@ -371,7 +372,8 @@ pub fn face_pose<T: Real>(body: &Body<T>, face: FaceKey) -> Result<Pose<T>, Read
 ///
 /// # Errors
 ///
-/// [`ReadbackError::Dangling`] for a stale face key.
+/// [`ReadbackError::Dangling`] for a stale face key;
+/// [`ReadbackError::PendingSurface`] for a face with no surface yet.
 pub fn face_stored_surface<T: Real>(
     body: &Body<T>,
     face: FaceKey,
@@ -398,7 +400,7 @@ pub fn face_stored_surface<T: Real>(
 /// # Errors
 ///
 /// [`ReadbackError::Dangling`] for a stale face key, and
-/// [`ReadbackError::NoCanonicalFrame`] for a face whose surface is still
+/// [`ReadbackError::PendingSurface`] for a face whose surface is still
 /// pending: every carrier, NURBS and approximating included, has a
 /// kind, and a pending face has no carrier.
 ///
