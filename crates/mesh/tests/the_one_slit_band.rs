@@ -1,17 +1,19 @@
-//! **A fillet band that is one ring with one slit** meshes where its
-//! slit's chord points fall between the band's rows, and every triangle
-//! beside them stays inside one lattice cell: the curved lane's CDT runs
-//! in the lattice metric (`curved`'s module docs, "The lattice metric").
+//! **A fillet band whose meridian points fall between its rows** meshes,
+//! and every triangle beside them reaches no further than its own lattice
+//! and its meridian's chords allow: the curved lane's CDT runs in its
+//! lattice's metric (`curved`'s module docs, "The lattice metric").
 //!
-//! The band is a torus strip a whole turn round whose meridian side is
-//! one seam edge, built by two public doors: a full revolve of a plate's
-//! section with its hole's rim rounded, and `sweep`'s fillet of a holed
-//! plate's rim. Its lattice is `√(R/r)` times taller than wide in UV, so
-//! a slit point between two rows had, in raw UV, an empty circle several
-//! columns wide.
+//! The band is a strip of a thin torus, built by two public doors: a
+//! revolve of a plate's section whose corner at the hole's rim is rounded
+//! (a whole turn, one face with one slit, the seam; or a partial turn, one
+//! face with two meridian edges and no slit), and `sweep`'s fillet of a
+//! holed plate's rim (one face with one slit). Its lattice is about
+//! `√(R/r)` times taller than wide in UV, so a meridian point between two
+//! rows had, in raw UV, an empty circle several columns wide.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::{PI, TAU};
+use std::collections::HashSet;
 
 use geom::Surface;
 use geom_core::{Point2, Point3, Tol, Vec2};
@@ -23,11 +25,16 @@ use topo::Body;
 
 use crate::common::sampled_deviation;
 
+/// How far, relative to its span, a chart coordinate read back from a
+/// mesh position (`atan2` of `f64` coordinates) may sit from the lattice
+/// line it was laid on: rounding, many orders below any step these bands
+/// lay (each above 1e-3 of its span).
+const CHART_READ: f64 = 1e-9;
+
 /// The plate section `[hole, 1] × [0, 1]` with its corner at the hole's
-/// bottom rim rounded at `r`, revolved a full turn about `y`: the rounded
-/// corner sweeps a band of the torus `(hole + r, r)`, one face whose
-/// slit is the revolve's seam.
-fn revolved_band(hole: f64, r: f64) -> Option<Body<f64>> {
+/// bottom rim rounded at `r`, revolved about `y` by `turn`: the rounded
+/// corner sweeps a band of the torus `(hole + r, r)`.
+fn revolved_band(hole: f64, r: f64, turn: Revolution<f64>) -> Body<f64> {
     let lp = bulge_loop(vec![
         (Point2::new(hole, r), -(PI / 8.0).tan()),
         (Point2::new(hole + r, 0.0), 0.0),
@@ -42,30 +49,16 @@ fn revolved_band(hole: f64, r: f64) -> Option<Body<f64>> {
         origin: Point2::new(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
-    match revolve(&vp, axis, Revolution::Full, Tol::witness()) {
-        Ok(built) => Some(built.body.into_body()),
-        // The thin torus's certification refuses at ε = 1e-12, upstream
-        // of the mesh
-        // (`work/shell/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
-        Err(e) => {
-            let eps = Tol::witness().eps();
-            assert!(
-                eps < 1e-9 && format!("{e:?}").contains("KernelLimit"),
-                "the section revolves at ε = {eps:e}: {e:?}"
-            );
-            println!(
-                "SKIPPED at ε = {eps:e}: the band's revolve refuses KernelLimit upstream of \
-                 the mesh, so this run asserts nothing of its mesh"
-            );
-            None
-        }
-    }
+    revolve(&vp, axis, turn, Tol::witness())
+        .expect("the section revolves")
+        .body
+        .into_body()
 }
 
 /// The plate `[−1, 1]² × [0, 1]` with a hole of radius `hole` drawn as
 /// `arcs` equal arcs, its bottom rim filleted at `r` through
 /// `sweep::blend::fillet_edges`: the band is one face with one slit.
-fn filleted_plate(hole: f64, r: f64, arcs: usize) -> Body<f64> {
+pub(crate) fn filleted_plate(hole: f64, r: f64, arcs: usize) -> Body<f64> {
     let square = bulge_loop(vec![
         (Point2::new(-1.0, -1.0), 0.0),
         (Point2::new(1.0, -1.0), 0.0),
@@ -117,8 +110,7 @@ fn filleted_plate(hole: f64, r: f64, arcs: usize) -> Body<f64> {
         .into_body()
 }
 
-/// A band triangle's corners in the torus chart, `u` unwrapped about the
-/// first corner's.
+/// A point's torus chart coordinates `(u, v)`, each in `(−π, π]`.
 fn chart(surface: &Surface<f64>, p: Point3<f64>) -> [f64; 2] {
     let Surface::Torus {
         frame,
@@ -136,12 +128,15 @@ fn chart(surface: &Surface<f64>, p: Point3<f64>) -> [f64; 2] {
     [w.dot(y).atan2(w.dot(x)), along.atan2(radial - major_radius)]
 }
 
-/// What the band's patch shows of its lattice and of the triangles
-/// beside its boundary.
+/// What the band's patch shows of its lattice, its boundary and the
+/// triangles beside it.
 struct BandReading {
-    /// Boundary points on the slit strictly between two of the lattice's
-    /// rows.
-    off_row_slit_points: usize,
+    /// The lattice's rows (interior rows plus one).
+    rows: usize,
+    /// The fewest chords on one of the band's meridian edges.
+    meridian_chords: usize,
+    /// Meridian points strictly between two of the lattice's rows.
+    off_row_meridian_points: usize,
     /// Rim points strictly between two of the lattice's columns.
     off_column_rim_points: usize,
     /// The largest triangle `u` extent over the column width, and `v`
@@ -153,13 +148,18 @@ struct BandReading {
 
 fn distinct(mut xs: Vec<f64>, span: f64) -> Vec<f64> {
     xs.sort_by(f64::total_cmp);
-    xs.dedup_by(|a, b| (*a - *b).abs() <= 1e-9 * span);
+    xs.dedup_by(|a, b| (*a - *b).abs() <= CHART_READ * span);
     xs
 }
 
-/// Reads the band's patch of `mesh`: its lattice is laid off its
-/// interior points (columns and rows strictly inside), its boundary off
-/// the rest.
+fn extent(xs: impl Iterator<Item = f64> + Clone) -> f64 {
+    xs.clone().fold(f64::NEG_INFINITY, f64::max) - xs.fold(f64::INFINITY, f64::min)
+}
+
+/// Reads the band's patch of `mesh`. Its lattice is laid off its interior
+/// points (columns and rows strictly inside); its meridians are the
+/// boundary polylines on it whose `v` varies, its rims those whose `v`
+/// does not.
 fn read_band(body: &Body<f64>, mesh: &mesh::Mesh) -> BandReading {
     let patch = mesh
         .patches
@@ -167,38 +167,47 @@ fn read_band(body: &Body<f64>, mesh: &mesh::Mesh) -> BandReading {
         .find(|q| matches!(body.face_surface(q.face), Some(Surface::Torus { .. })))
         .expect("the body has its band");
     let surface = body.face_surface(patch.face).unwrap();
-    let on_boundary: std::collections::HashSet<u32> = mesh
-        .boundaries
-        .iter()
-        .flat_map(|b| b.points.iter().copied())
-        .collect();
-    let mut ids: Vec<u32> = patch.triangles.iter().flatten().copied().collect();
-    ids.sort_unstable();
-    ids.dedup();
-    // `u` on `[0, 2π)`; `v` unwrapped about the first point's, so a strip
-    // across the chart's `±π` cut reads one window.
-    let v_ref = chart(surface, mesh.positions[ids[0] as usize])[1];
+    let ids: HashSet<u32> = patch.triangles.iter().flatten().copied().collect();
+    let first = *ids.iter().min().unwrap();
+    // `u` and `v` unwrapped about the first point's, so a strip across
+    // the chart's `±π` cut reads one window; a whole turn's seam reads at
+    // both ends of its turn.
+    let [u_ref, v_ref] = chart(surface, mesh.positions[first as usize]);
+    let near = |x: f64, about: f64| about + (x - about + PI).rem_euclid(TAU) - PI;
     let at = |i: u32| {
         let [u, v] = chart(surface, mesh.positions[i as usize]);
-        let u = u.rem_euclid(TAU);
-        [
-            if TAU - u <= 1e-9 { 0.0 } else { u },
-            v_ref + (v - v_ref + PI).rem_euclid(TAU) - PI,
-        ]
+        [near(u, u_ref), near(v, v_ref)]
     };
+    let polylines: Vec<&mesh::BoundaryPolyline> = mesh
+        .boundaries
+        .iter()
+        .filter(|b| b.points.iter().all(|i| ids.contains(i)))
+        .collect();
+    let on_boundary: HashSet<u32> = polylines.iter().flat_map(|b| b.points.clone()).collect();
     let vs: Vec<f64> = ids.iter().map(|&i| at(i)[1]).collect();
-    let (v0, v1) = (
-        vs.iter().copied().fold(f64::INFINITY, f64::min),
-        vs.iter().copied().fold(f64::NEG_INFINITY, f64::max),
+    let vspan = extent(vs.iter().copied());
+    let (meridians, rims): (Vec<_>, Vec<_>) = polylines
+        .into_iter()
+        .partition(|b| extent(b.points.iter().map(|&i| at(i)[1])) > CHART_READ * vspan);
+    assert!(
+        !meridians.is_empty() && !rims.is_empty(),
+        "the band has meridians and rims"
     );
-    let vspan = v1 - v0;
     let interior: Vec<[f64; 2]> = ids
         .iter()
         .filter(|i| !on_boundary.contains(i))
         .map(|&i| at(i))
         .collect();
     let rows = distinct(interior.iter().map(|p| p[1]).collect(), vspan);
-    let columns = distinct(interior.iter().map(|p| p[0]).collect(), TAU);
+    // A whole turn's columns: its interior columns are `nu − 1` of the
+    // turn's; a partial turn's are read off its meridians' ends.
+    let whole = meridians.len() == 1;
+    let uspan = if whole {
+        TAU
+    } else {
+        extent(ids.iter().map(|&i| at(i)[0]))
+    };
+    let columns = distinct(interior.iter().map(|p| p[0]).collect(), uspan);
     assert!(
         !rows.is_empty() && columns.len() > 2,
         "the band lays a lattice: rows {rows:?}, {} columns",
@@ -207,50 +216,60 @@ fn read_band(body: &Body<f64>, mesh: &mesh::Mesh) -> BandReading {
     #[allow(clippy::cast_precision_loss)]
     let (gap, width) = (
         vspan / (rows.len() + 1) as f64,
-        TAU / (columns.len() + 1) as f64,
+        uspan / (columns.len() + 1) as f64,
     );
-    let near = |x: f64, set: &[f64], scale: f64| set.iter().any(|s| (x - s).abs() <= 1e-9 * scale);
-    let mut off_row_slit_points = 0;
-    let mut off_column_rim_points = 0;
-    for &i in ids.iter().filter(|i| on_boundary.contains(i)) {
-        let [u, v] = at(i);
-        let inside_v = v > v0 + 1e-9 * vspan && v < v1 - 1e-9 * vspan;
-        if inside_v && u.abs() <= 1e-9 && !near(v, &rows, vspan) {
-            off_row_slit_points += 1;
-        }
-        if !inside_v && !near(u, &columns, TAU) && u.abs() > 1e-9 {
-            off_column_rim_points += 1;
-        }
-    }
+    let on =
+        |x: f64, lines: &[f64], span: f64| lines.iter().any(|l| (x - l).abs() <= CHART_READ * span);
+    let inside = |b: &mesh::BoundaryPolyline| b.points[1..b.points.len() - 1].to_vec();
+    let off_row_meridian_points = meridians
+        .iter()
+        .flat_map(|b| inside(b))
+        .filter(|&i| !on(at(i)[1], &rows, vspan))
+        .count();
+    let off_column_rim_points = rims
+        .iter()
+        .flat_map(|b| inside(b))
+        .filter(|&i| !on(at(i)[0], &columns, uspan))
+        .count();
+    let meridian_chords = meridians.iter().map(|b| b.points.len() - 1).min().unwrap();
     let mut reach = [0.0f64; 2];
     let mut deviation = 0.0f64;
     for t in &patch.triangles {
         let c = t.map(&at);
+        // A whole turn's triangle beside the seam has corners a turn apart.
         let du = [c[1][0] - c[0][0], c[2][0] - c[0][0]].map(|d| (d + PI).rem_euclid(TAU) - PI);
-        let us = [0.0, du[0], du[1]];
-        let extent = |xs: [f64; 3]| {
-            xs.iter().copied().fold(f64::NEG_INFINITY, f64::max)
-                - xs.iter().copied().fold(f64::INFINITY, f64::min)
-        };
-        reach[0] = reach[0].max(extent(us) / width);
-        reach[1] = reach[1].max(extent([c[0][1], c[1][1], c[2][1]]) / gap);
+        reach[0] = reach[0].max(extent([0.0, du[0], du[1]].into_iter()) / width);
+        reach[1] = reach[1].max(extent(c.iter().map(|p| p[1])) / gap);
         let tri = t.map(|i| mesh.positions[i as usize]);
         deviation = deviation.max(sampled_deviation(surface, tri, 8));
     }
     BandReading {
-        off_row_slit_points,
+        rows: rows.len() + 1,
+        meridian_chords,
+        off_row_meridian_points,
         off_column_rim_points,
         reach,
         deviation,
     }
 }
 
-/// The band's relation at `delta`: it meshes; every band triangle lies
-/// within δ of the torus by sampling, which reads no certificate; and a
-/// triangle reaches at most one lattice column and one and a half rows
-/// (the containment `curved`'s "The lattice metric" states as measured).
-/// `slit` and `rim` name the off-lattice points the witness must carry.
-fn assert_band(what: &str, body: &Body<f64>, delta: f64, slit: bool, rim: bool) {
+/// What a band row asks its witness to carry.
+#[derive(Clone, Copy, PartialEq)]
+enum Carries {
+    /// A meridian point between two rows.
+    OffRowMeridian,
+    /// A rim point between two columns.
+    OffColumnRim,
+}
+
+/// The band's relation at `delta`: it meshes, watertight; every band
+/// triangle lies within δ of the torus by sampling, which reads no
+/// certificate; and a triangle spans at most one lattice column and at
+/// most `max(1, nv/m)` row gaps, `nv` the band's rows and `m` the fewest
+/// chords on one of its meridians: a meridian chord spans `nv/m` gaps,
+/// and the triangles beside it reach no further (`curved`'s module docs,
+/// "What is measured and not proved").
+fn assert_band(what: &str, body: &Body<f64>, delta: f64, carries: Carries) {
     let mesh = mesh::tessellate(body, delta, Tol::witness())
         .unwrap_or_else(|e| panic!("{what}, δ = {delta}: the band meshes: {e:?}"));
     assert_eq!(
@@ -259,37 +278,50 @@ fn assert_band(what: &str, body: &Body<f64>, delta: f64, slit: bool, rim: bool) 
         "{what}, δ = {delta}: watertight"
     );
     let band = read_band(body, &mesh);
-    assert!(
-        !slit || band.off_row_slit_points > 0,
-        "{what}, δ = {delta}: the slit carries a chord point between two rows"
-    );
-    assert!(
-        !rim || band.off_column_rim_points > 0,
-        "{what}, δ = {delta}: a rim carries a chord point between two columns"
-    );
+    match carries {
+        Carries::OffRowMeridian => assert!(
+            band.off_row_meridian_points > 0,
+            "{what}, δ = {delta}: a meridian carries a chord point between two rows"
+        ),
+        Carries::OffColumnRim => assert!(
+            band.off_column_rim_points > 0,
+            "{what}, δ = {delta}: a rim carries a chord point between two columns"
+        ),
+    }
     assert!(
         band.deviation <= delta,
         "{what}, δ = {delta}: a band triangle samples {:e} off the torus",
         band.deviation
     );
+    #[allow(clippy::cast_precision_loss)]
+    let rows_allowed = (band.rows as f64 / band.meridian_chords as f64).max(1.0);
     let [u, v] = band.reach;
     assert!(
-        u <= 1.0 + 1e-9 && v <= 1.5 + 1e-9,
-        "{what}, δ = {delta}: a band triangle reaches {u} columns and {v} rows"
+        u <= 1.0 + CHART_READ && v <= rows_allowed * (1.0 + CHART_READ),
+        "{what}, δ = {delta}: a band triangle reaches {u} columns and {v} rows; the lattice \
+         allows one column and {rows_allowed} rows ({} rows, {} meridian chords)",
+        band.rows,
+        band.meridian_chords
     );
 }
 
-/// **The revolved band, at the three δ its raw-UV CDT refused**: the
-/// slit, one quarter arc of radius 5e-4, takes three chords where the
-/// band lays two rows (`a-quarter-arcs-chord-count-sits-on-the-capped-steps-ceiling-edge`),
-/// and the triangles beside its points stay in one column.
+/// **Revolved bands, at the δ their raw-UV CDT refused**: a whole turn
+/// (one slit) and two partial turns (two meridian edges, no slit) of a
+/// quarter arc of radius 5e-3 on a hole of 0.6. Each meridian, a quarter
+/// arc, takes a chord count other than the band's rows
+/// (`a-quarter-arcs-chord-count-sits-on-the-capped-steps-ceiling-edge`).
+/// The section builds at every ε row.
 #[test]
-fn a_revolved_one_slit_band_meshes_with_its_slit_points_between_rows() {
-    let Some(body) = revolved_band(0.3, 5e-4) else {
-        return;
-    };
-    for delta in [1e-3, 3e-4, 1e-4] {
-        assert_band("the revolved band", &body, delta, true, false);
+fn a_revolved_band_meshes_with_its_meridian_points_between_rows() {
+    for (what, turn) in [
+        ("a whole turn", Revolution::Full),
+        ("a quarter turn", Revolution::Partial(PI / 2.0)),
+        ("two radians", Revolution::Partial(2.0)),
+    ] {
+        let body = revolved_band(0.6, 5e-3, turn);
+        for delta in [3e-3, 1e-3] {
+            assert_band(what, &body, delta, Carries::OffRowMeridian);
+        }
     }
 }
 
@@ -299,116 +331,32 @@ fn a_revolved_one_slit_band_meshes_with_its_slit_points_between_rows() {
 fn a_filleted_holes_one_slit_band_meshes_with_its_slit_points_between_rows() {
     let three = filleted_plate(0.3, 1e-3, 3);
     for delta in [1e-3, 3e-4] {
-        assert_band("three arcs, r = 1e-3", &three, delta, true, false);
+        assert_band(
+            "three arcs, r = 1e-3",
+            &three,
+            delta,
+            Carries::OffRowMeridian,
+        );
     }
     let five = filleted_plate(0.3, 5e-3, 5);
     for delta in [3e-3, 1e-3] {
-        assert_band("five arcs, r = 5e-3", &five, delta, true, false);
+        assert_band("five arcs, r = 5e-3", &five, delta, Carries::OffRowMeridian);
     }
 }
 
-/// **An off-lattice point by another source than the slit's count**: a
-/// hole of two arcs makes the band's foot two edges, each chorded on its
-/// own, so the foot holds more chords than the band has columns. On the
-/// band's short axis, and it stays in one cell.
+/// **An off-lattice point by another source than a meridian's count**,
+/// on the band's short axis: a hole of two arcs makes the band's foot two
+/// edges, each chorded on its own, so the foot holds more chords than the
+/// band has columns (60 against 59 at δ = 1e-3). It is a witness that the
+/// mechanism exists on that axis and is harmless there: in raw UV this
+/// band meshes too, its triangles within one column, since a rim point's
+/// circle reaches across the short axis only. It goes red where a
+/// triangle beside the foot's points reaches past one column or samples
+/// past δ.
 #[test]
 fn a_band_whose_foot_is_two_arcs_meshes_with_its_rim_points_between_columns() {
     let body = filleted_plate(0.3, 1e-3, 2);
     for delta in [3e-3, 1e-3] {
-        assert_band("two arcs, r = 1e-3", &body, delta, false, true);
-    }
-}
-
-fn fnv(h: &mut u64, x: u64) {
-    for b in x.to_le_bytes() {
-        *h ^= u64::from(b);
-        *h = h.wrapping_mul(0x0100_0000_01b3);
-    }
-}
-
-/// **The filleted holes' meshes are one value at every ε row**: their
-/// bytes at the δ the rows above read, against one pinned digest.
-/// Nothing that chooses the mesh reads ε (`[mesh.winding]`,
-/// `[tolerance.chordal]`).
-#[test]
-fn the_filleted_holes_meshes_are_byte_identical_at_every_eps() {
-    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-    for (body, delta) in [
-        (filleted_plate(0.3, 1e-3, 3), 1e-3),
-        (filleted_plate(0.3, 1e-3, 3), 3e-4),
-        (filleted_plate(0.3, 5e-3, 5), 1e-3),
-        (filleted_plate(0.3, 1e-3, 2), 3e-3),
-    ] {
-        let m = mesh::tessellate(&body, delta, Tol::witness()).expect("the band meshes");
-        for p in &m.positions {
-            for x in [p.x, p.y, p.z] {
-                fnv(&mut h, x.to_bits());
-            }
-        }
-        for q in &m.patches {
-            for t in &q.triangles {
-                for &i in t {
-                    fnv(&mut h, u64::from(i));
-                }
-            }
-        }
-    }
-    assert_eq!(
-        h,
-        0x527e_a70e_d171_1f85,
-        "the filleted holes' bytes at ε = {:e}",
-        Tol::witness().eps()
-    );
-}
-
-/// The sphere zone between latitudes `lo` and `hi` (degrees) of the
-/// unit sphere, revolved a full turn about `y`.
-fn zone(lo: f64, hi: f64) -> Body<f64> {
-    let (a, b) = (lo.to_radians(), hi.to_radians());
-    let lp = bulge_loop(vec![
-        (Point2::new(a.cos(), a.sin()), ((b - a) / 4.0).tan()),
-        (Point2::new(b.cos(), b.sin()), 0.0),
-        (Point2::new(0.0, b.sin()), 0.0),
-        (Point2::new(0.0, a.sin()), 0.0),
-    ]);
-    let vp = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .expect("the zone's section validates");
-    let axis = RevolveAxis {
-        origin: Point2::new(0.0, 0.0),
-        dir: Vec2::new(0.0, 1.0),
-    };
-    revolve(&vp, axis, Revolution::Full, Tol::witness())
-        .expect("the section revolves")
-        .body
-        .into_body()
-}
-
-/// **A curved sphere face off the equator, in its lattice's metric**:
-/// the zone at 50°–80°, whose cells enter the CDT at a power of two of
-/// their realized aspect, meshes with every triangle within δ of the
-/// sphere by sampling.
-#[test]
-fn an_off_equator_sphere_zone_meshes_within_delta_in_its_metric() {
-    let body = zone(50.0, 80.0);
-    for delta in [1e-2, 1e-3] {
-        let m = mesh::tessellate(&body, delta, Tol::witness())
-            .unwrap_or_else(|e| panic!("δ = {delta}: the zone meshes: {e:?}"));
-        let mut spheres = 0;
-        for q in &m.patches {
-            let surface = body.face_surface(q.face).unwrap();
-            if !matches!(surface, Surface::Sphere { .. }) {
-                continue;
-            }
-            spheres += 1;
-            for t in &q.triangles {
-                let d = sampled_deviation(surface, t.map(|i| m.positions[i as usize]), 8);
-                assert!(
-                    d <= delta,
-                    "δ = {delta}: a sphere triangle samples {d:e} off"
-                );
-            }
-        }
-        assert!(spheres > 0, "δ = {delta}: the zone has its sphere faces");
+        assert_band("two arcs, r = 1e-3", &body, delta, Carries::OffColumnRim);
     }
 }

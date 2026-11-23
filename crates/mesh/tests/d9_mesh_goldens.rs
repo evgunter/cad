@@ -28,7 +28,9 @@
 //!   `rounded_prism` + `washer` (Cylinder — the washer is two full
 //!   cylinder walls closed by planar annuli, not a torus), `ball` +
 //!   `sphere_wedge` (Sphere), `cone` + `cone_wedge` (Cone), `donut`
-//!   (Torus).
+//!   (Torus), and the filleted holes' bands (thin torus strips with one
+//!   slit whose chord points fall between the rows,
+//!   `the_one_slit_band.rs`) at the δ their rows read.
 //! - poles and apexes: `ball`'s two poles, `cone`'s apex,
 //!   `pole_crossing_half_cap` and `apex_crossing_bowtie` — the
 //!   witnesses whose meridian sides cross the singularity.
@@ -225,6 +227,16 @@ fn corpus() -> Vec<(&'static str, Body<f64>, [f64; 2])> {
             sweep::test_support::swept_elbow(Tol::witness()),
             [3e-3, 1e-2],
         ),
+        (
+            "filleted_hole_three_arcs",
+            crate::the_one_slit_band::filleted_plate(0.3, 1e-3, 3),
+            [1e-3, 3e-4],
+        ),
+        (
+            "filleted_hole_five_arcs",
+            crate::the_one_slit_band::filleted_plate(0.3, 5e-3, 5),
+            [3e-3, 1e-3],
+        ),
     ]
 }
 
@@ -352,6 +364,14 @@ const GOLDEN: &[(&str, [u64; 2])] = &[
     (
         "swept_elbow",
         [0xca97_2f70_8e56_d5a9, 0xe8f8_263b_c340_6dd9],
+    ),
+    (
+        "filleted_hole_three_arcs",
+        [0x4093_41dc_b499_5952, 0x72f0_8b60_2ed6_4ac5],
+    ),
+    (
+        "filleted_hole_five_arcs",
+        [0x3fa0_ec1e_8060_4c49, 0xf006_75e0_3bb3_dc82],
     ),
 ];
 

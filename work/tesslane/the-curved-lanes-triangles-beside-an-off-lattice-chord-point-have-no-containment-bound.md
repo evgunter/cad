@@ -22,16 +22,15 @@ A triangle beside such a point is no half cell, and nothing bounds it in closed 
 
 ## What is measured
 
-The curved lane's CDT runs in the lattice metric (`curved`'s module docs, "The lattice metric"). Over 498 one-slit fillet bands on main (`crates/mesh/tests/the_one_slit_band.rs`'s bodies: the revolved section and the fillet door's plate with holes of 2, 3 and 5 arcs; hole radius 0.05, 0.3, 0.9; fillet radius 5e-4 to 5e-2; δ 3e-2 to 1e-4), with 104 bands holding a slit point between rows:
+The curved lane's CDT runs in its lattice's metric (`curved`'s module docs, "The lattice metric"). Two corpora, each named with its figures:
 
-- every band triangle spans at most one lattice column in `u` and at most one and a half row gaps in `v` (the largest readings: `1.0000000000000981` columns, `1.5000000000001397` rows);
-- every band triangle lies within 0.89 δ of the torus by sampling;
-- none refuses. In raw UV, as the lane ran before, 42 of them refused `CertificateExceeded`, up to 83 times δ.
+- **This unit's sweep** (498 bands on main: the revolved section and the fillet door's plate with holes of 2, 3 and 5 arcs; hole radius 0.05, 0.3, 0.9; fillet radius 5e-4 to 5e-2; δ 3e-2 to 1e-4; 104 bands with a meridian point between rows): none refuses, where raw UV refused 42, up to 83 δ. Every band triangle samples within 0.89 δ of the torus.
+- **The review's sweep** (720 bands): raw UV refuses 32, up to 281 δ; none refuses in the metric. The worst certificate is 0.99 δ and the worst sampled deviation 0.927 δ.
 
-On PROFILE's branch (`profile/circle-lowers-to-one-segment`, its `edit_bore_two_rims` plate, 161 cells), the worst certificate over triangles with a corner on the slit between rows equals the worst over the lattice's own triangles to within 2 ulp in every cell that has such triangles: the triangles beside the off-row points tie the half cells and never exceed them.
+Across both, a triangle spans at most one lattice column, and at most `max(1, nv/m)` row gaps, `nv` the band's rows and `m` its meridian's chords. The review checked that rule on a synthetic CDT over m from 1 to 10, nv from 1 to 8 and residual aspect in [1/√2, √2]. The 1.5 rows of this unit's sweep is that bound for a slit of 2 chords on 3 rows: a meridian chord itself spans `nv/m` gaps, so it is a side of the boundary, not a reach past a cell. `crates/mesh/tests/the_one_slit_band.rs` pins the rule, read from each band's own counts.
 
-So one and a half rows is reached, not one: the triangles beside an off-row slit point leave their cell in `v`, and the torus's `v` term carries the slack (`cert::cert_torus` reads the triangle's parameter box).
+On PROFILE's branch (`profile/circle-lowers-to-one-segment`, its `edit_bore_two_rims` plate, 161 cells), the worst certificate over triangles beside the off-row points ties the worst lattice half cell to within 2 ulp in every cell that has such triangles.
 
 ## What closing it takes
 
-The lemma of `one-containment-lemma-for-an-oblique-boundary`, for an iso run whose points are not all lattice nodes: a bound on how far past its cell a constrained Delaunay triangle beside such a point reaches, in the lattice metric, and the curved lane's step solved against it. No headroom factor is to stand in for it.
+The lemma of `one-containment-lemma-for-an-oblique-boundary`, for an iso run whose points are not all lattice nodes: a bound on how far a constrained Delaunay triangle beside such a point reaches, in the lattice metric (the rule above, proved), and the curved lane's step solved against it. Where `m < nv`, a triangle on a meridian chord spans more than one row, which the half-cell theorem does not cover: the bound has to price that. No headroom factor is to stand in for it.

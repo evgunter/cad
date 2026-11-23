@@ -166,25 +166,39 @@
 //! its realized cell aspect to the nearest power of two), on every
 //! chart. It is never the trimmed lane's sphere choice, the chart's own
 //! metric at mid latitude: that is no lattice's spacing, and near a pole
-//! it is 8 to 32 times one. Delaunay is not stretch-invariant. A chord point the grid did not place (a
-//! meridian's, between two rows; a rim's, between two columns) has, in
-//! raw UV, an empty circle `√(t(1 − t))·a` cells wide across the
-//! lattice's long axis, `t` the point's fraction of its cell and `a`
-//! the cell's aspect: a thin torus band's lattice is `a ≈ √(R/r)`
-//! times taller than wide, and its meridian points joined rim points
-//! four columns away, seven times past δ. In the metric `a` is within
-//! `√2` of one and the circle under a cell wide, inside the premise of
-//! `sizing::sphere_grid_steps`' containment lemma (a cell aspect under
-//! `2√2` on either axis) on every chart. A sphere's counts keep that
-//! premise in raw UV too (a curved sphere face with rows reaches aspect
-//! 2.4, measured); the metric moves its cells nearer square and no
-//! further.
+//! it is 8 to 32 times one.
+//!
+//! Delaunay is not stretch-invariant. A chord point the grid did not
+//! place (a meridian's, between two rows; a rim's, between two columns)
+//! has, in raw UV, an empty circle `√(t(1 − t))·a` cells wide across the
+//! lattice's long axis, `t` the point's fraction of its cell and `a` the
+//! cell's aspect. A thin torus band's lattice is `a ≈ √(R/r)` times
+//! taller than wide, and a meridian of it whose chord count is not its
+//! row count (a whole turn's one slit, or a partial turn's two meridian
+//! edges) put points between the rows that joined rim points four
+//! columns away: 7.7 δ on PROFILE's filleted plate (R 0.305, r 0.005,
+//! δ 1e-3). In the metric `a` is within `√2` of one and the circle under
+//! a cell wide, inside the premise of `sizing::sphere_grid_steps`'
+//! containment lemma (a cell aspect under `2√2` on either axis) on every
+//! chart. A sphere's counts keep that premise in raw UV too (a curved
+//! sphere face with rows reaches aspect 2.4, measured over this crate's
+//! suite); the metric moves its cells nearer square and no further.
+//!
+//! The lane's other arguments about its triangulation are kept by the
+//! metric, which scales each axis by a positive constant and so keeps
+//! the order of points along each row and column and every midpoint:
+//! [`pole_columns`]' separation of the two pole entries (order and
+//! equidistance along `u`, and re-derived over every patch by the emit
+//! pass's census), and the ruled charts' strip argument
+//! (`sizing::sagitta_step`, stated for any axis scaling).
 //!
 //! **What is measured and not proved.** The theorem above bounds a
 //! lattice half cell; a triangle beside an off-lattice chord point has
-//! no containment bound, and the certificate is what holds it. Over the
-//! one-slit fillet bands of `tests/the_one_slit_band.rs` such a triangle
-//! reaches at most one column and one and a half rows
+//! no containment bound, and the certificate is what holds it. Measured
+//! (`tests/the_one_slit_band.rs`'s bands; the review's 720), such a
+//! triangle spans at most one column and at most `max(1, nv/m)` row
+//! gaps, `nv` the face's rows and `m` its meridian's chords: a meridian
+//! chord itself spans `nv/m`
 //! (`work/tesslane/the-curved-lanes-triangles-beside-an-off-lattice-chord-point-have-no-containment-bound.md`).
 
 use std::collections::HashMap;
