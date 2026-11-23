@@ -54,3 +54,12 @@ Its trigger, D′3 (PR 5636), merged at `29110056`. A PR number in `blocked_on` 
 Cut from DOORS into HELD (DOORS over budget at 52 of 30 once D′3's triggers fired; `work/doors/log.md`, 2026-11-01). Id and body unchanged. (DOORS orchestrator)
 
 Moved from HELD to DOORS on 2026-11-20, by `git mv`, when HELD merged into DOORS: HELD held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one DOORS carries.
+
+## Re-read (formwords/seat-vocab, PR 7374, 2026-11-22)
+
+Both halves are gone as of that PR. `blend_commit_row` folded into
+`tool_commit_row`, which now takes the tool's formed commit
+(`Result<ClickWork, CommitFault>`) and an optional `Clear picks` count.
+The blend op is formed every frame, so nothing at the click borrows the
+tools. The mate panel no longer has a commit row: the placement editor
+offers each change as it is made. Closing this row is DOORS' call.

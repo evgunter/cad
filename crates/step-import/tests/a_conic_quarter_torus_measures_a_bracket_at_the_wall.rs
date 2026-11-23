@@ -275,22 +275,32 @@ fn conic_quarter_step(tol: Tol, aspect: f64) -> String {
     // conic chart's u × v is the torus's inward normal, so each face
     // takes the opposite sense to its surface.
     let tori = records(&text, "TOROIDAL_SURFACE");
-    assert_eq!(tori.len(), 2, "the writer splits the wall at its equators");
+    let [(torus, _)] = tori[..] else {
+        panic!("the writer writes the wall's one surface once: {tori:?}")
+    };
+    let cites = format!(", #{torus}, .T.);");
+    let walls: Vec<&str> = records(&text, "ADVANCED_FACE")
+        .into_iter()
+        .filter(|(_, l)| l.contains(&cites))
+        .map(|(_, l)| l)
+        .collect();
+    assert_eq!(walls.len(), 2, "the writer splits the wall at its equators");
+    // Each half band is a surface entity of its own, cited by its face.
     let mut swaps: Vec<(String, String)> = Vec::new();
-    for (id, record) in tori {
-        let face = records(&text, "ADVANCED_FACE")
-            .into_iter()
-            .find(|(_, l)| l.contains(&format!(", #{id}, .T.);")))
-            .expect("the band's face")
-            .1;
+    for face in walls {
         let phi = if face_is_upper(&text, face) {
             (0.0, PI)
         } else {
             (PI, 2.0 * PI)
         };
         let band = conic_band(phi, aspect, &mut next, &mut extra);
-        swaps.push((record.to_owned(), format!("#{id} = {band};")));
-        swaps.push((face.to_owned(), face.replace(".T.);", ".F.);")));
+        let id = next;
+        next += 1;
+        extra.push_str(&format!("#{id} = {band};\n"));
+        swaps.push((
+            face.to_owned(),
+            face.replace(&cites, &format!(", #{id}, .F.);")),
+        ));
     }
     for rho in [R - MINOR, R + MINOR] {
         let (id, record) = records(&text, "CIRCLE")

@@ -504,7 +504,7 @@ fn collinear_walls() -> ProfileDoc {
         loops: vec![LoopProgram::Chain(vec![
             ProgramStep::At([len(0.0), len(0.0)]),
             // The DECLARED straight continuation: `LineTo` at a zero-turn
-            // junction is refused by the profile door (`JunctionTangent`
+            // junction is refused by the profile door (`JunctionTurnWithinTolerance`
             // — an undeclared zero-turn joint), so the split vertex is
             // authored the way the vocabulary spells it.
             ProgramStep::LineTo(ProgramTarget::Point([

@@ -2,10 +2,12 @@
 id: a-balls-seam-meridians-in-one-bracket-are-not-one-plane-so-its-pole-refuses-at-interval
 kind: issue
 title: A ball whose centre is a bracket stores its two seam meridians in one bracket, which is not one value, so no plane lists both and its pole refuses Departure at Interval
-status: open
+status: dispatched
 opened: 2026-11-13
 priority: P0
 cost: M
+pr: 7328
+branch: embed/one-plane
 ---
 
 
@@ -30,8 +32,8 @@ stores its centre as `[1.3999999999999997, 1.4000000000000001]`, because
 the profile arc's centre rounds. Its pole refuses
 `Uncertified { Departure }` on that ball's meridian, and
 `a_two_ball_union_holds_with_its_poles_read`
-(`crates/sweep/tests/self_intersection_proves_injectivity.rs`) pins the
-refusal. The unit ball's frame is all points, so its pole holds.
+(`crates/sweep/tests/self_intersection_proves_injectivity.rs`) pinned the
+refusal until 2026-11-21 (below). The unit ball's frame is all points, so its pole holds.
 
 Measured: if identical brackets are read as one value, the union holds
 at `Interval` too, in 579 pairs. That reading is not exact per member,
@@ -121,3 +123,21 @@ Should PR 7315 land, its plane through the pole reads them: on a merge of
 the two branches the review of PR 7328 measured a turned ball's
 `Interval` twin embedded at 315 / 0 / 312, and the apex-separator lane
 the snowman's small ball embedded at `Interval`. Re-measure this row then.
+
+## The snowman holds at Interval (lane `embed/apex-separator`, 2026-11-21)
+
+`departure` now also tries the plane through the pair's one shared
+vertex, each face presented against that vertex alone, where shared
+edges end there (`at_end_vertex`, `crates/topo/src/injective.rs`). At a
+pole that plane is `q` the pole's stored point and `n` from the faces'
+headings, so it vanishes at the pole for every member, whatever the
+meridians' brackets; each half-band's polar cell is its collapsed side
+there. The snowman at `Interval` holds in 579 pairs (f64: 563), the
+count this row measured for reading identical brackets as one value,
+without that reading. `a_two_ball_union_holds_with_its_poles_read` pins
+it holding at both scalars; red with the new arm off (the lane's
+mutant M1).
+
+What stays true: two meridians stored in one bracket are still not one
+plane, so the meridians' plane still lists its own alone. Whether
+anything else reads that plane at a pole is not measured.

@@ -118,7 +118,7 @@ fn split_at_point(doc: &editor_core::ProfileDoc, tol: Tol) -> BTreeMap<&'static 
 
 /// Two collinear consecutive walls are the one profile on which
 /// `side_planes_cosurface` is a true identity. Spelled with `LineTo`,
-/// the junction refuses as `JunctionTangent` at evaluation; the declared
+/// the junction refuses as `JunctionTurnWithinTolerance` at evaluation; the declared
 /// spelling, `ContinueTo`, builds them, and
 /// `m10_7_r2_probes_interval::r2_collinear_walls_should_discharge_side_planes_cosurface`
 /// measures the tier there. If the `LineTo` spelling ever builds, this
@@ -137,11 +137,12 @@ fn r1_collinear_walls_are_unauthorable_so_cosurface_stays_a_non_identity() {
         Some(editor_core::NodeErrorKind::ProfileReplay {
             loop_: 0,
             error:
-                profile::ReplayError {
-                    step: 2,
+                error @ profile::ReplayError {
                     kind: profile::ReplayErrorKind::Path(e),
+                    ..
                 },
-        }) if e.kind() == profile::PathErrorKind::JunctionTangent => {}
+        }) if error.step() == 2
+            && e.kind() == profile::PathErrorKind::JunctionTurnWithinTolerance => {}
         other => panic!(
             "the collinear junction refuses as tangent at step 2; got {other:?}: \
              if the walls now build, re-measure the census"
