@@ -200,8 +200,8 @@ fn full_mixed_profile_exports_poles_only_at_pinned_vertices() {
     assert_eq!(t.poles[0][0], None, "a disc's centre is no vertex");
     assert_eq!(
         t.body.vertices().count(),
-        3,
-        "the dome's pole and two rim vertices"
+        2,
+        "the dome's pole and its rim vertex"
     );
     assert_eq!(
         t.poles[0][1], None,

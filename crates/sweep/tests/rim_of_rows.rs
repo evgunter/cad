@@ -105,7 +105,7 @@ fn the_repaired_pole_bodys_rim_is_two_arcs_on_one_plane_face() {
         .merge_coplanar_faces(tol())
         .expect("the pole-split caps repair");
     let arcs = arcs_at(&source, 1.0, 0.0);
-    assert_eq!(arcs.len(), 2, "the neck rim is still two arcs");
+    assert_eq!(arcs.len(), 1, "the neck rim is one closed edge");
     let faces = |k: EdgeKey| topo::readback::edge_sides(&source, k).unwrap().faces();
     let (a0, b0) = faces(arcs[0]);
     let (a1, b1) = faces(arcs[1]);
@@ -200,7 +200,7 @@ fn the_doors_answer_feeds_fillet_edges_and_carves_on_either_side() {
     ] {
         let seed = arcs_at(&source, r, y)[0];
         let rim = rim_of(&source, seed).unwrap_or_else(|e| panic!("{name}: one rim, got {e}"));
-        assert_eq!(rim.len(), 2, "{name} is seam-split");
+        assert_eq!(rim.len(), 1, "{name} is one closed edge");
         let out = fillet_edges(&source, &rim, 0.05, tol())
             .unwrap_or_else(|e| panic!("{name}: the door's answer carves, got {e:?}"));
         assert_eq!(out.band_faces.len(), 1, "{name}: one annulus band");

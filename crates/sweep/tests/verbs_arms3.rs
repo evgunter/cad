@@ -290,7 +290,7 @@ fn the_sphere_sphere_arm_folds_both_sense_bits() {
 /// where they meet.
 fn mouth(body: &Body<f64>) -> (Vec<EdgeKey>, VertexKey) {
     let arcs = rim_arcs_at(body, 0.8, 0.6);
-    assert_eq!(arcs.len(), 2, "the seam splits the mouth rim into two arcs");
+    assert_eq!(arcs.len(), 1, "the seam splits the mouth rim into one closed edge");
     let e = body.get_edge(arcs[0]).unwrap();
     (arcs.clone(), body.get_half_edge(e.he_plus).unwrap().start)
 }

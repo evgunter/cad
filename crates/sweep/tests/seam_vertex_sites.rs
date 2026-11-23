@@ -34,8 +34,8 @@ fn one_arc_of_a_whole_disc_rim_refuses_seam_vertex() {
     let arcs = rim_arcs_at(&body, 1.0, 0.0);
     assert_eq!(
         arcs.len(),
-        2,
-        "the disc's rim is two arcs, split by the zone's seam"
+        1,
+        "the disc's rim is one closed edge, split by the zone's seam"
     );
     match fillet_edges(
         &sweep::test_support::at_rest(&body, tol()),

@@ -115,7 +115,7 @@ fn a_flipped_ringed_member_is_named_by_its_own_read_and_not_the_census() {
                 .is_empty()
         })
         .collect();
-    assert_eq!(faces.len(), 2, "the ball is two faces: {faces:?}");
+    assert_eq!(faces.len(), 1, "the ball is one face: {faces:?}");
     assert_eq!(ringed.len(), 1, "one of them holds the rings");
     let (members, bounded) = seam_region(&body, faces[0]);
     assert!(

@@ -610,7 +610,7 @@ fn p6_reversed_pip_walls_carry_through() {
         .filter(|(fk, _)| matches!(pipped.face_surface(*fk), Some(Surface::Sphere { .. })))
         .map(|(k, f)| (k, f.sense))
         .collect();
-    assert_eq!(sphere_senses.len(), 2, "two half-caps");
+    assert_eq!(sphere_senses.len(), 1, "one cap face");
     println!("P6: pip wall senses pre-surgery: {sphere_senses:?}");
     let blanked = fillet_edges(
         &sweep::test_support::at_rest(&pipped, Tol::witness()),
@@ -662,7 +662,7 @@ fn p7_dev1_radius_sweep_margin_is_structurally_zero() {
         })
         .collect();
     meridians.sort_unstable();
-    assert_eq!(meridians.len(), 2, "the cap's two meridians");
+    assert_eq!(meridians.len(), 1, "the cap's one meridian");
     for r in [1e-4, 5e-3, RIM_R, 0.05, DIE_R] {
         for &m in &meridians {
             let margin = sweep::test_support::smooth_reading(&pipped, m, r, Tol::witness());

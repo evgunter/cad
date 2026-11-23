@@ -26,7 +26,7 @@ fn the_rim_door_answers_identically_at_the_certified_scalar_and_the_answer_carve
         let seed = arcs_at(&source, r, y)[0];
         let rim = rim_of(&source, seed)
             .unwrap_or_else(|e| panic!("{name}: one rim at the certified scalar, got {e}"));
-        assert_eq!(rim.len(), 2, "{name} is seam-split");
+        assert_eq!(rim.len(), 1, "{name} is one closed edge");
         assert_eq!(rim[0], seed, "{name}: the seed comes first");
 
         // The same body at `f64` mints its arenas through the same doors

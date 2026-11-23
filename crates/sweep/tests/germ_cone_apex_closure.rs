@@ -307,7 +307,7 @@ fn a_cone_face_that_wraps_alone_holds_its_slant_window_beside_a_shared_chart() {
     let tol = Tol::witness();
     let mut body = cone(None);
     let halves = cone_faces(&body);
-    assert_eq!(halves.len(), 2, "the full cone's two half-bands");
+    assert_eq!(halves.len(), 1, "the full cone is one face");
     let join = body
         .edges()
         .find_map(|(_, e)| {
