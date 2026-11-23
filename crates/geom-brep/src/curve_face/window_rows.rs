@@ -119,7 +119,7 @@ fn a_graze_in_band_on_each_rung_is_a_window_over_its_reach() {
         // A line on a wall and on a sphere, `lift` off them along `y`.
         let l = Curve3::Line(geom::Line {
             origin: Point3::new(-2.0, 1.0 + lift, 0.0),
-            dir: Vec3::unit_x(),
+            dir: geom_core::UnitVec3::exact_x(),
         });
         let wall = Surface::Cylinder {
             frame: Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
@@ -178,7 +178,7 @@ fn a_graze_in_band_on_each_rung_is_a_window_over_its_reach() {
     let slope = 1e-4_f64;
     let l = Curve3::Line(geom::Line {
         origin: Point3::new(1.0, 0.0, 0.0),
-        dir: Vec3::new(0.0, slope, (1.0 - slope * slope).sqrt()),
+        dir: geom_core::UnitVec3::squared(Vec3::new(0.0, slope, (1.0 - slope * slope).sqrt())),
     });
     let wall = Surface::Cylinder {
         frame: Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
@@ -219,7 +219,7 @@ fn a_line_by_a_cones_apex_in_band_is_a_window_over_its_spread() {
     };
     let l = Curve3::Line(geom::Line {
         origin: Point3::new(-3.0, 3.0 * eps, 0.0),
-        dir: Vec3::unit_x(),
+        dir: geom_core::UnitVec3::exact_x(),
     });
     let span = (0.0, 6.0);
     let (window, why) = refused("apex", pose(&Span::new(&l, span), &cone, b));
@@ -816,7 +816,7 @@ fn a_line_cones_refused_slack_is_a_window_over_each_root() {
     let y = r - 1e-6;
     let l = Curve3::Line(geom::Line {
         origin: Point3::new(-2.0, y, 1.0),
-        dir: Vec3::unit_x(),
+        dir: geom_core::UnitVec3::exact_x(),
     });
     let depth = Dd::of(r).sub(Dd::of(y));
     let half = depth.mul(Dd::of(2.0 * r).sub(depth)).sqrt().to_f64();

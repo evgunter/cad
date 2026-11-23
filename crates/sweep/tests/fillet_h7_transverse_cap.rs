@@ -223,7 +223,7 @@ fn carve_and_check(source: &Body<f64>, what: &str) -> Blended<f64> {
                 panic!("{what}: a trimline is a line");
             };
             assert!(
-                dir.cross(axis).norm() < 1e-15,
+                dir.get().cross(axis).norm() < 1e-15,
                 "{what}: the trimline runs along the ruling"
             );
             let EdgeDescription::TangentIntersection { pair, .. } = c.description() else {

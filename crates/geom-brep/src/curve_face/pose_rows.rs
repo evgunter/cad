@@ -67,7 +67,10 @@ fn rim(r: f64, z: f64) -> Curve3<f64> {
 }
 
 fn line(origin: [f64; 3], dir: [f64; 3]) -> Curve3<f64> {
-    Curve3::line(Point3::from_array(origin), Vec3::from_array(dir))
+    Curve3::line(
+        Point3::from_array(origin),
+        geom_core::UnitVec3::squared(Vec3::from_array(dir)),
+    )
 }
 
 /// The span of `c` over the whole turn, or over `(t0, t1)` of a line.

@@ -330,7 +330,7 @@ impl<T: Decide> CylinderSpherePose<T> {
         };
         let (origin, axis, u_ref) = (
             cylinder_frame.origin(),
-            cylinder_frame.axis(),
+            cylinder_frame.axis_unit(),
             cylinder_frame.u_ref(),
         );
         let center = sphere_frame.origin();
@@ -340,7 +340,7 @@ impl<T: Decide> CylinderSpherePose<T> {
                     cylinder: cylinder.clone(),
                     sphere: sphere.clone(),
                     cylinder_first,
-                    axis,
+                    axis: axis.get(),
                     u_ref,
                     foot,
                     center,
@@ -389,7 +389,7 @@ impl<T: Decide> CylinderSpherePose<T> {
                 .map_err(|diag| PoseRefusal::Undecided { decision, diag })
         };
         // `axis` is unit by the surface's own invariant.
-        let (off, d) = square_part(center - origin, axis);
+        let (off, d) = square_part(center - origin, axis.get());
         let foot = center - off;
         let coaxial = pose(CsDecision::Coaxial, d)?;
         let stance = if coaxial.sign == Sign::Zero {
@@ -4128,7 +4128,7 @@ mod wiring {
                 pad_box(0.5, 1.0, None),
             ],
             runs: Vec::new(),
-            carrier: geom::Curve3::line(Point3::origin(), Vec3::unit_x()),
+            carrier: geom::Curve3::line(Point3::origin(), geom_core::UnitVec3::exact_x()),
             span: (0.0, 1.0),
             shape: super::ComponentShape::Open {
                 ends: super::ComponentEnds::default(),
@@ -4173,7 +4173,7 @@ mod wiring {
     /// Red against: the narrowest pad read, and the boxes read unwidened.
     #[test]
     fn a_site_reads_the_widest_pad_of_its_widened_boxes() {
-        use geom_core::{Point3, Vec3};
+        use geom_core::Point3;
         let pad_box = |lo: f64, hi: f64, pad: f64| super::PadBox {
             lo: [lo, -1e-2, -1e-2],
             hi: [hi, 1e-2, 1e-2],
@@ -4184,7 +4184,7 @@ mod wiring {
             witness: Point3::new(0.5, 0.0, 0.0),
             boxes: vec![pad_box(0.4, 0.6, 1e-3), pad_box(0.45, 0.55, 5e-3)],
             runs: Vec::new(),
-            carrier: geom::Curve3::line(Point3::origin(), Vec3::unit_x()),
+            carrier: geom::Curve3::line(Point3::origin(), geom_core::UnitVec3::exact_x()),
             span: (0.0, 1.0),
             shape: super::ComponentShape::Open {
                 ends: super::ComponentEnds::default(),
@@ -5035,7 +5035,7 @@ mod end_at_rows {
         CarriedComponent {
             carrier: Curve3::Line(Line {
                 origin: Point3::new(0.0, 0.0, 0.0),
-                dir: Vec3::new(1.0, 0.0, 0.0),
+                dir: geom::stated_direction(Vec3::new(1.0, 0.0, 0.0)),
             }),
             span: (0.0, 1.0),
             shape: ComponentShape::Open {

@@ -182,12 +182,12 @@ pub(super) fn line_method<T: Decide>(
                 ..
             },
         ) => {
-            let (apex, axis) = (cone_frame.origin(), cone_frame.axis());
+            let (apex, axis) = (cone_frame.origin(), cone_frame.axis_unit());
             let cone = geom::Line {
                 origin: apex,
                 dir: axis,
             };
-            let widen = T::from_f64(band.escalate()) / line.dir.norm();
+            let widen = T::from_f64(band.escalate());
             let mut walked = Walked::found(Vec::new());
             for (t, slack, held) in cone_roots_read(line, (cone, half_angle), (t0, t1), band) {
                 if held {
@@ -213,7 +213,7 @@ pub(super) fn line_method<T: Decide>(
                 ..
             },
         ) => {
-            let (center, axis) = (torus_frame.origin(), torus_frame.axis());
+            let (center, axis) = (torus_frame.origin(), torus_frame.axis_unit());
             let found = line_torus_roots(
                 line,
                 geom::Line {
@@ -343,7 +343,7 @@ pub(super) fn wall_quadratic<T: Decide>(
     let geom::Line { origin, dir: axis } = wall;
     let w0 = q - origin;
     let w0p = wall.offset(q);
-    let dp = d - axis * d.dot(axis);
+    let dp = d.get() - axis.get() * d.get().dot(axis.get());
     let a2 = dp.norm_squared();
     let shift = match about {
         About::Start => T::zero(),
@@ -353,7 +353,7 @@ pub(super) fn wall_quadratic<T: Decide>(
     };
     let w = w0p + dp * shift;
     Centred::new(
-        (w0, d, shift, w),
+        (w0, d.get(), shift, w),
         [a2, w.dot(dp), w.norm_squared() - radius.powi(2)],
         radius,
     )
@@ -369,15 +369,15 @@ pub(super) fn sphere_quadratic<T: Decide>(
 ) -> Centred<T> {
     let geom::Line { origin: q, dir: d } = line;
     let w0 = q - center;
-    let a2 = d.norm_squared();
+    let a2 = d.get().norm_squared();
     let shift = match about {
         About::Start => T::zero(),
-        About::Nearest => (T::zero() - w0.dot(d)) / a2,
+        About::Nearest => (T::zero() - w0.dot(d.get())) / a2,
     };
-    let w = w0 + d * shift;
+    let w = w0 + d.get() * shift;
     Centred::new(
-        (w0, d, shift, w),
-        [a2, w.dot(d), w.norm_squared() - radius.powi(2)],
+        (w0, d.get(), shift, w),
+        [a2, w.dot(d.get()), w.norm_squared() - radius.powi(2)],
         radius,
     )
 }
@@ -544,15 +544,15 @@ pub(super) fn line_cone_quadratic<T: Decide>(
     } = cone;
     let w0 = q - apex;
     let shift = line.param_within(apex, run);
-    let w = w0 + d * shift;
+    let w = w0 + d.get() * shift;
     let cos2 = half_angle.cos().powi(2);
-    let (da, wa) = (d.dot(axis), w.dot(axis));
+    let (da, wa) = (d.get().dot(axis.get()), w.dot(axis.get()));
     let coeffs = [
-        da.powi(2) - d.norm_squared() * cos2,
-        da * wa - w.dot(d) * cos2,
+        da.powi(2) - d.get().norm_squared() * cos2,
+        da * wa - w.dot(d.get()) * cos2,
         wa.powi(2) - w.norm_squared() * cos2,
     ];
-    Centred::new((w0, d, shift, w), coeffs, T::zero())
+    Centred::new((w0, d.get(), shift, w), coeffs, T::zero())
 }
 
 /// The certified roots of the LINE `q + d·t` against the sphere
@@ -664,14 +664,14 @@ pub fn line_torus_roots<T: Decide>(
     let four = T::from_f64(4.0);
     let ext = major_radius + minor_radius;
     let w0 = q - center;
-    let e = d.dot(axis);
-    let b = w0.dot(d);
+    let e = d.get().dot(axis.get());
+    let b = w0.dot(d.get());
     // The component of `q − c` perpendicular to the ray: its norm is the
     // line's distance from the centre and its axial part is the height
     // at the line's closest approach.
-    let perp = w0 - d * b;
+    let perp = w0 - d.get() * b;
     let m = perp.norm_squared();
-    let n = perp.dot(axis);
+    let n = perp.dot(axis.get());
     let rr = major_radius.powi(2);
     let big_m = m + rr - minor_radius.powi(2);
     let p = two * big_m - four * rr * (T::one() - e.powi(2));
@@ -830,8 +830,9 @@ pub fn line_cone_roots<T: Decide>(
 /// **The line × cone method**: a crossing line's two roots, from the
 /// quadratic about its closest approach to the apex held to the run,
 /// each metered (`line_quadric_cone_root_slack`): its slack along the
-/// line ([`Centred::roots`]' bound read at that root, at the line's
-/// speed), less the root's distance outside the run, must be definitely
+/// line ([`Centred::roots`]' bound read at that root, in metres, the
+/// line's parameter being arc length), less the root's distance outside
+/// the run, must be definitely
 /// inside the band. A root inside the run is placed within the band; one
 /// outside it is placed no nearer the run than the band, which is all a
 /// reader of the run reads of it.
@@ -868,14 +869,13 @@ fn cone_roots_read<T: Decide>(
     let centred = line_cone_quadratic(line, cone, half_angle, (lo, hi));
     let disc = centred.disc();
     let (roots, _) = centred.roots(disc);
-    let speed = line.dir.norm();
     roots.map(|t| {
         let slack = centred.slack_at(t - centred.shift, disc);
-        let outside = speed * (lo - t).max(t - hi).max(T::zero());
+        let outside = (lo - t).max(t - hi).max(T::zero());
         let held = matches!(
             decide(
                 "line_quadric_cone_root_slack",
-                Margin::of(speed * slack - outside),
+                Margin::of(slack - outside),
                 band
             ),
             Ok(Sign::Zero | Sign::Negative)
@@ -903,10 +903,13 @@ mod wall_root_rows {
     fn roots(q: Point3<f64>, d: Vec3<f64>, r: f64, span: f64) -> WallRoots<f64> {
         let z = Vec3::new(0.0, 0.0, 1.0);
         line_wall_roots(
-            geom::Line { origin: q, dir: d },
+            geom::Line {
+                origin: q,
+                dir: geom::stated_direction(d),
+            },
             geom::Line {
                 origin: Point3::new(0.0, 0.0, 0.0),
-                dir: z,
+                dir: geom::stated_direction(z),
             },
             r,
             span,
@@ -972,11 +975,11 @@ mod wall_root_rows {
                 let got = line_wall_roots(
                     geom::Line {
                         origin: Point3::new(qx, qy, 0.0),
-                        dir: d,
+                        dir: geom::stated_direction(d),
                     },
                     geom::Line {
                         origin: Point3::new(0.0, 0.0, 0.0),
-                        dir: z,
+                        dir: geom::stated_direction(z),
                     },
                     r,
                     span,
@@ -1015,8 +1018,14 @@ mod wall_root_rows {
             let o = Point3::new(0.0, 0.0, 0.0);
             let read = |about| {
                 line_wall_roots(
-                    geom::Line { origin: q, dir: d },
-                    geom::Line { origin: o, dir: z },
+                    geom::Line {
+                        origin: q,
+                        dir: geom::stated_direction(d),
+                    },
+                    geom::Line {
+                        origin: o,
+                        dir: geom::stated_direction(z),
+                    },
                     r,
                     4.0 * big,
                     band(),
@@ -1055,7 +1064,7 @@ mod wall_root_rows {
         let got = line_sphere_roots(
             geom::Line {
                 origin: Point3::new(x0, -big, 0.0),
-                dir: d,
+                dir: geom::stated_direction(d),
             },
             Point3::new(0.0, 0.0, 0.0),
             r,
@@ -1076,11 +1085,11 @@ mod wall_root_rows {
         let cone = line_cone_quadratic(
             geom::Line {
                 origin: Point3::new(0.6, -big, 1.0),
-                dir: d,
+                dir: geom::stated_direction(d),
             },
             geom::Line {
                 origin: Point3::new(0.0, 0.0, 0.0),
-                dir: Vec3::new(0.0, 0.0, 1.0),
+                dir: geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
             },
             core::f64::consts::FRAC_PI_4,
             (0.0, 2.0 * big),
@@ -1145,12 +1154,12 @@ mod line_cone_rows {
         let found = line_cone_roots(
             geom::Line {
                 origin: Point3::from_array(origin),
-                dir: Vec3::from_array(dir),
+                dir: geom::stated_direction(Vec3::from_array(dir)),
             },
             (
                 geom::Line {
                     origin: tip,
-                    dir: Vec3::new(0.0, 0.0, 1.0),
+                    dir: geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
                 },
                 core::f64::consts::FRAC_PI_4,
             ),
@@ -1166,6 +1175,14 @@ mod line_cone_rows {
         span: (f64, f64),
     ) -> Result<CircleRoots<f64>, Unsettled> {
         door(origin, dir, span).unwrap()
+    }
+
+    /// **A stated segment `origin + dir·t` over `span`, on its unit
+    /// direction**: the same points, its span in metres, and the
+    /// direction's length, the factor a root's metres are read back by.
+    fn unit_segment(dir: [f64; 3], span: (f64, f64)) -> ([f64; 3], (f64, f64), f64) {
+        let len = Vec3::from_array(dir).norm();
+        (dir.map(|x| x / len), (span.0 * len, span.1 * len), len)
     }
 
     /// `ρ² − h²` at `origin + dir·t`: the quadric form of the cone.
@@ -1267,14 +1284,14 @@ mod line_cone_rows {
         let cone = (
             geom::Line {
                 origin: Point3::new(0.0, 0.0, 0.0),
-                dir: Vec3::new(0.0, 0.0, 1.0),
+                dir: geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
             },
             core::f64::consts::FRAC_PI_4,
         );
         for (label, off, two) in [("outward", 1e-6, false), ("inward", -1e-6, true)] {
             let line = geom::Line {
                 origin: Point3::new(1.0, 0.0, 1.0) + n * off,
-                dir,
+                dir: geom::stated_direction(dir),
             };
             let near = line.param(cone.0.origin);
             let got = line_cone_roots(line, cone, (near - 1.0, near + 1.0), band);
@@ -1294,7 +1311,7 @@ mod line_cone_rows {
     fn bits_line(q: [u64; 3], d: [u64; 3]) -> geom::Line<f64> {
         geom::Line {
             origin: Point3::from_array(q.map(f64::from_bits)),
-            dir: Vec3::from_array(d.map(f64::from_bits)),
+            dir: geom::stated_direction(Vec3::from_array(d.map(f64::from_bits))),
         }
     }
 
@@ -1303,7 +1320,7 @@ mod line_cone_rows {
         (
             geom::Line {
                 origin: Point3::new(0.0, 0.0, 0.0),
-                dir: Vec3::new(0.0, 0.0, 1.0),
+                dir: geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
             },
             alpha,
         )
@@ -1437,16 +1454,18 @@ mod line_cone_rows {
             // is a small multiple of `δ`: in the band.
             ("in band of the apex", [-1.0, 0.05 * b.zero(), 0.3]),
         ] {
-            let got = roots(origin, [1.0, 0.0, -0.3], (0.0, 2.0));
+            let (dir, span, len) = unit_segment([1.0, 0.0, -0.3], (0.0, 2.0));
+            let got = roots(origin, dir, span);
             let Ok(CircleRoots::Certified(found)) = got else {
                 panic!("{label}: got {got:?}");
             };
             assert!(
-                found.roots().len() == 2 && found.roots().iter().all(|t| (t - 1.0).abs() < 1e-6),
+                found.roots().len() == 2 && found.roots().iter().all(|t| (t - len).abs() < 1e-6),
                 "{label}: a double root at the apex, got {found:?}"
             );
         }
-        let short = roots([-1.0, 0.0, 0.3], [1.0, 0.0, -0.3], (0.0, 0.5));
+        let (dir, span, _) = unit_segment([1.0, 0.0, -0.3], (0.0, 0.5));
+        let short = roots([-1.0, 0.0, 0.3], dir, span);
         assert!(
             matches!(short, Err(Unsettled::Tangency)),
             "a segment ending half a metre short of the apex, got {short:?}"
@@ -1469,7 +1488,8 @@ mod line_cone_rows {
                 [1.0, 0.0, 1.05],
             ),
         ] {
-            let got = roots(origin, dir, (0.0, 2.0));
+            let (dir, span, _) = unit_segment(dir, (0.0, 2.0));
+            let got = roots(origin, dir, span);
             assert!(
                 matches!(got, Err(Unsettled::AtApex)),
                 "through the apex, {label}: got {got:?}"
@@ -1496,32 +1516,32 @@ mod line_cone_rows {
                 1.0,
             ),
         ] {
-            let got = roots(origin, [1.0, 0.0, -0.3], span);
+            let (dir, span, len) = unit_segment([1.0, 0.0, -0.3], span);
+            let got = roots(origin, dir, span);
             let Ok(CircleRoots::Certified(found)) = got else {
                 panic!("{label}: got {got:?}");
             };
             assert!(
-                found.roots().len() == 2 && found.roots().iter().all(|&t| t == end),
+                found.roots().len() == 2 && found.roots().iter().all(|&t| t == end * len),
                 "{label}: a double root at the end, got {found:?}"
             );
         }
-        let ruling = roots([-1.0, 0.0, -1.0], [1.0, 0.0, 1.0], (0.0, 1.0));
+        let (dir, span, _) = unit_segment([1.0, 0.0, 1.0], (0.0, 1.0));
+        let ruling = roots([-1.0, 0.0, -1.0], dir, span);
         assert!(
             matches!(ruling, Err(Unsettled::Degenerate)),
             "a ruling ending at the apex, got {ruling:?}"
         );
-        let steep = roots(
-            [-1.0, 0.5 * b.zero(), -1.001],
-            [1.0, 0.0, 1.001],
-            (0.0, 1.0),
-        );
+        let (dir, span, _) = unit_segment([1.0, 0.0, 1.001], (0.0, 1.0));
+        let steep = roots([-1.0, 0.5 * b.zero(), -1.001], dir, span);
         assert!(
             matches!(steep, Err(Unsettled::AtApex)),
             "a line beside a generator ending in band of the apex, got {steep:?}"
         );
         // Its spread in the band's gap (about `2.3e-9` at the witness
         // band): the apex's, refused typed, never escalated.
-        let gap = roots([-1.0, 0.5 * b.zero(), -1.05], [1.0, 0.0, 1.05], (0.0, 1.0));
+        let (dir, span, _) = unit_segment([1.0, 0.0, 1.05], (0.0, 1.0));
+        let gap = roots([-1.0, 0.5 * b.zero(), -1.05], dir, span);
         assert!(
             matches!(gap, Err(Unsettled::AtApex)),
             "a spread in the escalation band, got {gap:?}"
@@ -1586,11 +1606,14 @@ mod line_cone_rows {
                             .filter(inside)
                             .collect();
                         match line_cone_roots(
-                            geom::Line { origin, dir: axis },
+                            geom::Line {
+                                origin,
+                                dir: geom::stated_direction(axis),
+                            },
                             (
                                 geom::Line {
                                     origin: apex,
-                                    dir: axis,
+                                    dir: geom::stated_direction(axis),
                                 },
                                 alpha,
                             ),
@@ -1675,7 +1698,7 @@ pub mod fixtures {
     pub fn oblique_through_the_tube(rr: f64, rm: f64) -> geom::Line<f64> {
         geom::Line {
             origin: Point3::new(rr + 3.0 * rm, 2.0 * rm, -0.7 * rm),
-            dir: Vec3::new(-0.8, -0.33, 0.31).normalize(),
+            dir: geom_core::UnitVec3::squared(Vec3::new(-0.8, -0.33, 0.31)),
         }
     }
 }
