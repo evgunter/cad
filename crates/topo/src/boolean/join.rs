@@ -6060,7 +6060,17 @@ mod holding_rows {
         );
         let band = Band::new(1e-9, 1e-8).unwrap();
         let half = 0.5 * (band.zero() + band.escalate());
-        let (body, _, _) = half_disc_cap(0.0, tol);
+        // The lamina's back face, left pending by the fixture, described
+        // as a spline patch through the cap's plane: a face whose trim
+        // the door does not read.
+        let (mut body, _, _) = half_disc_cap(0.0, tol);
+        crate::fixtures::describe_pending_as(
+            &mut body,
+            &crate::fixtures::patch_spanning(
+                Point3::new(-1.0, -1.0, 0.0),
+                Point3::new(1.0, 1.0, 0.0),
+            ),
+        );
         let held = holding_face_normal((&body, Operand::A), Point3::new(0.0, 0.5, half), band);
         assert!(
             matches!(&held, Ok(Err(why @ HoldingUnread::Trim))
@@ -7859,7 +7869,7 @@ mod face_surface_tests {
         let reads: Vec<usize> = [
             "get_surface(",
             ".face_surface(",
-            ".described()",
+            ".expect_described()",
             "carrier_surface(",
         ]
         .iter()

@@ -234,6 +234,9 @@ fn chart_region_errors() -> Vec<ChartRegionError> {
                 geom::cover::Unknown::Unbounded,
             ),
         )),
+        ChartRegionError::PendingFace {
+            face: crate::FaceKey::default(),
+        },
         ChartRegionError::Corrupt,
     ];
     v.push(ChartRegionError::ChartDivergence {
@@ -302,6 +305,7 @@ fn point_in_solid_errors() -> Vec<crate::solid_contain::PointInSolidError> {
             cause: OffPlaneCause::NormalNotUnit,
         })),
         S::CorruptFace { face },
+        S::PendingFace { face },
         S::KindUnsupported {
             face,
             kind: geom::SurfaceKind::Nurbs,

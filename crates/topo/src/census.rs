@@ -2662,8 +2662,9 @@ impl WedgeRefusal {
 
 /// Every reason [`WedgeRefusal::Unread`] carries, for the samples.
 #[cfg(any(test, feature = "test-support"))]
-pub(crate) const WEDGE_UNREAD: [TouchUnread; 6] = [
+pub(crate) const WEDGE_UNREAD: [TouchUnread; 7] = [
     TouchUnread::Curved(CurvedUnread::Unreadable),
+    TouchUnread::PendingFace,
     TouchUnread::NormalFault(NormalAbort::KernelFault),
     TouchUnread::NormalFault(crate::face_normal::NORMAL_INVALID_INPUTS[0]),
     TouchUnread::NormalFault(crate::face_normal::NORMAL_INVALID_INPUTS[1]),

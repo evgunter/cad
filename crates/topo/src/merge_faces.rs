@@ -4708,7 +4708,7 @@ mod tests {
             face: FaceKey::default(),
         });
         assert!(
-            poisoned.contains("poison") && poisoned.contains("Body::set_face_surface"),
+            poisoned.contains("not a finite number") && poisoned.contains("Body::set_face_surface"),
             "the poisoned refusal names its recourse: {poisoned}"
         );
     }

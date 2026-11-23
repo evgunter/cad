@@ -4992,6 +4992,16 @@ mod tests {
     fn a_cone_sector_off_the_apex_is_the_faces_outward_normal() {
         let alpha = 0.5_f64;
         let (mut body, face) = crate::boxes::tests::cone_wall(alpha, 0.0, 1.0, 0.5, 1.0);
+        // The lamina's other face is left pending by the fixture, which no
+        // boolean operand holds: a spline patch stands in, whose sectors
+        // the walk refuses and this row skips.
+        crate::fixtures::describe_pending_as(
+            &mut body,
+            &crate::fixtures::patch_spanning(
+                Point3::new(-2.0, -2.0, 0.0),
+                Point3::new(2.0, 2.0, 1.0),
+            ),
+        );
         let vertices: Vec<VertexKey> = body.vertices.keys().collect();
         for sense in [true, false] {
             body.set_face_sense(face, sense).unwrap();
