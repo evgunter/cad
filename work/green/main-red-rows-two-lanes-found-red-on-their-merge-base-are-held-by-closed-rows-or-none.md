@@ -110,10 +110,11 @@ slow-set step, at the default ε (run 45051677551), so its 1e-6 and
 | `editor-core m10_sym_profile_interval::the_forms_the_plates_walks_build_are_pinned` | none | green at all three ε on current main since PR 7389's re-pin; nothing to hold |
 | `topo ring_path::spline_fuzz::a_path_across_a_carried_loop_reads_the_membership_parity` (PR 7344's first further red, 1e-6) | none | green at all three ε: PR 7383 pinned the sliver pose's refusal at 1e-6 against `work/sectarms/a-sliver-loop-that-carried-as-a-clamped-fit-refuses-its-tube-as-a-periodic-one-at-a-coarse-band.md` (P1), which names it |
 | `topo::all a_seamless_pipe_cut_by_an_oblique_plane_measures::a_seamless_pipe_cut_by_an_oblique_plane_encloses_its_closed_form_at_interval` (PR 7344's second, 1e-12) | 1e-12 | `work/green/main-red-a-seamless-pipes-curved-junction-row-is-red-at-eps-1e-12.md` (P0): one payload with its junction sibling, added there |
-| `editor-core split_pinch_keeps::the_kite_moats_subtract_names_its_edges_where_its_result_stands` | all three until this PR | re-blessed here (below) |
+| `editor-core split_pinch_keeps::the_kite_moats_subtract_names_its_edges_where_its_result_stands` | all three | `work/green/main-red-the-kite-moats-digest-moved-in-value-at-pr-7411.md` (P0): spelling only at PR 7131, values at PR 7411 (below) |
 
-**The kite moat.** Its evaluation digest reads `0x5f8d_d6d3_ab59_87de`
-at every ε where `0xa4d9_ab2a_eaf0_bd50` is pinned. Bisected on hosted
+**The kite moat, at PR 7131.** Its evaluation digest read
+`0x5f8d_d6d3_ab59_87de` at every ε where `0xa4d9_ab2a_eaf0_bd50` is
+pinned. Bisected on hosted
 CI: green at `e30349eab8` (PR 7131's first parent), red at
 `9bc9d6517b` (the merge of PR 7131, `onehome/carrier-frames`) with
 main's digest to the bit, so no later merge moved it. PR 7206 added the
@@ -126,11 +127,22 @@ values bit-identical everywhere except a blend's squaring. The kite
 fixture has no blend: a block, a pocket and a moat extruded, subtracted
 and split. The placed-and-moved name guard on the same fixture
 (`the_kite_moats_cuts_name_alike_placed_and_moved`) is green before and
-after. So the new reading is right, and it is re-blessed.
+after. So the reading 7131 moved is right.
+
+**The kite moat, at PR 7411** (GREEN U14, 2026-11-23). By the time this
+PR's head merged main `9eb483e0c7` the digest read `0xfe07_0805_06b3_9e32`
+instead, and a chunk dump bisected that second move to PR 7411
+(`germ/plane-pose-far-frame`, `3547fe5764`, the re-posed
+`plane_offset`). It moved values, not spelling: certificate residuals
+and last-ulp line origins, directions and ends. So this PR does not
+re-pin the row. It stays red on main, held by
+`main-red-the-kite-moats-digest-moved-in-value-at-pr-7411`, which
+carries both moves' evidence.
 
 ## Closed (GREEN orchestrator, 2026-11-22)
 
 Every red the reports listed is now held by a live row that names it,
-or is green on main, or is re-blessed here (the table above). PR 7400's
-STYLE review confirmed the kite moat's move is spelling only, by
-dumping the digest's chunks on both sides of PR 7131.
+or is green on main (the table above). PR 7400's STYLE review confirmed
+the kite moat's PR 7131 move is spelling only, by dumping the digest's
+chunks on both sides of PR 7131; its PR 7411 move is not, and its own
+row holds it.
