@@ -208,20 +208,6 @@ pub(super) fn certifies_projected(
     span: (f64, f64),
     surface: &Surface<f64>,
 ) -> (f64, f64, f64) {
-    certifies_projected_at(what, carrier, span, surface, None)
-        .unwrap_or_else(|| unreachable!("{what}: no pin, so it certifies"))
-}
-
-/// [`certifies_projected`], or `None` where `pin` names the margin band
-/// its `Interval` certificate is pinned to escalate `pcurve_envelope` in
-/// at ε 1e-12 ([`super::frame_cost`]).
-pub(super) fn certifies_projected_at(
-    what: &str,
-    carrier: &Curve3<f64>,
-    span: (f64, f64),
-    surface: &Surface<f64>,
-    pin: Option<(f64, f64)>,
-) -> Option<(f64, f64, f64)> {
     let (at_f64, at_interval) = derived(carrier, span, surface);
     let image = at_f64.unwrap_or_else(|e| panic!("{what}: derives at f64: {e:?}"));
     let image_i = at_interval.unwrap_or_else(|e| panic!("{what}: derives at Interval: {e:?}"));
@@ -245,17 +231,7 @@ pub(super) fn certifies_projected_at(
         &surface.map_scalar(f),
         band(),
     );
-    let cache_i = match (
-        cache_i,
-        pin.filter(|_| super::frame_cost::at_the_least_band()),
-    ) {
-        (Err(e), Some(band)) if super::frame_cost::envelope_escalates(&e, band) => return None,
-        (got, Some(band)) => panic!(
-            "{what}: pinned to escalate pcurve_envelope in {band:?} at Interval at ε 1e-12: {:?}",
-            got.map(|_| ())
-        ),
-        (got, None) => got.unwrap_or_else(|e| panic!("{what}: certifies at Interval: {e:?}")),
-    };
+    let cache_i = cache_i.unwrap_or_else(|e| panic!("{what}: certifies at Interval: {e:?}"));
     let (envelope, hi) = (
         cache.certificate().envelope,
         cache_i.certificate().envelope.hi(),
@@ -274,7 +250,7 @@ pub(super) fn certifies_projected_at(
     if sup > zero() / 2.0 {
         covers(what, &image, span, carrier, surface, envelope, hi);
     }
-    Some((envelope, hi, sup))
+    (envelope, hi, sup)
 }
 
 /// The class reading lands in band: the closed-form derivation escalates

@@ -6,10 +6,10 @@
 //!   (ASSERTS): the drive's serialization, door on and off, on every
 //!   M10 fixture this test crate can build — claim 1 / claim 5 at
 //!   document scale, at whichever ε this process was built with.
-//! - `r2_circle_at_is_the_old_arm_at_f64_and_contains_it_at_interval`
+//! - `r2_circle_at_is_the_old_arm_at_f64_and_both_hold_the_circle_at_interval`
 //!   (ASSERTS): D13's delegation against a transcription of the merge
-//!   base's arm, bit for bit at `f64`, and a containment smoke at
-//!   `Interval`.
+//!   base's arm, bit for bit at `f64`, and at `Interval` both arms
+//!   holding the circle at the box's midpoint.
 //! - `r2_link_end_to_end_with_and_without_the_door` (ASSERTS + prints):
 //!   R2's own arc-bearing document — a SLOTTED LINK (an obround outline
 //!   whose two ends are SEMICIRCLES (tangent arcs, bulge 1, `param_end = π`)
@@ -365,15 +365,19 @@ fn r2_the_door_moves_nothing_but_the_receipt_on_every_m10_fixture() {
 /// **D13, checked**: `Curve3::circle_at` computes what the merge base's
 /// `eval` arm computed, bit for bit, at `f64`. At `Interval` the clause
 /// is a containment smoke, not a pin: the frame is squared at the
-/// scalar, an enclosure of the rotation the boxed vectors state, and the
-/// row checks that it contains the old arm's reading of the same boxed
-/// vectors at every component. The old
+/// scalar by the bracket squaring's centered form, an enclosure of the
+/// rotation the boxed vectors state, and the old arm reads the same
+/// boxed vectors bare; the row checks that each holds the exact circle
+/// point of the box's midpoint at every component. (The new arm once
+/// contained the old: the plain squaring was wider than the bare
+/// vectors. The centered form is narrower, so neither contains the
+/// other in general.) The old
 /// arm (`crates/geom/src/curves.rs` at d1149b07d) was
 /// `let radial = azimuth::frame(*axis, *u_ref, t).radial.0; *center +
 /// radial * *radius`, with `frame` = `(s, c) = t.sin_cos(); v_ref =
 /// axis × u_ref; radial = u_ref·c + v_ref·s` — transcribed here.
 #[test]
-fn r2_circle_at_is_the_old_arm_at_f64_and_contains_it_at_interval() {
+fn r2_circle_at_is_the_old_arm_at_f64_and_both_hold_the_circle_at_interval() {
     use geom::Curve3;
     use geom_core::{Bounds, Interval, Point3, Real, Vec3};
 
@@ -421,20 +425,37 @@ fn r2_circle_at_is_the_old_arm_at_f64_and_contains_it_at_interval() {
     let u0 = Vec3::new(iv(0.8), iv(0.6), iv(0.0));
     let u_ref = (u0 - axis * u0.dot(axis)).normalize();
     let center = Point3::new(iv(1.0e-3), iv(-2.0e-3), iv(0.5e-3));
+    // The box's midpoint, stated as points: the old arm's formula there
+    // encloses the exact circle point of the midpoint inputs, to its own
+    // rounding.
+    let pt = Interval::from_f64;
+    let axis_m = Vec3::new(pt(0.3), pt(-0.4), pt(0.866)).normalize();
+    let u0_m = Vec3::new(pt(0.8), pt(0.6), pt(0.0));
+    let u_ref_m = (u0_m - axis_m * u0_m.dot(axis_m)).normalize();
+    let center_m = Point3::new(pt(1.0e-3), pt(-2.0e-3), pt(0.5e-3));
     for t in [0.0_f64, 0.7, 1.9, 4.0 * (2.5_f64).atan()] {
-        let t = iv(t);
         // At `Interval` the frame is an enclosure of the rotation its
         // three boxed vectors state, squared at the scalar
-        // (`geom::Frame::new`): it contains the old arm's bare vectors'
-        // reading and is no longer that reading bit for bit, so the row
-        // holds the old arm inside the new at every component.
-        let a = Curve3::circle_at(&geom::Frame::new(center, axis, u_ref), iv(0.8e-3), t);
-        let b = old_arm(center, axis, iv(0.8e-3), u_ref, t);
-        for (got, old, c) in [(a.x, b.x, "x"), (a.y, b.y, "y"), (a.z, b.z, "z")] {
-            assert!(
-                got.lo() <= old.lo() && old.hi() <= got.hi(),
-                "Interval at t = {t:?}: {c} {got:?} does not contain the old arm's {old:?}"
-            );
+        // (`geom::Frame::new`, the bracket squaring's centered form), and
+        // the old arm reads the bare vectors: two enclosures of the same
+        // circle over the box, neither inside the other in general. The
+        // row holds each to the exact point at the box's midpoint, within
+        // that point reading's own width.
+        let a = Curve3::circle_at(&geom::Frame::new(center, axis, u_ref), iv(0.8e-3), iv(t));
+        let b = old_arm(center, axis, iv(0.8e-3), u_ref, iv(t));
+        let m = old_arm(center_m, axis_m, pt(0.8e-3), u_ref_m, pt(t));
+        for (got, old, at, c) in [
+            (a.x, b.x, m.x, "x"),
+            (a.y, b.y, m.y, "y"),
+            (a.z, b.z, m.z, "z"),
+        ] {
+            let slack = at.hi() - at.lo();
+            for (what, e) in [("the new arm", got), ("the old arm", old)] {
+                assert!(
+                    e.lo() <= at.lo() + slack && at.hi() - slack <= e.hi(),
+                    "Interval at t = {t}: {c}: {what} {e:?} does not hold the midpoint's {at:?}"
+                );
+            }
         }
     }
 }

@@ -32,6 +32,15 @@
 //! (`work/pcert/pcurve-envelope-escalates-at-interval-on-a-wide-arc.md`,
 //! reopened).
 //!
+//! **Since a bracket frame squares by its centered form**
+//! (`geom_core::RigidMotion::squared`), the wall frames built at
+//! `Interval` from the profile's bracketed directions carry their inputs'
+//! width rather than the plain squaring's dependency width, and the
+//! three `l = 50, b = 1e-4` cells certify at 1e-9 again. At 1e-12 four
+//! extrude refusals at `off = 600` certify: `l = 1e-3` at `b` 1e-4, 1e-3
+//! and 1e-2, and `l = 0.1, b = 1e-2`. With the centered form switched
+//! off the census is the one it replaced, cell for cell.
+//!
 //! At 1e-12 the `off = 600, l = 0.1, b = 1e-4` cell passes validation:
 //! the arc and its neighbour's crossing is their shared vertex, which
 //! the line's span reads in band at this width, and the segments' ends
@@ -96,8 +105,8 @@ fn the_shallow_arc_grid_census_is_mains_at_every_eps_row() {
     // (certifies, profile refuses, extrude refuses, geometry refuses)
     let want: (usize, usize, usize, usize) = match eps {
         1e-6 => (51, 9, 0, 0),
-        1e-9 => (51, 6, 3, 0),
-        1e-12 => (24, 21, 15, 0),
+        1e-9 => (54, 6, 0, 0),
+        1e-12 => (28, 21, 11, 0),
         _ => return,
     };
     let mut got = (0, 0, 0, 0);

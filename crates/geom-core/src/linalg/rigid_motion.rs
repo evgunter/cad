@@ -1246,8 +1246,10 @@ impl<T: Real> RigidMotion<T> {
     /// point of the box plus its derivatives over the box times the box's
     /// reach from it, met with the plain evaluation. It encloses the frame
     /// every point of the box squares to and is never wider than the
-    /// plain one; the plain one's dependency widens each step, about four
-    /// times over at the widths a bracket carries.
+    /// plain one, whose dependency widens each step: over brackets of
+    /// half-widths `10⁻¹²` to `10⁻⁶` the plain frame's widest entry is a
+    /// median 4.4 times the centered one's (the width row,
+    /// `a_bracket_frames_squaring_is_never_wider_than_the_plain_and_narrower_where_it_counts`).
     #[must_use]
     pub fn squared(origin: Point3<T>, w: Vec3<T>, u: Vec3<T>) -> Self {
         if let Some(stated) = Self::squared_as_stated(w, u) {
@@ -1299,6 +1301,19 @@ impl<T: Real> RigidMotion<T> {
             w,
         }
     }
+}
+
+/// The columns `[u, v, w]` of [`RigidMotion::squared_about`] of `w`
+/// squared, at any scalar: the plain squaring, the one formula both of
+/// the centered form's evaluations run ([`Real::square_frame`]).
+pub(crate) fn squared_columns<T: Real>(w: [T; 3], u: [T; 3]) -> [[T; 3]; 3] {
+    let w = UnitVec3::squared(Vec3::new(w[0], w[1], w[2]));
+    let frame = RigidMotion::squared_about(Point3::origin(), w, Vec3::new(u[0], u[1], u[2]));
+    let column = |d: UnitVec3<T>| {
+        let v = d.get();
+        [v.x, v.y, v.z]
+    };
+    [column(frame.u), column(frame.v), column(frame.w)]
 }
 
 impl<T: Real> RigidMotion<T> {
@@ -2533,8 +2548,18 @@ mod tests {
         Vec3::new(at(c.x), at(c.y), at(c.z))
     }
 
-    /// Two directions a frame squares from: unit-ish, off parallel.
-    fn bracket_pair(rng: &mut test_utils::fuzz::Rng) -> (Vec3<f64>, Vec3<f64>) {
+    /// How a draw's two directions stand: ordinary (unit-ish, well off
+    /// parallel), near-parallel (`u` a part `10⁻⁹` to `10⁻²` of its length
+    /// off `w`), or far from unit (each scaled by `10⁻³` to `10³`).
+    #[derive(Clone, Copy, PartialEq)]
+    enum Pair {
+        Ordinary,
+        NearParallel,
+        OffUnit,
+    }
+
+    /// Two directions a frame squares from, standing as `pair`.
+    fn bracket_pair(rng: &mut test_utils::fuzz::Rng, pair: Pair) -> (Vec3<f64>, Vec3<f64>) {
         loop {
             let mut v = || {
                 Vec3::new(
@@ -2545,9 +2570,30 @@ mod tests {
             };
             let (w, u) = (v(), v());
             let (nw, nu) = (w.norm(), u.norm());
-            if nw > 0.3 && nu > 0.3 && (w.dot(u) / (nw * nu)).abs() < 0.9 {
-                return (w, u);
+            if !(nw > 0.3 && nu > 0.3 && (w.dot(u) / (nw * nu)).abs() < 0.9) {
+                continue;
             }
+            return match pair {
+                Pair::Ordinary => (w, u),
+                Pair::NearParallel => {
+                    let off = u - w * (w.dot(u) / (nw * nw));
+                    let part = 10f64.powf(rng.range(-9.0, -2.0));
+                    (w, w + off * (part * nw / off.norm()))
+                }
+                Pair::OffUnit => (
+                    w * 10f64.powf(rng.range(-3.0, 3.0)),
+                    u * 10f64.powf(rng.range(-3.0, 3.0)),
+                ),
+            };
+        }
+    }
+
+    /// The draw `i`'s standing: one in two ordinary, the rest split.
+    fn pair_of(i: usize) -> Pair {
+        match i % 4 {
+            0 | 1 => Pair::Ordinary,
+            2 => Pair::NearParallel,
+            _ => Pair::OffUnit,
         }
     }
 
@@ -2562,7 +2608,8 @@ mod tests {
 
     /// **A bracket frame's squaring holds every point of its box**: over
     /// bracket boxes of half-widths `10⁻¹⁶` to `10⁻²` about random
-    /// direction pairs, the frame [`RigidMotion::squared`] answers holds,
+    /// direction pairs (ordinary, near-parallel and far from unit,
+    /// [`Pair`]), the frame [`RigidMotion::squared`] answers holds,
     /// entry by entry, the plain squaring of each corner of the box and
     /// of points inside it, each an enclosure of the exact frame that
     /// point squares to, a few ulps wide. That enclosure is the oracle's
@@ -2578,7 +2625,7 @@ mod tests {
         let mut rng = fuzz::start("rigid_motion::bracket_squaring::containment");
         let origin = Point3::origin().map(Interval::from_f64);
         for i in 0..fuzz::scaled(3_000) {
-            let (w, u) = bracket_pair(&mut rng);
+            let (w, u) = bracket_pair(&mut rng, pair_of(i));
             let (bw, bu) = (
                 bracket_box(&mut rng, w, -16.0, -2.0),
                 bracket_box(&mut rng, u, -16.0, -2.0),
@@ -2625,9 +2672,13 @@ mod tests {
     /// over boxes of half-widths `10⁻¹²` to `10⁻⁶`, where a bracket
     /// frame's width is its inputs' and not its rounding's, the median
     /// ratio of the widest entry to the plain one's is at most
-    /// [`CENTERED_WIDTH_RATIO`]. Red where the meet with the plain
-    /// evaluation is dropped (wider than the plain on some box) and where
-    /// the centered form is dropped (ratio 1).
+    /// [`CENTERED_WIDTH_RATIO`] over the ordinary pairs. Red where the
+    /// meet with the plain evaluation is dropped (wider than the plain on
+    /// some box) and where the centered form is dropped (ratio 1). With
+    /// the derivative term dropped this row's inside-the-plain half can
+    /// stay green (the midpoint's frame alone is narrow, inside the plain
+    /// one wherever the box is small) and the median reads near zero: that
+    /// mutant is the containment row's to catch.
     #[test]
     fn a_bracket_frames_squaring_is_never_wider_than_the_plain_and_narrower_where_it_counts() {
         use test_utils::fuzz;
@@ -2637,7 +2688,8 @@ mod tests {
         let widest = |a: [Interval; 9]| a.iter().fold(0f64, |m, x| m.max(x.hi() - x.lo()));
         let mut ratios = Vec::new();
         for i in 0..fuzz::scaled(3_000) {
-            let (w, u) = bracket_pair(&mut rng);
+            let pair = pair_of(i / 2);
+            let (w, u) = bracket_pair(&mut rng, pair);
             let narrow = i % 2 == 0;
             let (lo, hi) = if narrow { (-12.0, -6.0) } else { (-16.0, -2.0) };
             let (bw, bu) = (
@@ -2660,7 +2712,7 @@ mod tests {
                     p.hi()
                 );
             }
-            if narrow {
+            if narrow && pair == Pair::Ordinary {
                 ratios.push(widest(got) / widest(plain));
             }
         }
@@ -2675,6 +2727,63 @@ mod tests {
             median <= CENTERED_WIDTH_RATIO,
             "median width ratio {median:.3} over {CENTERED_WIDTH_RATIO}"
         );
+    }
+
+    /// **A bracket box reaching a zero length answers the plain
+    /// squaring**: where the box holds a `w` of zero length, or a `u`
+    /// whose part square to `w` reaches zero (`u`'s box `w`'s, or `−w`'s),
+    /// the centered form's derivatives are unbounded, so each entry of
+    /// that form that is not a finite enclosure falls back to the plain
+    /// evaluation's: every entry the plain Gram–Schmidt leaves unbounded
+    /// (a degenerate column) is the plain reading bit for bit, and every
+    /// other entry lies inside it (a column of nonzero length is still
+    /// narrowed). Red where the fallback is dropped (the meet of an
+    /// uncertified entry is NaI, not the plain reading).
+    #[test]
+    fn a_bracket_box_reaching_a_zero_length_answers_the_plain_squaring() {
+        let origin = Point3::origin().map(Interval::from_f64);
+        let b = |x: f64| Interval::from_bounds(x - 1e-9, x + 1e-9);
+        let dir = Vec3::new(b(0.6), b(0.8), b(0.0));
+        let flip = Vec3::new(b(-0.6), b(-0.8), b(0.0));
+        let zero = Vec3::new(b(0.0), b(0.0), b(0.0));
+        for (what, w, u) in [
+            ("u's box w's", dir, dir),
+            ("u's box −w's", dir, flip),
+            (
+                "w's box holds zero",
+                zero,
+                Vec3::new(b(1.0), b(0.0), b(0.0)),
+            ),
+        ] {
+            let got = entries(&RigidMotion::squared(origin, w, u));
+            let plain = entries(&RigidMotion::squared_about(origin, UnitVec3::squared(w), u));
+            assert!(
+                plain.iter().any(|p| !p.is_certified()),
+                "{what}: the box reaches a zero length, so some plain entry is unbounded"
+            );
+            for (j, (g, p)) in got.iter().zip(plain).enumerate() {
+                if p.is_certified() {
+                    assert!(
+                        p.lo() <= g.lo() && g.hi() <= p.hi(),
+                        "{what}, entry {j}: [{:e}, {:e}] is not inside the plain [{:e}, {:e}]",
+                        g.lo(),
+                        g.hi(),
+                        p.lo(),
+                        p.hi()
+                    );
+                } else {
+                    assert_eq!(
+                        (g.lo().to_bits(), g.hi().to_bits()),
+                        (p.lo().to_bits(), p.hi().to_bits()),
+                        "{what}, entry {j}: [{:e}, {:e}] is not the plain unbounded [{:e}, {:e}]",
+                        g.lo(),
+                        g.hi(),
+                        p.lo(),
+                        p.hi()
+                    );
+                }
+            }
+        }
     }
 
     /// The witness tolerance's linear band, shared by this module's
@@ -5090,15 +5199,4 @@ mod least_turn_spelling_probe {
             "Dual<f64>"
         );
     }
-}
-
-/// The columns `[u, v, w]` [`RigidMotion::squared`] forms from `w` and
-/// `u` at any scalar, by the plain formula (`squared_about` of `w`
-/// squared): the centered enclosure's inner evaluation.
-pub(crate) fn squared_columns<T: Real>(w: [T; 3], u: [T; 3]) -> [[T; 3]; 3] {
-    let a = Vec3::new(w[0], w[1], w[2]).normalize();
-    let u = Vec3::new(u[0], u[1], u[2]);
-    let p = (u - a * a.dot(u)).normalize();
-    let v = a.cross(p);
-    [[p.x, p.y, p.z], [v.x, v.y, v.z], [a.x, a.y, a.z]]
 }

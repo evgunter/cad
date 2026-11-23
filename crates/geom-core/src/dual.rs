@@ -1022,19 +1022,16 @@ pub type DualInterval = Dual<Interval>;
 /// columns over a box**, one per input entry: `x` is `[w, u]` flattened,
 /// and entry `k` of the answer encloses `∂S/∂xₖ` at every point of the
 /// box, each column's entries, by forward-mode duals at
-/// [`Interval`](crate::Interval) (each evaluation's tangent the `k`th
+/// [`Interval`] (each evaluation's tangent the `k`th
 /// unit vector). The centered form of the squaring
-/// ([`Real::square_frame`](crate::Real::square_frame)) reads them.
-pub(crate) fn squared_columns_derivatives(
-    x: [crate::Interval; 6],
-) -> [[[crate::Interval; 3]; 3]; 6] {
-    use crate::Real;
+/// ([`Real::square_frame`]) reads them.
+pub(crate) fn squared_columns_derivatives(x: [Interval; 6]) -> [[[Interval; 3]; 3]; 6] {
     core::array::from_fn(|k| {
-        let d: [Dual<crate::Interval>; 6] = core::array::from_fn(|i| {
+        let d: [Dual<Interval>; 6] = core::array::from_fn(|i| {
             let tangent = if i == k {
-                crate::Interval::one()
+                Interval::one()
             } else {
-                crate::Interval::zero()
+                Interval::zero()
             };
             Dual::new(x[i], tangent)
         });

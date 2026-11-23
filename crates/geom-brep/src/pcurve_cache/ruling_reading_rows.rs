@@ -139,16 +139,13 @@ fn reading(carrier: &Curve3<f64>, span: (f64, f64), ruling: Ruling<f64>) -> (f64
 }
 
 /// The image over `span` certifies at both scalars: its certificate's
-/// envelope inside the band. Where `pin` is given, at ε 1e-12 the
-/// `Interval` certificate is pinned to escalate `pcurve_envelope` with
-/// its margin in that band instead ([`super::frame_cost`]).
+/// envelope inside the band.
 fn certifies(
     what: &str,
     image: (&Pcurve<f64>, &Pcurve<Interval>),
     carrier: &Curve3<f64>,
     span: (f64, f64),
     surface: &Surface<f64>,
-    pin: Option<(f64, f64)>,
 ) {
     let f = Interval::from_f64;
     let (carrier_i, surface_i) = lift(carrier, surface);
@@ -162,17 +159,7 @@ fn certifies(
         &surface_i,
         band(),
     );
-    let cache_i = match (
-        cache_i,
-        pin.filter(|_| super::frame_cost::at_the_least_band()),
-    ) {
-        (Err(e), Some(band)) if super::frame_cost::envelope_escalates(&e, band) => return,
-        (got, Some(band)) => panic!(
-            "{what}: pinned to escalate pcurve_envelope in {band:?} at Interval at ε 1e-12: {:?}",
-            got.map(|_| ())
-        ),
-        (got, None) => got.unwrap_or_else(|e| panic!("{what}: certifies at Interval: {e:?}")),
-    };
+    let cache_i = cache_i.unwrap_or_else(|e| panic!("{what}: certifies at Interval: {e:?}"));
     let (envelope, hi) = (
         cache.certificate().envelope,
         cache_i.certificate().envelope.hi(),
@@ -222,7 +209,7 @@ fn takes_the_general_lane(
                 image.projected().is_some() && image_i.projected().is_some(),
                 "{what}: takes the projected image at both scalars: {image:?}"
             );
-            certifies(what, (&image, &image_i), carrier, span, surface, None);
+            certifies(what, (&image, &image_i), carrier, span, surface);
             true
         }
         (at_f64, at_interval) => {
@@ -281,7 +268,6 @@ fn one_tilt_reads_by_its_reach_over_the_edge() {
             &carrier,
             span,
             &surface,
-            None,
         );
         assert_eq!(
             chart_iso_family(&carrier, span, &surface, band()).map(|r| r.map(|r| r.family)),
@@ -364,15 +350,14 @@ fn a_shifted_ruling_takes_the_general_lane() {
 /// span, takes the generator's closed form and certifies at both
 /// scalars; its family is the rulings'.
 ///
-/// At ε 1e-12 the long span `(0.5, 40)` certifies at `f64` and its
-/// `Interval` certificate escalates `pcurve_envelope`, margin in
-/// `(1.0e-12, 1.1e-12]` (measured 1.053e-12 to 1.090e-12 over the four
-/// generators). Cause: both jointly: a stored frame read as its polar
-/// enclosure (decision 1, #7131) and frames built at Interval from
-/// bracket inputs, a rigid-motion claim (fork 274), each widening the
-/// evaluation. Either alone stays under the band, so mutant A alone and
-/// mutant F1X alone each certify it and turn this pin red; both are
-/// levered by the span's 40 m. Every span certifies at ε 1e-9 and 1e-6.
+/// Every span certifies at every ε. At ε 1e-12 the long span
+/// `(0.5, 40)` reads an `Interval` envelope of 7.03e-13 to 7.34e-13 over
+/// the four generators. It escalated `pcurve_envelope` there (to
+/// 1.112e-12 once PR 7349 merged) while both of its frame causes stood,
+/// a stored frame read as its polar enclosure and frames built at
+/// Interval from bracket inputs, levered by the span's 40 m; the bracket
+/// squaring's centered form ([`geom_core::RigidMotion::squared`]) leaves
+/// the polar read alone, under the band.
 #[test]
 fn a_true_ruling_keeps_the_closed_form_on_both_nappes() {
     let surface = cone();
@@ -396,10 +381,7 @@ fn a_true_ruling_keeps_the_closed_form_on_both_nappes() {
                 let image_i =
                     chart_pcurve_over(&carrier_i, f(span.0), f(span.1), &surface_i, band())
                         .unwrap_or_else(|e| panic!("{what}: mints at Interval: {e:?}"));
-                // The long span at ε 1e-12: a stored frame read as its
-                // polar enclosure and the bracket frames (#7131; fork 274).
-                let pin = (span.1 > 10.0).then_some((1.0e-12, 1.1e-12));
-                certifies(&what, (&image, &image_i), &carrier, span, &surface, pin);
+                certifies(&what, (&image, &image_i), &carrier, span, &surface);
                 assert_eq!(
                     chart_iso_family(&carrier, span, &surface, band()).map(|r| r.map(|r| r.family)),
                     Ok(Some(IsoFamily::U)),

@@ -394,6 +394,11 @@ fn the_corpus_evaluation_at_interval_has_the_f64_outcomes() {
 /// (judged) narrowed `cut_cylinder`'s; this pin holds PR 7354's move
 /// unjudged, and SECTCONE owes the judgement
 /// (`work/green/main-red-eleven-editor-core-and-sweep-rows-moved-on-main-after-c390e1f9.md`).
+/// The bracket frame squaring's centered form
+/// (`geom_core::RigidMotion::squared`) narrowed the corpus's `Interval`
+/// enclosures again: with it switched off the digest is the one it
+/// replaced, `(0xb54e_f740_7212_a051, 0xd3bb_412d_81e2_716d)`, and the
+/// outcomes and the `f64` geometry are unmoved (the two rows above).
 /// Once that row closes, this pin goes and the row above carries the
 /// fence.
 #[test]
@@ -411,7 +416,7 @@ fn the_interval_corpus_holds_sectcones_move_unjudged() {
     println!("m10-p fence interval id-free: {got:016x?}");
     assert_eq!(
         got,
-        (0xb54e_f740_7212_a051, 0xd3bb_412d_81e2_716d),
+        (0xb453_284f_d1e7_f509, 0x62fd_8c87_7464_b765),
         "the corpus's Interval geometry moved"
     );
 }
