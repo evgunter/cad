@@ -555,8 +555,8 @@ fn a_point_built_on_an_exactly_orthonormal_tilt_is_on_it_over_a_box() {
 /// half-width `0.1` it is undecided, `[0, 0.32]` where the direct
 /// spelling's is `[0, 0.21]`; from a half-width of `1e-3` down the two
 /// spellings' enclosures agree to four digits (`2.06e-6` at `1e-6`),
-/// and at `2.5e-10` it reads Zero, unproven, as the direct spelling
-/// does.
+/// and at a quarter of the band's zero (`2.5e-10` at the default ε) it
+/// reads Zero, unproven, as the direct spelling does.
 #[test]
 fn a_point_built_on_a_normalized_tilt_is_not_proven_on_it_over_a_box() {
     let (axis, u_ref, _, c) = tilted();
@@ -583,7 +583,7 @@ fn a_point_built_on_a_normalized_tilt_is_not_proven_on_it_over_a_box() {
         mid.is_none() && (2.0e-6..2.1e-6).contains(&hi),
         "a box of half-width 1e-6: undecided at the box's own width, read {mid:?} at {hi}"
     );
-    let (narrow, hi) = at(2.5e-10);
+    let (narrow, hi) = at(0.25 * band().zero());
     assert_eq!(
         narrow,
         Some((Sign::Zero, false)),
