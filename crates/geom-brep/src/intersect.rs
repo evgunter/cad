@@ -2528,13 +2528,13 @@ pub fn plane_cone_section<T: Decide>(
                     ),
                 ),
             ),
-            // Unsourced lever: the plane's stand-off from the apex plus its rounding, a datum
-            // length rather than an extent; its honest door `levered_inv(size, steep)` rounds apart.
+            // Unsourced lever: no lever. The plane's stand-off from the apex over the sine it is
+            // read across is a computed distance that enters `Margin::of` (`work/oneround/unsourced-levers-with-no-door-that-names-them.md`).
             Sign::Zero => (
                 PN_APEX_TANGENT_REACH,
                 Margin::levered(T::one() / steep, geom_core::Lever::unsourced(size)),
             ),
-            // Unsourced lever: as `pn_apex_tangent_reach`'s, over the discriminant.
+            // Unsourced lever: no lever, as `pn_apex_tangent_reach`'s, over the discriminant.
             Sign::Negative => (
                 PN_APEX_POINT_REACH,
                 Margin::levered(T::one() / discr.abs(), geom_core::Lever::unsourced(size)),
@@ -2628,13 +2628,18 @@ pub fn plane_cone_section<T: Decide>(
                     // off the zero band, so the minor direction is
                     // defined.
                     let u_major = tilted_section_major(n, s_vec);
-                    // The centre is the apex's foot on the plane moved
-                    // along the major axis: in the plane by
-                    // construction, where `apex − (c·a − sin²α·n)·δ/K`
-                    // reads a vector that cancels to K along the normal
-                    // and then divides it by K.
-                    let center = apex - n * apex_gap + u_major * tilt.centre(apex_gap);
-                    let e = Curve3::ellipse(center, n, major, minor, u_major, band)?;
+                    // The ellipse is held on its arc at its vertex nearer
+                    // the apex's foot, read where the plane meets that
+                    // ruling (`ConeTilt::near_vertex`, finite toward the
+                    // parabola): the apex's foot on the plane moved along
+                    // the major axis, in the plane by construction. The
+                    // arc there is stored at its own scale however far
+                    // the centre lies; the centre lies from it along
+                    // `δσ·û` and is not computed here.
+                    let delta_sigma = apex_gap * tilt.c.unit_sign();
+                    let vertex = apex - n * apex_gap + u_major * tilt.near_vertex(delta_sigma);
+                    let toward = u_major * (T::zero() - delta_sigma.unit_sign());
+                    let e = Curve3::ellipse_anchored(vertex, n, toward, (major, minor), band)?;
                     Ok(PlaneConeSection::TiltedEllipse(e))
                 }
                 verdict @ (Sign::Zero | Sign::Positive) => {
@@ -2750,10 +2755,10 @@ fn pair_bound<T: geom_core::spline::SpanLocate>(
 ) -> Margin<T> {
     let zero = T::zero();
     let size = gap.abs() + gap_err;
-    // Unsourced lever: the plane's stand-off from the apex plus its rounding, a datum length
-    // rather than an extent; its honest door `levered_inv(size, d)` rounds apart.
+    // Unsourced lever: no lever. The plane's stand-off from the apex over `d` is plain
+    // arithmetic inside the bound (`work/oneround/unsourced-levers-with-no-door-that-names-them.md`).
     let far = Margin::levered(T::one() / d, geom_core::Lever::unsourced(size)).value();
-    // Unsourced lever: as `far`'s, over `m`.
+    // Unsourced lever: no lever, as `far`'s, over `m`.
     let near = Margin::levered(T::one() / m, geom_core::Lever::unsourced(size)).value();
     let (lo, hi) = reach.range_along(apex, a);
     let rho = lo.max(zero - hi).max(zero) / cos_a;
@@ -2777,7 +2782,7 @@ fn pair_bound<T: geom_core::spline::SpanLocate>(
     let sigma_sq = d * m / sin_a.powi(2);
     let floor = T::from_f64(f64::MIN_POSITIVE);
     let lean = T::from_f64(2.0) * s * size / (sin_a * rho.max(floor));
-    // Unsourced lever: as `far`'s, over the pair's own divisor.
+    // Unsourced lever: no lever, as `far`'s, over the pair's own divisor.
     let offset = Margin::levered(
         T::from_f64(2.0) / (sigma_sq.sqrt() + (sigma_sq - lean).max(zero).sqrt()),
         geom_core::Lever::unsourced(size),
