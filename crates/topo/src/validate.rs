@@ -7657,6 +7657,16 @@ pub(crate) fn curve_datum_errors<T: geom_core::Bounds>(
 // availability differs by caller: bundling them into one struct would
 // hide behind a single name exactly the thing each parameter is here to
 // make the caller state.
+/// Each cycle of `face`'s region flattened ([`crate::props::loop_edges`]),
+/// outer first: `Err` where the face has no outline or a loop does not
+/// flatten.
+fn flatten_area<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<FlatLoops<T>, ()> {
+    let area = body.proven_face(face).area_loops().map_err(|_| ())?;
+    area.cycles()
+        .map(|(lp, _)| crate::props::loop_edges(lp).map_err(|_| ()))
+        .collect()
+}
+
 pub(crate) fn tier3_local_checks_marked<
     'b,
     T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy,
@@ -8296,11 +8306,7 @@ pub(crate) fn tier3_local_checks_marked<
             // One whose loops do not flatten is kept in `unflattened`, as
             // a spindle face is, and its sides refused there unshown.
             if !geom_brep::chart_singularity::singular_points(surface).is_empty() {
-                match face
-                    .loop_keys()
-                    .map(|l| crate::props::loop_edges(body, l))
-                    .collect::<Result<FlatLoops<T>, _>>()
-                {
+                match flatten_area(body, face_key) {
                     Ok(full) => {
                         flattened.insert(face_key, full);
                     }
@@ -8313,16 +8319,7 @@ pub(crate) fn tier3_local_checks_marked<
         // its whole boundary's chart Green form, rings included, as its
         // flux does, each loop that bounds area.
         let sheet = matches!(surface, Surface::Spindle { .. });
-        let Ok(full) = body
-            .proven_face(face_key)
-            .area_loops()
-            .map_err(|_| ())
-            .and_then(|area| {
-                area.cycles()
-                    .map(|(lp, _)| crate::props::loop_edges(lp).map_err(|_| ()))
-                    .collect::<Result<FlatLoops<T>, _>>()
-            })
-        else {
+        let Ok(full) = flatten_area(body, face_key) else {
             if sheet {
                 unflattened.push(face_key);
             }
