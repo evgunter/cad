@@ -2043,7 +2043,7 @@ mod tests {
             &doc,
             Node::Subtract {
                 from: body(union),
-                tool: body(hole),
+                tool: body(hole).into(),
             },
             tol,
         );

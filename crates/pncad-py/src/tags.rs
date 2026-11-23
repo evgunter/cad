@@ -570,7 +570,8 @@ pub fn operand_slot_tag(slot: &pncad::document::OperandSlot) -> &'static str {
         S::Cleared(_) => "cleared",
         S::Tool => "tool",
         S::From => "from",
-        S::Cut => "cut",
+        S::Cut(_) => "cut",
+        S::Cuts => "cuts",
         S::Member(_) => "member",
         S::Members => "members",
         S::Input => "input",
@@ -1039,7 +1040,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::IndexCountOutOfRange => "index_count_out_of_range",
         C::UnschedulableCycle => "unschedulable_cycle",
         C::Naming => "naming",
-        C::UnionFoldStep => "union_fold_step",
+        C::FoldStep => "fold_step",
         // The shell: ONE tag for the op's refusal family (the
         // `revolve`/`tube` treatment — the kernel's `ShellError` arms
         // are prose in the message), and the lane refusal.
@@ -1204,7 +1205,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::UnschedulableCycle => None,
         NodeErrorKind::Naming(inner) => Some(naming_error_tag(inner)),
         // The step's own refusal crosses in the message.
-        NodeErrorKind::UnionFoldStep { .. } => None,
+        NodeErrorKind::FoldStep { .. } => None,
         NodeErrorKind::Shell(inner) => Some(shell_error_tag(inner)),
         NodeErrorKind::ShellLaneUnsupported { .. } => None,
         NodeErrorKind::WitnessBifurcation(_) => None,

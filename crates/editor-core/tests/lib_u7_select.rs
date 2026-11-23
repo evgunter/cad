@@ -248,7 +248,9 @@ fn composed_ids(doc: &ProfileDoc) -> (RecipeNodeId, RecipeNodeId, RecipeNodeId) 
     };
     // The tool is the pip, a placement of the ball; the ball's names
     // ride it verbatim, still carrying the revolve's id.
-    let ball = match doc.node(operand(tool.read)) {
+    let ball = match doc.node(operand(
+        tool.reads().next().expect("a subtract with one tool").read,
+    )) {
         Some(Node::Place { source, .. }) => operand(source.read),
         other => panic!("the die's tool is the placed ball, got {other:?}"),
     };

@@ -2731,7 +2731,7 @@ fn remap_node(
         },
         Node::Subtract { from, tool } => Node::Subtract {
             from: br(crate::OperandSlot::From, from)?,
-            tool: br(crate::OperandSlot::Cut, tool)?,
+            tool: tool.try_map_in(crate::operand::Seats::CUTS, &br)?,
         },
         Node::Union { members } => Node::Union {
             members: members.try_map(&br)?,

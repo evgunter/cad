@@ -1414,9 +1414,10 @@ impl SitedFace {
 /// ([`crate::SelectionFault`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InputFault {
-    /// A union's or an intersect's family argument carries an index
-    /// ([`crate::BodyRead`]): the argument reads the family whole, and
-    /// one member read by index is a `Body`, spelled in a list.
+    /// A union's or an intersect's family argument, or a subtract's
+    /// tools read as a family, carries an index ([`crate::BodyRead`]):
+    /// the argument reads the family whole, and one member read by index
+    /// is a `Body`, spelled in a list.
     IndexedFamily,
     /// An indexed read carries a number of indices other than its
     /// family's rank: a family is keyed by the indices its definer
@@ -1901,17 +1902,24 @@ pub enum Node<P, S: Slot = crate::VarId> {
         /// The members, in fold order.
         members: Bodies<crate::BodyRead<S>>,
     },
-    /// **The subtract** (DM4): `from` cut by `tool`, the one pair node,
-    /// since difference neither commutes nor associates. Several tools
-    /// are `Subtract { from, tool: Union([tools…]) }`. A `from` that
+    /// **The subtract** (DM4): `from` cut by every tool, its two seats
+    /// named, since difference neither commutes nor associates. The cut
+    /// is the fold `from − t₁ − … − tₙ`, which fuses no tool with
+    /// another; two or more tools are judged and folded as a union's
+    /// members are, so the result and its names are the same in every
+    /// order of the tools. A tool list of none is `from`.
+    /// A tool that is a family read whole is its every member (D10
+    /// `[repetition]`), as a union's member is. A `from` that
     /// holds pieces (a [`Node::Assemble`], or a copy of one) is cut
     /// piece by piece, and the result holds each piece's cut as a
     /// piece; a piece the cut empties drops out.
     Subtract {
         /// The body cut.
         from: crate::BodyRead<S>,
-        /// The body cut away.
-        tool: crate::BodyRead<S>,
+        /// The bodies cut away, read as a union's members are, each at
+        /// a [`crate::OperandSlot::Cut`] seat, or a family read whole at
+        /// [`crate::OperandSlot::Cuts`].
+        tool: crate::Bodies<crate::BodyRead<S>>,
     },
     /// **The assemble** (`⊔`, D10 `[operations.operators]`): its
     /// members side by side as the pieces of one body, each a separate
@@ -2244,7 +2252,9 @@ macro_rules! node_rows {
             Node::Mirror { body, plane: _ } => index_rows!(O::Body, body, $rows, $out),
             Node::Subtract { from, tool } => {
                 index_rows!(O::From, from, $rows, $out);
-                index_rows!(O::Cut, tool, $rows, $out);
+                for (seat, cut) in tool.$rows() {
+                    index_rows!(crate::operand::Seats::CUTS.of(seat), cut, $rows, $out);
+                }
             }
             Node::Union { members } | Node::Intersect { members } | Node::Assemble { members } => {
                 for (seat, member) in members.$rows() {
@@ -2439,10 +2449,13 @@ impl<P> Node<P> {
             }
             Node::Split { target, tool } => vec![(O::Target, target.read), (O::Tool, tool.read)],
             Node::Mirror { body, plane } => vec![(O::Body, body.read), (O::Plane, plane.read)],
-            Node::Subtract {
-                from,
-                tool,
-            } => vec![(O::From, from.read), (O::Cut, tool.read)],
+            Node::Subtract { from, tool } => core::iter::once((O::From, from.read))
+                .chain(
+                    tool.rows_in(crate::operand::Seats::CUTS)
+                        .into_iter()
+                        .map(|(o, r)| (o, r.read)),
+                )
+                .collect(),
             // In LIST ORDER: the order is the fold's (D9).
             Node::Union {
                 members,
@@ -2545,9 +2558,13 @@ impl<P> Node<P> {
             Node::Mirror { body, plane } => {
                 vec![(O::Body, &mut body.read), (O::Plane, &mut plane.read)]
             }
-            Node::Subtract { from, tool } => {
-                vec![(O::From, &mut from.read), (O::Cut, &mut tool.read)]
-            }
+            Node::Subtract { from, tool } => core::iter::once((O::From, &mut from.read))
+                .chain(
+                    tool.rows_mut_in(crate::operand::Seats::CUTS)
+                        .into_iter()
+                        .map(|(o, r)| (o, &mut r.read)),
+                )
+                .collect(),
             Node::Union { members } | Node::Intersect { members } | Node::Assemble { members } => {
                 members
                     .rows_mut()
@@ -2598,7 +2615,8 @@ impl<P> Node<P> {
         // family argument none: at every list seat alike.
         if let Node::Union { members, .. }
         | Node::Intersect { members, .. }
-        | Node::Assemble { members, .. } = self
+        | Node::Assemble { members, .. }
+        | Node::Subtract { tool: members, .. } = self
             && let crate::Bodies::Family(read) = members
             && read.is_member()
         {
@@ -3037,7 +3055,7 @@ impl<P, S: Slot> Node<P, S> {
             },
             Node::Subtract { from, tool } => Node::Subtract {
                 from: from.try_map(O::From, f, read)?,
-                tool: tool.try_map(O::Cut, f, read)?,
+                tool: tool.try_map_in(crate::operand::Seats::CUTS, |o, r| r.try_map(o, f, read))?,
             },
             Node::Union { members } => Node::Union {
                 members: members.try_map(|o, r| r.try_map(o, f, read))?,
@@ -3102,7 +3120,9 @@ impl<P, S: Slot> Node<P, S> {
         match self {
             Node::Split { target, .. } => vec![(O::Target, target)],
             Node::Mirror { body, .. } => vec![(O::Body, body)],
-            Node::Subtract { from, tool, .. } => vec![(O::From, from), (O::Cut, tool)],
+            Node::Subtract { from, tool, .. } => core::iter::once((O::From, from))
+                .chain(tool.rows_in(crate::operand::Seats::CUTS))
+                .collect(),
             Node::Union { members, .. }
             | Node::Intersect { members, .. }
             | Node::Assemble { members, .. } => members.rows(),
@@ -3139,7 +3159,10 @@ impl<P, S: Slot> Node<P, S> {
             (Node::Split { target, .. }, O::Target) => Some(target),
             (Node::Mirror { body, .. }, O::Body) => Some(body),
             (Node::Subtract { from, .. }, O::From) => Some(from),
-            (Node::Subtract { tool, .. }, O::Cut) => Some(tool),
+            (Node::Subtract { tool, .. }, _) => tool
+                .rows_mut_in(crate::operand::Seats::CUTS)
+                .into_iter()
+                .find_map(|(at, read)| (at == seat).then_some(read)),
             (
                 Node::Union { members, .. }
                 | Node::Intersect { members, .. }

@@ -106,11 +106,12 @@ fn described(session: &DocSession, node: RecipeNodeId, tol: Tol) -> String {
     }
 }
 
-/// **A pattern read whole at the list seats is every member**: a union
-/// over it takes every member (one body), and an intersection takes
-/// every member too, so it is empty for a row of disjoint copies. At a
-/// subtraction's tool, a seat for one body until PR 7426 makes it a
-/// list seat, it refuses by kind.
+/// **A pattern read whole at a subtraction's tool seat cuts the kept
+/// body by every member**: the tool is a `Bodies` seat (DESIGN
+/// `[repetition]`, REFERENCES DM4), so the result is one body with
+/// every member removed. A union over the same read takes every member
+/// (one body), and an intersection takes every member too, so it is
+/// empty for a row of disjoint copies.
 #[test]
 fn a_pattern_read_whole_at_the_boolean_seats() {
     let tol = Tol::witness();
@@ -125,14 +126,13 @@ fn a_pattern_read_whole_at_the_boolean_seats() {
         described(&s, made, tol)
     };
     let c: BodyRead<Formula> = w.cutter.into();
-    let mut s = common::inline_without_door(w.doc.clone(), tol);
-    let refused = s.perform(SessionOp::AddBoolean {
-        spec: BooleanSpec::Subtract {
+    assert_eq!(
+        run(BooleanSpec::Subtract {
             from: c.clone(),
-            tool: pattern.into(),
-        },
-    });
-    assert_refused_by_kind(&refused.refusal);
+            tool: vec![pattern.into()]
+        }),
+        format!("Boolean {:.3e}", C_VOL - 2.0 * OVERLAP),
+    );
     assert_eq!(
         run(BooleanSpec::Union(vec![pattern.into(), c.clone()])),
         format!("Boolean {:.3e}", 2.0 * B_VOL + C_VOL - 2.0 * OVERLAP),

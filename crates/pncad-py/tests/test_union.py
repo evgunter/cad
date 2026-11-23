@@ -261,15 +261,14 @@ class TestSetMembers(unittest.TestCase):
         self.assertEqual(doc.node_kind(union), "union")
 
     def test_a_node_with_no_list_refuses(self):
-        """A subtract's operands are two NAMED slots, not a list, so
-        there is nothing here for this edit to replace."""
+        """A box's inputs are NAMED slots, not a list, so there is
+        nothing here for this edit to replace."""
         doc, a, b, _c, _union = self.build()
-        pair = doc.insert(Node.subtract(a, b))
         with self.assertRaises(EditError) as caught:
-            doc.apply(DocEdit.set_members(pair, [a, b]))
+            doc.apply(DocEdit.set_members(b, [a]))
         refusal = caught.exception
         self.assertEqual(refusal.variant, "set_members_on_non_list")
-        self.assertEqual(refusal.node, pair)
+        self.assertEqual(refusal.node, b)
         self.assertIsNone(refusal.input)
         self.assertIsNone(refusal.count)
 

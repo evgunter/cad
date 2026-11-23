@@ -260,7 +260,10 @@ fn operand_read(doc: &ProfileDoc, node: RecipeNodeId, i: usize) -> editor_core::
                 .unwrap_or_else(|| panic!("{node} has no member {i}"))
                 .read
         }
-        Some(Node::Subtract { from, tool, .. }) => [from.read, tool.read][i],
+        Some(Node::Subtract { from, tool, .. }) => [
+            from.read,
+            tool.reads().next().expect("a subtract with one tool").read,
+        ][i],
         other => panic!("{node} is not a boolean: {other:?}"),
     }
 }

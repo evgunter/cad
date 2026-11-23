@@ -241,7 +241,7 @@ fn every_one_body_seat_refuses_a_family_at_the_door() {
             "subtract from",
             Box::new(|r| Node::Subtract {
                 from: r,
-                tool: BodyRead::plain(Operand::Node(body)),
+                tool: BodyRead::plain(Operand::Node(body)).into(),
             }),
         ),
         ("placement source", Box::new(fixture::stood)),
@@ -336,7 +336,7 @@ fn every_one_body_seat_refuses_a_family_at_load() {
             "subtract from",
             Box::new(|r| Node::Subtract {
                 from: r,
-                tool: BodyRead::plain(Operand::Node(body)),
+                tool: BodyRead::plain(Operand::Node(body)).into(),
             }),
         ),
         ("placement source", Box::new(fixture::stood)),

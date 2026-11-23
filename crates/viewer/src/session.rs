@@ -3879,15 +3879,17 @@ impl DocSession {
                 })
                 .collect(),
         );
-        // A union's and an intersect's members are a list seat, which
-        // takes a family whole as well as one body (D10 `[repetition]`).
-        let list = matches!(spec, BooleanSpec::Union(_) | BooleanSpec::Intersect(_));
-        for seat in spec.operands() {
+        // A union's and an intersect's members, and a subtract's tools,
+        // are a list seat, which takes a family whole as well as one body
+        // (D10 `[repetition]`); a subtract's `from` is a seat for one.
+        let from_seat = matches!(spec, BooleanSpec::Subtract { .. });
+        for (i, seat) in spec.operands().into_iter().enumerate() {
             let wanted = if seat.is_indexed() {
                 NodeKindWanted::Instances
             } else {
                 NodeKindWanted::Body
             };
+            let list = !(from_seat && i == 0);
             let family = list
                 && !seat.is_indexed()
                 && admits_read(doc, &seat.read, NodeKindWanted::Instances);
@@ -6172,9 +6174,9 @@ pub(crate) fn repoint_refusal(
 }
 
 /// **A list's picked members, each family spliced in whole** (D10
-/// `[repetition]`): a union or an intersect picked over a family reads
-/// every member, `[a, …xs]`, as a list seat takes a family; a member read
-/// `xs[i]` and a single body are read as they are.
+/// `[repetition]`): a union, an intersect or a subtract's tools picked
+/// over a family read every member, `[a, …xs]`, as a list seat takes a
+/// family; a member read `xs[i]` and a single body are read as they are.
 fn splice_families(
     doc: &Doc<ProfileProgram>,
     node: pncad::document::AuthoredNode,
@@ -6211,6 +6213,13 @@ fn splice_families(
             members: pncad::document::Bodies::Spelled(entries),
         } => Node::Intersect {
             members: pncad::document::Bodies::Spelled(spell(entries)),
+        },
+        Node::Subtract {
+            from,
+            tool: pncad::document::Bodies::Spelled(entries),
+        } => Node::Subtract {
+            from,
+            tool: pncad::document::Bodies::Spelled(spell(entries)),
         },
         other => other,
     }

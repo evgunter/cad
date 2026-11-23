@@ -76,6 +76,7 @@ pub mod rules;
 mod section;
 mod section_cones;
 mod section_loops;
+pub use section_loops::UnplacedHole;
 pub(crate) mod spiric_arc;
 pub(crate) mod spline_arc;
 

@@ -15,9 +15,10 @@
 //! it is resolved, against the tables THIS run has built so far, in the
 //! order [`ladder`] gives, into a key of the kind the selection holds.
 //!
-//! **The union's naming pass.** A union or an intersect evaluates
-//! through the kernel's n-ary door (`topo::nary_boolean`), which judges
-//! the member pairs and folds the members; this layer names the
+//! **The n-ary naming pass.** A union, an intersect, and a subtract of
+//! two or more tools evaluate through the kernel's n-ary door
+//! (`topo::nary_boolean`), which judges the member pairs and folds the
+//! members; this layer names the
 //! judgements and the steps it returns ([`fold_members`]).
 
 use std::collections::BTreeMap;
@@ -532,13 +533,20 @@ where
             tol,
         ),
         Node::Subtract { from, tool } => {
-            let each = project_each(&[(O::From, from.read), (O::Cut, tool.read)])?;
-            let [ra, rb] = [&each[0], &each[1]].map(|p| p.as_ref().unwrap_or(unprojected));
+            let each = project_each(&[(O::From, from.read)])?;
+            let ra = each[0].as_ref().unwrap_or(unprojected);
+            let tools = member_reads(
+                (BooleanOp::Subtract, node, tool, crate::operand::Seats::CUTS),
+                id,
+                (unprojected, vals, env.lane.params),
+                doc,
+                tol,
+            )?;
             wire_subtract(
                 &crate::verbs::boolean::boolean(),
                 id,
                 (from.read, at(O::From, from.read)?, ra),
-                (tool.read, at(O::Cut, tool.read)?, rb),
+                tools,
                 doc,
                 env.boolean_sweep,
                 tol,
@@ -3635,8 +3643,9 @@ fn with_replaced<T: topo::AtRestPolicy + Decide>(
     Some(local)
 }
 
-/// **One member of a union or an intersect, as read and not yet
-/// finished**: the read it came through (its names' key), its body in
+/// **One member of an n-ary boolean, as read and not yet finished** —
+/// a union's or an intersect's member, or a subtract's body kept or
+/// tool: the read it came through (its names' key), its body in
 /// its own frame and its own table. The fold finishes it in its own
 /// frame, once ([`MemberRead::taken`]), and places it in the frame it
 /// computes in, where the n-ary door moves it (`topo::nary_placed`).
@@ -3650,15 +3659,15 @@ struct MemberRead<T: topo::AtRestPolicy + Decide> {
     table: Arc<NameTable>,
     /// What its body carries, as a reader reads it
     /// ([`super::Carry::kept`]): its records, carried into the fold step
-    /// that joins it (D1 (ii)), and what a union or an intersect of it
-    /// alone carries on ([`lone_member`]).
+    /// that joins it (D1 (ii)), and what a boolean of it alone carries
+    /// on ([`lone_member`]).
     carry: super::Carry<T>,
     /// The member as an intersect distributes over it, where it holds
     /// pieces ([`distribute`]).
     pieces: Option<Arc<distribute::Operand<T>>>,
 }
 
-/// **One member of a union or an intersect, as the fold reads it**:
+/// **One member of an n-ary boolean, as the fold reads it**:
 /// a [`MemberRead`] taken, its body finished in its own frame; the fold
 /// places it in its computing frame. After the run it is the member as
 /// the run read it: a member the n-ary door moved is its image in the
@@ -3701,40 +3710,97 @@ impl<T: Decide + topo::AtRestPolicy> MemberRead<T> {
 // candidate generation reads coordinate brackets (the L7 driver-code
 // allowance).
 //
-// The TWO-OPERAND lowering, kept apart from `wire_blend`'s: two operand
-// tables, the contact-record carry and the typed empty success would
-// otherwise become runtime arity.
-/// **The subtract's lowering** (DM4): `from` cut by `tool`, through the
-/// pair verb, each seat's entities named by its read
-/// ([`names::RoleSeg::From`]). A `from` that holds pieces is cut piece
-/// by piece ([`distribute`]).
+// Kept apart from `wire_blend`'s lowering: the operand tables, the
+// contact-record carry and the typed empty success would otherwise
+// become runtime arity.
+/// **The subtract's lowering** (DM4): `from` cut by every tool, the
+/// fold `from − t₁ − … − tₙ`, each seat's entities named by its read
+/// ([`names::RoleSeg::From`]). None leave `from` as it is
+/// ([`lone_member`]); one is one pair run ([`subtract_from`]); several
+/// are the n-ary fold a union's members take ([`combine_members`]),
+/// `from` its first member: judged pairwise, folded in list order, named
+/// by the union's end pass, so neither the names nor the judged rows say
+/// in which order the tools were listed (a fold step's rows follow it,
+/// as a union's do). A `from` that holds pieces is cut
+/// piece by piece ([`distribute`]).
 fn wire_subtract<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     verb: &crate::verbs::boolean::PairVerb<T>,
     id: RecipeNodeId,
-    (a_read, a, results_a): (crate::VarId, RecipeNodeId, &Results<T>),
-    (b_read, b, results_b): (crate::VarId, RecipeNodeId, &Results<T>),
+    (from_read, from_at, results): (crate::VarId, RecipeNodeId, &Results<T>),
+    tools: Vec<MemberRead<T>>,
     doc: &crate::doc::Doc<ProfileProgram>,
     boolean_sweep: topo::SweepStrategy,
     tol: Tol,
 ) -> OpResult<T> {
-    let from = distribute::Operand::read(results_a, a, a_read, doc, tol)?;
-    let tool = distribute::Operand::read(results_b, b, b_read, doc, tol)?;
-    // A body with pieces is taken piece by piece.
-    let body_a = match from.carry.pieces {
-        None => Some(from.taken(tol)?),
-        Some(_) => None,
-    };
-    // The tool taken in its own frame, once: read as it stands wherever a
-    // cut computes in that frame.
-    let body_b = tool.taken(tol)?;
-    subtract_from(
-        verb,
-        id,
-        (&from, body_a),
-        (&tool, &body_b),
-        boolean_sweep,
-        tol,
-    )
+    let from = distribute::Operand::read(results, from_at, from_read, doc, tol)?;
+    match <[MemberRead<T>; 1]>::try_from(tools) {
+        Ok([tool]) => {
+            // A body with pieces is taken piece by piece.
+            let body_a = match from.carry.pieces {
+                None => Some(from.taken(tol)?),
+                Some(_) => None,
+            };
+            let tool = distribute::Operand {
+                node: tool.node,
+                read: tool.read,
+                body: tool.framed,
+                table: tool.table,
+                carry: tool.carry,
+                seat: tool.read,
+                wraps: Vec::new(),
+            };
+            // The tool taken in its own frame, once: read as it stands
+            // wherever a cut computes in that frame.
+            let body_b = tool.taken(tol)?;
+            subtract_from(
+                verb,
+                id,
+                (&from, body_a),
+                (&tool, &body_b),
+                boolean_sweep,
+                tol,
+            )
+        }
+        Err(tools) if tools.is_empty() => {
+            let body = from.taken(tol)?;
+            lone_member(
+                id,
+                &Member {
+                    read: from.read,
+                    framed: from.body.clone(),
+                    body,
+                    table: Arc::clone(&from.table),
+                    carry: from.carry.clone(),
+                },
+            )
+        }
+        Err(tools) => {
+            let pieces = match from.carry.pieces {
+                Some(_) => Some(Arc::new(distribute::Operand::read(
+                    results, from_at, from_read, doc, tol,
+                )?)),
+                None => None,
+            };
+            let first = MemberRead {
+                read: from.read,
+                node: from.node,
+                framed: from.body.clone(),
+                table: Arc::clone(&from.table),
+                carry: from.carry.clone(),
+                pieces,
+            };
+            let members = core::iter::once(first).chain(tools).collect();
+            combine_members(
+                verb,
+                BooleanOp::Subtract,
+                id,
+                own_read(doc, id),
+                members,
+                boolean_sweep,
+                tol,
+            )
+        }
+    }
 }
 
 /// `from` cut by `tool`, by piece where `from` holds pieces. Each cut
@@ -3961,7 +4027,7 @@ fn in_member_space(
         .map(|cell| match cell {
             NamedCell::Entity { input, name } if *input == own_read => names::member_cells(name),
             _ => unreachable!(
-                "union fold step {step}'s row names {cell:?}, outside the node's own read \
+                "fold step {step}'s row names {cell:?}, outside the node's own read \
                  {own_read:?}, though a fold step's rows are named in its two operands' tables, \
                  both keyed by that read"
             ),
@@ -3983,7 +4049,7 @@ fn in_member_space(
             ..row.clone()
         }),
         (a, b) => unreachable!(
-            "union fold step {step} decided {relation:?} between cells made of several member \
+            "fold step {step} decided {relation:?} between cells made of several member \
              cells ({a:?}, {b:?}), though a step runs with the pairwise verdicts given and \
              decides no carrier pair itself"
         ),
@@ -4003,7 +4069,7 @@ fn in_member_space(
     let mut spelled = spelled.into_iter();
     let (Some(p), Some(x), None) = (spelled.next(), spelled.next(), spelled.next()) else {
         unreachable!(
-            "union fold step {step}'s {:?} row holds {} cells, though `name_rows` names a \
+            "fold step {step}'s {:?} row holds {} cells, though `name_rows` names a \
              kernel row's two, and more only on a `Meet`",
             row.relation,
             row.cells.len()
@@ -4048,7 +4114,8 @@ fn in_member_space(
 ///
 /// **Contact is judged before the fold, pairwise** (DM4's contact
 /// rule), by the kernel: each member pair whose boxes meet runs as its
-/// own two-member union or intersect, its operand A the lesser read
+/// own two-member boolean (a subtract's two tools as a union, for its
+/// verdicts alone), its operand A the lesser read
 /// ([`member_ranks`]), so its verdicts and refusals are the same in
 /// every member order, and the edge pieces each judgement classified are
 /// the senses the node's vertices read (N2, [`names::UnionPairSenses`]).
@@ -4058,7 +4125,7 @@ fn in_member_space(
 /// holdings ([`topo::NaryStep::holdings`], which [`names::UnionFold`]
 /// reads). A refusal only a step raises
 /// names the member that step folds in
-/// ([`NodeErrorKind::UnionFoldStep`]). Two members are one pair: their
+/// ([`NodeErrorKind::FoldStep`]). Two members are one pair: their
 /// one step is the judgement, run and logged once, its refusals the
 /// pair's own.
 ///
@@ -4095,11 +4162,46 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     boolean_sweep: topo::SweepStrategy,
     tol: Tol,
 ) -> OpResult<T> {
-    // The members, read off the `Bodies` argument (DM4): each spelled
-    // read, projected one by one (two ports of one split are two bodies,
-    // which one map keyed by the split cannot hold), or each member of a
-    // family read whole, in index order, its table the family's rows for
-    // that member.
+    let members = member_reads(
+        (op, node, bodies, crate::operand::Seats::MEMBERS),
+        id,
+        (results, vals, params),
+        doc,
+        tol,
+    )?;
+    combine_members(verb, op, id, own_read(doc, id), members, boolean_sweep, tol)
+}
+
+/// The node's own read: the space a fold step's rows are read in.
+fn own_read(doc: &crate::doc::Doc<ProfileProgram>, id: RecipeNodeId) -> crate::VarId {
+    doc.output(id, 0).unwrap_or_else(|| {
+        unreachable!(
+            "boolean {id:?} defines no output variable, though the doors that insert an \
+             operation define its outputs with it"
+        )
+    })
+}
+
+/// **The members a `Bodies` argument reads** (DM4), in list order: each
+/// spelled read, projected one by one (two ports of one split are two
+/// bodies, which one map keyed by the split cannot hold), a splice
+/// `…xs` its family's every member (D10 `[repetition]`), and a
+/// family read whole every member in index order, its table the
+/// family's rows for that member. A union's, an intersect's and an
+/// assemble's members, and a subtract's tools, are read alike; an
+/// intersect's member that holds pieces is met piece by piece.
+fn member_reads<T: Decide + topo::AtRestPolicy>(
+    (op, node, bodies, seats): (
+        BooleanOp,
+        &Node<ProfileProgram>,
+        &crate::Bodies<crate::BodyRead<crate::VarId>>,
+        crate::operand::Seats,
+    ),
+    id: RecipeNodeId,
+    (results, vals, params): (&Results<T>, &SlotValues<T>, &crate::expr::VarEnv<T>),
+    doc: &crate::doc::Doc<ProfileProgram>,
+    tol: Tol,
+) -> Result<Vec<MemberRead<T>>, NodeErrorKind> {
     use crate::OperandSlot as O;
     // Each member of a family read whole, in index order, its table the
     // family's rows for that member.
@@ -4129,13 +4231,33 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             })
             .collect::<Result<Vec<_>, NodeErrorKind>>()
     };
-    let members: Vec<MemberRead<T>> = match bodies {
-        crate::Bodies::Spelled(reads) => {
-            let mut members = Vec::with_capacity(reads.len());
-            for (i, entry) in reads.iter().enumerate() {
+    let mut members = Vec::new();
+    match bodies {
+        crate::Bodies::Family(family) => {
+            // Every door refuses an indexed family argument
+            // (`InputFault::IndexedFamily`); one reaching here would
+            // read the whole family, so it is refused, not read.
+            if family.is_member() {
+                unreachable!(
+                    "boolean {id:?}'s family argument {family:?} carries an index, though every \
+                     door refuses an indexed family argument (`InputFault::IndexedFamily`)"
+                );
+            }
+            let slot = seats.of(O::Members);
+            let at = super::read_at(doc, slot, family.read)?;
+            let held = value_of(results, at)?;
+            let value = if doc.yielding(family.read).is_some() {
+                held.whole()
+            } else {
+                held
+            };
+            members.extend(whole(family.read, at, value)?);
+        }
+        crate::Bodies::Spelled(entries) => {
+            for (i, entry) in entries.iter().enumerate() {
                 let member = entry.read();
                 let read = member.read;
-                let slot = O::Member(i);
+                let slot = seats.of(O::Member(i));
                 let at = super::read_at(doc, slot, read)?;
                 let projected =
                     reads_projected(node, &[(slot, read)], doc, (results, vals, params))?;
@@ -4170,37 +4292,9 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                     pieces,
                 });
             }
-            members
         }
-        crate::Bodies::Family(family) => {
-            // Every door refuses an indexed family argument
-            // (`InputFault::IndexedFamily`); one reaching here would
-            // union the whole family, so it is refused, not read.
-            if family.is_member() {
-                unreachable!(
-                    "union {id:?}'s family argument {family:?} carries an index, though every \
-                     door refuses an indexed family argument (`InputFault::IndexedFamily`)"
-                );
-            }
-            let read = &family.read;
-            let at = super::read_at(doc, O::Members, *read)?;
-            let held = value_of(results, at)?;
-            let value = if doc.yielding(*read).is_some() {
-                held.whole()
-            } else {
-                held
-            };
-            whole(*read, at, value)?
-        }
-    };
-    // The node's own read: the space a fold step's rows are read in.
-    let Some(own_read) = doc.output(id, 0) else {
-        unreachable!(
-            "union {id:?} defines no output variable, though the doors that insert an \
-             operation define its outputs with it"
-        )
-    };
-    combine_members(verb, op, id, own_read, members, boolean_sweep, tol)
+    }
+    Ok(members)
 }
 
 /// **An intersect distributes over a member that holds pieces**
@@ -4304,7 +4398,8 @@ fn images_apart<T: topo::AtRestPolicy + Decide + geom_core::Bounds>(
     Ok(topo::Apart::of(pairs))
 }
 
-/// The fold of a union's or an intersect's members ([`wire_combine`]).
+/// The fold of a union's or an intersect's members ([`wire_combine`]), or of a
+/// subtract's body kept and its tools ([`wire_subtract`]).
 fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     verb: &crate::verbs::boolean::PairVerb<T>,
     op: BooleanOp,
@@ -4371,9 +4466,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let nary = match op {
         BooleanOp::Union => topo::NaryOp::Union,
         BooleanOp::Intersect => topo::NaryOp::Intersect,
-        BooleanOp::Subtract => unreachable!(
-            "union {id:?} lowers a subtract, though a subtract is a pair (`wire_subtract`)"
-        ),
+        BooleanOp::Subtract => topo::NaryOp::Subtract,
     };
     // Each member where it stands in the computing frame; the door moves
     // each one not in it.
@@ -4473,27 +4566,39 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     }
     // One row per statement: two pairs that state one thing (a member
     // read twice, beside a third) publish it once. `published[j][r]` is
-    // where judgement `j`'s row `r` is published.
+    // where judgement `j`'s row `r` is published, once it is: a
+    // subtract's two tools are judged for their verdicts alone (as a
+    // union, `topo::NaryOp::Subtract`), so their rows are about no cut,
+    // and one is published only where a fold step restates it, as the
+    // chain of pair cuts decides it ([`publishes_judged`]).
     let mut coincidences = Vec::new();
-    let mut published: Vec<Vec<usize>> = Vec::with_capacity(judged.len());
+    let mut published: Vec<Vec<Option<usize>>> = Vec::with_capacity(judged.len());
+    let mut held_back: Vec<Vec<crate::coincide::NamedCoincidence>> =
+        Vec::with_capacity(judged.len());
     for (j, rows) in judgements.iter().zip(&judged) {
         let place = |m: usize| {
             names::narrow(m, names::Numbered::InputPosition).map_err(NodeErrorKind::Naming)
         };
         let pair = [place(j.a.min(j.b))?, place(j.a.max(j.b))?];
-        published.push(
-            rows.iter()
-                .map(|row| {
-                    let row = crate::coincide::NamedCoincidence {
-                        origin: crate::coincide::RowOrigin::Judged { pair },
-                        ..row.clone()
-                    };
-                    judged_at(&mut coincidences, row)
-                })
-                .collect(),
-        );
+        let rows: Vec<crate::coincide::NamedCoincidence> = rows
+            .iter()
+            .map(|row| crate::coincide::NamedCoincidence {
+                origin: crate::coincide::RowOrigin::Judged { pair },
+                ..row.clone()
+            })
+            .collect();
+        if publishes_judged(op, j.a, j.b) {
+            published.push(
+                rows.into_iter()
+                    .map(|row| Some(judged_at(&mut coincidences, row)))
+                    .collect(),
+            );
+            held_back.push(Vec::new());
+        } else {
+            published.push(vec![None; rows.len()]);
+            held_back.push(rows);
+        }
     }
-    let judged_rows = coincidences.len();
     let mut last: Option<(topo::BooleanResultKind, Arc<topo::ContactRecords>)> = None;
     // What the end pass reads of every step: each step's discards, and
     // the member faces each face of the last holds.
@@ -4568,7 +4673,9 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 if let Some(restated) = stepped.restates(k) {
                     let mut at = Vec::new();
                     for r in restated {
-                        let i = published[r.judgement][r.row];
+                        let i = *published[r.judgement][r.row].get_or_insert_with(|| {
+                            judged_at(&mut coincidences, held_back[r.judgement][r.row].clone())
+                        });
                         if !at.contains(&i) {
                             at.push(i);
                         }
@@ -4595,7 +4702,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         );
         if acc_records.carried() != carried_in {
             unreachable!(
-                "union {id:?}'s fold step {step} was carried records that are not the \
+                "{op:?} {id:?}'s fold step {step} was carried records that are not the \
                  accumulation's the node holds, row for row, though the kernel carries each \
                  step's records into the next"
             );
@@ -4614,7 +4721,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                         vec![topo::Backing::Decided(row)]
                     } else {
                         unreachable!(
-                            "union {id:?}'s fold step {step} cites its row {k}, though it \
+                            "{op:?} {id:?}'s fold step {step} cites its row {k}, though it \
                              decided {decided}: a step's records cite the rows it returned"
                         )
                     }
@@ -4628,7 +4735,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                         .map(|c| c.cites.iter().collect())
                         .unwrap_or_else(|| {
                             unreachable!(
-                                "union {id:?}'s fold step {step} carries accumulation record \
+                                "{op:?} {id:?}'s fold step {step} carries accumulation record \
                              {record}, which the fold does not hold, though the step's operand \
                              A is that accumulation"
                             )
@@ -4641,7 +4748,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             })
             .unwrap_or_else(|k| {
                 unreachable!(
-                    "union {id:?}'s fold step {step}'s record {k} cites nothing once carried, \
+                    "{op:?} {id:?}'s fold step {step}'s record {k} cites nothing once carried, \
                      though every citation maps to one or more"
                 )
             });
@@ -4677,19 +4784,22 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         step_groups.push(emitted.groups);
         acc_body = &out.body;
     }
+    // The judged rows the node publishes: every one a judged pair
+    // publishes, and each held-back one a step restated.
+    let judged_rows = coincidences.len();
     // Every judgement and step the kernel ran is named; now how it ended.
     match end {
         topo::NaryEnd::Built => {}
         topo::NaryEnd::Empty => return empty(),
         topo::NaryEnd::Refused(topo::NaryRefusal::Step { member, error }) => {
-            return Err(NodeErrorKind::UnionFoldStep {
+            return Err(NodeErrorKind::FoldStep {
                 member: names::narrow(member, names::Numbered::InputPosition)
                     .map_err(NodeErrorKind::Naming)?,
                 read: members[member].read,
                 refusal: Box::new(NodeErrorKind::Boolean(*error)),
             });
         }
-        topo::NaryEnd::Refused(refusal) => return Err(nary_refused(refusal)),
+        topo::NaryEnd::Refused(refusal) => return Err(nary_refused(op, refusal)),
     }
     // The members' own bodies and tables: where each member edge the
     // published table names pieces of is defined (`name_union`).
@@ -4716,7 +4826,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // were carried into the step after it.
     let Some((kind, contacts)) = last else {
         unreachable!(
-            "union {id:?}'s fold of {} members ran no step, though a fold of two or more runs \
+            "{op:?} {id:?}'s fold of {} members ran no step, though a fold of two or more runs \
              one per member after the first",
             members.len()
         )
@@ -4759,7 +4869,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                         .map(|rows| rows.iter().map(|&i| topo::Backing::Decided(i)).collect())
                         .unwrap_or_else(|| {
                             unreachable!(
-                                "union {id:?}'s records cite fold row {k}, though the fold \
+                                "{op:?} {id:?}'s records cite fold row {k}, though the fold \
                                  returned {} rows",
                                 at.len()
                             )
@@ -4768,7 +4878,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 })
                 .unwrap_or_else(|k| {
                     unreachable!(
-                        "union {id:?}'s record {k} cites nothing once recited onto the node's \
+                        "{op:?} {id:?}'s record {k} cites nothing once recited onto the node's \
                          rows, though a held-out fold row is one no record cites"
                     )
                 }),
@@ -4800,8 +4910,8 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     ))
 }
 
-/// **A union or an intersect of one body is that body** (DM4): no
-/// boolean runs. Its entities are named by the member's read
+/// **A union or an intersect of one body is that body, and so is a
+/// subtract with no tool** (DM4): no boolean runs. Its entities are named by the member's read
 /// ([`names::member_view`]), and the body itself by this node; it
 /// carries what the member carries, as a copy carries it
 /// ([`super::Carry::copied`]).
@@ -4839,17 +4949,29 @@ fn member_ranks(reads: &[crate::VarId]) -> Result<Vec<u32>, NodeErrorKind> {
         .collect()
 }
 
+/// **Whether a judged pair's rows are the node's own** (DM4): a union's
+/// and an intersect's every pair, and a subtract's pairs of its kept
+/// body (member 0) and a tool. A subtract's two tools are judged only
+/// for their verdicts, in the union's sense, which says nothing about
+/// the cut: such a row is published only where a fold step restates it.
+fn publishes_judged(op: BooleanOp, a: usize, b: usize) -> bool {
+    match op {
+        BooleanOp::Union | BooleanOp::Intersect => true,
+        BooleanOp::Subtract => a == 0 || b == 0,
+    }
+}
+
 /// **An n-ary refusal other than a fold step's**, which names no member
 /// ([`wire_combine`] names a step's): the pair boolean's or the box
 /// door's own, or two verdicts that disagree.
-fn nary_refused(refusal: topo::NaryRefusal) -> NodeErrorKind {
+fn nary_refused(op: BooleanOp, refusal: topo::NaryRefusal) -> NodeErrorKind {
     match refusal {
         topo::NaryRefusal::Hull { error, .. }
         | topo::NaryRefusal::Judgement { error, .. }
         | topo::NaryRefusal::Step { error, .. } => NodeErrorKind::Boolean(*error),
         topo::NaryRefusal::VerdictsDisagree { .. } => {
             NodeErrorKind::Naming(names::NamingError::Emission {
-                what: UNION_VERDICTS_DISAGREE,
+                what: verdicts_disagree(op),
             })
         }
         topo::NaryRefusal::Arity { members } => unreachable!(
@@ -4859,11 +4981,26 @@ fn nary_refused(refusal: topo::NaryRefusal) -> NodeErrorKind {
     }
 }
 
-/// Two of a union's pairwise verdicts glue one accumulation face to one
-/// member face under two relations
-/// ([`topo::NaryRefusal::VerdictsDisagree`]).
-const UNION_VERDICTS_DISAGREE: &str = "a union's pairwise judgements glue one accumulation face \
-                                       to one member face under two relations";
+/// Two of a boolean's pairwise verdicts glue one accumulation face to
+/// one member face under two relations
+/// ([`topo::NaryRefusal::VerdictsDisagree`]), worded by the node's own
+/// operation.
+fn verdicts_disagree(op: BooleanOp) -> &'static str {
+    match op {
+        BooleanOp::Union => {
+            "a union's pairwise judgements glue one accumulation face to one member face under \
+             two relations"
+        }
+        BooleanOp::Intersect => {
+            "an intersect's pairwise judgements glue one accumulation face to one member face \
+             under two relations"
+        }
+        BooleanOp::Subtract => {
+            "a subtract's pairwise judgements glue one accumulation face to one tool face under \
+             two relations"
+        }
+    }
+}
 
 /// The role word a frame's authored +x direction is normalized under
 /// ([`frame_axes`]).

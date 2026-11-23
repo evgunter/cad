@@ -308,7 +308,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         SessionOp::AddBoolean {
             spec: BooleanSpec::Subtract {
                 from: u3.into(),
-                tool: cutter1.into(),
+                tool: vec![cutter1.into()],
             },
         },
     );
@@ -340,7 +340,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         SessionOp::AddBoolean {
             spec: BooleanSpec::Subtract {
                 from: cut1.into(),
-                tool: cutter2.into(),
+                tool: vec![cutter2.into()],
             },
         },
     );

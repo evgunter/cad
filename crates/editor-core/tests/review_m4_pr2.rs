@@ -758,7 +758,7 @@ fn wire_doors_refuse_typed() {
         doc.clone(),
         Node::Subtract {
             from: u.into(),
-            tool: crate::fixture::member_here(&doc, pat.into()),
+            tool: crate::fixture::member_here(&doc, pat.into()).into(),
         },
     );
     assert_eq!(
