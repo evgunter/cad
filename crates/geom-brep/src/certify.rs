@@ -1854,16 +1854,18 @@ impl DoorCheck for CertCheck {
 
 /// The tangent lane's uniqueness tube: the sampled `|κ_rel|` minimum less
 /// its certified drift, as a sagitta at the folded arm, must classify
-/// positive. Both refusing verdicts are reachable: the drift is a bound
-/// independent of the sampled minimum, so it can exceed it.
-fn tube_separation<T: Decide>(
+/// positive ([`crate::dihedral::tube_separation`]). Both refusing
+/// verdicts are reachable: the drift is a bound independent of the
+/// sampled minimum, so it can exceed it.
+fn tube_separated<T: Decide>(
     kappa_min: T,
     kappa_drift: T,
     arm: geom_core::Lever<T>,
     band: Band,
 ) -> Result<(), CertifyError> {
-    let tube = Margin::sagitta(kappa_min - kappa_drift, arm);
-    match decide_reported("tangent_tube_margin", tube, band).map(|d| Refused::of(d, band)) {
+    match crate::dihedral::tube_separation(kappa_min, kappa_drift, arm, band)
+        .map(|d| Refused::of(d, band))
+    {
         Ok(None) => Ok(()),
         Ok(Some(verdict)) => Err(CertifyError::TubeNotSeparated { verdict }),
         Err(cause) => Err(CertifyError::Escalated {
@@ -5593,7 +5595,7 @@ fn run_checks<T: geom_core::Certifies + geom_core::CertifiedBounds>(
                 CERT_SAMPLES - 2
             );
         };
-        tube_separation(tangent_kappa_min, bounds.kappa_drift, arm, band)?;
+        tube_separated(tangent_kappa_min, bounds.kappa_drift, arm, band)?;
     }
 
     // The spline lanes lever their transversality and size their
@@ -8446,7 +8448,7 @@ mod tests {
                 None => (Ok(()), Ok(())),
             };
             assert_eq!(
-                tube_separation(
+                tube_separated(
                     kappa_min,
                     drift,
                     geom_core::test_support::fixture_lever(1.0),
@@ -8456,7 +8458,7 @@ mod tests {
                 "f64: {why}"
             );
             assert_eq!(
-                tube_separation(
+                tube_separated(
                     point(kappa_min),
                     point(drift),
                     geom_core::test_support::fixture_lever(point(1.0)),

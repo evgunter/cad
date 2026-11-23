@@ -2553,6 +2553,7 @@ fn wedge_reading_table() {
         (
             V::End {
                 end: WedgeEnd::Cusp,
+                bend: Bend::Determinate,
                 margin,
             },
             M::Tangent,
@@ -2560,9 +2561,18 @@ fn wedge_reading_table() {
         (
             V::End {
                 end: WedgeEnd::Slit,
+                bend: Bend::Determinate,
                 margin,
             },
             M::Tangent,
+        ),
+        (
+            V::End {
+                end: WedgeEnd::Cusp,
+                bend: Bend::UnderDetermined,
+                margin,
+            },
+            M::SmoothUnderdetermined,
         ),
     ];
     for (verdict, mark) in settled {

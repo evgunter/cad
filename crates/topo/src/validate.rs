@@ -7235,8 +7235,15 @@ pub(crate) fn wedge_reading(
             bend: Bend::Determinate,
             ..
         }
-        | V::End { .. } => ContactMark::Tangent,
+        | V::End {
+            bend: Bend::Determinate,
+            ..
+        } => ContactMark::Tangent,
         V::Seam {
+            bend: Bend::UnderDetermined,
+            ..
+        }
+        | V::End {
             bend: Bend::UnderDetermined,
             ..
         }
