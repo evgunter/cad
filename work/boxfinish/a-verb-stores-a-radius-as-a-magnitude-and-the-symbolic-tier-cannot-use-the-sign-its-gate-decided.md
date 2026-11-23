@@ -135,3 +135,22 @@ which the construction takes the decisions it took here") it states.
 3. Afterwards, small: a source gate against the raw `norm() − radius`
    spelling outside the one function, with a sweep of the readers the
    designers listed.
+
+## The wrong-side row's premise, measured (the doors' lane, 2026-11-16)
+
+On the doors' branch with every arc's `u_ref` still the start radial
+over its own length, no curved body finishes over a box through a
+sweep door, so the wrong-side row is this row's: `sweep`
+`an_aimed_ray_over_boxed_door_bodies` at ε = 1e-9 prints, for every box
+it draws (±1e-6 to ±2e-1):
+- the disc of boxed depth (two-arc caps, literal radius): refused at
+  `Certification { Escalated { check: MappedSource, sample: 6 } }`,
+  margin `[0, 2·half-width]`;
+- the filleted prism: `EndpointStart`, sample 0, `[0, 2·half-width]`;
+- the cylinders of boxed height and of boxed radius, and the frustum
+  of boxed top radius: `EndpointEnd`, sample 8, `[0, 2·half-width]`.
+
+The disc's refusal is the one this row's change should be read
+against first: its radius is a literal, so `|r| − r` is not what holds
+it. `topo`'s curved edge arm now lives in `crates/topo/src/solid_contain.rs`
+(`reaches_root_in_band`).
