@@ -69,6 +69,8 @@ vertex to their far end, every other run apart from `R`
   both `Uncertified { Departure }` plane against torus across an arc
   at `f64`. With the removed ladder the second passed and the first
   got past `f64` to refuse at `Interval`.
+  Both come back when this unit is built: the compound corner to
+  passing, the barrel past `f64`.
 - **The mutant to hold.** The next edge read with no test that its
   other runs and lifts are apart from `R` (the removed ladder, in
   effect): red on `a_curved_next_edge_that_comes_back_into_r`.
