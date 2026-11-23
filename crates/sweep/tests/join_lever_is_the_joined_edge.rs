@@ -73,8 +73,9 @@ fn cut_d(sin: f64) -> (Body<f64>, EdgeKey, f64) {
             };
             let on = (origin.x - c).abs() < 1e-9 && (origin.y - sin).abs() < 1e-9;
             // The parameter at z = 0.
-            (on && dir.z.abs() > 0.5).then(|| {
-                let at0 = (Point3::new(c, sin, 0.0) - origin).dot(dir) / dir.dot(dir);
+            (on && dir.get().z.abs() > 0.5).then(|| {
+                let at0 =
+                    (Point3::new(c, sin, 0.0) - origin).dot(dir.get()) / dir.get().dot(dir.get());
                 (e, at0)
             })
         })
@@ -96,7 +97,7 @@ fn station(sin: f64, s: f64) -> Result<Body<f64>, topo::EulerOpError> {
     let Curve3::Line(geom::Line { dir, .. }) = *c.carrier() else {
         unreachable!()
     };
-    let u = u0 + s * dir.z.signum() / dir.norm();
+    let u = u0 + s * dir.get().z.signum() / dir.get().norm();
     body.split_edge(edge, u, tol()).map(|_| body)
 }
 

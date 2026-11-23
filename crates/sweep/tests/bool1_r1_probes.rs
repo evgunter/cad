@@ -162,9 +162,9 @@ fn coplanar_below_citations_are_all_adjacent() {
                     origin.x.to_bits(),
                     origin.y.to_bits(),
                     origin.z.to_bits(),
-                    dir.x.to_bits(),
-                    dir.y.to_bits(),
-                    dir.z.to_bits()
+                    dir.get().x.to_bits(),
+                    dir.get().y.to_bits(),
+                    dir.get().z.to_bits()
                 ),
                 other => format!("{other:?}"),
             };

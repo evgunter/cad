@@ -36,6 +36,8 @@ Moved from HONEROOT to GERM on 2026-11-20, by `git mv`, when HONEROOT merged int
 
 **More seeds (2026-11-20, ONEROUND's `oneround/lever-doors` lane).** On a clean worktree of `origin/main`, `CAD_FUZZ_SEED=0xcd26a5f82fb7b695 CAD_FUZZ_EFFORT=1` gives 2 mismatches, both `Tangent("section_torus_square_wall_fold_half")`. On that lane's branch (which does not touch this arm) seeds `0x1` and `0x2` fail and `0x3` passes; those three were not replayed on main. So the counterexample is not rare: three of the four seeds tried find it, and the row's fuzzer, which varies its seed, is red on most runs of the slow set.
 
+**Another seed (2026-11-20, ONEROUND's `oneround/lever-sites-topo` lane).** `CAD_FUZZ_SEED=0x7268e17b993b86d7 CAD_FUZZ_EFFORT=1` gives 2 mismatches, both on that lane's base (`oneround/lever-doors` merged with `origin/main` at `3c300524`) and on its head; the lane does not touch this arm.
+
 **Another seed (2026-11-21, GERM's `germ/crossing-consumers` lane, U3b).** `CAD_FUZZ_SEED=0x5d5157bb6763023d CAD_FUZZ_EFFORT=1` gives 1 mismatch on the lane's base, `germ/crossing-pose-cross` at `4303b022e8` (the lane's diff stashed): a strip crossing at a tube circle's top, `R 0.0173, r 0.00329, (e, z0, rc) (-0.01474, -0.000586, 0.00372)`, tilt 1.8e-14, `R-tan at Degeneracy { tangent: 1.57e-4, top: 1.04e-9 }: Tangent("section_torus_square_wall_fold_half")`.
 
 ## A second seed, red on main (SECTCONE, 2026-11-22)
