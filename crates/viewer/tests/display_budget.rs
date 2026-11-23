@@ -615,8 +615,8 @@ const ANSWERS: &[Answer] = &[
         requested: 0.0001,
         delta: 0.0001,
         requested_cost: None,
-        largest_probe: 4520,
-        probe_triangles: 7816,
+        largest_probe: 656,
+        probe_triangles: 712,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {
@@ -624,8 +624,8 @@ const ANSWERS: &[Answer] = &[
         requested: 5e-6,
         delta: 5e-6,
         requested_cost: None,
-        largest_probe: 81208,
-        probe_triangles: 84504,
+        largest_probe: 2912,
+        probe_triangles: 3624,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {
