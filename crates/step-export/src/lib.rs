@@ -105,8 +105,8 @@
 //! honest would be lost; `OFFSET_SURFACE` is its own conversation).
 //! A DESCRIBED NURBS surface exports natively as
 //! `B_SPLINE_SURFACE_WITH_KNOTS` since M6-3 (the loft walls; the
-//! rational complex instance for weighted nets), and a described
-//! NURBS carrier as `B_SPLINE_CURVE_WITH_KNOTS` (the loft seams).
+//! rational complex instance for weighted nets), and a NURBS carrier
+//! as `B_SPLINE_CURVE_WITH_KNOTS` (the loft seams).
 //!
 //! # Export only — reading is `step-import`'s
 //!

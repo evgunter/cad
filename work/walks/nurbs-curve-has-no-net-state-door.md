@@ -63,6 +63,6 @@ arm, which is the arm the width rule says a poisoned net must fail at.
 The swept reads were the compiler's: every `is_placeholder` call on a
 curve stopped compiling and was deleted or rewritten. Whether each
 described arm then fails loudly on a poisoned net is that consumer's
-question; the one already filed is `map_curve`'s, on SHELL's
+question; the one already filed is `map_carrier`'s, on SHELL's
 `transform-rigid-maps-a-poisoned-net-into-the-placeholder`, whose curve
 half now has only its first problem (mapped instead of refused).

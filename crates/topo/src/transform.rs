@@ -968,6 +968,28 @@ mod tests {
             assert_eq!((q.x, q.y, q.z), (want.x, want.y, want.z));
         }
     }
+
+    /// **Known defect, pinned as it stands**: an all-poison carrier net
+    /// is MAPPED, not refused — the curve has no placeholder, and this
+    /// arm reads no poison. SHELL's
+    /// `transform-rigid-maps-a-poisoned-net-into-the-placeholder` owns
+    /// the refusal; the day it lands this row goes red, and the fix
+    /// replaces it with the typed-refusal row.
+    #[test]
+    fn a_poisoned_carrier_net_is_still_mapped_until_shell_refuses_it() {
+        let poisoned: Curve3<f64> = geom::test_support::poisoned_nurbs_segment();
+        let mapped = map_carrier(&Isometry::Proper(aside_motion()), &poisoned);
+        let Ok(Curve3::Nurbs(n)) = mapped else {
+            panic!("expected today's mapped poisoned net, got {mapped:?}");
+        };
+        assert!(
+            n.control()
+                .iter()
+                .all(|p| p.x.is_nan() && p.y.is_nan() && p.z.is_nan()),
+            "the poison is carried through the map"
+        );
+    }
+
     /// A reflection across a plane tilted off every world axis.
     fn reflection() -> crate::Reflection<f64> {
         let band = geom_core::Band::linear(geom_core::Tol::witness()).expect("the witness band");

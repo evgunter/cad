@@ -93,8 +93,8 @@
 //! `f64`, NaI/empty at the interval scalar) which flows through values
 //! and is caught at the predicate/certification layer — in particular,
 //! evaluating the [`Surface::nurbs_placeholder`] "no description yet"
-//! state yields an all-poison point (representable ≠ described; the poison fails every
-//! downstream certification loudly, per D4 ¶2).
+//! state yields an all-poison point (representable ≠ described; the
+//! poison fails every downstream certification loudly, per D4 ¶2).
 //!
 //! **There are THREE states, and telling them apart is one rule with
 //! one spelling.** The discriminator is the control net's poison. A
@@ -133,7 +133,9 @@
 //!
 //! Only the surface payload carries the state at all: no curve has a
 //! placeholder, so a curve's net is described, and a poisoned one
-//! fails at its consumer's one arm.
+//! reaches its consumer's described arm. Not every such arm fails on
+//! it yet: `topo`'s rigid map moves a poisoned carrier net (SHELL's
+//! `transform-rigid-maps-a-poisoned-net-into-the-placeholder`).
 //!
 //! # Evaluation-code discipline
 //!

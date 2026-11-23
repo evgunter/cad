@@ -142,8 +142,11 @@
 //!
 //! # The placeholder and the poisoned net (the one home of this argument)
 //!
-//! What the placeholder and a poisoned net lift to follows from the map
-//! being structural. The placeholder's every control point is
+//! The placeholder is the surface's alone ([`NurbsSurface::placeholder`]);
+//! a curve's net is always described, and a poisoned one lifts to a net
+//! poisoned in the same channels. What the surface placeholder and a
+//! poisoned net lift to follows from the map being structural. The
+//! placeholder's every control point is
 //! all-poison, and every scalar embedding keeps poison (`from_f64(NaN)`
 //! is the interval's poison, `Dual::constant(NaN)` a poisoned dual), so
 //! **the placeholder lifts to the placeholder** — `is_placeholder` is

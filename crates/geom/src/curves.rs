@@ -3291,6 +3291,17 @@ mod tests {
         let (jp, jd) = n.ders1(0.5);
         assert!(jp.x.is_nan() && jp.y.is_nan() && jp.z.is_nan());
         assert!(jd.x.is_nan() && jd.y.is_nan() && jd.z.is_nan());
+        // The poison is the quiet NaN `from_f64(NAN)` mints, bit for bit,
+        // not some other NaN payload an evaluator's arithmetic produced.
+        let quiet = f64::NAN.to_bits();
+        for (what, v) in [("x", p.x), ("y", p.y), ("z", p.z), ("dx", d.x)] {
+            assert_eq!(v.to_bits(), quiet, "{what}: poison bits {:#x}", v.to_bits());
+        }
+        let d2 = n.deriv2(f64::NAN);
+        assert!(
+            d2.x.is_nan() && d2.y.is_nan() && d2.z.is_nan(),
+            "a poison parameter on a poisoned net"
+        );
     }
 
     /// A described NURBS fixture: the rational quadratic quarter circle
@@ -3308,9 +3319,9 @@ mod tests {
         Curve3::Nurbs(Arc::new(NurbsCurve3::new(knots, control, weights).unwrap()))
     }
 
-    /// A described NURBS lifts as its PAYLOAD: the lifted curve's value channel is the source's evaluation bit
-    /// for bit, and its tangent channel is the source's closed-form
-    /// derivative to rounding.
+    /// A described NURBS lifts as its PAYLOAD: the lifted curve's value
+    /// channel is the source's evaluation bit for bit, and its tangent
+    /// channel is the source's closed-form derivative to rounding.
     #[test]
     fn described_nurbs_lifts_as_its_payload_at_dual() {
         let c = quarter_circle_nurbs();
