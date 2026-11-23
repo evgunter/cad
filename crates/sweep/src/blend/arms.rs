@@ -87,6 +87,7 @@
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::SurfaceSide;
+use geom_core::UnitVec3;
 use geom_core::{Circles, Point3, Real, Vec3};
 
 use super::battery::{Convexity, ball_side, sided, signed};
@@ -142,7 +143,7 @@ impl<T: Real> EdgeBlend<T> {
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct BallSection<T: Real> {
     pub(crate) centre: Point3<T>,
-    pub(crate) normal: Vec3<T>,
+    pub(crate) normal: geom_core::UnitVec3<T>,
     pub(crate) radius: T,
 }
 
@@ -153,7 +154,7 @@ impl<T: Real> BallSection<T> {
                 let (origin, axis) = (frame.origin(), frame.axis());
                 Some(Self {
                     centre: origin + axis * (p - origin).dot(axis),
-                    normal: axis,
+                    normal: frame.axis_unit(),
                     radius,
                 })
             }
@@ -167,7 +168,7 @@ impl<T: Real> BallSection<T> {
                 let radial = radial_about(center, axis, p);
                 Some(Self {
                     centre: center + radial * major_radius,
-                    normal: axis.cross(radial).normalize(),
+                    normal: geom_core::UnitVec3::squared(axis.cross(radial)),
                     radius: minor_radius,
                 })
             }
@@ -450,7 +451,7 @@ pub(in crate::blend) fn perp_unit<T: Real>(x: Vec3<T>, a: Vec3<T>) -> Vec3<T> {
 #[must_use]
 pub fn plane_plane_blend<T: Real>(
     p: Point3<T>,
-    tau: Vec3<T>,
+    tau: UnitVec3<T>,
     n_a: Vec3<T>,
     n_b: Vec3<T>,
     radius: T,
@@ -470,7 +471,7 @@ pub fn plane_plane_blend<T: Real>(
     let setback = radius * ((one - d) / (one + d)).sqrt();
     EdgeBlend {
         surface: Surface::Cylinder {
-            frame: geom::Frame::new(center, tau, a.foot(center)),
+            frame: geom::Frame::new(center, tau.get(), a.foot(center)),
             radius,
         },
         spine_curvature: T::zero(),
@@ -1061,13 +1062,13 @@ impl<T: Real> Meridian<T> {
     /// where no meridian is distinguished ([`perp_unit`]).
     #[must_use]
     pub fn radial(&self) -> Vec3<T> {
-        perp_unit(self.rim - self.axis.origin, self.axis.dir)
+        perp_unit(self.rim - self.axis.origin, self.axis.dir.get())
     }
 
     /// The unit normal of the sheet (the meridian half-plane's own).
     #[must_use]
     pub fn sheet_normal(&self) -> Vec3<T> {
-        self.axis.dir.cross(self.radial())
+        self.axis.dir.get().cross(self.radial())
     }
 
     /// The rim's radius — the **named lever arm** every angular
@@ -1101,7 +1102,7 @@ impl<T: Real> Meridian<T> {
                 let normal = frame.axis();
                 Some((
                     SupportTrace::Straight { normal, side },
-                    normal.cross(self.axis.dir).norm() * lever,
+                    normal.cross(self.axis.dir.get()).norm() * lever,
                 ))
             }
             // A coaxial cylinder: the meridian trace is the line through
@@ -1114,7 +1115,7 @@ impl<T: Real> Meridian<T> {
                         normal: radial,
                         side,
                     },
-                    axis.cross(self.axis.dir).norm() * lever,
+                    axis.cross(self.axis.dir.get()).norm() * lever,
                 ))
             }
             // A coaxial cone: the generator through the rim, whose chart
@@ -1127,13 +1128,14 @@ impl<T: Real> Meridian<T> {
             } => {
                 let (apex, axis) = (frame.origin(), frame.axis());
                 let (sin_a, cos_a) = half_angle.sin_cos();
-                let nappe = ((self.rim - apex).dot(axis) * axis.dot(self.axis.dir)).unit_sign();
+                let nappe =
+                    ((self.rim - apex).dot(axis) * axis.dot(self.axis.dir.get())).unit_sign();
                 Some((
                     SupportTrace::Straight {
-                        normal: radial * cos_a - self.axis.dir * (nappe * sin_a),
+                        normal: radial * cos_a - self.axis.dir.get() * (nappe * sin_a),
                         side,
                     },
-                    axis.cross(self.axis.dir).norm() * lever,
+                    axis.cross(self.axis.dir.get()).norm() * lever,
                 ))
             }
             // A sphere centred on the axis: its meridian trace is the
@@ -1196,14 +1198,14 @@ impl<T: Real> Meridian<T> {
             let q = t.contact(center, radius);
             let (rho, toward) = ring_radius((q - self.axis.origin).dot(radial), radial);
             (
-                Curve3::circle(level(q), self.axis.dir, rho, toward),
+                Curve3::circle(level(q), self.axis.dir.get(), rho, toward),
                 (q - self.rim).norm(),
             )
         };
         let (spine, toward) = ring_radius(s, radial);
         EdgeBlend {
             surface: Surface::Torus {
-                frame: geom::Frame::new(level(center), self.axis.dir, toward),
+                frame: geom::Frame::new(level(center), self.axis.dir.get(), toward),
                 major_radius: spine,
                 minor_radius: radius,
             },
@@ -1233,7 +1235,7 @@ fn ring_radius<T: Real>(x: T, radial: Vec3<T>) -> (T, Vec3<T>) {
 #[derive(Clone, Copy, Debug)]
 pub struct Ruling<T: Real> {
     /// The unit ruling direction (the rim line's own).
-    pub tau: Vec3<T>,
+    pub tau: UnitVec3<T>,
     /// The rim point the cross-section passes through.
     pub rim: Point3<T>,
     /// The link's own extent — the named lever arm the departure from
@@ -1256,7 +1258,7 @@ impl<T: Real> Ruling<T> {
                 let normal = frame.axis();
                 Some((
                     SupportTrace::Straight { normal, side },
-                    normal.dot(self.tau).abs() * self.lever,
+                    normal.dot(self.tau.get()).abs() * self.lever,
                 ))
             }
             // A cylinder about the ruling: the cross-section circle,
@@ -1274,7 +1276,7 @@ impl<T: Real> Ruling<T> {
                         radius,
                         side,
                     },
-                    axis.cross(self.tau).norm() * self.lever,
+                    axis.cross(self.tau.get()).norm() * self.lever,
                 ))
             }
             _ => None,
@@ -1296,11 +1298,11 @@ impl<T: Real> Ruling<T> {
         radius: T,
         branch: Branch<T>,
     ) -> EdgeBlend<T> {
-        let center = sheet_center(self.rim, self.tau, a, b, radius, branch);
+        let center = sheet_center(self.rim, self.tau.get(), a, b, radius, branch);
         let (q_a, q_b) = (a.contact(center, radius), b.contact(center, radius));
         EdgeBlend {
             surface: Surface::Cylinder {
-                frame: geom::Frame::new(center, self.tau, a.foot(center)),
+                frame: geom::Frame::new(center, self.tau.get(), a.foot(center)),
                 radius,
             },
             spine_curvature: T::zero(),
@@ -1478,15 +1480,15 @@ pub fn chamfer_feet<T: Real>(
 #[must_use]
 pub fn chamfer_strip<T: Real>(
     p: Point3<T>,
-    tau: Vec3<T>,
+    tau: UnitVec3<T>,
     n_a: Vec3<T>,
     n_b: Vec3<T>,
     distance: T,
 ) -> EdgeBlend<T> {
-    let (foot_a, foot_b) = chamfer_feet(p, tau, n_a, n_b, distance);
+    let (foot_a, foot_b) = chamfer_feet(p, tau.get(), n_a, n_b, distance);
     EdgeBlend {
         surface: Surface::Plane {
-            frame: geom::Frame::new(foot_a, (n_a + n_b).normalize(), tau),
+            frame: geom::Frame::new(foot_a, (n_a + n_b).normalize(), tau.get()),
         },
         spine_curvature: T::zero(),
         trim_a: (
@@ -1549,7 +1551,7 @@ pub fn chamfer_frustum<T: Real>(
         (
             Curve3::circle(
                 sheet.axis.foot(q),
-                k,
+                k.get(),
                 (q - sheet.axis.origin).dot(radial),
                 radial,
             ),
@@ -1558,7 +1560,11 @@ pub fn chamfer_frustum<T: Real>(
     };
     EdgeBlend {
         surface: Surface::Cone {
-            frame: geom::Frame::new(apex, k * (foot_a - apex).dot(k).unit_sign(), radial),
+            frame: geom::Frame::new(
+                apex,
+                k.get() * (foot_a - apex).dot(k.get()).unit_sign(),
+                radial,
+            ),
             half_angle: (g_r.abs() / g.norm()).asin(),
         },
         spine_curvature: T::zero(),
@@ -1613,8 +1619,8 @@ pub fn frustum_rim_side<T: Real>(blend: &EdgeBlend<T>, rim: Point3<T>) -> Option
 /// is the honest answer — there is no crossing there.
 #[must_use]
 pub fn line_meet<T: Real>(a: geom::Line<T>, b: geom::Line<T>, n: Vec3<T>) -> Point3<T> {
-    let s = (b.origin - a.origin).cross(b.dir).dot(n) / a.dir.cross(b.dir).dot(n);
-    a.origin + a.dir * s
+    let s = (b.origin - a.origin).cross(b.dir.get()).dot(n) / a.dir.get().cross(b.dir.get()).dot(n);
+    a.origin + a.dir.get() * s
 }
 
 /// **The chamfer's corner patch**: the plane through the three feet at

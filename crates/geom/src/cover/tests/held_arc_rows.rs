@@ -10,7 +10,7 @@ use core::f64::consts::{FRAC_PI_2, PI, TAU};
 use geom_core::{Bounds, Interval, Point3, Real, Vec3};
 use test_utils::fuzz::Rng;
 
-use super::{ParamWindow, Site, ipt, iv, ivec, point, unit};
+use super::{ParamWindow, Site, ipt, iv, ivec, point, unit, unit_at};
 use crate::{Conic, Curve3, Ellipse, Line};
 
 /// One arc-held ellipse and a window, at f64 and as point intervals.
@@ -120,15 +120,15 @@ fn an_arc_held_cover_holds_its_stored_points_at_f64() {
             Site::Point(pts[pts.len() / 2]),
             Site::Line(Line {
                 origin: point(&mut rng, c.scale),
-                dir: unit(&mut rng),
+                dir: unit_at(unit(&mut rng)),
             }),
             Site::Line(Line {
                 origin: centre,
-                dir: c.e.axis(),
+                dir: unit_at(c.e.axis()),
             }),
             Site::Line(Line {
                 origin: pts[0],
-                dir: unit(&mut rng),
+                dir: unit_at(unit(&mut rng)),
             }),
         ];
         let dirs = [
@@ -221,7 +221,7 @@ fn an_arc_held_cover_encloses_its_stored_points_at_interval() {
             Site::Point(point(&mut rng, 3.0 * c.scale)),
             Site::Line(Line {
                 origin: point(&mut rng, c.scale),
-                dir: unit(&mut rng),
+                dir: unit_at(unit(&mut rng)),
             }),
         ];
         let dirs = [
@@ -236,7 +236,7 @@ fn an_arc_held_cover_encloses_its_stored_points_at_interval() {
             Site::Point(q) => Site::Point(ipt(*q)),
             Site::Line(l) => Site::Line(Line {
                 origin: ipt(l.origin),
-                dir: ivec(l.dir),
+                dir: l.dir.map_scalar(Interval::from_f64),
             }),
         };
         let ranges = sites.map(|s| cover.distance_range(&isite(&s)));

@@ -683,7 +683,7 @@ impl<T: Decide> Curve3<T> {
                 let plane = (w.dot(u_ref) - offset).abs();
                 let (h, rho) = crate::Line {
                     origin: center,
-                    dir: axis,
+                    dir: frame.axis_unit(),
                 }
                 .height_and_distance(q);
                 let (major, minor) = (major_radius.abs(), minor_radius.abs());

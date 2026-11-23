@@ -2,9 +2,9 @@
 //! [`super`], the torus poses): whether the two surfaces are tangent,
 //! read on their spines by a certified sweep of the torus's core angle.
 //! It serves the pairs whose critical values have no closed form, a
-//! cylinder's or a torus's partner; a sphere's spine is a point, whose
-//! critical values against a core circle are its two meridian distances
-//! ([`super::torus`]).
+//! cylinder's, a cone's or a torus's partner; a sphere's spine is a
+//! point, whose critical values against a core circle are its two
+//! meridian distances ([`super::torus`]).
 //!
 //! It decides whether the pair is tangent and where, and says nothing of
 //! whether a given curve on both surfaces runs along the tangency within
@@ -20,6 +20,16 @@
 //! the two feet and the point are collinear, which is the critical-point
 //! condition of the spine distance. The gap is how far the critical
 //! values stand from those two levels.
+//!
+//! A cone is its own spine, at distance zero, so its levels are both the
+//! torus's `r`. Its distance from a point `p` off its axis is critical at
+//! the feet on the two lines of the double cone in `p`'s meridian plane
+//! through the axis, at signed distances `g± = ρ cos α ∓ h sin α` (`ρ`
+//! and `h` the point's distance from the axis and station along it from
+//! the apex), each line whole and lying on the double cone, so every
+//! foot is on the surface, the apex's included; `|g±|` is the spine
+//! distance of each branch. Where the core crosses the cone's axis every
+//! generator is a foot, and `D` has a kink, as for a circle's axis.
 //!
 //! The first spine is the torus's core circle, swept by its angle `φ`.
 //! At each point `p(φ)` the spine distance is critical along the second
@@ -38,10 +48,10 @@
 //! space and `p` moves at the core's speed `R`, kinks included). The
 //! squared distance `G = D²` is smooth off the kinks (a line's is a
 //! trigonometric polynomial, a circle's `|w|² ∓ 2R₂ρ + R₂²` with `ρ` the
-//! distance from its axis), so its slope over the cell is bounded by
+//! distance from its axis, a cone's `(ρ cos α ∓ h sin α)²`), so its slope over the cell is bounded by
 //! Taylor's theorem: `G′(m)` and `G″(m)` read at the point, and a bound
 //! on `|G‴|` over the cell from `|p′| = |p″| = |p‴| = R` (and, for the
-//! circle, `ρ` bounded below over the cell, the kink's distance). A cell
+//! circle and the cone, `ρ` bounded below over the cell, the kink's distance). A cell
 //! clears when every branch either
 //!
 //! - stands past the band from both levels over the whole cell
@@ -168,6 +178,16 @@ pub(crate) enum Spine<T: Real> {
         axis: geom::Line<T>,
         radius: T,
     },
+    /// A double cone, its own spine: the axis line through the apex, and
+    /// the half-angle's cosine and sine.
+    Cone {
+        /// The axis line, through the apex.
+        axis: geom::Line<T>,
+        /// `cos α`.
+        cos: T,
+        /// `sin α`.
+        sin: T,
+    },
 }
 
 impl<T: Real> Spine<T> {
@@ -175,7 +195,7 @@ impl<T: Real> Spine<T> {
     /// reading: what the reading's coordinates are made of.
     fn anchor(self) -> (Point3<T>, T) {
         match self {
-            Self::Line(line) => (line.origin, T::zero()),
+            Self::Line(line) | Self::Cone { axis: line, .. } => (line.origin, T::zero()),
             Self::Circle { axis, radius } => (axis.origin, radius),
         }
     }
@@ -211,17 +231,19 @@ pub enum Gap<T: Real> {
 /// `2R·|w|`; `G″ = 2(|Πp′|² + Πw·Πp″)` the same with `|p″| = R`. A
 /// circle's branch adds `2R₂` times the rounding of `ρ′` and `ρ″`, whose
 /// quotients by `ρ` grow as the core nears the circle's axis: at a kink
-/// no slope reads at all.
+/// no slope reads at all. A cone's branch reads `g = ρ cos α ∓ h sin α`,
+/// charged `cos α` times `ρ`'s and `sin α` times `h`'s, and carries `g`'s
+/// rounding into `G = g²` by the product rule.
 #[derive(Clone, Copy)]
 struct Reading<T: Real> {
     d: Rounded<T>,
     g1: Rounded<T>,
     g2: Rounded<T>,
-    /// `|p − c|` for the circle, `D` for the line: what `G‴`'s bound
+    /// `|p − c|` for the circle, `D` for the line and the cone: what `G‴`'s bound
     /// reads.
     reach: T,
-    /// The core point's distance from the partner circle's axis, less
-    /// its rounding.
+    /// The core point's distance from the partner circle's or cone's
+    /// axis, less its rounding.
     kink: Option<T>,
 }
 
@@ -285,7 +307,7 @@ fn read<T: Real>(core: Core<T>, spine: Spine<T>, far: bool, phi: T) -> Reading<T
     let e2 = rounding_charge(two * big * (big + two * size));
     match spine {
         Spine::Line(line) => {
-            let [g, g1, g2] = squared(p - line.origin, dp, ddp, Some(line.dir));
+            let [g, g1, g2] = squared(p - line.origin, dp, ddp, Some(line.dir.get()));
             let d = g.sqrt();
             Reading {
                 d: Rounded {
@@ -312,23 +334,19 @@ fn read<T: Real>(core: Core<T>, spine: Spine<T>, far: bool, phi: T) -> Reading<T
                 },
             radius,
         } => {
-            // `G = |w|² ∓ 2R₂ρ + R₂²`, `ρ = √S` the distance from the
-            // circle's axis: `ρ′ = S′/2ρ`, `ρ″ = S″/2ρ − S′²/4ρ³`.
+            // `G = |w|² ∓ 2R₂ρ + R₂²`.
             let w = p - center;
             let [n, n1, n2] = squared(w, dp, ddp, None);
-            let [s0, s1, s2] = squared(w, dp, ddp, Some(axis));
-            let rho = s0.sqrt();
-            let r1 = s1 / (two * rho);
-            let r2 = s2 / (two * rho) - s1.powi(2) / (four * rho.powi(3));
-            // `ρ`'s rounding, and its quotients' through `|S′| ≤ 2ρR`.
-            let e_rho = e_w + rounding_charge(rho);
-            let e_r1 = (e1 / two + big * e_rho) / rho + rounding_charge(r1.abs());
-            let e_r2 = e2 / (two * rho)
-                + s2.abs() * e_rho / (two * rho.powi(2))
-                + (big * e1 + T::from_f64(3.0) * big.powi(2) * e_rho) / rho.powi(2)
-                + rounding_charge(r2.abs());
+            let Radial {
+                rho,
+                r1,
+                r2,
+                e_rho,
+                e_r1,
+                e_r2,
+            } = radial(w, (dp, ddp), axis.get(), (big, e_w, e1, e2));
             let sigma = if far { T::one() } else { -T::one() };
-            let h = w.dot(axis);
+            let h = w.dot(axis.get());
             let across = rho + sigma * radius;
             let d = (across.powi(2) + h.powi(2)).sqrt();
             Reading {
@@ -348,6 +366,92 @@ fn read<T: Real>(core: Core<T>, spine: Spine<T>, far: bool, phi: T) -> Reading<T
                 kink: Some(rho - e_rho),
             }
         }
+        Spine::Cone {
+            axis:
+                geom::Line {
+                    origin: apex,
+                    dir: axis,
+                },
+            cos,
+            sin,
+        } => {
+            // `g = ρ cos α ∓ h sin α`, the near branch `−`, and
+            // `G = g²`: `G′ = 2g·g′`, `G″ = 2(g′² + g·g″)`.
+            let w = p - apex;
+            let Radial {
+                rho,
+                r1,
+                r2,
+                e_rho,
+                e_r1,
+                e_r2,
+            } = radial(w, (dp, ddp), axis.get(), (big, e_w, e1, e2));
+            let tilt = if far { -sin } else { sin };
+            let g = rho * cos - tilt * w.dot(axis.get());
+            let g1 = r1 * cos - tilt * dp.dot(axis.get());
+            let g2 = r2 * cos - tilt * ddp.dot(axis.get());
+            let e_g = cos * e_rho + sin * e_w + rounding_charge(g.abs());
+            let e_g1 = cos * e_r1 + sin * rounding_charge(big) + rounding_charge(g1.abs());
+            let e_g2 = cos * e_r2 + sin * rounding_charge(big) + rounding_charge(g2.abs());
+            Reading {
+                d: Rounded {
+                    value: g.abs(),
+                    error: e_g,
+                },
+                g1: Rounded {
+                    value: two * g * g1,
+                    error: two * (g.abs() * e_g1 + g1.abs() * e_g),
+                },
+                g2: Rounded {
+                    value: two * (g1.powi(2) + g * g2),
+                    error: two * (two * g1.abs() * e_g1 + g.abs() * e_g2 + g2.abs() * e_g),
+                },
+                reach: g.abs(),
+                kink: Some(rho - e_rho),
+            }
+        }
+    }
+}
+
+/// A core point's distance `ρ` from an axis and its first two
+/// derivatives along the core, with their rounding.
+struct Radial<T> {
+    rho: T,
+    r1: T,
+    r2: T,
+    e_rho: T,
+    e_r1: T,
+    e_r2: T,
+}
+
+/// **`ρ = √S` read along the core**, `S = |Πw|²` and `Π` the projection
+/// square to `axis`: `ρ′ = S′/2ρ`, `ρ″ = S″/2ρ − S′²/4ρ³`, with `ρ`'s
+/// rounding and its quotients' through `|S′| ≤ 2ρR` (`big` the core
+/// radius, `e_w`, `e1`, `e2` the offset's charges).
+fn radial<T: Real>(
+    w: Vec3<T>,
+    (dp, ddp): (Vec3<T>, Vec3<T>),
+    axis: Vec3<T>,
+    (big, e_w, e1, e2): (T, T, T, T),
+) -> Radial<T> {
+    let (two, four) = (T::from_f64(2.0), T::from_f64(4.0));
+    let [s0, s1, s2] = squared(w, dp, ddp, Some(axis));
+    let rho = s0.sqrt();
+    let r1 = s1 / (two * rho);
+    let r2 = s2 / (two * rho) - s1.powi(2) / (four * rho.powi(3));
+    let e_rho = e_w + rounding_charge(rho);
+    let e_r1 = (e1 / two + big * e_rho) / rho + rounding_charge(r1.abs());
+    let e_r2 = e2 / (two * rho)
+        + s2.abs() * e_rho / (two * rho.powi(2))
+        + (big * e1 + T::from_f64(3.0) * big.powi(2) * e_rho) / rho.powi(2)
+        + rounding_charge(r2.abs());
+    Radial {
+        rho,
+        r1,
+        r2,
+        e_rho,
+        e_r1,
+        e_r2,
     }
 }
 
@@ -398,22 +502,35 @@ impl<T: Decide> Sweep<'_, T> {
     /// hold a kink. With `|p′| = |p″| = |p‴| = R` and `p′·p″ = 0`,
     /// `⟨Πw, Πw⟩‴ = 2(3⟨Πp′, Πp″⟩ + ⟨Πw, Πp‴⟩)` is at most
     /// `2R(3R + |Πw|)`, and for the circle `ρ‴`, from `ρ = √S`, at most
-    /// `(3R² + ρR)/ρ + 3R(R² + ρR)/ρ² + 3R³/ρ²` over `ρ ≥ ρ_lo`.
+    /// `(3R² + ρR)/ρ + 3R(R² + ρR)/ρ² + 3R³/ρ²` over `ρ ≥ ρ_lo`. For the
+    /// cone, `G‴ = 2(3g′g″ + g·g‴)` with `|g′| ≤ R`, `|g″| ≤ cos α·(2R²/ρ
+    /// + R) + sin α·R` and `|g‴| ≤ cos α·ρ‴ + sin α·R`.
     fn third(&self, r: Reading<T>, reach: T) -> Option<T> {
         let big = self.core.circle.radius();
         let (two, three) = (T::from_f64(2.0), T::from_f64(3.0));
         let far = r.reach + reach;
+        let smooth_lo = |rho: T| {
+            self.positive_as(self.rows.smooth(), Margin::of(rho - reach))
+                .then_some(rho - reach)
+        };
+        let rho3 = |lo: T| {
+            (three * big.powi(2) + lo * big) / lo
+                + three * big * (big.powi(2) + lo * big) / lo.powi(2)
+                + three * big.powi(3) / lo.powi(2)
+        };
         match (self.spine, r.kink) {
             (Spine::Circle { radius, .. }, Some(rho)) => {
-                if !self.positive_as(self.rows.smooth(), Margin::of(rho - reach)) {
-                    return None;
-                }
-                let lo = rho - reach;
-                let rho3 = (three * big.powi(2) + lo * big) / lo
-                    + three * big * (big.powi(2) + lo * big) / lo.powi(2)
-                    + three * big.powi(3) / lo.powi(2);
+                let lo = smooth_lo(rho)?;
                 // `|w|²‴ = 2w·p‴`, the other terms vanishing on a circle.
-                Some(two * far * big + two * radius * rho3)
+                Some(two * far * big + two * radius * rho3(lo))
+            }
+            (Spine::Cone { cos, sin, .. }, Some(rho)) => {
+                // `G‴ = 2(3g′g″ + g·g‴)`, `|g′| ≤ R` (`g` is 1-Lipschitz),
+                // `|ρ″| ≤ 2R²/ρ + R` from `S`'s bounds and `|h^(k)| ≤ R`.
+                let lo = smooth_lo(rho)?;
+                let g2 = cos * (two * big.powi(2) / lo + big) + sin * big;
+                let g3 = cos * rho3(lo) + sin * big;
+                Some(two * (three * big * g2 + far * g3))
             }
             _ => Some(two * big * (three * big + far)),
         }
@@ -567,7 +684,7 @@ pub(crate) fn critical_gap<T: Decide>(
             geom::cover::Cover::circle(geom::cover::Core {
                 axis: geom::Line {
                     origin: core.circle.frame().origin(),
-                    dir: core.circle.axis(),
+                    dir: core.circle.frame().axis_unit(),
                 },
                 radius: core.circle.radius(),
             })
@@ -580,7 +697,7 @@ pub(crate) fn critical_gap<T: Decide>(
         band,
     };
     let branches: &[bool] = match spine {
-        Spine::Circle { .. } => &[false, true],
+        Spine::Circle { .. } | Spine::Cone { .. } => &[false, true],
         Spine::Line(_) => &[false],
     };
     let two = T::from_f64(2.0);
@@ -696,7 +813,7 @@ mod tests {
                 geom::cover::Cover::circle(geom::cover::Core {
                     axis: geom::Line {
                         origin: core.circle.frame().origin(),
-                        dir: core.circle.frame().axis(),
+                        dir: core.circle.frame().axis_unit(),
                     },
                     radius: core.circle.radius(),
                 })
@@ -705,7 +822,7 @@ mod tests {
             .lever(),
             spine: Spine::Line(geom::Line {
                 origin: Point3::new(0.0, 0.0, 0.0),
-                dir: Vec3::new(0.0, 0.0, 1.0),
+                dir: geom_core::UnitVec3::exact_z(),
             }),
             levels: [3.0, 1.0],
             rows: &crate::rows::CT_GAP,

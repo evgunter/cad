@@ -610,7 +610,13 @@ mod tests {
             ))
         };
         let carriers = [
-            (Curve3::line(p(0.0, 0.0), Vec3::new(1.0, 0.0, 0.0)), true),
+            (
+                Curve3::line(
+                    p(0.0, 0.0),
+                    geom::stated_direction(Vec3::new(1.0, 0.0, 0.0)),
+                ),
+                true,
+            ),
             (
                 Curve3::circle(
                     p(0.0, 0.0),
@@ -648,7 +654,14 @@ mod tests {
     fn line_edge(a: Point3<f64>, b: Point3<f64>, forward: bool) -> LoopEdge<f64> {
         let d = b - a;
         let len = d.norm();
-        LoopEdge::hand_built(Curve3::line(a, d * (1.0 / len)), 0.0, len, forward, 0, 0)
+        LoopEdge::hand_built(
+            Curve3::line(a, geom::stated_direction(d * (1.0 / len))),
+            0.0,
+            len,
+            forward,
+            0,
+            0,
+        )
     }
 
     #[test]

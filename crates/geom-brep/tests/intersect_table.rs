@@ -100,7 +100,9 @@ fn route_inventory() {
         (Cylinder, Nurbs, Rung::General, false),
         (Cone, Cone, Rung::General, false),
         (Cone, Sphere, Rung::General, false),
-        (Cone, Torus, Rung::General, false),
+        // The ℝ³ implicit-pair march past the pose's apex and gap
+        // (`ssi::cone_torus_ssi`); the coaxial pose stays closed form.
+        (Cone, Torus, Rung::General, true),
         (Cone, Nurbs, Rung::General, false),
         // VERBS-SPHSPH retired this arm: the closed-form radical-plane
         // Circle (sphere_sphere_section — the same algebra profile's
@@ -251,7 +253,7 @@ fn plane_cylinder_parallel_trio() {
         let Curve3::Line(geom::Line { origin, dir }) = l else {
             panic!("ruling is a line");
         };
-        assert_eq!(dir.z, 1.0);
+        assert_eq!(dir.get().z, 1.0);
         assert!(implicit_residual(&mk_plane(1.0), *origin).abs() < 1e-12);
         assert!(implicit_residual(&cyl, *origin).abs() < 1e-12);
     }
@@ -551,9 +553,9 @@ fn plane_cone_apex_trio() {
         assert_eq!((origin.x, origin.y, origin.z), (0.0, 0.0, 1.0));
         // On the plane and on the cone: dir ⊥ normal, dir at angle α
         // to the axis.
-        assert!(dir.x.abs() < 1e-12, "in-plane");
+        assert!(dir.get().x.abs() < 1e-12, "in-plane");
         assert!(
-            (dir.dot(Vec3::unit_z()) - core::f64::consts::FRAC_PI_6.cos()).abs() < 1e-12,
+            (dir.get().dot(Vec3::unit_z()) - core::f64::consts::FRAC_PI_6.cos()).abs() < 1e-12,
             "generator angle"
         );
     }
@@ -581,12 +583,13 @@ fn plane_cone_apex_trio() {
     };
     // The tangent generator lies in the plane.
     assert!(
-        dir.dot(Vec3::new(
-            (core::f64::consts::FRAC_PI_2 - a).sin(),
-            0.0,
-            -(core::f64::consts::FRAC_PI_2 - a).cos()
-        ))
-        .abs()
+        dir.get()
+            .dot(Vec3::new(
+                (core::f64::consts::FRAC_PI_2 - a).sin(),
+                0.0,
+                -(core::f64::consts::FRAC_PI_2 - a).cos()
+            ))
+            .abs()
             < 1e-9,
         "tangent generator in-plane"
     );
@@ -3280,7 +3283,8 @@ fn a_coaxial_cone_torus_section_is_circles_on_both() {
 }
 
 /// **A torus off the cone's axis routes to the general rung**: the
-/// closed form holds only the coaxial pose.
+/// closed form holds only the coaxial pose, and the general rung's door
+/// is `ssi::cone_torus_ssi`.
 #[test]
 fn an_off_axis_cone_torus_routes_to_the_general_rung() {
     use geom_brep::intersect::cone_torus_section;

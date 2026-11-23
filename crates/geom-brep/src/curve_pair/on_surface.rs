@@ -41,6 +41,7 @@
 //! caller's: each reads both off one face.
 
 use geom::{Azimuth, ChartAngle, ChartArm, ChartChannels, ChartInverse, Circle, Curve3, Frame};
+use geom_core::UnitVec3;
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec3};
 
@@ -532,10 +533,10 @@ impl<T: Decide> SurfaceCurve<T> {
         let f = *chart.frame();
         let start = surface.eval(uv.x, uv.y);
         let (dir, opening) = match chart.arm() {
-            ChartArm::Cylinder { .. } => (f.axis(), None),
+            ChartArm::Cylinder { .. } => (f.axis_unit(), None),
             ChartArm::Cone { .. } => {
                 let g = start - f.origin();
-                (g.normalize(), Some(opening))
+                (UnitVec3::squared(g), Some(opening))
             }
             _ => return Err(Self::refused("ruling", surface)),
         };
@@ -572,7 +573,7 @@ impl<T: Decide> SurfaceCurve<T> {
             Family::Generator,
             geom::Line {
                 origin: apex,
-                dir: g.normalize(),
+                dir: UnitVec3::squared(g),
             },
             toward.x,
             Some(opening),
@@ -676,7 +677,7 @@ impl<T: Decide> SurfaceCurve<T> {
             family: Family::ULine,
             shape: Shape::Line(geom::Line {
                 origin: start,
-                dir: f.u_ref().normalize(),
+                dir: UnitVec3::squared(f.u_ref()),
             }),
             plane: (start, f.v_ref().normalize()),
             section: Section::Whole,
@@ -1010,7 +1011,7 @@ impl<'a, T: Decide> OnSurface<'a, T> {
         // line's direction, each in its plane.
         let u_ref = match curve.shape {
             Shape::Circle(c) => c.u_ref(),
-            Shape::Line(l) => l.dir,
+            Shape::Line(l) => l.dir.get(),
         };
         let plane = geom::Surface::Plane {
             frame: geom::Frame::new(origin, normal, u_ref),

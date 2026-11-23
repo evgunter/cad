@@ -907,7 +907,7 @@ fn enclosing_net<T: CertifiedBounds>(
         // spare, and an origin and direction framed apart lose what an
         // interval point's channels share (measured: a widened extrude's
         // edge bounds 1.2e-9 framed apart and under 1e-9 framed after).
-        let (o, d) = (lift_p(origin), lift_v(dir));
+        let (o, d) = (lift_p(origin), lift_v(dir.get()));
         let mut knots = vec![first];
         knots.extend_from_slice(breaks);
         knots.push(last);
@@ -1196,7 +1196,13 @@ mod tests {
         let u_ref = Vec3::new(1.0, 0.0, 0.0);
         let center = Point3::new(0.3, -0.2, 0.5);
         let kinds = [
-            ("line", Curve3::line(center, Vec3::new(0.2, 0.7, -0.1))),
+            (
+                "line",
+                Curve3::line(
+                    center,
+                    geom_core::UnitVec3::squared(Vec3::new(0.2, 0.7, -0.1)),
+                ),
+            ),
             ("circle", Curve3::circle(center, axis, 0.8, u_ref)),
             (
                 "ellipse",
@@ -1411,7 +1417,10 @@ mod tests {
         );
         assert_eq!(net.cuts(), &[0.25, 0.5], "its breaks ride as cuts");
 
-        let line = Curve3::line(Point3::new(0.0, 1.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
+        let line = Curve3::line(
+            Point3::new(0.0, 1.0, 0.0),
+            geom::stated_direction(Vec3::new(1.0, 0.0, 0.0)),
+        );
         let net = carrier_net(&line, (0.0, 2.0), &[1.0, 3.0, 1.0]).unwrap();
         let (knots, _, coords) = net.operand();
         assert_eq!(knots.degree(), 1, "a line is degree 1");
