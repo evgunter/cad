@@ -952,6 +952,8 @@ pub(crate) fn lift_of_halves<T: Decide>(
     halves: &[HalfEdgeKey],
 ) -> Option<(Lift<T>, Vec<Option<usize>>)> {
     let r#loop = proven(&body.half_edges, *halves.first()?, EntityId::HalfEdge).parent_loop;
+    // No lift to read is this reader's `None`, not a fallback to another
+    // reading: each caller refuses or derives per half, by name.
     let lift = Lift::read(body, r#loop).ok()?;
     let rows = halves
         .iter()

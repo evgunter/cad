@@ -1190,7 +1190,11 @@ fn a_slanted_line_is_stated_as_a_curve_in_uv_on_its_carriers_knots() {
     )
     .unwrap();
     let on_the_carriers_knots = Image::General(Arc::new(line(0.0, 1.0, [at(0.0), at(1.0)])));
-    let spans = [(0.0, 1.0), (0.2, 0.8), (0.10643145509962969, 0.9708870021542011)];
+    let spans = [
+        (0.0, 1.0),
+        (0.2, 0.8),
+        (0.10643145509962969, 0.9708870021542011),
+    ];
     for span in spans {
         for door in DOORS {
             let got = (door.certify)(&surface, &on_the_carriers_knots, &net, span);

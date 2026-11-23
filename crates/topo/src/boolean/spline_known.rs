@@ -116,8 +116,20 @@ fn images<T: Decide + AtRestPolicy>(
 /// values, so a corner is found wherever both lines are held at domain
 /// ends, however the images' maps read their own ends; an end between
 /// two images on one line is the image's value there, a corner only
-/// where it is one exactly. A loop with no lift to read hands in no
-/// corner.
+/// where it is one exactly.
+///
+/// **A loop with no lift to read hands in no corner**
+/// ([`crate::pcurves::Lift::read`] refuses: a member stores no image, or
+/// no element on the joint into it). A finished body has none: tier 3
+/// refuses a curved face that stores no rows (`PcurveMintError::Unminted`),
+/// and the boolean takes finished bodies. Such a loop is a face a caller
+/// reads mid-operation or off an unfinished body, and its corners are
+/// left out, not derived: a corner handed in only widens what the pair's
+/// reading may read, so leaving one out can refuse a section through it
+/// (the boundary pass's `ssi_pair_boundary`, as
+/// `sweep`'s `a_sheath_grafted_on_its_blade` shows with every corner left
+/// out) and can accept nothing. The rows above are read from derived
+/// images and do not need the lift.
 fn corners<T: Decide + AtRestPolicy>(
     body: &Body<T>,
     face: FaceKey,
@@ -128,6 +140,7 @@ fn corners<T: Decide + AtRestPolicy>(
     let (du, dv) = (net.knot_values_u().domain(), net.knot_values_v().domain());
     let mut out: Vec<(ChartCorner, geom_core::Point3<T>)> = Vec::new();
     for (r#loop, _) in body.proven_face(face).cycles() {
+        // No lift to read: no corner from this loop (the doc above).
         let Ok(lift) = crate::pcurves::Lift::read(body, r#loop) else {
             continue;
         };

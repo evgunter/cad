@@ -69,10 +69,9 @@ fn closed() -> Option<Winding> {
 /// which the row asserts of each before it reads the corner.
 ///
 /// Red under `Lift::joint_point` reading the row's own entry where there
-/// is a meet, and under `Lift::exit_point` reading its own exit: at
-/// `Interval` the corner is then an enclosure, no point (each planted
-/// alone; the entry mutant leaves `exit_point`'s assertions green and
-/// reddens "the joint into row … is the meet").
+/// is a meet ("the joint into row 0 is the meet", at `Interval`), and
+/// under `Lift::exit_point` reading its own exit ("row 4 leaves at the
+/// corner row 0 enters at"): each planted alone.
 #[test]
 fn a_corner_is_the_meet_and_a_cut_is_the_maps_value() {
     // One body per scalar, by macro: the rows read brackets and decide
@@ -193,11 +192,12 @@ fn deck(k: i32) -> Deck {
 /// corners as they are; a row on the twin sheet, or beside one, reads
 /// none.
 ///
-/// Red under `Lift::stored_corners` reading the neighbour's MOVED value
-/// and un-moving it by the row's deck (the far corner is `hi + P − P`:
-/// `1.7000000000000002` at `f64`, a width at `Interval`), under it
-/// ignoring the decks (the near corner reads `1.7`), and under
-/// `Period::moved` adding the period's length always.
+/// Red under `Lift::stored_corners` ignoring the periods between the two
+/// rows' decks (reading the neighbour's stored value as it is: with both
+/// seam columns stored at `lo`, both corners read `0.4`). The reading it
+/// replaces, the neighbour's MOVED value un-moved by the row's deck, put
+/// the far corner at `hi + P − P` (`1.7000000000000002` at `f64`, a width
+/// at `Interval`: the review's probe).
 #[test]
 fn a_stored_corner_is_the_neighbours_stored_value_moved_between_the_decks() {
     // One body per scalar, by macro: the rows read brackets and decide

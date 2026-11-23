@@ -2632,7 +2632,11 @@ fn iso_image_row<T: Decide>(
             Some(lift.stored_corners(row, periods))
         })
         .unwrap_or([None, None]);
-    Some((line.axis, line.value, iso_row_span(line, image, (t0, t1), corners)))
+    Some((
+        line.axis,
+        line.value,
+        iso_row_span(line, image, (t0, t1), corners),
+    ))
 }
 
 /// **The span of an iso image along its line over `(t0, t1)`**, given
@@ -6394,7 +6398,10 @@ mod iso_row_span_rows {
 
     /// A span neither of whose ends is zero or a literal.
     fn span<T: Real>() -> (T, T) {
-        (T::from_f64(0.1) + T::from_f64(0.2), T::from_f64(1.2) + T::one())
+        (
+            T::from_f64(0.1) + T::from_f64(0.2),
+            T::from_f64(1.2) + T::one(),
+        )
     }
 
     fn row<T: Decide>(v: f64, (u0, u1): (f64, f64)) -> LiftedRow<T> {
@@ -6404,7 +6411,11 @@ mod iso_row_span_rows {
 
     fn column<T: Decide>(u: f64, (v0, v1): (f64, f64)) -> LiftedRow<T> {
         let f = T::from_f64;
-        LiftedRow::stated_for_tests(Pcurve::iso_column(f(u), (f(v0), f(v1)), span()), span(), true)
+        LiftedRow::stated_for_tests(
+            Pcurve::iso_column(f(u), (f(v0), f(v1)), span()),
+            span(),
+            true,
+        )
     }
 
     fn closed() -> Option<Winding> {

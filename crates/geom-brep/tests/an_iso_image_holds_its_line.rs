@@ -300,8 +300,14 @@ fn a_map_that_leaves_its_charts_domain_in_band_is_gated() {
                     } else {
                         Pcurve::iso_column(T::zero(), placed, whole)
                     };
-                    let got =
-                        PcurveCache::certify(image, whole.0, whole.1, &carrier, &unit_chart(), band());
+                    let got = PcurveCache::certify(
+                        image,
+                        whole.0,
+                        whole.1,
+                        &carrier,
+                        &unit_chart(),
+                        band(),
+                    );
                     assert_eq!(
                         refusal(&got),
                         Some(("escalated", PcurveCheck::Envelope, 0)),
@@ -316,7 +322,8 @@ fn a_map_that_leaves_its_charts_domain_in_band_is_gated() {
                 } else {
                     Pcurve::iso_column(T::zero(), whole, whole)
                 };
-                let on = PcurveCache::certify(image, whole.0, whole.1, &carrier, &unit_chart(), band());
+                let on =
+                    PcurveCache::certify(image, whole.0, whole.1, &carrier, &unit_chart(), band());
                 assert_eq!(
                     on.as_ref().err().map(|e| format!("{e:?}")),
                     None,
