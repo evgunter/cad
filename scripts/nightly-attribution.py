@@ -40,6 +40,11 @@ C catch a flake that shows within one re-run; a test that went red, green
 and red again within the range can still be pinned on the wrong one of its
 reds.
 
+It also ASSUMES the probe config and the nightly config turn red at the
+same commit. A red-to-green transition in the probe config alone, at
+another commit and with the same failure type, would be confirmed and named;
+only a nightly-config check at C could rule that out.
+
 Cost order: the binary with most open tests is bisected first and finished
 before the next starts, so a spent budget leaves whole answers. Once a
 culprit C is confirmed, the other binaries probe C and C^1 first. Bounds:
@@ -432,12 +437,19 @@ def judge(r: Red, n_last: int, label_of: Callable[[int], str]) -> None:
     else:
         why = []
         if any(x != FAIL for x in hi):
-            end = "the bad end" if r.hi == n_last else "the culprit"
-            why.append(f"probe config disagrees at {end} ({', '.join(hi)})")
+            why.append(end_note("the bad end" if r.hi == n_last else "the culprit", hi, FAIL))
         if any(x != PASS for x in lo):
-            end = "the good end" if r.lo == r.base_idx else "its parent"
-            why.append(f"probe config disagrees at {end} ({', '.join(lo)})")
+            why.append(end_note("the good end" if r.lo == r.base_idx else "its parent", lo, PASS))
         r.note = "; ".join(why)
+
+
+def end_note(end: str, got: list[str], want: str) -> str:
+    """Why `end` did not give `want`. Only a test result that differs is a
+    disagreement; a build that failed or was cut leaves the end untestable."""
+    if any(x != want and not x.startswith("its build") for x in got):
+        return f"probe config disagrees at {end} ({', '.join(got)})"
+    builds = sorted({x.removeprefix("its ") for x in got if x.startswith("its build")})
+    return f"untestable at {end} ({', '.join(builds) or 'not probed'})"
 
 
 def settle(r: Red, commits: list[str]) -> None:
@@ -813,6 +825,9 @@ def selftest() -> int:
     # Fails everywhere in the probe config: the good end disagrees.
     by, _ = _bisect({"a::all x": 0})
     assert "disagrees at the good end" in by["a::all x"].verdict, by["a::all x"].verdict
+    # A failed build at an end leaves it untestable; only differing results disagree.
+    assert end_note("the bad end", ["its build exited 101"], FAIL) == "untestable at the bad end (build exited 101)"
+    assert end_note("the good end", [FAIL], PASS) == "probe config disagrees at the good end (fail)"
     # An abort at the culprit is not a failure: the commit is untestable.
     by, _ = _bisect({"a::all x": 11}, {("a::all x", 11): ["failed otherwise (test abort)"] * 3})
     v = by["a::all x"].verdict
