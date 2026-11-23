@@ -10518,11 +10518,6 @@ fn product_read<P: Clone + crate::ProfilePayload>(
     if doc.unresolved_read(var).is_some() {
         return Err(refused(ProductReadFault::Unresolved));
     }
-    // Containment (D10 `[repetition]`): a body that reads an index is
-    // one member at each value, read only inside its binder.
-    if doc.yielding(var).is_none() && !doc.var_reach(var).is_none() {
-        return Err(refused(ProductReadFault::PerMember));
-    }
     match product_fault(doc, var) {
         None => Ok(var),
         Some(fault) => Err(refused(fault)),
@@ -10530,17 +10525,26 @@ fn product_read<P: Clone + crate::ProfilePayload>(
 }
 
 /// **What is wrong with the slot reading `var`**: a live variable of
-/// another kind than `Body`, or a body outside the world. `None` for a
-/// slot that reads a body in the world, and for one whose variable or
-/// space is gone, which is a stranded reader
+/// another kind than `Body`, a body that reads an index and that no
+/// binder yields (one member at each value, read only inside its
+/// binder: D10 `[repetition]`'s containment), or a body outside the
+/// world. `None` for a slot that reads a body in the world, and for one
+/// whose variable or space is gone, which is a stranded reader
 /// ([`crate::ProductError::StrandedProduct`]).
-pub(crate) fn product_fault<P: crate::program::SlotPayload<VarId>>(
+///
+/// The one home of the slot's rules: `SetProduct`'s door, every other
+/// arm (an edit that leaves the slot on a k-reader refuses) and load
+/// all ask it.
+pub(crate) fn product_fault<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     var: VarId,
 ) -> Option<ProductReadFault> {
     let held = doc.var(var)?;
     if held.kind() != VarKind::Body {
         return Some(ProductReadFault::Kind { found: held.kind() });
+    }
+    if doc.yielding(var).is_none() && !doc.var_reach(var).is_none() {
+        return Some(ProductReadFault::PerMember);
     }
     if doc.through_sources(var).is_indexed() {
         return Some(ProductReadFault::Member);
