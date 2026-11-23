@@ -230,14 +230,14 @@ fn both_sweeps_evaluate_in_one_document() {
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0xb6b6_ebf3_32ce_bfd9),
-        ("corner_table", 0x38be_20d2_58d2_3106),
+        ("die", 0x9c01_cd5a_748f_965d),
+        ("corner_table", 0xff0e_10c2_88de_4150),
         // Re-cut: PR 7299 places the x = -0.5 seam's split vertex at cross's root, z one ulp up onto the rounded crossing.
-        ("cut_cylinder", 0x3acc_0092_fd75_dffd),
+        ("cut_cylinder", 0xce1e_6b75_f9c5_1b5f),
         // Holds PR 7354's move unjudged; SECTCONE owes the judgement
         // (`work/green/main-red-eleven-editor-core-and-sweep-rows-moved-on-main-after-c390e1f9.md`).
-        ("boss_union", 0x8576_cee5_8aae_41d1),
-        ("kitchen_sink", 0xb241_ee11_614f_f62f),
+        ("boss_union", 0xa548_d710_f65a_ca7d),
+        ("kitchen_sink", 0x1092_b623_2d28_9617),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {
