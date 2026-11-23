@@ -1,7 +1,7 @@
 ---
 id: a-cut-that-trims-a-kept-face-leaves-a-record-on-it-stale
 kind: issue
-title: A cut that trims a face under a recorded touch keeps the face's key, lands the record unread, and the gate refuses the result stale
+title: A cut whose apex is zipped onto a face's boundary at a vertex recorded as resting on that face carries the record on, and the gate refuses the result stale
 status: open
 opened: 2026-11-22
 priority: P0
@@ -80,3 +80,6 @@ Owed, and past the bound: one answer for a vertex on a face's boundary
 vertex in both readings; and the zip's seam cells stated in the
 lineage of the face they land on, so that a record there is read, and
 re-lands as the vertex pair or is retired. The ten cells stay pinned.
+
+The two readings' disagreement has its own row:
+`work/contacthold/two-readers-of-a-vertex-on-a-faces-boundary-vertex-disagree.md`.
