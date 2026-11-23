@@ -31,3 +31,7 @@ about. Pin the seed as a deterministic row beside the fix.
 touches no profile code) failed this test at eps 1e-12; reproduce with
 `CAD_FUZZ_SEED=0xf2f02896e090b95e`. The next run with a fresh seed
 passed. (WIRE orchestrator)
+
+## Another seed (2026-11-18, from PR 7096's hosted run)
+
+`test (kernel)` on PR 7096's head `7a6f5bfe6e` (a TESSLANE PR that touches no profile code) failed this test in one of its three ε passes; reproduce with `CAD_FUZZ_SEED=0x68011bdfc75b3870 CAD_FUZZ_EFFORT=1` (`crates/profile/src/seg.rs:3336`, the joint decided `Transversal` on `path_junction_turn`). The other two passes were green. Not replayed on main by that lane. (TESSLANE orchestrator)
