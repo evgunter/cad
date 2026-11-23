@@ -8,6 +8,13 @@ an emitted mesh lies within δ of the true surface (honestly δ + ε,
 plus rounding), and δ bounds that distance and nothing else. If a
 triangle cannot be certified, the face refuses typed.
 
+δ does not bound volume. Once δ times a body's area reaches its
+volume, a mesh within δ of every face may enclose nothing: two faces
+closer together than δ can be met by one sheet. `tessellate` returns
+that mesh, as it returns any closed mesh that keeps the promise. A
+reader that needs a solid's boundary reads the sign of each shell
+(`[mesh.winding]`).
+
 ## Every triangle has a winding
 
 `[mesh.winding]`
@@ -17,6 +24,9 @@ of its own positions.** A normal computed from the stored corners
 points the way its face does, and would not flip if each coordinate
 moved by its evaluation rounding. Shape is not otherwise promised: a
 triangle may be thin, and it may be small beside ε.
+
+Outward is each triangle against its own face. It does not say that
+the mesh as a whole encloses the body.
 
 - **One definition.** A triangle is resolved when its cross product
   exceeds `cert::rounding_allowance` at its coordinate scale times its
@@ -34,6 +44,14 @@ triangle may be thin, and it may be small beside ε.
 - **Checked from outside** by a public function beside `check_volume`
   that re-derives it over every triangle. `check_mesh` stays
   combinatorial.
+- **The sign of a shell is read where a solid is needed.** A public
+  check beside `check_volume` takes the body and reads, for each of
+  its shells, that the mesh's signed volume has that shell's sign and
+  is resolved above the rounding of its own sum. It reads no ε. The
+  export path calls it and refuses typed, naming δ as the lever.
+  `tessellate` does not call it: the viewer asks for every body at a
+  δ far above its size, and two faces closer than δ that share no
+  point give the join nothing to keep apart.
 
 ## The sizing rule
 
