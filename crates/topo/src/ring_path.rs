@@ -2225,7 +2225,10 @@ fn plane_roots<T: Decide>(
     // A carrier moved by δ moves the root by δ over the slope the piece
     // crosses the plane at, `|n̂·τ̂|`: each in-span reading of the other
     // arc is levered by it.
-    let (ca, cb) = (n.dot(p.circle.frame().u_ref()), n.dot(p.circle.frame().v_ref()));
+    let (ca, cb) = (
+        n.dot(p.circle.frame().u_ref()),
+        n.dot(p.circle.frame().v_ref()),
+    );
     Ok(PlaneMeet::Meets(
         at.into_iter()
             .map(|m| {
