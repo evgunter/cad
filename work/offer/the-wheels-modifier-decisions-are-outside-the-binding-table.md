@@ -2,11 +2,10 @@
 id: the-wheels-modifier-decisions-are-outside-the-binding-table
 kind: issue
 title: viewer: what a wheel does under a modifier is decided in the toolkit adapter, so the controls guide cannot list it
-status: dispatched
+status: open
 opened: 2026-11-22
 priority: P2
 cost: M
-branch: offer/the-wheel-is-in-the-binding-table
 ---
 
 Found by the review of PR 7336 (the controls guide), which makes `InputMap::bindings` (`crates/viewer/src/input.rs`) the one table the mapper and the guide read.

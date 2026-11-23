@@ -2,11 +2,10 @@
 id: properties-do-not-say-a-node-is-read-by-the-product-or-a-definition
 kind: issue
 title: viewer: Properties' read-by lists nodes only, never the product slot or a variable's definition
-status: dispatched
+status: open
 opened: 2026-11-22
 priority: P3
 cost: M
-branch: offer/read-by-says-the-product-and-definitions
 ---
 
 Found in review of PR 7356 (the relations unit). A node's "read by" section (`crates/viewer/src/relations.rs`, `relations`) is `ReadIndex::read_by` (`crates/editor-core/src/doc.rs`, `Doc::read_index`). It inverts nodes' operand rows only.
