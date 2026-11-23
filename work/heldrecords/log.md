@@ -130,3 +130,12 @@
   - **Runner queue at 93 runs repo-wide; nothing of this program's has started since 21:49Z.** PR 7432's CI was queued at 21:49Z (head `d6e0890aa3`) and again at 00:07Z (head `e773d00413`), and PR 7421's at 23:48Z; none has a job started. The queue is the program's bottleneck, not its lanes. The answer stays the one logged: the elbow stack lands as one run.
   - **PR 7471's R2 is in** (00:19Z): sound for what it pins, MAJOR-1 open. An elbow turned so its neutral points fall in a rim half-arc's end gaps reads `JetDeterminate` at every station. It then demands a `TangentIntersection` that cannot certify, which refuses as a "kernel defect". A dome on an elbow's end refuses the same way, and that one is not a regression.
   - **The nesting reviewer ended its turn with a job in the background**, the shape `docs/prompts/implementer-discipline.md` warns of. It was woken with priority `now`. (HELDRECORDS orchestrator)
+- 2026-11-23 — **PR 7471's dual review is in (R2 00:19Z, R1 00:57Z); no wrong union; the fix pass is ruled (01:00Z), third in the lane's queue.**
+  - **The class:** both reviewers show the walk reads determinacy at stations, so neutral points can slip between them. R2 does it with an end-gap elbow turned about 1.2 rad, which refuses "kernel defect". R1 does it with two zeros π apart escaping seven stations. Must-carry then demands what its certificate cannot certify.
+  - **Ruled:** `JetDeterminate` iff |κ_rel| is certified away from zero along the whole edge (the station minimum against the certificate's own drift bound). The demanded set becomes the certifiable set by construction, and the sign rule is a special case.
+  - **Also ruled:**
+    - no `Mixed` → `Lamina` reclassification (R1);
+    - the scaffold is fixed at its minter, `chord_join::along_edge_spec`, not at the describe pass, so tier 3's fence for any other forgotten description stays (R1; both reviewers traced the minter);
+    - pins that go red per PR.
+  - **A red on the stack:** `recourse_roster` (`END_ROOT_*`, the 7463 pass's). Its other names are to be checked against main.
+  - **The landing:** after all three passes, the lane reports a verdict table for the top of the stack against main, slow set included, at two ε. The stack then lands as one. (HELDRECORDS orchestrator)
