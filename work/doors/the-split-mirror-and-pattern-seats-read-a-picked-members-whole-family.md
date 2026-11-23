@@ -24,3 +24,21 @@ Found by the review of PR 6593 (REFS, `viewer-boolean-tool-cannot-pick-a-read`).
 **Should not:** the part seat (`Seat::PartInstance` wants a family, which it projects one member of), and the clearance seats, which read a family over its members by design (`ClearanceOutcome::over_members`).
 
 Member reads of a family something copies wait on `a-combine-of-a-world-copied-familys-member-leaves-the-copy-drawing-it` at every seat.
+
+## The pattern seat routes a family its door then refuses (FORMWORDS, 2026-11-22)
+
+Evidence added, not a second row. The pattern seat (`Seat::PatternBody`,
+wanting `NodeKindWanted::Body`) admits a pattern, and a transform of
+one, because a family by repetition is a body at the gate
+(`session::refuse::admits`): an operation reading it at a body slot is
+evaluated once per member. `SessionOp::AddPattern` with such an input
+then refuses at the edit door, `IndicesUnrelated` between the family's
+index and the new pattern's fresh one — measured on
+`combine_ops::box_and_pattern`'s pattern and on its transform.
+`SessionOp::AddFusedPattern` over the same pattern refuses the same
+way, `IndicesUnrelated` between the two indices. So today
+the seat steers a pick the commit refuses, which `admits`' doc says one
+answer for both exists to prevent. Reading a member at this seat, as
+this row asks, removes the family from the input and the refusal with
+it; `combine_ops::a_transform_of_a_pattern_seats_where_evaluation_takes_it`
+skips this seat and cites this row.
