@@ -136,3 +136,28 @@ old one was not that.
 
 So `0xfe07_0805_06b3_9e32` is the kite's evaluation read better, not
 merely differently. The pin is moved to it.
+
+## A third move: PR 7501 redefined the digest (GREEN U15, 2026-11-23)
+
+PR 7597's gate, at head `c837247c3d` (main `53e08fc628` merged in), ran
+run 45237410529, and the test read `0x5533_9c14_5231_454e` there, not
+`0xfe07_0805_06b3_9e32`. I bisected it on hosted CI with U14's chunk-dump
+probe, on throwaway branches that are deleted now:
+
+| main commit | fixture digest | runs |
+|---|---|---|
+| `43bbb7277f^1` | `0xfe07080506b39e32`; feed byte-identical to `dump-e`, the post-7411 dump read above | 45260170421 |
+| `43bbb7277f` (PR 7501, `ciw/census-digest-goldens`) | `0x55339c145231454e` | 45260183312 |
+| `bba39ef945^1`, `bba39ef945` (PR 7349) | `0x55339c145231454e` | 45248604112, 45248617222 |
+| `53e08fc628` (in 7597's merge) | `0x55339c145231454e` | 45237410529 |
+
+**The class is a redefinition of the digest, with no value moved.** PR
+7501 rewrote `fixture::digest`: it now reads values through
+`canonical` with field names dropped, it feeds no arena key or mint id,
+and it reads `max_residual` only as finite or not. Outside test code its
+diff touches only one doc comment in `topo/src/props.rs`. So the
+evaluation it reads is the one verified above, read a new way. The old
+probe's feed walk no longer matches the new digest: its feed digest is
+`0x5e06709d1c1fe8a3`, over 600 chunks. 7501 re-cut its own suites but did
+not edit this file, so the kite test (slow set) never ran on its gate.
+The pin moves to `0x5533_9c14_5231_454e`.
