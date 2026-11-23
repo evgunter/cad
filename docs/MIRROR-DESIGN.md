@@ -124,11 +124,11 @@ equivariance impossible — the S8 rung-3 precedent. The alternative
 
 ## P4 — One instancing semantics: the index
 
-A document repeats by an index variable (D10, Repetition): what reads
-`k = index(N)` is evaluated once per value of `k`. A copy pattern is a
-placement reading an index, its values expressions in it; a feature pattern is a construction reading
+A document repeats inside a binder (D10, Repetition): in `{k in D: …}`,
+what reads `k` repeats once per value of `k`. A copy pattern is a
+placement inside a binder, its values expressions in the index; a feature pattern is a construction inside
 one; neither lowers to the other, because there is one instancing
-semantics and it is the index. Copies of one body are built once and
+semantics and it is the binder. Copies of one body are built once and
 mapped as rigid images; a construction whose scalar inputs read an
 index is built per member (no construction reads a frame), since
 equivariance is audited at the site (P3), never assumed. A hole pattern is `subtract(plate, union(cutters))`
