@@ -768,20 +768,21 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/topo/src/injective.rs",
-        211,
-        98,
-        "the 98 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
+        215,
+        102,
+        "the 102 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
          `ends_on_collapse` (3), \
          `present_chart` (22), the pose's four (17, below), \
-         `present_plane` (14), `present_plane_corner` (7), `present_vertex_corner` (12), \
+         `present_plane` (18), `present_plane_corner` (7), `present_vertex_corner` (12), \
          `Trig::psi` (3), `iso_params` (4) and `segment_params` (4). `iso_params` and \
          `segment_params` each read the side's parameter enclosure (4) only behind their own \
-         `is_certified()` and finiteness ask; `present_plane`'s 14 are its cell's placement off a \
-         line's face side (3, wholly off: `y`, and a corner's `x` and `y`); a side's chart range \
-         handed to `segment_params` (3); and its rectangle's bounds, the cell's reach and a strip \
-         end's cap height (8), each an enclosure's outer end, so the rectangle holds more of \
-         the plane and never less, the cap's height behind its own `is_certified()` (an \
-         undecided one caps nothing). All 14 count as asking because `present_plane` names \
+         `is_certified()` and finiteness ask; `present_plane`'s 18 are its cell's placement off a \
+         line's face side (5, wholly off: `y`, a strip end's `x` and `y`, and a two-line \
+         corner's piece's `x` and `y`, those two read only after both are `is_certified()`); a \
+         side's chart range handed to `segment_params` (4); and its rectangle's bounds, the \
+         cell's reach and a strip end's cap height (9), each an enclosure's outer end, so the \
+         rectangle holds more of the plane and never less, the cap's height behind its own \
+         `is_certified()` (an undecided one caps nothing). All 18 count as asking because `present_plane` names \
          `is_certified()` and its readings are closures inside it: the census asks of the \
          enclosing `fn`, and these dispositions are each read's own. `present_chart` asks each clip line where it is placed, so 14 of its \
          reads, the touch, reach, merge and rectangle-side reads, see only certified \
