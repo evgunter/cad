@@ -118,6 +118,8 @@ mod a_minted_vertex_on_a_curved_face;
 mod a_mirrored_loft_placement_is_no_sketch_plane;
 #[path = "a_move_through_a_neighbour_inverts_the_body.rs"]
 mod a_move_through_a_neighbour_inverts_the_body;
+#[path = "a_one_band_face_covers_its_face.rs"]
+mod a_one_band_face_covers_its_face;
 #[path = "a_pierce_held_in_a_curved_face.rs"]
 mod a_pierce_held_in_a_curved_face;
 #[path = "a_plane_across_a_one_face_wall.rs"]
