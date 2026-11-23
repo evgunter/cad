@@ -1088,7 +1088,7 @@ pub(super) fn junction_bound_side<T: Decide>(
     {
         return Ok(SideCode::On);
     }
-    let tangent = rim.axis.cross(p - rim.center).normalize();
+    let tangent = rim.axis.get().cross(p - rim.center).normalize();
     let sine = d.normalize().cross(tangent).norm();
     match crate::validate::decide(
         "junction_bound_rides_rim",
@@ -3146,7 +3146,7 @@ mod tests {
         let h = core::f64::consts::FRAC_PI_4;
         let apex = ConeApex {
             apex: o,
-            axis: Vec3::new(0.0, 1.0, 0.0),
+            axis: geom_core::UnitVec3::exact_y(),
             half_angle: h,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
             sense: true,
@@ -3176,7 +3176,7 @@ mod tests {
                 "turn {turn}: |{m:?}| is not 1"
             );
             assert!(
-                (m.dot(apex.axis) + h.cos()).abs() < 1e-12,
+                (m.dot(apex.axis.get()) + h.cos()).abs() < 1e-12,
                 "turn {turn}: {m:?} is off the cone's lower nappe"
             );
             assert!(

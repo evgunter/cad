@@ -6088,7 +6088,7 @@ fn pinched_at_cone_apex<T: Decide>(body: &Body<T>, band: Band) -> Result<(), Boo
         let geom::Surface::Cone { frame, .. } = *view.surface() else {
             continue;
         };
-        let (apex, axis) = (frame.origin(), frame.axis());
+        let (apex, axis) = (frame.origin(), frame.axis_unit());
         for (_, members, _) in view.boundary_by_loop() {
             let mut starts = BTreeSet::new();
             for member in members {
@@ -9919,7 +9919,10 @@ mod tests {
             ),
             radius: 1.0,
         };
-        let ruling = geom::Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
+        let ruling = geom::Curve3::line(
+            Point3::new(0.0, 0.0, 0.0),
+            geom::stated_direction(Vec3::new(0.0, 1.0, 0.0)),
+        );
         (floor, cylinder, ruling)
     }
 
@@ -10417,7 +10420,10 @@ mod tests {
             crate::entity::FaceKey::default(),
             crate::geometry::SurfaceKey::default(),
         );
-        let line = geom::Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
+        let line = geom::Curve3::line(
+            Point3::new(0.0, 0.0, 0.0),
+            geom::stated_direction(Vec3::new(1.0, 0.0, 0.0)),
+        );
         let circle = geom::Curve3::circle(
             Point3::new(0.0, 0.0, 0.0),
             Vec3::new(0.0, 0.0, 1.0),

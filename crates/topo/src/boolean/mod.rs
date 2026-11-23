@@ -195,6 +195,7 @@ pub mod voids;
 pub(crate) mod vtxfac;
 pub(crate) mod zip;
 
+use geom_core::UnitVec3;
 use geom_core::{
     Band, BandError, Bounds, Decide, Indeterminate, KERNEL_DEFECT_ENDING, Margin, MarginDiag,
     NOT_YET_ENDING, Point3, Real, Sign, Tol,
@@ -8393,7 +8394,7 @@ pub(in crate::boolean) fn verify_distinct<T: Decide>(
                     geom::Curve3::Line(geom::Line { origin, dir }) => {
                         crate::rim_wedge::Locus::Line(geom::Line {
                             origin,
-                            dir: dir.normalize(),
+                            dir: UnitVec3::squared(dir.get()),
                         })
                     }
                     _ => {
@@ -8432,7 +8433,7 @@ pub(in crate::boolean) fn verify_distinct<T: Decide>(
                     return Ok(DistinctGlue::Junction(junction));
                 }
                 (
-                    geom::Curve3::circle(rim.center, rim.axis, rim.radius, rim.u_ref),
+                    geom::Curve3::circle(rim.center, rim.axis.get(), rim.radius, rim.u_ref),
                     T::zero(),
                     // The rim's whole turn, its circle's period, read where
                     // rim_wedge reads it.
@@ -8593,7 +8594,7 @@ fn junction_of<T: Decide>(
     margin: MarginDiag,
     band: Band,
 ) -> Option<GluedJunction<T>> {
-    let circle = geom::Curve3::circle(rim.center, rim.axis, rim.radius, rim.u_ref);
+    let circle = geom::Curve3::circle(rim.center, rim.axis.get(), rim.radius, rim.u_ref);
     let whole = (T::zero(), T::tau());
     let reach = crate::wedge_reach(a, [fa; 2], &circle, whole)
         .max(crate::wedge_reach(b, [fb; 2], &circle, whole));
@@ -8672,7 +8673,7 @@ fn route_rim<T: Decide>(
     let in_band = |diag| Refused(BooleanError::coincidence(Coincide::Rim, read, diag));
     let (sa, sense_a) = glued_face(a, fa, Operand::A).map_err(Refused)?;
     let (sb, sense_b) = glued_face(b, fb, Operand::B).map_err(Refused)?;
-    let circle = geom::Curve3::circle(rim.center, rim.axis, rim.radius, rim.u_ref);
+    let circle = geom::Curve3::circle(rim.center, rim.axis.get(), rim.radius, rim.u_ref);
     let whole = (T::zero(), T::tau());
     let reach = crate::wedge_reach(a, [fa; 2], &circle, whole)
         .max(crate::wedge_reach(b, [fb; 2], &circle, whole));
@@ -8752,7 +8753,7 @@ fn witness_span<T: Decide>(
             .ok_or(invalid("declared face's boundary is unwalkable"))?;
         let cover = crate::cover::face_cover(body, f, band)
             .map_err(|_| invalid("a face of the pair has no cover to meter the tangent witness"))?;
-        let (lo, hi) = cover.range_along(line.dir / line.dir.norm_squared());
+        let (lo, hi) = cover.range_along(line.dir.get() / line.dir.get().norm_squared());
         Ok((lo + at, hi + at))
     };
     let (sa, sb) = (span(a, fa, Operand::A)?, span(b, fb, Operand::B)?);
@@ -9388,7 +9389,7 @@ mod tests {
         let a = sheet(Point3::origin(), -Vec3::unit_y(), near);
         let b_in = sheet(Point3::new(2.0, 0.0, 0.0), Vec3::unit_y(), near);
         let b_short = sheet(Point3::new(2.0, 0.0, 0.0), Vec3::unit_y(), (2.2, 3.0));
-        let line = geom::Curve3::line(Point3::new(1.0, 0.0, 0.0), Vec3::unit_z());
+        let line = geom::Curve3::line(Point3::new(1.0, 0.0, 0.0), geom_core::UnitVec3::exact_z());
         let kind = geom::SurfaceKind::Cylinder;
         for (what, b, want) in [
             ("both trims hold the ruling", &b_in, true),
@@ -9435,7 +9436,7 @@ mod tests {
         };
         let a = sheet(Point3::origin(), -Vec3::unit_y());
         let b_apart = sheet(Point3::new(2.5, 0.0, 0.0), Vec3::unit_y());
-        let line = geom::Curve3::line(Point3::new(1.0, 0.0, 0.0), Vec3::unit_z());
+        let line = geom::Curve3::line(Point3::new(1.0, 0.0, 0.0), geom_core::UnitVec3::exact_z());
         let kind = geom::SurfaceKind::Cylinder;
         let got = locus_through_both_faces(
             [

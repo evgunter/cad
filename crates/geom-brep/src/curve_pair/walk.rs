@@ -801,7 +801,7 @@ mod tests {
     #[test]
     fn a_polished_parameter_at_its_end_is_the_end() {
         let band = Band::new(1e-9, 1e-8).unwrap();
-        let x = Curve3::line(Point3::origin(), Vec3::new(1.0, 0.0, 0.0));
+        let x = Curve3::line(Point3::origin(), geom_core::UnitVec3::exact_x());
         let span = Span::new(&x, (0.0, 1.0));
         assert_eq!(
             at_end(&span, 1.0 - 1e-12, band).0.to_bits(),
@@ -858,7 +858,13 @@ mod tests {
             .unwrap(),
         ));
         let (s, c) = 20f64.to_radians().sin_cos();
-        (crease, Curve3::line(Point3::origin(), Vec3::new(c, s, 0.0)))
+        (
+            crease,
+            Curve3::line(
+                Point3::origin(),
+                geom::stated_direction(Vec3::new(c, s, 0.0)),
+            ),
+        )
     }
 
     /// **A held window reads each end on its own span's side.** The
@@ -969,7 +975,10 @@ mod tests {
         ));
         let span = Span::new(&loop_back, (0.0, 1.0));
         assert_eq!(at_end(&span, 0.75, band).0.to_bits(), 1.0f64.to_bits());
-        let across = Curve3::line(Point3::new(0.0, -1.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
+        let across = Curve3::line(
+            Point3::new(0.0, -1.0, 0.0),
+            geom::stated_direction(Vec3::new(1.0, 0.0, 0.0)),
+        );
         let other = Span::new(&across, (-1.0, 1.0));
         let (ra, rb) = (Read::of(&span), Read::of(&other));
         let mut found = crate::curve_pair::Found::default();
@@ -1043,8 +1052,14 @@ mod tests {
     /// point at `x`, lifted `z` off it, over `(−1, 1)`.
     fn axis_and_cross(x: f64, z: f64) -> (Curve3<f64>, Curve3<f64>) {
         (
-            Curve3::line(Point3::origin(), Vec3::new(1.0, 0.0, 0.0)),
-            Curve3::line(Point3::new(x, 0.0, z), Vec3::new(0.0, 1.0, 0.0)),
+            Curve3::line(
+                Point3::origin(),
+                geom::stated_direction(Vec3::new(1.0, 0.0, 0.0)),
+            ),
+            Curve3::line(
+                Point3::new(x, 0.0, z),
+                geom::stated_direction(Vec3::new(0.0, 1.0, 0.0)),
+            ),
         )
     }
 
@@ -1152,8 +1167,11 @@ mod tests {
     #[test]
     fn a_pair_read_at_a_positive_gap_is_no_meeting() {
         let band = Band::new(1e-9, 1e-8).unwrap();
-        let x = Curve3::line(Point3::origin(), Vec3::new(1.0, 0.0, 0.0));
-        let near = Curve3::line(Point3::new(0.0, 1e-6, 0.0), Vec3::new(1.0, 0.0, 0.0));
+        let x = Curve3::line(Point3::origin(), geom_core::UnitVec3::exact_x());
+        let near = Curve3::line(
+            Point3::new(0.0, 1e-6, 0.0),
+            geom::stated_direction(Vec3::new(1.0, 0.0, 0.0)),
+        );
         let (a, b) = (Span::new(&x, (0.0, 1.0)), Span::new(&near, (0.0, 1.0)));
         let candidate = crate::curve_pair::Candidate {
             point: x.eval(0.5),
@@ -1182,8 +1200,11 @@ mod tests {
     #[test]
     fn a_pair_read_past_a_span_is_off_it() {
         let band = Band::new(1e-9, 1e-8).unwrap();
-        let x = Curve3::line(Point3::origin(), Vec3::new(1.0, 0.0, 0.0));
-        let up = Curve3::line(Point3::new(1.5, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
+        let x = Curve3::line(Point3::origin(), geom_core::UnitVec3::exact_x());
+        let up = Curve3::line(
+            Point3::new(1.5, 0.0, 0.0),
+            geom::stated_direction(Vec3::new(0.0, 1.0, 0.0)),
+        );
         let (a, b) = (Span::new(&x, (0.0, 1.0)), Span::new(&up, (-1.0, 1.0)));
         let candidate = crate::curve_pair::Candidate {
             point: x.eval(1.5),
@@ -1341,7 +1362,7 @@ mod tests {
             )
             .unwrap(),
         ));
-        let edge = Curve3::line(Point3::origin(), Vec3::new(0.0, 1.0, 0.0));
+        let edge = Curve3::line(Point3::origin(), geom_core::UnitVec3::exact_y());
         let (a, b) = (Span::new(&spline, (0.0, 1.0)), Span::new(&edge, (0.0, 1.0)));
         let points = witnesses(&Read::of(&a), &Read::of(&b), band).unwrap();
         let off =
@@ -1466,7 +1487,10 @@ mod tests {
                     let th = from + rng.range(0.0, 1.0);
                     let (c, s) = (th.cos(), th.sin());
                     let off = 1.0 + rng.range(-spread, spread);
-                    Curve3::line(Point3::new(off * c, off * s, 0.0), Vec3::new(-s, c, 0.0))
+                    Curve3::line(
+                        Point3::new(off * c, off * s, 0.0),
+                        geom::stated_direction(Vec3::new(-s, c, 0.0)),
+                    )
                 }
                 _ => {
                     let turn = rng.range(0.3, 1.5);

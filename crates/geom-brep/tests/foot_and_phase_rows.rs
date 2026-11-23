@@ -32,7 +32,10 @@ fn a_phase_on_the_window_cut_records_no_escalation() {
         let dir = m.cross(z);
         let origin = Point3::new(0.0, 0.0, 0.0) + m * -0.5 + dir * -3.0;
         let (li, ci) = (
-            lift(&Curve3::Line(geom::Line { origin, dir })),
+            lift(&Curve3::Line(geom::Line {
+                origin,
+                dir: geom::stated_direction(dir),
+            })),
             lift(&circle),
         );
         let bracket = Bracket::open();

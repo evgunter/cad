@@ -456,7 +456,7 @@ fn a_glued_tangency_records_the_margin_the_door_certified() {
         panic!("the line the door decided is handed on: {tangency:?}");
     };
     assert!(
-        kept.origin.equals_exactly(line.origin) && kept.dir.equals_exactly(line.dir),
+        kept.origin.equals_exactly(line.origin) && kept.dir.get().equals_exactly(line.dir.get()),
         "the line kept is the door's: {kept:?}, {line:?}"
     );
     assert_eq!(
