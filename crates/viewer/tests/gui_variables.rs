@@ -98,7 +98,10 @@ fn a_typed_value_is_offered_the_variables_of_equal_value_and_kind() {
     let said = &session.offered(a, SlotId::Distance)[0].label;
     assert_eq!(
         said,
-        &format!("the distance of {}", session.committed_doc().spoken(b)),
+        &format!(
+            "the distance of {}",
+            viewer::tree::spelled(&session.committed_doc().spoken(b))
+        ),
         "an anonymous variable is said by the slot that reads it (VR2)"
     );
 }

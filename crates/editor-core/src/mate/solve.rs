@@ -32,6 +32,7 @@
 //! refuses as its placement's node does, and the placements that read
 //! that copy are poisoned through it, as any reader is.
 
+use crate::say;
 use std::collections::{BTreeMap, BTreeSet};
 
 use geom_core::linalg::Affine3;
@@ -111,7 +112,11 @@ pub trait SolveScalar: Decide {
     /// `f64` (or `Probe`) of either sign's zero, an interval `[0, 0]`, a
     /// dual whose value and derivative both are; at `Sym`, its box
     /// lane's point zero alone (never at `Sym<f64>`, whose symbols range
-    /// over every value).
+    /// over every value). It chooses a branch that changes what is built
+    /// (`mate::turn::aligned`), so it answers for the whole of what the
+    /// scalar stands for; [`Self::exactly_zero`] only tightens a box
+    /// lane's reading, and answers false at `f64`, where nothing needs
+    /// tightening.
     fn zero_everywhere(self) -> bool {
         self.quoted() == 0.0 && self.upper() == 0.0
     }
@@ -238,24 +243,21 @@ pub enum PoseRefusal {
 }
 
 impl crate::spoken::Say for PoseRefusal {
-    fn say(
-        &self,
-        f: &mut core::fmt::Formatter<'_>,
-        by: crate::spoken::Speaker<'_>,
-    ) -> core::fmt::Result {
+    fn say(&self, f: &mut crate::Sentence, by: crate::spoken::Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::Mate(fault) => fault.say(f, by),
-            Self::OtherSpace { placement, space } => write!(
+            Self::OtherSpace { placement, space } => say!(
                 f,
-                "{} places its copy into {}, not the world, so it has no world pose",
                 by.node(*placement),
-                by.space(*space)
+                " places its copy into ",
+                by.space(*space),
+                ", not the world, so it has no world pose"
             ),
             Self::Unevaluated { placement } => {
-                write!(
+                say!(
                     f,
-                    "{} did not evaluate, so it has no pose",
-                    by.node(*placement)
+                    by.node(*placement),
+                    " did not evaluate, so it has no pose"
                 )
             }
         }
@@ -264,7 +266,7 @@ impl crate::spoken::Say for PoseRefusal {
 
 impl core::fmt::Display for PoseRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 
