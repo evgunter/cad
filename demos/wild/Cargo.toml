@@ -36,3 +36,10 @@ pncad = { path = "../../crates/pncad" }
 [profile.release]
 debug-assertions = true
 overflow-checks = true
+
+# The root `clippy.toml` lists the doors that hand out a conic's centre
+# frame; the workspace arms that list for its production code only
+# (`scripts/gates/conic-centre-reads.sh`), and this root, a consumer
+# outside it, reads them as a caller would.
+[lints.clippy]
+disallowed_methods = "allow"

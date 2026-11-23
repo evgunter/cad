@@ -339,6 +339,12 @@ pub(super) fn conic_quadric_method<T: Decide>(
     let (t0, t1) = span.params();
     let conic = carrier.conic().ok_or(DoorRefusal::Invariant(DESYNC))?;
     let found = match form {
+        Formed::FirstHarmonic(_)
+            if geom::probe::variant() == 2
+                && let Some(found) = probe_offset_first_roots(span, &conic, surface, band) =>
+        {
+            found.map(Roots::widen)
+        }
         Formed::FirstHarmonic(h) => door_refusal(super::circle_roots::harmonic_roots_as(
             &h,
             conic.speed_hi(),
@@ -357,6 +363,35 @@ pub(super) fn conic_quadric_method<T: Decide>(
             _ => {
                 let QuadricLadder { h, quadric, frame } = quadric_ladder(&conic, surface, (t0, t1))
                     .ok_or(DoorRefusal::Invariant(DESYNC))?;
+                // SCRATCH (probe, M2): the residual's jet formed in the
+                // offsets about the stored point, read by the existing
+                // subdivision as its local terms. Variant 3 also tells
+                // the ladder's noise meter the harmonics carry none.
+                let offsets = ProbeOffsetJet::new(&conic, quadric);
+                let jet = |theta: T| offsets.jet(theta);
+                let mode = geom::probe::variant();
+                geom::probe::log(format!(
+                    "quadric_ladder noise {:?} fourth {:?} A2 {:?}",
+                    frame.walk.noise,
+                    offsets.fourth(),
+                    (h.c2.powi(2) + h.s2.powi(2)).sqrt()
+                ));
+                let frame = if mode >= 1 {
+                    HalfAngleFrame {
+                        jet: Some(crate::half_angle::Local {
+                            at: &jet,
+                            fourth: offsets.fourth(),
+                            degree: 2,
+                        }),
+                        walk: SubdivisionFrame {
+                            noise: if mode >= 3 { T::zero() } else { frame.walk.noise },
+                            ..frame.walk
+                        },
+                        ..frame
+                    }
+                } else {
+                    frame
+                };
                 door_half_angle_roots(
                     &DegreeTwo::new(h.c0, h.c1, h.s1, h.c2, h.s2),
                     |theta| crate::implicit_residual(surface, conic.point_at(theta)),
@@ -384,6 +419,144 @@ pub(super) fn conic_quadric_method<T: Decide>(
         }
         _ => found,
     })
+}
+
+/// SCRATCH (probe): the first-harmonic lane's two roots posed about the
+/// stored point of a conic held on its arc, with a slack of its own:
+/// the form's rounding at each root over its slope there, and the
+/// angle's rounding at the root's own distance from the anchor.
+fn probe_offset_first_roots<T: Decide>(
+    span: &crate::curve_pair::Span<'_, T>,
+    conic: &dyn geom::Conic<T>,
+    surface: &geom::Surface<T>,
+    band: Band,
+) -> Option<Result<super::circle_roots::FirstHarmonicRoots<T>, Unsettled>> {
+    let (f, fk, fs, phase, noise) = super::pose::probe_quadric_offsets(conic, surface)?;
+    let (t0, t1) = span.params();
+    let mid = geom::mid_param(t0, t1);
+    let [ra, rb] = crate::curve_pair::pose::probe_offset_angles((f, fk, fs, phase), mid)?;
+    let ladder = quadric_ladder(conic, surface, (t0, t1))?;
+    let second = (ladder.h.c2.powi(2) + ladder.h.s2.powi(2)).sqrt();
+    let anchor = geom::Azimuth::of(phase.1, phase.0).near(mid);
+    let speed = conic.speed_hi();
+    let slack_at = |t: T| {
+        let (s, c) = t.sin_cos();
+        let (ku, kv) = (c - phase.0, s - phase.1);
+        let eval = noise + second + rounding_charge((fk * ku).abs() + (fs * kv).abs());
+        let slope = (fs * c - fk * s).abs();
+        speed * (eval / slope + rounding_charge((t - anchor).abs()))
+    };
+    // Each root is decided on its own slack: the one far round the turn
+    // from the anchor carries the angle's rounding at the semi-axis.
+    let held = |t: T| {
+        matches!(
+            decide("conic_quadric_first_root_slack", Margin::of(slack_at(t)), band),
+            Ok(Sign::Zero | Sign::Negative)
+        )
+    };
+    geom::probe::log(format!(
+        "offset_first_roots roots {ra:?} {rb:?} slack {:?} {:?}",
+        slack_at(ra),
+        slack_at(rb)
+    ));
+    let kept: Vec<T> = [ra, rb].into_iter().filter(|&t| held(t)).collect();
+    Some(if kept.is_empty() {
+        Err(Unsettled::Meter {
+            row: "conic_quadric_first_root_slack",
+        })
+    } else {
+        Ok(Roots::of(&kept).unwrap_or_else(|| unreachable!("one or two roots")))
+    })
+}
+
+/// SCRATCH (probe, M2): a sphere's or a wall's residual along a conic
+/// as a polynomial in the two offsets about the conic's stored point,
+/// `q(θ) = e + U·(cos θ − k_c) + W·(sin θ − k_s)` the offset from the
+/// surface's centre or axis and `F = (|q|² − r²)/2r`.
+pub(crate) struct ProbeOffsetJet<T: geom_core::Real> {
+    e: geom_core::Vec3<T>,
+    u: geom_core::Vec3<T>,
+    w: geom_core::Vec3<T>,
+    phase: (T, T),
+    r: T,
+}
+
+impl<T: Decide> ProbeOffsetJet<T> {
+    pub(crate) fn new(
+        conic: &dyn geom::Conic<T>,
+        (origin, axis, r): (geom_core::Point3<T>, Option<geom_core::Vec3<T>>, T),
+    ) -> Self {
+        let perp = |x: geom_core::Vec3<T>| match axis {
+            Some(a) => {
+                let along = a.dot(x);
+                x - a * along
+            }
+            None => x,
+        };
+        let (stored, phase) = conic.probe_stored();
+        let (a, b) = conic.semi_axes();
+        Self {
+            e: perp(stored - origin),
+            u: perp(conic.u_ref()) * a,
+            w: perp(conic.v_ref()) * b,
+            phase,
+            r,
+        }
+    }
+
+    /// The two offsets at `theta`, the first with no cancellation at an
+    /// anchor on the seam.
+    fn offsets(&self, theta: T) -> (T, T) {
+        let (kc, ks) = self.phase;
+        let (sh, _) = (theta * T::from_f64(0.5)).sin_cos();
+        let (s, _) = theta.sin_cos();
+        (-(T::from_f64(2.0) * sh.powi(2) - (T::one() - kc)), s - ks)
+    }
+
+    /// `F`, `F′`, `F″`, `F‴` at `theta`, each with a first-order bound
+    /// on its rounding read at this point: sixteen half-ulps of the
+    /// magnitudes its terms are summed from.
+    pub(crate) fn jet(&self, theta: T) -> [geom_core::Rounded<T>; 4] {
+        let two = T::from_f64(2.0);
+        let three = T::from_f64(3.0);
+        let (s, c) = theta.sin_cos();
+        let (ku, kv) = self.offsets(theta);
+        let q = self.e + self.u * ku + self.w * kv;
+        let q1 = self.w * c - self.u * s;
+        let q2 = (self.u * c + self.w * s) * (T::zero() - T::one());
+        let (un, wn) = (self.u.norm(), self.w.norm());
+        // The magnitudes the vectors are summed from.
+        let mq = self.e.norm() + un * ku.abs() + wn * kv.abs();
+        let m1 = un * s.abs() + wn * c.abs();
+        let m2 = un * c.abs() + wn * s.abs();
+        let per = two * self.r;
+        let dist = q.norm();
+        let f = [
+            (dist - self.r) * (dist + self.r) / per,
+            two * q.dot(q1) / per,
+            two * (q1.dot(q1) + q.dot(q2)) / per,
+            two * (three * q1.dot(q2) - q.dot(q1)) / per,
+        ];
+        let terms = [
+            mq.powi(2) + self.r.powi(2),
+            two * mq * m1,
+            two * (m1.powi(2) + mq * m2),
+            two * (three * m1 * m2 + mq * m1),
+        ];
+        core::array::from_fn(|k| geom_core::Rounded {
+            value: f[k],
+            error: rounding_charge(terms[k]) / per,
+        })
+    }
+
+    /// A bound on `|F⁗|` over every angle: `q⁗ = −q″`, so
+    /// `|q|²⁗ = 2(3|q″|² − 4|q′|² − q·q″)`... bounded term by term with
+    /// `|q′|, |q″| ≤ |U| + |W|` and `|q| ≤ |e| + 2(|U| + |W|)`.
+    pub(crate) fn fourth(&self) -> T {
+        let amp = self.u.norm() + self.w.norm();
+        let reach = self.e.norm() + T::from_f64(2.0) * amp;
+        T::from_f64(2.0) * (T::from_f64(7.0) * amp.powi(2) + reach * amp) / (T::from_f64(2.0) * self.r)
+    }
 }
 
 /// A conic against a sphere or a wall, read for the door's two arms: its
@@ -549,6 +722,10 @@ fn deflated<T: Decide>(h: &crate::ConicHarmonics<T>, theta_a: T) -> (T, T, (T, T
 /// geometry, `δ²/per` and `2δ·speed/per` at the point's distance `δ`
 /// from the apex, its own rounding carried, not off the rounded
 /// coefficients, whose noise a square root would amplify past any band.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(super) fn apex_spread<T: Decide>(
     conic: &dyn geom::Conic<T>,
     (apex, _, _): (geom_core::Point3<T>, geom_core::Vec3<T>, T),

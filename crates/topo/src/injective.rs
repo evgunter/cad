@@ -2806,23 +2806,19 @@ impl Curved {
 }
 
 /// A conic carrier as a [`Trig`]: `center + u_ref·a·cos t + v_ref·b·sin t`.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn conic(c: &Curve3<Interval>) -> Option<Trig> {
     let (center, axis, a, b, x) = match *c {
         Curve3::Circle(circle) => {
-            let (center, axis, u_ref) = (
-                circle.frame().origin(),
-                circle.frame().axis(),
-                circle.frame().u_ref(),
-            );
+            let (center, axis, u_ref) = (circle.frame().origin(), circle.axis(), circle.u_ref());
             let radius = circle.radius();
             (center, axis, radius, radius, u_ref)
         }
         Curve3::Ellipse(ellipse) => {
-            let (center, axis, u_ref) = (
-                ellipse.frame().origin(),
-                ellipse.frame().axis(),
-                ellipse.frame().u_ref(),
-            );
+            let (center, axis, u_ref) = (ellipse.frame().origin(), ellipse.axis(), ellipse.u_ref());
             let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             (center, axis, semi_u, semi_v, u_ref)
         }
@@ -3824,6 +3820,10 @@ fn reading(piece: &Piece<'_>, c: Corner) -> Option<Reading> {
 /// is never one conic, even against itself: at `Interval` this admits
 /// only carriers stored as points. The two parametrizations may differ;
 /// the reading never maps one onto the other ([`continues`]).
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn one_conic(e: &Rim, o: &Rim) -> bool {
     if let (Some(se), Some(so)) = (e.stated.as_ref(), o.stated.as_ref()) {
         return one_stated_conic(se, so);
@@ -3840,7 +3840,7 @@ fn one_conic(e: &Rim, o: &Rim) -> bool {
         }
         (Curve3::Ellipse(a), Curve3::Ellipse(b)) => {
             plane(&a.frame(), &b.frame())
-                && one_line(a.frame().u_ref(), b.frame().u_ref())
+                && one_line(a.u_ref(), b.u_ref())
                 && one_value(a.semi_u(), b.semi_u(), false)
                 && one_value(a.semi_v(), b.semi_v(), false)
         }
@@ -3856,6 +3856,10 @@ fn one_conic(e: &Rim, o: &Rim) -> bool {
 /// entries as points; a frame lifted to an enclosure of the rotation it
 /// states is a rounding wide wherever its entries are not exactly rigid,
 /// and the claim two such carriers make is still the stored one.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn one_stated_conic(e: &Curve3<f64>, o: &Curve3<f64>) -> bool {
     // Equal as numbers, as [`one_value`] compares a point's ends (a
     // signed zero is its own negation's value): `equals_exactly`, the
@@ -3873,7 +3877,7 @@ fn one_stated_conic(e: &Curve3<f64>, o: &Curve3<f64>) -> bool {
         }
         (Curve3::Ellipse(a), Curve3::Ellipse(b)) => {
             plane(&a.frame(), &b.frame())
-                && line(a.frame().u_ref(), b.frame().u_ref())
+                && line(a.u_ref(), b.u_ref())
                 && one(a.semi_u(), b.semi_u())
                 && one(a.semi_v(), b.semi_v())
         }
@@ -5948,6 +5952,10 @@ fn heading(p: &Presented<'_>, q: Point3<f64>) -> Option<Vec3<f64>> {
 /// the listed cells for every member. The headings and the bisector only
 /// choose a direction; any direction is exact. A shared vertex off the
 /// lines a plane was built through is not listed.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn planes_through(
     x: &Piece<'_>,
     near: &Near,

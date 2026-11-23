@@ -461,6 +461,10 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
     /// oval's in two ovals across its trace (the spiric's two-oval regime,
     /// `|offset| < R − r`, the convention its minting door decides). A
     /// meeting on the edge's own is placed on its span.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn on_edge_plane(
         &self,
         edge: &Edge<T>,
@@ -496,11 +500,8 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
                 Self::arc_place((edge.t0, edge.t1), (rho - major, h), minor, band)
             }
             geom::Curve3::Circle(conic_k) => {
-                let (center, axis, u_ref) = (
-                    conic_k.frame().origin(),
-                    conic_k.frame().axis(),
-                    conic_k.frame().u_ref(),
-                );
+                let (center, axis, u_ref) =
+                    (conic_k.frame().origin(), conic_k.axis(), conic_k.u_ref());
                 let radius = conic_k.radius();
                 let w = y - center;
                 // A parallel leg across a meridian's or a Villarceau

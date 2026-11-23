@@ -63,6 +63,10 @@ pub fn mid_azimuth(chart: &Chart, curve: &geom_brep::EdgeCurve<f64>) -> f64 {
 ///
 /// `None` for a rim whose carrier is no circle, which has no row to
 /// read.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub fn traversal_kind(
     chart: &Chart,
     curve: &geom_brep::EdgeCurve<f64>,

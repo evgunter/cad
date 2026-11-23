@@ -587,6 +587,10 @@ pub fn edge_carrier_kind<T: Real>(
 /// [`ReadbackError::Dangling`] for a stale edge or curve key;
 /// [`ReadbackError::NoCarrier`] for null-edge scaffolding;
 /// [`ReadbackError::NoCanonicalFrame`] for a NURBS carrier.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub fn edge_pose<T: Real>(body: &Body<T>, edge: EdgeKey) -> Result<Pose<T>, ReadbackError> {
     match edge_carrier_ref(body, edge)? {
         Curve3::Line(geom::Line { origin, dir }) => Ok(Pose {

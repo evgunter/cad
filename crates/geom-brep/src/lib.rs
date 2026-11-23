@@ -54,6 +54,7 @@
 //! deterministic by fixed schedule (D9). Instantiates at `f64`,
 //! `Dual<f64>`, `Interval`, and `Dual<Interval>`.
 
+#![cfg_attr(not(test), deny(clippy::disallowed_methods))]
 pub mod carrier_eq;
 mod carrier_net;
 pub mod carrier_pose;
@@ -99,6 +100,10 @@ pub mod intersect;
 pub mod keys;
 mod krawczyk;
 pub mod polygon_orientation;
+#[cfg(test)]
+mod probe_pre7203;
+#[cfg(test)]
+mod probe_conic_harmonic;
 /// Transitional: the ladder lives at [`geom_core::ladder`]; this path
 /// stays only until the callers move
 /// (`work/onecopy/geom-brep-ladder-re-export-awaits-its-callers.md`).

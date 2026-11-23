@@ -219,6 +219,10 @@ fn band_seam(
 }
 
 /// One tagged band face's re-mint ([`band_seam`] docs).
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn mint_band(
     solid: &mut SolidSpec,
     fi: usize,
@@ -303,7 +307,7 @@ fn mint_band(
             let spec = &solid.edges[&u.edge];
             let coaxial = match spec.carrier {
                 Curve3::Circle(circle) => {
-                    let (center, n) = (circle.frame().origin(), circle.frame().axis());
+                    let (center, n) = (circle.frame().origin(), circle.axis());
                     let radius = circle.radius();
                     let off_axis = geom::Line {
                         origin: axis_point,
@@ -499,6 +503,10 @@ fn mint_band(
 /// budget), else minted by splitting the rim arc that crosses the
 /// azimuth, propagating the split to every sharing face.
 #[allow(clippy::too_many_arguments)] // one parameter per named quantity
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn seam_vertex_on_loop(
     solid: &mut SolidSpec,
     fi: usize,
@@ -612,6 +620,10 @@ fn seam_vertex_on_loop(
 /// whole-body inversion at the planar faces (`step-export`'s
 /// `m6_6_sense_gate` rows); the readings themselves close with the
 /// ellipse-rim material-side encoding.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn wall_inversion(
     solid: &SolidSpec,
     chart_band: Option<geom_core::Band>,

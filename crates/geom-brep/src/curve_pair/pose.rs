@@ -1265,6 +1265,7 @@ impl<T: Decide> Polish<'_, T> {
     fn closest(&self, band: Band) -> Result<Option<Candidate<T>>, MeetFault> {
         let (s0, t0) = self.start;
         if decide(row::CLEAR, Margin::of(self.clear - self.reach), band) == Ok(Sign::Positive) {
+            geom::probe::log(format!("polish-none clear {:?} reach {:?}", self.clear, self.reach));
             return Ok(None);
         }
         let two = T::from_f64(2.0);
@@ -1284,6 +1285,7 @@ impl<T: Decide> Polish<'_, T> {
         let ball = self.reach + e;
         if self.span_a.clear_by(crossing, ball, band) || self.span_b.clear_by(crossing, ball, band)
         {
+            geom::probe::log(format!("polish-none ball-clear {ball:?}"));
             return Ok(None);
         }
         let (s, t) = super::polish::pair_held(
@@ -1294,6 +1296,7 @@ impl<T: Decide> Polish<'_, T> {
             (hold(self.span_a), hold(self.span_b)),
         );
         let ((p, da), (q, db)) = (self.a.ders(s), self.b.ders(t));
+        geom::probe::log(format!("polish {s0:?} {t0:?} -> {s:?} {t:?}"));
         // Every pair of the window within the escalation has its first
         // point within `region` of the start along the first carrier, and
         // the polished pair is within its travel of it; its second point
@@ -1567,6 +1570,10 @@ fn line_line<T: Decide>(
 }
 
 /// A line `a` and a conic `b` (module docs).
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn line_conic<T: Decide>(
     a: &Span<'_, T>,
     b: &Span<'_, T>,
@@ -1579,7 +1586,7 @@ fn line_conic<T: Decide>(
     let u = d.normalize();
     let unit = geom::Line { origin: o, dir: u };
     let e = T::from_f64(band.escalate());
-    let n = k.frame().axis();
+    let n = k.axis();
     let den = u.dot(n);
     // Where they can meet (module docs): the line's span and the conic's
     // extent, both projected on the line.
@@ -1609,9 +1616,16 @@ fn line_conic<T: Decide>(
         arm,
         band,
     )? {
-        Route::Apart => return Ok(Pose::Apart),
-        Route::Parallel => return Ok(Pose::Parallel),
+        Route::Apart => {
+            geom::probe::log(format!("route-apart height {height:?} den {den:?}"));
+            return Ok(Pose::Apart);
+        }
+        Route::Parallel => {
+            geom::probe::log(format!("route-parallel height {height:?} den {den:?}"));
+            return Ok(Pose::Parallel);
+        }
         Route::Crossing => {
+            geom::probe::log(format!("route-crossing height {height:?} den {den:?}"));
             // The line's height above the plane runs `|d̂·n̂|` per metre,
             // so a point of it within the band's escalation `e` of the
             // plane is within `(e + |h|)/|d̂·n̂|` of the crossing's seed,
@@ -1637,8 +1651,7 @@ fn line_conic<T: Decide>(
     // In the plane: the conic's signed distance from the line, along the
     // line's normal in the plane, a first harmonic in the conic's angle.
     let m = n.cross(u).normalize();
-    let c0 = (k.frame().origin() - o).dot(m);
-    let (cp, sp) = k.along(m);
+    let (c0, cp, sp) = self::height(&k, o, m);
     let swing = (cp.powi(2) + sp.powi(2)).sqrt();
     if !definite_as(row::SWING, Margin::of(swing), band)? {
         return Err(MeetFault::Unsupported {
@@ -1649,7 +1662,8 @@ fn line_conic<T: Decide>(
         c0,
         swing,
         Azimuth::of(sp, cp).principal_as(row::BRANCH, Band::least()),
-    );
+    )
+    .probe_offsets(probe_height_offsets(&k, o, m));
     // The pair's distance is `√(R² + H²)`, `R` the residual above and `H`
     // the conic's offset along `v = û × m`, the line's other normal: a
     // line the tilt read level lies over the plane by a slant, which `H`
@@ -1658,7 +1672,7 @@ fn line_conic<T: Decide>(
     let (hc, hs) = k.along(v);
     let level = Slant {
         r: (c0, cp, sp),
-        h: ((k.frame().origin() - o).dot(v), hc, hs),
+        h: (self::height(&k, o, v).0, hc, hs),
         at: range.at_hi,
         swing,
         e,
@@ -1682,8 +1696,10 @@ fn line_conic<T: Decide>(
         let point = k.point_at(theta);
         let reach = k.speed_hi() * run + level.e;
         if a.clear_by(point, reach, band) || b.clear_by(point, reach, band) {
+            geom::probe::log(format!("place-none clear_by {theta:?} reach {reach:?} a {} b {}", a.clear_by(point, reach, band), b.clear_by(point, reach, band)));
             return Ok(None);
         }
+        geom::probe::log(format!("place {theta:?} floor {floor:?} reach {reach:?}"));
         Ok(Some(Candidate {
             point,
             ta: line.param(point),
@@ -1876,12 +1892,48 @@ enum Coplanar {
 /// `n`: its first harmonic's constant, cosine and sine parts, in metres.
 /// The plane door's sinusoid is this one
 /// ([`crate::curve_face::plane_crossing`]).
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(crate) fn height<T: Decide>(k: &dyn Conic<T>, on: Point3<T>, n: Vec3<T>) -> (T, T, T) {
     let (cp, sp) = k.along(n);
+    if geom::probe::variant() >= 1 {
+        let (h, _, _, (kc, ks)) = probe_height_offsets(k, on, n);
+        return (h - (cp * kc + sp * ks), cp, sp);
+    }
     (geom::plane_offset(on, n, k.frame().origin()), cp, sp)
 }
 
+/// SCRATCH (probe): `k`'s height above the plane in the offsets about
+/// its stored point, `h + p·(cos θ − k_c) + q·(sin θ − k_s)`.
+pub(crate) fn probe_height_offsets<T: Decide>(
+    k: &dyn Conic<T>,
+    on: Point3<T>,
+    n: Vec3<T>,
+) -> (T, T, T, (T, T)) {
+    let (cp, sp) = k.along(n);
+    let (stored, phase) = k.probe_stored();
+    (geom::plane_offset(on, n, stored), cp, sp, phase)
+}
+
+/// SCRATCH (probe): the offsets form's two roots as angles near `near`,
+/// where variant 2 is in force and the conic is held on its arc.
+pub(crate) fn probe_offset_angles<T: Decide>(
+    (h, p, q, phase): (T, T, T, (T, T)),
+    near: T,
+) -> Option<[T; 2]> {
+    if geom::probe::variant() < 2 || (phase.0.abs() + phase.1.abs()).is_exact_zero_in_every_channel() {
+        return None;
+    }
+    Some(geom::probe::offset_roots(h, p, q, phase).map(|(y, x)| Azimuth::of(y, x).near(near)))
+}
+
 /// Two conics, `a` the one parametrized in one plane (module docs).
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn conic_conic<T: Decide>(
     a: &Span<'_, T>,
     b: &Span<'_, T>,
@@ -1892,8 +1944,17 @@ fn conic_conic<T: Decide>(
     let (ka, kb) = (conic_of(a.carrier())?, conic_of(b.carrier())?);
     let ball = |c: &Curve3<T>| crate::ExtentBall::of_covered(c.cover().as_ref().ok());
     let arm = ball(a.carrier()).lever().max(ball(b.carrier()).lever());
-    let ha = height(&ka, kb.frame().origin(), kb.frame().axis());
-    let hb = height(&kb, ka.frame().origin(), ka.frame().axis());
+    // SCRATCH (probe): under a variant the other conic's plane is stated
+    // through its stored point.
+    let on = |k: &dyn Conic<T>| {
+        if geom::probe::variant() >= 1 {
+            k.probe_stored().0
+        } else {
+            k.frame().origin()
+        }
+    };
+    let ha = height(&ka, on(&kb), kb.axis());
+    let hb = height(&kb, on(&ka), ka.axis());
     let swing = |(_, cp, sp): (T, T, T)| (cp.powi(2) + sp.powi(2)).sqrt();
     let (swing_a, swing_b) = (swing(ha), swing(hb));
     let sides = [(swing_a, ha), (swing_b, hb)];
@@ -1947,7 +2008,7 @@ fn conic_conic<T: Decide>(
         }
         return transverse((a, &ka, &kb, b), ha, swing_a, arm, known, band);
     };
-    let oriented = |k: &dyn Conic<T>| k.frame().axis() * (k.semi_axes().0 * k.semi_axes().1);
+    let oriented = |k: &dyn Conic<T>| k.axis() * (k.semi_axes().0 * k.semi_axes().1);
     if one_curve(&ka, &kb, band)? {
         let (foot_a, foot_b) = (|q| foot(a, q), |q| foot(b, q));
         return Ok(Pose::Coincident {
@@ -2016,6 +2077,10 @@ pub(super) fn one_curve<T: Decide>(
 /// [`geom_core::rounding_charge`]`(m_e + m_f + g)`. A degenerate side (a zero
 /// semi-axis, or `a·b·a′·b′` underflowing) has no way up, and its gap
 /// is NaN: the reading escalates.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(super) fn one_curve_gap<T: Decide>(e: &dyn Conic<T>, f: &dyn Conic<T>) -> T {
     let reach = |k: &dyn Conic<T>| k.speed_hi();
     let gap =
@@ -2066,7 +2131,8 @@ fn transverse<T: Decide>(
         c0,
         swing,
         Azimuth::of(sp, cp).principal_as(row::BRANCH, Band::least()),
-    );
+    )
+    .probe_offsets(probe_height_offsets(ka, kb.probe_stored().0, kb.axis()));
     let window = window::Window {
         a: ka,
         span_a: a.params(),
@@ -2084,6 +2150,7 @@ fn transverse<T: Decide>(
     let near = |theta: T| {
         let arc = range.band_arc(theta, band);
         if window.holds_only((theta - arc, theta + arc), &joints, band) {
+            geom::probe::log(format!("near-none holds_only {theta:?} {arc:?}"));
             return Ok(None);
         }
         let q = ka.point_at(theta);
@@ -2155,6 +2222,10 @@ fn constant_as<T: Decide>(
 
 /// Two circles in one plane (module docs): `slant` how far they lie from
 /// one plane.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn coplanar_circles<T: Decide>(
     ka: &dyn Conic<T>,
     kb: &dyn Conic<T>,
@@ -2165,7 +2236,7 @@ fn coplanar_circles<T: Decide>(
 ) -> Result<Pose<T>, MeetFault> {
     let (ra, rb) = (ka.speed_hi(), kb.speed_hi());
     let w = ka.frame().origin() - kb.frame().origin();
-    let w = w - ka.frame().axis() * w.dot(ka.frame().axis());
+    let w = w - ka.axis() * w.dot(ka.axis());
     let d = w.norm();
     if !definite_as(row::CENTRES, Margin::norm3(w), band)? {
         // The one-curve gap is at most `d + |r₁ − r₂|` plus the slant, so
@@ -2185,14 +2256,15 @@ fn coplanar_circles<T: Decide>(
     let (near, far) = ((ra - d).abs(), ra + d);
     let (lo, hi) = (near - rb, far - rb);
     let swing = T::from_f64(4.0) * ra * d;
-    let toward = Azimuth::of(w.dot(ka.frame().v_ref()), w.dot(ka.frame().u_ref()))
-        .principal_as(row::BRANCH, Band::least());
+    let toward =
+        Azimuth::of(w.dot(ka.v_ref()), w.dot(ka.u_ref())).principal_as(row::BRANCH, Band::least());
     let range = Range {
         lo,
         hi,
         at_hi: toward,
         cross_lo: (T::zero() - lo) * (near + rb) / swing,
         cross_hi: hi * (far + rb) / swing,
+        offsets: None,
     };
     let found: Vec<T> = known.iter().map(|c| c.ta).collect();
     Ok(match owed(ka, &range, &found, band)? {
@@ -2262,6 +2334,10 @@ fn subdivided<T: Decide>(
 /// `|F|·s/(√2 + √3) > |F|·s/4`; past it, increasing in `|F|`, at least
 /// `s/(√2 + √3) > s/4`. So the bound is at least `min(s/4, |F|/(4/s))`
 /// everywhere: the ceiling `4/s`, reaching to `s/4`.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn coplanar_ellipses<T: Decide>(
     e: &Span<'_, T>,
     ka: &dyn Conic<T>,
@@ -2270,7 +2346,7 @@ fn coplanar_ellipses<T: Decide>(
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
     let (big_a, big_b) = kb.semi_axes();
-    let (ub, vb) = (kb.frame().u_ref(), kb.frame().v_ref());
+    let (ub, vb) = (kb.u_ref(), kb.v_ref());
     let level = level_on(ka, kb);
     let small = big_a.abs().min(big_b.abs());
     let large = big_a.abs().max(big_b.abs());
@@ -2333,6 +2409,10 @@ pub(super) struct Level<'k, T: geom_core::Real> {
 impl<T: Decide> Level<'_, T> {
     /// `F` and its first three derivatives at `θ`. On a conic
     /// `P″ = −(P − c)` and `P‴ = −P′`, `c` its centre.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     pub(super) fn jet_at(&self, theta: T) -> [T; 4] {
         let (p, dp) = self.a.jet_at(theta);
         let ddp = self.a.frame().origin() - p;
@@ -2390,13 +2470,14 @@ pub(super) fn up<const N: u32, T: Decide>(x: T) -> T {
 }
 
 /// [`Level`] of `kb` along `ka`.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(super) fn level_on<'k, T: Decide>(ka: &'k dyn Conic<T>, kb: &dyn Conic<T>) -> Level<'k, T> {
     let (big_a, big_b) = kb.semi_axes();
-    let (ub, vb) = (kb.frame().u_ref(), kb.frame().v_ref());
-    let (ua, va) = (
-        ka.frame().u_ref() * ka.semi_axes().0,
-        ka.frame().v_ref() * ka.semi_axes().1,
-    );
+    let (ub, vb) = (kb.u_ref(), kb.v_ref());
+    let (ua, va) = (ka.u_ref() * ka.semi_axes().0, ka.v_ref() * ka.semi_axes().1);
     let w = ka.frame().origin() - kb.frame().origin();
     let squares = (big_a.powi(2), big_b.powi(2));
     let (two, eight) = (T::from_f64(2.0), T::from_f64(8.0));
@@ -2432,6 +2513,8 @@ struct Range<T> {
     at_hi: T,
     cross_lo: T,
     cross_hi: T,
+    /// SCRATCH (probe): the same harmonic in the offsets form.
+    offsets: Option<(T, T, T, (T, T))>,
 }
 
 impl<T: Decide> Range<T> {
@@ -2445,6 +2528,15 @@ impl<T: Decide> Range<T> {
             at_hi,
             cross_lo: (T::zero() - lo) / two,
             cross_hi: hi / two,
+            offsets: None,
+        }
+    }
+
+    /// SCRATCH (probe).
+    fn probe_offsets(self, offsets: (T, T, T, (T, T))) -> Self {
+        Self {
+            offsets: Some(offsets),
+            ..self
         }
     }
 
@@ -2646,7 +2738,13 @@ fn harmonic_roots<T: Decide>(
         }
     };
     let roots = [r.at_hi + psi, r.at_hi - psi];
-    let gap = Margin::norm3(k.point_at(r.at_hi + psi) - k.point_at(r.at_hi - psi));
+    let roots = r
+        .offsets
+        .and_then(|o| probe_offset_angles(o, r.at_hi))
+        .unwrap_or(roots);
+    let [ra, rb] = roots;
+    geom::probe::log(format!("harmonic_roots {ra:?} {rb:?}"));
+    let gap = Margin::norm3(k.point_at(ra) - k.point_at(rb));
     // Two roots are read as two candidates, whatever their gap: where the
     // band cannot split their points they ring as one meeting. Placed at
     // the extreme between them, a touch's point would lie off the other

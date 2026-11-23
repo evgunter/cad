@@ -2124,6 +2124,7 @@ fn an_arcs_cover_reads_no_farther_than_its_whole_conics_piece() {
             semi_u: ellipse.semi_u(),
             semi_v: ellipse.semi_v(),
             window: ParamWindow::new(0.0, TAU),
+            on: None,
         }))
         .distance_range(&site)
         .1;
@@ -2202,4 +2203,183 @@ fn a_hull_folded_on_the_right_reads_another_ball_than_on_the_left() {
     };
     assert_eq!(read(&left), (5.0, 0.0, 0.0, 38.0_f64.sqrt()));
     assert_eq!(read(&right), (5.0, 0.0, 0.0, 6.0));
+}
+
+/// The curve an arc-held ellipse's stored numbers state, in
+/// double-double: the oracle of [`a_far_sections_cover_holds_its_stored_arc`].
+mod stored_arc {
+    use geom_core::exact::{two_product, two_sum};
+    use geom_core::{Point3, Vec3};
+
+    #[derive(Clone, Copy)]
+    pub(super) struct Dd(pub f64, pub f64);
+
+    impl Dd {
+        fn add(self, o: Dd) -> Dd {
+            let (s, e) = two_sum(self.0, o.0);
+            let (hi, lo) = two_sum(s, e + self.1 + o.1);
+            Dd(hi, lo)
+        }
+        fn mul(self, o: Dd) -> Dd {
+            let (p, e) = two_product(self.0, o.0);
+            let (hi, lo) = two_sum(p, e + self.0 * o.1 + self.1 * o.0);
+            Dd(hi, lo)
+        }
+        fn of(x: f64) -> Dd {
+            Dd(x, 0.0)
+        }
+    }
+
+    /// `sin x` for `|x| ≤ 0.3`, by its series to `x²³`.
+    fn sin(x: Dd) -> Dd {
+        let x2 = x.mul(x);
+        let (mut term, mut sum) = (x, x);
+        for k in 1..12 {
+            let n = f64::from(2 * k * (2 * k + 1));
+            term = term.mul(x2).mul(Dd::of(-1.0 / n));
+            // The reciprocal's rounding is a relative `u` of a term at
+            // most `x²/6` of the sum.
+            sum = sum.add(term);
+        }
+        sum
+    }
+
+    /// The point at `theta` of the ellipse held at `anchor` (its point at
+    /// zero) with semi-axes `a` along `u` and `b` along `n × u`, as its
+    /// three coordinates.
+    pub(super) fn point(
+        (anchor, n, u): (Point3<f64>, Vec3<f64>, Vec3<f64>),
+        (a, b): (f64, f64),
+        theta: f64,
+    ) -> [Dd; 3] {
+        let cross = |p: f64, q: f64, r: f64, s: f64| {
+            Dd::of(p).mul(Dd::of(q)).add(Dd::of(-r).mul(Dd::of(s)))
+        };
+        let v = [
+            cross(n.y, u.z, n.z, u.y),
+            cross(n.z, u.x, n.x, u.z),
+            cross(n.x, u.y, n.y, u.x),
+        ];
+        let half = sin(Dd::of(0.5 * theta));
+        let ku = half.mul(half).mul(Dd::of(-2.0));
+        let kv = sin(Dd::of(theta));
+        let (at, u) = ([anchor.x, anchor.y, anchor.z], [u.x, u.y, u.z]);
+        core::array::from_fn(|i| {
+            Dd::of(at[i])
+                .add(Dd::of(u[i]).mul(Dd::of(a)).mul(ku))
+                .add(v[i].mul(Dd::of(b)).mul(kv))
+        })
+    }
+
+    /// `p − q`, to the rounding of the difference.
+    pub(super) fn from(p: [Dd; 3], q: Point3<f64>) -> Vec3<f64> {
+        Vec3::new(
+            (p[0].0 - q.x) + p[0].1,
+            (p[1].0 - q.y) + p[1].1,
+            (p[2].0 - q.z) + p[2].1,
+        )
+    }
+}
+
+/// **A far section's cover holds the arc its stored numbers state.** An
+/// ellipse held on its arc at its near vertex, semi-axes from 22 m to
+/// 2.2e7 m, a short arc about the vertex: 65 points of the stored curve
+/// in double-double (the anchor plus `u·a·(−2·sin²(θ/2)) + v·b·sin θ`,
+/// `v = n × u`) against the cover's ball, its support along three
+/// directions and its distance range from a point beside the arc. Each
+/// holds the points to a few roundings of the points' own coordinates,
+/// and the ball is of the arc's size.
+///
+/// Red where the cover is stated from the derived centre: the ball then
+/// misses the points by a rounding of the semi-axis (`1e-10` m at
+/// `2.2e6`).
+#[test]
+fn a_far_sections_cover_holds_its_stored_arc() {
+    let n = Vec3::new(1.0, 2.0, 2.0) / 3.0;
+    let toward = Vec3::new(2.0, 1.0, -2.0) / 3.0;
+    let anchor = Point3::new(40.25, -7.5, 3.125);
+    let u = f64::EPSILON * 0.5;
+    for (a, half) in [
+        (2.2e1, 1e-3),
+        (2.2e2, 3.0 / 2.2e2),
+        (2.2e3, 3.0 / 2.2e3),
+        (2.2e4, 3.0 / 2.2e4),
+        (2.2e5, 3.0 / 2.2e5),
+        (2.2e6, 3.0 / 2.2e6),
+        (2.2e7, 3.0 / 2.2e7),
+    ] {
+        let b = 0.8 * a;
+        let e = crate::Ellipse::anchored(anchor, n, toward, a, b);
+        let stored = (anchor, e.axis(), e.u_ref());
+        let cover = Curve3::Ellipse(e)
+            .cover_over(ParamWindow::new(-half, half))
+            .unwrap();
+        let (mid, radius) = cover.ball();
+        // The points' own scale: what a rounding of a coordinate is.
+        let own = 8.0 * u * (anchor - Point3::origin()).norm();
+        assert!(
+            radius <= 2.0 * a * half + own,
+            "a {a:e}: the ball is of the arc's size, {radius:e}"
+        );
+        let site_at = anchor + n * 0.5 + toward * 0.25;
+        let (near, far) = cover.distance_range(&Site::Point(site_at));
+        let dirs = [n, toward, Vec3::new(0.6, -0.8, 0.0)];
+        let supports = dirs.map(|d| cover.support(d));
+        let mut worst = [0.0_f64; 4];
+        for k in 0..=64 {
+            let t = -half + 2.0 * half * f64::from(k) / 64.0;
+            let p = stored_arc::point(stored, (a, b), t);
+            worst[0] = worst[0].max(stored_arc::from(p, mid).norm() - radius);
+            let d = stored_arc::from(p, site_at).norm();
+            worst[1] = worst[1].max(near - d);
+            worst[2] = worst[2].max(d - far);
+            for (dir, sup) in dirs.iter().zip(supports) {
+                let h = stored_arc::from(p, Point3::origin()).dot(*dir);
+                worst[3] = worst[3].max(h - sup);
+            }
+        }
+        // The same arc at `Interval`, every datum a point enclosure: each
+        // reading is bounded and encloses the stored points.
+        let ie = crate::Ellipse::anchored(ipt(anchor), ivec(n), ivec(toward), iv(a), iv(b));
+        let icover = Curve3::Ellipse(ie)
+            .cover_over(ParamWindow::new(iv(-half), iv(half)))
+            .unwrap();
+        let (imid, iradius) = icover.ball();
+        let (inear, ifar) = icover.distance_range(&Site::Point(ipt(site_at)));
+        let isupports = dirs.map(|d| icover.support(ivec(d)));
+        for x in [iradius, inear, ifar].into_iter().chain(isupports) {
+            assert!(
+                x.is_bounded(),
+                "a {a:e}: an Interval reading is bounded: {x:?}"
+            );
+        }
+        let m = |x: Interval| 0.5 * (Bounds::lo(x) + Bounds::hi(x));
+        let centre = Point3::new(m(imid.x), m(imid.y), m(imid.z));
+        let spread = Bounds::hi((imid - ipt(centre)).norm());
+        for k in 0..=64 {
+            let t = -half + 2.0 * half * f64::from(k) / 64.0;
+            let p = stored_arc::point(stored, (a, b), t);
+            let out = stored_arc::from(p, centre).norm() - spread - Bounds::hi(iradius);
+            let d = stored_arc::from(p, site_at).norm();
+            assert!(
+                out <= own && Bounds::lo(inear) - d <= own && d - Bounds::hi(ifar) <= own,
+                "a {a:e}: the Interval cover holds the stored point at {t:e}: ball {out:e}, \
+                 distance {d:e} in [{inear:?}, {ifar:?}]"
+            );
+            for (dir, sup) in dirs.iter().zip(isupports) {
+                let h = stored_arc::from(p, Point3::origin()).dot(*dir);
+                assert!(
+                    h - Bounds::hi(sup) <= own,
+                    "a {a:e}: the Interval support holds the stored point at {t:e}: {h:e} past {sup:?}"
+                );
+            }
+        }
+        for (what, w) in ["ball", "nearest", "farthest", "support"].iter().zip(worst) {
+            assert!(
+                w <= own,
+                "a {a:e}: the cover's {what} misses a point of the stored arc by {w:e}, \
+                 past {own:e}"
+            );
+        }
+    }
 }

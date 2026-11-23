@@ -70,6 +70,7 @@
 //! without inverting the layering. Below everything, there is no cycle
 //! to create.
 
+#![cfg_attr(not(test), deny(clippy::disallowed_methods))]
 pub mod arc_row;
 pub mod census;
 pub mod cone_cut;

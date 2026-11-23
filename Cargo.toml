@@ -245,6 +245,11 @@ panic = "warn"
 todo = "warn"
 unimplemented = "warn"
 dbg_macro = "warn"
+# Armed per production target by each library root's
+# `#![cfg_attr(not(test), deny(clippy::disallowed_methods))]`, so a test
+# may read the doors `clippy.toml` lists (a conic's centre frame) and
+# production code may not (`scripts/gates/conic-centre-reads.sh`).
+disallowed_methods = "allow"
 
 # Test-speed hot spot (measured 2026-07-21, test-timing advisory): the CDT
 # insertion path in `mesh` + the external `spade` crate dominates the suite
