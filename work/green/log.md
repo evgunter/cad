@@ -596,6 +596,7 @@ Window: the 170 completed `ci.yml` PR runs from 11-01 18:33Z to 11-02
   - The saving is re-attributed: about 13 min from opt 1 and about 10 from the scalpel move.
   - The P1 shutdown row closes on the change, watched by `the-nightly-build-job-holds-over-five-scheduled-main-nights` (P2). The margin row (P2) carries the trend.
   - FULL single review, Opus; no model-compare row (Fable outage).
+- 2026-11-23 — `the-gates-step-rescans-the-tree-once-per-gate` closes as done by CIW's PR 7439: the gates step is 1:06 on a hosted runner, down from 5:22–10:54 (run 45069292031).
 - 2026-11-22 19:29Z — Ev on 7397: "if the bar is 0.25 then the drift check should probably flag there too? and would it be necessary to still have it at 2.5s rather than back at 1s with the increased hysteresis?" Yes to both; the text and body are updated.
   - One line, 0.25 s run alone, for new, edited and drifting tests; the drift check times tests alone too.
   - The ceiling for any test is back at 1 s, safe because re-timing alone removes contention and the drift check keeps the fast set under 0.25 s.
