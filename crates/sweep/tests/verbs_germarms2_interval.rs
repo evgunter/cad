@@ -210,10 +210,14 @@ fn assert_the_fixture_escape(d: &str, reposed: &BooleanError, what: &str) {
 /// **The meeting-axes arm.** The pose whose seams sit off the nodes
 /// reaches the join at the certified scalar too, and builds there as
 /// the `f64` lane does: both nodes are minted as rings and the union
-/// comes out. A refusal on the DIRECT pose would say the enclosures
-/// decided the lane rather than the geometry, so that half is an
-/// equality; the re-posed twin builds too, or takes the fixture escape
-/// [`same_door_or_escalated`] writes the reason for.
+/// comes out. At ε 1e-9 and 1e-6 a refusal on the DIRECT pose would say
+/// the enclosures decided the lane rather than the geometry, so that half
+/// is an equality; the re-posed twin builds too, or takes the fixture
+/// escape [`same_door_or_escalated`] writes the reason for. At ε 1e-12
+/// the direct union refuses as the frame cost
+/// ([`MEETING_AXES_FRAME_COST`]); the re-posed twin takes that escape,
+/// `carrier_matches_mapped_source` at 1.026e-12, alike with and without
+/// each of PR 7131's mutants, so it is not the frame cost's.
 #[test]
 fn the_meeting_axes_pose_builds_at_the_certified_scalar() {
     let a = spin(&cyl(1.0, 1.2), z_axis(), PI / 4.0);
@@ -267,14 +271,31 @@ fn the_meeting_axes_pose_builds_at_the_certified_scalar() {
         }
     };
     let direct = union(&a, &b);
-    let Ok(topo::BooleanResult::Body(out)) = &direct else {
-        panic!("the meeting-axes pose builds: {direct:?}");
-    };
-    assert_union(
-        out,
-        [Point3::new(1.0, 0.0, 0.0), Point3::new(-1.0, 0.0, 0.0)],
-        "direct",
-    );
+    if crate::common::frame_cost::at_the_least_band() {
+        // A frame built at Interval from bracket inputs (fork 274).
+        assert!(
+            matches!(
+                &direct,
+                Err(BooleanError::Pcurves { source })
+                    if crate::common::frame_cost::pcurve_escalates(
+                        source,
+                        "pcurve_envelope",
+                        MEETING_AXES_FRAME_COST,
+                    )
+            ),
+            "the meeting-axes pose: pinned to escalate pcurve_envelope in \
+             {MEETING_AXES_FRAME_COST:?} at the result's pcurve pass, at ε 1e-12: {direct:?}"
+        );
+    } else {
+        let Ok(topo::BooleanResult::Body(out)) = &direct else {
+            panic!("the meeting-axes pose builds: {direct:?}");
+        };
+        assert_union(
+            out,
+            [Point3::new(1.0, 0.0, 0.0), Point3::new(-1.0, 0.0, 0.0)],
+            "direct",
+        );
+    }
     match union(&repose(&a), &repose(&b)) {
         Ok(topo::BooleanResult::Body(out)) => {
             // [`repose`]'s motion, at `f64`.
@@ -291,6 +312,16 @@ fn the_meeting_axes_pose_builds_at_the_certified_scalar() {
         Ok(other) => panic!("the re-posed meeting-axes pose: {other:?}"),
     }
 }
+
+/// The window [`the_meeting_axes_pose_builds_at_the_certified_scalar`]'s
+/// direct union refuses in at ε 1e-12
+/// (`crate::common::frame_cost::at_the_least_band`): the result's pcurve
+/// pass escalates `pcurve_envelope` with its margin's upper end in this
+/// window (measured 1.284e-12). Cause: bracket, the spun walls' frames
+/// built at `Interval` from bracket inputs (fork 274); mutant F1X (PR
+/// 7131's body) builds the union, and turns this pin red; mutant A does
+/// not.
+const MEETING_AXES_FRAME_COST: (f64, f64) = (1.2e-12, 1.35e-12);
 
 /// **The skew pose at the BODY level, at the certified scalar.** Slide
 /// the pair along the common perpendicular `â₁ × â₂` by the dyadic
