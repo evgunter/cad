@@ -280,19 +280,7 @@ fn read_row(
     read: &OperandRead,
     files: &PartFiles,
 ) -> RelationRow {
-    let mut entries: Vec<Related> = read
-        .reaches
-        .iter()
-        .filter_map(|&at| match at {
-            // The world is no node a click selects: its words alone.
-            RecipeNodeId::WORLD => Some(Related::plain(
-                Said(&doc.spoken_space(read.read), Speaker::of(doc))
-                    .sentence()
-                    .to_string(),
-            )),
-            _ => doc.node(at).map(|_| Related::node(doc, at, files)),
-        })
-        .collect();
+    let mut entries = reached(doc, read.read, &read.reaches, files);
     if entries.is_empty() {
         entries.push(Related::plain(if read.own_copy {
             OWN_COPY
@@ -322,17 +310,34 @@ pub fn definition_reads(
     doc.definition_reaches(var)
         .into_iter()
         .filter_map(|read| {
-            let entries: Vec<Related> = read
-                .reaches
-                .iter()
-                .filter(|&&at| doc.node(at).is_some())
-                .map(|&at| Related::node(doc, at, files))
-                .collect();
+            let entries = reached(doc, read.read, &read.reaches, files);
             (!entries.is_empty()).then(|| RelationRow {
                 seat: Seat::Definition(var),
                 entries,
                 through: Related::named(doc, read.read),
             })
+        })
+        .collect()
+}
+
+/// **The nodes a read of `read` reaches, as entries**: each node `doc`
+/// holds, and the world as its name, since it is no node a click
+/// selects.
+fn reached(
+    doc: &Doc<ProfileProgram>,
+    read: VarId,
+    reaches: &[RecipeNodeId],
+    files: &PartFiles,
+) -> Vec<Related> {
+    reaches
+        .iter()
+        .filter_map(|&at| match at {
+            RecipeNodeId::WORLD => Some(Related::plain(
+                Said(&doc.spoken_space(read), Speaker::of(doc))
+                    .sentence()
+                    .to_string(),
+            )),
+            _ => doc.node(at).map(|_| Related::node(doc, at, files)),
         })
         .collect()
 }
