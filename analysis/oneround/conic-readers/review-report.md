@@ -43,7 +43,7 @@ only.
 | a bit dump of 31,887 readings on base and head, `f64` and `Interval` | C5 |
 | three fuzz probes (6,000 + 3,000 + 4,000 cases) and four measuring probes | C3, C4 |
 | 17 mutants on `geom` | C8 |
-| 11 gate plants and 7 controls through clippy and the gate | C7 |
+| 6 gate plants and 7 controls through clippy and the gate | C7 |
 
 **Only read**: `crates/geom/src/curves/conic.rs` to line 1310 (every
 non-test line), the diff of all 96 files, `cover.rs`'s public readings
@@ -207,7 +207,7 @@ two listed functions read nothing else:
 `Curve3::representability_margins` and
 `boolean::vtxfac::read_vertex_on_face` carry "owed a reading through
 the conic" for `frame().axis()` / `.u_ref()`, whose reading this PR
-added. Four of the eight are a `.frame()` and its `.axis()` on two
+added. Three of the eight are a `.frame()` and its `.axis()` on two
 lines. `Conic::center` has no production caller at all.
 
 **m4. The gate lets a new production read through by three routes it
@@ -230,10 +230,11 @@ does not state.** DEMONSTRATED, `sure`. Planted in
   readings. This one is of the kind the header states ("restated
   without these doors").
 
-Controls, all refused by clippy as they should be: a plain read, a
-`&dyn Conic`, a fully qualified call, the path `geom::Conic::frame`
-handed to `map`, a generic `C: Conic`, `Curve3::frame`, a closure, and
-a read inside a local `macro_rules!`.
+Controls, all seven refused by clippy as they should be: a plain
+read, a `&dyn Conic`, a fully qualified call, the path
+`geom::Conic::frame` handed to `map`, a generic `C: Conic`,
+`Curve3::frame`, a closure. A fourth plant, a read inside a local
+`macro_rules!`, was refused too.
 
 **m5. The gate's list is not the row's list.** DEMONSTRATED (census),
 `sure`. The row names `crates/topo/src/boolean/mod.rs` (two sites, the
@@ -253,7 +254,7 @@ for directions alone". On the `on` path `support`, `range` and `ball`
 all return before any field but `window` is read: replacing that frame
 by one translated 1e9 m reds nothing, my probes included. So the
 function that exists to stop reading the derived centre reads it, is
-the 208th read on the list, and refuses the cover (`None`) where the
+one of the 208 reads on the list, and refuses the cover (`None`) where the
 derived centre is not finite though the anchor is. See Style S1.
 
 **m7. The PR body is wrong in four places.** `sure` unless marked.
@@ -470,7 +471,7 @@ selection line for line. The centre form could be the anchor form at
 phase "centre", or the reverse; as it stands a fix to one will not
 reach the other. Where else: `Arc::ball` against `chord_ball`. `likely`.
 
-**S3. The same three one-line methods are written five times.**
+**S3. The same three one-line methods are written in six places.**
 `conic.rs:223–229` (trait), `:402–410` (`&C`), `:665–681` (`Circle`
 inherent), `:708–718` (`Circle` impl), `:981–997` and `:1160–1170`
 (`Ellipse`). The inherent and trait copies can drift and no test ties
