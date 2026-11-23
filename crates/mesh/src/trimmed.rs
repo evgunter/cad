@@ -374,6 +374,14 @@ pub(crate) fn correction_rounds() -> usize {
     MAX_CORRECTION_ROUNDS
 }
 
+/// Records the correction rounds a face ran, for the rows that hold
+/// them to the budget (`tests::CORRECTIONS_USED`: the most any face on
+/// this thread ran since the row cleared it).
+#[cfg(test)]
+pub(crate) fn note_corrections(rounds: usize) {
+    tests::CORRECTIONS_USED.with(|used| used.set(used.get().max(rounds)));
+}
+
 /// The retry loop's last structural attempt: [`MAX_GRID_RETRIES`], or
 /// under `cfg(test)` an override a row sets to reach an exhaustion
 /// refusal through the real call path (`tests::LAST_ATTEMPT`).
@@ -741,6 +749,8 @@ pub(crate) fn tessellate_trimmed(
             Err(e) => break Err(e),
         }
     };
+    #[cfg(test)]
+    note_corrections(corrections);
 
     // BUDGET METER (dead in normal runs): this face's measurements,
     // handed over ONCE, however the face ENDED — everything derivable
@@ -3828,6 +3838,10 @@ pub(super) mod tests {
         /// only.
         pub(crate) static STEP_SCALE: std::cell::Cell<f64> =
             const { std::cell::Cell::new(1.0) };
+        /// The most correction rounds a face on this thread ran
+        /// (`super::note_corrections`). `cfg(test)` only.
+        pub(crate) static CORRECTIONS_USED: std::cell::Cell<usize> =
+            const { std::cell::Cell::new(0) };
         /// The correction's budget, when a row sets it
         /// (`super::correction_rounds`). `cfg(test)` only.
         pub(crate) static CORRECTION_ROUNDS: std::cell::Cell<Option<usize>> =
@@ -4787,47 +4801,100 @@ pub(super) mod tests {
         }
     }
 
-    /// **An over-δ triangle on the sphere arm refuses typed through
-    /// `crate::tessellate`.** The arm's lattice and boundary steps are
-    /// scaled four-fold (`STEP_SCALE`, test-only), so its cells
-    /// deviate by about sixteen times the share of δ they were sized at,
-    /// and the per-triangle certificate refuses the face
-    /// `CertificateExceeded`; at scale one the same body meshes. The face
-    /// map runs on rayon, so the switch is set inside a one-thread pool,
-    /// on the worker that runs the face.
+    /// **The step is a first guess and the certificate decides**
+    /// (`crates/mesh/README.md` `[mesh.sizing]`), through
+    /// `crate::tessellate` on the tilted pair of balls at `δ = 10⁻²`. The
+    /// face map runs on rayon, so the switches are set inside a one-thread
+    /// pool, on the worker that runs the faces.
+    ///
+    /// - **A first guess that is too coarse is corrected.** With the
+    ///   sphere arm's lattice and boundary steps doubled (`STEP_SCALE`,
+    ///   test-only) its cells deviate by about four times δ. The lane
+    ///   adds a point at each triangle read over δ and the body meshes,
+    ///   checks and encloses its volume, in at least one round and no
+    ///   more than [`super::MAX_CORRECTION_ROUNDS`].
+    /// - **With no correction round the same face refuses typed**
+    ///   (`CORRECTION_ROUNDS` at zero): `CertificateExceeded`, so no
+    ///   triangle over δ is returned on either path.
+    /// - **The correction has its own budget.** With the fold and
+    ///   shared-side budget at nothing (`LAST_ATTEMPT` at zero) the
+    ///   correction still runs and the body meshes.
+    /// - **At its own steps the first guess stands**: no round is run, and
+    ///   the mesh holds under 0.6 of the triangles of the mesh at `δ/2`,
+    ///   which is the lattice a headroom of a half laid at δ.
     #[test]
-    fn an_over_delta_sphere_arm_triangle_refuses_typed() {
+    fn an_over_delta_first_guess_is_corrected_and_refuses_typed_without_the_correction() {
         use geom_core::Tol;
         let body = tilted_sphere_pair();
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(1)
             .build()
             .expect("a one-thread pool");
-        let (coarse, sized) = pool.install(|| {
-            STEP_SCALE.with(|s| s.set(4.0));
-            let coarse = crate::tessellate(&body, 1e-2, Tol::witness());
-            STEP_SCALE.with(|s| s.set(1.0));
-            (coarse, crate::tessellate(&body, 1e-2, Tol::witness()))
-        });
+        let triangles =
+            |m: &crate::Mesh| m.patches.iter().map(|p| p.triangles.len()).sum::<usize>();
+        let run = |scale: f64, budget: Option<usize>, last: Option<usize>, delta: f64| {
+            pool.install(|| {
+                STEP_SCALE.with(|s| s.set(scale));
+                CORRECTION_ROUNDS.with(|b| b.set(budget));
+                LAST_ATTEMPT.with(|a| a.set(last));
+                CORRECTIONS_USED.with(|u| u.set(0));
+                let mesh = crate::tessellate(&body, delta, Tol::witness());
+                STEP_SCALE.with(|s| s.set(1.0));
+                CORRECTION_ROUNDS.with(|b| b.set(None));
+                LAST_ATTEMPT.with(|a| a.set(None));
+                (mesh, CORRECTIONS_USED.with(std::cell::Cell::get))
+            })
+        };
+        // Two unit balls 1.4 apart: twice the ball less their lens,
+        // `π(4r + d)(2r − d)²/12`; two spheres less the cap each loses,
+        // `2πrh` at `h = 1 − 0.7`.
+        let pi = core::f64::consts::PI;
+        let volume = 2.0 * 4.0 / 3.0 * pi - pi * 5.4 * 0.6f64.powi(2) / 12.0;
+        let area = 8.0 * pi - 2.0 * 2.0 * pi * 0.3;
+        let sound = |mesh: &crate::Mesh, what: &str| {
+            crate::validate::check_mesh(mesh).unwrap_or_else(|e| panic!("{what}: {e:?}"));
+            crate::validate::check_volume(mesh, volume, area, 1e-2)
+                .unwrap_or_else(|e| panic!("{what}: {e:?}"));
+        };
+
+        let (uncorrected, _) = run(2.0, Some(0), None, 1e-2);
         assert!(
             matches!(
-                coarse,
+                uncorrected,
                 Err(TessellateError::CertificateExceeded { bound, requested, .. })
                     if bound > requested
             ),
-            "steps scaled four-fold: the face refuses typed, got {:?}",
-            coarse.map(|m| m.patches.len())
+            "steps doubled, no correction round: the face refuses typed, got {:?}",
+            uncorrected.map(|m| m.patches.len())
         );
-        let mesh = sized.expect("at the arm's own steps the body meshes");
-        crate::validate::check_mesh(&mesh).expect("and the mesh checks");
-        // Two unit balls 1.4 apart: twice the ball less their lens,
-        // `π(4r + d)(2r − d)²/12`.
-        let pi = core::f64::consts::PI;
-        let volume = 2.0 * 4.0 / 3.0 * pi - pi * 5.4 * 0.6f64.powi(2) / 12.0;
-        // Its area: two spheres less the cap each loses, `2πrh` at
-        // `h = 1 − 0.7`.
-        let area = 8.0 * pi - 2.0 * 2.0 * pi * 0.3;
-        crate::validate::check_volume(&mesh, volume, area, 1e-2).expect("and it encloses the body");
+        let (corrected, rounds) = run(2.0, None, None, 1e-2);
+        sound(
+            &corrected.expect("steps doubled: the correction brings every triangle within δ"),
+            "steps doubled, corrected",
+        );
+        assert!(
+            (1..=super::MAX_CORRECTION_ROUNDS).contains(&rounds),
+            "steps doubled: the correction ran {rounds} rounds, of a budget of {}",
+            super::MAX_CORRECTION_ROUNDS
+        );
+        let (own_budget, _) = run(2.0, None, Some(0), 1e-2);
+        sound(
+            &own_budget.expect("the correction counts against its own budget alone"),
+            "steps doubled, no fold or shared-side rebuild allowed",
+        );
+
+        let (sized, rounds) = run(1.0, None, None, 1e-2);
+        let sized = sized.expect("at the arm's own steps the body meshes");
+        sound(&sized, "at the arm's own steps");
+        assert_eq!(rounds, 0, "at the arm's own steps no face is corrected");
+        let (finer, _) = run(1.0, None, None, 5e-3);
+        let finer = finer.expect("and at δ/2");
+        assert!(
+            10 * triangles(&sized) < 6 * triangles(&finer),
+            "the mesh at δ holds {} triangles, the mesh at δ/2 {}",
+            triangles(&sized),
+            triangles(&finer)
+        );
     }
 
     /// **A singular vertex is a side of the polygon** (`crate::chart_table`,
@@ -5853,7 +5920,7 @@ pub(super) mod tests {
 
     /// **The clearance is what keeps a node off the boundary, and the
     /// lane refuses a triangle f64 cannot wind as soon as it holds one.**
-    /// The ball under a box face at `δ = 0.04`: at the shipped clearance
+    /// The ball under a box face at `δ = 0.02`: at the shipped clearance
     /// the lane meshes its sphere face. Handed a clearance of zero, a
     /// node is kept off a side only where it lies on it exactly, the node
     /// within rounding of the loop's vertex is laid, and the triangle
@@ -5863,12 +5930,12 @@ pub(super) mod tests {
     #[test]
     fn a_lattice_laid_without_clearance_cuts_a_triangle_the_lane_refuses() {
         let body = ball_under_a_box_face();
-        let shipped = lane_answers(&body, 0.04, super::BOUNDARY_CLEARANCE);
+        let shipped = lane_answers(&body, 0.02, super::BOUNDARY_CLEARANCE);
         assert!(
             !shipped.is_empty() && shipped.iter().all(|(_, answer)| answer.is_ok()),
             "at the shipped clearance every face the lane takes meshes: {shipped:?}"
         );
-        let bare = lane_answers(&body, 0.04, 0.0);
+        let bare = lane_answers(&body, 0.02, 0.0);
         let unresolved: Vec<_> = bare
             .iter()
             .filter_map(|(_, answer)| match answer {
