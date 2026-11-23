@@ -22,3 +22,17 @@ Ten `editor-core::all` `revalue_corpus::*` rows fail on origin/main, identically
 The lane that caused the red owes the fix (`memories/agent-lane-operations.md`): GERM's, or whoever holds PR 7411's follow-up. Either the re-valuation reads the plane pose's new near-geometry offset the way `Sym`'s build does, or the build and the revalue instrument agree on one spelling.
 
 Reproduce: `cargo nextest run -p editor-core --test all -E 'test(revalue_corpus::)'` on main.
+
+## Evidence (ONEHOME `onehome/mints-sweep`, 2026-11-23)
+
+At merge base `45e07754`, ε 1e-9, the ten rows still red, `drifted`:
+`a_chart_on_a_cap_tilted_at_zero` 50, `boss_union` 228 (both moves),
+`cut_cylinder` 260, `declared_tangency` 172, `die_chamfer` 322,
+`measured_web` 39, `plate_param` 662 (in step) / 466 (apart),
+`heat_sink_fins` 1120. `onehome/mints-sweep` reads the same counts on
+every row but `die_chamfer`, at 338 (+16): that branch mints the
+chamfer's strip and corner-patch frames through a decided door, which
+adds 200 sampled `fillet3_carrier_frame` decisions to the document
+(`compared` 5432 → 5632), and sixteen of their re-valued checks drift as
+the rest do. A fix to this row should expect `die_chamfer` to clear
+with them.

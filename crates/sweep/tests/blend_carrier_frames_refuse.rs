@@ -178,3 +178,17 @@ fn a_meridian_refuses_a_rim_on_its_axis() {
         "the radial of a rim on the x axis, bit for bit"
     );
 }
+
+/// **A corner patch's normal is decided as a cosine, whatever the
+/// setback**: a cube chamfered at a thousandth of its edge builds every
+/// corner patch. The fold `g·(g·outward)` before it is normalized has a
+/// length of about five times the setback's fourth power, `5e-12` here,
+/// which the band reads as no direction at all.
+#[test]
+fn a_small_setback_chamfer_mints_its_corner_patches() {
+    let tol = Tol::witness();
+    let body = sweep::test_support::at_rest(&sweep::test_support::cube::<f64>(1.0, tol), tol);
+    let out = sweep::chamfer::chamfer_edges(&body, &topo::query::all_edges(&body), 1e-3, tol)
+        .expect("a cube's twelve edges chamfer at a small setback");
+    assert_eq!(out.corner_faces.len(), 8, "one patch per corner");
+}
