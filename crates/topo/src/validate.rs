@@ -474,8 +474,9 @@ pub(crate) fn decide_positive<T: Decide, A: geom_core::MarginTerms>(
 }
 
 /// **Whether a reading's own rounding leaves an in-band reading the
-/// input's**: the rounding, `K` times over, decided Zero under `name`, so
-/// it lies within an `ε/K` share of the band. This is an amplification
+/// input's**: the rounding decided Zero under `name` in the band one
+/// K-step finer ([`Band::a_step_finer`]), so it lies within an `ε/K`
+/// share of the band. This is an amplification
 /// share, kept until `work/oneround/site-rounding-charges-owed-a-re-posing.md`
 /// re-poses the readings that need it: a reading whose chain amplifies
 /// its rounding past the run's admission rule — a quotient by a small
@@ -488,22 +489,13 @@ pub(crate) fn decide_positive<T: Decide, A: geom_core::MarginTerms>(
 ///
 /// # Errors
 ///
-/// The rounding `K` times over, as the band read it, where it is past
-/// that share.
+/// The rounding, as the finer band read it, where it is past that share.
 pub(crate) fn resolved_as<T: Decide>(
     name: &'static str,
     rounding: T,
     band: Band,
 ) -> Result<(), geom_core::MarginDiag> {
-    let k = T::from_f64(band.escalate() / band.zero());
-    match decide_reported(
-        name,
-        // Unsourced lever: the reading's own rounding, a length that K scales, not an arm a
-        // dimensionless datum is levered across; no extent, curvature or session box is it.
-        // No door names it yet: `work/oneround/unsourced-levers-with-no-door-that-names-them.md`.
-        Margin::levered(k, geom_core::Lever::unsourced(rounding)),
-        band,
-    ) {
+    match decide_reported(name, Margin::of(rounding), band.a_step_finer()) {
         Ok(geom_core::Decided {
             sign: Sign::Zero, ..
         }) => Ok(()),

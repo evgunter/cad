@@ -71,6 +71,22 @@ pub(crate) struct Rim<T: Real> {
     pub u_ref: Vec3<T>,
 }
 
+impl<T: Decide> Rim<T> {
+    /// **The farthest the whole circle stands from `pivot`**: its cover's
+    /// far distance ([`geom_brep::ExtentBall::of_cover_from`]), exact on
+    /// a circle, so one read bounds it from both sides; poison where the
+    /// circle has no cover.
+    fn reach_from(&self, pivot: Point3<T>) -> geom_core::Lever<T> {
+        let circle = geom::Circle::new(
+            geom::Frame::new(self.center, self.axis.get(), self.u_ref),
+            self.radius,
+        );
+        let turn = geom::cover::ParamWindow::new(T::zero(), circle.period().length());
+        let cover = geom::Curve3::Circle(circle).cover_over(turn).ok();
+        geom_brep::ExtentBall::of_cover_from(cover.as_ref(), pivot).lever()
+    }
+}
+
 /// What the ruling's table routes a shared rim to.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum RimRouting {
@@ -220,12 +236,11 @@ fn same_circle<T: Decide>(
             (RIM_CIRCLE_CENTER, Margin::norm3(ra.center - rb.center)),
             (
                 RIM_CIRCLE_AXIS_PARALLEL,
-                // Unsourced lever: the two rims' radii summed, which no
-                // one extent's read is; their union's (the larger)
-                // would move verdicts by a shorter arm.
+                // The tilt pinned at `ra`'s centre, levered at both
+                // circles' far distance from there: their union's.
                 Margin::levered(
                     ra.axis.get().cross(rb.axis.get()).norm(),
-                    geom_core::Lever::unsourced(ra.radius + rb.radius),
+                    ra.reach_from(ra.center).max(rb.reach_from(ra.center)),
                 ),
             ),
         ],
@@ -1437,6 +1452,29 @@ mod redfirst {
             !matches!(rim_identity(&big, &big_tilted, b), Ok(true)),
             "the same tilt over a 2000 km rim is not the same circle"
         );
+    }
+
+    /// **The tilt is levered at the two circles' union, not their
+    /// radii's sum.** Two unit circles about one centre, their axes
+    /// tilted `0.75·z` radians apart: the union's reach from the centre
+    /// is the radius, so the tilt reads `0.75·z` and the circles are one.
+    /// The sum of the radii reads it `1.5·z`, past the zero. The same
+    /// pair a kilometre from the world origin reads alike: the lever is
+    /// read from the centre the centre datum pins, not from anywhere
+    /// else. Red where the arm is the radii's sum, or read from the
+    /// origin.
+    #[test]
+    fn rim_axis_tilt_is_levered_at_the_circles_union_from_their_centre() {
+        let b = band();
+        let tilt = 0.75 * b.zero();
+        for at in [[0.0, 0.0, 0.0], [1.0e3, 0.0, 0.0]] {
+            let one = circle(at, [0.0, 0.0, 1.0], 1.0);
+            let tilted = circle(at, [tilt, 0.0, 1.0], 1.0);
+            assert!(
+                rim_identity(&one, &tilted, b).unwrap(),
+                "about {at:?}: a tilt of 0.75 z over a unit circle is one rim"
+            );
+        }
     }
 
     /// **The two sense words route the same geometry to different
