@@ -2,10 +2,11 @@
 id: the-mesh-cures-a-side-two-faces-can-both-make-three-ways
 kind: unit
 title: A side two faces both make is split where the patches join, once, in every patch that has it inside, at a point of that face's own surface; the three present rules retire
-status: spec
+status: dispatched
 opened: 2026-11-22
 priority: P1
 cost: H
+branch: tesslane/join-split
 ---
 
 Filed at the closing of unit 4c (PR 7096) as a design question, weighed by three designers over four rounds (2026-11-22 and 23), and decided by Ev on PR 7485 (2026-11-23: "allowing zero volume sounds annoying; this plan sounds good"). This file is the unit that answer specifies.
