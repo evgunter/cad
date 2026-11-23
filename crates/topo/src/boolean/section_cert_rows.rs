@@ -1226,7 +1226,7 @@ fn torus_tangencies_at_an_extreme_are_touches_off_the_outer_half_too() {
     let s = in_sliver() / 0.5;
     let n = v(s, 0.0, (1.0 - s * s).sqrt());
     let tilted = plane(p(0.0, 0.0, 0.0) + n * (2.0 * s + 0.5), n);
-    let rows: [(&str, Surface<f64>, &str, Option<Point3<f64>>); 5] = [
+    let rows = [
         (
             "tilted plane on the top",
             tilted,

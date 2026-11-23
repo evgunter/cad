@@ -1,19 +1,20 @@
-//! **A torus touching a partner at one point, decided per face.**
+//! **A torus touching a partner at an extreme, decided per face.**
 //!
 //! The donut (`R = 2`, `r = 0.5`, about y) against a plane, a ball or a
-//! wall parallel to its axis, each tangent to the tube at a point of its
-//! outer half — an elliptic point, where the partner's level function
-//! over the torus has its strict extreme. The touch is at `(0, 0, 2.5)`,
-//! on the outer equator, clear of the donut's seam meridian (the
-//! half-plane `z = 0, x > 0`). Where the partner's face does not hold
-//! the touch, the bodies are apart and every op builds, in both operand
-//! orders, against the volumes the radii and lengths give. Where it
-//! does, the boundaries touch and the pair keeps its refusal. A
-//! tangency on the tube's inner half, where the torus is a saddle,
-//! keeps its refusal wherever it stands. And each pose moved off the
-//! touch by `±100ε` and `±1e-4` answers by the closed-form distance
-//! between the carriers: apart, it builds; across, it builds when the
-//! faces stay apart and refuses typed when they meet.
+//! wall, each tangent to the tube at an extreme of the partner's level
+//! function over the torus (its height, the distance from the ball's
+//! centre or the wall's axis): at a point of the tube's outer half or its
+//! inner, or along a whole parallel. Where the partner's face does not
+//! hold the touch, every op builds, in both operand orders, against the
+//! volumes the radii and lengths give. Where it does, the boundaries
+//! touch and the pair keeps its refusal. A tangency at a saddle of the
+//! level function keeps its refusal wherever it stands. Each pose moved
+//! off the touch by `±100ε` and `±1e-4` answers by the closed-form
+//! distance between the carriers: apart, it builds; across, it builds
+//! when the faces stay apart and refuses typed when they meet. And an
+//! edge standing within the band of the torus beside an off-face touch,
+//! on the side the touch's argument needs the sweep to see it (the
+//! section certificate's S′), refuses.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -209,19 +210,121 @@ fn the_same_touches_on_both_faces_refuse() {
     }
 }
 
-/// **A tangency at a saddle point keeps R-tan**, though neither face
-/// holds the touch: the brick's top and the trimmed ball touch the inner
-/// equator at `(0, 0, 1.5)` from the hole (mutant: a touch on the inner
-/// half of the tube).
+/// **A block in the hole whose top touches the inner equator at a
+/// saddle keeps R-tan**, though its face does not hold the touch: the
+/// plane meets the torus in a figure eight there, a saddle of its
+/// height, and a touch at a saddle leans on the line × torus door outside
+/// the solid, which is silent within the band
+/// (`work/germ/the-line-torus-door-misses-silently-within-the-band.md`).
 #[test]
-fn a_touch_on_the_inner_equator_refuses_off_the_faces() {
+fn a_block_at_the_inner_equators_saddle_refuses_off_its_face() {
+    assert_every_op_refuses(
+        "brick in the hole",
+        &donut(1.0),
+        &hole_brick(0.0).0,
+        tangent,
+    );
+}
+
+/// **A trimmed ball in the hole touching the inner equator builds**: the
+/// inner equator's point `(0, 0, 1.5)` is the strict minimum of the
+/// distance from the ball's centre over the torus, an extreme on the
+/// tube's inner half, and the ball's cap about it is taken off (mutant:
+/// the elliptic margin restored).
+#[test]
+fn a_trimmed_ball_in_the_hole_touching_the_inner_equator_builds() {
+    let (b, vb) = hole_ball(0.0);
+    assert_every_op(
+        "ball in the hole",
+        &donut(1.0),
+        &b,
+        (DONUT_VOLUME, vb),
+        Pose::Apart,
+    );
+}
+
+/// **A hub flush with the ring's top builds**: a rod of radius 1 along
+/// the axis, its top `y = 0.5` tangent to the torus along the whole top
+/// parallel `ρ = 2`, the maximum circle of the height, which its disc
+/// (`ρ ≤ 1`) does not reach. Mutant: an axis-normal plane's touch read
+/// off the meridian half-plane through its normal, which has no direction.
+#[test]
+fn a_hub_flush_with_the_rings_top_builds() {
+    let hub = rod_y(1.0, (0.0, 0.0), (-1.0, 0.5));
+    assert_every_op(
+        "hub",
+        &donut(1.0),
+        &hub,
+        (DONUT_VOLUME, PI * 1.5),
+        Pose::Apart,
+    );
+}
+
+/// **A sleeve standing above the ring's widest circle builds**: a tube of
+/// radii `2.5` and `2.8`, `y ∈ [0.2, 1]`, its inner wall coaxial with the
+/// donut and tangent to it along the whole outer equator, the maximum
+/// circle of the distance from the axis, below the sleeve's face.
+#[test]
+fn a_sleeve_above_the_rings_widest_circle_builds() {
+    let sleeve = sweep::test_support::revolved_about_y(
+        vec![
+            (Point2::new(2.5, 0.2), 0.0),
+            (Point2::new(2.8, 0.2), 0.0),
+            (Point2::new(2.8, 1.0), 0.0),
+            (Point2::new(2.5, 1.0), 0.0),
+        ],
+        Revolution::Full,
+        Tol::witness(),
+    );
+    let vs = PI * (2.8f64.powi(2) - 2.5f64.powi(2)) * 0.8;
+    assert_every_op(
+        "sleeve",
+        &donut(1.0),
+        &sleeve,
+        (DONUT_VOLUME, vs),
+        Pose::Apart,
+    );
+}
+
+/// **A ball inside the tube against its inner half builds**: radius `0.2`
+/// about `(0, 0, 1.7)`, tangent from inside to the inner equator at
+/// `(0, 0, 1.5)`, the minimum of the distance from its centre, its cap
+/// below `z = 1.55` taken off; the donut holds it.
+#[test]
+fn a_ball_inside_the_tube_against_its_inner_half_builds() {
+    let (b, vb) = trimmed_ball(0.2, Vec3::new(0.0, 0.0, 1.7), 1.55, false);
+    assert_every_op(
+        "ball in the tube",
+        &donut(1.0),
+        &b,
+        (DONUT_VOLUME, vb),
+        Pose::Inside,
+    );
+}
+
+/// **An edge within the band of the torus beside an off-face touch
+/// refuses** (S′): a brick whose bottom `z = 2.5 − ε/2` touches the outer
+/// equator's top off its face (`x ≥ a`), its edge `x = a` standing `3ε/8`
+/// inside the solid under the cap the plane cuts; and a ball touching the
+/// top off its face, trimmed to `x ≥ a`, its rim standing `ε/2` above the
+/// torus. Neither pair has a crossing the sweep would miss: the line ×
+/// torus door inside the solid, and the circle × torus door either side,
+/// refuse within the band (mutant: either door silent there).
+#[test]
+fn an_edge_within_the_band_beside_an_off_face_touch_refuses() {
+    let eps = Tol::witness().eps();
     let d = donut(1.0);
-    for (label, (b, _)) in [
-        ("brick in the hole", hole_brick(0.0)),
-        ("ball in the hole", hole_ball(0.0)),
-    ] {
-        assert_every_op_refuses(label, &d, &b, tangent);
-    }
+    let a = 0.5 * (2.5 * eps).sqrt();
+    let block = brick((a, 2.0), (-1.0, 1.0), (2.5 - 0.5 * eps, 3.5));
+    assert_every_op_refuses("brick's edge inside the cap", &d, &block, |_| true);
+    let a = (eps / 2.4).sqrt();
+    let rimmed = built(
+        BooleanOp::Subtract,
+        &ball(0.5, Vec3::new(0.0, 0.0, 3.0)),
+        &brick((-2.0, a), (-2.0, 2.0), (2.0, 4.0)),
+    )
+    .expect("the trimmed ball");
+    assert_every_op_refuses("ball's rim over the top", &d, &rimmed, |_| true);
 }
 
 /// **Off the touch, the closed-form distance decides.** Each pose above

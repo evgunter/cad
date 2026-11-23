@@ -461,7 +461,16 @@ fn check(k: &Frame, pose: &Pose) -> Vec<String> {
         b,
     );
     let m = pose.margin.map_or(f64::INFINITY, f64::abs);
-    // In the band's Zero: R-tan is the answer, except at the plane's
+    // A coaxial torus whose tube one nappe's generator touches, the other
+    // nappe clear: a touch along the parallel, its point on both carriers.
+    let parallel_touch = |s: &Section<f64>| {
+        matches!(s, Section::Touch(t)
+        if t.name.starts_with("section_torus_coaxial_cone_")
+            && [&cone, &pose.partner].into_iter().all(|x| {
+                geom_brep::implicit_residual(x, t.at).abs() <= b.escalate()
+            }))
+    };
+    // In the band's Zero: R-tan or a touch is the answer, except at the plane's
     // aperture, where Zero is the parabola's class — one part, essential,
     // no witness, uncounted.
     if m <= 0.25 * b.zero() {
@@ -475,6 +484,7 @@ fn check(k: &Frame, pose: &Pose) -> Vec<String> {
             Section::Tangent(_) if !matches!(pose.partner, Surface::Plane { .. }) => Vec::new(),
             // Coaxial apexes in the band: R-tan as a touch at the apex.
             Section::Touch(t) if t.name == "section_cone_coaxial_apexes" => Vec::new(),
+            s if parallel_touch(s) => Vec::new(),
             _ if parabola => Vec::new(),
             other => vec![format!("margin {m} in the band, answered {other:?}")],
         };
@@ -485,6 +495,7 @@ fn check(k: &Frame, pose: &Pose) -> Vec<String> {
         Section::Touch(t) if t.name == "section_cone_coaxial_apexes" && m < 4.0 * b.escalate() => {
             return Vec::new();
         }
+        s if parallel_touch(s) && m < 4.0 * b.escalate() => return Vec::new(),
         other => return vec![format!("margin {m}: not classified: {other:?}")],
     };
     let mut bad = Vec::new();

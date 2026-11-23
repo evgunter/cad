@@ -1002,11 +1002,14 @@ fn cone_torus<T: crate::props::AtRestPolicy>(
         // clear of the torus: one nappe crossing it would put a band of
         // the cone's other sheet beside the touch's.
         Err(tan) if tan.undecided.is_none() && tan.index < 2 => {
-            let clear = matches!(
+            let other_misses = matches!(
                 signs_across([rows[1 - tan.index]], slack, band),
                 Ok([false])
             );
-            match pose.tangent_parallel(tan.index == 1).filter(|_| clear) {
+            match pose
+                .tangent_parallel(tan.index == 1)
+                .filter(|_| other_misses)
+            {
                 Some(parallel) => Section::Touch(Touch {
                     name: tan.name,
                     at: geom_brep::TouchLocus::Parallel(parallel).at(),

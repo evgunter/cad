@@ -2990,17 +2990,27 @@ impl ClassRead {
     }
 }
 
-fn plane_torus_read<T: Decide>(
+/// **A plane and a torus as the plane × torus readings take them**: the
+/// plane's point and unit normal, the torus's frame and radii shown
+/// inside the ring convention, and the lever its axis-normal tilt is read
+/// over (the torus's own ball).
+struct PlaneTorus<T: Real> {
+    site: (Point3<T>, Vec3<T>),
+    frame: geom::Frame<T>,
+    radii: [T; 2],
+    ring: geom::RingTorus<T>,
+    tilt_lever: geom_core::Lever<T>,
+}
+
+fn plane_torus_parts<T: Decide>(
     plane: &impl SectionPlane<T>,
     torus: &Surface<T>,
-    extent: geom_core::Lever<T>,
     band: Band,
-    class: ClassRead,
-) -> Result<PlaneTorusSection<T>, SectionError> {
+) -> Result<PlaneTorus<T>, SectionError> {
     let wrong = || SectionError::WrongLane {
         expected: "plane×torus",
     };
-    let Some((q, n)) = plane.site() else {
+    let Some(site) = plane.site() else {
         return Err(wrong());
     };
     let &Surface::Torus {
@@ -3011,9 +3021,26 @@ fn plane_torus_read<T: Decide>(
     else {
         return Err(wrong());
     };
-    let (c, a) = (frame.origin(), frame.axis());
-
     let ring = TorusRefusal::require(big_r, r, band).map_err(SectionError::DegenerateTorus)?;
+    Ok(PlaneTorus {
+        site,
+        frame,
+        radii: [big_r, r],
+        ring,
+        tilt_lever: ExtentBall::of_covered(torus.cover().as_ref().ok()).lever(),
+    })
+}
+
+fn plane_torus_read<T: Decide>(
+    plane: &impl SectionPlane<T>,
+    torus: &Surface<T>,
+    extent: geom_core::Lever<T>,
+    band: Band,
+    class: ClassRead,
+) -> Result<PlaneTorusSection<T>, SectionError> {
+    let parts = plane_torus_parts(plane, torus, band)?;
+    let ((q, n), [big_r, r], ring) = (parts.site, parts.radii, parts.ring);
+    let (c, a) = (parts.frame.origin(), parts.frame.axis());
 
     // The axis tilt is levered at the extent for the fork alone. Each
     // served row below decides the displacement it puts on its minted
@@ -3095,17 +3122,15 @@ fn plane_torus_read<T: Decide>(
                 }
             }
         }
-        false => {
-            axis_normal((q, n), torus, band, class)?.ok_or(SectionError::RoutesToGeneralRung {
-                pair: "plane×torus",
-                why: "generic tilt cuts a spiric quartic — the bitangent \
+        false => axis_normal(&parts, band, class)?.ok_or(SectionError::RoutesToGeneralRung {
+            pair: "plane×torus",
+            why: "generic tilt cuts a spiric quartic — the bitangent \
                   (Villarceau) two-circle configuration is deliberately \
                   unclassified, a third classification no consumer \
                   configuration reaches — and the pair's general-rung arm \
                   has not retired (arms retire one at a time, each with its \
                   proof)",
-            })
-        }
+        }),
     }
 }
 
@@ -3113,26 +3138,13 @@ fn plane_torus_read<T: Decide>(
 /// ([`plane_torus_section`]'s step 3, read as `class` reads it): `None`
 /// where `pt_axis_normal` shows the plane not normal to the axis.
 fn axis_normal<T: Decide>(
-    (q, n): (Point3<T>, Vec3<T>),
-    torus: &Surface<T>,
+    parts: &PlaneTorus<T>,
     band: Band,
     class: ClassRead,
 ) -> Result<Option<PlaneTorusSection<T>>, SectionError> {
-    let &Surface::Torus {
-        frame,
-        major_radius: big_r,
-        minor_radius: r,
-    } = torus
-    else {
-        return Err(SectionError::WrongLane {
-            expected: "plane×torus",
-        });
-    };
+    let ((q, n), [big_r, r], frame) = (parts.site, parts.radii, parts.frame);
     let (c, a, tor_u) = (frame.origin(), frame.axis(), frame.u_ref());
-    let tilt = Margin::levered(
-        a.cross(n).norm(),
-        ExtentBall::of_covered(torus.cover().as_ref().ok()).lever(),
-    );
+    let tilt = Margin::levered(a.cross(n).norm(), parts.tilt_lever);
     if !class
         .shown("pt_axis_normal", tilt, band)
         .map_err(SectionError::Escalated)?
@@ -3191,23 +3203,11 @@ pub fn plane_torus_axis_normal<T: Decide>(
     torus: &Surface<T>,
     band: Band,
 ) -> Result<Option<PlaneTorusSection<T>>, SectionError> {
-    let wrong = || SectionError::WrongLane {
-        expected: "plane×torus",
-    };
-    let (
-        Some(site),
-        &Surface::Torus {
-            major_radius,
-            minor_radius,
-            ..
-        },
-    ) = (plane.site(), torus)
-    else {
-        return Err(wrong());
-    };
-    TorusRefusal::require(major_radius, minor_radius, band)
-        .map_err(SectionError::DegenerateTorus)?;
-    axis_normal(site, torus, band, ClassRead::Structural)
+    axis_normal(
+        &plane_torus_parts(plane, torus, band)?,
+        band,
+        ClassRead::Structural,
+    )
 }
 
 // ---------------------------------------------------------------------
