@@ -1,0 +1,2 @@
+B first report: subagent_tokens 159530, 21 tool uses, 356699 ms (hand-back 04:1xZ 2026-11-23)
+A first report: subagent_tokens 161943, 25 tool uses, 388726 ms
