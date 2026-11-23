@@ -211,7 +211,7 @@ fn recourse_is_rendered_from_the_pair(label: &str, doc: &ProfileDoc) {
         let editor_core::CheckEvidence::Interference { finding } = &found.evidence else {
             continue;
         };
-        let said = editor_core::Said(found, by).to_string();
+        let said = editor_core::Said(found, by).sentence().to_string();
         let ending = match (&finding.quieting, found.quiet) {
             (_, Some(_)) => {
                 assert!(

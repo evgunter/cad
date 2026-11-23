@@ -2,10 +2,11 @@
 id: bounds-probe-guards-its-seed-and-not-the-ladder-it-doubles
 kind: issue
 title: BoundsProbe::new guards its seed and not the 2^11 ladder it derives, so furthest_reach is inf for a large seed
-status: open
+status: closed
 opened: 2026-09-22
 priority: P3
 cost: E
+closed: 2026-11-23
 ---
 
 
@@ -76,3 +77,7 @@ should say which and why, because a silent substitution is the thing
 `crates/viewer/src/bounds.rs` — VGEOM-claimed, double-claimed with
 author, chrome and view. Held out of `vgeom/camera-band`, whose fence
 was `crates/viewer/src/camera.rs` alone.
+
+## Closed (2026-11-23)
+
+Nothing left to fix: the code it describes is deleted. Ev's decision on #7340 removes the sampling probe, and OFFER's `certify-affordance-on-the-bounds-panel` makes `range?` the certified search (`editor_core::range`), whose reading is `viewer::session::range`.
