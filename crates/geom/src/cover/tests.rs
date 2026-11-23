@@ -2337,10 +2337,42 @@ fn a_far_sections_cover_holds_its_stored_arc() {
                 worst[3] = worst[3].max(h - sup);
             }
         }
-        println!(
-            "a {a:e}: ball {:e} near {:e} far {:e} support {:e}",
-            worst[0], worst[1], worst[2], worst[3]
-        );
+        // The same arc at `Interval`, every datum a point enclosure: each
+        // reading is bounded and encloses the stored points.
+        let ie = crate::Ellipse::anchored(ipt(anchor), ivec(n), ivec(toward), iv(a), iv(b));
+        let icover = Curve3::Ellipse(ie)
+            .cover_over(ParamWindow::new(iv(-half), iv(half)))
+            .unwrap();
+        let (imid, iradius) = icover.ball();
+        let (inear, ifar) = icover.distance_range(&Site::Point(ipt(site_at)));
+        let isupports = dirs.map(|d| icover.support(ivec(d)));
+        for x in [iradius, inear, ifar].into_iter().chain(isupports) {
+            assert!(
+                x.is_bounded(),
+                "a {a:e}: an Interval reading is bounded: {x:?}"
+            );
+        }
+        let m = |x: Interval| 0.5 * (Bounds::lo(x) + Bounds::hi(x));
+        let centre = Point3::new(m(imid.x), m(imid.y), m(imid.z));
+        let spread = Bounds::hi((imid - ipt(centre)).norm());
+        for k in 0..=64 {
+            let t = -half + 2.0 * half * f64::from(k) / 64.0;
+            let p = stored_arc::point(stored, (a, b), t);
+            let out = stored_arc::from(p, centre).norm() - spread - Bounds::hi(iradius);
+            let d = stored_arc::from(p, site_at).norm();
+            assert!(
+                out <= own && Bounds::lo(inear) - d <= own && d - Bounds::hi(ifar) <= own,
+                "a {a:e}: the Interval cover holds the stored point at {t:e}: ball {out:e}, \
+                 distance {d:e} in [{inear:?}, {ifar:?}]"
+            );
+            for (dir, sup) in dirs.iter().zip(isupports) {
+                let h = stored_arc::from(p, Point3::origin()).dot(*dir);
+                assert!(
+                    h - Bounds::hi(sup) <= own,
+                    "a {a:e}: the Interval support holds the stored point at {t:e}: {h:e} past {sup:?}"
+                );
+            }
+        }
         for (what, w) in ["ball", "nearest", "farthest", "support"].iter().zip(worst) {
             assert!(
                 w <= own,
