@@ -23,8 +23,11 @@
 //!   in band refuses, and the walk never steps on it. Every coefficient
 //!   decided Zero is the carrier lying on the surface.
 //! - **The window** `[0, s_w]`, halved from `L` until the terms past `m`
-//!   are at most half the `m`-th over it, so the quotient `Q(s) = Σ_{j≥m}
-//!   c_j s^{j−m}` keeps `c_m`'s sign there with `|Q| ≥ |c_m|/2`.
+//!   are at most half the `m`-th over it (`curve_face_end_root_tail`), so
+//!   the quotient `Q(s) = Σ_{j≥m} c_j s^{j−m}` keeps `c_m`'s sign there
+//!   with `|Q| ≥ |c_m|/2`. A circle's `L` is a quarter turn at most
+//!   (`curve_face_end_root_run`); the window is the whole span only where
+//!   `L` is the span's own and no halving was taken.
 //! - **The spread.** The terms below `m` are dropped and charged at the
 //!   most their verdicts admit: `c₀` at the zero band's width (the end
 //!   decided on the surface), and each coefficient the walk stepped past
@@ -34,10 +37,9 @@
 //!   which must end strictly inside the window (`curve_face_end_root_spread`). There
 //!   the carrier runs within the charge of the surface, the zero band at
 //!   the end's scale: a double root's neighbourhood, `√(2ε/κ)` long and
-//!   not `ε`, which no reading at the band shortens. The caller owns why
-//!   that neighbourhood is the end's own incidence (a junction: the
-//!   carrier leaves the curve the two faces end on into its own face,
-//!   where the other face is not).
+//!   not `ε`, which no reading at the band shortens. The door returns the
+//!   spread's length; what its roots are is the caller's to read (a
+//!   junction reads the edge's side of the rim over it).
 //! - **The window's far end** must stand definitely off the surface
 //!   (`curve_face_end_root_window_clear`, the linearized residual), so no root of
 //!   the rest of the span sits within the band of where the window ends.
