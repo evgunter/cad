@@ -1064,7 +1064,11 @@ tiers".
   (D1), kept to its end at the singularity: a native construction's
   seam already is it, and the kernel mints one only where a file
   states none. The join never removes a cut either
-  exception requires.
+  exception requires. Any other cut the kernel makes for its own
+  reasons (a chart cut that lets the join see a section loop no edge
+  reaches, a section strut) is transient: the door that makes it
+  records it, and removes it from that record before the door returns,
+  asking no question of the carriers, so no result holds it.
 
 **The frontier is typed and named.** Every unbuilt case refuses with a
 message naming its own blocker, and its standing is `Refusal::Unbuilt`

@@ -1714,7 +1714,9 @@ has the C7 second-order lane. (3) `EdgeCurveSpec::split_specs` splits a
 NURBS carrier by knot insertion and a conic by parameter interval.
 (4) The census is CONTACT-DESIGN's. (5) `merge_faces.rs` merges
 cosurface runs through the same never-numeric ladder; a curved run that
-closes its chart's full period refuses. (6) Curved tessellation
+closes its chart's full period refuses, which keeps the cuts an author
+wrote on a closed wall (`[edges]`). A cut the kernel makes for its own
+reasons never reaches the merge: its door has removed it (`[edges]`). (6) Curved tessellation
 (`mesh/src/curved.rs`) takes iso-rectangle chart domains from the
 boundary walk with certified chordal bounds from hull-bounded jets
 (`nurbs_cert.rs`); general trimmed faces with pcurve-driven trim loops
