@@ -802,6 +802,8 @@ mod wire_selection_kind_doors;
 
 #[path = "a_datum_is_a_placed_frame.rs"]
 mod a_datum_is_a_placed_frame;
+#[path = "review_datum_b.rs"]
+mod review_datum_b;
 #[path = "a_keel_ring_names_its_two_edges.rs"]
 mod a_keel_ring_names_its_two_edges;
 #[path = "a_mate_on_a_full_turn_bore_names.rs"]
