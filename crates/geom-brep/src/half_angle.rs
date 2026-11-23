@@ -92,6 +92,7 @@ use geom_core::k_stats::decide;
 use geom_core::period::Period;
 use geom_core::{Band, Decide, Indeterminate, Margin, Rounded, Sign};
 
+use crate::piece::{Taylor, sign_change};
 use crate::quartic::depressed_quartic_roots;
 use crate::roots::{RootFault, RootRefusal, Roots, Unsettled, touch_or_tangency};
 
@@ -594,29 +595,9 @@ pub(crate) const SPLITS: [f64; 9] = [
     0.88,
 ];
 
-/// The bisection steps that locate a root in its monotone piece: enough
-/// to reach the scalar's resolution from a sixteenth of a turn.
-const BISECTIONS: u32 = 64;
-
 /// The row a metered root's own slope is read under
 /// ([`Rounded::divisor`]), which picks its lever's arm ([`RootSlack`]).
 const ROOT_SLOPE_ROOM: &str = "root_slack_slope_room";
-
-/// **The bracket about `g`'s one sign change on `(l, r)`**, halved
-/// [`BISECTIONS`] times: to two adjacent scalars from a sixteenth of a
-/// turn.
-fn sign_change<T: Decide>(g: &impl Fn(T) -> T, l: T, r: T) -> (T, T) {
-    let two = T::from_f64(2.0);
-    let (mut lo, mut hi) = (l, r);
-    let at_lo = g(l);
-    for _ in 0..BISECTIONS {
-        let c = (lo + hi) / two;
-        let product = g(c) * at_lo;
-        lo = product.select_le_zero(lo, c);
-        hi = product.select_le_zero(c, hi);
-    }
-    (lo, hi)
-}
 
 /// **The certified real roots of a trigonometric polynomial `F(θ)` of
 /// degree `N ≤ MAX_DEGREE` over the whole turn about the arc's midpoint,
@@ -679,8 +660,8 @@ fn sign_change<T: Decide>(g: &impl Fn(T) -> T, l: T, r: T) -> (T, T) {
 /// [`RootFault::ImpossibleCount`] for an odd count round the turn or more
 /// roots than the degree allows.
 ///
-/// The same Taylor bound, over a piece of a harmonic, is
-/// `curve_pair::pose::window`'s.
+/// The Taylor bound is `piece::Taylor`, which
+/// `curve_pair::pose::window` and `pair_section::gap` read too.
 ///
 /// `F` shares the residual's sign. The clear margin is read in metres
 /// through the CEILING `f_per_metre_hi` (capped at `residual_reach`), so
@@ -805,7 +786,6 @@ fn subdivision<T: Decide>(
             Terms::Harmonics(f) => f.taylor_at(t, noise),
         }
     };
-    let (six, twenty_four) = (T::from_f64(6.0), T::from_f64(24.0));
     let definitely_as = |row, m: T| matches!(decide(row, Margin::of(m), band), Ok(Sign::Positive));
     // The first reading in the band's gap at a cut the walk tried: what a
     // walk that can cut nowhere definite refuses on.
@@ -871,22 +851,16 @@ fn subdivision<T: Decide>(
     let walk = bisect(pieces, |((l, sl), (r, sr)): ((T, Sign), (T, Sign))| {
         let half = (r - l) / two;
         let m = l + half;
-        // The true `F`'s derivatives at `m`, each widened by its bound.
-        let [f0, f1, f2, f3] = taylor(m);
-        let (d1_hi, d2_hi, d3_hi) = (f1.magnitude(), f2.magnitude(), f3.magnitude());
-        let fall = d1_hi * half
-            + d2_hi * half.powi(2) / two
-            + d3_hi * half.powi(3) / six
-            + fourth_hi * half.powi(4) / twenty_four;
-        let clear = (f0.room() - fall) / f_per_metre_hi;
+        // The true `F` over the piece, from its jet at `m`.
+        let jet = taylor(m);
+        let piece = Taylor::over(jet, fourth_hi, half);
+        let clear = piece.least / f_per_metre_hi;
         let clear = residual_reach.map_or(clear, |reach| clear.min(reach));
         if definitely_as(rows.clear(), clear) {
             return Step::Settled;
         }
-        let most_bend = d2_hi + d3_hi * half + fourth_hi * half.powi(2) / two;
-        let least_slope =
-            f1.room() - d2_hi * half - d3_hi * half.powi(2) / two - fourth_hi * half.powi(3) / six;
-        if definitely_as(rows.monotone(), speed_hi * least_slope / most_bend) {
+        let least_slope = piece.least_slope;
+        if definitely_as(rows.monotone(), speed_hi * least_slope / piece.most_bend) {
             if sl == sr {
                 return Step::Settled;
             }
@@ -932,18 +906,17 @@ fn subdivision<T: Decide>(
                 // lies within `reach / L` of it wherever `|F′| ≥ L` holds
                 // that far ([`RootSlack`]).
                 let reach = meter.f_per_metre_hi * (meter.residual)(root).magnitude();
-                let [_, g1, g2, g3] = taylor(root);
-                let lever = g1.divisor(ROOT_SLOPE_ROOM).map_or(least_slope, |_| {
-                    // Any width will do: `reach ≤ window · w` below is
-                    // what admits the window's slope. `g1.room()` is the
-                    // room the divisor just read positive.
-                    let w = (two * reach / g1.room()).min(half);
-                    let window = g1.room()
-                        - g2.magnitude() * w
-                        - g3.magnitude() * w.powi(2) / two
-                        - fourth_hi * w.powi(3) / six;
-                    (reach - window * w).select_le_zero(window.max(least_slope), least_slope)
-                });
+                let at_root = taylor(root);
+                let lever = at_root[1]
+                    .divisor(ROOT_SLOPE_ROOM)
+                    .map_or(least_slope, |_| {
+                        // Any width will do: `reach ≤ window · w` below is
+                        // what admits the window's slope. The room is the one
+                        // the divisor just read positive.
+                        let w = (two * reach / at_root[1].room()).min(half);
+                        let window = Taylor::over(at_root, fourth_hi, w).least_slope;
+                        (reach - window * w).select_le_zero(window.max(least_slope), least_slope)
+                    });
                 let arc = speed_hi * reach / lever;
                 match decide(meter.row, Margin::of(arc), band) {
                     Ok(Sign::Zero | Sign::Negative) => {}
@@ -958,19 +931,16 @@ fn subdivision<T: Decide>(
         if let Some(touch) = touch
             && sl == sr
         {
-            let toward = if sl == Sign::Positive {
-                T::one()
-            } else {
-                T::zero() - T::one()
-            };
+            // `G = ±F`, positive at the piece's ends.
+            let oriented = |r: Rounded<T>| if sl == Sign::Positive { r } else { -r };
             let exactly = |x: T| geom_core::k_stats::prove(touch.convex(), Margin::of(x)).ok();
             // A lower bound on `G″` over the piece where it is positive,
             // the one place it is read.
-            let curve = toward * f2.toward_zero() - d3_hi * half - fourth_hi * half.powi(2) / two;
+            let curve = oriented(jet[2]).toward_zero() - piece.bend_drift;
             // Locates `θ*` and bounds nothing: the spread charges `F′`'s
             // bound, and the end signs are proved past it below.
-            let slope = |t: T| toward * taylor(t)[1].value;
-            let slope_past_its_bound = |t: T| exactly(toward * taylor(t)[1].toward_zero());
+            let slope = |t: T| oriented(taylor(t)[1]).value;
+            let slope_past_its_bound = |t: T| exactly(oriented(taylor(t)[1]).toward_zero());
             if exactly(curve) == Some(Sign::Positive)
                 && slope_past_its_bound(l) == Some(Sign::Negative)
                 && slope_past_its_bound(r) == Some(Sign::Positive)
@@ -987,7 +957,7 @@ fn subdivision<T: Decide>(
                     // floor.
                     let [g0, g1, _, _] = taylor(at);
                     let slope_hi = g1.magnitude();
-                    let fall = (g0.error - toward * g0.value).max(T::zero())
+                    let fall = (-oriented(g0)).upper_end().max(T::zero())
                         + slope_hi.powi(2) / (two * curve);
                     match decide(touch.stretch(), Margin::of(fall / f_per_metre), band) {
                         Ok(Sign::Zero) => {
@@ -1258,6 +1228,59 @@ mod subdivision_guard_rows {
             }
             other => panic!("{other:?} for a residual crossing twice, once at a"),
         }
+    }
+
+    /// **A touch's fall charges `F`'s own bound at the extremum.**
+    /// `F = 1 − cos(θ − 0.3) + 10⁻¹¹` read locally, a hair off zero at its
+    /// least: read exactly, the piece about the least is one touch. With
+    /// `F` within `2·10⁻⁸` there (two escalation bands), `F` may reach
+    /// `−2·10⁻⁸` between the roots that bound admits, so the fall is past
+    /// the band and no touch is placed. Read at the fall's other end
+    /// (`−G − e₀`) the bound drops out and the touch stands on a value
+    /// the reading does not hold.
+    #[test]
+    fn a_touchs_fall_charges_the_values_bound() {
+        let (eps, a, delta) = (1e-9, 0.3, 1e-11);
+        let touching = |e0: f64| {
+            let jet = move |t: f64| {
+                let (s, c) = (t - a).sin_cos();
+                let mut terms = [1.0 - c + delta, s, c, -s].map(Rounded::exact);
+                terms[0].error = e0;
+                terms
+            };
+            let frame = SubdivisionFrame {
+                t0: -0.5,
+                t1: 0.5,
+                speed_hi: 1.0,
+                noise: 0.0,
+                f_per_metre: 1.0,
+                f_per_metre_hi: 1.0,
+                residual_reach: None,
+            };
+            certified_subdivision_touching(
+                Terms::Local(Local {
+                    at: &jet,
+                    fourth: 1.0,
+                    degree: 1,
+                }),
+                &|t: f64| 1.0 - (t - a).cos() + delta,
+                &frame,
+                &crate::rows::COPLANAR,
+                &crate::rows::COPLANAR_TOUCH,
+                Band::new(eps, 10.0 * eps).unwrap(),
+            )
+            .map(|t| t.touches.len())
+        };
+        let exact = touching(0.0);
+        assert!(
+            matches!(exact, Ok(1)),
+            "{exact:?}: an exact reading of the least is one touch"
+        );
+        let charged = touching(2e-8);
+        assert!(
+            !matches!(charged, Ok(n) if n > 0),
+            "{charged:?}: a touch placed where F's bound reaches two bands past zero"
+        );
     }
 
     /// **A root whose own slope has no room is metered on its piece.**

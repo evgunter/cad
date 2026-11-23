@@ -16,7 +16,7 @@
 //! enclosure: at `Interval` the value is already an enclosure of the
 //! chain and the bound rides along as a second one.
 
-use core::ops::{Add, Mul, Sub};
+use core::ops::{Add, Mul, Neg, Sub};
 
 use crate::{Band, Decide, Real, Sign, Vec3};
 
@@ -159,6 +159,34 @@ impl<T: Real> Rounded<T> {
         (self.value.abs() - self.error).max(T::zero())
     }
 
+    /// The lower end of the enclosure `value ± error`, signed. At `f64`
+    /// it is a first-order estimate of a lower bound on the exact value,
+    /// as the bound is, and its own subtraction rounds to nearest; at
+    /// `Interval` it is an enclosure of one.
+    #[must_use]
+    pub fn lower_end(self) -> T {
+        self.value - self.error
+    }
+
+    /// The upper end of the enclosure `value ± error`, signed, read as
+    /// [`Rounded::lower_end`] is at each scalar.
+    #[must_use]
+    pub fn upper_end(self) -> T {
+        self.value + self.error
+    }
+
+    /// This value with `charge` added to its bound: a further bound on
+    /// its distance from what the caller reads it as, beside its own
+    /// rounding. A charge is a size, so its magnitude is what is added:
+    /// a bound only ever grows here.
+    #[must_use]
+    pub fn with_charge(self, charge: T) -> Self {
+        Self {
+            value: self.value,
+            error: self.error + charge.abs(),
+        }
+    }
+
     /// The value moved toward zero by its bound, and no further: the
     /// [`Rounded::room`] with the value's sign, zero where the bound
     /// holds zero. A sign decided on it is the exact value's.
@@ -213,6 +241,18 @@ impl<T: Real> Sub for Rounded<T> {
 
     fn sub(self, o: Self) -> Self {
         Self::charged(self.value - o.value, self.error + o.error)
+    }
+}
+
+impl<T: Real> Neg for Rounded<T> {
+    type Output = Self;
+
+    /// Exact: the bound is unchanged.
+    fn neg(self) -> Self {
+        Self {
+            value: T::zero() - self.value,
+            error: self.error,
+        }
     }
 }
 
@@ -349,6 +389,55 @@ mod tests {
         assert!(
             at(-3.0, 1.0).divisor("running_test_divisor").is_some(),
             "a negative divisor clear of its bound"
+        );
+    }
+
+    /// **The enclosure's ends hold the exact value, on its two sides.**
+    /// `0.1 + 0.2` rounds up past the exact sum of its stored operands
+    /// (read exactly as an expansion): the lower end lies below the
+    /// exact sum and the upper end above it, both strictly, and so do
+    /// the negation's ends about the negated sum. A charge widens both
+    /// ends by itself, and leaves the value.
+    #[test]
+    fn the_enclosure_ends_hold_the_exact_value() {
+        use crate::exact::Expansion;
+        let r = Rounded::exact(0.1_f64) + Rounded::exact(0.2);
+        let mut sum = Expansion::default();
+        sum.add_expansion(&Expansion::product(0.1, 1.0));
+        sum.add_expansion(&Expansion::product(0.2, 1.0));
+        let exact = |x: f64| {
+            let mut d = sum.clone();
+            d.add_expansion(&Expansion::product(x, 1.0).negated());
+            d.components().iter().sum::<f64>()
+        };
+        assert!(exact(r.value) < 0.0, "the fixture rounds up: {r:?}");
+        assert!(
+            exact(r.lower_end()) > 0.0,
+            "the lower end {} is below the exact sum",
+            r.lower_end()
+        );
+        assert!(
+            exact(r.upper_end()) < 0.0,
+            "the upper end {} is above the exact sum",
+            r.upper_end()
+        );
+        let n = -r;
+        assert_eq!(n.error, r.error, "negation is exact");
+        assert!(
+            n.lower_end() < -r.value && -r.value < n.upper_end() && n.upper_end() == -r.lower_end(),
+            "the negation's ends are the ends negated: {n:?}"
+        );
+        let w = r.with_charge(0.25);
+        assert_eq!(w.value, r.value, "a charge leaves the value");
+        assert_eq!(
+            (w.lower_end(), w.upper_end()),
+            (r.value - (r.error + 0.25), r.value + (r.error + 0.25)),
+            "a charge widens both ends by itself"
+        );
+        assert_eq!(
+            r.with_charge(-0.25).error,
+            w.error,
+            "a negative charge widens as its size does, never shrinks"
         );
     }
 
