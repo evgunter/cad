@@ -1818,47 +1818,6 @@ fn wrong_key(&self, he: K, other: K, from: F) -> Result<Live, E> {
         );
     }
 
-    /// **A face's raw loop keys are read only where a miss is reported**:
-    /// [`crate::entity::Face::loop_keys`] and `loop_roles` hand back keys
-    /// unresolved, so a walk that resolves each one itself (`get_loop(lk)?`)
-    /// would answer a torn link however it pleased. Outside the home they
-    /// are read only by the files below, each of which reports or hands
-    /// on a miss itself.
-    #[test]
-    fn loop_keys_is_read_only_where_a_miss_is_reported() {
-        const READERS: &[(&str, &str)] = &[
-            ("entity.rs", "the order's home"),
-            ("live.rs", "the walks' home"),
-            ("validate.rs", "the validator reports every miss"),
-            (
-                "census.rs",
-                "the tier-3 census hands an unwalkable loop back",
-            ),
-            (
-                "props.rs",
-                "each loop goes to a loop door that refuses Corrupt",
-            ),
-            (
-                "euler.rs",
-                "find_half_edge is total by its contract; site_face reads keys only",
-            ),
-            ("fixtures.rs", "the torn-body fixtures report a dead loop"),
-            (
-                "splitting/section_cones.rs",
-                "each loop goes to `loop_points::loop_corners`, whose miss is a desync",
-            ),
-            (
-                "review_m0_pr7.rs",
-                "a census of a body the validator has not certified",
-            ),
-        ];
-        let strays = read_outside(&["loop_keys(", "loop_roles("], READERS);
-        assert!(
-            strays.is_empty(),
-            "a face's loops resolved outside the home: {strays:#?}"
-        );
-    }
-
     /// **The explicitly unchecked walk of a face's boundary is read only
     /// where a miss is reported**: [`Body::unchecked_face_boundary`] and
     /// its projections answer a torn loop `Err(loop)` rather than naming

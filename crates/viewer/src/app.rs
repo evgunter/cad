@@ -179,7 +179,7 @@ pub fn indeterminate_wording(
 ) -> String {
     format!(
         "this {noun} cannot be resolved right now: {}",
-        pncad::document::Said(cause, by)
+        pncad::document::Said(cause, by).sentence()
     )
 }
 
@@ -1417,7 +1417,7 @@ impl ViewerApp {
         let Some(placement) = self.tools.undo_pending(doc) else {
             return false;
         };
-        let said = doc.spoken(placement).to_string();
+        let said = crate::tree::spelled(&doc.spoken(placement));
         self.drafts.placement_undone(said);
         true
     }
@@ -6561,7 +6561,9 @@ mod properties_pane_tests {
     fn sweep_button(driven: &Driven, verb: &str, profile: RecipeNodeId) -> String {
         format!(
             "{verb} {}",
-            pncad::document::Speaker::of(driven.app.session.doc()).node(profile)
+            pncad::document::sentence!(
+                pncad::document::Speaker::of(driven.app.session.doc()).node(profile)
+            )
         )
     }
 
@@ -7055,12 +7057,12 @@ mod properties_pane_tests {
         ]);
         let w = crate::props::variable_rows(driven.app.session.doc())
             .into_iter()
-            .find(|row| row.label.to_string() == "w")
+            .find(|row| crate::tree::spelled_var(&row.label) == "w")
             .expect("w is declared")
             .var;
         let n = crate::props::variable_rows(driven.app.session.doc())
             .into_iter()
-            .find(|row| row.label.to_string() == "n")
+            .find(|row| crate::tree::spelled_var(&row.label) == "n")
             .expect("n is declared")
             .var;
         let defined = driven.app.session.perform(SessionOp::SetVariableText {
@@ -8572,7 +8574,7 @@ mod properties_pane_tests {
                 .perform_batch(vec![SessionOp::DeleteNode { node: extrude() }]);
         };
         let plinth = format!(
-            "Extrude \"plinth\" ({})",
+            "\"plinth\" ({})",
             test_utils::refusal::tag(extrude().0.digest())
         );
 
@@ -8598,15 +8600,16 @@ mod properties_pane_tests {
         let (mut driven, _top) = Driven::holding_the_top_cap();
         rename_and_delete(&mut driven);
         assert_eq!(
-            driven
-                .app
-                .drafts
-                .on_face
-                .as_ref()
-                .expect("the form holds the top cap")
-                .said()
-                .spoken(extrude())
-                .to_string(),
+            crate::tree::spelled(
+                &driven
+                    .app
+                    .drafts
+                    .on_face
+                    .as_ref()
+                    .expect("the form holds the top cap")
+                    .said()
+                    .spoken(extrude())
+            ),
             plinth,
             "the form's held face says the last label"
         );
@@ -9090,8 +9093,9 @@ mod properties_pane_tests {
             refused: 1,
         };
         let (landed, _) = driven.app.session.landed_pair().expect("the plate lands");
-        let refused_said =
-            pncad::document::Said(&refused, pncad::document::Speaker::of(landed)).to_string();
+        let refused_said = pncad::document::Said(&refused, pncad::document::Speaker::of(landed))
+            .sentence()
+            .to_string();
         assert!(
             refused_said.contains("edges it draws on Place "),
             "the refusal's node is said as the landed document holds it: {refused_said}"
@@ -9250,23 +9254,18 @@ mod properties_pane_tests {
         driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
         let drawn = driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
         assert!(
-            driven
-                .app
-                .session
-                .doc()
-                .spoken(node)
-                .to_string()
-                .contains("shown plate"),
+            crate::tree::spelled(&driven.app.session.doc().spoken(node)).contains("shown plate"),
             "the shown document is ahead of the landed one"
         );
-        let landed = driven
-            .app
-            .session
-            .landed_pair()
-            .expect("the earlier run stays landed")
-            .0
-            .spoken(node)
-            .to_string();
+        let landed = crate::tree::spelled(
+            &driven
+                .app
+                .session
+                .landed_pair()
+                .expect("the earlier run stays landed")
+                .0
+                .spoken(node),
+        );
         assert!(landed.contains("landed plate"), "{landed}");
         (drawn, landed)
     }
@@ -9354,14 +9353,15 @@ mod properties_pane_tests {
             .app
             .perform_batch(vec![SessionOp::DeleteNode { node: placement() }]);
         driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
-        let landed = driven
-            .app
-            .session
-            .landed_pair()
-            .expect("the earlier run stays landed")
-            .0
-            .spoken(placement())
-            .to_string();
+        let landed = crate::tree::spelled(
+            &driven
+                .app
+                .session
+                .landed_pair()
+                .expect("the earlier run stays landed")
+                .0
+                .spoken(placement()),
+        );
         assert!(
             landed.contains("base"),
             "the landed document is behind: {landed}"
@@ -9384,7 +9384,7 @@ mod properties_pane_tests {
             .map(|(text, _)| text)
             .collect();
         let base = format!(
-            "Place \"base\" ({})",
+            "\"base\" ({})",
             test_utils::refusal::tag(placement().0.digest())
         );
         // Both picks are caps of the one copy, so the panel names the
@@ -9969,7 +9969,11 @@ mod properties_pane_tests {
             let doc = driven.app.session.committed_doc();
             let into = format!(
                 "Into {}",
-                doc.spoken_space(doc.node_space(placement()).expect("placed"))
+                pncad::document::Said(
+                    &doc.spoken_space(doc.node_space(placement()).expect("placed")),
+                    pncad::document::Speaker::TAG
+                )
+                .sentence()
             );
             driven.click(&into);
             driven.quiet();

@@ -793,7 +793,7 @@ pub(crate) fn select_refusal(
             };
             fill(&mut fields, "name", text(&name));
             fill(&mut fields, "predicate", text(predicate));
-            err.spoken(doc, evaluation)
+            err.spoken(doc, evaluation).to_string()
         }
         R::TiedDisagrees {
             name,
@@ -840,7 +840,7 @@ pub(crate) fn select_refusal(
                 Err(failed) => return failed,
             };
             fill(&mut fields, "name", text(&name));
-            err.spoken(doc, evaluation)
+            err.spoken(doc, evaluation).to_string()
         }
         R::NotAPlane { face } => {
             let face = match crate::py::doc::name_text(py, face) {
@@ -889,7 +889,7 @@ pub(crate) fn select_refusal(
         // possible here, and the tag pin in `src/tests.rs` enumerates
         // the arms this binding speaks without being able to fail on a
         // new one.
-        other => other.spoken(doc, evaluation),
+        other => other.spoken(doc, evaluation).to_string(),
     };
     typed_err(py, ErrorClass::Select, message, &fields)
 }
