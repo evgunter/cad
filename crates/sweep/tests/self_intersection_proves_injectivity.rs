@@ -3668,3 +3668,48 @@ fn probe_flaps_at_the_rulings_vertex() {
     }
     assert!(bad.is_empty(), "a touching or crossing flap holds: {bad:?}");
 }
+
+/// PROBE: the orchestrator's mirror, through (0.1, -0.2, 0.4), normal (1, 2, 3).
+fn probe_mirror_123<T: Scalar>(b: Body<T>) -> Body<T> {
+    let at = T::from_f64;
+    let refl = topo::Reflection::across(
+        Point3::new(at(0.1), at(-0.2), at(0.4)),
+        geom_core::Vec3::new(at(1.0), at(2.0), at(3.0)),
+        tol(),
+    )
+    .unwrap();
+    topo::mirror_body(&b, &refl, tol()).unwrap()
+}
+
+/// PROBE: the ring mirrored across (1, 2, 3), f64, the refusing pair only.
+#[test]
+fn probe_trace_ring_mirror_123() {
+    let float = probe_mirror_123(near_full_ring::<f64>().into_body());
+    let r = injective(&float, None, BUDGET);
+    println!("[probe] ring mirror123: {:?} {:?}", r.verdict, r.receipt);
+}
+
+/// PROBE: the ring as built and under the review's and the x mirror, traced.
+#[test]
+fn probe_trace_ring_poses() {
+    let x = topo::Reflection::across(Point3::new(0.1, -0.2, 0.4), geom_core::Vec3::new(1.0, 0.0, 0.0), tol()).unwrap();
+    for (what, body) in [
+        ("as built", near_full_ring::<f64>().into_body()),
+        ("mirror x", topo::mirror_body(&near_full_ring::<f64>().into_body(), &x, tol()).unwrap()),
+    ] {
+        eprintln!("[pose] {what}");
+        let r = injective(&body, None, BUDGET);
+        println!("[probe] ring {what}: {:?}", r.verdict);
+    }
+}
+
+/// PROBE: the half rod on a block under the (1, 2, 3) mirror, traced.
+#[test]
+fn probe_trace_block_mirror_123() {
+    let body = probe_mirror_123(half_rod_on_a_block::<f64>().into_body());
+    let r = injective(&body, None, BUDGET);
+    println!("[probe] block mirror123: {:?}", r.verdict);
+    let bi = probe_mirror_123(half_rod_on_a_block::<Interval>().into_body());
+    let ri = injective(&bi, None, BUDGET);
+    println!("[probe] block mirror123 Interval: {:?}", ri.verdict);
+}

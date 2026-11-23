@@ -1,0 +1,141 @@
+diff --git a/crates/topo/src/injective.rs b/crates/topo/src/injective.rs
+index 33027ea59..f6ab429a5 100644
+--- a/crates/topo/src/injective.rs
++++ b/crates/topo/src/injective.rs
+@@ -1846,7 +1846,7 @@ fn present_chart<'a>(
+     let sheet = if piece.whole {
+         [Sheet::Free; 2]
+     } else {
+-        match sheets(piece.surface, b, cell, band)? {
++        match sheets(piece.surface, b, cell, band).inspect_err(|e| if std::env::var_os("CV_TRACE").is_some() { eprintln!("[cvl] sheets {e:?}"); })? {
+             Sheets::On(s) => s,
+             Sheets::Missed => return Ok(Presentation::Vacuous),
+         }
+@@ -1862,6 +1862,7 @@ fn present_chart<'a>(
+             .filter(|&i| b.edges.get(i).is_some_and(|e| e.arc.is_some() && !seam(e)))
+             .collect();
+         if let Some(read) = curved_walls(piece, &walls, sheet, near_edges, near_vertices, band) {
++            if std::env::var_os("CV_TRACE").is_some() { eprintln!("[cvl] curved_walls ok={} walls={:?} iso={:?}", read.is_ok(), walls, walls.iter().map(|&i| b.edges.get(i).map(|e| e.uses.iter().map(|u| u.iso.map(|z| (z.held, z.at))).collect::<Vec<_>>())).collect::<Vec<_>>()); }
+             return read;
+         }
+     }
+@@ -1882,7 +1883,7 @@ fn present_chart<'a>(
+     let mut inside = false;
+     for &ei in &piece.local.edges {
+         let Some(e) = b.edges.get(ei) else {
+-            return Err(Unpresented::Local);
++            { { if std::env::var_os("CV_TRACE").is_some() { eprintln!("[cvl] 1885"); } }; return Err(Unpresented::Local) };
+         };
+         if e.arc.is_none() {
+             if piece.whole {
+@@ -1897,7 +1898,7 @@ fn present_chart<'a>(
+         }
+         for u in &e.uses {
+             let Some(iso) = u.iso else {
+-                return Err(unread(ei, near_edges));
++                { { if std::env::var_os("CV_TRACE").is_some() { eprintln!("[cvl] 1900"); } }; return Err(unread(ei, near_edges)) };
+             };
+             let (lo, hi) = iso.held.of(cell);
+             if piece.whole {
+@@ -1915,7 +1916,7 @@ fn present_chart<'a>(
+                 continue;
+             }
+             let Some(sigma) = face_side(u, iso, b.orientation()) else {
+-                return Err(unread(ei, near_edges));
++                { { if std::env::var_os("CV_TRACE").is_some() { eprintln!("[cvl] 1918"); } }; return Err(unread(ei, near_edges)) };
+             };
+             // A line on a periodic axis whose sheet is unknown has no
+             // place, at any depth.
+@@ -1925,7 +1926,7 @@ fn present_chart<'a>(
+             // Every read below, and the merge's folds, see only a
+             // certified line.
+             if !line.is_certified() {
+-                return Err(Unpresented::Local);
++                { { if std::env::var_os("CV_TRACE").is_some() { eprintln!("[cvl] 1928"); } }; return Err(Unpresented::Local) };
+             }
+             let side = Side::of(iso.held, sigma > 0.0);
+             // A cell past the line on its face side by no more than
+@@ -1973,7 +1974,7 @@ fn present_chart<'a>(
+             .fold(f64::NEG_INFINITY, f64::max);
+         let common_hi = on.iter().map(|c| c.at.hi()).fold(f64::INFINITY, f64::min);
+         if common_lo > common_hi {
+-            return Err(Unpresented::Local);
++            { { if std::env::var_os("CV_TRACE").is_some() { eprintln!("[cvl] 1976"); } }; return Err(Unpresented::Local) };
+         }
+         let hull = Interval::from_bounds(
+             on.iter().map(|c| c.at.lo()).fold(first.at.lo(), f64::min),
+@@ -2041,7 +2042,7 @@ fn present_chart<'a>(
+             // not agree, which a smaller cell does not hold both of.
+             match merged.iter_mut().find(|m| m.side == side) {
+                 Some(m) if m.at.lo() <= 0.0 && 0.0 <= m.at.hi() => m.collapsed = Some(v),
+-                Some(_) => return Err(Unpresented::Local),
++                Some(_) => { { if std::env::var_os("CV_TRACE").is_some() { eprintln!("[cvl] 2044"); } }; return Err(Unpresented::Local) },
+                 None => merged.push(Clip {
+                     side,
+                     at: at(0.0),
+@@ -2079,7 +2080,7 @@ fn present_chart<'a>(
+                     continue;
+                 }
+                 if (north && y.0 > line.hi()) || (!north && y.1 < line.lo()) {
+-                    return Err(Unpresented::Local);
++                    { { if std::env::var_os("CV_TRACE").is_some() { eprintln!("[cvl] 2082"); } }; return Err(Unpresented::Local) };
+                 }
+                 if north {
+                     y.1 = line.hi();
+@@ -2091,7 +2092,7 @@ fn present_chart<'a>(
+                     Some(m) if m.at.lo() <= line.hi() && line.lo() <= m.at.hi() => {
+                         m.collapsed = Some(v);
+                     }
+-                    Some(_) => return Err(Unpresented::Local),
++                    Some(_) => { { if std::env::var_os("CV_TRACE").is_some() { eprintln!("[cvl] 2094"); } }; return Err(Unpresented::Local) },
+                     None => merged.push(Clip {
+                         side,
+                         at: line,
+@@ -2112,12 +2113,12 @@ fn present_chart<'a>(
+     // `a_filleted_drum_certifies_across_its_fillet` pins.
+     let no_width = |(lo, hi): (f64, f64)| hi - lo <= few_ulps(lo).max(few_ulps(hi));
+     if !piece.whole && (no_width(x) || no_width(y)) {
+-        return Err(Unpresented::Local);
++        { { if std::env::var_os("CV_TRACE").is_some() { eprintln!("[cvl] 2115"); } }; return Err(Unpresented::Local) };
+     }
+     // Every clip's side must be the edges' own, run on past its corners,
+     // and every corner convex.
+     if !piece.whole && !sides_are_the_faces(b, &merged, (x, y), |a| periodic(piece.surface, a)) {
+-        return Err(Unpresented::Local);
++        { { if std::env::var_os("CV_TRACE").is_some() { eprintln!("[cvl] 2120"); } }; return Err(Unpresented::Local) };
+     }
+     // A rectangle clipped to within the band of a shared line is read as
+     // holding no point of the face off that line: its extent across, in
+@@ -2330,7 +2331,7 @@ fn zero_of(
+         }
+     };
+     match zeros.as_slice() {
+-        [] if touched => Err(Unpresented::Local),
++        [] if touched => { { if std::env::var_os("CV_TRACE").is_some() { eprintln!("[cvl] 2333"); } }; Err(Unpresented::Local) },
+         [] => Ok(match (points.as_slice(), loose.as_slice()) {
+             ([one], _) => one.clone(),
+             ([], [v]) => through(v).unwrap_or(Zero::None),
+@@ -2340,7 +2341,7 @@ fn zero_of(
+         [c, d] if c.side.axis() != d.side.axis() => {
+             Ok(Zero::Corner((c.side, along(c)), (d.side, along(d))))
+         }
+-        _ => Err(Unpresented::Local),
++        _ => { { if std::env::var_os("CV_TRACE").is_some() { eprintln!("[cvl] 2343"); } }; Err(Unpresented::Local) },
+     }
+ }
+ 
+@@ -5920,6 +5921,14 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
+     }
+     let px = present(x, &ex, &near.vertices, band);
+     let py = present(y, &ey, &near.vertices, band);
++    if std::env::var_os("CV_TRACE").is_some() {
++        let k = |p: &Result<Presentation<'_>, Unpresented>| match p {
++            Ok(Presentation::Of(q)) => format!("Of({:?}) x={:?} y={:?}", match &q.zero { Zero::None => "None".to_string(), Zero::Side(s, a) => format!("Side({s:?},{:?},whole={})", a.edges, a.whole), Zero::Past(s, a) => format!("Past({s:?},{:?})", a.edges), Zero::Corner(..) => "Corner".into(), Zero::Point(..) => "Point".into(), Zero::Through(s, a) => format!("Through({s:?},{:?})", a.edges), Zero::Curve(s, _) => format!("Curve({s:?})") }, q.x, q.y),
++            Ok(Presentation::Vacuous) => "Vacuous".into(),
++            Err(e) => format!("Err({e:?})"),
++        };
++        eprintln!("[cvt] {:?} u={:?} v={:?} ex={:?} | {:?} u={:?} v={:?} ey={:?} nv={:?} :: {} || {}", x.face, x.u, x.v, ex, y.face, y.u, y.v, ey, near.vertices, k(&px), k(&py));
++    }
+     for (p, face, side) in [(&px, x.face, Which::First), (&py, y.face, Which::Second)] {
+         if let Err(Unpresented::Collapsed(v)) = p {
+             return Outcome::Refuse(EngineRefusal::CollapsedChart {
