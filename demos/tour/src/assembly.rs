@@ -675,6 +675,10 @@ fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeI
         .expect("the pitch is a length"),
         tol,
     );
+    // The posts are the binder's yield: the world reads each member.
+    let row = doc.var_named("k").expect("the row's index");
+    let outputs = doc.outputs(pattern);
+    edit(&mut doc, &pncad::pattern::yields_edit(row, &outputs), tol);
     // The world: each member of the row, laid down — a copy of the one
     // indexed read `pattern[i]`.
     let mut posts = Vec::with_capacity(2);
@@ -1725,8 +1729,11 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
         .and_then(|at| doc.node(at))
     {
         Some(Node::Assemble {
-            members: pncad::document::Bodies::spelled(members),
-        }) => members.iter().map(|member| member.read).collect::<Vec<_>>(),
+            members: pncad::document::Bodies::Spelled(members),
+        }) => members
+            .iter()
+            .map(|member| member.read().read)
+            .collect::<Vec<_>>(),
         other => panic!("the layout's product is a `⊔`, got {other:?}"),
     };
     let seat = members(layout)

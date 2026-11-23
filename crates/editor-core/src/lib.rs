@@ -138,8 +138,8 @@ pub use edit::{
     Applied, CarryForwardDoor, DEFINITION_NODE_BOUND, DocEdit, DrawnOnFace, EditError, EditRecord,
     FaceUnread, IndexFault, LoftFault, Maintenance, MaintenanceNet, MeasureOutcome, Measured,
     OnFace, ProductReadFault, Recorded, Recording, SketchOutcome, SketchedOnFace, SlotValue,
-    SourceFault, Took, YieldsFault, apply, apply_replayed, cascade_delete_order, chart_on_face, draw_on_face,
-    measure, nearest_to_face, sketch_on_face, slot_admits,
+    SourceFault, Took, YieldsFault, apply, apply_replayed, cascade_delete_order, chart_on_face,
+    draw_on_face, measure, nearest_to_face, sketch_on_face, slot_admits,
 };
 pub use eval::measure::ObservedRefusal;
 pub use eval::{
@@ -258,8 +258,8 @@ pub use trace::{
     TraceMark, TraceMarks, TraceRefusal, TraceStepFault, TracedFace, Traces, pen_fault, trace_marks,
 };
 pub use var::{
-    FreshEntry, Index, IndexSeat, Pick, Select, SelectionCount, SelectionFault, Var, VarDecl, VarDef, VarId,
-    VarKind, VarRef, WrittenDef,
+    FreshEntry, Index, IndexSeat, Pick, Select, SelectionCount, SelectionFault, Var, VarDecl,
+    VarDef, VarId, VarKind, VarRef, WrittenDef,
 };
 // GUI-1: the hit-test service (G1 `ray → stable ref`), with the ray
 // vocabulary re-exported from `bvh` so a layer-3 consumer needs no

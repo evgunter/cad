@@ -186,7 +186,6 @@ impl Binders {
     pub(crate) fn indices(&self, binder: VarId) -> &[VarId] {
         self.indices.get(&binder).map_or(&[], Vec::as_slice)
     }
-
 }
 
 impl<'d, P: crate::ProfilePayload> Reach<'d, P> {
@@ -356,10 +355,12 @@ impl<P: crate::ProfilePayload> Doc<P> {
     /// yield: a family to every reader (D10 `[repetition]`).
     #[must_use]
     pub fn yielding(&self, var: VarId) -> Option<VarId> {
-        self.vars.iter().find_map(|(&id, v)| match &v.def().index()?.seat {
-            crate::IndexSeat::Binder { yields } if yields.contains(&var) => Some(id),
-            _ => None,
-        })
+        self.vars
+            .iter()
+            .find_map(|(&id, v)| match &v.def().index()?.seat {
+                crate::IndexSeat::Binder { yields } if yields.contains(&var) => Some(id),
+                _ => None,
+            })
     }
 
     /// **Whether `var` is, through its sources, a family a binder
@@ -398,7 +399,11 @@ impl<P: crate::ProfilePayload> Doc<P> {
     /// where `binder` is no binder's first index.
     #[must_use]
     pub fn yields(&self, binder: VarId) -> &[VarId] {
-        match self.var(binder).and_then(|v| v.def().index()).map(|i| &i.seat) {
+        match self
+            .var(binder)
+            .and_then(|v| v.def().index())
+            .map(|i| &i.seat)
+        {
             Some(crate::IndexSeat::Binder { yields }) => yields,
             _ => &[],
         }

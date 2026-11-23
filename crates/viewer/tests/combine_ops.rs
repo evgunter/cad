@@ -429,9 +429,13 @@ fn a_pattern_of_a_body_picked_as_itself_re_points_no_placement() {
         assert!(
             matches!(
                 &outcome.committed[..],
-                [DocEdit::DeclareVar { .. }, DocEdit::InsertNode { .. }]
+                [
+                    DocEdit::DeclareVar { .. },
+                    DocEdit::InsertNode { .. },
+                    DocEdit::SetYields { .. }
+                ]
             ),
-            "{pass}: its index declared and its family inserted: {:?}",
+            "{pass}: its index declared, its family inserted and yielded: {:?}",
             outcome.committed
         );
         let doc = session.committed_doc();
@@ -1856,6 +1860,18 @@ fn a_skewed_grid_steps_along_both_its_picked_sides() {
     )
     .expect("length pitches");
     let (doc, grid) = common::inserted(&doc, grid, Tol::witness());
+    // The grid's binder yields its copies (D10 `[repetition]`).
+    let doc = {
+        let binder = doc.var_named(i.as_str()).expect("the outer index");
+        let copies = doc.output(grid, 0).expect("the grid's copies");
+        pncad::document::apply(
+            &doc,
+            &pncad::pattern::yields_edit(binder, &[copies]),
+            Tol::witness(),
+        )
+        .expect("the binder yields the grid")
+        .doc
+    };
     let mut session = DocSession::inline(doc, Tol::witness());
     session.pump();
     let eval = session.evaluation().expect("the inline seam landed");
@@ -3651,14 +3667,33 @@ fn the_part_seats_track_the_part_door() {
             },
         },
     );
-    // A placement of the family, authored past the viewer's own body
-    // seat because that seat refuses a family.
+    // A placement of each member of the family, `{k in xs:
+    // place(xs[k])}`, its binder yielding the copies (D10
+    // `[repetition]`), authored past the viewer's own body seat.
     let mut doc = session.committed_doc().clone();
+    let family = doc.output(pattern, 0).expect("the pattern's copy");
+    let binder = doc
+        .yielding(family)
+        .expect("the pattern's binder yields it");
+    let at = doc
+        .binder_indices(binder)
+        .into_iter()
+        .map(|k| Formula::var(k, pncad::document::Dimension::Count))
+        .collect();
     let placed_pattern = common::insert_into(
         &mut doc,
-        crate::fixture::stood(pncad::document::BodyRead::plain(Operand::from(pattern))),
+        crate::fixture::stood(pncad::document::BodyRead::indexed(
+            Operand::from(pattern),
+            at,
+        )),
         tol,
     );
+    let copies = doc.output(placed_pattern, 0).expect("the copies");
+    let mut yields = doc.yields(binder).to_vec();
+    yields.push(copies);
+    doc = pncad::document::apply(&doc, &pncad::pattern::yields_edit(binder, &yields), tol)
+        .expect("the binder yields the copies")
+        .doc;
 
     let candidates = [
         ("the split", split),
@@ -4493,76 +4528,33 @@ fn a_member_picked_on_a_family_drawn_as_itself_reads_that_member() {
     assert!(viewer::world::is_drawn(doc, union), "the union is drawn");
 }
 
-/// **A split of a family reads one half of one member**: picked in the
-/// tree, the split waits for its half and reads every member; the half
-/// and the member are chosen in either order, and the read is the
-/// half's output at the member's index (`split.above[1]`). The door
-/// takes it; evaluation refuses it, `WrongOperand` on the union, since
-/// a split of a family evaluates to a family of splits whose halves no
-/// read reaches —
-/// `work/refs/a-split-of-a-family-has-no-halves-a-read-reaches.md`,
-/// whose fix turns this row's last assertion into the member's upper
-/// three quarters.
+/// **A split of a family is refused at its target** (D10
+/// `[repetition]`): a split's target takes one body, so a family its
+/// binder yields, handed to it whole, is refused by kind, found
+/// `Bodies`; the split of each member is written as a binder,
+/// `{k in xs: split(xs[k])}`. Red if the door splits a family whole.
 #[test]
-fn a_split_of_a_family_reads_one_half_of_one_member_chosen_in_either_order() {
+fn a_split_of_a_family_is_refused_at_its_target() {
     let tol = Tol::witness();
     let (mut session, body, pattern) = box_and_pattern(tol);
     let plane = common::cut_across(&session, body, A[2] / 4.0);
-    let split = session_insert(
-        &mut session,
-        SessionOp::AddSplit {
-            target: pattern.into(),
-            plane,
-        },
-    );
-    let doc = session.committed_doc().clone();
-    let above = |at: i64| {
-        viewer::combine::member_read(Operand::output(split, SplitHalf::Above.port()), &[at])
-    };
-    let mut half_first = boolean_fed(&doc, BooleanOp::Union, vec![Selection::Node(split)]);
-    assert_eq!(half_first.awaiting_half(), vec![0], "the split waits");
-    assert_eq!(half_first.family_picks(), vec![(0, split)], "a family");
-    let line = half_first.line(Speaker::of(&doc));
-    assert!(
-        line.contains("every member, half not chosen"),
-        "both said: {line}"
-    );
-    half_first.choose_half(0, SplitHalf::Above);
-    half_first.choose_member(0, vec![1]);
-    let mut member_first = boolean_fed(&doc, BooleanOp::Union, vec![Selection::Node(split)]);
-    member_first.choose_member(0, vec![1]);
-    assert!(matches!(
-        member_first.spec(),
-        Err(SeatError::HalfUnchosen { seat: Seat::Member })
-    ));
-    member_first.choose_half(0, SplitHalf::Above);
-    for (order, tool) in [("half first", &half_first), ("member first", &member_first)] {
-        assert_eq!(
-            tool.spec().expect("chosen"),
-            BooleanSpec::Union(vec![above(1)]),
-            "{order}"
-        );
-    }
-    assert!(
-        half_first
-            .line(Speaker::of(&doc))
-            .contains("[1], above half"),
-        "{}",
-        half_first.line(Speaker::of(&doc))
-    );
-    let union = session_insert(&mut session, half_first.op().expect("committable"));
-    session.pump();
-    let eval = session.evaluation().expect("the inline seam landed");
+    let outcome = session.perform(SessionOp::AddSplit {
+        target: pattern.into(),
+        plane,
+    });
     assert!(
         matches!(
-            eval.result(union).and_then(NodeResult::error),
-            Some(NodeError {
-                kind: NodeErrorKind::WrongOperand { input, .. },
-                ..
-            }) if *input == split
+            &outcome.refusal,
+            Some(Refusal::Edit(error)) if matches!(
+                **error,
+                EditError::SlotVarKind {
+                    found: pncad::document::VarKind::Bodies,
+                    ..
+                }
+            )
         ),
-        "{:?}",
-        eval.result(union)
+        "refused by kind: {:?}",
+        outcome.refusal
     );
 }
 
@@ -4614,6 +4606,14 @@ fn a_grid_member_is_read_at_both_its_indices() {
     )
     .expect("length pitches");
     let (doc, grid) = common::inserted(&doc, grid, tol);
+    // The grid's binder yields its copies (D10 `[repetition]`).
+    let doc = {
+        let binder = doc.var_named(i.as_str()).expect("the outer index");
+        let copies = doc.output(grid, 0).expect("the grid's copies");
+        pncad::document::apply(&doc, &pncad::pattern::yields_edit(binder, &[copies]), tol)
+            .expect("the binder yields the grid")
+            .doc
+    };
     let mut session = crate::common::inline_without_door(doc, tol);
     let raw = common::xy_box_in(&mut session, B);
     let inner = common::moved_to(&mut session, raw, [step_i, 2.0 * step_j, 0.002]);

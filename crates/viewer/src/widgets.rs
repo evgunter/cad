@@ -3929,6 +3929,13 @@ mod value_field_tests {
             )
             .expect("a length pitch");
             let (doc, row) = inserted(&declared, row, tol);
+            // The index's binder yields the row (D10 `[repetition]`).
+            let binder = doc.var_named(index.as_str()).expect("the index");
+            let copy = doc.output(row, 0).expect("a placement defines its copy");
+            let doc =
+                pncad::document::apply(&doc, &pncad::pattern::yields_edit(binder, &[copy]), tol)
+                    .expect("the binder yields the row")
+                    .doc;
             let (doc, member) = inserted(
                 &doc,
                 Node::place(

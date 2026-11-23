@@ -172,7 +172,7 @@ class TestTheUnion(unittest.TestCase):
         """A row of two copies of `a` in its own space under the index
         `k = index(2)`, member `k` slid `k` times B's offset."""
         doc.apply(DocEdit.declare_var(VarName("k"), VarDecl.index(2)))
-        return doc.insert(
+        row = doc.insert(
             Node.linear_pattern(
                 VarName("k"),
                 a,
@@ -180,6 +180,8 @@ class TestTheUnion(unittest.TestCase):
                 [("x", Formula.length_in(1.0, m)), ("y", Formula.length_in(0.5, m)), ("z", Formula.length_in(0.25, m))],
             )
         )
+        doc.apply(DocEdit.set_yields(VarName("k"), [doc.output(row)]))
+        return row
 
     def test_one_read_of_a_family_is_its_members(self):
         """A single operand, not a list, reads a family whole: a

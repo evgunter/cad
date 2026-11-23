@@ -1398,8 +1398,15 @@ BOUND_AS = {
     "Index": "VarDecl.index",
     "MemberAt": "Value.members",
     # Why an index is refused as declared crosses at the carrier's
-    # second word (`count_not_count`, `within_no_index`).
+    # second word (`count_not_count`, `after_no_index`, `after_taken`).
     "IndexFault": "EditError.inner_variant",
+    # Why a binder's yields are refused crosses at the carrier's second
+    # word (`not_a_binder`, `yield_is_index`, `yield_twice`,
+    # `yield_elsewhere`).
+    "YieldsFault": "EditError.inner_variant",
+    # Where an index stands in its binder: the binder's first index, or
+    # the index it follows (`VarDecl.index`'s `within`).
+    "IndexSeat": "VarDecl.index",
     # Why a source is refused as declared crosses at the carrier's second
     # word (`unresolved`, `written_in_place`, `kind`, `index_not_count`,
     # `fresh`).
@@ -2303,6 +2310,11 @@ NOT_BOUND = {
     # a sequence of operands or as one family read (`Node.union`'s
     # `members`), and the kernel's two arms are those two shapes.
     "Bodies": SHAPE,
+    # One entry of a spelled list: a read, or a splice `…xs` of a
+    # yield. Python spells a list's entries as operands and a family
+    # whole as `Node.union(xs)`; a splice beside an individual has no
+    # Python spelling.
+    "Spell": SHAPE,
     # A read at a body seat: Python writes a plain one as a `NodeId` or
     # a `Var` and an indexed one as `op[i]` (`IndexedRead`).
     "BodyRead": SHAPE,
@@ -3684,6 +3696,7 @@ MEMBERS_BOUND_AS = {
     "EditError::SelectionNameKind": "EditError.variant",
     "EditError::PoseShape": "EditError.variant",
     "EditError::IndexedRead": "EditError.variant",
+    "EditError::Yields": "EditError.variant",
     "EditError::SetMembersOnNonList": "EditError.variant",
     "EditError::SetLoftSectionsOnNonLoft": "EditError.variant",
     "EditError::LoftShape": "EditError.variant",

@@ -56,8 +56,8 @@ use std::collections::BTreeMap;
 
 use pncad::document::{
     Bodies, BodyRead, CancelToken, Doc, DocEdit, EvalOptions, Evaluation, Formula, LoopProgram,
-    Node, Operand, ProfileProgram, RecipeNodeId, TargetAxis, VarDecl, VarId, VarName, VarRef,
-    apply, evaluate, parse_formula,
+    Node, Operand, ProfileProgram, RecipeNodeId, Spell, TargetAxis, VarDecl, VarId, VarName,
+    VarRef, apply, evaluate, parse_formula,
 };
 // `probe_solids` is the only scene door pinned to the recording scalar
 // (see its note), and it rides the `probe` feature with it.
@@ -262,10 +262,19 @@ fn build_doc(tol: Tol, seat: Seat) -> Recipe {
         .expect("the pitch is a length"),
         tol,
     );
+    // The fins are the binder's yield: what every reader outside
+    // `{k in 0..5: …}` reads whole.
+    doc = apply(
+        &doc,
+        &pncad::pattern::yields_edit(fins, &doc.outputs(group)),
+        tol,
+    )
+    .expect("the fins yield")
+    .doc;
     let union = insert(
         &mut doc,
         Node::Union {
-            members: Bodies::spelled(vec![base.into(), group.into()]),
+            members: Bodies::Spelled(vec![Spell::One(base.into()), Spell::All(group.into())]),
         },
         tol,
     );

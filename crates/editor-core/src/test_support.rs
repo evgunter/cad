@@ -1574,13 +1574,8 @@ pub fn assemble_world_copies_edits(
                 }),
                 fresh: Vec::new(),
             };
-            let outcome = crate::apply(&doc, &insert, tol).unwrap_or_else(|e| {
-                let dbg: Vec<_> = several
-                    .iter()
-                    .map(|&c| (c, doc.yielding(c), doc.var(c).map(crate::Var::kind)))
-                    .collect();
-                panic!("the world's copies assemble: {e} DBG {dbg:?} {insert:?}")
-            });
+            let outcome = crate::apply(&doc, &insert, tol)
+                .unwrap_or_else(|e| panic!("the world's copies assemble: {e}"));
             log.push(insert);
             doc = outcome.doc;
             crate::Operand::Node(outcome.record.minted.expect("an insert mints its node"))

@@ -1943,7 +1943,10 @@ impl core::fmt::Display for SnapshotError {
                      its indices"
                 ),
                 IndexSeatFault::YieldTwice => {
-                    write!(f, "{other} is yielded twice, and by binder {var} the second time")
+                    write!(
+                        f,
+                        "{other} is yielded twice, and by binder {var} the second time"
+                    )
                 }
             },
             Self::VarNameTwice { name, a, b } => write!(

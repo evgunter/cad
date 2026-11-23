@@ -356,7 +356,7 @@ use viewer::session::{DocSession, FaceSelection, SessionOp};
 /// its first operand's root, a mirror's image, a `⊔` over a family),
 /// takes over what read its input (a source, a `⊔` operand, the product
 /// slot) or withdraws a copy, writes a bundle, or declares the index a
-/// pattern's placement reads.
+/// pattern's placement reads and names what its binder yields.
 ///
 /// This is the op vocabulary's door, and it holds the session's
 /// contract. [`inserted`] and [`insert_into`] are the document's door
@@ -384,6 +384,7 @@ pub fn session_insert(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
                     | DocEdit::SetProduct { .. }
                     | DocEdit::DeleteNode { .. }
                     | DocEdit::DeclareVar { .. }
+                    | DocEdit::SetYields { .. }
                     | DocEdit::SetConstraints { .. }
                     | DocEdit::AddConstraint { .. }
                     | DocEdit::RemoveConstraint { .. }

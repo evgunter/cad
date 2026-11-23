@@ -413,7 +413,10 @@ fn a_member_placements_on_side_in_its_member_source() {
     let doc = declared(
         doc,
         "u",
-        VarDecl::source(BodyRead::indexed(Operand::Node(row), vec![Formula::count(2)])),
+        VarDecl::source(BodyRead::indexed(
+            Operand::Node(row),
+            vec![Formula::count(2)],
+        )),
     );
     let (doc, copy) = insert(
         doc,

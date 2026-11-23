@@ -1280,19 +1280,38 @@ fn a_continuation_is_a_body_read_whole() {
         "the copy's source reads member 0 of the family: {held:?}"
     );
 
-    // A fillet over the family, read by member: a list operand is handed
+    // A fillet of each member of the family, `{k in xs: fillet(xs[k])}`
+    // (D10 `[repetition]`), read by member: a list operand is handed
     // the same member of the family; a placement's source, which the slot
     // door writes whole, refuses typed.
-    let (mut session, body, family, copy) = family_and_copy(tol);
+    let (session, body, family, copy) = family_and_copy(tol);
     let edge = lateral_edges(&session, body)[..1].to_vec();
-    let fillet = common::session_insert(
-        &mut session,
-        SessionOp::AddFillet {
-            target: family,
-            radius: len(0.001),
-            selection: edge,
-        },
+    let doc = session.committed_doc();
+    let copies = doc.output(family, 0).expect("the family's copies");
+    let binder = doc
+        .yielding(copies)
+        .expect("the pattern's binder yields it");
+    let at: Vec<Formula> = doc
+        .binder_indices(binder)
+        .into_iter()
+        .map(|k| Formula::var(k, pncad::document::Dimension::Count))
+        .collect();
+    let (session, fillet) = with(
+        &session,
+        Node::fillet(
+            pncad::document::BodyRead::indexed(Operand::Var(copies), at),
+            len(0.001),
+            edge,
+        ),
+        tol,
     );
+    let doc = session.committed_doc();
+    let mut yields = doc.yields(binder).to_vec();
+    yields.push(doc.output(fillet, 0).expect("the fillet's body"));
+    let doc = pncad::document::apply(doc, &pncad::pattern::yields_edit(binder, &yields), tol)
+        .expect("the binder yields the fillets")
+        .doc;
+    let mut session = common::inline_without_door(doc, tol);
     session.pump();
     let f0 = member0(session.committed_doc(), fillet);
     let (session, u) = with(

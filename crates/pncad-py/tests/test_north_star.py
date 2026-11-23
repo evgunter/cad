@@ -305,6 +305,7 @@ class TestHeatsinkFins(unittest.TestCase):
                 VarName("k"), fin, doc.space(fin), [("x", Formula.length_in(0.3125, m))]
             )
         )
+        doc.apply(DocEdit.set_yields(VarName("k"), [doc.output(row)]))
         fins = doc.insert(Node.union(row), label="fins")
         return doc, row, fins
 
@@ -4465,6 +4466,7 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         family = doc.insert(
             Node.linear_pattern(VarName("k"), box, doc.space(box), [("x", Formula.length_in(4, m))])
         )
+        doc.apply(DocEdit.set_yields(VarName("k"), [doc.output(family)]))
         self.assertEqual(evaluate(doc).value(family).kind, "instances")
         grouped = doc.insert(Node.union(family))
         self.assertEqual(evaluate(doc).value(grouped).kind, "boolean")

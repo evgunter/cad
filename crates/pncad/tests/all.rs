@@ -7847,7 +7847,9 @@ fn the_nominal_clearance_door_answers_each_assertion_and_stops_on_cancel() {
         None,
     )
     .expect("a length pitch");
-    let (doc, _row) = insert(doc, row);
+    let (doc, row) = insert(doc, row);
+    let binder = doc.var_named("k").expect("the row's index");
+    let doc = applied(&doc, pncad::pattern::yields_edit(binder, &doc.outputs(row))).doc;
     let lowered = Stop {
         member_budget: 2,
         ..Stop::default()

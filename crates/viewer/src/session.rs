@@ -3977,7 +3977,32 @@ impl DocSession {
         let doc = self.committed_doc();
         let index = combine::fresh_index(doc);
         let target = self.home_space(&input)?;
-        let source = pncad::document::BodyRead::plain(input.clone());
+        // A pattern of a pattern is one binder (D10 `[repetition]`): its
+        // index comes after the inner binder's, and it places each
+        // member, `{i, j: place(xs[i])}`, which the binder yields.
+        let inner = match &input {
+            Operand::Var(var) => Some(*var),
+            Operand::Node(id) => doc.outputs(*id).first().copied(),
+            Operand::Output { node, port } => doc.output(*node, *port),
+            _ => None,
+        }
+        .filter(|&var| doc.family_through_sources(var))
+        .and_then(|var| doc.yielding(doc.through_sources(var).read));
+        let inner_indices = inner
+            .map(|binder| doc.binder_indices(binder))
+            .unwrap_or_default();
+        let source = if inner_indices.is_empty() {
+            pncad::document::BodyRead::plain(input.clone())
+        } else {
+            pncad::document::BodyRead::indexed(
+                input.clone(),
+                inner_indices
+                    .iter()
+                    .map(|&at| Formula::var(at, pncad::document::Dimension::Count))
+                    .collect(),
+            )
+        };
+        let after = inner_indices.last().copied();
         let placement = match rule {
             PatternRuleSpec::Linear { direction, spacing } => {
                 let (along, across) = match direction {
@@ -4024,16 +4049,25 @@ impl DocSession {
                 index,
                 pncad::document::VarDecl::Index {
                     count: Formula::count(count),
-                    after: None,
+                    after: after.map(|at| Formula::var(at, pncad::document::Dimension::Count)),
                 },
             )
-            .map(drop)
         };
         let takeover = self.takeover(&input)?;
         let reads_one_body = takeover.reads_one_body();
         Ok(taking_over(takeover, move |run| {
-            declare(run)?;
+            let index = declare(run)?;
             let row = run.insert(placement)?;
+            // The binder yields the copies (D10 `[repetition]`), after
+            // what it yields already.
+            let copy = run
+                .doc()
+                .output(row, 0)
+                .unwrap_or_else(|| unreachable!("a placement defines its copy"));
+            let binder = inner.unwrap_or(index);
+            let mut yields = run.doc().yields(binder).to_vec();
+            yields.push(copy);
+            run.apply(pncad::pattern::yields_edit(binder, &yields))?;
             match output {
                 // Several bodies, the family itself: a reader of one
                 // body reads them through a `⊔`.
@@ -5465,13 +5499,25 @@ fn write_product(
         [] => None,
         [one] => Some(one.clone()),
         several => {
-            let members = pncad::document::Bodies::spelled(
-                several
-                    .iter()
-                    .cloned()
-                    .map(pncad::document::BodyRead::plain)
-                    .collect(),
-            );
+            // A family a binder yields is spliced in whole (D10
+            // `[repetition]`).
+            let entry = |read: Operand| {
+                let yielded = match &read {
+                    Operand::Var(var) => Some(*var),
+                    Operand::Node(id) => run.doc().outputs(*id).first().copied(),
+                    Operand::Output { node, port } => run.doc().output(*node, *port),
+                    _ => None,
+                }
+                .is_some_and(|var| run.doc().family_through_sources(var));
+                let read = pncad::document::BodyRead::plain(read);
+                if yielded {
+                    pncad::document::Spell::All(read)
+                } else {
+                    pncad::document::Spell::One(read)
+                }
+            };
+            let members =
+                pncad::document::Bodies::Spelled(several.iter().cloned().map(entry).collect());
             Some(Operand::Node(run.insert(Node::Assemble { members })?))
         }
     };

@@ -305,6 +305,7 @@ class TestBenchLayout(BenchWorkspace):
                 [("y", Formula.length_in(SHELF_LENGTH, m))],
             )
         )
+        doc.apply(DocEdit.set_yields(VarName("k"), [doc.output(family)]))
         first = doc.place(family[0], doc.world, Placed.identity())
         shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref, doc.world))
         ev = evaluate(doc, resolver=self.ws)

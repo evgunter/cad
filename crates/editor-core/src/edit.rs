@@ -4773,9 +4773,7 @@ impl EditError {
                 )?;
                 tail.recourse(
                     f,
-                    format_args!(
-                        "bind both indices in one binder, or read what one binder yields"
-                    ),
+                    format_args!("bind both indices in one binder, or read what one binder yields"),
                 )
             }
             Self::Yields { binder, fault } => {
@@ -9905,7 +9903,10 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     return Err(unknown(read));
                 };
                 let spoken = || Box::new(doc.spoken_var(var));
-                if doc.var(var).is_some_and(|held| held.def().index().is_some()) {
+                if doc
+                    .var(var)
+                    .is_some_and(|held| held.def().index().is_some())
+                {
                     return Err(refused(YieldsFault::Index { var: spoken() }));
                 }
                 if written.contains(&var) {

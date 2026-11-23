@@ -75,16 +75,27 @@ fn sole_whole(reads: &[(VarId, bool)]) -> Option<VarId> {
 /// A cut continues its target only once its tool is deleted, which is
 /// the delete's to say ([`splice`]), not the cut's.
 pub fn continues<P: crate::ProfilePayload>(doc: &Doc<P>, node: RecipeNodeId) -> Option<VarId> {
+    // A member read is no variable a reader could read in its place,
+    // except one at its binder's own indices by a node that binder
+    // yields: `{k in xs: fillet(xs[k])}` continues the family `xs` whole
+    // (D10 `[repetition]`).
+    let whole = |body: &crate::BodyRead<VarId>| {
+        if !body.is_indexed() {
+            return Some(body.read);
+        }
+        let binder = doc.yielding(body.read)?;
+        (doc.binder_indices(binder) == body.at
+            && doc
+                .outputs(node)
+                .iter()
+                .any(|&out| doc.yielding(out) == Some(binder)))
+        .then_some(body.read)
+    };
     match doc.node(node)? {
-        // A member read is no variable a reader could read in its place.
         Node::Fillet { selection, .. } | Node::Chamfer { selection, .. } => doc
             .selection(*selection)
-            .filter(|select| !select.body.is_indexed())
-            .map(|select| select.body.read),
-        Node::Shell { open, .. } => doc
-            .selection(*open)
-            .filter(|select| !select.body.is_indexed())
-            .map(|select| select.body.read),
+            .and_then(|select| whole(&select.body)),
+        Node::Shell { open, .. } => doc.selection(*open).and_then(|select| whole(&select.body)),
         Node::Union { members } | Node::Intersect { members } | Node::Assemble { members } => {
             match members {
                 Bodies::Spelled(reads) => sole_whole(
@@ -130,7 +141,12 @@ pub fn continues<P: crate::ProfilePayload>(doc: &Doc<P>, node: RecipeNodeId) -> 
 pub fn spelled<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     id: RecipeNodeId,
-) -> Option<Vec<(crate::Spell<BodyRead<VarId>>, crate::Spell<BodyRead<Formula>>)>> {
+) -> Option<
+    Vec<(
+        crate::Spell<BodyRead<VarId>>,
+        crate::Spell<BodyRead<Formula>>,
+    )>,
+> {
     let (Node::Union { members } | Node::Intersect { members } | Node::Assemble { members }) =
         doc.node(id)?
     else {

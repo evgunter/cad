@@ -164,7 +164,9 @@ use crate::var::{Var, VarId};
 use geom_core::Tol;
 
 pub use canon::{canonical_bytes, content_pin};
-pub use check::{IndexSeatFault, NonFiniteSite, OutputFault, SectionIdBreak, SelectionBodyFault, SnapshotError};
+pub use check::{
+    IndexSeatFault, NonFiniteSite, OutputFault, SectionIdBreak, SelectionBodyFault, SnapshotError,
+};
 
 /// The serialized body under the header (D1).
 #[derive(serde::Deserialize)]

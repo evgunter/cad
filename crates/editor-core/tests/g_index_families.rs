@@ -22,10 +22,7 @@ pub(crate) fn index(doc: ProfileDoc, name: &str, count: Formula) -> (ProfileDoc,
         doc,
         DocEdit::DeclareVar {
             name: name.clone(),
-            def: VarDecl::Index {
-                count,
-                after: None,
-            },
+            def: VarDecl::Index { count, after: None },
         },
     )
     .0;

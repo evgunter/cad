@@ -1661,11 +1661,17 @@ fn member_placement(doc: &ProfileDoc, node: AuthoredNode) -> AuthoredNode {
             from: member(from),
             tool: member(tool),
         },
-        Node::Fillet { selection: sel, radius } => Node::Fillet {
+        Node::Fillet {
+            selection: sel,
+            radius,
+        } => Node::Fillet {
             selection: selection(sel),
             radius,
         },
-        Node::Chamfer { selection: sel, distance } => Node::Chamfer {
+        Node::Chamfer {
+            selection: sel,
+            distance,
+        } => Node::Chamfer {
             selection: selection(sel),
             distance,
         },
@@ -2660,10 +2666,7 @@ impl Recorder {
         let name = editor_core::VarName::new(name).expect("an index name");
         self.push(DocEdit::DeclareVar {
             name: name.clone(),
-            def: editor_core::VarDecl::Index {
-                count,
-                after: None,
-            },
+            def: editor_core::VarDecl::Index { count, after: None },
         });
         self.doc
             .var_named(name.as_str())

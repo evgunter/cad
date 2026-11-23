@@ -190,9 +190,12 @@ handed to a one-body seat is refused at the door by kind, with the
 recourse `{k in xs: op(xs[k])}`; a list seat takes it whole (DM4).
 
 *Built: the indexed read at every body seat, rank one, FORK-DM4 unit 1
-(PR 4527); a selection's body read, PR 6555. Every family a node defines is one flat list, so `xs[i, j]`
-waits on a family keyed by two indices
-(`work/refs/an-indexed-read-of-rank-two-has-no-family.md`). Until stage
+(PR 4527); a selection's body read, PR 6555; the binder, its yields, the
+splice `[a, …xs]` and the refusal of a family at a one-body seat, the
+formwords binder build (`repetition.rs`). A binder's further index reads
+at the binder's rank, so `xs[i, j]` reads one member of a binder of two
+indices; the flat listing of a pattern of patterns is tracked at
+`work/refs/an-indexed-read-of-rank-two-has-no-family.md`. Until stage
 3 G, `Part { select: Instance }` stands beside it, a second way to pick a
 member; new authoring writes `xs[i]`.*
 
