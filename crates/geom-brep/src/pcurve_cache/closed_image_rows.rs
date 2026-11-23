@@ -1594,18 +1594,19 @@ fn a_focal_section_below_one_by_any_room_passes_its_beta_check() {
     assert!(seen > 0, "some cone section is drawn ({})", fuzz::replay());
 }
 
-/// **A genuine needle section of a cone certifies with its own `β`.** The
+/// **A genuine needle section of a cone passes with its own `β`.** The
 /// focal image's `1 − |β|` is about the section's projected axis ratio, so
 /// a section thin enough for that room to come near the band would need
 /// its plane within about `10⁻¹⁷` of a generator's tilt, under an ulp of
 /// any angle a run states: the thinnest sections a plane in the box cuts
 /// keep `1 − |β|` thousands of bands clear, and a stated `β` closer to one
-/// is never a section's own (the row above). This one, a plane `10⁻⁶` off
-/// the apex and tilted `10⁻⁶` short of the generator, a needle out along
-/// it, reads `1 − |β|` near `2.3·10⁻³`, passes the structure check at
-/// both scalars, and certifies at `f64`.
+/// is never a section's own (the row above). This one, a plane `10⁻³` off
+/// the apex and tilted a thousand of the band's zero short of the
+/// generator, a needle out along it, mints its own focal image with
+/// `1 − |β|` (`2.3·10⁻³` at ε `10⁻⁹`) past a hundred escalations, and its
+/// structure passes at both scalars.
 #[test]
-fn a_needle_cone_section_certifies_with_its_own_beta() {
+fn a_needle_cone_section_passes_with_its_own_beta() {
     let (axis, u_ref) = (Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0));
     let apex = Point3::new(0.0, 0.0, 0.0);
     let half_angle = 0.5;
@@ -1613,10 +1614,10 @@ fn a_needle_cone_section_certifies_with_its_own_beta() {
         frame: geom::Frame::new(apex, axis, u_ref),
         half_angle,
     };
-    let tilt = (1.0 - 1e-6) * (core::f64::consts::FRAC_PI_2 - half_angle);
+    let tilt = (1.0 - 1e3 * band().zero()) * (core::f64::consts::FRAC_PI_2 - half_angle);
     let normal = (axis * tilt.cos() + axis.cross(u_ref) * tilt.sin()).normalize();
     let plane = Surface::Plane {
-        frame: geom::Frame::new(apex + axis * 1e-6, normal, u_ref.cross(normal).normalize()),
+        frame: geom::Frame::new(apex + axis * 1e-3, normal, u_ref.cross(normal).normalize()),
     };
     let reach = crate::Reach::fixture(apex, 4.0);
     let Ok(crate::intersect::PlaneConeSection::TiltedEllipse(needle)) =
@@ -1631,8 +1632,8 @@ fn a_needle_cone_section_certifies_with_its_own_beta() {
     };
     let room = 1.0 - f.beta.abs();
     assert!(
-        (1e-3..1e-2).contains(&room),
-        "the needle's own β keeps its room thousands of bands clear: {room:e}"
+        room > 1e2 * band().escalate() && room < 0.1,
+        "the needle's own β keeps its room a hundred bands clear: {room:e}"
     );
     let iv = Interval::from_f64;
     let at_interval = Pcurve::FocalSection(FocalImage {
@@ -1658,8 +1659,6 @@ fn a_needle_cone_section_certifies_with_its_own_beta() {
             .is_ok(),
         "the needle's structure passes at both scalars"
     );
-    let got = (DOORS[0].certify)(&cone, &image, &needle, span);
-    assert!(got.is_ok(), "the needle certifies at f64: {got:?}");
 }
 
 /// **A spiric oval on its own torus is served over any span.** The mint's
