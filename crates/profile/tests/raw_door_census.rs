@@ -680,6 +680,10 @@ fn every_crate_that_names_the_door_reaches_it() {
 /// reads or derives from a loop that already exists, and an associated
 /// fn with no `self` is a constructor, the authoring tier the Q1 ruling
 /// retired.
+///
+/// **What this cannot see**: a receiver method that mints from a table
+/// it is handed (`with_vertices(&self, v)`), which takes `self` and
+/// reads nothing of it. Telling that from a reader is reading the body.
 #[test]
 fn the_types_public_surface_mints_nothing() {
     let text = std::fs::read_to_string(repo_root().join("crates/profile/src/lib.rs"))
@@ -713,9 +717,21 @@ fn the_types_public_surface_mints_nothing() {
             } else {
                 after
             };
+            // `self`, `&self`, `&'a mut self`, `self: Box<Self>`: the
+            // receiver is the word `self` itself, not a name starting so.
             let first = first.trim_start_matches('&').trim_start();
-            let first = first.strip_prefix("mut ").unwrap_or(first);
-            found.push((name, first.starts_with("self")));
+            let first = match first.strip_prefix('\'') {
+                Some(rest) => rest
+                    .trim_start_matches(|c: char| c.is_alphanumeric() || c == '_')
+                    .trim_start(),
+                None => first,
+            };
+            let first = first.strip_prefix("mut ").unwrap_or(first).trim_start();
+            let word: String = first
+                .chars()
+                .take_while(|c| c.is_alphanumeric() || *c == '_')
+                .collect();
+            found.push((name, word == "self"));
         }
     }
     assert!(

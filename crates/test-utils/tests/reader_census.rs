@@ -350,11 +350,12 @@ fn reads_rust_source(code: &str) -> bool {
         || (code.contains("read_dir(") && code.contains("\"rs\""));
     // (3) Spells a Rust comment delimiter as a literal — the tell of a
     // hand-rolled lexer, wherever its text came from.
-    let lexes_rust_comments = ["\"//\"", "\"///\"", "\"//!\"", "\"/*\"", "\"*/\"", "b'/'"]
-        .iter()
-        .any(|tok| code.contains(tok));
+    let lexes_rust_comments = COMMENT_DELIMITERS.iter().any(|tok| code.contains(tok));
     named > mounted || walks_a_source_tree || lexes_rust_comments
 }
+
+/// Shape (3)'s needles: a Rust comment delimiter spelled as a literal.
+const COMMENT_DELIMITERS: [&str; 6] = ["\"//\"", "\"///\"", "\"//!\"", "\"/*\"", "\"*/\"", "b'/'"];
 
 /// Every path under the repository root that reads Rust source as text.
 fn sites_reading_rust_source(root: &Path) -> Vec<String> {
@@ -419,6 +420,24 @@ fn every_site_that_reads_rust_source_is_in_the_ledger() {
             !reaches_the_shared_lexer(&text)
         })
         .collect();
+    let doors = shared_lexer_fns();
+    let unlexed: Vec<String> = found
+        .iter()
+        .filter(|f| !LEDGER.iter().any(|e| e.path == f.as_str()))
+        .flat_map(|f| {
+            let text = std::fs::read_to_string(root.join(f.as_str()))
+                .unwrap_or_else(|err| panic!("reading {f}: {err}"));
+            fns_spelling_a_delimiter_unlexed(&text, &doors)
+                .into_iter()
+                .map(move |name| format!("{f}: fn {name}"))
+        })
+        .collect();
+    assert!(
+        unlexed.is_empty(),
+        "these fns spell a Rust comment delimiter as a literal and call no fn of the \
+         shared lexer: a hand-rolled reader beside a file's shared reads. Read through \
+         `test_utils::source`: {unlexed:#?}"
+    );
     assert!(
         unlisted.is_empty(),
         "these sites read Rust source as text and reach no door of the shared lexer \
@@ -444,12 +463,71 @@ const SHARED_LEXER_DOORS: [&str; 2] = [
 /// Whether a file's code (not its prose: a mention is not a call)
 /// names a door of the shared lexer.
 ///
-/// **What this cannot see**: a file that reaches the shared lexer for
-/// one read and hand-rolls another. A ledger line used to make each
-/// such file a reviewed act; the file is read as converted now.
+/// A file can reach the lexer for one read and hand-roll another; the
+/// per-`fn` check ([`fns_spelling_a_delimiter_unlexed`]) catches the
+/// hand-rolled one when it spells a comment delimiter. One that reads
+/// raw text with no delimiter, in a file that reaches the lexer
+/// elsewhere, is not seen.
 fn reaches_the_shared_lexer(text: &str) -> bool {
     let code = code_only(text);
     SHARED_LEXER_DOORS.iter().any(|door| code.contains(door))
+}
+
+/// The `pub fn`s of the shared lexer, read off its home: the names a
+/// call to it is spelled with once imported.
+fn shared_lexer_fns() -> Vec<String> {
+    let home = repo_root(env!("CARGO_MANIFEST_DIR")).join("crates/test-utils/src/source.rs");
+    let code = code_only(&std::fs::read_to_string(home).expect("the lexer's home reads"));
+    let mut out: Vec<String> = code
+        .match_indices("pub fn ")
+        .map(|(at, _)| test_utils::source::ident(&code, at + "pub fn ".len()).to_string())
+        .filter(|name| !name.is_empty())
+        .collect();
+    out.sort();
+    out.dedup();
+    assert!(
+        out.iter().any(|n| n == "code_only"),
+        "the lexer's home names no `code_only`: this read of it has gone blind"
+    );
+    out
+}
+
+/// The innermost `fn` items of `text` that spell a comment delimiter as a
+/// literal and whose body calls no fn of the shared lexer (by path or by
+/// an imported name).
+fn fns_spelling_a_delimiter_unlexed(text: &str, doors: &[String]) -> Vec<String> {
+    let bare = code_only(text);
+    let lexed = code_and_literals(text);
+    let Ok(items) = test_utils::source::fn_items(&bare) else {
+        return Vec::new();
+    };
+    let calls_a_door = |body: &str| {
+        body.contains("test_utils::source::")
+            || doors.iter().any(|door| {
+                body.match_indices(&format!("{door}(")).any(|(at, _)| {
+                    body[..at]
+                        .chars()
+                        .next_back()
+                        .is_none_or(|c| !(c.is_alphanumeric() || c == '_'))
+                })
+            })
+    };
+    let mut out = Vec::new();
+    for tok in COMMENT_DELIMITERS {
+        for (at, _) in lexed.match_indices(tok) {
+            let Some((name, body)) = items
+                .iter()
+                .filter(|(_, body)| body.contains(&at))
+                .min_by_key(|(_, body)| body.len())
+            else {
+                continue;
+            };
+            if !calls_a_door(&bare[body.clone()]) && !out.contains(name) {
+                out.push(name.clone());
+            }
+        }
+    }
+    out
 }
 
 /// The file holding the aggregation row macro's body — the subject of

@@ -390,9 +390,10 @@ fn every_deny_unknown_fields_attribute_has_a_named_field_to_deny() {
 /// Without this row the census above passes by finding nothing, which
 /// is the silent direction and the one a census is built to close. The
 /// walk's per-file tally is compared with a second, cruder count that
-/// shares none of its traversal: its own directory walk over the raw
-/// text, counting every line that opens an attribute (`#[`) and names
-/// the attribute. A walk that stops reaching a file, a skip that
+/// shares none of its reading: its own directory walk with its own skip
+/// list (`target`, `.git`), over the raw text, counting every line that
+/// opens an attribute (`#[`) and contains the attribute's name as a
+/// plain substring — no [`SKIPPED_DIRS`], [`NEEDLE`], `word` or lexer. A walk that stops reaching a file, a skip that
 /// swallows the tree, or a reader that stops finding the word differs
 /// from it, wherever the sites are and however many there are.
 #[test]
@@ -418,8 +419,7 @@ fn the_walk_still_sees_every_attribute_site() {
 }
 
 /// Every `.rs` file under `root` holding an attribute line that names
-/// [`NEEDLE`], with how many: a plain recursive walk, skipping a build
-/// directory and hidden ones, over the raw text.
+/// `deny_unknown_fields`, with how many.
 fn crude_attribute_lines(root: &Path) -> BTreeMap<String, usize> {
     fn walk(root: &Path, dir: &Path, out: &mut BTreeMap<String, usize>) {
         for entry in std::fs::read_dir(dir)
@@ -429,14 +429,18 @@ fn crude_attribute_lines(root: &Path) -> BTreeMap<String, usize> {
             let path = entry.path();
             let name = entry.file_name().to_string_lossy().into_owned();
             if path.is_dir() {
-                if !SKIPPED_DIRS.contains(&name.as_str()) && !name.starts_with('.') {
+                // Its own skip list, spelled here and nowhere else: a
+                // narrowing of the census walk's skips cannot narrow this.
+                if name != "target" && name != ".git" {
                     walk(root, &path, out);
                 }
             } else if name.ends_with(".rs") {
                 let text = std::fs::read_to_string(&path).expect("a readable source file");
                 let n = text
                     .lines()
-                    .filter(|l| l.trim_start().starts_with("#[") && word(l, NEEDLE).is_some())
+                    .filter(|l| {
+                        l.trim_start().starts_with("#[") && l.contains("deny_unknown_fields")
+                    })
                     .count();
                 if n > 0 {
                     let rel = path.strip_prefix(root).expect("under the root");

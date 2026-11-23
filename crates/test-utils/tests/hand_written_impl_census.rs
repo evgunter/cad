@@ -656,9 +656,12 @@ fn every_hand_written_walk_is_held_to_its_declaration() {
 /// Without this row the census above passes by finding nothing, which
 /// is the silent direction and the one a census is built to close. The
 /// walk's per-file count of impls is compared with a second, cruder
-/// count that shares none of its traversal: its own directory walk,
-/// counting the code lines that hold an `impl` and a `Debug for ` or
-/// `PartialEq for `. A walk that stops reaching a file, a skip that
+/// count with its own directory walk and its own skip list (`target`,
+/// `.git`), counting the code lines that hold an `impl` and a plain
+/// `Debug for ` or `PartialEq for ` — no [`SKIPPED_DIRS`], [`TRAITS`] or
+/// head reader. What the two still share is the lexer's code view
+/// (`code_only`), which keeps a raw-string fixture from reading as an
+/// impl; the lexer is held by its own rows in `test_utils::source`. A walk that stops reaching a file, a skip that
 /// swallows the tree, or a head reader that stops matching differs from
 /// it — per impl, so a blindness to one of a file's impls shows too.
 #[test]
@@ -684,8 +687,7 @@ fn the_walk_still_sees_every_file_holding_one() {
 }
 
 /// Every `.rs` file under `root` with code lines heading a homogeneous
-/// `Debug` or `PartialEq` impl, with how many: a plain recursive walk,
-/// skipping a build directory and hidden ones.
+/// `Debug` or `PartialEq` impl, with how many.
 fn crude_impl_lines(root: &Path) -> BTreeMap<String, usize> {
     fn walk(root: &Path, dir: &Path, out: &mut BTreeMap<String, usize>) {
         for entry in std::fs::read_dir(dir)
@@ -695,7 +697,9 @@ fn crude_impl_lines(root: &Path) -> BTreeMap<String, usize> {
             let path = entry.path();
             let name = entry.file_name().to_string_lossy().into_owned();
             if path.is_dir() {
-                if !SKIPPED_DIRS.contains(&name.as_str()) && !name.starts_with('.') {
+                // Its own skip list, spelled here and nowhere else: a
+                // narrowing of the census walk's skips cannot narrow this.
+                if name != "target" && name != ".git" {
                     walk(root, &path, out);
                 }
             } else if name.ends_with(".rs") {
@@ -705,8 +709,8 @@ fn crude_impl_lines(root: &Path) -> BTreeMap<String, usize> {
                     .filter(|l| {
                         l.split(|c: char| !(c.is_alphanumeric() || c == '_'))
                             .any(|w| w == "impl")
-                            && TRAITS.iter().any(|t| {
-                                l.match_indices(&format!("{t} for ")).any(|(at, _)| {
+                            && ["Debug for ", "PartialEq for "].iter().any(|t| {
+                                l.match_indices(t).any(|(at, _)| {
                                     l[..at]
                                         .chars()
                                         .next_back()
