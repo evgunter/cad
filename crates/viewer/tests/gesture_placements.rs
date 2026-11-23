@@ -565,8 +565,7 @@ fn a_place_into_the_bodys_own_space_is_a_copy() {
         doc.node_space(body),
         "in its own space"
     );
-    assert!(viewer::world::is_placed(doc, body), "badged placed");
-    assert_eq!(viewer::world::placements_of(doc, body), [first, second]);
+    assert_eq!(doc.placements_of(body), [first, second]);
     for copy in [first, second] {
         assert_eq!(viewer::world::original_of(doc, copy), body);
         assert_eq!(
@@ -576,7 +575,11 @@ fn a_place_into_the_bodys_own_space_is_a_copy() {
         assert_eq!(viewer::world::seat_read(doc, copy, Some(0)).0, copy);
     }
     let row = common::row_of(&session.tree_rows(), body).clone();
-    assert!(row.placed, "the tree badges the bracket");
+    assert_eq!(
+        row.placements,
+        [first, second],
+        "the tree badges the bracket with both copies"
+    );
 
     let op = common::transformed(&mut session, second, &common::slides([0.05, 0.0, 0.0]));
     assert!(session.perform(op).refusal.is_none());

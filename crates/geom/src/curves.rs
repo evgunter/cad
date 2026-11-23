@@ -5,8 +5,7 @@
 //! enum makes every dispatch site exhaustively checked at compile time.
 //! The [`Curve3::Nurbs`] variant is the universal fallback — it carries
 //! a validated [`NurbsCurve3`] payload (see [`nurbs`]) and its evaluator
-//! arms are real; the "no description yet" state is
-//! [`Curve3::nurbs_placeholder`].
+//! arms are real.
 //!
 //! # Curve conventions (normative; the curve half)
 //!
@@ -189,10 +188,7 @@ pub enum Curve3<T: Real> {
     /// The NURBS fallback (D3: representable from day one; evaluators
     /// implemented at M5 PR 3). The payload is a validated
     /// [`NurbsCurve3`] behind an [`Arc`] (immutable, cheap to clone —
-    /// see the enum docs on the `Copy` loss). The "no description yet"
-    /// state that the former unit variant carried is now
-    /// [`Curve3::nurbs_placeholder`] — a poison-valued payload with the
-    /// same all-poison evaluation behavior.
+    /// see the enum docs on the `Copy` loss).
     Nurbs(Arc<NurbsCurve3<T>>),
 
     /// **The periodic cubic**: a closed C² cubic spline with no start
@@ -222,7 +218,7 @@ pub enum CurveKind {
     Ellipse,
     /// A [`Curve3::Spiric`].
     Spiric,
-    /// A [`Curve3::Nurbs`], described or the placeholder.
+    /// A [`Curve3::Nurbs`].
     Nurbs,
     /// A [`Curve3::Periodic`].
     Periodic,
@@ -266,10 +262,10 @@ impl<T: Real> Curve3<T> {
                 point(*origin, *o) && vec(*dir, *d)
             }
             (Self::Circle(c), Self::Circle(k)) => {
-                frame(&c.frame, &k.frame) && same(c.radius(), k.radius())
+                frame(&c.frame(), &k.frame()) && same(c.radius(), k.radius())
             }
             (Self::Ellipse(e), Self::Ellipse(k)) => {
-                frame(&e.frame, &k.frame)
+                e.same_placement(k, frame, &same)
                     && same(e.semi_u(), k.semi_u())
                     && same(e.semi_v(), k.semi_v())
             }
@@ -623,6 +619,14 @@ pub enum CurveDatum {
     MinorRadius,
     /// A spiric's plane stand-off `offset`.
     Offset,
+    /// The stored point of an ellipse held on its arc
+    /// ([`crate::curves::conic`], "Where a conic is held"): a point of
+    /// the ellipse, at the anomaly [`Self::Phase`] states.
+    Anchor,
+    /// Where on an anchored ellipse its anchor sits: the in-plane unit
+    /// direction `(cos θ₀, sin θ₀, 0)` of the anchor's eccentric anomaly
+    /// from the seam.
+    Phase,
     /// A `Nurbs` carrier's control net — the datum this read checks
     /// (its knots and weights are held at the scalar too, and refused
     /// non-finite on their value channel at construction).
@@ -649,6 +653,8 @@ impl CurveDatum {
             Self::MajorRadius => "major_radius",
             Self::MinorRadius => "minor_radius",
             Self::Offset => "offset",
+            Self::Anchor => "anchor",
+            Self::Phase => "phase",
             Self::Control => "control",
         }
     }
@@ -664,6 +670,21 @@ pub enum CurveData<'a, T: Real> {
     Nurbs(&'a Arc<NurbsCurve3<T>>),
     /// A periodic cubic, unread.
     Periodic(&'a Arc<PeriodicNurbs3<T>>),
+}
+
+impl<T: Real> CurveData<'_, T> {
+    /// **The stored datum named `datum`**, where the carrier's walk
+    /// holds one: how a reader asks which point a conic stores (its
+    /// [`CurveDatum::Center`] or its [`CurveDatum::Anchor`]) or reads an
+    /// anchor's [`CurveDatum::Phase`], by the datum's name. `None` on a
+    /// spline kind, whose data are not walked as fields.
+    #[must_use]
+    pub fn named(self, datum: CurveDatum) -> Option<crate::DatumValue<T>> {
+        match self {
+            Self::Analytic(data) => data.into_iter().find(|(d, _)| *d == datum).map(|(_, v)| v),
+            Self::Nurbs(_) | Self::Periodic(_) => None,
+        }
+    }
 }
 
 /// **A straight line** `origin + dir·t`: what [`Curve3::as_line`] reads
@@ -1115,8 +1136,8 @@ impl<T: Real> Curve3<T> {
     #[must_use]
     pub fn frame(&self) -> Option<Frame<T>> {
         match *self {
-            Self::Circle(c) => Some(c.frame),
-            Self::Ellipse(e) => Some(e.frame),
+            Self::Circle(c) => Some(c.frame()),
+            Self::Ellipse(e) => Some(e.frame()),
             Self::Spiric { frame, .. } => Some(frame),
             Self::Line(_) | Self::Nurbs(_) | Self::Periodic(_) => None,
         }
@@ -1151,19 +1172,41 @@ impl<T: Real> Curve3<T> {
             Curve3::Line(Line { origin, dir }) => {
                 AnalyticData::new([(D::Origin, Point(origin)), (D::Dir, Direction(dir))])
             }
-            Curve3::Circle(c) => AnalyticData::new([
-                (D::Center, Point(c.frame.origin())),
-                (D::Axis, Direction(c.frame.axis())),
-                (D::Radius, Scalar(c.radius())),
-                (D::URef, Direction(c.frame.u_ref())),
-            ]),
-            Curve3::Ellipse(e) => AnalyticData::new([
-                (D::Center, Point(e.frame.origin())),
-                (D::Axis, Direction(e.frame.axis())),
-                (D::SemiU, Scalar(e.semi_u())),
-                (D::SemiV, Scalar(e.semi_v())),
-                (D::URef, Direction(e.frame.u_ref())),
-            ]),
+            Curve3::Circle(c) => {
+                let f = c.frame();
+                AnalyticData::new([
+                    (D::Center, Point(f.origin())),
+                    (D::Axis, Direction(f.axis())),
+                    (D::Radius, Scalar(c.radius())),
+                    (D::URef, Direction(f.u_ref())),
+                ])
+            }
+            // The one point an ellipse stores, named for what it is.
+            Curve3::Ellipse(e) => {
+                let conic::Stored {
+                    datum,
+                    at,
+                    axis,
+                    u_ref,
+                    phase,
+                } = e.stored();
+                let walk = [
+                    (datum, Point(at)),
+                    (D::Axis, Direction(axis)),
+                    (D::SemiU, Scalar(e.semi_u())),
+                    (D::SemiV, Scalar(e.semi_v())),
+                    (D::URef, Direction(u_ref)),
+                ];
+                // An ellipse held on its arc stores where on itself its
+                // anchor sits; one held at its centre stores no such thing.
+                match phase {
+                    Some(phase) => {
+                        let [a, b, c, d, f] = walk;
+                        AnalyticData::new([a, b, c, d, f, (D::Phase, Direction(phase))])
+                    }
+                    None => AnalyticData::new(walk),
+                }
+            }
             Curve3::Spiric {
                 frame,
                 major_radius,
@@ -1226,14 +1269,14 @@ impl<T: Real> Curve3<T> {
         };
         match self {
             Curve3::Circle(c) => core::iter::once(lower(CurveDatum::Radius, c.radius()))
-                .chain(frame(c.frame.axis(), c.frame.u_ref(), c.radius()))
+                .chain(frame(c.frame().axis(), c.frame().u_ref(), c.radius()))
                 .collect(),
             Curve3::Ellipse(e) => [
                 lower(CurveDatum::SemiU, e.semi_u()),
                 lower(CurveDatum::SemiV, e.semi_v()),
             ]
             .into_iter()
-            .chain(frame(e.frame.axis(), e.frame.u_ref(), e.speed_hi()))
+            .chain(frame(e.frame().axis(), e.frame().u_ref(), e.speed_hi()))
             .collect(),
             Curve3::Spiric {
                 frame: carrier_frame,
@@ -1250,15 +1293,6 @@ impl<T: Real> Curve3<T> {
                 Vec::new()
             }
         }
-    }
-
-    /// The "no description yet" NURBS state (the former unit
-    /// placeholder variant, as data): a structurally valid payload
-    /// whose control points are all-poison, so evaluation yields the
-    /// all-poison point and every downstream certification fails
-    /// loudly (D4 ¶2) — representable ≠ described.
-    pub fn nurbs_placeholder() -> Self {
-        Curve3::Nurbs(Arc::new(NurbsCurve3::placeholder()))
     }
 }
 
@@ -1366,20 +1400,48 @@ impl<T: Decide> Curve3<T> {
         u_ref: Vec3<T>,
         band: Band,
     ) -> Result<Self, EllipseInvalid> {
-        if !(semi_u.is_bounded() && semi_v.is_bounded()) {
-            return Err(EllipseInvalid::SemiAxisNotFinite);
-        }
-        let minor = semi_u.min(semi_v);
-        match geom_core::k_stats::decide("ellipse_minor_positive", Margin::of(minor), band) {
-            Ok(Sign::Positive) => {}
-            Ok(Sign::Zero | Sign::Negative) => return Err(EllipseInvalid::MinorNotPositive),
-            Err(diag) => return Err(EllipseInvalid::Escalated(diag)),
-        }
+        Self::ellipse_decided((semi_u, semi_v), band)?;
         Ok(Curve3::Ellipse(Ellipse::new(
             Frame::new(center, axis, u_ref),
             semi_u,
             semi_v,
         )))
+    }
+
+    /// **[`Curve3::ellipse`] for an ellipse held on its arc**
+    /// ([`Ellipse::anchored`]): `anchor` its vertex on the seam, `toward`
+    /// the principal direction from the centre to it, `semi_u` along
+    /// that direction. The same two refusals under the same row.
+    ///
+    /// # Errors
+    ///
+    /// As [`Curve3::ellipse`].
+    pub fn ellipse_anchored(
+        anchor: Point3<T>,
+        axis: Vec3<T>,
+        toward: Vec3<T>,
+        (semi_u, semi_v): (T, T),
+        band: Band,
+    ) -> Result<Self, EllipseInvalid> {
+        Self::ellipse_decided((semi_u, semi_v), band)?;
+        Ok(Curve3::Ellipse(Ellipse::anchored(
+            anchor, axis, toward, semi_u, semi_v,
+        )))
+    }
+
+    /// [`Curve3::ellipse`]'s two refusals, read off the sizes before
+    /// either constructor is handed them: both bounded, and the smaller
+    /// definitely positive.
+    fn ellipse_decided((semi_u, semi_v): (T, T), band: Band) -> Result<(), EllipseInvalid> {
+        if !(semi_u.is_bounded() && semi_v.is_bounded()) {
+            return Err(EllipseInvalid::SemiAxisNotFinite);
+        }
+        let minor = semi_u.min(semi_v);
+        match geom_core::k_stats::decide("ellipse_minor_positive", Margin::of(minor), band) {
+            Ok(Sign::Positive) => Ok(()),
+            Ok(Sign::Zero | Sign::Negative) => Err(EllipseInvalid::MinorNotPositive),
+            Err(diag) => Err(EllipseInvalid::Escalated(diag)),
+        }
     }
 
     /// The one deciding door into [`Curve3::Spiric`]: refuses a
@@ -1496,8 +1558,12 @@ impl<T: Real> Curve3<T> {
     pub fn reversed(&self) -> Option<Self> {
         Some(match self.clone() {
             Curve3::Line(Line { origin, dir }) => Curve3::line(origin, -dir),
-            Curve3::Circle(c) => Curve3::Circle(c.with_frame(c.frame.reversed())),
-            Curve3::Ellipse(e) => Curve3::Ellipse(e.with_frame(e.frame.reversed())),
+            // The seam is kept, so the point at parameter zero is too.
+            // A circle's frame stands at its centre, so the frame's
+            // reversal is the circle run back; an ellipse's may stand
+            // on its arc, and it has a door of its own.
+            Curve3::Circle(c) => Curve3::Circle(c.placed(Frame::reversed)),
+            Curve3::Ellipse(e) => Curve3::Ellipse(e.reversed()),
             Curve3::Spiric {
                 frame: carrier_frame,
                 major_radius,
@@ -1533,8 +1599,8 @@ impl<T: Real> Curve3<T> {
     pub fn translated(&self, by: Vec3<T>) -> Option<Self> {
         Some(match self.clone() {
             Curve3::Line(Line { origin, dir }) => Curve3::line(origin + by, dir),
-            Curve3::Circle(c) => Curve3::Circle(c.with_frame(c.frame.translated(by))),
-            Curve3::Ellipse(e) => Curve3::Ellipse(e.with_frame(e.frame.translated(by))),
+            Curve3::Circle(c) => Curve3::Circle(c.placed(|f| f.translated(by))),
+            Curve3::Ellipse(e) => Curve3::Ellipse(e.translated(by)),
             Curve3::Spiric {
                 frame: carrier_frame,
                 major_radius,
@@ -1824,7 +1890,7 @@ impl<T: SpanLocate> Curve3<T> {
     ///   `center + u_ref·offset + m·f + axis·(r·s)` — exactly as
     ///   parenthesized, one `sin_cos`, one `sqrt`, no branch.
     /// - Nurbs: the payload's [`NurbsCurve3::eval`] (span selection via
-    ///   the sealed seam; all-poison for the placeholder state).
+    ///   the sealed seam).
     pub fn eval(&self, t: T) -> Point3<T> {
         match self {
             Curve3::Line(line) => line.at(t),
@@ -1864,7 +1930,7 @@ impl<T: SpanLocate> Curve3<T> {
     ///   anomaly, not arc length).
     /// - Spiric: `m·f′ + axis·(r·c)` with `f′ = −r·ρ·s/f` — fixed
     ///   order; `|dP/dv| ≥ r` (the variant docs).
-    /// - Nurbs: the payload’s derivative (all-poison for the placeholder).
+    /// - Nurbs: the payload’s derivative.
     ///
     /// The order-1 jet is [`Self::ders1`]: a caller wanting the point
     /// and this at one `t` asks once. There is no order-2 jet on the
@@ -1971,7 +2037,7 @@ impl<T: SpanLocate> Curve3<T> {
     /// - Spiric: `m·f″ − axis·(r·s)` with
     ///   `f″ = −r·((ρ·c − r·s²)/f + r·ρ²·s²/f³)` — fixed order as
     ///   written.
-    /// - Nurbs: the payload’s derivative (all-poison for the placeholder).
+    /// - Nurbs: the payload’s derivative.
     pub fn deriv2(&self, t: T) -> Vec3<T> {
         match self {
             Curve3::Line(_) => Vec3::zero(),
@@ -2058,7 +2124,7 @@ mod tests {
                 origin: frame.origin(),
                 dir: frame.axis(),
             }),
-            Curve3::Nurbs(Arc::new(NurbsCurve3::placeholder())),
+            quarter_circle_nurbs(),
         ];
         for c in &open {
             assert!(c.period().is_none(), "{c:?} does not repeat");
@@ -2291,7 +2357,7 @@ mod tests {
         fn circle_point_lies_on_locus(theta in -50.0..50.0f64) {
             let c = tilted_circle();
             let (center, axis, r) = match c {
-                Curve3::Circle(k) => (k.frame.origin(), k.frame.axis(), k.radius()),
+                Curve3::Circle(k) => (k.frame().origin(), k.frame().axis(), k.radius()),
                 _ => panic!("fixture is a circle"),
             };
             let p = c.eval(theta);
@@ -2307,7 +2373,7 @@ mod tests {
         fn circle_derivative_geometry(theta in -50.0..50.0f64) {
             let c = tilted_circle();
             let (center, axis, r) = match c {
-                Curve3::Circle(k) => (k.frame.origin(), k.frame.axis(), k.radius()),
+                Curve3::Circle(k) => (k.frame().origin(), k.frame().axis(), k.radius()),
                 _ => panic!("fixture is a circle"),
             };
             let p = c.eval(theta);
@@ -2528,7 +2594,7 @@ mod tests {
                 5.0,
                 2.0,
             );
-            let (a, u) = (e.frame.axis(), e.frame.u_ref());
+            let (a, u) = (e.frame().axis(), e.frame().u_ref());
             let base = Vec3::new(
                 a.y * u.z - a.z * u.y,
                 a.z * u.x - a.x * u.z,
@@ -2536,22 +2602,26 @@ mod tests {
             )
             .normalize();
             let turned = e.quarter_turned_where(1.0);
-            assert_eq!(bits(turned.frame.u_ref()), bits(base), "pose {k}");
+            assert_eq!(bits(turned.frame().u_ref()), bits(base), "pose {k}");
             assert_eq!(
-                bits(turned.frame.axis()),
+                bits(turned.frame().axis()),
                 bits(a),
                 "pose {k}: the axis is kept"
             );
             assert_eq!((turned.semi_u(), turned.semi_v()), (2.0, 5.0), "pose {k}");
             if bits(
-                geom_core::RigidMotion::squared_about(e.frame.origin(), e.frame.axis_unit(), base)
-                    .u()
-                    .get(),
+                geom_core::RigidMotion::squared_about(
+                    e.frame().origin(),
+                    e.frame().axis_unit(),
+                    base,
+                )
+                .u()
+                .get(),
             ) != bits(base)
             {
                 parted_squared += 1;
             }
-            if bits(e.frame.v_ref()) != bits(base) {
+            if bits(e.frame().v_ref()) != bits(base) {
                 parted_exact += 1;
             }
         }
@@ -2592,11 +2662,8 @@ mod tests {
             (-0.0, 0.0, x, 5.0),
             (0.0, -0.0, x, 5.0),
         ] {
-            let ellipse @ Ellipse {
-                frame: carrier_frame,
-                ..
-            } = e.as_ellipse().unwrap().seamed_toward(cos, sin);
-            let u_ref = carrier_frame.u_ref();
+            let ellipse = e.as_ellipse().unwrap().seamed_toward(cos, sin);
+            let u_ref = ellipse.frame().u_ref();
             let (u, v) = (ellipse.semi_u(), ellipse.semi_v());
             assert_eq!(
                 ((u_ref - seam).norm(), u, u + v),
@@ -2613,7 +2680,7 @@ mod tests {
             .as_ellipse()
             .unwrap()
             .quarter_turned_where(1.0)
-            .frame
+            .frame()
             .u_ref();
         assert!(
             (u_ref.norm() - 1.0).abs() <= ulp,
@@ -2729,12 +2796,9 @@ mod tests {
         #[test]
         fn ellipse_point_lies_on_locus(theta in -50.0..50.0f64) {
             let e = tilted_ellipse();
-            let Curve3::Ellipse(ellipse @ crate::Ellipse {
-                frame: carrier_frame,
-                ..
-            }) = e else {
+            let Curve3::Ellipse(ellipse) = e else {
                 panic!("fixture is an ellipse");
-            }; let (center, axis, u_ref) = (carrier_frame.origin(), carrier_frame.axis(), carrier_frame.u_ref());
+            }; let (center, axis, u_ref) = (ellipse.frame().origin(), ellipse.frame().axis(), ellipse.frame().u_ref());
             let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             let v_ref = axis.cross(u_ref);
             let p = e.eval(theta);
@@ -2751,12 +2815,9 @@ mod tests {
         #[test]
         fn ellipse_derivative_geometry(theta in -50.0..50.0f64) {
             let e = tilted_ellipse();
-            let Curve3::Ellipse(ellipse @ crate::Ellipse {
-                frame,
-                ..
-            }) = e else {
+            let Curve3::Ellipse(ellipse) = e else {
                 panic!("fixture is an ellipse");
-            }; let (center, axis) = (frame.origin(), frame.axis());
+            }; let (center, axis) = (ellipse.frame().origin(), ellipse.frame().axis());
             let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             let p = e.eval(theta);
             let d1 = e.deriv(theta);
@@ -3253,19 +3314,13 @@ mod tests {
         fn ellipse_residuals_enclose_zero() {
             let e = super::tilted_ellipse();
             let ei = e.map_scalar(geom_core::Interval::from_f64);
-            let Curve3::Ellipse(
-                ellipse @ crate::Ellipse {
-                    frame: carrier_frame_4,
-                    ..
-                },
-            ) = ei
-            else {
+            let Curve3::Ellipse(ellipse) = ei else {
                 panic!("fixture is an ellipse");
             };
             let (center, axis, u_ref) = (
-                carrier_frame_4.origin(),
-                carrier_frame_4.axis(),
-                carrier_frame_4.u_ref(),
+                ellipse.frame().origin(),
+                ellipse.frame().axis(),
+                ellipse.frame().u_ref(),
             );
             let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             let v_ref = axis.cross(u_ref);
@@ -3293,8 +3348,8 @@ mod tests {
     // ------------------------------------------------------------------
 
     #[test]
-    fn nurbs_placeholder_evaluates_to_poison() {
-        let n: Curve3<f64> = Curve3::nurbs_placeholder();
+    fn a_poisoned_nurbs_net_evaluates_to_poison() {
+        let n: Curve3<f64> = crate::test_support::poisoned_nurbs_segment();
         let p = n.eval(0.5);
         assert!(p.x.is_nan() && p.y.is_nan() && p.z.is_nan());
         let d = n.deriv(0.5);
@@ -3304,6 +3359,17 @@ mod tests {
         let (jp, jd) = n.ders1(0.5);
         assert!(jp.x.is_nan() && jp.y.is_nan() && jp.z.is_nan());
         assert!(jd.x.is_nan() && jd.y.is_nan() && jd.z.is_nan());
+        // The poison is the quiet NaN `from_f64(NAN)` mints, bit for bit,
+        // not some other NaN payload an evaluator's arithmetic produced.
+        let quiet = f64::NAN.to_bits();
+        for (what, v) in [("x", p.x), ("y", p.y), ("z", p.z), ("dx", d.x)] {
+            assert_eq!(v.to_bits(), quiet, "{what}: poison bits {:#x}", v.to_bits());
+        }
+        let d2 = n.deriv2(f64::NAN);
+        assert!(
+            d2.x.is_nan() && d2.y.is_nan() && d2.z.is_nan(),
+            "a poison parameter on a poisoned net"
+        );
     }
 
     /// A described NURBS fixture: the rational quadratic quarter circle
@@ -3321,10 +3387,9 @@ mod tests {
         Curve3::Nurbs(Arc::new(NurbsCurve3::new(knots, control, weights).unwrap()))
     }
 
-    /// A described NURBS lifts as its PAYLOAD, never as the placeholder:
-    /// the lifted curve's value channel is the source's evaluation bit
-    /// for bit, and its tangent channel is the source's closed-form
-    /// derivative to rounding.
+    /// A described NURBS lifts as its PAYLOAD: the lifted curve's value
+    /// channel is the source's evaluation bit for bit, and its tangent
+    /// channel is the source's closed-form derivative to rounding.
     #[test]
     fn described_nurbs_lifts_as_its_payload_at_dual() {
         let c = quarter_circle_nurbs();
@@ -3351,10 +3416,6 @@ mod tests {
                 );
             }
         }
-        assert!(
-            matches!(&cd, Curve3::Nurbs(n) if !n.is_placeholder()),
-            "a described NURBS lifted to the placeholder"
-        );
     }
 
     /// A described NURBS with the structure the quarter circle lacks:
@@ -3401,7 +3462,7 @@ mod tests {
     /// every weight — and the lifted curve evaluates to the source at
     /// every knot value, span boundary and span midpoint. A lift that
     /// perturbs an interior knot or a weight is red here and nowhere in
-    /// the placeholder-vs-payload rows above.
+    /// the payload rows above.
     #[test]
     fn knotted_nurbs_lift_carries_structure_verbatim_at_dual() {
         let c = knotted_curve();
@@ -3631,8 +3692,8 @@ mod tests {
             let c = super::tilted_circle();
             let ci = c.map_scalar(Interval::from_f64);
             let (center, axis, r) = match ci {
-                Curve3::Circle(circle @ crate::Circle { frame, .. }) => {
-                    let (center, axis) = (frame.origin(), frame.axis());
+                Curve3::Circle(circle) => {
+                    let (center, axis) = (circle.frame().origin(), circle.frame().axis());
                     let radius = circle.radius();
                     (center, axis, radius)
                 }
@@ -3697,13 +3758,13 @@ mod tests {
         }
 
         /// NaI in → NaI out (surfaced as NaN brackets through Bounds),
-        /// and the Nurbs placeholder poisons at interval type too.
+        /// and an all-poison Nurbs net poisons at interval type too.
         #[test]
         fn poison_propagates_at_interval() {
             let ci = super::xy_circle(2.0).map_scalar(Interval::from_f64);
             let p = ci.eval(Interval::from_f64(f64::NAN));
             assert!(p.x.lo().is_nan() && p.y.lo().is_nan() && p.z.lo().is_nan());
-            let n: Curve3<Interval> = Curve3::nurbs_placeholder();
+            let n: Curve3<Interval> = crate::test_support::poisoned_nurbs_segment();
             // All-poison, not first-channel-poison.
             let q = n.eval(Interval::zero());
             assert!(q.x.is_poison() && q.y.is_poison() && q.z.is_poison());
@@ -3733,10 +3794,6 @@ mod tests {
                     );
                 }
             }
-            assert!(
-                matches!(&ci, Curve3::Nurbs(n) if !n.is_placeholder()),
-                "a described NURBS lifted to the placeholder"
-            );
         }
 
         /// The interval half of the structure row: knots and weights
