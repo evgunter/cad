@@ -30,6 +30,7 @@
 //! at the pair (its points, `contact`'s certified parameter) is
 //! evaluated at `T` there.
 
+use geom_core::UnitVec3;
 use geom_core::k_stats::prove;
 use geom_core::{Decide, Lever, Margin, Point3, Sign, Vec3};
 
@@ -184,7 +185,7 @@ impl<T: Decide> Along<T> {
     /// `db`: `g = sin φ` between the tangents, `n̂ = da×db/|da×db|`, the
     /// slack `σ_w = |w − n̂(n̂·w)|` and the height `|w·n̂|`.
     pub(super) fn two_sided((p, da): (Point3<T>, Vec3<T>), (q, db): (Point3<T>, Vec3<T>)) -> Self {
-        let n = da.cross(db).normalize();
+        let n = UnitVec3::squared(da.cross(db));
         let (along, slack) = geom::Line { origin: p, dir: n }.height_and_distance(q);
         Self {
             g: da.normalize().cross(db.normalize()).norm(),

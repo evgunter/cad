@@ -40,8 +40,8 @@ use crate::validate::decide;
 pub(crate) const PAIR_AXIS: &str = "bool_pair_axis";
 
 /// K name: a planar face's normal, a pure number levered by the face's
-/// reach diagonal ([`UnitVec3::levered`]), before it is read as a unit
-/// axis.
+/// extent from below ([`planar_axis`], [`UnitVec3::levered`]), before it
+/// is read as a unit axis.
 pub(crate) const PAIR_NORMAL: &str = "bool_pair_normal";
 
 /// K name: two reaches' gap along a candidate direction, less both
@@ -99,7 +99,7 @@ impl<T: Real> Circle<T> {
 
 /// The outward normal of every planar face of `a` and of `b`
 /// ([`planar_axis`]): the candidate axes that turn with the operands.
-/// One the band cannot read, or a face with no reach, is left out,
+/// One the band cannot read, or a face with no certified boundary edge, is left out,
 /// which only drops a candidate. So is one whose `key` is a kept axis's, or its
 /// negation's: a gap along `−n` is the gap along `n` (a box's six faces
 /// give three axes). That merge is exact-identity de-duplication of one
@@ -130,12 +130,7 @@ pub(crate) fn face_axes<'b, T: Decide + 'b>(
     let mut axes: Vec<UnitVec3<T>> = Vec::new();
     let mut kept: Vec<[(f64, f64); 3]> = Vec::new();
     for (body, face) in faces {
-        let Some(unit) = planar_axis(
-            body,
-            face,
-            || crate::census::face_reach(body, face, band),
-            band,
-        ) else {
+        let Some(unit) = planar_axis(body, face, band) else {
             continue;
         };
         if let Some(key) = key {
@@ -159,26 +154,21 @@ pub(crate) fn world_axes<T: Decide>() -> [UnitVec3<T>; 3] {
     ]
 }
 
-/// A planar face's outward normal as a unit direction, levered by the
-/// diagonal of its reach `(lo, hi)`, the length it is consumed over.
-/// `None` for a face that is not planar, one with no reach, or a normal
-/// the band cannot read. The reach is read only once the face is known
-/// planar, so a curved face costs no reach here.
+/// A planar face's outward normal as a unit direction, levered by how
+/// far apart two of the face's points stand at least
+/// ([`crate::cover::face_extent_below`]), the length it is consumed
+/// over: the normal is a direction only where that reads definitely
+/// positive, so the length is read from below. `None` for a face that is
+/// not planar, one with no certified boundary edge, or a normal the band
+/// cannot read.
 pub(crate) fn planar_axis<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
-    reach: impl FnOnce() -> Option<(Point3<T>, Point3<T>)>,
     band: Band,
 ) -> Option<UnitVec3<T>> {
     let n = crate::face_normal::face_outward_normal(body, face)?;
-    let (lo, hi) = reach()?;
-    UnitVec3::levered(
-        n.vec(),
-        PAIR_NORMAL,
-        band,
-        geom_brep::ExtentBall::box_diagonal(lo, hi),
-    )
-    .ok()
+    let arm = crate::cover::face_extent_below(body, face)?;
+    UnitVec3::levered(n.vec(), PAIR_NORMAL, band, arm).ok()
 }
 
 /// What [`operand_axes`] compares two axes by: two equal keys are one
@@ -385,6 +375,7 @@ pub(crate) fn mean<T: Real>(points: impl IntoIterator<Item = Point3<T>>) -> Opti
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
+    use geom::Surface;
     use geom_core::{RigidMotion, Tol};
 
     use super::*;
@@ -417,6 +408,41 @@ mod tests {
             operand_axes(&cube, &turned, band, key).len(),
             6,
             "one ulp apart, kept"
+        );
+    }
+
+    /// **A planar face's normal is levered at the face's extent from
+    /// below**, its longest certified boundary edge's extent. The unit
+    /// cube's top: its edges are 1 long and its points stand up to `√2`
+    /// apart, so the arm is 1, not the face's diameter, and not less.
+    ///
+    /// The arm cannot turn a built face's verdict: a plane's normal is
+    /// unit by construction, and an edge shorter than the band's
+    /// escalation does not certify, so `|n|·arm` clears the band on every
+    /// face there is. The row pins the arm.
+    #[test]
+    fn a_planar_faces_normal_is_levered_at_its_extent_from_below() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let body = geometric_cube::<f64>(tol).body;
+        let top = body
+            .faces()
+            .map(|(k, _)| k)
+            .find(|&k| {
+                matches!(body.proven_face(k).surface(),
+                    Surface::Plane { frame } if frame.axis().z > 0.5)
+            })
+            .unwrap();
+        let arm = crate::cover::face_extent_below(&body, top)
+            .unwrap()
+            .length();
+        assert!(
+            (arm - 1.0).abs() < 1e-12,
+            "the top's arm is its edges' extent, 1, got {arm}"
+        );
+        assert!(
+            planar_axis(&body, top, band).is_some(),
+            "the top reads its normal"
         );
     }
 }

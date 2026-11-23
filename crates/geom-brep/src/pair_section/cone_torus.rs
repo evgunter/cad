@@ -191,7 +191,7 @@ impl<T: Decide> ConeTorusPose<T> {
             (Surface::Torus { .. }, &Surface::Cone { half_angle, .. }) => (b, a, false, half_angle),
             _ => return None,
         };
-        let cone_axis = cone.axis_line()?.unit();
+        let cone_axis = cone.axis_line()?;
         let ring = Ring::of(torus, band)?;
         Some((|| {
             let ring = ring.map_err(|refusal| match refusal {
@@ -221,7 +221,8 @@ impl<T: Decide> ConeTorusPose<T> {
                 AxisPose::Coaxial { slack, .. } => KtStance::Coaxial { slack },
                 AxisPose::Undecided(diag) => return Err(undecided(KtQuestion::Axis, diag)),
                 AxisPose::Parallel { .. } | AxisPose::Other => {
-                    let (contact, apex_off) = apex_on_torus(ring, apex, cone_axis.dir, sin, band)?;
+                    let (contact, apex_off) =
+                        apex_on_torus(ring, apex, cone_axis.dir.get(), sin, band)?;
                     match contact {
                         Some(contact) => KtStance::Apex(contact),
                         None => KtStance::Apart(
