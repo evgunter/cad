@@ -533,3 +533,44 @@ fn review_an_oblique_cut_through_a_wrapped_tip_holds_its_closed_form() {
         assert_eq!(shells, want_shells, "{what}: shells");
     }
 }
+
+/// PROBE (review of PR 7481): the EE records each side of a straight
+/// keel's split carries, and whether any pair is recorded twice.
+#[test]
+fn review_probe_straight_keel_records_once_per_pair() {
+    let tol = t();
+    let mut report = Vec::new();
+    for row in &ROWS {
+        for pose in poses().into_iter().take(1) {
+            let body = keeled(&pose, row.trenches);
+            for up in [true, false] {
+                let plane = plane_at(&pose, up);
+                let r = split(&body, &plane, tol).unwrap_or_else(|e| panic!("{}: {e:?}", row.what));
+                for (side, part) in [("above", &r.above), ("below", &r.below)] {
+                    let SplitPart::Body(b) = part else { continue };
+                    let rows = topo::FinishedBody::records(b).rows();
+                    let mut pairs: Vec<String> = rows
+                        .iter()
+                        .filter(|c| matches!(c.kind(), topo::ContactKind::EdgeEdge(..)))
+                        .map(|c| format!("{:?}", c.record.cells()))
+                        .collect();
+                    let n = pairs.len();
+                    pairs.sort();
+                    pairs.dedup();
+                    report.push(format!(
+                        "{} up={up} {side}: {} records, {n} EE, {} distinct EE pairs; rows {}",
+                        row.what,
+                        rows.len(),
+                        pairs.len(),
+                        r.coincidences.len()
+                    ));
+                    if n != pairs.len() {
+                        report.push("  ^^^ DUPLICATE".to_string());
+                    }
+                }
+            }
+        }
+    }
+    eprintln!("{}", report.join("\n"));
+    assert!(!report.iter().any(|l| l.contains("DUPLICATE")), "{}", report.join("\n"));
+}

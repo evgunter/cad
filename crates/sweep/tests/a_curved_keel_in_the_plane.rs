@@ -342,3 +342,53 @@ fn a_round_keel_in_the_plane_reads_the_side_it_is_read_from_row() {
         }
     }
 }
+
+/// PROBE (review of PR 7481): the slit/ring at the band's edge.
+#[test]
+fn review_probe_curved_keel_at_the_bands_edge() {
+    let mut out = Vec::new();
+    for turn in [60.0, -20.0] {
+        for s in [0.9, -0.9, 0.99, -0.99, 12.0, -12.0] {
+            let body = finished("the body", keeled(s, turn), tol());
+            for up in [1.0, -1.0] {
+                let what = format!("turn {turn} tip {s}ε up {up}");
+                let plane = topo::test_support::split_plane(
+                    Point3::new(0.0, 1.0, 0.0),
+                    Vec3::new(0.0, up, 0.0),
+                    tol(),
+                );
+                match topo::split(&body, &plane, tol()) {
+                    Err(e) => out.push(format!("{what}: refuses {e:?}")),
+                    Ok(cut) => {
+                        let mut line = format!("{what}: builds, rows {}", cut.coincidences.len());
+                        for (side, part) in [("above", &cut.above), ("below", &cut.below)] {
+                            let topo::SplitPart::Body(half) = part else {
+                                line += &format!("; {side} empty");
+                                continue;
+                            };
+                            let ee = half
+                                .records()
+                                .rows()
+                                .iter()
+                                .filter(|r| matches!(r.kind(), topo::ContactKind::EdgeEdge(..)))
+                                .count();
+                            let t3p = topo::validate_pseudomanifold(half, half.records(), tol());
+                            let t3n = topo::validate_pseudomanifold(
+                                half,
+                                &topo::ContactRecords::default(),
+                                tol(),
+                            );
+                            line += &format!(
+                                "; {side}: {ee} EE, 3' own {}, 3' none {}",
+                                if t3p.is_ok() { "ok" } else { "ERR" },
+                                if t3n.is_ok() { "ok" } else { "ERR" }
+                            );
+                        }
+                        out.push(line);
+                    }
+                }
+            }
+        }
+    }
+    eprintln!("{}", out.join("\n"));
+}
