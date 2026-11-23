@@ -507,9 +507,10 @@ fn the_stand_off_is_decided_on_the_runs_band() {
 ///   and 2 read nothing, and limb 3 refuses, its boxes cut to the knot
 ///   rectangle: four solutions on their boundary, the arc leaving and
 ///   coming back;
-/// - where a reading falls in the dip, the image holds the rim there (the
-///   foot path's breaks are knots of the image) and limb 1 or 2 reads the
-///   carrier off the wall, escalating in the band and refusing past it.
+/// - where a reading falls in the dip, the image takes knots there until
+///   it holds the path the rim holds, to its share of the carrier's
+///   standoff, and limb 1 or 2 reads the carrier off the wall, escalating
+///   in the band and refusing past it.
 ///
 /// An arc a micrometre inside the rim certifies.
 ///

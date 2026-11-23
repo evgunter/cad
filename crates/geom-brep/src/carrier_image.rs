@@ -35,9 +35,9 @@
 //!   the carrier's standoff there where that is the larger, is the image. Otherwise each
 //!   knot span holding a larger one takes a knot at its middle, or,
 //!   where the path crosses a knot line of the wall there across which
-//!   the wall is less smooth than the image, or meets a side of the
-//!   wall's rectangle, a knot at that break of the multiplicity that
-//!   leaves the image as smooth as the path ([`crossing`]); the feet are followed again, at most
+//!   the wall is less smooth than the image, a knot at the crossing of
+//!   the multiplicity that leaves the image as smooth as the wall
+//!   ([`crossing`]); the feet are followed again, at most
 //!   [`IMAGE_ROUNDS`] times. Past that the image is refused with the
 //!   miss it read ([`ImageRefusal::Miss`]).
 //!
@@ -391,13 +391,7 @@ where
                 continue;
             }
             worst = worst.max(miss);
-            match crossing(
-                &read,
-                wall,
-                (&lines, degree, band),
-                (pair[0], pair[1]),
-                &feet,
-            ) {
+            match crossing(&read, wall, &lines, (pair[0], pair[1])) {
                 Some(crease) => creases.push(crease),
                 None => add.extend(span_middle(&chain, at)),
             }
@@ -461,68 +455,26 @@ fn knot_lines<T: geom_core::Real>(wall: &NurbsSurface<T>, degree: usize) -> Vec<
         .collect()
 }
 
-/// **Where the path breaks between two feet**: where it crosses a knot
-/// line of the wall, or meets or leaves a side of the wall's rectangle
-/// (a foot the side holds stops moving across it, a kink of the path).
-/// A side the path's own end lies on, or one the wall closes across, is
-/// no break. The unit fraction of the break, found by halving the way between the
+/// **Where the path crosses a line of the wall between two feet**: the
+/// unit fraction of the crossing, found by halving the way between the
 /// feet [`CROSSING_HALVINGS`] times with the path followed to each
-/// middle, and the multiplicity a knot of the image takes there: a knot
-/// line's, or the image's degree at a side. `None` where the feet lie on
-/// one side of every line and both on or both off every side, or a
-/// middle's foot is not reached. Of two breaks, the first listed, knot
-/// lines before sides.
+/// middle, and the line's multiplicity. `None` where the feet lie on
+/// one side of every line, or a middle's foot is not reached. Of two
+/// lines crossed, the first listed.
 fn crossing<T>(
     read: &Read<'_, T>,
     wall: &NurbsSurface<T>,
-    (lines, degree, band): (&[KnotLine], usize, Band),
+    lines: &[KnotLine],
     (a, b): (Foot, Foot),
-    feet: &[Foot],
 ) -> Option<(f64, usize)>
 where
     T: Decide + Bounds + geom_core::CertifiedEnclosure,
 {
     let along = |f: &Foot, axis: usize| if axis == 0 { f.uv.x } else { f.uv.y };
-    let sides = [
-        wall.knots_u_f64_interim().domain(),
-        wall.knots_v_f64_interim().domain(),
-    ];
-    // What a foot reads of the break: its side of a line, or whether a
-    // side of the rectangle holds it.
-    let (reading, multiplicity): (Box<dyn Fn(&Foot) -> bool>, usize) = match lines
+    let &(axis, k, multiplicity) = lines
         .iter()
-        .find(|(axis, k, _)| (along(&a, *axis) - k) * (along(&b, *axis) - k) < 0.0)
-    {
-        Some(&(axis, k, multiplicity)) => (Box::new(move |f| along(f, axis) > k), multiplicity),
-        None => {
-            let (first, last) = (feet.first()?, feet.last()?);
-            let (axis, side) = (0..2)
-                .flat_map(|axis| {
-                    let (lo, hi) = sides[axis];
-                    [(axis, lo, hi), (axis, hi, lo)]
-                })
-                .find(|&(axis, side, far)| {
-                    let held = |f: &Foot| along(f, axis) == side;
-                    // A side the path's own end lies on holds that end,
-                    // no break of the path inside it.
-                    let end = if held(&a) { first } else { last };
-                    held(&a) != held(&b) && !held(end) && {
-                        // A side the wall closes across holds nothing:
-                        // the path goes on from its far side.
-                        let on = if held(&a) { a.uv } else { b.uv };
-                        let across = if axis == 0 {
-                            Point2::new(far, on.y)
-                        } else {
-                            Point2::new(on.x, far)
-                        };
-                        !closes(wall, on, across, band)
-                    }
-                })
-                .map(|(axis, side, _)| (axis, side))?;
-            (Box::new(move |f| along(f, axis) == side), degree)
-        }
-    };
-    let start = reading(&a);
+        .find(|(axis, k, _)| (along(&a, *axis) - k) * (along(&b, *axis) - k) < 0.0)?;
+    let start = along(&a, axis) > k;
     let (mut near, mut far) = (a, b);
     for _ in 0..CROSSING_HALVINGS {
         let at = 0.5 * (near.at + far.at);
@@ -530,7 +482,7 @@ where
             break;
         }
         let foot = follow(read, wall, near, at, FOLLOW_HALVINGS).ok()?;
-        if reading(&foot) == start {
+        if (along(&foot, axis) > k) == start {
             near = foot;
         } else {
             far = foot;
