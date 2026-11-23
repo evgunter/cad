@@ -59,3 +59,16 @@ description puts it moves the edge by `√(2·r·g)`, which is not O(ε_in).
 A ruling between (a) and (b). Under (b), the build's tangent arm reads
 the printed carrier on its surfaces and the vertex readings follow.
 Under (a), this row closes as the file's, with `nist_ftc_09`'s row.
+
+## 2026-11-23 (GERM): `nist_ftc_09` no longer reaches these edges
+
+Since PR 7171 the snap refuses a pair it reads in the file's band. The file
+has a sixth fillet: cylinder `#5130` on plane `#5116`, along edge `#5118`,
+bites by 56.8 µm, which lies in the file's band. The snap refuses it at `#5130`
+(`step_snap_relation`) before any tangency is made exact. The build reads
+the same gap at `#5118` (`step_edge_on_description`, `Ambiguous`). So
+`nist_ftc_09` refuses under (a) and (b) alike. The table above was measured
+before that and stays true of the file. The pins it cites are re-aimed at
+`#5130` (`work/germ/main-red-axis-normal-snap-refuses-nist-ftc-09.md`), so
+no row in the tree now witnesses a printed crossing line read off a
+snapped tangency. A ruling on (b) would need its own witness.
