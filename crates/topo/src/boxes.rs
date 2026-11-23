@@ -3021,7 +3021,7 @@ pub(crate) mod tests {
         let at = Point3::new(1.0, 2.0, 3.0);
         let line = Curve3::Line(geom::Line {
             origin: at,
-            dir: Vec3::new(1.0, 0.0, 0.0),
+            dir: geom::stated_direction(Vec3::new(1.0, 0.0, 0.0)),
         });
         let circle = Curve3::circle(at, n, 2.0, Vec3::new(1.0, 0.0, 0.0));
         for (what, carrier, span) in [

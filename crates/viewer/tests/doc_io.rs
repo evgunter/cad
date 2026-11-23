@@ -511,15 +511,18 @@ fn saving_as_a_new_document_from_the_refusal_forks_at_the_chosen_name() {
         .perform(SessionOp::Save(copy.clone()))
         .refusal
         .expect("beside the original, a save refuses");
-    let choice = refusal.save_choice().expect("the refusal offers a choice");
+    let commits = viewer::test_support::refusal_commits(&refusal);
+    let [over, fork] = &commits[..] else {
+        panic!("the refusal offers its two saves: {commits:?}")
+    };
     assert!(
-        matches!(choice.over(), SessionOp::Save(ref path) if *path == file),
+        matches!(over.op, SessionOp::Save(ref path) if *path == file),
         "one way on saves over the original"
     );
-    assert_eq!(choice.over_label(), "Save over plate.pncad");
-    assert_eq!(choice.fork_label(), "Save copy.pncad as a new document");
+    assert_eq!(over.label, "Save over plate.pncad");
+    assert_eq!(fork.label, "Save copy.pncad as a new document");
 
-    let forked = session.perform(choice.fork());
+    let forked = session.perform(fork.op.clone());
     assert!(
         forked.refusal.is_none(),
         "the fork lands: {:?}",

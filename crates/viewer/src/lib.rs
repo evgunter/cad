@@ -98,6 +98,7 @@ pub mod platform;
 pub mod prefs;
 pub mod props;
 pub mod readout;
+pub mod recourse;
 pub mod relations;
 pub mod scene;
 pub mod screen;

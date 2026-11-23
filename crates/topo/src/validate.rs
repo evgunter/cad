@@ -388,6 +388,7 @@
 
 pub(crate) use crate::rows::WedgeNames;
 use core::fmt;
+use geom_core::UnitVec3;
 use std::borrow::Cow;
 
 use geom::{NetState, Surface};
@@ -9994,7 +9995,7 @@ fn segments_meet<T: Decide>(
         }
         (MeetSegment::Line { a, b }, arc @ MeetSegment::Arc { center, radius, .. })
         | (arc @ MeetSegment::Arc { center, radius, .. }, MeetSegment::Line { a, b }) => {
-            let e = (b - a).normalize();
+            let e = UnitVec3::squared(b - a);
             // The foot of the centre on the line, and the half-chord
             // either side of it.
             let foot = geom::Line { origin: a, dir: e }.foot(center);
@@ -10003,9 +10004,10 @@ fn segments_meet<T: Decide>(
             let (existence, candidates) =
                 match decide("ring_outer_meet_reach", Margin::of(radius - h), band) {
                     Ok(Sign::Negative) => return EdgePair::Apart,
-                    Ok(Sign::Positive) => {
-                        (None, vec![foot + e * half_chord, foot - e * half_chord])
-                    }
+                    Ok(Sign::Positive) => (
+                        None,
+                        vec![foot + e.get() * half_chord, foot - e.get() * half_chord],
+                    ),
                     // Tangent within the band: the foot is the touching
                     // point, and the two chord ends — as far apart as
                     // `√(2·r·band)` — are asked as well, so a crossing
@@ -10013,11 +10015,19 @@ fn segments_meet<T: Decide>(
                     // itself misses.
                     Ok(Sign::Zero) => (
                         None,
-                        vec![foot, foot + e * half_chord, foot - e * half_chord],
+                        vec![
+                            foot,
+                            foot + e.get() * half_chord,
+                            foot - e.get() * half_chord,
+                        ],
                     ),
                     Err(source) => (
                         Some(source),
-                        vec![foot, foot + e * half_chord, foot - e * half_chord],
+                        vec![
+                            foot,
+                            foot + e.get() * half_chord,
+                            foot - e.get() * half_chord,
+                        ],
                     ),
                 };
             meet_at(
@@ -10250,7 +10260,7 @@ fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Ban
             let len = (b - a).norm();
             let s0 = geom::Line {
                 origin: a,
-                dir: (b - a).normalize(),
+                dir: UnitVec3::squared(b - a),
             }
             .param(p);
             let spans = [
@@ -10472,7 +10482,7 @@ fn locus_gap<T: Real>(carrier: &geom::Curve3<T>, p: geom_core::Point3<T>) -> Opt
         // The distance from a point to a full circle: the in-plane
         // radial defect and the out-of-plane offset, in quadrature.
         geom::Curve3::Circle(circle) => {
-            let (center, axis) = (circle.frame().origin(), circle.frame().axis());
+            let (center, axis) = (circle.frame().origin(), circle.frame().axis_unit());
             let radius = circle.radius();
             let (along, rho) = geom::Line {
                 origin: center,
