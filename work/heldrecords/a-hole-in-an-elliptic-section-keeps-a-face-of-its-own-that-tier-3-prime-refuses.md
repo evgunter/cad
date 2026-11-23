@@ -57,3 +57,20 @@ lift the tilted arm of that test's 3′ pin.
 ## Moved (2026-10-28, SPLITDOOR)
 
 - Moved to HELDRECORDS (`work/heldrecords/`) by `git mv`, id and body unchanged: SPLITDOOR's seam cut put the records chain Ev ratified on PR 5967 on a track of its own (`work/README.md` Track size).
+
+## 2026-11-22 — fixed on `heldrecords/nesting`
+
+`section_loops::outlines_disjoint` reads a pair with an ellipse edge
+with the curve-pair meeting reader `geom_brep::curve_pair::meet` over
+the two edges' spans: apart where it reads no meeting and no shared run
+(`edges_clear`). `line_clears_conic` and `conics_clear`, which read the
+whole carriers, are gone: `meet` decides each case they decided in
+the rows and the split suites. The square hole
+nests as a ring of the ellipse's face at 15°, and both arms of
+`a_keel_ring_on_an_island_in_a_hole_nests_on_the_island` pass tier 3′
+with no records, trench or no trench, at ε 1e-6, 1e-9 and 1e-12.
+
+A hole the rule still cannot place, or one the ring guard turns away,
+now refuses `SplitFinishError::UnplacedHole` instead of keeping a face
+of its own over the outline's. The "sound by cancellation" allowance
+is retired. Nothing in the topo, sweep or editor-core suites needed it.

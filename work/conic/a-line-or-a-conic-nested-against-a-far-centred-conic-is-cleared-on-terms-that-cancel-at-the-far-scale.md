@@ -88,3 +88,16 @@ stored); a plain `c + u·a` still rounds at `u·far`.
 ## Moved to CONIC (2026-11-23)
 
 Moved from ONEROUND by `git mv` when that track was split on Ev's answer to PR 7523 (`work/conic/log.md`); the id and the body above are unchanged.
+
+## 2026-11-23 — both sites removed (HELDRECORDS, PR 7436)
+
+PR 7436 (`heldrecords/nesting`) deletes `line_clears_conic` and
+`conics_clear`. `outlines_disjoint` now reads every pair with an
+ellipse edge through `geom_brep::curve_pair::meet` over the two edges'
+spans (`section_loops::edges_clear`), and nothing reads the whole
+carriers. What this row owes at those two sites is gone with them. The
+pose family here now reaches the nesting through `meet`'s line–conic
+and conic–conic closed forms (`curve_pair::pose`). Whether those read
+a far-centred conic soundly is the question
+`a-conics-point-is-evaluated-from-its-far-centre-not-its-vertex` lists
+them under, so it moves there. Not probed at far scale here.

@@ -78,15 +78,18 @@
 //!   refuses typed).
 //!   **At rest, `topo`'s tier-3 check 1 certifies what moves a
 //!   locus a datum can lever**: no direction may be the zero vector,
-//!   and the `axis`/`u_ref` frame of a cylinder, sphere, torus, circle,
-//!   ellipse or spiric must be unit and orthogonal to within the run's
-//!   ε of locus movement at the kind's radius
+//!   and each scalar datum lies inside its convention (a radius above
+//!   zero, a cone's half-angle inside `(0, π/2)`)
 //!   ([`Surface::representability_margins`],
-//!   [`Curve3::representability_margins`]). It does NOT margin a
-//!   line's `dir`, unit by its type, or a plane's unit `normal`/`u_ref`
-//!   — each spans the same locus at any length — nor a plane's `u_ref ⊥ normal` or
-//!   a cone's frame, whose locus movement grows with the face's extent
-//!   rather than with a stored datum. A spline's stored datum is its
+//!   [`Curve3::representability_margins`]). It reads no frame: the
+//!   `axis`/`u_ref` frame of a cylinder, cone, sphere, torus, circle,
+//!   ellipse or spiric is a [`Frame`], a `RigidMotion`, unit and square
+//!   by its type (fork 274 decision 1), so no gate reads it back from
+//!   its entries. At an enclosure scalar those entries enclose a
+//!   rotation; at `f64` they hold one to their rounding, which the
+//!   readers that lever it charge ([`Frame::rounding`]). Nor does it
+//!   certify a line's `dir`, unit by its type, or a plane's unit
+//!   `normal` — each spans the same locus at any length. A spline's stored datum is its
 //!   control net, and the same check refuses a net — a face's or an
 //!   edge carrier's — carrying a control point that is not a finite
 //!   number (NaN or `±∞`); its weights and knots are refused
@@ -187,7 +190,7 @@ pub use azimuth::{
 pub use chart_point::{
     ChannelRead, ChartAngle, ChartArm, ChartChannels, ChartInverse, ChartPoint, NoClosedInverse,
 };
-pub use convention::{ConventionEnd, ConventionMeasure, RepresentabilityMargin, SquareFrame};
+pub use convention::{ConventionEnd, RepresentabilityMargin, SquareFrame};
 pub use curves::second_derivative::{SecondDerivativeUnbounded, nonrational_second_derivative_sup};
 #[cfg(any(test, feature = "test-support"))]
 pub use curves::stated_direction;
