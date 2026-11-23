@@ -768,10 +768,10 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/topo/src/injective.rs",
-        217,
-        105,
-        "the 105 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
-         `ends_on_collapse` (3), the focal image's four (10, below), \
+        214,
+        102,
+        "the 102 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
+         `ends_on_collapse` (3), the focal image's three (7, below), \
          `present_chart` (22), the pose's four (17, below), \
          `present_plane` (11), `present_plane_corner` (7), `present_vertex_corner` (12), \
          `Trig::psi` (3), `iso_params` (4) and `segment_params` (4). `iso_params` and \
@@ -795,12 +795,12 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          against its extent, a line it takes only where its value `is_certified()` and places \
          by whole turns, which keeps it certified. `ends_on_collapse` reads \
          an edge's held coordinate (1) and its image's end (2) behind its own `is_certified()` \
-         ask, to hand them to the incidence decision. The focal image's four: `Focal::of` reads \
-         `β`'s two ends against `±1` (2) behind its ask of every number; `Focal::azimuth_at` \
-         the low end of `1 − β·cos E` (1) and `Focal::rate` its denominator's (1), each \
-         behind its own ask and each answering the whole line otherwise; `Focal::on` the \
-         piece's two parameters (2), a parameter read, and the two end evaluations' ends (4, \
-         two per sense), a hull it forms only where both evaluations certify. Of the other 112, \
+         ask, to hand them to the incidence decision. The focal image's three: `Focal::of` reads \
+         `β`'s two ends against `±1` (2) behind its ask of every number; `Focal::rate` its \
+         denominator's low end (1) behind its own ask, answering the whole line otherwise; \
+         `Focal::on` the piece's two parameters (2), a parameter read, and the stored chart \
+         box's two bounds' outer ends (2), a hull it forms only where both bounds certify. \
+         Of the other 112, \
          `reaching_its_singular_points`' 4 \
          read the ends of a singular latitude, a sphere pole's `±π/2` or a cone apex's `0`, to \
          compare the stored extent with it and move the extent to it: the constant's own \
