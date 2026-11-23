@@ -495,16 +495,11 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
                 .height_and_distance(y);
                 Self::arc_place((edge.t0, edge.t1), (rho - major, h), minor, band)
             }
-            geom::Curve3::Circle(
-                conic_k @ geom::Circle {
-                    frame: carrier_frame_46,
-                    ..
-                },
-            ) => {
+            geom::Curve3::Circle(conic_k) => {
                 let (center, axis, u_ref) = (
-                    carrier_frame_46.origin(),
-                    carrier_frame_46.axis(),
-                    carrier_frame_46.u_ref(),
+                    conic_k.frame().origin(),
+                    conic_k.frame().axis(),
+                    conic_k.frame().u_ref(),
                 );
                 let radius = conic_k.radius();
                 let w = y - center;

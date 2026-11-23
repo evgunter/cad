@@ -173,7 +173,6 @@
 //! weights, once per combination
 //! ([`geom_core::spline::CurvePlan::apply_rational`]).
 
-use core::num::NonZeroUsize;
 use geom_core::spline::ProjectiveScalar;
 use geom_core::spline::{
     self, KnotAlgebraError, KnotSpan, KnotVector, Knots, Span, SpanLocate, SplineError, Weights,
@@ -690,8 +689,8 @@ macro_rules! nurbs_curve {
             /// keeps every value's point (`Real::from_f64`,
             /// `Dual::constant`, an interval's point), and then the
             /// lifted curve evaluates to the source and its structure is
-            /// still its values' value channel. What the placeholder and
-            /// a poisoned net lift to is argued once, in
+            /// still its values' value channel. What a poisoned net
+            /// lifts to is argued once, in
             /// `crate::scalar_lift`'s module docs.
             #[must_use]
             pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> $Curve<U> {
@@ -2234,43 +2233,6 @@ impl<T: geom_core::CertifiedBounds> NurbsCurve2<T> {
     /// body.
     pub fn certified_coords(&self) -> Vec<Vec<Interval>> {
         net::certified_coords(&self.control)
-    }
-}
-
-impl<T: Real> NurbsCurve3<T> {
-    /// The "no description yet" placeholder payload for
-    /// [`crate::curves::Curve3::Nurbs`]: a structurally valid degree-1 segment
-    /// whose control points are all-poison, so every evaluation yields
-    /// the all-poison point — bit-for-bit the totality behavior the
-    /// former unit placeholder variant had (representable ≠ described;
-    /// fails every downstream certification loudly, D4 ¶2).
-    pub fn placeholder() -> Self {
-        let p = net::poison_point::<T, Point3<T>>();
-        Self {
-            // Structurally valid by construction: clamped degree-1
-            // vector, two positive weights, two control points.
-            knots: Knots::lift(
-                &Knots::from(KnotVector::unit_segment(NonZeroUsize::MIN)),
-                T::from_f64,
-            ),
-            control: vec![p, p],
-            weights: Weights::from_point_parts(vec![T::one(), T::one()], vec![1.0, 1.0]),
-            speed: OnceLock::new(),
-            speed_sup: OnceLock::new(),
-            accel: OnceLock::new(),
-            accel_spans: OnceLock::new(),
-            spans: None,
-        }
-    }
-
-    /// Is this payload the [`NurbsCurve3::placeholder`] — the "no
-    /// description yet" state — rather than a described curve?
-    ///
-    /// The discriminator and the reason it is `all` and not
-    /// `any` are the crate docs' totality-and-poison section;
-    /// the surface and curve halves answer it identically.
-    pub fn is_placeholder(&self) -> bool {
-        net::is_placeholder(&self.control)
     }
 }
 
