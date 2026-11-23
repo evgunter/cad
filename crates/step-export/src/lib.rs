@@ -105,8 +105,8 @@
 //! honest would be lost; `OFFSET_SURFACE` is its own conversation).
 //! A DESCRIBED NURBS surface exports natively as
 //! `B_SPLINE_SURFACE_WITH_KNOTS` since M6-3 (the loft walls; the
-//! rational complex instance for weighted nets), and a described
-//! NURBS carrier as `B_SPLINE_CURVE_WITH_KNOTS` (the loft seams).
+//! rational complex instance for weighted nets), and a NURBS carrier
+//! as `B_SPLINE_CURVE_WITH_KNOTS` (the loft seams).
 //!
 //! # Export only — reading is `step-import`'s
 //!
@@ -273,11 +273,10 @@ pub enum StepExportError {
         /// The surface variant's name.
         kind: &'static str,
     },
-    /// An edge's certified carrier has no printer. Since M5 PR 13
-    /// every `Curve3` kind prints (line, circle, ellipse, NURBS), so
-    /// the one live case is the "no description yet" NURBS carrier
-    /// placeholder — the curve-side twin of the surface placeholder,
-    /// a mid-surgery fact rather than a subset boundary.
+    /// An edge's certified carrier cannot be printed: a spiric whose
+    /// export-only interpolant refuses or misses the run's tolerance
+    /// under the node cap, or a periodic cubic read whole rather than
+    /// through an edge's clamped view.
     UnsupportedCurve {
         /// The edge whose carrier is out of subset.
         edge: EdgeKey,
@@ -358,8 +357,8 @@ impl StepExportError {
             ),
             Self::UnsupportedCurve { edge, kind } => write!(
                 f,
-                "step export: edge {edge:?}'s carrier ({kind}) has no printer in the \
-                 analytic subset (every described carrier prints; a placeholder does not)"
+                "step export: edge {edge:?}'s carrier ({kind}) cannot be printed in the \
+                 analytic subset"
             ),
             Self::NullScaffoldEdge { edge } => write!(
                 f,

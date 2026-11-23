@@ -365,7 +365,7 @@ impl<T: Real> RadialReach<T> {
                     hi: r.hi.max(at),
                     lo: r.lo.min(at),
                 });
-                if let SegmentKind::Arc { arc, turn } = s.kind {
+                if let SegmentKind::Arc { arc, turn, .. } = s.kind {
                     let toward = |toward: Vec2<T>| {
                         let p = arc.centre + toward * arc.radius;
                         let held = T::zero() - turn_past(s.start, arc, turn, toward);
@@ -630,7 +630,7 @@ pub(super) fn classify_segment<T: Decide>(
     // chord deltas and flipped turns, so `reverse` undoes it exactly.
     let canonical = |sign: Sign| if reverse { sign.flip() } else { sign };
     match s.kind.get() {
-        SegmentKind::Line => {
+        SegmentKind::Line { .. } => {
             if va.pinned && vb.pinned {
                 return Ok(WallClass::OnAxis);
             }
@@ -672,7 +672,7 @@ pub(super) fn classify_segment<T: Decide>(
                 sense: !matches!(canonical(sz), Sign::Negative),
             })
         }
-        SegmentKind::Arc { arc, turn } => {
+        SegmentKind::Arc { arc, turn, .. } => {
             let Arc2 { centre, radius, .. } = arc;
             // Arc walls' sense (doc above), through the shared rule —
             // the same body extrude's cylinder walls read.

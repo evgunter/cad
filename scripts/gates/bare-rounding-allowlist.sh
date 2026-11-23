@@ -34,6 +34,9 @@
 # top-level one, and `running` alone, never imported, is another crate's
 # module; a
 # type (`Rounded`) by a construction, `Rounded::…` or `Rounded { … }`,
+# a charging method of it (a `pub fn with_…` declared in `running`'s
+# impls, which adds a charge to a bound) by every call, `.with_…(` or
+# `::with_…(`,
 # or a qualified path `<Rounded<T>>::…`, never by naming it in a
 # signature. Bare, a door counts where a `use` or a `type` alias in scope
 # binds it (its block, or the file for a top-level one; an `as` rename
@@ -96,8 +99,8 @@
 # under another name, a crate-local constant, function, field or
 # variable carrying a charge (its making is a site; its uses are not,
 # so one `noise` read by three decisions is one site), a `Rounded` value
-# carried through arithmetic or its methods (only the paths that make
-# one are counted), a door re-exported by a crate other than geom-core,
+# carried through arithmetic or its non-charging methods (only the paths that make
+# one, and its charging methods, are counted), a door re-exported by a crate other than geom-core,
 # a bare generic door bound by an import in a parent file and reached
 # through `use super::*`, a bare door fn passed point-free, a type alias
 # naming a door through another alias, and a `pub(…)`-restricted item
@@ -285,11 +288,14 @@ def doors():
     for need in (RUNNING, LIB):
         if not os.path.isfile(need):
             sys.exit(f"REFUSED {need} is missing: the charge doors cannot be read")
-    kinds, odd = {}, []
+    kinds, odd, methods = {}, [], set()
     text = read_stripped(RUNNING)
     for at, where in pub_tokens(text):
         m = re.match(r"pub\b(\s*\([^)]*\))?\s*([^\n]*)", text[at:])
         if where == "nested":
+            charging = re.match(r"fn\s+(with_\w+)\b", m.group(2))
+            if charging and not m.group(1):
+                methods.add(charging.group(1))
             continue
         if where == "macro":
             odd.append(f"UNRECOGNISED {RUNNING}: `pub {m.group(2).strip()}` sits in a macro's body, which this gate cannot read for a door")
@@ -322,10 +328,10 @@ def doors():
                 root[alias or rest[0]] = rest[0]
             else:
                 odd.append(f"UNRECOGNISED {LIB}: `pub use {'::'.join(segs)}` re-exports no door of `running`")
-    return kinds, root, rmods, odd
+    return kinds, root, rmods, odd, methods
 
 
-DOORS, ROOT, RMODS, ODD = doors()
+DOORS, ROOT, RMODS, ODD, METHODS = doors()
 
 
 def blocks(text):
@@ -448,6 +454,10 @@ def sites(text):
     code = USE.sub(lambda m: " " * len(m.group(0)), text)
     n = len(code)
     at = {m.start() for m in FIXED.finditer(code)}
+    # A charging method (`Rounded::with_…`) is a site at every call: it
+    # adds a charge to a bound without constructing one.
+    for name in METHODS:
+        at |= {m.start(1) for m in re.finditer(r"(?:\.|::)\s*(" + re.escape(name) + r")\s*\(", code)}
     # A path is a site at its door's name, so a path read two ways (a
     # crate alias's `gc::running::dot` and a module's `running::dot`)
     # is one site.
@@ -710,6 +720,12 @@ plant_attributed_reexport() {
   add_clean "$1" 'pub fn pad(x: f64) -> f64 { x * geom_core::HIDDEN_UNITS }'
 }
 
+# A charging method adds a charge without a construction: each call is a site.
+plant_charging_method() {
+  printf 'impl Rounded {\n    pub fn with_charge(self, c: f64) -> Self { self }\n}\n' >> "$1/crates/geom-core/src/running.rs"
+  add_clean "$1" 'pub fn pad(r: R) -> R { r.with_charge(1.0) }'
+}
+
 plant_unrecognised_item() { printf 'pub mod inner {}\n' >> "$1/crates/geom-core/src/running.rs"; }
 plant_unrecognised_root() { printf 'pub use running::private_helper;\n' >> "$1/crates/geom-core/src/lib.rs"; }
 
@@ -733,6 +749,7 @@ gate_selftest() {
   done
   gate_selftest_passes "a const fn door at its count" plant_const_fn_door
   gate_selftest_case "UNLISTED" plant_attributed_door
+  gate_selftest_case "UNLISTED" plant_charging_method
   gate_selftest_case "UNRECOGNISED" plant_macro_rules_door
   gate_selftest_case "UNRECOGNISED" plant_macro_call_door
   gate_selftest_passes "an alias used outside its own scope" plant_alias_out_of_scope
@@ -751,7 +768,7 @@ gate_selftest() {
   gate_selftest_case "UNLISTED crates/clean/src/lib.rs (test)" plant_test_module_as_prod
   gate_selftest_passes "a listed site" plant_listed
   gate_selftest_passes "a comment, a string and geom-core's own" plant_not_sites
-  printf '%s selftest OK: passes a clean fixture, a listed site, a compound reason, comments, strings and geom-core itself, a generic door name counted only under its import in scope (a method of that name inside the scope not counted), and an import, a restricted item or a door type named in a signature, a generic list or <Vec<Rounded>>:: or a turbofish alone; fires on an unlisted site of each spelling (bare f64::EPSILON and UNIT_ROUNDOFF, a rounding_charge call, a Rounded path, a carrier_resolution call, direction_rounding and a constant the gate never names, a door declared in the fixture running module as a fn or a type alias), passing a const fn door at its exact count and a path read two ways at a count of one, an alias used outside its scope and the running module of another crate not counted, through each binding (a door alias, a running module alias, {self as r}, a running glob, a root glob, a crate alias, a type alias, a qualified path), through each root spelling (a re-export, renamed, through crate::), on an attributed one-line door and re-export, an indirect crate alias, on an unrecognised running item or root re-export, a pub item made by macro_rules! or a macro call, an oracle inside a compound reason, a stale row, an oracle in production and a test module counted as production\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture, a listed site, a compound reason, comments, strings and geom-core itself, a generic door name counted only under its import in scope (a method of that name inside the scope not counted), and an import, a restricted item or a door type named in a signature, a generic list or <Vec<Rounded>>:: or a turbofish alone; fires on an unlisted site of each spelling (bare f64::EPSILON and UNIT_ROUNDOFF, a rounding_charge call, a Rounded path, a carrier_resolution call, direction_rounding and a constant the gate never names, a door declared in the fixture running module as a fn or a type alias), passing a const fn door at its exact count and a path read two ways at a count of one, an alias used outside its scope and the running module of another crate not counted, through each binding (a door alias, a running module alias, {self as r}, a running glob, a root glob, a crate alias, a type alias, a qualified path), through each root spelling (a re-export, renamed, through crate::), on an attributed one-line door and re-export, a charging method call, an indirect crate alias, on an unrecognised running item or root re-export, a pub item made by macro_rules! or a macro call, an oracle inside a compound reason, a stale row, an oracle in production and a test module counted as production\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"
