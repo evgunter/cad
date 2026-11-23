@@ -4,7 +4,7 @@
 //! ball 0.08 from a neighbour's, so the two dimples run together.
 //!
 //! The n-ary union of the 21 balls builds: the step joining the moved
-//! pip re-charts the two balls it crosses
+//! pip re-charts its ball and the neighbour's it crosses
 //! (`topo::BooleanNaming::recharted`), and the fold reads each turned
 //! face through its input shell. The document's union then refuses to
 //! name the turned seam ([`ROW`]), typed, and the cut and the fillets

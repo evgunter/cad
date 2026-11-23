@@ -2,10 +2,11 @@
 id: the-nary-door-panics-on-an-accumulation-face-with-no-member-lineage
 kind: issue
 title: The n-ary boolean door panics, on an accumulation face with no member-face lineage, when a variable of the tour's composed die is edited
-status: open
+status: closed
 opened: 2026-11-23
-priority: P1
+priority: P0
 cost: M
+closed: 2026-11-23
 ---
 
 
@@ -87,9 +88,35 @@ coordinates (`0.5 − 0.22 = 0.28`; `0.5`). Each move puts one pip's ball
 less a union of overlapping balls. The row is P0 by its own test.
 
 **After the fix** (the lineage reads each turned face as its input
-shell's faces, `FaceDescent::input_faces`): each of the eight edits
+shell's faces, `FaceSource::inputs`): each of the eight edits
 evaluates; the union refuses typed,
 `Naming(UnsupportedTurnedCell { cell: Edge(_) })`, the turned-seam
 refusal ORBIT's re-chart row owns
 (`work/orbit/closed-sphere-escape-is-re-charted-by-rotation-beside-the-meridian-cut.md`),
 and the cut and fillets downstream are poisoned.
+
+## Closed
+
+2026-11-23, by PR 7516 (`heldrecords/nary-lineage`). Banded P0: the
+eight edits are a part a user drafts by dragging one pip, as measured
+above.
+
+- The lineage reads every result face through one door,
+  `FaceDescent::source` (`crates/topo/src/boolean/nary.rs`). It returns a
+  `FaceSource`: the operand, the root in the keys the op ran on, and
+  the input faces it stands for, which for a face a re-chart turned are
+  every face of the input shell. Holdings and the at-rest readers
+  (`crates/editor-core/src/checks/at_rest.rs`) read the same door. The
+  bare root door is gone, so no caller can take a re-cut key for an
+  input key.
+- Each of the eight edits now evaluates to the union's typed
+  `Naming(UnsupportedTurnedCell)` refusal (ORBIT's re-chart row):
+  `editor-core::all the_tours_die_with_two_pips_run_together_refuses_their_turned_seam`.
+- The lineage is pinned on both operands, and each pin goes red with
+  that side reading the root alone:
+  `sweep::all the_nary_door_reads_a_re_charted_accumulation_through_its_shell`.
+
+Filed from this row's sweep, both on ORBIT:
+`a-re-cut-booleans-verdicts-keep-the-re-cut-keys-its-rows-are-respelled-off`
+and
+`a-step-given-pairs-and-re-charting-its-operand-reads-them-by-the-keys-the-re-chart-moved`.

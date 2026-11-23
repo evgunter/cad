@@ -144,11 +144,17 @@ pub type MemberFace = (usize, FaceKey);
 /// **Which member faces each face of an accumulation descends from**,
 /// read off each step's naming, never off a name: a piece of a face
 /// descends from what the face does, a merged face from what each face
-/// it absorbed does, and a face of the joining member from that face.
+/// it absorbed does, a face a re-chart turned from every face of the
+/// sphere shell it was turned over ([`FaceSource::inputs`]), and a face
+/// of the joining member from that face.
 ///
-/// It routes the judgements' verdicts to the steps, where a superset is
-/// harmless; it lists member faces a piece holds no area of, and grows
-/// along the fold. What a face holds is its [`Holdings`].
+/// It routes the judgements' verdicts to the steps
+/// ([`given_pairs`], [`restated_rows`]), where a superset is harmless:
+/// a verdict decides a carrier pair, so handing it to a face that wears
+/// the carrier of a member face it lists but holds no area of decides
+/// the same pair. A turned face lists every face of its shell, all of
+/// which wear its one sphere. It grows along the fold. What a face holds
+/// is its [`Holdings`].
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct MemberLineage {
     faces: BTreeMap<FaceKey, BTreeSet<MemberFace>>,

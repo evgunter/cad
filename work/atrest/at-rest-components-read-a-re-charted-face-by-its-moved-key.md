@@ -36,12 +36,18 @@ Unmeasured: whether any at-rest document pairs a re-charted ball with
 an assertion. The fix reads the root through `naming.recharted` and
 takes every face of the input shell as the piece's sources.
 
-## 2026-11-23 — the door now exists in `topo`
+## 2026-11-23 — both readers read the input shell
 
-HELDRECORDS' `nary-lineage` lane added `topo::FaceDescent::input_faces`
-(a result face's operand and every input face it descends from,
-reading `recharted`) and `FaceDescent::shell_faces` (the same for a
-root), for the n-ary door's member lineage, which panicked on exactly
-this gap (`work/heldrecords/the-nary-door-panics-on-an-accumulation-face-with-no-member-lineage.md`).
-Both readers here can take it in place of `result_face`. Still
-unmeasured on an at-rest document.
+HELDRECORDS' `nary-lineage` PR (7516) replaced `FaceDescent::result_face`
+with `FaceDescent::source`, which returns a `topo::FaceSource`: the
+operand, the root in the keys the op ran on, and `inputs`, every input
+face a turned face stands for. The old door was removed so no caller can
+take a re-cut key for an input key, and both readers here moved onto
+`inputs`:
+
+- `components` enters every input face as a source.
+- The quieting step's `crossing` names a component by any input face's
+  solid.
+
+That is the fix this row asks for. It is not pinned on an at-rest
+document, which is still unmeasured, so the row stays open for that.
