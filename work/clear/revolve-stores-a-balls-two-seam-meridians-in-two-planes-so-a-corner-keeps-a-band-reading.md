@@ -70,3 +70,10 @@ Banded P0: it completes lane B's part of the at-rest gate (P0).
   small ball's pole refuses:
   `a-balls-seam-meridians-in-one-bracket-are-not-one-plane-so-its-pole-refuses-at-interval`
   (P2).
+
+- 2026-11-23 (LATHE one-band lane, PR 7414): a full revolve now sweeps
+  the ball as one band, so it stores ONE seam meridian, and there is no
+  second meridian for a plane to list. `self_intersection_proves_injectivity::a_two_ball_union_holds_with_its_poles_read`
+  holds at `Interval` as at `f64`, where the small ball's pole refused
+  `Departure`; the row re-pins it to `Holds` at both scalars. Measured on
+  `lathe/full-revolve-one-band` (`8f7fc183cd` plus the fix pass).

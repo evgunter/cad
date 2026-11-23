@@ -113,3 +113,25 @@ fn two_disjoint_balls_under_one_solid_refuse() {
         Err(vec![ValidationError::SolidOuterShells { solid, outer: 2 }])
     );
 }
+
+/// **A ball cavity outside the ball around it is read inside out**: the
+/// ball of radius 2 and a reverted ball of radius 0.5 beside it, merged
+/// into one solid. Seen from infinity, check 7's rays meet the cavity's
+/// one reverted sphere face from the material side, so the solid is
+/// refused `NegativeVolume` before its shells' winding is read (where
+/// two half-band faces per sphere read `ShellWinding`; the winding row
+/// is [`a_ball_cavity_inside_another_cavity_refuses`]).
+#[test]
+fn a_ball_cavity_outside_its_solids_ball_is_read_inside_out() {
+    let big = ball_poled_z(2.0, Vec3::new(0.0, 0.0, 0.0), tol());
+    let cavity = ball_poled_z(0.5, Vec3::new(5.0, -0.125, 0.375), tol())
+        .revert()
+        .unwrap();
+    let body = merged(&big, &cavity);
+    let solid = only_solid(&body);
+    assert_eq!(
+        topo::validate_geometric(&body, tol()),
+        Err(vec![ValidationError::NegativeVolume { solid }]),
+        "the cavity outside the ball reads the solid inside out"
+    );
+}

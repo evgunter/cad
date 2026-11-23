@@ -218,7 +218,8 @@ type Operand = (&'static str, f64, Vec3<f64>, bool);
 type Cut = (&'static str, (f64, f64), f64, [Operand; 3]);
 
 /// **A ball cut by planes tilted against its chart is an operand.** The
-/// `y`-poled unit ball, whose seam meridians lie in `z = 0`, less two
+/// `y`-poled unit ball, its one sphere face's seam meridian in `z = 0`
+/// on the `+x` side, less two
 /// boxes, each against the ball's and the box's own point tests and then
 /// against a ball nested in the cut, one disjoint from it, and one inside
 /// it across a cutting plane where no face of the box is, each against its
@@ -226,7 +227,7 @@ type Cut = (&'static str, (f64, f64), f64, [Operand; 3]);
 ///
 /// - the box `[0.5, 3] × [−2, 2] × [0, 2]` (`tilted_sphere_pair.rs`'s
 ///   pose), whose face `x = 0.5` crosses the chart and keeps the half of
-///   the cap beyond it below `z = 0`. Two sphere faces are left;
+///   the cap beyond it below `z = 0`. One sphere face is left;
 /// - the slab `[−0.2, 0.2] × [−2, 2] × [0, 2]`, whose faces `x = ±0.2`
 ///   cut a slot in the `z > 0` half: ONE sphere face is left, whose
 ///   complement is the slot and not another face, so a region read the
@@ -284,11 +285,7 @@ fn a_tilted_cut_of_a_ball_is_an_operand() {
             .faces()
             .filter(|(fk, _)| matches!(cut.face_surface(*fk), Some(geom::Surface::Sphere { .. })))
             .count();
-        assert_eq!(
-            sphere_faces,
-            if x0 < 0.0 { 1 } else { 2 },
-            "{pose}: sphere faces left"
-        );
+        assert_eq!(sphere_faces, 1, "{pose}: sphere faces left");
         assert_lattice(
             pose,
             &cut,
