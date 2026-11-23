@@ -1092,6 +1092,15 @@ fn align<T: Decide>(
 /// length at every scale of the conic. A half that runs with the outer
 /// one is [`BooleanError::SeamOrientation`]. A half between two vertices
 /// is [`align`]'s and passes.
+///
+/// A degenerate seam escalates as the kernel's own self-check
+/// ([`super::SelfCheck::SeamSense`]) rather than reading a sense: a zero
+/// tangent normalizes to poison, and so does the arm of a conic whose
+/// cover does not read ([`geom_brep::ExtentBall::of_covered`]). The arm
+/// only moves a verdict where the cosine is within `ε/R` of zero, `R`
+/// the conic's extent; two halves along one conic read `±1`, so it bites
+/// only for a conic smaller than the band, which no fixture reaches and
+/// no row pins.
 fn one_vertex_sense<T: Decide>(
     body: &Body<T>,
     (a_face, b_face): (FaceKey, FaceKey),
@@ -1105,34 +1114,37 @@ fn one_vertex_sense<T: Decide>(
     if start_of(body, outer)? != end {
         return Ok(());
     }
-    // The tangent a half leaves its start along: its carrier's at the
-    // start parameter, reversed on the minus half; and its conic's arm.
-    let leaving =
-        |he: HalfEdgeKey| -> Result<(geom_core::Vec3<T>, geom_core::Lever<T>), BooleanError> {
-            let edge = body
-                .get_half_edge(he)
-                .ok_or_else(|| corr("seam half-edge no longer resolves"))?
-                .edge;
-            let data = body
-                .get_edge(edge)
-                .ok_or_else(|| corr("seam edge no longer resolves"))?;
-            let curve = body
-                .edge_curve_linked(edge, data)
-                .certified()
-                .ok_or_else(|| corr("a one-vertex seam edge has no certified curve"))?;
-            let (t0, t1) = curve.params();
-            let tangent = if data.he_plus == he {
-                curve.carrier().deriv(t0)
-            } else {
-                -curve.carrier().deriv(t1)
-            };
-            let arm =
-                geom_brep::ExtentBall::of_covered(curve.carrier().cover().as_ref().ok()).lever();
-            Ok((tangent.normalize(), arm))
+    // A half's certified curve, and whether the half runs along it.
+    let curve_of = |he: HalfEdgeKey| -> Result<(&geom_brep::EdgeCurve<T>, bool), BooleanError> {
+        let edge = body
+            .get_half_edge(he)
+            .ok_or_else(|| corr("seam half-edge no longer resolves"))?
+            .edge;
+        let data = body
+            .get_edge(edge)
+            .ok_or_else(|| corr("seam edge no longer resolves"))?;
+        let curve = body
+            .edge_curve_linked(edge, data)
+            .certified()
+            .ok_or_else(|| corr("a one-vertex seam edge has no certified curve"))?;
+        Ok((curve, data.he_plus == he))
+    };
+    // The unit direction a half leaves its start along: its carrier's
+    // tangent at the start parameter, reversed on the minus half.
+    let leaving = |(curve, plus): (&geom_brep::EdgeCurve<T>, bool)| {
+        let (t0, t1) = curve.params();
+        let tangent = if plus {
+            curve.carrier().deriv(t0)
+        } else {
+            -curve.carrier().deriv(t1)
         };
+        tangent.normalize()
+    };
     let band = geom_core::Band::linear(tol).map_err(|_| corr("the zip's band does not read"))?;
-    let ((out_dir, arm), (ring_dir, _)) = (leaving(outer)?, leaving(ring)?);
-    let margin = geom_core::Margin::levered(out_dir.dot(ring_dir), arm);
+    let (outer_curve, ring_curve) = (curve_of(outer)?, curve_of(ring)?);
+    let arm =
+        geom_brep::ExtentBall::of_covered(outer_curve.0.carrier().cover().as_ref().ok()).lever();
+    let margin = geom_core::Margin::levered(leaving(outer_curve).dot(leaving(ring_curve)), arm);
     match crate::validate::decide("bool_zip_one_vertex_sense", margin, band) {
         Ok(geom_core::Sign::Negative) => Ok(()),
         Ok(_) => Err(BooleanError::SeamOrientation { a_face, b_face }),
