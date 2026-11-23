@@ -6239,7 +6239,33 @@ fn departure_inner(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: b
         return split;
     };
     crate::gate_measure::clear_margin();
-    let opposite = |(psi, on): (Psi, On)| match (
+    let summed = |psi: &Psi, on: &On| -> bool {
+        // Each face's side by its rate's sign alone; the margin the two
+        // rates' sum levered at the arm. A face read by distance (no rate)
+        // is decided as it is.
+        let read = |p: &Presented<'_>, q: &Presented<'_>| {
+            crate::wedge_measure::RATES.with(|r| r.borrow_mut().clear());
+            crate::wedge_measure::SIGN_ALONE.with(|c| c.set(true));
+            let s = sign_on(psi, Some(on), p, Some(q), arm, band);
+            crate::wedge_measure::SIGN_ALONE.with(|c| c.set(false));
+            let r = crate::wedge_measure::RATES.with(|r| r.borrow().last().copied());
+            (s, r)
+        };
+        let ((a, ra), (b, rb)) = (read(qx, qy), read(qy, qx));
+        let (Some(a), Some(b)) = (a, b) else { return false };
+        if a != flip(b) {
+            return false;
+        }
+        let Some(arm) = arm else { return false };
+        let total = match (ra, rb) {
+            (Some(ra), Some(rb)) => iv(ra) - iv(rb),
+            (Some(ra), None) => iv(ra),
+            (None, Some(rb)) => -iv(rb),
+            (None, None) => return true,
+        };
+        definite(SELF_INTERSECTION_DEPARTURE, Margin::levered(total, arm), band).is_some()
+    };
+    let opposite = |(psi, on): (Psi, On)| if crate::wedge_measure::narrow_mode() { summed(&psi, &on) } else { match (
         sign_on(&psi, Some(&on), qx, Some(qy), arm, band),
         sign_on(&psi, Some(&on), qy, Some(qx), arm, band),
     ) {
@@ -6255,7 +6281,7 @@ fn departure_inner(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: b
             ok
         }
         _ => false,
-    };
+    } };
     let corner = qx.corner || qy.corner;
     if crate::wedge_measure::on() {
         let single_line = near.edges.len() == 1
@@ -6345,6 +6371,30 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
     use std::cell::Cell;
     if !wm::on() || near.edges.is_empty() {
         return departure_inner(x, y, near, band, two);
+    }
+    if wm::narrow_mode() {
+        let narrow = wm::EDGES.with(|m| {
+            near.edges
+                .iter()
+                .map(|&(i, _)| {
+                    let k = x.boundary.edges.get(i)?.key;
+                    m.borrow().get(&k).map(|e| e.narrow)
+                })
+                .collect::<Option<Vec<f64>>>()
+        });
+        let narrow = narrow.and_then(|v| v.into_iter().reduce(f64::min));
+        wm::ARM.with(|c| c.set(narrow));
+        let o = if narrow.is_some() {
+            departure_inner(x, y, near, band, two)
+        } else {
+            // An edge the map does not hold: no narrow run to read.
+            Outcome::Split {
+                arm: CertificateArm::Departure,
+                shared: near.cell(x.boundary).unwrap_or(SharedCell::Face(x.face)),
+            }
+        };
+        wm::ARM.with(|c| c.set(None));
+        return o;
     }
     let reset = || {
         wm::GAP.with(|c| c.set(None));

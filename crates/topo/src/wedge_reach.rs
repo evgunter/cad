@@ -186,7 +186,7 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
 
     /// `face`'s boundary points (module docs): every loop's vertices, a
     /// lone vertex included. Collected on first ask.
-    fn face_points(&self, face: FaceKey) -> Rc<[Point3<T>]> {
+    pub(crate) fn face_points(&self, face: FaceKey) -> Rc<[Point3<T>]> {
         if let Some(points) = self.points.borrow().get(face) {
             return Rc::clone(points);
         }

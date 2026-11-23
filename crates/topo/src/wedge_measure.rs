@@ -20,12 +20,25 @@ pub(crate) struct EdgeInfo {
     pub crease: bool,
     pub reach: f64,
     pub fold: f64,
+    /// The narrower face's run across the edge: of the two faces, the
+    /// lesser of each one's farthest boundary vertex from the edge.
+    pub narrow: f64,
+    pub narrow_face: FaceKey,
+}
+
+/// While set, the departure levers at the narrower face's run across the
+/// edge and sums the two faces' rates.
+pub(crate) fn narrow_mode() -> bool {
+    on() && NARROW.with(Cell::get)
 }
 
 thread_local! {
     static ON: Cell<bool> = const { Cell::new(false) };
     static DEPTH_GUARD: Cell<u32> = const { Cell::new(0) };
     pub(crate) static MUTANT: Cell<bool> = const { Cell::new(false) };
+    pub(crate) static NARROW: Cell<bool> = const { Cell::new(false) };
+    /// While set (inside the narrow mode's `opposite`), the summed reading.
+    pub(crate) static SUMMED: Cell<bool> = const { Cell::new(false) };
     /// While set, `levered_sign` decides by the sine's sign alone.
     pub(crate) static SIGN_ALONE: Cell<bool> = const { Cell::new(false) };
     /// While set, the departure's arm is this length.
@@ -103,6 +116,7 @@ pub(crate) fn enter<T: geom_core::Decide + geom_core::Bounds>(
     }
     ON.with(|o| o.set(true));
     MUTANT.with(|m| m.set(std::env::var_os("CAD_WM_MUTANT").is_some()));
+    NARROW.with(|m| m.set(std::env::var_os("CAD_WM_NARROW").is_some()));
     FLIPS.with(|f| f.borrow_mut().clear());
     COUNTS.with(|c| c.set([0; 5]));
     let in_scope: BTreeSet<FaceKey> = faces.iter().copied().collect();
@@ -138,20 +152,50 @@ pub(crate) fn enter<T: geom_core::Decide + geom_core::Bounds>(
             geom_brep::WedgeVerdict::InBand(_) => "InBand".to_owned(),
             _ => "Other".to_owned(),
         };
+        let m = |x: T| {
+            let (lo, hi) = (geom_core::Bounds::lo(x), geom_core::Bounds::hi(x));
+            0.5 * (lo + hi)
+        };
+        let p3 = |p: geom_core::Point3<T>| [m(p.x), m(p.y), m(p.z)];
+        let samples: Vec<[f64; 3]> = (0..=64)
+            .map(|k| {
+                let t = t0 + (t1 - t0) * T::from_f64(f64::from(k) / 64.0);
+                p3(curve.carrier().eval(t))
+            })
+            .collect();
+        let dist = |q: [f64; 3]| {
+            samples
+                .windows(2)
+                .map(|w| seg_dist(q, w[0], w[1]))
+                .fold(f64::INFINITY, f64::min)
+        };
+        let run = |f: FaceKey| {
+            reach_home
+                .face_points(f)
+                .iter()
+                .map(|&p| dist(p3(p)))
+                .fold(0.0_f64, f64::max)
+        };
+        let (ra, rb) = (run(a), run(b));
+        let (narrow, narrow_face) = if ra <= rb { (ra, a) } else { (rb, b) };
         let info = EdgeInfo {
             crease,
             reach: geom_core::Bounds::lo(reach.length()),
             fold: geom_core::Bounds::lo(fold.length()),
+            narrow,
+            narrow_face,
         };
         let kind = |s: &geom::Surface<T>| format!("{:?}", s.kind());
         emit(
             "WME",
             &format!(
-                "{e:?}\t{}/{}\t{class}\treach={:e}\tfold={:e}",
+                "{e:?}\t{}/{}\t{class}\treach={:e}\tfold={:e}\tnarrow={:e}\tnarrow_face={narrow_face:?}:{}\truns={ra:e}/{rb:e}",
                 kind(sa),
                 kind(sb),
                 info.reach,
-                info.fold
+                info.fold,
+                info.narrow,
+                kind(body.face_surface(narrow_face).unwrap_or(sa)),
             ),
         );
         map.insert(e, info);
@@ -181,11 +225,30 @@ pub(crate) fn leave<T: geom_core::Certifies + geom_core::CertifiedBounds>(
         return;
     }
     let c = COUNTS.with(Cell::get);
+    let named = match verdict {
+        crate::clearance::Embedding::Refused(crate::clearance::EngineRefusal::Uncertified {
+            shared: crate::clearance::SharedCell::Edge(e),
+            ..
+        }) => EDGES.with(|m| {
+            m.borrow().get(e).map_or("edge?".to_owned(), |i| {
+                format!(
+                    "edge={e:?} narrow={:e} narrow_face={:?}:{} reach={:e} fold={:e} crease={}",
+                    i.narrow,
+                    i.narrow_face,
+                    body.face_surface(i.narrow_face).map_or("?".to_owned(), |s| format!("{:?}", s.kind())),
+                    i.reach,
+                    i.fold,
+                    i.crease
+                )
+            })
+        }),
+        _ => String::new(),
+    };
     emit(
         "WMV",
         &format!(
-            "calls={}\tcrease_calls={}\tflips={}\tcrease_final={}\tfold_diff={}\t{verdict:?}",
-            c[0], c[1], c[2], c[3], c[4]
+            "calls={}\tcrease_calls={}\tflips={}\tcrease_final={}\tfold_diff={}\tfaces={}\tnamed={named}\t{verdict:?}",
+            c[0], c[1], c[2], c[3], c[4], body.faces().count()
         ),
     );
     let flips: Vec<(FaceKey, FaceKey)> = FLIPS.with(|f| f.borrow().iter().copied().collect());
@@ -230,4 +293,17 @@ pub(crate) fn count(crease: bool, flip: bool, fin: bool, fold_diff: bool) {
         v[4] += usize::from(fold_diff);
         c.set(v);
     });
+}
+
+fn seg_dist(q: [f64; 3], a: [f64; 3], b: [f64; 3]) -> f64 {
+    let d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+    let w = [q[0] - a[0], q[1] - a[1], q[2] - a[2]];
+    let dd = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
+    let t = if dd > 0.0 {
+        ((w[0] * d[0] + w[1] * d[1] + w[2] * d[2]) / dd).clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    let r = [w[0] - t * d[0], w[1] - t * d[1], w[2] - t * d[2]];
+    (r[0] * r[0] + r[1] * r[1] + r[2] * r[2]).sqrt()
 }
