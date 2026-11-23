@@ -38,3 +38,5 @@ So the draw's circle now carries a frame squared at `f64` (7131's `RigidMotion::
 
 The row is counted in ONEHOME's `pr-7131s-frame-cost-at-1e-12-is-larger-than-it-counted` (on PR 7402's branch until that merges) as one of the frame cost's two `f64`-squaring rows. Unlike the rest of that count, it is a finding and not a cost. It is not pinned; GREEN greens nothing until Ev rules on the count.
 (GREEN, U12)
+
+**A second seed, on an ellipse held at its centre (2026-11-23, `oneround/conic-pair-readers`).** `CAD_FUZZ_SEED=0x11467e023845fce7` at ε 1e-12 contradicts two `Recedes` readings on draw 48 (`Ellipse::new`, semi-axes 946.7 and 1137.6, centre about (654, 383, 2.6e-5), axis tilted 6e-8 off `z`), identically on that branch's base (PR 7510's head merged with main at `cbf90f201`) and on its head: not that unit's change.
