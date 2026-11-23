@@ -2179,6 +2179,10 @@ fn tie<T: Decide>(vertex: VertexKey) -> ReplaceFaceError<T> {
 /// caller reads both endpoints back onto it and meters the result, and
 /// meters its midpoint against both moved surfaces.
 #[allow(clippy::too_many_arguments)] // the mint's own inputs, the section read once at the gate
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn mint_carrier<T: Decide>(
     edge: EdgeKey,
     old: &Curve3<T>,
@@ -2897,6 +2901,10 @@ fn end_agrees<T: Decide>(
 /// of metre distances). An equal pair keeps the old parameter, as `q`
 /// then stands a quarter turn from both and neither read is near its
 /// cut; an undecided one escalates.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn param_on<T: Decide>(
     carrier: &Curve3<T>,
     t_old: T,
@@ -3178,6 +3186,10 @@ fn surface_residual<T: Real>(surface: &Surface<T>, p: Point3<T>, frame: &Frame<T
 /// own azimuth and still out of the plane — a sketch plane that does
 /// not contain the axis — refuses typed. Refuses also an arc
 /// whose moved carrier is no circle to subtend at.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn reauthor<T: Decide>(
     mapped: geom_brep::MappedCurve<T>,
     carrier: &Curve3<T>,
