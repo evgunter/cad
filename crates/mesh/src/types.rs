@@ -639,16 +639,6 @@ pub enum TessellateError {
         /// and the refusal rides in every caller's `Result`.
         unresolved: Box<crate::validate::Unresolved>,
     },
-    /// A trimmed face keeps, after the retry budget, a triangle with a
-    /// side a neighbouring face may make too: a side joining two boundary
-    /// points that are not neighbours on their loop and that one
-    /// neighbour holds both of (an ear's third side is the nearest case).
-    /// The neighbour may join the same two points, which would make that
-    /// side an edge of four triangles, so it refuses.
-    UnclearedSharedSide {
-        /// The face whose patch keeps the triangle.
-        face: FaceKey,
-    },
     /// A trimmed face on a chart with singular rows — a sphere's poles,
     /// a cone's apex, a spindle sheet's apexes — whose shape about one
     /// the trimmed lane does not mesh ([`SphereTrimCause`] names which;
@@ -1054,12 +1044,6 @@ impl TessellateError {
                     ulps = crate::cert::ROUNDING_ULPS,
                 )
             }
-            Self::UnclearedSharedSide { .. } => f.write_str(
-                "tessellate: a trimmed face's patch keeps, after its retries, a \
-                 triangle with a side between two boundary chord points the face \
-                 across them may join too, leaving an edge of four triangles; a \
-                 different δ may clear it",
-            ),
             Self::SphereTrimShape { cause, .. } => {
                 let what = match cause {
                     SphereTrimCause::PastPole => {

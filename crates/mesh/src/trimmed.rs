@@ -86,14 +86,9 @@
 //! against the face refuses typed
 //! ([`TessellateError::TrimLoopOrientation`]), and a triangle folded
 //! over the chord beside it gets a point inside it and the face is
-//! rebuilt, or refuses ([`TessellateError::FoldedTriangle`]). On every arm, the spline's
-//! included, a triangle with a side a neighbouring face may make too (a
-//! side joining two polygon points that are not neighbours on their loop
-//! and that one neighbour holds both of) is split by a point inside it
-//! and rebuilt, or refuses ([`TessellateError::UnclearedSharedSide`]). On
-//! the spline arm that is unwitnessed: no door yet trims a spline face
-//! thin against such a neighbour
-//! (`work/tesslie/the-shared-side-rule-on-the-spline-arm-has-no-witness.md`).
+//! rebuilt, or refuses ([`TessellateError::FoldedTriangle`]). A side
+//! this face and a face across both make is split where the patches join
+//! (`crate::join`); the lane reads nothing about the faces across.
 //! A **fitted** (rung-3) chart image still refuses typed on every chart:
 //! the chord pass has no certified UV chord-step bound for a fitted image (the
 //! boundary-tightening contract in `crate::chords`), and its first
@@ -695,7 +690,6 @@ pub(crate) fn tessellate_trimmed(
             (cand, Some(stats), stats.metric)
         }
     };
-    let across = faces_across(body, fk, chords)?;
     // THE FALSIFICATION ACCUMULATOR, deliberately OUTSIDE the retry
     // loop and reset by nothing.
     //
@@ -747,7 +741,6 @@ pub(crate) fn tessellate_trimmed(
         creases: creases.as_ref(),
         shared,
         tol,
-        across: &across,
         runs: &runs,
         clearance,
     };
@@ -878,8 +871,7 @@ impl AttemptMeasure {
 
 /// What an attempt that did not refuse asks of the retry loop.
 enum Next {
-    /// Rebuild: a fold's, a shared side's or a refinement's points
-    /// appended.
+    /// Rebuild: a fold's or a refinement's points appended.
     Rebuild,
     /// The attempt's patch, accepted.
     Accept(Patch),
@@ -915,10 +907,6 @@ struct TrimmedFace<'a> {
     creases: Option<&'a Creases>,
     shared: &'a [Point3<f64>],
     tol: &'a SizingTols,
-    /// The faces across the loops' edges at each boundary mesh id
-    /// ([`faces_across`]), which the shared-side rule reads
-    /// ([`Self::attempt`]).
-    across: &'a HashMap<u32, Vec<FaceKey>>,
     /// The runs of the polygon the development holds as one CDT vertex
     /// each ([`developed_runs`]); none in the chart.
     runs: &'a [Run],
@@ -951,9 +939,6 @@ struct Emitted {
     /// A point inside each kept triangle wound against the face
     /// ([`TrimmedFace::outward`]), to insert and rebuild.
     folds: Vec<(f64, f64)>,
-    /// A point inside each kept triangle with a side a neighbouring face
-    /// may make too ([`TrimmedFace::attempt`]), to insert and rebuild.
-    shared_sides: Vec<(f64, f64)>,
     /// Each kept triangle's chart corners, for the face's offers
     /// (`crate::join`).
     book: crate::join::Book,
@@ -1068,7 +1053,6 @@ impl TrimmedFace<'_> {
             triangles,
             refine,
             folds,
-            shared_sides,
             book,
         } = self.emit(
             &at,
@@ -1078,28 +1062,6 @@ impl TrimmedFace<'_> {
             measure,
             falsification,
         )?;
-        // THE SHARED-SIDE CURE (every arm). A triangle side joining two points
-        // of the trim polygon is the same two mesh vertices whichever face makes
-        // it. Where one neighbouring face holds both points and they are not
-        // neighbours on the polygon, that face's triangulation may join them too
-        // (a plane cap, whose triangulation has no interior point, joins its
-        // boundary points freely): the side is then an interior edge of both
-        // patches, an edge of four triangles. No patch sees that alone, since
-        // each uses it twice, as any interior edge. So a face keeps no triangle
-        // with such a side: a point strictly inside it where the CDT runs, and
-        // so inside the polygon (`TrimmedFace::inside_point`), is inserted and
-        // the face rebuilt. An ear of a chain (three consecutive points) is its
-        // nearest case: its third side joins two points of one neighbour's
-        // chain. A triangle the retry budget does not clear refuses typed. Where
-        // a lane's side reaches four triangles anyway, the census where
-        // `tessellate` joins the patches refuses it (`tessellate::joined`).
-        if !shared_sides.is_empty() {
-            if attempt == last_attempt() {
-                return Err(TessellateError::UnclearedSharedSide { face: fk });
-            }
-            candidates.extend(shared_sides);
-            return Ok(Next::Rebuild);
-        }
         // THE WINDING CENSUS (every analytic arm): a triangle whose
         // normal points into the surface is folded over the chord beside
         // it — a lattice point inside the UV polygon but past the 3-D
@@ -1438,14 +1400,6 @@ impl TrimmedFace<'_> {
         let mut refine: Vec<(f64, f64)> = Vec::new();
         let refine_lane = matches!(self.row, ChartRow::Spline { .. });
         let mut folds = Vec::new();
-        // Each boundary handle's places in the trim polygon (a pinch
-        // handle holds several), for the shared-side test below.
-        let n_poly = at.handles.len();
-        let mut places: HashMap<usize, Vec<usize>> = HashMap::new();
-        for (i, h) in at.handles.iter().enumerate() {
-            places.entry(h.index()).or_default().push(i);
-        }
-        let mut shared_sides = Vec::new();
         let mut book = crate::join::Book::default();
         // Each run's CDT vertex ([`Run`]).
         let run_at: HashMap<usize, &Run> = self
@@ -1461,7 +1415,6 @@ impl TrimmedFace<'_> {
             let mut corners = [Corner {
                 id: PatchVertex::Shared(0),
                 uv: [0.0; 2],
-                places: None,
             }; 3];
             for (k, vtx) in vs.iter().enumerate() {
                 let (u, v, slot) = meta[vtx.fix().index()];
@@ -1471,7 +1424,6 @@ impl TrimmedFace<'_> {
                         Slot::Grid(c) => grid_ids[&c],
                     },
                     uv: [u, v],
-                    places: places.get(&vtx.fix().index()).map(Vec::as_slice),
                 };
                 match pinches.id_in(f, vtx.fix(), flip) {
                     Ok(Some(id)) => corners[k].id = PatchVertex::Shared(id),
@@ -1494,22 +1446,19 @@ impl TrimmedFace<'_> {
                 )?
             };
             let developed = vs.map(|vtx| vtx.position());
-            // The point the shared-side cure inserts for this CDT
-            // triangle, whichever of the triangles cut from it asks: a
-            // triangle between two points of a run has no inside where
-            // the CDT runs, and the one it is cut from has. It is queued
-            // once however many of them ask, since a location queued twice
-            // enters the next attempt at an existing vertex, which
-            // `insert_points` refuses `Triangulation`. No row has two of
-            // one CDT triangle's asking: it takes a run whose anchored
-            // triangle has, for its third corner, a polygon point that a
-            // face across two of the run's points holds too.
+            // The point the winding census inserts for this CDT triangle,
+            // whichever of the triangles cut from it folds: a triangle
+            // between two points of a run has no inside where the CDT runs,
+            // and the one it is cut from has. It is queued once however many
+            // of them fold, since a location queued twice enters the next
+            // attempt at an existing vertex, which `insert_points` refuses
+            // `Triangulation`.
             let inside_point = {
                 let uv = corners.map(|c| c.uv);
                 let apex = corners.map(|c| c.is_singular(self.singular));
                 move || Self::inside_point(plane, &uv, developed, apex)
             };
-            let (mut a_shared_side, mut a_fold) = (false, false);
+            let mut a_fold = false;
             for corners in core::iter::once(corners).chain(between) {
                 let ids = corners.map(|c| c.id);
                 let uv = corners.map(|c| c.uv);
@@ -1560,26 +1509,6 @@ impl TrimmedFace<'_> {
                     (tri[0].y + tri[1].y + tri[2].y) / 3.0,
                     (tri[0].z + tri[1].z + tri[2].z) / 3.0,
                 );
-                // A triangle a neighbouring face may make a side of too (the
-                // cure is `attempt`'s): a side joining two polygon points
-                // that are not neighbours on their loop and that one other
-                // face holds both of.
-                if n_poly >= 3 {
-                    let on = corners.map(|c| c.places);
-                    a_shared_side |= [(0, 1), (1, 2), (2, 0)].into_iter().any(|(a, b)| {
-                        let (Some(pa), Some(pb)) = (on[a], on[b]) else {
-                            return false;
-                        };
-                        let (PatchVertex::Shared(ia), PatchVertex::Shared(ib)) = (ids[a], ids[b])
-                        else {
-                            return false;
-                        };
-                        !self
-                            .polygon
-                            .faces_holding_side(self.across, (pa, ia), (pb, ib))
-                            .is_empty()
-                    });
-                }
                 // A triangle f64 cannot wind refuses the face at once
                 // (`validate::resolved_normal`, `[mesh.winding]`): its normal
                 // is noise, so it is neither outward nor a fold, and no retry
@@ -1686,10 +1615,7 @@ impl TrimmedFace<'_> {
                 );
                 triangles.push(wound.of(ids));
             }
-            // One point per CDT triangle, whichever cause asks.
-            if a_shared_side {
-                shared_sides.push(inside_point());
-            } else if a_fold {
+            if a_fold {
                 folds.push(inside_point());
             }
         }
@@ -1699,7 +1625,6 @@ impl TrimmedFace<'_> {
             triangles,
             refine,
             folds,
-            shared_sides,
             book,
         })
     }
@@ -1742,8 +1667,8 @@ fn cut_along_runs<'c>(
     handles: &[FixedVertexHandle],
     run_at: &HashMap<usize, &'c Run>,
     hs: [usize; 3],
-    corners: &mut [Corner<'c>; 3],
-) -> Result<Vec<[Corner<'c>; 3]>, usize> {
+    corners: &mut [Corner; 3],
+) -> Result<Vec<[Corner; 3]>, usize> {
     // The run at each corner, and the corner anchoring it when this is
     // the triangle on its anchored side.
     let runs: [Option<(&'c Run, Option<usize>)>; 3] = core::array::from_fn(|k| {
@@ -1789,16 +1714,13 @@ fn cut_along_runs<'c>(
 
 /// One corner of a triangle the emit pass makes.
 #[derive(Clone, Copy)]
-struct Corner<'a> {
+struct Corner {
     id: PatchVertex,
     /// Its chart point.
     uv: [f64; 2],
-    /// Its places in the trim polygon, if a boundary point: a pinch
-    /// handle's several, a run's point's own.
-    places: Option<&'a [usize]>,
 }
 
-impl Corner<'_> {
+impl Corner {
     /// Whether the corner is a copy of the chart's singular vertex.
     fn is_singular(&self, singular: &HashSet<u32>) -> bool {
         matches!(self.id, PatchVertex::Shared(id) if singular.contains(&id))
@@ -2254,12 +2176,11 @@ impl Run {
     }
 
     /// The run's point `m`, as a triangle's corner.
-    fn point(&self, polygon: &TrimPolygon, m: usize) -> Corner<'_> {
+    fn point(&self, polygon: &TrimPolygon, m: usize) -> Corner {
         let (u, v, id) = polygon.points[self.members[m]];
         Corner {
             id: PatchVertex::Shared(id),
             uv: [u, v],
-            places: Some(&self.members[m..=m]),
         }
     }
 
@@ -5209,16 +5130,17 @@ pub(super) mod tests {
         topo::Body::clone(&met.body().expect("a sliver").body)
     }
 
-    /// **A side the retry budget leaves refuses `UnclearedSharedSide`.** The rod
-    /// sliver's cylinder face keeps, on its first attempt, a side between
-    /// two points of one ellipse arc that are not neighbours on it, which
-    /// the plane face across that arc joins too; the shared-side cure
-    /// splits it on the next attempt. With the loop's last attempt set to
-    /// the first (`LAST_ATTEMPT`, test-only) there is no next attempt, so
-    /// the face refuses typed; with the budget as shipped it meshes. Set
-    /// on a one-thread pool's worker, which runs the faces.
+    /// **A side two faces both make is split where the patches join, with
+    /// no attempt of the lane's.** The rod sliver's cylinder face makes, on
+    /// its first attempt, sides between two points of one ellipse arc that
+    /// are not neighbours on it, which the plane face across that arc makes
+    /// too. With the loop's last attempt set to the first (`LAST_ATTEMPT`,
+    /// test-only) the lane has no second attempt, and the body meshes, a
+    /// closed manifold by `check_mesh`, at every δ: the join split each such
+    /// side in both patches (`crate::join`). Set on a one-thread pool's
+    /// worker, which runs the faces.
     #[test]
-    fn a_shared_side_the_budget_leaves_refuses_typed() {
+    fn a_side_two_faces_make_is_split_with_no_retry() {
         use geom_core::Tol;
         let body = a_rod_sliver();
         let pool = rayon::ThreadPoolBuilder::new()
@@ -5230,14 +5152,9 @@ pub(super) mod tests {
                 LAST_ATTEMPT.with(|a| a.set(Some(0)));
                 let first = crate::tessellate(&body, delta, Tol::witness());
                 LAST_ATTEMPT.with(|a| a.set(None));
-                assert!(
-                    matches!(first, Err(TessellateError::UnclearedSharedSide { .. })),
-                    "δ {delta:e}: the first attempt keeps the side, got {first:?}"
-                );
-                let m = crate::tessellate(&body, delta, Tol::witness())
-                    .unwrap_or_else(|e| panic!("δ {delta:e}: at the shipped budget, {e:?}"));
+                let m = first.unwrap_or_else(|e| panic!("δ {delta:e}: on one attempt, {e:?}"));
                 crate::validate::check_mesh(&m)
-                    .unwrap_or_else(|e| panic!("δ {delta:e}: and it checks, got {e:?}"));
+                    .unwrap_or_else(|e| panic!("δ {delta:e}: a closed manifold, got {e:?}"));
             }
         });
     }
@@ -5958,7 +5875,6 @@ pub(super) mod tests {
                 creases: None,
                 shared: &[],
                 tol: &tol,
-                across: &std::collections::HashMap::new(),
                 runs: &[],
                 clearance: super::BOUNDARY_CLEARANCE,
             };
@@ -6070,7 +5986,6 @@ pub(super) mod tests {
                 band: Band::linear(Tol::witness()).unwrap(),
             };
             let singular: HashSet<u32> = [1].into_iter().collect();
-            let across = std::collections::HashMap::new();
             let face = |polygon| TrimmedFace {
                 fk: FaceKey::default(),
                 sense: true,
@@ -6083,7 +5998,6 @@ pub(super) mod tests {
                 creases: None,
                 shared: &[],
                 tol: &tol,
-                across: &across,
                 runs: &[],
                 clearance: super::super::BOUNDARY_CLEARANCE,
             };
@@ -6417,9 +6331,8 @@ pub(super) mod tests {
                     #[allow(clippy::cast_possible_truncation)]
                     id: PatchVertex::Shared(100 + h as u32),
                     uv: [0.0; 2],
-                    places: None,
                 });
-                let ids = |t: [Corner<'_>; 3]| t.map(|c| c.id);
+                let ids = |t: [Corner; 3]| t.map(|c| c.id);
                 cut_along_runs(&polygon, &handles, &run_at, hs, &mut corners).map(|between| {
                     (
                         ids(corners),

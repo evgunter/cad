@@ -1356,7 +1356,6 @@ fn a_needle_funnel_cut_at_its_apex_refuses_typed() {
                 let refusal = match mesh::tessellate(half, delta, tol()) {
                     Ok(_) => None,
                     Err(E::FoldedTriangle { .. }) => Some("FoldedTriangle"),
-                    Err(E::UnclearedSharedSide { .. }) => Some("UnclearedSharedSide"),
                     Err(e) => panic!("{what}, δ = {delta:e}: {e:?}"),
                 };
                 let want = if h > 1e-5 || side != "above" {
