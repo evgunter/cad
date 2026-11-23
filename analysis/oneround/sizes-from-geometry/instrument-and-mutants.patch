@@ -1,0 +1,465 @@
+diff --git a/crates/editor-core/src/mate/value.rs b/crates/editor-core/src/mate/value.rs
+index 7d044674d..41b3c8f7e 100644
+--- a/crates/editor-core/src/mate/value.rs
++++ b/crates/editor-core/src/mate/value.rs
+@@ -1645,7 +1645,8 @@ impl<T: SolveScalar> FaceChart<T> {
+             + self.slides[1] * self.slides[1])
+             .sqrt()
+             .upper();
+-        let extent = geom_core::tolerance::SESSION_BOX_EXTENT;
++        let extent = geom_core::tolerance::SESSION_BOX_EXTENT
++            * if geom_core::sfg_probe::mutant("U15") { 0.5 } else { 1.0 };
+         let reach = 3f64.sqrt() * extent + origin;
+         let arm =
+             super::solve::arm_of(reach, [(&on, &self.to)], &self.values()).map_err(unleverable)?;
+diff --git a/crates/geom-brep/src/extent.rs b/crates/geom-brep/src/extent.rs
+index cf977cc08..848b6d7e7 100644
+--- a/crates/geom-brep/src/extent.rs
++++ b/crates/geom-brep/src/extent.rs
+@@ -246,6 +246,13 @@ impl<T: Real> ExtentBall<T> {
+     /// reading puts `q` off every point the ball holds.
+     #[must_use]
+     pub fn stand_off(self, q: Point3<T>) -> T {
++        use geom_core::sfg_probe::mutant;
++        if mutant("M1") {
++            return (q - self.center).norm() + self.radius;
++        }
++        if mutant("M2") {
++            return (q - Point3::origin()).norm() - self.radius;
++        }
+         (q - self.center).norm() - self.radius
+     }
+ 
+@@ -255,7 +262,18 @@ impl<T: Real> ExtentBall<T> {
+     /// in the ball.
+     #[must_use]
+     pub fn run_on(self, line: &Line<T>) -> (T, T) {
+-        let (centre, half) = (line.param(self.center), self.radius / line.dir.get().norm());
++        use geom_core::sfg_probe::mutant;
++        let (mut centre, mut half) =
++            (line.param(self.center), self.radius / line.dir.get().norm());
++        if mutant("M3") {
++            centre = T::zero();
++        }
++        if mutant("M4") {
++            half = line.distance(self.center) / line.dir.get().norm();
++        }
++        if mutant("U13") {
++            half = half * T::from_f64(0.5);
++        }
+         (centre - half, centre + half)
+     }
+ 
+diff --git a/crates/geom-brep/src/implicit.rs b/crates/geom-brep/src/implicit.rs
+index 4b67ae623..140df995e 100644
+--- a/crates/geom-brep/src/implicit.rs
++++ b/crates/geom-brep/src/implicit.rs
+@@ -390,6 +390,26 @@ pub fn min_radius_of_curvature_toward<T: Real>(
+     s: &Surface<T>,
+     p: Point3<T>,
+     side: SurfaceSide,
++) -> T {
++    let new = min_radius_of_curvature_toward_new(s, p, side);
++    let fell_through = matches!(
++        (s, side),
++        (
++            Surface::Sphere { .. } | Surface::Cylinder { .. } | Surface::Cone { .. } | Surface::Torus { .. },
++            SurfaceSide::Inner
++        ) | (Surface::Nurbs(_) | Surface::Approx(_), _)
++    );
++    if fell_through {
++        let old = crate::curvature_arm::curvature_lever_arm(s, p).length();
++        geom_core::sfg_probe::hit("min_radius_toward", core::any::type_name::<T>(), &old, &new);
++    }
++    new
++}
++
++fn min_radius_of_curvature_toward_new<T: Real>(
++    s: &Surface<T>,
++    p: Point3<T>,
++    side: SurfaceSide,
+ ) -> T {
+     match (s, side) {
+         (Surface::Plane { .. }, _)
+@@ -411,10 +431,26 @@ pub fn min_radius_of_curvature_toward<T: Real>(
+         // bound that holds on either sheet.
+         (Surface::Spindle { .. }, _) => T::zero(),
+         (Surface::Sphere { radius, .. } | Surface::Cylinder { radius, .. }, SurfaceSide::Inner) => {
++            if geom_core::sfg_probe::mutant("U8s") {
++                return *radius * T::from_f64(2.0);
++            }
+             *radius
+         }
+-        (Surface::Cone { .. }, SurfaceSide::Inner) => crate::curvature_arm::parallel_radius(s, p),
+-        (Surface::Torus { minor_radius, .. }, SurfaceSide::Inner) => *minor_radius,
++        (Surface::Cone { frame, .. }, SurfaceSide::Inner) => {
++            if geom_core::sfg_probe::mutant("M10") {
++                return crate::curvature_arm::parallel_radius(s, frame.origin());
++            }
++            if geom_core::sfg_probe::mutant("U8c") {
++                return crate::curvature_arm::parallel_radius(s, p) * T::from_f64(2.0);
++            }
++            crate::curvature_arm::parallel_radius(s, p)
++        }
++        (Surface::Torus { minor_radius, .. }, SurfaceSide::Inner) => {
++            if geom_core::sfg_probe::mutant("U8t") {
++                return *minor_radius * T::from_f64(2.0);
++            }
++            *minor_radius
++        }
+         (Surface::Nurbs(_) | Surface::Approx(_), _) => poison(),
+     }
+ }
+diff --git a/crates/geom-core/src/lib.rs b/crates/geom-core/src/lib.rs
+index 1fb4063a6..93b1063d9 100644
+--- a/crates/geom-core/src/lib.rs
++++ b/crates/geom-core/src/lib.rs
+@@ -34,6 +34,7 @@ pub mod real;
+ pub mod rows;
+ pub mod running;
+ pub mod spline;
++pub mod sfg_probe;
+ pub mod structure;
+ pub mod sym;
+ #[cfg(any(test, feature = "test-support"))]
+diff --git a/crates/geom-core/src/sfg_probe.rs b/crates/geom-core/src/sfg_probe.rs
+new file mode 100644
+index 000000000..a79baf811
+--- /dev/null
++++ b/crates/geom-core/src/sfg_probe.rs
+@@ -0,0 +1,60 @@
++//! REVIEW INSTRUMENT (not for merge): counts reads of each converted
++//! site per lane and logs every read whose old and new values differ.
++#![allow(missing_docs, clippy::all, clippy::pedantic, clippy::nursery)]
++use std::cell::RefCell;
++use std::collections::BTreeMap;
++use std::io::Write;
++
++struct Tally(BTreeMap<(&'static str, &'static str), (u64, u64)>);
++
++impl Drop for Tally {
++    fn drop(&mut self) {
++        let Ok(path) = std::env::var("SFG_LOG") else { return };
++        let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) else {
++            return;
++        };
++        let mut out = String::new();
++        for ((site, lane), (n, d)) in &self.0 {
++            let who = std::env::var("NEXTEST_TEST_NAME").ok().or_else(|| std::thread::current().name().map(str::to_owned)).unwrap_or_default();
++            let bin = std::env::var("NEXTEST_BINARY_ID").unwrap_or_default();
++            out.push_str(&format!("TALLY\t{site}\t{lane}\t{n}\t{d}\t{bin}\t{who}\n"));
++        }
++        let _ = f.write_all(out.as_bytes());
++    }
++}
++
++thread_local! {
++    static TALLY: RefCell<Tally> = RefCell::new(Tally(BTreeMap::new()));
++}
++
++pub fn hit<A: core::fmt::Debug, B: core::fmt::Debug>(
++    site: &'static str,
++    lane: &'static str,
++    old: &A,
++    new: &B,
++) {
++    let (o, n) = (format!("{old:?}"), format!("{new:?}"));
++    let differs = o != n;
++    let _ = TALLY.try_with(|t| {
++        let mut t = t.borrow_mut();
++        let e = t.0.entry((site, lane)).or_insert((0, 0));
++        e.0 += 1;
++        if differs {
++            e.1 += 1;
++        }
++    });
++    if differs {
++        if let Ok(path) = std::env::var("SFG_LOG") {
++            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
++                let _ = f.write_all(format!("DIFF\t{site}\t{lane}\t{o}\t{n}\n").as_bytes());
++            }
++        }
++    }
++}
++
++static MUTANT: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
++
++/// Whether the planted mutant `name` is armed (`SFG_MUT=name`).
++pub fn mutant(name: &str) -> bool {
++    MUTANT.get_or_init(|| std::env::var("SFG_MUT").ok()).as_deref() == Some(name)
++}
+diff --git a/crates/topo/src/cover.rs b/crates/topo/src/cover.rs
+index da406f38c..0f1cef58c 100644
+--- a/crates/topo/src/cover.rs
++++ b/crates/topo/src/cover.rs
+@@ -411,6 +411,16 @@ pub(crate) fn face_ball_about<T: Decide>(
+     band: Band,
+ ) -> Result<geom_brep::ExtentBall<T>, FaceUncovered> {
+     let cover = face_cover(body, face, band)?;
++    use geom_core::sfg_probe::mutant;
++    if mutant("M5") {
++        return Ok(geom_brep::ExtentBall::of_cover(&cover));
++    }
++    if mutant("M6") {
++        return Ok(geom_brep::ExtentBall::unsourced(
++            at,
++            cover.distance_range(&geom::cover::Site::Point(at)).0,
++        ));
++    }
+     Ok(geom_brep::ExtentBall::of_cover_from(Some(&cover), at))
+ }
+ 
+diff --git a/crates/topo/src/link.rs b/crates/topo/src/link.rs
+index 458b1d894..1a67362a3 100644
+--- a/crates/topo/src/link.rs
++++ b/crates/topo/src/link.rs
+@@ -2578,12 +2578,37 @@ impl<T: Decide> Link<T> {
+         let ball = wedges()
+             .map(|&(a, b)| to_segment(p, (a, b)))
+             .reduce(T::min)
+-            .map_or_else(T::zero, |near| {
+-                sectors
+-                    .iter()
+-                    .filter_map(|s| s.face.clear)
+-                    .fold(near, T::min)
+-            });
++            .map_or_else(
++                || {
++                    if geom_core::sfg_probe::mutant("U11") {
++                        T::from_f64(1e6)
++                    } else {
++                        T::zero()
++                    }
++                },
++                |near| {
++                    if geom_core::sfg_probe::mutant("U9") {
++                        return near;
++                    }
++                    sectors
++                        .iter()
++                        .filter_map(|s| s.face.clear)
++                        .fold(near, T::min)
++                },
++            );
++        let ball = if geom_core::sfg_probe::mutant("U10") {
++            ball * T::from_f64(2.0)
++        } else {
++            ball
++        };
++        {
++            let old = wedges()
++                .map(|&(a, b)| to_segment(p, (a, b)))
++                .chain(sectors.iter().filter_map(|s| s.face.clear))
++                .fold(reach.length(), |r, l| r.min(l));
++            let site = if wedges().next().is_some() { "link_ball" } else { "link_ball_nowedge" };
++            geom_core::sfg_probe::hit(site, core::any::type_name::<T>(), &old, &ball);
++        }
+         let (sectors, faces) = sectors.into_iter().map(|s| (s.sector, s.face)).unzip();
+         Ok(Self {
+             cone: Cone::of(p, sectors)?,
+diff --git a/crates/topo/src/offset_derive.rs b/crates/topo/src/offset_derive.rs
+index f94582163..ece689e0c 100644
+--- a/crates/topo/src/offset_derive.rs
++++ b/crates/topo/src/offset_derive.rs
+@@ -1198,11 +1198,29 @@ pub(crate) fn analytic_root<T: Decide>(
+ /// the wall. Poison for a net with a non-finite point, which the SSI
+ /// domain's check refuses.
+ fn net_reach_from(wall: &NurbsSurface<f64>, at: Point3<f64>) -> f64 {
++    use geom_core::sfg_probe::mutant;
+     geom::cover::Cover::net(wall.control().to_vec()).map_or(f64::NAN, |net| {
++        if mutant("M7") {
++            return net.distance_range(&geom::cover::Site::Point(at)).1 * 2.0 + 1.0;
++        }
++        if mutant("M8") {
++            return net.distance_range(&geom::cover::Site::Point(net.ball().0)).1;
++        }
+         net.distance_range(&geom::cover::Site::Point(at)).1
+     })
+ }
+ 
++fn sfg_slab(site: &str, half: f64) -> f64 {
++    use geom_core::sfg_probe::mutant;
++    if mutant(&format!("{site}_small")) {
++        half * 1e-6
++    } else if mutant(&format!("{site}_nan")) {
++        f64::NAN
++    } else {
++        half
++    }
++}
++
+ /// Newton's fixed step count on an analytic root: quadratic from a seed
+ /// one offset away, so far more than the digits need.
+ const NEWTON_STEPS: usize = 24;
+@@ -1236,9 +1254,22 @@ fn plane_wall_section<'w, 's>(
+             // The window holds the wall: the section lies in the wall's
+             // control net's hull, which stands within its far distance of
+             // the plane's origin.
++            {
++                let old = wall
++                    .control()
++                    .iter()
++                    .map(|p| p.distance(origin))
++                    .fold(0.0, f64::max)
++                    * 2.0
++                    + extent.length();
++                let new = net_reach_from(wall, origin);
++                let ok = |v: f64| v > 0.0 && v.is_finite();
++                geom_core::sfg_probe::hit("plane_wall_half_value", "f64", &old, &new);
++                geom_core::sfg_probe::hit("plane_wall_half_check", "f64", &ok(old), &ok(new));
++            }
+             let domain = SsiDomain {
+                 center: origin,
+-                half_extent: net_reach_from(wall, origin),
++                half_extent: sfg_slab("U4", net_reach_from(wall, origin)),
+                 extent: extent.length(),
+                 floor_scale: 1.0,
+             };
+@@ -1339,9 +1370,23 @@ fn pair_section<'w, 's>(
+     // The rectangles bound the search; the slab, which bounds nothing
+     // here, holds the section: it lies in both walls' control nets'
+     // hulls.
++    {
++        let old = extent.length();
++        let new = net_reach_from(a.net, mid).min(net_reach_from(b.net, mid));
++        let ok = |v: f64| v > 0.0 && v.is_finite();
++        geom_core::sfg_probe::hit("pair_half_value", "f64", &old, &new);
++        geom_core::sfg_probe::hit("pair_half_check", "f64", &ok(old), &ok(new));
++    }
+     let domain = SsiDomain {
+         center: mid,
+-        half_extent: net_reach_from(a.net, mid).min(net_reach_from(b.net, mid)),
++        half_extent: sfg_slab(
++            "U5",
++            if geom_core::sfg_probe::mutant("U5_max") {
++                net_reach_from(a.net, mid).max(net_reach_from(b.net, mid))
++            } else {
++                net_reach_from(a.net, mid).min(net_reach_from(b.net, mid))
++            },
++        ),
+         extent: extent.length(),
+         floor_scale: 1.0,
+     };
+diff --git a/crates/topo/src/session_box.rs b/crates/topo/src/session_box.rs
+index d7b9b59d1..d1e174a6c 100644
+--- a/crates/topo/src/session_box.rs
++++ b/crates/topo/src/session_box.rs
+@@ -187,7 +187,12 @@ pub(crate) fn in_session_box_at<T: Decide>(
+ 
+ /// The box's decision on a reach: its margin the box's extent less it.
+ fn box_decided<T: Decide>(reach: T, band: Band) -> Result<(), ValidationError> {
+-    let margin = Margin::of(T::from_f64(geom_core::tolerance::SESSION_BOX_EXTENT) - reach);
++    let margin = Margin::of(
++        T::from_f64(
++            geom_core::tolerance::SESSION_BOX_EXTENT
++                * if geom_core::sfg_probe::mutant("U14") { 2.0 } else { 1.0 },
++        ) - reach,
++    );
+     match crate::validate::decide_reported(SESSION_BOX_REACH, margin, band) {
+         Ok(geom_core::Decided {
+             sign: Sign::Negative,
+diff --git a/crates/topo/src/solid_contain.rs b/crates/topo/src/solid_contain.rs
+index 4c4704cef..e2a618976 100644
+--- a/crates/topo/src/solid_contain.rs
++++ b/crates/topo/src/solid_contain.rs
+@@ -974,7 +974,7 @@ fn face_geo_arms<T: Decide>(
+                     Ok(FaceGeo::PartialWall {
+                         axis: geom::Line { origin, dir: axis },
+                         radius,
+-                        ball: partial_ball(body, face, anchor, band)?,
++                        ball: sfg_shrunk("U2", partial_ball(body, face, anchor, band)?),
+                     })
+                 }
+             }
+@@ -999,7 +999,14 @@ fn face_geo_arms<T: Decide>(
+                         dir: axis,
+                     },
+                     half_angle,
+-                    ball: partial_ball(body, face, apex, band)?,
++                    ball: sfg_shrunk(
++                        "U3",
++                        if geom_core::sfg_probe::mutant("M9") {
++                            partial_ball(body, face, boundary_point(body, face)?, band)?
++                        } else {
++                            partial_ball(body, face, apex, band)?
++                        },
++                    ),
+                 }),
+             }
+         }
+@@ -2200,7 +2207,7 @@ fn face_holds<T: Decide + crate::props::AtRestPolicy>(
+                 == Sign::Zero
+                 && decide(
+                     "bool_cone_partial_reach",
+-                    Margin::of(ball.stand_off(q)),
++                    Margin::of(sfg_stand("cone_holds", ball, q)),
+                     band,
+                 )
+                 .map_err(escalate)?
+@@ -2223,7 +2230,7 @@ fn face_holds<T: Decide + crate::props::AtRestPolicy>(
+                 == Sign::Zero
+                 && decide(
+                     "bool_wall_outline_reach",
+-                    Margin::of(ball.stand_off(q)),
++                    Margin::of(sfg_stand("wall_holds", ball, q)),
+                     band,
+                 )
+                 .map_err(escalate)?
+@@ -4169,7 +4176,13 @@ pub(crate) fn ray_crossings<T: Decide>(
+                 let Some(ts) = cone_door(
+                     ray,
+                     ((cone, half_angle), face),
+-                    ball.run_on(&ray.line()),
++                    {
++                        let line = ray.line();
++                        let (centre, half) = (line.param(ball.center()), ball.lever().length() / line.dir.get().norm());
++                        let new = ball.run_on(&line);
++                        geom_core::sfg_probe::hit("cone_run", core::any::type_name::<T>(), &(centre - half, centre + half), &new);
++                        new
++                    },
+                     band,
+                 )?
+                 else {
+@@ -4184,7 +4197,7 @@ pub(crate) fn ray_crossings<T: Decide>(
+                     let p = q + d.get() * t;
+                     match decide(
+                         "bool_cone_partial_reach",
+-                        Margin::of(ball.stand_off(p)),
++                        Margin::of(sfg_stand("cone_ray", ball, p)),
+                         band,
+                     )
+                     .map_err(escalate)?
+@@ -4229,7 +4242,7 @@ pub(crate) fn ray_crossings<T: Decide>(
+                     }
+                     match decide(
+                         "bool_wall_outline_reach",
+-                        Margin::of(ball.stand_off(q + d.get() * t)),
++                        Margin::of(sfg_stand("wall_ray", ball, q + d.get() * t)),
+                         band,
+                     )
+                     .map_err(escalate)?
+@@ -5827,3 +5840,24 @@ mod cone_ray_rows {
+         }
+     }
+ }
++
++fn sfg_stand<T: Decide>(site: &'static str, ball: geom_brep::ExtentBall<T>, q: Point3<T>) -> T {
++    let old = (q - ball.center()).norm() - ball.lever().length();
++    let new = ball.stand_off(q);
++    geom_core::sfg_probe::hit(site, core::any::type_name::<T>(), &old, &new);
++    if geom_core::sfg_probe::mutant(&format!("pos_{site}")) {
++        return new.abs() + T::from_f64(1e9);
++    }
++    if geom_core::sfg_probe::mutant(&format!("neg_{site}")) {
++        return -new.abs() - T::from_f64(1e9);
++    }
++    new
++}
++
++fn sfg_shrunk<T: Decide>(name: &str, ball: geom_brep::ExtentBall<T>) -> geom_brep::ExtentBall<T> {
++    if geom_core::sfg_probe::mutant(name) {
++        geom_brep::ExtentBall::unsourced(ball.center(), ball.radius() * T::from_f64(0.5))
++    } else {
++        ball
++    }
++}
