@@ -1,0 +1,6 @@
+        FAIL [   0.107s] (  11/1058) geom cover::review_probes::review_red_near_overshoots_on_a_short_far_centred_arc
+        FAIL [   0.648s] ( 258/1058) geom-brep pcurve_cache::circle_lane_rows::a_circles_projected_envelope_covers_its_residual
+        FAIL [  37.445s] (1000/1058) topo boolean::section_cert::square_search::the_square_wall_arm_agrees_with_the_traced_section
+     Summary [ 635.770s] 1058 tests run: 1055 passed (9 slow), 3 failed, 7008 skipped
+    [fuzz] pcurve_cache::circle_lane_rows::search: seed=0xf79bc7c13a536d60 effort=1 — replay with CAD_FUZZ_SEED=0xf79bc7c13a536d60
+    [fuzz] section_cert_square_search: seed=0x45d1456cad79edb9 effort=1 — replay with CAD_FUZZ_SEED=0x45d1456cad79edb9

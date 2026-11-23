@@ -1,0 +1,19 @@
+M9 v_ref sign flipped (Conic for Ellipse) 
+   FAIL [   0.110s] (252/583) geom::all curves_boxes::ellipse_arc_box_contains_samples
+   FAIL [   0.110s] (300/583) geom::all curves_directional_extent::the_directional_door_on_the_world_axes_is_the_coordinate_box
+   FAIL [   0.114s] (262/583) geom::all curves_boxes::wide_bracket_ellipse_box_contains_every_realization
+   FAIL [   0.168s] (302/583) geom::all curves_directional_extent::the_directional_door_is_the_sampled_extent_along_oblique_directions
+   FAIL [   0.558s] (492/583) geom::all n3r1_probes::n3r1_f64_adversarial_corpus_is_contained_at_zero_pad
+   Summary [ 162.880s] 583 tests run: 578 passed (1 slow), 5 failed, 74 skipped
+M3 bulge halved 
+   Summary [ 219.788s] 583 tests run: 583 passed (1 slow), 74 skipped
+M4 one of four pieces dropped 
+   Summary [ 260.374s] 583 tests run: 583 passed (2 slow), 74 skipped
+M6 near without the bulge 
+   Summary [ 195.433s] 583 tests run: 583 passed (1 slow), 74 skipped
+M7 far without the bulged corners 
+   Summary [ 237.878s] 583 tests run: 583 passed (1 slow), 74 skipped
+M8 ball by the smaller semi-axis 
+   Summary [ 242.229s] 583 tests run: 583 passed (1 slow), 74 skipped
+M11 crest ratio replaced by A-k (cancelling form) 
+   Summary [ 236.538s] 583 tests run: 583 passed (1 slow), 74 skipped
