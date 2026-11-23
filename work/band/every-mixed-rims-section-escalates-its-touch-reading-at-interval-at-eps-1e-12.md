@@ -27,3 +27,11 @@ Pinned both ways by `crates/sweep/tests/band_closed_mixed_chain_shapes.rs::tight
 - 2026-11-17 — evidence from the band-reach lane (PR 7078): the all-three mixed corner's inset fillet refuses the same way at Interval at eps 1e-12, at a section where a band meets the torus link: `band_mixed_corner::inset` (boss 1 tall) and the boss 0.25 tall refuse with `shared_row_touch`, while the boss 0.5 tall builds. The reach clears all three. Each chamfer builds. `band_mixed_corner_reach::the_short_and_close_witnesses_build_at_their_closed_forms_at_interval` pins the 0.25 boss both ways.
 
 **Since PR 7131 (GREEN U12, 2026-11-23).** In nightly 44989234943, all six mixed-chain rows refuse earlier than this row's escalation, so the `assert_touch_escalation` pin goes red. They refuse `UnsupportedGeometry` ("a junction's section does not certify as the shared row of its two bands", `blend/surgery.rs`, where `analytic_shared_row` answers `None`) instead of `shared_row_touch` escalating. The rows are `band_closed_mixed_chain_shapes::{a_four_arc_barrel,rounded_polygons,turned_rounded_outlines}_fillet_whole`, `band_open_mixed_chain::an_l_plates_rounded_corner_run_fillets_whole_at_interval` and `band_open_mixed_chain_shapes::{an_s_run_of_a_convex_and_a_reflex_arc_builds,two_arcs_in_one_run_build}`. Cause: bracket. 7131's mutant F1X alone turns all six green, and A or F1F alone turns none. The refusal is counted in ONEHOME's `pr-7131s-frame-cost-at-1e-12-is-larger-than-it-counted` (PR 7402's branch until it merges), with probe runs 45083192761 (green at `e4d679d37e`), 45083200534 (red at `9bc9d6517b`) and 45083184695 (mutants). GREEN pins nothing until Ev rules on that count.
+
+- 2026-11-23 — **Two witnesses build at ε 1e-12 since `onehome/mints-sweep`**
+  (PR 7625, which mints the blend's band and patch frames through decided
+  doors, keeping a stored axis bit for bit where `Frame::new` re-squared
+  it): `band_mixed_corner_reach`'s inset boss 0.25 tall (both its
+  fillet rows) and `band_closed_mixed_chain_shapes`' slot at 30°
+  chamfered. Both rows now hold them to tier 3 at every ε; every other
+  rim these rows read still escalates or refuses as before.
