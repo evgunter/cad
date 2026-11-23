@@ -4487,17 +4487,20 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                     }
                 }
                 decided @ topo::Backing::Decided(_) => vec![decided],
-                topo::Backing::Carried { input: 0, record } => held
-                    .rows()
-                    .get(record as usize)
-                    .map(|c| c.cites.iter().collect())
-                    .unwrap_or_else(|| {
-                        unreachable!(
-                            "union {id:?}'s fold step {step} carries accumulation record \
+                topo::Backing::Carried { input, record }
+                    if topo::Operand::of_input(input) == Some(topo::Operand::A) =>
+                {
+                    held.rows()
+                        .get(record as usize)
+                        .map(|c| c.cites.iter().collect())
+                        .unwrap_or_else(|| {
+                            unreachable!(
+                                "union {id:?}'s fold step {step} carries accumulation record \
                              {record}, which the fold does not hold, though the step's operand \
                              A is that accumulation"
-                        )
-                    }),
+                            )
+                        })
+                }
                 topo::Backing::Carried { record, .. } => vec![topo::Backing::Carried {
                     input: member,
                     record,
