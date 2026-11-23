@@ -178,3 +178,11 @@
   - **The split, stated for Ev:** a typed `Parted` precondition (each parted cell reaches the cut, read from the split's ON set, which needs a split-only lineage field), or unconditional consumption with at most a debug assertion.
   - **My lean:** the precondition. Neither designer finds it refusing anything legal, and until the half-space row is built it is the only check of that claim.
   - **Waiting on Ev:** a background poll of PR 7489 for Ev's comments is armed (`~/.local/share/cad-work/heldrecords/wait-ev.sh`). PR 7481 (step 3) waits on the ruling. (HELDRECORDS orchestrator)
+- 2026-11-23 — **Ev answered PR 7489 (02:33Z): "no real opinion, either seems fine".** Option (2) is taken, the orchestrator's stated lean: a parted record is consumed where each cell reaches the cut by a decision the split made, and otherwise refuses `Parted` as a lineage defect. The README sentence gained that condition (`d182f4ba13`), the PR body was updated in place, and the `[ev]` came off the title. **Merged (`cc8c17f4f5`) on the docs-only rule** (README only, base main).
+  - **The build goes to `heldrecords/split-on`'s lane**, on PR 7481 after its review:
+    - the ON set is carried on the lineage;
+    - the interim test, the opt-in carry and `Parting` are deleted;
+    - the y = 2 ring cut and `split_along_a_pinch_face` build again;
+    - a mutant pin for the precondition;
+    - a P1 row for the split's missing closed-half-space postcondition;
+    - the parted-record row closes in that PR. (HELDRECORDS orchestrator)
