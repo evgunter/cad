@@ -6438,8 +6438,8 @@ mod travel_rows {
     /// about the reading shrinks with it:
     ///
     /// - at aspect 10 (`cot ψ` 4.95) a partner at the half-turn reads
-    ///   zero, and the slack is all there is: no tolerance decides it,
-    ///   and the refusal offers none;
+    ///   zero, and the slack is all there is: the bracket holds zero,
+    ///   the refusal states the far reading and offers no tolerance;
     /// - at aspect `0.4 + √1.16` (`cot ψ` 0.4) a partner `3e-9 m` past
     ///   the half-turn reads `3.8e-9` across its slack in a band of
     ///   `1e-9`: the refusal offers the tolerance its floor, `2.2e-9`,
@@ -6458,6 +6458,14 @@ mod travel_rows {
         assert!(
             !refused(10.0, 0.0).offers_tolerance(),
             "a reading that is all slack: {}",
+            refused(10.0, 0.0)
+        );
+        assert!(
+            matches!(
+                refused(10.0, 0.0).margin.diagnostic_f64_for_error_text(),
+                geom_core::ErrorTextReading::Value(far) if (far - 9.9e-9).abs() < 1e-12
+            ),
+            "its sentence states the far reading, the slack: {}",
             refused(10.0, 0.0)
         );
         let k = 0.4 + 1.16_f64.sqrt();

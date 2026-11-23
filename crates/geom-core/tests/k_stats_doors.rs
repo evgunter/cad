@@ -576,21 +576,22 @@ fn a_past_band_rejection_offers_no_declaration() {
     assert!(text.contains("move the geometry"), "{text}");
 }
 
-/// **A row read across a swing offers the tolerance its floor decides
-/// at, or none.** In a band of `1e-9`:
+/// **A row read across a swing offers what this band's bracket
+/// supports.** In a band of `1e-9`:
 ///
 /// - a reading of `6e-9` beside a fixed swing of `2e-9`: the far row,
 ///   `8e-9`, is in band, and its refusal quotes the floor, `4e-9`. At
 ///   the offered band the row decides; at the band the far reading
 ///   itself would offer (`8e-10`) it refuses again, on its floor;
-/// - a reading of zero beside a swing of `9.9` bands, a swing that
-///   scales with the band: the bracket holds zero, and the refusal
-///   offers no tolerance;
-/// - a reading of `3e-9` beside `0.8` bands: the offer, off the floor
-///   `2.2e-9`, decides the row at the smaller band, where the swing has
-///   shrunk with it;
-/// - on the `Interval` lane the floor's enclosure is quoted: its nearer
-///   end where it is wholly positive, none where it holds zero.
+/// - a reading of `3e-9` beside a swing of `0.8` bands that scales with
+///   the band: the offer, off the floor `2.2e-9`, decides the row at
+///   the smaller band, where the swing has shrunk with it;
+/// - a bracket that holds zero offers none and keeps the far reading:
+///   a zero reading beside `9.9` bands, and readings of `3e-10` and
+///   `1e-9` inside their swings;
+/// - on the `Interval` lane the floor's enclosure is quoted at its
+///   nearer end where it is wholly positive, and none is offered where
+///   the bracket holds zero.
 #[test]
 fn a_row_across_a_swing_offers_what_its_floor_decides_at() {
     use geom_core::k_stats::decide_across;
@@ -631,8 +632,18 @@ fn a_row_across_a_swing_offers_what_its_floor_decides_at() {
     assert_eq!(tie.predicate, Some("row"));
     assert!(!tie.offers_tolerance(), "a reading that is its own swing");
     assert_eq!(tie.offered_band(), None);
-    let within = scaled(3e-10, 9.9, band).unwrap_err();
-    assert!(!within.offers_tolerance(), "a floor of no size");
+    assert_eq!(
+        tie.margin.diagnostic_f64_for_error_text(),
+        ErrorTextReading::Value(9.9 * band.zero()),
+        "the far reading is kept"
+    );
+    for (datum, bands) in [(3e-10, 9.9), (1e-9, 1.5)] {
+        let within = scaled(datum, bands, band).unwrap_err();
+        assert!(
+            !within.offers_tolerance(),
+            "{datum:e} inside {bands} bands: the bracket holds zero at this band"
+        );
+    }
 
     let sized = scaled(3e-9, 0.8, band).unwrap_err();
     assert_eq!(sized.predicate, Some("row"));
@@ -662,4 +673,41 @@ fn a_row_across_a_swing_offers_what_its_floor_decides_at() {
         !boxed(-1e-10, 3e-10, 9.9e-9).offers_tolerance(),
         "an enclosure whose bracket holds zero"
     );
+}
+
+/// **"No tolerance offered" is the door's word on this band's bracket,
+/// not on every tolerance.** A swing the caller scaled from the band
+/// shrinks with it: readings of `1e-9` beside `1.5` bands (refused on
+/// the far row) and of `3e-10` and `5e-9` beside `9.9` bands (refused
+/// on the floor) are each offered none in a band of `1e-9`, and each is
+/// decided Positive in a smaller band, at `ε′ ≤ |m|/(K + c)`. The door
+/// is handed the swing as a length and cannot name that tolerance; a
+/// fixed swing of the same size stays undecided there.
+#[test]
+fn a_band_scaled_swing_is_decided_below_a_band_that_offers_none() {
+    use geom_core::k_stats::decide_across;
+    use geom_core::{Band, Sign};
+    const NAMES: [&str; 2] = ["row", "row_floor"];
+    let band = Band::new(1e-9, 1e-8).unwrap();
+    let k = band.escalate() / band.zero();
+    for (datum, bands, refused_on) in [
+        (1e-9, 1.5, "row"),
+        (3e-10, 9.9, "row_floor"),
+        (5e-9, 9.9, "row_floor"),
+    ] {
+        let refusal = decide_across(NAMES, datum, bands * band.zero(), band).unwrap_err();
+        assert_eq!(refusal.predicate, Some(refused_on), "{datum:e}");
+        assert!(!refusal.offers_tolerance(), "{datum:e}: offered none");
+        let eps = 0.99 * datum / (k + bands);
+        let smaller = Band::new(eps, k * eps).unwrap();
+        assert_eq!(
+            decide_across(NAMES, datum, bands * smaller.zero(), smaller),
+            Ok(Sign::Positive),
+            "{datum:e}: decided at {eps:e} with the swing scaled to it"
+        );
+        assert!(
+            decide_across(NAMES, datum, bands * band.zero(), smaller).is_err(),
+            "{datum:e}: the same swing held fixed is not"
+        );
+    }
 }

@@ -466,27 +466,16 @@ fn classify<T: Decide, A: MarginTerms>(
     margin: Margin<T, A>,
     band: Band,
 ) -> Result<Decided, Indeterminate> {
-    classified(name, margin, band, |source| source)
+    classify_quoting(name, margin, band, |source| source)
 }
 
-/// [`classify`] for a row whose refusal quotes another reading of the
-/// same decision than the one classified ([`decide_across`]'s far row,
-/// which quotes the bracket's floor): its escalation is minted as
-/// `quote` restates it. `quote` keeps the predicate, the band and the
-/// classifier's verdict on subdivision; the verdict channel never sees
-/// it.
-fn decide_quoting<T: Decide, A: MarginTerms>(
-    name: &'static str,
-    margin: Margin<T, A>,
-    band: Band,
-    quote: impl FnOnce(Indeterminate) -> Indeterminate,
-) -> Result<Decided, Indeterminate> {
-    classified(name, margin, band, quote)
-}
-
-/// The one classification body: [`classify`]'s, with the escalation it
-/// mints passed through `quote` first.
-fn classified<T: Decide, A: MarginTerms>(
+/// The one classification body. [`classify`] is this with the
+/// escalation left as classified; a row whose refusal quotes another
+/// reading of the same decision ([`decide_across`]'s far row, which
+/// quotes the bracket's floor) has it minted as `quote` restates it.
+/// `quote` keeps the predicate, the band and the classifier's verdict on
+/// subdivision, and the verdict channel never sees it.
+fn classify_quoting<T: Decide, A: MarginTerms>(
     name: &'static str,
     margin: Margin<T, A>,
     band: Band,
@@ -1241,13 +1230,20 @@ pub fn decide_magnitude_reported<T: Decide, A: MarginTerms>(
 /// band would sum to nearly twice it. At zero swing it is the plain
 /// two-sided reading of `datum`, under two names.
 ///
-/// **What a refusal offers.** A smaller tolerance decides the row only
-/// by deciding its floor past the band, so the far row left in band
-/// quotes the floor's size, `|datum| − swing`, not its own: tightening
-/// below that size over `K` decides the floor, and the far row with it,
-/// for a swing that does not grow as the tolerance shrinks. Where the
-/// bracket holds zero the floor has no size, and the refusal offers no
-/// tolerance: none decides a reading that is its own swing.
+/// **What a refusal offers** is what this band's bracket supports, and
+/// nothing else. A smaller tolerance decides the row only by deciding
+/// its floor past the band, so the far row left in band quotes the
+/// floor's size, `|datum| − swing`, where it has one, not its own:
+/// tightening below that size over `K` decides the floor, and the far
+/// row with it, for a swing that does not grow as the tolerance
+/// shrinks. Where the bracket holds zero at this band the floor has no
+/// size: the refusal keeps the far reading and offers no tolerance.
+/// That is not a statement that none decides. It is one for a swing
+/// that is a fixed length, and for a datum of exactly zero. A swing the
+/// caller scaled from the band (the join's stand-off, a multiple of ε)
+/// shrinks with the tolerance, so a datum that is not zero is decided
+/// at some smaller one, which this door cannot name: it is handed a
+/// length, not how the length was made.
 ///
 /// # Errors
 ///
@@ -1278,7 +1274,7 @@ pub fn decide_across_reported<T: Decide>(
 ) -> Result<(Sign, MarginDiag), Indeterminate> {
     let swing = swing.abs();
     let Decided { sign, margin } =
-        decide_quoting(far, Margin::of(datum.abs() + swing), band, |source| {
+        classify_quoting(far, Margin::of(datum.abs() + swing), band, |source| {
             quoting_floor(source, (datum.abs() - swing).max(T::zero()), band)
         })?;
     match sign {
@@ -1299,24 +1295,28 @@ pub fn decide_across_reported<T: Decide>(
     }
 }
 
-/// The far row's escalation `source`, quoting the bracket's `floor` (a
-/// magnitude, zero where the bracket holds zero) in place of the far
-/// reading: the floor's own reading against `band`, which is in band or
-/// in the zero band since it is no larger than the far reading. An
-/// unreadable far row keeps its own reading.
+/// The far row's escalation `source` as [`decide_across`] words it:
+/// quoting the bracket's `floor` (a magnitude, zero where the bracket
+/// holds zero) where the floor's reading has a size to offer a
+/// tolerance from, and otherwise the far reading itself, marked as
+/// offering none. An unreadable far row keeps its own reading.
 fn quoting_floor<T: Decide>(source: Indeterminate, floor: T, band: Band) -> Indeterminate {
     if source.margin.is_invalid() {
         return source;
     }
-    let margin = match Margin::of(floor).sign_within(band) {
-        Ok(Decided {
-            sign: Sign::Zero,
-            margin,
-        }) => margin,
+    let floor = match Margin::of(floor).sign_within(band) {
+        Ok(Decided { margin, .. }) => margin,
         Err(in_band) => in_band.margin,
-        Ok(_) => return source,
     };
-    Indeterminate { margin, ..source }
+    let quoted = Indeterminate {
+        margin: floor,
+        ..source
+    };
+    if quoted.offers_tolerance() {
+        quoted
+    } else {
+        source.undecided_passing(SizedPass::Zero)
+    }
 }
 
 /// **The measurement gate** — the funnel's door for a value an op is
