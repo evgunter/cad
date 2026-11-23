@@ -772,7 +772,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/topo/src/injective.rs",
-        208,
+        209,
         95,
         "the 95 that ask are `exactly` (2), `forward` (2), `along` (4), `face_extent` (4), \
          `ends_on_collapse` (3), \
@@ -838,7 +838,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          span outward (2), a parameter read, and the lift's signed area less or plus its \
          margin at the end that decides its sign (2), granted only where the area certifies, \
          and each piece's starting parameter (2), a parameter read, its point placed by \
-         `posed_cell`",
+         `posed_cell` `zero_of` reads one merged clip line's lower end (1), to ask which coordinate line a side through a vertex lies on (`iso_circle`); the clip was built in `present_chart` from lines it asked, and the answer is the line's kind, which no bracket a rounding wide changes",
     ),
     (
         "crates/topo/src/props.rs",
