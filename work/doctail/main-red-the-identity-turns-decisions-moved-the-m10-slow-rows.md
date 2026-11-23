@@ -79,3 +79,54 @@ and 64-leaf drives certify two and eight leaves, where the `RACING`
 doc says one and four. That is a gain. SCALAR's
 `the-race-rows-leaves-need-two-amounts-where-they-needed-six` holds the
 re-pin and now carries these measurements; it is not re-pinned here.
+
+## The rest of main's slow-set reds: not 7434's
+
+Each of these is red on `fa42c60` with the same reading. The exceptions
+are the varying-seed fuzz rows, which are red there under other seeds.
+None is touched here. The row that holds each is named where one is open.
+
+- **Red at the default ε:**
+  - `seat4_verb_lowering`, `seat7_sweep_lowering`, `seat8_split_lowering`:
+    GREEN's `main-red-eleven-…-after-c390e1f9`.
+  - `split_pinch_keeps::the_kite_moats_subtract_…`: GREEN's
+    `main-red-rows-two-lanes-found-red-on-their-merge-base-…`.
+  - The source censuses: geom-core's `bounds_census`,
+    `certified_endpoint_census` and `sym_rule_f_rows`, test-utils'
+    `reader_census`, and topo's `face_normal::…no_source_file_folds_…`.
+    Held by CIW's
+    `tree-wide-source-censuses-in-the-slow-set-run-on-no-pr-that-moves-a-site`,
+    GREEN's `reader-ledger-is-keyed-on-the-file-not-the-census` and ONEDOOR's
+    fold-census row.
+  - The recourse rosters (geom-brep and topo): GREEN's two
+    `main-red-…-recourse-roster-…` rows.
+  - step-import's nist09s snap, `wild` and `tier_gate`: GERM's
+    `main-red-axis-normal-snap-refuses-nist-ftc-09`.
+  - viewer's `review_pick_r2`: GREEN's
+    `main-red-the-viewers-pick-tally-reads-six-grazes-short-of-its-pin`.
+  - sweep's `bisector_nodes`, `section_end_poses` and `germ_tilted_rod`:
+    GREEN's rows.
+  - **test-utils' `predicate_name_coverage::every_deciding_crate_runs_a_roster_…`:**
+    `ct_critical_gap_straddle` (`pair_section/gap.rs`) and `pc_parallel_gap`
+    (`locus.rs`, `offer_rows.rs`) are "a predicate literal no crate
+    decides". No open row held it, so it is filed here as GREEN's
+    `main-red-two-slow-rows-no-row-holds-at-da61db71a`.
+- **Red at 1e-6 only:**
+  - geom-brep's `ellipse_torus` and `circle_lane_rows` fuzz rows:
+    SPLICE's and PCERT's seed rows.
+  - `pair_section::one_loop_keeps_its_order_near_the_node`.
+  - sweep's `verbs_cylcyl_r1_review_probes` and `verbs_germarms2` ×2:
+    SPIRICARM's 1e-6 row.
+  - topo's `square_search`: GERM's square-wall row.
+  - **sweep's `a_plane_through_a_cones_apex` 30° and 45°:** no open row
+    named them; they are filed on the same GREEN row.
+
+## The CI gap
+
+7434's gate ran none of these rows. They sit in the `ci` profile's slow
+set, and a slow row runs on a PR only when the diff spells its name or
+edits its file (`scripts/slow_set.py`'s `selected`). Ev ruled out running
+a seeded crate's whole slow set per PR (CIW's
+`dependents-slow-sets-skip-a-kernel-pr`, policy item 3, 2026-11-12). The
+faster canary is open as `trimmed-slow-canary-for-a-seeded-crate`. This
+instance is counted on the first of those two rows.
