@@ -688,7 +688,10 @@ fn the_walk_still_sees_every_file_holding_one() {
 /// skipping a build directory and hidden ones.
 fn crude_impl_lines(root: &Path) -> BTreeMap<String, usize> {
     fn walk(root: &Path, dir: &Path, out: &mut BTreeMap<String, usize>) {
-        for entry in std::fs::read_dir(dir).expect("a readable directory").flatten() {
+        for entry in std::fs::read_dir(dir)
+            .expect("a readable directory")
+            .flatten()
+        {
             let path = entry.path();
             let name = entry.file_name().to_string_lossy().into_owned();
             if path.is_dir() {

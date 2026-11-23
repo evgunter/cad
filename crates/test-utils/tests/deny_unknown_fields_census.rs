@@ -362,7 +362,10 @@ fn every_deny_unknown_fields_attribute_has_a_named_field_to_deny() {
                 site.starts_with(&format!("{file}:")) && *verdict == Governed::NothingToDeny
             })
             .count();
-        assert!(inert <= 1, "{file}: a second inert site beside the pinned one");
+        assert!(
+            inert <= 1,
+            "{file}: a second inert site beside the pinned one"
+        );
     }
     let offenders: Vec<String> = found
         .into_iter()
@@ -419,7 +422,10 @@ fn the_walk_still_sees_every_attribute_site() {
 /// directory and hidden ones, over the raw text.
 fn crude_attribute_lines(root: &Path) -> BTreeMap<String, usize> {
     fn walk(root: &Path, dir: &Path, out: &mut BTreeMap<String, usize>) {
-        for entry in std::fs::read_dir(dir).expect("a readable directory").flatten() {
+        for entry in std::fs::read_dir(dir)
+            .expect("a readable directory")
+            .flatten()
+        {
             let path = entry.path();
             let name = entry.file_name().to_string_lossy().into_owned();
             if path.is_dir() {
