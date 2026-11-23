@@ -500,9 +500,11 @@ fn built_at_coarse(half: f64, k: f64) -> Option<f64> {
 ///   every pose past the band builds a SOUND body within the widths
 ///   [`built_at_coarse`] admits, but for the larger tip over the
 ///   half-length 50, which escalates;
-/// - at `1e-12` the half-length 50 poses refuse at
-///   `CurvedPierceUnsupported`; the half-length 200 rod is not a finished
-///   body there (`work/onehome/pr-7131s-frame-cost-at-1e-12-is-larger-than-it-counted.md`).
+/// - at `1e-12` every pose refuses at `CurvedPierceUnsupported`. The
+///   half-length 200 rod finishes there since its cylinder's face anchor
+///   is read at a point ([`geom_brep::surface_anchored_at`]); before, its
+///   rims' off-axis reading refused it in band
+///   (`work/onehome/pr-7131s-frame-cost-at-1e-12-is-larger-than-it-counted.md`).
 ///
 /// At `1e-6` these tips refused every op until PR 7112, with
 /// `JoinDesync { "the march found one loop of the section twice" }`:

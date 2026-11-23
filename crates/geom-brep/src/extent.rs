@@ -132,8 +132,17 @@ pub fn anchored_at<T: Real>(datum: Point3<T>, forgets: Forgets<T>, at: Point3<T>
 /// ([`anchored_at`]): a plane's origin and a cylinder's axis origin.
 /// Every other datum is intrinsic (a sphere's or a torus's centre, a
 /// cone's apex) and stays, as does a spline's net.
+///
+/// `at` is read at a point of itself ([`Real::chosen_point`]): any
+/// point's foot on the plane is a point of the same plane, and any
+/// point's foot on the axis a point of the same axis, so the carrier is
+/// the same set whichever point of `at`'s enclosure anchors it, and
+/// `at`'s width would only widen the anchored datum by its lever along
+/// the orbit. At a point scalar, and in a lane, the choice is `at`
+/// itself.
 #[must_use]
 pub fn surface_anchored_at<T: Real>(surface: &geom::Surface<T>, at: Point3<T>) -> geom::Surface<T> {
+    let at = at.map(Real::chosen_point);
     let mut out = surface.clone();
     match &mut out {
         geom::Surface::Plane { frame, .. } => {
@@ -2142,6 +2151,119 @@ mod tests {
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod anchor_rows {
+    use super::*;
+    use geom::Surface;
+    use geom_core::{Bounds, Interval};
+
+    /// The widest coordinate of a point enclosure.
+    fn width(p: Point3<Interval>) -> f64 {
+        [p.x, p.y, p.z]
+            .into_iter()
+            .map(|c| c.hi() - c.lo())
+            .fold(0.0, f64::max)
+    }
+
+    /// A vector's components as their stored bits.
+    fn bits(v: Vec3<Interval>) -> [(u64, u64, u8); 3] {
+        [v.x.repr_bits(), v.y.repr_bits(), v.z.repr_bits()]
+    }
+
+    /// An anchor 1e-9 wide about `(x, y, z)`: the width a face's mean
+    /// vertex carries where its loop points are read off lifted carriers.
+    fn wide(x: f64, y: f64, z: f64) -> Point3<Interval> {
+        let w = 1e-9;
+        Point3::new(
+            Interval::from_bounds(x - w, x + w),
+            Interval::from_bounds(y - w, y + w),
+            Interval::from_bounds(z - w, z + w),
+        )
+    }
+
+    /// **A face's anchor is read at a point of itself, and the anchored
+    /// carrier is the same set.** A tilted cylinder stored 200 m down its
+    /// axis, lifted to `Interval` and anchored at a 1e-9-wide point 350 m
+    /// along it and off it: the axis and radius keep their bits, and every
+    /// sampled point of the anchored cylinder stands at the radius from
+    /// the stored axis within its enclosure. Its origin is under 1e-11
+    /// wide (about 1e-12: the lifted axis's ulps over the 350 m it slides),
+    /// not the 2e-9 along the axis the anchor's own width would put there. A plane anchored the same
+    /// way keeps its normal, and its origin lies on the stored plane within
+    /// its enclosure. Red against the anchor read whole (the width), and
+    /// against the anchor taken as the origin with no foot (the set).
+    #[test]
+    fn a_face_anchor_is_read_at_a_point_and_keeps_the_carrier() {
+        let lift = |s: &Surface<f64>| s.map_scalar(Interval::from_f64);
+        let at = wide(0.9, -0.7, 150.0);
+        let axis = Vec3::new(0.3, -0.2, 1.0);
+        let stored = Surface::Cylinder {
+            frame: geom::Frame::new(
+                Point3::new(0.5, -0.25, -200.0),
+                axis,
+                Vec3::new(1.0, 0.0, -0.3),
+            ),
+            radius: 0.4,
+        };
+        let (
+            Surface::Cylinder {
+                frame: before,
+                radius,
+            },
+            Surface::Cylinder {
+                frame: after,
+                radius: r,
+            },
+        ) = (lift(&stored), surface_anchored_at(&lift(&stored), at))
+        else {
+            panic!("a cylinder stays a cylinder");
+        };
+        assert_eq!(r.repr_bits(), radius.repr_bits());
+        assert_eq!(bits(after.axis()), bits(before.axis()));
+        assert!(
+            width(after.origin()) < 1e-11,
+            "the anchored origin {:?}",
+            after.origin()
+        );
+        let stored_axis = Line {
+            origin: before.origin(),
+            dir: before.axis_unit(),
+        };
+        let v = after.axis().cross(after.u_ref());
+        for k in 0..8 {
+            let (s, c) = (f64::from(k) * 0.8).sin_cos();
+            for t in [-30.0, 0.0, 30.0] {
+                let p = after.origin()
+                    + after.axis() * Interval::from_f64(t)
+                    + (after.u_ref() * Interval::from_f64(c) + v * Interval::from_f64(s)) * radius;
+                let off = stored_axis.distance(p) - radius;
+                assert!(off.lo() <= 0.0 && 0.0 <= off.hi(), "u {k}, t {t}: {off:?}");
+            }
+        }
+        let plane = Surface::Plane {
+            frame: geom::Frame::new(
+                Point3::new(3.0, -1.0, -200.0),
+                axis,
+                Vec3::new(1.0, 0.0, -0.3),
+            ),
+        };
+        let (Surface::Plane { frame: before }, Surface::Plane { frame: after }) =
+            (lift(&plane), surface_anchored_at(&lift(&plane), at))
+        else {
+            panic!("a plane stays a plane");
+        };
+        assert_eq!(bits(after.axis()), bits(before.axis()));
+        assert!(
+            width(after.origin()) < 1e-11,
+            "the anchored origin {:?}",
+            after.origin()
+        );
+        let off = (after.origin() - before.origin()).dot(before.axis());
+        assert!(off.lo() <= 0.0 && 0.0 <= off.hi(), "{off:?}");
     }
 }
 

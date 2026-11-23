@@ -539,6 +539,21 @@ pub trait Real:
         None
     }
 
+    /// **A point of this value, chosen**: at a scalar whose value is an
+    /// enclosure, one real it encloses, stated exactly; elsewhere (the
+    /// default) the value itself. It is a choice, not a reading: the
+    /// result encloses a real the value encloses, not the real the value
+    /// stands for, so it serves only a caller to whom any point of the
+    /// enclosure is as good as the true one, such as an anchor whose
+    /// foot on a carrier's orbit is a point of the same carrier wherever
+    /// it is taken (`geom_brep::surface_anchored_at`, a face's anchor).
+    /// The default keeps every point scalar's value and every lane's
+    /// derivative.
+    #[must_use]
+    fn chosen_point(self) -> Self {
+        self
+    }
+
     /// **The meet of two readings of one real**, where `first` and the
     /// value `second` builds enclose the same real by independent
     /// spellings: at a scalar whose value is a plain enclosure, their

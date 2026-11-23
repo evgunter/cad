@@ -777,6 +777,21 @@ impl Real for Interval {
         stated_point(self)
     }
 
+    /// The enclosure's midpoint as an exact point box, clamped into the
+    /// box; the value itself where it is no certified finite enclosure
+    /// (a poisoned value keeps its decoration, so nothing is laundered)
+    /// or is a point already.
+    fn chosen_point(self) -> Self {
+        let (lo, hi) = (self.0.lo(), self.0.hi());
+        if !(self.is_certified() && lo.is_finite() && hi.is_finite())
+            || lo.to_bits() == hi.to_bits()
+        {
+            return self;
+        }
+        let m = (0.5 * lo + 0.5 * hi).clamp(lo, hi);
+        Self::from_bounds(m, m)
+    }
+
     /// The exact sum enclosed where every input is a stated point
     /// ([`Real::stated_point`]) each of whose products is exact as an
     /// expansion (every nonzero input within `2^±450`, so no product's
@@ -2717,5 +2732,35 @@ mod tests {
                 ),
             }
         }
+    }
+
+    /// **A chosen point is an exact point of its enclosure**: a wide
+    /// enclosure, one far out and one across zero each answer one `f64`
+    /// stated twice, inside the box and certified; a point, a poisoned
+    /// value and an unbounded one answer themselves, bit for bit (no
+    /// decoration laundered); and `f64` answers itself. Red against the
+    /// value kept (no point), and against a point off the box.
+    #[test]
+    fn a_chosen_point_is_an_exact_point_of_its_enclosure() {
+        for x in [
+            iv(1.0, 1.0 + 2f64.powi(-40)),
+            iv(-3.0, 5.0),
+            iv(-1e300, 1e308),
+            iv(199.99999999999955, 200.00000000000054),
+        ] {
+            let p = x.chosen_point();
+            assert_eq!(p.lo().to_bits(), p.hi().to_bits(), "{x:?} chose {p:?}");
+            assert!(x.lo() <= p.lo() && p.hi() <= x.hi(), "{x:?} chose {p:?}");
+            assert!(p.is_certified(), "{x:?} chose {p:?}");
+        }
+        let poisoned = iv(-1.0, -1.0).sqrt();
+        for x in [iv(2.0, 2.0), poisoned, iv(0.0, f64::INFINITY)] {
+            assert_eq!(x.chosen_point().repr_bits(), x.repr_bits(), "{x:?}");
+        }
+        assert!(
+            !poisoned.is_certified(),
+            "the poisoned case is poisoned: {poisoned:?}"
+        );
+        assert_eq!(0.3f64.chosen_point().to_bits(), 0.3f64.to_bits());
     }
 }

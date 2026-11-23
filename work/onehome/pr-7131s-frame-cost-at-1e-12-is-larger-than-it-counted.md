@@ -53,6 +53,11 @@ Nightly 44989234943 (main `4d3402ecb1`'s kernel) against the 11-21 nightly 44870
 - sweep `section_ellipse_seam_poses::planes_through_the_axis_nearly_along_it_split`: the at-rest pose table moved at θ 1e-6. Four poses at φ 0.4 and 2.5 now refuse `URef Tilt`, and two at φ 3.9 that refused `URef Length` now pass (RESTFRONT's frame-check row).
 - geom-brep `curve_pair::pose::window::oracle::each_window_reading_holds_on_a_dense_distance`, seed `0x4071461b4c688a45`: draw 7, at `f64`, reads `Recedes` where the dense distance contradicts it. This is **a contradicted reading, not a refusal**. It is filed on CPAIR (`a-window-reading-at-f64-is-contradicted-by-the-dense-distance-since-7131s-squaring`).
 
+**The polar rows since (ONEHOME, 2026-11-23).** PR 7349 widened all four, through its lift of a line's direction (`geom/src/scalar_lift.rs`'s Line arm, the polar unit enclosure). That width reached `props_cylinder_circle_off_axis` only through a face's anchor (`geom_brep::surface_anchored_at`, the loops' mean start, read off the seam lines up to 400 m along them). Branch `onehome/anchor-at-a-point` reads the anchor at a point of itself (`Real::chosen_point`); at 1e-12:
+- the two tipped-rod rows: hi 1.3074e-12 at main `e3fdefa369` (1.1937e-12 before 7349); the rod finishes, and both rows are green;
+- `torus_touch_off_faces`: 1.7384e-12 at main (1.5684e-12 before 7349) → 1.1722e-12, still refusing;
+- the far-off carrier: 1.5357e-12 at main (about 1.195e-12 before 7349) → 1.0809e-12, still stopping at back 300.
+
 **Not frame cost, but 7131's:** step-export `committed_fixtures_are_byte_golden`, red at every ε. 7131's merge committed `composed_die.step` from an earlier head, with 12 `DIRECTION` x components at `0.0`. The final head emits main's `-0.0`. PR 7361 (`b31e3986d6`) has since restored the 13 `-0.0` lines.
 
 **Not 7131's (1 of the 19):** editor-core `split_pinch_keeps::the_kite_moats_…`, red at every ε and held by GREEN's `main-red-rows-two-lanes-found-red-…`. At the other ε, the two new fuzz reds are held by `germ/the-square-wall-fuzzer-…` and `splice/the-torus-rows-door-answer-panics-…`.
