@@ -802,7 +802,6 @@ pub fn acts(op: &SessionOp) -> bool {
         | SessionOp::SetBundle { .. }
         | SessionOp::NewDocument { .. }
         | SessionOp::AddProfile { .. }
-        | SessionOp::SketchOnFace { .. }
         | SessionOp::DrawOnFace { .. }
         | SessionOp::EditProfile { .. }
         | SessionOp::AddExtrude { .. }
@@ -3429,7 +3428,7 @@ mod tests {
                     residual: Box::new(residual),
                     recourse: editor_core::coincide::Recourse::Assert,
                     restated: Vec::new(),
-                    quietable: false,
+                    quieting: None,
                 },
                 quiet: None,
             }],
