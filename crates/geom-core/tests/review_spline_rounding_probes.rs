@@ -1,7 +1,7 @@
 //! Review probes for PR 7652 (`running::Tracked`, `Rounded::step`), kept on
 //! the review branch only. Each states the contract the door's doc states
 //! and is judged in exact arithmetic; a red one is a finding.
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::float_cmp)]
+#![allow(clippy::float_cmp)]
 
 use geom_core::Interval;
 use geom_core::exact::Expansion;
@@ -60,8 +60,8 @@ fn review_a_step_whose_first_order_shares_all_vanish_reads_a_zero_bound() {
 fn review_a_power_of_two_step_into_the_subnormals_is_not_exact() {
     let y = f64::MIN_POSITIVE + f64::from_bits(1);
     let s = Rounded::exact(0.0).step(Rounded::exact(y), Rounded::exact(0.5));
-    let mut gap = Expansion::product(y, 0.5);
-    gap.add(-s.value);
-    assert!(gap.components().iter().any(|&c| c != 0.0), "the product rounded");
+    // A product by ½ is exact exactly where doubling it back returns `y`
+    // (`Expansion` cannot see a 2⁻¹⁰⁷⁵ remainder: its own terms underflow).
+    assert_ne!(s.value * 2.0, y, "the product rounded");
     assert_eq!(s.error, 0.0, "and the bound reads zero");
 }

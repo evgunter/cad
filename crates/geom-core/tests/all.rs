@@ -123,6 +123,7 @@ mod m5_pr7b_tensor_compose;
 mod normalize_prescale_review_rows;
 #[path = "recourse_roster.rs"]
 mod recourse_roster;
+mod review_spline_rounding_probes;
 #[path = "review_m0_pr2.rs"]
 mod review_m0_pr2;
 #[path = "review_m0_pr3.rs"]
