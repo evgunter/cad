@@ -6272,7 +6272,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "unproven_tag",
-        values: &["stalled", "unfinished"],
+        values: &["flip_unfounded", "stalled", "unfinished"],
         delegates: &["refusal_reason_tag"],
     },
     TagEntry {

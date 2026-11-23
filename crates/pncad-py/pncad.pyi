@@ -3388,7 +3388,9 @@ class NotDecided:
     def reason(self) -> str:
         """Why the side is undecided at its frontier: `"unfinished"`
         (the search still had work here when it stopped), `"stalled"`
-        (halvings past the proof's last move decided nothing), or the
+        (halvings past the proof's last move decided nothing),
+        `"flip_unfounded"` (the replay refused as a flip that names
+        nothing, or at the current value: never a difference), or the
         driver's own reason for the frontier interval: `"budget"`,
         `"sliver_terminal"`, `"reads_no_variable"` (the deciding node
         does not read the field, so no halving settles it),

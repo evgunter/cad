@@ -573,7 +573,9 @@ impl NotDecided {
 
     /// Why the side is undecided at its frontier: `"unfinished"` (the
     /// search still had work here when it stopped), `"stalled"`
-    /// (halvings past the proof's last move decided nothing), or the
+    /// (halvings past the proof's last move decided nothing),
+    /// `"flip_unfounded"` (the replay refused as a flip that names
+    /// nothing, or at the current value: never a difference), or the
     /// driver's own reason for the frontier interval: `"budget"`,
     /// `"sliver_terminal"`, `"reads_no_variable"` (the deciding node
     /// does not read the field, so no halving settles it),
@@ -589,7 +591,9 @@ impl NotDecided {
     fn replays(&self) -> Option<usize> {
         match self.inner.reason() {
             a::Unproven::Unfinished { replays } => Some(*replays),
-            a::Unproven::Stalled { .. } | a::Unproven::Floor(_) => None,
+            a::Unproven::Stalled { .. } | a::Unproven::Floor(_) | a::Unproven::FlipUnfounded => {
+                None
+            }
         }
     }
 
@@ -599,7 +603,9 @@ impl NotDecided {
     fn width(&self, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
         match self.inner.reason() {
             a::Unproven::Stalled { width } => quantity(py, *width, self.dim).map(Some),
-            a::Unproven::Unfinished { .. } | a::Unproven::Floor(_) => Ok(None),
+            a::Unproven::Unfinished { .. } | a::Unproven::Floor(_) | a::Unproven::FlipUnfounded => {
+                Ok(None)
+            }
         }
     }
 
@@ -618,7 +624,8 @@ impl NotDecided {
                 | a::RefusalReason::Infeasible,
             )
             | a::Unproven::Unfinished { .. }
-            | a::Unproven::Stalled { .. } => None,
+            | a::Unproven::Stalled { .. }
+            | a::Unproven::FlipUnfounded => None,
         }
     }
 
@@ -636,7 +643,8 @@ impl NotDecided {
                 | a::RefusalReason::Budget(_),
             )
             | a::Unproven::Unfinished { .. }
-            | a::Unproven::Stalled { .. } => None,
+            | a::Unproven::Stalled { .. }
+            | a::Unproven::FlipUnfounded => None,
         }
     }
 

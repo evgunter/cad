@@ -902,7 +902,10 @@ fn the_directed_search_proves_ground_on_the_plate_the_level_drive_cannot() {
     let proven = search.answer();
     assert!(
         proven.hi().proven_to() > 0.0,
-        "the directed search proved nothing in {} replays: {proven:?}",
+        "the directed search proved nothing in {} replays: {proven:?}. While the leaf protocol \
+         refuses the plate's narrow leaves as a flip that names nothing, this row is held by \
+         work/boxfinish/a-witness-records-curved-premise-checks-the-interval-replay-skips-so-no-\
+         curved-leaf-certifies",
         search.steps()
     );
     assert!(search.steps() <= PLATE_CAP);

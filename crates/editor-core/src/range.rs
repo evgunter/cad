@@ -26,7 +26,9 @@
 //! Each side of the current value is a row of intervals tiling it,
 //! nearest first; at the start, one per side, the side whole. A replay
 //! leaves an interval PROVEN (it certifies), DIFFERENT (decided
-//! definitely otherwise), or undecided; an undecided interval at the
+//! definitely otherwise, with something named that flipped, on an
+//! interval that does not hold the current value), or undecided; a flip
+//! with no such ground is undecided for good ([`Unproven::FlipUnfounded`]); an undecided interval at the
 //! depth bound or the `f64` grid, or one the driver refused for good,
 //! is at its FLOOR. A side's answer is read off its FRONTIER, the first
 //! interval not proven, and its nearest DIFFERENT interval; the
@@ -356,6 +358,12 @@ pub enum Unproven {
     /// ([`RefusalReason::ReadsNoVariable`]), which no budget moves: its
     /// recourse is the node's own.
     Floor(RefusalReason),
+    /// The driver refused the frontier interval as a flip that has no
+    /// ground: it names nothing that flipped (no verdict and no
+    /// structure differs), or the interval holds the current value,
+    /// whose build IS the witness's. Not a difference, and not ground
+    /// more replays decide: a defect of the leaf protocol to name.
+    FlipUnfounded,
 }
 
 impl NotDecided {
@@ -1052,6 +1060,9 @@ enum Ground {
     /// Undecided for good: a terminal sliver, or an interval at the
     /// depth bound or the `f64` grid.
     Floor(RefusalReason),
+    /// Refused as a flip with no ground ([`Unproven::FlipUnfounded`]):
+    /// undecided for good, and never a difference.
+    Unfounded,
 }
 
 /// One interval of a side: `near` is the end towards the current value.
@@ -1177,7 +1188,7 @@ impl Side {
         let scouting = different == self.cells.len()
             && self.cells.get(frontier).is_some_and(|c| match &c.ground {
                 Ground::Undecided(_) => !open(frontier, c.depth),
-                Ground::Floor(_) => true,
+                Ground::Floor(_) | Ground::Unfounded => true,
                 Ground::Unreached | Ground::Proven | Ground::Different(_) => false,
             });
         let scout = |at: usize, depth: u32| scouting && at > frontier && depth < STALL_LEVELS;
@@ -1238,6 +1249,7 @@ impl Side {
             match &frontier.ground {
                 Ground::Different(_) | Ground::Proven => None,
                 Ground::Floor(reason) => Some(Unproven::Floor(reason.clone())),
+                Ground::Unfounded => Some(Unproven::FlipUnfounded),
                 // An interval short of the nearest difference that is not
                 // replayed is work, so an unreached frontier with none
                 // left does not occur; it is priced as one that has.
@@ -1427,9 +1439,7 @@ impl RangeSearch {
         )?;
         Ok(match verdict {
             LeafVerdict::Certified(_) => Ground::Proven,
-            LeafVerdict::Refused(RefusalReason::FlipCrossing { flipped }) => {
-                Ground::Different(flipped)
-            }
+            LeafVerdict::Refused(RefusalReason::FlipCrossing { flipped }) => flip(cell, flipped),
             LeafVerdict::Refused(reason) => Ground::Floor(reason),
             // A deciding node that reads nothing of the axis is not
             // settled by halving it, at any depth (as in `drive`).
@@ -1463,6 +1473,26 @@ fn next(sides: &[Side; 2]) -> Option<(usize, Work)> {
         }
     }
     best
+}
+
+/// **What a refusal the driver calls a flip makes of an interval.** A
+/// difference only where the flip has ground: evidence that names
+/// something, on an interval that does not hold the current value. An
+/// interval holding offset zero holds the witness's own value, so a
+/// named flip there is a defect upstream: it fails loud in a debug build
+/// and is undecided ground in any build, never a difference shown as
+/// fact.
+fn flip(cell: &Cell, flipped: Box<FlipEvidence>) -> Ground {
+    let named = !flipped.verdicts.nodes.is_empty() || !flipped.structure.is_empty();
+    debug_assert!(
+        !named || cell.near != 0.0,
+        "an interval holding the current value was decided different: {flipped:?}"
+    );
+    if named && cell.near != 0.0 {
+        Ground::Different(flipped)
+    } else {
+        Ground::Unfounded
+    }
 }
 
 /// What an undecided interval becomes: its halves, nearer first, or the
@@ -1842,6 +1872,52 @@ mod tests {
             side.work().map(|w| w.at()),
             Some(3),
             "a difference is proven: only its approach"
+        );
+    }
+
+    /// **A flip that names nothing is not a difference**: the side
+    /// reads it as undecided ground under its own reason, which more
+    /// replays do not move, and proves nothing past it.
+    #[test]
+    fn a_flip_that_names_nothing_is_undecided_and_never_a_difference() {
+        let empty = Box::new(FlipEvidence {
+            verdicts: FlipSet {
+                nodes: BTreeMap::new(),
+            },
+            structure: Vec::new(),
+        });
+        for c in [
+            cell(0.0, 0.5, Ground::Unreached),
+            cell(0.5, 1.0, Ground::Unreached),
+        ] {
+            assert_eq!(flip(&c, empty.clone()), Ground::Unfounded, "at {}", c.near);
+        }
+        let named = evidence(RunStatus::Ok, RunStatus::Ok);
+        assert!(matches!(
+            flip(&cell(0.5, 1.0, Ground::Unreached), named),
+            Ground::Different(_)
+        ));
+        let side = row(vec![cell(0.0, 0.5, Ground::Unfounded)]).answer(4);
+        assert!(
+            side.end().is_none(),
+            "no difference, no seed's end: {side:?}"
+        );
+        assert_eq!(side.proven_to(), 0.0);
+        let gap = side.not_decided().expect("undecided");
+        assert_eq!(*gap.reason(), Unproven::FlipUnfounded);
+        assert!(!gap.more_time_helps());
+    }
+
+    /// **A named flip on an interval holding the current value fails
+    /// loud**: that interval holds the witness's own value, so the flip
+    /// is a defect upstream, never an answer.
+    #[test]
+    #[cfg(debug_assertions)]
+    #[should_panic(expected = "an interval holding the current value was decided different")]
+    fn a_named_flip_at_the_current_value_fails_loud() {
+        let _ = flip(
+            &cell(0.0, 0.5, Ground::Unreached),
+            evidence(RunStatus::Ok, RunStatus::Failed),
         );
     }
 

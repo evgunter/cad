@@ -827,6 +827,7 @@ pub fn unproven_tag(reason: &Unproven) -> &'static str {
         Unproven::Unfinished { .. } => "unfinished",
         Unproven::Stalled { .. } => "stalled",
         Unproven::Floor(reason) => refusal_reason_tag(reason),
+        Unproven::FlipUnfounded => "flip_unfounded",
     }
 }
 
