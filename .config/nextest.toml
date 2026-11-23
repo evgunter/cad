@@ -185,9 +185,10 @@ failure-output = "immediate-final"
 # PR 6988's branch (medians of six local runs 1.22 s on the merge base
 # `dbb21b4a`, 1.14 s on the branch; 1.036 s on the hosted runner):
 #    1.04 s  sweep::all snowman::a_slab_cutting_a_cap_off_a_pole_strut_carve_builds
-# A rest carried onto either piece of a sphere face a slab cuts in, four
-# ops over two built operands (0.57 s, a local run):
+# A rest carried onto either piece of a sphere face, or of its rim arc,
+# a slab cuts in, four ops over two built operands each (local runs):
 #    0.57 s  sweep::all a_rest_on_a_cut_in_piece_lands_on_it::a_rest_on_either_piece_of_a_cut_in_face_lands_on_that_piece
+#    0.54 s  sweep::all a_rest_on_a_cut_in_piece_lands_on_it::a_rest_on_either_piece_of_a_cut_in_rim_arc_lands_on_that_piece
 # Rays about a hand-built boxed cylinder's moving rim, and a torus cut
 # shallowly through the boolean door with rays in its spiric edges'
 # straddle (a local run, 4 vCPUs):
@@ -323,7 +324,7 @@ not (
   (binary_id(sweep::all) & (test(=band_closed_mixed_chain_shapes::rounded_outlines_of_other_shapes_chamfer_whole) | test(=band_closed_mixed_chain_shapes::turned_and_moved_rounded_rectangles_chamfer_whole) | test(=band_closed_mixed_chain_shapes::rounded_outlines_at_their_limits_chamfer_whole) | test(=band_closed_mixed_chain_shapes::a_rounded_plate_with_a_rounded_through_hole_chamfers_every_edge) | test(=band_closed_mixed_chain_shapes::holes_at_an_arcs_wedge_build_clear_and_refuse_overlapping_under_a_chamfer) | test(=band_closed_mixed_chain_shapes::a_turned_l_pockets_top_mouth_and_floor_chamfer_in_one_call) | test(=band_closed_mixed_chain::a_rounded_plate_chamfers_all_round_at_pappuss_volume_at_interval) | test(=band_open_mixed_chain::open_mixed_chains_chamfer_whole_at_pappuss_volume_at_interval) | test(=band_closed_mixed_chain::a_rounded_pockets_floor_and_mouth_chamfer_whole) | test(=band_closed_mixed_chain_shapes::rounded_outlines_drawn_in_arc_pieces_chamfer_whole) | test(=band_closed_mixed_chain::a_rounded_plate_chamfers_all_round_at_pappuss_volume) | test(=band_closed_mixed_chain_shapes::a_setback_beside_the_arcs_radius_builds_below_it_and_refuses_past_it) | test(=band_closed_mixed_chain_shapes::a_hole_at_a_junctions_section_clears_its_trims_until_its_margin_turns))) |
   (binary_id(editor-core::all) & test(=band_closed_mixed_chain_names::a_rounded_plate_chamfered_by_name_names_each_section_once_and_keeps_its_names)) |
   (binary_id(sweep::all) & test(=snowman::a_slab_cutting_a_cap_off_a_pole_strut_carve_builds)) |
-  (binary_id(sweep::all) & test(=a_rest_on_a_cut_in_piece_lands_on_it::a_rest_on_either_piece_of_a_cut_in_face_lands_on_that_piece)) |
+  (binary_id(sweep::all) & (test(=a_rest_on_a_cut_in_piece_lands_on_it::a_rest_on_either_piece_of_a_cut_in_face_lands_on_that_piece) | test(=a_rest_on_a_cut_in_piece_lands_on_it::a_rest_on_either_piece_of_a_cut_in_rim_arc_lands_on_that_piece))) |
   (binary_id(sweep::all) & test(=a_cone_on_a_torus_meridian_in_every_order::the_meridian_triangle_and_its_torus_build_in_every_order)) |
   (binary_id(geom-brep::all) & test(=cone_torus_pose::the_meridian_triangles_cone_crosses_its_torus_certified)) |
   (binary_id(sweep::all) & test(=band_strip_mouth_cups::a_cups_mouth_a_hair_across_the_trimline_crosses_and_one_inside_goes)) |
