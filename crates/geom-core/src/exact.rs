@@ -402,7 +402,7 @@ pub fn harmonic_belly_near(
         .plus(big_b.times(big_b))
         .minus(d.times(d));
     let u_ = f64::EPSILON / 2.0;
-    let magnitude = m_a * m_a + m_b * m_b + m_d * m_d;
+    let magnitude = m_a.powi(2) + m_b.powi(2) + m_d.powi(2);
     let rise = big_a.hi.hypot(big_b.hi) + d.hi.abs();
     let clear = squares.hi.abs() > 2048.0 * u_ * magnitude && magnitude.is_finite();
     clear.then(|| squares.hi / rise)
