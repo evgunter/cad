@@ -2185,6 +2185,20 @@ impl Real for Probe {
         ))
     }
 
+    fn harmonic_belly(
+        q: [Self; 3],
+        o: [Self; 3],
+        n: [Self; 3],
+        terms: [(Self, [Self; 3]); 2],
+    ) -> Self {
+        Self(f64::harmonic_belly(
+            q.map(|x| x.0),
+            o.map(|x| x.0),
+            n.map(|x| x.0),
+            terms.map(|(s, d)| (s.0, d.map(|x| x.0))),
+        ))
+    }
+
     fn abs(self) -> Self {
         Self(Real::abs(self.0))
     }

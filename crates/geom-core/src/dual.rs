@@ -561,6 +561,27 @@ impl<T: KinkJacobian> Real for Dual<T> {
         }
     }
 
+    /// The value `T`'s ([`Real::harmonic_belly`]); the derivative the
+    /// plain formula's chain rule.
+    fn harmonic_belly(
+        q: [Self; 3],
+        o: [Self; 3],
+        n: [Self; 3],
+        terms: [(Self, [Self; 3]); 2],
+    ) -> Self {
+        let plain = crate::real::plain_harmonic_belly(q, o, n, terms);
+        let value = |p: [Self; 3]| p.map(|x| x.value);
+        Self {
+            value: T::harmonic_belly(
+                value(q),
+                value(o),
+                value(n),
+                terms.map(|(s, d)| (s.value, value(d))),
+            ),
+            deriv: plain.deriv,
+        }
+    }
+
     /// `(√a, a' / (r + r))` where `r = √a` — the value-channel root is
     /// computed once and reused; the doubling `r + r` is exact at `f64`
     /// and tight at intervals. At the kink `a = 0` the derivative channel

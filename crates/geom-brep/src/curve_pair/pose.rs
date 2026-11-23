@@ -1637,7 +1637,7 @@ fn line_conic<T: Decide>(
     // In the plane: the conic's signed distance from the line, along the
     // line's normal in the plane, a first harmonic in the conic's angle.
     let m = n.cross(u).normalize();
-    let c0 = (k.frame().origin() - o).dot(m);
+    let c0 = geom::plane_offset(o, m, k.frame().origin());
     let (cp, sp) = k.along(m);
     let swing = (cp.powi(2) + sp.powi(2)).sqrt();
     if !definite_as(row::SWING, Margin::of(swing), band)? {
@@ -1648,6 +1648,7 @@ fn line_conic<T: Decide>(
     let range = Range::first_harmonic(
         c0,
         swing,
+        belly(&k, o, m),
         Azimuth::of(sp, cp).principal_as(row::BRANCH, Band::least()),
     );
     // The pair's distance is `√(R² + H²)`, `R` the residual above and `H`
@@ -1881,6 +1882,29 @@ pub(crate) fn height<T: Decide>(k: &dyn Conic<T>, on: Point3<T>, n: Vec3<T>) -> 
     (geom::plane_offset(on, n, k.frame().origin()), cp, sp)
 }
 
+/// **The belly of `k`'s height above the plane** through `on` with unit
+/// normal `n`: `√(c₁² + s₁²) − |c₀|` of [`height`]'s first harmonic, how
+/// far the conic reaches past the plane (positive where it crosses it,
+/// negative where it stands clear by that much). Read from the stored
+/// centre and directions to the belly's own digits
+/// ([`geom_core::Real::harmonic_belly`]), never as the difference of the
+/// swing and the offset, which are each of the conic's size where the
+/// belly is the band's (a far-centred conic grazing the plane). Every
+/// reading that decides the sign of an extreme of [`height`] reads it
+/// here.
+pub fn belly<T: Decide>(k: &dyn Conic<T>, on: Point3<T>, n: Vec3<T>) -> T {
+    let f = k.frame();
+    let (a, b) = k.semi_axes();
+    let vector = |v: Vec3<T>| [v.x, v.y, v.z];
+    let point = |p: Point3<T>| [p.x, p.y, p.z];
+    T::harmonic_belly(
+        point(f.origin()),
+        point(on),
+        vector(n),
+        [(a, vector(f.u_ref())), (b, vector(f.v_ref()))],
+    )
+}
+
 /// Two conics, `a` the one parametrized in one plane (module docs).
 fn conic_conic<T: Decide>(
     a: &Span<'_, T>,
@@ -1896,11 +1920,19 @@ fn conic_conic<T: Decide>(
     let hb = height(&kb, ka.frame().origin(), ka.frame().axis());
     let swing = |(_, cp, sp): (T, T, T)| (cp.powi(2) + sp.powi(2)).sqrt();
     let (swing_a, swing_b) = (swing(ha), swing(hb));
+    let (belly_a, belly_b) = (
+        belly(&ka, kb.frame().origin(), kb.frame().axis()),
+        belly(&kb, ka.frame().origin(), ka.frame().axis()),
+    );
     let sides = [(swing_a, ha), (swing_b, hb)];
     // The one reading of a conic's height against the other's plane:
     // clear of it all round is apart, whatever the swing reads.
-    for (swing, (c0, _, _)) in sides {
-        if matches!(constant_as(row::PARALLEL, c0, swing, band), Ok(true)) {
+    for (swing, belly, (c0, _, _)) in [(swing_a, belly_a, ha), (swing_b, belly_b, hb)] {
+        let (lo, hi) = extremes(c0, swing, belly);
+        let read = |x: T| geom_core::k_stats::decide_reported(row::PARALLEL, Margin::of(x), band);
+        let clear = read(lo).and_then(|below| Ok((below, read(hi)?)));
+        if matches!(clear, Ok((below, above)) if below.sign == Sign::Positive || above.sign == Sign::Negative)
+        {
             return Ok(Pose::Apart);
         }
     }
@@ -1942,10 +1974,17 @@ fn conic_conic<T: Decide>(
         };
         if across_b {
             let flipped: Vec<_> = known.iter().copied().map(flip).collect();
-            let read = transverse((b, &kb, &ka, a), hb, swing_b, arm, &flipped, band);
+            let read = transverse(
+                (b, &kb, &ka, a),
+                hb,
+                (swing_b, belly_b),
+                arm,
+                &flipped,
+                band,
+            );
             return Ok(swapped(read?));
         }
-        return transverse((a, &ka, &kb, b), ha, swing_a, arm, known, band);
+        return transverse((a, &ka, &kb, b), ha, (swing_a, belly_a), arm, known, band);
     };
     let oriented = |k: &dyn Conic<T>| k.frame().axis() * (k.semi_axes().0 * k.semi_axes().1);
     if one_curve(&ka, &kb, band)? {
@@ -2057,7 +2096,7 @@ fn frame_gap<T: Decide>(e: &dyn Conic<T>, f: &dyn Conic<T>) -> T {
 fn transverse<T: Decide>(
     (a, ka, kb, b): (&Span<'_, T>, &dyn Conic<T>, &dyn Conic<T>, &Span<'_, T>),
     (c0, cp, sp): (T, T, T),
-    swing: T,
+    (swing, belly): (T, T),
     lever: Lever<T>,
     known: &[Candidate<T>],
     band: Band,
@@ -2065,6 +2104,7 @@ fn transverse<T: Decide>(
     let range = Range::first_harmonic(
         c0,
         swing,
+        belly,
         Azimuth::of(sp, cp).principal_as(row::BRANCH, Band::least()),
     );
     let window = window::Window {
@@ -2421,6 +2461,16 @@ pub(super) fn level_ceiling<T: Decide>(small: T) -> (T, T) {
     (four / small, small / four)
 }
 
+/// **The extremes `(lo, hi)` of `c₀ + A·cos ψ`**, `A ≥ 0` the swing and
+/// `belly` its [`belly`] `A − |c₀|`: the one nearer zero is the belly
+/// (negated below), the other the sum, which cancels nothing.
+fn extremes<T: Decide>(c0: T, swing: T, belly: T) -> (T, T) {
+    (
+        c0.select_le_zero(c0 - swing, T::zero() - belly),
+        c0.select_le_zero(belly, c0 + swing),
+    )
+}
+
 /// A first harmonic's range along a conic, in metres, and where its roots
 /// are read from (module docs): `lo` and `hi` are its extremes, `at_hi`
 /// the angle of `hi` (`lo` is half a turn on), `cross_lo` and `cross_hi`
@@ -2435,9 +2485,11 @@ struct Range<T> {
 }
 
 impl<T: Decide> Range<T> {
-    /// `c₀ + A·cos(θ − at_hi)`, `A ≥ 0`, solved in itself.
-    fn first_harmonic(c0: T, swing: T, at_hi: T) -> Self {
-        let (lo, hi) = (c0 - swing, c0 + swing);
+    /// `c₀ + A·cos(θ − at_hi)`, `A ≥ 0`, solved in itself, its extreme
+    /// nearer zero read as `belly` ([`belly`]: `A − |c₀|`), the other as
+    /// the sum, which cancels nothing.
+    fn first_harmonic(c0: T, swing: T, belly: T, at_hi: T) -> Self {
+        let (lo, hi) = extremes(c0, swing, belly);
         let two = swing + swing;
         Self {
             lo,

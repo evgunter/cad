@@ -796,6 +796,42 @@ impl Real for Interval {
         enclose_expansion(&e, 0.0)
     }
 
+    /// The exact expansions enclosed where every input is a stated point
+    /// in the range [`Real::harmonic_belly`]'s `f64` reading keeps exact,
+    /// and its denominator definitely positive; the plain enclosure
+    /// elsewhere.
+    fn harmonic_belly(
+        q: [Self; 3],
+        o: [Self; 3],
+        n: [Self; 3],
+        terms: [(Self, [Self; 3]); 2],
+    ) -> Self {
+        let plain = || crate::real::plain_harmonic_belly(q, o, n, terms);
+        let [(a, u), (b, v)] = terms;
+        let in_range = |x: &f64| *x == 0.0 || (2f64.powi(-120)..=2f64.powi(120)).contains(&x.abs());
+        let zero = <Self as Real>::zero();
+        let Some([q, o, n]) =
+            stated_points(&[q, o, n]).filter(|m| m.iter().flatten().all(in_range))
+        else {
+            return plain();
+        };
+        let Some([u, v, [a, b, _]]) =
+            stated_points(&[u, v, [a, b, zero]]).filter(|m| m.iter().flatten().all(in_range))
+        else {
+            return plain();
+        };
+        let (squares, parts) = crate::exact::harmonic_belly(q, o, n, [(a, u), (b, v)]);
+        if !squares.is_finite() || !parts.iter().all(crate::exact::Expansion::is_finite) {
+            return plain();
+        }
+        let [big_a, big_b, d] = parts.map(|e| enclose_expansion(&e, 0.0));
+        let rise = (big_a.powi(2) + big_b.powi(2)).sqrt() + d.abs();
+        if !(rise.is_certified() && Bounds::lo(rise) > 0.0) {
+            return plain();
+        }
+        enclose_expansion(&squares, 0.0) / rise
+    }
+
     /// **The unit's enclosure**, the one-column case of
     /// [`Real::enclose_rotation`]'s argument: for `v` with `g = |v|² − 1`
     /// and `η ≥ |g|`, `v/|v| = v·(1 + g)^(−1/2) = v − ½·g·v + v·Σₖ₌₂ cₖgᵏ`,

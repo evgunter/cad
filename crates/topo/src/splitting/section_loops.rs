@@ -399,12 +399,12 @@ fn line_clears_conic<T: Decide>(
     {
         return false;
     }
+    // The line clears the conic by the negated belly of the conic's
+    // offset from it, `|m·(c − p)| − reach`, read to its own digits.
     let m = c.frame().axis().cross(along.normalize());
-    let (p_m, q_m) = c.along(m);
-    let reach = (p_m.powi(2) + q_m.powi(2)).sqrt();
     positive(
         "split_nest_line_conic",
-        m.dot(c.frame().origin() - p).abs() - reach,
+        T::zero() - geom_brep::curve_pair::pose::belly(c, p, m),
         band,
     )
 }

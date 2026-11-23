@@ -138,6 +138,36 @@ impl Expansion {
         out
     }
 
+    /// `self · other` exactly: `self` scaled by each of `other`'s
+    /// components, summed.
+    #[must_use]
+    pub fn times(&self, other: &Self) -> Self {
+        let mut out = Self::default();
+        for &c in &other.0 {
+            out.add_expansion(&self.scaled(c));
+        }
+        out
+    }
+
+    /// The exact `p·n`, as three exact products.
+    #[must_use]
+    pub fn dot(p: [f64; 3], n: [f64; 3]) -> Self {
+        let mut out = Self::default();
+        for i in 0..3 {
+            out.add_expansion(&Self::product(p[i], n[i]));
+        }
+        out
+    }
+
+    /// **The value, rounded** (Shewchuk's Estimate): the components
+    /// summed from the smallest. The components below the largest sum to
+    /// less than its last bit, so the result is within `2u` of the value,
+    /// relatively, whatever cancellation formed it.
+    #[must_use]
+    pub fn estimate(&self) -> f64 {
+        self.0.iter().sum()
+    }
+
     /// The negation, exactly.
     #[must_use]
     pub fn negated(&self) -> Self {
@@ -156,6 +186,27 @@ impl Expansion {
     pub fn components(&self) -> &[f64] {
         &self.0
     }
+}
+
+/// **A first harmonic's belly across a plane, its terms exact**: for
+/// the height `D + A cos θ + B sin θ` with `A = a·(u·n)`, `B = b·(v·n)`
+/// and `D = (q − o)·n`, the expansions `(A² + B² − D², A, B, D)`
+/// ([`crate::Real::harmonic_belly`]'s value is the first over
+/// `√(A² + B²) + |D|`).
+#[must_use]
+pub fn harmonic_belly(
+    q: [f64; 3],
+    o: [f64; 3],
+    n: [f64; 3],
+    [(a, u), (b, v)]: [(f64, [f64; 3]); 2],
+) -> (Expansion, [Expansion; 3]) {
+    let big_a = Expansion::dot(u, n).scaled(a);
+    let big_b = Expansion::dot(v, n).scaled(b);
+    let d = Expansion::difference_dot(q, o, n);
+    let mut squares = big_a.times(&big_a);
+    squares.add_expansion(&big_b.times(&big_b));
+    squares.add_expansion(&d.times(&d).negated());
+    (squares, [big_a, big_b, d])
 }
 
 /// **The exact determinant `p · (q × r)`** of three points' coordinates,

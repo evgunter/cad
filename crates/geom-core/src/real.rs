@@ -254,6 +254,21 @@ pub fn plain_difference_dot<T: Real>(q: [T; 3], o: [T; 3], n: [T; 3]) -> T {
     (q[0] - o[0]) * n[0] + (q[1] - o[1]) * n[1] + (q[2] - o[2]) * n[2]
 }
 
+/// **The plain formula `√((a·(u·n))² + (b·(v·n))²) − |(q − o)·n|`**:
+/// [`Real::harmonic_belly`]'s default, and the reading every scalar falls
+/// back to where its posed one does not apply.
+#[must_use]
+pub fn plain_harmonic_belly<T: Real>(
+    q: [T; 3],
+    o: [T; 3],
+    n: [T; 3],
+    [(a, u), (b, v)]: [(T, [T; 3]); 2],
+) -> T {
+    let dot = |p: [T; 3]| p[0] * n[0] + p[1] * n[1] + p[2] * n[2];
+    let (big_a, big_b) = (a * dot(u), b * dot(v));
+    (big_a.powi(2) + big_b.powi(2)).sqrt() - plain_difference_dot(q, o, n).abs()
+}
+
 /// The scalar type the geometry evaluation layer is generic over.
 ///
 /// See the [module docs](self) for the design rationale: the deliberately
@@ -525,6 +540,37 @@ pub trait Real:
     #[must_use]
     fn difference_dot(q: [Self; 3], o: [Self; 3], n: [Self; 3]) -> Self {
         plain_difference_dot(q, o, n)
+    }
+
+    /// **The belly `√(A² + B²) − |D|` of a first harmonic read across a
+    /// plane, posed so its digits are the belly's own**: the height
+    /// `D + A cos θ + B sin θ` of the curve `q + a·u cos θ + b·v sin θ`
+    /// above the plane through `o` with normal `n`, so `A = a·(u·n)`,
+    /// `B = b·(v·n)` and `D = (q − o)·n`. Its sign is whether the curve
+    /// reaches the plane. Where the curve is far larger than its belly
+    /// (an arc of a far-centred conic grazing the plane), `√(A² + B²)`
+    /// and `|D|` are both of the curve's size and their difference
+    /// cancels to the belly: read as that difference, the belly would be
+    /// off by `u` of the curve's size whatever `D`'s precision. At a value
+    /// scalar it is read instead as `(A² + B² − D²)/(√(A² + B²) + |D|)`,
+    /// the numerator an exact expansion of the stored terms
+    /// ([`crate::exact::harmonic_belly`]) rounded once, and `A`, `B`
+    /// and `D` each its own exact value rounded once: the numerator is
+    /// within `2u` of itself, the denominator, which sums two
+    /// non-negative terms and cancels nothing, within `6u`, so the belly
+    /// is within `9u` of itself to first order, relative to the belly and
+    /// not to the curve. At an enclosure stated at points the same
+    /// expansions are enclosed. The default is the plain formula
+    /// ([`plain_harmonic_belly`]); a scalar that carries `T`'s value
+    /// channel computes it through `T`'s own.
+    #[must_use]
+    fn harmonic_belly(
+        q: [Self; 3],
+        o: [Self; 3],
+        n: [Self; 3],
+        terms: [(Self, [Self; 3]); 2],
+    ) -> Self {
+        plain_harmonic_belly(q, o, n, terms)
     }
 
     /// **The `f64` this value states**, where it is a plain enclosure
@@ -2367,6 +2413,36 @@ impl Real for f64 {
         }
     }
 
+    /// The exact expansions, each rounded once; where an input lies
+    /// outside the range an exact product of six of them keeps every
+    /// digit in, or a sum is not finite, the plain formula's.
+    fn harmonic_belly(
+        q: [Self; 3],
+        o: [Self; 3],
+        n: [Self; 3],
+        terms: [(Self, [Self; 3]); 2],
+    ) -> Self {
+        let plain = || plain_harmonic_belly(q, o, n, terms);
+        let [(a, u), (b, v)] = terms;
+        let in_range = |x: &f64| *x == 0.0 || (2f64.powi(-120)..=2f64.powi(120)).contains(&x.abs());
+        let inputs = [q, o, n, u, v, [a, b, 0.0]];
+        if !inputs.iter().flatten().all(in_range) {
+            return plain();
+        }
+        let (squares, parts) = crate::exact::harmonic_belly(q, o, n, terms);
+        if !squares.is_finite() || !parts.iter().all(crate::exact::Expansion::is_finite) {
+            return plain();
+        }
+        let [big_a, big_b, d] = parts.map(|e| e.estimate());
+        let rise = big_a.hypot(big_b) + d.abs();
+        // A zero denominator is `A = B = D = 0`, whose belly is zero.
+        if rise == 0.0 {
+            return 0.0;
+        }
+        let belly = squares.estimate() / rise;
+        if belly.is_finite() { belly } else { plain() }
+    }
+
     /// The identity — every `f64` embeds as itself, exactly.
     fn from_f64(x: f64) -> Self {
         x
@@ -2984,6 +3060,90 @@ mod tests {
             );
             prop_assert!(
                 enclosed.hi() - enclosed.lo() <= 8.0 * ulp(exact),
+                "interval: [{:e}, {:e}] is wider than a few ulps of {exact:e}",
+                enclosed.lo(), enclosed.hi()
+            );
+        }
+    }
+
+    proptest! {
+        /// **A far-centred harmonic's belly is read to its own digits**
+        /// ([`Real::harmonic_belly`]): a curve of semi-axes `far` and
+        /// `k·far` centred `far` from its vertex by the world origin,
+        /// against a plane by the vertex whose normal tilts out of the
+        /// curve's plane, so the swing and the offset are each about
+        /// `far` and the belly is within a metre of zero. The `f64` value
+        /// is within `16u` of the exact belly, relatively, where the plain
+        /// formula rounds at `u·far`; the enclosure stated at points holds
+        /// it within `32u` of it.
+        #[test]
+        fn a_far_centred_harmonics_belly_is_read_to_its_own_digits(
+            far in 1e3f64..1e9,
+            k in 0.1f64..1.0,
+            vertex in prop::array::uniform3(-10.0f64..10.0),
+            axis in prop::array::uniform3(-1.0f64..1.0),
+            seam in prop::array::uniform3(-1.0f64..1.0),
+            tilt in -1.4f64..1.4,
+            across in prop::array::uniform3(-1.0f64..1.0),
+            gap in -1.0f64..1.0,
+            slide in -10.0f64..10.0,
+        ) {
+            use crate::exact::Expansion;
+            let unit = |a: [f64; 3]| crate::Vec3::new(a[0], a[1], a[2]);
+            prop_assume!(unit(axis).norm() > 0.1);
+            let axis = unit(axis).normalize();
+            let u = axis.cross(unit(seam));
+            prop_assume!(u.norm() > 0.1);
+            let u = u.normalize();
+            let v = axis.cross(u);
+            let n = (u * tilt.cos() + axis * tilt.sin()).normalize();
+            let w = n.cross(unit(across));
+            prop_assume!(w.norm() > 0.1);
+            let w = w.normalize();
+            let vertex = crate::Point3::new(vertex[0], vertex[1], vertex[2]);
+            let q = vertex - u * far;
+            let o = vertex + n * gap + w * slide;
+            let arr = |p: crate::Vec3<f64>| [p.x, p.y, p.z];
+            let (q, o) = ([q.x, q.y, q.z], [o.x, o.y, o.z]);
+            let terms = [(far, arr(u)), (k * far, arr(v))];
+            let n = arr(n);
+            // The exact belly: `A² + B² − D²` exact, over `√(A² + B²) + |D|`
+            // read from the exact parts, each within an ulp.
+            let dot = |p: [f64; 3]| {
+                let mut e = Expansion::default();
+                for i in 0..3 {
+                    e.add_expansion(&Expansion::product(p[i], n[i]));
+                }
+                e
+            };
+            let (big_a, big_b) = (dot(terms[0].1).scaled(terms[0].0), dot(terms[1].1).scaled(terms[1].0));
+            let d = Expansion::difference_dot(q, o, n);
+            let mut squares = big_a.times(&big_a);
+            squares.add_expansion(&big_b.times(&big_b));
+            squares.add_expansion(&d.times(&d).negated());
+            let sum = |e: &Expansion| e.components().iter().sum::<f64>();
+            let exact = sum(&squares) / (sum(&big_a).hypot(sum(&big_b)) + sum(&d).abs());
+            let u = f64::EPSILON / 2.0;
+            let got = f64::harmonic_belly(q, o, n, terms);
+            prop_assert!(
+                (got - exact).abs() <= 16.0 * u * exact.abs(),
+                "f64: {got:e} against the exact {exact:e} (far {far:e}; the plain formula reads {:e})",
+                plain_harmonic_belly(q, o, n, terms)
+            );
+            let point = |a: [f64; 3]| a.map(crate::Interval::from_f64);
+            let enclosed = crate::Interval::harmonic_belly(
+                point(q),
+                point(o),
+                point(n),
+                terms.map(|(s, d)| (crate::Interval::from_f64(s), point(d))),
+            );
+            let slack = 16.0 * u * exact.abs();
+            prop_assert!(
+                enclosed.lo() <= exact + slack && exact - slack <= enclosed.hi(),
+                "interval: [{:e}, {:e}] misses the exact {exact:e}", enclosed.lo(), enclosed.hi()
+            );
+            prop_assert!(
+                enclosed.hi() - enclosed.lo() <= 32.0 * u * exact.abs(),
                 "interval: [{:e}, {:e}] is wider than a few ulps of {exact:e}",
                 enclosed.lo(), enclosed.hi()
             );
