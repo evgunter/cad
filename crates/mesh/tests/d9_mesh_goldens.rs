@@ -394,9 +394,9 @@ const GOLDEN: &[(&str, [u64; 2])] = &[
     ),
     (
         "notched_wall",
-        [0xd6d3_dbb7_1e3f_5f8f, 0xe61d_4386_75ed_2af5],
+        [0x4950_051c_3ec1_9c1d, 0x9372_d3b9_4167_c97a],
     ),
-    ("holed_wall", [0xc6e1_d324_8da0_118f, 0xcbed_4748_98f9_7e0e]),
+    ("holed_wall", [0xe1ff_b951_d586_0e3c, 0xb30d_7e3b_965c_37c6]),
     ("keyway", [0xe457_7191_dbec_3540, 0xe457_7191_dbec_3540]),
     ("slit", [0xaed6_09ed_f923_833b, 0xaed6_09ed_f923_833b]),
     (

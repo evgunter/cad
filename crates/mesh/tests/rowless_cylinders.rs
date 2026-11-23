@@ -22,13 +22,10 @@
 //! `n`. No body of these rows has one.
 //!
 //! What the counts come to against the plain wall of the same pipe on
-//! the rectangle lane at the lane's target (half of δ) is measured, not
-//! held: a notched wall 0.88–1.06 times, a wall with a hole 1.24–1.38, a
-//! bar of half-width 0.6 or 0.9 of the radius through it 1.48–1.63 and
-//! 1.76–1.88, a comb of six notches 1.30 at δ 10⁻², and a wall cut on a
-//! tilt `φ` about `(1 + cos^{−3/2} φ)/2` (1.00 to 5.35 for `φ` 0.05 to
-//! 1.35): the count follows the boundary's points, and those follow the
-//! boundary's length round the axis.
+//! the rectangle lane is not held by these rows: the count follows the
+//! boundary's points, and those follow the boundary's length round the
+//! axis (a wall cut on a tilt `φ` about `(1 + cos^{−3/2} φ)/2` of the
+//! plain wall's).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -83,17 +80,44 @@ fn holds(what: &str, delta: f64, counts: &[Count], inserted: impl Fn(usize) -> b
     }
 }
 
-/// **A notched, holed or tilted wall is its boundary points and nothing
-/// else.** The walls of `common::rowless::walls` (notches across and
-/// beside the seam, narrow, wide, two, a comb of six; bars through of
-/// half-width 0.3, 0.6 and 0.9 of the radius) and the wall cut on a tilt
-/// of 0.05, 0.3, 0.8, 1.25 and 1.35, at δ 10⁻¹, 10⁻² and 10⁻³: every
-/// cylinder face holds `n − 2 + 2h` triangles, no point inserted.
+/// The walls of `common::rowless::walls` whose cylinder faces take the
+/// correction, by wall and δ, with the points inserted over those faces
+/// (`a_cut_wall_is_its_boundary_points_alone`).
+const CORRECTED: [(&str, f64, usize); 6] = [
+    ("a bar through, half-width 0.6", 1e-1, 10),
+    ("a bar through, half-width 0.9", 1e-1, 8),
+    ("a comb of six notches", 1e-1, 10),
+    ("two notches", 1e-1, 2),
+    ("a notch beside the seam", 1e-3, 1),
+    ("two notches", 1e-3, 1),
+];
+
+/// **A notched, holed or tilted wall is its boundary points, and the
+/// correction's where a triangle read over δ.** The walls of
+/// `common::rowless::walls` (notches across and beside the seam, narrow,
+/// wide, two, a comb of six; bars through of half-width 0.3, 0.6 and 0.9
+/// of the radius) and the wall cut on a tilt of 0.05, 0.3, 0.8, 1.25 and
+/// 1.35, at δ 10⁻¹, 10⁻² and 10⁻³: every cylinder face holds
+/// `n − 2 + 2h + 2p` triangles, and `p` is nothing on every wall but the
+/// six cells of [`CORRECTED`], whose first triangulation joins two
+/// boundary points more than a column apart at δ and takes one to ten
+/// points over its faces. A face that laid rows would hold a point a
+/// lattice node, on every wall.
 #[test]
 fn a_cut_wall_is_its_boundary_points_alone() {
     for delta in [1e-1, 1e-2, 1e-3] {
         for (what, body) in walls() {
-            holds(what, delta, &counts(what, &body, delta), |p| p == 0);
+            let counts = counts(what, &body, delta);
+            holds(what, delta, &counts, |_| true);
+            let want = CORRECTED
+                .iter()
+                .find(|&&(w, d, _)| w == what && d == delta)
+                .map_or(0, |&(_, _, p)| p);
+            assert_eq!(
+                counts.iter().map(|c| c.p).sum::<usize>(),
+                want,
+                "{what}, δ = {delta:e}: the points the lane inserted over its cylinder faces"
+            );
         }
         for tilt in [0.05, 0.3, 0.8, 1.25, 1.35] {
             let what = format!("a wall cut on a tilt {tilt}");
@@ -131,24 +155,31 @@ fn a_notched_wall_with_split_rulings_is_its_boundary_points_alone() {
 /// inside each refused triangle and triangulates again. The cells are
 /// those that refuse with the correction off, at three scales, and the
 /// two of the first probe that refuse on the lane's former rows (`r =
-/// 10`, δ 0.1), which mesh here at the first attempt. Main refuses cells
+/// 10`, δ 0.1). Main refuses cells
 /// of the class at `r = 10`: those 2 of the first probe, and 10 of 108 of
 /// a second that PR 7526's review ran (gap 1.5 to 1.6, two and three
-/// holes). Measured: one round, four points, on every
-/// refusing cell, after which the worst certificate reads 0.48·δ to
-/// 0.49·δ. Every cell builds and meshes at every ε the suite runs.
+/// holes).
+///
+/// **Which cells take it follows the target.** With the face sized at δ
+/// the cells a column and a half apart at `r = 1` and `10⁻³` mesh at the
+/// first attempt, and it is the cells two columns and a half apart, and
+/// the first `r = 10` cell, that refuse with the correction off. Each
+/// takes one round. The points are four to six under the lane's rule
+/// (the middle of the refused triangle's free side whose chord sags
+/// most) and eight under a centroid, which the count would show. Every
+/// cell builds and meshes at every ε the suite runs.
 #[test]
 fn two_holes_across_a_column_and_a_half_mesh_by_the_correction() {
     for (r, delta, h, gap, inserted) in [
-        (1.0, 1e-2, 1.0, 1.5, 4),
-        (1.0, 1e-2, 1.0, 1.6, 4),
-        (1.0, 1e-2, 1.9, 1.5, 4),
-        (1.0, 1e-3, 1.33, 1.5, 4),
-        (1.0, 1e-3, 1.33, 1.6, 4),
-        (1e-3, 1e-5, 1e-3, 1.5, 4),
-        (1e-3, 1e-5, 1e-3, 1.6, 4),
-        (1e-3, 1e-5, 1.9e-3, 1.5, 4),
-        (10.0, 0.1, 10.0, 1.5, 0),
+        (1.0, 1e-2, 1.0, 2.5, 4),
+        (1.0, 1e-3, 1.33, 2.5, 6),
+        (1e-3, 1e-5, 1e-3, 2.5, 5),
+        (10.0, 0.1, 10.0, 1.5, 4),
+        (10.0, 0.1, 10.0, 2.5, 4),
+        (1.0, 1e-2, 1.0, 1.5, 0),
+        (1.0, 1e-2, 1.9, 1.5, 0),
+        (1.0, 1e-3, 1.33, 1.6, 0),
+        (1e-3, 1e-5, 1e-3, 1.5, 0),
         (10.0, 0.1, 13.3, 1.5, 0),
     ] {
         let what = format!("two holes, r {r}, h {h}, gap {gap}");
