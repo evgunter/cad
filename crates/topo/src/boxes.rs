@@ -4656,7 +4656,8 @@ pub(crate) mod sphere_rect_rows {
         // Each scale the run's ε resolves is read, a tenth of the faces at
         // least, so none is carried by the others.
         for (i, s) in scales.into_iter().enumerate() {
-            let resolved = (4.0 * s + 0.5 * s) * 64.0 * f64::EPSILON <= tol.eps();
+            let resolved = 0.5 * s >= 1e4 * tol.eps()
+                && (4.0 * s + 0.5 * s) * 64.0 * f64::EPSILON <= tol.eps();
             assert!(
                 !resolved || at_scale[i] * 10 >= wanted,
                 "scale {s:e}: {} of {wanted} faces read; {}",

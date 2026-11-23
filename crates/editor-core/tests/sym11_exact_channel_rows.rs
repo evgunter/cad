@@ -116,13 +116,13 @@ use crate::m10_9_pins_interval::measured_studies;
 /// Then each edge's certification asks the session box of the edge first
 /// (`session_box_reach`): numeric, the plate `1047 → 1095`, the annulus
 /// `548 → 572`, the link `943 → 979`, the bracket `1546 → 1612` and the
-/// pad `1709 → 1769`; and the link's frozen `2600 → 2608`, the forms of
+/// pad `1709 → 1769`; and the link's frozen `2600 → 2604`, the forms of
 /// its edges' covers past the ceiling. No symbolic count moves, and no
 /// dispute fired.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
     ("two_hole_plate", [979, 1095, 36]),
     ("r1_annulus", [511, 572, 36]),
-    ("r2_link", [786, 979, 2608]),
+    ("r2_link", [786, 979, 2604]),
     ("r2_filleted_bracket", [1367, 1612, 57]),
     ("r2_rounded_pad", [1483, 1769, 1967]),
 ];
