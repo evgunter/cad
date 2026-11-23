@@ -1037,6 +1037,39 @@ mod tests {
         assert_eq!(FindingFamily::ALL.to_vec(), declared);
     }
 
+    /// **An edge's certification the session box refused is the box's
+    /// finding**: every sampled `EdgeCertification` whose error is one
+    /// of the box's three (past it, not shown inside, no cover) is in
+    /// family `SessionBox`, so a move asks it again, and every other is
+    /// in family `Certificate`, a fact of the shape up to isometry.
+    /// *Breaks if* a boxed certification falls back to `Certificate`, so
+    /// a body moved past the box keeps an edge's stale verdict.
+    #[test]
+    fn a_boxed_edge_certification_is_the_boxs_finding() {
+        use geom_brep::CertifyError as C;
+        let mut boxed = 0;
+        for (label, finding) in crate::test_support_samples::validation_error_samples() {
+            let crate::ValidationError::EdgeCertification { error, .. } = &finding else {
+                continue;
+            };
+            let is_boxed = matches!(
+                error,
+                C::OutsideSessionBox { .. }
+                    | C::SessionBoxUnshown { .. }
+                    | C::SessionBoxUncovered { .. }
+            );
+            boxed += usize::from(is_boxed);
+            let want = if is_boxed {
+                FindingFamily::SessionBox
+            } else {
+                FindingFamily::Certificate
+            };
+            assert_eq!(finding.family(), want, "{label}");
+            assert_eq!(finding.family().up_to_isometry(), !is_boxed, "{label}");
+        }
+        assert_eq!(boxed, 5, "the samples hold each box refusal and cause");
+    }
+
     /// **Only the session box is asked again of a moved body**.
     #[test]
     fn only_the_session_box_is_asked_again() {

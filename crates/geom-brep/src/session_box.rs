@@ -164,16 +164,21 @@ impl core::fmt::Display for EdgeUncovered {
 
 /// **Why an edge has no cover, as a value** ([`EdgeUncovered::cause`]):
 /// the carrier's kind and the first thing not known of it, or an end
-/// that is not a finite point.
+/// that is not a finite point. A carrier refusal can name several
+/// unknowns; the value shows the first (its `kind` and `what`, which is
+/// all the message names) and stands for all of them (`unbounded_only`
+/// is read over every one, and decides [`UncoveredCause::refusal`]), so
+/// a mixed refusal shows one cause and aborts as the mix it is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum UncoveredCause {
     /// The carrier's reading over the span refused.
     Carrier {
-        /// The carrier's kind, by name.
+        /// The kind of the first entity not known, by name.
         kind: &'static str,
-        /// The first thing not known about it.
+        /// The first thing not known about it, the one shown.
         what: geom::cover::Unknown,
-        /// Whether every unknown is an unbounded locus.
+        /// Whether every unknown, not only the one shown, is an
+        /// unbounded locus.
         unbounded_only: bool,
     },
     /// An end is not a finite point.
@@ -407,8 +412,9 @@ mod tests {
         assert!(margin.readable_below_zero().to_string().starts_with("100"));
     }
 
-    /// The four certification doors on one spec and its ends: `certify`,
-    /// `certify_stated`, and `recertify`, `recertify_stated` of `held`.
+    /// The five certification doors on one spec and its ends: `certify`,
+    /// `certify_stated`, `certify_carrying`, and `recertify`,
+    /// `recertify_stated` of `held`.
     fn every_door(
         spec: &crate::EdgeCurveSpec<f64>,
         held: &crate::EdgeCurve<f64>,
@@ -527,6 +533,27 @@ mod tests {
         assert!(matches!(got, Err(BoxRefusal::Point { .. })), "{got:?}");
     }
 
+    /// **A point that is not finite hides no other point past the box**:
+    /// a line over 5 km from the origin, its start stated as NaN, has no
+    /// cover (by its ends), and its inside read skips the NaN end and
+    /// finds the far one, so it is past the box by it, about 4 km, not an
+    /// edge with no cover. *Breaks if* a non-finite point poisons the
+    /// inside read ([`Real::max`](geom_core::Real::max) propagates NaN).
+    #[test]
+    fn a_nan_end_beside_an_end_5_km_out_is_past_the_box_by_the_far_end() {
+        let far = Point3::new(5e3, 0.0, 0.0);
+        let (line, span) = line(Point3::origin(), far);
+        let nan = Point3::new(f64::NAN, 0.0, 0.0);
+        let got = edge_in_box(&line, span, (nan, far), band());
+        let Err(BoxRefusal::Point { margin }) = got else {
+            panic!("the far end is past the box: {got:?}");
+        };
+        assert!(
+            margin.readable_below_zero().to_string().starts_with('4'),
+            "{got:?}"
+        );
+    }
+
     /// **Geometry within the band of the box's edge is in it, and past
     /// the band is past it**: a segment ending half a band's zero beyond
     /// 1 km, or as far short of it, is in the box; one ending ten band
@@ -579,15 +606,22 @@ mod tests {
         assert!(past.starts_with("0.003"), "3 mm past the box: {past}");
     }
 
-    /// **A limit at certification ends as the gate's does, at every
-    /// door**: a quadratic spline whose curve peaks 995 m out while the
-    /// net of the piece about its peak reaches past 1 km (the cover is the
-    /// net met with the pieces' nets, four to a window) is the box's
-    /// limit, [`crate::CertifyError::SessionBoxUnshown`], at each minting
-    /// door, before any check, and ends in the box's one recourse. *Breaks
-    /// if* the limit is admitted at certification, or ends otherwise.
+    /// **A limit at certification ends as the gate's does, at the three
+    /// minting doors**: a quadratic spline whose curve peaks 995 m out
+    /// while the net of the piece about its peak reaches past 1 km (the
+    /// cover is the net met with the pieces' nets, four to a window) is
+    /// the box's limit, [`crate::CertifyError::SessionBoxUnshown`], at
+    /// `certify`, `certify_stated` and `certify_carrying`, before any
+    /// check, and ends in the box's one recourse. The two recertifying
+    /// doors are not asked here: they read a held edge, and a spline
+    /// carrier on a line's description certifies nowhere (`Unimplemented`),
+    /// so no held spline edge can be minted in this crate's rows; they run
+    /// the same check 0, which
+    /// `every_certification_door_asks_the_box_before_any_residual` pins
+    /// at all five. *Breaks if* the limit is admitted at a minting door,
+    /// or ends otherwise.
     #[test]
-    fn a_splines_cover_alone_past_the_box_is_the_limit_at_every_door() {
+    fn a_splines_cover_alone_past_the_box_is_the_limit_at_the_three_minting_doors() {
         use crate::{CertifyError, EdgeCurveSpec};
         let o = Point3::origin();
         let carrier = quadratic(o, Point3::new(1990.0, 0.0, 0.0), Point3::new(0.0, 1.0, 0.0));
@@ -609,10 +643,11 @@ mod tests {
             crate::NurbsLane::certified(),
         )
         .unwrap();
+        let minting = 3;
         for (door, got) in every_door(&spec, &held, (a, b))
             .into_iter()
             .enumerate()
-            .take(3)
+            .take(minting)
         {
             let Err(e @ CertifyError::SessionBoxUnshown { .. }) = got else {
                 panic!("door {door}: the box's limit: {got:?}");
