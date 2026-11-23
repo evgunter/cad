@@ -10980,6 +10980,8 @@ impl<T: crate::props::AtRestPolicy> AtRestBody<T> {
         let unverified = |what: &str, width| ValidationError::EmbeddingUncertified {
             refusal: EngineRefusal::WitnessUnverified {
                 what: what.to_owned(),
+                a,
+                b,
             },
             width,
         };
@@ -11213,13 +11215,13 @@ fn embedding_refusal_words(refusal: &crate::clearance::EngineRefusal) -> Cow<'st
     use crate::clearance::{CellBudget, EngineRefusal as R};
     match refusal {
         R::Sliver { .. } => "a separation sits wholly inside the band".into(),
-        R::Budget(CellBudget::Depth { max_cell_depth }) => {
+        R::Budget { stop: CellBudget::Depth { max_cell_depth }, .. } => {
             format!("a cell pair was split {max_cell_depth} times, the depth budget").into()
         }
-        R::Budget(CellBudget::Pairs { max_cell_pairs }) => {
+        R::Budget { stop: CellBudget::Pairs { max_cell_pairs }, .. } => {
             format!("the question examined {max_cell_pairs} cell pairs, its budget").into()
         }
-        R::Budget(CellBudget::Resolution) => "a cell pair could not be bisected further".into(),
+        R::Budget { stop: CellBudget::Resolution, .. } => "a cell pair could not be bisected further".into(),
         R::Unsupported { carrier, .. } => format!("the engine does not read {carrier}").into(),
         R::WitnessUnverified { .. } => "a near pair was not confirmed by the verifier".into(),
         R::PoisonEnclosure { .. } => "an enclosure between two faces did not evaluate".into(),

@@ -558,7 +558,7 @@ fn short(r: &R) -> String {
             let sh = format!("{shared:?}");
             format!("Uncertified/{arm:?}/{}", sh.split('(').next().unwrap_or(""))
         }
-        R::Budget(b) => format!("{b:?}").split(' ').next().unwrap_or("").to_owned(),
+        R::Budget { stop: b, .. } => format!("{b:?}").split(' ').next().unwrap_or("").to_owned(),
         other => format!("{other:?}")
             .split([' ', '(', '{'])
             .next()
