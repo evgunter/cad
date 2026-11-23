@@ -632,6 +632,10 @@ pub(crate) const SPHERE_CELL_ASPECT: f64 = core::f64::consts::SQRT_2;
 /// projected image is a conservative one. The chord pass, the curved lane
 /// and the trimmed lane read it from this one place, through the face's
 /// chart row (`crate::chart_table::ChartRow::of`).
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(crate) fn sphere_face_widest_cos(
     body: &topo::Body<f64>,
     fk: topo::FaceKey,

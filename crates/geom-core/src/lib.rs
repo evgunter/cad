@@ -15,6 +15,7 @@
 //! `docs/DESIGN.md` (decisions D4, D9, and open question Q1) for the
 //! design contract this crate implements.
 
+#![cfg_attr(not(test), deny(clippy::disallowed_methods))]
 pub mod arc;
 pub mod bisect;
 pub mod bit_identity;
