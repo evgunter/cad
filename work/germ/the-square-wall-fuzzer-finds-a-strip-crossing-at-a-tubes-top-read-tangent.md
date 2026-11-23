@@ -66,3 +66,5 @@ mismatches of the same shape, `top` 3.28e-9 and 3.38e-9, read
 `Tangent("section_torus_square_wall_fold_half")`. The fuzzer is red on
 main's nightly too (`work/green/nightly-1115-residue-the-reds-no-lane-holds.md`,
 seed `0x96ec838c8a0d073e` at 1e-12).
+
+**Another seed (2026-11-22, HELDRECORDS' `heldrecords/nesting` lane, whose diff this arm does not read).** `CAD_FUZZ_SEED=0x127a80287c19c581 CAD_FUZZ_EFFORT=1` at the default ε gives 2 mismatches of this class: `R 38.834, r 26.194, (e, z0, rc) (35.239, 30.287, 5.4475)`, tilt 1.2e-14, `Degeneracy { tangent: 1.142, top: 3.74e-9 }`; and `R 0.36623, r 0.32703, (e, z0, rc) (0.39027, 0.26587, 0.065705)`, tilt 8.0e-14, `Degeneracy { tangent: 0.00564, top: 5.69e-10 }`; both `Tangent("section_torus_square_wall_fold_half")`.
