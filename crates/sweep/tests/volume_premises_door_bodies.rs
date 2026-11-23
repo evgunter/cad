@@ -477,7 +477,7 @@ where
         .collect();
     let mut settled_bodies = 0;
     for ((name, body), v) in door_bodies::<T>(tol).into_iter().zip(truths) {
-        let finished = match topo::finish(body, tol) {
+        let finished = match topo::finish(topo::Built::of(body), tol) {
             Ok(finished) => finished,
             Err(e) => {
                 println!("{scalar} {name}: the finish refuses: {e}");
