@@ -27,6 +27,7 @@ with two collapsed adjacent sides, imported or described, would reach it.
 
 The cure would walk the copies through the corner: along the arriving side to
 the corner `(u_side, v_side)` read off the knot rectangle, then along the
-leaving side. That takes reading which side each copy lies on, which today is
-decided at a band in `topo` (`SideWalk::Corner` in `pcurves/decision.rs`);
-the mesh has to read it with no ε.
+leaving side. That takes reading which side each copy lies on, which `topo`
+decides at the band (`SideWalk::Corner` in `pcurves/decision.rs`); the mesh
+would read the same decision, as it reads the vertex's incidence on the sides
+(`chart_table::at_a_singular_point`).
