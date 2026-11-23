@@ -113,6 +113,10 @@ fn lift_p<T: CertifiedBounds>(p: Point3<T>) -> Vec3<Interval> {
 /// is framed before it is combined with anything (a spiric's centre and
 /// its offset along `u_ref` separately), so no sum rounds at the world
 /// origin's scale; the axes are formed and then framed.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn harmonic<T: CertifiedBounds>(carrier: &Curve3<T>, frame: Option<&Frame>) -> Option<Harmonic> {
     let i = Interval::from_certified;
     let pt = |p: Point3<T>| frame.map_or(lift_p(p), |f| f.point(lift_p(p)));
