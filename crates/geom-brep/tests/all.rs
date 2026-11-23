@@ -92,6 +92,8 @@ mod chart_singularity_locate;
 mod chart_singularity_sweep;
 #[path = "closed_form_limb2.rs"]
 mod closed_form_limb2;
+#[path = "cone_torus_pose.rs"]
+mod cone_torus_pose;
 
 #[path = "axis_rows_read_as_one_sum.rs"]
 mod axis_rows_read_as_one_sum;

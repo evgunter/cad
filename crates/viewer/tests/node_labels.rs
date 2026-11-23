@@ -602,6 +602,27 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
         },
         "measured",
     );
+    // A finding's claim, authored from the value the kernel minted, on
+    // a scene of its own: two blocks side by side rest on each other.
+    let mut touching = crate::offers::blocks(tol, viewer::test_support::CLEARANCE_SIDE);
+    let quieting = touching
+        .checks()
+        .expect("the registry ran")
+        .findings
+        .iter()
+        .find_map(|f| match &f.evidence {
+            pncad::document::CheckEvidence::UnprovenCoincidence {
+                quieting: Some(quieting),
+                ..
+            } if f.quiet.is_none() => Some(quieting.clone()),
+            _ => None,
+        })
+        .expect("the blocks' rest carries its claim");
+    run(
+        &mut touching,
+        SessionOp::AssertQuieting { quieting },
+        "rests",
+    );
     let edges = pncad::select::all_edges(session.evaluation().expect("landed"), block);
     run(
         &mut session,
@@ -669,7 +690,7 @@ fn a_failed_row_speaks_its_node_with_the_label_it_has_now() {
     let mut session = DocSession::inline(doc, tol);
     session.pump();
     let failed = |rows: &[viewer::tree::TreeRow]| match common::status_of(rows, extrude) {
-        viewer::tree::RowStatus::Failed { message, .. } => message,
+        viewer::tree::RowStatus::Failed { message, .. } => message.to_string(),
         other => panic!("the extrude fails: {other:?}"),
     };
     let before = failed(&session.tree_rows());
@@ -726,7 +747,7 @@ fn batch_line(session: &mut DocSession, ops: &[SessionOp]) -> Option<viewer::fra
     let mut line = None;
     viewer::frame::apply(
         &mut line,
-        viewer::frame::frame_status(&[], ops, refusal.as_ref()),
+        viewer::frame::frame_status_untargeted(&[], ops, refusal.as_ref()),
     );
     line
 }
@@ -778,7 +799,7 @@ fn a_kept_refusal_speaks_its_node_and_a_rename_retires_it() {
     let mut line = line;
     viewer::frame::apply(
         &mut line,
-        viewer::frame::frame_status(&[], &[rename("post")], None),
+        viewer::frame::frame_status_untargeted(&[], &[rename("post")], None),
     );
     assert!(session.perform(rename("post")).refusal.is_none());
     assert_eq!(
@@ -1008,7 +1029,7 @@ fn the_checks_window_speaks_from_the_landed_document() {
         (Some("big block"), Some("renamed")),
         "the rename has not landed: the two documents say two labels"
     );
-    let rows = viewer::frame::check_rows(report, landed);
+    let rows = viewer::frame::check_rows(report, landed, session.current());
     let row = rows
         .iter()
         .find(|row| row.select == viewer::Selection::Node(big))
@@ -1019,7 +1040,7 @@ fn the_checks_window_speaks_from_the_landed_document() {
     // placements (A10).
     let copy = |body| tag(common::copy_of(landed, body).0.digest());
     assert!(
-        row.sentence.contains(&format!(
+        row.sentence.to_string().contains(&format!(
             "Place {} and Place {} overlap",
             copy(big),
             copy(small)
@@ -1028,7 +1049,7 @@ fn the_checks_window_speaks_from_the_landed_document() {
         row.sentence
     );
     assert!(
-        !row.sentence.contains("renamed") && !row.button.contains("renamed"),
+        !row.sentence.to_string().contains("renamed") && !row.button.contains("renamed"),
         "and never the committed label: {row:?}"
     );
 }
@@ -1068,7 +1089,7 @@ fn an_unused_variables_row_selects_the_variable() {
         tol,
     )
     .expect("the checks run");
-    let rows = viewer::frame::check_rows(&report, &doc);
+    let rows = viewer::frame::check_rows(&report, &doc, None);
     let selects: Vec<_> = rows.iter().map(|row| row.select.clone()).collect();
     assert_eq!(
         selects,
@@ -1082,6 +1103,7 @@ fn an_unused_variables_row_selects_the_variable() {
     assert!(
         rows[1]
             .sentence
+            .to_string()
             .contains("check unused: spare: used by nothing"),
         "{}",
         rows[1].sentence

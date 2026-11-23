@@ -114,8 +114,8 @@ use pncad::document::say;
 use pncad::document::{
     AssertionRelation, AssertionVerdict, BooleanValue, CarriedIn, Constraint, Doc, Evaluation,
     HeldNodes, Label, MateFault, MateRef, Node, NodeError, NodeErrorKind, NodeResult, NodeStanding,
-    ProfileProgram, RecipeNodeId, Say, Speaker, SplitSide, SpokenNode, ValuePayload, held_by,
-    node_kind_noun,
+    ProfileProgram, RecipeNodeId, Say, Sentence, Speaker, SplitSide, SpokenNode, ValuePayload,
+    held_by, node_kind_noun,
 };
 use pncad::prelude::StableName;
 use pncad::select::{
@@ -126,7 +126,7 @@ use pncad::select::{
 use crate::frame::Tone;
 use crate::parts::PartFiles;
 use crate::props::{Computed, Notation};
-use crate::session::{EdgeSelection, FaceSelection, Selection, VersionOffer};
+use crate::session::{EdgeSelection, FaceSelection, Selection};
 
 /// **One level of a failure's traceback**, as the tree draws it: the
 /// document the level's node is in, as a label of its own, and the
@@ -137,8 +137,10 @@ pub struct CarriedLine {
     /// [`THIS_DOCUMENT`] for the tree's own.
     pub document: String,
     /// The node's refusal exactly as its own tree draws it
-    /// (`CarriedLevel::line_in`).
-    pub line: String,
+    /// (`CarriedLevel::line_in`), its nodes mentioned in the document
+    /// that holds them: a part's are not this document's, so they are
+    /// no link on its screen.
+    pub line: Sentence,
 }
 
 /// The label of a carried level whose node is in the document the tree
@@ -153,8 +155,9 @@ pub enum RowStatus {
     /// The node's own operation failed. `message` is the typed
     /// error's own rendering, and `carried` the refusals it carries.
     Failed {
-        /// `NodeError::spoken` over the tree's document.
-        message: String,
+        /// `NodeError::spoken` over the tree's document, its nodes
+        /// mentioned there.
+        message: Sentence,
         /// **The refusals `message` points at and does not quote**, one
         /// per level ([`carried_lines`]): another node's refusal, with
         /// its own recourse, drawn under this row exactly as that
@@ -227,11 +230,11 @@ impl RowStatus {
     /// The line drawn under the row, when it has one: the typed
     /// payload's own words on a failing row, and on a downstream row
     /// the pointer at the row that has them.
-    pub fn message(&self) -> Option<&str> {
+    pub fn message(&self) -> Option<Sentence> {
         match self {
             Self::Ok | Self::Unevaluated => None,
-            Self::Failed { message, .. } => Some(message),
-            Self::Poisoned { message, .. } => message.as_deref(),
+            Self::Failed { message, .. } => Some(message.clone()),
+            Self::Poisoned { message, .. } => message.as_deref().map(Sentence::from),
         }
     }
 
@@ -256,7 +259,7 @@ impl RowStatus {
 }
 
 /// One line of the feature tree.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct TreeRow {
     /// The recipe node this row is.
     pub id: RecipeNodeId,
@@ -290,12 +293,11 @@ pub struct TreeRow {
     /// value that says nothing beyond `Ok`, and on every other row,
     /// whose status says why there is none.
     pub readout: Option<Readout>,
-    /// **The accept a [`RowStatus::Failed`] instance row offers**, when
-    /// its failure is a pin that no longer holds
-    /// ([`crate::frame::version_offer`]); `None` on every other row, and
-    /// on every row while a newer document's run is outstanding
-    /// (`DocSession::tree_rows`).
-    pub version_offer: Option<VersionOffer>,
+    /// **The acts a [`RowStatus::Failed`] row's own failure offers**
+    /// ([`crate::recourse::offers`]), read off the landed run only while
+    /// it is the committed document's (`DocSession::tree_rows`). Empty on
+    /// every other row.
+    pub offers: Vec<crate::recourse::Offer>,
     /// **A placement's constraints, its children** ([`ConstraintRow`]):
     /// a `Place`'s or an instance's bundle, in bundle order. Empty on
     /// every other row. A constraint is no node, so it has no row of its
@@ -348,12 +350,7 @@ fn constraint_rows(id: RecipeNodeId, node: &Node<ProfileProgram>) -> Vec<Constra
 pub fn numbered_constraints(
     node: &Node<ProfileProgram>,
 ) -> impl Iterator<Item = (usize, &Constraint)> {
-    let bundle = match node {
-        Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } => {
-            constraints.as_slice()
-        }
-        _ => &[],
-    };
+    let bundle = node.bundle().unwrap_or(&[]);
     bundle.iter().enumerate().map(|(at, held)| (at + 1, held))
 }
 
@@ -1113,20 +1110,16 @@ pub fn rows(
             continue;
         };
         let status = status_of(doc, id, evaluation, files);
-        let (repair_at, readout, version_offer) = match status {
+        let (repair_at, readout) = match status {
             RowStatus::Failed { .. } => (
                 evaluation.and_then(|ev| repair_of(id, ev).map(|at| doc.spoken(at))),
                 None,
-                evaluation
-                    .and_then(|ev| own_error(id, ev))
-                    .and_then(|error| crate::frame::version_offer(&error.kind, files)),
             ),
             RowStatus::Ok => (
                 None,
                 evaluation.and_then(|ev| readout_of(doc, id, node, ev)),
-                None,
             ),
-            RowStatus::Poisoned { .. } | RowStatus::Unevaluated => (None, None, None),
+            RowStatus::Poisoned { .. } | RowStatus::Unevaluated => (None, None),
         };
         rows.push(TreeRow {
             id,
@@ -1136,7 +1129,7 @@ pub fn rows(
             status,
             repair_at,
             readout,
-            version_offer,
+            offers: Vec::new(),
             constraints: constraint_rows(id, node),
         });
     }
@@ -1190,6 +1183,7 @@ fn readout_of(
         ValuePayload::Body(_)
         | ValuePayload::Boolean(BooleanValue::Body { .. })
         | ValuePayload::Profile(_)
+        | ValuePayload::Datum(_)
         | ValuePayload::Instances(_) => None,
     }
 }
@@ -1274,7 +1268,7 @@ pub fn carried_lines(
                 CarriedIn::ThisDocument => THIS_DOCUMENT.to_owned(),
                 CarriedIn::Part { doc_ref, .. } => files.name(doc_ref.id).to_owned(),
             },
-            line: level.line_in(doc).to_string(),
+            line: level.line_in(doc),
         })
         .collect()
 }
@@ -1330,7 +1324,7 @@ fn status_of(
             message: cause_known.then(|| downstream_wording(&doc.spoken(through))),
         },
         Standing::Failed(error, evaluation) => RowStatus::Failed {
-            message: error.spoken(doc, evaluation).to_string(),
+            message: error.spoken(doc, evaluation),
             carried: carried_lines(doc, &error.kind, files),
         },
     }
@@ -1670,6 +1664,7 @@ fn poisoned_through(through: RecipeNodeId, ev: &Evaluation<f64>) -> Standing<'_>
 fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
     match fault {
         MateFault::NotOnTheCopy { mate }
+        | MateFault::NotTheDatumsOwn { mate }
         | MateFault::Unleverable { mate, .. }
         | MateFault::KindsDiffer { mate, .. }
         | MateFault::Backwards { mate, .. }
@@ -1757,17 +1752,6 @@ fn downstream_of_mate(id: RecipeNodeId, error: &NodeError) -> Option<Standing<'s
 /// document is building, and a poisoned row says it is not. Collapsing
 /// the two would make a document whose only fault is downstream report
 /// clean.
-///
-/// **And the opposite reading from [`crate::bounds::Verdict`]**, which
-/// excludes poisoning for a reason argued at its own site — *"counting
-/// it would make one failure register as many"*. Both readings are
-/// right for their question: a verdict is a SET whose size decides
-/// whether a value got worse, and a poisoned node inflates it; this is
-/// a boolean, which nothing inflates. Where they can actually differ
-/// is the one state that has a poisoned row with no failed row behind
-/// it ([`RowStatus::Poisoned`] with `message: None`) — this calls that
-/// document not building, and a verdict over it is empty. `Verdict`'s
-/// own doc names this reading back, so each site states the other.
 pub fn has_faults(rows: &[TreeRow]) -> bool {
     rows.iter().any(|row| match row.status {
         RowStatus::Failed { .. } | RowStatus::Poisoned { .. } => true,

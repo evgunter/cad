@@ -21,9 +21,9 @@ This unit is the measurement. It builds nothing that merges.
 ## What is done
 
 1. A throwaway branch (`splinewall/ovoid-probe`) carries the designer's
-   unrun probe, `crates/step-import/tests/ovoid_probe.rs`, from
-   `~/.local/share/cad-work/profile-dz-ovoid-12834/cad/` (the lane
-   holding it), wired into `crates/step-import/tests/all.rs`. Its PR is
+   unrun probe, `crates/step-import/tests/ovoid_probe.rs`, taken from
+   the branch `splinewall/probe-nurbs-wall-of-revolution` (pushed, not
+   for merge), wired into `crates/step-import/tests/all.rs`. Its PR is
    marked ready, so the gate runs it, and is closed unmerged once read.
 2. The probe builds a quarter-turn sphere wedge through the public
    revolve, writes it as STEP, scales every point's `y` by `a`, swaps

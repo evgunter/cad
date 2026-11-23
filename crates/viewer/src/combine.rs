@@ -430,12 +430,17 @@ impl PlaneSeats {
     }
 
     /// **Feed one selection**: a face is the plane ([`Self::pick_plane`]),
-    /// a variable the plane where it is one ([`Self::pick_defined`]), and
-    /// any other pick of a node ([`Selection::seat_node`]) the body.
+    /// a variable the plane where it is one ([`Self::pick_defined`]), a
+    /// datum picked whole its frame through its xy plane, and any other
+    /// pick of a node ([`Selection::seat_node`]) the body.
     fn feed(&mut self, doc: &Doc<ProfileProgram>, selection: &Selection) -> Option<PlaneEvent> {
         match selection {
             Selection::Face(face) => self.pick_plane(doc, face.clone()),
             Selection::Variable(var) => return self.pick_defined(doc, *var),
+            // A datum picked whole is its frame, read through its xy plane.
+            Selection::Node(node) if let Some(frame) = crate::tools::datum_frame(doc, *node) => {
+                return self.pick_defined(doc, frame);
+            }
             _ => {
                 if let Some(node) = selection.seat_node() {
                     self.seats.pick(doc, node);
@@ -915,6 +920,9 @@ enum AssertedPick {
     Body(SpokenNode),
     /// A face, held as the mirror tool holds its plane.
     Face(HeldPick),
+    /// A reference a check's finding carries, seated by the offer that
+    /// leads to the tool ([`AssertionTool::led`]).
+    Minted(pncad::document::QuietingRef),
 }
 
 /// **The assertion tool**: a claim's two seats, a body or a face each,
@@ -945,6 +953,20 @@ impl AssertionTool {
     pub const fn new() -> Self {
         Self {
             picks: [None, None],
+        }
+    }
+
+    /// **The tool a finding's opposed pair leads to**
+    /// ([`crate::recourse::Lead::AssertGap`]): its two references
+    /// seated, outer then inner, as the kernel minted them for the
+    /// `Gap` that would quiet the overlap. The bound is the person's.
+    pub fn led(pair: &pncad::document::OpposedPair) -> Self {
+        let [outer, inner] = pair.references.clone();
+        Self {
+            picks: [
+                Some(AssertedPick::Minted(outer)),
+                Some(AssertedPick::Minted(inner)),
+            ],
         }
     }
 
@@ -984,7 +1006,7 @@ impl AssertionTool {
     pub fn face(&self, i: usize) -> Option<&FaceSelection> {
         match self.picks.get(i)? {
             Some(AssertedPick::Face(held)) => Some(held.face()),
-            Some(AssertedPick::Body(_)) | None => None,
+            Some(AssertedPick::Body(_) | AssertedPick::Minted(_)) | None => None,
         }
     }
 
@@ -992,7 +1014,7 @@ impl AssertionTool {
     pub fn body(&self, i: usize) -> Option<RecipeNodeId> {
         match self.picks.get(i)? {
             Some(AssertedPick::Body(node)) => Some(node.id()),
-            Some(AssertedPick::Face(_)) | None => None,
+            Some(AssertedPick::Face(_) | AssertedPick::Minted(_)) | None => None,
         }
     }
 
@@ -1003,9 +1025,18 @@ impl AssertionTool {
 
     /// **The body seats' survival step** ([`crate::seats`]): a seat
     /// whose node the document no longer holds is dropped, said by the
-    /// last label it had.
+    /// last label it had. A minted seat whose read the document no
+    /// longer holds is dropped with it: the finding it came from is
+    /// gone.
     pub fn reconcile(&mut self, doc: &Doc<ProfileProgram>) -> Vec<SeatEvent> {
         let mut events = Vec::new();
+        for pick in &mut self.picks {
+            if let Some(AssertedPick::Minted(reference)) = pick
+                && doc.var(reference.read()).is_none()
+            {
+                *pick = None;
+            }
+        }
         for (i, pick) in self.picks.iter_mut().enumerate() {
             let (seat, _) = asserted(i);
             if let Some(AssertedPick::Body(node)) = pick
@@ -1055,6 +1086,7 @@ impl AssertionTool {
             match pick {
                 AssertedPick::Body(node) => *node = node.respoken(doc),
                 AssertedPick::Face(held) => *held = held.respoken(doc),
+                AssertedPick::Minted(_) => {}
             }
         }
     }
@@ -1065,7 +1097,7 @@ impl AssertionTool {
             .iter_mut()
             .filter_map(|pick| match pick {
                 Some(AssertedPick::Face(held)) => Some(crate::session::select::Held::One(held)),
-                Some(AssertedPick::Body(_)) | None => None,
+                Some(AssertedPick::Body(_) | AssertedPick::Minted(_)) | None => None,
             })
             .collect()
     }
@@ -1076,6 +1108,7 @@ impl AssertionTool {
         let said = |i: usize| match &self.picks[i] {
             Some(AssertedPick::Body(node)) => Some(pick_said(by, node, &Port::ALONE)),
             Some(AssertedPick::Face(held)) => Some(Said(held, by).sentence().to_string()),
+            Some(AssertedPick::Minted(reference)) => Some(minted_said(reference, by)),
             None => None,
         };
         picks_line([
@@ -1093,6 +1126,7 @@ impl AssertionTool {
         let seat = |i: usize| match &self.picks[i] {
             Some(AssertedPick::Body(node)) => Ok(AssertedSeat::Body(Operand::Node(node.id()))),
             Some(AssertedPick::Face(held)) => Ok(AssertedSeat::Face(held.face().clone())),
+            Some(AssertedPick::Minted(reference)) => Ok(AssertedSeat::Minted(reference.clone())),
             None => Err(SeatError::Empty {
                 seat: asserted(i).0,
             }),
@@ -1102,6 +1136,15 @@ impl AssertionTool {
             b: seat(1)?,
             claim,
         })
+    }
+}
+
+/// A minted seat as the panel says it: its cell by its name, or the
+/// variable as `by` reads it.
+fn minted_said(reference: &pncad::document::QuietingRef, by: Speaker<'_>) -> String {
+    match reference.name() {
+        Some(name) => pncad::document::sentence!(by.name(name)).to_string(),
+        None => by.read(reference.read()).to_string(),
     }
 }
 

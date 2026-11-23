@@ -87,12 +87,12 @@ fn a_hover_only_batch_leaves_the_status_line_alone() {
     // the cursor is over.
     let hover_only = [SessionOp::Hover(None)];
     assert_eq!(
-        frame::frame_status(&[], &hover_only, None),
+        frame::frame_status_untargeted(&[], &hover_only, None),
         RankedVerdict::Keep,
         "a hover is not an action on the document"
     );
     assert_eq!(
-        frame::frame_status(&[], &[], None),
+        frame::frame_status_untargeted(&[], &[], None),
         RankedVerdict::Keep,
         "and neither is a frame with no operations at all"
     );
@@ -101,7 +101,10 @@ fn a_hover_only_batch_leaves_the_status_line_alone() {
 #[test]
 fn a_clean_action_clears_and_a_refusal_shows_even_from_a_hover_batch() {
     let acted = [SessionOp::Select(Selection::None)];
-    assert_eq!(frame::frame_status(&[], &acted, None), RankedVerdict::Clear);
+    assert_eq!(
+        frame::frame_status_untargeted(&[], &acted, None),
+        RankedVerdict::Clear
+    );
 
     // A refusal always reaches the line, whatever the batch was: a
     // hover cannot refuse today, and silence would be the wrong answer
@@ -109,7 +112,7 @@ fn a_clean_action_clears_and_a_refusal_shows_even_from_a_hover_batch() {
     let refusal = viewer::session::Refusal::NothingToDo {
         direction: viewer::session::Step::Undo,
     };
-    let shown = frame::frame_status(&[], &[SessionOp::Hover(None)], Some(&refusal));
+    let shown = frame::frame_status_untargeted(&[], &[SessionOp::Hover(None)], Some(&refusal));
     assert_eq!(
         shown,
         RankedVerdict::Show(frame::Message::new(
@@ -157,14 +160,14 @@ fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
     // The batch alone, with the notice left out: the frame acted,
     // nothing refused, so the line is cleared. This is the seam.
     assert_eq!(
-        frame::frame_status(&[], &declined, None),
+        frame::frame_status_untargeted(&[], &declined, None),
         RankedVerdict::Clear,
         "a declined pick still performs cleanly, so the batch alone clears"
     );
 
     // The frame policy: the notice is what the line shows.
     assert_eq!(
-        frame::frame_status(std::slice::from_ref(&notice), &declined, None),
+        frame::frame_status_untargeted(std::slice::from_ref(&notice), &declined, None),
         RankedVerdict::Show(notice.clone())
     );
 
@@ -174,7 +177,7 @@ fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
         direction: Step::Undo,
     };
     assert_eq!(
-        frame::frame_status(std::slice::from_ref(&notice), &declined, Some(&refusal)),
+        frame::frame_status_untargeted(std::slice::from_ref(&notice), &declined, Some(&refusal)),
         RankedVerdict::Show(frame::Message::new(
             frame::Subject::Document,
             refusal.to_string(),
@@ -194,12 +197,12 @@ fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
         }),
         None,
     );
-    let both = frame::frame_status(&[notice.clone(), second.clone()], &declined, None);
+    let both = frame::frame_status_untargeted(&[notice.clone(), second.clone()], &declined, None);
     let RankedVerdict::Show(line) = &both else {
         panic!("two notices are shown, got {both:?}");
     };
     assert!(
-        line.text().contains(notice.text()) && line.text().contains(second.text()),
+        line.text().contains(&notice.text()) && line.text().contains(&second.text()),
         "{line}"
     );
     assert_eq!(
@@ -254,7 +257,7 @@ fn a_joined_line_splits_back_into_the_notices_it_was_made_from() {
          mark; this one no longer does, so it proves nothing: {nests}"
     );
 
-    let RankedVerdict::Show(line) = frame::frame_status(
+    let RankedVerdict::Show(line) = frame::frame_status_untargeted(
         &[nests.clone(), dashes.clone()],
         &[SessionOp::Select(Selection::None)],
         None,
@@ -301,7 +304,7 @@ fn a_notice_cannot_carry_the_boundary_mark() {
         "a bullet pasted into the δ field reaches a notice verbatim: {typed}"
     );
 
-    let RankedVerdict::Show(line) = frame::frame_status(
+    let RankedVerdict::Show(line) = frame::frame_status_untargeted(
         &[asked.clone(), typed.clone()],
         &[SessionOp::Select(Selection::None)],
         None,
@@ -1130,7 +1133,7 @@ fn an_acting_frame_sweeps_the_line_a_seam_refusal_would_have_been_on() {
         frame::Retold::Again,
     ));
     let acting = [SessionOp::Undo];
-    let verdict = frame::frame_status(&[], &acting, None);
+    let verdict = frame::frame_status_untargeted(&[], &acting, None);
     assert_eq!(
         verdict,
         RankedVerdict::Clear,
@@ -1215,7 +1218,7 @@ fn a_joined_line_keeps_a_shared_subject_and_falls_back_when_they_differ() {
     // Agreeing notices keep the subject, so the joined line is still
     // retired by that subject's own event.
     let RankedVerdict::Show(shown) =
-        frame::frame_status(&[cursor("one"), cursor("two")], &acted, None)
+        frame::frame_status_untargeted(&[cursor("one"), cursor("two")], &acted, None)
     else {
         panic!("two notices are news");
     };
@@ -1241,7 +1244,7 @@ fn a_joined_line_keeps_a_shared_subject_and_falls_back_when_they_differ() {
             &viewer::tools::ToolKind::Blend.refuses(&"the held edges are on another body"),
         ),
     ];
-    let RankedVerdict::Show(shown) = frame::frame_status(&mixed, &acted, None) else {
+    let RankedVerdict::Show(shown) = frame::frame_status_untargeted(&mixed, &acted, None) else {
         panic!("two notices are news");
     };
     assert_eq!(
@@ -3292,8 +3295,8 @@ fn the_pixel_to_ndc_conversion_round_trips_and_flips_y_once() {
 /// **The unknown-variable refusal carries its offer, and the frame
 /// policies hand both to the chrome.** An expression naming an
 /// undeclared variable refuses at the parse door (typo-safety — text
-/// never creates a variable); `creation_offer` extracts the name to
-/// prefill the add-variable affordance, and `retype_draft` hands the
+/// never creates a variable); its offer is the lead that prefills
+/// the add-variable affordance, and `retype_draft` hands the
 /// refused text back so acting on the offer does not cost the very
 /// expression that raised it.
 #[test]
@@ -3325,9 +3328,14 @@ fn an_unknown_parameter_refusal_offers_creation_and_returns_the_draft() {
         }
     }
     assert_eq!(
-        frame::creation_offer(refusal.as_ref()),
-        Some(VarName::from_static("margin")),
-        "the offer is the undeclared name"
+        refusal_offers(refusal.as_ref()),
+        viewer::recourse::Offers {
+            drawn: Vec::new(),
+            heard: vec![viewer::recourse::Heard::CreateVariable {
+                name: VarName::from_static("margin")
+            }],
+        },
+        "the offer is the heard lead to create the undeclared name"
     );
     assert_eq!(
         frame::retype_draft(&batch, refusal.as_ref()),
@@ -3349,7 +3357,10 @@ fn an_unknown_parameter_refusal_offers_creation_and_returns_the_draft() {
         }
     }
     assert!(refusal.is_some(), "the malformed text refuses");
-    assert_eq!(frame::creation_offer(refusal.as_ref()), None);
+    assert_eq!(
+        refusal_offers(refusal.as_ref()),
+        viewer::recourse::Offers::default()
+    );
     assert!(frame::retype_draft(&batch, refusal.as_ref()).is_some());
 
     // And a clean batch offers and restores nothing.
@@ -3365,8 +3376,18 @@ fn an_unknown_parameter_refusal_offers_creation_and_returns_the_draft() {
         }
     }
     assert!(refusal.is_none(), "{refusal:?}");
-    assert_eq!(frame::creation_offer(refusal.as_ref()), None);
+    assert_eq!(
+        refusal_offers(refusal.as_ref()),
+        viewer::recourse::Offers::default()
+    );
     assert_eq!(frame::retype_draft(&batch, refusal.as_ref()), None);
+}
+
+/// The offers a refused batch makes, or none for a clean one.
+fn refusal_offers(refusal: Option<&Refusal>) -> viewer::recourse::Offers {
+    refusal.map_or_else(viewer::recourse::Offers::default, |refused| {
+        viewer::recourse::offers(viewer::recourse::Failure::Refused(refused))
+    })
 }
 
 /// The XDG rules for where preferences live, held as a table.
@@ -3526,7 +3547,7 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
         "a mate emptying a probed space withdraws a placement and neither of the \
          other two kinds, so they are silent here rather than absent"
     );
-    let verdict = frame::frame_status(
+    let verdict = frame::frame_status_untargeted(
         &notices,
         core::slice::from_ref(&mate),
         outcome.refusal.as_ref(),
@@ -3552,7 +3573,7 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     // supersession dropped on the floor as it used to be, clears the
     // line instead of saying any of that.
     assert_eq!(
-        frame::frame_status(&[], core::slice::from_ref(&mate), outcome.refusal.as_ref()),
+        frame::frame_status_untargeted(&[], core::slice::from_ref(&mate), outcome.refusal.as_ref()),
         RankedVerdict::Clear,
     );
 
@@ -3575,7 +3596,8 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
         .into_iter()
         .chain(frame::outcome_notices(&refused))
         .collect();
-    let RankedVerdict::Show(line) = frame::frame_status(&notices, &[mate, drag], Some(refusal))
+    let RankedVerdict::Show(line) =
+        frame::frame_status_untargeted(&notices, &[mate, drag], Some(refusal))
     else {
         panic!("a refusing frame shows its refusal");
     };
@@ -3648,7 +3670,7 @@ fn a_survival_drop_rides_beside_a_refusal_and_a_declined_pick_does_not() {
     let acted = [SessionOp::Select(Selection::None)];
 
     // No refusal: rank 2, every notice, as before.
-    let RankedVerdict::Show(all) = frame::frame_status(&notices, &acted, None) else {
+    let RankedVerdict::Show(all) = frame::frame_status_untargeted(&notices, &acted, None) else {
         panic!("three notices are news");
     };
     assert_eq!(
@@ -3663,7 +3685,9 @@ fn a_survival_drop_rides_beside_a_refusal_and_a_declined_pick_does_not() {
     let refusal = Refusal::NothingToDo {
         direction: Step::Undo,
     };
-    let RankedVerdict::Show(line) = frame::frame_status(&notices, &acted, Some(&refusal)) else {
+    let RankedVerdict::Show(line) =
+        frame::frame_status_untargeted(&notices, &acted, Some(&refusal))
+    else {
         panic!("a refusing frame shows its refusal");
     };
     assert_eq!(
@@ -3758,7 +3782,7 @@ fn every_typed_refusal_door_says_whether_anything_will_say_it_again() {
         ),
         (
             "a refusal among the notices",
-            frame::refusal_message(&Refusal::NothingToDo {
+            frame::refusal_message_untargeted(&Refusal::NothingToDo {
                 direction: Step::Redo,
             }),
             frame::Retold::Again,
@@ -3778,7 +3802,7 @@ fn every_typed_refusal_door_says_whether_anything_will_say_it_again() {
         direction: Step::Undo,
     };
     let RankedVerdict::Show(line) =
-        frame::frame_status(&notices, &[SessionOp::Undo], Some(&refusal))
+        frame::frame_status_untargeted(&notices, &[SessionOp::Undo], Some(&refusal))
     else {
         panic!("a refusing frame shows its refusal");
     };
@@ -3798,14 +3822,14 @@ fn every_typed_refusal_door_says_whether_anything_will_say_it_again() {
 /// batch's.
 #[test]
 fn a_refusal_among_the_notices_stays_under_the_batch_refusal() {
-    let noticed = frame::refusal_message(&Refusal::NothingToDo {
+    let noticed = frame::refusal_message_untargeted(&Refusal::NothingToDo {
         direction: Step::Redo,
     });
     assert_eq!(noticed.retold(), frame::Retold::Again);
     let refusal = Refusal::NothingToDo {
         direction: Step::Undo,
     };
-    let RankedVerdict::Show(line) = frame::frame_status(
+    let RankedVerdict::Show(line) = frame::frame_status_untargeted(
         core::slice::from_ref(&noticed),
         &[SessionOp::Undo],
         Some(&refusal),
@@ -4030,7 +4054,7 @@ fn every_withdrawal_kind_rides_beside_a_refusal() {
         direction: Step::Undo,
     };
     let RankedVerdict::Show(line) =
-        frame::frame_status(&notices, &[SessionOp::Undo], Some(&refusal))
+        frame::frame_status_untargeted(&notices, &[SessionOp::Undo], Some(&refusal))
     else {
         panic!("a refusing frame shows its refusal");
     };

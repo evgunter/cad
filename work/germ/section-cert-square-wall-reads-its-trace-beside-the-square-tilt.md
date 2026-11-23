@@ -91,3 +91,8 @@ PR's.
 
 Moved from HONEROOT to GERM on 2026-11-20, by `git mv`, when HONEROOT merged into GERM: HONEROOT held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one GERM carries.
 - 2026-11-23 (WALKS orchestrator) — another failing seed, at the default eps: `CAD_FUZZ_SEED=0x6d118be822e7ed84` fails `section_cert::square_search::the_square_wall_arm_agrees_with_the_traced_section` on both PR 7495's head and its merge base origin/main ba685969 (PR 7495's reviewer); hosted CI on 7495 drew it.
+- 2026-11-23 (WALKS orchestrator) — a third failing seed: `CAD_FUZZ_SEED=0xafe93a1005a69c0c` (torus tangent degeneracy), reported by the WALKS surface-slot lane on PR 7495's branch, outside its diff.
+
+## Evidence (germ/co-surface-table, 2026-11-23)
+
+`topo`'s `boolean::section_cert::square_search::the_square_wall_arm_agrees_with_the_traced_section` is red on `origin/main` at seed `0x52e3da8fbe22079e` (re-run on a main worktree, 2026-11-23, from PR 7431's review).

@@ -231,7 +231,9 @@ fn a_refused_bundle_names_its_placement_and_reads_every_chained_row_downstream()
         );
     };
     assert!(
-        message.contains("did not evaluate, so the bundle is not folded"),
+        message
+            .to_string()
+            .contains("did not evaluate, so the bundle is not folded"),
         "the kernel's own words on the placement's row: {message}"
     );
     let causes: Vec<_> = rows
@@ -881,7 +883,7 @@ fn a_downstream_failure_alone_is_a_fault_the_reader_cannot_act_on() {
         status,
         repair_at: None,
         readout: None,
-        version_offer: None,
+        offers: Vec::new(),
         constraints: Vec::new(),
     };
     let rows = [

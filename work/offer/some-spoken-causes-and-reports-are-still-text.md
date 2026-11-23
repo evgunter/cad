@@ -2,11 +2,12 @@
 id: some-spoken-causes-and-reports-are-still-text
 kind: issue
 title: kernel: a few spoken causes are stored as text and the text reports flatten, so their mentions cannot be links
-status: open
+status: dispatched
 opened: 2026-11-22
 priority: P2
 cost: M
 refs: [the-viewer-spells-a-node-as-its-kind-before-its-name, a-node-name-the-viewer-shows-is-not-a-link-to-it]
+branch: offer/spoken-causes-are-sentences
 ---
 
 

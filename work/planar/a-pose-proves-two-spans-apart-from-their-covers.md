@@ -27,8 +27,9 @@ stage decides "apart" only definitely and adds nothing in band.
 `geom_brep::curve_pair::meet` escalates whenever two carriers' clearance
 lands in the band's gap, whatever the spans: the pose refuses before any
 candidate is read. Measured on main 699a1d2a8b by a PLANAR designer
-(probe `~/.local/share/cad-work/profile-dz-planar-12797/cad/crates/geom-brep/examples/planar_probe.rs`,
-uncommitted; log beside it), ε = 10⁻⁹, K = 10, `f64` and `Interval`,
+(probe `crates/geom-brep/examples/planar_probe.rs` on the branch
+`planar/probe-meet-on-planar-pairs`, pushed and not for merge; its log
+is beside it), ε = 10⁻⁹, K = 10, `f64` and `Interval`,
 both orders, a carrier clearance of 5.5·10⁻⁹:
 - a line ending 1 m short of a graze;
 - a line under a circle whose arc is the far half;
