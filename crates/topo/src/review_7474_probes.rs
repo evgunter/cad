@@ -1,4 +1,7 @@
-//! Reviewer probes for PR 7474 (face-region). Not for merge.
+//! **A face's region read on torn and lone-loop bodies**: the raw
+//! measuring door refuses a tear rather than panicking, a torn loop is
+//! refused at the door that hands out a [`crate::CycleLoop`], and a lone
+//! ring leaves the measure and the solid containment read.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Band, Point3, Tol};
@@ -10,10 +13,10 @@ fn tol() -> Tol {
     Tol::witness()
 }
 
-/// Claim 6: the raw measuring door's pre-check reads the walk with
-/// `loop_cycle` (no claimant check) but `CycleLoop::cycle` walks with
-/// `loop_walk_of` (claimants checked) and panics. A half-edge whose
-/// `parent_loop` names another loop passes the pre-check and panics.
+/// The raw measuring door reads a body no validator certified: a
+/// half-edge whose `parent_loop` names another loop is a tear the one
+/// claims walk sees ([`crate::live`]'s `prove_cycle`), and the door
+/// refuses it rather than panicking.
 #[test]
 fn raw_door_on_a_claimant_tear_refuses_rather_than_panics() {
     let mut body = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol());
@@ -32,16 +35,16 @@ fn raw_door_on_a_claimant_tear_refuses_rather_than_panics() {
         )
         .map(|_| ())
     }));
-    match got {
-        Ok(r) => println!("no panic: {r:?}"),
-        Err(_) => panic!("the raw door panicked on a claimant tear"),
-    }
+    assert!(
+        matches!(got, Ok(Err(crate::MassPropsError::Corrupt { .. }))),
+        "the raw door refuses a claimant tear Corrupt: {:?}",
+        got.as_ref().map(|r| r.as_ref().err())
+    );
 }
 
-/// Claim 5: public `props::loop_edges` on a torn walk. Base answered
-/// `LoopEdgesError::Corrupt { "broken half-edge cycle" }`; the torn walk
-/// is now refused, typed, at the door that hands out the loop
-/// (`NoCycle::Torn`), so `loop_edges` never meets it and nothing panics.
+/// A torn walk is refused, typed, at the door that hands out the loop
+/// (`NoCycle::Torn`), so the public `props::loop_edges` never meets it
+/// and nothing panics.
 #[test]
 fn loop_edges_on_a_torn_walk_refuses() {
     let mut body = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol());
@@ -59,7 +62,7 @@ fn loop_edges_on_a_torn_walk_refuses() {
     );
 }
 
-/// Claim 2: the public measure reads past a lone ring.
+/// The raw measure reads past a lone ring: the box's volume is one.
 #[test]
 fn a_lone_ring_box_measures_unit_volume() {
     let (body, _, _) = box_with_a_lone_ring(tol());
@@ -68,14 +71,17 @@ fn a_lone_ring_box_measures_unit_volume() {
         tol(),
         crate::test_support::pinned_resolution(tol()),
     );
-    println!("{:?}", m.as_ref().map(|m| format!("{:?}", m.enclosure)));
-    assert!(m.is_ok(), "{:?}", m.err());
+    let volume = m.as_ref().map(|m| m.enclosure.volume);
+    assert!(
+        volume.as_ref().is_ok_and(|v| (v - 1.0).abs() < 1e-9),
+        "{volume:?}"
+    );
 }
 
-/// Claim 2: point_in_solid through the lone ring's vertex (the +z ray
-/// from the centre passes it) still answers In, the graze re-casting.
+/// Points under and over the lone ring's vertex read through it (the +z
+/// ray from below grazes the vertex and is re-cast).
 #[test]
-fn point_in_solid_below_the_lone_ring_is_inside() {
+fn point_in_solid_reads_past_the_lone_ring() {
     let (body, _, _) = box_with_a_lone_ring(tol());
     let band = Band::linear(tol()).unwrap();
     for q in [
@@ -84,7 +90,6 @@ fn point_in_solid_below_the_lone_ring_is_inside() {
         Point3::new(0.5, 0.5, 1.5),
     ] {
         let got = crate::point_in_solid(&body, q, band, tol());
-        println!("{q:?}: {got:?}");
         assert!(got.is_ok(), "{q:?}: {got:?}");
     }
 }

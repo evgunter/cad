@@ -128,8 +128,6 @@ fn a_face_with_no_outline_is_refused_by_every_area_reader() {
     );
 }
 
-// ---- reviewer probes (PR 7474) ----
-
 fn raw(body: &Body<f64>) -> std::thread::Result<String> {
     let tol = Tol::witness();
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -145,10 +143,11 @@ fn raw(body: &Body<f64>) -> std::thread::Result<String> {
     }))
 }
 
-/// A half-edge of the top face whose parent_loop names another loop:
-/// next is intact, so `loop_cycle` closes; the claims walk does not.
+/// The raw door on a ringed box whose top half-edge's `parent_loop`
+/// names another loop: `next` is intact, so only the claims walk sees
+/// the tear, and the door refuses it rather than panicking.
 #[test]
-fn probe_raw_door_on_a_parent_loop_tear() {
+fn the_raw_door_refuses_a_parent_loop_tear() {
     let (mut body, top, _) = box_with_a_lone_ring(Tol::witness());
     let he = body.proven_face(top).half_edges()[1];
     let other = body
@@ -156,59 +155,29 @@ fn probe_raw_door_on_a_parent_loop_tear() {
         .iter()
         .find(|(k, _)| *k != top)
         .map(|(_, f)| f.outer)
-        .unwrap();
-    body.half_edges.get_mut(he).unwrap().parent_loop = other;
-    let r = raw(&body);
-    eprintln!(
-        "PROBE parent_loop tear: {:?}",
-        r.as_ref().map_err(|_| "PANIC")
+        .expect("another face");
+    body.half_edges
+        .get_mut(he)
+        .expect("the half-edge")
+        .parent_loop = other;
+    let got = raw(&body);
+    assert!(
+        got.as_ref().is_ok_and(|r| r.contains("Corrupt")),
+        "the raw door refuses the tear: {:?}",
+        got.as_ref().map_err(|_| "PANIC")
     );
-    assert!(r.is_ok(), "the raw door panics on a parent_loop tear");
 }
 
-/// The lone ring's vertex removed: a dead key behind a lone loop.
+/// The raw door on a ringed box whose lone ring's vertex is dead: a
+/// broken link behind a lone loop, refused rather than met.
 #[test]
-fn probe_raw_door_on_a_dead_lone_ring_vertex() {
+fn the_raw_door_refuses_a_dead_lone_ring_vertex() {
     let (mut body, _, lone) = box_with_a_lone_ring(Tol::witness());
     body.vertices.remove(lone);
-    let r = raw(&body);
-    eprintln!(
-        "PROBE dead lone vertex: {:?}",
-        r.as_ref().map_err(|_| "PANIC")
+    let got = raw(&body);
+    assert!(
+        got.as_ref().is_ok_and(|r| r.contains("Corrupt")),
+        "the raw door refuses the dead vertex: {:?}",
+        got.as_ref().map_err(|_| "PANIC")
     );
-    assert!(r.is_ok(), "the raw door panics on a dead lone-ring vertex");
-}
-
-/// The intact lone-ring box through the raw door.
-#[test]
-fn probe_raw_door_on_the_lone_ring_box() {
-    let (body, _, _) = box_with_a_lone_ring(Tol::witness());
-    let r = raw(&body);
-    eprintln!("PROBE intact: {:?}", r.as_ref().map_err(|_| "PANIC"));
-}
-
-/// A plain brick, one top half-edge's parent_loop re-pointed.
-#[test]
-fn probe_raw_door_on_a_brick_parent_loop_tear() {
-    let mut body = crate::test_support_fixtures::brick::<f64>(
-        (0.0, 1.0),
-        (0.0, 1.0),
-        (0.0, 1.0),
-        Tol::witness(),
-    );
-    let fk = body.faces.iter().next().map(|(k, _)| k).unwrap();
-    let he = body.proven_face(fk).half_edges()[1];
-    let other = body
-        .faces
-        .iter()
-        .find(|(k, _)| *k != fk)
-        .map(|(_, f)| f.outer)
-        .unwrap();
-    body.half_edges.get_mut(he).unwrap().parent_loop = other;
-    let r = raw(&body);
-    eprintln!(
-        "PROBE brick parent_loop tear: {:?}",
-        r.as_ref().map_err(|_| "PANIC")
-    );
-    assert!(r.is_ok(), "the raw door panics on a parent_loop tear");
 }
