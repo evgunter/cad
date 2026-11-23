@@ -190,7 +190,7 @@ fn local<T: Decide>(carrier: &Curve3<T>, (t0, t1): (T, T), end: SpanEnd) -> Opti
         }
         Curve3::Circle(circle) => {
             let r = circle.radius();
-            let c = circle.frame.origin();
+            let c = circle.frame().origin();
             let (p, d) = carrier.ders1(t_end);
             let u = (p - c) / r;
             let v = d * (toward / r);
