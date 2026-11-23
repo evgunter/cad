@@ -2,10 +2,12 @@
 id: a-check-offers-no-way-to-add-the-assertion-it-asks-for
 kind: issue
 title: viewer: a check tells the person to add an assertion, and neither the check nor any other door lets them
-status: open
+status: review
 opened: 2026-11-22
 priority: P1
 cost: H
+pr: 7362
+branch: offer/a-check-carries-the-assertion-that-quiets-it
 ---
 
 **Ev reported this** (in chat, 2026-11-22): "the checks report that you should add an assertion to clear them, but there's no clear way to add assertions anywhere (and it should be offered from the check itself)".
