@@ -53,8 +53,8 @@
 
 use geom::{NurbsCurve3, Surface};
 use geom_core::bisect::{Step, bisect};
-use geom_core::solved::{Unadmitted, admit};
 use geom_core::k_stats::decide;
+use geom_core::solved::{Unadmitted, admit};
 use geom_core::spline::compose::{CanonicalSurface, CurveCertData, canonical_composite};
 use geom_core::{Band, Bounds, Indeterminate, Interval, Margin, Point3, Real, Sign, Vec3};
 
@@ -771,12 +771,13 @@ fn settle<T: geom_core::Certifies>(
         }
         // Definitely off at the located crossing: the residual's step
         // between two adjacent scalars is past the band.
-        let (at, ()) = admit("spline_composite_root_on", t, band, |at| (on(at), ())).map_err(
-            |refused| match refused {
-                Unadmitted::Off { row, .. } => Unsettled::Meter { row }.into(),
-                Unadmitted::Undecided(diag) => CompositeRefusal::Escalated(diag),
-            },
-        )?;
+        let (at, ()) =
+            admit("spline_composite_root_on", t, band, |at| (on(at), ())).map_err(|refused| {
+                match refused {
+                    Unadmitted::Off { row, .. } => Unsettled::Meter { row }.into(),
+                    Unadmitted::Undecided(diag) => CompositeRefusal::Escalated(diag),
+                }
+            })?;
         let mut at_end = false;
         for end in ends {
             at_end |= !apart_as("spline_composite_root_at_end", p, end)?;
