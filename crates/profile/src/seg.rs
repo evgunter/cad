@@ -747,8 +747,8 @@ fn check_direction<T: Decide>(
 ) -> Result<(), SegIssue<T>> {
     // The one reading, and what "unit" means here: a miss within the
     // band bounds both the turn and the stretch, (|d| − 1)·ℓ ≤ miss by
-    // the triangle inequality, which is check 1's `Length` measure for a
-    // unit datum at arm ℓ (`geom::convention::frame_margins`).
+    // the triangle inequality: the direction is a unit to within ε at
+    // arm ℓ.
     let miss = (o + d * len).distance(p);
     let read = decide_reported(Gate::SegmentDirection, Margin::of(miss), band)
         .map_err(SegIssue::escalated)?;
