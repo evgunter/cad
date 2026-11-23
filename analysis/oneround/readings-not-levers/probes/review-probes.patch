@@ -1,0 +1,193 @@
+diff --git a/crates/geom-brep/src/dihedral.rs b/crates/geom-brep/src/dihedral.rs
+index a41884ce8..16b9fc9c3 100644
+--- a/crates/geom-brep/src/dihedral.rs
++++ b/crates/geom-brep/src/dihedral.rs
+@@ -4327,3 +4327,46 @@ mod seam_rows {
+         );
+     }
+ }
++
++#[cfg(test)]
++#[allow(clippy::unwrap_used, clippy::panic)]
++mod review_probe_below_the_offer {
++    use super::*;
++    use geom_core::test_support::fixture_lever;
++    use geom_core::{Point3, Vec3};
++
++    /// The arm binds where the wedge reads Zero AT the offer; the
++    /// sentence tells the user to tighten BELOW it. What does a run just
++    /// below (half) the offer read?
++    #[test]
++    fn review_probe_a_wedge_zero_at_the_offer_at_half_the_offer() {
++        let b = Band::new(1e-9, 1e-8).unwrap();
++        let lean = |sin: f64| Surface::<f64>::Plane {
++            frame: geom::Frame::new(
++                Point3::origin(),
++                Vec3::new(0.0, sin, (1.0 - sin * sin).sqrt()),
++                Vec3::unit_x(),
++            ),
++        };
++        let arm = 1.5e-9;
++        let told = b.offer_deciding(arm).unwrap();
++        for share in [0.9, 0.6, 0.3] {
++            let sin = share * told / arm;
++            let first = classify_dihedral(&lean(0.0), &lean(sin), Point3::origin(), fixture_lever(arm), b)
++                .map(|d| d.class());
++            let (pred, offered) = match &first {
++                Err(e) => (e.diag().predicate, e.diag().offered_band()),
++                Ok(c) => panic!("decided {c:?}"),
++            };
++            let below = Band::new(0.5 * told, 0.5 * told * 10.0).unwrap();
++            let second = classify_dihedral(&lean(0.0), &lean(sin), Point3::origin(), fixture_lever(arm), below)
++                .map(|d| d.class());
++            println!(
++                "wedge {:.2} of the told offer {told:e}: first {pred:?} offers {:?}; at half the offer: {:?}",
++                share,
++                offered.map(|o| o.zero()),
++                second.map_err(|e| (e.diag().predicate, e.diag().margin.diagnostic_f64_for_error_text()))
++            );
++        }
++    }
++}
+diff --git a/crates/geom-core/src/predicate.rs b/crates/geom-core/src/predicate.rs
+index d7b728b89..298568d7e 100644
+--- a/crates/geom-core/src/predicate.rs
++++ b/crates/geom-core/src/predicate.rs
+@@ -5549,3 +5549,80 @@ mod tests {
+         );
+     }
+ }
++
++#[cfg(test)]
++#[allow(clippy::unwrap_used, clippy::panic)]
++mod review_probe_offered_band {
++    use super::*;
++
++    fn refused(margin: MarginDiag, band: Band) -> Indeterminate {
++        Indeterminate { margin, terminal_sliver: false, band, predicate: None }
++    }
++
++    /// Scan margins in band: does the refused margin decide past the
++    /// escalation edge of the band `offered_band` returns (its doc: "at
++    /// or past the escalation edge")?
++    #[test]
++    fn review_probe_refused_margin_decides_in_its_offered_band() {
++        let mut bad = Vec::new();
++        let mut seen = 0u64;
++        for (z, e) in [(1e-9, 1e-8), (1e-9, 7e-9), (1e-12, 1e-11), (1e-6, 1e-5), (3e-9, 1.1e-8)] {
++            let band = Band::new(z, e).unwrap();
++            let mut m = z * 1.000_001;
++            while m < e {
++                for m in [m, m.next_up(), m.next_down()] {
++                    if let Some(off) = refused(MarginDiag::value(m), band).offered_band() {
++                        seen += 1;
++                        let ok = matches!(m.sign_within(off), Ok(Decided { sign: Sign::Positive, .. }));
++                        if !ok && bad.len() < 10 {
++                            bad.push(format!("band ({z:e},{e:e}) m {m:e}: offered ({:e},{:e})", off.zero(), off.escalate()));
++                        }
++                    }
++                }
++                m *= 1.000_37;
++            }
++            // exact grid values: m = K * d, d on the 4-digit grid
++            let k = e / z;
++            for i in 1000..10000 {
++                let d = f64::from(i) * z / 1000.0 / 10.0;
++                let m = d * k;
++                if m <= z || m >= e { continue; }
++                if let Some(off) = refused(MarginDiag::value(m), band).offered_band() {
++                    seen += 1;
++                    let ok = matches!(m.sign_within(off), Ok(Decided { sign: Sign::Positive, .. }));
++                    if !ok && bad.len() < 20 {
++                        bad.push(format!("grid band ({z:e},{e:e}) m {m:e}: offered ({:e},{:e})", off.zero(), off.escalate()));
++                    }
++                }
++            }
++        }
++        println!("seen {seen}");
++        assert!(bad.is_empty(), "{bad:#?}");
++    }
++
++    /// resolved_as old vs new: old Zero ⟺ fl(K·ρ) ≤ ε (K = fl(esc/zero));
++    /// new Zero ⟺ ρ ≤ fl(ε/K) in the finer band. Count disagreements.
++    #[test]
++    fn review_probe_step_finer_vs_k_times() {
++        let mut moved = Vec::new();
++        for (z, e) in [(1e-9, 1e-8), (1e-9, 7e-9), (1e-12, 1e-11), (1e-6, 1e-5), (3e-9, 1.1e-8)] {
++            let band = Band::new(z, e).unwrap();
++            let k = e / z;
++            let finer = band.a_step_finer().unwrap();
++            let edge = finer.zero();
++            let mut r = edge;
++            for _ in 0..64 { r = r.next_down(); }
++            for _ in 0..128 {
++                let old = (k * r).abs() <= z;
++                let new = matches!(r.sign_within(finer), Ok(Decided { sign: Sign::Zero, .. }));
++                if old != new { moved.push(format!("band ({z:e},{e:e}) rho {r:e}: old {old} new {new}")); }
++                r = r.next_up();
++            }
++            // rho*K = eps exactly-ish and rho = eps
++            let r = z / k;
++            println!("band ({z:e},{e:e}) rho=eps/K {r:e}: K*rho {:e} old {} new {:?}", k*r, (k*r) <= z, r.sign_within(finer).map(|d| d.sign));
++            println!("  rho=eps: old {:?} new {:?}", (k*z).sign_within(band).map(|d| d.sign), z.sign_within(finer).map(|d| d.sign));
++        }
++        println!("{moved:#?}");
++    }
++}
+diff --git a/crates/topo/src/boolean/join.rs b/crates/topo/src/boolean/join.rs
+index fb8e3de71..825202f9d 100644
+--- a/crates/topo/src/boolean/join.rs
++++ b/crates/topo/src/boolean/join.rs
+@@ -8062,3 +8062,52 @@ mod foot_rows {
+         );
+     }
+ }
++
++#[cfg(test)]
++#[allow(clippy::unwrap_used, clippy::panic)]
++mod review_probe_travel_offer {
++    use super::{BooleanError, GermArm, Turn, germ_arm};
++    use core::f64::consts::FRAC_PI_4;
++    use geom_core::{Band, Point3, Vec3};
++
++    fn at(k: f64, t: f64) -> (Point3<f64>, Vec3<f64>) {
++        let tangent = Vec3::new(-k * t.sin(), t.cos(), 0.0);
++        (Point3::new(k * t.cos(), t.sin(), 0.0), tangent * (1.0 / tangent.norm()))
++    }
++
++    fn arm(k: f64, band: Band) -> Result<GermArm, BooleanError> {
++        let (germ, dir) = at(k, -FRAC_PI_4);
++        let (site, tangent) = at(k, -FRAC_PI_4 + core::f64::consts::PI);
++        let turn = Turn::<f64>::facing(
++            geom::Line { origin: Point3::origin(), dir: Vec3::unit_z() },
++            (germ, dir * -1.0),
++            (site, tangent),
++            band,
++        )
++        .unwrap();
++        germ_arm(turn, band)
++    }
++
++    /// The half-turn tie at k = 10 escalates under the caller's name and
++    /// offers a tolerance; does that tolerance decide it?
++    #[test]
++    fn review_probe_the_half_turn_ties_offer_is_honoured() {
++        let mut band = Band::new(1e-9, 1e-8).unwrap();
++        for step in 0..4 {
++            match arm(10.0, band) {
++                Err(BooleanError::Escalated { ref diag, .. }) => {
++                    let off = diag.offered_band();
++                    println!(
++                        "step {step}: band ({:e},{:e}) {:?} margin {:?} offers {:?}\n  ending: {}",
++                        band.zero(), band.escalate(), diag.predicate,
++                        diag.margin.diagnostic_f64_for_error_text(), off.map(|b| b.zero()),
++                        diag.ending("L")
++                    );
++                    match off { Some(b) => band = b, None => { println!("no offer"); return; } }
++                }
++                other => { println!("step {step}: band ({:e}) decided ok={}", band.zero(), other.is_ok()); return; }
++            }
++        }
++        panic!("the offered tolerance never decided the tie: four offers in a row re-escalate");
++    }
++}
