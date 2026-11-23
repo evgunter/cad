@@ -25,3 +25,7 @@ Each new site needs a roster line with its disposition, or the decide call
 has to move back under the name the roster lists. The gating gap that lets
 such a change past its PR is
 `green/a-src-change-that-moves-a-decide-site-skips-its-crates-recourse-roster`.
+
+## Two dead carriers (2026-11-22, seen on `oneround/box-region`'s gate)
+
+The same row also reports `a declared carrier matched nothing in src: Const(NEST)` and `… Const(REACH)`. Main's `0639e45a` removed `const NEST` from topo's source. `REACH` survives only as a test fixture's length (`boolean/torus_frame_rows.rs:48`, `injective.rs:4911`), which is no name. The two `CARRIERS` entries in `crates/topo/tests/recourse_roster.rs` go, or are re-pointed at what replaced them. Seen on PR 7225's hosted slow-set step, which ran the roster because the PR edits the file; reproduced on that branch merged with main `706a250d`, and none of the four lines touches the PR's code.
