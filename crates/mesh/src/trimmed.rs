@@ -2438,19 +2438,6 @@ fn uv_centroid(uv: &[[f64; 2]; 3]) -> (f64, f64) {
     )
 }
 
-/// Whether any mesh id appears at two DIFFERENT UV locations in the
-/// trim polygon — the second ingredient of #678's non-manifold fan
-/// (`curved::pole_columns` carries the argument; the first ingredient
-/// is a single interior column between them).
-///
-/// The rule for "different" is spade's and is stated once, at
-/// [`crate::cdt::ids_at_two_uvs`], which both lanes call. This
-/// function is that set's emptiness, which the rows below read.
-#[cfg(test)]
-fn id_repeats_apart(polygon: &[(f64, f64, u32)]) -> bool {
-    !crate::cdt::ids_at_two_uvs(polygon.iter().copied()).is_empty()
-}
-
 /// **A vertex the walk meets again on one chart branch is one UV
 /// location**: each entry of a mesh id takes the `(u, v)` of that id's
 /// first entry on its branch, bit for bit. A later entry is on an
@@ -3770,8 +3757,20 @@ fn walk_face(
 pub(super) mod tests {
     use super::{
         ChordPass, Creases, FixedVertexHandle, Node, SpadePoint, TessellateError, TrimPolygon,
-        chain_creases, id_repeats_apart, one_location_per_branch, trim_polygon,
+        chain_creases, one_location_per_branch, trim_polygon,
     };
+
+    /// Whether any mesh id appears at two DIFFERENT UV locations in the
+    /// trim polygon — the second ingredient of #678's non-manifold fan
+    /// (`curved::pole_columns` carries the argument; the first ingredient
+    /// is a single interior column between them).
+    ///
+    /// The rule for "different" is spade's and is stated once, at
+    /// [`crate::cdt::ids_at_two_uvs`], which both lanes call. This
+    /// function is that set's emptiness, which the rows below read.
+    fn id_repeats_apart(polygon: &[(f64, f64, u32)]) -> bool {
+        !crate::cdt::ids_at_two_uvs(polygon.iter().copied()).is_empty()
+    }
     use crate::chart_table::SingularPoint;
     use geom_brep::PolygonOrientation;
     use spade::{ConstrainedDelaunayTriangulation, Triangulation};
@@ -5225,8 +5224,10 @@ pub(super) mod tests {
     /// the plane face across that arc joins too; the shared-side cure
     /// splits it on the next attempt. With the loop's last attempt set to
     /// the first (`LAST_ATTEMPT`, test-only) there is no next attempt, so
-    /// the face refuses typed; with the budget as shipped it meshes. Set
-    /// on a one-thread pool's worker, which runs the faces.
+    /// the face refuses typed; with the budget as shipped it meshes. At
+    /// δ `5·10⁻²` and `2·10⁻²`: finer, at `5·10⁻³`, the face's first
+    /// attempt on its boundary points keeps no such side. Set on a
+    /// one-thread pool's worker, which runs the faces.
     #[test]
     fn a_shared_side_the_budget_leaves_refuses_typed() {
         use geom_core::Tol;

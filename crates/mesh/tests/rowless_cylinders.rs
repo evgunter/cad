@@ -16,8 +16,12 @@ use topo::{AtRestBody, Body};
 use crate::reach_probes::{geometry, op_of, posed, rod, tol};
 use crate::split_rulings::{rulings, split_and_placed};
 
-/// The share of δ the chart lane sizes a cylinder face at
-/// (`trimmed::face_target`): the reference wall is meshed at it.
+/// **The share of δ the chart lane sizes a cylinder face at**
+/// (`trimmed::face_target`, `trimmed::UNPROVED_HEADROOM`), and so the δ
+/// the reference wall is meshed at: the rectangle lane's strips at the
+/// chart lane's own target, so that each relation reads the rows alone
+/// and not the target. The target is not this row's subject; where it
+/// moves, this share moves with it and the relations stand.
 const TARGET_SHARE: f64 = 0.5;
 
 /// The pipe every row cuts: radius 1 over `z ∈ (−2, 2)`.
@@ -259,4 +263,19 @@ fn a_rowless_cylinder_face_meshes_the_same_bytes_at_every_eps() {
         let got = digest(&mesh::tessellate(body, 1e-2, tol()).unwrap());
         assert_eq!(got, want, "{what}: the mesh's digest {got:#018x}");
     }
+}
+
+/// The distinct mesh points on face `fk`'s loops.
+pub(super) fn boundary_points(body: &Body<f64>, mesh: &mesh::Mesh, fk: topo::FaceKey) -> usize {
+    let face = body.get_face(fk).unwrap();
+    let mut ids = std::collections::HashSet::new();
+    for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+        let (_, half_edges) = topo::props::loop_edges(body, lk).unwrap();
+        for hek in half_edges {
+            let edge = body.get_half_edge(hek).unwrap().edge;
+            let line = mesh.boundaries.iter().find(|b| b.edge == edge).unwrap();
+            ids.extend(line.points.iter().copied());
+        }
+    }
+    ids.len()
 }
