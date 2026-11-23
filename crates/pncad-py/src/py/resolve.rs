@@ -188,7 +188,7 @@ pub(crate) fn resolution(
             node: None,
             body: None,
             kind: None,
-            detail: Some(failure.error.spoken(doc, evaluation)),
+            detail: Some(failure.error.spoken(doc, evaluation).to_string()),
             offers: Some(
                 failure
                     .offers
@@ -203,7 +203,7 @@ pub(crate) fn resolution(
             node: None,
             body: None,
             kind: None,
-            detail: Some(cause.spoken(doc)),
+            detail: Some(cause.spoken(doc).to_string()),
             offers: None,
         }),
     }

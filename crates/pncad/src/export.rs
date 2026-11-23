@@ -32,6 +32,7 @@
 //! (or its pick mesh) into its space as export does, for a
 //! host-language read-out that never re-enters a document.
 
+use editor_core::say;
 use editor_core::{
     Evaluation, NodeStanding, ProductError, ProfileDoc, RecipeNodeId, Said, Say, Speaker,
 };
@@ -109,21 +110,23 @@ pub enum ExportError {
 }
 
 impl Say for ExportError {
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut editor_core::Sentence, by: Speaker<'_>) -> core::fmt::Result {
         match self {
-            ExportError::Standing(standing) => write!(f, "export: {}", Said(standing, by)),
+            ExportError::Standing(standing) => say!(f, "export: ", Said(standing, by)),
             ExportError::NotABody { node, kind } => {
-                write!(
+                say!(
                     f,
-                    "export: {} evaluates to a `{kind}`, not a body",
-                    by.node(*node)
+                    "export: ",
+                    by.node(*node),
+                    format_args!(" evaluates to a `{kind}`, not a body")
                 )
             }
             ExportError::EmptyBoolean { node } => {
-                write!(
+                say!(
                     f,
-                    "export: {}'s Boolean is empty — nothing to export",
-                    by.node(*node)
+                    "export: ",
+                    by.node(*node),
+                    "'s Boolean is empty — nothing to export"
                 )
             }
             // The composition is a map the export runs: a build.
@@ -137,7 +140,7 @@ impl Say for ExportError {
                 "export: the STEP writer refused: {}",
                 e.render(geom_brep::recourse::Reading::AtRest)
             ),
-            ExportError::Product(e) => write!(f, "export: {}", Said(e, by)),
+            ExportError::Product(e) => say!(f, "export: ", Said(e, by)),
         }
     }
 }
@@ -146,7 +149,7 @@ impl Say for ExportError {
 /// by their tags.
 impl core::fmt::Display for ExportError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.say(f, Speaker::TAG)
+        crate::document::display_said(self, Speaker::TAG, f)
     }
 }
 
@@ -156,7 +159,7 @@ impl ExportError {
     /// evaluation alone, so the refusal holds this document's ids,
     /// never their labels.
     #[must_use]
-    pub fn spoken(&self, doc: &ProfileDoc) -> String {
+    pub fn spoken(&self, doc: &ProfileDoc) -> editor_core::Sentence {
         editor_core::spoken_by(self, doc)
     }
 }

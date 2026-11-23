@@ -665,6 +665,25 @@ fn every_driver_carried_chain_ends_in_the_operators_own_recourse() {
     }
 }
 
+/// **No refusal spells a mention into its words** (DESIGN.md Band 1,
+/// "Node labels"): every node a node refusal names stays a mention of
+/// its sentence, forwarded payloads included, so the viewer can link
+/// it. A payload flattened into the words (`{payload}` in a `say` body)
+/// reads as a quoted label or a kind and its tag inside a words run;
+/// [`editor_core::test_support::spelled_mention`] finds that.
+#[test]
+fn no_node_refusal_spells_a_mention_into_its_words() {
+    let problems: Vec<String> = node_refusals()
+        .into_iter()
+        .filter_map(|(name, kind)| {
+            let said = editor_core::Said(&kind, editor_core::Speaker::TAG).sentence();
+            editor_core::test_support::spelled_mention(&said)
+                .map(|words| format!("{name}: a mention spelled as words: {words:?}"))
+        })
+        .collect();
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
+
 #[test]
 fn every_node_refusal_renders_within_the_budget() {
     let rows: Vec<(String, String)> = node_refusals()
@@ -1414,7 +1433,12 @@ fn drawn_lines(kind: NodeErrorKind) -> Vec<String> {
         escalations: std::sync::Arc::new(Vec::new()),
     };
     core::iter::once(error.to_string())
-        .chain(error.kind.carried_chain().map(|level| level.line()))
+        .chain(
+            error
+                .kind
+                .carried_chain()
+                .map(|level| level.line().to_string()),
+        )
         .collect()
 }
 
@@ -5601,7 +5625,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         (
             "PartProductFailed",
             PartFault::PartProductFailed {
-                held: Default::default(),
+                held: part_held(),
                 node: RecipeNodeId::new(0, tagged(7)),
                 refusal: NodeErrorKind::Extrude(sweep::ExtrudeError::DegenerateExtrusion).into(),
             },
@@ -5609,7 +5633,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         (
             "PartProductFailed(part)",
             PartFault::PartProductFailed {
-                held: Default::default(),
+                held: part_held(),
                 node: RecipeNodeId::new(0, tagged(7)),
                 refusal: NodeErrorKind::Part {
                     doc_ref: doc_ref(),
@@ -5621,7 +5645,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         (
             "PartProductPoisoned",
             PartFault::PartProductPoisoned {
-                held: Default::default(),
+                held: part_held(),
                 node: RecipeNodeId::new(0, tagged(8)),
                 through: RecipeNodeId::new(0, tagged(7)),
                 refusal: NodeErrorKind::Extrude(sweep::ExtrudeError::DegenerateExtrusion).into(),
@@ -5630,7 +5654,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         (
             "PartProductFailureUnrecorded",
             PartFault::PartProductFailureUnrecorded {
-                held: Default::default(),
+                held: part_held(),
                 node: RecipeNodeId::new(0, tagged(7)),
             },
         ),
@@ -5768,7 +5792,7 @@ fn part_products_forwarding() -> Vec<(String, NodeErrorKind)> {
             NodeErrorKind::Part {
                 doc_ref: doc_ref(),
                 fault: PartFault::PartProduct {
-                    held: Default::default(),
+                    held: part_held(),
                     refusal: error.into(),
                 },
             },
@@ -6893,4 +6917,19 @@ fn decode(literal: &str) -> String {
         }
     }
     out
+}
+
+/// **The part's nodes as the pinned part holds them**: every node a
+/// corpus part fault names, by tag, held as an extrude of one part
+/// document, so the part's sentence MENTIONS them. With an empty hold
+/// every node is words (`node <tag>`) and a law row over the corpus
+/// (`no_node_refusal_spells_a_mention_into_its_words`) would have no
+/// mention to find flattened.
+fn part_held() -> std::sync::Arc<editor_core::HeldNodes> {
+    std::sync::Arc::new(editor_core::HeldNodes::of_nodes(
+        editor_core::DocumentId::derive("refusal-concision-part"),
+        (1..=16).map(|n| {
+            editor_core::test_support::spoken(RecipeNodeId::new(0, tagged(n)), Some("Extrude"))
+        }),
+    ))
 }

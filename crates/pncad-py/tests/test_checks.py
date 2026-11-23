@@ -337,7 +337,7 @@ class TestTheRegistryVocabulary(unittest.TestCase):
         strict = ChecksConfig(connectedness=Severity.Error)
         report = run_checks(doc, evaluation, strict)
         (finding,) = report.findings
-        spoken = 'check connectedness: Place "joined" ('
+        spoken = 'check connectedness: "joined" ('
         self.assertIn(spoken, str(report))
         self.assertIn(spoken, str(finding))
         self.assertNotIn("renamed", str(report))
