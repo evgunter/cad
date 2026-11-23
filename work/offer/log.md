@@ -285,3 +285,9 @@ The local disk has 8 GB free and two lane targets are live, so these lanes run a
   - The lane verified locally: viewer 1158, viewer with the app feature 1631/1634 (GPU rows), and the law file 11/11.
   - **Dual review** on Opus with identical briefs (ledger `dual-7562.md`): R1 session_013QoYWX8V4H1RAvcYciGEpR, R2 session_013QoYWX3xSnngdRgmJdzMXZ. Claim 1 is that no offer edits the wrong document state.
   - It couples with the links widget #7557, which is in single review: whichever lands second ports. No row (rule 12). (OFFER orchestrator)
+- 2026-11-23 12:01Z — **The #7557 review (links widget) is APPROVE-WITH-FIXES, with no MAJOR.** The link predicate, the hit-test (632 per-character clicks, including adjacent mentions and multi-byte labels) and the tree scroll held, and 9 of 10 mutants were red. The fix pass covers four MINORs:
+  - the feature tree's failure and carried lines are still text;
+  - `PlacementFails`' MateFault is flattened by TAG;
+  - the filed row is incomplete;
+  - a regression: a linked sentence is no longer selectable or copyable.
+  It also covers the style items: one link look, the TAG-form second door, and a spelling-tie row. (OFFER orchestrator)
