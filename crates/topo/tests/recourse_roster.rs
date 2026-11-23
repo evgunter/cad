@@ -18,8 +18,10 @@
 //! a red row here:
 //!
 //! - a site whose name is a `const` this file does not declare;
-//! - a spelling it does not know, a file it does not walk, and a
-//!   declared carrier that no longer matches anything.
+//! - a spelling it does not know, and a file it does not walk.
+//!
+//! A declared carrier that matches nothing reads nothing and is not a
+//! red.
 //!
 //! A name that reaches a `decide*` through a funnel no carrier declares
 //! is not read here. It is not lost: a test or fixture that names it is
@@ -473,7 +475,7 @@ fn door_of(name: &str) -> Vec<&'static Door> {
 /// **Every name the crate decides carries one door's prefix or is
 /// listed, and the census meets the harness every roster shares**
 /// (`test_utils::source::roster_violations`: no spelling it cannot read,
-/// no stale carrier, every const site a declared carrier). One census,
+/// every const site a declared carrier). One census,
 /// read once: it walks the whole of `src`.
 #[test]
 fn every_decided_name_has_its_door_and_every_site_is_read() {

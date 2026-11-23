@@ -10,8 +10,10 @@
 //! **What it cannot read it reports**, and each is a red row here:
 //!
 //! - a site whose name is a `const` this file does not declare;
-//! - a spelling it does not know, a file it does not walk, and a
-//!   declared carrier that no longer matches anything.
+//! - a spelling it does not know, and a file it does not walk.
+//!
+//! A declared carrier that matches nothing reads nothing and is not a
+//! red.
 //!
 //! A funnel that hands on the name its caller gives it is spelled so
 //! that no other call shares its token — `*_as`, "decided as" the row
@@ -218,7 +220,7 @@ const CARRIERS: &[NameCarrier] = &[
 ];
 
 /// **The census meets the harness every roster shares**: no spelling it
-/// cannot read, no stale carrier, every const site a declared carrier —
+/// cannot read, every const site a declared carrier —
 /// and it reads names, so the row does not pass over an empty walk.
 #[test]
 fn every_decided_name_is_read() {

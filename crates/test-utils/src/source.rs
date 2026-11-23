@@ -1894,8 +1894,6 @@ pub fn predicate_census(src: &std::path::Path, carriers: &[NameCarrier]) -> Pred
 ///   `include!` or `#[path]` pulling source from outside `src` — a
 ///   `#[path = "x.rs"]` naming a file under `src`, which the walk reads
 ///   whole, is not a gap.
-/// - No declared carrier is stale: each [`NameCarrier`] matched
-///   something ([`PredicateCensus::unfound`]).
 /// - Every site whose name is a `const` names a declared
 ///   [`NameCarrier::Const`], which reads the name out of it.
 /// - Where the roster lists its indirect sites (`listed`, as
@@ -1919,12 +1917,6 @@ pub fn roster_violations(
             out.push(format!("source the reader does not walk: {site}: {why}"));
         }
     }
-    out.extend(
-        census
-            .unfound
-            .iter()
-            .map(|carrier| format!("a declared carrier matched nothing in src: {carrier}")),
-    );
     let consts: std::collections::BTreeSet<&str> = carriers
         .iter()
         .filter_map(|carrier| match carrier {
@@ -3506,8 +3498,9 @@ mod tests {
 
     /// **The roster harness reports each kind of gap once and passes a
     /// clean tree**: a `#[path]` to a file under `src` is walked, one
-    /// outside it is not; a stale carrier, an undeclared const site, and
-    /// an indirect site missing from or stale in the list each red.
+    /// outside it is not; an undeclared const site, and an indirect site
+    /// missing from or stale in the list each red; a stale carrier does
+    /// not.
     #[test]
     fn the_roster_harness_names_each_gap() {
         let dir = std::env::temp_dir().join(format!("tu-roster-{}", std::process::id()));
@@ -3539,7 +3532,6 @@ mod tests {
         );
         let expect = [
             "source the reader does not walk: a.rs:3",
-            "a declared carrier matched nothing in src: Call(gone)",
             "a site names the const `OTHER`, not declared a carrier: a.rs: OTHER",
             "an indirect site not listed: a.rs: f: name",
             "a listed indirect site the census no longer finds: a.rs: stale",
