@@ -313,7 +313,7 @@ fn a1_the_mate_follows_the_edited_face() {
     // Nothing stored twice: the target is the face's plane, flipped —
     // a read of the face, with no number of where it was.
     let mate = fixture::constraint(&s.doc, s.mate);
-    let to = mate.to;
+    let to = mate.to.read;
     let flipped = match s.doc.var(to).map(editor_core::Var::def) {
         Some(VarDef::Pose(PoseDef::Flip { pose })) => pose.read,
         other => panic!("the target is the cap's plane, flipped: {other:?}"),

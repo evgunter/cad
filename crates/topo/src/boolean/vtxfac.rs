@@ -1670,21 +1670,22 @@ pub(super) fn ring_groups<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`BooleanError::ClassificationInvariant`] where the face's outer loop
-/// is no cycle; [`Body::ring_vertex`]'s refusals.
+/// [`BooleanError::ClassificationInvariant`] where the face has no
+/// outline ([`crate::NoOutline`]); [`Body::ring_vertex`]'s refusals.
 pub(super) fn ring_vertex_in<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     face: crate::entity::FaceKey,
     p: geom_core::Point3<T>,
     tol: Tol,
 ) -> Result<(VertexKey, crate::entity::LoopKey), BooleanError> {
-    let crate::entity::LoopBoundary::Cycle { first: anchor } =
-        body.proven_face(face).outer().1.boundary
-    else {
-        return Err(BooleanError::ClassificationInvariant {
-            what: "a face a ring vertex is minted in has no outer cycle",
-        });
-    };
+    let anchor = body
+        .proven_face(face)
+        .area_loops()
+        .map_err(|_| BooleanError::ClassificationInvariant {
+            what: "a face a ring vertex is minted in has no outline",
+        })?
+        .outer()
+        .first();
     Ok(body.ring_vertex(anchor, p, tol)?)
 }
 

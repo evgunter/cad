@@ -157,7 +157,7 @@ pub(crate) fn moved_to_frame(
     // and one off it the face slid along its normal, whose slide is moved
     // too. Either way the placement must already read it so: values
     // alone cannot add a slide or take one away.
-    let slide = match again.mates.first().map(|mate| &mate.to) {
+    let slide = match again.mates.first().map(|mate| &mate.to.read) {
         Some(Operand::Pose(def)) => {
             let PoseDef::Slide { by: slide, .. } = &**def else {
                 panic!("the target face slid along its normal: {def:?}")
@@ -168,7 +168,7 @@ pub(crate) fn moved_to_frame(
     };
     let bundle = crate::fixture::bundle(&doc, placement);
     let slide_var = bundle.iter().find_map(|c| c.mate()).and_then(|m| {
-        match doc.var(m.to).map(|v| v.def().clone()) {
+        match doc.var(m.to.read).map(|v| v.def().clone()) {
             Some(VarDef::Pose(PoseDef::Slide { by, .. })) => Some(by),
             _ => None,
         }

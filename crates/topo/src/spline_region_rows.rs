@@ -911,9 +911,9 @@ fn a_spline_trim_reads_past_a_placeholder_and_no_other_rowless_half() {
     crate::region::with_null_edge(&mut nulled, face);
     let outer = |body: &Body<f64>, face: FaceKey| body.get_face(face).unwrap().outer;
     let nulls: Vec<_> = nulled
-        .edges()
-        .filter(|&(e, d)| nulled.edge_curve_linked(e, d).null_scaffold().is_some())
-        .map(|(e, _)| e)
+        .edge_views()
+        .filter(|e| e.curve().null_scaffold().is_some())
+        .map(crate::live::EdgeView::key)
         .collect();
     let [null] = nulls[..] else {
         panic!("one null edge: {nulls:?}");
@@ -1047,11 +1047,8 @@ fn a_spline_trim_reads_past_a_placeholder_and_no_other_rowless_half() {
         tol,
     );
     let circle = halves_of(&disc, planted.edge);
-    let d = disc.get_edge(planted.edge).unwrap();
     assert!(
-        disc.edge_curve_linked(planted.edge, d)
-            .certified()
-            .is_some()
+        disc.proven_edge(planted.edge).certified().is_some()
             && disc.get_half_edge(circle[0]).unwrap().start
                 == disc.get_half_edge(circle[1]).unwrap().start,
         "the circle is certified and closes on its one vertex"

@@ -715,7 +715,7 @@ fn a_mirror_across_a_curved_face_refuses_typed_where_it_evaluates() {
             assert_eq!(role, viewer::seats::PlaneRole::Mirror, "the plane is named");
             assert_eq!(
                 error.to_string(),
-                "no mirror plane picked yet: pick a face",
+                "no mirror plane picked yet: pick a face or a datum",
                 "the refusal names both kinds of plane the seat takes"
             );
         }
@@ -822,8 +822,8 @@ fn a_deleted_copy_drops_the_plane_in_the_words_the_line_said() {
         .map(|(_, plane)| plane.to_owned())
         .unwrap_or_else(|| panic!("the line holds the plane: {line:?}"));
     let (block_said, copy_said) = (
-        session.doc().spoken(block).to_string(),
-        session.doc().spoken(copy).to_string(),
+        viewer::tree::spelled(&session.doc().spoken(block)),
+        viewer::tree::spelled(&session.doc().spoken(copy)),
     );
     assert!(
         plane.starts_with("the side wall ")
@@ -955,8 +955,8 @@ fn a_click_on_a_copy_seats_the_copy_and_says_the_plane_on_it() {
     let wall = face_toward(&session, 1.0);
     let wall_copy = wall.node;
     let tools = mirror_tool_picking(&session, &[wall]);
-    let said = session.doc().spoken(block).to_string();
-    let copy = session.doc().spoken(wall_copy).to_string();
+    let said = viewer::tree::spelled(&session.doc().spoken(block));
+    let copy = viewer::tree::spelled(&session.doc().spoken(wall_copy));
     let line = tools
         .mirror()
         .expect("open")

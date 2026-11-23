@@ -2,11 +2,14 @@
 id: the-viewer-spells-a-node-as-its-kind-before-its-name
 kind: unit
 title: viewer: a node is shown as 'Revolve "Revolve 3"', its kind before its name, where the person's name alone is wanted
-status: open
+status: closed
 opened: 2026-11-22
 priority: P1
 cost: H
 refs: [tree-rows-lead-with-raw-tags]
+pr: 7375
+branch: offer/a-node-is-spoken-as-a-mention
+closed: 2026-11-23
 ---
 
 **Ev reported this** (in chat, 2026-11-22): things "should not display like 'Revolve "Revolve 3"', they should just say "Revolve 3" or whatever the user's name for it is, without the additional 'Revolve' at the start".

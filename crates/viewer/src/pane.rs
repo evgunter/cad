@@ -361,6 +361,36 @@ pub(crate) mod headless {
             .unwrap_or_else(|| panic!("`{text}` was never painted"))
     }
 
+    /// **What `draw` answers to a click at `at`**: the ops it returned
+    /// on every frame of one context — one laying it out, one moving
+    /// the pointer there, one pressing and releasing — in order.
+    pub(crate) fn ops_after_clicking_at<T>(
+        at: egui::Pos2,
+        mut draw: impl FnMut(&mut egui::Ui) -> Vec<T>,
+    ) -> Vec<T> {
+        let ctx = egui::Context::default();
+        let press = |pressed| egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::default(),
+        };
+        let mut ops = Vec::new();
+        for events in [
+            Vec::new(),
+            vec![egui::Event::PointerMoved(at)],
+            vec![press(true), press(false)],
+        ] {
+            let input = egui::RawInput {
+                events,
+                ..Default::default()
+            };
+            let mut output = ctx.run_ui(input, |ui| ops.extend(draw(ui)));
+            output.textures_delta.clear();
+        }
+        ops
+    }
+
     /// Every row of `landed` inside `region`'s right-hand edge.
     pub(crate) fn assert_inside(region: egui::Rect, landed: &Landed) {
         for row in &landed.rows {

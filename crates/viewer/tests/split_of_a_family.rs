@@ -101,7 +101,7 @@ fn cap_end(body: RecipeNodeId) -> FaceSelection {
 
 fn vol(body: &pncad::document::Framed<f64>, tol: Tol) -> f64 {
     pncad::topo::mass_properties(
-        &pncad::topo::finish(body.body().clone(), tol).expect("tier 3"),
+        &pncad::topo::finish(pncad::topo::Built::of(body.body().clone()), tol).expect("tier 3"),
         tol,
         pncad::topo::test_support::pinned_resolution(tol),
     )

@@ -4485,7 +4485,7 @@ fn places_points<T: Decide>(carrier: &geom::Curve3<T>) -> bool {
     carrier.param_near(origin, T::zero()).is_some()
 }
 
-/// Edge `e`'s certified curve in `body` ([`Body::stored_curve`]).
+/// Edge `e`'s certified curve in `body` ([`Body::edge`]).
 ///
 /// # Panics
 ///
@@ -4494,13 +4494,16 @@ fn places_points<T: Decide>(carrier: &geom::Curve3<T>) -> bool {
 /// a null edge at rest (`topo::validate`'s `ScaffoldAtRest`).
 #[track_caller]
 fn certified_curve<T: Decide>(body: &Body<T>, e: EdgeKey) -> &geom_brep::EdgeCurve<T> {
-    match body.stored_curve(e) {
-        Ok(curve) => curve,
-        Err(err) => unreachable!(
-            "edge {e:?} has no certified curve ({err:?}): its caller holds it live in a body at \
-             rest, where tier 2 refuses a null edge"
-        ),
-    }
+    let Some(edge) = body.edge(e) else {
+        unreachable!("edge {e:?} is stale: its caller holds it live in a body at rest")
+    };
+    let Some(curve) = edge.certified() else {
+        unreachable!(
+            "edge {e:?} is null scaffolding: its caller holds it in a body at rest, where tier 2 \
+             refuses a null edge"
+        )
+    };
+    curve
 }
 
 impl<T: Decide> Track<T> {
@@ -4892,7 +4895,9 @@ fn rim_holding<T: Decide>(
 /// edge's chord is not its locus (a sphere's two meridians share both
 /// ends and both faces).
 pub(super) fn is_straight<T: Decide>(body: &Body<T>, e: EdgeKey) -> bool {
-    topo::readback::edge_carrier_ref(body, e).is_ok_and(|c| !c.is_curved())
+    body.edge(e)
+        .and_then(topo::EdgeView::certified)
+        .is_some_and(|c| !c.carrier().is_curved())
 }
 
 /// Whether edge `e` of `body` holds point `p`, its ends included,

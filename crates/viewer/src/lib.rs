@@ -56,11 +56,25 @@
 /// the at-rest one; this is that door's one spelling.
 #[must_use]
 pub fn shown(refusal: &impl pncad::geom_brep::recourse::Ended) -> String {
-    refusal.ended(pncad::geom_brep::recourse::Reading::AtRest.into())
+    refusal.ended(shown_at())
+}
+
+/// [`shown`], as the sentence a session refusal says, each node it
+/// names a mention said by `by` (`frame::refusal_message`).
+#[must_use]
+pub fn shown_said(
+    refusal: &session::Refusal,
+    by: pncad::document::Speaker<'_>,
+) -> pncad::document::Sentence {
+    refusal.said(by, Some(shown_at()))
+}
+
+/// The reading [`shown`] and [`shown_said`] end a refusal at.
+fn shown_at() -> pncad::geom_brep::recourse::ReadAt {
+    pncad::geom_brep::recourse::Reading::AtRest.into()
 }
 
 pub mod blend;
-pub mod bounds;
 pub mod camera;
 pub mod combine;
 pub mod display;
@@ -84,6 +98,7 @@ pub mod platform;
 pub mod prefs;
 pub mod props;
 pub mod readout;
+pub mod recourse;
 pub mod relations;
 pub mod scene;
 pub mod screen;
@@ -189,9 +204,9 @@ pub use props::{MemberFault, MemberValues, Reading, SlotDriver, SlotFault, SlotR
 pub use scene::{DisplayTolerance, SceneDocError, SceneError, SceneMesh, ScenePart, SceneStats};
 pub use seats::{EdgeRole, Seat, SeatError, SeatEvent, Seats, seat_line};
 pub use session::{
-    BoundsReading, DocSession, EdgeSelection, FaceSelection, GestureFrameFault, Hovered, Landing,
-    NodeKindWanted, OpOutcome, PatternDirection, PatternRuleSpec, Refusal, Selection, SessionOp,
-    Standing, VertexSelection,
+    DocSession, EdgeSelection, FaceSelection, GestureFrameFault, Hovered, Landing, NodeKindWanted,
+    OpOutcome, PatternDirection, PatternRuleSpec, Refusal, Selection, SessionOp, Standing,
+    VertexSelection,
 };
 pub use theme::{Mark, MixFraction, Polarity, Safety, Theme};
 pub use tools::{ToolKind, ToolNotice, Tools};

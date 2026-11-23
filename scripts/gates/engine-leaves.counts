@@ -142,7 +142,7 @@ names-splitting             2  test_support_fixtures.rs
 names-splitting            27  test_support_samples.rs
 names-splitting             4  tier3_tests.rs
 names-splitting            18  torus_region.rs  # work/onedoor/splitting-arc-readers-take-no-body
-names-splitting            41  validate.rs
+names-splitting            37  validate.rs
 names-splitting            19  vertex_section.rs
 
 refused-binding             4  census.rs

@@ -115,7 +115,13 @@ fn node_failure(
     node: NodeId,
     error: &d::NodeError,
 ) -> PyErr {
-    let err = refused(py, node, &error.kind, error.spoken(doc, evaluation), None);
+    let err = refused(
+        py,
+        node,
+        &error.kind,
+        error.spoken(doc, evaluation).to_string(),
+        None,
+    );
     with_carried(py, err, error.kind.carried_chain(), Some(doc))
 }
 
@@ -253,8 +259,8 @@ pub(crate) fn carried_cause(
 ) -> Option<PyErr> {
     let levels: Vec<d::CarriedLevel<'_>> = chain.collect();
     let line = |level: &d::CarriedLevel<'_>| match here {
-        Some(doc) => level.line_in(doc),
-        None => level.line(),
+        Some(doc) => level.line_in(doc).to_string(),
+        None => level.line().to_string(),
     };
     let (linked, folded) = levels.split_at(levels.len().min(LINKED_LEVELS).saturating_sub(1));
     let raise = |level: &d::CarriedLevel<'_>, message: String| {
@@ -270,7 +276,7 @@ pub(crate) fn carried_cause(
     let lines: Vec<String> = folded.iter().rev().map(line).collect();
     let innermost = raise(deepest, lines.join("\n"));
     Some(linked.iter().rev().fold(innermost, |inner, level| {
-        let err = raise(level, line(level));
+        let err = raise(level, line(level).to_string());
         err.set_cause(py, Some(inner));
         err
     }))
@@ -324,7 +330,7 @@ fn poisoning(
         None => {
             fields.push(("kind", py.None().into_any()));
             fields.push(("inner_kind", py.None().into_any()));
-            standing.spoken(doc)
+            standing.spoken(doc).to_string()
         }
     };
     let err = typed_err(
@@ -1932,7 +1938,9 @@ impl Evaluation {
                     }
                     return Err(pyo3::exceptions::PyValueError::new_err(format!(
                         "{} defines several outputs; resolve in one of them, by `Doc.output`",
-                        self.doc.spoken(node.0)
+                        pncad::document::sentence!(
+                            pncad::document::Speaker::TAG.mention(&self.doc.spoken(node.0))
+                        )
                     )));
                 }
             },

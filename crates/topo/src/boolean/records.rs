@@ -125,7 +125,7 @@ impl CarryRefusal {
     /// # Errors
     ///
     /// The formatter's.
-    pub fn write_at_a_door(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    pub fn write_at_a_door(&self, f: &mut impl core::fmt::Write) -> core::fmt::Result {
         write!(
             f,
             "a touch its operand records {}. {}",

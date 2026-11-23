@@ -443,6 +443,20 @@ impl CheckEvidence {
         }
     }
 
+    /// The assertion that would quiet an unproven coincidence, on
+    /// `unproven_coincidence` alone, and `None` where no assertion says
+    /// the row: then the finding names the construction alone and
+    /// `enforce_checks` refuses it at no severity.
+    #[getter]
+    fn quieting(&self) -> Option<Quieting> {
+        match &self.0 {
+            d::CheckEvidence::UnprovenCoincidence { quieting, .. } => quieting
+                .clone()
+                .map(|claim| Quieting(claim, Arc::clone(&self.1))),
+            _ => None,
+        }
+    }
+
     /// What an unproven coincidence decided between its cells, on
     /// `unproven_coincidence` alone: `same_oriented`, `same_opposite`,
     /// `on_carrier`, `common_foot`, `tangent`, `cusp`,
@@ -552,7 +566,7 @@ impl CheckEvidence {
 /// caller's `Severity` and the caller's `enforce_checks` call.
 ///
 /// `str()` renders it the way the library renders a finding, recourse
-/// included, each placement spoken (kind, label and tag) from the document
+/// included, each placement spoken (its label and tag, or its kind and tag with no label) from the document
 /// the checks ran over, the one the evaluation is of; `repr()` keeps
 /// the full id. Two findings are equal when they are the same finding
 /// over the same document; labels are not compared.
@@ -679,7 +693,9 @@ impl CheckFinding {
     /// checks ran over. The recourse is in that story; nothing is
     /// appended here.
     fn __str__(&self) -> String {
-        d::Said(&self.finding, d::Speaker::of(&*self.doc)).to_string()
+        d::Said(&self.finding, d::Speaker::of(&*self.doc))
+            .sentence()
+            .to_string()
     }
 
     /// The same finding over the same document; labels are not
@@ -712,6 +728,138 @@ impl CheckFinding {
             self.finding.check,
             check_evidence_tag(&self.finding.evidence)
         )
+    }
+}
+
+/// One reference of a `Quieting`'s measure, as the measure reads it:
+/// the entity `name` names in the body `read` reads, read as that cell
+/// or as the pose `pose` read off it; or, with no `name`, the variable
+/// `read` itself (the plane a split cuts with).
+#[pyclass(frozen, module = "pncad", skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct QuietingRef {
+    read: Var,
+    name: Option<String>,
+    pose: Option<&'static str>,
+}
+
+impl QuietingRef {
+    /// The reference, each variable as `var` hands it out.
+    pub(crate) fn of(
+        py: Python<'_>,
+        var: &dyn Fn(d::VarId) -> Var,
+        r: &d::QuietingRef,
+    ) -> PyResult<Self> {
+        Ok(Self {
+            read: var(r.read()),
+            name: r
+                .name()
+                .map(|name| super::doc::name_text(py, name))
+                .transpose()?,
+            pose: r.pose().map(crate::errors::var_kind_tag),
+        })
+    }
+}
+
+#[pymethods]
+impl QuietingRef {
+    /// The variable read: the body the entity is selected in, or the
+    /// variable the measure reads as it is.
+    #[getter]
+    fn read(&self) -> Var {
+        self.read
+    }
+
+    /// The entity's name in that body's table, as opaque text; `None`
+    /// for a variable read as it is.
+    #[getter]
+    fn name(&self) -> Option<String> {
+        self.name.clone()
+    }
+
+    /// The kind of the pose read off the cell, `axis` or `point`; `None`
+    /// for the cell itself.
+    #[getter]
+    fn pose(&self) -> Option<&'static str> {
+        self.pose
+    }
+
+    fn __eq__(&self, other: &Self) -> bool {
+        (self.read.0, &self.name, self.pose) == (other.read.0, &other.name, other.pose)
+    }
+
+    fn __hash__(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::hash::DefaultHasher::new();
+        (self.read.0, &self.name, self.pose).hash(&mut h);
+        h.finish()
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "QuietingRef(read=Var({}), name={:?}, pose={:?})",
+            self.read.0.full(),
+            self.name,
+            self.pose
+        )
+    }
+}
+
+/// The assertion that would quiet an unproven coincidence:
+/// `measure(references) = 0`, a `gap` or a `distance` over the row's
+/// two cells as that measure reads them, in the document the checks ran
+/// over. The kernel mints it only where the rule that decides which
+/// holding assertion quiets the row takes it, so the row is quiet once
+/// `Doc.assert_quieting` has authored it.
+#[pyclass(frozen, module = "pncad", skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct Quieting(d::Quieting, Arc<d::ProfileDoc>);
+
+impl Quieting {
+    /// The claim, and the document the checks that minted it ran over.
+    pub(crate) fn minted(&self) -> (&d::Quieting, &d::ProfileDoc) {
+        (&self.0, &self.1)
+    }
+}
+
+#[pymethods]
+impl Quieting {
+    /// The measure related to zero: `gap` or `distance`.
+    #[getter]
+    fn measure(&self) -> &'static str {
+        self.0.measure().verb()
+    }
+
+    /// The measure's two references, in its order: a `gap`'s outer then
+    /// inner.
+    #[getter]
+    fn references(&self, py: Python<'_>) -> PyResult<(QuietingRef, QuietingRef)> {
+        let var = |id| Var::of(&self.1, id);
+        let reference = |r| QuietingRef::of(py, &var, r);
+        let [a, b] = self.0.references();
+        Ok((reference(a)?, reference(b)?))
+    }
+
+    /// The claim in words, each cell by its name as the document the
+    /// checks ran over speaks it, a split's unnamed tool by the name
+    /// `Doc.assert_quieting` gives it.
+    fn __str__(&self) -> String {
+        self.0.said(d::Speaker::of(&*self.1)).to_string()
+    }
+
+    fn __eq__(&self, other: &Self) -> bool {
+        self.0 == other.0 && self.1.id() == other.1.id()
+    }
+
+    fn __hash__(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::hash::DefaultHasher::new();
+        (&self.0, self.1.id()).hash(&mut h);
+        h.finish()
+    }
+
+    fn __repr__(&self) -> String {
+        format!("Quieting({})", self.0.said(d::Speaker::TAG))
     }
 }
 
@@ -828,7 +976,7 @@ impl ChecksReport {
     /// The report, each placement spoken from the document the checks ran
     /// over.
     fn __str__(&self) -> String {
-        self.report.spoken(&*self.doc)
+        self.report.spoken(&*self.doc).to_string()
     }
 
     /// The same findings and skips over the same document (the
@@ -963,7 +1111,7 @@ pub(crate) fn run_checks(
             report,
             doc: evaluation.doc_shared(),
         })
-        .map_err(|err| checks_err_saying(py, &err, err.spoken(evaluation.doc())))
+        .map_err(|err| checks_err_saying(py, &err, err.spoken(evaluation.doc()).to_string()))
 }
 
 /// A mispaired `(doc, evaluation)` as this door's own refusal.
@@ -1062,6 +1210,8 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ChecksConfig>()?;
     m.add_class::<CheckEvidence>()?;
     m.add_class::<CheckFinding>()?;
+    m.add_class::<Quieting>()?;
+    m.add_class::<QuietingRef>()?;
     m.add_class::<CarriedCoincidence>()?;
     m.add_class::<ChecksReport>()?;
     m.add_function(wrap_pyfunction!(run_checks, m)?)?;

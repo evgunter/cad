@@ -132,6 +132,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use std::collections::BTreeMap;
 use std::path::Path;
 
 use test_utils::source::{
@@ -224,10 +225,8 @@ struct Site {
 /// deleted, in the diff that makes the walk stop reporting the impl
 /// hand-listed.
 ///
-/// **It is also this walk's per-file sight anchor.** An entry that
-/// matches no live site reds — so a reader that goes blind to
-/// `clearance.rs` cannot report agreement over the files it can still
-/// read.
+/// An entry that matches no live site — its repair landed, or its type
+/// was renamed — is not a red: it suppresses nothing.
 ///
 /// **Keyed by `(path, trait, self type)`, and the third element is the
 /// whole of the argument.** A suppression that names less than the
@@ -249,10 +248,9 @@ struct Site {
 /// **What it costs is a spelling in the key.** The self type is read
 /// as WRITTEN — `SignCertificate<'_, T>`, lifetimes and parameters and
 /// all — because resolving it is what this census refuses to do; a
-/// rename or a re-spelled parameter list makes the entry stale and
-/// [`every_known_hand_listed_impl_is_still_found`] reds until it is
-/// re-typed. That is the loud direction and it is the price of the
-/// key. Not keyed by LINE, which rots on every edit above it.
+/// rename or a re-spelled parameter list makes the entry stale, and
+/// the impl it named reds as a new arrival until it is re-typed. Not
+/// keyed by LINE, which rots on every edit above it.
 const KNOWN_HAND_LISTED: [(&str, &str, &str, &str); 2] = [
     (
         "crates/editor-core/src/clearance.rs",
@@ -266,106 +264,6 @@ const KNOWN_HAND_LISTED: [(&str, &str, &str, &str); 2] = [
         "Stood",
         "work/doors/stood-eq-reads-its-fields-by-name.md",
     ),
-];
-
-/// **Every file holding a hand-written `Debug` or `PartialEq`** —
-/// sorted, hand-synced, and **it is not the guard**.
-///
-/// The guard is [`every_hand_written_walk_is_held_to_its_declaration`],
-/// which reds when a walk reads a field by name. What this adds is the
-/// direction that row cannot fail in: a walk that stops SEEING — a
-/// changed spelling, a traversal that no longer reaches a crate, a
-/// classifier that returns early — reports agreement over the sites it
-/// can still read, and every site it can still read agrees.
-///
-/// **A set of paths rather than a tally of impls, and that is the whole
-/// of the choice.** Per-file sight is what catches a reader gone blind
-/// to one crate while another grew; a per-impl count would catch a
-/// PARTIAL blindness inside a file as well, and is refused because this
-/// census's subject is arrival and a compliant arrival should cost one
-/// line, not a re-count.
-///
-/// **The residue, stated as it actually stands, and it has grown.** A
-/// blindness that hides some but not all of one file's impls moves
-/// nothing in THIS row: every file still contributes its first impl,
-/// so the set is unchanged. [`every_known_hand_listed_impl_is_still_found`]
-/// used to catch the worst case for the impls [`KNOWN_HAND_LISTED`]
-/// named, by self type, so it red wherever in its file the impl sat.
-/// **It no longer catches it at all.** Measured, on this tree and on
-/// the tree before the four CENSUS rows landed: a classifier that
-/// stops after the first Debug-or-PartialEq impl of each file red that
-/// row before and is entirely green now, because each remaining
-/// entry names its file's FIRST such impl and so survives the
-/// blindness (`GeometryWitness` is its file's only one; `Stood` comes first of
-/// `viewer/src/session.rs`'s four). The anchor was never per-impl sight; it was the accident
-/// that ONE of five entries — `mate/coset.rs`, which holds
-/// `PartialEq for Subgroup` above `PartialEq for Coset` — had a
-/// compliant sibling above it, and that entry is one of the four this
-/// unit repaired. The other four entries were each their file's first
-/// and only such impl, so they never carried per-impl sight at all.
-/// (An earlier draft of this paragraph said FOUR of five, and a style
-/// review executed the mutation and read the failure, which names one
-/// entry.)
-///
-/// **So no row here sees a partial blindness inside a file**, for this
-/// file's 23 or any of them: `hull.rs`, `knots.rs` and
-/// `surfaces/nurbs.rs` each hold a second impl that would vanish
-/// unremarked. What closes it is a per-impl population, which is the
-/// tally this row declines above. The trade is recorded rather than
-/// hidden, and that a SUPPRESSION LIST was standing in for it — so
-/// that the instrument weakens exactly as the rows it names are
-/// repaired — is
-/// `work/fixture/the-per-impl-sight-anchor-is-a-suppression-list-that-shrinks.md`.
-///
-/// **A new line is the arrival `the_walk_still_sees_every_file_holding_one`
-/// exists to detect.** Adding one is a deliberate act and the message
-/// below says which acts are honest.
-const IMPL_FILES_TODAY: [&str; 45] = [
-    "crates/editor-core/src/analysis.rs",
-    "crates/editor-core/src/checks/at_rest/carried.rs",
-    "crates/editor-core/src/clearance.rs",
-    "crates/editor-core/src/eval/parts.rs",
-    "crates/editor-core/src/expr.rs",
-    "crates/editor-core/src/mate/coset.rs",
-    "crates/editor-core/src/meta/mod.rs",
-    "crates/editor-core/src/names/nest.rs",
-    "crates/editor-core/src/names/nest_reference.rs",
-    "crates/editor-core/src/names/role.rs",
-    "crates/editor-core/src/names/select.rs",
-    "crates/editor-core/src/names/table.rs",
-    "crates/editor-core/src/operand.rs",
-    "crates/editor-core/src/pose.rs",
-    "crates/editor-core/src/product.rs",
-    "crates/editor-core/src/program.rs",
-    "crates/editor-core/src/refusal.rs",
-    "crates/editor-core/src/report.rs",
-    "crates/editor-core/src/resolve/pick.rs",
-    "crates/geom-brep/src/certify.rs",
-    "crates/geom-brep/src/keys.rs",
-    "crates/geom-brep/src/pair_section/spline_implicit/sweep/critical.rs",
-    "crates/geom-brep/src/pcurve_cache/spline_incidence.rs",
-    "crates/geom-brep/src/ssi/implicit_chart.rs",
-    "crates/geom-brep/src/ssi/pair.rs",
-    "crates/geom-core/src/spline/hull.rs",
-    "crates/geom-core/src/spline/knots.rs",
-    "crates/geom-core/src/sym/memo.rs",
-    "crates/geom-core/src/told.rs",
-    "crates/geom/src/curves/nurbs.rs",
-    "crates/geom/src/curves/periodic_nurbs.rs",
-    "crates/geom/src/frame.rs",
-    "crates/geom/src/surfaces/nurbs.rs",
-    "crates/mesh/src/memo.rs",
-    "crates/profile/src/lib.rs",
-    "crates/topo/src/boolean/holdings.rs",
-    "crates/topo/src/finish.rs",
-    "crates/topo/src/offset_derive.rs",
-    "crates/topo/src/props.rs",
-    "crates/topo/src/validate.rs",
-    "crates/viewer/src/camera.rs",
-    "crates/viewer/src/matetool.rs",
-    "crates/viewer/src/pickcache.rs",
-    "crates/viewer/src/props.rs",
-    "crates/viewer/src/session.rs",
 ];
 
 /// The trait this census's subject list names, and the self type the
@@ -650,7 +548,7 @@ fn sites_in(path: &str, text: &str) -> Vec<Site> {
             // head names one of THIS census's traits: an unterminated
             // inherent impl is someone else's broken file, and reding
             // on it would put a path this census has no subject in
-            // into its own sight anchor. The trait is read over the
+            // among its offenders. The trait is read over the
             // rest of the file, since there is no body to stop at.
             ItemBody::Unterminated => {
                 if let Some(head) = head_of(&code, at, code.len()) {
@@ -756,57 +654,81 @@ fn every_hand_written_walk_is_held_to_its_declaration() {
 /// **The reader's own guard: a walk that stops seeing reds here.**
 ///
 /// Without this row the census above passes by finding nothing, which
-/// is the silent direction and the one a census is built to close.
+/// is the silent direction and the one a census is built to close. The
+/// walk's per-file count of impls is compared with a second, cruder
+/// count with its own directory walk and its own skip list (`target`,
+/// `.git`), counting the code lines that hold an `impl` and a plain
+/// `Debug for ` or `PartialEq for ` — no [`SKIPPED_DIRS`], [`TRAITS`] or
+/// head reader. What the two still share is the lexer's code view
+/// (`code_only`), which keeps a raw-string fixture from reading as an
+/// impl; the lexer is held by its own rows in `test_utils::source`. A walk that stops reaching a file, a skip that
+/// swallows the tree, or a head reader that stops matching differs from
+/// it — per impl, so a blindness to one of a file's impls shows too.
 #[test]
 fn the_walk_still_sees_every_file_holding_one() {
-    let found = sites(&repo_root(env!("CARGO_MANIFEST_DIR")));
-    let mut got: Vec<&str> = found.iter().map(|s| s.path.as_str()).collect();
-    got.sort_unstable();
-    got.dedup();
-    let want: Vec<&str> = IMPL_FILES_TODAY.to_vec();
-    let rendered: String = got.iter().map(|p| format!("    \"{p}\",\n")).collect();
+    let root = repo_root(env!("CARGO_MANIFEST_DIR"));
+    let mut walk: BTreeMap<String, usize> = BTreeMap::new();
+    for s in sites(&root) {
+        *walk.entry(s.path).or_default() += 1;
+    }
+    let crude = crude_impl_lines(&root);
+    assert!(
+        !crude.is_empty(),
+        "the crude count found no hand-written `Debug`/`PartialEq` anywhere: it is the one \
+         that has gone blind"
+    );
     assert_eq!(
-        got, want,
-        "the set of files holding a hand-written `Debug`/`PartialEq` has moved away from \
-         IMPL_FILES_TODAY. A file ADDED is an arrival, which is what this census exists to \
-         detect — read the row above, then add the line. A file GONE with no impl removed \
-         means this reader has gone blind to it and the row above is passing over sites it \
-         can no longer read:\n{rendered}"
+        walk, crude,
+        "the census walk's per-file count of hand-written `Debug`/`PartialEq` impls (left) \
+         differs from a crude count of the code lines heading one (right). A file on the \
+         right only, or a higher count there, is one this reader has gone blind to; a head \
+         split across lines reads on the left only."
     );
 }
 
-/// **Every entry of [`KNOWN_HAND_LISTED`] still names a live impl.**
-///
-/// A stale entry is the blindness this census most needs to see: the
-/// walk keeps reporting agreement, and the one impl it was told to
-/// expect a defect in has gone quiet. Keyed on the self type, so it is
-/// that IMPL the walk must still find and not merely something in its
-/// file — which is what makes the row independent of where in the file
-/// the impl sits.
-#[test]
-fn every_known_hand_listed_impl_is_still_found() {
-    let found = sites(&repo_root(env!("CARGO_MANIFEST_DIR")));
-    let stale: Vec<String> = KNOWN_HAND_LISTED
-        .iter()
-        .filter(|(path, trait_name, self_type, _)| {
-            !found.iter().any(|s| {
-                s.path == *path
-                    && s.trait_name == *trait_name
-                    && s.self_type == *self_type
-                    && matches!(s.verdict, Verdict::HandListed(_))
-            })
-        })
-        .map(|(path, trait_name, self_type, row)| {
-            format!("{path} impl {trait_name} for {self_type} — {row}")
-        })
-        .collect();
-    assert!(
-        stale.is_empty(),
-        "KNOWN_HAND_LISTED names an impl this walk no longer finds hand-listed. If the \
-         repair landed, delete the entry and close the row it names. If the type was \
-         renamed, re-type the entry's third element. If neither, this reader has gone \
-         blind to that impl:\n{stale:#?}"
-    );
+/// Every `.rs` file under `root` with code lines heading a homogeneous
+/// `Debug` or `PartialEq` impl, with how many.
+fn crude_impl_lines(root: &Path) -> BTreeMap<String, usize> {
+    fn walk(root: &Path, dir: &Path, out: &mut BTreeMap<String, usize>) {
+        for entry in std::fs::read_dir(dir)
+            .expect("a readable directory")
+            .flatten()
+        {
+            let path = entry.path();
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if path.is_dir() {
+                // Its own skip list, spelled here and nowhere else: a
+                // narrowing of the census walk's skips cannot narrow this.
+                if name != "target" && name != ".git" {
+                    walk(root, &path, out);
+                }
+            } else if name.ends_with(".rs") {
+                let text = std::fs::read_to_string(&path).expect("a readable source file");
+                let n = code_only(&text)
+                    .lines()
+                    .filter(|l| {
+                        l.split(|c: char| !(c.is_alphanumeric() || c == '_'))
+                            .any(|w| w == "impl")
+                            && ["Debug for ", "PartialEq for "].iter().any(|t| {
+                                l.match_indices(t).any(|(at, _)| {
+                                    l[..at]
+                                        .chars()
+                                        .next_back()
+                                        .is_none_or(|c| !(c.is_alphanumeric() || c == '_'))
+                                })
+                            })
+                    })
+                    .count();
+                if n > 0 {
+                    let rel = path.strip_prefix(root).expect("under the root");
+                    out.insert(rel.to_string_lossy().replace('\\', "/"), n);
+                }
+            }
+        }
+    }
+    let mut out = BTreeMap::new();
+    walk(root, root, &mut out);
+    out
 }
 
 /// **The classifier, pinned shape by shape**, so that a reader which

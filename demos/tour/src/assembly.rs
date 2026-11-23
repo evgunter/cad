@@ -255,8 +255,8 @@ fn standoff(plane: Operand, by: f64) -> Operand {
 /// normals face each other. `on` reads the copy the mate places.
 fn rest(on: Operand, against: Operand) -> Mate<Formula> {
     Mate {
-        on,
-        to: flipped(against),
+        on: on.into(),
+        to: flipped(against).into(),
         orient: Orientation::IDENTITY,
     }
 }

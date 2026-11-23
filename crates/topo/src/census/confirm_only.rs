@@ -187,6 +187,9 @@ fn reading(finding: &ValidationError) -> Reading {
                 | Region::SeamBranch
                 | Region::PeriodFold
                 | Region::DegenerateLoop { .. }
+                // A face with no outline is a skeleton, not a body at
+                // rest: nothing a record can stand on.
+                | Region::NoOutline(_)
                 | Region::ShortLoop { .. }
                 | Region::WitnessSegmentCapExceeded { .. }
                 | Region::WitnessCellCapExceeded { .. }

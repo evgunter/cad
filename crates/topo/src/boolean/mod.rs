@@ -493,7 +493,6 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "point_in_arc_loop_side"
         | "point_in_arc_loop_advance"
         | "point_in_arc_loop_arm"
-        | "point_in_arc_loop_reach"
         | "point_in_arc_loop_conic_span"
         | "point_in_arc_loop_conic_straddle"
         | "point_in_arc_loop_conic_advance"
@@ -501,9 +500,6 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "point_in_arc_loop_spiric_clear"
         | "point_in_arc_loop_spiric_on"
         | "point_in_arc_loop_spiric_leaf"
-        | "point_in_arc_loop_spiric_side"
-        | "point_in_arc_loop_spiric_turn"
-        | "point_in_arc_loop_spiric_advance"
         | "point_in_arc_loop_spline_end"
         | "point_in_arc_loop_spline_clear"
         | "point_in_arc_loop_spline_on"
@@ -2266,13 +2262,11 @@ fn tangent_struts<T: Real>(
     body: &Body<T>,
 ) -> Vec<(FaceKey, geom::SurfaceKind, FaceKey, geom::SurfaceKind)> {
     let mut out = Vec::new();
-    for (ek, edge) in body.edges() {
+    for view in body.edge_views() {
+        let (ek, edge) = (view.key(), view.record());
         let sides = crate::readback::edge_sides_of(body, ek, edge);
         let (f1, f2) = sides.faces();
-        let Some(curve) = body
-            .get_curve_geom(edge.curve)
-            .and_then(crate::null::CurveGeom::certified)
-        else {
+        let Some(curve) = view.certified() else {
             continue;
         };
         if matches!(

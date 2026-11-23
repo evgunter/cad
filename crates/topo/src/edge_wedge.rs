@@ -36,11 +36,7 @@ struct EdgeRead<'a, T: Decide> {
 
 /// [`edge_wedge_walk`], keeping the sides.
 fn walk_of<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<EdgeRead<'_, T>> {
-    let e = body.get_edge(edge)?;
-    let curve = body
-        .curves
-        .get(e.curve)
-        .and_then(crate::CurveGeom::certified)?;
+    let curve = body.edge(edge)?.certified()?;
     let sides = crate::readback::edge_sides(body, edge).ok()?;
     let side = |side: crate::readback::EdgeSide| {
         Some(geom_brep::SideFace {

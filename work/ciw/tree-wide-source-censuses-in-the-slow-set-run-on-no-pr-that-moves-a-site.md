@@ -2,10 +2,11 @@
 id: tree-wide-source-censuses-in-the-slow-set-run-on-no-pr-that-moves-a-site
 kind: issue
 title: A tree-wide source census in geom-core's slow set runs on no PR that moves a site, so three of them stood red on main for up to nine days
-status: open
+status: closed
 opened: 2026-11-09
 priority: P2
 cost: M
+closed: 2026-11-22
 ---
 
 
@@ -80,3 +81,15 @@ A fourth instance: `bounds_census::every_sole_bracket_bound_door_is_in_the_roste
 - That census had already been fixed twice in the preceding eight days
   for the same reason (`5cf5c2fbc5`, `11b103efcb`).
 
+## Closed
+
+2026-11-22, CIW triage (stale). - Merged into the P1 reform's census list: all 34 source-census slow
+rows, 54 cpu-s nightly, about 40 s per code PR.
+- This is the largest single main-red class of the month (about 51
+rows: endpoint, copysign, bounds, flagged, recourse, prose and the
+fold guard).
+- Option A, as the row writes it (`gated_to!` markers), catches one of
+its four censuses. The canary's rule, any `crates/*/src` change, needs
+no markers.
+- Its loft-rim instance (PR 6484) is behaviour, which goes to the
+attribution.

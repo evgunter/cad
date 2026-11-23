@@ -1768,6 +1768,8 @@ impl<T: Decide> RigidMotion<T> {
     /// nothing reads whether the pair is one direction, so a lane whose
     /// numbers stand for more than one value (`Sym`'s symbols) turns by
     /// what its inputs are as functions, not by their value at one point.
+    /// Such a pair pays both decisions below like any other, so past the
+    /// rounding reach it refuses `IllConditioned` too.
     ///
     /// **Its two decisions**, both about the one pole `a = −b`, where
     /// every axis perpendicular to the pair is a least turn and none is

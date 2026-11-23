@@ -178,7 +178,7 @@ fn a_graze_within_the_gaps_band_escalates_and_the_next_path_decides() {
     let (graze, arcs) = case(q, o, r, phi, beta, -gap, 0.3, (Vec3::unit_x(), 0.0));
     let got = path_parity(&graze, &arcs, None, band);
     assert!(
-        matches!(&got, Err(diag) if diag.predicate == Some("split_ring_path_meets_plane")),
+        matches!(&got, Err(diag) if diag.predicate == Some("curve_face_pose_belly_graze")),
         "the graze escalates on the gap: {got:?}"
     );
     let Piece::Arc(piece) = graze.pieces[0] else {

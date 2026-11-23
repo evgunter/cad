@@ -2,10 +2,11 @@
 id: a-diff-that-moves-corpus-ids-runs-none-of-the-slow-set-id-pins
 kind: issue
 title: A diff that moves corpus ids runs none of the slow-set rows that pin them; three INTENT/ATREST units in two days left them red for the nightly
-status: open
+status: closed
 opened: 2026-10-24
 priority: P2
 cost: M
+closed: 2026-11-22
 ---
 
 
@@ -80,3 +81,13 @@ PR 6856 (`placing/named-source`, merge `a9df07339`) made a placement mint the so
 The same mechanism hid PR 6820's `kitchen_sink` move in `seat7_sweep_lowering` (it re-blessed `seat8_split_lowering`'s copy of the same pin and its gate did not run seat7's), PR 6902's in `m10_5_clearance_interval`, and PR 6908's in step-export's `ball.step`, `die_pips.step` and `lily_lantern.step`.
 
 It also cuts the other way: a PR that only re-cuts a golden file or a constant adds no line spelling the test's name, so `slow_set.py --new-expr` selects `none()` and the gate is green having run none of the rows it re-cut. `green/goldens` had to name each test in a doc line beside its table to be selected.
+
+## Closed
+
+2026-11-22, CIW triage (stale). - Duplicates the P1 `a-stored-data-change-runs-none-of-the-slow-rows-that-read-it`,
+as reformulated. That row's canary list holds `lib_g16`, `perf2`,
+`m10_p_fence`, seat4/7/8, `perf12` and `name_words`.
+- Its instances (PRs 5613, 5637, 5745, 6504, 6856, 6820, 6902 and 6908)
+are carried as that row's evidence.
+- Its tree-inventory instance (PR 5715, `boxes` inventory) falls under
+the census half.

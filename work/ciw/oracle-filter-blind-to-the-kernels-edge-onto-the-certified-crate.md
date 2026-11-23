@@ -2,10 +2,11 @@
 id: oracle-filter-blind-to-the-kernels-edge-onto-the-certified-crate
 kind: issue
 title: the inari/MPFR oracle's path filter cannot see a change that makes the backend an unconditional kernel dependency
-status: open
+status: closed
 opened: 2026-09-21
 priority: P3
 cost: E
+closed: 2026-11-22
 ---
 
 
@@ -51,3 +52,9 @@ declare the edge (`crates/geom-core/Cargo.toml`, root
 - `.github/workflows/interval.yml`, the `interval oracle (certify vs
   inari+MPFR)` job
 - found by RING-1's review (R2 NOTE-6)
+
+## Closed
+
+2026-11-22, CIW triage (stale). Asks whether the 250 s C-build oracle should have run when the edge became unconditional. That moment has passed:
+`crates/geom-core/Cargo.toml:105` holds `interval-transcendentals = { workspace = true }` today.
+Firing on every later `geom-core/Cargo.toml` edit (`scripts/ci-filter.py:1838-1856`) would re-certify identical code at C-build cost on unrelated manifest changes, which is CLOSE-LATENCY in any case.

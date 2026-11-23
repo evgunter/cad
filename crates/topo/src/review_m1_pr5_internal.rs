@@ -496,9 +496,8 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
 /// fields tier 1 does not constrain. There is no fifth kind: a door
 /// that does not preserve tier 1 is a finding, not an entry.
 ///
-/// Stale entries are caught in both directions: an entry naming a door
-/// that no longer exists, or one that has since started asserting,
-/// fails as loudly as an unlisted door.
+/// An entry naming a door that no longer exists, or one that has since
+/// started asserting, is not a red: it excuses nothing a door does.
 ///
 /// **Where the door set comes from, and what it cannot see:**
 /// [`crate::source_walk::mutation_doors`], shared with the
@@ -597,15 +596,6 @@ fn every_public_mutation_path_preserves_tier1() {
          and close it with the sweep, or add it above WITH the reason tier 1 survives it \
          — and if the reason is that it does not, that is a finding, not an entry.",
     );
-    // The allowlist rots in the other direction too.
-    for (name, _) in ALLOWED {
-        assert!(
-            listed.iter().any(|n| n == name),
-            "the allowlist names `{name}`, which is no longer a non-asserting public \
-             mutation path — it was renamed, deleted, or has started asserting. Drop the \
-             entry.",
-        );
-    }
     // The walk's own floor is upstream, on `mutation_doors`. What is
     // this guard's is the needle: a lexing gap that erased the call
     // from a body would move that door from `asserting` to `unlisted`
