@@ -1,43 +1,30 @@
 ---
 id: dual-tangent-is-unpinned-for-seven-recipe-verbs
 kind: issue
-title: Seven recipe verbs evaluate at Dual64 with no row reading their tangent
+title: One table-driven Dual64 tangent row over the recipe verbs no tangent row reads, under the fast-set bar
 status: open
 opened: 2026-10-02
 priority: P3
-cost: H
+cost: M
 ---
 
+`crates/editor-core/tests/m10_di_dual_corpus.rs:98`
+(`every_document_evaluates_at_dual64_with_the_f64_value_channel`) compares
+only the value channel at `Dual64`, so a verb that drops its tangent stays
+green there. Tangent-reading rows exist for the blend
+(`sweep/tests/blend_dual_tangent.rs`, `editor-core/tests/blend_dual_sensitivity.rs`)
+and none name `Sweep`, `shell`, `chamfer` (recipe node), `PlacedUnion`,
+`Pattern`, `Tube` or `HollowTube`.
 
-## Finding
+Owed: ONE row, a table over those verbs on the smallest document each needs,
+seeding one size and checking the tangent of one moved quantity against a
+central difference of the `f64` build; with a planted tangent drop shown red
+once in the PR body. It must stay under the fast-set bar (`.config/nextest.toml`);
+if it cannot, it goes in the slow set rather than seven per-PR rows.
 
-`editor-core/tests/m10_di_dual_corpus.rs:98`
-(`every_document_evaluates_at_dual64_with_the_f64_value_channel`)
-evaluates every corpus document at `Dual64` and compares the VALUE
-channel with the `f64` run. A verb whose build drops its tangent (a
-size read through its value into an `f64` and lifted back as a
-constant) keeps that row green: the value is right and the derivative
-is zero. BAND's `S90-impl` pinned the blend's tangent
-(`sweep/tests/blend_dual_tangent.rs`,
-`editor-core/tests/blend_dual_sensitivity.rs`) and showed that mutant
-red there and green on the corpus row.
+What would close it: that one row landed under the bar, or in the slow set.
 
-The same gap stands for the verbs no tangent-reading row names. The
-sweep: every `editor-core/tests/*.rs` that reads a tangent
-(`Dual::variable`, `sensitivities(`, `stackup(`, `.deriv`), grepped for
-each `Node::<Verb>` spelling. No such file names `Sweep`/`Swept`,
-`shell`, `chamfer`, `placed_union`/`PlacedUnion`, `Pattern`, `Tube` or
-`HollowTube` (`Part` likewise, though it composes other verbs). `chamfer`'s kernel
-door is pinned by `blend_dual_tangent.rs`; its recipe node is not. The
-pattern cannot see a verb reached through a corpus document loaded by
-name rather than spelled `Node::` in the reading file, nor a kernel
-row in another crate that reads the verb's tangent directly; both
-gaps make this list an upper bound.
-
-## What
-
-Per verb on the list, a row that seeds a size the verb consumes and
-asserts the tangent of a quantity it moves against central
-differences of the `f64` build, with a mutant shown red.
-
-Moved from TINT to CIW on 2026-11-20, by `git mv`, when TINT merged into CIW: TINT held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CIW carries.
+- 2026-11-22 — **Reformulated by CIW triage** (the earlier body is in git history): Silent-wrong-derivative coverage, no fix-cycle incident. As written, seven new
+editor-core rows (cost H) on every PR selecting editor-core. Grain worth keeping: one
+table-driven row under the fast-set bar (or in the slow set). `m10_di_dual_corpus.rs:98`
+confirmed value-channel only. Reform: reform/dual-tangent-is-unpinned-for-seven-recipe-verbs.md

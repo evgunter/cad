@@ -4,7 +4,7 @@ kind: issue
 title: two workflow downloads carry no retry, and three pipe a retried curl into tar, which a retry cannot make sound
 status: open
 opened: 2026-09-11
-priority: P4
+priority: P2
 cost: E
 ---
 
@@ -47,3 +47,5 @@ prebuilt download, a `scripts/fetch-prebuilt.sh`, or three restructured
 sinks plus one `--retry` pair. `install-nextest` takes only a `version`
 input and hardcodes its URL, so it is a door for one tool, not for this
 class.
+
+- 2026-11-22 — **Re-banded P4 → P2 by CIW triage.** Runner tool downloads (actionlint and the python suite's tools) returned 504 "several times on 2026-11-09", failing lint and python before any check ran. Each cost a fresh push, because the integration cannot re-run jobs (403) (`work/boxes/log.md:538`). The fetches are still unsound: `ci.yml:280` (actionlint, not in the row), `ci.yml:562` and `nightly.yml:938` (maturin) are `curl --retry 5 | tar` with no fallback, and `render.yml:1101-1102` has no retry. ruff (`ci.yml:259`) now has a PyPI fallback. The repair costs nothing per PR. The pattern to copy is a version-keyed cache plus download-to-file (`.github/actions/install-nextest`), which takes the network off the warm path.

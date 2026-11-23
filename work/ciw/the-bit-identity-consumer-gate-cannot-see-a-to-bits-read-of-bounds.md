@@ -5,7 +5,7 @@ title: bit-identity-consumer.sh matches only bit_identity::|repr_bits|eq_bits, s
 status: open
 opened: 2026-09-29
 refs: [3773, 3156]
-priority: P2
+priority: P3
 cost: E
 ---
 
@@ -57,3 +57,5 @@ spelling a kernel-discipline gate's matcher misses (or refuses wrongly),
 which is BLIND's charter (`work/ciw/plan.md`). Id and body unchanged.
 
 Moved from BLIND to CIW on 2026-11-20, by `git mv`, when BLIND merged into CIW: BLIND held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CIW carries.
+
+- 2026-11-22 — **Re-banded P2 → P3 by CIW triage.** There is no live instance: PR 3773 deleted query.rs's `same_bits` family, and the only incident is the 2026-09-04 landing. Widening a grep in the per-PR gates step costs very little, but it saves no fix cycles, so this is not a latency lever.
