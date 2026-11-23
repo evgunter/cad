@@ -968,7 +968,7 @@ mod kernel {
             SectionGermsUnordered, ApexSection, VertexNearConeAxis, ApexUndecided, NonFiniteSectorChord,
             UnderflowedSectorChord,
             ConsecutiveOnSectors, StaleVertex, LoneVertex, NullEdgeAtVertex,
-            UnrecordedSide, UncoveredFace, CrossingInsertion, Euler, LineageRow,
+            UnrecordedSide, UncoveredFace, PendingFace, CrossingInsertion, Euler, LineageRow,
         ];
     }
 
@@ -2498,6 +2498,7 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 )),
             },
         ),
+        ("PendingFace", R::PendingFace { face }),
         (
             "CrossingInsertion",
             R::CrossingInsertion {
