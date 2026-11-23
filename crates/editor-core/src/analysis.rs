@@ -817,6 +817,19 @@ impl BoxAxis {
         let (lo, hi) = self.span();
         geom::mid_param(lo, hi)
     }
+
+    /// The two halves of this axis's span, lower first, cut at
+    /// [`Self::midpoint`]. `None` for a fixed axis, and for one too
+    /// narrow to split: a midpoint that lands on an endpoint, the `f64`
+    /// grid's own floor. [`ParamBox::split`] and the range search both
+    /// halve through here.
+    pub fn halves(&self) -> Option<[(f64, f64); 2]> {
+        let Self::Varying { lo, hi } = *self else {
+            return None;
+        };
+        let mid = self.midpoint();
+        (lo < mid && mid < hi).then_some([(lo, mid), (mid, hi)])
+    }
 }
 
 /// A sub-box of the [`AnalyzedBox`]: one [`BoxAxis`] per continuous
@@ -1014,21 +1027,14 @@ impl ParamBox {
     }
 
     /// The two halves of this box across `name`, bisected at the axis
-    /// midpoint. `None` when the axis is absent, fixed, or too narrow to
-    /// split (a midpoint that lands on an endpoint — the `f64` grid's
-    /// own floor).
+    /// midpoint ([`BoxAxis::halves`]). `None` when the axis is absent,
+    /// fixed, or too narrow to split.
     ///
     /// The midpoint is [`BoxAxis::midpoint`]'s, so the same box splits
     /// into the same two halves on every machine and in every schedule
     /// (D9).
     pub fn split(&self, name: VarId) -> Option<(Self, Self)> {
-        let BoxAxis::Varying { lo, hi } = *self.axes.get(&name)? else {
-            return None;
-        };
-        let mid = BoxAxis::Varying { lo, hi }.midpoint();
-        if !(lo < mid && mid < hi) {
-            return None;
-        }
+        let [(lo, mid), (_, hi)] = self.axes.get(&name)?.halves()?;
         let mut a = self.clone();
         let mut b = self.clone();
         a.axes.insert(name, BoxAxis::Varying { lo, hi: mid });

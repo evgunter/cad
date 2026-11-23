@@ -144,11 +144,17 @@ pub type MemberFace = (usize, FaceKey);
 /// **Which member faces each face of an accumulation descends from**,
 /// read off each step's naming, never off a name: a piece of a face
 /// descends from what the face does, a merged face from what each face
-/// it absorbed does, and a face of the joining member from that face.
+/// it absorbed does, a face a re-chart turned from every face of the
+/// sphere shell it was turned over ([`FaceSource::inputs`]), and a face
+/// of the joining member from that face.
 ///
-/// It routes the judgements' verdicts to the steps, where a superset is
-/// harmless; it lists member faces a piece holds no area of, and grows
-/// along the fold. What a face holds is its [`Holdings`].
+/// It routes the judgements' verdicts to the steps
+/// ([`given_pairs`], [`restated_rows`]), where a superset is harmless:
+/// a verdict decides a carrier pair, so handing it to a face that wears
+/// the carrier of a member face it lists but holds no area of decides
+/// the same pair. A turned face lists every face of its shell, all of
+/// which wear its one sphere. It grows along the fold. What a face holds
+/// is its [`Holdings`].
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct MemberLineage {
     faces: BTreeMap<FaceKey, BTreeSet<MemberFace>>,
@@ -181,21 +187,17 @@ impl MemberLineage {
         })
     }
 
-    /// **The member faces an operand face of the step joining `member`
-    /// to this accumulation descends from**: an accumulation face's
-    /// lineage for operand A, the member's own face for operand B. `f`
-    /// is a root face in that operand's keys ([`FaceDescent`]).
+    /// **The member faces an input face of the step joining `member` to
+    /// this accumulation descends from**: an accumulation face's lineage
+    /// for operand A, the member's own face for operand B. `f` is a face
+    /// of that operand as the step was given it
+    /// ([`FaceSource::inputs`]).
     ///
     /// # Panics
     ///
     /// Where an operand-A face has no lineage here.
     #[track_caller]
-    pub(crate) fn operand_faces(
-        &self,
-        member: usize,
-        operand: Operand,
-        f: FaceKey,
-    ) -> BTreeSet<MemberFace> {
+    fn operand_faces(&self, member: usize, operand: Operand, f: FaceKey) -> BTreeSet<MemberFace> {
         match operand {
             Operand::A => self.of(f).clone(),
             Operand::B => BTreeSet::from([(member, f)]),
@@ -206,20 +208,41 @@ impl MemberLineage {
     /// this accumulation with the naming `naming`.
     fn step<T: Real>(&self, member: usize, naming: &BooleanNaming, result: &Body<T>) -> Self {
         let descent = FaceDescent::of(naming);
-        let from = |(operand, f): (Operand, FaceKey)| self.operand_faces(member, operand, f);
         let merged = descent.merged();
         let faces = result
             .faces()
             .map(|(f, _)| {
                 let mut set = BTreeSet::new();
                 for &g in merged.get(&f).map_or(&[f][..], Vec::as_slice) {
-                    set.extend(from(descent.result_face(g)));
+                    let source = descent.source(g);
+                    for k in source.inputs {
+                        set.extend(self.operand_faces(member, source.operand, k));
+                    }
                 }
                 (f, set)
             })
             .collect();
         Self { faces }
     }
+}
+
+/// **Where a face of a boolean result comes from**: its operand, the
+/// operand face it is a piece of in the keys the op ran on, and the faces
+/// of the op's input that one stands for.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FaceSource {
+    /// The operand.
+    pub operand: Operand,
+    /// The operand face the result face is a piece of, in the keys of the
+    /// operand as the op ran on it. Where a re-chart turned that face's
+    /// sphere shell before the op ran (`BooleanNaming::recharted`), it is
+    /// the turned face, whose key names no face of the input at its
+    /// place, or none.
+    pub root: FaceKey,
+    /// The faces of the op's input `root` stands for: `root` itself, or,
+    /// for a turned face, every face of the input shell it was turned
+    /// over, any of which its region may meet.
+    pub inputs: Vec<FaceKey>,
 }
 
 /// **Which operand face each face of a boolean result descends from**,
@@ -239,25 +262,33 @@ impl<'n> FaceDescent<'n> {
         }
     }
 
-    /// The operand face result face `f` descends from. A merged face
-    /// descends from each face it absorbed as well: see
+    /// **Where result face `f` comes from** ([`FaceSource`]). A merged
+    /// face descends from each face it absorbed as well: see
     /// [`FaceDescent::merged`].
     ///
     /// # Panics
     ///
     /// As [`BooleanNaming::operand_of`].
     #[track_caller]
-    pub fn result_face(&self, f: FaceKey) -> (Operand, FaceKey) {
+    pub fn source(&self, f: FaceKey) -> FaceSource {
         let (operand, k, _) = self.naming.operand_of(&self.inv_faces, f);
-        (operand, self.clone_face(operand, k))
+        self.clone_source(operand, k)
     }
 
-    /// The operand face a face in `operand`'s CLONE keys is a fragment
-    /// of (a discarded face's key is one).
-    pub fn clone_face(&self, operand: Operand, f: FaceKey) -> FaceKey {
-        match operand {
+    /// Where a face in `operand`'s CLONE keys comes from (a discarded
+    /// face's key is one). A source's own `root` reads back to itself.
+    pub(crate) fn clone_source(&self, operand: Operand, f: FaceKey) -> FaceSource {
+        let root = match operand {
             Operand::A => self.naming.face_fragments_a.root(f),
             Operand::B => self.naming.face_fragments_b.root(f),
+        };
+        let inputs = self.naming.recharted[operand.index()]
+            .input_faces(super::Cell::Face(root))
+            .map_or_else(|| vec![root], <[FaceKey]>::to_vec);
+        FaceSource {
+            operand,
+            root,
+            inputs,
         }
     }
 
@@ -826,7 +857,7 @@ fn lift<T: Decide + crate::AtRestPolicy>(
         let mut exact = BTreeSet::new();
         let mut maybe = BTreeSet::new();
         for &(place, f) in operand_faces {
-            if place == 1 {
+            if place == Operand::B.index() {
                 exact.insert((member, f));
                 continue;
             }

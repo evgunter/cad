@@ -67,3 +67,7 @@ reads and a claim no gate reads are one kind of work. Id and body unchanged.
 ## Moved to CIW (2026-11-02)
 
 - 2026-11-02 — moved from UNREAD to CIW when UNREAD merged into CIW (budget rule now counts P0/P1 only). UNREAD's rows are claims no gate reads and CIW's are what the hosted gate does not run or see: one question, what goes red if this stops being true. Id and body unchanged.
+
+## Evidence (2026-11-22, OFFER's kernel certify unit)
+
+`work/props/` no longer exists and 25 citations of it remain outside `work/` (`grep -rn "work/props/" --include=*.rs --include=*.py --include=*.md .`, less `work/` and `memories/`): in `crates/topo`, `crates/mesh`, `crates/sweep`, `crates/geom`, `crates/geom-core`, `crates/geom-brep`, `crates/editor-core/tests`, `crates/pncad-py/tests` and `docs/CURVED-SPIRIC-DESIGN.md`. That unit fixed the four on its own ground (`crates/editor-core/src/range.rs`, `crates/viewer/src/bounds.rs`) and left the rest to this row.
