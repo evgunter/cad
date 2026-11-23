@@ -291,3 +291,8 @@ The local disk has 8 GB free and two lane targets are live, so these lanes run a
   - the filed row is incomplete;
   - a regression: a linked sentence is no longer selectable or copyable.
   It also covers the style items: one link look, the TAG-form second door, and a spelling-tie row. (OFFER orchestrator)
+- 2026-11-23 12:58Z — **#7557 merged** (4fe2447e) at a648122e: a node a message names is a link that selects it, and the tree scrolls to an outside selection.
+  - **Verification:** the orchestrator ran it locally with the app feature, 128/128 rows (sentence, links, tree, range, relations, badges, frame policy).
+  - **The unit is closed**, and the residue is in `viewer-pane-lines-spell-their-nodes-as-text` (P2).
+  - **#7562 R1 is in:** APPROVE-WITH-FIXES, no MAJOR. The `Quieting` type allows hand-building; the tolerance words flicker; the NodeErrorClass census is missing; two offer shapes are uninventoried; the same-batch race is caught by the door. R2 is pending.
+  - #7562's fix pass ports #7557. No row (rule 12). (OFFER orchestrator)
