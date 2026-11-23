@@ -383,7 +383,7 @@ fn totality_no_panics_on_poison_inputs() {
     ));
     let mut spec =
         EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
-    spec.carrier = Curve3::nurbs_placeholder();
+    spec.carrier = geom::test_support::poisoned_nurbs_segment();
     assert!(matches!(
         body.mev(
             MevSite::Lone {

@@ -17,6 +17,7 @@ unchanged. Band 6600-6699 claimed in this commit
 
 TOPO's PR 3160 (`half-edge-minting-euler-ops-leave-a-minted-curved-face-incomplete`) retires one premise of the convention — `mev`, `mef` and `mekr` no longer leave a complete face half-minted — and appends that to the row. All thirteen calls stay and the row's finding is unchanged. No file of this program's moved.
 - 2026-10-11 — From TOPO's second cut: `face-boundary-walks-spell-the-linked-prelude-by-hand` moved here, because the linked prelude is one relation spelled by hand. (`work/topo/log.md`)
+- 2026-11-22 — `walks/curve-placeholder`: the curve NURBS placeholder is deleted with its reader arms. KNOT's `nurbs-curve-has-no-net-state-door` moved here by `git mv` and closes with it; `placeholder-question-has-two-spellings-across-topo` keeps its surface half open for Ev.
 
 ## 2026-11-22 — sitting opened (WALKS orchestrator)
 
