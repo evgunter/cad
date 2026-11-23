@@ -192,3 +192,8 @@ Evidence for item 1 (the router and the slant), from PR 7553's rows:
   - So a belly read off `Height` (`extremes`, or `at ± swing`) would bring the far-centre loss back.
   - Whichever of the two merges second reconciles them: the extreme nearer zero is read through `belly_along`, or `Height` takes its parts from the stored terms.
 - **Correction to the line-row evidence above.** PR 7553's reviewer traced the arc-held line-row residual (seeds `0x7efbaa71e6759d86` and `0xf0ab266f92cdb939`). It exits through `Harmonic::Touch` → `place(theta)` returning `None`: the slant `H` from the derived centre, or `clear_by`. It does not go through the router.
+
+- 2026-11-23 (GERM, PR 7553's CI red): **the `Touch` → `place` → `None` exit is not arc-held-only.**
+  - The case: a centre-held ellipse at far 1e6, seed `0x310ae3910d809302`. The exact belly is +7.5e-13 and `belly_along` reads it in the zero band.
+  - What drops it: `place`'s `b.clear_by(k.point_at(θ), e)`. The carrier walk (`Curve3::clear_by`, CONIC's `on_carrier.rs`) reads the conic clear of its own point because both are evaluated about the far centre at `u·far`, so the pose answers `Apart`.
+  - Filed on CONIC as `a-centre-held-far-conics-touch-is-dropped-by-a-carrier-walk-on-points-evaluated-about-its-centre`. The fix to `place`, or to the walk, serves both placements.

@@ -72,7 +72,7 @@ reading 0 wrong at 1e5 and 1e6, with no charge.
     - With the re-pose it reads 0 at every far, on seeds 0x1, 0x2 and 0x3.
   - **The re-pose:** `Real::harmonic_belly` computes `(A² + B² − d₀²)/(√(A² + B²) + |d₀|)`, with the numerator exact and `A`, `B`, `d₀` each rounded once. It is within 9u of the belly, relative to the belly. `curve_pair::pose::belly` reads it.
   - **Its readers:** the plane arm (and through it the co-surface arm and the ring path), `line_conic`, `conic_conic`'s parallel screen and `transverse`, and `section_loops::line_clears_conic`.
-  - **A second row:** `curve_pair::far_graze_rows::a_line_grazing_a_far_centred_conic_is_read_wrong_nowhere`.
+  - **A second row:** `curve_pair::far_graze_rows::a_line_grazing_a_far_centred_conic_is_read_wrong_nowhere_past_the_touchs_placement` (renamed and narrowed later the same day, below).
   - **The sibling** is filed as `an-arc-held-ellipses-plane-is-read-at-its-derived-centre`.
 - 2026-11-23, fix pass on PR 7553 (its review: MAJOR-1, the across-seam term read from a rounded `v_ref`).
   - **The belly is now the conic's own door**, `Conic::belly_along(o, n)` in `conic.rs`. It reads the stored placement (stored point and phase, axis, seam, semi-axes) with `B = b·((axis × u_ref)·n)` crossed exactly (`exact::triple_product`). An arc-held ellipse is read from its anchor.
@@ -85,3 +85,7 @@ reading 0 wrong at 1e5 and 1e6, with no charge.
   - **The screen's call site has an end-to-end row:** `curve_pair::pose::far_rows::a_far_conic_grazing_a_circle_through_its_vertex_is_never_apart`. A far ellipse grazes a unit circle's plane at its vertex, and the circle passes through that point. It reads 0 `Apart` of 2000, and 0 / 12 / 1 with the call reverted.
   - **The arc-held probe** anchors at all four vertex phases.
   - **The Interval docs** are corrected: a production-lifted frame reads the plain enclosure. Filed as `a-lifted-frames-interval-belly-reads-the-plain-enclosure`.
+- 2026-11-23, PR 7553's hosted CI red on the line row.
+  - **The red:** seed `0x310ae3910d809302`, far 1e6, one wrong `Apart`, red on the merged head and on its pre-merge parent alike.
+  - **The cause:** the belly reads the touch right. `place`'s carrier walk `clear_by` then reads the far conic clear of its own point at `u·far` (CONIC's `on_carrier.rs`).
+  - **What was done:** filed on CONIC as `a-centre-held-far-conics-touch-is-dropped-by-a-carrier-walk-on-points-evaluated-about-its-centre`. The row is narrowed openly to `…_past_the_touchs_placement`: it counts `placed` apart, and M3 still reds it.

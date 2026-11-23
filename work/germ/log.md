@@ -1858,3 +1858,6 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
     - `germ/a-parallel-leg-near-cos-v-minus-r-over-r-reads-touch-against-a-villarceau-edge` (P2, for Ev's eye);
     - `export/step-imports-one-record-folds-the-sense-bit-by-hand`.
   - The same reviewer (the drawn arm) is confirming its findings on the new head, as a confirmation of its own findings, not a second review.
+- 2026-11-23 — **PR 7553's CI red traced.**
+  - The line row's one wrong `Apart` at far 1e6 is the carrier walk's `clear_by` on points evaluated about the far centre, behind a correct touch from the belly.
+  - Filed on CONIC; the row is narrowed openly, and the oracle is unchanged.
