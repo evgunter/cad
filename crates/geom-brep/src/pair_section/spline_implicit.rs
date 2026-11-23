@@ -1154,7 +1154,7 @@ fn listed(
         .iter()
         .map(|(b, _, minted)| match minted {
             Ok(ends) => {
-                cells::Listed::Arc(cells::Enclosure::first(b, pose.net(), partner, *ends, band))
+                cells::Listed::arc(cells::Enclosure::first(b, pose.net(), partner, *ends, band))
             }
             Err(why) => cells::Listed::Bare(*why),
         })

@@ -283,7 +283,7 @@ fn the_boxes_of_two_carried_arcs_share_no_widened_point() {
             form: &form,
         };
         let first = |b| {
-            Listed::Arc(Enclosure::first(
+            Listed::arc(Enclosure::first(
                 b,
                 pose.net(),
                 partner,
@@ -330,7 +330,7 @@ fn two_arcs_within_the_band_of_each_other_stall_and_carry_neither() {
         surface: &p,
         form: &form,
     };
-    let first = |b| Listed::Arc(Enclosure::first(b, pose.net(), partner, [None, None], wide));
+    let first = |b| Listed::arc(Enclosure::first(b, pose.net(), partner, [None, None], wide));
     let mut arcs: Vec<Listed<'_>> = branches.iter().map(first).collect();
     let meets = apart(&mut arcs, wide);
     assert_eq!(
@@ -366,7 +366,7 @@ fn two_arcs_that_narrow_and_never_part_end_at_the_work_bound() {
         surface: &p,
         form: &form,
     };
-    let first = |b| Listed::Arc(Enclosure::first(b, pose.net(), partner, [None, None], wide));
+    let first = |b| Listed::arc(Enclosure::first(b, pose.net(), partner, [None, None], wide));
     let mut arcs: Vec<Listed<'_>> = branches.iter().map(first).collect();
     assert_eq!(
         stops(&apart(&mut arcs, wide)),
@@ -399,7 +399,7 @@ fn two_arcs_are_refined_until_they_read_apart_and_a_point_reads_as_it_does_alone
         form: &form,
     };
     let first = |b| {
-        Listed::Arc(Enclosure::first(
+        Listed::arc(Enclosure::first(
             b,
             pose.net(),
             partner,
@@ -467,7 +467,7 @@ fn the_work_bound_grows_with_the_sections_first_reading() {
             form: &form,
         };
         let first = |b| {
-            Listed::Arc(Enclosure::first(
+            Listed::arc(Enclosure::first(
                 b,
                 pose.net(),
                 partner,
@@ -512,8 +512,8 @@ fn a_node_box_another_arc_does_not_share_does_not_stall_its_neighbour() {
     for escalate in [0.025, 0.026] {
         let bd = band_escalating(escalate);
         let mut arcs = vec![
-            Listed::Arc(Enclosure::first(&a, &net, partner, [None, Some(0)], bd)),
-            Listed::Arc(Enclosure::first(&b, &net, partner, [None, None], bd)),
+            Listed::arc(Enclosure::first(&a, &net, partner, [None, Some(0)], bd)),
+            Listed::arc(Enclosure::first(&b, &net, partner, [None, None], bd)),
         ];
         let before = rects(&arcs[1..]);
         let meets = apart(&mut arcs, bd);
@@ -577,14 +577,14 @@ fn two_arcs_ending_at_different_nodes_whose_boxes_meet_carry_neither() {
         let b = line(0.5 + r, 0.0, &[0.5, 0.9], rung, [None, Some((h, h))]);
         let read = |ends: [usize; 2]| {
             let mut arcs = vec![
-                Listed::Arc(Enclosure::first(
+                Listed::arc(Enclosure::first(
                     &a,
                     &net,
                     partner,
                     [None, Some(ends[0])],
                     bd,
                 )),
-                Listed::Arc(Enclosure::first(
+                Listed::arc(Enclosure::first(
                     &b,
                     &net,
                     partner,
@@ -685,7 +685,7 @@ fn two_arcs_a_rung_and_a_tenth_apart_are_carried_each_point_on_its_own() {
             let lines = ys.map(|y| line(y, slope, &inner, rung, [None, None]));
             let mut arcs: Vec<Listed<'_>> = lines
                 .iter()
-                .map(|b| Listed::Arc(Enclosure::first(b, &net, partner, [None, None], band())))
+                .map(|b| Listed::arc(Enclosure::first(b, &net, partner, [None, None], band())))
                 .collect();
             let what = format!("rung {rung}, {gap_rungs} rungs apart");
             let meets = apart(&mut arcs, band());
@@ -774,7 +774,7 @@ fn a_bending_one_span_arcs_pad_stands_within_two_rungs() {
     };
     let read = |branch: &SsiBranch| {
         let first = Enclosure::first(branch, &net, partner, [None, None], band());
-        let mut arcs = vec![Listed::Arc(first)];
+        let mut arcs = vec![Listed::arc(first)];
         assert!(apart(&mut arcs, band()).iter().all(Option::is_none));
         carried(&arcs[0], branch)
     };

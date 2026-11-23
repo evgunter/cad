@@ -616,16 +616,21 @@ pub(super) fn stand(a: Box3, b: Box3, node_boxes: &[Box3], by: f64) -> Stand {
 /// or their refusal, or why the component has no carrier.
 pub(super) enum Listed<'a> {
     /// A rim arc to mint.
-    Arc(Result<Enclosure<'a>, CarryError>),
+    Arc(Result<Box<Enclosure<'a>>, CarryError>),
     /// A component that carries none.
     Bare(NoCarrier),
 }
 
 impl<'a> Listed<'a> {
+    /// A rim arc with its first reading, or that reading's refusal.
+    pub(super) fn arc(first: Result<Enclosure<'a>, CarryError>) -> Self {
+        Self::Arc(first.map(Box::new))
+    }
+
     /// The arc's cells, where it is an arc whose cells read.
     fn cells(&self) -> Option<&Enclosure<'a>> {
         match self {
-            Self::Arc(Ok(e)) => Some(e),
+            Self::Arc(Ok(e)) => Some(e.as_ref()),
             _ => None,
         }
     }
