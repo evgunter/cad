@@ -2,10 +2,12 @@
 id: main-red-a-slow-set-entry-under-the-viewers-app-feature-reads-dead
 kind: issue
 title: Main red: the slow-set name check lists viewer without its app feature, so PR 7548's feature-gated slow entry reads dead
-status: open
+status: closed
 opened: 2026-11-23
 priority: P0
 cost: E
+closed: 2026-11-23
+pr: 7599
 ---
 
 
@@ -43,3 +45,18 @@ The fix is the check's, not the entry's: list `viewer` with its `app`
 feature (or a second listing for the feature-gated tests). Dropping the
 entry instead would put a test its author measured as slow back in the
 fast set.
+
+## Closed
+
+PR 7599. The default-feature listings (ci.yml's `test` job, nightly.yml's
+`full-suite-build`) pass `--elsewhere viewer` to
+`scripts/check-slow-set-names.py`, and both viewer jobs check viewer's
+entries over `cargo nextest list -p viewer --features app`. The PR viewer
+job also runs the slow-set tests its diff adds or edits
+(`slow_set.py --new-expr`) under `--features app`; the nightly's viewer job
+already ran them (`--ignore-default-filter`). The entry PR 7574 had
+dropped is restored beside PR 7562's
+`an_offer_an_earlier_op_of_its_frame_outran_is_dropped_and_said`, the
+second app-feature entry, which the old check read dead the same way. Of
+the slow set's other 2395 entries on `bba39ef945`, none sits under a
+positive `cfg(feature …)` gate.
