@@ -137,6 +137,159 @@ fn each_analytic_carrier_kind_joins_a_split_edge_back_as_found() {
     splits_and_joins_back("a closed rim (Circle)", tube.clone(), rim, mid(&tube, rim));
 }
 
+/// **A station on a wrap edge joins back** (DESIGN `[topology]`, the
+/// seam clause and maximal edges): a full revolve's curved wall is one
+/// face whose seam is its wrap edge, both halves in that face's loop, so
+/// a split of the seam leaves a vertex the one loop passes twice,
+/// between two pieces of one chart image on one face. Check 11 refuses
+/// it at rest; the join takes it back, the joined edge staying the
+/// face's wrap edge. Every wrap edge of each body in turn: a drum's seam
+/// between two rims, a cone's and a hemisphere's to a tip, a ball's
+/// between two tips, and a torus's two closed cuts, whose join closes.
+#[test]
+fn a_station_on_a_wrap_edge_joins_back_as_found() {
+    let tol = Tol::witness();
+    let band = Band::linear(tol).unwrap();
+    let wraps = |body: &Body<f64>, e| certified(body, e).description().is_wrap();
+    let p = geom_core::Point2::new;
+    let revolved =
+        |verts| sweep::test_support::revolved_about_y(verts, sweep::Revolution::Full, tol);
+    let bodies = [
+        (
+            "the drum",
+            revolved(vec![
+                (p(0.0, 0.0), 0.0),
+                (p(1.0, 0.0), 0.0),
+                (p(1.0, 2.0), 0.0),
+                (p(0.0, 2.0), 0.0),
+            ]),
+            1,
+        ),
+        (
+            "the cone",
+            revolved(vec![
+                (p(0.0, 0.0), 0.0),
+                (p(1.0, 0.0), 0.0),
+                (p(0.0, 1.0), 0.0),
+            ]),
+            1,
+        ),
+        (
+            "the hemisphere",
+            revolved(vec![
+                (p(0.0, 0.0), 0.0),
+                (p(1.0, 0.0), (core::f64::consts::PI / 8.0).tan()),
+                (p(0.0, 1.0), 0.0),
+            ]),
+            1,
+        ),
+        (
+            "the ball",
+            revolved(vec![(p(0.0, -1.0), 1.0), (p(0.0, 1.0), 0.0)]),
+            1,
+        ),
+        (
+            "the torus",
+            revolved(vec![(p(1.5, 0.0), 1.0), (p(2.5, 0.0), 1.0)]),
+            2,
+        ),
+    ];
+    for (what, body, n) in bodies {
+        let wrap_edges: Vec<EdgeKey> = body
+            .edges()
+            .map(|(e, _)| e)
+            .filter(|&e| wraps(&body, e))
+            .collect();
+        assert_eq!(wrap_edges.len(), n, "{what}: its wrap edges");
+        let before = curves(&body);
+        let cells = |b: &Body<f64>| (b.faces().count(), b.edges().count(), b.vertices().count());
+        for e in wrap_edges {
+            let mut b = body.clone();
+            let split = b.split_edge(e, mid(&b, e), tol).unwrap();
+            assert_eq!(
+                topo::joinable_vertices(&b, band).unwrap(),
+                vec![split.vertex],
+                "{what}: the station on {e:?} is joinable"
+            );
+            assert_eq!(
+                topo::validate_geometric(&b, tol),
+                Err(vec![topo::ValidationError::JoinableVertexAtRest {
+                    vertex: split.vertex
+                }]),
+                "{what}: check 11 refuses the station on {e:?} at rest"
+            );
+            let joins = b.join_edges(band, tol).unwrap();
+            let [join] = joins[..] else {
+                panic!("{what}: one join on {e:?}, got {joins:?}");
+            };
+            assert_eq!(
+                join.vertex, split.vertex,
+                "{what}: the join takes the station"
+            );
+            assert!(
+                wraps(&b, join.kept),
+                "{what}: the joined edge stays the face's wrap edge"
+            );
+            assert_eq!(
+                curves(&b),
+                before,
+                "{what}: every carrier and interval as found"
+            );
+            assert_eq!(cells(&b), cells(&body), "{what}: the cells as found");
+            assert_eq!(topo::validate_geometric(&b, tol), Ok(()), "{what}: at rest");
+        }
+    }
+}
+
+/// **A wrap piece beside a same-face piece that is no wrap edge is no
+/// station**: mid-construction, a split drum seam whose one child is
+/// restated as a plain chart image on the same face (as a merge's
+/// bridge is, before the merge glues it) meets its sibling at a valence-2
+/// vertex on one carrier, one face on both sides. The join leaves it:
+/// the joined edge's wrap claim would be false over the restated span.
+/// At rest the two spellings agree (tier 3 holds an edge with one face
+/// on both sides to a wrap description), so only construction state
+/// tells "both pieces wrap" from "either piece wraps" or "one face".
+#[test]
+fn a_wrap_piece_beside_a_plain_same_face_piece_is_no_station() {
+    let tol = Tol::witness();
+    let band = Band::linear(tol).unwrap();
+    let p = geom_core::Point2::new;
+    let mut body = sweep::test_support::revolved_about_y(
+        vec![
+            (p(0.0, 0.0), 0.0),
+            (p(1.0, 0.0), 0.0),
+            (p(1.0, 2.0), 0.0),
+            (p(0.0, 2.0), 0.0),
+        ],
+        sweep::Revolution::Full,
+        tol,
+    );
+    let seam = body
+        .edges()
+        .map(|(e, _)| e)
+        .find(|&e| certified(&body, e).description().is_wrap())
+        .expect("the drum's seam");
+    let split = body.split_edge(seam, mid(&body, seam), tol).unwrap();
+    let mut spec = certified(&body, split.new_edge).restated_spec();
+    let geom_brep::EdgeDescriptionSpec::Chart { surface, .. } = spec.description else {
+        panic!("a wrap edge is a chart image")
+    };
+    spec.description = geom_brep::EdgeDescriptionSpec::chart(surface);
+    body.set_edge_curve(split.new_edge, spec, tol)
+        .expect("the plain chart image certifies");
+    assert!(
+        !certified(&body, split.new_edge).description().is_wrap()
+            && certified(&body, seam).description().is_wrap(),
+        "one wrap piece, one plain piece"
+    );
+    assert_eq!(
+        topo::joinable_vertices(&body, band).unwrap(),
+        vec![],
+        "a wrap piece and a plain piece are no station"
+    );
+}
+
 /// A tube of radii 0.5 and 1 over `y ∈ [0, 1]`, revolved about `y`:
 /// each rim one closed circle, whose vertex the wall's seam also leaves.
 fn tube() -> Body<f64> {
