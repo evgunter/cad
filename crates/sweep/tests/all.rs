@@ -136,6 +136,8 @@ mod a_plane_through_a_pole_cuts_a_cap;
 mod a_point_past_a_spline_solids_reach;
 #[path = "a_pole_and_an_apex_join_nothing.rs"]
 mod a_pole_and_an_apex_join_nothing;
+#[path = "a_profile_touching_its_axis_twice_revolves.rs"]
+mod a_profile_touching_its_axis_twice_revolves;
 #[path = "a_ray_beside_a_shallow_spiric_edge_is_read_by_the_span_walk.rs"]
 mod a_ray_beside_a_shallow_spiric_edge_is_read_by_the_span_walk;
 #[path = "a_ray_meets_a_curved_edge_once_for_both_faces.rs"]
@@ -352,6 +354,8 @@ mod pcurve_p1b_r2_probes;
 mod pieces_oblique_bore;
 #[path = "pinned_corners_at_the_loft_door.rs"]
 mod pinned_corners_at_the_loft_door;
+#[path = "pinned_corners_build.rs"]
+mod pinned_corners_build;
 #[path = "pins_of_todays_blend_refusals.rs"]
 mod pins_of_todays_blend_refusals;
 #[path = "pipeline_null_edge_rows.rs"]
@@ -442,6 +446,8 @@ mod spiric_faces_fuzz;
 mod sym11_far_placement_rows;
 #[path = "the_door_reads_seam_regions_as_tier_3_does.rs"]
 mod the_door_reads_seam_regions_as_tier_3_does;
+#[path = "the_nary_door_reads_a_re_charted_accumulation_through_its_shell.rs"]
+mod the_nary_door_reads_a_re_charted_accumulation_through_its_shell;
 #[path = "tilted_sphere_pair.rs"]
 mod tilted_sphere_pair;
 #[path = "tilted_sphere_pair_k_rows.rs"]

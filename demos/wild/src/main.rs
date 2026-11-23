@@ -188,7 +188,7 @@ fn run_cell(cell: &Cell, outdir: &str, tol: Tol) -> String {
     let body: &pncad::topo::Body<f64> = &certified;
     let counts = euler_counts(body);
     let genus = counts
-        .genus()
+        .h()
         .unwrap_or_else(|refusal| panic!("{name}: {refusal}"));
     let EulerCounts { v, e, f, r, s } = counts;
     println!(
