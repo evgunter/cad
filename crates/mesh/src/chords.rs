@@ -555,7 +555,7 @@ impl FaceLattice {
                     reads: Reads::Iso(rectangle.clone()),
                 })
             }
-            Lane::Trimmed => {
+            Lane::Trimmed | Lane::Walked => {
                 // The spline row borrows the face's cell table, which this
                 // pass is the one to assemble (`face_bound`).
                 if let Some(payload) = surface.spline_chart() {

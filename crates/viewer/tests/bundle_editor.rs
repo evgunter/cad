@@ -371,7 +371,7 @@ fn place_lands_where_the_body_stands_with_zero_values() {
     let body = common::xy_box_in(&mut session, [0.02, 0.03, 0.01]);
     session.pump();
     assert!(
-        viewer::world::placements_of(session.committed_doc(), body).is_empty(),
+        session.committed_doc().placements_of(body).is_empty(),
         "the premise: the body lands unplaced"
     );
     let states = session.history().len();

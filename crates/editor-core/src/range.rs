@@ -266,6 +266,7 @@ pub enum RangeSide {
     /// NO leaf outward was decided definitely otherwise, and the
     /// first uncertified one is [`RefusalReason::Budget`],
     /// [`RefusalReason::SliverTerminal`],
+    /// [`RefusalReason::ReadsNoVariable`],
     /// [`RefusalReason::Bifurcation`] or [`RefusalReason::Infeasible`]:
     /// the driver could not
     /// DECIDE `within`, and found nothing beyond it either.
@@ -281,6 +282,10 @@ pub enum RangeSide {
     /// more budget buys nothing. The row that would let the driver
     /// name such a leaf is
     /// `work/props/coincidence-zone-priced-budget-at-the-floor`.
+    /// A `ReadsNoVariable` has no such recourse at any budget: the
+    /// node it names does not read the ranged variable, so no leaf of
+    /// this range changes it, and the recourse is the node's own
+    /// (what it did is on the reason).
     Indeterminate {
         /// The proven frontier, as an offset.
         certified_to: f64,
@@ -996,7 +1001,15 @@ fn walk(leaves: &[Leaf<'_>], direction: Direction, seed: RangeSeed) -> RangeSide
                     }
                 };
             }
-            Some(reason) => {
+            // Every other reason by name, so a new one is asked here
+            // which side of the walk it belongs to.
+            Some(
+                reason @ (RefusalReason::Budget(_)
+                | RefusalReason::SliverTerminal { .. }
+                | RefusalReason::ReadsNoVariable { .. }
+                | RefusalReason::Bifurcation(_)
+                | RefusalReason::Infeasible),
+            ) => {
                 if let Frontier::Proving(certified_to) = frontier {
                     frontier = Frontier::Stopped {
                         certified_to,

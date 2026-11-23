@@ -171,7 +171,7 @@ fn check<T: Decide + AtRestPolicy + Bounds>() {
             param_end: T::from_f64(core::f64::consts::PI),
         };
         let refusal = match body.set_edge_curve(edge, spec, Tol::witness()) {
-            Err(EulerOpError::Certification { error }) => error,
+            Err(EulerOpError::DescriptionUncertified { error, .. }) => error,
             other => panic!("{lane}, {what}: the mint reads the arc off its face: {other:?}"),
         };
         assert!(
