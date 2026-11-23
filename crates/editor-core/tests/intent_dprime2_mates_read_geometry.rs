@@ -485,8 +485,8 @@ fn a_slide_value_sets_its_translation_with_no_width() {
     let start = fixture::fname(boss, RoleSeg::Cap(CapEnd::Start));
     let placed = Placed {
         mates: vec![editor_core::Mate {
-            on: fixture::plane(head(start)),
-            to: fixture::flip(top),
+            on: fixture::plane(head(start)).into(),
+            to: fixture::flip(top).into(),
             orient: editor_core::Orientation::IDENTITY,
         }],
         values: vec![
@@ -674,14 +674,14 @@ fn a_mate_reports_each_value_it_drops() {
     );
     assert_eq!(dropped[1].1, tilt, "the x link's row names `tilt`");
     let said: Vec<String> = editor_core::Maintenance::values_dropped(&applied.maintenance)
-        .map(|s| s.to_string())
+        .map(|s| editor_core::test_support::said_text(&s))
         .collect();
     assert_eq!(
         said,
         [format!(
             "{}'s placement was written again without the values on its spin about z, spin \
              about x and slide along z, which read tilt",
-            doc.spoken(copy)
+            editor_core::test_support::node_text(&doc.spoken(copy))
         )],
         "the four rows are said once, each freedom once, naming only the named variable"
     );
@@ -742,14 +742,14 @@ fn a_variable_dropped_twice_is_named_once() {
         )
         .expect("the rest is admitted");
     let said: Vec<String> = editor_core::Maintenance::values_dropped(&applied.maintenance)
-        .map(|s| s.to_string())
+        .map(|s| editor_core::test_support::said_text(&s))
         .collect();
     assert_eq!(
         said,
         [format!(
             "{}'s placement was written again without the values on its spin about z, spin \
              about x and slide along z, which read tilt",
-            doc.spoken(copy)
+            editor_core::test_support::node_text(&doc.spoken(copy))
         )],
         "tilt is named once"
     );

@@ -2,7 +2,7 @@
 id: doctail
 kind: program
 title: DOCTAIL — the document model's tail: the edit door's reports and value checks, the save format, the flip lane's reading, refusal prose, name hygiene and the certified pick
-status: active
+status: ready
 opened: 2026-10-02
 group: api/eval
 prefix: doctail/

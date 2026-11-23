@@ -2,10 +2,11 @@
 id: vocabulary-macro-bodies-are-outside-rustfmt
 kind: issue
 title: rustfmt does not reach inside a macro_rules! invocation, so eight viewer enums are formatted by hand
-status: open
+status: closed
 opened: 2026-09-06
 priority: P3
 cost: E
+closed: 2026-11-22
 ---
 
 
@@ -95,3 +96,7 @@ charter (`work/unread/plan.md`). Id and body unchanged.
 ## Moved to CIW (2026-11-02)
 
 - 2026-11-02 — moved from UNREAD to CIW when UNREAD merged into CIW (budget rule now counts P0/P1 only). UNREAD's rows are claims no gate reads and CIW's are what the hosted gate does not run or see: one question, what goes red if this stops being true. Id and body unchanged.
+
+## Closed
+
+2026-11-22, CIW triage (stale). Duplicate of `rustfmt-does-not-reach-a-macro-wrapped-declaration-block`, which is the class row; this file is one member of it (viewer's `vocabulary!`). The row's own chosen answer, "accept it and say so", has landed (`crates/viewer/src/vocab.rs:74-94`). The gate answer carries the same lint-step cost judged CLOSE-LATENCY on the class row.

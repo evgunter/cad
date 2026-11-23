@@ -359,8 +359,7 @@ fn edge_carrier_kind_answers_a_curved_carrier_not_only_the_box_lines() {
 /// string literal can no longer answer for one spelled in the docs.
 /// The `//!` line test is the selection the module doc sanctions for a
 /// caller that means inner docs rather than any comment; it is not a
-/// second lexer. This site's ledger row is in
-/// `crates/test-utils/tests/reader_census.rs`.
+/// second lexer.
 fn module_prose(text: &str) -> String {
     test_utils::source::comments_only(text)
         .lines()

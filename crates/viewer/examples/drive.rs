@@ -280,7 +280,7 @@ fn perform(driver: &mut Driver, run: &mut Run, words: &[String]) -> Result<(), S
             for row in driver.session().tree_rows() {
                 println!(
                     "{} {:?}{}{}",
-                    row.spoken,
+                    viewer::tree::spelled(&row.spoken),
                     row.status,
                     if row.placements.is_empty() {
                         ""

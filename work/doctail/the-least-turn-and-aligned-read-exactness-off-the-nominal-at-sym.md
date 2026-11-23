@@ -18,7 +18,7 @@ At `Sym`, three reads chose what is built by reading "exactly this value" off th
 
 - **`RigidMotion::least_turn`'s identity shortcut** (`least_turn_minted`, `a.is_exactly(b)`). `UnitVec3::is_exactly` read `Real::is_exact_zero_in_every_channel`, which `Sym` forwarded to its value. At a tilt variable's zero, a face's normal is the space's `z` in value alone. The turn came back as `RigidMotion::world()`, constant in the symbols.
 - **`Chart::charted`'s copy of it** (`from.is_exactly(d)`): it skipped the renormalization.
-- **`mate::turn::zero`**: `exactly_zero() || (quoted() == 0 && upper() == 0)`, the value channel at `Sym` and at `Dual`. It feeds `aligned`, and through `aligned` it feeds `seated`, `spans`, `across`, `slide_direction` and `settle`'s frames-lane translation. `SolveScalar::exactly_zero` at `Sym` forwarded to its value too: `on_an_axis`, `box_atan2`, and `turn_to`'s measured zero at `Sym<Interval>`.
+- **`mate::turn::zero`**: `exactly_zero() || (quoted() == 0 && upper() == 0)`, the value channel at `Sym` and at `Dual`. It feeds `aligned`, and through `aligned` it feeds `seated`, `spans`, `across`, `slide_direction` and `settle`'s frames-lane translation. `SolveScalar::exactly_zero` at `Sym` forwards to its value: false at `Sym<f64>`, the box's point zero at `Sym<Interval>`. Its readers (`on_an_axis`, `box_atan2`, `turn_to`'s measured zero) take it only to tighten a reading, so it is left as it is.
 
 **Repro (on 7396's branch):** `intent_s6_e_traced_on_a_face::a_boss_traced_across_two_cylinders_coaxial_only_at_zero_tilt_is_not_proved`. There the door answered `Structural(MarginIdentity)`; the same document at `a = 0.2` has no tangency.
 
