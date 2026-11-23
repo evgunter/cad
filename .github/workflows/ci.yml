@@ -495,11 +495,13 @@ jobs:
         run: |
           set -o pipefail
           # Each shard checks the entries of the packages it built; an entry
-          # naming no workspace member is dead in either.
+          # naming no workspace member is dead in either. viewer's entries are
+          # the viewer job's to check: this listing has no `app` feature, so a
+          # test under `app::` is in it as no test at all.
           members="$(cargo metadata --no-deps --format-version 1 | jq -r '[.packages[].name] | join(",")')"
           # shellcheck disable=SC2086 # SCOPE is a list of -p flags
           cargo nextest list --ignore-default-filter $SCOPE --message-format json \
-            | python3 scripts/check-slow-set-names.py --members "$members"
+            | python3 scripts/check-slow-set-names.py --members "$members" --elsewhere viewer
       # Last, so the failing rows close the log whatever ran after them.
       - name: failing tests (name, panic, seed) and slow fast-set tests
         if: failure()
@@ -532,6 +534,32 @@ jobs:
           version: ${{ env.NEXTEST_VERSION }}
       - name: viewer app-feature rows (chrome + gpu pipeline smoke)
         run: cargo nextest run --profile ci -p viewer --features app
+      # The `ci` profile leaves the slow set out, and the test job's slow-set
+      # step builds viewer without `app`, so a slow test under `app::` runs
+      # here: when the diff spells it or edits its file (scripts/slow_set.py,
+      # `selected`). nightly.yml's viewer job runs every one of them.
+      - name: viewer app-feature slow-set tests (the ones this diff adds or edits)
+        if: '!cancelled()'
+        env:
+          BASE: ${{ needs.filter.outputs.base }}
+        run: |
+          touch "$RUNNER_TEMP/new-tests.txt"
+          if [ -n "$BASE" ]; then
+            git fetch -q --no-tags --depth=1 origin "$BASE"
+            scripts/check-fast-set-times.py --new-since "$BASE" > "$RUNNER_TEMP/new-tests.txt"
+          fi
+          slow="$(python3 scripts/slow_set.py --new-expr "$RUNNER_TEMP/new-tests.txt")"
+          echo "slow set over viewer (app): $slow"
+          cargo nextest run --profile ci --ignore-default-filter -p viewer --features app \
+            -E "package(viewer) & $slow" --no-fail-fast --no-tests=pass
+      # The test job leaves viewer's entries to this listing (`--elsewhere`).
+      - name: the slow set's viewer entries name only tests that exist (the app-feature listing)
+        if: '!cancelled()'
+        run: |
+          set -o pipefail
+          members="$(cargo metadata --no-deps --format-version 1 | jq -r '[.packages[].name] | join(",")')"
+          cargo nextest list --ignore-default-filter -p viewer --features app --message-format json \
+            | python3 scripts/check-slow-set-names.py --members "$members"
       - name: wasm32 clippy (the browser entry point)
         run: |
           rustup target add wasm32-unknown-unknown
