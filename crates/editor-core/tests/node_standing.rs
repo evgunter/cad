@@ -492,7 +492,7 @@ fn reads(code: &str) -> usize {
 /// `#[cfg(test)]` items are not counted); a hit added anywhere reds, and
 /// the answer is to read through `Evaluation::usable` or to give the
 /// file its line here.
-const READERS: [(&str, usize, &str); 15] = [
+const READERS: [(&str, usize, &str); 14] = [
     (
         "crates/editor-core/src/eval/members.rs",
         18,
