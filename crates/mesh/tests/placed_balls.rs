@@ -38,17 +38,26 @@ fn placed_ball(d: f64) -> Result<topo::Body<f64>, String> {
 }
 
 /// **The ball meshes the same volume at every placement the doors
-/// admit.** Each placement either tessellates, and then must be watertight
-/// and measure what the origin-placed ball measures, or refuses typed,
-/// which is printed. A mis-picked meridian branch meshes the complementary
-/// half and moves the volume by O(1), not by ulps.
+/// admit.** Each placement inside the 1 km session box (to 998 m, the
+/// ball's far side 999 m out) tessellates, watertight, and measures what
+/// the origin-placed ball measures; each past it (1e4 m to 1e10 m) is
+/// refused by the box at its first edge's certification. A mis-picked
+/// meridian branch meshes the complementary half and moves the volume by
+/// O(1), not by ulps.
 #[test]
 fn the_ball_meshes_the_same_volume_at_every_placement_the_doors_admit() {
     use mesh::validate::{check_mesh, signed_volume};
     let exact = 4.0 * core::f64::consts::PI / 3.0;
     let mut admitted: Vec<(f64, f64)> = Vec::new();
     let mut refused = Vec::new();
-    for d in [0.0, 1e2, 1e4, 1e6, 1e8, 1e10] {
+    for d in [1e4, 1e6, 1e8, 1e10] {
+        let refused = placed_ball(d).expect_err("a ball past the session box is refused");
+        assert!(
+            refused.contains("OutsideSessionBox"),
+            "d = {d:e}: refused by the session box, at its first edge: {refused}"
+        );
+    }
+    for d in [0.0, 1e2, 5e2, 9.98e2] {
         let body = match placed_ball(d) {
             Ok(b) => b,
             Err(e) => {
@@ -77,6 +86,10 @@ fn the_ball_meshes_the_same_volume_at_every_placement_the_doors_admit() {
         admitted.push((d, v));
     }
     println!("admitted placements {admitted:?}; typed-refused {refused:?}");
+    assert!(
+        refused.is_empty(),
+        "every placement inside the box is admitted: refused {refused:?}"
+    );
     let (_, v0) = *admitted.first().expect("the origin-placed ball must build");
     // The oracle: the SAME body meshed at a distance must measure the
     // same volume. A mis-picked meridian branch meshes the
@@ -120,19 +133,24 @@ fn placed_ball_r(d: f64, r: f64) -> Result<topo::Body<f64>, String> {
 /// A small ball at a moderate distance clears the import-scale doors (an
 /// absolute test, coordinate ulp against ε) while its distance-to-radius
 /// ratio is large, the corner where a placement-dependent branch pick
-/// would show. Each pair either meshes at both places with one volume or
-/// refuses typed, which is printed.
+/// would show. Each pair is placed 990 m out, inside the session box (a
+/// ratio of 1.7e5 to 1.7e9); one the run's band resolves (a radius past
+/// `1e3·ε`) meshes at both places with one volume, and one it does not
+/// refuses typed, which is printed. A pair 1e4 m out is refused by the
+/// box.
 #[test]
 fn a_small_ball_far_out_meshes_the_volume_it_meshes_at_the_origin() {
     use mesh::validate::{check_mesh, signed_volume};
+    let refused = placed_ball_r(1e4, 1e-3).expect_err("a ball 1e4 m out is past the box");
+    assert!(refused.contains("OutsideSessionBox"), "{refused}");
     for (r, d) in [
-        (1e-2, 1e4),
-        (1e-3, 1e4),
-        (1e-4, 1e4),
-        (1e-4, 1e5),
-        (1e-5, 1e4),
-        (1e-6, 1e3),
+        (1e-2, 9.9e2),
+        (1e-3, 9.9e2),
+        (1e-4, 9.9e2),
+        (1e-5, 9.9e2),
+        (1e-6, 9.9e2),
     ] {
+        let resolved = r > 1e3 * geom_core::Tol::witness().eps();
         let exact = 4.0 * core::f64::consts::PI * r * r * r / 3.0;
         let ratio = (d * 3f64.sqrt()) / r;
         let build = |dd: f64| -> Result<f64, String> {
@@ -157,8 +175,20 @@ fn a_small_ball_far_out_meshes_the_volume_it_meshes_at_the_origin() {
                      a placement-dependent branch pick"
                 );
             }
-            (_, Err(e)) => println!("r {r:e} d {d:e} (D/r ≈ {ratio:e}): refused — {e}"),
-            (Err(e), _) => println!("r {r:e} d {d:e}: origin build refused — {e}"),
+            (_, Err(e)) => {
+                assert!(
+                    !resolved,
+                    "r {r:e} d {d:e}: a ball this ε resolves is read: {e}"
+                );
+                println!("r {r:e} d {d:e} (D/r ≈ {ratio:e}): refused — {e}");
+            }
+            (Err(e), _) => {
+                assert!(
+                    !resolved,
+                    "r {r:e}: a ball this ε resolves is read at the origin: {e}"
+                );
+                println!("r {r:e} d {d:e}: origin build refused — {e}");
+            }
         }
     }
 }
