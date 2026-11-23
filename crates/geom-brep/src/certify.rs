@@ -3123,6 +3123,14 @@ impl<T: geom_core::Certifies> SplineFoot<T> {
 ///     ) -> Result<geom::SurfaceProjection<Dual64>, geom::SurfaceProjectionInconclusive> {
 ///         unimplemented!()
 ///     }
+///     fn chart_arm(
+///         self,
+///         _c: &geom::NurbsSurface<Dual64>,
+///         _p: Point3<Dual64>,
+///         _reach: Dual64,
+///     ) -> Result<f64, geom_brep::ChartArmRefusal> {
+///         unimplemented!()
+///     }
 /// }
 /// ```
 pub trait NurbsLaneOf<T: Real>: crate::lane_seal::Sealed + Copy + Send + Sync {
@@ -3135,6 +3143,17 @@ pub trait NurbsLaneOf<T: Real>: crate::lane_seal::Sealed + Copy + Send + Sync {
         surface: &geom::NurbsSurface<T>,
         point: Point3<T>,
     ) -> Result<geom::SurfaceProjection<T>, geom::SurfaceProjectionInconclusive>;
+
+    /// [`NurbsLane::chart_arm`].
+    ///
+    /// # Errors
+    /// The lane's own.
+    fn chart_arm(
+        self,
+        chart: &geom::NurbsSurface<T>,
+        p: Point3<T>,
+        reach: T,
+    ) -> Result<f64, crate::ChartArmRefusal>;
 }
 
 impl<T: geom_core::Certifies> NurbsLaneOf<T> for NurbsLane<T> {
@@ -3145,6 +3164,15 @@ impl<T: geom_core::Certifies> NurbsLaneOf<T> for NurbsLane<T> {
     ) -> Result<geom::SurfaceProjection<T>, geom::SurfaceProjectionInconclusive> {
         (self.surface_foot)(surface, point)
     }
+
+    fn chart_arm(
+        self,
+        chart: &geom::NurbsSurface<T>,
+        p: Point3<T>,
+        reach: T,
+    ) -> Result<f64, crate::ChartArmRefusal> {
+        (self.chart_arm)(chart, p, reach)
+    }
 }
 
 impl<T: Real> NurbsLaneOf<T> for geom_core::NoLane {
@@ -3153,6 +3181,15 @@ impl<T: Real> NurbsLaneOf<T> for geom_core::NoLane {
         _surface: &geom::NurbsSurface<T>,
         _point: Point3<T>,
     ) -> Result<geom::SurfaceProjection<T>, geom::SurfaceProjectionInconclusive> {
+        match self {}
+    }
+
+    fn chart_arm(
+        self,
+        _chart: &geom::NurbsSurface<T>,
+        _p: Point3<T>,
+        _reach: T,
+    ) -> Result<f64, crate::ChartArmRefusal> {
         match self {}
     }
 }
