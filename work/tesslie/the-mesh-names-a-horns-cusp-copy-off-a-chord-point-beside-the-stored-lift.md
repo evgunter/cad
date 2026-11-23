@@ -46,3 +46,24 @@ walk names the copy off the lifted row's `v` at the cusp end
 the copy off the lift too) so the past-pole guard covers the face's own
 side. That is the same move `mesh-pole-junction-unwrap-picks-a-whole-turn-off-numbers`
 owes for `unwrap_tie` at a pole junction, and can land with it.
+
+## A third derivation: props (PR 7511 review, 2026-11-23)
+
+`geom_brep::props::curved`'s `sheet_apex_jumps` derives the same fact
+again: which apex a loop passes, and with the face on which side, from
+the arriving meridian's `rising` (it arrives up the tube at the upper
+apex, down it at the lower), with the face's side from the sense bit
+(`ApexSide`). It reads the arriving piece only, so it takes the two
+pieces to agree. That agreement is what topo now checks and refuses as
+`SingularMiss::CuspCrossed` where it fails. It agrees with the stored lift
+on every suite body: the football rows measure their exact volume.
+
+Props is not different in kind. It reads `LoopEdge`s rather than a body's
+stored rows, because `geom-brep` sits below `topo`, so it cannot call
+`Body::loop_lift`. But its caller in `topo` has the lift and could hand
+props the apex copy each pass reaches, or the lifted chain itself. "Read
+the copy off the lift" therefore covers props too. The repair crosses
+`geom-brep`'s props, which belongs to the program that owns
+`crates/geom-brep/src/props/`. A lane taking this row should read
+`python3 scripts/work.py territory` for that file and say so on that
+program's log.
