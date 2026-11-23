@@ -4484,8 +4484,18 @@ fn review_scan_which_restatement_a_split_states() {
                             .restatements()
                             .map(|r| geom::Curve3::Ellipse(r).same_content(&geom::Curve3::Ellipse(b)));
                         let swapped = a.semi_axes() == (b.semi_v(), b.semi_u());
+                        // Whether the plane meets the wall alone: the section's
+                        // height on the wall at every azimuth inside (0, h).
+                        let (r0, r1, h) = shape;
+                        let n = (phi.sin() * psi.cos(), phi.cos(), phi.sin() * psi.sin());
+                        let wall_alone = (0..720).all(|i| {
+                            let th = core::f64::consts::TAU * f64::from(i) / 720.0;
+                            let (c, k) = (n.0 * th.cos() + n.2 * th.sin(), (r1 - r0) / h);
+                            let y = (n.1 * q - c * r0) / (n.1 + c * k);
+                            y > 0.0 && y < h
+                        });
                         let key = format!(
-                            "{shape_name}: [id, half, back, both] = {pat:?}, semi-axes exchanged {swapped}"
+                            "{shape_name}: wall alone {wall_alone}: [id, half, back, both] = {pat:?}, semi-axes exchanged {swapped}"
                         );
                         let e = census.entry(key).or_default();
                         e.0 += 1;
