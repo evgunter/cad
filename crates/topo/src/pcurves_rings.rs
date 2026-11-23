@@ -224,7 +224,7 @@ impl RingPlacementError {
 /// ([`RingPlacementError::SplineTrimUnread`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SplineTrimGap {
-    /// The chart is a placeholder, mid-operation.
+    /// The face has no surface yet, mid-operation.
     Placeholder,
     /// The chart has no Bézier cells: a degree of zero, a knot past its
     /// degree's multiplicity or with no value, a weight not shown

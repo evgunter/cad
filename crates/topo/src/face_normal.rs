@@ -1931,9 +1931,9 @@ mod tests {
 
     /// **The spline door names each face it has no chart point to read
     /// on**: a key that no longer resolves, a carrier that is not a spline
-    /// chart, a placeholder chart.
+    /// chart, a face with no surface yet.
     #[test]
-    fn the_spline_door_names_a_stale_a_non_spline_and_a_placeholder_face() {
+    fn the_spline_door_names_a_stale_a_non_spline_and_a_pending_face() {
         use super::SplineNormalError;
         let p = Point3::new(0.0, 0.0, 1.0);
         let read = |body: &crate::body::Body<f64>, face| {

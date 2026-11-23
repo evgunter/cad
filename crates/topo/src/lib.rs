@@ -1654,4 +1654,4 @@ pub use validate::{
     validate_pseudomanifold_certificate_structural, validate_pseudomanifold_structural,
 };
 #[cfg(test)]
-mod zz_probe_pending;
+mod pending_face_rows;

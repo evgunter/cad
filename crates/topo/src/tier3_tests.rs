@@ -363,10 +363,10 @@ fn the_finiteness_ladder_decides_check_1s_verdict() {
             "{name}: the predicate reads every channel"
         );
         let (errs, face) = pillow_on(surface.clone(), tol);
-        let placeholder = errs.contains(&ValidationError::UncertifiableSurface { face });
+        let pending = errs.contains(&ValidationError::UncertifiableSurface { face });
         let poisoned = errs.contains(&ValidationError::PoisonedSurfaceDescription { face });
         assert_eq!(
-            (placeholder, poisoned),
+            (pending, poisoned),
             (false, !finite),
             "{name}: finite: {finite}, and check 1 answered {errs:?}",
         );

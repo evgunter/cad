@@ -38,7 +38,7 @@ use geom_core::spline::KnotVector;
 use geom_core::{Point3, Tol};
 use std::sync::Arc;
 
-/// A DESCRIBED (non-placeholder) degree-2 NURBS patch on the plane
+/// A degree-2 NURBS patch on the plane
 /// `y = 0`, u along +x, v along +z (normal −y = the front wall's outward
 /// normal). `bow` lifts the centre control point off the plane.
 fn nurbs_wall(bow: f64) -> Surface<f64> {

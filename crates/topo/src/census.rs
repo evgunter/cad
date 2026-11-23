@@ -58,8 +58,8 @@
 //!   F5). Cone, torus and NURBS sides are reach-tested like any
 //!   other — every surface kind has a sound cheap reach bound
 //!   ([`face_reach`]); what refuses without a distance test is a
-//!   DESCRIPTION with no claim in it (a placeholder patch), not a
-//!   kind. A cross-key face–face record on such a pair is read by the
+//!   face with no claim to bound (a pending face, a net that is not
+//!   finite), not a kind. A cross-key face–face record on such a pair is read by the
 //!   tangent lane where the carriers derive a closed-form line (plane ×
 //!   cylinder, parallel cylinders) and refused typed where they do not,
 //!   so the class is never silently passed. One
@@ -10136,9 +10136,10 @@ pub(crate) fn answered_in_band(
 ///    land here; the certified excluder this stands in for is the C9
 ///    exclusion ring. The reach boxes are SOUND supersets: [`face_reach`]
 ///    is the face's cover's box ([`crate::cover::face_cover`],
-///    the one reading of a face), so no bound is derived twice. A
-///    description with no claim in it (a placeholder patch) refuses
-///    WITHOUT a distance test rather than under-claiming its reach. A
+///    the one reading of a face), so no bound is derived twice. A face
+///    with no claim to bound (a pending face, a net that is not finite)
+///    refuses WITHOUT a distance test rather than under-claiming its
+///    reach. A
 ///    planar face vf-NAMED by a record whose vertex is on the OTHER
 ///    FACE OF THIS PAIR defers to the confirm pass (the declared
 ///    boss-on-plate class) — the record has to name both sides of the
@@ -10535,11 +10536,11 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
             if vf_deferred {
                 continue; // the declared interface — confirm pass's pair
             }
-            // A DESCRIPTION with no claim in it refuses without a
-            // distance test (`face_reach` docs — the loud direction).
-            // Every surface KIND has a reach bound; what has none is a
-            // placeholder patch, or a face whose boundary carries an
-            // unboxable curve.
+            // A face with no claim to bound refuses without a distance
+            // test (`face_reach` docs — the loud direction). Every
+            // surface KIND has a reach bound; what has none is a pending
+            // face, a net that is not finite, or a face whose boundary
+            // carries an unboxable curve.
             let before = errors.len();
             if let (Some((alo, ahi)), Some((blo, bhi))) = (a.boxed, b.boxed) {
                 // Definite separation along ANY direction clears the
@@ -13928,8 +13929,8 @@ mod tests {
     ///
     /// **Why it fires, exactly — and it is not about where the sheets
     /// are.** Each `cyl_sheet` is its own `mvfs` seed, so a two-sheet
-    /// fixture is a two-INSTANCE body; and each seed FACE keeps the
-    /// mvfs NURBS placeholder, whose control net is poison. A solid
+    /// fixture is a two-INSTANCE body; and each seed FACE stays
+    /// pending, with no surface to bound. A solid
     /// carrying a face with no claimable box can never be the container
     /// ([`sweep_cross_solid_backstop`] arm 2), so both directions refuse
     /// with *"a surface kind with no cheap sound box leaves the
@@ -13941,7 +13942,7 @@ mod tests {
     ///
     /// These fixtures sit below tier 3's closed-body bar and call
     /// `census_and_certify` directly, which is the only door that
-    /// reaches a placeholder face; through `validate_pseudomanifold` the
+    /// reaches a pending face; through `validate_pseudomanifold` the
     /// state cannot be minted.
     ///
     /// The filter is by ENTITY GRANULARITY rather than by count, so a
@@ -13971,21 +13972,19 @@ mod tests {
     /// **What the containment arm actually says about these scaffolds,
     /// and that it is not about where they are.**
     ///
-    /// Each `cyl_sheet` keeps its `mvfs` NURBS placeholder on the seed
-    /// face. A placeholder net is poison, so the solid has no claimable
-    /// extent and can never be the container: arm 2 must reach its
-    /// TYPED refusal for that case. Folding the poison net instead
-    /// yields `Some((NaN, NaN))`, every margin decides neither sign,
-    /// and the arm falls out at its in-band refusal having compared no
-    /// geometry — which reads, in a suite, exactly like the arm
-    /// measuring two overlapping sheets.
+    /// Each `cyl_sheet` leaves its `mvfs` seed face pending. A pending
+    /// face has no cover, so the solid has no claimable extent and can
+    /// never be the container: arm 2 must reach its TYPED refusal for
+    /// that case, not an in-band refusal having compared no geometry —
+    /// which reads, in a suite, exactly like the arm measuring two
+    /// overlapping sheets.
     ///
     /// The second half is what makes that unmistakable: a sheet a
     /// KILOMETRE away produces the byte-identical refusal. If this row
     /// ever fails there, an extent comparison has started happening and
     /// the `face_findings` allowance above needs re-reading.
     #[test]
-    fn a_placeholder_seed_leaves_the_containing_extent_unclaimable() {
+    fn a_pending_seed_leaves_the_containing_extent_unclaimable() {
         let refusals = |z0: f64, z1: f64| -> Vec<String> {
             let mut body = Body::<f64>::new();
             let (_w1, cyl) = unit_cyl_sheet(
@@ -14030,8 +14029,8 @@ mod tests {
                 && near
                     .iter()
                     .all(|r| r.ends_with(Undecided::Unclaimable.what())),
-            "the placeholder seed must reach the TYPED refusal, not the in-band \
-             fallout of a NaN box: {near:?}"
+            "the pending seed must reach the TYPED refusal, not an in-band \
+             fallout: {near:?}"
         );
         assert_eq!(
             near,
@@ -15306,9 +15305,8 @@ mod tests {
     }
     // ---- A described net carrying poison: the reach and box lanes ----
 
-    /// Every mvfs placeholder seed face of `body`, its surface swapped
-    /// for `surface`.
-    fn swap_placeholders(body: &mut Body<f64>, surface: &Surface<f64>) -> Vec<FaceKey> {
+    /// Every pending seed face of `body`, described as `surface`.
+    fn describe_pending_seeds(body: &mut Body<f64>, surface: &Surface<f64>) -> Vec<FaceKey> {
         let seeds: Vec<FaceKey> = body
             .faces()
             .filter(|(_, f)| {
@@ -15408,7 +15406,7 @@ mod tests {
                 Tol::witness(),
             );
             crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
-            let seeds = swap_placeholders(&mut body, &crate::fixtures::poisoned_net(poisoned));
+            let seeds = describe_pending_seeds(&mut body, &crate::fixtures::poisoned_net(poisoned));
             assert_eq!(seeds.len(), 2, "{what}: one seed face per sheet");
             for &f in &seeds {
                 let reach = face_reach(&body, f, Band::linear(Tol::witness()).unwrap());
@@ -15499,7 +15497,7 @@ mod tests {
             Tol::witness(),
         );
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
-        let seeds = swap_placeholders(&mut body, &crate::fixtures::poisoned_net(|_| true));
+        let seeds = describe_pending_seeds(&mut body, &crate::fixtures::poisoned_net(|_| true));
         let b =
             crate::boxes::face_box(&body, seeds[0], 1e-9, Band::linear(Tol::witness()).unwrap());
         eprintln!("[face_box] masquerade box = {b:?}");
@@ -16487,10 +16485,10 @@ mod tests {
         // walk reads the cap's two-vertex loop on its carriers: each
         // vertex is decided outside the cap, and nothing is refused
         // about a face it is nowhere near, under either strategy.
-        // (The sheet's seed face has a placeholder surface, so the
-        // backstop refuses the sheet×cube instance pair `Undecidable`
-        // under BOTH strategies — a poisoned extent is never pruned;
-        // that shared refusal is not this row's subject.)
+        // (The sheet's seed face is pending, so the backstop refuses the
+        // sheet×cube instance pair `Undecidable` under BOTH strategies —
+        // an extent with no cover is never pruned; that shared refusal
+        // is not this row's subject.)
         let body = half_disc_cap_and_far_cube();
         let records = ContactRecords::default();
         let (real_errors, real) = census_traces(
@@ -22362,8 +22360,8 @@ mod same_solid_tangent_lines {
     /// Two cylinder-wall sheets over angles `±u` about each seam and
     /// heights (0, 1) and (0.2, 0.8), each face's sense given (`true`:
     /// material inside the cylinder), filed under one solid when
-    /// `one_solid`. Each sheet's seed face keeps its placeholder, so the
-    /// two walls are the only faces on the lane. The census with no
+    /// `one_solid`. Each sheet's seed face stays pending, so the two
+    /// walls are the only faces on the lane. The census with no
     /// record, and what it says of the two walls.
     fn walls(
         (a, sense_a, ua): (CylFrame, bool, f64),

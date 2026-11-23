@@ -5544,7 +5544,7 @@ mod kind_arm_tests {
                         major_radius: -0.3,
                         minor_radius: 0.5,
                     },
-                    SurfaceKind::Nurbs => crate::fixtures::poisoned_net(|_| true),
+                    SurfaceKind::Nurbs => geom::test_support::unit_patch(),
                     SurfaceKind::Approx => Surface::Approx(std::sync::Arc::new(
                         crate::fixtures::bowed_offset_approx::<f64>(),
                     )),

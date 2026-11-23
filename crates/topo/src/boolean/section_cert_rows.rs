@@ -564,7 +564,7 @@ fn bump() -> Surface<f64> {
 /// the poison read past the hull (R-lane).
 #[test]
 fn a_nurbs_patch_and_a_plane_are_apart_by_the_net_or_refuse_with_no_lane() {
-    let placeholder = crate::fixtures::poisoned_net(|_| true);
+    let poisoned = crate::fixtures::poisoned_net(|_| true);
     let apart =
         |s: &Section<f64>| matches!(s, Section::Components { parts, .. } if parts.is_empty());
     for (what, pl, want_apart) in [
@@ -588,7 +588,7 @@ fn a_nurbs_patch_and_a_plane_are_apart_by_the_net_or_refuse_with_no_lane() {
         }
     }
     let pl = plane(p(0.0, 0.0, 2.5), v(0.0, 0.0, 1.0));
-    assert!(matches!(unmarched(&placeholder, &pl), Section::Intractable));
+    assert!(matches!(unmarched(&poisoned, &pl), Section::Intractable));
     assert!(matches!(
         unmarched(&bump(), &bump()),
         Section::NoLane("f64")

@@ -9193,7 +9193,7 @@ mod tests {
         );
     }
 
-    /// **The NURBS re-gate, pinned (M5 S13 §1), and the placeholder's
+    /// **The NURBS re-gate, pinned (M5 S13 §1), and the pending face's
     /// own door.** The fallback's curved-extent test is UNWRITABLE for
     /// NURBS today (`implicit_residual` is poison there, and no
     /// projection-based extent argument has been written — the
@@ -9202,8 +9202,8 @@ mod tests {
     /// typed refusal naming its TRUE blocker — a future NURBS body
     /// constructor inherits this door, never the vertex-probe silence
     /// the S12 finding executed. That re-gate is pinned here at the
-    /// mechanism, because a body on the `mvfs` `Nurbs` PLACEHOLDER
-    /// surface cannot reach the boolean at all: it is not a finished
+    /// mechanism, on a finite NURBS face. A body whose faces are still
+    /// pending cannot reach the boolean at all: it is not a finished
     /// body, and the at-rest gate refuses each of its faces as
     /// uncertifiable. Both are pinned below; what neither may become is
     /// a silent assembly.
@@ -9231,12 +9231,12 @@ mod tests {
 
         let a = declined_cube::<f64>(Tol::witness()).body;
         let b = far_cube(10.0, FaceGeometry::Declined);
-        // Door 1 — the placeholder is not a finished body: the at-rest
-        // gate that would hand it to the boolean refuses each of its
-        // faces as uncertifiable, so no NURBS placeholder reaches a pair.
+        // Door 1 — a body with pending faces is not a finished body: the
+        // at-rest gate that would hand it to the boolean refuses each of
+        // its faces as uncertifiable, so no pending face reaches a pair.
         for (what, body) in [("the declined cube", &a), ("the far declined cube", &b)] {
             let errors = crate::finish(body.clone(), Tol::witness())
-                .expect_err("a NURBS placeholder is not a finished body");
+                .expect_err("a body with pending faces is not a finished body");
             let mut uncertifiable: Vec<_> = errors
                 .iter()
                 .filter_map(|e| match e {

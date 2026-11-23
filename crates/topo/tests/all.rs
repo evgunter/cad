@@ -518,5 +518,5 @@ mod the_placed_boolean_door_is_the_pair_door;
 mod three_solids_on_one_line;
 #[path = "two_copies_filling_one_volume.rs"]
 mod two_copies_filling_one_volume;
-#[path = "review_7495_pending_cube.rs"]
-mod review_7495_pending_cube;
+#[path = "an_all_pending_cube_at_public_doors.rs"]
+mod an_all_pending_cube_at_public_doors;

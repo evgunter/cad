@@ -650,8 +650,8 @@ impl SplitNaming {
 /// [`SplitFinishError::EdgeJoin`] where the merge's join refuses, and
 /// [`SplitFinishError::Merge`] for every other refusal of the merge or
 /// of the skipped faces' re-description. [`SplitFinishError::Desync`]
-/// where the merge names a placeholder face: a side carved from a
-/// finished operand has none.
+/// where the merge names a pending face: a side carved from a finished
+/// operand has none.
 pub(super) fn end_maximal<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     side: PlaneSide,
@@ -777,7 +777,7 @@ impl Default for SplitNaming {
 pub enum FinishDesync {
     /// A key the finish was reading does not resolve.
     Unresolved(Unresolved),
-    /// The coplanar merge a side ends with left placeholder faces.
+    /// The coplanar merge a side ends with left pending faces.
     MergePlaceholders {
         /// The side whose merge left them.
         side: PlaneSide,
@@ -822,7 +822,7 @@ impl core::fmt::Display for FinishDesync {
             Self::Unresolved(unresolved) => write!(f, "in the body being split, {unresolved}"),
             Self::MergePlaceholders { side } => write!(
                 f,
-                "the merge of the piece on the {} side of the plane left placeholder faces",
+                "the merge of the piece on the {} side of the plane left pending faces",
                 side.word()
             ),
             Self::NullEdgeUncopied { vertex } => write!(
@@ -3333,7 +3333,7 @@ mod desync_rows {
                 FinishDesync::MergePlaceholders {
                     side: PlaneSide::Above,
                 },
-                "placeholder faces",
+                "pending faces",
             ),
             (
                 FinishDesync::NullEdgeUncopied { vertex },

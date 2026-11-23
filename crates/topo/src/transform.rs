@@ -44,14 +44,11 @@
 //!   [`MappedCurve`] pre-composes the isometry into its rigid
 //!   placement (`place ↦ map ∘ place`) and maps its world-space
 //!   vectors/axis data — sketch-space payloads are untouched;
-//! - a `Nurbs` carrier, and a DESCRIBED `Nurbs` surface, maps by its
-//!   CONTROL POINTS, with knots and weights carried over verbatim: a rigid map
+//! - a `Nurbs` carrier or surface maps by its CONTROL POINTS, with knots and weights carried over verbatim: a rigid map
 //!   is affine, and the Euclidean-storage section of `geom`'s
 //!   `curves::nurbs` data model is where the commutation that makes
 //!   the mapped net the exact IMAGE — never a re-fit — is argued;
-//! - the `Nurbs` surface PLACEHOLDER — and only it — is refused typed (its
-//!   evaluation is all-poison; transforming one would launder poison
-//!   as geometry);
+//! - a pending surface slot has no geometry and stays pending;
 //! - approximating surfaces: the offset description's base net and the
 //!   fit net by the full affine map, `d` negated under a reflection,
 //!   the window and the certificate carried (`map_approx`).
@@ -809,11 +806,8 @@ fn map_mapped_curve<T: Real>(map: &Affine3<T>, hand: Hand, mc: &MappedCurve<T>) 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    //! The NURBS gate: the discriminator is the placeholder STATE, not
-    //! the `Nurbs` variant. These rows pin both directions, so the gate
-    //! cannot silently invert — a described net refusing and a
-    //! placeholder mapping are each one edit away from each other, and
-    //! only one of them is loud on its own.
+    //! The rigid map's rows: each surface and carrier kind maps to its
+    //! exact image.
 
     use super::*;
     use geom::{NurbsCurve3, NurbsSurface};
@@ -953,18 +947,16 @@ mod tests {
         }
     }
 
-    /// **Known defect, pinned as it stands**: an all-poison carrier net
-    /// is MAPPED, not refused — the curve has no placeholder, and this
-    /// arm reads no poison. SHELL's
-    /// `transform-rigid-maps-a-poisoned-net-into-the-placeholder` owns
-    /// the refusal; the day it lands this row goes red, and the fix
-    /// replaces it with the typed-refusal row.
+    /// **A carrier net that is not finite is mapped as found**: the map
+    /// reads no geometry, and the poison travels to the image, where the
+    /// at-rest check refuses it (`PoisonedCurveDatum`). Whether the map
+    /// should refuse it up front is SHELL's call.
     #[test]
-    fn a_poisoned_carrier_net_is_still_mapped_until_shell_refuses_it() {
+    fn a_poisoned_carrier_net_is_mapped_as_found() {
         let poisoned: Curve3<f64> = geom::test_support::poisoned_nurbs_segment();
         let mapped = map_carrier(&Isometry::Proper(aside_motion()), &poisoned);
         let Ok(Curve3::Nurbs(n)) = mapped else {
-            panic!("expected today's mapped poisoned net, got {mapped:?}");
+            panic!("expected the mapped poisoned net, got {mapped:?}");
         };
         assert!(
             n.control()

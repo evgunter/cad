@@ -420,7 +420,7 @@ pub struct MfkrhCreated {
     /// The new face (outer loop = the promoted ring; same shell as the
     /// ring's former face).
     pub face: FaceKey,
-    /// The new face's fresh placeholder surface (see the
+    /// The new face's fresh pending surface slot (see the
     /// [module docs](self) on why sharing cannot be restored).
     pub surface: SurfaceKey,
 }
@@ -3661,10 +3661,8 @@ mod tests {
 
     #[test]
     fn mfkrh_rejects_a_stale_shared_surface() {
-        // The M1 surface-anchor chain retired with the placeholder
-        // surfaces (M2 PR 3); the geometry precondition is now the
-        // FaceSurface::Shared key. A stale key must fail loudly and
-        // atomically.
+        // The geometry precondition is the FaceSurface::Shared key. A
+        // stale key must fail loudly and atomically.
         let (mut body, _split, kill) = pillow_with_empty_ring();
         let stale = crate::geometry::SurfaceKey::default();
         assert_err_deep_unchanged(

@@ -1159,7 +1159,7 @@ mod pre_filter_tests {
         let spline = *faces.last().expect("a brick has faces");
         let key = body.get_face(spline).expect("the face resolves").surface;
         *body.surfaces.get_mut(key).expect("its surface resolves") =
-            crate::fixtures::poisoned_net(|_| true).into();
+            geom::test_support::unit_patch().into();
         let sel = SolidFaces::select(&body, faces).expect("the faces select");
 
         let bracket = Bracket::open();
@@ -1197,7 +1197,7 @@ mod pre_filter_tests {
     }
 
     /// **A face whose carrier bounds no region refuses the reach**: a
-    /// placeholder spline's net is poison, so no start is shown beyond
+    /// net that is not finite bounds nothing, so no start is shown beyond
     /// it, and the selection's reach refuses naming the face rather than
     /// reading the face as adding nothing. The brick's planar faces alone
     /// read.
@@ -1264,7 +1264,7 @@ mod pre_filter_tests {
         let spline = *faces.last().expect("a brick has faces");
         let key = body.get_face(spline).expect("the face resolves").surface;
         *body.surfaces.get_mut(key).expect("its surface resolves") =
-            crate::fixtures::poisoned_net(|_| true).into();
+            geom::test_support::unit_patch().into();
         let sel = SolidFaces::select(&body, faces).expect("the faces select");
         let read = side_at_infinity(&body, &sel, band, || {
             Err::<SolidContainment, _>("the volume")
