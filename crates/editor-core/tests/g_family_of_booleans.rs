@@ -85,7 +85,7 @@ pub(crate) fn cut_row(
         doc,
         Node::Subtract {
             from: BodyRead::plain(Operand::Node(row)),
-            tool,
+            tool: tool.into(),
         },
     );
     (doc, row, cut)
@@ -126,7 +126,7 @@ fn a_family_of_boolean_results_reads_whole_and_by_index() {
         doc,
         Node::Subtract {
             from: BodyRead::plain(Operand::Node(union)),
-            tool: BodyRead::indexed(cut, vec![Formula::count(1)]),
+            tool: BodyRead::indexed(cut, vec![Formula::count(1)]).into(),
         },
     );
     let ev = run(&doc);
@@ -180,21 +180,21 @@ fn a_family_with_an_empty_member_refuses_whole_and_reads_its_bodies_by_index() {
         doc,
         Node::Subtract {
             from: indexed(0),
-            tool: indexed(2),
+            tool: indexed(2).into(),
         },
     );
     let (doc, less_empty) = insert(
         doc,
         Node::Subtract {
             from: indexed(2),
-            tool: indexed(1),
+            tool: indexed(1).into(),
         },
     );
     let (doc, empty_less) = insert(
         doc,
         Node::Subtract {
             from: indexed(1),
-            tool: indexed(0),
+            tool: indexed(0).into(),
         },
     );
     let ev = run(&doc);
@@ -370,7 +370,7 @@ fn product_with_an_empty_member(empty: usize) -> (usize, usize, Vec<topo::Valida
         doc,
         Node::Subtract {
             from: BodyRead::plain(Operand::Node(row)),
-            tool: BodyRead::plain(Operand::Node(tool)),
+            tool: BodyRead::plain(Operand::Node(tool)).into(),
         },
     );
     let (doc, _) = fixture::place(doc, cut);
@@ -457,7 +457,7 @@ fn a_family_every_member_of_which_is_empty_gathers_as_an_empty_result_does() {
         empty_doc,
         Node::Subtract {
             from: BodyRead::plain(Operand::Node(b)),
-            tool: BodyRead::plain(Operand::Node(b)),
+            tool: BodyRead::plain(Operand::Node(b)).into(),
         },
     );
     let (empty_doc, _) = fixture::place(empty_doc, less);

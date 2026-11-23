@@ -46,11 +46,11 @@ use crate::errors::{dimension_tag, slot_kind_tag, var_kind_tag};
 use crate::tags::{attr_kind_tag, slot_id_tag};
 
 /// The position a slot names inside a list, for a loft's section or a
-/// union's member.
+/// union's member or a subtract's tool.
 fn operand_index(slot: &pncad::document::SlotId) -> Option<usize> {
     use pncad::document::OperandSlot as S;
     match slot {
-        pncad::document::SlotId::Operand(S::Section(i) | S::Member(i)) => Some(*i),
+        pncad::document::SlotId::Operand(S::Section(i) | S::Member(i) | S::Cut(i)) => Some(*i),
         _ => None,
     }
 }

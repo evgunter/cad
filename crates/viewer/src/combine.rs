@@ -32,7 +32,7 @@ use pncad::select::SplitHalf;
 use pncad::topo::BooleanOp;
 
 use crate::seats::{
-    FaceRole, PlaneRole, Port, Seat, SeatError, SeatEvent, Seats, pick_said, picks_line, seat_line,
+    FaceRole, PlaneRole, Port, Seat, SeatError, SeatEvent, Seats, pick_said, picks_line,
 };
 use crate::session::{
     AssertedClaim, AssertedSeat, BooleanSpec, FaceSelection, PartSelectSpec, PatternDirection,
@@ -44,44 +44,103 @@ use pncad::document::pose::{PoseRole, RoleRead};
 use pncad::document::{SpokenVar, VarId, VarKind};
 
 /// **The boolean tool**: one operation choice and the body picks it
-/// takes — any number for union and intersect, two seats for subtract —
-/// committing one [`SessionOp::AddBoolean`].
+/// takes — any number for union and intersect, the body kept and any
+/// number of tools for subtract — committing one
+/// [`SessionOp::AddBoolean`].
 ///
 /// **The operation is the tool's own state, not a form draft**, because
 /// it decides what a pick DOES: a union or an intersect appends every
 /// pick to its member list (a node picked twice is listed twice, which
-/// glues), while a subtraction fills two role-typed seats on the
-/// [`crate::seats`] rule — the body KEPT, then the body REMOVED, a
-/// further pick replacing the removed one. The operand order is DATA
-/// for subtract only, so only subtract names its picks by role.
+/// glues), while a subtraction fills its role-typed seats — the body
+/// KEPT, then each body REMOVED, every further pick appending a tool
+/// (DM4: the cut is the fold over its tools). The operand order is DATA
+/// for subtract's kept body only, so only subtract names its picks by
+/// role.
+///
+/// **A family picked whole at a member or a tool seat (a `Bodies`) is
+/// every member**, and the panel says so ([`crate::seats::pick_said`]).
+/// A viewport pick on a drawn copy reads that member (`xs[i]`).
 ///
 /// **Changing the operation re-seats what is held**, in pick order: a
-/// member list becomes the subtraction's two seats from its first two
-/// members (any further members are let go, and the panel line shows
-/// the result), and two seats become a member list of what they hold.
-/// Nothing is re-read from the document, so a pick keeps the label it
-/// was spoken with until the next respeak.
+/// member list becomes the subtraction's body kept and its tools, and
+/// the subtraction's picks become a member list. Nothing is re-read
+/// from the document, so a pick keeps the label it was spoken with
+/// until the next respeak.
 ///
-/// **A member drop closes up the list** (a member's place in a union is
-/// its fold order, and the members after it keep theirs relative to
-/// each other), where a seat drop empties its seat without promoting
-/// the survivor ([`crate::seats`]).
+/// **A member or a tool drop closes up its list** (a member's place in
+/// a union is its fold order, and the members after it keep theirs
+/// relative to each other), where a drop of the body kept empties its
+/// seat without promoting a tool ([`crate::seats`]).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BooleanTool {
     op: BooleanOp,
     held: BooleanPicks,
 }
 
+/// One pick of the boolean tool: its node as the document last spoke
+/// it, and the port it reads.
+type Pick = (SpokenNode, Port);
+
 /// What the boolean tool holds, by the shape its operation takes. The
-/// tool keeps the two in step: [`BooleanPicks::Pair`] exactly when its
+/// tool keeps the two in step: [`BooleanPicks::Cut`] exactly when its
 /// operation is [`BooleanOp::Subtract`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum BooleanPicks {
-    /// A union's or an intersect's members, in pick order, each with
-    /// the port it reads.
-    Members(Vec<(SpokenNode, Port)>),
-    /// A subtraction's two seats.
-    Pair(Seats),
+    /// A union's or an intersect's members, in pick order.
+    Members(Vec<Pick>),
+    /// A subtraction's body kept, and its tools in pick order. Pick `0`
+    /// is the body kept and pick `k + 1` tool `k`.
+    Cut {
+        /// The body kept.
+        from: Option<Pick>,
+        /// The bodies removed.
+        tools: Vec<Pick>,
+    },
+}
+
+impl BooleanPicks {
+    /// Every pick, by its place: a member, or for a subtraction the body
+    /// kept (open or held) and then each tool.
+    fn at(&self, i: usize) -> Option<&Pick> {
+        match self {
+            Self::Members(members) => members.get(i),
+            Self::Cut { from, tools } => match i {
+                0 => from.as_ref(),
+                k => tools.get(k - 1),
+            },
+        }
+    }
+
+    /// [`Self::at`], writable.
+    fn at_mut(&mut self, i: usize) -> Option<&mut Pick> {
+        match self {
+            Self::Members(members) => members.get_mut(i),
+            Self::Cut { from, tools } => match i {
+                0 => from.as_mut(),
+                k => tools.get_mut(k - 1),
+            },
+        }
+    }
+
+    /// Every held pick with its place, in operand order.
+    fn each(&self) -> Vec<(usize, &Pick)> {
+        match self {
+            Self::Members(members) => members.iter().enumerate().collect(),
+            Self::Cut { from, tools } => from
+                .iter()
+                .map(|pick| (0, pick))
+                .chain(tools.iter().enumerate().map(|(k, pick)| (k + 1, pick)))
+                .collect(),
+        }
+    }
+
+    /// Every pick's node, mutable, for a respeak.
+    fn each_mut(&mut self) -> Vec<&mut Pick> {
+        match self {
+            Self::Members(members) => members.iter_mut().collect(),
+            Self::Cut { from, tools } => from.iter_mut().chain(tools.iter_mut()).collect(),
+        }
+    }
 }
 
 impl Default for BooleanTool {
@@ -109,55 +168,77 @@ impl BooleanTool {
         let held = core::mem::replace(&mut self.held, BooleanPicks::Members(Vec::new()));
         self.held = match (held, op) {
             (BooleanPicks::Members(members), BooleanOp::Subtract) => {
-                let mut first = members.into_iter();
-                // A seat holds what a member held, port and all.
-                BooleanPicks::Pair(Seats::holding(
-                    // The subtraction's seats, kept then removed.
-                    [Seat::SubtractFrom, Seat::SubtractTool],
-                    [first.next(), first.next()],
-                ))
+                let mut members = members.into_iter();
+                BooleanPicks::Cut {
+                    from: members.next(),
+                    tools: members.collect(),
+                }
             }
-            (BooleanPicks::Pair(seats), BooleanOp::Union | BooleanOp::Intersect) => {
-                BooleanPicks::Members(seats.spoken())
+            (BooleanPicks::Cut { from, tools }, BooleanOp::Union | BooleanOp::Intersect) => {
+                BooleanPicks::Members(from.into_iter().chain(tools).collect())
             }
             (held, _) => held,
         };
         self.op = op;
     }
 
-    /// The held picks' nodes, in the node's operand order: the members,
-    /// or the subtraction's filled seats (kept, then removed).
-    pub fn picks(&self) -> Vec<RecipeNodeId> {
-        match &self.held {
-            BooleanPicks::Members(members) => members.iter().map(|(node, _)| node.id()).collect(),
-            BooleanPicks::Pair(seats) => (0..2).filter_map(|i| seats.held(i)).collect(),
+    /// **The seat pick `i` sits in**: a member, or for a subtraction the
+    /// body kept (`0`) or a tool.
+    fn seat(&self, i: usize) -> Seat {
+        match (&self.held, i) {
+            (BooleanPicks::Members(_), _) => Seat::Member,
+            (BooleanPicks::Cut { .. }, 0) => Seat::SubtractFrom,
+            (BooleanPicks::Cut { .. }, _) => Seat::SubtractTool,
         }
+    }
+
+    /// **Pick `i` as the panel line calls it**: a member by its place in
+    /// the list, the body kept by its role, and a tool by its role, and
+    /// by its place among several.
+    pub fn pick_called(&self, i: usize) -> String {
+        match &self.held {
+            BooleanPicks::Members(_) => format!("{} {}", Seat::Member.name(), i + 1),
+            BooleanPicks::Cut { .. } if i == 0 => Seat::SubtractFrom.name().to_owned(),
+            BooleanPicks::Cut { tools, .. } if tools.len() <= 1 => {
+                Seat::SubtractTool.name().to_owned()
+            }
+            BooleanPicks::Cut { .. } => format!("{} {i}", Seat::SubtractTool.name()),
+        }
+    }
+
+    /// The held picks' nodes, in the node's operand order: the members,
+    /// or the subtraction's body kept and then its tools.
+    pub fn picks(&self) -> Vec<RecipeNodeId> {
+        self.held
+            .each()
+            .into_iter()
+            .map(|(_, (node, _))| node.id())
+            .collect()
     }
 
     /// Whether anything is held.
     pub fn is_empty(&self) -> bool {
-        match &self.held {
-            BooleanPicks::Members(members) => members.is_empty(),
-            BooleanPicks::Pair(seats) => seats.is_empty(),
-        }
+        self.held.each().is_empty()
     }
 
-    /// **The panel's held-picks line**: a subtraction's two seats by
-    /// role ([`crate::seats::seat_line`]), a member list as `member 1`,
-    /// `member 2`, … in pick order — the same composition
+    /// **The panel's held-picks line**: a member list as `member 1`,
+    /// `member 2`, … in pick order, a subtraction's picks by role, its
+    /// two seats said open while empty — the same composition
     /// ([`crate::seats::picks_line`]), each pick said by `by` as a seat
     /// says one ([`crate::seats::pick_said`]).
     pub fn line(&self, by: Speaker<'_>) -> String {
+        let said = |i: usize| {
+            self.held
+                .at(i)
+                .map(|(node, port)| pick_said(by, node, port, self.seat(i)))
+        };
         match &self.held {
             BooleanPicks::Members(members) => {
-                picks_line(members.iter().enumerate().map(|(i, (node, port))| {
-                    (
-                        format!("{} {}", Seat::Member.name(), i + 1),
-                        Some(pick_said(by, node, port)),
-                    )
-                }))
+                picks_line((0..members.len()).map(|i| (self.pick_called(i), said(i))))
             }
-            BooleanPicks::Pair(seats) => seat_line(seats, by),
+            BooleanPicks::Cut { tools, .. } => {
+                picks_line((0..=tools.len().max(1)).map(|i| (self.pick_called(i), said(i))))
+            }
         }
     }
 
@@ -171,45 +252,43 @@ impl BooleanTool {
     /// split's half is read by its port and a family's member by its
     /// index values. A split picked in the tree waits for its half
     /// ([`Self::choose_half`]); a family picked there is read whole
-    /// until one member is chosen ([`Self::choose_member`]).
+    /// until one member is chosen ([`Self::choose_member`]). A
+    /// subtraction's pick fills the body kept while it is open, and
+    /// appends a tool after.
     pub fn pick_at(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: Option<u32>) {
+        // A pick is read as the drawn body it lands on
+        // ([`crate::world::seat_read`]).
+        let read = crate::world::seat_read(doc, node, body);
+        let pick = |seat| {
+            (
+                doc.spoken(read.0),
+                Port::at_seat(doc, node, read, body, seat),
+            )
+        };
         match &mut self.held {
-            // A pick is read as the drawn body it lands on
-            // ([`crate::world::seat_read`]), as in the two seats.
-            BooleanPicks::Members(members) => {
-                let read = crate::world::seat_read(doc, node, body);
-                let port = Port::at_seat(doc, node, read, body, Seat::Member);
-                members.push((doc.spoken(read.0), port));
-            }
-            BooleanPicks::Pair(seats) => seats.pick_at(doc, node, body),
+            BooleanPicks::Members(members) => members.push(pick(Seat::Member)),
+            BooleanPicks::Cut { from, tools } => match from {
+                None => *from = Some(pick(Seat::SubtractFrom)),
+                Some(_) => tools.push(pick(Seat::SubtractTool)),
+            },
         }
     }
 
     /// **The half pick `i` reads**, when it holds a split picked alone:
-    /// member `i` of a union or an intersect, seat `i` of a subtraction.
+    /// member `i` of a union or an intersect, pick `i` of a subtraction.
     pub fn choose_half(&mut self, i: usize, half: SplitHalf) {
-        match &mut self.held {
-            BooleanPicks::Members(members) => {
-                if let Some((_, port)) = members.get_mut(i) {
-                    *port = core::mem::replace(port, Port::ALONE).chosen(half);
-                }
-            }
-            BooleanPicks::Pair(seats) => seats.choose_half(i, half),
+        if let Some((_, port)) = self.held.at_mut(i) {
+            *port = core::mem::replace(port, Port::ALONE).chosen(half);
         }
     }
 
     /// **The member pick `i` reads**, by its index values
     /// ([`crate::world::members_of`]), where it reads a family nothing
     /// copies, whole or one member: member `i` of a union or an
-    /// intersect, seat `i` of a subtraction. A no-op on any other pick.
+    /// intersect, pick `i` of a subtraction. A no-op on any other pick.
     pub fn choose_member(&mut self, i: usize, at: Vec<i64>) {
-        match &mut self.held {
-            BooleanPicks::Members(members) => {
-                if let Some((_, port)) = members.get_mut(i) {
-                    *port = core::mem::replace(port, Port::ALONE).chosen_member(at);
-                }
-            }
-            BooleanPicks::Pair(seats) => seats.choose_member(i, at),
+        if let Some((_, port)) = self.held.at_mut(i) {
+            *port = core::mem::replace(port, Port::ALONE).chosen_member(at);
         }
     }
 
@@ -217,71 +296,73 @@ impl BooleanTool {
     /// order: each pick's index and the family — the picks whose
     /// member a panel may choose.
     pub fn family_picks(&self) -> Vec<(usize, RecipeNodeId)> {
-        match &self.held {
-            BooleanPicks::Members(members) => members
-                .iter()
-                .enumerate()
-                .filter(|(_, (_, port))| port.reads_family())
-                .map(|(i, (node, _))| (i, node.id()))
-                .collect(),
-            BooleanPicks::Pair(seats) => (0..2)
-                .filter(|&i| seats.reads_family(i))
-                .filter_map(|i| Some((i, seats.held(i)?)))
-                .collect(),
-        }
+        self.held
+            .each()
+            .into_iter()
+            .filter(|(_, (_, port))| port.reads_family())
+            .map(|(i, (node, _))| (i, node.id()))
+            .collect()
     }
 
     /// The indices of the picks still waiting for a half, in pick
     /// order.
     pub fn awaiting_half(&self) -> Vec<usize> {
-        match &self.held {
-            BooleanPicks::Members(members) => members
-                .iter()
-                .enumerate()
-                .filter(|(_, (_, port))| port.awaits_half())
-                .map(|(i, _)| i)
-                .collect(),
-            BooleanPicks::Pair(seats) => (0..2).filter(|&i| seats.awaits_half(i)).collect(),
-        }
+        self.held
+            .each()
+            .into_iter()
+            .filter(|(_, (_, port))| port.awaits_half())
+            .map(|(i, _)| i)
+            .collect()
     }
 
     /// Drop every pick, keeping the operation.
     pub fn clear(&mut self) {
         match &mut self.held {
             BooleanPicks::Members(members) => members.clear(),
-            BooleanPicks::Pair(seats) => seats.clear(),
+            BooleanPicks::Cut { from, tools } => {
+                *from = None;
+                tools.clear();
+            }
         }
     }
 
-    /// The survival step ([`crate::seats`]): a member whose node left
-    /// the document leaves the list, a seat's pick empties its seat.
+    /// The survival step ([`crate::seats`]): a member or a tool whose
+    /// node left the document leaves its list, and the body kept empties
+    /// its seat.
     pub fn reconcile(&mut self, doc: &Doc<ProfileProgram>) -> Vec<SeatEvent> {
+        let lost = |list: &mut Vec<Pick>, seat: Seat| {
+            let (kept, gone): (Vec<_>, Vec<_>) = core::mem::take(list)
+                .into_iter()
+                .partition(|(node, _)| doc.node(node.id()).is_some());
+            *list = kept;
+            gone.into_iter()
+                .map(|(node, _)| SeatEvent::PickLost { seat, node })
+                .collect::<Vec<_>>()
+        };
         match &mut self.held {
-            BooleanPicks::Members(members) => {
-                let (kept, lost): (Vec<_>, Vec<_>) = core::mem::take(members)
-                    .into_iter()
-                    .partition(|(node, _)| doc.node(node.id()).is_some());
-                *members = kept;
-                lost.into_iter()
-                    .map(|(node, _)| SeatEvent::PickLost {
-                        seat: Seat::Member,
+            BooleanPicks::Members(members) => lost(members, Seat::Member),
+            BooleanPicks::Cut { from, tools } => {
+                let mut events = Vec::new();
+                if from
+                    .as_ref()
+                    .is_some_and(|(node, _)| doc.node(node.id()).is_none())
+                    && let Some((node, _)) = from.take()
+                {
+                    events.push(SeatEvent::PickLost {
+                        seat: Seat::SubtractFrom,
                         node,
-                    })
-                    .collect()
+                    });
+                }
+                events.extend(lost(tools, Seat::SubtractTool));
+                events
             }
-            BooleanPicks::Pair(seats) => seats.reconcile(doc),
         }
     }
 
     /// The held picks spoken again from `doc` ([`Seats::respeak`]).
     pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
-        match &mut self.held {
-            BooleanPicks::Members(members) => {
-                for (node, _) in members.iter_mut() {
-                    *node = node.respoken(doc);
-                }
-            }
-            BooleanPicks::Pair(seats) => seats.respeak(doc),
+        for (node, _) in self.held.each_mut() {
+            *node = node.respoken(doc);
         }
     }
 
@@ -291,33 +372,38 @@ impl BooleanTool {
     /// # Errors
     ///
     /// [`SeatError::Empty`] naming [`Seat::Member`] while a union or an
-    /// intersect holds no member, and naming the first empty seat while
-    /// a subtraction lacks one; [`SeatError::HalfUnchosen`] while a
-    /// pick holds a split whose half is not chosen. Node kinds refuse at
-    /// the session door.
+    /// intersect holds no member, and naming the body kept, then the
+    /// body removed, while a subtraction lacks one;
+    /// [`SeatError::HalfUnchosen`] while a pick holds a split whose half
+    /// is not chosen. Node kinds refuse at the session door.
     pub fn spec(&self) -> Result<BooleanSpec, SeatError> {
+        let read = |i: usize| -> Result<_, SeatError> {
+            let seat = self.seat(i);
+            let (node, port) = self.held.at(i).ok_or(SeatError::Empty { seat })?;
+            if port.awaits_half() {
+                return Err(SeatError::HalfUnchosen { seat });
+            }
+            Ok(port.body_read(node.id()))
+        };
         match &self.held {
             BooleanPicks::Members(members) if members.is_empty() => {
                 Err(SeatError::Empty { seat: Seat::Member })
             }
             BooleanPicks::Members(members) => {
-                if members.iter().any(|(_, port)| port.awaits_half()) {
-                    return Err(SeatError::HalfUnchosen { seat: Seat::Member });
-                }
-                let members = members
-                    .iter()
-                    .map(|(node, port)| port.body_read(node.id()))
-                    .collect();
+                let members = (0..members.len()).map(read).collect::<Result<_, _>>()?;
                 Ok(if self.op == BooleanOp::Intersect {
                     BooleanSpec::Intersect(members)
                 } else {
                     BooleanSpec::Union(members)
                 })
             }
-            BooleanPicks::Pair(seats) => Ok(BooleanSpec::Subtract {
-                from: seats.require_body_read(0)?,
-                tool: seats.require_body_read(1)?,
-            }),
+            BooleanPicks::Cut { tools, .. } => {
+                let from = read(0)?;
+                let tool = (1..=tools.len().max(1))
+                    .map(read)
+                    .collect::<Result<_, _>>()?;
+                Ok(BooleanSpec::Subtract { from, tool })
+            }
         }
     }
 
@@ -1106,7 +1192,9 @@ impl AssertionTool {
     /// as a seat says its node, a face as the chrome says a held pick.
     pub fn line(&self, by: Speaker<'_>) -> String {
         let said = |i: usize| match &self.picks[i] {
-            Some(AssertedPick::Body(node)) => Some(pick_said(by, node, &Port::ALONE)),
+            Some(AssertedPick::Body(node)) => {
+                Some(pick_said(by, node, &Port::ALONE, asserted(i).0))
+            }
             Some(AssertedPick::Face(held)) => Some(Said(held, by).sentence().to_string()),
             Some(AssertedPick::Minted(reference)) => Some(minted_said(reference, by)),
             None => None,
