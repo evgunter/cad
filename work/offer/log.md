@@ -300,3 +300,15 @@ The local disk has 8 GB free and two lane targets are live, so these lanes run a
   - **Dispatched now on Opus:** `some-spoken-causes-and-reports-are-still-text` (kernel side, so it is clear of the offers PR's viewer sites): session_013QoYWXqCH3gHdpWprRxMis, branch `offer/spoken-causes-are-sentences`.
   - **After offers merges:** `viewer-pane-lines-spell-their-nodes-as-text` and `the-wheels-modifier-decisions-are-outside-the-binding-table`.
   - **Held:** the four +design P2 rows (stranded-name rebind, expected component count, the tolerance door, the member-budget door). The design-fork protocol needs a Fable designer, and Fable is out until Nov 28 15:00 UTC. (OFFER orchestrator)
+- 2026-11-23 13:09Z — **#7562 adjudicated on the union of R1 and R2. Both say APPROVE-WITH-FIXES.**
+  - **R2 demonstrated a MAJOR, which R1 rated MINOR:** the "ruled out by type" claim is false. `Quieting` and `QuietingRef` have pub fields, so a raw-name `Minted` seat is still buildable. The fix privatises them, with a compile_fail doctest.
+  - **The rest of the union:**
+    - the door has no check of its own: a duplicate or same-batch Commit is accepted (a batch rule plus a door check);
+    - the tolerance words flicker;
+    - there is no census of the no-offer class arms;
+    - the mate arms need Leads into the placement editor;
+    - two inventory gaps;
+    - five surviving mutants;
+    - `Current`'s pairing is untyped;
+    - style items, including one source for the beside-its-assertion rule.
+  - **The fix pass** went to the lane with the #7557 port. No row (rule 12). (OFFER orchestrator)
