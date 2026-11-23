@@ -69,3 +69,11 @@ From the conic fork's last probe (`analysis/oneround/conic-vertex-probes`, `anal
 - At ε = 1e-12 neither builds at any D from 3e3 m up: the revolve refuses `KernelLimit` 1.0e-11 at 3e3 and 3.7e-11 at 1e4; the extrude `KernelLimit` 2.8e-12 at 3e3.
 
 So a gently curved wall whose axis lies 3 km off is refused as a kernel limit at ε = 1e-12 today, with every point of the body inside the box. The conic's stored point does not reach this: the wall's own surface is stored by the far axis.
+
+## A question beside this row, from the conic-reader fork (2026-11-23)
+
+One designer raised, and none folded into PR 7523, that the README's consumed-extent clause ("a datum fixed by a carrier's form (an apex, a centre) is read there") names a conic's centre as a place to read a lever at, which the conic's own clause now calls a datum of the whole conic and not a position. Whether that clause changes belongs with this row's design question.
+
+## Moved to CONIC (2026-11-23)
+
+Moved from ONEROUND by `git mv` when that track was split on Ev's answer to PR 7523 (`work/conic/log.md`); the id and the body above are unchanged.

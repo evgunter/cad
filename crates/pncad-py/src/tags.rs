@@ -3242,7 +3242,6 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::SolidWithoutShells { .. } => "solid_without_shells",
         ValidationError::ShellWithoutFaces { .. } => "shell_without_faces",
         ValidationError::EdgeAcrossShells { .. } => "edge_across_shells",
-        ValidationError::ComponentEulerViolation { .. } => "component_euler_violation",
         ValidationError::MissingProvenance { .. } => "missing_provenance",
         ValidationError::LeakedProvenance { .. } => "leaked_provenance",
         ValidationError::ScaffoldingEmptyLoop { .. } => "scaffolding_empty_loop",
