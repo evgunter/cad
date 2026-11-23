@@ -621,7 +621,7 @@ impl Recourse {
         self,
         quieting: Option<&crate::checks::quieting::Quieting>,
         by: crate::spoken::Speaker<'_>,
-    ) -> std::borrow::Cow<'static, str> {
+    ) -> crate::Sentence {
         const ONE_CONSTRUCTION: &str = "Recourse: build the cells as one construction of the \
                                         same variables, so the coincidence holds whatever their \
                                         values";
@@ -629,21 +629,23 @@ impl Recourse {
         // Each reason once, behind the assertion where one says the row
         // and behind the construction where none does.
         let either = |why: &str| match &claim {
-            Some(claim) => format!("Recourse: assert {claim}; {why}"),
-            None => format!("Recourse: build the cells as one construction the door reads; {why}"),
+            Some(claim) => crate::sentence!("Recourse: assert ", claim, format_args!("; {why}")),
+            None => crate::Sentence::from(
+                format!("Recourse: build the cells as one construction the door reads; {why}")
+                    .as_str(),
+            ),
         };
         match self {
             Self::OneConstruction => match &claim {
-                Some(claim) => format!("{ONE_CONSTRUCTION}, or assert {claim}").into(),
-                None => ONE_CONSTRUCTION.into(),
+                Some(claim) => crate::sentence!(ONE_CONSTRUCTION, ", or assert ", claim),
+                None => crate::Sentence::from(ONE_CONSTRUCTION),
             },
             Self::Assert => {
-                either("the door cannot read what decided it as a function of the variables").into()
+                either("the door cannot read what decided it as a function of the variables")
             }
             Self::Budget => either(
                 "what decided it, read as a function of the variables, outgrew the door's budget",
-            )
-            .into(),
+            ),
             Self::ReadTheAxis => {
                 "Recourse: draw the profile on the face the traced face's sweep was drawn on or a \
                  face mated flat onto its cap, or on a frame whose z is read off the traced face's \
@@ -688,14 +690,19 @@ pub(crate) const fn relation_words(relation: topo::Relation) -> &'static str {
 /// ([`NamedCoincidence::meet`]).
 pub(crate) fn statement_words(
     row: &NamedCoincidence,
-    cell: impl Fn(&NamedCell) -> String,
-) -> String {
+    cell: impl Fn(&NamedCell) -> crate::Sentence,
+) -> crate::Sentence {
     match row.cells.as_slice() {
-        [a, b] => format!("{} {} {}", cell(a), relation_words(row.relation), cell(b)),
-        [init @ .., last] if !init.is_empty() => format!(
-            "{} and {} share one point",
-            init.iter().map(&cell).collect::<Vec<_>>().join(", "),
-            cell(last)
+        [a, b] => crate::sentence!(
+            cell(a),
+            format_args!(" {} ", relation_words(row.relation)),
+            cell(b)
+        ),
+        [init @ .., last] if !init.is_empty() => crate::sentence!(
+            crate::Sentence::joined(init.iter().map(&cell), ", "),
+            " and ",
+            cell(last),
+            " share one point"
         ),
         _ => unreachable!("a coincidence row holds two cells or more: {row:?}"),
     }

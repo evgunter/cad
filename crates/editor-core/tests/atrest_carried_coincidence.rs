@@ -207,16 +207,19 @@ fn a_parts_unproven_rest_is_reported_through_its_instance() {
         }
         let said = editor_core::spoken_by(&found[0], &doc);
         assert!(
-            said.contains("base-block")
-                && said.contains("rest-plate")
-                && said.contains("leaves a coincidence of its own unproven, at Union"),
+            said.to_string().contains("base-block")
+                && said.to_string().contains("rest-plate")
+                && said
+                    .to_string()
+                    .contains("leaves a coincidence of its own unproven, at Union"),
             "the caps said by the part's labels, at the part's union: {said}"
         );
         assert!(
-            said.ends_with(&format!(
+            said.to_string().ends_with(&format!(
                 "the row is the part's, so act in document {}: {}",
                 part.id(),
                 editor_core::spoken_by(&own[0], &part_in_world)
+                    .to_string()
                     .rsplit_once(" — ")
                     .expect("the part's own finding ends in its recourse")
                     .1
@@ -340,7 +343,8 @@ fn a_carried_contact_is_quiet_by_the_parts_assertion_alone() {
         );
         let said = editor_core::spoken_by(f, &doc);
         assert!(
-            said.contains(", at copies ") && said.contains("quiet: the part's Assertion"),
+            said.to_string().contains(", at copies ")
+                && said.to_string().contains("quiet: the part's Assertion"),
             "at the part's copies, quiet by the part's assertion, said from the part: {said}"
         );
     }
@@ -390,11 +394,24 @@ fn a_part_two_documents_down_is_reported_once_by_its_route() {
                 row.route
                     .via
                     .iter()
-                    .map(editor_core::SpokenNode::id)
+                    .map(|hop| (hop.node.id(), hop.document))
                     .collect::<Vec<_>>()
             ),
-            (ids[0], part.id(), vec![inner]),
+            (ids[0], part.id(), vec![(inner, mid.id())]),
             "of the part, through the top's instance, via the middle's"
+        );
+        let said = editor_core::spoken_by(&row.route, &top);
+        let mentions: Vec<_> = said
+            .mentions()
+            .map(|m| (m.node().map(editor_core::SpokenNode::id), m.document()))
+            .collect();
+        assert_eq!(
+            mentions,
+            vec![
+                (Some(ids[0]), Some(top.id())),
+                (Some(inner), Some(mid.id()))
+            ],
+            "each hop is mentioned in its own document: {said}"
         );
     }
 }
@@ -448,7 +465,7 @@ fn a_leaf_under_two_middles_is_reported_once() {
                     row.route
                         .via
                         .iter()
-                        .map(editor_core::SpokenNode::id)
+                        .map(|hop| hop.node.id())
                         .collect::<Vec<_>>()
                 ),
                 (a, vec![inner]),
@@ -716,7 +733,10 @@ fn two_pins_are_two_rows_each_said_from_its_own_version() {
         };
         assert_eq!(row.pin, pin, "the instance's own pin");
         let said = editor_core::spoken_by(f, &doc);
-        assert!(said.contains(want) && !said.contains(not), "{want}: {said}");
+        assert!(
+            said.to_string().contains(want) && !said.to_string().contains(not),
+            "{want}: {said}"
+        );
     }
 }
 

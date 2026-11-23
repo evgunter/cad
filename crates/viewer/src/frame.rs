@@ -225,6 +225,7 @@
 //! a fault about the document on screen outlives every frame the
 //! camera moves in.
 
+use pncad::document::sentence;
 use std::path::Path;
 
 use pncad::document::{
@@ -1471,8 +1472,14 @@ pub fn maintenance_notices(rows: &[Maintenance]) -> impl Iterator<Item = Message
     rows.iter().filter_map(maintenance_notice).chain(
         // Nothing evaluates differently in a way that names it: the
         // copy simply stops reading the values.
-        Maintenance::values_dropped(rows)
-            .map(|said| Message::new(Subject::Document, said.to_string(), Retold::Never)),
+        Maintenance::values_dropped(rows).map(|said| {
+            Message::new(
+                Subject::Document,
+                (pncad::document::Said(&said, pncad::document::Speaker::TAG).sentence())
+                    .to_string(),
+                Retold::Never,
+            )
+        }),
     )
 }
 
@@ -2154,7 +2161,7 @@ pub fn pick_refusal(
     let by = Speaker::of(doc).within(evaluation);
     Message::new(
         Subject::Document,
-        Said(error, by).to_string(),
+        Said(error, by).sentence().to_string(),
         Retold::Again,
     )
 }
@@ -2443,9 +2450,14 @@ fn coincidence_cells(
                     .filter(|_| matches!(name.kind, EntityKind::Face | EntityKind::Edge));
                 let Some(on) = on else {
                     let node = landed.operation_of(*input)?;
-                    return Some((by.name(name).to_string(), Selection::Node(node)));
+                    return Some((
+                        pncad::document::sentence!(by.name(name)).to_string(),
+                        Selection::Node(node),
+                    ));
                 };
-                let label = Said(&crate::tree::PickedName::new(name, on), by).to_string();
+                let label = Said(&crate::tree::PickedName::new(name, on), by)
+                    .sentence()
+                    .to_string();
                 let (node, body, name) = (on.node(), on.body(), name.clone());
                 Some(match name.kind {
                     EntityKind::Face => {
@@ -2456,11 +2468,15 @@ fn coincidence_cells(
             }
             NamedCell::Tool { input, .. } => {
                 let node = landed.operation_of(*input)?;
-                Some((by.node(node).to_string(), Selection::Node(node)))
+                Some((
+                    pncad::document::sentence!(by.node(node)).to_string(),
+                    Selection::Node(node),
+                ))
             }
-            NamedCell::Piece { profile, .. } => {
-                Some((by.node(*profile).to_string(), Selection::Node(*profile)))
-            }
+            NamedCell::Piece { profile, .. } => Some((
+                pncad::document::sentence!(by.node(*profile)).to_string(),
+                Selection::Node(*profile),
+            )),
         })
         .collect()
 }
@@ -2484,8 +2500,8 @@ pub fn check_rows(report: &ChecksReport, landed: &Doc<ProfileProgram>) -> Vec<Ch
                 FindingSubject::Var(var) => {
                     return CheckRow {
                         select: Selection::Variable(var),
-                        button: by.read(var),
-                        sentence: Said(finding, by).to_string(),
+                        button: by.read(var).to_string(),
+                        sentence: Said(finding, by).sentence().to_string(),
                         cells: Vec::new(),
                         add_to_product: None,
                     };
@@ -2517,8 +2533,8 @@ pub fn check_rows(report: &ChecksReport, landed: &Doc<ProfileProgram>) -> Vec<Ch
             .then_some(node);
             CheckRow {
                 select: Selection::Node(node),
-                button: by.node(node).to_string(),
-                sentence: Said(finding, by).to_string(),
+                button: (pncad::document::sentence!(by.node(node))).to_string(),
+                sentence: Said(finding, by).sentence().to_string(),
                 cells: coincidence_cells(finding, by, landed),
                 add_to_product,
             }
@@ -2550,7 +2566,10 @@ pub fn product_recourse(
                 .filter(|&node| crate::world::body_read(doc, node, None).is_some())
                 .map(|node| {
                     (
-                        format!("Add {} to the product", by.node(node)),
+                        format!(
+                            "Add {} to the product",
+                            pncad::document::sentence!(by.node(node))
+                        ),
                         SessionOp::AddToProduct { node, body: None },
                     )
                 })
@@ -2562,7 +2581,10 @@ pub fn product_recourse(
             .filter(|&node| crate::world::movable_into_world(doc, node).is_some())
             .map(|node| {
                 (
-                    format!("Move {} into the world", by.node(node)),
+                    format!(
+                        "Move {} into the world",
+                        pncad::document::sentence!(by.node(node))
+                    ),
                     SessionOp::AddToProduct { node, body: None },
                 )
             })
@@ -2610,18 +2632,21 @@ pub fn placement_offers(
             let said = if copy == node {
                 format!(
                     "a placed copy of {}: a feature on it belongs to this copy alone",
-                    by.node(original)
+                    pncad::document::sentence!(by.node(original))
                 )
             } else {
                 format!(
                     "on the placed copy {} of {}: it belongs to that copy alone",
-                    by.node(copy),
-                    by.node(original)
+                    pncad::document::sentence!(by.node(copy)),
+                    pncad::document::sentence!(by.node(original))
                 )
             };
             return vec![PlacementOffer {
                 said,
-                label: format!("Go to the original body, {}", by.node(original)),
+                label: format!(
+                    "Go to the original body, {}",
+                    pncad::document::sentence!(by.node(original))
+                ),
                 op: SessionOp::Select(crate::session::Selection::Node(original)),
             }];
         }
@@ -2635,9 +2660,12 @@ pub fn placement_offers(
                 said: format!(
                     "{} copies {}, which this body is built on",
                     said.counted,
-                    by.read(row.body)
+                    pncad::document::sentence!(by.read(row.body))
                 ),
-                label: repoint_label(&said.named, &by.node(node).to_string()),
+                label: repoint_label(
+                    &said.named,
+                    &pncad::document::sentence!(by.node(node)).to_string(),
+                ),
                 op: SessionOp::RepointPlacements {
                     source: row.source,
                     onto: node.into(),
@@ -2676,8 +2704,8 @@ fn repointed(
         None => {
             let copy = placements
                 .first()
-                .map_or_else(|| by.read(source), |&copy| by.node(copy).to_string());
-            let named = format!("the copy {copy}");
+                .map_or_else(|| by.read(source), |&copy| sentence!(by.node(copy)));
+            let named = sentence!("the copy ", copy).to_string();
             Repointed {
                 counted: named.clone(),
                 named,
@@ -2725,7 +2753,10 @@ pub fn repoint_button(
         };
     };
     RepointButton {
-        label: repoint_label(&said.named, &by.node(node).to_string()),
+        label: repoint_label(
+            &said.named,
+            &pncad::document::sentence!(by.node(node)).to_string(),
+        ),
         op: crate::world::repoint_check(doc, source, node, tol)
             .map(|()| SessionOp::RepointPlacements {
                 source,
@@ -2900,7 +2931,13 @@ fn badge_site(kind: ProductErrorKind) -> BadgeSite {
 pub fn product_badge(fault: Option<&ProductError>, doc: &Doc<ProfileProgram>) -> Option<Badge> {
     fault
         .filter(|fault| badge_site(fault.kind()) == BadgeSite::Frame)
-        .map(|fault| Badge::read(Subject::Document, fault.spoken(doc), Tone::Actionable))
+        .map(|fault| {
+            Badge::read(
+                Subject::Document,
+                fault.spoken(doc).to_string(),
+                Tone::Actionable,
+            )
+        })
 }
 
 /// **What the chrome badges about the scene the picture is drawn
@@ -2966,7 +3003,10 @@ pub fn index_badge(
         let said = Said(error, by);
         return Some(Badge::read(
             PickIndexError::SUBJECT,
-            format!("pick index: {said} — nothing is drawn or picked until the index builds"),
+            format!(
+                "pick index: {said} — nothing is drawn or picked until the index builds",
+                said = said.sentence()
+            ),
             Tone::Actionable,
         ));
     }
@@ -2978,7 +3018,7 @@ pub fn index_badge(
                 crate::tree::cause_row(copy.node(), evaluation).is_none()
             })
         })
-        .map(|copy| Said(copy, by).to_string())
+        .map(|copy| Said(copy, by).sentence().to_string())
         .collect();
     let first = unreported.first()?;
     let label = match unreported.len() {
@@ -3123,7 +3163,7 @@ pub fn held_edges_badge(
             EdgeNamesRefused::SUBJECT,
             format!(
                 "held edges: the mark may leave some out — {}",
-                Said(&refused.value, refused.speaker(landed))
+                Said(&refused.value, refused.speaker(landed)).sentence()
             ),
             Tone::Advisory,
         )
