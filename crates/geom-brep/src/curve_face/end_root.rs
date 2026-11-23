@@ -709,3 +709,100 @@ mod rows {
         ));
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::print_stderr)]
+mod review_r2_probes {
+    //! R1 delta probe: circles on a sphere cap leaving its rim on a pipe
+    //! (cap centre (0,0,2), radius 1; pipe r = 1 below z = 2), at departure
+    //! angle β and small-circle tilt α; the door's window against the
+    //! side margin `junction_side` would read (restated here).
+    use super::*;
+    use geom_core::{Tol, Vec3};
+    #[test]
+    fn review_scan_cap_circles_side_vs_window() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let pipe = Surface::Cylinder {
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0)),
+            radius: 1.0,
+        };
+        let er = Vec3::new(1.0, 0.0, 0.0);
+        let (mut ok, mut side_fail) = (0, 0);
+        for ib in 0..60 {
+            let beta = 10f64.powf(-6.0 + 6.0 * ib as f64 / 60.0) * core::f64::consts::FRAC_PI_2;
+            if beta > core::f64::consts::FRAC_PI_2 { continue; }
+            let t = Vec3::new(0.0, beta.cos(), beta.sin());
+            let n0 = t.cross(er);
+            for ia in 0..9 {
+                let alpha = -1.2 + 2.4 * ia as f64 / 8.0;
+                let n = n0 * alpha.cos() + er * alpha.sin();
+                let centre = Point3::new(0.0, 0.0, 2.0) + n * alpha.sin();
+                let rho = alpha.cos();
+                let xdir = (Point3::new(1.0, 0.0, 2.0) - centre) / rho;
+                // orient so the tangent at phi = 0 is t: y = n × x must be t
+                let nn = if n.cross(xdir).dot(t) > 0.0 { n } else { -n };
+                let arc = Curve3::circle(centre, nn, rho, xdir);
+                let span = (0.0, 0.5_f64.min(core::f64::consts::PI * 0.9));
+                match end_window(&arc, span, SpanEnd::Start, &pipe, band) {
+                    Ok(w) => {
+                        ok += 1;
+                        let k = 1.0 / rho;
+                        let s = w.spread;
+                        let g = beta.sin() * s * (1.0 - (k * s).powi(2) / 6.0) - (k + 1.0) * s * s / 2.0;
+                        if g <= band.escalate() {
+                            side_fail += 1;
+                            eprintln!("SIDE beta={beta:.3e} alpha={alpha:.2} spread={s:.3e} g={g:.3e} w={w:?}");
+                        }
+                    }
+                    Err(e) => {
+                        if ia == 4 && ib % 6 == 0 { eprintln!("REF beta={beta:.3e} alpha={alpha:.2}: {e:?}"); }
+                    }
+                }
+            }
+        }
+        eprintln!("SUMMARY ok={ok} side_fail={side_fail}");
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::print_stderr)]
+mod review_r2_cone_probe {
+    use super::*;
+    use geom_core::{Tol, Vec3};
+    /// Sphere (0,0,2) r=1 below its latitude z=2.5, cone apex (0,0,4)
+    /// half-angle 30° above it: a cone–sphere π rim of radius √3/2. A great
+    /// circle of the sphere leaving the rim at angle β into the sphere.
+    #[test]
+    fn review_scan_cone_sphere_great_circles() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let cone = Surface::Cone {
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 4.0), Vec3::new(0.0, 0.0, -1.0), Vec3::new(1.0, 0.0, 0.0)),
+            half_angle: core::f64::consts::FRAC_PI_6,
+        };
+        let c = Point3::new(0.0, 0.0, 2.0);
+        let p = Point3::new(0.75_f64.sqrt(), 0.0, 2.5);
+        let x = p - c;
+        let down = Vec3::new(0.5, 0.0, -(0.75_f64.sqrt()));
+        let rim_r = 0.75_f64.sqrt();
+        eprintln!("CHECK residual at p {:e}", crate::implicit_residual(&cone, p));
+        let mut n_side = 0;
+        for ib in 0..40 {
+            let beta = 10f64.powf(-6.0 + 6.0 * ib as f64 / 40.0);
+            if beta > 1.5 { continue; }
+            let t = Vec3::new(0.0, beta.cos(), 0.0) + down * beta.sin();
+            let n = x.cross(t);
+            let arc = Curve3::circle(c, n, 1.0, x);
+            let got = end_window(&arc, (0.0, 0.5), SpanEnd::Start, &cone, band);
+            match got {
+                Ok(w) => {
+                    let s = w.spread;
+                    let g = beta.sin() * s * (1.0 - s * s / 6.0) - (1.0 + 1.0 / rim_r) * s * s / 2.0;
+                    let tag = if g > band.escalate() { "HOLDS" } else { n_side += 1; "SIDEFAILS" };
+                    eprintln!("CONE {tag} beta={beta:.3e} spread={s:.3e} g={g:.3e} whole={} at={:.3e}", w.whole, w.at);
+                }
+                Err(e) => eprintln!("CONE REF beta={beta:.3e}: {}", format!("{e:?}").chars().take(60).collect::<String>()),
+            }
+        }
+        eprintln!("CONE SUMMARY side_fails={n_side}");
+    }
+}
