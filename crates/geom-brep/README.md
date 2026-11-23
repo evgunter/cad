@@ -1304,6 +1304,11 @@ spiric's own plane, so it meets a plane not parallel to that one only
 on the line where the two planes meet, which the line × torus door reads
 against the spiric's own torus over the stretch of the line on the
 oval's side of the axis's projection on the spiric's plane, each root's minor angle the span's parameter.
+It rereads the count on the two lines of the spiric's plane the band's
+escalation off the cutting plane, the line moved `escalate/s` across
+itself for a tilt sine `s`, and refuses a count they do not keep: a miss
+or a dip of the oval within the escalation of the cutting plane, at any
+lean.
 A span
 on one of two cylinders of equal radii whose axes meet is read against
 the other through their bisector planes (`factored_crossing`), reached

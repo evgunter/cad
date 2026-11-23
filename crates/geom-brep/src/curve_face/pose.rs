@@ -127,11 +127,14 @@ pub(super) enum Formed<T: Real> {
     TorusWalk { floor: T },
     /// A spiric across a plane not parallel to its own: the line where
     /// the two planes meet, a unit direction from its point nearest the
-    /// spiric's foot ([`super::spiric_plane`]), and `across`, the unit in
-    /// the spiric's plane square to the line.
+    /// spiric's foot ([`super::spiric_plane`]), `across`, the unit in
+    /// the spiric's plane square to the line, and `tilt`, the planes' tilt
+    /// sine, past the parallel rung: a move `d` along `across` is a height
+    /// `d·tilt` off the plane.
     SpiricPlane {
         line: geom::Line<T>,
         across: geom_core::Vec3<T>,
+        tilt: T,
     },
 }
 
@@ -836,6 +839,7 @@ fn spiric_plane<T: Decide>(
             dir: along,
         },
         across,
+        tilt: s,
     })))
 }
 
