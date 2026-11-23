@@ -1456,7 +1456,12 @@ fn route<T: Decide>(
         return if definite_as(row::TILT, Margin::levered(tilt, lever), band)? {
             Ok(Route::Crossing)
         } else {
-            unreachable!("a tilt not Zero over the nearer span's reach is Zero over the farther's")
+            // Every pose has a line span, whose reach is exact, so the
+            // farther reach from below is no shorter than the nearer from
+            // above: `max(r, b) ≥ r ≥ min(r, a)`.
+            unreachable!(
+                "a tilt not Zero over the nearer span's reach read Zero over the farther's"
+            )
         };
     }
     let offset = decide(row::OFFSET, Margin::of(offset), band);

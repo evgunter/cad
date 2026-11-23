@@ -250,3 +250,45 @@ fn a_crossing_reads_the_farther_span_from_below() {
         "the tilt escalates over the arc: {got:?}"
     );
 }
+
+/// **The spans' reaches are read from the overlap's middle, not from
+/// each span's own.** A line along `x̂` over `[−5, 1]` and a half-metre
+/// line crossing it at the origin, tilted `2.5·10⁻⁹`, under the band
+/// `(10⁻⁹, 10⁻⁸)`. The overlap's middle is the origin, from which the
+/// long span reaches 5 and the tilt reads `1.25·10⁻⁸`, a definite
+/// crossing. From the long span's own middle, `x = −2`, it reaches 3,
+/// where the tilt reads `7.5·10⁻⁹`, in band, and escalates. Red where a
+/// span's reach is read from its own middle.
+#[test]
+fn the_reaches_are_read_from_the_overlaps_middle() {
+    let t: f64 = 2.5e-9;
+    let a = line([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
+    let b = line([0.0, 0.0, 0.0], [t.cos(), t.sin(), 0.0]);
+    for (order, (got, tilts)) in [
+        (
+            "long first",
+            meet_and_tilts(
+                &Span::new(&a, (-5.0, 1.0)),
+                &Span::new(&b, (-0.5, 0.5)),
+                band(),
+            ),
+        ),
+        (
+            "short first",
+            meet_and_tilts(
+                &Span::new(&b, (-0.5, 0.5)),
+                &Span::new(&a, (-5.0, 1.0)),
+                band(),
+            ),
+        ),
+    ] {
+        assert!(
+            tilts.contains(&Sign::Positive),
+            "{order}: the tilt reads a crossing over the long span's reach from the origin: {tilts:?}, {got:?}"
+        );
+        assert!(
+            !matches!(&got, Err(r) if matches!(r.fault, MeetFault::Escalated(d) if d.predicate == Some(TILT))),
+            "{order}: the tilt does not escalate: {got:?}"
+        );
+    }
+}
