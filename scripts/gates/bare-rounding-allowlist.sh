@@ -125,6 +125,9 @@ gate() {
   if ! report=$(python3 - "$LIST" "$mounts" <<'PY'
 import functools, glob, os, re, sys
 
+sys.path.insert(0, os.environ["GATE_LIB_DIR"])
+import rust_strip  # noqa: E402
+
 list_path, mounts_path = sys.argv[1], sys.argv[2]
 RUNNING, LIB = "crates/geom-core/src/running.rs", "crates/geom-core/src/lib.rs"
 FIXED = re.compile(r"\bf64::EPSILON\b|\bcarrier_resolution::resolution\s*\(")
@@ -133,48 +136,7 @@ REASONS = {"oracle", "re-pose", "pose", "far-centre", "exact-arith", "fixture"}
 
 
 def strip(text):
-    out, i, n = [], 0, len(text)
-    while i < n:
-        c, two = text[i], text[i:i + 2]
-        if two == "//":
-            j = text.find("\n", i)
-            i = n if j < 0 else j
-        elif two == "/*":
-            depth, j = 1, i + 2
-            while j < n and depth:
-                if text[j:j + 2] == "/*":
-                    depth, j = depth + 1, j + 2
-                elif text[j:j + 2] == "*/":
-                    depth, j = depth - 1, j + 2
-                else:
-                    j += 1
-            out.append("\n" * text.count("\n", i, j))
-            i = j
-        elif c == "r" and re.match(r'r#*"', text[i:i + 8]) and not (i and (text[i - 1].isalnum() or text[i - 1] == "_")):
-            hashes = len(re.match(r"r(#*)", text[i:]).group(1))
-            close = '"' + "#" * hashes
-            j = text.find(close, i + 2 + hashes)
-            j = n if j < 0 else j + len(close)
-            out.append('""')
-            i = j
-        elif c == '"':
-            j = i + 1
-            while j < n and text[j] != '"':
-                j += 2 if text[j] == "\\" else 1
-            out.append('""')
-            i = j + 1
-        elif c == "'":
-            m = re.match(r"'(?:\\(?:x[0-9a-fA-F]{2}|u\{[0-9a-fA-F]+\}|.)|[^'\\\n])'", text[i:])
-            if m:
-                out.append("' '")
-                i += m.end()
-            else:
-                out.append(c)
-                i += 1
-        else:
-            out.append(c)
-            i += 1
-    return "".join(out)
+    return rust_strip.strip(text, literal_newlines=False)
 
 
 def matching(text, at):
@@ -337,10 +299,11 @@ DOORS, ROOT, RMODS, ODD, METHODS = doors()
 def blocks(text):
     """Every `{ … }` span of a file, as `(open, close)`."""
     out, stack = [], []
-    for i, c in enumerate(text):
-        if c == "{":
+    for m in re.finditer(r"[{}]", text):
+        i = m.start()
+        if m.group() == "{":
             stack.append(i)
-        elif c == "}" and stack:
+        elif stack:
             out.append((stack.pop(), i))
     return out
 
@@ -467,6 +430,8 @@ def sites(text):
     via += [(r"\b" + re.escape(c) + r"\s*::\s*", scope, ROOT) for c, scope in crates]
     for prefix, (lo, hi), table in via:
         for name in table:
+            if code.find(name, lo, hi) < 0:
+                continue
             door = table[name] if table is ROOT else name
             kind = DOORS[door]
             pat = re.compile("(" + prefix + ")" + re.escape(name) + (SHAPE[kind] if kind == "type" else r"\b"))
@@ -476,6 +441,8 @@ def sites(text):
     names += [(d, d, (0, n)) for d in DOORS if d not in SHARED]
     names += [(r, d, (0, n)) for r, d in ROOT.items() if r not in SHARED and r not in DOORS]
     for name, door, (lo, hi) in names:
+        if code.find(name, lo, hi) < 0:
+            continue
         local = r"(?<![\w.:])" + re.escape(name)
         at |= {m.start() for m in re.compile(local + SHAPE[DOORS[door]]).finditer(code, lo, hi)}
         if DOORS[door] == "type":

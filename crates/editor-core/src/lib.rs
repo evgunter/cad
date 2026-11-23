@@ -127,7 +127,7 @@ pub use diff::{DocDiff, NodeChange};
 pub use distribution::{Distribution, DistributionFault, DistributionField};
 pub use doc::{
     DisplayUnitRefusal, DistributionRefusal, Doc, DocParamField, FreeValue, FreeVar, NameCarrier,
-    Unused, VarName,
+    OperandRead, ReadIndex, Unused, VarName,
 };
 pub use drive::{
     BudgetKind, CertifiedLeaf, DEFAULT_MAX_DEPTH, DEFAULT_MAX_LEAVES, DriveConfig, DriveRefusal,
@@ -137,9 +137,9 @@ pub use drive::{
 pub use edit::{
     Applied, CarryForwardDoor, DEFINITION_NODE_BOUND, DocEdit, DrawnOnFace, EditError, EditRecord,
     FaceUnread, IndexFault, LoftFault, Maintenance, MaintenanceNet, MeasureOutcome, Measured,
-    OnFace, ProductReadFault, Recorded, Recording, SketchOutcome, SketchedOnFace, SlotValue,
-    SourceFault, Took, apply, apply_replayed, cascade_delete_order, chart_on_face, draw_on_face,
-    measure, nearest_to_face, sketch_on_face, slot_admits,
+    OnFace, ProductReadFault, Recorded, Recording, SlotValue, SourceFault, Took, apply,
+    apply_replayed, cascade_delete_order, chart_on_face, draw_on_face, measure, nearest_to_face,
+    slot_admits,
 };
 pub use eval::measure::ObservedRefusal;
 pub use eval::{
