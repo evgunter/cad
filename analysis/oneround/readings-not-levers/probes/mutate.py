@@ -1,5 +1,5 @@
 import sys, pathlib
-R = pathlib.Path("/home/user/cad")
+import os; R = pathlib.Path(os.environ.get("MUT_ROOT", "/home/user/cad"))
 M = {
  "MA_tip_above": ("crates/topo/src/boolean/fate.rs", "r.reach.below()).reduce(Lever::min)", "r.reach.above()).reduce(Lever::min)"),
  "MD_travel_names_swapped": ("crates/topo/src/boolean/join.rs", '[name, "bool_join_arc_clear"],', '["bool_join_arc_clear", name],'),

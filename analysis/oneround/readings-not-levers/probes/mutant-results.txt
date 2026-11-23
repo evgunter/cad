@@ -1,0 +1,38 @@
+planted MD_travel_names_swapped in crates/topo/src/boolean/join.rs
+MD_travel_names_swapped [topo]: test result: FAILED. 3053 passed; 6 failed; 121 ignored; 0 measured; 2 filtered out; finished in 450.51s 6 failed-lines; error: test failed, to rerun pass `-p topo --lib`
+       boolean::join::travel_rows::a_partner_at_the_half_turn_reads_ahead_only_where_the_slack_is_in_band
+       boolean::join::travel_rows::a_reading_and_a_slack_each_within_the_band_do_not_tie_together
+       boolean::join::travel_rows::two_sites_within_the_slack_of_a_steep_flank_escalate
+       boolean::refusal_routes::offer_rows::every_offered_tolerance_passes_just_below_it
+       boolean::section_cert::square_search::the_square_wall_arm_agrees_with_the_traced_section
+       face_normal::tests::no_source_file_folds_the_bit_by_hand
+planted MH_tip_no_halves_check in crates/topo/src/boolean/fate.rs
+MH_tip_no_halves_check [topo]: test result: ok. 288 passed; 0 failed; 2 ignored; 0 measured; 2892 filtered out; finished in 39.06s 0 failed-lines; 
+planted MA_tip_above in crates/topo/src/boolean/fate.rs
+MA_tip_above [topo]: test result: ok. 288 passed; 0 failed; 2 ignored; 0 measured; 2892 filtered out; finished in 32.16s 0 failed-lines; 
+planted ME_resolved_run_band in crates/topo/src/validate.rs
+ME_resolved_run_band [topo]: test result: FAILED. 287 passed; 1 failed; 2 ignored; 0 measured; 2892 filtered out; finished in 38.55s 1 failed-lines; error: test failed, to rerun pass `-p topo --lib`
+       chord_join::section_end_rows::an_unresolved_carriers_pin_is_a_kernel_limitation
+planted MO_at_wedge_no_filter in crates/geom-brep/src/dihedral.rs
+MO_at_wedge_no_filter [geom-brep]: test result: ok. 182 passed; 0 failed; 0 ignored; 0 measured; 1541 filtered out; finished in 24.87s 0 failed-lines; 
+planted MR_pairing_offer_from_run in crates/geom-brep/src/dihedral.rs
+MR_pairing_offer_from_run [geom-brep]: test result: FAILED. 181 passed; 1 failed; 0 ignored; 0 measured; 1541 filtered out; finished in 23.46s 1 failed-lines; error: test failed, to rerun pass `-p geom-brep --lib`
+       dihedral::tests::a_pairings_wedge_is_read_in_the_band_the_pairings_refusal_offers
+planted MI_apex_no_gap_err in crates/geom-brep/src/intersect.rs
+MI_apex_no_gap_err [geom-brep]: test result: ok. 182 passed; 0 failed; 0 ignored; 0 measured; 1541 filtered out; finished in 23.89s 0 failed-lines; 
+planted MF_offer_k_wider in crates/geom-core/src/predicate.rs
+MF_offer_k_wider [geom-core]: test result: FAILED. 95 passed; 1 failed; 0 ignored; 0 measured; 665 filtered out; finished in 1.58s 1 failed-lines; error: test failed, to rerun pass `-p geom-core --lib`
+       predicate::tests::the_offered_band_stands_at_the_spelled_offer_with_the_refused_bands_k
+MF_offer_k_wider [geom-brep]: test result: FAILED. 176 passed; 6 failed; 0 ignored; 0 measured; 1541 filtered out; finished in 24.62s 6 failed-lines; error: test failed, to rerun pass `-p geom-brep --lib`
+       certify::tests::an_in_band_arm_quoting_a_zero_wedge_stays_undecided
+       dihedral::tests::a_pairings_wedge_is_read_in_the_band_the_pairings_refusal_offers
+       dihedral::tests::a_wedge_in_the_zero_band_at_the_arms_tolerance_leaves_the_arm_binding
+       dihedral::tests::an_arm_escalation_quotes_the_wedge_it_meters
+       dihedral::tests::the_arm_is_collapsed_only_where_its_own_gate_decided_it
+       dihedral::tests::the_arms_wedge_is_read_in_the_band_the_arms_refusal_offers
+planted MS_step_finer_wider in crates/geom-core/src/predicate.rs
+MS_step_finer_wider [geom-core]: test result: FAILED. 95 passed; 1 failed; 0 ignored; 0 measured; 665 filtered out; finished in 1.39s 1 failed-lines; error: test failed, to rerun pass `-p geom-core --lib`
+       predicate::tests::a_step_finer_ends_at_the_bands_own_zero
+MS_step_finer_wider [topo]: test result: FAILED. 287 passed; 1 failed; 2 ignored; 0 measured; 2892 filtered out; finished in 34.47s 1 failed-lines; error: test failed, to rerun pass `-p topo --lib`
+       chord_join::section_end_rows::an_unresolved_carriers_pin_is_a_kernel_limitation
+DONE
