@@ -95,7 +95,7 @@ fn stored_point(e: &Ellipse<f64>) -> Point3<f64> {
         .expect("a stored point")
 }
 
-/// **The session box's own predicate** (`geom_core::tolerance::
+/// **The harness's box predicate**, not the kernel's cover-based one (`geom_core::tolerance::
 /// SESSION_BOX_EXTENT`: no coordinate of a model larger in magnitude),
 /// on a span's points: its ends and 4095 parameters between.
 fn span_in_box(c: &Curve3<f64>, (lo, hi): (f64, f64)) -> bool {

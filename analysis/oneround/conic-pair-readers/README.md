@@ -2,7 +2,7 @@ The arc-held ladder of `oneround/conic-pair-readers` (PR 7543).
 
 - `ladder.rs`: the harness, run as an example of `geom-brep`
   (`--features test-support`, `CONIC_LADDER_OUT=<dir>`). Each pose records
-  whether both spans lie in the session box (the box's own predicate, no
+  whether both spans lie in the session box (the harness's predicate, not the kernel's cover-based one: no
   coordinate past `SESSION_BOX_EXTENT`, on the spans' ends and 4095
   parameters between) and the stored phase, from which the oracle reads
   whether the seam is at the anchor. Each pose has a twin `20ε` apart

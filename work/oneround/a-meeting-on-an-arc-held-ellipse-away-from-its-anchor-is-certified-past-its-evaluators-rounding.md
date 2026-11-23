@@ -19,7 +19,7 @@ refs: [an-arc-held-ellipse-is-charged-a-centre-held-ones-resolution-and-hulls-it
 
 So a door decides, unmetered, on a span reaching a megametre past the box, where a coordinate's spacing alone passes the band. Should such a span be refused at the door, metered, or read as it is? This is the design question. This row proposes no fix.
 
-**The evidence.** The arc-held ladder of `oneround/conic-pair-readers` (PR 7543): `analysis/oneround/conic-pair-readers/ladder.rs`, judged by `oracle.py` at 60 digits against the curve the stored numbers state, and joined to the base pose by pose with `join.py`. Every pose carries whether both spans lie in the box (the box's own predicate, on the spans' points) and whether the seam is at the anchor. On that unit's final head:
+**The evidence.** The arc-held ladder of `oneround/conic-pair-readers` (PR 7543): `analysis/oneround/conic-pair-readers/ladder.rs`, judged by `oracle.py` at 60 digits against the curve the stored numbers state, and joined to the base pose by pose with `join.py`. Every pose carries whether both spans lie in the box (the harness's predicate: no coordinate past the box's extent at 4,097 points of each span, not the kernel's cover-based one) and whether the seam is at the anchor. On that unit's final head:
 
 Fourteen readings are wrong, all at `f64` and all on a pose whose spans reach past the box. `Interval` reads none wrongly. In the box, with the seam at the anchor, the head reads none of the 864 per ε wrongly; the acceptance table is `analysis/oneround/conic-pair-readers/ladder/join-base-head.txt`. Joined to the base (PR 7510's head `0645d2b68` merged with the same main):
 
@@ -40,7 +40,7 @@ Fourteen readings are wrong, all at `f64` and all on a pose whose spans reach pa
 | 1e-12 | 1e+08 thin | circle, θ = 0.0537, γ = 90° | no | 9.4e-13 (meets) | `Ok`, no meeting | wrong |
 | 1e-12 | 1e+09 thin | line, θ = 0.017, γ = 90° | no | 2.3e-12 (between) | a meeting 1.7e-11 off | right |
 
-Of the fourteen, the base read four rightly, refused three and read seven wrongly. The review counted nineteen on PR 7543's first head, whose twins stood `10ε` apart, on the escalation itself. The twins now stand `20ε` apart, and these fourteen are what is left. The review's own list, with each pose's evaluator error, is in its report (`analysis/oneround/conic-pair-readers/review-report.md` on `oneround/conic-pair-readers-review`).
+Of the fourteen, the base read four rightly, refused three and read seven wrongly. Every one of them reads apart (`Ok`, no meeting) or a meeting placed too far off, for curves that meet or stand within the band. **A meeting reported for curves that are apart**, the other direction, is on the delta read's wall ladder (`analysis/oneround/conic-pair-readers/review2/ladder_wall.rs` on `oneround/conic-pair-readers-review`). It is past the box: ε 1e-12, thin `a` = 1e9, the line at 5°, θ = 0.0255, true gap 1.11e-11 (1.1 Kε), no twin shift. The base read it apart. The review counted nineteen on PR 7543's first head, whose twins stood `10ε` apart, on the escalation itself. The twins now stand `20ε` apart, and these fourteen are what is left. The review's own list, with each pose's evaluator error, is in its report (`analysis/oneround/conic-pair-readers/review-report.md` on `oneround/conic-pair-readers-review`).
 
 **Three causes**, each a reading formed far from the point the conic stores:
 

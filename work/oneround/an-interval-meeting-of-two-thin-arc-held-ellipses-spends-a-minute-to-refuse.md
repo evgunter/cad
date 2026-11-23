@@ -19,5 +19,5 @@ The same pair, with the first ellipse replaced by the same locus held at its cen
 
 **The base is fast because it is wrong.** The same row on that unit's base (PR 7510's head `32d065158f`, with the rows copied in) runs in 14 s in all. There its `Interval` lane answers `Ok` with no meeting on both poses, though the pair meets. So the cost came in with this unit's readers, in exchange for a refusal where the base gave a wrong answer.
 
-**Reproduce:** `CAD_TOLERANCE_EPS=1e-6 cargo nextest run -p geom-brep --run-ignored only -E 'test(=curve_pair::arc_held_rows::two_thin_far_arc_held_ellipses_across_planes_meet)'`, about 140 s, green. The default run's `two_arc_held_ellipses_through_one_point_meet` leaves this one pose out for its cost.
+**Reproduce:** `CAD_TOLERANCE_EPS=1e-6 cargo nextest run -p geom-brep --ignore-default-filter -E 'test(=curve_pair::arc_held_rows::two_thin_far_arc_held_ellipses_across_planes_meet)'`, about 140 s, green. The row is in the slow set of `.config/nextest.toml`, which the nightly runs at every ε; the per-PR run's `two_arc_held_ellipses_through_one_point_meet` leaves this one pose out for its cost.
 

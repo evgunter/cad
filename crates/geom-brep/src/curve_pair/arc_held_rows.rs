@@ -11,14 +11,16 @@
 //! tenth of the tip's radius on the thin ones. Each pose's meeting is
 //! placed within the band's escalation of a point computed here: the
 //! point it is built through, the vertex, or a Newton solve along the arc
-//! of the witness's own equation, never the kernel's meeting or
-//! clearance readings. Its twin moved `30ε` apart reads no meeting.
+//! of the witness's own equation. Those are independent of the kernel's
+//! meeting and clearance readings, not of its evaluator: each is
+//! `point_at`, directly or under the Newton iteration, which beside the
+//! anchor holds the stored-numbers curve to its coordinates' rounding.
+//! Its twin moved `30ε` apart reads no meeting.
 //!
-//! No answer, at `f64` or at `Interval`, is ever wrong. An answer is owed
-//! wherever the same locus held at its centre answers and is the same
-//! locus to a tenth of `ε` (`Case::check`); every other refusal must be
-//! a refusal and not a fault, and is printed with what the centre-held
-//! twin read.
+//! **Every pose is owed a right answer**, at `f64` and at `Interval`: each
+//! stands within metres of its anchor, in the session box, the seam at the
+//! anchor. A refusal passes only where [`REFUSING`] lists the pose, lane,
+//! band and row, with its reason; a listed pose that answers is red too.
 
 #![allow(clippy::unwrap_used, clippy::panic)]
 
@@ -63,10 +65,8 @@ struct Near {
     n: Vec3<f64>,
     d: Vec3<f64>,
     span: (f64, f64),
-    /// The same locus held at its centre, as the derived centre reads.
-    held: Curve3<f64>,
-    /// How far the centre-held twin's point at `θ` stands from `p`.
-    held_off: f64,
+    /// The metres of arc from the anchor.
+    s: f64,
     /// The witness curves' size: a metre on the fat sections, a tenth of
     /// the tip's radius of curvature `b²/a` on the thin ones, so a witness
     /// crosses the arc once and not the tip's far side.
@@ -83,7 +83,6 @@ fn near_on(a: f64, b: f64, s: f64) -> Near {
     );
     let r = (0.1 * b * b / a).min(1.0);
     let half = (10.0 * r + 2.0 * s.abs()) / b;
-    let held = Ellipse::new(geom::Frame::new(e.center(), e.axis(), e.u_ref()), a, b);
     Near {
         a,
         b,
@@ -95,8 +94,7 @@ fn near_on(a: f64, b: f64, s: f64) -> Near {
         n,
         d: tan.cross(n).normalize(),
         span: (theta - half, theta + half),
-        held: Curve3::Ellipse(held),
-        held_off: (held.point_at(theta) - p).norm(),
+        s,
         r,
     }
 }
@@ -199,6 +197,7 @@ fn brief(fault: &MeetFault) -> String {
 /// over `espan`, the ellipse first or second.
 struct Case<'a, W> {
     f: &'a Near,
+    family: &'static str,
     what: String,
     witness: W,
     wspan: (f64, f64),
@@ -218,34 +217,28 @@ impl<W: Fn(f64) -> Curve3<f64>> Case<'_, W> {
     }
 
     /// The pose meets within the band's escalation of `at`, and its twin
-    /// `30ε` apart does not, at `f64` and at `Interval`; an answer is
-    /// never wrong. **An answer is owed wherever the same locus held at
-    /// its centre answers, where that is the same locus**: where the
-    /// centre-held twin's point stands within a tenth of `ε` of this
-    /// one's, a refusal passes only if the twin refuses the pose too (the
-    /// pose's shape refused, not where the ellipse is held). Where the
-    /// twin is a different locus (its derived centre rounded past that,
-    /// at `a = 1e9` from `1e-9` and at `1e6` at `1e-12`) nothing gauges
-    /// what is owed, and a refusal passes only as a refusal, not a
-    /// fault; each is printed. Every failure is returned.
-    fn check(&self) -> Vec<String> {
+    /// `30ε` apart does not, at `f64` and at `Interval`. **Every pose here
+    /// is owed a right answer** (each stands within metres of its anchor,
+    /// in the session box, the seam at the anchor), judged against the
+    /// truth point the row computes: a refusal passes only where
+    /// [`REFUSING`] lists that pose, lane and row, with its reason. Every
+    /// failure is returned, and every listed refusal this pose met.
+    fn check(&self) -> (Vec<String>, Vec<Listed>) {
         let e = band().escalate();
         let thirty = 30.0 * band().zero();
-        let gauged = self.f.held_off <= 0.1 * band().zero();
-        let mut out = Vec::new();
+        let (mut out, mut met) = (Vec::new(), Vec::new());
         for (lift, meets) in [(0.0, true), (thirty, false)] {
             let (at_f, at_i) = self.read(&self.f.carrier, lift);
-            let (held_f, held_i) = self.read(&self.f.held, lift);
-            for (lane, r, held) in [("f64", at_f, held_f), ("Interval", at_i, held_i)] {
+            for (lane, r) in [("f64", at_f), ("Interval", at_i)] {
                 let what = format!(
                     "{}{} at {lane}",
                     self.what,
                     if meets { "" } else { ", 30ε apart," }
                 );
-                match (r, held) {
-                    (Ok(pts), _) if meets && pts.iter().any(|q| (*q - self.at).norm() <= e) => {}
-                    (Ok(pts), _) if !meets && pts.is_empty() => {}
-                    (Ok(pts), _) => out.push(format!(
+                match r {
+                    Ok(pts) if meets && pts.iter().any(|q| (*q - self.at).norm() <= e) => {}
+                    Ok(pts) if !meets && pts.is_empty() => {}
+                    Ok(pts) => out.push(format!(
                         "{what}: met at {pts:?}, owed {}",
                         if meets {
                             format!("a meeting within {e:e} of {:?}", self.at)
@@ -253,34 +246,2448 @@ impl<W: Fn(f64) -> Curve3<f64>> Case<'_, W> {
                             "none".to_owned()
                         }
                     )),
-                    (Err(fault), _) if !refusal(&fault) => {
-                        out.push(format!("{what}: a fault, {fault:?}"))
+                    Err(fault) => {
+                        let key = listed(self.family, self.f, lane, !meets, &fault);
+                        match key.and_then(|k| REFUSING.iter().find(|l| l.0 == k)) {
+                            Some(l) => met.push(l.0),
+                            None => out.push(format!(
+                                "{what}: refused, {}, a pose REFUSING does not list: {}",
+                                brief(&fault),
+                                key.map_or_else(|| format!("{fault:?}"), |k| format!("{k:?}"))
+                            )),
+                        }
                     }
-                    (Err(fault), Ok(_)) if gauged => out.push(format!(
-                        "{what}: refused, {}, where the centre-held twin, {:e} off, answers",
-                        brief(&fault),
-                        self.f.held_off
-                    )),
-                    (Err(fault), held) => eprintln!(
-                        "excused: {what}: refused, {}; centre-held twin {:e} off read {:?}",
-                        brief(&fault),
-                        self.f.held_off,
-                        held.map(|p| p.len()).map_err(|h| brief(&h))
-                    ),
                 }
             }
         }
-        out
+        (out, met)
     }
 }
 
-/// A refusal a pose may earn: a decision in the band's gap, a meter or a
-/// root finder's limit. Not a fault, a contradiction or a desync.
-fn refusal(fault: &MeetFault) -> bool {
-    matches!(
-        fault,
-        MeetFault::Escalated(_) | MeetFault::Touch(_) | MeetFault::Unsettled(_)
-    )
+/// **The poses that refuse, owed nothing, each with its reason.** Every
+/// other pose of these rows, at every lane and band listed here (1e-6,
+/// 1e-9 and 1e-12), must answer rightly; a run at another band reads no
+/// list, so every refusal there is red. A listed pose that answers is red
+/// too ([`all_listed_met`]): the list is the census of the rows'
+/// refusals, not a pass for them. No listed pose is a wrong answer; the
+/// readings that refuse are the P2 row's
+/// (`work/oneround/an-arc-held-pairs-new-refusals-at-interval-and-at-a-coplanar-touch.md`).
+const REFUSING: &[(Listed, &str)] = &[
+    (
+        (
+            1e-12,
+            "circle across",
+            1e6,
+            true,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-12,
+            "circle across",
+            1e6,
+            true,
+            0.3,
+            "f64",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-12,
+            "circle across",
+            1e6,
+            true,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-12,
+            "circle across",
+            1e6,
+            true,
+            5.0,
+            "f64",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-12,
+            "circle across",
+            1e9,
+            true,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-12,
+            "circle across",
+            1e9,
+            true,
+            0.3,
+            "f64",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-12,
+            "circle across",
+            1e9,
+            true,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-12,
+            "circle across",
+            1e9,
+            true,
+            5.0,
+            "f64",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-9,
+            "circle across",
+            1e6,
+            true,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-9,
+            "circle across",
+            1e6,
+            true,
+            0.3,
+            "f64",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-9,
+            "circle across",
+            1e6,
+            true,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-9,
+            "circle across",
+            1e6,
+            true,
+            5.0,
+            "f64",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-9,
+            "circle across",
+            1e9,
+            true,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-9,
+            "circle across",
+            1e9,
+            true,
+            0.3,
+            "f64",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-9,
+            "circle across",
+            1e9,
+            true,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-9,
+            "circle across",
+            1e9,
+            true,
+            5.0,
+            "f64",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-6,
+            "circle across",
+            1e6,
+            true,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-6,
+            "circle across",
+            1e6,
+            true,
+            0.3,
+            "f64",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-6,
+            "circle across",
+            1e6,
+            true,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-6,
+            "circle across",
+            1e6,
+            true,
+            5.0,
+            "f64",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-6,
+            "circle across",
+            1e9,
+            true,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-6,
+            "circle across",
+            1e9,
+            true,
+            0.3,
+            "f64",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-6,
+            "circle across",
+            1e9,
+            true,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-6,
+            "circle across",
+            1e9,
+            true,
+            5.0,
+            "f64",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-12,
+            "in-plane circle",
+            1e6,
+            false,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_coplanar_sub_side",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-12,
+            "in-plane circle",
+            1e6,
+            false,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_coplanar_sub_side",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-12,
+            "in-plane circle",
+            1e6,
+            true,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_coplanar_sub_side",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-12,
+            "in-plane circle",
+            1e6,
+            true,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_coplanar_sub_side",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-12,
+            "in-plane circle",
+            1e9,
+            false,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_coplanar_sub_side",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-12,
+            "in-plane circle",
+            1e9,
+            false,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_coplanar_sub_side",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-12,
+            "in-plane circle",
+            1e9,
+            true,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_coplanar_sub_side",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-12,
+            "in-plane circle",
+            1e9,
+            true,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_coplanar_sub_side",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-9,
+            "in-plane circle",
+            1e6,
+            false,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_coplanar_sub_side",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-9,
+            "in-plane circle",
+            1e6,
+            false,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_coplanar_sub_side",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-9,
+            "in-plane circle",
+            1e6,
+            true,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_coplanar_sub_side",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-9,
+            "in-plane circle",
+            1e6,
+            true,
+            5.0,
+            "Interval",
+            false,
+            "curve_carrier_gap",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-9,
+            "in-plane circle",
+            1e9,
+            false,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_coplanar_sub_side",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-9,
+            "in-plane circle",
+            1e9,
+            false,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_coplanar_sub_side",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-9,
+            "in-plane circle",
+            1e9,
+            true,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_coplanar_sub_side",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-9,
+            "in-plane circle",
+            1e9,
+            true,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_coplanar_sub_side",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-6,
+            "in-plane circle",
+            1e9,
+            false,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_coplanar_sub_side",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-6,
+            "in-plane circle",
+            1e9,
+            false,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_coplanar_sub_side",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-12,
+            "line through",
+            1e6,
+            false,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_pose_level_arc",
+        ),
+        LEVEL_ARC,
+    ),
+    (
+        (
+            1e-12,
+            "line through",
+            1e6,
+            false,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_pose_level_arc",
+        ),
+        LEVEL_ARC,
+    ),
+    (
+        (
+            1e-12,
+            "line through",
+            1e6,
+            true,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_walk_pair_gap",
+        ),
+        UNREAD,
+    ),
+    (
+        (
+            1e-12,
+            "line through",
+            1e9,
+            false,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_pose_level_arc",
+        ),
+        LEVEL_ARC,
+    ),
+    (
+        (
+            1e-12,
+            "line through",
+            1e9,
+            false,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_pose_level_arc",
+        ),
+        LEVEL_ARC,
+    ),
+    (
+        (
+            1e-12,
+            "line through",
+            1e9,
+            true,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_walk_pair_gap",
+        ),
+        UNREAD,
+    ),
+    (
+        (
+            1e-9,
+            "line through",
+            1e6,
+            false,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_pose_level_arc",
+        ),
+        LEVEL_ARC,
+    ),
+    (
+        (
+            1e-9,
+            "line through",
+            1e6,
+            false,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_pose_level_arc",
+        ),
+        LEVEL_ARC,
+    ),
+    (
+        (
+            1e-9,
+            "line through",
+            1e9,
+            false,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_pose_level_arc",
+        ),
+        LEVEL_ARC,
+    ),
+    (
+        (
+            1e-9,
+            "line through",
+            1e9,
+            false,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_pose_level_arc",
+        ),
+        LEVEL_ARC,
+    ),
+    (
+        (
+            1e-6,
+            "line through",
+            1e9,
+            false,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_pose_level_arc",
+        ),
+        LEVEL_ARC,
+    ),
+    (
+        (
+            1e-6,
+            "line through",
+            1e9,
+            false,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_pose_level_arc",
+        ),
+        LEVEL_ARC,
+    ),
+    (
+        (
+            1e-12,
+            "piercing line",
+            1e6,
+            true,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-12,
+            "piercing line",
+            1e6,
+            true,
+            0.3,
+            "f64",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-12,
+            "piercing line",
+            1e6,
+            true,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-12,
+            "piercing line",
+            1e6,
+            true,
+            5.0,
+            "f64",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-12,
+            "piercing line",
+            1e9,
+            true,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-12,
+            "piercing line",
+            1e9,
+            true,
+            0.3,
+            "f64",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-12,
+            "piercing line",
+            1e9,
+            true,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-12,
+            "piercing line",
+            1e9,
+            true,
+            5.0,
+            "f64",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-9,
+            "piercing line",
+            1e6,
+            true,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-9,
+            "piercing line",
+            1e6,
+            true,
+            0.3,
+            "f64",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-9,
+            "piercing line",
+            1e6,
+            true,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-9,
+            "piercing line",
+            1e6,
+            true,
+            5.0,
+            "f64",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-9,
+            "piercing line",
+            1e9,
+            true,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-9,
+            "piercing line",
+            1e9,
+            true,
+            0.3,
+            "f64",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-9,
+            "piercing line",
+            1e9,
+            true,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-9,
+            "piercing line",
+            1e9,
+            true,
+            5.0,
+            "f64",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-6,
+            "piercing line",
+            1e6,
+            true,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-6,
+            "piercing line",
+            1e6,
+            true,
+            0.3,
+            "f64",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-6,
+            "piercing line",
+            1e6,
+            true,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-6,
+            "piercing line",
+            1e6,
+            true,
+            5.0,
+            "f64",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-6,
+            "piercing line",
+            1e9,
+            true,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-6,
+            "piercing line",
+            1e9,
+            true,
+            0.3,
+            "f64",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-6,
+            "piercing line",
+            1e9,
+            true,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-6,
+            "piercing line",
+            1e9,
+            true,
+            5.0,
+            "f64",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-12,
+            "small ellipse",
+            1e6,
+            false,
+            5.0,
+            "Interval",
+            false,
+            "curve_carrier_gap",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-12,
+            "small ellipse",
+            1e6,
+            true,
+            5.0,
+            "Interval",
+            false,
+            "curve_carrier_gap",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-6,
+            "small ellipse",
+            1e9,
+            true,
+            0.3,
+            "Interval",
+            false,
+            "Tangency",
+        ),
+        UNREAD,
+    ),
+    (
+        (
+            1e-6,
+            "small ellipse",
+            1e9,
+            true,
+            0.3,
+            "f64",
+            false,
+            "Tangency",
+        ),
+        UNREAD,
+    ),
+    (
+        (
+            1e-6,
+            "small ellipse",
+            1e9,
+            true,
+            5.0,
+            "Interval",
+            false,
+            "Tangency",
+        ),
+        UNREAD,
+    ),
+    (
+        (
+            1e-6,
+            "small ellipse",
+            1e9,
+            true,
+            5.0,
+            "f64",
+            false,
+            "Tangency",
+        ),
+        UNREAD,
+    ),
+    (
+        (
+            1e-12,
+            "two across planes",
+            1e6,
+            true,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-12,
+            "two across planes",
+            1e6,
+            true,
+            0.3,
+            "Interval",
+            true,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-12,
+            "two across planes",
+            1e6,
+            true,
+            0.3,
+            "f64",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-12,
+            "two across planes",
+            1e6,
+            true,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-12,
+            "two across planes",
+            1e6,
+            true,
+            5.0,
+            "Interval",
+            true,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-12,
+            "two across planes",
+            1e6,
+            true,
+            5.0,
+            "f64",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-9,
+            "two across planes",
+            1e6,
+            true,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-9,
+            "two across planes",
+            1e6,
+            true,
+            0.3,
+            "f64",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-9,
+            "two across planes",
+            1e6,
+            true,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-9,
+            "two across planes",
+            1e6,
+            true,
+            5.0,
+            "f64",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-6,
+            "two across planes",
+            1e6,
+            true,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-6,
+            "two across planes",
+            1e6,
+            true,
+            0.3,
+            "f64",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-12,
+            "two across planes, slow",
+            1e9,
+            true,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-12,
+            "two across planes, slow",
+            1e9,
+            true,
+            0.3,
+            "Interval",
+            true,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-12,
+            "two across planes, slow",
+            1e9,
+            true,
+            0.3,
+            "f64",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-12,
+            "two across planes, slow",
+            1e9,
+            true,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-12,
+            "two across planes, slow",
+            1e9,
+            true,
+            5.0,
+            "Interval",
+            true,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-12,
+            "two across planes, slow",
+            1e9,
+            true,
+            5.0,
+            "f64",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-12,
+            "two across planes, slow",
+            1e9,
+            true,
+            5.0,
+            "f64",
+            true,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-9,
+            "two across planes, slow",
+            1e9,
+            true,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-9,
+            "two across planes, slow",
+            1e9,
+            true,
+            0.3,
+            "f64",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-9,
+            "two across planes, slow",
+            1e9,
+            true,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-9,
+            "two across planes, slow",
+            1e9,
+            true,
+            5.0,
+            "Interval",
+            true,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-9,
+            "two across planes, slow",
+            1e9,
+            true,
+            5.0,
+            "f64",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-9,
+            "two across planes, slow",
+            1e9,
+            true,
+            5.0,
+            "f64",
+            true,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-6,
+            "two across planes, slow",
+            1e9,
+            true,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-6,
+            "two across planes, slow",
+            1e9,
+            true,
+            0.3,
+            "Interval",
+            true,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-6,
+            "two across planes, slow",
+            1e9,
+            true,
+            0.3,
+            "f64",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-6,
+            "two across planes, slow",
+            1e9,
+            true,
+            0.3,
+            "f64",
+            true,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-6,
+            "two across planes, slow",
+            1e9,
+            true,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-6,
+            "two across planes, slow",
+            1e9,
+            true,
+            5.0,
+            "Interval",
+            true,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-6,
+            "two across planes, slow",
+            1e9,
+            true,
+            5.0,
+            "f64",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-6,
+            "two across planes, slow",
+            1e9,
+            true,
+            5.0,
+            "f64",
+            true,
+            "curve_pair_pose_basin",
+        ),
+        TIP,
+    ),
+    (
+        (
+            1e-12,
+            "two in one plane",
+            1e6,
+            false,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_pose_swing",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-12,
+            "two in one plane",
+            1e6,
+            false,
+            0.3,
+            "Interval",
+            true,
+            "curve_pair_pose_swing",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-12,
+            "two in one plane",
+            1e6,
+            false,
+            0.3,
+            "f64",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        UNREAD,
+    ),
+    (
+        (
+            1e-12,
+            "two in one plane",
+            1e6,
+            false,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_pose_swing",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-12,
+            "two in one plane",
+            1e6,
+            false,
+            5.0,
+            "Interval",
+            true,
+            "curve_pair_pose_swing",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-12,
+            "two in one plane",
+            1e6,
+            false,
+            5.0,
+            "f64",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        UNREAD,
+    ),
+    (
+        (
+            1e-12,
+            "two in one plane",
+            1e6,
+            true,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_pose_swing",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-12,
+            "two in one plane",
+            1e6,
+            true,
+            0.3,
+            "Interval",
+            true,
+            "curve_pair_pose_swing",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-12,
+            "two in one plane",
+            1e6,
+            true,
+            0.3,
+            "f64",
+            false,
+            "curve_pair_pose_swing",
+        ),
+        UNREAD,
+    ),
+    (
+        (
+            1e-12,
+            "two in one plane",
+            1e6,
+            true,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_pose_swing",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-12,
+            "two in one plane",
+            1e6,
+            true,
+            5.0,
+            "Interval",
+            true,
+            "curve_pair_pose_swing",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-12,
+            "two in one plane",
+            1e6,
+            true,
+            5.0,
+            "f64",
+            false,
+            "curve_pair_pose_swing",
+        ),
+        UNREAD,
+    ),
+    (
+        (
+            1e-12,
+            "two in one plane",
+            1e9,
+            false,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_pose_swing",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-12,
+            "two in one plane",
+            1e9,
+            false,
+            0.3,
+            "Interval",
+            true,
+            "curve_pair_pose_swing",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-12,
+            "two in one plane",
+            1e9,
+            false,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_pose_swing",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-12,
+            "two in one plane",
+            1e9,
+            false,
+            5.0,
+            "Interval",
+            true,
+            "curve_pair_pose_swing",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-12,
+            "two in one plane",
+            1e9,
+            true,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_pose_swing",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-12,
+            "two in one plane",
+            1e9,
+            true,
+            0.3,
+            "Interval",
+            true,
+            "curve_pair_pose_swing",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-12,
+            "two in one plane",
+            1e9,
+            true,
+            0.3,
+            "f64",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        UNREAD,
+    ),
+    (
+        (
+            1e-12,
+            "two in one plane",
+            1e9,
+            true,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_pose_swing",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-12,
+            "two in one plane",
+            1e9,
+            true,
+            5.0,
+            "Interval",
+            true,
+            "curve_pair_pose_swing",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-12,
+            "two in one plane",
+            1e9,
+            true,
+            5.0,
+            "f64",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        UNREAD,
+    ),
+    (
+        (
+            1e-9,
+            "two in one plane",
+            1e6,
+            false,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_pose_swing",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-9,
+            "two in one plane",
+            1e6,
+            false,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_pose_swing",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-9,
+            "two in one plane",
+            1e6,
+            true,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_coplanar_sub_side",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-9,
+            "two in one plane",
+            1e9,
+            false,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_pose_swing",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-9,
+            "two in one plane",
+            1e9,
+            false,
+            0.3,
+            "Interval",
+            true,
+            "curve_pair_pose_swing",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-9,
+            "two in one plane",
+            1e9,
+            false,
+            0.3,
+            "f64",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        UNREAD,
+    ),
+    (
+        (
+            1e-9,
+            "two in one plane",
+            1e9,
+            false,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_pose_swing",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-9,
+            "two in one plane",
+            1e9,
+            false,
+            5.0,
+            "Interval",
+            true,
+            "curve_pair_pose_swing",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-9,
+            "two in one plane",
+            1e9,
+            false,
+            5.0,
+            "f64",
+            false,
+            "curve_pair_pose_basin",
+        ),
+        UNREAD,
+    ),
+    (
+        (
+            1e-9,
+            "two in one plane",
+            1e9,
+            true,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_pose_swing",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-9,
+            "two in one plane",
+            1e9,
+            true,
+            0.3,
+            "Interval",
+            true,
+            "curve_pair_pose_swing",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-9,
+            "two in one plane",
+            1e9,
+            true,
+            0.3,
+            "f64",
+            false,
+            "curve_pair_pose_swing",
+        ),
+        UNREAD,
+    ),
+    (
+        (
+            1e-9,
+            "two in one plane",
+            1e9,
+            true,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_pose_swing",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-9,
+            "two in one plane",
+            1e9,
+            true,
+            5.0,
+            "Interval",
+            true,
+            "curve_pair_pose_swing",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-9,
+            "two in one plane",
+            1e9,
+            true,
+            5.0,
+            "f64",
+            false,
+            "curve_pair_pose_swing",
+        ),
+        UNREAD,
+    ),
+    (
+        (
+            1e-6,
+            "two in one plane",
+            1e9,
+            false,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_pose_swing",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-6,
+            "two in one plane",
+            1e9,
+            false,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_pose_swing",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-6,
+            "two in one plane",
+            1e9,
+            true,
+            0.3,
+            "Interval",
+            false,
+            "curve_carrier_straddle",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-6,
+            "two in one plane",
+            1e9,
+            true,
+            0.3,
+            "f64",
+            false,
+            "curve_carrier_straddle",
+        ),
+        UNREAD,
+    ),
+    (
+        (
+            1e-6,
+            "two in one plane",
+            1e9,
+            true,
+            5.0,
+            "Interval",
+            false,
+            "curve_carrier_gap",
+        ),
+        IN_PLANE,
+    ),
+    (
+        (
+            1e-6,
+            "two in one plane",
+            1e9,
+            true,
+            5.0,
+            "f64",
+            false,
+            "curve_carrier_straddle",
+        ),
+        UNREAD,
+    ),
+    (
+        (
+            1e-12,
+            "vertex line",
+            1e6,
+            false,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_pose_level_arc",
+        ),
+        LEVEL_ARC,
+    ),
+    (
+        (
+            1e-12,
+            "vertex line",
+            1e6,
+            false,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_pose_level_arc",
+        ),
+        LEVEL_ARC,
+    ),
+    (
+        (
+            1e-12,
+            "vertex line",
+            1e6,
+            true,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_pose_level_arc",
+        ),
+        LEVEL_ARC,
+    ),
+    (
+        (
+            1e-12,
+            "vertex line",
+            1e6,
+            true,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_pose_level_arc",
+        ),
+        LEVEL_ARC,
+    ),
+    (
+        (
+            1e-12,
+            "vertex line",
+            1e9,
+            false,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_pose_level_arc",
+        ),
+        LEVEL_ARC,
+    ),
+    (
+        (
+            1e-12,
+            "vertex line",
+            1e9,
+            false,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_pose_level_arc",
+        ),
+        LEVEL_ARC,
+    ),
+    (
+        (
+            1e-12,
+            "vertex line",
+            1e9,
+            true,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_pose_level_arc",
+        ),
+        LEVEL_ARC,
+    ),
+    (
+        (
+            1e-12,
+            "vertex line",
+            1e9,
+            true,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_pose_level_arc",
+        ),
+        LEVEL_ARC,
+    ),
+    (
+        (
+            1e-9,
+            "vertex line",
+            1e6,
+            false,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_pose_level_arc",
+        ),
+        LEVEL_ARC,
+    ),
+    (
+        (
+            1e-9,
+            "vertex line",
+            1e6,
+            false,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_pose_level_arc",
+        ),
+        LEVEL_ARC,
+    ),
+    (
+        (
+            1e-9,
+            "vertex line",
+            1e6,
+            true,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_pose_level_arc",
+        ),
+        LEVEL_ARC,
+    ),
+    (
+        (
+            1e-9,
+            "vertex line",
+            1e6,
+            true,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_pose_level_arc",
+        ),
+        LEVEL_ARC,
+    ),
+    (
+        (
+            1e-9,
+            "vertex line",
+            1e9,
+            false,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_pose_level_arc",
+        ),
+        LEVEL_ARC,
+    ),
+    (
+        (
+            1e-9,
+            "vertex line",
+            1e9,
+            false,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_pose_level_arc",
+        ),
+        LEVEL_ARC,
+    ),
+    (
+        (
+            1e-9,
+            "vertex line",
+            1e9,
+            true,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_pose_level_arc",
+        ),
+        LEVEL_ARC,
+    ),
+    (
+        (
+            1e-9,
+            "vertex line",
+            1e9,
+            true,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_pose_level_arc",
+        ),
+        LEVEL_ARC,
+    ),
+    (
+        (
+            1e-6,
+            "vertex line",
+            1e9,
+            false,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_pose_level_arc",
+        ),
+        LEVEL_ARC,
+    ),
+    (
+        (
+            1e-6,
+            "vertex line",
+            1e9,
+            false,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_pose_level_arc",
+        ),
+        LEVEL_ARC,
+    ),
+    (
+        (
+            1e-6,
+            "vertex line",
+            1e9,
+            true,
+            0.3,
+            "Interval",
+            false,
+            "curve_pair_pose_level_arc",
+        ),
+        LEVEL_ARC,
+    ),
+    (
+        (
+            1e-6,
+            "vertex line",
+            1e9,
+            true,
+            5.0,
+            "Interval",
+            false,
+            "curve_pair_pose_level_arc",
+        ),
+        LEVEL_ARC,
+    ),
+];
+
+/// The thin section's tip at the anchor, about a metre in curvature
+/// radius: the polish's basin meter refuses a pose of that shape, and the
+/// same locus held at its centre refuses the circle across alike (at
+/// 1e-6, where the two are one locus to a tenth of the band).
+pub(super) const TIP: &str = "the polish's basin on a tip about a metre in radius";
+
+/// The line door's `|R| ≤ e` arc at `Interval`: its width's enclosure,
+/// read up `θ` within a turn, reaches half a turn.
+pub(super) const LEVEL_ARC: &str = "the Interval arc's width enclosure reaches half a turn";
+
+/// A pair in one plane at `Interval`: each conic's height over the other's
+/// plane is zero by construction, its enclosure straddles the band's zero,
+/// and the swing, the coplanar subdivision's side or a carrier's gap
+/// there is not decided.
+pub(super) const IN_PLANE: &str =
+    "a pair in one plane at Interval: its zero height's enclosure straddles the zero";
+
+/// A refusal this unit has not traced to a cause: refused, never wrong,
+/// and listed so that any change to it is seen.
+pub(super) const UNREAD: &str = "not traced: refused, never wrong";
+
+/// **A pose the rows list as refusing**: the band's zero, the family, the
+/// section's `a`, whether it is the thin one, the metres of arc, the
+/// lane, whether it is the twin `30ε` apart, and the row the refusal
+/// names (a meter's row, a gap decision's predicate, or `Tangency`).
+type Listed = (
+    f64,
+    &'static str,
+    f64,
+    bool,
+    f64,
+    &'static str,
+    bool,
+    &'static str,
+);
+
+/// The key a refusal at this pose reads as, `None` for a fault (a
+/// desync, a contradiction), which no list excuses.
+fn listed(
+    family: &'static str,
+    f: &Near,
+    lane: &'static str,
+    twin: bool,
+    fault: &MeetFault,
+) -> Option<Listed> {
+    let row = match fault {
+        MeetFault::Unsettled(crate::roots::Unsettled::Tangency) => Some("Tangency"),
+        MeetFault::Escalated(_) | MeetFault::Touch(_) | MeetFault::Unsettled(_) => named(fault),
+        _ => None,
+    }?;
+    Some((
+        band().zero(),
+        family,
+        f.a,
+        f.b < 0.1 * f.a,
+        f.s,
+        lane,
+        twin,
+        row,
+    ))
+}
+
+/// Every listed refusal of `family` at this run's band was met: a pose
+/// that answers now is taken off the list.
+fn all_listed_met(family: &str, met: &[Listed]) {
+    let stale: Vec<_> = REFUSING
+        .iter()
+        .filter(|l| l.0.1 == family && l.0.0 == band().zero() && !met.contains(&l.0))
+        .collect();
+    assert!(
+        stale.is_empty(),
+        "listed as refusing, but answered: {stale:?}"
+    );
 }
 
 /// Every pose's failures, red together.
@@ -300,7 +2707,7 @@ fn all_green(failures: Vec<String>) {
 /// height above the plane from the derived centre.
 #[test]
 fn a_line_through_a_point_of_an_arc_held_ellipse_meets_it() {
-    let mut failed = Vec::new();
+    let (mut failed, mut met) = (Vec::new(), Vec::new());
     for f in poses() {
         let line = |lift: f64| {
             Curve3::line(
@@ -308,20 +2715,22 @@ fn a_line_through_a_point_of_an_arc_held_ellipse_meets_it() {
                 geom_core::UnitVec3::checked(f.d),
             )
         };
-        failed.extend(
-            Case {
-                f: &f,
-                what: f.what(),
-                witness: line,
-                wspan: (0.0, 4.0 * f.r),
-                espan: f.span,
-                ellipse_first: false,
-                at: f.p,
-            }
-            .check(),
-        );
+        let (bad, hit) = Case {
+            f: &f,
+            family: "line through",
+            what: f.what(),
+            witness: line,
+            wspan: (0.0, 4.0 * f.r),
+            espan: f.span,
+            ellipse_first: false,
+            at: f.p,
+        }
+        .check();
+        failed.extend(bad);
+        met.extend(hit);
     }
     all_green(failed);
+    all_listed_met("line through", &met);
 }
 
 /// **A unit circle through a point of the ellipse, across its plane**,
@@ -331,7 +2740,7 @@ fn a_line_through_a_point_of_an_arc_held_ellipse_meets_it() {
 /// the centres, and the window from the derived one.
 #[test]
 fn a_circle_through_a_point_of_an_arc_held_ellipse_meets_it() {
-    let mut failed = Vec::new();
+    let (mut failed, mut met) = (Vec::new(), Vec::new());
     for f in poses() {
         let w = (f.d * 0.7_f64.cos() + f.n * 0.7_f64.sin()).normalize();
         let normal = (f.tan * 0.5_f64.sin() + w * 0.5_f64.cos()).normalize();
@@ -339,20 +2748,22 @@ fn a_circle_through_a_point_of_an_arc_held_ellipse_meets_it() {
         let common = f.tan.cross(normal.cross(in_plane)).normalize();
         let circle =
             |off: f64| Curve3::circle(f.p - in_plane * f.r + common * off, normal, f.r, in_plane);
-        failed.extend(
-            Case {
-                f: &f,
-                what: f.what(),
-                witness: circle,
-                wspan: (-1.0, 1.0),
-                espan: f.span,
-                ellipse_first: true,
-                at: f.p,
-            }
-            .check(),
-        );
+        let (bad, hit) = Case {
+            f: &f,
+            family: "circle across",
+            what: f.what(),
+            witness: circle,
+            wspan: (-1.0, 1.0),
+            espan: f.span,
+            ellipse_first: true,
+            at: f.p,
+        }
+        .check();
+        failed.extend(bad);
+        met.extend(hit);
     }
     all_green(failed);
+    all_listed_met("circle across", &met);
 }
 
 /// **A line piercing the plane through a point of the arc, 30° off the
@@ -362,26 +2773,28 @@ fn a_circle_through_a_point_of_an_arc_held_ellipse_meets_it() {
 #[test]
 fn a_line_piercing_the_plane_through_a_point_of_the_arc_meets_it() {
     let g = 30.0_f64.to_radians();
-    let mut failed = Vec::new();
+    let (mut failed, mut met) = (Vec::new(), Vec::new());
     for f in poses() {
         let dir = (f.d * g.cos() + f.n * g.sin()).normalize();
         let line = |at: Point3<f64>| {
             Curve3::line(at - dir * (2.0 * f.r), geom_core::UnitVec3::checked(dir))
         };
-        failed.extend(
-            Case {
-                f: &f,
-                what: f.what(),
-                witness: |by: f64| line(f.p + f.d * (by / g.sin())),
-                wspan: (0.0, 4.0 * f.r),
-                espan: f.span,
-                ellipse_first: false,
-                at: f.p,
-            }
-            .check(),
-        );
+        let (bad, hit) = Case {
+            f: &f,
+            family: "piercing line",
+            what: f.what(),
+            witness: |by: f64| line(f.p + f.d * (by / g.sin())),
+            wspan: (0.0, 4.0 * f.r),
+            espan: f.span,
+            ellipse_first: false,
+            at: f.p,
+        }
+        .check();
+        failed.extend(bad);
+        met.extend(hit);
     }
     all_green(failed);
+    all_listed_met("piercing line", &met);
 }
 
 /// **A line along the major axis out through the anchor vertex meets it
@@ -391,25 +2804,27 @@ fn a_line_piercing_the_plane_through_a_point_of_the_arc_meets_it() {
 #[test]
 fn a_line_out_through_the_anchor_vertex_meets_it() {
     let thirty = 30.0 * band().zero();
-    let mut failed = Vec::new();
+    let (mut failed, mut met) = (Vec::new(), Vec::new());
     for f in poses() {
         let (vertex, u) = (f.e.point_at(0.0), f.e.u_ref());
         let half = 10.0 * f.r / f.b;
         let line = |start: Point3<f64>| Curve3::line(start, geom_core::UnitVec3::checked(u));
-        failed.extend(
-            Case {
-                f: &f,
-                what: f.what(),
-                witness: |by: f64| line(vertex + u * (2.0 * by - thirty)),
-                wspan: (0.0, 2.0 * f.r),
-                espan: (-half, half),
-                ellipse_first: false,
-                at: vertex,
-            }
-            .check(),
-        );
+        let (bad, hit) = Case {
+            f: &f,
+            family: "vertex line",
+            what: f.what(),
+            witness: |by: f64| line(vertex + u * (2.0 * by - thirty)),
+            wspan: (0.0, 2.0 * f.r),
+            espan: (-half, half),
+            ellipse_first: false,
+            at: vertex,
+        }
+        .check();
+        failed.extend(bad);
+        met.extend(hit);
     }
     all_green(failed);
+    all_listed_met("vertex line", &met);
 }
 
 /// **A unit circle in the ellipse's plane crossing the arc meets it**,
@@ -419,25 +2834,27 @@ fn a_line_out_through_the_anchor_vertex_meets_it() {
 /// (`curve_pair_pose_parallel`, `Pose::Apart`).
 #[test]
 fn a_circle_in_the_plane_crossing_the_arc_meets_it() {
-    let mut failed = Vec::new();
+    let (mut failed, mut met) = (Vec::new(), Vec::new());
     for f in poses() {
         let centre = f.p + f.tan * (0.6 * f.r);
         let circle = |lift: f64| Curve3::circle(centre + f.n * lift, f.n, f.r, -f.tan);
         let at = f.crossing(|q| (q - centre).norm() - f.r, f.theta - 0.4 * f.r / f.b);
-        failed.extend(
-            Case {
-                f: &f,
-                what: f.what(),
-                witness: circle,
-                wspan: (-1.0, 1.0),
-                espan: f.span,
-                ellipse_first: false,
-                at,
-            }
-            .check(),
-        );
+        let (bad, hit) = Case {
+            f: &f,
+            family: "in-plane circle",
+            what: f.what(),
+            witness: circle,
+            wspan: (-1.0, 1.0),
+            espan: f.span,
+            ellipse_first: false,
+            at,
+        }
+        .check();
+        failed.extend(bad);
+        met.extend(hit);
     }
     all_green(failed);
+    all_listed_met("in-plane circle", &met);
 }
 
 /// **A small ellipse held at its centre, in the plane and crossing the
@@ -447,7 +2864,7 @@ fn a_circle_in_the_plane_crossing_the_arc_meets_it() {
 /// residual about it (`curve_pair_coplanar_sub_clear`).
 #[test]
 fn a_small_ellipse_in_the_plane_crossing_the_arc_meets_it() {
-    let mut failed = Vec::new();
+    let (mut failed, mut met) = (Vec::new(), Vec::new());
     for f in poses() {
         let centre = f.p + f.tan * (1.2 * f.r);
         let (u, w) = (-f.tan, f.n.cross(-f.tan));
@@ -463,20 +2880,22 @@ fn a_small_ellipse_in_the_plane_crossing_the_arc_meets_it() {
             ((r.dot(u) / 2.0).powi(2) + r.dot(w).powi(2)).sqrt() - f.r
         };
         let at = f.crossing(level, f.theta - 0.8 * f.r / f.b);
-        failed.extend(
-            Case {
-                f: &f,
-                what: f.what(),
-                witness: small,
-                wspan: (-1.0, 1.0),
-                espan: f.span,
-                ellipse_first: false,
-                at,
-            }
-            .check(),
-        );
+        let (bad, hit) = Case {
+            f: &f,
+            family: "small ellipse",
+            what: f.what(),
+            witness: small,
+            wspan: (-1.0, 1.0),
+            espan: f.span,
+            ellipse_first: false,
+            at,
+        }
+        .check();
+        failed.extend(bad);
+        met.extend(hit);
     }
     all_green(failed);
+    all_listed_met("small ellipse", &met);
 }
 
 /// **Two arc-held ellipses of one size through one point meet there**,
@@ -493,20 +2912,26 @@ fn two_arc_held_ellipses_through_one_point_meet() {
 /// for about 70 s at `1e-6` before refusing on `curve_pair_pose_basin`
 /// (the centre-held twin refuses on the same row in 0.2 s):
 /// `work/oneround/an-interval-meeting-of-two-thin-arc-held-ellipses-spends-a-minute-to-refuse.md`.
+/// In the slow set of `.config/nextest.toml`, which the nightly runs.
 #[test]
-#[ignore = "slow: about 140 s at 1e-6, the Interval lane's refusal"]
 fn two_thin_far_arc_held_ellipses_across_planes_meet() {
     two_arc_held(true);
 }
 
 fn two_arc_held(slow: bool) {
     use geom_core::Affine3;
-    let mut failed = Vec::new();
+    let (mut failed, mut met) = (Vec::new(), Vec::new());
     for f in poses() {
         for (name, about) in [("in one plane", f.n), ("across planes", f.d)] {
-            if slow != (f.a > 1e8 && f.b < 1e5 && name == "across planes") {
+            let far_thin = f.a > 1e8 && f.b < 1e5 && name == "across planes";
+            if slow != far_thin {
                 continue;
             }
+            let family = match (name, far_thin) {
+                ("in one plane", _) => "two in one plane",
+                (_, false) => "two across planes",
+                (_, true) => "two across planes, slow",
+            };
             let m = Affine3::rotation_about_axis(f.p, about, 0.7);
             let turned_tan = m.transform_vec(f.tan);
             let apart = if name == "in one plane" {
@@ -523,21 +2948,30 @@ fn two_arc_held(slow: bool) {
                     f.b,
                 ))
             };
-            failed.extend(
-                Case {
-                    f: &f,
-                    what: format!("{}, {name}", f.what()),
-                    witness: turned,
-                    wspan: f.span,
-                    espan: f.span,
-                    ellipse_first: false,
-                    at: f.p,
-                }
-                .check(),
-            );
+            let (bad, hit) = Case {
+                f: &f,
+                family,
+                what: format!("{}, {name}", f.what()),
+                witness: turned,
+                wspan: f.span,
+                espan: f.span,
+                ellipse_first: false,
+                at: f.p,
+            }
+            .check();
+            failed.extend(bad);
+            met.extend(hit);
         }
     }
     all_green(failed);
+    let families: &[&str] = if slow {
+        &["two across planes, slow"]
+    } else {
+        &["two in one plane", "two across planes"]
+    };
+    for family in families {
+        all_listed_met(family, &met);
+    }
 }
 
 /// **At `Interval` a window part not decided empty is read**: a unit

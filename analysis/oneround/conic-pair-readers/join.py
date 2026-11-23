@@ -8,7 +8,8 @@ by `oracle.py`. A pose is (door, lane, fat, target, case, shift); a reading's
 state is `right`, `WRONG` or `refused:<row>` (the row the refusal names).
 
 The ACCEPTANCE table is the poses whose spans lie in the session box (the
-box's own predicate on the spans' points, `in_box`) on an ellipse whose
+harness's predicate on the spans' points, `in_box`, not the kernel's
+cover-based one) on an ellipse whose
 parameter is zero at its anchor (`seam_at_anchor`): it must show 0 wrong on
 the head and 0 right-to-wrong. The past-box poses are printed beside it,
 joined the same way, with no claim.
