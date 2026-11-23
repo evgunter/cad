@@ -60,7 +60,7 @@ pub fn shown(refusal: &impl pncad::geom_brep::recourse::Ended) -> String {
 }
 
 /// [`shown`], as the sentence a session refusal says, each node it
-/// names a mention said by `by` (`frame::refusal_message_by`).
+/// names a mention said by `by` (`frame::refusal_message`).
 #[must_use]
 pub fn shown_said(
     refusal: &session::Refusal,

@@ -70,7 +70,7 @@ impl ViewerBehavior<'_> {
             // A sentence, so `widgets::sentence` — here in a layout
             // egui would have wrapped it in anyway, which is a fact
             // about the column and not about the message.
-            let said = crate::widgets::sentence(ui, status.said(), self.session.doc());
+            let said = crate::widgets::sentence(ui, status.said(), self.session.doc(), None);
             self.ops.extend(said.map(crate::session::SessionOp::Select));
         }
     }
@@ -132,7 +132,7 @@ fn toggles_ui(
                 let toggle = ui
                     .add_enabled(group.on, egui::Checkbox::without_text(&mut on))
                     .on_disabled_hover_text(SPACE_HIDDEN);
-                let name = crate::widgets::sentence(ui, &label(body.node), on_screen);
+                let name = crate::widgets::sentence(ui, &label(body.node), on_screen, None);
                 ops.extend(name.map(SessionOp::Select));
                 if !body.drawn_by_default {
                     ui.weak(READ_AS_A_BODY);

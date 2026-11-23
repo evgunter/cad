@@ -1602,7 +1602,10 @@ mod tests {
         // The end of that frame: the ranking weighs what the frame
         // said against a batch that did nothing, and the winner
         // becomes the line.
-        frame::apply(&mut status, frame::frame_status(&notices, &[], None));
+        frame::apply(
+            &mut status,
+            frame::frame_status_untargeted(&notices, &[], None),
+        );
         let landed = status.clone().expect("the ranking put the refusal up");
         assert_eq!(
             landed.subject(),

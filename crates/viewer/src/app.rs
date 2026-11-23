@@ -226,7 +226,12 @@ pub(crate) fn chrome(color: Rgba8) -> egui::Color32 {
 /// Everything wearing [`crate::theme::Theme::actionable`] says its own
 /// words, so this decides salience and never meaning.
 pub(crate) fn toned(text: impl Into<String>, theme: &Theme, tone: frame::Tone) -> egui::RichText {
-    let text = egui::RichText::new(text);
+    voiced(egui::RichText::new(text), theme, tone)
+}
+
+/// [`toned`]'s voice, on text already rich: a run of a sentence
+/// (`widgets::sentence`).
+pub(crate) fn voiced(text: egui::RichText, theme: &Theme, tone: frame::Tone) -> egui::RichText {
     match tone {
         frame::Tone::Advisory => text.weak(),
         frame::Tone::Actionable => text.color(chrome(theme.actionable)),
@@ -1625,7 +1630,7 @@ impl ViewerApp {
         } else if answered_save_choice {
             self.save_choice = None;
         }
-        let verdict = frame::frame_status_by(
+        let verdict = frame::frame_status(
             &notices,
             &performed,
             refusal.as_ref(),
@@ -1855,8 +1860,12 @@ impl ViewerApp {
                                 {
                                     ops.push(SessionOp::Select(row.select));
                                 }
-                                let said =
-                                    crate::widgets::sentence(ui, &row.sentence, self.session.doc());
+                                let said = crate::widgets::sentence(
+                                    ui,
+                                    &row.sentence,
+                                    self.session.doc(),
+                                    None,
+                                );
                                 ops.extend(said.map(SessionOp::Select));
                             });
                             if let Some(node) = row.add_to_product
@@ -2374,7 +2383,8 @@ impl ViewerApp {
                 egui::ScrollArea::horizontal()
                     .id_salt("viewer_status_line")
                     .show(ui, |ui| {
-                        let said = crate::widgets::sentence(ui, status.said(), self.session.doc());
+                        let said =
+                            crate::widgets::sentence(ui, status.said(), self.session.doc(), None);
                         ops.extend(said.map(SessionOp::Select));
                     });
             });
@@ -7795,6 +7805,49 @@ mod properties_pane_tests {
             driven.app.session.selection(),
             &Selection::Node(revolve),
             "the click selects the node the finding names"
+        );
+    }
+
+    /// **A node a failed row's line names is a link to it**: the
+    /// startup extrude set to no distance fails, the line under its row
+    /// names it, and a click on the name there selects it.
+    ///
+    /// *Breaks if* the failure line reaches the tree as text.
+    #[test]
+    fn a_node_a_failure_line_names_is_a_link_to_it() {
+        let mut driven = Driven::with(vec![
+            SessionOp::SetSlot {
+                node: extrude(),
+                slot: SlotId::Distance,
+                value: crate::props::SlotValue::Continuous(0.0),
+            },
+            SessionOp::Select(Selection::Node(placement())),
+        ]);
+        driven.quiet();
+        let rows = driven.app.session.tree_rows();
+        let failed = rows
+            .iter()
+            .find(|row| row.id == extrude())
+            .expect("the extrude's row");
+        let crate::tree::RowStatus::Failed { message, .. } = &failed.status else {
+            panic!("the premise: no distance fails, got {:?}", failed.status)
+        };
+        let text = message.to_string();
+        let name = crate::tree::spelled(&driven.app.session.doc().spoken(extrude()));
+        assert!(
+            message
+                .mentions()
+                .any(|mention| mention.node().is_some_and(|node| node.id() == extrude())),
+            "the line mentions the extrude: {message:?}"
+        );
+        let landed = driven.landed();
+        let line = crate::pane::headless::find(&landed, &text);
+        driven.click_at(line.at(&name).expect("the line names the extrude"));
+        driven.quiet();
+        assert_eq!(
+            driven.app.session.selection(),
+            &Selection::Node(extrude()),
+            "the click selects the node the line names"
         );
     }
 

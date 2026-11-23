@@ -1086,12 +1086,15 @@ impl Refusal {
     }
 
     /// Writes each arm through its payload's OWN words wherever the
-    /// payload has them — `EditError` as a sentence, its nodes
-    /// mentioned; `DimensionError` and `PersistError` (inside
-    /// [`DocIoError`]) through their `Display`, spelled before the
-    /// sentence is written since they carry no mentions — the same rule
-    /// the feature tree's badges follow: the layer that raised the
-    /// failure names it.
+    /// payload has them — the same rule the feature tree's badges
+    /// follow: the layer that raised the failure names it. A payload
+    /// that is said (`EditError`, `MateFault`, `RangeRefusal`) is
+    /// written as a sentence by `by`, and a staged one (`PersistError`
+    /// inside [`DocIoError`], `WorkspaceError`) as its labelled
+    /// sentence, so their mentions stay mentions. A payload with words
+    /// alone (`DimensionError`, `ParseError`, an OS read error, and the
+    /// viewer's own faults, filed to be said) is spelled before the
+    /// sentence is written.
     ///
     /// One exception, stated rather than hidden: the affordance arm's
     /// wording is this layer's own sentence, so it is
@@ -1196,10 +1199,18 @@ impl Refusal {
             Self::NoGesture => say!(out, "no drag is in progress"),
             Self::GestureInFlight => say!(out, "finish the drag first"),
             Self::WrongGesture => say!(out, "that is not the drag in progress"),
-            Self::Io(error) => {
-                let text = error.to_string();
-                say!(out, text)
-            }
+            Self::Io(error) => match &**error {
+                DocIoError::Persist(error) => {
+                    say!(
+                        out,
+                        pncad::document::Labelled(&**error, pncad::document::Labels::Kept)
+                    )
+                }
+                DocIoError::Read { .. } => {
+                    let text = error.to_string();
+                    say!(out, text)
+                }
+            },
             Self::NothingToDo { direction } => {
                 say!(out, format_args!("nothing to {}", direction.verb()))
             }
@@ -1216,10 +1227,10 @@ impl Refusal {
                 out,
                 "save the document first — references resolve against the file's directory"
             ),
-            Self::Workspace(error) => {
-                let text = error.to_string();
-                say!(out, text)
-            }
+            Self::Workspace(error) => say!(
+                out,
+                pncad::document::Labelled(&**error, pncad::document::Labels::Kept)
+            ),
             Self::SelfInstance { id } => say!(
                 out,
                 format_args!(
@@ -1332,15 +1343,12 @@ impl Refusal {
                 let text = error.to_string();
                 say!(out, text)
             }
-            Self::PlacementFails { fault: Some(fault) } => {
-                let text = fault.to_string();
-                say!(
-                    out,
-                    "the copy would not stand: ",
-                    text,
-                    "; the editor's draft was not written"
-                )
-            }
+            Self::PlacementFails { fault: Some(fault) } => say!(
+                out,
+                "the copy would not stand: ",
+                Said(&**fault, by),
+                "; the editor's draft was not written"
+            ),
             Self::PlacementFails { fault: None } => say!(
                 out,
                 "what the placement reads does not evaluate; the editor's draft was not written"

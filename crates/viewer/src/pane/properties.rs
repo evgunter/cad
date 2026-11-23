@@ -497,7 +497,7 @@ impl ViewerBehavior<'_> {
                         said,
                         *node,
                     );
-                    let heading = crate::widgets::sentence(ui, &heading, self.session.doc());
+                    let heading = crate::widgets::sentence(ui, &heading, self.session.doc(), None);
                     self.ops.extend(heading.map(SessionOp::Select));
                     if *present && delete_button(ui, self.session, *node) {
                         self.ops.push(SessionOp::DeleteNode { node: *node });
@@ -577,7 +577,7 @@ impl ViewerBehavior<'_> {
             let by = crate::frame::landed_speaker(self.session.landed_pair())
                 .or_held(self.session.selection_said());
             let (label, feature) = entity_header(picked, by);
-            let label = crate::widgets::sentence(ui, &label, self.session.doc());
+            let label = crate::widgets::sentence(ui, &label, self.session.doc(), None);
             self.ops.extend(label.map(SessionOp::Select));
             if standing.live() && delete_button(ui, self.session, feature) {
                 self.ops.push(SessionOp::DeleteNode { node: feature });
@@ -622,7 +622,7 @@ impl ViewerBehavior<'_> {
         }
         ui.separator();
         let heading = crate::relations::Related::node(doc, node, self.session.part_files());
-        let heading = crate::widgets::sentence(ui, heading.said(), self.session.doc());
+        let heading = crate::widgets::sentence(ui, heading.said(), self.session.doc(), None);
         self.ops.extend(heading.map(SessionOp::Select));
         let mut on = self.toggles.body_on(node);
         if body_toggle(ui, &mut on) {
@@ -1085,9 +1085,15 @@ impl ViewerBehavior<'_> {
             slot: row.slot,
         };
         let (lines, proving) = self.range_lines(&target);
-        if let Some(var) = slot_notes(ui, &self.theme, row, &lines, *self.notation) {
-            self.ops.push(SessionOp::Select(Selection::Variable(var)));
-        }
+        let clicked = slot_notes(
+            ui,
+            &self.theme,
+            row,
+            &lines,
+            self.session.doc(),
+            *self.notation,
+        );
+        self.ops.extend(clicked.map(SessionOp::Select));
         if proving && stop_link(ui) {
             self.ops.push(SessionOp::StopRange);
         }
@@ -1262,12 +1268,12 @@ impl ViewerBehavior<'_> {
     /// **The session's `range?` reading for `target`**: its lines, and
     /// whether the run is still proving. No lines while no run was taken
     /// for that field, or the document changed since.
-    fn range_lines(&self, target: &RangeTarget) -> (Vec<String>, bool) {
+    fn range_lines(&self, target: &RangeTarget) -> (Vec<Sentence>, bool) {
         self.session
             .range()
             .filter(|reading| reading.target == *target)
             .map_or((Vec::new(), false), |reading| {
-                (reading.lines(self.session.doc()), reading.proving())
+                (reading.said_lines(self.session.doc()), reading.proving())
             })
     }
 
@@ -1309,7 +1315,15 @@ impl ViewerBehavior<'_> {
         let target = RangeTarget::Variable { var: row.var };
         let (lines, proving) = self.range_lines(&target);
         let refused = self.session.range_refusal(&target);
-        let asked = range_notes(ui, &self.theme, &lines, proving, refused.as_ref());
+        let asked = range_notes(
+            ui,
+            &self.theme,
+            &lines,
+            self.session.doc(),
+            proving,
+            refused.as_ref(),
+        );
+        self.ops.extend(asked.followed.map(SessionOp::Select));
         if asked.stop {
             self.ops.push(SessionOp::StopRange);
         }
@@ -1418,7 +1432,7 @@ pub(crate) fn related_entry(
     entry: &crate::relations::Related,
     ops: &mut Vec<SessionOp>,
 ) {
-    let said = crate::widgets::sentence(ui, entry.said(), on_screen);
+    let said = crate::widgets::sentence(ui, entry.said(), on_screen, None);
     ops.extend(said.map(SessionOp::Select));
 }
 
@@ -1771,9 +1785,10 @@ fn slot_notes(
     ui: &mut egui::Ui,
     theme: &Theme,
     row: &SlotRow,
-    reading: &[String],
+    reading: &[Sentence],
+    on_screen: &Doc<ProfileProgram>,
     notation: Notation,
-) -> Option<VarId> {
+) -> Option<Selection> {
     for line in reading_notes(&row.label, &row.value, row.dimension, notation) {
         crate::widgets::message_toned(ui, line, theme, Tone::Advisory);
     }
@@ -1811,7 +1826,7 @@ fn slot_notes(
                     )
                     .clicked()
                     {
-                        clicked = Some(var.id());
+                        clicked = Some(Selection::Variable(var.id()));
                     }
                 }
             });
@@ -1819,11 +1834,13 @@ fn slot_notes(
     }
     for (i, line) in reading.iter().enumerate() {
         let line = if i == 0 {
-            format!("{}: {line}", row.label)
+            pncad::document::sentence!(format_args!("{}: ", row.label), line)
         } else {
             line.clone()
         };
-        crate::widgets::message_toned(ui, line, theme, Tone::Advisory);
+        let followed =
+            crate::widgets::sentence(ui, &line, on_screen, Some((theme, Tone::Advisory)));
+        clicked = clicked.or(followed);
     }
     clicked
 }
@@ -1881,12 +1898,14 @@ fn free_move_probe(
 }
 
 /// What a `range?` line's controls were asked this frame.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 struct RangeAsked {
     /// The stop, under a run that is proving.
     stop: bool,
     /// The `range?` button.
     range: bool,
+    /// What a mention clicked in the reading selects.
+    followed: Option<Selection>,
 }
 
 /// **A document variable's `range?` reading and the button that starts
@@ -1900,14 +1919,18 @@ struct RangeAsked {
 fn range_notes(
     ui: &mut egui::Ui,
     theme: &Theme,
-    lines: &[String],
+    lines: &[Sentence],
+    on_screen: &Doc<ProfileProgram>,
     proving: bool,
     refused: Option<&Refusal>,
 ) -> RangeAsked {
+    let mut followed = None;
     for line in lines {
-        crate::widgets::message_toned(ui, line.as_str(), theme, Tone::Advisory);
+        let clicked = crate::widgets::sentence(ui, line, on_screen, Some((theme, Tone::Advisory)));
+        followed = followed.or(clicked);
     }
     RangeAsked {
+        followed,
         stop: proving && stop_link(ui),
         range: range_control(
             ui,
@@ -2059,7 +2082,17 @@ mod layout_tests {
             )
         };
         let (region, painted) = drawn_in(REGION, |ui| {
-            slot_notes(ui, &Theme::DEFAULT, &row, &[], Notation::DEFAULT);
+            slot_notes(
+                ui,
+                &Theme::DEFAULT,
+                &row,
+                &[],
+                &pncad::document::Doc::empty_derived(
+                    "slot-notes",
+                    pncad::geom_core::Tol::witness(),
+                ),
+                Notation::DEFAULT,
+            );
         });
         let label = SlotId::Distance.label();
         let values = find(&painted, &format!("{label} at each member: {spelled}"));
@@ -2126,7 +2159,17 @@ mod layout_tests {
             Ok(value),
         );
         let (region, painted) = drawn_in(REGION, |ui| {
-            slot_notes(ui, &Theme::DEFAULT, &row, &[], Notation::DEFAULT);
+            slot_notes(
+                ui,
+                &Theme::DEFAULT,
+                &row,
+                &[],
+                &pncad::document::Doc::empty_derived(
+                    "slot-notes",
+                    pncad::geom_core::Tol::witness(),
+                ),
+                Notation::DEFAULT,
+            );
         });
         let affordance = find(
             &painted,
@@ -2164,7 +2207,17 @@ mod layout_tests {
             )
         };
         let (region, painted) = drawn_in(REGION, |ui| {
-            slot_notes(ui, &Theme::DEFAULT, &row, &[], Notation::DEFAULT);
+            slot_notes(
+                ui,
+                &Theme::DEFAULT,
+                &row,
+                &[],
+                &pncad::document::Doc::empty_derived(
+                    "slot-notes",
+                    pncad::geom_core::Tol::witness(),
+                ),
+                Notation::DEFAULT,
+            );
         });
         let quoted = find(
             &painted,
@@ -2222,7 +2275,17 @@ mod layout_tests {
     fn a_slots_fault_is_said_under_its_row_inside_the_pane() {
         let row = distance_row(SlotDriver::Literal, Err(SlotFault::NoExpression));
         let (region, painted) = drawn_in(REGION, |ui| {
-            slot_notes(ui, &Theme::DEFAULT, &row, &[], Notation::DEFAULT);
+            slot_notes(
+                ui,
+                &Theme::DEFAULT,
+                &row,
+                &[],
+                &pncad::document::Doc::empty_derived(
+                    "slot-notes",
+                    pncad::geom_core::Tol::witness(),
+                ),
+                Notation::DEFAULT,
+            );
         });
         let fault = find(
             &painted,
@@ -2238,7 +2301,17 @@ mod layout_tests {
             "checked to 0 m…24.691357802469134 m".to_owned(),
         ];
         let (region, painted) = drawn_in(REGION, |ui| {
-            range_notes(ui, &Theme::DEFAULT, &lines, true, None);
+            range_notes(
+                ui,
+                &Theme::DEFAULT,
+                &lines.clone().map(pncad::document::Sentence::from),
+                &pncad::document::Doc::empty_derived(
+                    "range-notes",
+                    pncad::geom_core::Tol::witness(),
+                ),
+                true,
+                None,
+            );
         });
         let button = find(&painted, "restart");
         let stop = find(&painted, "stop");

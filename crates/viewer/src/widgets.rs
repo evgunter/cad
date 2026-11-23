@@ -185,9 +185,28 @@ pub(crate) fn message(ui: &mut egui::Ui, text: impl Into<egui::WidgetText>) -> e
 /// A message that points at the row to fix is one gesture from it
 /// rather than an id to hunt for, and a pointer long enough to need
 /// wrapping is exactly the one worth clicking.
-pub(crate) fn message_link(ui: &mut egui::Ui, text: impl Into<egui::WidgetText>) -> egui::Response {
+///
+/// It wears the one link look ([`as_link`]), the look a mention in a
+/// [`sentence`] wears, and the same hover ground behind it.
+pub(crate) fn message_link(ui: &mut egui::Ui, text: impl Into<String>) -> egui::Response {
+    let text = as_link(ui, egui::RichText::new(text));
     let galley = wrapped_in_region(ui, text);
-    ui.add(egui::Link::new(galley))
+    let ground = ui.painter().add(egui::Shape::Noop);
+    let response = ui.add(egui::Label::new(galley).sense(egui::Sense::click()));
+    if response.hovered() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+        let fill = ui.visuals().widgets.hovered.weak_bg_fill;
+        ui.painter()
+            .set(ground, egui::Shape::rect_filled(response.rect, 2.0, fill));
+    }
+    response
+}
+
+/// **The one look of a link in the chrome**: the hyperlink colour,
+/// underlined — a [`message_link`], and each linkable mention a
+/// [`sentence`] draws.
+fn as_link(ui: &mut egui::Ui, text: egui::RichText) -> egui::RichText {
+    text.color(ui.visuals().hyperlink_color).underline()
 }
 
 /// [`message`] in the voice its [`frame::Tone`] asks for — the one
@@ -209,32 +228,38 @@ pub(crate) fn message_toned(
     message(ui, crate::app::toned(text, theme, tone))
 }
 
-/// **A kernel sentence, drawn**: [`message`]'s wrap, and each mention [`crate::relations::link`] answers for
-/// `on_screen` underlined in the link colour; a mention it answers
-/// nothing for — another document's, or a node `on_screen` no longer
-/// holds — is drawn as words, and so are the sentence's words. Answers
-/// what the mention clicked this frame selects, if one was.
+/// **A kernel sentence, drawn**: [`message`]'s wrap, its words in
+/// `tone`'s voice where it has one ([`crate::app::toned`]'s mapping),
+/// and each mention [`crate::relations::link`] answers for `on_screen`
+/// in the one link look ([`as_link`]); a mention it answers nothing for
+/// — another document's, or a node `on_screen` no longer holds — is
+/// drawn as words. Answers what the mention clicked this frame
+/// selects, if one was.
 ///
 /// The sentence is ONE galley, one section per run, so it wraps as the
-/// same text drawn by [`message`] does, a mention included. A click is
+/// same text drawn by [`message`] does, a mention included, and it is
+/// an `egui::Label` over that galley: its text selects and copies as a
+/// message's does, and it carries the label's widget info. A click is
 /// placed on its character by `egui::Galley::cursor_from_pos` and
 /// confirmed against that character's box (`pos_from_cursor` either
 /// side of it), so a click past a row's end, or between two rows,
 /// lands on nothing; the character's run is found by counting
-/// characters, since a glyph's section index is epaint's own.
+/// characters, since a glyph's section index is epaint's own. The
+/// mention under the pointer is drawn on the hover ground.
 pub(crate) fn sentence(
     ui: &mut egui::Ui,
     said: &pncad::document::Sentence,
     on_screen: &pncad::document::Doc<pncad::document::ProfileProgram>,
+    tone: Option<(&Theme, crate::frame::Tone)>,
 ) -> Option<crate::session::Selection> {
     use pncad::document::{Mentioned, Run};
-    let link_colour = ui.visuals().hyperlink_color;
-    let mut job = egui::text::LayoutJob::default();
-    // Each run's selection where it is a link, and its first character.
-    let mut runs: Vec<(usize, Option<crate::session::Selection>)> = Vec::new();
-    let mut chars = 0;
-    for run in said.runs() {
-        let (text, selects) = match run {
+    // A mention's text: the kernel's one spelling, which is what
+    // `Sentence::from(mention)` spells too — the text
+    // `frame::Message::new`'s mark rule reads.
+    let said_runs: Vec<(String, Option<crate::session::Selection>)> = said
+        .runs()
+        .iter()
+        .map(|run| match run {
             Run::Words(words) => (words.clone(), None),
             Run::Mention(mention) => (
                 match mention.mentioned() {
@@ -243,13 +268,26 @@ pub(crate) fn sentence(
                 },
                 crate::relations::link(on_screen, mention),
             ),
-        };
+        })
+        .collect();
+    let linked = said_runs.iter().any(|(_, selects)| selects.is_some());
+    let mut job = egui::text::LayoutJob::default();
+    // Each run's first character, and its selection where it is a link.
+    let mut runs: Vec<(usize, Option<crate::session::Selection>)> = Vec::new();
+    let mut chars = 0;
+    for (text, selects) in said_runs {
         runs.push((chars, selects.clone()));
         chars += text.chars().count();
-        let mut rich = egui::RichText::new(text);
-        if selects.is_some() {
-            rich = rich.color(link_colour).underline();
-        }
+        let rich = egui::RichText::new(text);
+        let rich = match (selects.is_some(), tone) {
+            (true, _) => as_link(ui, rich),
+            (false, Some((theme, tone))) => crate::app::voiced(rich, theme, tone),
+            // A linked sentence's label is interactive, and egui tints
+            // an interactive label's unset colour on hover: its words
+            // keep the text colour.
+            (false, None) if linked => rich.color(ui.visuals().text_color()),
+            (false, None) => rich,
+        };
         rich.append_to(
             &mut job,
             ui.style(),
@@ -257,15 +295,18 @@ pub(crate) fn sentence(
             ui.text_valign(),
         );
     }
-    let galley = wrapped_in_region(ui, job);
-    if runs.iter().all(|(_, selects)| selects.is_none()) {
-        ui.add(egui::Label::new(galley));
+    if !linked {
+        ui.add(egui::Label::new(wrapped_in_region(ui, job)));
         return None;
     }
-    let (rect, response) = ui.allocate_exact_size(galley.size(), egui::Sense::click());
+    let galley = wrapped_in_region(ui, job);
+    let ground = ui.painter().add(egui::Shape::Noop);
+    let response =
+        ui.add(egui::Label::new(std::sync::Arc::clone(&galley)).sense(egui::Sense::click()));
+    let origin = response.rect.min;
     // The run whose character the pointer is on, if it is a link's.
-    let under = |at: egui::Pos2| -> Option<crate::session::Selection> {
-        let local = at - rect.min;
+    let under = |at: egui::Pos2| -> Option<usize> {
+        let local = at - origin;
         let near = galley.cursor_from_pos(local).index.0;
         let on = [near.checked_sub(1), Some(near)]
             .into_iter()
@@ -274,27 +315,42 @@ pub(crate) fn sentence(
             .find(|&at| {
                 let from = galley.pos_from_cursor(egui::text::CCursor::new(at));
                 let to = galley.pos_from_cursor(egui::text::CCursor::new(at + 1));
-                (from.min.y - to.min.y).abs() < f32::EPSILON
-                    && (from.min.x..to.min.x).contains(&local.x)
+                (from.min.x..to.min.x).contains(&local.x)
                     && (from.min.y..=from.max.y).contains(&local.y)
             })?;
         let run = runs.partition_point(|(first, _)| *first <= on) - 1;
-        runs[run].1.clone()
+        runs[run].1.is_some().then_some(run)
     };
-    let hovered = response.hover_pos().and_then(&under);
-    if hovered.is_some() {
+    if let Some(run) = response.hover_pos().and_then(&under) {
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+        let end = runs.get(run + 1).map_or(chars, |(first, _)| *first);
+        let fill = ui.visuals().widgets.hovered.weak_bg_fill;
+        let mut ground_rects: Vec<egui::Rect> = Vec::new();
+        for at in runs[run].0..end {
+            let from = galley.pos_from_cursor(egui::text::CCursor::new(at));
+            let to = galley.pos_from_cursor(egui::text::CCursor::new(at + 1));
+            let char_box = egui::Rect::from_min_max(from.min, egui::pos2(to.min.x, from.max.y));
+            match ground_rects.last_mut() {
+                Some(last) if (last.min.y - char_box.min.y).abs() < 0.5 => {
+                    *last = last.union(char_box);
+                }
+                _ => ground_rects.push(char_box),
+            }
+        }
+        let shapes = ground_rects
+            .into_iter()
+            .map(|rect| egui::Shape::rect_filled(rect.translate(origin.to_vec2()), 2.0, fill))
+            .collect();
+        ui.painter().set(ground, egui::Shape::Vec(shapes));
     }
-    let selects = if response.clicked() {
-        response.interact_pointer_pos().and_then(&under)
+    if response.clicked() {
+        response
+            .interact_pointer_pos()
+            .and_then(&under)
+            .and_then(|run| runs[run].1.clone())
     } else {
         None
-    };
-    if ui.is_rect_visible(rect) {
-        ui.painter()
-            .galley(rect.min, galley, ui.visuals().text_color());
     }
-    selects
 }
 
 /// The one place the wrap rule [`message`]'s doc states is spelled,
@@ -1217,7 +1273,7 @@ pub(crate) fn value_field_ops<Op>(
         Some(props::FieldEdit::Number(written)) => {
             match props::SlotValue::of(dimension, writing.authored(written)) {
                 Ok(value) => ops.push((doors.number)(value)),
-                Err(error) => notices.push(crate::frame::refusal_message(
+                Err(error) => notices.push(crate::frame::refusal_message_untargeted(
                     &crate::session::Refusal::Dimension(error),
                 )),
             }
@@ -4310,7 +4366,7 @@ mod value_field_tests {
         );
         assert_eq!(row.session.history().len(), before, "and nothing lands");
         assert_eq!(row.showing().0, 2.0, "and the field keeps the count");
-        let typed = frame::frame_status(&row.notices, &typed_ops, None);
+        let typed = frame::frame_status_untargeted(&row.notices, &typed_ops, None);
         let RankedVerdict::Show(said) = &typed else {
             panic!("the typed refusal reaches the line: {typed:?}");
         };
@@ -4338,7 +4394,7 @@ mod value_field_tests {
             dragged.refusal
         );
         assert_eq!(
-            frame::frame_status(&[], &[preview], dragged.refusal.as_ref()),
+            frame::frame_status_untargeted(&[], &[preview], dragged.refusal.as_ref()),
             typed,
             "a drag and a keyboard say the same thing about the same value"
         );
@@ -5411,7 +5467,7 @@ mod sentence_tests {
             },
             |ui| {
                 ui.allocate_ui(egui::vec2(REGION, 400.0), |ui| {
-                    selects = super::sentence(ui, said, on_screen);
+                    selects = super::sentence(ui, said, on_screen, None);
                 });
             },
         );
@@ -5605,7 +5661,7 @@ mod sentence_tests {
                 crate::pane::headless::find(&painted, &text).rows.clone()
             };
             let drawn = rows(&|ui| {
-                super::sentence(ui, &said, &doc);
+                super::sentence(ui, &said, &doc, None);
             });
             let message = rows(&|ui| {
                 super::message(ui, text.as_str());
@@ -5613,5 +5669,171 @@ mod sentence_tests {
             assert!(drawn.len() > 1, "the sentence wraps at {width}");
             assert_eq!(drawn, message, "the rows at {width}");
         }
+    }
+
+    /// **A sentence that holds a link selects and copies as a message
+    /// does**: a drag across the whole galley, then a copy, puts the
+    /// sentence's text, mention included, on the clipboard.
+    ///
+    /// *Breaks if* the link path paints its galley itself rather than
+    /// through a label, which takes away egui's text selection.
+    #[test]
+    fn a_linked_sentence_selects_and_copies_its_text() {
+        let (doc, extrude) = plate();
+        let said = said(Speaker::of(&doc), &doc, extrude);
+        let landed = galley(&said, &doc);
+        let start = landed.char_centre(0);
+        let end = landed.char_centre(landed.text.chars().count() - 1);
+        let ctx = egui::Context::default();
+        let button = |pressed, at| egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::default(),
+        };
+        let mut copied = Vec::new();
+        for events in [
+            Vec::new(),
+            vec![egui::Event::PointerMoved(start)],
+            vec![button(true, start)],
+            vec![egui::Event::PointerMoved(end)],
+            vec![button(false, end)],
+            vec![egui::Event::Copy],
+        ] {
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    events,
+                    ..Default::default()
+                },
+                |ui| {
+                    ui.allocate_ui(egui::vec2(REGION, 400.0), |ui| {
+                        super::sentence(ui, &said, &doc, None);
+                    });
+                },
+            );
+            output.textures_delta.clear();
+            copied.extend(
+                output
+                    .platform_output
+                    .commands
+                    .into_iter()
+                    .filter_map(|command| match command {
+                        egui::OutputCommand::CopyText(text) => Some(text),
+                        _ => None,
+                    }),
+            );
+        }
+        let text = said.to_string();
+        assert!(
+            copied.iter().any(
+                |copy| copy.contains(&crate::tree::spelled(&doc.spoken(extrude)))
+                    && text.contains(copy.as_str())
+                    && copy.len() > text.len() / 2
+            ),
+            "the copy is the sentence's text, its mention in it: {copied:?} of {text:?}"
+        );
+    }
+
+    /// **The mention under the pointer is drawn on the hover ground**,
+    /// and the sentence's words are not: hovering the mention paints a
+    /// filled box in egui's hovered fill under it; hovering the words
+    /// paints none.
+    ///
+    /// *Breaks if* a link's only hover feedback is the cursor icon.
+    #[test]
+    fn a_hovered_mention_is_drawn_on_the_hover_ground() {
+        let (doc, extrude) = plate();
+        let said = said(Speaker::of(&doc), &doc, extrude);
+        let landed = galley(&said, &doc);
+        let name = crate::tree::spelled(&doc.spoken(extrude));
+        let grounds = |at: egui::Pos2| {
+            let ctx = egui::Context::default();
+            let mut found = 0;
+            for events in [Vec::new(), vec![egui::Event::PointerMoved(at)]] {
+                let fill = egui::Visuals::default().widgets.hovered.weak_bg_fill;
+                let mut output = ctx.run_ui(
+                    egui::RawInput {
+                        events,
+                        ..Default::default()
+                    },
+                    |ui| {
+                        ui.allocate_ui(egui::vec2(REGION, 400.0), |ui| {
+                            super::sentence(ui, &said, &doc, None);
+                        });
+                    },
+                );
+                output.textures_delta.clear();
+                fn count(shape: &egui::Shape, fill: egui::Color32) -> usize {
+                    match shape {
+                        egui::Shape::Rect(rect) if rect.fill == fill => 1,
+                        egui::Shape::Vec(inner) => inner.iter().map(|s| count(s, fill)).sum(),
+                        _ => 0,
+                    }
+                }
+                found = output
+                    .shapes
+                    .iter()
+                    .map(|clipped| count(&clipped.shape, fill))
+                    .sum();
+            }
+            found
+        };
+        assert!(
+            grounds(landed.at(&name).expect("the mention is painted")) > 0,
+            "the hovered mention is on the hover ground"
+        );
+        assert_eq!(
+            grounds(landed.at("the chain").expect("the words are painted")),
+            0,
+            "hovered words are not"
+        );
+    }
+
+    /// **A mention is drawn as the kernel spells it**: the galley of a
+    /// sentence of one mention reads `Sentence::from(mention)`'s text,
+    /// linked or not — the text `frame::Message::new`'s mark rule reads.
+    ///
+    /// *Breaks if* the widget spells a mention its own way.
+    #[test]
+    fn a_mention_is_drawn_as_the_kernel_spells_it() {
+        let (doc, extrude) = plate();
+        let other = doc
+            .clone()
+            .under_identity(DocumentId::derive("another part"));
+        for by in [Speaker::of(&doc), Speaker::of(&other), Speaker::TAG] {
+            let said = pncad::document::sentence!(by.mention(&doc.spoken(extrude)));
+            let mention = said.mentions().next().expect("one mention").clone();
+            assert_eq!(
+                galley(&said, &doc).text,
+                Sentence::from(mention).to_string(),
+                "drawn as spelled"
+            );
+        }
+    }
+
+    /// **A refusal's kernel payload keeps its mentions**: a placement
+    /// draft that would not stand, refused for the placement's unset
+    /// freedom, names the placement as a link in the document that
+    /// raised it — the fault is said, never spelled into words first.
+    ///
+    /// *Breaks if* `Refusal::write` spells a payload that has `Say`
+    /// before it writes the sentence.
+    #[test]
+    fn a_refusals_said_payload_names_its_node_as_a_link() {
+        let (doc, _) = plate();
+        let placement = doc.ids()[2];
+        let refusal = crate::session::Refusal::PlacementFails {
+            fault: Some(Box::new(pncad::document::MateFault::Unpinned {
+                placement,
+                free: 1,
+            })),
+        };
+        let said = refusal.said(Speaker::of(&doc), None);
+        assert!(
+            said.mentions()
+                .any(|mention| crate::relations::link(&doc, mention)
+                    == Some(Selection::Node(placement))),
+            "the placement is a link: {said:?}"
+        );
     }
 }

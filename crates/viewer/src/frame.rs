@@ -873,7 +873,7 @@ fn batch_status(ops: &[SessionOp], refusal: Option<&Refusal>, by: Speaker<'_>) -
     // acts retires it, so its labels stay fresh only while every op that
     // changes a label answers `acts` true (`crates/viewer/README.md`).
     match (ops.iter().any(acts), refusal) {
-        (_, Some(refusal)) => RankedVerdict::Show(refusal_message_by(refusal, by)),
+        (_, Some(refusal)) => RankedVerdict::Show(refusal_message(refusal, by)),
         (true, None) => RankedVerdict::Clear,
         (false, None) => RankedVerdict::Keep,
     }
@@ -921,7 +921,7 @@ pub fn batch_refusal(
 /// `by` says the nodes it names: the document it was raised in, so
 /// each is a mention a reader can follow there, or [`Speaker::TAG`]
 /// where no document on screen is the refusal's ([`refusal_speaker`]).
-pub fn refusal_message_by(refusal: &Refusal, by: Speaker<'_>) -> Message {
+pub fn refusal_message(refusal: &Refusal, by: Speaker<'_>) -> Message {
     Message::new(
         Subject::Document,
         crate::shown_said(refusal, by),
@@ -929,14 +929,14 @@ pub fn refusal_message_by(refusal: &Refusal, by: Speaker<'_>) -> Message {
     )
 }
 
-/// [`refusal_message_by`] in no document: for a refusal no document on
+/// [`refusal_message`] in no document: for a refusal no document on
 /// screen raised (a typed number the dimension cannot carry), whose
 /// mentions, if any, link nowhere.
-pub fn refusal_message(refusal: &Refusal) -> Message {
-    refusal_message_by(refusal, Speaker::TAG)
+pub fn refusal_message_untargeted(refusal: &Refusal) -> Message {
+    refusal_message(refusal, Speaker::TAG)
 }
 
-/// **Who says a batch's refusal** ([`refusal_message_by`]): `doc`, the
+/// **Who says a batch's refusal** ([`refusal_message`]): `doc`, the
 /// document [`batch_refusal`] spoke it again from — unless an op in the
 /// batch replaced the document, whose ids say nothing about the
 /// refusal's, and then no document.
@@ -1049,17 +1049,10 @@ pub fn refusal_speaker<'d>(ops: &[SessionOp], doc: &'d Doc<ProfileProgram>) -> S
 /// `work/vnews/one-line-one-subject-loses-a-mixed-frames-expiry.md`
 /// owns that fork. Until then the line is one string, and one string
 /// needs a mark.
+///
+/// `by` says the batch's refusal ([`refusal_speaker`]), so a node it
+/// names is a link in the document on screen.
 pub fn frame_status(
-    notices: &[Message],
-    ops: &[SessionOp],
-    refusal: Option<&Refusal>,
-) -> RankedVerdict {
-    frame_status_by(notices, ops, refusal, Speaker::TAG)
-}
-
-/// [`frame_status`], the refusal said by `by` ([`refusal_speaker`]):
-/// the app's door, so a node the refusal names is a link.
-pub fn frame_status_by(
     notices: &[Message],
     ops: &[SessionOp],
     refusal: Option<&Refusal>,
@@ -1085,6 +1078,17 @@ pub fn frame_status_by(
             }
         }
     }
+}
+
+/// [`frame_status`] with the refusal said in no document: for a frame
+/// whose refusal no document on screen raised, whose mentions, if any,
+/// link nowhere.
+pub fn frame_status_untargeted(
+    notices: &[Message],
+    ops: &[SessionOp],
+    refusal: Option<&Refusal>,
+) -> RankedVerdict {
+    frame_status(notices, ops, refusal, Speaker::TAG)
 }
 
 /// **What a joined rank-2 line is about**: the subject the frame's
@@ -3667,7 +3671,7 @@ mod tests {
         let mut notices = Vec::new();
         let mut status = None;
         deliver(&mut notices, &mut status, fold_status(&a_refused_fold()));
-        apply(&mut status, frame_status(&notices, &[], None));
+        apply(&mut status, frame_status_untargeted(&notices, &[], None));
         assert!(
             status
                 .as_ref()
@@ -3952,7 +3956,7 @@ mod tests {
         let states: usize = [
             RowStatus::Ok,
             RowStatus::Failed {
-                message: String::new(),
+                message: Sentence::new(),
                 carried: Vec::new(),
             },
             RowStatus::Poisoned {
@@ -4083,7 +4087,7 @@ mod tests {
              the act the document accepts next is what retires it"
         );
         assert_eq!(message.text(), notice);
-        let verdict = frame_status(core::slice::from_ref(&message), &acting, None);
+        let verdict = frame_status_untargeted(core::slice::from_ref(&message), &acting, None);
         assert_eq!(verdict, RankedVerdict::Show(message.clone()));
 
         let mut status = None;
@@ -4159,7 +4163,9 @@ mod tests {
             Withdrawal::superseded(&[pinned(7)]).expect("news").notice(),
             Message::new(Subject::Document, notice.clone(), Retold::Again),
         ];
-        let RankedVerdict::Show(shown) = frame_status(&notices, &[SessionOp::Undo], None) else {
+        let RankedVerdict::Show(shown) =
+            frame_status_untargeted(&notices, &[SessionOp::Undo], None)
+        else {
             panic!("two withdrawals are news");
         };
         assert!(shown.text().contains("free move:") && shown.text().contains("hide:"));
