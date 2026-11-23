@@ -1645,7 +1645,7 @@ impl<T: SolveScalar> FaceChart<T> {
             + self.slides[1] * self.slides[1])
             .sqrt()
             .upper();
-        let extent = geom_core::Lever::<f64>::session_box().length();
+        let extent = geom_core::tolerance::SESSION_BOX_EXTENT;
         let reach = 3f64.sqrt() * extent + origin;
         let arm =
             super::solve::arm_of(reach, [(&on, &self.to)], &self.values()).map_err(unleverable)?;

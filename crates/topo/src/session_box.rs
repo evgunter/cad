@@ -13,7 +13,7 @@
 //! only where points of it lie past the box.
 
 use geom::cover::BoxAxes;
-use geom_core::{Band, Decide, Lever, Margin, Point3, Sign};
+use geom_core::{Band, Decide, Margin, Point3, Sign};
 
 use crate::body::Body;
 use crate::validate::ValidationError;
@@ -187,7 +187,7 @@ pub(crate) fn in_session_box_at<T: Decide>(
 
 /// The box's decision on a reach: its margin the box's extent less it.
 fn box_decided<T: Decide>(reach: T, band: Band) -> Result<(), ValidationError> {
-    let margin = Margin::of(Lever::<T>::session_box().length() - reach);
+    let margin = Margin::of(T::from_f64(geom_core::tolerance::SESSION_BOX_EXTENT) - reach);
     match crate::validate::decide_reported(SESSION_BOX_REACH, margin, band) {
         Ok(geom_core::Decided {
             sign: Sign::Negative,
