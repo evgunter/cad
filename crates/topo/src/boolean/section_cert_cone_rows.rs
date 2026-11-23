@@ -328,10 +328,14 @@ fn a_ball_through_the_apex_or_on_a_generator_refuses_as_a_tangency() {
 /// **Coaxial partners meet the cone in parallels, essential on both.**
 /// A cylinder, always; a cone with its apex elsewhere on the axis,
 /// always, and a common apex is a touch there; a torus when its tube reaches a
-/// nappe's generator (`r − |R cos α ∓ z sin α|`), else nothing, and a
-/// tube tangent to one R-tan. The torus below the apex reaches only the
-/// mirror nappe. The mutants: the torus's two nappes required together,
-/// or both read on one sign of `z`.
+/// nappe's generator (`r − |R cos α ∓ z sin α|`), else nothing. A tube
+/// tangent to one nappe's generator, the other nappe clear of it, is a
+/// touch along the parallel through the generator's foot of the tube's
+/// centre, on both carriers; with the other nappe crossing the tube it
+/// is R-tan. The torus below the apex reaches only the mirror nappe. The
+/// mutants: the torus's two nappes required together, or both read on
+/// one sign of `z`; the foot taken on the other nappe's generator; the
+/// other nappe's clearance not read.
 #[test]
 fn coaxial_partners_meet_the_cone_in_parallels() {
     let cone = unit_cone();
@@ -366,8 +370,16 @@ fn coaxial_partners_meet_the_cone_in_parallels() {
     assert_eq!(shape(&both(&cone, &ring(1.0, 1.0))), pair);
     assert_eq!(shape(&both(&cone, &ring(-1.0, 1.0))), pair);
     assert_eq!(shape(&both(&cone, &ring(1.0, 3.0))), apart);
+    let tangent_ring = ring(1.0, 1.0 + 0.2 / FRAC_1_SQRT_2);
+    let t = super::section_cert_rows::touch(&both(&cone, &tangent_ring));
+    assert_eq!(t.name, "section_torus_coaxial_cone_near");
+    let foot = 1.0 + 0.1 / FRAC_1_SQRT_2;
+    assert!((t.at - p(foot, 0.0, foot)).norm() < 1e-12, "{t:?}");
+    super::section_cert_rows::on_both(t.at, &cone, &tangent_ring);
+    // Below the apex, the near nappe's generator tangent to the tube
+    // and the far one's crossing it.
     assert_eq!(
-        tangent(&both(&cone, &ring(1.0, 1.0 + 0.2 / FRAC_1_SQRT_2))),
+        tangent(&both(&cone, &ring(-0.05, 0.2 / FRAC_1_SQRT_2 - 0.05))),
         "section_torus_coaxial_cone_near"
     );
 }

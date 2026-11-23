@@ -682,32 +682,6 @@ impl<T: Decide> TouchLocus<T> {
     }
 }
 
-/// **The critical point of the partner's level function a torus
-/// tangency stands at** (the partner read over the torus: a plane's
-/// height, the distance from a sphere's centre, a wall's axis or a
-/// coaxial partner's core).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Critical {
-    /// Its minimum or maximum: a point, or a circle of them.
-    Extreme,
-    /// One of its saddles.
-    Saddle,
-}
-
-/// **Which tangencies on a level function with only the forced critical
-/// points are touches**: the one place that says. On a torus such a
-/// function has one minimum, one maximum and two saddles, or a minimum
-/// circle and a maximum circle, and the band about any of its critical
-/// levels is one piece: a disc at an extreme, an annulus about a
-/// parallel, a band about a figure eight at a saddle.
-#[must_use]
-pub const fn near_band_admits(critical: Critical) -> bool {
-    match critical {
-        Critical::Extreme => true,
-        Critical::Saddle => false,
-    }
-}
-
 /// **Where an open component ends**: the sides of each surface's
 /// parameter rectangle it reaches (rim ends, in the order the section was
 /// asked of), whether it reaches the operation's region (a cut end), and

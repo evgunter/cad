@@ -12,7 +12,7 @@ use geom_core::{
     Band, Circles, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec2, Vec3,
 };
 
-use super::{ClassCarrier, ComponentShape, Critical, SectionComponent};
+use super::{ClassCarrier, ComponentShape, SectionComponent};
 use geom_core::k_stats::decide_across;
 
 /// **Why an arm did not count the section.**
@@ -276,8 +276,8 @@ pub(super) enum SphereParts<T: Real> {
 }
 
 /// **Where a sphere tangent to the tube circle `T_σ` the pinch names
-/// touches the torus**: the point, and which critical point of the
-/// distance from its centre it is.
+/// touches the torus, if at an extreme** of the distance from its
+/// centre.
 ///
 /// The section is the level `ρ` of `f = |x − cs|` on the torus. With
 /// `cs` off the axis (`s > 0`) and off the core, `f`'s critical points
@@ -285,10 +285,12 @@ pub(super) enum SphereParts<T: Real> {
 /// on `T_σ`, its nearest point to `cs` at `|d_σ − r|` and its farthest
 /// at `d_σ + r`. Those are the forced ones: the nearest point of `T₊` the
 /// minimum, the farthest of `T₋` the maximum, the other two saddles. The
-/// sphere is tangent at whichever of `T_σ`'s two stands nearer `ρ`. A
-/// centre on the core (`d_σ = 0`) has every point of `T_σ` on a normal
-/// through it, a meridian circle of minima that is no locus a touch
-/// reads, and the offset decides that before anything divides by it.
+/// sphere is tangent at whichever of `T_σ`'s two stands nearer `ρ`, and
+/// it is a touch at the minimum or the maximum; a tangency at a saddle is
+/// not. A centre on the core (`d_σ = 0`) has every point of `T_σ` on a
+/// normal through it, a meridian circle of minima that is no locus a
+/// touch reads, and the offset decides that before anything divides by
+/// it.
 ///
 /// Which of the two is decided on `ρ`'s side of their midpoint
 /// `max(d_σ, r)`, from which each stands `min(d_σ, r)`, past the band
@@ -299,7 +301,7 @@ pub(super) fn sphere_touch<T: Decide>(
     m: &SphereMeridian<T>,
     rho: T,
     band: Band,
-) -> Option<(Point3<T>, Critical)> {
+) -> Option<Point3<T>> {
     let [d_near, d_far] = m.d;
     let (sigma, d) = match tan.name {
         SPHERE_NEAR => (T::one(), d_near),
@@ -318,19 +320,15 @@ pub(super) fn sphere_touch<T: Decide>(
         Sign::Positive => false,
         Sign::Zero => return None,
     };
+    // The nearest point of `T₋` and the farthest of `T₊` are the saddles.
+    if nearest != (tan.name == SPHERE_NEAR) {
+        return None;
+    }
     // T_σ's point along ±(cs − C_σ), C_σ = (σR, 0): toward the centre
     // for the nearest.
     let kappa = if nearest { T::one() } else { -T::one() };
     let (ux, uy) = ((m.s - sigma * big_r) / d, m.ca / d);
-    let critical = if nearest == (tan.name == SPHERE_NEAR) {
-        Critical::Extreme
-    } else {
-        Critical::Saddle
-    };
-    Some((
-        m.at(sigma * big_r + kappa * r * ux, kappa * r * uy),
-        critical,
-    ))
+    Some(m.at(sigma * big_r + kappa * r * ux, kappa * r * uy))
 }
 
 // ---------------------------------------------------------------------
@@ -340,12 +338,10 @@ pub(super) fn sphere_touch<T: Decide>(
 /// The parallel wall's side of the torus axis: its circle holds the axis.
 const WALL_ROUND_AXIS: &str = "section_torus_offset_wall_round_axis";
 
-/// The parallel wall's rows: its nearest or farthest ruling on the
-/// torus's inner or outer equator.
-const WALL_NEAR_INNER: &str = "section_torus_offset_wall_near_inner";
+/// The parallel wall's touch rows: its nearest ruling on the torus's
+/// outer equator, and its farthest on the inner.
 const WALL_NEAR_OUTER: &str = "section_torus_offset_wall_near_outer";
 const WALL_FAR_INNER: &str = "section_torus_offset_wall_far_inner";
-const WALL_FAR_OUTER: &str = "section_torus_offset_wall_far_outer";
 
 /// **Torus × a cylinder whose axis is parallel to the torus's**, at
 /// offset `e` in the direction `toward`, each row read across the
@@ -368,7 +364,7 @@ pub(super) fn parallel_cylinder_arm<T: Decide>(
     let [min_over_lo, min_under_hi, max_over_lo, max_under_hi] = signs_across(
         [
             (
-                WALL_NEAR_INNER,
+                "section_torus_offset_wall_near_inner",
                 "section_torus_offset_wall_near_inner_floor",
                 rho_min - lo,
             ),
@@ -383,7 +379,7 @@ pub(super) fn parallel_cylinder_arm<T: Decide>(
                 rho_max - lo,
             ),
             (
-                WALL_FAR_OUTER,
+                "section_torus_offset_wall_far_outer",
                 "section_torus_offset_wall_far_outer_floor",
                 hi - rho_max,
             ),
@@ -432,34 +428,32 @@ pub(super) fn parallel_cylinder_arm<T: Decide>(
 }
 
 /// **The parallel wall's touch**: the wall's ruling the pinch names, on
-/// the torus's inner or outer equator in the plane of the two axes, and
-/// which critical point of the distance from the wall's axis it is.
+/// the torus's outer or inner equator in the plane of the two axes, where
+/// it stands at an extreme of the distance from the wall's axis.
 ///
 /// With the axis clear of the tube (`|e − R| > r`, decided across the
 /// `slack` the pose admitted), that distance is smooth on the torus and
 /// its critical points are the four equator points in that plane: the
 /// outer one beyond the axis the maximum, the inner one toward the axis
 /// (axis in the hole) or the outer one toward it (axis outside) the
-/// minimum, the other two saddles. The wall's nearest ruling on the outer
-/// equator and its farthest on the inner are the extremes; its nearest on
-/// the inner equator and its farthest on the outer, the saddles. An axis
-/// through the tube puts two more critical points where it pierces it,
-/// and is no touch.
+/// minimum, the other two saddles. So the wall's nearest ruling on the
+/// outer equator and its farthest on the inner are touches; its nearest
+/// on the inner equator and its farthest on the outer stand at saddles,
+/// and are not. An axis through the tube puts two more critical points
+/// where it pierces it, and is no touch.
 pub(super) fn parallel_cylinder_touch<T: Decide>(
     tan: Pinch,
     (c, [big_r, r]): (Point3<T>, [T; 2]),
     (e, slack, toward): (T, T, Vec3<T>),
     rc: T,
     band: Band,
-) -> Option<(Point3<T>, Critical)> {
+) -> Option<Point3<T>> {
     if tan.undecided.is_some() {
         return None;
     }
-    let (rho, critical) = match tan.name {
-        WALL_NEAR_OUTER => (e - rc, Critical::Extreme),
-        WALL_FAR_INNER => (e + rc, Critical::Extreme),
-        WALL_NEAR_INNER => (e - rc, Critical::Saddle),
-        WALL_FAR_OUTER => (e + rc, Critical::Saddle),
+    let rho = match tan.name {
+        WALL_NEAR_OUTER => e - rc,
+        WALL_FAR_INNER => e + rc,
         _ => return None,
     };
     matches!(
@@ -474,7 +468,7 @@ pub(super) fn parallel_cylinder_touch<T: Decide>(
         ),
         Ok([true])
     )
-    .then(|| (c + toward * rho, critical))
+    .then(|| c + toward * rho)
 }
 
 // ---------------------------------------------------------------------

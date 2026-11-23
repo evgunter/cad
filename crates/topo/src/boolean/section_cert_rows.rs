@@ -222,19 +222,26 @@ fn a_scrape_oval_is_one_null_component_witnessed_on_its_own_side() {
     on_both(witness(&classify(&donut(), &pl)), &donut(), &pl);
 }
 
-/// **A pinch refuses (R-tan)**: a plane on the inner equator, a saddle
-/// point, where the section is a figure eight; and a plane on the top
-/// circle, tangent along it. Read as `Positive`, the first would be a
-/// scrape and the second two parallels; read as a touch, either would
-/// clear on one point of a section that is not a small loop about it.
+/// **A plane at a saddle of its height refuses (R-tan), and one on the
+/// top circle touches along it**: a plane on the inner equator, from
+/// either tube circle, meets the torus in a figure eight through a saddle
+/// of the height, which only a near-band reading of a saddle would clear;
+/// the plane on the top circle stands at the height's maximum circle, the
+/// parallel geom-brep's axis-normal reading names, and touches there at
+/// its point on the torus frame's reference direction, on both carriers.
+/// Mutants: `σ·d`'s sign read the other way (the saddle a touch); `at`
+/// read off `Π`, whose direction is `n`'s rounding over a zero `s`.
 #[test]
-fn a_plane_tangent_to_the_tube_off_its_outer_half_refuses_as_a_tangency() {
+fn a_plane_at_a_saddle_refuses_and_one_on_the_top_circle_touches() {
     let s = classify(&donut(), &plane(p(1.5, 0.0, 0.0), v(1.0, 0.0, 0.0)));
     assert_eq!(tangent(&s), "section_torus_plane_near_tube");
     let s = classify(&donut(), &plane(p(-1.5, 0.0, 0.0), v(1.0, 0.0, 0.0)));
     assert_eq!(tangent(&s), "section_torus_plane_far_tube");
-    let s = classify(&donut(), &plane(p(0.0, 0.0, 0.5), v(0.0, 0.0, 1.0)));
-    assert!(tangent(&s).starts_with("section_torus_plane_"));
+    let top = plane(p(0.0, 0.0, 0.5), v(0.0, 0.0, 1.0));
+    let t = touch(&classify(&donut(), &top));
+    assert_eq!(t.name, "section_torus_plane_near_tube");
+    assert!((t.at - p(2.0, 0.0, 0.5)).norm() < 1e-12, "{t:?}");
+    on_both(t.at, &donut(), &top);
 }
 
 /// A length strictly inside the run's band sliver — past `zero`, short
@@ -292,10 +299,13 @@ fn torus_and_ball_every_class() {
         shape(&classify(&donut(), &sphere(p(2.0, 0.0, 0.0), 0.2))).0,
         0
     );
-    // A ball in the hole tangent to the inner equator, a saddle point:
-    // R-tan, on the critical gap.
-    let s = classify(&donut(), &sphere(p(1.0, 0.0, 0.0), 0.5));
-    assert_eq!(tangent(&s), "st_critical_gap");
+    // A ball in the hole tangent to the inner equator, the strict minimum
+    // of the distance from its centre: a touch there.
+    let ball = sphere(p(1.0, 0.0, 0.0), 0.5);
+    let t = touch(&classify(&donut(), &ball));
+    assert_eq!(t.name, "st_critical_gap");
+    assert!((t.at - p(1.5, 0.0, 0.0)).norm() < 1e-12, "{t:?}");
+    on_both(t.at, &donut(), &ball);
 }
 
 // -------------------------------------------------------------------
@@ -317,9 +327,14 @@ fn coaxial_partners_meet_the_torus_in_parallels() {
     );
     let s = classify(&donut(), &torus(p(0.0, 0.0, 0.3), 2.3, 0.5));
     assert_eq!((shape(&s).0, shape(&s).3), (2, vec![true, true]));
-    // A coaxial wall on the tube's outer equator: tangent.
-    let s = classify(&donut(), &cylinder(p(0.0, 0.0, -3.0), Vec3::unit_z(), 2.5));
-    assert_eq!(tangent(&s), "section_torus_coaxial_wall");
+    // A coaxial wall on the tube's outer equator, the maximum circle of
+    // the distance from the axis: a touch along it, at its point on the
+    // torus frame's reference direction.
+    let wall = cylinder(p(0.0, 0.0, -3.0), Vec3::unit_z(), 2.5);
+    let t = touch(&classify(&donut(), &wall));
+    assert_eq!(t.name, "section_torus_coaxial_wall");
+    assert!((t.at - p(2.5, 0.0, 0.0)).norm() < 1e-12, "{t:?}");
+    on_both(t.at, &donut(), &wall);
 }
 
 #[test]
@@ -1094,7 +1109,7 @@ fn donut_loop(partner: &Surface<f64>, at: Point3<f64>) -> Vec<Point3<f64>> {
         .collect()
 }
 
-/// **A torus touch is at the elliptic extreme, and at the centre of
+/// **A torus touch is at the extreme, and at the centre of
 /// every loop its margin admits**: a plane on the outer equator on
 /// either tube circle and tilted onto the tube's outer half, a ball
 /// outside the tube, one about the whole torus and one inside the tube,
@@ -1197,44 +1212,104 @@ fn a_torus_touch_is_the_centre_of_every_loop_its_margin_admits() {
     }
 }
 
-/// **A torus tangency that is not an elliptic extreme stays R-tan**: a
-/// plane touching the tube near its top circle with the elliptic margin
-/// undecided and decided `Zero`; a ball centred on the axis on the outer
-/// equator all round; a ball centred on the core circle, on a whole
-/// meridian; a wall in the hole on the inner equator; a wall crossing
-/// the tube on the outer equator. Mutants: the elliptic margin, the
-/// extreme margin, or the nearest-end margin dropped; any wall pinch
-/// read as a touch.
+/// **A torus tangency at an extreme of the partner's level function is a
+/// touch, wherever on the tube it stands**: a plane near the top circle
+/// tilted by a margin the axis-normal reading decides; a ball centred on
+/// the axis on the outer equator all round (a parallel); a wall in the hole on the inner equator; a ball
+/// inside the tube against its inner half; a torus coaxial with the donut
+/// whose tube touches it on the top circle. Each `at` stands on both
+/// carriers. Mutants: the elliptic margin restored (the inner-half poses
+/// red); the parallel's point read off the coordinate axes.
 #[test]
-fn torus_tangencies_off_an_elliptic_extreme_are_not_touches() {
-    for (label, s) in [
-        ("undecided", in_sliver() / 0.5),
-        ("zero", 0.5 * band().zero() / 0.5),
-    ] {
-        let n = v(s, 0.0, (1.0 - s * s).sqrt());
-        let pl = plane(p(0.0, 0.0, 0.0) + n * (2.0 * s + 0.5), n);
-        assert_eq!(
-            tangent(&classify(&donut(), &pl)),
-            "section_torus_plane_near_tube",
-            "{label}"
-        );
-    }
-    // The ball on the axis is a coaxial pose, its tangency the closed
-    // form's tube row; the ball on the core circle has every point of a
-    // meridian on a normal through its centre, and its touch reading
-    // refuses before it divides by that offset.
-    for (ball, row) in [
-        (sphere(p(0.0, 0.0, 0.0), 2.5), "st_coaxial_tube"),
-        (sphere(p(2.0, 0.0, 0.0), 0.5), "st_critical_gap"),
-    ] {
-        assert_eq!(tangent(&classify(&donut(), &ball)), row, "{ball:?}");
-    }
+fn torus_tangencies_at_an_extreme_are_touches_off_the_outer_half_too() {
     let z = Vec3::unit_z();
-    for wall in [
-        cylinder(p(1.0, 0.0, -1.0), z, 0.5),
-        cylinder(p(2.2, 0.0, -1.0), z, 0.3),
+    let s = in_sliver() / 0.5;
+    let n = v(s, 0.0, (1.0 - s * s).sqrt());
+    let tilted = plane(p(0.0, 0.0, 0.0) + n * (2.0 * s + 0.5), n);
+    let rows: [(&str, Surface<f64>, &str, Option<Point3<f64>>); 5] = [
+        (
+            "tilted plane on the top",
+            tilted,
+            "section_torus_plane_near_tube",
+            None,
+        ),
+        (
+            "ball on the axis",
+            sphere(p(0.0, 0.0, 0.0), 2.5),
+            "st_coaxial_tube",
+            Some(p(2.5, 0.0, 0.0)),
+        ),
+        (
+            "wall in the hole",
+            cylinder(p(1.0, 0.0, -1.0), z, 0.5),
+            "ct_critical_gap",
+            Some(p(1.5, 0.0, 0.0)),
+        ),
+        (
+            "ball in the tube",
+            sphere(p(1.7, 0.0, 0.0), 0.2),
+            "st_critical_gap",
+            Some(p(1.5, 0.0, 0.0)),
+        ),
+        (
+            "coaxial torus on the top circle",
+            torus(p(0.0, 0.0, 1.0), 2.0, 0.5),
+            "section_torus_coaxial_tube_reach",
+            Some(p(2.0, 0.0, 0.5)),
+        ),
+    ];
+    for (label, partner, name, at) in rows {
+        let t = touch(&classify(&donut(), &partner));
+        assert_eq!(t.name, name, "{label}");
+        if let Some(at) = at {
+            assert!((t.at - at).norm() < 1e-12, "{label}: {t:?}");
+        }
+        on_both(t.at, &donut(), &partner);
+    }
+}
+
+/// **A torus tangency at a saddle, along a meridian, or against a wall
+/// through the tube stays R-tan**: a ball at a saddle of the distance
+/// from its centre (the farthest point of the near tube circle, on the
+/// inner equator); a wall beside the torus whose
+/// nearest ruling meets the inner equator and one in the hole whose
+/// farthest meets the outer, both saddles of the distance from its axis;
+/// a ball centred on the core circle, tangent along a whole meridian; a
+/// wall whose axis pierces the tube, tangent on the outer equator, where
+/// the distance from its axis has two more critical points. Mutants: a
+/// saddle read as an extreme; the core offset or the axis-off-tube margin
+/// dropped.
+#[test]
+fn torus_tangencies_at_a_saddle_or_on_a_meridian_stay_r_tan() {
+    let z = Vec3::unit_z();
+    for (label, partner, row) in [
+        (
+            "ball at a saddle",
+            sphere(p(3.5, 0.0, 0.0), 2.0),
+            "st_critical_gap",
+        ),
+        (
+            "ball on the core",
+            sphere(p(2.0, 0.0, 0.0), 0.5),
+            "st_critical_gap",
+        ),
+        (
+            "wall beside, nearest on the inner equator",
+            cylinder(p(4.0, 0.0, -1.0), z, 2.5),
+            "ct_critical_gap",
+        ),
+        (
+            "wall in the hole, farthest on the outer equator",
+            cylinder(p(0.5, 0.0, -1.0), z, 2.0),
+            "ct_critical_gap",
+        ),
+        (
+            "wall through the tube",
+            cylinder(p(2.2, 0.0, -1.0), z, 0.3),
+            "ct_critical_gap",
+        ),
     ] {
-        assert_eq!(tangent(&classify(&donut(), &wall)), "ct_critical_gap");
+        assert_eq!(tangent(&classify(&donut(), &partner)), row, "{label}");
     }
 }
 
@@ -3122,8 +3197,8 @@ fn descend(f: &impl Fn(f64, f64) -> f64, mut u: f64, mut v: f64, mut h: f64) -> 
 }
 
 /// **The oracle on one touch**, from the torus and the partner alone:
-/// `at` stands on both carriers within `k`, on the tube's outer half,
-/// and on one side of the partner `g` has no other local minimum at or
+/// `at` stands on both carriers within `k`, and on one side of the
+/// partner `g` has no other local minimum at or
 /// below `k` over the torus (refined from an `n × n/2` grid) that a
 /// barrier above `k` parts from `at`, and none deeper near `at` — the
 /// partner touches there and nowhere else. A minimum the straight path
@@ -3147,9 +3222,6 @@ fn touch_holds(
         ));
     }
     let (ua, va) = t.uv(at);
-    if va.cos() <= 0.0 {
-        return Err(format!("at on the hyperbolic half: v = {va}"));
-    }
     let noise = 64.0 * f64::EPSILON * ((t.c - Point3::origin()).norm() + scale);
     let (nu, nv) = (n, n / 2);
     let (du, dv) = (TAU / nu as f64, TAU / nv as f64);
@@ -3347,10 +3419,11 @@ fn a_ball_touching_a_wall_near_its_axis_stands_on_both_carriers() {
 /// random point biased to the equators and the top and bottom parallels
 /// and pushed by up to ±100ε; a push that would take a radius to zero
 /// or below, off the carriers' convention, is not drawn. Every `Touch`
-/// either operand order answers passes [`touch_holds`]. Mutants, each
-/// red here: the plane's or the sphere's elliptic margin taken as `abs`
-/// (a touch on the hyperbolic half), the sphere's extreme margin
-/// dropped, and [`super::perp_to`] as `v − a·(a·v)`.
+/// either operand order answers passes [`touch_holds`]: an extreme of
+/// the partner's level function, on the tube's inner half as well as its
+/// outer. Mutants, each red here: the plane's or the sphere's saddle read
+/// as an extreme (the sign of `σ·d`, or of the nearest point, flipped),
+/// and [`super::perp_to`] as `v − a·(a·v)`.
 #[test]
 fn every_torus_touch_holds_against_a_sampling_oracle() {
     use core::f64::consts::FRAC_PI_2;

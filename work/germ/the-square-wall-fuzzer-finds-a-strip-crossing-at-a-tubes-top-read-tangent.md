@@ -64,3 +64,8 @@ mismatches of the same shape, `top` 3.28e-9 and 3.38e-9, read
 `Tangent("section_torus_square_wall_fold_half")`. The fuzzer is red on
 main's nightly too (`work/green/nightly-1115-residue-the-reds-no-lane-holds.md`,
 seed `0x96ec838c8a0d073e` at 1e-12).
+
+A fourth, seed `0x6007c6a9f3e13c4d` (ORBIT's `orbit/torus-touch-build`,
+2026-11-23, at the default eps; the square-wall arm is untouched there):
+one mismatch of the same shape, `R 1.210, r 0.846`, `top` 2.98e-9, read
+`Tangent("section_torus_square_wall_fold_half")`.

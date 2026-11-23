@@ -51,9 +51,8 @@ use super::gap::{Core, Gap, GapRows, Spine, critical_gap};
 use super::torus_arms::{self, ArmRefusal, Pinch, SphereMeridian, SphereParts, SquareWall};
 use super::torus_coincidence::{TorusCoincidence, TorusData, tori_coincide};
 use super::{
-    ClassCarrier, Coincident, ComponentShape, Components, Critical, PairPose, PairSection,
-    SectionComponent, SectionDecision, TouchLocus, ZeroVerdict, line_tilt, near_band_admits,
-    square_part,
+    ClassCarrier, Coincident, ComponentShape, Components, PairPose, PairSection, SectionComponent,
+    SectionDecision, TouchLocus, ZeroVerdict, line_tilt, square_part,
 };
 use crate::ExtentBall;
 use crate::intersect::{SectionError, SectionRadius};
@@ -532,22 +531,6 @@ pub(super) fn tangent_component<T: Real>(
     }
 }
 
-/// A touch at a critical point of the partner's level function, where
-/// [`near_band_admits`] admits it.
-fn claimed<T: Real>(touch: Option<(Point3<T>, Critical)>) -> Option<TouchLocus<T>> {
-    touch
-        .filter(|&(_, critical)| near_band_admits(critical))
-        .map(|(at, _)| TouchLocus::Point(at))
-}
-
-/// A tangent parallel, a circle of the partner's level function's
-/// extremes on every coaxial arm, as a touch's locus.
-fn parallel_claimed<T: Real>(parallel: Option<Curve3<T>>) -> Option<TouchLocus<T>> {
-    parallel
-        .filter(|_| near_band_admits(Critical::Extreme))
-        .map(TouchLocus::Parallel)
-}
-
 /// An arm's loops, listed in (torus, partner) order, in the order asked.
 fn in_order<T: Real>(
     mut loops: Vec<SectionComponent<T>>,
@@ -799,7 +782,7 @@ pub(super) fn sphere_torus<T: Decide>(
                     crossing_parallels(ring, (T::zero(), ca, pose.radius), winds)
                 }
                 Sign::Zero => vec![tangent_component(
-                    parallel_claimed(pose.tangent_parallel()),
+                    pose.tangent_parallel().map(TouchLocus::Parallel),
                     winds,
                 )],
                 Sign::Negative => Vec::new(),
@@ -835,7 +818,7 @@ pub(super) fn sphere_torus<T: Decide>(
                         _ => None,
                     };
                     vec![tangent_component(
-                        claimed(touch),
+                        touch.map(TouchLocus::Point),
                         order(torus_first, [false, false]),
                     )]
                 }
@@ -1073,7 +1056,7 @@ pub(super) fn cylinder_torus<T: Decide>(
                     )
                 }
                 Sign::Zero => Components::Counted(vec![tangent_component(
-                    parallel_claimed(pose.tangent_parallel()),
+                    pose.tangent_parallel().map(TouchLocus::Parallel),
                     winds,
                 )]),
                 Sign::Negative => Components::Counted(Vec::new()),
@@ -1103,7 +1086,7 @@ pub(super) fn cylinder_torus<T: Decide>(
                 ),
                 Ok(_) => None,
             };
-            tangent(claimed(touch))
+            tangent(touch.map(TouchLocus::Point))
         }
         (CtStance::Square(wall), TorusGap::Transverse) => {
             let parts = torus_arms::square_cylinder_arm(axis, radii, &wall, rc, band)
@@ -1372,7 +1355,7 @@ pub(super) fn torus_torus<T: Decide>(
                     Components::Counted(crossing_parallels(r1, (r2.big_r, z2, r2.r), [true, true]))
                 }
                 Sign::Zero => Components::Counted(vec![tangent_component(
-                    parallel_claimed(pose.tangent_parallel(band)),
+                    pose.tangent_parallel(band).map(TouchLocus::Parallel),
                     [true, true],
                 )]),
                 Sign::Negative => Components::Counted(Vec::new()),
