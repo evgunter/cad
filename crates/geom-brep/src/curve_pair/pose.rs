@@ -1425,10 +1425,15 @@ enum Route {
 /// Only otherwise does the tilt route: zero over the nearer span's
 /// reach, level where the offset reads zero, and [`Unsettled::Meter`]
 /// where it does not, the parallel margin having not decided; otherwise
-/// definite over the farther span's reach, a crossing. The first span is
-/// a line for every caller, whose reach is exact, so `lever` is never
-/// shorter than `over` and a tilt not Zero over `over` is not Zero over
-/// `lever`.
+/// definite over the farther span's reach, a crossing.
+///
+/// A tilt not Zero over `over` is never Zero over `lever`, for two
+/// reasons. The first span is a line for every caller, whose reach is
+/// exact, so `lever` is never shorter than `over`:
+/// `max(r, b) ≥ r ≥ min(r, a)`. And a conic whose cover cannot be read
+/// (non-finite data) makes `over` poison, which reads no Zero; the same
+/// data poisons the samples `lever` is read from below by, so the
+/// crossing read escalates.
 ///
 /// # Errors
 ///
@@ -1456,9 +1461,7 @@ fn route<T: Decide>(
         return if definite_as(row::TILT, Margin::levered(tilt, lever), band)? {
             Ok(Route::Crossing)
         } else {
-            // Every pose has a line span, whose reach is exact, so the
-            // farther reach from below is no shorter than the nearer from
-            // above: `max(r, b) ≥ r ≥ min(r, a)`.
+            // Why no input reaches here: the doc's last paragraph.
             unreachable!(
                 "a tilt not Zero over the nearer span's reach read Zero over the farther's"
             )

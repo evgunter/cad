@@ -3515,6 +3515,33 @@ mod tests {
         }
     }
 
+    /// **An ellipse rim's corner arms are produced between two bounds**,
+    /// which the Between rows below hand the consumers directly: the
+    /// oblique wall's rim (`oblique_rim_wall`, `φ = 0.5`) is a closed
+    /// ellipse on one vertex, its major end, whose cover is not its own,
+    /// so each arm is `Between`. From below, the samples' reach takes
+    /// in the far major end, `2/cos φ` away; from above, the cover's far
+    /// distance is no shorter. Red where `corner_arms` reads an inexact
+    /// cover as `Exact`, or loses either bound.
+    #[test]
+    fn an_ellipse_rims_corner_arms_are_known_between_two_bounds() {
+        let phi: f64 = 0.5;
+        let (body, _, vertex) = crate::test_support_fixtures::oblique_rim_wall(phi);
+        let arms = corner_arms(&body, vertex).unwrap();
+        assert!(!arms.is_empty(), "the rim's vertex has its arms");
+        let reach = 2.0 / phi.cos();
+        for arm in arms {
+            let LeverBounds::Between { below, above } = arm else {
+                panic!("an ellipse arm read exact: {arm:?}");
+            };
+            let (below, above) = (below.length(), above.length());
+            assert!(
+                (below - reach).abs() < 1e-9 && above >= below,
+                "the arm between {below} and {above}, its reach {reach}"
+            );
+        }
+    }
+
     /// **The corner's transversality acts on its Zero** (the review of the
     /// arc-length arm): a station line `ρ = 11 − δ` against the unit
     /// profile circle, `δ = 8·10⁻¹²`, its transversality `4·10⁻⁶`, under
