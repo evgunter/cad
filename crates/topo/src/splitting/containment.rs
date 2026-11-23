@@ -134,9 +134,10 @@ use geom_core::period::{Exact, Extent, Turn, TurnRow, TurnRows, TurnUndecided, W
 use geom_core::{Band, Decide, Indeterminate, Lever, Margin, MarginDiag, Point3, Sign, Vec3};
 
 use crate::body::Body;
-use crate::entity::{EdgeKey, EntityId, LoopBoundary, LoopKey};
+use crate::entity::{EdgeKey, EntityId, LoopKey};
 use crate::geometry::SurfaceKey;
 use crate::live::proven;
+use crate::live::{CycleLoop, NoCycle};
 use crate::ray_walk::{self, ParityRows, RayFault};
 use crate::splitting::pieced_arc::{ArcHit, ArcRefusal, PiecedArc, PiecedCrossing};
 use crate::splitting::spiric_arc::{Oval, SpiricArc};
@@ -647,26 +648,10 @@ pub(crate) const SCHEDULE: [Vec3<f64>; 16] = [
 ];
 
 /// Collects the loop's vertex points in cycle order.
-fn loop_points<T: Decide>(
-    body: &Body<T>,
-    r#loop: LoopKey,
-) -> Result<Vec<Point3<T>>, PointInLoopError> {
-    let corrupt = || PointInLoopError::CorruptLoop { r#loop };
-    let loop_data = body.get_loop(r#loop).ok_or_else(corrupt)?;
-    let first = match loop_data.boundary {
-        LoopBoundary::Cycle { first } => first,
-        LoopBoundary::Empty { vertex: _ } => return Err(PointInLoopError::LoneLoop { r#loop }),
-    };
-    let mut points = Vec::new();
-    for he in body.loop_cycle(first).ok_or_else(corrupt)? {
-        let start = body.get_half_edge(he).ok_or_else(corrupt)?.start;
-        let p = *body
-            .get_point(body.get_vertex(start).ok_or_else(corrupt)?.point)
-            .ok_or_else(corrupt)?;
-        points.push(p);
-    }
+fn loop_points<T: Decide>(lp: CycleLoop<'_, T>) -> Result<Vec<Point3<T>>, PointInLoopError> {
+    let points: Vec<Point3<T>> = lp.edges().iter().map(|member| member.point).collect();
     if points.len() < 2 {
-        return Err(corrupt());
+        return Err(PointInLoopError::CorruptLoop { r#loop: lp.key() });
     }
     Ok(points)
 }
@@ -683,17 +668,17 @@ fn loop_points<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`PointInLoopError`] — escalation, ray exhaustion, or an
-/// unwalkable loop.
+/// [`PointInLoopError`] — escalation, ray exhaustion, or a loop of
+/// fewer than two corners.
 pub(crate) fn point_in_vertex_polygon<T: Decide>(
-    body: &Body<T>,
-    r#loop: LoopKey,
+    lp: CycleLoop<'_, T>,
     normal: Vec3<T>,
     q: Point3<T>,
     band: Band,
 ) -> Result<LoopContainment, PointInLoopError> {
+    let r#loop = lp.key();
     let escalate = PointInLoopError::on_margin(r#loop, LoopDecision::Boundary);
-    let points = loop_points(body, r#loop)?;
+    let points = loop_points(lp)?;
 
     if ray_walk::on_boundary(&points, q, &ROWS, band).map_err(escalate)? {
         return Ok(LoopContainment::OnBoundary);
@@ -1309,25 +1294,22 @@ fn step_cover<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`PointInLoopError::LoneLoop`] for a lone-vertex loop;
-/// [`PointInLoopError::CorruptLoop`] for a loop that does not walk, a
-/// conic wound past a period, or a whole-turn SCAFFOLD conic;
+/// [`PointInLoopError::CorruptLoop`] for an edge with no cover, a conic
+/// wound past a period, or a whole-turn SCAFFOLD conic;
 /// [`PointInLoopError::Escalated`] for an ellipse's span the band cannot
 /// place, or a scaffold conic's span in the band.
 pub(crate) fn carrier_loop<T: Decide>(
-    body: &Body<T>,
-    r#loop: LoopKey,
+    lp: CycleLoop<'_, T>,
     conic: ConicRows,
     band: Band,
 ) -> Result<CarrierLoop<T>, PointInLoopError> {
+    let (body, r#loop) = (lp.body(), lp.key());
     let corrupt = || PointInLoopError::CorruptLoop { r#loop };
-    let record = body.get_loop(r#loop).ok_or_else(corrupt)?;
-    let first = match record.boundary {
-        LoopBoundary::Cycle { first } => first,
-        LoopBoundary::Empty { vertex: _ } => return Err(PointInLoopError::LoneLoop { r#loop }),
-    };
-    let face = body.get_face(record.face).ok_or_else(corrupt)?.surface;
-    let steps = cycle_steps(body, first);
+    let face = body
+        .linked_face(lp.face(), EntityId::Loop(r#loop), "face")
+        .record()
+        .surface;
+    let steps = cycle_steps(body, lp.first());
     let mut verts = Vec::new();
     let mut keys = Vec::new();
     let mut edges = Vec::new();
@@ -1516,18 +1498,10 @@ impl<T: Decide> ArcPieces<'_, T> {
 /// decision: every vertex, and each edge's [`step_cover`].
 #[allow(clippy::type_complexity)] // two lists, each named at its reader
 pub(crate) fn loop_hull<T: Decide>(
-    body: &Body<T>,
-    r#loop: LoopKey,
+    lp: CycleLoop<'_, T>,
 ) -> Result<(Vec<Point3<T>>, Vec<Cover<T>>), PointInLoopError> {
-    let corrupt = || PointInLoopError::CorruptLoop { r#loop };
-    let first = match body.get_loop(r#loop).ok_or_else(corrupt)?.boundary {
-        LoopBoundary::Cycle { first } => first,
-        LoopBoundary::Empty { vertex } => {
-            let point = body.linked_vertex_point(vertex, EntityId::Loop(r#loop), "boundary");
-            return Ok((vec![point], Vec::new()));
-        }
-    };
-    let steps = cycle_steps(body, first);
+    let (body, r#loop) = (lp.body(), lp.key());
+    let steps = cycle_steps(body, lp.first());
     let mut covers = Vec::new();
     for step in &steps {
         covers.extend(step_cover(body, r#loop, step)?);
@@ -1678,9 +1652,11 @@ enum Boundary<'a> {
 ///
 /// # Errors
 ///
-/// [`PointInLoopError`] — an escalation, exhaustion, an unwalkable
-/// loop, a spiric or spline edge whose reading ran out, or a broken
-/// precondition ([`PointInLoopError::OffPlane`]).
+/// [`PointInLoopError`] — an escalation, exhaustion, a loop key that
+/// does not resolve or does not walk ([`PointInLoopError::CorruptLoop`]),
+/// a lone-vertex loop ([`PointInLoopError::LoneLoop`]), a spiric or
+/// spline edge whose reading ran out, or a broken precondition
+/// ([`PointInLoopError::OffPlane`]).
 pub fn point_in_loop<T: Decide>(
     body: &Body<T>,
     r#loop: LoopKey,
@@ -1688,8 +1664,12 @@ pub fn point_in_loop<T: Decide>(
     q: Point3<T>,
     band: Band,
 ) -> Result<LoopContainment, PointInLoopError> {
-    certify_plane(body, r#loop, normal, q, band)?;
-    point_in_loop_projected(body, r#loop, normal, q, band)
+    let lp = body.cycle_loop(r#loop).map_err(|miss| match miss {
+        NoCycle::Stale | NoCycle::Torn => PointInLoopError::CorruptLoop { r#loop },
+        NoCycle::Lone(_) => PointInLoopError::LoneLoop { r#loop },
+    })?;
+    certify_plane(lp, normal, q, band)?;
+    point_in_loop_projected(lp, normal, q, band)
 }
 
 /// [`point_in_loop`] with no precondition certified: the loop is read
@@ -1702,20 +1682,20 @@ pub fn point_in_loop<T: Decide>(
 ///
 /// # Errors
 ///
-/// As [`point_in_loop`], but never [`PointInLoopError::OffPlane`].
+/// As [`point_in_loop`], but never [`PointInLoopError::OffPlane`], and
+/// never a lone or an unwalkable loop, which the [`CycleLoop`] rules out.
 pub(crate) fn point_in_loop_projected<T: Decide>(
-    body: &Body<T>,
-    r#loop: LoopKey,
+    cycle: CycleLoop<'_, T>,
     normal: Vec3<T>,
     q: Point3<T>,
     band: Band,
 ) -> Result<LoopContainment, PointInLoopError> {
-    let lp = carrier_loop(body, r#loop, WALK_ROWS.conic(), band)?;
+    let lp = carrier_loop(cycle, WALK_ROWS.conic(), band)?;
     if lp.edges.iter().all(|e| matches!(e, LoopEdge::Chord)) {
-        return point_in_vertex_polygon(body, r#loop, normal, q, band);
+        return point_in_vertex_polygon(cycle, normal, q, band);
     }
     Ok(
-        match carrier_walk(r#loop, &lp, normal, q, band, Boundary::Verdict)? {
+        match carrier_walk(cycle.key(), &lp, normal, q, band, Boundary::Verdict)? {
             WalkSide::In => LoopContainment::In,
             WalkSide::Out => LoopContainment::Out,
             WalkSide::OnBoundary => LoopContainment::OnBoundary,
@@ -1735,22 +1715,18 @@ const POINT_IN_LOOP_QUERY: &str = "point_in_loop_query";
 /// `Zero` refuses. An edge is read at its cover's range along the
 /// normal (`crate::cover::edge_cover`); null scaffolding at its vertex.
 fn certify_plane<T: Decide>(
-    body: &Body<T>,
-    r#loop: LoopKey,
+    lp: CycleLoop<'_, T>,
     normal: Vec3<T>,
     q: Point3<T>,
     band: Band,
 ) -> Result<(), PointInLoopError> {
+    let (body, r#loop) = (lp.body(), lp.key());
     let corrupt = || PointInLoopError::CorruptLoop { r#loop };
     let escalate = PointInLoopError::on_margin(r#loop, LoopDecision::Plane);
     let off_plane = |cause| PointInLoopError::OffPlane(OffPlane { r#loop, cause });
-    let first = match body.get_loop(r#loop).ok_or_else(corrupt)?.boundary {
-        LoopBoundary::Cycle { first } => first,
-        LoopBoundary::Empty { vertex: _ } => return Err(PointInLoopError::LoneLoop { r#loop }),
-    };
-    let steps = cycle_steps(body, first);
+    let steps = cycle_steps(body, lp.first());
     let origin = steps.first().ok_or_else(corrupt)?.point;
-    let (_, reach) = loop_reach(body, r#loop)?;
+    let (_, reach) = loop_reach(lp)?;
     let unit = Margin::levered(normal.norm() - T::one(), reach);
     // One identity over every datum ([`read_identity`]): the normal is
     // unit, every point and axis of the loop's carriers lies on the
@@ -1915,13 +1891,13 @@ fn carrier_walk<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`PointInLoopError::CorruptLoop`] — a loop that does not walk, an
-/// edge with no cover, or a poisoned extent.
+/// [`PointInLoopError::CorruptLoop`] — an edge with no cover, or a
+/// poisoned extent.
 pub(crate) fn loop_reach<T: Decide>(
-    body: &Body<T>,
-    r#loop: LoopKey,
+    lp: CycleLoop<'_, T>,
 ) -> Result<(Point3<T>, Lever<T>), PointInLoopError> {
-    let (verts, covers) = loop_hull(body, r#loop)?;
+    let r#loop = lp.key();
+    let (verts, covers) = loop_hull(lp)?;
     let anchor = *verts
         .first()
         .ok_or(PointInLoopError::CorruptLoop { r#loop })?;
@@ -3344,10 +3320,15 @@ mod lone_loop_rows {
             .find(|(_, l)| l.boundary == LoopBoundary::Empty { vertex: lone })
             .map(|(k, _)| k)
             .expect("the ring");
+        let band = geom_core::Band::linear(Tol::witness()).expect("a band");
+        let (normal, q) = (
+            geom_core::Vec3::new(0.0, 0.0, 1.0),
+            geom_core::Point3::origin(),
+        );
         assert_eq!(
-            super::loop_points(&body, ring).err(),
+            super::point_in_loop(&body, ring, normal, q, band).err(),
             Some(PointInLoopError::LoneLoop { r#loop: ring }),
-            "the ring's points"
+            "the ring read as a loop"
         );
     }
 }
