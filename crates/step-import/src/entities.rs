@@ -360,8 +360,10 @@ pub(crate) struct Resolver<'a> {
     /// Each surface entity as interpretation reads it, keyed by entity
     /// id: recognition acts on the record, once, whichever faces cite it.
     interpreted: std::cell::RefCell<BTreeMap<u64, Interpreted>>,
-    /// The surface entities whose promotion is reported, once each,
-    /// against the first face citing it ([`NormalizationKind::SurfacePromotion`]).
+    /// The surface entities whose reading is reported, once each,
+    /// against the first face citing it: its healed sides
+    /// ([`NormalizationKind::CollapsedSideMadeOne`]) and its promotion
+    /// ([`NormalizationKind::SurfacePromotion`]).
     promotions_reported: std::cell::RefCell<std::collections::BTreeSet<u64>>,
 }
 
@@ -370,6 +372,9 @@ pub(crate) struct Resolver<'a> {
 #[derive(Clone, Debug)]
 struct Interpreted {
     surface: Surface<f64>,
+    /// How far each net side healing made one point moved
+    /// ([`recognize::heal_collapsed_sides`]), before recognition.
+    healed: Vec<f64>,
     /// The promotion, its residual, and whether it turned the chart
     /// over (composed into each citing face's sense).
     promoted: Option<(recognize::PromotedKind, f64, bool)>,
@@ -1377,9 +1382,23 @@ impl<'a> Resolver<'a> {
         if let Some(known) = self.interpreted.borrow().get(&surface_id) {
             return Ok(known.clone());
         }
-        let surface = self.surface(face, surface_id)?;
+        let mut surface = self.surface(face, surface_id)?;
+        // **A net side read one point at the file's band is made that
+        // point** (`[import]` healing), before recognition reads the
+        // patch's collapsed side as its pole.
+        let mut healed = Vec::new();
+        if let Surface::Nurbs(ref patch) = surface
+            && !patch.is_placeholder()
+            && let Some((made_one, sides)) =
+                recognize::heal_collapsed_sides(patch.as_ref(), self.budget)
+                    .map_err(|refusal| self.budget.refused(face, refusal))?
+        {
+            healed = sides.into_iter().map(|(_, moved_by)| moved_by).collect();
+            surface = Surface::Nurbs(std::sync::Arc::new(made_one));
+        }
         let mut read = Interpreted {
             surface,
+            healed: healed.clone(),
             promoted: None,
             ill_conditioned: None,
         };
@@ -1395,6 +1414,7 @@ impl<'a> Resolver<'a> {
                     let flipped = recognize::chart_flipped(patch.as_ref(), &promoted);
                     read = Interpreted {
                         surface: promoted,
+                        healed,
                         promoted: Some((kind, residual, flipped)),
                         ill_conditioned: None,
                     };
@@ -1441,6 +1461,7 @@ impl<'a> Resolver<'a> {
         let surface_id = as_ref(id, surface_ref, expected)?;
         let Interpreted {
             surface,
+            healed,
             promoted,
             ill_conditioned,
         } = self.interpreted(id, surface_id)?;
@@ -1470,18 +1491,26 @@ impl<'a> Resolver<'a> {
         // and the face's `same_sense` composes with the chart
         // orientation so the promoted chart means what the NURBS chart
         // meant. The surface entity is read once ([`Self::interpreted`]),
-        // so every face citing it wears one record.
-        if let Some((kind, residual, flipped)) = promoted {
-            if flipped {
-                sense = !sense;
-            }
-            if self.promotions_reported.borrow_mut().insert(surface_id) {
-                let census = bounds_census(&bound_specs, edges);
+        // so every face citing it wears one record, and what reading it
+        // did (a net side made one point, a promotion) is reported once,
+        // against the first face citing it.
+        if let Some((_, _, true)) = promoted {
+            sense = !sense;
+        }
+        if self.promotions_reported.borrow_mut().insert(surface_id) {
+            let census = bounds_census(&bound_specs, edges);
+            let healings = healed
+                .iter()
+                .map(|&moved_by| NormalizationKind::CollapsedSideMadeOne { moved_by });
+            let promotion = promoted.map(|(kind, residual, _)| {
+                NormalizationKind::SurfacePromotion { to: kind, residual }
+            });
+            for kind in healings.chain(promotion) {
                 self.normalizations
                     .borrow_mut()
                     .push(StructureNormalization {
                         face: id,
-                        kind: NormalizationKind::SurfacePromotion { to: kind, residual },
+                        kind,
                         file_census: census,
                         kernel_census: census,
                     });

@@ -317,9 +317,9 @@ const KNOWN_HAND_LISTED: [(&str, &str, &str, &str); 2] = [
 /// repaired — is
 /// `work/fixture/the-per-impl-sight-anchor-is-a-suppression-list-that-shrinks.md`.
 ///
-/// **A new line is the arrival this row exists to detect.** Adding one
-/// is a deliberate act and the message below says which acts are
-/// honest.
+/// **A new line is the arrival `the_walk_still_sees_every_file_holding_one`
+/// exists to detect.** Adding one is a deliberate act and the message
+/// below says which acts are honest.
 const IMPL_FILES_TODAY: [&str; 44] = [
     "crates/editor-core/src/analysis.rs",
     "crates/editor-core/src/checks/at_rest/carried.rs",
