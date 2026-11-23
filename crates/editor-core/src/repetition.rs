@@ -519,7 +519,8 @@ impl<P: crate::ProfilePayload> Doc<P> {
             let own = self.outputs(id);
             for (slot, var) in node.operand_rows() {
                 // A placement's mate reads its own copy, one member.
-                if own.contains(&var) || binders.yielding(self.through_sources(var).read).is_none() {
+                if own.contains(&var) || binders.yielding(self.through_sources(var).read).is_none()
+                {
                     continue;
                 }
                 let Some(held) = self.var(var) else { continue };

@@ -325,8 +325,8 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        // Re-taken: PR 7299 places the x = -0.5 seam's split vertex at cross's root, z one ulp up onto the rounded crossing.
-        (0x375b_2835_06ca_7ce8, 0x4b47_74d1_fc64_7cf4),
+        // Re-taken: binders (D10 `[repetition]`): a member read at its binder's own key answers the member's own names (DM3), and the persisted text carries each index's seat and each binder's yields; the geometry is main's bits (this file's ids-masked fence holds).
+        (0x2de7_629c_6525_198c, 0x2c30_b772_af94_90e8),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -378,7 +378,8 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0xd079_10f9_3b56_2ffa, 0x6c4b_05bb_b430_84de),
+        // Re-taken with the f64 fence: binders (D10 `[repetition]`).
+        (0x1acb_2103_6a95_036a, 0x06f5_60ce_e92d_353e),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -402,8 +403,8 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        // Re-taken: PR 7299 places the x = -0.5 seam's split vertex at cross's root, z one ulp up onto the rounded crossing.
-        (0x375b_2835_06ca_7ce8, 0x4b47_74d1_fc64_7cf4),
+        // Re-taken: binders (D10 `[repetition]`): a member read at its binder's own key answers the member's own names (DM3), and the persisted text carries each index's seat and each binder's yields; the geometry is main's bits (this file's ids-masked fence holds).
+        (0x2de7_629c_6525_198c, 0x2c30_b772_af94_90e8),
         "the corpus's Probe evaluation moved"
     );
 }

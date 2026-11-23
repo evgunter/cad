@@ -221,6 +221,8 @@ fn cut_family_n(overlap_kept_first: bool, product_plain: bool, n: i64) -> usize 
             tool: BodyRead::plain(Operand::Node(tools)),
         },
     );
+    // Each member's cut is the binder's yield, `{k: asm − tools}`.
+    let doc = fixture::yielded(doc, cut);
     if product_plain {
         finish(doc, Operand::Node(cut), cut)
     } else {

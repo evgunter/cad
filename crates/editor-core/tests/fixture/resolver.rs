@@ -54,7 +54,15 @@ impl PartStore {
         tol: Tol,
     ) -> (DocRef, RecipeNodeId) {
         let shape = super::body_read(&doc, body.into());
-        let (doc, placement) = super::place(doc, body);
+        // A family is the part as its every member, placed one by one:
+        // `{k in xs: place(xs[k])}` (D10 `[repetition]`).
+        let family =
+            super::operand_var(&doc, &shape).is_some_and(|var| doc.yielding(var).is_some());
+        let (doc, placement) = if family {
+            super::place_each(doc, body)
+        } else {
+            super::place(doc, body)
+        };
         let read = match shape {
             editor_core::Operand::Output { node, port } => doc.output(node, port),
             _ => doc.output(body, 0),

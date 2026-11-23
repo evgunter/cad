@@ -1139,7 +1139,10 @@ pub fn family_of(
 /// `xs[k]`: what a node written inside the binder `{k in xs: …}` reads of
 /// the family (D10 `[repetition]`). `family` as it is where it is no
 /// yield.
-pub fn member_here(doc: &ProfileDoc, family: editor_core::Operand) -> editor_core::BodyRead<Formula> {
+pub fn member_here(
+    doc: &ProfileDoc,
+    family: editor_core::Operand,
+) -> editor_core::BodyRead<Formula> {
     let read = body_read(doc, family);
     let binder = operand_var(doc, &read).and_then(|var| doc.yielding(var));
     let at: Vec<Formula> = binder
@@ -1153,12 +1156,35 @@ pub fn member_here(doc: &ProfileDoc, family: editor_core::Operand) -> editor_cor
 
 /// **The list entry for `body`**: the splice `…body` where it is a yield,
 /// the read itself otherwise ([`editor_core::Doc::spell`]).
-pub fn entry(doc: &ProfileDoc, body: RecipeNodeId) -> editor_core::Spell<editor_core::BodyRead<Formula>> {
+pub fn entry(
+    doc: &ProfileDoc,
+    body: RecipeNodeId,
+) -> editor_core::Spell<editor_core::BodyRead<Formula>> {
     let read = editor_core::BodyRead::plain(body_read(doc, body.into()));
     match operand_var(doc, &read.read) {
         Some(var) => doc.spell(var, read),
         None => editor_core::Spell::One(read),
     }
+}
+
+/// **A family of copies of each member of `family`**, written inside
+/// `family`'s binder (a pattern of a pattern, the binder's further
+/// index in `values`): one placement reading `family[i, …]` at the
+/// binder's own indices ([`member_here`]), yielded beside it. The
+/// document and the placement.
+pub fn family_of_members(
+    doc: ProfileDoc,
+    family: RecipeNodeId,
+    values: Vec<(editor_core::Coord<editor_core::Operand>, Formula)>,
+) -> (ProfileDoc, RecipeNodeId) {
+    let target = space(&doc, family);
+    let placed = editor_core::Placed::of(&doc, Vec::new(), values);
+    let source = member_here(&doc, family.into());
+    let (doc, copy) = insert(
+        doc,
+        Node::place(source, editor_core::Operand::Var(target), placed.bundle()),
+    );
+    (yielded(doc, copy), copy)
 }
 
 /// **`doc` with `node`'s outputs yielded by the binder `node` stands
@@ -1175,7 +1201,14 @@ pub fn yielded(doc: ProfileDoc, node: RecipeNodeId) -> ProfileDoc {
         return doc;
     };
     let outs = doc.outputs(node);
-    yield_more(doc, binder, &outs)
+    let doc = yield_more(doc, binder, &outs);
+    // A family placed in the world joins the world's copies once it is
+    // a yield.
+    if doc.node_space(node) == Some(VarId::WORLD) {
+        editor_core::test_support::assemble_world_copies(doc, Tol::witness())
+    } else {
+        doc
+    }
 }
 
 /// **A row of `n` copies of `body`** in its own space, under the index
@@ -1648,7 +1681,7 @@ pub fn value_bump(
 
 /// **The variable an operand reads**, where it names one by node, port,
 /// id or name.
-fn operand_var(doc: &ProfileDoc, read: &editor_core::Operand) -> Option<VarId> {
+pub(crate) fn operand_var(doc: &ProfileDoc, read: &editor_core::Operand) -> Option<VarId> {
     match read {
         editor_core::Operand::Node(id) => doc.outputs(*id).first().copied(),
         editor_core::Operand::Output { node, port } => doc.output(*node, *port),
@@ -1846,11 +1879,7 @@ pub fn place(doc: ProfileDoc, body: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) 
 pub fn place_each(doc: ProfileDoc, family: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
     let read = member_here(&doc, family.into());
     let (doc, placement) = insert(doc, stood(read));
-    let doc = yielded(doc, placement);
-    (
-        editor_core::test_support::assemble_world_copies(doc, Tol::witness()),
-        placement,
-    )
+    (yielded(doc, placement), placement)
 }
 
 /// **A read of the copy of `body` an instance delivers**: the instance's
@@ -2527,9 +2556,6 @@ impl Recorder {
         // yields it (D10 `[repetition]`).
         if !self.doc.node_reach(at).is_none() {
             self.yielded(at);
-            if self.doc.node_space(at) == Some(editor_core::VarId::WORLD) {
-                self.assemble_world_copies();
-            }
         }
         at
     }
@@ -2662,6 +2688,29 @@ impl Recorder {
         };
         let outs = self.doc.outputs(node);
         self.push(DocEdit::yielding_more(&self.doc, binder, &outs));
+        if self.doc.node_space(node) == Some(editor_core::VarId::WORLD) {
+            self.assemble_world_copies();
+        }
+    }
+
+    /// **Each member of `family` in the world at `at`**, `{k in xs:
+    /// place(xs[k]) at at}`, the binder yielding the copies
+    /// ([`Self::in_world`] for a family). Returns the placement.
+    pub fn in_world_each(
+        &mut self,
+        family: impl Into<editor_core::Operand>,
+        at: &editor_core::Frame,
+    ) -> RecipeNodeId {
+        let read = member_here(&self.doc, family.into());
+        let placed = editor_core::Placed::of(
+            &self.doc,
+            Vec::new(),
+            editor_core::test_support::moves_at(at),
+        );
+        let node = place_node(&self.doc, read, placed.bundle());
+        let at = self.insert(node);
+        self.yielded(at);
+        at
     }
 
     /// **Each member of `family` placed in the world**, `{k in xs:
@@ -2671,9 +2720,6 @@ impl Recorder {
         let read = member_here(&self.doc, family.into());
         let at = self.insert(stood(read));
         self.yielded(at);
-        if self.doc.node_space(at) == Some(editor_core::VarId::WORLD) {
-            self.assemble_world_copies();
-        }
         at
     }
 

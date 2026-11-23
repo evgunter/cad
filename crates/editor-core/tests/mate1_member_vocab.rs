@@ -68,8 +68,10 @@ pub(crate) fn slid_with(
 
 /// **A copy of `body` placed against `target` at `at`** (the copy's
 /// own frame in `target`'s own coordinates), under `o`:
-/// [`fixture::against`] for bodies only a resolver evaluates. Returns
-/// the document and the placement.
+/// [`fixture::against`] for bodies only a resolver evaluates. A
+/// family `body` is placed member by member, written inside its binder
+/// (`{k in xs: place(xs[k])}`, [`fixture::member_here`]). Returns the
+/// document and the placement.
 pub(crate) fn against_with(
     doc: ProfileDoc,
     target: RecipeNodeId,
@@ -86,10 +88,8 @@ pub(crate) fn against_with(
         at,
         Tol::witness(),
     );
-    let (doc, placement) = insert(
-        doc,
-        crate::fixture::stood(editor_core::BodyRead::plain(read)),
-    );
+    let source = crate::fixture::member_here(&doc, read);
+    let (doc, placement) = insert(doc, crate::fixture::stood(source));
     // The mate and its values written whole, into the target's space.
     let (doc, _) = crate::fixture::write_bundle(doc, placement, placed.bundle());
     (doc, placement)

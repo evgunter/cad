@@ -3774,7 +3774,8 @@ impl DocSession {
         let takeover = self.combine_in_world(&spec.operands())?;
         Ok(taking_over(takeover, move |run| {
             let operands = in_one_space(run, &spec.operands())?;
-            let node = run.insert(spec.with_operands(operands).node())?;
+            let node = splice_families(run.doc(), spec.with_operands(operands).node());
+            let node = run.insert(node)?;
             Ok(Wrote::one(node))
         }))
     }
@@ -6015,6 +6016,50 @@ pub(crate) fn repoint_refusal(
     )
     .map_err(|e| Refusal::Edit(Box::new(e)))?;
     Ok((onto, onto_node))
+}
+
+/// **A list's picked members, each family spliced in whole** (D10
+/// `[repetition]`): a union or an intersect picked over a family reads
+/// every member, `[a, …xs]`, as a list seat takes a family; a member read
+/// `xs[i]` and a single body are read as they are.
+fn splice_families(
+    doc: &Doc<ProfileProgram>,
+    node: pncad::document::AuthoredNode,
+) -> pncad::document::AuthoredNode {
+    type Entry = pncad::document::Spell<pncad::document::BodyRead<Formula>>;
+    let spell = |entries: Vec<Entry>| -> Vec<Entry> {
+        entries
+            .into_iter()
+            .map(|entry| match entry {
+                pncad::document::Spell::One(read) if !read.is_indexed() => {
+                    let var = match &read.read {
+                        Operand::Var(var) => Some(*var),
+                        Operand::Node(id) => doc.outputs(*id).first().copied(),
+                        Operand::Output { node, port } => doc.output(*node, *port),
+                        _ => None,
+                    };
+                    match var {
+                        Some(var) => doc.spell(var, read),
+                        None => pncad::document::Spell::One(read),
+                    }
+                }
+                other => other,
+            })
+            .collect()
+    };
+    match node {
+        Node::Union {
+            members: pncad::document::Bodies::Spelled(entries),
+        } => Node::Union {
+            members: pncad::document::Bodies::Spelled(spell(entries)),
+        },
+        Node::Intersect {
+            members: pncad::document::Bodies::Spelled(entries),
+        } => Node::Intersect {
+            members: pncad::document::Bodies::Spelled(spell(entries)),
+        },
+        other => other,
+    }
 }
 
 /// **A body seat's read of `read`**: a node named alone that is no body

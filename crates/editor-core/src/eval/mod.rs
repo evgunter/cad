@@ -4827,10 +4827,7 @@ impl Chained {
 
 /// **Which indices each node of `order` reaches**, read off `doc`'s
 /// recipe: what a node is evaluated once per member of ([`members`]).
-fn chains_of(
-    doc: &Doc<ProfileProgram>,
-    order: &[RecipeNodeId],
-) -> BTreeMap<RecipeNodeId, Chained> {
+fn chains_of(doc: &Doc<ProfileProgram>, order: &[RecipeNodeId]) -> BTreeMap<RecipeNodeId, Chained> {
     if !doc.declares_index() {
         return BTreeMap::new();
     }

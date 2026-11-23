@@ -443,6 +443,23 @@ pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
             none(),
             none(),
         ),
+        // An index written before binders: where it stands, and no more.
+        E::IndexBeforeBinders { line: l, column: c } => (
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            int(*l),
+            int(*c),
+            none(),
+            none(),
+        ),
         E::Unreadable {
             line: l,
             column: c,

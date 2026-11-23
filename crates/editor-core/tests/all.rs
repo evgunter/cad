@@ -639,10 +639,10 @@ mod r2_m10_6_probes_interval;
 mod r2_m10_di_probes;
 #[path = "rev_fix_xsplit_unreachable.rs"]
 mod rev_fix_xsplit_unreachable;
-#[path = "review_gui1_r1.rs"]
-mod review_gui1_r1;
 #[path = "review_binders_b.rs"]
 mod review_binders_b;
+#[path = "review_gui1_r1.rs"]
+mod review_gui1_r1;
 #[path = "review_m4_pr1.rs"]
 mod review_m4_pr1;
 #[path = "review_m4_pr1_die.rs"]
@@ -924,6 +924,8 @@ mod intent_value_chart_orientation;
 mod intent_vars_2_table;
 #[path = "intent_vars_3_readers.rs"]
 mod intent_vars_3_readers;
+#[path = "review_binders_a.rs"]
+mod review_binders_a;
 #[path = "review_s5b_r2_probes.rs"]
 mod review_s5b_r2_probes;
 #[path = "run_wall_offers.rs"]
@@ -940,5 +942,3 @@ mod union_member_orders_decide_alike;
 mod value_chart_sweeps;
 #[path = "vessel_cavity_interval.rs"]
 mod vessel_cavity_interval;
-#[path = "review_binders_a.rs"]
-mod review_binders_a;

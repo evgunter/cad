@@ -449,6 +449,8 @@ fn carry<E>(
     let mut step_map = StepMap::new();
     let mut section_map = SectionMap::new();
     let mut bundles: Vec<(RecipeNodeId, RecipeNodeId, Vec<crate::mate::Constraint>)> = Vec::new();
+    // Carried yields, each written once its node reads its binder.
+    let mut yields: Vec<(VarId, VarId)> = Vec::new();
     let is_space = |id: &RecipeNodeId| matches!(source.node(*id), Some(Node::Space));
     let olds: Vec<RecipeNodeId> = olds
         .iter()
@@ -556,24 +558,13 @@ fn carry<E>(
                     .map_err(&edit)?;
             }
             // A yield crosses with its node (D10 `[repetition]`): the
-            // carried binder yields the new output too, where the output
-            // still repeats in it there. One whose reads of the binder
-            // stayed behind (its family read crossing as an input) is
-            // one body in the part, and no yield.
+            // carried binder yields the new output too, once the node
+            // reads the binder there ([`yield_carried`]).
             if let Some(binder) = source
                 .yielding(output)
                 .and_then(|binder| vars.map.get(&binder).copied())
-                .filter(|&binder| {
-                    let indices = target.doc().binder_indices(binder);
-                    target
-                        .doc()
-                        .var_reach(minted)
-                        .chain()
-                        .is_some_and(|chain| chain.iter().any(|k| indices.contains(k)))
-                })
             {
-                let more = DocEdit::yielding_more(target.doc(), binder, &[minted]);
-                target.apply(more).map_err(&edit)?;
+                yields.push((binder, minted));
             }
         }
         if let (Node::Profile(from), Some(Node::Profile(to))) = (node, target.doc().node(new)) {
@@ -643,6 +634,9 @@ fn carry<E>(
         if !bundle.is_empty() && !family_now {
             bundles.push((old, new, bundle));
         }
+        // A family whose bundle is in yields at once, for the readers
+        // carried after it.
+        yields.retain(|&(binder, minted)| !yield_carried(target, binder, minted).unwrap_or(false));
     }
     // The bundles, now every node is in, each as one write, verbatim.
     for (old, new, bundle) in bundles {
@@ -659,7 +653,34 @@ fn carry<E>(
             BundleMiss::Edit(error) => edit(error),
         })?;
     }
+    for (binder, minted) in yields {
+        yield_carried(target, binder, minted).map_err(&edit)?;
+    }
     Ok((node_map, step_map, section_map, out_map))
+}
+
+/// **The carried output `minted` yielded by the carried binder
+/// `binder`**, where it reads the binder in the target; `Ok(false)`, and
+/// nothing written, where it does not (yet: its bundle is carried later,
+/// or its reads of the binder stayed behind, crossing as an input, so it
+/// is one body in the target and no yield).
+fn yield_carried(
+    target: &mut Recording<'_, ProfileProgram>,
+    binder: VarId,
+    minted: VarId,
+) -> Result<bool, EditError> {
+    let indices = target.doc().binder_indices(binder);
+    let reads = target
+        .doc()
+        .var_reach(minted)
+        .chain()
+        .is_some_and(|chain| chain.iter().any(|k| indices.contains(k)));
+    if !reads {
+        return Ok(false);
+    }
+    let more = DocEdit::yielding_more(target.doc(), binder, &[minted]);
+    target.apply(more)?;
+    Ok(true)
 }
 
 /// Why [`carry_bundle`] could not carry a bundle.

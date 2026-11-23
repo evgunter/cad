@@ -865,14 +865,16 @@ fn nested_session(bench: &asm::Bench, tag: &str, tol: Tol) -> (DocSession, [Reci
             Vec::new(),
             crate::fixture::slides_along(k, dir, NEST_STEP),
         );
-        crate::fixture::insert(
+        let (doc, copies) = crate::fixture::insert(
             doc,
             Node::place(
                 BodyRead::plain(Operand::Node(of)),
                 room.clone(),
                 placed.bundle(),
             ),
-        )
+        );
+        // The copies are the binder's yield (D10 `[repetition]`).
+        (crate::fixture::yielded(doc, copies), copies)
     };
     let read = |doc: Doc<ProfileProgram>, of: RecipeNodeId, at: i64, into: Operand| {
         crate::fixture::insert(

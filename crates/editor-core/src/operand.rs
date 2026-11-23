@@ -514,7 +514,11 @@ impl<R> Spell<R> {
     /// read itself otherwise. The one spelling of "a yield is spliced,
     /// anything else is read" ([`crate::Doc::spell`] decides `splice`).
     pub fn of(read: R, splice: bool) -> Self {
-        if splice { Self::All(read) } else { Self::One(read) }
+        if splice {
+            Self::All(read)
+        } else {
+            Self::One(read)
+        }
     }
 
     /// The read, whichever entry it is.

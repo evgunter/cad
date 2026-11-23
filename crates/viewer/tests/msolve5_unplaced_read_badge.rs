@@ -52,6 +52,7 @@ fn read_below_pattern(bench: &asm::Bench, tol: Tol) -> std::path::PathBuf {
             lifted_by.bundle(),
         ),
     );
+    let doc = fixture::yielded(doc, lift);
     let (doc, lifted) = fixture::insert(
         doc,
         Node::place(
@@ -75,6 +76,7 @@ fn read_below_pattern(bench: &asm::Bench, tol: Tol) -> std::path::PathBuf {
             stepped.bundle(),
         ),
     );
+    let doc = fixture::yielded(doc, pattern);
     // The world (A10): each of the family's two members copied in.
     let mut asm = doc;
     for index in 0..2 {

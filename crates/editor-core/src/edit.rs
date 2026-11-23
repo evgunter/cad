@@ -4605,15 +4605,14 @@ impl EditError {
                         slot.label(),
                         crate::sentence::article(&found.to_string()),
                     )?;
-                    let one_body = matches!(expected, crate::SlotKind::Is(VarKind::Body));
                     match (found, slot) {
                         // A yield in a spelled list is spliced in whole.
                         (VarKind::Bodies, SlotId::Operand(crate::OperandSlot::Member(_))) => {
                             tail.recourse(f, format_args!("splice it, `…{var}`"))
                         }
-                        // A family at a seat for one body: write the
-                        // binder, one node per member.
-                        (VarKind::Bodies, _) if one_body => tail.recourse(
+                        // A family at a seat for one: write the binder,
+                        // one node per member.
+                        (VarKind::Bodies, _) => tail.recourse(
                             f,
                             format_args!("write a binder, `{{k in {var}: op({var}[k])}}`"),
                         ),
@@ -4820,51 +4819,61 @@ impl EditError {
                     format_args!("bind both indices in one binder, or read what one binder yields"),
                 )
             }
-            Self::Yields { binder, fault } => {
-                match fault {
-                    YieldsFault::NotABinder => {
-                        write!(
-                            f,
-                            "{binder} is no binder's first index, and a binder's yields are \
+            Self::Yields { binder, fault } => match fault {
+                YieldsFault::NotABinder => {
+                    write!(
+                        f,
+                        "{binder} is no binder's first index, and a binder's yields are \
                              written on its first index"
-                        )?;
-                        tail.recourse(f, format_args!("write the yields on the binder's first index"))
-                    }
-                    YieldsFault::Index { var } => {
-                        write!(
-                            f,
-                            "{binder} would yield {var}, which is an index: a binder mints its \
+                    )?;
+                    tail.recourse(
+                        f,
+                        format_args!("write the yields on the binder's first index"),
+                    )
+                }
+                YieldsFault::Index { var } => {
+                    write!(
+                        f,
+                        "{binder} would yield {var}, which is an index: a binder mints its \
                              indices and yields what reads them"
-                        )?;
-                        tail.recourse(f, format_args!("yield a variable that reads {var}, not {var}"))
-                    }
-                    YieldsFault::Twice { var } => {
-                        write!(f, "{binder} would yield {var} twice")?;
-                        tail.recourse(f, format_args!("name {var} once"))
-                    }
-                    YieldsFault::Elsewhere { var, binder: other } => {
-                        write!(f, "{binder} would yield {var}, which {other} already yields")?;
-                        tail.recourse(
-                            f,
-                            format_args!("yield {var} from {other}, the binder it stands in"),
-                        )
-                    }
-                    YieldsFault::Nothing => {
-                        write!(f, "{binder} would yield nothing, and a binder yields what repeats in it")?;
-                        tail.recourse(f, format_args!("name what {binder}'s binder yields"))
-                    }
-                    YieldsFault::Outside { var } => {
-                        write!(
-                            f,
-                            "{binder} would yield {var}, which reads none of the binder's indices"
-                        )?;
-                        tail.recourse(
+                    )?;
+                    tail.recourse(
+                        f,
+                        format_args!("yield a variable that reads {var}, not {var}"),
+                    )
+                }
+                YieldsFault::Twice { var } => {
+                    write!(f, "{binder} would yield {var} twice")?;
+                    tail.recourse(f, format_args!("name {var} once"))
+                }
+                YieldsFault::Elsewhere { var, binder: other } => {
+                    write!(
+                        f,
+                        "{binder} would yield {var}, which {other} already yields"
+                    )?;
+                    tail.recourse(
+                        f,
+                        format_args!("yield {var} from {other}, the binder it stands in"),
+                    )
+                }
+                YieldsFault::Nothing => {
+                    write!(
+                        f,
+                        "{binder} would yield nothing, and a binder yields what repeats in it"
+                    )?;
+                    tail.recourse(f, format_args!("name what {binder}'s binder yields"))
+                }
+                YieldsFault::Outside { var } => {
+                    write!(
+                        f,
+                        "{binder} would yield {var}, which reads none of the binder's indices"
+                    )?;
+                    tail.recourse(
                             f,
                             format_args!("yield a variable that reads the binder's index, or read {var} outside the binder"),
                         )
-                    }
                 }
-            }
+            },
             Self::Index { var, fault } => {
                 match fault {
                     IndexFault::CountNotCount { found } => write!(

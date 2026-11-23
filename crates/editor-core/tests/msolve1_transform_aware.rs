@@ -196,22 +196,29 @@ fn row_on(
 ) -> (ProfileDoc, VarId, RecipeNodeId) {
     let name = fixture::fresh_index_name(&doc);
     let (doc, k) = fixture::index_of(doc, &name, Formula::count(count), within);
-    row_over(doc, input, (dir, spacing), k)
+    match within {
+        // Under an index within `input`'s own, the row is of `input`'s
+        // members, written inside its binder.
+        Some(_) => {
+            let (doc, row) = fixture::family_of_members(doc, input, slides(dir, spacing, k));
+            (doc, k, row)
+        }
+        None => row_over(doc, input, (dir, spacing), k),
+    }
 }
 
-/// [`row_on`] over the index `k` the document already declares.
-fn row_over(
-    doc: ProfileDoc,
-    input: RecipeNodeId,
-    (dir, spacing): ([f64; 3], f64),
+/// Member `k` slid `(scalar(k) + 1)·spacing` along `dir`.
+fn slides(
+    dir: [f64; 3],
+    spacing: f64,
     k: VarId,
-) -> (ProfileDoc, VarId, RecipeNodeId) {
+) -> Vec<(editor_core::Coord<editor_core::Operand>, Formula)> {
     use editor_core::{Coord, Dimension, TargetAxis};
     let next = Formula::count_to_scalar(
         Formula::add(Formula::var(k, Dimension::Count), Formula::count(1)).unwrap(),
     )
     .unwrap();
-    let values = [TargetAxis::X, TargetAxis::Y, TargetAxis::Z]
+    [TargetAxis::X, TargetAxis::Y, TargetAxis::Z]
         .into_iter()
         .zip(dir)
         .filter(|&(_, d)| d != 0.0)
@@ -221,8 +228,17 @@ fn row_over(
                 Formula::mul(next.clone(), len(d * spacing)).unwrap(),
             )
         })
-        .collect();
-    let (doc, row) = fixture::family_of(doc, input, values);
+        .collect()
+}
+
+/// [`row_on`] over the index `k` the document already declares.
+fn row_over(
+    doc: ProfileDoc,
+    input: RecipeNodeId,
+    (dir, spacing): ([f64; 3], f64),
+    k: VarId,
+) -> (ProfileDoc, VarId, RecipeNodeId) {
+    let (doc, row) = fixture::family_of(doc, input, slides(dir, spacing, k));
     (doc, k, row)
 }
 

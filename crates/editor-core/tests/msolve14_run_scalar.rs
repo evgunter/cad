@@ -806,9 +806,9 @@ fn run_at<T: editor_core::test_support::AnyEvaluate>(
 // it mints (VARIABLES VR4): the digest feeds every node id, and one more
 // minted variable per placement moves the ids after it.
 const PINNED_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x4002_fb45_280f_d40c),
-    (1e-6, 0xef4a_8f5e_5e94_2b77),
-    (1e-12, 0xe32b_2a40_e733_2c0d),
+    (1e-9, 0x3d71_7ddb_a34e_e97c),
+    (1e-6, 0x4a6f_e003_137e_633e),
+    (1e-12, 0xeee9_2066_a744_d33f),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the
@@ -892,6 +892,12 @@ fn each_seat_stands_on_what_it_is_seated_on() {
 /// blends' squared frames (a chamfer plane's normal renormalized, a
 /// fillet's `u_ref` zero signed `+0`), measured by dumping every corpus
 /// body on both trees.
+///
+/// RE-PINNED when repetition became written (D10 `[repetition]`'s
+/// binders): the corpus's patterns write `SetYields`, which moves the
+/// documents the digest feeds; every solved pose, placement, fault and
+/// node refusal kind is main's bits at 1e-9, dumped corpus-wide on both
+/// trees and diffed line by line.
 ///
 /// RE-PINNED when the least turn's Rodrigues arm became
 /// `v + k × v + k × (k × v)/(1 + c)` (no read of whether the pair is one

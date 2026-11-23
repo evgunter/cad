@@ -375,8 +375,10 @@ fn the_doors_refuse_an_index_where_no_family_is_read() {
     );
     // The member at the binder's own key is read inside the binder: the
     // subtract is evaluated once per member.
-    let (per_member, cut) =
-        fixture::insert(doc.clone(), subtract(fixture::member_here(&doc, xs.into()), xs));
+    let (per_member, cut) = fixture::insert(
+        doc.clone(),
+        subtract(fixture::member_here(&doc, xs.into()), xs),
+    );
     assert_eq!(
         per_member.node_reach(cut).chain(),
         doc.node_reach(xs).chain(),

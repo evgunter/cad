@@ -82,20 +82,14 @@ pub(crate) fn cut_row(
     let (doc, _, row) = fixture::row(doc, b, ("k", 3), TargetAxis::X, 0.75);
     let (doc, tool) = tool(doc, b, row);
     let from = fixture::member_here(&doc, Operand::Node(row));
-    let (doc, cut) = insert(
-        doc,
-        Node::Subtract {
-            from,
-            tool,
-        },
-    );
+    let (doc, cut) = insert(doc, Node::Subtract { from, tool });
     // The cut is the binder's yield: `{k in row: row[k] − tool}`.
     let doc = fixture::yielded(doc, cut);
     (doc, row, cut)
 }
 
 /// Every seat that reads a family whole, over `family`: a union of it
-/// as its argument, a union spelling it as one read, an intersect and
+/// as its argument, a union splicing it, `[…family]`, an intersect and
 /// an assemble.
 fn whole_seats(doc: ProfileDoc, family: RecipeNodeId) -> (ProfileDoc, [RecipeNodeId; 4]) {
     let whole = || Bodies::Family(BodyRead::plain(Operand::Node(family)));
@@ -103,7 +97,9 @@ fn whole_seats(doc: ProfileDoc, family: RecipeNodeId) -> (ProfileDoc, [RecipeNod
     let (doc, spelled) = insert(
         doc,
         Node::Union {
-            members: Bodies::spelled(vec![BodyRead::plain(Operand::Node(family))]),
+            members: Bodies::Spelled(vec![editor_core::Spell::All(BodyRead::plain(
+                Operand::Node(family),
+            ))]),
         },
     );
     let (doc, intersect) = insert(doc, Node::Intersect { members: whole() });

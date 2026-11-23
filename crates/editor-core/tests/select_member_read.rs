@@ -420,6 +420,11 @@ fn a_side_index_named_after_the_door_still_reads_its_member() {
 #[test]
 fn the_load_door_holds_a_side_read_through_a_pose() {
     let (doc, k, _, index, _) = side_on_member("select-side-load");
+    // The product reads the top, which a side reading `k` makes a
+    // k-reader, so containment refuses the redefinition while it is the
+    // product (D10 `[repetition]`); the row is the load door's, so the
+    // product is cleared first.
+    let doc = fixture::step(doc, DocEdit::SetProduct { product: None }).0;
     let defined = doc
         .apply(
             &DocEdit::DefineVar {
@@ -526,6 +531,9 @@ fn the_load_door_holds_a_side_read_through_a_named_pose() {
         .expect("the pose is named")
         .doc;
     editor_core::persist::save(&doc, Tol::witness()).expect("a written index saves");
+    // The load door's row: the product, which containment would hold
+    // the redefinition to, is cleared first.
+    let doc = fixture::step(doc, DocEdit::SetProduct { product: None }).0;
     let defined = doc
         .apply(
             &DocEdit::DefineVar {

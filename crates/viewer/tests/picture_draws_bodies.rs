@@ -392,14 +392,16 @@ fn reads_by_index(
 ) -> (Doc<ProfileProgram>, RecipeNodeId) {
     let (doc, k) = crate::fixture::index(doc, name, count);
     let space = crate::fixture::space(&doc, family);
-    crate::fixture::insert(
+    let (doc, reads) = crate::fixture::insert(
         doc,
         Node::place(
             pncad::document::BodyRead::indexed(family, vec![at(k)]),
             pncad::document::Operand::Var(space),
             pncad::document::stand().bundle(),
         ),
-    )
+    );
+    // The reads are their binder's yield (D10 `[repetition]`).
+    (crate::fixture::yielded(doc, reads), reads)
 }
 
 /// The members of `node` the picture draws, as the index holds them.

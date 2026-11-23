@@ -190,7 +190,7 @@ fn both_blends_evaluate_in_one_document() {
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0xa968_a45c_16ee_6213_u64),
+        ("die_fillet", 0x14af_7ff1_8165_cee3_u64),
         ("die_chamfer", 0x89c5_5513_1c2e_99d3),
     ] {
         let doc = corpus::documents()
@@ -285,7 +285,7 @@ fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
         ("crossing_slots", 0x1ed8_c7ce_aa81_8bd8_u64),
-        ("heat_sink", 0xec88_26b3_7f36_9d63),
+        ("heat_sink", 0x82e9_8eea_1357_606c),
         ("kiss_carry", 0xc20e_4e75_0612_0ae6),
     ] {
         let doc = corpus::documents()

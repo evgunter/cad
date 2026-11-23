@@ -149,6 +149,7 @@ fn a_family_a_level_down_and_later_in_order_crosses_after() {
             distance: depth,
         },
     );
+    let doc = fixture::yielded(doc, c);
     let ev = run(&doc, None, &EvalOptions::default());
     let at = |id| ev.order.iter().position(|&n| n == id).unwrap();
     assert!(

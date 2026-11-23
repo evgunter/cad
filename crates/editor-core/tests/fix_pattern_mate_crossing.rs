@@ -387,7 +387,7 @@ fn an_underqualified_member_side_is_refused_at_the_door() {
     let (doc, i, inner) = fixture::linear(doc, leg, [1.0, 0.0, 0.0], 2.0, 2);
     let (doc, j) = fixture::index_of(doc, "j", Formula::count(2), Some(i));
     let (doc, outer) =
-        fixture::family_of(doc, inner, fixture::slides_along(j, [0.0, 1.0, 0.0], 5.0));
+        fixture::family_of_members(doc, inner, fixture::slides_along(j, [0.0, 1.0, 0.0], 5.0));
     let (top_ref, top_body) = block_ref("fix-xs-n-top");
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     let refused = editor_core::apply(

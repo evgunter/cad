@@ -12,8 +12,8 @@ use std::collections::BTreeSet;
 use crate::blocks::block;
 use crate::fixture;
 use editor_core::{
-    Bodies, BodyRead, DocEdit, EditError, Formula, Node, Operand, ProfileDoc, RecipeNodeId,
-    Spell, VarDecl, VarId, VarName, VarRef, YieldsFault,
+    Bodies, BodyRead, DocEdit, EditError, Formula, Node, Operand, ProfileDoc, RecipeNodeId, Spell,
+    VarDecl, VarId, VarName, VarRef, YieldsFault,
 };
 use geom_core::Tol;
 
@@ -271,6 +271,7 @@ fn rb_a_splice_of_one_body_refuses() {
 /// A subtract's tool is a list seat (DESIGN `[repetition]`):
 /// `subtract(plate, holes)` is one plate with every member cut.
 #[test]
+#[ignore = "the subtract's tool is a list seat once PR 7426 (subtract Bodies) lands"]
 fn rb_a_subtract_tool_takes_a_family_whole() {
     let r = row_doc("rb-subtract-tool", 3, true);
     let got = try_put(

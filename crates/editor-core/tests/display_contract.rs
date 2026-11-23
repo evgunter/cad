@@ -3043,10 +3043,7 @@ fn maintenance_display_says_what_the_edit_did() {
                 binder: editor_core::SpokenVar::new(editor_core::VarId::new(0, tagged(3)), None),
                 var: editor_core::SpokenVar::new(editor_core::VarId::new(0, tagged(7)), None),
             },
-            vec![
-                "the edit removed #0:0000000000070000",
-                "yields it no more",
-            ],
+            vec!["the edit removed #0:0000000000070000", "yields it no more"],
         ),
     ];
     assert_f6_every_variant(&cases, &MAINTENANCE, &[]);
