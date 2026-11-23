@@ -144,7 +144,16 @@ fn said(ev: &Evaluation<f64>, id: RecipeNodeId) -> Said {
         }
         format!("{:?} @ {:?} [{}]", r.relation, r.site, cells.join(" | "))
     };
-    let mut rows: Vec<String> = value.coincidences.iter().map(row).collect();
+    // The judged rows alone: DM4 makes a fold's judged rows order-free
+    // modulo the members' places, and its fold-step rows follow the
+    // member order, for a union's members and a subtract's tools alike
+    // (`work/formwords/fold-step-point-rows-depend-on-the-member-order.md`).
+    let mut rows: Vec<String> = value
+        .coincidences
+        .iter()
+        .filter(|r| matches!(r.origin, editor_core::RowOrigin::Judged { .. }))
+        .map(row)
+        .collect();
     rows.sort();
     let inputs = value.carry.cited_inputs.as_ref();
     let mut records: Vec<String> = value
@@ -740,37 +749,39 @@ fn a_tool_listed_twice_cuts_once() {
     assert!(wrong.is_empty(), "{wrong:#?}");
 }
 
-/// **A fold step's rows keep their relations**: each scenario's fold
-/// `plate − [a, b]` against the chain `(plate − a) − b` of pair cuts,
-/// whose second cut names its rows in the first's table as it decided
-/// them. Both decide the same pairs, so they publish as many rows, and
-/// every carrier relation (any but a point: `Meet`, or `OnCarrier` at a
-/// vertex fusion) agrees row for row; a point the chain decides on a
-/// seam's vertex the fold spells as the `Meet` of its member cells,
-/// which is the same statement. Red where the fold publishes a `Meet`
-/// the chain decided as a carrier relation (`cut_row_in_member_space`
-/// widening a relation that is no point's).
+/// **A fold's rows keep their relations**: each scenario's fold
+/// `plate − [a, b]` against what pair cuts decide too. The fold's
+/// judgement of the plate against tool `t` is the pair cut `plate − t`,
+/// so its rows agree with that cut's, row for row: every carrier
+/// relation (any but a point: `Meet`, or `OnCarrier` at a vertex
+/// fusion) and as many points. A judgement of two tools, which no pair
+/// cut of the plate makes, and the fold-step rows, which DM4 lets follow
+/// the member order
+/// (`work/formwords/fold-step-point-rows-depend-on-the-member-order.md`),
+/// are left out. Red where the fold publishes a relation the pair cut
+/// decided otherwise.
 #[test]
 fn a_fold_steps_rows_keep_their_relations() {
     let mut differ = Vec::new();
     for (what, doc, p, tools) in scenarios() {
         let (doc, fold) = subtract_over(doc, p, &tools[..2]);
-        let (doc, first) = subtract_over(doc, p, &tools[..1]);
-        let (doc, chain) = insert(
-            doc,
-            Node::Subtract {
-                from: plain(first),
-                tool: Bodies::one(plain(tools[1])),
-            },
-        );
+        let (doc, by_a) = subtract_over(doc, p, &tools[..1]);
+        let (doc, by_b) = subtract_over(doc, p, &tools[1..2]);
         let ev = run(&doc);
-        let relations = |ids: &[RecipeNodeId]| {
+        let relations = |ids: &[RecipeNodeId], judged: bool| {
             let mut out: Vec<String> = ids
                 .iter()
                 .flat_map(|&id| match ev.value(id) {
                     Some(v) => v
                         .coincidences
                         .iter()
+                        .filter(|r| {
+                            !judged
+                                || matches!(
+                                    r.origin,
+                                    editor_core::RowOrigin::Judged { pair } if pair[0] == 0
+                                )
+                        })
                         .map(|r| match (r.relation, r.site) {
                             (
                                 topo::Relation::Meet | topo::Relation::OnCarrier,
@@ -785,9 +796,9 @@ fn a_fold_steps_rows_keep_their_relations() {
             out.sort();
             out
         };
-        let (f, c) = (relations(&[fold]), relations(&[first, chain]));
+        let (f, c) = (relations(&[fold], true), relations(&[by_a, by_b], false));
         if f != c {
-            differ.push(format!("{what}:\n  fold  {f:#?}\n  chain {c:#?}"));
+            differ.push(format!("{what}:\n  fold  {f:#?}\n  pairs {c:#?}"));
         }
     }
     assert!(differ.is_empty(), "{}", differ.join("\n"));

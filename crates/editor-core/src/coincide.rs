@@ -144,15 +144,17 @@ pub struct NamedCoincidence {
 pub enum RowOrigin {
     /// The node's own operation decided it.
     Node,
-    /// A union's or an intersect's judgement of the members at these
-    /// places in its list, the lesser first: one of the node's rows
+    /// A union's, an intersect's or a subtract's judgement of the
+    /// members at these places in its list (a subtract's kept body
+    /// first, then its tools), the lesser first: one of the node's rows
     /// that are order-free modulo the members' places.
     Judged {
         /// The two members' places.
         pair: [u32; 2],
     },
-    /// The fold step of a union or an intersect of three members or
-    /// more that folds in the member at this place in its list.
+    /// The fold step of a union, an intersect or a subtract of three
+    /// members or more that folds in the member at this place in its
+    /// list. These rows follow the member order (DM4).
     Fold {
         /// The member's place.
         step: u32,
