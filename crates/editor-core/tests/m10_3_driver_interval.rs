@@ -948,12 +948,21 @@ fn riser(nominal: f64, half: f64) -> ProfileDoc {
 /// refused on no recorded decision, which the driver cannot prove
 /// definite and so bisects.
 ///
-/// The drive then does what a bisect cue asks: the leaves where
-/// `height` is definitely positive certify, and the far side of zero,
-/// a different outline, is refused as a flip. A mint that fell back to
-/// the quotient where its sign escalates is red on the first half (the
-/// node fails on a logged `path_junction_turn` instead); a driver that
-/// took the unlogged refusal for a definite one certifies nothing.
+/// What the drive then says, as it stands: the leaves where `height`
+/// is definitely positive certify down toward zero, and every leaf
+/// from there down, the ones straddling zero and the ones wholly below
+/// it alike, is refused for the leaf BUDGET; none is a flip. The side
+/// below zero is a different outline with the same axis the other way,
+/// and nothing in the drive says so: the budget is spent bisecting
+/// toward zero
+/// (`work/boxfinish/a-hop-whose-axis-changes-sign-inside-the-box-gets-no-flip-verdict.md`).
+/// The flips this fixture does carry are another reading's, a pair gap
+/// above `height = 0.5`.
+///
+/// A mint that fell back to the quotient where its sign escalates is
+/// red on the first half (the node fails on a logged
+/// `path_junction_turn` instead); a driver that took the unlogged
+/// refusal for a definite one certifies nothing.
 #[test]
 fn an_undecided_axis_sign_reaches_the_driver_as_a_cue_to_bisect() {
     let doc = riser(0.25, 0.3);
@@ -1018,16 +1027,29 @@ fn an_undecided_axis_sign_reaches_the_driver_as_a_cue_to_bisect() {
         let (lo, _) = leaf.box_.get(height).expect("the leaf varies it").span();
         assert!(0.25 + lo > 0.0, "a leaf across zero certified: {lo:e}");
     }
+    let floor = v
+        .certified()
+        .iter()
+        .map(|l| 0.25 + l.box_.get(height).expect("the leaf varies it").span().0)
+        .fold(f64::INFINITY, f64::min);
+    let below: Vec<_> = v
+        .refused()
+        .iter()
+        .filter(|l| 0.25 + l.box_.get(height).expect("the leaf varies it").span().1 <= floor)
+        .collect();
     assert!(
-        v.refused()
+        below
             .iter()
-            .any(|l| matches!(l.reason, RefusalReason::FlipCrossing { .. })),
-        "the far side of zero is a flip; classes were {:?}",
-        v.refused()
-            .iter()
-            .map(|l| l.reason.class())
-            .collect::<Vec<_>>()
+            .any(|l| 0.25 + l.box_.get(height).expect("the leaf varies it").span().1 < 0.0),
+        "some leaf lies wholly below zero"
     );
+    for leaf in below {
+        assert_eq!(
+            leaf.reason.class(),
+            ReasonClass::Budget,
+            "at and below zero the drive spends its budget, and says no flip"
+        );
+    }
 }
 
 /// A box wholly inside the witness chamber certifies whole — the

@@ -240,7 +240,10 @@ reaches it through `Real::expression`, and at a numeric scalar the arm
 that asks is unreachable by type; no impl answers "no". Code whose
 whole meaning is symbolic takes the expression, or a bound only the
 symbolic scalar meets. `Real::register_equal` and
-`Decide::free_identity` are not yet of that shape.
+`Decide::free_identity` are methods every scalar answers: a numeric
+scalar's `register_equal` checks the claim at its value and records
+nothing, and its `free_identity` drops the identity
+(`work/decide/register-equal-and-free-identity-are-answered-by-every-scalar.md`).
 
 ## Choosing among spellings of one quantity (W1)
 

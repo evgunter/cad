@@ -1918,21 +1918,26 @@ Flagged, NOT fixed here (dispositions):
   (`geom_core::Expression::proves_zero`, ERROR-DESIGN E12). The question
   is no decision and reads no value, so which spelling is stored (the
   axis, or the vector over its length) is a function of the expression
-  graph: the same at every valuation and in an eager and a deferring
-  session. The reading only signs the axis: positive or negative is the
+  graph, for a document built inside its session (a graph computed
+  before the session is installed is one its table does not hold, and
+  nothing is proved of it): the same at every valuation, in an eager
+  and a deferring session, and whatever was asked before. The reading only signs the axis: positive or negative is the
   literal ±1, Zero leaves the quotient (a chord with no length, which
-  the gates that own that refuse by name), and an escalation is the
+  is no direction: the verb's junction gate refuses or escalates on
+  it), and an escalation is the
   refusal of the verb or of validation, with no fallback to the
   quotient. Lane by lane:
   - `Sym<T>`, every `T`, eager or deferring: the axis where a component
     is proved zero, the one reading of the other;
   - `f64`, `Interval`, `Dual`, `Probe`: no expression, so the quotient,
     and the reading does not exist there by type.
-  The reading runs under `k_stats::check_unlogged(.., "F43")`: the
+  The reading runs under `k_stats::unlogged("F43", ..)`: the
   `f64` witness never takes it, so a logged verdict would be a row the
   witness's vector cannot have. Its escalation therefore reaches the
   subdivision driver on the node's error and not on its log, where the
-  driver's conservative arm bisects
+  driver's conservative arm bisects; the side of the box where the
+  sign is the other one gets no flip verdict, only the leaf budget
+  (`work/boxfinish/a-hop-whose-axis-changes-sign-inside-the-box-gets-no-flip-verdict.md`)
   (`editor-core/tests/m10_3_driver_interval.rs`,
   `an_undecided_axis_sign_reaches_the_driver_as_a_cue_to_bisect`).
   **The second:** a bulge's sign, read once per bulge leg into the
