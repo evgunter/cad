@@ -207,6 +207,23 @@ pub(crate) fn census(
             }
         }
     }
+    #[cfg(test)]
+    if tests::FORCED.with(core::cell::Cell::get) {
+        // Rows through `split` on every lane: every side every face has
+        // inside is split, as if every face across made it.
+        let mut split: HashMap<FaceKey, Vec<Side>> = HashMap::new();
+        for (fk, uses) in &own {
+            for (s, &n) in uses {
+                if n == 2 && !held(s, *fk) {
+                    split.entry(*fk).or_default().push(*s);
+                }
+            }
+        }
+        for sides in split.values_mut() {
+            sides.sort_unstable();
+        }
+        return split;
+    }
     let inside = |fk: FaceKey, s: &Side| {
         own.get(&fk).and_then(|u| u.get(s)) == Some(&2) && !held(s, fk)
     };
@@ -417,6 +434,8 @@ fn held(
     let mut verdict = cert::FaceVerdict::new();
     let mut folded = false;
     for (tri, uv, singular) in pieces {
+        #[cfg(test)]
+        tests::HELD.with(|n| n.set(n.get() + 1));
         let (bound, scale) = row.cert(tri, uv, singular);
         verdict.read(bound, run.delta, scale, run.eps);
         let normal = (tri[1] - tri[0]).cross(tri[2] - tri[0]);
@@ -559,6 +578,14 @@ mod tests {
     use crate::sizing::Eps;
     use crate::types::TessellateError;
     use crate::walk::edge_key as side;
+
+    std::thread_local! {
+        /// Whether the census splits every side a face has inside
+        /// (the rows through `split` on every lane).
+        pub(super) static FORCED: core::cell::Cell<bool> = const { core::cell::Cell::new(false) };
+        /// The pieces `held` has read on this thread.
+        pub(super) static HELD: core::cell::Cell<usize> = const { core::cell::Cell::new(0) };
+    }
 
     fn frame() -> geom::Frame<f64> {
         geom::Frame::new(
@@ -776,5 +803,154 @@ mod tests {
             (g, vec![t(1, 0, 2)]),
         ];
         assert!(census(&faces, &chords).is_empty(), "corners shared with two faces: no trigger");
+    }
+
+    /// The pieces `held` reads while `body` meshes at δ with every side
+    /// every face has inside split (`FORCED`), and the mesh.
+    fn forced(body: &topo::Body<f64>, delta: f64) -> (usize, crate::Mesh) {
+        FORCED.with(|f| f.set(true));
+        HELD.with(|n| n.set(0));
+        let mesh = crate::tessellate(body, delta, Tol::witness());
+        FORCED.with(|f| f.set(false));
+        let mesh = mesh.unwrap_or_else(|e| panic!("δ {delta}: meshes with every inside side split, got {e:?}"));
+        crate::validate::check_mesh(&mesh).unwrap_or_else(|e| panic!("δ {delta}: closed manifold, got {e:?}"));
+        (HELD.with(core::cell::Cell::get), mesh)
+    }
+
+    /// A ball (`r` 1) or a cylinder, cone or torus about `y`, revolved.
+    fn revolved(profile: Vec<((f64, f64), f64)>) -> topo::Body<f64> {
+        sweep::test_support::revolved_about_y(
+            profile.into_iter().map(|((x, y), b)| (geom_core::Point2::new(x, y), b)).collect(),
+            sweep::Revolution::Full,
+            Tol::witness(),
+        )
+    }
+
+    /// `body` less the box `x ≥ 0.5`, which trims each of its curved faces.
+    fn less_box(body: topo::Body<f64>) -> topo::Body<f64> {
+        use sweep::test_support::{brick, finished};
+        let tol = Tol::witness();
+        let x = finished("the box", brick::<f64>((0.5, 2.0), (-2.0, 2.0), (-2.0, 2.0), tol), tol);
+        let out = topo::boolean::subtract(&finished("the body", body, tol), &x, tol).unwrap();
+        topo::Body::clone(&out.body().expect("a body is left").body)
+    }
+
+    /// **Every lane reads the pieces of its split, through `split`.** With
+    /// every side every face has inside split (`FORCED`), each body
+    /// meshes, is a closed manifold, and `held` reads pieces: on the walk
+    /// and the rectangle lane (the 1.05 ball bored at radius 1, its bore
+    /// walked and its torus wall a rectangle), on the trimmed lane's
+    /// cylinder, sphere and torus arms (the rod sliver; a ball and a torus
+    /// less a box), and from a memo hit (the rod sliver again, through
+    /// the memo). With the pieces unread, each reads none.
+    #[test]
+    fn every_lane_reads_the_pieces_of_its_split() {
+        let h = (1.05_f64.powi(2) - 1.0).sqrt();
+        let bulge = (h.atan2(1.0) / 2.0).tan();
+        let ball = vec![((0.0, -1.0), 1.0), ((0.0, 1.0), 0.0)];
+        let torus = vec![((1.0, -0.25), 1.0), ((1.0, 0.25), 1.0)];
+        for (what, body) in [
+            ("the bored ball: the walk and the rectangle lane", revolved(vec![((1.0, -h), 0.0), ((1.0, h), bulge)])),
+            ("the rod sliver: the trimmed cylinder arm", crate::trimmed::tests::a_rod_sliver()),
+            ("a ball less a box: the trimmed sphere arm", less_box(revolved(ball))),
+            ("a torus less a box: the trimmed torus arm", less_box(revolved(torus))),
+        ] {
+            for delta in [1e9, 0.3] {
+                let (held, _) = forced(&body, delta);
+                assert!(held > 0, "{what}, δ {delta}: the split's pieces are read");
+            }
+        }
+        let sliver = crate::trimmed::tests::a_rod_sliver();
+        let mut memo = crate::PatchMemo::default();
+        FORCED.with(|f| f.set(true));
+        crate::tessellate_with(&sliver, 0.3, Tol::witness(), &mut memo).unwrap();
+        HELD.with(|n| n.set(0));
+        crate::tessellate_with(&sliver, 0.3, Tol::witness(), &mut memo).unwrap();
+        FORCED.with(|f| f.set(false));
+        assert!(memo.hits() > 0, "the second run is answered by the memo");
+        assert!(HELD.with(core::cell::Cell::get) > 0, "a memo hit's split pieces are read");
+    }
+
+    /// **A side from a cone's apex splits on the rectangle lane** (the fix
+    /// list's item 4). The rectangle lane holds the apex as one chart
+    /// vertex per column, so the two triangles on an apex-to-rim side hold
+    /// the apex at different `u`; it is one end all the same. A cone about
+    /// `y` (apex at `(0, −1, 0)`) with every inside side split meshes, is
+    /// a closed manifold, and the apex's triangles take split points.
+    #[test]
+    fn a_side_from_a_cones_apex_splits_on_the_rectangle_lane() {
+        let cone = revolved(vec![((0.0, -1.0), 0.0), ((1.0, 0.5), 0.0), ((0.0, 0.5), 0.0)]);
+        for delta in [1e9, 0.3, 0.05] {
+            let unsplit = crate::tessellate(&cone, delta, Tol::witness()).unwrap();
+            let (held, mesh) = forced(&cone, delta);
+            assert!(held > 0, "δ {delta}: the pieces are read");
+            let apex = mesh
+                .positions
+                .iter()
+                .position(|p| (*p - Point3::new(0.0, -1.0, 0.0)).norm() < 1e-12)
+                .expect("the apex is a mesh vertex");
+            #[allow(clippy::cast_possible_truncation)]
+            let (apex, minted) = (apex as u32, unsplit.positions.len() as u32);
+            let at_apex = mesh
+                .patches
+                .iter()
+                .flat_map(|p| &p.triangles)
+                .filter(|t| t.contains(&apex) && t.iter().any(|&v| v >= minted))
+                .count();
+            assert!(at_apex > 0, "δ {delta}: an apex side was split");
+        }
+    }
+
+    /// **A piece that folds refuses its face, through `split`.** A torus
+    /// face, two triangles on a side across most of its tube, both wound
+    /// with the face: the side's foot lies where one piece turns over, and
+    /// `split` refuses the face `FoldedTriangle`. With the fold unread, it
+    /// would mesh.
+    #[test]
+    fn a_split_piece_that_folds_refuses_its_face() {
+        let body = revolved(vec![((1.0, -0.25), 1.0), ((1.0, 0.25), 1.0)]);
+        let (face, surface) = body
+            .faces()
+            .find_map(|(fk, _)| {
+                let s = body.face_surface(fk)?;
+                matches!(s, Surface::Torus { .. }).then_some((fk, s))
+            })
+            .expect("a torus face");
+        let uv = [
+            [0.858_62, 1.002_137_28],
+            [0.185_864, 3.764_659_04],
+            [0.845_368, 0.873_177_48],
+            [0.769_88, 3.882_559_76],
+        ];
+        let mut positions: Vec<Point3<f64>> = uv.iter().map(|&[u, v]| surface.eval(u, v)).collect();
+        let mut triangles = vec![[0, 1, 2], [1, 0, 3]];
+        let splits = super::Splits {
+            noted: vec![
+                super::Noted { tri: 0, uv: [uv[0], uv[1], uv[2]], singular: [false; 3] },
+                super::Noted { tri: 1, uv: [uv[1], uv[0], uv[3]], singular: [false; 3] },
+            ],
+        };
+        let bounds = FaceBounds::new();
+        let run = Run { body: &body, bounds: &bounds, delta: 1e9, eps: Eps::at(Tol::witness()) };
+        let sense = body.get_face(face).unwrap().sense;
+        let row = ChartRow::of(&body, face, surface, &bounds).unwrap();
+        let ChartRow::Analytic(analytic) = &row else {
+            panic!("a torus's row is analytic");
+        };
+        for t in &triangles {
+            let p = t.map(|i: u32| positions[i as usize]);
+            let n = (p[1] - p[0]).cross(p[2] - p[0]);
+            assert!(
+                !crate::validate::wound_against(n, analytic.outward(sense, crate::validate::centroid(p)).vec()),
+                "each triangle is wound with the face"
+            );
+        }
+        assert!(
+            matches!(
+                super::split(face, &[side(0, 1)], &splits, &run, &mut positions, &mut triangles),
+                Err(TessellateError::FoldedTriangle { .. })
+            ),
+            "a folded piece refuses the face"
+        );
     }
 }
