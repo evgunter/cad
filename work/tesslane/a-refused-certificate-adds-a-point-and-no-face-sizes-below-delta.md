@@ -2,10 +2,11 @@
 id: a-refused-certificate-adds-a-point-and-no-face-sizes-below-delta
 kind: unit
 title: Every lane sizes at δ from its chart's cell bound, and a triangle whose certificate reads over δ gets a point and the face is triangulated again; UNPROVED_HEADROOM goes
-status: spec
+status: dispatched
 opened: 2026-11-23
 priority: P1
 cost: H
+branch: tesslane/certificate-decides
 ---
 
 
