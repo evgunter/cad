@@ -143,6 +143,8 @@ struct FaceRead {
     origin: Point3<f64>,
     axis: Vec3<f64>,
     sense: bool,
+    /// The surface's own size: a radius, a minor radius, a half angle.
+    size: f64,
 }
 
 fn faces(body: &topo::Body<f64>) -> Vec<FaceRead> {
@@ -155,21 +157,30 @@ fn faces(body: &topo::Body<f64>) -> Vec<FaceRead> {
                 origin: frame.origin(),
                 axis: frame.axis(),
                 sense: face.sense,
+                size: match *surface {
+                    geom::Surface::Cylinder { radius, .. }
+                    | geom::Surface::Sphere { radius, .. } => radius,
+                    geom::Surface::Torus { minor_radius, .. }
+                    | geom::Surface::Spindle { minor_radius, .. } => minor_radius,
+                    geom::Surface::Cone { half_angle, .. } => half_angle,
+                    _ => 0.0,
+                },
             }
         })
         .collect()
 }
 
 /// **The left body is the right body turned half a turn**, face for
-/// face: every face of `right`, turned, has a face of `left` on the same
-/// kind and origin whose outward normal is the turned one; a revolution
-/// wall's chart axis is besides the authored heading on both, and its
-/// sense the same.
+/// face: every face of `right`, turned, has a face of `left` of the
+/// same kind and size, at the turned origin where `anchored`, whose
+/// outward normal is the turned one; a revolution wall's chart axis is
+/// the authored heading on both, and its sense the same.
 fn assert_turned_faces(
     row: &str,
     right: &topo::Body<f64>,
     left: &topo::Body<f64>,
     heading: Vec3<f64>,
+    anchored: bool,
 ) {
     let (rf, lf) = (faces(right), faces(left));
     assert_eq!(rf.len(), lf.len(), "{row}: face counts");
@@ -180,7 +191,8 @@ fn assert_turned_faces(
         );
         let found = lf.iter().any(|l| {
             l.kind == r.kind
-                && near(l.origin, origin)
+                && (l.size - r.size).abs() <= 1e-12
+                && (!anchored || near(l.origin, origin))
                 && near_vec(if l.sense { l.axis } else { -l.axis }, outward)
                 && (l.kind == geom::SurfaceKind::Plane
                     || (near_vec(l.axis, r.axis) && l.sense == r.sense))
@@ -227,8 +239,9 @@ fn assert_turned_faces(
 #[test]
 fn a_profile_and_its_mirror_across_the_axis_revolve_alike() {
     /// A profile drawn on the side `s = ±1` of the axis, and a point of
-    /// its material.
-    type Sided = (fn(f64) -> ProfileLoop<f64>, Point2<f64>);
+    /// its material (none where the containment door reads no spindle
+    /// wall; the faces then carry the placement).
+    type Sided = (fn(f64) -> ProfileLoop<f64>, Option<Point2<f64>>);
     let rows: [(&str, Sided); 4] = [
         (
             "a washer",
@@ -241,7 +254,7 @@ fn a_profile_and_its_mirror_across_the_axis_revolve_alike() {
                         Point2::new(s, 1.0),
                     ])
                 },
-                Point2::new(1.5, 0.5),
+                Some(Point2::new(1.5, 0.5)),
             ),
         ),
         (
@@ -253,7 +266,7 @@ fn a_profile_and_its_mirror_across_the_axis_revolve_alike() {
                         (Point2::new(0.0, s), 0.0),
                     ])
                 },
-                Point2::new(0.5, 0.2),
+                Some(Point2::new(0.5, 0.2)),
             ),
         ),
         (
@@ -269,7 +282,7 @@ fn a_profile_and_its_mirror_across_the_axis_revolve_alike() {
                         }),
                     )])
                 },
-                Point2::new(1.0, 0.0),
+                Some(Point2::new(1.0, 0.0)),
             ),
         ),
         (
@@ -282,7 +295,7 @@ fn a_profile_and_its_mirror_across_the_axis_revolve_alike() {
                         (Point2::new(0.0, s * h), 0.0),
                     ])
                 },
-                Point2::new(1.0, 0.0),
+                None,
             ),
         ),
     ];
@@ -310,34 +323,42 @@ fn a_profile_and_its_mirror_across_the_axis_revolve_alike() {
                 match (&right, &left) {
                     (Ok(r), Ok(l)) => {
                         assert_all_tiers(&l.body);
-                        assert_turned_faces(&row, &r.body, &l.body, heading);
-                        let phi = match revolution {
-                            Revolution::Partial(t) => t / 2.0,
-                            Revolution::Full => 1.0,
-                        };
-                        let q = turned(inside.x, inside.y, 0.0, up, phi);
-                        assert_eq!(
-                            containment(&r.body, q),
-                            topo::SolidContainment::In,
-                            "{row}: right material"
-                        );
-                        assert_eq!(
-                            containment(&l.body, half_turn(q)),
-                            topo::SolidContainment::In,
-                            "{row}: left material"
-                        );
-                        if let Revolution::Partial(t) = revolution {
-                            let q = turned(inside.x, inside.y, 0.0, up, -t / 2.0);
+                        // A full revolve of a left profile builds its turn
+                        // about the reversed axis, so where a wall's chart
+                        // is anchored along the axis follows that build
+                        // (filed: work/lathe/a-left-profiles-full-revolve-
+                        // keeps-the-reversed-builds-anchors-and-rims.md).
+                        let anchored = !matches!(revolution, Revolution::Full);
+                        assert_turned_faces(&row, &r.body, &l.body, heading, anchored);
+                        if let Some(inside) = inside {
+                            let phi = match revolution {
+                                Revolution::Partial(t) => t / 2.0,
+                                Revolution::Full => 1.0,
+                            };
+                            let q = turned(inside.x, inside.y, 0.0, up, phi);
                             assert_eq!(
                                 containment(&r.body, q),
-                                topo::SolidContainment::Out,
-                                "{row}: right void"
+                                topo::SolidContainment::In,
+                                "{row}: right material"
                             );
                             assert_eq!(
                                 containment(&l.body, half_turn(q)),
-                                topo::SolidContainment::Out,
-                                "{row}: left void"
+                                topo::SolidContainment::In,
+                                "{row}: left material"
                             );
+                            if let Revolution::Partial(t) = revolution {
+                                let q = turned(inside.x, inside.y, 0.0, up, -t / 2.0);
+                                assert_eq!(
+                                    containment(&r.body, q),
+                                    topo::SolidContainment::Out,
+                                    "{row}: right void"
+                                );
+                                assert_eq!(
+                                    containment(&l.body, half_turn(q)),
+                                    topo::SolidContainment::Out,
+                                    "{row}: left void"
+                                );
+                            }
                         }
                         let (vr, vl) = (volume(&r.body, &row), volume(&l.body, &row));
                         assert!(

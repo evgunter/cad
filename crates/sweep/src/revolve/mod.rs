@@ -17,7 +17,8 @@
 //!   too — micro-radius revolve is a genuine sliver). What the body
 //!   hands out follows the AUTHORED axis whichever frame built it: the
 //!   wall charts' axis, the gaps' rank, the caps where the authored
-//!   turn puts them.
+//!   turn puts them. A full revolve's wall anchors, rim directions and
+//!   bands still follow the frame it builds in.
 //! - **Angle.** [`Revolution::Partial`] carries a **signed** angle θ in
 //!   radians, right-hand rule about the world axis direction
 //!   `a₃ = place·d̂`; `|θ|` must classify definitely inside `(0, 2π)`
