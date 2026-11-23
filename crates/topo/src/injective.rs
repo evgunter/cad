@@ -150,7 +150,7 @@ pub(crate) const SELF_INTERSECTION_ON_SHARED: &str = "self_intersection_on_share
 /// It carries two quantities: where a side is shared, the sine of the
 /// angle at which the face leaves the separator across it, levered at
 /// the reach of the faces the pair shares that cell between
-/// ([`arm_of`]); where none is, the separator's value, a distance.
+/// ([`extent_of`]); where none is, the separator's value, a distance.
 pub(crate) const SELF_INTERSECTION_DEPARTURE: &str = "self_intersection_departure";
 /// What a face lifted with no tier-3 verdict is, to a touching pair's
 /// refusal ([`departure`]).
@@ -378,6 +378,12 @@ pub(crate) struct Facts {
 /// The funnel site of a side of the half-plane a face's boundary is
 /// counted across ([`crosses_oddly`]): a point's or a cover's signed
 /// height off it, read for its sign alone.
+///
+/// An enclosure sign ([`Band::enclosure_sign`]), not a concession of
+/// ε: a side is read only where the whole enclosure excludes zero, and
+/// an enclosure that holds zero is no side and no crossing — never a
+/// coincidence, an incidence or any other fact about the body. Nothing
+/// reads `Zero` from this site.
 pub(crate) const SELF_INTERSECTION_SPANS: &str = "self_intersection_spans";
 
 /// The side `x` is decided on by its enclosure alone, or `None`.
@@ -395,36 +401,55 @@ fn enclosure_side(x: Interval) -> Option<Sign> {
 /// **Whether a face's boundary, `edges`, crosses a half-plane bounded
 /// by `line` an odd number of times**: then the face meets the line.
 ///
-/// A face is a compact surface whose boundary is its loops, and the
-/// number of points a line meets a surface in has the parity of the
-/// number of times the surface's boundary winds about the line, which
-/// is the parity of its crossings of any half-plane the line bounds. A
-/// disc's rim crosses such a half-plane once, whatever arcs it is cut
+/// The argument is one of linking. A face is a compact surface, and
+/// `edges` is its whole boundary: every edge of every loop, each use of
+/// an edge by the face counted. A closed curve off a line links it or
+/// does not, and the parity of its crossings of a half-plane the line
+/// bounds is that linking: turning the half-plane about the line to
+/// another sweeps it across the curve, which stays off the line, so
+/// crossings appear and vanish two at a time and **the parity is the
+/// same for every half-plane**. A surface whose boundary links the line
+/// an odd number of times in all meets the line, since one that missed
+/// it could be pushed off the line's neighbourhood and its boundary
+/// would bound in the complement, where it links nothing. So an odd
+/// count shows a point of the face on the line; an even count shows
+/// nothing, and is read as no bound.
+///
+/// What a crossing asks is only that the curve passes from one side of
+/// the half-plane's plane to the other while on the half-plane's side
+/// of the line: it need not be transversal, since a piece whose ends
+/// are on opposite sides crosses an odd number of times however it
+/// touches on the way, and one whose ends are on one side an even
+/// number. It does ask that the boundary is **off the line**: a piece
+/// near the line is decided on neither side of it and the count is
+/// refused, so a rim through the line (a cone's rulings at its apex, a
+/// meridian at a pole on the axis) lends no bound.
+///
+/// A disc's rim crosses such a half-plane once, whatever arcs it is cut
 /// into; an annulus's two rims once each, and it does not meet its
-/// axis. No arc is compared with another, so nothing is asked of how
-/// the carriers are stored: the count is of the curves themselves, and
-/// at a box scalar it holds for every member, each side being decided
-/// by an enclosure that excludes zero.
+/// axis. A seam, which the face lies on both sides of, is its boundary
+/// twice, once each way, and its two uses cancel: an edge used an even
+/// number of times counts for nothing. No arc is compared with
+/// another, so nothing is asked of how the carriers are stored: the
+/// count is of the curves themselves, and at a box scalar it holds for
+/// every member, each side being decided by an enclosure that excludes
+/// zero ([`SELF_INTERSECTION_SPANS`]).
 ///
 /// The half-plane is the part of a plane through `line` on one side of
-/// it, the plane's normal the line's direction crossed with a fixed
-/// vector no modelling direction is likely to be along. Each edge is
-/// read in pieces ([`geom_brep::span_pieces`]). A piece whose cover is
-/// decided on one side of the plane does not cross it. One whose cover
-/// is decided on the half-plane's side of the line crosses the plane
-/// only in the half-plane, an odd number of times where its two ends
-/// are decided on opposite sides and an even number where on one. One
-/// decided on the line's other side crosses the half-plane nowhere. A
-/// seam, which the face lies on both sides of, is its boundary twice
-/// and counts for nothing.
+/// it, the plane's normal the line's direction crossed with `off`. Each
+/// edge is read in pieces ([`geom_brep::span_pieces`]). A piece whose
+/// cover is decided on one side of the plane does not cross it. One
+/// whose cover is decided on the half-plane's side of the line crosses
+/// the plane only in the half-plane, an odd number of times where its
+/// two ends are decided on opposite sides and an even number where on
+/// one. One decided on the line's other side crosses the half-plane
+/// nowhere.
 ///
-/// `None` where a side is not decided (a piece near the line, an end on
-/// the plane, a piece with no cover) or an edge has no carrier: no
-/// crossing is counted that was not shown.
-fn crosses_oddly(edges: &[Rim], line: &geom::Line<Interval>) -> Option<bool> {
-    let normal = line
-        .dir
-        .cross(Vec3::new(at(0.5377), at(-0.2913), at(0.7896)));
+/// `None` where a side is not decided (a piece near the line, a piece
+/// in the plane, an end on the plane, a piece with no cover) or an edge
+/// has no carrier: no crossing is counted that was not shown.
+fn crossings(edges: &[Rim], line: &geom::Line<Interval>, off: Vec3<Interval>) -> Option<bool> {
+    let normal = line.dir.cross(off);
     let toward = normal.cross(line.dir);
     let height = |n: Vec3<Interval>, p: Point3<Interval>| n.dot(p - line.origin);
     let floor = |n: Vec3<Interval>| n.dot(line.origin - Point3::origin());
@@ -455,6 +480,14 @@ fn crosses_oddly(edges: &[Rim], line: &geom::Line<Interval>) -> Option<bool> {
         }
     }
     Some(odd)
+}
+
+/// [`crossings`] of the half-plane whose plane's normal is the line's
+/// direction crossed with a fixed vector no modelling direction is
+/// likely to be along. Any half-plane reads the one parity; this one is
+/// seldom one an edge lies in.
+fn crosses_oddly(edges: &[Rim], line: &geom::Line<Interval>) -> Option<bool> {
+    crossings(edges, line, Vec3::new(at(0.5377), at(-0.2913), at(0.7896)))
 }
 
 /// **The least run from `shared` of a face that spans its curve**
@@ -21237,6 +21270,142 @@ mod margin_reach_rows {
         );
         let straight = [line(1, [1, 2], [0.0; 3], [1.0, 0.0, 0.0])];
         assert!(spanned(&straight, &straight[0]).is_none(), "a line");
+    }
+
+    /// A whole circle of radius `r` about the `z` axis at height `z`,
+    /// used once.
+    fn ring(k: u64, v: u64, r: f64, z: f64) -> Rim {
+        let mut rim = arc(k, [v, v], r, 0.0, (0.0, core::f64::consts::TAU));
+        rim.arc = Some((
+            Curve3::Circle(geom::Circle::new(
+                geom::Frame::new(pa([0.0, 0.0, z]), va([0.0, 0.0, 1.0]), va([1.0, 0.0, 0.0])),
+                iv0(r),
+            )),
+            (iv0(0.0), iv0(core::f64::consts::TAU)),
+        ));
+        rim
+    }
+
+    /// The `z` axis.
+    fn z_axis() -> geom::Line<Interval> {
+        geom::Line {
+            origin: pa([0.0; 3]),
+            dir: va([0.0, 0.0, 1.0]),
+        }
+    }
+
+    /// **The parity is the line's and the boundary's, not the
+    /// half-plane's.** A disc's rim, an annulus's two rims, an annulus
+    /// whose outer rim is cut into three arcs, and a tube's two rims
+    /// with its seam, each counted across three half-planes on the `z`
+    /// axis: the disc is odd across each and the rest even across each.
+    ///
+    /// Red if the count is of the whole plane, if a seam's two uses are
+    /// counted as one, if arcs are counted rather than crossings (three
+    /// arcs and a rim would then be even or odd by how they are cut), or
+    /// if a half-plane's choice moves the parity.
+    #[test]
+    fn every_half_plane_on_the_line_counts_one_parity() {
+        use core::f64::consts::TAU;
+        let disc = vec![ring(1, 1, 2.0, 0.0)];
+        let annulus = vec![ring(1, 1, 2.0, 0.0), ring(2, 2, 1.0, 0.0)];
+        let third = TAU / 3.0;
+        let cut = vec![
+            arc(1, [1, 2], 2.0, 0.0, (0.0, third)),
+            arc(2, [2, 3], 2.0, 0.0, (third, 2.0 * third)),
+            arc(3, [3, 1], 2.0, 0.0, (2.0 * third, TAU)),
+            ring(4, 4, 1.0, 0.0),
+        ];
+        let mut seam = line(3, [1, 2], [2.0, 0.0, 0.0], [2.0, 0.0, 5.0]);
+        let twin = seam.uses[0].clone();
+        seam.uses.push(twin);
+        let tube = vec![ring(1, 1, 2.0, 0.0), ring(2, 2, 2.0, 5.0), seam];
+        for off in [
+            [0.5377, -0.2913, 0.7896],
+            [-0.61, 0.33, 0.21],
+            [0.17, 0.93, -0.4],
+        ] {
+            let count = |edges: &[Rim]| crossings(edges, &z_axis(), va(off));
+            assert_eq!(count(&disc), Some(true), "a disc, across {off:?}");
+            assert_eq!(count(&annulus), Some(false), "an annulus, across {off:?}");
+            assert_eq!(
+                count(&cut),
+                Some(false),
+                "three arcs and a rim, across {off:?}"
+            );
+            assert_eq!(
+                count(&tube),
+                Some(false),
+                "a tube and its seam, across {off:?}"
+            );
+        }
+    }
+
+    /// **A crossing that is not shown is not counted.** Across the
+    /// half-plane `y = 0, x > 0` on the `z` axis, each of these reads no
+    /// count, so no bound:
+    /// - a rim ending on the half-plane (an arc from the `x` axis): its
+    ///   end's height holds zero;
+    /// - a rim touching the half-plane's plane at a piece's end (a circle
+    ///   about `(2, 1, 0)` of radius one, read by its three-quarter turn);
+    /// - an edge lying in the half-plane;
+    /// - a rim through the line itself: a ruling ending at an apex on the
+    ///   axis, and a chord across it;
+    /// - a rim whose enclosure is as wide as its distance from the line.
+    ///
+    /// Red if an enclosure holding zero is read as a side, or if a piece
+    /// near the line is counted on either side of it.
+    #[test]
+    fn a_crossing_no_enclosure_decides_is_no_count() {
+        use core::f64::consts::{PI, TAU};
+        let across = |edges: &[Rim]| crossings(edges, &z_axis(), va([1.0, 0.0, 0.0]));
+        assert_eq!(
+            across(&[ring(1, 1, 2.0, 0.0)]),
+            None,
+            "a whole rim starting on the half-plane"
+        );
+        assert_eq!(
+            across(&[
+                arc(1, [1, 2], 2.0, 0.0, (0.0, PI)),
+                arc(2, [2, 1], 2.0, 0.0, (PI, TAU))
+            ]),
+            None,
+            "an arc ending on the half-plane"
+        );
+        let mut touching = ring(1, 1, 1.0, 0.0);
+        touching.arc = Some((
+            Curve3::Circle(geom::Circle::new(
+                geom::Frame::new(
+                    pa([2.0, 1.0, 0.0]),
+                    va([0.0, 0.0, 1.0]),
+                    va([1.0, 0.0, 0.0]),
+                ),
+                iv0(1.0),
+            )),
+            (iv0(0.0), iv0(TAU)),
+        ));
+        assert_eq!(across(&[touching]), None, "a rim touching the plane");
+        assert_eq!(
+            across(&[line(1, [1, 2], [1.0, 0.0, 0.0], [3.0, 0.0, 1.0])]),
+            None,
+            "an edge in the half-plane"
+        );
+        let generic = |edges: &[Rim]| crosses_oddly(edges, &z_axis());
+        assert_eq!(
+            generic(&[line(1, [1, 2], [0.0, 0.0, 0.0], [1.0, 0.3, 1.0])]),
+            None,
+            "a ruling from an apex on the line"
+        );
+        assert_eq!(
+            generic(&[line(1, [1, 2], [-1.0, -0.4, 0.0], [1.0, 0.4, 0.0])]),
+            None,
+            "a chord through the line"
+        );
+        assert_eq!(
+            generic(&[arc(1, [1, 1], 2.0, 2.5, (0.0, TAU))]),
+            None,
+            "a rim as wide as its distance from the line"
+        );
     }
 
     /// **A sine that changes sign over the rectangle decides nothing.** A

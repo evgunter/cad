@@ -326,6 +326,8 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("CROSS_SIDE"),
     NameCarrier::Const("SELF_INTERSECTION_CUSP"),
     NameCarrier::Const("SELF_INTERSECTION_DEPARTURE"),
+    NameCarrier::Const("SELF_INTERSECTION_DEPARTURE_SIDE"),
+    NameCarrier::Const("SELF_INTERSECTION_SPANS"),
     NameCarrier::Const("DEPTH_GAP"),
     NameCarrier::Const("EE_OVERLAP_CHARGED"),
     NameCarrier::Const("END_VERTEX"),

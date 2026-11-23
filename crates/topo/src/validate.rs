@@ -257,7 +257,12 @@
 //! right keeps no verdict to read.
 //!
 //! [`validate`] and [`validate_closed`] (tiers 1 and 2) take no form:
-//! they certify nothing and read no declaration. The measurement doors
+//! they certify nothing and read no declaration. Neither does
+//! [`geometric`], which is no pass: it is tier 3's local battery with
+//! check 7 not made, handing back what the battery decided per entity
+//! ([`crate::Geometric`]) on a body that is not finished. It decides no
+//! sign, so it has no certificate, and it holds no certified lane, so
+//! there is no second form of it to twin. The measurement doors
 //! with the same `_structural` meaning ([`crate::mass_properties_structural`],
 //! [`crate::classify_shells_structural`]) live in `props`, outside this
 //! roster.
@@ -19058,9 +19063,10 @@ mod door_roster {
 
     const SOURCE: &str = include_str!("validate.rs");
     const LIB: &str = include_str!("lib.rs");
-    /// The tier-1 and tier-2 validators: public, and outside the matrix
-    /// because they take no form (the module doc says why).
-    const FORMLESS: [&str; 2] = ["validate", "validate_closed"];
+    /// The tier-1 and tier-2 validators and the battery's kept facts:
+    /// public, and outside the matrix because they take no form (the
+    /// module doc says why).
+    const FORMLESS: [&str; 3] = ["validate", "validate_closed", "geometric"];
     const STEMS: [&str; 3] = [
         "validate_geometric",
         "validate_pseudomanifold",
