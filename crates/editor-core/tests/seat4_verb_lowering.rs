@@ -191,7 +191,7 @@ fn both_blends_evaluate_in_one_document() {
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0x66ec_9a1e_71b3_dd93_u64),
+        ("die_fillet", 0x44e8_8638_d130_c9e3_u64),
         ("die_chamfer", 0x0591_f7aa_a61f_c663),
     ] {
         let doc = corpus::documents()

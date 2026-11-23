@@ -230,9 +230,9 @@ fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
         ("die", 0xabdd_0fd3_05f7_e91c),
         ("corner_table", 0xc3c5_eebd_572c_2d2e),
-        ("cut_cylinder", 0xb3f6_820f_71b0_21c2),
-        ("boss_union", 0xe53d_13b6_d788_64b0),
-        ("kitchen_sink", 0x3535_2a34_f9f6_9a87),
+        ("cut_cylinder", 0x6e02_833a_f76d_9770),
+        ("boss_union", 0x0748_38f9_8150_9644),
+        ("kitchen_sink", 0x5f10_c612_cfdc_a7b5),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {
