@@ -16,7 +16,8 @@
 
 use pncad::document::{
     Dimension, DimensionError, Doc, DocumentId, EditError, EvalError, Node, Operand, ParseError,
-    ProfileProgram, RecipeNodeId, SlotId, SpokenNode, SpokenSpace, SpokenVar, VarId, VarName,
+    ProfileProgram, RecipeNodeId, SlotId, SlotKind, SpokenNode, SpokenSpace, SpokenVar, VarId,
+    VarKind, VarName,
 };
 use std::path::{Path, PathBuf};
 
@@ -45,13 +46,12 @@ pub enum NodeKindWanted {
     /// A `Node::Profile`.
     Profile,
     /// A read of ONE body — the combining seats' kind: a node whose one
-    /// output is a body ([`combine::denotes_body`] carries the
-    /// admissible set), or a split's half read by its port
+    /// output is a body, or a split's half read by its port
     /// ([`admits_read`]).
     Body,
     /// A FAMILY — what an indexed read (`BodyRead::indexed`) indexes: a
     /// node evaluated once per value of the indices it reaches (D10
-    /// `[repetition]`), or one whose output is a `Bodies` variable.
+    /// `[repetition]`).
     Instances,
 }
 
@@ -67,22 +67,31 @@ pub enum NodeKindWanted {
 /// seats ask it to ROUTE a pick ([`crate::seats::Seats::pick`]). One
 /// answer for both is what keeps a seat from steering a pick the door
 /// would then reject.
+///
+/// **A body is the edit door's own kind check**: the read a node named
+/// alone takes ([`Doc::read_of_node`]) is a `Body` variable
+/// ([`holds_body`]). A node of several outputs (a split's sides, a
+/// revolve's body beside its axis) has no such read. A family by
+/// repetition — a pattern, or a placement of one — defines a `Body`
+/// variable reaching an index, and the gate admits it. Evaluation then
+/// follows D10 `[repetition]`: an operation reading it is evaluated
+/// once per member, except `union`, `intersect` and `assemble`, which
+/// take the family whole. The answer is about the recipe, not one
+/// evaluation of it: what the read evaluates to under the current
+/// parameters, an empty boolean or a node's own refusal, is that
+/// node's result. `combine_ops::the_body_seat_is_the_operand_doors_body_slot`
+/// holds the seat to the edit door, and
+/// `::the_body_seats_admissions_evaluate_as_bodies` to evaluation.
 pub fn admits(doc: &Doc<ProfileProgram>, node: RecipeNodeId, wanted: NodeKindWanted) -> bool {
     let held = doc.node(node);
     match wanted {
-        NodeKindWanted::Body => combine::denotes_body(doc, node),
+        NodeKindWanted::Body => holds_body(doc, doc.read_of_node(node)),
         NodeKindWanted::Instances => {
             held.is_some()
                 && doc
                     .node_reach(node)
                     .chain()
                     .is_some_and(|chain| !chain.is_empty())
-                || doc
-                    .read_of_node(node)
-                    .and_then(|read| doc.var(read))
-                    .is_some_and(|var| {
-                        pncad::document::SlotKind::Is(pncad::document::VarKind::Bodies).admits(var)
-                    })
         }
         NodeKindWanted::Profile => held.and_then(seat_kind) == Some(wanted),
     }
@@ -91,10 +100,9 @@ pub fn admits(doc: &Doc<ProfileProgram>, node: RecipeNodeId, wanted: NodeKindWan
 /// **Whether `read` in `doc` is the wanted kind**: [`admits`] for a
 /// node named alone, and for a port the kind of the variable it names
 /// (a split's half is a body), a family being, as [`admits`] reads it,
-/// a variable evaluated once per member or a `Bodies` one — the gate
-/// every body seat's commit asks of the read it holds.
+/// a variable evaluated once per member — the gate every body seat's
+/// commit asks of the read it holds.
 pub fn admits_read(doc: &Doc<ProfileProgram>, read: &Operand, wanted: NodeKindWanted) -> bool {
-    use pncad::document::{SlotKind, VarKind};
     let var = match read {
         Operand::Node(node) => return admits(doc, *node, wanted),
         Operand::Output { node, port } => doc.output(*node, *port),
@@ -104,19 +112,23 @@ pub fn admits_read(doc: &Doc<ProfileProgram>, read: &Operand, wanted: NodeKindWa
         Operand::Pick { .. } | Operand::Source(_) => return wanted == NodeKindWanted::Body,
         Operand::Select { .. } | Operand::Pose(_) => return false,
     };
-    let repeats = |var: pncad::document::VarId| {
-        doc.var_reach(var)
-            .chain()
-            .is_some_and(|chain| !chain.is_empty())
-    };
-    let kind = match wanted {
-        NodeKindWanted::Body => VarKind::Body,
-        NodeKindWanted::Instances if var.is_some_and(repeats) => return true,
-        NodeKindWanted::Instances => VarKind::Bodies,
-        NodeKindWanted::Profile => return false,
-    };
+    match wanted {
+        NodeKindWanted::Body => holds_body(doc, var),
+        NodeKindWanted::Instances => var.is_some_and(|var| {
+            doc.var_reach(var)
+                .chain()
+                .is_some_and(|chain| !chain.is_empty())
+        }),
+        NodeKindWanted::Profile => false,
+    }
+}
+
+/// **Whether `var` is a live `Body` variable**, by the edit door's own
+/// slot check (`SlotKind::admits`) — the one spelling of the body
+/// gate's kind test.
+fn holds_body(doc: &Doc<ProfileProgram>, var: Option<VarId>) -> bool {
     var.and_then(|var| doc.var(var))
-        .is_some_and(|var| SlotKind::Is(kind).admits(var))
+        .is_some_and(|var| SlotKind::Is(VarKind::Body).admits(var))
 }
 
 /// **Which seat kind a node is by its kind alone**, or `None` for a
@@ -570,8 +582,8 @@ pub enum Refusal {
         fault: Option<Box<pncad::document::MateFault>>,
     },
     /// A takeover would re-point a copy a pick reads onto a body that
-    /// holds no pieces — a feature's result, a mirror's or a sketch's
-    /// union, a combine. A pick is never re-pointed (D10
+    /// holds no pieces — a feature's result, a mirror's union, a
+    /// combine. A pick is never re-pointed (D10
     /// `[placement.placement]`), so it would name a piece its copy no
     /// longer holds; the takeover refuses rather than strand it.
     StrandedPick {
@@ -932,7 +944,7 @@ impl Refusal {
         let over = if variables.is_empty() {
             "an expression".to_owned()
         } else {
-            let names: Vec<String> = variables.iter().map(SpokenVar::to_string).collect();
+            let names: Vec<String> = variables.iter().map(crate::tree::spelled_var).collect();
             format!("an expression over {}", names.join(", "))
         };
         match current {
@@ -976,7 +988,10 @@ impl Refusal {
     /// attempt, and the pane is describing a selection, not answering
     /// one.
     pub fn undeclared_wording(var: &SpokenVar) -> String {
-        format!("variable {var} is not in this document")
+        format!(
+            "variable {var} is not in this document",
+            var = crate::tree::spelled_var(var)
+        )
     }
 
     /// The create-offer sentence, and its one home — shown over the
@@ -1045,7 +1060,12 @@ impl Refusal {
                 Self::affordance(variables, *slot, *current, *notation)
             ),
             Self::NoSuchSlot { node, slot } => {
-                write!(f, "{node} has no {} slot", slot.label())
+                write!(
+                    f,
+                    "{node} has no {} slot",
+                    slot.label(),
+                    node = crate::tree::spelled(node)
+                )
             }
             Self::NoSuchVariable(var) => {
                 write!(
@@ -1055,31 +1075,44 @@ impl Refusal {
                 )
             }
             Self::ConstantRefused { var, source } => {
-                write!(f, "the value typed for {var} does not evaluate: {source}")
+                write!(
+                    f,
+                    "the value typed for {var} does not evaluate: {source}",
+                    var = crate::tree::spelled_var(var)
+                )
             }
             Self::VariableIsDefined(var) => write!(
                 f,
                 "{var} is defined by a formula and holds no value of its own to move — \
-                 probe a variable it reads"
+                 probe a variable it reads",
+                var = crate::tree::spelled_var(var)
             ),
             Self::NotOffered(var) => write!(
                 f,
                 "{var} is no longer offered here — type the value again to be offered \
-                 the variables equal to it"
+                 the variables equal to it",
+                var = crate::tree::spelled_var(var)
             ),
             Self::OfferIsNamed(var) => write!(
                 f,
                 "{var} already has a name, and the slot shares it by that name — accept \
-                 the offer without giving it another"
+                 the offer without giving it another",
+                var = crate::tree::spelled_var(var)
             ),
             Self::EmptyName => write!(f, "a new document needs a name"),
             Self::WrongNodeKind { node, wanted } => {
-                write!(f, "{node} is not {} in this document", wanted.name())
+                write!(
+                    f,
+                    "{node} is not {} in this document",
+                    wanted.name(),
+                    node = crate::tree::spelled(node)
+                )
             }
             Self::PickedMember { node } => write!(
                 f,
                 "{node} is a family, and a selection reads one body: pick on one drawn member \
-                 of it, once the document has landed"
+                 of it, once the document has landed",
+                node = crate::tree::spelled(node)
             ),
             Self::NotABodyRead { read } => match &**read {
                 Operand::Name(name) => write!(f, "no variable is named {name} in this document"),
@@ -1119,20 +1152,27 @@ impl Refusal {
             Self::BundleStale { node } => write!(
                 f,
                 "{node}'s bundle changed since the editor loaded it; the editor's draft was not \
-                 written — the editor now shows the bundle as it is"
+                 written — the editor now shows the bundle as it is",
+                node = crate::tree::spelled(node)
             ),
             Self::PlaceOnACopy { copy } => write!(
                 f,
                 "{copy} is a copy; move it by its own placement in the placement editor, not \
-                 by a copy of it"
+                 by a copy of it",
+                copy = crate::tree::spelled(copy)
             ),
             Self::SeveralSources { body, sources } => {
-                write!(f, "{body} is placed through {} sources (", sources.len())?;
+                write!(
+                    f,
+                    "{body} is placed through {} sources (",
+                    sources.len(),
+                    body = crate::tree::spelled_var(body)
+                )?;
                 for (k, source) in sources.iter().enumerate() {
                     if k > 0 {
                         f.write_str(", ")?;
                     }
-                    write!(f, "{source}")?;
+                    write!(f, "{source}", source = crate::tree::spelled_var(source))?;
                 }
                 f.write_str("); place one of them, and the new copy shares it")
             }
@@ -1143,53 +1183,69 @@ impl Refusal {
                 into,
                 ..
             } => {
-                let into = into
-                    .as_ref()
-                    .map_or_else(|| "a new space".to_owned(), ToString::to_string);
+                let into = into.as_ref().map_or_else(
+                    || "a new space".to_owned(),
+                    |into| {
+                        pncad::document::Said(into, pncad::document::Speaker::TAG)
+                            .sentence()
+                            .to_string()
+                    },
+                );
                 write!(
                     f,
                     "{copy} has {reading} constraint(s) of its own reading {space}, the space \
                      this would move it out of; its placement editor opens with the target set \
-                     to {into}: re-pick or strike the marked rows"
+                     to {into}: re-pick or strike the marked rows",
+                    space = pncad::document::Said(&space, pncad::document::Speaker::TAG).sentence(),
+                    copy = crate::tree::spelled(copy)
                 )
             }
             Self::CopyInAnotherSpace { copy, space, into } => write!(
                 f,
                 "{copy} is placed into {space}, and this combine is in {into}; a combine moves \
-                 no copy: set {copy}'s \"into\" row to {into} in its placement editor first"
+                 no copy: set {copy}'s \"into\" row to {into} in its placement editor first",
+                copy = crate::tree::spelled(copy),
+                space = pncad::document::Said(&space, pncad::document::Speaker::TAG).sentence(),
+                into = pncad::document::Said(&into, pncad::document::Speaker::TAG).sentence()
             ),
             Self::Unspliced { node, fault } => match fault {
                 editor_core::continuation::SpliceFault::MemberAtSeat { .. } => write!(
                     f,
                     "deleting this would hand {node} one member of a family at a seat that \
                      reads a whole body, which no edit can write; delete or re-point {node} \
-                     first"
+                     first",
+                    node = crate::tree::spelled(node)
                 ),
                 editor_core::continuation::SpliceFault::MemberAtProduct => write!(
                     f,
                     "deleting {node} would hand the product one member of a family, and the \
-                     product reads a whole body; set the product first"
+                     product reads a whole body; set the product first",
+                    node = crate::tree::spelled(node)
                 ),
                 editor_core::continuation::SpliceFault::MemberOfAMember { .. } => write!(
                     f,
                     "deleting this would hand a reader of one member of {node} a member of a \
-                     member, which no read spells; delete that reader first"
+                     member, which no read spells; delete that reader first",
+                    node = crate::tree::spelled(node)
                 ),
                 editor_core::continuation::SpliceFault::ContinuationCycle { .. } => write!(
                     f,
                     "the delete's continuations came back to {node}, which an acyclic recipe \
-                     cannot do; nothing was deleted"
+                     cannot do; nothing was deleted",
+                    node = crate::tree::spelled(node)
                 ),
             },
             Self::SourceIsNamed { source } => write!(
                 f,
                 "{source} is named already, so the copy shares it by that name; place it \
-                 without a name, and rename it on its own row"
+                 without a name, and rename it on its own row",
+                source = crate::tree::spelled_var(source)
             ),
             Self::ValueNotRemoved { node } => write!(
                 f,
                 "a value of {node} sets a freedom its mates leave, and a freedom is always set; \
-                 edit its number instead"
+                 edit its number instead",
+                node = crate::tree::spelled(node)
             ),
             Self::Draft(error) => write!(f, "{error}"),
             Self::PlacementFails { fault: Some(fault) } => write!(
@@ -1203,15 +1259,22 @@ impl Refusal {
             Self::ProfileEditStale { node } => write!(
                 f,
                 "{node} changed since the editor loaded it; the editor's program was not \
-                 written — the editor now shows the profile as it is"
+                 written — the editor now shows the profile as it is",
+                node = crate::tree::spelled(node)
             ),
             Self::StrandedPick { copy, pick } => write!(
                 f,
                 "{pick} picks a piece of {copy}, and what would take {copy} over holds no \
                  pieces: a pick is never re-pointed, so the takeover would leave it naming a \
-                 piece its copy no longer holds"
+                 piece its copy no longer holds",
+                copy = crate::tree::spelled(copy),
+                pick = crate::tree::spelled_var(pick)
             ),
-            Self::InTheProduct { copy } => write!(f, "{copy} is in the product already"),
+            Self::InTheProduct { copy } => write!(
+                f,
+                "{copy} is in the product already",
+                copy = crate::tree::spelled(copy)
+            ),
         }
     }
 }

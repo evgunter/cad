@@ -4242,7 +4242,7 @@ fn a_placeholder_wall_draws_its_surface_and_its_four_edges() {
         .proven_face(face)
         .boundary()
         .filter_map(|m| match m {
-            crate::live::BoundaryMember::Edge { ek, .. } => Some(ek),
+            crate::live::BoundaryMember::Edge { edge, .. } => Some(edge.key()),
             crate::live::BoundaryMember::Isolated { .. } => None,
         })
         .collect();

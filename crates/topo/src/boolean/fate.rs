@@ -494,15 +494,15 @@ pub(super) fn departure<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<Le
 /// levers at the edge's extent from below.
 fn leaving<T: Decide>(body: &Body<T>, he: HalfEdgeKey, secant: bool) -> Option<Leaving<T>> {
     let h = body.get_half_edge(he)?;
-    let edge = body.get_edge(h.edge)?;
-    let curve = body.get_curve_geom(edge.curve)?.certified()?;
+    let edge = body.linked_edge(h.edge, crate::entity::EntityId::HalfEdge(he), "edge");
+    let curve = edge.certified()?;
     let base = body.half_edge_start_point(he)?;
     let end = body.half_edge_start_point(body.mate(he)?)?;
     let reach = match curve.carrier() {
         geom::Curve3::Line(_) => {
             LeverBounds::Exact(geom_brep::ExtentBall::point(end).lever_from(base))
         }
-        _ => crate::cover::edge_reach_bounds(body, h.edge, edge, base)?,
+        _ => crate::cover::edge_reach_bounds(body, edge, base)?,
     };
     let (dir, bend) = if secant {
         (curve.mid_point() - base, None)
@@ -1946,10 +1946,10 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
             Operand::B => &red.b,
         };
         let edge = kept_body
-            .get_edge(fe.edge)
+            .edge(fe.edge)
             .ok_or_else(|| desync("a fate edge no longer resolves"))?;
         let kept_root = div_k.root(fe.kept);
-        let kept_he = [edge.he_plus, edge.he_minus]
+        let kept_he = [edge.record().he_plus, edge.record().he_minus]
             .into_iter()
             .find(|&he| {
                 kept_body
@@ -1957,12 +1957,11 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
                     .is_some_and(|f| div_k.root(f) == kept_root)
             })
             .ok_or_else(|| desync("a fate edge does not bound its kept face"))?;
-        let curve = kept_body
-            .get_curve_geom(edge.curve)
-            .and_then(|c| c.certified())
+        let curve = edge
+            .certified()
             .cloned()
             .ok_or_else(|| desync("a fate edge has no certified curve"))?;
-        let forward = kept_he == edge.he_plus;
+        let forward = kept_he == edge.record().he_plus;
         let kept_mate = kept_body
             .mate(kept_he)
             .ok_or_else(|| desync("a fate edge has no mate"))?;

@@ -319,10 +319,12 @@ fn output<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
                 .map_err(|(slot, source)| NodeErrorKind::Expr { slot, source })?;
             let origin = super::slot_point2(&vals, SlotId::Origin);
             let dir = super::axis_heading(&vals);
-            // The sweep's own arithmetic (`sweep::revolve`'s axis frame):
-            // the origin placed as a point, the direction decided in the
-            // sketch and turned by the plane's frame, so the line this
-            // port answers is the one the body turns about.
+            // The sweep's own arithmetic (`sweep::revolve`'s authored
+            // axis frame): the origin placed as a point, the direction
+            // decided in the sketch and turned by the plane's frame, so
+            // the line this port answers, heading included, is the axis
+            // the body's revolution walls carry, whichever side of it the
+            // profile lies on.
             let plane = drawn.validated.plane();
             let sketch = pose_unit(
                 Vec3::new(dir.x, dir.y, T::zero()),

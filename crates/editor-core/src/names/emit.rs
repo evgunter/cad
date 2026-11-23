@@ -11,6 +11,8 @@
 //! typed [`NamingError`], surfacing kernel-emission holes loudly),
 //! and injectivity is enforced by [`NameTable`] at insertion.
 
+use crate::say;
+use crate::sentence;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
@@ -746,71 +748,86 @@ impl core::fmt::Display for RimShare {
 // said by the speaker of the frame that hands the refusal out.
 impl crate::spoken::Say for NamingError {
     #[allow(clippy::too_many_lines)] // one arm per variant, each short
-    fn say(
-        &self,
-        f: &mut core::fmt::Formatter<'_>,
-        by: crate::spoken::Speaker<'_>,
-    ) -> core::fmt::Result {
+    fn say(&self, f: &mut crate::Sentence, by: crate::spoken::Speaker<'_>) -> core::fmt::Result {
         match self {
             // The role path rides along here, alone among the crate's
             // name renderings: a duplicate mint is a kernel bug report,
             // and its reader replays the mint from the path's structure.
-            Self::Duplicate { name } => write!(
+            Self::Duplicate { name } => say!(
                 f,
-                "{EMISSION_FRAMING}: {} (role path {:?}) was minted twice — names \
-                 alias silently only over the kernel's dead body",
+                format_args!("{EMISSION_FRAMING}: "),
                 by.name(name),
-                name.path
+                format_args!(
+                    " (role path {:?}) was minted twice — names \
+                 alias silently only over the kernel's dead body",
+                    name.path
+                )
             ),
             // A held name that IS the offered one is a list that
             // offered one entity twice, and says so.
-            Self::EntityNamed { name, held } if name == held => write!(
+            Self::EntityNamed { name, held } if name == held => say!(
                 f,
-                "{EMISSION_FRAMING}: {} was offered the same {} twice — a name's \
+                format_args!("{EMISSION_FRAMING}: "),
+                by.name(name),
+                format_args!(
+                    " was offered the same {} twice — a name's \
                  candidates are distinct entities",
-                by.name(name),
-                name.kind.noun()
+                    name.kind.noun()
+                )
             ),
-            Self::EntityNamed { name, held } => write!(
+            Self::EntityNamed { name, held } => say!(
                 f,
-                "{EMISSION_FRAMING}: {} was seated on {} {} that {} already names — an \
-                 entity holds one name",
+                format_args!("{EMISSION_FRAMING}: "),
                 by.name(name),
-                name.kind.article(),
-                name.kind.noun(),
-                by.name(held)
+                sentence!(
+                    format_args!(
+                        " was seated on {} {} that ",
+                        name.kind.article(),
+                        name.kind.noun()
+                    ),
+                    by.name(held),
+                    " already names — an \
+                 entity holds one name"
+                )
             ),
-            Self::KindMismatch { name, found } => write!(
+            Self::KindMismatch { name, found } => say!(
                 f,
-                "{EMISSION_FRAMING}: {} names {} {} and was seated on {} {} — a \
+                format_args!("{EMISSION_FRAMING}: "),
+                by.name(name),
+                format_args!(
+                    " names {} {} and was seated on {} {} — a \
                  name denotes only entities of its own kind",
-                by.name(name),
-                name.kind.article(),
-                name.kind.noun(),
-                found.article(),
-                found.noun()
+                    name.kind.article(),
+                    name.kind.noun(),
+                    found.article(),
+                    found.noun()
+                )
             ),
-            Self::ShortTie { name, candidates } => write!(
+            Self::ShortTie { name, candidates } => say!(
                 f,
-                "{EMISSION_FRAMING}: {} was offered as a tie of {} and refused — a tie names \
-                 two or more entities",
+                format_args!("{EMISSION_FRAMING}: "),
                 by.name(name),
-                match candidates {
-                    0 => "no candidates",
-                    1 => "one candidate",
-                    _ => "too few candidates",
-                }
+                format_args!(
+                    " was offered as a tie of {} and refused — a tie names \
+                 two or more entities",
+                    match candidates {
+                        0 => "no candidates",
+                        1 => "one candidate",
+                        _ => "too few candidates",
+                    }
+                )
             ),
             Self::Unnamed { kind, body } => write!(
                 f,
                 "{EMISSION_FRAMING}: a live {} of output body {body} was left unnamed",
                 kind.noun()
             ),
-            Self::MissingUpstream { node } => write!(
+            Self::MissingUpstream { node } => say!(
                 f,
-                "{EMISSION_FRAMING}: the name table of upstream {} lacks an entity the \
-                 emission needed",
-                by.node(*node)
+                format_args!("{EMISSION_FRAMING}: the name table of upstream "),
+                by.node(*node),
+                " lacks an entity the \
+                 emission needed"
             ),
             Self::PastWidth { what, index } => write!(
                 f,
@@ -841,20 +858,30 @@ impl crate::spoken::Say for NamingError {
                 write!(f, "{UNRULED_FRAMING}: joined edge {edge:?} {shape}")
             }
             Self::UnsupportedUnionName { name, shape } => {
-                write!(f, "{UNRULED_FRAMING}: union name {} {shape}", by.name(name))
+                say!(
+                    f,
+                    format_args!("{UNRULED_FRAMING}: union name "),
+                    by.name(name),
+                    format_args!(" {shape}")
+                )
             }
-            Self::UnsupportedTurnedCell { read, cell } => write!(
+            Self::UnsupportedTurnedCell { read, cell } => say!(
                 f,
-                "{UNRULED_FRAMING}: the Boolean turned a sphere of {} about its centre to find \
+                format_args!("{UNRULED_FRAMING}: the Boolean turned a sphere of "),
+                by.read(*read),
+                sentence!(
+                    format_args!(
+                        " about its centre to find \
                  where it meets the other solid, and the result keeps {} {cell:?} where the \
-                 turn put it, which descends from no cell of {}",
-                by.read(*read),
-                match cell {
-                    topo::Cell::Vertex(_) => "its pole",
-                    topo::Cell::Edge(_) => "a piece of its seam,",
-                    topo::Cell::Face(_) => "its face",
-                },
-                by.read(*read),
+                 turn put it, which descends from no cell of ",
+                        match cell {
+                            topo::Cell::Vertex(_) => "its pole",
+                            topo::Cell::Edge(_) => "a piece of its seam,",
+                            topo::Cell::Face(_) => "its face",
+                        }
+                    ),
+                    by.read(*read)
+                )
             ),
             Self::WayInZeroBand { edge, shape } => {
                 write!(f, "{LIMIT_FRAMING}: edge {edge:?} {shape}")
@@ -875,31 +902,40 @@ impl crate::spoken::Say for NamingError {
                 face,
                 other,
                 found,
-            } => write!(
+            } => say!(
                 f,
-                "{UNRULED_FRAMING}: faces {face:?} and {other:?} of operand {}'s body \
+                format_args!("{UNRULED_FRAMING}: faces {face:?} and {other:?} of operand "),
+                by.node(*node),
+                format_args!(
+                    "'s body \
                  share {found} where a seam chord's rim, derived from adjacency alone, needs \
-                 exactly one",
-                by.node(*node)
+                 exactly one"
+                )
             ),
-            Self::ChordOffRim { edge, node, face } => write!(
+            Self::ChordOffRim { edge, node, face } => say!(
                 f,
-                "{UNRULED_FRAMING}: seam chord {edge:?} lies between two pieces of face {face:?} \
-                 of operand {}'s body, off every rim the faces beside it share, and no rule \
-                 names a chord within one operand face",
-                by.node(*node)
+                format_args!(
+                    "{UNRULED_FRAMING}: seam chord {edge:?} lies between two pieces of face {face:?} \
+                 of operand "
+                ),
+                by.node(*node),
+                "'s body, off every rim the faces beside it share, and no rule \
+                 names a chord within one operand face"
             ),
-            Self::SeamVertexPartners { vertex, candidates } => write!(
+            Self::SeamVertexPartners { vertex, candidates } => say!(
                 f,
-                "{UNRULED_FRAMING}: seam vertex {vertex:?} coincides, in the boolean's contact \
-                 records, with {} differently named vertices of the other operand ({}), and \
-                 no rule chooses which one names it",
-                candidates.len(),
-                candidates
-                    .iter()
-                    .map(|name| by.name(name).to_string())
-                    .collect::<Vec<_>>()
-                    .join("; ")
+                format_args!(
+                    "{UNRULED_FRAMING}: seam vertex {vertex:?} coincides, in the boolean's \
+                     contact records, with {} differently named vertices of the other operand (",
+                    candidates.len()
+                ),
+                crate::Sentence::joined(
+                    candidates
+                        .iter()
+                        .map(|name| crate::sentence!(by.name(name))),
+                    "; "
+                ),
+                "), and no rule chooses which one names it"
             ),
             Self::ClosedCarrierUnread { edge, carrier } => write!(
                 f,
@@ -936,13 +972,15 @@ impl crate::spoken::Say for NamingError {
                  takes from its edge is not built yet \
                  (work/borders/a-conventional-vertex-mints-no-edge-derived-name)"
             ),
-            Self::MemberEdgeTied { member, edge } => write!(
+            Self::MemberEdgeTied { member, edge } => say!(
                 f,
-                "{UNRULED_FRAMING}: member {}'s edge ({}) is read where one edge is needed, \
-                 to place a vertex on it or read its faces, but the member ties that name to \
-                 several edges",
+                format_args!("{UNRULED_FRAMING}: member "),
                 by.read(*member),
-                by.name(edge)
+                "'s edge (",
+                by.name(edge),
+                ") is read where one edge is needed, \
+                 to place a vertex on it or read its faces, but the member ties that name to \
+                 several edges"
             ),
             Self::HoldingsUnread { face, refusal } => write!(
                 f,
@@ -1125,7 +1163,7 @@ fn held_refusal_text(refusal: &topo::HeldRefusal) -> String {
 /// The refusal where no document is at hand: each node by its tag.
 impl core::fmt::Display for NamingError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+        crate::spoken::display_said(self, crate::spoken::Speaker::TAG, f)
     }
 }
 

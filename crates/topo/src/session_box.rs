@@ -190,8 +190,9 @@ fn reach_of<T: Decide, E>(
     let vertices = points_only(body, &place);
     let mut points = vertices;
     let mut covers: SecondaryMap<EdgeKey, Result<Cover<T>, EdgeUncovered>> = SecondaryMap::new();
-    for (e, data) in body.edges() {
-        let Some(stored) = body.edge_curve_linked(e, data).certified() else {
+    for view in body.edge_views() {
+        let (e, data) = (view.key(), view.record());
+        let Some(stored) = view.certified() else {
             continue;
         };
         let moved = curve_of(stored)?;
@@ -214,9 +215,9 @@ fn reach_of<T: Decide, E>(
             crate::cover::outer_bounds(f),
             geom::cover::Apex::MayHold,
             || {
-                crate::cover::boundary_cover_by(body, f, &place, |ek, _| {
+                crate::cover::boundary_cover_by(body, f, &place, |edge| {
                     covers
-                        .get(ek)
+                        .get(edge.key())
                         .cloned()
                         .unwrap_or(Err(EdgeUncovered::Scaffold))
                 })

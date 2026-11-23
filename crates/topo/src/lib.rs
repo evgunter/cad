@@ -1476,8 +1476,8 @@ pub use boolean::{
     BooleanReduction, BooleanResult, BooleanResultKind, CarriedRecord, CarryRefusal, Cell,
     Coincide, CompletedPolygonPair, Contact, ContactKind, ContactPairError, ContactRecords,
     DeclarationRead, DiscardRow, EdgeCarrierSite, EdgeInBand, EdgeInFaceGap, EdgeJoin,
-    EdgePieceClass, EeContact, EfContact, FaceDescent, FfContact, Fusions, GlueVerdict, Held,
-    HeldRefusal, Holdings, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided,
+    EdgePieceClass, EeContact, EfContact, FaceDescent, FaceSource, FfContact, Fusions, GlueVerdict,
+    Held, HeldRefusal, Holdings, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided,
     JudgedRow, LeverArm, LineUnread, LineWedgeFault, MemberFace, MemberInputs, NaryEnd,
     NaryJudgement, NaryMember, NaryOp, NaryPlaced, NaryPlacedRun, NaryRefusal, NaryRun, NaryStep,
     NaryTaken, NodeWhy, NullEdgePairRecord, Operand, OperandKeys, OperandRecords, OverlapRefusal,
@@ -1539,7 +1539,7 @@ pub use entity::{
 };
 pub use euler::{BadArgument, EdgeSubject, EulerOpError, RechartDoor};
 pub use link::{CurvedUnread, Link, LinkRefusal, Material, Round, TouchUnread};
-pub use live::FaceView;
+pub use live::{EdgeView, FaceView};
 pub use sweep_trace::SweepPairs;
 // The types that appear in this crate's own operator signatures, so a
 // consumer of the ops needs no direct geom-* imports for the common
