@@ -104,3 +104,27 @@ The run before it on the same branch (43618486824, head `0cbea1468`) passed the 
 The push that carried the re-run (run 43632515561, head `cfacf073a`, main `988589f49`) failed the same step again, on two rows: `pis_arc_capped_poses::the_cut_cylinder_reads_its_truth` at 1.013 s and `snowman::a_tilted_slab_against_the_lens_builds_off_the_seam` at 1.010 s. That is `pis_arc_capped_poses` over the bar three times (1.015 s on PR 6931's branch, 1.035 s and 1.013 s here), which is the test standing at the bar. PR 6956 moves to the slow set the five rows these two runs read at 1 s or over that were not already there (`ring_carry_through_by_piece` was, by PR 6931): `split_tangent_edge_curved::a_plane_off_a_hole_wall_reads_each_decision_across_the_band`, `pis_arc_capped_poses::the_cut_cylinder_reads_its_truth`, `parallel_cylinder_join::equal_wider_and_nested_rods_join_along_their_rulings`, `corner_patch_chart_poles::every_corner_patch_encodes_its_side_and_holds_no_pole_off_a_vertex` and `snowman::a_tilted_slab_against_the_lens_builds_off_the_seam`. Each costs twice the 0.5 s at which a test belongs there (`docs/prompts/implementer-discipline.md` §2). The other four were over once each, so for them this is the rule applied rather than a measured trend.
 
 A third run (43635079896, head `d40ac7071`) failed the step on a row none of the earlier runs flagged: `pis_arc_capped_poses::the_cut_cylinders_ellipse_face_takes_nothing_away` at 1.034 s. PR 6956 moves it too. Three runs in a row on one branch, each over the bar on different rows by 0.1% to 10%, with no kernel source in the diff: the kernel shard's fast set has a band of rows sitting just under 1 s on this runner, and moving them one at a time does not converge. That is this row's subject; the count of rows in the band wants re-measuring, and the per-PR bar is failing diffs that cannot have slowed anything.
+
+## Measured (2026-11-22, green/fast-set-margin)
+
+The default-eps step's PASS lines from 40 PR runs (76 jobs of `test
+(kernel)` and `test (app)`, the gate's own build and parallelism), the
+nightly's opt-2 junit from three runs, and a push-triggered probe that ran
+the 330 fast-set tests with gate p90 >= 0.4 s at `-j1` on the gate's build,
+twice on each of two runners (run 45050967584, two attempts). Scripts in
+`local-scripts/fast-set-times/`, data in `docs/perf-data/fast-set-times/`.
+
+- Each job's median ratio to the tests' medians clusters at about 0.8,
+  1.0 and 1.33: three runner classes. Every reading over 1.0 s of a test
+  still in the fast set came from a 1.33-1.41 job, except one 2.13 s
+  reading of a test that exists only on a PR branch.
+- Fast-set tests at each gate p90: 330 at >= 0.4 s, 162 at >= 0.5 s, 87 at
+  >= 0.6 s, 47 at >= 0.7 s, 17 at >= 0.8 s, 5 at >= 0.9 s. At `-j1` none
+  of the 330 reaches 0.5 s (top 0.458 s). Gate median is 1.73x `-j1` and
+  gate p90 2.36x; `-j1` at opt 0 is 1.13x the nightly at opt 2.
+- The four that exist on main at p90 >= 0.9 s moved to the slow set as an
+  interim (`.config/nextest.toml` says so), which by §2's rule they would
+  not: the 0.5 s rule read off gate times would move 162 tests that cost
+  0.2-0.46 s alone.
+
+Left open: PR 7397 decides the policy.
