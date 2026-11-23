@@ -267,9 +267,8 @@ pub fn arc_truth(
 
 /// Whether `t` lies on the arc `[t0, t1]`, at any turn of it.
 pub fn on_arc((t0, t1): (f64, f64), t: f64) -> bool {
-    let (mid, half) = ((t0 + t1) / 2.0, (t1 - t0) / 2.0);
-    let turn = (mid - t).rem_euclid(core::f64::consts::TAU);
-    turn.min(core::f64::consts::TAU - turn) <= half
+    let mid = geom::mid_param(t0, t1);
+    (geom_core::period::Period::angle().near(t, mid) - mid).abs() <= (t1 - t0) / 2.0
 }
 
 /// **Whether a door's roots hold the arc's truth** ([`arc_truth`]):

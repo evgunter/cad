@@ -558,43 +558,27 @@ fn reaches<T: Decide>(
     let in_band = PoseRefusal::in_band(PoseRung::Kappa);
     let reach = graze_reach(&g, band);
     if span.place_param(g.at, band).map_err(&in_band)? == crate::curve_pair::Place::Past {
-        // The overlap at each turn of the reach on a conic: one that
-        // crosses the turn's seam meets a span near a whole turn at its
-        // far end too.
+        // The reach's overlap with the span, `h + r − |at − m|` where it
+        // is partial (`m`, `h` the span's middle and half-length): largest
+        // at the copy of the reach nearest the middle, which is where a
+        // conic's graze is reported (`Period::near`), so no other turn of
+        // it meets the span where this one misses.
         let (t0, t1) = super::ascending(span.params());
-        let turns: &[f64] = if span.carrier().conic().is_some() {
-            &[-1.0, 0.0, 1.0]
-        } else {
-            &[0.0]
-        };
-        let (mut gap, mut zero) = (None, None);
-        for &k in turns {
-            let shift = T::tau() * T::from_f64(k);
-            let overlap = t1.min(reach.1 + shift) - t0.max(reach.0 + shift);
-            match geom_core::k_stats::decide_reported(
-                "curve_face_pose_graze_reach",
-                Margin::metered(overlap, span.speeds().0),
-                band,
-            ) {
-                Ok(read) if read.sign == Sign::Positive => return Ok(Ok(Reaching(g, reach))),
-                Ok(read) if read.sign == Sign::Zero => {
-                    zero.get_or_insert(read);
-                }
-                Ok(_) => {}
-                Err(diag) => {
-                    gap.get_or_insert(diag);
-                }
-            }
-        }
-        return match (gap, zero) {
-            (Some(diag), _) => Err(in_band(diag)),
-            (None, Some(read)) => Err(zero_band(
+        let overlap = t1.min(reach.1) - t0.max(reach.0);
+        return match geom_core::k_stats::decide_reported(
+            "curve_face_pose_graze_reach",
+            Margin::metered(overlap, span.speeds().0),
+            band,
+        ) {
+            Ok(read) if read.sign == Sign::Positive => Ok(Ok(Reaching(g, reach))),
+            Ok(read) if read.sign == Sign::Zero => Err(zero_band(
                 PoseRung::Kappa,
                 "curve_face_pose_graze_reach",
                 read,
                 band,
             )),
-            (None, None) => Ok(Err(Pose::Apart)),
+            Ok(_) => Ok(Err(Pose::Apart)),
+            Err(diag) => Err(in_band(diag)),
         };
     }
     Ok(Ok(Reaching(g, reach)))

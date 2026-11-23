@@ -30,11 +30,9 @@ crates/geom-brep/src/chart_singularity.rs	1	constant	c	a half-turn threshold's m
 crates/geom-brep/src/chart_singularity.rs	1	constant	f64::from(SAMPLED_SPANS)	a sampled carrier's starting span count
 crates/geom-brep/src/chart_singularity.rs	1	constant	f64::from(WALK_SAMPLES)	a walk's station count per edge
 crates/geom-brep/src/chart_singularity.rs	2	constant	f64::from(i)	a sample schedule's index (the sampled carrier's starting spans and a walk's stations)
-crates/geom-brep/src/curve_face.rs	1	constant	band.escalate()	the band's escalation width, a tolerance: a window held to the span's end
-crates/geom-brep/src/curve_face/conic_quadric.rs	2	constant	band.escalate()	the band's escalation width, a tolerance (a root bracket's width through the apex; a refused root slack's window widened by it)
-crates/geom-brep/src/curve_face/cross.rs	1	constant	band.escalate()	the band's escalation width, a tolerance: a window's reach about a root in band of an end
-crates/geom-brep/src/curve_face/line_quadric.rs	1	constant	band.escalate()	the band's escalation width, a tolerance: a refused root slack's window widened by it
-crates/geom-brep/src/curve_face/pose.rs	2	constant	band.escalate()	the band's escalation width, a tolerance: a touch's reach past which a span is apart, and an apex window widened by it
+crates/geom-brep/src/curve_face.rs	1	constant	band.escalate()	the band's escalation width, a tolerance: a window's one widening, Kε at the span's least speed (escalation_reach)
+crates/geom-brep/src/curve_face/conic_quadric.rs	1	constant	band.escalate()	the band's escalation width, a tolerance (a root bracket's width through the apex)
+crates/geom-brep/src/curve_face/pose.rs	1	constant	band.escalate()	the band's escalation width, a tolerance: a touch's reach past which a span is apart
 crates/geom-brep/src/curve_face/pose.rs	1	constant	band.zero()	the band's zero width, a tolerance: a touch's in-band depth
 crates/geom-brep/src/curve_face/pose.rs	1	constant	k / 4.0	a quarter of the span, from a literal schedule: the not-Lies rung's sample shares
 crates/geom-brep/src/curve_face/spiric_plane.rs	1	constant	band.escalate()	the band's escalation width, a tolerance: how far the line is moved across itself to read a near miss of the oval in band
@@ -57,7 +55,6 @@ crates/geom-brep/src/half_angle.rs	1	constant	f64::from(n)	a subdivision count
 crates/geom-brep/src/half_angle.rs	1	constant	f64::from(top)	a subdivision count
 crates/geom-brep/src/half_angle.rs	2	constant	share	a fixed split fraction (SPLITS)
 crates/geom-brep/src/half_angle.rs	3	constant	f64::from(k)	a subdivision index
-crates/geom-brep/src/half_angle.rs	1	constant	band.escalate()	the band's escalation width, a tolerance: a refused piece's window widened by it
 crates/geom-brep/src/implicit.rs	1	constant	k as f64	a sample index
 crates/geom-brep/src/newell.rs	1	constant	points.len() as f64	a point count
 crates/geom-brep/src/pair_section.rs	1	constant	64.0 * band.escalate()	the band's escalation width times the cylinder × sphere sweep ball's floor of 64 widths, a tolerance

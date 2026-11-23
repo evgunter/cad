@@ -429,28 +429,26 @@ pub(crate) fn escalation_reach<T: Decide>(span: &Span<'_, T>, band: Band) -> T {
 pub(crate) fn on_span<T: Decide>(span: &Span<'_, T>, (lo, hi): (T, T), band: Band) -> Vec<(T, T)> {
     let (t0, t1) = ascending(span.params());
     let speed = span.speeds().0.get();
-    let turns: &[f64] = if span.carrier().conic().is_some() {
+    let turn = T::tau();
+    let copies = if span.carrier().conic().is_some() {
         if matches!(
             geom_core::k_stats::decide(
                 "curve_face_window",
-                geom_core::Margin::of((hi - lo - T::tau()) * speed),
+                geom_core::Margin::of((hi - lo - turn) * speed),
                 band
             ),
             Ok(geom_core::Sign::Zero | geom_core::Sign::Positive)
         ) {
             return vec![(t0, t1)];
         }
-        &[-1.0, 0.0, 1.0]
+        vec![T::zero() - turn, T::zero(), turn]
     } else {
-        &[0.0]
+        vec![T::zero()]
     };
     let reach = escalation_reach(span, band);
-    turns
-        .iter()
-        .map(|&k| {
-            let shift = T::tau() * T::from_f64(k);
-            (lo + shift, hi + shift)
-        })
+    copies
+        .into_iter()
+        .map(|shift| (lo + shift, hi + shift))
         .filter(|&window| {
             let at = [Undecided { window, why: () }];
             undecided_over(&at, (t0, t1), speed, band).is_some()
