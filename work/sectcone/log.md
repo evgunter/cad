@@ -30,3 +30,4 @@
   - the app slow-set name check that can't see `app`-feature tests, tracked in `work/green/the-slow-set-name-check-cannot-see-app-feature-tests`.
 
   fmt and clippy were skipped on CI behind the failing gates step, and are clean locally on geom-brep. U2 un-parks.
+- 2026-11-23 — **PR 7395 merged** (`the-cone-torus-pair-door`, closed). **The P0 `cone-torus-rung-three-arm-waits-on-the-cone` is closed**, and lily wall 2 builds. Review: dual Opus on `b68b49ec6e`, both APPROVE-WITH-FIXES with no MAJOR. The fix pass took the union: coaxial `JoinDesync` → `GermFrameUnsupported`, an independent |A∩B| oracle, threshold, mirror and count rows, and `ApexRuling` never R-tan. The fix pass then merged main with 7455 in; the winding seam agrees. Reds inherited and annotated: the square-wall fuzzer (GERM's row) and the `NodeErrorClass` lint (TALLY's row). The `claims` desync row is owed once the cone-ruled pairs march (7457).
