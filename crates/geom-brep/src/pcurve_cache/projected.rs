@@ -185,7 +185,7 @@
 
 use std::sync::Arc;
 
-use geom::{ChartAngle, ChartChannels, Curve3, NurbsCurve3, Quarter, Surface};
+use geom::{ChartAngle, ChartChannels, Curve3, NurbsCurve2, NurbsCurve3, Quarter, Surface};
 use geom_core::bisect::{Budget, Exhausted, Step, bisect_within};
 use geom_core::period::{Bounded, Exact, Extent, Period, TurnRows, TurnUndecided};
 use geom_core::predicate::Band;
@@ -779,6 +779,41 @@ pub fn piece_controls<T: SpanLocate>(net: &NurbsCurve3<T>, piece: ParamRange) ->
         .zip(z)
         .zip(w)
         .map(|(((x, y), z), w)| (Vec3::new(x, y, z) / w, w))
+        .collect()
+}
+
+/// [`piece_controls`] for a chart image's net: the control points and
+/// weights of `image`'s restriction to `piece`, a sub-interval of one of
+/// its knot spans, by the scalar's own restriction of each homogeneous
+/// channel `(w·P, w)`.
+pub(crate) fn image_piece_controls<T: SpanLocate>(
+    image: &NurbsCurve2<T>,
+    piece: ParamRange,
+) -> Vec<Point2<T>> {
+    let ends = (piece.start(), piece.end());
+    let (span, _) = image.knots_f64_interim().span_range(piece);
+    let held = image.knot_values().values();
+    let at = |v: f64| match image.knot_values().value_at(v) {
+        Ok(k) => k.unwrap_or_else(|| T::from_f64(v)),
+        Err(e) => unreachable!("an image's net holds only point knots: {e}"),
+    };
+    let held_ends = (at(ends.0), at(ends.1));
+    let homogeneous: Vec<(T, T, T)> = span
+        .window()
+        .map(|i| {
+            let (c, w) = (image.control()[i], image.weights()[i]);
+            (c.x * w, c.y * w, w)
+        })
+        .collect();
+    let channel = |c: fn(&(T, T, T)) -> T| -> Vec<T> {
+        let line: Vec<T> = homogeneous.iter().map(c).collect();
+        T::restrict_window(&line, span, held, ends, held_ends)
+    };
+    let (x, y, w) = (channel(|q| q.0), channel(|q| q.1), channel(|q| q.2));
+    x.into_iter()
+        .zip(y)
+        .zip(w)
+        .map(|((x, y), w)| Point2::new(x / w, y / w))
         .collect()
 }
 

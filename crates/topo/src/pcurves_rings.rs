@@ -25,14 +25,18 @@
 //! rather than read on a side.
 //! The work bounds below are the one home of both readers' bounds.
 //!
-//! **A row whose box does not tighten.** An `IsoArc`'s box is its whole
-//! segment's, a `Fitted` or `General` image's its whole net's, and a
-//! `Spiric` image's its whole period's ([`Pcurve::chart_box`]), so
-//! halving such a piece never clears it of a point inside that box: the
-//! reading spends [`PIECE_VISITS`] and answers `Near`, so the ring
-//! answers [`RingPlacementError::Undecided`]. The measured outer loops
-//! are all `Harmonic`
+//! **Every row's box tightens.** Halving a piece clears it of a point
+//! only where the piece's box over the half shrinks with the half: every
+//! image form's [`Pcurve::chart_box`] is read over the span asked
+//! (a projected image per piece clipped to the span, an `IsoArc` by its
+//! two ends' images, a `Fitted` or `General` image by its restriction's
+//! Bézier controls, a `Spiric` by `f` and `sin t` over the span). A box
+//! read over the whole row instead never clears a point inside it, and
+//! the reading would spend [`PIECE_VISITS`] and answer `Near`
 //! (`work/tesslane/an-analytic-outer-loops-whole-span-boxes-never-tighten-under-the-ring-reader.md`).
+//! A point within the band of the outer loop, or a ring whose every
+//! point lies at a chart singularity's lever (a cone ring at its apex),
+//! is still undecided: that is the reading, not a box.
 
 use geom::Surface;
 use geom_brep::{ChartWindow, Pcurve};
@@ -734,7 +738,9 @@ impl<'a, T: Decide> Outer<'a, T> {
                         }
                     }
                 };
-                geom_brep::azimuth_lever_inf(self.surface, v, v).get().value_channel()
+                geom_brep::azimuth_lever_inf(self.surface, v, v)
+                    .get()
+                    .value_channel()
             }
         }
     }

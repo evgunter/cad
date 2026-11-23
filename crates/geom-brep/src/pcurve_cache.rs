@@ -982,6 +982,43 @@ fn iso_arc_g<T: SpanLocate>(t: T, t0: T, angle: T, breaks: &KnotVector, ends: &[
         .unwrap_or_else(|| T::from_f64(f64::NAN))
 }
 
+/// **A NURBS chart image's box over `[t0, t1]`**: the hull of its
+/// restriction's control points, one Bézier stretch per knot span the
+/// span crosses ([`projected::image_piece_controls`]), read over the span
+/// from `t0`'s lower bracket to `t1`'s upper, clipped to the domain, so
+/// it holds every parameter either end may be. The convex-hull property
+/// puts each stretch's image in its controls' box. `None` where an end
+/// has no bracket or the clipped span is empty: the caller reads the
+/// whole net.
+fn net_span_box<T: SpanLocate>(image: &NurbsCurve2<T>, t0: T, t1: T) -> Option<ChartWindow<T>> {
+    let (a, _) = t0.structure_bracket()?;
+    let (_, b) = t1.structure_bracket()?;
+    let (lo, hi) = image.domain();
+    let range = geom_core::spline::ParamRange::new(a.max(lo), b.min(hi))?;
+    let stretches = projected::span_stretches(image.knots_f64_interim(), range)?;
+    let mut w: Option<ChartWindow<T>> = None;
+    for p in stretches
+        .into_iter()
+        .flat_map(|stretch| projected::image_piece_controls(image, stretch))
+    {
+        w = Some(match w {
+            None => ChartWindow {
+                u_min: p.x,
+                u_max: p.x,
+                v_min: p.y,
+                v_max: p.y,
+            },
+            Some(w) => ChartWindow {
+                u_min: w.u_min.min(p.x),
+                u_max: w.u_max.max(p.x),
+                v_min: w.v_min.min(p.y),
+                v_max: w.v_max.max(p.y),
+            },
+        });
+    }
+    w
+}
+
 /// **The harmonic image's span box.** Per channel
 /// `P(t) = c + l·t + T(t)` with `T(t) = a·cos t + b·sin t`; the box is
 /// the SUM of the linear part's box and the trigonometric part's, each
@@ -1703,9 +1740,15 @@ impl<T: SpanLocate> Pcurve<T> {
     /// A harmonic or iso-line image's box is `harmonic_span_box`'s, and
     /// a focal-section image's [`Pcurve::closed_form_span_box`]'s.
     ///
-    /// **Restriction-monotone on every arm**: a sub-span's box lies
-    /// inside the span's (the net and arc-segment arms ignore the span;
-    /// the harmonic arm by its construction's docs).
+    /// **Restriction-monotone and restriction-tight on every arm**: a
+    /// sub-span's box lies inside the span's, and shrinks with it, which
+    /// a reader halving a span to clear a point needs (`topo`'s ring
+    /// reader). The harmonic arm by its construction's docs; a net's
+    /// restriction's controls are convex combinations of the span's; an
+    /// arc rim's or a spiric's channels are monotone or harmonic over the
+    /// span. An arc rim's span not decidedly inside its arc, or a net's
+    /// end with no bracket, reads the whole row's box, which holds every
+    /// sub-span's.
     pub fn chart_box(&self, t0: T, t1: T) -> ChartWindow<T> {
         match self {
             Pcurve::Harmonic { u, v } => {
@@ -1713,12 +1756,18 @@ impl<T: SpanLocate> Pcurve<T> {
                 harmonic_span_box(p0, pa, pb, pl, t0, t1)
             }
             // The **convex-hull property**: a NURBS curve with positive
-            // weights lies in the hull of its control polygon, so the
-            // control net's own axis-aligned box contains the image
-            // over the WHOLE domain — conservative in the containment
-            // direction, exactly like the harmonic arm, and a
-            // convexity fact rather than an evaluation.
+            // weights lies in the hull of its control polygon, so a
+            // net's axis-aligned box contains its image — conservative
+            // in the containment direction, exactly like the harmonic
+            // arm, and a convexity fact rather than an evaluation. The
+            // net read is the image's restriction to the span, one
+            // Bézier stretch per knot span it crosses ([`net_span_box`]),
+            // so the box shrinks with the span; the whole net's where
+            // the span has no such restriction.
             Pcurve::Fitted(image) | Pcurve::General(image) => {
+                if let Some(w) = net_span_box(image, t0, t1) {
+                    return w;
+                }
                 let mut ctl = image.control().iter();
                 let Some(first) = ctl.next() else {
                     // An empty net is unrepresentable through
@@ -1758,13 +1807,40 @@ impl<T: SpanLocate> Pcurve<T> {
             // (`g` is monotone in `t`: `tan` is monotone on
             // `(−π/2, π/2)` and every sub-arc's `φ/2` stays inside it).
             //
-            // This is the WHOLE-SEGMENT box, and it deliberately
-            // ignores `t0`/`t1`: sound at every window (a sub-window's
-            // image is a sub-segment) and TIGHT at the full span. A
-            // sub-span — what a restriction of a stored row to one
-            // child of a parameter split asks for — gets a
-            // conservative box, never a wrong one.
-            Pcurve::IsoArc { p0, pd, .. } => {
+            // A span decidedly inside the arc is boxed by its two ends'
+            // images: `g` is monotone, so the sub-span's image is the
+            // sub-segment between them, and the box shrinks with the
+            // span. Any other span gets the WHOLE-SEGMENT box, sound
+            // at every window and tight at the full span.
+            Pcurve::IsoArc {
+                p0,
+                pd,
+                t0: start,
+                angle,
+                ..
+            } => {
+                // Inside the arc, the sub-span's image is the
+                // sub-segment between its two ends' images.
+                let inside = match (
+                    t0.structure_bracket(),
+                    t1.structure_bracket(),
+                    start.structure_bracket(),
+                    (*start + *angle).structure_bracket(),
+                ) {
+                    (Some((a, _)), Some((_, b)), Some((_, s0)), Some((s1, _))) => {
+                        a >= s0 && b <= s1
+                    }
+                    _ => false,
+                };
+                if inside {
+                    let (a, b) = (self.eval(t0), self.eval(t1));
+                    return ChartWindow {
+                        u_min: a.x.min(b.x),
+                        u_max: a.x.max(b.x),
+                        v_min: a.y.min(b.y),
+                        v_max: a.y.max(b.y),
+                    };
+                }
                 let b = Point2::new(p0.x + pd.x, p0.y + pd.y);
                 ChartWindow {
                     u_min: p0.x.min(b.x),
@@ -1773,14 +1849,15 @@ impl<T: SpanLocate> Pcurve<T> {
                     v_max: p0.y.max(b.y),
                 }
             }
-            // Both images are built from `f(t)`, whose range over the
-            // WHOLE period is `[f_min, f_max]` at `ρ = R ∓ r`
-            // (`geom::spiric_f_range`), and from one bounded
-            // trigonometric channel. So:
+            // Both images are built from `f(t)`, read over the span at
+            // the ends of `cos t`'s range there (over a whole period
+            // those are `ρ = R ∓ r`, `geom::spiric_f_range`'s), and from
+            // one bounded trigonometric channel, `sin t`'s range over the
+            // span. So:
             //
-            // - *Cap*: `p0 + pm·[f_min, f_max] + pa·[−1, 1]` — the
-            //   amplitude box, the harmonic arm's own shape with `f`'s
-            //   range in place of a unit cosine's.
+            // - *Cap*: `p0 + pm·[f_min, f_max] + pa·[s_min, s_max]` —
+            //   the amplitude box, the harmonic arm's own shape with
+            //   `f`'s range in place of a cosine's.
             // - *Wall*: `atan2(f, d)` is MONOTONE in `f` at fixed `d`
             //   (increasing for `d > 0`, decreasing for `d < 0`,
             //   constant at `d = 0`), so the hull of its two ENDPOINT
@@ -1788,21 +1865,37 @@ impl<T: SpanLocate> Pcurve<T> {
             //   `v` channel is affine in `t`, so its endpoints are
             //   exact too.
             //
-            // Whole-period in `f` like the carrier's own box, so a
-            // sub-span gets a conservative answer, never a wrong one —
-            // the enclosure every arm here keeps.
+            // Over the span in `f` and `sin t`, so the box shrinks with
+            // the span and is the whole period's at a whole period.
             Pcurve::Spiric {
                 major,
                 minor,
                 offset,
                 image,
             } => {
-                let (f_min, f_max) = geom::spiric_f_range(*major, *minor, *offset);
+                // `cos t` and `sin t` over the span (the harmonic box of
+                // `(cos t, sin t)`), and `f` over the span at the two
+                // ends of `cos t`'s range: `ρ = R + r·cos t`, and `f` is
+                // monotone in `ρ`. Each read through the precise radicand
+                // (`spiric_f_range` at `b = r·c`), as the period's own.
+                let trig = harmonic_span_box(
+                    Point2::origin(),
+                    Vec2::new(T::one(), T::zero()),
+                    Vec2::new(T::zero(), T::one()),
+                    Vec2::new(T::zero(), T::zero()),
+                    t0,
+                    t1,
+                );
+                let at = |c: T| geom::spiric_f_range(*major, *minor * c, *offset).1;
+                let (fa, fb) = (at(trig.u_min), at(trig.u_max));
+                let (f_min, f_max) = (fa.min(fb), fa.max(fb));
+                let (s_min, s_max) = (trig.v_min, trig.v_max);
                 match image {
                     SpiricImage::Cap { p0, pm, pa } => {
                         let span = |k: T, a: T| {
                             let (lo, hi) = ((k * f_min).min(k * f_max), (k * f_min).max(k * f_max));
-                            (lo - a.abs(), hi + a.abs())
+                            let (sa, sb) = (a * s_min, a * s_max);
+                            (lo + sa.min(sb), hi + sa.max(sb))
                         };
                         let (du_lo, du_hi) = span(pm.x, pa.x);
                         let (dv_lo, dv_hi) = span(pm.y, pa.y);
