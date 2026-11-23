@@ -150,12 +150,9 @@ REGISTER=(
   "crates/topo/src/boolean/ops.rs|pinched_at_cone_apex|else { continue|1|audited: a lone-vertex loop holds one vertex once, so it passes no vertex twice; the at-rest gate after this scan reads it as it reads every loop"
   "crates/topo/src/boolean/ops.rs|face_boundary_meets||1|unaudited"
   "crates/topo/src/rim_wedge.rs|face_boundary_arcs||1|unaudited"
-  "crates/topo/src/solid_contain.rs|boundary_point||1|audited: the discarded variant is refused by name — an outer loop with no cycle has no boundary point, and the arm returns CorruptFace for the face"
-  "crates/topo/src/solid_contain.rs|sphere_chart_trim||1|unaudited"
   "crates/topo/src/surface_group.rs|unmated_boundary||1|audited: a non-cycle outline answers None (not closed, not wrapping), which sends every caller to its per-face or windowed class; each of those reads the same outer loop in its own reading (sphere_chart_trim, region::boundary), and that walk is where a non-cycle is answered"
   "crates/topo/src/boolean/zip.rs|section_cycle||1|unaudited"
   "crates/topo/src/cell_region.rs|lift_boundary||1|audited: the lone vertex's point is a stop already, pushed on the line before, and it has no edge to lift"
-  "crates/topo/src/chart_region.rs|loop_uv_polygon||1|unaudited"
   # The face boundary walk's home: a lone-vertex loop holds no half-edge,
   # and every reader of a face's half-edges or edges through the home
   # (FaceView::cycles, FaceView::half_edges, FaceView::edges, and their
@@ -169,8 +166,6 @@ REGISTER=(
   "crates/topo/src/live.rs|edges||1|audited: half_edge's disposition — a lone-vertex loop has no edge, so it is no edge of the face"
   "crates/topo/src/chord_join.rs|is_pierce_ring||1|audited: the discarded variant is answered — a lone vertex has no null edge, so it is not deferred and ring_side's own Empty arm reads that vertex and refuses on the run"
   "crates/topo/src/live.rs|cycle_loops||1|audited: half_edge's disposition — a lone-vertex loop holds no half-edge, so a question asked of one loop's half-edges has nothing to read of it; a question about the region reads area_loops, which answers both lone shapes"
-  "crates/topo/src/props.rs|seam_region|if role.0.is_outer() => return|1|audited: a lone outer loop leaves the face no region, so the seam region is unread (None), the answer the region's other unflattenable loops give"
-  "crates/topo/src/props.rs|seam_region|Ok(UncheckedLoop::Lone(_)) => continue|1|audited: a lone ring bounds no area and holds no edge a seam crosses, so it adds no loop and no member to the region"
   "crates/topo/src/live.rs|outer_cycle||1|audited: the discarded variant is answered — a non-cycle outline returns None, which face_azimuth_window hands back as no window; every caller reads the face out of its class"
   "crates/topo/src/link.rs|of_body_face||1|audited: answered as TouchUnread::LoneLoop — a lone vertex is no ring of the polygon reading; FaceSector::cleared, the arm beside it, reads the vertex as a point of the boundary"
   "crates/topo/src/euler.rs|mef_lone||1|audited: a precondition refused by name, not a discard — the operator acts on a lone-vertex loop only, and refuses a cycle as EulerOpError::LoopNotEmpty naming the loop"
