@@ -2,13 +2,14 @@
 id: a-conics-point-is-evaluated-from-its-far-centre-not-its-vertex
 kind: issue
 title: A near-graze conic point is summed from its far centre, so its rounding is ~u·ρ; evaluated from the arc's vertex it is ~u·ρ·θ² and certifies the near-gap poses PR 6349 now refuses
-status: dispatched
+status: closed
 opened: 2026-11-02
 priority: P1
 cost: M
 refs: [6349, 6329]
 branch: oneround/anchored-conic
 parent: the-section-table-admits-a-curve-on-its-resolution
+closed: 2026-11-23
 ---
 
 From the delta review of PR 6349 (the conic frame unit), 2026-11-02.
@@ -95,6 +96,20 @@ root within ε of the exact oracle's. The meter's bound falls from
 6.4e-13 (3.8 u·ρ) to 1.28e-13 with the vertex summed in f64, and to
 6.7e-16 with it summed exactly.
 
+That 40 of 40 holds at ρ = 1500 and these 40 poses' depths (0.5 to 2 µm)
+only (measured 2026-11-21, `analysis/oneround/conic-vertex/exact-vertex-chord/`
+and `chord-at-f64-centre-at-interval/` on the analysis branch). With the
+vertex summed in `f64` the curve read is the one through the ROUNDED
+vertex, and a near-tangent root moves 1.5e4 to 5.6e5 m along the arc per
+metre the curve is shifted: against the stored centre's curve the
+reading certifies roots 1.1e-9 to 2.0e-9 m off at ρ = 1500 at depths of
+2e-8 to 4e-7 m (50 answers of the fuzzed row
+`a_circle_of_radius_1500_places_its_roots_within_the_zero_band`), and is
+wrong on 86 of 200 of these families' poses at ρ = 1e4. With the vertex
+summed exactly it gives no wrong answer against the stored entries'
+curve at any size to 1e4, and refuses as the centre sum does where the
+arc is away from the seam vertex.
+
 **(b) The section tables' far-centre conics.** Evaluation recovers
 nothing. Ellipses minted by `plane_cylinder_section` and
 `plane_cone_section` with centres past the box miss their own two
@@ -152,3 +167,13 @@ from the vertex fixes only the chords of one carrier. The rows:
 
 **Not built.** The vertex chain was not landed: the stored form is
 what evaluates it, and it is a design question that leans on PR 7131.
+
+## Closed (2026-11-23, PR 7203)
+
+Answered by the placement family (Ev, PR 7258). A conic held on its
+arc is evaluated from its stored point and certifies the near-gap poses
+(40 of 40 in each of the four ellipse families at ρ = 1500); the cone's
+section is minted so. A conic built from a centre stays held at its
+centre and read from it, by decision: it refuses those poses typed and
+reads nothing wrong. The constructions that should hold their arc and
+do not yet are `a-construction-whose-centre-runs-off-still-stores-a-centre`.

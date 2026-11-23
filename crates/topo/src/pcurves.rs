@@ -506,4 +506,6 @@ mod from_computed_rows;
 mod net_period_rows;
 
 #[cfg(test)]
+mod collapsed_side_rows;
+#[cfg(test)]
 mod singular_set_rows;

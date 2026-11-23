@@ -1534,7 +1534,7 @@ pub(crate) fn chart_side_bounds<T: Decide>(
     let Some(payload) = surface.spline_chart() else {
         return false;
     };
-    !closed && geom_brep::chart_singularity::spline_side_spans(payload, side, band)
+    !closed && geom_brep::chart_singularity::spline_side_spans(payload, side)
 }
 
 /// A spline net's channel, for the closure question [`net_closes_as`] asks.

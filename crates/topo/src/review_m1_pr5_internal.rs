@@ -270,6 +270,11 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
          loop, face or shell is touched, so tier 1 holds as it found it",
     ),
     (
+        "restate_geometry",
+        "a test-support door that overwrites stored points, carriers and surfaces in place; \
+         no vertex, edge, loop, face or shell is touched, so tier 1 holds as it found it",
+    ),
+    (
         "set_sheet_sense",
         "a test-support door that exchanges a sheet face's loop with its lamina twin's, \
          each face's outer and each loop's face back-pointer together, which tier 1 reads \
