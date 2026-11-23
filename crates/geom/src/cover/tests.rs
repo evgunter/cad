@@ -2517,6 +2517,23 @@ fn a_borrowed_conic_and_each_direction_door_read_the_conic() {
     same(e.axis(), fe.axis(), "ellipse axis by the frame");
     same(e.u_ref(), fe.u_ref(), "ellipse u_ref by the frame");
     same(e.v_ref(), fe.v_ref(), "ellipse v_ref by the frame");
+    same(e.axis_unit().get(), e.axis(), "ellipse axis as a unit");
+    same(
+        Conic::axis_unit(&e).get(),
+        fe.axis_unit().get(),
+        "ellipse axis as a unit, by the frame",
+    );
+    same(c.axis_unit().get(), c.axis(), "circle axis as a unit");
+    same(
+        Conic::axis_unit(&c).get(),
+        fc.axis_unit().get(),
+        "circle axis as a unit, by the frame",
+    );
+    same(
+        Conic::axis_unit(&&e).get(),
+        e.axis(),
+        "a borrowed ellipse's axis as a unit",
+    );
     same(c.axis(), Conic::axis(&c), "circle axis");
     same(c.u_ref(), Conic::u_ref(&c), "circle u_ref");
     same(c.v_ref(), Conic::v_ref(&c), "circle v_ref");

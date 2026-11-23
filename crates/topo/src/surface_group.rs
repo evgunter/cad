@@ -255,7 +255,7 @@ pub(super) fn wrap_rims_within<T: Decide>(
             .into_iter()
             .map(|(_, circle)| Rim {
                 center: circle.frame().origin(),
-                axis: circle.frame().axis_unit(),
+                axis: circle.axis_unit(),
                 radius: circle.radius(),
                 u_ref: circle.u_ref(),
             })

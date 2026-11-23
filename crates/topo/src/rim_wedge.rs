@@ -1030,11 +1030,8 @@ fn rides<T: Decide>(
 ) -> Result<bool, Indeterminate> {
     match (locus, curve.carrier()) {
         (Locus::Rim(rim), geom::Curve3::Circle(circle)) => {
-            let (center, axis, u_ref) = (
-                circle.frame().origin(),
-                circle.frame().axis_unit(),
-                circle.u_ref(),
-            );
+            let (center, axis, u_ref) =
+                (circle.frame().origin(), circle.axis_unit(), circle.u_ref());
             let radius = circle.radius();
             same_circle(
                 Rim {
@@ -1113,7 +1110,7 @@ fn rim_of<T: Real>(carrier: &geom::Curve3<T>) -> Option<Rim<T>> {
     match *carrier {
         geom::Curve3::Circle(circle) => Some(Rim {
             center: circle.frame().origin(),
-            axis: circle.frame().axis_unit(),
+            axis: circle.axis_unit(),
             radius: circle.radius(),
             u_ref: circle.u_ref(),
         }),
