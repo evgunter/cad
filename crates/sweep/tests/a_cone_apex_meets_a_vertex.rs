@@ -1,10 +1,9 @@
 //! **A Boolean whose operands meet at a cone's apex vertex reads the
 //! apex as its rulings, in the vertex–vertex lane.** The cone of height
 //! 1 about `y`, apex at `(0, 1, 0)`, base radius `tan α` on `y = 0`, in
-//! both forms a user meets: its apex reached by one wrap edge
+//! the form `sweep::revolve` builds: its apex reached by one wrap edge
 //! (`common::wrap_tip::one_wrap_edge`, the face's one corner there its
-//! whole turn) and revolved by `sweep::revolve` (two faces meeting along
-//! its seam ruling). Each op, either way round, holds its closed form,
+//! whole turn). Each op, either way round, holds its closed form,
 //! tiers 3 and 3′ over the contacts it records, and a lattice of points
 //! the analytic region places:
 //!
@@ -57,16 +56,10 @@ fn cone(alpha: f64) -> topo::Body<f64> {
     )
 }
 
-/// The cone in both forms: one wrap edge to its apex, and as
-/// `sweep::revolve` builds it.
-fn forms(alpha: f64) -> [(&'static str, topo::Body<f64>); 2] {
-    [
-        ("tipped", one_wrap_edge(cone(alpha), true).0),
-        (
-            "revolved",
-            crate::revolve_common::needle(alpha, None, tol()).into_body(),
-        ),
-    ]
+/// The cone as `sweep::revolve` builds it: one face, one wrap edge to
+/// its apex.
+fn forms(alpha: f64) -> [(&'static str, topo::Body<f64>); 1] {
+    [("tipped", one_wrap_edge(cone(alpha), true).0)]
 }
 
 /// `body` moved rigidly by `m`, finished.
@@ -636,9 +629,9 @@ fn two_cones_through_one_apex_build_across_the_pose_families() {
 /// The ops of [`two_cones_through_one_apex_build_across_the_pose_families`]
 /// that keep a cone face cut along two rulings on both sides of its wrap
 /// seam, pinched at the apex (refused `ResultPinchedAtConeApex`): the
-/// 50° cone's remainder at 20/50 (∪ and b ∖ a) tipped at every crossing
-/// pose and revolved skew, and the 45° cone's (∪ and a ∖ b) at 45/30
-/// skew. Every other op builds.
+/// 50° cone's remainder at 20/50 (∪ and b ∖ a) at every crossing pose,
+/// and the 45° cone's (∪ and a ∖ b) at 45/30 skew. Every other op
+/// builds.
 fn pinches(alpha1: f64, alpha2: f64, pose: &str, form: &str) -> &'static [&'static str] {
     match ((alpha1 as u32, alpha2 as u32), pose, form) {
         ((20, 50), "cross-mid" | "near the inner touch", "tipped")

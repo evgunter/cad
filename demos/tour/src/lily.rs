@@ -494,8 +494,8 @@ fn roll_the_mouth<S: Scalar>(
         .collect();
     assert_eq!(
         mouth.len(),
-        2,
-        "the lantern's mouth is one circle, two half-arcs either side of the seam"
+        1,
+        "the lantern's mouth is one circle, one closed edge"
     );
     fillet_edges(
         &finished("the sharp lantern", sharp.clone(), tol),
@@ -2016,13 +2016,12 @@ pub fn weld_circle<S: Scalar>(
 ) -> (pncad::topo::FaceKey, Circle, (f64, f64, f64), f64) {
     let torus = torus_carrier(arch);
     let candidates = cone_station_circles(lantern, torus.small_r);
-    // Two conical WALLS, each halved at the full revolve's seam, each
-    // half-band offering its carrier's two nappes.
+    // Two conical WALLS, each one face offering its carrier's two
+    // nappes.
     assert!(
-        candidates.len() == 8,
-        "the lantern carries two cones — a neck and a pucker — halved at the \
-         revolve seam, so eight station circles at the tube's minor radius; \
-         got {}",
+        candidates.len() == 4,
+        "the lantern carries two cones — a neck and a pucker — each one \
+         face, so four station circles at the tube's minor radius; got {}",
         candidates.len()
     );
     let score = |c: &Circle| {
