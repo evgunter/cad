@@ -2555,6 +2555,26 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
             (&first, &second, None, None)
         }
     };
+    // Each chart on the certificate's grid, whoever minted it
+    // (`ChartedNurbs::certificate_grid`).
+    let grid_of = |op: &SsiOperand<'_, T>| match op {
+        SsiOperand::Nurbs(n) => n.certificate_grid(),
+        SsiOperand::Analytic(_) => None,
+    };
+    let (grid_a, grid_b) = (grid_of(a), grid_of(b));
+    fn on_grid<'g, T: geom_core::CertifiedBounds>(
+        op: &SsiOperand<'g, T>,
+        grid: Option<&'g super::enclose::CellGrid>,
+    ) -> Result<SsiOperand<'g, T>, SsiError> {
+        match op {
+            SsiOperand::Nurbs(n) => n.on_certificate_grid(grid).map(SsiOperand::Nurbs),
+            SsiOperand::Analytic(s) => Ok(SsiOperand::Analytic(s)),
+        }
+    }
+    let (a, b) = (
+        &on_grid(a, grid_a.as_ref())?,
+        &on_grid(b, grid_b.as_ref())?,
+    );
     let asked: &[_] = match limbs {
         Limbs::All => &[(a, pcurve_a), (b, pcurve_b)],
         Limbs::Tube => &[],

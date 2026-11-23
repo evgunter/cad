@@ -4870,6 +4870,83 @@ fn a_curved_domes_open_arc_certifies_on_the_marchs_samples() {
     }
 }
 
+/// **A traced arc's certificate is rest's, bit for bit** (C2). The dome's
+/// `z = 0.2` arc and its oblique one, each traced and then read again
+/// from the carrier alone: the wall's image the trace certified is the
+/// image the pcurve mint derives for that carrier, and the edge
+/// certificate at rest reads the trace's three limbs to the bit, the
+/// tube's pads and node boxes among them. So a body that holds the
+/// carrier and nothing else of the trace (an imported copy, or a fresh
+/// adoption of the same carriers) is certified as the traced one was.
+///
+/// Red against: the trace keeping a pcurve fitted through its own
+/// marched chart points; the trace reading the wall's chart on its own
+/// cells where rest reads the certificate's grid.
+#[test]
+fn a_traced_arcs_certificate_is_rests_bit_for_bit() {
+    let d = 1.0;
+    let (oblique, dom) = dome_tilt(d);
+    let zcut = Surface::Plane {
+        frame: geom::Frame::new(
+            Point3::new(0.5, -d / 8.0, 0.2),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
+    };
+    let wall = dome_wall(d);
+    for (what, plane) in [("the z cut", zcut), ("the oblique cut", oblique)] {
+        let out = ssi::plane_nurbs_ssi(&plane, &wall, dom, band())
+            .unwrap_or_else(|e| panic!("{what}: the arc certifies: {e}"));
+        let [branch] = out.branches.as_slice() else {
+            panic!("{what}: expected one branch, got {}", out.branches.len());
+        };
+        let traced = branch.pcurve_b.as_ref().expect("the wall's image");
+        let minted = geom_brep::FittedLane::<f64>::certified()
+            .general_image(&branch.carrier, branch.params, &wall, band())
+            .unwrap_or_else(|e| panic!("{what}: the mint images the carrier: {e:?}"));
+        let bits = |c: &geom::NurbsCurve2<f64>| -> Vec<u64> {
+            c.knots_f64_interim()
+                .knots()
+                .iter()
+                .copied()
+                .chain(c.control().iter().flat_map(|p| [p.x, p.y]))
+                .map(f64::to_bits)
+                .collect()
+        };
+        assert!(
+            bits(traced) == bits(&minted),
+            "{what}: the image the trace certified is the image the mint derives"
+        );
+        let rest = geom_brep::plane_nurbs_limbs(
+            &branch.carrier,
+            branch.params,
+            &plane,
+            &wall,
+            fixture_lever(dom.extent),
+            band(),
+        )
+        .unwrap_or_else(|e| panic!("{what}: the arc certifies at rest: {e:?}"));
+        let cert = &branch.certificate;
+        assert_eq!(
+            (
+                cert.on_locus_max.to_bits(),
+                cert.hull_sup.to_bits(),
+                cert.tube_transversality.to_bits(),
+                cert.tube_boxes,
+                format!("{:?}", cert.tube),
+            ),
+            (
+                rest.on_locus_max.to_bits(),
+                rest.hull_sup.to_bits(),
+                rest.tube_transversality.to_bits(),
+                rest.tube_boxes,
+                format!("{:?}", rest.tube),
+            ),
+            "{what}: rest reads the trace's certificate"
+        );
+    }
+}
+
 /// The samples a marched carrier was fitted through: its net's control
 /// points, one per sample.
 fn marched_samples(carrier: &geom::Curve3<f64>) -> usize {

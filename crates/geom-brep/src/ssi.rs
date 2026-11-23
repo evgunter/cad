@@ -1912,6 +1912,14 @@ impl<'a, T: geom_core::CertifiedBounds> ChartedNurbs<'a, T> {
         grid: &'a enclose::CellGrid,
     ) -> Result<Self, SsiError> {
         count_mint();
+        Self::charted_on(surface, grid)
+    }
+
+    /// [`ChartedNurbs::mint_on`]'s reading of `surface` on `grid`.
+    fn charted_on(
+        surface: &'a NurbsSurface<T>,
+        grid: &'a enclose::CellGrid,
+    ) -> Result<Self, SsiError> {
         let own = NurbsBoxes::new(surface);
         own.chart_speeds()?;
         let boxes = NurbsBoxes::on_grid(surface, grid);
@@ -1922,6 +1930,35 @@ impl<'a, T: geom_core::CertifiedBounds> ChartedNurbs<'a, T> {
             own: Rc::new(own),
             on_grid: Some(Rc::new(boxes)),
         })
+    }
+
+    /// **The grid a certificate reads this chart on**
+    /// ([`crate::edge_nurbs::wall_grid`]), where it was minted on the
+    /// surface's own cells: the one rule for a trace's certificate and
+    /// the edge certificate at rest, so the two read one chart operand.
+    /// `None` for a chart already on a grid, or one the grid leaves on
+    /// its own cells.
+    pub(crate) fn certificate_grid(&self) -> Option<enclose::CellGrid> {
+        match self.on_grid {
+            Some(_) => None,
+            None => crate::edge_nurbs::wall_grid(self.surface),
+        }
+    }
+
+    /// This chart read on `grid` ([`Self::certificate_grid`]), or as it
+    /// stands where there is none.
+    ///
+    /// # Errors
+    ///
+    /// As [`ChartedNurbs::mint_on`].
+    pub(crate) fn on_certificate_grid(
+        &self,
+        grid: Option<&'a enclose::CellGrid>,
+    ) -> Result<Self, SsiError> {
+        match grid {
+            Some(grid) => Self::charted_on(self.surface, grid),
+            None => Ok(self.clone()),
+        }
     }
 
     /// The chart enclosures, over the cells it was minted on.

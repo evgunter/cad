@@ -1108,17 +1108,13 @@ pub(crate) fn residual_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEncl
         });
     };
     described(wall)?;
-    // The wall the tube localizes on, with its chart speeds minted at the
-    // door: a wall constant along an axis, or with no finite speed bound
-    // along one, has no chart a length in metres can cross into, and the
-    // schedule below would only meet that as a foot point or a sine that
-    // cannot be stated.
-    let grid = wall_grid(wall);
-    let wall_op = match &grid {
-        Some(g) => SsiOperand::nurbs_on(wall, g),
-        None => SsiOperand::nurbs(wall),
-    }
-    .map_err(refusal)?;
+    // The wall's chart speeds minted at the door: a wall constant along
+    // an axis, or with no finite speed bound along one, has no chart a
+    // length in metres can cross into, and the image below would only
+    // meet that as a foot point or a sine that cannot be stated. The
+    // certificate reads it on its own grid
+    // (`ChartedNurbs::certificate_grid`), as a trace's does.
+    let wall_op = SsiOperand::nurbs(wall).map_err(refusal)?;
 
     // ---- The wall's image of the carrier, and the normal angle. ----
     // The transversality sweep reads the image at the fixed schedule.
@@ -1772,18 +1768,10 @@ pub fn nurbs_pair_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
 ) -> Result<PlaneNurbsLimbs<T>, PlaneNurbsRefusal> {
     described(a)?;
     described(b)?;
-    // Each chart localized on its own cell grid, as the plane lane's wall.
-    let (grid_a, grid_b) = (wall_grid(a), wall_grid(b));
-    let op_a = match &grid_a {
-        Some(g) => SsiOperand::nurbs_on(a, g),
-        None => SsiOperand::nurbs(a),
-    }
-    .map_err(refusal)?;
-    let op_b = match &grid_b {
-        Some(g) => SsiOperand::nurbs_on(b, g),
-        None => SsiOperand::nurbs(b),
-    }
-    .map_err(refusal)?;
+    // Each chart is read on the certificate's grid, as the plane lane's
+    // wall.
+    let op_a = SsiOperand::nurbs(a).map_err(refusal)?;
+    let op_b = SsiOperand::nurbs(b).map_err(refusal)?;
     // The two images on one list of spans, which the two-chart tube pairs.
     let (pcurve_a, pcurve_b) =
         crate::carrier_image::carrier_images(carrier, params, (a, b), band)
@@ -3178,7 +3166,7 @@ fn wall_breaks(kv: &KnotVector) -> Vec<f64> {
 /// point or the refinement refuses: a coarser enclosure can only make
 /// the certificate harder to pass, never unsound. Limb 2's hull and the
 /// evaluations read the wall itself.
-fn wall_grid<T: geom_core::CertifiedBounds>(wall: &NurbsSurface<T>) -> Option<CellGrid> {
+pub(crate) fn wall_grid<T: geom_core::CertifiedBounds>(wall: &NurbsSurface<T>) -> Option<CellGrid> {
     let (bu, bv) = (
         wall_breaks(wall.knots_u_f64_interim()),
         wall_breaks(wall.knots_v_f64_interim()),
