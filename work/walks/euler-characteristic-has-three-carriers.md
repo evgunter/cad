@@ -8,7 +8,7 @@ pr: 7430
 opened: 2026-09-12
 refs: [no-public-census-or-genus-query, 2131]
 priority: P1
-cost: D
+cost: M
 ---
 
 ## Finding
@@ -54,6 +54,9 @@ simplified to match the implementation. Shape (C) of the ruling on
 `no-public-census-or-genus-query` — per-component genus as public API —
 is the door this residue would be the first consumer of.
 
+## Staleness audit (2026-11-22, WALKS, origin/main 7709b0ea)
+
+Still live as written. Additional hand chi: `ComponentEulerViolation`'s Display (validate.rs), review_m1_pr1.rs, and sweep/topo test files (`work/green/census-tuple-rows-assert-chi-not-genus.md`). Three postures on a negative genus: a value (`EulerCounts::genus`), a report (validator), a panic (review_m1_pr4). The component relations under the counts differ: `ShellComponent` glues through shared vertices, `ComponentCounts` through mated edges, so the two "per-component" genera are different quantities on vertex-touching components — coupled with `shell-glue-relation-has-three-implementations`. `ComponentCounts` feeds a public error with usize fields (pncad-py tags it). Weighed with that row as fork F5.
 ## The question to Ev (2026-11-22, fork F5, with `shell-glue-relation-has-three-implementations`)
 
 Two designers, two reconciliation rounds. Agreed: pass 11's per-component Euler–Poincaré check is a theorem of checks 1–7 and 10 (it fires today only as an echo of pass 10), so it goes, with `ComponentCounts`, `satisfies_euler_poincare` and the public `ComponentEulerViolation`; pass 11 counts components for tier 2 and keeps its OWN walk as the shipped re-derivation (D2), while movefac, seqgen and shell.rs share one routine (`walks/glue-home`). The `[topology.tiers]` restatement is in the `[ev]` PR's diff. Split: what the census door's `genus()` should be — name both numbers (`EulerCounts` gains `c`; `h()` = s − χ/2, `genus()` = c − χ/2), or rename the current value `h()` and add nothing.
