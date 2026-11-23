@@ -6137,6 +6137,26 @@ fn departure_inner(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: b
     }
     let px = present(x, &ex, &near.vertices, band);
     let py = present(y, &ey, &near.vertices, band);
+    if crate::wedge_measure::on() {
+        let k = |p: &Result<Presentation<'_>, Unpresented>| match p {
+            Ok(Presentation::Vacuous) => "vacuous".to_owned(),
+            Ok(Presentation::Of(q)) => {
+                let z = match &q.zero {
+                    Zero::None => "none",
+                    Zero::Side(..) => "side",
+                    Zero::Past(..) => "past",
+                    Zero::Corner(..) => "corner",
+                    Zero::Curve(..) => "curve",
+                    Zero::Point(..) => "point",
+                };
+                format!("of:{z}")
+            }
+            Err(Unpresented::Collapsed(_)) => "collapsed".to_owned(),
+            Err(Unpresented::Structural) => "structural".to_owned(),
+            Err(Unpresented::Local) => "local".to_owned(),
+        };
+        crate::wedge_measure::PRES.with(|c| *c.borrow_mut() = format!("{}|{}", k(&px), k(&py)));
+    }
     if std::env::var_os("CV_TRACE").is_some() {
         let d = |p: &Result<Presentation<'_>, Unpresented>| match p {
             Ok(Presentation::Of(q)) => format!(
@@ -6191,10 +6211,10 @@ fn departure_inner(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: b
     if two {
         for (sep, other) in [(x, &py), (y, &px)] {
             if let (Some(imp), Ok(Presentation::Of(p))) = (implicit_of(sep, band), other)
-                && sign_on(&Psi::Carrier(imp), None, p, None, arm, band).is_some()
+                && let Some(sg) = sign_on(&Psi::Carrier(imp), None, p, None, arm, band)
             {
                 if crate::wedge_measure::on() {
-                    let g = wm_far_gap(&Psi::Carrier(imp), p);
+                    let g = wm_far_gap(&Psi::Carrier(imp), p, Some(sg));
                     crate::wedge_measure::GAP.with(|c| c.set(g));
                 }
                 return Outcome::Certified { corner: p.corner };
@@ -6226,7 +6246,7 @@ fn departure_inner(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: b
         (Some(a), Some(b)) => {
             let ok = a == flip(b);
             if ok && crate::wedge_measure::on() {
-                let g = match (wm_far_gap(&psi, qx), wm_far_gap(&psi, qy)) {
+                let g = match (wm_far_gap(&psi, qx, Some(a)), wm_far_gap(&psi, qy, Some(b))) {
                     (Some(a), Some(b)) => Some(a.min(b)),
                     (a, b) => a.or(b),
                 };
@@ -6290,7 +6310,7 @@ fn departure_inner(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: b
 }
 
 /// MEASUREMENT ONLY: the far side's least `|ψ|` over a presented face.
-fn wm_far_gap(psi: &Psi, p: &Presented<'_>) -> Option<f64> {
+fn wm_far_gap(psi: &Psi, p: &Presented<'_>, sign: Option<Sign>) -> Option<f64> {
     let opp = |s: Side| match s {
         Side::XLo => Side::XHi,
         Side::XHi => Side::XLo,
@@ -6310,12 +6330,11 @@ fn wm_far_gap(psi: &Psi, p: &Presented<'_>) -> Option<f64> {
         Zero::Corner((s, _), (t, _)) | Zero::Point(s, t, _) => psi.value(p.corner(opp(*s), opp(*t)))?,
         Zero::None => return None,
     };
-    Some(if v.lo() > 0.0 {
-        v.lo()
-    } else if v.hi() < 0.0 {
-        -v.hi()
-    } else {
-        0.0
+    // Oriented to the side the face departs to: the lower end of `ψ`
+    // there, negative where the enclosure reaches the other side.
+    Some(match sign {
+        Some(Sign::Negative) => -v.hi(),
+        _ => v.lo(),
     })
 }
 
@@ -6331,10 +6350,12 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
         wm::GAP.with(|c| c.set(None));
         wm::SUM.with(|c| c.borrow_mut().clear());
         wm::RATES.with(|c| c.borrow_mut().clear());
+        wm::PRES.with(|c| c.borrow_mut().clear());
     };
     reset();
     let base = departure_inner(x, y, near, band, two);
     let sum = wm::SUM.with(|c| c.borrow().clone());
+    let pres = wm::PRES.with(|c| c.borrow().clone());
     let rates = wm::RATES.with(|c| c.borrow().clone());
     let keys: Vec<EdgeKey> = near
         .edges
@@ -6402,7 +6423,7 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
         wm::emit(
             "WMD",
             &format!(
-                "{:?}/{:?}	edges={keys:?}	crease={crease}	depth={depth}/{max}	base={}	c7329={c7329}	cmut={cmut}	cfold={cfold:?}	arm={arm:?}	reach={reach:?}	fold={fold:?}	gap={gap:?}	one_signed={one_signed}	sum={sums:?}",
+                "{:?}/{:?}	edges={keys:?}	crease={crease}	depth={depth}/{max}	base={}	c7329={c7329}	cmut={cmut}	cfold={cfold:?}	arm={arm:?}	reach={reach:?}	fold={fold:?}	gap={gap:?}	one_signed={one_signed}	pres={pres}	sum={sums:?}",
                 x.face,
                 y.face,
                 kind(&base),

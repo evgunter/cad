@@ -39,6 +39,7 @@ thread_local! {
     pub(crate) static SUM: RefCell<Vec<SumRow>> = const { RefCell::new(Vec::new()) };
     pub(crate) static EDGES: RefCell<BTreeMap<EdgeKey, EdgeInfo>> = const { RefCell::new(BTreeMap::new()) };
     pub(crate) static CELL: Cell<(u32, u32)> = const { Cell::new((0, 0)) };
+    pub(crate) static PRES: RefCell<String> = const { RefCell::new(String::new()) };
     static COUNTS: Cell<[usize; 5]> = const { Cell::new([0; 5]) };
     static FLIPS: RefCell<BTreeSet<(FaceKey, FaceKey)>> = const { RefCell::new(BTreeSet::new()) };
 }
