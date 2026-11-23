@@ -7,7 +7,7 @@ opened: 2026-11-14
 priority: P1
 cost: H
 design: true
-blocked_on: [a-boundary-run-on-a-chart-iso-line-gets-a-lattice-line]
+blocked_on: [the-mesh-cures-a-side-two-faces-can-both-make-three-ways]
 ---
 
 
@@ -42,3 +42,5 @@ Measured by the turned-ball unit (`a-sphere-face-tilted-by-an-ulp-against-its-co
 - 2026-11-21 (TESSLIE, `tesslie/mesh-iso-family`) — **the classifier reader above is retired, and its 15-row figure was stale.** Re-measured on main `6821ff4aa2` over the whole mesh suite: of 41 340 curved-lane `Reads::Iso` reads, none was on a `Projected` row. The only reads where the classifier and `geom_brep::chart_iso_family` disagreed were 4 in `curved::tests::the_lens_walk_refuses_…`, a unit row that bypasses the router on purpose. The same branch has the curved lane's walk and chord rule read the family the shape door certified (`geom_brep::props::iso_rectangle_sides`, carried on `curved::Rectangle`), so neither calls `topo::chart_iso::classify_kind` any more. What this unit still retires is the lane, not that reader.
 
 - 2026-11-21 (TESSLIE) — the chart-coherence examination is retired: `work/tesslie/chart-coherence-ships-off-and-nothing-schedules-turning-it-on.md`. Nothing in mesh read `classify_kind` already (PR 7235); the function itself is now gone.
+
+- 2026-11-23 — **Units 4c and 4b are closed (PRs 7096, 7526); this unit now waits on the join's split and, behind it, on the unit that sizes every chart at δ.** A cylinder face on the chart lane lays no rows and takes the lane's correction, so the cylinder half of the measurement this row owes Ev could be taken today. The cone, sphere and torus halves could not: the chart lane still sizes those at the headroom's share of δ, and a cone keeps the rows (`a-cone-and-a-spline-cylinder-keep-the-rows-a-cylinder-face-no-longer-lays`). The unit that deletes the headroom and lets the certificate decide on every analytic arm (`tesslane/certificate-decides`, built, whose row lands with PR 7486) integrates after `the-mesh-cures-a-side-two-faces-can-both-make-three-ways` (PR 7573), so this row is parked on that one until the sizing unit's row is on main, and on the sizing unit from then.
