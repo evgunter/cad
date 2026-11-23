@@ -373,7 +373,7 @@ that decision's members of it, not the file's whole inventory (so
 | Decision | Modules |
 |---|---|
 | G1 layer 2 (document as a value, `DocEdit` + pure `apply`, evaluation service, hit-testing) | `crates/editor-core` (`crates/editor-core/README.md`) |
-| G1 layer 3 values and operations | `src/camera.rs` (`Camera`, `CameraOp`, `camera::apply`), `src/g1.rs` (`Slot`, the preview/commit rules both gestures obey), `src/session.rs` (`DocSession`, `DocSession::perform`, the operation doors) and its vocabularies `session::{select, refuse, op, author, delete, probe}` (Module boundaries, below), `src/history.rs` (tree-shaped undo), `src/input.rs` (`ViewportEvent`), `src/tools.rs` and the per-tool modules |
+| G1 layer 3 values and operations | `src/camera.rs` (`Camera`, `CameraOp`, `camera::apply`), `src/g1.rs` (`Slot`, the preview/commit rules both gestures obey), `src/session.rs` (`DocSession`, `DocSession::perform`, the operation doors) and its vocabularies `session::{select, refuse, op, author, delete, range}` (Module boundaries, below), `src/history.rs` (tree-shaped undo), `src/input.rs` (`ViewportEvent`), `src/tools.rs` and the per-tool modules |
 | G3 free-move and hiding as display state | `src/display.rs` |
 | G3 mate definition | `src/matetool.rs` |
 | Feature tree, property panel, open/save, evaluation seam, scene | `src/tree.rs`, `src/props.rs`, `src/docio.rs`, `src/evalseam.rs` (every seam and every worker) with `src/generation.rs` (`Generation`, the counter every seam keys its answers by), `src/scene.rs` |
@@ -496,7 +496,7 @@ vocabulary is not a forbidden import path.
 | `session::op` | `SessionOp` and `OpOutcome`, with the gesture names `SessionOp` is keyed by — `ValueGestureName`, `FreeMoveName`, `GestureName` — and `CancelDoor`; already the crate's shared vocabulary, named across the crate — drivers, panes and tool modules alike (`rg -l -e SessionOp -e OpOutcome crates/viewer/src` lists them) |
 | `session::author` | `BooleanSpec`, `PatternRuleSpec` and its `PatternDirection` (a target axis or a picked edge or face, never typed components), `PartSelectSpec` — the authoring specs and their lowering to nodes, which hold no session state at all |
 | `session::delete` | `DeleteAffordance` and `kind_census` — the delete's wording |
-| `session::probe` | `BoundsTarget`, `BoundsReading` and the range probe |
+| `session::range` | `RangeTarget`, `RangeReading` and the words of a `range?` run's reading |
 
 `session` itself keeps `DocSession`, its `Gesture`, `perform` and the
 operation doors, plus the three values the session states about itself
@@ -621,7 +621,7 @@ loudest thing this crate does a no-op.
 
 `DocSession` holds a `Derived`: what is selected, what is hovered,
 what a drag previews over the document, what the last run said about
-it (`LandedRun`), and what a range probe found in it. `Open` and
+it (`LandedRun`), and what a `range?` run proved in it. `Open` and
 `NewDocument` install a different document under a live session, and
 all five of those are statements about the document that was there
 before — left in place they answer about the previous model until the
@@ -660,10 +660,11 @@ against an `Arc` clone, on a 165-body, 990-face document — and the
 price is that the session retains one gathered aggregate for the life
 of a landing, beside the `Doc` and `Evaluation` it already holds. One
 at a time: the next landing replaces it, and `Open` drops it with the
-rest of `Derived`. It is absent when the gather refused. `bounds` sits in
+rest of `Derived`. It is absent when the gather refused. `range` sits in
 `Derived` but is discarded on a stricter rule than the block's: every
-submit drops it (`request_eval`), because a range is a statement about
-one document and a commit or an undo already invalidates it. Both
+submit drops it and stops its run (`request_eval`), because a range is
+a statement about one document and a commit or an undo already
+invalidates it. Both
 doors consequently drop it twice, which is redundant on purpose — the
 walk names every field it invalidates rather than leaving one to a
 route its reader cannot see.
@@ -1402,6 +1403,23 @@ chrome and leave a message where it is. `widgets::message_toned` adds
 the voice, through `app::toned`, so what `Advisory` looks like stays
 decided in one place.
 
+A kernel `Sentence` — a refusal, a finding, a notice, a relation entry,
+a heading that names a node — is drawn by `widgets::sentence`, on the
+same wrap: one galley, one section per run, so it breaks where its text
+would. Each mention `relations::link` answers for the document on
+screen (its id spelled in that document, and the document still
+holding it) wears the chrome's one link look (`widgets::message_link`
+wears it too), and a click on its characters selects it; any other
+mention is drawn as words. The sentence is a label over its galley, so
+it selects and copies as any message does. A `frame::Message`
+holds its `Sentence`, never its text, so the status line keeps its
+mentions; a refusal is said by the document it was raised in
+(`frame::refusal_speaker`), and a door that says one in no document is
+named so (`frame::frame_status_untargeted`,
+`frame::refusal_message_untargeted`). The feature tree scrolls the selected row
+into view when the selection changes from outside it, and not when the
+tree's own click changed it.
+
 The region is taken down to a floor and no further:
 `widgets::message_floor` is the widest number `readout::number`
 returns (`widgets::widest_number`, over `readout::widest_render`) and
@@ -1750,11 +1768,10 @@ in layer 3 what `apply` refuses is two spellings of one rule, and the
 delegating arm exists to carry the door's answer unchanged.
 
 **A lookup is not a pre-check.** Opening a gesture on a variable needs
-its dimension, and the range probe needs its value and unit; both look
+its dimension; that looks
 the variable up whether or not an edit ever follows, so a flat arm is
 the honest answer when the lookup fails — `NoSuchVariable` for an id
-the document does not hold, and, for the probe, `VariableIsDefined`
-for one whose definition holds no value to move. What separates the two cases
+the document does not hold. What separates the two cases
 is whether an edit is about to be committed that would refuse on its
 own.
 
@@ -2936,7 +2953,7 @@ answer, never why the arm is there.
 **Four shapes keep their wildcard, because none of them is a policy:**
 
 - *Identity* — the question is the variant itself, so a new variant
-  correctly answers no: `bounds::Bound::is_edge`, the read doors on
+  correctly answers no: the read doors on
   `tools::Tools`, `app`'s "was this op an `Open`".
 - *A downcast* — the pattern extracts the payload only one variant
   carries: `frame::retype_draft`'s search for the expression op,
