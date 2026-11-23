@@ -35,23 +35,25 @@ use crate::corpus;
 use editor_core::{CancelToken, EvalOptions, NodeResult, ValuePayload};
 use geom_core::Tol;
 
-/// A 128-bit FNV-1a over the evaluation's observable bits.
+/// A 128-bit digest over the evaluation's observable bits: FNV-1a 64
+/// (`fixture::digest::Fnv`) beside a second lane of its own basis and
+/// prime.
 struct Digest {
-    lo: u64,
+    lo: crate::fixture::digest::Fnv,
     hi: u64,
 }
 
 impl Digest {
     fn new() -> Self {
         Self {
-            lo: 0xcbf2_9ce4_8422_2325,
+            lo: crate::fixture::digest::Fnv::new(),
             hi: 0x9dc5_bb32_e0f7_1a49,
         }
     }
 
     fn u64(&mut self, x: u64) {
         for b in x.to_le_bytes() {
-            self.lo = (self.lo ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
+            self.lo.feed(&[b]);
             self.hi = (self.hi ^ u64::from(b)).wrapping_mul(0x0000_0100_0000_01b3);
         }
     }
@@ -215,7 +217,7 @@ where
         }
         Seen::Point { p, .. } => bits(&mut d, p),
     });
-    (d.lo, d.hi)
+    (d.lo.finish(), d.hi)
 }
 
 /// **The arc-carrier fillet the corpus does not contain.**
@@ -490,7 +492,7 @@ fn id_free_corpus_digest_at<T: editor_core::test_support::AnyEvaluate>(
             .push(point(p)),
     });
     let mut d = Digest::new();
-    d.u64(fixture.lo);
+    d.u64(fixture.lo.finish());
     d.u64(fixture.hi);
     for (name, nodes) in docs {
         d.text(&name);
@@ -510,7 +512,7 @@ fn id_free_corpus_digest_at<T: editor_core::test_support::AnyEvaluate>(
             }
         }
     }
-    (d.lo, d.hi)
+    (d.lo.finish(), d.hi)
 }
 
 /// **The fence with ids masked, at `f64`** ([`id_free_corpus_digest`]).

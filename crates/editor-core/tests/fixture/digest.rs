@@ -46,10 +46,9 @@
 //! copy is pinned where it stands, as its rebuilt body was.
 //!
 //! Geometry enters as its values: a carrier's or a curve's `Debug`
-//! read through [`canonical`], which keeps every number and every
-//! type or variant name and drops field names, `None`, `true` and
-//! `false`, so a renamed field, or an added field that holds nothing,
-//! moves no digest. An `f64`'s `Debug` is the shortest round-tripping
+//! read through [`canonical`], which keeps every value — numbers, bools,
+//! `None`, type and variant names — and drops field names, so a renamed
+//! field moves no digest. An `f64`'s `Debug` is the shortest round-tripping
 //! decimal: a bijection with the bits for every finite value, `-0.0`
 //! included. Nothing rendered from a classification band enters, so the
 //! constants are eps-independent.
@@ -104,10 +103,11 @@ pub fn fnv(bytes: &[u8]) -> u64 {
     h.finish()
 }
 
-/// **A value by its values**: a `Debug` rendering with each field name,
-/// `None`, `true` and `false` dropped, and every number, type and
-/// variant name kept in order. A field renamed, or added holding
-/// nothing, reads the same; a number that moves does not.
+/// **A value by its values**: a `Debug` rendering with each field name
+/// dropped and every value — number, bool, `None`, type and variant
+/// name — kept in order. A field renamed reads the same; a value that
+/// moves, a flag that flips (`PeriodicNurbs3`'s `flipped`: a loop and
+/// its reverse) and an `Option` that fills do not.
 pub fn canonical(debug: &str) -> String {
     let chars: Vec<char> = debug.chars().collect();
     let word = |c: char| c.is_alphanumeric() || "_.-#".contains(c);
@@ -128,7 +128,7 @@ pub fn canonical(debug: &str) -> String {
             next += 1;
         }
         let field = chars.get(next) == Some(&':') && chars.get(next + 1) != Some(&':');
-        if !field && !matches!(token.as_str(), "None" | "true" | "false") {
+        if !field {
             out.push(token);
         }
     }

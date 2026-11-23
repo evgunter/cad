@@ -26,13 +26,8 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
 /// in order, each table's rows in name order, arena keys included —
 /// same recipe + same verdicts ⇒ same kill history ⇒ same keys (D9).
 fn digest(ev: &Evaluation<f64>) -> u64 {
-    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-    let mut feed = |s: &str| {
-        for b in s.bytes() {
-            h ^= u64::from(b);
-            h = h.wrapping_mul(0x1000_0000_01b3);
-        }
-    };
+    let mut h = crate::fixture::digest::Fnv::new();
+    let mut feed = |s: &str| h.feed(s.as_bytes());
     for id in &ev.order {
         feed(&format!("#{id:?}"));
         for t in crate::fixture::tables(ev, *id) {
@@ -41,7 +36,7 @@ fn digest(ev: &Evaluation<f64>) -> u64 {
             }
         }
     }
-    h
+    h.finish()
 }
 
 /// Names-only digest (review R11): each name with its node ids spelled

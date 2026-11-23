@@ -53,24 +53,6 @@ use geom_core::Tol;
 
 use crate::corpus;
 
-/// FNV-1a 64 — the same mixer `m4_pr3_names_ci` and
-/// `lib_g16_corpus_name_digests` use, so a number here is comparable
-/// with a number there by construction rather than by convention.
-struct Fnv(u64);
-
-impl Fnv {
-    fn new() -> Self {
-        Self(0xcbf2_9ce4_8422_2325)
-    }
-
-    fn feed(&mut self, s: &str) {
-        for b in s.bytes() {
-            self.0 ^= u64::from(b);
-            self.0 = self.0.wrapping_mul(0x1000_0000_01b3);
-        }
-    }
-}
-
 /// Every node's table read both ways: each entity of each forward row,
 /// handed to [`editor_core::names::NameTable::name_of`], answers a name
 /// whose forward row holds that entity. Returns the rows that do not.
@@ -171,9 +153,9 @@ fn every_corpus_documents_names_read_back_and_its_persisted_text_is_pinned() {
                 d.name,
                 wrong.join("\n")
             );
-            let mut h = Fnv::new();
-            h.feed(&sans_epsilon(&text));
-            (d.name.to_owned(), h.0)
+            let mut h = crate::fixture::digest::Fnv::new();
+            h.feed(sans_epsilon(&text).as_bytes());
+            (d.name.to_owned(), h.finish())
         })
         .collect();
     let want: Vec<(String, u64)> = PINNED.iter().map(|(n, b)| ((*n).to_owned(), *b)).collect();

@@ -727,18 +727,15 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
 
 // ---- The digest ----
 
-/// FNV-1a 64 over bytes.
-struct Fnv(u64);
+/// FNV-1a 64 over bytes (`fixture::digest::Fnv`), with a frame's bits.
+struct Fnv(fixture::digest::Fnv);
 
 impl Fnv {
     fn new() -> Self {
-        Self(0xcbf2_9ce4_8422_2325)
+        Self(fixture::digest::Fnv::new())
     }
     fn feed(&mut self, bytes: &[u8]) {
-        for b in bytes {
-            self.0 ^= u64::from(*b);
-            self.0 = self.0.wrapping_mul(0x1000_0000_01b3);
-        }
+        self.0.feed(bytes);
     }
     fn frame(&mut self, f: &editor_core::Frame) {
         for x in f.columns.iter().flatten().chain(f.translation.iter()) {
@@ -911,9 +908,10 @@ fn a3_the_f64_solve_is_its_pinned_digest_on_the_mate_corpus() {
         solve_digest(&mut h, &doc, &opts);
     }
     assert_eq!(
-        h.0, pinned,
+        h.0.finish(),
+        pinned,
         "the f64 solve moved on the mate corpus at ε = {eps:e}: {:#018x}",
-        h.0
+        h.0.finish()
     );
 }
 
