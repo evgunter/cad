@@ -136,7 +136,7 @@ pub(crate) fn compute_chords(
     let mut counts: HashMap<EdgeKey, usize> = HashMap::new();
     let mut holders = HashMap::new();
     for (ek, _) in body.edges() {
-        let curve = certified(body, ek)?;
+        let curve = crate::walk::edge_curve(body, ek)?;
         let (t0, t1) = curve.params();
         let span = t1 - t0;
         let target = edge_target(body, routes, ek, delta)?;
@@ -192,12 +192,12 @@ pub(crate) fn compute_chords(
     // The short-loop floor (module docs): raised through `tighten`, so a
     // raised count still lands on every crease joint.
     for (ek, floor) in short_loop_floors(body, &counts) {
-        let curve = certified(body, ek)?;
+        let curve = crate::walk::edge_curve(body, ek)?;
         let n = tighten(body, routes, curve, ek, delta, bounds, &mut lattices, floor)?;
         counts.insert(ek, n);
     }
     for (ek, _) in body.edges() {
-        let curve = certified(body, ek)?;
+        let curve = crate::walk::edge_curve(body, ek)?;
         let (t0, t1) = curve.params();
         let span = t1 - t0;
         let n = counts[&ek];
@@ -824,15 +824,6 @@ fn circle_radius(carrier: &Curve3<f64>) -> f64 {
         Curve3::Circle(circle) => circle.radius(),
         _ => f64::NAN,
     }
-}
-
-/// An edge's certified curve.
-fn certified(body: &Body<f64>, ek: EdgeKey) -> Result<&geom_brep::EdgeCurve<f64>, TessellateError> {
-    let edge = body
-        .edge(ek)
-        .ok_or(TessellateError::MissingEntity { what: "edge" })?;
-    edge.certified()
-        .ok_or(TessellateError::NullScaffoldEdge { edge: ek })
 }
 
 /// **The short-loop floor**: the counts a loop's edges are raised to

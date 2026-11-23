@@ -714,7 +714,7 @@ fn line_run(profile: [(f64, f64); 4]) -> Result<(), BooleanError> {
     let x = prism.body;
     let (u, v) = (prism.bottom[3], prism.bottom[0]);
     let pt = |k: VertexKey| *x.get_point(x.get_vertex(k).unwrap().point).unwrap();
-    let (edge_key, edge) = x
+    let (edge_key, _) = x
         .edges()
         .find(|&(k, _)| {
             let ends = crate::query::edge_ends(&x, k);
@@ -737,8 +737,7 @@ fn line_run(profile: [(f64, f64); 4]) -> Result<(), BooleanError> {
         &x,
         &mut y,
         Operand::A,
-        edge_key,
-        &edge,
+        x.proven_edge(edge_key),
         a,
         c,
         wall,
@@ -780,7 +779,7 @@ fn arc_on_its_glued_wall() -> Result<(), BooleanError> {
         ..Glue::none()
     };
     let declared = GluedPairs::without_struts(&decls, [(xw, yw)].into_iter().collect());
-    let (edge_key, edge) = x
+    let (edge_key, _) = x
         .edges()
         .map(|(k, e)| (k, e.clone()))
         .find(|(_, e)| {
@@ -798,8 +797,7 @@ fn arc_on_its_glued_wall() -> Result<(), BooleanError> {
         &x,
         &mut y,
         Operand::A,
-        edge_key,
-        &edge,
+        x.proven_edge(edge_key),
         a,
         c,
         yw,

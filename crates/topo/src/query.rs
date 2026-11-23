@@ -20,10 +20,11 @@
 //!   trivially equivariant (kinds are motion-invariant) and
 //!   scalar-independent. They go through NO funnel and carry NO
 //!   margin, deliberately: minting a fake margin for a tag match would
-//!   be dimension-laundering in the other direction. A missing
-//!   carrier, a dangling key or an unreadable adjacency is an honest
-//!   NO, never a panic — which is what makes a purely-exact filter
-//!   total.
+//!   be dimension-laundering in the other direction. A null carrier,
+//!   a stale key or an unreadable adjacency is an honest NO — which is
+//!   what makes a purely-exact filter total over a caller's keys; a
+//!   link a resolved record holds that does not resolve (an edge's
+//!   curve, a face's surface) panics, as every link does (D2 row 4).
 //!
 //!   **[`rim_of`] is a fourth EXACT door and it does NOT answer NO.**
 //!   It reads stored data the same way the three predicates do — the

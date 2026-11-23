@@ -3089,7 +3089,10 @@ fn wall_crosses_by_turn<T: Decide>(
         if e.across == face {
             continue;
         }
-        let Some(curve) = body.edge(e.edge).and_then(crate::live::EdgeView::certified) else {
+        let Some(curve) = body
+            .linked_edge(e.edge, crate::entity::EntityId::HalfEdge(e.half), "edge")
+            .certified()
+        else {
             return Ok(None);
         };
         let off = match *curve.carrier() {
@@ -3235,16 +3238,18 @@ fn arc_turn<T: Decide>(
 /// **The point of half-edge `half`'s curve at fraction `f` of its span,
 /// as the half walks it**, and the curve's derivative there in that
 /// direction: the one reading of a half-edge's walk along its carrier.
-/// `None` where the half, its edge or its certified curve does not
-/// resolve.
+/// `None` where the half does not resolve, its edge does not claim it,
+/// or its edge is null scaffolding; the edge and its curve are links,
+/// whose miss panics.
 pub(crate) fn along_half<T: Decide>(
     body: &Body<T>,
     half: crate::entity::HalfEdgeKey,
     f: f64,
 ) -> Option<(Point3<T>, Vec3<T>)> {
     let edge = body.get_half_edge(half)?.edge;
-    let plus = body.edges.get(edge)?.claim(half)?.plus;
-    let curve = body.edge(edge).and_then(crate::live::EdgeView::certified)?;
+    let view = body.linked_edge(edge, crate::entity::EntityId::HalfEdge(half), "edge");
+    let plus = view.record().claim(half)?.plus;
+    let curve = view.certified()?;
     let (t0, t1) = curve.params();
     let t = t0 + (t1 - t0) * T::from_f64(if plus { f } else { 1.0 - f });
     let d = curve.carrier().deriv(t);

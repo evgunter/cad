@@ -786,12 +786,7 @@ impl FaceInputs {
             let walk = loop_half_edges(body, lk, fk)?;
             let mut edges = Vec::with_capacity(walk.len());
             for (hek, ek, forward) in walk {
-                let edge = body
-                    .edge(ek)
-                    .ok_or(TessellateError::MissingEntity { what: "edge" })?;
-                let curve = edge
-                    .certified()
-                    .ok_or(TessellateError::NullScaffoldEdge { edge: ek })?;
+                let curve = crate::walk::edge_curve(body, ek)?;
                 let ids = chords
                     .ids
                     .get(&ek)

@@ -1002,6 +1002,20 @@ impl<T: Real> Body<T> {
     }
 
     /// **Failure-injection door** (`sweep-testing` only): a clone of
+    /// this body with curve `curve` removed and every edge that names it
+    /// left naming it, the state [`Self::with_entity_removed_for_tests`]
+    /// cannot reach because a curve is geometry, not an [`EntityId`].
+    ///
+    /// Returns `None` if `curve` is stale.
+    #[cfg(feature = "sweep-testing")]
+    #[doc(hidden)]
+    #[must_use]
+    pub fn with_curve_removed_for_tests(&self, curve: CurveKey) -> Option<Self> {
+        let mut out = self.clone();
+        out.curves.remove(curve).is_some().then_some(out)
+    }
+
+    /// **Failure-injection door** (`sweep-testing` only): a clone of
     /// this body with point `point` removed and every vertex that names
     /// it left naming it, the state [`Self::with_entity_removed_for_tests`]
     /// cannot reach because a point is geometry, not an [`EntityId`].

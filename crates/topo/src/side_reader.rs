@@ -911,14 +911,10 @@ pub(crate) fn edge_frames(body: &Body<f64>, fractions: &[f64], band: Band) -> Ve
     let mut out = Vec::new();
     for (face, _) in body.faces() {
         for fe in body.proven_face(face).edges() {
-            let Some(edge) = body.edges.get(fe.edge) else {
-                continue;
-            };
-            let Some(curve) = body
-                .curves
-                .get(edge.curve)
-                .and_then(crate::null::CurveGeom::certified)
-            else {
+            let edge =
+                body.linked_edge(fe.edge, crate::entity::EntityId::HalfEdge(fe.half), "edge");
+            // Null scaffolding has no carrier to aim along.
+            let Some(curve) = edge.certified() else {
                 continue;
             };
             let (t0, t1) = curve.params();
@@ -926,7 +922,7 @@ pub(crate) fn edge_frames(body: &Body<f64>, fractions: &[f64], band: Band) -> Ve
                 let t = t0 + (t1 - t0) * x;
                 let point = curve.carrier().eval(t);
                 let mut tau = curve.carrier().deriv(t).normalize();
-                if edge.he_minus == fe.half {
+                if edge.record().he_minus == fe.half {
                     tau = tau * -1.0;
                 }
                 let Ok(Some(normal)) =

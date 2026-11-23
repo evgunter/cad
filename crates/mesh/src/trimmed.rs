@@ -2293,9 +2293,7 @@ fn developed_runs(
 /// Whether edge `ek` is carried by a line, which on a cone is a ruling:
 /// what [`developed_runs`] reads of the polygon side an edge carries.
 fn carried_by_a_line(body: &Body<f64>, ek: EdgeKey) -> bool {
-    body.edge(ek)
-        .and_then(topo::EdgeView::certified)
-        .is_some_and(|curve| !curve.carrier().is_curved())
+    crate::walk::edge_curve(body, ek).is_ok_and(|curve| !curve.carrier().is_curved())
 }
 
 /// The [`Run`] that `group`, every polygon point at one CDT point, is;

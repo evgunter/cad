@@ -1899,13 +1899,12 @@ pub(crate) fn section_plane_restatements<T: Decide>(
     for (_, members, _) in view.boundary_by_loop() {
         for member in members {
             let BoundaryMember::Edge {
-                ek: edge,
-                edge: edge_data,
-                ..
+                edge: edge_data, ..
             } = member
             else {
                 continue;
             };
+            let edge = edge_data.key();
             if !stranded.contains(&edge) || out.iter().any(|(e, _)| *e == edge) {
                 continue;
             }
@@ -2242,9 +2241,10 @@ fn shell_side<T: Decide>(
             if seen_v.insert(vertex, ()).is_none() {
                 vertices.push(Reading::Vertex(vertex));
             }
-            let BoundaryMember::Edge { ek, edge, .. } = member else {
+            let BoundaryMember::Edge { edge, .. } = member else {
                 continue;
             };
+            let ek = edge.key();
             if seen_e.insert(ek, ()).is_some() {
                 continue;
             }

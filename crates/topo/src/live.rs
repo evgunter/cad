@@ -3,7 +3,8 @@
 //! [`FaceView`], a face resolved once by where its key came from, which
 //! every walk from a face (its surface, its loops, its boundary members
 //! and its edges) reads, and [`EdgeView`], its edge twin, which every
-//! read of an edge's curve goes through.
+//! kernel read of an edge's curve goes through (the raw exceptions are
+//! named under *The curve of an edge*).
 //!
 //! [`Body::link_half_edges`] splices by writing `next`/`prev`, and under
 //! the D2 addendum a failed lookup there is a kernel bug announced with
@@ -74,12 +75,19 @@
 //!
 //! # The curve of an edge
 //!
-//! An edge's record links its curve, and every read of it goes through
-//! [`EdgeView`], built by the same four sources: [`Body::proven_edge`],
-//! [`Body::linked_edge`], [`Body::edge`] (a caller's key, `None` where
-//! stale) and [`Body::edge_views`]. The curve hop is a link, so it
-//! panics on a torn body (D2 row 4); null scaffolding is the one
-//! absence [`EdgeView::certified`] answers.
+//! An edge's record links its curve, and every kernel read of it goes
+//! through [`EdgeView`], built by the same four sources:
+//! [`Body::proven_edge`], [`Body::linked_edge`] (a key a record holds, on
+//! a body tier 1 vouches for), [`Body::edge`] (a key a caller passed, or
+//! one whose reader refuses its own miss on a body tier 1 has not
+//! vouched for; `None` where stale) and [`Body::edge_views`]. The curve
+//! hop is a link, so it panics on a torn body (D2 row 4); null
+//! scaffolding is the one absence [`EdgeView::certified`] answers. The
+//! curve arena is read raw only by a reader that reports a miss itself:
+//! `validate`'s `certified_carrier` and the raw mass-properties door's
+//! `props::run_edges`, beside [`Body::get_curve_geom`], the public
+//! curve-keyed read, and `transform`'s arena remap, which rewrites curve
+//! keys rather than reading an edge's.
 use crate::body::{Body, CYCLES_ARE_CLAIMANTS};
 use crate::entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
@@ -379,8 +387,6 @@ pub(crate) fn claimed(he: HalfEdgeKey, ek: EdgeKey, data: &Edge) -> crate::entit
 /// (the face itself across a seam inside it).
 #[derive(Clone, Copy)]
 pub(crate) struct FaceEdge {
-    // Read by the probes' frames, which orient the edge by it.
-    #[cfg_attr(not(any(test, feature = "test-support")), allow(dead_code))]
     pub(crate) half: HalfEdgeKey,
     pub(crate) edge: EdgeKey,
     pub(crate) ends: [VertexKey; 2],
@@ -392,12 +398,11 @@ pub(crate) struct FaceEdge {
 pub(crate) enum BoundaryMember<'a, T: Real> {
     /// An isolated-vertex loop's `vertex`, at `point`.
     Isolated { vertex: VertexKey, point: Point3<T> },
-    /// A loop cycle member `he`, whose record is `half`, and its edge
-    /// `ek`, resolved as `edge`, a link `he`'s record holds.
+    /// A loop cycle member `he`, whose record is `half`, and its edge,
+    /// resolved as `edge`, a link `he`'s record holds.
     Edge {
         he: HalfEdgeKey,
         half: &'a HalfEdge,
-        ek: EdgeKey,
         edge: EdgeView<'a, T>,
     },
 }
@@ -604,9 +609,10 @@ impl<'a, T: Real> FaceView<'a, T> {
         let body = self.body;
         self.boundary()
             .filter_map(|member| {
-                let BoundaryMember::Edge { he, half, ek, edge } = member else {
+                let BoundaryMember::Edge { he, half, edge } = member else {
                     return None;
                 };
+                let ek = edge.key();
                 let (mate, across) = body.face_across_linked(he, ek, edge.record());
                 Some(FaceEdge {
                     half: he,
@@ -710,9 +716,12 @@ impl<T: Real> Body<T> {
         }
     }
 
-    /// **`edge`, a key a caller passed**: `None` where it does not
-    /// resolve, which is the caller's to refuse in its own terms; a
-    /// foreign key is not caught.
+    /// **`edge`, a key a caller passed, or one whose reader refuses its
+    /// own miss on a body tier 1 has not vouched for** (the census, the
+    /// validator): `None` where it does not resolve, which is the
+    /// caller's to refuse in its own terms; a foreign key is not caught.
+    /// A key a record holds on a body tier 1 vouches for is a link
+    /// ([`Body::linked_edge`]).
     ///
     /// The public door to an edge's curve: read it off the returned
     /// [`EdgeView`], whose curve link panics on a torn body (D2 row 4).
@@ -953,9 +962,8 @@ impl<T: Real> Body<T> {
                 .into_iter()
                 .map(|he| {
                     let half = proven(&self.half_edges, he, EntityId::HalfEdge);
-                    let ek = half.edge;
-                    let edge = self.linked_edge(ek, EntityId::HalfEdge(he), "edge");
-                    BoundaryMember::Edge { he, half, ek, edge }
+                    let edge = self.linked_edge(half.edge, EntityId::HalfEdge(he), "edge");
+                    BoundaryMember::Edge { he, half, edge }
                 })
                 .collect(),
         }
@@ -1639,7 +1647,8 @@ fn wrong_key(&self, he: K, other: K, from: F) -> Result<Live, E> {
                     let hes: Vec<HalfEdgeKey> = members
                         .iter()
                         .map(|m| match *m {
-                            BoundaryMember::Edge { he, half, ek, .. } => {
+                            BoundaryMember::Edge { edge, he, half, .. } => {
+                                let ek = edge.key();
                                 assert_eq!(half.edge, ek, "{he:?}: its own edge");
                                 he
                             }
@@ -2002,6 +2011,122 @@ fn wrong_key(&self, he: K, other: K, from: F) -> Result<Live, E> {
             &mut body,
             &[&linked, super::NAMES_ONLY_LIVE, super::OPERATORS_KEEP_LINKS],
             |b| b.linked_face(face, EntityId::Loop(outer), "face").key(),
+        );
+    }
+
+    /// **Production code reads the curve arena only through
+    /// [`super::EdgeView`], or at one of the readers named here**, each a
+    /// reader that refuses or reports its own miss on a body tier 1 has
+    /// not vouched for, or the doors themselves. Swept over every crate
+    /// that reads an edge's curve, test-only code (a test-only `cfg` on an
+    /// item or on a file module) left out. A raw read anywhere else is a
+    /// sixth hand-written ladder; a listed reader that no longer reads
+    /// raw is a stale entry.
+    #[test]
+    fn production_reads_an_edges_curve_only_through_the_view() {
+        use crate::policy_lane::origin_census::production;
+        /// `(file under crates/, fn)`: the raw curve-arena readers.
+        const RAW: [(&str, &str); 10] = [
+            ("topo/src/body.rs", "get_curve_geom"),
+            ("topo/src/live.rs", "curve"),
+            ("topo/src/transform.rs", "map_isometry"),
+            ("topo/src/validate.rs", "certified_carrier"),
+            ("topo/src/validate.rs", "closed_by_tier"),
+            ("topo/src/validate.rs", "tier3_local_checks_marked"),
+            ("topo/src/census/curved.rs", "read"),
+            ("topo/src/props.rs", "run_edges"),
+            ("topo/src/euler_kill.rs", "kev_merge_moves"),
+            ("mesh/src/walk.rs", "edge_curve"),
+        ];
+        const NEEDLES: [&str; 3] = ["get_curve_geom(", ".curves.get(", ".curves["];
+        let crates = src_root().join("../..");
+        let read = |f: &std::path::Path| std::fs::read_to_string(f).expect("a readable source");
+        let mut seen = std::collections::BTreeSet::new();
+        let mut violations = Vec::new();
+        let mut gated_any = false;
+        for krate in ["topo", "mesh", "step-export", "editor-core", "sweep"] {
+            let files = test_utils::source::rust_sources(&crates.join(krate).join("src"));
+            let mut gated = std::collections::BTreeSet::new();
+            for file in &files {
+                let dir = match file.file_stem().and_then(|s| s.to_str()) {
+                    Some("lib" | "mod") => {
+                        file.parent().expect("a file has a directory").to_owned()
+                    }
+                    Some(stem) => file.with_file_name(stem),
+                    None => continue,
+                };
+                let beside = file.parent().expect("a file has a directory");
+                for name in production(&read(file)).1 {
+                    gated.insert(dir.join(format!("{name}.rs")));
+                    gated.insert(dir.join(&name));
+                }
+                // A test-only `#[path = "..."]` module: its file sits beside
+                // its parent, under whatever name the attribute gives.
+                let text = read(file);
+                let lines: Vec<&str> = text.lines().collect();
+                for (i, l) in lines.iter().enumerate() {
+                    let Some(rest) = l.trim().strip_prefix("#[path = \"") else {
+                        continue;
+                    };
+                    let test_only = lines[i.saturating_sub(3)..i]
+                        .iter()
+                        .any(|a| a.trim() == "#[cfg(test)]");
+                    if let (true, Some(target)) = (test_only, rest.strip_suffix("\"]")) {
+                        gated.insert(beside.join(target));
+                    }
+                }
+            }
+            gated_any |= !gated.is_empty();
+            for file in &files {
+                if gated.iter().any(|g| file.starts_with(g)) {
+                    continue;
+                }
+                let code = production(&read(file)).0;
+                let fns = test_utils::source::fn_items(&code).expect("every fn body closes");
+                let shown = file
+                    .strip_prefix(&crates)
+                    .unwrap_or(file)
+                    .display()
+                    .to_string();
+                for needle in NEEDLES {
+                    for (at, _) in code.match_indices(needle) {
+                        if code[..at].trim_end().ends_with("fn") {
+                            continue;
+                        }
+                        let within = fns
+                            .iter()
+                            .filter(|(_, body)| body.contains(&at))
+                            .min_by_key(|(_, body)| body.len())
+                            .map_or("", |(name, _)| name.as_str());
+                        if RAW.contains(&(shown.as_str(), within)) {
+                            seen.insert((shown.clone(), within.to_owned()));
+                        } else {
+                            violations.push(format!(
+                                "{shown}:{} (`{within}`) reads the curve arena raw (`{needle}`)",
+                                test_utils::source::line(&code, at)
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+        assert!(
+            gated_any,
+            "the walk read no test-only module, so it cannot tell one"
+        );
+        for (file, within) in RAW {
+            if !seen.contains(&(file.to_owned(), within.to_owned())) {
+                violations.push(format!(
+                    "{file} `{within}` is listed and reads no curve raw"
+                ));
+            }
+        }
+        assert!(
+            violations.is_empty(),
+            "an edge's curve is read through `EdgeView` (`Body::edge`, `proven_edge`, \
+             `linked_edge`, `edge_views`); a raw read is listed here only for a reader that \
+             reports its own miss:\n{}",
+            violations.join("\n")
         );
     }
 }

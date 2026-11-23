@@ -1129,9 +1129,7 @@ impl<T: Decide> Sweep<T> {
         let mut placeholders = 0;
         for &he in &hes {
             let he_data = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?;
-            let edge = body
-                .edge(he_data.edge)
-                .ok_or_else(|| corrupt_edge(he_data.edge))?;
+            let edge = body.linked_edge(he_data.edge, EntityId::HalfEdge(he), "edge");
             let CurveGeom::Certified(curve) = edge.curve() else {
                 continue;
             };
@@ -1337,7 +1335,7 @@ impl Tree {
             if tree.edges.iter().any(|&(e, _)| e == edge) {
                 continue;
             }
-            let data = body.edge(edge).ok_or_else(|| corrupt_edge(edge))?;
+            let data = body.linked_edge(edge, EntityId::HalfEdge(he), "edge");
             tree.curved |= !matches!(
                 data.curve(),
                 CurveGeom::Certified(c) if !c.carrier().is_curved()

@@ -5457,14 +5457,9 @@ fn tip_points<T: Real>(
 /// several faces that closes on itself.
 ///
 /// The raw mass-properties door reads it over a body tier 1 has not
-/// vouched for, so a record the run names that does not resolve is
+/// vouched for, so every record the run names, an edge's curve
+/// included, is read raw, and one that does not resolve is
 /// [`LoopEdgesError::Corrupt`].
-///
-/// # Panics
-///
-/// Where a resolved edge's curve does not resolve
-/// ([`crate::live::EdgeView::curve`]).
-#[track_caller]
 pub(crate) fn run_edges<T: Decide>(
     body: &Body<T>,
     cycle: &[crate::entity::HalfEdgeKey],
@@ -5484,10 +5479,13 @@ pub(crate) fn run_edges<T: Decide>(
         let Some(he) = body.half_edges.get(he_key) else {
             return Err(corrupt("half-edge key does not resolve"));
         };
-        let Some(edge) = body.edge(he.edge) else {
+        let Some(edge) = body.edges.get(he.edge) else {
             return Err(corrupt("edge key does not resolve"));
         };
-        let Some(curve) = edge.certified() else {
+        let Some(entry) = body.curves.get(edge.curve) else {
+            return Err(corrupt("curve key does not resolve"));
+        };
+        let Some(curve) = entry.certified() else {
             return Err(LoopEdgesError::NullScaffoldEdge { edge: he.edge });
         };
         let Some(end) = body.half_edge_end(he_key) else {
@@ -5507,7 +5505,7 @@ pub(crate) fn run_edges<T: Decide>(
                 .map(|root| CarrierId::minted(root.data().as_ffi())),
             t0,
             t1,
-            forward: he_key == edge.record().he_plus,
+            forward: he_key == edge.he_plus,
             start: tag_of(he.start),
             end: tag_of(end),
         });
@@ -9633,7 +9631,8 @@ mod review_7437_probe {
     use geom_core::Tol;
 
     /// A body with one edge's curve removed, read through the raw
-    /// mass-properties door: Corrupt (typed) or a panic?
+    /// mass-properties door, refuses `Corrupt`, typed: the door reads a
+    /// body tier 1 has not vouched for (`run_edges`).
     #[test]
     fn raw_door_on_a_removed_curve() {
         let tol = Tol::witness();
@@ -9653,9 +9652,13 @@ mod review_7437_probe {
             .map(|_| ())
             .map_err(|e| format!("{e:?}"))
         }));
-        match got {
-            Ok(r) => println!("PROBE typed: {r:?}"),
-            Err(_) => panic!("PROBE panicked on a removed curve"),
-        }
+        let Ok(refusal) = got else {
+            panic!("the raw door panicked on a removed curve")
+        };
+        let refusal = refusal.expect_err("a body naming a removed curve measures nothing");
+        assert!(
+            refusal.contains("Corrupt") && refusal.contains("curve key does not resolve"),
+            "the raw door refuses a removed curve Corrupt: {refusal}"
+        );
     }
 }

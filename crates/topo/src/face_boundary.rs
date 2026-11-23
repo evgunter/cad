@@ -111,7 +111,8 @@ pub(crate) fn face_boundary<T: Decide>(
     for member in face_data.boundary() {
         match member {
             BoundaryMember::Isolated { vertex, point } => boundary.lone.push((vertex, point)),
-            BoundaryMember::Edge { he, half, ek, edge } => {
+            BoundaryMember::Edge { he, half, edge } => {
+                let ek = edge.key();
                 let start = y.linked_vertex_point(half.start, EntityId::HalfEdge(he), "start");
                 let CurveGeom::Certified(curve) = edge.curve() else {
                     return Ok(None);

@@ -461,8 +461,11 @@ fn edge_record<T: Decide>(
     body: &Body<T>,
     he: HalfEdgeKey,
 ) -> Result<(CarrierSpan<'_, T>, &crate::entity::Edge), OverlapRefusal> {
-    let torn = OverlapRefusal::Unread(OverlapUnread::TornBoundary);
-    let edge = body.edge(half_edge(body, he)?.edge).ok_or(torn.clone())?;
+    let edge = body.linked_edge(
+        half_edge(body, he)?.edge,
+        crate::entity::EntityId::HalfEdge(he),
+        "edge",
+    );
     let curve = edge
         .curve()
         .certified()

@@ -3423,8 +3423,8 @@ pub(crate) fn clearance<T: Decide>(
 ) -> Result<T, TouchUnread> {
     let half = body.half_edges.get(he).ok_or(TouchUnread::Corrupt)?;
     let curve = body
-        .edge(half.edge)
-        .and_then(crate::live::EdgeView::certified)
+        .linked_edge(half.edge, crate::entity::EntityId::HalfEdge(he), "edge")
+        .certified()
         .ok_or(TouchUnread::Curved(CurvedUnread::Unreadable))?;
     if !curve.carrier().is_curved() {
         let end = body.half_edge_end(he).ok_or(TouchUnread::Corrupt)?;

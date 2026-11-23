@@ -529,12 +529,10 @@ pub(crate) fn boundary<T: Decide>(
             if role.is_outer() && matches!(member, BoundaryMember::Isolated { .. }) {
                 return Err(corrupt());
             }
-            let BoundaryMember::Edge {
-                ek: edge_key, edge, ..
-            } = member
-            else {
+            let BoundaryMember::Edge { edge, .. } = member else {
                 continue;
             };
+            let edge_key = edge.key();
             let Some(curve) = edge.certified() else {
                 if crate::null::is_placeholder(body, edge_key) {
                     null.push(edge_key);
@@ -555,7 +553,7 @@ pub(crate) fn boundary<T: Decide>(
             if null.contains(&h.edge) {
                 continue;
             }
-            let edge = body.edge(h.edge).ok_or_else(corrupt)?;
+            let edge = body.linked_edge(h.edge, crate::entity::EntityId::HalfEdge(he), "edge");
             let Some(curve) = edge.certified() else {
                 unreachable!("every edge of the face's loops was read certified above")
             };

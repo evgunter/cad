@@ -923,6 +923,9 @@ pub(crate) fn census_and_certify<T: Decide + crate::props::AtRestPolicy + Bounds
 /// dangling key), the touch analysis reports
 /// [`Undecided::CorruptInstance`] — a kernel defect — about a body the
 /// caller never validated. The sentence is only as true as the caller.
+/// The census reads an edge through [`crate::Body::edge`], so a stale
+/// edge stays its own miss; the curve past a resolved edge is a link
+/// ([`crate::live::EdgeView::curve`]), and a dangling one panics.
 #[cfg(feature = "sweep-testing")]
 pub fn census_traces<T: Decide + crate::props::AtRestPolicy + Bounds>(
     body: &Body<T>,
@@ -23393,6 +23396,7 @@ mod line_pass_rows {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod edge_view_review_probes {
     use crate::geometry::CurveKey;
     use crate::test_support_fixtures::declined_cube;
@@ -23407,8 +23411,15 @@ mod edge_view_review_probes {
         assert!(super::edge_line_span(&body, edge).is_some());
         body.get_edge_mut(edge).unwrap().curve = CurveKey::default();
         for (what, f) in [
-            ("on_circle", &(|| { let _ = super::on_circle(&body, edge); }) as &dyn Fn()),
-            ("edge_line_span", &|| { let _ = super::edge_line_span(&body, edge); }),
+            (
+                "on_circle",
+                &(|| {
+                    let _ = super::on_circle(&body, edge);
+                }) as &dyn Fn(),
+            ),
+            ("edge_line_span", &|| {
+                let _ = super::edge_line_span(&body, edge);
+            }),
         ] {
             let msg = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(f));
             assert!(msg.contains("curve names"), "{what}: {msg}");

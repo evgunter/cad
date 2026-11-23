@@ -3998,9 +3998,10 @@ fn duplicate_in_loop<T: Real>(
     for (r#loop, members, _) in view.boundary_by_loop() {
         let mut cycle = Vec::new();
         for member in members {
-            let BoundaryMember::Edge { he, ek, .. } = member else {
+            let BoundaryMember::Edge { edge, he, .. } = member else {
                 continue;
             };
+            let ek = edge.key();
             if !skip.contains(&ek) {
                 cycle.push((he, ek));
             }

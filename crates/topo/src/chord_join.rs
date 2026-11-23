@@ -4020,7 +4020,7 @@ fn run_loop_arcs<T: Decide>(
     let mut arcs = Vec::with_capacity(run.len());
     for &he in run {
         let edge = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.edge;
-        let data = body.edge(edge).ok_or_else(|| corrupt_edge(edge))?;
+        let data = body.linked_edge(edge, EntityId::HalfEdge(he), "edge");
         let Some(curve) = data.certified() else {
             continue;
         };
@@ -4089,7 +4089,7 @@ fn edge_midpoints<T: Decide>(
 ) -> Result<Vec<Point3<T>>, JoinError> {
     let mut points = Vec::with_capacity(edges.len());
     for &edge in edges {
-        let data = body.edge(edge).ok_or_else(|| corrupt_edge(edge))?;
+        let data = body.proven_edge(edge);
         if let Some(curve) = data.certified() {
             let (t0, t1) = curve.params();
             points.push(curve.carrier().mid_point(t0, t1));
@@ -4332,7 +4332,7 @@ impl<T: Decide> IslandReading<T> {
             ));
         };
         let h = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?;
-        let edge = body.edge(h.edge).ok_or_else(|| corrupt_edge(h.edge))?;
+        let edge = body.linked_edge(h.edge, EntityId::HalfEdge(he), "edge");
         let curve = edge
             .certified()
             .ok_or(invariant("a closed loop's edge carries no certified curve"))?;

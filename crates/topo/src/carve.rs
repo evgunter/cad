@@ -165,7 +165,8 @@ pub(crate) fn carve<T: Decide>(
                 loops.push(l);
                 for member in members {
                     vertices.insert(member.vertex(), ());
-                    if let BoundaryMember::Edge { he, ek, edge, .. } = member {
+                    if let BoundaryMember::Edge { he, edge, .. } = member {
+                        let ek = edge.key();
                         hes.push(he);
                         // Each edge is claimed by its he_plus only (one
                         // removal per edge).

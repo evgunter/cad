@@ -5872,8 +5872,10 @@ fn valences<T: Real>(body: &Body<T>) -> SecondaryMap<VertexKey, usize> {
 
 /// **Whether `edge` is a wrap edge**: its stored certified carrier is
 /// described as its face's wrap edge (`EdgeDescription::is_wrap`), so
-/// the reading is structural and takes no ε. `false` for an edge key or
-/// curve the body does not hold, or a carrier not yet certified.
+/// the reading is structural and takes no ε. `false` for an edge key the
+/// body does not hold, or null scaffolding; the curve is a link of the
+/// edge's record ([`crate::live::EdgeView::curve`]), and a dangling one
+/// panics.
 ///
 /// This is the one home of the wrap flag both tip readings take:
 /// [`wrap_tips`] (a valence-1 end of a wrap edge) and [`wrap_tip_at`]
@@ -5886,10 +5888,8 @@ fn valences<T: Real>(body: &Body<T>) -> SecondaryMap<VertexKey, usize> {
 /// every tip, which the sweep suite's
 /// `the_two_tip_readings_agree_on_every_wrap_bearing_body` checks.
 pub(crate) fn wraps<T: Real>(body: &Body<T>, edge: EdgeKey) -> bool {
-    body.edges
-        .get(edge)
-        .and_then(|edge| body.curves.get(edge.curve))
-        .and_then(CurveGeom::certified)
+    body.edge(edge)
+        .and_then(crate::live::EdgeView::certified)
         .is_some_and(|curve| curve.description().is_wrap())
 }
 

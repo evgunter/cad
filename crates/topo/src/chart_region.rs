@@ -2741,7 +2741,7 @@ fn loop_uv_polygon<T: Decide + Bounds>(
     };
     for (he, image) in cycle.into_iter().zip(lifted) {
         let he_data = body.get_half_edge(he).ok_or(ChartRegionError::Corrupt)?;
-        let edge = body.edge(he_data.edge).ok_or(ChartRegionError::Corrupt)?;
+        let edge = body.linked_edge(he_data.edge, crate::entity::EntityId::HalfEdge(he), "edge");
         let forward = crate::pcurves::is_plus(body, he);
         let refuse = |what| ChartRegionError::NonPlanarTrim {
             face,

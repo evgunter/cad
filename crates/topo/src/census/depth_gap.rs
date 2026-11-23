@@ -128,7 +128,7 @@ pub(super) fn face_read<T: Decide>(body: &Body<T>, f: FaceKey, band: Band) -> Op
                 segments.push((point, point));
                 continue;
             }
-            BoundaryMember::Edge { ek, edge, .. } => (ek, edge),
+            BoundaryMember::Edge { edge, .. } => (edge.key(), edge),
         };
         let Some(carrier) = edge.certified().map(geom_brep::EdgeCurve::carrier) else {
             continue;

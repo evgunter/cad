@@ -541,11 +541,12 @@ pub(crate) fn boundary_cover<T: Decide>(body: &Body<T>, f: FaceView<'_, T>) -> B
             }
             // A placeholder is a zero-length copy of its one point
             // (`crate::null::is_placeholder`), which its neighbours hold.
-            BoundaryMember::Edge { ek, .. } if crate::null::is_placeholder(body, ek) => {
+            BoundaryMember::Edge { edge, .. } if crate::null::is_placeholder(body, edge.key()) => {
                 Cover::points(vec![body.member_point(&member)])
-                    .ok_or_else(|| vec![BoundaryUnknown::Edge(ek, EdgeUncovered::Ends)])
+                    .ok_or_else(|| vec![BoundaryUnknown::Edge(edge.key(), EdgeUncovered::Ends)])
             }
-            BoundaryMember::Edge { ek, edge, .. } => {
+            BoundaryMember::Edge { edge, .. } => {
+                let ek = edge.key();
                 edge_cover_linked(body, edge).map_err(|why| vec![BoundaryUnknown::Edge(ek, why)])
             }
         };

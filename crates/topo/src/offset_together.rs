@@ -892,7 +892,8 @@ impl Scope {
                     let f = body.linked_face(face, holder, "faces");
                     for member in f.boundary() {
                         self.vertices.insert(member.vertex(), solid);
-                        if let BoundaryMember::Edge { ek, .. } = member {
+                        if let BoundaryMember::Edge { edge, .. } = member {
+                            let ek = edge.key();
                             self.edges.insert(ek, solid);
                         }
                     }

@@ -2249,9 +2249,10 @@ fn face_boundary_meets<T: Decide + Bounds>(
 ) -> bool {
     let view = body.proven_face(face);
     for member in view.boundary() {
-        let BoundaryMember::Edge { ek, .. } = member else {
+        let BoundaryMember::Edge { edge, .. } = member else {
             continue;
         };
+        let ek = edge.key();
         if boxes::edge_box(body, ek, pad).overlaps(region)
             && !crate::separating::apart(
                 (body, crate::separating::Item::Edge(ek)),
@@ -3175,10 +3176,10 @@ pub(crate) fn boundary_edges<T: Real>(
             continue;
         };
         for member in face.boundary() {
-            if let BoundaryMember::Edge { ek, .. } = member
-                && seen.insert(ek)
+            if let BoundaryMember::Edge { edge, .. } = member
+                && seen.insert(edge.key())
             {
-                edges.push((f, ek));
+                edges.push((f, edge.key()));
             }
         }
     }
@@ -7407,14 +7408,12 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         for (_, members, _) in view.boundary_by_loop() {
             for member in members {
                 let BoundaryMember::Edge {
-                    half: hd,
-                    ek: edge,
-                    edge: ed,
-                    ..
+                    half: hd, edge: ed, ..
                 } = member
                 else {
                     return Err(refuse("the sphere face carries a lone-vertex loop"));
                 };
+                let edge = ed.key();
                 let Some(curve) = ed.certified() else {
                     return Err(corrupt("cut-in: a boundary edge has no carrier"));
                 };

@@ -3831,7 +3831,8 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                 let p = point(&body.member_point(member));
                 out.vertices.insert(member.vertex(), p);
                 pts.push(p);
-                if let BoundaryMember::Edge { he, ek, .. } = *member {
+                if let BoundaryMember::Edge { edge, he, .. } = *member {
+                    let ek = edge.key();
                     halves.entry(ek).or_default().push(he);
                     cycle = true;
                 }
