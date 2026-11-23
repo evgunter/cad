@@ -108,3 +108,41 @@ on): the cover reads the frame, never a point.
 `depth_gap::face_nearest` (which `least_on` uses for a line or point
 depth) and `apart_in_depth` end to end: each needs a `Body` with a
 far-centre rim, which the probe did not build.
+
+## The kernel's own far cone sections, anchored and not (2026-11-21)
+
+`Curve3::cover_over` states an ellipse's arc cover from `frame()`, which
+on an anchored section is the derived centre frame
+(`crates/geom/src/cover/readings.rs`). Measured on
+`oneround/anchored-conic` at `8d5978300`: `plane_cone_section`'s ellipse
+at semi-axes from 22 m to 2.2e7 m, a short arc about its near vertex
+(half-window `3/a`), 65 points of the arc against the cover's ball. The
+worst of `|P − mid| − radius` at `f64`, positive where a point of the arc
+lies outside its own cover:
+
+| semi-axis | ball radius | anchored (step A) | centre-stored, `main`'s mint | centre-stored at `vertex − u·a` |
+|---|---|---|---|---|
+| 2.2e1 (window 1e-3) | 2.2e-3 | +6.2e-16 | 0 | 0 |
+| 2.2e2 | 9.5e-2 | +1.2e-15 | +9.5e-15 | +9.5e-15 |
+| 2.2e3 | 3.0e-2 | +3.1e-14 | +2.5e-14 | +2.5e-14 |
+| 2.2e4 | 9.4e-3 | −2.1e-13 | +8.2e-13 | +8.2e-13 |
+| 2.2e5 | 3.0e-3 | +5.9e-12 | +3.2e-12 | +3.2e-12 |
+| 2.2e6 | 9.4e-4 | +9.3e-12 | +1.1e-10 | +1.1e-10 |
+| 2.2e7 | 3.0e-4 | −1.5e-10 | 0 | 0 |
+
+So the cover of a far section's short arc does not hold the arc's own
+points on `main` already, by up to 1.1e-10 m at 2.2e6 m, and storing the
+section anchored neither removes nor adds to it: the miss stays at a
+rounding of the semi-axis, smaller at three sizes and larger at two.
+Over a wide window (0.3 rad) the ball holds every point with 0.1 to
+0.2 m to spare in all three.
+
+At `Interval` (every input a point enclosure), the same arc: the ball's
+radius is itself 1e-9 wide at 2.2e2 m, 5e-6 at 2.2e4, 6e-2 at 2.2e6 and
+5.9 m at 2.2e7 in both forms, and the upper end of a point's distance
+passes the radius's upper end by 3.0e-10, 2.7e-6, 5.8e-2 and 5.8 m
+anchored, against 6.1e-10, 5.3e-6, 1.2e-1 and 12 m centre-stored.
+
+The anchored section changes nothing this row asks for: the cover reads
+a centre. Re-posing the `Arc` piece about the stored anchor, as above,
+is this row's.
