@@ -341,23 +341,28 @@ fn a_sector_parallel_at_a_short_arm_is_coplanar_only_if_its_bounds_read_on() {
     );
 }
 
-/// What the embedding question reads on the `∩` of
-/// [`a_sector_parallel_at_a_short_arm_is_coplanar_only_if_its_bounds_read_on`]:
-/// a sliver 10 m long and 1 mm wide whose top (a piece of the block's
-/// `z = 0`) and bottom (the wedge's tilted face) share its 1 mm tip
-/// edge and part at 5e-8 rad, so they are within ε of each other for
-/// about 20 mm from it and 500ε apart at the far end.
+/// The embedding ask on the `∩` of
+/// [`a_sector_parallel_at_a_short_arm_is_coplanar_only_if_its_bounds_read_on`]
+/// runs out of its pairs: a sliver 10 m long and 1 mm wide whose top
+/// (a piece of the block's `z = 0`) and bottom (the wedge's tilted
+/// face) share its 1 mm tip edge and part at 5e-8 rad, so they are
+/// within ε of each other for about 20 mm from it and 500ε apart at
+/// the far end.
 ///
-/// **Pinned at its refusal**: the ask runs out of its pairs, on faces
-/// 1 mm wide that no presentation reads at this depth (EMBED's
-/// `a-plane-cell-holding-both-sides-of-a-thin-face-is-read-only-below-its-width`).
-/// No departure is read across the tip edge, so the margin is not what
-/// refuses. Once those faces are presented the departure there is the
-/// faces' 5e-8 rad levered at their reach from the edge, about 10 m:
-/// 500ε, outside the band, where a cell 20 mm across read at its own
-/// reach would be inside it. Red the day the ask answers.
+/// **Pinned at its refusal and at its receipt**: `Budget(Pairs)`, with
+/// the 295 cell pairs it does certify and no crossing found. Traced by
+/// PR 7329's review, and not visible to this row: the cells that split
+/// to the budget are on the two faces 1 mm wide, which no presentation
+/// reads at this depth (EMBED's
+/// `a-plane-cell-holding-both-sides-of-a-thin-face-is-read-only-below-its-width`),
+/// and every departure the ask does read is decided (295 reads, at
+/// arms of 5.03 and 10.05 m). So the margin is not what refuses. Once
+/// those faces are presented, the departure across the tip edge is the
+/// faces' 5e-8 rad at their lever, which is
+/// `the-embedding-question-reads-tier-3s-class-and-the-pairs-extent-from-the-verdict`'s
+/// to say. Red the day the ask answers, or certifies a different count.
 #[test]
-fn the_sector_slivers_meet_is_read_at_its_faces_reach() {
+fn the_sector_slivers_meet_runs_out_of_pairs_with_its_millimetre_faces_unread() {
     let tol = Tol::witness();
     let dip = DIP * tol.eps();
     let block = common::finished(
@@ -385,9 +390,16 @@ fn the_sector_slivers_meet_is_read_at_its_faces_reach() {
     assert!(
         matches!(
             report.verdict,
-            topo::clearance::Embedding::Refused(topo::clearance::EngineRefusal::Budget(_))
+            topo::clearance::Embedding::Refused(topo::clearance::EngineRefusal::Budget(
+                topo::clearance::CellBudget::Pairs { .. }
+            ))
         ),
-        "the sector's sliver runs out of its budget: {report:?}"
+        "the sector's sliver runs out of its pairs: {report:?}"
+    );
+    assert_eq!(
+        (report.receipt.certified, report.receipt.violated),
+        (295, 0),
+        "the pairs it certifies, and none crossing: {report:?}"
     );
 }
 

@@ -111,6 +111,11 @@ pub(crate) const SELF_INTERSECTION_ON_SHARED: &str = "self_intersection_on_share
 /// angle at which the face leaves the separator across it, levered at
 /// the reach of the faces the pair shares that cell between
 /// ([`arm_of`]); where none is, the separator's value, a distance.
+/// The two are not split into two sites here: the sine reading decides
+/// an edge's class over a cell, which
+/// `work/embed/the-embedding-question-reads-tier-3s-class-and-the-pairs-extent-from-the-verdict.md`
+/// removes (the class is read from tier 3's verdict), and that unit is
+/// where the site's two quantities part.
 pub(crate) const SELF_INTERSECTION_DEPARTURE: &str = "self_intersection_departure";
 /// The funnel site of the graph arm's monotone edge: the edge's advance
 /// along the projection's first axis over its piece, metres.
@@ -5898,10 +5903,12 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
 /// **The arm a cell pair's departure is levered at**: the reach of the
 /// faces the reading governs, never the cell's own extent.
 ///
-/// - Where the pair is near shared edges, each one's reach as tier 3's
-///   wedge check reads it ([`crate::wedge_reach::reach_over`], the
-///   recipe [`crate::edge_wedge_reach`] is built by), over the lifted
-///   carrier and the two faces' lifted vertices: the least of them.
+/// - Where the pair is near shared edges, each one's reach
+///   ([`crate::wedge_reach::reach_over`], the recipe
+///   [`crate::edge_wedge_reach`] is built by), over the lifted carrier
+///   and the two faces' lifted vertices: the least of them. Tier 3's
+///   wedge check is handed the same reach and folds the faces'
+///   curvature arms into it; this reading does not.
 /// - Where it is near shared vertices alone, the two faces' reach from
 ///   each ([`crate::wedge_reach::reach_from_vertex`]): the least.
 ///
@@ -5923,9 +5930,11 @@ fn departure(x: &Piece<'_>, y: &Piece<'_>, near: &Near, band: Band, two: bool) -
 /// [`crate::wedge_reach::reach_from_vertex`]. A reader that re-presents
 /// a pair against less than it is near owes that choice here.
 ///
-/// Read per cell pair, a pass over both faces' vertices each time, and
-/// not kept per face pair and edge: the tour's walk takes no longer with
-/// it (107.8 s without, 102.5 s with, summed over 85 stops).
+/// Read per cell pair, a pass over both faces' vertices each time.
+/// The key a memo needs is here (`x.face`, `y.face` and the near
+/// edges' keys); what is not is a cache threaded through the walk, and
+/// none is added: the unit named above reads the extent once, from the
+/// verdict, and this pass goes with it.
 fn arm_of(x: &Piece<'_>, y: &Piece<'_>, near: &Near) -> Option<Lever<Interval>> {
     // One face against itself reads its boundary once.
     let other = (x.face != y.face).then_some(y.boundary);
@@ -6541,10 +6550,11 @@ mod presentation_rows {
         Interval::from_bounds(x, x)
     }
 
-    /// A one-metre arm for rows that state a presentation by hand and so
-    /// have no faces to read a reach from.
-    fn metre_arm() -> Option<Lever<Interval>> {
-        Some(geom_core::test_support::fixture_lever(at(1.0)))
+    /// A stated arm of `length` metres, for rows that state a
+    /// presentation by hand and so have no faces to read a reach from.
+    /// The one spelling of a fixture arm in this file's rows.
+    pub(super) fn arm(length: f64) -> Option<Lever<Interval>> {
+        Some(geom_core::test_support::fixture_lever(at(length)))
     }
 
     fn p2((u, v): (f64, f64)) -> Point2<Interval> {
@@ -8528,7 +8538,7 @@ mod presentation_rows {
             whole: false,
         };
         assert_eq!(
-            sign_on(&graph, Some(&on), &p, Some(&exact), metre_arm(), band()),
+            sign_on(&graph, Some(&on), &p, Some(&exact), arm(1.0), band()),
             Some(Sign::Negative),
             "admitted"
         );
@@ -8538,12 +8548,12 @@ mod presentation_rows {
             r: iv0(1.0),
         });
         assert_eq!(
-            sign_on(&cylinder, None, &p, None, metre_arm(), band()),
+            sign_on(&cylinder, None, &p, None, arm(1.0), band()),
             None,
             "the carrier arm"
         );
         assert_eq!(
-            sign_on(&graph, Some(&on), &p, None, metre_arm(), band()),
+            sign_on(&graph, Some(&on), &p, None, arm(1.0), band()),
             None,
             "against no partner"
         );
@@ -8552,7 +8562,7 @@ mod presentation_rows {
             panic!("the outside is presented about (1, 0)");
         };
         assert_eq!(
-            sign_on(&graph, Some(&on), &p, Some(&q), metre_arm(), band()),
+            sign_on(&graph, Some(&on), &p, Some(&q), arm(1.0), band()),
             None,
             "against another curve run on past it"
         );
@@ -8765,8 +8775,8 @@ mod presentation_rows {
         let parted = |q: &Presented<'_>| {
             graph_of(&x, &x, &near, &p, q, band()).is_some_and(|(psi, on)| {
                 match (
-                    sign_on(&psi, Some(&on), &p, Some(q), metre_arm(), band()),
-                    sign_on(&psi, Some(&on), q, Some(&p), metre_arm(), band()),
+                    sign_on(&psi, Some(&on), &p, Some(q), arm(1.0), band()),
+                    sign_on(&psi, Some(&on), q, Some(&p), arm(1.0), band()),
                 ) {
                     (Some(a), Some(b)) => a == flip(b),
                     _ => false,
@@ -8827,8 +8837,8 @@ mod presentation_rows {
         let parted = |q: &Presented<'_>| {
             graph_of(&x, &x, &near, &p, q, band()).is_some_and(|(psi, on)| {
                 match (
-                    sign_on(&psi, Some(&on), &p, Some(q), metre_arm(), band()),
-                    sign_on(&psi, Some(&on), q, Some(&p), metre_arm(), band()),
+                    sign_on(&psi, Some(&on), &p, Some(q), arm(1.0), band()),
+                    sign_on(&psi, Some(&on), q, Some(&p), arm(1.0), band()),
                 ) {
                     (Some(a), Some(b)) => a == flip(b),
                     _ => false,
@@ -10443,11 +10453,11 @@ mod presentation_rows {
             })
         };
         assert!(
-            sign_on(&carrier(0.7), None, &q, None, metre_arm(), band()).is_some(),
+            sign_on(&carrier(0.7), None, &q, None, arm(1.0), band()).is_some(),
             "the rim's own cylinder separates"
         );
         assert_eq!(
-            sign_on(&carrier(0.69), None, &q, None, metre_arm(), band()),
+            sign_on(&carrier(0.69), None, &q, None, arm(1.0), band()),
             None,
             "a cylinder the rim is 0.01 off does not, though it is monotone across"
         );
@@ -10516,7 +10526,7 @@ mod presentation_rows {
                 Some(&on(vec![rim], true)),
                 &q,
                 None,
-                metre_arm(),
+                arm(1.0),
                 band()
             )
             .is_some(),
@@ -10528,7 +10538,7 @@ mod presentation_rows {
                 Some(&on(vec![edge(9)], true)),
                 &q,
                 None,
-                metre_arm(),
+                arm(1.0),
                 band()
             ),
             None,
@@ -10540,7 +10550,7 @@ mod presentation_rows {
                 Some(&on(vec![rim], false)),
                 &q,
                 None,
-                metre_arm(),
+                arm(1.0),
                 band()
             ),
             None,
@@ -10559,7 +10569,7 @@ mod presentation_rows {
                 Some(&one),
                 &q,
                 None,
-                metre_arm(),
+                arm(1.0),
                 band()
             )
             .is_some(),
@@ -10571,7 +10581,7 @@ mod presentation_rows {
                 Some(&one),
                 &q,
                 None,
-                metre_arm(),
+                arm(1.0),
                 band()
             ),
             None,
@@ -10624,12 +10634,12 @@ mod presentation_rows {
             piece: (0.0, 1.0),
         };
         assert_eq!(
-            sign_on(&plane, Some(&on), &p, Some(&exact), metre_arm(), band()),
+            sign_on(&plane, Some(&on), &p, Some(&exact), arm(1.0), band()),
             Some(Sign::Positive),
             "admitted"
         );
         assert_eq!(
-            sign_on(&plane, None, &p, None, metre_arm(), band()),
+            sign_on(&plane, None, &p, None, arm(1.0), band()),
             None,
             "the carrier arm"
         );
@@ -10639,14 +10649,14 @@ mod presentation_rows {
                 Some(&through(vec![edge(1)], false)),
                 &p,
                 Some(&exact),
-                metre_arm(),
+                arm(1.0),
                 band()
             ),
             None,
             "the graph separator"
         );
         assert_eq!(
-            sign_on(&plane, Some(&on), &p, Some(&other), metre_arm(), band()),
+            sign_on(&plane, Some(&on), &p, Some(&other), arm(1.0), band()),
             None,
             "against a past side"
         );
@@ -10656,7 +10666,7 @@ mod presentation_rows {
                 Some(&through(vec![edge(2)], true)),
                 &p,
                 Some(&exact),
-                metre_arm(),
+                arm(1.0),
                 band()
             ),
             None,
@@ -10670,7 +10680,7 @@ mod presentation_rows {
             },
         ));
         assert_eq!(
-            sign_on(&plane, Some(&on), &short, Some(&exact), metre_arm(), band()),
+            sign_on(&plane, Some(&on), &short, Some(&exact), arm(1.0), band()),
             None,
             "a side whose chart line is not its edge's own"
         );
@@ -10680,7 +10690,7 @@ mod presentation_rows {
             ..past(Zero::Past(Side::YLo, line))
         };
         assert_eq!(
-            sign_on(&plane, Some(&on), &free, Some(&exact), metre_arm(), band()),
+            sign_on(&plane, Some(&on), &free, Some(&exact), arm(1.0), band()),
             None,
             "a free-form carrier"
         );
@@ -10791,8 +10801,8 @@ mod presentation_rows {
             }
         }
         let (a, b) = (
-            sign_on(psi, Some(on), &px, Some(&py), metre_arm(), band()),
-            sign_on(psi, Some(on), &py, Some(&px), metre_arm(), band()),
+            sign_on(psi, Some(on), &px, Some(&py), arm(1.0), band()),
+            sign_on(psi, Some(on), &py, Some(&px), arm(1.0), band()),
         );
         assert!(
             matches!((a, b), (Some(a), Some(b)) if a == flip(b)),
@@ -10881,11 +10891,11 @@ mod presentation_rows {
             cache: Cache::default(),
         };
         assert!(
-            sign_on(psi, Some(on), &at(vertex(1)), None, metre_arm(), band()).is_some(),
+            sign_on(psi, Some(on), &at(vertex(1)), None, arm(1.0), band()).is_some(),
             "at the edge's end, the plane's sign"
         );
         assert_eq!(
-            sign_on(psi, Some(on), &at(vertex(9)), None, metre_arm(), band()),
+            sign_on(psi, Some(on), &at(vertex(9)), None, arm(1.0), band()),
             None,
             "at the vertex off the line, nothing"
         );
@@ -10975,7 +10985,7 @@ mod presentation_rows {
             "the centred form does not read the side zero on this cell: {first_order:?}"
         );
         assert_eq!(
-            sign_on(&flat, None, &p, None, metre_arm(), band()),
+            sign_on(&flat, None, &p, None, arm(1.0), band()),
             Some(Sign::Positive),
             "the side zero, the wall departs z = 0 upward across it"
         );
@@ -11630,7 +11640,7 @@ mod presentation_rows {
             "the centred form does not read the side zero: {first_order:?}"
         );
         assert_eq!(
-            sign_on(&meridian, None, &p, None, metre_arm(), band()),
+            sign_on(&meridian, None, &p, None, arm(1.0), band()),
             Some(Sign::Negative),
             "the face at u < 0.7 lies on the plane's negative side"
         );
@@ -11761,7 +11771,7 @@ mod presentation_rows {
             whole: true,
         };
         assert_eq!(
-            sign_on(&plane, Some(&on), &p, None, metre_arm(), band()),
+            sign_on(&plane, Some(&on), &p, None, arm(1.0), band()),
             Some(Sign::Positive),
             "the side of the parallel's plane the face leaves the line to"
         );
@@ -12302,7 +12312,7 @@ mod presentation_rows {
         }
         let sign = |q: &Presented<'_>, piece| {
             let (psi, on) = rim_graph(piece);
-            sign_on(&psi, Some(&on), q, None, metre_arm(), band())
+            sign_on(&psi, Some(&on), q, None, arm(1.0), band())
         };
         let corner = presented(&s, &b, &at_corner, (0.97, 1.03), (0.45, 0.5));
         assert!(
@@ -12326,7 +12336,7 @@ mod presentation_rows {
                 Some(&holds_rim),
                 &corner,
                 None,
-                metre_arm(),
+                arm(1.0),
                 band()
             )
             .is_some(),
@@ -12350,7 +12360,7 @@ mod presentation_rows {
                 Some(&holds_rim),
                 &off_line,
                 None,
-                metre_arm(),
+                arm(1.0),
                 band()
             ),
             None,
@@ -12523,7 +12533,7 @@ mod presentation_rows {
             "the piece holds the side past the vertex: {held:?}"
         );
         assert!(
-            sign_on(&psi, Some(&on), &qx, Some(&qy), metre_arm(), band()).is_some(),
+            sign_on(&psi, Some(&on), &qx, Some(&qy), arm(1.0), band()).is_some(),
             "the side reads its sign"
         );
     }
@@ -12581,7 +12591,7 @@ mod presentation_rows {
             let (psi, on) = rim_graph((-TURN, TURN));
             (
                 a.on_edges,
-                sign_on(&psi, Some(&on), &q, None, metre_arm(), band()),
+                sign_on(&psi, Some(&on), &q, None, arm(1.0), band()),
             )
         };
         assert_eq!(
@@ -12682,38 +12692,17 @@ mod presentation_rows {
             whole: false,
         };
         assert_eq!(
-            sign_on(
-                &graph((0.25, 0.45)),
-                Some(&on),
-                &q,
-                None,
-                metre_arm(),
-                band()
-            ),
+            sign_on(&graph((0.25, 0.45)), Some(&on), &q, None, arm(1.0), band()),
             Some(Sign::Positive),
             "within the piece"
         );
         assert_eq!(
-            sign_on(
-                &graph((0.35, 0.45)),
-                Some(&on),
-                &q,
-                None,
-                metre_arm(),
-                band()
-            ),
+            sign_on(&graph((0.35, 0.45)), Some(&on), &q, None, arm(1.0), band()),
             None,
             "short of the side"
         );
         assert_eq!(
-            sign_on(
-                &graph((0.55, 0.75)),
-                Some(&on),
-                &q,
-                None,
-                metre_arm(),
-                band()
-            ),
+            sign_on(&graph((0.55, 0.75)), Some(&on), &q, None, arm(1.0), band()),
             None,
             "the segment's other end"
         );
@@ -12755,11 +12744,11 @@ mod presentation_rows {
             q.zero
         );
         assert!(
-            sign_on(&graph((0.6, 1.0)), Some(&on), &q, None, metre_arm(), band()).is_some(),
+            sign_on(&graph((0.6, 1.0)), Some(&on), &q, None, arm(1.0), band()).is_some(),
             "the shared edge's end at the vertex, its parameter 1"
         );
         assert_eq!(
-            sign_on(&graph((0.0, 0.4)), Some(&on), &q, None, metre_arm(), band()),
+            sign_on(&graph((0.0, 0.4)), Some(&on), &q, None, arm(1.0), band()),
             None,
             "the shared edge's far end"
         );
@@ -12770,35 +12759,31 @@ mod presentation_rows {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod margin_rows {
     //! The departure's margin: a sine levered at the faces' reach.
+    use super::presentation_rows::arm;
     use super::*;
-    use geom_core::test_support::fixture_lever;
 
-    fn iv0(x: f64) -> Interval {
+    pub(super) fn iv0(x: f64) -> Interval {
         Interval::from_bounds(x, x)
     }
 
-    fn band() -> Band {
+    pub(super) fn band() -> Band {
         Band::linear(geom_core::Tol::witness()).unwrap()
     }
 
-    fn key<K: From<slotmap::KeyData>>(n: u64) -> K {
+    pub(super) fn key<K: From<slotmap::KeyData>>(n: u64) -> K {
         slotmap::KeyData::from_ffi((1u64 << 32) | n).into()
     }
 
-    fn v3(x: f64, y: f64, z: f64) -> Vec3<Interval> {
+    pub(super) fn v3(x: f64, y: f64, z: f64) -> Vec3<Interval> {
         Vec3::new(iv0(x), iv0(y), iv0(z))
     }
 
-    fn p3(x: f64, y: f64, z: f64) -> Point3<Interval> {
+    pub(super) fn p3(x: f64, y: f64, z: f64) -> Point3<Interval> {
         Point3::new(iv0(x), iv0(y), iv0(z))
     }
 
-    fn arm(length: f64) -> Option<Lever<Interval>> {
-        Some(fixture_lever(iv0(length)))
-    }
-
     /// A side on the one edge `e`, the whole of its line.
-    fn along(e: u64) -> Along {
+    pub(super) fn along(e: u64) -> Along {
         Along {
             edges: vec![key(e)],
             vertex: None,
@@ -12810,7 +12795,7 @@ mod margin_rows {
 
     /// A separator that vanishes on the edges `edges` and the vertices
     /// `vertices`, whole.
-    fn on(edges: &[u64], vertices: &[u64]) -> On {
+    pub(super) fn on(edges: &[u64], vertices: &[u64]) -> On {
         On {
             edges: edges.iter().map(|&e| key(e)).collect(),
             vertices: vertices.iter().map(|&v| key(v)).collect(),
@@ -13094,6 +13079,14 @@ mod margin_rows {
     ///
     /// Red if the arm is one face's, the first edge's or the greater, if
     /// a vertex pair is levered at an edge, or if a null edge lends one.
+    ///
+    /// The vertex-alone arm is pinned here by its number only: no row
+    /// takes it through `certify_pair` to a decision, as
+    /// `a_fold_certifies_by_its_sine_at_the_least_reach` takes the edge
+    /// arm. A fixture for it needs two faces presented at a vertex they
+    /// share alone, which `embed/vertex-bisector` and
+    /// `embed/corner-pieces` are re-shaping; the row is theirs to add
+    /// with that presentation.
     #[test]
     fn the_arm_is_the_faces_reach_the_least_over_what_the_pair_is_near() {
         let o = [0.0; 3];
@@ -13177,45 +13170,19 @@ mod margin_rows {
 mod margin_reach_rows {
     //! Where the departure's arm is longer than the run it stands for,
     //! pinned as the code reads it today, and the arm felt in a decision.
+    use super::margin_rows::{along, band, iv0, key, on, p3, v3};
+    use super::presentation_rows::arm;
     use super::*;
     use geom_core::test_support::fixture_lever;
 
-    fn iv0(x: f64) -> Interval {
-        Interval::from_bounds(x, x)
+    /// An array into the shared [`v3`].
+    fn va(v: [f64; 3]) -> Vec3<Interval> {
+        v3(v[0], v[1], v[2])
     }
 
-    fn band() -> Band {
-        Band::linear(geom_core::Tol::witness()).unwrap()
-    }
-
-    fn key<K: From<slotmap::KeyData>>(n: u64) -> K {
-        slotmap::KeyData::from_ffi((1u64 << 32) | n).into()
-    }
-
-    fn v3(v: [f64; 3]) -> Vec3<Interval> {
-        Vec3::new(iv0(v[0]), iv0(v[1]), iv0(v[2]))
-    }
-
-    fn p3(v: [f64; 3]) -> Point3<Interval> {
-        Point3::new(iv0(v[0]), iv0(v[1]), iv0(v[2]))
-    }
-
-    fn along(e: u64) -> Along {
-        Along {
-            edges: vec![key(e)],
-            vertex: None,
-            whole: true,
-            params: None,
-            on_edges: true,
-        }
-    }
-
-    fn on(edges: &[u64]) -> On {
-        On {
-            edges: edges.iter().map(|&e| key(e)).collect(),
-            vertices: Vec::new(),
-            whole: true,
-        }
+    /// An array into the shared [`p3`].
+    fn pa(v: [f64; 3]) -> Point3<Interval> {
+        p3(v[0], v[1], v[2])
     }
 
     /// A line edge from `a` to `b`, used once, forward.
@@ -13223,7 +13190,7 @@ mod margin_reach_rows {
         Rim {
             key: key(k),
             arc: Some((
-                Curve3::line(p3(a), v3([b[0] - a[0], b[1] - a[1], b[2] - a[2]])),
+                Curve3::line(pa(a), va([b[0] - a[0], b[1] - a[1], b[2] - a[2]])),
                 (iv0(0.0), iv0(1.0)),
             )),
             stated: None,
@@ -13242,7 +13209,7 @@ mod margin_reach_rows {
         Boundary {
             sense: true,
             edges,
-            vertices: vertices.iter().map(|&(k, p)| (key(k), p3(p))).collect(),
+            vertices: vertices.iter().map(|&(k, p)| (key(k), pa(p))).collect(),
             extent: None,
         }
     }
@@ -13262,7 +13229,7 @@ mod margin_reach_rows {
             u,
             v,
             local,
-            ball: Ball::holding(p3([0.0; 3]), p3([0.0; 3])),
+            ball: Ball::holding(pa([0.0; 3]), pa([0.0; 3])),
         }
     }
 
@@ -13271,9 +13238,9 @@ mod margin_reach_rows {
     fn folded(phi: f64) -> Surface<Interval> {
         Surface::Plane {
             frame: geom::Frame::new(
-                p3([0.0; 3]),
-                v3([0.0, -phi.sin(), phi.cos()]),
-                v3([1.0, 0.0, 0.0]),
+                pa([0.0; 3]),
+                va([0.0, -phi.sin(), phi.cos()]),
+                va([1.0, 0.0, 0.0]),
             ),
         }
     }
@@ -13293,7 +13260,9 @@ mod margin_reach_rows {
     ///
     /// This row pins what the code reads, not what it should: a reach
     /// read as the faces' run away from the edge is 0.05, and at it the
-    /// strip decides nothing. Red when the reach's site moves.
+    /// strip decides nothing. Red when the lever becomes the narrower
+    /// face's run across the edge, read from the verdict
+    /// (`work/embed/the-embedding-question-reads-tier-3s-class-and-the-pairs-extent-from-the-verdict.md`).
     #[test]
     fn the_arm_counts_a_strips_run_along_its_edge() {
         let phi: f64 = 0.9 * band().zero() / 0.05;
@@ -13336,8 +13305,8 @@ mod margin_reach_rows {
             "the strips never part by the band's zero"
         );
         let psi = Psi::Linear {
-            n: v3([0.0, -phi.sin(), phi.cos()]),
-            q: p3(o),
+            n: va([0.0, -phi.sin(), phi.cos()]),
+            q: pa(o),
         };
         let read = |arm: Lever<Interval>| {
             let p = Presented {
@@ -13349,7 +13318,7 @@ mod margin_reach_rows {
                 corner: false,
                 cache: Cache::default(),
             };
-            sign_on(&psi, Some(&on(&[1])), &p, None, Some(arm), band())
+            sign_on(&psi, Some(&on(&[1], &[])), &p, None, Some(arm), band())
         };
         assert_eq!(
             read(arm),
@@ -13374,24 +13343,26 @@ mod margin_reach_rows {
     /// - at `s` fifty times the band's escalation over a thousand, check
     ///   4 reads the smooth class, and the carrier arm still signs it.
     ///
-    /// This row pins the difference as it is. Red when the two read one
-    /// arm.
+    /// This row pins the difference as it is. Red when the question
+    /// reads the edge's class from tier 3's verdict in place of deciding
+    /// it at the reach
+    /// (`work/embed/the-embedding-question-reads-tier-3s-class-and-the-pairs-extent-from-the-verdict.md`).
     #[test]
     fn the_reach_alone_signs_an_edge_check_4_classes_smooth() {
         let r = 1e-3;
         let read = |s: f64| {
             let cyl = Surface::Cylinder {
-                frame: geom::Frame::new(p3([0.0; 3]), v3([0.0, 0.0, 1.0]), v3([1.0, 0.0, 0.0])),
+                frame: geom::Frame::new(pa([0.0; 3]), va([0.0, 0.0, 1.0]), va([1.0, 0.0, 0.0])),
                 radius: iv0(r),
             };
-            let n = v3([-(1.0 - s * s).sqrt(), s, 0.0]);
+            let n = va([-(1.0 - s * s).sqrt(), s, 0.0]);
             let plane = Surface::Plane {
-                frame: geom::Frame::new(p3([r, 0.0, 0.0]), n, v3([0.0, 0.0, 1.0])),
+                frame: geom::Frame::new(pa([r, 0.0, 0.0]), n, va([0.0, 0.0, 1.0])),
             };
             let check4 = match geom_brep::classify_dihedral(
                 &cyl,
                 &plane,
-                p3([r, 0.0, 0.5]),
+                pa([r, 0.0, 0.5]),
                 fixture_lever(iv0(1.0)),
                 band(),
             ) {
@@ -13409,26 +13380,26 @@ mod margin_reach_rows {
                 cache: Cache::default(),
             };
             let psi = Psi::Carrier(Implicit::Plane {
-                o: p3([r, 0.0, 0.0]),
+                o: pa([r, 0.0, 0.0]),
                 n,
             });
-            let engine = sign_on(&psi, None, &p, None, Some(fixture_lever(iv0(1.0))), band());
-            (check4, engine.is_some())
+            let engine = sign_on(&psi, None, &p, None, arm(1.0), band());
+            (check4, engine)
         };
         let (zero, escalate) = (band().zero(), band().escalate());
         assert_eq!(
             read(50.0 * escalate / r),
-            ("corner", true),
+            ("corner", Some(Sign::Positive)),
             "a plain corner"
         );
         assert_eq!(
             read(0.5 * (zero + escalate) / r),
-            ("in band", true),
+            ("in band", Some(Sign::Positive)),
             "check 4 in band at the radius, the engine definite at the reach"
         );
         assert_eq!(
             read(0.05 * zero / r),
-            ("smooth", true),
+            ("smooth", Some(Sign::Positive)),
             "check 4 smooth at the radius, the engine definite at the reach"
         );
     }
@@ -13519,15 +13490,15 @@ mod margin_reach_rows {
     #[test]
     fn a_sine_that_changes_sign_over_the_rectangle_decides_nothing() {
         let cyl = Surface::Cylinder {
-            frame: geom::Frame::new(p3([0.0; 3]), v3([0.0, 0.0, 1.0]), v3([1.0, 0.0, 0.0])),
+            frame: geom::Frame::new(pa([0.0; 3]), va([0.0, 0.0, 1.0]), va([1.0, 0.0, 0.0])),
             radius: iv0(1.0),
         };
         let a: f64 = 0.1;
         // The plane through the ruling at (1, 0, ·) whose trace in the
         // cross-section is tangent to the circle at the angle `a`.
         let psi = Psi::Linear {
-            n: v3([-a.cos(), -a.sin(), 0.0]),
-            q: p3([1.0, 0.0, 0.0]),
+            n: va([-a.cos(), -a.sin(), 0.0]),
+            q: pa([1.0, 0.0, 0.0]),
         };
         let read = |width: f64| {
             let p = Presented {
@@ -13539,14 +13510,7 @@ mod margin_reach_rows {
                 corner: false,
                 cache: Cache::default(),
             };
-            sign_on(
-                &psi,
-                Some(&on(&[1])),
-                &p,
-                None,
-                Some(fixture_lever(iv0(1.0))),
-                band(),
-            )
+            sign_on(&psi, Some(&on(&[1], &[])), &p, None, arm(1.0), band())
         };
         assert_eq!(
             read(0.5),
@@ -13580,8 +13544,8 @@ mod margin_reach_rows {
         .expect("an arm, of no length");
         assert_eq!(arm.length().hi(), 0.0, "two rims on one vertex");
         let psi = Psi::Linear {
-            n: v3([0.0, 1.0, 0.0]),
-            q: p3(o),
+            n: va([0.0, 1.0, 0.0]),
+            q: pa(o),
         };
         let read = |arm: Lever<Interval>| {
             let p = Presented {
@@ -13593,7 +13557,7 @@ mod margin_reach_rows {
                 corner: false,
                 cache: Cache::default(),
             };
-            sign_on(&psi, Some(&on(&[1])), &p, None, Some(arm), band())
+            sign_on(&psi, Some(&on(&[1], &[])), &p, None, Some(arm), band())
         };
         assert!(read(fixture_lever(iv0(1.0))).is_some(), "the control");
         assert_eq!(read(arm), None, "a zero arm");
