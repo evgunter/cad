@@ -2,11 +2,12 @@
 id: the-at-rest-gate-certifies-embedding
 kind: issue
 title: The at-rest gate certifies that a finished body's boundary is embedded off its recorded contacts, at every scalar with certification rights (Ev, PR 6301)
-status: open
+status: dispatched
 opened: 2026-11-02
 priority: P0
 cost: H
 design: true
+branch: embed/gate
 ---
 
 

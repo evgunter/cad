@@ -2,10 +2,11 @@
 id: a-shared-vertex-the-chart-holds-on-one-clip-only-reads-no-zero
 kind: issue
 title: A cylinder's cell whose shared vertex lies on one clip only (mid-side between two edges of one line, or at a lone clip's end beside a seam) has no zero in zero_of and reads Local at every depth
-status: open
+status: dispatched
 opened: 2026-11-21
 priority: P0
 cost: M
+branch: embed/clip-vertex
 ---
 
 
@@ -99,32 +100,35 @@ zero and never forbids one:
 - a lone loose vertex on one clip, on no corner, with no shared edge in
   reach: that clip's side, through the vertex (`Zero::Through`).
   `sign_on` reads it only under a plane that holds the side's whole
-  line or circle (`planes_through`: through a ruling, or a circle's own
-  plane), against a partner whose zero is none or a corner point at
-  that vertex (`through_read`);
+  line (`planes_through`: through a ruling), against a partner whose
+  zero is none or the corner point at that vertex (`through_read`). It
+  is read on a line edge only: a vertex on a circle's side names no
+  zero;
 - a loose vertex beside a wholly shared side leaves that side the zero;
   of several loose vertices the one at a corner of two clips is the
   point; anything else names no zero (`Zero::None`), read by the
   separator's value over the whole rectangle.
 
-**Measured** with the lane stacked on `embed/straight-corner`
-(`505a6756a`), which it no longer is; that branch read a plane face's
-straight run, which none of these tests' refusing pairs moved on. Main
-`b99f71c3d` with the harness `ebb2e6f8e`
-(`embed/clip-vertex-measure`), the gate logging and passing
-(`CAD_GATE_PASS=1`), on 55 census tests: every `2-refused` Departure
-row with a cylinder, torus/torus or cylinder/torus pair in the modules
-this row, the corner-of-no-pair row and the bushing row name (48
-`sweep::all`, 3 `step-import::all`), and 4 `editor-core::all` rows that
-ask the bushing. 5,006 asks.
+**Measured.** Main `a3d5ce89c` with the harness `ebb2e6f8e`
+(`embed/clip-vertex-measure`), before and after on that one base, the
+gate logging and passing (`CAD_GATE_PASS=1`), on 55 census tests: every
+`2-refused` Departure row with a cylinder, torus/torus or cylinder/torus
+pair in the modules this row, the corner-of-no-pair row and the bushing
+row name (48 `sweep::all`, 3 `step-import::all`), and 4
+`editor-core::all` rows that ask the bushing. 5,006 asks.
 
 | | before | after |
 |---|---|---|
-| asks `Embedded` | 4,098 | 4,162 |
-| asks `Uncertified { Departure }` | 743 | 679 |
-| asks `Crosses` / budget / second-order | 64 / 100 / 1 | 64 / 100 / 1 |
+| asks `Embedded` | 4,101 | 4,165 |
+| asks `Uncertified { Departure }` | 745 | 681 |
+| asks `Crosses` / budget / second-order | 64 / 95 / 1 | 64 / 95 / 1 |
 | tests whose every ask is embedded | 0 | 5 |
-| `zero_of` `Local` exits, the 51 traced tests | 41,802 | 11,702 |
+| tests with more asks refused | | 0 |
+
+`zero_of`'s `Local` exits were counted on an earlier run (main
+`b99f71c3d`, the lane then stacked on `embed/straight-corner`, whose
+plane reading moved none of these counts), in the 51 traced tests:
+41,802 before, 11,702 after.
 
 The five: `face_face_touch::a_bridged_rod_standing_off_the_plate_discovers_nothing`
 (mid-side, on a ruling), `full_turn_wall::a_near_full_revolves_gap_is_out_at_both_doors`,
@@ -178,3 +182,44 @@ Measured on the same run, each with its trace (`CVT`, `CVS` rows):
   no zero and the separator's value does not sign it
   (`a_turned_l_plates_run_builds_at_interval`: `planes = (Some, None)`).
   Not traced further.
+
+## After the review (EMBED, lane embed/clip-vertex, 2026-11-23)
+
+- **The circle's own plane is removed.** On the 55 census tests no ask
+  is certified by it (switched off, every count is the same), and the
+  tour's verdicts are the same without it. It signed the wall in the
+  two shapes above and the partner then failed. What would bring it
+  back is a body whose partner is strictly across a rim circle's plane
+  at a vertex in the middle of the rim: a corner standing on a rim
+  point with both its edges leaving the rim's plane, or the seam-clip
+  case once a seam's line is a clip.
+  `injective::presentation_rows::a_wall_and_a_corner_at_a_vertex_mid_line_certify_under_the_lines_plane`
+  pins that such a pair is split today.
+- **What "holds" is true of.** The body rows hold on the dyadic build,
+  as built, turned about a generic axis, a hundred units off, and
+  mirrored across an axis plane. Mirrored across a generic plane they
+  refuse upstream of this reading
+  (`a-generic-mirror-re-mints-a-rim-circles-row-as-a-harmonic-image`).
+  Built off the dyadic grid (radius 0.7, block
+  `[0.13, 0.7] × [-0.61, 0] × [0.3, 1.7]`) the wall's lower pair refuses
+  at `f64` and holds at `Interval`, in all three rigid poses: the two
+  edges of the ruling that meet at the vertex store its height as `0.3`
+  and `0.30000000000000004`, the cover (`sides_are_the_faces`) does not
+  read two stored ends of one joint as one vertex, and the wall never
+  reaches `zero_of` (41 cover failures in the trace; at `Interval` the
+  two brackets overlap and the pair certifies). That is the bushing
+  row's second defect, the cover's; pinned as it reads in
+  `an_off_grid_walls_joint_a_rounding_apart_refuses_at_f64_and_holds_at_interval`.
+- **The one corner among several loose vertices is signed only where it
+  is the first shared vertex** (review, by inspection): the
+  vertex-alone plane and `anchor` take `near.vertices.first()`, and a
+  corner point is zero only under a plane that lists its vertex. Not
+  fixed and not pinned by a row; the reading is named and unsigned for
+  the other order.
+- **A flap tangent to the wall at the vertex only** (the right verdict
+  is `Holds`) reads `Budget` at both scalars (the review's probe). No
+  first-order separator parts a tangent pair.
+- **Two circles through one vertex** are both cells with no zero now
+  (a circle's side is not read), and are split as before. No test row
+  of their own; `a_cylinder_through_a_hole_tangent_to_its_wall` is the
+  census body.
