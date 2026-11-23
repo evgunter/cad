@@ -161,7 +161,8 @@ The traced readings have landed in `topo::injective`:
   at the pole by `geom_brep::chart_singularity::vertex_at_singular_point`,
   the one reading of that incidence, so this adds no site of its own.
   PR 6892 (`clear-pairs`, below) landed a pole reading of its own in the
-  same place, deciding the distance at `self_intersection_apex`. On the
+  same place, deciding the distance at `self_intersection_apex` (a site
+  PR 7115 has since retired, the apex reading the incidence too). On the
   merge, this one is the only pole reading: it decides the incidence
   where tier 3's check 6 places the singularity, and it clips the
   rectangle to the pole's latitude.

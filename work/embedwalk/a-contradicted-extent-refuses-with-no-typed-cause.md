@@ -38,3 +38,19 @@ a pair carries one. It belongs to the engine's refusal set
 P3: no body reaches it now. A body that does is first a soundness
 question (see `a-face-with-no-line-on-a-periodic-axis-reads-its-sheet-off-the-stored-lift-unchecked`)
 and only then a diagnostics one.
+
+## A built body that showed it, and a new source of the refusal (EMBED, lane pole, PR 7115, 2026-11-21)
+
+On PR 7115's second head (`39f25fc2d`) `face_extent` refused
+`Structural` for a cone cavity a hundred units off the origin (the
+triangle `r = 0.37`, `h = 2.3`, apex up at `y = 103.6`, its axial-door
+cavity): the extent ended `1.4e-14` off the apex, past the slack that
+head moved it across. It surfaced as
+`Uncertified { 1v1, 2v1, Edge(1v1), Departure }` at 167 / 17 / 178,
+with nothing saying the extent was the cause; the review found the
+cause by loosening the slack. That body holds on the PR's final head.
+
+The final head adds one source of the same untyped refusal: a face
+holding a vertex at a pole or an apex whose stored extent ends off
+that point by the band (`reaching_its_singular_points`). No body
+measured reaches it.

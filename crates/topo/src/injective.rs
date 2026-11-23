@@ -94,7 +94,7 @@
 //! The same membership reads a collapsed side ([`Along::at`]) zero under
 //! a plane through the stored vertex: the side's image is the cone's
 //! apex or the sphere's pole, which the vertex is within the band of
-//! ([`SELF_INTERSECTION_APEX`], `vertex_at_singular_point`), so `ψ` is
+//! (`vertex_at_singular_point`, the one reading of both), so `ψ` is
 //! read zero along a side it may miss by that distance over its lean.
 //! [`departure`]'s plane through the pair's one shared vertex reads it
 //! wherever a face against that vertex is presented by its collapse.
@@ -136,11 +136,6 @@ pub(crate) const SELF_INTERSECTION_SPAN: &str = "self_intersection_span";
 /// The funnel site of a planar corner's convexity: how far the second
 /// edge's far end stands on the first edge's face side, metres.
 pub(crate) const SELF_INTERSECTION_CORNER: &str = "self_intersection_corner";
-/// The funnel site of a vertex at a cone's apex, the collapse of its
-/// face's chart: its distance from the apex, metres. `Zero` is the
-/// collapse. A sphere's pole is read by `vertex_at_singular_point`
-/// (`chart_singularity_at_vertex`).
-pub(crate) const SELF_INTERSECTION_APEX: &str = "self_intersection_apex";
 /// The funnel site of a cone face's nappe: a vertex's signed height
 /// along the axis from the apex, metres. Its sign is the nappe.
 pub(crate) const SELF_INTERSECTION_NAPPE: &str = "self_intersection_nappe";
@@ -226,10 +221,27 @@ pub(crate) struct Use {
     pub(crate) image: Option<[Point2<Interval>; 2]>,
     /// The image, where it is a coordinate line.
     pub(crate) iso: Option<Iso>,
+    /// The image's closed form on the curve's own parameter, where it has
+    /// one of these: a coordinate line that is a harmonic row has both.
+    pub(crate) curve: Option<ChartCurve>,
+}
+
+impl Use {
     /// The image, where it is harmonic.
-    pub(crate) harmonic: Option<Harmonic>,
+    pub(crate) fn harmonic(&self) -> Option<Harmonic> {
+        match self.curve {
+            Some(ChartCurve::Harmonic(h)) => Some(h),
+            _ => None,
+        }
+    }
+
     /// The image, where it is a spiric's on a torus wall.
-    pub(crate) wall: Option<Wall>,
+    pub(crate) fn wall(&self) -> Option<Wall> {
+        match self.curve {
+            Some(ChartCurve::Wall(w)) => Some(w),
+            _ => None,
+        }
+    }
 }
 
 /// **A harmonic chart image**, per chart axis `[u, v]`:
@@ -257,6 +269,53 @@ pub(crate) struct Wall {
     pub(crate) major: Interval,
     pub(crate) minor: Interval,
     pub(crate) offset: Interval,
+}
+
+/// Which way a focal image's azimuth runs as its parameter grows.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Sense {
+    /// With the chart's frame.
+    With,
+    /// Against it.
+    Against,
+}
+
+impl Sense {
+    /// `+1` with the frame, `−1` against it.
+    fn sign(self) -> i64 {
+        match self {
+            Self::With => 1,
+            Self::Against => -1,
+        }
+    }
+}
+
+/// **A focal-section chart image** (`geom_brep::Pcurve::FocalSection`:
+/// a plane's section ellipse on its cone), on the curve's own parameter:
+/// a Kepler azimuth `u = u0 ± (E + 2·atan2(β·sin E, 1 − β·cos E))`,
+/// `E = t − t0`, and a harmonic second channel `v`, `[v0, va, vb, vl]`.
+/// Built only by [`Focal::of`], so `β`'s enclosure lies strictly inside
+/// `(−1, 1)`: the azimuth is strictly monotone in `t` for every member.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Focal {
+    u0: Interval,
+    t0: Interval,
+    beta: Interval,
+    sense: Sense,
+    v: [Interval; 4],
+}
+
+/// **A chart image's closed form on its curve's own parameter**: what a
+/// curved edge's readings enclose it and its derivative by
+/// ([`present_curved`], [`present_wall`], [`leaves_line`]).
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum ChartCurve {
+    /// A harmonic row.
+    Harmonic(Harmonic),
+    /// A spiric's wall image on a torus.
+    Wall(Wall),
+    /// A focal section's image.
+    Focal(Focal),
 }
 
 /// One edge of a face's boundary, lifted.
@@ -292,7 +351,10 @@ pub(crate) struct Boundary {
     /// the chart, its rows meeting at every joint and, at a pole or an
     /// apex, joined by a run along the singular latitude that lies
     /// between their ends. So on a periodic axis the hull is on ONE
-    /// sheet, not wrapped. A row that is a coordinate line whose moving
+    /// sheet, not wrapped. It is the hull of the rows alone: a row's end
+    /// at a pole is its pcurve's value there, a rounding to either side
+    /// of the singular latitude, and [`face_extent`] puts the latitude
+    /// in. A row that is a coordinate line whose moving
     /// coordinate is monotone gives its ends, which bound it; a harmonic
     /// or spiric wall row its enclosure over its span, so the hull may be
     /// a superset, which holds the face. It is the FACE's extent only
@@ -1146,7 +1208,7 @@ fn iso_params(surface: &Surface<Interval>, rim: &Rim, range: (f64, f64)) -> Opti
     };
     let iso = u.iso?;
     let moving = iso.held.other().index();
-    if let Some(h) = u.harmonic
+    if let Some(h) = u.harmonic()
         && !(exactly(h.pa[moving], 0.0) && exactly(h.pb[moving], 0.0))
     {
         return None;
@@ -1435,6 +1497,10 @@ struct Clip {
     edges: Vec<usize>,
     /// The vertex a collapsed side is.
     collapsed: Option<VertexKey>,
+    /// The edge ends that end on a collapsed side ([`ends_on_collapse`]),
+    /// each an index into the boundary's edges and which end; empty for
+    /// any other side.
+    ends_here: Vec<(usize, usize)>,
 }
 
 /// **Present `piece`'s face in its cell**, the shared cell being the
@@ -1561,8 +1627,18 @@ enum Extent {
     Known([(f64, f64); 2]),
 }
 
-/// **The face's extent, read against the face's own lines and nappe**
-/// ([`Boundary::extent`]); the one reader of that field.
+/// **The face's extent, read against the face's own lines, nappe and
+/// singular points** ([`Boundary::extent`]); the one reader of that field.
+///
+/// **A face reaches each singular latitude it holds a vertex at**, a
+/// sphere's pole or a cone's apex ([`reaching_its_singular_points`]), in
+/// every cell, as the vertex is the face's: the extent returned ends on
+/// that latitude where the stored end is itself at the singular point
+/// by the band, and a stored end that is not contradicts the vertex and
+/// refuses `Structural`. The lines and the nappe are read against the
+/// STORED extent, before it is moved: they are what the stored value is
+/// checked by. A cone face's end past its apex, on the other nappe, is on
+/// its nappe where it is at the apex by the same decision.
 ///
 /// **A face lies within the hull of its boundary**, so every line of a
 /// boundary edge, placed by [`placed`] on the extent's sheet, meets the
@@ -1624,29 +1700,169 @@ fn face_extent(
                     lo + slack < line.hi()
                 }
         });
-    let on_nappe = face_nappe(surface, b, band).is_none_or(|up| {
+    let on_nappe = face_nappe(surface, b, band).is_none_or(|(up, apex)| {
         let (lo, hi) = extent[Axis::V.index()];
         let slack = chart_slack(&[lo, hi]);
+        let u = extent[Axis::U.index()].0;
+        let at_apex = |v| parallel_at(surface, (u, v), apex, band);
         if up {
-            lo >= -slack && hi > slack
+            (lo >= 0.0 || at_apex(lo)) && hi > slack
         } else {
-            hi <= slack && lo < -slack
+            (hi <= 0.0 || at_apex(hi)) && lo < -slack
         }
     });
-    if lines && on_nappe {
-        Ok(Extent::Known(extent))
-    } else {
-        Err(Unpresented::Structural)
+    if !(lines && on_nappe) {
+        return Err(Unpresented::Structural);
+    }
+    reaching_its_singular_points(surface, b, band, extent)
+        .map(Extent::Known)
+        .ok_or(Unpresented::Structural)
+}
+
+/// **A cone face's nappe** ([`nappe`]) **and its cone's apex**; `None`
+/// on any other surface, or where the nappe is not decided.
+fn face_nappe(
+    surface: &Surface<Interval>,
+    b: &Boundary,
+    band: Band,
+) -> Option<(bool, Point3<Interval>)> {
+    match surface {
+        Surface::Cone { frame, .. } => {
+            let apex = frame.origin();
+            Some((nappe(b, apex, frame.axis(), band)?, apex))
+        }
+        _ => None,
     }
 }
 
-/// **A cone face's nappe** ([`nappe`]); `None` on any other surface, or
-/// where the nappe is not decided.
-fn face_nappe(surface: &Surface<Interval>, b: &Boundary, band: Band) -> Option<bool> {
-    match surface {
-        Surface::Cone { frame, .. } => nappe(b, frame.origin(), frame.axis(), band),
-        _ => None,
+/// **Whether a chart's parallel is at the singular point `point`**, by
+/// the incidence a vertex is read at it with (`vertex_at_singular_point`,
+/// at `band`): the surface's point at chart `(u, v)` decided at `point`.
+/// A sphere's parallel and a cone's circle lie at one distance from the
+/// pole or the apex, so one point of it answers for all of it.
+fn parallel_at(
+    surface: &Surface<Interval>,
+    (u, v): (f64, f64),
+    point: Point3<Interval>,
+    band: Band,
+) -> bool {
+    use geom_brep::chart_singularity::vertex_at_singular_point;
+    matches!(
+        vertex_at_singular_point(surface.eval(at(u), at(v)), point, band),
+        Ok(true)
+    )
+}
+
+/// **A sphere's polar latitude**, `v = π/2` at the north pole and
+/// `-π/2` at the south: a bound of its chart's canonical domain.
+fn pole_latitude(north: bool) -> Interval {
+    let half = Interval::pi() * at(0.5);
+    if north { half } else { -half }
+}
+
+/// The singular latitudes of a chart a point is at, `[high, low]`: the
+/// one that is the high end of the face's `v`, and the one that is its
+/// low end, each with the singular point it collapses to.
+type SingularEnds = [Option<(Interval, Point3<Interval>)>; 2];
+
+/// **The singular latitudes of its chart that the face's vertex `p` is
+/// at** ([`SingularEnds`]): a sphere's `π/2` at its north pole, the high
+/// end, and `-π/2` at its south, the low; a cone's `0` at its apex, the
+/// low end of a face on the positive nappe and the high end of one on
+/// the negative ([`nappe`]). None on any other surface.
+///
+/// `p` is at a singular point by the one reading of that incidence
+/// (`vertex_at_singular_point`): its distance from the point decided
+/// zero at `band`, which a vertex within the band's zero of the point
+/// is. An incidence the band does not decide reads as off the point.
+///
+/// `None` where `p` is at a cone's apex and the face has no one nappe:
+/// the apex is then no one end of its `v`.
+fn singular_ends(
+    surface: &Surface<Interval>,
+    b: &Boundary,
+    p: Point3<Interval>,
+    band: Band,
+) -> Option<SingularEnds> {
+    use geom_brep::chart_singularity::{Singularity, sphere_poles, vertex_at_singular_point};
+    let held = |point| matches!(vertex_at_singular_point(p, point, band), Ok(true));
+    match *surface {
+        Surface::Sphere { frame, radius, .. } => {
+            let line = geom::Line {
+                origin: frame.origin(),
+                dir: frame.axis(),
+            };
+            let mut ends = [None; 2];
+            for (pole, point) in sphere_poles(line, radius) {
+                let north = pole == Singularity::North;
+                if held(point) {
+                    ends[usize::from(!north)] = Some((pole_latitude(north), point));
+                }
+            }
+            Some(ends)
+        }
+        Surface::Cone { frame, .. } if held(frame.origin()) => {
+            let apex = frame.origin();
+            let low = nappe(b, apex, frame.axis(), band)?;
+            let mut ends = [None; 2];
+            ends[usize::from(low)] = Some((at(0.0), apex));
+            Some(ends)
+        }
+        _ => Some([None; 2]),
     }
+}
+
+/// **A face's extent, reaching each singular latitude the face holds a
+/// vertex at** ([`singular_ends`]). A vertex at a sphere's pole or a
+/// cone's apex is a point of the face on that latitude, an end of the
+/// face's `v`, so the face's extent ends on it. The stored hull ends
+/// where the lift's rows do, and a meridian's end at the point is its
+/// pcurve evaluated at the edge's parameter: a rounding at the scale of
+/// the edge's coordinates, to either side of the latitude, or, for a
+/// vertex in the band of the point and off it, the vertex's own
+/// latitude. The hull with the latitude is a superset of the stored one,
+/// so it holds the face still.
+///
+/// **The extent moves where the stored end is itself at the singular
+/// point**: the surface's parallel at the stored end latitude decided at
+/// the point by the incidence that decided the vertex ([`parallel_at`]),
+/// so within the band's zero of it, in metres. That is the one decision
+/// asked of the row's end as it is of the vertex; this reader has no
+/// scale of its own. Every point of the strip between the stored end
+/// and the latitude is then at the singular point by that decision.
+///
+/// **A stored end that is not at the point contradicts the vertex**,
+/// `None`: the vertex is at the singular point and the row that ends at
+/// that vertex is not, one face's data naming two places.
+///
+/// A cone face with no one nappe is left as stored: the apex is no one
+/// end of it.
+fn reaching_its_singular_points(
+    surface: &Surface<Interval>,
+    b: &Boundary,
+    band: Band,
+    mut extent: [(f64, f64); 2],
+) -> Option<[(f64, f64); 2]> {
+    let u = extent[Axis::U.index()].0;
+    let v = &mut extent[Axis::V.index()];
+    for &p in b.vertices.values() {
+        let Some([high, low]) = singular_ends(surface, b, p, band) else {
+            continue;
+        };
+        if let Some((line, point)) = high {
+            if v.1 < line.lo() && !parallel_at(surface, (u, v.1), point, band) {
+                return None;
+            }
+            v.1 = v.1.max(line.hi());
+        }
+        if let Some((line, point)) = low {
+            if v.0 > line.hi() && !parallel_at(surface, (u, v.0), point, band) {
+                return None;
+            }
+            v.0 = v.0.min(line.lo());
+        }
+    }
+    Some(extent)
 }
 
 /// What [`sheets`] reads of a cell.
@@ -1836,7 +2052,9 @@ fn edge_ranges(b: &Boundary, edges: &[usize], held: Axis) -> Option<Vec<Interval
 ///
 /// **A side's edges run on past a corner** ([`run_on`]): an edge that
 /// ends at a vertex it shares with a clip on the other axis covers the
-/// side out to that clip's line's far bound. The run-on is sound only
+/// side out to that clip's line's far bound, and one that ends at the
+/// vertex a collapsed side is covers it out to that side
+/// ([`ends_on_collapse`]). The run-on is sound only
 /// with the other two checks, which is why all three are read here and
 /// nowhere else: that the other line bounds the face there is that
 /// line's own coverage, and that the corner is the face's is
@@ -1892,38 +2110,95 @@ fn corners(b: &Boundary, c: &Clip, d: &Clip) -> BTreeSet<VertexKey> {
 fn run_on(b: &Boundary, c: &Clip, merged: &[Clip], periodic: bool) -> Option<Vec<Interval>> {
     let held = c.side.axis();
     let mut out = edge_ranges(b, &c.edges, held)?;
-    for d in merged
-        .iter()
-        .filter(|d| d.side.axis() != held && d.collapsed.is_none())
-    {
+    // The end `k` of the edge `ei`, run on to `d`'s line's far bound.
+    let mut run = |ei: usize, k: usize, d: &Clip| -> Option<()> {
+        let e = b.edges.get(ei)?;
+        for u in &e.uses {
+            let iso = u.iso?;
+            if iso.held != held || iso.full {
+                continue;
+            }
+            let end = iso.moving(u.image?[k]);
+            let end = if periodic {
+                wrap(end, geom::mid_param(d.at.lo(), d.at.hi()))
+            } else {
+                end
+            };
+            out.push(match d.side {
+                Side::XHi | Side::YHi => Interval::from_bounds(end.lo(), end.hi().max(d.at.hi())),
+                Side::XLo | Side::YLo => Interval::from_bounds(end.lo().min(d.at.lo()), end.hi()),
+            });
+        }
+        Some(())
+    };
+    for d in merged.iter().filter(|d| d.side.axis() != held) {
+        if d.collapsed.is_some() {
+            // An edge that ends on the collapsed side, by its end vertex's
+            // key ([`ends_on_collapse`]).
+            for &(ei, k) in d.ends_here.iter().filter(|(ei, _)| c.edges.contains(ei)) {
+                run(ei, k, d)?;
+            }
+            continue;
+        }
         let at = corners(b, c, d);
         for &ei in &c.edges {
             let e = b.edges.get(ei)?;
             for (k, _) in e.ends.iter().enumerate().filter(|(_, v)| at.contains(v)) {
-                for u in &e.uses {
-                    let iso = u.iso?;
-                    if iso.held != held || iso.full {
-                        continue;
-                    }
-                    let end = iso.moving(u.image?[k]);
-                    let end = if periodic {
-                        wrap(end, geom::mid_param(d.at.lo(), d.at.hi()))
-                    } else {
-                        end
-                    };
-                    out.push(match d.side {
-                        Side::XHi | Side::YHi => {
-                            Interval::from_bounds(end.lo(), end.hi().max(d.at.hi()))
-                        }
-                        Side::XLo | Side::YLo => {
-                            Interval::from_bounds(end.lo().min(d.at.lo()), end.hi())
-                        }
-                    });
-                }
+                run(ei, k, d)?;
             }
         }
     }
     Some(out)
+}
+
+/// **The edge ends that end on a collapsed side**, the side being the
+/// vertex `v`, read at the singular point `point` ([`singular_ends`]):
+/// each end of a boundary edge whose end vertex is `v`, by key, and
+/// whose chart image there is at `point` by the band ([`parallel_at`]).
+/// [`run_on`] runs such an end's line on to the collapsed side.
+///
+/// **Why that is the face's side, with no slack read**: the edge's curve
+/// ends at `v`; `v` is at the singular point, by the one incidence; and
+/// the image's end, a rounding of the edge's own parameters or the
+/// vertex's own latitude, is at the singular point by the same decision,
+/// so every surface point of the strip between it and the collapsed side
+/// is too. The boundary in that strip is nowhere else at the band, and
+/// the face has no point there to wrap round the edge's end into.
+///
+/// An end whose vertex is another, however near the side, is not one,
+/// nor an end whose image is off the point by the band: that edge and
+/// its vertex name two places, and it covers only its own range.
+fn ends_on_collapse(
+    surface: &Surface<Interval>,
+    b: &Boundary,
+    v: VertexKey,
+    point: Point3<Interval>,
+    band: Band,
+) -> Vec<(usize, usize)> {
+    let at_point = |e: &Rim, k: usize| {
+        e.uses.iter().all(|u| {
+            let (Some(iso), Some(image)) = (u.iso, u.image) else {
+                return false;
+            };
+            let (held, end) = (iso.at, iso.moving(image[k]));
+            let chart = |h: f64, m: f64| match iso.held {
+                Axis::U => (h, m),
+                Axis::V => (m, h),
+            };
+            held.is_certified()
+                && end.is_certified()
+                && [end.lo(), end.hi()]
+                    .into_iter()
+                    .all(|m| parallel_at(surface, chart(held.lo(), m), point, band))
+        })
+    };
+    b.edges
+        .iter()
+        .enumerate()
+        .flat_map(|(ei, e)| (0..2).map(move |k| (ei, e, k)))
+        .filter(|&(_, e, k)| e.ends[k] == v && at_point(e, k))
+        .map(|(ei, _, k)| (ei, k))
+        .collect()
 }
 
 /// **A cone face's nappe**: `true` where its vertices off the apex stand
@@ -2081,6 +2356,7 @@ fn present_chart_in<'a>(
                             at: iso.at,
                             edges: vec![ei],
                             collapsed: None,
+                            ends_here: Vec::new(),
                         });
                     }
                 }
@@ -2127,6 +2403,7 @@ fn present_chart_in<'a>(
                 at: line,
                 edges: vec![ei],
                 collapsed: None,
+                ends_here: Vec::new(),
             });
         }
     }
@@ -2174,6 +2451,7 @@ fn present_chart_in<'a>(
             at: hull,
             edges: on.iter().flat_map(|c| c.edges.iter().copied()).collect(),
             collapsed: None,
+            ends_here: Vec::new(),
         });
     }
     // The rectangle: the cell, its sides moved to the lines, outward.
@@ -2188,123 +2466,71 @@ fn present_chart_in<'a>(
             Side::YHi => y.1 = c.at.hi(),
         }
     }
-    // A cone's apex is a collapsed side of its chart.
-    if let Surface::Cone { frame, .. } = piece.surface {
-        let (apex, axis) = (frame.origin(), frame.axis());
-        for &v in &piece.local.vertices {
-            let Some(&p) = b.vertices.get(&v) else {
+    // A sphere's pole and a cone's apex are collapsed sides of the chart:
+    // `v = ±π/2`, bounds of the sphere's canonical domain, and `v = 0`.
+    let on_cone = matches!(piece.surface, Surface::Cone { .. });
+    for &v in &piece.local.vertices {
+        let Some(&p) = b.vertices.get(&v) else {
+            continue;
+        };
+        // A face with an apex vertex in reach and no one nappe is not
+        // presented in any cell that holds that vertex; a cell away
+        // from the apex reads it as any face.
+        let Some(ends) = singular_ends(piece.surface, b, p, band) else {
+            return Err(Unpresented::Structural);
+        };
+        for (low, end) in [false, true].into_iter().zip(ends) {
+            let Some((line, point)) = end else {
                 continue;
             };
-            if !matches!(
-                decide(SELF_INTERSECTION_APEX, Margin::of((p - apex).norm()), band),
-                Ok(Sign::Zero)
-            ) {
-                continue;
-            }
-            // A face with an apex vertex in reach and no one nappe is not
-            // presented in any cell that holds that vertex; a cell away
-            // from the apex reads it as any face.
-            let Some(lo) = nappe(b, apex, axis, band) else {
-                return Err(Unpresented::Structural);
-            };
-            // The cell on the other nappe holds only the apex of the
+            // The cell on a cone's other nappe holds only the apex of the
             // face. This is read only where the face's extent wraps or is
             // unknown: a known one is on the face's nappe ([`face_extent`]),
             // and a cell on the other misses it in [`sheets`] first.
             let (cv0, cv1) = piece.v;
-            if (lo && cv1 <= 0.0) || (!lo && cv0 >= 0.0) {
+            if on_cone && ((low && cv1 <= 0.0) || (!low && cv0 >= 0.0)) {
                 return Ok(Presentation::Vacuous);
             }
-            if (lo && y.0 > 0.0) || (!lo && y.1 < 0.0) {
+            // A rectangle short of the latitude is a cell short of it, or
+            // one a line of the face bounds short of it. The extent, where
+            // it is known, reaches the latitude ([`face_extent`]), so its
+            // clip is never what stops the rectangle short.
+            if (low && y.0 > line.hi()) || (!low && y.1 < line.lo()) {
                 continue;
             }
-            y = if lo {
-                (y.0.max(0.0), y.1)
+            // A rectangle wholly past the latitude is left with no width
+            // here, which is refused below. Where the extent was moved to
+            // the latitude, the strip between its stored end and the
+            // latitude is at the singular point by the band
+            // ([`reaching_its_singular_points`]), so the face's points in
+            // it are read as the vertex, the side's zero.
+            if low {
+                y.0 = line.lo();
             } else {
-                (y.0, y.1.min(0.0))
-            };
-            let side = Side::of(Axis::V, lo);
-            // A line on the face's low side that does not hold `0`, in a
-            // rectangle that still reaches `0`, lies within the slack of
-            // `0` (every line meets the extent, which is on the nappe): the
-            // collapse and the line are two readings of one side that do
-            // not agree, which a smaller cell does not hold both of.
+                y.1 = line.hi();
+            }
+            let side = Side::of(Axis::V, low);
+            // A line on that side that does not hold the latitude, in a
+            // rectangle that still reaches it, lies within the slack of it
+            // (every line meets the extent): the collapse and the line are
+            // two readings of one side that do not agree, which a smaller
+            // cell does not hold both of.
             match merged.iter_mut().find(|m| m.side == side) {
-                Some(m) if m.at.lo() <= 0.0 && 0.0 <= m.at.hi() => m.collapsed = Some(v),
-                Some(_) => {
-                    return Err(Unpresented::Local);
+                Some(m) if m.at.lo() <= line.hi() && line.lo() <= m.at.hi() => {
+                    // A second vertex at the same collapsed side replaces the
+                    // first here. That only refuses: the first is then on no
+                    // zero side, and its edges are not run on.
+                    m.collapsed = Some(v);
+                    m.ends_here = ends_on_collapse(piece.surface, b, v, point, band);
                 }
+                Some(_) => return Err(Unpresented::Local),
                 None => merged.push(Clip {
                     side,
-                    at: at(0.0),
+                    at: line,
                     edges: Vec::new(),
                     collapsed: Some(v),
+                    ends_here: ends_on_collapse(piece.surface, b, v, point, band),
                 }),
-            }
-        }
-    }
-    // A sphere's pole is a collapsed side of its chart, `v = ±π/2`, a
-    // bound of its canonical domain. A vertex is at it by the one reading
-    // of that incidence.
-    if let &Surface::Sphere { frame, radius, .. } = piece.surface {
-        let (center, axis) = (frame.origin(), frame.axis());
-        use geom_brep::chart_singularity::{Singularity, sphere_poles, vertex_at_singular_point};
-        let half = Interval::pi() * at(0.5);
-        let poles = sphere_poles(
-            geom::Line {
-                origin: center,
-                dir: axis,
-            },
-            radius,
-        );
-        for &v in &piece.local.vertices {
-            let Some(&p) = b.vertices.get(&v) else {
-                continue;
-            };
-            for (pole, point) in poles {
-                if std::env::var_os("CV_POLE").is_some() {
-                    eprintln!(
-                        "CVPOLE v={v:?} p={p:?} pole={pole:?} point={point:?} at={:?} y={y:?}",
-                        vertex_at_singular_point(p, point, band)
-                    );
-                }
-                if !matches!(vertex_at_singular_point(p, point, band), Ok(true)) {
-                    continue;
-                }
-                let north = pole == Singularity::North;
-                let line = if north { half } else { -half };
-                if (north && y.1 < line.lo()) || (!north && y.0 > line.hi()) {
-                    continue;
-                }
-                if (north && y.0 > line.hi()) || (!north && y.1 < line.lo()) {
-                    return Err({
-                        crate::gate_measure::local_site("chart", line!());
-                        if std::env::var_os("CV_TRACE").is_some() {
-                            eprintln!("CVL chart {}", line!());
-                        }
-                        Unpresented::Local
-                    });
-                }
-                if north {
-                    y.1 = line.hi();
-                } else {
-                    y.0 = line.lo();
-                }
-                let side = Side::of(Axis::V, !north);
-                match merged.iter_mut().find(|m| m.side == side) {
-                    Some(m) if m.at.lo() <= line.hi() && line.lo() <= m.at.hi() => {
-                        m.collapsed = Some(v);
-                    }
-                    Some(_) => {
-                        return Err(Unpresented::Local);
-                    }
-                    None => merged.push(Clip {
-                        side,
-                        at: line,
-                        edges: Vec::new(),
-                        collapsed: Some(v),
-                    }),
-                }
             }
         }
     }
@@ -2456,8 +2682,7 @@ fn posed_use(surface: &Surface<Interval>, rim: &Rim, u: &Use, band: Band) -> Use
         plus: u.plus,
         image: None,
         iso: None,
-        harmonic: None,
-        wall: None,
+        curve: None,
     };
     let Some((carrier, (t0, t1))) = rim.arc.as_ref().filter(|(c, _)| c.as_circle().is_some())
     else {
@@ -3509,25 +3734,124 @@ pub(crate) const SELF_INTERSECTION_COLUMN: &str = "self_intersection_column";
 /// two ends.
 const NARROW: u32 = 48;
 
+/// `p0 + pa·cos t + pb·sin t + pl·t` over the parameters `t`, enclosed:
+/// one channel of a harmonic image, `[p0, pa, pb, pl]`.
+fn channel_on([p0, pa, pb, pl]: [Interval; 4], t: Interval) -> Interval {
+    let (s, c) = t.sin_cos();
+    p0 + pa * c + pb * s + pl * t
+}
+
+/// [`channel_on`]'s derivative over `t`, enclosed.
+fn channel_rate([_, pa, pb, pl]: [Interval; 4], t: Interval) -> Interval {
+    let (s, c) = t.sin_cos();
+    pb * c - pa * s + pl
+}
+
 impl Harmonic {
+    /// One axis's channel.
+    fn channel(&self, axis: Axis) -> [Interval; 4] {
+        let i = axis.index();
+        [self.p0[i], self.pa[i], self.pb[i], self.pl[i]]
+    }
+
     /// The image on `axis` over the parameters `t`, enclosed.
     fn on(&self, axis: Axis, t: Interval) -> Interval {
-        let i = axis.index();
-        let (s, c) = t.sin_cos();
-        self.p0[i] + self.pa[i] * c + self.pb[i] * s + self.pl[i] * t
+        channel_on(self.channel(axis), t)
     }
 
     /// Its derivative on `axis` over `t`, enclosed.
     fn rate(&self, axis: Axis, t: Interval) -> Interval {
-        let i = axis.index();
-        let (s, c) = t.sin_cos();
-        self.pb[i] * c - self.pa[i] * s + self.pl[i]
+        channel_rate(self.channel(axis), t)
     }
 
     /// The chart point at `t`, or the image over the parameters `t`,
     /// enclosed, `[u, v]`.
     pub(crate) fn at(&self, t: Interval) -> [Interval; 2] {
         [self.on(Axis::U, t), self.on(Axis::V, t)]
+    }
+}
+
+impl Focal {
+    /// **A focal image from its eight numbers**, or `None` where they do
+    /// not make the azimuth monotone for every member: `sense` exactly
+    /// `±1` and `β`'s enclosure strictly inside `(−1, 1)`.
+    pub(crate) fn of(image: &geom_brep::FocalImage<Interval>) -> Option<Self> {
+        let sense = if exactly(image.sense, 1.0) {
+            Sense::With
+        } else if exactly(image.sense, -1.0) {
+            Sense::Against
+        } else {
+            return None;
+        };
+        let inside = image.beta.is_certified() && -1.0 < image.beta.lo() && image.beta.hi() < 1.0;
+        inside.then_some(Self {
+            u0: image.u0,
+            t0: image.t0,
+            beta: image.beta,
+            sense,
+            v: [image.v0, image.va, image.vb, image.vl],
+        })
+    }
+
+    /// The Kepler angle `E + 2·atan2(β·sin E, 1 − β·cos E)` at the one
+    /// parameter `t`, enclosed over `β` and `t0`; unbounded where
+    /// `1 − β·cos E` is not enclosed above zero, off which the arctangent
+    /// stays within a quarter turn of zero and never meets its cut.
+    fn anomaly(&self, t: f64) -> Interval {
+        let e = at(t) - self.t0;
+        let (s, c) = e.sin_cos();
+        let x = at(1.0) - self.beta * c;
+        if !(x.lo() > 0.0) {
+            return whole_line();
+        }
+        let lead = (self.beta * s).atan2(x);
+        e + lead + lead
+    }
+
+    /// The image on `axis` over the parameters `t`, enclosed.
+    ///
+    /// **The azimuth is the hull of its two end evaluations.** For every
+    /// member of `β` (inside `(−1, 1)`) and `t0` the Kepler angle's
+    /// derivative is `(1 − β²)/(1 − 2β·cos E + β²) > 0`, so over `t` it
+    /// lies between its values at `t`'s two ends: above the low end's
+    /// evaluation's lower bound, below the high end's upper bound. The
+    /// sense then adds that hull to `u0` or takes it from `u0`, so with
+    /// the frame the image's lower bound comes from `t`'s low end, and
+    /// against it from `t`'s high end.
+    fn on(&self, axis: Axis, t: Interval) -> Interval {
+        match axis {
+            Axis::U => {
+                let (lo, hi) = (self.anomaly(t.lo()), self.anomaly(t.hi()));
+                let angle = Interval::from_bounds(lo.lo(), hi.hi());
+                match self.sense {
+                    Sense::With => self.u0 + angle,
+                    Sense::Against => self.u0 - angle,
+                }
+            }
+            Axis::V => channel_on(self.v, t),
+        }
+    }
+
+    /// Its derivative on `axis` over `t`, enclosed: on the azimuth
+    /// `±(1 − β²)/(1 − 2β·cos E + β²)`, `cos E` named once; unbounded
+    /// where the denominator is not enclosed above zero.
+    fn rate(&self, axis: Axis, t: Interval) -> Interval {
+        match axis {
+            Axis::U => {
+                let c = (t - self.t0).sin_cos().1;
+                let b2 = self.beta.powi(2);
+                let den = at(1.0) + b2 - self.beta * c * at(2.0);
+                if !(den.lo() > 0.0) {
+                    return whole_line();
+                }
+                let rate = (at(1.0) - b2) / den;
+                match self.sense {
+                    Sense::With => rate,
+                    Sense::Against => at(0.0) - rate,
+                }
+            }
+            Axis::V => channel_rate(self.v, t),
+        }
     }
 }
 
@@ -3704,6 +4028,37 @@ enum Form {
     Harmonic { chart: Harmonic, image: Trig },
     /// A spiric's wall image on a torus, and its image on the face.
     Wall(WallImage),
+    /// A section ellipse's focal image on a cone. Its image on the face
+    /// is read by no value: a separator is zero along it by membership
+    /// alone ([`sign_on`], "Where `ψ` is zero").
+    Focal(Focal),
+}
+
+impl Form {
+    /// **The form [`present_curved`] reads a chart curve in on
+    /// `surface`**: a harmonic row whose image is a [`Trig`]
+    /// ([`Trig::of`]: on a plane or a cylinder), or a focal image on a
+    /// cone. `None` for every other curve and chart: a wall image is
+    /// [`present_wall`]'s, and a focal image on a torus (a Villarceau
+    /// circle) is read by nothing.
+    fn of(surface: &Surface<Interval>, chart: ChartCurve) -> Option<Self> {
+        match (chart, surface) {
+            (ChartCurve::Harmonic(chart), _) => {
+                Trig::of(surface, &chart).map(|image| Self::Harmonic { chart, image })
+            }
+            (ChartCurve::Focal(f), Surface::Cone { .. }) => Some(Self::Focal(f)),
+            (ChartCurve::Focal(_) | ChartCurve::Wall(_), _) => None,
+        }
+    }
+
+    /// The chart curve.
+    fn chart(&self) -> ChartCurve {
+        match *self {
+            Self::Harmonic { chart, .. } => ChartCurve::Harmonic(chart),
+            Self::Wall(w) => ChartCurve::Wall(w.wall),
+            Self::Focal(f) => ChartCurve::Focal(f),
+        }
+    }
 }
 
 impl Curved {
@@ -3713,16 +4068,14 @@ impl Curved {
         match self.form {
             Form::Harmonic { image, .. } => image.psi(psi, t),
             Form::Wall(w) => w.psi(psi, t),
+            Form::Focal(_) => None,
         }
     }
 
     /// The chart point at the middle of the side's parameters.
     fn middle(&self) -> (Interval, Interval) {
         let t = at(geom::mid_param(self.t.0, self.t.1));
-        let [u, v] = match self.form {
-            Form::Harmonic { chart, .. } => chart.at(t),
-            Form::Wall(w) => w.wall.at(t),
-        };
+        let [u, v] = self.form.chart().at(t);
         (u, v)
     }
 }
@@ -3769,10 +4122,18 @@ fn conic(c: &Curve3<Interval>) -> Option<Trig> {
 
 /// **A face's chart curve on an edge it is not presented by lines
 /// on**: a plane's image of a conic carrier, through its affine chart;
-/// any other face's harmonic row.
-fn chart_curve(surface: &Surface<Interval>, rim: &Rim, u: &Use) -> Option<Harmonic> {
+/// any other face's harmonic row or focal image.
+fn chart_curve(surface: &Surface<Interval>, rim: &Rim, u: &Use) -> Option<ChartCurve> {
+    match surface {
+        Surface::Plane { .. } => plane_conic(surface, rim).map(ChartCurve::Harmonic),
+        _ => u.curve.filter(|c| !matches!(c, ChartCurve::Wall(_))),
+    }
+}
+
+/// A plane's image of a conic carrier, through its affine chart.
+fn plane_conic(surface: &Surface<Interval>, rim: &Rim) -> Option<Harmonic> {
     let Surface::Plane { frame } = *surface else {
-        return u.harmonic;
+        return None;
     };
     let (origin, normal, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
     let edge = conic(&rim.arc.as_ref()?.0)?;
@@ -3790,7 +4151,7 @@ fn chart_curve(surface: &Surface<Interval>, rim: &Rim, u: &Use) -> Option<Harmon
 /// Whether an edge's chart curve is one [`present_curved`] reads.
 fn reads_curve(surface: &Surface<Interval>, rim: &Rim) -> bool {
     matches!(rim.uses.as_slice(), [u] if chart_curve(surface, rim, u)
-        .is_some_and(|h| Trig::of(surface, &h).is_some()))
+        .is_some_and(|c| Form::of(surface, c).is_some()))
 }
 
 /// Whether a face reads an edge as curved: on a plane, any carrier but
@@ -3989,6 +4350,24 @@ fn within(x: Interval, (lo, hi): (f64, f64)) -> bool {
     lo <= x.lo() && x.hi() <= hi
 }
 
+/// **Whether a rectangle `x × y` of a cone's chart is one the curved
+/// readings are argued on**: off the apex (`v = 0`, where every `u` is
+/// one point, so the chart is no longer one-to-one and a chart length
+/// along `u` is no length at all) and under a turn wide in `u`. There
+/// the chart is one-to-one and orthogonal, `|S_v| = 1` and
+/// `|S_u| = |v|·sin α`, as [`present_curved`]'s and
+/// [`present_line_corner`]'s region arguments and [`on_vertex`]'s metre
+/// bound take it to be. Every other chart is such a rectangle wherever
+/// those readings read it: a cylinder's and a ring torus's never
+/// collapse, and each reading refuses a rectangle a turn wide on its own
+/// terms.
+fn cone_regular(surface: &Surface<Interval>, x: (f64, f64), y: (f64, f64)) -> bool {
+    match surface {
+        Surface::Cone { .. } => (y.0 > 0.0 || y.1 < 0.0) && x.1 - x.0 < TURN,
+        _ => true,
+    }
+}
+
 /// **Present `piece`'s face by the region on one side of the curved
 /// edge `ei`**, the one boundary edge near the cell: the face's part of
 /// the cell lies in `{(a, b) : a ∈ A, b on the face's side of g(a)}`,
@@ -4045,18 +4424,11 @@ fn present_curved<'a>(
     let [u] = e.uses.as_slice() else {
         return Err(unread(ei, near_edges));
     };
-    let Some(chart) = chart_curve(piece.surface, e, u) else {
-        if std::env::var_os("CV_TRACE").is_some() {
-            eprintln!("CVS present_curved no-chart-curve face={:?} edge={:?} shared={}", piece.face, e.key, near_edges.contains(&ei));
-        }
+    let Some(form) = chart_curve(piece.surface, e, u).and_then(|c| Form::of(piece.surface, c))
+    else {
         return Err(unread(ei, near_edges));
     };
-    let Some(image) = Trig::of(piece.surface, &chart) else {
-        if std::env::var_os("CV_TRACE").is_some() {
-            eprintln!("CVS present_curved no-trig face={:?} edge={:?} shared={} chart={chart:?}", piece.face, e.key, near_edges.contains(&ei));
-        }
-        return Err(unread(ei, near_edges));
-    };
+    let chart = form.chart();
     let Some((carrier, span)) = e.arc.as_ref() else {
         return Err({
             crate::gate_measure::local_site("L", line!());
@@ -4071,8 +4443,9 @@ fn present_curved<'a>(
     // span a whole period, and the period moves the image by whole
     // turns: none on an axis that is not periodic.
     let lattice = [Axis::U, Axis::V].into_iter().all(|axis| {
-        let l = chart.pl[axis.index()];
-        exactly(l, 0.0) || (periodic(piece.surface, axis) && (exactly(l, 1.0) || exactly(l, -1.0)))
+        chart
+            .wind(axis)
+            .is_some_and(|k| k == 0 || periodic(piece.surface, axis))
     });
     let continued = e.ends[0] == e.ends[1] && whole_turn(t0, t1) && lattice;
     // The curve is the zero: the shared edge, or at a vertex the pair
@@ -4092,7 +4465,7 @@ fn present_curved<'a>(
             Zero::Curve(
                 Side::of(column.other(), above),
                 Box::new(Curved {
-                    form: Form::Harmonic { chart, image },
+                    form,
                     t,
                     along: Along {
                         edges: vec![e.key],
@@ -4166,26 +4539,49 @@ impl Wall {
     }
 }
 
-/// **A chart curve a corner's other edge is read by**
-/// ([`leaves_line`]).
-#[derive(Clone, Copy, Debug)]
-enum ChartCurve {
-    Harmonic(Harmonic),
-    Wall(Wall),
-}
-
 impl ChartCurve {
-    fn at(&self, t: Interval) -> [Interval; 2] {
+    /// The image on `axis` over the parameters `t`, enclosed.
+    fn on(&self, axis: Axis, t: Interval) -> Interval {
         match self {
-            Self::Harmonic(h) => h.at(t),
-            Self::Wall(w) => w.at(t),
+            Self::Harmonic(h) => h.on(axis, t),
+            Self::Wall(w) => w.on(axis, t),
+            Self::Focal(f) => f.on(axis, t),
         }
     }
 
+    /// The chart point at `t`, or the image over the parameters `t`,
+    /// enclosed, `[u, v]`.
+    fn at(&self, t: Interval) -> [Interval; 2] {
+        [self.on(Axis::U, t), self.on(Axis::V, t)]
+    }
+
+    /// Its derivative on `axis` over `t`, enclosed.
     fn rate(&self, axis: Axis, t: Interval) -> Interval {
         match self {
             Self::Harmonic(h) => h.rate(axis, t),
             Self::Wall(w) => w.rate(axis, t),
+            Self::Focal(f) => f.rate(axis, t),
+        }
+    }
+
+    /// **How many whole turns one period of the parameter moves the image
+    /// on `axis`**: a harmonic channel's linear coefficient where it is
+    /// exactly `0` or `±1`, a focal image's sense on its azimuth. `None`
+    /// where the period moves it by no whole number of turns, and for a
+    /// wall image, which [`present_wall`] continues itself.
+    fn wind(&self, axis: Axis) -> Option<i64> {
+        let whole = |l: Interval| {
+            [(0.0, 0_i64), (1.0, 1), (-1.0, -1)]
+                .into_iter()
+                .find_map(|(x, k)| exactly(l, x).then_some(k))
+        };
+        match self {
+            Self::Harmonic(h) => whole(h.pl[axis.index()]),
+            Self::Focal(f) => match axis {
+                Axis::U => Some(f.sense.sign()),
+                Axis::V => whole(f.v[3]).filter(|&k| k == 0),
+            },
+            Self::Wall(_) => None,
         }
     }
 }
@@ -4278,7 +4674,7 @@ impl WallImage {
 /// has one.
 fn wall_image(surface: &Surface<Interval>, rim: &Rim) -> Option<Wall> {
     match (surface, rim.uses.as_slice()) {
-        (Surface::Torus { .. }, [u]) => u.wall,
+        (Surface::Torus { .. }, [u]) => u.wall(),
         _ => None,
     }
 }
@@ -4791,37 +5187,40 @@ fn reading(piece: &Piece<'_>, c: Corner) -> Option<Reading> {
         }
         (reads_curve(s, e) && straight).then_some(Reading::Curve)
     } else if let Surface::Plane { .. } = s {
-        let [u] = o.uses.as_slice() else {
+        let [_] = o.uses.as_slice() else {
             return None;
         };
         if !curved(o) || piece.whole {
             return None;
         }
-        chart_curve(s, o, u).map(Reading::PlaneLine)
+        plane_conic(s, o).map(Reading::PlaneLine)
     } else {
-        // The argument is made on a chart that never collapses: a
-        // cylinder's, or a ring torus's. On a sphere a circle is read in
-        // the pose that makes it a coordinate line ([`present_posed`]),
-        // and a curve no chart makes one is not argued here;
-        // a cone's apex collapses a line of its chart, and is not read
-        // past here, conservatively: an apex in reach is a vertex the
-        // reading refuses. On a torus the line is a parallel, and the
-        // curve a wall image, whose `v` is linear in its parameter: that
-        // is what [`leaves_line`]'s rate on the held axis reads. A
-        // meridian, along which the wall's azimuth can turn, and a
-        // harmonic curve, which can turn on both axes, are not argued.
+        // The argument is made on a rectangle the chart maps one-to-one
+        // with no collapse: any of a cylinder's or a ring torus's, and a
+        // cone's off its apex and under a turn wide ([`cone_regular`],
+        // which the line reading asks of its rectangle). On a sphere a
+        // circle is read in the pose that makes it a coordinate line
+        // ([`present_posed`]), and a curve no chart makes one is not
+        // argued here. On a torus the line is a parallel, and the curve a
+        // wall image, whose `v` is linear in its parameter: that is what
+        // [`leaves_line`]'s rate on the held axis reads. A meridian, along
+        // which the wall's azimuth can turn, and a harmonic curve, which
+        // can turn on both axes, are not argued. On a cone the line is a
+        // ruling or a rim's arc and the curve a section ellipse's focal
+        // image.
         let line = matches!(e.uses.as_slice(), [u] if u.iso.is_some_and(|i| !i.full));
         if !(line && curved(o)) || piece.whole {
             return None;
         }
-        let harmonic = match o.uses.as_slice() {
-            [u] => u.harmonic,
+        let curve = match o.uses.as_slice() {
+            [u] => u.curve,
             _ => None,
         };
-        match s {
-            Surface::Cylinder { .. } => harmonic.map(|h| Reading::Line(ChartCurve::Harmonic(h))),
-            Surface::Torus { .. } if parallel(e) => {
-                wall_image(s, o).map(|w| Reading::Line(ChartCurve::Wall(w)))
+        match (s, curve) {
+            (Surface::Cylinder { .. }, Some(c @ ChartCurve::Harmonic(_)))
+            | (Surface::Cone { .. }, Some(c @ ChartCurve::Focal(_))) => Some(Reading::Line(c)),
+            (Surface::Torus { .. }, Some(c @ ChartCurve::Wall(_))) if parallel(e) => {
+                Some(Reading::Line(c))
             }
             _ => None,
         }
@@ -5201,11 +5600,9 @@ fn present_line_corner<'a>(
     if [Axis::U, Axis::V].into_iter().any(|axis| {
         let (lo, hi) = axis.of((x, y));
         periodic(surface, axis) && whole_turn(lo, hi)
-    }) {
-        return Err({
-            crate::gate_measure::local_site("L", line!());
-            Unpresented::Local
-        });
+    }) || !cone_regular(surface, x, y)
+    {
+        return Err(Unpresented::Local);
     }
     let m = |(l, h): (f64, f64)| geom::mid_param(l, h);
     let ball = Ball::holding(surface.point_eval(m(x), m(y)), surface.rect_enclosure(x, y));
@@ -5407,7 +5804,13 @@ fn vertex_corner(
     let [u] = ro.uses.as_slice() else {
         return None;
     };
-    Some((v, line, other, chart_curve(surface, ro, u)?))
+    // A focal image at a vertex the pair shares alone is read by no
+    // quadrant
+    // (`work/embed/a-torus-or-cone-corner-at-a-vertex-alone-reads-no-quadrant.md`).
+    let ChartCurve::Harmonic(h) = chart_curve(surface, ro, u)? else {
+        return None;
+    };
+    Some((v, line, other, h))
 }
 
 /// **Present a cell at a corner whose vertex `V` is the shared cell
@@ -5852,7 +6255,7 @@ type Run = Vec<(Node, f64)>;
 /// another: through a closed edge's join, its period moves the curve by
 /// its linear part's whole turns on the column axis.
 struct Pieces<'c> {
-    chart: &'c Harmonic,
+    chart: &'c ChartCurve,
     column: Axis,
     t: Vec<Interval>,
     width: f64,
@@ -5861,9 +6264,10 @@ struct Pieces<'c> {
 }
 
 impl<'c> Pieces<'c> {
-    fn of(chart: &'c Harmonic, column: Axis, (t0, t1): (f64, f64), continued: bool) -> Self {
-        #[allow(clippy::cast_possible_truncation)]
-        let wind = chart.pl[column.index()].lo() as i64;
+    /// `continued` only where the period moves the image by whole turns
+    /// on both axes ([`ChartCurve::wind`]): the column's is `wind`.
+    fn of(chart: &'c ChartCurve, column: Axis, (t0, t1): (f64, f64), continued: bool) -> Self {
+        let wind = chart.wind(column).unwrap_or(0);
         Self {
             chart,
             column,
@@ -6034,6 +6438,9 @@ fn graph_read(
         Axis::U => ((a0, a1), rb),
         Axis::V => (rb, (a0, a1)),
     };
+    if !cone_regular(surface, x, y) {
+        return None;
+    }
     let local = if rb == (b0, b1) && cell == own {
         piece.local.clone()
     } else {
@@ -7179,9 +7586,9 @@ fn departure(
     // vanishes at the collapse; across the side the chart's derivative is
     // a ruling's or a meridian's direction. `ψ` vanishes on the side by
     // membership, `q` being `v`'s stored point, and the side's image is
-    // `v` within the collapse's own reading: [`SELF_INTERSECTION_APEX`] at
-    // an apex, `vertex_at_singular_point` at a pole (the module's
-    // separator concessions).
+    // `v` within the collapse's own reading: `vertex_at_singular_point`,
+    // at an apex and at a pole alike (the module's separator
+    // concessions).
     //
     // **Where it fires.** It certifies only where each face against `v` is
     // presented with no zero (read by value), a corner point at `v`
@@ -8180,8 +8587,7 @@ mod presentation_rows {
                     at: iv0(at),
                     full: false,
                 }),
-                wall: None,
-                harmonic: None,
+                curve: None,
             }],
         }
     }
@@ -8936,8 +9342,7 @@ mod presentation_rows {
             plus: true,
             image: Some([p2((1.0, 0.0)), p2((1.0, 1.0))]),
             iso: None,
-            wall: None,
-            harmonic: None,
+            curve: None,
         };
         assert_eq!(
             face_side(&up, iso(Axis::U, 1.0), PolygonOrientation::of_face(true)),
@@ -8953,8 +9358,7 @@ mod presentation_rows {
             plus: true,
             image: Some([p2((0.0, 0.0)), p2((1.0, 0.0))]),
             iso: None,
-            wall: None,
-            harmonic: None,
+            curve: None,
         };
         assert_eq!(
             face_side(&east, iso(Axis::V, 0.0), PolygonOrientation::of_face(true)),
@@ -8974,8 +9378,7 @@ mod presentation_rows {
             plus: true,
             image: Some([p2((0.0, 0.0)), p2((0.0, 0.0))]),
             iso: None,
-            wall: None,
-            harmonic: None,
+            curve: None,
         };
         assert_eq!(
             face_side(&flat, iso(Axis::V, 0.0), PolygonOrientation::of_face(true)),
@@ -9256,6 +9659,7 @@ mod presentation_rows {
             at: iv0(0.0),
             edges: vec![i],
             collapsed: None,
+            ends_here: Vec::new(),
         };
         assert!(convex(&b, &clip(Side::XHi, 0), &clip(Side::YLo, 3)));
         assert!(!convex(&b, &clip(Side::XLo, 0), &clip(Side::YLo, 3)));
@@ -9273,6 +9677,7 @@ mod presentation_rows {
             at: iv0(0.0),
             edges: vec![i],
             collapsed: None,
+            ends_here: Vec::new(),
         };
         let right = clip(Side::XHi, 0);
         let bottom = clip(Side::YLo, 3);
@@ -9323,8 +9728,7 @@ mod presentation_rows {
                     plus: true,
                     image: None,
                     iso: None,
-                    wall: None,
-                    harmonic: None,
+                    curve: None,
                 }],
             }],
             vertices: BTreeMap::new(),
@@ -9384,8 +9788,7 @@ mod presentation_rows {
                 plus,
                 image: None,
                 iso: None,
-                wall: None,
-                harmonic: None,
+                curve: None,
             }],
         };
         let y = Vec3::new(iv0(0.0), iv0(1.0), iv0(0.0));
@@ -9490,8 +9893,7 @@ mod presentation_rows {
                     plus,
                     image: None,
                     iso: None,
-                    wall: None,
-                    harmonic: None,
+                    curve: None,
                 }],
             }],
             vertices: BTreeMap::from([(vertex(1), origin())]),
@@ -9655,8 +10057,7 @@ mod presentation_rows {
                 plus: true,
                 image: None,
                 iso: None,
-                wall: None,
-                harmonic: None,
+                curve: None,
             }],
         }
     }
@@ -9685,8 +10086,7 @@ mod presentation_rows {
                 plus: true,
                 image: None,
                 iso: None,
-                wall: None,
-                harmonic: None,
+                curve: None,
             }],
         };
         let p = |x: f64, y: f64| Point3::new(iv0(x), iv0(y), iv0(0.0));
@@ -9904,8 +10304,7 @@ mod presentation_rows {
                 plus,
                 image: None,
                 iso: None,
-                wall: None,
-                harmonic: None,
+                curve: None,
             }],
         };
         let upper = rim(10, Curve3::circle(origin(), z, iv0(1.0), x), half, inside);
@@ -10655,6 +11054,693 @@ mod presentation_rows {
         );
     }
 
+    /// The octant, its two meridians ending at `top` at the pole: the
+    /// lift's end there and the extent's `v` top.
+    fn octant_ending_at(top: f64) -> (Surface<Interval>, Boundary) {
+        let (s, mut b) = octant();
+        let q = core::f64::consts::FRAC_PI_2;
+        b.edges[1] = rim(2, [2, 3], Axis::U, q, (q, 0.0), (q, top));
+        b.edges[2] = rim(3, [3, 1], Axis::U, 0.0, (0.0, top), (0.0, 0.0));
+        b.extent = Some([(0.0, q), (0.0, top)]);
+        (s, b)
+    }
+
+    /// **A sphere face whose stored extent stops ulps short of its pole
+    /// places the pole, in every cell that reaches it.** The octant's
+    /// meridians end one ulp under `π/2`'s enclosure, as a meridian's
+    /// pcurve evaluated at its edge's parameter does, and one over it.
+    /// The face holds a vertex at the pole, so its extent reaches the
+    /// polar latitude ([`face_extent`]), and the window's top cell and
+    /// each cell under it down to a width of a few ulps is presented
+    /// with the pole's collapsed side its zero. Red, every cell
+    /// unpresented, where the rectangle is clipped to the stored extent.
+    #[test]
+    fn a_sphere_face_whose_extent_stops_ulps_short_of_its_pole_places_the_pole() {
+        let q = core::f64::consts::FRAC_PI_2;
+        let line = pole_latitude(true);
+        for (stored, what) in [(q.next_down(), "short"), (q, "on"), (q.next_up(), "past")] {
+            let (s, b) = octant_ending_at(stored);
+            assert!(
+                matches!(
+                    face_extent(&s, &b, band()),
+                    Ok(Extent::Known([_, (0.0, hi)])) if hi == line.hi()
+                ),
+                "{what}: the extent ends on the polar latitude"
+            );
+            let local = Local {
+                edges: vec![1, 2],
+                vertices: vec![vertex(3)],
+            };
+            let top = q.next_up();
+            let widths =
+                core::iter::successors(Some(0.07), |w| Some(w * 0.5)).take_while(|w| *w > 1e-14);
+            for w in widths {
+                let piece = Piece {
+                    face: FaceKey::default(),
+                    surface: &s,
+                    whole: false,
+                    boundary: &b,
+                    u: (0.7, 0.8),
+                    v: (top - w, top),
+                    local: &local,
+                    ball: Ball::holding(origin(), origin()),
+                };
+                let got = match present_chart(&piece, &[], &[vertex(3)], band()) {
+                    Ok(Presentation::Of(p)) => Some((p.zero, p.y)),
+                    _ => None,
+                };
+                assert!(
+                    matches!(&got, Some((Zero::Side(Side::YHi, a), (_, hi)))
+                        if *hi == line.hi() && a.vertex == Some(vertex(3))),
+                    "{what}, a cell {w} under the pole: the pole's side is the zero: {got:?}"
+                );
+            }
+        }
+    }
+
+    /// **The south pole is the low side of its face's chart**: the
+    /// octant under the equator, its meridians ending an ulp over
+    /// `-π/2`. The cell at the pole, wholly at negative `v`, is presented
+    /// with the side `v = -π/2` its zero. Red where a sphere's cell is
+    /// read as a cone's on its other nappe, holding nothing.
+    #[test]
+    fn a_spheres_south_pole_is_the_low_side_of_its_chart() {
+        let (s, mut b) = octant();
+        let q = core::f64::consts::FRAC_PI_2;
+        let line = pole_latitude(false);
+        let end = -q.next_down();
+        b.edges = vec![
+            rim(1, [2, 1], Axis::V, 0.0, (q, 0.0), (0.0, 0.0)),
+            rim(2, [3, 2], Axis::U, q, (q, end), (q, 0.0)),
+            rim(3, [1, 3], Axis::U, 0.0, (0.0, 0.0), (0.0, end)),
+        ];
+        b.vertices
+            .insert(vertex(3), Point3::new(iv0(0.0), iv0(0.0), iv0(-1.0)));
+        b.extent = Some([(0.0, q), (end, 0.0)]);
+        assert_eq!(v_of(&s, &b), Ok((line.lo(), 0.0)));
+        let local = Local {
+            edges: vec![1, 2],
+            vertices: vec![vertex(3)],
+        };
+        let piece = Piece {
+            face: FaceKey::default(),
+            surface: &s,
+            whole: false,
+            boundary: &b,
+            u: (0.7, 0.8),
+            v: (-q.next_up(), -1.5),
+            local: &local,
+            ball: Ball::holding(origin(), origin()),
+        };
+        let got = match present_chart(&piece, &[], &[vertex(3)], band()) {
+            Ok(Presentation::Of(p)) => Some((p.zero, p.y)),
+            _ => None,
+        };
+        assert!(
+            matches!(&got, Some((Zero::Side(Side::YLo, a), (lo, _)))
+                if *lo == line.lo() && a.vertex == Some(vertex(3))),
+            "the south pole's side is the zero: {got:?}"
+        );
+    }
+
+    /// **A meridian that ends at the pole's vertex runs on to the pole's
+    /// side**: the octant with its meridians' images ending half the
+    /// band's zero under the pole, as a vertex in the band and off the
+    /// pole puts them. The cell at the pole is presented with the pole's
+    /// side its zero. With the same images and the meridians ending at
+    /// other vertices, beside the pole's, the cell is `Local`: the gap is
+    /// past the cover's `few_ulps`, and no key closes it. Red where the
+    /// run-on is granted without the vertex's key, or not at all.
+    #[test]
+    fn a_meridian_ending_at_the_poles_vertex_runs_on_to_the_poles_side() {
+        let q = core::f64::consts::FRAC_PI_2;
+        let line = pole_latitude(true);
+        let (s, b) = octant_ending_at(line.lo() - 0.5 * band().zero());
+        let at_pole = |b: &Boundary| {
+            let local = Local {
+                edges: vec![1, 2],
+                vertices: vec![vertex(3)],
+            };
+            let piece = Piece {
+                face: FaceKey::default(),
+                surface: &s,
+                whole: false,
+                boundary: b,
+                u: (0.0, q),
+                v: (1.5, q.next_up()),
+                local: &local,
+                ball: Ball::holding(origin(), origin()),
+            };
+            match present_chart(&piece, &[], &[vertex(3)], band()) {
+                Ok(Presentation::Of(p)) => Ok((p.zero, p.y)),
+                Ok(Presentation::Vacuous) => panic!("vacuous"),
+                Err(e) => Err(e),
+            }
+        };
+        let got = at_pole(&b);
+        assert!(
+            matches!(&got, Ok((Zero::Side(Side::YHi, a), (_, hi)))
+                if *hi == line.hi() && a.vertex == Some(vertex(3))),
+            "the meridians end at the pole's vertex: {got:?}"
+        );
+        let mut beside = b.clone();
+        beside.edges[1].ends[1] = vertex(7);
+        beside.edges[2].ends[0] = vertex(8);
+        assert!(
+            matches!(at_pole(&beside), Err(Unpresented::Local)),
+            "the meridians end beside the pole, at other vertices"
+        );
+    }
+
+    /// **A meridian whose image ends off the pole does not run on to the
+    /// pole's side, though the face's extent moved there** (review of
+    /// PR 7115): the octant with one meridian's image ending an ulp
+    /// under `π/2` and the other's 0.01 under, both ending at the pole's
+    /// vertex. The stored extent ends an ulp under, so it moves to the
+    /// latitude; the short meridian still covers only its own range, so
+    /// the cell across both meridians at the pole is `Local`. Red where
+    /// the run-on is granted by the key, or by the moved extent, alone.
+    #[test]
+    fn a_meridian_ending_off_the_pole_does_not_run_on_where_the_extent_moved() {
+        let q = core::f64::consts::FRAC_PI_2;
+        let line = pole_latitude(true);
+        let (s, mut b) = octant_ending_at(q.next_down());
+        b.edges[1] = rim(2, [2, 3], Axis::U, q, (q, 0.0), (q, q - 0.01));
+        assert_eq!(v_of(&s, &b), Ok((0.0, line.hi())), "the extent moves");
+        let local = Local {
+            edges: vec![1, 2],
+            vertices: vec![vertex(3)],
+        };
+        let piece = Piece {
+            face: FaceKey::default(),
+            surface: &s,
+            whole: false,
+            boundary: &b,
+            u: (0.0, q),
+            v: (1.5, q.next_up()),
+            local: &local,
+            ball: Ball::holding(origin(), origin()),
+        };
+        let got = present_chart(&piece, &[], &[vertex(3)], band());
+        assert!(
+            matches!(got, Err(Unpresented::Local)),
+            "the short meridian does not cover its side: {:?}",
+            got.map(|p| matches!(p, Presentation::Vacuous))
+        );
+    }
+
+    /// **An edge runs on to the pole's side only where its image ends at
+    /// the pole by the band**: a polar cap whose loop wraps the sphere
+    /// (its extent says nothing, so nothing has checked its rows), with a
+    /// meridian spur up to the pole's vertex. The cell beside the spur at
+    /// the pole is presented where the spur's image ends half the band's
+    /// zero short of the latitude, and is `Local` where it ends twice
+    /// the band's escalation short: that edge and its vertex name two
+    /// places. Red where the vertex's key alone grants the run-on.
+    #[test]
+    fn an_edge_runs_on_only_where_its_image_ends_at_the_pole_by_the_band() {
+        let (s, _) = octant();
+        let top = pole_latitude(true).lo();
+        let cap = |end: f64| Boundary {
+            sense: true,
+            outer: None,
+            edges: vec![
+                rim(1, [1, 1], Axis::V, 1.0, (0.0, 1.0), (TURN, 1.0)),
+                rim(2, [1, 3], Axis::U, 1.5, (1.5, 1.0), (1.5, end)),
+            ],
+            vertices: BTreeMap::from([
+                (
+                    vertex(1),
+                    Point3::new(iv0(1.0_f64.cos()), iv0(0.0), iv0(1.0_f64.sin())),
+                ),
+                (vertex(3), Point3::new(iv0(0.0), iv0(0.0), iv0(1.0))),
+            ]),
+            extent: Some([(0.0, TURN), (1.0, core::f64::consts::FRAC_PI_2)]),
+        };
+        let at_pole = |b: &Boundary| {
+            let local = Local {
+                edges: vec![1],
+                vertices: vec![vertex(3)],
+            };
+            let piece = Piece {
+                face: FaceKey::default(),
+                surface: &s,
+                whole: false,
+                boundary: b,
+                u: (1.2, 1.5),
+                v: (1.5, core::f64::consts::FRAC_PI_2.next_up()),
+                local: &local,
+                ball: Ball::holding(origin(), origin()),
+            };
+            read(present_chart(&piece, &[], &[vertex(3)], band()))
+        };
+        assert!(
+            matches!(at_pole(&cap(top - 0.5 * band().zero())), Read::Of(..)),
+            "in the band: {:?}",
+            at_pole(&cap(top - 0.5 * band().zero()))
+        );
+        assert_eq!(
+            at_pole(&cap(top - 2.0 * band().escalate())),
+            Read::Local,
+            "past the band"
+        );
+    }
+
+    /// **A rectangle wholly past a singular latitude is not presented**:
+    /// a polar cap whose loop wraps the sphere, so its extent says
+    /// nothing, read in a cell past `π/2` with the pole's vertex in
+    /// reach. The pole's side leaves the rectangle no width, which is
+    /// `Local`. Red where the collapse is skipped for such a rectangle
+    /// and it keeps its width.
+    #[test]
+    fn a_rectangle_wholly_past_the_pole_is_not_presented() {
+        let (s, _) = octant();
+        let b = Boundary {
+            sense: true,
+            outer: None,
+            edges: vec![rim(1, [1, 1], Axis::V, 1.0, (0.0, 1.0), (TURN, 1.0))],
+            vertices: BTreeMap::from([
+                (
+                    vertex(1),
+                    Point3::new(iv0(1.0_f64.cos()), iv0(0.0), iv0(1.0_f64.sin())),
+                ),
+                (vertex(3), Point3::new(iv0(0.0), iv0(0.0), iv0(1.0))),
+            ]),
+            extent: Some([(0.0, TURN), (1.0, core::f64::consts::FRAC_PI_2)]),
+        };
+        let local = Local {
+            edges: Vec::new(),
+            vertices: vec![vertex(3)],
+        };
+        let piece = Piece {
+            face: FaceKey::default(),
+            surface: &s,
+            whole: false,
+            boundary: &b,
+            u: (1.2, 1.8),
+            v: (1.58, 1.6),
+            local: &local,
+            ball: Ball::holding(origin(), origin()),
+        };
+        // No vertex is shared in this cell, so a rectangle that kept its
+        // width would be presented with no zero.
+        assert!(matches!(
+            present_chart(&piece, &[], &[], band()),
+            Err(Unpresented::Local)
+        ));
+    }
+
+    /// **A face that holds no vertex at a pole is given no pole**, and
+    /// its extent is the stored one: a vertex a millimetre of arc off
+    /// the pole, on a unit sphere, at either end; a face of another
+    /// surface with a vertex where a sphere's pole would be; and the
+    /// south pole's vertex moves the extent's low end alone. Red where
+    /// the extent is widened for a vertex off the pole, or at the wrong
+    /// end.
+    #[test]
+    fn a_face_short_of_its_pole_reads_no_pole() {
+        let q = core::f64::consts::FRAC_PI_2;
+        let sphere = octant().0;
+        let lone = |z: f64, v: (f64, f64)| Boundary {
+            sense: true,
+            vertices: BTreeMap::from([(
+                vertex(3),
+                Point3::new(iv0((1.0 - z * z).sqrt()), iv0(0.0), iv0(z)),
+            )]),
+            extent: Some([(0.0, 1.0), v]),
+            ..Boundary::default()
+        };
+        let v_of = |s: &Surface<Interval>, b: &Boundary| match face_extent(s, b, band()) {
+            Ok(Extent::Known([_, v])) => Some(v),
+            _ => None,
+        };
+        let short = q - 1e-3;
+        for (z, stored, want, what) in [
+            (
+                short.sin(),
+                (0.5, short),
+                (0.5, short),
+                "north, off the pole",
+            ),
+            (
+                -short.sin(),
+                (-short, -0.5),
+                (-short, -0.5),
+                "south, off the pole",
+            ),
+            (
+                -1.0,
+                (-q.next_down(), -0.5),
+                (pole_latitude(false).lo(), -0.5),
+                "at the south pole",
+            ),
+        ] {
+            assert_eq!(v_of(&sphere, &lone(z, stored)), Some(want), "{what}");
+        }
+        let cylinder = cylinder();
+        let stored = (0.5, q.next_down());
+        assert_eq!(
+            v_of(&cylinder, &lone(1.0, stored)),
+            Some(stored),
+            "a cylinder has no pole"
+        );
+        // The octant cut off at the latitude `v = 1.5`: no vertex at the
+        // pole, so a cell reaching past the latitude is bounded by it
+        // and holds no collapsed side.
+        let (s, mut b) = octant_ending_at(1.5);
+        b.vertices.insert(
+            vertex(3),
+            Point3::new(iv0(0.0), iv0(1.5_f64.cos()), iv0(1.5_f64.sin())),
+        );
+        assert_eq!(v_of(&s, &b), Some((0.0, 1.5)), "the cut octant's extent");
+        let local = Local {
+            edges: vec![1, 2],
+            vertices: vec![vertex(3)],
+        };
+        let piece = Piece {
+            face: FaceKey::default(),
+            surface: &s,
+            whole: false,
+            boundary: &b,
+            u: (0.7, 0.8),
+            v: (1.4, q.next_up()),
+            local: &local,
+            ball: Ball::holding(origin(), origin()),
+        };
+        let got = present_chart(&piece, &[], &[vertex(3)], band());
+        assert!(
+            !matches!(&got, Ok(Presentation::Of(p)) if matches!(p.zero, Zero::Side(Side::YHi, _))),
+            "the cut octant reads no pole"
+        );
+    }
+
+    /// A boundary of one vertex, the point `p`, and the extent `v` over
+    /// `u ∈ [0, 1]`: what [`face_extent`] reads of a singular point.
+    fn lone(p: Point3<Interval>, v: (f64, f64)) -> Boundary {
+        Boundary {
+            sense: true,
+            vertices: BTreeMap::from([(vertex(3), p)]),
+            extent: Some([(0.0, 1.0), v]),
+            ..Boundary::default()
+        }
+    }
+
+    /// The extent's `v` as [`face_extent`] returns it: `Ok` where it is
+    /// known, `Err` where the face refuses.
+    fn v_of(s: &Surface<Interval>, b: &Boundary) -> Result<(f64, f64), Unpresented> {
+        match face_extent(s, b, band()) {
+            Ok(Extent::Known([_, v])) => Ok(v),
+            Ok(_) => panic!("an extent neither wrapping nor unknown"),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// A sphere of radius 1 about `(0, 0, c)`, its axis `z`.
+    fn sphere_at(c: f64) -> Surface<Interval> {
+        Surface::Sphere {
+            frame: geom::Frame::new(
+                Point3::new(iv0(0.0), iv0(0.0), iv0(c)),
+                Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+            ),
+            radius: iv0(1.0),
+        }
+    }
+
+    /// A right-angled cone with its apex at `(0, 0, c)`, its axis `z`.
+    fn cone_at(c: f64) -> Surface<Interval> {
+        Surface::Cone {
+            frame: geom::Frame::new(
+                Point3::new(iv0(0.0), iv0(0.0), iv0(c)),
+                Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+            ),
+            half_angle: iv0(core::f64::consts::FRAC_PI_4),
+        }
+    }
+
+    /// **The extent moves to a singular latitude where its stored end is
+    /// at the singular point by the band, and nowhere else**: the one
+    /// incidence decision, asked of the row's end. On a unit sphere and a
+    /// right-angled cone, at the origin and a hundred units off it, a
+    /// face holding the vertex at the pole or apex whose stored extent
+    /// ends half the band's zero short of the latitude, in metres along
+    /// the surface, reaches it; one whose extent ends twice the band's
+    /// escalation short contradicts its vertex and refuses `Structural`.
+    /// Both poles, and both nappes. Red where the bound is a scale of
+    /// this reader's own, tighter or looser than the band.
+    #[test]
+    fn an_extent_moves_where_its_stored_end_is_at_the_singular_point_by_the_band() {
+        let (north, south) = (pole_latitude(true), pole_latitude(false));
+        let (near, far) = (0.5 * band().zero(), 2.0 * band().escalate());
+        for c in [0.0, 100.0] {
+            let at_z = |z: f64| Point3::new(iv0(0.0), iv0(0.0), iv0(c + z));
+            let sphere = sphere_at(c);
+            assert_eq!(
+                v_of(&sphere, &lone(at_z(1.0), (0.5, north.lo() - near))),
+                Ok((0.5, north.hi())),
+                "at {c}: in the band under the north pole"
+            );
+            assert_eq!(
+                v_of(&sphere, &lone(at_z(-1.0), (south.hi() + near, -0.5))),
+                Ok((south.lo(), -0.5)),
+                "at {c}: in the band over the south pole"
+            );
+            for (z, v, what) in [
+                (
+                    1.0,
+                    (0.5, north.lo() - far),
+                    "past the band under the north pole",
+                ),
+                (1.0, (-1.0, 0.0), "a radian and a half under the north pole"),
+                (
+                    -1.0,
+                    (south.hi() + far, -0.5),
+                    "past the band over the south pole",
+                ),
+            ] {
+                assert_eq!(
+                    v_of(&sphere, &lone(at_z(z), v)),
+                    Err(Unpresented::Structural),
+                    "at {c}: {what}"
+                );
+            }
+            // A cone face is on a nappe by a vertex off the apex.
+            let cone = cone_at(c);
+            let on = |up: bool, v: (f64, f64)| {
+                let mut b = lone(at_z(0.0), v);
+                let z = if up { 1.0 } else { -1.0 };
+                b.vertices
+                    .insert(vertex(4), Point3::new(iv0(1.0), iv0(0.0), iv0(c + z)));
+                v_of(&cone, &b)
+            };
+            assert_eq!(
+                on(true, (near, 1.0)),
+                Ok((0.0, 1.0)),
+                "at {c}: over the apex"
+            );
+            assert_eq!(
+                on(false, (-1.0, -near)),
+                Ok((-1.0, 0.0)),
+                "at {c}: under it"
+            );
+            for (up, v, what) in [
+                (true, (far, 1.0), "past the band over the apex"),
+                (false, (-1.0, -far), "past the band under the apex"),
+            ] {
+                assert_eq!(on(up, v), Err(Unpresented::Structural), "at {c}: {what}");
+            }
+            // An end past the apex, on the other nappe, is on the face's
+            // nappe where it is at the apex by the same decision.
+            assert_eq!(
+                on(true, (-near, 1.0)),
+                Ok((-near, 1.0)),
+                "at {c}: the nappe"
+            );
+            assert_eq!(
+                on(true, (-far, 1.0)),
+                Err(Unpresented::Structural),
+                "at {c}: an end on the other nappe"
+            );
+            assert_eq!(
+                on(false, (-1.0, near)),
+                Ok((-1.0, near)),
+                "at {c}: the nappe"
+            );
+            assert_eq!(
+                on(false, (-1.0, far)),
+                Err(Unpresented::Structural),
+                "at {c}: an end on the other nappe"
+            );
+        }
+    }
+
+    /// **The face's lines are read against the stored extent, before it
+    /// is moved to a pole**: a face above the latitude a slack and a half
+    /// under its north pole, holding the pole's vertex, whose stored
+    /// extent ends 0.9 of a slack under the pole. The line has no room
+    /// under the stored end, so the extent contradicts it and the face
+    /// refuses `Structural`. Red, the extent known, where the line is
+    /// read against the extent moved to the pole, which gives it room.
+    #[test]
+    fn a_line_is_read_against_the_stored_extent_not_the_one_moved_to_the_pole() {
+        let (s, mut b) = octant();
+        let q = core::f64::consts::FRAC_PI_2;
+        let north = pole_latitude(true);
+        let slack = chart_slack(&[0.0, north.hi()]);
+        let lat = north.lo() - 1.5 * slack;
+        b.edges[0] = rim(1, [1, 2], Axis::V, lat, (0.0, lat), (q, lat));
+        b.extent = Some([(0.0, q), (0.0, north.lo() - 0.9 * slack)]);
+        assert_eq!(v_of(&s, &b), Err(Unpresented::Structural));
+        // The same line with room under the stored end agrees with it.
+        b.extent = Some([(0.0, q), (0.0, north.lo())]);
+        assert_eq!(v_of(&s, &b), Ok((0.0, north.hi())));
+    }
+
+    /// **The extent moves to the pole for the vertices the incidence
+    /// reads at it, and no others**: on the unit sphere a vertex half the
+    /// band's zero of arc off the north pole is at it, and one twice the
+    /// band's escalation off is not, so the first face's extent ends on
+    /// the latitude and the second's is the stored one. The reading is
+    /// `vertex_at_singular_point`'s, in metres, reused; red where this
+    /// reader takes a scale of its own.
+    #[test]
+    fn the_extent_moves_for_a_vertex_the_band_reads_at_the_pole() {
+        let sphere = octant().0;
+        let north = pole_latitude(true);
+        let stored = (0.5, north.lo().next_down());
+        let off = |arc: f64| Point3::new(iv0(arc.sin()), iv0(0.0), iv0(arc.cos()));
+        assert_eq!(
+            v_of(&sphere, &lone(off(0.5 * band().zero()), stored)),
+            Ok((0.5, north.hi())),
+            "in the band's zero"
+        );
+        assert_eq!(
+            v_of(&sphere, &lone(off(2.0 * band().escalate()), stored)),
+            Ok(stored),
+            "past the band"
+        );
+        // The vertex in the band and off the pole, its rows ending at its
+        // own latitude: the end is at the pole by the same decision.
+        let arc = 0.5 * band().zero();
+        assert_eq!(
+            v_of(&sphere, &lone(off(arc), (0.5, north.lo() - arc))),
+            Ok((0.5, north.hi())),
+            "in the band's zero, the rows ending at the vertex's latitude"
+        );
+    }
+
+    /// **A cone face whose stored extent starts a rounding off its apex
+    /// places the apex.** The sector of
+    /// [`a_cone_face_at_its_apex_is_read_on_its_own_nappe`], its
+    /// meridians ending at the apex vertex, with the extent's low end at
+    /// `0`, an ulp of 1 above it (as a meridian line `c + l·t` evaluates
+    /// off the origin) and an ulp below. The face holds a vertex at the
+    /// apex, so its extent reaches `v = 0` ([`face_extent`]) and the cell
+    /// at the apex is presented with the apex's side its zero. Red, the
+    /// cell `Local`, where the rectangle is clipped to a stored end above
+    /// zero. A stored end off the apex by the band contradicts the vertex
+    /// and refuses `Structural`; a face on the negative nappe reaches the
+    /// apex at its high end.
+    #[test]
+    fn a_cone_face_whose_extent_starts_a_rounding_off_its_apex_places_the_apex() {
+        let s = cone_at(0.0);
+        let sector = |lo: f64| Boundary {
+            sense: true,
+            outer: None,
+            edges: vec![
+                rim(1, [9, 3], Axis::U, 2.0, (2.0, lo), (2.0, 1.0)),
+                rim(2, [3, 4], Axis::V, 1.0, (2.0, 1.0), (1.0, 1.0)),
+                rim(3, [4, 9], Axis::U, 1.0, (1.0, 1.0), (1.0, lo)),
+            ],
+            vertices: BTreeMap::from([
+                (vertex(3), Point3::new(iv0(1.0), iv0(0.0), iv0(1.0))),
+                (vertex(9), origin()),
+            ]),
+            extent: Some([(1.0, 2.0), (lo, 1.0)]),
+        };
+        // The low end the revolved cone at `y = 1.7` stores, and its mirror;
+        // then ends past the cover's own `few_ulps`, as a meridian of a
+        // cone 50 long stores (an ulp of 53.85), up to half the band's
+        // zero: the meridian ends at the apex's vertex, so it runs on to
+        // the collapsed side ([`ends_on_collapse`]).
+        let ulp = 2.220_446_049_250_313e-16;
+        let past = [
+            1.5e-15,
+            2.0e-15,
+            7.105_427_357_601_002e-15,
+            0.5 * band().zero(),
+        ];
+        for lo in [0.0, ulp, -ulp].into_iter().chain(past) {
+            let b = sector(lo);
+            assert_eq!(
+                v_of(&s, &b),
+                Ok((lo.min(0.0), 1.0)),
+                "the extent from {lo:e}"
+            );
+            let local = Local {
+                edges: vec![0, 2],
+                vertices: vec![vertex(9)],
+            };
+            let piece = Piece {
+                face: FaceKey::default(),
+                surface: &s,
+                whole: false,
+                boundary: &b,
+                u: (1.2, 1.8),
+                v: (-0.1, 0.3),
+                local: &local,
+                ball: Ball::holding(origin(), origin()),
+            };
+            let got = match present_chart(&piece, &[], &[vertex(9)], band()) {
+                Ok(Presentation::Of(p)) => Some((p.zero, p.y)),
+                _ => None,
+            };
+            assert!(
+                matches!(&got, Some((Zero::Side(Side::YLo, a), (0.0, 0.3)))
+                    if a.vertex == Some(vertex(9))),
+                "the extent from {lo:e}: the apex's side is the zero: {got:?}"
+            );
+        }
+        assert_eq!(
+            v_of(&s, &sector(2.0 * band().escalate())),
+            Err(Unpresented::Structural),
+            "a stored end off the apex by the band"
+        );
+        // The same gap under an edge whose end vertex is another: the
+        // meridians end at vertices 7 and 8, beside the apex's vertex 9,
+        // and nothing runs them on.
+        let mut beside = sector(past[2]);
+        beside.edges[0].ends[0] = vertex(7);
+        beside.edges[2].ends[1] = vertex(8);
+        let local = Local {
+            edges: vec![0, 2],
+            vertices: vec![vertex(9)],
+        };
+        let piece = Piece {
+            face: FaceKey::default(),
+            surface: &s,
+            whole: false,
+            boundary: &beside,
+            u: (1.2, 1.8),
+            v: (-0.1, 0.3),
+            local: &local,
+            ball: Ball::holding(origin(), origin()),
+        };
+        assert!(
+            matches!(
+                present_chart(&piece, &[], &[vertex(9)], band()),
+                Err(Unpresented::Local)
+            ),
+            "an edge that ends beside the apex, at another vertex"
+        );
+        let mut below = lone(origin(), (-1.0, -ulp));
+        below
+            .vertices
+            .insert(vertex(4), Point3::new(iv0(1.0), iv0(0.0), iv0(-1.0)));
+        assert_eq!(v_of(&s, &below), Ok((-1.0, 0.0)), "the negative nappe");
+    }
+
     /// **An edge or a vertex in reach of the corner's rectangle but not
     /// of the cell is read**: the cell `(0.96, 0.995) × (−0.02, 0.02)`
     /// stops short of the vertex, so the rectangle is widened to hold
@@ -10755,8 +11841,7 @@ mod presentation_rows {
                 plus: true,
                 image: None,
                 iso: None,
-                wall: None,
-                harmonic: Some(h),
+                curve: Some(ChartCurve::Harmonic(h)),
             }],
         }
     }
@@ -10796,8 +11881,7 @@ mod presentation_rows {
                     at: iv0(1.0),
                     full: false,
                 }),
-                wall: None,
-                harmonic: None,
+                curve: None,
             }],
         };
         let mut vertices = BTreeMap::from([
@@ -10930,8 +12014,7 @@ mod presentation_rows {
                     at: iv0(1.0),
                     full: false,
                 }),
-                wall: None,
-                harmonic: None,
+                curve: None,
             }],
         };
         let parallel = curve.unwrap_or_else(|| {
@@ -11152,8 +12235,7 @@ mod presentation_rows {
                 plus,
                 image: None,
                 iso: None,
-                wall: None,
-                harmonic: None,
+                curve: None,
             }],
         };
         let b = Boundary {
@@ -11535,8 +12617,7 @@ mod presentation_rows {
                     at: iv0(0.5),
                     full: false,
                 }),
-                wall: None,
-                harmonic: None,
+                curve: None,
             }],
         };
         let b2 = 1.0 + s * s;
@@ -11558,13 +12639,12 @@ mod presentation_rows {
                 plus: true,
                 image: None,
                 iso: None,
-                wall: None,
-                harmonic: Some(Harmonic {
+                curve: Some(ChartCurve::Harmonic(Harmonic {
                     p0: [iv0(0.0), iv0(0.5 - s * 1f64.sin())],
                     pa: [iv0(0.0), iv0(0.0)],
                     pb: [iv0(0.0), iv0(s)],
                     pl: [iv0(1.0), iv0(0.0)],
-                }),
+                })),
             }],
         };
         Boundary {
@@ -11686,8 +12766,7 @@ mod presentation_rows {
                     at: iv0(0.5),
                     full: false,
                 }),
-                wall: None,
-                harmonic: None,
+                curve: None,
             }],
         };
         Boundary {
@@ -11771,8 +12850,7 @@ mod presentation_rows {
                     at: iv0(0.5),
                     full: false,
                 }),
-                wall: None,
-                harmonic: None,
+                curve: None,
             }],
         };
         let b = Boundary {
@@ -11932,8 +13010,7 @@ mod presentation_rows {
                     at: iv0(0.0),
                     full: false,
                 }),
-                wall: None,
-                harmonic: None,
+                curve: None,
             }],
         };
         let ruling = Rim {
@@ -11955,8 +13032,7 @@ mod presentation_rows {
                     at: iv0(0.0),
                     full: false,
                 }),
-                wall: None,
-                harmonic: None,
+                curve: None,
             }],
         };
         Boundary {
@@ -12199,6 +13275,7 @@ mod presentation_rows {
             at: iv0(0.0),
             edges,
             collapsed: None,
+            ends_here: Vec::new(),
         };
         let s = cylinder();
         let side = |clips: &[Clip], near: &[usize], vertices: &[VertexKey]| {
@@ -12253,8 +13330,7 @@ mod presentation_rows {
                     plus: true,
                     image: None,
                     iso: None,
-                    wall: None,
-                    harmonic: None,
+                    curve: None,
                 }],
             }],
             vertices: BTreeMap::new(),
@@ -12325,13 +13401,12 @@ mod presentation_rows {
                     plus: true,
                     image: None,
                     iso: None,
-                    wall: None,
-                    harmonic: Some(Harmonic {
+                    curve: Some(ChartCurve::Harmonic(Harmonic {
                         p0: [iv0(0.0), iv0(0.0)],
                         pa: [iv0(0.0), iv0(0.0)],
                         pb: [iv0(0.0), iv0(0.5)],
                         pl: [iv0(1.0), iv0(0.0)],
-                    }),
+                    })),
                 }],
             }],
             vertices: BTreeMap::from([(vertex(1), on(t0)), (vertex(2), on(t1))]),
@@ -12371,8 +13446,7 @@ mod presentation_rows {
                 plus: true,
                 image: None,
                 iso: None,
-                wall: None,
-                harmonic: None,
+                curve: None,
             }],
         });
         b.vertices.insert(vertex(2), lip(0.0502));
@@ -12685,8 +13759,7 @@ mod presentation_rows {
                     plus: true,
                     image: None,
                     iso: None,
-                    wall: None,
-                    harmonic: None,
+                    curve: None,
                 }],
             }],
             vertices: BTreeMap::from([
@@ -13247,8 +14320,7 @@ mod presentation_rows {
                 plus,
                 image: Some([p2((g(t.0), t.0)), p2((g(t.1), t.1))]),
                 iso: None,
-                harmonic: None,
-                wall: Some(wall()),
+                curve: Some(ChartCurve::Wall(wall())),
             }],
         }
     }
@@ -13275,8 +14347,7 @@ mod presentation_rows {
                     at: iv0(v),
                     full: false,
                 }),
-                harmonic: None,
-                wall: None,
+                curve: None,
             }],
         }
     }
@@ -13303,8 +14374,7 @@ mod presentation_rows {
                     at: iv0(u),
                     full: false,
                 }),
-                harmonic: None,
-                wall: None,
+                curve: None,
             }],
         }
     }
@@ -13643,7 +14713,7 @@ mod presentation_rows {
             ),
         };
         let mut b = spiric_face(false, true);
-        b.edges[0].uses[0].wall = None;
+        b.edges[0].uses[0].curve = None;
         (plane, b)
     }
 
@@ -13950,8 +15020,7 @@ mod presentation_rows {
                         plus: true,
                         image: Some([p2((u0, v0)), p2((u1, v1))]),
                         iso: None,
-                        harmonic: None,
-                        wall: Some(self.wall()),
+                        curve: Some(ChartCurve::Wall(self.wall())),
                     }],
                 }],
                 vertices: BTreeMap::from([(vertex(1), p)]),
@@ -14162,8 +15231,7 @@ mod presentation_rows {
             plus: true,
             image: Some([Point2::new(iv0(1.0), start), Point2::new(iv0(1.0), end)]),
             iso: Some(iso),
-            wall: None,
-            harmonic: None,
+            curve: None,
         };
         let certified = image(iv0(0.0), iv0(1.0));
         assert_eq!(forward(&certified, iso), Some(1.0), "the certified control");
@@ -14288,8 +15356,7 @@ mod presentation_rows {
                     plus: true,
                     image: None,
                     iso: None,
-                    wall: None,
-                    harmonic: None,
+                    curve: None,
                 }],
             }],
             vertices: BTreeMap::new(),
@@ -14557,8 +15624,7 @@ mod presentation_rows {
                 at: iv0(-half),
                 full: false,
             }),
-            wall: None,
-            harmonic: None,
+            curve: None,
         }];
         let (s1, c1) = 1.0f64.sin_cos();
         let meridian = Rim {
@@ -14582,8 +15648,7 @@ mod presentation_rows {
                     at: iv0(1.0),
                     full: false,
                 }),
-                wall: None,
-                harmonic: None,
+                curve: None,
             }],
         };
         let by = Boundary {
@@ -14726,7 +15791,7 @@ mod presentation_rows {
             let mut r = b.edges[0].clone();
             let mut h = harmonic([1.5, 0.5], -1.0, (0.0, 0.0, 0.0));
             h.pa[0] = iv0(a);
-            r.uses[0].harmonic = Some(h);
+            r.uses[0].curve = Some(ChartCurve::Harmonic(h));
             iso_params(&cylinder(), &r, (0.8, 0.9))
         };
         let affine = with(0.0).expect("an affine channel");
@@ -14935,8 +16000,7 @@ mod presentation_rows {
                 plus,
                 image: None,
                 iso: None,
-                wall: None,
-                harmonic: None,
+                curve: None,
             }],
         };
         let w = Boundary {
@@ -15186,8 +16250,7 @@ mod presentation_rows {
                 plus,
                 image: None,
                 iso: None,
-                wall: None,
-                harmonic: None,
+                curve: None,
             }],
         };
         let w = Boundary {
@@ -15763,8 +16826,7 @@ mod posed_rows {
             plus,
             image: Some([p2(a), p2(b)]),
             iso: None,
-            harmonic: None,
-            wall: None,
+            curve: None,
         }
     }
 
@@ -17289,8 +18351,7 @@ mod margin_reach_rows {
                 plus: true,
                 image: None,
                 iso: None,
-                wall: None,
-                harmonic: None,
+                curve: None,
             }],
         }
     }
