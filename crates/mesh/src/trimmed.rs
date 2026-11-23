@@ -5229,7 +5229,10 @@ pub(super) mod tests {
     /// the face refuses typed; with the budget as shipped it meshes. At
     /// δ `5·10⁻²` and `2·10⁻²`: finer, at `5·10⁻³`, the face's first
     /// attempt on its boundary points keeps no such side. Set on a
-    /// one-thread pool's worker, which runs the faces.
+    /// one-thread pool's worker, which runs the faces. A lane that asked
+    /// for a rebuild on its last attempt instead of refusing would not
+    /// fail this row's assertion but `tessellate_trimmed`'s `unreachable!`
+    /// ("the last attempt accepts or refuses"), a panic on the same cells.
     #[test]
     fn a_shared_side_the_budget_leaves_refuses_typed() {
         use geom_core::Tol;
