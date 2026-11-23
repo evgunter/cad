@@ -8494,20 +8494,12 @@ fn chord_segment(
     a: Point3<Interval>,
     b: Point3<Interval>,
 ) -> (Curve3<Interval>, (Interval, Interval)) {
-    let d = Vec3::new(
-        b.x.lo() - a.x.lo(),
-        b.y.lo() - a.y.lo(),
-        b.z.lo() - a.z.lo(),
-    );
-    let len = d.norm();
-    let unit = (d * (1.0 / len)).map(|x| Interval::from_bounds(x, x));
-    (
-        Curve3::line(a, UnitVec3::checked(unit)),
-        (
-            Interval::from_bounds(0.0, 0.0),
-            Interval::from_bounds(len, len),
-        ),
-    )
+    // The unit chord and its length as enclosures ([`UnitVec3::chord`]):
+    // a point box of the rounded quotient is no unit vector at an
+    // enclosure scalar, and is poison wherever its squares do not sum
+    // to exactly 1.
+    let (dir, len) = UnitVec3::chord(b - a);
+    (Curve3::line(a, dir), (Interval::from_bounds(0.0, 0.0), len))
 }
 
 #[cfg(test)]
@@ -13201,14 +13193,8 @@ mod presentation_rows {
             key: edge(far),
             // The segment is its chord, its span in metres.
             arc: Some({
-                let len = Vec3::new(d[0], d[1], d[2]).norm();
-                (
-                    Curve3::line(
-                        o,
-                        geom_core::UnitVec3::checked(v([d[0] / len, d[1] / len, d[2] / len])),
-                    ),
-                    (iv0(0.0), iv0(len)),
-                )
+                let (dir, len) = geom_core::UnitVec3::chord(v(d));
+                (Curve3::line(o, dir), (iv0(0.0), len))
             }),
             ends: [vertex(key), vertex(far)],
             uses: vec![Use {
@@ -17516,16 +17502,8 @@ mod presentation_rows {
         // A segment is its chord, its span in metres, read off the
         // stated points.
         let line = |a: Point3<Interval>, b: Point3<Interval>| {
-            let d = Vec3::new(
-                b.x.lo() - a.x.lo(),
-                b.y.lo() - a.y.lo(),
-                b.z.lo() - a.z.lo(),
-            );
-            let len = d.norm();
-            Some((
-                Curve3::line(a, geom_core::UnitVec3::checked((d * (1.0 / len)).map(iv0))),
-                (iv0(0.0), iv0(len)),
-            ))
+            let (dir, len) = geom_core::UnitVec3::chord(b - a);
+            Some((Curve3::line(a, dir), (iv0(0.0), len)))
         };
         let apex = origin();
         let (p0, p1) = (p3(s2, 0.0, s2), p3(0.0, -s2, s2));
@@ -17779,16 +17757,8 @@ mod presentation_rows {
         // A segment is its chord, its span in metres, read off the
         // stated points.
         let line = |a: Point3<Interval>, b: Point3<Interval>| {
-            let d = Vec3::new(
-                b.x.lo() - a.x.lo(),
-                b.y.lo() - a.y.lo(),
-                b.z.lo() - a.z.lo(),
-            );
-            let len = d.norm();
-            Some((
-                Curve3::line(a, geom_core::UnitVec3::checked((d * (1.0 / len)).map(iv0))),
-                (iv0(0.0), iv0(len)),
-            ))
+            let (dir, len) = geom_core::UnitVec3::chord(b - a);
+            Some((Curve3::line(a, dir), (iv0(0.0), len)))
         };
         let apex = origin();
         let (p0, p1) = (p3(s2, 0.0, s2), p3(0.0, -s2, s2));
