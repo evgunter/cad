@@ -482,19 +482,31 @@ pub(crate) fn tessellate_curved(
             let free: Vec<usize> = (0..3)
                 .filter(|&k| !cdt.exists_constraint(vs[k].fix(), vs[(k + 1) % 3].fix()))
                 .collect();
-            let len = |k: usize| {
-                let (a, b) = (tri[k], tri[(k + 1) % 3]);
-                ((a.x - b.x).powi(2) + (a.y - b.y).powi(2) + (a.z - b.z).powi(2)).sqrt()
+            let middle = |k: usize| {
+                let j = (k + 1) % 3;
+                (
+                    f64::midpoint(uv[k][0], uv[j][0]),
+                    f64::midpoint(uv[k][1], uv[j][1]),
+                )
             };
-            let widest = free.iter().copied().max_by(|&a, &b| len(a).total_cmp(&len(b)));
-            refine.push(match (rule, widest) {
-                (crate::cd_probe::Rule::Midpoint, Some(k)) => {
-                    let j = (k + 1) % 3;
-                    (
-                        f64::midpoint(uv[k][0], uv[j][0]),
-                        f64::midpoint(uv[k][1], uv[j][1]),
-                    )
+            let weight = |k: usize| {
+                let (a, b) = (tri[k], tri[(k + 1) % 3]);
+                if rule == crate::cd_probe::Rule::Midpoint {
+                    return ((a.x - b.x).powi(2) + (a.y - b.y).powi(2) + (a.z - b.z).powi(2)).sqrt();
                 }
+                let (u, v) = middle(k);
+                let s = surface.eval(u, v);
+                ((s.x - f64::midpoint(a.x, b.x)).powi(2)
+                    + (s.y - f64::midpoint(a.y, b.y)).powi(2)
+                    + (s.z - f64::midpoint(a.z, b.z)).powi(2))
+                .sqrt()
+            };
+            let widest = free
+                .iter()
+                .copied()
+                .max_by(|&a, &b| weight(a).total_cmp(&weight(b)));
+            refine.push(match (rule, widest) {
+                (crate::cd_probe::Rule::Midpoint | crate::cd_probe::Rule::Sag, Some(k)) => middle(k),
                 _ => (
                     (uv[0][0] + uv[1][0] + uv[2][0]) / 3.0,
                     (uv[0][1] + uv[1][1] + uv[2][1]) / 3.0,

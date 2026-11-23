@@ -1618,42 +1618,55 @@ impl TrimmedFace<'_> {
                 });
                 let interior = &interior;
                 move || {
-                    if rule != crate::cd_probe::Rule::Midpoint {
+                    if rule == crate::cd_probe::Rule::Centroid || rule == crate::cd_probe::Rule::Off {
                         return Self::inside_point(plane, &uv, developed, apex);
                     }
                     let p = ids.map(|id| id.position(shared, interior));
-                    let len = |k: usize| {
-                        let (a, b) = (p[k], p[(k + 1) % 3]);
-                        ((a.x - b.x).powi(2) + (a.y - b.y).powi(2) + (a.z - b.z).powi(2)).sqrt()
-                    };
-                    let Some(k) = (0..3)
-                        .filter(|&k| free[k])
-                        .max_by(|&a, &b| len(a).total_cmp(&len(b)))
-                    else {
-                        return Self::inside_point(plane, &uv, developed, apex);
-                    };
-                    let j = (k + 1) % 3;
-                    match plane {
-                        CdtPlane::Lattice { .. } => (
-                            f64::midpoint(uv[k][0], uv[j][0]),
-                            f64::midpoint(uv[k][1], uv[j][1]),
-                        ),
-                        CdtPlane::Development { .. } => {
-                            // The side's middle in the development, read
-                            // back as the inside point is: a degenerate
-                            // triangle on the side, its third corner the
-                            // middle.
-                            let m = SpadePoint::new(
-                                f64::midpoint(developed[k].x, developed[j].x),
-                                f64::midpoint(developed[k].y, developed[j].y),
-                            );
-                            Self::inside_point(
-                                plane,
-                                &[uv[k], uv[j], if apex[k] { uv[j] } else { uv[k] }],
-                                [m, m, m],
-                                [apex[k], apex[j], apex[k] && apex[j]],
-                            )
+                    // A side's middle where the CDT runs, in the chart.
+                    let middle = |k: usize| {
+                        let j = (k + 1) % 3;
+                        match plane {
+                            CdtPlane::Lattice { .. } => (
+                                f64::midpoint(uv[k][0], uv[j][0]),
+                                f64::midpoint(uv[k][1], uv[j][1]),
+                            ),
+                            CdtPlane::Development { .. } => {
+                                let m = SpadePoint::new(
+                                    f64::midpoint(developed[k].x, developed[j].x),
+                                    f64::midpoint(developed[k].y, developed[j].y),
+                                );
+                                Self::inside_point(
+                                    plane,
+                                    &[uv[k], uv[j], if apex[k] { uv[j] } else { uv[k] }],
+                                    [m, m, m],
+                                    [apex[k], apex[j], apex[k] && apex[j]],
+                                )
+                            }
                         }
+                    };
+                    let weight = |k: usize| {
+                        let (a, b) = (p[k], p[(k + 1) % 3]);
+                        if rule == crate::cd_probe::Rule::Midpoint {
+                            return ((a.x - b.x).powi(2) + (a.y - b.y).powi(2) + (a.z - b.z).powi(2))
+                                .sqrt();
+                        }
+                        // The side's own sag: its chord's middle against
+                        // the surface at the side's middle in the chart.
+                        let (u, v) = middle(k);
+                        let s = surface.eval(u, v);
+                        let m = [
+                            f64::midpoint(a.x, b.x),
+                            f64::midpoint(a.y, b.y),
+                            f64::midpoint(a.z, b.z),
+                        ];
+                        ((s.x - m[0]).powi(2) + (s.y - m[1]).powi(2) + (s.z - m[2]).powi(2)).sqrt()
+                    };
+                    match (0..3)
+                        .filter(|&k| free[k])
+                        .max_by(|&a, &b| weight(a).total_cmp(&weight(b)))
+                    {
+                        Some(k) => middle(k),
+                        None => Self::inside_point(plane, &uv, developed, apex),
                     }
                 }
             };

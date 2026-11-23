@@ -22,6 +22,8 @@ pub(crate) enum Rule {
     Off,
     Centroid,
     Midpoint,
+    /// The middle of the free side whose own chord sags most.
+    Sag,
 }
 
 pub(crate) struct Cfg {
@@ -51,6 +53,7 @@ pub(crate) fn cfg() -> &'static Cfg {
         rule: match std::env::var("CD_RULE").as_deref() {
             Ok("centroid") => Rule::Centroid,
             Ok("midpoint") => Rule::Midpoint,
+            Ok("sag") => Rule::Sag,
             _ => Rule::Off,
         },
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
