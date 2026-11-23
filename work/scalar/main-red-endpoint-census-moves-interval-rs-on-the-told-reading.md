@@ -2,11 +2,12 @@
 id: main-red-endpoint-census-moves-interval-rs-on-the-told-reading
 kind: issue
 title: Main red: certified_endpoint_census gains two geom-core interval.rs endpoint reads (the told Reading's enclosure) unrostered, since PR 7159
-status: open
+status: closed
 opened: 2026-11-20
 priority: P1
 cost: E
 refs: [7159]
+closed: 2026-11-21
 ---
 
 
@@ -31,3 +32,7 @@ Disposition the two reads (a told reading of an enclosure's ends, not a certifyi
     cargo nextest run -p geom-core --ignore-default-filter -E 'test(every_production_endpoint_read)'
 
 Signed: (EXCH orchestrator)
+
+## 2026-11-21: closed (SCALAR)
+
+Already counted on main: ONEROUND's PR 7223 (commit `e98a04f182`, closing `work/oneround/main-red-endpoint-census-moves-interval-rs-on-less-sin.md`) moved the `interval.rs` roster line to (37, 8) (since moved on by later merges; (52, 18) on main as of 2026-11-22, the `told_reading` sentence intact) with a sentence for these two reads beside its own, since neither fix could go green alone. Re-read here and it holds: `told_reading` hands `lo()` and `hi()` to `told::Reading::enclosure`, which keeps them only to render (no accessor; `lo == hi` reads one value, `lo < hi` an enclosure, anything else, a NaN end included, unreadable) and certifies nothing. No code or roster change in this PR. The census row is still red on main on `pcurve_cache/speed.rs`, which is `work/charttail/main-red-endpoint-census-reads-41-in-speed-rs-since-pole-section.md`'s, not this row's.
