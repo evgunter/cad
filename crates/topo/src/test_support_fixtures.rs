@@ -2730,7 +2730,7 @@ mod tests {
         assert!(
             euler
                 .body
-                .surfaces()
+                .described_surfaces()
                 .all(|(_, s)| matches!(s, geom::Surface::Plane { .. })),
             "the Euler-op family carries a real plane on every face"
         );

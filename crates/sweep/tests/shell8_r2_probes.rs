@@ -766,13 +766,13 @@ fn r2_move_shells_to_new_solid_keeps_every_chart_and_the_slab_thickens() {
     });
     // The top, bottom, front and back planes, each cut in two.
     assert_eq!(across_shells.len(), 4, "shared charts across the shells");
-    let charts_before: Vec<topo::SurfaceKey> = body.surfaces().map(|(k, _)| k).collect();
+    let charts_before: Vec<topo::SurfaceKey> = body.described_surfaces().map(|(k, _)| k).collect();
 
     body.move_shells_to_new_solid(&[shells[1]])
         .expect("one component moves to its own solid");
 
     assert_eq!(body.solids().count(), 2);
-    let charts_after: Vec<topo::SurfaceKey> = body.surfaces().map(|(k, _)| k).collect();
+    let charts_after: Vec<topo::SurfaceKey> = body.described_surfaces().map(|(k, _)| k).collect();
     assert_eq!(
         charts_after, charts_before,
         "the move mints and drops no chart"

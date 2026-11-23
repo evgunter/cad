@@ -1031,7 +1031,10 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         // recorded, and neither reads the sector's tilt again.
         if declared.glues_tangent(piercing, s.face, pierced_op, contact.face) {
             let s_sector = orbit_body.proven_face(s.face).expect_described().clone();
-            let s_pierced = pierced_body.proven_face(contact.face).expect_described().clone();
+            let s_pierced = pierced_body
+                .proven_face(contact.face)
+                .expect_described()
+                .clone();
             let read = declared.read(
                 &[(piercing, s.face, pierced_op, contact.face)],
                 Coincide::TangentSide,
@@ -2175,7 +2178,8 @@ pub(super) fn faces_holding_pierce<T: Decide + crate::props::AtRestPolicy>(
                     },
                 ) {
                     Ok(_) => {
-                        let kind = |body: &Body<T>, face| body.proven_face(face).expect_described().kind();
+                        let kind =
+                            |body: &Body<T>, face| body.proven_face(face).expect_described().kind();
                         let unbuilt = BooleanError::HeldPierceUnbuilt {
                             operand: read.piercing,
                             face: read.face,

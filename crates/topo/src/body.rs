@@ -1893,9 +1893,10 @@ impl<T: Real> Body<T> {
         self.null_faces.get(face)
     }
 
-    /// All described surface geometry, in slot-index order
-    /// (deterministic per D9); a pending slot is not yielded.
-    pub fn surfaces(&self) -> impl Iterator<Item = (SurfaceKey, &Surface<T>)> {
+    /// Every DESCRIBED surface, in slot-index order (deterministic per
+    /// D9); a pending slot is skipped — [`Body::surface_slots`] yields
+    /// every slot.
+    pub fn described_surfaces(&self) -> impl Iterator<Item = (SurfaceKey, &Surface<T>)> {
         self.surfaces
             .iter()
             .filter_map(|(k, slot)| Some((k, slot.described().ok()?)))

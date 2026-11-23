@@ -258,7 +258,7 @@ fn keys_and_topology_are_bit_stable_under_rotation() {
             bb.curves()
                 .map(|(k, _)| format!("{k:?}"))
                 .collect::<Vec<_>>(),
-            bb.surfaces()
+            bb.described_surfaces()
                 .map(|(k, _)| format!("{k:?}"))
                 .collect::<Vec<_>>(),
             bb.edges()
@@ -311,7 +311,7 @@ fn arena_dump(b: &Body<f64>) -> String {
     for (k, c) in b.curves() {
         let _ = writeln!(s, "C {k:?} {c:?}");
     }
-    for (k, sf) in b.surfaces() {
+    for (k, sf) in b.described_surfaces() {
         let _ = writeln!(s, "S {k:?} {sf:?}");
     }
     for (k, e) in b.edges() {

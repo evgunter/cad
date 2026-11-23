@@ -462,8 +462,12 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
         }
         // A zero-area ring in a curved face is not measured, so the
         // parting refuses on any face it would part that is no plane.
-        let plane =
-            |f: FaceKey| matches!(body.proven_face(f).expect_described(), geom::Surface::Plane { .. });
+        let plane = |f: FaceKey| {
+            matches!(
+                body.proven_face(f).expect_described(),
+                geom::Surface::Plane { .. }
+            )
+        };
         if let Some(&(curved, ..)) = parting.iter().find(|&&(f, ..)| !plane(f)) {
             return Err(BooleanError::EdgeInFace {
                 edge,

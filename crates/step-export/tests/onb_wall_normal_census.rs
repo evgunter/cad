@@ -43,7 +43,7 @@ fn no_fixture_face_sits_on_the_frame_seam() {
     let mut fixtures = 0usize;
     for (name, body) in common::fixture_corpus() {
         let mut c = SeamClasses::default();
-        for (_, surface) in body.surfaces() {
+        for (_, surface) in body.described_surfaces() {
             if let Surface::Plane { frame, .. } = surface {
                 let normal = frame.axis();
                 c.add((normal.x, normal.y, normal.z));
@@ -95,7 +95,7 @@ fn axis_tie_census_over_the_fixture_corpus() {
     let mut total = SeamClasses::default();
     for (name, body) in common::fixture_corpus() {
         let mut c = SeamClasses::default();
-        for (_, surface) in body.surfaces() {
+        for (_, surface) in body.described_surfaces() {
             if let Surface::Plane { frame, .. } = surface {
                 let normal = frame.axis();
                 c.add((normal.x, normal.y, normal.z));
@@ -212,7 +212,7 @@ fn the_direction_records_every_stored_frame_is_written_to() {
     for (name, body) in common::fixture_corpus() {
         let text = step_string(&common::at_rest(&body), &StepOptions::default(), tol)
             .expect("fixture exports");
-        for (_, surface) in body.surfaces() {
+        for (_, surface) in body.described_surfaces() {
             let Surface::Plane { frame, .. } = surface else {
                 continue;
             };

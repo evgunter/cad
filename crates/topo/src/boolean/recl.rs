@@ -1637,8 +1637,14 @@ pub(super) fn resolve_edge_edge<T: crate::props::AtRestPolicy>(
             &[],
         );
         let lump = if read == DeclarationRead::Spent(crate::contact::GlueClass::Tangent) {
-            let s_own = own_body.proven_face(own_sec.face).expect_described().clone();
-            let s_other = other_body.proven_face(other_sec.face).expect_described().clone();
+            let s_own = own_body
+                .proven_face(own_sec.face)
+                .expect_described()
+                .clone();
+            let s_other = other_body
+                .proven_face(other_sec.face)
+                .expect_described()
+                .clone();
             let p = own_body.half_edge_start_point(own_sec.he).ok_or(
                 BooleanError::ClassificationInvariant {
                     what: "edge-edge site lost its point",
@@ -1680,7 +1686,8 @@ pub(super) fn resolve_edge_edge<T: crate::props::AtRestPolicy>(
         let planar = [(body_of(own), own_face), (body_of(other), other_face)]
             .iter()
             .all(|&(body, face)| {
-                FaceShape::of_kind(body.proven_face(face).expect_described().kind()) == FaceShape::Plane
+                FaceShape::of_kind(body.proven_face(face).expect_described().kind())
+                    == FaceShape::Plane
             });
         let which = if planar {
             Coincide::FlankSense

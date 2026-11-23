@@ -123,7 +123,7 @@ fn deep(body: &Body<f64>) -> Vec<String> {
     for (k, c) in body.curves() {
         out.push(format!("C {k:?} {c:?}"));
     }
-    for (k, u) in body.surfaces() {
+    for (k, u) in body.described_surfaces() {
         out.push(format!("U {k:?} {u:?}"));
     }
     for (k, c) in body.pcurves() {

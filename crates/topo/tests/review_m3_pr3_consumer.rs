@@ -70,7 +70,7 @@ fn audit_geometry(body: &Body<f64>) {
         }
     }
     live_s.sort();
-    for (k, _) in body.surfaces() {
+    for (k, _) in body.described_surfaces() {
         assert!(live_s.binary_search(&k).is_ok(), "orphan surface {k:?}");
     }
     // Topological references resolve too (dangling shell/loop keys).

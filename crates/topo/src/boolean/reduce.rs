@@ -1215,7 +1215,8 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     // from the offset along the OUTWARD normal only by the
                     // face's sense bit, so whether an end is ON the plane
                     // reads the same either way.
-                    let &geom::Surface::Plane { frame, .. } = y.proven_face(face).expect_described()
+                    let &geom::Surface::Plane { frame, .. } =
+                        y.proven_face(face).expect_described()
                     else {
                         return Err(BooleanError::ClassificationInvariant {
                             what: "planar lane: the face's plane resolved above",

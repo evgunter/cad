@@ -136,7 +136,7 @@ where
     for (_k, p) in body.points() {
         d.p3(*p);
     }
-    for (_k, s) in body.surfaces() {
+    for (_k, s) in body.described_surfaces() {
         for u in UV {
             for v in UV {
                 d.p3(s.eval(T::from_f64(u), T::from_f64(v)));

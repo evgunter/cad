@@ -574,7 +574,7 @@ fn moving_every_chart_mints_each_spline_walls_chart_once() {
         ("twisted loft", twisted_loft(0.3)),
     ] {
         let walls = body
-            .surfaces()
+            .described_surfaces()
             .filter(|(_, s)| s.kind() == geom::SurfaceKind::Nurbs)
             .count();
         let moves: Vec<topo::ChartMove<f64>> = body

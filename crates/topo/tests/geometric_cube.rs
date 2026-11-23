@@ -37,7 +37,7 @@ fn geometric_cube_passes_all_three_tiers() {
     assert_eq!(t.body.surface_slots().count(), 6);
     assert!(
         t.body
-            .surfaces()
+            .described_surfaces()
             .all(|(_, s)| matches!(s, Surface::Plane { .. }))
     );
     // At rest the un-upgraded chords are named — all twelve, once each

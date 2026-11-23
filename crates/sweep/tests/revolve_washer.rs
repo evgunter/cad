@@ -121,7 +121,7 @@ fn donut_two_arc_profile_shares_one_torus() {
     // V2 E4 F2 R0: v − e + f − r = 0 ⇒ genus 1.
     assert_eq!(counts(&t.body), (2, 4, 2, 0));
     // One shared torus surface.
-    assert_eq!(t.body.surfaces().count(), 1);
+    assert_eq!(t.body.described_surfaces().count(), 1);
     let k0 = t.body.get_face(t.walls()[0][0].unwrap()).unwrap().surface;
     let k1 = t.body.get_face(t.walls()[0][1].unwrap()).unwrap().surface;
     assert_eq!(k0, k1);

@@ -45,7 +45,10 @@ fn bits<T: Decide + core::fmt::Debug>(b: &Body<T>) -> Vec<String> {
         b.edges().count(),
         b.vertices().count()
     )];
-    let mut s: Vec<String> = b.surfaces().map(|(_, s)| format!("S {s:?}")).collect();
+    let mut s: Vec<String> = b
+        .described_surfaces()
+        .map(|(_, s)| format!("S {s:?}"))
+        .collect();
     let mut c: Vec<String> = b.curves().map(|(_, c)| format!("C {c:?}")).collect();
     let mut p: Vec<String> = b.points().map(|(_, p)| format!("P {p:?}")).collect();
     s.sort();

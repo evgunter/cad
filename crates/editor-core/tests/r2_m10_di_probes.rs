@@ -261,7 +261,7 @@ impl Fnv {
                 CurveGeom::NullScaffold(_) => self.u64(51),
             }
         }
-        for (_k, s) in body.surfaces() {
+        for (_k, s) in body.described_surfaces() {
             self.surface(s);
         }
     }

@@ -350,7 +350,7 @@ fn the_witness_brackets_its_closed_forms_at_the_certified_scalar() {
 fn ball_planes(tube: &AtRestBody<f64>) -> [usize; 2] {
     let tol = Tol::witness();
     let planes = |b: &topo::Body<f64>| {
-        b.surfaces()
+        b.described_surfaces()
             .filter(|(_, s)| matches!(s, geom::Surface::Plane { .. }))
             .count()
     };

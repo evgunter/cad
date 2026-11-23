@@ -318,7 +318,7 @@ pub fn dump(t: &sweep::Revolved<f64>) -> String {
             None => s.push_str(&format!("{k:?} {c:?}\n")),
         }
     }
-    for (k, srf) in t.body.surfaces() {
+    for (k, srf) in t.body.described_surfaces() {
         s.push_str(&format!("{k:?} {srf:?}\n"));
     }
     for (k, f) in t.body.faces() {

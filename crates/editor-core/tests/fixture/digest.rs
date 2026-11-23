@@ -118,7 +118,7 @@ pub fn feed_body(feed: &mut impl FnMut(&[u8]), body: &Body<f64>) {
     for (key, curve) in body.curves() {
         feed(format!("{key:?}{curve:?}").as_bytes());
     }
-    for (key, surface) in body.surfaces() {
+    for (key, surface) in body.described_surfaces() {
         feed(format!("{key:?}{surface:?}").as_bytes());
     }
     // The topology's attachment to that geometry, both ways: a face's

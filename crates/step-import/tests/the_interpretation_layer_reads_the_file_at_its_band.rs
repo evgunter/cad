@@ -70,7 +70,7 @@ fn a_surface_placement_stated_off_its_frame_is_built_and_reported() {
         panic!("a solid")
     };
     let (axis, u_ref) = body
-        .surfaces()
+        .described_surfaces()
         .find_map(|(_, s)| match s {
             geom::Surface::Cylinder { frame, .. } => Some((frame.axis(), frame.u_ref())),
             _ => None,

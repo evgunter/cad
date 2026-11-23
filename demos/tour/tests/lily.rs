@@ -1013,8 +1013,7 @@ mod review_probes {
         let lant = body(&ps, "lily_lantern");
         let mut centre = None;
         for (fk, _) in lant.faces() {
-            if let Ok(pncad::geom::Surface::Sphere { frame, radius, .. }) = lant.face_surface(fk)
-            {
+            if let Ok(pncad::geom::Surface::Sphere { frame, radius, .. }) = lant.face_surface(fk) {
                 let center = frame.origin();
                 assert!((radius - FLOWER_GLOBE).abs() < 1e-12);
                 centre = Some(center);

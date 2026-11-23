@@ -1944,8 +1944,9 @@ fn wall_charts<'s, T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     moved: usize,
 ) -> Option<crate::offset_derive::WallCharts<'s>> {
-    T::section_lane()
-        .map(|_| crate::offset_derive::WallCharts::new(moved, body.surfaces().map(|(key, _)| key)))
+    T::section_lane().map(|_| {
+        crate::offset_derive::WallCharts::new(moved, body.described_surfaces().map(|(key, _)| key))
+    })
 }
 
 /// The moved chart wearing `key`, if one does.

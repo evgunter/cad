@@ -3615,7 +3615,10 @@ fn root_outward<T: Decide>(
                     "bool_ray_cone_incidence",
                     Margin::levered(
                         d.dot(chart_normal(body, face, p)?),
-                        geom_brep::curvature_lever_arm(body.proven_face(face).expect_described(), p),
+                        geom_brep::curvature_lever_arm(
+                            body.proven_face(face).expect_described(),
+                            p,
+                        ),
                     ),
                     band,
                 )

@@ -427,7 +427,7 @@ fn snapshot(body: &Body<f64>) -> Vec<String> {
     for (k, e) in body.curves() {
         lines.push(format!("{k:?}: {e:?}"));
     }
-    for (k, e) in body.surfaces() {
+    for (k, e) in body.described_surfaces() {
         lines.push(format!("{k:?}: {e:?}"));
     }
     lines

@@ -491,8 +491,8 @@ mod tests {
         // The surfaces themselves are untouched (the reversal is on the
         // face, not the chart), and the involution is bitwise.
         assert_eq!(
-            format!("{:?}", reverted.surfaces().collect::<Vec<_>>()),
-            format!("{:?}", cube.body.surfaces().collect::<Vec<_>>()),
+            format!("{:?}", reverted.described_surfaces().collect::<Vec<_>>()),
+            format!("{:?}", cube.body.described_surfaces().collect::<Vec<_>>()),
         );
         assert_eq!(
             format!("{:?}", reverted.revert().unwrap()),

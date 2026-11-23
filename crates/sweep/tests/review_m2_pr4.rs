@@ -214,7 +214,7 @@ fn dump(t: &Extruded<f64>) -> String {
             None => s.push_str(&format!("{k:?} {c:?}\n")),
         }
     }
-    for (k, srf) in t.body.surfaces() {
+    for (k, srf) in t.body.described_surfaces() {
         s.push_str(&format!("{k:?} {srf:?}\n"));
     }
     for (k, f) in t.body.faces() {
@@ -662,7 +662,7 @@ fn survives_collinear_lines_sweep_one_wall() {
         "collinear segments sweep one wall"
     );
     // 2 caps + 4 walls (5 segments, one run of two).
-    assert_eq!(t.body.surfaces().count(), 6);
+    assert_eq!(t.body.described_surfaces().count(), 6);
     assert_eq!(t.body.faces().count(), 6);
     let struts = t.strut_edges();
     assert_eq!(struts[0][1], None, "the collinear vertex is a station");
@@ -712,7 +712,7 @@ fn survives_notched_circle_wrap_join_builds_one_wall() {
         "one wall per run: the arc run and two lines"
     );
     // 2 caps + 1 cylinder + 2 planes, one face each.
-    assert_eq!(t.body.surfaces().count(), 5);
+    assert_eq!(t.body.described_surfaces().count(), 5);
     assert_eq!(t.body.faces().count(), 5);
     let struts = &t.strut_edges()[0];
     assert_eq!(
@@ -781,7 +781,7 @@ fn wrap_crossing_arc_run_builds_one_wall() {
         "u_ref aims at the run's leading vertex: {u_ref:?}"
     );
     // 2 caps + 1 plane + ONE cylinder, one face each.
-    assert_eq!(t.body.surfaces().count(), 4);
+    assert_eq!(t.body.described_surfaces().count(), 4);
     assert_eq!(t.body.faces().count(), 4);
     let struts = &t.strut_edges()[0];
     assert_eq!(struts[0], None, "vertex 0 is a station");

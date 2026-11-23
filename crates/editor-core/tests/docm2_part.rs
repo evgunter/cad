@@ -170,7 +170,7 @@ fn bits<T: geom_core::Decide + core::fmt::Debug>(b: &Body<T>) -> Vec<String> {
         b.vertices().count()
     ));
     let mut s: Vec<String> = b
-        .surfaces()
+        .described_surfaces()
         .map(|(_, s)| key_free(&format!("S {s:?}")))
         .collect();
     let mut c: Vec<String> = b

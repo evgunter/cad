@@ -216,7 +216,7 @@ fn a_football_restored_on_the_other_sheet_is_refused_at_its_edges() {
         .unwrap();
         let mut body = built.body.into_body();
         let keys: Vec<_> = body
-            .surfaces()
+            .described_surfaces()
             .filter(|(_, s)| matches!(s, geom::Surface::Spindle { .. }))
             .map(|(k, _)| k)
             .collect();

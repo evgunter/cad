@@ -101,7 +101,7 @@ fn a_validated_wall_never_refuses_its_own_boundary_column() {
     // asserted on: what is being walked is the walls that DO land.
     let mut walls = 0usize;
     let mut walk = |name: &str, body: &topo::Body<f64>| {
-        for (key, surface) in body.surfaces() {
+        for (key, surface) in body.described_surfaces() {
             if let Surface::Nurbs(p) = surface {
                 check(&format!("{name} surface {key:?}"), p.as_ref());
                 walls += 1;

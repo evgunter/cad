@@ -629,7 +629,7 @@ fn an_adopted_iso_column_is_a_knot_domain_end() {
     // The wall the reparameterization names, located by its DOMAIN so
     // the row survives arena renumbering.
     let (wall, _) = body
-        .surfaces()
+        .described_surfaces()
         .find(|(_, s)| match s {
             geom::Surface::Nurbs(n) => n.knots_u_f64_interim().domain() == (0.0, 3.0),
             _ => false,

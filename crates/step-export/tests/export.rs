@@ -628,7 +628,7 @@ fn boss_union_seam_vertices_are_exactly_on_the_plate_top() {
     let body = common::boss_union();
     // (2) first: the chart cannot express any z but the plane's own.
     let tops: Vec<_> = body
-        .surfaces()
+        .described_surfaces()
         .filter_map(|(k, s)| match s {
             geom::Surface::Plane { frame }
                 if frame.origin().z == 1.0 && frame.axis().z.abs() == 1.0 =>

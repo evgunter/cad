@@ -241,7 +241,7 @@ fn cone_door_classifies_the_cone_interior_exterior_and_boundary() {
     assert_all_tiers(&body);
     // One plane (the base disc) and one cone, each shared by its two
     // band faces: nothing here has a cylinder or sphere arm to lean on.
-    assert_eq!(body.surfaces().count(), 2);
+    assert_eq!(body.described_surfaces().count(), 2);
 
     // Interior, off every axis so no schedule ray runs along a symmetry.
     for q in [

@@ -3274,7 +3274,8 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
         let (v0, v1) = crate::query::edge_ends(body, edge);
         let p0 = body.linked_vertex_point(v0, EntityId::HalfEdge(sides.plus.half_edge), "start");
         let p1 = body.linked_vertex_point(v1, EntityId::HalfEdge(sides.plus.half_edge), "end");
-        let surface_of = |side: crate::readback::EdgeSide| body.proven_face(side.face).expect_described();
+        let surface_of =
+            |side: crate::readback::EdgeSide| body.proven_face(side.face).expect_described();
         let (surf1, surf2) = (surface_of(sides.plus), surface_of(sides.minus));
         let existing = body
             .edge_curve_linked(edge, &edge_data)
@@ -7248,7 +7249,8 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
             return Err(corrupt("cut-in: the face is not on a sphere"));
         };
         let axis = frame.axis();
-        let record = geom_brep::curve_pair::on_surface::Charted::record(sphere, face.expect_described());
+        let record =
+            geom_brep::curve_pair::on_surface::Charted::record(sphere, face.expect_described());
         let axis = axis.normalize();
         // The meridian plane through the circle's centre direction, or
         // through a point of it where the circle is a rim of the chart.
@@ -10622,7 +10624,8 @@ mod tests {
                 },
             )
             .unwrap();
-        let &geom::Surface::Sphere { frame, radius, .. } = capped.proven_face(top).expect_described()
+        let &geom::Surface::Sphere { frame, radius, .. } =
+            capped.proven_face(top).expect_described()
         else {
             panic!("the cap's carrier is the sphere");
         };

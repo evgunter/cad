@@ -804,14 +804,14 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     // run-ADJACENCY decision inside one loop, and these two runs are
     // not adjacent, so each gets its own surface key: 12 faces on 12
     // keys, four of them cylinders that are geometrically two.
-    let (faces, surfaces) = (bulb.faces().count(), bulb.surfaces().count());
+    let (faces, surfaces) = (bulb.faces().count(), bulb.described_surfaces().count());
     assert_eq!(
         (faces, surfaces),
         (12, 12),
         "got {faces} faces on {surfaces} surfaces"
     );
     let cylinders: Vec<(Point3<f64>, f64)> = bulb
-        .surfaces()
+        .described_surfaces()
         .filter_map(|(_, s)| match s {
             pncad::topo::Surface::Cylinder { frame, radius, .. } => {
                 let origin = frame.origin();
@@ -840,7 +840,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     let (t0, t1) = spine.domain();
     let ends = [spine.ders1(t0), spine.ders1(t1)];
     let caps: Vec<(Point3<f64>, pncad::geom_core::Vec3<f64>)> = top
-        .surfaces()
+        .described_surfaces()
         .filter_map(|(_, sf)| match sf {
             pncad::topo::Surface::Plane { frame, .. } => {
                 let (origin, normal) = (frame.origin(), frame.axis());
