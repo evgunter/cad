@@ -3836,9 +3836,9 @@ mod tests {
     /// **The sub-arc locator reads every joint exactly.** For `m` from 1
     /// to 12 uniform sub-arcs: each joint `k/m` ([`sub_arc_joint`]) reads
     /// `(k, 0)`, `u = 0` reads `(0, 0)` and `u = 1` reads `(m − 1, 1)`;
-    /// an interior `u` reads a sub-arc it lies on, at an `s` in `[0, 1)`
-    /// that returns `u` as `(k + s)/m` to rounding; and `m = 0` or a `u`
-    /// off `[0, 1]` reads nothing.
+    /// an interior `u` reads the sub-arc whose breaks bracket it, at
+    /// `s = u·m − k` in `[0, 1)`; and `m = 0` or a `u` off `[0, 1]` reads
+    /// nothing.
     #[test]
     #[allow(clippy::cast_precision_loss)]
     fn the_sub_arc_locator_reads_every_joint_exactly() {
@@ -3855,12 +3855,17 @@ mod tests {
             for i in 1..200 {
                 let u = f64::from(i) / 200.0;
                 let (k, s) = sub_arc_at(u, m).unwrap();
-                assert!(k < m && (0.0..1.0).contains(&s), "m = {m}, u = {u}: ({k}, {s})");
-                let back = (k as f64 + s) / m as f64;
-                assert!((back - u).abs() <= 4.0 * f64::EPSILON, "m = {m}, u = {u}: {back}");
+                assert!(
+                    k < m && sub_arc_joint(k, m) <= u && u < sub_arc_joint(k + 1, m),
+                    "m = {m}, u = {u}: sub-arc {k}"
+                );
+                if u != sub_arc_joint(k, m) {
+                    assert_eq!(s, u * m as f64 - k as f64, "m = {m}, u = {u}");
+                }
+                assert!((0.0..1.0).contains(&s), "m = {m}, u = {u}: s = {s}");
             }
             assert_eq!(sub_arc_at(-1e-300, m), None, "m = {m}: below 0");
-            assert_eq!(sub_arc_at(1.0 + f64::EPSILON, m), None, "m = {m}: past 1");
+            assert_eq!(sub_arc_at(1.0_f64.next_up(), m), None, "m = {m}: past 1");
             assert_eq!(sub_arc_at(f64::NAN, m), None, "m = {m}: NaN");
         }
         assert_eq!(sub_arc_at(0.5, 0), None, "no sub-arcs");

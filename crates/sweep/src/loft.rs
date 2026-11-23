@@ -1314,7 +1314,7 @@ fn segment_pieces<T: geom_core::spline::SpanLocate>(
     let piece = |a: Point2<T>, b: Point2<T>, kind| SweptSeg { a, b, kind, ..seg };
     match seg.kind.get() {
         profile::SegmentKind::Line { .. } => {
-            let at = |u: f64| seg.a + (seg.b - seg.a) * T::from_f64(u);
+            let at = |u: f64| seg.a + (seg.b - seg.a) * T::from_computed(u);
             let points: Vec<Point2<T>> = core::iter::once(seg.a)
                 .chain(cuts.iter().map(|&u| at(u)))
                 .chain(core::iter::once(seg.b))
@@ -1348,7 +1348,7 @@ fn segment_pieces<T: geom_core::spline::SpanLocate>(
                 if s == 0.0 {
                     return Ok(T::from_f64(geom_brep::sub_arc_joint(k, m)));
                 }
-                let from_middle = geom_brep::sub_arc_angle_at_fraction(T::from_f64(s), tan_q);
+                let from_middle = geom_brep::sub_arc_angle_at_fraction(T::from_computed(s), tan_q);
                 #[allow(clippy::cast_precision_loss)]
                 let into = T::from_f64(k as f64 + 0.5) + from_middle / delta;
                 Ok(into / steps)
