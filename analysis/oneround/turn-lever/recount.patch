@@ -1,0 +1,2059 @@
+diff --git a/.config/nextest.toml b/.config/nextest.toml
+index 1a9c25ce..9cae1a59 100644
+--- a/.config/nextest.toml
++++ b/.config/nextest.toml
+@@ -529,3 +529,7 @@ filter = '''(binary_id(sweep::all) & (
+   test(=verbs_germarms2::the_fenced_poses_keep_their_own_outcomes)
+ ))'''
+ priority = 100
++
++[profile.shadow]
++fail-fast = false
++slow-timeout = { period = "120s", terminate-after = 3 }
+diff --git a/crates/geom-brep/src/dihedral.rs b/crates/geom-brep/src/dihedral.rs
+index 8f60664c..df082668 100644
+--- a/crates/geom-brep/src/dihedral.rs
++++ b/crates/geom-brep/src/dihedral.rs
+@@ -354,6 +354,27 @@ pub fn classify_dihedral<T: Decide>(
+     p: Point3<T>,
+     reach: geom_core::Lever<T>,
+     band: Band,
++) -> Result<Dihedral<T>, WedgeEscalation> {
++    if crate::tl_shadow::g2() {
++        return crate::tl_shadow::shadow(
++            "classify_dihedral",
++            reach,
++            |r| classify_dihedral_inner(s1, s2, p, r, band),
++            |v: &Result<Dihedral<T>, WedgeEscalation>| match v {
++                Ok(d) => format!("{:?}", d.class()),
++                Err(e) => format!("Err {e:?}").chars().take(60).collect(),
++            },
++        );
++    }
++    classify_dihedral_inner(s1, s2, p, reach, band)
++}
++
++fn classify_dihedral_inner<T: Decide>(
++    s1: &Surface<T>,
++    s2: &Surface<T>,
++    p: Point3<T>,
++    reach: geom_core::Lever<T>,
++    band: Band,
+ ) -> Result<Dihedral<T>, WedgeEscalation> {
+     read_dihedral(s1, s2, p, reach, band)
+         .map(|(dihedral, _)| dihedral)
+@@ -914,6 +935,21 @@ pub fn classify_seam<T: Decide>(
+     reach: geom_core::Lever<T>,
+     chart_arm: impl Fn(&geom::NurbsSurface<T>, Point3<T>, T) -> Option<f64>,
+     band: Band,
++) -> Result<DihedralClass, SeamEscalation> {
++    crate::tl_shadow::shadow(
++        "classify_seam",
++        reach,
++        |r| classify_seam_inner(faces, p, r, &chart_arm, band),
++        crate::tl_shadow::action_of,
++    )
++}
++
++fn classify_seam_inner<T: Decide>(
++    faces: [SeamFace<'_, T>; 2],
++    p: Point3<T>,
++    reach: geom_core::Lever<T>,
++    chart_arm: impl Fn(&geom::NurbsSurface<T>, Point3<T>, T) -> Option<f64>,
++    band: Band,
+ ) -> Result<DihedralClass, SeamEscalation> {
+     let [a, b] = [
+         seam_face_reading(faces[0], p, reach, &chart_arm, band)?,
+@@ -1192,6 +1228,10 @@ fn fold_arms<T: Real>(
+     arm2: geom_core::Lever<T>,
+     reach: geom_core::Lever<T>,
+ ) -> geom_core::Lever<T> {
++    crate::tl_shadow::fold_seen(
++        format!("{:?}", arm1.min(arm2).length()).parse::<f64>().ok(),
++        format!("{:?}", reach.length()).parse::<f64>().ok(),
++    );
+     arm1.min(arm2).min(reach)
+ }
+ 
+@@ -1246,6 +1286,28 @@ pub fn tangent_second_order<T: Decide>(
+     tangent: geom_core::Vec3<T>,
+     reach: geom_core::Lever<T>,
+     band: Band,
++) -> SecondOrder<T> {
++    if crate::tl_shadow::g2() {
++        return crate::tl_shadow::shadow(
++            "tangent_second_order",
++            reach,
++            |r| tangent_second_order_inner(s1, s2, p, tangent, r, band),
++            |v: &SecondOrder<T>| match &v.verdict {
++                Ok(d) => format!("{:?}", d.sign),
++                Err(_) => "Err".into(),
++            },
++        );
++    }
++    tangent_second_order_inner(s1, s2, p, tangent, reach, band)
++}
++
++fn tangent_second_order_inner<T: Decide>(
++    s1: &Surface<T>,
++    s2: &Surface<T>,
++    p: Point3<T>,
++    tangent: geom_core::Vec3<T>,
++    reach: geom_core::Lever<T>,
++    band: Band,
+ ) -> SecondOrder<T> {
+     let jet = crate::tangent::tangent_jet(s1, s2, p, tangent);
+     let arm = folded_lever_arm(s1, s2, p, reach);
+@@ -1534,6 +1596,48 @@ pub fn must_carry_over_edge<T: Decide>(
+     t1: T,
+     reach: geom_core::Lever<T>,
+     band: Band,
++) -> MustCarryVerdict {
++    let v = crate::tl_shadow::shadow(
++        "must_carry_over_edge",
++        reach,
++        |r| must_carry_over_edge_inner(s1, s2, carrier, t0, t1, r, band),
++        crate::tl_shadow::action_of,
++    );
++    if crate::tl_shadow::path().is_some() {
++        if crate::tl_shadow::poison_of(reach) == Some(true) {
++            let net = |s: &Surface<T>| match s { Surface::Nurbs(n) => format!("{:?}:{:?}", s.kind(), n.net_state()), _ => format!("{:?}", s.kind()) };
++            crate::tl_shadow::count(format!(
++                "MCPOISON\tverdict_reads={},{}\tdoor_faces={}\t{}",
++                net(s1), net(s2), crate::tl_shadow::class_of_below(reach), crate::tl_shadow::action_of(&v)
++            ));
++        }
++        crate::tl_shadow::phase_verdict(
++            "mc-vs-tier3-fold",
++            crate::tl_shadow::mc_key(format!("{s1:?}"), format!("{s2:?}"), format!("{carrier:?}"), format!("{:?}", (t0, t1))),
++            crate::tl_shadow::mc_class(&crate::tl_shadow::action_of(&v)).to_string(),
++        );
++        let (x1, x2) = (format!("{s1:?}"), format!("{s2:?}"));
++        let (x1, x2) = if x1 <= x2 { (x1, x2) } else { (x2, x1) };
++        let key = crate::tl_shadow::hash_of(&[
++            "mc".into(),
++            x1,
++            x2,
++            format!("{carrier:?}"),
++            format!("{t0:?}{t1:?}"),
++        ]);
++        crate::tl_shadow::phase_verdict("must_carry_over_edge", key, crate::tl_shadow::action_of(&v));
++    }
++    v
++}
++
++fn must_carry_over_edge_inner<T: Decide>(
++    s1: &Surface<T>,
++    s2: &Surface<T>,
++    carrier: &geom::Curve3<T>,
++    t0: T,
++    t1: T,
++    reach: geom_core::Lever<T>,
++    band: Band,
+ ) -> MustCarryVerdict {
+     let stations = interior_stations(carrier, t0, t1);
+     let reads = match crate::edge_wedge::class_pass(s1, s2, stations, reach, band) {
+diff --git a/crates/geom-brep/src/edge_wedge.rs b/crates/geom-brep/src/edge_wedge.rs
+index cbb032b2..cc9ccd7f 100644
+--- a/crates/geom-brep/src/edge_wedge.rs
++++ b/crates/geom-brep/src/edge_wedge.rs
+@@ -320,6 +320,43 @@ pub fn edge_wedge_over_as<T: Decide>(
+     reach: geom_core::Lever<T>,
+     band: Band,
+     side: Role,
++) -> WedgeVerdict {
++    let v = crate::tl_shadow::shadow(
++        "edge_wedge_over_as",
++        reach,
++        |r| edge_wedge_over_as_inner(walk, r, band, side),
++        crate::tl_shadow::action_of,
++    );
++    if crate::tl_shadow::path().is_some() {
++        let key = crate::tl_shadow::hash_of(&[
++            "wv".into(),
++            format!("{:?}", walk.plus.surface),
++            format!("{:?}", walk.minus.surface),
++            format!("{:?}{:?}", walk.plus.sense, walk.minus.sense),
++            format!("{:?}{:?}", walk.carrier, walk.span),
++        ]);
++        crate::tl_shadow::phase_verdict("edge_wedge_over_as", key, crate::tl_shadow::action_of(&v));
++        if crate::tl_shadow::is_tier3() {
++            crate::tl_shadow::phase_verdict(
++                "mc-vs-tier3-fold",
++                crate::tl_shadow::mc_key(
++                    format!("{:?}", walk.plus.surface),
++                    format!("{:?}", walk.minus.surface),
++                    format!("{:?}", walk.carrier),
++                    format!("{:?}", walk.span),
++                ),
++                crate::tl_shadow::mc_class(&format!("{v:?}")).to_string(),
++            );
++        }
++    }
++    v
++}
++
++fn edge_wedge_over_as_inner<T: Decide>(
++    walk: &WedgeWalk<'_, T>,
++    reach: geom_core::Lever<T>,
++    band: Band,
++    side: Role,
+ ) -> WedgeVerdict {
+     let (plus, minus) = (walk.plus, walk.minus);
+     let senses = [plus.sense, minus.sense];
+diff --git a/crates/geom-brep/src/lib.rs b/crates/geom-brep/src/lib.rs
+index f25fa027..3381df75 100644
+--- a/crates/geom-brep/src/lib.rs
++++ b/crates/geom-brep/src/lib.rs
+@@ -54,6 +54,8 @@
+ //! deterministic by fixed schedule (D9). Instantiates at `f64`,
+ //! `Dual<f64>`, `Interval`, and `Dual<Interval>`.
+ 
++#[doc(hidden)]
++pub mod tl_shadow;
+ pub mod carrier_eq;
+ mod carrier_net;
+ pub mod carrier_pose;
+diff --git a/crates/geom-brep/src/tl_shadow.rs b/crates/geom-brep/src/tl_shadow.rs
+new file mode 100644
+index 00000000..b2b62ea7
+--- /dev/null
++++ b/crates/geom-brep/src/tl_shadow.rs
+@@ -0,0 +1,592 @@
++//! Measurement only (never committed as behaviour).
++#![allow(missing_docs, clippy::all, clippy::pedantic)]
++use std::any::Any;
++use std::cell::{Cell, RefCell};
++use std::collections::HashMap;
++use std::fmt::Debug;
++
++use geom_core::{Lever, Real};
++
++struct Agg {
++    counts: HashMap<String, u64>,
++    details: Vec<String>,
++    per_key: HashMap<String, u32>,
++}
++
++impl Drop for Agg {
++    fn drop(&mut self) {
++        let Some(p) = path() else { return };
++        let t = test();
++        let mut out = String::new();
++        for (k, v) in &self.counts {
++            out.push_str(&format!("A\t{t}\t{k}\t{v}\n"));
++        }
++        for d in &self.details {
++            out.push_str(&format!("D\t{t}\t{d}\n"));
++        }
++        line(&p, out.trim_end());
++    }
++}
++
++thread_local! {
++    static ABOVE: RefCell<HashMap<String, Box<dyn Any>>> = RefCell::new(HashMap::new());
++    static IN: Cell<bool> = const { Cell::new(false) };
++    static AGG: RefCell<Agg> = RefCell::new(Agg {
++        counts: HashMap::new(),
++        details: Vec::new(),
++        per_key: HashMap::new(),
++    });
++}
++
++thread_local! {
++    static TIER3: Cell<bool> = const { Cell::new(false) };
++    static PHASES: RefCell<PhaseMap> = RefCell::new(PhaseMap(HashMap::new()));
++}
++
++struct PhaseMap(HashMap<u64, (Option<String>, Option<String>, String)>);
++impl Drop for PhaseMap {
++    fn drop(&mut self) {
++        let Some(p) = path() else { return };
++        let t = test();
++        let mut c: HashMap<String, u64> = HashMap::new();
++        let mut out = String::new();
++        {
++            for (door, tier3, what) in self.0.values() {
++                let k = match (door, tier3) {
++                    (Some(a), Some(b)) if a == b => format!("MF\t{what}\tsame"),
++                    (Some(a), Some(b)) => {
++                        out.push_str(&format!("D\t{t}\tMF-DIFF\t{what}\tdoor={a}\ttier3={b}\n"));
++                        format!("MF\t{what}\tDIFFERENT")
++                    }
++                    (Some(_), None) => format!("MF\t{what}\tdoor_only"),
++                    (None, Some(_)) => format!("MF\t{what}\ttier3_only"),
++                    (None, None) => continue,
++                };
++                *c.entry(k).or_insert(0) += 1;
++            }
++        }
++        for (k, v) in c {
++            out.push_str(&format!("A\t{t}\t{k}\t{v}\n"));
++        }
++        line(&p, out.trim_end());
++    }
++}
++
++pub struct Tier3Guard(bool);
++impl Drop for Tier3Guard {
++    fn drop(&mut self) {
++        TIER3.with(|f| f.set(self.0));
++    }
++}
++pub fn tier3() -> Tier3Guard {
++    Tier3Guard(TIER3.with(|f| f.replace(true)))
++}
++
++/// M-f: the verdict a door and tier 3 each reach on one keyed read.
++pub fn phase_verdict(what: &str, key: u64, action: String) {
++    if path().is_none() || IN.with(Cell::get) {
++        return;
++    }
++    let t3 = TIER3.with(Cell::get);
++    PHASES.with(|m| {
++        let mut m = m.borrow_mut();
++        let e = m.0.entry(key).or_insert((None, None, what.to_string()));
++        if t3 {
++            e.1.get_or_insert(action);
++        } else {
++            e.0.get_or_insert(action);
++        }
++    });
++}
++
++pub fn hash_of(parts: &[String]) -> u64 {
++    use std::hash::{Hash, Hasher};
++    let mut h = std::collections::hash_map::DefaultHasher::new();
++    parts.hash(&mut h);
++    h.finish()
++}
++
++thread_local! {
++    static FOLD: Cell<(u32, u32, bool)> = const { Cell::new((0, 0, false)) };
++}
++
++/// Item 2: whether a fold's least term was the reach or a curvature arm.
++pub fn fold_seen(curv: Option<f64>, reach: Option<f64>) {
++    FOLD.with(|f| {
++        let (r, c, on) = f.get();
++        if !on {
++            return;
++        }
++        match (curv, reach) {
++            (Some(k), Some(x)) if x <= k => f.set((r + 1, c, on)),
++            (Some(_), Some(_)) => f.set((r, c + 1, on)),
++            _ => {}
++        }
++    });
++}
++
++/// The order-free key and the must-carry class of a verdict, for M-f's
++/// must-carry half: a door's must-carry verdict against tier 3's fold.
++pub fn mc_class(v: &str) -> &'static str {
++    if v.starts_with("Crease") || v.starts_with("Transverse") {
++        "corner"
++    } else if v.starts_with("JetDeterminate") {
++        "determinate"
++    } else if v.starts_with("UnderDetermined") || v.starts_with("Lamina") {
++        "under-determined"
++    } else if v.starts_with("Seam") || v.starts_with("End") {
++        if v.contains("UnderDetermined") { "under-determined" } else { "determinate" }
++    } else if v.starts_with("Mixed") {
++        "mixed"
++    } else {
++        "in-band"
++    }
++}
++
++pub fn mc_key(a: String, b: String, carrier: String, span: String) -> u64 {
++    let (a, b) = if a <= b { (a, b) } else { (b, a) };
++    hash_of(&["mcwv".into(), a, b, carrier, span])
++}
++
++pub fn is_tier3() -> bool {
++    TIER3.with(Cell::get)
++}
++
++pub fn class_of_below<T: Real>(below: Lever<T>) -> String {
++    TAGS.with(|m| m.borrow().get(&format!("{:?}", below.length())).map_or("-".to_string(), |(c, _)| c.clone()))
++}
++
++pub fn poison_of<T: Real>(below: Lever<T>) -> Option<bool> {
++    lookup(below).map(|(a, _): (Lever<T>, Lever<T>)| format!("{:?}", a.length()).contains("NaN"))
++}
++
++pub fn path() -> Option<String> {
++    std::env::var("TL_SHADOW").ok()
++}
++
++pub fn active() -> bool {
++    path().is_some() && !IN.with(Cell::get)
++}
++
++thread_local! {
++    static G2_DEPTH: Cell<u32> = const { Cell::new(0) };
++}
++
++struct Depth;
++impl Depth {
++    fn enter() -> Self {
++        G2_DEPTH.with(|d| d.set(d.get() + 1));
++        Depth
++    }
++}
++impl Drop for Depth {
++    fn drop(&mut self) {
++        G2_DEPTH.with(|d| d.set(d.get() - 1));
++    }
++}
++
++fn nested() -> bool {
++    G2_DEPTH.with(Cell::get) > 0
++}
++
++pub fn g2() -> bool {
++    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
++    *ON.get_or_init(|| std::env::var_os("TL_G2").is_some())
++}
++
++fn refused(v: &str) -> bool {
++    v.contains("InBand") || v.starts_with("Err") || v.contains("Undecided") || v.contains("Escalat")
++}
++
++/// G2 (i): the run's own verdict under the two-sided rule. Every
++/// decision is read at `below` and at `above`. A definite sign stands
++/// on `below`; a Zero on `below` stands only where `above` reads Zero;
++/// an escalation on `below` stands. Each other pair is forced: a Zero
++/// at `below` against anything else at `above` refuses in band in both
++/// runs; a definite sign at `below` is handed to `above`'s run, so its
++/// path follows the verdict's. Repeated until the paths agree.
++#[allow(clippy::too_many_arguments)]
++fn two_sided<T: Real, R: Debug>(
++    name: &str,
++    below: Lever<T>,
++    above: Lever<T>,
++    mid: Option<Lever<T>>,
++    truth: Option<f64>,
++    class: String,
++    run: &impl Fn(Lever<T>) -> R,
++    action: &impl Fn(&R) -> String,
++) -> R {
++    let _depth = Depth::enter();
++    let ln = lane::<T>();
++    let mut fb: Vec<(usize, u8)> = Vec::new();
++    let mut fa: Vec<(usize, u8)> = Vec::new();
++    let mut straddles = 0;
++    let mut out = None;
++    let mut last_sb: Vec<u8> = Vec::new();
++    for _ in 0..16 {
++        geom_core::k_stats::tl_rec_start_forced(fb.clone());
++        let r = run(below);
++        let sb = geom_core::k_stats::tl_rec_take();
++        last_sb = sb.iter().map(|&(_, b)| b).collect();
++        IN.with(|f| f.set(true));
++        let ((_ra, sa), _) = geom_core::k_stats::detached(|| {
++            geom_core::k_stats::tl_rec_start_forced(fa.clone());
++            let ra = run(above);
++            (ra, geom_core::k_stats::tl_rec_take())
++        });
++        IN.with(|f| f.set(false));
++        let mut new = false;
++        for i in 0..sb.len().min(sa.len()) {
++            if fb.iter().any(|(j, _)| *j == i) || fa.iter().any(|(j, _)| *j == i) {
++                continue;
++            }
++            let ((p, b), (q, a)) = (sb[i], sa[i]);
++            if p != q {
++                count(format!("G2-DIVERGE\t{name}\t{ln}"));
++                break;
++            }
++            if a == b {
++                continue;
++            }
++            match b {
++                b'0' => {
++                    count(format!("G2-STRADDLE\t{name}\t{ln}\t{p}\t0\t{}\t{class}", a as char));
++                    detail(&format!("G2-STRADDLE\t{name}\t{p}\t{class}"), format!("G2-STRADDLE\t{name}\t{p}\t{class}\tbelow={:?}\tabove={:?}\tabove_sign={}", below.length(), above.length(), a as char));
++                    fb.push((i, b'S'));
++                    fa.push((i, b'S'));
++                    straddles += 1;
++                }
++                b'E' => fa.push((i, b'S')),
++                _ => {
++                    if a != b'E' {
++                        count(format!("G2-WRONGDIR\t{name}\t{ln}\t{p}\t{}\t{}\t{class}", b as char, a as char));
++                    }
++                    fa.push((i, b));
++                }
++            }
++            new = true;
++            break;
++        }
++        if !new {
++            out = Some(r);
++            break;
++        }
++        out = Some(r);
++    }
++    let r = out.expect("one pass ran");
++    let v = action(&r);
++    let rf = refused(&v);
++    count(format!("G2-VERDICT\t{name}\t{ln}\t{}\tstraddled={}\t{class}", if rf { "refused" } else { "served" }, straddles > 0));
++    if let Some(door) = inverted(below) {
++        let zero = last_sb.iter().enumerate().any(|(i, &b)| b == b'0' && !fb.iter().any(|(j, _)| *j == i));
++        let act: String = v.trim().chars().take_while(|c| !matches!(c, '{' | '(' | ' ')).collect();
++        count(format!("INV-VERDICT\t{name}\t{ln}\t{door}\t{}\tzero_stood={zero}\t{act}\t{class}", if rf { "refused" } else { "served" }));
++        detail(&format!("INV-VERDICT\t{name}\t{door}\t{zero}"), format!("INV-VERDICT\t{name}\tdoor={door}\tclass={class}\tverdict={}\tzero_stood={zero}\tbelow={:?}\tabove={:?}", v.trim(), below.length(), above.length()));
++    }
++    IN.with(|f| f.set(true));
++    if let Some(m) = mid {
++        let (rm, _) = geom_core::k_stats::detached(|| run(m));
++        let vm = action(&rm);
++        if vm != v {
++            count(format!("G2-MOVED\t{name}\t{ln}\t{class}\t{}\t{}", vm.trim(), v.trim()));
++            detail(&format!("G2-MOVED\t{name}\t{class}\t{}\t{}", vm.trim(), v.trim()), format!("G2-MOVED\t{name}\t{class}\tmiddle={}\tg2={}\tbelow={:?}\tabove={:?}\tmid={:?}", vm.trim(), v.trim(), below.length(), above.length(), m.length()));
++        }
++    }
++    if let (Some(t), "f64") = (truth, ln) {
++        let tl = Lever::of_consumed_extent(T::from_f64(t));
++        let (rt, _) = geom_core::k_stats::detached(|| run(tl));
++        let vt = action(&rt);
++        let dir = if vt == v { "equal" } else if rf { "refused-where-truth-serves" } else if refused(&vt) { "SERVED-where-truth-refuses" } else { "SERVED-OTHER-than-truth" };
++        count(format!("G2-TRUTH\t{name}\t{class}\t{dir}"));
++        if dir.starts_with("SERVED") {
++            detail(&format!("G2-PAST\t{name}\t{class}"), format!("G2-PAST\t{name}\t{class}\t{dir}\tg2={v:?}\ttruth_verdict={vt:?}\tbelow={:?}\tabove={:?}\ttruth={t:e}", below.length(), above.length()));
++        }
++    }
++    IN.with(|f| f.set(false));
++    r
++}
++
++fn compare_on() -> bool {
++    std::env::var_os("TL_NO_COMPARE").is_none()
++}
++
++pub fn add(key: String, n: u64) {
++    AGG.with(|a| *a.borrow_mut().counts.entry(key).or_insert(0) += n);
++}
++
++pub fn count(key: String) {
++    AGG.with(|a| *a.borrow_mut().counts.entry(key).or_insert(0) += 1);
++}
++
++pub fn detail(key: &str, d: String) {
++    AGG.with(|a| {
++        let mut a = a.borrow_mut();
++        let n = a.per_key.entry(key.to_string()).or_insert(0);
++        *n += 1;
++        if *n <= 5 {
++            a.details.push(d);
++        }
++    });
++}
++
++thread_local! {
++    static TAGS: RefCell<HashMap<String, (String, Option<f64>)>> = RefCell::new(HashMap::new());
++}
++
++pub fn register_tagged<T: Real>(below: Lever<T>, above: Lever<T>, mid: Lever<T>, class: &str, truth: Option<f64>) {
++    register(below, above, mid);
++    if active() {
++        // The latest read of this bound from below decides whether it is
++        // inverted: a read that is not clears an earlier one's mark.
++        if !INV_PENDING.with(|p| p.replace(false)) {
++            INV.with(|m| m.borrow_mut().remove(&format!("{:?}", below.length())));
++        }
++        TAGS.with(|m| {
++            let mut m = m.borrow_mut();
++            if m.len() > 200_000 { m.clear(); }
++            m.insert(format!("{:?}", below.length()), (class.to_string(), truth));
++        });
++    }
++}
++
++thread_local! {
++    static INV: RefCell<HashMap<String, String>> = RefCell::new(HashMap::new());
++    static INV_PENDING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
++}
++
++/// The recount: a door read whose unfolded cover falls short of its bound
++/// from below by more than the band's zero, keyed by the bound from below.
++pub fn mark_inverted<T: Real>(below: Lever<T>, door: String) {
++    if active() {
++        INV.with(|m| {
++            let mut m = m.borrow_mut();
++            if m.len() > 200_000 { m.clear(); }
++            m.insert(format!("{:?}", below.length()), door);
++        });
++        INV_PENDING.with(|p| p.set(true));
++    }
++}
++
++fn inverted<T: Real>(below: Lever<T>) -> Option<String> {
++    INV.with(|m| m.borrow().get(&format!("{:?}", below.length())).cloned())
++}
++
++fn tag_full<T: Real>(below: Lever<T>) -> (String, Option<f64>) {
++    TAGS.with(|m| m.borrow().get(&format!("{:?}", below.length())).cloned().unwrap_or(("-".to_string(), None)))
++}
++
++fn tag_of<T: Real>(below: Lever<T>) -> String {
++    TAGS.with(|m| m.borrow().get(&format!("{:?}", below.length())).map_or("-".to_string(), |(c, t)| {
++        let tv = format!("{:?}", below.length()).parse::<f64>().ok();
++        let at_truth = match (t, tv) { (Some(t), Some(v)) => if (v - t).abs() <= 1e-12 * (1.0 + t) { "below=truth" } else { "below!=truth" }, _ => "no-truth" };
++        format!("{c}/{at_truth}")
++    }))
++}
++
++pub fn register<T: Real>(below: Lever<T>, above: Lever<T>, below_d: Lever<T>) {
++    if !active() {
++        return;
++    }
++    ABOVE.with(|m| {
++        let mut m = m.borrow_mut();
++        if m.len() > 200_000 {
++            m.clear();
++        }
++        m.insert(format!("{:?}", below.length()), Box::new((above, below_d)));
++    });
++}
++
++fn lookup<T: Real>(below: Lever<T>) -> Option<(Lever<T>, Lever<T>)> {
++    ABOVE.with(|m| {
++        m.borrow()
++            .get(&format!("{:?}", below.length()))
++            .and_then(|b| b.downcast_ref::<(Lever<T>, Lever<T>)>().copied())
++    })
++}
++
++pub fn action_of<R: Debug>(r: &R) -> String {
++    format!("{r:?}")
++        .chars()
++        .take_while(|c| !matches!(c, '{' | '0'..='9' | '-'))
++        .collect()
++}
++
++fn lane<T: 'static>() -> &'static str {
++    let n = std::any::type_name::<T>();
++    if n == "f64" {
++        "f64"
++    } else if n.contains("Interval") && !n.contains("Dual") {
++        "Interval"
++    } else if n.contains("Dual") {
++        "Dual"
++    } else {
++        "Sym"
++    }
++}
++
++pub fn shadow<T: Real, R: Debug>(
++    name: &str,
++    below: Lever<T>,
++    run: impl Fn(Lever<T>) -> R,
++    action: impl Fn(&R) -> String,
++) -> R {
++    if !active() || !compare_on() {
++        return run(below);
++    }
++    if g2() && nested() {
++        return run(below);
++    }
++    if g2() {
++        return match lookup(below) {
++            Some((above, mid)) => {
++                let (class, truth) = tag_full(below);
++                two_sided(name, below, above, Some(mid), truth, class, &run, &action)
++            }
++            None => {
++                count(format!("UNREG\t{name}\t{}", lane::<T>()));
++                run(below)
++            }
++        };
++    }
++    match lookup(below) {
++        Some((above, below_d)) => compare(name, below, above, Some(below_d), &run, &action),
++        None => {
++            count(format!("UNREG\t{name}\t{}", lane::<T>()));
++            run(below)
++        }
++    }
++}
++
++pub fn shadow_both<T: Real, R: Debug>(
++    name: &str,
++    below: Lever<T>,
++    above: Lever<T>,
++    run: impl Fn(Lever<T>) -> R,
++    action: impl Fn(&R) -> String,
++) -> R {
++    if !active() || !compare_on() {
++        return run(below);
++    }
++    if g2() && nested() {
++        return run(below);
++    }
++    if g2() {
++        let (class, truth) = tag_full(below);
++        let mid = lookup(below).map(|(_, m)| m);
++        return two_sided(name, below, above, mid, truth, class, &run, &action);
++    }
++    let d = lookup(below).map(|(_, d)| d);
++    compare(name, below, above, d, &run, &action)
++}
++
++fn recorded<R>(f: impl FnOnce() -> R) -> (R, Vec<(&'static str, u8)>) {
++    geom_core::k_stats::tl_rec_start();
++    let r = f();
++    (r, geom_core::k_stats::tl_rec_take())
++}
++
++fn kind_of<R: Debug>(a: &R, b: &R, action: &impl Fn(&R) -> String) -> &'static str {
++    if format!("{a:?}") == format!("{b:?}") {
++        "EQ"
++    } else if action(a) == action(b) {
++        "PAYLOAD"
++    } else {
++        "ACTION"
++    }
++}
++
++fn compare<T: Real, R: Debug>(
++    name: &str,
++    below: Lever<T>,
++    above: Lever<T>,
++    below_d: Option<Lever<T>>,
++    run: &impl Fn(Lever<T>) -> R,
++    action: &impl Fn(&R) -> String,
++) -> R {
++    FOLD.with(|f| f.set((0, 0, true)));
++    let (r, sb) = recorded(|| run(below));
++    let (fr, fc, _) = FOLD.with(|f| f.replace((0, 0, false)));
++    IN.with(|f| f.set(true));
++    let ((r2, s2), _) = geom_core::k_stats::detached(|| recorded(|| run(below)));
++    IN.with(|f| f.set(false));
++    let det = if format!("{r:?}") != format!("{r2:?}") {
++        "verdict-differs"
++    } else if sb.len() != s2.len() {
++        "same-verdict-count-differs"
++    } else if sb != s2 {
++        "same-verdict-decisions-differ"
++    } else {
++        "same"
++    };
++    count(format!("DET\t{name}\t{det}"));
++    if det != "same" {
++        detail(&format!("DET\t{name}\t{det}"), format!("DET\t{name}\t{det}\tfirst={}\tsecond={}", sb.len(), s2.len()));
++    }
++    IN.with(|f| f.set(true));
++    let ((ra, sa), _) = geom_core::k_stats::detached(|| recorded(|| run(above)));
++    let d = below_d.map(|l| geom_core::k_stats::detached(|| recorded(|| run(l))).0);
++    IN.with(|f| f.set(false));
++    let ln = lane::<T>();
++    let poison = format!("{:?}", above.length()).contains("NaN");
++    let kind = kind_of(&r, &ra, action);
++    count(format!("C\t{name}\t{ln}\t{kind}\tpoison={poison}"));
++    if ln == "f64" && fr + fc > 0 {
++        count(format!("FOLD\t{name}\t{kind}\t{}", if fr > 0 { "reach-least-at-some-station" } else { "curvature-least-everywhere" }));
++    }
++    if poison {
++        let v = action(&r);
++        count(format!("POISONV\t{name}\t{v}\t{}", class_of_below(below)));
++        detail(&format!("POISONV\t{name}\t{v}"), format!("POISONV\t{name}\t{v}\t{}", class_of_below(below)));
++    }
++    let pairs = |tag: &str, x: &[(&'static str, u8)], y: &[(&'static str, u8)], k: &str, lo: String| {
++        let n = x.len().min(y.len());
++        for i in 0..n {
++            let (p, a) = x[i];
++            let (q, b) = y[i];
++            let key = format!(
++                "{tag}\t{name}\t{ln}\t{p}\t{}\t{}\tcomposite={k}\tpoison={poison}",
++                a as char, b as char
++            );
++            count(key.clone());
++            if p != q || a != b {
++                if p != q {
++                    count(format!("{tag}-PRED-MISMATCH\t{name}\t{p}\t{q}"));
++                }
++                detail(
++                    &key,
++                    format!("{key}\tbelow={lo}\tabove={:?}\tat={i}", above.length()),
++                );
++                return;
++            }
++        }
++        if x.len() != y.len() {
++            count(format!("{tag}-LEN\t{name}\t{ln}\t{}\t{}", x.len(), y.len()));
++        }
++    };
++    pairs("P", &sb, &sa, kind, format!("{:?}", below.length()));
++    if let (Some((rd, sd)), Some(l)) = (d, below_d) {
++        let kd = kind_of(&rd, &ra, action);
++        let kb = kind_of(&r, &rd, action);
++        let tag = tag_of(below);
++        count(format!("CD\t{name}\t{ln}\tvs_above={kd}\tvs_below={kb}\tpoison={poison}\t{tag}"));
++        if kb != "EQ" {
++            detail(&format!("G1MOVE\t{name}\t{tag}\t{kb}"), format!("G1MOVE\t{name}\t{tag}\t{kb}\tline={}\tmiddle={}\tline_verdict={}\tmiddle_verdict={}", format!("{:?}", below.length()), format!("{:?}", l.length()), action(&r), action(&rd)));
++        }
++        pairs("PD", &sd, &sa, kd, format!("{:?}", l.length()));
++    }
++    r
++}
++
++fn test() -> String {
++    std::thread::current().name().unwrap_or("?").to_string()
++}
++
++fn line(p: &str, s: &str) {
++    use std::io::Write;
++    if s.is_empty() {
++        return;
++    }
++    if let Ok(mut f) = std::fs::OpenOptions::new().append(true).create(true).open(p) {
++        let _ = f.write_all(format!("{s}\n").as_bytes());
++    }
++}
+diff --git a/crates/geom-core/src/k_stats.rs b/crates/geom-core/src/k_stats.rs
+index 67332a72..27622eca 100644
+--- a/crates/geom-core/src/k_stats.rs
++++ b/crates/geom-core/src/k_stats.rs
+@@ -490,6 +490,46 @@ fn classify<T: Decide, A: MarginTerms>(
+     };
+     // Both channels of the innermost open bracket: a definite sign as
+     // a verdict, an indeterminate outcome as an escalation.
++    let outcome = TL_REC.with(|r| {
++        let mut r = r.borrow_mut();
++        let Some(top) = r.last_mut() else { return outcome };
++        let idx = top.len();
++        top.push((
++            name,
++            match &outcome {
++                Ok(d) => match d.sign {
++                    Sign::Positive => b'+',
++                    Sign::Negative => b'-',
++                    Sign::Zero => b'0',
++                },
++                Err(_) => b'E',
++            },
++        ));
++        let force = TL_FORCE.with(|f| {
++            f.borrow().last().and_then(|v| v.iter().find(|(i, _)| *i == idx).map(|(_, c)| *c))
++        });
++        let margin = match &outcome {
++            Ok(d) => d.margin,
++            Err(e) => e.margin,
++        };
++        match force {
++            None => outcome,
++            Some(b'S') => Err(Indeterminate {
++                margin,
++                band,
++                predicate: Some(name),
++                terminal_sliver: false,
++            }),
++            Some(c) => Ok(Decided {
++                sign: match c {
++                    b'+' => Sign::Positive,
++                    b'-' => Sign::Negative,
++                    _ => Sign::Zero,
++                },
++                margin,
++            }),
++        }
++    });
+     match &outcome {
+         Ok(decided) => record_verdict(Verdict {
+             predicate: name,
+@@ -2971,3 +3011,42 @@ mod tests {
+         }
+     }
+ }
++
++thread_local! {
++    static TL_REC: std::cell::RefCell<Vec<Vec<(&'static str, u8)>>> =
++        const { std::cell::RefCell::new(Vec::new()) };
++}
++
++thread_local! {
++    static TL_FORCE: std::cell::RefCell<Vec<Vec<(usize, u8)>>> =
++        const { std::cell::RefCell::new(Vec::new()) };
++}
++
++/// Measurement only: open a decision recorder.
++#[doc(hidden)]
++pub fn tl_rec_start() {
++    tl_rec_start_forced(Vec::new());
++}
++
++/// Measurement only: open a decision recorder whose `i`-th decision
++/// returns as `force` says: `S` a straddle refusal, `+`/`-`/`0` that sign.
++#[doc(hidden)]
++pub fn tl_rec_start_forced(force: Vec<(usize, u8)>) {
++    TL_REC.with(|r| r.borrow_mut().push(Vec::new()));
++    TL_FORCE.with(|f| f.borrow_mut().push(force));
++}
++
++/// Measurement only: close the innermost recorder, handing its
++/// decisions to the one outside it too.
++#[doc(hidden)]
++pub fn tl_rec_take() -> Vec<(&'static str, u8)> {
++    TL_REC.with(|r| {
++        let mut r = r.borrow_mut();
++        TL_FORCE.with(|f| f.borrow_mut().pop());
++        let v = r.pop().unwrap_or_default();
++        if let Some(p) = r.last_mut() {
++            p.extend(v.iter().copied());
++        }
++        v
++    })
++}
+diff --git a/crates/geom/tests/all.rs b/crates/geom/tests/all.rs
+index 1e97bed8..2f8d7372 100644
+--- a/crates/geom/tests/all.rs
++++ b/crates/geom/tests/all.rs
+@@ -228,3 +228,5 @@ mod curves_n3r2_c24_meter;
+ mod curves_n3r2_probes;
+ #[path = "n3r1_probes.rs"]
+ mod n3r1_probes;
++#[path = "tl_dual_cover_probe.rs"]
++mod tl_dual_cover_probe;
+diff --git a/crates/geom/tests/tl_dual_cover_probe.rs b/crates/geom/tests/tl_dual_cover_probe.rs
+new file mode 100644
+index 00000000..95e59c70
+--- /dev/null
++++ b/crates/geom/tests/tl_dual_cover_probe.rs
+@@ -0,0 +1,44 @@
++//! turn-lever measurement probe (not for merge): which cover read gives a
++//! finite value with a NaN derivative on `Dual<f64>`.
++use geom::cover::{Cover, ParamWindow, Site};
++use geom::{Frame, Line};
++use geom_core::{Dual64, Point3, Vec3, Real};
++
++fn c(x: f64) -> Dual64 { Dual64::constant(x) }
++fn p(x: f64, y: f64, z: f64) -> Point3<Dual64> { Point3::new(c(x), c(y), c(z)) }
++fn v(x: f64, y: f64, z: f64) -> Vec3<Dual64> { Vec3::new(c(x), c(y), c(z)) }
++
++fn show(name: &str, cov: Option<Cover<Dual64>>, lines: &[(&str, Line<Dual64>)]) {
++    let Some(cov) = cov else { println!("TLDUAL\t{name}\tNone"); return };
++    for (ln, l) in lines {
++        let (n, f) = cov.distance_range(&Site::Line(*l));
++        println!("TLDUAL\t{name}\t{ln}\tnear=({:e},{:e})\tfar=({:e},{:e})", n.value, n.deriv, f.value, f.deriv);
++    }
++}
++
++#[test]
++fn tl_dual_cover_probe() {
++    let fr = Frame::new(p(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), v(1.0, 0.0, 0.0));
++    let lines = [
++        ("axis", Line { origin: p(0.0, 0.0, 0.0), dir: v(0.0, 0.0, 1.0) }),
++        ("off-axis-parallel", Line { origin: p(0.3, 0.2, 0.0), dir: v(0.0, 0.0, 1.0) }),
++        ("skew", Line { origin: p(2.0, 0.0, 0.0), dir: v(0.0, 1.0, 0.5) }),
++        ("through-surface", Line { origin: p(1.0, 0.0, 0.0), dir: v(0.0, 1.0, 0.0) }),
++    ];
++    let w = |a: f64, b: f64| ParamWindow::new(c(a), c(b));
++    show("sphere", Cover::sphere(&fr, c(1.0)), &lines);
++    show("torus", Cover::torus(&fr, c(2.0), c(0.5)), &lines);
++    show("patch-sphere", Cover::patch(&fr, (c(0.0), c(1.0)), Some(w(0.0, 1.0)), w(0.0, 0.5)), &lines);
++    show("patch-sphere-zone", Cover::patch(&fr, (c(0.0), c(1.0)), None, w(-0.5, 0.5)), &lines);
++    show("patch-torus", Cover::patch(&fr, (c(2.0), c(0.5)), Some(w(0.0, 1.0)), w(0.0, 0.5)), &lines);
++    let pts = Cover::points(vec![p(0.0, 0.0, 0.0), p(0.0, 0.0, 1.0)]).unwrap();
++    show("wall-in-points", Cover::wall(&fr, c(1.0), &pts), &lines);
++    show("cone-in-points", Cover::cone(&fr, c(0.5), &pts), &lines);
++    show("points", Some(pts.clone()), &lines);
++    show("segment", Cover::segment(p(1.0, 0.0, 0.0), p(1.0, 1.0, 0.0)), &lines);
++    show("arc", Cover::arc(&fr, (c(1.0), c(1.0)), w(0.0, 1.0)), &lines);
++    let wall = Cover::wall(&fr, c(1.0), &pts).unwrap();
++    show("wall.meet(patch)", Some(wall.clone().meet(Cover::patch(&fr, (c(0.0), c(1.0)), Some(w(0.0, 1.0)), w(0.0, 0.5)).unwrap())), &lines);
++    show("hull.convex", Some(wall.hull(pts).convex()), &lines);
++    let _ = Dual64::constant(0.0).sqrt();
++}
+diff --git a/crates/sweep/tests/all.rs b/crates/sweep/tests/all.rs
+index f9bf6227..efcb6a96 100644
+--- a/crates/sweep/tests/all.rs
++++ b/crates/sweep/tests/all.rs
+@@ -1477,3 +1477,4 @@ mod a_partner_across_a_lofted_wall_is_joined_on_its_section_value;
+ mod a_peg_in_a_two_segment_bore_moves_only_its_wall;
+ #[path = "a_station_frame_is_minted_to_its_floor.rs"]
+ mod a_station_frame_is_minted_to_its_floor;
++mod tl_g1_row_table;
+diff --git a/crates/sweep/tests/tl_g1_row_table.rs b/crates/sweep/tests/tl_g1_row_table.rs
+new file mode 100644
+index 00000000..6079651c
+--- /dev/null
++++ b/crates/sweep/tests/tl_g1_row_table.rs
+@@ -0,0 +1,42 @@
++//! Measurement only: the open row's extrude table at the lever site in use.
++use geom_core::{Arc2, Point2, Tol};
++use ::profile::{Profile, ProfileLoop, RawLoop, Segment, SketchPlane};
++use sweep::{ExtrudeSide, Extrusion, Revolution, RevolveAxis, extrude, revolve};
++
++fn wall_arc(x0: f64, phi: f64) -> Profile<f64> {
++    let h = std::f64::consts::FRAC_PI_2 + phi;
++    let p1 = Point2::new(x0, 0.05);
++    let c = Point2::new(p1.x - h.sin(), p1.y + h.cos());
++    let a0 = (p1.y - c.y).atan2(p1.x - c.x);
++    let q = Point2::new(c.x + (a0 + 0.05).cos(), c.y + (a0 + 0.05).sin());
++    Profile::new(SketchPlane::xy(), vec![ProfileLoop::new(vec![
++        (Point2::new(x0, 0.0), Segment::Line),
++        (p1, Segment::Arc(Arc2 { centre: c, radius: 1.0, sweep: 0.05 })),
++        (q, Segment::Line),
++        (Point2::new(x0 - 0.1, 0.0), Segment::Line),
++    ])])
++}
++
++#[test]
++fn tl_g1_row_table() {
++    let tol = Tol::witness();
++    let eps = tol.eps();
++    let site = std::env::var("TL_SITE").unwrap_or_else(|_| "middle".into());
++    for m in [5.0, 10.0, 15.0, 19.0] {
++        let p = wall_arc(20.0, m * eps);
++        let v = match p.validate(tol) { Ok(v) => v, Err(e) => { println!("G1ROW\t{site}\tphi={m}eps\tprofile refuses: {e:?}"); continue } };
++        let tangent = !v.loops()[0].tangent_joints().is_empty();
++        for depth in [1.0, 4.0] {
++            let got = extrude(&v, Extrusion::Distance { depth, side: ExtrudeSide::Along }, tol);
++            let out = match got {
++                Ok(e) => match topo::validate(&e.body) { Ok(()) => "builds, tier 3 passes".to_string(), Err(es) => format!("builds, tier 3 refuses: {:?}", es.first()) },
++                Err(e) => format!("{e}"),
++            };
++            println!("G1ROW\t{site}\tphi={m}eps\tprofile_tangent={tangent}\textrude depth {depth}\t{}", out.chars().take(300).collect::<String>());
++        }
++        let axis = RevolveAxis { origin: Point2::new(0.0, 0.0), dir: geom_core::Vec2::new(0.0, 1.0) };
++        let got = revolve(&v, axis, Revolution::Partial(1.0), tol);
++        let out = match got { Ok(_) => "builds".to_string(), Err(e) => format!("{e}") };
++        println!("G1ROW\t{site}\tphi={m}eps\tprofile_tangent={tangent}\trevolve 1 rad\t{}", out.chars().take(300).collect::<String>());
++    }
++}
+diff --git a/crates/topo/src/boolean/edge_join.rs b/crates/topo/src/boolean/edge_join.rs
+index 53163520..d2894b60 100644
+--- a/crates/topo/src/boolean/edge_join.rs
++++ b/crates/topo/src/boolean/edge_join.rs
+@@ -733,6 +733,37 @@ fn joinable<T: Decide>(
+     let Some(reach) = reach else {
+         return Ok(None);
+     };
++    if let Some(above) = [e1, e2]
++        .into_iter()
++        .filter_map(|e| crate::edge_wedge_reach(body, e, band).map(geom_brep::LeverBounds::above))
++        .reduce(geom_core::Lever::max)
++    {
++        let _ = geom_brep::tl_shadow::shadow_both(
++            "edge_join_joinable",
++            reach,
++            above,
++            |r| {
++                let class = match geom_brep::classify_dihedral(surf_f, surf_g, p, r, band) {
++                    Ok(d) => d.class(),
++                    Err(e) => return format!("Err(dihedral_wedge) {:?}", e.diag()),
++                };
++                match (locus, class) {
++                    (Locus::Transverse, geom_brep::DihedralClass::Transverse) => "Ok(true)".into(),
++                    (Locus::Tangent, geom_brep::DihedralClass::Smooth) => {
++                        let Some(tangent) = tangent_at(body, e2, d2, w) else {
++                            return "None".into();
++                        };
++                        match geom_brep::tangent_second_order(surf_f, surf_g, p, tangent, r, band).verdict {
++                            Ok(d) => format!("Ok({})", d.sign == Sign::Positive),
++                            Err(e) => format!("Err(tangent_second_order) {e:?}"),
++                        }
++                    }
++                    _ => "Ok(false)".into(),
++                }
++            },
++            geom_brep::tl_shadow::action_of,
++        );
++    }
+     let class = geom_brep::classify_dihedral(surf_f, surf_g, p, reach, band)
+         .map_err(|e| regularity(e.diag()))?
+         .class();
+diff --git a/crates/topo/src/boolean/join.rs b/crates/topo/src/boolean/join.rs
+index 963dbf90..94f975e9 100644
+--- a/crates/topo/src/boolean/join.rs
++++ b/crates/topo/src/boolean/join.rs
+@@ -1244,9 +1244,19 @@ fn stands_on<T: crate::props::AtRestPolicy>(
+         let Some(n) = plane(x, face) else {
+             continue;
+         };
+-        let arm =
+-            crate::wedge_reach(x, [face, face], curve.carrier(), curve.params(), band).below();
++        let bounds = crate::wedge_reach(x, [face, face], curve.carrier(), curve.params(), band);
++        let arm = bounds.below();
+         let cosine = if flips { -n.dot(n_f) } else { n.dot(n_f) };
++        let g2 = geom_brep::tl_shadow::shadow_both(
++            "bool_rim_face_opposed",
++            arm,
++            bounds.above(),
++            |a| decide("bool_rim_face_opposed", Margin::levered(cosine, a), band).map(|s| s == Sign::Negative),
++            geom_brep::tl_shadow::action_of,
++        );
++        if geom_brep::tl_shadow::g2() {
++            return g2.map_err(|diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag));
++        }
+         return Ok(
+             decide("bool_rim_face_opposed", Margin::levered(cosine, arm), band).map_err(
+                 |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag),
+diff --git a/crates/topo/src/boolean/mod.rs b/crates/topo/src/boolean/mod.rs
+index 2b2945a4..4c38cfd9 100644
+--- a/crates/topo/src/boolean/mod.rs
++++ b/crates/topo/src/boolean/mod.rs
+@@ -8415,12 +8415,19 @@ fn route_rim<T: Decide>(
+     let (sb, sense_b) = glued_face(b, fb, Operand::B).map_err(Refused)?;
+     let circle = geom::Curve3::circle(rim.center, rim.axis, rim.radius, rim.u_ref);
+     let whole = (T::zero(), T::tau());
+-    let reach = crate::wedge_reach(a, [fa; 2], &circle, whole, band)
+-        .below()
+-        .max(crate::wedge_reach(b, [fb; 2], &circle, whole, band).below());
+-    let routing =
+-        crate::rim_wedge::classify_shared_rim(&sa, sense_a, &sb, sense_b, rim, reach, band)
+-            .map_err(in_band)?;
++    let (ra, rb) = (
++        crate::wedge_reach(a, [fa; 2], &circle, whole, band),
++        crate::wedge_reach(b, [fb; 2], &circle, whole, band),
++    );
++    let reach = ra.below().max(rb.below());
++    let routing = geom_brep::tl_shadow::shadow_both(
++        "classify_shared_rim",
++        reach,
++        ra.above().max(rb.above()),
++        |r| crate::rim_wedge::classify_shared_rim(&sa, sense_a, &sb, sense_b, rim, r, band),
++        geom_brep::tl_shadow::action_of,
++    )
++    .map_err(in_band)?;
+     match routing {
+         crate::rim_wedge::RimRouting::Seam => {
+             match crate::rim_wedge::departures(
+diff --git a/crates/topo/src/boolean/reduce.rs b/crates/topo/src/boolean/reduce.rs
+index 09c479c4..acd236af 100644
+--- a/crates/topo/src/boolean/reduce.rs
++++ b/crates/topo/src/boolean/reduce.rs
+@@ -3923,9 +3923,21 @@ fn sheets_part<T: crate::props::AtRestPolicy>(
+         along(curve.carrier().deriv(t), h_x == edge.he_plus).normalize(),
+     );
+     let into_y = crate::stands::inward(n_y, along(tau_y, h_y == d_y.he_plus).normalize());
+-    let arm = crate::wedge_reach(x, [f_x, f_x], curve.carrier(), curve.params(), band)
+-        .below()
+-        .max(crate::wedge_reach(y, [face, face], c_y.carrier(), c_y.params(), band).below());
++    let (bx, by) = (
++        crate::wedge_reach(x, [f_x, f_x], curve.carrier(), curve.params(), band),
++        crate::wedge_reach(y, [face, face], c_y.carrier(), c_y.params(), band),
++    );
++    let arm = bx.below().max(by.below());
++    let g2 = geom_brep::tl_shadow::shadow_both(
++        "bool_touch_sheets_part",
++        arm,
++        bx.above().max(by.above()),
++        |a| decide("bool_touch_sheets_part", Margin::levered(into_x.dot(into_y), a), band).map(|s| s == Sign::Negative),
++        geom_brep::tl_shadow::action_of,
++    );
++    if geom_brep::tl_shadow::g2() {
++        return g2.map_err(|diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag));
++    }
+     let sign = decide(
+         "bool_touch_sheets_part",
+         Margin::levered(into_x.dot(into_y), arm),
+diff --git a/crates/topo/src/boolean/slit.rs b/crates/topo/src/boolean/slit.rs
+index e2533524..5eefb542 100644
+--- a/crates/topo/src/boolean/slit.rs
++++ b/crates/topo/src/boolean/slit.rs
+@@ -2021,18 +2021,26 @@ fn walls_inside<T: Decide>(
+         // How far the wall leaves the floor grows across the line: the
+         // lever is the wall's own reach from the line's middle, as a
+         // seam's dihedral reads it ([`crate::wedge_reach`]).
+-        let arm = crate::wedge_reach(body, [wall, wall], curve.carrier(), (t0, t1), band).below();
++        let bounds = crate::wedge_reach(body, [wall, wall], curve.carrier(), (t0, t1), band);
++        let arm = bounds.below();
++        let g2 = geom_brep::tl_shadow::shadow_both(
++            "bool_rider_wall_side",
++            arm,
++            bounds.above(),
++            |a| crate::validate::decide("bool_rider_wall_side", Margin::levered(into.dot(floor), a), band),
++            geom_brep::tl_shadow::action_of,
++        );
+         let sectors =
+             |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag);
+         // Bent alike, the wall's sheet and the floor's are one to the
+         // order read ([`coplanar_wall_inside`]).
+         let coplanar = || coplanar_wall_inside(normal, floor, arm, band, refused);
+         let surface = |face: FaceKey| body.proven_face(face).surface();
+-        inside[k] = match crate::validate::decide(
++        inside[k] = match (if geom_brep::tl_shadow::g2() { g2 } else { crate::validate::decide(
+             "bool_rider_wall_side",
+             Margin::levered(into.dot(floor), arm),
+             band,
+-        )
++        ) })
+         .map_err(sectors)?
+         {
+             Sign::Negative => true,
+diff --git a/crates/topo/src/pcurves/decision.rs b/crates/topo/src/pcurves/decision.rs
+index 51a734a5..45d58858 100644
+--- a/crates/topo/src/pcurves/decision.rs
++++ b/crates/topo/src/pcurves/decision.rs
+@@ -307,6 +307,15 @@ pub(super) fn edge_reach<T: Decide>(
+     let far = |cover: Option<&geom::cover::Cover<T>>| {
+         geom_brep::ExtentBall::of_cover_from(cover, at).lever()
+     };
++    if let Ok(path) = std::env::var("TL_POISON") {
++        use std::io::Write;
++        if let Ok(mut f) = std::fs::OpenOptions::new().append(true).create(true).open(path) {
++            let _ = f.write_all(
++                format!("POISON\tsite_mint\t{}\n", std::thread::current().name().unwrap_or("?"))
++                    .as_bytes(),
++            );
++        }
++    }
+     geom_brep::LeverBounds::Between {
+         below: far(geom::cover::Cover::points(points).as_ref()),
+         above: far(None),
+@@ -1184,11 +1193,22 @@ fn singular_turn<T: Decide>(
+     let gap = prev.x - entry.x;
+     let half = T::tau() * T::from_f64(0.5);
+     let shifted = if step > 0 { gap + half } else { gap - half };
+-    match geom_brep::Period::angle().decide(
++    match geom_brep::tl_shadow::shadow_both(
+         "pcurve_singular_turn",
+-        shifted,
+-        |g| Margin::levered(g, lever.below()),
+-        band,
++        lever.below(),
++        lever.above(),
++        |l| {
++            geom_brep::Period::angle().decide(
++                "pcurve_singular_turn",
++                shifted,
++                |g| Margin::levered(g, l),
++                band,
++            )
++        },
++        |r| match r {
++            Ok(k) => format!("Ok({k})"),
++            Err(stop) => geom_brep::tl_shadow::action_of(&stop.miss),
++        },
+     ) {
+         Ok(k) => Ok((k, twin)),
+         Err(stop) => match stop.miss {
+diff --git a/crates/topo/src/splitting/rules.rs b/crates/topo/src/splitting/rules.rs
+index 421d90fd..abffa0dd 100644
+--- a/crates/topo/src/splitting/rules.rs
++++ b/crates/topo/src/splitting/rules.rs
+@@ -559,6 +559,26 @@ fn edge_wedge<T: Decide>(
+         _ => p + along,
+     };
+     let (n_own, n_mate) = (own_at.normal_along(along), mate_at.normal_along(along));
++    if let Some(above) = crate::edge_wedge_reach(body, edge, band).map(geom_brep::LeverBounds::above) {
++        let into_mate = along.cross(n_mate.vec());
++        let _ = geom_brep::tl_shadow::shadow_both(
++            "rules_edge_wedge",
++            extent,
++            above,
++            |r| match geom_brep::classify_dihedral(s_own, s_mate, p, r, band) {
++                Ok(geom_brep::Dihedral::Tangent(_)) => "Ok(None)".to_string(),
++                Ok(geom_brep::Dihedral::Corner(_)) => {
++                    let arm = geom_brep::folded_lever_arm(s_own, s_mate, p, r);
++                    match enters_material(into_mate, n_own, arm, band) {
++                        Ok(m) => format!("Ok({m:?})"),
++                        Err(e) => format!("Err(enters) {e:?}"),
++                    }
++                }
++                Err(e) => format!("Err(dihedral_wedge) {:?}", e.diag()),
++            },
++            geom_brep::tl_shadow::action_of,
++        );
++    }
+     match geom_brep::classify_dihedral(s_own, s_mate, p, extent, band) {
+         Ok(geom_brep::Dihedral::Tangent(_)) => return Ok(None),
+         Ok(geom_brep::Dihedral::Corner(_)) => {}
+diff --git a/crates/topo/src/validate.rs b/crates/topo/src/validate.rs
+index af5756d1..ef9efb3c 100644
+--- a/crates/topo/src/validate.rs
++++ b/crates/topo/src/validate.rs
+@@ -7722,6 +7722,7 @@ pub(crate) fn tier3_local_checks_marked<
+     Vec<ValidationError>,
+     Option<crate::props::SignCertificate<'b, T>>,
+ ) {
++    let _tl = geom_brep::tl_shadow::tier3();
+     let band = match Band::linear(tol) {
+         Ok(band) => band,
+         Err(error) => return (vec![ValidationError::Band { error }], None),
+diff --git a/crates/topo/src/wedge_reach.rs b/crates/topo/src/wedge_reach.rs
+index ff643caa..6b6aea98 100644
+--- a/crates/topo/src/wedge_reach.rs
++++ b/crates/topo/src/wedge_reach.rs
+@@ -64,6 +64,7 @@ use crate::live::BoundaryMember;
+ /// Where a face, or a record its boundary walk reaches, does not
+ /// resolve: every caller read `faces` out of `body`.
+ #[must_use]
++#[track_caller]
+ pub fn wedge_reach<T: Decide>(
+     body: &Body<T>,
+     faces: [FaceKey; 2],
+@@ -83,6 +84,7 @@ pub fn wedge_reach<T: Decide>(
+ /// Where `edge` or a record on the walk from it does not resolve: every
+ /// caller read `edge` out of `body`.
+ #[must_use]
++#[track_caller]
+ pub fn edge_wedge_reach<T: Decide>(
+     body: &Body<T>,
+     edge: EdgeKey,
+@@ -100,6 +102,7 @@ pub struct WedgeReach<'a, T: Decide> {
+     /// Whether a face's cover reads its lift ([`crate::cover::face_cover`])
+     /// or not ([`crate::cover::face_cover_unlifted`]).
+     lifts: bool,
++    at: &'static std::panic::Location<'static>,
+     faces: RefCell<SecondaryMap<FaceKey, Rc<FaceRead<T>>>>,
+ }
+ 
+@@ -107,17 +110,65 @@ pub struct WedgeReach<'a, T: Decide> {
+ /// vertices, points of the face, and its cover, which holds it.
+ struct FaceRead<T: geom_core::Real> {
+     points: Vec<Point3<T>>,
++    edges: Vec<EdgeKey>,
+     cover: FaceCovered<T>,
+ }
+ 
++/// G2 (ii): an edge's farthest point from a line, from below: its ends,
++/// and on a line or a conic its critical points (the squared distance is
++/// a trigonometric polynomial of degree two in the conic's parameter,
++/// bracketed on 64 samples and refined by golden section), each a point
++/// of the edge; elsewhere 17 samples. `true` where the read is exact.
++fn tl_far_from_line<T: Decide>(c: &Curve3<T>, (t0, t1): (T, T), to_line: &impl Fn(Point3<T>) -> T) -> (T, bool) {
++    let ends = to_line(c.eval(t0)).max(to_line(c.eval(t1)));
++    let sampled = |n: u32| {
++        (0..=n).fold(ends, |m, k| m.max(to_line(c.eval(t0 + (t1 - t0) * T::from_f64(f64::from(k) / f64::from(n))))))
++    };
++    match c {
++        Curve3::Line(_) => (ends, true),
++        Curve3::Circle(_) | Curve3::Ellipse(_) => {
++            let (Some(s0), Some(s1)) = (tl_f64(t0), tl_f64(t1)) else { return (sampled(16), false) };
++            let f = |th: f64| tl_f64(to_line(c.eval(T::from_f64(th)))).unwrap_or(f64::NAN);
++            let n = 64;
++            let ths: Vec<f64> = (0..=n).map(|k| s0 + (s1 - s0) * f64::from(k) / f64::from(n)).collect();
++            let vs: Vec<f64> = ths.iter().map(|&t| f(t)).collect();
++            let mut best = sampled(16);
++            for k in 1..n as usize {
++                if vs[k] >= vs[k - 1] && vs[k] >= vs[k + 1] {
++                    let (mut a, mut b) = (ths[k - 1], ths[k + 1]);
++                    let g = 0.618_033_988_749_894_9;
++                    for _ in 0..60 {
++                        let (x1, x2) = (b - g * (b - a), a + g * (b - a));
++                        if f(x1) < f(x2) { a = x1 } else { b = x2 }
++                    }
++                    best = best.max(to_line(c.eval(T::from_f64(0.5 * (a + b)))));
++                }
++            }
++            (best, true)
++        }
++        _ => (sampled(16), false),
++    }
++}
++
++fn tl_line_site() -> bool {
++    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
++    *ON.get_or_init(|| std::env::var("TL_SITE").is_ok_and(|v| v == "line"))
++}
++
++fn tl_f64<X: core::fmt::Debug>(x: X) -> Option<f64> {
++    format!("{x:?}").parse::<f64>().ok()
++}
++
+ impl<'a, T: Decide> WedgeReach<'a, T> {
+     /// A reader of `body`'s wedges, its faces' covers read under
+     /// `band`; nothing read yet.
+     #[must_use]
++    #[track_caller]
+     pub fn new(body: &'a Body<T>, band: Band) -> Self {
+         Self {
+             body,
+             band,
++            at: std::panic::Location::caller(),
+             lifts: true,
+             faces: RefCell::new(SecondaryMap::new()),
+         }
+@@ -127,9 +178,11 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
+     /// without its lift ([`crate::cover::face_cover_unlifted`]), since
+     /// a face's cover can ask that lift.
+     #[must_use]
++    #[track_caller]
+     pub(crate) fn unlifted(body: &'a Body<T>, band: Band) -> Self {
+         Self {
+             lifts: false,
++            at: std::panic::Location::caller(),
+             ..Self::new(body, band)
+         }
+     }
+@@ -152,22 +205,154 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
+         let [a, b] = faces;
+         let reads = [Some(self.face(a)), (b != a).then(|| self.face(b))];
+         let reads = reads.iter().flatten();
+-        let points = [ends.0, ends.1]
++        let points: Vec<Point3<T>> = [ends.0, ends.1]
+             .into_iter()
+             .chain(reads.clone().flat_map(|f| f.points.iter().copied()))
+             .collect();
++        let tl_points = points.clone();
+         let far = |cover: Option<&Cover<T>>| ExtentBall::of_cover_from(cover, at).lever();
+         let own = crate::cover::edge_cover_over(carrier, (t0, t1), ends).ok();
+         // The points bound the region from above too: mid-door a face's
+         // vertex can stand off its carrier, past the cover its carrier
+         // trims.
+         let below = far(Cover::points(points).as_ref());
+-        LeverBounds::Between {
+-            below,
+-            above: reads.fold(far(own.as_ref()).max(below), |above, f| {
+-                above.max(far(f.cover.as_ref().ok()))
+-            }),
++        let above = reads.clone().fold(far(own.as_ref()).max(below), |above, f| {
++            above.max(far(f.cover.as_ref().ok()))
++        });
++        if self.lifts && tl_line_site() {
++            if let Curve3::Line(line) = carrier {
++                return self.tl_g1(a, b, *line, &tl_points, below, own.as_ref(), reads.clone().map(|f| f.cover.as_ref().ok()).collect());
++            }
+         }
++        if geom_brep::tl_shadow::active() {
++            let loc = format!("{}:{}", self.at.file(), self.at.line());
++            let lane = std::any::type_name::<T>();
++            let clock = std::time::Instant::now();
++            let mut below_d = below.max(
++                geom_brep::edge_reach_bounds(carrier, (t0, t1), at, far(own.as_ref())).below(),
++            );
++            for f in reads.clone() {
++                for &e in &f.edges {
++                    if let Some(b) =
++                        crate::cover::edge_reach_bounds(self.body, e, &self.body.edges[e], at)
++                    {
++                        below_d = below_d.max(b.below());
++                    }
++                }
++            }
++            let ns = clock.elapsed().as_nanos() as u64;
++            geom_brep::tl_shadow::add(format!("MD-NS\t{lane}"), ns);
++            geom_brep::tl_shadow::count(format!("MD-CALLS\t{lane}"));
++            let faceclass: Vec<String> = [Some(a), (b != a).then_some(b)]
++                .iter()
++                .flatten()
++                .map(|&f| {
++                    let s = self.body.proven_face(f).surface();
++                    let net = match s { geom::Surface::Nurbs(n) => format!(":{:?}", n.net_state()), _ => String::new() };
++                    format!("{:?}{net}:{}", s.kind(), if self.face(f).cover.is_ok() { "covered" } else { "uncovered" })
++                })
++                .collect();
++            let faceclass = faceclass.join(",");
++            geom_brep::tl_shadow::register_tagged(below, above, below_d, &faceclass, None);
++            if format!("{:?}", above.length()).contains("NaN") && !faceclass.contains("uncovered") {
++                geom_brep::tl_shadow::count(format!("POISON-COVERED\t{loc}"));
++                geom_brep::tl_shadow::detail(
++                    &format!("POISON-COVERED\t{loc}"),
++                    format!(
++                        "POISON-COVERED\t{loc}\t{faceclass}\tcarrier={:?}\town_cover={}\tbelow={:?}",
++                        carrier.kind(),
++                        if own.is_some() { "ok" } else { "NONE" },
++                        below.length()
++                    ),
++                );
++            }
++            if let (Some(b), Some(d), Some(u)) = (
++                tl_f64(below.length()),
++                tl_f64(below_d.length()),
++                tl_f64(above.length()),
++            ) {
++                let bin = |r: f64| {
++                    if !r.is_finite() {
++                        "poison/inf"
++                    } else if r < 0.999_999 {
++                        "<1"
++                    } else if r <= 1.000_001 {
++                        "=1"
++                    } else if r <= 1.01 {
++                        "(1,1.01]"
++                    } else if r <= 1.1 {
++                        "(1.01,1.1]"
++                    } else if r <= 2.0 {
++                        "(1.1,2]"
++                    } else if r <= 10.0 {
++                        "(2,10]"
++                    } else if r <= 100.0 {
++                        "(10,100]"
++                    } else if r <= 1e3 {
++                        "(100,1e3]"
++                    } else {
++                        ">1e3"
++                    }
++                };
++                geom_brep::tl_shadow::count(format!("RATIO\tvertices\t{}", bin(u / b)));
++                geom_brep::tl_shadow::count(format!("RATIO\twith_edges\t{}", bin(u / d)));
++                if u / d < 0.999_999 {
++                    geom_brep::tl_shadow::count(format!("RATIO-LT1\t{loc}"));
++                }
++            }
++            geom_brep::tl_shadow::count(format!("MA-ALL\t{loc}\t{lane}"));
++            if lane == "f64" && a != b {
++                let covers: Vec<Option<Cover<T>>> = std::iter::once(own.clone())
++                    .chain(reads.clone().map(|f| f.cover.clone().ok()))
++                    .collect();
++                self.tl_me(a, b, carrier, (t0, t1), &tl_points, below, above, &covers, &loc);
++            }
++            for &f in [Some(a), (b != a).then_some(b)].iter().flatten() {
++                let r = self.face(f);
++                if let Err(e) = &r.cover {
++                    let surface = self.body.proven_face(f).surface();
++                    let net = match surface {
++                        geom::Surface::Nurbs(n) => format!("{:?}", n.net_state()),
++                        _ => "-".to_string(),
++                    };
++                    geom_brep::tl_shadow::count(format!(
++                        "MA\t{loc}\t{lane}\t{:?}\t{}\t{net}",
++                        surface.kind(),
++                        format!("{e}").replace(['\t', '\n'], " ")
++                    ));
++                }
++            }
++        }
++        if format!("{:?}", above.length()).contains("NaN") {
++            if let Ok(path) = std::env::var("TL_POISON") {
++                use std::io::Write;
++                let why: Vec<String> = [Some(a), (b != a).then_some(b)]
++                    .into_iter()
++                    .flatten()
++                    .map(|f| {
++                        let r = self.face(f);
++                        format!(
++                            "{:?}:{}",
++                            self.body.proven_face(f).surface().kind(),
++                            match &r.cover {
++                                Ok(_) => "covered".to_string(),
++                                Err(e) => format!("UNCOVERED({e})").replace(['\t', '\n'], " "),
++                            }
++                        )
++                    })
++                    .collect();
++                let line = format!(
++                    "POISON\tdoor\t{}\t{}\town_cover={}\n",
++                    std::thread::current().name().unwrap_or("?"),
++                    why.join(","),
++                    own.is_some()
++                );
++                if let Ok(mut f) = std::fs::OpenOptions::new().append(true).create(true).open(path) {
++                    let _ = f.write_all(line.as_bytes());
++                }
++            }
++        }
++        LeverBounds::Between { below, above }
+     }
+ 
+     /// [`edge_wedge_reach`], reading faces through this cache.
+@@ -182,6 +367,472 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
+         Some(self.reach(edge_faces(self.body, edge), curve.carrier(), curve.params()))
+     }
+ 
++    /// G1: the wedge lever read from the edge's line, at both bounds.
++    #[allow(clippy::too_many_arguments)]
++    fn tl_g1(
++        &self,
++        a: FaceKey,
++        b: FaceKey,
++        line: geom::Line<T>,
++        points: &[Point3<T>],
++        mid_below: geom_core::Lever<T>,
++        own: Option<&Cover<T>>,
++        covers: Vec<Option<&Cover<T>>>,
++    ) -> LeverBounds<T> {
++        use geom::cover::Site;
++        let d = line.dir;
++        let to_line = |x: Point3<T>| (x - line.origin).cross(d).norm() / d.norm();
++        let lo = points.iter().fold(T::zero(), |m, &x| m.max(to_line(x)));
++        let lo_pts = lo;
++        let far = |c: Option<&Cover<T>>| c.map_or(geom_core::poison(), |c| c.distance_range(&Site::Line(line)).1);
++        let g2 = std::env::var_os("TL_G2").is_some();
++        let closed_above = std::env::var_os("TL_ABOVE_CLOSED").is_some();
++        let body = self.body;
++        let ruled = [a, b].iter().all(|&f| {
++            matches!(body.proven_face(f).surface(), geom::Surface::Plane { .. } | geom::Surface::Cylinder { .. } | geom::Surface::Cone { .. })
++        });
++        let mut any_arc = false;
++        let (lo, exact_all, ends_off) = if g2 {
++            let mut lo = lo;
++            let mut exact = true;
++            let mut ends_off = 0u32;
++            let faces: Vec<FaceKey> = if a == b { vec![a] } else { vec![a, b] };
++            for f in faces {
++                for &e in &self.face(f).edges {
++                    let Some(g) = body.curves.get(body.edges[e].curve).and_then(|g| g.certified()) else {
++                        exact = false;
++                        continue;
++                    };
++                    any_arc |= !matches!(g.carrier(), Curve3::Line(_));
++                    let (v, ex) = tl_far_from_line(g.carrier(), g.params(), &to_line);
++                    lo = lo.max(v);
++                    exact &= ex;
++                    let (s0, s1) = g.params();
++                    let (v0, v1) = crate::query::edge_ends(body, e);
++                    let (p0, p1) = (body.resolve_vertex_point(v0, crate::live::Proven), body.resolve_vertex_point(v1, crate::live::Proven));
++                    let gap = |x: Point3<T>, y: Point3<T>| tl_f64((x - y).norm()).unwrap_or(0.0);
++                    let (c0, c1) = (g.carrier().eval(s0), g.carrier().eval(s1));
++                    if gap(c0, p0).min(gap(c0, p1)) > 1e-9 || gap(c1, p0).min(gap(c1, p1)) > 1e-9 {
++                        ends_off += 1;
++                    }
++                }
++            }
++            // (iii)'s convexity argument puts a ruling's farthest point at
++            // one of its ends; on a cone a ruling can end at the apex, which
++            // is a boundary point only where it is a vertex. Elsewhere the
++            // boundary's maximum is no truth: the read is marked inexact.
++            for f in [a, b] {
++                if let geom::Surface::Cone { apex, .. } = body.proven_face(f).surface() {
++                    let at_vertex = self.face(f).points.iter().any(|&x| tl_f64((x - *apex).norm()).is_some_and(|g| g <= 1e-9));
++                    if !at_vertex {
++                        exact = false;
++                        geom_brep::tl_shadow::count("G2D\tcone\tapex-not-a-vertex".into());
++                    }
++                }
++            }
++            (lo, exact, ends_off)
++        } else {
++            (lo, false, 0)
++        };
++        let hi = if g2 && closed_above && ruled && exact_all {
++            lo
++        } else {
++            covers.iter().fold(far(own).max(lo), |m, c| m.max(far(*c)))
++        };
++        if g2 && geom_brep::tl_shadow::active() {
++            let lane = std::any::type_name::<T>() == "f64";
++            let class = if !ruled { "other" } else if [a, b].iter().all(|&f| matches!(body.proven_face(f).surface(), geom::Surface::Plane { .. })) { "plane-plane" } else { "ruled" };
++            let class = format!("{class}{}", if exact_all { "" } else { "-inexact" });
++            let c = |k: String| geom_brep::tl_shadow::count(format!("G2D\t{class}\t{k}"));
++            c("reads".into());
++            if ends_off > 0 { c("carrier-ends-not-vertices".into()); }
++            let (lf, hf) = (tl_f64(lo), tl_f64(hi));
++            if let (Some(lf), Some(hf)) = (lf, hf) {
++                if lf > 0.0 {
++                    let r = hf / lf;
++                    let bin = if !r.is_finite() { "poison" } else if r <= 1.000_001 { "=1" } else if r <= 1.1 { "(1,1.1]" } else if r <= 2.0 { "(1.1,2]" } else if r <= 10.0 { "(2,10]" } else { ">10" };
++                    c(format!("above/below={bin}"));
++                } else {
++                    c("below=0".into());
++                }
++                if hf < lf * (1.0 - 1e-12) {
++                    c("ABOVE<BELOW".into());
++                }
++            }
++            let truth = (lane && ruled && exact_all).then(|| tl_f64(lo)).flatten();
++            let mut design_poison = false;
++            // The recount: the covers' own far distance, nothing folded in.
++            if lane {
++                let planes = [a, b].iter().all(|&f| matches!(body.proven_face(f).surface(), geom::Surface::Plane { .. }));
++                let rc = if !ruled { "other" } else if planes && !any_arc { "plane-straight" } else if planes { "plane-arc" } else { "ruled-wall" };
++                let rc = format!("{rc}{}", if exact_all { "" } else { "-inexact" });
++                let fars: Vec<Option<f64>> = std::iter::once(own).chain(covers.iter().copied()).map(|c| tl_f64(far(c))).collect();
++                let raw = fars.iter().fold(Some(f64::NEG_INFINITY), |m, x| match (m, x) { (Some(m), Some(x)) if x.is_finite() => Some(m.max(*x)), _ => None });
++                let k = |w: &str| geom_brep::tl_shadow::count(format!("RAW\t{rc}\t{w}"));
++                k("reads");
++                let eps = self.band.zero();
++                if let (Some(raw), Some(lf), Some(lp)) = (raw, tl_f64(lo), tl_f64(lo_pts)) {
++                    let mut hit = Vec::new();
++                    for (nm, x) in [("below", Some(lf)), ("vertices", Some(lp)), ("truth", truth)] {
++                        let Some(x) = x else { continue };
++                        if raw < x * (1.0 - 1e-12) {
++                            k(&format!("raw<{nm}:rel1e-12"));
++                            if raw < x - eps { k(&format!("raw<{nm}:abs-eps")); }
++                            hit.push(nm);
++                        }
++                    }
++                    if raw < lf - eps {
++                        geom_brep::tl_shadow::mark_inverted(geom_core::Lever::of_consumed_extent(lo), format!("{}:{}", self.at.file(), self.at.line()));
++                        if std::env::var_os("TL_DESIGN").is_some() {
++                            design_poison = true;
++                        }
++                    }
++                    if !hit.is_empty() {
++                        // Each face's surface, and how far its boundary (vertices and 17
++                        // samples per certified edge) stands off it, where it is a wall.
++                        let surf = |f: FaceKey| -> String {
++                            // This face's own reads: its vertices' farthest, its edges'
++                            // farthest by (ii), and its own cover's far.
++                            let vmax = self.face(f).points.iter().fold(0.0_f64, |m, &x| m.max(tl_f64(to_line(x)).unwrap_or(f64::NAN)));
++                            let emax = self.face(f).edges.iter().fold(0.0_f64, |m, &e| {
++                                body.curves.get(body.edges[e].curve).and_then(|g| g.certified()).map_or(m, |g| m.max(tl_f64(tl_far_from_line(g.carrier(), g.params(), &to_line).0).unwrap_or(f64::NAN)))
++                            });
++                            let cf = tl_f64(far(self.face(f).cover.as_ref().ok()));
++                            let mine = format!("face={f:?},vertices_far={vmax:e},edges_far={emax:e},cover_far={cf:?},n_vertices={},", self.face(f).points.len());
++                            let mut xs: Vec<Point3<T>> = self.face(f).points.clone();
++                            for &e in &self.face(f).edges {
++                                if let Some(g) = body.curves.get(body.edges[e].curve).and_then(|g| g.certified()) {
++                                    let (t0, t1) = g.params();
++                                    for k in 0..=16 { xs.push(g.carrier().eval(t0 + (t1 - t0) * T::from_f64(f64::from(k) / 16.0))); }
++                                }
++                            }
++                            match body.proven_face(f).surface() {
++                                geom::Surface::Cylinder { origin, axis, radius, .. } => {
++                                    let off = xs.iter().fold(0.0_f64, |m, &x| {
++                                        let rho = tl_f64((x - *origin).cross(*axis).norm() / axis.norm()).unwrap_or(f64::NAN);
++                                        m.max((rho - tl_f64(radius.abs()).unwrap_or(f64::NAN)).abs())
++                                    });
++                                    format!("Cylinder({mine}r={:?},boundary_off_surface={off:e})", tl_f64(*radius))
++                                }
++                                geom::Surface::Cone { apex, axis, half_angle, .. } => {
++                                    let (ha, _) = (tl_f64(*half_angle).unwrap_or(f64::NAN), 0);
++                                    let (mut off, mut hlo, mut hhi) = (0.0_f64, f64::INFINITY, f64::NEG_INFINITY);
++                                    for &x in &xs {
++                                        let w = x - *apex;
++                                        let h = tl_f64(w.dot(*axis) / axis.norm()).unwrap_or(f64::NAN);
++                                        let rho = tl_f64(w.cross(*axis).norm() / axis.norm()).unwrap_or(f64::NAN);
++                                        // Either nappe: the double cone rho = |h|·tan α.
++                                        off = off.max((rho * ha.cos() - h.abs() * ha.sin()).abs());
++                                        hlo = hlo.min(h);
++                                        hhi = hhi.max(h);
++                                    }
++                                    format!("Cone({mine}half_angle={ha:e},boundary_off_surface={off:e},heights=[{hlo:e},{hhi:e}])")
++                                }
++                                other => format!("{:?}({mine})", other.kind()),
++                            }
++                        };
++                        let kinds = format!("{}/{}", surf(a), surf(b));
++                        geom_brep::tl_shadow::detail(
++                            &format!("RAW-BELOW\t{rc}\t{}:{}", self.at.file(), self.at.line()),
++                            format!("RAW-BELOW\tdoor={}:{}\tclass={rc}\tkinds={kinds}\thits={}\traw={raw:e}\tbelow={lf:e}\tvertices={lp:e}\ttruth={:?}\tfars={:?}\teps={eps:e}", self.at.file(), self.at.line(), hit.join(","), truth, fars),
++                        );
++                    }
++                } else {
++                    k("raw-poison");
++                }
++            }
++            let below = geom_core::Lever::of_consumed_extent(lo);
++            // The design's rule (`TL_DESIGN`): a cover short of a point on
++            // the region by more than the band is no bound from above.
++            let above = if design_poison { geom_core::Lever::of_consumed_extent(geom_core::poison()) } else { geom_core::Lever::of_consumed_extent(hi) };
++            geom_brep::tl_shadow::register_tagged(below, above, mid_below, &class, truth);
++            return LeverBounds::Between { below, above };
++        }
++        let below = geom_core::Lever::of_consumed_extent(lo);
++        let above = geom_core::Lever::of_consumed_extent(hi);
++        if geom_brep::tl_shadow::active() {
++            let body = self.body;
++            let kind = |f: FaceKey| body.proven_face(f).surface().kind();
++            let both_planes = [a, b].iter().all(|&f| matches!(body.proven_face(f).surface(), geom::Surface::Plane { .. }));
++            let lane = std::any::type_name::<T>() == "f64";
++            // The exact truth on two plane faces whose boundary edges are
++            // lines, circle arcs or ellipse arcs: the largest distance of
++            // the boundary from the line (a convex function's maximum over
++            // a planar region is on its boundary).
++            let mut class = String::new();
++            let mut truth: Option<f64> = None;
++            let mut tl_off: (f64, String) = (0.0, String::new());
++            if both_planes && lane {
++                let mut t = 0.0_f64;
++                let mut arcs = false;
++                let mut ok = true;
++                for &f in &[a, b] {
++                    for &e in &self.face(f).edges {
++                        let Some(g) = body.curves.get(body.edges[e].curve).and_then(|g| g.certified()) else { ok = false; continue };
++                        let c = g.carrier();
++                        let (t0, t1) = g.params();
++                        let ev = |s: T| tl_f64(to_line(c.eval(s))).unwrap_or(f64::NAN);
++                        match c {
++                            Curve3::Line(_) => { t = t.max(ev(t0)).max(ev(t1)); }
++                            Curve3::Circle(_) | Curve3::Ellipse(_) => {
++                                arcs = true;
++                                if let geom::Surface::Plane { origin, normal, .. } = body.proven_face(f).surface() {
++                                    for k in 0..=16 {
++                                        let s = t0 + (t1 - t0) * T::from_f64(f64::from(k) / 16.0);
++                                        let off = tl_f64(((c.eval(s) - *origin).dot(*normal) / normal.norm()).abs()).unwrap_or(f64::NAN);
++                                        if off > tl_off.0 { tl_off = (off, format!("{:?} e={e:?} face={f:?}", c.kind())); }
++                                    }
++                                }
++                                // In-plane signed distance g(θ) = A + p cos θ + q sin θ.
++                                let n = match body.proven_face(f).surface() { geom::Surface::Plane { normal, .. } => *normal, _ => unreachable!() };
++                                let m = n.cross(d);
++                                let sg = |s: T| tl_f64((c.eval(s) - line.origin).dot(m) / m.norm()).unwrap_or(f64::NAN);
++                                let pi = std::f64::consts::PI;
++                                let (g0, g1, g2) = (sg(T::zero()), sg(T::from_f64(pi / 2.0)), sg(T::from_f64(pi)));
++                                let (aa, p, q) = ((g0 + g2) / 2.0, (g0 - g2) / 2.0, g1 - (g0 + g2) / 2.0);
++                                let (s0, s1) = (tl_f64(t0).unwrap_or(f64::NAN), tl_f64(t1).unwrap_or(f64::NAN));
++                                let mut best = ev(t0).max(ev(t1));
++                                let phi = q.atan2(p);
++                                for base in [phi, phi + pi] {
++                                    for k in -3..=3 {
++                                        let th = base + 2.0 * pi * f64::from(k);
++                                        if th >= s0.min(s1) && th <= s0.max(s1) {
++                                            best = best.max((aa + p * th.cos() + q * th.sin()).abs());
++                                        }
++                                    }
++                                }
++                                t = t.max(best);
++                            }
++                            _ => ok = false,
++                        }
++                    }
++                }
++                class = if !ok { "plane-plane-other".into() } else if arcs { "plane-plane-arc".into() } else { "plane-plane-straight".into() };
++                if ok { truth = Some(t); }
++            } else {
++                class = format!("{:?}-{:?}", kind(a), kind(b));
++            }
++            let (lf, hf, mf) = (tl_f64(lo).unwrap_or(f64::NAN), tl_f64(hi).unwrap_or(f64::NAN), tl_f64(mid_below.length()).unwrap_or(f64::NAN));
++            let c = |k: String| geom_brep::tl_shadow::count(format!("G1\t{class}\t{k}"));
++            c("reads".into());
++            if let Some(t) = truth {
++                let tol = 1e-12 * (1.0 + t);
++                if lf > t + tol { c("below_ABOVE_truth".into()); }
++                if hf < t - tol {
++                    c("above_BELOW_truth".into());
++                    let per: Vec<String> = std::iter::once(("own", own)).chain(covers.iter().map(|c| ("face", *c)))
++                        .map(|(w, c)| format!("{w}={:?}", c.map(|c| tl_f64(c.distance_range(&Site::Line(line)).1))))
++                        .collect();
++                    geom_brep::tl_shadow::detail(
++                        "G1-ABOVE-BELOW",
++                        format!("G1-ABOVE-BELOW\tdoor={}:{}\tclass={class}\tabove={hf:e}\ttruth={t:e}\tbelow={lf:e}\tmax_arc_off_plane={:e}\twhere={}\tcovers={}", self.at.file(), self.at.line(), tl_off.0, tl_off.1, per.join(",")),
++                    );
++                }
++                if lf < t - tol { c("below_UNDER_truth".into()); }
++                let bin = |r: f64| if !r.is_finite() { "inf" } else if r <= 1.000_001 { "=1" } else if r <= 1.01 { "(1,1.01]" } else if r <= 1.1 { "(1.01,1.1]" } else if r <= 2.0 { "(1.1,2]" } else if r <= 10.0 { "(2,10]" } else { ">10" };
++                if t > 0.0 { c(format!("above/truth={}", bin(hf / t))); c(format!("below/truth={}", bin(lf / t))); } else { c("truth=0".into()); }
++            }
++            if lf > 0.0 {
++                let r = hf / lf;
++                let bin = if !r.is_finite() { "poison" } else if r <= 1.000_001 { "=1" } else if r <= 1.01 { "(1,1.01]" } else if r <= 1.1 { "(1.01,1.1]" } else if r <= 2.0 { "(1.1,2]" } else if r <= 10.0 { "(2,10]" } else { ">10" };
++                c(format!("above/below={bin}"));
++            } else { c("below=0".into()); }
++            if mf.is_finite() && lf.is_finite() { c(format!("line_vs_middle={}", if lf < mf * (1.0 - 1e-12) { "shorter" } else if lf > mf * (1.0 + 1e-12) { "LONGER" } else { "same" })); }
++            geom_brep::tl_shadow::register_tagged(below, above, mid_below, &class, truth);
++        }
++        LeverBounds::Between { below, above }
++    }
++
++    #[allow(clippy::too_many_arguments)]
++    fn tl_me(
++        &self,
++        a: FaceKey,
++        b: FaceKey,
++        carrier: &Curve3<T>,
++        (t0, t1): (T, T),
++        points: &[Point3<T>],
++        below: geom_core::Lever<T>,
++        above: geom_core::Lever<T>,
++        covers: &[Option<Cover<T>>],
++        loc: &str,
++    ) {
++        use geom::cover::Site;
++        let body = self.body;
++        let (geom::Surface::Plane { normal: n1, .. }, geom::Surface::Plane { normal: n2, .. }) =
++            (body.proven_face(a).surface(), body.proven_face(b).surface())
++        else {
++            return;
++        };
++        let Curve3::Line(line) = carrier else { return };
++        let straight = [a, b].iter().all(|&f| {
++            self.face(f).edges.iter().all(|&e| {
++                body.curves
++                    .get(body.edges[e].curve)
++                    .and_then(|g| g.certified())
++                    .is_some_and(|c| matches!(c.carrier(), Curve3::Line(_)))
++            })
++        });
++        if !straight {
++            geom_brep::tl_shadow::count("ME-SKIP\tcurved-boundary".into());
++            return;
++        }
++        let f = |x: T| tl_f64(x).unwrap_or(f64::NAN);
++        let d = line.dir;
++        let to_line = |x: Point3<T>| (x - line.origin).cross(d).norm() / d.norm();
++        let truth = points.iter().fold(T::zero(), |m, &x| m.max(to_line(x)));
++        let sin = n1.cross(*n2).norm() / (n1.norm() * n2.norm());
++        let band = self.band;
++        let verdict = |l: T| {
++            let (r, _) = geom_core::k_stats::detached(|| {
++                geom_core::k_stats::decide("dihedral_wedge", geom_core::Margin::levered(sin, geom_core::Lever::of_consumed_extent(l)), band)
++            });
++            match r {
++                Ok(geom_core::Sign::Positive) => '+',
++                Ok(geom_core::Sign::Negative) => '-',
++                Ok(geom_core::Sign::Zero) => '0',
++                Err(_) => 'E',
++            }
++        };
++        let vt = verdict(truth);
++        let tf = f(truth);
++        let far_point = |p: Point3<T>| {
++            let lo = points.iter().fold(T::zero(), |m, &x| m.max((x - p).norm()));
++            let hi = covers.iter().fold(lo, |m, c| {
++                m.max(c.as_ref().map_or(geom_core::poison(), |c| c.distance_range(&Site::Point(p)).1))
++            });
++            (lo, hi)
++        };
++        let line_hi = covers.iter().fold(truth, |m, c| {
++            m.max(c.as_ref().map_or(geom_core::poison(), |c| c.distance_range(&Site::Line(*line)).1))
++        });
++        let mut sites: Vec<(&str, T, T)> = vec![
++            ("middle", below.length(), above.length()),
++            ("line", truth, line_hi),
++        ];
++        for i in 1..geom_brep::CERT_SAMPLES - 1 {
++            let p = carrier.eval(geom_brep::sample_param(t0, t1, i));
++            let (lo, hi) = far_point(p);
++            sites.push(("station", lo, hi));
++        }
++        for (site, lo, hi) in sites {
++            let (lf, hf) = (f(lo), f(hi));
++            let tol = 1e-12 * (1.0 + tf.abs());
++            let c = |k: &str| geom_brep::tl_shadow::count(format!("ME\t{site}\t{k}"));
++            c("reads");
++            if lf > tf + tol {
++                c("below_ABOVE_truth");
++            }
++            if hf < tf - tol {
++                c("above_BELOW_truth");
++            }
++            if tf > 0.0 {
++                let r = hf / tf;
++                let bin = if !r.is_finite() { "poison" } else if r <= 1.000_001 { "=1" } else if r <= 1.01 { "(1,1.01]" } else if r <= 1.1 { "(1.01,1.1]" } else if r <= 2.0 { "(1.1,2]" } else if r <= 10.0 { "(2,10]" } else if r <= 100.0 { "(10,100]" } else { ">100" };
++                c(&format!("above_over_truth={bin}"));
++            } else {
++                c("truth_zero");
++            }
++            let (vl, vh) = (verdict(lo), verdict(hi));
++            c(&format!("verdict_below_vs_truth={}{}", vl, vt));
++            c(&format!("verdict_above_vs_truth={}{}", vh, vt));
++            if vl != vt || vh != vt {
++                geom_brep::tl_shadow::detail(
++                    &format!("ME-{site}-{vl}{vh}{vt}"),
++                    format!("ME-HIT\t{site}\tbelow={lf:e}\tabove={hf:e}\ttruth={tf:e}\tsin={:e}\tv={vl}{vh}{vt}\tdoor={loc}", f(sin)),
++                );
++            }
++        }
++    }
++
++    fn tl_mc(&self, face: FaceKey, points: &[Point3<T>], edges: &[EdgeKey], cover: &FaceCovered<T>) {
++        use geom::cover::Site;
++        let body = self.body;
++        let surface = body.proven_face(face).surface();
++        let kind = format!("{:?}", surface.kind());
++        let loc = format!("{}:{}", self.at.file(), self.at.line());
++        let Ok(c) = cover else {
++            geom_brep::tl_shadow::count(format!("MC\t{kind}\tuncovered"));
++            return;
++        };
++        let mut worst_v = 0.0_f64;
++        let mut worst_v_off = f64::NAN;
++        for &v in points {
++            let d = tl_f64(c.distance_range(&Site::Point(v)).0).unwrap_or(f64::NAN);
++            if d > worst_v || d.is_nan() {
++                worst_v = d;
++                worst_v_off = tl_f64(geom_brep::implicit_residual(surface, v).abs()).unwrap_or(f64::NAN);
++            }
++        }
++        let dirs: Vec<geom_core::Vec3<T>> = {
++            let o = T::zero();
++            let i = T::one();
++            let m = o - i;
++            vec![
++                geom_core::Vec3::new(i, o, o), geom_core::Vec3::new(m, o, o),
++                geom_core::Vec3::new(o, i, o), geom_core::Vec3::new(o, m, o),
++                geom_core::Vec3::new(o, o, i), geom_core::Vec3::new(o, o, m),
++                geom_core::Vec3::new(i, i, i), geom_core::Vec3::new(m, m, m),
++                geom_core::Vec3::new(i, m, i), geom_core::Vec3::new(m, i, m),
++                geom_core::Vec3::new(i, i, m), geom_core::Vec3::new(m, m, i),
++                geom_core::Vec3::new(m, i, i), geom_core::Vec3::new(i, m, m),
++            ]
++        };
++        let mut worst_pts = 0.0_f64;
++        let mut worst_pts_off = f64::NAN;
++        for &e in edges {
++            let Some(g) = body.curves.get(body.edges[e].curve).and_then(|g| g.certified()) else { continue };
++            let (s0, s1) = g.params();
++            for k in 0..=16 {
++                let t = s0 + (s1 - s0) * T::from_f64(f64::from(k) / 16.0);
++                let x = g.carrier().eval(t);
++                let d = tl_f64(c.distance_range(&Site::Point(x)).0).unwrap_or(f64::NAN);
++                if d > worst_pts || d.is_nan() {
++                    worst_pts = d;
++                    worst_pts_off = tl_f64(geom_brep::implicit_residual(surface, x).abs()).unwrap_or(f64::NAN);
++                }
++            }
++        }
++        let mut worst_e = 0.0_f64;
++        for &e in edges {
++            let Ok(ec) = crate::cover::edge_cover(body, e) else { continue };
++            for &d in &dirs {
++                let x = tl_f64(ec.support(d) - c.support(d)).unwrap_or(f64::NAN);
++                if x > worst_e || x.is_nan() {
++                    worst_e = x;
++                }
++            }
++        }
++        let class = |x: f64| {
++            if x.is_nan() {
++                "nan"
++            } else if x > 1e-6 {
++                ">1e-6"
++            } else if x > 1e-9 {
++                ">1e-9"
++            } else if x > 1e-12 {
++                ">1e-12"
++            } else if x > 0.0 {
++                ">0"
++            } else {
++                "inside"
++            }
++        };
++        let on = |off: f64| if off.is_nan() { "off?" } else if off < 1e-9 { "ON" } else { "OFF" };
++        let key = format!(
++            "MC\t{kind}\tvertex={}/{}\tedge_points={}/{}\tedge_cover={}\tdoor={loc}",
++            class(worst_v), if worst_v > 1e-9 { on(worst_v_off) } else { "-" },
++            class(worst_pts), if worst_pts > 1e-9 { on(worst_pts_off) } else { "-" },
++            class(worst_e)
++        );
++        geom_brep::tl_shadow::count(key.clone());
++        if worst_v > 1e-9 || worst_pts > 1e-9 {
++            geom_brep::tl_shadow::detail(
++                &key,
++                format!("{key}\tvertex_out={worst_v:e}\tvertex_off_surface={worst_v_off:e}\tedge_point_out={worst_pts:e}\tedge_point_off_surface={worst_pts_off:e}\tedge_cover_out={worst_e:e}"),
++            );
++        }
++    }
++
+     /// `face`'s read (module docs): every loop's vertices, a lone vertex
+     /// included, and its cover. Read on first ask.
+     fn face(&self, face: FaceKey) -> Rc<FaceRead<T>> {
+@@ -191,11 +842,13 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
+         let body = self.body;
+         let view = body.proven_face(face);
+         let mut points = Vec::new();
++        let mut edges = Vec::new();
+         for (_, members, _) in view.boundary_by_loop() {
+             for member in members {
+                 match member {
+                     BoundaryMember::Isolated { point, .. } => points.push(point),
+                     BoundaryMember::Edge { he, half, .. } => {
++                        edges.push(body.half_edges[he].edge);
+                         points.push(body.linked_vertex_point(
+                             half.start,
+                             EntityId::HalfEdge(he),
+@@ -205,13 +858,23 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
+                 }
+             }
+         }
++        let cover = if self.lifts {
++            crate::cover::face_cover(body, face, self.band)
++        } else {
++            crate::cover::face_cover_unlifted(body, face, self.band)
++        };
++        thread_local! {
++            static TL_SEEN: RefCell<std::collections::HashSet<(usize, FaceKey)>> =
++                RefCell::new(std::collections::HashSet::new());
++        }
++        let fresh = TL_SEEN.with(|s| s.borrow_mut().insert((std::ptr::from_ref(body) as usize, face)));
++        if fresh && geom_brep::tl_shadow::active() && std::any::type_name::<T>() == "f64" {
++            self.tl_mc(face, &points, &edges, &cover);
++        }
+         let read = Rc::new(FaceRead {
+             points,
+-            cover: if self.lifts {
+-                crate::cover::face_cover(body, face, self.band)
+-            } else {
+-                crate::cover::face_cover_unlifted(body, face, self.band)
+-            },
++            edges,
++            cover,
+         });
+         self.faces.borrow_mut().insert(face, Rc::clone(&read));
+         read
