@@ -503,11 +503,12 @@ pub(crate) fn tessellate_curved(
     // on top of that and is not separately measured. Under the price
     // already paid for the pole half, and it buys the case a
     // mechanical check.
+    // This lane reads no fold.
+    let splits = book.splits(false, &triangles);
     let patch = Patch {
         interior,
         triangles,
-        // This lane reads no fold.
-        splits: book.splits(false),
+        splits,
     };
     #[cfg(debug_assertions)]
     {

@@ -1160,11 +1160,12 @@ impl TrimmedFace<'_> {
         // cone's apex, which its development holds as one CDT vertex, so
         // its fan's edges are used twice at most — so on every other face
         // the set is empty and the census returns on one branch.
+        // The spline arm reads no fold (`Self::outward`).
+        let splits = book.splits(matches!(self.row, ChartRow::Analytic(_)), &triangles);
         let patch = Patch {
             interior,
             triangles,
-            // The spline arm reads no fold (`Self::outward`).
-            splits: book.splits(matches!(self.row, ChartRow::Analytic(_))),
+            splits,
         };
         #[cfg(debug_assertions)]
         {
@@ -3781,10 +3782,11 @@ fn walk_face(
         triangles.push(ids);
     }
     verdict.refusal(fk, tol.delta)?;
+    let splits = book.splits(true, &triangles);
     Ok(Patch {
         interior,
         triangles,
-        splits: book.splits(true),
+        splits,
     })
 }
 

@@ -56,6 +56,16 @@ pub(crate) enum Splits {
     Chart { noted: Vec<Noted>, folds: bool },
 }
 
+impl Splits {
+    /// The heap the notes take.
+    pub(crate) fn bytes(&self) -> usize {
+        match self {
+            Self::Midpoint => 0,
+            Self::Chart { noted, .. } => noted.len() * core::mem::size_of::<Noted>(),
+        }
+    }
+}
+
 /// One noted triangle: its index in the patch, its corners' chart points
 /// and which are a singular point, in the patch's winding.
 #[derive(Clone, Copy, Debug)]
@@ -95,8 +105,26 @@ impl Book {
         }
     }
 
-    /// The patch's splits; `folds` where its lane reads folds.
-    pub(crate) fn splits(self, folds: bool) -> Splits {
+    /// The patch's splits; `folds` where its lane reads folds. Only a
+    /// triangle on a side between two shared ids that two of the patch's
+    /// triangles have can be split (a side one triangle has is a chord of
+    /// the face's own boundary), so only those are kept.
+    pub(crate) fn splits(mut self, folds: bool, ids: &[[PatchVertex; 3]]) -> Splits {
+        let sides = |tri: u32| {
+            let t = ids[tri as usize];
+            (0..3).filter_map(move |q| match (t[q], t[(q + 1) % 3]) {
+                (PatchVertex::Shared(a), PatchVertex::Shared(b)) => Some(side(a, b)),
+                _ => None,
+            })
+        };
+        let mut uses: HashMap<Side, usize> = HashMap::new();
+        for n in &self.noted {
+            for s in sides(n.tri) {
+                *uses.entry(s).or_default() += 1;
+            }
+        }
+        self.noted.retain(|n| sides(n.tri).any(|s| uses[&s] >= 2));
+        self.noted.shrink_to_fit();
         Splits::Chart {
             noted: self.noted,
             folds,

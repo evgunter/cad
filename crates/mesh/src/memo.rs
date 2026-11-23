@@ -326,7 +326,8 @@ impl PatchMemo {
     }
 
     /// The memo's heap footprint, approximately: every entry's key
-    /// bytes, its identity, its interior points and its triangles. A
+    /// bytes, its identity, its interior points, its triangles and the
+    /// chart corners its splits read (`crate::join::Splits`). A
     /// measurement door, not a budget.
     pub fn bytes(&self) -> usize {
         self.entries
@@ -336,6 +337,7 @@ impl PatchMemo {
                     + core::mem::size_of::<StoredPatchId>()
                     + e.patch.interior.len() * core::mem::size_of::<Point3<f64>>()
                     + e.patch.triangles.len() * core::mem::size_of::<[StoredVertex; 3]>()
+                    + e.patch.splits.bytes()
             })
             .sum()
     }
