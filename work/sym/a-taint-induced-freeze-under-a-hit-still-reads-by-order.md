@@ -84,29 +84,28 @@ this row adds is the one shape where the column moves alone.
 
 - 2026-11-02 — moved from RULES to SYM by `git mv` when RULES merged into SYM, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and RULES had fallen far under it).
 
-## Closed: the branch is gone (BOXFINISH session-state unit, 2026-11-22)
+## Closed: the reading is gone; what is left is stated elsewhere (BOXFINISH session-state unit, 2026-11-23)
 
 The expression table belongs to the drive (`geom_core::sym::memo`): a
 leaf resolves an id through its own cache and then through the drive's
-table, so a node one leaf recorded is no longer absent from another,
-and nothing is built out of "absent from this leaf's table". An id in
-no table of the drive was minted outside every session on it; the
-plain walk that meets one under a drive's table stops on a
-`debug_assert!` instead of freezing it, because whether it is absent
-would depend on which leaf ran first. The taint set, the unpublished
-freezes and the foreign candidates are removed with the reading they
-existed for, and a leaf's `frozen` column is the drive's frozen set
-inside the closure of its roots and nothing else.
+table, so a node one leaf recorded is no longer absent from another.
+An id in no table of the drive was minted outside every session on it.
+It is an unknown in that leaf (`Session::unknown`): its form and every
+plain form built over it are neither published to the drive's table
+nor left in the caches the drive keeps warm, and a leaf's `frozen`
+column is the drive's frozen set inside the closure of its roots plus
+the unknowns under them. A freeze under a hit is therefore never an
+unknown's: the table serves nothing built over one.
+
+What is left of the order between leaves is a different thing and is
+not this row: once any leaf has minted the same content inside a
+session, a leaf handed it from outside resolves it
+(`geom-core/tests/a_drives_table_and_what_is_outside_it.rs`,
+`an_outside_value_resolves_once_a_leaf_has_minted_its_content`; the
+question is on `work/boxfinish/a-drive-keeps-no-node-result-from-one-leaf-to-the-next`).
 
 The pin `sym_drive_memo::a_taint_induced_freeze_under_a_hit_is_read_by_order`
-is removed with six sibling rows that planted an unrecorded node
-(`an_unrecorded_freeze_is_never_published_to_the_drive_memo`,
-`a_foreign_id_no_one_freezes_is_still_a_need`,
-`a_tainted_freeze_is_the_leafs_own_need_in_either_order`,
-`an_inherited_form_does_not_move_the_leafs_need`,
-`the_inherit_branch_moves_the_decision_while_the_column_stands_still`,
-`a_leafs_need_does_not_move_with_the_order_across_the_unrecorded_branch`).
-In their place: `a_value_built_in_one_leaf_means_the_same_in_another`
-and `a_node_minted_outside_the_drives_sessions_is_refused_loudly`.
-No leaf of any drive in `geom-core`'s or `editor-core`'s suites meets
-the assert.
+is removed with six sibling rows that planted an unrecorded node; PR
+7492's body pairs each with what pins its claim now, and names the two
+claims no row pins (that the `frozen` column stands still across the
+order above, and `an_inherited_form_does_not_move_the_leafs_need`).
