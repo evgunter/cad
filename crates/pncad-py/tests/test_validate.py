@@ -653,7 +653,7 @@ body = stacked_loft(
     64.0,
     lambda t: circle_split((0.0 * m, 0.0 * m), (r0 * (1 - t) + r1 * t) * m, 2, 0.0 * rad),
 )
-meas = body.mass_properties(Settle.resolution(1.024e-9 * m))
+meas = body.mass_properties(Settle.resolution(1.28e-10 * m))
 e = meas.enclosure
 said = {
     "frustum": math.pi * 64.0 * (r0 ** 2 + r0 * r1 + r1 ** 2) / 3.0,
@@ -751,9 +751,13 @@ class TestGateAndMeasureInOneQuadrature(unittest.TestCase):
         is all check 7 reads) and still stop short of a resolution: a
         rational wall stops at the work wall, its removable width still
         dominant there. The reporting target is `1024 * eps`, a LENGTH that
-        shrinks with the run's tolerance, so at eps = 1e-12 a 64 m tapered
-        tube stops (at the default eps only a part far past the session
-        box does). The door answers the bracket it reached, with the stop
+        shrinks with the run's tolerance; at eps = 1e-12 the 64 m tapered
+        tube (the largest the session box holds there) meets that target
+        since its walls are quarter turns, so the row asks for an eighth
+        of it, 1.28e-10 m, where it stops (at the default eps only a part
+        far past the session box does). The resolution is a property of
+        today's meter, as the sweep crate's `TUBE` scale is: a change to
+        the quadrature or to how a wall is cut moves it. The door answers the bracket it reached, with the stop
         that says why; a deciding predicate run out on the same walls is
         the refusal half of the same door, `undecided` carrying its bracket
         and its stop. Both read against the frustum the walls sit around.
