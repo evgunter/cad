@@ -1093,3 +1093,111 @@ fn review_measure_a_holding_clearance_across_boxes_of_an_unread_variable() {
             == prior.value(f.assertions[0]).map(|v| v.content_key),
     );
 }
+
+/// REVIEW MEASURE: which nodes' keys move between two `f64` evaluations
+/// at the midpoints of two boxes of a variable no body reads (what a
+/// clearance's rebuild is at each).
+#[test]
+fn review_measure_the_rebuilds_keys_across_midpoints() {
+    let f = dumbbell(&[ClearanceBounds::AtLeast(0.5)]);
+    let (doc, _) = fixture::step(
+        f.doc,
+        DocEdit::DeclareVar {
+            name: name("idle"),
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
+                dim: Dimension::Length,
+                value: 1.0,
+                display_unit: UnitSym::canonical_for(Dimension::Length),
+                distribution: None,
+            }),
+        },
+    );
+    let idle = doc.var_named("idle").expect("declared");
+    let at = |m: f64| -> editor_core::Evaluation<f64> {
+        let axes = [(
+            idle,
+            editor_core::analysis::BoxAxis::Varying { lo: m, hi: m },
+        )];
+        let opts = EvalOptions {
+            param_box: Some(std::sync::Arc::new(ParamBox::from_axes(
+                axes.into_iter().collect(),
+            ))),
+            ..EvalOptions::default()
+        };
+        editor_core::evaluate(&doc, None, &CancelToken::new(), &opts, Tol::witness())
+    };
+    let (a, b) = (at(0.0), at(0.15));
+    for id in &a.order {
+        let key = |ev: &editor_core::Evaluation<f64>| ev.value(*id).map(|v| v.content_key);
+        eprintln!(
+            "PROBE rebuild key of {} held {} (built {})",
+            a.value(*id).map_or("?", |v| v.payload.kind_name()),
+            key(&a) == key(&b),
+            key(&a).is_some(),
+        );
+    }
+}
+
+/// **A clearance over a prior of another box, neither box about the
+/// nominal, stands at its own box's midpoint**: the dumbbell with a
+/// free length `idle` no body reads, its `≥ 0.5` violated over
+/// `idle ∈ [+0.1, +0.2]` and again, over that run as its prior, over
+/// `[+0.3, +0.4]`. Both rebuilds stand off the nominal, so each is the
+/// second pass's form and the two build the seats under one key: the
+/// rebuild's POINT is all that tells the runs apart. (A prior box about
+/// the nominal is rebuilt in the first pass's form, whose profile keys
+/// apart from the second's, so there the seats' keys move too.) Red if a
+/// clearance's key leaves out the rebuild's point, with or without its
+/// seats' keys.
+#[test]
+fn review_a_clearance_over_a_prior_of_another_off_nominal_box_stands_at_its_own_midpoint() {
+    let f = dumbbell(&[ClearanceBounds::AtLeast(0.5)]);
+    let (doc, _) = fixture::step(
+        f.doc,
+        DocEdit::DeclareVar {
+            name: name("idle"),
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
+                dim: Dimension::Length,
+                value: 1.0,
+                display_unit: UnitSym::canonical_for(Dimension::Length),
+                distribution: None,
+            }),
+        },
+    );
+    let idle = doc.var_named("idle").expect("declared");
+    let over = |lo: f64, hi: f64, prior: Option<&editor_core::Evaluation<geom_core::Interval>>| {
+        let axes = [(idle, editor_core::analysis::BoxAxis::Varying { lo, hi })];
+        let opts = EvalOptions {
+            param_box: Some(std::sync::Arc::new(ParamBox::from_axes(
+                axes.into_iter().collect(),
+            ))),
+            ..EvalOptions::default()
+        };
+        editor_core::evaluate(&doc, prior, &CancelToken::new(), &opts, Tol::witness())
+    };
+    let point = |ev: &editor_core::Evaluation<geom_core::Interval>| {
+        let report = report_of(ev, f.assertions[0]);
+        let ClearanceVerdict::Violated(w) = report.verdict() else {
+            panic!("0.5 above a 0.4 gap is violated: {}", report.render());
+        };
+        w.param.offsets.clone()
+    };
+    let prior = over(0.1, 0.2, None);
+    let fresh = over(0.3, 0.4, None);
+    assert_ne!(
+        point(&prior),
+        point(&fresh),
+        "the two boxes' midpoints differ, or the row sees nothing"
+    );
+    let served = over(0.3, 0.4, Some(&prior));
+    assert_eq!(
+        point(&served),
+        point(&fresh),
+        "over the prior, the pair stands at this run's box's midpoint"
+    );
+    assert!(
+        served.reused > 0,
+        "the bodies, which read no boxed variable, are served: {} reused",
+        served.reused
+    );
+}
