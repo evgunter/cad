@@ -13097,6 +13097,10 @@ fn torus_oblique_circle<T: Decide>(
     //   Only in that sliver at the band's zero does a gate decide, and
     //   there the tilt chooses the lane: in band, the general lane
     //   (`pcurve_villarceau::a_tilt_just_past_the_band_takes_the_general_lane`).
+    //   Both lanes' images of such a circle refuse in band when certified
+    //   (the closed form on its map residual, the general lane on its
+    //   incidence term), so there the choice names the refusal and decides
+    //   no outcome.
     // - Near a horn torus the plane gate is cheaper. On `R = 2`,
     //   `R − r = 1e-6`, band `(1e-9, 1e-8)`, the Villarceau circle moved
     //   along its own normal by `3e-9` to `1e-8` escalates here on
@@ -13883,9 +13887,13 @@ fn spiric_chart_pcurve<T: Decide>(
             // sense with no length, read for its sign alone. An exact zero
             // is a perpendicular axis, which holds no oval (no margin to
             // quote); an enclosure that holds zero or a poisoned read shows
-            // nothing about the axes. The centre's reading in the sliver
-            // is the chart's distance from the own torus, an incidence
-            // reading ([`PcurveCheck::ChartIncidence`]).
+            // nothing about the axes. An oval small enough (its minor
+            // radius just past `Kε`) can lie within the band of a large
+            // torus whose axis is not its own; the centre gate below and
+            // check 1 then refuse it, so that corner ends as a refusal, never
+            // as a wrong image. The centre's reading in the sliver is the
+            // chart's distance from the own torus, an incidence reading
+            // ([`PcurveCheck::ChartIncidence`]).
             let perpendicular = || {
                 spiric_off_own_chart(
                     "the chart torus's axis is perpendicular to the carrier's, and a spiric \
