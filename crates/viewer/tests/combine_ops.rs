@@ -4958,13 +4958,13 @@ fn a_transform_of_a_pattern_seats_where_evaluation_takes_it() {
             Seat::SubtractFrom => SessionOp::AddBoolean {
                 spec: BooleanSpec::Subtract {
                     from: read,
-                    tool: body.into(),
+                    tool: vec![body.into()],
                 },
             },
             Seat::SubtractTool => SessionOp::AddBoolean {
                 spec: BooleanSpec::Subtract {
                     from: body.into(),
-                    tool: read,
+                    tool: vec![read],
                 },
             },
             Seat::SplitTarget => SessionOp::AddSplit {

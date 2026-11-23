@@ -107,14 +107,12 @@ fn described(session: &DocSession, node: RecipeNodeId, tol: Tol) -> String {
     }
 }
 
-/// **A pattern read whole at a subtraction's tool seat cuts ONE hole
-/// per copy of the kept body** — today's answer, pinned: the
-/// subtraction reaches the pattern's index, so it is evaluated once
-/// per member and the result is a family of the kept body, each with
-/// one member removed, not the kept body with every member removed.
-/// A union over the same read takes every member (one body), and an
-/// intersection takes every member too, so it is empty for a row of
-/// disjoint copies.
+/// **A pattern read whole at a subtraction's tool seat cuts the kept
+/// body by every member**: the tool is a `Bodies` seat (DESIGN
+/// `[repetition]`, REFERENCES DM4), so the result is one body with
+/// every member removed. A union over the same read takes every member
+/// (one body), and an intersection takes every member too, so it is
+/// empty for a row of disjoint copies.
 #[test]
 fn a_pattern_read_whole_at_the_boolean_seats() {
     let tol = Tol::witness();
@@ -132,9 +130,9 @@ fn a_pattern_read_whole_at_the_boolean_seats() {
     assert_eq!(
         run(BooleanSpec::Subtract {
             from: c.clone(),
-            tool: pattern.into()
+            tool: vec![pattern.into()]
         }),
-        format!("Instances [{0:.3e}, {0:.3e}]", C_VOL - OVERLAP),
+        format!("Boolean {:.3e}", C_VOL - 2.0 * OVERLAP),
     );
     assert_eq!(
         run(BooleanSpec::Union(vec![pattern.into(), c.clone()])),
