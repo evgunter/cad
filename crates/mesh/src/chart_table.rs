@@ -8,11 +8,11 @@
 //!   extent. The chord pass's one rule (`chords::tighten`) holds every
 //!   boundary chord to one step;
 //! - on an analytic chart, the **lattice** a lane lays from those steps
-//!   ([`AnalyticRow::lattice_steps`]: rows every `lever·h_u` on a ruled
-//!   chart, square in 3-D at the face's widest radius; periodic steps
-//!   capped at `sizing::MAX_ANGULAR_STEP`), the rows the trimmed lane
-//!   lays over a face's `v` window ([`AnalyticRow::lattice_rows`]: that
-//!   step's, or on the cone graded to the row's own radius) and the
+//!   ([`AnalyticRow::lattice_steps`]: rows every `ρ_max·h_u` on a cone,
+//!   square in 3-D at the face's widest radius; periodic steps capped at
+//!   `sizing::MAX_ANGULAR_STEP`), the rows the trimmed lane lays over a
+//!   face's `v` window ([`AnalyticRow::lattice_rows`]: that step's, on the
+//!   cone graded to the row's own radius, and none on the cylinder) and the
 //!   plane the trimmed
 //!   lane's triangulation runs in: the chart in its **metric**
 //!   ([`AnalyticRow::metric`]), or on the cone its **development**
@@ -472,9 +472,10 @@ impl<'a> AnalyticRow<'a> {
     /// (an ear, or a side across several chord steps) usually has the
     /// face's interior points in its circumcircle and the CDT does not
     /// make it, which leaves the trimmed lane's shared-side cure less to
-    /// split. Every other chart's is its lattice's realized spacing: a ruled
-    /// lattice square in 3-D is a strip of aspect about `1/lever` in the
-    /// chart, and a torus's is `√(r/(R + r))`.
+    /// split. Every other chart's is its lattice's realized spacing: a
+    /// cone's lattice square in 3-D is a strip of aspect about `1/ρ_max`
+    /// in the chart, a torus's is `√(r/(R + r))`, and a cylinder's, which
+    /// lays no row, is its window's height over its column step.
     pub(crate) fn metric(
         &self,
         (u0, u1): (f64, f64),
