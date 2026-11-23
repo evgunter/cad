@@ -1,0 +1,14 @@
+diff --git a/crates/geom/src/curves/conic.rs b/crates/geom/src/curves/conic.rs
+index 299c2dc82..c5fb3fa50 100644
+--- a/crates/geom/src/curves/conic.rs
++++ b/crates/geom/src/curves/conic.rs
+@@ -747,7 +747,8 @@ fn anchored_roots<T: Decide>(h: T, p: T, q: T, (c0, s0): (T, T)) -> [T; 2] {
+     let (lo, hi) = (h + trough, h + crest);
+     let crest_at = theta0 + Azimuth::of(big_q, big_p).near(T::zero());
+     let trough_at = theta0 + Azimuth::of(T::zero() - big_q, T::zero() - big_p).near(T::zero());
+-    let nearer = (hi.abs() - lo.abs()).select_le_zero(crest_at, trough_at);
++    let _ = (lo, hi);
++    let nearer = h.select_le_zero(crest_at, trough_at);
+     [
+         disc.select_le_zero(nearer, falling),
+         disc.select_le_zero(nearer, rising),

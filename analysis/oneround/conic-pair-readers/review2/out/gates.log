@@ -1,0 +1,144 @@
+GATE_BASE unset: comparing with 258f0d80b89cd535d255daaa4029989d7365aa9d, the merge base with origin/main
+view cache: 3374 files, built in 5 s
+any-climb-pins OK: every production ladder that answers past a kept rung names its pin or its row (804 source files scanned)
+scripts/gates/any-climb-pins.sh: 2 s
+argmin-folds OK: folds over decided comparisons outside geom_core::ladder at their table (7 in all) (1043 source files scanned)
+scripts/gates/argmin-folds.sh: 4 s
+atan2-sites OK: production .atan2( calls outside geom::azimuth at their table (63 in all) (1043 source files scanned)
+scripts/gates/atan2-sites.sh: 3 s
+bare-rounding-allowlist OK: bare f64::EPSILON / UNIT_ROUNDOFF and rounding charges outside geom-core at their listed counts (694 sites, 275 in production code) (1043 source files scanned)
+scripts/gates/bare-rounding-allowlist.sh: 12 s
+bit-identity-consumer OK: no bit-identity consumer outside the 8 non-consumer rows (1043 source files scanned)
+scripts/gates/bit-identity-consumer.sh: 0 s
+bit-identity-debug-only OK: every use of the debug-only gather counter in crates/editor-core/src/product.rs and of the identified-vertex census the sphere/torus emit pass re-derives in crates/mesh/src/curved.rs and of the chord-segment pairing census in crates/mesh/src/tessellate.rs and of the shared identified-vertex fan census in crates/mesh/src/walk.rs and of the trimmed lane call of the identified-vertex fan census in crates/mesh/src/trimmed.rs and of the arena delta the euler operators declare in crates/topo/src/euler.rs and of the arena delta the ring operators declare in crates/topo/src/euler_ring.rs and of the arena delta the kill-direction operators declare in crates/topo/src/euler_kill.rs and of the arena delta the null-entity operators declare in crates/topo/src/null.rs and of the arena delta the split operators declare in crates/topo/src/split.rs and of the arena delta the void transplant declares in crates/topo/src/boolean/voids.rs and of the arena delta the face-move, shell-move and solid-merge operators declare in crates/topo/src/movefac.rs is inside a cfg(debug_assertions) item or a debug_assert!, and every row carries the use count it pins (121 debug-only symbol uses scanned)
+scripts/gates/bit-identity-debug-only.sh: 1 s
+bit-identity-punning OK: no type punning outside geom-core/src/bit_identity.rs (1043 source files scanned)
+scripts/gates/bit-identity-punning.sh: 0 s
+bounds-allowlist OK: no compound Bounds/Enclosure bound outside the ratified seams; each of the 37 ratified files carries the count its entry pins (360 occurrences in total -- bracket doors standing in a compound group, plus one for each record caught only as a trait declaration); and the 3 rostered alias names are each declared where their entry says, with no unrostered declaration beside them (1043 source files scanned)
+scripts/gates/bounds-allowlist.sh: 2 s
+bracket-mid-by-hand OK: no bracket's middle spelled by hand outside mid_param and bracket_mid (789 files) (789 source files scanned)
+scripts/gates/bracket-mid-by-hand.sh: 3 s
+breakpoints-by-hand OK: no spline breakpoints collected by hand outside Knots::breakpoints (789 files) (789 source files scanned)
+scripts/gates/breakpoints-by-hand.sh: 2 s
+build-default-env-agrees OK: 7 jobs on build-default (ci.yml's and the attribution's) and lint declare one CARGO_*/RUST* env per key; 1 shared nightly key(s) each declare one (1 workflow scanned)
+scripts/gates/build-default-env-agrees.sh: 0 s
+bundle-constructor-reads-no-evaluation OK: crates/editor-core/src/mate/pin.rs reads no evaluation: a bundle is written from the mates and moves its caller wrote (1 source file scanned)
+scripts/gates/bundle-constructor-reads-no-evaluation.sh: 0 s
+certification-doors OK: the 44 listed certification files are exactly the production files that name the Certification module, none of them has Real, a glob import, the evaluation hull or is_poison in its production code, no production file re-exports the doors, and no production file has an include! or a macro_rules! body naming certification (804 source files scanned)
+scripts/gates/certification-doors.sh: 2 s
+certification-interiors OK: every generic item in the 6 files listed whole names a bound that keeps a dual out, and no function in any crate takes a lane by value through its holder at a bound a dual meets (1 argued exception) (1043 source files scanned)
+scripts/gates/certification-interiors.sh: 1 s
+conic-centre-reads OK: a conic's centre frame is read in production only at the pinned, listed sites, and the lint that finds them is armed in every library and binary root (1042 source files scanned)
+scripts/gates/conic-centre-reads.sh: 0 s
+cover-kind-match OK: the regions read outside their covers at their pins, and every reader of topo's cover doors registered with its direction (388 sites pinned; 116 reads of 28 doors registered); pins: none above the base 258f0d80b89cd535d255daaa4029989d7365aa9d's (804 source files scanned)
+scripts/gates/cover-kind-match.sh: 11 s
+display-payload-only OK: no Display or write(f, at) body reaches an ending; the production spelling sites at their per-file pins (build 41, at rest 34, import 3) (804 source files scanned)
+scripts/gates/display-payload-only.sh: 3 s
+dual-doors-only-through-the-record OK: no dual scalar instantiated in production code outside the record-bound homes (804 source files scanned)
+scripts/gates/dual-doors-only-through-the-record.sh: 0 s
+engine-leaves OK: the engines' doors at their pinned counts (1789 sites in all); pins: none above the base 258f0d80b89cd535d255daaa4029989d7365aa9d's (322 source files scanned)
+scripts/gates/engine-leaves.sh: 6 s
+escalation-discards OK: every production arm that passes over a refusal unread is registered (804 source files scanned)
+scripts/gates/escalation-discards.sh: 1 s
+escalation-question-marks OK: every production ? on a band reading inside a search loop or a climb's rung is registered (804 source files scanned)
+scripts/gates/escalation-question-marks.sh: 5 s
+evalscalar-allowlist OK: no EvalScalar bound outside the evaluation-service seam (1043 source files scanned)
+scripts/gates/evalscalar-allowlist.sh: 0 s
+free-identity-allowlist OK: Decide::free_identity is called only from limb 2 (1043 source files scanned)
+scripts/gates/free-identity-allowlist.sh: 0 s
+from-f64-allowlist OK: every from_f64 in crates/{editor-core,geom,geom-brep,geom-core,pncad,profile,sweep,topo,verbs}/src production code is a literal (636) or a listed site (262), and 6 listed sites are still owed (launders / stored-carrier-data) (633 source files scanned)
+scripts/gates/from-f64-allowlist.sh: 1 s
+gated-suite markers OK: 164 suite(s), every named path resolves in the tree and every term derives
+gated-suite-paths OK: every gated_to! marker names paths that exist and derives a nextest term (3214 crate source files scanned)
+scripts/gates/gated-suite-paths.sh: 2 s
+in-space-composes-for-export-and-picture OK: in_space is called only by export and the viewer's picture (804 source files scanned)
+scripts/gates/in-space-composes-for-export-and-picture.sh: 1 s
+interval-square-allowlist OK: no unratified x*x outside the allowlisted files; and the five spellings this matcher cannot see re-derived over the same statement view: 0 + 0 + 0 + 4 candidates (parenthesized-first, nested-paren, three-factor, two-statement), each dispositioned by one of 4 register entries at its pinned count (804 source files scanned)
+scripts/gates/interval-square-allowlist.sh: 3 s
+kernel-serde-free OK: no kernel crate depends on serde (19 crate manifests scanned)
+scripts/gates/kernel-serde-free.sh: 0 s
+knots-f64-interim OK: C6 interim f64 knot and weight readers at their baseline (698 in all; 42 f64 knot or weight holders) (1043 source files scanned)
+scripts/gates/knots-f64-interim.sh: 7 s
+ladder-re-export-callers OK: every crate outside geom-brep's library spells the transitional geom_brep::ladder exactly its registered count (3022 source files scanned)
+scripts/gates/ladder-re-export-callers.sh: 0 s
+least-band-on-a-door OK: no decision on the least band outside k_stats::prove and k_stats::choose (789 files) (789 source files scanned)
+scripts/gates/least-band-on-a-door.sh: 1 s
+least-turn-selected OK: least_turn_selected is named at its home and the sweep's station step only (3325 source files scanned)
+scripts/gates/least-turn-selected.sh: 1 s
+lever-doors OK: the named lever doors that take a caller's number or point are referenced only in their homes and at their pins (36 pinned sites; none above the base 258f0d80b89cd535d255daaa4029989d7365aa9d's) (856 source files scanned)
+scripts/gates/lever-doors.sh: 2 s
+lever-sources OK: the extent's door in its home and its pinned items, the unsourced levers at their per-file pins, each with its reason (27 sites), and the fixture levers at their pins (878) (3325 source files scanned)
+scripts/gates/lever-sources.sh: 3 s
+line-distance-reads-distance OK: no line distance read as offset(…).norm(), no span distance as its foot's norm (804 source files scanned)
+scripts/gates/line-distance-reads-distance.sh: 0 s
+loop-boundary-discards OK: 45 LoopBoundary discard(s) the matcher sees, each registered at its pinned count by one of 43 entries (23 marked audited, 20 unaudited) (1043 source files scanned)
+scripts/gates/loop-boundary-discards.sh: 10 s
+minted-reference-from-inputs OK: orthonormal_basis is read only in its homes: no minted carrier reference is picked off the axes (804 source files scanned)
+scripts/gates/minted-reference-from-inputs.sh: 0 s
+no-ambient-env OK: no kernel crate reads the environment at runtime (1043 source files scanned)
+scripts/gates/no-ambient-env.sh: 1 s
+no-extra-real-bounds OK: no extra bounds on Real (1043 source files scanned)
+scripts/gates/no-extra-real-bounds.sh: 0 s
+node-id-spoken OK: no format macro in editor-core pncad pncad-py viewer hands a bare `.0` to a sentence (243 production file(s)) (804 source files scanned)
+scripts/gates/node-id-spoken.sh: 0 s
+normalize-by-hand OK: no direction, or direction and length, spelled by hand outside Vec3::direction_and_length (789 files) (789 source files scanned)
+scripts/gates/normalize-by-hand.sh: 2 s
+panic-free-macro-bodies OK: no macro_rules! body spells .unwrap, .expect, panic!, todo!, unimplemented! or dbg! — the stanza's six macro-blind lints, in bodies delimited by {}, () or [], less the blind spots this file's header lists (804 source files scanned)
+scripts/gates/panic-free-macro-bodies.sh: 1 s
+parallel-maps-carry-the-role OK: no rayon map outside geom_core::k_stats::par_map (1043 source files scanned)
+scripts/gates/parallel-maps-carry-the-role.sh: 0 s
+period-spelling OK: production spellings of a turn outside its homes at their table (46 in all) (1043 source files scanned)
+scripts/gates/period-spelling.sh: 4 s
+persist-no-backtracking OK: nothing on editor-core's wire asks serde to try an alternative (134 source files scanned)
+scripts/gates/persist-no-backtracking.sh: 0 s
+pin-cites-an-open-row OK: every pinned or disabled red cites an open work/ row (95 pin citations scanned)
+scripts/gates/pin-cites-an-open-row.sh: 1 s
+point-equality-reads OK: no point equality spelled by hand outside geom-core's two readers (3239 source files scanned)
+scripts/gates/point-equality-reads.sh: 0 s
+probe-suite-census OK: 7 crates own probe-gated suites, all at or above their floor, every one of them either rostered as executed or declaring in its own header that it is not, the sweep still feeding its tally to --check-executed, and the clippy row that reports a misspelt gate wired (the citation half runs in the `mirror` job, where it can fire on prose) (49 probe-gated test suites scanned)
+  editor-core    12 suite(s)
+  geom-brep      4 suite(s)
+  geom-core      6 suite(s)
+  mesh           1 suite(s)
+  profile        4 suite(s)
+  sweep          15 suite(s)
+  topo           7 suite(s)
+scripts/gates/probe-suite-census.sh: 7 s
+raw-measure-door-sites OK: the raw measurement doors at their pinned counts, each with its reason (131 sites in all) (3325 source files scanned)
+scripts/gates/raw-measure-door-sites.sh: 2 s
+raw-sign-within OK: every production sign_within outside the doors is registered or marked NO-DECISION (804 source files scanned)
+scripts/gates/raw-sign-within.sh: 1 s
+recourse-ending-by-hand OK: every recourse fragment with an ending is ended through it (RANGE_RECOURSE, COINCIDENCE_RECOURSE), and the move recourse is never spelled by hand, labelled or as a lever, nor its inner @words form read outside geom-core (804 source files scanned)
+scripts/gates/recourse-ending-by-hand.sh: 4 s
+register-equal-allowlist OK: Real::register_equal is called only from the ratified constructor sites (1043 source files scanned)
+scripts/gates/register-equal-allowlist.sh: 0 s
+reporting-margin-door OK: the reporting margin's door is called only at the 2 allowlisted site(s), a valued reading minted only at the 8 allowlisted mint site(s), its sized sentence asked only at the 1 allowlisted site(s), the definite-ending choice spelled only at the 2 allowlisted site(s), the culprit chosen only at the 1 allowlisted site(s), no forged terminal-sliver verdict, at the counts they pin (16 test-support mount(s) skipped) (804 source files scanned)
+scripts/gates/reporting-margin-door.sh: 4 s
+rung-holds-one-home OK: no bool reading or refusal is turned into a rung outside geom_core::ladder (804 source files scanned)
+scripts/gates/rung-holds-one-home.sh: 3 s
+scope-readers-only-shrink OK: the scope-reader records hold no entry new against the base (1 source file scanned)
+scripts/gates/scope-readers-only-shrink.sh: 0 s
+span-end-gap-sites OK: hand-metered parameter gaps from a span's end at their table (4 in all) (1043 source files scanned)
+scripts/gates/span-end-gap-sites.sh: 2 s
+spline-refusal-holders OK: every bare spline-layer or fitting-stack refusal holder is registered with why its payload's caller recourse cannot reach the user (804 source files scanned)
+scripts/gates/spline-refusal-holders.sh: 1 s
+test-aggregation OK: at most one [[test]] target per member (17 test targets in all) (19 workspace members scanned)
+scripts/gates/test-aggregation.sh: 0 s
+test-features-dev-only OK: no manifest wires a test-only feature (test-support, *-testing) onto a non-dev dependency edge, and no ordinary feature forwards to one — manifests parsed, NOT build commands, which may enable any feature (see the header and KNOWN GAPS) (27 manifests scanned)
+scripts/gates/test-features-dev-only.sh: 0 s
+test-support-self-edge OK: every crate declaring test-support enables it for its own tests (19 crate manifests scanned)
+scripts/gates/test-support-self-edge.sh: 0 s
+told-in-the-notation OK: every argument a notation-taking sentence formats is told in the notation, a constant, or listed (804 source files scanned)
+scripts/gates/told-in-the-notation.sh: 4 s
+told-quantity-fields OK: no refusal type declares a bare scalar field and no sentence formats one past its pinned lines in: profile (18 crate(s) not yet covered, 0 pinned line(s)) (804 source files scanned)
+scripts/gates/told-quantity-fields.sh: 1 s
+topology-reads-through-topo OK: a face's loops, a face's surface and an edge's two ends are read through topo's doors in every root (3344 source files scanned)
+scripts/gates/topology-reads-through-topo.sh: 6 s
+view-cache-agrees OK: every cached view of 3374 files, and the cached mount set, is the reader's own (5 cached views scanned)
+scripts/gates/view-cache-agrees.sh: 14 s
+viewer-module-kinds OK: every module under crates/viewer/src declares a kind, 12 drivers match crates/viewer/README.md's own table of 12 rows, 45 vocabularies name none of 2 driver types, 4 driver module paths or 8 `app`-only crates read from crates/viewer/Cargo.toml (0 recorded exceptions, each still live at exactly its recorded site count), and the README's 12 tabulated vocabularies agree with the modules they name (57 viewer modules scanned)
+scripts/gates/viewer-module-kinds.sh: 1 s
+viewer-vocab-declared-once OK: no hand-written membership list under crates/viewer/src that "#### The lists that stay hand-written" does not ratify (3 ratified, one list each; 2 kinds read from "Two kinds of list stay hand-written") (59 viewer source files scanned)
+scripts/gates/viewer-vocab-declared-once.sh: 0 s
+witness-not-ambient OK: no kernel library code mints a tolerance witness (804 source files scanned)
+scripts/gates/witness-not-ambient.sh: 1 s

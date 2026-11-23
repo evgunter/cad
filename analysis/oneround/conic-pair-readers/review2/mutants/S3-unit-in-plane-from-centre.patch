@@ -1,0 +1,17 @@
+diff --git a/crates/geom/src/curves/conic.rs b/crates/geom/src/curves/conic.rs
+index 299c2dc82..41b3190f1 100644
+--- a/crates/geom/src/curves/conic.rs
++++ b/crates/geom/src/curves/conic.rs
+@@ -1530,11 +1530,7 @@ impl<T: Real> Conic<T> for Ellipse<T> {
+     }
+ 
+     fn unit_in_plane(&self, p: Point3<T>) -> (T, T) {
+-        let (du, dv) = self.unit_of(p - self.at.origin());
+-        match self.held {
+-            Held::Centre => (du, dv),
+-            Held::Arc { phase: (c0, s0) } => (c0 + du, s0 + dv),
+-        }
++        self.unit_of(p - Conic::frame(self).origin())
+     }
+ 
+     fn level_at(&self, p: Point3<T>) -> (T, (T, T)) {

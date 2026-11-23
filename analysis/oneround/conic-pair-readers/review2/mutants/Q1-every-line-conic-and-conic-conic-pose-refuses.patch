@@ -1,0 +1,24 @@
+diff --git a/crates/geom-brep/src/curve_pair/pose.rs b/crates/geom-brep/src/curve_pair/pose.rs
+index 4f5048a7b..1443a6db9 100644
+--- a/crates/geom-brep/src/curve_pair/pose.rs
++++ b/crates/geom-brep/src/curve_pair/pose.rs
+@@ -1600,6 +1600,9 @@ fn line_conic<T: Decide>(
+     known: &[Candidate<T>],
+     band: Band,
+ ) -> Result<Pose<T>, MeetFault> {
++    if band.zero() > 0.0 {
++        return Err(MeetFault::Unsettled(Unsettled::Tangency));
++    }
+     let line = line_of(a.carrier())?;
+     let k = conic_of(b.carrier())?;
+     let geom::Line { origin: o, dir: d } = line;
+@@ -1926,6 +1929,9 @@ fn conic_conic<T: Decide>(
+     known: &[Candidate<T>],
+     band: Band,
+ ) -> Result<Pose<T>, MeetFault> {
++    if band.zero() > 0.0 {
++        return Err(MeetFault::Unsettled(Unsettled::Tangency));
++    }
+     let (ka, kb) = (conic_of(a.carrier())?, conic_of(b.carrier())?);
+     let ball = |c: &Curve3<T>| crate::ExtentBall::of_covered(c.cover().as_ref().ok());
+     let arm = ball(a.carrier()).lever().max(ball(b.carrier()).lever());

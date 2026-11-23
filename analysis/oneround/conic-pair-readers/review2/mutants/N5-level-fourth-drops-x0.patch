@@ -1,0 +1,13 @@
+diff --git a/crates/geom-brep/src/curve_pair/pose.rs b/crates/geom-brep/src/curve_pair/pose.rs
+index 4f5048a7b..af4f17528 100644
+--- a/crates/geom-brep/src/curve_pair/pose.rs
++++ b/crates/geom-brep/src/curve_pair/pose.rs
+@@ -2474,7 +2474,7 @@ pub(super) fn level_on<'k, T: Decide>(ka: &'k dyn Conic<T>, kb: &'k dyn Conic<T>
+         b: kb,
+         axes: (ub, vb),
+         squares,
+-        fourth: up::<36, _>(side(ub, x0.0, squares.0) + side(vb, x0.1, squares.1)),
++        fourth: up::<36, _>(side(ub, x0.0 * T::zero(), squares.0) + side(vb, x0.1 * T::zero(), squares.1)),
+     }
+ }
+ 

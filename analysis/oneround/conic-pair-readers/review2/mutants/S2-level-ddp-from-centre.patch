@@ -1,0 +1,14 @@
+diff --git a/crates/geom-brep/src/curve_pair/pose.rs b/crates/geom-brep/src/curve_pair/pose.rs
+index 4f5048a7b..caada2833 100644
+--- a/crates/geom-brep/src/curve_pair/pose.rs
++++ b/crates/geom-brep/src/curve_pair/pose.rs
+@@ -2397,7 +2397,8 @@ impl<T: Decide> Level<'_, T> {
+     /// `M = diag(1/A², 1/B²)`; on a conic `P‴ = −P′`.
+     pub(super) fn jet_at(&self, theta: T) -> [T; 4] {
+         let (p, dp) = self.a.jet_at(theta);
+-        let ddp = self.a.second_derivative_at(theta);
++        #[allow(clippy::disallowed_methods)]
++        let ddp = self.a.frame().origin() - p;
+         let (f, (gx, gy)) = self.b.level_at(p);
+         let (ub, vb) = self.axes;
+         let (x1, x2) = (dp.dot(ub), ddp.dot(ub));

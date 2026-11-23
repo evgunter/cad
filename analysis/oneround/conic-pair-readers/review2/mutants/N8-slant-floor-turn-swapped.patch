@@ -1,0 +1,13 @@
+diff --git a/crates/geom-brep/src/curve_pair/pose.rs b/crates/geom-brep/src/curve_pair/pose.rs
+index 4f5048a7b..a34d937cc 100644
+--- a/crates/geom-brep/src/curve_pair/pose.rs
++++ b/crates/geom-brep/src/curve_pair/pose.rs
+@@ -1863,7 +1863,7 @@ impl<T: Decide> Slant<T> {
+         let (h_lo, h_hi) = self.h.extremes();
+         let (h_from, h_to) = (self.big_h(from), self.big_h(to));
+         let (d_from, d_to) = (self.h.slope(from), self.h.slope(to));
+-        let turn = d_from.select_le_zero(h_lo, h_hi);
++        let turn = d_from.select_le_zero(h_hi, h_lo);
+         let pair = |x: T, y: T| (x * y).select_le_zero(T::zero(), x.abs().min(y.abs()));
+         let floor = (d_from * d_to)
+             .select_le_zero(pair(h_from, turn).min(pair(turn, h_to)), pair(h_from, h_to));

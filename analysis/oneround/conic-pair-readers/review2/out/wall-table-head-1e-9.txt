@@ -1,0 +1,13 @@
+circle	f64	apart	right	456
+circle	f64	meets	refused:curve_pair_pose_basin	27
+circle	f64	meets	right	201
+circle	interval	apart	refused:curve_pair_pose_basin	1
+circle	interval	apart	right	455
+circle	interval	meets	refused:curve_pair_pose_basin	65
+circle	interval	meets	right	163
+line	f64	apart	right	456
+line	f64	meets	right	228
+line	interval	apart	right	456
+line	interval	meets	refused:curve_pair_pose_level_arc	81
+line	interval	meets	refused:curve_pair_walk_pair_gap	37
+line	interval	meets	right	110

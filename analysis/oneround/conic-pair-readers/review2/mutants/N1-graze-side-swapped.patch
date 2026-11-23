@@ -1,0 +1,13 @@
+diff --git a/crates/geom-brep/src/curve_face/pose.rs b/crates/geom-brep/src/curve_face/pose.rs
+index dd7c3be80..08b657d6a 100644
+--- a/crates/geom-brep/src/curve_face/pose.rs
++++ b/crates/geom-brep/src/curve_face/pose.rs
+@@ -689,7 +689,7 @@ pub(super) fn plane_conic<T: Decide>(
+             let crest = height.crest();
+             let at = match decide_nonzero(
+                 "curve_face_pose_graze_side",
+-                Margin::of((hi.abs() - lo.abs()).select_le_zero(hi - r, lo + r)),
++                Margin::of((hi.abs() - lo.abs()).select_le_zero(lo + r, hi - r)),
+                 band,
+             )
+             .map_err(PoseRefusal::in_band(PoseRung::BellyGraze))?

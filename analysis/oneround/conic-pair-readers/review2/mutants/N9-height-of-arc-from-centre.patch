@@ -1,0 +1,13 @@
+diff --git a/crates/geom/src/curves/conic.rs b/crates/geom/src/curves/conic.rs
+index 299c2dc82..55e2f1ab4 100644
+--- a/crates/geom/src/curves/conic.rs
++++ b/crates/geom/src/curves/conic.rs
+@@ -1526,7 +1526,7 @@ impl<T: Real> Conic<T> for Ellipse<T> {
+     }
+ 
+     fn height_of(&self, p: Point3<T>) -> T {
+-        crate::frame::plane_offset(self.at.origin(), self.at.axis(), p)
++        crate::frame::plane_offset(Conic::frame(self).origin(), self.at.axis(), p)
+     }
+ 
+     fn unit_in_plane(&self, p: Point3<T>) -> (T, T) {

@@ -1,0 +1,14 @@
+diff --git a/crates/geom-brep/src/curve_pair/pose.rs b/crates/geom-brep/src/curve_pair/pose.rs
+index 4f5048a7b..7d0329eb0 100644
+--- a/crates/geom-brep/src/curve_pair/pose.rs
++++ b/crates/geom-brep/src/curve_pair/pose.rs
+@@ -2067,7 +2067,8 @@ pub(super) fn one_curve<T: Decide>(
+ pub(super) fn one_curve_gap<T: Decide>(e: &dyn Conic<T>, f: &dyn Conic<T>) -> T {
+     let reach = |k: &dyn Conic<T>| k.speed_hi();
+     let gap = (e.center() - f.center()).norm() + frame_gap(e, f).max(frame_gap(f, e));
+-    gap + geom_core::rounding_charge(reach(e) + reach(f) + gap)
++    let _ = reach;
++    gap
+ }
+ 
+ /// `‖L_e − L_f·Q‖`, the operator norm, for the `Q` that turns `f`'s
