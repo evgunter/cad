@@ -1238,15 +1238,14 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let mut body = finished.begin_surgery();
     let mut seam_edges = SeamEdges::default();
     let mut struts = Vec::new();
-    // Each operand's face divisions: the cut-ins' rows, then the join's
-    // chord-mef rows.
-    let fragments = pass.face_divisions([&connected.a_fragments, &connected.b_fragments])?;
     let mut desc = Descendants::default()
         .with_copies(copies)
         .with_along(along)
-        .with_fragments(fragments.clone())
-        .with_cut_ins(pass.cut_rows(), pass.arc_splits())
+        .with_fragments([connected.a_fragments.clone(), connected.b_fragments.clone()])
         .with_absorbed(connected.absorbed.clone());
+    if let Pass::Recut(cuts) = pass {
+        desc = desc.with_cut_ins(cuts);
+    }
     // A vertex several seams meet is fused by the first: each later zip
     // reads the correspondence through the fusions made.
     let mut vertex_map = fin.vertex_map.clone();
@@ -1336,7 +1335,9 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let body = gate(finished, &Held::of(&contacts, decls), band, tol)?;
     interior_loops?;
     let (graft_vertices, graft_edges, graft_dead_edges, mut graft_faces) = graft_rows(&fin.graft);
-    let [mut face_fragments_a, face_fragments_b] = fragments;
+    // The naming's face divisions: the cut-ins', then the join's.
+    let [mut face_fragments_a, face_fragments_b] =
+        pass.face_divisions([&connected.a_fragments, &connected.b_fragments])?;
     let mut discards = fin.discards;
     name_parted(
         &parted,
@@ -1456,7 +1457,7 @@ pub(super) enum Pass<'a> {
     /// The re-entry over the re-cut operands, with what the cut-ins made
     /// in each: they divided faces and split arcs before the join did, so
     /// a cell of the op's input is read through both
-    /// ([`Descendants::fragments`], [`Descendants::arcs`]). It re-cuts
+    /// ([`Descendants::cut_fragments`], [`Descendants::arcs`]). It re-cuts
     /// nothing: a cut-in's meridian runs through its circle's two
     /// crossings, so re-cut operands that meet in no crossing are a loud
     /// invariant failure rather than a loop.
@@ -1478,23 +1479,6 @@ impl Pass<'_> {
             crate::lineage::FaceDivisions::from_rows(cut(0).iter().chain(a.rows()).copied())?,
             crate::lineage::FaceDivisions::from_rows(cut(1).iter().chain(b.rows()).copied())?,
         ])
-    }
-
-    /// How many face divisions the cut-ins made in each operand.
-    fn cut_rows(&self) -> [usize; 2] {
-        match self {
-            Self::First => [0, 0],
-            Self::Recut(cuts) => [cuts[0].divisions.len(), cuts[1].divisions.len()],
-        }
-    }
-
-    /// Each operand's arcs the cut-ins split, `(new vertex, new edge,
-    /// split edge)` in mint order.
-    fn arc_splits(&self) -> [Vec<(VertexKey, EdgeKey, EdgeKey)>; 2] {
-        match self {
-            Self::First => Default::default(),
-            Self::Recut(cuts) => [cuts[0].arc_splits.clone(), cuts[1].arc_splits.clone()],
-        }
     }
 }
 
@@ -3658,9 +3642,9 @@ pub(super) struct Descendants {
     /// Read only where `edge` left the result.
     along: [Vec<(EdgeKey, EdgeKey)>; 2],
     /// Each operand's face divisions, `(new face, divided-from face)` in
-    /// its clone keys, read before its key view: a re-entry's sphere
-    /// cut-ins ([`Pass::Recut`]), then the join's chord-mef fragments.
-    /// A division keeps the divided
+    /// its clone keys, read before its key view: the join's chord-mef
+    /// fragments, read after [`Self::cut_fragments`] where a face is the
+    /// op's input's ([`Self::divisions`]). A division keeps the divided
     /// face's key on one piece, whichever piece that is, so a record
     /// naming the face is read through all of its pieces
     /// ([`operand_fate`], [`place_found`]).
@@ -3670,9 +3654,10 @@ pub(super) struct Descendants {
     /// ([`Pass::Recut`]): read before the reduction's own splits, so an
     /// edge of the op's input is read through both ([`edge_pieces`]).
     arcs: [Vec<(VertexKey, EdgeKey, EdgeKey)>; 2],
-    /// How many leading rows of each operand's [`Self::fragments`] are
-    /// the cut-ins' ([`Self::divisions`]).
-    cut_rows: [usize; 2],
+    /// Each operand's face divisions a re-entry's sphere cut-ins made
+    /// before the join, `(new face, divided-from face)` in its clone keys
+    /// and mint order ([`Pass::Recut`], [`Self::divisions`]).
+    cut_fragments: [Vec<(FaceKey, FaceKey)>; 2],
     /// Each operand's faces the join killed, `(killed face, face
     /// holding its region)` in its clone keys: a division's fragment the
     /// join merged back (`join::Connected::absorbed`). Checked where each
@@ -3698,7 +3683,7 @@ impl Default for Descendants {
                 crate::lineage::FaceDivisions::new(crate::lineage::LineageRows::FaceDivisions)
             }),
             arcs: Default::default(),
-            cut_rows: [0, 0],
+            cut_fragments: Default::default(),
             absorbed: [(); 2].map(|()| {
                 crate::lineage::Substitutions::new(crate::lineage::LineageRows::Substitutions)
             }),
@@ -3737,30 +3722,26 @@ impl Descendants {
         Self { fragments, ..self }
     }
 
-    /// The map that also reads what a re-entry's cut-ins made: the
-    /// leading `cut_rows` of each operand's [`Self::fragments`], and its
-    /// arcs ([`Self::arcs`]).
-    pub(super) fn with_cut_ins(
-        self,
-        cut_rows: [usize; 2],
-        arcs: [Vec<(VertexKey, EdgeKey, EdgeKey)>; 2],
-    ) -> Self {
+    /// The map that also reads what a re-entry's cut-ins made in each
+    /// operand ([`Self::cut_fragments`], [`Self::arcs`]).
+    pub(super) fn with_cut_ins(self, cuts: &CutsPerOperand) -> Self {
         Self {
-            cut_rows,
-            arcs,
+            cut_fragments: [cuts[0].divisions.clone(), cuts[1].divisions.clone()],
+            arcs: [cuts[0].arc_splits.clone(), cuts[1].arc_splits.clone()],
             ..self
         }
     }
 
-    /// `side`'s face divisions a face in `keys` is read through: every
-    /// row for a face of the op's input, the join's alone for one of the
-    /// re-cut operand, which the cut-ins had already divided.
-    fn divisions(&self, side: Operand, keys: Keys) -> &[(FaceKey, FaceKey)] {
-        let rows = self.fragments[side.index()].rows();
-        match keys {
-            Keys::Input => rows,
-            Keys::Recut => &rows[self.cut_rows[side.index()]..],
-        }
+    /// `side`'s face divisions a face in `keys` is read through: the
+    /// cut-ins' and then the join's for a face of the op's input, the
+    /// join's alone for one of the re-cut operand, which the cut-ins had
+    /// already divided.
+    fn divisions(&self, side: Operand, keys: Keys) -> impl Iterator<Item = &(FaceKey, FaceKey)> {
+        let cut: &[(FaceKey, FaceKey)] = match keys {
+            Keys::Input => &self.cut_fragments[side.index()],
+            Keys::Recut => &[],
+        };
+        cut.iter().chain(self.fragments[side.index()].rows())
     }
 
     /// The map that also reads the faces the join killed
@@ -4722,31 +4703,19 @@ fn face_pieces(
 }
 
 /// Input edge `e`'s pieces in `side`'s clone keys, in order along it,
-/// and the vertices minted between them: the arcs a re-entry's cut-ins
-/// split ([`Descendants::arcs`]), each piece then through the
-/// reduction's splits ([`super::Mints::pieces`]). A split keeps the
-/// split edge's leading span, so its new edge is the piece right after.
+/// and the vertices minted between them ([`super::split_pieces`]): the
+/// arcs a re-entry's cut-ins split ([`Descendants::arcs`]), then the
+/// reduction's splits ([`super::Mints`]).
 fn edge_pieces(
     desc: &Descendants,
     mints: &super::Mints,
     side: Operand,
     e: EdgeKey,
 ) -> (Vec<EdgeKey>, Vec<VertexKey>) {
-    let mut cut = vec![e];
-    let mut minted = Vec::new();
-    for &(vertex, new, split) in &desc.arcs[side.index()] {
-        if let Some(i) = cut.iter().position(|&k| k == split) {
-            cut.insert(i + 1, new);
-            minted.push(vertex);
-        }
-    }
-    let mut pieces = Vec::new();
-    for k in cut {
-        let (ks, ms) = mints.pieces(side, k);
-        pieces.extend(ks);
-        minted.extend(ms);
-    }
-    (pieces, minted)
+    let arcs = desc.arcs[side.index()]
+        .iter()
+        .map(|&(vertex, new, split)| (split, vertex, new));
+    super::split_pieces(e, arcs.chain(mints.of(side)))
 }
 
 /// Whether the op stated the removal of `c`, a clone cell: a face it
@@ -5657,8 +5626,9 @@ fn carry_rows<T: Decide + AtRestPolicy>(
 /// [`Descendants::live`] lands there by lineage, unread. A row of the
 /// reduction's own (`found`, its index in the working set) on a face the
 /// join divided after the row was written (the re-cut operand's face,
-/// [`Keys::Recut`]) has that face divided into its live pieces and the chords between them ([`face_pieces`]), its
-/// remainder removed where the op stated a piece's removal
+/// [`Keys::Recut`]) has that face divided into its live pieces and the
+/// chords between them ([`face_pieces`]), its remainder removed where
+/// the op stated a piece's removal
 /// ([`stated_removed`]), and lands on every pair of images the census's
 /// record confirm reads as meeting. A row whose every pair is structure
 /// is consumed, as structural sharing needs no record (D1,
@@ -11274,6 +11244,42 @@ mod found_on_a_divided_face {
                 .kinds()
                 .collect::<Vec<_>>(),
             [ContactKind::EdgeFace(edge, other)]
+        );
+    }
+
+    /// **A found row on a face only a cut-in divided is not divided
+    /// again.** The row names a face of the re-cut operand, which the
+    /// cut-in had already divided before the reduction read it: it lands
+    /// by lineage, unread, as on a kept face. The vertex touches neither
+    /// piece, so a reading refuses it, as it does where the same division
+    /// is the join's. Red where a found row reads the cut-ins' divisions
+    /// ([`super::Keys::Recut`]).
+    #[test]
+    fn a_found_row_on_a_face_a_cut_in_divided_lands_unread() {
+        let (mut body, top, other) = divided();
+        let v = lone(&mut body, 0.5, 1.5, 3.0);
+        let records: ContactRecords = [crate::Cited::new(
+            Contact::of(Cell::Vertex(v), Cell::Face(top)).unwrap(),
+            crate::Cites::decided(0),
+        )]
+        .into_iter()
+        .collect();
+        let mut cut = super::ChartCuts::default();
+        cut.divisions.push((other, top));
+        let cuts = [cut, super::ChartCuts::default()];
+        let desc = Descendants::default().with_cut_ins(&cuts);
+        assert_eq!(
+            carry_in_place(&body, &records, &desc, band())
+                .unwrap()
+                .kinds()
+                .collect::<Vec<_>>(),
+            [ContactKind::VertexFace(v, top)],
+            "a cut-in's division: the row lands by lineage"
+        );
+        let got = carried(&body, v, top, vec![(other, top)]);
+        assert!(
+            matches!(got, Err(BooleanError::CarryRefused { .. })),
+            "the join's division: the row is read and refused, got {got:?}"
         );
     }
 }

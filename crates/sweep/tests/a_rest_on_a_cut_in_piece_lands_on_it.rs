@@ -173,11 +173,22 @@ fn a_rest_on_either_piece_of_a_cut_in_face_lands_on_that_piece() {
     }
 }
 
+/// The point of `v`.
+fn point_of(body: &Body<f64>, v: topo::VertexKey) -> Point3<f64> {
+    body.vertex_points()
+        .find(|(k, _)| *k == v)
+        .map(|(_, p)| p)
+        .unwrap()
+}
+
+/// Also at azimuth 90°, the point the cut splits the arc at: there the
+/// record lands on the vertex the split minted, a vertex pair at one
+/// point.
 #[test]
 fn a_rest_on_either_piece_of_a_cut_in_rim_arc_lands_on_that_piece() {
     let (banded, slab) = (banded_ball(), slab());
     let up = Vec3::new(0.0, 1.0, 0.0);
-    for az in [60f64, 120.0] {
+    for az in [60f64, 120.0, 90.0] {
         let (c, s) = (az.to_radians().cos(), az.to_radians().sin());
         let p = Point3::new(0.8 * c, 0.6, 0.8 * s);
         let cube = corner_at(p, (p - Point3::origin()) + up, 0.03);
@@ -191,11 +202,29 @@ fn a_rest_on_either_piece_of_a_cut_in_rim_arc_lands_on_that_piece() {
         for op in [BooleanOp::Union, BooleanOp::Subtract] {
             let what = format!("az {az}, {op:?}");
             let r = cut_by(&what, op, &rested, &slab);
+            assert_eq!(
+                r.contacts.len(),
+                1,
+                "{what}: the rest lands once: {:?}",
+                r.contacts
+            );
+            if az == 90.0 {
+                let pairs: Vec<_> = r.contacts.vertex_vertex().collect();
+                let &[(v, w)] = &pairs[..] else {
+                    panic!(
+                        "{what}: the rest lands on the split's vertex: {:?}",
+                        r.contacts
+                    )
+                };
+                let gap = (point_of(&r.body, v) - point_of(&r.body, w)).norm();
+                assert!(gap <= 1e-9, "{what}: the pair is one point, {gap} apart");
+                continue;
+            }
             // Red on the carry that read the arc by its key alone: at
             // azimuth 120 the record named the arc's piece at x > 0.
             let rests: Vec<_> = r.contacts.vertex_edge().collect();
-            let (&[(_, edge)], 1) = (&rests[..], r.contacts.len()) else {
-                panic!("{what}: the rest lands once: {:?}", r.contacts)
+            let &[(_, edge)] = &rests[..] else {
+                panic!("{what}: the rest lands on an arc piece: {:?}", r.contacts)
             };
             let xs = edge_xs(&r.body, edge);
             assert!(

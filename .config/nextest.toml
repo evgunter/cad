@@ -186,9 +186,10 @@ failure-output = "immediate-final"
 # `dbb21b4a`, 1.14 s on the branch; 1.036 s on the hosted runner):
 #    1.04 s  sweep::all snowman::a_slab_cutting_a_cap_off_a_pole_strut_carve_builds
 # A rest carried onto either piece of a sphere face, or of its rim arc,
-# a slab cuts in, four ops over two built operands each (local runs):
+# a slab cuts in, two built operands under two ops each, and the arc
+# also at the point the cut splits it (local runs):
 #    0.57 s  sweep::all a_rest_on_a_cut_in_piece_lands_on_it::a_rest_on_either_piece_of_a_cut_in_face_lands_on_that_piece
-#    0.54 s  sweep::all a_rest_on_a_cut_in_piece_lands_on_it::a_rest_on_either_piece_of_a_cut_in_rim_arc_lands_on_that_piece
+#    0.82 s  sweep::all a_rest_on_a_cut_in_piece_lands_on_it::a_rest_on_either_piece_of_a_cut_in_rim_arc_lands_on_that_piece
 # Rays about a hand-built boxed cylinder's moving rim, and a torus cut
 # shallowly through the boolean door with rays in its spiric edges'
 # straddle (a local run, 4 vCPUs):
