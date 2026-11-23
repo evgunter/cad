@@ -334,7 +334,8 @@ fn one_body_reads_alike_in_both_orders(widths: &[f64]) {
 /// the lune as a ring on the cone face, pass tier 3 and their volume
 /// enclosures bracket the closed forms, each under `1e-10` wide and as
 /// wide as each other in both orders
-/// ([`one_body_reads_alike_in_both_orders`]), at every ε row.
+/// ([`one_body_reads_alike_in_both_orders`]), at ε 1e-9 and 1e-6. At
+/// ε 1e-12 the ops [`RING_FRAME_COST`] names refuse instead.
 #[test]
 fn the_rings_volume_brackets_its_closed_form_at_the_certified_scalar() {
     use crate::common::interval::{iv, p2, p3, v2, v3};
@@ -377,6 +378,23 @@ fn the_rings_volume_brackets_its_closed_form_at_the_certified_scalar() {
         ("box ∪ cone", topo::union(&x, &c, tol), vc + 216.0 - i),
         ("cone ∖ box", topo::subtract(&c, &x, tol), vc - i),
     ] {
+        if crate::common::frame_cost::at_the_least_band() && RING_FRAME_COST.contains(&op) {
+            // A frame built at Interval from bracket inputs (fork 274).
+            assert!(
+                matches!(
+                    &r,
+                    Err(topo::BooleanError::ResultInvalid { findings })
+                        if crate::common::frame_cost::volume_escalates(
+                            findings.as_slice(),
+                            "props_cone_ellipse_on_cone",
+                            (1.05e-12, 1.15e-12),
+                        )
+                ),
+                "{op}: pinned to refuse its result's volume, props_cone_ellipse_on_cone in \
+                 (1.05e-12, 1.15e-12], at ε 1e-12: {r:?}"
+            );
+            continue;
+        }
         let bb = match r.as_ref().map(topo::BooleanResult::body) {
             Ok(Some(bb)) => bb,
             _ => panic!("{op}: wanted a body, got {r:?}"),
@@ -397,6 +415,15 @@ fn the_rings_volume_brackets_its_closed_form_at_the_certified_scalar() {
     }
     one_body_reads_alike_in_both_orders(&widths);
 }
+
+/// The ops of [`the_rings_volume_brackets_its_closed_form_at_the_certified_scalar`]
+/// that refuse at ε 1e-12 (`crate::common::frame_cost::at_the_least_band`):
+/// the result's cone face cannot read its volume, `props_cone_ellipse_on_cone`
+/// escalating with its margin in `(1.05e-12, 1.15e-12]` (measured
+/// 1.094e-12). Cause: bracket, the frames the turn and the move build
+/// at `Interval` from bracket inputs (fork 274); mutant F1X (PR 7131's
+/// body) builds them, and turns this pin red; mutant A does not.
+const RING_FRAME_COST: [&str; 3] = ["cone ∪ box", "box ∪ cone", "cone ∖ box"];
 
 /// **A ringed cone face's sense is checked against its boundary.** In
 /// ∪ and cone ∖ box, both member orders where the op has them, the cone

@@ -216,6 +216,7 @@ fn assert_the_fixture_escape(d: &str, reposed: &BooleanError, what: &str) {
 /// [`same_door_or_escalated`] writes the reason for.
 #[test]
 fn the_meeting_axes_pose_builds_at_the_certified_scalar() {
+    // MEASURE: the doc (cause, mutants) and the re-posed half at 1e-12.
     let a = spin(&cyl(1.0, 1.2), z_axis(), PI / 4.0);
     let b = spin(
         &spin(&cyl(1.0, 1.2), x_axis(), PI / 2.0),
@@ -267,14 +268,31 @@ fn the_meeting_axes_pose_builds_at_the_certified_scalar() {
         }
     };
     let direct = union(&a, &b);
-    let Ok(topo::BooleanResult::Body(out)) = &direct else {
-        panic!("the meeting-axes pose builds: {direct:?}");
-    };
-    assert_union(
-        out,
-        [Point3::new(1.0, 0.0, 0.0), Point3::new(-1.0, 0.0, 0.0)],
-        "direct",
-    );
+    if crate::common::frame_cost::at_the_least_band() {
+        // A frame built at Interval from bracket inputs (fork 274).
+        assert!(
+            matches!(
+                &direct,
+                Err(BooleanError::Pcurves { source })
+                    if crate::common::frame_cost::pcurve_escalates(
+                        source,
+                        "pcurve_envelope",
+                        MEETING_AXES_FRAME_COST,
+                    )
+            ),
+            "the meeting-axes pose: pinned to escalate pcurve_envelope in \
+             {MEETING_AXES_FRAME_COST:?} at the result's pcurve pass, at ε 1e-12: {direct:?}"
+        );
+    } else {
+        let Ok(topo::BooleanResult::Body(out)) = &direct else {
+            panic!("the meeting-axes pose builds: {direct:?}");
+        };
+        assert_union(
+            out,
+            [Point3::new(1.0, 0.0, 0.0), Point3::new(-1.0, 0.0, 0.0)],
+            "direct",
+        );
+    }
     match union(&repose(&a), &repose(&b)) {
         Ok(topo::BooleanResult::Body(out)) => {
             // [`repose`]'s motion, at `f64`.

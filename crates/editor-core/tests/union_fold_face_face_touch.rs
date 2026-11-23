@@ -391,13 +391,18 @@ fn far_origin_rod(
 #[test]
 fn a_carrier_whose_origin_stands_far_off_hands_on_the_pass_s_line() {
     // Pinned red: the body's volume escalates in band
-    // (`work/nearpoint/a-cylinder-circle-and-a-chart-junction-escalate-in-band-at-1e-12`).
+    // (`work/nearpoint/a-cylinder-circle-and-a-chart-junction-escalate-in-band-at-1e-12`),
+    // from back 300, margin in (1.15e-12, 1.25e-12] (measured 1.195e-12).
+    // Cause: the frame cost, a stored frame read as its polar enclosure
+    // (`geom_core::test_support::at_the_frame_cost_band`); mutant A lets
+    // back 300 build again and stop at back 900, and turns this pin red.
     test_utils::pinned_red::row(
         geom_core::Tol::witness().eps(),
         &[1e-12],
         "the far-off carrier",
         &[
-            "back 900: plate, rod, block: refused",
+            "back 300: plate, rod, block: refused",
+            "hi: 1.1",
             "VolumeUncomputable",
             "props_cylinder_circle_off_axis",
         ],
