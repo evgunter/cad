@@ -476,7 +476,7 @@ the table.
   the ring and the ring vertex the walk placed outside). That is the
   statement an inverted host/guest pick at the rim glue falsifies. The
   instrument is the in-plane parity walk that reads each outer edge on
-  its own carrier (`splitting::containment::point_in_loop`: a
+  its own carrier (`contain::loop_placement`, the face door's reading of one loop: a
   line as its segment, a circle or ellipse arc on its conic inside its
   window) over the ring's vertices, so its region is the loop's region
   on every outer loop of lines and arcs — a polygon, one circle's disc
@@ -492,14 +492,14 @@ the table.
   a ring no vertex of which those pieces place (the edge's reading ran
   out of depth or pieces first) is reported `RingNestingUndecided`,
   never `RingOutsideOuter`, since answering `Out` from a region that is
-  not the loop's would refuse valid bodies. And inside the gate: the nesting arm places a whole ring from one vertex
-  on the premise that the two loops do not cross, which the contact
-  half checks wherever both loops carry only `Line` and `Circle` edges
-  — a ring arc bowing past the outer loop between inside vertices is a
-  `RingMeetsOuter` there. Where an edge is an `Ellipse`, `Spiric` or
-  NURBS carrier the premise is assumed (a vertex standing on a vertex
-  is still seen), and a crossing whose first decided vertex is inside
-  passes (why the nesting arm does not answer a crossing itself:
+  not the loop's would refuse valid bodies. And inside the gate: the nesting arm reads every vertex of the ring, so
+  a ring with a vertex on each side of its outer loop is
+  `RingOutsideOuter`, and one on the outer loop at every vertex is
+  `RingMeetsOuter`. A ring arc bowing past the outer loop between
+  inside vertices is a `RingMeetsOuter` wherever both loops carry only
+  `Line` and `Circle` edges; where an edge is an `Ellipse`, `Spiric` or
+  NURBS carrier that crossing passes (a vertex standing on a vertex is
+  still seen; why the nesting arm does not answer a crossing itself:
   `validate::ring_nesting`'s doc).
 
   **Why nothing caught it, and the transferable lesson.** Not "the rim

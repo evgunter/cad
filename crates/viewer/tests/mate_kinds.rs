@@ -168,6 +168,10 @@ fn the_cursors_rule_admits_what_the_chosen_kind_reads() {
             !rule.admits(PickedKind::Profile),
             "{kind:?}: no mate reads a profile, so the rule {rule:?} offers none"
         );
+        assert!(
+            kind == VarKind::Direction || rule.admits(PickedKind::Datum),
+            "{kind:?}: a datum is a far side through its role, so the rule {rule:?} offers it"
+        );
     }
     assert_eq!(
         viewer::matetool::reads(VarKind::Plane),

@@ -396,7 +396,7 @@ pub enum SessionOp {
     /// That folder's scan decides the act before anything is written:
     /// a resave, a create at the chosen name, or a refusal. A folder
     /// that already holds this document under another name refuses
-    /// `SaveWouldDuplicateId` ([`Refusal::save_choice`] reads the two
+    /// `SaveWouldDuplicateId` ([`crate::recourse::offers`] reads the two
     /// ways on out of it), and a folder whose scan refuses gives that
     /// refusal; both arrive as [`Refusal::Workspace`].
     ///
@@ -607,6 +607,16 @@ pub enum SessionOp {
     AddProfile {
         /// The loop programs, in description order.
         loops: Vec<LoopProgram<Formula>>,
+    },
+    /// **A datum** (D10 `[placement.datums]`): a bare frame inserted into
+    /// `space` at its origin, every value zero, which the placement
+    /// editor then places (create, then edit). A plane or an axis is
+    /// read off it through a role; which one the editor's first row
+    /// reads is the tool's, not the document's.
+    AddDatum {
+        /// The space it is placed into: where the selected body is
+        /// drawn, or the world.
+        space: VarId,
     },
     /// **A profile drawn on a face, tracing faces of its body** (D10
     /// `[placement]`; REFERENCES DM1; "Constructing a coincidence"):
@@ -825,6 +835,21 @@ pub enum SessionOp {
         b: AssertedSeat,
         /// What is claimed between them.
         claim: AssertedClaim,
+    },
+    /// **Author the assertion a check's finding carries**
+    /// ([`pncad::document::Quieting`]): the kernel's own edits for it
+    /// (`Quieting::record`), the measure and the assertion `= 0` over
+    /// it, as one action and one undo — a check's Commit offer
+    /// ([`crate::recourse::Offer::Commit`]).
+    ///
+    /// **It takes the kernel's value, not seats.** A finding names its
+    /// cells keyed by the `⊔` that gathered them, so seats built from
+    /// those names would be admitted and then fail to resolve; the
+    /// value is the one the quieting rule reads back as the row's cells,
+    /// and no other caller can build one.
+    AssertQuieting {
+        /// The assertion, as the finding carries it.
+        quieting: pncad::document::Quieting,
     },
     /// Insert one pattern of an existing body — the pattern tool's one
     /// committed edit: an index `k = index(count)` and one placement of
@@ -1305,6 +1330,7 @@ impl SessionOp {
     pub fn creates_a_node(&self) -> bool {
         match self {
             Self::AddProfile { .. }
+            | Self::AddDatum { .. }
             | Self::DrawOnFace { .. }
             | Self::AddExtrude { .. }
             | Self::AddRevolve { .. }
@@ -1312,6 +1338,7 @@ impl SessionOp {
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
             | Self::AddAssertion { .. }
+            | Self::AssertQuieting { .. }
             | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
@@ -1433,6 +1460,7 @@ impl SessionOp {
             | Self::SetBundle { .. }
             | Self::NewDocument { .. }
             | Self::AddProfile { .. }
+            | Self::AddDatum { .. }
             | Self::DrawOnFace { .. }
             | Self::EditProfile { .. }
             | Self::AddExtrude { .. }
@@ -1441,6 +1469,7 @@ impl SessionOp {
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
             | Self::AddAssertion { .. }
+            | Self::AssertQuieting { .. }
             | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
@@ -1663,6 +1692,7 @@ impl SessionOp {
             | Self::AddMate { .. }
             | Self::SetBundle { .. }
             | Self::AddProfile { .. }
+            | Self::AddDatum { .. }
             | Self::DrawOnFace { .. }
             | Self::EditProfile { .. }
             | Self::AddExtrude { .. }
@@ -1671,6 +1701,7 @@ impl SessionOp {
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
             | Self::AddAssertion { .. }
+            | Self::AssertQuieting { .. }
             | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
@@ -1797,6 +1828,7 @@ impl SessionOp {
             | Self::AddMate { .. }
             | Self::SetBundle { .. }
             | Self::AddProfile { .. }
+            | Self::AddDatum { .. }
             | Self::DrawOnFace { .. }
             | Self::EditProfile { .. }
             | Self::AddExtrude { .. }
@@ -1805,6 +1837,7 @@ impl SessionOp {
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
             | Self::AddAssertion { .. }
+            | Self::AssertQuieting { .. }
             | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
@@ -1834,6 +1867,7 @@ impl SessionOp {
             op => matches!(
                 op,
                 Self::AddProfile { .. }
+                    | Self::AddDatum { .. }
                     | Self::DrawOnFace { .. }
                     | Self::AddExtrude { .. }
                     | Self::AddRevolve { .. }
@@ -1896,6 +1930,7 @@ impl SessionOp {
             | Self::AddMate { .. }
             | Self::SetBundle { .. }
             | Self::AddProfile { .. }
+            | Self::AddDatum { .. }
             | Self::DrawOnFace { .. }
             | Self::EditProfile { .. }
             | Self::AddExtrude { .. }
@@ -1904,6 +1939,7 @@ impl SessionOp {
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
             | Self::AddAssertion { .. }
+            | Self::AssertQuieting { .. }
             | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
@@ -1941,15 +1977,13 @@ pub enum AssertedSeat {
     Body(Operand),
     /// A face, read on the body it was picked on.
     Face(FaceSelection),
-    /// **An operand as the measure reads it**, written as given: a
-    /// selection of one name in the body read plainly, a pose defined
-    /// off such a selection, or a variable — what the measure's insert
-    /// mints its references from. A check's finding names its cells
-    /// keyed by the `⊔` that gathered them, which is not this: a seat
-    /// built from a finding's raw name is admitted and then fails to
-    /// resolve. A finding's quieting assertion is converted to seats by
-    /// the kernel's own reading of the row.
-    Read(Operand),
+    /// **A reference a check's finding carries**, as the kernel minted
+    /// it for the measure to read ([`pncad::document::QuietingRef`]): a
+    /// selection of one name in the body read plainly, a pose read off
+    /// it, or a variable. Only the kernel mints one, so a seat cannot be
+    /// built from a finding's raw cell name, which is keyed by the `⊔`
+    /// that gathered it and would be admitted and then fail to resolve.
+    Minted(pncad::document::QuietingRef),
 }
 
 /// **What an assertion claims** ([`SessionOp::AddAssertion`]): the
