@@ -330,6 +330,7 @@ mod nurbs_cert;
 mod nurbs_cert_fuzz;
 mod planar;
 mod region;
+mod ruled_walk;
 // The sizing vocabulary is this crate's own: nothing in the module is
 // `pub`, and its shared names are `pub(crate)`. The module itself is
 // `mod` rather than `pub mod` so that `dead_code` reports one the crate

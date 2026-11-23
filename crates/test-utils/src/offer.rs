@@ -40,6 +40,19 @@ pub const DESIGN_EPS: f64 = 1e-9;
 /// The fraction of the offered value a re-run takes: just below it.
 pub const BELOW: f64 = 0.9;
 
+/// The precision a fixed pose's margin `want` is computed to, which an
+/// offer row holds the margin its refusal quotes to.
+#[must_use]
+pub fn margin_precision(want: f64) -> f64 {
+    1e-4 * want.abs() + 1e-15
+}
+
+/// Whether `got` is `want` to [`margin_precision`].
+#[must_use]
+pub fn near_margin(got: f64, want: f64) -> bool {
+    (got - want).abs() <= margin_precision(want)
+}
+
 /// The longest chain [`execute`] follows before calling it unbounded.
 const LONGEST_CHAIN: usize = 12;
 
