@@ -477,28 +477,20 @@ GERM has carried each of these files' curve × face code since U1. The crossings
 and SPLICE's rows also edit. Each stage merges main before review, and its PR names the rows it
 overlaps.
 
-## Fork for Ev
-**How does `curve_face::cross` reach the certified lane its spline arms need?** U4d waits on the answer; U4a–U4c do not.
+## The spline arms' lane
+`curve_face::cross` is generic over every deciding scalar, the dual included. Its spline arms need a certifying lane.
 
-**The facts.**
-- C5 says every consumer of where a curve meets a surface reads `pose` or `cross`.
-- `cross` is generic over `T: Decide` (`cross.rs`), which admits the dual scalar. The analytic arms mean something at a dual, and booleans run at `Dual64` (the corpus registry, E4 sensitivities).
-- The spline arms (`composite::crossings`, `spline_face::isolate`/`settle`) need a certifying lane. Today `cross` answers them with one whole-span window, and the boolean reaches them instead through `AtRestPolicy::spline_face_crossings`/`spline_chart_meetings`, which answer `None` at a dual. `splitting::classify` reads `cross`, sees `Enclosed`, then calls the policy itself.
-- DL5.3 makes a lane an associated type, `NoLane` (no values) at a dual. DL5.2 and fork 293 (PR 7176) say a solved root has nothing owed at a dual.
-- `[unrepresentable]` (PR 7189): code with no meaning at a scalar excludes it by bound, never by a check at run time.
+**At every scalar that certifies, the lane is read off the scalar.**
+- The scalar's NURBS lane comes from a sealed per-scalar trait in geom-brep. `AtRestPolicy` takes that trait as a supertrait.
+- `NurbsLaneOf` carries the two arm readings.
+- `cross` takes no lane argument.
+- `AtRestPolicy::spline_face_crossings`, `spline_chart_meetings`, the `NurbsLane` holder and `classify`'s fallback go. Every consumer reads `cross` alone.
 
-**The answer.**
-- `cross` keeps one signature over every deciding scalar and takes no lane argument.
-- The scalar's NURBS lane is read off the scalar, through a sealed per-scalar trait in geom-brep that `AtRestPolicy` takes as a supertrait.
-- `NurbsLaneOf` carries the two arm readings; its `NoLane` bodies are `match self {}`.
-- At a dual, a spline door answers one typed window that names the scalar.
-- `AtRestPolicy::spline_face_crossings`, `spline_chart_meetings` and `NurbsLane` go, along with `classify`'s fallback. Every consumer reads `cross` alone.
-- C5 gains one sentence: at a scalar that holds no lane, a spline arm is one window naming it.
+**At a dual, a spline arm refuses with a typed not-implemented error.**
+- The error is a variant of its own, naming the arm and the scalar, so the cases are found by type later.
+- It is not a window that claims the scalar has no meaning there. A spline crossing at a dual does mean something: the certified search runs on the dual's value channel, so its decisions are the f64 run's bit for bit. Each admitted root then carries its tangent by the implicit-function theorem, `dt/dp = −(∂F/∂p)/(∂F/∂t)`, or `−J⁻¹·∂R/∂p` with the Jacobian the Krawczyk test already proves invertible.
+- That lift is filed as its own row. It needs every value channel stated `Certifies`, and a dual half of the admit door (DL5.2's sentence on the dual changes with it).
 
-**Question.** Is the dual's typed window at a spline door within `[unrepresentable]` as written? Or does the clause gain one sentence: a pass total over run-time kinds refuses the kind where the scalar's lane type is empty? The kind is run-time data, so no bound removes that cell.
+**Why not exclude the dual by type:** the carrier's kind is run-time data in a `Body<T>`. A dual body holding spline walls is meaningful (`loft_prism` builds at `Dual64`), and booleans run at a dual for sensitivities.
 
-**Alternatives.**
-- The lane passed as an argument: rejected, because a certifying caller could withhold it.
-- `cross` bounded to certifying scalars: rejected, because it ends booleans at a dual.
-- A second, certified entry: rejected, as two readings of one question.
-- The spline arms on the dual's value channel with the implicit-function tangent: deferred. It reverses PR 7176's "nothing owed at a dual" and buys nothing until the march also runs at a dual.
+**C5** gains one sentence: at a dual, a spline arm is not yet built, and refuses typed as such.
