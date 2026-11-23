@@ -628,7 +628,7 @@ fn out_of_inventory_boundaries_refuse_typed() {
     // (b) wrong-radius rim.
     let mut lp = patch_loop(&s, [0.0, 1.0, 0.0, 1.0], 1.0, false);
     if let Curve3::Circle(c) = &mut lp.edges[0].carrier {
-        *c = geom::Circle::new(c.frame, c.radius() + 0.05);
+        *c = geom::Circle::new(c.frame(), c.radius() + 0.05);
     }
     assert!(
         matches!(
