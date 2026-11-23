@@ -3659,7 +3659,7 @@ fn loft() -> Vec<(String, NodeErrorKind)> {
             "PinnedCornerUnsupported",
             E::PinnedCornerUnsupported {
                 loop_index: 1,
-                at: sweep::PinnedSite::Segment(12),
+                at: sweep::PinnedSite::Corner(0),
                 slab: 10,
             },
         ),
