@@ -109,3 +109,14 @@ and costs about 1 to 1.5 min of shard time on code PRs and 0 on
 docs-only runs (8 of 12 sampled). It would have caught about 80%.
 - Reform at `reform/a-stored-data-change-runs-none-of-the-slow-rows-that-read-it.md`.
 - 2026-11-22 — **P1 → P2, not built now (Ev, in chat).** Priced against what it saves: about 30 PR-hours of latency and 40 runner-hours a month (600 code PRs a month, about 3 runs each, about 1 min each), against about 80 to 115 lane-hours saved while main reds are bisected by hand, and about 12 to 45 once the nightly attribution (`dependents-slow-sets-skip-a-kernel-pr`, P1) names the breaking merge. So the attribution goes first. If anything here is built later, it is the censuses-only half, about 40 s for 51 of the month's incidents, and only if census reds still reach main a month after the attribution lands. Ev also asked whether these reds catch defects at all or mostly make test-only work; that is being measured, and a family that only ever re-baselines is a candidate for deletion rather than for wider running.
+
+## 2026-11-22: four more reds of the same shape, from one merge (SCALAR, PR 7267)
+
+PR 7159 (the told-quantity type, merge `bd8b2c9bb5`) changed three things: how a refusal spells an offered tolerance (`geom-core` `told.rs`, `predicate.rs`), the `Refused`/`Takes` sentences in `profile` `path/program.rs`, and a new file holding hand-written impls. Its gate ran none of the slow rows that read those, because no added line named them. The nightly would have been the first to see four reds:
+
+- topo `offer_rows::every_offered_tolerance_passes_just_below_it` and two `a_corner_reads_only_its_own_sectors` rows: they read the sentence's offer;
+- test-utils `hand_written_impl_census` (two rows): they read the tree's impls;
+- pncad-py `prose_census::tests::every_site_this_census_cannot_decide_is_named_with_its_reason`: it reads `program.rs`'s sentences;
+- geom-core `certified_endpoint_census::every_production_endpoint_read_is_counted_and_dispositioned`: it reads `interval.rs`.
+
+Since PR 7359 the step also selects the rows of a file the diff edits. None of these four is in a file that PR 7159 edited. Each reads production text, a shared helper's output, or the tree. The fix in PR 7267 had to name each row in a doc line before the gate would run it.
