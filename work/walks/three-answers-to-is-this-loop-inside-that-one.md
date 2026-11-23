@@ -2,12 +2,12 @@
 id: three-answers-to-is-this-loop-inside-that-one
 kind: issue
 title: three answers to "is this loop inside that one" with three boundary postures (shell::encloses, chord_join::rehome_rings, validate::ring_nesting), plus a fourth hand read of Surface::Plane's chart normal
-status: review
+status: closed
 opened: 2026-09-14
 priority: P1
 cost: M
-design: true
 branch: walks/loop-in-loop
+closed: 2026-11-23
 ---
 
 Filed by `tier3-accepts-a-ring-outside-its-outer-loop`'s fix pass, from
@@ -149,3 +149,7 @@ Premise moved; renames: `point_in_carrier_loop` → `splitting::containment::poi
   `validate::plane_gate`, returning the frame.
 - `section_loops::nest`'s one-point read says why one point is enough;
   `nest_slit`'s doc already did.
+
+## Closed
+
+2026-11-23: PR 7475 merged — `loop_side.rs` is the one home (the validator reading and the construction reading named for its premise); check 9 reports a ring on its outer loop at every vertex as meeting it; `point_in_loop` takes the plane's `Frame`; `shell::encloses` renamed to the concentric-pair order it decides.
