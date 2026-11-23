@@ -797,8 +797,9 @@ pub fn consumed_arm<T: geom_core::Real>(
 ///   face's measure takes too);
 /// - torus — the pair's coincidence reads no extent
 ///   ([`crate::tori_coincide`]), and the pair passes through;
-/// - cone — the angular data are read from the first apex, widened by
-///   the apexes' separation so the arm holds from either.
+/// - cone — the angular data are levered at the extent's reach from
+///   either apex ([`crate::ExtentBall::lever_from_either`]), so the arm
+///   holds whichever cone is turned about its own.
 ///
 /// Sphere pairs and mixed kinds carry no angular datum; they pass
 /// through with the arm read from the extent's centre.
@@ -831,7 +832,7 @@ fn at_consumed_extent<T: geom_core::Real>(
             )
         }
         (CarrierDesc::Cone { apex: p1, .. }, CarrierDesc::Cone { apex: p2, .. }) => {
-            return (*c1, *c2, reach.lever_from_within(p1, (p1 - p2).norm()));
+            return (*c1, *c2, reach.lever_from_either(p1, p2));
         }
         (c1, c2) => (c1, c2, centre),
     };
@@ -859,11 +860,12 @@ fn at_consumed_extent<T: geom_core::Real>(
 ///   plus `|n̂₁ − σ·n̂₂|·R`; σ is the decided orientation;
 /// - sphere — the centre separation plus the radius difference;
 /// - cylinder — the axis offset at `p` (the foot of `c` on the second
-///   axis) plus `t` times the reach from `p` (widened by that offset,
-///   so it holds from either axis), plus the radius difference;
+///   axis) plus `t` times the reach from `p` or from its foot on the
+///   first axis, whichever is farther (so it holds from either axis),
+///   plus the radius difference;
 /// - cone — the apexes' separation plus `t` and the half-angles'
-///   difference, times the reach from the first apex widened by that
-///   separation: a point at distance `s` from one apex has a partner on
+///   difference, times the reach from either apex, whichever is
+///   farther: a point at distance `s` from one apex has a partner on
 ///   the other cone at the same distance from its apex, on the nappe
 ///   `t` turns its own to, its generator turned by no more than those
 ///   two angles;
@@ -959,9 +961,14 @@ fn reading<T: Decide>(
             });
             // The datum's offset and radius ([`cylinder_offset`],
             // [`cylinder_radius`]); the tilt is the chord [`line_tilt`] at
-            // the reach widened by that offset, not the datum's sine.
+            // the reach from the offset's two ends, `pivot` and its foot on
+            // the first axis, not the datum's sine.
             let apart = cylinder_offset(o1, a1, pivot).value();
-            let arm = reach.lever_from_within(pivot, apart);
+            let first = geom::Line {
+                origin: o1,
+                dir: a1,
+            };
+            let arm = reach.lever_from_either(pivot, first.foot(pivot));
             let core = apart + Margin::levered(line_tilt(a1, a2), arm).value();
             (CYL_REACH, cylinder_radius(r1, r2).value().abs() + core)
         }
@@ -980,7 +987,7 @@ fn reading<T: Decide>(
             },
         ) => {
             let apart = (p1 - p2).norm();
-            let arm = reach.lever_from_within(p1, apart);
+            let arm = reach.lever_from_either(p1, p2);
             let core = apart + Margin::levered(line_tilt(a1, a2) + (t1 - t2).abs(), arm).value();
             (CONE_REACH, core)
         }
@@ -1491,6 +1498,67 @@ mod tests {
             CarrierRelation::Distinct,
             "at a 1000 km arm the tilt is definite: two carriers"
         );
+    }
+
+    /// The unit ball about `center`, read off a sphere's cover.
+    fn unit_ball(center: [f64; 3]) -> crate::ExtentBall<f64> {
+        let frame = geom::Frame::new(
+            Point3::new(center[0], center[1], center[2]),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        );
+        crate::ExtentBall::of_cover(&geom::cover::Cover::sphere(&frame, 1.0).unwrap())
+    }
+
+    /// **Two cones' angular data are levered at the extent's reach from
+    /// the farther apex.** Apexes at `(3, 0, 0)` and `(0, 5, 0)` and the
+    /// unit ball about the origin: the reach is 4 from the first and 6
+    /// from the second, so the arm is 6 in either order, and the
+    /// displacement bound is the apexes' separation plus the half-angles'
+    /// difference over it. Red against the first apex's reach alone (4)
+    /// and against that reach widened by the separation (`4 + √34`).
+    #[test]
+    fn two_cones_are_levered_from_the_farther_apex() {
+        let ball = unit_ball([0.0, 0.0, 0.0]);
+        let axis = [0.0, 0.0, 1.0];
+        let (one, other) = (
+            cone([3.0, 0.0, 0.0], axis, 0.5, true),
+            cone([0.0, 5.0, 0.0], axis, 0.51, true),
+        );
+        for (a, b) in [(&one, &other), (&other, &one)] {
+            let arm = consumed_arm(a, b, ball).length();
+            assert!((arm - 6.0).abs() < 1e-9, "{arm}");
+            let (_, upper) = reading(a, b, ball, 1.0).expect("two cones");
+            let want = 34.0_f64.sqrt() + 0.01 * 6.0;
+            assert!((upper - want).abs() < 1e-9, "{upper} against {want}");
+        }
+    }
+
+    /// **Two cylinders' tilt is levered at the extent's reach from the
+    /// farther end of their offset.** The second axis is `z`; the unit
+    /// ball about `(0, −2, 0)` puts the pivot at the origin, 3 from the
+    /// ball's far side. The first axis passes through `(1, 0, 0)`, the
+    /// pivot's foot on it, `√5 + 1` from the ball's far side: the arm.
+    /// Red against the pivot's reach alone (3) and against it widened by
+    /// the offset (4).
+    #[test]
+    fn two_cylinders_tilt_is_levered_from_the_offsets_farther_end() {
+        let ball = unit_ball([0.0, -2.0, 0.0]);
+        let first = cyl(
+            [1.0, 0.0, 0.0],
+            [0.0, 0.1_f64.sin(), 0.1_f64.cos()],
+            2.0,
+            true,
+        );
+        let second = cyl([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 2.0, true);
+        let (CarrierDesc::Cylinder { axis: a1, .. }, CarrierDesc::Cylinder { axis: a2, .. }) =
+            (first, second)
+        else {
+            unreachable!("two cylinders")
+        };
+        let (_, upper) = reading(&first, &second, ball, 1.0).expect("two cylinders");
+        let want = 1.0 + line_tilt(a1, a2) * (5.0_f64.sqrt() + 1.0);
+        assert!((upper - want).abs() < 1e-9, "{upper} against {want}");
     }
 
     /// The toroidal peg-in-bore row: one carrier, opposed material

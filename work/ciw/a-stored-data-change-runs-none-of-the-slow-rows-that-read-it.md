@@ -82,3 +82,14 @@ lane for a head-against-merge-base differential of the slow set, as
 BOXFINISH now does.
 
 - 2026-11-15 — **what the gap costs once a program compensates for it** (BOXFINISH orchestrator). After its merges left slow rows red on main, BOXFINISH requires a head-against-merge-base run of the slow set before any merge. In a lane's 4-vCPU container that is 45 to 70 minutes per tree for `topo`, `sweep` and `editor-core`, twice for the differential, and again after each merge of main: three units paid it on 2026-11-15 (PRs 6979, 6982, 6990), and PR 6972 about three hours of it. A hosted slow-set job on PRs that touch kernel sources would take this off every lane.
+
+## 2026-11-22: four more reds of the same shape, from one merge (SCALAR, PR 7267)
+
+PR 7159 (the told-quantity type, merge `bd8b2c9bb5`) changed three things: how a refusal spells an offered tolerance (`geom-core` `told.rs`, `predicate.rs`), the `Refused`/`Takes` sentences in `profile` `path/program.rs`, and a new file holding hand-written impls. Its gate ran none of the slow rows that read those, because no added line named them. The nightly would have been the first to see four reds:
+
+- topo `offer_rows::every_offered_tolerance_passes_just_below_it` and two `a_corner_reads_only_its_own_sectors` rows: they read the sentence's offer;
+- test-utils `hand_written_impl_census` (two rows): they read the tree's impls;
+- pncad-py `prose_census::tests::every_site_this_census_cannot_decide_is_named_with_its_reason`: it reads `program.rs`'s sentences;
+- geom-core `certified_endpoint_census::every_production_endpoint_read_is_counted_and_dispositioned`: it reads `interval.rs`.
+
+Since PR 7359 the step also selects the rows of a file the diff edits. None of these four is in a file that PR 7159 edited. Each reads production text, a shared helper's output, or the tree. The fix in PR 7267 had to name each row in a doc line before the gate would run it.
