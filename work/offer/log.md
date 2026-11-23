@@ -313,3 +313,14 @@ The local disk has 8 GB free and two lane targets are live, so these lanes run a
     - `Current`'s pairing is untyped;
     - style items, including one source for the beside-its-assertion rule.
   - **The fix pass** went to the lane with the #7557 port. No row (rule 12). (OFFER orchestrator)
+- 2026-11-23 16:25Z — **#7562 merged** (ca373503) at f9b31535: one offers function. All OFFER's P1 units have now landed.
+  - **The merge:** the orchestrator resolved a second main conflict itself. In `tools.rs` it kept main's datum functions with the PR's `hold_target`; in the gesture table it moved `AssertQuieting` to index 64, past main's `AddDatum`.
+  - **Verification** (orchestrator, local): at 43d380c2, 101/102 rows (the red is a flake, filed on GREEN) and 3/3 compile_fail doctests; at 77d14d6d, 45/45 plus 13/13; on the merged tree, 67/67, and clippy is clean.
+  - **The unit is closed.**
+  - **#7576 (kernel residue)** is in single review: session_013QoYWWfzMp4rzNLA6sxZTw.
+  - **Dispatched on Opus:**
+    - `viewer-pane-lines-spell-their-nodes-as-text`: session_013QoYWV9XkZLMg2qDsZc77R, branch `offer/pane-lines-are-sentences`;
+    - `the-wheels-modifier-decisions-are-outside-the-binding-table`: session_013QoYWVGtGVxZeqAdBE7szS, branch `offer/the-wheel-is-in-the-binding-table`.
+  - **Costed:** `the-body-a-placement-copies-has-three-answers` is M. It waits for the pane-lines PR, which shares `pane/create.rs`.
+  - **Held:** the four +design P2 rows, until Fable resets on Nov 28.
+  - No row (rule 12). (OFFER orchestrator)
