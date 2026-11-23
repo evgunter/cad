@@ -3458,6 +3458,9 @@ impl DocSession {
         // History ids are arena positions of the outgoing history.
         self.inserts.clear();
         self.forget_priced_delete();
+        // A bundle's scratch solve names a placement of the outgoing
+        // document, which the incoming one may hold by the same id.
+        self.landing = None;
     }
 
     /// Drop the kept delete rehearsal (`DocSession::priced`).

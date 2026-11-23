@@ -2,10 +2,13 @@
 id: denotes-body-enumerates-its-gaps-against-the-operand-door-and-misses-one
 kind: issue
 title: combine::denotes_body names two directions it differs from the operand door and there is a third
-status: open
+status: closed
 opened: 2026-09-21
 priority: P1
 cost: D
+pr: 7379
+branch: formwords/denotes-body
+closed: 2026-11-22
 ---
 
 
@@ -58,3 +61,7 @@ Every caller of `denotes_body` — `NodeKindWanted::Body`'s arm of
 `session::refuse::admits` is the one that makes it a gate, and the
 combining seats are the population it was written for. A taker asks
 of each whether a kind answer or a value answer is wanted.
+
+## Closed (2026-11-22)
+
+PR 7379. The probe no longer reproduces: the edit door's slot-kind check on `Doc::read_of_node` and D10 per-member evaluation closed it. `combine::denotes_body` is deleted, and its kind check lives once in `session::refuse::holds_body`, read by `admits` and `admits_read`. The doc states what the answer is, not a list of where it is wrong. The rows found in review are filed: the split-of-a-family panic (`a-split-of-a-family-has-no-halves-a-read-reaches`), the subtract by a family (closed by `[ev]` 7386), and implicit mapping itself (`a-family-read-at-a-body-seat-maps-implicitly`, ruled on `[ev]` 7409).

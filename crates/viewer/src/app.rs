@@ -803,25 +803,36 @@ pub(crate) struct DocumentDerived {
     /// number on screen is theirs and the badge would be claiming a
     /// choice it did not make.
     budget_delta: Option<crate::scene::FittedDelta>,
+    /// A field focused over the outgoing document is let go of,
+    /// unwritten, on the next frame
+    /// ([`crate::widgets::let_go_of_the_focused_edit`]): its typed text
+    /// was typed against that document, and the incoming one may hold
+    /// the same node and slot. Owed to the frame because the focus is
+    /// egui's, reached through the context a frame hands in.
+    release_focus: bool,
 }
 
 impl DocumentDerived {
-    /// A document has just arrived: both fits owed, no verdict yet.
+    /// A document has just arrived: both fits owed, no verdict yet, and
+    /// the focused field let go of.
     fn owed() -> Self {
         Self {
             fit_camera: true,
             fit_delta: true,
             budget_delta: None,
+            release_focus: true,
         }
     }
 
     /// The startup document: [`Self::owed`] except the camera fit,
     /// which `pending_fit` takes on the first frame over the startup
     /// mesh already drawn. Owing it again at the first landing would
-    /// re-frame a camera the user moved in between.
+    /// re-frame a camera the user moved in between. No field has been
+    /// focused yet, so none is owed a release.
     fn at_startup() -> Self {
         Self {
             fit_camera: false,
+            release_focus: false,
             ..Self::owed()
         }
     }
@@ -2343,6 +2354,9 @@ impl ViewerApp {
 
 impl eframe::App for ViewerApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        if core::mem::take(&mut self.derived.release_focus) {
+            crate::widgets::let_go_of_the_focused_edit(ui.ctx());
+        }
         self.sync_scene();
         let mut ops: Vec<SessionOp> = Vec::new();
         // The palette the chrome may switch to this frame. Collected
@@ -6250,6 +6264,88 @@ mod properties_pane_tests {
             );
             assert_ne!(hole_radius(&driven, profile), was, "the radius moved");
         }
+
+        /// The startup plate saved as another document (its own id, the
+        /// same node and variable ids) into a fresh folder; the hole's
+        /// radius typed as `typed` into the driven plate, its field
+        /// still focused. Answers the app, the profile, the path and
+        /// the folder.
+        fn typed_then_other() -> (Driven, RecipeNodeId, std::path::PathBuf, std::path::PathBuf) {
+            let dir = std::env::temp_dir().join(format!(
+                "typed across documents {} {:?}",
+                std::process::id(),
+                std::thread::current().id()
+            ));
+            std::fs::create_dir_all(&dir).expect("a scratch directory");
+            let path = dir.join("other.pncad");
+            let mut other =
+                ViewerApp::assemble(&egui::Context::default(), pncad::tolerance::witness())
+                    .expect("startup that needs no graphics device");
+            other.perform_batch(vec![SessionOp::Save(path.clone())]);
+            let (mut driven, profile) = plate_open();
+            let painted = driven.quiet();
+            let field = runs(&painted, "radius ")[0];
+            driven.click_at(field);
+            driven.frame(vec![key(egui::Key::A)]);
+            driven.frame(vec![egui::Event::Text("0.0123".to_owned())]);
+            assert_ne!(
+                hole_radius(&driven, profile),
+                Some(0.0123),
+                "not yet landed"
+            );
+            (driven, profile, path, dir)
+        }
+
+        /// **A field typed into and still focused when another document
+        /// is opened by the scripted door (no click took its focus)
+        /// writes nothing into that document** — whose profile holds the
+        /// same id — when the profile is selected again and the focus
+        /// then leaves.
+        #[test]
+        fn a_focused_typed_field_writes_nothing_into_the_document_opened_under_it() {
+            let (mut driven, profile, path, dir) = typed_then_other();
+            driven.perform(SessionOp::Open(path));
+            let was = hole_radius(&driven, profile);
+            driven.select(Selection::Node(profile));
+            driven.quiet();
+            driven.click_at(Driven::ELSEWHERE);
+            driven.settle();
+            let removed = std::fs::remove_dir_all(&dir);
+            assert_eq!(driven.app.session.history().len(), 1, "nothing landed");
+            assert_eq!(
+                hole_radius(&driven, profile),
+                was,
+                "the radius is the file's"
+            );
+            removed.expect("the row removes its folder");
+        }
+
+        /// [`a_focused_typed_field_writes_nothing_into_the_document_opened_under_it`]
+        /// with the open and the reselection in ONE batch, so no frame
+        /// draws without the field between them.
+        #[test]
+        fn a_focused_typed_field_writes_nothing_when_one_batch_opens_and_reselects() {
+            let (mut driven, profile, path, dir) = typed_then_other();
+            driven.app.perform_batch(vec![
+                SessionOp::Open(path),
+                SessionOp::Select(Selection::Node(profile)),
+            ]);
+            driven.quiet();
+            let was = hole_radius(&driven, profile);
+            driven.click_at(Driven::ELSEWHERE);
+            driven.settle();
+            let removed = std::fs::remove_dir_all(&dir);
+            assert_eq!(
+                (
+                    driven.app.session.history().len(),
+                    hole_radius(&driven, profile)
+                ),
+                (1, was),
+                "nothing landed, the radius is the file's: {}",
+                status(&driven)
+            );
+            removed.expect("the row removes its folder");
+        }
     }
 
     /// **A field committed lands as one undo step, and not before**,
@@ -8371,6 +8467,67 @@ mod properties_pane_tests {
         driven.perform(SessionOp::Open(path.clone()));
         let removed = std::fs::remove_dir_all(&dir);
         assert_eq!(driven.app.drafts.on_face, None, "open");
+        removed.expect("the row removes the document it saved");
+    }
+
+    /// **Another document minted by the same edits inherits nothing the
+    /// drafts held about this one** — the ordinary case, since every
+    /// startup plate holds the same node and variable ids. The naming
+    /// field opened on the extrude's depth is neither held nor drawn on
+    /// the other plate's extrude, whose depth reads an unnamed variable
+    /// of the same id, so no `Name` there renames it; and the face the
+    /// profile-on-a-face form latched is neither held nor marked.
+    #[test]
+    fn another_document_with_the_same_ids_inherits_no_held_draft() {
+        // A folder of its own: a save scans the folder it writes into.
+        let dir =
+            std::env::temp_dir().join(format!("drafts across documents {}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("a scratch directory");
+        let path = dir.join("other.pncad");
+        let mut other = ViewerApp::assemble(&egui::Context::default(), pncad::tolerance::witness())
+            .expect("startup that needs no graphics device");
+        other.perform_batch(vec![SessionOp::Save(path.clone())]);
+        let other_id = other.session.committed_doc().id();
+
+        let (mut driven, _top) = Driven::holding_the_top_cap();
+        driven.select(Selection::Node(extrude()));
+        driven.click("name\u{2026}");
+        let var = driven
+            .app
+            .drafts
+            .name_draft
+            .as_ref()
+            .map(|draft| draft.var)
+            .expect("the naming field is open");
+        assert_ne!(
+            driven.app.session.committed_doc().id(),
+            other_id,
+            "two documents"
+        );
+        driven.perform(SessionOp::Open(path.clone()));
+        let removed = std::fs::remove_dir_all(&dir);
+        driven.select(Selection::Node(extrude()));
+        let painted = driven.quiet();
+        let doc = driven.app.session.committed_doc();
+        assert_eq!(doc.id(), other_id, "the other plate is open");
+        assert_eq!(
+            (
+                doc.slot(extrude(), pncad::document::SlotId::Distance),
+                doc.var_name(var)
+            ),
+            (Some(var), None),
+            "its extrude's depth reads an unnamed variable of the same id"
+        );
+        assert!(
+            driven.app.drafts.name_draft.is_none(),
+            "the naming field is not held"
+        );
+        assert!(
+            !painted.iter().any(|(run, _)| run == "Name"),
+            "nor drawn: {painted:?}"
+        );
+        assert_eq!(driven.app.drafts.on_face, None, "the latch is not held");
+        assert_eq!(driven.app.drafts.marked_face(true), None, "nor marked");
         removed.expect("the row removes the document it saved");
     }
 
