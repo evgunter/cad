@@ -216,7 +216,7 @@ use crate::body::Body;
 use crate::chart_groups::ChartGroups;
 use crate::entity::{EntityId, FaceKey, LoopBoundary, SolidKey};
 use crate::face_normal::plane_desc_of;
-use crate::live::{linked, proven};
+use crate::live::proven;
 use crate::ray_walk::{self, Crossings, RayFault};
 use crate::side_reader::{SideUnread, side_at_infinity};
 use crate::splitting::containment::{
@@ -1389,14 +1389,8 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             .and_then(|v| body.get_point(v.point))
             .ok_or(PointInSolidError::CorruptFace { face })?;
         levels.push(axis_line.height_and_distance(v));
-        let edge = linked(
-            &body.edges,
-            he_data.edge,
-            EntityId::Edge,
-            EntityId::HalfEdge(he),
-            "edge",
-        );
-        let Some(curve) = body.edge_curve_linked(he_data.edge, edge).certified() else {
+        let edge = body.linked_edge(he_data.edge, EntityId::HalfEdge(he), "edge");
+        let Some(curve) = edge.certified() else {
             // Null scaffolding: no carrier, so no class claim and no
             // latitude of its own beyond the vertex above.
             continue;
@@ -3090,9 +3084,8 @@ fn wall_crosses_by_turn<T: Decide>(
             continue;
         }
         let Some(curve) = body
-            .get_edge(e.edge)
-            .and_then(|ed| body.get_curve_geom(ed.curve))
-            .and_then(crate::null::CurveGeom::certified)
+            .linked_edge(e.edge, crate::entity::EntityId::HalfEdge(e.half), "edge")
+            .certified()
         else {
             return Ok(None);
         };
@@ -3189,9 +3182,8 @@ fn loop_turn<T: Decide>(
         }
         let (a, b) = (at(e.ends[0])?, at(e.ends[1])?);
         let curve = body
-            .get_edge(e.edge)
-            .and_then(|ed| body.get_curve_geom(ed.curve))
-            .and_then(crate::null::CurveGeom::certified)
+            .edge(e.edge)
+            .and_then(crate::live::EdgeView::certified)
             .ok_or_else(corrupt)?;
         match *curve.carrier() {
             geom::Curve3::Line(_) => turn = turn + angle(a, b),
@@ -3240,19 +3232,18 @@ fn arc_turn<T: Decide>(
 /// **The point of half-edge `half`'s curve at fraction `f` of its span,
 /// as the half walks it**, and the curve's derivative there in that
 /// direction: the one reading of a half-edge's walk along its carrier.
-/// `None` where the half, its edge or its certified curve does not
-/// resolve.
+/// `None` where the half does not resolve, its edge does not claim it,
+/// or its edge is null scaffolding; the edge and its curve are links,
+/// whose miss panics.
 pub(crate) fn along_half<T: Decide>(
     body: &Body<T>,
     half: crate::entity::HalfEdgeKey,
     f: f64,
 ) -> Option<(Point3<T>, Vec3<T>)> {
     let edge = body.get_half_edge(half)?.edge;
-    let plus = body.edges.get(edge)?.claim(half)?.plus;
-    let curve = body
-        .get_edge(edge)
-        .and_then(|ed| body.get_curve_geom(ed.curve))
-        .and_then(crate::null::CurveGeom::certified)?;
+    let view = body.linked_edge(edge, crate::entity::EntityId::HalfEdge(half), "edge");
+    let plus = view.record().claim(half)?.plus;
+    let curve = view.certified()?;
     let (t0, t1) = curve.params();
     let t = t0 + (t1 - t0) * T::from_f64(if plus { f } else { 1.0 - f });
     let d = curve.carrier().deriv(t);
@@ -3270,9 +3261,8 @@ pub(crate) fn edge_clearance<T: Decide>(
 ) -> Option<T> {
     let at = |v| Some(*body.get_point(body.get_vertex(v)?.point)?);
     let curve = body
-        .get_edge(e.edge)
-        .and_then(|ed| body.get_curve_geom(ed.curve))
-        .and_then(crate::null::CurveGeom::certified)?;
+        .edge(e.edge)
+        .and_then(crate::live::EdgeView::certified)?;
     match *curve.carrier() {
         geom::Curve3::Line(_) => {
             let (a, b) = (at(e.ends[0])?, at(e.ends[1])?);

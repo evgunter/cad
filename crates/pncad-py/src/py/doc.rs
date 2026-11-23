@@ -706,7 +706,7 @@ pub(crate) fn name_from_text(text: &str) -> PyResult<pncad::prelude::StableName>
 /// the rest of each address holds
 /// an integer the word does not carry, so each refuses in its own
 /// sentence rather than as a misspelling.
-fn slot_from_text(word: &str) -> PyResult<d::SlotId> {
+pub(crate) fn slot_from_text(word: &str) -> PyResult<d::SlotId> {
     if let Some(slot) = crate::slot_word::slot_from_word(word) {
         return Ok(slot);
     }

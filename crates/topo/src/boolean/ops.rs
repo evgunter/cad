@@ -2244,9 +2244,10 @@ fn face_boundary_meets<T: Decide + Bounds>(
 ) -> bool {
     let view = body.proven_face(face);
     for member in view.boundary() {
-        let BoundaryMember::Edge { ek, .. } = member else {
+        let BoundaryMember::Edge { edge, .. } = member else {
             continue;
         };
+        let ek = edge.key();
         if boxes::edge_box(body, ek, pad).overlaps(region)
             && !crate::separating::apart(
                 (body, crate::separating::Item::Edge(ek)),
@@ -3170,10 +3171,10 @@ pub(crate) fn boundary_edges<T: Real>(
             continue;
         };
         for member in face.boundary() {
-            if let BoundaryMember::Edge { ek, .. } = member
-                && seen.insert(ek)
+            if let BoundaryMember::Edge { edge, .. } = member
+                && seen.insert(edge.key())
             {
-                edges.push((f, ek));
+                edges.push((f, edge.key()));
             }
         }
     }
@@ -3272,10 +3273,7 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
         let p1 = body.linked_vertex_point(v1, EntityId::HalfEdge(sides.plus.half_edge), "end");
         let surface_of = |side: crate::readback::EdgeSide| body.proven_face(side.face).surface();
         let (surf1, surf2) = (surface_of(sides.plus), surface_of(sides.minus));
-        let existing = body
-            .edge_curve_linked(edge, &edge_data)
-            .certified()
-            .cloned();
+        let existing = body.proven_edge(edge).certified().cloned();
         let draft = geom_brep::IntersectionDraft::of(existing.as_ref(), p0, p1);
         let (carrier, interval) = draft.span();
         let reach =
@@ -7406,15 +7404,13 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         for (_, members, _) in view.boundary_by_loop() {
             for member in members {
                 let BoundaryMember::Edge {
-                    half: hd,
-                    ek: edge,
-                    edge: ed,
-                    ..
+                    half: hd, edge: ed, ..
                 } = member
                 else {
                     return Err(refuse("the sphere face carries a lone-vertex loop"));
                 };
-                let Some(curve) = body.edge_curve_linked(edge, ed).certified() else {
+                let edge = ed.key();
+                let Some(curve) = ed.certified() else {
                     return Err(corrupt("cut-in: a boundary edge has no carrier"));
                 };
                 let (t0, t1) = curve.params();

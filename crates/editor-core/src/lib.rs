@@ -57,13 +57,10 @@ pub mod placement;
 pub mod pose;
 pub mod product;
 pub mod program;
-/// The certified locally-valid range of ONE field — the on-demand
-/// query whose answer is meant to REPLACE the sampling probe's
-/// reading, in a consumer nothing in this tree has built yet
-/// (`work/offer/certify-affordance-on-the-bounds-panel`,
-/// `work/pydoor/certified-range-has-no-python-door`). The certificate IS
-/// a [`mod@drive`]'s leaves, and a query that fell back to `f64` would
-/// be the sampler it exists to improve on.
+/// The certified locally-valid range of ONE field: a resumable search
+/// that proves, by replaying intervals under [`mod@drive`]'s leaf
+/// protocol, how far the field can move with the document the same
+/// build. A query that fell back to `f64` would be a sampler.
 pub mod range;
 mod ratio;
 pub mod refactor;
@@ -228,7 +225,9 @@ pub use program::{
     resolve_written_loops,
 };
 pub use range::{
-    CertifiedRange, DerivedRange, RangeField, RangeRefusal, RangeSeed, RangeSide, certified_range,
+    Admission, CertifiedRange, DerivedRange, DifferenceKind, NotDecided, ProvenDifferent,
+    RangeBudget, RangeField, RangeRefusal, RangeSearch, RangeSeed, RangeSide, SideEnd, Unproven,
+    certified_range,
 };
 pub use refactor::{
     FlattenError, FlattenOutcome, InlineError, InlineOutcome, NamedUncarried, NodeMap, RemapError,

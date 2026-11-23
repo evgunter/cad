@@ -16,7 +16,7 @@
 //! sliver. A control beside each poses the same dip under 1 m edges,
 //! where both readings agree. A dip inside the band still reads On, and
 //! the pose is a touch. The splitting lane's twin reads a line edge the
-//! same way, through the same reader (`geom::plane_offset`).
+//! same way, through `geom::plane_offset_rounded`.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;

@@ -28,7 +28,9 @@
 //!   `rounded_prism` + `washer` (Cylinder — the washer is two full
 //!   cylinder walls closed by planar annuli, not a torus), `ball` +
 //!   `sphere_wedge` (Sphere), `cone` + `cone_wedge` (Cone), `donut`
-//!   (Torus).
+//!   (Torus), and the filleted holes' bands (thin torus strips with one
+//!   slit whose chord points fall between the rows,
+//!   `the_one_slit_band.rs`) at the δ their rows read.
 //! - poles and apexes: `ball`'s two poles, `cone`'s apex,
 //!   `pole_crossing_half_cap` and `apex_crossing_bowtie` — the
 //!   witnesses whose meridian sides cross the singularity.
@@ -225,6 +227,16 @@ fn corpus() -> Vec<(&'static str, Body<f64>, [f64; 2])> {
             sweep::test_support::swept_elbow(Tol::witness()),
             [3e-3, 1e-2],
         ),
+        (
+            "filleted_hole_three_arcs",
+            filleted_plate(0.3, 1e-3, 3),
+            [1e-3, 3e-4],
+        ),
+        (
+            "filleted_hole_five_arcs",
+            filleted_plate(0.3, 5e-3, 5),
+            [3e-3, 1e-3],
+        ),
     ]
 }
 
@@ -304,11 +316,11 @@ const GOLDEN: &[(&str, [u64; 2])] = &[
     ("ball", [0x2b6c_6bff_a4ee_cfff, 0xc18b_5c43_8a0d_64ab]),
     (
         "sphere_wedge",
-        [0xc0e4_3c76_081e_10f3, 0x70f4_2f79_af65_0fee],
+        [0xc0e4_3c76_081e_10f3, 0xd0e1_7c1a_5ff9_9fee],
     ),
     ("cone", [0x9ec9_51c3_d7a6_353c, 0x5db8_4478_29ca_bfdf]),
     ("cone_wedge", [0x71ec_6787_8f4c_ac2d, 0x71ec_6787_8f4c_ac2d]),
-    ("donut", [0x1081_4893_347b_bbdd, 0x7628_fd94_3b85_d278]),
+    ("donut", [0xacba_ea8e_c424_d559, 0x0a73_f71a_a4fa_1618]),
     ("washer", [0x965c_cafc_821b_7545, 0x569e_8f0f_f9a7_3ad5]),
     (
         "tilted_above",
@@ -352,6 +364,14 @@ const GOLDEN: &[(&str, [u64; 2])] = &[
     (
         "swept_elbow",
         [0xca97_2f70_8e56_d5a9, 0xe8f8_263b_c340_6dd9],
+    ),
+    (
+        "filleted_hole_three_arcs",
+        [0x4093_41dc_b499_5952, 0x72f0_8b60_2ed6_4ac5],
+    ),
+    (
+        "filleted_hole_five_arcs",
+        [0x3fa0_ec1e_8060_4c49, 0xf006_75e0_3bb3_dc82],
     ),
 ];
 
