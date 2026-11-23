@@ -108,7 +108,8 @@ from pncad import (
     Ray,
     Selector,
     Severity,
-    SketchedOnFace,
+    Chain,
+    Orientation,
     Start,
     AuthoredStep,
     Piece,
@@ -650,17 +651,28 @@ outward: tuple[float, float, float] = (
 # not a string.
 carrier: SurfaceKind = seamed.face_carrier_kind(upright, cap_name)
 is_flat: bool = carrier == SurfaceKind.Plane
-# A sketch on that face: the body, an opaque name, the outline, the
-# depth and a DIMENSIONED spin, written as one action that answers its
-# four nodes.
-on_the_face: SketchedOnFace = doc.sketch_on_face(
-    upright, cap_name, circle((0 * m, 0 * m), 0.1 * m), 0.1 * m, Formula.angle_in(0.3, rad), label="boss"
+# A profile drawn on that face: the body, an opaque name and the
+# outline, with a DIMENSIONED spin and two slides, answering the one
+# profile node; the boss and the pocket are ordinary extrudes of it, by
+# a signed depth.
+boss_profile: NodeId = doc.draw_on_face(
+    upright,
+    cap_name,
+    circle((0 * m, 0 * m), 0.1 * m),
+    spin=Formula.angle_in(0.3, rad),
+    slides=(0.1 * m, Formula.length_in(0, m)),
+    label="boss",
 )
-boss_profile: NodeId = on_the_face.profile
-boss_extrude: NodeId = on_the_face.extrude
-boss_placement: NodeId = on_the_face.placement
-boss_union: NodeId = on_the_face.union
-on_the_face_level: SketchedOnFace = doc.sketch_on_face(upright, cap_name, circle((0 * m, 0 * m), 0.1 * m), 0.1 * m)
+boss_extrude: NodeId = doc.insert(Node.extrude(boss_profile, 0.1 * m))
+pocket_tool: NodeId = doc.insert(Node.extrude(boss_profile, -0.1 * m))
+# The orientation written, and a traced chain beside a closed loop.
+on_the_face_level: NodeId = doc.draw_on_face(
+    upright,
+    cap_name,
+    [Chain.at(0 * m, 0 * m).line(1 * m).line_to(Start), circle((0 * m, 0 * m), 0.1 * m)],
+    orient=Orientation.identity(),
+    traced=[(upright, cap_name)],
+)
 # The advisory checks: a report out of one door, a gate the caller
 # opens at the other, and the subject a finding names.
 report: ChecksReport = run_checks(doc, seamed)
