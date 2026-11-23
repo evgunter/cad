@@ -781,7 +781,7 @@ pub enum ReplaceFaceError<T: Real> {
     /// height, the overlap not clear of its tube, no section point
     /// certified beside it, or a box too wide for any of these) and whose
     /// tube refuses is refused here, read off the re-chart's refusal of
-    /// that edge (`EulerOpError::RechartFalsifies` with the tube's
+    /// that edge (`EulerOpError::DescriptionUncertified` with the tube's
     /// refusal).
     ///
     /// Standing ([`Self::refusal`]): a payload that mixes classes: aborts until it is split.
@@ -1267,12 +1267,8 @@ fn transport_curve<T: Decide>(
                     let delta = radial * d;
                     Some((translate_curve(curve, delta), Some(delta)))
                 }
-                Curve3::Circle(
-                    conic_k @ geom::Circle {
-                        frame: carrier_frame_40,
-                        ..
-                    },
-                ) => {
+                Curve3::Circle(conic_k) => {
+                    let carrier_frame_40 = &conic_k.frame();
                     let radius = conic_k.radius();
                     Some((
                         Curve3::Circle(geom::Circle::new(*carrier_frame_40, radius + d)),
@@ -1314,7 +1310,8 @@ fn transport_curve<T: Decide>(
                 // A parallel: `v` shifts by the action's own shift, and
                 // the circle re-mints against the action's own APEX —
                 // the slide the mint applies and this arm used to omit.
-                Curve3::Circle(geom::Circle { frame, .. }) => {
+                Curve3::Circle(circle_k) => {
+                    let frame = &circle_k.frame();
                     let v = (frame.origin() - apex).dot(axis) / cos_a;
                     let v_new = v + action.shift();
                     Some((
@@ -1345,12 +1342,8 @@ fn transport_curve<T: Decide>(
         } => {
             let (center, axis) = (carrier_frame.origin(), carrier_frame.axis());
             match curve {
-                Curve3::Circle(
-                    conic_k @ geom::Circle {
-                        frame: carrier_frame_39,
-                        ..
-                    },
-                ) => {
+                Curve3::Circle(conic_k) => {
+                    let carrier_frame_39 = &conic_k.frame();
                     let (c, ca) = (carrier_frame_39.origin(), carrier_frame_39.axis());
                     let radius = conic_k.radius();
                     // Meridian or parallel is a question about the STORED
@@ -1430,8 +1423,8 @@ fn mid_domain_normal<T: Decide>(s: &NurbsSurface<T>) -> Option<Vec3<T>> {
 pub(crate) fn translate_curve<T: Real>(curve: &Curve3<T>, delta: Vec3<T>) -> Curve3<T> {
     match curve {
         Curve3::Line(geom::Line { origin, dir }) => Curve3::line(*origin + delta, *dir),
-        Curve3::Circle(c) => Curve3::Circle(c.with_frame(c.frame.translated(delta))),
-        Curve3::Ellipse(e) => Curve3::Ellipse(e.with_frame(e.frame.translated(delta))),
+        Curve3::Circle(c) => Curve3::Circle(c.placed(|f| f.translated(delta))),
+        Curve3::Ellipse(e) => Curve3::Ellipse(e.translated(delta)),
         Curve3::Spiric {
             frame: carrier_frame,
             major_radius,
@@ -1455,12 +1448,8 @@ pub(crate) fn translate_curve<T: Real>(curve: &Curve3<T>, delta: Vec3<T>) -> Cur
 fn homothety<T: Real>(curve: &Curve3<T>, c: Point3<T>, k: T) -> Option<Curve3<T>> {
     let map = |p: Point3<T>| c + (p - c) * k;
     Some(match curve {
-        Curve3::Circle(
-            conic_k @ geom::Circle {
-                frame: carrier_frame_38,
-                ..
-            },
-        ) => {
+        Curve3::Circle(conic_k) => {
+            let carrier_frame_38 = &conic_k.frame();
             let radius = conic_k.radius();
             Curve3::Circle(geom::Circle::new(
                 carrier_frame_38.with_origin(map(carrier_frame_38.origin())),
@@ -2329,12 +2318,13 @@ pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
                 // carrier has no turn to choose, so a span that is not
                 // forward is the move's length.
                 (
-                    EulerOpError::Certification {
+                    EulerOpError::DescriptionUncertified {
                         error:
                             geom_brep::CertifyError::IntervalNotForward { .. }
                             | geom_brep::CertifyError::StatedInterval {
                                 refused: geom_brep::StatedSpan::Forward(_),
                             },
+                        ..
                     },
                     Some(offset),
                 ) => ReplaceFaceError::ReanchorCollapse { edge, offset },
@@ -2526,16 +2516,11 @@ fn cone_v_range<T: Decide>(
         // amplitude is the semi-axes' own components along the cone
         // axis. Taken over the FULL period, which is conservative on a
         // sub-arc and exact on a closed rim.
-        Curve3::Circle(
-            circle @ geom::Circle {
-                frame: carrier_frame_37,
-                ..
-            },
-        ) => {
+        Curve3::Circle(circle) => {
             let (center, ca, u_ref) = (
-                carrier_frame_37.origin(),
-                carrier_frame_37.axis(),
-                carrier_frame_37.u_ref(),
+                circle.frame().origin(),
+                circle.frame().axis(),
+                circle.frame().u_ref(),
             );
             let radius = circle.radius();
             let v_ref = ca.cross(u_ref);
@@ -2545,16 +2530,11 @@ fn cone_v_range<T: Decide>(
             let c = v_of(center);
             (c - amp, c + amp)
         }
-        Curve3::Ellipse(
-            ellipse @ geom::Ellipse {
-                frame: carrier_frame_36,
-                ..
-            },
-        ) => {
+        Curve3::Ellipse(ellipse) => {
             let (center, ca, u_ref) = (
-                carrier_frame_36.origin(),
-                carrier_frame_36.axis(),
-                carrier_frame_36.u_ref(),
+                ellipse.frame().origin(),
+                ellipse.frame().axis(),
+                ellipse.frame().u_ref(),
             );
             let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             let v_ref = ca.cross(u_ref);

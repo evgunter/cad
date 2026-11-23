@@ -87,7 +87,7 @@ fn dxf_quarter_arc_center_left_apex_right() {
             assert!((radius - std::f64::consts::SQRT_2).abs() < 1e-12);
             assert_eq!(turn, Sign::Positive, "positive bulge = CCW sweep");
         }
-        SegmentKind::Line => panic!("quarter arc must classify as an arc"),
+        SegmentKind::Line { .. } => panic!("quarter arc must classify as an arc"),
     }
     // The apex bows RIGHT of the chord direction (+x travel => below):
     // interior of this loop contains (1, 1) but NOT (1, -0.2) if the
@@ -547,7 +547,7 @@ fn near_full_arc_with_chord_closure_validates() {
             assert!(centre.x.abs() < 1e-9 && centre.y.abs() < 1e-9);
             assert!((radius - 1.0).abs() < 1e-9);
         }
-        SegmentKind::Line => unreachable!(),
+        SegmentKind::Line { .. } => unreachable!(),
     }
 }
 

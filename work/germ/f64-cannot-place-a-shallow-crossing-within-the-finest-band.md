@@ -16,7 +16,7 @@ refs: [3847]
 The near-tangent snowman (`crates/sweep/tests/snowman.rs`: balls r 1.0
 at `y = 0` and r 0.8 at `y = 1.8 − δ`), at ε 1e-12, after the circle ×
 sphere root slack was derived from the near extreme's own running
-rounding bound (`geom_brep::circle_sphere_harmonic`'s `lo`/`lo_error`,
+rounding bound (`geom_brep::circle_sphere_harmonic`'s `lo` and its bound `lo.error`, here `lo_error`,
 read by `circle_roots::first_harmonic_roots`):
 
 | δ | slope `√(−lo·hi)` | `lo_error` | slack (m) | outcome |

@@ -644,10 +644,10 @@ fn a_lofted_one_segment_section_is_one_spline_wall_with_a_wrap_strut() {
                 )
             });
         tiers(&one.body, what);
-        let [wall] = one.side_faces[li][0][..] else {
+        let [Some(wall)] = one.side_faces[li][0][..] else {
             panic!("{what}: one wall, got {:?}", one.side_faces[li]);
         };
-        let [strut] = one.seam_edges[li][0][..] else {
+        let [Some(strut)] = one.seam_edges[li][0][..] else {
             panic!("{what}: one strut, got {:?}", one.seam_edges[li]);
         };
         assert_eq!(

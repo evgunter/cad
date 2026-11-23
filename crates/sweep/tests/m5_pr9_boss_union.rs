@@ -49,7 +49,7 @@ fn the_boss_union_lands_end_to_end() {
             continue;
         };
         if let geom::Curve3::Circle(k) = *c.carrier()
-            && (k.frame.origin().z - 1.0).abs() < 1e-9
+            && (k.frame().origin().z - 1.0).abs() < 1e-9
             && (k.radius() - 0.5).abs() < 1e-9
         {
             seam_arcs += 1;

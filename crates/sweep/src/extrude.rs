@@ -106,7 +106,7 @@ use topo::{Body, EdgeKey, EulerOpError, FaceKey, ShellKey, SolidKey};
 use crate::swept;
 use crate::swept::{
     CapEnd, CosurfaceNames, Placing, SweptChord, Unit2, Unit3, cap_plane, decide, face_surface_key,
-    placed_segment_spec, sketch_chord, sketch_direction,
+    placed_segment_spec, sketch_chord,
 };
 
 /// The predicate names this verb's cosurface decision reports under
@@ -453,7 +453,7 @@ pub enum ExtrudeError {
     },
     /// An Euler operator or attachment gate refused — including every
     /// D4 ¶2 certification failure, which arrives as
-    /// [`EulerOpError::Certification`] carrying the certification
+    /// [`EulerOpError::DescriptionUncertified`] carrying the certification
     /// report.
     Op {
         /// The operator-layer failure.
@@ -623,7 +623,7 @@ pub(crate) fn wall_segments<T: Real>(lp: &ValidatedLoop<T>, reverse: bool) -> Ve
 /// outward by construction.
 fn wall_sense_of<T: Real>(s: &profile::ValidatedSegment<T>) -> bool {
     match s.kind {
-        SegmentKind::Line => true,
+        SegmentKind::Line { .. } => true,
         SegmentKind::Arc { turn, .. } => swept::centre_on_material_side(turn),
     }
 }
@@ -773,7 +773,7 @@ struct LoopBase {
 /// extrusion vectors, sliver dihedrals at joins, escalated cosurface
 /// decisions, and every operator/certification
 /// refusal (D4 ¶2 reports surface inside
-/// [`EulerOpError::Certification`]).
+/// [`EulerOpError::DescriptionUncertified`]).
 ///
 /// # Panics
 ///
@@ -1411,7 +1411,6 @@ fn side_surface<T: Real>(
         let key = face_surface_key(body, f);
         return FaceSurface::Shared { key, sense };
     }
-    let d = sketch_direction(&segs[j]);
     let surface = match segs[j].chord.kind.get() {
         // A line wall's origin is the middle of the wall, from the
         // construction alone: the placed start, half the segment's own
@@ -1427,10 +1426,10 @@ fn side_surface<T: Real>(
         // construction, so nothing is re-squared. Along a vector the
         // normal is a cross product normalized, which no frame's axis
         // is, and the wall is squared from its two directions.
-        SegmentKind::Line => {
+        SegmentKind::Line { .. } => {
+            let (d, length) = sketch_chord(&segs[j]);
             let along = place.direction(d);
             let half = T::from_f64(0.5);
-            let length = sketch_chord(&segs[j]).1;
             let origin = qs[j] + along.get() * (length * half) + sweep.w * half;
             let frame = match course {
                 // Along the normal the frame is turned onto the segment's
@@ -1460,7 +1459,7 @@ fn side_surface<T: Real>(
             };
             Surface::Plane { frame }
         }
-        SegmentKind::Arc { arc, turn } => {
+        SegmentKind::Arc { arc, turn, .. } => {
             // The carrier axis line is the arc's centre extruded:
             // `place · (centre, 0)` — the same computation the rim
             // carrier makes, so cylinder and BOTTOM rim circle agree

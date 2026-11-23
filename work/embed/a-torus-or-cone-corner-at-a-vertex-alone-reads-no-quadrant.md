@@ -48,3 +48,13 @@ bullet). The f64 cavity rows that still run out of pairs include tori
 (`verbs_shell::the_full_period_torus_shells_solid_and_hollow_alike`,
 `shell7_r2_probes`' tori). They were not traced to the cell, and this
 corner is one place they could be refusing.
+
+## 2026-11-23 — measured on a cone (`embed/cone-image`)
+
+A cone's corner of a ruling (or a rim's arc) and a section ellipse's
+focal image is now read where one of the two is shared
+(`reading`'s line arm and `Reading::Curve`). At a vertex the pair shares
+alone it is still `Structural`: `vertex_corner` takes a harmonic chart
+curve only and says so at its site. Five census tests stop there; they
+are listed in `departure-reads-no-curved-corner-off-its-shared-edge`
+(2026-11-23).

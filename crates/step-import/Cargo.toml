@@ -33,6 +33,9 @@ geom = { path = "../geom" }
 topo = { path = "../topo" }
 
 [dev-dependencies]
+# `test-support` ON for `geom::test_support`'s nets with a collapsed side,
+# which the healing rows share with `topo`'s; dev-only.
+geom = { path = "../geom", features = ["test-support"] }
 # The agreement pin of a certificate read by its support (geom-brep's
 # `read-pins-testing`), on in this crate's tests only.
 geom-brep = { path = "../geom-brep", features = ["read-pins-testing"] }

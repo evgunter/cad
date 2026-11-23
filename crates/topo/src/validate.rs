@@ -4609,6 +4609,9 @@ fn singularity_noun(point: geom_brep::chart_singularity::Singularity) -> &'stati
         geom_brep::chart_singularity::Singularity::Apex => "the apex of a cone",
         geom_brep::chart_singularity::Singularity::SheetApexUp
         | geom_brep::chart_singularity::Singularity::SheetApexDown => "an apex of a spindle sheet",
+        geom_brep::chart_singularity::Singularity::Side(_) => {
+            "a collapsed side of a spline surface"
+        }
     }
 }
 
@@ -5051,6 +5054,12 @@ impl ValidationError {
                         f,
                         "which side of a face's boundary on that surface {what} lies on cannot \
                          be read: the reading lies within its own error bound{}",
+                        ended(ending)
+                    ),
+                    Undecided::SplineSide => write!(
+                        f,
+                        "whether {what} lies in a face on that surface cannot be read: it is off \
+                         the face's boundary, and no side is read through a spline chart yet{}",
                         ended(ending)
                     ),
                 }
@@ -8383,12 +8392,14 @@ pub(crate) fn tier3_local_checks_marked<
     // the pole read below for a member whose own boundary encodes no side.
     let mut regions = crate::props::read_seam_regions(body, body.faces.keys(), band);
     // Each sphere, cone and spindle face's loops as this arm flattens
-    // them, kept for the chart-singularity arm below. A sphere or cone
+    // them, and each spline face's with a collapsed side, kept for the
+    // chart-singularity arm below. A sphere or cone
     // face is kept once its side is read (a face whose images refuse is
     // exempt there, as here); a spindle face as soon as its loops
     // flatten, since its apex must be shown clear whatever this arm
     // reads, and one whose loops do not flatten is kept in `unflattened`
-    // and refused there unshown.
+    // and refused there unshown, as a spline face with a collapsed side
+    // whose loops do not flatten is.
     let mut flattened: SecondaryMap<FaceKey, FlatLoops<T>> = SecondaryMap::new();
     let mut unflattened: Vec<FaceKey> = Vec::new();
     for region in &regions {
@@ -8404,7 +8415,22 @@ pub(crate) fn tier3_local_checks_marked<
             // Planar: the Newell arm above. Spline charts: the quadrature lane
             // is winding-derived end to end, bit-free by design (S10
             // module docs) — recorded residual, out of this arm's
-            // scope.
+            // scope. A spline face with a collapsed side is kept for the
+            // chart-singularity arm below, which reads its loops alone.
+            // One whose loops do not flatten is kept in `unflattened`, as
+            // a spindle face is, and its sides refused there unshown.
+            if !geom_brep::chart_singularity::singular_points(surface).is_empty() {
+                match face
+                    .loop_keys()
+                    .map(|l| crate::props::loop_edges(body, l))
+                    .collect::<Result<FlatLoops<T>, _>>()
+                {
+                    Ok(full) => {
+                        flattened.insert(face_key, full);
+                    }
+                    Err(_) => unflattened.push(face_key),
+                }
+            }
             continue;
         }
         // Every loop's chart image: a cylinder face reads its side off
@@ -8516,17 +8542,26 @@ pub(crate) fn tier3_local_checks_marked<
     // ------------------------------------------------------------------
     let sheet_unshown = |face: FaceKey, errors: &mut Vec<ValidationError>| {
         use geom_brep::chart_singularity::{Singularity, singular_points};
-        let Some(chart) = body
+        let Some(surface) = body
             .faces
             .get(face)
             .and_then(|f| body.surfaces.get(f.surface))
-            .and_then(|s| geom::ChartInverse::of(s).ok())
         else {
             return;
         };
-        for (point, _) in singular_points(&chart) {
-            if matches!(point, Singularity::SheetApexUp | Singularity::SheetApexDown) {
-                errors.push(ValidationError::SheetApexReached { face, point });
+        for (point, _) in singular_points(surface) {
+            match point {
+                Singularity::SheetApexUp | Singularity::SheetApexDown => {
+                    errors.push(ValidationError::SheetApexReached { face, point });
+                }
+                // A spline face's side, unplaced: no side is read through
+                // a spline chart, and its loops gave nothing to place it on.
+                Singularity::Side(_) => errors.push(ValidationError::ChartSingularityUndecided {
+                    face,
+                    point,
+                    reading: geom_brep::chart_singularity::Undecided::SplineSide,
+                }),
+                Singularity::North | Singularity::South | Singularity::Apex => {}
             }
         }
     };
@@ -8544,9 +8579,10 @@ pub(crate) fn tier3_local_checks_marked<
         else {
             continue; // unreachable: the curved arm read both
         };
-        let Ok(chart) = geom::ChartInverse::of(surface) else {
-            continue; // no chart, no singular point
-        };
+        let points = singular_points(surface);
+        if points.is_empty() {
+            continue;
+        }
         let Some(corners) = flat
             .iter()
             .map(|(_, hes)| {
@@ -8585,7 +8621,7 @@ pub(crate) fn tier3_local_checks_marked<
                 .collect()
         };
         let sense = body.faces.get(face_key).is_some_and(|f| f.sense);
-        for (point, x) in singular_points(&chart) {
+        for (point, x) in points {
             let face = face_key;
             let sheet_apex = matches!(
                 point,
@@ -8648,6 +8684,18 @@ pub(crate) fn tier3_local_checks_marked<
                                 errors.push(ValidationError::SheetApexReached { face, point });
                             }
                         }
+                    }
+                    // A spline net's collapsed side the face's door does
+                    // not place: no reading through a spline chart states
+                    // its side yet.
+                    Ok(None)
+                        if matches!(point, geom_brep::chart_singularity::Singularity::Side(_)) =>
+                    {
+                        errors.push(ValidationError::ChartSingularityUndecided {
+                            face,
+                            point,
+                            reading: Undecided::SplineSide,
+                        });
                     }
                     Ok(Some(false) | None) => {}
                     // The door's boundary reading in band is the same
@@ -9872,7 +9920,12 @@ fn ring_outer_meeting<T: Decide>(
         crate::contain::loop_circle(body, ring, band),
     ) {
         return match circle_pair(
-            circles_of(o.frame.origin(), o.radius(), r.frame.origin(), r.radius()),
+            circles_of(
+                o.frame().origin(),
+                o.radius(),
+                r.frame().origin(),
+                r.radius(),
+            ),
             band,
         ) {
             Ok(CirclePair::Apart | CirclePair::Nested) => RingOuterVerdict::Disjoint,
@@ -10012,16 +10065,11 @@ fn meet_segment<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<(EdgeKey, Me
             let (a, b) = edge_endpoints(body, he)?;
             MeetSegment::Line { a, b }
         }
-        geom::Curve3::Circle(
-            circle @ geom::Circle {
-                frame: carrier_frame_47,
-                ..
-            },
-        ) => {
+        geom::Curve3::Circle(circle) => {
             let (center, axis, u_ref) = (
-                carrier_frame_47.origin(),
-                carrier_frame_47.axis(),
-                carrier_frame_47.u_ref(),
+                circle.frame().origin(),
+                circle.frame().axis(),
+                circle.frame().u_ref(),
             );
             let radius = circle.radius();
             let (t0, t1) = geom.params();
@@ -10256,12 +10304,12 @@ fn lines_meet<T: Decide>(
                    p1: geom_core::Point3<T>| {
         const ROW: &str = "ring_outer_meet_overlap";
         let along = on_one_line(e, (o0, o1), (p0, p1), T::zero());
-        let lower = match decide_reported(ROW, Margin::of(along.extent() - along.noise), band) {
+        let lower = match decide_reported(ROW, Margin::of(along.overlap().lower_end()), band) {
             Ok(d) if matches!(d.sign, Sign::Positive | Sign::Zero) => return EdgePair::Meet,
             Ok(d) => d,
             Err(source) => return EdgePair::Unsure(source),
         };
-        match decide_reported(ROW, Margin::of(along.extent() + along.noise), band) {
+        match decide_reported(ROW, Margin::of(along.overlap().upper_end()), band) {
             Ok(d) if d.sign == Sign::Negative => EdgePair::Apart,
             Ok(upper) => EdgePair::Unsure(geom_core::k_stats::straddle(ROW, lower, upper, band)),
             Err(source) => EdgePair::Unsure(source),
@@ -10433,14 +10481,9 @@ enum RingNestingVerdict {
 /// Does `ring` lie inside the region `outer` bounds, both loops of one
 /// planar face whose chart normal [`plane_chart_normal`] read as `normal`?
 ///
-/// The ring's VERTICES are the queries, in cycle order, and the walk
-/// takes the first definite verdict it reaches — `Out` reports, `In`
-/// accepts. That is what keeps an escalation at one vertex from
-/// refusing a ring another vertex has already placed inside, and it
-/// is why the witness reported is the FIRST vertex in cycle order
-/// that read outside rather than a distinguished one. An `OnBoundary`
-/// is the disjointness half's question, not this one, so it settles
-/// nothing here and the walk moves to the next vertex.
+/// The ring's VERTICES are the queries, in cycle order. An
+/// `OnBoundary` is the disjointness half's question, not this one, so
+/// it places nothing here.
 ///
 /// **One instrument, every class**:
 /// [`crate::splitting::containment::point_in_loop`], which reads each outer
@@ -10464,7 +10507,8 @@ enum RingNestingVerdict {
 /// vertex, and a ring no vertex of which was placed is
 /// [`RingNestingVerdict::Undecided`].
 ///
-/// **Every vertex of the ring is read** ([`crate::loop_side`]). A ring
+/// **Every vertex of the ring is read**
+/// ([`crate::loop_side::inside_at_every_vertex`]). A ring
 /// disjoint from the outer boundary is a connected curve in one
 /// component of the plane minus that boundary, so its vertices place
 /// alike, whatever curve joins them, arcs and whole circles included.
@@ -10479,9 +10523,11 @@ enum RingNestingVerdict {
 /// arm 1's, but arms 2, 3 and 5 have no locus or meeting point for that
 /// edge (check 9's banner lists the residue). So no vertex is taken for
 /// the rest: a ring whose vertices place on both sides crosses the
-/// outer loop and is [`RingNestingVerdict::Outside`] at a vertex placed
-/// outside, whichever the walk reads first. A crossing that places no
-/// vertex outside (an edge bowing out between inside vertices) is the
+/// outer loop and is [`RingNestingVerdict::Outside`] at the first vertex
+/// in cycle order placed outside; otherwise a vertex placed inside
+/// accepts, so an escalation at one vertex does not refuse a ring
+/// another vertex placed inside. A crossing that places no vertex
+/// outside (an edge bowing out between inside vertices) is the
 /// contact arms' alone.
 ///
 /// **Why a `Disc`-class ring gets no second instrument** — the one
@@ -10574,8 +10620,8 @@ fn locus_gap<T: Real>(carrier: &geom::Curve3<T>, p: geom_core::Point3<T>) -> Opt
         geom::Curve3::Line(line) => Some(line.distance(p)),
         // The distance from a point to a full circle: the in-plane
         // radial defect and the out-of-plane offset, in quadrature.
-        geom::Curve3::Circle(circle @ geom::Circle { frame, .. }) => {
-            let (center, axis) = (frame.origin(), frame.axis());
+        geom::Curve3::Circle(circle) => {
+            let (center, axis) = (circle.frame().origin(), circle.frame().axis());
             let radius = circle.radius();
             let (along, rho) = geom::Line {
                 origin: center,
@@ -12152,6 +12198,42 @@ mod tests {
     use crate::props::Certified;
     use crate::seqgen;
     use crate::test_support_fixtures::{declined_cube, plane_every_face, plant_ring_face};
+
+    /// **Collinear spans a rounding apart do not meet.** Two collinear
+    /// spans 3 km long at ε = 10⁻¹², the second starting past the first's
+    /// end by half their overlap's charge (`10⁻¹¹`, past the band's
+    /// escalation): their gap is within its rounding of zero, so the
+    /// overlap's lower end is definitely negative and its upper end is
+    /// not, a straddle. Read at the upper end for both,
+    /// the overlap reaches zero and the pair is read as meeting.
+    #[test]
+    fn collinear_spans_a_rounding_apart_do_not_meet() {
+        let band = Band::new(1e-12, 1e-11).unwrap();
+        let x = geom_core::Vec3::new(1.0, 0.0, 0.0);
+        let len = 3000.0;
+        let at = |t: f64| Point3::new(t, 0.0, 0.0);
+        let noise =
+            geom_core::one_line::on_one_line(x, (at(0.0), at(len)), (at(len), at(2.0 * len)), 0.0)
+                .noise;
+        let gap = noise / 2.0;
+        let got = lines_meet(
+            at(0.0),
+            at(len),
+            at(len + gap),
+            at(2.0 * len),
+            geom_core::Vec3::new(0.0, 0.0, 1.0),
+            band,
+        );
+        assert!(
+            matches!(got, EdgePair::Unsure(_)),
+            "a gap of {gap:e} within its charge reads {:?}",
+            match got {
+                EdgePair::Apart => "apart",
+                EdgePair::Meet => "meeting",
+                EdgePair::Unsure(_) => "unsure",
+            }
+        );
+    }
 
     /// **An open round and an unresolved one stay apart once the
     /// schedule runs out**: a sign undecided about the body itself keeps

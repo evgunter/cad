@@ -4605,10 +4605,7 @@ type Image = (
 /// `lift`** ([`injective::ChartCurve`]): a harmonic row, a spiric's wall
 /// image, or a focal section's image whose numbers make its azimuth
 /// monotone ([`injective::Focal::of`]); `None` for every other image.
-fn curve_of<T: CertifiedBounds>(
-    p: &Pcurve<T>,
-    lift: Lift<'_, T>,
-) -> Option<injective::ChartCurve> {
+fn curve_of<T: CertifiedBounds>(p: &Pcurve<T>, lift: Lift<'_, T>) -> Option<injective::ChartCurve> {
     use injective::ChartCurve;
     if let Pcurve::FocalSection(f) = *p {
         let image = geom_brep::FocalImage {

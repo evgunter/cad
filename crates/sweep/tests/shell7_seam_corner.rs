@@ -143,9 +143,10 @@ fn the_seam_vertex_moves_concentrically_at_its_old_azimuth() {
     let (mut meridians, mut equators) = (0, 0);
     for &(e, _) in &out.naming.inner_edges {
         let (c, (t0, t1)) = carrier(cavity, e);
-        let Curve3::Circle(conic_k @ geom::Circle { frame, .. }) = c else {
+        let Curve3::Circle(conic_k) = c else {
             panic!("{e:?}: a torus seam is a circle, got {c:?}");
         };
+        let frame = conic_k.frame();
         let (center, axis) = (frame.origin(), frame.axis());
         let radius = conic_k.radius();
         let (rho_c, h_c) = axial(center);
@@ -792,7 +793,7 @@ fn a_line_profile_beside_one_meridian_cap_refuses_at_the_direct_door() {
 ///
 /// The old doors, verbatim: check 7's `VolumeUncomputable` at a
 /// spiric-bounded cap (`Unimplemented`); before it `Face { error: Op {
-/// edge: None, error: RechartFalsifies { edge: EdgeKey(1v1), error:
+/// edge: None, error: DescriptionUncertified { edge: Keyed(EdgeKey(1v1)), error:
 /// IntervalNotForward { margin: −1.413716694115407 } } } }` — the rim
 /// window read backwards by `π·r′` on `atan2`'s branch cut; before it
 /// the seams' re-author (`offset_axial_reauthor_plane`), and before

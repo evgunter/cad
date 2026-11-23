@@ -96,7 +96,7 @@
 //! write is not something this API can express, which is a stronger
 //! statement than one it does not perform.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 use geom_core::interval::Interval;
@@ -618,6 +618,31 @@ pub enum RefusalReason {
     /// partial answer, and never a leaf quietly dropped from the
     /// receipt.
     Budget(BudgetKind),
+    /// The leaf's deciding node, the first node in evaluation order
+    /// that did not settle, reads no variable of the box, so both
+    /// halves of any split replay it on the inputs it had here. Not a
+    /// budget: no setting changes it.
+    ReadsNoVariable {
+        /// The deciding node.
+        node: RecipeNodeId,
+        /// What it did instead of settling.
+        unsettled: Unsettled,
+    },
+}
+
+/// How a leaf's deciding node left the leaf unsettled.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Unsettled {
+    /// A decision of its own came back indeterminate.
+    Undecided,
+    /// It failed typed, for a reason the driver does not prove definite
+    /// over the box and so does not read as a flip.
+    Failed {
+        /// Which failure, without its payload.
+        class: crate::NodeErrorClass,
+        /// The failure as the document speaks it.
+        cause: String,
+    },
 }
 
 impl RefusalReason {
@@ -629,6 +654,7 @@ impl RefusalReason {
             Self::Bifurcation(_) => ReasonClass::Bifurcation,
             Self::Infeasible => ReasonClass::Infeasible,
             Self::Budget(_) => ReasonClass::Budget,
+            Self::ReadsNoVariable { .. } => ReasonClass::ReadsNoVariable,
         }
     }
 }
@@ -636,7 +662,8 @@ impl RefusalReason {
 /// Which bound stopped the refinement.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BudgetKind {
-    /// The split axis had already been bisected
+    /// Every variable the deciding node reads that the `f64` grid can
+    /// still split had already been bisected
     /// [`DriveConfig::max_depth`] times.
     Depth {
         /// The bound.
@@ -648,8 +675,9 @@ pub enum BudgetKind {
         /// The bound.
         max_leaves: usize,
     },
-    /// The box could not be bisected: its midpoint on the split axis
-    /// lands on an endpoint, so the `f64` grid itself is the bound.
+    /// The box could not be bisected: on every variable the deciding
+    /// node reads the midpoint lands on an endpoint, so the `f64` grid
+    /// itself is the bound.
     /// A work bound like the other two, and typed separately because
     /// widening a budget does not move it.
     Resolution,
@@ -668,6 +696,8 @@ pub enum ReasonClass {
     Infeasible,
     /// [`RefusalReason::Budget`].
     Budget,
+    /// [`RefusalReason::ReadsNoVariable`].
+    ReadsNoVariable,
 }
 
 impl ReasonClass {
@@ -679,6 +709,7 @@ impl ReasonClass {
             Self::Bifurcation => "bifurcation",
             Self::Infeasible => "infeasible",
             Self::Budget => "budget",
+            Self::ReadsNoVariable => "reads_no_variable",
         }
     }
 }
@@ -991,6 +1022,33 @@ impl ParamBoxVerdict {
         }
         for (class, n) in &classes {
             let _ = writeln!(s, "  {n} leaf/leaves refused {class}");
+            if *class != ReasonClass::ReadsNoVariable.name() {
+                continue;
+            }
+            // Each node once, with what it did.
+            let named: BTreeMap<RecipeNodeId, &Unsettled> = self
+                .refused
+                .iter()
+                .filter_map(|leaf| match &leaf.reason {
+                    RefusalReason::ReadsNoVariable { node, unsettled } => Some((*node, unsettled)),
+                    _ => None,
+                })
+                .collect();
+            for (node, unsettled) in named {
+                let said = doc.spoken(node);
+                let _ = match unsettled {
+                    Unsettled::Undecided => writeln!(
+                        s,
+                        "    {said} is undecided and reads no variable of the box: \
+                         no split changes it"
+                    ),
+                    Unsettled::Failed { cause, .. } => writeln!(
+                        s,
+                        "    {said} fails and reads no variable of the box: \
+                         no split changes it ({cause})"
+                    ),
+                };
+            }
         }
         let d = self.decisions;
         if d != SymCounts::default() {
@@ -1274,6 +1332,8 @@ pub fn drive(
     }
     let witness_vector = Arc::new(certifying_vector(doc, &witness));
     let witness_key = witness_vector.key();
+    // What each node reads is the document's, so it is taken once.
+    let reads = doc.free_reads();
     // The witness EVALUATION stays alive for the whole drive, not just
     // long enough to take its vector: `diff_verdicts` names a leaf's
     // turns against it, and the engine takes the two evaluations rather
@@ -1380,31 +1440,50 @@ pub fn drive(
                 // held either way — nothing was ever dropped — but
                 // "how many leaves one drive may produce" has to be
                 // the number it says.
-                LeafVerdict::Bisect => {
+                //
+                // A deciding node that reads nothing of the box is asked
+                // first: no budget is why that leaf stops.
+                LeafVerdict::Bisect {
+                    deciding,
+                    unsettled,
+                } => {
                     let pending = level - i - 1;
                     let committed = certified.len() + refused.len() + pending + next.len();
-                    if committed + 2 > config.max_leaves {
-                        refused.push(RefusedLeaf {
-                            box_: b.box_,
-                            reason: RefusalReason::Budget(BudgetKind::Leaves {
+                    // Every node an evaluation orders is a node of the
+                    // document, and `free_reads` holds every one.
+                    debug_assert!(
+                        reads.contains_key(&deciding),
+                        "the deciding node {deciding:?} is in no read set"
+                    );
+                    let split = bisect(
+                        &b,
+                        &root,
+                        reads.get(&deciding).unwrap_or(&BTreeSet::new()),
+                        config.max_depth,
+                    );
+                    let reason = match split {
+                        Err(Unsplit::Unread) => RefusalReason::ReadsNoVariable {
+                            node: deciding,
+                            unsettled,
+                        },
+                        _ if committed + 2 > config.max_leaves => {
+                            RefusalReason::Budget(BudgetKind::Leaves {
                                 max_leaves: config.max_leaves,
-                            }),
-                            decisions: counts,
-                        });
-                    } else {
-                        match bisect(&b, &root, config.max_depth) {
-                            Ok((a, c)) => {
-                                splits += 1;
-                                next.push(a);
-                                next.push(c);
-                            }
-                            Err(kind) => refused.push(RefusedLeaf {
-                                box_: b.box_,
-                                reason: RefusalReason::Budget(kind),
-                                decisions: counts,
-                            }),
+                            })
                         }
-                    }
+                        Err(Unsplit::Budget(kind)) => RefusalReason::Budget(kind),
+                        Ok((a, c)) => {
+                            splits += 1;
+                            next.push(a);
+                            next.push(c);
+                            continue;
+                        }
+                    };
+                    refused.push(RefusedLeaf {
+                        box_: b.box_,
+                        reason,
+                        decisions: counts,
+                    });
                 }
             }
         }
@@ -1497,7 +1576,13 @@ struct Box_ {
 enum LeafVerdict {
     Certified(CertifiedLeaf),
     Refused(RefusalReason),
-    Bisect,
+    /// Unsettled at `deciding`, the first node in evaluation order
+    /// that did not settle: the node whose reads choose the split
+    /// ([`bisect`]).
+    Bisect {
+        deciding: RecipeNodeId,
+        unsettled: Unsettled,
+    },
 }
 
 /// The leaf protocol: replay this box at the configured lane scalar and
@@ -1650,16 +1735,16 @@ fn classify_replay<T: topo::AtRestPolicy + geom_core::Decide>(
     // `work/verdict/should-classify-replays-error-enum-arms-be-deleted.md`
     // holds. What HAS been discharged is the precondition the arms were
     // kept for: the log now carries the op-minted escalations too.
-    // ITERATION ORDER IS THE LEAF'S EVALUATION ORDER, and where a leaf
-    // carries several refusing nodes that decides which one speaks: the
-    // FIRST indeterminacy in that order settles the leaf as a sliver or
-    // a bisect, and a definite structure flip at a later node never
-    // gets to argue. Deterministic (the schedule's order, the same in
-    // both schedules) and the node the author placed first where the
-    // DAG leaves a choice, but not a ranking of causes. It is stated
-    // rather than defended because nothing downstream depends on which
-    // cause wins: every arm here is refused mass either way, and the
-    // receipt does not change.
+    // ITERATION ORDER IS THE LEAF'S EVALUATION ORDER, AND THE SPLIT
+    // DEPENDS ON IT: the FIRST node in that order that did not settle
+    // decides the leaf as a sliver or a bisect, a definite structure
+    // flip at any node never gets to argue against it, and that node is
+    // the leaf's DECIDING node, whose reads are the only variables the
+    // leaf may be split on ([`bisect`]). Every node before it settled
+    // (definitely, on the witness's branch or on another), so its
+    // inputs are definite over the leaf and a split of what it reads is
+    // the only one that can change what it says. Deterministic (the
+    // schedule's order, the same in both schedules).
     let mut structure_flips = Vec::new();
     for (node, result) in leaf
         .order
@@ -1672,8 +1757,8 @@ fn classify_replay<T: topo::AtRestPolicy + geom_core::Decide>(
             NodeResult::Poisoned { .. } => continue,
         };
         // (1) The escalation log.
-        if let Some(verdict) = log_read(escalations) {
-            return verdict;
+        if let Some(undecided) = log_read(escalations) {
+            return undecided.at(node);
         }
         // (2) The error-enum arms.
         let Some(err) = failure else {
@@ -1683,13 +1768,15 @@ fn classify_replay<T: topo::AtRestPolicy + geom_core::Decide>(
             NodeErrorKind::Escalated { source, .. }
             | NodeErrorKind::MeasureEscalated { source, .. }
             | NodeErrorKind::PlacementAxisEscalated { source, .. }
-            | NodeErrorKind::PoseDirectionEscalated { source, .. } => return indeterminate(source),
+            | NodeErrorKind::PoseDirectionEscalated { source, .. } => {
+                return indeterminate(source).at(node);
+            }
             NodeErrorKind::ProfileLaneReplay {
                 structure: Some(refusal),
                 ..
             } => match &refusal.kind {
                 profile::StructureRefusalKind::Indeterminate { source, .. } => {
-                    return indeterminate(source);
+                    return indeterminate(source).at(node);
                 }
                 profile::StructureRefusalKind::Flipped { .. } => {
                     structure_flips.push(StructureFlip {
@@ -1698,7 +1785,15 @@ fn classify_replay<T: topo::AtRestPolicy + geom_core::Decide>(
                     });
                 }
             },
-            _ => return LeafVerdict::Bisect,
+            _ => {
+                return LeafVerdict::Bisect {
+                    deciding: node,
+                    unsettled: Unsettled::Failed {
+                        class: err.kind.class(),
+                        cause: err.kind_spoken(doc),
+                    },
+                };
+            }
         }
     }
 
@@ -1752,44 +1847,99 @@ fn classify_replay<T: topo::AtRestPolicy + geom_core::Decide>(
     })
 }
 
+/// What one escalation makes of the node that holds it.
+#[derive(Debug, PartialEq, Eq)]
+enum Undecided {
+    /// Its enclosure sits wholly inside the band: a terminal sliver,
+    /// naming the predicate.
+    Sliver(&'static str),
+    /// The cue to bisect.
+    Refinable,
+}
+
+impl Undecided {
+    /// The leaf's verdict when `node` is the one that holds it.
+    fn at(self, node: RecipeNodeId) -> LeafVerdict {
+        match self {
+            Self::Sliver(predicate) => {
+                LeafVerdict::Refused(RefusalReason::SliverTerminal { predicate })
+            }
+            Self::Refinable => LeafVerdict::Bisect {
+                deciding: node,
+                unsettled: Unsettled::Undecided,
+            },
+        }
+    }
+}
+
 /// Read (1) of [`classify_replay`]: what a node's escalation log makes
-/// of the leaf — its FIRST escalation speaks — or `None` for an empty
+/// of the node — its FIRST escalation speaks — or `None` for an empty
 /// log, which leaves the node to read (2).
-fn log_read(escalations: &[geom_core::k_stats::Escalation]) -> Option<LeafVerdict> {
+fn log_read(escalations: &[geom_core::k_stats::Escalation]) -> Option<Undecided> {
     escalations
         .first()
         .map(|first| indeterminate(&first.source))
 }
 
-/// What one escalation makes of a leaf: a terminal sliver when its
+/// What one escalation makes of its node: a terminal sliver when its
 /// enclosure sits wholly inside the band ([`topo::clearance::sliver`]), otherwise the
 /// cue to bisect. One spelling for the three reads of `classify_replay`.
-fn indeterminate(source: &geom_core::Indeterminate) -> LeafVerdict {
-    topo::clearance::sliver(source).map_or(LeafVerdict::Bisect, |predicate| {
-        LeafVerdict::Refused(RefusalReason::SliverTerminal { predicate })
-    })
+fn indeterminate(source: &geom_core::Indeterminate) -> Undecided {
+    topo::clearance::sliver(source).map_or(Undecided::Refinable, Undecided::Sliver)
 }
 
-/// The D9 split: the axis of greatest relative width, ties to the
-/// earliest-declared variable, bisected at its midpoint.
+/// Why a box was not split.
+enum Unsplit {
+    /// The deciding node reads no variable of the box.
+    Unread,
+    /// Every variable it reads is at a bound.
+    Budget(BudgetKind),
+}
+
+/// The D9 split: of the variables in `reads` (the deciding node's,
+/// [`Doc::free_reads`]) with depth left and room on the `f64` grid, the one
+/// of greatest relative width, ties to the earliest-declared variable,
+/// bisected at its midpoint. A variable outside `reads` is never split:
+/// both halves would replay the deciding node on the inputs it had.
 ///
 /// # Errors
 ///
-/// The budget that stopped it: the per-axis depth bound, or the `f64`
-/// grid.
-fn bisect(b: &Box_, root: &ParamBox, max_depth: u32) -> Result<(Box_, Box_), BudgetKind> {
-    let Some(axis) = b.box_.split_axis(root) else {
-        return Err(BudgetKind::Resolution);
-    };
-    let depth = b.depths.get(&axis).copied().unwrap_or(0);
-    if depth >= max_depth {
-        return Err(BudgetKind::Depth { max_depth });
+/// [`Unsplit::Unread`] when the box varies in nothing the node reads;
+/// otherwise the budget that stopped it: the per-axis depth bound where
+/// it holds any variable the grid could still split, else the grid.
+fn bisect(
+    b: &Box_,
+    root: &ParamBox,
+    reads: &BTreeSet<VarId>,
+    max_depth: u32,
+) -> Result<(Box_, Box_), Unsplit> {
+    let depth = |var: VarId| b.depths.get(&var).copied().unwrap_or(0);
+    // Each variable the node reads, with its halves where the grid has
+    // room for them.
+    let mut halves: BTreeMap<VarId, Option<(ParamBox, ParamBox)>> = b
+        .box_
+        .varying()
+        .filter(|(var, _, _)| reads.contains(var))
+        .map(|(var, _, _)| (var, b.box_.split(var)))
+        .collect();
+    if halves.is_empty() {
+        return Err(Unsplit::Unread);
     }
-    let Some((lo, hi)) = b.box_.split(axis) else {
-        return Err(BudgetKind::Resolution);
+    let open = |var: VarId| depth(var) < max_depth && halves.get(&var).is_some_and(Option::is_some);
+    let Some((axis, (lo, hi))) = b
+        .box_
+        .split_axis(root, open)
+        .and_then(|axis| Some((axis, halves.remove(&axis)??)))
+    else {
+        let at_depth = halves.values().any(Option::is_some);
+        return Err(Unsplit::Budget(if at_depth {
+            BudgetKind::Depth { max_depth }
+        } else {
+            BudgetKind::Resolution
+        }));
     };
     let mut depths = b.depths.clone();
-    depths.insert(axis, depth + 1);
+    depths.insert(axis, depth(axis) + 1);
     Ok((
         Box_ {
             box_: lo,
@@ -2013,6 +2163,12 @@ fn render_reason(r: &RefusalReason) -> String {
             BudgetKind::Leaves { max_leaves } => format!("budget leaves={max_leaves}"),
             BudgetKind::Resolution => "budget resolution".to_owned(),
         },
+        RefusalReason::ReadsNoVariable { node, unsettled } => match unsettled {
+            Unsettled::Undecided => format!("reads_no_variable {} undecided", node.full()),
+            Unsettled::Failed { class, .. } => {
+                format!("reads_no_variable {} failed:{class:?}", node.full())
+            }
+        },
     }
 }
 
@@ -2218,9 +2374,7 @@ mod tests {
         assert!(
             matches!(
                 log_read(&log),
-                Some(LeafVerdict::Refused(RefusalReason::SliverTerminal {
-                    predicate: "tangent_second_order"
-                }))
+                Some(Undecided::Sliver("tangent_second_order"))
             ),
             "the in-band second-order refusal is a sliver: {log:?}"
         );

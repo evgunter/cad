@@ -343,7 +343,7 @@ fn r1_the_ring_gate_still_meters_on_the_concave_side() {
     assert!(
         !matches!(
             err.error,
-            BlendError::Op { .. } | BlendError::Certify { .. }
+            BlendError::Op { .. } | BlendError::PcurveMint { .. }
         ),
         "the degradation must be caught at a door, not by a downstream Euler/certify \
          failure — got {:?}",

@@ -183,7 +183,7 @@ fn assert_the_fixture_escape(d: &str, reposed: &BooleanError, what: &str) {
              escalation; got {r}"
         ),
     };
-    let topo::EulerOpError::Certification { error } = source else {
+    let topo::EulerOpError::DescriptionUncertified { error, .. } = source else {
         panic!("{what}: the only admitted escape is a certification refusal; got {r}");
     };
     let geom_brep::CertifyError::Escalated { cause, .. } = error else {

@@ -2402,9 +2402,9 @@ pub enum Vocabulary {
 /// of fault it is.
 ///
 /// The pair is a COORDINATE in the transition table — the row a reader
-/// looks up next — so both halves render through `Debug`: the variant
-/// spelling is the lookup key, and a prose paraphrase would not find
-/// it. Each is introduced by the noun it is ("verb", "tip state") so
+/// looks up next — so both halves render as the identifier the table
+/// declares (`identifier()`): the variant spelling is the lookup key,
+/// and a prose paraphrase would not find it. Each is introduced by the noun it is ("verb", "tip state") so
 /// the identifier reads as a value in the sentence and not as a dump
 /// that leaked into one.
 #[derive(Clone, Copy, Debug)]

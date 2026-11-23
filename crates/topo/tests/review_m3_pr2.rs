@@ -355,7 +355,7 @@ fn r5_crossing_vertex_on_is_declared_not_measured() {
                 // (Fix pass MINOR-2: the refusal now carries the crossing site
                 // — edge + straddling endpoints — with the typed error nested.)
                 Err(SplitReduceError::CrossingInsertion { source, .. })
-                    if matches!(*source, topo::EulerOpError::Certification { .. }) =>
+                    if matches!(*source, topo::EulerOpError::DescriptionUncertified { .. }) =>
                 {
                     assert!(
                         band.zero() < 1e-10,

@@ -85,7 +85,7 @@ const KERNEL_KEYED: &[&str] = &[
     "Blend/BodyNotIntact/Disagrees",
     "Blend/BodyNotIntact/Scaffolding",
     "Blend/SurgeryInvariant",
-    "Blend/Certify",
+    "Blend/PcurveMint",
     "Naming/SplitLineage",
     "Naming/UnsupportedSeamVertex",
     "Naming/SeamVertexPartners",
@@ -602,7 +602,9 @@ mod payloads {
     /// operation, never a bad argument, which a driver's own keys cannot
     /// be ([`topo::EulerOpError::from_driver`]).
     pub(super) fn euler() -> topo::EulerOpError {
-        topo::EulerOpError::DescriptionNotAdjacent { edge: None }
+        topo::EulerOpError::DescriptionNotAdjacent {
+            edge: topo::EdgeSubject::Minted,
+        }
     }
 
     pub(super) fn pcurve() -> topo::PcurveMintError {
@@ -872,7 +874,7 @@ mod kernel {
             ChamferArmUnsupported, WedgeUnsettled, Escalated, RepeatedEdge, NonpositiveSize,
             UnsupportedChain, UnsupportedGeometry, BodyNotIntact,
             NotFinished, SurgeryInvariant,
-            RingClearance, WhollyInside, Certify, Op, Join,
+            RingClearance, WhollyInside, PcurveMint, Op, Join,
         ];
     }
 
@@ -3185,9 +3187,12 @@ fn certify_refusal_routes() -> Vec<(String, NodeErrorKind)> {
         .into_iter()
         .map(|(route, source, _)| {
             row(
-                &format!("Extrude/Op/Certification/Routed/{route}"),
+                &format!("Extrude/Op/DescriptionUncertified/Routed/{route}"),
                 NodeErrorKind::Extrude(sweep::ExtrudeError::Op {
-                    source: topo::EulerOpError::Certification { error: source },
+                    source: topo::EulerOpError::DescriptionUncertified {
+                        edge: topo::EdgeSubject::Minted,
+                        error: source,
+                    },
                 }),
             )
         })
@@ -3209,8 +3214,8 @@ fn every_certify_refusal_ends_in_its_routed_sentence() {
             assert_eq!(
                 text,
                 "node 000000000005 failed: the extrude op refused: an Euler operation refused: \
-                 geometry attachment gate: the crossing angle at sample 4 escalated: margin 5e-9 \
-                 lies inside the ambiguity band (1e-9, 1e-8). Recourse: move the geometry so the \
+                 the minted edge's description does not certify: the crossing angle at sample 4 \
+                 escalated: margin 5e-9 lies inside the ambiguity band (1e-9, 1e-8). Recourse: move the geometry so the \
                  surfaces cross at a clearer angle, or, if this angle is intended, tighten the \
                  tolerance below 5e-10 m"
             );
@@ -3632,7 +3637,7 @@ fn loft() -> Vec<(String, NodeErrorKind)> {
             "PinnedCornerUnsupported",
             E::PinnedCornerUnsupported {
                 loop_index: 1,
-                at: sweep::PinnedSite::Segment(12),
+                at: sweep::PinnedSite::Corner(0),
                 slab: 10,
             },
         ),
@@ -4049,13 +4054,7 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
                 margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
             },
         ),
-        (
-            "Certify",
-            E::Certify {
-                site: "blend face pcurves",
-                source: pcurve(),
-            },
-        ),
+        ("PcurveMint", E::PcurveMint { source: pcurve() }),
         (
             "NotFinished",
             E::NotFinished {

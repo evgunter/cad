@@ -573,7 +573,8 @@ pub(super) fn cone_ruled<T: Decide>(
     let mut decided = Vec::new();
     let mut listed = Vec::new();
     let held = |p: Point3<T>| {
-        super::cylinders::placement_of(p, T::zero(), region, band) != RegionPlacement::Outside
+        super::cylinders::placement(super::cylinders::Occupant::point(p), region, band)
+            != RegionPlacement::Outside
     };
     let point = |at: Point3<T>, why: NoCarrier| {
         SectionComponent::closed_form(

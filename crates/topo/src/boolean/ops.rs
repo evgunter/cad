@@ -6790,16 +6790,11 @@ fn sphere_pair_cut<T: Decide>(
     };
     let center = carrier_frame.origin();
     match geom_brep::sphere_sphere_section(x, y, band) {
-        Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(
-            circle @ geom::Circle {
-                frame: carrier_frame_21,
-                ..
-            },
-        ))) => {
+        Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(circle))) => {
             let (foot, normal, u_ref) = (
-                carrier_frame_21.origin(),
-                carrier_frame_21.axis(),
-                carrier_frame_21.u_ref(),
+                circle.frame().origin(),
+                circle.frame().axis(),
+                circle.frame().u_ref(),
             );
             let rho = circle.radius();
             Ok(SphereCutIn {
@@ -6840,10 +6835,10 @@ fn pair_seam<T: Decide>(
         Operand::B => (y, x),
     };
     match geom_brep::sphere_sphere_section(a, b, band) {
-        Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(geom::Circle {
-            frame,
-            ..
-        }))) => {
+        Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(
+            the_circle @ geom::Circle { .. },
+        ))) => {
+            let frame = the_circle.frame();
             let u_ref = frame.u_ref();
             Ok(u_ref)
         }
@@ -10367,7 +10362,8 @@ mod tests {
             DescribeRefusal::undecided(strut, MustCarryEscalation::at(MustCarryRung::Wedge, diag)),
             DescribeRefusal::undecided(strut, MustCarryEscalation::at(MustCarryRung::Bend, diag)),
         ];
-        let residual = crate::euler::EulerOpError::Certification {
+        let residual = crate::euler::EulerOpError::DescriptionUncertified {
+            edge: crate::EdgeSubject::Minted,
             error: geom_brep::CertifyError::ResidualExceeded {
                 check: geom_brep::CertCheck::SurfaceResidual {
                     surface: crate::geometry::SurfaceKey::default(),
@@ -10448,7 +10444,10 @@ mod tests {
             predicate: Some("carrier_on_surface_2"),
             terminal_sliver: false,
         };
-        let certification = |error| EulerOpError::Certification { error };
+        let certification = |error| EulerOpError::DescriptionUncertified {
+            edge: crate::EdgeSubject::Minted,
+            error,
+        };
         let escalated = |check| {
             certification(CertifyError::Escalated {
                 check,
