@@ -347,7 +347,7 @@ fn the_unbored_hemisphere_equator_carves_as_one_band() {
             )
         })
         .collect();
-    assert_eq!(arcs.len(), 2, "the equator is two half-circle arcs");
+    assert_eq!(arcs.len(), 1, "the equator is one closed edge");
     assert!(
         arcs.iter().all(|k| {
             let (start, end) = body.edge_vertices(*k).unwrap();

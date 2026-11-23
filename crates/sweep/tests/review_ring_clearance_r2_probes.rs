@@ -90,7 +90,7 @@ fn pipped(dc: f64, pr: f64) -> Body<f64> {
 /// cycle is the top rim and which carries the pip rim as its one RING.
 fn ringed_top(body: &Body<f64>) -> FaceKey {
     let arcs = rim_arcs_at(body, 1.0, 1.0);
-    assert_eq!(arcs.len(), 2, "the top rim is two arcs");
+    assert_eq!(arcs.len(), 1, "the top rim is one closed edge");
     let ed = body.get_edge(arcs[0]).unwrap();
     [ed.he_plus, ed.he_minus]
         .into_iter()
@@ -219,7 +219,7 @@ fn a_non_coaxial_ladder_trim_circle_carves_inside_its_boundary_and_refuses_outsi
         "the containment margin is positive and small"
     );
     let arcs = rim_arcs_at(&carves, pr, 1.0);
-    assert_eq!(arcs.len(), 2, "the pip rim is two arcs");
+    assert_eq!(arcs.len(), 1, "the pip rim is one closed edge");
     let out = fillet_edges(
         &sweep::test_support::at_rest(&carves, tol()),
         &arcs,

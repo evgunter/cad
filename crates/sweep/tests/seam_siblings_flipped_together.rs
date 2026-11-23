@@ -256,7 +256,7 @@ fn a_whole_sphere_is_left_to_the_volume_check() {
         tol,
     );
     let faces = sphere_faces(&ball);
-    assert_eq!(faces.len(), 2, "a ball is two lunes");
+    assert_eq!(faces.len(), 1, "a ball is one face");
     let errs = topo::validate_geometric(&flipped(&ball, &faces), tol).unwrap_err();
     assert!(
         errs.iter()

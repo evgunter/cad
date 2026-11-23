@@ -57,7 +57,7 @@ fn a_spherical_cap_opens_to_a_seamed_band() {
     let (r, h, t) = (0.5, 0.6, 0.05);
     let (body, rho, centre) = capped_vessel(r, h, 60.0);
     let cap = faces_on(&body, geom::SurfaceKind::Sphere);
-    assert_eq!(cap.len(), 2, "the revolve wears the cap on two half-faces");
+    assert_eq!(cap.len(), 1, "the revolve wears the cap on one face");
     let shelled = open(&body, &cap, t).expect("the cap opens");
     let cup = topo::test_support::finished("cup", topo::Body::clone(&shelled.body), tol);
 
@@ -127,7 +127,7 @@ fn a_spherical_cap_opens_to_a_seamed_band() {
 fn a_voids_cap_opens_to_a_seamed_band_of_its_twin() {
     let tol = Tol::witness();
     let (hollow, cap, rho) = hollow_capped_vessel();
-    assert_eq!(cap.len(), 2, "the void's cap is two half-faces");
+    assert_eq!(cap.len(), 1, "the void's cap is one face");
     let t = 0.05;
     let shelled = open(&hollow, &cap, t).expect("the void's cap opens");
     let body = topo::test_support::finished("body", topo::Body::clone(&shelled.body), tol);
@@ -285,7 +285,7 @@ fn a_cone_tip_shells_through_its_apex_on_either_nappe() {
         ),
     ] {
         let cone = faces_on(&body, geom::SurfaceKind::Cone);
-        assert_eq!(cone.len(), 2, "{what}: the revolve wears two half-faces");
+        assert_eq!(cone.len(), 1, "{what}: the revolve wears one face");
         for &f in &cone {
             assert_eq!(
                 topo::face_nappe(&body, f, crate::common::approx::band()).expect("a nappe"),

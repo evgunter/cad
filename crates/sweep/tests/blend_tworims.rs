@@ -186,7 +186,7 @@ fn a_seam_split_rim_pair_on_shared_half_band_walls_composes_in_one_call() {
     let body = lantern();
     let mut both = rim_arcs_at(&body, LANTERN_RIMS[0].0, LANTERN_RIMS[0].1);
     both.extend(rim_arcs_at(&body, LANTERN_RIMS[1].0, LANTERN_RIMS[1].1));
-    assert_eq!(both.len(), 4, "two rims, two arcs each");
+    assert_eq!(both.len(), 2, "two rims, one edge each");
     let one = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &both, r, tol())
         .unwrap_or_else(|e| panic!("neck + shoulder build in one call, got {e:?}"));
     assert_eq!(one.band_faces.len(), 2, "one band per rim");
@@ -216,7 +216,7 @@ fn three_chained_shared_wall_rims_carve_in_one_call() {
     for (rim_r, rim_y) in LANTERN_RIMS {
         all.extend(rim_arcs_at(&body, rim_r, rim_y));
     }
-    assert_eq!(all.len(), 6, "three rims, two arcs each");
+    assert_eq!(all.len(), 3, "three rims, one edge each");
     let one = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &all, r, tol())
         .unwrap_or_else(|e| panic!("all three lantern rims build in one call, got {e:?}"));
     assert_eq!(one.band_faces.len(), 3, "one band per rim");
@@ -334,7 +334,7 @@ fn a_seam_two_bands_split_is_named_after_its_source_by_every_row() {
     .expect("the lantern triple builds");
     assert_eq!(
         twice_split_seams(&lantern_body, &lantern_out),
-        2,
+        1,
         "the lantern's shared walls are half-band pairs, and one of them is \
          both its bands' MATE: its two seams are each split by both"
     );

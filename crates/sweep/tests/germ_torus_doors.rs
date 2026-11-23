@@ -165,7 +165,7 @@ fn the_half_dumbbell_is_a_valid_torus_waisted_solid_as_built() {
         assert_eq!(topo::validate_closed(&body), Ok(()));
         assert_eq!(topo::validate_geometric(&body, Tol::witness()), Ok(()));
         let tori = faces_where(&body, is_torus);
-        assert_eq!(tori.len(), 2, "a full revolve keeps the wall's cut");
+        assert_eq!(tori.len(), 1, "a full revolve's wall is one face");
         for f in tori {
             let geom::Surface::Torus {
                 frame,
@@ -274,7 +274,7 @@ fn the_waist_meridian_reads_definitely_negative_on_the_sampled_enclosure() {
             );
         }
     }
-    assert_eq!(meridians, 2, "the waist carries its seam meridian twice");
+    assert_eq!(meridians, 1, "the waist carries its one seam meridian");
 }
 
 /// **The glued waists pass the crossing layer.** With both waist pairs

@@ -114,7 +114,7 @@ const WAIST_R: f64 = 0.05;
 fn the_waist_carves_one_annulus_band_and_adds_the_pappus_fill() {
     let source = waisted(tol());
     let arcs = rim_arcs_at(&source, 0.5, 0.5);
-    assert_eq!(arcs.len(), 2, "the waist rim is seam-split into two arcs");
+    assert_eq!(arcs.len(), 1, "the waist rim is one closed edge");
     let v0 = volume(&source);
     assert!(
         (v0 - 7.0 * PI / 12.0).abs() < 1e-12,
@@ -160,7 +160,7 @@ fn the_convex_twin_of_the_same_body_cuts() {
     let v0 = volume(&source);
     for (name, rim_y) in [("the base", 0.0), ("the top", 1.0)] {
         let arcs = rim_arcs_at(&source, 1.0, rim_y);
-        assert_eq!(arcs.len(), 2, "{name} rim is seam-split into two arcs");
+        assert_eq!(arcs.len(), 1, "{name} rim is one closed edge");
         let out = fillet_edges(&source, &arcs, WAIST_R, tol())
             .unwrap_or_else(|e| panic!("{name} rim carves, got {e:?}"));
         assert_eq!(out.band_faces.len(), 1, "{name}: one annulus band");
@@ -319,8 +319,8 @@ fn the_boss_carves_a_concave_ladder_band_and_adds_the_cap_fill() {
         let arcs = plane_sphere_rim(body);
         assert_eq!(
             arcs.len(),
-            2,
-            "{name}'s rim is two arcs across the cap's seam"
+            1,
+            "{name}'s rim is one closed edge"
         );
         let top = top_face(body);
         assert!(

@@ -358,7 +358,7 @@ fn a_chart_whose_faces_disagree_refuses_at_both_doors() {
         (0.0, 3.0 * H),
     ]);
     let group = cone_faces(&body);
-    assert_eq!(group.len(), 4, "two cone charts, two bands each");
+    assert_eq!(group.len(), 2, "two cone charts, one band each");
     reanchor_cone(&mut body, &group, 1.5 * H);
     let (mut lower, mut upper) = (Vec::new(), Vec::new());
     for &f in &group {
