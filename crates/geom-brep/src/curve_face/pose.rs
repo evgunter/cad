@@ -128,13 +128,14 @@ pub(super) enum Formed<T: Real> {
     /// A spiric across a plane not parallel to its own: the line where
     /// the two planes meet, a unit direction from its point nearest the
     /// spiric's foot ([`super::spiric_plane`]), `across`, the unit in
-    /// the spiric's plane square to the line, and `tilt`, the planes' tilt
-    /// sine, past the parallel rung: a move `d` along `across` is a height
-    /// `d·tilt` off the plane.
+    /// the spiric's plane square to the line, and `sine`, the planes' tilt
+    /// sine as the line's own form reads it, `√(α² + β²)`: a move `d`
+    /// along `across` is a height `d·sine` off the plane. It is the
+    /// `|û × n̂|` the parallel rung decides to a rounding, not that value.
     SpiricPlane {
         line: geom::Line<T>,
         across: geom_core::Vec3<T>,
-        tilt: T,
+        sine: T,
     },
 }
 
@@ -787,14 +788,14 @@ fn spiric_plane<T: Decide>(
             "a spiric span in its convention with no cover",
         ));
     };
-    let tilt = u.cross(n).norm() * arm;
-    let parallel = match decide("curve_face_pose_plane_parallel", Margin::of(tilt), band) {
+    let levered = u.cross(n).norm() * arm;
+    let parallel = match decide("curve_face_pose_plane_parallel", Margin::of(levered), band) {
         Ok(sign) => sign == Sign::Zero,
         Err(diag) => {
             return match constant_residual_as(
                 "curve_face_pose_plane_offset",
                 PoseRung::PlaneParallel,
-                (height, tilt),
+                (height, levered),
                 band,
             ) {
                 Ok(Constant::Apart) => Ok(Pose::Apart),
@@ -806,7 +807,7 @@ fn spiric_plane<T: Decide>(
         return constant_residual_as(
             "curve_face_pose_plane_offset",
             PoseRung::PlaneParallel,
-            (height, tilt),
+            (height, levered),
             band,
         )?
         .pose(PoseRung::PlaneParallel);
@@ -839,7 +840,7 @@ fn spiric_plane<T: Decide>(
             dir: along,
         },
         across,
-        tilt: s,
+        sine: s,
     })))
 }
 

@@ -57,3 +57,21 @@ crossings.
 In-band gaps that decided, of 32 per lean: on main 0, 12, 24, 24 for
 `s` = 1, 0.2, 0.05, 0.01; with the change 0 at every lean. Gaps between
 1 and 2 escalations are not pinned either way.
+
+## Progress (fix pass, 2026-11-23)
+
+The guarantee is narrowed to what the reread does: it refuses where one
+extreme of the oval's height off the cutting plane lies in the band. An
+oval wholly inside the band on one side keeps a count of none on all
+three lines and reads as a miss; that residual is the row
+`a-spiric-oval-wholly-inside-the-band-on-one-side-of-the-cutting-plane-reads-as-a-miss`.
+
+The row now leans down to `1e-5` and to 1.05 times the smallest sine the
+parallel rung admits on its fixture (about 4.9e-9), and adds the
+inner-equator point `v = π`. Its oracle reads the gap over the oval's
+whole turn. An in-band gap must refuse on this door as
+`Unsettled(Tangency)` or as the ladder's own escalation, which comes
+first where the line or a moved line reads in the ladder's band; no other
+refusal passes. In-band gaps that decided, per lean `1, 0.2, 0.05, 0.01,
+1e-5, 4.9e-9`: with the in-plane shift 0, 15, 30, 30, 40, 42; with the
+change none.

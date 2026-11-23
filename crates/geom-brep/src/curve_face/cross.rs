@@ -230,8 +230,8 @@ pub fn cross<T: Decide>(
                 }
             }
             Door::SpiricPlane => match form.0 {
-                Formed::SpiricPlane { line, across, tilt } => {
-                    super::spiric_plane::spiric_plane_method(span, (line, across, tilt), band)
+                Formed::SpiricPlane { line, across, sine } => {
+                    super::spiric_plane::spiric_plane_method(span, (line, across, sine), band)
                         .map_err(method)?
                 }
                 _ => return Err(method(MeetFault::Desync)),

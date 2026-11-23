@@ -15,19 +15,23 @@
 //! oval's side (`spiric_plane_oval_side`, the root's offset along
 //! `m = axis × û` from the axis's projection), and names each kept root by
 //! the spiric's own parameter, within half a turn of the span's middle.
-//! A count the band cannot hold refuses: the oval within the band of `Q`
-//! without crossing it, read on the lines of `P` the band's escalation
-//! off `Q` either way, and a graze of `L` on either oval, which the
-//! ladder reads whole.
+//! A count the band cannot hold refuses: the count read again on the
+//! lines of `P` the band's escalation off `Q` either way, and a graze of
+//! `L` on either oval, which the ladder reads whole.
 //!
 //! Those two lines are `P ∩ (Q ± escalate·n̂)`: `L` moved `escalate/s`
 //! across itself in `P`, `s` the planes' tilt sine, since a move `d`
-//! across `L` in `P` is a height `d·s` off `Q`. The oval's height off `Q`
-//! is continuous along it, so an extreme of that height within the
-//! escalation of zero, a miss or a dip through `Q`, changes the count on
-//! one of the two lines or grazes it. The pose's parallel rung has `s`
-//! times the radius of the span's cover ball past the band, so the move
-//! is under that radius at any lean.
+//! across `L` in `P` is a height `d·s` off `Q`. Where exactly one extreme
+//! of the oval's height off `Q` lies within the escalation of zero, a
+//! miss or a dip through `Q`, the count on one of the two lines differs,
+//! or that line grazes the oval. Two extremes within it can leave all
+//! three counts alike: an oval wholly inside the band on one side of `Q`
+//! reads no meeting on each line and is answered as a miss.
+//!
+//! `s` is the line's own `√(α² + β²)`, the `|û × n̂|` of the pose's
+//! parallel rung to a rounding. That rung has `|û × n̂|` times the radius
+//! of the span's cover ball past the band, so the move is under that
+//! radius to a rounding at any lean.
 //!
 //! The ovals stand at least `√((R − r)² − offset²)` from the axis's
 //! projection, past the band wherever the regime is (the pose's rung),
@@ -46,15 +50,15 @@ const OVAL_SIDE: &str = "spiric_plane_oval_side";
 
 /// **The spiric × plane method**: the span's parameters at which `line`
 /// (the pose's `P ∩ Q`, with `across` its unit square to it in `P` and
-/// `tilt` the planes' tilt sine) meets its oval, each within half a turn
+/// `sine` the planes' tilt sine) meets its oval, each within half a turn
 /// of the span's middle.
 ///
 /// The oval's meetings with the line, and with the lines of `P` the
-/// band's escalation off `Q` either way (the line moved `escalate/tilt`
-/// across itself): where the oval's height off `Q` has an extreme within
-/// the escalation of zero (a graze, a near miss or a shallow dip), the
-/// count on one side differs, and the reading refuses as a tangency
-/// rather than answer a count the band cannot hold.
+/// band's escalation off `Q` either way (the line moved `escalate/sine`
+/// across itself): where the count on either differs (one extreme of the
+/// oval's height off `Q` within the escalation of zero: a graze, a near
+/// miss or a shallow dip), the reading refuses as a tangency rather than
+/// answer a count the band cannot hold.
 ///
 /// # Errors
 ///
@@ -64,11 +68,11 @@ const OVAL_SIDE: &str = "spiric_plane_oval_side";
 /// side in band; [`MeetFault::Desync`] on a carrier not a spiric.
 pub(super) fn spiric_plane_method<T: Decide>(
     span: &Span<'_, T>,
-    (line, across, tilt): (geom::Line<T>, Vec3<T>, T),
+    (line, across, sine): (geom::Line<T>, Vec3<T>, T),
     band: Band,
 ) -> Result<Vec<T>, MeetFault> {
     let found = on_the_oval(span, line, band)?;
-    let shift = T::from_f64(band.escalate()) / tilt;
+    let shift = T::from_f64(band.escalate()) / sine;
     for shift in [shift, T::zero() - shift] {
         let moved = geom::Line {
             origin: line.origin + across * shift,
@@ -164,6 +168,7 @@ mod tests {
 
     use crate::curve_face::{CrossWhy, Pose, PoseRefusal, cross};
     use crate::curve_pair::{MeetFault, Span};
+    use crate::roots::Unsettled;
 
     const R: f64 = 5.0;
     const MINOR: f64 = 1.5;
@@ -211,23 +216,26 @@ mod tests {
         let f = |v: f64| (curve.eval(v) - origin).dot(normal);
         let n = 20_000;
         let at = |i: i32| SPAN.0 + (SPAN.1 - SPAN.0) * f64::from(i) / f64::from(n);
-        let mut roots = Vec::new();
-        for i in 0..n {
-            let (mut a, mut b) = (at(i), at(i + 1));
-            if f(a).signum() == f(b).signum() {
-                continue;
-            }
-            for _ in 0..80 {
-                let m = 0.5 * (a + b);
-                if f(m).signum() == f(a).signum() {
-                    a = m;
-                } else {
-                    b = m;
-                }
-            }
-            roots.push(0.5 * (a + b));
+        (0..n)
+            .filter_map(|i| sign_change(&f, at(i), at(i + 1)))
+            .collect()
+    }
+
+    /// `f`'s sign change in `(a, b)` bisected to the bottom, where its
+    /// signs at the two ends differ.
+    fn sign_change(f: &impl Fn(f64) -> f64, mut a: f64, mut b: f64) -> Option<f64> {
+        if f(a).signum() == f(b).signum() {
+            return None;
         }
-        roots
+        for _ in 0..80 {
+            let m = 0.5 * (a + b);
+            if f(m).signum() == f(a).signum() {
+                a = m;
+            } else {
+                b = m;
+            }
+        }
+        Some(0.5 * (a + b))
     }
 
     /// The door's meetings' parameters, ascending, against the oracle's.
@@ -513,9 +521,9 @@ mod tests {
 
     /// The oracle on a leaned plane, from the oval's own evaluation: the
     /// least `|height|` off the plane among the local extremes of the
-    /// oval's height over the span (each found on a sampling and narrowed
-    /// by ternary search), and the height's sign changes between
-    /// consecutive extremes, each bisected.
+    /// oval's height over its whole turn (each found on a sampling and
+    /// narrowed by ternary search), and the height's sign changes over the
+    /// span, between its ends and the extremes inside it.
     fn extremes_oracle(
         curve: &Curve3<f64>,
         origin: Point3<f64>,
@@ -523,15 +531,15 @@ mod tests {
     ) -> (f64, Vec<f64>) {
         let normal = normal.normalize();
         let f = |v: f64| (curve.eval(v) - origin).dot(normal);
-        let n = 2_000_u32;
-        let at = |i: u32| SPAN.0 + (SPAN.1 - SPAN.0) * f64::from(i) / f64::from(n);
-        let heights: Vec<f64> = (0..=n).map(|i| f(at(i))).collect();
+        let n = 2_000_i32;
+        let at = |i: i32| -PI + 2.0 * PI * f64::from(i) / f64::from(n);
         let mut gap = f64::INFINITY;
         let mut breaks = vec![SPAN.0];
-        for (i, w) in (1..n).zip(heights.windows(3)) {
-            let sense = if w[1] <= w[0] && w[1] <= w[2] {
+        for i in 0..n {
+            let (below, here, above) = (f(at(i - 1)), f(at(i)), f(at(i + 1)));
+            let sense = if here <= below && here <= above {
                 1.0
-            } else if w[1] >= w[0] && w[1] >= w[2] {
+            } else if here >= below && here >= above {
                 -1.0
             } else {
                 continue;
@@ -547,61 +555,77 @@ mod tests {
             }
             let extreme = 0.5 * (a + b);
             gap = gap.min(f(extreme).abs());
-            breaks.push(extreme);
+            if SPAN.0 < extreme && extreme < SPAN.1 {
+                breaks.push(extreme);
+            }
         }
         breaks.push(SPAN.1);
-        let mut roots = Vec::new();
-        for w in breaks.windows(2) {
-            let (mut a, mut b) = (w[0], w[1]);
-            if f(a).signum() == f(b).signum() {
-                continue;
-            }
-            for _ in 0..80 {
-                let m = 0.5 * (a + b);
-                if f(m).signum() == f(a).signum() {
-                    a = m;
-                } else {
-                    b = m;
-                }
-            }
-            roots.push(0.5 * (a + b));
-        }
+        breaks.sort_by(f64::total_cmp);
+        let roots = breaks
+            .windows(2)
+            .filter_map(|w| sign_change(&f, w[0], w[1]))
+            .collect();
         (gap, roots)
     }
 
     /// **A near miss is a height off the cutting plane, at any lean**
     /// (`[simple.conditioned]`): the plane through the oval's tangent line
-    /// at a point of it, leaned so the planes' tilt sine is `s`, then moved
-    /// by δ along its own normal either way, so the oval misses it or dips
-    /// through it by δ. The oracle reads that gap off the oval's own
-    /// evaluation. A gap inside the band's escalation refuses at every
-    /// lean; a gap of twice the escalation or more answers the oracle's
-    /// crossings, each on the plane.
+    /// at a point of it (the inner-equator point past the span's end
+    /// among them), leaned so the planes' tilt sine is `s`, from square
+    /// down to just past the parallel rung, then moved by δ along its own
+    /// normal either way. The oracle reads the oval's gap off the plane
+    /// from the oval's own evaluation. A gap inside the band's escalation
+    /// refuses on this door at every lean, as a tangency or on the ladder's
+    /// own rung where the line itself reads in its band; a gap of twice the
+    /// escalation or more answers the oracle's crossings, each on the
+    /// plane.
     #[test]
     fn a_leaned_plane_missing_the_oval_by_less_than_the_band_refuses() {
         let curve = oval();
         let escalate = band().escalate();
+        let least = 1.05 * escalate / lever();
         let mut wrong = Vec::new();
-        for s in [1.0_f64, 0.2, 0.05, 0.01] {
-            for v in [0.0, 0.7, 2.3, -1.1] {
+        for s in [1.0_f64, 0.2, 0.05, 0.01, 1e-5, least] {
+            let mut in_band = 0;
+            for v in [0.0, 0.7, 2.3, -1.1, PI] {
                 let across = Vec3::unit_x().cross(curve.deriv(v).normalize());
                 let normal = Vec3::unit_x() * (1.0 - s * s).sqrt() + across * s;
                 for side in [1.0, -1.0] {
-                    for k in [1e-3, 0.1, 0.3, 0.9, 2.0, 10.0] {
+                    for k in [1e-3, 0.1, 0.3, 0.9, 2.5, 10.0] {
                         let origin = curve.eval(v) + normal * (side * k * escalate);
                         let (gap, want) = extremes_oracle(&curve, origin, normal);
                         let label = format!("s {s}, v {v}, δ {}·escalate", side * k);
-                        if (gap - k * escalate).abs() > 1e-3 * k * escalate {
-                            wrong.push(format!("{label}: the oracle's gap {gap}"));
-                            continue;
-                        }
-                        match (gap < escalate, read_against(&want, origin, normal)) {
-                            (true, Ok(None)) | (false, Ok(Some(_))) => {}
-                            (true, got) => wrong.push(format!("{label}: in band, read {got:?}")),
-                            (false, got) => wrong.push(format!("{label}: past it, read {got:?}")),
+                        let got = cross(&Span::new(&curve, SPAN), &plane(origin, normal), band());
+                        if gap < escalate {
+                            in_band += 1;
+                            let tangency = matches!(
+                                got,
+                                Err(ref refusal) if !refusal.windows.is_empty()
+                                    && refusal.windows.iter().all(|w| matches!(
+                                        w.why,
+                                        CrossWhy::Method {
+                                            door: crate::curve_face::Door::SpiricPlane,
+                                            fault: MeetFault::Unsettled(Unsettled::Tangency)
+                                                | MeetFault::Escalated(_),
+                                        }
+                                    ))
+                            );
+                            if !tangency {
+                                wrong.push(format!("{label}: a gap {gap} in band read {got:?}"));
+                            }
+                        } else if gap >= 2.0 * escalate {
+                            match read_against(&want, origin, normal) {
+                                Ok(Some(_)) => {}
+                                got => {
+                                    wrong.push(format!("{label}: a gap {gap} past it read {got:?}"))
+                                }
+                            }
                         }
                     }
                 }
+            }
+            if in_band < 40 {
+                wrong.push(format!("s {s}: the oracle read {in_band} gaps in band"));
             }
         }
         assert!(wrong.is_empty(), "{} wrong: {wrong:#?}", wrong.len());
