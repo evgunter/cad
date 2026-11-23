@@ -2,12 +2,13 @@
 id: a-spline-face-with-a-collapsed-side-meshes-only-at-a-coarse-chordal
 kind: issue
 title: a spline face with a collapsed side meshes only at a coarse chordal: the trimmed lane's certificate reads the side's whole span as one triangle
-status: dispatched
+status: closed
 opened: 2026-11-22
 priority: P1
 cost: H
 refs: [a-nurbs-wall-with-a-collapsed-boundary-column-has-no-loop-joint]
 branch: tesslane/collapsed-side
+closed: 2026-11-23
 ---
 
 
