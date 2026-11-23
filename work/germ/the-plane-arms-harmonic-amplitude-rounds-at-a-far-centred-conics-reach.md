@@ -62,3 +62,15 @@ means the gap is formed about the conic's point nearest the plane rather
 than about its centre, or `r − |d₀|` is formed from the stored terms
 cancellation-free. Measured by the probe above as a row at ε 1e-12,
 reading 0 wrong at 1e5 and 1e6, with no charge.
+
+## Progress
+
+- 2026-11-23, `germ/harmonic-belly`.
+  - **The probe, as a row:** `curve_face::pose_rows::a_graze_of_a_far_centred_conic_is_read_wrong_nowhere`, slow set.
+    - It reads the whole turn, counts the escalation, and its oracle is an exact `Expansion` on the stored terms, cross-checked against Python `fractions` over 6000 poses.
+    - On main it is red at 78 / 596 / 478 wrong of 2000 at far 1e4 / 1e5 / 1e6 (seed 0x1), of them 0 / 52 / 334 against the exact sign past the escalation.
+    - With the re-pose it reads 0 at every far, on seeds 0x1, 0x2 and 0x3.
+  - **The re-pose:** `Real::harmonic_belly` computes `(A² + B² − d₀²)/(√(A² + B²) + |d₀|)`, with the numerator exact and `A`, `B`, `d₀` each rounded once. It is within 9u of the belly, relative to the belly. `curve_pair::pose::belly` reads it.
+  - **Its readers:** the plane arm (and through it the co-surface arm and the ring path), `line_conic`, `conic_conic`'s parallel screen and `transverse`, and `section_loops::line_clears_conic`.
+  - **A second row:** `curve_pair::far_graze_rows::a_line_grazing_a_far_centred_conic_is_read_wrong_nowhere`.
+  - **The sibling** is filed as `an-arc-held-ellipses-plane-is-read-at-its-derived-centre`.

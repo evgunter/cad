@@ -52,3 +52,20 @@ The design question this row carried is answered; the three designers' final tex
 ## Moved to CONIC (2026-11-23)
 
 Moved from ONEROUND by `git mv` when that track was split on Ev's answer to PR 7523 (`work/conic/log.md`); the id and the body above are unchanged.
+
+## Evidence from GERM (`germ/harmonic-belly`, 2026-11-23)
+
+A centre-held conic's first-degree "crest ± half-chord" loses the belly's
+digits when the conic is far larger than its belly. The belly here is the
+extreme nearer the plane, `√(A² + B²) − |d₀|`, and both terms are of the
+conic's size. For an ellipse of semi-axes 1e5 grazed near its vertex at
+ε 1e-12, 596 of 2000 poses read definite on a belly the band does not
+decide, and 52 read against the exact sign
+(`curve_face::pose_rows::a_graze_of_a_far_centred_conic_is_read_wrong_nowhere`).
+GERM's readers now take that extreme from `geom_core::Real::harmonic_belly`:
+`(A² + B² − d₀²)/(√(A² + B²) + |d₀|)`, the numerator exact on the stored
+terms. They do this through `curve_pair::pose::belly`, read by the plane arm,
+`line_conic`, `conic_conic`, `transverse` and
+`section_loops::line_clears_conic`. The polynomial's first degree should
+keep that reading when it takes these readers over. The arc-held
+sibling is `work/germ/an-arc-held-ellipses-plane-is-read-at-its-derived-centre.md`.
