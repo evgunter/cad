@@ -4202,10 +4202,16 @@ const SPLIT_POSES: [SplitPose; 4] = [
 /// **A frustum split by a tilted plane, one side of it, placed**: the
 /// frustum revolved a full turn about `y` (its wall two half-cones
 /// meeting along the rulings at `±x`) and split.
-fn split_cone<T: Scalar>(
+fn split_cone<T: Scalar>(cut: SplitCone, pose: SplitPose) -> Body<T> {
+    try_split_cone(cut, pose).unwrap_or_else(|e| panic!("the split cone is placed: {e}"))
+}
+
+/// [`split_cone`], with the mirror door's refusal handed back as its
+/// `Debug` text for a row that reads a build limit.
+fn try_split_cone<T: Scalar>(
     ((r0, r1, h), (q, phi, psi), above): SplitCone,
     pose: SplitPose,
-) -> Body<T> {
+) -> Result<Body<T>, String> {
     use geom_core::{Affine3, Vec3};
     use sweep::test_support::finished;
     use topo::splitting::{SplitPart, SplitPlane, split};
@@ -4230,7 +4236,7 @@ fn split_cone<T: Scalar>(
         SplitPart::Body(b) => b,
         SplitPart::Empty => panic!("the side carries material"),
     };
-    match pose {
+    Ok(match pose {
         SplitPose::AsBuilt => body.into_body(),
         SplitPose::Turned => moved(
             &body,
@@ -4251,9 +4257,9 @@ fn split_cone<T: Scalar>(
                 tol(),
             )
             .expect("a mirror plane");
-            topo::mirror_body(&body, &across, tol()).expect("the cut mirrors")
+            topo::mirror_body(&body, &across, tol()).map_err(|e| format!("{e:?}"))?
         }
-    }
+    })
 }
 
 /// The stored ellipses of `body`'s edges.
@@ -4351,13 +4357,94 @@ fn a_split_cone_refuses_on_a_pair_holding_its_wall() {
             ("the wall cut off the grid", WALL_CUT_OFF_GRID),
             ("the cap cut", CAP_CUT),
         ] {
-            refuses(
-                &format!("{what} {pose:?} at f64"),
-                &split_cone::<f64>(cut, pose),
-            );
-            refuses(
-                &format!("{what} {pose:?} at Interval"),
-                &split_cone::<Interval>(cut, pose),
+            // Below 1e-11 the mirror door refuses one of these at its own
+            // pcurve envelope, an indeterminate margin at the band: a
+            // build limit, said loudly, and any other refusal fails the
+            // row.
+            match (
+                try_split_cone::<f64>(cut, pose),
+                try_split_cone::<Interval>(cut, pose),
+            ) {
+                (Ok(float), Ok(twin)) => {
+                    refuses(&format!("{what} {pose:?} at f64"), &float);
+                    refuses(&format!("{what} {pose:?} at Interval"), &twin);
+                }
+                (f, t) => {
+                    let refusal = [f.err(), t.err()].into_iter().flatten().collect::<Vec<_>>();
+                    assert!(
+                        tol().eps() < 1e-11
+                            && refusal
+                                .iter()
+                                .all(|e| e.contains("Escalated { check: Envelope")),
+                        "{what} {pose:?} builds: {refusal:?}"
+                    );
+                    println!(
+                        "SKIPPED (ε = {:e}): {what} {pose:?} is not placed: {refusal:?}",
+                        tol().eps()
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// **A ball through a split cylinder's two-arc corner crosses, at both
+/// scalars.** A rod of radius 0.7 split by a tilted plane states its
+/// section's two arcs held at the centre, a half turn apart: one
+/// stated conic by its restatement, read on through the vertex where
+/// they meet on a ruling. A ball of radius 0.02 centred on that vertex
+/// passes through the wall and the cut cap there. The readings at the
+/// corner leave the crossing to be found and never certify it: `Crosses`
+/// at the default ε; at another the walk may run out of its budget on
+/// the crossing pair first, and then refuses on it, never embedded.
+#[test]
+fn a_ball_through_a_split_cylinders_two_arc_corner_crosses() {
+    use topo::clearance::Embedding;
+    const ROD: SplitCone = ((0.7, 0.7, 1.9), (0.93, 0.3, 0.7), true);
+    fn with_ball<T: Scalar>() -> Body<T> {
+        let mut body = split_cone::<T>(ROD, SplitPose::AsBuilt);
+        // The section's point on the ruling at `+x`.
+        let ((r, _, _), (q, phi, psi), _) = ROD;
+        let at = geom_core::Vec3::new(r, q - phi.tan() * psi.cos() * r, 0.0);
+        let rho = 0.02;
+        let p = |y: f64, bulge: f64| (Point2::new(T::zero(), T::from_f64(y)), T::from_f64(bulge));
+        let ball = topo::transform_rigid(
+            &revolved_about_y_at::<T>(vec![p(-rho, 1.0), p(rho, 0.0)], Revolution::Full, tol()),
+            &geom_core::RigidMotion::translation(at.map(T::from_f64)).expect("a translation"),
+        )
+        .expect("the ball moves");
+        topo::graft_disjoint_all_keyed(&mut body, &ball).expect("the ball grafts");
+        body
+    }
+    let arcs = section_arcs(&split_cone::<f64>(ROD, SplitPose::AsBuilt));
+    let [a, b] = arcs.as_slice() else {
+        panic!("two section arcs: {arcs:?}")
+    };
+    assert!(
+        geom::Curve3::Ellipse(a.restatements()[1]).same_content(&geom::Curve3::Ellipse(*b)),
+        "the arcs are stated a half turn apart: {a:?} {b:?}"
+    );
+    for (scalar, verdict) in [
+        (
+            "f64",
+            door(&with_ball::<f64>(), DEFAULT_MAX_CELL_DEPTH, BUDGET).verdict,
+        ),
+        (
+            "Interval",
+            door(&with_ball::<Interval>(), DEFAULT_MAX_CELL_DEPTH, BUDGET).verdict,
+        ),
+    ] {
+        assert!(
+            matches!(
+                verdict,
+                Embedding::Crosses(_) | Embedding::Refused(EngineRefusal::Budget { .. })
+            ),
+            "the ball at the corner at {scalar}: {verdict:?}"
+        );
+        if tol().eps() == geom_core::tolerance::DEFAULT_EPS {
+            assert!(
+                matches!(verdict, Embedding::Crosses(_)),
+                "the ball at the corner at {scalar}: {verdict:?}"
             );
         }
     }

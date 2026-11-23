@@ -119,7 +119,8 @@ and `…::a_needle_and_a_near_flat_cone_cut_read_as_any_cone`
 for bit.** A cut through the wall alone states its two section arcs on
 one anchor, one axis and one pair of semi-axes, with `u_ref`, the stored
 `v` and both phase components negated, every bit: an exact restatement a
-half turn on (three cuts, four placements each). The cut out through the
+half turn on (three cuts as built; two of them pinned in four
+placements each). The cut out through the
 top cap (this row's first finding) states them on one anchor and axis
 with the semi-axes exchanged and `u_ref` of the second the stored `v` of
 the first bit for bit, but the second's stored `v` is **one ulp off the
