@@ -111,6 +111,7 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
+use pncad::document::pose::RoleRead;
 use pncad::document::say;
 use pncad::document::{
     Constraint, ConstraintId, ConstraintKind, Dimension, Doc, Evaluation, Formula, Mate, MateRef,
@@ -433,6 +434,15 @@ fn toggled(side: Operand) -> Operand {
     }
 }
 
+/// [`toggled`] of a side read through a role: the pose read through it,
+/// flipped.
+fn toggled_read(side: RoleRead<Operand>) -> RoleRead<Operand> {
+    match side.role {
+        None => RoleRead::plain(toggled(side.read)),
+        Some(_) => RoleRead::plain(Operand::Pose(Box::new(pose::PoseDef::Flip { pose: side }))),
+    }
+}
+
 /// **The role a mate of `kind`'s far side is slid along by its
 /// offset**: a plane's normal, a frame's `z`; `None` for a kind whose
 /// far side no slide along its own direction moves in a way its
@@ -670,7 +680,7 @@ impl MateSeat {
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct MateSideDraft {
     /// The side as loaded from the bundle, in its loaded sense.
-    written: Option<Operand>,
+    written: Option<RoleRead<Operand>>,
     /// A `to` as loaded, as written ([`written_side`]) with its offset
     /// taken off ([`side_offset`]), and that offset: what the side is
     /// written over once its offset changes.
@@ -757,16 +767,19 @@ impl MateRow {
         loaded: Option<ConstraintId>,
         mate: &Mate<Formula>,
     ) -> Self {
-        let read = editor_core::mate::pin::operand_kind(doc, &mate.on);
+        let read = editor_core::mate::pin::side_kind(doc, &mate.on);
         let flip = editor_core::mate::side_flipped(doc, &mate.to)
             != editor_core::mate::side_flipped(doc, &mate.on);
-        let written = |side: &Operand| MateSideDraft {
+        let written = |side: &RoleRead<Operand>| MateSideDraft {
             written: Some(side.clone()),
             ..MateSideDraft::default()
         };
+        // Only a plain `to` carries the editor's offset; one read
+        // through a role (a datum's plane) is kept as written.
         let unslid = read
             .and_then(offset_role)
-            .map(|role| side_offset(&written_side(doc, &mate.to), role));
+            .filter(|_| mate.to.role.is_none())
+            .map(|role| side_offset(&written_side(doc, &mate.to.read), role));
         let offset = unslid.as_ref().and_then(|(_, by)| by.clone());
         Self {
             // A kind that does not resolve is said, never guessed: the
@@ -835,7 +848,7 @@ impl MateRow {
     #[must_use]
     pub fn to_space(&self, doc: &Doc<ProfileProgram>, ev: &Evaluation<f64>) -> Option<VarId> {
         match &self.to.written {
-            Some(written) => doc.operand_space(written),
+            Some(written) => doc.operand_space(&written.read),
             None => {
                 let pick = self.to.picks().next()?;
                 let (_, read) = to_read(doc, Some(ev), pick.pick())?;
@@ -3123,23 +3136,29 @@ impl MateTool {
         at: usize,
         row: &MateRow,
     ) -> Result<ProposedMate, MateToolError> {
-        let sided = |side: MateSide| -> Result<(Operand, Vec<SitedRef>), MateToolError> {
+        let sided = |side: MateSide| -> Result<(RoleRead<Operand>, Vec<SitedRef>), MateToolError> {
             let drafted = row.side(side);
             if let Some(written) = &drafted.written {
                 // A `to` whose offset changed is written over: its side
                 // with the loaded offset taken off, the new one put on.
                 let (written, restood) = match &drafted.unslid {
-                    Some((unslid, loaded)) if *loaded != row.offset => (unslid, true),
-                    _ => (written, false),
+                    Some((unslid, loaded)) if *loaded != row.offset => {
+                        (RoleRead::plain(unslid.clone()), true)
+                    }
+                    _ => (written.clone(), false),
                 };
                 let read = match (side, row.loaded) {
                     (MateSide::To, Some(loaded)) if loaded.flip != row.flip => {
-                        toggled(written.clone())
+                        toggled_read(written)
                     }
-                    _ => written.clone(),
+                    _ => written,
                 };
+                // A side written over is plain: only a plain `to` is
+                // unslid, and toggling a plain side keeps it plain.
                 let read = match (restood, &row.offset, offset_role(row.kind)) {
-                    (true, Some(by), Some(role)) => offset_side(read, role, by.clone()),
+                    (true, Some(by), Some(role)) => {
+                        RoleRead::plain(offset_side(read.read, role, by.clone()))
+                    }
                     _ => read,
                 };
                 return Ok((read, Vec::new()));
@@ -3197,7 +3216,7 @@ impl MateTool {
                 (MateSide::To, Some(by), Some(role)) => offset_side(pose, role, by.clone()),
                 _ => pose,
             };
-            Ok((pose, sites))
+            Ok((RoleRead::plain(pose), sites))
         };
         let (on, on_sites) = sided(MateSide::On)?;
         let (to, to_sites) = sided(MateSide::To)?;
@@ -3291,7 +3310,7 @@ impl MateTool {
             .position(|(_, row)| fixes_one_direction(row.kind));
         let base_chart = base.iter().find_map(|c| {
             let mate = c.mate()?;
-            editor_core::mate::pin::operand_kind(doc, &mate.on)
+            editor_core::mate::pin::side_kind(doc, &mate.on)
                 .filter(|&kind| fixes_one_direction(kind))
                 .map(|_| c.id)
         });
