@@ -53,59 +53,89 @@ to the attribution. Its counts feed the P1 canary list.
 
 The scheduled nightly now attributes its newly red tests itself.
 `nightly.yml`'s `attribution` job calls `.github/workflows/nightly-attribution.yml`
-after the full-suite rows. It runs on scheduled runs only. That workflow
-runs `scripts/nightly-attribution.py`:
+after the full-suite rows, on scheduled runs only. That workflow runs
+`scripts/nightly-attribution.py`; its docstring is the method.
 
 - **Newly red.** A test is newly red at an ε row when it fails in this
   run's junit and passed in the latest earlier scheduled `main` nightly
-  that reported it at that row. Earlier nights are searched back seven
-  runs, so a night whose build died is stepped over. A red test with no
-  earlier report is counted, not attributed.
+  that reported it there, searched back seven runs. A test that a leg was
+  running when it hit its budget counts as unreported on both sides, and
+  this run's are listed as `leg stopped`.
 - **Retry.** Each newly red test is retried once at the bad sha from the
-  run's own test archive. A pass is reported as `flaky`.
-- **Attribution.** The range is the first-parent commits between the
-  baseline sha and the run's sha. Commits that touch only `work/` or
-  `docs/perf-data/` are dropped (58 of 157 kept on 11-15..11-17). One
-  commit left is the answer with no probe. Otherwise it bisects. Each
-  probe builds one test target (`cargo test --no-run -p <crate>
-  --test/--lib`, PR-gate env, `build-default` cache restored) and runs
-  only the open tests of that binary, each at its own ε. A commit where
-  the target does not build, the test is absent or it times out is
-  skipped for that test. A rustc killed for memory is retried at `-j 2`.
-  One binary's bisect finishes before the next starts, so a spent budget
-  leaves whole answers.
-- **Bounds.** 12 probes, 70 minutes, a 300 s per-test cap at the bad sha,
-  a 200-commit range cap and a 25-test cap; past a bound the verdict is
-  the range with the reason. The job has `timeout-minutes: 90` and
-  cannot redden the run. Every step continues on error, and the script
-  reports its own failure as `attribution failed: <why>` and exits 0.
+  run's own test archive (one nextest call per ε row). A pass is `flaky`.
+- **Range.** Every first-parent commit between the baseline and this
+  run's sha; none is dropped by path (tests read `work/` and `docs/`).
+  One commit is the answer with no probe.
+- **Bisect.** Each probe archives one test target (`cargo nextest archive
+  -p <crate> --test/--lib`) at the PR gate's opt-level 1, into the
+  `target/` rust-cache restored from `build-default`. It runs that
+  binary's open tests in one nextest call per ε row. A failure counts
+  only when its junit type matches the nightly's (a panic). A crash,
+  abort, timeout, absent test or failed build makes the commit untestable
+  for that test. A rustc killed for memory is retried at `-j 2`.
+- **A culprit is confirmed.** C is named only when, in the probe
+  configuration, the test passed at C^1 and failed at C, and a re-run of
+  both from the kept archives agrees. A bisect that narrows to an end
+  probes that end, so a red the probe configuration does not share comes
+  back as `range … (probe config disagrees at the bad end)` (or good
+  end), never as a culprit. The docstring states the monotone, no-flake
+  assumption.
+- **Order and bounds.** The binary with most open tests goes first and
+  finishes before the next. Once C is confirmed, other binaries probe C
+  and C^1 first. The limits:
+  - 12 builds and 60 minutes, counted from the script's start; the step
+    is cut at 70 and the job at 90;
+  - 900 s of tests per nextest call;
+  - a test that took over 300 s at the bad sha, a range over 200
+    commits, and anything past the 25 cheapest tests get a range with
+    the reason.
+
+  Verdicts reached before an error are kept. The script exits 0 and
+  reports its own failure as `attribution failed: <why>`, and a final
+  step says so if the step itself died.
 - **Output.** `test | eps | verdict` in the job summary and in the
-  `nightly-attribution` artifact (`.md` and `.json`). A verdict is
-  `introduced by #NNNN (sha)`, `range a..b (… bisect stopped: why)` or
-  `flaky (passed on retry at the bad sha)`.
-- **Gates.** `scripts/gates/build-default-env-agrees.sh` now holds the
-  attribution job's env to cache-prime's. The script's `--selftest`
-  runs in the nightly's `gate-selftests`.
+  `nightly-attribution` artifact (`.md`, `.json`).
+- **Gates.** `scripts/gates/build-default-env-agrees.sh` holds the job's
+  env to cache-prime's. The script's `--selftest` runs in
+  `gate-selftests` and covers:
+  - the leg-stopped rule;
+  - work/-only commits staying in the range;
+  - the confirm path;
+  - both end disagreements;
+  - an abort not counting as a failure;
+  - C and C^1 tried first;
+  - verdicts kept after an error.
 
-**Evidence.** Dry run against scheduled run 44680731754 (11-20, `8039ba06`).
-The script stepped over the 11-19 and 11-18 runs, which have no junit,
-to the 11-17 baseline (`cdee7461`). It found 29 newly red tests over 71
-commits. Real run, locally, on the `topo
+**Evidence.** Scheduled run 44680731754 (11-20, `8039ba06`). Its 11-19 and 11-18
+runs uploaded no junit, so the baseline is 11-17 (`cdee7461`): 29 newly
+red tests over 172 first-parent commits. Dry runs of 11-17 and 11-21
+found 25 and 37 newly red tests over 157 and 152 commits.
+
+Bisected locally on `topo
 ring_path::spline_fuzz::a_path_across_a_carried_loop_reads_the_membership_parity`
-@ 1E-06 row:
+@ 1E-06, whose culprit GREEN's U6 found by hand
+(`main-red-seven-sweep-and-topo-rows-red-at-1e-6-since-11-17`: green at
+7052^1, red at 7052):
 
-- The retry at `8039ba06` failed.
-- Seven probes followed (#7094, #7070 and #7055 fail, #7050 and #7043
-  OOM-killed on this shared box so skipped, #7049 pass, #7052 fail).
-- Verdict: **introduced by #7052 (6c2430e888)**, the merge
-  GREEN's U6 bisected by hand (`main-red-seven-sweep-and-topo-rows-red-at-1e-6-since-11-17`,
-  "TubeStraddles near the node", green at 7052^1, red at 7052).
+- **The first version** (merges only, no confirmation) named **#7052
+  (6c2430e888)** in 7 probes.
+- **The current version** archived and ran in the real nextest-archive
+  mode. #7080, `b916398a3f` and `823c0fa4c9` failed, #7049 passed, and
+  `f50b58e2f3` failed: 5 builds of 5.5 to 10 minutes, each archive 25 MB.
+  That narrowed the range to `9c47bfbe57..f50b58e2f3`, which holds
+  #7052.
+- The box's shared disk then filled from other lanes' build
+  directories: rustc "No space left on device" at #7052, then a failed
+  `git checkout`. The run reported
+  `range 9c47bfbe57..f50b58e2f3 (5 commits; stopped by an error (CalledProcessError))`,
+  so the bisect stopped on the error and kept the range it had reached.
+- A third attempt hit a full disk at its fourth build. The confirmed
+  culprit path (C^1 and C re-run) has not run on a real build; the
+  selftest covers it.
 
-The OOM fallback came out of that run. The workflow could not be
-dispatched from the branch: GitHub dispatches only workflows on the
-default branch. actionlint 1.7.7 with shellcheck is clean.
+The workflow cannot be dispatched from a branch (GitHub dispatches only
+default-branch workflows). actionlint 1.7.7 with shellcheck is clean.
 
 Residue: `the-nightly-attribution-writes-its-verdicts-to-no-row` (P3).
-It covers writing or appending the `main-red` row, commenting on the
-culprit PR, and the one-group-a-night probe capacity. (CIW lane)
-
+It holds writing the `main-red` row, the culprit-PR comment and the
+capacity limit. (CIW lane)

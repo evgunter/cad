@@ -22,8 +22,11 @@ and choosing the owning program for a culprit merge, which is
 cheap once the first exists: comment on the culprit PR, and append to an
 open row that already holds the test by name instead of opening a second.
 
-Also open on the same job: its probes fit one binary group a night on a
-hosted runner (a topo-lib probe built in about 9 to 10 minutes locally,
-so 70 minutes holds about seven probes). Further groups come back as
-ranges. If that proves too little, parallel probe jobs (a matrix over
-binary groups) are the lever.
+Also open on the same job: its capacity. On the three real nights read
+(11-17, 11-20, 11-21) 25 to 37 tests went newly red, across 6 to 10 test
+binaries, over 150 to 172 first-parent commits. A full bisect of one
+binary is about 8 builds plus up to 2 at the ends. A topo-lib probe
+build took 5.5 to 8 minutes on a 4-core box, so the 60-minute budget
+holds about one binary's bisect a night, plus a second when it shares
+the first's culprit (2 builds). The rest come back as ranges. Parallel
+probe jobs (a matrix over binaries) are the lever if that is too little.
