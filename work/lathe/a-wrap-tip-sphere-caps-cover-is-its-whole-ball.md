@@ -37,3 +37,8 @@ brick's edge, now reaches the pierce and refuses
 `solid_contain::sphere_chart_trim` it reads. A cap whose loop reaches a
 pole by a wrap tip lies in the latitude zone from its rim to that pole,
 which is the window it should read.
+
+Possibly the same cause as
+`split-refuses-a-plane-clear-of-a-one-band-sphere-cap` (a plane half a
+unit clear of a one-band cap reaches it); whether its reach reads this
+cover is not measured.
