@@ -1239,7 +1239,8 @@ fn a_patterns_member_indexed_rows_show_each_members_value() {
                 "{k} = 0: {}; {k} = 1: {}; {k} = 2: {}",
                 said(0.0),
                 said(0.07),
-                said(2.0 * 0.07)
+                said(2.0 * 0.07),
+                k = viewer::tree::spelled_var(k)
             ),
             "fused {fused}: the note names each member and its value"
         );
@@ -1280,12 +1281,13 @@ fn a_refused_member_past_the_spelled_ones_is_still_said() {
     let k = &members.over()[0];
     let spelled = members.spelled(Dimension::Length, Notation::DEFAULT);
     assert!(
-        spelled.ends_with("; and 4 more") && !spelled.contains(&format!("{k} = 7")),
+        spelled.ends_with("; and 4 more")
+            && !spelled.contains(&format!("{k} = 7", k = viewer::tree::spelled_var(k))),
         "the note spells six members, then counts the rest: {spelled}"
     );
     let refusals = members.refusals();
     assert!(
-        matches!(refusals.as_slice(), [line] if line.starts_with(&format!("refused at {k} = 7: "))),
+        matches!(refusals.as_slice(), [line] if line.starts_with(&format!("refused at {k} = 7: ", k = viewer::tree::spelled_var(k)))),
         "one refusal, at member 7 alone, past the spelled six: {refusals:?}"
     );
 }
@@ -1308,7 +1310,7 @@ fn a_refusal_is_said_once_with_the_members_it_refused_at() {
     let k = &alike.over()[0];
     let refusals = alike.refusals();
     assert!(
-        matches!(refusals.as_slice(), [line] if line.starts_with(&format!("refused at {k} = 3, 7: "))),
+        matches!(refusals.as_slice(), [line] if line.starts_with(&format!("refused at {k} = 3, 7: ", k = viewer::tree::spelled_var(k)))),
         "members 3 and 7 refuse alike, said once: {refusals:?}"
     );
 
@@ -1322,7 +1324,7 @@ fn a_refusal_is_said_once_with_the_members_it_refused_at() {
     assert!(
         matches!(
             refusals.as_slice(),
-            [line] if line.starts_with(&format!("refused at {k} = 0, 1, 2, 3, 4, 5, and 14 more: "))
+            [line] if line.starts_with(&format!("refused at {k} = 0, 1, 2, 3, 4, 5, and 14 more: ", k = viewer::tree::spelled_var(k)))
         ),
         "every member refuses alike: six named, the rest counted: {refusals:?}"
     );
@@ -1405,11 +1407,15 @@ fn an_extrude_reading_an_index_reads_per_member_and_none_at_zero() {
     let k = &members.over()[0];
     assert_eq!(
         props::field_text(&row, Notation::DEFAULT),
-        format!("{} {k} has no members", props::DRIVEN)
+        format!(
+            "{} {k} has no members",
+            props::DRIVEN,
+            k = viewer::tree::spelled_var(k)
+        )
     );
     assert_eq!(
         members.spelled(Dimension::Length, Notation::DEFAULT),
-        format!("{k} has no members")
+        format!("{k} has no members", k = viewer::tree::spelled_var(k))
     );
 }
 
@@ -1425,7 +1431,7 @@ fn a_defined_variable_reading_an_index_reads_per_member() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let step = props::variable_rows(session.committed_doc())
         .into_iter()
-        .find(|row| row.label.to_string() == "step")
+        .find(|row| viewer::tree::spelled_var(&row.label) == "step")
         .expect("declared")
         .var;
     let outcome = session.perform(SessionOp::SetVariableText {

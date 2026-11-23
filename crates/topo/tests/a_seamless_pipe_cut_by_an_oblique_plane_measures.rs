@@ -288,7 +288,8 @@ fn pipe_at_interval(
     match (built, pinned) {
         (Ok(body), None) => Some(body),
         (
-            Err(topo::EulerOpError::Certification {
+            Err(topo::EulerOpError::DescriptionUncertified {
+                edge: _,
                 error:
                     geom_brep::certify::CertifyError::AnalyticRung3(
                         geom_brep::edge_nurbs::AnalyticRung3Refusal::Stalled {

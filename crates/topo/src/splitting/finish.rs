@@ -1125,10 +1125,9 @@ pub(crate) fn rechart_section<T: Decide + crate::props::AtRestPolicy>(
         let carrier = restated
             .iter()
             .any(|(e, _)| *e == edge)
-            .then(|| body.get_edge(edge))
+            .then(|| body.edge(edge))
             .flatten()
-            .and_then(|e| body.get_curve_geom(e.curve))
-            .and_then(|geom| geom.certified())
+            .and_then(crate::live::EdgeView::certified)
             .map(|curve| curve.carrier().kind());
         match carrier {
             Some(kind) => of_attachment(edge, kind, refusal),
@@ -1900,17 +1899,16 @@ pub(crate) fn section_plane_restatements<T: Decide>(
     for (_, members, _) in view.boundary_by_loop() {
         for member in members {
             let BoundaryMember::Edge {
-                ek: edge,
-                edge: edge_data,
-                ..
+                edge: edge_data, ..
             } = member
             else {
                 continue;
             };
+            let edge = edge_data.key();
             if !stranded.contains(&edge) || out.iter().any(|(e, _)| *e == edge) {
                 continue;
             }
-            let geom = body.edge_curve_linked(edge, edge_data);
+            let geom = edge_data.curve();
             let Some(curve) = geom.certified() else {
                 continue;
             };
@@ -2001,10 +1999,7 @@ pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
             body.proven_face(face).surface(),
             body.proven_face(other_face).surface(),
         );
-        let existing = body
-            .edge_curve_linked(edge, &edge_data)
-            .certified()
-            .cloned();
+        let existing = body.proven_edge(edge).certified().cloned();
         let draft = geom_brep::IntersectionDraft::of(existing.as_ref(), p0, p1);
         let (carrier, interval) = draft.span();
         let reach = crate::wedge_reach(body, [face, other_face], carrier, interval);
@@ -2246,16 +2241,14 @@ fn shell_side<T: Decide>(
             if seen_v.insert(vertex, ()).is_none() {
                 vertices.push(Reading::Vertex(vertex));
             }
-            let BoundaryMember::Edge { ek, edge, .. } = member else {
+            let BoundaryMember::Edge { edge, .. } = member else {
                 continue;
             };
+            let ek = edge.key();
             if seen_e.insert(ek, ()).is_some() {
                 continue;
             }
-            let Some(curve) = body
-                .get_curve_geom(edge.curve)
-                .and_then(crate::null::CurveGeom::certified)
-            else {
+            let Some(curve) = edge.certified() else {
                 continue;
             };
             if curve.carrier().is_curved() {

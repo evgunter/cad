@@ -20,7 +20,7 @@ use geom_core::{Band, Decide, Indeterminate, Margin, MarginDiag, Point3, Sign, V
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, LoopKey, VertexKey};
-use crate::live::{linked, proven};
+use crate::live::proven;
 use crate::region::RegionRefusal;
 use crate::splitting::containment::placement_sized;
 use crate::splitting::containment::{
@@ -585,16 +585,8 @@ pub(crate) fn loop_circle<T: Decide>(
         .into_iter()
         .map(|(_, he, _)| {
             let edge_key = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
-            let edge = linked(
-                &body.edges,
-                edge_key,
-                EntityId::Edge,
-                EntityId::HalfEdge(he),
-                "edge",
-            );
-            body.edge_curve_linked(edge_key, edge)
-                .certified()
-                .map(|c| c.carrier().clone())
+            let edge = body.linked_edge(edge_key, EntityId::HalfEdge(he), "edge");
+            edge.certified().map(|c| c.carrier().clone())
         })
         .collect();
     let reference = carriers

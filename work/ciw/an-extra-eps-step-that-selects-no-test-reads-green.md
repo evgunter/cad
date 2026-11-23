@@ -4,7 +4,7 @@ kind: issue
 title: A shard's 1e-6 and 1e-12 step that selects no test at all reads green, so a PR looks gated at rows where nothing ran
 status: open
 opened: 2026-11-14
-priority: P3
+priority: P4
 cost: E
 ---
 
@@ -54,3 +54,8 @@ prints for the slow-set step), or the step is skipped when the
 intersection of the expression, the shard's packages and the `ci`
 profile is empty, so the check list shows it did not run. `--no-tests=warn`
 stays for the shard the expression does not concern.
+
+- 2026-11-22 — **Re-banded P3 → P4 by CIW triage.** - Still true. `ci.yml:432-447` passes `--no-tests=warn`.
+- This is a reporting fix with no CI cost and no latency effect.
+- Its main case, a file holding only slow rows, mostly disappears once
+the ε reform runs selected slow rows at 1e-6 and 1e-12.

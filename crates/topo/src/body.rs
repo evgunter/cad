@@ -81,7 +81,7 @@ use crate::entity::{
 use crate::euler::EulerOpError;
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::joint::JointElement;
-use crate::live::{Arg, lookup};
+use crate::live::Arg;
 use crate::null::{CurveGeom, NullEdge, NullFacePair};
 use crate::provenance::Provenance;
 use crate::validate::ValidatorSeal;
@@ -1002,6 +1002,20 @@ impl<T: Real> Body<T> {
     }
 
     /// **Failure-injection door** (`sweep-testing` only): a clone of
+    /// this body with curve `curve` removed and every edge that names it
+    /// left naming it, the state [`Self::with_entity_removed_for_tests`]
+    /// cannot reach because a curve is geometry, not an [`EntityId`].
+    ///
+    /// Returns `None` if `curve` is stale.
+    #[cfg(feature = "sweep-testing")]
+    #[doc(hidden)]
+    #[must_use]
+    pub fn with_curve_removed_for_tests(&self, curve: CurveKey) -> Option<Self> {
+        let mut out = self.clone();
+        out.curves.remove(curve).is_some().then_some(out)
+    }
+
+    /// **Failure-injection door** (`sweep-testing` only): a clone of
     /// this body with point `point` removed and every vertex that names
     /// it left naming it, the state [`Self::with_entity_removed_for_tests`]
     /// cannot reach because a point is geometry, not an [`EntityId`].
@@ -1125,10 +1139,12 @@ impl<T: Real> Body<T> {
         edge: EdgeKey,
         from: Arg,
     ) -> Result<&EdgeCurve<T>, EulerOpError> {
-        let data = lookup(&self.edges, edge, EntityId::Edge, from)?;
-        self.edge_curve_linked(edge, data)
-            .certified()
-            .ok_or(EulerOpError::NullScaffoldCurve { curve: data.curve })
+        let view = self
+            .edge(edge)
+            .ok_or_else(|| from.miss(EntityId::Edge(edge)))?;
+        view.certified().ok_or(EulerOpError::NullScaffoldCurve {
+            curve: view.record().curve,
+        })
     }
 
     /// The surface geometry at `key`, or `None` if the key is stale;
