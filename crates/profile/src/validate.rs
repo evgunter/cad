@@ -926,6 +926,7 @@ pub enum SegmentKind<T: Real> {
     },
 }
 
+#[cfg(any(test, feature = "test-support"))]
 impl<T: Real> SegmentKind<T> {
     /// The same kind read at another scalar: `f` on every stored
     /// component (an arc's carrier through [`Arc2::map`]), the turn

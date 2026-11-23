@@ -102,7 +102,7 @@
 //!   A loft's interior v knots are averages of chord-length parameters
 //!   read from its sections, so they are such knots; a path sweep's are
 //!   averages of its station shares, a count's fractions, and are
-//!   constants at every scalar ([`crate::skin`]'s `stated_knots`).
+//!   constants at every scalar ([`mod@crate::skin`]'s `stated_knots`).
 
 mod stacking;
 

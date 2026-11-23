@@ -1311,7 +1311,7 @@ pub type Section<L = ProfileLoop<f64>> = Vec<L>;
 /// ([`SectionLoop::validate_guided`]), so its canonical form is the
 /// `f64` one and its values are the loops' own. At an enclosure scalar
 /// it is validated at `T` with each decision certified there
-/// ([`validate_at_t`]).
+/// (`validate_at_t`).
 pub trait SectionLoop<T: Decide = f64>: Clone {
     /// The loop at `f64`.
     type Channel: SectionLoop<f64>;
