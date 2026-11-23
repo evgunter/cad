@@ -358,11 +358,11 @@ fn the_vessel_opens_its_mouth_into_one_rim() {
 }
 
 /// **A pole-touching cap opens from a document into a seamed band.**
-/// The revolve wears the cap on two half-faces and the document names
-/// both; the kernel keeps both as the band's branches, and the name
-/// table names each for its own designation — the first through the
-/// record's `rim`, the second as a live branch — with no face left
-/// unnamed. Tier 3 holds on the evaluated body.
+/// The revolve wears the cap as one face whose seam ends at the pole,
+/// and the document names it; the kernel keeps it as the band, its seam
+/// cut short at the cavity's corner, and the name table names it through
+/// the record's `rim`, with no face left unnamed. Tier 3 holds on the
+/// evaluated body.
 #[test]
 fn the_capped_vessel_opens_its_cap_into_a_seamed_band() {
     let (doc, shell, pot) = vessel::capped_document();
@@ -375,15 +375,35 @@ fn the_capped_vessel_opens_its_cap_into_a_seamed_band() {
         Ok(()),
         "tier 3"
     );
-    // Outer: base, foot ×2; the band ×2; cavity: base, foot ×2.
-    assert_eq!(body.faces().count(), 8, "3 outer + 2 band + 3 cavity");
+    // Outer: base, foot; the band; cavity: base, foot.
+    assert_eq!(body.faces().count(), 5, "2 outer + the band + 2 cavity");
     let table = ev.table_at(shell).expect("evaluated");
     let cap = fixture::piece(&doc, pot, 0, vessel::SEG_CAP as usize);
-    for (which, name) in [("the cap", editor_core::band(pot, cap))] {
-        let rim = shelled(shell, EntityKind::Face, RoleSeg::Rim(name.into()));
+    let rim = shelled(
+        shell,
+        EntityKind::Face,
+        RoleSeg::Rim(editor_core::band(pot, cap).into()),
+    );
+    let Some(editor_core::Entry::Unique(named)) = table.lookup(&rim) else {
+        panic!("the cap is named as the band, got {:?}", table.lookup(&rim))
+    };
+    let editor_core::EntityKey::Face(band) = named.key else {
+        panic!("the band's name resolves to a face, got {named:?}")
+    };
+    assert!(
+        matches!(body.face_surface(band), Some(geom::Surface::Sphere { .. })),
+        "the band is the cap's sphere face, got {:?}",
+        body.face_surface(band)
+    );
+    for (face, _) in body.faces() {
+        let entity = editor_core::EntityRef {
+            body: named.body,
+            key: editor_core::EntityKey::Face(face),
+        };
         assert!(
-            matches!(table.lookup(&rim), Some(editor_core::Entry::Unique(_))),
-            "{which} of the cap is named as a branch of the band"
+            table.name_of(&entity).is_some(),
+            "{face:?} is named ({:?})",
+            body.face_surface(face)
         );
     }
 }

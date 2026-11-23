@@ -1036,7 +1036,9 @@ pub enum SelfCheck {
     /// Which way a one-vertex seam edge runs against its partner
     /// (`bool_zip_one_vertex_sense`, `zip::one_vertex_sense`): the two
     /// halves leave one point along one conic, so a cosine of their
-    /// directions read in band is a degenerate seam.
+    /// directions read in band is a degenerate seam, and so is a zero
+    /// tangent or a conic whose cover does not read: each leaves the
+    /// levered cosine poison, which escalates here.
     SeamSense,
 }
 

@@ -224,17 +224,24 @@ fn r1_e2e_hollow_both_frustums_from_the_consumers_seat() {
                 "{what} d={d}: the per-chart door builds: {got:?}"
             );
         }
-        // A single band of the two-band chart: the door names the sharer.
-        let mut work = body.clone();
-        let got = topo::replace_face_offset(&mut work, group[0], -T, Tol::witness());
-        println!(
-            "[r1] {what} single band: {}",
-            got.as_ref().err().map(name).unwrap_or_default()
+        // The cone wall is one face, the whole chart: the single-face
+        // door builds what the per-chart door builds.
+        assert_eq!(
+            group.len(),
+            1,
+            "{what}: a full revolve's cone wall is one face"
         );
-        assert!(matches!(
-            got,
-            Err(ReplaceFaceError::SharedSurfaceKey { .. })
-        ));
+        let mut single = body.clone();
+        topo::replace_face_offset(&mut single, group[0], -T, Tol::witness())
+            .unwrap_or_else(|e| panic!("{what}: the one wall face offsets: {}", name(&e)));
+        let mut chart = body.clone();
+        topo::replace_faces_offset(&mut chart, &group, -T, Tol::witness())
+            .expect("the per-chart door builds");
+        assert_eq!(
+            volume(&single).to_bits(),
+            volume(&chart).to_bits(),
+            "{what}: one face is its whole chart"
+        );
     }
 }
 

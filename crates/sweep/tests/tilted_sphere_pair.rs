@@ -3,18 +3,17 @@
 //! normal to it, under every boolean.
 //!
 //! Each ball is the canonical full revolve of a semicircle about `y`
-//! (two half-bands on one sphere key), moved off the origin. The pair's
-//! section is the radical-plane circle, handed to both sides' wall
-//! lanes; offset along `x` (or anywhere in
-//! the seam plane `z = c_z`) that circle is tilted against both charts'
-//! polar axis, so its azimuth doubles back; the join takes each chord's
-//! arc from the germs it pairs, which reads no chart. The faces it leaves are
-//! bounded by circles that are neither rims nor meridians, and the
-//! sphere flux arm measures them by Gauss–Bonnet
-//! (`props::curved::sphere_face`). Every body is held to all
-//! three validation tiers and to its volume against the lens the two
-//! spheres share, computed here from the radii and the centre distance
-//! alone.
+//! (one band, its seam the wrap edge from pole to pole), moved off the
+//! origin. The pair's section is the radical-plane circle, handed to
+//! both sides' wall lanes; offset along `x` (or anywhere in the seam
+//! plane `z = c_z`) that circle is tilted against both charts' polar
+//! axis; the join takes each chord's arc from the germs it pairs, which
+//! reads no chart. The faces it leaves are bounded by circles that are
+//! neither rims nor meridians, and the sphere flux arm measures them by
+//! Gauss–Bonnet (`props::curved::sphere_face`). Every body is held to
+//! all three validation tiers and to its volume against the lens the
+//! two spheres share, computed here from the radii and the centre
+//! distance alone.
 //!
 //! A pierce ring off the seam plane and a plane tilted against the ball's
 //! chart build too; the rows a tilted section does not yet reach are
@@ -142,7 +141,7 @@ const BASE: Vec3<f64> = Vec3::new(2.0, 2.0, 0.5);
 /// **Sphere pairs offset in the seam plane** build under every op: the
 /// radical plane is tilted against both charts, from a pair of equal
 /// balls whose section is a great-circle-sized cut to a small ball
-/// whose section lies wholly inside one half-band. Each pose is the
+/// mostly inside the unit one. Each pose is the
 /// `y`-poled unit ball at [`BASE`] against a ball of radius `r` at
 /// `BASE + offset`.
 #[test]
@@ -417,40 +416,93 @@ fn a_flipped_tilted_face_is_refused_by_name() {
     }
 }
 
-/// **The pair the flipped-remnant row reads joins under every op**: B
-/// offset `(0.6, 1.2)` from A, its section circle meeting the two
-/// balls' seams at one site. Each op is a valid solid of its closed-form
-/// volume; meshing it is the trimmed sphere lane's question
+/// `a ∪ b` and `b ∪ a`, `a ∩ b` and `b ∩ a`, `a ∖ b` and `b ∖ a`, each a
+/// valid solid of its closed form ([`assert_solid`]), unmeshed: these
+/// are the join's rows, and a remnant sphere face that keeps its seam is
+/// the trimmed sphere lane's question
 /// (`work/lathe/a-sphere-remnant-that-keeps-its-seam-refuses-to-mesh-as-seam-twice.md`).
-#[test]
-fn the_pair_swallowing_a_pole_joins_under_every_op() {
-    let offset = Vec3::new(0.6, 1.2, 0.0);
-    let (a, b) = (ball(1.0, BASE), ball(1.0, BASE + offset));
-    let shared = lens_volume(1.0, 1.0, offset.norm());
+fn assert_every_op_joins(
+    pose: &str,
+    (a, b): (&AtRestBody<f64>, &AtRestBody<f64>),
+    (va, vb): (f64, f64),
+    shared: f64,
+) {
     for (label, op, x, y, expected) in [
-        (
-            "A ∪ B",
-            BooleanOp::Union,
-            &a,
-            &b,
-            2.0 * ball_volume(1.0) - shared,
-        ),
-        ("A ∩ B", BooleanOp::Intersect, &a, &b, shared),
-        (
-            "A ∖ B",
-            BooleanOp::Subtract,
-            &a,
-            &b,
-            ball_volume(1.0) - shared,
-        ),
+        ("A ∪ B", BooleanOp::Union, a, b, va + vb - shared),
+        ("B ∪ A", BooleanOp::Union, b, a, va + vb - shared),
+        ("A ∩ B", BooleanOp::Intersect, a, b, shared),
+        ("B ∩ A", BooleanOp::Intersect, b, a, shared),
+        ("A ∖ B", BooleanOp::Subtract, a, b, va - shared),
+        ("B ∖ A", BooleanOp::Subtract, b, a, vb - shared),
     ] {
+        let label = format!("{pose}, {label}");
         let out = run(op, x, y).unwrap_or_else(|e| panic!("{label} refused: {e:?}"));
         let body = &out
             .body()
             .unwrap_or_else(|| panic!("{label} came back empty"))
             .body;
-        assert_solid(label, body, expected);
+        assert_solid(&label, body, expected);
     }
+}
+
+/// **The pair the flipped-remnant row reads joins under every op**: B
+/// offset `(0.6, 1.2)` from A swallows A's north pole, and their section
+/// circle meets the two balls' seams, which lie in one half-plane, at
+/// one site.
+#[test]
+fn the_pair_swallowing_a_pole_joins_under_every_op() {
+    let offset = Vec3::new(0.6, 1.2, 0.0);
+    assert_every_op_joins(
+        "B swallowing A's north pole",
+        (&ball(1.0, BASE), &ball(1.0, BASE + offset)),
+        (ball_volume(1.0), ball_volume(1.0)),
+        lens_volume(1.0, 1.0, offset.norm()),
+    );
+}
+
+/// **A one-site section through a pole**: B's sphere passes through A's
+/// north pole, its centre `1.2·(cos 120°, sin 120°, 0)` from A's, so the
+/// section circle runs through the pole, the tip of A's wrap edge, whose
+/// site cell is that edge's. The mirror, B's centre below the equator,
+/// runs it through the south pole.
+#[test]
+fn a_section_through_a_pole_joins_under_every_op() {
+    let (cos, sin) = (-0.5, 0.75f64.sqrt());
+    for (pose, c, pole) in [
+        (
+            "through the north pole",
+            Vec3::new(1.2 * cos, 1.2 * sin, 0.0),
+            1.0,
+        ),
+        (
+            "through the south pole",
+            Vec3::new(1.2 * cos, -1.2 * sin, 0.0),
+            -1.0,
+        ),
+    ] {
+        let r = (c - Vec3::new(0.0, pole, 0.0)).norm();
+        assert_every_op_joins(
+            pose,
+            (&ball(1.0, BASE), &ball(r, BASE + c)),
+            (ball_volume(1.0), ball_volume(r)),
+            lens_volume(1.0, r, c.norm()),
+        );
+    }
+}
+
+/// **One ball's tip on the other's seam**: B, radius 0.8 at
+/// `(−0.5, 1 − √0.39, 0)` from A, passes through A's north pole, which
+/// lies on B's seam inside its span, so the section meets A at the tip
+/// of its wrap edge and B inside its own.
+#[test]
+fn a_tip_on_the_partners_seam_joins_under_every_op() {
+    let c = Vec3::new(-0.5, 1.0 - 0.39f64.sqrt(), 0.0);
+    assert_every_op_joins(
+        "A's pole on B's seam",
+        (&ball(1.0, BASE), &ball(0.8, BASE + c)),
+        (ball_volume(1.0), ball_volume(0.8)),
+        lens_volume(1.0, 0.8, c.norm()),
+    );
 }
 
 /// **A remnant face that keeps one pole and loses the other encodes its

@@ -4,8 +4,8 @@
 //! (`geom_brep::curve_face::line_quadric::line_cone_roots`), splitting the edge there, and
 //! the vertex pair reads the halves (`boolean::fan`). The cone of height
 //! 1 about `y`, apex at `(0, 1, 0)`, base radius `tan α` on `y = 0`, in
-//! both forms: its apex reached by one wrap edge
-//! (`common::wrap_tip::one_wrap_edge`) and revolved by `sweep::revolve`.
+//! the form `sweep::revolve` builds, its apex reached by one wrap edge
+//! (`common::wrap_tip::one_wrap_edge`).
 //! Against a box one of whose edges runs through the apex, turned about
 //! the cone's axis by generic turns, every quarter turn and just short
 //! of the whole turn (where a box side lies just off the tipped cone's
@@ -24,8 +24,7 @@
 //! face, the face is pinched at the apex, which props cannot yet measure:
 //! that op refuses `ResultPinchedAtConeApex` by name
 //! (`a_cone_apex_on_a_plane_through_it`). Which face is cut that way is
-//! the turn's: the wrap-tipped cone has one face, the revolved cone two,
-//! parted at its seam. The ops that keep the box's part, `∩` and
+//! the turn's: the cone has one face, parted by nothing. The ops that keep the box's part, `∩` and
 //! `box ∖ cone`, build at every pose. The poses that pinch are named,
 //! every aperture alike, so a pose that starts or stops pinching turns
 //! its row red.
@@ -57,16 +56,10 @@ fn cone(alpha: f64) -> topo::Body<f64> {
     )
 }
 
-/// The cone in both forms: one wrap edge to its apex, and as
-/// `sweep::revolve` builds it.
-fn forms(alpha: f64) -> [(&'static str, topo::Body<f64>); 2] {
-    [
-        ("tipped", one_wrap_edge(cone(alpha), true).0),
-        (
-            "revolved",
-            crate::revolve_common::needle(alpha, None, tol()).into_body(),
-        ),
-    ]
+/// The cone as `sweep::revolve` builds it: one face, one wrap edge to
+/// its apex.
+fn forms(alpha: f64) -> [(&'static str, topo::Body<f64>); 1] {
+    [("tipped", one_wrap_edge(cone(alpha), true).0)]
 }
 
 /// `body` moved rigidly by `m`, finished.
@@ -300,13 +293,9 @@ fn an_edge_along_the_axis_holds_a_quarter_of_the_cones_top() {
         |v| v * 0.45f64.powi(3) / 4.0,
         // A seam outside the box, in the kept remainder, between the
         // box's two rulings (the remainder's face two lobes meeting only
-        // at the apex): the tipped cone's turned 2, π, 3π/2 or just short
-        // of the whole turn, the revolved cone's turned 2 or just short.
-        |_, turn, form, op| {
-            let tipped = [2.0, PI, 3.0 * FRAC_PI_2, TURNS[6]].contains(&turn);
-            let revolved = [2.0, TURNS[6]].contains(&turn);
-            pinched(if form == "tipped" { tipped } else { revolved }, op)
-        },
+        // at the apex): the cone turned 2, π, 3π/2 or just short of the
+        // whole turn.
+        |_, turn, _, op| pinched([2.0, PI, 3.0 * FRAC_PI_2, TURNS[6]].contains(&turn), op),
     );
 }
 

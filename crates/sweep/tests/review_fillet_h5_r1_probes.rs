@@ -15,14 +15,13 @@
 //! - its TOP OUTER rim `(1, 1)` is the same shape except that the
 //!   merged flat top also carries a RING (the dome rim), so its host
 //!   trim must contain that ring — which it does, and it carves;
-//! - its DOME rim `(0.5, 1)` is in that ring, so it is a LADDER rim,
-//!   nested inside its host's circular outer boundary.
+//! - its DOME rim `(0.5, 1)` is that ring, nested inside its host's
+//!   circular outer boundary.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
 use geom_core::Tol;
-use sweep::blend::BlendError;
 use sweep::blend::FILLET3_ASSEMBLY_RECOURSE;
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{assert_full_revolve_rim, rim_arcs_at};
@@ -91,7 +90,7 @@ fn r1_the_bosss_base_rim_is_hostless_and_carves() {
     assert!(fd.rings.is_empty(), "the base disc carries no ring");
     assert_eq!(
         loop_edges(&body, fd.outer).len(),
-        2,
+        1,
         "the base disc's outer cycle is exactly the rim"
     );
     let out = fillet_edges(
@@ -143,7 +142,7 @@ fn r1_a_hostless_rim_on_a_ringed_host_carves_under_the_recourse_that_promises_it
     // arc of the rim, in that face's own outer cycle.
     assert_eq!(
         loop_edges(&body, fd.outer).len(),
-        2,
+        1,
         "the merged flat top's outer cycle is exactly this rim"
     );
     assert!(
@@ -201,7 +200,7 @@ fn r1_two_hostless_rims_of_one_body_compose_in_one_call() {
     };
     let mut both = rim_arcs_at(&source, 1.0, 0.0);
     both.extend(rim_arcs_at(&source, 0.2, 1.2));
-    assert_eq!(both.len(), 4, "two hostless rims of two arcs each");
+    assert_eq!(both.len(), 2, "two hostless rims of one edge each");
     let one_call = fillet_edges(
         &sweep::test_support::at_rest(&source, tol()),
         &both,
@@ -266,46 +265,5 @@ fn r1_two_hostless_rims_of_one_body_compose_in_one_call() {
             one.enclosure.volume,
             seq.enclosure.volume
         );
-    }
-}
-
-/// **The mixed LADDER/ANNULUS shared-support arm's "no reachable
-/// fixture today" premise, re-measured.** `shared_support_gate`'s doc
-/// says the shape it refuses "needs a plane face carrying both a pip
-/// RING and a revolution-wall cycle, whose only public construction is
-/// a boolean of a ball against a revolve — refused at the boolean
-/// operand gate ... before any fillet request exists."
-///
-/// The boss's merged flat top IS such a face, built by revolve plus
-/// `merge_coplanar_faces` and no boolean at all: its RING is the dome
-/// rim (a ladder rim) and its OUTER CYCLE is the top rim (an annulus
-/// rim). So the doc's exclusivity clause is stale, and the mixed pair is
-/// what the arm now answers: each rim carves ALONE, and requesting both
-/// in one call reaches this arm and takes its sequential recourse.
-#[test]
-fn r1_the_mixed_shared_support_arm_is_what_refuses_the_bosss_two_rims() {
-    let body = boss();
-    let mut both = rim_arcs_at(&body, 1.0, 1.0);
-    both.extend(rim_arcs_at(&body, 0.5, 1.0));
-    assert_eq!(both.len(), 4, "the top rim and the dome rim, two arcs each");
-    // Both rims rest on the SAME merged flat top.
-    assert_eq!(
-        plane_host(&body, &both[..2]),
-        plane_host(&body, &both[2..]),
-        "one plane face carries the ladder ring and the annulus cycle"
-    );
-    match fillet_edges(
-        &sweep::test_support::at_rest(&body, tol()),
-        &both,
-        0.05,
-        tol(),
-    )
-    .map_err(|e| e.error)
-    {
-        Err(BlendError::UnsupportedChain { detail, .. }) => assert!(
-            detail.contains("SEQUENTIAL calls"),
-            "the mixed ladder/annulus arm, with its sequential recourse: {detail}"
-        ),
-        other => panic!("expected the shared-support gate's mixed arm, got {other:?}"),
     }
 }

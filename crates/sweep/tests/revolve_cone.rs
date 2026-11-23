@@ -93,12 +93,19 @@ fn cone_full_revolve_has_an_apex_and_certifies() {
         })
         .map(|(e, _)| e)
         .collect::<Vec<_>>();
-    assert_eq!(at_tip, vec![slant_meridian], "the apex is the meridian's tip");
+    assert_eq!(
+        at_tip,
+        vec![slant_meridian],
+        "the apex is the meridian's tip"
+    );
     // Orientation oracle: Pappus over the meridian (the cone's loop
     // walks its meridian out and back, so a boundary fan spans nothing;
     // the base contributes nothing at `dy = 0`).
     let v = full_pappus_y(&t);
     // The oracle's chords (256 per edge) are good to ~1e-4 here.
     let exact = core::f64::consts::PI / 3.0;
-    assert!((v - exact).abs() / exact < 1e-3, "cone volume {v} vs {exact}");
+    assert!(
+        (v - exact).abs() / exact < 1e-3,
+        "cone volume {v} vs {exact}"
+    );
 }

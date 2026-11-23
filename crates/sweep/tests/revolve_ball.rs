@@ -90,5 +90,8 @@ fn ball_full_revolve_omits_the_axis_edge_and_certifies() {
     let v = full_pappus_y(&t);
     // The oracle's chords (256 per edge) are good to ~1e-4 here.
     let exact = 4.0 * core::f64::consts::PI / 3.0;
-    assert!((v - exact).abs() / exact < 1e-3, "ball volume {v} vs {exact}");
+    assert!(
+        (v - exact).abs() / exact < 1e-3,
+        "ball volume {v} vs {exact}"
+    );
 }

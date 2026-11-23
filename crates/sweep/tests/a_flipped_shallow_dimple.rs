@@ -67,7 +67,7 @@ fn a_flipped_dimple_is_refused_by_the_side_reader() {
         .filter(|(fk, _)| matches!(body.face_surface(*fk), Some(geom::Surface::Sphere { .. })))
         .map(|(k, _)| k)
         .collect();
-    assert_eq!(dimple.len(), 2, "the dimple is two half-faces on one seam");
+    assert_eq!(dimple.len(), 1, "the dimple is one face on its seam");
     let flipped = dimple.iter().fold(topo::Body::clone(&body), |b, &k| {
         b.flipped_face_sense_for_tests(k, geom_core::Tol::witness())
             .expect("the face")
