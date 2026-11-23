@@ -197,6 +197,15 @@ fn a_half_ball_on_a_flanged_rod_is_no_junction_and_glues_as_before() {
         (Cylinder, Sphere),
         RimDoor::Tangent,
     );
+    // The other member order, so the convexity read of each operand's own
+    // rim edges is pinned: here the concave edge is operand B's.
+    door(
+        "flanged, swapped",
+        &half_ball(),
+        &flanged_rod(),
+        (Sphere, Cylinder),
+        RimDoor::Tangent,
+    );
 }
 
 /// The bowl's sphere leaves the rim on the rod's own side: no junction,

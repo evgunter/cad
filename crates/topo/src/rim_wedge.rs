@@ -785,6 +785,25 @@ pub(crate) fn on_rim<T: Decide>(
     on_locus(Locus::Rim(rim), p, band)
 }
 
+/// Whether `circle` is `rim`, decided on the identity ladder the rim
+/// itself was found by ([`same_circle`]): the junction's reader asks it
+/// of the edge behind a sector bound, which rides the rim only where it
+/// IS the rim's edge.
+///
+/// # Errors
+///
+/// The identity's [`Indeterminate`] in band.
+pub(crate) fn circle_is_rim<T: Decide>(
+    circle: geom::Circle<T>,
+    rim: Rim<T>,
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    let Some(of) = rim_of(&geom::Curve3::Circle(circle)) else {
+        return Ok(false);
+    };
+    Ok(same_circle(of, rim, band)?.is_some())
+}
+
 /// Whether `p` lies on the locus.
 fn on_locus<T: Decide>(locus: Locus<T>, p: Point3<T>, band: Band) -> Result<bool, Indeterminate> {
     let off = match locus {
