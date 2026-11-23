@@ -702,7 +702,7 @@ mod tests {
         h: f64,
     ) -> bool {
         let normal = normal.normalize();
-        let dir = Vec3::unit_x().cross(normal).normalize();
+        let dir = geom_core::UnitVec3::squared(Vec3::unit_x().cross(normal));
         let a = normal - Vec3::unit_x() * normal.x;
         let foot = Point3::new(offset, 0.0, 0.0);
         let to = (h - (foot - origin).dot(normal)) / a.norm_squared();
@@ -712,7 +712,7 @@ mod tests {
         };
         let axis = geom::Line {
             origin: Point3::origin(),
-            dir: Vec3::unit_z(),
+            dir: geom_core::UnitVec3::exact_z(),
         };
         super::line_torus_roots(line, axis, major, minor, band()).is_err()
     }
