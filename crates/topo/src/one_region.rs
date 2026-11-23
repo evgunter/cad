@@ -69,8 +69,9 @@ pub(crate) fn region_errors<T: Decide>(
         if inverted.contains(&face) {
             continue;
         }
+        // A dangling key is tier 1's; a pending face is check 1's.
         let Some(surface) = body.get_surface(f.surface).ok() else {
-            continue; // unreachable on tier-1 input
+            continue;
         };
         let torus = match surface {
             geom::Surface::Sphere { .. }

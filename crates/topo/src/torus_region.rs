@@ -177,7 +177,10 @@ pub(crate) fn torus_face_region<T: Decide>(
 ) -> Result<Option<TorusFaceRegion<T>>, PointInSolidError> {
     let corrupt = || PointInSolidError::CorruptFace { face };
     let f = body.proven_face(face);
-    let Ok(surface @ geom::Surface::Torus { .. }) = f.surface() else {
+    let surface = f
+        .surface()
+        .map_err(|_| PointInSolidError::PendingFace { face })?;
+    let geom::Surface::Torus { .. } = surface else {
         return Err(corrupt());
     };
     let planar = [geom::CurveKind::Circle, geom::CurveKind::Spiric];

@@ -514,13 +514,18 @@ fn mapped_image<T: Real>(
     match hand {
         Hand::Proper => Ok(image.clone()),
         Hand::Improper => {
-            let class = body
-                .get_surface(surface)
-                .ok()
-                .map(OrientationClass::of)
-                .ok_or(TransformError::Corrupt {
-                    found: "a chart image lies on a missing surface",
-                })?;
+            let class = match body.get_surface(surface) {
+                Ok(s) => OrientationClass::of(s),
+                Err(crate::SurfaceMiss::Stale) => {
+                    return Err(TransformError::Corrupt {
+                        found: "a chart image lies on a missing surface",
+                    });
+                }
+                Err(crate::SurfaceMiss::Pending) => unreachable!(
+                    "{surface:?} is pending under a chart image: certification refuses a \
+                     pending key"
+                ),
+            };
             reflected_image(image, class)
         }
     }

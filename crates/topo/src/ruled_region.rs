@@ -311,7 +311,9 @@ pub(crate) fn ruled_face_region<T: Decide>(
 ) -> Result<Option<RuledFaceRegion<T>>, PointInSolidError> {
     let corrupt = || PointInSolidError::CorruptFace { face };
     let f = body.proven_face(face);
-    let stored = f.surface().map_err(|_| corrupt())?;
+    let stored = f
+        .surface()
+        .map_err(|_| PointInSolidError::PendingFace { face })?;
     let surface = Ruled::of(stored).ok_or_else(corrupt)?;
     let ruled = [
         geom::CurveKind::Line,

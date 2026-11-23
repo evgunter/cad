@@ -1531,6 +1531,9 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             Err(ChartWindowError::Stale(_) | ChartWindowError::NotClosed(_)) => {
                 return Err(PointInSolidError::CorruptFace { face });
             }
+            Err(ChartWindowError::PendingFace(_)) => {
+                return Err(PointInSolidError::PendingFace { face });
+            }
         }
     };
     // A face that ALONE wraps the azimuth ([`wrap_rims`], asked first)

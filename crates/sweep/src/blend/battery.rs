@@ -547,10 +547,14 @@ pub(crate) struct MixedVertex {
 /// [`geom_brep::implicit_outward_normal`] — never a sampled or
 /// re-derived orientation (S10 category A). Unwrapped here because
 /// both consumers read it as geometry (a dot, a mean).
-pub(super) fn outward<T: Decide>(body: &Body<T>, face: FaceKey, p: Point3<T>) -> Option<Vec3<T>> {
-    let f = body.get_face(face)?;
-    let s = body.face_surface(face).ok()?;
-    Some(geom_brep::implicit_outward_normal(s, f.sense, p).vec())
+pub(super) fn outward<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    p: Point3<T>,
+) -> Result<Vec3<T>, topo::SurfaceMiss> {
+    let f = body.get_face(face).ok_or(topo::SurfaceMiss::Stale)?;
+    let s = body.face_surface(face)?;
+    Ok(geom_brep::implicit_outward_normal(s, f.sense, p).vec())
 }
 
 /// The sample parameters of an edge, and its carrier
@@ -650,12 +654,13 @@ pub fn radius_headroom<T: Decide + Bounds>(
             "a link's support face, for the curvature headroom predicate",
         ));
     };
-    let Ok(s) = body.face_surface(face) else {
-        return Err(unresolved(
-            EntityId::Face(face),
+    let s = body.face_surface(face).map_err(|miss| {
+        super::surgery::surface_missed(
+            face,
             "a link's support face, for the curvature headroom predicate",
-        ));
-    };
+            miss,
+        )
+    })?;
     let arm = geom_brep::min_radius_of_curvature_toward(s, p, ball_side(convexity, f.sense));
     // An unbounded arm saturates at `r` rather than dividing by an
     // infinity.
@@ -1109,7 +1114,7 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
         body.face_surface(face).cloned().map_err(|miss| match miss {
             topo::SurfaceMiss::Stale => broken(),
             topo::SurfaceMiss::Pending => {
-                super::surgery::surface_missed(face, miss, "a link's support face")
+                super::surgery::surface_missed(face, "a link's support face", miss)
             }
         })
     };
@@ -2663,8 +2668,8 @@ fn turn_at<T: Decide + Bounds>(
         TurnVerdict::Overrun { far } => {
             // The far band's cut-off at the near band's face of `third`.
             let near = others[1 - far];
-            let normal = outward(body, near, point_at(body, vertex)?).ok_or_else(|| {
-                unresolved(EntityId::Face(near), "an overrun's end face's stored plane")
+            let normal = outward(body, near, point_at(body, vertex)?).map_err(|miss| {
+                super::surgery::surface_missed(near, "an overrun's end face's stored plane", miss)
             })?;
             let section = cut_off_section(vertex, links[far], normal, radius, kind, band)?;
             (
@@ -3132,10 +3137,11 @@ fn corner_at<T: Decide + Bounds>(
             let p = point_at(body, vertex)?;
             let mut normals = [Vec3::new(T::zero(), T::zero(), T::zero()); 3];
             for (slot, f) in normals.iter_mut().zip([link.face_a, link.face_b, cap]) {
-                *slot = outward(body, f, p).ok_or_else(|| {
-                    unresolved(
-                        EntityId::Face(f),
+                *slot = outward(body, f, p).map_err(|miss| {
+                    super::surgery::surface_missed(
+                        f,
                         "a ruled cap's face or its stored surface, for its outward normal",
+                        miss,
                     )
                 })?;
             }
@@ -3255,10 +3261,11 @@ fn corner_at<T: Decide + Bounds>(
         ));
     }
     for (i, f) in faces.iter().enumerate() {
-        normals[i] = outward(body, *f, p).ok_or_else(|| {
-            unresolved(
-                EntityId::Face(*f),
+        normals[i] = outward(body, *f, p).map_err(|miss| {
+            super::surgery::surface_missed(
+                *f,
                 "a corner's support face or its stored surface, for its outward normal",
+                miss,
             )
         })?;
     }

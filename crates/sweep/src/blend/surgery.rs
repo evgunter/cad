@@ -284,13 +284,15 @@ pub(super) fn disagrees(at: EntityId, detail: &'static str) -> BlendError {
 /// [`scaffolding`], each naming `detail`.
 pub(super) fn surface_missed(
     face: FaceKey,
-    miss: topo::SurfaceMiss,
     detail: &'static str,
+    miss: topo::SurfaceMiss,
 ) -> BlendError {
-    match miss {
-        topo::SurfaceMiss::Stale => unresolved(EntityId::Face(face), detail),
-        topo::SurfaceMiss::Pending => scaffolding(EntityId::Face(face), detail),
-    }
+    let at = EntityId::Face(face);
+    let breach = match miss {
+        topo::SurfaceMiss::Stale => Breach::Unresolved,
+        topo::SurfaceMiss::Pending => Breach::Scaffolding,
+    };
+    BlendError::BodyNotIntact { at, breach, detail }
 }
 
 /// **Row 1**, construction scaffolding at `at`: an edge with no
@@ -1458,7 +1460,7 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
     let is_plane_surface = |k: SurfaceKey| -> Result<bool, BlendError> {
         let s = body
             .get_surface(k)
-            .map_err(|miss| surface_missed(link0.face_a, miss, "a rim support's surface"))?;
+            .map_err(|miss| surface_missed(link0.face_a, "a rim support's surface", miss))?;
         Ok(matches!(s, Surface::Plane { .. }))
     };
     let host_surface = if second_support_is_host(is_plane_surface(ka)?, is_plane_surface(kb)?) {

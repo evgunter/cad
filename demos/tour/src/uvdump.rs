@@ -482,7 +482,8 @@ pub fn emit(label: &str, body: &Body<f64>, outdir: &str, tol: Tol) -> Vec<FaceDu
         let svg_name = format!("{label}.f{ord:03}.svg");
         let (chart, curved) = match body.face_surface(fk) {
             Ok(s) => chart_of(s),
-            Err(_) => ("missing", true),
+            Err(pncad::topo::SurfaceMiss::Pending) => ("pending", true),
+            Err(pncad::topo::SurfaceMiss::Stale) => ("missing", true),
         };
 
         // Outer loop first, then the rings — the even-odd order the

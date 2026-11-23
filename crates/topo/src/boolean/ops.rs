@@ -9260,10 +9260,13 @@ mod tests {
         let mut a = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
         let b = far_cube(10.0, FaceGeometry::Certified);
         let wall = a.faces().next().map(|(k, f)| (k, f.surface)).unwrap();
-        assert!(a.describe_slot_for_tests(wall.1, crate::fixtures::patch_spanning(
-            Point3::new(0.0, 0.0, 0.0),
-            Point3::new(11.0, 1.0, 1.0),
-        )));
+        assert!(a.describe_slot_for_tests(
+            wall.1,
+            crate::fixtures::patch_spanning(
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(11.0, 1.0, 1.0),
+            )
+        ));
         let band = Band::linear(Tol::witness()).unwrap();
         let Err(err) = super::sphere_extent_scan(&a, &b, &super::Evidence::NONE, band) else {
             panic!("the NURBS fallback must be re-gated, never vertex-probed");

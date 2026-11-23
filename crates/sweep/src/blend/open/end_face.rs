@@ -132,7 +132,7 @@ impl<T: Decide + Bounds> EndCut<T> {
         // classification read the same one.
         let stored = body
             .face_surface(face)
-            .map_err(|miss| surface_missed(face, miss, "a cut-off's end face's stored surface"))?;
+            .map_err(|miss| surface_missed(face, "a cut-off's end face's stored surface", miss))?;
         let Surface::Plane {
             frame: carrier_frame,
             ..

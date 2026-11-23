@@ -8268,8 +8268,9 @@ pub(crate) fn tier3_local_checks_marked<
         }
     }
     for (face_key, face) in body.faces.iter() {
+        // A dangling key is tier 1's; a pending face is check 1's.
         let Some(surface) = body.get_surface(face.surface).ok() else {
-            continue; // unreachable on tier-1 input
+            continue;
         };
         if matches!(surface, Surface::Plane { .. }) || surface.spline_chart().is_some() {
             // Planar: the Newell arm above. Spline charts: the quadrature lane

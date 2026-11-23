@@ -2964,14 +2964,17 @@ fn bool_planar_chord_spec<T: Decide>(
             wall: wall.kind(),
         });
     }
-    let plane_s = match body.get_surface(plane_key).ok() {
-        Some(plane_s @ geom::Surface::Plane { .. }) => plane_s.clone(),
+    let plane_s = match body.get_surface(plane_key) {
+        Ok(plane_s @ geom::Surface::Plane { .. }) => plane_s.clone(),
         // The two failures are different things and are typed apart: a
         // key that does not resolve is corruption, a key that resolves
         // to the wrong kind is this lane's invariant. A single `_` arm
         // would have called the first one an invariant.
-        None => return Err(corrupt_face(face)),
-        Some(_) => {
+        Err(crate::SurfaceMiss::Stale) => return Err(corrupt_face(face)),
+        Err(crate::SurfaceMiss::Pending) => {
+            unreachable!("{plane_key:?} is the section plane this split minted: it is described")
+        }
+        Ok(_) => {
             return Err(JoinError::SectionInvariant {
                 face,
                 what: "the section context's auxiliary plane key does not name a plane surface",

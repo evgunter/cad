@@ -2910,9 +2910,9 @@ fn plan_edge<'s, T: Decide>(
     // Whether the section of the moved chart and an untouched neighbour
     // is one this kernel can state.
     let neighbour_section = |other: SurfaceKey| -> Result<(), ReplaceFaceError<T>> {
-        let other_surface = body
-            .get_surface(other)
-            .unwrap_or_else(|miss| crate::live::described_link(EntityId::Edge(edge), "description", other, miss));
+        let other_surface = body.get_surface(other).unwrap_or_else(|miss| {
+            crate::live::described_link(EntityId::Edge(edge), "description", other, miss)
+        });
         let other_kind = other_surface.kind();
         let kind = new_surface.kind();
         if !geom_brep::intersect::route(kind, other_kind).implemented {
@@ -3028,9 +3028,9 @@ fn plan_edge<'s, T: Decide>(
         // now stands.
         EdgeDescription::OnPair { pair } if let Some(other) = pair.other(old_key) => {
             neighbour_section(other)?;
-            let held = body
-                .get_surface(other)
-                .unwrap_or_else(|miss| crate::live::described_link(EntityId::Edge(edge), "description", other, miss));
+            let held = body.get_surface(other).unwrap_or_else(|miss| {
+                crate::live::described_link(EntityId::Edge(edge), "description", other, miss)
+            });
             crate::offset_restate::re_ask_on_pair(
                 edge,
                 [(old_key, new_surface), (other, held)],
@@ -3118,9 +3118,9 @@ fn plan_edge<'s, T: Decide>(
         // rule reads, declared or not.
         EdgeDescription::Chart(ref c) => {
             neighbour_section(c.surface)?;
-            let held = body
-                .get_surface(c.surface)
-                .unwrap_or_else(|miss| crate::live::described_link(EntityId::Edge(edge), "description", c.surface, miss));
+            let held = body.get_surface(c.surface).unwrap_or_else(|miss| {
+                crate::live::described_link(EntityId::Edge(edge), "description", c.surface, miss)
+            });
             crate::offset_restate::re_ask_on_pair(
                 edge,
                 [(old_key, new_surface), (c.surface, held)],
@@ -4118,8 +4118,9 @@ fn plan_reanchors<T: Decide>(
             EdgeDescriptionSpec::OnPair { pair, declared } => {
                 let [ka, kb] = pair.keys();
                 let surface = |k| {
-                    body.get_surface(k)
-                        .unwrap_or_else(|miss| crate::live::described_link(EntityId::Edge(edge), "description", k, miss))
+                    body.get_surface(k).unwrap_or_else(|miss| {
+                        crate::live::described_link(EntityId::Edge(edge), "description", k, miss)
+                    })
                 };
                 crate::offset_restate::re_ask_on_pair(
                     edge,

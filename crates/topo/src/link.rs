@@ -2771,7 +2771,7 @@ impl<T: Decide> FaceSector<T> {
         let face = body.face(f).ok_or(TouchUnread::Corrupt)?;
         let surface = face
             .surface()
-            .map_err(|_| TouchUnread::Curved(CurvedUnread::Unreadable))?
+            .map_err(|_| TouchUnread::PendingFace)?
             .clone();
         if !matches!(surface, geom::Surface::Plane { .. }) {
             return Err(TouchUnread::Curved(CurvedUnread::Unreadable));
@@ -2848,7 +2848,7 @@ impl<T: Decide> FaceSector<T> {
         let face = body.face(f).ok_or(TouchUnread::Corrupt)?;
         let surface = face
             .surface()
-            .map_err(|_| TouchUnread::Curved(CurvedUnread::Unreadable))?
+            .map_err(|_| TouchUnread::PendingFace)?
             .clone();
         let geom::Surface::Plane { frame, .. } = surface else {
             return Err(TouchUnread::Curved(CurvedUnread::Unreadable));

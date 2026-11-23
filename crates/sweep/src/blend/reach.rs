@@ -896,14 +896,13 @@ fn normal_at<T: Decide>(
     face: FaceKey,
     p: Point3<T>,
 ) -> Result<Vec3<T>, BlendError> {
-    outward(body, face, p)
-        .ok_or_else(|| unresolved(EntityId::Face(face), "a face the band reach reads"))
+    outward(body, face, p).map_err(|miss| surface_missed(face, "a face the band reach reads", miss))
 }
 
 fn surface_of<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<Surface<T>, BlendError> {
     body.face_surface(face)
         .cloned()
-        .map_err(|miss| surface_missed(face, miss, "a face's stored surface"))
+        .map_err(|miss| surface_missed(face, "a face's stored surface", miss))
 }
 
 fn surface_key<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<SurfaceKey, BlendError> {

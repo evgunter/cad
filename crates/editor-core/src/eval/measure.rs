@@ -406,7 +406,13 @@ pub(crate) fn carrier_of<'b, T: Decide>(
             let Some(face) = body.get_face(k) else {
                 return Carrier::Other("an unreadable face");
             };
-            let own = body.face_surface(k).ok();
+            let own = match body.face_surface(k) {
+                Ok(surface) => Some(surface),
+                Err(topo::SurfaceMiss::Pending) => {
+                    return Carrier::Other("a face with no surface yet");
+                }
+                Err(topo::SurfaceMiss::Stale) => None,
+            };
             // The reach is a distance, read about the datum's own point.
             let reach = |about: fn(&Surface<T>) -> Option<Point3<T>>| {
                 own.and_then(about)

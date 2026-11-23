@@ -3957,8 +3957,8 @@ mod tests {
             intersect: true,
             coincident: None,
         };
-        let abody = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
-        let bbody = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
+        let mut abody = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
+        let mut bbody = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
         // A and B sector fans on NON-parallel face planes (the germ
         // direction z×x = +y is uniquely within both — `germ_dir`
         // refuses coplanar sector pairs by design).
