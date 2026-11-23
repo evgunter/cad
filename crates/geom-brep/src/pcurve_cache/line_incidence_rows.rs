@@ -137,11 +137,10 @@ fn hunt(
     let surface_i = surface.map_scalar(f);
     let line_i = Curve3::line(
         Point3::new(f(line.origin.x), f(line.origin.y), f(line.origin.z)),
-        geom_core::UnitVec3::checked(Vec3::new(
-            f(line.dir.get().x),
-            f(line.dir.get().y),
-            f(line.dir.get().z),
-        )),
+        // The direction lifted as a direction, its polar enclosure: a
+        // point box of a rounded unit vector encloses none, and `checked`
+        // would poison it.
+        line.dir.map_scalar(f),
     );
     let at = |t: f64| distance(&surface_i, &line_i, t.clamp(t0, t1));
     let n: u32 = 2000;

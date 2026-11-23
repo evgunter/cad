@@ -1203,9 +1203,11 @@ fn a_circles_projected_envelope_covers_its_residual() {
                 } else {
                     off(&mut s)
                 } * sign(&mut s);
+                // `world_dir` is a difference of two placed points, unit
+                // only to their rounding: squared, not stated.
                 let carrier = Curve3::line(
                     world(&surface, g * (h / ca)),
-                    geom::stated_direction(world_dir(&surface, g)),
+                    geom_core::UnitVec3::squared(world_dir(&surface, g)),
                 );
                 (surface, carrier)
             }
