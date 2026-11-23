@@ -124,18 +124,23 @@ impl<T: Real> SplitPlane<T> {
     /// the carrier gate reads reaches in).
     pub(in crate::splitting) fn surface(&self) -> geom::Surface<T> {
         geom::Surface::Plane {
-            frame: self.frame(),
+            frame: geom::Frame::new(
+                self.origin,
+                self.normal.get(),
+                geom::cover::BoxAxes::aimed(self.normal).rows()[1],
+            ),
         }
     }
 
-    /// The plane's frame: its axis the normal, charted as
-    /// [`Self::surface`] is.
+    /// The plane's frame for reading loops in it: its axis the normal,
+    /// bit for bit, and its `u_ref` the one [`Self::surface`] charts
+    /// with.
     pub(in crate::splitting) fn frame(&self) -> geom::Frame<T> {
-        geom::Frame::new(
+        geom::Frame::of_motion(&geom_core::RigidMotion::squared_about(
             self.origin,
-            self.normal.get(),
+            self.normal,
             geom::cover::BoxAxes::aimed(self.normal).rows()[1],
-        )
+        ))
     }
 }
 

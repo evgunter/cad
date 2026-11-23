@@ -1703,7 +1703,9 @@ pub fn point_in_loop<T: Decide>(
     point_in_loop_projected(body, r#loop, normal, q, band)
 }
 
-/// [`point_in_loop`] with no precondition certified: the loop is read
+/// [`point_in_loop`] with no precondition certified (and, like it, an
+/// all-line loop's boundary read over its vertex polygon, unlike
+/// [`point_in_loop_at_edge`]): the loop is read
 /// as its projection along `normal`. For `solid_contain`'s
 /// in-face test alone, which reads a face's trim at the face's OWN
 /// surface plane, `q` a ray's hit on that plane: an operand the
@@ -1734,11 +1736,20 @@ pub(crate) fn point_in_loop_projected<T: Decide>(
     )
 }
 
-/// [`point_in_loop`] that names the edge a point on the boundary lies
-/// on: `(OnBoundary, Some(edge))` there, `(In | Out, None)` off it. The
-/// boundary is read by [`CarrierLoop::place_off`], each edge on its own
-/// carrier, and the region after it by [`carrier_loop_side`], which
-/// trusts that pass, so the edge named is the one the verdict rests on.
+/// **A point placed against a planar loop, naming the edge a boundary
+/// point lies on**: inside, outside, or on the edge whose key it carries.
+/// Check 9's nesting arm reads a ring through it, so a ring on its outer
+/// loop is reported at an edge.
+///
+/// It is not [`point_in_loop`] with an edge attached. Both certify the
+/// same preconditions and walk the same region, but they read the
+/// boundary differently: [`point_in_loop`] reads an all-line loop's
+/// boundary over its vertex polygon (`ray_walk::on_boundary`), which
+/// names no edge, and only an arc-bearing loop's edge by edge; this
+/// reads every loop's boundary edge by edge on each edge's carrier
+/// ([`CarrierLoop::place_off`], the arc walk's rows), then the region by
+/// [`carrier_loop_side`], which trusts that pass. On an all-line loop
+/// the two boundary readings can part within the band.
 ///
 /// # Errors
 ///
@@ -1749,7 +1760,8 @@ pub(crate) fn point_in_loop_at_edge<T: Decide>(
     plane: geom::Frame<T>,
     q: Point3<T>,
     band: Band,
-) -> Result<(LoopContainment, Option<EdgeKey>), PointInLoopError> {
+) -> Result<crate::loop_side::Placed<EdgeKey>, PointInLoopError> {
+    use crate::loop_side::Placed;
     let normal = plane.axis();
     certify_plane(body, r#loop, normal, q, band)?;
     let lp = carrier_loop(body, r#loop, WALK_ROWS.conic(), band)?;
@@ -1757,15 +1769,12 @@ pub(crate) fn point_in_loop_at_edge<T: Decide>(
         .place_off(q, WALK_ROWS, band)
         .map_err(PointInLoopError::on(r#loop, LoopDecision::Boundary))?
     {
-        Err(on) => Ok((LoopContainment::OnBoundary, Some(on.lp.keys[on.edge]))),
-        Ok(off) => Ok((
-            if carrier_loop_side(r#loop, &off, normal, q, band)? {
-                LoopContainment::In
-            } else {
-                LoopContainment::Out
-            },
-            None,
-        )),
+        Err(on) => Ok(Placed::On(on.lp.keys[on.edge])),
+        Ok(off) => Ok(if carrier_loop_side(r#loop, &off, normal, q, band)? {
+            Placed::Inside
+        } else {
+            Placed::Outside
+        }),
     }
 }
 

@@ -23,32 +23,70 @@
 //! containment and is not read here: one point settles it at its site.
 //!
 //! [`of_loop`] is the one reading of a vertex against a planar loop's
-//! walk ([`crate::splitting::containment::point_in_loop`]) as the rung
-//! both readings climb.
+//! walk ([`crate::splitting::containment::point_in_loop`]) as a rung of
+//! [`Placed`]; [`sided`] is that rung for a reading that takes no
+//! boundary for an answer.
 
 use geom_brep::ladder::{self, Answering, Climb, Disagree, Rung};
 
 use crate::entity::VertexKey;
 use crate::splitting::containment::{LoopContainment, PointInLoopError};
 
-/// **One vertex's reading against a planar loop as its rung**: inside
-/// answers `Ok(true)`, outside `Ok(false)`, a vertex on the loop passes
-/// (it says nothing about the side), and a refusal stands by its own
-/// standing ([`PointInLoopError::refusal`]).
-pub(crate) fn of_loop(
-    reading: Result<LoopContainment, PointInLoopError>,
-) -> Rung<Result<bool, PointInLoopError>, PointInLoopError> {
-    let side = |at| match at {
-        LoopContainment::In => Some(true),
-        LoopContainment::Out => Some(false),
-        LoopContainment::OnBoundary => None,
+/// **Where one vertex placed against a region**: inside, outside, or on
+/// its boundary, `B` what the instrument says of the boundary there
+/// (the edge it lies on, or nothing).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Placed<B> {
+    /// Inside the region.
+    Inside,
+    /// Outside it.
+    Outside,
+    /// On its boundary.
+    On(B),
+}
+
+impl From<LoopContainment> for Placed<()> {
+    fn from(at: LoopContainment) -> Self {
+        match at {
+            LoopContainment::In => Self::Inside,
+            LoopContainment::Out => Self::Outside,
+            LoopContainment::OnBoundary => Self::On(()),
+        }
+    }
+}
+
+/// **One vertex's reading against a planar loop as its rung**: the
+/// placement answers, and a refusal stands by its own standing
+/// ([`PointInLoopError::refusal`]).
+pub(crate) fn of_loop<B>(
+    reading: Result<Placed<B>, PointInLoopError>,
+) -> Rung<Result<Placed<B>, PointInLoopError>, PointInLoopError> {
+    Rung::answers(reading.map(Some), PointInLoopError::refusal)
+}
+
+/// **A placement rung read for its side alone**: inside answers
+/// `true`, outside `false`, and a vertex on the boundary passes, saying
+/// nothing about the side.
+pub(crate) fn sided<B, X, E>(rung: Rung<Result<Placed<B>, X>, E>) -> Rung<Result<bool, X>, E> {
+    let side = |placed: Result<Placed<B>, X>| match placed {
+        Ok(Placed::Inside) => Some(Ok(true)),
+        Ok(Placed::Outside) => Some(Ok(false)),
+        Ok(Placed::On(_)) => None,
+        Err(x) => Some(Err(x)),
     };
-    Rung::answers(reading.map(side), PointInLoopError::refusal)
+    match rung {
+        Rung::Answers(a) => side(a).map_or(Rung::Passes, Rung::Answers),
+        Rung::Aborts(a) => side(a).map_or(Rung::Passes, Rung::Aborts),
+        Rung::Passes => Rung::Passes,
+        Rung::InBand(e) => Rung::InBand(e),
+        Rung::Blocked(e) => Rung::Blocked(e),
+        Rung::Unsettled(e) => Rung::Unsettled(e),
+    }
 }
 
 /// **A loop read against a region at every vertex** ([`inside_at_every_vertex`]).
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) enum EveryVertex<E> {
+pub(crate) enum EveryVertex<B, E> {
     /// Every vertex placed reads inside, and at least one placed.
     Inside,
     /// A vertex placed outside: the loop lies outside, or crosses the
@@ -61,10 +99,13 @@ pub(crate) enum EveryVertex<E> {
     /// evidence ([`ladder::Evidence`]).
     Undecided(E),
     /// Every vertex read lies on the region's boundary, and at least one
-    /// was read: the loop meets the boundary. `at` is the first.
+    /// was read: the loop meets the boundary, at `at`, the first, where
+    /// the instrument said `on`.
     OnBoundary {
         /// The first vertex read on the boundary.
         at: VertexKey,
+        /// What the instrument said of the boundary there.
+        on: B,
     },
     /// No vertex placed and none was kept, and the instrument had no
     /// answer at one at least (or the loop has no vertex).
@@ -73,7 +114,7 @@ pub(crate) enum EveryVertex<E> {
 
 /// **Whether every vertex of a loop places inside a region**: `place`
 /// reads one vertex as its rung ([`of_loop`] for a planar loop's walk),
-/// `None` where the instrument has no answer there. `place` has no way
+/// passing where the instrument has no answer there. `place` has no way
 /// to stop the reading: a rung that would abort it (a refusal of the
 /// whole question) is kept as a limit, so every vertex in `vertices`
 /// (every vertex of the loop) is read, and a loop placed inside at one
@@ -81,30 +122,29 @@ pub(crate) enum EveryVertex<E> {
 /// outside one, whichever comes first. A vertex kept in band beside a
 /// decided reading is superseded, as [`ladder::climb_agreeing`] records
 /// it.
-pub(crate) fn inside_at_every_vertex<E>(
+pub(crate) fn inside_at_every_vertex<B, E>(
     vertices: &[VertexKey],
-    mut place: impl FnMut(VertexKey) -> Option<Rung<Result<bool, E>, E>>,
-) -> EveryVertex<E> {
-    let (mut no_answer, mut first) = (vertices.is_empty(), None);
+    mut place: impl FnMut(VertexKey) -> Rung<Result<Placed<B>, E>, E>,
+) -> EveryVertex<B, E> {
+    let (mut no_answer, mut on) = (vertices.is_empty(), None);
     let read = ladder::climb_agreeing(
         vertices.iter().copied(),
-        |v| {
-            first.get_or_insert(v);
-            match place(v) {
-                None => {
-                    no_answer = true;
+        |v| match place(v) {
+            Rung::Answers(Ok(placed)) | Rung::Aborts(Ok(placed)) => match placed {
+                Placed::Inside => Rung::Answers((true, v)),
+                Placed::Outside => Rung::Answers((false, v)),
+                Placed::On(b) => {
+                    on.get_or_insert((v, b));
                     Rung::Passes
                 }
-                Some(Rung::Answers(Ok(inside)) | Rung::Aborts(Ok(inside))) => {
-                    Rung::Answers((inside, v))
-                }
-                Some(Rung::Answers(Err(e)) | Rung::Aborts(Err(e)) | Rung::Blocked(e)) => {
-                    Rung::Blocked(e)
-                }
-                Some(Rung::Passes) => Rung::Passes,
-                Some(Rung::InBand(e)) => Rung::InBand(e),
-                Some(Rung::Unsettled(e)) => Rung::Unsettled(e),
+            },
+            Rung::Answers(Err(e)) | Rung::Aborts(Err(e)) | Rung::Blocked(e) => Rung::Blocked(e),
+            Rung::Passes => {
+                no_answer = true;
+                Rung::Passes
             }
+            Rung::InBand(e) => Rung::InBand(e),
+            Rung::Unsettled(e) => Rung::Unsettled(e),
         },
         |a, b| a.0 == b.0,
     );
@@ -116,8 +156,8 @@ pub(crate) fn inside_at_every_vertex<E>(
             answer: (false, at),
             ..
         }) => EveryVertex::Outside { at },
-        Ok(Climb::Passed) => match first {
-            Some(at) if !no_answer => EveryVertex::OnBoundary { at },
+        Ok(Climb::Passed) => match on {
+            Some((at, on)) if !no_answer => EveryVertex::OnBoundary { at, on },
             _ => EveryVertex::NoAnswer,
         },
         Ok(Climb::Undecided(e)) => EveryVertex::Undecided(e),
@@ -129,7 +169,8 @@ pub(crate) fn inside_at_every_vertex<E>(
 
 /// **The side of a loop the operation's division does not cross**, read
 /// at the first vertex that places: `read` gives one vertex's rung
-/// ([`of_loop`] for a planar loop's walk, answering `Ok(true)` inside).
+/// (a planar loop's walk through [`of_loop`] and [`sided`], answering
+/// `Ok(true)` inside).
 ///
 /// The premise is the caller's: its own division (the cut that made the
 /// region, the chord run it joined) did not cross the loop, so the loop
@@ -158,13 +199,17 @@ mod tests {
     }
 
     /// One vertex's rung: `Some(inside)` placed, `None` on the boundary.
-    fn rung(side: Option<bool>) -> Option<Rung<Result<bool, ()>, ()>> {
-        Some(side.map_or(Rung::Passes, |inside| Rung::Answers(Ok(inside))))
+    fn rung(side: Option<bool>) -> Rung<Result<Placed<()>, ()>, ()> {
+        Rung::Answers(Ok(match side {
+            Some(true) => Placed::Inside,
+            Some(false) => Placed::Outside,
+            None => Placed::On(()),
+        }))
     }
 
     /// The verdict at every rotation of a walk of `sides` (`Some(inside)`
     /// placed, `None` on the boundary).
-    fn every_rotation(sides: &[Option<bool>]) -> Vec<EveryVertex<()>> {
+    fn every_rotation(sides: &[Option<bool>]) -> Vec<EveryVertex<(), ()>> {
         let vs = keys(sides.len());
         (0..sides.len())
             .map(|r| {
@@ -209,14 +254,15 @@ mod tests {
                 .all(|v| matches!(v, EveryVertex::OnBoundary { .. })),
             "on the boundary at every vertex"
         );
-        let silent = inside_at_every_vertex(&vs, |v| if v == vs[1] { None } else { rung(None) });
+        let silent =
+            inside_at_every_vertex(&vs, |v| if v == vs[1] { Rung::Passes } else { rung(None) });
         assert_eq!(
             silent,
             EveryVertex::NoAnswer,
             "a vertex without an answer is not on the boundary"
         );
         assert_eq!(
-            inside_at_every_vertex::<()>(&[], |_| None),
+            inside_at_every_vertex::<(), ()>(&[], |_| Rung::Passes),
             EveryVertex::NoAnswer,
             "no vertex read"
         );
@@ -228,12 +274,12 @@ mod tests {
     fn an_aborting_vertex_does_not_hide_a_later_outside_one() {
         let vs = keys(2);
         let got = inside_at_every_vertex(&vs, |v| {
-            Some(if v == vs[0] {
+            if v == vs[0] {
                 Rung::Aborts(Err(()))
             } else {
-                Rung::Answers(Ok(false))
-            })
+                rung(Some(false))
+            }
         });
-        assert_eq!(got, EveryVertex::Outside { at: vs[1] });
+        assert_eq!(got, EveryVertex::<(), ()>::Outside { at: vs[1] });
     }
 }

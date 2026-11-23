@@ -9609,10 +9609,7 @@ pub(crate) fn ring_outer_contact_about_as<T: Decide>(
         return RingOuterVerdict::Disjoint;
     };
     let ring_cycle = loop_cycle_of(body, ring).unwrap_or_default();
-    let outer_vertices: Vec<VertexKey> = outer_cycle
-        .iter()
-        .filter_map(|&he| body.half_edges.get(he).map(|h| h.start))
-        .collect();
+    let outer_vertices = body.loop_vertices(outer).unwrap_or_default();
 
     // A separation, decided against ZERO. `Zero` is the contact:
     // metering `eps − gap` instead would put a coincident pair's margin
@@ -10410,10 +10407,13 @@ fn plane_gate<T: Real>(
 /// Where check 9's nesting half placed a ring relative to the outer
 /// loop of its own face. Private: the arm is its only caller.
 enum RingNestingVerdict {
-    /// Nothing to report: every vertex of the ring placed was placed
-    /// definitely inside the outer loop's region (a hole of that
-    /// region, as a ring claims to be), or the walk had no answer at
-    /// any vertex and no query refused.
+    /// Nothing to report. Either every vertex of the ring placed was
+    /// placed definitely inside the outer loop's region (a hole of that
+    /// region, as a ring claims to be), the rest on the boundary; or no
+    /// vertex placed, none refused, and at least one went unread (a
+    /// vertex whose point does not resolve, or a ring whose vertices do
+    /// not walk, which tiers 1 and 2 refuse first), the rest on the
+    /// boundary.
     Inside,
     /// A named ring vertex is definitely OUTSIDE that region, so the
     /// ring is not a hole in it: it lies outside, or crosses the outer
@@ -10513,17 +10513,13 @@ fn ring_nesting<T: Decide>(
     let queries = body.loop_vertices(ring).unwrap_or_default();
     // A ring vertex lies in the face's plane (check 5), the walk's
     // in-plane precondition.
-    let mut on_edge = None;
     match crate::loop_side::inside_at_every_vertex(&queries, |rv| {
-        let rp = vertex_point(body, rv)?;
-        let reading =
-            crate::splitting::containment::point_in_loop_at_edge(body, outer, plane, rp, band);
-        Some(crate::loop_side::of_loop(reading.map(|(side, edge)| {
-            if let Some(edge) = edge {
-                on_edge.get_or_insert(edge);
-            }
-            side
-        })))
+        let Some(rp) = vertex_point(body, rv) else {
+            return geom_brep::ladder::Rung::Passes;
+        };
+        crate::loop_side::of_loop(crate::splitting::containment::point_in_loop_at_edge(
+            body, outer, plane, rp, band,
+        ))
     }) {
         crate::loop_side::EveryVertex::Inside | crate::loop_side::EveryVertex::NoAnswer => {
             RingNestingVerdict::Inside
@@ -10531,11 +10527,9 @@ fn ring_nesting<T: Decide>(
         crate::loop_side::EveryVertex::Outside { at } => {
             RingNestingVerdict::Outside { ring_vertex: at }
         }
-        crate::loop_side::EveryVertex::OnBoundary { at } => RingNestingVerdict::OnOuter {
+        crate::loop_side::EveryVertex::OnBoundary { at, on } => RingNestingVerdict::OnOuter {
             ring_vertex: at,
-            outer_edge: on_edge.unwrap_or_else(|| {
-                unreachable!("a vertex read on the boundary was read on an edge of it")
-            }),
+            outer_edge: on,
         },
         crate::loop_side::EveryVertex::Undecided(source) => {
             RingNestingVerdict::Undecided(ContainError::from(source))
@@ -16196,6 +16190,79 @@ mod tests {
         }
     }
 
+    /// **A lone-vertex ring on an ellipse arc of its outer loop meets
+    /// it, at that arc.** The ellipse lamina of
+    /// [`an_ellipse_bearing_outer_loop_is_decided_both_ways`] with a lone
+    /// vertex planted on its first arc's interior. Contact arms 2, 3 and 5
+    /// have no locus for an `Ellipse` edge and arm 1 sees no vertex there,
+    /// so the contact half clears the pair and only the nesting arm's
+    /// boundary pass sees the touch: `RingMeetsOuter { VertexOnEdge }`
+    /// naming the lone vertex and the arc.
+    #[test]
+    fn a_lone_vertex_on_an_ellipse_arc_of_the_outer_loop_meets_it() {
+        let tol = Tol::witness();
+        let k = 0.4;
+        let on_plane = |x: f64, y: f64| Point3::new(x, y, k * x);
+        let at = |t: f64| on_plane(t.cos(), t.sin());
+        let outer: Vec<Point3<f64>> = [0.0, 1.0, 2.0]
+            .iter()
+            .map(|i| at(i * std::f64::consts::TAU / 3.0))
+            .collect();
+        let ring = vec![
+            on_plane(-0.2, -0.2),
+            on_plane(0.2, -0.2),
+            on_plane(0.2, 0.2),
+            on_plane(-0.2, 0.2),
+        ];
+        let (mut body, face) = lamina_with_ring(&outer, &ring, tol);
+        let cylinder =
+            body.add_surface(crate::test_support_fixtures::CylFrame::canonical(1.0).surface());
+        let f = body.get_face(face).unwrap();
+        let (plane, outer_loop) = (f.surface, f.outer);
+        let edges: Vec<EdgeKey> = loop_cycle_of(&body, outer_loop)
+            .unwrap()
+            .into_iter()
+            .map(|he| body.get_half_edge(he).unwrap().edge)
+            .collect();
+        for &e in &edges {
+            recarry_as_ellipse_arc(&mut body, e, plane, cylinder, k, tol);
+        }
+        let arc = *edges
+            .iter()
+            .find(|&&e| {
+                let (a, b) = body.edge_vertices(e).unwrap();
+                let mut ends = [
+                    vertex_point(&body, a).unwrap(),
+                    vertex_point(&body, b).unwrap(),
+                ];
+                ends.sort_by(|p, q| q.x.total_cmp(&p.x));
+                (ends[0] - outer[0]).norm() == 0.0 && (ends[1] - outer[1]).norm() == 0.0
+            })
+            .expect("the arc from the first corner to the second");
+        let point = body.add_point(at(std::f64::consts::TAU / 6.0));
+        let lone = body.vertices.insert(Vertex {
+            point,
+            emanating: None,
+        });
+        let ring = body.loops.insert(Loop {
+            boundary: LoopBoundary::Empty { vertex: lone },
+            face,
+        });
+        body.faces.get_mut(face).unwrap().rings.push(ring);
+        let got = check_9_words(&body, tol);
+        assert!(
+            got.iter().any(|e| matches!(
+                e,
+                ValidationError::RingMeetsOuter {
+                    face: fk,
+                    ring: r,
+                    contact: RingContact::VertexOnEdge { ring_vertex, outer_edge },
+                } if *fk == face && *r == ring && *ring_vertex == lone && *outer_edge == arc
+            )),
+            "the lone vertex meets the arc it stands on: {got:?}"
+        );
+    }
+
     /// A circle of radius 10 about the origin split at −0.01, 0.01 and
     /// π, carried as three arcs of it (one circle to `loop_circle`, asserted), on
     /// a lamina: the body, its outer loop, the chart, the radius.
@@ -19382,13 +19449,14 @@ mod door_roster {
 }
 
 #[cfg(test)]
-#[allow(clippy::panic, clippy::expect_used, clippy::unwrap_used, clippy::print_stdout)]
-mod probe_7475 {
+#[allow(clippy::panic, clippy::expect_used, clippy::unwrap_used)]
+mod lone_vertex_ring_ladder {
     use super::*;
     use crate::euler::MevSite;
     use crate::test_support_fixtures::plane_every_face;
     use geom_core::{Point3, Tol};
 
+    /// Check 9's ring findings on `body`, by variant name.
     fn words(body: &Body<f64>, tol: Tol) -> Vec<String> {
         let (errors, _) = tier3_local_checks(body, tol, Some(crate::props::QuadLane::certified()));
         errors
@@ -19405,33 +19473,44 @@ mod probe_7475 {
             })
             .map(|e| {
                 let s = format!("{e:?}");
-                s.split(|c| c == '{' || c == ' ').next().unwrap_or("").to_string()
+                s.split(['{', ' ']).next().unwrap_or("").to_string()
             })
             .collect()
     }
 
-    /// A lone-vertex ring at a ladder of inward offsets from the top
-    /// cap's far edge interior and far corner.
+    /// **A lone-vertex ring clear of its outer loop by more than the
+    /// band reads as any ring does.** The unit cube's top cap with a
+    /// kemr'd strut tip moved off the cap's far edge and far corner by
+    /// multiples of the escalation threshold `kε`, inward and outward:
+    /// inward it is no finding, outward it is `RingOutsideOuter`. The
+    /// distances in band are the contact arms' (a meeting or an
+    /// escalation, `check_9_refuses_a_lone_vertex_ring_on_its_outer_loop`
+    /// holds the touch itself); these are the ones a lone-vertex ring
+    /// was already read at before the arms saw it.
     #[test]
-    fn probe_lone_vertex_ring_band_ladder() {
+    fn a_lone_vertex_ring_clear_of_the_band_reads_as_any_ring() {
         let tol = Tol::witness();
         let (eps, k) = (tol.eps(), tol.k());
         let t = crate::test_support_fixtures::geometric_cube::<f64>(tol);
         let root = t.body.get_half_edge(t.mefs[1].he_plus).unwrap().start;
         let r = vertex_point(&t.body, root).unwrap();
         let far = (1.0 - r.x, 1.0 - r.y);
-        // inward direction from the far edge (y = far.1) is toward r.y
+        // Inward from the far edge and corner is toward the root.
         let iy = if r.y > far.1 { 1.0 } else { -1.0 };
         let ix = if r.x > far.0 { 1.0 } else { -1.0 };
-        let ladder = [
-            0.0, 0.5 * eps, eps, 1.5 * eps, eps * k.sqrt(), 0.9 * k * eps, k * eps,
-            1.1 * k * eps, 2.0 * k * eps, 10.0 * k * eps, 1e-6, 1e-3,
-        ];
-        for d in ladder {
-            for (name, at) in [
-                ("edge", Point3::new(0.5, far.1 + iy * d, 1.0)),
-                ("corner", Point3::new(far.0 + ix * d, far.1 + iy * d, 1.0)),
-                ("edge-out", Point3::new(0.5, far.1 - iy * d, 1.0)),
+        for d in [2.0 * k * eps, 10.0 * k * eps, 100.0 * k * eps] {
+            for (name, at, want) in [
+                ("edge", Point3::new(0.5, far.1 + iy * d, 1.0), vec![]),
+                (
+                    "corner",
+                    Point3::new(far.0 + ix * d, far.1 + iy * d, 1.0),
+                    vec![],
+                ),
+                (
+                    "edge-out",
+                    Point3::new(0.5, far.1 - iy * d, 1.0),
+                    vec!["RingOutsideOuter"],
+                ),
             ] {
                 let mut body = t.body.clone();
                 let strut = body
@@ -19446,7 +19525,7 @@ mod probe_7475 {
                     .unwrap();
                 body.kemr(strut.he_plus, strut.he_minus).unwrap();
                 plane_every_face(&mut body, tol);
-                println!("PROBE d={d:e} ({:.3}eps) {name}: {:?}", d / eps, words(&body, tol));
+                assert_eq!(words(&body, tol), want, "{name} at d = {d:e}");
             }
         }
     }

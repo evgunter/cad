@@ -30,22 +30,34 @@ use crate::validate::{RingOuterVerdict, ring_outer_contact_about_as};
 #[derive(Clone, Copy, Debug)]
 pub(super) struct Torn(pub(super) Unresolved);
 
-/// The outward normal of `side`'s section face, for the split plane's
-/// normal `n` (module docs): `−n` above, `+n` below.
-pub(super) fn section_normal<T: Real>(n: Vec3<T>, side: PlaneSide) -> Vec3<T> {
-    match side {
-        PlaneSide::Above => -n,
-        _ => n,
-    }
+/// Whether `side`'s section faces face against the split plane's
+/// normal: above (module docs). The one statement of the sign rule
+/// [`section_normal`] and [`section_frame`] read.
+fn faces_against_normal(side: PlaneSide) -> bool {
+    matches!(side, PlaneSide::Above)
 }
 
-/// The split plane `plane` (its frame, axis the plane's normal) as
+/// The outward normal of `side`'s section face, for the split plane's
+/// normal `n`: `−n` above, `+n` below ([`faces_against_normal`]).
+pub(super) fn section_normal<T: Real>(n: Vec3<T>, side: PlaneSide) -> Vec3<T> {
+    if faces_against_normal(side) { -n } else { n }
+}
+
+/// The split plane `plane` (its frame, [`super::SplitPlane::frame`]) as
 /// `side`'s section faces' plane, its axis their outward normal
-/// ([`section_normal`]).
+/// ([`faces_against_normal`]).
+///
+/// [`point_in_loop`] is blind to which of a plane's two frames it is
+/// handed, so a containment read alone takes the split plane's frame as
+/// it is. [`nest`] takes this one: it also runs the contact arms
+/// ([`outlines_disjoint`]), whose `lines_meet` margin is signed along
+/// the axis, and handing them the side's outward normal keeps the sign
+/// they have always read.
 pub(super) fn section_frame<T: Real>(plane: geom::Frame<T>, side: PlaneSide) -> geom::Frame<T> {
-    match side {
-        PlaneSide::Above => plane.reversed(),
-        _ => plane,
+    if faces_against_normal(side) {
+        plane.reversed()
+    } else {
+        plane
     }
 }
 

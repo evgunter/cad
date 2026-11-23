@@ -51,7 +51,7 @@ use geom_core::{Band, Decide};
 use crate::body::Body;
 use crate::contain::{ContainError, CurvedPlacement, FaceContainment};
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
-use crate::loop_side::{EveryVertex, inside_at_every_vertex};
+use crate::loop_side::{EveryVertex, Placed, inside_at_every_vertex};
 use crate::solid_contain::PointInSolidError;
 use crate::surface_boundary::WoundCycle;
 use crate::validate::ValidationError;
@@ -247,12 +247,17 @@ fn read_cycle<T: Decide>(
         .filter_map(|&h| body.get_half_edge(h).map(|h| h.start))
         .collect();
     match inside_at_every_vertex(&vertices, |vertex| {
-        let q = body
+        let Some(q) = body
             .get_vertex(vertex)
-            .and_then(|v| body.points.get(v.point))?;
+            .and_then(|v| body.points.get(v.point))
+        else {
+            return Rung::Passes;
+        };
         match door_side(body, face, cut, *q, band) {
-            Ok(side) => side.map(|inside| Rung::Answers(Ok(inside))),
-            Err(diag) => Some(Kept::of(diag).map(|d| (vertex, d)).into()),
+            Ok(Some(true)) => Rung::Answers(Ok(Placed::<()>::Inside)),
+            Ok(Some(false)) => Rung::Answers(Ok(Placed::Outside)),
+            Ok(None) => Rung::Passes,
+            Err(diag) => Kept::of(diag).map(|d| (vertex, d)).into(),
         }
     }) {
         EveryVertex::Inside => Read::Face,

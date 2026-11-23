@@ -5859,12 +5859,9 @@ fn ring_side<T: Decide>(
     band: Band,
 ) -> Result<RingSide, JoinError> {
     let read = |v: VertexKey| {
-        loop_side::of_loop(point_in_loop(
-            body,
-            run,
-            plane,
-            body.resolve_vertex_point(v, Proven),
-            band,
+        let at = body.resolve_vertex_point(v, Proven);
+        loop_side::sided(loop_side::of_loop(
+            point_in_loop(body, run, plane, at, band).map(loop_side::Placed::from),
         ))
     };
     let vertices = body.loop_vertices(ring).ok_or_else(|| corrupt_loop(ring))?;

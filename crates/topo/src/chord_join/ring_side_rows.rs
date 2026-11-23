@@ -11,7 +11,7 @@ use geom_brep::ladder::{Answering, Climb, climb};
 use geom_core::{Band, Indeterminate, MarginDiag};
 
 use crate::entity::{EdgeKey, LoopKey};
-use crate::loop_side::of_loop;
+use crate::loop_side::{Placed, of_loop, sided};
 use crate::splitting::Uncrossable;
 use crate::splitting::containment::{LoopContainment, PointInLoopError, UncrossableCarrier};
 
@@ -19,7 +19,7 @@ fn side(first: PointInLoopError) -> Climb<Result<bool, PointInLoopError>, PointI
     climb(
         Answering::Any,
         [Err(first), Ok(LoopContainment::In)],
-        of_loop,
+        |reading| sided(of_loop(reading.map(Placed::from))),
     )
 }
 

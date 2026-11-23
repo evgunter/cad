@@ -307,7 +307,8 @@ where
     let (red, completed, _fragments) = split_scratch(operand, plane, tol)?;
     // The below loops are read, so the frame is the below section
     // face's: its outward normal, and `u_ref × v_ref` equals it.
-    let normal = section_loops::section_normal(plane.normal.get(), PlaneSide::Below);
+    let below = section_loops::section_frame(plane.frame(), PlaneSide::Below);
+    let normal = below.axis();
 
     let mut u_ref = None;
     let mut v_ref = None;
@@ -395,7 +396,7 @@ where
         }
     }
     let nesting =
-        section_loops::nest(&red.body, outlines, holes, plane.frame(), band).map_err(|fault| {
+        section_loops::nest(&red.body, outlines, holes, below, band).map_err(|fault| {
             match fault {
                 // `section_walk` resolved, on this body, every record the
                 // nesting reads of these loops.
