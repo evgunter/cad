@@ -687,8 +687,8 @@ mod tests {
             core_lever: crate::ExtentBall::of_covered(
                 geom::cover::Cover::circle(geom::cover::Core {
                     axis: geom::Line {
-                        origin: core.circle.frame.origin(),
-                        dir: core.circle.frame.axis(),
+                        origin: core.circle.frame().origin(),
+                        dir: core.circle.frame().axis(),
                     },
                     radius: core.circle.radius(),
                 })
