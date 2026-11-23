@@ -3946,7 +3946,7 @@ pub enum BooleanError {
     /// blocker left is a JOIN lane, not `revert`:
     ///
     /// - **Sphere**: not gated here — the `(Plane, Sphere)` germ arm
-    ///   (exact C5 Circle) plus the extent-certified fallback re-cut.
+    ///   (exact C5 Circle) plus the extent-certified fallback cut-in.
     /// - **Torus**: not gated up front — its pairs meet the same typed
     ///   doors under ∖ and ∩ as under ∪: the crossing layer's, the
     ///   no-crossings section pass, the join catch-all below, and this
@@ -4080,10 +4080,10 @@ pub enum BooleanError {
     /// share lies off every edge, so the join's carried lane
     /// (`join::bool_connect`) had no chord to run. Spheres
     /// that cross, in a circle the certificate certifies inside both
-    /// faces (its R-loop), are not refused: each sphere is re-cut so an
-    /// edge of it reaches the circle (a closed ball re-charted with its
-    /// pole on the centre line, any other face cut along a meridian
-    /// through the circle, `ops::sphere_extent_scan`), and a crossing
+    /// faces (its R-loop), are not refused: the face holding the circle
+    /// on each sphere is cut along its chart's meridian through the
+    /// circle, so an edge of it reaches the circle
+    /// (`ops::sphere_extent_scan`), and a crossing
     /// whose circle the certificate cannot place refuses with the
     /// certificate's own reason
     /// ([`BooleanError::FallbackExtentUnsupported`]). It is the decided
@@ -5435,8 +5435,6 @@ pub enum CarveStep {
     /// The kept first operand's component, which the second's is
     /// grafted into.
     Combine,
-    /// A sphere face's re-cut: its shell turned, the rest kept.
-    Recut(Operand),
     /// Operands whose boundaries do not cross: each one's kept shells.
     Fallback,
 }
@@ -5450,10 +5448,6 @@ impl CarveStep {
                 operand_word(operand)
             ),
             Self::Combine => "while the kept parts were put together".to_owned(),
-            Self::Recut(operand) => format!(
-                "while a sphere face of the {} solid was cut again",
-                operand_word(operand)
-            ),
             Self::Fallback => {
                 "while the kept shells of solids that do not cross were taken".to_owned()
             }

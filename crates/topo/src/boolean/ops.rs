@@ -1028,7 +1028,7 @@ fn boolean_door<T: Decide + Bounds + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
     let (a, b) = (one_solid(a)?, one_solid(b)?);
-    boolean_op_recut(op, &a, &b, decls, strategy, true, tol)
+    boolean_pipeline(op, &a, &b, decls, strategy, true, tol)
 }
 
 /// **∖'s check on an operand part it reverts and nothing joins
@@ -1171,21 +1171,21 @@ impl SeamEdges {
 }
 
 /// The pipeline behind the front door, parameterized on whether the
-/// no-crossings sphere RE-CUT (M5 S13) may still run: the re-entry
-/// pass sets `recut = false`, so a re-cut that surfaces no crossings
-/// is a loud invariant failure rather than a loop.
-pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
+/// no-crossings sphere cut-in (M5 S13) may still run: the re-entry
+/// pass sets `may_cut_in = false`, so a cut-in that surfaces no
+/// crossings is a loud invariant failure rather than a loop.
+pub(super) fn boolean_pipeline<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a: &Body<T>,
     b: &Body<T>,
     decls: &Glue<T>,
     strategy: SweepStrategy,
-    recut: bool,
+    may_cut_in: bool,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
     let band = Band::linear(tol)?;
     let (red, connected, interior_loops, glued) =
-        match through_the_join(op, a, b, decls, strategy, recut, tol)? {
+        match through_the_join(op, a, b, decls, strategy, may_cut_in, tol)? {
             Joined::Answered(result) => return Ok(*result),
             Joined::Connected {
                 red,
@@ -1429,7 +1429,7 @@ fn fused_through(map: &SeamCorrespondence, merges: &Fusions) -> SeamCorresponden
 /// What the pipeline reaches through its join ([`through_the_join`]).
 pub(super) enum Joined<T: crate::props::AtRestPolicy> {
     /// The pipeline's answer, reached without a join to finish: the
-    /// no-crossings path (the re-cut or the containment fallback).
+    /// no-crossings path (the cut-in or the containment fallback).
     Answered(Box<BooleanResult<T>>),
     /// The join, done: the reduction with both operands as it leaves
     /// them, every null edge killed, what it completed (never empty),
@@ -1451,10 +1451,10 @@ pub(super) enum Joined<T: crate::props::AtRestPolicy> {
 /// **The pipeline through its join**: the glue door over the caller's
 /// declarations `decls`, the reduction, then the no-crossings path where
 /// there is no null pair, and otherwise the join.
-/// [`boolean_op_recut`] finishes what it returns, and the test hook
+/// [`boolean_pipeline`] finishes what it returns, and the test hook
 /// that stops at the join (`boolean::through_the_join`) reads it, so
-/// the two run one sequence. A re-cut re-enters with the caller's
-/// declarations, and the glue door reads the re-cut operands afresh.
+/// the two run one sequence. A cut-in re-enters with the caller's
+/// declarations, and the glue door reads the cut operands afresh.
 ///
 /// # Errors
 ///
@@ -1467,7 +1467,7 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
     b: &Body<T>,
     decls: &Glue<T>,
     strategy: SweepStrategy,
-    recut: bool,
+    may_cut_in: bool,
     tol: Tol,
 ) -> Result<Joined<T>, BooleanError> {
     let band = Band::linear(tol)?;
@@ -1480,7 +1480,7 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 what: "null edges without pairs reached the op",
             });
         }
-        // M5 S13, the containment-fallback re-cut. Before any vertex
+        // M5 S13, the containment-fallback cut-in. Before any vertex
         // is probed, the curved-EXTENT scan certifies the sphere class
         // structurally: every sphere's true extent (center ± r) is
         // consulted against every face of the other
@@ -1495,46 +1495,46 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
         // - **escape** (a sphere definitely leaves the other solid
         //   through a plane face — the S12 finding's
         //   poking-but-not-crossing shape — or two sphere faces cross
-        //   in a circle no edge reaches): the operand is RE-CUT —
+        //   in a circle no edge reaches): the operand is CUT IN —
         //   the face holding each circle is cut along its chart's
         //   meridian through the circle ([`SphereCutIn`]), one cut per
         //   circle, and the pipeline re-enters once; the ordinary crossing layer then
         //   finds the section circles and the carried lane joins them
         //   exactly on the section value's circle. Both spheres
-        //   of a crossing pair are re-cut, so the circle lands as
+        //   of a crossing pair are cut in, so the circle lands as
         //   chords on both and neither keeps it as a ring.
         // - **uncertifiable** (NURBS re-gate, a circle the section
         //   certificate does not place inside one face, sphere faces
         //   meeting other than across a verified `Rest`, tangency,
         //   boundary-grazing circles, a cut its face cannot take):
         //   typed refusal — the S12 silence never re-opens.
-        let recuts = match no_crossings_pass(a, b, &red, band)? {
+        let cut_ins = match no_crossings_pass(a, b, &red, band)? {
             NoCrossings::Certified(deferred) => {
                 return fallback(op, &mut red, a, b, &glued, deferred, band, tol)
                     .map(|result| Joined::Answered(Box::new(result)));
             }
-            NoCrossings::Recut(recuts) => recuts,
+            NoCrossings::CutIn(cut_ins) => cut_ins,
         };
-        if !recut {
+        if !may_cut_in {
             return Err(BooleanError::ClassificationInvariant {
-                what: "re-cut sphere operands still produced no crossings",
+                what: "cut-in sphere operands still produced no crossings",
             });
         }
         let (mut a2, mut b2) = (a.clone(), b.clone());
-        let cuts = apply_cut_ins(&mut a2, &mut b2, &recuts, band, tol)?;
+        let cuts = apply_cut_ins(&mut a2, &mut b2, &cut_ins, band, tol)?;
         // The re-entry's operands are not finished (the cut-ins leave
-        // joinable vertices), but they hold tiers 1 and 2: carved, turned,
-        // grafted and cut from finished operands by operators that each
-        // keep both. A finding here is a kernel defect.
+        // joinable vertices), but they hold tiers 1 and 2: cut from
+        // finished operands by an operator that keeps both. A finding
+        // here is a kernel defect.
         for (what, body) in [("A", &a2), ("B", &b2)] {
             debug_assert_eq!(
                 crate::validate_closed(body),
                 Ok(()),
-                "re-cut operand {what} fails tier 1 or 2, though every operator that made it \
-                 keeps both on a finished operand (kernel bug)"
+                "cut-in operand {what} fails tier 1 or 2, though the cut that made it keeps \
+                 both on a finished operand (kernel bug)"
             );
         }
-        let mut result = boolean_op_recut(op, &a2, &b2, decls, strategy, false, tol)?;
+        let mut result = boolean_pipeline(op, &a2, &b2, decls, strategy, false, tol)?;
         if let BooleanResult::Body(out) = &mut result {
             // A row names the cells of the op's inputs, not of the
             // cut operands ([`crate::coincidence`]), through the one
@@ -1876,7 +1876,7 @@ pub(crate) enum SectionPath {
     /// The no-crossings fallback: every pair with a face that is not a
     /// plane, except a sphere against a plane, a sphere or a spline —
     /// those are the extent scan's ([`sphere_extent_scan`]), which runs
-    /// first and keeps its re-cut. A sphere against a cylinder, a torus
+    /// first and keeps its cut-in. A sphere against a cylinder, a torus
     /// or a cone is certified here: none is ever an escape face, so the
     /// scan's only question of the pair is disjointness, and with no
     /// event anywhere "every component cleared" is disjointness.
@@ -2419,15 +2419,15 @@ impl<'r> Evidence<'r> {
 
 /// **What the no-crossings certificates answer** ([`no_crossings_pass`]).
 enum NoCrossings<T: Real> {
-    /// The extent scan asks for re-cuts; the pipeline re-enters on the
-    /// re-cut operands.
-    Recut(Vec<SphereCutIn<T>>),
+    /// The extent scan asks for cut-ins; the pipeline re-enters on the
+    /// cut operands.
+    CutIn(Vec<SphereCutIn<T>>),
     /// Every pair is certified, or held for the `On` verdict.
     Certified(OnDeferred),
 }
 
 /// **The no-crossings path's certificates, in the order the path runs
-/// them**: the sphere extent scan, then, where it asks for no re-cut,
+/// them**: the sphere extent scan, then, where it asks for no cut-in,
 /// the section pass, both over what the reduction holds
 /// ([`Evidence::of`]).
 fn no_crossings_pass<T: Decide + Bounds + crate::props::AtRestPolicy>(
@@ -2438,9 +2438,9 @@ fn no_crossings_pass<T: Decide + Bounds + crate::props::AtRestPolicy>(
 ) -> Result<NoCrossings<T>, BooleanError> {
     let events = event_pairs(red);
     let evidence = Evidence::of(red, &events);
-    let (recuts, deferred) = sphere_extent_scan(a, b, &evidence, band)?;
-    if !recuts.is_empty() {
-        return Ok(NoCrossings::Recut(recuts));
+    let (cut_ins, deferred) = sphere_extent_scan(a, b, &evidence, band)?;
+    if !cut_ins.is_empty() {
+        return Ok(NoCrossings::CutIn(cut_ins));
     }
     section_extent_pass(a, b, &red.sections, &evidence, deferred, band).map(NoCrossings::Certified)
 }
@@ -2690,7 +2690,7 @@ pub(crate) fn no_event_section_report(
 
 /// **The no-crossings path's two certificates**, the path's own
 /// [`no_crossings_pass`] over `op`'s glue door and reduction, whatever
-/// the crossing layer found. `Ok` with the number of re-cuts the scan
+/// the crossing layer found. `Ok` with the number of cut-ins the scan
 /// asked for and the number of refusals held for the `On` verdict,
 /// which this door does not run.
 ///
@@ -2707,7 +2707,7 @@ pub(crate) fn no_crossings_certificates(
 ) -> Result<(usize, usize), BooleanError> {
     let (red, _, band) = reduced_as_the_op_does(op, a, b, tol)?;
     Ok(match no_crossings_pass(a, b, &red, band)? {
-        NoCrossings::Recut(recuts) => (recuts.len(), 0),
+        NoCrossings::CutIn(cut_ins) => (cut_ins.len(), 0),
         NoCrossings::Certified(held) => (0, held.0.len()),
     })
 }
@@ -6136,10 +6136,10 @@ fn extent_scan_refusal(e: ContainError, sphere_is: Operand, face: FaceKey) -> Bo
 }
 
 /// The curved-EXTENT scan (fn-level story on the call site in
-/// [`boolean_op_recut`]). Sound because every CURVED-involved boundary
+/// [`boolean_pipeline`]). Sound because every CURVED-involved boundary
 /// pair is either **certified disjoint** (so a connected shell shares
 /// its witness vertex's side — the vertex probe's missing
-/// certificate), **an escape** (re-cut and re-entered), or **refused
+/// certificate), **an escape** (cut in and re-entered), or **refused
 /// typed**. Plane-only configurations run zero new predicates.
 ///
 /// Two classes, and they get different answers because different
@@ -6152,7 +6152,7 @@ fn extent_scan_refusal(e: ContainError, sphere_is: Operand, face: FaceKey) -> Bo
 ///   cross or touch, and a sphere touching a plane's carrier, are asked
 ///   whether their FACES meet ([`sphere_faces_apart`]); a crossing
 ///   circle inside both faces is an escape of each sphere through the
-///   other, and both are re-cut.
+///   other, and both are cut in.
 /// - **Torus, cylinder and cone**: no closed-group extent exists, so
 ///   their pairs are certified per pair by the section certificate
 ///   ([`section_extent_pass`]), which runs after this scan. A sphere's
@@ -6350,8 +6350,8 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                     // placed the circle inside one of its
                                     // faces (R-loop), and that face takes
                                     // the cut ([`SphereCutIn`]).
-                                    FaceContainment::In => match cut_holder(held) {
-                                        Ok(holder) => {
+                                    FaceContainment::In => match held {
+                                        (holder, SectionRefusal::Loop) => {
                                             cut_ins.push(SphereCutIn {
                                                 operand: x_is,
                                                 face: holder,
@@ -6363,11 +6363,11 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                                 u_ref,
                                             });
                                         }
-                                        Err(what) => {
+                                        (_, refusal) => {
                                             return Err(BooleanError::FallbackExtentUnsupported {
                                                 operand: x_is,
                                                 face,
-                                                what,
+                                                what: refusal.what(),
                                             });
                                         }
                                     },
@@ -6609,18 +6609,6 @@ fn sphere_pair_cut<T: Decide>(
         Ok(_) | Err(_) => Err(corrupt(
             "extent scan: spheres the scan decided cross have no section circle",
         )),
-    }
-}
-
-/// **What a section circle wholly inside a plane face asks of the sphere
-/// group it lies on**, from the section certificate's reading of the
-/// first face on the sphere it refused against that face: R-loop cuts
-/// the face the certificate placed the circle inside, and any other
-/// verdict refuses with its own reason.
-fn cut_holder((holder, refusal): (FaceKey, SectionRefusal)) -> Result<FaceKey, &'static str> {
-    match refusal {
-        SectionRefusal::Loop => Ok(holder),
-        refusal => Err(refusal.what()),
     }
 }
 
@@ -7214,7 +7202,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
     Ok(made)
 }
 
-/// **The recut's rows read through the cut-ins** ([`spell`]): each row
+/// **The re-entry's rows read through the cut-ins** ([`spell`]): each row
 /// whose cells the cuts made is spelled in the op's inputs' cells, one
 /// row for one, so the records cite the rows they cited.
 ///
@@ -7312,7 +7300,7 @@ impl ChartCuts {
 /// can leave the other solid strictly between a shell's witnesses (the
 /// S12 finding), so for the sphere class the answer is only sound
 /// because [`sphere_extent_scan`] ran first and certified every
-/// sphere-involved boundary pair disjoint (or re-cut / refused): a
+/// sphere-involved boundary pair disjoint (or cut in / refused): a
 /// connected shell whose surface avoids the other boundary lies in one
 /// component, and the witness names it.
 fn classify_shells<T: Decide + crate::props::AtRestPolicy>(
@@ -10057,33 +10045,6 @@ mod torn_hop_rows {
     }
 }
 
-/// **Only an R-loop verdict cuts a sphere face** ([`cut_holder`]): the
-/// face the certificate placed the circle inside takes the cut, and every
-/// other verdict refuses with its own reason rather than cutting the face
-/// it names.
-#[cfg(test)]
-mod cut_holder_rows {
-    use super::*;
-
-    #[test]
-    fn only_the_loop_verdict_cuts_its_face() {
-        let face = FaceKey::default();
-        assert_eq!(
-            cut_holder((face, SectionRefusal::Loop)),
-            Ok(face),
-            "R-loop cuts the face it names"
-        );
-        use strum::IntoEnumIterator;
-        for refusal in SectionRefusal::iter().filter(|r| *r != SectionRefusal::Loop) {
-            assert_eq!(
-                cut_holder((face, refusal)),
-                Err(refusal.what()),
-                "{refusal:?} refuses with its own reason"
-            );
-        }
-    }
-}
-
 #[cfg(test)]
 mod from_computed_rows {
     #![allow(clippy::unwrap_used, clippy::expect_used)]
@@ -10778,7 +10739,7 @@ mod join_row_rows {
     /// **A chord the boolean minted reads as no input edge**: the
     /// pierce union's reduction, through the join, holds the chords its
     /// insertion minted in each clone, and its ledger is taken there
-    /// (`boolean_op_recut`). Every clone edge reads back to an edge its
+    /// (`boolean_pipeline`). Every clone edge reads back to an edge its
     /// input holds or to none, and the chords to none.
     #[test]
     fn a_chord_the_boolean_minted_reads_as_no_input_edge() {

@@ -4,7 +4,7 @@ kind: issue
 title: a sphere face whose tilted circle passes near a chart pole refuses at the trimmed lane's sphere arm
 status: open
 opened: 2026-10-28
-priority: P3
+priority: P1
 cost: M
 ---
 
@@ -104,4 +104,8 @@ at every δ. Pinned by
 
 ## Evidence (2026-11-23, ORBIT `orbit/one-sphere-escape-cut`)
 
-That branch retires the boolean's re-chart of a closed ball: every sphere escape is now cut in on the ball's own chart, so a section circle that lies beside the ball's own pole stays there. Before, the re-chart turned the pole onto the centre line, away from the circle. `crates/sweep/tests/spheres_crossing_off_every_edge.rs` `a_circle_beside_a_pole_builds` moves onto this row. Every op of the unit ball against a radius-0.01 ball whose circle passes 1e-5 rad from the unit ball's pole builds at its closed form, tier-3 valid. Both unions and the unit ball's difference then refuse `FoldedTriangle` at δ 5e-3, and the other three draw. At 1e-7 rad all six ops build and then refuse `SphereTrimShape { ChordBudget }`. Those poses drew before. The re-chart had been keeping such poses off this arm, and now nothing does, which may bear on this row's band.
+That branch retires the boolean's re-chart of a closed ball: every sphere escape is now cut in on the ball's own chart, so a section circle that lies beside the ball's own pole stays there. Before, the re-chart turned the pole onto the centre line, away from the circle. `crates/sweep/tests/spheres_crossing_off_every_edge.rs` `a_circle_beside_a_pole_builds` (now `a_circle_beside_a_pole_builds_though_the_mesher_refuses_it`) moves onto this row. Every op of the unit ball against a radius-0.01 ball whose circle passes 1e-5 rad from the unit ball's pole builds at its closed form, tier-3 valid. Both unions and the unit ball's difference then refuse `FoldedTriangle` at δ 5e-3, and the other three draw. At 1e-7 rad all six ops build and then refuse `SphereTrimShape { ChordBudget }`. Those poses drew before. The re-chart had been keeping such poses off this arm, and now nothing does, which may bear on this row's band.
+
+## Re-banded P1 (2026-11-23, ORBIT, from PR 7602's dual review)
+
+PR 7602 turned this row from latent into a regression of drawn geometry. On main, the boolean's rotation re-chart kept a section circle off a closed ball's chart pole, so these poses drew. PR 7602 retires that re-chart and cuts every escape in on the ball's own chart. A circle 1e-5 or 1e-7 rad from the ball's internal chart pole now builds at its closed form but no longer draws: `FoldedTriangle` on the pole's side at 1e-5, and `SphereTrimShape { ChordBudget }` for every face at 1e-7 (`crates/sweep/tests/spheres_crossing_off_every_edge.rs`, `a_circle_beside_a_pole_builds_though_the_mesher_refuses_it`). The pole is a chart choice the user cannot see, so a part that drew stops drawing for no reason the user can act on. That is P1 (`work/README.md`, Priority). Re-banded by the orchestrator's ruling on the review. (ORBIT, `orbit-escape`)

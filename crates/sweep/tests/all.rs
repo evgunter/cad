@@ -84,6 +84,8 @@ mod a_curved_keel_in_the_plane;
 mod a_curved_keel_on_the_floor_refuses_its_slit_form;
 #[path = "a_cut_by_a_curved_seat_refuses_its_material.rs"]
 mod a_cut_by_a_curved_seat_refuses_its_material;
+#[path = "a_cut_by_a_seated_tool_cuts_its_ball_in.rs"]
+mod a_cut_by_a_seated_tool_cuts_its_ball_in;
 #[path = "a_cylinder_split_just_off_its_rim_vertex.rs"]
 mod a_cylinder_split_just_off_its_rim_vertex;
 #[path = "a_face_across_a_wavy_corner.rs"]

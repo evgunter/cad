@@ -7,7 +7,9 @@
 //! own chart's meridian through the circle, so an edge of each operand
 //! reaches it (`boolean::ops`, the sphere arm of `sphere_extent_scan`).
 //! The circle then lies tilted against the face's chart, and such a face
-//! meshes through the trimmed lane's sphere arm.
+//! meshes through the trimmed lane's sphere arm, except where the circle
+//! passes close to the chart's own pole
+//! ([`a_circle_beside_a_pole_builds_though_the_mesher_refuses_it`]).
 //!
 //! Every ball here is the `y`-poled full revolve, its two seam
 //! meridians in the plane `z = c_z`, so a centre line along `z` keeps
@@ -377,7 +379,7 @@ fn tilted_and_spun_charts_build() {
 /// `work/germ/f64-cannot-place-a-shallow-crossing-within-the-finest-band.md`),
 /// so the other ε rows stand down.
 #[test]
-fn a_circle_beside_a_pole_builds() {
+fn a_circle_beside_a_pole_builds_though_the_mesher_refuses_it() {
     if Tol::witness().get().eps != 1e-9 {
         test_utils::vacuity::stood_down(
             "non-default eps",
