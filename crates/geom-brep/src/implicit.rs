@@ -1941,9 +1941,10 @@ pub struct CircleSphereHarmonic<T> {
     /// from the factored form, in metres of residual at every `θ`. The
     /// form assumes the frame orthonormal; with `G = [û, n̂ × û, n̂]` the
     /// two differ by `(|e|² − |Gᵀe|² + ρ²(|w|² − 1))/2r`, at most
-    /// `(|e|² + ρ²)·‖GᵀG − I‖/2r`. The frame's defect is read off
-    /// `|û|² − 1`, `|n̂|² − 1` and `n̂·û` with their own running bounds,
-    /// so an exactly orthonormal axis-aligned frame is charged nothing.
+    /// `(|e|² + ρ²)·‖GᵀG − I‖/2r`, `‖GᵀG − I‖` bounded by the frame's
+    /// distances from its rotation ([`geom::Frame::rounding`]): measured at
+    /// a point scalar, so an exactly orthonormal frame is charged nothing,
+    /// and zero at an enclosure scalar.
     pub frame_error: T,
 }
 
@@ -1960,9 +1961,11 @@ impl<T: Real> CircleSphereHarmonic<T> {
 }
 
 /// [`CircleSphereHarmonic`] for `circle` against the sphere
-/// `(s_center, s_radius)`. The circle's frame need not be orthonormal:
-/// its defect is charged to [`CircleSphereHarmonic::frame_error`]. Total
-/// arithmetic.
+/// `(s_center, s_radius)`. The circle's frame holds a rotation to its
+/// rounding at a point scalar, measured and charged to
+/// [`CircleSphereHarmonic::frame_error`]; at an enclosure scalar it
+/// encloses one, and the charge is zero ([`geom::Frame::rounding`]).
+/// Total arithmetic.
 #[must_use]
 pub fn circle_sphere_harmonic<T: Real>(
     circle: &geom::Circle<T>,
@@ -1970,13 +1973,10 @@ pub fn circle_sphere_harmonic<T: Real>(
     s_radius: T,
 ) -> CircleSphereHarmonic<T> {
     let conic_k = *circle;
-    let (center, axis, u_ref) = (
-        conic_k.frame().origin(),
-        conic_k.frame().axis(),
-        conic_k.frame().u_ref(),
-    );
+    let frame = conic_k.frame();
+    let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
     let radius = conic_k.radius();
-    use geom_core::running::{cross, dot, exact_vec, unit_defect};
+    use geom_core::running::{cross, dot, exact_vec};
     let two = T::from_f64(2.0);
     let [cx, cy, cz] = exact_vec(Vec3::new(center.x, center.y, center.z));
     let [sx, sy, sz] = exact_vec(Vec3::new(s_center.x, s_center.y, s_center.z));
@@ -1990,10 +1990,20 @@ pub fn circle_sphere_harmonic<T: Real>(
     let hi = extreme((offset + rho).hypot(e_n));
     // `GᵀG − I` is block diagonal, `[[a, c], [c, b]]` on `(û, n̂)` and
     // `a + b + ab − c²` on `n̂ × û`, so `‖GᵀG − I‖₂` is the larger of
-    // `max(|a|, |b|) + |c|` and that middle entry's magnitude.
-    let (a, b, c) = (unit_defect(u_ref), unit_defect(axis), dot(n, u));
-    let middle = (a + b + a * b - c.square()).magnitude();
-    let defect = (a.magnitude().max(b.magnitude()) + c.magnitude()).max(middle);
+    // `max(|a|, |b|) + |c|` and that middle entry's magnitude. Each is
+    // bounded by the frame's distances from its rotation
+    // ([`geom::Frame::rounding`]: `d_n` the axis's, `d_u` the seam's):
+    // `|b| = |√A − 1|(√A + 1) ≤ d_n(2 + d_n)`, `|a| ≤ d_u(2 + d_u)` since
+    // `|‖u‖ − 1| ≤ ‖u − û‖`, and `|c| ≤ d_n + d_u + d_n·d_u`, `n̂ ⊥ û`. Zero
+    // at an enclosure scalar, whose frame encloses its rotation; the few
+    // operations here, on non-negative terms, are charged as a short
+    // chain.
+    let (d_n, d_u) = frame.rounding();
+    let (a, b) = (d_u * (two + d_u), d_n * (two + d_n));
+    let c = d_n + d_u + d_n * d_u;
+    let middle = a + b + a * b + c.powi(2);
+    let defect = (a.max(b) + c).max(middle);
+    let defect = defect + geom_core::rounding_charge(defect);
     let e_sq = e.map(|x| x.value.powi(2));
     CircleSphereHarmonic {
         e_u: e_u.value,
