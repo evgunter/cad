@@ -1153,8 +1153,8 @@ fn grid_counts(
 ) -> Result<(usize, usize), TessellateError> {
     let steps = row.steps(delta);
     let (hu, hv) = steps;
-    // The lattice the row lays: rows every `lever·hu` on a ruled chart,
-    // the periodic steps capped on a torus and a spindle sheet.
+    // The lattice the row lays: the periodic steps capped on a torus and
+    // a spindle sheet, which this lane reads alone.
     let (lu, lv) = row.lattice_steps(steps);
     match row.kind() {
         Analytic::Cylinder { .. } => {
