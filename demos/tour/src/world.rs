@@ -230,8 +230,9 @@ pub fn on_axis(
         on: Operand::Output {
             node: revolve,
             port: 1,
-        },
-        to,
+        }
+        .into(),
+        to: to.into(),
         orient,
     };
     // The slide an axis mate leaves, written; its spin is the constant 0.

@@ -1605,7 +1605,7 @@ fn mint_pose<P: crate::ProfilePayload>(
     if let PoseDef::Carried { copy, .. } = &stored
         && !matches!(
             doc.operation_of(*copy).and_then(|at| doc.node(at)),
-            Some(Node::Place { .. } | Node::InstantiatePart { .. })
+            Some(node) if node.makes_a_copy()
         )
     {
         return Err(shape(PoseFault::NotACopy { var: *copy }));
@@ -2012,7 +2012,7 @@ pub(crate) fn pick_fault<P>(doc: &Doc<P>, copy: VarId, of: &[VarId]) -> Option<O
     };
     let copied = matches!(
         doc.operation_of(copy).and_then(|at| doc.node(at)),
-        Some(Node::Place { .. } | Node::InstantiatePart { .. })
+        Some(node) if node.makes_a_copy()
     );
     if !copied || of.is_empty() {
         return Some(None);
@@ -9006,15 +9006,14 @@ fn rebundled<P: Clone + crate::ProfilePayload>(
     }
     let left: Vec<&crate::mate::Constraint> =
         bundle.iter().filter(|c| !removed.contains(&c.id)).collect();
-    let kind = |var: VarId| new.var(var).map(crate::Var::kind);
     let mut families: Vec<crate::SubgroupFamily> = left
         .iter()
         .filter_map(|c| c.mate())
-        .filter_map(|m| kind(m.on).and_then(crate::VarKind::symmetry))
+        .filter_map(|m| crate::mate::side_kind(new, m.on).and_then(crate::VarKind::symmetry))
         .collect();
     if let Some(mate) = &added
         && let Some(family) =
-            crate::mate::pin::operand_kind(new, &mate.on).and_then(crate::VarKind::symmetry)
+            crate::mate::pin::side_kind(new, &mate.on).and_then(crate::VarKind::symmetry)
     {
         families.push(family);
     }
@@ -9023,8 +9022,8 @@ fn rebundled<P: Clone + crate::ProfilePayload>(
         c.mate().map(|m| Constraint {
             id: c.id,
             kind: ConstraintKind::Mate(Mate {
-                on: crate::Operand::Var(m.on),
-                to: crate::Operand::Var(m.to),
+                on: m.on.map(|&v| crate::Operand::Var(v)),
+                to: m.to.map(|&v| crate::Operand::Var(v)),
                 orient: m.orient,
             }),
         })
@@ -9113,12 +9112,7 @@ fn removed((ids, _): (Vec<crate::node::ConstraintId>, Vec<VarId>)) -> EditRecord
 /// A placement's bundle, writable; `None` for a node that is no
 /// placement.
 fn bundle_of_mut<P>(node: &mut Node<P>) -> Option<&mut Vec<crate::mate::Constraint>> {
-    match node {
-        Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } => {
-            Some(constraints)
-        }
-        _ => None,
-    }
+    node.bundle_mut()
 }
 
 /// **The door of every edit that writes a bundle**
@@ -9150,35 +9144,21 @@ fn add_constraints<P: Clone + crate::ProfilePayload>(
         }
     }
     // The constraints lowered as a bundle of their own: their reads at
-    // their seats, under the ids as written, which the mint replaces.
-    // The carrier copies the placement's own copy, a body read that
-    // lowers wherever the placement stands.
-    let copy = new
-        .output(placement, 0)
-        .unwrap_or_else(|| unreachable!("a placement defines its copy"));
-    // A copy its binder yields is read as one member, at the binder's
-    // indices (D10 `[repetition]`).
-    let at = new
-        .yielding(copy)
-        .map(|binder| {
-            new.binder_indices(binder)
-                .into_iter()
-                .map(|index| Formula::var(index, Dimension::Count))
-                .collect()
-        })
-        .unwrap_or_default();
-    let carrier: Node<P::Authored, Formula> = Node::Place {
-        source: crate::BodyRead::indexed(crate::Operand::Var(copy), at),
+    // their seats, under the ids as written, which the mint replaces. The
+    // carrier is the placement that reads nothing but its bundle (a
+    // datum in the world), so it lowers whatever the placement places;
+    // the written node is checked whole below.
+    let carrier: Node<P::Authored, Formula> = Node::Datum {
         target: crate::Operand::Var(VarId::WORLD),
         constraints,
     };
     let lowering = Lowering::start(new, fresh)?;
     let lowered = lower_node(new, &lowering, &carrier, || doc.spoken(placement))?;
-    let Node::Place {
+    let Node::Datum {
         mut constraints, ..
     } = lowered
     else {
-        unreachable!("a placement lowers to a placement")
+        unreachable!("a datum lowers to a datum")
     };
     // A whole rewrite keeps the id of a constraint it writes again.
     let held: Vec<crate::node::ConstraintId> = if replace {
@@ -10634,8 +10614,8 @@ mod tests {
             }))
         };
         let mate = crate::mate::Mate {
-            on: plane(crate::node::RecipeNodeId::new(0, 3)),
-            to: plane(crate::node::RecipeNodeId::new(0, 2)),
+            on: plane(crate::node::RecipeNodeId::new(0, 3)).into(),
+            to: plane(crate::node::RecipeNodeId::new(0, 2)).into(),
             orient: crate::Orientation::IDENTITY,
         };
         let constraint = crate::node::ConstraintId(crate::MintId::new(0, 4));

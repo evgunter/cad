@@ -80,8 +80,8 @@ pub fn document() -> CorpusDoc {
     r.constrain(
         placed,
         Mate {
-            on,
-            to: plane(cap(cube, CapEnd::End)),
+            on: on.into(),
+            to: plane(cap(cube, CapEnd::End)).into(),
             orient: editor_core::Orientation::IDENTITY,
         },
         vec![

@@ -3909,6 +3909,7 @@ MEMBERS_BOUND_AS = {
     "MateFault::PosesOfAnotherDocument": "MateFault.variant",
     "MateFault::Overconstrained": "MateFault.variant",
     "MateFault::NotOnTheCopy": "MateFault.variant",
+    "MateFault::NotTheDatumsOwn": "MateFault.variant",
     "MateFault::KindsDiffer": "MateFault.variant",
     "MateFault::NoChart": "MateFault.variant",
     "MateFault::Backwards": "MateFault.variant",

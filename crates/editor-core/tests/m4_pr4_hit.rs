@@ -55,6 +55,7 @@ fn bodies_of(payload: &ValuePayload<f64>) -> Vec<(u32, &Body<f64>)> {
         // Neither sink denotes a body, so neither offers an entity to
         // invert.
         | ValuePayload::Measure { .. }
+        | ValuePayload::Datum(_)
         | ValuePayload::Assertion(_) => vec![],
     }
 }

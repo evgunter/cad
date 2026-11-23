@@ -45,13 +45,13 @@
 //! loops enclose the surface's end rather than its own region reads
 //! inverted there, and this module skips it.
 
-use geom_brep::ladder::Kept;
+use geom_brep::ladder::{Kept, Rung};
 use geom_core::{Band, Decide};
 
 use crate::body::Body;
 use crate::contain::{ContainError, CurvedPlacement, FaceContainment};
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
-use crate::loop_side::{EveryVertex, inside_at_every_vertex};
+use crate::loop_side::{EveryVertex, VertexPlaced, inside_at_every_vertex};
 use crate::solid_contain::PointInSolidError;
 use crate::surface_boundary::WoundCycle;
 use crate::validate::ValidationError;
@@ -225,9 +225,16 @@ pub(crate) fn door_side<T: Decide>(
 /// whether the cycle lies wholly off or crosses the cut. Nothing joins
 /// here: the cycles are the face's own, so a crossing is the
 /// validator's to find, and no vertex's reading is taken for the rest.
-/// A vertex on a cycle of the cut is set aside. An unplaced vertex is
-/// exempt and passes, so a cycle no vertex places is exempt unless one
-/// read in band.
+///
+/// A cycle no vertex places is exempt unless one read in band. The door
+/// answers `None` both for a vertex on a kept cycle and for one it
+/// cannot read ([`door_side`]), so the two read alike here, and either
+/// way the cycle is exempt rather than a finding: two cycles of one
+/// face's surface boundary meet only at a pinch, one vertex per cone
+/// where the face's loop passes a point twice, and that point is check
+/// 9's corner arm's (`validate::pinch_corner_errors`), which reads each
+/// corner there as a slice of the face. A cycle on the cut at every
+/// vertex meets it only at such pinches.
 fn read_cycle<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -244,13 +251,18 @@ fn read_cycle<T: Decide>(
             .get_vertex(vertex)
             .and_then(|v| body.points.get(v.point))
         else {
-            return Ok(None);
+            return Rung::Passes;
         };
-        door_side(body, face, cut, *q, band).map_err(|diag| Kept::of(diag).map(|d| (vertex, d)))
+        match door_side(body, face, cut, *q, band) {
+            Ok(Some(true)) => Rung::Answers(Ok(VertexPlaced::<()>::Inside)),
+            Ok(Some(false)) => Rung::Answers(Ok(VertexPlaced::Outside)),
+            Ok(None) => Rung::Passes,
+            Err(diag) => Kept::of(diag).map(|d| (vertex, d)).into(),
+        }
     }) {
         EveryVertex::Inside => Read::Face,
         EveryVertex::Outside { at } => Read::Off(at),
-        EveryVertex::Unplaced => Read::Exempt,
+        EveryVertex::OnBoundary { .. } | EveryVertex::NoAnswer => Read::Exempt,
         EveryVertex::Undecided((at, diag)) => Read::InBand(at, diag),
     }
 }

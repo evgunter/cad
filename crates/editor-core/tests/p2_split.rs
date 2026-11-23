@@ -278,12 +278,12 @@ fn read_name(doc: &ProfileDoc, pose: VarId) -> StableName {
 
 /// The pose a stored constraint's target reads.
 fn target_of(c: &editor_core::Constraint) -> VarId {
-    c.mate().expect("a mate").to
+    c.mate().expect("a mate").to.read
 }
 
 /// The pose a stored constraint's own side reads.
 fn on_of(c: &editor_core::Constraint) -> VarId {
-    c.mate().expect("a mate").on
+    c.mate().expect("a mate").on.read
 }
 
 /// The one mate `placement`'s bundle holds, beside the values on it.

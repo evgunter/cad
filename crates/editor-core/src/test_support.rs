@@ -595,7 +595,11 @@ pub fn placed_against_in(
         }
     };
     crate::Placed {
-        mates: vec![crate::Mate { on, to, orient }],
+        mates: vec![crate::Mate {
+            on: on.into(),
+            to: to.into(),
+            orient,
+        }],
         values: vec![
             (Coord::slide(across[0]), slide(coordinate(across[0]))),
             (Coord::slide(across[1]), slide(coordinate(across[1]))),
@@ -1517,7 +1521,7 @@ pub fn assemble_world_copies_edits(
     // document written twice is the one document.
     let binders = doc.binders();
     let world: Vec<crate::VarId> = doc
-        .placements()
+        .copies()
         .into_iter()
         .filter(|&p| doc.node_space(p) == Some(crate::VarId::WORLD))
         .filter_map(|p| doc.output(p, 0))
