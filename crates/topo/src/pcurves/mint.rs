@@ -9,7 +9,7 @@ use geom_brep::{
 };
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};
-use geom_core::{Decide, Indeterminate, Margin, Point2, Real, Sign, SupSpeed, Tol};
+use geom_core::{Decide, Indeterminate, Margin, Point2, Real, Sign, SupSpeed};
 
 use super::{
     Certified, DerivedRow, SingularMiss, Walked, certify_walked, loop_rows, walk_loop, walk_runs,
@@ -1786,11 +1786,14 @@ pub(crate) fn sphere_twin<T: Real>(surface: &Surface<T>, pcurve: &Pcurve<T>) -> 
         .ok()
 }
 
+#[cfg(any(test, feature = "test-support"))]
 /// Mints (and certifies) the pcurve caches of every curved face of
 /// `body` whose chart has a certified closed-form lane, clearing the map
 /// first. No producer closes with it: the finish completes a body's rows
 /// instead, keeping every stored row, so a stale one is refused rather
-/// than replaced (`complete_pcurves`).
+/// than replaced (`complete_pcurves`). Crate-private, and public only to
+/// the test-support build (`topo::mint_pcurves`): a door that cleared
+/// and re-minted would replace a stale row rather than refuse it.
 ///
 /// Idempotent by construction on a given body: it walks faces in arena
 /// order, loops in outer-then-rings order, and half-edges in `next`
@@ -1804,7 +1807,10 @@ pub(crate) fn sphere_twin<T: Real>(surface: &Surface<T>, pcurve: &Pcurve<T>) -> 
 /// [`PcurveMintError::NoCarrier`] on a face a null edge bounds. Never a
 /// silent skip of a face the lane covers. Every row is derived before
 /// any is written, so a refusal leaves the body as found.
-pub fn mint_pcurves<T: AtRestPolicy>(body: &mut Body<T>, tol: Tol) -> Result<(), PcurveMintError> {
+pub(crate) fn mint_pcurves<T: AtRestPolicy>(
+    body: &mut Body<T>,
+    tol: geom_core::Tol,
+) -> Result<(), PcurveMintError> {
     let band = Band::linear(tol).map_err(PcurveMintError::Band)?;
     let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
     let rows = mint_rows(body, &faces, band)?;
@@ -1824,6 +1830,7 @@ pub fn mint_pcurves<T: AtRestPolicy>(body: &mut Body<T>, tol: Tol) -> Result<(),
     Ok(())
 }
 
+#[cfg(any(test, feature = "test-support"))]
 /// [`mint_pcurves`] restricted to `faces`: the rows of exactly those
 /// faces' half-edges are cleared and re-derived, and **every other row
 /// of `body` is left exactly as it was found**.
@@ -1868,10 +1875,10 @@ pub fn mint_pcurves<T: AtRestPolicy>(body: &mut Body<T>, tol: Tol) -> Result<(),
 /// [`PcurveMintError::Stale`] for a face in `faces` that does not
 /// resolve, before any work; otherwise [`mint_pcurves`]'s, raised by a
 /// face in `faces`, with the body left as found.
-pub fn mint_pcurves_of<T: AtRestPolicy>(
+pub(crate) fn mint_pcurves_of<T: AtRestPolicy>(
     body: &mut Body<T>,
     faces: &[FaceKey],
-    tol: Tol,
+    tol: geom_core::Tol,
 ) -> Result<usize, PcurveMintError> {
     let band = Band::linear(tol).map_err(PcurveMintError::Band)?;
     if let Some(&face) = faces.iter().find(|&&face| !body.faces.contains_key(face)) {
@@ -1893,6 +1900,7 @@ pub fn mint_pcurves_of<T: AtRestPolicy>(
     Ok(body.pcurves.len() - before)
 }
 
+#[cfg(any(test, feature = "test-support"))]
 /// **The rows the mint writes over `faces`**, derived and certified
 /// before it writes any — the shared body of [`mint_pcurves`] and
 /// [`mint_pcurves_of`], which differ only in which rows they clear —
@@ -1925,6 +1933,7 @@ fn mint_rows<T: AtRestPolicy>(
     Ok(rows)
 }
 
+#[cfg(any(test, feature = "test-support"))]
 /// **The rows a face holds, carried across a mint that cannot derive
 /// them**: each one the face's loops reach is re-certified through its
 /// own door against the current carrier and surface. So a row the mint

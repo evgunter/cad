@@ -234,7 +234,7 @@ fn notched_cone() -> Body<f64> {
         };
         b.set_edge_curve(edge, spec, t).unwrap();
     }
-    topo::pcurves::mint_pcurves(&mut b, t).unwrap();
+    topo::mint_pcurves(&mut b, t).unwrap();
     b
 }
 

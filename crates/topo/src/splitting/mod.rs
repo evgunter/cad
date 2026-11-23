@@ -1312,18 +1312,35 @@ where
     let at_rest = |side, part| match part {
         finish::RawPart::Body(mut body) => {
             // The sort reads stored rows on a spline face, which no
-            // closed-form lift derives, so it reads them completed.
-            crate::finish::complete_in_place(&mut body, tol).map_err(|findings| {
-                SplitError::from(SplitFinishError::ResultNotAtRest { side, findings })
-            })?;
-            crate::pieces::sort_into_pieces(
+            // closed-form lift derives, so it reads them completed. A
+            // face completion leaves short is the finish's to report, as
+            // at the Boolean's gate: the side answers with the finish's
+            // finding set, sorted where the sort reads it whole.
+            let not_at_rest =
+                |findings| SplitError::from(SplitFinishError::ResultNotAtRest { side, findings });
+            let refused = crate::finish::complete_in_place(&mut body, tol).map_err(not_at_rest)?;
+            let unsorted = (!refused.is_empty()).then(|| body.clone());
+            let sorted = crate::pieces::sort_into_pieces(
                 &mut body,
                 band,
                 tol,
                 <F::Scalar as crate::props::AtRestPolicy>::quad_lane(),
                 None,
-            )
-            .map_err(SplitError::Pieces)?;
+            );
+            match (sorted, unsorted) {
+                (Ok(()), None) => {}
+                (Ok(()), Some(_)) => {
+                    return Err(not_at_rest(crate::finish::refused_finding_set(
+                        body, tol, refused,
+                    )));
+                }
+                (Err(_), Some(unsorted)) => {
+                    return Err(not_at_rest(crate::finish::refused_finding_set(
+                        unsorted, tol, refused,
+                    )));
+                }
+                (Err(e), None) => return Err(SplitError::Pieces(e)),
+            }
             <F::Scalar as crate::props::AtRestPolicy>::finish(body, tol)
                 .map(finish::SplitPart::Body)
                 .map_err(|findings| {

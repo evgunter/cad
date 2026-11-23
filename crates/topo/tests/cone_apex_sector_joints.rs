@@ -72,7 +72,7 @@ fn sector<T: Real + AtRestPolicy>(alpha: f64) -> Result<Body<T>, String> {
         tol,
     )
     .map_err(|e| format!("mef {e:?}"))?;
-    topo::pcurves::mint_pcurves(&mut body, tol).map_err(|e| format!("mint {e:?}"))?;
+    topo::mint_pcurves(&mut body, tol).map_err(|e| format!("mint {e:?}"))?;
     Ok(body)
 }
 
@@ -217,7 +217,7 @@ fn truncated<T: Real + AtRestPolicy>(alpha: f64, inner: f64) -> Result<Body<T>, 
         tol,
     )
     .map_err(|e| format!("mef {e:?}"))?;
-    topo::pcurves::mint_pcurves(&mut body, tol).map_err(|e| format!("mint {e:?}"))?;
+    topo::mint_pcurves(&mut body, tol).map_err(|e| format!("mint {e:?}"))?;
     Ok(body)
 }
 

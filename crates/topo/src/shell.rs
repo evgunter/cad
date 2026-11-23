@@ -1796,9 +1796,18 @@ pub(crate) fn shell_open_at<T: crate::props::CertifiedPolicy + geom_core::Certif
 
     // The questions below read the cavity's stored rows on its curved
     // faces, which the offset doors left for the finish; they read them
-    // completed, every row the doors kept as kept.
-    crate::finish::complete_in_place(&mut cavity, tol)
+    // completed, every row the doors kept as kept. A face completion
+    // leaves short has no rows to read, and is the finish's to report:
+    // the door answers with the cavity's finish finding set, the
+    // refusals beside every other finding.
+    let refused = crate::finish::complete_in_place(&mut cavity, tol)
         .map_err(|findings| ShellError::NotValid { findings })?;
+    if !refused.is_empty() {
+        cavity.sweep_and_close();
+        return Err(ShellError::NotValid {
+            findings: crate::finish::refused_finding_set(cavity_body, tol, refused),
+        });
+    }
 
     // ---- Decide: no two moved walls meeting at an angle cross. ----
     moved_walls_cross(&cavity, &partition, thickness, band)?;

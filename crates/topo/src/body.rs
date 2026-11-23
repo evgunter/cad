@@ -936,10 +936,10 @@ impl<T: Real> Body<T> {
     /// The bit goes through the production door
     /// ([`Construct::set_face_sense`](crate::construction::Construct::set_face_sense)),
     /// which drops the face's rows where they are about the other side
-    /// of a chart with a singular set, and a face that stored rows is
-    /// minted again at `tol`, as a band door after it would: the rows
-    /// follow the bit, and the bit against the winding is the body's
-    /// one incoherence. A mint that refuses leaves the face without
+    /// of a chart with a singular set, and a face whose rows it dropped
+    /// is completed at `tol`, as the finish would: the rows follow the
+    /// bit, and the bit against the winding is the body's one
+    /// incoherence. A completion that refuses leaves the face without
     /// rows.
     ///
     /// Returns `None` if `face` is stale;
@@ -965,7 +965,7 @@ impl<T: Real> Body<T> {
             .all(|he| out.pcurve(he).is_none());
         if stored && dropped {
             // A refusal leaves the rows dropped, as the door left them.
-            let _ = crate::pcurves::mint_pcurves_of(&mut out, &[face], tol);
+            let _ = crate::pcurves::complete_pcurves(&mut out, tol);
         }
         Some(out)
     }

@@ -700,6 +700,7 @@ fn every_ring_promotion_door_declares_its_posture() {
 #[test]
 fn every_mutation_door_declares_its_pcurve_posture() {
     use Posture::Maintains;
+    let mut minting: Vec<&str> = Vec::new();
     let mut declared: Vec<&str> = Vec::new();
     let mut undeclared: Vec<String> = Vec::new();
     let mut mislabelled: Vec<String> = Vec::new();
@@ -711,7 +712,12 @@ fn every_mutation_door_declares_its_pcurve_posture() {
             Some((_, posture, _)) if mints && *posture != Maintains => {
                 mislabelled.push(format!("{} declared {posture:?}", door.name));
             }
-            Some((n, _, _)) => declared.push(n),
+            Some((n, _, _)) => {
+                declared.push(n);
+                if mints {
+                    minting.push(n);
+                }
+            }
             None => undeclared.push(door.site()),
         }
     }
@@ -738,5 +744,69 @@ fn every_mutation_door_declares_its_pcurve_posture() {
                  mutation path — it was renamed or deleted. Drop the entry.",
         );
     }
-    println!("[pcurve posture] {} door(s) declared", declared.len());
+    // **Over-stripping is SILENT here**, which is why this pin is by
+    // name rather than a count. A door that stops reading as calling the
+    // pass does not red — it lands in the declared arm whatever its
+    // body reads as — so a lexing gap that erased the needle everywhere
+    // would leave the `mislabelled` check green over a surface it had
+    // stopped reading. The doors that call the pass today are the
+    // test-support spellings of the pass itself and the two fixture
+    // builders; each must still read as calling it. The walk's own floor
+    // is upstream on `mutation_doors`; this is the needle's.
+    for name in [
+        "mint_pcurves",
+        "mint_pcurves_of",
+        "cyl_wall_sheet",
+        "set_sheet_sense",
+    ] {
+        assert!(
+            minting.contains(&name),
+            "`{name}` no longer reads as calling the minting pass. Either it stopped \
+                 calling it — move its entry, and this pin — or the source read lost the \
+                 call.",
+        );
+    }
+    println!(
+        "[pcurve posture] {} door(s) declared, {} calling the pass",
+        declared.len(),
+        minting.len()
+    );
+}
+
+/// **No production code in any crate calls the minting pass.** The pass
+/// clears what it re-derives, so a door that closed with it would
+/// replace a stale row rather than refuse it; the finish completes a
+/// body's rows instead. The pass is crate-private and gated to tests and
+/// the `test-support` build, which the compiler holds for every crate's
+/// default build; this row holds it for the code a `test-support` build
+/// compiles too, over every crate's `src/` — the mutation-door walk above
+/// reads `topo/src`'s `&mut Body` surface alone. A test, a `cfg(test)`
+/// item and a `cfg(any(test, …))` item are test code and may call it.
+#[test]
+fn no_production_code_in_any_crate_calls_the_minting_pass() {
+    let crates = test_utils::source::repo_root(env!("CARGO_MANIFEST_DIR")).join("crates");
+    let mut sites = Vec::new();
+    let mut read = 0;
+    for krate in std::fs::read_dir(&crates).expect("the crates directory") {
+        let krate = krate.expect("a crate entry").path();
+        let src = krate.join("src");
+        if !test_utils::source::holds_rust_sources(&src) {
+            continue;
+        }
+        read += 1;
+        for site in test_utils::source::production_sites(&src, &["mint_pcurves", "mint_pcurves_of"])
+        {
+            sites.push(format!("{}/src/{site}", krate.display()));
+        }
+    }
+    // topo, sweep, mesh, step-import, editor-core and the rest: a walk
+    // that read a handful read the wrong tree.
+    assert!(read >= 10, "read {read} crate(s)");
+    // The fixture builders are test-support code mounted as such; their
+    // calls are test code and are not read here.
+    assert!(
+        sites.is_empty(),
+        "production code calls the minting pass: {sites:?}. A door keeps each row it \
+             touches current or drops it, and the finish completes the rest."
+    );
 }

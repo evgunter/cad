@@ -5960,13 +5960,32 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
 ) -> Result<T::Finished, BooleanError> {
     let mut body = body;
     // The sort reads stored rows on a spline face, which no closed-form
-    // lift derives, so it reads them completed.
-    crate::finish::complete_in_place(&mut body, tol)
+    // lift derives, so it reads them completed. A face completion leaves
+    // short is the finish's to report: the gate answers with the finish's
+    // finding set, the refusals beside every other finding, sorted where
+    // the sort reads the body whole and unsorted where its probe met the
+    // unfilled face.
+    let refused = crate::finish::complete_in_place(&mut body, tol)
         .map_err(|findings| BooleanError::ResultInvalid { findings })?;
+    let unsorted = (!refused.is_empty()).then(|| body.clone());
     let pad = crate::boxes::sweep_pad(band);
     let face_box = |body: &Body<T>, f| Some(crate::boxes::face_box(body, f, pad, band));
-    crate::pieces::sort_into_pieces(&mut body, band, tol, T::quad_lane(), Some(&face_box))
-        .map_err(BooleanError::Pieces)?;
+    let sorted =
+        crate::pieces::sort_into_pieces(&mut body, band, tol, T::quad_lane(), Some(&face_box));
+    match (sorted, unsorted) {
+        (Ok(()), None) => {}
+        (Ok(()), Some(_)) => {
+            return Err(BooleanError::ResultInvalid {
+                findings: crate::finish::refused_finding_set(body, tol, refused),
+            });
+        }
+        (Err(_), Some(unsorted)) => {
+            return Err(BooleanError::ResultInvalid {
+                findings: crate::finish::refused_finding_set(unsorted, tol, refused),
+            });
+        }
+        (Err(e), None) => return Err(BooleanError::Pieces(e)),
+    }
     held.apart(&body)?;
     pinched_at_cone_apex(&body, band)?;
     #[cfg(feature = "door-tier3-meter")]

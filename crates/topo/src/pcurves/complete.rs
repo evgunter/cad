@@ -1,6 +1,8 @@
-//! **Completion**: a body's pcurve rows made complete, the one place
-//! they become so — the passage from construction state to a finished
-//! body or a leaf (`[one-way.places]`, a body's at-rest validity).
+//! **Completion**: a body's pcurve rows made complete — the passage
+//! from construction state to a finished body or a leaf
+//! (`[one-way.places]`, a body's at-rest validity), and the same
+//! completion run early where a reader inside the pipeline needs the
+//! rows (`crate::finish::complete_in_place`, its one home).
 //!
 //! It drops the rows on dead half-edges, keeps every stored row, and
 //! derives each missing one. It never re-derives a row it can reach, so

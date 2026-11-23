@@ -886,8 +886,13 @@ pub mod test_support {
         mut body: Body<T>,
         tol: geom_core::Tol,
     ) -> Result<Body<T>, Vec<crate::ValidationError>> {
-        crate::finish::complete_in_place(&mut body, tol).map_err(|e| e.as_slice().to_vec())?;
-        Ok(body)
+        let refused =
+            crate::finish::complete_in_place(&mut body, tol).map_err(|e| e.as_slice().to_vec())?;
+        if refused.is_empty() {
+            Ok(body)
+        } else {
+            Err(refused)
+        }
     }
 
     /// **What of `body` lies along a line**: the line through `origin`
@@ -1611,10 +1616,39 @@ pub use offset_derive::{
 pub use offset_general::offset_surfaces_together;
 pub use offset_nappe::{Nappe, face_nappe, group_nappe};
 pub use offset_together::{ChartMove, offset_planes_together};
-pub use pcurves::{
-    LoopWinding, PcurveMintError, SiteRowRefusal, loop_windings, mint_pcurves, mint_pcurves_of,
-    pcurve_of,
-};
+pub use pcurves::{LoopWinding, PcurveMintError, SiteRowRefusal, loop_windings, pcurve_of};
+
+/// **The minting pass, for a test** (`test-support` only): every curved
+/// face's rows cleared and minted again. Crate-private otherwise — no
+/// production door closes with it: the finish completes a body's rows,
+/// keeping every stored row, so a stale one is refused rather than
+/// replaced.
+///
+/// # Errors
+///
+/// As the pass's.
+#[cfg(any(test, feature = "test-support"))]
+pub fn mint_pcurves<T: AtRestPolicy>(
+    body: &mut Body<T>,
+    tol: geom_core::Tol,
+) -> Result<(), PcurveMintError> {
+    pcurves::mint_pcurves(body, tol)
+}
+
+/// **The minting pass over `faces`, for a test** (`test-support` only):
+/// [`mint_pcurves`] restricted to those faces.
+///
+/// # Errors
+///
+/// As the pass's.
+#[cfg(any(test, feature = "test-support"))]
+pub fn mint_pcurves_of<T: AtRestPolicy>(
+    body: &mut Body<T>,
+    faces: &[FaceKey],
+    tol: geom_core::Tol,
+) -> Result<usize, PcurveMintError> {
+    pcurves::mint_pcurves_of(body, faces, tol)
+}
 pub use props::{
     AtRestPolicy, CertifiedPolicy, MassMeasurement, MassProperties, MassPropsError, QuadLane,
     QuadLaneOf, RoleNames, Settle, SettleVerdict, ShellClassification, ShellClassifyError,

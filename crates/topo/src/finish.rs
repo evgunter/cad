@@ -179,9 +179,9 @@ impl<T: Real> Completed<T> {
     }
 }
 
-/// **`body` completed** ([`Completed`]), after tiers 1 and 2
-/// ([`complete_in_place`] says why). Its derivations are a build's, not
-/// the verdict's: they run before, and outside, the checking scope.
+/// **`body` completed** ([`Completed`]): [`complete_in_place`], its
+/// refusals held beside the body. Its derivations are a build's, not the
+/// verdict's: they run before, and outside, the checking scope.
 ///
 /// # Errors
 ///
@@ -190,8 +190,7 @@ pub(crate) fn complete<T: AtRestPolicy>(
     mut body: Body<T>,
     tol: Tol,
 ) -> Result<Completed<T>, NotFinished> {
-    closed(&body)?;
-    let refused = refusals(crate::pcurves::complete_pcurves(&mut body, tol));
+    let refused = complete_in_place(&mut body, tol)?;
     Ok(Completed { body, refused })
 }
 
@@ -239,30 +238,50 @@ fn refusals(completed: Result<(), Vec<crate::pcurves::PcurveMintError>>) -> Vec<
         .collect()
 }
 
-/// **`body`'s rows completed in place**, for a reader that reads stored
-/// rows between a producer's last write and its finish (the result
-/// sort's ray probes, `crate::pieces`). It keeps every stored row, so
-/// it launders none, and the finish that follows finds nothing to fill.
+/// **`body`'s rows completed in place**: the one home of completion
+/// (`crate::pcurves`' completion), which [`complete`] — the finish's and
+/// the leaf's — runs, and which runs early where a reader inside the
+/// pipeline needs the rows: the result sort's ray probes
+/// (`crate::pieces`, at the Boolean's gate and a split's sides), the
+/// shell's cavity questions, and a mirror's image
+/// ([`moved_and_asked`]). It keeps every stored row, so it launders
+/// none, and the finish that follows finds nothing more to fill.
 ///
-/// Tiers 1 and 2 are asked first: completion walks every face's loops
-/// and derives from every edge's carrier, which only a closed body of
-/// resolving records holds, and the verdict's own first act would
-/// report the same findings.
+/// Tiers 1 and 2 are asked first, the one precondition: completion
+/// walks every face's loops and derives from every edge's carrier, which
+/// only a closed body of resolving records holds, and the verdict's own
+/// first act would report the same findings.
+///
+/// Completion is lenient: a face whose rows do not complete is left as
+/// found and its refusal returned, never thrown alone, so the door
+/// reports it beside every other finding of the body
+/// ([`with_refusals`], [`refused_finding_set`]).
 ///
 /// # Errors
 ///
-/// Tiers 1 and 2's findings, or every refusal of completion: the reader
-/// reads no face left short.
+/// Tiers 1 and 2's findings.
 pub(crate) fn complete_in_place<T: AtRestPolicy>(
     body: &mut Body<T>,
     tol: Tol,
-) -> Result<(), NotFinished> {
+) -> Result<Vec<ValidationError>, NotFinished> {
     closed(body)?;
-    let refused = refusals(crate::pcurves::complete_pcurves(body, tol));
-    if refused.is_empty() {
-        Ok(())
-    } else {
-        Err(NotFinished::new(refused))
+    Ok(refusals(crate::pcurves::complete_pcurves(body, tol)))
+}
+
+/// **The finding set of a body whose completion refused**, for a door
+/// that completed it early ([`complete_in_place`]): its finish's
+/// findings, which hold `refused` beside the verdict's own, so the door
+/// reports what the finish would of the same body. A reader that would
+/// meet an unfilled face — the sort's probe crossing it reads no chart
+/// polygon there, and its cavity questions no rows — is not asked it.
+pub(crate) fn refused_finding_set<T: AtRestPolicy>(
+    body: Body<T>,
+    tol: Tol,
+    refused: Vec<ValidationError>,
+) -> NotFinished {
+    match with_refusals(T::finish(body, tol).map(drop), refused.clone()) {
+        Err(found) => found,
+        Ok(()) => NotFinished::new(refused),
     }
 }
 
@@ -401,19 +420,19 @@ pub(crate) fn moved_and_asked<T: AtRestPolicy>(
     tol: Tol,
 ) -> Result<Body<T>, MoveError> {
     let mut body = moved_body(body, iso).map_err(MoveError::Map)?;
-    if let crate::Isometry::Improper(_) = iso {
-        let refused = refusals(crate::pcurves::complete_pcurves(&mut body, tol));
-        if !refused.is_empty() {
-            return Err(MoveError::NotFinished(NotFinished::new(refused)));
+    let refused = match iso {
+        crate::Isometry::Improper(_) => {
+            complete_in_place(&mut body, tol).map_err(MoveError::NotFinished)?
         }
-    }
+        crate::Isometry::Proper(_) => Vec::new(),
+    };
     let scope = geom_core::k_stats::Bracket::open();
     let asked = asked_after_isometry(&body, tol);
     let record = scope.finish();
-    if asked.is_err() || logged {
+    if asked.is_err() || !refused.is_empty() || logged {
         geom_core::k_stats::relog(&record);
     }
-    asked.map_err(MoveError::NotFinished)?;
+    with_refusals(asked, refused).map_err(MoveError::NotFinished)?;
     Ok(body)
 }
 
@@ -1144,5 +1163,106 @@ mod tests {
             .filter(|family| !family.up_to_isometry())
             .collect();
         assert_eq!(asked, [FindingFamily::SessionBox]);
+    }
+
+    /// The `fn finish` / `fn leaf` items written inside an
+    /// `impl … AtRestPolicy for …` in `code` (a `code_only` view), each
+    /// as the impl's self type and the item's name; and how many such
+    /// impls `code` holds.
+    fn overrides(code: &str) -> (Vec<(String, &'static str)>, usize) {
+        use test_utils::source::{balanced_end, impl_head, word_at};
+        let mut found = Vec::new();
+        let mut impls = 0;
+        for (at, _) in code.match_indices("impl") {
+            if !word_at(code, at, "impl") {
+                continue;
+            }
+            let Some(open) = code[at..].find('{').map(|o| at + o) else {
+                continue;
+            };
+            let Some(head) = impl_head(code, at, open) else {
+                continue;
+            };
+            let names_the_trait = head
+                .trait_path
+                .as_deref()
+                .is_some_and(|t| t.rsplit("::").next() == Some("AtRestPolicy"));
+            if !names_the_trait {
+                continue;
+            }
+            impls += 1;
+            let end = balanced_end(code, open).unwrap_or(code.len());
+            let body = &code[open..end];
+            for name in ["finish", "leaf"] {
+                let spelled = body.match_indices("fn").any(|(f, _)| {
+                    word_at(body, f, "fn") && {
+                        let rest = body[f + 2..].trim_start();
+                        rest.starts_with(name)
+                            && rest[name.len()..]
+                                .chars()
+                                .next()
+                                .is_none_or(|c| !c.is_alphanumeric() && c != '_')
+                    }
+                });
+                if spelled {
+                    found.push((head.self_type.clone(), name));
+                }
+            }
+        }
+        (found, impls)
+    }
+
+    /// **No scalar overrides the completing finish**: `AtRestPolicy::finish`
+    /// and `::leaf` are provided methods that complete the body and then
+    /// ask the required `finish_completed` / `leaf_completed`, and only
+    /// completion constructs their `Completed` argument — but a provided
+    /// method is overridable, so an impl that wrote its own `fn finish`
+    /// would hand its verdict an uncompleted body. This row refuses one,
+    /// in every crate's `src/` (the trait is public).
+    #[test]
+    fn no_at_rest_policy_impl_writes_its_own_finish_or_leaf() {
+        let root = test_utils::source::repo_root(env!("CARGO_MANIFEST_DIR")).join("crates");
+        let mut found = Vec::new();
+        let mut impls = 0;
+        for krate in std::fs::read_dir(&root).unwrap() {
+            let src = krate.unwrap().path().join("src");
+            if !src.is_dir() {
+                continue;
+            }
+            for file in test_utils::source::rust_sources(&src) {
+                let text = std::fs::read_to_string(&file).unwrap();
+                let code = test_utils::source::code_only(&text);
+                let (here, n) = overrides(&code);
+                impls += n;
+                found.extend(
+                    here.into_iter()
+                        .map(|(ty, name)| format!("{file:?}: {ty}::{name}")),
+                );
+            }
+        }
+        // f64, Probe, Interval, Sym and Dual: a walk that finds fewer
+        // read the wrong tree.
+        assert!(impls >= 5, "found {impls} impl(s) of AtRestPolicy");
+        assert!(
+            found.is_empty(),
+            "an impl overrides the completing finish: {found:?}"
+        );
+    }
+
+    /// The row's reader goes red on an override and stays green on the
+    /// `_completed` pair and on another trait's `finish`.
+    #[test]
+    fn the_override_reader_reads_an_override() {
+        let code = test_utils::source::code_only(
+            "impl AtRestPolicy for f64 { fn finish_completed() {} fn leaf (b: B) {} }\n\
+             impl crate::props::AtRestPolicy for Probe { fn finish<'a>() {} }\n\
+             impl Other for f64 { fn finish() {} }",
+        );
+        let (found, impls) = overrides(&code);
+        assert_eq!(impls, 2);
+        assert_eq!(
+            found,
+            [("f64".to_string(), "leaf"), ("Probe".to_string(), "finish")]
+        );
     }
 }
