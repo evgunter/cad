@@ -211,7 +211,8 @@ fn b_deleting_a_datum_a_mirror_reads_cascades_and_says_so() {
     let outcome = session.perform(op);
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let mirror = outcome.made.expect("the mirror is made");
-    session.pump();
+    // The cascade is the document's: no evaluation of the mirror is
+    // waited on.
     assert!(session.delete_refusal(datum).is_none(), "the delete lands");
     let affordance = session.delete_affordance(datum);
     assert!(
