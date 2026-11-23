@@ -320,6 +320,7 @@ not (
   (binary_id(editor-core) & (test(=names::emit_topo::touch_reread_rows::a_vertex_read_twice_names_its_result_in_every_op_at_every_pose) | test(=names::emit_topo::wavy_loft::a_union_across_a_nurbs_edge_refuses_where_two_arcs_pads_meet))) |
   (binary_id(topo) & test(=sphere_region::tests::every_two_leg_path_that_decides_agrees_with_the_face)) |
   (binary_id(topo) & test(=live::tests::every_door_that_hands_out_a_live_looks_up_first)) |
+  (binary_id(topo) & test(=live::tests::production_reads_an_edges_curve_only_through_the_view)) |
   (binary_id(topo) & test(=pcurves::lift_agreement_rows::no_file_outside_the_mint_pins_a_chart_branch)) |
   (binary_id(geom-brep) & (test(=pcurve_cache::spline_incidence::rows::a_samples_floor_is_below_a_chart_points_distance) | test(=pcurve_cache::spline_incidence::rows::the_door_reads_a_circle_against_a_ring_wall_at_interval) | test(=pcurve_cache::spline_incidence::rows::the_f64_charge_holds_where_its_rounding_is_a_bands_size))) |
   (binary_id(geom-brep::all) & (test(=patch_distance_sup_fuzz::near_locus_patches_of_every_kind_are_bounded) | test(=pcurve_general::a_knot_crossing_anywhere_certifies_at_f64) | test(=pcurve_general::a_knot_crossing_anywhere_certifies_at_interval))) |
