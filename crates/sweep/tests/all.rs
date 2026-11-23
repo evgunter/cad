@@ -1481,3 +1481,5 @@ mod a_peg_in_a_two_segment_bore_moves_only_its_wall;
 mod a_station_frame_is_minted_to_its_floor;
 #[path = "zz_r2_rim_probes.rs"]
 mod zz_r2_rim_probes;
+#[path = "zz_r2_delta.rs"]
+mod zz_r2_delta;
