@@ -451,11 +451,20 @@ fn datum_side(datum: RecipeNodeId, kind: VarKind) -> Option<RoleRead<Operand>> {
 }
 
 /// [`toggled`] of a side read through a role: the pose read through it,
-/// flipped.
+/// flipped, and a flip of one taken off. A point read through its role
+/// (a frame's origin) has no sense to turn, so it is kept as it is:
+/// a flip of a point is no pose.
 fn toggled_read(side: RoleRead<Operand>) -> RoleRead<Operand> {
     match side.role {
-        None => RoleRead::plain(toggled(side.read)),
+        Some(role) if role.kind() == VarKind::Point => side,
         Some(_) => RoleRead::plain(Operand::Pose(Box::new(pose::PoseDef::Flip { pose: side }))),
+        None => match side.read {
+            Operand::Pose(def) => match *def {
+                pose::PoseDef::Flip { pose } if pose.role.is_some() => pose,
+                other => RoleRead::plain(toggled(Operand::Pose(Box::new(other)))),
+            },
+            other => RoleRead::plain(toggled(other)),
+        },
     }
 }
 
@@ -1632,7 +1641,7 @@ fn door_on(
                 node: doc.spoken(node),
             });
         }
-        Some(Node::Place { .. } | Node::InstantiatePart { .. } | Node::Datum { .. }) => {
+        Some(placement) if placement.bundle().is_some() => {
             return edit(node);
         }
         Some(Node::Split { .. }) if gated && body.is_none() => {
@@ -1646,12 +1655,7 @@ fn door_on(
     if let Some(instance) = name
         .and_then(|name| member_of(doc, &SitedRef::new(node, name.clone())))
         .map(|member| member.instance)
-        .filter(|&at| {
-            matches!(
-                doc.node(at),
-                Some(Node::Place { .. } | Node::InstantiatePart { .. })
-            )
-        })
+        .filter(|&at| doc.node(at).is_some_and(Node::makes_a_copy))
     {
         return edit(instance);
     }
@@ -1749,7 +1753,7 @@ fn to_read(
 ) -> Option<(SitedRef, Operand)> {
     let picked = SitedRef::new(pick.node(), pick.name().clone());
     let read = match doc.node(pick.node()) {
-        Some(Node::Place { .. } | Node::InstantiatePart { .. }) => {
+        Some(copy) if copy.makes_a_copy() => {
             picked_read(doc, ev, Operand::Node(pick.node()), pick)?
         }
         _ => crate::session::pick_read(doc, ev, pick)?,
@@ -1775,9 +1779,7 @@ fn picked_read(
 /// reading a named variable or an expression is the person's, and no
 /// snap writes over it.
 fn written_constant(doc: &Doc<ProfileProgram>, placement: RecipeNodeId, id: ConstraintId) -> bool {
-    let Some(Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. }) =
-        doc.node(placement)
-    else {
+    let Some(constraints) = doc.node(placement).and_then(Node::bundle) else {
         return false;
     };
     constraints
@@ -2050,9 +2052,7 @@ impl MateTool {
     ///
     /// [`MateToolError::NotAPlacement`] for a node that is none.
     pub fn edit(doc: &Doc<ProfileProgram>, placement: RecipeNodeId) -> Result<Self, MateToolError> {
-        let Some(Node::Place { .. } | Node::InstantiatePart { .. } | Node::Datum { .. }) =
-            doc.node(placement)
-        else {
+        let Some(_) = doc.node(placement).and_then(Node::bundle) else {
             return Err(MateToolError::NotAPlacement {
                 node: doc.spoken(placement),
             });
@@ -3619,5 +3619,35 @@ impl MateTool {
             target: draft.target.clone(),
             bundle,
         })
+    }
+}
+
+#[cfg(test)]
+mod toggled_read_tests {
+    use super::*;
+
+    fn own() -> Operand {
+        Operand::Output {
+            node: RecipeNodeId::WORLD,
+            port: 0,
+        }
+    }
+
+    /// A datum's origin has no sense: toggling it keeps it, rather than
+    /// writing a flip of a point.
+    #[test]
+    fn a_points_role_read_is_not_flipped() {
+        let origin = RoleRead::through(own(), pose::PoseRole::Origin);
+        assert_eq!(toggled_read(origin.clone()), origin);
+    }
+
+    /// A plane read through its role is flipped, and toggled back is the
+    /// read it was.
+    #[test]
+    fn a_planes_role_read_toggles_and_back() {
+        let xy = RoleRead::through(own(), pose::PoseRole::Xy);
+        let flipped = toggled_read(xy.clone());
+        assert_ne!(flipped, xy);
+        assert_eq!(toggled_read(flipped), xy);
     }
 }

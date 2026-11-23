@@ -2037,10 +2037,9 @@ fn datum_drawing(
     if !matches!(doc.node(node), Some(pncad::document::Node::Datum { .. })) {
         return None;
     }
-    let value = evaluation.value(node)?;
-    let frame = value
-        .motion
-        .unwrap_or_else(pncad::geom_core::RigidMotion::identity);
+    let pncad::document::ValuePayload::Datum(frame) = &evaluation.value(node)?.payload else {
+        return None;
+    };
     let h = DATUM_HALF;
     let open = |points: Vec<[f64; 2]>| PreviewLoop {
         vertices: (0..points.len()).collect(),
@@ -2054,7 +2053,7 @@ fn datum_drawing(
     };
     Some(CommittedProfile {
         node,
-        plane: SketchPlane::from_frame(frame),
+        plane: SketchPlane::from_frame(*frame),
         loops: vec![
             square,
             open(vec![[0.0, 0.0], [h, 0.0]]),

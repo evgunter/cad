@@ -1307,19 +1307,38 @@ impl ViewerBehavior<'_> {
     /// placement editor on it with one mate row of its kind (create,
     /// then edit). Each is a frame; a plane or an axis is read off it
     /// through its role.
+    ///
+    /// A selection that stands in no space (a measure, say) withholds
+    /// the buttons and says so, rather than putting the datum in the
+    /// world as though nothing were selected.
     pub(crate) fn new_datum_ui(&mut self, ui: &mut egui::Ui) {
         let space = {
             let doc = self.session.committed_doc();
-            self.session
-                .selection()
-                .seat_node()
-                .and_then(|node| doc.node_space(node))
-                .unwrap_or(pncad::document::VarId::WORLD)
+            match self.session.selection().seat_node() {
+                None => Ok(pncad::document::VarId::WORLD),
+                Some(node) => doc.node_space(node).ok_or_else(|| {
+                    format!(
+                        "{} stands in no space to put a datum in: select a body, or nothing for the world",
+                        doc.spoken(node)
+                    )
+                }),
+            }
         };
         ui.horizontal(|ui| {
-            for (button, kind) in NEW_DATUMS {
-                if ui.button(button).clicked() {
-                    self.push_labelled(DATUM_NOUN, SessionOp::AddDatum { space, kind });
+            for (label, kind) in NEW_DATUMS {
+                let button = ui.add_enabled(space.is_ok(), egui::Button::new(label));
+                let button = match &space {
+                    Ok(_) => button,
+                    Err(why) => button.on_disabled_hover_text(why.as_str()),
+                };
+                if let (true, Ok(space)) = (button.clicked(), &space) {
+                    self.push_labelled(
+                        DATUM_NOUN,
+                        SessionOp::AddDatum {
+                            space: *space,
+                            kind,
+                        },
+                    );
                 }
             }
         });

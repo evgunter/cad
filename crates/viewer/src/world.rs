@@ -654,7 +654,7 @@ pub fn built_on_copy(
     node: RecipeNodeId,
 ) -> Option<(RecipeNodeId, RecipeNodeId)> {
     match doc.node(node)? {
-        Node::Place { .. } | Node::InstantiatePart { .. } => return None,
+        placement if placement.bundle().is_some() => return None,
         Node::Profile(_) => return copy_downstream_of(doc, node),
         _ => {}
     }
@@ -698,7 +698,7 @@ pub fn placement_reading(
         return Some(on_copy((node, original_of(doc, node))));
     }
     match doc.node(node)? {
-        Node::Place { .. } | Node::InstantiatePart { .. } => None,
+        placement if placement.bundle().is_some() => None,
         Node::Profile(_) => copy_downstream_of(doc, node)
             .map(on_copy)
             .or_else(|| repoint_offer_on(doc, node, None, tol).map(PlacementReading::Offer)),
@@ -897,13 +897,11 @@ fn repoint_offer_on(
     built: Option<BuiltOn>,
     tol: pncad::geom_core::Tol,
 ) -> Option<RepointOffer> {
-    if matches!(
-        doc.node(node)?,
-        Node::Place { .. } | Node::InstantiatePart { .. }
-    ) || !Picture::of(doc)
-        .drawn
-        .iter()
-        .any(|drawn| drawn.of_node(node))
+    if doc.node(node)?.bundle().is_some()
+        || !Picture::of(doc)
+            .drawn
+            .iter()
+            .any(|drawn| drawn.of_node(node))
     {
         return None;
     }
@@ -1121,10 +1119,7 @@ pub fn body_read(
 /// all the same: the door's target change is then held in its placement
 /// editor ([`crate::session::Refusal::TargetHeld`]).
 pub fn movable_into_world(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Option<VarId> {
-    if !matches!(
-        doc.node(node),
-        Some(Node::Place { .. } | Node::InstantiatePart { .. })
-    ) || doc.node_space(node) == Some(VarId::WORLD)
+    if !doc.node(node).is_some_and(Node::makes_a_copy) || doc.node_space(node) == Some(VarId::WORLD)
     {
         return None;
     }
@@ -1145,10 +1140,7 @@ pub fn world_copies_of_read(doc: &Doc<ProfileProgram>, read: &Operand) -> Vec<Va
 /// its output where `node` is a `Place` or an instance standing in the
 /// world; `None` for any other node.
 pub fn world_copy(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Option<VarId> {
-    if !matches!(
-        doc.node(node),
-        Some(Node::Place { .. } | Node::InstantiatePart { .. })
-    ) {
+    if !doc.node(node).is_some_and(Node::makes_a_copy) {
         return None;
     }
     doc.output(node, 0)

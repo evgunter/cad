@@ -13628,7 +13628,7 @@ mod properties_pane_tests {
                 (
                     ToolKind::Mirror,
                     COMBINE_BODIES,
-                    "no mirror plane picked yet: pick a face",
+                    "no mirror plane picked yet: pick a face or a datum",
                 ),
                 (
                     ToolKind::Assertion,

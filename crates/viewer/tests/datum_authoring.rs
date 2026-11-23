@@ -301,7 +301,9 @@ fn a_datum_offset_from_a_face_stands_off_it_along_its_normal() {
     let Some(pncad::document::NodeResult::Ok(value)) = ev.nodes.get(&datum) else {
         panic!("the datum evaluates: {:?}", ev.nodes.get(&datum))
     };
-    let frame = value.motion.expect("the datum is off its space's origin");
+    let pncad::document::ValuePayload::Datum(frame) = &value.payload else {
+        panic!("a datum's value is its frame: {:?}", value.payload)
+    };
     let origin = frame.origin();
     let z = frame.w().get();
     assert!(

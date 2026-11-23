@@ -6162,12 +6162,10 @@ pub(crate) fn held_bundle(
     doc: &Doc<ProfileProgram>,
     placement: RecipeNodeId,
 ) -> Vec<pncad::document::Constraint<Formula>> {
-    match doc.node(placement).map(|node| node.authored(doc)) {
-        Some(Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. }) => {
-            constraints
-        }
-        _ => Vec::new(),
-    }
+    doc.node(placement)
+        .map(|node| node.authored(doc))
+        .and_then(|node| node.bundle().map(<[_]>::to_vec))
+        .unwrap_or_default()
 }
 
 /// **What `placement` holds, as authored**: its target and its bundle
@@ -6176,28 +6174,11 @@ pub(crate) fn held_placement(
     doc: &Doc<ProfileProgram>,
     placement: RecipeNodeId,
 ) -> Option<PlacementBase> {
-    match doc.node(placement).map(|node| node.authored(doc)) {
-        Some(
-            Node::Place {
-                target,
-                constraints,
-                ..
-            }
-            | Node::InstantiatePart {
-                target,
-                constraints,
-                ..
-            }
-            | Node::Datum {
-                target,
-                constraints,
-            },
-        ) => Some(PlacementBase {
-            target,
-            constraints,
-        }),
-        _ => None,
-    }
+    let node = doc.node(placement)?.authored(doc);
+    Some(PlacementBase {
+        target: node.placement_target()?.clone(),
+        constraints: node.bundle()?.to_vec(),
+    })
 }
 
 /// **`constraints` written onto `placement` whole**
@@ -6441,10 +6422,7 @@ fn space_evaluation<'a>(derived: &'a Derived, history: &History) -> Option<&'a E
 /// **Whether `node`'s value is a placement's copy**: a placement or
 /// an instance.
 fn moves_copies(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
-    matches!(
-        doc.node(node),
-        Some(Node::InstantiatePart { .. } | Node::Place { .. })
-    )
+    doc.node(node).is_some_and(Node::makes_a_copy)
 }
 
 /// **The one world copy that draws `read`**, where exactly one world
