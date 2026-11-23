@@ -1360,13 +1360,15 @@ fn a_walked_face_whose_neighbour_holds_both_rims_shares_no_edge() {
     );
 }
 
-/// **A shell thinner than δ meshes, split or not.** The ball of radius
-/// 1.05 bored at radius 1 ([`bored_ball`]): a shell 0.05 thick, both arc
-/// signs, unsplit and with its bore's seam split at its middle, δ 3 to
-/// 0.03, so the shell is thinner than δ at every cell but the last. Where
-/// the sphere's or torus's patch and the bore's both make a side between
-/// the rims, the join splits it in each (`mesh::join`), and the mesh is a
-/// closed manifold by `check_mesh`.
+/// **A shell thinner than δ meshes, split or not, and encloses its
+/// volume.** The ball of radius 1.05 bored at radius 1 ([`bored_ball`]): a
+/// shell 0.05 thick, both arc signs, unsplit and with its bore's seam
+/// split at its middle, δ 3 to 0.03, so the shell is thinner than δ at
+/// every cell but the last, each as built and under two rigid placements.
+/// Where the sphere's or torus's patch and the bore's both lay a side
+/// between the rims, or both lay a triangle of rim points alone, the join
+/// splits it in each (`mesh::join`), and the mesh is a closed manifold by
+/// `check_mesh`.
 ///
 /// The unsplit bore's two seam-side edges join the rims' two vertices:
 /// chorded to one segment each, they are one segment carried twice, an
@@ -1374,37 +1376,83 @@ fn a_walked_face_whose_neighbour_holds_both_rims_shares_no_edge() {
 /// `check_mesh` refuses. They take two chords each (`chords`' coincident-
 /// end floor), and every cell passes.
 ///
-/// **The volume's sign.** Where both faces lay the same chords the mesh is
-/// one sheet counted twice; a split point of each face's own surface moves
-/// each sheet toward its own face, so the wall reopens with its sign. On
-/// every cell here the signed volume is positive (measured 0.078 to 0.117
-/// against the body's 0.137): a relation measured on these cells, not a
-/// promise of the mesher's.
+/// **The volume, against the body's** (`topo::mass_properties`, about
+/// 0.137 for sign +1). Where both faces lay only rim points the two
+/// sheets would cover the shell with the same points; a split point of
+/// each face's own surface moves each sheet toward its own face. Every
+/// cell encloses between [`SHELL_MARGIN`] of the body's volume and all of
+/// it. Measured 0.523 to 0.897 at ε default, `10⁻⁶` and `10⁻¹²` alike (the
+/// least on the torus sign's unsplit shell at δ 0.3 to 3, in every pose):
+/// a relation measured on these cells, not a promise of the mesher's.
 #[test]
 fn a_shell_thinner_than_delta_meshes_split_or_unsplit() {
+    let poses = [
+        None,
+        Some(Affine3::from_parts(
+            Affine3::rotation_about_axis(Point3::origin(), Vec3::new(1.0, 0.0, 0.0), 1.1).linear,
+            Vec3::new(-3.0, 2.0, 0.5),
+        )),
+    ];
     let mut cells = 0usize;
     for sign in [1.0, -1.0] {
         let body = bored_ball(sign);
-        let solid = split_and_placed(&body, &[], &[]);
         let [seam] = rulings(&body)[..] else {
             panic!("the bore has one seam");
         };
-        let split = split_and_placed(&body, &[seam], &[0.5]);
-        for (name, b) in [("unsplit", &solid), ("split", &split)] {
+        // As built, and as `split_and_placed` places it (its oblique pose).
+        let mut bodies = vec![
+            ("unsplit, placed", split_and_placed(&body, &[], &[])),
+            ("split, placed", split_and_placed(&body, &[seam], &[0.5])),
+        ];
+        for (k, pose) in poses.iter().enumerate() {
+            let mut split = body.clone();
+            let (t0, t1) = split
+                .get_curve_geom(split.get_edge(seam).unwrap().curve)
+                .unwrap()
+                .certified()
+                .unwrap()
+                .params();
+            split.split_edge(seam, 0.5 * (t0 + t1), tol()).unwrap();
+            for (name, b) in [("unsplit", body.clone()), ("split", split.clone())] {
+                let b = pose.map_or(b.clone(), |p| {
+                    topo::transform_rigid(&b, &geom_core::test_support::rigid(&p, tol())).unwrap()
+                });
+                bodies.push((if k == 0 { name } else { "posed" }, b));
+            }
+        }
+        for (name, b) in &bodies {
+            let truth = topo::mass_properties(
+                &topo::test_support::finished("the shell", b.clone(), tol()),
+                tol(),
+                topo::test_support::pinned_resolution(tol()),
+            )
+            .unwrap()
+            .enclosure
+            .volume;
             for delta in [3.0, 1.0, 0.3, 0.1, 0.05, 0.04, 0.03] {
                 let what = format!("the bored ball, sign {sign}, {name}, δ {delta}");
                 let mesh = mesh::tessellate(b, delta, tol())
                     .unwrap_or_else(|e| panic!("{what}: meshes, got {e:?}"));
                 mesh::validate::check_mesh(&mesh)
                     .unwrap_or_else(|e| panic!("{what}: a closed manifold, got {e:?}"));
-                let volume = mesh::validate::signed_volume(&mesh);
-                assert!(volume > 0.0, "{what}: a positive volume, got {volume:e}");
+                let ratio = mesh::validate::signed_volume(&mesh) / truth;
+                if std::env::var_os("PRINT_SHELL").is_some() {
+                    eprintln!("SHELL\t{what}\t{ratio}");
+                }
+                assert!(
+                    (SHELL_MARGIN..=1.0 + 1e-9).contains(&ratio),
+                    "{what}: encloses {ratio} of the body's volume"
+                );
                 cells += 1;
             }
         }
     }
-    assert_eq!(cells, 28, "the cells this row reads");
+    assert_eq!(cells, 84, "the cells this row reads");
 }
+
+/// The least share of its volume [`a_shell_thinner_than_delta_meshes_split_or_unsplit`]'s
+/// shell may enclose on any cell: below the measured least, 0.523.
+const SHELL_MARGIN: f64 = 0.45;
 
 /// **A run of three on a cone face that is no rectangle meshes.** The
 /// cut wall of [`cut_cone_cells`] (the 1° wall, a half turn, under the
