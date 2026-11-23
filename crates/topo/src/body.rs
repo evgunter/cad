@@ -732,12 +732,16 @@ impl<T: Real> Body<T> {
     /// The sibling of [`Body::move_vertices`], the one door that moves
     /// vertices: this one changes which key a vertex sits on, never
     /// where. No coordinate is read or written, so the premise that the
-    /// vertices already sit at `onto`'s point is the caller's, held by
-    /// its own records. The boolean's one caller (`zip::share_points`)
-    /// passes the keys the seam correspondence ties, whose pairs the
-    /// zips' scaffolding certifies coincident before any rebind, and the
-    /// keys its result's vertex-vertex records tie, each pair's gap
-    /// decided Zero there first (`boolean::ops::record_classes`).
+    /// vertices already sit at `onto`'s point is the caller's. The
+    /// boolean's (`zip::share_points`) holds it by its records: it passes
+    /// the keys the seam correspondence ties, whose pairs the zips'
+    /// scaffolding certifies coincident before any rebind, and the keys
+    /// its result's vertex-vertex records tie, each pair's gap decided
+    /// Zero there first (`boolean::ops::record_classes`). The split's
+    /// (`splitting::classify::insert_crossings`) holds it by structure:
+    /// the vertex is a crossing it minted onto `onto`'s own point, on a
+    /// line edge that is one segment with the edge whose crossing holds
+    /// `onto`.
     pub(crate) fn share_point(&mut self, vertices: &[VertexKey], onto: PointKey) -> Option<()> {
         self.points.get(onto)?;
         let old: Vec<PointKey> = vertices

@@ -1286,6 +1286,26 @@ fn named_vertices_at<'t>(
 /// An operand face, by a point of it and its normal ([`operand_face_on`]).
 type Wall = ([f64; 3], [f64; 3]);
 
+/// Each side of the split `sp` passes tier 3′ against no records: where
+/// the cut crosses two edges on one pair of point keys, its two crossings
+/// share one key.
+fn assert_sides_pass_tier_3_prime(ev: &Evaluation<f64>, sp: RecipeNodeId, what: &str) {
+    for side in [SplitHalf::Above, SplitHalf::Below] {
+        let body = ev
+            .value(sp)
+            .unwrap()
+            .payload
+            .output_body(side.output_body())
+            .unwrap()
+            .body();
+        assert_eq!(
+            topo::validate_pseudomanifold(body, &topo::ContactRecords::default(), Tol::witness()),
+            Ok(()),
+            "{what}, {side:?}: tier 3′ against no records"
+        );
+    }
+}
+
 /// The split of [`moat_split`]'s block round the pin `pin`, with the moat
 /// `moat`, whose corners touch the pocket's wall at `touches`: below, the
 /// merged face is bounded by the moat's outer faces and the faces
@@ -1302,6 +1322,7 @@ fn assert_moat_split(
 ) {
     let (ev, cut, sp) = moat_split(pin.clone(), moat.clone());
     assert!(ev.value(sp).is_some(), "{:?}", ev.node_error(sp));
+    assert_sides_pass_tier_3_prime(&ev, sp, &format!("the moat {moat:?}"));
     let cut_body = ev.value(cut).unwrap().payload.output_body(0).unwrap();
     let cut_table = ev.table(ev.output_var(cut, 0).unwrap()).unwrap();
     let half = |side: SplitHalf| {
@@ -1430,6 +1451,7 @@ fn a_moat_reaching_the_block_walls_at_its_corners_quarters_both_sections() {
     let moat = vec![(2.0, 0.0), (4.0, 2.0), (2.0, 4.0), (0.0, 2.0)];
     let (ev, cut, sp) = moat_split(square(1.5, 2.5), moat);
     assert!(ev.value(sp).is_some(), "{:?}", ev.node_error(sp));
+    assert_sides_pass_tier_3_prime(&ev, sp, "the moat reaching the block walls at its corners");
     let face = |p, n| operand_face_on(&ev, cut, p, n);
     let h = std::f64::consts::FRAC_1_SQRT_2;
     let pin = |y| {

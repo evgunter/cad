@@ -8,10 +8,12 @@ use geom_brep::curve_face::{CrossWhy, OnSpan, Pose, PoseRefusal, cross};
 use geom_brep::curve_pair::{MeetFault, Span};
 use geom_core::{Band, Decide, Margin, Point3, Sign, Tol};
 use slotmap::SecondaryMap;
+use std::collections::BTreeMap;
 
 use super::{PlaneSide, SplitPlane, SplitReduceError};
 use crate::body::Body;
 use crate::entity::{EdgeKey, VertexKey};
+use crate::geometry::PointKey;
 use crate::null::CurveGeom;
 use crate::validate::decide;
 use crate::vertex_section::VertexRefusal;
@@ -319,6 +321,14 @@ pub(super) fn classify_vertices_margined<T: Decide>(
 ///   where the scalar has none.
 /// - Any window is [`SplitReduceError::CrossingEscalated`], a spiric
 ///   carrier's unbuilt route included.
+/// - Two line edges ending on one pair of point keys are one segment by
+///   structure, so they cross the plane at one point: the later crossing
+///   lands on the earlier's point and shares its key, as an op's copies
+///   of one vertex do. Each half-pair then ends on one key at both
+///   bounds, which owes no record only while the census's
+///   `ee_collinear_lane` takes shared bounds as one segment; without that
+///   exemption, the operand's `EdgeEdge` record of the pair is owed on
+///   both half-pairs, carried through the split's lineage.
 ///
 /// Every split is certified by `split_edge` itself (the span's place of
 /// the parameter and the children's re-certification). New vertices are
@@ -346,6 +356,8 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
     // split child's remaining crossing is handled through the parent's
     // root list below).
     let snapshot: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
+    // The crossing minted on each segment, by its two ends' point keys.
+    let mut segment_crossings: BTreeMap<[PointKey; 2], PointKey> = BTreeMap::new();
     for (edge_key, edge) in snapshot {
         let start = |body: &Body<T>, he, slot| {
             crate::live::linked(
@@ -403,18 +415,45 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
                 },
             }));
         }
+        // A line edge's two ends' point keys, where it crosses once and
+        // they are two.
+        let segment = match (curve.carrier(), roots.len()) {
+            (geom::Curve3::Line(_), 1) => {
+                let key = |vk: VertexKey| {
+                    body.get_vertex(vk)
+                        .unwrap_or_else(|| unreachable!("{vk:?} ends a live edge"))
+                        .point
+                };
+                let mut ends = [key(u), key(v)];
+                ends.sort();
+                (ends[0] != ends[1]).then_some(ends)
+            }
+            _ => None,
+        };
         let mut target = edge_key;
         for t in roots {
             // Any refusal here (in practice the certification lane's
             // strict-row ResidualExceeded) gets the crossing site
             // attached; the typed Euler error stays nested whole.
-            let created = body.split_edge(target, t, tol).map_err(|source| {
-                SplitReduceError::CrossingInsertion {
-                    edge: target,
-                    endpoints: (u, v),
-                    source: Box::new(source.from_driver()),
-                }
+            let landing = segment.and_then(|ends| segment_crossings.get(&ends).copied());
+            let created = match landing {
+                Some(point) => body.split_edge_onto(target, t, body.points[point], tol),
+                None => body.split_edge(target, t, tol),
+            }
+            .map_err(|source| SplitReduceError::CrossingInsertion {
+                edge: target,
+                endpoints: (u, v),
+                source: Box::new(source.from_driver()),
             })?;
+            match (landing, segment) {
+                (Some(point), _) => body
+                    .share_point(&[created.vertex], point)
+                    .unwrap_or_else(|| unreachable!("{point:?} holds the segment's crossing")),
+                (None, Some(ends)) => {
+                    segment_crossings.insert(ends, created.point);
+                }
+                (None, None) => {}
+            }
             sides.insert(created.vertex, PlaneSide::On);
             on_vertices.push(created.vertex);
             pieces
