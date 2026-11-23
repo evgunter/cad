@@ -453,9 +453,12 @@ impl Say for Reason<'_> {
                         Unsettled::Undecided => {
                             out.write_str(" does not settle, and does not read this field")
                         }
-                        Unsettled::Failed { cause, .. } => {
-                            write!(out, " fails ({cause}), and does not read this field")
-                        }
+                        Unsettled::Failed { cause, .. } => pncad::document::say!(
+                            out,
+                            " fails (",
+                            cause,
+                            "), and does not read this field"
+                        ),
                     }
                 }
             },
@@ -747,7 +750,7 @@ mod tests {
             (
                 Unsettled::Failed {
                     class: NodeErrorClass::Extrude,
-                    cause: "a sliver".to_owned(),
+                    cause: "a sliver".into(),
                 },
                 "fails (a sliver), and does not read this field",
             ),
