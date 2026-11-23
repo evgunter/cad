@@ -41,3 +41,6 @@
     - a healing step that resolves sides one at a time breaks the shared corners of adjacent sides; heal the connected class;
     - a validator arm gated by a kind filter upstream is dead code for that kind; mutate the arm itself;
     - waiving a channel must check that the ends are where the waiver assumes. (CHARTTAIL orchestrator)
+- 2026-11-23 — **Two P1 rows arrived from other programs during U5's review**, so the sitting goes on. Letters and tiers are logged before dispatch. Both lanes run on Opus during the second Fable outage, with no draws and no rows (rule 12).
+  - **U6 `main-red-endpoint-census-reads-41-in-speed-rs-since-pole-section`** (EXCH found and bisected it; the cause is this program's PR 7180). Branch `charttail/speed-census`, **letter S, tier single (STYLE)**. It dispositions the three endpoint reads of the speed bound σ_max²/(2|det M|) and moves the census line. The lane that caused the red owes it.
+  - **U7 `a-horns-cusp-reads-as-its-upper-apex-so-a-face-below-it-turns-the-wrong-way`** (filed by TESSLIE). Branch `charttail/horn-cusp`, **letter M, tier single (FULL)**. `singular_at` returns the first singular point a vertex lies on, the class U5's review found for adjacent collapsed sides. A horn's cusp is two apexes at one point, so the side has to come from the face. (CHARTTAIL orchestrator)
