@@ -1046,6 +1046,8 @@ fn a_clearance_over_a_prior_of_another_box_stands_at_its_own_boxs_midpoint() {
         served.reused > 0,
         "the bodies, which read no boxed variable, are served: {} reused",
         served.reused
+    );
+}
 
 /// **A clearance assertion the box leaves undecided is split on what
 /// its bodies read, and a variable beside it changes nothing.** `≤ 0.42`
