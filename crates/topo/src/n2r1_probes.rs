@@ -49,6 +49,7 @@ fn probe_class9_tier3_stops_refusing_the_poisoned_face() {
         crate::validate::tier3_local_checks_marked::<f64>(
             &st.body,
             &mut marks,
+            &mut crate::Tier3Facts::default(),
             tol,
             crate::validate::PlusVCheck::NotMade,
             // This probe is concrete at `f64`, so it names the offset

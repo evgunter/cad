@@ -6507,8 +6507,20 @@ pub fn validate_geometric_certificate<
     // and reported first, as the structural doors' one pass reports it
     // (`cleave_mint_doors::split_edge_splits_an_m7_8_edge_into_two_of_the_class_at_f64`
     // pins both: check 7's verdict, then check 11's).
+    validate_geometric_kept(body, tol).map(|(certificate, _)| certificate)
+}
+
+/// [`validate_geometric_certificate`], handing back tier 3's per-entity
+/// facts beside the certificate ([`crate::Tier3Facts`]): the finished
+/// body's verdict.
+pub(crate) fn validate_geometric_kept<
+    T: geom_core::CertifiedBounds + crate::props::CertifiedPolicy,
+>(
+    body: &Body<T>,
+    tol: Tol,
+) -> Result<(crate::props::SignCertificate<'_, T>, crate::Tier3Facts<T>), Vec<ValidationError>> {
     match structural_via(body, tol, StructuralPhase::BeforeCertifiedCheck7) {
-        Ok(_) => validate_geometric_certified(body, tol),
+        Ok((_, facts)) => validate_geometric_certified(body, tol).map(|kept| (kept, facts)),
         Err(joinable) if joinable.iter().all(ValidationError::is_check_11) => {
             let mut errors = validate_geometric_certified(body, tol)
                 .err()
@@ -6518,6 +6530,28 @@ pub fn validate_geometric_certificate<
         }
         Err(errors) => Err(errors),
     }
+}
+
+/// **Tier 3's facts on a body that is not finished**: tier 2, the
+/// session box and tier 3's local battery, check 7 not made, over
+/// `body`, and what the battery decided per entity. A caller that holds
+/// construction state and must ask the embedding question of it (the
+/// shell's cavity, before it is inserted) gets the question's input
+/// here; a finished body carries its own ([`AtRestBody::geometric`]).
+///
+/// Check 7 is not made: the facts are the local checks', and a cavity is
+/// a void, whose volume no door of a solid's sign reads.
+///
+/// # Errors
+///
+/// The battery's findings, as [`validate_geometric_structural`] reports
+/// them less check 7's.
+pub fn geometric<T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy>(
+    body: &Body<T>,
+    tol: Tol,
+) -> Result<crate::Geometric<'_, T>, Vec<ValidationError>> {
+    structural_via(body, tol, StructuralPhase::BeforeCertifiedCheck7)
+        .map(|(_, facts)| crate::Geometric::new(body, std::sync::Arc::new(facts)))
 }
 
 /// **[`validate_geometric`] holding no certified lane** — the whole
@@ -6583,7 +6617,8 @@ pub fn validate_geometric_certificate_structural<
     body: &Body<T>,
     tol: Tol,
 ) -> Result<crate::props::SignCertificate<'_, T>, Vec<ValidationError>> {
-    structural_via(body, tol, StructuralPhase::NoLane).map(certificate_of_a_clean_verdict)
+    structural_via(body, tol, StructuralPhase::NoLane)
+        .map(|(certificate, _)| certificate_of_a_clean_verdict(certificate))
 }
 
 /// **Which of the two callers is running the structural battery**: it
@@ -6613,7 +6648,13 @@ fn structural_via<'b, T: geom_core::Decide + geom_core::Bounds + crate::props::A
     body: &'b Body<T>,
     tol: Tol,
     phase: StructuralPhase,
-) -> Result<Option<crate::props::SignCertificate<'b, T>>, Vec<ValidationError>> {
+) -> Result<
+    (
+        Option<crate::props::SignCertificate<'b, T>>,
+        crate::Tier3Facts<T>,
+    ),
+    Vec<ValidationError>,
+> {
     let plus_v = match phase {
         StructuralPhase::NoLane => PlusVCheck::Through(None),
         StructuralPhase::BeforeCertifiedCheck7 => PlusVCheck::NotMade,
@@ -6623,15 +6664,17 @@ fn structural_via<'b, T: geom_core::Decide + geom_core::Bounds + crate::props::A
     let band = Band::linear(tol).map_err(|error| vec![ValidationError::Band { error }])?;
     crate::session_box::in_session_box(body, band).map_err(|e| vec![e])?;
     let mut marks = slotmap::SecondaryMap::new();
+    let mut facts = crate::Tier3Facts::default();
     let (errors, certificate) = tier3_local_checks_marked(
         body,
         &mut marks,
+        &mut facts,
         tol,
         plus_v,
         <T as crate::props::AtRestPolicy>::offset_fit_lane(),
     );
     if errors.is_empty() {
-        Ok(certificate)
+        Ok((certificate, facts))
     } else {
         Err(errors)
     }
@@ -7031,6 +7074,7 @@ pub(crate) fn tier3_local_checks<
     tier3_local_checks_marked(
         body,
         &mut marks,
+        &mut crate::Tier3Facts::default(),
         tol,
         PlusVCheck::Through(quad_lane),
         <T as crate::props::AtRestPolicy>::offset_fit_lane(),
@@ -7321,6 +7365,7 @@ fn contact_marks_via<T: geom_core::Decide + geom_core::Bounds + crate::props::At
     let (errors, _) = tier3_local_checks_marked(
         body,
         &mut marks,
+        &mut crate::Tier3Facts::default(),
         tol,
         PlusVCheck::Through(quad_lane),
         <T as crate::props::AtRestPolicy>::offset_fit_lane(),
@@ -7679,7 +7724,11 @@ pub(crate) fn curve_datum_errors<T: geom_core::Bounds>(
 
 /// [`tier3_local_checks`] with the check-4 contact marks KEPT (the
 /// same pass — never classifying twice; the mark is the verdict the
-/// dihedral/jet loop derives anyway).
+/// dihedral/jet loop derives anyway), and the per-entity facts the
+/// embedding question reads ([`crate::Tier3Facts`]): each face's run
+/// from its edges (check 2) and from the vertices two faces can share
+/// alone, each edge's class (check 4), each face's singular vertices
+/// (check 6).
 ///
 /// `plus_v` is check 7, handed in rather than dispatched ([`PlusVCheck`]
 /// says why): the one check of this battery that CERTIFIES is the one
@@ -7715,6 +7764,7 @@ pub(crate) fn tier3_local_checks_marked<
 >(
     body: &'b Body<T>,
     marks: &mut slotmap::SecondaryMap<EdgeKey, ContactMark>,
+    facts: &mut crate::Tier3Facts<T>,
     tol: Tol,
     plus_v: PlusVCheck<T>,
     offset_fit: Option<impl geom_brep::OffsetFitLaneOf<T>>,
@@ -7939,6 +7989,13 @@ pub(crate) fn tier3_local_checks_marked<
             (t0, t1),
         );
         reaches.insert(edge_key, reach);
+        for face in [sides.plus.face, sides.minus.face] {
+            facts.keep_edge_run(
+                face,
+                edge_key,
+                wedges.run_from_edge(face, curve.carrier(), (t0, t1)),
+            );
+        }
         if let Err(error) = crate::policy_lane::recertify_stated(
             crate::policy_lane::Origin::Callers,
             curve,
@@ -8022,6 +8079,33 @@ pub(crate) fn tier3_local_checks_marked<
                         });
                     }
                 }
+            }
+        }
+    }
+
+    // The vertices two faces can share with no edge on them: those more
+    // than three edges meet at. Each face's run from one is read here,
+    // through the reader that read its edges' runs.
+    {
+        let mut fans: slotmap::SecondaryMap<VertexKey, Vec<FaceKey>> = slotmap::SecondaryMap::new();
+        for (he_key, he) in body.half_edges.iter() {
+            if let Some(face) = body.face_of_half_edge(he_key) {
+                if !fans.contains_key(he.start) {
+                    fans.insert(he.start, Vec::new());
+                }
+                fans[he.start].push(face);
+            }
+        }
+        for (vertex, faces) in fans.iter().filter(|(_, faces)| faces.len() > 3) {
+            let Some(&at) = body
+                .vertices
+                .get(vertex)
+                .and_then(|v| body.points.get(v.point))
+            else {
+                continue; // unreachable on tier-1 input
+            };
+            for &face in faces {
+                facts.keep_vertex_run(face, vertex, wedges.run_from_vertex(face, at));
             }
         }
     }
@@ -8124,6 +8208,9 @@ pub(crate) fn tier3_local_checks_marked<
                 continue; // unreachable on tier-1 input
             };
             let wrap = curve.description().is_wrap();
+            if let Some(class) = crate::EdgeClass::of(verdict) {
+                facts.keep_class(edge_key, class);
+            }
             let (mark, finding) = wedge_reading(verdict, edge_key, wrap, conventional);
             errors.extend(finding);
             mark
@@ -8558,6 +8645,11 @@ pub(crate) fn tier3_local_checks_marked<
                         point,
                         lies: SingularityLies::InsideEdge { edge: he.edge },
                     });
+                }
+                Ok(Some(Lies::AtVertex { r#loop, edge })) => {
+                    if let Some(he) = body.half_edges.get(flat[r#loop].1[edge]) {
+                        facts.keep_singular(face, he.start);
+                    }
                 }
                 Ok(Some(_)) => {}
                 Ok(None) => match crate::one_region::door_side(body, face, &every, x, band) {
@@ -10794,6 +10886,8 @@ pub fn validate_pseudomanifold_certificate_structural<
 pub struct AtRestBody<T: crate::props::AtRestPolicy> {
     body: Body<T>,
     sign: std::sync::Arc<crate::props::KeptSign<T>>,
+    /// Tier 3's per-entity facts ([`crate::Tier3Facts`]).
+    facts: std::sync::Arc<crate::Tier3Facts<T>>,
     held: Option<std::sync::Arc<geom_core::k_stats::Recorded>>,
 }
 
@@ -10812,13 +10906,14 @@ impl<T: crate::props::AtRestPolicy> AtRestBody<T> {
         T: crate::props::CertifiedPolicy + geom_core::CertifiedBounds,
     {
         crate::finish::count_finish();
-        let sign = std::sync::Arc::new(
-            geom_core::k_stats::checking(|| validate_geometric_certificate(&body, tol))?
-                .into_parts(),
-        );
+        let (sign, facts) = geom_core::k_stats::checking(|| {
+            validate_geometric_kept(&body, tol)
+                .map(|(certificate, facts)| (certificate.into_parts(), facts))
+        })?;
         Ok(Self {
             body,
-            sign,
+            sign: std::sync::Arc::new(sign),
+            facts: std::sync::Arc::new(facts),
             held: None,
         })
     }
@@ -10856,8 +10951,16 @@ impl<T: crate::props::AtRestPolicy> AtRestBody<T> {
         Ok(Self {
             body,
             sign: std::sync::Arc::new(self.sign.moved(&iso.to_affine())),
+            facts: std::sync::Arc::clone(&self.facts),
             held: self.held.clone(),
         })
+    }
+
+    /// **This body with tier 3's facts on it**: what the embedding
+    /// question takes ([`crate::clearance::embedded`]).
+    #[must_use]
+    pub fn geometric(&self) -> crate::Geometric<'_, T> {
+        crate::Geometric::new(&self.body, std::sync::Arc::clone(&self.facts))
     }
 
     /// **Relogs the held finish record** into this thread's open frame:
@@ -10947,7 +11050,12 @@ impl<T: crate::props::AtRestPolicy> fmt::Debug for AtRestBody<T> {
     /// The body, its certificate as [`crate::SignCertificate`]'s render
     /// reads it over this body, and whether it holds a finish record.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let Self { body, sign, held } = self;
+        let Self {
+            body,
+            sign,
+            held,
+            facts: _,
+        } = self;
         f.debug_struct("AtRestBody")
             .field("body", body)
             .field("sign", &sign.of(body))
@@ -18152,8 +18260,14 @@ mod offset_fit_door_rows {
         let tol = Tol::witness();
         let (body, face) = approx_faced_body::<T>();
         let mut marks = slotmap::SecondaryMap::new();
-        let (errors, _) =
-            tier3_local_checks_marked(&body, &mut marks, tol, PlusVCheck::NotMade, door);
+        let (errors, _) = tier3_local_checks_marked(
+            &body,
+            &mut marks,
+            &mut crate::Tier3Facts::default(),
+            tol,
+            PlusVCheck::NotMade,
+            door,
+        );
         (errors, face)
     }
 

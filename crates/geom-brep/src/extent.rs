@@ -1123,6 +1123,192 @@ impl<T: Real> Reach<T> {
     }
 }
 
+/// **How far a face runs from what it shares with another**: the
+/// supremum, over the face, of the distance from the shared locus (a
+/// shared edge's whole carrier line or conic; a shared vertex). Two faces
+/// are compared only where both exist, so a reading of how they part is
+/// levered at the lesser of their two runs
+/// (`docs/DESIGN.md` `[topology.tiers]`).
+///
+/// **Every reading here is a lower bound of that supremum, never more**:
+/// a lever past the run reads a pair more definitely than its faces
+/// support. The bounds:
+///
+/// - **the stations** ([`BoundaryStations`]): each is a point of the
+///   face's boundary, so of the face, and its distance from the locus
+///   read from below ([`locus_distance_below`]) is a distance the face
+///   reaches;
+/// - **the spanned conic** ([`spanned_conic_run`]), for a face whose
+///   stations all lie on the shared conic.
+///
+/// The door takes the boundary's geometry (each edge's carrier and
+/// span, a lone vertex's point) and places the stations itself, so no
+/// caller hands it a length.
+#[derive(Clone, Debug)]
+pub struct BoundaryStations<T: Real>(Vec<Point3<T>>);
+
+impl<T: SpanLocate> BoundaryStations<T> {
+    /// The stations of a face bounded by `edges` (each its carrier and
+    /// span) and holding the `lone` vertices of its edgeless loops: each
+    /// edge's two ends and its middle ([`Curve3::mid_point`], on the
+    /// curve whatever its kind). An end alone misses a face whose
+    /// vertices all lie on the shared locus: a half-disc's two vertices
+    /// lie on its arc's circle, and its diameter's middle shows the
+    /// radius.
+    pub fn of_boundary<'a>(
+        edges: impl IntoIterator<Item = (&'a Curve3<T>, (T, T))>,
+        lone: impl IntoIterator<Item = Point3<T>>,
+    ) -> Self
+    where
+        T: 'a,
+    {
+        let mut stations: Vec<Point3<T>> = lone.into_iter().collect();
+        for (carrier, (t0, t1)) in edges {
+            stations.extend([
+                carrier.eval(t0),
+                carrier.mid_point(t0, t1),
+                carrier.eval(t1),
+            ]);
+        }
+        Self(stations)
+    }
+
+    /// The face's run from the edge on `carrier` over `span`, from
+    /// below: the farthest of its stations from the carrier's locus
+    /// ([`locus_distance_below`]). Zero for a face with no station.
+    pub fn run_from_edge(&self, carrier: &Curve3<T>, span: (T, T)) -> Lever<T> {
+        let locus = Locus::of(carrier, span);
+        Lever::of_consumed_extent(
+            self.0
+                .iter()
+                .fold(T::zero(), |far, &p| far.max(locus.distance_below(p))),
+        )
+    }
+
+    /// The face's run from `vertex`: the farthest of its stations from
+    /// it, each distance exact.
+    pub fn run_from_vertex(&self, vertex: Point3<T>) -> Lever<T> {
+        points_lever_from(vertex, self.0.iter().copied())
+    }
+}
+
+/// **The run of a face that spans a conic**: its least radius (a
+/// circle's radius, an ellipse's lesser semi-axis); `None` for a carrier
+/// that is no conic.
+///
+/// A face whose whole boundary is one loop lying on one conic spans it:
+/// the loop is the conic, which winds once about the conic's axis (the
+/// line through its centre square to its plane), so the face, a surface
+/// bounded by it, meets that axis. A point of the axis `t` along it
+/// stands `√(ρ² + t²)` from the conic's point at radius `ρ`, at least
+/// the conic's least radius from every point of it. So the face reaches
+/// at least that far from the conic: a lower bound of its run, where its
+/// stations, all on the conic, read none. That the boundary is one loop
+/// on this one conic is the caller's to have read.
+///
+/// The face's run from the edge's middle, which reads a disc at its
+/// diameter, is past the disc's true run, its radius, and so is no bound
+/// from below.
+pub fn spanned_conic_run<T: Real>(carrier: &Curve3<T>) -> Option<Lever<T>> {
+    match carrier {
+        Curve3::Circle(c) => Some(Lever::of_consumed_extent(c.radius().abs())),
+        Curve3::Ellipse(e) => Some(Lever::of_consumed_extent(
+            e.semi_u().abs().min(e.semi_v().abs()),
+        )),
+        Curve3::Line(_) | Curve3::Spiric { .. } | Curve3::Nurbs(_) | Curve3::Periodic(_) => None,
+    }
+}
+
+/// How many pieces a carrier with no closed distance is covered in over
+/// its span ([`Locus::Pieces`]).
+const LOCUS_PIECES: u32 = 64;
+
+/// **A shared edge's locus, as a distance from below is read from it**
+/// ([`BoundaryStations::run_from_edge`]).
+enum Locus<T: Real> {
+    /// A line, whole: the perpendicular distance, exact. A face's run
+    /// along the line is no distance from it.
+    Line(Line<T>),
+    /// A circle, whole: `√((ρ − r)² + t²)`, exact.
+    Circle { axis: Line<T>, radius: T },
+    /// An ellipse, whole. It lies in its plane between the circles of
+    /// its two semi-axes about its centre, so a point `t` off the plane
+    /// and `ρ` from the axis stands at least
+    /// `√(t² + max(0, ρ − a, b − ρ)²)` from it, `a ≥ b` the semi-axes.
+    Ellipse { axis: Line<T>, major: T, minor: T },
+    /// A carrier with no closed distance (a spiric, a spline), over the
+    /// edge's own span in [`LOCUS_PIECES`] equal pieces: the nearest any
+    /// piece's cover stands to the point. A cover holds its piece, so
+    /// that is never past the distance from the arc. A piece with no
+    /// cover reads zero.
+    ///
+    /// The locus here is the edge's arc, not the carrier past its ends,
+    /// so a face's run along such an edge past an end still counts.
+    Pieces(Vec<Option<Cover<T>>>),
+}
+
+impl<T: SpanLocate> Locus<T> {
+    fn of(carrier: &Curve3<T>, (t0, t1): (T, T)) -> Self {
+        let axis = |frame: &geom::Frame<T>| Line {
+            origin: frame.origin(),
+            dir: frame.axis(),
+        };
+        match carrier {
+            Curve3::Line(line) => Self::Line(*line),
+            Curve3::Circle(c) => Self::Circle {
+                axis: axis(&c.frame),
+                radius: c.radius().abs(),
+            },
+            Curve3::Ellipse(e) => {
+                let (u, v) = (e.semi_u().abs(), e.semi_v().abs());
+                Self::Ellipse {
+                    axis: axis(&e.frame),
+                    major: u.max(v),
+                    minor: u.min(v),
+                }
+            }
+            Curve3::Spiric { .. } | Curve3::Nurbs(_) | Curve3::Periodic(_) => {
+                let step = (t1 - t0) / T::from_f64(f64::from(LOCUS_PIECES));
+                let at = |k: u32| match k {
+                    0 => t0,
+                    LOCUS_PIECES => t1,
+                    k => t0 + step * T::from_f64(f64::from(k)),
+                };
+                Self::Pieces(
+                    (0..LOCUS_PIECES)
+                        .map(|k| carrier.cover_over(ParamWindow::new(at(k), at(k + 1))).ok())
+                        .collect(),
+                )
+            }
+        }
+    }
+
+    /// A distance `p` stands from the locus, never past the true one.
+    fn distance_below(&self, p: Point3<T>) -> T {
+        match self {
+            Self::Line(line) => line.distance(p),
+            Self::Circle { axis, radius } => {
+                let (t, rho) = axis.height_and_distance(p);
+                ((rho - *radius).powi(2) + t.powi(2)).sqrt()
+            }
+            Self::Ellipse { axis, major, minor } => {
+                let (t, rho) = axis.height_and_distance(p);
+                let radial = (rho - *major).max(*minor - rho).max(T::zero());
+                (radial.powi(2) + t.powi(2)).sqrt()
+            }
+            Self::Pieces(pieces) => pieces
+                .iter()
+                .map(|cover| {
+                    cover
+                        .as_ref()
+                        .map_or_else(T::zero, |c| c.distance_range(&Site::Point(p)).0)
+                })
+                .reduce(T::min)
+                .unwrap_or_else(T::zero),
+        }
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {

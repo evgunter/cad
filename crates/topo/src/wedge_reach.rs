@@ -136,6 +136,7 @@ pub fn edge_wedge_reach<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<geom
 pub struct WedgeReach<'a, T: Decide> {
     body: &'a Body<T>,
     points: RefCell<SecondaryMap<FaceKey, Rc<[Point3<T>]>>>,
+    stations: RefCell<SecondaryMap<FaceKey, Rc<geom_brep::BoundaryStations<T>>>>,
 }
 
 impl<'a, T: Decide> WedgeReach<'a, T> {
@@ -145,7 +146,71 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
         Self {
             body,
             points: RefCell::new(SecondaryMap::new()),
+            stations: RefCell::new(SecondaryMap::new()),
         }
+    }
+
+    /// **How far `face` runs from the edge on `carrier` over `span`**,
+    /// measured across it and from below
+    /// ([`geom_brep::BoundaryStations::run_from_edge`]): the extent the
+    /// embedding question levers a pair's parting at is the lesser of
+    /// the two faces' runs. Not the reach above, which is the farther
+    /// face's, from the edge's middle.
+    ///
+    /// # Panics
+    ///
+    /// As [`wedge_reach`].
+    #[must_use]
+    pub fn run_from_edge(
+        &self,
+        face: FaceKey,
+        carrier: &Curve3<T>,
+        span: (T, T),
+    ) -> geom_core::Lever<T> {
+        self.face_stations(face).run_from_edge(carrier, span)
+    }
+
+    /// **How far `face` runs from `vertex`**, from below
+    /// ([`geom_brep::BoundaryStations::run_from_vertex`]).
+    ///
+    /// # Panics
+    ///
+    /// As [`wedge_reach`].
+    #[must_use]
+    pub fn run_from_vertex(&self, face: FaceKey, vertex: Point3<T>) -> geom_core::Lever<T> {
+        self.face_stations(face).run_from_vertex(vertex)
+    }
+
+    /// `face`'s boundary stations: each certified edge of its loops
+    /// once, and each lone vertex. Collected on first ask.
+    fn face_stations(&self, face: FaceKey) -> Rc<geom_brep::BoundaryStations<T>> {
+        if let Some(stations) = self.stations.borrow().get(face) {
+            return Rc::clone(stations);
+        }
+        let body = self.body;
+        let view = body.proven_face(face);
+        let (mut edges, mut lone) = (std::collections::BTreeSet::new(), Vec::new());
+        for (_, members, _) in view.boundary_by_loop() {
+            for member in members {
+                match member {
+                    BoundaryMember::Isolated { point, .. } => lone.push(point),
+                    BoundaryMember::Edge { ek, .. } => {
+                        edges.insert(ek);
+                    }
+                }
+            }
+        }
+        let stations = Rc::new(geom_brep::BoundaryStations::of_boundary(
+            edges.into_iter().filter_map(|ek| {
+                let curve = body.curves.get(body.edges[ek].curve)?.certified()?;
+                Some((curve.carrier(), curve.params()))
+            }),
+            lone,
+        ));
+        self.stations
+            .borrow_mut()
+            .insert(face, Rc::clone(&stations));
+        stations
     }
 
     /// [`wedge_reach`] of the edge on `carrier` over `(t0, t1)` between
