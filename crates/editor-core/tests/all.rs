@@ -181,6 +181,8 @@ mod dsc_checks;
 mod e4_dual_door;
 #[path = "e6_drive_over_a_loft_at_interval.rs"]
 mod e6_drive_over_a_loft_at_interval;
+#[path = "e6_split_reads_interval.rs"]
+mod e6_split_reads_interval;
 #[path = "edit_blend_canonical.rs"]
 mod edit_blend_canonical;
 #[path = "edit_blend_one_box_of_two.rs"]
@@ -699,6 +701,8 @@ mod switch_program_key;
 mod switch_program_vocabulary;
 #[path = "switch_slots.rs"]
 mod switch_slots;
+#[path = "the_tours_die_with_two_pips_run_together_refuses_their_turned_seam.rs"]
+mod the_tours_die_with_two_pips_run_together_refuses_their_turned_seam;
 #[path = "trim_3_windows_interval.rs"]
 mod trim_3_windows_interval;
 #[path = "u8a_parse.rs"]

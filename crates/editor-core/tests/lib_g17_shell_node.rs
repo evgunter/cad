@@ -179,7 +179,7 @@ fn an_empty_open_list_is_the_sealed_hollow() {
             counts.v - counts.e + counts.f,
             counts.r,
             counts.s,
-            counts.genus()
+            counts.h()
         ),
         (4, 0, 2, Ok(0)),
         "two genus-0 shells"

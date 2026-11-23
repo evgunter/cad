@@ -199,14 +199,10 @@ pub(crate) enum Outline {
     Many(Vec<Chain>),
 }
 
-/// **A profile drawn on `frame`, tracing `faces`** (`Node.drawn_profile`).
-pub(crate) fn drawn_profile(
-    py: Python<'_>,
-    frame: OperandArg,
-    faces: Vec<(super::doc::BodyArg, String)>,
-    outline: Outline,
-) -> PyResult<Node> {
-    let faces = faces
+/// **The faces a profile traces**, each a `(body, name)` read as a
+/// `Face` selection of that body.
+pub(crate) fn traced_faces(faces: Vec<(super::doc::BodyArg, String)>) -> PyResult<Vec<d::Operand>> {
+    faces
         .into_iter()
         .map(|(body, name)| {
             Ok(d::Operand::select(
@@ -214,7 +210,17 @@ pub(crate) fn drawn_profile(
                 vec![name_from_text(&name)?],
             ))
         })
-        .collect::<PyResult<Vec<_>>>()?;
+        .collect()
+}
+
+/// **A profile drawn on `frame`, tracing `faces`** (`Node.drawn_profile`).
+pub(crate) fn drawn_profile(
+    py: Python<'_>,
+    frame: OperandArg,
+    faces: Vec<(super::doc::BodyArg, String)>,
+    outline: Outline,
+) -> PyResult<Node> {
+    let faces = traced_faces(faces)?;
     let loops = match outline {
         Outline::One(chain) => vec![chain.0],
         Outline::Many(chains) => chains.into_iter().map(|c| c.0).collect(),

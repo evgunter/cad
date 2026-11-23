@@ -135,7 +135,7 @@ pub(super) fn pierced_and_paired<T: Decide>(
         (Operand::A, &contacts.a_on_b),
         (Operand::B, &contacts.b_on_a),
     ] {
-        let theirs = usize::from(operand == Operand::A);
+        let theirs = operand.other().index();
         let declared = |x: FaceKey, y: FaceKey| {
             records[theirs].ff.iter().any(|r| {
                 ([r.contact.a, r.contact.b] == [x, y] || [r.contact.a, r.contact.b] == [y, x])
@@ -867,13 +867,14 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 .ok_or(BooleanError::ClassificationInvariant {
                     what: "a pierce has no sector",
                 })?;
-            let arm = T::spline_chart_arm(chart, p, reach.length()).map_err(|cause| {
-                BooleanError::PierceLeverUnread {
+            let arm = T::nurbs_lane()
+                .ok_or(geom_brep::ChartArmRefusal::NoLane)
+                .and_then(|lane| geom_brep::NurbsLaneOf::chart_arm(lane, chart, p, reach.length()))
+                .map_err(|cause| BooleanError::PierceLeverUnread {
                     operand: pierced_op,
                     face: contact.face,
                     cause,
-                }
-            })?;
+                })?;
             PierceLever::Within(T::from_computed(arm))
         }
     };
