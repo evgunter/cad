@@ -706,7 +706,7 @@ use crate::half_angle::{
 };
 use crate::ladder::read_identity;
 use crate::roots::{Roots, Unsettled, arc_past};
-use geom::Conic;
+use geom::{Conic, Height};
 
 /// How two carriers read as one curve run: their parameters increase the
 /// same way along it, or opposite ways.
@@ -1583,7 +1583,7 @@ fn line_conic<T: Decide>(
     let den = u.dot(n);
     // Where they can meet (module docs): the line's span and the conic's
     // extent, both projected on the line.
-    let extent = k.extremes_along(o, u);
+    let extent = k.height_along(o, u).extremes();
     let lever = reach(a).max(k.speed_hi());
     // Unsourced lever: the line's span metered through its sup speed
     // (`reach`), folded with the conic's size; the span's part fits no
@@ -1637,31 +1637,21 @@ fn line_conic<T: Decide>(
     // In the plane: the conic's signed distance from the line, along the
     // line's normal in the plane, a first harmonic in the conic's angle.
     let m = n.cross(u).normalize();
-    let (cp, sp) = k.along(m);
-    let swing = (cp.powi(2) + sp.powi(2)).sqrt();
+    let big_r = k.height_along(o, m);
+    let swing = big_r.swing();
     if !definite_as(row::SWING, Margin::of(swing), band)? {
         return Err(MeetFault::Unsupported {
             pose: "a conic the band reads as thin as the line it lies beside",
         });
     }
-    let range = Range::along(
-        &k,
-        (o, m, T::zero()),
-        Azimuth::of(sp, cp).principal_as(row::BRANCH, Band::least()),
-    );
+    let range = Range::along(big_r, T::zero());
     // The pair's distance is `√(R² + H²)`, `R` the residual above and `H`
     // the conic's offset along `v = û × m`, the line's other normal: a
     // line the tilt read level lies over the plane by a slant, which `H`
     // holds (module docs, "A slanted pair in one plane").
-    let v = u.cross(m);
-    let (hc, hs) = k.along(v);
     let level = Slant {
-        k: &k,
-        o,
-        m,
-        v,
-        r: (range.lo, range.hi),
-        h: (k.extremes_along(o, v), hc, hs),
+        r: big_r,
+        h: k.height_along(o, u.cross(m)),
         at: range.at_hi,
         e,
         zero: T::from_f64(band.zero()),
@@ -1751,15 +1741,9 @@ fn line_conic<T: Decide>(
 /// line's other normal, so the distance is `√(R² + H²)`; each is read
 /// through the conic from the point it stores ([`Conic::height_along`],
 /// its extremes and its roots likewise); `e` is the band's escalation.
-struct Slant<'k, T: geom_core::Real> {
-    k: &'k dyn Conic<T>,
-    o: Point3<T>,
-    m: Vec3<T>,
-    v: Vec3<T>,
-    /// `R`'s extremes.
-    r: (T, T),
-    /// `H`'s extremes and its cosine and sine parts.
-    h: ((T, T), T, T),
+struct Slant<T: geom_core::Real> {
+    r: Height<T>,
+    h: Height<T>,
     /// `R`'s greatest's angle, `θ_hi`.
     at: T,
     e: T,
@@ -1773,7 +1757,7 @@ struct Slant<'k, T: geom_core::Real> {
 /// (module docs, "No second part on a side arc").
 const SLANT_RATIO: f64 = 2.33;
 
-impl<T: Decide> Slant<'_, T> {
+impl<T: Decide> Slant<T> {
     /// Whether `H`'s lean ([`Self::lean`]) is proved below the band's zero
     /// (`curve_pair_pose_level_flat`): `H` within the zero of a constant,
     /// the pair read as in one plane.
@@ -1782,10 +1766,9 @@ impl<T: Decide> Slant<'_, T> {
             == Ok(Sign::Positive)
     }
 
-    /// `H`'s lean, its swing `√(h_c² + h_s²)`.
+    /// `H`'s lean, its swing.
     fn lean(&self) -> T {
-        let (_, hc, hs) = self.h;
-        (hc.powi(2) + hs.powi(2)).sqrt()
+        self.h.swing()
     }
 
     /// Whether the distance at `theta` is proved within the band's zero
@@ -1800,22 +1783,16 @@ impl<T: Decide> Slant<'_, T> {
     /// The residual's two roots, rising then falling: where `R` does not
     /// reach zero, the extreme nearer it.
     fn roots(&self) -> (T, T) {
-        let [falling, rising] = self.k.roots_along(self.o, self.m, T::zero());
+        let [falling, rising] = self.r.roots(T::zero());
         (rising, falling)
     }
 
     fn big_r(&self, theta: T) -> T {
-        self.k.height_along(self.o, self.m, theta)
+        self.r.at(theta)
     }
 
     fn big_h(&self, theta: T) -> T {
-        self.k.height_along(self.o, self.v, theta)
-    }
-
-    /// `H′` at `theta`, read from its parts, which no position enters.
-    fn h_slope(&self, theta: T) -> T {
-        let (_, c, s) = self.h;
-        s * theta.cos() - c * theta.sin()
+        self.h.at(theta)
     }
 
     /// **A candidate's stretch, its floor and its run**: the arc of
@@ -1825,15 +1802,15 @@ impl<T: Decide> Slant<'_, T> {
     /// `theta` to the arc's ends. An arc of half a turn or more is not
     /// read (`curve_pair_pose_level_arc`).
     fn read(&self, theta: T) -> Result<(T, T), MeetFault> {
-        let (lo, hi) = self.r;
+        let (lo, hi) = self.r.extremes();
         let at = self.at;
         let tau = T::tau();
         // `R = e` falls past the crest at `at + φ₁` and rises to it at
         // `at − φ₁`; `R = −e` at `at ± φ₂`. Each root is read about the
         // point the conic stores, so beside its anchor the arc's ends
         // hold to their own relative precision.
-        let [near_f, near_r] = self.k.roots_along(self.o, self.m, self.e);
-        let [far_f, far_r] = self.k.roots_along(self.o, self.m, T::zero() - self.e);
+        let [near_f, near_r] = self.r.roots(self.e);
+        let [far_f, far_r] = self.r.roots(T::zero() - self.e);
         let phi = (theta - at).reduce_periodic_centred(tau);
         // The arc holding `θ`: one about `at` where `R ≤ e` all round it
         // (`hi ≤ e`), one about `at + π` where `R ≥ −e` all round that
@@ -1860,9 +1837,9 @@ impl<T: Decide> Slant<'_, T> {
         // The least `|H|` over the arc: at an end, at the one turn of `H`
         // within it (the arc is short of half a turn), or zero where `H`
         // changes sign.
-        let ((h_lo, h_hi), _, _) = self.h;
+        let (h_lo, h_hi) = self.h.extremes();
         let (h_from, h_to) = (self.big_h(from), self.big_h(to));
-        let (d_from, d_to) = (self.h_slope(from), self.h_slope(to));
+        let (d_from, d_to) = (self.h.slope(from), self.h.slope(to));
         let turn = d_from.select_le_zero(h_lo, h_hi);
         let pair = |x: T, y: T| (x * y).select_le_zero(T::zero(), x.abs().min(y.abs()));
         let floor = (d_from * d_to)
@@ -1903,37 +1880,30 @@ pub(crate) fn height<T: Decide>(k: &dyn Conic<T>, on: Point3<T>, n: Vec3<T>) -> 
 /// **A conic's height over another's plane**, read through both: the
 /// plane is stated at `o`, a point of the other conic's span, levelled by
 /// that point's own height over it ([`Conic::height_of`]), and the conic's
-/// height from `o` is its first harmonic about the point it stores
-/// ([`Conic::extremes_along`]). Its `lo` and `hi` are over the plane.
+/// height from `o` is [`Conic::height_along`]. Its `lo` and `hi` are over
+/// the plane.
 struct Over<T: geom_core::Real> {
-    o: Point3<T>,
-    n: Vec3<T>,
+    h: Height<T>,
     level: T,
     lo: T,
     hi: T,
-    cp: T,
-    sp: T,
 }
 
 impl<T: Decide> Over<T> {
     fn of(k: &dyn Conic<T>, plane: &dyn Conic<T>, o: Point3<T>) -> Self {
-        let n = plane.axis();
+        let h = k.height_along(o, plane.axis());
         let level = T::zero() - plane.height_of(o);
-        let (lo, hi) = k.extremes_along(o, n);
-        let (cp, sp) = k.along(n);
+        let (lo, hi) = h.extremes();
         Self {
-            o,
-            n,
+            h,
             level,
             lo: lo - level,
             hi: hi - level,
-            cp,
-            sp,
         }
     }
 
     fn swing(&self) -> T {
-        (self.cp.powi(2) + self.sp.powi(2)).sqrt()
+        self.h.swing()
     }
 }
 
@@ -2125,11 +2095,7 @@ fn transverse<T: Decide>(
     known: &[Candidate<T>],
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
-    let range = Range::along(
-        ka,
-        (h.o, h.n, h.level),
-        Azimuth::of(h.sp, h.cp).principal_as(row::BRANCH, Band::least()),
-    );
+    let range = Range::along(h.h, h.level);
     let window = window::Window {
         a: ka,
         span_a: a.params(),
@@ -2145,7 +2111,7 @@ fn transverse<T: Decide>(
         })
         .collect();
     let near = |theta: T| {
-        let arc = range.band_arc(ka, theta, band);
+        let arc = range.band_arc(theta, band);
         if window.holds_only((theta - arc, theta + arc), &joints, band) {
             return Ok(None);
         }
@@ -2515,9 +2481,8 @@ struct Range<T: geom_core::Real> {
 
 /// Where a [`Range`]'s roots are read.
 enum RootsFrom<T: geom_core::Real> {
-    /// The conic's height along `n` from `o`, its zero at `level`
-    /// ([`Conic::roots_along`]): posed about the point the conic stores.
-    Along { o: Point3<T>, n: Vec3<T>, level: T },
+    /// A conic's height ([`Height::roots`]), its zero at `level`.
+    Along { h: Height<T>, level: T },
     /// A harmonic solved in itself: how far each extreme has crossed
     /// zero over the swing, in the units the roots solve in (positive
     /// where it has crossed).
@@ -2525,15 +2490,15 @@ enum RootsFrom<T: geom_core::Real> {
 }
 
 impl<T: Decide> Range<T> {
-    /// **`k`'s height along `n` from `o`, less `level`**, read through
-    /// the conic ([`Conic::extremes_along`]), its crest at `at_hi`.
-    fn along(k: &dyn Conic<T>, (o, n, level): (Point3<T>, Vec3<T>, T), at_hi: T) -> Self {
-        let (lo, hi) = k.extremes_along(o, n);
+    /// **A conic's height, less `level`** ([`Height::extremes`]), its
+    /// crest at [`Height::crest`].
+    fn along(h: Height<T>, level: T) -> Self {
+        let (lo, hi) = h.extremes();
         Self {
             lo: lo - level,
             hi: hi - level,
-            at_hi,
-            roots: RootsFrom::Along { o, n, level },
+            at_hi: h.crest(),
+            roots: RootsFrom::Along { h, level },
         }
     }
 
@@ -2556,9 +2521,9 @@ impl<T: Decide> Range<T> {
     /// in itself read from the extreme that has crossed the less, to its
     /// own relative precision. Where it does not cross, the extreme
     /// nearer zero, twice.
-    fn roots(&self, k: &dyn Conic<T>) -> [T; 2] {
+    fn roots(&self) -> [T; 2] {
         match self.roots {
-            RootsFrom::Along { o, n, level } => k.roots_along(o, n, level),
+            RootsFrom::Along { h, level } => h.roots(level),
             RootsFrom::Crossings { cross_lo, cross_hi } => {
                 let past = |cross: T| arc_past(cross.max(T::zero()).min(T::one()));
                 let from_hi = past(cross_hi);
@@ -2574,13 +2539,13 @@ impl<T: Decide> Range<T> {
     /// stays within the band's escalation: the larger of `theta`'s angles
     /// to the nearer root of each of `±e`, each read about the point the
     /// conic stores.
-    fn band_arc(&self, k: &dyn Conic<T>, theta: T, band: Band) -> T {
+    fn band_arc(&self, theta: T, band: Band) -> T {
         let e = T::from_f64(band.escalate());
-        let RootsFrom::Along { o, n, level } = self.roots else {
+        let RootsFrom::Along { h, level } = self.roots else {
             unreachable!("a band's arc is read along a conic")
         };
         let nearest = |at: T| {
-            let [falling, rising] = k.roots_along(o, n, at);
+            let [falling, rising] = h.roots(at);
             let apart = |r: T| (theta - r).reduce_periodic_centred(T::tau()).abs();
             apart(falling).min(apart(rising))
         };
@@ -2748,7 +2713,7 @@ fn harmonic_roots<T: Decide>(
         // Two definite crossings ([`Range::roots`]).
         (Sign::Negative, Sign::Positive) => {}
     }
-    let roots = r.roots(k);
+    let roots = r.roots();
     let gap = Margin::norm3(k.point_at(roots[0]) - k.point_at(roots[1]));
     // Two roots are read as two candidates, whatever their gap: where the
     // band cannot split their points they ring as one meeting. Placed at

@@ -307,6 +307,8 @@ const INDIRECT: &[(&str, &str)] = &[
     ("curve_pair/on_surface.rs: section_of: row", FORWARDS),
     ("curve_pair/pose.rs: constant_as: row", FORWARDS),
     ("curve_pair/pose.rs: definite_as: row", FORWARDS),
+    ("curve_pair/pose.rs: extremes_as: row", FORWARDS),
+    ("curve_pair/ladder_rows.rs: mint: &plane", CARRIER_CALL),
     ("curve_pair/pose.rs: read_identity#1(offsets)", IDENTITY),
     ("curve_pair/walk.rs: stops: reach", CARRIER_CALL),
     ("curve_pair/walk.rs: stops: reach - f", CARRIER_CALL),
