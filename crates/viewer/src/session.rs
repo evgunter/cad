@@ -99,7 +99,7 @@ pub use author::{BooleanSpec, PartSelectSpec, PatternDirection, PatternRuleSpec}
 pub use delete::DeleteAffordance;
 pub use op::{
     AssertedClaim, AssertedSeat, CancelDoor, Creation, FreeMoveName, GestureName, OpOutcome,
-    PlaceTarget, PlacementBase, SessionOp, SplitPlane, ValueGestureName, measured,
+    PlaceTarget, PlacementBase, SessionOp, ToolPlane, ValueGestureName, measured,
 };
 pub use probe::{BoundsReading, BoundsTarget};
 pub use refuse::{
@@ -244,8 +244,8 @@ fn reads_a_variable(expr: &Formula) -> bool {
     !ids.is_empty() || !names.is_empty()
 }
 
-/// Refuse a numeric edit to a driven slot, with the affordance, or
-/// say the slot is not there.
+/// Refuse a drag or a range probe over a driven slot, with the
+/// affordance, or say the slot is not there.
 ///
 /// Over a document rather than over the session, so a begin's target
 /// check can run inside [`g1::Slot::begin`]'s closure, where the
@@ -266,10 +266,11 @@ fn guard_driven(
     driven_refusal(node, &row, notation)
 }
 
-/// **A number written over `row`, where an expression drives it**,
-/// refused with the affordance: the driven-slot rule, for a slot the
-/// document holds ([`guard_driven`]) and for an argument a profile
-/// editor's draft holds as a formula.
+/// **A drag or a range probe over `row`, where an expression drives
+/// it**, refused with the affordance: the driven-slot rule, for a slot
+/// the document holds ([`guard_driven`]), for an argument a profile
+/// editor's draft holds as a formula (its held field's drag), and for
+/// the control that asks it ahead of the click.
 pub(crate) fn driven_refusal(
     node: RecipeNodeId,
     row: &SlotRow,
@@ -302,7 +303,8 @@ pub(crate) fn parse_text(doc: &Doc<ProfileProgram>, text: &str) -> Result<Formul
 /// **A profile editor's program with every unmoved argument of every
 /// kept step carried from the committed program** — the variable the
 /// document holds, so its identity and its distribution survive the
-/// reshaping; what moved is written as the program holds it.
+/// reshaping; what moved is written as the program holds it, over an
+/// expression as over a literal ([`SessionOp::SetSlot`]'s rule).
 ///
 /// A step is the committed one when `ids` keeps its id; the argument
 /// is the same one when it has the same
@@ -310,26 +312,15 @@ pub(crate) fn parse_text(doc: &Doc<ProfileProgram>, text: &str) -> Result<Formul
 /// the committed variable or is written as the committed argument is
 /// written ([`sketch::written_as`]: the bits and the unit).
 ///
-/// # Errors
-///
-/// [`Refusal::DrivenByExpression`], with the affordance, for an
-/// argument of a kept step that an expression drives and that the
-/// editor's program does not hold unmoved: a number written over a
-/// computation, exactly as the slot field refuses it. A step the
-/// program drops takes its arguments with it, driven or not — that is
-/// not a write over them.
-///
 /// An id that is not the committed program's, or `ids` of the wrong
 /// shape, carries nothing here: the edit door refuses those typed
 /// ([`pncad::document::EditError::StepIdsRefused`]).
 fn carry_unmoved(
     doc: &Doc<ProfileProgram>,
-    node: RecipeNodeId,
     current: &ProfileProgram,
     loops: Vec<LoopProgram<Formula>>,
     ids: &[Vec<Option<StepId>>],
-    notation: Notation,
-) -> Result<Vec<LoopProgram<Formula>>, Refusal> {
+) -> Vec<LoopProgram<Formula>> {
     let was: std::collections::HashMap<StepId, (u32, u32)> = current
         .ids
         .iter()
@@ -386,18 +377,16 @@ fn carry_unmoved(
         let reader = Formula::var(committed, arg.dimension());
         let written =
             Formula::from(doc.written(&pncad::document::Expr::var(committed, arg.dimension())));
-        match new.expr_mut(moved) {
-            Some(held) if held.bit_eq(&reader) || sketch::written_as(held, &written) => {
-                *held = reader;
-            }
-            _ if doc.is_typed_value(committed) => {}
-            _ => guard_driven(doc, node, slot, notation)?,
+        if let Some(held) = new.expr_mut(moved)
+            && (held.bit_eq(&reader) || sketch::written_as(held, &written))
+        {
+            *held = reader;
         }
     }
     let Node::Profile(program) = new else {
         unreachable!("the carried program was built as a profile node")
     };
-    Ok(program.loops)
+    program.loops
 }
 
 /// A position in a profile program as the slot vocabulary spells it.
@@ -2637,11 +2626,20 @@ impl DocSession {
             .map_err(Refusal::from)
     }
 
+    /// **A number written at a slot**: the slot reads a literal of it,
+    /// whatever it read before. A number over an expression replaces the
+    /// expression, as the same number typed with its unit as text does
+    /// ([`Self::set_slot_expression`]); only a drag over one is refused
+    /// ([`Self::begin_gesture`]). The literal is written in the unit its
+    /// field showed the number in: the one the slot is written in, else
+    /// the working notation's ([`props::rendering_unit`], as a held
+    /// field's number is).
     fn set_slot(&mut self, node: RecipeNodeId, slot: SlotId, value: SlotValue) -> OpOutcome {
-        if let Err(refusal) = guard_driven(self.committed_doc(), node, slot, self.notation) {
-            return OpOutcome::refused(refusal);
-        }
-        let unit = props::slot_unit(self.committed_doc(), node, slot);
+        let unit = props::rendering_unit(
+            slot.expr_dimension(),
+            props::slot_unit(self.committed_doc(), node, slot),
+            self.notation,
+        );
         match props::slot_typed_edit(node, slot, value, unit) {
             Ok(edit) => {
                 let outcome = self.commit_written(edit);
@@ -2742,12 +2740,12 @@ impl DocSession {
     /// adds is the driven-slot guard, the document and evaluation the
     /// search is taken against, and the store.
     fn probe_bounds(&mut self, target: BoundsTarget) -> OpOutcome {
-        // A driven slot is not a field the user can put a number into,
-        // so a range of numbers for it is not an answer to any question
-        // they can act on: the probe refuses it with the same
-        // affordance the write and the drag do, which names the
-        // variables to probe instead. A variable has no driver and
-        // reaches this door unguarded.
+        // A driven slot's number moves only when its variables do, so a
+        // range of numbers for the slot itself answers no question the
+        // user can act on: the probe refuses it with the same
+        // affordance the drag does, which names the variables to probe
+        // instead. A variable has no driver and reaches this door
+        // unguarded.
         if let BoundsTarget::Slot { node, slot } = target
             && let Err(refusal) = guard_driven(self.committed_doc(), node, slot, self.notation)
         {
@@ -2773,10 +2771,10 @@ impl DocSession {
     /// Rewrite a slot literal's display unit — the value stays put.
     ///
     /// No `guard_driven` here, and deliberately: the driven refusal
-    /// protects a computed slot from being overwritten with a NUMBER,
-    /// and this op writes no number. What a driven slot refuses is the
-    /// narrower `SlotUnitFault::NotALiteral` the panel model raises —
-    /// an expression has no authored notation to change.
+    /// is a drag's and a probe's, and this op is neither. What a driven
+    /// slot refuses is the narrower `SlotUnitFault::NotALiteral` the
+    /// panel model raises — an expression has no authored notation to
+    /// change.
     fn set_slot_unit(&mut self, node: RecipeNodeId, slot: SlotId, unit: UnitDef) -> OpOutcome {
         match props::slot_unit_edit(self.committed_doc(), node, slot, unit) {
             Ok(edit) => self.commit(edit),
@@ -2823,9 +2821,9 @@ impl DocSession {
             Ok(expr) => expr,
             Err(refusal) => return OpOutcome::refused(refusal.into()),
         };
-        // An expression edit is available on a driven slot AND on a
-        // literal one — the refusal is about writing a number over a
-        // computation, not about the slot being off limits.
+        // An entry is taken on a driven slot AND on a literal one, as
+        // the number door's is: only a drag over a computation is
+        // refused.
         let edit = if slot.is_structural() {
             DocEdit::SetStructuralParam {
                 node,
@@ -3696,7 +3694,7 @@ impl DocSession {
                 node: doc.spoken(node),
             });
         }
-        let loops = carry_unmoved(doc, node, current, loops, &ids, self.notation)?;
+        let loops = carry_unmoved(doc, current, loops, &ids);
         // The carried loops read each unmoved argument's variable, so
         // they are compared with the program re-authored.
         let authored = ProfileProgram {
@@ -3782,29 +3780,18 @@ impl DocSession {
     }
 
     /// Insert one split of an existing body ([`SessionOp::AddSplit`]):
-    /// its tool the plane it is handed, a picked face read as its plane
-    /// on the body it was picked on, as the mirror reads its plane.
-    /// Where something reads the target along a seen path, `above ⊔
-    /// below` takes it over there ([`Takeover`]), so each `⊔` and the
-    /// product show the two halves where they showed the body. Where
+    /// its tool the plane it is handed ([`Self::tool_plane`]). Where
+    /// something reads the target along a seen path, `above ⊔ below`
+    /// takes it over there ([`Takeover`]), so each `⊔` and the product
+    /// show the two halves where they showed the body. Where
     /// placements read the target, `above ⊔ below` is written as well:
     /// the new body the split makes, onto which they can be re-pointed
     /// ([`SessionOp::RepointPlacements`]), as onto a fillet.
-    fn add_split(&self, target: Operand, plane: &SplitPlane) -> Result<Creating, Refusal> {
+    fn add_split(&self, target: Operand, plane: &ToolPlane) -> Result<Creating, Refusal> {
         let doc = self.committed_doc();
         let target = as_body(doc, target);
         self.require_read(&target, NodeKindWanted::Body)?;
-        let tool = match plane {
-            SplitPlane::Face(face) => {
-                let (on, name) = picked_body(doc, self.evaluation(), face).ok_or_else(|| {
-                    Refusal::PickedMember {
-                        node: doc.spoken(face.node),
-                    }
-                })?;
-                RoleRead::plain(crate::matetool::plane_of(Operand::select(on, vec![name])))
-            }
-            SplitPlane::Read(read) => read.clone(),
-        };
+        let tool = self.tool_plane(plane)?;
         let takeover = self.takeover(&target)?;
         // Where placements read the body, the `⊔` is written too: what
         // they would be re-pointed onto ([`SessionOp::RepointPlacements`]).
@@ -3832,22 +3819,40 @@ impl DocSession {
         }))
     }
 
-    /// **Mirror a body across the plane of a picked face**
-    /// ([`SessionOp::AddMirror`]): the image, and the symmetric part,
+    /// **The plane a split or a mirror reads** ([`ToolPlane`]): a picked
+    /// face read as its plane on the body it was picked on, or the read
+    /// as written. A face on a member of a pattern no node holds refuses
+    /// [`Refusal::PickedMember`].
+    fn tool_plane(&self, plane: &ToolPlane) -> Result<RoleRead<Operand>, Refusal> {
+        match plane {
+            ToolPlane::Face(face) => {
+                let doc = self.committed_doc();
+                let (on, name) = picked_body(doc, self.evaluation(), face).ok_or_else(|| {
+                    Refusal::PickedMember {
+                        node: doc.spoken(face.node),
+                    }
+                })?;
+                Ok(RoleRead::plain(crate::matetool::plane_of(Operand::select(
+                    on,
+                    vec![name],
+                ))))
+            }
+            ToolPlane::Read(read) => Ok(read.clone()),
+        }
+    }
+
+    /// **Mirror a body across a plane** ([`SessionOp::AddMirror`],
+    /// [`Self::tool_plane`]): the image, and the symmetric part,
     /// the body and its image unioned, taking over what reads the body
     /// along a seen path ([`Takeover`]). The made node is the mirror,
     /// which the gesture's noun names: its label and the selection land
     /// there, and its rows hold what the gesture read.
-    fn add_mirror(&self, body: Operand, plane: &FaceSelection) -> Result<Creating, Refusal> {
+    fn add_mirror(&self, body: Operand, plane: &ToolPlane) -> Result<Creating, Refusal> {
         let body = as_body(self.committed_doc(), body);
         self.require_read(&body, NodeKindWanted::Body)?;
-        let doc = self.committed_doc();
-        let (on, face) =
-            picked_body(doc, self.evaluation(), plane).ok_or_else(|| Refusal::PickedMember {
-                node: doc.spoken(plane.node),
-            })?;
+        let plane = self.tool_plane(plane)?;
         let takeover = self.takeover(&body)?;
-        let node = combine::mirror_node(body.clone(), on, face);
+        let node = Node::mirror(body.clone(), plane);
         Ok(taking_over(takeover, move |run| {
             let image = run.insert(node)?;
             // The body FIRST: a union keeps its first member's carrier

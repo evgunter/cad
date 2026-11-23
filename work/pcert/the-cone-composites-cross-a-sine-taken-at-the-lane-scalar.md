@@ -2,10 +2,12 @@
 id: the-cone-composites-cross-a-sine-taken-at-the-lane-scalar
 kind: issue
 title: The edge reader's cone composite and metres lever take sin α and cos α at the lane scalar and then cross them, so at f64 they are rounded values, not brackets
-status: open
+status: closed
 opened: 2026-11-21
+closed: 2026-11-22
 priority: P2
 cost: E
+pr: 7350
 ---
 
 
@@ -52,3 +54,13 @@ through one helper (`implicit::cone_sin_cos`, which PR 7358's tube arm
 also reads), and closes this row. Once the cone stores its slope
 (`work/sectcone/the-cone-stores-its-slope.md`) the question goes away
 altogether: `cos α = 1/√(1+k²)` needs no transcendental.
+
+## Closed
+
+2026-11-22, by PR 7350 (`sectcone/one-limb-two-reader`). `twin_span_hulls`
+and `projected::Meters::of` cross the stored half-angle first and take
+its sine and cosine at the crossed scalar, through the one helper
+`implicit::cone_sin_cos`; `twin_span_hulls` builds its cone form from
+the `Meters` it builds, so it crosses once. `intersect::section_bounds`,
+`curve_face::composite::framed_form` and `topo`'s `props::quad_lane`
+take the same helper.

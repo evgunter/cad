@@ -650,9 +650,9 @@ fn draw(s: &mut fuzz::Rng) -> Draw {
     // Stored larger-first or larger-second, the same set of points.
     let carrier = match carrier {
         Curve3::Ellipse(e) if s.below(2) == 0 => {
-            let (n, u) = (e.frame.axis(), e.frame.u_ref());
+            let (n, u) = (e.frame().axis(), e.frame().u_ref());
             Curve3::Ellipse(geom::Ellipse::new(
-                geom::Frame::new(e.frame.origin(), n, n.cross(u)),
+                geom::Frame::new(e.frame().origin(), n, n.cross(u)),
                 e.semi_v(),
                 e.semi_u(),
             ))
@@ -664,7 +664,11 @@ fn draw(s: &mut fuzz::Rng) -> Draw {
         unreachable!("the draws are ellipses")
     };
     let carrier = Curve3::Ellipse(geom::Ellipse::new(
-        geom::Frame::new(e.frame.origin() + offset, e.frame.axis(), e.frame.u_ref()),
+        geom::Frame::new(
+            e.frame().origin() + offset,
+            e.frame().axis(),
+            e.frame().u_ref(),
+        ),
         e.semi_u(),
         e.semi_v(),
     ));
@@ -810,11 +814,19 @@ fn the_search_as_rows() {
         else {
             continue;
         };
-        let nappe = image.projected().and_then(|p| p.chart().nappe());
+        let nappe = image.projected().and_then(|p| nappe_of(p.chart().locus()));
         println!(
             "{}",
             oracle_row(&surface, &carrier, nappe, (t0, t1), (envelope, hi))
         );
+    }
+}
+
+/// A cone chart's nappe, `None` on a chart read against its carrier.
+fn nappe_of(locus: crate::pcurve_cache::projected::Locus) -> Option<crate::offset::Nappe> {
+    match locus {
+        crate::pcurve_cache::projected::Locus::Nappe(nappe) => Some(nappe),
+        crate::pcurve_cache::projected::Locus::Carrier => None,
     }
 }
 
@@ -872,9 +884,9 @@ fn oracle_row(
     };
     format!(
         "ROW {chart} | {} {} {} {:e} {:e} | {t0:e} {t1:e} | {envelope:e} {hi:e}",
-        p(e.frame.origin()),
-        v(e.frame.axis()),
-        v(e.frame.u_ref()),
+        p(e.frame().origin()),
+        v(e.frame().axis()),
+        v(e.frame().u_ref()),
         e.semi_u(),
         e.semi_v()
     )
@@ -995,7 +1007,7 @@ fn the_extremes_are_covered_at_their_50_digit_distance() {
             oracle_row(
                 &surface,
                 &carrier,
-                p.chart().nappe(),
+                nappe_of(p.chart().locus()),
                 (t0, t1),
                 (t.total(), ti.total().hi())
             )

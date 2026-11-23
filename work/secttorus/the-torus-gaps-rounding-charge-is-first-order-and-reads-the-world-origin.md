@@ -111,3 +111,7 @@ At ε 1e-12, `CAD_FUZZ_SEED=0xa2d68d303582ae5e` fails `section_cert::square_sear
 CAD_TOLERANCE_EPS=1e-12 CAD_FUZZ_SEED=0xa2d68d303582ae5e cargo nextest run -p topo --profile ci --ignore-default-filter \
   -E 'test(=boolean::section_cert::square_search::the_square_wall_arm_agrees_with_the_traced_section)'
 ```
+
+## 2026-11-23: a third seed of the 1e-6 wrong verdict (ONEROUND, PR 7221's implementer)
+
+`torus_gap::no_tube_circle_pose_at_scale_reads_the_wrong_verdict` at ε 1e-6, `CAD_FUZZ_SEED=0xee4fd632c70c5a14 CAD_FUZZ_EFFORT=1`: "pose 22 (kind 2, scale 5.4, gap 2.0398185727406032e-6) … read tangent". The lane reports it fails identically on main `0471f62dc0` and on PR 7221's head `6862af6efe`; ONEROUND's orchestrator did not re-run it. Unlike the first seed, this pose is at scale 5.4, not tens of metres out. The same row at the default ε and at 1e-12 passed on that head's draws.

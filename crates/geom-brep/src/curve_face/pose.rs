@@ -32,7 +32,7 @@
 
 use geom::Conic;
 use geom_core::k_stats::{decide, decide_nonzero, straddle};
-use geom_core::{Band, Decide, Indeterminate, Margin, NonzeroSign, Point3, Real, Sign};
+use geom_core::{Band, Decide, Indeterminate, Margin, NonzeroSign, Point3, Real, Rounded, Sign};
 
 use super::{Door, Route, route};
 use crate::curve_pair::Span;
@@ -380,6 +380,11 @@ struct Graze<T: Real> {
     /// a wall's or a sphere's radius, the touch's distance from a cone's
     /// apex.
     scale: T,
+    /// Whether the form is exactly `value + bend·(1 − cos(t − at))` in the
+    /// carrier's angle, a first harmonic with no error term (a conic's
+    /// height above a plane): its in-band arc is read in closed form
+    /// ([`arc`]).
+    harmonic: bool,
     /// Whether the root is the residual's, where the arm's form is not
     /// the residual (a cone's `F`, read through its floor). Read only
     /// once the root is known to reach the span ([`Reaching::confirmed`]):
@@ -408,9 +413,17 @@ impl<T: Real> Reaching<T> {
 /// `width` of zero: `(π/2)·√(2z/bend)`, `z` that width plus the extreme's
 /// own reading. A form that falls from its extreme no faster than a first
 /// harmonic of that curvature leaves the band no nearer than that
-/// (`1 − cos ψ ≥ 2ψ²/π²`), and a quadratic's exactly there.
+/// (`1 − cos ψ ≥ 2ψ²/π²`), and a quadratic's exactly there. A form that
+/// is exactly that first harmonic ([`Graze::harmonic`]) leaves the band at
+/// `acos(1 − z/bend)`, read in closed form.
 fn arc<T: Real>(g: &Graze<T>, width: T) -> T {
     let z = width + g.value.abs() + g.noise;
+    if g.harmonic {
+        return (T::one() - z / g.bend.abs())
+            .max(T::zero() - T::one())
+            .min(T::one())
+            .acos();
+    }
     (T::from_f64(core::f64::consts::FRAC_PI_2) * (T::from_f64(2.0) * z / g.bend.abs()).sqrt())
         .min(T::pi())
 }
@@ -549,6 +562,8 @@ fn plane<T: Decide>(
 /// **A line against a plane** over the run `(t0, t1)`: the axis-parallel
 /// rung on its drift `|d·n̂|·run` ([`axis_drift`]), then its offset at the
 /// run's middle ([`axis_offset`]: lies or apart); past it, its one root.
+/// A drift in its gap answers `Apart` where the offset reads the run
+/// clear of the plane all along it, and escalates otherwise.
 pub(super) fn plane_line<T: Decide>(
     line: geom::Line<T>,
     (t0, t1): (T, T),
@@ -559,11 +574,23 @@ pub(super) fn plane_line<T: Decide>(
     let mid = geom::mid_param(t0, t1);
     let at_mid = geom::plane_offset(origin, normal, line.origin + line.dir * mid);
     let run = (t1 - t0).abs();
-    if axis_drift(
+    let half_drift = lead.abs() * run / T::from_f64(2.0);
+    // A drift in its gap does not part a line from a plane it stands
+    // clear of all along the run: the offset rung reads it apart first.
+    let parallel = match axis_drift(
         Margin::metered(run, geom_core::InfSpeed::new(lead.abs())),
         band,
-    )? {
-        return axis_offset(at_mid, lead.abs() * run / T::from_f64(2.0), band);
+    ) {
+        Ok(parallel) => parallel,
+        Err(refusal) => {
+            return match axis_offset(at_mid, half_drift, band) {
+                Ok(Pose::Apart) => Ok(Pose::Apart),
+                _ => Err(refusal),
+            };
+        }
+    };
+    if parallel {
+        return axis_offset(at_mid, half_drift, band);
     }
     Ok(Pose::Isolated(Form(Formed::PlaneLine {
         root: mid - at_mid / lead,
@@ -645,6 +672,7 @@ pub(super) fn plane_conic<T: Decide>(
                 speed: conic.speed_at(at),
                 // The conic's diameter at the touch.
                 scale: T::from_f64(2.0) * conic.speed_at(at),
+                harmonic: true,
                 confirm: Ok(()),
             };
             kappa(span, graze, band)
@@ -754,6 +782,7 @@ impl<T: Decide> LineQuadric<T> {
                     speed: span.speeds().1.get(),
                     // The wall's or the sphere's radius.
                     scale: radius,
+                    harmonic: false,
                     confirm: Ok(()),
                 },
                 band,
@@ -959,9 +988,7 @@ pub(super) fn line_cone_read<T: Decide>(
     let foot = line.param_within(apex, (lo, hi));
     let centred = line_cone_quadratic(line, cone, half_angle, (lo, hi));
     let [a2, b2, c2] = centred.coeffs;
-    // Unsourced lever: a length read off the parameter run, not the
-    // run's end points; the end points' distance rounds differently.
-    let length = geom_core::Lever::unsourced(dir.norm() * (hi - lo));
+    let length = crate::edge_extent_inf(&geom::Curve3::Line(line), lo, hi);
     let lead = || {
         decide(
             "curve_face_pose_cone_lead",
@@ -1125,6 +1152,7 @@ fn line_cone<T: Decide>(
                 speed: line.dir.norm(),
                 // The vertex's distance from the apex.
                 scale,
+                harmonic: false,
                 confirm,
             };
             return kappa(span, graze, band);
@@ -1158,12 +1186,10 @@ fn conic_quadric<T: Decide>(
             let s_center = sphere_frame.origin();
             let h = crate::circle_sphere_harmonic(&circle, s_center, s_radius);
             let first = super::circle_roots::FirstHarmonic {
-                lo: h.lo,
-                hi: h.hi,
+                lo: h.lo.with_charge(h.frame_error),
+                hi: h.hi.with_charge(h.frame_error),
                 cos_part: h.e_u,
                 sin_part: h.e_v,
-                lo_noise: h.lo_error + h.frame_error,
-                hi_noise: h.hi_error + h.frame_error,
                 phase_noise: h.phase_error,
             };
             first_harmonic(span, &conic, first, None, band)
@@ -1220,13 +1246,15 @@ fn lane<T: Decide>(
     match decide("curve_face_pose_second_harmonic", Margin::of(second), band) {
         Ok(Sign::Zero) if !ladder_lane::forced() => {
             let (a1, noise) = (hypot(h.c1, h.s1), noise + second);
+            let extreme = |value| Rounded {
+                value,
+                error: noise,
+            };
             let first = super::circle_roots::FirstHarmonic {
-                lo: h.c0 - a1,
-                hi: h.c0 + a1,
+                lo: extreme(h.c0 - a1),
+                hi: extreme(h.c0 + a1),
                 cos_part: h.c1,
                 sin_part: h.s1,
-                lo_noise: noise,
-                hi_noise: noise,
                 phase_noise: T::zero(),
             };
             first_harmonic(span, conic, first, cone, band)
@@ -1268,7 +1296,7 @@ fn first_harmonic<T: Decide>(
     band: Band,
 ) -> Result<Pose<T>, PoseRefusal> {
     let two = T::from_f64(2.0);
-    let noise = h.lo_noise.max(h.hi_noise);
+    let noise = h.lo.error.max(h.hi.error);
     match decide("curve_face_pose_noise", Margin::of(noise), band) {
         Ok(Sign::Zero | Sign::Negative) => {}
         Ok(Sign::Positive) | Err(_) => {
@@ -1278,7 +1306,10 @@ fn first_harmonic<T: Decide>(
             });
         }
     }
-    let (c0, a1) = ((h.lo + h.hi) / two, (h.hi - h.lo) / two);
+    let (c0, a1) = (
+        (h.lo.value + h.hi.value) / two,
+        (h.hi.value - h.lo.value) / two,
+    );
     if let Ok(Sign::Zero) = decide("curve_face_pose_coaxial", Margin::of(a1), band) {
         match constant_residual_as(
             "curve_face_pose_constant",
@@ -1294,7 +1325,7 @@ fn first_harmonic<T: Decide>(
                 // `|res| ≤ |F| / floor`: a constant `F` in the band is the
                 // carrier on the cone once its reach, read through the
                 // floor, is in the band too.
-                let reach = (h.lo.abs().max(h.hi.abs()) + h.lo_noise) / floor;
+                let reach = h.most() / floor;
                 return match decide("curve_face_pose_cone_on_surface", Margin::of(reach), band) {
                     Ok(Sign::Zero) => Ok(Pose::Lies),
                     Ok(Sign::Positive | Sign::Negative) | Err(_) => Err(PoseRefusal::Meter {
@@ -1308,9 +1339,9 @@ fn first_harmonic<T: Decide>(
     }
     // Each extreme read as the interval its noise spans: ends that
     // disagree read zero, and the zero end is kept for a refusal.
-    let extreme = |value, noise| {
+    let extreme = |read: Rounded<T>| {
         let (below, above) =
-            crate::roots::spread_readings("curve_face_pose_extreme", value, noise, band)
+            crate::roots::spread_readings("curve_face_pose_extreme", read.value, read.error, band)
                 .map_err(PoseRefusal::in_band(PoseRung::Extreme))?;
         Ok::<_, PoseRefusal>(if below.sign == above.sign {
             (below.sign, below)
@@ -1320,18 +1351,18 @@ fn first_harmonic<T: Decide>(
             (Sign::Zero, below)
         })
     };
-    let (lo, lo_read) = extreme(h.lo, h.lo_noise)?;
+    let (lo, lo_read) = extreme(h.lo)?;
     if lo == Sign::Positive {
         return Ok(Pose::Apart);
     }
-    let (hi, hi_read) = extreme(h.hi, h.hi_noise)?;
+    let (hi, hi_read) = extreme(h.hi)?;
     if hi == Sign::Negative {
         return Ok(Pose::Apart);
     }
     let near = geom::mid_param(span.params().0, span.params().1);
     let phi = geom::Azimuth::of(h.sin_part, h.cos_part).near(near);
     let turn = geom_core::period::Period::angle();
-    let graze = |at: T, (value, noise): (T, T), read: geom_core::Decided| {
+    let graze = |at: T, extreme: Rounded<T>, read: geom_core::Decided| {
         // On a cone the extreme is `F`'s, `|res| ≤ |F| / floor`: an `F`
         // in the zero band is the residual's graze only once it reads in
         // the zero band through the floor too
@@ -1341,7 +1372,7 @@ fn first_harmonic<T: Decide>(
         let confirm = cone.map_or(Ok(()), |floor| {
             match decide(
                 "curve_face_pose_cone_graze",
-                Margin::of((value.abs() + noise) / floor),
+                Margin::of(extreme.magnitude() / floor),
                 band,
             ) {
                 Ok(Sign::Zero) => Ok(()),
@@ -1360,20 +1391,21 @@ fn first_harmonic<T: Decide>(
         let at = turn.near(at, near);
         let g = Graze {
             at,
-            value,
-            noise,
+            value: extreme.value,
+            noise: extreme.error,
             bend: a1,
             speed: conic.speed_at(at),
             // The conic's diameter at the touch.
             scale: T::from_f64(2.0) * conic.speed_at(at),
+            harmonic: false,
             confirm,
         };
         kappa(span, g, band)
     };
     match (lo, hi) {
         (Sign::Negative, Sign::Positive) => Ok(Pose::Isolated(Form(Formed::FirstHarmonic(h)))),
-        (Sign::Zero, Sign::Positive) => graze(phi + T::pi(), (h.lo, h.lo_noise), lo_read),
-        (Sign::Negative, Sign::Zero) => graze(phi, (h.hi, h.hi_noise), hi_read),
+        (Sign::Zero, Sign::Positive) => graze(phi + T::pi(), h.lo, lo_read),
+        (Sign::Negative, Sign::Zero) => graze(phi, h.hi, hi_read),
         _ => Err(zero_band(
             PoseRung::Extreme,
             "curve_face_pose_extreme",

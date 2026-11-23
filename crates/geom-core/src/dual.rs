@@ -218,7 +218,7 @@ impl<T: Real> Dual<T> {
 /// `pub(crate)` seals it: downstream code cannot implement it, so
 /// `Dual<T>` instantiates only at the kernel's own base scalars (nesting
 /// duals is an M6 design question, not a backdoor left ajar).
-pub(crate) trait KinkJacobian: Real {
+pub(crate) trait KinkJacobian: crate::Decide<Value = Self> {
     /// The Jacobian factor of `abs` at `self`: the value the tangent gets
     /// multiplied by, `d|x|/dx` evaluated (or enclosed) at the value.
     /// Conventions per scalar are in the [module docs](self): `f64` gives
@@ -468,6 +468,22 @@ impl<T: KinkJacobian> Real for Dual<T> {
 
     const NAME: &'static str = "dual";
 
+    /// The base scalar: the value part, bit-identical to the plain-`T`
+    /// computation of the same recipe.
+    type Value = T;
+
+    fn without_tangent(self) -> T {
+        self.value
+    }
+
+    /// Mapped: a dual is the one scalar that is not its own value
+    /// channel, so its view is a copy.
+    fn view<F: crate::value_view::OverScalar>(
+        x: &F::At<Self>,
+    ) -> crate::value_view::ValueView<'_, F::At<T>> {
+        crate::value_view::ValueView::Stripped(F::map(x, |d: Self| d.value))
+    }
+
     /// **Nothing**: a dual never certifies (DL1), so a dual body
     /// carries no certificate (DL3).
     type Carries<C: Copy + core::fmt::Debug + Send + Sync + 'static> = crate::real::Uncertified;
@@ -571,13 +587,6 @@ impl<T: KinkJacobian> Real for Dual<T> {
     /// The value channel, as for [`Real::is_poison`].
     fn is_bounded(self) -> bool {
         self.value.is_bounded()
-    }
-
-    /// Both channels exactly zero: an exact test holds of the function,
-    /// not only of its value at the point, so a shortcut taken on it
-    /// drops no derivative.
-    fn is_exact_zero_in_every_channel(self) -> bool {
-        self.value.is_exact_zero_in_every_channel() && self.deriv.is_exact_zero_in_every_channel()
     }
 
     /// `(⌊a⌋, floor′(a)·a′)` with the factor from
