@@ -239,7 +239,6 @@ crates/topo/src/ring_path/graze_rows.rs	test	4	oracle
 crates/topo/src/separating.rs	test	1	oracle
 crates/topo/src/separation.rs	prod	1	re-pose
 crates/topo/src/spline_trim.rs	prod	8	re-pose
-crates/topo/src/splitting/section_loops.rs	prod	1	re-pose
 crates/topo/src/test_support_samples.rs	test	1	oracle
 crates/topo/src/transform.rs	test	1	oracle
 crates/topo/src/vertex_section.rs	prod	6	re-pose
