@@ -160,6 +160,9 @@ failure-output = "immediate-final"
 #   13.50 s  sweep::all an_aimed_ray_over_boxed_door_bodies::no_ray_about_a_boxed_door_body_reads_in
 #    0.71 s  sweep::all an_aimed_ray_over_boxed_door_bodies::a_ray_given_further_along_its_line_reads_a_curved_body_the_same
 #    0.57 s  sweep::all an_aimed_ray_over_boxed_door_bodies::a_ray_beside_a_door_slabs_moving_silhouette_edge_reads_no_wrong_side (PR 6958's hosted run)
+#    1.04 s  sweep::all volume_premises_door_bodies::a_misfit_wall_by_every_amount_reads_no_volume_it_lacks
+#    1.82 s  sweep::all volume_premises_door_bodies::walked_and_lifted_agree_bitwise_on_door_built_bodies_and_moved_copies
+#    2.77 s  sweep::all volume_premises_door_bodies::a_kept_certificate_under_a_move_settles_the_images_volume (local, four cores)
 # and a slab under a taker driven over eight box widths, taken and not:
 #   14.36 s  editor-core::all a_taken_slab_over_a_box_is_never_refused_as_a_flip::a_slab_under_a_taker_over_wider_boxes_is_never_refused_as_a_flip
 # A slab cutting a cap off a pole strut's sphere, as slow on main as on
@@ -509,6 +512,7 @@ not (
   (binary_id(mesh::all) & (test(=quadric_pair_sections::two_rods_crossing_build_and_mesh) | test(=quadric_pair_sections::a_ball_across_a_cylinder_wall_builds_on_one_loop_and_its_arcs_rejoin) | test(=quadric_pair_sections::a_loops_edges_read_simple_knots_at_every_scale) | test(=quadric_pair_sections::a_ball_and_a_rod_against_a_donut_build_on_periodic_loops))) |
   (binary_id(sweep::all) & test(=ring_carry_through_by_piece::a_three_arc_ring_is_metered_arc_by_arc_in_every_subtraction_order)) |
   (binary_id(topo) & (test(=side_reader::boxed_brick_rows::no_aim_of_a_boxed_brick_reads_the_side_no_member_has) | test(=side_reader::boxed_brick_rows::no_ray_about_a_boxed_brick_reads_the_side_no_member_has) | test(=side_reader::boxed_brick_rows::no_own_aim_of_a_random_boxed_brick_reads_the_side_no_member_has) | test(=side_reader::boxed_brick_rows::a_ray_beside_a_moving_silhouette_edge_is_set_aside_at_it))) |
+  (binary_id(sweep::all) & (test(=volume_premises_door_bodies::a_misfit_wall_by_every_amount_reads_no_volume_it_lacks) | test(=volume_premises_door_bodies::walked_and_lifted_agree_bitwise_on_door_built_bodies_and_moved_copies) | test(=volume_premises_door_bodies::a_kept_certificate_under_a_move_settles_the_images_volume))) |
   (binary_id(sweep::all) & (test(=an_aimed_ray_over_boxed_door_bodies::no_aim_of_a_boxed_door_body_reads_in) | test(=an_aimed_ray_over_boxed_door_bodies::no_ray_about_a_boxed_door_body_reads_in) | test(=an_aimed_ray_over_boxed_door_bodies::a_ray_given_further_along_its_line_reads_a_curved_body_the_same) | test(=an_aimed_ray_over_boxed_door_bodies::a_ray_beside_a_door_slabs_moving_silhouette_edge_reads_no_wrong_side))) |
   (binary_id(editor-core::all) & test(=a_taken_slab_over_a_box_is_never_refused_as_a_flip::a_slab_under_a_taker_over_wider_boxes_is_never_refused_as_a_flip)) |
   (binary_id(topo::all) & test(=an_aimed_ray_beside_a_boxed_cylinders_moving_rim::no_ray_about_a_boxed_cylinder_reads_the_side_no_member_has)) |
