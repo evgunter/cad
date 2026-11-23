@@ -781,7 +781,7 @@ pub enum ReplaceFaceError<T: Real> {
     /// height, the overlap not clear of its tube, no section point
     /// certified beside it, or a box too wide for any of these) and whose
     /// tube refuses is refused here, read off the re-chart's refusal of
-    /// that edge (`EulerOpError::RechartFalsifies` with the tube's
+    /// that edge (`EulerOpError::DescriptionUncertified` with the tube's
     /// refusal).
     ///
     /// Standing ([`Self::refusal`]): a payload that mixes classes: aborts until it is split.
@@ -2318,12 +2318,13 @@ pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
                 // carrier has no turn to choose, so a span that is not
                 // forward is the move's length.
                 (
-                    EulerOpError::Certification {
+                    EulerOpError::DescriptionUncertified {
                         error:
                             geom_brep::CertifyError::IntervalNotForward { .. }
                             | geom_brep::CertifyError::StatedInterval {
                                 refused: geom_brep::StatedSpan::Forward(_),
                             },
+                        ..
                     },
                     Some(offset),
                 ) => ReplaceFaceError::ReanchorCollapse { edge, offset },

@@ -207,7 +207,7 @@ fn a_chord_that_fails_certification_on_a_spline_wall_names_the_certification() {
         )
         .unwrap_err();
     assert!(
-        matches!(refused, EulerOpError::Certification { .. }),
+        matches!(refused, EulerOpError::DescriptionUncertified { .. }),
         "{refused:?}"
     );
     assert_eq!(format!("{body:?}"), before);
