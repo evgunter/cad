@@ -251,8 +251,9 @@ mod tests {
         let s = x + y + z + w;
         let big = s.powi(6);
         let r = (x * x + y * y).sqrt();
+        let same = big;
         vec![
-            big - big,
+            big - same,
             big - (s * s * s) * (s * s * s),
             (big + x) - x - big,
             r * r - (x * x + y * y),
