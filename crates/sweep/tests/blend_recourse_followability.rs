@@ -933,7 +933,7 @@ fn the_assembly_recourse_names_four_doors_that_all_carve() {
         .merge_coplanar_faces(tol())
         .expect("the pole-split caps repair");
     let neck = rim_arcs_at(&repaired, 1.0, 0.0);
-    assert_eq!(neck.len(), 2, "the repaired neck rim is still two arcs");
+    assert_eq!(neck.len(), 1, "the repaired neck rim is one closed edge");
     builds(
         &repaired,
         &neck,

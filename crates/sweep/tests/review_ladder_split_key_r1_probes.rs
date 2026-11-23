@@ -124,8 +124,8 @@ fn r1_a_pip_and_a_boss_on_the_slabs_underside_carve_naming_total() {
         let keeps = rim_side_keeps_the_source_key(&source, &rim);
         assert_eq!(
             keeps.len(),
-            2,
-            "{name}: two rim vertices, one per seam crossing"
+            1,
+            "{name}: one rim vertex, at the seam crossing"
         );
         assert_eq!(
             keeps,

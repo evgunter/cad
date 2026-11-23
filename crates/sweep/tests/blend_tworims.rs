@@ -112,8 +112,8 @@ fn lantern_sequential(order: &[(f64, f64)], r: f64) -> f64 {
         let arcs = rim_arcs_at(&body, rim_r, rim_y);
         assert_eq!(
             arcs.len(),
-            2,
-            "each lantern rim is its seam's two arcs before its carve"
+            1,
+            "each lantern rim is one closed edge before its carve"
         );
         body = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, r, tol())
             .unwrap_or_else(|e| {
