@@ -1,0 +1,150 @@
+diff --git a/crates/geom-core/src/sym.rs b/crates/geom-core/src/sym.rs
+index f1ad5480..22d77e2f 100644
+--- a/crates/geom-core/src/sym.rs
++++ b/crates/geom-core/src/sym.rs
+@@ -2590,6 +2590,27 @@ impl Session {
+     }
+ }
+ 
++/// REVIEW PROBE: whether the named mutant is switched on in this process.
++pub(crate) fn rss(name: &str) -> bool {
++    std::env::var_os(name).is_some()
++}
++
++/// REVIEW PROBE: appends one line to the file `RSS_ROOT_TRACE` names.
++fn rss_trace(what: &str) {
++    use std::io::Write as _;
++    let Some(path) = std::env::var_os("RSS_ROOT_TRACE") else { return };
++    let bt = std::backtrace::Backtrace::force_capture().to_string();
++    let frames: Vec<&str> = bt
++        .lines()
++        .map(str::trim)
++        .filter(|l| l.contains("editor_core::") || l.contains("sweep::") || l.contains("topo::") || l.contains("verbs::"))
++        .take(14)
++        .collect();
++    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
++        let _ = writeln!(f, "{what} | {}", frames.join(" < "));
++    }
++}
++
+ /// Closes the node scope [`node_scope`] opened, by any path including a
+ /// panic: the enclosing scope's state is the open one again and has
+ /// absorbed this one's.
+@@ -2607,14 +2628,17 @@ impl NodeGuard {
+                 return None;
+             }
+             let outer = sess.outer.pop()?;
+-            let inner = core::mem::replace(&mut sess.node, outer);
++            let mut inner = core::mem::replace(&mut sess.node, outer);
++            if rss("RSS_SHARED_RETRIES") {
++                sess.node.retries = core::mem::take(&mut inner.retries);
++            }
+             #[cfg(feature = "sym-profile-testing")]
+             profile::retry_memos(&inner.retries.iter().map(RetryMemo::len).collect::<Vec<_>>());
+             sess.node.absorb(&inner);
+             // A scope opened inside a node's scope is part of that
+             // node: what it registered, the node has registered. The
+             // root scope is no node, and reads nothing a node stated.
+-            if !sess.outer.is_empty() {
++            if !sess.outer.is_empty() || rss("RSS_ROOT_ABSORB") {
+                 for &(a, b) in &inner.identities {
+                     if let Some(recorded) = sess.record_identity(a, b) {
+                         sess.node.identities.push(recorded);
+@@ -2656,9 +2680,15 @@ pub(crate) fn node_scope<'a, R>(
+             registry: sess.node.registry.clone(),
+             ..NodeState::default()
+         };
+-        let outer = core::mem::replace(&mut sess.node, fresh);
++        let mut outer = core::mem::replace(&mut sess.node, fresh);
++        if rss("RSS_SHARED_RETRIES") {
++            sess.node.retries = core::mem::take(&mut outer.retries);
++        }
+         sess.outer.push(outer);
+         for record in upstream {
++            if rss("RSS_NO_UPSTREAM") {
++                break;
++            }
+             for &(a, b) in &record.identities {
+                 let _ = sess.record_identity(a, b);
+             }
+@@ -2764,7 +2794,7 @@ impl Session {
+     ) -> Self {
+         // A leaf of a drive starts with the caches an earlier leaf
+         // left (`memo`'s header): entries of the drive's table.
+-        let warm = memo.as_ref().map(|m| m.warm()).unwrap_or_default();
++        let mut warm = memo.as_ref().map(|m| m.warm()).unwrap_or_default();
+         Self {
+             budget,
+             rules,
+@@ -2773,7 +2803,7 @@ impl Session {
+             outer: Vec::new(),
+             nodes: warm.nodes,
+             forms: warm.forms,
+-            forms_early: IdMap::default(),
++            forms_early: core::mem::take(&mut warm.early),
+             params: IndetMap::default(),
+             mints: IndetMap::default(),
+             atoms: warm.atoms,
+@@ -3076,6 +3106,11 @@ fn with_session_in<R>(
+             nodes: core::mem::take(&mut s.nodes),
+             forms: core::mem::take(&mut s.forms),
+             atoms: core::mem::take(&mut s.atoms),
++            early: if rss("RSS_WARM_EARLY") {
++                core::mem::take(&mut s.forms_early)
++            } else {
++                IdMap::default()
++            },
+         });
+     }
+     let counts = sess.map_or_else(SymCounts::default, |s| s.node.counts);
+@@ -4681,6 +4716,9 @@ fn note_witness(witness: crate::real::Witness) {
+ fn count_decision(proven: bool) {
+     SESSION.with(|s| {
+         if let Some(sess) = s.borrow_mut().as_mut() {
++            if sess.outer.is_empty() && sess.memo.is_some() {
++                rss_trace("decision");
++            }
+             if proven {
+                 sess.node.counts.symbolic += 1;
+             } else {
+@@ -4999,6 +5037,9 @@ impl<T: Real> Sym<T> {
+             // have changed, the first attempt's and every retry's
+             // (`Session::record_identity` clears them); the plain and early memos
+             // never consult the registry.
++            if sess.outer.is_empty() && sess.memo.is_some() {
++                rss_trace("registration");
++            }
+             sess.node.registry.insert(a, b);
+             sess.node.identities.push((a, b));
+             #[cfg(feature = "sym-revalue-testing")]
+diff --git a/crates/geom-core/src/sym/memo.rs b/crates/geom-core/src/sym/memo.rs
+index a4a84a34..73b29197 100644
+--- a/crates/geom-core/src/sym/memo.rs
++++ b/crates/geom-core/src/sym/memo.rs
+@@ -108,6 +108,8 @@ pub(super) struct Warm {
+     pub(super) nodes: IdMap<SymNode>,
+     pub(super) forms: IdMap<Arc<Form>>,
+     pub(super) atoms: IndetMap<AtomInfo>,
++    /// REVIEW PROBE: the early forms, under `RSS_WARM_EARLY`.
++    pub(super) early: IdMap<Arc<Form>>,
+ }
+ 
+ /// What one drive's table came to, for the growth guard and the receipt.
+@@ -214,7 +216,7 @@ impl DriveMemo {
+     /// The caches a leaf starts with: an earlier leaf's, or empty ones
+     /// for the first leaves and for a table that serves nothing.
+     pub(super) fn warm(&self) -> Warm {
+-        if !self.serves_forms {
++        if !self.serves_forms || super::rss("RSS_COLD") {
+             return Warm::default();
+         }
+         self.warm
+@@ -236,7 +238,7 @@ impl DriveMemo {
+ 
+     /// The node `id` names, if a leaf of this drive recorded it.
+     pub(super) fn node(&self, id: SymId) -> Option<SymNode> {
+-        if !self.serves_forms {
++        if !self.serves_forms || super::rss("RSS_NO_TABLE_NODES") {
+             return None;
+         }
+         self.read().nodes.get(&id).copied()
