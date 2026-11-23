@@ -770,6 +770,7 @@ test_utils::f6_variants! {
         PlacementFails,
         StrandedPick,
         InTheProduct,
+        ClaimHeld,
     ];
 }
 

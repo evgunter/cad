@@ -113,7 +113,7 @@ use viewer::session::{
 /// `the_table_answers_for_every_op` checks the samples land on each
 /// exactly once — so a variant added without a sample fails, and one
 /// added without an answer does not compile.
-const OP_COUNT: usize = 64;
+const OP_COUNT: usize = 65;
 
 /// A document with a literal-driven extrude — a slot a gesture can
 /// actually open on, which the expression-driven fixture is not.
@@ -396,6 +396,11 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
                 body: 0,
             }),
         },
+        // A finding's assertion, as the kernel minted it: the touching
+        // blocks' rest, in a document of its own.
+        SessionOp::AssertQuieting {
+            quieting: minted_rest(),
+        },
         // A value claim, the op's two-node arm: the measure and the
         // assertion over its output.
         SessionOp::AddAssertion {
@@ -408,6 +413,31 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             },
         },
     ]
+}
+
+/// **The assertion two touching blocks' rest carries**, as the kernel
+/// minted it ([`crate::offers::blocks`]); checked once per process.
+fn minted_rest() -> pncad::document::Quieting {
+    static MINTED: std::sync::OnceLock<pncad::document::Quieting> = std::sync::OnceLock::new();
+    MINTED
+        .get_or_init(|| {
+            let session =
+                crate::offers::blocks(Tol::witness(), viewer::test_support::CLEARANCE_SIDE);
+            session
+                .checks()
+                .expect("the registry ran")
+                .findings
+                .iter()
+                .find_map(|f| match &f.evidence {
+                    pncad::document::CheckEvidence::UnprovenCoincidence {
+                        quieting: Some(quieting),
+                        ..
+                    } => Some(quieting.clone()),
+                    _ => None,
+                })
+                .expect("the blocks' rest carries its claim")
+        })
+        .clone()
 }
 
 /// The answers, restated by hand: `(index, permitted mid-drag)`.
@@ -532,6 +562,8 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         SessionOp::RepointPlacements { .. } => (29, false),
         // An insert door, fenced with every other one.
         SessionOp::AddAssertion { .. } => (45, false),
+        // The same insert door, from a finding's value.
+        SessionOp::AssertQuieting { .. } => (64, false),
     }
 }
 
@@ -1043,6 +1075,7 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::AddSplit { .. }
         | SessionOp::AddMirror { .. }
         | SessionOp::AddAssertion { .. }
+        | SessionOp::AssertQuieting { .. }
         | SessionOp::AddPattern { .. }
         | SessionOp::AddFusedPattern { .. }
         | SessionOp::AddFillet { .. }
