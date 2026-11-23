@@ -421,6 +421,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("clear_as"),
     NameCarrier::Call("contains_step"),
     NameCarrier::Call("decided_as"),
+    NameCarrier::Call("definite_as"),
     NameCarrier::Call("definitely_positive"),
     NameCarrier::Call("enclosure_reading"),
     NameCarrier::Call("face_placement"),
@@ -712,6 +713,7 @@ const INDIRECT: &[(&str, &str)] = &[
         "clearance.rs: reading: self.as_bound().predicate()",
         CLOSED_TYPE,
     ),
+    ("injective.rs: definite_as: row", FORWARDS),
     ("injective.rs: interval_sign_as: row", FORWARDS),
     ("injective.rs: of: carrier", CARRIER_CALL),
     (
