@@ -2,10 +2,12 @@
 id: forms-rs-fieldwriting-doc-says-the-creation-forms-do-not-use-it
 kind: issue
 title: FieldWriting's doc comment says the creation forms all hand-pick their tick; add_variable_ui is a creation form and derives it
-status: open
+status: closed
 opened: 2026-09-15
 priority: P4
 cost: E
+closed: 2026-11-22
+pr: 7372
 ---
 
 
@@ -86,3 +88,13 @@ CHROME. One file, `crates/viewer/src/forms.rs` — but the class above is
 crate-wide.
 
 Moved from VDOC to CHROME on 2026-11-20, by `git mv`, when VDOC merged into CHROME: VDOC held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CHROME carries.
+
+## Closed
+
+Discharged by PR 7372 (`formwords/dimension-ladders`). `FieldWriting`'s
+doc in `crates/viewer/src/forms.rs` no longer claims the creation forms
+hand-pick a tick, and that claim is no longer true of the code: the
+four drag constants are gone, every field's tick is
+`props::drag_tick`'s, and the creation forms build their
+`FieldWriting` off the dimension they know (`widgets::named_field`,
+`widgets::count_field`).
