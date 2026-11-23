@@ -1303,7 +1303,7 @@ pub(super) enum Placed {
 /// every point before the answer, and one definitely off reads it off.
 ///
 /// A spiric lies in its own plane, so against a plane it reads by the
-/// spiric × plane arm's pose ([`geom_brep::curve_face::pose`]): on where
+/// spiric × plane arm's pose ([`geom_brep::curve_face::pose()`]): on where
 /// it lies, off otherwise. A spline can lie on a surface along
 /// part of its length only, so no point of it read off says it lies there
 /// along no piece: it reads off only where it is certified off over its
