@@ -62,6 +62,8 @@ mod a_ball_and_rod_boolean_reads_what_its_doors_keep;
 mod a_blend_leaves_a_smooth_edge_as_it_is;
 #[path = "a_blend_reads_the_wedge_through_the_one_fold.rs"]
 mod a_blend_reads_the_wedge_through_the_one_fold;
+#[path = "a_body_on_a_rods_cap_glues_as_its_rim_reads.rs"]
+mod a_body_on_a_rods_cap_glues_as_its_rim_reads;
 #[path = "a_carried_record_no_reading_covers.rs"]
 mod a_carried_record_no_reading_covers;
 #[path = "a_circle_of_one_radius_elsewhere_is_no_rim.rs"]
@@ -1479,7 +1481,3 @@ mod a_partner_across_a_lofted_wall_is_joined_on_its_section_value;
 mod a_peg_in_a_two_segment_bore_moves_only_its_wall;
 #[path = "a_station_frame_is_minted_to_its_floor.rs"]
 mod a_station_frame_is_minted_to_its_floor;
-#[path = "review_elbow_r1_probes.rs"]
-mod review_elbow_r1_probes;
-#[path = "zz_r2_rim_probes.rs"]
-mod zz_r2_rim_probes;

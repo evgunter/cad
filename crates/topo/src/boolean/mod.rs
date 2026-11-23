@@ -1153,6 +1153,7 @@ impl<T: Real> GlueVerdict<T> {
                 margin: self.margin,
                 line: self.line,
             },
+            GlueClass::Junction => GivenDecision::Junction { rim: None },
         }
     }
 
@@ -1174,7 +1175,7 @@ impl<T: Real> GlueVerdict<T> {
                     margin: row.margin,
                     line: match class {
                         GlueClass::Tangent => lines.get(&(a, b)).copied(),
-                        GlueClass::Rest | GlueClass::Continuation => None,
+                        GlueClass::Rest | GlueClass::Continuation | GlueClass::Junction => None,
                     },
                 })
             })
@@ -1201,6 +1202,14 @@ pub(crate) enum GivenDecision<T: Real> {
         /// The locus as it derived and placed it, or none for a rim.
         line: Option<geom::Line<T>>,
     },
+    /// Two faces joined on a rim both end on ([`Junction`]).
+    /// Its margin is not handed on: a given junction records no row
+    /// ([`given_verdicts`]).
+    Junction {
+        /// The rim as the deciding operation read it, or none where the
+        /// record it was given carries no circle.
+        rim: Option<crate::rim_wedge::Rim<T>>,
+    },
 }
 
 impl<T: Real> GivenDecision<T> {
@@ -1210,6 +1219,7 @@ impl<T: Real> GivenDecision<T> {
             Self::Rest => GlueClass::Rest,
             Self::Continuation => GlueClass::Continuation,
             Self::Tangent { .. } => GlueClass::Tangent,
+            Self::Junction { .. } => GlueClass::Junction,
         }
     }
 }
@@ -1332,8 +1342,10 @@ enum Glued<T: Real> {
         kept: Operand,
     },
     /// Distinct carriers tangent along a locus the witness lane
-    /// certified ([`glued_tangency`]).
+    /// certified ([`verify_distinct`]).
     Tangent(Tangency<T>),
+    /// Two faces joined on a rim both end on ([`verify_distinct`]).
+    Junction(Junction<T>),
 }
 
 /// Where a glued pair's decision comes from: the glue door, or the fold
@@ -1387,6 +1399,7 @@ impl<T: Real> GluedPair<T> {
                 }
             },
             Origin::Decided(Glued::Tangent(_)) => GlueClass::Tangent,
+            Origin::Decided(Glued::Junction(_)) => GlueClass::Junction,
             Origin::Given(decision) => decision.class(),
             #[cfg(test)]
             Origin::Bare(class) => class,
@@ -1453,10 +1466,19 @@ impl<T: Real> GluedPair<T> {
         T: Decide,
     {
         if !class.is_one_carrier() {
-            let Ok(tangency) = glued_tangency(a, fa, b, fb, DeclarationRead::Moot, band) else {
-                panic!("the glue door glues no tangency of {fa:?} and {fb:?}");
+            let glue = verify_distinct(a, fa, b, fb, DeclarationRead::Moot, band);
+            return match glue {
+                Ok(glue @ DistinctGlue::Tangent(_)) if class == GlueClass::Tangent => {
+                    Self::distinct(fa, fb, glue)
+                }
+                Ok(glue @ DistinctGlue::Junction(_)) if class == GlueClass::Junction => {
+                    Self::distinct(fa, fb, glue)
+                }
+                Ok(other) => {
+                    panic!("the glue door glues {fa:?} and {fb:?} as {other:?}, not {class:?}")
+                }
+                Err(_) => panic!("the glue door glues no {class:?} of {fa:?} and {fb:?}"),
             };
-            return Self::tangent(fa, fb, tangency);
         }
         let read = carrier_pair::carrier_pair_decided(a, fa, b, fb, band);
         match read {
@@ -1492,12 +1514,16 @@ impl<T: Real> GluedPair<T> {
         })
     }
 
-    /// A tangency the glue door glued on what the witness lane certified.
-    pub(crate) fn tangent(a: FaceKey, b: FaceKey, tangency: Tangency<T>) -> Self {
+    /// A pair on distinct carriers the glue door glued: a tangency on
+    /// what the witness lane certified, or a junction on its rim.
+    pub(crate) fn distinct(a: FaceKey, b: FaceKey, glue: DistinctGlue<T>) -> Self {
         Self {
             a,
             b,
-            origin: Origin::Decided(Glued::Tangent(tangency)),
+            origin: Origin::Decided(match glue {
+                DistinctGlue::Tangent(tangency) => Glued::Tangent(tangency),
+                DistinctGlue::Junction(junction) => Glued::Junction(junction),
+            }),
         }
     }
 
@@ -1861,6 +1887,9 @@ pub(crate) struct VerifiedGlue<T: Real> {
     /// Tangencies the witness lane verified, with what the cover reads
     /// of each.
     pub(crate) tangent: std::collections::BTreeMap<(FaceKey, FaceKey), TangentCert>,
+    /// Rim junctions the glue door glued, with what their readers read
+    /// of each.
+    pub(crate) junction: std::collections::BTreeMap<(FaceKey, FaceKey), JunctionCert<T>>,
     /// The verified tangencies whose line locus runs through both faces'
     /// interiors: the reduction's face–face rows
     /// ([`ReductionContacts::ff`]).
@@ -1880,6 +1909,7 @@ impl<T: Real> Default for VerifiedGlue<T> {
         Self {
             one_carrier: std::collections::BTreeSet::new(),
             tangent: std::collections::BTreeMap::new(),
+            junction: std::collections::BTreeMap::new(),
             touches: Vec::new(),
             lines: std::collections::BTreeMap::new(),
             coincidences: Vec::new(),
@@ -2033,6 +2063,24 @@ impl<T: crate::props::AtRestPolicy> GluedPairs<T> {
                 .into_iter()
                 .flatten()
             }))
+            // A junction reads the rim row too, and for the same reason: the
+            // routing's π wedge holds the outward normals aligned at every
+            // station round the rim, so the two carriers are tangent along
+            // the circle, and the row is a fact of a carrier pair tangent
+            // along a circle (each a global side of the other), whatever
+            // the faces do there. It claims no touch.
+            .chain(verified.junction.iter().flat_map(|(&(fa, fb), cert)| {
+                let (x, y) = (tagged(Operand::A, fa), tagged(Operand::B, fb));
+                let (ka, kb) = cert.kinds;
+                [
+                    tangency_certifies_side(TangencySource::Rim, ka, kb)
+                        .then_some(((x, y), CoverSide::Unread)),
+                    tangency_certifies_side(TangencySource::Rim, kb, ka)
+                        .then_some(((y, x), CoverSide::Unread)),
+                ]
+                .into_iter()
+                .flatten()
+            }))
             .collect();
         Self {
             map: decls
@@ -2180,9 +2228,17 @@ impl<T: crate::props::AtRestPolicy> GluedPairs<T> {
             .and_then(GlueClass::carrier_relation)
     }
 
-    /// Whether the pair is declared `Tangent`.
-    pub(crate) fn glues_tangent(&self, o1: Operand, f1: FaceKey, o2: Operand, f2: FaceKey) -> bool {
-        self.class_of(o1, f1, o2, f2) == Some(GlueClass::Tangent)
+    /// The rim a pair glued `Junction` was certified over; none for any
+    /// other pair, and for a given junction whose record carries none.
+    pub(crate) fn junction_at(
+        &self,
+        o1: Operand,
+        f1: FaceKey,
+        o2: Operand,
+        f2: FaceKey,
+    ) -> Option<crate::rim_wedge::Rim<T>> {
+        let key = Self::key(o1, f1, o2, f2)?;
+        self.verified.junction.get(&key).and_then(|cert| cert.rim)
     }
 }
 
@@ -3513,17 +3569,6 @@ pub enum BooleanError {
         /// geometry.
         wedge: geom_brep::WedgeEnd,
     },
-    /// **A rim two faces of the operands share whose junction is not one
-    /// wedge**: the faces meet at a corner at one station and smoothly at
-    /// another (or at corners of opposite sign), or their outward normals
-    /// oppose across it with their sheets osculating, a sliver of no
-    /// thickness. The routing decided it; moving the parts settles it.
-    RimJunctionUnsettled {
-        /// The face of each operand that ends on the rim.
-        pair: [(Operand, FaceKey); 2],
-        /// What the routing read of the junction.
-        junction: RimJunction,
-    },
     /// **A pierce point that a curved face of the piercing operand may
     /// hold, where the Boolean cannot build a vertex**
     /// (`vtxfac::faces_holding_pierce`). An operand whose solids touch,
@@ -4689,8 +4734,6 @@ pub enum BooleanErrorKind {
     TangencyUnsupported,
     /// [`BooleanError::RimCuspArmUnbuilt`].
     RimCuspArmUnbuilt,
-    /// [`BooleanError::RimJunctionUnsettled`].
-    RimJunctionUnsettled,
     /// [`BooleanError::HeldPierceUnbuilt`].
     HeldPierceUnbuilt,
     /// [`BooleanError::InvalidInput`].
@@ -5087,7 +5130,6 @@ impl BooleanError {
             Self::PoisonedCarrierDatum { .. } => BooleanErrorKind::PoisonedCarrierDatum,
             Self::TangencyUnsupported => BooleanErrorKind::TangencyUnsupported,
             Self::RimCuspArmUnbuilt { .. } => BooleanErrorKind::RimCuspArmUnbuilt,
-            Self::RimJunctionUnsettled { .. } => BooleanErrorKind::RimJunctionUnsettled,
             Self::HeldPierceUnbuilt { .. } => BooleanErrorKind::HeldPierceUnbuilt,
             Self::InvalidInput { .. } => BooleanErrorKind::InvalidInput,
             Self::PairingMismatch { .. } => BooleanErrorKind::PairingMismatch,
@@ -5197,9 +5239,7 @@ impl BooleanError {
             Self::ShellWitnessExhausted { first_in_band, .. } => first_in_band
                 .as_ref()
                 .map_or(Ok(Refusal::InBand), PointInSolidError::refusal),
-            Self::JoinPartnersTied | Self::JoinPairsTied | Self::RimJunctionUnsettled { .. } => {
-                Ok(Refusal::InBand)
-            }
+            Self::JoinPartnersTied | Self::JoinPairsTied => Ok(Refusal::InBand),
             Self::JoinUndecided(u) => match &u.reading {
                 edge_join::JoinReading::Regularity(diag)
                 | edge_join::JoinReading::Crease(diag)
@@ -5852,25 +5892,6 @@ impl BooleanError {
                  tangent locus for these two surfaces. There is no way through this in \
                  the kernel yet",
                 pair.class.name()
-            ),
-            Self::RimJunctionUnsettled {
-                junction: RimJunction::Mixed(stations),
-                ..
-            } => write!(
-                f,
-                "along a rim circle two faces of the operands both end on, {stations}. \
-                 Recourse: {}",
-                refusal_routes::SEAM_WEDGE.lever
-            ),
-            Self::RimJunctionUnsettled {
-                junction: RimJunction::Lamina,
-                ..
-            } => write!(
-                f,
-                "two faces of the operands both end on one rim circle with their outward \
-                 normals opposed and their curvatures matching across it, so the solids \
-                 would meet in a sliver of no thickness there. Recourse: {}",
-                geom_core::move_lever!("so the faces clearly part across the rim")
             ),
             Self::HeldPierceUnbuilt {
                 operand,
@@ -7792,6 +7813,18 @@ fn verify_glued_contacts<T: Decide>(
                     },
                 );
             }
+            Some(Glued::Junction(junction)) => {
+                verified
+                    .coincidences
+                    .push(junction_row(fa, fb, junction.margin));
+                verified.junction.insert(
+                    (fa, fb),
+                    JunctionCert {
+                        kinds: junction.kinds,
+                        rim: Some(junction.rim),
+                    },
+                );
+            }
             Some(Glued::OneCarrier { margin, .. }) => {
                 verified.one_carrier.insert((fa, fb));
                 verified
@@ -7902,6 +7935,18 @@ fn given_verdicts<T: Decide>(
                     },
                 );
             }
+            // A given junction records no row of its own, as a given
+            // tangency off its touch records none: the decision was the
+            // deciding operation's.
+            GivenDecision::Junction { rim, .. } => {
+                verified.junction.insert(
+                    (fa, fb),
+                    JunctionCert {
+                        kinds: (kind(a, fa), kind(b, fb)),
+                        rim,
+                    },
+                );
+            }
             GivenDecision::Rest | GivenDecision::Continuation => {
                 verified.one_carrier.insert((fa, fb));
             }
@@ -7921,6 +7966,23 @@ fn tangent_row(fa: FaceKey, fb: FaceKey, margin: MarginDiag) -> crate::Coinciden
         more: [None; 3],
         relation: crate::Relation::SurfaceTangent,
         site: crate::DecisionSite::TangentWitness,
+        margin,
+        discharge: crate::Discharge::of(margin),
+    }
+}
+
+/// The row a glued rim junction records: the rim's identity, on which
+/// the routed wedge, the departures and the convex rim edges were
+/// decided with it ([`Junction`]), never a touch along the rim.
+fn junction_row(fa: FaceKey, fb: FaceKey, margin: MarginDiag) -> crate::Coincidence {
+    crate::Coincidence {
+        cells: [
+            crate::RowCell::face(Operand::A, fa),
+            crate::RowCell::face(Operand::B, fb),
+        ],
+        more: [None; 3],
+        relation: crate::Relation::RimJunction,
+        site: crate::DecisionSite::RimJunction,
         margin,
         discharge: crate::Discharge::of(margin),
     }
@@ -7988,31 +8050,6 @@ pub(crate) enum TangencyFailure {
     Unrouted,
 }
 
-/// What the rim routing read of a junction it cannot glue
-/// ([`BooleanError::RimJunctionUnsettled`]).
-///
-/// **NOT carried to the façade's curated list, and that is a decision
-/// rather than an omission** (`scripts/payload-rung-sweep.py` names this
-/// rung; the disposition table cites this paragraph as its home). A Rust
-/// caller can already name and match it — `pncad` re-exports `topo`
-/// whole — and the Python door says which refusal it rides in
-/// (`rim_junction_unsettled`) and carries its sentence, which names the
-/// stations that disagree or the lamina. Publishing it owes the CUR3
-/// property row `carried_refusal_payloads_are_matchable_through_the_prelude`
-/// and a Python word per arm, both the façade crate's to write.
-///
-/// **The falsifier is a Python caller who must tell a mixed rim from a
-/// lamina** without reading the sentence. When the façade carries the
-/// reading, delete this paragraph and the disposition row with it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum RimJunction {
-    /// Neighbouring stations disagree on the class or a corner's sign.
-    Mixed(geom_brep::MixedStations),
-    /// Outward normals opposed across the rim, the two sheets
-    /// osculating there.
-    Lamina,
-}
-
 /// What the door's tangency check certified of a pair.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Tangency<T: Real> {
@@ -8029,6 +8066,19 @@ pub(crate) struct Tangency<T: Real> {
     pub(crate) line: Option<geom::Line<T>>,
     /// Where both faces' extents along the line meet; none along a rim.
     pub(crate) overlap: Option<(T, T)>,
+}
+
+/// What [`GluedPairs`] keeps of a glued rim junction: its carriers'
+/// kinds, which the cover reads, and the rim the junction was certified
+/// over, which its sector readers place their sites on
+/// ([`GluedPairs::junction_at`]).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct JunctionCert<T: Real> {
+    /// The two carriers' kinds, A's first.
+    pub(crate) kinds: (geom::SurfaceKind, geom::SurfaceKind),
+    /// The rim, or none for a given junction whose record carries no
+    /// circle.
+    pub(crate) rim: Option<crate::rim_wedge::Rim<T>>,
 }
 
 /// What [`GluedPairs`] keeps of a glued tangency: its carriers' kinds
@@ -8245,21 +8295,6 @@ pub(crate) fn tangent_table_at_rest<T: Decide>(
     contact_verify::tangent_locus_relation(sa, sense_a, sb, sense_b, &line.carrier, t0, t1, band)
 }
 
-/// **The glue door's tangency** ([`verify_tangency`]): a tangent line's
-/// table, or a rim's junction. The door
-/// ([`glue::decided_glue`]) reads a refusal no reading settles
-/// as the operation's and every other failure as no tangency.
-pub(crate) fn glued_tangency<T: Decide>(
-    a: &Body<T>,
-    fa: FaceKey,
-    b: &Body<T>,
-    fb: FaceKey,
-    read: DeclarationRead,
-    band: Band,
-) -> Result<Tangency<T>, TangencyFailure> {
-    verify_tangency(a, fa, b, fb, read, band)
-}
-
 /// A glued face's carrier and orientation bit, read off one lookup: a
 /// key that does not resolve refuses typed here, so no later stage
 /// answers from a sense it invented.
@@ -8275,40 +8310,78 @@ fn glued_face<T: Real>(
     Ok((face.surface().clone(), face.sense()))
 }
 
-/// **The glue door's tangency check** (C4's `Tangent`, claiming nothing
-/// of the materials): whether `fa` and `fb`, faces the door read on
-/// distinct carriers, are tangent along a locus the witness lane
-/// certifies.
+/// **What the glue door glues of two distinct carriers**
+/// ([`verify_distinct`]): a tangency the table certified along its
+/// locus, or a junction on a rim both faces end on.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum DistinctGlue<T: Real> {
+    /// C4's `Tangent`: the pair touches along the locus it was read on.
+    Tangent(Tangency<T>),
+    /// C4's `Junction`: the faces end on one rim and meet nowhere else
+    /// near it.
+    Junction(Junction<T>),
+}
+
+/// **A rim junction the glue door glued** (C4's `Junction`): two faces
+/// that both END on one circle, the outward normals aligned and the two
+/// faces leaving it on opposite sides all round (the routing's π seam,
+/// whatever its bend), each operand's own edge there a convex crease. The
+/// interiors do not meet near the rim: each face leaves the rim along the
+/// other face's backward direction, outside the other operand's
+/// material, which its convex edge closes below π. What it owes is the
+/// rim's identity and that wedge, decided once over the whole rim; it
+/// claims no touch along a locus, and no reader of a tangency reads it.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Junction<T: Real> {
+    /// The two carriers' kinds, A's first.
+    pub(crate) kinds: (geom::SurfaceKind, geom::SurfaceKind),
+    /// The circle both faces end on.
+    pub(crate) rim: crate::rim_wedge::Rim<T>,
+    /// The rim's identity margin ([`crate::rim_wedge::shared_rim`]), the
+    /// decision the record carries.
+    pub(crate) margin: MarginDiag,
+}
+
+/// **The glue door's distinct-carrier check** (C4's `Tangent` and
+/// `Junction`, claiming nothing of the materials beyond the junction's
+/// wedge): whether `fa` and `fb`, faces the door read on distinct
+/// carriers, glue, and as what.
 ///
 /// 1. **The witness locus.** The DEV-1 closed-form line where it
 ///    derives ([`geom_brep::tangent_locus`]: plane×cylinder along a
 ///    ruling, parallel cylinders); a definitely-apart or crossing pair
 ///    is not tangent. Elsewhere, the rim circle the two faces both end
-///    on: a junction, whose interiors do not meet there, decided by the
-///    rim's identity and routed by its wedge ([`route_rim`]) before
-///    anything is read along it, and owing nothing more. A rim with a
-///    spline face, whose wedge the routing does not read, is read by the
-///    table along its whole turn instead: a corner is no tangency, a
-///    touch is refused ([`BooleanError::TangencyUnsupported`]). With
-///    neither locus the pair is [`TangencyFailure::Unsupported`].
-/// 2. **The tangency table** ([`contact_verify::tangency_reading`])
-///    along the line, or the spline-faced rim, over the pair's honest
-///    extent: the touch, the witness on both surfaces, first-order parallelism, one pair of
-///    sides along the locus and a definite second-order margin. Which
-///    way the outward normals point, and whether the crescent between the
-///    sheets is void or shared, are claimed nowhere: the lump, the
-///    junction's wedge and the cover derive what each needs (C7). A
-///    ruling is [`TangencyFailure::NotTangent`].
+///    on ([`crate::rim_wedge::shared_rim`]); with neither the pair is
+///    [`TangencyFailure::Unsupported`].
+/// 2. **A rim's junction** ([`junction_of`]), tried first on a rim: the
+///    routing's wedge π with the faces leaving on opposite sides, each
+///    operand's own rim edge a convex crease. It reads the routing's
+///    stations round the rim ([`crate::rim_wedge::classify_shared_rim`],
+///    whose fold runs `second_order_walk` at each), the departures, and
+///    each rim edge's wedge; nothing about a touch along the rim. A rim
+///    it does not glue goes on exactly as it would without it: the
+///    junction only ADDS a glue (`work/select/a-seam-decided-pi-refuses-where-only-its-bend-is-undecided.md`
+///    is the bend the routing's fold still refuses on).
+/// 3. **The tangency table** ([`contact_verify::tangency_reading`])
+///    along the locus over the pair's honest extent (a rim's whole
+///    turn): the touch, the witness on both surfaces, first-order
+///    parallelism, one pair of sides along the locus and a definite
+///    second-order margin. Which way the outward normals point, and
+///    whether the crescent between the sheets is void or shared, are
+///    claimed nowhere: the lump, the junction's wedge and the cover
+///    derive what each needs (C7). A ruling is
+///    [`TangencyFailure::NotTangent`]. A rim the table certifies is then
+///    routed ([`route_rim`]).
 ///
 /// Escalations carry `read`, what the caller holds of the pair.
-fn verify_tangency<T: Decide>(
+pub(crate) fn verify_distinct<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
     b: &Body<T>,
     fb: FaceKey,
     read: DeclarationRead,
     band: Band,
-) -> Result<Tangency<T>, TangencyFailure> {
+) -> Result<DistinctGlue<T>, TangencyFailure> {
     use TangencyFailure::{NotTangent, Refused, Unsupported};
     let (sa, sense_a) = glued_face(a, fa, Operand::A).map_err(Refused)?;
     let (sb, sense_b) = glued_face(b, fb, Operand::B).map_err(Refused)?;
@@ -8358,26 +8431,11 @@ fn verify_tangency<T: Decide>(
                 let (rim, identity) = crate::rim_wedge::shared_rim(a, fa, b, fb, band)
                     .map_err(|diag| Refused(BooleanError::coincidence(Coincide::Rim, read, diag)))?
                     .ok_or(Unsupported)?;
-                // Both faces end on the rim: a junction, whose interiors do
-                // not meet there. Its identity and its wedge are what it owes,
-                // as the edge it becomes owes tier 3; that each face's edge
-                // lies on its carrier is the operand's own certificate, so
-                // nothing is sampled along the rim.
-                if sa.spline_chart().is_none() && sb.spline_chart().is_none() {
-                    route_rim(a, fa, b, fb, rim, read, band)?;
-                    return Ok(Tangency {
-                        kinds,
-                        locus: crate::rim_wedge::Locus::Rim(rim),
-                        margin: identity,
-                        line: None,
-                        overlap: None,
-                    });
+                // 2. The junction, which only adds a glue.
+                let faces = [(fa, &sa, sense_a), (fb, &sb, sense_b)];
+                if let Some(junction) = junction_of(a, b, faces, rim, identity, band) {
+                    return Ok(DistinctGlue::Junction(junction));
                 }
-                // A spline face the routing reads no wedge of
-                // (`RimRouting::SplineFace`): the table along the whole rim
-                // says whether the pair touches there at all. A corner is no
-                // tangency, the crossing lanes'; a touch is a junction no arm
-                // acts on, refused below.
                 (
                     geom::Curve3::circle(rim.center, rim.axis, rim.radius, rim.u_ref),
                     T::zero(),
@@ -8390,7 +8448,7 @@ fn verify_tangency<T: Decide>(
                 )
             }
         };
-    // 2. The tangency table along the witness.
+    // 3. The tangency table along the witness.
     use crate::contact::{TangentVerdict, Uncertified};
     let margin = match contact_verify::tangency_reading(
         &sa, sense_a, &sb, sense_b, &carrier, t0, t1, band,
@@ -8429,17 +8487,122 @@ fn verify_tangency<T: Decide>(
             return Err(Unsupported);
         }
     };
-    // A spline-faced rim that touches: the junction's wedge is unread on
-    // a fit, and no arm acts on it.
-    if let crate::rim_wedge::Locus::Rim(_) = locus {
-        return Err(Refused(BooleanError::TangencyUnsupported));
+    if let crate::rim_wedge::Locus::Rim(rim) = locus {
+        route_rim(a, fa, b, fb, rim, read, band)?;
     }
-    Ok(Tangency {
+    Ok(DistinctGlue::Tangent(Tangency {
         kinds,
         locus,
         margin,
         line: carrier.as_line(),
         overlap,
+    }))
+}
+
+/// What the glue door returns for one face pair, as a row outside the
+/// crate names it ([`crate::test_support::rim_door`]).
+#[cfg(any(test, feature = "test-support"))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RimDoor {
+    /// Glued a rim junction.
+    Junction,
+    /// Glued a tangency.
+    Tangent,
+    /// Read as no tangency (a crossing, a corner all round, a ruling).
+    NotTangent,
+    /// Outside the lane: no locus derives.
+    Unsupported,
+    /// Routed outside what the zip builds: not glued.
+    Unrouted,
+    /// Refused, of this kind.
+    Refused(BooleanErrorKind),
+}
+
+/// **The glue door's reading of every cross pair of faces that share a
+/// rim** ([`verify_distinct`]), in `a`'s face order and `b`'s within
+/// each, with the faces' kinds: the row a fixture asserts its door
+/// verdict by, so a mutant of the routing turns it red where the
+/// union's outcome alone would not.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn rim_door<T: Decide>(
+    a: &Body<T>,
+    b: &Body<T>,
+    band: Band,
+) -> Vec<((geom::SurfaceKind, geom::SurfaceKind), RimDoor)> {
+    let mut out = Vec::new();
+    for fa in a.face_views().map(|f| f.key()).collect::<Vec<_>>() {
+        for fb in b.face_views().map(|f| f.key()).collect::<Vec<_>>() {
+            if !matches!(crate::rim_wedge::rim_exists(a, fa, b, fb, band), Ok(true)) {
+                continue;
+            }
+            // Only the pairs the glue door asks: on distinct carriers, or
+            // outside the carrier inventory (`glue::decided_glue`).
+            if !matches!(
+                carrier_pair::carrier_pair_decided(a, fa, b, fb, band),
+                Ok(Ok(
+                    geom_brep::CarrierVerdict::Apart(_) | geom_brep::CarrierVerdict::TwoKinds
+                )) | Err(PairUnread::OutsideInventory)
+            ) {
+                continue;
+            }
+            let kinds = (
+                a.proven_face(fa).surface().kind(),
+                b.proven_face(fb).surface().kind(),
+            );
+            let door = match verify_distinct(a, fa, b, fb, DeclarationRead::Moot, band) {
+                Ok(DistinctGlue::Junction(_)) => RimDoor::Junction,
+                Ok(DistinctGlue::Tangent(_)) => RimDoor::Tangent,
+                Err(TangencyFailure::NotTangent) => RimDoor::NotTangent,
+                Err(TangencyFailure::Unsupported) => RimDoor::Unsupported,
+                Err(TangencyFailure::Unrouted) => RimDoor::Unrouted,
+                Err(TangencyFailure::Refused(e)) => RimDoor::Refused(e.kind()),
+            };
+            out.push((kinds, door));
+        }
+    }
+    out
+}
+
+/// **A rim's junction** (C4's `Junction`, [`verify_distinct`]'s step 2):
+/// the rim both faces end on glued where the routing reads the π seam
+/// all round ([`crate::rim_wedge::classify_shared_rim`]), the two faces
+/// leave it on opposite sides ([`crate::rim_wedge::departures`]), and
+/// each operand's own edge on the rim is a convex crease of its own body
+/// ([`crate::rim_wedge::rim_edges_convex`]). The last is what makes the
+/// junction one: a face leaves the rim along the other face's backward
+/// direction, and only the other operand's own wedge there, below π,
+/// puts that direction outside its material. A concave edge (a flange
+/// the other face lies inside) is no junction, nor is an edge whose sign
+/// is undecided.
+///
+/// `None` wherever any of the three is not read so: an in-band reading,
+/// a spline face (`RimRouting::SplineFace`), a cusp, a crossing. The
+/// door then reads the rim as it would without the junction, so nothing
+/// here refuses: what an undecided routing means is the table's, and
+/// the routing's after it ([`route_rim`]).
+fn junction_of<T: Decide>(
+    a: &Body<T>,
+    b: &Body<T>,
+    [(fa, sa, sense_a), (fb, sb, sense_b)]: [(FaceKey, &geom::Surface<T>, bool); 2],
+    rim: crate::rim_wedge::Rim<T>,
+    margin: MarginDiag,
+    band: Band,
+) -> Option<Junction<T>> {
+    let circle = geom::Curve3::circle(rim.center, rim.axis, rim.radius, rim.u_ref);
+    let whole = (T::zero(), T::tau());
+    let reach = crate::wedge_reach(a, [fa; 2], &circle, whole)
+        .max(crate::wedge_reach(b, [fb; 2], &circle, whole));
+    let routing = crate::rim_wedge::classify_shared_rim(sa, sense_a, sb, sense_b, rim, reach, band);
+    let departure =
+        || crate::rim_wedge::departures(a, fa, b, fb, crate::rim_wedge::Locus::Rim(rim), band);
+    (matches!(routing, Ok(crate::rim_wedge::RimRouting::Seam))
+        && matches!(departure(), Ok(crate::rim_wedge::Departure::Opposite))
+        && crate::rim_wedge::rim_edges_convex(a, fa, rim, band)
+        && crate::rim_wedge::rim_edges_convex(b, fb, rim, band))
+    .then_some(Junction {
+        kinds: (sa.kind(), sb.kind()),
+        rim,
+        margin,
     })
 }
 
@@ -8474,21 +8637,18 @@ fn rim_unread<T: Real>(
     })
 }
 
-/// **The rim routing of a junction** (C7): the material wedge two faces
-/// that both end on one circle make there, read off the operands'
-/// outward normals over the whole rim and which way each face leaves it
-/// ([`crate::rim_wedge::departures`]), before anything else is read of
-/// the pair. Wedge π with the faces leaving on opposite sides is the
-/// smooth seam, whatever its bend, which the zip mints, and the only rim
-/// the glue door glues; a corner all round is no tangency
-/// ([`TangencyFailure::NotTangent`]), the crossing lanes'; a cusp (the
-/// cusp family has no locus arm for a circle) and a junction the routing
-/// cannot place are not glued ([`TangencyFailure::Unrouted`]); a rim that
-/// is a corner in one place and smooth in another, or whose sheets
-/// osculate across it, refuses on the wedge's recourse
-/// ([`BooleanError::RimJunctionUnsettled`]); and stations disagreeing on
-/// a material verdict, or a spline face, are refused
-/// ([`BooleanError::TangencyUnsupported`]). The reading is the
+/// **The rim routing of a tangency along a circle** (C7), read after
+/// the table certified the touch: the material wedge of the junction the
+/// two faces make, read off the operands' outward normals and which way
+/// each face leaves the rim ([`crate::rim_wedge::departures`]). Wedge π
+/// with the faces leaving on opposite sides is the smooth seam, which the
+/// zip mints, glued here as a tangency: the door's junction
+/// ([`junction_of`]) took every such rim whose operands' own rim edges
+/// are convex creases, so what reaches here is one it did not. A cusp (the cusp family has no locus arm for
+/// a circle) and a junction the routing cannot place are not glued
+/// ([`TangencyFailure::Unrouted`]), and a rim whose stations disagree or
+/// with a spline face is refused ([`BooleanError::TangencyUnsupported`]),
+/// no reading of the pair settling it. The reading is the
 /// operands', the same under every op: the junction the result carries
 /// per op needs the membership, which this stage does not hold (filed:
 /// `work/contacthold/a-touch-only-rim-with-no-derivable-locus-refuses-every-op-as-a-cusp.md`).
@@ -8535,28 +8695,21 @@ fn route_rim<T: Decide>(
             }
         }
         crate::rim_wedge::RimRouting::Cusp(_) => Err(Unrouted),
-        // A corner all round: no junction to glue, the crossing lanes'.
-        crate::rim_wedge::RimRouting::Transverse => Err(TangencyFailure::NotTangent),
-        // A rim that is a corner in one place and smooth in another, or
-        // whose two sheets osculate across it: the geometry can be moved
-        // to settle it, so it refuses on the wedge's own recourse.
-        crate::rim_wedge::RimRouting::Mixed(stations) if stations.is_first_order() => {
-            Err(Refused(BooleanError::RimJunctionUnsettled {
-                pair: [(Operand::A, fa), (Operand::B, fb)],
-                junction: RimJunction::Mixed(stations),
-            }))
-        }
-        crate::rim_wedge::RimRouting::Lamina => Err(Refused(BooleanError::RimJunctionUnsettled {
-            pair: [(Operand::A, fa), (Operand::B, fb)],
-            junction: RimJunction::Lamina,
-        })),
-        // Stations disagreeing on a material verdict, which no edit is
-        // known to reach, or a spline face the routing reads no wedge of
-        // (the door reads a spline-faced rim by its table and routes only
-        // a touch, refused there the same): an arm that acts on the
-        // junction is not built.
+        // A rim whose stations disagree, or one with a spline face the
+        // routing reads no wedge of: no reading of the pair settles it, so
+        // it is refused (`TangencyFailure::Refused`), not routed. The
+        // mixed seam's own error (`BooleanError::MixedSeam`) names an
+        // edge of the result, which a rim between two operands is not.
         crate::rim_wedge::RimRouting::Mixed(_) | crate::rim_wedge::RimRouting::SplineFace => {
             Err(Refused(BooleanError::TangencyUnsupported))
+        }
+        // The table verified the pair tangent with a definite
+        // second-order margin, so neither a crossing nor an osculating
+        // lamina remains for the routing to find.
+        crate::rim_wedge::RimRouting::Transverse | crate::rim_wedge::RimRouting::Lamina => {
+            Err(Refused(BooleanError::ClassificationInvariant {
+                what: "rim routing: a verified tangency read as a crossing or a lamina",
+            }))
         }
     }
 }
@@ -9815,7 +9968,7 @@ mod tests {
     #[test]
     fn a_declared_face_that_does_not_resolve_refuses_typed() {
         let empty = Body::<f64>::new();
-        let read = glued_tangency(
+        let read = verify_distinct(
             &empty,
             FaceKey::default(),
             &empty,
@@ -9985,10 +10138,6 @@ mod tests {
             },
             BooleanError::plane_identity(PlaneRung::Parallel, diag),
             BooleanError::TangencyUnsupported,
-            BooleanError::RimJunctionUnsettled {
-                pair: [(Operand::A, face), (Operand::B, face)],
-                junction: RimJunction::Lamina,
-            },
             BooleanError::InvalidInput {
                 operand: Operand::A,
                 what: "a stale key",
@@ -10264,7 +10413,6 @@ mod tests {
                 BooleanErrorKind::PoisonedCarrierDatum => "PoisonedCarrierDatum",
                 BooleanErrorKind::TangencyUnsupported => "TangencyUnsupported",
                 BooleanErrorKind::RimCuspArmUnbuilt => "RimCuspArmUnbuilt",
-                BooleanErrorKind::RimJunctionUnsettled => "RimJunctionUnsettled",
                 BooleanErrorKind::HeldPierceUnbuilt => "HeldPierceUnbuilt",
                 BooleanErrorKind::InvalidInput => "InvalidInput",
                 BooleanErrorKind::PairingMismatch => "PairingMismatch",

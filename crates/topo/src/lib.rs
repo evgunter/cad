@@ -351,6 +351,24 @@ pub mod test_support {
         pub const UNSHOWN: &str = crate::validate::incidence_reasons::UNSHOWN;
     }
 
+    pub use crate::boolean::RimDoor;
+
+    /// **What the glue door returns for every cross pair of faces of `a`
+    /// and `b` that share a rim**, with the pair's kinds, A's first:
+    /// `Junction`, `Tangent`, `NotTangent`, `Unsupported`, `Unrouted` or
+    /// the refusal's kind. A fixture's door row reads it, so a mutant of
+    /// the routing turns the row red where the union's outcome alone
+    /// would not.
+    #[must_use]
+    pub fn rim_door(
+        a: &crate::AtRestBody<f64>,
+        b: &crate::AtRestBody<f64>,
+        tol: geom_core::Tol,
+    ) -> Vec<((geom::SurfaceKind, geom::SurfaceKind), RimDoor)> {
+        let band = geom_core::Band::linear(tol).expect("a fixture's band");
+        crate::boolean::rim_door(a, b, band)
+    }
+
     /// **The resolution the suites' pinned numbers are stated at**:
     /// [`crate::Settle::Resolution`] of 1024·ε of mean boundary
     /// displacement. A test that reads a volume or an area as a number,
@@ -1476,12 +1494,12 @@ pub use boolean::{
     NaryJudgement, NaryMember, NaryOp, NaryPlaced, NaryPlacedRun, NaryRefusal, NaryRun, NaryStep,
     NaryTaken, NodeWhy, NullEdgePairRecord, Operand, OperandKeys, OperandRecords, OverlapRefusal,
     PairRefusalSite, PairSite, PairTaken, PairUnread, PierceRingRecord, Placed, PlacedBooleanError,
-    ReductionContacts, RefusedRow, RimJunction, SectionUnbuilt, SectorRead, SectorRung, SelfCheck,
-    SettleError, Settler, Settling, SharedStarts, ShellOrientation, SideCode, SlitFaceGap,
-    SlitLineGap, SphereQuestion, SpiricLoops, SubstitutedFace, SweepStrategy, ToolFuseRefusal,
-    TorusConvention, UncutFace, UnreadPartner, VeContact, VfContact, VoidContainment, VoidEvidence,
-    VoidInsertError, VoidInserted, VvContact, WallRung, boolean_op_with, boolean_placed,
-    boolean_reduce, decision_words, flush_pair_relation, insert_void, insert_voids, intersect,
+    ReductionContacts, RefusedRow, SectionUnbuilt, SectorRead, SectorRung, SelfCheck, SettleError,
+    Settler, Settling, SharedStarts, ShellOrientation, SideCode, SlitFaceGap, SlitLineGap,
+    SphereQuestion, SpiricLoops, SubstitutedFace, SweepStrategy, ToolFuseRefusal, TorusConvention,
+    UncutFace, UnreadPartner, VeContact, VfContact, VoidContainment, VoidEvidence, VoidInsertError,
+    VoidInserted, VvContact, WallRung, boolean_op_with, boolean_placed, boolean_reduce,
+    decision_words, flush_pair_relation, insert_void, insert_voids, intersect,
     is_conventional_vertex, join_covers, joinable_vertices, joined_cell, joined_edge, nary_boolean,
     nary_boolean_apart, nary_placed, overlap, subtract, tangent_pair_relation, union,
 };

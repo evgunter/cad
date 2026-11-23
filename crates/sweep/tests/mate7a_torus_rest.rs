@@ -301,18 +301,32 @@ fn a_partly_covered_torus_pair_is_no_longer_a_gate_question() {
 // 2. The G1 chain.
 // -------------------------------------------------------------------
 
-/// **The G1 tube chain passes the glue door and stops at the crossing
-/// layer**: the two segments both end on their terminal meridian circle,
-/// a junction the glue door decides on the rim's identity and its π
-/// wedge, so its neutral points (`κ_rel` exactly zero) are no question
-/// there; an edge of one segment ending on that rim tangent to the
-/// other's wall is what the crossing layer cannot yet settle. In both
-/// orders.
+/// **The G1 tube chain glues its meridian a junction and stops at the
+/// crossing layer**: the two segments both end on their terminal meridian
+/// circle, the routing's π seam with the walls leaving on opposite sides
+/// and each segment's own rim edge (its torus against its end cap) a
+/// convex crease, so the glue door glues the pair a junction on the rim's
+/// identity and that wedge, and its neutral points (`κ_rel` exactly zero)
+/// are no question there; an edge of one segment ending on that rim
+/// tangent to the other's wall is what the crossing layer cannot yet
+/// settle. In both orders.
 #[test]
-fn the_g1_tube_chain_passes_the_glue_door_and_stops_at_the_crossing_layer() {
+fn the_g1_tube_chain_glues_its_meridian_a_junction_and_stops_at_the_crossing_layer() {
     let (Some(a), Some(b)) = (segment_a(), segment_b()) else {
         return;
     };
+    let walls: Vec<_> = topo::test_support::rim_door(&a, &b, Tol::witness())
+        .into_iter()
+        .filter(|(kinds, _)| *kinds == (geom::SurfaceKind::Torus, geom::SurfaceKind::Torus))
+        .map(|(_, door)| door)
+        .collect();
+    assert!(
+        !walls.is_empty()
+            && walls
+                .iter()
+                .all(|d| *d == topo::test_support::RimDoor::Junction),
+        "the two walls on the meridian glue a junction: {walls:?}"
+    );
     for (x, y) in [(&a, &b), (&b, &a)] {
         let err = topo::union(x, y, Tol::witness()).expect_err("the chain refuses");
         assert!(

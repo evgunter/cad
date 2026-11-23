@@ -6646,6 +6646,7 @@ mod declaration_order_rows {
                 )
             }),
             GlueClass::Continuation => unreachable!("a continuation is no contact"),
+            GlueClass::Junction => unreachable!("a line witness is no rim junction"),
         }
     }
 

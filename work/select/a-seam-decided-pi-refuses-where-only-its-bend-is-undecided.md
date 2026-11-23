@@ -41,7 +41,7 @@ where it needs the bend decided.
 
 No fixture reaches it yet: the elbow lane nudged the bend's axis by
 2ε and 10³ε about the cap's normal
-(`an_elbow_whose_neutral_points_sit_between_the_stations_passes_the_glue_door`)
+(`an_elbow_whose_neutral_points_sit_between_the_stations_glues_a_junction`)
 and the rim routed π at each, so no routing station landed near a
 neutral point; where the routing's stations fall on that rim was not
 traced. The finding stands on the code above.

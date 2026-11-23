@@ -766,6 +766,21 @@ fn curve_sense<T: Decide>(
     }
 }
 
+/// Whether `p` lies on `rim`: the locus test the departures read
+/// placements by ([`on_locus`]), for a junction's reader that must know
+/// its site is on the rim the junction was certified over.
+///
+/// # Errors
+///
+/// The distance's [`Indeterminate`] in band.
+pub(crate) fn on_rim<T: Decide>(
+    rim: Rim<T>,
+    p: Point3<T>,
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    on_locus(Locus::Rim(rim), p, band)
+}
+
 /// Whether `p` lies on the locus.
 fn on_locus<T: Decide>(locus: Locus<T>, p: Point3<T>, band: Band) -> Result<bool, Indeterminate> {
     let off = match locus {
@@ -1045,29 +1060,74 @@ pub(crate) fn face_boundary_arcs<T: Real>(
 fn face_boundary_circles<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<Rim<T>> {
     face_boundary_arcs(body, face)
         .into_iter()
-        .filter_map(|(_, c)| match *c.carrier() {
-            geom::Curve3::Circle(
-                circle @ geom::Circle {
-                    frame: carrier_frame_26,
-                    ..
-                },
-            ) => {
-                let (center, axis, u_ref) = (
-                    carrier_frame_26.origin(),
-                    carrier_frame_26.axis(),
-                    carrier_frame_26.u_ref(),
-                );
-                let radius = circle.radius();
-                Some(Rim {
-                    center,
-                    axis,
-                    radius,
-                    u_ref,
-                })
-            }
-            _ => None,
-        })
+        .filter_map(|(_, c)| rim_of(c.carrier()))
         .collect()
+}
+
+/// A circle carrier as a [`Rim`]; none for any other carrier.
+fn rim_of<T: Real>(carrier: &geom::Curve3<T>) -> Option<Rim<T>> {
+    match *carrier {
+        geom::Curve3::Circle(circle @ geom::Circle { frame, .. }) => Some(Rim {
+            center: frame.origin(),
+            axis: frame.axis(),
+            radius: circle.radius(),
+            u_ref: frame.u_ref(),
+        }),
+        _ => None,
+    }
+}
+
+/// **Whether every edge `face` has on `rim` is a convex crease of
+/// `face`'s own body**: the operand's material wedge there below π
+/// ([`geom_brep::Convexity::Convex`], decided at every station of the
+/// edge's own fold, [`crate::edge_wedge`], under
+/// [`geom_brep::DIHEDRAL_SIGN`]). The junction's certificate that a face
+/// leaving the rim along this face's backward direction lies outside
+/// this operand's material (`boolean::junction_of`).
+///
+/// `false` where the face has no edge on the rim, where an edge's circle
+/// is not decided the rim or not decided another, where an edge on the
+/// rim carries no certified curve, and where its wedge is anything but a
+/// convex crease all along it: a concave or smooth edge, a mixed one, one
+/// in band. It answers only "certified convex"; every other reading is
+/// the door's to read as it would without the junction.
+pub(crate) fn rim_edges_convex<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    rim: Rim<T>,
+    band: Band,
+) -> bool {
+    let Some(f) = body.face(face) else {
+        return false;
+    };
+    let mut on_rim = 0usize;
+    for member in f.boundary() {
+        let crate::live::BoundaryMember::Edge { ek, edge, .. } = member else {
+            continue;
+        };
+        let Some(curve) = body.edge_curve_linked(ek, edge).certified() else {
+            return false;
+        };
+        let Some(circle) = rim_of(curve.carrier()) else {
+            continue;
+        };
+        match same_circle(circle, rim, band) {
+            Ok(Some(_)) => {}
+            Ok(None) => continue,
+            Err(_) => return false,
+        }
+        on_rim += 1;
+        if !matches!(
+            crate::edge_wedge(body, ek, band),
+            Some(geom_brep::WedgeVerdict::Crease {
+                convexity: geom_brep::Convexity::Convex,
+                ..
+            })
+        ) {
+            return false;
+        }
+    }
+    on_rim > 0
 }
 
 /// The rim's schedule: the certification schedule's sample count, as
