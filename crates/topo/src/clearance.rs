@@ -4507,7 +4507,7 @@ enum Row {
 
 /// **One row of a loop's lift as [`extent_of`] reads it**: a monotone
 /// coordinate line by its `ends`, its chart points at `t0` and `t1`; a
-/// harmonic or spiric wall image by its enclosure over its whole span,
+/// harmonic, spiric wall or focal image by its enclosure over its whole span,
 /// its coefficients crossed by `lift`; `None` for any other image.
 fn row_of<T: CertifiedBounds>(
     pcurve: &Pcurve<T>,
@@ -4517,10 +4517,7 @@ fn row_of<T: CertifiedBounds>(
 ) -> Option<Row> {
     if !monotone_line(pcurve, lift) {
         let t = Interval::from_bounds(t0.lo(), t1.hi());
-        if let Some(w) = wall_of(pcurve, lift) {
-            return Some(Row::Bulging(w.at(t)));
-        }
-        return Some(Row::Bulging(harmonic_of(pcurve, lift)?.at(t)));
+        return Some(Row::Bulging(curve_of(pcurve, lift)?.at(t)));
     }
     Some(Row::Ends(ends))
 }
