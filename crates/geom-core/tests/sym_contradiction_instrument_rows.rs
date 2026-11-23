@@ -130,7 +130,7 @@ fn a_margin_that_is_not_zero_is_no_contradiction() {
 /// breach: `x(1) − x(1 + 5e-10)` reads `[-5e-10, -5e-10]`, inside the
 /// zero band, so the numeric channel answers no definite sign and the
 /// tier proves the form zero over an enclosure that excludes 0. Red if
-/// the enclosure check in `Sym::sign_within` goes.
+/// the check on a proven zero (`sym::discharge_checked`) goes.
 #[test]
 #[cfg_attr(not(debug_assertions), ignore = "the check is a debug_assert!")]
 #[should_panic(expected = "at the Plain rung (attempt 0) and its certified enclosure")]
@@ -359,11 +359,7 @@ fn a_frozen_walk_is_checked_and_reports_nothing() {
     let ((sign, report), counts) =
         geom_core::sym::with_session_rules(starved, SymRules::shipped(), || {
             let (out, decisions) = record(|| {
-                geom_core::k_stats::decide(
-                    "sym_contradiction",
-                    Margin::of(planted()),
-                    band(),
-                )
+                geom_core::k_stats::decide("sym_contradiction", Margin::of(planted()), band())
             });
             (
                 out.ok(),

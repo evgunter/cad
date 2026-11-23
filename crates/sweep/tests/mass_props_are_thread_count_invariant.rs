@@ -400,11 +400,9 @@ fn digest(f64_block: &str, receipts: &[Receipt]) -> String {
 /// [`the_walk_matches_the_serial_golden_at_four_threads`]: the two `Sym`
 /// bodies' `validate_geometric` lines at every ε row, and
 /// `arc_loft_1e9eps`' volume at 1e-12. They wait on
-/// `work/green/the-thread-count-goldens-sym-validate-lines-and-arc-lofts-volume-are-pinned-unexplained.md`;
-/// their `frozen` counts read 14 and 12 since a definite numeric sign
-/// stopped asking the tier anything: PR 7028's move to 16
-/// (`work/sectarms/check-6s-spline-loop-winding-froze-more-sym-nodes-in-the-thread-count-golden.md`)
-/// was freezes of the check that walked every definite margin's forms.
+/// `work/green/the-thread-count-goldens-sym-validate-lines-and-arc-lofts-volume-are-pinned-unexplained.md`
+/// for their decision counts; their `frozen` counts are the decisions'
+/// own freezes.
 /// And, read by `the_walk_matches_the_serial_golden_at_one_thread` and
 /// `the_walk_matches_the_serial_golden_at_four_threads` alike,
 /// `arc_loft_1e11eps`' two pads at 1e-12:
@@ -486,4 +484,43 @@ fn the_roster_records_the_props_lanes_own_verdicts() {
         "the described-spline body recorded no props_quad verdict — the roster no longer \
          reaches the quadrature lane, so the golden above pins a walk that does nothing"
     );
+}
+
+/// **The contradiction instrument over the session block's bodies**
+/// (`geom_core::sym::contradiction`): each `Sym` body built and read
+/// through both reporting doors inside one session, and the instrument
+/// asking every definite decision whether the tier's algebra or a
+/// registration would have claimed `Zero` there. It finds nothing, and
+/// it asked: every door's decisions include definite ones, none on a node
+/// the session does not hold.
+#[test]
+fn the_session_blocks_bodies_contradict_nothing() {
+    use geom_core::sym::contradiction;
+    use geom_core::sym::revalue::record;
+    for (name, build) in sym_bodies() {
+        for door in ["mass_properties", "validate_geometric"] {
+            let (report, _) = with_session(budget(), || {
+                let ((), decisions) = record(|| {
+                    let body = build();
+                    let _ = if door == "mass_properties" {
+                        let finished =
+                            topo::test_support::finished("the built body", body, Tol::witness());
+                        topo::mass_properties(&finished, Tol::witness(), resolution()).is_err()
+                    } else {
+                        topo::validate_geometric(&body, Tol::witness()).is_err()
+                    };
+                });
+                contradiction::check(&decisions).expect("inside the session")
+            });
+            println!("{name} {door}: {report:?}");
+            assert!(
+                report.checked > 0 && report.absent == 0,
+                "{name} {door}: the instrument must have asked something it could read: {report:?}"
+            );
+            assert!(
+                report.contradictions.is_empty(),
+                "{name} {door}: the two channels contradict: {report:?}"
+            );
+        }
+    }
 }

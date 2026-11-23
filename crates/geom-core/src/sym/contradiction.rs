@@ -34,9 +34,10 @@
 //!   root is looked up: a margin minted in the session over operands
 //!   minted before it is `checked`, its operands read as unknowns, so it
 //!   is a frozen walk of the first kind;
-//! - a decision a [`super::aside`] discarded, which the record no longer
+//! - a decision a [`aside`](crate::sym::aside) discarded, which the record no longer
 //!   holds;
-//! - a retry attempt the cap withheld ([`Report::withheld`]);
+//! - a retry attempt the cap withheld
+//!   ([`Report::withheld`](crate::sym::contradiction::Report::withheld));
 //! - and what no test hands it. The corpus lane (`editor-core`'s
 //!   `contradiction_corpus`) asks the five measured documents over their
 //!   analyzed boxes and the slab's drives leaf by leaf; the measured

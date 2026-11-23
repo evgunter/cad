@@ -116,12 +116,8 @@ use crate::m10_9_pins_interval::measured_studies;
 /// 2,025 recorded decisions answer as on the merge base, each with its
 /// outcome, its 64 blocked residuals the same predicates.
 ///
-/// Then a definite numeric sign stopped asking the tier anything (the
-/// check that walked every definite margin's forms became a test
-/// instrument). Frozen only, and those are the check's own freezes: the
-/// link `2600 → 2175`, the bracket `57 → 53` and the pad `1967 → 1307`,
-/// the plate and the annulus unmoved; no symbolic or numeric count
-/// moves, at all three ε rows.
+/// The frozen column is the decisions' own walks: a definite numeric
+/// sign walks none.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
     ("two_hole_plate", [979, 1047, 36]),
     ("r1_annulus", [511, 548, 36]),

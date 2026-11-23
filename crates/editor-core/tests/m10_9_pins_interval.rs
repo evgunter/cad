@@ -952,10 +952,8 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
     // (PR 7088), so the count does not move. Then the carriers held their
     // frames as rigid motions, minted from the sketch frame and read as
     // stored: 2773 -> 1967 frozen, the decisions holding
-    // (`sym11_exact_channel_rows`' `PAST_THE_CEILING`). Then a definite
-    // numeric sign stopped asking the tier anything: 1967 -> 1307
-    // frozen, the freezes of the check that walked every definite
-    // margin's forms, the decisions holding.
+    // (`sym11_exact_channel_rows`' `PAST_THE_CEILING`). The frozen count
+    // is the decisions' own walks': a definite numeric sign walks none.
     assert_eq!(got[0], (1483, 1709, 1307), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],

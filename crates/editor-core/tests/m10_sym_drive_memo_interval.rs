@@ -401,7 +401,7 @@ struct Racing {
     /// reads every face's boundary, so the slab's refused leaves all
     /// need one amount whichever door refused them, and a certified
     /// leaf needs the whole frozen set: two values on a drive that
-    /// certifies. The 8-leaf race shows two, and its floor is one.
+    /// certifies, which each of these does.
     min_distinct: usize,
 }
 
@@ -410,25 +410,10 @@ struct Racing {
 /// reviewer's, whose twelve certify two; and a wider drive that
 /// certifies eight. No arm compares an empty `certified()` list.
 ///
-/// The last two ran at a budget of 8 terms and degree 5 (they were
-/// 16/6 and 512/32): under INTENT stage 3 D's placement solve
-/// nothing on the slab freezes above 8/5 (measured: 10/4, 12/5, 12/6, 16/5, 16/6 and 512/32 freeze
-/// nothing), and a drive that freezes nothing has no column to race.
-/// At 8/5 they certified the same one and four leaves. They run at 8/3
-/// since the sweeps stopped fitting planes to their corners: the slab
-/// freezes nothing at 8/5, and at 8/4 (and 6/4, 10/4, 16/4) every leaf
-/// needs the same 36; at 8/3 they certify the same one and four leaves
-/// and the certified leaves need 95 where the refused need 79.
-///
-/// Since a definite numeric sign asks the tier nothing, the slab freezes
-/// nothing at 8/4 (the race's budget then): every freeze there was the
-/// check's that walked each definite margin's forms. All three run at
-/// 8/3, where the decision path's own walks freeze 204 nodes, the
-/// certified leaves need 108 and the refused 60. They certify more than
-/// they did (the race 0 → 1 at 8/4, the second reviewer's 1 → 2 and the wide
-/// drive 4 → 8 at 8/3). Inferred, not traced: the check's freezes,
-/// published to the drive's memo, were forms a later leaf's decision
-/// read frozen.
+/// All three run at 8 terms and degree 3, the budget at which the
+/// decision path's own walks freeze on the slab (204 nodes, the certified
+/// leaves needing 108 and the refused 60): a drive that freezes nothing
+/// has no column to race, and at 8/4 the slab freezes nothing.
 const RACING: [Racing; 3] = [
     Racing {
         label: "race",
@@ -436,7 +421,7 @@ const RACING: [Racing; 3] = [
         terms: 8,
         degree: 3,
         certifies: true,
-        min_distinct: 1,
+        min_distinct: 2,
     },
     Racing {
         label: "race (the second reviewer's)",

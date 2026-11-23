@@ -9,8 +9,8 @@
 //! CAUSE the ring or the budget refused for, noted at the refusal site
 //! itself ([`FreezeCause`]) rather than re-derived afterwards. Per walk
 //! ([`Walk`]) and per ORIGIN ([`Origin`] — the decision's own discharge,
-//! the contradiction check on a definite sign, or the shape
-//! report's rendering): how many forms each built and the wall time it
+//! the test instrument's walks after a build, or the shape report's
+//! rendering): how many forms each built and the wall time it
 //! took. For the coefficient ring: every `Rat` operation, every one
 //! that left the `i128` inline path, and the widest coefficient any
 //! form carried. Inside the early walk: the per-node rule A/B reduction
@@ -64,7 +64,8 @@ pub enum FreezeCause {
     Unnoted,
 }
 
-/// The normal-form walks (`plain_form`, `early_form`, `door_form`), and
+/// The normal-form walks (`plain_form`, `early_form`, and the door's,
+/// `walk` at `WalkKind::Door`), and
 /// the two a RETRY attempt runs in its own memos (`sym::SymRetry`).
 ///
 /// The retry buckets are SEPARATE and not summed into the first
@@ -202,7 +203,7 @@ pub struct FreezeSite {
 pub struct WalkProfile {
     /// Calls to the walk — one per discharge asked of it, memo hits
     /// included, whether the discharge was the decision's, the
-    /// assertion's or the report's ([`Origin`]).
+    /// instrument's or the report's ([`Origin`]).
     pub calls: u64,
     /// Forms the walk put in its memo, frozen ones included.
     pub forms: u64,
@@ -261,7 +262,7 @@ pub struct Timed {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DecisionRecord {
     /// Why the walk was asked — the decision's own discharge, the
-    /// contradiction assertion, or the shape report.
+    /// test instrument, or the shape report.
     pub origin: Origin,
     /// The rung that answered and the ATTEMPT it answered on (0 the
     /// first, `k` the `k`th rung of the retry ladder); `None` where

@@ -742,22 +742,21 @@
 //! the M10-3 slab and the two-hole plate at their nominals; the rows
 //! are `editor-core/tests/m10_sym_profile_interval`, the tables and
 //! the re-run method
-//! `work/sym/symbolic-tier-costs-95-percent-of-the-m10-3-drive`.
+//! `work/tier/symbolic-tier-costs-95-percent-of-the-m10-3-drive`.
 //!
 //! **Who asks for the forms.** The `Decide` impl has two callers of
 //! the walks and only one is the tier deciding: its DECISION path asks
 //! a form only where the numeric channel cannot answer, and the shape
 //! report, when installed, renders blocked residuals through the walks.
-//! A definite numeric sign asks the tier nothing. The test instrument
-//! (`sym::contradiction`, test-only) walks the margins a build decided definite, after
-//! the build, and no shipped build contains it. On the slab at its
-//! nominal the decision path builds 9,686 plain forms in 980 calls and
-//! 36 early forms in 16. The figures below were taken while every
-//! definite margin was also walked by a check (918 plain and 1,958 early
-//! forms on the slab's nominal, 1.57 M of 19.1 M plain forms over the
-//! chamber drive), so they overstate the tier's cost by those walks
-//! (`work/sym/symbolic-tier-costs-95-percent-of-the-m10-3-drive`
-//! re-measures it). The plain walk's freezes are the drive's frozen SET
+//! A definite numeric sign asks the tier nothing; the test instrument
+//! (`sym::contradiction`) walks the margins a build decided definite,
+//! after the build, and no shipped build contains it. The instruction
+//! and form counts below are an UPPER bound on the tier's cost: each
+//! includes a walk of every definite margin (918 plain and 1,958 early
+//! forms on the slab's nominal, 1.57 M of the chamber drive's 19.1 M
+//! plain forms), which no build pays
+//! (`work/tier/symbolic-tier-costs-95-percent-of-the-m10-3-drive` owes
+//! the re-take). The plain walk's freezes are the drive's frozen SET
 //! whoever asked for them ([`SymCounts::frozen`]).
 //!
 //! **The tier's instructions are TERM STORAGE, then the walk itself;
@@ -2415,9 +2414,11 @@ struct Session {
     /// (one memo, the registry in it) charged the registry 40 of 368
     /// zeros that A0 had already proved.
     ///
-    /// Built lazily like the others, and never at all while the
-    /// registry is empty — so a document with no registrants (all of
-    /// straight geometry) pays nothing and serializes M10-8's bytes.
+    /// Built lazily like the others, by a decision the registry-free
+    /// rungs decline (and by the test instrument, after a build), and
+    /// never at all while the registry is empty — so a document with no
+    /// registrants (all of straight geometry) pays nothing and
+    /// serializes M10-8's bytes.
     forms_door: IdMap<Arc<Form>>,
     /// The `f64` bracket of each document parameter this leaf was
     /// evaluated over, by the parameter's indeterminate id — recorded
@@ -3979,17 +3980,12 @@ fn form_in(
             };
             // **Rule E**, after the per-node A/B reduction and before
             // the budget check. AFTER is the order that lets the rule
-            // ACT, and the walk ledger
-            // (`editor-core/tests/m10_sym_profile_interval`) is what
-            // pins it: planted BEFORE the reduction, that ledger reds
-            // in four lines — the slab's `Early/Assertion` digest, and
-            // on the plate `Early/Decision` frozen 8 → 48 with its
-            // digest, `Early/Assertion`'s digest and `Door/Decision`'s
-            // — with the largest form the walk builds falling
-            // 288 → 90, the plate's early-decision walk back where it
-            // was before the rule. So under the other order the rule
-            // does almost nothing there: this is a REACH requirement
-            // and not only a convention. It is also the order
+            // act on what the reduction leaves, and the walk ledger
+            // (`editor-core/tests/m10_sym_profile_interval`) pins it:
+            // planted BEFORE the reduction, the plate's
+            // `Early/Decision` digest reds (the same 308 calls build the
+            // same 24,376 forms, none frozen, with other contents) and
+            // the slab's lines hold. It is also the order
             // `trig::sqrt_atom` applies to a form it builds by hand,
             // which is what makes the two spellings of one arc key one
             // atom.
@@ -4586,8 +4582,9 @@ fn discharge_in(id: SymId, path: Path) -> Option<(Rung, u8)> {
 }
 
 /// **The ladder**: the plain rung once, then the rungs of the first
-/// attempt, then — only into their silence, and on the decision path
-/// only — each retry's rungs in [`SymRetry::attempts`]'s order.
+/// attempt, then — only into their silence — each retry's rungs in
+/// [`SymRetry::attempts`]'s order. Both paths climb it; the door rung is
+/// the decision path's alone ([`rungs`]).
 fn ladder(sess: &mut Session, id: SymId, path: Path) -> Option<(Rung, u8)> {
     // **THE PLAIN RUNG, and the first attempt's alone.** No attempt
     // above the first builds a plain form ([`SymRetry`]).
@@ -4731,10 +4728,16 @@ fn count_decision(proven: bool) {
 #[derive(Clone, Copy, Debug)]
 pub struct Sym<T> {
     /// The numeric channel — the value a plain `T` run would carry.
-    /// Written only by this module's constructors, each from the op it
-    /// mints (and [`Decide::free_identity`], from its caller's reading),
-    /// so the number is its expression's evaluation: what the enclosure
-    /// check in [`Decide::sign_within`] stands on.
+    /// Private, so it is written only by this module's constructors,
+    /// each from the op it mints (and [`Decide::free_identity`], from
+    /// its caller's reading): no code outside `sym.rs` can pair a node
+    /// with a number of its choosing. That is all privacy gives. It does
+    /// not make the number its expression's evaluation: [`Sym::param`]
+    /// binds one symbol at whatever value each call is handed (two calls
+    /// at two values are one symbol at two numbers), and an opaque minted
+    /// before a session can share a node with one the session mints.
+    /// The enclosure check on a proven zero (`discharge_checked`) stands
+    /// on the number being the expression's wherever neither happens.
     value: T,
     node: SymId,
 }

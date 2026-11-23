@@ -324,13 +324,8 @@ fn eps_row(eps: f64) -> usize {
 /// `Plain/Assertion` 2572 → 2554, `Early/Assertion` 3001 → 2878), with
 /// their digests; `Early/Decision` does not move.
 ///
-/// **Moved when a definite numeric sign stopped asking the tier
-/// anything**: the two `Assertion` lines go (the check that walked every
-/// definite margin's forms is a test instrument), and the decision's own
-/// walks build the forms of the nodes they share with those margins,
-/// which the check had built first: `Plain/Decision` 7727 → 7924 forms
-/// and `Early/Decision` 38 → 94 over the same calls, with their digests,
-/// at every ε row.
+/// **No `Assertion` line**: a definite numeric sign asks the tier
+/// nothing, so every walk on the slab is a decision's.
 const SLAB_LEDGER: [&str; 3] = [
     "\
      Plain/Decision calls 936 forms 7924 frozen 0 digest a107014cdebb696cbf0b7ccb2044bfe7\n\
