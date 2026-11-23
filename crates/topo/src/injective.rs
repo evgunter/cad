@@ -9936,6 +9936,94 @@ mod presentation_rows {
         assert_eq!(chart(&s, &b, &[0, 1, 2], BELOW.0, BELOW.1), Read::Local);
     }
 
+    /// **Two rulings through a cone's apex are not one line**: on
+    /// opposite nappes, the one ending at the apex's vertex and the other
+    /// beginning there by key, their rows holding `u = 0.5` and `u = 1`.
+    /// The face is on opposite sides of the two, so no joint is read, and
+    /// each cell at the apex's height reads as it does with no joint at
+    /// all: the one on the face side of both is not presented, and the
+    /// one between them, which neither line reaches, keeps its cell. Red
+    /// if a joint through the apex makes the two one line (the first
+    /// cell would then present, the second be clipped or read empty).
+    #[test]
+    fn rulings_joined_through_an_apex_are_not_one_line() {
+        let s = Surface::Cone {
+            frame: geom::Frame::new(
+                origin(),
+                Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+            ),
+            half_angle: iv0(core::f64::consts::FRAC_PI_4),
+        };
+        let b = Boundary {
+            sense: true,
+            edges: vec![
+                rim(1, [1, 9], Axis::U, 0.5, (0.5, -0.5), (0.5, 0.0)),
+                rim(2, [9, 2], Axis::U, 1.0, (1.0, 0.0), (1.0, 0.5)),
+            ],
+            vertices: BTreeMap::new(),
+            extent: Some([(0.0, 1.0), (-0.5, 0.5)]),
+            outer: None,
+        };
+        let v = (-0.05, 0.05);
+        assert_eq!(chart(&s, &b, &[0, 1], (0.3, 0.45), v), Read::Local);
+        assert_eq!(
+            chart(&s, &b, &[0, 1], (0.6, 0.7), v),
+            Read::Of((0.6, 0.7), v)
+        );
+    }
+
+    /// **A side stopped at a corner by a line of two joined edges**: the
+    /// rectangle's left edge, shared, ends at the corner `(1, 0)`; the
+    /// bottom line is two edges joined at `u = 1.05`, their stored ends
+    /// an ulp apart, inside the cell. The cell at the corner presents
+    /// with the left edge as its zero side, stopped at the corner's
+    /// vertex, and the bottom covered across its joint: the corner's
+    /// stop is read off the one-edge side and the joint off the
+    /// two-edge line, and neither reads the other's clip. Red if the
+    /// joined line does not cover its side, or if the corner is not
+    /// recorded against it.
+    #[test]
+    fn a_side_stopped_at_a_corner_by_a_line_of_two_joined_edges() {
+        let joint = 1.05;
+        let b = unit_face(vec![
+            rim(1, [4, 1], Axis::U, 1.0, (1.0, 1.0), (1.0, 0.0)),
+            rim(2, [1, 5], Axis::V, 0.0, (1.0, 0.0), (joint, 0.0)),
+            rim(
+                3,
+                [5, 2],
+                Axis::V,
+                0.0,
+                (f64::from_bits(joint.to_bits() + 1), 0.0),
+                (2.0, 0.0),
+            ),
+        ]);
+        let (s, local) = (
+            cylinder(),
+            Local {
+                edges: vec![0, 1, 2],
+                vertices: Vec::new(),
+            },
+        );
+        let piece = Piece {
+            face: FaceKey::default(),
+            surface: &s,
+            whole: false,
+            boundary: &b,
+            u: (1.0, 1.1),
+            v: (0.0, 0.1),
+            local: &local,
+            ball: Ball::holding(origin(), origin()),
+        };
+        let Ok(Presentation::Of(p)) = present_chart(&piece, &[0], &[], band()) else {
+            panic!("the corner cell presents")
+        };
+        let Zero::Side(Side::XLo, along) = &p.zero else {
+            panic!("the left edge is the zero side: {:?}", p.zero)
+        };
+        assert_eq!(along.stops, vec![vertex(1)]);
+    }
+
     /// **Edges that share no vertex are not joined**: the two edges end
     /// at two vertices, an ulp apart, so the face may come through
     /// between them, and neither cell is read. Where their stored ranges
