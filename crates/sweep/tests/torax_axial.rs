@@ -567,8 +567,8 @@ fn lune(r: f64, turn: f64) -> Body<f64> {
 ///
 /// **The old door, verbatim (measured at the unit's head before the
 /// window was read forward):** `ShellError::Face { face: FaceKey(1v1),
-/// error: Op { edge: None, error: RechartFalsifies { edge:
-/// EdgeKey(2v1), error: IntervalNotForward { verdict: Negative {
+/// error: Op { edge: None, error: DescriptionUncertified { edge:
+/// Keyed(EdgeKey(2v1)), error: IntervalNotForward { verdict: Negative {
 /// margin: −0.7068583470577036 } } } } }` — the span `−π·r′` of a rim
 /// whose inner-equator end `param_on` read on `atan2`'s branch cut. One
 /// door earlier it was the equator seams' re-author
