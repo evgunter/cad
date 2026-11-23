@@ -552,19 +552,21 @@ fn holds_until_parting(
 }
 
 /// `plate_param` under the apart move, to the ray-schedule gate's exact
-/// zero it parts at. Its floor sits one under the margins it moves: 1993
-/// -> 1989 when validation stopped reading an adjacent line pair's shared
-/// vertex (`profile::seg`'s `line_line`). The four corners, on both
-/// builds, lost 16 each of `chord_side`, `line_span` and
-/// `contact_at_shared_vertex` (3246 -> 3198 compared), and 4 of those 48
-/// had moved and re-valued (1994 -> 1990).
+/// zero it parts at. Validation stopped reading an adjacent line pair's
+/// shared vertex (`profile::seg`'s `line_line`): the four corners, on
+/// both builds, lost 16 each of `chord_side`, `line_span` and
+/// `contact_at_shared_vertex`, so 3246 -> 3198 decisions are compared
+/// before the parting, at every ε row. The checks paired do not move.
+/// Fewer of the margins moved and re-valued: at the default ε 1994 ->
+/// 1990 (floor 1993 -> 1989), and at 1e-6 the row reads 1952 (floor 1955
+/// -> 1951). The 1e-12 row still clears its floor.
 #[test]
 fn revalue_plate_param_apart_to_its_parting() {
     holds_until_parting(
         "plate_param",
         (3198, 7228),
         PerRow {
-            at_1e6: 1955,
+            at_1e6: 1951,
             at_1e9: 1989,
             at_1e12: 1802,
         },

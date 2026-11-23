@@ -490,11 +490,19 @@ const PLATE_MAX_TERMS: usize = 38;
 ///
 /// The pinned lines are main's reading; each move of them, with its
 /// cause, is recorded on the work row that re-pinned it.
+///
+/// Then validation stopped reading an adjacent line pair's shared vertex
+/// (`profile::seg`'s `line_line`), its rectangle's four corners each two
+/// sides, two spans and two coincidences: `Plain/Decision` 979 -> 955
+/// calls (33088 -> 33009 forms), `Early/Decision` 308 -> 300 (22928 ->
+/// 22890), the assertions a few forms more (`Plain/Assertion` 12224 ->
+/// 12247, `Early/Assertion` 12674 -> 12684), and those digests;
+/// `Door/Decision` does not move. The same at every ε row.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 979 forms 33088 frozen 36 digest 2e82fe8fa43fb62fa0d4e6e57e62412f\n\
-     Plain/Assertion calls 1047 forms 12224 frozen 0 digest 60d5dc286b65a810dedda6cba84213dc\n\
-     Early/Decision calls 308 forms 22928 frozen 0 digest a0bc99f42c355fffd211b273bb594e1f\n\
-     Early/Assertion calls 1047 forms 12674 frozen 0 digest 39cefb42a8a949bb6fc643ee9c474a35\n\
+     Plain/Decision calls 955 forms 33009 frozen 36 digest ed0a1960b7099e367a313c33b8620489\n\
+     Plain/Assertion calls 1047 forms 12247 frozen 0 digest c977d4ea3ceb0fe8c179872ce239dddc\n\
+     Early/Decision calls 300 forms 22890 frozen 0 digest cef7831681d7200d44eeba5ff785c322\n\
+     Early/Assertion calls 1047 forms 12684 frozen 0 digest d7412816fab752f51b11276a242f167d\n\
      Door/Decision calls 550 forms 12366 frozen 0 digest 75aa7cd508fc1005ee274141b4e539c1";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
