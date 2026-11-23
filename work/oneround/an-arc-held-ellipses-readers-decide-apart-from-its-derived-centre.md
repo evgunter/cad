@@ -1,7 +1,7 @@
 ---
 id: an-arc-held-ellipses-readers-decide-apart-from-its-derived-centre
 kind: unit
-title: curve_pair::meet answers no meeting for a line or circle through a point of an arc-held ellipse
+title: Readers of an arc-held ellipse decide from its derived centre with no charge: curve_pair::meet misses, the plane door says Miss for the ellipse's own plane, on_carrier says Off inside the gap
 status: dispatched
 opened: 2026-11-23
 priority: P0
@@ -85,10 +85,58 @@ What PR 7203 changed is where the stored curve stands, not what `meet` answers. 
 
 Through the public door `curve_pair::meet` it is a wrong answer. Through the modelling doors probed so far no body is built on it: `topo::splitting::split` of a frustum toward the parabola builds sections up to `a` of 1.1e5 to 6.1e5 at ε 1e-9 (1.1e2 at 1e-12) and refuses beyond, on `VolumeUncomputable` and then on the edge certificate's `KernelLimit`, which stops the carrier at about the size where a reading from its centre would reach ε. That limit is not a re-read of anything `meet` answers; a door minting such an edge without it would have nothing behind it. **Not probed:** the boolean's own mint (`boolean::join` calls `plane_cone_section` too) and `factored_crossing`. The band stays P0 until that path is shown closed.
 
+## Two more of the class (2026-11-23, the lane's sweep; `origin/main` at `2130aa45f`, public API)
+
+**A. The plane door answers `Miss` for the ellipse's own plane.** `geom_brep::curve_face::plane_crossing::plane_crossing_lane(&carrier, t0, t1, e.point_at(0.0), e.frame().axis(), band)`, the plane through the ellipse's stored point with its stored axis:
+
+| ε | answer by semi-axis |
+|---|---|
+| 1e-9 | 1e4 to 1e7 `InPlane`; 1e8 `Roots(Err(PlaneParallel))` (escalates); 1e9 **`Miss`** |
+| 1e-12 | 1e4 to 1e6 `InPlane`; 1e7, 1e8, 1e9 **`Miss`** |
+
+`Miss` is documented "the carrier definitely never meets the plane", and the plane's origin is a point of the carrier (the anchor's own bits). Cause, by the lane's reading: `curve_face::pose::plane_conic` decides `curve_face_pose_belly_graze` on `r − |d0|` bare, with `d0 = plane_offset(origin, normal, k.frame().origin())` from the derived centre (`curve_pair::pose::height`); with the plane parallel, `r` ≈ 0 and `d0` is the centre's rounding along the normal, about 1e-16·a, read as a definite gap. Callers that act on it: `topo::boolean::slit` maps everything but `InPlane`/`PlaneParallel` to `Placed::Off`; `boolean::reduce` and `factored_crossing` read `Miss` as no crossing.
+
+**B. `Curve3::on_carrier` answers `Off` inside the band's gap.** `q = e.point_at(θ) + axis·δ`, `carrier.on_carrier(q, θ, band)`: at δ = 0 and 0.5 ε it answers `On` and at 30 ε `Off`, both right at every size. At δ = 5 ε, inside the gap where neither verdict is decidable:
+
+| ε | answer by semi-axis |
+|---|---|
+| 1e-9 | 1e4 to 1e7 refused (right); 1e8, 1e9 **`Off`** |
+| 1e-12 | 1e4 refused; 1e5 to 1e9 **`Off`** |
+
+`OnCarrier::Off` is "definitely past the band from the whole carrier". Cause, by the lane's reading: `Curve3::clearance`'s ellipse arm (`geom/src/curves/on_carrier.rs`) reads `e.frame().in_plane(q)` and `e.frame().height(q)` about the derived centre, and `Foot::on_carrier` decides `curve_carrier_clear` on it bare, so the lower bound on the distance carries the centre's rounding as if it were distance.
+
+```rust
+use geom::{Conic, Curve3, Ellipse};
+use geom_brep::curve_face::plane_crossing::plane_crossing_lane;
+use geom_core::{Band, Point3, Tol, Vec3};
+#[test]
+fn the_centre_readers_decide_on_the_centres_rounding() {
+    let band = Band::linear(Tol::witness()).unwrap();
+    let (eps, a) = (band.zero(), 1e7); // a = 1e9 at eps 1e-9
+    let e = Ellipse::anchored(
+        Point3::new(1.3, -0.7, 0.4),
+        Vec3::new(0.5522240050794545, 0.3110026418424273, 0.7735153553621528),
+        Vec3::new(0.6816514125372342, -0.702621773621506, -0.20414209516648582),
+        a, 0.3 * a);
+    let theta = 0.3 / (0.3 * a);
+    let (p, n) = (e.point_at(theta), e.frame().axis());
+    let carrier = Curve3::Ellipse(e);
+    let half = 10.0 / (0.3 * a);
+    // A: prints Conic(Miss); the plane holds the carrier's own stored point
+    println!("{:?}", plane_crossing_lane(&carrier, theta - half, theta + half, e.point_at(0.0), n, band));
+    // B: Ok(Off) for a point 5 eps from the arc, inside the gap
+    assert!(!matches!(carrier.on_carrier(p + n * (5.0 * eps), theta, band), Ok(geom::OnCarrier::Off)));
+}
+```
+
+Not traced: which built results these two reach. Through `split` a far-section body builds only to a semi-axis of about 6e5 m at 1e-9, below where either goes wrong.
+
 ## The unit
 
 `oneround/conic-pair-readers`, stacked on `oneround/conic-readers` (PR 7510). **Letter H; tier single, a FULL review**: the fix is in the certified lane of `curve_pair`, where a reading moved to another datum changes what each margin is measured against, and believing it takes more than reading it.
 
 Every reading of where a conic is that `curve_pair` makes (`pose.rs`, `pose/window.rs`, `walk.rs`, `on_surface.rs`; the gate's list for those files) is read from the point the conic stores, through the conic: a point's height over the conic's plane; a line's or a plane's height along the conic as a first harmonic about the stored point; a foreign point's parameter and level. Nothing outside `conic.rs` learns the placement. Where a reading stays on the derived centre, its verdict is metered for the centre's rounding, so it refuses and cannot certify. The direction is the one three designers signed for the whole family (`analysis/design-fork/conic-reader-interface`): the readings this unit adds to `Conic` are what that design's position would later answer, and no more.
 
-Acceptance: the reproduction above as a row, and the lane's ladder (`a` from 1e4 to 1e9, fat and thin, line and circle doors, near the anchor and far from it) at 1e-9 and 1e-12 against the 60-digit oracle: no pose certified wrongly, and every refusal that remains named and metered. A differential against the base: every verdict that moves, judged against the oracle.
+**Extended on the 23rd to the two readers above** (`curve_face::pose::plane_conic`'s belly graze, which reads `curve_pair::pose::height`; `Curve3::clearance`'s ellipse arm in `geom/src/curves/on_carrier.rs`) **and to any further reader the lane's sweep table marks as answering wrongly**: each re-posed from the stored point through the conic, or metered so that it refuses.
+
+Acceptance: the reproductions above as rows, and the lane's ladder (`a` from 1e4 to 1e9, fat and thin, line and circle doors, near the anchor and far from it) at 1e-9 and 1e-12 against the 60-digit oracle: no pose certified wrongly, and every refusal that remains named and metered. A differential against the base: every verdict that moves, judged against the oracle.
