@@ -107,7 +107,7 @@ fn a_document_round_trips_through_save_and_open() {
 /// use, so the fields that reset owns are covered at both doors and
 /// not at one. `frame_policy.rs` already holds the landed half for
 /// this door; what is new here is the selection, the hover and the
-/// range probe, which nothing asserted `Open` drops.
+/// `range?` reading, which nothing asserted `Open` drops.
 #[test]
 fn opening_a_document_drops_what_the_previous_one_answered() {
     let tol = Tol::witness();

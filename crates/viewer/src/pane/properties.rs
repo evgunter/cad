@@ -703,13 +703,13 @@ impl ViewerBehavior<'_> {
     /// The grouping is [`crate::props::SlotGroup`]'s and the vocabulary's (see
     /// its docs); this function only lays it out. What the two arms
     /// share — the value field (numbers AND expressions, one widget),
-    /// the gesture mapping, the driven affordance, the range probe —
+    /// the gesture mapping, the driven affordance, `range?` —
     /// is called once per COMPONENT, so a component of a vector is
     /// edited by exactly the operations a stand-alone slot is.
     ///
     /// **Three lines per group at most, whatever its arity.** Folding
     /// three slots onto one line buys nothing if their doors then take
-    /// three lines each, so the range probe is a single line of small
+    /// three lines each, so `range?` is a single line of small
     /// buttons tagged by axis rather than a stacked block per
     /// component.
     pub(crate) fn slot_group_ui(
@@ -816,7 +816,7 @@ impl ViewerBehavior<'_> {
 
     /// **The doors under a row of a profile editor's held fields**
     /// (`pane::profile`'s `held_field`), each tagged by its field's
-    /// name: one line of range probes and naming buttons
+    /// name: one line of `range?` and naming buttons
     /// ([`Self::tagged_doors`], the vector group's), then each slot's
     /// notes ([`Self::slot_notes_ui`]): its expression, its range
     /// reading, its offer and its naming field. Each row is the
@@ -1289,7 +1289,7 @@ impl ViewerBehavior<'_> {
 /// Which tagged door a line of them offers ([`ViewerBehavior::tagged_doors`]).
 #[derive(Clone, Copy, Debug)]
 enum SlotDoor {
-    /// The range probe.
+    /// `range?`.
     Range,
     /// The naming button.
     Name,

@@ -570,11 +570,6 @@ const READERS: [(&str, usize, &str); 15] = [
          that has none",
     ),
     (
-        "crates/viewer/src/bounds.rs",
-        4,
-        "collects the failed nodes a bounds verdict names, poisoned ones deliberately not",
-    ),
-    (
         "crates/viewer/src/tree.rs",
         8,
         "the tree row renders a failed node's own error and links the node its error names \

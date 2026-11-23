@@ -734,7 +734,6 @@ test_utils::f6_variants! {
         DrivenByExpression,
         NoSuchSlot,
         NoSuchVariable,
-        VariableIsDefined,
         NotOffered,
         OfferIsNamed,
         ConstantRefused,

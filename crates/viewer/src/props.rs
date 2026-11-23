@@ -74,7 +74,7 @@
 //!
 //! Dragging a slot that is DRIVEN — by a document variable or by
 //! arithmetic — is refused, with an affordance (G4's micro-decision,
-//! which names a drag); a range probe of one is refused the same way.
+//! which names a drag).
 //! A number TYPED there is not refused: it replaces the expression, as
 //! the same number typed with its unit as text does. [`SlotDriver`] is
 //! how a slot says which it is, using only public expression API: a

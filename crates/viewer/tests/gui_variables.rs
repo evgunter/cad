@@ -527,7 +527,7 @@ fn with_defined(session: &mut DocSession) -> VarId {
 /// greys with the same value before the click. Both read today as "not
 /// a continuous parameter": the door does not tell a defined variable
 /// from an absent one
-/// (`work/offer/range-admission-says-a-defined-variable-is-absent`).
+/// (`work/doctail/range-admission-says-a-defined-variable-is-absent`).
 #[test]
 fn range_on_a_defined_or_absent_variable_is_refused_by_the_kernels_admission() {
     let (mut session, _a, _b, _w, _k) = two_extrudes();

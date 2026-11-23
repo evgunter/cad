@@ -273,8 +273,7 @@ fn parse_said(f: &mut core::fmt::Formatter<'_>, error: &ParseError) -> core::fmt
 #[derive(Debug)]
 pub enum Refusal {
     /// The slot is driven by an expression, so a drag over it is
-    /// refused with the affordance G4 ratifies, and so is a range probe
-    /// of it. A typed number is not refused: it replaces the expression
+    /// refused with the affordance G4 ratifies. A typed number is not refused: it replaces the expression
     /// ([`crate::session::SessionOp::SetSlot`]). The payload is what the
     /// affordance needs: which variables drive it (each navigable and
     /// editable), and what the slot evaluates to today.
@@ -302,9 +301,9 @@ pub enum Refusal {
     },
     /// No document variable with that id.
     ///
-    /// A LOOKUP's not-found arm, never a pre-check: the two sites that
+    /// A LOOKUP's not-found arm, never a pre-check: the sites that
     /// raise it need the declaration itself — its dimension to open a
-    /// gesture, its value and unit to seed a range probe — and neither
+    /// gesture, an operand to read — and none
     /// commits an edit, so no door below refuses on their behalf. The
     /// value door does refuse a variable the document does not hold,
     /// and says so in editor-core's words ([`EditError::UnknownVar`],
@@ -324,12 +323,6 @@ pub enum Refusal {
     /// gesture that borrowed the door's frame would report a
     /// refusal of something nobody attempted.
     NoSuchVariable(VarId),
-    /// A value door that reads a FREE variable's value was pointed at a
-    /// defined one: the range probe, which seeds its search from the
-    /// value it would move. A defined variable holds a formula and no
-    /// value of its own, so there is nothing to move; its range is the
-    /// ranges of the variables it reads.
-    VariableIsDefined(SpokenVar),
     /// An offer was accepted ([`SessionOp::SetSlotVariable`]) of a
     /// variable that is not on offer at that slot: the offer closed —
     /// the slot was retyped, dragged, undone — or never named it. An
@@ -672,7 +665,6 @@ impl Refusal {
                 var: var.respoken(doc),
                 source,
             },
-            Self::VariableIsDefined(var) => Self::VariableIsDefined(var.respoken(doc)),
             Self::NotOffered(var) => Self::NotOffered(var.respoken(doc)),
             Self::OfferIsNamed(var) => Self::OfferIsNamed(var.respoken(doc)),
             Self::Display(fault) => Self::Display(fault.respoken(doc)),
@@ -724,7 +716,6 @@ impl Refusal {
             | Self::NoSuchSlot { .. }
             | Self::NoSuchVariable(_)
             | Self::ConstantRefused { .. }
-            | Self::VariableIsDefined(_)
             | Self::NotOffered(_)
             | Self::OfferIsNamed(_)
             | Self::EmptyName
@@ -783,7 +774,6 @@ impl Refusal {
             Self::NoSuchSlot { .. }
             | Self::NoSuchVariable(_)
             | Self::ConstantRefused { .. }
-            | Self::VariableIsDefined(_)
             | Self::NotOffered(_)
             | Self::OfferIsNamed(_)
             | Self::EmptyName
@@ -1078,11 +1068,6 @@ impl Refusal {
             Self::ConstantRefused { var, source } => {
                 write!(f, "the value typed for {var} does not evaluate: {source}")
             }
-            Self::VariableIsDefined(var) => write!(
-                f,
-                "{var} is defined by a formula and holds no value of its own to move — \
-                 probe a variable it reads"
-            ),
             Self::NotOffered(var) => write!(
                 f,
                 "{var} is no longer offered here — type the value again to be offered \

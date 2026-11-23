@@ -10,8 +10,8 @@
 //!   variable, its DECLARATION — remembers, and authored back through
 //!   the same factor (`rendering_unit` / `in_written` / `from_written`),
 //!   at a drag tick in that same unit (`app::FieldWriting`),
-//! * a range probe's reading is written in the unit the SEARCH ran in
-//!   (`BoundsReading`),
+//! * a `range?` reading is written in the unit the variable is declared
+//!   in (`RangeReading`),
 //! * changing the unit and changing the number are separate operations,
 //!   and neither performs the other (`SetSlotUnit` vs `SetSlot`),
 //! * and the ONE value field says the number without the unit, shows a

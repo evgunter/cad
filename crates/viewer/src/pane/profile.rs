@@ -41,7 +41,7 @@ impl ViewerBehavior<'_> {
     /// **Each argument's field is its slot's field** ([`HeldArgs`]):
     /// the slot row's field over the argument as the draft holds it,
     /// and for a kept step the slot row's own doors beside it — the
-    /// unit, the range probe, the name — so the node has no second set
+    /// unit, `range?`, the name — so the node has no second set
     /// of rows for its arguments. An argument an expression drives is
     /// held as that expression, its number the reading, locked; text
     /// typed into any field is an expression the draft holds.
