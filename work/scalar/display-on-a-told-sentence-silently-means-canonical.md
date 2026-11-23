@@ -7,7 +7,6 @@ opened: 2026-11-20
 priority: P2
 cost: M
 parent: patherror-display-renders-float-noise
-rides_with: a-number-in-a-unit-is-rounded-once
 ---
 
 

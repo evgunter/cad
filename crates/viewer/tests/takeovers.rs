@@ -401,7 +401,7 @@ fn a_face_of_a_union_of_the_copy_is_rebound() {
     let (doc, both) = viewer::test_support::inserted(
         &doc,
         Node::Union {
-            members: pncad::document::Bodies::Spelled(vec![
+            members: pncad::document::Bodies::spelled(vec![
                 Operand::Var(c).into(),
                 Operand::Var(d).into(),
             ]),
@@ -1170,7 +1170,7 @@ fn a_split_of_the_body_the_product_reads_re_points_the_slot() {
     let (doc, union) = viewer::test_support::inserted(
         &doc,
         Node::Union {
-            members: pncad::document::Bodies::Spelled(vec![
+            members: pncad::document::Bodies::spelled(vec![
                 read(a_copy).into(),
                 read(b_copy).into(),
             ]),
@@ -1226,7 +1226,7 @@ fn a_split_of_a_body_a_union_operand_reads_re_points_the_operand() {
     let (doc, assemble) = viewer::test_support::inserted(
         &doc,
         Node::Assemble {
-            members: pncad::document::Bodies::Spelled(vec![Operand::Var(body).into()]),
+            members: pncad::document::Bodies::spelled(vec![Operand::Var(body).into()]),
         },
         tol,
     );

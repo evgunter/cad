@@ -1525,7 +1525,7 @@ impl ViewerBehavior<'_> {
         )
         .to_string();
         let notation = *self.notation;
-        let unit = WrittenLength::in_unit(1.0, notation.length).meters();
+        let in_unit = |metres: f64| notation.length.def().quotient(metres);
         let axis_x = if self.session.busy() {
             Err(NoAxis::Evaluating)
         } else {
@@ -1534,7 +1534,7 @@ impl ViewerBehavior<'_> {
                 .and_then(|evaluation| evaluation.value(profile))
                 .ok_or(NoAxis::NoValue)
                 .and_then(profile_x_extent)
-                .and_then(|(lo, hi)| revolve_axis_x(lo / unit, hi / unit))
+                .and_then(|(lo, hi)| revolve_axis_x(in_unit(lo), in_unit(hi)))
         };
         let mut pushed: Option<(&'static str, SessionOp)> = None;
         let mut refused: Option<(FormKind, DimensionError)> = None;

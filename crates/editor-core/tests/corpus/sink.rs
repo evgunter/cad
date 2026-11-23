@@ -44,7 +44,7 @@ use geom_core::predicate::Band;
 
 use crate::fixture::{ang, len, plane_on, revolve_about, scalar_of, scl, value_slot};
 
-use super::{CorpusDoc, PlacePart, Recorder};
+use super::{CorpusDoc, Recorder};
 
 /// The kitchen-sink corpus document.
 pub fn document() -> CorpusDoc {
@@ -137,7 +137,7 @@ pub fn document() -> CorpusDoc {
     });
     let placed_b = r.against(block_a, block_b, &Frame::translation([0.5, 0.0, 0.0]));
     let union = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![block_a.into(), placed_b.into()]),
+        members: editor_core::Bodies::spelled(vec![block_a.into(), placed_b.into()]),
     });
 
     // Split the union with a plane read off its own geometry.
@@ -194,7 +194,7 @@ pub fn document() -> CorpusDoc {
     );
     // One member of the row, read by its index (a STRUCTURAL slot).
     let first = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![editor_core::BodyRead::indexed(
+        members: editor_core::Bodies::spelled(vec![editor_core::BodyRead::indexed(
             linear,
             vec![Formula::count(1)],
         )]),
@@ -348,9 +348,9 @@ pub fn document() -> CorpusDoc {
     // The lone block's copies hang below the world's xy, their tops on
     // it: each slid down the block's height (its `distance`, set to
     // 0.375 above), clear of the union's blocks, which stand on it.
-    r.in_world(circular, &Frame::translation([0.0, 0.0, -0.375]));
+    r.in_world_each(circular, &Frame::translation([0.0, 0.0, -0.375]));
     super::place_halves(&mut r, split);
-    r.place_part(linear);
+    r.place_each(linear);
     r.in_world_by(revolve, crate::fixture::upright_at([-2.0, 0.0, 0.0]));
 
     let bump = value_slot(&r.doc, moved, Coord::slide(TargetAxis::Y));

@@ -80,7 +80,7 @@ fn leaf_labelled(label: &str) -> (ProfileDoc, RecipeNodeId) {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![block.into(), boss.into()]),
+            members: editor_core::Bodies::spelled(vec![block.into(), boss.into()]),
         },
     );
     (fixture::place(doc, union).0, block)

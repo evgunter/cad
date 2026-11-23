@@ -448,7 +448,7 @@ let (doc, resting) = insert(
 // The union glues the rest its margin decides, and records it.
 let (doc, uni) = insert(
     &doc,
-    Node::Union { members: Bodies::Spelled(vec![base.into(), resting.into()]) },
+    Node::Union { members: Bodies::spelled(vec![base.into(), resting.into()]) },
 );
 let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
 let value = ev.value(uni).expect("the union evaluates");
