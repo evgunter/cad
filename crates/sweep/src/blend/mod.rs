@@ -3149,6 +3149,7 @@ mod recourse_tests {
             super::arms::corner_chart(
                 o,
                 [Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0), c],
+                1.0,
                 band,
             )
         };

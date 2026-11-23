@@ -347,7 +347,7 @@ pub(super) fn octant_chart<T: Decide + Bounds>(
     faces: &CornerFaces,
     links: &CornerLinks<'_, T>,
     convexity: super::battery::Convexity,
-    (center, band): (Point3<T>, Band),
+    (center, radius, band): (Point3<T>, T, Band),
 ) -> Result<geom::Frame<T>, BlendError> {
     // The two tokens describe ONE corner. This is the total check:
     // the ends of a single edge share both of its supports and differ
@@ -390,7 +390,7 @@ pub(super) fn octant_chart<T: Decide + Bounds>(
         // also swaps the first two to keep its handedness.
         let foot = |n: Vec3<T>| sided(ball_side(convexity, true), n);
         let (first, second) = if convex { (n_a, n_b) } else { (n_b, n_a) };
-        let frame = corner_chart(center, [foot(first), foot(second), foot(n_c)], band)
+        let frame = corner_chart(center, [foot(first), foot(second), foot(n_c)], radius, band)
             .map_err(corner_frame_refused(links.vertex()))?;
         Ok((score, frame))
     };
@@ -578,6 +578,7 @@ mod tests {
         let mine = CornerFaces::admit(body, vertex).expect("a cube corner is trivalent");
         let at = (
             geom_core::Point3::origin(),
+            0.1,
             geom_core::Band::linear(Tol::witness()).expect("the band"),
         );
         assert!(

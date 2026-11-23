@@ -246,7 +246,7 @@ pub(in crate::blend) fn corner_plan<'a, T: Decide + Bounds>(
             for (foot, &n) in feet.iter_mut().zip(normals.iter()) {
                 *foot = ball.center + n * toward;
             }
-            let frame = octant_chart(body, &faces, &links, convexity, (ball.center, band))?;
+            let frame = octant_chart(body, &faces, &links, convexity, (ball.center, radius, band))?;
             (
                 CornerArcs::Ball(ball.center, radius),
                 feet.map(Foot::At),

@@ -1436,7 +1436,9 @@ impl<T: Real> Ruling<T> {
 ///
 /// **The sign is folded, not branched**: `axis = f_c·sign(f_c·(f_x × f_y))`,
 /// spelled as a positive multiple of `f_c` whose length is the turn
-/// itself, so the frame mint decides it: dependent feet refuse there. It makes `(axis × u_ref)·f_y > 0`, so
+/// levered at the ball's `radius`, `|det|·r`, the margin
+/// `fillet3_corner_independence` decides; so the frame mint decides it
+/// where that predicate does, and dependent feet refuse there. It makes `(axis × u_ref)·f_y > 0`, so
 /// the patch spans `u ∈ [0, θ]` with `θ < π`, bounded by the meridians
 /// through `f_x` and `f_y` and the arc `f_x f_y`, which is the equator
 /// exactly when `f_x, f_y ⊥ f_c` (the iso-rectangle `build`'s octant
@@ -1450,11 +1452,12 @@ impl<T: Real> Ruling<T> {
 pub fn corner_chart<T: Decide>(
     center: Point3<T>,
     feet: [Vec3<T>; 3],
+    radius: T,
     band: Band,
 ) -> Result<geom::Frame<T>, OrthonormalizeError> {
     let [f_x, f_y, f_c] = feet;
     let turn = f_c.dot(f_x.cross(f_y));
-    frame_along(center, f_c * turn, f_x, band)
+    frame_along(center, f_c * (turn * radius.abs()), f_x, band)
 }
 
 /// **The corner ball** of a uniform trihedral vertex: the sphere of
@@ -1519,7 +1522,7 @@ pub fn corner_ball<T: Decide>(
     let foot = |n: Vec3<T>| sided(ball_side(convexity, true), n);
     Ok(CornerBall {
         surface: Surface::Sphere {
-            frame: corner_chart(c, [foot(n1), foot(n2), foot(n3)], band)?,
+            frame: corner_chart(c, [foot(n1), foot(n2), foot(n3)], radius, band)?,
             radius,
         },
         center: c,
