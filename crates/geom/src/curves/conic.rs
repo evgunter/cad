@@ -1288,10 +1288,13 @@ mod tests {
     /// not one of them: it is the mirror image across the tangent at the
     /// anchor. Held at the centre, where no phase exists, all four
     /// patterns on the axis and `u_ref` are restatements: the centre and
-    /// both axis lines are kept by each. Each restatement's point at the parameter its identity
-    /// names is the ellipse's own: bit for bit run back, where `−θ` is
-    /// exact, and to the parameter's rounding through a half turn, where
-    /// `θ + π` is not. Red if a pattern outside the group is a
+    /// both axis lines are kept by each. Each restatement's sum of stored
+    /// point, vectors, sizes and offsets, at the offsets its identity
+    /// gives (both negated a half turn on, the sine's run back, the
+    /// cosine's for both), is the ellipse's point bit for bit, with no
+    /// parameter rounded. Through the evaluator at the parameter itself,
+    /// run back is bit for bit too, `−θ` being exact, and a half turn
+    /// agrees to the rounding of `θ + π`. Red if a pattern outside the group is a
     /// restatement, or one inside is not.
     #[test]
     fn an_ellipses_restatements_are_the_four_exact_ones_of_its_sign_patterns() {
@@ -1359,8 +1362,31 @@ mod tests {
             }
         }
         let [_, half, back, both] = e.restatements();
+        // The position as the evaluator sums it from a statement, at the
+        // offsets `(ku, kv)`: the stored point plus two stored vectors
+        // times two stored sizes times the offsets.
+        let summed = |x: &super::Ellipse<f64>, (ku, kv): (f64, f64)| {
+            x.at.origin() + (x.at.u_ref() * (x.semi_u * ku) + x.at.v_ref() * (x.semi_v * kv))
+        };
         for theta in [-2.9, -0.7, 0.0, 0.3, 1.1, 2.4, 5.0] {
             let p = Conic::point_at(&e, theta);
+            // Term by term at one cosine and sine, with no parameter
+            // rounded: each restatement's sum at its own offsets, the
+            // ellipse's with the signs its identity gives them, is the
+            // ellipse's point to the bit. At `θ + π` both offsets negate;
+            // at `π − θ` the first; at `−θ` the second.
+            let (ku, kv) = super::offsets(theta, (0.6, 0.8));
+            assert!(p.equals_exactly(summed(&e, (ku, kv))), "the sum at {theta}");
+            for (what, r, k) in [
+                ("a half turn on", &half, (-ku, -kv)),
+                ("run back", &back, (ku, -kv)),
+                ("both", &both, (-ku, kv)),
+            ] {
+                assert!(
+                    p.equals_exactly(summed(r, k)),
+                    "{what} at {theta}, term by term"
+                );
+            }
             assert!(
                 p.equals_exactly(Conic::point_at(&back, -theta)),
                 "run back at {theta}"
