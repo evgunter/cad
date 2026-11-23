@@ -46,3 +46,7 @@ Each round: every designer shown the others' latest replies; verbatim replies be
 4. If (b) fails on more than a handful of cells, or (a) or (c) fails and cannot be fixed inside the trigger, the trigger stays out, the unit merges with the foot and corrected wording, the flat cells are a correct `Ok` listed on the parked row, and "refuse or leave flat when a pair split fails" goes to the owner with that row.
 
 Tokens, first report / total: A 218,334 / 255,761; B 136,402 / 163,490; C 128,088 / 155,914.
+
+## The `[ev]` PR
+
+PR 7592 (`tesslane/ev-thin-body`), opened 2026-11-23 17:37Z; the fork-log row's recommendation half is commit `4282b7067d` on it (labels only). To fill in once Ev answers: Ev's decision, the match, the tokens above, and the mapping (bytes 82, 225; A = Fable 5.2, B and C = Opus 5.5, as dispatched).
