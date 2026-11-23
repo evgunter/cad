@@ -524,6 +524,44 @@ pub(crate) fn face_reach_from<T: Decide>(
     Ok(geom_brep::ExtentBall::of_cover_from(Some(&cover), at).lever())
 }
 
+/// **How far `face`'s boundary reaches from `pivot`, from below**: the
+/// farthest of its edges' reaches ([`edge_reach_bounds`], each read from
+/// below), every one a distance to a point of the face, so the fold is
+/// never past the face's own reach from `pivot`.
+///
+/// # Errors
+///
+/// [`BoundaryReachUnread`]: a face that does not resolve, a lone-vertex
+/// loop, null scaffolding on the boundary, or a boundary with no edge.
+pub(crate) fn boundary_reach_below<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    pivot: Point3<T>,
+) -> Result<geom_core::Lever<T>, BoundaryReachUnread> {
+    let view = body.face(face).ok_or(BoundaryReachUnread::StaleFace)?;
+    let mut reaches = view.boundary().map(|member| match member {
+        BoundaryMember::Isolated { .. } => Err(BoundaryReachUnread::LoneVertex),
+        BoundaryMember::Edge { edge, .. } => edge_reach_bounds(body, edge, pivot)
+            .map(geom_brep::LeverBounds::below)
+            .ok_or(BoundaryReachUnread::Uncertified),
+    });
+    let first = reaches.next().ok_or(BoundaryReachUnread::NoEdge)??;
+    reaches.try_fold(first, |far, reach| Ok(far.max(reach?)))
+}
+
+/// Why [`boundary_reach_below`] read no reach.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum BoundaryReachUnread {
+    /// The face does not resolve.
+    StaleFace,
+    /// A loop of the face is a lone vertex.
+    LoneVertex,
+    /// A boundary edge is null scaffolding, with no certified curve.
+    Uncertified,
+    /// The face's boundary holds no edge.
+    NoEdge,
+}
+
 /// **How far `face` reaches from `at` along `axis`**: bounds `(lo, hi)`
 /// on `(x − at)·axis` over the face, its cover's range along `axis`
 /// ([`Cover::range_along`]) read from `at`.

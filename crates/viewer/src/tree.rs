@@ -1575,7 +1575,7 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::Naming(_) => None,
         // The member names the step that refused, not the node to
         // repair: the refusal is the union's.
-        NodeErrorKind::UnionFoldStep { .. } => None,
+        NodeErrorKind::FoldStep { .. } => None,
         // Name no node beside the failing one.
         NodeErrorKind::Expr { .. }
         | NodeErrorKind::PoseRead { .. }
@@ -1820,7 +1820,7 @@ mod picked_name {
             &doc,
             Node::Subtract {
                 from: read(place),
-                tool: read(block_copy),
+                tool: read(block_copy).into(),
             },
         );
         let evaluation = evaluated(&doc);

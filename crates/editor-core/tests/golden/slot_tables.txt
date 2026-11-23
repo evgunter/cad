@@ -55,9 +55,9 @@ Split { target: @0, tool: @1 }
 Mirror { body: @0, plane: @1 }
   @0 Operand(Body)
   @1 Operand(Plane)
-Subtract { from: @0, tool: @1 }
+Subtract { from: @0, tool: Spelled([@1]) }
   @0 Operand(From)
-  @1 Operand(Cut)
+  @1 Operand(Cut(0))
 Union { members: Spelled([@0, @1]) }
   @0 Operand(Member(0))
   @1 Operand(Member(1))
