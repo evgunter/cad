@@ -7401,14 +7401,17 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
             split: Option<(EdgeKey, T, bool, T)>,
         }
         let mut hits: Vec<Hit<T>> = Vec::new();
-        for (_, members, _) in view.boundary_by_loop() {
-            for member in members {
-                let BoundaryMember::Edge {
-                    half: hd, edge: ed, ..
-                } = member
-                else {
-                    return Err(refuse("the sphere face carries a lone-vertex loop"));
-                };
+        // A lone vertex on the meridian would be a hit no arc reads.
+        let lone = || refuse("the sphere face carries a lone-vertex loop");
+        let area = view.area_loops().map_err(|_| lone())?;
+        if !area.lone_rings().is_empty() {
+            return Err(lone());
+        }
+        for (lp, _) in area.cycles() {
+            for crate::live::EdgeMember {
+                half: hd, edge: ed, ..
+            } in lp.edges()
+            {
                 let edge = ed.key();
                 let Some(curve) = ed.certified() else {
                     return Err(corrupt("cut-in: a boundary edge has no carrier"));
@@ -7631,11 +7634,9 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         // The two ends' half-edges in the face's one loop.
         let view = body.proven_face(face);
         let mut ends = [None, None];
-        for (lk, members, _) in view.boundary_by_loop() {
-            for member in members {
-                let BoundaryMember::Edge { he, half, .. } = member else {
-                    continue;
-                };
+        for (lp, _) in view.cycle_loops() {
+            let lk = lp.key();
+            for crate::live::EdgeMember { he, half, .. } in lp.edges() {
                 let start = half.start;
                 for (slot, v) in ends.iter_mut().zip([v_lo, v_hi]) {
                     if start == v {
@@ -11047,11 +11048,11 @@ mod found_on_a_divided_face {
         );
     }
 
-    /// A piece the census cannot read (a lone-vertex ring, which bounds
-    /// no region) may hold the rest: the placement refuses, naming the
-    /// pair. Red when an unread piece is read as not holding.
+    /// A lone-vertex ring bounds no area and is a point of its piece's
+    /// boundary, so the piece is read past it and holds the rest. Red
+    /// where the face door refused the whole piece as a lone loop.
     #[test]
-    fn an_unreadable_piece_refuses() {
+    fn a_lone_ring_leaves_its_piece_read() {
         let tol = Tol::witness();
         let (mut body, top, other) = divided();
         let (x, y) = if holds(&body, other, 1.5, 0.5) {
@@ -11077,19 +11078,14 @@ mod found_on_a_divided_face {
             .unwrap();
         body.kemr(strut.he_plus, strut.he_minus).unwrap();
         let v = lone(&mut body, x, y, 1.0);
-        match carried(&body, v, top, vec![(other, top)]) {
-            Err(BooleanError::CarryRefused {
-                refusal: crate::CarryRefusal::Unread { cells, .. },
-                ..
-            }) => {
-                assert_eq!(
-                    cells,
-                    [Cell::Vertex(v), Cell::Face(other)],
-                    "the refusal names the unread piece"
-                );
-            }
-            got => panic!("{got:?}"),
-        }
+        let got = carried(&body, v, top, vec![(other, top)]);
+        assert!(
+            matches!(
+                got.as_deref(),
+                Ok([ContactKind::VertexFace(held, piece)]) if *held == v && *piece == other
+            ),
+            "the piece holds the vertex: {got:?}"
+        );
     }
 
     /// A vertex a later stage took, as the join takes one: the record's
