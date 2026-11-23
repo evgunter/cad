@@ -4371,7 +4371,8 @@ fn a_support_face_c1_through_a_vertex_at_interval() {
 /// corner radii (so its mirror image is not itself), every edge
 /// filleted, at `f64`: as built, turned about a generic axis, a hundred
 /// units out, 990 units out on each axis (the session box's wall is at
-/// 1000; not asked at ε = 1e-12, where that move does not finish), and
+/// 1000; at ε = 1e-12 that move does not finish, at `shared_row_touch`,
+/// and only that refusal is passed over), and
 /// mirrored across `x = 0`, all `Embedded`.
 ///
 /// **Mirrored across a generic plane it is not**: it reads `Uncertified
@@ -4392,19 +4393,42 @@ fn one_uneven_plate_is_embedded_in_every_rigid_pose_and_its_axis_mirror() {
     for (pose, m) in poses() {
         assert_eq!(door_class::<f64>(&moved(&body, &m)), "Embedded", "{pose}");
     }
-    // At ε = 1e-12 the plate moved 990 units out is not a finished body:
+    // 990 units out. At ε = 1e-12 the moved plate is not a finished body:
     // four edges' `shared_row_touch` reads 1.4e-12, inside the band
     // (`work/band/a-filleted-plate-moved-990-units-out-does-not-finish-at-f64-at-the-tightest-eps.md`),
-    // which is the finish's and not this row's. Said aloud and skipped.
-    if tol().eps() > 1e-12 {
-        let wall = Affine3::translation(Vec3::new(990.0, -990.0, 990.0));
-        assert_eq!(
-            door_class::<f64>(&moved(&body, &wall)),
+    // the finish's and not this row's. Only that refusal, at that ε, is
+    // said aloud and passed over: every finding an edge's certification
+    // naming `shared_row_touch` and nothing else. Any other refusal, or
+    // that one at another ε, fails the row.
+    let wall = Affine3::translation(Vec3::new(990.0, -990.0, 990.0));
+    let rigid = geom_core::test_support::rigid(&wall, tol());
+    let out = topo::transform_rigid(&body, &rigid).expect("the plate moves");
+    match <f64 as topo::AtRestPolicy>::finish(out, tol()) {
+        Ok(out) => assert_eq!(
+            door_class::<f64>(&out),
             "Embedded",
             "990 units out on each axis"
-        );
-    } else {
-        println!("[tangent] the uneven plate 990 units out: not asked at the tightest ε");
+        ),
+        Err(e)
+            if tol().eps().to_bits() == 1e-12_f64.to_bits()
+                && !e.as_slice().is_empty()
+                && e.as_slice().iter().all(|f| {
+                    let read = format!("{f:?}");
+                    let named: Vec<&str> = read
+                        .split("predicate: Some(\"")
+                        .skip(1)
+                        .filter_map(|r| r.split('"').next())
+                        .collect();
+                    matches!(f, topo::ValidationError::EdgeCertification { .. })
+                        && !named.is_empty()
+                        && named.iter().all(|p| *p == "shared_row_touch")
+                }) =>
+        {
+            println!(
+                "[tangent] SKIPPED at ε 1e-12: the uneven plate 990 units out does not finish: {e:?}"
+            );
+        }
+        Err(e) => panic!("the uneven plate 990 units out does not finish: {e:?}"),
     }
     let mirrored = |point, n| {
         let reflection = topo::Reflection::across(point, n, tol()).expect("a plane");
