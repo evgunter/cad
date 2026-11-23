@@ -2161,18 +2161,24 @@ fn a_ball_less_a_half_space_under_its_pole_keeps_no_shared_side() {
 /// cell here meshed with an edge of four triangles; the shared-side cure
 /// (`mesh::trimmed`, `attempt`) keeps every face off such a side.
 ///
-/// **What the cure costs here, a stated cost.** A cylinder face lays no
-/// lattice (`chart_table::AnalyticRow::lattice_rows`), so it is its `n`
-/// boundary points and the `p` points the lane inserts, and holds
-/// `n − 2 + 2h + 2p` triangles (`common::rowless::Count`), which each
-/// face here is held to. On these faces nearly every triangle of the
-/// first triangulation holds a side the face across can make, and the
-/// cure puts a point inside each. Measured on the first pair: `n = 28`
-/// at δ 0.5, 26 sides cured then 4, 86 triangles; `n = 60` at δ 0.1,
-/// 58 then 4, 182; `n = 130` at δ 0.02, 128 then 10 then 2, 408; up to
-/// 2.2 times what the face took when it laid rows, whose nodes kept most
-/// of its triangles off the arcs. The rule that decides such a side is
-/// `work/tesslane/the-mesh-cures-a-side-two-faces-can-both-make-three-ways.md`.
+/// **What this row holds, and what it does not.** Each cylinder face is
+/// held to `n − 2 + 2h + 2p` triangles (`common::rowless::Count`), `p`
+/// read off the patch. The equality is true of any triangulation of the
+/// face's points, whatever inserted them — rows laid again pass it too —
+/// so it holds that the patch is a triangulation of its points, and
+/// neither that the face lays no row nor what the cure costs. "No rows"
+/// is held by the rowless rows (`rowless_cylinders`): `p = 0` on the
+/// walls, `p = 4` on the two-hole cells.
+///
+/// **What the cure costs here: measured, pinned by nothing.** On these
+/// faces nearly every triangle of the first triangulation holds a side
+/// the face across can make, and the cure puts a point inside each.
+/// Measured on the first pair: `n = 28` at δ 0.5, 26 sides cured then 4,
+/// 86 triangles; `n = 60` at δ 0.1, 58 then 4, 182; `n = 130` at δ 0.02,
+/// 128 then 10 then 2, 408; up to 2.2 times what the face took when it
+/// laid rows, whose nodes kept most of its triangles off the arcs. The
+/// cure itself retires with PR 7573's unit; the rule that decides such a
+/// side is `work/tesslane/the-mesh-cures-a-side-two-faces-can-both-make-three-ways.md`.
 #[test]
 fn crossing_rods_keep_no_side_a_neighbour_can_make() {
     for (r, r2, theta, op, deltas) in [

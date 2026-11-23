@@ -17,6 +17,9 @@
 //! with no lattice, the shared-side cure's points and the correction's
 //! ([`common::rowless::count`]). So `p = 0` is "no rows and nothing
 //! refused", and each point the correction adds costs two triangles.
+//! The count does not cover a pinch, or a vertex a loop meets again on
+//! one branch: that is one vertex of the triangulation counted twice in
+//! `n`. No body of these rows has one.
 //!
 //! What the counts come to against the plain wall of the same pipe on
 //! the rectangle lane at the lane's target (half of δ) is measured, not

@@ -183,7 +183,10 @@ pub struct Count {
     pub triangles: usize,
     /// The boundary points the face's loops walk: each traversal of an
     /// edge its chord points but the last, so a seam the loop walks
-    /// twice counts twice, as the trim polygon holds it.
+    /// twice counts twice, as the trim polygon holds it. A pinch, or a
+    /// vertex a loop meets again on one branch, is one vertex of the
+    /// triangulation counted twice here, and [`Count::euler`] does not
+    /// cover it; no body of the rows has one.
     pub n: usize,
     /// The face's inner loops.
     pub h: usize,
