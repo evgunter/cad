@@ -3464,3 +3464,120 @@ fn a_two_ball_union_holds_with_its_poles_read() {
         "on the small ball, whose centre is a bracket: {radius:?} {frame:?}"
     );
 }
+
+// ------------------------------------------------ review probes (clip-vertex)
+
+/// PROBE: the half rod of radius `r` on a block `[x0, r] × [-d, 0] × [z0, z1]`,
+/// off the dyadic grid when the numbers are.
+fn probe_half_rod<T: Scalar>(r: f64, x0: f64, d: f64, z0: f64, z1: f64) -> topo::AtRestBody<T> {
+    use sweep::test_support::{brick, finished, prism_at};
+    let at = T::from_f64;
+    let half = finished(
+        "the half rod",
+        prism_at(
+            vec![
+                (Point2::new(at(-r), T::zero()), T::zero()),
+                (Point2::new(at(r), T::zero()), T::one()),
+            ],
+            T::zero(),
+            at(2.0),
+            tol(),
+        ),
+        tol(),
+    );
+    let block = finished("the block", brick::<T>((x0, r), (-d, 0.0), (z0, z1), tol()), tol());
+    built(topo::union(&half, &block, tol()))
+}
+
+/// PROBE: `b` mirrored across a generic plane.
+fn probe_mirrored<T: Scalar>(b: Body<T>) -> Body<T> {
+    let at = T::from_f64;
+    let refl = topo::Reflection::across(
+        Point3::new(at(0.31), at(-0.17), at(0.53)),
+        geom_core::Vec3::new(at(0.36), at(-0.48), at(0.8)),
+        tol(),
+    )
+    .unwrap();
+    topo::mirror_body(&b, &refl, tol()).unwrap()
+}
+
+/// PROBE: every pose of the wall/vertex row: the PR's three, a mirror,
+/// and a generic-radius build (as built, turned, mirrored).
+#[test]
+fn probe_wall_at_vertex_mid_ruling_in_every_pose() {
+    let builds: [(&str, fn() -> topo::AtRestBody<f64>, fn() -> topo::AtRestBody<Interval>); 2] = [
+        ("dyadic", || half_rod_on_a_block::<f64>(), || half_rod_on_a_block::<Interval>()),
+        (
+            "generic",
+            || probe_half_rod::<f64>(0.7, 0.13, 0.61, 0.3, 1.7),
+            || probe_half_rod::<Interval>(0.7, 0.13, 0.61, 0.3, 1.7),
+        ),
+    ];
+    let mut bad = Vec::new();
+    for (name, bf, bi) in builds {
+        let mut poses: Vec<(String, Body<f64>, Body<Interval>)> = turned_and_far()
+            .into_iter()
+            .map(|(p, m)| (p.to_string(), posed(bf(), m.as_ref()), posed(bi(), m.as_ref())))
+            .collect();
+        poses.push(("mirrored".into(), probe_mirrored(bf().into_body()), probe_mirrored(bi().into_body())));
+        for (pose, float, twin) in poses {
+            let (wall, alone) = wall_and_the_faces_at_a_vertex_alone(&float);
+            let (twin_wall, twin_alone) = wall_and_the_faces_at_a_vertex_alone(&twin);
+            println!("[probe] {name} {pose}: alone {} {}", alone.len(), twin_alone.len());
+            for (f, g) in alone.into_iter().zip(twin_alone) {
+                let a = injective(&float, Some(vec![wall, f]), BUDGET);
+                let b = injective(&twin, Some(vec![twin_wall, g]), BUDGET);
+                println!("[probe] {name} {pose} pair: f64 {} {:?} | Interval {} {:?}", class(&a.verdict), a.receipt, class(&b.verdict), b.receipt);
+                if !(matches!(a.verdict, BoundVerdict::Holds) && matches!(b.verdict, BoundVerdict::Holds)) {
+                    bad.push(format!("{name} {pose} pair"));
+                }
+            }
+            let wf = injective(&float, None, BUDGET);
+            let wi = injective(&twin, None, BUDGET);
+            println!("[probe] {name} {pose} whole: f64 {:?} | Interval {:?}", wf.verdict, wi.verdict);
+            println!("[probe] {name} {pose} door f64: {:?}", embedding(&float));
+        }
+    }
+    assert!(bad.is_empty(), "{bad:?}");
+}
+
+/// PROBE: the near-full ring and the flap mirrored.
+#[test]
+fn probe_ring_and_flap_mirrored() {
+    let float = probe_mirrored(near_full_ring::<f64>().into_body());
+    let twin = probe_mirrored(near_full_ring::<Interval>().into_body());
+    let wf = injective(&float, None, BUDGET);
+    let wi = injective(&twin, None, BUDGET);
+    println!("[probe] ring mirrored: f64 {:?} {:?} | Interval {:?} {:?}", wf.verdict, wf.receipt, wi.verdict, wi.receipt);
+    println!("[probe] ring mirrored door: {:?}", embedding(&float));
+    assert!(matches!(wf.verdict, BoundVerdict::Holds) && matches!(wi.verdict, BoundVerdict::Holds));
+}
+/// **A drum whose splits fall a rounding off its half-circle runs out of
+/// depth**: the same drum at radius 0.7, whose half-annulus cells beside
+/// the disc's half-circle are read by no presentation
+/// (`work/embed/a-cell-whose-side-lies-a-rounding-off-a-curved-edge-reads-local-at-every-depth.md`).
+/// Red when it holds, and that row's reading has landed.
+#[test]
+fn probe_restored_a_drum_of_radius_0_7_runs_out_of_depth_off_its_half_circle() {
+    use crate::common::latitude_seam::ring_on_cap;
+    use sweep::test_support::{corners, revolved_about_y};
+    let (r, h) = (0.7, 2.0);
+    let mut drum = revolved_about_y(
+        corners(&[(0.0, 0.0), (r, 0.0), (r, h), (0.0, h)]),
+        Revolution::Full,
+        Tol::witness(),
+    );
+    ring_on_cap(&mut drum, h, r, r / 2.0);
+    let report = injective(&drum, None, BUDGET);
+    assert!(
+        matches!(
+            report.verdict,
+            BoundVerdict::Refused(EngineRefusal::Budget(_))
+        ),
+        "the drum runs out of depth: {:?} {:?}",
+        report.verdict,
+        report.receipt
+    );
+    assert!(report.receipt.refused > 0, "{:?}", report.receipt);
+}
+
