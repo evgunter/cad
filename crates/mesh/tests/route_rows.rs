@@ -200,26 +200,26 @@ fn no_non_iso_form(body: &Body<f64>, fk: topo::FaceKey) -> bool {
         .all(|h| body.pcurve(h).is_none_or(|c| !c.pcurve().is_non_iso_form()))
 }
 
-/// **A section tilted within the band meshes to main's bytes.** The
+/// **A section tilted within the band meshes to its pinned bytes.** The
 /// ball less a slab turned a few nanoradians: the circle's axis class
 /// lands in the band at the shape door (margin ≈ θ), but the mint stored
 /// each sphere face's section as a projected image, which is no iso
 /// line, so the route sends the face to the trimmed lane without asking
 /// the door. Each cell meshes, passes `check_mesh`, and digests to the
-/// bytes it meshed to on the merge base.
+/// bytes pinned here.
 #[test]
-fn a_section_tilted_within_the_band_meshes_to_mains_bytes() {
-    const MAIN: [(f64, f64, u64); 8] = [
-        (0.3, 2e-9, 0x8f44_f884_2b54_c898),
-        (0.3, 3e-9, 0x0596_3e5f_aff7_827f),
-        (0.3, 5e-9, 0x3a24_2f4d_5df2_2351),
-        (0.3, 8e-9, 0x63f8_de94_5085_4eb9),
-        (0.6, 2e-9, 0x5f5b_7e07_e15f_1436),
-        (0.6, 3e-9, 0x33aa_c942_b3f8_59c6),
-        (0.6, 5e-9, 0x02eb_fa12_532b_212e),
-        (0.6, 8e-9, 0xbb9a_30df_a7b3_36b0),
+fn a_section_tilted_within_the_band_meshes_to_its_pinned_bytes() {
+    const PINNED: [(f64, f64, u64); 8] = [
+        (0.3, 2e-9, 0xe74d_fd3b_9aee_4a4f),
+        (0.3, 3e-9, 0x6498_bc96_c17a_ae04),
+        (0.3, 5e-9, 0xd96b_84f3_db37_6b98),
+        (0.3, 8e-9, 0xb8d5_04c7_722c_3c91),
+        (0.6, 2e-9, 0x992a_1dd8_5fac_89cc),
+        (0.6, 3e-9, 0x0a0f_3a92_b511_90c8),
+        (0.6, 5e-9, 0xe13e_b4ca_24a6_f2f2),
+        (0.6, 8e-9, 0xda7f_9b6b_d4b3_4a4a),
     ];
-    for (x0, theta, want) in MAIN {
+    for (x0, theta, want) in PINNED {
         let body = ball_less_a_tilted_slab(x0, theta);
         let label = format!("x0 = {x0}, θ = {theta:e}");
         assert!(
@@ -232,7 +232,7 @@ fn a_section_tilted_within_the_band_meshes_to_mains_bytes() {
         let mesh = mesh::tessellate(&body, 5e-2, Tol::witness())
             .unwrap_or_else(|e| panic!("{label}: meshes, got {e:?}"));
         mesh::validate::check_mesh(&mesh).unwrap_or_else(|e| panic!("{label}: {e:?}"));
-        assert_eq!(mesh_digest(&body, 5e-2), want, "{label}: main's bytes");
+        assert_eq!(mesh_digest(&body, 5e-2), want, "{label}: the pinned bytes");
     }
 }
 
