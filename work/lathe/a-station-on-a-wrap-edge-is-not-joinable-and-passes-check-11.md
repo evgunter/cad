@@ -30,7 +30,13 @@ Failing on the branch: `sweep`
 `shell7_seam_corner::the_line_arm_carries_a_hand_split_drum_seam_to_its_foot_at_the_direct_door`
 ("a body holding stations is not at rest", `common/stations.rs`) and
 `shell7_r2_probes::p4_split_edge_carries_its_childrens_pcurves` (expects
-`JoinableVertexAtRest`, gets `Ok`).
+`JoinableVertexAtRest`, gets `Ok`). Likely the same cause, not yet
+traced: `two_tubes_in_the_zero_band::a_rod_on_a_puck_with_its_seam_on_the_ruling`,
+where the union's record of the rod's seam lying in the puck's top now
+names the seam's piece between the rim's two touches (`x ∈ [−1, 1]`)
+rather than the rod's whole length, as an edge left split at stations
+on a wrap edge would, and tier 3′ adds an `UnrecordedContact`
+edge–face overlap beside fewer undecided pairs.
 
 ## Exposure
 
