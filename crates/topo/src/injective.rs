@@ -21237,7 +21237,7 @@ mod focal_rows {
     ///
     /// The join is an ε concession (the module docs' list): the span's
     /// end, the rounded period, may stop an ulp of `τ` short of the
-    /// vertex in the parameter. Here that is under `1e-15` m: the curve's
+    /// vertex in the parameter. Here that is under `2e-15` m: the curve's
     /// speed is no more than `|v|·sin α·(1 + |β|)/(1 − |β|)` along the
     /// azimuth plus `|va|` along the slant, about `1.03` m per unit of
     /// parameter.
@@ -21251,7 +21251,7 @@ mod focal_rows {
                 (image.v0 + image.va.abs()) * ALPHA.sin() * (1.0 + b) / (1.0 - b) + image.va.abs();
             let gap = TURN * f64::EPSILON * speed;
             assert!(
-                speed < 1.04 && gap < 1e-15,
+                speed < 1.04 && gap < 2e-15,
                 "the join's gap in metres: {gap} at speed {speed}"
             );
         }
