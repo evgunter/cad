@@ -47,7 +47,7 @@
 //!
 //! # Curvature lever arms
 //!
-//! [`curvature_lever_arm`] is the local "feature scale" an angular
+//! [`crate::curvature_lever_arm`] is the local "feature scale" an angular
 //! comparison at a point turns on (D4 ¶1: an angle means displacement
 //! only through a lever arm): the smallest local radius of curvature of
 //! the surface at the point. A plane has none — it contributes `+∞`,
@@ -84,7 +84,6 @@ use geom::{Conic, Surface};
 use geom_core::rounding_charge;
 use geom_core::{Mat3, Point3, Real, Rounded, Vec3};
 
-use crate::curvature_arm::curvature_lever_arm;
 use crate::enters::OutwardNormal;
 use crate::harmonic::harmonic_sup_scalar;
 
@@ -411,7 +410,15 @@ pub fn min_radius_of_curvature_toward<T: Real>(
         // the apple's outward where `ρ < R`. Zero on both sides is the
         // bound that holds on either sheet.
         (Surface::Spindle { .. }, _) => T::zero(),
-        _ => curvature_lever_arm(s, p).length(),
+        (
+            Surface::Sphere { radius, .. } | Surface::Cylinder { radius, .. },
+            SurfaceSide::Inner,
+        ) => *radius,
+        (Surface::Cone { .. }, SurfaceSide::Inner) => s
+            .axis_line()
+            .map_or_else(poison, |axis| axis.distance(p)),
+        (Surface::Torus { minor_radius, .. }, SurfaceSide::Inner) => *minor_radius,
+        (Surface::Nurbs(_) | Surface::Approx(_), _) => poison(),
     }
 }
 
@@ -2096,6 +2103,7 @@ mod tests {
     use proptest::prelude::*;
 
     use super::*;
+    use crate::curvature_arm::curvature_lever_arm;
 
     /// An exact dyadic `m·2^k`, for the oracle rows: every `f64` is
     /// one, and sums and products of them are exact.
