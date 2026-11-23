@@ -914,6 +914,7 @@ fn a_stepped_rings_floor_holds_against_its_end_caps() {
 /// The verdict door over every face of `body`, at the default budgets.
 fn embedding<T: Scalar + geom_core::Certifies>(body: &Body<T>) -> topo::clearance::EmbeddingReport {
     let side = Side {
+        excluded: Default::default(),
         body,
         faces: body.faces().map(|(k, _)| k).collect(),
     };
@@ -1389,6 +1390,7 @@ fn a_lunes_cap_pushed_through_anothers_reads_violated() {
 fn a_sphere_faces_poses_are_built_once_per_ask() {
     let body = two_arc_lune::<f64>(0.0, Some(0.05));
     let side = Side {
+        excluded: Default::default(),
         body: &body,
         faces: body.faces().map(|(k, _)| k).collect(),
     };
@@ -1466,6 +1468,7 @@ fn a_lens_of_two_spheres_holds_at_both_scalars_read_in_its_poses() {
         );
         let body = two_ball_lens::<Interval>(dx);
         let side = Side {
+            excluded: Default::default(),
             body: &body,
             faces: body.faces().map(|(k, _)| k).collect(),
         };
@@ -4459,6 +4462,7 @@ fn door<T: Scalar + geom_core::Certifies>(
     max_cell_pairs: usize,
 ) -> topo::clearance::EmbeddingReport {
     let side = Side {
+        excluded: Default::default(),
         body,
         faces: body.faces().map(|(k, _)| k).collect(),
     };
@@ -4539,7 +4543,7 @@ fn a_body_that_does_not_pass_is_told_one_finding_or_another_and_never_that_it_ho
             faces.reverse();
         }
         let report = topo::clearance::embedded(
-            &Side { body, faces },
+            &Side { body, faces, excluded: Default::default() },
             band(),
             Budgets {
                 max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
@@ -4714,6 +4718,7 @@ fn a_metric_bound_reads_a_violation_past_a_refusal() {
         let (top, void) = (faces[0], faces[6..].to_vec());
         let window = |faces: Vec<FaceKey>, which| {
             Side {
+                excluded: Default::default(),
                 body: &plate,
                 faces,
             }
@@ -4834,6 +4839,7 @@ fn notched_rod<T: Scalar>() -> topo::AtRestBody<T> {
 /// The verdict door's answer over every face of `body`.
 fn embedding_of<T: Scalar + geom_core::Certifies>(body: &Body<T>) -> topo::clearance::Embedding {
     let side = Side {
+        excluded: Default::default(),
         body,
         faces: body.faces().map(|(k, _)| k).collect(),
     };

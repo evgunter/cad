@@ -2191,9 +2191,13 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
     s.push((
         "EmbeddingUncertified/Family".to_owned(),
         ValidationError::EmbeddingUncertified {
-            refusal: crate::clearance::EngineRefusal::Budget(crate::clearance::CellBudget::Pairs {
-                max_cell_pairs: crate::clearance::GATE_MAX_CELL_PAIRS,
-            }),
+            refusal: crate::clearance::EngineRefusal::Budget {
+                stop: crate::clearance::CellBudget::Pairs {
+                    max_cell_pairs: crate::clearance::GATE_MAX_CELL_PAIRS,
+                },
+                a: face,
+                b: face,
+            },
             width: crate::clearance::BlockingWidth::Family,
         },
     ));
@@ -2405,15 +2409,19 @@ fn touch_reasons() -> impl Iterator<Item = crate::link::TouchUnread> {
 fn embedding_refusals(face: FaceKey) -> Vec<(&'static str, crate::clearance::EngineRefusal)> {
     use crate::clearance::{CellBudget, CertificateArm, EngineRefusal as R, SharedCell, Which};
     vec![
-        ("Sliver", R::Sliver { predicate: "a" }),
-        ("Depth", R::Budget(CellBudget::Depth { max_cell_depth: 40 })),
+        ("Sliver", R::Sliver { predicate: "a", a: face, b: face }),
+        ("Depth", R::Budget { stop: CellBudget::Depth { max_cell_depth: 40 }, a: face, b: face }),
         (
             "Pairs",
-            R::Budget(CellBudget::Pairs {
-                max_cell_pairs: crate::clearance::GATE_MAX_CELL_PAIRS,
-            }),
+            R::Budget {
+                stop: CellBudget::Pairs {
+                    max_cell_pairs: crate::clearance::GATE_MAX_CELL_PAIRS,
+                },
+                a: face,
+                b: face,
+            },
         ),
-        ("Resolution", R::Budget(CellBudget::Resolution)),
+        ("Resolution", R::Budget { stop: CellBudget::Resolution, a: face, b: face }),
         (
             "Unsupported",
             R::Unsupported {
@@ -2426,6 +2434,8 @@ fn embedding_refusals(face: FaceKey) -> Vec<(&'static str, crate::clearance::Eng
             "WitnessUnverified",
             R::WitnessUnverified {
                 what: "a".to_owned(),
+                a: face,
+                b: face,
             },
         ),
         ("PoisonEnclosure", R::PoisonEnclosure { a: face, b: face }),

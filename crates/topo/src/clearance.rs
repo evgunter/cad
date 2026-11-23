@@ -4364,6 +4364,30 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                         let q = row.pcurve.eval(t);
                         Point2::new(lift.of(q.x), lift.of(q.y))
                     };
+                    if std::env::var_os("CV_TRACE").is_some() {
+                        let head = |s: String| {
+                            s.split([' ', '(', '{']).next().unwrap_or("").to_owned()
+                        };
+                        let ek = halves
+                            .iter()
+                            .find(|(_, h)| h.contains(&row.half_edge))
+                            .map(|(k, _)| *k);
+                        let carrier = ek.and_then(|ek| {
+                            let e = body.edges.get(ek)?;
+                            let c = body.edge_curve_linked(ek, e).certified()?;
+                            Some(head(format!("{:?}", c.carrier())))
+                        });
+                        let (a, b) = (end(t0), end(t1));
+                        eprintln!(
+                            "CVI face={face:?} surface={} edge={ek:?} pcurve={} carrier={carrier:?} t=({:.6},{:.6}) uv0=({:.6},{:.6}) uv1=({:.6},{:.6}) full={:?}",
+                            head(format!("{:?}", f.surface())),
+                            head(format!("{:?}", row.pcurve)),
+                            lift.of(t0).lo(),
+                            lift.of(t1).hi(),
+                            a.x.lo(), a.y.lo(), b.x.lo(), b.y.lo(),
+                            row.pcurve,
+                        );
+                    }
                     images.insert(
                         row.half_edge,
                         (

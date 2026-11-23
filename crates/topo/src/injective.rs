@@ -3869,6 +3869,14 @@ fn beside_curve(
             && vertex_corner(piece, &at_v, near_edges, near_vertices).is_none()
     });
     if unread_corner {
+        if std::env::var_os("CV_TRACE").is_some() {
+            let d: Vec<String> = walls
+                .iter()
+                .filter_map(|&w| b.edges.get(w))
+                .map(|e| format!("{:?}:curved={}:reads={}:ends={:?}", e.key, is_curved(piece.surface, e), reads_curve(piece.surface, e), e.ends))
+                .collect();
+            eprintln!("CVS beside_curve unread_corner face={:?} walls={d:?} local_v={:?}", piece.face, piece.local.vertices);
+        }
         return Unpresented::Structural;
     }
     match curved.iter().find(|&&i| {
@@ -3876,7 +3884,12 @@ fn beside_curve(
             !reads_curve(piece.surface, e) && wall_image(piece.surface, e).is_none()
         })
     }) {
-        Some(&i) => unread(i, near_edges),
+        Some(&i) => {
+            if std::env::var_os("CV_TRACE").is_some() {
+                eprintln!("CVS beside_curve unread-edge face={:?} edge={:?} shared={}", piece.face, b.edges.get(i).map(|e| e.key), near_edges.contains(&i));
+            }
+            unread(i, near_edges)
+        }
         None if curved.is_empty() => unread(first, near_edges),
         None => {
             crate::gate_measure::local_site("L", line!());
@@ -4033,9 +4046,15 @@ fn present_curved<'a>(
         return Err(unread(ei, near_edges));
     };
     let Some(chart) = chart_curve(piece.surface, e, u) else {
+        if std::env::var_os("CV_TRACE").is_some() {
+            eprintln!("CVS present_curved no-chart-curve face={:?} edge={:?} shared={}", piece.face, e.key, near_edges.contains(&ei));
+        }
         return Err(unread(ei, near_edges));
     };
     let Some(image) = Trig::of(piece.surface, &chart) else {
+        if std::env::var_os("CV_TRACE").is_some() {
+            eprintln!("CVS present_curved no-trig face={:?} edge={:?} shared={} chart={chart:?}", piece.face, e.key, near_edges.contains(&ei));
+        }
         return Err(unread(ei, near_edges));
     };
     let Some((carrier, span)) = e.arc.as_ref() else {
@@ -7049,6 +7068,29 @@ fn departure(
     let (sx, sy) = (Poses::of(faces.0), Poses::of(faces.1));
     let px = present(x, &ex, &near.vertices, band, &sx);
     let py = present(y, &ey, &near.vertices, band, &sy);
+    if std::env::var_os("CV_TRACE").is_some() {
+        let d = |p: &Result<Presentation<'_>, Unpresented>| match p {
+            Ok(Presentation::Of(q)) => format!(
+                "Of(zero={} x={:?} y={:?} corner={})",
+                match &q.zero {
+                    Zero::Curve(s, c) => format!("Curve({s:?},past={:?})", c.past),
+                    z => format!("{z:?}").split(['(', ' ', '{']).next().unwrap_or("").to_owned(),
+                },
+                q.x,
+                q.y,
+                q.corner
+            ),
+            Ok(Presentation::Vacuous) => "Vacuous".into(),
+            Err(e) => format!("Err({e:?})"),
+        };
+        let ek = |p: &Piece<'_>, e: &[usize]| -> Vec<EdgeKey> {
+            e.iter().filter_map(|&i| p.boundary.edges.get(i).map(|r| r.key)).collect()
+        };
+        eprintln!(
+            "CVT {:?} u={:?} v={:?} | {:?} u={:?} v={:?} nv={:?} ex={:?} ey={:?} | {} | {}",
+            x.face, x.u, x.v, y.face, y.u, y.v, near.vertices, ek(x, &ex), ek(y, &ey), d(&px), d(&py)
+        );
+    }
     for (p, face, side) in [(&px, x.face, Which::First), (&py, y.face, Which::Second)] {
         if let Err(Unpresented::Collapsed(v)) = p {
             return Outcome::Refuse(EngineRefusal::CollapsedChart {
