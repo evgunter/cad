@@ -598,7 +598,10 @@ pub trait Real:
     /// **At a value scalar** it is read as
     /// `(A² + B² − D²)/(√(A² + B²) + |D|)`, the numerator an exact
     /// expansion of the stored terms rounded once, and `A`, `B` and `D`
-    /// each its exact value rounded once. The numerator is within `2u` of
+    /// each its exact value rounded once. A double-double reading of the
+    /// same terms answers first where its own error bound shows it
+    /// already holds that ([`crate::exact::harmonic_belly_near`]); one
+    /// that cancels is read from the expansions. The numerator is within `2u` of
     /// itself ([`crate::exact::Expansion::estimate`]); `√(A² + B²)` is
     /// within `3u` (each square's `2u` halved by the root, and the
     /// root's `u`); the denominator sums two non-negative terms, `4u`;
@@ -2467,9 +2470,17 @@ impl Real for f64 {
         }
     }
 
-    /// The exact expansions, each rounded once; poison where they cannot
-    /// be exact (the trait's docs).
+    /// The double-double reading where it already holds the belly
+    /// ([`crate::exact::harmonic_belly_near`]), else the exact expansions,
+    /// each rounded once; poison where they cannot be exact (the trait's
+    /// docs).
     fn harmonic_belly(curve: StoredHarmonic<Self>, o: [Self; 3], n: [Self; 3]) -> Self {
+        if !crate::exact::kept_exactly(curve, o, n) {
+            return f64::NAN;
+        }
+        if let Some(belly) = crate::exact::harmonic_belly_near(curve, o, n) {
+            return belly;
+        }
         let Some((squares, parts)) = crate::exact::harmonic_belly(curve, o, n) else {
             return f64::NAN;
         };
@@ -3111,8 +3122,8 @@ mod tests {
         /// `k·far`, held at its centre (`far` from the world origin) or on
         /// its arc at a point by the origin, against a plane grazing it at
         /// any angle round the turn, its normal tilted out of the curve's
-        /// plane, so `√(A² + B²)` and `|D|` are each about `far` and the
-        /// belly is within a metre of zero. Judged exactly on the stored
+        /// plane, so `√(A² + B²)` and `|D|` are each about `far`, and the
+        /// belly from a tenth of `far` down to its last digits. Judged exactly on the stored
         /// data ([`crate::test_support::stored_belly`]): the `f64` value is
         /// within `8u` of the belly, relatively, and the enclosure stated
         /// at points holds it and is no wider than `32u` of it.
@@ -3128,7 +3139,7 @@ mod tests {
             arc_held in any::<bool>(),
             tilt in -1.4f64..1.4,
             across in prop::array::uniform3(-1.0f64..1.0),
-            gap in 1e-3f64..1.0,
+            depth in 1.0f64..16.0,
             below in any::<bool>(),
             slide in -10.0f64..10.0,
         ) {
@@ -3157,6 +3168,9 @@ mod tests {
             let w = n.cross(vec(across));
             prop_assume!(w.norm() > 0.1);
             let w = w.normalize();
+            // From a tenth of the curve's size down to its last digits,
+            // so both the double-double reading and the expansions answer.
+            let gap = far * 10f64.powf(-depth);
             let gap = if below { -gap } else { gap };
             let o = centre + on_arc(graze) + n * gap + w * slide;
             let curve = StoredHarmonic {
