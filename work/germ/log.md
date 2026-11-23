@@ -1838,3 +1838,13 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
     - the estimate proof;
     - the order pin.
   - Filed via the lane: `trace.rs:521`'s cylinder `|d| − radius`.
+- 2026-11-23 11:40 — **PR 7431 fix pass delivered**, frozen at `7f72931e9d` with main merged.
+  - **MAJOR:** P ∩ Q is now read in the spiric's own plane (1/s conditioning instead of 1/s²). A near-parallel row over θ = 1e-2…3e-8 reads 0 wrong and reds on the old formula.
+  - **Minors:**
+    - in-band re-read refuses as Tangency;
+    - typed `InBand{SpiricRegime}` in place of the `unreachable!`;
+    - each surviving mutant is now witnessed, or its code is dropped.
+  - **Rows filed:**
+    - `germ/a-parallel-leg-near-cos-v-minus-r-over-r-reads-touch-against-a-villarceau-edge` (P2, for Ev's eye);
+    - `export/step-imports-one-record-folds-the-sense-bit-by-hand`.
+  - The same reviewer (the drawn arm) is confirming its findings on the new head, as a confirmation of its own findings, not a second review.
