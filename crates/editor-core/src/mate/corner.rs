@@ -218,14 +218,14 @@ pub fn corner_frame_in(
         vertex_at(up).ok_or_else(no_frame)?,
     );
     let edge = solid
-        .edges()
-        .find(|(e, _)| {
-            topo::readback::edge_carrier_ref(solid, *e).is_ok_and(|c| !c.is_curved())
+        .edge_views()
+        .find(|e| {
+            e.certified().is_some_and(|c| !c.carrier().is_curved())
                 && solid
-                    .edge_vertices(*e)
+                    .edge_vertices(e.key())
                     .is_some_and(|(a, b)| (a == from && b == to) || (a == to && b == from))
         })
-        .map(|(e, _)| e)
+        .map(topo::EdgeView::key)
         .ok_or_else(no_frame)?;
     let line = topo::readback::edge_pose(solid, edge).map_err(|_| no_frame())?;
     let read = |def: PoseDef<Operand, Formula>| RoleRead::plain(Operand::Pose(Box::new(def)));

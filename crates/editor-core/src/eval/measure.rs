@@ -468,8 +468,8 @@ pub(crate) fn carrier_of<'b, T: Decide>(
                 return Carrier::Other("an unreadable edge");
             };
             let carrier = body
-                .get_curve_geom(edge.curve)
-                .and_then(|g| g.certified())
+                .edge(k)
+                .and_then(topo::EdgeView::certified)
                 .map(topo::EdgeCurve::carrier);
             match carrier {
                 Some(Curve3::Line(geom::Line { dir, .. })) => Carrier::Line {
