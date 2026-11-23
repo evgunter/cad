@@ -517,13 +517,16 @@ impl Facts {
 
 #[cfg(test)]
 impl Boundary {
-    /// **A fixture's boundary with the runs tier 3 would keep on it**:
+    /// **A fixture's boundary with the facts tier 3 would keep on it**:
     /// the face's run from each of its edges and from each of its
     /// vertices, through the door tier 3 reads them by
     /// ([`geom_brep::BoundaryStations`]) over the fixture's own lifted
-    /// edges and vertices. No class and no singular vertex: a fixture
-    /// that reads one states it ([`Self::with_class`],
-    /// [`Self::with_singular`]).
+    /// edges and vertices; no class; and every vertex of the fixture
+    /// offered as a pole or apex, so that the chart's own reading of
+    /// where a collapse lies decides among them, as it would among the
+    /// vertices check 6 placed. A fixture that reads a class states it
+    /// ([`Self::with_class`]), and one that reads which vertex check 6
+    /// placed states that ([`Self::with_singular`]).
     pub(crate) fn with_runs(mut self) -> Self {
         let stations = geom_brep::BoundaryStations::of_boundary(
             self.edges.iter().filter_map(|e| {
@@ -551,7 +554,12 @@ impl Boundary {
                 .iter()
                 .map(|(&v, &at)| (v, stations.run_from_vertex(at)))
                 .collect(),
-            singular: BTreeSet::new(),
+            singular: self
+                .vertices
+                .keys()
+                .copied()
+                .chain(self.edges.iter().flat_map(|e| e.ends))
+                .collect(),
         });
         self
     }
@@ -565,12 +573,10 @@ impl Boundary {
         self
     }
 
-    /// This fixture with `vertex` a pole or apex of its chart.
-    pub(crate) fn with_singular(mut self, vertex: VertexKey) -> Self {
-        self.facts
-            .get_or_insert_with(Facts::default)
-            .singular
-            .insert(vertex);
+    /// This fixture with `placed` the only poles or apexes check 6
+    /// placed on it.
+    pub(crate) fn with_singular(mut self, placed: &[VertexKey]) -> Self {
+        self.facts.get_or_insert_with(Facts::default).singular = placed.iter().copied().collect();
         self
     }
 }
@@ -12396,7 +12402,9 @@ mod presentation_rows {
     /// ([`present_chart`]): a cell of the octant reaching `v = π/2`, the
     /// pole a vertex the pair shares alone, is presented with the side
     /// `v = π/2` its zero, whether it holds both meridians or neither.
-    /// A cell short of the pole holds no zero and is not presented.
+    /// A cell short of the pole holds no zero and is not presented, and
+    /// neither is the pole's side where the verdict placed no pole at
+    /// that vertex: which vertex is one is the verdict's fact, by key.
     #[test]
     fn a_spheres_pole_is_a_collapsed_side_of_its_chart() {
         let (s, b) = octant();
@@ -12434,6 +12442,29 @@ mod presentation_rows {
         assert!(
             at_pole((0.7, 0.8), (1.4, 1.5)).is_none(),
             "a cell short of the pole"
+        );
+        let unplaced = b.clone().with_singular(&[]);
+        let local = Local {
+            edges: vec![1, 2],
+            vertices: vec![vertex(3)],
+        };
+        let piece = Piece {
+            face: FaceKey::default(),
+            surface: &s,
+            whole: false,
+            boundary: &unplaced,
+            u: (0.7, 0.8),
+            v: (1.5, top),
+            local: &local,
+            ball: Ball::holding(origin(), origin()),
+        };
+        assert!(
+            !matches!(
+                present_chart(&piece, &[], &[vertex(3)], band()),
+                Ok(Presentation::Of(q))
+                    if matches!(&q.zero, Zero::Side(_, a) if a.vertex == Some(vertex(3)))
+            ),
+            "a vertex check 6 placed no pole at is not read as one"
         );
     }
 
@@ -20288,31 +20319,26 @@ mod margin_rows {
         .with_runs()
     }
 
-    /// **The arm is the faces' reach, the least over what the pair is
-    /// near.** Two faces sharing the edges `1` (along `x`, a metre) and
-    /// `2` (along `z`, ten metres) at the origin, the second face
-    /// reaching twenty metres along `y`:
-    /// - near edge `1` alone, its reach from its middle: the second
-    ///   face's far vertex, `√400.25`;
-    /// - near edge `2` alone: that vertex again, `√425`;
-    /// - near both, in either order: the lesser;
-    /// - near the origin alone: the farthest vertex of either face from
-    ///   it, the second face's, twenty;
-    /// - one face against itself reads its own vertices alone, `√26`;
-    /// - near a null edge: no arm.
+    /// **The extent is the narrower face's run, the least over what the
+    /// pair is near.** Two faces sharing the edges `1` (along `x`, a
+    /// metre) and `2` (along `z`, ten metres) at the origin, the second
+    /// face running twenty metres along `y`:
+    /// - near edge `1` alone: the first face runs ten metres from its
+    ///   line (its vertex up `z`) and the second twenty, so ten;
+    /// - near edge `2` alone: the first face runs one metre from it, so
+    ///   one;
+    /// - near both, in either order: the lesser, one;
+    /// - near the origin alone: the first face's farthest station from
+    ///   it, ten, against the second's twenty;
+    /// - one face against itself: its own run;
+    /// - near a null edge: none.
     ///
-    /// Red if the arm is one face's, the first edge's or the greater, if
-    /// a vertex pair is levered at an edge, or if a null edge lends one.
-    ///
-    /// The vertex-alone arm is pinned here by its number only: no row
-    /// takes it through `certify_pair` to a decision, as
-    /// `a_fold_certifies_by_its_sine_at_the_least_reach` takes the edge
-    /// arm. A fixture for it needs two faces presented at a vertex they
-    /// share alone, which `embed/vertex-bisector` and
-    /// `embed/corner-pieces` are re-shaping; the row is theirs to add
-    /// with that presentation.
+    /// Red if the extent is the farther face's, the first edge's or the
+    /// greater, if it is measured from the edge's middle (edge `1` then
+    /// reads `√100.25`), if a vertex pair is levered at an edge, or if a
+    /// null edge lends one.
     #[test]
-    fn the_arm_is_the_faces_reach_the_least_over_what_the_pair_is_near() {
+    fn the_extent_is_the_narrower_faces_run_the_least_over_what_the_pair_is_near() {
         let o = [0.0; 3];
         let edges = [
             (1, Some((o, [1.0, 0.0, 0.0])), [1, 2]),
@@ -20367,23 +20393,20 @@ mod margin_rows {
             let got = got.unwrap_or_else(|| panic!("{what}: an arm"));
             assert!((got - want).abs() < 1e-12, "{what}: {got}, not {want}");
         };
-        close(read((2, &y), &[0], &[]), 400.25_f64.sqrt(), "edge 1");
-        close(read((2, &y), &[1], &[]), 425.0_f64.sqrt(), "edge 2");
-        close(
-            read((2, &y), &[0, 1], &[1]),
-            400.25_f64.sqrt(),
-            "both edges",
-        );
+        close(read((2, &y), &[0], &[]), 10.0, "edge 1");
+        close(read((2, &y), &[1], &[]), 1.0, "edge 2");
+        close(read((2, &y), &[0, 1], &[1]), 1.0, "both edges");
         close(
             read((2, &y), &[1, 0], &[1]),
-            400.25_f64.sqrt(),
+            1.0,
             "both edges, the other way round",
         );
-        close(read((2, &y), &[], &[1]), 20.0, "the vertex alone");
+        close(read((2, &y), &[], &[1]), 10.0, "the vertex alone");
+        close(read((1, &x), &[1], &[]), 1.0, "one face against itself");
         close(
-            read((1, &y), &[1], &[]),
-            26.0_f64.sqrt(),
-            "one face against itself",
+            read((2, &y), &[1], &[]),
+            1.0,
+            "the narrower face is the first",
         );
         assert_eq!(read((2, &y), &[0, 2], &[]), None, "a null edge");
     }
@@ -20476,22 +20499,16 @@ mod margin_reach_rows {
         folded(0.0)
     }
 
-    /// **The arm counts a strip's run along its edge**
-    /// (`work/honeone/the-wedge-reach-counts-a-faces-run-along-its-edge.md`,
-    /// which owes the fix). Two plane strips 4 along their shared edge
-    /// and 0.05 across, folded by nine tenths of the band's zero over
-    /// that width, so their far edges part by less than the zero
-    /// everywhere. The reach, read from the edge's middle, is 2.0006, the
-    /// strips' run along the edge; the sine times it is well past the
-    /// band, and the strip's whole width is signed apart.
-    ///
-    /// This row pins what the code reads, not what it should: a reach
-    /// read as the faces' run away from the edge is 0.05, and at it the
-    /// strip decides nothing. Red when the lever becomes the narrower
-    /// face's run across the edge, read from the verdict
-    /// (`work/embed/the-embedding-question-reads-tier-3s-class-and-the-pairs-extent-from-the-verdict.md`).
+    /// **The extent does not count a strip's run along its edge.** Two
+    /// plane strips 4 along their shared edge and 0.05 across, folded by
+    /// nine tenths of the band's zero over that width, so their far edges
+    /// part by less than the zero everywhere. Each strip runs 0.05 from
+    /// the edge's line, so the extent is 0.05 and the strip decides
+    /// nothing. Levered at the strips' run from the edge's middle,
+    /// 2.0006, the same sine is well past the band and the whole width
+    /// is signed apart: red if the extent is read from the middle.
     #[test]
-    fn the_arm_counts_a_strips_run_along_its_edge() {
+    fn the_extent_does_not_count_a_strips_run_along_its_edge() {
         let phi: f64 = 0.9 * band().zero() / 0.05;
         let (o, e) = ([0.0; 3], [4.0, 0.0, 0.0]);
         let strip = |far: f64, up: f64, ks: [u64; 2]| {
@@ -20521,10 +20538,10 @@ mod margin_reach_rows {
             &piece(2, &s, &y, &local, cell),
             &near,
         )
-        .expect("an arm");
+        .expect("an extent");
         assert!(
-            (arm.length().hi() - 4.002_5_f64.sqrt()).abs() < 1e-9,
-            "the reach is the strips' run along the edge: {:?}",
+            (arm.length().hi() - 0.05).abs() < 1e-9,
+            "the extent is the strips' run across the edge: {:?}",
             arm.length()
         );
         assert!(
@@ -20547,15 +20564,11 @@ mod margin_reach_rows {
             };
             signed(&psi, Some(&on(&[1], &[])), &p, None, Some(arm), band())
         };
+        assert_eq!(read(arm), None, "undecided at the strips' run across it");
         assert_eq!(
-            read(arm),
+            read(fixture_lever(iv0(4.002_5_f64.sqrt()))),
             Some(Sign::Negative),
-            "signed apart at the run along the edge"
-        );
-        assert_eq!(
-            read(fixture_lever(iv0(0.05))),
-            None,
-            "undecided at the strips' run away from it"
+            "signed apart at the run along the edge, which no extent reads"
         );
     }
 
@@ -20570,10 +20583,8 @@ mod margin_reach_rows {
     /// - at `s` fifty times the band's escalation over a thousand, check
     ///   4 reads the smooth class, and the carrier arm still signs it.
     ///
-    /// This row pins the difference as it is. Red when the question
-    /// reads the edge's class from tier 3's verdict in place of deciding
-    /// it at the reach
-    /// (`work/embed/the-embedding-question-reads-tier-3s-class-and-the-pairs-extent-from-the-verdict.md`).
+    /// This row pins the difference as it is. Red when the two read one
+    /// arm.
     #[test]
     fn the_reach_alone_signs_an_edge_check_4_classes_smooth() {
         let r = 1e-3;
@@ -20610,43 +20621,42 @@ mod margin_reach_rows {
                 o: pa([r, 0.0, 0.0]),
                 n,
             });
-            let engine = signed(&psi, None, &p, None, arm(1.0), band());
-            (check4, engine)
+            let engine = signed(&psi, None, &p, None, Some(fixture_lever(iv0(1.0))), band());
+            (check4, engine.is_some())
         };
         let (zero, escalate) = (band().zero(), band().escalate());
         assert_eq!(
             read(50.0 * escalate / r),
-            ("corner", Some(Sign::Positive)),
+            ("corner", true),
             "a plain corner"
         );
         assert_eq!(
             read(0.5 * (zero + escalate) / r),
-            ("in band", Some(Sign::Positive)),
+            ("in band", true),
             "check 4 in band at the radius, the engine definite at the reach"
         );
         assert_eq!(
             read(0.05 * zero / r),
-            ("smooth", Some(Sign::Positive)),
+            ("smooth", true),
             "check 4 smooth at the radius, the engine definite at the reach"
         );
     }
 
-    /// **A fold between two faces certifies by its sine times the least
-    /// reach, and not by any other arm.** The floor's square beside its
-    /// edge on the `x` axis, against a face folded up about that axis by
-    /// `φ`. The pair is near that edge (reach 3, the folded face's far
-    /// vertex) and a second edge (reach 1.58, the least), and the folded
-    /// face runs farther than the floor (the floor's own reach from the
-    /// first edge is 1.118).
-    /// - `sin φ` times 1.58 at 1.2 times the band: certified;
+    /// **A fold between two faces certifies by its sine times the
+    /// narrower face's run, and not by any other length.** The floor's
+    /// square beside its edge on the `x` axis, against a face folded up
+    /// about that axis by `φ`. The floor runs 1.5 from that edge's line
+    /// (its second edge, at `y = 1.5`) and the folded face 3 (its far
+    /// vertex), so the extent is 1.5.
+    /// - `sin φ` times 1.5 at 1.2 times the band: certified;
     /// - at 0.7 times the band: not certified.
     ///
-    /// Red if the arm that reaches the decision is doubled, is the first
-    /// edge's or the greatest (0.7 becomes 1.33 or 1.4 and certifies), or
-    /// is one face's (1.2 becomes 0.85 and does not).
+    /// Red if the length that reaches the decision is the farther face's
+    /// (0.7 becomes 1.4 and certifies), is doubled, or is halved (1.2
+    /// becomes 0.6 and does not).
     #[test]
-    fn a_fold_certifies_by_its_sine_at_the_least_reach() {
-        let least = 2.5_f64.sqrt();
+    fn a_fold_certifies_by_its_sine_at_the_narrower_faces_run() {
+        let least = 1.5;
         let certified = |times: f64| {
             let phi = (times * band().escalate() / least).asin();
             let o = [0.0; 3];
@@ -20691,10 +20701,10 @@ mod margin_reach_rows {
                 &piece(2, &sy, &y, &away, cell),
                 &near,
             )
-            .expect("an arm");
+            .expect("an extent");
             assert!(
                 (arm.length().hi() - least).abs() < 1e-9,
-                "the least reach: {:?}",
+                "the narrower face's run: {:?}",
                 arm.length()
             );
             let got = certify_pair(
@@ -20705,8 +20715,528 @@ mod margin_reach_rows {
             );
             matches!(got, Outcome::Certified { .. })
         };
-        assert!(certified(1.2), "above the band at the least reach");
-        assert!(!certified(0.7), "inside the band at the least reach");
+        assert!(certified(1.2), "above the band at the narrower run");
+        assert!(!certified(0.7), "inside the band at the narrower run");
+    }
+
+    /// The floor's square beside its edge on the `x` axis against a face
+    /// folded up about that axis by `phi`, the one shared edge classed
+    /// `class` on both faces, near it alone: the pair's outcome. Both
+    /// faces run at least 1 from the edge, so the extent is 1.
+    fn fold_classed(phi: f64, class: Option<crate::EdgeClass>) -> Outcome {
+        fold_read(phi, class, true)
+    }
+
+    /// [`fold_classed`], the folded face's cell holding the shared edge
+    /// in its reach (`folded_near`) or not: with no edge in its reach it
+    /// is presented with no zero side, so no plane through the edge
+    /// signs it, and only the floor's part, read against the folded
+    /// face's carrier, can.
+    fn fold_read(phi: f64, class: Option<crate::EdgeClass>, folded_near: bool) -> Outcome {
+        let o = [0.0; 3];
+        let classed = |b: Boundary| match class {
+            Some(class) => b.with_class(key(1), class),
+            None => b,
+        };
+        let x = classed(boundary(
+            vec![line(1, [1, 2], o, [1.0, 0.0, 0.0])],
+            &[
+                (1, o),
+                (2, [1.0, 0.0, 0.0]),
+                (3, [1.0, 1.0, 0.0]),
+                (4, [0.0, 1.0, 0.0]),
+            ],
+        ));
+        let y = classed(boundary(
+            vec![line(1, [1, 2], o, [1.0, 0.0, 0.0])],
+            &[
+                (1, o),
+                (2, [1.0, 0.0, 0.0]),
+                (5, [0.5, phi.cos(), phi.sin()]),
+            ],
+        ));
+        let (sx, sy) = (floor(), folded(phi));
+        let here = Local {
+            edges: vec![0],
+            vertices: Vec::new(),
+        };
+        let near = Near {
+            edges: vec![(0, 0)],
+            vertices: Vec::new(),
+        };
+        let cell = ((0.4, 0.6), (0.0, 0.1));
+        let away = Local::default();
+        certify_pair(
+            &piece(1, &sx, &x, &here, cell),
+            &piece(2, &sy, &y, if folded_near { &here } else { &away }, cell),
+            &near,
+            band(),
+        )
+    }
+
+    /// **Across a seam the other face's carrier is no separator.** The
+    /// fold at half a radian with the folded face's cell presented with
+    /// no zero side, so that only the carrier arm can sign the pair:
+    /// under a crease, or no class, it certifies; under a seam class the
+    /// arm is barred and the pair splits. Red if the carrier arm runs
+    /// whatever the class.
+    #[test]
+    fn the_carrier_arm_is_barred_across_a_seam() {
+        use crate::EdgeClass as C;
+        for class in [None, Some(C::Crease(geom_brep::Convexity::Convex))] {
+            assert!(
+                matches!(fold_read(0.5, class, false), Outcome::Certified { .. }),
+                "{class:?}: {:?}",
+                fold_read(0.5, class, false)
+            );
+        }
+        assert!(
+            matches!(fold_read(0.5, Some(C::Seam), false), Outcome::Split { .. }),
+            "a seam: {:?}",
+            fold_read(0.5, Some(C::Seam), false)
+        );
+    }
+
+    /// **A graph separator's `ψ` is worth its least gradient over its
+    /// greatest.** With slopes in `[0, 1]` its gradient `m − t·γ′` runs
+    /// from length 1 to `√2`, so a difference in `ψ` is worth `1/√2` of
+    /// itself in metres; a plane's and a carrier's is worth all of it.
+    /// Red if the graph's sum is banded as a distance's.
+    #[test]
+    fn a_graphs_sum_is_scaled_by_its_gradients_range() {
+        let graph = Psi::Graph {
+            m: va([0.0, 1.0, 0.0]),
+            t: va([1.0, 0.0, 0.0]),
+            slope: Interval::from_bounds(0.0, 1.0),
+            piece: (0.0, 1.0),
+        };
+        let worth = graph.lipschitz().expect("a certified slope");
+        assert!(
+            (worth.hi() - core::f64::consts::FRAC_1_SQRT_2).abs() < 1e-12 && worth.lo() > 0.7,
+            "{worth:?}"
+        );
+        let plane = Psi::Linear {
+            n: va([0.0, 0.0, 3.0]),
+            q: pa([0.0; 3]),
+        };
+        assert!(
+            plane.lipschitz().is_some_and(|w| exactly(w, 1.0)),
+            "a plane"
+        );
+        let unit = Some(fixture_lever(iv0(1.0)));
+        let sine = iv0(1.2 * band().escalate());
+        assert!(parts([sine], plane.lipschitz(), unit, band()), "a plane");
+        assert!(!parts([sine], Some(worth), unit, band()), "the graph");
+    }
+
+    /// **The class tier 3 kept decides which arguments run.** One fold,
+    /// half a radian, far past the band, under each class:
+    /// - no class, and a crease of the turn the carrier arm reads
+    ///   (the folded face stands on the floor's outward side: concave):
+    ///   certified;
+    /// - a crease of the other turn: the sign proved contradicts the
+    ///   verdict, refused naming the edge;
+    /// - an end: no first-order separator runs, refused naming the
+    ///   second-order arm, at once;
+    /// - a seam: the other face's carrier is barred, and the plane
+    ///   through the edge certifies with no turn read.
+    ///
+    /// Red if an end is split or certified, if a contradicted turn
+    /// certifies, or if a class is ignored.
+    #[test]
+    fn the_class_decides_which_separators_run() {
+        use crate::EdgeClass as C;
+        use geom_brep::{Convexity, WedgeEnd};
+        let certified = |class| matches!(fold_classed(0.5, class), Outcome::Certified { .. });
+        assert!(certified(None), "no class");
+        assert!(
+            certified(Some(C::Crease(Convexity::Concave))),
+            "the turn read"
+        );
+        assert!(
+            matches!(
+                fold_classed(0.5, Some(C::Crease(Convexity::Convex))),
+                Outcome::Refuse(EngineRefusal::TurnContradicted { edge, .. }) if edge == key(1)
+            ),
+            "the other turn: {:?}",
+            fold_classed(0.5, Some(C::Crease(Convexity::Convex)))
+        );
+        for end in [WedgeEnd::Cusp, WedgeEnd::Slit] {
+            assert!(
+                matches!(
+                    fold_classed(0.5, Some(C::End(end))),
+                    Outcome::Refuse(EngineRefusal::Uncertified {
+                        shared: SharedCell::Edge(e),
+                        arm: CertificateArm::SecondOrder,
+                        ..
+                    }) if e == key(1)
+                ),
+                "an end: {:?}",
+                fold_classed(0.5, Some(C::End(end)))
+            );
+        }
+        assert!(certified(Some(C::Seam)), "a seam, through the plane");
+    }
+
+    /// **A crease read under the carrier arm and under the bisecting
+    /// plane decides alike.** The fold at `sin φ` 1.2 and 0.7 times the
+    /// band over the extent 1: under a crease the other face's carrier
+    /// reads the wedge's sine; under a seam class that arm is barred and
+    /// the plane bisecting the faces reads each at half the wedge, the
+    /// two summed. Both certify the first and neither the second.
+    ///
+    /// Red if the plane's two sines are each banded alone (1.2 then
+    /// reads 0.6 twice and fails), or if the carrier arm runs under a
+    /// seam.
+    #[test]
+    fn a_crease_under_the_carrier_and_under_the_bisecting_plane_decides_alike() {
+        use crate::EdgeClass as C;
+        let phi = |times: f64| (times * band().escalate()).asin();
+        for class in [
+            Some(C::Crease(geom_brep::Convexity::Concave)),
+            Some(C::Seam),
+        ] {
+            assert!(
+                matches!(fold_classed(phi(1.2), class), Outcome::Certified { .. }),
+                "{class:?} above the band: {:?}",
+                fold_classed(phi(1.2), class)
+            );
+            assert!(
+                matches!(fold_classed(phi(0.7), class), Outcome::Split { .. }),
+                "{class:?} inside the band: {:?}",
+                fold_classed(phi(0.7), class)
+            );
+        }
+    }
+
+    /// **The banded reading is the two faces' sines summed, and each
+    /// face's own side is its enclosure's sign.**
+    /// - one face's sine a millionth of the band and the other's well
+    ///   past it: the pair parts;
+    /// - each at 0.4 of the band, the sum inside it: it does not;
+    /// - each at 0.7: the sum is past the band, and it parts;
+    /// - a sine whose enclosure holds zero has no side, however large
+    ///   its far end; one a rounding off zero has one.
+    ///
+    /// Red if each face is banded alone (the first and third fail), if
+    /// one sine is counted twice or the larger alone is read (the second
+    /// passes at 0.8), or if a side is read at an enclosure's middle.
+    #[test]
+    fn the_pairs_sines_are_summed_and_each_side_is_its_enclosures_sign() {
+        let unit = Some(fixture_lever(iv0(1.0)));
+        let band_edge = band().escalate();
+        let parts_at = |a: f64, b: f64| {
+            parts(
+                [iv0(a * band_edge), iv0(b * band_edge)],
+                Some(iv0(1.0)),
+                unit,
+                band(),
+            )
+        };
+        assert!(parts_at(1e-6, 5.0), "a tiny sine and a large one");
+        assert!(!parts_at(0.4, 0.4), "two small sines, their sum in band");
+        assert!(parts_at(0.7, 0.7), "two sines, their sum past the band");
+        assert!(
+            !parts([iv0(5.0 * band_edge)], Some(iv0(1.0)), None, band()),
+            "no extent"
+        );
+        assert!(
+            departing(Interval::from_bounds(-1e-12, 0.9)).is_none(),
+            "an enclosure holding zero"
+        );
+        assert!(
+            matches!(
+                departing(Interval::from_bounds(1e-15, 2e-15)),
+                Some(Departs::At(Sign::Positive, _))
+            ),
+            "a sine a rounding off zero has a side"
+        );
+        assert!(
+            matches!(
+                departing(Interval::from_bounds(-0.5, -0.4)),
+                Some(Departs::At(Sign::Negative, r)) if r.lo() == 0.4
+            ),
+            "the magnitude is the sine's"
+        );
+    }
+
+    /// **A touching pair lifted with no tier-3 verdict refuses typed.**
+    /// The fold, one face's boundary holding no facts. Red if a pair
+    /// with no facts is split until a budget, or certified.
+    #[test]
+    fn a_pair_lifted_with_no_verdict_refuses_naming_it() {
+        let o = [0.0; 3];
+        let mut bare = boundary(
+            vec![line(1, [1, 2], o, [1.0, 0.0, 0.0])],
+            &[(1, o), (2, [1.0, 0.0, 0.0]), (3, [1.0, 1.0, 0.0])],
+        );
+        let read = bare.clone();
+        bare.facts = None;
+        let (s, here) = (
+            floor(),
+            Local {
+                edges: vec![0],
+                vertices: Vec::new(),
+            },
+        );
+        let near = Near {
+            edges: vec![(0, 0)],
+            vertices: Vec::new(),
+        };
+        let cell = ((0.4, 0.6), (0.0, 0.1));
+        let got = certify_pair(
+            &piece(1, &s, &read, &here, cell),
+            &piece(2, &s, &bare, &here, cell),
+            &near,
+            band(),
+        );
+        assert!(
+            matches!(
+                got,
+                Outcome::Refuse(EngineRefusal::Unsupported {
+                    carrier: NO_VERDICT,
+                    side: Which::Second,
+                    ..
+                })
+            ),
+            "{got:?}"
+        );
+    }
+
+    /// **A flat strip inside the band of the plate it is folded off
+    /// refuses.** A strip `1e-7` wide folded off a metre plate at a sine
+    /// of `5e-5`: its far edge stands `5e-12` from the plate, inside the
+    /// band everywhere. The extent is the strip's width, and the sine
+    /// times it is far inside the band, so no cell is signed and the
+    /// pair splits (to its budget, in a walk). Levered at the plate's
+    /// metre the same sine is five thousand times the band.
+    ///
+    /// Tier 3's check 4 levers at the farther face's run and reads this
+    /// edge a crease, so the question refuses a body check 4 passed: the
+    /// right verdict at the wrong door
+    /// (`work/restfront/check-4-levers-a-wedge-at-the-farther-faces-run-so-a-narrow-face-inside-the-band-reads-a-crease.md`).
+    /// Red if the extent is the plate's.
+    #[test]
+    fn a_flat_strip_inside_the_band_of_its_plate_refuses() {
+        let (width, sine) = (1e-7_f64, 5e-5_f64);
+        let phi = sine.asin();
+        let o = [0.0; 3];
+        let class = crate::EdgeClass::Crease(geom_brep::Convexity::Concave);
+        let x = boundary(
+            vec![line(1, [1, 2], o, [1.0, 0.0, 0.0])],
+            &[
+                (1, o),
+                (2, [1.0, 0.0, 0.0]),
+                (3, [1.0, 1.0, 0.0]),
+                (4, [0.0, 1.0, 0.0]),
+            ],
+        )
+        .with_class(key(1), class);
+        let y = boundary(
+            vec![line(1, [1, 2], o, [1.0, 0.0, 0.0])],
+            &[
+                (1, o),
+                (2, [1.0, 0.0, 0.0]),
+                (5, [1.0, width * phi.cos(), width * phi.sin()]),
+                (6, [0.0, width * phi.cos(), width * phi.sin()]),
+            ],
+        )
+        .with_class(key(1), class);
+        let (sx, sy) = (floor(), folded(phi));
+        let here = Local {
+            edges: vec![0],
+            vertices: Vec::new(),
+        };
+        let near = Near {
+            edges: vec![(0, 0)],
+            vertices: Vec::new(),
+        };
+        let cells = [((0.4, 0.6), (0.0, 0.1)), ((0.4, 0.6), (0.0, width))];
+        let extent = extent_of(
+            &piece(1, &sx, &x, &here, cells[0]),
+            &piece(2, &sy, &y, &here, cells[1]),
+            &near,
+        )
+        .expect("an extent");
+        assert!(
+            (extent.length().hi() - width).abs() < 1e-15,
+            "the extent is the strip's width: {:?}",
+            extent.length()
+        );
+        assert!(width * sine < band().zero(), "the strip is inside the band");
+        let got = certify_pair(
+            &piece(1, &sx, &x, &here, cells[0]),
+            &piece(2, &sy, &y, &here, cells[1]),
+            &near,
+            band(),
+        );
+        assert!(matches!(got, Outcome::Split { .. }), "{got:?}");
+        assert!(
+            parts(
+                [iv0(sine)],
+                Some(iv0(1.0)),
+                Some(fixture_lever(iv0(1.0))),
+                band()
+            ),
+            "the same sine parts at the plate's metre"
+        );
+    }
+
+    /// **A curling sliver inside the band of its plate refuses.** A
+    /// cylinder of radius `1e-3` leaves a metre plane through its ruling
+    /// at a sine of `1e-4`, curls back toward it, and its face ends
+    /// `1e-7` round, still leaving at `2e-8` and about `5e-12` from the
+    /// plane. The sliver runs `1e-7` from the shared ruling and the
+    /// plane a metre, so the extent is `1e-7`; its least sine over the
+    /// face is `2e-8`, and the two together are nowhere near the band.
+    /// Levered at the plane's metre that sine is twice the band and the
+    /// whole sliver is signed off a plane it never leaves the band of.
+    ///
+    /// Red if the extent is the plane's run.
+    #[test]
+    fn a_curling_sliver_inside_the_band_of_its_plate_refuses() {
+        let (r, s, phi) = (1e-3_f64, 1e-4_f64, 2e-8_f64);
+        let c = (1.0 - s * s).sqrt();
+        let n = va([-c, s, 0.0]);
+        let foot = [r, 0.0, 0.0];
+        let cyl = Surface::Cylinder {
+            frame: geom::Frame::new(pa([0.0; 3]), va([0.0, 0.0, 1.0]), va([1.0, 0.0, 0.0])),
+            radius: iv0(r),
+        };
+        let plane = Surface::Plane {
+            frame: geom::Frame::new(pa(foot), n, va([0.0, 0.0, 1.0])),
+        };
+        let u_far = -s + phi;
+        let ruling = || line(1, [1, 2], foot, [r, 0.0, 1.0]);
+        let far = [r * u_far.cos(), r * u_far.sin()];
+        let sliver = boundary(
+            vec![ruling()],
+            &[
+                (1, foot),
+                (2, [r, 0.0, 1.0]),
+                (3, [far[0], far[1], 1.0]),
+                (4, [far[0], far[1], 0.0]),
+            ],
+        );
+        // The plane's face runs a metre from the ruling, in the plane.
+        let plate = boundary(
+            vec![ruling()],
+            &[
+                (1, foot),
+                (2, [r, 0.0, 1.0]),
+                (5, [r - s, -c, 1.0]),
+                (6, [r - s, -c, 0.0]),
+            ],
+        );
+        let here = Local {
+            edges: vec![0],
+            vertices: Vec::new(),
+        };
+        let near = Near {
+            edges: vec![(0, 0)],
+            vertices: Vec::new(),
+        };
+        let extent = extent_of(
+            &piece(1, &cyl, &sliver, &here, ((u_far, 0.0), (0.0, 1.0))),
+            &piece(2, &plane, &plate, &here, ((0.0, 1.0), (0.0, 1.0))),
+            &near,
+        )
+        .expect("an extent");
+        let width = extent.length().hi();
+        assert!(
+            (width - r * u_far.abs()).abs() < 1e-12,
+            "the extent is the sliver's width: {width:e}"
+        );
+        let p = Presented {
+            surface: &cyl,
+            map: Map::Chart,
+            x: (u_far, 0.0),
+            y: (0.0, 1.0),
+            zero: Zero::Side(Side::XHi, along(1)),
+            corner: false,
+            cache: Cache::default(),
+        };
+        let psi = Psi::Carrier(Implicit::Plane { o: pa(foot), n });
+        let read = |extent| signed(&psi, None, &p, None, Some(extent), band());
+        assert_eq!(read(extent), None, "undecided at the sliver's width");
+        assert!(
+            read(fixture_lever(iv0(1.0))).is_some(),
+            "signed at the plane's metre, which no extent reads"
+        );
+    }
+
+    /// An arc of the circle of radius `r` about the origin in the `xy`
+    /// plane over `span`, used once by its face, its carrier held as the
+    /// enclosures `r ± slack` so that it is no stored point.
+    fn arc(k: u64, ends: [u64; 2], r: f64, slack: f64, span: (f64, f64)) -> Rim {
+        Rim {
+            key: key(k),
+            arc: Some((
+                Curve3::Circle(geom::Circle::new(
+                    geom::Frame::new(pa([0.0; 3]), va([0.0, 0.0, 1.0]), va([1.0, 0.0, 0.0])),
+                    Interval::from_bounds(r - slack, r + slack),
+                )),
+                (iv0(span.0), iv0(span.1)),
+            )),
+            stated: None,
+            ends: ends.map(key),
+            uses: vec![Use {
+                plus: true,
+                image: None,
+                iso: None,
+                harmonic: None,
+                wall: None,
+            }],
+        }
+    }
+
+    /// **A face spans its rim where its boundary crosses a half-plane on
+    /// the rim's axis an odd number of times, however the rim is cut and
+    /// stored.**
+    /// - a disc's rim in two half circles, each carrier an enclosure a
+    ///   nanometre wide (no stored point, so no two arcs are one value):
+    ///   it crosses once, and the disc runs the radius from each arc;
+    /// - an annulus's outer rim with its inner: each crosses once, twice
+    ///   in all, and the annulus does not meet its axis;
+    /// - a rim the face lies on both sides of counts for nothing;
+    /// - a line edge has no centre line.
+    ///
+    /// Red if a half-plane's far half is counted (the disc then crosses
+    /// twice), if an even count spans, or if the arcs must be one stored
+    /// conic.
+    #[test]
+    fn a_face_spans_its_rim_by_an_odd_crossing_of_its_axis_half_plane() {
+        use core::f64::consts::{PI, TAU};
+        let halves = [
+            arc(1, [1, 2], 2.0, 1e-9, (0.0, PI)),
+            arc(2, [2, 1], 2.0, 1e-9, (PI, TAU)),
+        ];
+        for shared in &halves {
+            let run = spanned(&halves, shared).expect("the disc spans its rim");
+            assert!(
+                run.length().lo() > 1.99 && run.length().hi() <= 2.0 + 1e-8,
+                "the radius, from below: {:?}",
+                run.length()
+            );
+        }
+        let annulus = [
+            arc(1, [1, 1], 2.0, 0.0, (0.0, TAU)),
+            arc(2, [2, 2], 1.0, 0.0, (0.0, TAU)),
+        ];
+        assert!(
+            spanned(&annulus, &annulus[0]).is_none(),
+            "an annulus crosses twice"
+        );
+        let mut seamed = [arc(1, [1, 1], 2.0, 0.0, (0.0, TAU))];
+        assert!(spanned(&seamed, &seamed[0]).is_some(), "a whole rim");
+        let twin = seamed[0].uses[0].clone();
+        seamed[0].uses.push(twin);
+        assert!(
+            spanned(&seamed, &seamed[0]).is_none(),
+            "a rim the face lies on both sides of"
+        );
+        let straight = [line(1, [1, 2], [0.0; 3], [1.0, 0.0, 0.0])];
+        assert!(spanned(&straight, &straight[0]).is_none(), "a line");
     }
 
     /// **A sine that changes sign over the rectangle decides nothing.** A
