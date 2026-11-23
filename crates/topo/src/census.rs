@@ -7935,7 +7935,7 @@ enum Recorded {
 
 mod curved;
 pub(crate) use curved::{EdgeSpan, edge_span};
-mod depth_gap;
+pub(crate) mod depth_gap;
 #[cfg(test)]
 mod depth_gap_fuzz;
 mod in_plane;
