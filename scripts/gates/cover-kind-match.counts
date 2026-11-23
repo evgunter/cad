@@ -31,7 +31,8 @@ arm 1 crates/geom-brep/src/pair_section/cylinders.rs
 whole 1 crates/geom-brep/src/pair_section/cylinders.rs
 ball 1 crates/geom-brep/src/pair_section/gap.rs
 ball 1 crates/geom-brep/src/pair_section/ruling.rs
-arm 2 crates/geom-brep/src/pair_section/spline_implicit.rs
+arm 1 crates/geom-brep/src/pair_section/spline_implicit.rs
+arm 1 crates/geom-brep/src/pair_section/spline_implicit/cells.rs # from crates/geom-brep/src/pair_section/spline_implicit.rs
 ball 1 crates/geom-brep/src/pair_section/spline_pair.rs
 arm 1 crates/geom-brep/src/pair_section/torus.rs
 ball 1 crates/geom-brep/src/pair_section/torus.rs
