@@ -169,8 +169,8 @@ fn seated_as(
     r.constrain(
         placement,
         editor_core::Mate {
-            on: cap_plane(body, body, CapEnd::Start),
-            to,
+            on: cap_plane(body, body, CapEnd::Start).into(),
+            to: to.into(),
             orient,
         },
         at_rest(),

@@ -42,9 +42,18 @@ impl ViewerBehavior<'_> {
         // The COMMITTED document, the one the toggles were read over.
         let doc = self.session.committed_doc();
         let part_files = self.session.part_files();
-        let label = |node| crate::tree::node_label(doc, node, part_files);
-        self.ops
-            .extend(toggles_ui(ui, doc, &self.toggles.groups, label));
+        let label = |node| {
+            crate::relations::Related::node(doc, node, part_files)
+                .said()
+                .clone()
+        };
+        self.ops.extend(toggles_ui(
+            ui,
+            doc,
+            self.session.doc(),
+            &self.toggles.groups,
+            label,
+        ));
         ui.separator();
         for line in camera_readout(self.camera, *self.notation) {
             ui.label(line);
@@ -58,10 +67,11 @@ impl ViewerBehavior<'_> {
         };
         if let Some(status) = self.status.as_ref() {
             ui.separator();
-            // A sentence, so `widgets::message` — here in a layout
+            // A sentence, so `widgets::sentence` — here in a layout
             // egui would have wrapped it in anyway, which is a fact
             // about the column and not about the message.
-            crate::widgets::message(ui, status.text());
+            let said = crate::widgets::sentence(ui, status.said(), self.session.doc(), None);
+            self.ops.extend(said.map(crate::session::SessionOp::Select));
         }
     }
 
@@ -94,8 +104,9 @@ pub(crate) const IN_NO_SPACE: &str = "in no space";
 fn toggles_ui(
     ui: &mut egui::Ui,
     doc: &Doc<ProfileProgram>,
+    on_screen: &Doc<ProfileProgram>,
     groups: &[SpaceToggles],
-    label: impl Fn(RecipeNodeId) -> String,
+    label: impl Fn(RecipeNodeId) -> pncad::document::Sentence,
 ) -> Vec<SessionOp> {
     let mut ops = Vec::new();
     for group in groups {
@@ -115,10 +126,14 @@ fn toggles_ui(
                 ui.add_space(crate::pane::features::INDENT_STEP);
                 let mut on = body.on;
                 // A body under a hidden space keeps its own toggle,
-                // which the space's then overrides.
+                // which the space's then overrides. The box toggles and
+                // the name beside it is a link to the body, so the two
+                // clicks are two widgets.
                 let toggle = ui
-                    .add_enabled(group.on, egui::Checkbox::new(&mut on, label(body.node)))
+                    .add_enabled(group.on, egui::Checkbox::without_text(&mut on))
                     .on_disabled_hover_text(SPACE_HIDDEN);
+                let name = crate::widgets::sentence(ui, &label(body.node), on_screen, None);
+                ops.extend(name.map(SessionOp::Select));
                 if !body.drawn_by_default {
                     ui.weak(READ_AS_A_BODY);
                 }
@@ -324,7 +339,7 @@ mod tests {
     use crate::camera::Camera;
     use crate::display::{BodyToggle, SpaceToggles};
     use crate::frame;
-    use crate::pane::headless::{painted_after_clicking, painted_text};
+    use crate::pane::headless::painted_text;
     use crate::props::Notation;
     use crate::scene::DisplayTolerance;
     use crate::session::SessionOp;
@@ -359,22 +374,74 @@ mod tests {
         let doc = Doc::empty_derived("view-toggles", Tol::witness());
         let (node, groups) = one_undrawn_body();
         let text = painted_text(|ui| {
-            toggles_ui(ui, &doc, &groups, |_| "the body".into());
+            toggles_ui(ui, &doc, &doc, &groups, |_| "the body".into());
         });
         let world = text.find("The world").expect("the world's row is drawn");
         let body = text.find("the body").expect("the body's row is drawn");
         assert!(world < body, "the world first: {text}");
         assert!(text.contains(READ_AS_A_BODY), "{text}");
 
-        let ops = core::cell::RefCell::new(Vec::new());
-        painted_after_clicking("the body", |ui| {
-            ops.borrow_mut()
-                .extend(toggles_ui(ui, &doc, &groups, |_| "the body".into()));
-        });
+        let named = crate::pane::headless::find(
+            &crate::pane::headless::landed(|ui| {
+                toggles_ui(ui, &doc, &doc, &groups, |_| "the body".into());
+            }),
+            "the body",
+        )
+        .allocated;
+        // The box, left of the name it toggles.
+        let at = egui::pos2(
+            named.left() - egui::Style::default().spacing.interact_size.y / 2.0,
+            named.center().y,
+        );
         assert_eq!(
-            ops.into_inner(),
+            crate::pane::headless::ops_after_clicking_at(at, |ui| {
+                toggles_ui(ui, &doc, &doc, &groups, |_| "the body".into())
+            }),
             vec![SessionOp::SetBodyOn { node, on: true }],
             "the click shows the body"
+        );
+    }
+
+    /// **A body's name in the list is a link to it**: a click on the
+    /// name selects the body and toggles nothing.
+    ///
+    /// *Breaks if* the name is drawn as the checkbox's own text (a click
+    /// on it toggles) or as words.
+    #[test]
+    fn a_bodys_name_in_the_list_selects_it() {
+        let (doc, _) = crate::scene::plate_with_hole(pncad::tolerance::witness())
+            .expect("the startup document");
+        let extrude = doc.ids()[1];
+        let groups = vec![SpaceToggles {
+            space: Some(VarId::WORLD),
+            on: true,
+            bodies: vec![BodyToggle {
+                node: extrude,
+                on: true,
+                drawn_by_default: true,
+            }],
+        }];
+        let files = crate::parts::PartFiles::default();
+        let label = |node| {
+            crate::relations::Related::node(&doc, node, &files)
+                .said()
+                .clone()
+        };
+        let name = crate::tree::node_label(&doc, extrude, &files);
+        let at = crate::pane::headless::find(
+            &crate::pane::headless::landed(|ui| {
+                toggles_ui(ui, &doc, &doc, &groups, label);
+            }),
+            &name,
+        )
+        .allocated
+        .center();
+        assert_eq!(
+            crate::pane::headless::ops_after_clicking_at(at, |ui| {
+                toggles_ui(ui, &doc, &doc, &groups, label)
+            }),
+            vec![SessionOp::Select(crate::session::Selection::Node(extrude))],
+            "the click selects the body"
         );
     }
 
@@ -764,7 +831,7 @@ mod tests {
             ]);
             field.tab();
             assert_eq!(field.request, None, "{typed} {unit:?} commits nothing");
-            let said_texts: Vec<&str> = field.notices.iter().map(frame::Message::text).collect();
+            let said_texts: Vec<String> = field.notices.iter().map(frame::Message::text).collect();
             assert!(
                 matches!(said_texts.as_slice(), [one] if one.starts_with(said)),
                 "{typed} in {unit:?} is refused as typed: {said_texts:?}"

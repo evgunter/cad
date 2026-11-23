@@ -640,12 +640,8 @@ impl Recourse {
                 Some(claim) => crate::sentence!(ONE_CONSTRUCTION, ", or assert ", claim),
                 None => crate::Sentence::from(ONE_CONSTRUCTION),
             },
-            Self::Assert => {
-                either("the door cannot read what decided it as a function of the variables")
-            }
-            Self::Budget => either(
-                "what decided it, read as a function of the variables, outgrew the door's budget",
-            ),
+            Self::Assert => either(ASSERT_WHY),
+            Self::Budget => either(BUDGET_WHY),
             Self::ReadTheAxis => {
                 "Recourse: draw the profile on the face the traced face's sweep was drawn on or a \
                  face mated flat onto its cap, or on a frame whose z is read off the traced face's \
@@ -662,6 +658,29 @@ impl Recourse {
     }
 }
 
+impl Recourse {
+    /// **The recourse beside a control that authors its assertion**
+    /// ([`Self::words`] for a row that carries one): every act but the
+    /// assertion, and why it is the assertion, for a surface that draws
+    /// the claim as the control itself rather than as words.
+    #[must_use]
+    pub fn words_beside_its_claim(self, by: crate::spoken::Speaker<'_>) -> crate::Sentence {
+        match self {
+            Self::Assert => crate::Sentence::from(ASSERT_WHY),
+            Self::Budget => crate::Sentence::from(BUDGET_WHY),
+            Self::OneConstruction | Self::ReadTheAxis | Self::MemberBudget => self.words(None, by),
+        }
+    }
+}
+
+/// Why a row the door cannot read is asserted rather than built.
+const ASSERT_WHY: &str = "the door cannot read what decided it as a function of the variables";
+
+/// Why a row the door's budget could not read is asserted rather than
+/// built.
+const BUDGET_WHY: &str =
+    "what decided it, read as a function of the variables, outgrew the door's budget";
+
 /// A relation as the clause between the cells of a two-cell row.
 pub(crate) const fn relation_words(relation: topo::Relation) -> &'static str {
     match relation {
@@ -672,6 +691,7 @@ pub(crate) const fn relation_words(relation: topo::Relation) -> &'static str {
         topo::Relation::Tangent { aligned: true } => "continues tangent into",
         topo::Relation::Tangent { aligned: false } => "turns back tangent into",
         topo::Relation::SurfaceTangent => "is tangent along a locus to",
+        topo::Relation::RimJunction => "joins smoothly on a rim both end on with",
         topo::Relation::Coaxial => "shares an axis with",
         topo::Relation::SameRadius => "shares a radius with",
         topo::Relation::AxesMeet => "has an axis meeting the axis of",
@@ -714,6 +734,9 @@ pub(crate) const fn site_words(site: topo::DecisionSite) -> &'static str {
         topo::DecisionSite::PlaneLadder => "a pair of planes its margins read as one",
         topo::DecisionSite::CarrierLadder => "a pair of carriers its margins read as one",
         topo::DecisionSite::TangentWitness => "a tangency verified along its locus",
+        topo::DecisionSite::RimJunction => {
+            "a rim both faces end on, read as one circle with its wedge routed"
+        }
         topo::DecisionSite::CoaxialSphere => "a sphere's centre read on a cylinder's axis",
         topo::DecisionSite::SphereOnTorusAxis => "a sphere's centre read on a torus's axis",
         topo::DecisionSite::CoaxialCylinderTorus => "a cylinder read coaxial with a torus",

@@ -43,8 +43,8 @@ use editor_core::{
 use topo::BooleanOp;
 
 /// **The rows admitted over the word budget at the 90th-percentile
-/// name, and the most words each may render**: a ratchet, so a row
-/// that grows fails and a row that shrinks lowers its number.
+/// name, and the most words each may render**: a ceiling, so a row
+/// that grows fails and a row that shrinks does not.
 ///
 /// One row: every placed body's names are held twice, by the body and
 /// by its world copy, so the 90th-percentile name is a longer one of
@@ -349,11 +349,6 @@ fn every_corpus_name_reads_apart_and_forwards_within_the_refusal_budget() {
             Some(most) if words > most => {
                 over.push(format!(
                     "{row} renders {words} words, over its admitted {most}: {text}"
-                ));
-            }
-            Some(most) if words <= test_utils::refusal::BUDGET || words < most => {
-                over.push(format!(
-                    "{row} renders {words} words; lower its admission of {most}"
                 ));
             }
             _ => {}

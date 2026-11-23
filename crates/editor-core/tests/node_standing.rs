@@ -492,7 +492,7 @@ fn reads(code: &str) -> usize {
 /// items are not read); a new reader reds, and the answer is to read
 /// through `Evaluation::usable` or to give the file its line here. A
 /// listed file that stops reading is not a red.
-const READERS: [(&str, &str); 15] = [
+const READERS: [(&str, &str); 14] = [
     (
         "crates/editor-core/src/eval/members.rs",
         "the per-member schedule (D10 `[repetition]`) is the evaluator's at one value of the \
@@ -558,10 +558,6 @@ const READERS: [(&str, &str); 15] = [
         "crates/editor-core/src/mate/unobservable.rs",
         "the unobservable-value report reads a placement's own value, and says nothing of one \
          that has none",
-    ),
-    (
-        "crates/viewer/src/bounds.rs",
-        "collects the failed nodes a bounds verdict names, poisoned ones deliberately not",
     ),
     (
         "crates/viewer/src/tree.rs",

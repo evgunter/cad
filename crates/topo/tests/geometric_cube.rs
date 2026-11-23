@@ -162,7 +162,10 @@ fn wrong_cache_is_rejected_at_attachment() {
     let edges_before = body.edges().count();
     let mut spec =
         EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
-    spec.carrier = Curve3::line(Point3::new(0.0, 100.0 * eps, 0.0), Vec3::unit_x());
+    spec.carrier = Curve3::line(
+        Point3::new(0.0, 100.0 * eps, 0.0),
+        geom_core::UnitVec3::exact_x(),
+    );
     let err = body
         .mev(
             MevSite::Lone {
@@ -388,7 +391,10 @@ fn a_minted_chords_refusal_names_the_minted_edge() {
         .unwrap();
     let mut chord =
         EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
-    chord.carrier = Curve3::line(Point3::new(0.0, 100.0 * eps, 0.0), Vec3::unit_x());
+    chord.carrier = Curve3::line(
+        Point3::new(0.0, 100.0 * eps, 0.0),
+        geom_core::UnitVec3::exact_x(),
+    );
     let err = body
         .mef(
             MefSite::Chords {

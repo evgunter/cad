@@ -46,6 +46,7 @@ use test_utils::source::{NameCarrier, crate_dir, predicate_census, roster_violat
 /// nothing and excuses nothing, and it goes stale silently.
 const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SQUARE_FOLD_HALF"),
+    NameCarrier::Const("OVAL_SIDE"),
     NameCarrier::Const("SQUARE_EDGE_OVER"),
     NameCarrier::Const("SPHERE_NEAR"),
     NameCarrier::Const("SPHERE_FAR"),
@@ -64,6 +65,9 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Table("Meter"),
     NameCarrier::Const("SQUARE_ORDER"),
     NameCarrier::Const("RADII"),
+    // The cone × torus pose's apex rows (`pair_section/cone_torus.rs`).
+    NameCarrier::Const("APEX_ON_TORUS"),
+    NameCarrier::Const("APEX_FORM"),
     NameCarrier::Const("POSE_AXES_PARALLEL"),
     NameCarrier::Const("POSE_AXIS_ALONG_PLANE"),
     NameCarrier::Const("POSE_PLANES_FACING"),
@@ -208,6 +212,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Call("incidence_at"),
     NameCarrier::Call("near_as"),
     NameCarrier::Call("normal_alignment"),
+    NameCarrier::Call("of_its_own"),
     NameCarrier::Call("off_as"),
     NameCarrier::Call("positive_as"),
     NameCarrier::Call("radius_guard"),

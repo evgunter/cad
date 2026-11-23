@@ -21,7 +21,7 @@
 //!
 //! **The one rule** ([`tighten`]): a face whose lattice the rule reads
 //! ([`FaceLattice::of`]: the curved lane's and every trimmed arm's but the
-//! cylinder's) certifies triangles about that lattice's cells, so a
+//! cylinder's, which lays none) certifies triangles about that lattice's cells, so a
 //! boundary chord beside it spans at most one lattice step on each chart
 //! axis: `n ≥ ⌈s_u·Δt/h_u⌉` and `⌈s_v·Δt/h_v⌉`, with `(h_u, h_v)` the
 //! face's lattice steps (its chart row's at its target, the spline arm's

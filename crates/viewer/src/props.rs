@@ -74,7 +74,7 @@
 //!
 //! Dragging a slot that is DRIVEN — by a document variable or by
 //! arithmetic — is refused, with an affordance (G4's micro-decision,
-//! which names a drag); a range probe of one is refused the same way.
+//! which names a drag).
 //! A number TYPED there is not refused: it replaces the expression, as
 //! the same number typed with its unit as text does. [`SlotDriver`] is
 //! how a slot says which it is, using only public expression API: a
@@ -541,6 +541,58 @@ pub fn shown_text(unit: Option<UnitDef>, canonical: f64) -> String {
         || pncad::geom_core::Readable(canonical).to_string(),
         |unit| written_text(canonical, unit),
     )
+}
+
+/// **[`shown_text`], its number rounded TOWARD `toward`**: the text
+/// names a value between `canonical` and `toward`, never one past
+/// `canonical` on the far side. A proven end is shown toward the
+/// current value, so the text never claims more than was proven, and a
+/// point proven different is shown away from it (`toward` infinite),
+/// so the text never lands inside the proof.
+///
+/// The grid is [`shown_text`]'s: a number the grid rounded the wrong
+/// way is moved one rounding further, until the text reads back on the
+/// right side. A value the grid cannot place there is shown as
+/// `toward`, which is on the right side by construction.
+pub fn shown_text_toward(unit: Option<UnitDef>, canonical: f64, toward: f64) -> String {
+    // A count or a bare scalar is told by `Readable`, whose text reads
+    // back to the same bits: nothing to round.
+    let Some(unit) = unit else {
+        return shown_text(None, canonical);
+    };
+    if !canonical.is_finite() || canonical == toward {
+        return written_text(canonical, unit);
+    }
+    let up = toward > canonical;
+    let reads_back = |value: f64| {
+        crate::readout::computed_number(value, unit)
+            .and_then(|number| number.parse::<f64>().ok())
+            .map(|number| from_written(number, unit))
+    };
+    let on_side = |back: f64| (up && back >= canonical) || (!up && back <= canonical);
+    let Some(back) = reads_back(canonical) else {
+        return written_text(toward, unit);
+    };
+    if on_side(back) {
+        return written_text(canonical, unit);
+    }
+    // The text rounded past `canonical`: move toward `toward` by a step
+    // that doubles until the grid rounds the other way. The first step
+    // is the miss itself, which is not zero, since the text read back
+    // on the wrong side; so the answer is within two grid steps.
+    let direction = if up { 1.0 } else { -1.0 };
+    let mut step = (canonical - back).abs();
+    for _ in 0..128 {
+        let candidate = canonical + direction * step;
+        if (up && candidate > toward) || (!up && candidate < toward) {
+            break;
+        }
+        if reads_back(candidate).is_some_and(on_side) {
+            return written_text(candidate, unit);
+        }
+        step *= 2.0;
+    }
+    written_text(toward, unit)
 }
 
 /// [`from_written`] over a field that may name no unit — one number

@@ -60,7 +60,10 @@ fn a_line_enters_and_leaves_a_ball_in_the_faces_sense() {
         ray_crossings(
             &sphere(),
             sense,
-            &geom::Ray::new(Point3::new(-2.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0)),
+            &geom::Ray::new(
+                Point3::new(-2.0, 0.0, 0.0),
+                geom::stated_direction(Vec3::new(1.0, 0.0, 0.0)),
+            ),
             4.0,
             band(),
         )
@@ -119,7 +122,10 @@ fn a_piece_on_or_tangent_to_a_carrier_refuses() {
     let on = ray_crossings(
         &floor(),
         true,
-        &geom::Ray::new(Point3::origin(), Vec3::new(1.0, 0.0, 0.0)),
+        &geom::Ray::new(
+            Point3::origin(),
+            geom::stated_direction(Vec3::new(1.0, 0.0, 0.0)),
+        ),
         1.0,
         band(),
     );
@@ -127,7 +133,10 @@ fn a_piece_on_or_tangent_to_a_carrier_refuses() {
     let grazing = ray_crossings(
         &sphere(),
         true,
-        &geom::Ray::new(Point3::new(-2.0, 1.0, 0.0), Vec3::new(1.0, 0.0, 0.0)),
+        &geom::Ray::new(
+            Point3::new(-2.0, 1.0, 0.0),
+            geom::stated_direction(Vec3::new(1.0, 0.0, 0.0)),
+        ),
         4.0,
         band(),
     );
@@ -212,8 +221,13 @@ fn a_piece_through_a_cones_apex_refuses_at_the_apex() {
     let line = ray_crossings(
         &cone,
         true,
-        &geom::Ray::new(Point3::new(-2.0, 0.0, 0.3), Vec3::new(1.0, 0.0, -0.15)),
-        4.0,
+        // The ray from `(−2, 0, 0.3)` through the apex, its reach `4` along
+        // `(1, 0, −0.15)`, in metres on its unit direction.
+        &geom::Ray::new(
+            Point3::new(-2.0, 0.0, 0.3),
+            geom_core::UnitVec3::squared(Vec3::new(1.0, 0.0, -0.15)),
+        ),
+        4.0 * Vec3::new(1.0, 0.0, -0.15).norm(),
         band(),
     );
     assert_eq!(
@@ -295,7 +309,7 @@ fn a_graze_past_the_taken_crossing_refuses_nothing() {
 /// The row [`a_graze_past_the_taken_crossing_refuses_nothing`] pins.
 fn a_graze_past_the_taken_crossing_reads_the_entry() {
     use topo::boolean::trace::ray_crossings_to;
-    let ray = geom::Ray::new(Point3::new(-4.0, 1.5, 0.0), Vec3::new(1.0, 0.0, 0.0));
+    let ray = geom::Ray::new(Point3::new(-4.0, 1.5, 0.0), geom_core::UnitVec3::exact_x());
     let whole = ray_crossings(&torus(), true, &ray, 8.0, band());
     assert!(
         matches!(whole, Err(TraceFault::Grazing)),
