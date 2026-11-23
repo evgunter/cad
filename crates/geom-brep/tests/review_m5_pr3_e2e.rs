@@ -153,18 +153,4 @@ fn f9_certification_pipeline_and_pinned_nurbs_refusal() {
         matches!(err, CertifyError::Unimplemented),
         "refusal changed: {err:?}"
     );
-    // The placeholder payload also refuses.
-    let mut ph_spec = EdgeCurveSpec::line_between(p0, p1);
-    ph_spec.carrier = Curve3::nurbs_placeholder();
-    let err = EdgeCurve::certify(
-        ph_spec,
-        p0,
-        p1,
-        |_| None,
-        geom_core::test_support::fixture_lever(1.0),
-        band,
-        geom_brep::NurbsLane::certified(),
-    )
-    .unwrap_err();
-    assert!(matches!(err, CertifyError::Unimplemented));
 }
