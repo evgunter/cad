@@ -2222,11 +2222,7 @@ pub fn pick_refusal(
 ) -> Message {
     let (doc, evaluation) = landed;
     let by = Speaker::of(doc).within(evaluation);
-    Message::new(
-        Subject::Document,
-        Said(error, by).sentence().to_string(),
-        Retold::Again,
-    )
+    Message::new(Subject::Document, Said(error, by).sentence(), Retold::Again)
 }
 
 /// **What a tool did on its own** — a survival drop or a declined pick
@@ -2303,7 +2299,11 @@ pub fn tool_notice(
             | BlendEvent::RimUnanswered { .. },
         ) => Retold::Again,
     };
-    Message::new(subject, notice.said(landed), retold)
+    Message::new(
+        subject,
+        Said(notice, landed_speaker(landed)).sentence(),
+        retold,
+    )
 }
 
 /// **What a change of the open tool retires**: the line's

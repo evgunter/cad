@@ -577,7 +577,8 @@ impl ViewerBehavior<'_> {
             let by = crate::frame::landed_speaker(self.session.landed_pair())
                 .or_held(self.session.selection_said());
             let (label, feature) = entity_header(picked, by);
-            ui.label(label);
+            let label = crate::widgets::sentence(ui, &label, self.session.doc());
+            self.ops.extend(label.map(SessionOp::Select));
             if standing.live() && delete_button(ui, self.session, feature) {
                 self.ops.push(SessionOp::DeleteNode { node: feature });
             }
@@ -1447,12 +1448,12 @@ pub(crate) fn related_entry(
 /// ([`PickedName`]), and the node its Delete deletes — the feature the
 /// words name ([`PickedName::feature`]), so the button deletes what the
 /// label names. It is the node [`crate::session::FaceSelection::feature`]
-/// answersentence().s too, so the tree highlights what the header deletes.
+/// answers too, so the tree highlights what the header deletes.
 pub(crate) fn entity_header(
     picked: &PickedName<'_>,
     by: pncad::document::Speaker<'_>,
-) -> (String, RecipeNodeId) {
-    (Said(picked, by).sentence().to_string(), picked.feature())
+) -> (Sentence, RecipeNodeId) {
+    (Said(picked, by).sentence(), picked.feature())
 }
 
 /// **What the selection's standing has to SAY, drawn**: the verdict on
@@ -2261,16 +2262,18 @@ mod tests {
             "the tree's feature is the header's"
         );
         let by = pncad::document::Speaker::TAG;
+        let (said, feature) = super::entity_header(&PickedName::face(&unclassified), by);
         assert_eq!(
-            super::entity_header(&PickedName::face(&unclassified), by),
+            (said.to_string(), feature),
             (
                 "the face of node 000000000003, on node 000000000005".to_owned(),
                 named
             ),
         );
         let cap = face(vec![RoleSeg::Cap(CapEnd::End)]);
+        let (said, feature) = super::entity_header(&PickedName::face(&cap), by);
         assert_eq!(
-            super::entity_header(&PickedName::face(&cap), by),
+            (said.to_string(), feature),
             (
                 "the end cap of node 000000000003, on node 000000000005".to_owned(),
                 named
