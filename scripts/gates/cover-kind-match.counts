@@ -75,11 +75,9 @@ ball 1 crates/sweep/src/revolve/tube.rs
 arm 1 crates/sweep/src/test_support.rs
 arm 1 crates/topo/src/boolean/arcs.rs
 arm 9 crates/topo/src/boolean/carrier_touch.rs
-arm 1 crates/topo/src/boolean/fate.rs
 arm 14 crates/topo/src/boolean/join.rs
 whole 1 crates/topo/src/boolean/join.rs
 arm 6 crates/topo/src/boolean/ops.rs
-arm 1 crates/topo/src/boolean/overlap.rs
 arm 7 crates/topo/src/boolean/reduce.rs
 arm 1 crates/topo/src/rim_wedge.rs
 arm 6 crates/topo/src/boolean/section_cert.rs
