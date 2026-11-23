@@ -20,7 +20,7 @@ use editor_core::analysis::{AnalysisPolicy, analyzed_box};
 use editor_core::drive::{BudgetKind, DriveConfig, RefusalReason};
 use editor_core::range::{
     CertifiedRange, DifferenceKind, RangeBudget, RangeField, RangeRefusal, RangeSearch, RangeSeed,
-    Step, Unsettled, admit, certified_range, derive,
+    Step, Unproven, admit, certified_range, derive,
 };
 use editor_core::{
     CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula, FreeVar,
@@ -404,7 +404,7 @@ fn a_depth_too_small_is_not_decided_and_never_a_bound() {
     let gap = hi.not_decided().expect("the starved side is undecided");
     assert_eq!(
         *gap.reason(),
-        Unsettled::Floor(RefusalReason::Budget(BudgetKind::Depth { max_depth: 1 }))
+        Unproven::Floor(RefusalReason::Budget(BudgetKind::Depth { max_depth: 1 }))
     );
     assert!(!gap.more_time_helps());
     assert!(
@@ -656,7 +656,7 @@ fn stopping_after_n_steps_keeps_what_was_proven() {
     assert_eq!(before.steps(), 0);
     for side in [before.lo(), before.hi()] {
         let gap = side.not_decided().expect("nothing is decided yet");
-        assert_eq!(*gap.reason(), Unsettled::Unfinished { replays: 0 });
+        assert_eq!(*gap.reason(), Unproven::Unfinished { replays: 0 });
         assert!(gap.more_time_helps());
     }
 
@@ -680,7 +680,7 @@ fn stopping_after_n_steps_keeps_what_was_proven() {
     let gap = last.hi().not_decided().expect("the boundary is not closed");
     assert_eq!(
         *gap.reason(),
-        Unsettled::Unfinished { replays: 12 },
+        Unproven::Unfinished { replays: 12 },
         "unfinished ground is priced under the steps taken"
     );
     assert!(gap.more_time_helps());

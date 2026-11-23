@@ -52,7 +52,7 @@ use crate::errors::{ErrorClass, dimension_tag};
 use crate::py::typed_err;
 use crate::tags::{
     budget_kind_tag, difference_kind_tag, range_refusal_tag, range_step_tag, slot_id_tag,
-    unsettled_tag,
+    unproven_tag,
 };
 use pncad::analysis as a;
 use pncad::document as d;
@@ -575,10 +575,12 @@ impl NotDecided {
     /// search still had work here when it stopped), `"stalled"`
     /// (halvings past the proof's last move decided nothing), or the
     /// driver's own reason for the frontier interval: `"budget"`,
-    /// `"sliver_terminal"`, `"bifurcation"` or `"infeasible"`.
+    /// `"sliver_terminal"`, `"reads_no_variable"` (the deciding node
+    /// does not read the field, so no halving settles it),
+    /// `"bifurcation"` or `"infeasible"`.
     #[getter]
     fn reason(&self) -> &'static str {
-        unsettled_tag(self.inner.reason())
+        unproven_tag(self.inner.reason())
     }
 
     /// The replays the search had taken, for `"unfinished"`: budget
@@ -586,8 +588,8 @@ impl NotDecided {
     #[getter]
     fn replays(&self) -> Option<usize> {
         match self.inner.reason() {
-            a::Unsettled::Unfinished { replays } => Some(*replays),
-            a::Unsettled::Stalled { .. } | a::Unsettled::Floor(_) => None,
+            a::Unproven::Unfinished { replays } => Some(*replays),
+            a::Unproven::Stalled { .. } | a::Unproven::Floor(_) => None,
         }
     }
 
@@ -596,8 +598,8 @@ impl NotDecided {
     #[getter]
     fn width(&self, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
         match self.inner.reason() {
-            a::Unsettled::Stalled { width } => quantity(py, *width, self.dim).map(Some),
-            a::Unsettled::Unfinished { .. } | a::Unsettled::Floor(_) => Ok(None),
+            a::Unproven::Stalled { width } => quantity(py, *width, self.dim).map(Some),
+            a::Unproven::Unfinished { .. } | a::Unproven::Floor(_) => Ok(None),
         }
     }
 
@@ -607,15 +609,16 @@ impl NotDecided {
     #[getter]
     fn budget(&self) -> Option<&'static str> {
         match self.inner.reason() {
-            a::Unsettled::Floor(a::RefusalReason::Budget(kind)) => Some(budget_kind_tag(kind)),
-            a::Unsettled::Floor(
+            a::Unproven::Floor(a::RefusalReason::Budget(kind)) => Some(budget_kind_tag(kind)),
+            a::Unproven::Floor(
                 a::RefusalReason::SliverTerminal { .. }
                 | a::RefusalReason::FlipCrossing { .. }
                 | a::RefusalReason::Bifurcation(_)
+                | a::RefusalReason::ReadsNoVariable { .. }
                 | a::RefusalReason::Infeasible,
             )
-            | a::Unsettled::Unfinished { .. }
-            | a::Unsettled::Stalled { .. } => None,
+            | a::Unproven::Unfinished { .. }
+            | a::Unproven::Stalled { .. } => None,
         }
     }
 
@@ -624,15 +627,16 @@ impl NotDecided {
     #[getter]
     fn predicate(&self) -> Option<&'static str> {
         match self.inner.reason() {
-            a::Unsettled::Floor(a::RefusalReason::SliverTerminal { predicate }) => Some(predicate),
-            a::Unsettled::Floor(
+            a::Unproven::Floor(a::RefusalReason::SliverTerminal { predicate }) => Some(predicate),
+            a::Unproven::Floor(
                 a::RefusalReason::FlipCrossing { .. }
                 | a::RefusalReason::Bifurcation(_)
                 | a::RefusalReason::Infeasible
+                | a::RefusalReason::ReadsNoVariable { .. }
                 | a::RefusalReason::Budget(_),
             )
-            | a::Unsettled::Unfinished { .. }
-            | a::Unsettled::Stalled { .. } => None,
+            | a::Unproven::Unfinished { .. }
+            | a::Unproven::Stalled { .. } => None,
         }
     }
 

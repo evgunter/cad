@@ -124,7 +124,7 @@ use crate::errors::{BoundaryEdit, EvalReason, StlRefusal, UnmirroredSelect, Vali
 use pncad::analysis::range::Step as RangeStep;
 use pncad::analysis::{
     AnalysisPolicyError, BudgetKind, DifferenceKind, DriveRefusal, McRefusal, MeasureUnavailable,
-    ParamBoxError, RangeRefusal, RefusalReason, SeedError, Unsettled,
+    ParamBoxError, RangeRefusal, RefusalReason, SeedError, Unproven,
 };
 use pncad::document::LabelFault;
 use pncad::document::{
@@ -822,11 +822,11 @@ pub fn range_refusal_tag(refusal: &RangeRefusal) -> &'static str {
 /// The stable tag for why a side of a range is not decided
 /// (`NotDecided.reason`): the search's own two, or the driver's reason
 /// at the frontier.
-pub fn unsettled_tag(reason: &Unsettled) -> &'static str {
+pub fn unproven_tag(reason: &Unproven) -> &'static str {
     match reason {
-        Unsettled::Unfinished { .. } => "unfinished",
-        Unsettled::Stalled { .. } => "stalled",
-        Unsettled::Floor(reason) => refusal_reason_tag(reason),
+        Unproven::Unfinished { .. } => "unfinished",
+        Unproven::Stalled { .. } => "stalled",
+        Unproven::Floor(reason) => refusal_reason_tag(reason),
     }
 }
 
@@ -848,6 +848,7 @@ pub fn refusal_reason_tag(reason: &RefusalReason) -> &'static str {
         RefusalReason::FlipCrossing { .. } => "flip_crossing",
         RefusalReason::Bifurcation(_) => "bifurcation",
         RefusalReason::Infeasible => "infeasible",
+        RefusalReason::ReadsNoVariable { .. } => "reads_no_variable",
         RefusalReason::Budget(_) => "budget",
     }
 }
@@ -1567,7 +1568,7 @@ pub fn blend_error_tag(err: &BlendError) -> &'static str {
         BlendError::SurgeryInvariant { .. } => "surgery_invariant",
         BlendError::RingClearance { .. } => "ring_clearance",
         BlendError::WhollyInside { .. } => "wholly_inside",
-        BlendError::Certify { .. } => "certify",
+        BlendError::PcurveMint { .. } => "pcurve_mint",
         BlendError::Op { .. } => "op",
         BlendError::Join { refusal } => join_refusal_tag(refusal),
     }
@@ -2357,6 +2358,7 @@ pub fn normalization_kind_tag(kind: &NormalizationKind) -> &'static str {
         NormalizationKind::ChartSingularityVertex { .. } => "chart_singularity_vertex",
         NormalizationKind::SeamlessPeriodicBand => "seamless_periodic_band",
         NormalizationKind::SurfacePromotion { .. } => "surface_promotion",
+        NormalizationKind::CollapsedSideMadeOne { .. } => "collapsed_side_made_one",
         NormalizationKind::JoinedEdges => "joined_edges",
         NormalizationKind::EdgeSplitAtC0Knot => "edge_split_at_c0_knot",
         NormalizationKind::FaceSplitAtC0Knot => "face_split_at_c0_knot",
@@ -3327,7 +3329,6 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::SolidWithoutShells { .. } => "solid_without_shells",
         ValidationError::ShellWithoutFaces { .. } => "shell_without_faces",
         ValidationError::EdgeAcrossShells { .. } => "edge_across_shells",
-        ValidationError::ComponentEulerViolation { .. } => "component_euler_violation",
         ValidationError::MissingProvenance { .. } => "missing_provenance",
         ValidationError::LeakedProvenance { .. } => "leaked_provenance",
         ValidationError::ScaffoldingEmptyLoop { .. } => "scaffolding_empty_loop",

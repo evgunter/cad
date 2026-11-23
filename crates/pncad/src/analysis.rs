@@ -57,7 +57,7 @@ pub use editor_core::{
 pub use editor_core::{
     BoxAxis, BudgetKind, CertifiedLeaf, DEFAULT_MAX_DEPTH, DEFAULT_MAX_LEAVES, DriveConfig,
     DriveRefusal, LeafResults, MeasureAccounting, ParamBox, ParamBoxVerdict, ReasonClass, Receipt,
-    RefusalReason, RefusedLeaf, drive,
+    RefusalReason, RefusedLeaf, Unsettled, drive,
 };
 
 /// The E4/E5 sensitivity and stackup report — the answer to "does this
@@ -101,7 +101,7 @@ pub use editor_core::{AssertionVerdict, UnevaluatedReason};
 /// holds under and is part of the answer.
 pub use editor_core::{
     Admission, CertifiedRange, DerivedRange, DifferenceKind, NotDecided, ProvenDifferent,
-    RangeBudget, RangeField, RangeRefusal, RangeSearch, RangeSeed, RangeSide, SideEnd, Unsettled,
+    RangeBudget, RangeField, RangeRefusal, RangeSearch, RangeSeed, RangeSide, SideEnd, Unproven,
     certified_range,
 };
 

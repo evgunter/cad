@@ -1509,7 +1509,7 @@ BOUND_AS = {
     "RangeBudget": "RangeSearch",
     # Why a side is undecided crosses as the word on `NotDecided.reason`,
     # with `replays` and `width` its two payloads.
-    "Unsettled": "NotDecided.reason",
+    "Unproven": "NotDecided.reason",
     # The schedule's one constant is a fact about the search's cost, read
     # in the module docs; nothing a caller passes or reads names it.
     "STALL_LEVELS": "RangeSearch",
@@ -3554,6 +3554,7 @@ NOT_BOUND = {
     "Stackup": SHAPE,
     "StackupRefusal": SHAPE,
     "Unavailable": SHAPE,
+    "Unsettled": SHAPE,
     "WorstCase": SHAPE,
     "assertion_at": SHAPE,
     "drive": SHAPE,
@@ -3924,6 +3925,9 @@ MEMBERS_BOUND_AS = {
     "PathError::Structure": "PathError.variant",
     "PathError::UnderdeterminedLeg": "PathError.variant",
     "PathError::OverdeterminedJunction": "PathError.variant",
+    # A refusal a later step raises about an earlier one: `variant` is
+    # its refusal's tag, and the message names the step that raised it.
+    "PathError::Deferred": "PathError.variant",
     "PersistError::NonFinite": "PersistError.variant",
     "PersistError::ProfileProgram": "PersistError.variant",
     "PersistError::Distribution": "PersistError.variant",
@@ -4164,7 +4168,6 @@ MEMBERS_BOUND_AS = {
     "ValidationError::SolidWithoutShells": "ValidationFinding.variant",
     "ValidationError::ShellWithoutFaces": "ValidationFinding.variant",
     "ValidationError::EdgeAcrossShells": "ValidationFinding.variant",
-    "ValidationError::ComponentEulerViolation": "ValidationFinding.variant",
     "ValidationError::MissingProvenance": "ValidationFinding.variant",
     "ValidationError::LeakedProvenance": "ValidationFinding.variant",
     "ValidationError::ScaffoldingEmptyLoop": "ValidationFinding.variant",

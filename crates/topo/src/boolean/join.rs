@@ -1538,9 +1538,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                 Operand::A => &gb,
                 Operand::B => &ga,
             };
-            let (geom::Curve3::Circle(geom::Circle { frame, .. })
-            | geom::Curve3::Ellipse(geom::Ellipse { frame, .. })) = along.carrier
-            else {
+            let Some(frame) = along.carrier.conic().map(geom::Conic::frame) else {
                 return Err(no_arm());
             };
             let (center, axis) = (frame.origin(), frame.axis());
@@ -2286,6 +2284,7 @@ fn off_conic_slack<T: geom_core::Real>(from: Turn<T>, band: Band) -> Margin<T> {
         / turn_of(from.frame(), from.site(), from.tangent()).abs();
     // Unsourced lever: the band's ε, how far a site may stand off the
     // conic, which is a tolerance and no extent, curvature or box.
+    // No door names it yet: `work/oneround/unsourced-levers-with-no-door-that-names-them.md`.
     Margin::levered(
         cot + cot,
         geom_core::Lever::unsourced(T::from_f64(band.zero())),
@@ -2874,10 +2873,9 @@ fn germ_section_loops<T: crate::props::AtRestPolicy>(
     if let Some(along) = along_edge_conic((a, b), germ)? {
         return match along.carrier {
             geom::Curve3::Line(_) => Ok(None),
-            geom::Curve3::Circle(geom::Circle { frame, .. })
-            | geom::Curve3::Ellipse(geom::Ellipse { frame, .. }) => {
-                Ok(Some(SectionLoops::conic(frame.axis_line())))
-            }
+            ref conic @ (geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_)) => Ok(conic
+                .frame()
+                .map(|frame| SectionLoops::conic(frame.axis_line()))),
             geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) | geom::Curve3::Periodic(_) => {
                 Err(BooleanError::EdgeCarrierUnsupported {
                     operand: along.on,
@@ -4222,15 +4220,14 @@ pub(super) fn pk_section<T: Decide>(
     };
     match geom_brep::plane_cone_section(plane, cone, reach, band) {
         Ok(
-            geom_brep::PlaneConeSection::TiltedEllipse(geom::Curve3::Ellipse(geom::Ellipse {
-                frame,
-                ..
-            }))
-            | geom_brep::PlaneConeSection::AxisNormalCircle(geom::Curve3::Circle(geom::Circle {
-                frame,
-                ..
-            })),
-        ) => Ok(PkSection::Loop(frame.axis_line())),
+            geom_brep::PlaneConeSection::TiltedEllipse(conic @ geom::Curve3::Ellipse(_))
+            | geom_brep::PlaneConeSection::AxisNormalCircle(conic @ geom::Curve3::Circle(_)),
+        ) => {
+            let frame = conic
+                .frame()
+                .unwrap_or_else(|| unreachable!("a circle and an ellipse have a frame"));
+            Ok(PkSection::Loop(frame.axis_line()))
+        }
         Ok(geom_brep::PlaneConeSection::ApexLinePair { l1, l2 }) => {
             let geom::Surface::Cone {
                 frame: carrier_frame,
@@ -4333,10 +4330,13 @@ fn pt_germ_frame<T: Decide>(
     let (c, a) = (torus_frame.origin(), torus_frame.axis());
     let carried = || FrameError::Desync("plane×torus classification carried another carrier");
     let circle = |curve: geom::Curve3<T>| match curve {
-        geom::Curve3::Circle(geom::Circle { frame, .. }) => Ok(SectionLoop {
-            axis: frame.axis_line(),
-            ball: None,
-        }),
+        geom::Curve3::Circle(the_circle @ geom::Circle { .. }) => {
+            let frame = the_circle.frame();
+            Ok(SectionLoop {
+                axis: frame.axis_line(),
+                ball: None,
+            })
+        }
         _ => Err(carried()),
     };
     let section = geom_brep::plane_torus_section(plane, torus, lever, band);
@@ -6934,19 +6934,13 @@ mod frame_dispatch_tests {
             for sign in [1.0_f64, -1.0] {
                 let pinch = p + n * (sign * r);
                 for (name, e) in [("e1", &e1), ("e2", &e2)] {
-                    let geom::Curve3::Ellipse(
-                        conic_k @ geom::Ellipse {
-                            frame: carrier_frame_4,
-                            ..
-                        },
-                    ) = *e
-                    else {
+                    let geom::Curve3::Ellipse(conic_k) = *e else {
                         panic!("{deg}°, {name}: the section carried a non-ellipse");
                     };
                     let (center, axis, u_ref) = (
-                        carrier_frame_4.origin(),
-                        carrier_frame_4.axis(),
-                        carrier_frame_4.u_ref(),
+                        conic_k.frame().origin(),
+                        conic_k.frame().axis(),
+                        conic_k.frame().u_ref(),
                     );
                     let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
                     // The eccentric anomaly of the pinch point, read
@@ -7924,8 +7918,7 @@ mod apex_plane_rows {
         let up = Vec3::new(0.0, 1.0, 0.0);
         let tilted = |t: f64| Vec3::new(t.sin(), t.cos(), 0.0);
         let g = Vec3::new(0.0, -(0.5f64.cos()), 0.5f64.sin());
-        // Unsourced lever: a fixture's unit ball about the apex, no extent to read it off.
-        let reach = geom_brep::ExtentBall::unsourced(Point3::origin(), 1.0);
+        let reach = geom_brep::ExtentBall::fixture(Point3::origin(), 1.0);
         let (fa, fb) = (FaceKey::default(), FaceKey::default());
         let (one, near, nearer) = (cone(up), cone(tilted(1e-3)), cone(tilted(2e-8)));
         assert!(cone_apex_plane((fa, &one), (fb, &near), g, reach, band).is_ok());

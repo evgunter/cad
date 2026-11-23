@@ -3024,6 +3024,10 @@ fn import_report_row_tags_are_stable() {
             "carrier_built",
         ),
         (
+            NormalizationKind::CollapsedSideMadeOne { moved_by: 3e-9 },
+            "collapsed_side_made_one",
+        ),
+        (
             NormalizationKind::CurvePromoted {
                 kind: pncad::step_import::PromotedCurveKind::Circle,
                 residual: 1e-17,
@@ -3113,7 +3117,7 @@ fn path_error_tags_are_stable() {
         .to(p2(3.0, 2.0), Tol::witness())
         .expect_err("the setback outruns the arrival leg");
     assert_eq!(path_error_tag(&overrun), "no_corner_of_pair");
-    let pncad::profile::PathError::NoCornerOfPair { corners, .. } = &overrun else {
+    let pncad::profile::PathError::NoCornerOfPair { corners, .. } = overrun.refusal() else {
         panic!("expected the envelope, got {overrun:?}")
     };
     let entries: Vec<&'static str> = corners
@@ -4448,7 +4452,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "ball_does_not_fit",
             "band",
             "body_not_intact",
-            "certify",
             "chain_not_connected",
             "chain_not_g1",
             "chamfer_arm_unsupported",
@@ -4461,6 +4464,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "not_finished",
             "oblique_mixed_corner",
             "op",
+            "pcurve_mint",
             "radius_headroom",
             "repeated_edge",
             "ring_clearance",
@@ -5398,6 +5402,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "carrier_built",
             "chart_singularity_vertex",
+            "collapsed_side_made_one",
             "curve_promoted",
             "edge_free_sphere",
             "edge_split_at_c0_knot",
@@ -5695,6 +5700,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "budget",
             "flip_crossing",
             "infeasible",
+            "reads_no_variable",
             "sliver_terminal",
         ],
         delegates: &[],
@@ -6265,7 +6271,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
-        function: "unsettled_tag",
+        function: "unproven_tag",
         values: &["stalled", "unfinished"],
         delegates: &["refusal_reason_tag"],
     },
@@ -6292,7 +6298,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "chart_singularity_undecided",
             "coincident_wedges_overlap",
             "coincident_wedges_overlap_undecided",
-            "component_euler_violation",
             "contact_contradicted",
             "curve_datum_undecided",
             "curved_sense_inverted",

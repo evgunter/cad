@@ -3403,7 +3403,9 @@ class NotDecided:
         (the search still had work here when it stopped), `"stalled"`
         (halvings past the proof's last move decided nothing), or the
         driver's own reason for the frontier interval: `"budget"`,
-        `"sliver_terminal"`, `"bifurcation"` or `"infeasible"`."""
+        `"sliver_terminal"`, `"reads_no_variable"` (the deciding node
+        does not read the field, so no halving settles it),
+        `"bifurcation"` or `"infeasible"`."""
     @property
     def replays(self) -> Optional[int]:
         """The replays the search had taken, for `"unfinished"`: budget

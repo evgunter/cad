@@ -48,7 +48,7 @@
 //!    the frontier, the difference for the approach). Halvings that
 //!    decide nothing at four successive widths are in ground undecided
 //!    at every width: a coincidence or failure zone, or the ε band at a
-//!    boundary. That end is then settled ([`Unsettled::Stalled`]):
+//!    boundary. That end is then settled ([`Unproven::Stalled`]):
 //!    what it gives up lies inside an interval a sixteenth the width of
 //!    the one that last moved it. The frontier of a side that has
 //!    proven nothing yet has no such bound, because the first proof can
@@ -132,7 +132,7 @@
 //! never proves anything, and nothing on a side that does. The `f64`
 //! grid is no bound near the current value, where it is far finer than
 //! any depth. Ground the search still had work on when it stopped is
-//! [`Unsettled::Unfinished`], under the replays taken.
+//! [`Unproven::Unfinished`], under the replays taken.
 //!
 //! # The one field, and where its widening lives
 //!
@@ -169,6 +169,7 @@
 //! verbatim, so a seed stated this way IS the axis, exactly.
 //! [`CertifiedRange::absolute`] converts for a reader.
 
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use geom_core::Tol;
@@ -328,12 +329,12 @@ impl ProvenDifferent {
 #[derive(Debug, Clone, PartialEq)]
 pub struct NotDecided {
     past: f64,
-    reason: Unsettled,
+    reason: Unproven,
 }
 
 /// **Why a side is not decided** at its frontier ([`NotDecided::reason`]).
 #[derive(Debug, Clone, PartialEq)]
-pub enum Unsettled {
+pub enum Unproven {
     /// The schedule still had work on this side when the search
     /// stopped: the caller stopped stepping, or
     /// [`RangeBudget::max_replays`] was spent.
@@ -349,8 +350,11 @@ pub enum Unsettled {
         width: f64,
     },
     /// The driver refused the frontier interval for good: a terminal
-    /// sliver, or an interval at [`RangeBudget::max_depth`] or the
-    /// `f64` grid ([`BudgetKind::Depth`], [`BudgetKind::Resolution`]).
+    /// sliver, an interval at [`RangeBudget::max_depth`] or the `f64`
+    /// grid ([`BudgetKind::Depth`], [`BudgetKind::Resolution`]), or a
+    /// node that does not read the ranged variable
+    /// ([`RefusalReason::ReadsNoVariable`]), which no budget moves: its
+    /// recourse is the node's own.
     Floor(RefusalReason),
 }
 
@@ -363,18 +367,18 @@ impl NotDecided {
 
     /// Why the side is undecided at its frontier.
     #[must_use]
-    pub fn reason(&self) -> &Unsettled {
+    pub fn reason(&self) -> &Unproven {
         &self.reason
     }
 
     /// Whether more replays can change this side's answer: the schedule
-    /// still had work on it ([`Unsettled::Unfinished`]). A stall and a
+    /// still had work on it ([`Unproven::Unfinished`]). A stall and a
     /// floor are where the schedule stops; a deeper
     /// [`RangeBudget::max_depth`] can move a depth floor, and more
     /// replays cannot.
     #[must_use]
     pub fn more_time_helps(&self) -> bool {
-        matches!(self.reason, Unsettled::Unfinished { .. })
+        matches!(self.reason, Unproven::Unfinished { .. })
     }
 }
 
@@ -1229,16 +1233,16 @@ impl Side {
                 _ => None,
             });
         let reason = if self.work().is_some() {
-            Some(Unsettled::Unfinished { replays })
+            Some(Unproven::Unfinished { replays })
         } else {
             match &frontier.ground {
                 Ground::Different(_) | Ground::Proven => None,
-                Ground::Floor(reason) => Some(Unsettled::Floor(reason.clone())),
+                Ground::Floor(reason) => Some(Unproven::Floor(reason.clone())),
                 // An interval short of the nearest difference that is not
                 // replayed is work, so an unreached frontier with none
                 // left does not occur; it is priced as one that has.
-                Ground::Unreached => Some(Unsettled::Unfinished { replays }),
-                Ground::Undecided(_) => Some(Unsettled::Stalled {
+                Ground::Unreached => Some(Unproven::Unfinished { replays }),
+                Ground::Undecided(_) => Some(Unproven::Stalled {
                     width: self
                         .proof_moved
                         .map_or(frontier.width(), |(_, width)| width),
@@ -1278,6 +1282,8 @@ pub struct RangeSearch {
     witness_vector: VerdictVector,
     witness_key: VerdictVectorKey,
     memo: Arc<geom_core::sym::DriveMemo>,
+    /// Whether each node reads the varying axis ([`Doc::free_reads`]).
+    reads_axis: BTreeSet<RecipeNodeId>,
     /// The low side, then the high side.
     sides: [Side; 2],
     steps: usize,
@@ -1338,6 +1344,13 @@ impl RangeSearch {
             witness_vector,
             witness,
             memo: drive_memo(budget.plain_memo, budget.symbolic),
+            reads_axis: derived
+                .doc
+                .free_reads()
+                .into_iter()
+                .filter(|(_, reads)| reads.contains(&derived.axis))
+                .map(|(node, _)| node)
+                .collect(),
             sides: [Side::whole(seed.lo), Side::whole(seed.hi)],
             steps: 0,
             derived,
@@ -1418,7 +1431,18 @@ impl RangeSearch {
                 Ground::Different(flipped)
             }
             LeafVerdict::Refused(reason) => Ground::Floor(reason),
-            LeafVerdict::Bisect => halves(cell, axis, self.budget.max_depth),
+            // A deciding node that reads nothing of the axis is not
+            // settled by halving it, at any depth (as in `drive`).
+            LeafVerdict::Bisect {
+                deciding,
+                unsettled,
+            } if !self.reads_axis.contains(&deciding) => {
+                Ground::Floor(RefusalReason::ReadsNoVariable {
+                    node: deciding,
+                    unsettled,
+                })
+            }
+            LeafVerdict::Bisect { .. } => halves(cell, axis, self.budget.max_depth),
         })
     }
 }
@@ -1610,7 +1634,7 @@ mod tests {
         assert_eq!(gap.past(), 1.0);
         assert_eq!(
             *gap.reason(),
-            Unsettled::Floor(RefusalReason::Budget(BudgetKind::Depth { max_depth: 3 }))
+            Unproven::Floor(RefusalReason::Budget(BudgetKind::Depth { max_depth: 3 }))
         );
         assert!(!gap.more_time_helps(), "nothing is left to do on this side");
     }
@@ -1633,7 +1657,7 @@ mod tests {
                 .not_decided()
                 .cloned()
                 .expect("undecided ground");
-            assert_eq!(gap.reason, Unsettled::Unfinished { replays: 7 });
+            assert_eq!(gap.reason, Unproven::Unfinished { replays: 7 });
             assert!(gap.more_time_helps());
         }
     }
@@ -1657,7 +1681,7 @@ mod tests {
             );
             let gap = answer.not_decided().expect("the frontier is undecided");
             assert_eq!(gap.past(), -1.0);
-            assert_eq!(*gap.reason(), Unsettled::Unfinished { replays: 5 });
+            assert_eq!(*gap.reason(), Unproven::Unfinished { replays: 5 });
             assert!(gap.more_time_helps());
         }
     }
@@ -1754,7 +1778,7 @@ mod tests {
         let answer = side.answer(11);
         assert_eq!(
             answer.not_decided().map(NotDecided::reason),
-            Some(&Unsettled::Stalled { width: 0.5 })
+            Some(&Unproven::Stalled { width: 0.5 })
         );
         side.proof_moved = Some((3, 0.5));
         assert!(

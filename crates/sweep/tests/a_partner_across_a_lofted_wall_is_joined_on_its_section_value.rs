@@ -28,7 +28,7 @@ fn chord_certificate(e: &BooleanError) -> Option<&geom_brep::CertifyError> {
         return None;
     };
     match join.error() {
-        JoinError::Euler(EulerOpError::Certification { error }) => Some(error),
+        JoinError::Euler(EulerOpError::DescriptionUncertified { error, .. }) => Some(error),
         _ => None,
     }
 }
