@@ -2725,8 +2725,8 @@ mod tests {
         assert!(
             matches!(
                 err,
-                EulerOpError::RebasedCarrier {
-                    edge,
+                EulerOpError::DescriptionUncertified {
+                    edge: Some(edge),
                     error: geom_brep::CertifyError::ResidualExceeded { .. },
                 } if edge == seg.edge
             ),
