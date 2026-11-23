@@ -26,7 +26,7 @@ EXECUTED (my own runs, own target directories; hosted CI not consulted):
   turn (2,016 readings per ε, base and head); `height_of` and the decision log at every `f64` line pose of the ladder;
   the `Interval` window pose on both placements and the in-plane pairs at `Interval`, base and head; the ignored
   `Interval` touch measurement.
-- Fourteen mutants, each alone, at both ε, against 491 tests (`door_rows`, `arc_held_rows`, every `curve_pair::` and
+- Thirteen mutants, each alone, at both ε, against 491 tests (`door_rows`, `arc_held_rows`, every `curve_pair::` and
   `curve_face::` row of the ci profile, `conic`, `on_carrier`); the survivors again against the slow-set oracles of
   `curve_pair`.
 - The differential: `cargo nextest run --profile ci -p geom -p geom-brep -p topo -p sweep -p step-import`, head and
@@ -58,7 +58,10 @@ says so). Joined pose by pose to the base (`review/out/ladder-base-vs-head.txt`)
 | answered acceptably on the base (truth in the gap, read apart), now a meeting placed 1.1 to 3.5 Kε from the true closest point | 2 | 3 |
 
 One of the five refused-then-wrong is a new **"`Ok`, no meeting"** for curves that meet: ε 1e-12, fat `a` = 1e5,
-θ = 2, the circle at 5°, true gap 2.2e-13 (the base refused it). Seven of the nineteen are of that kind, the one
+θ = 2, the circle at 5°, true gap 2.2e-13 (the base refused it). Another is **below the regression floor**: ε 1e-12,
+thin `a` = 1e4, θ = 2, the line at 5°, a meeting placed 1.2e-11 m (1.2 Kε) from the true one where the base
+refused; the P1 row's table lists the pose and the body does not say it is under the size at which main is never
+wrong. Seven of the nineteen are of that kind, the one
 direction main is wrong in. The acceptance reads "no pose certified wrongly … a differential against the base: every
 verdict that moves, judged against the oracle"; the body's table gives totals (60 → 7, 145 → 12) and says the
 remainder is "not a reader of where the conic is". On the question the brief puts: a wrong certificate left at a
@@ -99,8 +102,8 @@ anchor. `on_carrier` shows the same reader at a second door (`review/probe_level
 points): a definite `Off` inside the band's gap 4 times at each ε and once for a point within ε of the stored curve
 (1e-12), the row's finding B persisting away from the anchor. **Consequence for the row filed:** P1's fix is "a meter
 of the evaluator's running bound (`Conic::running_point`, or `Height::running_at`)". Both take the frame as exact and
-neither meters `height_of` or `level_at` of a foreign point, so that fix leaves the first pose above certified, and the second if it is what I read it as. The
-square-frame assumption is disclosed in the dispatch but in no row and no doc comment I could find (`conic.rs`
+neither meters `height_of` or `level_at` of a foreign point, so that fix leaves the first pose above certified, and
+the second if it is what I read it as. The square-frame assumption is disclosed in the dispatch but in no row and no doc comment I could find (`conic.rs`
 "A unit frame, by its type" says the opposite: "its axes unit and square by the mint that made it"); it is
 unscheduled (Q6).
 
@@ -146,8 +149,8 @@ judged ladders), `sure`. Right on the base and refused on the head at `Interval`
 refusing row: `curve_pair_pose_basin` on the circle door 103 and 245, `curve_pair_walk_pair_gap` on the circle door
 27 and 42, `curve_pair_pose_level_arc` **2 and 2**. The P3 row says of `level_arc`'s 146 and 306 readings "most of
 them poses the base read `apart` rightly": 2 of 146 and 2 of 306 were. The loss is the circle door's, and the same
-probe that confirms C6 shows where it comes from: with `holds_only` reading the parts it used to pass over, an
-ellipse held at its CENTRE with semi-axis 100 m, θ = 0.5, at ε 1e-12 goes from `Ok`, one meeting, to
+probe that confirms C6 shows it is not the placement class: with `holds_only` reading the parts it used to pass
+over (`likely` the cause; I did not bisect it), an ellipse held at its CENTRE with semi-axis 100 m, θ = 0.5, at ε 1e-12 goes from `Ok`, one meeting, to
 `curve_pair_pose_basin`, and an arc-held one of 10 m at θ = 2 likewise (`review/out/window-base-1e-12.txt` against
 `window-head-1e-12.txt`). So a centre-held verdict IS newly refused, at `Interval`, well below the floor, and nothing
 schedules it: the P3 row names the line door and family F only.
@@ -203,8 +206,10 @@ change is 34 files, 16 under `crates/` at +1560 −330, as stated; the conflict 
 (b) "CI has not concluded" stands; nothing here rests on it.
 
 **N2. The body's verification is of an earlier tree.** It says the full differential ran on `83d198efa`; after it come
-a gates commit, a merge of main (`0fe820035`) and one more. The frozen head runs 10,605 tests under the profile, not
-10,592. My runs are of the frozen head: [[DIFF]].
+`cf4a0884a`, which changes code (the anchor's root angle, the two point means of m6), a merge of main (`0fe820035`)
+and one more. The frozen head runs 10,605 tests under the profile; 10,592 is the base's count. My runs are of the frozen head: base 10,592 passed at 1e-9 and 10,591 with one failure at 1e-12; head 10,605 passed at 1e-9 and 10,604 with
+the same one failure at 1e-12 (sweep's `a_cylinder_wall_through_a_prism_corner_meshes_at_a_coarse_delta`). The 13
+more are the unit's rows; its ten `arc_held_rows`, copied into the base, are 10 of 10 red there at both ε.
 
 **N3. Two things about the unit's ladder.** The "near … 1 km of arc" pose on a thin section is `θ = 1000/b`, which
 on `a` = 1e8 and 1e9 puts the point 1.44e5 m from the stored point (`|q − S|`, measured): it is a far pose, and the
@@ -277,7 +282,10 @@ floor takes it to zero, the plane door's belly cannot decide and its parallel of
 at `Interval` answer rightly or refuse at every size tried (`review/out/window-head-*.txt`), and better than the
 base. `door_rows`' `holds` does pin a width (`≤ 4·slack`); none of its rows reads the normal direction.
 
-**C8 (the differential).** [[DIFF]] The five moved rows: `a_graze_side…` green unchanged (the body's account of
+**C8 (the differential).** Run on the frozen head and on the base: base 10,592 passed at 1e-9 and 10,591 with one failure at 1e-12; head 10,605 passed at 1e-9 and 10,604 with
+the same one failure at 1e-12 (sweep's `a_cylinder_wall_through_a_prism_corner_meshes_at_a_coarse_delta`). The 13
+more are the unit's rows; its ten `arc_held_rows`, copied into the base, are 10 of 10 red there at both ε. No row differs between base and head but the unit's own and the five it re-baselined or moved, each of which
+passes on its own tree. The five moved rows: `a_graze_side…` green unchanged (the body's account of
 `mean()` is consistent with the code: bit for bit `d₀` at the centre). The plane-crossing fixture: K = 10, so the old
 δ = 1e-9 put the crossing at exactly the escalation and the row depended on a last bit; 5e-10 is mid-gap. The move is
 right, and it is the fixture that was wrong. `MAP_RESIDUAL`: a refusal at one rung became a refusal at another for a
@@ -286,7 +294,7 @@ The two counts (24 → 27, 33 → 25) I read and did not re-derive: they are equ
 disagree across chart frames, so any change in a root's last bit moves them, and "57 → 52 in all" is a consolation,
 not an argument; `unsure`. Which formula is kept: `curve_pair`'s (crest ± `2·asin √r` from the extreme that crossed
 the less); the plane door's `acos(−d₀/R)` is gone. I found no centre-held verdict that became wrong; one became a
-refusal at `Interval` (m4), by `holds_only`, not by the roots.
+refusal at `Interval` (m4), `likely` by `holds_only` and not by the roots.
 
 **C9 (the mutants).** Planted by me, each alone, both ε, 491 tests (baseline 491 passed):
 
@@ -308,7 +316,12 @@ refusal at `Interval` (m4), by `holds_only`, not by the roots.
 
 R1, R3, R4, R9, S1 and S2 were run again against the 17 slow-set oracle rows of `curve_pair` (the dense-distance
 window oracle among them), at both ε: all survive. The four claimed survivors: each argument is true as far as it goes. S1 is a seed. S3's one reader in
-`curve_pair` is a magnitude (its other, `topo/src/splitting/section_loops.rs`, I did not read). S4 is m6: "by design"
+`curve_pair` is a magnitude; but the body names one other caller and there are two, and one of them DECIDES on it:
+`topo/src/splitting/section_loops.rs:447` (`conics_clear`, `1 − |c′| − reach` against the band) and
+`sweep/src/blend/open/end_face.rs:390`. Both changed behaviour with the override, neither is in the 491 tests, and I
+ran no topo or sweep row against S3 (`unsure` whether any would see it). Note also what the override cannot buy:
+`c₀ + du` beside `c₀ = 1` keeps `du` only to `u`, so the unit coordinates of a point beside the anchor still round at
+`u·a` metres, as from the centre. S4 is m6: "by design"
 means the reading was not re-posed. S2: the argument is "inside a Taylor bound"; R4 shows the jet's next term is not
 pinned at all in the ci set, so I would not lean on the bound. Of mine: R2 is dead code (after `row::SWING` reads the
 swing definite, the residual cannot lie within ±e all round), an equivalent mutant; R1, R3, R4, R9 are m9. R7 and R8,
@@ -339,7 +352,8 @@ run does take them; the demos nothing schedules); the `Interval` loss on the cir
 not a reader of where the conic is" (M2); and it does not say that ten of the nineteen are new (M1). The disowned
 reds, each run on the base and on the head: `recourse_roster` fails in geom-brep and in topo on both, with the same
 message line for line; `certified_torus_answers_hold_against_the_true_distance` at seed `0x53500b4c590de496`, ε 1e-12,
-fails on both alike; sweep's `a_cylinder_wall_through_a_prism_corner_meshes_at_a_coarse_delta` at 1e-12: [[C12S]].
+fails on both alike; sweep's `a_cylinder_wall_through_a_prism_corner_meshes_at_a_coarse_delta` fails at 1e-12 on
+both and passes at 1e-9 on both. All three are the base's.
 
 ## Style
 
@@ -394,7 +408,7 @@ Questions exercised: **Q1** (prose sweep and constants sweep over the added line
   placement enum and matches on it in six methods, and the unit leaves three other harmonics and two respelled centres
   beside it.
 - **Test quality: 2.** The rows pin the near-anchor contract and die on the centre mutant (K1: 7 rows), but five of my
-  nine mutants survive, the unsound ones at the new door die on a single unit assertion each, nothing holds a
+  eight mutants survive (one of them equivalent), the unsound ones at the new door die on a single unit assertion each, nothing holds a
   re-seamed, thin, grazing or far pose, and the placing tolerance is ten escalations.
 - **Doc and comment honesty: 3.** The doors' docs say what they do and the body discloses a great deal; but the body's
   central attribution is wrong for at least one of nineteen, a filed row misstates what refuses, the module header still
