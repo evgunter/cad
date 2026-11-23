@@ -263,11 +263,12 @@ impl<'a, T: Decide> WedgeWalk<'a, T> {
         let (s1, s2) = (self.plus.surface, self.minus.surface);
         match self.around {
             None => WalkSpan::along(s1, s2, self.carrier, self.span.0, self.span.1),
+            // One turn read at `n` uniform phases: the phases' own step.
             Some(n) => WalkSpan::around(
                 s1,
                 s2,
                 self.carrier,
-                T::from_f64(core::f64::consts::TAU / f64::from(n.get())),
+                (self.span.1 - self.span.0) / T::from_computed(f64::from(n.get())),
             ),
         }
     }
