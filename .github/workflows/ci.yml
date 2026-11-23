@@ -37,7 +37,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  SCCACHE_VERSION: "0.16.0"
   NEXTEST_VERSION: "0.9.140"
   MATURIN_VERSION: "1.14.1"
   TY_VERSION: "0.0.39"
@@ -641,7 +640,7 @@ jobs:
           cargo test -p mesh --features budget
 
   step-import:
-    name: step import (freecad)
+    name: step export fixtures (freecad)
     runs-on: ubuntu-latest
     needs: filter
     if: needs.filter.outputs.run_step_export == 'true'

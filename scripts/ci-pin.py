@@ -4,7 +4,7 @@ WORKFLOW-LEVEL `env:` block.
 
 `ci.yml` declares itself the single source of truth for every tool version CI
 installs — `NEXTEST_VERSION`, `MATURIN_VERSION`, `TY_VERSION`, `RUFF_VERSION`,
-`SCCACHE_VERSION` — and the lanes that are not `ci.yml` read the pin back from
+`ACTIONLINT_VERSION` — and the lanes that are not `ci.yml` read the pin back from
 there rather than restating it. This is the one reader they call:
 
     v="$(scripts/ci-pin.py NEXTEST_VERSION)"
@@ -285,7 +285,7 @@ jobs:
       - run: echo hi
 env:
   # a comment inside the block
-  SCCACHE_VERSION: "0.16.0"
+  MATURIN_VERSION: "1.14.1"
   NEXTEST_VERSION: "0.9.140"
   BARE_VERSION: 1.2.3 # with a trailing comment
   SINGLE_VERSION: '4.5.6'
@@ -317,7 +317,7 @@ def selftest() -> int:
 
         # 1. THE HAPPY PATH, in all three scalar spellings the block may hold.
         wf = write(FIXTURE)
-        for name, want in (("NEXTEST_VERSION", "0.9.140"), ("SCCACHE_VERSION", "0.16.0"),
+        for name, want in (("NEXTEST_VERSION", "0.9.140"), ("MATURIN_VERSION", "1.14.1"),
                            ("BARE_VERSION", "1.2.3"), ("SINGLE_VERSION", "4.5.6")):
             rc, out, err = _run([name, "--file", wf], t)
             check(rc == 0 and out == want,
@@ -412,7 +412,7 @@ def selftest() -> int:
         with open(os.path.join(t, "wf.yml"), encoding="utf-8") as fh:
             body = fh.read()
         pins = read_pins(body, "wf.yml")
-        check(pins == {"SCCACHE_VERSION": "0.16.0", "NEXTEST_VERSION": "0.9.140",
+        check(pins == {"MATURIN_VERSION": "1.14.1", "NEXTEST_VERSION": "0.9.140",
                        "BARE_VERSION": "1.2.3", "SINGLE_VERSION": "4.5.6"},
               f"read_pins enumerated {pins}, which is not the fixture's whole block")
         # It walks the BLOCK, so a pin under a job is not in it — the same

@@ -24,9 +24,9 @@ These rows, raised through `PathError` (`crates/profile/src/path.rs`), `ProfileE
 by exact id, under the comment naming this file:
 
 - `crates/editor-core/tests/refusal_concision_chains.rs`, `FILED_NO_RECOURSE`:
-  28 feature-tree rows.
+  its feature-tree rows.
 - `crates/viewer/tests/refusal_concision_edits.rs`, `FILED_NO_RECOURSE`:
-  3 status-line rows.
+  its status-line rows.
 
 Families: `Edit/ProfileProgramRefused`, `Profile`, `ProfileReplay`.
 

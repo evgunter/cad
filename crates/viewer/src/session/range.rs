@@ -120,6 +120,15 @@ impl RangeReading {
     /// **The reading's lines**, each a sentence on its own, with the
     /// document's nodes and variables said as `doc` speaks them.
     pub fn lines(&self, doc: &Doc<ProfileProgram>) -> Vec<String> {
+        self.said_lines(doc)
+            .iter()
+            .map(ToString::to_string)
+            .collect()
+    }
+
+    /// [`Self::lines`] as sentences, each node and variable a mention
+    /// in `doc`: what the Properties pane draws.
+    pub fn said_lines(&self, doc: &Doc<ProfileProgram>) -> Vec<Sentence> {
         self.said(doc)
             .iter()
             .map(|said| {
@@ -130,7 +139,6 @@ impl RangeReading {
                     },
                     doc,
                 )
-                .to_string()
             })
             .collect()
     }

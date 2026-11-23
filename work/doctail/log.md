@@ -692,3 +692,4 @@ body has the reasons):
 - 2026-11-23 10:52 — Filed on GREEN, found by the lane:
   `main-red-geom-core-test-support-fails-items-after-test-module-under-all-targets`
   (P2 E).
+- 2026-11-23 — (OFFER orchestrator) Main's rustdoc gate was red from #7554: `eval/mod.rs:3743`'s doc linked to `Self::exactly_zero` inside a trait impl, where rustdoc cannot resolve it. #7560 fixes it by naming it in code text, verified with the gate's own lints.

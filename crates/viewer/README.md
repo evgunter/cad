@@ -1403,6 +1403,23 @@ chrome and leave a message where it is. `widgets::message_toned` adds
 the voice, through `app::toned`, so what `Advisory` looks like stays
 decided in one place.
 
+A kernel `Sentence` — a refusal, a finding, a notice, a relation entry,
+a heading that names a node — is drawn by `widgets::sentence`, on the
+same wrap: one galley, one section per run, so it breaks where its text
+would. Each mention `relations::link` answers for the document on
+screen (its id spelled in that document, and the document still
+holding it) wears the chrome's one link look (`widgets::message_link`
+wears it too), and a click on its characters selects it; any other
+mention is drawn as words. The sentence is a label over its galley, so
+it selects and copies as any message does. A `frame::Message`
+holds its `Sentence`, never its text, so the status line keeps its
+mentions; a refusal is said by the document it was raised in
+(`frame::refusal_speaker`), and a door that says one in no document is
+named so (`frame::frame_status_untargeted`,
+`frame::refusal_message_untargeted`). The feature tree scrolls the selected row
+into view when the selection changes from outside it, and not when the
+tree's own click changed it.
+
 The region is taken down to a floor and no further:
 `widgets::message_floor` is the widest number `readout::number`
 returns (`widgets::widest_number`, over `readout::widest_render`) and
