@@ -2741,6 +2741,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("mod.rs", "verify_tangency", "Coincide::TangentLocus", 1),
     ("ops.rs", "apply_cut_ins", "BooleanDecision::Sphere", 1),
     ("ops.rs", "apply_cut_ins", "SphereQuestion::CutIn", 1),
+    ("ops.rs", "surviving_cut", "BooleanDecision::Sphere", 1),
+    ("ops.rs", "surviving_cut", "SphereQuestion::CutIn", 1),
     ("ops.rs", "sphere_pair_cut", "BooleanDecision::Sphere", 1),
     ("ops.rs", "sphere_pair_cut", "SphereQuestion::CutIn", 1),
     ("ops.rs", "pair_seam", "BooleanDecision::Sphere", 1),
