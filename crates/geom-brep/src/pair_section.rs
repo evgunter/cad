@@ -278,7 +278,6 @@ pub struct CylinderSpherePose<T: Real> {
     sphere: Surface<T>,
     cylinder_first: bool,
     axis: Vec3<T>,
-    u_ref: Vec3<T>,
     foot: Point3<T>,
     center: Point3<T>,
     r: T,
@@ -328,11 +327,7 @@ impl<T: Decide> CylinderSpherePose<T> {
         else {
             return None;
         };
-        let (origin, axis, u_ref) = (
-            cylinder_frame.origin(),
-            cylinder_frame.axis_unit(),
-            cylinder_frame.u_ref(),
-        );
+        let (origin, axis) = (cylinder_frame.origin(), cylinder_frame.axis_unit());
         let center = sphere_frame.origin();
         Some(
             Self::decide_stance(geom::Line { origin, dir: axis }, center, r, big_r, band).map(
@@ -341,7 +336,6 @@ impl<T: Decide> CylinderSpherePose<T> {
                     sphere: sphere.clone(),
                     cylinder_first,
                     axis: axis.get(),
-                    u_ref,
                     foot,
                     center,
                     r,
@@ -1718,18 +1712,23 @@ pub fn coaxial_tangent_circle<T: Decide>(
 }
 
 impl<T: Decide> CylinderSpherePose<T> {
+    /// The cylinder's seam squared ([`geom::Frame::square`]): read off the
+    /// cylinder's own frame, whose axis and seam the pose holds, not off
+    /// the pair re-squared.
+    fn seam(&self) -> Vec3<T> {
+        let Surface::Cylinder { frame, .. } = self.cylinder else {
+            unreachable!("a cylinder × sphere pose holds its cylinder")
+        };
+        frame.square().u_ref
+    }
+
     /// The coaxial pose's tangent circle, the sphere's equator, where the
     /// wall reach decided `Zero`; `None` for every other pose.
     fn tangent_circle(&self) -> Option<Curve3<T>> {
         match self.stance {
-            CsStance::Coaxial { wall, .. } if wall.sign == Sign::Zero => Some(Curve3::circle(
-                self.center,
-                self.axis,
-                self.r,
-                geom::Frame::new(self.center, self.axis, self.u_ref)
-                    .square()
-                    .u_ref,
-            )),
+            CsStance::Coaxial { wall, .. } if wall.sign == Sign::Zero => {
+                Some(Curve3::circle(self.center, self.axis, self.r, self.seam()))
+            }
             _ => None,
         }
     }
@@ -1754,9 +1753,7 @@ fn cylinder_sphere<T: Decide>(
             pose.center + pose.axis * station,
             pose.axis,
             pose.r,
-            geom::Frame::new(pose.center, pose.axis, pose.u_ref)
-                .square()
-                .u_ref,
+            pose.seam(),
         )
     };
     let ring = |carrier| {

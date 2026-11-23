@@ -293,7 +293,14 @@ impl<T: Real> OpenConicSection<T> {
         };
         Self {
             conic,
-            frame: geom::Frame::new(apex - n * delta, n, u),
+            // `u` is the section's major direction, unit and square to
+            // `n` by its construction ([`super::tilted_section_major`]):
+            // squared about the normal, nothing decided.
+            frame: geom::Frame::of_motion(&geom_core::RigidMotion::squared_about(
+                apex - n * delta,
+                geom_core::UnitVec3::squared(n),
+                u,
+            )),
             delta,
             delta_sigma: delta * tilt.c.unit_sign(),
             tilt,
@@ -328,11 +335,8 @@ impl<T: Real> OpenConicSection<T> {
         } = self.tilt;
         ConicBranch {
             conic: self.conic,
-            frame: geom::Frame::new(
-                self.frame.origin() + self.frame.u_ref() * xi,
-                self.frame.axis(),
-                self.frame.u_ref(),
-            ),
+            // The section's frame moved along its own `û`, its axes kept.
+            frame: self.frame.translated(self.frame.u_ref() * xi),
             l: side * self.delta_sigma * sin_a * cos_a * T::from_f64(2.0),
             k,
             cos2: cos_a.powi(2),

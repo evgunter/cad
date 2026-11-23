@@ -816,6 +816,16 @@ impl SectionError {
             | Self::RadiusEscalated { diag, .. }
             | Self::Carrier(EllipseInvalid::Escalated(diag))
             | Self::Spiric(SpiricInvalid::Escalated(diag)) => Ok(Refusal::Margin(*diag)),
+            // A constructor's frame whose length the band left undecided
+            // is a margin, as the sizes' are.
+            Self::Carrier(EllipseInvalid::Frame(geom_core::OrthonormalizeError {
+                error: geom_core::UnitVec3Error::Escalated(diag),
+                ..
+            }))
+            | Self::Spiric(SpiricInvalid::Frame(geom_core::OrthonormalizeError {
+                error: geom_core::UnitVec3Error::Escalated(diag),
+                ..
+            })) => Ok(Refusal::Margin(*diag)),
             Self::DegenerateTorus(refusal) => refusal.refusal(),
             // A tighter band may part each.
             Self::CoincidentSurfaces | Self::Unordered { .. } | Self::ConeAtTheBand { .. } => {
@@ -834,7 +844,8 @@ impl SectionError {
             // its arm classified as its own: two readings that disagree.
             Self::WrongLane { .. }
             | Self::NoRegion { .. }
-            | Self::Carrier(EllipseInvalid::MinorNotPositive)
+            | Self::Carrier(EllipseInvalid::MinorNotPositive | EllipseInvalid::Frame(_))
+            | Self::Spiric(SpiricInvalid::Frame(_))
             | Self::Spiric(
                 SpiricInvalid::MinorNotPositive
                 | SpiricInvalid::NotARing

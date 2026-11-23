@@ -1091,12 +1091,8 @@ fn cone_pair<T: Decide>(
     else {
         return Section::Intractable;
     };
-    let (apex, axis, u_ref) = (
-        carrier_frame.origin(),
-        carrier_frame.axis(),
-        carrier_frame.u_ref(),
-    );
-    let cone = Cone::new(apex, axis, half_angle, u_ref);
+    let apex = carrier_frame.origin();
+    let cone = Cone::new(&carrier_frame, half_angle);
     match *p {
         geom::Surface::Plane { frame, .. } => {
             let (origin, normal) = (frame.origin(), frame.axis());
@@ -1146,7 +1142,7 @@ fn cone_pair<T: Decide>(
             frame,
             half_angle: half_angle2,
         } => {
-            let (apex2, d, u_ref2) = (frame.origin(), frame.axis(), frame.u_ref());
+            let (apex2, d) = (frame.origin(), frame.axis());
             match axis_pose(
                 geom::Line {
                     origin: apex,
@@ -1186,13 +1182,13 @@ fn cone_pair<T: Decide>(
                     },
                 },
                 AxisPose::Parallel { .. } => {
-                    let other = Cone::new(apex2, d, half_angle2, u_ref2);
+                    let other = Cone::new(&frame, half_angle2);
                     cone_cone(&cone, &other, true, reach, band)
                 }
                 // As against a cylinder, the ruling charts take an offset
                 // neither reading claims.
                 AxisPose::Undecided(_) | AxisPose::Other => {
-                    let other = Cone::new(apex2, d, half_angle2, u_ref2);
+                    let other = Cone::new(&frame, half_angle2);
                     cone_cone(&cone, &other, false, reach, band)
                 }
             }
@@ -1212,8 +1208,10 @@ struct Cone<T: Real> {
 }
 
 impl<T: geom_core::spline::SpanLocate> Cone<T> {
-    fn new(apex: Point3<T>, axis: Vec3<T>, alpha: T, u_ref: Vec3<T>) -> Self {
-        let frame = geom::Frame::new(apex, axis, u_ref).square();
+    /// The cone on `frame` at half-angle `alpha`: its basis squared
+    /// ([`geom::Frame::square`]) off the cone's own frame.
+    fn new(frame: &geom::Frame<T>, alpha: T) -> Self {
+        let (apex, frame) = (frame.origin(), frame.square());
         Self {
             apex,
             // The square frame's axis, `a/|a|` (`Frame::square`): a

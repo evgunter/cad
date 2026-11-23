@@ -296,7 +296,12 @@ impl<T: Real> Ring<T> {
     /// The torus's placement: its centre, unit axis and seam.
     #[must_use]
     pub fn frame(&self) -> geom::Frame<T> {
-        geom::Frame::new(self.center, self.axis.get(), self.u_ref)
+        // The axis the ring holds, kept; its seam squared to it.
+        geom::Frame::of_motion(&geom_core::RigidMotion::squared_about(
+            self.center,
+            self.axis,
+            self.u_ref,
+        ))
     }
 
     /// The torus centre.

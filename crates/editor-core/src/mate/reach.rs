@@ -230,17 +230,20 @@ pub(crate) fn loops_reach_from<T: Decide>(
                 turn,
                 radials: [start, _],
             } => {
-                let up = geom_core::Vec3::new(T::zero(), T::zero(), T::one());
+                // The arc's plane normal, `±ẑ` exactly, and its start
+                // radial, a sketch radial square to it: squared about the
+                // normal, nothing decided.
+                let up = geom_core::UnitVec3::exact_z();
                 let axis = if turn == geom_core::Sign::Negative {
                     -up
                 } else {
                     up
                 };
-                let frame = geom::Frame::new(
+                let frame = geom::Frame::of_motion(&geom_core::RigidMotion::squared_about(
                     lift(arc.centre),
                     axis,
                     geom_core::Vec3::new(start.x, start.y, T::zero()),
-                );
+                ));
                 Cover::arc(
                     &frame,
                     (arc.radius, arc.radius),

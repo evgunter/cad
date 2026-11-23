@@ -138,22 +138,19 @@ const GAP_CELLS: usize = 1 << 14;
 /// The window sizes a turn is tried at, each half the last.
 const GAP_WINDOWS: u32 = 32;
 
-/// **A torus's core circle**, swept by its angle, on the torus's frame
-/// squared ([`geom::Frame::square`]), so its basis is unit and square.
+/// **A torus's core circle**, swept by its angle, on the torus's own
+/// frame, whose basis is unit and square.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Core<T: Real> {
     pub(crate) circle: geom::Circle<T>,
 }
 
 impl<T: Real> Core<T> {
-    /// The core of radius `R` of the torus placed at `frame`.
+    /// The core of radius `R` of the torus placed at `frame`, on that
+    /// frame: its axes are unit and square already.
     pub(crate) fn of(frame: &geom::Frame<T>, radius: T) -> Self {
-        let square = frame.square();
         Self {
-            circle: geom::Circle::new(
-                geom::Frame::new(frame.origin(), square.axis, square.u_ref),
-                radius,
-            ),
+            circle: geom::Circle::new(*frame, radius),
         }
     }
 

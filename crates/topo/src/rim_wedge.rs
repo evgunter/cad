@@ -72,15 +72,22 @@ pub(crate) struct Rim<T: Real> {
 }
 
 impl<T: Decide> Rim<T> {
+    /// The rim's frame: the axis it holds kept, its seam squared to it,
+    /// nothing decided.
+    fn frame(&self) -> geom::Frame<T> {
+        geom::Frame::of_motion(&geom_core::RigidMotion::squared_about(
+            self.center,
+            self.axis,
+            self.u_ref,
+        ))
+    }
+
     /// **The farthest the whole circle stands from `pivot`**: its cover's
     /// far distance ([`geom_brep::ExtentBall::of_cover_from`]), exact on
     /// a circle, so one read bounds it from both sides; poison where the
     /// circle has no cover.
     fn reach_from(&self, pivot: Point3<T>) -> geom_core::Lever<T> {
-        let circle = geom::Circle::new(
-            geom::Frame::new(self.center, self.axis.get(), self.u_ref),
-            self.radius,
-        );
+        let circle = geom::Circle::new(self.frame(), self.radius);
         let turn = geom::cover::ParamWindow::new(T::zero(), circle.period().length());
         let cover = geom::Curve3::Circle(circle).cover_over(turn).ok();
         geom_brep::ExtentBall::of_cover_from(cover.as_ref(), pivot).lever()
@@ -612,10 +619,7 @@ impl<T: Decide> FaceOnLocus<T> {
 fn locus_point<T: Decide>(locus: Locus<T>, s: T) -> Point3<T> {
     match locus {
         Locus::Line(line) => line.at(s),
-        Locus::Rim(rim) => {
-            rim.center
-                + geom::Frame::new(rim.center, rim.axis.get(), rim.u_ref).radial(s) * rim.radius
-        }
+        Locus::Rim(rim) => rim.center + rim.frame().radial(s) * rim.radius,
     }
 }
 

@@ -774,7 +774,7 @@ fn sphere_window<T: Decide>(
     });
     let patch = |u_ref: Vec3<T>, u: Option<ParamWindow<T>>| {
         Cover::patch(
-            &geom::Frame::new(center, unit.get(), u_ref),
+            &geom::Frame::of_motion(&geom_core::RigidMotion::squared_about(center, unit, u_ref)),
             (T::zero(), *radius),
             u,
             lat,

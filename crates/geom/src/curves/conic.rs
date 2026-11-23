@@ -742,8 +742,18 @@ impl<T: Real> Ellipse<T> {
         semi_u: T,
         semi_v: T,
     ) -> Self {
+        Self::anchored_on(Frame::new(anchor, axis, toward), semi_u, semi_v)
+    }
+
+    /// **[`Ellipse::anchored`] on a frame already minted**: the frame's
+    /// origin the anchor, its axis the plane's normal and its `u_ref` the
+    /// principal direction toward the anchor. Unchecked;
+    /// [`Curve3::ellipse_anchored`] decides the sizes and mints the frame
+    /// it hands here.
+    #[must_use]
+    pub fn anchored_on(at: Frame<T>, semi_u: T, semi_v: T) -> Self {
         Self {
-            at: Frame::new(anchor, axis, toward),
+            at,
             held: Held::Arc {
                 phase: (T::one(), T::zero()),
             },

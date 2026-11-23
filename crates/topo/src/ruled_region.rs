@@ -495,13 +495,15 @@ impl<T: Decide> RuledFaceRegion<T> {
         )
     }
 
-    /// The surface's frame.
+    /// The surface's frame: the axis its frame held, its bits kept
+    /// ([`UnitVec3::checked`](geom_core::UnitVec3::checked)), and its seam
+    /// squared to it, nothing decided.
     fn frame(&self) -> geom::Frame<T> {
-        geom::Frame::new(
+        geom::Frame::of_motion(&geom_core::RigidMotion::squared_about(
             self.surface.base(),
-            self.surface.axis(),
+            geom_core::UnitVec3::checked(self.surface.axis()),
             self.surface.u_ref(),
-        )
+        ))
     }
 
     /// The parallel through `p`, run `forward` (right-handed about the

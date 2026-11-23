@@ -470,7 +470,14 @@ impl<T: Decide> CylinderCylinderPose<T> {
             pick(foot.z, other.z),
         );
         let (axis, partner) = (pick3(a1.get(), a2.get()), pick3(a2.get(), a1.get()));
-        let frame = geom::Frame::new(foot, axis, normal);
+        // The picked axis and the common perpendicular, square to both
+        // axes by its construction: squared about the axis, nothing
+        // decided.
+        let frame = geom::Frame::of_motion(&geom_core::RigidMotion::squared_about(
+            foot,
+            geom_core::UnitVec3::squared(axis),
+            normal,
+        ));
         let v = frame.v_ref();
         Some(RuledCylinders {
             frame,
