@@ -2317,6 +2317,20 @@ enum JunctionEndUnsettled {
 /// in `σ` and zero at the end, so it stays above the band over `[σ*, σ]`,
 /// `σ*` where `g` meets the band's width `ε`.
 ///
+/// **The margin carries no charge.** A root inside the spread lies ON
+/// `face`'s carrier: what is asked of it is only its side of the rim,
+/// which is the edge's own offset along the conormal, `g(s)`. The
+/// end-root door's charge prices how far the carrier may stand from the
+/// surface, not which side of the rim a point of it lies on, so it never
+/// belongs in this margin, whatever the band's `K`.
+///
+/// **The two outward normals are aligned along the rim.** The glue
+/// routes a junction only where the routing reads the π seam all round
+/// (`RimRouting::Seam`: outward normals aligned); antiparallel normals
+/// are a cusp, which no junction is glued on. So `n_P` is `face`'s
+/// outward normal too at the rim, and `P`'s conormal names the side
+/// `face` is not on.
+///
 /// **Below `σ*`** a root of the spread stands within the band of the
 /// rim, which is `face`'s boundary: band-coincident with that boundary,
 /// at most `σ*` along the edge from the vertex, and not necessarily at the
@@ -10180,17 +10194,26 @@ mod junction_end_rows {
 
     use geom_brep::curve_face::end_root::EndWindow;
 
-    const H: f64 = 0.5;
-
     /// The small circle of the unit sphere through the rim point
-    /// `(ρ, 0, ½)` leaving it at `beta` from the rim's tangent toward the
-    /// sphere's side, against the cone, its face the sphere (whose riding
-    /// half-edge runs the rim backward), over a quarter of a radian.
-    fn ice_cream(beta: f64) -> Result<Option<EndWindow<f64>>, JunctionEndUnsettled> {
-        let rho = (1.0 - H * H).sqrt();
-        let p = Point3::new(rho, 0.0, H);
-        let n = Vec3::new(rho, 0.0, H);
-        let conormal = Vec3::new(H, 0.0, -rho);
+    /// `(ρ, 0, h)` on the latitude `z = h` (`ρ = √(1 − h²)`), leaving it at
+    /// `beta` from the rim's tangent toward the sphere's side below the
+    /// latitude, against the cone tangent to the sphere along it (apex on
+    /// the axis at `1/h`, opening down), over a quarter of a radian. The
+    /// edge's face is the sphere, whose riding half-edge runs the rim
+    /// backward. Returns the window alone, then the junction's reading.
+    #[allow(clippy::type_complexity)]
+    fn ice_cream_at(
+        h: f64,
+        beta: f64,
+        b: Band,
+    ) -> (
+        Result<EndWindow<f64>, geom_brep::curve_face::end_root::EndRootRefusal>,
+        Result<Option<EndWindow<f64>>, JunctionEndUnsettled>,
+    ) {
+        let rho = (1.0 - h * h).sqrt();
+        let p = Point3::new(rho, 0.0, h);
+        let n = Vec3::new(rho, 0.0, h);
+        let conormal = Vec3::new(h, 0.0, -rho);
         let d = Vec3::new(0.0, 1.0, 0.0) * beta.cos() + conormal * beta.sin();
         let m = d.cross(n).normalize();
         let center = Point3::new(0.0, 0.0, 0.0) + m * m.dot(p - Point3::new(0.0, 0.0, 0.0));
@@ -10198,30 +10221,69 @@ mod junction_end_rows {
         let u = (p - center) / radius;
         let normal = if m.cross(u).dot(d) > 0.0 { m } else { -m };
         let circle = geom::Curve3::circle(center, normal, radius, u);
-        // The cone tangent to the sphere along the latitude: its apex on
-        // the axis at `1/h`, opening down.
-        let apex = 1.0 / H;
+        let apex = 1.0 / h;
         let cone = geom::Surface::Cone {
             frame: geom::Frame::new(
                 Point3::new(0.0, 0.0, apex),
                 Vec3::new(0.0, 0.0, -1.0),
                 Vec3::new(1.0, 0.0, 0.0),
             ),
-            half_angle: (rho / (apex - H)).atan(),
+            half_angle: (rho / (apex - h)).atan(),
         };
-        junction_end_window(
+        let span = (0.0, 0.25);
+        let window =
+            geom_brep::curve_face::end_root::end_window(&circle, span, SpanEnd::Start, &cone, b);
+        let read = junction_end_window(
             &JunctionEnd {
                 carrier: &circle,
-                span: (0.0, 0.25),
+                span,
                 end: SpanEnd::Start,
                 p,
                 surface: &cone,
-                rim: rim(Point3::new(0.0, 0.0, H), rho),
+                rim: rim(Point3::new(0.0, 0.0, h), rho),
                 normal: n,
                 rides: Sign::Negative,
             },
-            band(),
-        )
+            b,
+        );
+        (window, read)
+    }
+
+    /// [`ice_cream_at`]'s junction reading at the latitude `½`.
+    fn ice_cream(beta: f64) -> Result<Option<EndWindow<f64>>, JunctionEndUnsettled> {
+        ice_cream_at(0.5, beta, band()).1
+    }
+
+    /// **The side refuses where the window holds**, on real rim data: a
+    /// small circle of the sphere leaving the cone–sphere rim near the
+    /// sphere's equator (`h = 0.02`) at `β = 5e-3`. The window past its end
+    /// is certified, but the side margin charges the edge's and the rim's
+    /// full bends (`κ_e + 1/R ≈ 2`) over the spread, more than the
+    /// departure gains: a refusal (`Window`), loud and conservative, where
+    /// the true offset across the rim is set by their geodesic curvatures
+    /// (filed: `the-junction-side-margin-charges-full-bends-and-refuses-a-held-side`).
+    /// The pose is measured at `ε = 1e-9`, so the row reads that band.
+    #[test]
+    fn a_small_circle_near_the_equator_refuses_on_its_side_where_the_window_holds() {
+        let b = Band::linear_at(Tol::witness(), 1e-9).unwrap();
+        if b.escalate() != 1e-8 {
+            test_utils::vacuity::stood_down(
+                "K ≠ 10",
+                "the side gate is not driven on the cone–sphere rim: the pose is placed for K = 10",
+            );
+            return;
+        }
+        let (window, read) = ice_cream_at(0.02, 5e-3, b);
+        assert!(window.is_ok(), "the window holds: {window:?}");
+        assert!(
+            matches!(
+                read,
+                Err(JunctionEndUnsettled::Gap(
+                    super::super::JunctionEndGap::Window
+                ))
+            ),
+            "the side refuses: {read:?}"
+        );
     }
 
     /// **A ruling leaving the rim square to it holds its side**: the
@@ -10297,11 +10359,11 @@ mod junction_end_rows {
     }
 
     /// **A small circle of the sphere holds its side leaving the rim at a
-    /// right angle and refuses at a shallow one.** Both carriers turn about the rim's
-    /// axis, so their relative curvature across it falls as `sin²β` and
-    /// the window refuses before the side does: the side check is what
-    /// [`a_ruling_leaving_the_rim_into_the_other_side_holds_none`] and
-    /// [`a_rim_tighter_than_the_spread_holds_no_side`] pin.
+    /// right angle and refuses at a shallow one**, at the latitude `½`.
+    /// Both carriers turn about the rim's axis, so their relative curvature
+    /// across it falls as `sin²β` and here the window refuses first; near
+    /// the equator the side does
+    /// ([`a_small_circle_near_the_equator_refuses_on_its_side_where_the_window_holds`]).
     #[test]
     fn a_small_circle_leaving_the_rim_steeply_holds_its_side_and_shallowly_refuses() {
         let steep = ice_cream(core::f64::consts::FRAC_PI_2)

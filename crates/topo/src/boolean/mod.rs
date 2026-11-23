@@ -1749,8 +1749,12 @@ fn tagged(o: Operand, f: FaceKey) -> OperandFace {
 /// is tangent to it along an equator and is a global side. A kind row
 /// cannot tell the coaxial cylinder from the tube chain, and admitting
 /// the chain would cover a crossing, so the row stays out and the
-/// coaxial case keeps its typed frontier. A cone's tangent plane leaves its second nappe on the
-/// other side. A spline (STEP adoption, blends) carries no global
+/// coaxial case keeps its typed frontier. A cone's tangent plane leaves
+/// its second nappe on the other side. While (Sphere, Cylinder) is
+/// covered, a junction's end on that pair never reaches the end-root
+/// door's side check (`reduce::junction_end_window`); if it ever leaves
+/// the cover, a hemisphere cap's great circle leaving its rim becomes a
+/// real-geometry pin for that check. A spline (STEP adoption, blends) carries no global
 /// convexity. Two planes, two spheres or a plane and a sphere are never
 /// tangent along a curve on distinct carriers.
 ///
