@@ -344,11 +344,13 @@ const MAX_GRID_RETRIES: usize = 6;
 /// triangle by a point inside it, and a fold left after this many
 /// refuses [`TessellateError::FoldedTriangle`]. A backstop as
 /// [`MAX_GRID_RETRIES`] is, and its own: a fold never spends a
-/// refinement's round. Measured over the `mesh` suite at ε 10⁻⁹, 10⁻⁶ and
-/// 10⁻¹² and `sweep`'s meshing modules, a face that meshes takes at most
-/// three; the faces that reach this budget refuse as they did before the
-/// cure split folds (`sweep`'s `spheres_crossing_off_every_edge` beside
-/// its pole). Read through [`budget`].
+/// refinement's round. Measured, and not guarded: over the `mesh` suite at
+/// ε 10⁻⁹, 10⁻⁶ and 10⁻¹² and `sweep`'s meshing modules, a face that
+/// meshes took at most three (the table is in
+/// `work/tesslane/the-mesh-cures-a-side-two-faces-can-both-make-three-ways.md`);
+/// the faces that reach this budget refuse as they did before the cure
+/// split folds (`sweep`'s `spheres_crossing_off_every_edge` beside its
+/// pole). Read through [`budget`].
 const MAX_FOLD_ROUNDS: usize = 6;
 
 /// A retry budget: `rounds`, or under `cfg(test)` an override a row sets

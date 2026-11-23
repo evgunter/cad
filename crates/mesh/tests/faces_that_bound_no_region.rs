@@ -326,7 +326,8 @@ fn flat_patch() -> Surface<f64> {
 /// bulging either way: each is one chord at δ = 0.1 by its sagitta, so
 /// its loop would draw two points and nothing to triangulate. The chord
 /// pass's short-loop floor gives each two, and the face meshes. Red
-/// without the floor: the loop of two points refuses.
+/// without the floor: the loop of two points refuses. The one witness of
+/// a split between two spline faces: what the join makes is read below.
 #[test]
 fn a_lens_of_two_short_arcs_meshes_at_a_coarse_delta() {
     let tol = Tol::witness();
@@ -388,6 +389,30 @@ fn a_lens_of_two_short_arcs_meshes_at_a_coarse_delta() {
         assert!(
             !lens.triangles.is_empty(),
             "δ = {delta:e}: the lens has triangles"
+        );
+        // What the join made: the two faces are one sheet, each laying two
+        // triangles on the four chord points alone, so the join splits
+        // the diagonal each lays (`mesh::join`'s census), at the foot on
+        // its own surface: one point a face, the same position, two
+        // triangles more a face. The mesh is closed by vertex id.
+        assert_eq!(
+            mesh::validate::check_mesh(&mesh),
+            Ok(()),
+            "δ = {delta:e}: a closed manifold by vertex id"
+        );
+        let on_edges: std::collections::HashSet<u32> =
+            mesh.boundaries.iter().flat_map(|b| b.points.iter().copied()).collect();
+        assert_eq!(on_edges.len(), 4, "δ = {delta:e}: two chord points an arc");
+        let split: Vec<_> = (0..mesh.positions.len())
+            .filter(|i| !on_edges.contains(&u32::try_from(*i).unwrap()))
+            .map(|i| mesh.positions[i])
+            .collect();
+        assert_eq!(split.len(), 2, "δ = {delta:e}: one split point a face");
+        assert_eq!(split[0].to_array(), split[1].to_array(), "δ = {delta:e}: one sheet, one foot");
+        assert_eq!(
+            mesh.patches.iter().map(|p| p.triangles.len()).collect::<Vec<_>>(),
+            [4, 4],
+            "δ = {delta:e}: each face's two triangles, one side split"
         );
     }
 }
