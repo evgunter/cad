@@ -124,3 +124,16 @@ A plane face's reflex corner is read by the face's own carrier in the carrier ar
 - `sweep::all rest_zip_admission::the_tangent_site_keeps_building_pure_contacts`
 - `topo::all a_corner_flat_at_its_short_bounds::a_long_edge_beside_a_corner_flat_at_its_short_bounds_is_classed_where_it_runs`
 - `topo::all a_reflex_corner_pierced_through_a_plate::a_reflex_corner_whose_two_pieces_stand_out_of_a_plate_builds_or_refuses_typed`
+
+## 2026-11-22: what the vertex-alone separator reads of a straight corner (embed/vertex-bisector)
+
+At a vertex two faces share alone, `planes_through` parts two quadrant
+presentations (`Zero::Point` on both) by the wedge plane
+(`wedges_apart`): the point nearest the origin of the hull of the two
+corners' axes, one corner's negated. A straight corner presented as a
+quadrant has antiparallel axes (`a₁ = −a₂`), so the origin is in that
+hull whatever the partner is, and the wedge plane never parts it. A
+straight corner read through the `[e]` arm's half-plane at a vertex
+alone needs a separator of its own there: one through the corner's
+line, leaning off the partner, which the one-line arm builds only
+where the line is a shared edge.
