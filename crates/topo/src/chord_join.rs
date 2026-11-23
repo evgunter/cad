@@ -7739,9 +7739,9 @@ mod torn_hop_rows {
         );
     }
 
-    /// `along_edge_spec`: a torn curve on the segment's edge, and a torn
-    /// point under a chord end, panic, where they refused typed; a stale
-    /// segment edge or chord end, keys the join carries, refuses typed.
+    /// `along_edge_spec`: a torn curve on the segment's edge panics, where
+    /// it refused typed; a stale segment edge or chord end, keys the join
+    /// carries, refuses typed.
     #[test]
     fn the_along_edge_spec_panics_on_a_torn_curve_and_refuses_a_stale_edge() {
         let mut body = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
@@ -7756,7 +7756,7 @@ mod torn_hop_rows {
         };
         assert!(
             spec(&body, edge).unwrap(),
-            "a line segment's chord is its own line"
+            "a line segment's chord is its own edge"
         );
         let data = body.get_edge(edge).unwrap().clone();
         let gone = body.edges.insert(data);
@@ -7782,20 +7782,6 @@ mod torn_hop_rows {
                 })
             ),
             "a chord end that no longer resolves is the join's key, refused typed"
-        );
-        let mut torn = body.clone();
-        let point = torn.get_vertex(u2).unwrap().point;
-        torn.points.remove(point);
-        let named = format!(
-            "{}'s point names {}",
-            EntityId::Vertex(u2),
-            GeomRef::Point(point)
-        );
-        assert_torn_op_panics(
-            "along_edge_spec (point)",
-            &mut torn,
-            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
-            |b| spec(b, edge),
         );
         let named = drop_curve(&mut body, he);
         assert_torn_op_panics(

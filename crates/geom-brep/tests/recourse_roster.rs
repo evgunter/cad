@@ -72,6 +72,7 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("DIHEDRAL_WEDGE"),
     NameCarrier::Const("TANGENT_SECOND_ORDER"),
     NameCarrier::Const("MATERIAL_CUSP_SIDE"),
+    NameCarrier::Const("TANGENT_TUBE_MARGIN"),
     // The carrier ladder's data names, and each kind's reach row with
     // its straddle row (`carrier_eq.rs`).
     NameCarrier::Const("CARRIER_CONE_APEX"),
