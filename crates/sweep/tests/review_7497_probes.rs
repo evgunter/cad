@@ -253,7 +253,14 @@ fn p1b_an_element_kept_without_its_images_is_not_replaced() {
 
 /// Claim 1(c): rows whose support changed — the rows of a same-keyed
 /// body with a different carrier (radius / twist) transplanted — are
-/// refused by the finish, whole and with a gap completion fills around.
+/// read by their support at the gate: a row whose recorded support is
+/// not the edge's current one is certified anew against the current
+/// carrier, never taken on its certificate's word. So a row whose image
+/// is not the current edge's (the cone's, whose height moves its
+/// images) is refused, whole and with a gap completion fills around;
+/// a row whose image certifies against the current carrier — a
+/// cylinder's or torus's, whose chart image does not read the radius,
+/// and the twisted loft's — is current, and the body finishes.
 #[test]
 fn p1c_rows_over_a_moved_support_are_refused() {
     let t = tol();
@@ -277,18 +284,21 @@ fn p1c_rows_over_a_moved_support_are_refused() {
             (Point2::new(0.0, h), 0.0),
         ])
     };
+    // (name, body, other, whether the transplanted rows are stale)
     let pairs = vec![
-        ("cylinder r", cyl(1.0), cyl(1.2)),
-        ("torus R", torus(2.0), torus(2.1)),
-        ("cone h", cone(1.5), cone(1.7)),
+        ("cylinder r", cyl(1.0), cyl(1.2), false),
+        ("torus R", torus(2.0), torus(2.1), false),
+        ("cone h", cone(1.5), cone(1.7), true),
         (
             "spline twist",
             crate::common::approx::twisted_loft(0.3),
             crate::common::approx::twisted_loft(0.35),
+            false,
         ),
     ];
     let mut laundered = Vec::new();
-    for (name, body, other) in pairs {
+    let mut wrongly_refused = Vec::new();
+    for (name, body, other, stale) in pairs {
         for gap in [false, true] {
             let mut moved = body.clone();
             let mut planted = 0;
@@ -314,10 +324,15 @@ fn p1c_rows_over_a_moved_support_are_refused() {
             }
             let r = topo::test_support::validate_completed(&moved, t);
             println!("{name} gap={gap}: planted {planted}, finish -> {}", if r.is_ok() { "OK (LAUNDERED?)".to_string() } else { format!("{} findings", r.as_ref().unwrap_err().len()) });
-            if r.is_ok() && planted > 0 {
+            assert!(planted > 0, "{name}: nothing transplanted");
+            if stale && r.is_ok() {
                 laundered.push(format!("{name} gap={gap}"));
+            }
+            if !stale && r.is_err() {
+                wrongly_refused.push(format!("{name} gap={gap}: {r:?}"));
             }
         }
     }
     assert!(laundered.is_empty(), "{laundered:?}");
+    assert!(wrongly_refused.is_empty(), "{wrongly_refused:?}");
 }

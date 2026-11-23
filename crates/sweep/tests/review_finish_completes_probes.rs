@@ -88,23 +88,33 @@ fn p1b_wrong_row_beside_a_gap_is_refused() {
 }
 
 /// Claim 1c: every row of the r=1 vessel replaced by the r=1.1
-/// vessel's (same build, same keys): rows whose support changed.
+/// vessel's (same build, same keys): rows whose recorded support is
+/// another carrier. The gate reads a row by its support and certifies
+/// it anew where the support moved, so the transplanted rows — whose
+/// images are the current edges' (a chart image here does not read the
+/// radius) — are current, and the body finishes, whole and with a gap.
+/// A row whose image is NOT the current edge's is refused: p1a, p1b,
+/// and `review_7497_probes::p1c_rows_over_a_moved_support_are_refused`'s
+/// cone.
 #[test]
-fn p1c_rows_of_another_support_are_refused() {
+fn p1c_rows_of_another_support_whose_images_are_current_finish() {
     let mut b = sweep::test_support::lofted_cylinder(2.0, tol());
     let other = sweep::test_support::lofted_cylinder(2.2, tol());
     let (f, hes) = curved_face(&b);
     println!("[probe] p1c face kind {}", kind(&b, f));
     assert_eq!(row_faces(&other).iter().find(|(g, _)| *g == f).unwrap().1, hes);
     for &he in &hes {
-        println!("[probe] p1c he {he:?} same row text: {}", format!("{:?}", b.pcurve(he)) == format!("{:?}", other.pcurve(he)));
-        println!("[probe] p1c   r=1.0 {:?}\n[probe] p1c   r=1.1 {:?}", b.pcurve(he), other.pcurve(he));
+        assert_eq!(
+            format!("{:?}", b.pcurve(he).unwrap().pcurve()),
+            format!("{:?}", other.pcurve(he).unwrap().pcurve()),
+            "the transplanted image is the current one"
+        );
         b.attach_pcurve(he, other.pcurve(he).unwrap().clone());
     }
     let mut gap = b.clone();
-    assert!(verdict("p1c support moved, complete", b).is_err(), "laundered");
+    assert!(verdict("p1c support moved, complete", b).is_ok(), "a current image refused");
     gap.detach_pcurve(hes[0]);
-    assert!(verdict("p1c support moved, one gap", gap).is_err(), "laundered");
+    assert!(verdict("p1c support moved, one gap", gap).is_ok(), "a current image refused");
 }
 
 /// Claim 1d: a face whose images are all off but whose joint elements
