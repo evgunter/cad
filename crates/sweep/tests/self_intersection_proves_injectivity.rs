@@ -3430,6 +3430,9 @@ fn void_touching_plate<T: Scalar>() -> topo::AtRestBody<T> {
 /// [`void_touching_plate`] built `o` off the origin, mirrored in `x`
 /// where `mirror` (built so, not moved), its void's base listed from
 /// its vertex `from`.
+///
+/// `topo`'s `held::tests::wall_at` copies a wall of this void (its
+/// base's last two corners and its apex); a move here is owed there.
 fn void_touching_plate_at<T: Scalar>(
     o: [f64; 3],
     mirror: bool,
@@ -3620,20 +3623,28 @@ fn a_body_that_does_not_pass_is_told_one_finding_or_another_and_never_that_it_ho
     assert_eq!(at::<Interval>(), both, "Interval");
 }
 
-/// **The plate built 100 off the origin is told a finding at
-/// `Interval`, at every ε.** Its void's walls are Newell planes whose
-/// frames are enclosures about 1e-12 wide there, so a station of a wall's
-/// own chart reads its residual undecided at ε = 1e-12, centred on zero.
-/// Red, a panic in the region door's held check, where that check asks a
-/// constructed point's enclosure to read `Zero`.
+/// **The plate built 100 off the origin is told the refusal it meets
+/// first at `Interval`, at every ε, as at the origin**
+/// ([`a_plate_whose_void_touches_its_top_reads_the_refusal_it_meets_first`]).
+/// Its void's walls are Newell planes whose frames are enclosures about
+/// 1.8e-12 wide there, so a station of a wall's own chart reads its
+/// residual undecided at ε = 1e-12, centred on zero. Red, in a debug
+/// build (the region door's held check runs there only), where that check
+/// asks a constructed point's enclosure to read `Zero`.
 #[test]
 fn the_plate_built_far_off_the_origin_is_told_a_finding_at_interval() {
     use topo::clearance::Embedding;
     let body = void_touching_plate_at::<Interval>([100.0; 3], false, 0).into_body();
     let report = door(&body, DEFAULT_MAX_CELL_DEPTH, BUDGET);
     assert!(
-        !matches!(report.verdict, Embedding::Embedded),
-        "the plate 100 off is not embedded: {:?}",
+        matches!(
+            report.verdict,
+            Embedding::Refused(EngineRefusal::Budget {
+                stop: CellBudget::Depth { .. },
+                ..
+            })
+        ),
+        "the plate 100 off refuses out of depth: {:?}",
         report.verdict
     );
 }

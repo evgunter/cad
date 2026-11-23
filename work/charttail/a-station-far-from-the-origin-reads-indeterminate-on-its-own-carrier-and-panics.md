@@ -107,3 +107,24 @@ moves: held points stay trusted and debug-checked. The ONECOPY ruling's
 flip clause ("any trusting site reads a point non-`Zero` … i.e. a
 construction stops holding its point on the carrier") is met here in
 its letter and not its substance; the check now panics on the substance.
+
+## The enclosure arm meets the zero band (`charttail/held-station` fix pass, 2026-11-23)
+
+Review of PR 7626 showed that the first cure's enclosure arm passed any
+undecided enclosure: a constructed point 3e-12 off its carrier at
+ε = 1e-12, read in a tight enclosure inside the sliver
+(`[2.97e-12, 3.03e-12]`), no longer panicked. The arm now asks an
+enclosure to meet `[−zero, zero]`, read a second time at the band whose
+two edges stand at `zero`, for a constructed and a decided point alike;
+an uncertified read fails both premises and passes one held in band.
+The far stations above meet it (they are centred on zero), so the rows
+of this branch read as before, and the plate 100 off is told
+`Refused(Budget { Depth, .. })` at 1e-12, 1e-9 and 1e-6.
+
+The review asked a constructed point's enclosure to contain zero. Not
+taken: several constructed sites (the boolean's certified crossing, the
+ball's foot on its carrier, a fate cut's end) are found by a solver, and
+their true offset is their construction's rounding, not zero, so a tight
+enclosure of a correct one can exclude zero. Meeting the zero band is
+the `f64` rule lifted to an enclosure: a point margin holds where it
+lies in the band, an enclosure where some value in it does.
