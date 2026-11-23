@@ -114,6 +114,9 @@ fn placed_badge(copies: usize) -> Option<String> {
 /// decides whether the toggle is drawn; the op's admission decides
 /// whether it is live, and a refused one carries the op's sentence on
 /// its hover.
+// One row's whole drawing reads all of these; bundling them would be a
+// type with no meaning of its own.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn feature_row_ui(
     ui: &mut egui::Ui,
     row: &TreeRow,
