@@ -1,8 +1,8 @@
 //! **The project box with one cylindrical feature, split by the
 //! cutaway's tilted plane** — `work/tquery/split-refuses-cylindrical-feature-box.md`.
 //!
-//! The tour's enclosure (`demos/tour/src/projectbox.rs`, the 15-op
-//! chain) with one round feature, cut by the plane through
+//! A 15-op enclosure shaped after the tour's project box, with one
+//! round feature, cut by the plane through
 //! `(1.5, 1, 0.75)` whose authored normal is `(0.75, 0.1875, 1)` —
 //! a direction, not a unit vector (`|n| = 1.264`). Two features, one
 //! per orientation:
@@ -69,11 +69,10 @@ fn uni(what: &str, a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
         .into_body()
 }
 
-/// The tour's 15-op enclosure, less the vent at `(column, wall)` when
-/// `skip` names one: a copy of `projectbox::build` in
-/// `demos/tour/src/projectbox.rs`, which lives in a detached cargo
-/// root this crate cannot call. A change to that body is a change to
-/// this one.
+/// A 15-op enclosure, less the vent at `(column, wall)` when `skip`
+/// names one: a standalone fixture shaped after the tour's project box
+/// (square bosses and blind pockets where the tour has round bosses and
+/// through-bores), not kept in step with it.
 fn project_box(skip: Option<(usize, usize)>) -> Body<f64> {
     let outer = slab((0.0, 3.0), (0.0, 2.0), (0.0, 1.5));
     let cavity = slab((0.25, 2.75), (0.25, 1.75), (0.25, 2.0));

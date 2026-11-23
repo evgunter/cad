@@ -11,7 +11,7 @@ use crate::common::{brick, finished};
 use geom_core::Tol;
 use topo::{
     AtRestBody, Backing, Body, BooleanBody, BooleanInputs, BooleanResult, Cell, Cites, ContactKind,
-    ContactRecords, Operand, RowCell,
+    ContactRecords, RowCell,
 };
 
 fn tol() -> Tol {
@@ -62,7 +62,7 @@ fn follow(cites: &Cites, at: [f64; 3], lists: &[(&BooleanBody<f64>, [&Body<f64>;
                     let RowCell::Input { input, cell } = c else {
                         panic!("an input cell: {c:?}")
                     };
-                    let body = inputs[usize::from(input == Operand::B)];
+                    let body = inputs[input.index()];
                     assert_eq!(
                         point(body, cell),
                         at,

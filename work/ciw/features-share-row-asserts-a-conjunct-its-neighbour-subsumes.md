@@ -2,10 +2,11 @@
 id: features-share-row-asserts-a-conjunct-its-neighbour-subsumes
 kind: issue
 title: The features-share row's is_finite conjunct is subsumed by the range beside it
-status: open
+status: closed
 opened: 2026-09-21
 priority: P3
 cost: E
+closed: 2026-11-22
 ---
 
 
@@ -66,3 +67,7 @@ point and not a sibling: the subsumed-conjunct shape is not confined
 to `app.rs`, and a hand-built fixture is where it turns up.
 
 Moved from VACUITY to CIW on 2026-11-20, by `git mv`, when VACUITY merged into CIW: VACUITY held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CIW carries.
+
+## Closed
+
+Deleted the `share.is_finite() && ` conjunct from `every_share_it_gives_is_a_share` in `crates/viewer/src/app.rs`; the range test alone carries the claim.

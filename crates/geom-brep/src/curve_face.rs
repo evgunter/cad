@@ -56,8 +56,12 @@ pub enum Door {
     /// Any span against a spline face: enclosures on the span's pieces
     /// and the surface's cells, a Krawczyk contraction for one meeting.
     SplineFace,
-    /// A spiric span against an analytic face: no producer reaches a
-    /// boolean with one.
+    /// A spiric span against a plane: the section reduction, the line
+    /// where the two planes meet read against the spiric's own torus
+    /// ([`spiric_plane`]).
+    SpiricPlane,
+    /// A spiric span against a curved analytic face: its section by the
+    /// face has no torus lane yet.
     Spiric,
     /// Any span against a spindle sheet's face: no lane yet.
     Sheet,
@@ -123,9 +127,15 @@ pub fn route(curve: CurveKind, surface: SurfaceKind) -> Route {
              deferred until its first producer \
              (work/reachhold/spiric-operand-edges-reopen-with-their-first-producer)",
         ),
-        (Spiric, Plane | Cylinder | Cone | Sphere | Torus) => unbuilt(
+        (Spiric, Plane) => built(
+            Door::SpiricPlane,
+            "the line where the spiric's plane meets the plane, read against the spiric's \
+             torus on the oval's side of the axis",
+        ),
+        (Spiric, Cylinder | Cone | Sphere | Torus) => unbuilt(
             Door::Spiric,
-            "a spiric operand edge, deferred until its first producer \
+            "the face's section by the spiric's plane against the spiric's torus, a lane \
+             deferred until its first producer \
              (work/reachhold/spiric-operand-edges-reopen-with-their-first-producer)",
         ),
         (Line | Circle | Ellipse | Spiric | Nurbs | Periodic, Spindle) => unbuilt(
@@ -167,6 +177,7 @@ pub const DOOR_K_PREFIXES: &[(Door, &str)] = &[
     (Door::ConicTorus, "ellipse_torus_"),
     (Door::SplineComposite, "spline_composite_"),
     (Door::SplineFace, "spline_face_"),
+    (Door::SpiricPlane, "spiric_plane_"),
 ];
 
 /// The K-name prefix of this module's own readings, ahead of any door:
@@ -619,6 +630,7 @@ mod pose_rows;
 mod review_rows;
 #[cfg(test)]
 mod rows;
+pub mod spiric_plane;
 pub mod spline_face;
 #[cfg(test)]
 mod window_fuzz;

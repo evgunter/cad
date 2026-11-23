@@ -168,6 +168,10 @@ fn the_cursors_rule_admits_what_the_chosen_kind_reads() {
             !rule.admits(PickedKind::Profile),
             "{kind:?}: no mate reads a profile, so the rule {rule:?} offers none"
         );
+        assert!(
+            kind == VarKind::Direction || rule.admits(PickedKind::Datum),
+            "{kind:?}: a datum is a far side through its role, so the rule {rule:?} offers it"
+        );
     }
     assert_eq!(
         viewer::matetool::reads(VarKind::Plane),
@@ -589,7 +593,7 @@ fn a_frame_mated_on_a_frame_coincides() {
         .expect("two frames propose");
     let mate = &proposal.mates[0].mate;
     assert!(
-        matches!(&mate.on, Operand::Pose(def) if matches!(**def, PoseDef::Through { .. })),
+        matches!(&mate.on.read, Operand::Pose(def) if matches!(**def, PoseDef::Through { .. })),
         "the on side is a frame through an axis and a point: {:?}",
         mate.on
     );

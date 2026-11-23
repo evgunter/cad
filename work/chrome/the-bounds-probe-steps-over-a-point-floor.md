@@ -2,10 +2,11 @@
 id: the-bounds-probe-steps-over-a-point-floor
 kind: issue
 title: The bounds probe's doubling ladder steps over a failing region that is a point, so an extrude's depth reads open below zero for most seeds
-status: open
+status: closed
 opened: 2026-11-18
 priority: P2
 cost: E
+closed: 2026-11-23
 ---
 
 Found by DOCTAIL's review of its signed depth (2026-11-18, `work/doctail/a-face-frame-and-a-signed-extrude-for-a-sketch-on-a-face.md`).
@@ -27,3 +28,7 @@ The probe answers for a point floor, or says it cannot. Options the probe's owne
 - Say so: the Open sentence names the stride it sampled at, which is `the-range-panels-open-sentence-claims-values-it-never-sampled`'s half.
 
 Then `the_session_probes_a_real_slots_range` should bracket from a seed that does not divide its value.
+
+## Closed (2026-11-23)
+
+Nothing left to fix: the code it describes is deleted. Ev's decision on #7340 removes the sampling probe, and OFFER's `certify-affordance-on-the-bounds-panel` makes `range?` the certified search (`editor_core::range`), whose reading is `viewer::session::range`.
