@@ -614,3 +614,30 @@ fn the_guard_reads_its_floor_over_enough_checks() {
         );
     }
 }
+
+/// REVIEW PROBE (PR 7393): the validation door's decisions on the two
+/// symbolic bodies, tallied by predicate and outcome, so the digest's
+/// `decisions=` column can be recounted on two trees and the difference
+/// named.
+#[test]
+fn review_probe_the_validation_doors_decisions_by_predicate() {
+    for (name, build) in sym_bodies() {
+        let (shapes, _) = with_session(budget(), || {
+            let body = build();
+            geom_core::sym::report::start_shape_report();
+            let _ = topo::validate_geometric(&body, Tol::witness());
+            geom_core::sym::report::take_shape_report()
+        });
+        let mut tally: std::collections::BTreeMap<String, usize> =
+            std::collections::BTreeMap::new();
+        for s in &shapes {
+            *tally
+                .entry(format!("{} {:?}", s.predicate, s.outcome))
+                .or_default() += 1;
+        }
+        println!("TALLY {name} total={}", shapes.len());
+        for (k, n) in tally {
+            println!("TALLY {name} {n:4} {k}");
+        }
+    }
+}

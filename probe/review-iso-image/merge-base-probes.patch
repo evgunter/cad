@@ -1,0 +1,129 @@
+diff --git a/crates/geom-brep/src/pcurve_cache/analytic_image_rows.rs b/crates/geom-brep/src/pcurve_cache/analytic_image_rows.rs
+index 0f688826a..fa5553157 100644
+--- a/crates/geom-brep/src/pcurve_cache/analytic_image_rows.rs
++++ b/crates/geom-brep/src/pcurve_cache/analytic_image_rows.rs
+@@ -1124,3 +1124,111 @@ fn an_iso_line_off_its_column_between_the_samples_ends_in_its_lever() {
+         }
+     }
+ }
++
++/// REVIEW PROBE (PR 7393, merge base only): a DIAGONAL `IsoLine` on a
++/// plane against its `General` twins, the certificates' text compared at
++/// both scalars. Twin A is the degree-1 curve on `[0, 0, 1, 1]` through
++/// `p0` and `p0 + pl`; twin B the one the PR body names, on
++/// `[t0, t0, t1, t1]` through the line's values at the span's ends.
++#[test]
++fn review_probe_a_diagonal_iso_and_its_general_twins_certify_alike() {
++    macro_rules! cert_at {
++        ($t:ty, $surface:expr, $image:expr, $net:expr, $span:expr) => {{
++            let c = <$t as Real>::from_f64;
++            let mut table: slotmap::SlotMap<SurfaceKey, Surface<$t>> = slotmap::SlotMap::with_key();
++            let key = table.insert($surface.map_scalar(c));
++            let carrier = Curve3::Nurbs(Arc::new($net.map_scalar(c)));
++            let (t0, t1): (f64, f64) = $span;
++            let (start, end) = (carrier.eval(c(t0)), carrier.eval(c(t1)));
++            EdgeCurve::certify(
++                EdgeCurveSpec {
++                    description: EdgeDescriptionSpec::chart_image(key, $image),
++                    carrier,
++                    param_start: c(t0),
++                    param_end: c(t1),
++                },
++                start,
++                end,
++                |k| table.get(k).cloned(),
++                geom_core::test_support::fixture_lever(<$t as Real>::one()),
++                band(),
++                NurbsLane::certified(),
++            )
++            .map(|edge| format!("{:?}", edge.certificate()))
++            .map_err(|e| format!("{e:?}"))
++        }};
++    }
++    let mut g = fuzz::Rng::from_seed(0x5eed_1507);
++    let (mut same_a, mut same_b, mut n) = ([0usize; 2], [0usize; 2], 0usize);
++    for i in 0..200 {
++        let (origin, axis, u_ref) = frame(&mut g);
++        let surface = Surface::Plane {
++            frame: geom::Frame::new(origin, axis, u_ref),
++        };
++        let p0 = [g.range(-5.0, 5.0), g.range(-5.0, 5.0)];
++        let heading = g.range(0.0, core::f64::consts::TAU);
++        let len = g.range(0.2, 6.0);
++        let pl = [len * heading.cos(), len * heading.sin()];
++        let (t0, t1) = if g.below(2) == 0 {
++            (0.0, 1.0)
++        } else {
++            (g.range(0.0, 0.45), g.range(0.55, 1.0))
++        };
++        let at = |t: f64| Point2::new(p0[0] + pl[0] * t, p0[1] + pl[1] * t);
++        let net = NurbsCurve3::new(
++            KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
++            vec![surface.eval(at(0.0).x, at(0.0).y), surface.eval(at(1.0).x, at(1.0).y)],
++            vec![1.0, 1.0],
++        )
++        .unwrap();
++        let twin_a = Arc::new(
++            NurbsCurve2::new(
++                KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
++                vec![at(0.0), at(1.0)],
++                vec![1.0, 1.0],
++            )
++            .unwrap(),
++        );
++        let twin_b = Arc::new(
++            NurbsCurve2::new(
++                KnotVector::clamped(vec![t0, t0, t1, t1], 1).unwrap(),
++                vec![at(t0), at(t1)],
++                vec![1.0, 1.0],
++            )
++            .unwrap(),
++        );
++        n += 1;
++        macro_rules! three {
++            ($t:ty, $slot:expr) => {{
++                let c = <$t as Real>::from_f64;
++                let iso = cert_at!(
++                    $t,
++                    surface,
++                    Pcurve::<$t>::IsoLine {
++                        p0: Point2::new(c(p0[0]), c(p0[1])),
++                        pl: geom_core::Vec2::new(c(pl[0]), c(pl[1])),
++                        ends: None,
++                    },
++                    net,
++                    (t0, t1)
++                );
++                let a = cert_at!($t, surface, Pcurve::<$t>::General(Arc::new(twin_a.map_scalar(c))), net, (t0, t1));
++                let b = cert_at!($t, surface, Pcurve::<$t>::General(Arc::new(twin_b.map_scalar(c))), net, (t0, t1));
++                same_a[$slot] += usize::from(iso == a);
++                same_b[$slot] += usize::from(iso == b);
++                if i < 3 || iso != a || iso != b {
++                    let cut = |s: &Result<String, String>| -> String {
++                        match s {
++                            Ok(s) => format!("OK {}", s.chars().take(260).collect::<String>()),
++                            Err(s) => format!("ERR {}", s.chars().take(160).collect::<String>()),
++                        }
++                    };
++                    println!("DIAG {i} {} span=({t0},{t1})\n  iso: {}\n  A:   {}\n  B:   {}", <$t as Real>::NAME, cut(&iso), cut(&a), cut(&b));
++                }
++            }};
++        }
++        three!(f64, 0);
++        three!(Interval, 1);
++    }
++    println!("DIAG SUMMARY n={n} iso==A [f64, Interval]={same_a:?} iso==B={same_b:?}");
++}
+diff --git a/crates/geom-brep/tests/all.rs b/crates/geom-brep/tests/all.rs
+index 96a6332fc..230502540 100644
+--- a/crates/geom-brep/tests/all.rs
++++ b/crates/geom-brep/tests/all.rs
+@@ -321,6 +321,8 @@ test_utils::every_suite_file_is_aggregated!();
+ 
+ #[path = "r2_probes.rs"]
+ mod r2_probes;
++#[path = "review_iso_image_probes.rs"]
++mod review_iso_image_probes;
+ #[path = "review_probes_m8_4.rs"]
+ mod review_probes_m8_4;
+ #[path = "review_r1_turn_probes.rs"]

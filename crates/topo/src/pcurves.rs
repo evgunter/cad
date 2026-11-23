@@ -476,6 +476,9 @@ mod lift_rows;
 mod joint_point_rows;
 
 #[cfg(test)]
+mod review_iso_image_probes;
+
+#[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod turn_miss;
 

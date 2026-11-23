@@ -425,7 +425,7 @@ fn random_bodies_around_the_band() {
         -30.0 * e,
         0.1,
     ];
-    let mut pick = |state: &mut u64| {
+    let pick = |state: &mut u64| {
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         let i = (draw(state) * nudges.len() as f64) as usize;
         nudges[i.min(nudges.len() - 1)]
