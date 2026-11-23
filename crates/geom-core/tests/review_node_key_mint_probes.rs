@@ -97,7 +97,11 @@ fn two_root_mints_outside_a_session_are_two_names() {
     });
     eprintln!("B': ids equal {}, met {got:?}", ids.0 == ids.1);
     assert_ne!(ids.0, ids.1);
-    assert_eq!(got.0, Err(()), "B': two unknowns in [0, 1]: refused, not Zero");
+    assert_eq!(
+        got.0,
+        Err(()),
+        "B': two unknowns in [0, 1]: refused, not Zero"
+    );
 }
 
 /// C: two detached maps under one caller scope name their units alike.
