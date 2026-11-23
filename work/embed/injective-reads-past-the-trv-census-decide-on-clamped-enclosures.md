@@ -28,10 +28,9 @@ inputs that can still come out `Trv` with ordinary ends:
   defined values, so the question is whether a decision there needs the
   enclosure to be of the whole parameter range.
 - **`speeds`** (`injective.rs`): `[ju.norm().hi(), jv.norm().hi()]`
-  mints `f64` levers from `rect_jet`, read by `present_line_corner`'s
-  sliver (`at(across) * at(speed[..])`), `leaves_line` and
-  `leaves_graph`. TRV changed `present_chart`'s sliver to keep the
-  lever as its interval; this is the same read in its siblings. Over a
+  mints `f64` levers from `rect_jet`, read by `leaves_line` and
+  `leaves_graph`. (The two slivers that read it, or kept it as its
+  interval, are gone with the sliver: `embed/remeter`, PR 7329.) Over a
   certified analytic carrier the jet has no clamping operation, and a
   rational net's zero-crossing weight gives an infinite end, which the
   norm's `hi` carries, so it may be sound as it stands; that argument

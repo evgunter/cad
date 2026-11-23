@@ -49,3 +49,16 @@ each new read argued safe at its site in its row's note (PR
 the count on its own branch). **What remains:** the merge gate that let a
 red census land on main, four times, looked at; and `speed.rs`'s older 34
 reads, which stay `work/tesslane/the-chart-speed-bounds-endpoint-reads-are-undispositioned`.
+
+## Again at main `a85cfefaa` (2026-11-23, `embed/census-main-drift-2`)
+
+`crates/topo/src/props.rs` reads 11 against its pinned 7, the 3 that ask
+unchanged. The 4 new reads are `closed_form_reads`' `ends` closure
+(`crates/topo/src/props.rs:3723`), a face's flux and area as `(lo, hi)`
+pairs, from `c4240cc65` in PR 7344 (`boxfinish/volume-premises`, merge
+`b5b3fe7da`). The function is test vocabulary, built only under `test` or
+`test-support`. Its rows (`crates/sweep/tests/volume_premises_*.rs`)
+compare the walk's lifted sums with the closed form run again, bit for
+bit, or match the refusal it returns, so no branch is taken on an end. The
+row is re-counted to 11 / 3 with that disposition added to its note. Every
+other file the census walks matched its pin on this tree.

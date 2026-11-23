@@ -1,8 +1,10 @@
 //! **The faces' extent an edge's wedge is levered at** — the one home
-//! of the `reach` every reader of the dihedral between an edge's two
-//! faces passes to [`geom_brep::folded_lever_arm`]: tier 3's check 4,
-//! certification of an `Intersection` or `TangentIntersection`, and the
-//! must-carry rule wherever a door decides what a join stores.
+//! of the `reach` of the dihedral between an edge's two faces. Tier 3's
+//! check 4, certification of an `Intersection` or `TangentIntersection`,
+//! and the must-carry rule wherever a door decides what a join stores
+//! pass it to [`geom_brep::folded_lever_arm`]. The embedding question
+//! (`crate::injective`'s `arm_of`) levers at it alone, with no fold
+//! (`work/embed/the-departure-is-levered-at-the-reach-alone-where-check-4-folds-the-faces-curvature-arms.md`).
 //!
 //! A dihedral is how far the two faces separate as they leave the edge,
 //! so it is levered at how far they run (D4 ¶1's face extent) and how
@@ -26,9 +28,10 @@
 //! lune of a large sphere its own extent, not the sphere's diameter.
 //! That falls short of the boundary by at most a curved edge's bulge
 //! past its ends, and of a curved face that stands farther inside its
-//! boundary than on it, both the safe direction; the curvature arm
-//! ([`geom_brep::folded_lever_arm`]) caps the lever at the face's
-//! radius in any case. The edge's own ends are read too, for a door
+//! boundary than on it, both the safe direction; for the readers that
+//! fold, the curvature arm ([`geom_brep::folded_lever_arm`]) caps the
+//! lever at the face's radius in any case. The embedding question does
+//! not fold, so nothing caps its lever there. The edge's own ends are read too, for a door
 //! minting it into a face it does not bound yet. A face's vertices do
 //! not depend on the edge being read, so [`WedgeReach`] collects them
 //! once per face and a pass over many edges (tier 3) reads each face's
@@ -68,6 +71,50 @@ pub fn wedge_reach<T: Decide>(
     interval: (T, T),
 ) -> geom_core::Lever<T> {
     WedgeReach::new(body).reach(faces, carrier, interval)
+}
+
+/// **The reach's one recipe**: the farthest of `faces`, the two faces'
+/// boundary vertices (module docs), and the edge's own ends from the
+/// carrier's middle over `(t0, t1)`. The ends are read for a door
+/// minting the edge into a face it does not bound yet. Every reader of
+/// an edge's reach builds it here, at whichever scalar it holds the
+/// carrier and the points: [`WedgeReach`] off the body, the embedding
+/// question off its lifted boundaries (`crate::injective`).
+pub(crate) fn reach_over<T: geom_core::spline::SpanLocate>(
+    carrier: &Curve3<T>,
+    (t0, t1): (T, T),
+    faces: impl IntoIterator<Item = Point3<T>>,
+) -> geom_core::Lever<T> {
+    reach_from_vertex(
+        carrier.mid_point(t0, t1),
+        [carrier.eval(t0), carrier.eval(t1)]
+            .into_iter()
+            .chain(faces),
+    )
+}
+
+/// **The reach of two faces from a vertex**: the farthest of `faces`,
+/// both faces' boundary vertices, from `vertex`. [`reach_over`] reads an
+/// edge's from its middle through this; two faces that share a vertex
+/// and no edge on it are read from that vertex, there being no edge
+/// whose middle to read from: each face ε off over its run from the
+/// vertex turns by ε over that run there, so how the two leave the
+/// vertex is levered at the farther face's run.
+///
+/// It reads vertices alone, so a face bounded by a closed edge on that
+/// one vertex (a disc's rim) adds nothing, and two such faces read a
+/// zero arm. A margin levered at a zero or undecided arm is not
+/// definite, so the reader refuses; no default stands in.
+///
+/// It hands its caller's points to the points' door, as
+/// [`WedgeReach::reach`] always has: the reach is not yet read off the
+/// faces' covers
+/// (`work/oneround/lever-doors-pinned-sites-await-a-geometry-read.md`).
+pub(crate) fn reach_from_vertex<T: geom_core::Real>(
+    vertex: Point3<T>,
+    faces: impl IntoIterator<Item = Point3<T>>,
+) -> geom_core::Lever<T> {
+    geom_brep::points_lever_from(vertex, faces)
 }
 
 /// [`wedge_reach`] of a live `edge`, over its two faces and its stored
@@ -114,16 +161,13 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
         carrier: &Curve3<T>,
         (t0, t1): (T, T),
     ) -> geom_core::Lever<T> {
-        // The edge's own ends: a door minting the edge reads a face it
-        // does not bound yet. Its middle is `at`.
-        let at: Point3<T> = carrier.mid_point(t0, t1);
         let [a, b] = faces;
         let (pa, pb) = (self.face_points(a), (b != a).then(|| self.face_points(b)));
-        geom_brep::points_lever_from(
-            at,
-            [carrier.eval(t0), carrier.eval(t1)]
-                .into_iter()
-                .chain(pa.iter().copied())
+        reach_over(
+            carrier,
+            (t0, t1),
+            pa.iter()
+                .copied()
                 .chain(pb.iter().flat_map(|p| p.iter().copied())),
         )
     }
