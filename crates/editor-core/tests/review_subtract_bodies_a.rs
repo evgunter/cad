@@ -627,7 +627,7 @@ fn a_family_with_an_empty_member_at_the_tool_seat_refuses_typed() {
         doc,
         Node::Subtract {
             from: plain(plate),
-            tool: Bodies::one(plain(cut)),
+            tool: Bodies::Spelled(vec![editor_core::Spell::All(plain(cut))]),
         },
     );
     let (doc, whole) = insert(
@@ -641,7 +641,10 @@ fn a_family_with_an_empty_member_at_the_tool_seat_refuses_typed() {
         doc,
         Node::Subtract {
             from: plain(plate),
-            tool: Bodies::spelled(vec![plain(other), plain(cut)]),
+            tool: Bodies::Spelled(vec![
+                editor_core::Spell::One(plain(other)),
+                editor_core::Spell::All(plain(cut)),
+            ]),
         },
     );
     let ev = run(&doc);
@@ -682,14 +685,17 @@ fn a_family_of_one_at_the_tool_cuts_as_one_tool() {
         doc,
         Node::Subtract {
             from: plain(p),
-            tool: Bodies::one(plain(one)),
+            tool: Bodies::Spelled(vec![editor_core::Spell::All(plain(one))]),
         },
     );
     let (doc, mixed) = insert(
         doc,
         Node::Subtract {
             from: plain(p),
-            tool: Bodies::spelled(vec![plain(other), plain(two)]),
+            tool: Bodies::Spelled(vec![
+                editor_core::Spell::One(plain(other)),
+                editor_core::Spell::All(plain(two)),
+            ]),
         },
     );
     let ev = run(&doc);
@@ -719,15 +725,36 @@ fn a_tool_listed_twice_cuts_once() {
     let mut doc = doc;
     let mut cuts = Vec::new();
     for (what, tools, holes) in [
-        ("h twice", vec![plain(h), plain(h)], 1.0),
-        ("row then row[1]", vec![plain(row), member.clone()], 2.0),
-        ("row[1] then row", vec![member.clone(), plain(row)], 2.0),
+        (
+            "h twice",
+            vec![
+                editor_core::Spell::One(plain(h)),
+                editor_core::Spell::One(plain(h)),
+            ],
+            1.0,
+        ),
+        (
+            "row then row[1]",
+            vec![
+                editor_core::Spell::All(plain(row)),
+                editor_core::Spell::One(member.clone()),
+            ],
+            2.0,
+        ),
+        (
+            "row[1] then row",
+            vec![
+                editor_core::Spell::One(member.clone()),
+                editor_core::Spell::All(plain(row)),
+            ],
+            2.0,
+        ),
     ] {
         let (next, cut) = insert(
             doc,
             Node::Subtract {
                 from: plain(p),
-                tool: Bodies::spelled(tools),
+                tool: Bodies::Spelled(tools),
             },
         );
         doc = next;

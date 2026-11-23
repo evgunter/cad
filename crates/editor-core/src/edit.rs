@@ -9284,9 +9284,10 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             let spoken = || doc.spoken(*node);
             // A splice, `…xs`, reads a family whole (D10 `[repetition]`).
             let spliced = |slot: crate::OperandSlot| match (members, slot) {
-                (crate::Bodies::Spelled(entries), crate::OperandSlot::Member(i)) => {
-                    entries.get(i).is_some_and(crate::Spell::is_splice)
-                }
+                (
+                    crate::Bodies::Spelled(entries),
+                    crate::OperandSlot::Member(i) | crate::OperandSlot::Cut(i),
+                ) => entries.get(i).is_some_and(crate::Spell::is_splice),
                 _ => false,
             };
             let lower =

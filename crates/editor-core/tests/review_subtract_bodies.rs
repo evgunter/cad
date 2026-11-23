@@ -276,7 +276,10 @@ fn a_family_of_one_at_the_tools_cuts_as_its_member() {
             },
         )
     };
-    let (doc, spelled) = cut(doc, Bodies::one(read(row)));
+    let (doc, spelled) = cut(
+        doc,
+        Bodies::Spelled(vec![editor_core::Spell::All(read(row))]),
+    );
     let (doc, whole) = cut(doc, Bodies::Family(read(row)));
     let (doc, member) = cut(
         doc,

@@ -3186,16 +3186,22 @@ impl<P, S: Slot> Node<P, S> {
         if let Some(role) = self.seat_role(seat) {
             return crate::SlotKind::Is(role.of());
         }
-        // A splice, `…xs`, reads a family whole (D10 `[repetition]`).
-        if let (
-            Node::Union { members, .. }
-            | Node::Intersect { members, .. }
-            | Node::Assemble { members, .. },
-            crate::OperandSlot::Member(i),
-        ) = (self, seat)
-            && let crate::Bodies::Spelled(entries) = members
-            && entries.get(i).is_some_and(crate::Spell::is_splice)
-        {
+        // A splice, `…xs`, reads a family whole (D10 `[repetition]`): in
+        // a boolean's members or a subtract's tools alike.
+        let spliced = match (self, seat) {
+            (
+                Node::Union { members, .. }
+                | Node::Intersect { members, .. }
+                | Node::Assemble { members, .. },
+                crate::OperandSlot::Member(i),
+            )
+            | (Node::Subtract { tool: members, .. }, crate::OperandSlot::Cut(i)) => {
+                matches!(members, crate::Bodies::Spelled(entries)
+                    if entries.get(i).is_some_and(crate::Spell::is_splice))
+            }
+            _ => false,
+        };
+        if spliced {
             return crate::SlotKind::Is(crate::VarKind::Bodies);
         }
         self.body_read(seat)

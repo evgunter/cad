@@ -64,7 +64,12 @@ fn a_plate_cut_by_a_row_read_whole_is_one_plate_with_every_hole() {
         )
     };
     let member = |i| BodyRead::indexed(row, vec![Formula::count(i)]);
-    let (doc, spelled) = cut(doc, Bodies::one(BodyRead::plain(Operand::Node(row))));
+    let (doc, spelled) = cut(
+        doc,
+        Bodies::Spelled(vec![editor_core::Spell::All(BodyRead::plain(
+            Operand::Node(row),
+        ))]),
+    );
     let (doc, whole) = cut(doc, Bodies::Family(BodyRead::plain(Operand::Node(row))));
     let (doc, written) = cut(doc, Bodies::spelled(vec![member(0), member(1)]));
     let ev = run(&doc);
