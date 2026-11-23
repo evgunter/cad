@@ -75,11 +75,12 @@ fn a_saddle_cut_by_its_tangent_plane_refuses_at_its_node_arcs_under_every_op() {
         };
         matches!(
             join.error(),
-            topo::JoinError::Euler(topo::EulerOpError::Certification {
+            topo::JoinError::Euler(topo::EulerOpError::DescriptionUncertified {
                 error: geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
                     limb: geom_brep::SsiLimb::ImageMiss,
                     ..
                 }),
+                ..
             })
         )
     };

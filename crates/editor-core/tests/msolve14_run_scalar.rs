@@ -889,6 +889,13 @@ fn each_seat_stands_on_what_it_is_seated_on() {
 /// blends' squared frames (a chamfer plane's normal renormalized, a
 /// fillet's `u_ref` zero signed `+0`), measured by dumping every corpus
 /// body on both trees.
+///
+/// RE-PINNED when the least turn's Rodrigues arm became
+/// `v + k × v + k × (k × v)/(1 + c)` (no read of whether the pair is one
+/// direction): a generic turn's entries move by rounding (its landing
+/// defect 2.54u → 2.29u, its rigidity defect 6u → 3u over the spelling
+/// probe's draws), so the digest's bits moved; a pair one direction keeps
+/// the identity bit for bit.
 #[test]
 fn a3_the_f64_solve_is_its_pinned_digest_on_the_mate_corpus() {
     let eps = Tol::witness().eps();
