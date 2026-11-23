@@ -2,11 +2,12 @@
 id: an-aimed-rays-other-readings-still-carry-a-moving-faces-box-twice
 kind: issue
 title: A moving edge's line, the aim's step, the aimed face's advance, the loops' turn and a curved carrier's roots still carry a moving face's box twice
-status: dispatched
+status: review
 opened: 2026-11-14
 priority: P1
 cost: M
 branch: boxfinish/ray-readings
+pr: 7480
 ---
 
 
