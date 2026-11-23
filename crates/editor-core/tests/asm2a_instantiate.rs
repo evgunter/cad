@@ -754,15 +754,17 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
     // of `newell_plane_residual` go, 1062 → 1036. Each of the two
     // validations no longer reads the box's four corners' shared vertex,
     // six decisions a corner (two sides, two spans, two coincidences):
-    // 1036 → 988. The copy is validated
-    // by no one, so main's matching +24 on the placing op does not
-    // arise.
+    // 1036 → 988. Each certification of the box's 12 edges, at its mint
+    // and at its re-certification, then asks the session box of the edge
+    // first (`session_box_reach`, one decision where its cover is in the
+    // box): 988 → 1012. The copy is validated by no one, so main's
+    // matching +24 on the placing op does not arise.
     assert_eq!(
         first.len(),
         1,
         "the instantiate op decides its placement's box ask; the part's {direct_total} decisions are its own"
     );
-    assert_eq!(direct_total, 988, "the part's decisions on its own nodes");
+    assert_eq!(direct_total, 1012, "the part's decisions on its own nodes");
 }
 
 // ---- Row 3: instance-qualified naming ----
