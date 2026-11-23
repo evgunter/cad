@@ -197,6 +197,10 @@ impl<T: Decide> Local<T> {
     }
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: its end's local form reads the radial from its centre (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn local<T: Decide>(carrier: &Curve3<T>, (t0, t1): (T, T), end: SpanEnd) -> Option<Local<T>> {
     let (t_end, t_other, toward) = match end {
         SpanEnd::Start => (t0, t1, T::one()),
