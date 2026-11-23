@@ -712,3 +712,6 @@ fn no_own_aim_of_a_random_boxed_brick_reads_the_side_no_member_has() {
         tally(&all)
     );
 }
+
+#[path = "side_reader_review_ray_rows.rs"]
+mod review_ray;
