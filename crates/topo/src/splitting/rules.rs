@@ -1241,3 +1241,52 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+mod edge_view_review_probes {
+    use crate::entity::EntityId;
+    use crate::geometry::CurveKey;
+    use crate::test_support_fixtures::declined_cube;
+    use geom_core::Tol;
+
+    /// Claim 3: a torn curve link is not read as an answer by `straight`.
+    #[test]
+    fn straight_panics_on_a_torn_curve_link() {
+        let mut body = declined_cube::<f64>(Tol::witness()).body;
+        let edge = body.edges().next().unwrap().0;
+        assert!(super::straight(&body, edge), "a cube edge is straight");
+        body.get_edge_mut(edge).unwrap().curve = CurveKey::default();
+        let msg = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
+            let _ = super::straight(&body, edge);
+        }));
+        assert!(msg.contains(&format!("{}'s curve names", EntityId::Edge(edge))), "{msg}");
+    }
+
+    /// Claim 1/2: the doors' miss behaviour.
+    #[test]
+    fn doors_miss_as_documented() {
+        let body = declined_cube::<f64>(Tol::witness()).body;
+        let stale = crate::entity::EdgeKey::default();
+        assert!(body.edge(stale).is_none());
+        assert!(body.stored_curve(stale).is_err(), "stored_curve stays typed");
+        let he = body.half_edges().next().unwrap().0;
+        let msg = crate::surgery::tests::panic_message(|| {
+            let _ = body.linked_edge(stale, EntityId::HalfEdge(he), "edge");
+        });
+        assert!(msg.contains(&format!("{}", EntityId::HalfEdge(he))), "{msg}");
+        let msg = crate::surgery::tests::panic_message(|| {
+            let _ = body.proven_edge(stale);
+        });
+        assert!(msg.contains(&format!("{}", EntityId::Edge(stale))), "{msg}");
+    }
+
+    /// Residual ladder: `validate::wraps` (read by boolean/insert.rs and
+    /// sector_shape.rs mid-run) answers a torn curve link as `false`.
+    #[test]
+    fn wraps_reads_a_torn_curve_link_as_no() {
+        let mut body = declined_cube::<f64>(Tol::witness()).body;
+        let edge = body.edges().next().unwrap().0;
+        body.get_edge_mut(edge).unwrap().curve = CurveKey::default();
+        assert!(!crate::validate::wraps(&body, edge), "silent no, no panic");
+    }
+}

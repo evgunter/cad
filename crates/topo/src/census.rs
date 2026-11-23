@@ -23391,3 +23391,27 @@ mod line_pass_rows {
         );
     }
 }
+
+#[cfg(test)]
+mod edge_view_review_probes {
+    use crate::geometry::CurveKey;
+    use crate::test_support_fixtures::declined_cube;
+    use geom_core::Tol;
+
+    /// Claim 3: census tag reads no longer read a torn curve as "no".
+    #[test]
+    fn on_circle_and_line_span_panic_on_a_torn_curve_link() {
+        let mut body = declined_cube::<f64>(Tol::witness()).body;
+        let edge = body.edges().next().unwrap().0;
+        assert!(!super::on_circle(&body, edge));
+        assert!(super::edge_line_span(&body, edge).is_some());
+        body.get_edge_mut(edge).unwrap().curve = CurveKey::default();
+        for (what, f) in [
+            ("on_circle", &(|| { let _ = super::on_circle(&body, edge); }) as &dyn Fn()),
+            ("edge_line_span", &|| { let _ = super::edge_line_span(&body, edge); }),
+        ] {
+            let msg = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(f));
+            assert!(msg.contains("curve names"), "{what}: {msg}");
+        }
+    }
+}
