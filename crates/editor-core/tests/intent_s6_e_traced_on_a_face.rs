@@ -841,6 +841,8 @@ fn a_cylinder_tilted_on_a_frame_read_off_a_corner_is_tangent_for_every_tilt() {
     let (doc, cylinder) = extruded(doc, disc);
     let scene = boss(doc, cylinder, CapEnd::End, unslid(), BOSS_H);
     assert_proven(&scene, "tilted on the corner frame by a");
+}
+
 /// **A boss on a cylinder tilted by a variable at zero, tracing an upright
 /// cylinder it is coaxial with only there, is not proved tangent**: the
 /// tilted cylinder placed by values (`a` at `0`), an upright one sketched
