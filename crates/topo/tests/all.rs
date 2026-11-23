@@ -177,6 +177,8 @@ mod every_measurement_name_takes_a_finished_body;
 mod fused_into_live_cells;
 #[path = "gate_reads_coincident_wedges.rs"]
 mod gate_reads_coincident_wedges;
+#[path = "probe_7477_band.rs"]
+mod probe_7477_band;
 #[path = "geometric_cube.rs"]
 mod geometric_cube;
 #[path = "graft_disjoint.rs"]
