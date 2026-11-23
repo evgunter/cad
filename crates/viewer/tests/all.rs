@@ -96,6 +96,8 @@ mod doc_io;
 mod docm9_range_vs_probe;
 #[path = "door_at_rest.rs"]
 mod door_at_rest;
+#[path = "drawn_on_face.rs"]
+mod drawn_on_face;
 #[path = "drive.rs"]
 mod drive;
 #[path = "edge_pick.rs"]
@@ -183,6 +185,8 @@ mod refusal_concision_edits;
 mod review_6302;
 #[path = "review_bundle_r1.rs"]
 mod review_bundle_r1;
+#[path = "review_denotes_body.rs"]
+mod review_denotes_body;
 #[path = "review_gui0_r1.rs"]
 mod review_gui0_r1;
 #[path = "review_gui0_r2.rs"]
@@ -217,8 +221,6 @@ mod scene_build;
 mod screen_view;
 #[path = "select_pick.rs"]
 mod select_pick;
-#[path = "sketch_on_face.rs"]
-mod sketch_on_face;
 #[path = "story_assembly.rs"]
 mod story_assembly;
 #[path = "story_authoring.rs"]
