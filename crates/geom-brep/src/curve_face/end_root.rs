@@ -70,12 +70,6 @@ pub struct EndWindow<T> {
     pub whole: bool,
     /// The order of the end's root.
     pub order: u32,
-    /// How far from the end, in metres along the carrier at most, the
-    /// roots the dropped terms can move may lie.
-    pub spread: T,
-    /// The dropped terms' charge at the spread, in metres: how far the
-    /// carrier may stand from the surface there.
-    pub charge: T,
 }
 
 /// Why the door read no window.
@@ -102,8 +96,6 @@ pub const END_ROOT_SPREAD: &str = "curve_face_end_root_spread";
 pub const END_ROOT_WINDOW_CLEAR: &str = "curve_face_end_root_window_clear";
 /// The halvings a window is tried at.
 const WINDOW_HALVINGS: u32 = 48;
-/// The bisection steps the spread is bracketed by.
-const SPREAD_STEPS: u32 = 64;
 
 type Poly<T> = Vec<T>;
 
@@ -151,14 +143,12 @@ fn pow<T: Real>(s: T, j: usize) -> T {
 }
 
 /// The carrier from the end: its homogeneous point `X/W` as polynomials
-/// in the local parameter, the local length the window starts from, the
-/// local parameter's top speed in metres, and the map back to the
-/// carrier's parameter.
+/// in the local parameter, the local length the window starts from, and
+/// the map back to the carrier's parameter.
 struct Local<T: Real> {
     x: [Poly<T>; 3],
     w: Poly<T>,
     run: T,
-    speed: T,
     kind: LocalKind,
     t_end: T,
     toward: T,
@@ -193,7 +183,6 @@ fn local<T: Decide>(carrier: &Curve3<T>, (t0, t1): (T, T), end: SpanEnd) -> Opti
                 x: [vec![p.x, d.x], vec![p.y, d.y], vec![p.z, d.z]],
                 w: vec![T::one()],
                 run: span,
-                speed: line.dir.norm(),
                 kind: LocalKind::Line,
                 t_end,
                 toward,
@@ -220,7 +209,6 @@ fn local<T: Decide>(carrier: &Curve3<T>, (t0, t1): (T, T), end: SpanEnd) -> Opti
                 ],
                 w,
                 run: (turned / two).tan(),
-                speed: two * r,
                 kind: LocalKind::HalfAngle,
                 t_end,
                 toward,
@@ -378,25 +366,10 @@ pub fn end_window<T: Decide>(
             band,
         ) {
             Ok(Sign::Positive | Sign::Negative) => {
-                // The spread, bracketed from above: the least `s` the
-                // excess is proven positive at.
-                let (mut lo, mut hi) = (T::zero(), s_w);
-                for _ in 0..SPREAD_STEPS {
-                    let mid = geom_core::mid_param(lo, hi);
-                    if geom_core::k_stats::prove(END_ROOT_SPREAD, Margin::sign_of(excess(mid)))
-                        == Ok(Sign::Positive)
-                    {
-                        hi = mid;
-                    } else {
-                        lo = mid;
-                    }
-                }
                 return Ok(EndWindow {
                     at,
                     whole,
                     order: u32::try_from(m).unwrap_or(u32::MAX),
-                    spread: hi * local.speed,
-                    charge: abs_terms(&charge, 0..m, hi) / g,
                 });
             }
             Ok(Sign::Zero) => {}

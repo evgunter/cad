@@ -2140,7 +2140,7 @@ fn junction_window<T: Decide + crate::props::AtRestPolicy>(
     .into_iter()
     .flatten()
     .filter_map(|parent| declared.junction_rim(x_is, parent, x_is.other(), face));
-    let mut on_rim = None;
+    let mut on_rim = false;
     for rim in rims {
         let w = p - rim.center;
         let height = w.dot(rim.axis);
@@ -2148,16 +2148,16 @@ fn junction_window<T: Decide + crate::props::AtRestPolicy>(
         let off = (radial.powi(2) + height.powi(2)).sqrt();
         match geom_core::k_stats::decide("junction_end_on_rim", Margin::of(off), band) {
             Ok(Sign::Zero) => {
-                on_rim = Some(rim);
+                on_rim = true;
                 break;
             }
             Ok(_) => {}
             Err(diag) => return Err(escalated(diag)),
         }
     }
-    let Some(rim_at) = on_rim else {
+    if !on_rim {
         return Ok(None);
-    };
+    }
     let end = match geom_core::k_stats::prove(
         "junction_end_which",
         Margin::of((carrier.eval(t1) - p).norm() - (carrier.eval(t0) - p).norm()),
@@ -2167,29 +2167,7 @@ fn junction_window<T: Decide + crate::props::AtRestPolicy>(
         Ok(Sign::Zero) | Err(_) => return Err(unread(super::JunctionEndGap::Window)),
     };
     match end_window(carrier, (t0, t1), end, surface, band) {
-        Ok(window) => {
-            // **The spread's roots are the end's own: decided, not
-            // assumed.** A root inside the spread is a point of `face`'s
-            // carrier within `window.spread` of the rim on the edge's own
-            // face's side, and off `face` only where that side holds over
-            // the whole spread: the edge's first-order departure from the
-            // rim over it must beat the second-order bend there (the
-            // edge's curvature and the rim's) and the charge.
-            let (t_end, toward) = match end {
-                SpanEnd::Start => (t0, T::one()),
-                SpanEnd::End => (t1, -T::one()),
-            };
-            let (_, d) = carrier.ders1(t_end);
-            let along = (d * toward).normalize();
-            let rim_tangent = rim_at.axis.cross(p - rim_at.center).normalize();
-            let departure = (along - rim_tangent * along.dot(rim_tangent)).norm();
-            let bend = carrier_curvature(carrier) + T::one() / rim_at.radius;
-            match junction_side(departure, bend, window.spread, window.charge, band) {
-                Ok(Sign::Positive) => Ok(Some(window)),
-                Ok(_) => Err(unread(super::JunctionEndGap::Window)),
-                Err(diag) => Err(escalated(diag)),
-            }
-        }
+        Ok(window) => Ok(Some(window)),
         Err(EndRootRefusal::LiesOn) => Ok(None),
         Err(EndRootRefusal::NoLane) => Err(unread(super::JunctionEndGap::NoLane {
             curve: carrier.kind(),
@@ -2203,36 +2181,6 @@ fn junction_window<T: Decide + crate::props::AtRestPolicy>(
         Err(EndRootRefusal::Spread(None) | EndRootRefusal::Window(None)) => {
             Err(unread(super::JunctionEndGap::Window))
         }
-    }
-}
-
-/// **Whether the edge's own side of a junction's rim holds over the
-/// spread** (`junction_end_side`): its first-order departure from the
-/// rim, `departure · spread`, against the second-order bend over the
-/// spread, `bend · spread² / 2`, and the charge, all in metres. Positive
-/// is the side decided over the whole spread.
-///
-/// # Errors
-///
-/// The margin's in-band reading.
-fn junction_side<T: Decide>(
-    departure: T,
-    bend: T,
-    spread: T,
-    charge: T,
-    band: Band,
-) -> Result<Sign, geom_core::Indeterminate> {
-    let lead = departure * spread;
-    let bent = bend * spread.powi(2) * T::from_f64(0.5);
-    geom_core::k_stats::decide("junction_end_side", Margin::of(lead - bent - charge), band)
-}
-
-/// A carrier's curvature: a line's none, a circle's its radius's
-/// reciprocal; another carrier has no end-root lane and is never asked.
-fn carrier_curvature<T: Decide>(carrier: &geom::Curve3<T>) -> T {
-    match carrier {
-        geom::Curve3::Circle(c) => T::one() / c.radius(),
-        _ => T::zero(),
     }
 }
 
@@ -9924,58 +9872,5 @@ mod vertex_refusal_tests {
             ),
             "{got:?}"
         );
-    }
-}
-
-#[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod junction_side_rows {
-    //! The spread's side check (`junction_side`) at the elbow's numbers
-    //! and where its premise fails: a ruling leaving the pipe's rim
-    //! square to it, the spread a double root's `√(2ε/κ)`, and the charge
-    //! the zero band.
-    use super::*;
-    use geom_core::Tol;
-
-    fn band() -> Band {
-        Band::linear(Tol::witness()).unwrap()
-    }
-
-    /// The spread of a double root of relative curvature `kappa`.
-    fn spread(kappa: f64) -> f64 {
-        (2.0 * band().zero() / kappa).sqrt()
-    }
-
-    #[test]
-    fn a_ruling_square_to_the_rim_holds_its_side_over_the_spread() {
-        let b = band();
-        assert_eq!(
-            junction_side(1.0, 1.0, spread(0.5), b.zero(), b),
-            Ok(Sign::Positive),
-            "first order dominates at the elbow's spread"
-        );
-    }
-
-    /// **A near-tangent departure does not hold its side**: an edge
-    /// leaving the rim at `1e-6` rad over the same spread moves off it by
-    /// less than the charge.
-    #[test]
-    fn a_near_tangent_departure_does_not_hold_its_side() {
-        let b = band();
-        let got = junction_side(1e-6, 1.0, spread(0.5), b.zero(), b);
-        assert!(
-            !matches!(got, Ok(Sign::Positive)),
-            "a near-tangent departure: {got:?}"
-        );
-    }
-
-    /// **A rim too tight for the spread does not hold its side**: the
-    /// rim's own bend over the spread outruns the departure.
-    #[test]
-    fn a_rim_tighter_than_the_spread_does_not_hold_its_side() {
-        let b = band();
-        let s = spread(1e-6);
-        let got = junction_side(1.0, 4.0 / s, s, b.zero(), b);
-        assert!(!matches!(got, Ok(Sign::Positive)), "a tight rim: {got:?}");
     }
 }
