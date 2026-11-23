@@ -1133,23 +1133,133 @@ fn a_stepped_ring_holds_in_every_pose_on_its_carried_facts() {
     }
 }
 
-/// **A cone that owns its apex, cut through its axis, refuses in every
-/// pose, as it did before the question read tier 3's facts.** Tier 3
-/// classes each ruling a convex crease and keeps one extent for it (the
-/// narrower face's run from the ruling's line, 0.70 against the cone's
-/// 1.39), which does not shrink toward the apex as the cone's curvature
-/// radius does; the apex is the key tier 3 placed it at. What refuses
-/// is the cell at the apex's collapsed side, which no reading here
-/// presents
-/// (`work/embed/a-cone-cell-presented-by-its-apex-side-is-signed-by-no-separator.md`).
-/// The exit moves with the pose, on the branch this one is cut from
-/// too: across a ruling as built and a hundred units out, out of depth
-/// turned about a generic axis.
+/// The stepped ring's shape with no coordinate on the dyadic grid: its
+/// inner radius `0.7`, its floor at `0.13`, its step a third up, turned
+/// through `1.3π`.
+fn stepped_ring_off_the_grid<T: Scalar>() -> topo::AtRestBody<T> {
+    let third = 1.0 / 3.0;
+    let profile = validated::<T>(&[ProfileLoop::polygon(
+        [
+            (0.7, 0.13),
+            (1.9, 0.13),
+            (1.9, 1.13),
+            (1.9 - third, 1.13),
+            (1.9 - third, 0.13 + third),
+            (0.7, 0.13 + third),
+        ]
+        .map(|(x, y)| Point2::new(x, y)),
+    )]);
+    let turn = Revolution::Partial(T::from_f64(1.3 * core::f64::consts::PI));
+    sweep::test_support::taken::<T>(
+        revolve(&profile, axis_y(), turn, tol()).unwrap().body,
+        tol(),
+    )
+    .expect("the ring is a finished body")
+}
+
+/// A stepped drum on its axis, no coordinate on the dyadic grid: radius
+/// `0.7` up to a third above its floor at `0.13`, a third from there to
+/// `1.13`, turned the whole way round. Its caps are discs and its step
+/// an annulus, each bounded by whole circles.
+fn stepped_drum_off_the_grid<T: Scalar>() -> topo::AtRestBody<T> {
+    let third = 1.0 / 3.0;
+    let profile = validated::<T>(&[ProfileLoop::polygon(
+        [
+            (0.0, 0.13),
+            (0.7, 0.13),
+            (0.7, 0.13 + third),
+            (third, 0.13 + third),
+            (third, 1.13),
+            (0.0, 1.13),
+        ]
+        .map(|(x, y)| Point2::new(x, y)),
+    )]);
+    sweep::test_support::taken::<T>(
+        revolve(&profile, axis_y(), Revolution::Full, tol())
+            .unwrap()
+            .body,
+        tol(),
+    )
+    .expect("the drum is a finished body")
+}
+
+/// **Bodies built off the dyadic grid hold in every pose but one.** The
+/// stepped ring and a stepped drum, built at `0.7`, `0.13` and thirds
+/// so that no stored coordinate is exact, as built, turned, mirrored
+/// and placed a hundred units out, at both scalars. The drum's caps are
+/// discs, which span their rims (a rim crosses a half-plane on the axis
+/// once), and its step is an annulus, which does not; each face's run
+/// is read from enclosures that are nowhere a point.
 ///
-/// Red if a pose certifies it while another refuses, and red the day
-/// the apex's side is presented: the row then pins it holding.
+/// **The drum mirrored across a generic plane refuses at `Interval`**:
+/// `Uncertified Departure` between the two faces of one cylinder wall
+/// across their seam, out of the walk's depth, where `f64` holds. It reads so on the branch this one lands on too, cell
+/// for cell, so it is not the facts' reading; pinned at that exit as a
+/// finding
+/// (`work/embed/a-stepped-drum-mirrored-across-a-generic-plane-refuses-departure-at-interval.md`).
+///
+/// Red if a run, a class or a crossing's side is decided by a stored
+/// value agreeing with another rather than by an enclosure, and red the
+/// day the mirrored drum holds: the row then pins it holding.
 #[test]
-fn a_cone_cut_through_its_axis_refuses_at_its_apex_in_every_pose() {
+fn bodies_built_off_the_dyadic_grid_hold_in_every_pose_but_one() {
+    use topo::clearance::Embedding;
+    for pose in POSES {
+        for (what, scalar, report) in [
+            (
+                "ring",
+                "f64",
+                embedding_of_finished(&in_pose(stepped_ring_off_the_grid::<f64>(), pose)),
+            ),
+            (
+                "ring",
+                "Interval",
+                embedding_of_finished(&in_pose(stepped_ring_off_the_grid::<Interval>(), pose)),
+            ),
+            (
+                "drum",
+                "f64",
+                embedding_of_finished(&in_pose(stepped_drum_off_the_grid::<f64>(), pose)),
+            ),
+            (
+                "drum",
+                "Interval",
+                embedding_of_finished(&in_pose(stepped_drum_off_the_grid::<Interval>(), pose)),
+            ),
+        ] {
+            println!("[verdict-read] the off-grid {what} {pose} at {scalar}: {report:?}");
+            if (what, pose, scalar) == ("drum", "mirrored", "Interval") {
+                let body = in_pose(stepped_drum_off_the_grid::<Interval>(), pose);
+                let class = door_on(&body.geometric(), body.faces().map(|(k, _)| k).collect());
+                println!("[verdict-read] the off-grid drum mirrored at Interval: {class}");
+                assert!(
+                    class == "Uncertified Departure cylinder x cylinder across an edge",
+                    "the off-grid drum mirrored at Interval refuses across a seam: {class}"
+                );
+                continue;
+            }
+            assert!(
+                matches!(report.verdict, Embedding::Embedded),
+                "the off-grid {what} {pose} at {scalar} is embedded: {report:?}"
+            );
+        }
+    }
+}
+
+/// **A cone that owns its apex, cut through its axis, holds in every
+/// pose.** Tier 3 classes each ruling a convex crease and keeps one
+/// extent for it (the narrower face's run from the ruling's line, 0.70
+/// against the cone's 1.39), which does not shrink toward the apex as
+/// the cone's curvature radius does; the apex is the vertex tier 3
+/// placed it at, by key, and the cells at its collapsed side are read
+/// there. As built, turned, mirrored and a hundred units out, at both
+/// scalars.
+///
+/// Red if a pose refuses while another holds, if the apex is found by
+/// anything but the verdict's key, or if a ruling's extent is read off
+/// the cone's own cell.
+#[test]
+fn a_cone_cut_through_its_axis_holds_at_its_apex_in_every_pose() {
     for pose in POSES {
         for (scalar, report) in [
             (
@@ -1163,8 +1273,8 @@ fn a_cone_cut_through_its_axis_refuses_at_its_apex_in_every_pose() {
         ] {
             println!("[verdict-read] the half cone {pose} at {scalar}: {report:?}");
             assert!(
-                matches!(report.verdict, topo::clearance::Embedding::Refused(_)),
-                "the half cone {pose} at {scalar} refuses: {report:?}"
+                matches!(report.verdict, topo::clearance::Embedding::Embedded),
+                "the half cone {pose} at {scalar} is embedded: {report:?}"
             );
         }
     }
@@ -1572,11 +1682,9 @@ fn a_lunes_cap_pushed_through_anothers_reads_violated() {
 #[test]
 fn a_sphere_faces_poses_are_built_once_per_ask() {
     let body = two_arc_lune::<f64>(0.0, Some(0.05));
-    let side = Side {
-        body: &body,
-        faces: body.faces().map(|(k, _)| k).collect(),
-    };
-    let windows = side.windows(Which::First).expect("every face has a window");
+    let of = geometric(&body);
+    let windows = Side::windows_of(&of, body.faces().map(|(k, _)| k).collect(), Which::First)
+        .expect("every face has a window");
     let sweep = Sweep {
         bound: ClearanceBound::StrictlyPositive,
         band: band(),
@@ -1649,11 +1757,9 @@ fn a_lens_of_two_spheres_holds_at_both_scalars_read_in_its_poses() {
             two_ball_lens(dx),
         );
         let body = two_ball_lens::<Interval>(dx);
-        let side = Side {
-            body: &body,
-            faces: body.faces().map(|(k, _)| k).collect(),
-        };
-        let windows = side.windows(Which::First).expect("every face has a window");
+        let of = geometric(&body);
+        let windows = Side::windows_of(&of, body.faces().map(|(k, _)| k).collect(), Which::First)
+            .expect("every face has a window");
         let sweep = Sweep {
             bound: ClearanceBound::StrictlyPositive,
             band: band(),
@@ -4584,9 +4690,18 @@ fn door_class<T: Scalar + geom_core::Certifies>(body: &Body<T>) -> String {
 
 /// [`door_class`] over `faces` of `body` alone.
 fn door_over<T: Scalar + geom_core::Certifies>(body: &Body<T>, faces: Vec<FaceKey>) -> String {
+    door_on(&geometric(body), faces)
+}
+
+/// [`door_over`] on the facts `of` holds for its body.
+fn door_on<T: Scalar + geom_core::Certifies>(
+    of: &topo::Geometric<'_, T>,
+    faces: Vec<FaceKey>,
+) -> String {
     use topo::clearance::{Embedding, embedded};
+    let body = of.body();
     let report = embedded(
-        &geometric(body),
+        of,
         faces,
         band(),
         Budgets {
@@ -4930,7 +5045,12 @@ fn one_uneven_plate_is_embedded_in_every_rigid_pose_and_its_axis_mirror() {
     let mirrored = |point, n| {
         let reflection = topo::Reflection::across(point, n, tol()).expect("a plane");
         let mirrored = topo::mirror_body(&body, &reflection, tol()).expect("mirrors");
-        door_class::<f64>(&mirrored)
+        // Tier 3's battery refuses the generic mirror's re-minted rows
+        // as the finish does, so that body is asked on fixture facts:
+        // the runs tier 3 would keep, and no class.
+        let of = topo::geometric(&mirrored, tol())
+            .unwrap_or_else(|_| topo::Geometric::fixture(&mirrored));
+        door_on(&of, mirrored.faces().map(|(k, _)| k).collect())
     };
     assert_eq!(
         mirrored(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0)),

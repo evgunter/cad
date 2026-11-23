@@ -1340,6 +1340,20 @@ enum Zero {
     Curve(Side, Box<Curved>),
 }
 
+impl Zero {
+    /// Whether this zero set lies along `edge`: a side, a corner's side
+    /// or a curve on it, and not one that meets it at a vertex alone.
+    fn along(&self, edge: EdgeKey) -> bool {
+        let on = |a: &Along| a.vertex.is_none() && a.edges.contains(&edge);
+        match self {
+            Self::None | Self::Point(..) | Self::Past(..) => false,
+            Self::Side(_, a) => on(a),
+            Self::Corner((_, a), (_, b)) => on(a) || on(b),
+            Self::Curve(_, c) => c.past.is_none() && on(&c.along),
+        }
+    }
+}
+
 /// **The cells a zero side or curve lies on**: the edges along it, by
 /// key, so both faces name them alike, or the shared vertex a collapsed
 /// side is. They are shared, but for a curve read on through a vertex
@@ -7998,8 +8012,12 @@ fn departure(
             if !holds {
                 continue;
             }
-            // The side proved is the edge's turn, which tier 3 holds.
+            // Where the other face's cell lies along the edge, the side
+            // proved is the edge's turn, which tier 3 holds. A cell that
+            // meets the edge at a vertex alone, or not at all, stands on
+            // whichever side the face has turned to by there.
             if let [(edge, Some(crate::EdgeClass::Crease(turn)))] = classes.as_slice()
+                && p.zero.along(*edge)
                 && let Some(read_turn) = turn_read(&psi, sep, read.side())
                 && read_turn != *turn
             {
