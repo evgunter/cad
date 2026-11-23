@@ -3267,7 +3267,7 @@ fn at_the_build_limit(e: &sweep::RevolveError) -> bool {
     };
     match e {
         sweep::RevolveError::Op {
-            source: topo::EulerOpError::Certification { error },
+            source: topo::EulerOpError::DescriptionUncertified { error, .. },
         } => matches!(
             error,
             CertifyError::AnalyticRung3(AnalyticRung3Refusal::KernelLimit { .. })
