@@ -760,7 +760,9 @@ fn a_rational_section_on_a_curved_path_faces_out_along_the_turn() {
          this row now restates the integral elbow next door"
     );
 
+    // Four walls: each half arc of the section is wider than one
+    // rational-quadratic piece, so the skin cuts it at its sub-arc joint.
     let oracle = |q| index.contains(q);
-    assert_walls_face_out(&swept, &oracle, &along_v(), PROBE_DELTA, 2);
+    assert_walls_face_out(&swept, &oracle, &along_v(), PROBE_DELTA, 4);
     assert_caps_face_out(&swept, &oracle, PROBE_DELTA);
 }

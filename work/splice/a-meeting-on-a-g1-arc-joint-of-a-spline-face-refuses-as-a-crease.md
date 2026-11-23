@@ -68,6 +68,11 @@ spine leaving along `+z`. At ε 1e-9 and 1e-12 the union stops at
   double knot at `u = 0.5` is inside the arc.
 - The joint is parametrically C¹: its one-sided `∂u` agree, which is pinned
   by `the_tube_walls_u_joint_is_tangent_continuous` in the same file
-  (measured by the PR's review on `splice/review-6481`).
+  (measured by the PR's review on `splice/review-6481`). (2026-11-23: the
+  skin now cuts each sub-arc joint into an edge, so the tube is four
+  quarter walls with no interior `u` knot; that test is now
+  `the_tube_walls_sub_arc_joints_are_smooth_edges`, pinning the edge's
+  wedge at 180°, and the union stops elsewhere, at the seam on the
+  cylinder's rim, `work/splice/a-loop-seam-meeting-the-neck-cylinder-at-its-edge-reads-in-band.md`.)
 - So the stop is the describer reading the joint's multiplicity alone
   (`crease_runs`). It is not a cell the kernel built without C¹.

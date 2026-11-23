@@ -49,3 +49,15 @@ joint, as on a two-sub-arc semicircle split in half, holds none).
 Cut out of TESS by its semantic-seam split (`work/README.md`, Track size) when TESS measured 146 budget points against 30. Moved by `git mv`; the id and body are unchanged.
 
 - 2026-11-14 — moved from TESSSIZE to TESSLANE by `git mv` when TESS and TESSSIZE merged into their successor TESSLANE (`docs/doc-ledger/tess-and-tesssize-leave-the-tracker.md`), id and body unchanged.
+
+- 2026-11-23 — the witness no longer reproduces (`lathe/skin-sub-arc-walls`,
+  `work/lathe/the-skin-cuts-an-arc-wall-at-each-sub-arc-joint.md`). The skin
+  now cuts every loft and sweep wall at each sub-arc joint, so a loft rim's
+  `IsoArc` row is one sub-arc and a split child holds no joint: the split
+  bulged prism meshes watertight, and
+  `both_halves_of_a_split_rim_re_mint_the_parents_row` pins that now. The
+  refusal in `mesh::chords` (`spans > 1`) stands for a row over a chart
+  holding interior `u` knots, which the measured arc-rim arm still mints
+  for any chart (`geom_brep::edge_nurbs::arc_rim_images`), such as a
+  rational wall the kernel did not loft; so the row stays open, without a
+  live witness until one is built that way.
