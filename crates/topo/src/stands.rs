@@ -509,6 +509,10 @@ fn across_edges<T: Decide>(
 /// two lines are parallel), both roots of a conic's quadratic (one
 /// double root where the line misses it, read at its nearest
 /// approach). Empty for a spiric or a spline.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn line_meetings<T: Decide>(
     c: &geom::Curve3<T>,
     normal: Vec3<T>,
@@ -533,20 +537,12 @@ fn line_meetings<T: Decide>(
             vec![(origin - m).cross(dir.get()).dot(normal) / w.get().cross(dir.get()).dot(normal)]
         }
         geom::Curve3::Circle(circle) => {
-            let (center, axis, u_ref) = (
-                circle.frame().origin(),
-                circle.frame().axis(),
-                circle.frame().u_ref(),
-            );
+            let (center, axis, u_ref) = (circle.frame().origin(), circle.axis(), circle.u_ref());
             let radius = circle.radius();
             conic(center, axis, u_ref, radius, radius)
         }
         geom::Curve3::Ellipse(ellipse) => {
-            let (center, axis, u_ref) = (
-                ellipse.frame().origin(),
-                ellipse.frame().axis(),
-                ellipse.frame().u_ref(),
-            );
+            let (center, axis, u_ref) = (ellipse.frame().origin(), ellipse.axis(), ellipse.u_ref());
             let (semi_u, semi_v) = (ellipse.semi_u(), ellipse.semi_v());
             conic(center, axis, u_ref, semi_u, semi_v)
         }
