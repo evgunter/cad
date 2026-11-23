@@ -417,9 +417,14 @@ fn midpoint(
     let ((xa, ya), (xb, yb)) = (develop(a), develop(b));
     let (x, y) = (0.5 * (xa + xb), 0.5 * (ya + yb));
     let theta = Real::atan2(x, y) / k;
-    let period = core::f64::consts::TAU / k.abs();
+    // The development's angle is an angle by construction: one turn of it
+    // is `1/|k|` turns of the chart's `u`.
+    let period = geom_core::period::Period::<f64>::angle().length() / k.abs();
     let turns = ((chart[0] - theta) / period).round();
-    [theta + turns * period, nappe * Real::sqrt(x * x + y * y)]
+    [
+        theta + turns * period,
+        nappe * Real::sqrt(x.powi(2) + y.powi(2)),
+    ]
 }
 
 /// Appends `point` and makes each of the two triangles on side `(a, b)`
