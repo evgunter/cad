@@ -1,0 +1,39 @@
+26 ('Plane/Cone', 'Uncertified/Departure/Edge', 'f64')
+24 ('Cone/Cone', 'Uncertified/Departure/Edge', 'f64')
+13 ('Cone/Plane', 'Uncertified/Departure/Edge', 'f64')
+3 ('Sphere/Cone', 'Uncertified/SecondOrder/Edge', 'f64')
+3 ('Cylinder/Cone', 'Uncertified/Departure/Vertex', 'f64')
+3 ('Plane/Cone', 'Uncertified/Departure/Vertex', 'Interval')
+1 ('Cone/Cone', 'Uncertified/Departure/Vertex', 'f64')
+1 ('Plane/Cone', 'Crosses', 'f64')
+1 ('Cone/Sphere', 'Uncertified/SecondOrder/Edge', 'f64')
+1 ('Plane/Cone', 'Uncertified/Departure/Vertex', 'f64')
+1 ('Cone/Plane', 'Uncertified/Departure/Vertex', 'f64')
+1 ('Cone/Torus', 'Uncertified/Departure/Edge', 'Interval')
+1 ('Cone/Plane', 'Crosses', 'f64')
+1 ('Cone/Torus', 'Uncertified/Departure/Edge', 'f64')
+T sweep::all reach_cone_split::a_tilted_cone_cut_is_never_misread_by_containment Uncertified/Departure/Edge f64 0.208 Refused(Uncertified { a: FaceKey(5v1), b: FaceKey(7v1), shared: Edge(EdgeKey(2v1)), arm: D
+T mesh::all reach_probes::a_cone_face_bounded_by_a_section_ellipse_meshes_on_the_cone_row Uncertified/Departure/Edge f64 0.227 Refused(Uncertified { a: FaceKey(5v1), b: FaceKey(7v1), shared: Edge(EdgeKey(2v1)), arm: D
+T sweep::all near_circular_sections::a_near_square_split_of_a_frustum_validates_its_halves Uncertified/Departure/Edge f64 0.248 Refused(Uncertified { a: FaceKey(5v1), b: FaceKey(7v1), shared: Edge(EdgeKey(2v1)), arm: D
+T sweep::all reach_cone_split::tilted_cuts_across_the_elliptic_range_are_exact_on_both_nappes Uncertified/Departure/Edge f64 0.252 Refused(Uncertified { a: FaceKey(5v1), b: FaceKey(7v1), shared: Edge(EdgeKey(2v1)), arm: D
+T mesh::all reach_probes::the_unit_funnel_cut_near_its_apex_meshes_at_every_delta Uncertified/Departure/Edge f64 0.279 Refused(Uncertified { a: FaceKey(4v1), b: FaceKey(6v1), shared: Edge(EdgeKey(2v1)), arm: D
+T sweep::all near_circular_sections::a_near_square_frustum_minus_a_box_builds Uncertified/Departure/Edge f64 0.289 Refused(Uncertified { a: FaceKey(3v1), b: FaceKey(7v1), shared: Edge(EdgeKey(3v3)), arm: D
+T mesh::all reach_probes::a_cone_face_through_its_apex_meshes_on_the_cone_row Uncertified/Departure/Edge f64 0.29 Refused(Uncertified { a: FaceKey(4v1), b: FaceKey(6v1), shared: Edge(EdgeKey(2v1)), arm: D
+T sweep::all reach_cone_split::cuts_through_a_cap_and_the_apex_region Uncertified/Departure/Edge f64 0.304 Refused(Uncertified { a: FaceKey(3v1), b: FaceKey(5v1), shared: Edge(EdgeKey(2v1)), arm: D
+T sweep::all reach_cone_split::an_upright_cone_splits_at_every_pose_through_its_apex_faces Uncertified/Departure/Edge f64 0.434 Refused(Uncertified { a: FaceKey(1v1), b: FaceKey(6v1), shared: Edge(EdgeKey(1v1)), arm: D
+T sweep::all a_cone_apex_meets_a_vertex::two_cones_through_one_apex_build_across_the_pose_families Uncertified/Departure/Edge f64 0.491 Refused(Uncertified { a: FaceKey(1v3), b: FaceKey(6v5), shared: Edge(EdgeKey(8v3)), arm: D
+T sweep::all cone_operand_rows::the_tilted_planes_ellipse_builds_its_closed_forms Uncertified/Departure/Edge f64 0.647 Refused(Uncertified { a: FaceKey(5v1), b: FaceKey(7v1), shared: Edge(EdgeKey(2v1)), arm: D
+T sweep::all cone_join_lane::each_poses_body_is_its_closed_form_in_every_op Uncertified/Departure/Edge f64 0.753 Refused(Uncertified { a: FaceKey(5v1), b: FaceKey(7v1), shared: Edge(EdgeKey(2v1)), arm: D
+T sweep::all a_cone_apex_on_a_plane_through_it::a_cut_along_two_rulings_through_a_wrap_tipped_apex_refuses_the_pinch_by_name Uncertified/Departure/Edge f64 0.792 Refused(Uncertified { a: FaceKey(2v1), b: FaceKey(4v5), shared: Edge(EdgeKey(1v1)), arm: D
+T mesh::all winding_rows::the_cut_frustum_meshes_with_thin_triangles_resolved Uncertified/Departure/Edge f64 1.085 Refused(Uncertified { a: FaceKey(3v1), b: FaceKey(5v1), shared: Edge(EdgeKey(2v1)), arm: D
+T sweep::all a_cone_apex_meets_a_vertex::two_cones_through_one_apex_cross_along_their_common_rulings Uncertified/Departure/Edge f64 1.28 Refused(Uncertified { a: FaceKey(1v3), b: FaceKey(6v5), shared: Edge(EdgeKey(8v3)), arm: D
+T mesh::all winding_rows::the_whole_frustum_refuses_in_its_window_and_meshes_outside_it Uncertified/Departure/Edge f64 1.299 Refused(Uncertified { a: FaceKey(3v1), b: FaceKey(5v1), shared: Edge(EdgeKey(2v1)), arm: D
+T mesh::all reach_probes::a_needle_funnel_cut_at_its_apex_refuses_typed Uncertified/Departure/Edge f64 2.141 Refused(Uncertified { a: FaceKey(4v1), b: FaceKey(6v1), shared: Edge(EdgeKey(2v1)), arm: D
+T mesh trimmed::tests::a_cone_faces_window_reads_its_widest_edge Uncertified/Departure/Edge f64 4.203 Refused(Uncertified { a: FaceKey(5v1), b: FaceKey(7v1), shared: Edge(EdgeKey(2v1)), arm: D
+T mesh trimmed::tests::the_cone_and_torus_arms_boundary_chords_step_within_their_lattice Uncertified/Departure/Edge f64 4.254 Refused(Uncertified { a: FaceKey(5v1), b: FaceKey(7v1), shared: Edge(EdgeKey(2v1)), arm: D
+T mesh::all lift_probes::every_loop_of_a_door_built_curved_face_has_a_lift_that_closes Uncertified/Departure/Edge f64 4.675 Refused(Uncertified { a: FaceKey(5v1), b: FaceKey(7v1), shared: Edge(EdgeKey(2v1)), arm: D
+T sweep::all a_plane_near_a_needle_cones_apex::a_needle_cone_cut_off_its_apex_lands_its_closed_forms Uncertified/Departure/Edge f64 5.208 Refused(Uncertified { a: FaceKey(2v1), b: FaceKey(6v1), shared: Edge(EdgeKey(1v1)), arm: D
+T sweep::all a_plane_moved_to_a_cone_apex::a_plane_moved_to_the_apex_band_plans_the_ellipse_it_cuts Uncertified/Departure/Edge f64 7.504 Refused(Uncertified { a: FaceKey(5v1), b: FaceKey(7v1), shared: Edge(EdgeKey(2v1)), arm: D
+T sweep::all reach_cone_root_lane::every_op_on_a_cone_wall_answers_its_truth_or_refuses_typed Uncertified/Departure/Edge f64 20.233 Refused(Uncertified { a: FaceKey(5v1), b: FaceKey(8v3), shared: Edge(EdgeKey(2v1)), arm: D
+T mesh::all reach_probes::a_cone_face_met_on_its_axis_meshes_at_every_delta Uncertified/Departure/Vertex f64 20.381 Refused(Uncertified { a: FaceKey(1v1), b: FaceKey(4v3), shared: Vertex(VertexKey(3v3)), ar
+T mesh::all split_rulings::a_ruled_face_with_a_split_ruling_meshes Uncertified/Departure/Edge f64 28.445 Refused(Uncertified { a: FaceKey(1v1), b: FaceKey(2v1), shared: Edge(EdgeKey(1v1)), arm: D

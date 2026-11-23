@@ -1,0 +1,150 @@
+## reach_cone_split::a_tilted_cone_cut_is_never_misread_by_containment FAIL asks=3
+    2 Embedded
+    1 Refused(Uncertified { a: FaceKey(K), b: FaceKey(K), shared: Edge(EdgeK
+    cone rows: {('Harmonic', 'Line', 'iso'): 12, ('Harmonic', 'Circle', 'iso'): 10, ('FocalSection', 'Ellipse', 'NON-ISO'): 2}
+    exits: {'beside_curve unread-edge': 2, 'beside_curve unread_corner': 2}
+    structural pairs (px,py,#near edges,#near verts): {('Err(Structural)', 'Err(Structural)', 2, 4): 1}
+## reach_probes::a_cone_face_bounded_by_a_section_ellipse_meshes_on_the_cone_row FAIL asks=4
+    3 Embedded
+    1 Refused(Uncertified { a: FaceKey(K), b: FaceKey(K), shared: Edge(EdgeK
+    cone rows: {('Harmonic', 'Line', 'iso'): 16, ('Harmonic', 'Circle', 'iso'): 14, ('FocalSection', 'Ellipse', 'NON-ISO'): 2}
+    exits: {'beside_curve unread-edge': 2, 'beside_curve unread_corner': 2}
+    structural pairs (px,py,#near edges,#near verts): {('Err(Structural)', 'Err(Structural)', 2, 4): 1}
+## near_circular_sections::a_near_square_split_of_a_frustum_validates_its_halves FAIL asks=3
+    2 Embedded
+    1 Refused(Uncertified { a: FaceKey(K), b: FaceKey(K), shared: Edge(EdgeK
+    cone rows: {('Harmonic', 'Line', 'iso'): 12, ('Harmonic', 'Circle', 'iso'): 10, ('FocalSection', 'Ellipse', 'NON-ISO'): 2}
+    exits: {'beside_curve unread-edge': 2, 'beside_curve unread_corner': 2}
+    structural pairs (px,py,#near edges,#near verts): {('Err(Structural)', 'Err(Structural)', 2, 4): 1}
+## reach_cone_split::tilted_cuts_across_the_elliptic_range_are_exact_on_both_nappes FAIL asks=10
+    9 Embedded
+    1 Refused(Uncertified { a: FaceKey(K), b: FaceKey(K), shared: Edge(EdgeK
+    cone rows: {('Harmonic', 'Line', 'iso'): 40, ('Harmonic', 'Circle', 'iso'): 38, ('FocalSection', 'Ellipse', 'NON-ISO'): 2}
+    exits: {'beside_curve unread-edge': 2, 'beside_curve unread_corner': 2}
+    structural pairs (px,py,#near edges,#near verts): {('Err(Structural)', 'Err(Structural)', 2, 4): 1}
+## reach_probes::the_unit_funnel_cut_near_its_apex_meshes_at_every_delta FAIL asks=3
+    2 Embedded
+    1 Refused(Uncertified { a: FaceKey(K), b: FaceKey(K), shared: Edge(EdgeK
+    cone rows: {('Harmonic', 'Line', 'iso'): 12, ('Harmonic', 'Circle', 'iso'): 6, ('FocalSection', 'Ellipse', 'NON-ISO'): 2}
+    exits: {'beside_curve unread-edge': 2, 'beside_curve unread_corner': 2}
+    structural pairs (px,py,#near edges,#near verts): {('Err(Structural)', 'Err(Structural)', 2, 4): 1}
+## near_circular_sections::a_near_square_frustum_minus_a_box_builds FAIL asks=4
+    3 Embedded
+    1 Refused(Uncertified { a: FaceKey(K), b: FaceKey(K), shared: Edge(EdgeK
+    cone rows: {('Harmonic', 'Line', 'iso'): 12, ('Harmonic', 'Circle', 'iso'): 10, ('FocalSection', 'Ellipse', 'NON-ISO'): 2}
+    exits: {'beside_curve unread_corner': 9, 'beside_curve unread-edge': 1}
+    structural pairs (px,py,#near edges,#near verts): {('Err(Structural)', 'Of(zero=Side x=(', 1, 2): 3, ('Of(zero=Side x=(', 'Err(Structural)', 1, 2): 1, ('Err(Local)', 'Err(Structural)', 1, 2): 3, ('Err(Structural)', 'Err(Structural)', 2, 4): 1}
+## reach_probes::a_cone_face_through_its_apex_meshes_on_the_cone_row FAIL asks=3
+    2 Embedded
+    1 Refused(Uncertified { a: FaceKey(K), b: FaceKey(K), shared: Edge(EdgeK
+    cone rows: {('Harmonic', 'Line', 'iso'): 12, ('Harmonic', 'Circle', 'iso'): 6, ('FocalSection', 'Ellipse', 'NON-ISO'): 2}
+    exits: {'beside_curve unread-edge': 2, 'beside_curve unread_corner': 2}
+    structural pairs (px,py,#near edges,#near verts): {('Err(Structural)', 'Err(Structural)', 2, 4): 1}
+## reach_cone_split::cuts_through_a_cap_and_the_apex_region FAIL asks=3
+    2 Embedded
+    1 Refused(Uncertified { a: FaceKey(K), b: FaceKey(K), shared: Edge(EdgeK
+    cone rows: {('Harmonic', 'Line', 'iso'): 12, ('Harmonic', 'Circle', 'iso'): 12, ('FocalSection', 'Ellipse', 'NON-ISO'): 2}
+    exits: {'beside_curve unread_corner': 4, 'beside_curve unread-edge': 2}
+    structural pairs (px,py,#near edges,#near verts): {('Err(Local)', 'Err(Structural)', 1, 2): 2, ('Err(Structural)', 'Err(Structural)', 2, 4): 1}
+## reach_cone_split::an_upright_cone_splits_at_every_pose_through_its_apex_faces FAIL asks=9
+    8 Embedded
+    1 Refused(Uncertified { a: FaceKey(K), b: FaceKey(K), shared: Edge(EdgeK
+    cone rows: {('Harmonic', 'Circle', 'iso'): 20, ('Harmonic', 'Line', 'iso'): 36, ('FocalSection', 'Ellipse', 'NON-ISO'): 2}
+    exits: {'beside_curve unread_corner': 2}
+    structural pairs (px,py,#near edges,#near verts): {('Err(Structural)', 'Err(Structural)', 2, 3): 1}
+## a_cone_apex_meets_a_vertex::two_cones_through_one_apex_build_across_the_pose_families FAIL asks=7
+    6 Embedded
+    1 Refused(Uncertified { a: FaceKey(K), b: FaceKey(K), shared: Edge(EdgeK
+    cone rows: {('Harmonic', 'Circle', 'iso'): 10, ('Harmonic', 'Line', 'iso'): 24, ('FocalSection', 'Ellipse', 'NON-ISO'): 2}
+    exits: {'beside_curve unread_corner': 2}
+    structural pairs (px,py,#near edges,#near verts): {('Err(Structural)', 'Err(Structural)', 2, 3): 1}
+## cone_operand_rows::the_tilted_planes_ellipse_builds_its_closed_forms FAIL asks=7
+    4 Refused(Uncertified { a: FaceKey(K), b: FaceKey(K), shared: Edge(EdgeK
+    3 Embedded
+    cone rows: {('Harmonic', 'Line', 'iso'): 24, ('Harmonic', 'Circle', 'iso'): 16, ('FocalSection', 'Ellipse', 'NON-ISO'): 8}
+    exits: {'beside_curve unread-edge': 6, 'beside_curve unread_corner': 12}
+    structural pairs (px,py,#near edges,#near verts): {('Err(Structural)', 'Err(Structural)', 2, 4): 4, ('Err(Local)', 'Err(Structural)', 1, 2): 4}
+## cone_join_lane::each_poses_body_is_its_closed_form_in_every_op FAIL asks=35
+    34 Embedded
+    1 Refused(Uncertified { a: FaceKey(K), b: FaceKey(K), shared: Edge(EdgeK
+    cone rows: {('Harmonic', 'Line', 'iso'): 96, ('Harmonic', 'Circle', 'iso'): 90, ('FocalSection', 'Ellipse', 'NON-ISO'): 2}
+    exits: {'beside_curve unread-edge': 2, 'beside_curve unread_corner': 2}
+    structural pairs (px,py,#near edges,#near verts): {('Err(Structural)', 'Err(Structural)', 2, 4): 1}
+## a_cone_apex_on_a_plane_through_it::a_cut_along_two_rulings_through_a_wrap_tipped_apex_refuses_the_pinch_by_name FAIL asks=7
+    4 Embedded
+    3 Refused(Uncertified { a: FaceKey(K), b: FaceKey(K), shared: Edge(EdgeK
+    cone rows: {('Harmonic', 'Circle', 'iso'): 17, ('Harmonic', 'Line', 'iso'): 28}
+    exits: {}
+    structural pairs (px,py,#near edges,#near verts): {}
+## winding_rows::the_cut_frustum_meshes_with_thin_triangles_resolved FAIL asks=1
+    1 Refused(Uncertified { a: FaceKey(K), b: FaceKey(K), shared: Edge(EdgeK
+    cone rows: {('Harmonic', 'Line', 'iso'): 4, ('Harmonic', 'Circle', 'iso'): 4}
+    exits: {}
+    structural pairs (px,py,#near edges,#near verts): {}
+## a_cone_apex_meets_a_vertex::two_cones_through_one_apex_cross_along_their_common_rulings FAIL asks=5
+    4 Embedded
+    1 Refused(Uncertified { a: FaceKey(K), b: FaceKey(K), shared: Edge(EdgeK
+    cone rows: {('Harmonic', 'Circle', 'iso'): 6, ('Harmonic', 'Line', 'iso'): 16, ('FocalSection', 'Ellipse', 'NON-ISO'): 2}
+    exits: {'beside_curve unread_corner': 2}
+    structural pairs (px,py,#near edges,#near verts): {('Err(Structural)', 'Err(Structural)', 2, 3): 1}
+## winding_rows::the_whole_frustum_refuses_in_its_window_and_meshes_outside_it FAIL asks=1
+    1 Refused(Uncertified { a: FaceKey(K), b: FaceKey(K), shared: Edge(EdgeK
+    cone rows: {('Harmonic', 'Line', 'iso'): 4, ('Harmonic', 'Circle', 'iso'): 4}
+    exits: {}
+    structural pairs (px,py,#near edges,#near verts): {}
+## reach_probes::a_needle_funnel_cut_at_its_apex_refuses_typed FAIL asks=3
+    2 Embedded
+    1 Refused(Uncertified { a: FaceKey(K), b: FaceKey(K), shared: Edge(EdgeK
+    cone rows: {('Harmonic', 'Line', 'iso'): 12, ('Harmonic', 'Circle', 'iso'): 6, ('FocalSection', 'Ellipse', 'NON-ISO'): 2}
+    exits: {'beside_curve unread-edge': 2, 'beside_curve unread_corner': 2}
+    structural pairs (px,py,#near edges,#near verts): {('Err(Structural)', 'Err(Structural)', 2, 4): 1}
+## trimmed::tests::a_cone_faces_window_reads_its_widest_edge FAIL asks=9
+    8 Embedded
+    1 Refused(Uncertified { a: FaceKey(K), b: FaceKey(K), shared: Edge(EdgeK
+    cone rows: {('Harmonic', 'Line', 'iso'): 12, ('Harmonic', 'Circle', 'iso'): 10, ('FocalSection', 'Ellipse', 'NON-ISO'): 2}
+    exits: {'beside_curve unread-edge': 65, 'beside_curve unread_corner': 139}
+    structural pairs (px,py,#near edges,#near verts): {('Err(Structural)', 'Err(Local)', 1, 2): 61, ('Err(Structural)', 'Err(Local)', 1, 1): 28, ('Err(Structural)', 'Of(zero=Curve(XH', 1, 1): 7, ('Err(Structural)', 'Of(zero=Curve(XL', 1, 1): 7, ('Err(Structural)', 'Of(zero=Side x=(', 1, 1): 5, ('Err(Structural)', 'Of(zero=Side x=(', 1, 0): 1, ('Err(Structural)', 'Vacuous', 1, 2): 4, ('Err(Structural)', 'Err(Structural)', 2, 4): 1}
+## trimmed::tests::the_cone_and_torus_arms_boundary_chords_step_within_their_lattice FAIL asks=9
+    8 Embedded
+    1 Refused(Uncertified { a: FaceKey(K), b: FaceKey(K), shared: Edge(EdgeK
+    cone rows: {('Harmonic', 'Line', 'iso'): 12, ('Harmonic', 'Circle', 'iso'): 10, ('FocalSection', 'Ellipse', 'NON-ISO'): 2}
+    exits: {'beside_curve unread-edge': 65, 'beside_curve unread_corner': 139}
+    structural pairs (px,py,#near edges,#near verts): {('Err(Structural)', 'Err(Local)', 1, 2): 61, ('Err(Structural)', 'Err(Local)', 1, 1): 28, ('Err(Structural)', 'Of(zero=Curve(XH', 1, 1): 7, ('Err(Structural)', 'Of(zero=Curve(XL', 1, 1): 7, ('Err(Structural)', 'Of(zero=Side x=(', 1, 1): 5, ('Err(Structural)', 'Of(zero=Side x=(', 1, 0): 1, ('Err(Structural)', 'Vacuous', 1, 2): 4, ('Err(Structural)', 'Err(Structural)', 2, 4): 1}
+## lift_probes::every_loop_of_a_door_built_curved_face_has_a_lift_that_closes FAIL asks=10
+    9 Embedded
+    1 Refused(Uncertified { a: FaceKey(K), b: FaceKey(K), shared: Edge(EdgeK
+    cone rows: {('Harmonic', 'Line', 'iso'): 16, ('Harmonic', 'Circle', 'iso'): 14, ('FocalSection', 'Ellipse', 'NON-ISO'): 2}
+    exits: {'beside_curve unread-edge': 65, 'beside_curve unread_corner': 139}
+    structural pairs (px,py,#near edges,#near verts): {('Err(Structural)', 'Err(Local)', 1, 2): 61, ('Err(Structural)', 'Err(Local)', 1, 1): 28, ('Err(Structural)', 'Of(zero=Curve(XH', 1, 1): 7, ('Err(Structural)', 'Of(zero=Curve(XL', 1, 1): 7, ('Err(Structural)', 'Of(zero=Side x=(', 1, 1): 5, ('Err(Structural)', 'Of(zero=Side x=(', 1, 0): 1, ('Err(Structural)', 'Vacuous', 1, 2): 4, ('Err(Structural)', 'Err(Structural)', 2, 4): 1}
+## a_plane_near_a_needle_cones_apex::a_needle_cone_cut_off_its_apex_lands_its_closed_forms FAIL asks=2
+    1 Embedded
+    1 Refused(Uncertified { a: FaceKey(K), b: FaceKey(K), shared: Edge(EdgeK
+    cone rows: {('Harmonic', 'Circle', 'iso'): 2, ('Harmonic', 'Line', 'iso'): 8, ('FocalSection', 'Ellipse', 'NON-ISO'): 2}
+    exits: {'beside_curve unread_corner': 2}
+    structural pairs (px,py,#near edges,#near verts): {('Err(Structural)', 'Err(Structural)', 2, 3): 1}
+## a_plane_moved_to_a_cone_apex::a_plane_moved_to_the_apex_band_plans_the_ellipse_it_cuts FAIL asks=2
+    1 Embedded
+    1 Refused(Uncertified { a: FaceKey(K), b: FaceKey(K), shared: Edge(EdgeK
+    cone rows: {('Harmonic', 'Line', 'iso'): 8, ('Harmonic', 'Circle', 'iso'): 6, ('FocalSection', 'Ellipse', 'NON-ISO'): 2}
+    exits: {'beside_curve unread-edge': 2, 'beside_curve unread_corner': 2}
+    structural pairs (px,py,#near edges,#near verts): {('Err(Structural)', 'Err(Structural)', 2, 4): 1}
+## reach_cone_root_lane::every_op_on_a_cone_wall_answers_its_truth_or_refuses_typed FAIL asks=6
+    2 Embedded
+    2 Refused(Uncertified { a: FaceKey(K), b: FaceKey(K), shared: Edge(EdgeK
+    2 Refused(Budget { stop: Depth { max_cell_depth: 40 }, a: FaceKey(K), b:
+    cone rows: {('Harmonic', 'Line', 'iso'): 16, ('Harmonic', 'Circle', 'iso'): 12, ('FocalSection', 'Ellipse', 'NON-ISO'): 20}
+    exits: {'beside_curve unread-edge': 12, 'beside_curve unread_corner': 334, 'present_curved no-chart-curve': 23}
+    structural pairs (px,py,#near edges,#near verts): {('Err(Local)', 'Err(Structural)', 1, 2): 39, ('Err(Structural)', 'Err(Structural)', 3, 6): 2, ('Err(Structural)', 'Err(Local)', 1, 2): 17, ('Err(Local)', 'Err(Structural)', 1, 1): 117, ('Err(Structural)', 'Err(Local)', 1, 1): 81, ('Err(Structural)', 'Err(Local)', 1, 0): 9, ('Err(Local)', 'Err(Structural)', 1, 0): 19, ('Of(zero=Curve(YL', 'Err(Structural)', 1, 1): 7, ('Of(zero=Curve(YL', 'Err(Structural)', 1, 0): 7, ('Err(Structural)', 'Of(zero=Curve(XL', 1, 1): 18, ('Err(Structural)', 'Of(zero=Curve(XH', 1, 1): 3, ('Err(Structural)', 'Of(zero=Curve(XH', 1, 0): 5, ('Err(Structural)', 'Of(zero=Curve(XL', 1, 0): 2, ('Of(zero=Curve(XL', 'Err(Structural)', 1, 1): 4, ('Of(zero=Curve(YH', 'Err(Structural)', 1, 1): 6, ('Of(zero=Curve(YH', 'Err(Structural)', 1, 0): 2, ('Of(zero=Curve(XH', 'Err(Structural)', 1, 1): 17}
+## reach_probes::a_cone_face_met_on_its_axis_meshes_at_every_delta FAIL asks=9
+    5 Embedded
+    3 Refused(Uncertified { a: FaceKey(K), b: FaceKey(K), shared: Vertex(Ver
+    1 Refused(Uncertified { a: FaceKey(K), b: FaceKey(K), shared: Edge(EdgeK
+    cone rows: {('Harmonic', 'Circle', 'iso'): 16, ('Harmonic', 'Line', 'iso'): 32, ('FocalSection', 'Ellipse', 'NON-ISO'): 18}
+    exits: {'beside_curve unread_corner': 427, 'beside_curve unread-edge': 22, 'present_curved no-chart-curve': 138}
+    structural pairs (px,py,#near edges,#near verts): {('Err(Structural)', 'Err(Local)', 2, 3): 8, ('Err(Structural)', 'Err(Structural)', 0, 1): 3, ('Err(Local)', 'Err(Structural)', 1, 2): 11, ('Err(Structural)', 'Err(Local)', 0, 2): 1, ('Err(Local)', 'Err(Structural)', 0, 1): 2, ('Err(Local)', 'Err(Structural)', 0, 2): 1, ('Err(Local)', 'Err(Structural)', 2, 3): 1, ('Err(Structural)', 'Err(Local)', 1, 2): 14, ('Err(Local)', 'Err(Structural)', 2, 4): 4, ('Err(Local)', 'Err(Structural)', 2, 2): 6, ('Err(Local)', 'Err(Structural)', 2, 1): 4, ('Err(Local)', 'Err(Structural)', 1, 1): 110, ('Err(Structural)', 'Err(Local)', 1, 1): 76, ('Err(Local)', 'Err(Structural)', 1, 0): 65, ('Err(Structural)', 'Err(Local)', 1, 0): 52, ('Of(zero=Curve(YH', 'Err(Structural)', 1, 1): 42, ('Of(zero=Curve(YL', 'Err(Structural)', 1, 1): 46, ('Of(zero=Curve(YH', 'Err(Structural)', 1, 0): 48, ('Of(zero=Curve(YL', 'Err(Structural)', 1, 0): 48, ('Err(Structural)', 'Of(zero=Curve(XL', 1, 1): 4, ('Err(Structural)', 'Of(zero=Curve(XL', 1, 0): 8, ('Of(zero=Curve(XL', 'Err(Structural)', 1, 1): 4, ('Of(zero=Curve(XL', 'Err(Structural)', 1, 0): 8, ('Err(Structural)', 'Of(zero=Curve(YL', 1, 1): 6, ('Err(Structural)', 'Err(Local)', 2, 4): 1, ('Err(Structural)', 'Err(Local)', 2, 1): 2, ('Err(Structural)', 'Of(zero=Curve(YH', 1, 1): 6, ('Err(Structural)', 'Of(zero=Curve(YH', 1, 0): 3, ('Err(Structural)', 'Of(zero=Curve(YL', 1, 0): 2, ('Err(Structural)', 'Err(Structural)', 1, 1): 1}
+## split_rulings::a_ruled_face_with_a_split_ruling_meshes FAIL asks=91
+    90 Embedded
+    1 Refused(Uncertified { a: FaceKey(K), b: FaceKey(K), shared: Edge(EdgeK
+    cone rows: {('Harmonic', 'Circle', 'iso'): 264, ('Harmonic', 'Line', 'iso'): 272}
+    exits: {'beside_curve unread_corner': 2}
+    structural pairs (px,py,#near edges,#near verts): {('Of(zero=Side x=(', 'Err(Structural)', 1, 2): 2}

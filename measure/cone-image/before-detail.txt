@@ -1,0 +1,83 @@
+## reach_cone_split::a_tilted_cone_cut_is_never_misread_by_containment
+   Refused(Uncertified Cone/Cone shared=Edge images=(('Cone', 'Harmonic', 'Line'), ('Cone', 'Harmonic', 'Line')) SITE=split
+      exits on these faces: {'beside_curve unread-edge': 2, 'beside_curve unread_corner': 2}
+## reach_probes::a_cone_face_bounded_by_a_section_ellipse_meshes_on_the_cone_row
+   Refused(Uncertified Cone/Cone shared=Edge images=(('Cone', 'Harmonic', 'Line'), ('Cone', 'Harmonic', 'Line')) SITE=split
+      exits on these faces: {'beside_curve unread-edge': 2, 'beside_curve unread_corner': 2}
+## near_circular_sections::a_near_square_split_of_a_frustum_validates_its_halves
+   Refused(Uncertified Cone/Cone shared=Edge images=(('Cone', 'Harmonic', 'Line'), ('Cone', 'Harmonic', 'Line')) SITE=split
+      exits on these faces: {'beside_curve unread-edge': 2, 'beside_curve unread_corner': 2}
+## reach_cone_split::tilted_cuts_across_the_elliptic_range_are_exact_on_both_nappes
+   Refused(Uncertified Cone/Cone shared=Edge images=(('Cone', 'Harmonic', 'Line'), ('Cone', 'Harmonic', 'Line')) SITE=split
+      exits on these faces: {'beside_curve unread-edge': 2, 'beside_curve unread_corner': 2}
+## reach_probes::the_unit_funnel_cut_near_its_apex_meshes_at_every_delta
+   Refused(Uncertified Cone/Cone shared=Edge images=(('Cone', 'Harmonic', 'Line'), ('Cone', 'Harmonic', 'Line')) SITE=split
+      exits on these faces: {'beside_curve unread-edge': 2, 'beside_curve unread_corner': 2}
+## near_circular_sections::a_near_square_frustum_minus_a_box_builds
+   Refused(Uncertified Cone/Cone shared=Edge images=(('Cone', 'Harmonic', 'Line'), ('Cone', 'Harmonic', 'Line')) SITE=boolean
+      exits on these faces: {'beside_curve unread_corner': 4, 'beside_curve unread-edge': 1}
+## reach_probes::a_cone_face_through_its_apex_meshes_on_the_cone_row
+   Refused(Uncertified Cone/Cone shared=Edge images=(('Cone', 'Harmonic', 'Line'), ('Cone', 'Harmonic', 'Line')) SITE=split
+      exits on these faces: {'beside_curve unread-edge': 2, 'beside_curve unread_corner': 2}
+## reach_cone_split::cuts_through_a_cap_and_the_apex_region
+   Refused(Uncertified Cone/Cone shared=Edge images=(('Cone', 'Harmonic', 'Line'), ('Cone', 'Harmonic', 'Line')) SITE=split
+      exits on these faces: {'beside_curve unread_corner': 4, 'beside_curve unread-edge': 2}
+## reach_cone_split::an_upright_cone_splits_at_every_pose_through_its_apex_faces
+   Refused(Uncertified Cone/Cone shared=Edge images=(('Cone', 'Harmonic', 'Line'), ('Cone', 'Harmonic', 'Line')) SITE=split
+      exits on these faces: {'beside_curve unread_corner': 2}
+## a_cone_apex_meets_a_vertex::two_cones_through_one_apex_build_across_the_pose_families
+   Refused(Uncertified Cone/Cone shared=Edge images=(('Cone', 'Harmonic', 'Line'), ('Cone', 'Harmonic', 'Line')) SITE=boolean
+      exits on these faces: {'beside_curve unread_corner': 2}
+## cone_operand_rows::the_tilted_planes_ellipse_builds_its_closed_forms
+   Refused(Uncertified Cone/Cone shared=Edge images=(('Cone', 'Harmonic', 'Line'), ('Cone', 'Harmonic', 'Line')) SITE=boolean
+      exits on these faces: {'beside_curve unread-edge': 4, 'beside_curve unread_corner': 6}
+## cone_join_lane::each_poses_body_is_its_closed_form_in_every_op
+   Refused(Uncertified Cone/Cone shared=Edge images=(('Cone', 'Harmonic', 'Line'), ('Cone', 'Harmonic', 'Line')) SITE=boolean
+      exits on these faces: {'beside_curve unread-edge': 2, 'beside_curve unread_corner': 2}
+## a_cone_apex_on_a_plane_through_it::a_cut_along_two_rulings_through_a_wrap_tipped_apex_refuses_the_pinch_by_name
+   Refused(Uncertified Cone/Cone shared=Edge images=(('Cone', 'Harmonic', 'Line'), ('Cone', 'Harmonic', 'Line')) SITE=boolean
+      exits on these faces: {}
+   Refused(Uncertified Cone/? shared=Edge images=(('Cone', 'Harmonic', 'Line'), None) SITE=boolean
+      exits on these faces: {}
+## winding_rows::the_cut_frustum_meshes_with_thin_triangles_resolved
+   Refused(Uncertified Cone/Cone shared=Edge images=(('Cone', 'Harmonic', 'Line'), ('Cone', 'Harmonic', 'Line')) SITE=revolve
+      exits on these faces: {}
+## a_cone_apex_meets_a_vertex::two_cones_through_one_apex_cross_along_their_common_rulings
+   Refused(Uncertified Cone/Cone shared=Edge images=(('Cone', 'Harmonic', 'Line'), ('Cone', 'Harmonic', 'Line')) SITE=boolean
+      exits on these faces: {'beside_curve unread_corner': 2}
+## winding_rows::the_whole_frustum_refuses_in_its_window_and_meshes_outside_it
+   Refused(Uncertified Cone/Cone shared=Edge images=(('Cone', 'Harmonic', 'Line'), ('Cone', 'Harmonic', 'Line')) SITE=revolve
+      exits on these faces: {}
+## reach_probes::a_needle_funnel_cut_at_its_apex_refuses_typed
+   Refused(Uncertified Cone/Cone shared=Edge images=(('Cone', 'Harmonic', 'Line'), ('Cone', 'Harmonic', 'Line')) SITE=split
+      exits on these faces: {'beside_curve unread-edge': 2, 'beside_curve unread_corner': 2}
+## trimmed::tests::a_cone_faces_window_reads_its_widest_edge
+   Refused(Uncertified Cone/Torus shared=Edge images=(('Cone', 'Harmonic', 'Line'), ('Cone', 'Harmonic', 'Line')) SITE=split
+      exits on these faces: {'beside_curve unread_corner': 32, 'beside_curve unread-edge': 2}
+## trimmed::tests::the_cone_and_torus_arms_boundary_chords_step_within_their_lattice
+   Refused(Uncertified Cone/Torus shared=Edge images=(('Cone', 'Harmonic', 'Line'), ('Cone', 'Harmonic', 'Line')) SITE=split
+      exits on these faces: {'beside_curve unread_corner': 32, 'beside_curve unread-edge': 2}
+## lift_probes::every_loop_of_a_door_built_curved_face_has_a_lift_that_closes
+   Refused(Uncertified Cone/Torus shared=Edge images=(('Cone', 'Harmonic', 'Line'), ('Cone', 'Harmonic', 'Line')) SITE=split
+      exits on these faces: {'beside_curve unread_corner': 32, 'beside_curve unread-edge': 2}
+## a_plane_near_a_needle_cones_apex::a_needle_cone_cut_off_its_apex_lands_its_closed_forms
+   Refused(Uncertified Cone/Cone shared=Edge images=(('Cone', 'Harmonic', 'Line'), ('Cone', 'Harmonic', 'Line')) SITE=split
+      exits on these faces: {'beside_curve unread_corner': 2}
+## a_plane_moved_to_a_cone_apex::a_plane_moved_to_the_apex_band_plans_the_ellipse_it_cuts
+   Refused(Uncertified Cone/Cone shared=Edge images=(('Cone', 'Harmonic', 'Line'), ('Cone', 'Harmonic', 'Line')) SITE=split
+      exits on these faces: {'beside_curve unread-edge': 2, 'beside_curve unread_corner': 2}
+## reach_cone_root_lane::every_op_on_a_cone_wall_answers_its_truth_or_refuses_typed
+   Refused(Uncertified Cone/Cone shared=Edge images=(('Cone', 'Harmonic', 'Line'), ('Cone', 'Harmonic', 'Line')) SITE=boolean
+      exits on these faces: {'beside_curve unread-edge': 8, 'beside_curve unread_corner': 8}
+   Refused(Budget Depth ?/? shared=None images=None SITE=boolean
+      exits on these faces: {}
+   Refused(Budget Depth Cone/? shared=None images=None SITE=boolean
+      exits on these faces: {'beside_curve unread-edge': 4, 'beside_curve unread_corner': 5}
+## reach_probes::a_cone_face_met_on_its_axis_meshes_at_every_delta
+   Refused(Uncertified Cone/Cone shared=Vertex images=None SITE=boolean
+      exits on these faces: {'beside_curve unread_corner': 6}
+   Refused(Uncertified Cone/? shared=Edge images=(('Cone', 'FocalSection', 'Ellipse'), None) SITE=boolean
+      exits on these faces: {'beside_curve unread_corner': 281, 'beside_curve unread-edge': 16, 'present_curved no-chart-curve': 72}
+## split_rulings::a_ruled_face_with_a_split_ruling_meshes
+   Refused(Uncertified Cone/Cone shared=Edge images=(('Cone', 'Harmonic', 'Line'), ('Cone', 'Harmonic', 'Line')) SITE=direct
+      exits on these faces: {}
