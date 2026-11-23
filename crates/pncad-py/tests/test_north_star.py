@@ -54,7 +54,6 @@ from pncad import (
     circle,
     CapEnd,
     band,
-    band_pi,
     band_rim,
     circle_split,
     deg,
@@ -2859,8 +2858,7 @@ class TestTeapot(unittest.TestCase):
 
     def seg_faces(self, ev, node, tag):
         """The revolve's faces of one band role, in the order `select`
-        answers in (name order: a `Band` and its `BandPi` half share an
-        index)."""
+        answers in (name order)."""
         return ev.select(
             node, Selector.of(NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(tag)))
         )
@@ -2898,13 +2896,7 @@ class TestTeapot(unittest.TestCase):
         bands = self.in_program_order(
             doc, vessel, pot, band, self.seg_faces(ev, pot, SegTag.Band)
         )
-        bands_pi = self.in_program_order(
-            doc, vessel, pot, band_pi, self.seg_faces(ev, pot, SegTag.BandPi)
-        )
         self.assertEqual(len(bands), 4, "one band per meridian segment that sweeps")
-        self.assertEqual(
-            len(bands_pi), 2, "the two CURVED walls' [pi, 2pi) halves; the discs are whole"
-        )
         # The mouth is the mouth-disc segment's ONE face.
         seg_mouth = self.mouth_segment(ev, pot, bands)
         self.assertEqual(
@@ -3016,21 +3008,17 @@ class TestTeapot(unittest.TestCase):
         self.assertEqual(len(ev.all_faces(cup)), 11, "5 outer + the rim + 5 cavity")
 
     def test_the_mouths_designation_is_ONE_face_and_the_rim_wears_its_name(self):
-        """A full revolve sweeps the mouth disc whole, so the mouth's
-        chart is ONE face, its `Band`, and has no `BandPi` half. (The
-        rows that measured a half-chart refusal and the meaning of the
-        designation ORDER over two half-discs have no shape left to
-        measure: there is one face to designate.)"""
+        """A full revolve sweeps every wall whole, so the mouth's chart is
+        ONE face, its `Band`. (The rows that measured a half-chart
+        refusal and the meaning of the designation ORDER over two
+        half-discs have no shape left to measure: there is one face to
+        designate.)"""
         doc = Doc()
         pot = fully_revolved(doc, teapot_axis(), self.vessel_meridian())
         ev = evaluate(doc)
         bands = self.seg_faces(ev, pot, SegTag.Band)
         seg = self.mouth_segment(ev, pot, bands)
         mouth = bands[seg]
-        for name in self.seg_faces(ev, pot, SegTag.BandPi):
-            self.assertNotEqual(
-                ev.face_carrier_kind(pot, name), SurfaceKind.Plane, "no planar pi half"
-            )
 
         node = doc.insert(Node.shell(doc.output(pot, 0), Formula.length_in(self.WALL, m), [mouth]))
         ev = evaluate(doc)
@@ -4052,9 +4040,9 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # set), so the module-level absence below is shape, not gap.
         # `StableName` stays, and for a sharper reason than "nothing
         # spells it": a name is `str` on this side, so there is no
-        # name TYPE and no grammar to half-parse. The six role-name
-        # doors — `band`, `band_pi`, `band_rim`, `band_rim_pi`,
-        # `meridian_vertex`, `carried` — do not change that: each MINTS a name by naming
+        # name TYPE and no grammar to half-parse. The four role-name
+        # doors — `band`, `band_rim`, `meridian_vertex`, `carried` — do
+        # not change that: each MINTS a name by naming
         # a ROLE and answers the same opaque text a materializer
         # answers, which is why they are module doors and not methods
         # on a name class.
