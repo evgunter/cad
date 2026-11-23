@@ -115,3 +115,55 @@ and top both run into the tube there, leaving two wedges of material
 (30° and 60° in the meridian half-plane) that meet only along the
 circle. The other five ops build `SOUND` at their Pappus forms
 (`∩ = 13.381483883`).
+
+## 2026-11-23 — built, and the shared-bounds exemption measured off (`heldrecords/split-on`)
+
+**Built.** The split records every coincident pair of edges it mints
+over an operand edge lying in the plane, citing a new `SplitOn` row of
+that edge (`Relation::OnCarrier`, the operand edge and the tool, decided
+at its two ends' ON verdicts jointly): a slit's two edges, straight or
+curved, an area polygon's or a trace's (`splitting::join::Tree::slit`),
+and a straight pinch's two copies of an operand line
+(`splitting::finish::Sides::minted_contacts`). `CurvedSlitTrace` is gone,
+and the ring form and the one-end slit build and pass tier 3′ against
+their records, both normals, the tip at 0 and `±0.6 ε`, at the default
+ε, 1e-6 and 1e-12
+(`crates/sweep/tests/a_curved_keel_in_the_plane.rs`
+`a_curved_keel_slit_or_ring_passes_tier_3_prime_on_its_records`). The
+Boolean's parting of an arc lying in a plane face mints its second edge
+on the arc's own carrier and records the pair, citing the records that
+put the arc or its ends on the face; `EdgeInFaceGap::Curved` is gone,
+and `Unbacked` refuses an arc nothing recorded on the face. Its twin
+builds both forms at the closed-form volume with 3′
+(`a_curved_keel_on_the_floor_builds_its_slit_form.rs`), and so do the
+closed rims in a plane face (`a_closed_rider_lying_in_a_face.rs`). Arcs
+in a curved face now stop at `CurvedFace`
+(`work/nearpoint/a-zero-area-ring-in-a-cylinder-face-measures-degenerate.md`),
+the rows PR 5793 moved onto this gap among them, and the SECT torus less
+a disc on a parallel with them.
+
+**The exemption off.** `census.rs` `ee_collinear_lane` with `recorded`
+read from the records alone, the split's tests reading each side's own
+records, the `ci` profile of topo, sweep and editor-core at the default
+ε: 20 rows red, none of them a pair the split mints.
+
+- The Boolean's straight lanes (filed:
+  `the-booleans-straight-slit-and-pinch-lanes-record-no-edge-edge-pair`):
+  `a_face_inside_an_edges_wedge_refuses_at_tier_3_prime` (2),
+  `a_figure_eight_hole_cut_through_its_pinch`,
+  `a_vertex_read_by_two_sector_passes::an_edge_through_two_blocks_glued_faces_builds_at_rest`,
+  and the union pinch through `common/touch_union.rs` (3).
+- The exemption's own pins: `census::tests::a_tip_copy_on_its_own_bit_equal_point_is_an_unrecorded_contact`,
+  `m3_pr6_tier3prime` (2), `union_flush_onto_edge_contact::a_pinch_without_its_edge_edge_row_reads_its_shared_ends`.
+- Tests that hand no records where the body holds its own:
+  `m3_pr3_split` (3, `pseudomanifold_door`),
+  `split_pinch_keeps::a_split_along_a_diamond_pocket_floor_touching_the_block_walls_builds`;
+  and fixtures built unrecorded: `a_doubled_line_does_not_revert`,
+  `a_slit_tip_at_a_cone_apex_reads_its_full_turn` (3).
+- `union_fold_face_face_touch`, red on PR 7421's own head with the
+  exemption on.
+
+Not reached by that run: the split's curved pinch along a closed keel
+(filed: `a-splits-curved-pinch-along-a-closed-keel-records-no-edge-edge-pair`).
+A later cut along a recorded slit now refuses `Carry { Parted }`
+(`work/doctail/a-record-the-split-parts-has-no-consumption-rule.md`).
