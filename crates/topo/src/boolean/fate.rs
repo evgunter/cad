@@ -2853,7 +2853,11 @@ mod tip_count_rows {
     fn a_run_shorter_than_the_tips_lever_does_not_meter_the_count() {
         let band = Band::new(2.5e-4, 9e-4).unwrap();
         assert_eq!(read::<f64>(&spike(), COVER, band), Ok(false), "f64");
-        assert_eq!(read::<Interval>(&spike(), COVER, band), Ok(false), "Interval");
+        assert_eq!(
+            read::<Interval>(&spike(), COVER, band),
+            Ok(false),
+            "Interval"
+        );
     }
 
     /// **The half-turn corners share the meter.** Two tips admitted at

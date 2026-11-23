@@ -145,9 +145,8 @@ fn a_far_stated_grazing_plane_is_read_to_its_gaps_rounding() {
     let stated_at = |origin: Point3<f64>| Surface::Plane {
         frame: geom::Frame::new(origin, n, Vec3::unit_z()),
     };
-    let section = |plane: &Surface<f64>| {
-        plane_cone_section(plane, &cone, &at_apex(&cone, 1.0), band)
-    };
+    let section =
+        |plane: &Surface<f64>| plane_cone_section(plane, &cone, &at_apex(&cone, 1.0), band);
     assert!(
         matches!(
             section(&stated_at(Point3::origin())),

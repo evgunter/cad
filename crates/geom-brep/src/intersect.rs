@@ -2514,10 +2514,7 @@ pub fn plane_cone_section<T: Decide>(
                     },
                 ),
             ),
-            Sign::Zero => (
-                PN_APEX_TANGENT_REACH,
-                Margin::of(apex_start(size, steep)),
-            ),
+            Sign::Zero => (PN_APEX_TANGENT_REACH, Margin::of(apex_start(size, steep))),
             Sign::Negative => (
                 PN_APEX_POINT_REACH,
                 Margin::of(apex_start(size, discr.abs())),

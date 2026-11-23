@@ -545,6 +545,10 @@ const INDIRECT: &[(&str, &str)] = &[
         CARRIER_CALL,
     ),
     (
+        "pcurve_cache/closed_image_rows.rs: a_needle_cone_section_passes_with_its_own_beta: &plane",
+        CARRIER_CALL,
+    ),
+    (
         "pcurve_cache/harmonic_sup_rows.rs: focal_cone_a_drifted_slant_pair_reads_once: &plane",
         CARRIER_CALL,
     ),

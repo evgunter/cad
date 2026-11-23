@@ -3879,7 +3879,11 @@ mod tests {
             f64::from_bits(1).sign_within(Band::least()).map(|d| d.sign),
             Ok(Sign::Zero)
         );
-        assert!(f64::from_bits(2).sign_within(Band::least()).is_ok_and(|d| d.sign == Sign::Positive));
+        assert!(
+            f64::from_bits(2)
+                .sign_within(Band::least())
+                .is_ok_and(|d| d.sign == Sign::Positive)
+        );
     }
 
     /// The fixed band used by the boundary table: exactly the default
