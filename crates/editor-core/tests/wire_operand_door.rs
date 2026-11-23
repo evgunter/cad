@@ -408,9 +408,8 @@ fn every_operand_refusal_names_the_phrase_asked_for_and_the_family_found() {
 /// a hand-written roster is the same defect one level up: it cannot
 /// see one arm of its own scan go to zero, and its slack hides drift.
 /// `crates/test-utils/tests/reader_census.rs` states the rule this
-/// module follows — *"a walk that matched nothing is not a pass, and
-/// the equality is what says so"* — and each row below names the two
-/// sets it equates.
+/// module follows — *"a walk that matched nothing is not a pass"* — and
+/// each row below names the two sets it equates.
 ///
 /// **What these rows cannot see**, stated so the receipt is honest: a
 /// refusal built in another module (`mate/member.rs` builds one; it

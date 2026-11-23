@@ -90,6 +90,18 @@ impl Expansion {
         out
     }
 
+    /// The exact `(q − o)·n`, as six exact products
+    /// ([`crate::Real::difference_dot`]'s value at an enclosure).
+    #[must_use]
+    pub fn difference_dot(q: [f64; 3], o: [f64; 3], n: [f64; 3]) -> Self {
+        let mut out = Self::default();
+        for i in 0..3 {
+            out.add_expansion(&Self::product(q[i], n[i]));
+            out.add_expansion(&Self::product(-o[i], n[i]));
+        }
+        out
+    }
+
     /// Adds `b` exactly (Shewchuk's Grow-Expansion, zero-eliminating).
     pub fn add(&mut self, b: f64) {
         let mut q = b;

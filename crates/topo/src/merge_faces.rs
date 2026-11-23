@@ -2276,16 +2276,11 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
                 let ring = linked(&self.loops, lk, EntityId::Loop, EntityId::Face(f), "rings");
                 for member in self.loop_members_linked(lk, ring) {
                     // A lone-vertex ring borders no face.
-                    let BoundaryMember::Edge {
-                        he,
-                        ek: edge,
-                        edge: e,
-                        ..
-                    } = member
-                    else {
+                    let BoundaryMember::Edge { he, edge: e, .. } = member else {
                         continue;
                     };
-                    let Some(claim) = e.claim(he) else {
+                    let edge = e.key();
+                    let Some(claim) = e.record().claim(he) else {
                         unreachable!(
                             "{he:?}'s edge {edge:?} does not claim it: on a tier-1-valid body \
                              an edge claims the two half-edges that name it"

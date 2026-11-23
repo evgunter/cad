@@ -155,7 +155,7 @@ fn a_ring_run_along_a_spline_edge_refuses_at_the_ring_run() {
             )),
         ),
     ];
-    for operand in [Operand::A, Operand::B] {
+    for operand in Operand::BOTH {
         for (name, closing) in closings {
             assert_site(
                 ring_run_ccw((&body, operand), face, ((he, he), None), closing, band()),

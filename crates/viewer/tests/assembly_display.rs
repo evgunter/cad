@@ -70,7 +70,7 @@ fn a_session_with_no_backing_file_resolves_nothing_and_refuses_typed() {
     for row in asm::instance_rows(&session) {
         match &row.status {
             RowStatus::Failed { message, .. } => assert!(
-                message.contains("this document has no file"),
+                message.to_string().contains("this document has no file"),
                 "the refusal names the missing file: {message}"
             ),
             other => panic!("an unresolvable instantiate row must fail typed, got {other:?}"),
@@ -92,7 +92,7 @@ fn a_missing_part_document_refuses_typed_and_badges_the_row() {
     for post in [bench.post_a, bench.post_b] {
         match status_of(post) {
             RowStatus::Failed { message, .. } => assert!(
-                message.contains("no document with id"),
+                message.to_string().contains("no document with id"),
                 "the store's own refusal reaches the badge: {message}"
             ),
             other => panic!("a missing part must fail its instance row, got {other:?}"),
@@ -121,7 +121,7 @@ fn the_directory_rule_a_document_never_resolves_against_another_directory() {
     for row in asm::instance_rows(&session) {
         match &row.status {
             RowStatus::Failed { message, .. } => assert!(
-                message.contains("no document with id"),
+                message.to_string().contains("no document with id"),
                 "unresolvable — the parts are not beside THIS file: {message}"
             ),
             other => panic!("expected a typed resolution failure, got {other:?}"),
@@ -143,7 +143,7 @@ fn a_directory_that_will_not_scan_refuses_each_resolution_typed() {
     for row in asm::instance_rows(&session) {
         match &row.status {
             RowStatus::Failed { message, .. } => assert!(
-                message.contains("junk.pncad"),
+                message.to_string().contains("junk.pncad"),
                 "the scan refusal names the offending file: {message}"
             ),
             other => panic!("expected a typed store refusal, got {other:?}"),
@@ -454,7 +454,7 @@ fn body_check_tells_an_absent_node_from_one_that_builds_no_body() {
             .to_string(),
         format!(
             "{} builds no body, so the picture draws nothing of it",
-            doc.spoken(profile)
+            viewer::tree::spelled(&doc.spoken(profile))
         ),
     );
 }

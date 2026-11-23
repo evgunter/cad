@@ -170,6 +170,9 @@
 //! iteration below runs over ordered structures, and part-node ids
 //! remap in document order — so two split runs, in any two processes,
 //! produce byte-identical documents.
+use crate::Said;
+use crate::say;
+use crate::sentence;
 use std::collections::{BTreeMap, BTreeSet, btree_map};
 
 use crate::doc::{Doc, FreeVar, NameCarrier, ReadSite, VarName};
@@ -491,9 +494,7 @@ fn carry<E>(
             .map(<[_]>::to_vec)
             .unwrap_or_default();
         let mut bare = node.clone();
-        if let Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } =
-            &mut bare
-        {
+        if let Some(constraints) = bare.bundle_mut() {
             constraints.clear();
         }
         let (carried, selects) = remap_with_selects(
@@ -504,9 +505,7 @@ fn carry<E>(
         )
         .map_err(&refuse)?;
         let (mut authored, fresh) = vars.author(&carried, &selects);
-        if let Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } =
-            &mut authored
-        {
+        if let Some(constraints) = authored.bundle_mut() {
             *constraints = crate::mate::pin::Placed::identity().bundle();
         }
         let record = target
@@ -661,20 +660,19 @@ fn carry_bundle(
     new: RecipeNodeId,
     bundle: &[crate::mate::Constraint],
 ) -> Result<(), BundleMiss> {
-    let whole = Node::Place {
-        source: crate::BodyRead::plain(VarId::WORLD),
+    let whole = Node::Datum {
         target: VarId::WORLD,
         constraints: bundle.to_vec(),
     };
     let (carried, selects) =
         remap_with_selects(source, &whole, vars, maps).map_err(BundleMiss::Remap)?;
     let (authored, fresh) = vars.author(&carried, &selects);
-    let Node::Place {
+    let Node::Datum {
         constraints: authored,
         ..
     } = authored
     else {
-        unreachable!("a carried placement carrier stays one")
+        unreachable!("a carried datum carrier stays one")
     };
     let record = target
         .apply_recorded(DocEdit::SetConstraints {
@@ -1222,30 +1220,38 @@ pub enum SplitError {
     Stopped(crate::Stopped),
 }
 
-impl core::fmt::Display for SplitError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::Say for SplitError {
+    fn say(&self, f: &mut crate::Sentence, by: crate::Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::EmptyCut => write!(
                 f,
                 "split: the cut set is empty, so there is nothing to split out. {}",
                 Recourse("name at least one live node in the cut")
             ),
-            Self::UnknownCutNode { id } => write!(
+            Self::UnknownCutNode { id } => say!(
                 f,
-                "split: the cut names {id}, which is not live. {}",
-                Recourse(&format!("leave {id} out of the cut"))
+                "split: the cut names ",
+                by.mention(id),
+                sentence!(
+                    ", which is not live. ",
+                    Recourse(&sentence!("leave ", by.mention(id), " out of the cut"))
+                )
             ),
             Self::CutsTheWorld => write!(
                 f,
                 "split: the cut names the world, which every document holds. {}",
                 Recourse("leave the world out of the cut")
             ),
-            Self::NoMaterial { node } => write!(
+            Self::NoMaterial { node } => say!(
                 f,
-                "split: the cut places nothing in the world (it begins at {node}), and a part \
+                "split: the cut places nothing in the world (it begins at ",
+                by.mention(node),
+                format_args!(
+                    "), and a part \
                  delivers only its world, so the instance the split leaves behind would \
                  evaluate to nothing. {}",
-                Recourse("add to the cut the placements of the bodies it moves")
+                    Recourse("add to the cut the placements of the bodies it moves")
+                )
             ),
             Self::PartIdCollides { id } => write!(
                 f,
@@ -1266,133 +1272,241 @@ impl core::fmt::Display for SplitError {
                     (input, consumer)
                 };
                 let reads = slot.map_or_else(String::new, |slot| format!("'s {}", slot.label()));
-                write!(
+                say!(
                     f,
-                    "split: the cut severs the edge from {consumer}{reads} to its input {input}. The \
+                    "split: the cut severs the edge from ",
+                    by.mention(consumer),
+                    sentence!(
+                        format_args!("{reads} to its input "),
+                        by.mention(input),
+                        sentence!(
+                            format_args!(
+                                ". The \
                      consumer is {consumer_side} and the input is {input_side}, but a cut must be \
-                     closed under inputs and consumers. {}",
-                    Recourse(&format!("add {kept} to the cut, or leave {cut} out of it"))
+                     closed under inputs and consumers. "
+                            ),
+                            Recourse(&sentence!(
+                                "add ",
+                                by.mention(kept),
+                                sentence!(" to the cut, or leave ", by.mention(cut), " out of it")
+                            ))
+                        )
+                    )
                 )
             }
-            Self::RemainderReadUncarried { reader, why } => write!(
+            Self::RemainderReadUncarried { reader, why } => say!(
                 f,
-                "split: {reader} stays and reads cut material, and {why}. {}",
-                Recourse(&format!(
-                    "cut {reader} too, or place what it reads by one world placement at the \
+                "split: ",
+                by.mention(reader),
+                sentence!(
+                    sentence!(" stays and reads cut material, and ", Said(&why, by), ". "),
+                    Recourse(&sentence!(
+                        "cut ",
+                        by.mention(reader),
+                        " too, or place what it reads by one world placement at the \
                      identity in the cut"
-                ))
+                    ))
+                )
             ),
             Self::ProductReadSevered { input, why } => {
-                write!(f, "split: the product reads {input}, which is cut, and ")?;
+                say!(
+                    f,
+                    "split: the product reads ",
+                    by.mention(input),
+                    ", which is cut, and "
+                )?;
                 match why {
-                    Some(why) => write!(f, "{why}")?,
+                    Some(why) => say!(f, Said(&why, by))?,
                     None => f.write_str("the part's world carries no copy of it")?,
                 }
-                write!(
+                say!(
                     f,
-                    ". {}",
-                    Recourse(&format!(
-                        "leave {input} out of the cut, or set the product to a world copy the \
+                    ". ",
+                    Recourse(&sentence!(
+                        "leave ",
+                        by.mention(input),
+                        " out of the cut, or set the product to a world copy the \
                          cut places"
                     ))
                 )
             }
-            Self::NamedReadUncarried { var, why } => write!(
+            Self::NamedReadUncarried { var, why } => say!(
                 f,
-                "split: {var} stays, since a reader the remainder keeps reads it or nothing \
-                 does, and it reads cut material: {why}. {}",
-                Recourse(&format!(
-                    "cut every node that reads {var}, so it goes with them, or delete it"
-                ))
+                "split: ",
+                by.var(var),
+                sentence!(
+                    format_args!(
+                        " stays, since a reader the remainder keeps reads it or nothing \
+                 does, and it reads cut material: {why}. "
+                    ),
+                    Recourse(&sentence!(
+                        "cut every node that reads ",
+                        by.var(var),
+                        ", so it goes with them, or delete it"
+                    ))
+                )
             ),
             Self::UncutVarReference {
                 var,
                 cut_node,
                 kept_node,
-            } => write!(
+            } => say!(
                 f,
-                "split: {var} is read by {cut_node}, which is cut, and by {kept_node}, which \
-                 is kept, and one variable cannot become two documents'. {}",
-                Recourse(&format!(
-                    "put {cut_node} and {kept_node} on one side of the cut, or give one of \
+                "split: ",
+                by.var(var),
+                " is read by ",
+                by.mention(cut_node),
+                sentence!(
+                    ", which is cut, and by ",
+                    by.mention(kept_node),
+                    sentence!(
+                        ", which \
+                 is kept, and one variable cannot become two documents'. ",
+                        Recourse(&sentence!(
+                            "put ",
+                            by.mention(cut_node),
+                            sentence!(
+                                " and ",
+                                by.mention(kept_node),
+                                " on one side of the cut, or give one of \
                      them a variable of its own (DeclareVar, SetParam)"
-                ))
+                            )
+                        ))
+                    )
+                )
             ),
             Self::SpaceStraddlesCut {
                 space,
                 cut_node,
                 kept_node,
-            } => write!(
+            } => say!(
                 f,
-                "split: {cut_node}, which is cut, and {kept_node}, which is kept, are both \
-                 placed into {space}, and one space cannot go with both documents. {}",
-                Recourse(&format!(
-                    "cut {kept_node} too, or re-target one of them into a new_space() of its \
+                "split: ",
+                by.mention(cut_node),
+                sentence!(
+                    ", which is cut, and ",
+                    by.mention(kept_node),
+                    sentence!(
+                        ", which is kept, are both \
+                 placed into ",
+                        by.mention(space),
+                        sentence!(
+                            ", and one space cannot go with both documents. ",
+                            Recourse(&sentence!(
+                                "cut ",
+                                by.mention(kept_node),
+                                " too, or re-target one of them into a new_space() of its \
                      own"
-                ))
+                            ))
+                        )
+                    )
+                )
             ),
             Self::DefinitionStraddlesCut {
                 var,
                 moving,
                 staying,
                 staying_held: true,
-            } => write!(
+            } => say!(
                 f,
-                "split: no node reads {var}, and definitions tie it both to {moving}, which \
-                 moves with the cut, and to {staying}, which stays, so it can go with neither \
-                 document. {}",
-                Recourse(&format!(
-                    "define {var} over variables of one side (DefineVar), or delete it \
+                "split: no node reads ",
+                by.var(var),
+                sentence!(
+                    ", and definitions tie it both to ",
+                    by.var(moving),
+                    sentence!(
+                        ", which \
+                 moves with the cut, and to ",
+                        by.var(staying),
+                        sentence!(
+                            ", which stays, so it can go with neither \
+                 document. ",
+                            Recourse(&sentence!(
+                                "define ",
+                                by.var(var),
+                                " over variables of one side (DefineVar), or delete it \
                      (DeleteVar), then split"
-                ))
+                            ))
+                        )
+                    )
+                )
             ),
             Self::DefinitionStraddlesCut {
                 var,
                 moving,
                 staying,
                 staying_held: false,
-            } => write!(
+            } => say!(
                 f,
-                "split: no node reads {var}, and definitions tie it both to {moving}, which \
-                 moves with the cut, and to {staying}, which this document no longer holds, so \
-                 the part has no variable to read. {}",
-                Recourse(&format!(
-                    "redefine {var} without {staying} (DefineVar), or delete it (DeleteVar), \
-                     then split"
+                "split: no node reads ",
+                by.var(var),
+                ", and definitions tie it both to ",
+                by.var(moving),
+                ", which moves with the cut, and to ",
+                by.var(staying),
+                ", which this document no longer holds, so the part has no variable to read. ",
+                Recourse(sentence!(
+                    "redefine ",
+                    by.var(var),
+                    " without ",
+                    by.var(staying),
+                    " (DefineVar), or delete it (DeleteVar), then split"
                 ))
             ),
-            Self::UnresolvedVarCrossesCut { var, node } => write!(
+            Self::UnresolvedVarCrossesCut { var, node } => say!(
                 f,
-                "split: {node}, which is cut, reads {var}, which this document no longer \
-                 holds, so the part has no variable to read. {}",
-                Recourse(&format!(
-                    "repoint {node}'s reader at a variable this document holds, or remove the \
+                "split: ",
+                by.mention(node),
+                ", which is cut, reads ",
+                by.var(var),
+                sentence!(
+                    ", which this document no longer \
+                 holds, so the part has no variable to read. ",
+                    Recourse(&sentence!(
+                        "repoint ",
+                        by.mention(node),
+                        "'s reader at a variable this document holds, or remove the \
                      reader, then split"
-                ))
+                    ))
+                )
             ),
             Self::PartNameReachesRemainder {
                 node,
                 name,
                 missing,
-            } => write!(
+            } => say!(
                 f,
-                "split: {node} is cut, but its reference ({name}) derives from {missing}, \
-                 which is outside the cut, so the new document could not express it. {}",
-                Recourse(&format!(
-                    "add {missing} to the cut, or rebind that name to an entity inside the cut \
+                "split: ",
+                by.mention(node),
+                " is cut, but its reference (",
+                Said(&name, by),
+                sentence!(
+                    ") derives from ",
+                    by.mention(missing),
+                    sentence!(
+                        ", \
+                 which is outside the cut, so the new document could not express it. ",
+                        Recourse(&sentence!(
+                            "add ",
+                            by.mention(missing),
+                            " to the cut, or rebind that name to an entity inside the cut \
                      (Rebind)"
-                ))
+                        ))
+                    )
+                )
             ),
             Self::NameStraddlesCut { name, missing } => {
-                write!(
+                say!(
                     f,
-                    "split: {name} derives from both sides of the cut and can re-anchor to \
+                    "split: ",
+                    Said(&name, by),
+                    " derives from both sides of the cut and can re-anchor to \
                      neither document"
                 )?;
                 // The rewrite stopped at ONE node, which for a nested
                 // name is not the name's own mint.
                 if let Some(id) = missing {
-                    write!(f, ", and the rewrite stopped at {id}")?;
+                    say!(f, ", and the rewrite stopped at ", by.mention(id))?;
                 }
                 write!(
                     f,
@@ -1403,62 +1517,85 @@ impl core::fmt::Display for SplitError {
                     )
                 )
             }
-            Self::NameOnDroppedStep { name, step } => write!(
+            Self::NameOnDroppedStep { name, step } => say!(
                 f,
-                "split: {name} spells a piece of the profile step {step}, which no profile \
+                "split: ",
+                Said(&name, by),
+                format_args!(
+                    " spells a piece of the profile step {step}, which no profile \
                  of this document draws any more. {}",
-                Recourse("rebind that name to a live entity (Rebind), then split")
-            ),
-            Self::NameOnDroppedSection { name, section } => write!(
-                f,
-                "split: {name} spells the loft section {section}, which no loft of this \
-                 document holds any more. {}",
-                Recourse("rebind that name to a live entity (Rebind), then split")
-            ),
-            Self::NameOutsidePartWorld { name } => write!(
-                f,
-                "split: {name} crosses the cut, but the part delivers only its world, and no \
-                 one world placement in the cut places the body it is an entity of. {}",
-                Recourse(
-                    "add to the cut the one world placement of that body, or rebind the name to \
-                     a kept node's entity (Rebind), then split"
+                    Recourse("rebind that name to a live entity (Rebind), then split")
                 )
             ),
-            Self::BodyNameCrossesCut { name } => write!(
+            Self::NameOnDroppedSection { name, section } => say!(
                 f,
-                "split: {name} crosses the cut, and a product's name table carries no \
+                "split: ",
+                Said(&name, by),
+                format_args!(
+                    " spells the loft section {section}, which no loft of this \
+                 document holds any more. {}",
+                    Recourse("rebind that name to a live entity (Rebind), then split")
+                )
+            ),
+            Self::NameOutsidePartWorld { name } => say!(
+                f,
+                "split: ",
+                Said(&name, by),
+                format_args!(
+                    " crosses the cut, but the part delivers only its world, and no \
+                 one world placement in the cut places the body it is an entity of. {}",
+                    Recourse(
+                        "add to the cut the one world placement of that body, or rebind the name to \
+                     a kept node's entity (Rebind), then split"
+                    )
+                )
+            ),
+            Self::BodyNameCrossesCut { name } => say!(
+                f,
+                "split: ",
+                Said(&name, by),
+                format_args!(
+                    " crosses the cut, and a product's name table carries no \
                  body rows, so the instance-qualified rewrite could never resolve. {}",
-                Recourse(
-                    "clear what this document sets on that name (ClearAppearance), or rebind it \
+                    Recourse(
+                        "clear what this document sets on that name (ClearAppearance), or rebind it \
                      to a kept node's body (Rebind), then split"
+                    )
                 )
             ),
             // The part replayed clean through the edit doors, which
             // the save validator agrees with, so its pin refusing is
             // this module's defect: the forwarded sentence is evidence
             // for the report, and the stage it names is this one's.
-            Self::Pin { error } => write!(
+            Self::Pin { error } => say!(
                 f,
-                "split: the new document's pin would not compute: {}. {}",
+                "split: the new document's pin would not compute: ",
                 error.sentence(),
-                geom_core::KERNEL_DEFECT_ENDING
+                format_args!(". {}", geom_core::KERNEL_DEFECT_ENDING)
             ),
-            Self::PartEdit { error } => write!(
+            Self::PartEdit { error } => say!(
                 f,
-                "split: a part-side edit refused: {}{}",
-                error.problem(),
-                ReplayTail(error, Replay::SplitPart)
+                "split: a part-side edit refused: ",
+                Said(&error.problem(), by),
+                format_args!("{}", ReplayTail(error, Replay::SplitPart))
             ),
-            Self::RemainderEdit { error } => write!(
+            Self::RemainderEdit { error } => say!(
                 f,
-                "split: a remainder-side edit refused: {}{}",
-                error.problem(),
-                ReplayTail(error, Replay::SplitRemainder)
+                "split: a remainder-side edit refused: ",
+                Said(&error.problem(), by),
+                format_args!("{}", ReplayTail(error, Replay::SplitRemainder))
             ),
             Self::Stopped(stopped) => {
                 write!(f, "split: the evaluation it reads stopped: {stopped}")
             }
         }
+    }
+}
+
+/// Its sentence, each node said by tag ([`crate::Speaker::TAG`]).
+impl core::fmt::Display for SplitError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 
@@ -1536,21 +1673,23 @@ pub enum Uncarried {
     },
 }
 
-impl core::fmt::Display for Uncarried {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::Say for Uncarried {
+    fn say(&self, f: &mut crate::Sentence, by: crate::Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::Bodies { count } => write!(
                 f,
                 "the world in question places {count} copies, so no one copy stands where it did"
             ),
-            Self::Posed { placement } => write!(
+            Self::Posed { placement } => say!(
                 f,
-                "{placement} places it at a pose of its own, so what stands where it did is a \
+                by.mention(placement),
+                " places it at a pose of its own, so what stands where it did is a \
                  copy moved"
             ),
-            Self::OtherSpace { placement } => write!(
+            Self::OtherSpace { placement } => say!(
                 f,
-                "{placement}'s copy is in a space other than the world, and a part delivers only \
+                by.mention(placement),
+                "'s copy is in a space other than the world, and a part delivers only \
                  its world"
             ),
             Self::NoSuchPiece { of } => write!(
@@ -1562,6 +1701,13 @@ impl core::fmt::Display for Uncarried {
                     .join(" / ")
             ),
         }
+    }
+}
+
+/// Its sentence, each node said by tag ([`crate::Speaker::TAG`]).
+impl core::fmt::Display for Uncarried {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 
@@ -1715,27 +1861,41 @@ pub enum InlineError {
     },
 }
 
-impl core::fmt::Display for InlineError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::Say for InlineError {
+    fn say(&self, f: &mut crate::Sentence, by: crate::Speaker<'_>) -> core::fmt::Result {
         match self {
-            Self::UnknownNode { id } => write!(
+            Self::UnknownNode { id } => say!(
                 f,
-                "inline: {id} is not live. {}",
-                Recourse("name a live instance of a part")
+                "inline: ",
+                by.mention(id),
+                format_args!(
+                    " is not live. {}",
+                    Recourse("name a live instance of a part")
+                )
             ),
-            Self::NotAnInstance { node } => write!(
+            Self::NotAnInstance { node } => say!(
                 f,
-                "inline: {node} does not instantiate a part. {}",
-                Recourse("name an instance of a part")
+                "inline: ",
+                by.mention(node),
+                format_args!(
+                    " does not instantiate a part. {}",
+                    Recourse("name an instance of a part")
+                )
             ),
-            Self::UnplaceablePart { instance } => write!(
+            Self::UnplaceablePart { instance } => say!(
                 f,
-                "inline: {instance}'s part has no product to place: its slot reads nothing, a \
-                 body that is gone, or a piece or a source rather than an operation's output. {}",
-                Recourse(&format!(
-                    "point {instance} (UpdateReference) at a version whose product slot reads \
+                "inline: ",
+                by.mention(instance),
+                sentence!(
+                    "'s part has no product to place: its slot reads nothing, a \
+                 body that is gone, or a piece or a source rather than an operation's output. ",
+                    Recourse(&sentence!(
+                        "point ",
+                        by.mention(instance),
+                        " (UpdateReference) at a version whose product slot reads \
                      a body"
-                ))
+                    ))
+                )
             ),
             // The store's sentence states the recourse of a pin or a
             // lookup; the ε seam's is the same whatever the store.
@@ -1776,74 +1936,125 @@ impl core::fmt::Display for InlineError {
                     "rename the {name} of one of the two documents (RenameVar), then inline"
                 ))
             ),
-            Self::UnreadPose { var } => write!(
+            Self::UnreadPose { var } => say!(
                 f,
-                "inline: the referenced document holds the pose {var}, which nothing in it \
-                 reads, and a pose crosses only with a reader. {}",
-                Recourse(&format!(
-                    "in the referenced document, read {var} or delete it (DeleteVar), point this \
+                "inline: the referenced document holds the pose ",
+                by.var(var),
+                sentence!(
+                    ", which nothing in it \
+                 reads, and a pose crosses only with a reader. ",
+                    Recourse(&sentence!(
+                        "in the referenced document, read ",
+                        by.var(var),
+                        " or delete it (DeleteVar), point this \
                      instance at that version (UpdateReference), then inline"
-                ))
-            ),
-            Self::UnresolvedVarCrossesCut { var, node } => write!(
-                f,
-                "inline: {node} in the referenced document reads {var}, which that document \
-                 no longer holds, so this document has no variable to point the reader at. {}",
-                Recourse(&format!(
-                    "in the referenced document, repoint {node}'s reader at a variable it holds \
-                     or remove the reader, point this instance at that version \
-                     (UpdateReference), then inline"
-                ))
-            ),
-            Self::SelectionSpansMembers { reader } => write!(
-                f,
-                "inline: {reader} selects entities of the instance's copy that lie in two \
-                 members of the family it copies, and spliced, that family is no one body \
-                 to select them in. {}",
-                Recourse(&format!(
-                    "split {reader}'s selection into one per member, then inline"
-                ))
-            ),
-            Self::InstanceBodyNameReferenced { name } => write!(
-                f,
-                "inline: {name} names the instance's own output body, which no single \
-                 spliced node corresponds to. {}",
-                Recourse(
-                    "clear what this document sets on that name (ClearAppearance), or rebind it \
-                     to another node's body (Rebind), then inline"
+                    ))
                 )
             ),
-            Self::NameOnDroppedStep { name, step } => write!(
+            Self::UnresolvedVarCrossesCut { var, node } => say!(
                 f,
-                "inline: {name} spells a piece of the profile step {step}, which no profile \
+                "inline: ",
+                by.mention(node),
+                " in the referenced document reads ",
+                by.var(var),
+                sentence!(
+                    ", which that document \
+                 no longer holds, so this document has no variable to point the reader at. ",
+                    Recourse(&sentence!(
+                        "in the referenced document, repoint ",
+                        by.mention(node),
+                        "'s reader at a variable it holds \
+                     or remove the reader, point this instance at that version \
+                     (UpdateReference), then inline"
+                    ))
+                )
+            ),
+            Self::SelectionSpansMembers { reader } => say!(
+                f,
+                "inline: ",
+                by.mention(reader),
+                sentence!(
+                    " selects entities of the instance's copy that lie in two \
+                 members of the family it copies, and spliced, that family is no one body \
+                 to select them in. ",
+                    Recourse(&sentence!(
+                        "split ",
+                        by.mention(reader),
+                        "'s selection into one per member, then inline"
+                    ))
+                )
+            ),
+            Self::InstanceBodyNameReferenced { name } => say!(
+                f,
+                "inline: ",
+                Said(&name, by),
+                format_args!(
+                    " names the instance's own output body, which no single \
+                 spliced node corresponds to. {}",
+                    Recourse(
+                        "clear what this document sets on that name (ClearAppearance), or rebind it \
+                     to another node's body (Rebind), then inline"
+                    )
+                )
+            ),
+            Self::NameOnDroppedStep { name, step } => say!(
+                f,
+                "inline: ",
+                Said(&name, by),
+                format_args!(
+                    " spells a piece of the profile step {step}, which no profile \
                  of the referenced document draws any more. {}",
-                Recourse(STRANDED_IN_THE_PART)
+                    Recourse(STRANDED_IN_THE_PART)
+                )
             ),
-            Self::NameOnDroppedSection { name, section } => write!(
+            Self::NameOnDroppedSection { name, section } => say!(
                 f,
-                "inline: {name} spells the loft section {section}, which no loft of the \
+                "inline: ",
+                Said(&name, by),
+                format_args!(
+                    " spells the loft section {section}, which no loft of the \
                  referenced document holds any more. {}",
-                Recourse(STRANDED_IN_THE_PART)
+                    Recourse(STRANDED_IN_THE_PART)
+                )
             ),
-            Self::StrandedPartName { name, missing } => write!(
+            Self::StrandedPartName { name, missing } => say!(
                 f,
-                "inline: {name} derives from {missing}, which the referenced document no \
+                "inline: ",
+                Said(&name, by),
+                " derives from ",
+                by.mention(missing),
+                format_args!(
+                    ", which the referenced document no \
                  longer has. {}",
-                Recourse(STRANDED_IN_THE_PART)
+                    Recourse(STRANDED_IN_THE_PART)
+                )
             ),
-            Self::StrandedPartRead { name, read } => write!(
+            Self::StrandedPartRead { name, read } => say!(
                 f,
-                "inline: {name} is carried in through {read}, which no operation of the \
+                "inline: ",
+                Said(&name, by),
+                " is carried in through ",
+                by.var(read),
+                format_args!(
+                    ", which no operation of the \
                  referenced document defines any longer. {}",
-                Recourse(STRANDED_IN_THE_PART)
+                    Recourse(STRANDED_IN_THE_PART)
+                )
             ),
-            Self::Edit { error } => write!(
+            Self::Edit { error } => say!(
                 f,
-                "inline: an edit refused: {}{}",
-                error.problem(),
-                ReplayTail(error, Replay::Inline)
+                "inline: an edit refused: ",
+                Said(&error.problem(), by),
+                format_args!("{}", ReplayTail(error, Replay::Inline))
             ),
         }
+    }
+}
+
+/// Its sentence, each node said by tag ([`crate::Speaker::TAG`]).
+impl core::fmt::Display for InlineError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 
@@ -2469,7 +2680,7 @@ fn remap_node(
         },
         Node::Subtract { from, tool } => Node::Subtract {
             from: br(crate::OperandSlot::From, from)?,
-            tool: br(crate::OperandSlot::Cut, tool)?,
+            tool: tool.try_map_in(crate::operand::Seats::CUTS, &br)?,
         },
         Node::Union { members } => Node::Union {
             members: members.try_map(&br)?,
@@ -2486,6 +2697,13 @@ fn remap_node(
             constraints,
         } => Node::Place {
             source: br(crate::OperandSlot::Source, source)?,
+            target: rd(crate::OperandSlot::Space, *target)?,
+            constraints: bundle(constraints)?,
+        },
+        Node::Datum {
+            target,
+            constraints,
+        } => Node::Datum {
             target: rd(crate::OperandSlot::Space, *target)?,
             constraints: bundle(constraints)?,
         },
@@ -3061,7 +3279,7 @@ pub fn split(
             cut.contains(&id)
                 && matches!(
                     doc.node(id),
-                    Some(Node::Place { .. } | Node::InstantiatePart { .. })
+                    Some(node) if node.makes_a_copy()
                 )
                 && world(id)
         })
@@ -3106,7 +3324,7 @@ pub fn split(
             && body.is_none_or(|b| b == name.node)
             && matches!(
                 doc.node(name.node),
-                Some(Node::Place { .. } | Node::InstantiatePart { .. })
+                Some(node) if node.makes_a_copy()
             )
         {
             return world(name.node).then_some((name.node, false));
@@ -3194,7 +3412,7 @@ pub fn split(
                 return Ok(None);
             };
             match doc.node(at) {
-                Some(Node::Place { .. } | Node::InstantiatePart { .. }) => {
+                Some(node) if node.makes_a_copy() => {
                     let within = match doc.pick_path(var) {
                         Some((_, path)) => path,
                         None if !read.is_indexed()
@@ -3777,7 +3995,7 @@ pub fn split(
     if !in_order.iter().any(|&id| {
         matches!(
             doc.node(id),
-            Some(Node::Place { .. } | Node::InstantiatePart { .. })
+            Some(node) if node.makes_a_copy()
         ) && world(id)
     }) && let Some(&first) = doc.ids().iter().find(|id| selected.contains(id))
     {
@@ -4784,7 +5002,7 @@ pub fn inline(
     for side in bundle
         .iter()
         .filter_map(crate::mate::Constraint::mate)
-        .map(|mate| mate.on)
+        .map(|mate| mate.on.read)
     {
         if doc.var_name(side).is_some() || pose_leaves(doc, side).is_none() {
             continue;
@@ -5159,61 +5377,109 @@ pub enum FlattenError {
     },
 }
 
-impl core::fmt::Display for FlattenError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl crate::Say for FlattenError {
+    fn say(&self, f: &mut crate::Sentence, by: crate::Speaker<'_>) -> core::fmt::Result {
         match self {
-            Self::UnknownNode { id } => write!(
+            Self::UnknownNode { id } => say!(
                 f,
-                "flatten: {id} is not live. {}",
-                Recourse("name a live placement")
+                "flatten: ",
+                by.mention(id),
+                format_args!(" is not live. {}", Recourse("name a live placement"))
             ),
-            Self::NotAPlacement { node } => write!(
+            Self::NotAPlacement { node } => say!(
                 f,
-                "flatten: {node} is no placement. {}",
-                Recourse("name a placement whose bundle is the identity")
+                "flatten: ",
+                by.mention(node),
+                format_args!(
+                    " is no placement. {}",
+                    Recourse("name a placement whose bundle is the identity")
+                )
             ),
-            Self::NotTheIdentity { placement } => write!(
+            Self::NotTheIdentity { placement } => say!(
                 f,
-                "flatten: {placement}'s bundle is not the identity as written, so its copy \
-                 is not its source where the source stands. {}",
-                Recourse(&format!("write {placement}'s bundle as the identity first"))
+                "flatten: ",
+                by.mention(placement),
+                sentence!(
+                    "'s bundle is not the identity as written, so its copy \
+                 is not its source where the source stands. ",
+                    Recourse(&sentence!(
+                        "write ",
+                        by.mention(placement),
+                        "'s bundle as the identity first"
+                    ))
+                )
             ),
-            Self::NotANewSpace { placement } => write!(
+            Self::NotANewSpace { placement } => say!(
                 f,
-                "flatten: {placement}'s source is not in one new_space(), and only such a \
+                "flatten: ",
+                by.mention(placement),
+                format_args!(
+                    "'s source is not in one new_space(), and only such a \
                  space is flattened into its target. {}",
-                Recourse("keep the placement")
+                    Recourse("keep the placement")
+                )
             ),
-            Self::SpaceShared { placement, other } => write!(
+            Self::SpaceShared { placement, other } => say!(
                 f,
-                "flatten: {other} also copies a source out of {placement}'s source's space, \
-                 and would read the target's coordinates once it is flattened. {}",
-                Recourse(&format!("delete or re-point {other} first"))
+                "flatten: ",
+                by.mention(other),
+                sentence!(
+                    " also copies a source out of ",
+                    by.mention(placement),
+                    sentence!(
+                        "'s source's space, \
+                 and would read the target's coordinates once it is flattened. ",
+                        Recourse(&sentence!(
+                            "delete or re-point ",
+                            by.mention(other),
+                            " first"
+                        ))
+                    )
+                )
             ),
-            Self::ReadUncarried { reader } => write!(
+            Self::ReadUncarried { reader } => say!(
                 f,
-                "flatten: {reader} reads the copy whole or by a name of no one shape it \
-                 copies. {}",
-                Recourse(&format!(
-                    "re-point {reader} at one copy (SetParam), then flatten"
-                ))
+                "flatten: ",
+                by.mention(reader),
+                sentence!(
+                    " reads the copy whole or by a name of no one shape it \
+                 copies. ",
+                    Recourse(&sentence!(
+                        "re-point ",
+                        by.mention(reader),
+                        " at one copy (SetParam), then flatten"
+                    ))
+                )
             ),
-            Self::SelectionSpansMembers { reader } => write!(
+            Self::SelectionSpansMembers { reader } => say!(
                 f,
-                "flatten: {reader} selects entities of the copy that lie in two members of \
+                "flatten: ",
+                by.mention(reader),
+                sentence!(
+                    " selects entities of the copy that lie in two members of \
                  the family it groups, and unwrapped, that family is no one body to select \
-                 them in. {}",
-                Recourse(&format!(
-                    "split {reader}'s selection into one per member, then flatten"
-                ))
+                 them in. ",
+                    Recourse(&sentence!(
+                        "split ",
+                        by.mention(reader),
+                        "'s selection into one per member, then flatten"
+                    ))
+                )
             ),
             Self::BothNamed { name, held } => write!(
                 f,
                 "flatten: the copy is named {name} and the shape it copies {held}. {}",
                 Recourse(&format!("clear the name {name} (RenameVar), then flatten"))
             ),
-            Self::Edit { error } => write!(f, "flatten: {error}"),
+            Self::Edit { error } => say!(f, "flatten: ", Said(&error, by)),
         }
+    }
+}
+
+/// Its sentence, each node said by tag ([`crate::Speaker::TAG`]).
+impl core::fmt::Display for FlattenError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::display_said(self, crate::Speaker::TAG, f)
     }
 }
 
@@ -5343,7 +5609,7 @@ pub fn flatten(
     // the `⊔` operand the path starts at, picked further by the rest.
     let source_is_copy = matches!(
         doc.operation_of(source).and_then(|at| doc.node(at)),
-        Some(Node::Place { .. } | Node::InstantiatePart { .. })
+        Some(node) if node.makes_a_copy()
     );
     let unpicked = |of: &[VarId]| -> crate::Operand {
         match of.split_first() {
