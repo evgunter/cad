@@ -382,9 +382,10 @@ pub enum SsiError {
         /// The verdict on the gap, with the margin it classified.
         verdict: Refused,
     },
-    /// A cylinder × sphere operand's radius is decided zero or negative:
+    /// A cylinder's or a sphere's radius is decided zero or negative:
     /// refused by the pair's pose before any rung, as the section table
-    /// refuses it ([`crate::CylinderSpherePose`]).
+    /// refuses it ([`crate::CylinderSpherePose`],
+    /// [`crate::pair_section::ConeRuledPose`]).
     RadiusNotPositive {
         /// Whose radius.
         radius: crate::SectionRadius,
@@ -1449,6 +1450,20 @@ impl SsiError {
         match refusal {
             E::Escalated(diag) | E::RadiusEscalated { diag, .. } => {
                 TraceDecision::ConeRuledPose.escalated(diag)
+            }
+            E::DegenerateOperand { what }
+                if what == crate::pair_section::cones::SPHERE_RADIUS_NOT_POSITIVE =>
+            {
+                Self::RadiusNotPositive {
+                    radius: crate::SectionRadius::Sphere,
+                }
+            }
+            E::DegenerateOperand { what }
+                if what == crate::pair_section::cones::CYLINDER_RADIUS_NOT_POSITIVE =>
+            {
+                Self::RadiusNotPositive {
+                    radius: crate::SectionRadius::Cylinder,
+                }
             }
             E::ConeAtTheBand { what } | E::DegenerateOperand { what } => {
                 Self::DegenerateCone { what }

@@ -55,7 +55,7 @@
 //! ([`super::NoCarrier::ConeNode`]).
 
 use geom::Surface;
-use geom_core::k_stats::decide_reported;
+use geom_core::k_stats::{decide_across_reported, decide_reported};
 use geom_core::{Band, Decide, Decided, Margin, MarginDiag, Point3, Real, Sign, Vec3};
 
 use super::cylinders::RegionPlacement;
@@ -192,6 +192,27 @@ struct Carrier<T: Real> {
 }
 
 /// `Ok` where the margin decides, the predicate named.
+/// A cylinder's radius not definitely positive, in words: the door maps
+/// it to its own radius refusal by this text.
+pub(crate) const CYLINDER_RADIUS_NOT_POSITIVE: &str =
+    "a cylinder's radius is not definitely positive";
+/// A sphere's, likewise.
+pub(crate) const SPHERE_RADIUS_NOT_POSITIVE: &str = "a sphere's radius is not definitely positive";
+
+/// [`read`] of a length `datum` across its rounding `swing`, the floor
+/// row `floor` deciding the side where the far row is clear.
+fn read_across<T: Decide>(
+    decision: ConeDecision,
+    floor: &'static str,
+    datum: T,
+    swing: T,
+    band: Band,
+) -> Result<Decided, SectionError> {
+    decide_across_reported([decision.name(), floor], datum, swing, band)
+        .map(|(sign, margin)| Decided { sign, margin })
+        .map_err(SectionError::Escalated)
+}
+
 fn read<T: Decide>(
     decision: ConeDecision,
     margin: Margin<T>,
@@ -389,7 +410,7 @@ impl<T: Decide> ConeRuledPose<T> {
             }) => {}
             Ok(_) => {
                 return Err(SectionError::DegenerateOperand {
-                    what: "a sphere's radius is not definitely positive",
+                    what: SPHERE_RADIUS_NOT_POSITIVE,
                 });
             }
             Err(diag) => {
@@ -404,7 +425,21 @@ impl<T: Decide> ConeRuledPose<T> {
         let h = w.dot(cone.axis);
         let across = w - cone.axis * h;
         let (out, rho) = across.direction_and_length();
-        if read(ConeDecision::SphereOnAxis, Margin::of(rho), band)?.sign == Sign::Zero {
+        // `w`, `h` and `ρ` are read off the centre and the apex, and the
+        // axis's rounding moves them by its size times `|w|`: each length
+        // here is read across that charge.
+        let size = (c - Point3::origin()).norm() + (cone.apex - Point3::origin()).norm() + radius;
+        let swing = geom_core::rounding_charge(size);
+        if read_across(
+            ConeDecision::SphereOnAxis,
+            "kc_sphere_on_axis_floor",
+            rho,
+            swing,
+            band,
+        )?
+        .sign
+            == Sign::Zero
+        {
             return Ok(None);
         }
         let ruled = ruled(cone, Form::sphere(c, cone.axis, radius), region);
@@ -422,9 +457,11 @@ impl<T: Decide> ConeRuledPose<T> {
             // The line `apex + t·v`, `v = cos α·â ± sin α·ê`, at distance
             // `|ρ cos α ∓ h sin α|` from the centre.
             let g = rho * co - side * h * s;
-            let decided = read(
+            let decided = read_across(
                 ConeDecision::SphereTangency,
-                Margin::of(g.abs() - radius),
+                "kc_sphere_tangency_floor",
+                g.abs() - radius,
+                swing,
                 band,
             )?;
             if decided.sign == Sign::Zero && touch.is_none() {
@@ -458,7 +495,7 @@ impl<T: Decide> ConeRuledPose<T> {
             }) => {}
             Ok(_) => {
                 return Err(SectionError::DegenerateOperand {
-                    what: "a cylinder's radius is not definitely positive",
+                    what: CYLINDER_RADIUS_NOT_POSITIVE,
                 });
             }
             Err(diag) => {
