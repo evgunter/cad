@@ -94,3 +94,12 @@ One refinement round clears every refusing cell. The neighbours across the class
 **Ruled: cure 1b, keyed to the class.** The class is one fact of the route, decided once: every loop image lies on an iso line, the face is no rectangle, the chart is a cylinder or a sphere, the holed sibling included. Such a face lays no rows on a cylinder and refines where a certificate refuses (the midpoint of the widest side that is no constraint, the centroid where there is none), under a named termination constant. Nothing in it reads ε.
 
 **Not ruled here: sizing the class at δ.** `[mesh.sizing]` keeps `UNPROVED_HEADROOM` on a lane without its theorem and says the cure is the theorem; a refinement step standing where the theorem stands changes what that clause decides. It goes to designers and then to Ev as its own `[ev]` pull request with this table. The unit builds the δ target at one named site and does not merge before Ev answers; on a no, that site returns to the headroom. The implementer measures first what the cure earns with the headroom kept.
+
+### The unit after the designers' reports (2026-11-23)
+
+Two measurements changed what is built here.
+
+- **With the headroom kept, the rows alone carry the cylinder's gain.** Headroom kept, no rows on the cylinder, no refinement: all 210 cylinder cells mesh at 1.00 / 1.40 / 1.50 times `r_dec`, worst certificate 0.689 δ, and the refinement never fires. Refinement is reached only by a cylinder face sized at δ.
+- **Two designers, apart, weighed the δ target and both reject keying it to this class**: the reason for the headroom is the same on every chart-lane face, so what goes to Ev is the lane-wide form (no headroom on any analytic arm, refinement on a refused certificate on every row). That is its own unit if Ev says yes.
+
+So this unit builds neither the δ target nor the refinement. **It builds "no rows on a cylinder", in the widest form that loses no face at today's target:** measured first with rows off on every chart-lane cylinder face (the class, the holed sibling, the tilted-section walls). If nothing refuses or folds, the chart lane's cylinder arm lays no rows and the route gains no fact; if something does, the class is the route's fact as ruled above and the faces that need their rows are filed. The "one named site" for a δ target is not built.
