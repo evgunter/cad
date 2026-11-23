@@ -7500,10 +7500,10 @@ pub(crate) fn face_reach_in<T: Decide>(
         .map(|cover| cover.box_in(frame))
 }
 
-/// [`face_reach_in`] read along `aim`, in the frame aimed at it
-/// ([`geom::cover::BoxAxes::aimed`]): the face's cover with a sphere
-/// face's pole-side cut along `aim` ([`crate::cover::face_cover_toward`]),
-/// its box there. The first coordinate is the reach along `aim`.
+/// **How far a face reaches along `aim`**: bounds on `x·â` over the
+/// face, its cover read along the aim, with a sphere face's pole-side
+/// cut ([`crate::cover::face_cover_toward`]). `None` for a face with no
+/// cover.
 ///
 /// # Panics
 ///
@@ -7513,10 +7513,10 @@ pub(crate) fn face_reach_toward<T: Decide>(
     f: crate::entity::FaceKey,
     band: Band,
     aim: geom_core::UnitVec3<T>,
-) -> Option<(Point3<T>, Point3<T>)> {
+) -> Option<(T, T)> {
     crate::cover::face_cover_toward(body, f, band, aim)
         .ok()
-        .map(|cover| cover.box_in(&geom::cover::BoxAxes::aimed(aim)))
+        .map(|cover| cover.range_along(aim.get()))
 }
 
 /// The touch lane's recourse for a designed contact it cannot read yet.

@@ -15,7 +15,6 @@ use crate::entity::{EdgeKey, VertexKey};
 use crate::null::CurveGeom;
 use crate::validate::decide;
 use crate::vertex_section::VertexRefusal;
-use geom::cover::BoxAxes;
 
 /// **The carrier gate, scoped to what the plane can reach** (C12.1:
 /// the gate retires per arm, never wholesale).
@@ -35,8 +34,7 @@ use geom::cover::BoxAxes;
 /// refuses by kind, since an arm executed against the fit would cut
 /// the approximation, not the surface the modeller described.
 ///
-/// The reach is read in the plane's own frame
-/// ([`geom::cover::BoxAxes::aimed`]), never in the world's
+/// The reach is read along the plane's normal, never in the world's
 /// axes, so whether a cut clears a face is a fact about the two of
 /// them and not about how the body is turned.
 ///
@@ -52,7 +50,6 @@ pub(super) fn carrier_gate<T: Decide>(
     plane: &SplitPlane<T>,
     band: Band,
 ) -> Result<(), SplitReduceError> {
-    let frame = BoxAxes::aimed(plane.normal);
     for face in body.face_views() {
         let face_key = face.key();
         let surface = face.surface();
@@ -87,7 +84,7 @@ pub(super) fn carrier_gate<T: Decide>(
                 | geom::Curve3::Spiric { .. } => {}
                 // No crossing-root arm reads a spline.
                 geom::Curve3::Nurbs(_) | geom::Curve3::Periodic(_) => {
-                    if !edge_clears(body, edge_key, plane, band, &frame) {
+                    if !edge_clears(body, edge_key, plane, band) {
                         return Err(SplitReduceError::CurvedEdgeUnsupported { edge: edge_key });
                     }
                 }
@@ -106,8 +103,7 @@ pub(super) fn carrier_gate<T: Decide>(
 /// either face it
 /// bounds, since an edge lies on both its faces. A spline edge's own
 /// reach is its control net's hull (its cover), which its faces'
-/// reaches may beat. `frame` is the plane's
-/// ([`BoxAxes::aimed`] at its normal).
+/// reaches may beat. Each reach is read along the plane's normal.
 ///
 /// `edge` is one the gate's arena walk read out of the at-rest operand,
 /// so it is proven, and its halves and their faces are links, which
@@ -117,12 +113,11 @@ fn edge_clears<T: Decide>(
     edge: EdgeKey,
     plane: &SplitPlane<T>,
     band: Band,
-    frame: &BoxAxes<T>,
 ) -> bool {
     let e = crate::live::proven(&body.edges, edge, crate::entity::EntityId::Edge);
     let reach = crate::cover::edge_cover(body, edge)
         .ok()
-        .map(|cover| cover.box_in(frame));
+        .map(|cover| cover.range_along(plane.normal.get()));
     reach_clears(reach, plane, band)
         || [e.he_plus, e.he_minus].into_iter().any(|he| {
             let face = body.face_of_linked(he);
@@ -138,30 +133,23 @@ fn edge_clears<T: Decide>(
 /// split plane along the plane's normal (metres).
 const SPLIT_GATE_BOX_SIDE: &str = "split_gate_box_side";
 
-/// Whether the plane certainly misses a reach read in the plane's
-/// frame ([`BoxAxes::aimed`]), whose first coordinate is the
-/// component along the plane's normal: the reach's gap from the
-/// plane's own offset along that normal, less the boolean sweep's pad,
-/// decided definitely positive. No reach (an entity the reach lane
-/// cannot bound) answers `false`.
-fn reach_clears<T: Decide>(
-    reach: Option<(Point3<T>, Point3<T>)>,
-    plane: &SplitPlane<T>,
-    band: Band,
-) -> bool {
+/// Whether the plane certainly misses a reach along its normal, bounds
+/// on `n·p`: the reach's gap from the plane's own offset along that
+/// normal, less the boolean sweep's pad, decided definitely positive.
+/// No reach (an entity the reach lane cannot bound) answers `false`.
+fn reach_clears<T: Decide>(reach: Option<(T, T)>, plane: &SplitPlane<T>, band: Band) -> bool {
     let Some((lo, hi)) = reach else {
         return false;
     };
     let pad = T::from_f64(crate::boxes::sweep_pad(band));
-    // The frame turns about the world origin, so a reach's first
-    // coordinate is `n·p`, and the world origin's own offset from the
+    // The reach is `n·p`, and the world origin's own offset from the
     // plane turns it into `n·(p − q)`.
     let origin = geom::plane_offset(
         plane.origin,
         plane.normal.get(),
         Point3::new(T::zero(), T::zero(), T::zero()),
     );
-    let gap = (lo.x + origin).max(T::zero() - (hi.x + origin)) - pad;
+    let gap = (lo + origin).max(T::zero() - (hi + origin)) - pad;
     matches!(
         decide(SPLIT_GATE_BOX_SIDE, Margin::of(gap), band),
         Ok(Sign::Positive)
@@ -1021,7 +1009,7 @@ mod torn_rows {
             .map(|(k, e)| (k, e.clone()))
             .unwrap();
         assert!(
-            !super::edge_clears(&body, edge, &plane, band, &frame),
+            !super::edge_clears(&body, edge, &plane, band),
             "the plane meets an edge it crosses"
         );
         let lost = body.get_half_edge(data.he_plus).unwrap().parent_loop;
@@ -1035,7 +1023,7 @@ mod torn_rows {
             "edge_clears",
             &mut body,
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
-            |b| super::edge_clears(b, edge, &plane, band, &frame),
+            |b| super::edge_clears(b, edge, &plane, band),
         );
 
         let mut body = fresh();

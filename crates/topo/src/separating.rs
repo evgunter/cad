@@ -20,6 +20,12 @@
 //! so the gap between two of them does not depend on how the pair is
 //! turned.
 //!
+//! For two faces, [`faces_apart`] reads on past [`apart`]: along the
+//! directions the pair's own geometry aims (the census's,
+//! [`crate::census::pair_directions`]), each face's cover read along the
+//! direction ([`crate::cover::face_cover_toward`]), as the census's
+//! arm 1 reads a pair at rest.
+//!
 //! **Soundness.** Every cover holds its item's locus, so a gap decided
 //! positive after both items' pads proves the loci disjoint: the same
 //! certificate a non-overlap of the two padded world boxes gives, read
@@ -241,10 +247,13 @@ pub(crate) fn apart<T: Decide>(
 ///
 /// The pole-side cut places a point in a face through its region
 /// ([`crate::contain::curved_face_placement`]), and narrows only on a
-/// definite `Out`. That is the door the boolean's curved sweep arm
-/// places its pierce and end points by on the same bodies mid-operation
-/// (`boolean::reduce::curved_face_arm`), so a body these doors read is
-/// one the operation already trusts that door on.
+/// definite `Out`. Its callers read operands at rest, or a sphere
+/// re-cut's operands re-entered whole. The boolean's curved sweep arm
+/// places its pierce and end points through the same door
+/// (`boolean::reduce::curved_face_arm`), in the faces of the operand it
+/// sweeps against, and the reverse sweep in the other's, so every face
+/// these callers place into is one the operation already places into by
+/// that door.
 ///
 /// # Panics
 ///
@@ -319,18 +328,16 @@ fn apart_along<T: Decide>(
 }
 
 /// The span of `items` along `dir`: the least and greatest support any
-/// of their covers has there, each face's read along `dir`
-/// ([`crate::cover::face_cover_toward`], a sphere face's pole-side cut,
-/// sound where [`faces_apart`] reads it). `None` where an item has no
-/// cover, or there is no item.
+/// of their covers has there. `None` where an item has no cover, or
+/// there is no item.
 pub(crate) fn support_along<T: Decide>(
     body: &Body<T>,
     items: impl IntoIterator<Item = Item<T>>,
     dir: UnitVec3<T>,
     band: Band,
 ) -> Option<(T, T)> {
-    span_by(body, items, dir, &|body, f, aim| {
-        crate::cover::face_cover_toward(body, f, band, aim).ok()
+    span_by(body, items, dir, &|body, f, _| {
+        crate::cover::face_cover(body, f, band).ok()
     })
 }
 
