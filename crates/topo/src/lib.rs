@@ -169,6 +169,8 @@ pub mod entity;
 pub mod euler;
 pub mod euler_kill;
 pub mod euler_ring;
+#[cfg(test)]
+pub(crate) mod euler_theorem;
 pub(crate) mod face_boundary;
 pub mod face_boxes;
 pub mod face_normal;
@@ -1475,8 +1477,8 @@ pub use boolean::{
     BooleanReduction, BooleanResult, BooleanResultKind, CarriedRecord, CarryRefusal, Cell,
     Coincide, CompletedPolygonPair, Contact, ContactKind, ContactPairError, ContactRecords,
     DeclarationRead, DiscardRow, EdgeCarrierSite, EdgeInBand, EdgeInFaceGap, EdgeJoin,
-    EdgePieceClass, EeContact, EfContact, FaceDescent, FfContact, Fusions, GlueVerdict, Held,
-    HeldRefusal, Holdings, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided,
+    EdgePieceClass, EeContact, EfContact, FaceDescent, FaceSource, FfContact, Fusions, GlueVerdict,
+    Held, HeldRefusal, Holdings, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided,
     JudgedRow, LeverArm, LineUnread, LineWedgeFault, MemberFace, MemberInputs, NaryEnd,
     NaryJudgement, NaryMember, NaryOp, NaryPlaced, NaryPlacedRun, NaryRefusal, NaryRun, NaryStep,
     NaryTaken, NodeWhy, NullEdgePairRecord, Operand, OperandKeys, OperandRecords, OverlapRefusal,

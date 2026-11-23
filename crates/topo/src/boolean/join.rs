@@ -1038,8 +1038,7 @@ fn one_site_segments<T: crate::props::AtRestPolicy>(
                     ));
                 }
                 if let Some((x, _)) = pierced
-                    && component_winds(red, &g0, section, f0.component)?
-                        [usize::from(x == Operand::B)]
+                    && component_winds(red, &g0, section, f0.component)?[x.index()]
                 {
                     return Err(winds_round());
                 }
@@ -2288,6 +2287,7 @@ fn off_conic_slack<T: geom_core::Real>(from: Turn<T>, band: Band) -> Margin<T> {
         / turn_of(from.frame(), from.site(), from.tangent()).abs();
     // Unsourced lever: the band's ε, how far a site may stand off the
     // conic, which is a tolerance and no extent, curvature or box.
+    // No door names it yet: `work/oneround/unsourced-levers-with-no-door-that-names-them.md`.
     Margin::levered(
         cot + cot,
         geom_core::Lever::unsourced(T::from_f64(band.zero())),
@@ -5211,7 +5211,7 @@ fn slit_tip_on<T: crate::props::AtRestPolicy>(
                 .into_iter()
                 .chain(paired)
                 .find_map(|(operand, w)| {
-                    red.slit_tips[usize::from(operand == Operand::B)]
+                    red.slit_tips[operand.index()]
                         .face_at(w)
                         .map(|face| (operand, face))
                 })
