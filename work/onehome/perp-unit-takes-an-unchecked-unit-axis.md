@@ -7,6 +7,7 @@ opened: 2026-09-15
 priority: P3
 cost: E
 closed: 2026-11-23
+pr: 7625
 branch: onehome/mints-sweep
 parent: carrier-frames-the-production-mints
 ---
