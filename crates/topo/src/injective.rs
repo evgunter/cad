@@ -8018,6 +8018,32 @@ mod presentation_rows {
         println!("R8 below {:?} above {:?}", chart(&s, &b, &[0, 1, 2], BELOW.0, BELOW.1), chart(&s, &b, &[0, 1, 2], ABOVE.0, ABOVE.1));
     }
 
+    /// R9: two rulings through a cone's apex on opposite nappes, joined
+    /// by key at the apex vertex, holding u = 0.5 and u = 1.0.
+    #[test]
+    fn review_rulings_joined_through_the_apex() {
+        let s = Surface::Cone {
+            frame: geom::Frame::new(
+                origin(),
+                Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+            ),
+            half_angle: iv0(core::f64::consts::FRAC_PI_4),
+        };
+        let b = Boundary {
+            sense: true,
+            edges: vec![
+                rim(1, [1, 9], Axis::U, 0.5, (0.5, -0.5), (0.5, 0.0)),
+                rim(2, [9, 2], Axis::U, 1.0, (1.0, 0.0), (1.0, 0.5)),
+            ],
+            vertices: BTreeMap::new(),
+            extent: Some([(0.0, 1.0), (-0.5, 0.5)]),
+        };
+        for (what, u) in [("inside both", (0.3, 0.45)), ("between", (0.6, 0.7))] {
+            println!("R9 {what}: {:?}", chart(&s, &b, &[0, 1], u, (-0.05, 0.05)));
+        }
+    }
+
     /// **`convex` decides a corner `present_chart` reads**: two `T`
     /// junctions on the rectangle's chart, at the corner `(2, 1)` where
     /// the `u = 2` line (face on its low side) meets the `v = 1` line
