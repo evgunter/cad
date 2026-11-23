@@ -1017,3 +1017,16 @@ Both reds were found by PCERT's nightly lane and trace to SECTARMS merges.
 - The rim-pad lane opened PR 7499 at head `4cad78819e`. Its one CI red is `certified_endpoint_census` on five files it does not touch (`ruling.rs`, `speed.rs`, `props.rs`, step-import's `on_built.rs` and `recognize_curve.rs`). That is main's known drift (CHARTTAIL and EXCH items), and the gate runs it here only because the PR edits the census file. It is to be settled at merge.
 - The C2/C5 rewrite carries out Ev's PR 7045 decision, which directed it. It is not a second design choice, so the PR self-merges after review.
 - Slot-order byte 253 (odd), so R1 = Fable and R2 = Opus. Recorded on the analysis branch. Both reviews of the frozen head are running concurrently.
+
+## 2026-11-23 — PR 7499: reviews in, fix pass dispatched, blind coding done
+
+- R1 (B) and R2 (A) both returned APPROVE-WITH-FIXES. The fix pass went back to the same lane, with the brief in the scratchpad's `fix-7499.md`. It covers:
+  - one metric for apartness and the site read;
+  - a stall that watches something halving narrows, with node boxes left out and the stop named;
+  - a budget scaled to the first reading;
+  - rows to kill the surviving mutants;
+  - a direct done-when row (lines 1.1–1.6 rungs);
+  - C5's pad direction corrected;
+  - main's census drift left to its owners.
+- Blind-coding byte 173, so A = R2. The coding finds these bilateral: the metric mismatch (A MINOR, B MAJOR), the false choice 2 and its surviving no-stall mutant, `REFINE_CELLS`, the done-when, and several text and style items.
+- Tally: none. B's node-box stall is unilateral and demonstrated, but it was raised "at the MAJOR/MINOR line", not at MAJOR, so criterion (a) is not met. I record it as borderline and do not tally it.
