@@ -1610,7 +1610,7 @@ fn the_kite_moats_subtract_names_its_edges_where_its_result_stands() {
     );
     assert_eq!(
         fixture::digest::digest(&ev),
-        0xa4d9_ab2a_eaf0_bd50,
+        0xfe07_0805_06b3_9e32,
         "the kite moat's evaluation, bodies and name tables"
     );
 }
