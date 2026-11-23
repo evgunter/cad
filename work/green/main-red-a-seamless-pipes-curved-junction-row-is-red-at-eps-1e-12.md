@@ -2,13 +2,14 @@
 id: main-red-a-seamless-pipes-curved-junction-row-is-red-at-eps-1e-12
 kind: issue
 title: main red (slow set, eps 1e-12): a_seamless_pipe_cut_by_an_oblique_plane_measures::a_curved_junction_certifies_across_the_departure_arm
-status: dispatched
+status: closed
 opened: 2026-11-22
 priority: P0
 cost: E
 pr: 7402
 branch: green/seamless-pipe
 refs: [pr-7131s-frame-cost-at-1e-12-is-larger-than-it-counted]
+closed: 2026-11-23
 ---
 
 
@@ -84,3 +85,12 @@ certificates at the pinned poses. At 1e-12 the closed-form row skips
 the pinned poses, with a printed line, so the kilometre-out pose's
 convergence at `Interval` goes unread there until the ONEHOME row
 closes.
+
+## Closed (GREEN orchestrator, 2026-11-23)
+
+PR 7402 pins both seamless-pipe rows at ε 1e-12 as PR 7131's frame
+cost, keyed on values through `FRAME_COST`, against ONEHOME's
+`pr-7131s-frame-cost-at-1e-12-is-larger-than-it-counted`. Ev ruled on
+PR 7505 (2026-11-23 06:20Z) that the full count stands. The PR's gate
+passed on `8e58bee11f`, and the pins held at 1e-12, 1e-6 and 1e-9 in
+throwaway run 45070512697.
