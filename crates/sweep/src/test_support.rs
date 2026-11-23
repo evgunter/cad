@@ -1099,9 +1099,8 @@ pub fn sphere_zone(bore: f64, rev: crate::Revolution<f64>, tol: Tol) -> Body<f64
 
 /// **The BLEND-1 lantern**: a pole-touching solid of revolution —
 /// base disk, unit-sphere belly to the 3-4-5 shoulder `(0.8, 0.6)`,
-/// cone to the lip `(0.2, 1.2)`, top disk — so every wall is a pair
-/// of half-bands and every latitude rim a pair of arcs meeting at
-/// chart-seam vertices.
+/// cone to the lip `(0.2, 1.2)`, top disk — every wall one band and
+/// every latitude rim one closed edge on its wall's seam vertex.
 ///
 /// Its rims, for [`rim_arcs_at`]: neck `(1, 0)`, shoulder
 /// `(0.8, 0.6)`, lip `(0.2, 1.2)`.
@@ -1922,8 +1921,8 @@ pub fn plane_sphere_external_cut(big_r: f64, r: f64) -> f64 {
 /// `up` false is its DIMPLE twin, the same hemisphere dug into the top
 /// instead (bulge `−tan(π/8)`, apex `(0, 0.5)`).
 ///
-/// Pole-touching: each curved wall is minted as two half-bands, each
-/// plane wall whole, so the flat top is ONE plane ANNULUS carrying THREE
+/// Pole-touching: each wall is minted whole, so the flat top is ONE
+/// plane ANNULUS carrying THREE
 /// closed rims of three shapes at
 /// once, which is why it is the fixture: its BASE rim `(1, 0)` is a
 /// hostless annulus on a ring-free host, its TOP OUTER rim `(1, 1)` is a
@@ -2474,19 +2473,19 @@ pub fn circle_arcs_at_z(body: &Body<f64>, z: f64) -> Vec<EdgeKey> {
     rim
 }
 
-/// **A full revolve's rim is the two arcs its one seam splits it
-/// into** — the fact a suite states before carving a revolved rim,
-/// said once. Two is the fixture's shape, not the door's limit:
-/// the N-arc rims are `closed_chain_junctions`' subject.
+/// **A full revolve's rim is one closed edge** — the fact a suite
+/// states before carving a revolved rim, said once. One is the
+/// fixture's shape, not the door's limit: the N-arc rims are
+/// `closed_chain_junctions`' subject.
 ///
 /// # Panics
 ///
-/// If `arcs` is not exactly two, naming `name`.
+/// If `arcs` is not exactly one, naming `name`.
 pub fn assert_full_revolve_rim(arcs: &[EdgeKey], name: &str) {
     assert_eq!(
         arcs.len(),
-        2,
-        "{name}: the rim is the two arcs a full revolve's one seam splits it into"
+        1,
+        "{name}: a full revolve's rim is one closed edge"
     );
 }
 
