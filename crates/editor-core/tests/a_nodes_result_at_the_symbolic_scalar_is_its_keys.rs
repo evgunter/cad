@@ -189,7 +189,10 @@ fn one_key_one_result_in_a_drive_that_registers() {
 #[test]
 fn a_leafs_receipt_is_the_sum_of_its_nodes_records() {
     let tol = Tol::witness();
-    for (label, doc) in [("retrying", retrying(tol)), ("registering", registering(tol))] {
+    for (label, doc) in [
+        ("retrying", retrying(tol)),
+        ("registering", registering(tol)),
+    ] {
         for (i, (session, nodes)) in read(&doc, tol).receipts.iter().enumerate() {
             assert!(session.decisions() > 0, "{label} leaf {i} decided");
             assert_eq!(session, nodes, "{label} leaf {i}");
@@ -222,7 +225,10 @@ fn a_drive_is_the_same_on_one_thread_or_many_and_with_the_table_or_without() {
     let tol = Tol::witness();
     // The bracket past the box it certifies whole, so the drive splits.
     let wide_bracket = crate::m10_7_r2_probes_interval::bracket(1.0e3 * tol.eps(), tol).0;
-    for (label, doc) in [("retrying", wide_bracket), ("registering", registering(tol))] {
+    for (label, doc) in [
+        ("retrying", wide_bracket),
+        ("registering", registering(tol)),
+    ] {
         let reference = driven(&doc, false, true, tol);
         assert!(
             reference.certified().len() + reference.refused().len() > 1,

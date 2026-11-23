@@ -262,7 +262,15 @@ pub(super) fn reduce_steps(
     atoms: &IndetMap<AtomInfo>,
     steps: usize,
 ) -> Option<Form> {
-    reduce_noting(f, rules, budget, atoms, steps, &mut Vec::new(), &mut Vec::new())
+    reduce_noting(
+        f,
+        rules,
+        budget,
+        atoms,
+        steps,
+        &mut Vec::new(),
+        &mut Vec::new(),
+    )
 }
 
 /// [`reduce_steps`], pushing to `absent` every id the reduction looked

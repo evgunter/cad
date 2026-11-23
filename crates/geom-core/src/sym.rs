@@ -3055,7 +3055,13 @@ fn with_session_in<R>(
     #[cfg(feature = "sym-profile-testing")]
     if let Some(s) = &sess {
         profile::session_done(s.nodes.len(), s.atoms.len());
-        profile::retry_memos(&s.node.retries.iter().map(RetryMemo::len).collect::<Vec<_>>());
+        profile::retry_memos(
+            &s.node
+                .retries
+                .iter()
+                .map(RetryMemo::len)
+                .collect::<Vec<_>>(),
+        );
         profile::reduction_memo(s.reductions_held);
     }
     // **The leaf's `frozen` column is its NEED**, read here, when every

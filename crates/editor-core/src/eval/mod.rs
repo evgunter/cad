@@ -5274,7 +5274,10 @@ fn upstream_records<T: topo::AtRestPolicy + Decide>(
     }
     seen.into_iter()
         .filter_map(|input| {
-            usable_in(results, input, || NodeStanding::NotInDocument { node: input }).ok()
+            usable_in(results, input, || NodeStanding::NotInDocument {
+                node: input,
+            })
+            .ok()
         })
         .filter(|v| v.sym.registrations() > 0)
         .map(|v| Arc::clone(&v.sym))

@@ -59,7 +59,8 @@ fn alone_and_after(retry: SymRetry, a: impl Fn(), b: impl Fn()) -> ([u64; 3], [u
 /// ran before it turns `B` after `A` into a proof.
 #[test]
 fn a_registration_is_not_read_by_a_node_it_does_not_feed() {
-    let p = |name: &str, v: f64| Sym::<f64>::param(ParamSymbol::new(test_utils::symbol_id(name)), v);
+    let p =
+        |name: &str, v: f64| Sym::<f64>::param(ParamSymbol::new(test_utils::symbol_id(name)), v);
     let sin_u = move || p("u", 0.5).sin_cos().0;
     let w = move || p("w", 0.5_f64.sin());
     let (alone, after) = alone_and_after(
@@ -82,7 +83,8 @@ fn a_registration_is_not_read_by_a_node_it_does_not_feed() {
 /// upstream records hold, leaves `B` numeric.
 #[test]
 fn a_registration_is_read_by_the_nodes_it_feeds() {
-    let p = |name: &str, v: f64| Sym::<f64>::param(ParamSymbol::new(test_utils::symbol_id(name)), v);
+    let p =
+        |name: &str, v: f64| Sym::<f64>::param(ParamSymbol::new(test_utils::symbol_id(name)), v);
     let sin_u = move || p("u", 0.5).sin_cos().0;
     let w = move || p("w", 0.5_f64.sin());
     let (fed, _) = with_session_retry(budget(), SymRules::shipped(), SymRetry::none(), || {
