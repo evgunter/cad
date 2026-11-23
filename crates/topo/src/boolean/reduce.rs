@@ -10252,6 +10252,49 @@ mod junction_end_rows {
         );
     }
 
+
+    /// PROBE (R2): which gate refuses a sphere's small circle off the
+    /// ice-cream rim, over beta and the rim's latitude.
+    #[test]
+    fn probe_which_gate_refuses_first() {
+        use geom_brep::curve_face::end_root::end_window;
+        let b = band();
+        for h in [0.02_f64, 0.05, 0.1, 0.2, 0.3] {
+            for k in 0..40 {
+                let beta = 10f64.powf(-2.6 + 0.02 * k as f64);
+                let rho = (1.0 - h * h).sqrt();
+                let p = Point3::new(rho, 0.0, h);
+                let n = Vec3::new(rho, 0.0, h);
+                let conormal = Vec3::new(h, 0.0, -rho);
+                let d = Vec3::new(0.0, 1.0, 0.0) * beta.cos() + conormal * beta.sin();
+                let m = d.cross(n).normalize();
+                let center = Point3::new(0.0, 0.0, 0.0) + m * m.dot(p - Point3::new(0.0, 0.0, 0.0));
+                let radius = (p - center).norm();
+                let u = (p - center) / radius;
+                let normal = if m.cross(u).dot(d) > 0.0 { m } else { -m };
+                let circle = geom::Curve3::circle(center, normal, radius, u);
+                let apex = 1.0 / h;
+                let cone = geom::Surface::Cone {
+                    frame: geom::Frame::new(
+                        Point3::new(0.0, 0.0, apex),
+                        Vec3::new(0.0, 0.0, -1.0),
+                        Vec3::new(1.0, 0.0, 0.0),
+                    ),
+                    half_angle: (rho / (apex - h)).atan(),
+                };
+                let w = end_window(&circle, (0.0, 0.25), SpanEnd::Start, &cone, b);
+                let side = w.as_ref().ok().map(|w| {
+                    junction_side(beta.sin(), (1.0 / radius, 1.0 / rho), w.spread, b)
+                });
+                let tag = match (&w, &side) {
+                    (Err(e), _) => format!("WINDOW {e:?}").chars().take(40).collect::<String>(),
+                    (Ok(_), Some(Ok(Sign::Positive))) => "OK".to_string(),
+                    (Ok(_), s) => format!("SIDE {s:?}"),
+                };
+                eprintln!("PROBE h={h} beta={beta:.3e} {tag}");
+            }
+        }
+    }
     /// **The end is decided on the rim before anything is read**: on it,
     /// off it by a millimetre, and off it within the band's escalation.
     #[test]
