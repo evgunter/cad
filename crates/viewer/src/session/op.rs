@@ -411,8 +411,7 @@ pub enum SessionOp {
     /// does not hold its parts silently rebinds to that directory and
     /// its instances refuse at the next evaluation — typed on the tree
     /// badges, and recoverable by saving back, but nothing warns
-    /// first. Recorded with the rest of the seam's newly-reachable
-    /// edges in issue #1387.
+    /// first (`work/versions/document-seam-no-in-session-change-detection.md`).
     Save(PathBuf),
     /// **Save as a new document** (DI4): the committed document under
     /// a fresh random id, written at the path through that folder's

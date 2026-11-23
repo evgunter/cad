@@ -547,3 +547,23 @@ row's last section says what moved.
   `SessionOp::SketchOnFace`, `Doc.sketch_on_face`, pncad's re-exports and editor-core's fused act are gone. A sketch on a face is a profile drawn on the face's chart, and the extrude and the combine are their own acts.
   - **A semantic conflict with main was caught at the merge.** `7661fad` (2026-11-22) added `intent_s6_e_traced_on_a_face::a_boss_traced_across_two_cylinders_coaxial_only_at_zero_tilt_is_not_proved`, a new caller of `editor_core::sketch_on_face`. The textual merge was clean, and only a grep of the merged tree found it. It is ported to `draw_on_face` plus an extrude of 2.0, the same place the fused act put the upright cylinder.
   - **Class finding:** a deletion PR that waits in a queue can be met by a new caller on main, and a text merge cannot see it. The deletion's own sweep has to be re-run on the merged tree (discipline §5: "a sweep is accurate as of your merge base"). (VSEAM)
+- 2026-11-23 — **Merged PR 7466** (carrying 7465), on a local battery per Ev's CI ruling, run on the tree merged with main.
+  - **Results:** clippy clean on four crates; editor-core intent rows 35/35; pncad 84/84; Python 971 with one census failure, fixed; viewer 1670/1674.
+  - **The viewer's four reds are not ours.** Three need a GPU adapter, and `review_pick_r2` is inherited from main (PCERT's row).
+  - **The battery caught a bad merge.** One of the branch's merges had dropped main's `B-READS` census family and its two `NOT_BOUND` rows. They are restored from main, and a diff against the merge base showed nothing else lost.
+  - **Class finding:** a long-queued branch merges main several times, and each merge can lose main's lines. The census caught this one only because it is a test.
+  - The queued hosted run was cancelled. The P1 slate closed this sitting:
+    - the fused sketch-on-face act, three rows;
+    - `document-seam-no-in-session-change-detection`, handed to VERSIONS on Ev's ruling.
+- 2026-11-23 — **Track handed back (`ready`).**
+  - **What remains is not dispatchable by this sitting:**
+    - P1 `the-profile-editor-picks-an-earlier-piece-as-a-points-or-directors-value` waits on SELFREF's two units;
+    - the two parked P1s wait on FACELOOP and REPEAT;
+    - the P2–P4 tail is a successor's.
+  - **Drive-by:** `SessionOp::Save`'s doc cited "issue #1387". It now cites the row it moved to (`work/versions/document-seam-no-in-session-change-detection.md`).
+  - **Friction this sitting:**
+    - disk fits about three 11–12 GB targets;
+    - hosted runners queued 79+ runs, and a run waited about 1.5–2 h;
+    - two merges with main were wrong in ways a text merge cannot show: a new caller of a deleted function, and dropped census rows.
+
+  Lanes and targets are cleaned. (VSEAM)
