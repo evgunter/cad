@@ -111,8 +111,8 @@ fn the_boss_union_is_valid_at_rest_and_its_band_is_the_ladder() {
         .collect();
     assert_eq!(
         arcs.len(),
-        2,
-        "the boss's rim is two arcs across the cap's seam"
+        1,
+        "the boss's rim is one closed edge"
     );
     let top = boss
         .faces()

@@ -49,8 +49,8 @@ fn d5_whole_cap_with_stored_pcurves_stays_cache_clean() {
     assert!(rows_before > 0, "the probe needs stored caches");
     assert_eq!(
         (c.vertices().count(), c.faces().count()),
-        (3, 3),
-        "apex, two rim vertices; cone halves and one base disc"
+        (2, 2),
+        "apex, one rim vertex; one cone face and one base disc"
     );
     let out = c.merge_coplanar_faces(tol).expect("nothing to repair");
     assert!(out.groups.is_empty(), "{:?}", out.groups);

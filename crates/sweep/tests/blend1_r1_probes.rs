@@ -137,7 +137,7 @@ fn p1_the_seam_vertex_tag_fires_without_reading_convexity() {
         ("the convex base", 1.0, 0.0),
     ] {
         let arcs = rim_arcs_at(&body, rim_r, rim_y);
-        assert_eq!(arcs.len(), 2, "{name} is seam-split");
+        assert_eq!(arcs.len(), 1, "{name} is one closed edge");
         match fillet_edges(&body, &arcs[..1], 0.05, tol()).map_err(|r| r.error) {
             Err(BlendError::UnbuiltEnd(end)) => assert!(
                 matches!(end, UnbuiltEnd::Seam { .. }),
@@ -173,7 +173,7 @@ fn p2_the_lip_rim_removal_matches_a_hand_pappus_closed_form() {
     let r = 0.05;
     let source = lantern();
     let arcs = rim_arcs_at(&source, LIP_R, TOP);
-    assert_eq!(arcs.len(), 2, "the lip rim is seam-split");
+    assert_eq!(arcs.len(), 1, "the lip rim is one closed edge");
     let out = fillet_edges(
         &sweep::test_support::at_rest(&source, tol()),
         &arcs,
@@ -331,7 +331,7 @@ fn p3_a_petrie_hexagon_cycle_never_assembles_into_a_closed_chain() {
 fn p4_the_lantern_neck_rim_carves_and_one_arc_refuses_followably() {
     let source = sweep::test_support::finished("source", lantern(), tol());
     let arcs = rim_arcs_at(&source, 1.0, 0.0);
-    assert_eq!(arcs.len(), 2, "the neck rim is two arcs");
+    assert_eq!(arcs.len(), 1, "the neck rim is one closed edge");
     let (a0, b0) = faces_of(&source, arcs[0]);
     let (a1, b1) = faces_of(&source, arcs[1]);
     let planes: Vec<FaceKey> = [a0, b0, a1, b1]

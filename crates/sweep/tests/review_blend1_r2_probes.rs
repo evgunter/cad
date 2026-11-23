@@ -200,7 +200,7 @@ fn the_lip_bands_removed_volume_matches_a_hand_quadrature() {
     let before = volume(&source);
     for r in [0.02, 0.05, 0.08] {
         let arcs = rim_arcs_at(&source, LIP_R, TOP);
-        assert_eq!(arcs.len(), 2, "the lip rim is seam-split");
+        assert_eq!(arcs.len(), 1, "the lip rim is one closed edge");
         let out = fillet_edges(&source, &arcs, r, tol())
             .unwrap_or_else(|e| panic!("the lip fillets at r={r}, got {e:?}"));
         let removed = before - volume(&out.body);
@@ -257,7 +257,7 @@ fn a_strict_subset_of_a_seam_split_rims_arcs_refuses_typed() {
         ("lip", LIP_R, TOP),
     ] {
         let arcs = rim_arcs_at(&source, rr, ry);
-        assert_eq!(arcs.len(), 2, "{name} is seam-split");
+        assert_eq!(arcs.len(), 1, "{name} is one closed edge");
         for one in &arcs {
             match fillet_edges(&source, &[*one], 0.05, tol()).map_err(|r| r.error) {
                 Err(BlendError::UnbuiltEnd(UnbuiltEnd::Seam { .. })) => {}
@@ -283,7 +283,7 @@ fn two_rims_sharing_a_wall_in_one_call_carve_both_bands() {
     let source = lantern();
     let mut both = rim_arcs_at(&source, 1.0, 0.0);
     both.extend(rim_arcs_at(&source, SHOULDER.0, SHOULDER.1));
-    assert_eq!(both.len(), 4, "two seam-split rims are four arcs");
+    assert_eq!(both.len(), 2, "two rims, one edge each");
     let out = fillet_edges(
         &sweep::test_support::at_rest(&source, tol()),
         &both,
@@ -511,7 +511,7 @@ fn a_cylinder_capped_both_ends_carves_both_seam_split_rims() {
     let mut bands = 0;
     for (name, ry) in [("base", 0.0), ("top", 1.0)] {
         let arcs = rim_arcs_at(&body, 1.0, ry);
-        assert_eq!(arcs.len(), 2, "{name} rim is seam-split");
+        assert_eq!(arcs.len(), 1, "{name} rim is one closed edge");
         let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, r, tol())
             .unwrap_or_else(|e| panic!("{name} rim fillets, got {e:?}"));
         bands += out.band_faces.len();
@@ -557,8 +557,8 @@ fn the_seam_vertex_recourse_names_a_door_that_answers() {
     let arcs = rim_arcs_at(&source, 1.0, 0.0);
     assert_eq!(
         arcs.len(),
-        2,
-        "a full revolve's one seam splits the rim into two arcs"
+        1,
+        "a full revolve's one seam splits the rim into one closed edge"
     );
     // The refusal fires...
     let refused = fillet_edges(&source, &arcs[..1], 0.1, tol()).map_err(|r| r.error);
@@ -594,7 +594,7 @@ fn the_waisted_bodys_convex_rims_carve_so_its_concave_row_is_not_vacuous() {
     let source = sweep::test_support::finished("source", waisted(tol()), tol());
     for (name, ry) in [("base", 0.0), ("top", 1.0)] {
         let arcs = rim_arcs_at(&source, 1.0, ry);
-        assert_eq!(arcs.len(), 2, "{name} rim is seam-split");
+        assert_eq!(arcs.len(), 1, "{name} rim is one closed edge");
         let out = fillet_edges(&source, &arcs, 0.05, tol())
             .unwrap_or_else(|e| panic!("{name} rim of the waisted body carves, got {e:?}"));
         assert_eq!(out.band_faces.len(), 1);
@@ -639,7 +639,7 @@ fn the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires() {
         ("the convex top", 1.0, 1.0, true),
     ] {
         let arcs = rim_arcs_at(&source, rim_r, rim_y);
-        assert_eq!(arcs.len(), 2, "{name} is seam-split");
+        assert_eq!(arcs.len(), 1, "{name} is one closed edge");
 
         // Half one: the tag fires, and shows the sentence.
         let Err(one) = fillet_edges(&source, &arcs[..1], 0.05, tol()).map_err(|r| r.error) else {

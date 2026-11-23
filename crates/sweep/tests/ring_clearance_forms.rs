@@ -58,7 +58,7 @@ fn carve(name: &str, body: &Body<f64>, rims: &[(f64, f64)], r: f64) -> (f64, Bod
     let mut arcs = Vec::new();
     for (rr, ry) in rims {
         let a = rim_arcs_at(body, *rr, *ry);
-        assert_eq!(a.len(), 2, "{name}: the ({rr}, {ry}) rim is two arcs");
+        assert_eq!(a.len(), 1, "{name}: the ({rr}, {ry}) rim is one closed edge");
         arcs.extend(a);
     }
     let before = topo::mass_properties(
@@ -130,7 +130,7 @@ fn the_bosss_dome_rim_carves_inside_its_hosts_circular_boundary() {
     for (up, adds) in [(true, true), (false, false)] {
         let name = if up { "boss dome rim" } else { "dimple rim" };
         let body = repaired(up);
-        assert_eq!(census(&body), (7, 10, 6), "{name}: the repaired census");
+        assert_eq!(census(&body), (4, 5, 4), "{name}: the repaired census");
         let (measured, out) = carve(name, &body, &[(0.5, 1.0)], 0.1);
         // (7, 10, 6) + the two-crossing band's (1, 2, 1): its host
         // trimlines join at the foot the slit does not reach.

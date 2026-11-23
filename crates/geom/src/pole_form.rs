@@ -1,16 +1,15 @@
 //! **The pole form**: how a face meets a chart singularity of its
 //! surface, a sphere's pole or a cone's apex.
 //!
-//! A chart singularity in a face's closure is a vertex of it, and the
-//! kernel's form for that vertex is two **half-turn meridians**: the
-//! singular point is an end of two meridian edges whose azimuths about
-//! the surface axis are `d` and `−d`, each the other's half turn about
-//! the axis, and a face that reaches the point reaches it between the
-//! two. A full revolve sweeps its wire in two π-bands, so each pole it
-//! makes ends the angle-0 and angle-π meridians (`sweep`'s
-//! `revolve::full::build_wire`); import mints the same pair wherever a
-//! file states the singularity some other way (`step-import`'s
-//! edge-free sphere and its `normalize` pass).
+//! A chart singularity in a face's closure is a vertex of it. Import's
+//! form for that vertex, where a file states the singularity some other
+//! way (`step-import`'s edge-free sphere and its `normalize` pass), is
+//! two **half-turn meridians**: the singular point is an end of two
+//! meridian edges whose azimuths about the surface axis are `d` and
+//! `−d`, each the other's half turn about the axis, and a face that
+//! reaches the point reaches it between the two. A full revolve reaches
+//! its poles otherwise, by one wrap edge each, its wall's seam (DESIGN
+//! `[topology]`'s seam clause, `sweep`'s `revolve::full::build_wire`).
 //!
 //! This module is the description those doors share: the azimuth pair
 //! ([`azimuths`]), the half turn that carries one meridian onto the

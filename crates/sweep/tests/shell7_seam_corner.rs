@@ -612,8 +612,8 @@ fn a_sphere_from_an_arc_run_hollows_to_its_closed_form() {
         );
         assert_eq!(
             body.faces().count(),
-            2,
-            "station {v}: one wall in two π-bands"
+            1,
+            "station {v}: one wall, one face"
         );
         let mut cavity = body.clone();
         let band = geom_core::Band::linear(tol()).expect("band");
