@@ -145,12 +145,14 @@ crates/profile/src/seg.rs	1	constant	ulps * f64::EPSILON	an ulp count's relative
 crates/profile/src/sugar.rs	1	constant	0.5 * band.zero()	half the band's coincidence threshold: how far past its boundary a recourse's value still fits exactly
 crates/profile/src/sugar.rs	1	constant	band.zero()	the band's zero width, a tolerance
 crates/profile/src/validate.rs	1	constant	angle	a containment ray's fixed angle (RAY_BASE + k·RAY_STEP)
-crates/profile/src/validate.rs	4	launders(the-loft-enclosure-arm-re-enters-its-sections-canonical-form-as-constants)	<fn>	ValidatedProfile::lift_onto (its stored scalars and its recorded directions): its one production caller, sweep's loft at an enclosure scalar, re-enters the f64 canonical form of its lane sections' value channel as constants (a function of the variables at Sym<Interval>)
+crates/profile/src/validate.rs	4	fixture	<fn>	ValidatedProfile::lift_onto (its stored scalars and its recorded directions): the fixture door for a canonical form, behind test-support; no production caller
 crates/sweep/src/blend/reach.rs	1	constant	2.0 * FaceBoxes::pad(band)	the band's box pad, a tolerance
 crates/sweep/src/blend/reach.rs	1	constant	pts.len() as f64	a point count
 crates/sweep/src/blend/reach.rs	2	constant	band.escalate()	the band's escalation width, a tolerance
+crates/sweep/src/loft.rs	2	fixture	<fn>	f64_body_held_as_points: the fixture body whose carriers hold f64 values as points (walls and section parameters), behind test-support; no production caller
 crates/sweep/src/loft/stacking.rs	1	constant	count.max(1) as f64	a count
-crates/sweep/src/skin.rs	1	constant	<fn>	a path sweep's path (control net, knots, weights): f64 data, a constant of the model, entering each lane its stations are minted at
+crates/sweep/src/skin.rs	1	constant	*share	section_parameters: a path sweep's station share i/(stations − 1), structure, the same v at every scalar
+crates/sweep/src/skin.rs	3	constant	<fn>	a path sweep's path (control net, knots, weights): f64 data, a constant of the model, entering each lane its stations are minted at; and each station's roll reference, selected at f64 from that path alone (PathCarry::of), so a constant of the model as the path is; and stated_knots: the averaged v knots of a path sweep's station shares, a function of the station count alone
 crates/sweep/src/skin.rs	1	constant	at	a path station's parameter, its uniform share of the path's domain selected at f64: the point the carry samples
 crates/sweep/src/skin.rs	1	constant	counted as f64	a row count
 crates/sweep/src/skin.rs	1	constant	geom_brep::sub_arc_joint(k + 1, m)	a sub-arc end k/m as a fraction of the sweep, structure
