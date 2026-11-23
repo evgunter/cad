@@ -4,7 +4,7 @@ kind: issue
 title: The sphere cut-in refuses a one-band face whose seam lies in the cut's meridian plane on the far half-plane
 status: open
 opened: 2026-11-23
-priority: P2
+priority: P1
 cost: M
 refs: [a-full-revolves-curved-wall-carries-two-seam-meridians-nobody-wrote]
 ---

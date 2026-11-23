@@ -4,7 +4,7 @@ kind: issue
 title: A one-band ball's seam meridian carries a certificate a fresh re-certification does not reproduce
 status: open
 opened: 2026-11-23
-priority: P3
+priority: P1
 cost: E
 refs: [a-full-revolves-curved-wall-carries-two-seam-meridians-nobody-wrote]
 ---

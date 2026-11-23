@@ -4,7 +4,7 @@ kind: issue
 title: A one-band sphere cap reached by its wrap tip reads no chart window, so its cover is the whole ball and the box cull keeps pairs it used to drop
 status: open
 opened: 2026-11-23
-priority: P2
+priority: P1
 cost: M
 refs: [a-full-revolves-curved-wall-carries-two-seam-meridians-nobody-wrote]
 ---
