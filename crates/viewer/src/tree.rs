@@ -1751,17 +1751,6 @@ fn downstream_of_mate(id: RecipeNodeId, error: &NodeError) -> Option<Standing<'s
 /// document is building, and a poisoned row says it is not. Collapsing
 /// the two would make a document whose only fault is downstream report
 /// clean.
-///
-/// **And the opposite reading from [`crate::bounds::Verdict`]**, which
-/// excludes poisoning for a reason argued at its own site — *"counting
-/// it would make one failure register as many"*. Both readings are
-/// right for their question: a verdict is a SET whose size decides
-/// whether a value got worse, and a poisoned node inflates it; this is
-/// a boolean, which nothing inflates. Where they can actually differ
-/// is the one state that has a poisoned row with no failed row behind
-/// it ([`RowStatus::Poisoned`] with `message: None`) — this calls that
-/// document not building, and a verdict over it is empty. `Verdict`'s
-/// own doc names this reading back, so each site states the other.
 pub fn has_faults(rows: &[TreeRow]) -> bool {
     rows.iter().any(|row| match row.status {
         RowStatus::Failed { .. } | RowStatus::Poisoned { .. } => true,

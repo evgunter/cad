@@ -754,6 +754,7 @@ test_utils::f6_variants! {
         NothingToDo,
         Display,
         SlotUnit,
+        Range,
         NoDocumentDirectory,
         Workspace,
         SelfInstance,

@@ -456,6 +456,10 @@ pub enum Refusal {
     /// A written-unit change refused — the panel model's own typed
     /// vocabulary, unaltered.
     SlotUnit(props::SlotUnitFault),
+    /// A `range?` the kernel's admission refuses, before any geometry
+    /// runs (`pncad::analysis::range::admit`) — the refusal's own
+    /// vocabulary, unaltered.
+    Range(Box<pncad::analysis::RangeRefusal>),
     /// The session has no backing file, so there is no directory for a
     /// part reference to be picked from or to resolve against — the
     /// directory rule's consequence at authoring time. Its recourse
@@ -701,7 +705,10 @@ impl Refusal {
             | Self::NothingToDo { .. }
             | Self::NoDocumentDirectory
             | Self::Workspace(_)
-            | Self::SelfInstance { .. }) => unspoken,
+            | Self::SelfInstance { .. }
+            // Spoken off the document the admission read, which is the
+            // shown one; a refusal outlives no edit of it.
+            | Self::Range(_)) => unspoken,
         }
     }
 
@@ -735,6 +742,7 @@ impl Refusal {
             | Self::NothingToDo { .. }
             | Self::Display(_)
             | Self::SlotUnit(_)
+            | Self::Range(_)
             | Self::NoDocumentDirectory
             | Self::Workspace(_)
             | Self::SelfInstance { .. }
@@ -788,6 +796,7 @@ impl Refusal {
             | Self::Dimension(_)
             | Self::Parse(_)
             | Self::SlotUnit(_)
+            | Self::Range(_)
             | Self::NoDocumentDirectory
             | Self::Workspace(_)
             | Self::SelfInstance { .. }
@@ -1118,6 +1127,7 @@ impl Refusal {
             Self::NothingToDo { direction } => write!(f, "nothing to {}", direction.verb()),
             Self::Display(fault) => write!(f, "{fault}"),
             Self::SlotUnit(fault) => write!(f, "{fault}"),
+            Self::Range(refusal) => write!(f, "{refusal}"),
             Self::NoDocumentDirectory => write!(
                 f,
                 "save the document first — references resolve against the file's directory"
