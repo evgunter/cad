@@ -94,3 +94,19 @@ next-critical-value gap are proxies for that, and go.
   sleeve standing above the ring's widest circle, a block in the hole
   with its face off the touch, a trimmed ball in the hole, a ball
   inside the tube against its inner half.
+
+## Scope: strict extremes here, saddles after the line × torus door (2026-11-23)
+
+The build lane audited every root door the touch leans on (ε = 1e-9,
+K = 10). Each holds S′ except line × torus: its count-0 `Miss` is
+decided on the quartic's discriminant, not on a clearance, so a line
+passing 1e-11 above the torus is silent
+(`work/germ/the-line-torus-door-misses-silently-within-the-band.md`).
+At a strict extreme the edge that parts a section component from the
+touch lies on the solid's side, where that door refuses within about
+4ε; at a saddle the carriers cross along the lobes and the parting edge
+can stand just outside, where it is silent. So this unit admits strict
+extremes (points and parallels), with the elliptic margin and, where
+the arm decides perfectness, the gap margin gone; saddle tangencies
+keep R-tan. Admitting them is
+`torus-saddle-touches-are-read-by-their-near-band`, parked on the door.
