@@ -72,3 +72,5 @@ two more, `a declared carrier matched nothing in src: Const(NEST)` and
 That lane's branch prints the same lines and nothing else.
 
 **On `origin/main` at `ffb8d91ae5` (2026-11-23).** The two `Const(NEST)`/`Const(REACH)` lines are gone. Two new indirect sites are not listed: `boolean/join.rs: conic_section_frame_at: sa` and `boolean/section_cert.rs: cone_torus: f`. The other five lines stand. `oneround/lever-sites-topo` at its merge with that main prints the same seven lines.
+
+**On `origin/main` at `74feb4851c` (2026-11-23, `oneround/box-region`).** The row now stops at its first check: `` `junction_bound_rides_rim` is decided in the crate's src under no door's prefix — name it under a door's prefix, or list it in EXCEPTIONS with the door that decides it `` (`crates/topo/tests/recourse_roster.rs:1055`). The name is decided at `crates/topo/src/boolean/sectors.rs:1094`, added by `787b232c20` (heldrecords/elbow). The site lines above are not reached until it is listed.
