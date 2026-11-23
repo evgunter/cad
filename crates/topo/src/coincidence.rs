@@ -99,6 +99,11 @@ pub enum Relation {
     /// nothing of the materials: whether the outward sides agree is a
     /// fact of the two faces' senses, read off them where it matters.
     SurfaceTangent,
+    /// Two faces on distinct carriers that both end on one rim and join
+    /// there in a smooth seam, each leaving it outside the other's
+    /// material: the rim's identity and its wedge, with no touch claimed
+    /// along it.
+    RimJunction,
     /// The two cells' carriers' axes of revolution are one line.
     Coaxial,
     /// The two cells' carriers have one radius.
@@ -130,6 +135,7 @@ impl Relation {
             Self::Tangent { aligned: true } => "a smooth tangent joint",
             Self::Tangent { aligned: false } => "a tangent cusp",
             Self::SurfaceTangent => "two surfaces tangent along a locus",
+            Self::RimJunction => "two faces joined smoothly on a rim both end on",
             Self::Coaxial => "one axis of revolution",
             Self::SameRadius => "one radius",
             Self::AxesMeet => "axes meeting in a point",
@@ -141,8 +147,8 @@ impl Relation {
     /// The class a face pair glued under this relation glues as: the
     /// class whose [`crate::contact::GlueClass::relation`] it is (one
     /// carrier opposed a `Rest` contact, aligned a continuation, a
-    /// tangency `Tangent`). `None` for a relation that glues no face
-    /// pair.
+    /// tangency `Tangent`, a rim junction `Junction`). `None` for a
+    /// relation that glues no face pair.
     #[must_use]
     pub fn glued_class(self) -> Option<crate::contact::GlueClass> {
         crate::contact::GlueClass::ALL
@@ -168,6 +174,13 @@ pub enum DecisionSite {
     /// (`contact_tangent_touch`), standing jointly for the locus it was
     /// read along (`MarginDiag::jointly`).
     TangentWitness,
+    /// The glue door's rim junction: two faces that both end on one
+    /// circle, joined there in the routing's π wedge. The margin is the
+    /// rim's identity (`rim_circle_radius`, `rim_circle_center`,
+    /// `rim_circle_axis_parallel`, jointly); the wedge, the departures and
+    /// each operand's convex rim edge are decided with it, and no touch
+    /// is read along the rim.
+    RimJunction,
     /// The cylinder×sphere pair's coaxial classification: the sphere's
     /// centre on the cylinder's axis.
     CoaxialSphere,

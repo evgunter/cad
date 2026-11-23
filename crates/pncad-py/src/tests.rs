@@ -3011,6 +3011,10 @@ fn import_report_row_tags_are_stable() {
             "carrier_built",
         ),
         (
+            NormalizationKind::CollapsedSideMadeOne { moved_by: 3e-9 },
+            "collapsed_side_made_one",
+        ),
+        (
             NormalizationKind::CurvePromoted {
                 kind: pncad::step_import::PromotedCurveKind::Circle,
                 residual: 1e-17,
@@ -4435,7 +4439,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "ball_does_not_fit",
             "band",
             "body_not_intact",
-            "certify",
             "chain_not_connected",
             "chain_not_g1",
             "chamfer_arm_unsupported",
@@ -4448,6 +4451,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "not_finished",
             "oblique_mixed_corner",
             "op",
+            "pcurve_mint",
             "radius_headroom",
             "repeated_edge",
             "ring_clearance",
@@ -4532,7 +4536,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "result_pinched_at_cone_apex",
             "revert",
             "rim_cusp_arm_unbuilt",
-            "rim_junction_unsettled",
             "seam_orientation",
             "shared_vertex_crossings",
             "shell_witness_exhausted",
@@ -4624,6 +4627,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "cusp",
             "meet",
             "on_carrier",
+            "rim_junction",
             "same_opposite",
             "same_oriented",
             "same_radius",
@@ -4693,6 +4697,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "iso_join",
             "plane_ladder",
             "profile_junction",
+            "rim_junction",
             "smooth_join",
             "sphere_on_torus_axis",
             "split_on",
@@ -5372,6 +5377,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "carrier_built",
             "chart_singularity_vertex",
+            "collapsed_side_made_one",
             "curve_promoted",
             "edge_free_sphere",
             "edge_split_at_c0_knot",
@@ -6229,7 +6235,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "chart_singularity_undecided",
             "coincident_wedges_overlap",
             "coincident_wedges_overlap_undecided",
-            "component_euler_violation",
             "contact_contradicted",
             "curve_datum_undecided",
             "curved_sense_inverted",
@@ -6574,6 +6579,11 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // loft's kept section ids.
     ("repeated", 3),
     ("revolve", 2),
+    // One fact: a coincidence row's relation and the site it was
+    // decided at name one thing, two faces joined on a rim both end on
+    // (`topo::Relation::RimJunction` at `topo::DecisionSite::RimJunction`),
+    // as `coaxial` is one fact across the coincidence and snap maps.
+    ("rim_junction", 2),
     // One fact at the edit and load doors: a selection not in its
     // kind's stored form.
     ("selection_shape", 2),

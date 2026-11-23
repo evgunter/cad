@@ -22,22 +22,20 @@ on a cap and revolved a quarter turn about a line in the cap's plane
 three units off the pipe's axis. Four of that file's eight poses bend
 the elbow back INTO the pipe, a turn of +π/2 off either cap (the Start
 cap's frame faces the other way): off the End cap (z = 2) the elbow
-spans z ∈ [−2, 2], off the Start cap (z = 0) z ∈ [0, 4]. For these the two outer walls leave the shared rim
-on ONE side, so `rim_wedge::departures` should read `Same` and the
-glue door leave the rim unglued (`TangencyFailure::Unrouted`; expected
-from the geometry, not traced), and the bend runs through the pipe's
-material: its outer torus crosses the pipe's cylinder beside the rim.
+spans z ∈ [−2, 2], off the Start cap (z = 0) z ∈ [0, 4]. For these the
+two outer walls leave the shared rim on ONE side, so no junction glues
+there, and the bend runs through the pipe's material: its outer torus
+crosses the pipe's cylinder beside the rim.
 
-Today each refuses at the crossing layer
-(`reduce::curved_face_arm`, `BooleanError::CurvedPierceUnsupported`,
-pinned in `a_pipe_and_an_elbow_off_either_cap_pass_the_glue_door_in_every_pose`)
-— the same wall the outward poses meet, an edge ending on the rim
-tangent to the other's wall. Once that wall has its reading (the
-elbow lane's next PR, `heldrecords/elbow-ends`), these poses owe a
-true answer of their own: the union built by the overlap lane at its
-closed form (the pipe's volume plus the elbow's less their shared
-region), or a typed refusal naming the unbuilt overlap arm, with a
-recourse that can be followed.
+Today each refuses at the glue door, as it did before the junction
+lane: the door reads the rim by the tangency table along its turn,
+where the bend's relative curvature passes through zero, and that
+reading lands in the band (`BooleanError::Escalated`, pinned in
+`an_elbow_bent_back_into_its_pipe_refuses_its_rims_at_the_glue_door`).
+These poses owe a true answer of their own: the union built by the
+overlap lane at its closed form (the pipe's volume plus the elbow's
+less their shared region), or a typed refusal naming the unbuilt
+overlap arm, with a recourse that can be followed.
 
 ## What is owed
 
