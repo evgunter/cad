@@ -555,12 +555,14 @@ fn holds_until_parting(
 /// `plate_param` under the apart move, to the ray-schedule gate's exact
 /// zero it parts at. Its parting came later when the least turn lost its
 /// identity shortcut: an identity chart decides its pole verdict and
-/// conditioning, in step at both builds.
+/// conditioning, in step at both builds. It came 3 sooner when a chart's
+/// spin was set from its frames at `Sym`, which decides no renormalized
+/// axis.
 #[test]
 fn revalue_plate_param_apart_to_its_parting() {
     holds_until_parting(
         "plate_param",
-        (3255, 7228),
+        (3252, 7228),
         PerRow {
             at_1e6: 1955,
             at_1e9: 1993,
@@ -583,7 +585,7 @@ fn revalue_plate_param_apart_to_its_parting() {
 fn revalue_boss_union_apart_to_its_parting() {
     holds_until_parting(
         "boss_union",
-        (2399, 3856),
+        (2396, 3856),
         PerRow {
             at_1e6: 1414,
             at_1e9: 1462,

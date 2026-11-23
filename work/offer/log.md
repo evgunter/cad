@@ -250,3 +250,49 @@ The local disk has 8 GB free and two lane targets are live, so these lanes run a
   - **The one red** is the plate row. It now reads "not decided", and BOXFINISH's P1 `a-witness-records-curved-premise-checks-the-interval-replay-skips-so-no-curved-leaf-certifies` (filed by this PR) holds it. **On main, curved geometry does not certify until BOXFINISH fixes it.**
   - **Another main red** the lane saw while verifying (not OFFER's): `crates/topo/tests/a_seamless_pipe_cut_by_an_oblique_plane_measures.rs:291` names `EulerOpError::Certification`, which no longer exists. Already fixed on main by 4e69ac1c85.
   - **The kernel-search unit is closed.** The certify viewer unit `certify-affordance-on-the-bounds-panel` was dispatched on Opus to session_013QoYWWPVut6F6V6YRHYsXA, branch `offer/range-is-the-certified-search`, and verifies locally. It is tier H, so it gets two reviewers at review. No row: it was dispatched during the outage (rule 12). (OFFER orchestrator)
+- 2026-11-23 09:46Z — **The certify viewer PR #7548 is up** at 32dabb52. The lane verified it locally:
+  - viewer: 1145 tests; with the app feature, 1619 (3 GPU rows without an adapter);
+  - clippy, rustdoc and the gates are clean.
+  It deletes the sampling probe and closes 6 rows as moot. Filed: `doctail/range-admission-says-a-defined-variable-is-absent` (P3). **Dual review** on Opus, identical briefs (ledger `dual-7548.md`): R1 is session_013QoYWXnpAAetr7tXBK7y6C and R2 is session_013QoYWY55CUnRocu2DivJR2. Claim 1 is staleness, since a reading drawn against the wrong document is the worst failure. No row (rule 12). #7375 is merging main once more (the #7369 conflicts in drive.rs and range.rs). (OFFER orchestrator)
+- 2026-11-23 10:25Z — **#7375 merged** (c76443d5) at 32e24d11. The orchestrator's local check passed 88/88:
+  - the quieting law file with its corpus deals, both `spells_a_mention_into` law rows and the review probe;
+  - the range rows except the plate (BOXFINISH P1);
+  - the carried route and `name_words_corpus`;
+  - the census, 12/12.
+  The spelling unit is closed.
+
+  **Two viewer units were dispatched in parallel on Opus** (no row, rule 12):
+  - **The links widget** `a-node-name-…` (M): session_013QoYWTzTX98kUXvBufbC6R, branch `offer/a-mention-is-a-link`. egui hit-test feasibility comes first.
+  - **The offers function** `a-refusal-offers-…` (H, so dual review later): session_013QoYWVYtwnKMKDTDPKPUBS, branch `offer/one-offers-function`. Its Commit is filled only from the kernel `Quieting`.
+
+  The widget owns how a message is held and drawn; the offers lane owns the controls. Whichever lands second ports. #7548's lane was told #7375 landed and ports in its fix pass. (OFFER orchestrator)
+- 2026-11-23 10:46Z — **#7548 adjudicated on the union of R1 and R2. Both say APPROVE-WITH-FIXES, and both found the same MAJOR:** Open and New leave the old document's search running. `clear_for_new_document` drops the reading first, and the stop is conditional on the reading. No wrong-document reading is ever drawn; the threaded race probes held over 20 and 40 cycles.
+  - **Unpinned:** the ThreadRanger seam, the run-id and generation filters, the `built` filter and the wired admission grey. Mutants on all of them survived.
+  - **The readings:** inward rounding is lost in `shown_text`; the FlipCrossing floor words would overclaim; the side lines are identical. Smaller reading fixes as well.
+  - **Rows:** a wasm frame-thread row is to be filed, and a ciw row closed as moot is reopened.
+  - **The fix pass** went to the lane together with the #7375 port. No row (rule 12). (OFFER orchestrator)
+- 2026-11-23 11:55Z — **#7548 merged** (674fb6d4) at b6f57ba0: `range?` is the certified search, and the sampling probe is gone.
+  - **Verification:** the orchestrator ran it locally with the app feature. 53/53 range, admission and story rows passed, and the threaded worker rows passed 15/15 three runs in a row.
+  - **The certify unit is closed.**
+  - **The links widget PR #7557** is up at 874eb74, and its egui hit-test feasibility check passed. It is in single review: session_013QoYWYkJNYM3B6FTXsnFkx.
+  - **Main's rustdoc red from #7554** (an unresolvable `Self::exactly_zero` link) is fixed by #7560, verified with the gate's lints. DOCTAIL's log is told.
+  - No row (rule 12). (OFFER orchestrator)
+- 2026-11-23 11:59Z — **The offers PR #7562 is up** at 73fb81ba. `viewer::recourse::offers` matches exhaustively, with `wildcard_enum_match_arm` denied. Offers are Commit, Lead or Unoffered.
+  - The coincidence Commit takes the `Quieting` itself (`AssertQuieting`, through `Quieting::record`). `AssertedSeat::Read(Operand)` is replaced by `Minted(QuietingRef)`, so the raw-`NamedCell` hazard is closed by type.
+  - `DocSession::current()` gates every document-editing offer.
+  - 13 offer shapes are inventoried; 7 moved onto the function, 3 are new and 3 stay off it, with reasons.
+  - Two P3 rows filed: versions, and borders.
+  - The lane verified locally: viewer 1158, viewer with the app feature 1631/1634 (GPU rows), and the law file 11/11.
+  - **Dual review** on Opus with identical briefs (ledger `dual-7562.md`): R1 session_013QoYWX8V4H1RAvcYciGEpR, R2 session_013QoYWX3xSnngdRgmJdzMXZ. Claim 1 is that no offer edits the wrong document state.
+  - It couples with the links widget #7557, which is in single review: whichever lands second ports. No row (rule 12). (OFFER orchestrator)
+- 2026-11-23 12:01Z — **The #7557 review (links widget) is APPROVE-WITH-FIXES, with no MAJOR.** The link predicate, the hit-test (632 per-character clicks, including adjacent mentions and multi-byte labels) and the tree scroll held, and 9 of 10 mutants were red. The fix pass covers four MINORs:
+  - the feature tree's failure and carried lines are still text;
+  - `PlacementFails`' MateFault is flattened by TAG;
+  - the filed row is incomplete;
+  - a regression: a linked sentence is no longer selectable or copyable.
+  It also covers the style items: one link look, the TAG-form second door, and a spelling-tie row. (OFFER orchestrator)
+- 2026-11-23 12:58Z — **#7557 merged** (4fe2447e) at a648122e: a node a message names is a link that selects it, and the tree scrolls to an outside selection.
+  - **Verification:** the orchestrator ran it locally with the app feature, 128/128 rows (sentence, links, tree, range, relations, badges, frame policy).
+  - **The unit is closed**, and the residue is in `viewer-pane-lines-spell-their-nodes-as-text` (P2).
+  - **#7562 R1 is in:** APPROVE-WITH-FIXES, no MAJOR. The `Quieting` type allows hand-building; the tolerance words flicker; the NodeErrorClass census is missing; two offer shapes are uninventoried; the same-batch race is caught by the door. R2 is pending.
+  - #7562's fix pass ports #7557. No row (rule 12). (OFFER orchestrator)

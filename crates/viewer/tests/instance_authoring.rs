@@ -675,7 +675,7 @@ fn failed_badge(path: &Path, node: RecipeNodeId, tol: Tol) -> String {
     let rows = session.tree_rows();
     let row = common::row_of(&rows, node);
     let message = match &row.status {
-        RowStatus::Failed { message, .. } => message.clone(),
+        RowStatus::Failed { message, .. } => message.to_string(),
         other => panic!("expected the instance to fail, got {other:?}"),
     };
     assert_eq!(row.status.badge(), "FAILED");
@@ -808,7 +808,7 @@ fn every_unresolved_part_badge_meets_the_refusal_standard() {
     let mut session = DocSession::inline(held.doc().clone(), tol);
     session.pump();
     let none = match &common::status_of(&session.tree_rows(), instance) {
-        RowStatus::Failed { message, .. } => message.clone(),
+        RowStatus::Failed { message, .. } => message.to_string(),
         other => panic!("an instance with no file fails, got {other:?}"),
     };
     assert!(
@@ -984,7 +984,7 @@ fn accepting_with_no_newer_version_or_no_file_says_the_kernels_refusal() {
         )
         .expect_err("the kernel refuses too");
         assert_eq!(
-            viewer::frame::refusal_message(&refusal).text(),
+            viewer::frame::refusal_message_untargeted(&refusal).text(),
             kernel.to_string(),
             "the status line is the kernel's sentence"
         );
@@ -1194,9 +1194,20 @@ fn an_instances_part_row_names_its_file_and_is_no_link() {
     let [entry] = &part.entries[..] else {
         panic!("one file: {part:?}")
     };
-    assert_eq!(entry.said, files.name(bench.post.id), "the part's file");
-    assert!(entry.said.ends_with(".pncad"), "a file name: {entry:?}");
-    assert_eq!(entry.selects, None, "the part is no node of this document");
+    assert_eq!(
+        entry.said().to_string(),
+        files.name(bench.post.id),
+        "the part's file"
+    );
+    assert!(
+        entry.said().to_string().ends_with(".pncad"),
+        "a file name: {entry:?}"
+    );
+    assert_eq!(
+        entry.selects(),
+        None,
+        "the part is no node of this document"
+    );
 }
 
 /// **An instance's constraint reading its own copy links nowhere, both
@@ -1233,7 +1244,7 @@ fn an_instances_own_copy_side_links_nowhere_either_way() {
         related.reads.iter().any(|row| row
             .entries
             .iter()
-            .any(|entry| entry.said == OWN_COPY && entry.selects.is_none())),
+            .any(|entry| *entry.said() == *OWN_COPY && entry.selects().is_none())),
         "the own-copy side reads as words: {:?}",
         related.reads
     );
@@ -1241,7 +1252,7 @@ fn an_instances_own_copy_side_links_nowhere_either_way() {
         !related.reads.iter().any(|row| row
             .entries
             .iter()
-            .any(|entry| entry.selects == Some(Selection::Node(shelf)))),
+            .any(|entry| entry.selects() == Some(Selection::Node(shelf)))),
         "no read links the instance to itself: {:?}",
         related.reads
     );

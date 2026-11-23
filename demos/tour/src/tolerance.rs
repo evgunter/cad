@@ -554,7 +554,7 @@ fn real_study(tol: Tol) {
                 // it. `render_sensitivity` was made public for this.
                 println!(
                     "     ∂web/∂{}: {}",
-                    doc.spoken_var(s.param),
+                    doc.spoken_value(s.param),
                     render_sensitivity(s, &doc)
                 );
             }
