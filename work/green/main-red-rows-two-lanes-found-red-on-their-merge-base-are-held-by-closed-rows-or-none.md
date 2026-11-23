@@ -78,3 +78,14 @@ were green on both sides of this run. `germ_tilted_rod::other_spins_and_steeper_
 was left out (30 minutes). The kite moat is unchanged:
 `the kite moat's evaluation, bodies and name tables` digest
 `6885395609920571358` against `11878713692985015632`.
+
+**One more, from PR 7488's two reviewers (2026-11-23), run by both on
+merge base and head with the same payload:** `sweep`
+`a_ring_on_a_cone_face::the_rings_volume_brackets_its_closed_form_at_the_certified_scalar`
+at ε 1e-12. The only rows that name it are closed
+(`work/oneround/an-anchored-cone-section-encloses-wider-at-interval.md`,
+`work/onecopy/meet-at-interval-refuses-on-its-basin-meter-and-reads-an-ends-distance-at-rounding.md`).
+The other seven `sweep` rows the reviewers could not match at 1e-12
+(the mixed-chain band shapes, the two section-ellipse seam poses) are
+held by `main-red-seven-slow-and-1e-12-rows-no-row-holds-on-454c3e54`.
+(BOXFINISH orchestrator; not re-run here.)
