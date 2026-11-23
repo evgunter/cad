@@ -55,8 +55,8 @@ pub(crate) struct Drafts {
     /// has to remember: text a parse refusal sent back
     /// ([`crate::frame::retype_draft`]). Acting on the refusal — going off to
     /// declare the variable it named — must not cost the text that
-    /// raised it, so the field keeps showing it until an expression
-    /// edit for that slot lands.
+    /// raised it, so the field keeps showing it until the next entry at
+    /// a field, a number or a text ([`crate::session::SessionOp::field_entry`]).
     pub(crate) expr_target: Option<(RecipeNodeId, SlotId)>,
     /// The refused text itself.
     pub(crate) expr_text: String,
@@ -281,6 +281,16 @@ impl Pending {
 }
 
 pncad::geom_brep::ended_by_write!(Pending);
+
+/// **What one entry at a held field writes** ([`ProfileEdit::write_entry`]):
+/// the field's two doors, as the slot row's are.
+#[derive(Clone, Debug)]
+pub(crate) enum HeldEntry {
+    /// Text, for the draft to parse.
+    Text(String),
+    /// A typed number, as the literal it writes (`props::typed_formula`).
+    Literal(Formula),
+}
 
 /// **One change to the shape of the profile editor's draft** — what a
 /// click asks for, applied after the fields of its frame
@@ -541,9 +551,9 @@ impl ProfileEdit {
     /// **`step` written over held row `row` of loop `loop_`**
     /// ([`HeldStep::written`]) — what its fields write back: every
     /// argument the view did not move keeps the formula it is written
-    /// as, a driven one beside its reading on `landed` included; a
-    /// moved one is written in the unit `noted` names for its
-    /// committed slot, else in `notation`.
+    /// as, and so does every driven one; a moved literal is written in
+    /// the unit `noted` names for its committed slot, else in
+    /// `notation`.
     ///
     /// # Errors
     ///
@@ -552,20 +562,14 @@ impl ProfileEdit {
         &mut self,
         (loop_, row): (usize, usize),
         step: Step<f64>,
-        landed: &Doc<ProfileProgram>,
         notation: Notation,
         noted: &dyn Fn(SlotId) -> Option<UnitDef>,
     ) -> Result<(), RecordedProgramError> {
         let kept = self.loaded_at(loop_).get(row).copied().flatten();
-        let written = self.loops[loop_][row].written(
-            step,
-            &|arg| self.reading(landed, (loop_, row), arg),
-            notation,
-            &|arg| {
-                let (loop_, step) = kept?;
-                noted(SlotId::Profile { loop_, step, arg })
-            },
-        )?;
+        let written = self.loops[loop_][row].written(step, notation, &|arg| {
+            let (loop_, step) = kept?;
+            noted(SlotId::Profile { loop_, step, arg })
+        })?;
         self.loops[loop_][row] = written;
         Ok(())
     }
@@ -587,29 +591,43 @@ impl ProfileEdit {
         doc: &Doc<ProfileProgram>,
     ) -> Result<Formula, Refusal> {
         let formula = crate::session::parse_text(doc, text)?;
-        slot_admits(Self::held_slot(at, arg), &formula)
-            .map_err(|error| Refusal::Edit(Box::new(error)))?;
+        Self::admit(at, arg, &formula)?;
         Ok(formula)
     }
 
-    /// **`text` typed into argument `arg` of held row `at`**, judged
-    /// ([`Self::judge_text`]) and written into the held step as the
-    /// formula it reads, committed with the rest of the program. A
-    /// refusal changes nothing the draft holds.
+    /// Whether argument `arg` of held row `at` takes `formula`: the
+    /// edit door's own rule ([`slot_admits`]), in its words.
+    fn admit(at: (usize, usize), arg: StepArg, formula: &Formula) -> Result<(), Refusal> {
+        slot_admits(Self::held_slot(at, arg), formula)
+            .map_err(|error| Refusal::Edit(Box::new(error)))
+    }
+
+    /// **What a held field's entry writes into argument `arg` of held
+    /// row `at`** — a text, judged ([`Self::judge_text`]) and written as
+    /// the formula it reads, or a number, as the literal it types
+    /// (`props::typed_formula`) — over whatever the argument held, a
+    /// literal or an expression alike, committed with the rest of the
+    /// program. A refusal changes nothing the draft holds.
     ///
     /// # Errors
     ///
     /// [`Self::judge_text`]'s, and [`Refusal::NoSuchSlot`] where the
     /// row no longer has that role (a row edit landed between the
-    /// field's frame and this one): the text is dropped and said.
-    pub(crate) fn write_text(
+    /// field's frame and this one): the entry is dropped and said.
+    pub(crate) fn write_entry(
         &mut self,
         (loop_, row): (usize, usize),
         arg: StepArg,
-        text: &str,
+        entry: &HeldEntry,
         doc: &Doc<ProfileProgram>,
     ) -> Result<(), Refusal> {
-        let formula = Self::judge_text((loop_, row), arg, text, doc)?;
+        let formula = match entry {
+            HeldEntry::Text(text) => Self::judge_text((loop_, row), arg, text, doc)?,
+            HeldEntry::Literal(formula) => {
+                Self::admit((loop_, row), arg, formula)?;
+                formula.clone()
+            }
+        };
         let written = self
             .loops
             .get(loop_)
@@ -979,7 +997,7 @@ impl ProfileEdit {
     ) {
         let rows = props::slot_rows(landed, self.node);
         let noted = |slot: SlotId| rows.iter().find(|row| row.slot == slot)?.unit;
-        self.write_step(at, step, landed, Notation::CANONICAL, &noted)
+        self.write_step(at, step, Notation::CANONICAL, &noted)
             .unwrap_or_else(|error| panic!("{error}"));
     }
 }
