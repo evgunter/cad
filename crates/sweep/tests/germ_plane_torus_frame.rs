@@ -35,7 +35,7 @@ use profile::{RawLoop, test_support::bulge_loop};
 use revolve_common::{axis_y, validated};
 use sweep::test_support::finished;
 use sweep::{Revolution, revolve};
-use topo::{AtRestBody, BooleanError, BooleanOp, SpiricLoops};
+use topo::{AtRestBody, BooleanError, BooleanOp};
 
 /// A ring torus about `y`, `R`, `r`, as one revolve.
 pub(crate) fn torus(big_r: f64, r: f64) -> AtRestBody<f64> {
