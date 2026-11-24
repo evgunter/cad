@@ -517,6 +517,12 @@ impl Real for Interval {
 
     type Carries<C: Copy + core::fmt::Debug + Send + Sync + 'static> = C;
 
+    type Expression = crate::real::NoExpression;
+
+    fn expression(self) -> Option<crate::real::NoExpression> {
+        None
+    }
+
     /// The enclosure itself: it carries no tangent.
     type Value = Self;
 
