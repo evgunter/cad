@@ -33,3 +33,7 @@ The statement of the problem (identical for both) is `probe/briefs/designer-the-
 **Agreed at first report on the recommended final state** (a point refutation ahead of the ladder; no verdict changes; nothing negative kept per drive; the structural question untouched; measure first). They differ in two details an implementer's measurement settles: what a value with no expression does at the point (A: the reading declines; B: any one point of its own value is admissible, pending a check of how the form treats it), and which E12 bullet carries the sentence. No reconciliation round is needed.
 
 Served models at first report: not yet read from the sessions.
+
+## To Ev (09:34 UTC)
+
+`[ev]` PR 7698 (`boxfinish/ev-refute-before-climb`): the agreed recommendation, with one sentence added to E12 as the diff; both `For Ev` sections verbatim, labelled A and B. Row 7698 in `docs/DESIGN-FORK-LOG.md` (the recommendation half) is on that branch. The mapping above is filled into the row once Ev decides.
