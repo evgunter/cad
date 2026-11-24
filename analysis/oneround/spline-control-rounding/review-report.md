@@ -10,16 +10,17 @@ Probes and this report are on `oneround/spline-control-rounding-review`.
 - one gate row it turns red (MAJOR-1);
 - one sibling site where the invariant its new row pins is still broken, pre-existing but restated as true in this diff (MINOR-1);
 - a false claim in its new public `at_middle` door (MINOR-2);
-- a hand formula it says is gone (MINOR-3).
+- a hand formula it says is gone (MINOR-3);
+- an unpinned guard it says it made explicit (MINOR-5).
 
-Two PR-body claims about the differential are wrong: "no aligned read grows", and the account of why the walks diverged (MINOR-4).
+Two PR-body claims about the differential are wrong: "no aligned read grows", and the account of why the walks diverged (MINOR-4). MINOR-6 is main's.
 
 ## MAJOR
 
 **MAJOR-1. geom-core's recourse roster is red on the frozen head and green on the merge base.** DEMONSTRATED, sure.
 
 - `geom-core::all recourse_roster::every_decided_name_is_read_and_every_site_is_listed` fails with `an indirect site not listed: running.rs: dehomogenized: name`.
-- Cause: `running::dehomogenized` (`crates/geom-core/src/running.rs:309`) and `Tracked::dehomogenized` are new funnels. Both forward their caller's `name` to `Rounded::divisor`, and the roster requires every forwarder to be an entry (`crates/geom-core/tests/recourse_roster.rs:178`).
+- Cause: `running::dehomogenized` (`crates/geom-core/src/running.rs:312`) and `Tracked::dehomogenized` are new funnels. Both forward their caller's `name` to `Rounded::divisor`, and the roster requires every forwarder to be an entry (`crates/geom-core/tests/recourse_roster.rs:178`).
 - The same row passes on `64aeba04f` (my run, a clean stash of the base worktree).
 - The row is in the slow set, so the `ci` profile the PR ran never reaches it. It reds the nightly on merge.
 
@@ -35,7 +36,7 @@ Second half, BY-INSPECTION, likely:
 
 **MINOR-1. `Patch::split` still drops `t`'s rounding for a ratio that rounds to the half.** DEMONSTRATED (red row), sure. Pre-existing, but this diff rewrites the code and comment and asserts the opposite.
 
-- `crates/topo/src/spline_trim.rs:304-310` takes `Tracked::exact(st)` whenever `s == 0.5`. The new comment says "The exact half is a halving's; any other fraction is a ratio of the window's differences".
+- `crates/topo/src/spline_trim.rs:304-310 (the test at 307)` takes `Tracked::exact(st)` whenever `s == 0.5`. The new comment says "The exact half is a halving's; any other fraction is a ratio of the window's differences".
 - But `Patch::restricted` (`spline_trim.rs:370,374`) passes `(w0 − r0)/(r1 − r0)`. That ratio rounds to exactly `0.5` for ordinary knots while the true ratio is off it, for example `(0.58 − 0.06)/(1.1 − 0.06)`. A random search found 120k such triples, the true ratio up to `0.99u` from the half.
 - This is precisely the mutant the PR calls "pow2 also exempts t", committed at a caller. The PR's new row `a_step_by_a_ratio_rounded_to_a_power_of_two_holds_its_drift` pins the invariant at the door. The site's sibling was not swept (style Q4).
 - Probe `spline_region::rows::review_probes::review_a_restriction_at_a_ratio_rounded_to_the_half_holds_its_drift`, on my branch: a bilinear chart on `u ∈ [−0.0289…, 4.0108…]`, restricted at `w0 = 1.99098…`.
@@ -45,7 +46,7 @@ Second half, BY-INSPECTION, likely:
 
 **MINOR-2. `Tracked::at_middle` is not off every member of its bracket by at most its bound.** DEMONSTRATED (red row), sure.
 
-- `running.rs:442-457` returns `bracket_mid(lo, hi)` with error `rounding + (hi − lo)·0.5`. Both are rounded to nearest and neither is charged.
+- `running.rs:446-458` returns `bracket_mid(lo, hi)` with error `rounding + (hi − lo)·0.5`. Both are rounded to nearest and neither is charged.
 - For `[1, 1 + 2⁻⁵²]` the middle rounds (ties to even) onto `1`. The member `1 + 2⁻⁵²` then lies a whole ulp from it, against a bound of half an ulp.
 - Probe: `geom-core::all review_spline_rounding_probes::review_at_middle_holds_every_member_of_its_bracket`.
 - This is the old `half_width` plus `middle`, moved into a new **public** door whose doc ("off the exact value by its bound and by the half-width of its bracket") states the false claim.
@@ -92,6 +93,18 @@ Two corrections:
 At `1e-12`, with my pinned seed, both trees fail the same two rows: `envelope_lemma_fuzz::projected::a_line_near_a_ruling_…` and `…a_carrier_on_its_chart_…`. Neither is the red the PR names. They are seed-dependent and identical in both trees, so they are not this unit's.
 
 Not done: the TRUE error of a sample of the shrinks. I checked the exemption's soundness at the door instead (C2, below).
+
+**MINOR-5. `Piece::bbox`'s new explicit positive-weight test is pinned by no row.** DEMONSTRATED (surviving mutant), sure.
+
+- The PR names `spline_trim.rs:668` as the place where positivity "is now explicit". Replacing that test with `if false` turns no `ci` row red among the 524 that reach `running`, the spline walks and the trim.
+- With the test dropped, `dehomogenized`'s absolute guard admits a negative weight whose magnitude clears its bound. `bbox` then returns a finite box for a piece whose hull is not its curve's.
+- No pcurve image in the suites has a negative weight, so the guard can be removed without notice.
+- Slow rows not run.
+
+**MINOR-6. The demos' lockfiles lag main.** BY-INSPECTION, sure. Not this unit's.
+
+- `cargo build` in `demos/tour` and `demos/wild` on the frozen head adds `quantity` to their `Cargo.lock`. The PR touches no manifest, so a dependency added on main left them behind.
+- Both build.
 
 ## NOTE
 
@@ -161,20 +174,38 @@ Not done: the TRUE error of a sample of the shrinks. I checked the exemption's s
   - `ratio` and `at_middle` are public claims the type cannot check (N3, MINOR-2).
   - The PR's red: see the `1e-12` paragraph under MINOR-4.
 
-### Mutants (planted by hand in a pristine frozen-head worktree)
+### Mutants
 
-Run: `cargo nextest --profile ci` over geom-core, geom-brep and topo, filtered to `running|spline|trim`.
+Each mutant was planted in a pristine frozen-head worktree and run against the `ci` profile of geom-core, geom-brep and topo, filtered to `running|spline|trim` (524 rows; slow rows not run). The first ten re-plant the PR's own mutants; the last five are mine.
 
-MUTANT_TABLE
+| mutant | red rows (`ci`) |
+|---|---|
+| step: product term dropped | 1: `a_steps_product_and_difference_roundings_are_each_owed` |
+| step: `t`'s rounding dropped | 2: `a_ratios_own_rounding_is_owed`, `a_step_by_a_ratio_rounded_to_a_power_of_two_holds_its_drift` |
+| step: power of two also exempts `t` | 1: `a_step_by_a_ratio_rounded_to_a_power_of_two_holds_its_drift` |
+| step: difference term dropped | 2: `a_steps_bound_holds_its_drift_against_exact_arithmetic`, `…_each_owed` |
+| step: bound halved | 12: geom-core ×5, geom-brep cut-drift, knotted and quarter, topo cut, pieces, far-trim and wide-interval |
+| quotient: weight's bound left out | 4: geom-core ×2, geom-brep `a_cells_cut_has_no_bound_…`, topo knotted |
+| divisor guard dropped, room unclamped (the PR's) | 5: geom-core ×3, both site refusal rows |
+| divisor guard dropped, room still clamped at 0 | 3: geom-core only. The sites read the clamped room's quotient as `inf` and refuse anyway, so this mutant is equivalent at the sites |
+| `ratio` uncharged | 3: `a_ratios_own_rounding_is_owed`, the pow2 row, `a_tracked_value_charges_where_the_scalar_measures` |
+| `at_middle` half-width dropped | 2: `a_tracked_value_charges…`, topo `a_query_on_a_wide_interval_trim_image_is_given_no_side` |
+| **mine**: `x`'s share at 0.75 of `\|1 − t\|` | 5: geom-core exact-drift row, geom-brep quarter, knotted and cut-drift, topo wide-interval |
+| **mine**: exemption widened to every `\|t\| ≤ 1` | 1: `…_each_owed` |
+| **mine**: sum's rounding dropped | 8 |
+| **mine**: `Tracked` charges nothing at `f64` | 13 |
+| **mine**: `Piece::bbox`'s positive-weight test dropped | **0: survives** (MINOR-5) |
+
+The four mutants that drop or narrow a term of the step (product, `t`'s rounding, pow2 exempting `t`, the widened exemption) are each killed by one or two static geom-core fixtures, and by no site row. The PR disclosed this for the first two; the class is wider.
 
 ## Style
 
 Questions exercised: Q1, Q2, Q3, Q4, Q5, Q6, Q7, Q8 (whole file: `running.rs`, 1083 lines, read end to end).
 
 - **S1 (Q1, the trap). `Tracked<T>` is a second `Rounded`.** Sure.
-  - `running.rs:327-480` adds a type for a value and its rounding beside `Rounded`, with parallel doors: `exact`/`exact`, `step`/`step`, `Sub`/`Sub`, `Mul`/`Mul`, `Tracked::dehomogenized`/`running::dehomogenized` (one name, two items).
+  - `running.rs:340-480` adds a type for a value and its rounding beside `Rounded`, with parallel doors: `exact`/`exact`, `step`/`step`, `Sub`/`Sub`, `Mul`/`Mul`, `Tracked::dehomogenized`/`running::dehomogenized` (one name, two items).
   - The two types meet only through `at_middle`. topo then carries both: `Control = [Tracked<T>; N]` in a cell, `Node = [Rounded<f64>; 3]` in a piece.
-  - `ratio` exists only on `Tracked`, so geom-core's own row spells the `Rounded` twin by hand (`Rounded::exact(t).with_charge(3.0 * UNIT_ROUNDOFF * t)`, `running.rs:1052`): a second spelling of the ratio charge on the day the door lands.
+  - `ratio` exists only on `Tracked`, so geom-core's own row spells the `Rounded` twin by hand (`Rounded::exact(t).with_charge(3.0 * UNIT_ROUNDOFF * t)`, `running.rs:1053`): a second spelling of the ratio charge on the day the door lands.
   - Could the PR's argument against `Rounded<T>` be met inside `Rounded`? Mostly yes. Every objection in the PR is about `Rounded<T>` with a `T`-typed bound, which `Tracked` already sidesteps by delegating to `Rounded<f64>` on a shadow. A `Tracked` that is literally `{ value: T, shadow: Rounded<f64> }` would have one arithmetic and no parallel door list.
   - I think that is the better final state. The current one is acceptable, because `Tracked` holds no arithmetic of its own.
 - **S2 (Q4). The exact-half test at `Patch::split` is a caller-side flag read from the value, the shape the PR says it retired.** Sure. MINOR-1, `spline_trim.rs:304`.
@@ -203,7 +234,7 @@ Questions exercised: Q1, Q2, Q3, Q4, Q5, Q6, Q7, Q8 (whole file: `running.rs`, 1
 ### Ratings
 
 - **Idiom and structure: 3/5.** One arithmetic, but two carrier types with parallel doors (S1), and the exact-half flag remains at a caller (S2).
-- **Test quality: 3/5.** The door rows are exact-arithmetic and mutant-backed (the `Expansion` rows are good). But the site rows cannot see a ratio's rounding (S4), `at_middle`'s claim is unpinned (MINOR-2), and the slow roster that reds was not run (MAJOR-1).
+- **Test quality: 3/5.** The door rows are exact-arithmetic and mutant-backed (the `Expansion` rows are good). But the site rows cannot see a ratio's rounding (S4), four step-term mutants die only on single static fixtures, the bbox guard is unpinned (MINOR-5), `at_middle`'s claim is unpinned (MINOR-2), and the slow roster that reds was not run (MAJOR-1).
 - **Doc and comment honesty: 3/5.** Three false sentences in touched code (S3), and the module doc is stale for the new type (S8).
 
 ## What I executed and what I only read
@@ -218,7 +249,7 @@ Executed:
   - `ci` profile geom-core + geom-brep + topo at default ε: **7926/7926 pass**;
   - recourse rosters and `predicate_name_coverage` on head and on base (MAJOR-1);
   - the differential (MINOR-4), base and head, default ε and `1e-12`;
-  - the mutant table.
+  - the mutant table (15 mutants).
 - **The hosted lint job's steps** on a pristine frozen-head worktree:
   - `cargo fmt --all --check` and the benches fmt: ok;
   - `python3 scripts/work.py lint`: ok;
