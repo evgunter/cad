@@ -2,10 +2,11 @@
 id: the-junction-end-window-refuses-in-a-belt-around-a-neutral-point
 kind: issue
 title: An edge ending within about 2e-7 to 2e-4 rad of a junction's neutral point refuses JunctionEndUnread (Window): the order's term decides but no window holds its spread against the quartic tail
-status: open
+status: dispatched
 opened: 2026-11-23
 priority: P1
 cost: M
+branch: heldrecords/belt
 ---
 
 
