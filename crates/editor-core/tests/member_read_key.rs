@@ -321,7 +321,7 @@ fn a_members_selection_of_another_member_is_read_again_when_that_member_moves() 
 /// tall[k]])`, a family over `k` by its second seat's index, whose
 /// first seat reads every member of `tall`. Its second seat picks the
 /// bound member, so the member read's key is the bound member's either
-/// way. Red if a seat that takes a family whole is keyed as the value
+/// way. Red if a read of a yield spliced in whole is keyed as the value
 /// that stands (`Seen::Whole` read as `Seen::Stands`): `reader[0]`
 /// holds `tall[1]` and is served the prior's.
 #[test]

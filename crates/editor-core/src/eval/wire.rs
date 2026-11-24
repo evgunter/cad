@@ -3320,8 +3320,8 @@ pub(super) struct SeenRead<'v, T: topo::AtRestPolicy + Decide> {
 /// resolvers the op itself reads through ([`member_read`],
 /// [`selection_read`]).
 ///
-/// A seat that takes a family whole sees it whole where it picks no
-/// member; a pose definition sees what each of its reads sees, a
+/// A read of a yield, which is a family to every reader, sees it whole
+/// where it picks no member; a pose definition sees what each of its reads sees, a
 /// selection of a member that member; two reads of one operation
 /// through one variable that see it differently see it whole. A read
 /// whose member does not resolve is the op's to refuse, and sees the
