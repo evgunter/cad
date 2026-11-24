@@ -81,6 +81,7 @@ fn prism(doc: ProfileDoc, cx: f64, distance: Formula) -> (ProfileDoc, RecipeNode
 fn tall_of(doc: ProfileDoc, count: Formula) -> (ProfileDoc, VarId, RecipeNodeId) {
     let (doc, k) = fixture::index_of(doc, "k", count, None);
     let (doc, tall) = prism(doc, 0.0, depth(scalar(var(k))));
+    let doc = fixture::yielded(doc, tall);
     (doc, k, tall)
 }
 
@@ -167,27 +168,40 @@ fn p_round_trip<T: OwnRecord>(doc: ProfileDoc, what: &str) {
     served_is_fresh::<T>(&mid, &back, &format!("{what}, back"));
 }
 
-fn union(doc: ProfileDoc, reads: Vec<BodyRead<Formula>>) -> (ProfileDoc, RecipeNodeId) {
-    insert(
-        doc,
-        Node::Union {
-            members: Bodies::spelled(reads),
-        },
+/// `reads` as a list's entries: a plain read of a yield spliced in
+/// whole, `…xs`, any other read one body.
+fn entries(doc: &ProfileDoc, reads: Vec<BodyRead<Formula>>) -> Bodies<BodyRead<Formula>> {
+    let spliced = |read: &BodyRead<Formula>| {
+        read.at.is_empty()
+            && matches!(&read.read, Operand::Node(node)
+                if doc.outputs(*node).iter().any(|&out| doc.yielding(out).is_some()))
+    };
+    Bodies::Spelled(
+        reads
+            .into_iter()
+            .map(|read| match spliced(&read) {
+                true => editor_core::Spell::All(read),
+                false => editor_core::Spell::One(read),
+            })
+            .collect(),
     )
+}
+
+fn union(doc: ProfileDoc, reads: Vec<BodyRead<Formula>>) -> (ProfileDoc, RecipeNodeId) {
+    let members = entries(&doc, reads);
+    insert(doc, Node::Union { members })
 }
 
 fn assemble(doc: ProfileDoc, reads: Vec<BodyRead<Formula>>) -> (ProfileDoc, RecipeNodeId) {
-    insert(
-        doc,
-        Node::Assemble {
-            members: Bodies::spelled(reads),
-        },
-    )
+    let members = entries(&doc, reads);
+    insert(doc, Node::Assemble { members })
 }
 
-/// A second family over `k` in `tall`'s space: `wide[k] = union([tall[k]])`.
+/// A second family over `k` in `tall`'s space, yielded beside it:
+/// `wide[k] = union([tall[k]])`.
 fn wide(doc: ProfileDoc, tall: RecipeNodeId, k: VarId) -> (ProfileDoc, RecipeNodeId) {
-    union(doc, vec![BodyRead::indexed(tall, vec![var(k)])])
+    let (doc, wide) = union(doc, vec![BodyRead::indexed(tall, vec![var(k)])]);
+    (fixture::yielded(doc, wide), wide)
 }
 
 #[test]
@@ -305,29 +319,26 @@ fn readers_across_ranks() {
     let (doc, j) = fixture::index_of(doc, "j", Formula::count(2), Some(k));
     let by = Formula::mul(scalar(var(k)), scalar(var(j))).unwrap();
     let (doc, nested) = prism(doc, 0.0, depth(by));
-    let (doc, outer) = union(
-        doc,
-        vec![BodyRead::indexed(nested, vec![var(k), Formula::count(1)])],
-    );
+    let doc = fixture::yielded(doc, nested);
     // Over k alone: the nested family at a written inner index.
     let (doc, a) = union(
         doc,
         vec![BodyRead::indexed(nested, vec![next(k), Formula::count(1)])],
     );
-    // Over k alone: the nested family whole beside the outer's member.
+    // Over k alone: the nested family whole beside another row's member.
     let (doc, b) = assemble(
         doc,
         vec![
             BodyRead::plain(nested),
-            BodyRead::indexed(outer, vec![next(k)]),
+            BodyRead::indexed(nested, vec![next(k), Formula::count(0)]),
         ],
     );
-    // Over (k, j): the outer family's other member.
+    // Over (k, j): its own member beside the other row's at its own j.
     let (doc, c) = assemble(
         doc,
         vec![
             BodyRead::indexed(nested, vec![var(k), var(j)]),
-            BodyRead::indexed(outer, vec![next(k)]),
+            BodyRead::indexed(nested, vec![next(k), var(j)]),
         ],
     );
     for (id, chain) in [(a, vec![k]), (b, vec![k]), (c, vec![k, j])] {
@@ -392,7 +403,7 @@ fn a_pose_of_a_selection_of_another_member() {
     let measured = editor_core::measure(
         &doc,
         &[MeasurePrimitive::Distance {
-            a: Operand::select(Operand::Node(tall), vec![vertex.clone()]),
+            a: Operand::select(BodyRead::indexed(tall, vec![var(k)]), vec![vertex.clone()]),
             b: fixture::point_of(Operand::select(
                 BodyRead::indexed(tall, vec![next(k)]),
                 vec![vertex],
@@ -526,12 +537,17 @@ fn member_faces(doc: &ProfileDoc, tall: RecipeNodeId) -> Vec<StableName> {
         .collect()
 }
 
-/// A pose at a one-body node: `reader[k] = mirror(tall, plane(tall[next].f))`
-/// for each face `f` of a member, the plane a pose of a selection of
-/// another member. At least one face's plane moves with `p`.
+/// A pose at a one-body node: `reader[k] = mirror(wide[k],
+/// plane(tall[next].f))` for each face `f` of a member, the plane a pose
+/// of a selection of another member, the body a member of a second
+/// family: a one-body node reading two members of ONE family projects
+/// both into one map and is a kernel `unreachable!`
+/// (`work/boxfinish/a-one-body-node-reading-two-members-of-one-family-reaches-an-unreachable.md`).
+/// At least one face's plane moves with `p`.
 #[test]
 fn a_mirror_across_another_members_face() {
     let (doc, k, tall) = tall("rv-mirror");
+    let (doc, wide) = wide(doc, tall, k);
     let faces = member_faces(&doc, tall);
     assert_eq!(faces.len(), 6, "a prism's faces");
     let mut moved = 0;
@@ -540,10 +556,10 @@ fn a_mirror_across_another_members_face() {
             BodyRead::indexed(tall, vec![next(k)]),
             vec![face.clone()],
         ));
-        let node = Node::mirror(
-            Operand::Node(tall),
-            editor_core::pose::RoleRead::plain(plane),
-        );
+        let node = Node::Mirror {
+            body: BodyRead::indexed(wide, vec![var(k)]),
+            plane: editor_core::pose::RoleRead::plain(plane),
+        };
         let (doc, reader) = insert(doc.clone(), node);
         assert_eq!(doc.node_reach(reader).chain(), Some(&[k][..]));
         let prior = evaluate::<f64>(&doc, None);
@@ -553,10 +569,10 @@ fn a_mirror_across_another_members_face() {
         if at(&prior) != at(&fresh) {
             moved += 1;
         }
-        served_is_fresh::<f64>(&prior, &after, "mirror(tall, plane(tall[next].f))");
+        served_is_fresh::<f64>(&prior, &after, "mirror(wide[k], plane(tall[next].f))");
         let mid = evaluate::<f64>(&after, Some(&prior));
         let back = set(after, "p", FreeValue::Continuous(0.25));
-        served_is_fresh::<f64>(&mid, &back, "mirror(tall, plane(tall[next].f)), back");
+        served_is_fresh::<f64>(&mid, &back, "mirror(wide[k], plane(tall[next].f)), back");
     }
     assert!(moved > 0, "some face's plane moves with p");
 }

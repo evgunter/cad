@@ -90,6 +90,7 @@ fn prism(doc: ProfileDoc, cx: f64, distance: Formula) -> (ProfileDoc, RecipeNode
 fn tall(label: &str) -> (ProfileDoc, VarId, RecipeNodeId) {
     let (doc, k) = fixture::index_of(with_p(label), "k", Formula::count(2), None);
     let (doc, tall) = prism(doc, 0.0, depth(scalar(var(k))));
+    let doc = fixture::yielded(doc, tall);
     (doc, k, tall)
 }
 
@@ -304,7 +305,7 @@ fn a_members_selection_of_another_member_is_read_again_when_that_member_moves() 
     let measured = editor_core::measure(
         &doc,
         &[MeasurePrimitive::Distance {
-            a: Operand::select(Operand::Node(tall), vec![vertex.clone()]),
+            a: Operand::select(BodyRead::indexed(tall, vec![var(k)]), vec![vertex.clone()]),
             b: Operand::select(BodyRead::indexed(tall, vec![next(k)]), vec![vertex]),
         }],
         Tol::witness(),
@@ -316,7 +317,7 @@ fn a_members_selection_of_another_member_is_read_again_when_that_member_moves() 
 }
 
 /// **A family read whole from inside a member**
-/// (`repetition::takes_whole`): `reader[k] = assemble([tall,
+/// (a yield spliced in, `…tall`): `reader[k] = assemble([…tall,
 /// tall[k]])`, a family over `k` by its second seat's index, whose
 /// first seat reads every member of `tall`. Its second seat picks the
 /// bound member, so the member read's key is the bound member's either
@@ -329,9 +330,9 @@ fn a_member_reading_a_family_whole_is_rebuilt_when_any_member_moves() {
     let (doc, reader) = insert(
         doc,
         Node::Assemble {
-            members: Bodies::spelled(vec![
-                BodyRead::plain(tall),
-                BodyRead::indexed(tall, vec![var(k)]),
+            members: Bodies::Spelled(vec![
+                editor_core::Spell::All(BodyRead::plain(tall)),
+                editor_core::Spell::One(BodyRead::indexed(tall, vec![var(k)])),
             ]),
         },
     );
@@ -354,6 +355,7 @@ fn a_member_of_a_nested_family_is_rebuilt_when_the_member_it_reads_moves() {
     let (doc, j) = fixture::index_of(doc, "j", Formula::count(2), Some(k));
     let by = Formula::mul(scalar(var(k)), scalar(var(j))).unwrap();
     let (doc, tall) = prism(doc, 0.0, depth(by));
+    let doc = fixture::yielded(doc, tall);
     let (doc, reader) = insert(
         doc,
         Node::Union {
@@ -409,6 +411,7 @@ fn jagged(label: &str) -> (ProfileDoc, VarId, VarId, RecipeNodeId) {
     let (doc, j) = fixture::index_of(doc, "j", n, Some(k));
     let by = Formula::add(scalar(var(k)), scalar(var(j))).unwrap();
     let (doc, tall) = prism(doc, 0.0, depth(by));
+    let doc = fixture::yielded(doc, tall);
     (doc, k, j, tall)
 }
 
@@ -588,7 +591,7 @@ fn a_seat_re_pointed_to_a_source_of_the_same_body_is_named_through_it() {
     );
 }
 
-/// **Every read past the value that stands is one of nine, in one
+/// **Every read past the value that stands is one of ten, in one
 /// file**: `NodeValue::whole` is the one door a reader takes from the
 /// member bound in its results to the family, and `wire::seen_reads`
 /// says for each read whether its op goes through it. The two are two
@@ -596,10 +599,12 @@ fn a_seat_re_pointed_to_a_source_of_the_same_body_is_named_through_it() {
 /// `whole()` is a read the keys may not see: it is counted here until
 /// someone says which of `seen_reads`' arms sees it.
 ///
-/// The nine, in `eval/wire.rs`: `member_place`, `selection_table`,
-/// `reads_projected` and `project_selection` (a member read, seen as
-/// that member), `wire_combine` twice and `wire_assemble` (a seat that
-/// takes a family whole), and `Seen::of` twice (the keys' own).
+/// The ten, in `eval/wire.rs`: `member_place`, `selection_table`,
+/// `reads_projected` twice (the family, and its halves where the read
+/// is a half of a split of each member) and `project_selection` (a
+/// member read, seen as that member); `wire_combine` twice and
+/// `wire_assemble` (a yield, or a member read already projected); and
+/// `Seen::of` twice (the keys' own).
 ///
 /// Blind spot: a read of `NodeValue::family` by the field, which
 /// nothing outside `whole()` and the overlay makes today.
@@ -620,7 +625,7 @@ fn every_read_past_the_value_that_stands_is_counted() {
     }
     assert_eq!(
         found,
-        [("eval/wire.rs".to_owned(), 9)],
+        [("eval/wire.rs".to_owned(), 10)],
         "a reader of a family past the member bound in its results was added or moved: say \
          which arm of `wire::seen_reads` sees its read, then count it here"
     );
