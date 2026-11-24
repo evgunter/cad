@@ -793,3 +793,6 @@ fn settle<T: geom_core::Certifies>(
 
 #[cfg(test)]
 mod rows;
+
+#[cfg(test)]
+mod crossing_parameter_rows;
