@@ -1204,26 +1204,28 @@ pub(crate) fn analytic_root<T: Decide>(
         let g = geom_brep::implicit_gradient(surface, p);
         g.dot(d) / (g.norm() * d.norm())
     };
+    // Each point the Newton stands at is read once, the root (where it
+    // stops) included: the read guards the step it divides by and, at the
+    // root, is the root's own.
     let mut t = seed;
-    for _ in 0..NEWTON_STEPS {
+    for step in 0..=NEWTON_STEPS {
         let (p, d) = carrier.ders1(t);
         let sine = sine_at(p, d);
         if !transversal(sine.abs(), p)? {
             return Ok(Err(CornerVerdict::Graze { sine }));
         }
+        if step == NEWTON_STEPS {
+            break;
+        }
         let f = geom_brep::implicit_residual(surface, p);
         let g = geom_brep::implicit_gradient(surface, p);
         t = t - f / g.dot(d);
     }
-    let (p, d) = carrier.ders1(t);
+    let p = carrier.eval(t);
     let g = geom_brep::implicit_gradient(surface, p);
     let gap = geom_brep::implicit_residual(surface, p).abs() / g.norm();
     if !zero_as("offset_corner_on_surface", gap, band)? {
         return Ok(Err(CornerVerdict::NoRoot));
-    }
-    let sine = g.dot(d) / (g.norm() * d.norm());
-    if !transversal(sine.abs(), p)? {
-        return Ok(Err(CornerVerdict::Graze { sine }));
     }
     Ok(Ok(t))
 }
@@ -2154,8 +2156,9 @@ mod graze_reach {
     /// sine at `θ` being `sin ψ · cos θ`. Seeded at the edge's end `π/4`,
     /// the seed reads `sin ψ · cos(π/4)` over its reach `√2`, Positive;
     /// the iterates close on the root, whose reach `2 sin(π/8) ≈ 0.77`
-    /// reads it in band under `(10⁻⁹, 10⁻⁸)`: a graze. Read from the
-    /// seed throughout, every iterate would read Positive.
+    /// reads it in band under `(10⁻⁹, 10⁻⁸)`: a graze, at the iterates
+    /// beside the root and at the root itself, where the seed's reach
+    /// would read it Positive.
     #[test]
     fn a_circles_graze_is_read_from_the_iterate_not_the_seed() {
         let band = Band::new(1e-9, 1e-8).unwrap();
@@ -2171,6 +2174,41 @@ mod graze_reach {
         assert!(
             matches!(got, Ok(Err(CornerVerdict::Graze { .. }))),
             "the iterates near the root read the reach 0.77 in band: got {got:?}"
+        );
+    }
+
+    /// **An iterate's graze is read from the iterate.** The unit circle in
+    /// the `xz` plane against the plane `z = 0.2`, its edge the arc of
+    /// `0.2` about its top, seeded at `θ₀ ≈ −1.1478`, whose Newton step
+    /// lands at `θ₁ = π/2 − 0.01`, beside the top. There the sine,
+    /// `cos θ₁ ≈ 0.01`, times the edge's reach from that iterate, about
+    /// `0.1`, reads Zero under `(5·10⁻³, 10⁻²)`: a graze. Read from the
+    /// seed's point, which the edge reaches about `1.9` from, the same
+    /// sine would read Positive, and the Newton would go on to a root far
+    /// round the circle.
+    #[test]
+    fn an_iterates_graze_is_read_from_the_iterate() {
+        let band = Band::new(5e-3, 1e-2).unwrap();
+        let carrier = Curve3::Circle(geom::Circle::new(
+            geom::Frame::new(Point3::origin(), Vec3::new(0.0, -1.0, 0.0), Vec3::unit_x()),
+            1.0,
+        ));
+        let top = core::f64::consts::FRAC_PI_2;
+        assert!(carrier.eval(top).distance(Point3::new(0.0, 0.0, 1.0)) < 1e-15);
+        let level = Surface::Plane {
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, 0.2), Vec3::unit_z(), Vec3::unit_x()),
+        };
+        let seed = -1.147_805_689_028_445_2;
+        let got = crate::root_along(
+            &level,
+            &carrier,
+            seed,
+            (&carrier, (top - 0.1, top + 0.1)),
+            band,
+        );
+        assert!(
+            matches!(got, Ok(Err(CornerVerdict::Graze { .. }))),
+            "the iterate beside the top reads a graze from itself: {got:?}"
         );
     }
 
