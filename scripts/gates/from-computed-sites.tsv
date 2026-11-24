@@ -50,7 +50,7 @@ crates/geom-brep/src/ssi/certify.rs	1	owed(certificate-bound-fields-hold-limb-bo
 crates/geom-core/src/dual.rs	1	scalar	from_computed	x	Dual's impl forwards to its base scalar's
 crates/geom-core/src/linalg/rigid_motion.rs	1	owed(lever-arms-read-as-f64-bounds-still-enter-lever-t)	least_turn_minted	reach_f	least_turn_minted: an f64 reach in the room's T arithmetic
 crates/geom-core/src/predicate.rs	1	owed(bounds-re-enter-t-through-from-computed-with-no-row)	apply	<fn>	Allowance::apply: an allowance's f64 bound formed in T for the Sym reading
-crates/geom-core/src/solved.rs	1	door	decide_admit	candidate	geom_core::solved::admit: the stored solved value's check runs at T inside it
+crates/geom-core/src/solved.rs	1	door	decide_admit	candidate	geom_core::solved::decide_admit: the stored solved value's check runs at T inside it
 crates/geom-core/src/sym.rs	1	scalar	from_computed	x	Sym's impl: an opaque unknown over its numeric scalar's
 crates/geom/src/curves/on_carrier.rs	1	owed(stored-solved-values-whose-check-differs-in-kind-are-not-behind-the-door)	polish	crate::mid_param(lo, hi)	Curve3::polish's re-centred iterate at an enclosure scalar; OnCarrier::On admits the foot by its gap in the band at Decide, a dual reaching it
 crates/geom/src/curves/periodic_nurbs.rs	1	owed(a-periodic-views-whole-turn-shift-is-a-count-of-its-period)	restated	s0	restated: a stored end beside the shift

@@ -101,7 +101,7 @@ FROM_COMPUTED_RULES=(UNLISTED STALE CLASS WHERE)
 
 from_computed_rule_message() {
   case "$1" in
-    UNLISTED) printf '%s' "a from_computed site outside the admitting door(s), a scalar's impl and the place step, and not listed. A stored solved value enters through geom_core::solved::admit; a place goes to a place-taking evaluator as an f64; a bound decides at f64 (crates/geom-core/README.md, DL5.2). A re-entry an open work item owns goes on $FROM_COMPUTED_LIST with its class and reason" ;;
+    UNLISTED) printf '%s' "a from_computed site outside the admitting door(s), a scalar's impl and the place step, and not listed. A stored solved value enters through geom_core::solved::decide_admit; a place goes to a place-taking evaluator as an f64; a bound decides at f64 (crates/geom-core/README.md, DL5.2). A re-entry an open work item owns goes on $FROM_COMPUTED_LIST with its class and reason" ;;
     STALE) printf '%s' "a listed from_computed site is gone (or fewer remain than listed): drop or lower its entry in $FROM_COMPUTED_LIST in the change that removed it" ;;
     CLASS) printf '%s' "an entry in $FROM_COMPUTED_LIST has an unknown class, an empty reason, or an owed class naming no work item under work/ that owns it (a status line, not closed)" ;;
     WHERE) printf '%s' "an entry in $FROM_COMPUTED_LIST is classed where its class may not stand: a door only in geom-core's solved module, a scalar impl only in its own fn from_computed, a place step only at a crate-private function FROM_COMPUTED_PLACE_STEPS names" ;;
