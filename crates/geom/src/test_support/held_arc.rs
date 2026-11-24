@@ -35,8 +35,7 @@ impl<T: SpanLocate> HeldArc<T> {
     /// a point.
     pub fn new(r: T, theta: T, m: NonZeroUsize) -> Result<Self, SplineError> {
         let m = m.get();
-        #[allow(clippy::cast_precision_loss)]
-        let steps = T::from_f64(m as f64);
+        let steps = T::count(m);
         let delta = theta / steps;
         let (_, half_w) = (delta * T::from_f64(0.5)).sin_cos();
         let at = |angle: T, radius: T| {
@@ -46,8 +45,7 @@ impl<T: SpanLocate> HeldArc<T> {
         let mut control = vec![at(T::zero(), r)];
         let mut weights = vec![T::one()];
         for k in 0..m {
-            #[allow(clippy::cast_precision_loss)]
-            let base = delta * T::from_f64(k as f64);
+            let base = delta * T::count(k);
             control.push(at(base + delta * T::from_f64(0.5), r / half_w));
             weights.push(half_w);
             control.push(at(base + delta, r));
@@ -59,8 +57,7 @@ impl<T: SpanLocate> HeldArc<T> {
         );
         let mut runs = vec![(T::zero(), triple)];
         for k in 1..m {
-            #[allow(clippy::cast_precision_loss)]
-            runs.push((T::from_f64(k as f64) / steps, double));
+            runs.push((T::count(k) / steps, double));
         }
         runs.push((T::one(), triple));
         Ok(Self {

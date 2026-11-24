@@ -1299,7 +1299,7 @@ macro_rules! nurbs_curve {
                 let (lo, hi) = (a.min(b), a.max(b));
                 #[allow(clippy::cast_precision_loss)]
                 let at = |start: T, width: T, j: usize| {
-                    start + width * T::from_f64(j as f64 / per as f64)
+                    start + width * T::count_ratio(j, per)
                 };
                 spans
                     .iter()

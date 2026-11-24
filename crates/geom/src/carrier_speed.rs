@@ -177,8 +177,7 @@ pub fn length_hi<T: SpanLocate>(carrier: &crate::Curve3<T>, a: T, b: T) -> T {
     if let Kind::Nurbs(n) = Kind::of(carrier) {
         return n.length_upper_bound(a, b);
     }
-    #[allow(clippy::cast_precision_loss)]
-    let at = |i: usize| a + (b - a) * T::from_f64(i as f64 / LENGTH_PIECES as f64);
+    let at = |i: usize| a + (b - a) * T::count_ratio(i, LENGTH_PIECES);
     let width = (b - a).abs() * T::from_f64(1.0 / LENGTH_PIECES as f64);
     (0..LENGTH_PIECES)
         .map(|i| speed_between(carrier, at(i), at(i + 1)).1.to_meters(width))

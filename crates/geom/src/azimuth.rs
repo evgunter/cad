@@ -279,7 +279,7 @@ impl Quarter {
 
     /// `m·π/2`.
     pub fn angle<T: Real>(self) -> T {
-        T::pi() * T::from_f64(0.5 * f64::from(self.0))
+        T::pi() * T::count_ratio(self.0, 2_u32)
     }
 }
 
