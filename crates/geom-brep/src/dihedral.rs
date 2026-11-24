@@ -1495,10 +1495,10 @@ pub(crate) fn second_order_walk<T: Decide, H: StationHook<T>>(
             Ok(Decided {
                 sign: Sign::Positive,
                 ..
-            }) => SecondOrderWalk::Determinate,
-            Ok(_) | Err(_) => SecondOrderWalk::Separated,
+            }) => { { if let Ok(p) = std::env::var("R2_HITS") { use std::io::Write; if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(p) { let _ = writeln!(f, "DET\t{}", std::thread::current().name().unwrap_or("?")); } } } SecondOrderWalk::Determinate }
+            Ok(_) | Err(_) => { { if let Ok(p) = std::env::var("R2_HITS") { use std::io::Write; if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(p) { let _ = writeln!(f, "SEP\t{}", std::thread::current().name().unwrap_or("?")); } } } if std::env::var("R2_MUT1").is_ok() { SecondOrderWalk::Determinate } else { SecondOrderWalk::Separated } }
         },
-        _ => SecondOrderWalk::Separated,
+        _ => { { if let Ok(p) = std::env::var("R2_HITS") { use std::io::Write; if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(p) { let _ = writeln!(f, "SEPNONE\t{}", std::thread::current().name().unwrap_or("?")); } } } SecondOrderWalk::Separated }
     }
 }
 

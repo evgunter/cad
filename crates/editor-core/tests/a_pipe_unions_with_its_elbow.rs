@@ -686,3 +686,29 @@ fn an_elbow_drawn_with_its_rim_vertices_off_the_pipes_unions() {
         }
     }
 }
+
+/// R2 probe: a sweep of the outward turn δ, pipe and rod, each union's
+/// outcome against the cos δ closed form.
+#[test]
+fn r2_probe_turn_sweep() {
+    let mut deltas: Vec<f64> = (-61..=61).map(|k| f64::from(k) * 0.02).collect();
+    let eps = Tol::witness().eps();
+    for m in [1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 1e2, 1e3, 1e4] {
+        deltas.push(m * eps);
+    }
+    for delta in deltas {
+        for hollow in [true, false] {
+            let (off, want) = turned(hollow, delta);
+            let j = join(hollow, CapEnd::End, off);
+            let said = if let Some(e) = j.ev.node_error(j.union) {
+                format!("REFUSES {}", e.kind).chars().take(220).collect::<String>()
+            } else {
+                let b = built(&j);
+                let ok = b.solids == 1 && b.tier3.is_ok() && b.tier3_prime.is_ok()
+                    && (b.volume - want).abs() <= 1e-12 * want;
+                format!("BUILDS ok={ok} solids {} t3 {} t3' {} rel {:.1e}", b.solids, b.tier3.is_ok(), b.tier3_prime.is_ok(), (b.volume - want).abs() / want)
+            };
+            eprintln!("R2T delta {delta:e} hollow {hollow}: {said}");
+        }
+    }
+}

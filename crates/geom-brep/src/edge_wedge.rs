@@ -608,7 +608,7 @@ pub(crate) fn material_outcome(
         {
             WedgeVerdict::InBand(WedgeEscalation::at(WedgeRung::Bend, cause))
         }
-        Some((_, MaterialPairing::Aligned)) => WedgeVerdict::Seam { bend, margin },
+        Some((_, MaterialPairing::Aligned)) => { if let Separation::Undecided(_) = separation { if let Ok(p) = std::env::var("R2_HITS") { use std::io::Write; if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(p) { let _ = writeln!(f, "ROUTEINBAND\t{}", std::thread::current().name().unwrap_or("?")); } } } WedgeVerdict::Seam { bend, margin } }
         _ if separation == Separation::None => WedgeVerdict::Lamina,
         _ => match (MixedStations::end(&decided), ends.first()) {
             (Some(mixed), _) => WedgeVerdict::Mixed(mixed),

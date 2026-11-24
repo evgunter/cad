@@ -391,3 +391,5 @@ mod torus_doors_ssi;
 mod torus_gap;
 #[path = "torus_meridian_radial.rs"]
 mod torus_meridian_radial;
+#[path = "r2_probe_between_stations.rs"]
+mod r2_probe_between_stations;

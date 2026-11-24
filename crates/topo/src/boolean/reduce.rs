@@ -2529,15 +2529,16 @@ fn junction_end_window<T: Decide>(
     };
     let conormal = q.normal.cross(ridden);
     let departure = along.dot(conormal.normalize());
+    if std::env::var("R2_MUT3").is_ok() { return Ok(Some(window)); }
     match junction_side(
         departure,
         (bend_e, T::one() / q.rim.radius),
         window.spread,
         band,
     ) {
-        Ok(Sign::Positive) => Ok(Some(window)),
-        Ok(Sign::Zero | Sign::Negative) => Err(no_window),
-        Err(diag) => Err(in_band(BooleanDecision::JunctionEndSide, diag)),
+        Ok(Sign::Positive) => { { if let Ok(p) = std::env::var("R2_HITS") { use std::io::Write; if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(p) { let _ = writeln!(f, "SIDEPOS\t{}", std::thread::current().name().unwrap_or("?")); } } } Ok(Some(window)) }
+        Ok(Sign::Zero | Sign::Negative) => { { if let Ok(p) = std::env::var("R2_HITS") { use std::io::Write; if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(p) { let _ = writeln!(f, "SIDENEG\t{}", std::thread::current().name().unwrap_or("?")); } } } Err(no_window) }
+        Err(diag) => { { if let Ok(p) = std::env::var("R2_HITS") { use std::io::Write; if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(p) { let _ = writeln!(f, "SIDEESC\t{}", std::thread::current().name().unwrap_or("?")); } } } Err(in_band(BooleanDecision::JunctionEndSide, diag)) }
     }
 }
 

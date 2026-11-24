@@ -4656,7 +4656,7 @@ fn along_edge_spec<T: Decide>(
         body.get_surface(k)
             .is_some_and(|s| !geom_brep::is_analytic(s))
     };
-    let beside_spline = spline(surface)
+    let beside_spline = std::env::var("R2_MUT2").is_ok() || spline(surface)
         || match &own.description {
             geom_brep::EdgeDescriptionSpec::Intersection { pair, .. }
             | geom_brep::EdgeDescriptionSpec::TangentIntersection { pair, .. } => {
