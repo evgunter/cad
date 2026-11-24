@@ -53,7 +53,7 @@ note before the build. (BOXFINISH orchestrator)
 
 ## Closed
 
-PR PRNUM (2026-11-24). The rounding lane's interval re-read of a curved
+PR 7716 (2026-11-24). The rounding lane's interval re-read of a curved
 closed-form face (`lifted_closed_form`, `crates/topo/src/props.rs`)
 runs under `k_stats::unlogged` on ledger row F48, so the `f64` witness
 states the decisions the leaf's replay states and no others; a refusal
