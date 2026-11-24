@@ -2,12 +2,13 @@
 id: a-plane-cell-holding-both-sides-of-a-thin-face-is-read-only-below-its-width
 kind: issue
 title: present_plane read one line or one corner, so a cell holding a thin plane face's whole end (its short side with both neighbours) was read only once split below the face's width - it now reads the end, the end's cap decided before any Vacuous
-status: dispatched
+status: closed
 opened: 2026-11-21
 priority: P0
 cost: M
 pr: 7334
 branch: embed/strip
+closed: 2026-11-24
 ---
 
 

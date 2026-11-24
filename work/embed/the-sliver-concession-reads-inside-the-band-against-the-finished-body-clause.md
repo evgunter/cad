@@ -2,12 +2,13 @@
 id: the-sliver-concession-reads-inside-the-band-against-the-finished-body-clause
 kind: issue
 title: The injectivity check's sliver reads a cell that reaches past a shared line by rounding as holding none of its face, and certifies the pair with neither face read; it retires once the departure reading is metered at the faces' reach
-status: dispatched
+status: closed
 opened: 2026-11-13
 priority: P0
 cost: H
 pr: 7329
 branch: embed/remeter
+closed: 2026-11-24
 ---
 
 
