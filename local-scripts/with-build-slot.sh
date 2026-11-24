@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # with-build-slot.sh — machine-wide build-slot semaphore for agent lanes.
 #
-#   local-scripts/with-build-slot.sh [-x | --express [SECS]] [-n] [-w SECS] -- <command> [args...]
+#   local-scripts/with-build-slot.sh [-x | --express [SECS]] [--hold SECS] [-n] [-w SECS] -- <command> [args...]
+#   local-scripts/with-build-slot.sh --status
 #
 # Replaces the soft "two lanes" convention (and the retired
 # cargo-slots.txt registry) with real locks: slot lockfiles under
@@ -63,6 +64,29 @@
 #   -w SECS    give up (exit 75) after SECS of waiting. Default: wait
 #              forever, printing a status line every 60s naming the
 #              current holders.
+#   --hold SECS
+#              MAIN-SLOT HOLD BUDGET (default 7200s, hard max 14400s).
+#              A main-slot job (default or -x) runs under `timeout SECS`,
+#              exactly as an express job runs under its declared budget,
+#              so no single job can hold the machine-wide mutex past its
+#              declaration (exit 124 when it does). The budget is written
+#              to the holder record, so every waiter's status line says
+#              how long the current holder may still hold. A job that
+#              needs longer than the hard max is a hosted-CI job, not a
+#              local one. CAD_SLOT_MAX_HOLD sets the default.
+#   --status   print who holds each slot (probed, not just the holder
+#              files), how long each holder has held against its budget,
+#              and which with-build-slot requests are queued, then exit
+#              without queueing. Read-only apart from a sub-millisecond
+#              probe flock on each free-looking slot.
+#
+# NICENESS: main-slot jobs run under `nice -n 10` (CAD_SLOT_NICE
+# overrides; 0 disables); express jobs keep normal priority. Only one
+# main-slot job runs at a time, so its niceness orders it against
+# the express lane and the agents' own interactive processes, never
+# against another battery: when the CPU is contended the short,
+# interactive work goes first, and an uncontended battery runs at full
+# speed as before.
 #
 # WHY AN EXPRESS LANE (and not a priority queue): the measured pain
 # (#235, #266) is short jobs (a 3-minute clippy, a small suite)
@@ -118,6 +142,10 @@ EXPRESS_MAX=600
 EXPRESS_SECS=$EXPRESS_MAX
 WANT_X=0
 WANT_EXPRESS=0
+HOLD_MAX=14400
+HOLD_SECS="${CAD_SLOT_MAX_HOLD:-7200}"
+NICE="${CAD_SLOT_NICE:-10}"
+WANT_STATUS=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -126,13 +154,23 @@ while [ $# -gt 0 ]; do
       MODE=express; WANT_EXPRESS=1; shift
       if [ $# -gt 0 ] && [[ "$1" =~ ^[0-9]+$ ]]; then EXPRESS_SECS="$1"; shift; fi
       ;;
+    --hold) HOLD_SECS="${2:?--hold needs seconds}"; shift 2 ;;
+    --status) WANT_STATUS=1; shift ;;
     -n) TRY=1; shift ;;
     -w) WAIT_MAX="${2:?-w needs seconds}"; shift 2 ;;
     --) shift; break ;;
-    *)  echo "usage: with-build-slot.sh [-x | --express [SECS]] [-n] [-w SECS] -- <command> [args...]" >&2; exit 2 ;;
+    *)  echo "usage: with-build-slot.sh [-x | --express [SECS]] [--hold SECS] [-n] [-w SECS] -- <command> [args...] | --status" >&2; exit 2 ;;
   esac
 done
-[ $# -gt 0 ] || { echo "with-build-slot: no command given" >&2; exit 2; }
+[ "$WANT_STATUS" -eq 1 ] || [ $# -gt 0 ] || { echo "with-build-slot: no command given" >&2; exit 2; }
+if ! [[ "$HOLD_SECS" =~ ^[0-9]+$ ]] || [ "$HOLD_SECS" -lt 1 ] || [ "$HOLD_SECS" -gt "$HOLD_MAX" ]; then
+  echo "with-build-slot: hold budget '${HOLD_SECS}' out of range (1..${HOLD_MAX}s hard max) — a job longer than that belongs on hosted CI" >&2
+  exit 2
+fi
+if ! [[ "$NICE" =~ ^[0-9]+$ ]] || [ "$NICE" -gt 19 ]; then
+  echo "with-build-slot: CAD_SLOT_NICE must be 0..19, got '$NICE'" >&2
+  exit 2
+fi
 
 if [ "$WANT_X" -eq 1 ] && [ "$WANT_EXPRESS" -eq 1 ]; then
   echo "with-build-slot: -x is incompatible with --express — a battery is never a short job; take the main mutex" >&2
@@ -147,7 +185,7 @@ fi
 
 # Already inside a slot (nested invocation): pass through — but an
 # express declaration still self-enforces its budget even when nested.
-if [ -n "${BUILD_SLOT_HELD:-}" ]; then
+if [ -n "${BUILD_SLOT_HELD:-}" ] && [ "$WANT_STATUS" -eq 0 ]; then
   if [ "$MODE" = express ]; then
     exec timeout --kill-after=10 "$EXPRESS_SECS" "$@"
   fi
@@ -180,6 +218,69 @@ fi
 # edit-rebuild loop — the figures and their disposition live in
 # local-scripts/setup-build-env.sh, once), so the guard is gone
 # with it rather than left running a daemon nothing uses.
+
+# --status: report and exit, before this process opens (and so could
+# be mistaken for holding) any slot fd. A slot is reported FREE only
+# when a non-blocking probe flock on it succeeds — the probe is held
+# for the duration of one flock(1) call and released at once, so a
+# waiter polling in that instant just retries 5s later. The holder file
+# is reported beside the probe, never instead of it.
+if [ "$WANT_STATUS" -eq 1 ]; then
+  now=$(date +%s)
+  echo "with-build-slot status at $(date +%H:%M:%S) (width $WIDTH):"
+  for s in slot-1 slot-2 express; do
+    f="$LOCK_DIR/$s.lock"
+    if [ ! -e "$f" ]; then echo "  $s: free (never used)"; continue; fi
+    if flock --nonblock "$f" true 2>/dev/null; then
+      echo "  $s: free"
+      continue
+    fi
+    line=$(cat "$LOCK_DIR/$s.holder" 2>/dev/null || true)
+    pid=$(sed -n 's/^pid \([0-9][0-9]*\) .*/\1/p' <<<"$line")
+    epoch=$(sed -n 's/.*(@\([0-9][0-9]*\)).*/\1/p' <<<"$line")
+    budget=$(sed -n 's/.*budget \([0-9][0-9]*\)s.*/\1/p' <<<"$line")
+    note=""
+    if [ -n "$epoch" ]; then
+      dur=$((now - epoch)); note=" — held $((dur / 60))m"
+      [ -n "$budget" ] && note="$note of a $((budget / 60))m budget"
+    fi
+    if [ -z "$line" ]; then
+      note=" — no holder on record"
+    elif [ -n "$pid" ] && ! kill -0 "$pid" 2>/dev/null; then
+      note="$note — record names dead pid $pid, so an unrecorded process (an inherited fd) holds it"
+    fi
+    echo "  $s: BUSY: ${line:-?}$note"
+  done
+  # Queued requests: a with-build-slot.sh still running as itself is
+  # waiting (or in the brief memory-floor check); a holder has already
+  # exec'd into its command. Report pid, wait and flags only — never the
+  # command or its cwd (the holder-record rule below says why).
+  echo "  queued:"
+  q=0
+  for d in /proc/[0-9]*; do
+    p=${d#/proc/}
+    [ "$p" = "$$" ] && continue
+    # The script itself is argv[0] or argv[1] (`bash with-build-slot.sh`);
+    # a shell whose -c string merely mentions it is not a request.
+    { mapfile -d "" -t av < "$d/cmdline"; } 2>/dev/null || continue
+    if [[ "${av[0]:-}" == */with-build-slot.sh || "${av[0]:-}" == with-build-slot.sh ]]; then
+      av=("${av[@]:1}")
+    elif [[ "${av[1]:-}" == */with-build-slot.sh || "${av[1]:-}" == with-build-slot.sh ]]; then
+      av=("${av[@]:2}")
+    else
+      continue
+    fi
+    flags=""
+    for a in "${av[@]}"; do [ "$a" = -- ] && break; flags="$flags$a "; done
+    case " $flags" in *" --status "*) continue ;; esac
+    et=$(ps -o etimes= -p "$p" 2>/dev/null | tr -d ' ') || continue
+    [ -n "$et" ] || continue
+    echo "    pid $p waiting $((et / 60))m${flags:+ (flags: ${flags% })}"
+    q=$((q + 1))
+  done
+  [ "$q" -gt 0 ] || echo "    none"
+  exit 0
+fi
 
 # Slot fds: express -> fd 7, slot 1 -> fd 8, slot 2 -> fd 9. Opened
 # once; flock -n per attempt. The fds (and locks) are inherited across
@@ -234,15 +335,18 @@ tried_slot_now() {  # slot-name -> 0 iff the current wait loop just failed it
   esac
 }
 describe_holder() {  # holder-file -> annotated description on stdout
-  local f="$1" slot line pid epoch now dur wc note=""
+  local f="$1" slot line pid epoch budget now dur wc note=""
   slot=$(basename "$f" .holder)
   line=$(cat "$f" 2>/dev/null) || return 0
   [ -n "$line" ] || return 0
   pid=$(sed -n 's/^pid \([0-9][0-9]*\) .*/\1/p' <<<"$line")
   epoch=$(sed -n 's/.*(@\([0-9][0-9]*\)).*/\1/p' <<<"$line")
+  budget=$(sed -n 's/.*budget \([0-9][0-9]*\)s.*/\1/p' <<<"$line")
   if [ -n "$epoch" ]; then
     now=$(date +%s); dur=$((now - epoch))
-    note=" [held $((dur / 60))m$((dur % 60))s]"
+    note=" [held $((dur / 60))m$((dur % 60))s"
+    [ -n "$budget" ] && note="$note of a $((budget / 60))m budget"
+    note="$note]"
   fi
   if [ -n "$pid" ] && [ "$pid" = "$$" ]; then
     note="$note [held by this request itself (earlier exclusive slot)]"
@@ -327,13 +431,13 @@ elif [ "$MODE" = shared ]; then
     if shared_polls_slot2 && try_slot 9; then HELD=2; break; fi
     wait_tick
   done
-  note_holder "slot-$HELD" "shared"
+  note_holder "slot-$HELD" "shared, budget ${HOLD_SECS}s"
 else
   while :; do try_slot 8 && break; wait_tick; done
   note_holder slot-1 "exclusive(1/2)"
   PHASE=2
   while :; do try_slot 9 && break; wait_tick; done
-  note_holder slot-1 "exclusive"; note_holder slot-2 "exclusive"
+  note_holder slot-1 "exclusive, budget ${HOLD_SECS}s"; note_holder slot-2 "exclusive, budget ${HOLD_SECS}s"
 fi
 
 # Belt-and-suspenders OOM guard: if available memory is unusually low
@@ -364,4 +468,8 @@ if [ "$MODE" = express ]; then
   # flock frees when the whole tree is gone, as with the main slots.
   exec timeout --kill-after=10 "$EXPRESS_SECS" "$@"
 fi
-exec "$@"
+# Main slot: the declared hold budget self-enforces the same way, and
+# the job yields the CPU to express jobs and interactive agents (see
+# NICENESS in the header). Both wrappers exec, so the fd-holding tree
+# is unchanged: the flock frees when the whole tree is gone.
+exec timeout --kill-after=10 "$HOLD_SECS" nice -n "$NICE" "$@"

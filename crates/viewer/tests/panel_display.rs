@@ -10,8 +10,8 @@
 //!   variable, its DECLARATION — remembers, and authored back through
 //!   the same factor (`rendering_unit` / `in_written` / `from_written`),
 //!   at a drag tick in that same unit (`app::FieldWriting`),
-//! * a range probe's reading is written in the unit the SEARCH ran in
-//!   (`BoundsReading`),
+//! * a `range?` reading is written in the unit the variable is declared
+//!   in (`RangeReading`),
 //! * changing the unit and changing the number are separate operations,
 //!   and neither performs the other (`SetSlotUnit` vs `SetSlot`),
 //! * and the ONE value field says the number without the unit, shows a
@@ -39,7 +39,7 @@ use viewer::props::{
     self, MemberValues, Notation, Reading, SlotGroup, SlotRow, SlotUnitFault, SlotValue,
     from_written, in_written, rendering_unit,
 };
-use viewer::session::{BoundsTarget, DocSession, Refusal, Selection, SessionOp};
+use viewer::session::{DocSession, RangeTarget, Refusal, Selection, SessionOp};
 
 /// A document holding one revolve of a square — four slots: its axis
 /// point's x and y (the profile's plane supplies the third coordinate),
@@ -366,9 +366,9 @@ fn a_value_edit_keeps_the_slots_rendering_unit() {
 /// **Changing how it is written moves no bits.**
 ///
 /// The half-turn row is the case that makes the point: 90° and 0.5π are
-/// the same canonical value to within the last ulp, so the ONLY thing
-/// that distinguishes them is the stored notation — which is why
-/// rewriting the notation must not touch the value.
+/// the same canonical value, so the ONLY thing that distinguishes them
+/// is the stored notation — which is why rewriting the notation must
+/// not touch the value.
 #[test]
 fn changing_the_display_unit_leaves_the_value_bit_identical() {
     let tol = Tol::witness();
@@ -787,20 +787,13 @@ fn a_count_parameter_has_no_written_unit() {
     assert_eq!(row.value, SlotValue::Count(6));
 }
 
-/// **A variable's range reading is written in the unit the search
-/// used**, and this row establishes that by RUNNING the search: it
-/// probes, then reads the sentence the panel would draw.
-///
-/// A reading in any other unit describes a search that did not happen —
-/// the panel saying metres about a range found in millimetres. The
-/// agreement is not two reads of one document that happen to match: the
-/// probe stores the unit it stepped by (`BoundsReading::unit`) and the
-/// reading is written in that stored unit, so a hand-built `Bounds`
-/// beside a hand-picked unit would assert nothing about the pairing.
-/// Both variables below drive the same feature and differ only in the
-/// notation they were DECLARED in.
+/// **A variable's `range?` reading is written in the unit the variable
+/// is declared in**, and this row establishes that by STARTING the run:
+/// it asks, builds the witness, then reads the line the panel would
+/// draw. Both variables below drive the same feature and differ only in
+/// the notation they were DECLARED in.
 #[test]
-fn a_parameters_range_reads_in_the_unit_it_was_searched_in() {
+fn a_parameters_range_reads_in_the_unit_it_is_declared_in() {
     let reading = |value: FreeVar| {
         let tol = Tol::witness();
         let doc: Doc<ProfileProgram> = Doc::empty_derived("panel-param-range", tol);
@@ -824,25 +817,27 @@ fn a_parameters_range_reads_in_the_unit_it_was_searched_in() {
         );
         let mut session = DocSession::inline(doc, tol);
         session.pump();
-        let outcome = session.perform(SessionOp::ProbeBounds {
-            target: BoundsTarget::Variable {
+        let outcome = session.perform(SessionOp::ProveRange {
+            target: RangeTarget::Variable {
                 var: common::var_of(session.committed_doc(), name.as_str()),
             },
         });
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-        let reading = session.bounds().expect("a probe landed").clone();
-        (reading.unit.map(|u| u.symbol()), reading.wording())
+        // One pump builds the witness: the line is the run's first.
+        session.pump();
+        let reading = session.range().expect("a run started").clone();
+        let lines = reading.lines(session.doc());
+        (reading.unit.map(|u| u.symbol()), lines.join("\n"))
     };
 
-    // Declared in millimetres: the search stepped by one millimetre and
-    // the sentence says millimetres.
+    // Declared in millimetres: the line says millimetres.
     let (unit, mm) = reading(FreeVar::written_length(WrittenLength::in_unit(8.0, MM)));
-    assert_eq!(unit, Some("mm"), "the search ran in the declared unit");
+    assert_eq!(unit, Some("mm"), "the reading is in the declared unit");
     assert!(mm.contains(" mm"), "{mm}");
     assert!(!mm.contains(" m,") && !mm.contains(" m "), "{mm}");
 
     // The same variable declared canonically: same document, same
-    // search, a different sentence — so the reading follows the
+    // search, a different line — so the reading follows the
     // DECLARATION and not the dimension.
     let (unit, m) = reading(FreeVar::continuous(Dimension::Length, 0.008));
     assert_eq!(unit, Some("m"));
@@ -1239,7 +1234,8 @@ fn a_patterns_member_indexed_rows_show_each_members_value() {
                 "{k} = 0: {}; {k} = 1: {}; {k} = 2: {}",
                 said(0.0),
                 said(0.07),
-                said(2.0 * 0.07)
+                said(2.0 * 0.07),
+                k = viewer::tree::spelled_var(k)
             ),
             "fused {fused}: the note names each member and its value"
         );
@@ -1280,12 +1276,13 @@ fn a_refused_member_past_the_spelled_ones_is_still_said() {
     let k = &members.over()[0];
     let spelled = members.spelled(Dimension::Length, Notation::DEFAULT);
     assert!(
-        spelled.ends_with("; and 4 more") && !spelled.contains(&format!("{k} = 7")),
+        spelled.ends_with("; and 4 more")
+            && !spelled.contains(&format!("{k} = 7", k = viewer::tree::spelled_var(k))),
         "the note spells six members, then counts the rest: {spelled}"
     );
     let refusals = members.refusals();
     assert!(
-        matches!(refusals.as_slice(), [line] if line.starts_with(&format!("refused at {k} = 7: "))),
+        matches!(refusals.as_slice(), [line] if line.starts_with(&format!("refused at {k} = 7: ", k = viewer::tree::spelled_var(k)))),
         "one refusal, at member 7 alone, past the spelled six: {refusals:?}"
     );
 }
@@ -1308,7 +1305,7 @@ fn a_refusal_is_said_once_with_the_members_it_refused_at() {
     let k = &alike.over()[0];
     let refusals = alike.refusals();
     assert!(
-        matches!(refusals.as_slice(), [line] if line.starts_with(&format!("refused at {k} = 3, 7: "))),
+        matches!(refusals.as_slice(), [line] if line.starts_with(&format!("refused at {k} = 3, 7: ", k = viewer::tree::spelled_var(k)))),
         "members 3 and 7 refuse alike, said once: {refusals:?}"
     );
 
@@ -1322,7 +1319,7 @@ fn a_refusal_is_said_once_with_the_members_it_refused_at() {
     assert!(
         matches!(
             refusals.as_slice(),
-            [line] if line.starts_with(&format!("refused at {k} = 0, 1, 2, 3, 4, 5, and 14 more: "))
+            [line] if line.starts_with(&format!("refused at {k} = 0, 1, 2, 3, 4, 5, and 14 more: ", k = viewer::tree::spelled_var(k)))
         ),
         "every member refuses alike: six named, the rest counted: {refusals:?}"
     );
@@ -1364,13 +1361,19 @@ fn plate_reading_an_index(count: i64) -> (DocSession, RecipeNodeId) {
             name: VarName::new("k").expect("a name"),
             def: pncad::document::VarDecl::Index {
                 count: Formula::count(count),
-                within: None,
+                after: None,
             },
         },
         tol,
     )
     .expect("an index declares")
     .doc;
+    // The plate is the product, which a body reading `k` cannot be
+    // unless a binder yields it (D10 `[repetition]`); the row is the
+    // panel's, so the product is cleared first.
+    let doc = pncad::document::apply(&doc, &DocEdit::SetProduct { product: None }, tol)
+        .expect("the product clears")
+        .doc;
     let mut session = DocSession::inline(doc, tol);
     let outcome = session.perform(SessionOp::SetSlotExpression {
         node: extrude,
@@ -1405,11 +1408,15 @@ fn an_extrude_reading_an_index_reads_per_member_and_none_at_zero() {
     let k = &members.over()[0];
     assert_eq!(
         props::field_text(&row, Notation::DEFAULT),
-        format!("{} {k} has no members", props::DRIVEN)
+        format!(
+            "{} {k} has no members",
+            props::DRIVEN,
+            k = viewer::tree::spelled_var(k)
+        )
     );
     assert_eq!(
         members.spelled(Dimension::Length, Notation::DEFAULT),
-        format!("{k} has no members")
+        format!("{k} has no members", k = viewer::tree::spelled_var(k))
     );
 }
 
@@ -1425,7 +1432,7 @@ fn a_defined_variable_reading_an_index_reads_per_member() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let step = props::variable_rows(session.committed_doc())
         .into_iter()
-        .find(|row| row.label.to_string() == "step")
+        .find(|row| viewer::tree::spelled_var(&row.label) == "step")
         .expect("declared")
         .var;
     let outcome = session.perform(SessionOp::SetVariableText {

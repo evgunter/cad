@@ -335,62 +335,9 @@ fn offence(site: &str, verdict: &Governed) -> Option<String> {
     }
 }
 
-/// **Every file holding an attribute site, and how many it holds** —
-/// sorted by path, hand-synced, and **it is not the guard**.
-///
-/// The guard is the row above, which reds when a site has no field to
-/// deny. What this adds is the direction that row cannot fail in: a
-/// walk that stops SEEING — a changed spelling, a traversal that no
-/// longer reaches `crates/`, a classifier that returns early — reports
-/// agreement over the sites it can still read, and every site it can
-/// still read agrees. PR 2501 measured exactly that shape.
-///
-/// **A tally per path rather than one total, and that is the whole of
-/// the choice.** A scalar answers "37" to a reader that went blind to
-/// `role.rs`'s eight while another crate grew eight, and to a site that
-/// MOVED between files; neither is a change this census should be
-/// silent about, and both are exactly the compensating shape PR 2501
-/// found. A pinned `path:line` would be stronger again and would churn
-/// on every unrelated edit that shifts a line — a path with a count
-/// moves only when the population does, which is the cost this row is
-/// willing to carry. It is an equality and not a floor for the same
-/// reason: a floor catches a walk that narrows to zero and misses one
-/// that narrows to most of the tree.
-///
-/// **A hand-written count of a set the COMPILER knows is a different
-/// thing, and is refused** — `crates/bvh/tests/aggregator_headers.rs`
-/// calls one "a second, unchecked copy" and is right, because there the
-/// set has an owner to read instead. This population has no owner: it
-/// is one attribute's occurrences across every crate, which no type,
-/// module list or manifest enumerates. The walk is the only thing that
-/// knows it, so the copy is the only thing that can catch the walk.
-const ATTRIBUTE_SITES_TODAY: [(&str, usize); 23] = [
-    ("crates/editor-core/src/appearance.rs", 2),
-    ("crates/editor-core/src/distribution.rs", 1),
-    ("crates/editor-core/src/doc.rs", 1),
-    ("crates/editor-core/src/edit.rs", 1),
-    ("crates/editor-core/src/expr.rs", 1),
-    ("crates/editor-core/src/ident.rs", 1),
-    ("crates/editor-core/src/mate.rs", 3),
-    ("crates/editor-core/src/mate/orient.rs", 1),
-    ("crates/editor-core/src/measure.rs", 3),
-    ("crates/editor-core/src/mint.rs", 1),
-    ("crates/editor-core/src/names/nest.rs", 1),
-    ("crates/editor-core/src/names/nest_reference.rs", 4),
-    ("crates/editor-core/src/names/role.rs", 5),
-    ("crates/editor-core/src/node.rs", 9),
-    ("crates/editor-core/src/persist/mod.rs", 2),
-    ("crates/editor-core/src/persist/wire.rs", 1),
-    ("crates/editor-core/src/placement.rs", 1),
-    ("crates/editor-core/src/pose.rs", 1),
-    ("crates/editor-core/src/program.rs", 7),
-    ("crates/editor-core/src/resolve/vdiff.rs", 2),
-    ("crates/editor-core/src/var.rs", 5),
-    ("crates/editor-core/src/witness.rs", 2),
-    ("crates/editor-core/tests/bool13r2_probes.rs", 2),
-];
-
-/// The files whose one inert site is pinned red, one site each.
+/// The files whose one inert site is pinned red: each may hold at most
+/// one site read as having nothing to deny, and a repair that leaves it
+/// none is no red.
 const PINNED_INERT: [&str; 2] = [
     "crates/editor-core/src/names/nest_reference.rs",
     "crates/editor-core/src/names/role.rs",
@@ -405,8 +352,8 @@ fn every_deny_unknown_fields_attribute_has_a_named_field_to_deny() {
     // Pinned red: the two `Qualifier` enums lost their one named variant
     // and still carry the attribute
     // (`work/bind/main-red-inert-deny-on-the-qualifier-enums`). Each
-    // named file must hold exactly one site read as having nothing to
-    // deny; an unreadable site is never pinned.
+    // named file may hold one site read as having nothing to deny; an
+    // unreadable site is never pinned.
     let found = sites(&root);
     for file in PINNED_INERT {
         let inert = found
@@ -415,7 +362,10 @@ fn every_deny_unknown_fields_attribute_has_a_named_field_to_deny() {
                 site.starts_with(&format!("{file}:")) && *verdict == Governed::NothingToDeny
             })
             .count();
-        assert_eq!(inert, 1, "{file}: the pinned inert site moved");
+        assert!(
+            inert <= 1,
+            "{file}: a second inert site beside the pinned one"
+        );
     }
     let offenders: Vec<String> = found
         .into_iter()
@@ -438,28 +388,73 @@ fn every_deny_unknown_fields_attribute_has_a_named_field_to_deny() {
 /// **The reader's own guard: a walk that stops seeing reds here.**
 ///
 /// Without this row the census above passes by finding nothing, which
-/// is the silent direction and the one a census is built to close.
+/// is the silent direction and the one a census is built to close. The
+/// walk's per-file tally is compared with a second, cruder count that
+/// shares none of its reading: its own directory walk with its own skip
+/// list (`target`, `.git`), over the raw text, counting every line that
+/// opens an attribute (`#[`) and holds `deny_unknown_fields)` or
+/// `deny_unknown_fields,` as a plain substring — no [`SKIPPED_DIRS`],
+/// [`NEEDLE`], `word` or lexer. A walk that stops reaching a file, a
+/// skip that swallows the tree, or a reader that stops finding the word differs
+/// from it, wherever the sites are and however many there are.
 #[test]
 fn the_walk_still_sees_every_attribute_site() {
-    let mut tally: BTreeMap<&str, usize> = BTreeMap::new();
-    let found = sites(&repo_root(env!("CARGO_MANIFEST_DIR")));
-    for (site, _) in &found {
+    let root = repo_root(env!("CARGO_MANIFEST_DIR"));
+    let mut walk: BTreeMap<String, usize> = BTreeMap::new();
+    for (site, _) in sites(&root) {
         let file = site.rsplit_once(':').expect("a `path:line` site").0;
-        *tally.entry(file).or_default() += 1;
+        *walk.entry(file.to_string()).or_default() += 1;
     }
-    let got: Vec<(&str, usize)> = tally.into_iter().collect();
-    let want: Vec<(&str, usize)> = ATTRIBUTE_SITES_TODAY.to_vec();
-    let rendered: String = got
-        .iter()
-        .map(|(path, n)| format!("    (\"{path}\", {n}),\n"))
-        .collect();
-    assert_eq!(
-        got, want,
-        "the per-file tally of `{NEEDLE}` attribute sites has moved away from \
-         ATTRIBUTE_SITES_TODAY. If you added, removed or MOVED one, re-sync the constant \
-         with the table below. If you did not, this reader has gone blind to a file and \
-         the row above is passing over the sites it can no longer read:\n{rendered}"
+    let crude = crude_attribute_lines(&root);
+    assert!(
+        !crude.is_empty(),
+        "the crude count found no `{NEEDLE}` attribute anywhere: it is the one that has \
+         gone blind"
     );
+    assert_eq!(
+        walk, crude,
+        "the census walk's per-file tally of `{NEEDLE}` sites (left) differs from a raw \
+         count of attribute lines naming it (right). A file on the right only is one this \
+         reader has gone blind to; an attribute split across lines reads on the left only."
+    );
+}
+
+/// Every `.rs` file under `root` holding an attribute line that names
+/// `deny_unknown_fields`, with how many.
+fn crude_attribute_lines(root: &Path) -> BTreeMap<String, usize> {
+    fn walk(root: &Path, dir: &Path, out: &mut BTreeMap<String, usize>) {
+        for entry in std::fs::read_dir(dir)
+            .expect("a readable directory")
+            .flatten()
+        {
+            let path = entry.path();
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if path.is_dir() {
+                // Its own skip list, spelled here and nowhere else: a
+                // narrowing of the census walk's skips cannot narrow this.
+                if name != "target" && name != ".git" {
+                    walk(root, &path, out);
+                }
+            } else if name.ends_with(".rs") {
+                let text = std::fs::read_to_string(&path).expect("a readable source file");
+                let n = text
+                    .lines()
+                    .filter(|l| {
+                        l.trim_start().starts_with("#[")
+                            && (l.contains("deny_unknown_fields)")
+                                || l.contains("deny_unknown_fields,"))
+                    })
+                    .count();
+                if n > 0 {
+                    let rel = path.strip_prefix(root).expect("under the root");
+                    out.insert(rel.to_string_lossy().replace('\\', "/"), n);
+                }
+            }
+        }
+    }
+    let mut out = BTreeMap::new();
+    walk(root, root, &mut out);
+    out
 }
 
 /// **The classifier, pinned shape by shape**, so that a reader which

@@ -906,7 +906,9 @@ const FLAT_IMAGE_ULPS: f64 = 104.0;
 ///
 /// The ceiling binds at every pose: the band's zero is 700 `u` of the
 /// largest `size` here and more of the others, so the ceiling, not the
-/// band, decides. The envelopes read 50, 81 and 95 `u`. The section is
+/// band, decides. The envelopes read 52, 84 and 98 `u`, the chart's
+/// frame rounding charged ([`geom::Frame::rounding`]; 50, 81 and 95
+/// uncharged). The section is
 /// held on its arc at its near vertex, where it stands on both surfaces
 /// to its own coordinates' rounding, and the image is still built from
 /// the derived centre and the semi-axis, each read through the small

@@ -105,7 +105,7 @@ fn torus_band<T: Decide>(off: f64, band: Band) -> Result<Vec<[i64; 2]>, PropsErr
         }];
         loops.push(torus_chart_loop(
             p(0.0, 0.0, 0.0),
-            v(0.0, 0.0, 1.0),
+            geom_core::UnitVec3::exact_z(),
             T::from_f64(major),
             T::from_f64(minor),
             &edges,
@@ -186,7 +186,10 @@ fn far_patch<T: Decide>(
     let ruling = |u: f64, forward: bool| {
         let (s, c) = u.sin_cos();
         LoopEdge::hand_built(
-            Curve3::line(o + (x * T::from_f64(c) + y * T::from_f64(s)) * r, n),
+            Curve3::line(
+                o + (x * T::from_f64(c) + y * T::from_f64(s)) * r,
+                geom_core::UnitVec3::checked(n),
+            ),
             T::zero(),
             T::one(),
             forward,

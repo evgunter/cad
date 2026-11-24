@@ -4,7 +4,7 @@ kind: issue
 title: test-utils documents itself as dev-only but is production source to every gate that narrows by test-only mounts
 status: open
 opened: 2026-09-15
-priority: P3
+priority: P4
 cost: M
 ---
 
@@ -76,3 +76,5 @@ what `work/README.md` puts at P3: tooling whose failure can let a
 silent bug through. Legacy `cost: D` re-priced `M`.
 
 Moved from TINT to CIW on 2026-11-20, by `git mv`, when TINT merged into CIW: TINT held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CIW carries.
+
+- 2026-11-22 — **Re-banded P3 → P4 by CIW triage.** This is a classification mismatch, and its one cost (TINT-5's promotion meeting the rules late) was one fix pass on 2026-09-15. Nothing recurred in the last month. The row's cheap answer is a header sentence.

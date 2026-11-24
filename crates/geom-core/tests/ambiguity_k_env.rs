@@ -32,6 +32,8 @@ fn env_k_reaches_band_scaling() {
     };
     let out = std::process::Command::new(&exe)
         .args([probe.as_str(), "--ignored", "--exact", "--nocapture"])
+        .env_remove("CAD_TOLERANCE_EPS")
+        .env_remove("CAD_AMBIGUITY_K")
         .env("CAD_AMBIGUITY_K", "25")
         .output()
         .unwrap();

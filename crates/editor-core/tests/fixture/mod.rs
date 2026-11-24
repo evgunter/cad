@@ -247,8 +247,8 @@ pub fn rest(
     to: impl Into<editor_core::Operand>,
 ) -> editor_core::Mate<Formula> {
     editor_core::Mate {
-        on: plane(on),
-        to: flip(plane(to)),
+        on: plane(on).into(),
+        to: flip(plane(to)).into(),
         orient: editor_core::Orientation::IDENTITY,
     }
 }
@@ -256,8 +256,8 @@ pub fn rest(
 /// **A mate equating two poses** as written, `on` reading the copy.
 pub fn mate(on: editor_core::Operand, to: editor_core::Operand) -> editor_core::Mate<Formula> {
     editor_core::Mate {
-        on,
-        to,
+        on: on.into(),
+        to: to.into(),
         orient: editor_core::Orientation::IDENTITY,
     }
 }
@@ -314,7 +314,7 @@ pub fn selections_in(pose: &editor_core::Operand) -> Vec<&editor_core::Operand> 
 /// an instance whose output a selection in it reads, else the one
 /// placement copying the body it reads.
 pub fn placed_by(doc: &ProfileDoc, mate: &editor_core::Mate<Formula>) -> RecipeNodeId {
-    for select in selections_in(&mate.on) {
+    for select in selections_in(&mate.on.read) {
         if let Some(at) = side_placement(doc, select) {
             return at;
         }
@@ -382,7 +382,7 @@ pub fn mates_space(
     constraints: &[editor_core::Constraint<Formula>],
 ) -> Option<VarId> {
     let mate = constraints.iter().find_map(editor_core::Constraint::mate)?;
-    doc.operand_space(&mate.to)
+    doc.operand_space(&mate.to.read)
 }
 
 /// **`constraints` written onto `placement` whole**
@@ -1021,7 +1021,10 @@ pub fn mate_members(doc: &ProfileDoc) -> Vec<(editor_core::MateRef, RecipeNodeId
 
 /// **The selections a pose variable's definition reads**, through every
 /// construction, in read order.
-pub fn face_reads(doc: &ProfileDoc, pose: VarId) -> Vec<VarId> {
+pub fn face_reads(
+    doc: &ProfileDoc,
+    pose: impl Into<editor_core::pose::RoleRead<VarId>>,
+) -> Vec<VarId> {
     fn walk(doc: &ProfileDoc, var: VarId, out: &mut Vec<VarId>) {
         if doc.selection(var).is_some() {
             out.push(var);
@@ -1034,7 +1037,7 @@ pub fn face_reads(doc: &ProfileDoc, pose: VarId) -> Vec<VarId> {
         }
     }
     let mut out = Vec::new();
-    walk(doc, pose, &mut out);
+    walk(doc, pose.into().read, &mut out);
     out
 }
 
@@ -1090,13 +1093,20 @@ pub fn index_of(
             name: name.clone(),
             def: editor_core::VarDecl::Index {
                 count,
-                within: within.map(|w| Formula::var(w, editor_core::Dimension::Count)),
+                after: within.map(|w| Formula::var(w, editor_core::Dimension::Count)),
             },
         },
     )
     .0;
     let id = doc.var_named(name.as_str()).expect("the index is declared");
     (doc, id)
+}
+
+/// **`doc` with the binder `binder` also yielding `more`**, after what
+/// it yields already ([`DocEdit::SetYields`]).
+pub fn yield_more(doc: ProfileDoc, binder: VarId, more: &[VarId]) -> ProfileDoc {
+    let edit = DocEdit::yielding_more(&doc, binder, more);
+    step(doc, edit).0
 }
 
 /// `scalar(index)`, a `Scalar` reading the index.
@@ -1106,9 +1116,22 @@ pub fn scalar_of(index: VarId) -> Formula {
 }
 
 /// **A family of copies of `body` in `body`'s own space**: one
-/// placement whose mateless bundle writes `values`, each of which may
-/// read an index. The document and the placement.
+/// placement whose mateless bundle writes `values`, written as a pattern
+/// writer writes it — inside the binder its values read, which yields
+/// it (D10 `[repetition]`). The document and the placement.
 pub fn family_of(
+    doc: ProfileDoc,
+    body: RecipeNodeId,
+    values: Vec<(editor_core::Coord<editor_core::Operand>, Formula)>,
+) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, copy) = copy_of(doc, body, values);
+    (yielded(doc, copy), copy)
+}
+
+/// **One copy of `body` in `body`'s own space**, its mateless bundle
+/// writing `values`: [`family_of`] where the values read no index, so
+/// the copy is one body and nothing yields it.
+pub fn copy_of(
     doc: ProfileDoc,
     body: RecipeNodeId,
     values: Vec<(editor_core::Coord<editor_core::Operand>, Formula)>,
@@ -1124,6 +1147,70 @@ pub fn family_of(
             placed.bundle(),
         ),
     )
+}
+
+/// **The read of `family`'s member at its binder's own indices**,
+/// `xs[k]`: what a node written inside the binder `{k in xs: …}` reads of
+/// the family (D10 `[repetition]`). Panics where `family` is no yield:
+/// a test hands this a family, and says so.
+pub fn member_here(
+    doc: &ProfileDoc,
+    family: editor_core::Operand,
+) -> editor_core::BodyRead<Formula> {
+    let read = body_read(doc, family);
+    let binder = operand_var(doc, &read)
+        .and_then(|var| doc.yielding(var))
+        .unwrap_or_else(|| panic!("member_here reads a member of a yield; {read:?} is none"));
+    let at: Vec<Formula> = doc
+        .binder_indices(binder)
+        .into_iter()
+        .map(|index| Formula::var(index, editor_core::Dimension::Count))
+        .collect();
+    editor_core::BodyRead { read, at }
+}
+
+/// **A family of copies of each member of `family`**, written inside
+/// `family`'s binder (a pattern of a pattern, the binder's further
+/// index in `values`): one placement reading `family[i, …]` at the
+/// binder's own indices ([`member_here`]), yielded beside it. The
+/// document and the placement.
+pub fn family_of_members(
+    doc: ProfileDoc,
+    family: RecipeNodeId,
+    values: Vec<(editor_core::Coord<editor_core::Operand>, Formula)>,
+) -> (ProfileDoc, RecipeNodeId) {
+    let target = space(&doc, family);
+    let placed = editor_core::Placed::of(&doc, Vec::new(), values);
+    let source = member_here(&doc, family.into());
+    let (doc, copy) = insert(
+        doc,
+        Node::place(source, editor_core::Operand::Var(target), placed.bundle()),
+    );
+    (yielded(doc, copy), copy)
+}
+
+/// **`doc` with `node`'s outputs yielded by the binder `node` stands
+/// in** ([`yield_more`]): written where a test means the node as a
+/// family to its readers outside. `doc` as it is for a node that reads
+/// no index.
+pub fn yielded(doc: ProfileDoc, node: RecipeNodeId) -> ProfileDoc {
+    let Some(binder) = doc
+        .node_reach(node)
+        .chain()
+        .and_then(|chain| chain.first().copied())
+        .and_then(|first| doc.binder_of(first))
+    else {
+        panic!("yielded writes a yield of the binder {node:?} reads; it reads none");
+    };
+    let outs = doc.outputs(node);
+    let doc = yield_more(doc, binder, &outs);
+    // A family placed in the world joins the world's copies once it is
+    // a yield.
+    if doc.node_space(node) == Some(VarId::WORLD) {
+        editor_core::test_support::assemble_world_copies(doc, Tol::witness())
+    } else {
+        doc
+    }
 }
 
 /// **A row of `n` copies of `body`** in its own space, under the index
@@ -1164,17 +1251,17 @@ pub fn ring(
     (doc, k, ring)
 }
 
-/// **The edit giving the index `k` the count `count`**, its `within`
-/// kept.
+/// **The edit giving the index `k` the count `count`**, its seat in its
+/// binder kept.
 pub fn recount_edit(doc: &ProfileDoc, k: VarId, count: Formula) -> DocEdit<ProfileProgram> {
-    let within = doc
+    let after = doc
         .var(k)
         .and_then(|v| v.def().index())
-        .and_then(|index| index.within)
+        .and_then(editor_core::Index::after)
         .map(|w| Formula::var(w, editor_core::Dimension::Count));
     DocEdit::DefineVar {
         var: editor_core::VarRef::Id(k),
-        def: editor_core::VarDecl::Index { count, within },
+        def: editor_core::VarDecl::Index { count, after },
         fresh: Vec::new(),
     }
 }
@@ -1281,7 +1368,8 @@ pub fn circular(
             placed.bundle(),
         ),
     );
-    (doc, k, ring)
+    // The ring is its binder's yield (D10 `[repetition]`).
+    (yielded(doc, ring), k, ring)
 }
 
 /// **A row of `count` copies of `input` along `dir`, the first one
@@ -1593,6 +1681,19 @@ pub fn value_bump(
     }
 }
 
+/// **The variable an operand reads**, where it names one by node, port,
+/// id or name.
+pub(crate) fn operand_var(doc: &ProfileDoc, read: &editor_core::Operand) -> Option<VarId> {
+    match read {
+        editor_core::Operand::Node(id) => doc.outputs(*id).first().copied(),
+        editor_core::Operand::Output { node, port } => doc.output(*node, *port),
+        editor_core::Operand::Var(var) => Some(*var),
+        editor_core::Operand::Name(name) => doc.var_named(name.as_str()),
+        editor_core::Operand::Source(body) if !body.is_member() => operand_var(doc, &body.read),
+        _ => None,
+    }
+}
+
 /// **The id `doc`'s next insert would mint**, read by making that
 /// insert on a copy: an id no node of `doc` holds, whatever the mint.
 pub fn next_mint(doc: &ProfileDoc) -> RecipeNodeId {
@@ -1700,8 +1801,8 @@ pub fn authored(
     let kind = match &c.kind {
         editor_core::ConstraintKind::Mate(m) => {
             editor_core::ConstraintKind::Mate(editor_core::Mate {
-                on: editor_core::Operand::Var(m.on),
-                to: editor_core::Operand::Var(m.to),
+                on: editor_core::Operand::Var(m.on.read).into(),
+                to: editor_core::Operand::Var(m.to.read).into(),
                 orient: editor_core::Orientation::IDENTITY,
             })
         }
@@ -1771,6 +1872,16 @@ pub fn place(doc: ProfileDoc, body: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) 
         editor_core::test_support::assemble_world_copies(doc, Tol::witness()),
         placement,
     )
+}
+
+/// **Each member of `family` placed in the world**, `{k in xs:
+/// place(xs[k])}`, the binder yielding the copies (D10
+/// `[repetition]`): [`place`] for a family. The document and the
+/// placement.
+pub fn place_each(doc: ProfileDoc, family: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
+    let read = member_here(&doc, family.into());
+    let (doc, placement) = insert(doc, stood(read));
+    (yielded(doc, placement), placement)
 }
 
 /// **A read of the copy of `body` an instance delivers**: the instance's
@@ -1912,6 +2023,29 @@ pub fn renoded(name: &StableName, from: RecipeNodeId, to: RecipeNodeId) -> Stabl
     name
 }
 
+/// **A union of every member of each of `families`**, each spliced in
+/// whole, `[…xs, …ys]` (D10 `[repetition]`): one body. Panics where one
+/// of `families` is no yield.
+pub fn union_of_families(doc: ProfileDoc, families: &[RecipeNodeId]) -> (ProfileDoc, RecipeNodeId) {
+    let members = families
+        .iter()
+        .map(|&family| {
+            let read = body_read(&doc, family.into());
+            assert!(
+                operand_var(&doc, &read).is_some_and(|var| doc.yielding(var).is_some()),
+                "union_of_families splices families; {family:?} is no yield"
+            );
+            editor_core::Spell::All(editor_core::BodyRead::plain(read))
+        })
+        .collect();
+    insert(
+        doc,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(members),
+        },
+    )
+}
+
 /// **A union whose members stand in `members`' order**, reached the way
 /// one union is reordered rather than by inserting another: the union
 /// is inserted over the members in document order, and `SetMembers`
@@ -1925,7 +2059,7 @@ pub fn union_over(doc: ProfileDoc, members: &[RecipeNodeId]) -> (ProfileDoc, Rec
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(
+            members: editor_core::Bodies::spelled(
                 inserted.clone().into_iter().map(Into::into).collect(),
             ),
         },
@@ -1937,7 +2071,7 @@ pub fn union_over(doc: ProfileDoc, members: &[RecipeNodeId]) -> (ProfileDoc, Rec
         doc,
         DocEdit::SetMembers {
             node: union,
-            members: editor_core::Bodies::Spelled(
+            members: editor_core::Bodies::spelled(
                 members.iter().copied().map(Into::into).collect(),
             ),
         },
@@ -2342,8 +2476,8 @@ impl Recorder {
         self.constrain(
             copy,
             editor_core::Mate {
-                on: cap(),
-                to: cap(),
+                on: cap().into(),
+                to: cap().into(),
                 orient: editor_core::Orientation::IDENTITY,
             },
             vec![
@@ -2441,7 +2575,14 @@ impl Recorder {
             editor_core::BodyRead::plain(read),
             placed.bundle(),
         );
-        self.insert(node)
+        let at = self.insert(node);
+        // A placement whose values read an index is a pattern, written
+        // as a pattern writer writes it: inside the binder, which
+        // yields it (D10 `[repetition]`).
+        if !self.doc.node_reach(at).is_none() {
+            self.yielded(at);
+        }
+        at
     }
 
     /// **The product written anew as the world's copies**, recorded
@@ -2490,10 +2631,7 @@ impl Recorder {
         let name = editor_core::VarName::new(name).expect("an index name");
         self.push(DocEdit::DeclareVar {
             name: name.clone(),
-            def: editor_core::VarDecl::Index {
-                count,
-                within: None,
-            },
+            def: editor_core::VarDecl::Index { count, after: None },
         });
         self.doc
             .var_named(name.as_str())
@@ -2538,6 +2676,28 @@ impl Recorder {
         self.copies_in(read, at, values)
     }
 
+    /// **One copy of `body` in `body`'s own space**, recorded: [`Self::copies`]
+    /// where the values read no index, so nothing yields the copy.
+    pub fn copy(
+        &mut self,
+        body: impl Into<editor_core::Operand>,
+        values: Vec<(editor_core::Coord<editor_core::Operand>, Formula)>,
+    ) -> RecipeNodeId {
+        let read = body_read(&self.doc, body.into());
+        let of = match &read {
+            editor_core::Operand::Node(id) | editor_core::Operand::Output { node: id, .. } => *id,
+            editor_core::Operand::Var(var) => self.doc.operation_of(*var).expect("a body read"),
+            other => panic!("a body read, got {other:?}"),
+        };
+        let target = space(&self.doc, of);
+        let placed = editor_core::Placed::of(&self.doc, Vec::new(), values);
+        self.insert(Node::place(
+            editor_core::BodyRead::plain(read),
+            editor_core::Operand::Var(target),
+            placed.bundle(),
+        ))
+    }
+
     /// **A family of copies of `body` in the space `of` is in**,
     /// recorded: one placement whose mateless bundle writes `values` on
     /// that space's axes.
@@ -2550,11 +2710,64 @@ impl Recorder {
         let read = body_read(&self.doc, body.into());
         let target = space(&self.doc, of);
         let placed = editor_core::Placed::of(&self.doc, Vec::new(), values);
-        self.insert(Node::place(
+        let copies = self.insert(Node::place(
             editor_core::BodyRead::plain(read),
             editor_core::Operand::Var(target),
             placed.bundle(),
-        ))
+        ));
+        // A pattern writer writes its placement inside the binder its
+        // values read, which yields it (D10 `[repetition]`).
+        self.yielded(copies);
+        copies
+    }
+
+    /// **`node`'s outputs yielded by the binder it stands in**, recorded
+    /// ([`yielded`]); nothing for a node that reads no index.
+    pub fn yielded(&mut self, node: RecipeNodeId) {
+        let Some(binder) = self
+            .doc
+            .node_reach(node)
+            .chain()
+            .and_then(|chain| chain.first().copied())
+            .and_then(|first| self.doc.binder_of(first))
+        else {
+            panic!("yielded writes a yield of the binder {node:?} reads; it reads none");
+        };
+        let outs = self.doc.outputs(node);
+        self.push(DocEdit::yielding_more(&self.doc, binder, &outs));
+        if self.doc.node_space(node) == Some(editor_core::VarId::WORLD) {
+            self.assemble_world_copies();
+        }
+    }
+
+    /// **Each member of `family` in the world at `at`**, `{k in xs:
+    /// place(xs[k]) at at}`, the binder yielding the copies
+    /// ([`Self::in_world`] for a family). Returns the placement.
+    pub fn in_world_each(
+        &mut self,
+        family: impl Into<editor_core::Operand>,
+        at: &editor_core::Frame,
+    ) -> RecipeNodeId {
+        let read = member_here(&self.doc, family.into());
+        let placed = editor_core::Placed::of(
+            &self.doc,
+            Vec::new(),
+            editor_core::test_support::moves_at(at),
+        );
+        let node = place_node(&self.doc, read, placed.bundle());
+        let at = self.insert(node);
+        self.yielded(at);
+        at
+    }
+
+    /// **Each member of `family` placed in the world**, `{k in xs:
+    /// place(xs[k])}`, the binder yielding the copies (D10
+    /// `[repetition]`). Returns the placement.
+    pub fn place_each(&mut self, family: impl Into<editor_core::Operand>) -> RecipeNodeId {
+        let read = member_here(&self.doc, family.into());
+        let at = self.insert(stood(read));
+        self.yielded(at);
+        at
     }
 
     /// **A copy of `body` placed against `target`'s geometry at `at`**
@@ -2630,8 +2843,8 @@ impl Recorder {
             read,
             editor_core::Placed {
                 mates: vec![editor_core::Mate {
-                    on: own,
-                    to: frame,
+                    on: own.into(),
+                    to: frame.into(),
                     orient: editor_core::Orientation::IDENTITY,
                 }],
                 values: Vec::new(),
@@ -2667,8 +2880,9 @@ impl Recorder {
                     on: editor_core::Operand::Output {
                         node: revolve,
                         port: 1,
-                    },
-                    to,
+                    }
+                    .into(),
+                    to: to.into(),
                     orient,
                 }],
                 values: vec![
@@ -3861,7 +4075,7 @@ pub fn two_blocks_and_their_union(label: &str) -> (ProfileDoc, RecipeNodeId) {
         &axes_at([0.0, 0.0, 0.5], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
     );
     let union = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+        members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
     });
     (r.doc, union)
 }

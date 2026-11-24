@@ -308,7 +308,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         SessionOp::AddBoolean {
             spec: BooleanSpec::Subtract {
                 from: u3.into(),
-                tool: cutter1.into(),
+                tool: vec![cutter1.into()],
             },
         },
     );
@@ -340,7 +340,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         SessionOp::AddBoolean {
             spec: BooleanSpec::Subtract {
                 from: cut1.into(),
-                tool: cutter2.into(),
+                tool: vec![cutter2.into()],
             },
         },
     );
@@ -357,7 +357,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         "the picture is one body: the rook, unplaced: {:?}",
         viewer::world::drawn_nodes(session.committed_doc())
             .into_iter()
-            .map(|node| session.committed_doc().spoken(node).to_string())
+            .map(|node| viewer::tree::spelled(&session.committed_doc().spoken(node)))
             .collect::<Vec<_>>()
     );
     let carved_doc = session.committed_doc().clone();

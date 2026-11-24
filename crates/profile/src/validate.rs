@@ -926,6 +926,7 @@ pub enum SegmentKind<T: Real> {
     },
 }
 
+#[cfg(any(test, feature = "test-support"))]
 impl<T: Real> SegmentKind<T> {
     /// The same kind read at another scalar: `f` on every stored
     /// component (an arc's carrier through [`Arc2::map`]), the turn
@@ -961,6 +962,7 @@ pub struct ValidatedSegment<T: Real> {
     pub kind: SegmentKind<T>,
 }
 
+#[cfg(any(test, feature = "test-support"))]
 impl ValidatedSegment<f64> {
     /// The `f64` segment embedded at `U`: every stored field through
     /// `from_f64` — the endpoints, an arc's carrier and sweep and the
@@ -1179,6 +1181,7 @@ impl<T: Real> ValidatedLoop<T> {
     }
 }
 
+#[cfg(any(test, feature = "test-support"))]
 impl ValidatedLoop<f64> {
     /// The `f64` loop embedded at `U`: each vertex through
     /// [`Point2::map`], the segments in place, the role and the joint
@@ -1249,10 +1252,10 @@ pub struct BlendArc<T: Real> {
 /// **Its mints**, the one list of them: [`Profile::validate`],
 /// [`Profile::validate_recording`] and [`Profile::validate_guided`] from
 /// a raw profile; [`ConstructedProfile`]'s three validations from a
-/// replayed one; [`ValidatedProfile::lift_onto`] from an `f64` one;
-/// [`ValidatedProfile::value_channel`] from one at another scalar; and
-/// [`ValidatedProfile::on_plane`] from one at the same scalar. Nothing
-/// else mints one.
+/// replayed one; [`ValidatedProfile::value_channel`] from one at
+/// another scalar; and [`ValidatedProfile::on_plane`] from one at the
+/// same scalar. Nothing else mints one in a shipped build; a fixture
+/// lifts an `f64` one (`lift_onto`, behind `test-support`).
 #[derive(Debug, Clone)]
 pub struct ValidatedProfile<T: Real> {
     plane: crate::SketchPlane<T>,
@@ -1435,6 +1438,12 @@ impl<T: geom_core::spline::SpanLocate> ValidatedProfile<T> {
     }
 }
 
+/// **The fixture door for a canonical form**: an `f64` one read as if a
+/// validation at `U` had made it. It exists for the rows that need a
+/// validated profile at a lane scalar holding exactly the `f64` form's
+/// points and decisions. Absent from every shipped build: no
+/// construction takes its sections' canonical form from `f64`.
+#[cfg(any(test, feature = "test-support"))]
 impl ValidatedProfile<f64> {
     /// The `f64` canonical form embedded at `U`, on `plane`: every
     /// stored scalar — each vertex's position, each segment's endpoints,
@@ -1459,11 +1468,9 @@ impl ValidatedProfile<f64> {
     /// tangency, the absence of contact — are the verdicts `validate`
     /// made at `f64`. They are carried AS THE `f64` DECISIONS, and that
     /// is the design of this door rather than a claim that a validation
-    /// at `U` would agree: the door is for a build whose structure is the
-    /// `f64` one by construction (sweep's loft at an enclosure scalar,
-    /// which encloses the `f64` loft its sections' value channel
-    /// describes), while a profile elaborated at its own scalar
-    /// re-verifies every decision there through
+    /// at `U` would agree: the door is for a fixture whose structure is
+    /// the `f64` one by construction, while a profile elaborated at its
+    /// own scalar re-verifies every decision there through
     /// [`ConstructedProfile::validate_guided`]. What a validation at `U`
     /// would say, for the record: at `Dual64` the value channel is bit
     /// for bit the `f64` computation, so every predicate would decide
@@ -1694,11 +1701,11 @@ fn validate_loops<T: Decide, L: LoopInput<T>>(
                 // Same-loop partners after si, then every segment of
                 // later loops (deterministic order, first error wins).
                 for sj in (si + 1)..loop_segs[li].len() {
-                    judge_pair(loops_in, &loop_segs, (li, si), (li, sj), band)?;
+                    judge_pair(&loop_segs, (li, si), (li, sj), band)?;
                 }
                 for lj in (li + 1)..loops_in.len() {
                     for sj in 0..loop_segs[lj].len() {
-                        judge_pair(loops_in, &loop_segs, (li, si), (lj, sj), band)?;
+                        judge_pair(&loop_segs, (li, si), (lj, sj), band)?;
                     }
                 }
             }
@@ -2140,11 +2147,23 @@ fn seg_refusal<T: Real>(
     }
 }
 
+/// The ends of segments `si < sj` of one `n`-segment loop that are a
+/// vertex they share: consecutive mod `n`, and both vertices for a
+/// two-vertex loop's pair.
+fn shared_ends(n: usize, si: usize, sj: usize) -> &'static [seg::SharedEnds] {
+    use seg::SharedEnds::{EndToStart, StartToEnd};
+    match (sj == si + 1, si == 0 && sj == n - 1) {
+        (true, true) => &[EndToStart, StartToEnd],
+        (true, false) => &[EndToStart],
+        (false, true) => &[StartToEnd],
+        (false, false) => &[],
+    }
+}
+
 /// Judges one segment pair: classifies contacts and applies the
 /// adjacency discount (adjacent segments may touch exactly at their
 /// shared vertex/vertices; everything else is an error).
-pub(crate) fn judge_pair<T: Decide, L: Borrow<ProfileLoop<T>>>(
-    loops: &[L],
+pub(crate) fn judge_pair<T: Decide>(
     loop_segs: &[Vec<Seg<T>>],
     (li, si): (usize, usize),
     (lj, sj): (usize, usize),
@@ -2160,22 +2179,14 @@ pub(crate) fn judge_pair<T: Decide, L: Borrow<ProfileLoop<T>>>(
     };
     let site = EscalationSite::SegmentPair(first, second);
 
-    // The legal shared vertices of an adjacent pair (same loop,
-    // consecutive mod n). A 2-vertex loop's two segments are adjacent
-    // at both vertices.
-    let mut shared: Vec<Point2<T>> = Vec::new();
-    if li == lj {
-        let n = loop_segs[li].len();
-        if sj == si + 1 {
-            shared.push(loops[li].borrow().vertices[(si + 1) % n]);
-        }
-        if si == 0 && sj == n - 1 {
-            shared.push(loops[li].borrow().vertices[0]);
-        }
-    }
-
-    let shared_end = match shared[..] {
-        [v] => Some(v),
+    let ends = if li == lj {
+        shared_ends(loop_segs[li].len(), si, sj)
+    } else {
+        &[]
+    };
+    let shared: Vec<Point2<T>> = ends.iter().map(|e| e.point(&loop_segs[li][si])).collect();
+    let shared_end = match ends {
+        [e] => Some(*e),
         _ => None,
     };
     let outcome = seg::pair_contacts(&loop_segs[li][si], &loop_segs[lj][sj], shared_end, band)
@@ -2202,6 +2213,7 @@ pub(crate) fn judge_pair<T: Decide, L: Borrow<ProfileLoop<T>>>(
             CKind::Tangency => {
                 return Err(ProfileError::TangentialContact { first, second });
             }
+            CKind::SharedVertex => {}
             CKind::Touch => {
                 let mut discounted = false;
                 for &v in &shared {

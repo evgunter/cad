@@ -1,6 +1,7 @@
 //! **A re-point re-seats what read the copies it re-points**: a small
 //! block's copy rested on a face of a block's drawn copy, then the
-//! block, picked as itself, filleted, mirrored, sketched on or unioned —
+//! block, picked as itself, filleted, mirrored, combined with a boss
+//! drawn on its top, or unioned —
 //! each makes a new body and offers to re-point the block's placements
 //! onto it (Ev, PR 6353), and the offer is accepted
 //! (`SessionOp::RepointPlacements`). The re-point carries the face
@@ -21,9 +22,7 @@ use crate::common;
 
 use common::drawn;
 use common::{along_x, displayed_face_at, len, plate_index};
-use pncad::document::{
-    Dimension, Doc, DocEdit, Formula, Node, Operand, ProfileProgram, RecipeNodeId,
-};
+use pncad::document::{Doc, DocEdit, Node, Operand, ProfileProgram, RecipeNodeId};
 use pncad::geom_core::Tol;
 use pncad::prelude::{RoleSeg, StableName};
 use viewer::session::{DocSession, FaceSelection, Selection, SessionOp};
@@ -124,24 +123,35 @@ fn mirror_across(session: &DocSession, plane: &FaceSelection) -> SessionOp {
         .expect("a body and a plane are held")
 }
 
-/// A 4 mm square boss sketched on `face`, in a corner clear of nothing
-/// in particular.
-fn boss_on(face: FaceSelection) -> SessionOp {
-    SessionOp::SketchOnFace {
+/// A 4 mm square, in a corner of the face clear of nothing in
+/// particular.
+fn square() -> pncad::trace::Chain {
+    viewer::test_support::rectangle_chain([0.01, 0.0], 0.004, 0.004)
+}
+
+/// [`square`] drawn on `face`.
+fn draw_on(face: FaceSelection) -> SessionOp {
+    SessionOp::DrawOnFace {
         face,
-        loops: vec![viewer::test_support::rectangle_loop(
-            [0.01, 0.0],
-            0.004,
-            0.004,
-        )],
-        distance: len(0.003),
-        spin: Formula::zero(Dimension::Angle),
+        traced: Vec::new(),
+        chains: vec![square()],
     }
 }
 
+/// [`square`] drawn on `face` and extruded 3 mm off it
+/// ([`common::drawn_boss`]): the boss a combine fuses onto
+/// the face's body. Answers the extrude.
+fn boss_on(session: &mut DocSession, face: FaceSelection) -> RecipeNodeId {
+    common::drawn_boss(session, face, square(), 0.003).1
+}
+
 /// The ops on the block picked as itself this suite re-points by, each
-/// named.
-fn takeovers(session: &DocSession, block: RecipeNodeId) -> Vec<(&'static str, SessionOp)> {
+/// named; `boss` is [`boss_on`] the block's top.
+fn takeovers(
+    session: &DocSession,
+    block: RecipeNodeId,
+    boss: RecipeNodeId,
+) -> Vec<(&'static str, SessionOp)> {
     vec![
         (
             "fillet",
@@ -155,7 +165,12 @@ fn takeovers(session: &DocSession, block: RecipeNodeId) -> Vec<(&'static str, Se
             "mirror",
             mirror_across(session, &on_the_body(minus_x_wall(session), block)),
         ),
-        ("sketch on face", boss_on(on_the_body(top(session), block))),
+        (
+            "boss combined onto the top",
+            SessionOp::AddBoolean {
+                spec: viewer::session::BooleanSpec::Union(vec![block.into(), boss.into()]),
+            },
+        ),
         (
             "union",
             SessionOp::AddBoolean {
@@ -236,8 +251,8 @@ fn on_the_body(face: FaceSelection, body: RecipeNodeId) -> FaceSelection {
 }
 
 /// **The small block rested on the block's top stays seated through a
-/// fillet, a mirror, a sketch on the face, a union of the block and a
-/// split, each re-pointed**: each re-point moves the block's drawn copy
+/// fillet, a mirror, a boss combined onto the face, a union of the block
+/// and a split, each re-pointed**: each re-point moves the block's drawn copy
 /// to the result — for the split, `above ⊔ below` — and rebinds the
 /// mate's face to the result's name for the top, so the small block is
 /// drawn where it stood and every row is well. One undo restores the
@@ -253,7 +268,9 @@ fn a_mate_on_the_taken_copys_face_stays_seated() {
             copy,
             small_copy,
         } = seated(top);
-        let (name, op) = takeovers(&session, block).swap_remove(at);
+        let face = on_the_body(top(&session), block);
+        let boss = boss_on(&mut session, face);
+        let (name, op) = takeovers(&session, block, boss).swap_remove(at);
         let held = top(&session);
         session.perform(SessionOp::Select(Selection::Face(held.clone())));
         let seated_at = drawn::extent(&mut session, small_copy);
@@ -272,7 +289,7 @@ fn a_mate_on_the_taken_copys_face_stays_seated() {
         let undone = session.perform(SessionOp::Undo);
         assert!(undone.refusal.is_none(), "{name}: {:?}", undone.refusal);
         session.pump();
-        let (_, op) = takeovers(&session, block).swap_remove(at);
+        let (_, op) = takeovers(&session, block, boss).swap_remove(at);
 
         let (before, outcome) = taken_over(&mut session, op);
         assert!(outcome.refusal.is_none(), "{name}: {:?}", outcome.refusal);
@@ -384,7 +401,7 @@ fn a_face_of_a_union_of_the_copy_is_rebound() {
     let (doc, both) = viewer::test_support::inserted(
         &doc,
         Node::Union {
-            members: pncad::document::Bodies::Spelled(vec![
+            members: pncad::document::Bodies::spelled(vec![
                 Operand::Var(c).into(),
                 Operand::Var(d).into(),
             ]),
@@ -518,11 +535,11 @@ fn the_mirrors_merged_top_keeps_the_old_tops_frame() {
 
 /// **A gesture on a held pick, committed before the takeover's run
 /// lands, reads the pick where the takeover moved it**: the top held, a
-/// fillet committed, and with no landing between, a sketch committed on
+/// fillet committed, and with no landing between, a profile drawn on
 /// the held top. The held top followed the fillet at its commit, so the
-/// sketch reads the fillet's name for the top and every row is well.
+/// profile reads the fillet's name for the top and every row is well.
 /// Goes red if held picks follow a takeover any later than its commit:
-/// the sketch then writes the old name, which the copy no longer holds.
+/// the profile then reads the old name, which the copy no longer holds.
 #[test]
 fn a_gesture_on_a_held_pick_before_the_landing_reads_it_moved() {
     let Seated {
@@ -543,8 +560,8 @@ fn a_gesture_on_a_held_pick_before_the_landing_reads_it_moved() {
     let Selection::Face(held) = session.selection().clone() else {
         panic!("a face is held")
     };
-    let sketched = session.perform(boss_on(held));
-    assert!(sketched.refusal.is_none(), "{:?}", sketched.refusal);
+    let drawn = session.perform(draw_on(held));
+    assert!(drawn.refusal.is_none(), "{:?}", drawn.refusal);
     session.pump();
     for row in session.tree_rows() {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
@@ -717,7 +734,7 @@ fn rv2_a_pick_made_after_undo_through_a_redo() {
 /// older picture**, and a gesture on it writes a stale reference: open,
 /// `work/doors/a-fresh-pick-off-the-older-picture-commits-a-stale-reference.md`.
 /// A fillet committed, and before it lands the top picked afresh off the
-/// landed picture, then sketched on.
+/// landed picture, then a profile drawn on it.
 #[test]
 #[ignore = "work/doors/a-fresh-pick-off-the-older-picture-commits-a-stale-reference.md"]
 fn rv2_a_fresh_pick_off_the_older_picture() {
@@ -736,7 +753,7 @@ fn rv2_a_fresh_pick_off_the_older_picture() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert!(session.busy());
     let fresh = top(&session);
-    let sketched = session.perform(boss_on(fresh));
+    let drawn = session.perform(draw_on(fresh));
     session.pump();
     let bad: Vec<_> = session
         .tree_rows()
@@ -745,7 +762,7 @@ fn rv2_a_fresh_pick_off_the_older_picture() {
         .map(|r| format!("{r:?}"))
         .collect();
     assert!(
-        sketched.refusal.is_some() || bad.is_empty(),
+        drawn.refusal.is_some() || bad.is_empty(),
         "a stale reference committed: {bad:?}"
     );
 }
@@ -1153,7 +1170,7 @@ fn a_split_of_the_body_the_product_reads_re_points_the_slot() {
     let (doc, union) = viewer::test_support::inserted(
         &doc,
         Node::Union {
-            members: pncad::document::Bodies::Spelled(vec![
+            members: pncad::document::Bodies::spelled(vec![
                 read(a_copy).into(),
                 read(b_copy).into(),
             ]),
@@ -1209,7 +1226,7 @@ fn a_split_of_a_body_a_union_operand_reads_re_points_the_operand() {
     let (doc, assemble) = viewer::test_support::inserted(
         &doc,
         Node::Assemble {
-            members: pncad::document::Bodies::Spelled(vec![Operand::Var(body).into()]),
+            members: pncad::document::Bodies::spelled(vec![Operand::Var(body).into()]),
         },
         tol,
     );

@@ -86,3 +86,14 @@ panicked in `circle_roots::door_answer` on a `ring_torus_convention`
 refusal in its 1e-6 pass (margin `9.674e-6` against the band
 `1e-6 / 1e-5`). Replayed on `origin/main` at `b80352cd` it fails the
 same way. Two of fourteen runs of the row here drew a failing seed.
+
+## Evidence (germ/co-surface-table, 2026-11-23)
+
+`geom-brep`'s `curve_face::ellipse_torus::torus_rows::certified_torus_answers_hold_against_the_true_distance` is red on `origin/main` on seed `0x3a0790b1c3cbfab2`, the panic at `circle_roots.rs:285` (re-run on a main worktree, 2026-11-23, from PR 7431's review).
+
+## Evidence (germ/spiric-near-miss-off-q, 2026-11-23)
+
+Two more seeds panic the same way (`ring_torus_convention` undecided, margins 6.3e-6 and 4.6e-6 in the band `(1e-6, 1e-5)`): `0x8f3af7fd0193fe1c` in a run at `CAD_TOLERANCE_EPS=1e-6` and `0x2721258bd8b3b6b0` in a run at `1e-12`.
+
+- 2026-11-23 (GERM, PR 7553's review): another seed draws the same failure. At `CAD_FUZZ_SEED=0x12ef5c0007e519b4`, `ellipse_torus::torus_rows::certified_torus_answers_hold_against_the_true_distance` fails with `ring_torus_convention` Undecided, and it fails the same way on the merge base, outside PR 7553's diff.
+- 2026-11-23 (GERM, PR 7553's battery): a third seed. At `CAD_FUZZ_SEED=0xf16f58a1203054fa`, ε 1e-12, the same panic: `ring_torus_convention` Undecided, margin 5.0e-6 at band zero 1e-6.

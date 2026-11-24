@@ -94,8 +94,8 @@ impl Mate {
     #[new]
     #[pyo3(signature = (on, to, *, orient=None))]
     fn new(
-        on: super::doc::OperandArg,
-        to: super::doc::OperandArg,
+        on: super::pose::PoseArg,
+        to: super::pose::PoseArg,
         orient: Option<Orientation>,
     ) -> Self {
         Self(d::Mate {
@@ -105,20 +105,18 @@ impl Mate {
         })
     }
 
-    /// The copy's pose, as written.
+    /// The copy's pose, as written: a `PoseDef`, or a `RoleRead` where
+    /// it reads through a role.
     #[getter]
-    fn on(&self) -> super::pose::PoseDef {
-        super::pose::PoseDef {
-            inner: self.0.on.clone(),
-        }
+    fn on(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        super::pose::side_object(py, &self.0.on)
     }
 
-    /// The pose the copy's is equated with, as written.
+    /// The pose the copy's is equated with, as written: a `PoseDef`, or
+    /// a `RoleRead` where it reads through a role.
     #[getter]
-    fn to(&self) -> super::pose::PoseDef {
-        super::pose::PoseDef {
-            inner: self.0.to.clone(),
-        }
+    fn to(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        super::pose::side_object(py, &self.0.to)
     }
 
     /// The orientation, as written.
@@ -135,8 +133,8 @@ impl Mate {
     fn __repr__(&self) -> String {
         format!(
             "Mate(on={}, to={}, orient={})",
-            self.0.on,
-            self.0.to,
+            super::pose::side_repr(&self.0.on),
+            super::pose::side_repr(&self.0.to),
             Orientation(self.0.orient).__repr__()
         )
     }
@@ -857,7 +855,7 @@ impl MateFault {
     /// The fault's words, each node it names spoken from the document
     /// it was raised over.
     fn __str__(&self) -> String {
-        d::Said(&self.0, self.1.speaker()).to_string()
+        d::Said(&self.0, self.1.speaker()).sentence().to_string()
     }
 
     fn __repr__(&self) -> String {
@@ -893,7 +891,7 @@ pub(crate) fn mate_err(py: Python<'_>, fault: &d::MateFault, voice: &Voice) -> P
     let err = typed_err(
         py,
         ErrorClass::Mate,
-        d::Said(fault, voice.speaker()).to_string(),
+        d::Said(fault, voice.speaker()).sentence().to_string(),
         &[
             (
                 "variant",
@@ -935,7 +933,7 @@ fn pose_err(
             b: d::VarId::WORLD,
         },
     };
-    let said = d::Said(refusal, d::Speaker::of(doc)).to_string();
+    let said = d::Said(refusal, d::Speaker::of(doc)).sentence().to_string();
     let err = super::value::refused(py, placement, &kind, said, None);
     super::value::with_carried(py, err, kind.carried_chain(), Some(doc))
 }
@@ -1110,7 +1108,8 @@ impl Maintenance {
             }
             d::Maintenance::StrandedAppearance { .. }
             | d::Maintenance::ProductOutsideWorld { .. }
-            | d::Maintenance::AnonymousVarRemoved { .. } => None,
+            | d::Maintenance::AnonymousVarRemoved { .. }
+            | d::Maintenance::YieldRemoved { .. } => None,
         }
     }
 
@@ -1135,7 +1134,8 @@ impl Maintenance {
             | d::Maintenance::StrandedSpace { .. }
             | d::Maintenance::ProductOutsideWorld { .. }
             | d::Maintenance::ValueDropped { .. }
-            | d::Maintenance::AnonymousVarRemoved { .. } => Ok(None),
+            | d::Maintenance::AnonymousVarRemoved { .. }
+            | d::Maintenance::YieldRemoved { .. } => Ok(None),
         }
     }
 

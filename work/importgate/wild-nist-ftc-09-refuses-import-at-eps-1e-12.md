@@ -71,3 +71,14 @@ The file still refuses, at every ε:
   refuse as the file's ambiguity, whatever the snap does.
 
 The `demos/wild` cell stays out.
+
+## 2026-11-23 (GERM): the first refusal is `#5130`, not `#4950`
+
+Since PR 7171 the snap refuses a pair read in the file's band before
+anything is built. This file's first refusal, at every ε, is therefore
+cylinder `#5130` against plane `#5116` (edge `#5118`, a gap of 56.8 µm),
+`Ambiguous { step_snap_relation }`. `tier_gate`'s pin is now
+`NIST09_TANGENCY_IN_BAND`, not `NIST09_PRINTED_OFF_ITS_TANGENCY`. The
+`#4950` reading above is no longer reached
+(`work/germ/main-red-axis-normal-snap-refuses-nist-ftc-09.md`).
+

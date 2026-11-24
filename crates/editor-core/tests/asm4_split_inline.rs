@@ -720,7 +720,7 @@ fn row3_further_typed_refusals() {
     let (host, consumer) = insert(
         host,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![
+            members: editor_core::Bodies::spelled(vec![
                 // The part's product is its one copy: the instance's copy
                 // is read whole.
                 editor_core::BodyRead::plain(editor_core::Operand::Node(inst)),
@@ -739,7 +739,7 @@ fn row3_further_typed_refusals() {
     assert!(
         inlined
             .doc
-            .operation_of(members[0].read)
+            .operation_of(members[0].read().read)
             .is_some_and(|at| at != inst),
         "the reader reads the spliced copy"
     );
@@ -1101,7 +1101,10 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
             assert_eq!(name.name(), &body_name);
             let msg = format!("{}", SplitError::BodyNameCrossesCut { name });
             assert!(
-                msg.contains(&format!("the output body of {}", doc.spoken(ids[1]))),
+                msg.contains(&format!(
+                    "the output body of {}",
+                    editor_core::test_support::node_text(&doc.spoken(ids[1]))
+                )),
                 "the message names the name: {msg}"
             );
             assert!(
@@ -1202,7 +1205,8 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
                 }
             );
             assert!(
-                msg.contains(&doc.spoken(fillet).to_string()) && msg.contains("outside the cut"),
+                msg.contains(&editor_core::test_support::node_text(&doc.spoken(fillet)))
+                    && msg.contains("outside the cut"),
                 "the message names the site and the fault: {msg}"
             );
         }
@@ -1223,7 +1227,7 @@ fn a_reaching_name_names_the_earliest_node_outside_the_cut_in_document_order() {
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
     );
     let ev = run(&doc, &EvalOptions::default());
@@ -1313,7 +1317,7 @@ fn a_reaching_name_names_a_live_node_before_a_deleted_one() {
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
     );
     let ev = run(&doc, &EvalOptions::default());
@@ -1493,7 +1497,8 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
             assert_eq!(
                 minter_label(&name),
                 Some("left leg"),
-                "the instance's body name is the host's, spoken from it: {name}"
+                "the instance's body name is the host's, spoken from it: {name}",
+                name = editor_core::test_support::said_text(&name)
             );
             let msg = format!("{}", InlineError::InstanceBodyNameReferenced { name });
             assert!(
@@ -1587,7 +1592,8 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
                 assert_eq!(
                     minter_label(&name),
                     Some("part body"),
-                    "a carried name is the part's, spoken from it: {name}"
+                    "a carried name is the part's, spoken from it: {name}",
+                    name = editor_core::test_support::said_text(&name)
                 );
                 let msg = format!("{}", InlineError::StrandedPartRead { name, read });
                 assert!(
@@ -1793,7 +1799,12 @@ fn a_name_on_a_dropped_step_refuses_a_split_and_an_inline() {
     ) {
         Err(SplitError::NameOnDroppedStep { name, step }) => {
             assert_eq!((name.name(), step), (&dropped, dropped_step));
-            assert_eq!(minter_label(&name), Some("walled block"), "{name}");
+            assert_eq!(
+                minter_label(&name),
+                Some("walled block"),
+                "{name}",
+                name = editor_core::test_support::said_text(&name)
+            );
         }
         other => panic!("expected NameOnDroppedStep, got {other:?}"),
     }
@@ -1814,7 +1825,8 @@ fn a_name_on_a_dropped_step_refuses_a_split_and_an_inline() {
             assert_eq!(
                 minter_label(&name),
                 Some("walled block"),
-                "a carried name is the part's, spoken from it: {name}"
+                "a carried name is the part's, spoken from it: {name}",
+                name = editor_core::test_support::said_text(&name)
             );
         }
         other => panic!("expected NameOnDroppedStep, got {other:?}"),

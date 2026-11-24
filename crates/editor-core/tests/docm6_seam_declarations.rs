@@ -351,7 +351,7 @@ fn union_with_far_cube(
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), far.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), far.into()]),
         },
     );
     let ev = run(&doc, &with_resolver(store.clone()));
@@ -549,7 +549,7 @@ fn a_carried_level_says_the_parts_labels_where_the_outer_document_holds_its_ids(
     assert_eq!(
         own.spoken(&outer, &ev),
         format!(
-            "InstantiatePart \"outer top\" ({tt}) failed: the mate solve refused: this node's \
+            "\"outer top\" ({tt}) failed: the mate solve refused: this node's \
              each of constraints 1, 5 fixes an equation {}",
             own.to_string()
                 .split_once(" fixes an equation ")
@@ -568,7 +568,8 @@ fn a_carried_level_says_the_parts_labels_where_the_outer_document_holds_its_ids(
     );
     assert!(
         own.spoken(&renamed, &ev)
-            .starts_with(&format!("InstantiatePart \"outer renamed\" ({tt}) failed")),
+            .to_string()
+            .starts_with(&format!("\"outer renamed\" ({tt}) failed")),
         "the memoized refusal holds the id, so a rename shows with nothing re-evaluated: {}",
         own.spoken(&renamed, &ev)
     );
@@ -592,15 +593,17 @@ fn a_carried_level_says_the_parts_labels_where_the_outer_document_holds_its_ids(
         "a frame holding only the outer document draws the level as the part's own tree does"
     );
     assert!(
-        in_outer.contains("\"inner top\"") && !in_outer.contains("outer"),
+        in_outer.to_string().contains("\"inner top\"") && !in_outer.to_string().contains("outer"),
         "the level says the part's labels and never the outer document's for the same ids: \
          {in_outer}"
     );
     assert_eq!(in_outer, level.line(), "the level holds its own nodes");
-    let in_frame = error.spoken(&outer, &ev);
+    let in_frame = error.spoken(&outer, &ev).to_string();
     assert!(
-        in_frame.contains(&format!("the part's {} failed", inner.spoken(level.node)))
-            && !in_frame.contains("outer"),
+        in_frame.contains(&format!(
+            "the part's {} failed",
+            editor_core::test_support::node_text(&inner.spoken(level.node))
+        )) && !in_frame.contains("outer"),
         "the instance's own line says the part's node as the part holds it: {in_frame}"
     );
     let (_, fault_said) = in_frame
@@ -649,11 +652,13 @@ fn a_part_fault_says_the_labels_its_pin_fixes() {
     let (moved_ref, at_moved, moved_line) = instance_of(relabelled);
     assert_ne!(inner_ref.pin, moved_ref.pin, "a label is in the pin");
     assert!(
-        inner_line.contains("\"inner top\"") && !inner_line.contains("inner moved"),
+        inner_line.to_string().contains("\"inner top\"")
+            && !inner_line.to_string().contains("inner moved"),
         "{inner_line}"
     );
     assert!(
-        moved_line.contains("\"inner moved\"") && !moved_line.contains("inner top"),
+        moved_line.to_string().contains("\"inner moved\"")
+            && !moved_line.to_string().contains("inner top"),
         "{moved_line}"
     );
     assert_ne!(
@@ -719,8 +724,10 @@ fn a_parts_product_refusal_says_the_parts_label_where_the_outer_document_holds_t
     assert_eq!(*node, block, "the failed piece is the stranded placement");
     let in_outer = error.spoken(&outer, &ev);
     assert!(
-        in_outer.contains(&format!("Place \"inner block\" ({t})"))
-            && !in_outer.contains("outer block"),
+        in_outer
+            .to_string()
+            .contains(&format!("\"inner block\" ({t})"))
+            && !in_outer.to_string().contains("outer block"),
         "a part's refusal says the part's label, never the outer document's for its id: \
          {in_outer}"
     );
@@ -768,7 +775,7 @@ fn a_mate_refused_at_the_door_speaks_the_nodes_its_fault_names() {
     let said = err.to_string();
     assert!(
         said.starts_with(&format!(
-            "InstantiatePart \"leg\" ({t}) is refused by the solve on its own datum: \
+            "\"leg\" ({t}) is refused by the solve on its own datum: \
              constraint "
         )) && said.contains(" of this node's `on` pose reads geometry other than the copy")
             && node.id() == leg,

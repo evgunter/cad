@@ -306,20 +306,17 @@ impl Holdings {
         (operands, clones): ([&Body<T>; 2], [Option<&Body<T>>; 2]),
         band: Band,
     ) -> Self {
-        // A subtract's result holds B's faces turned: a finished face is
-        // read against a face of B the other way round.
-        let turned = |place: usize| place == 1 && op == BooleanOp::Subtract;
+        // A face of an operand the result holds turned is read the other
+        // way round ([`BooleanOp::holds_turned`]).
+        let turned = |place: usize| op.holds_turned(Operand::BOTH[place]);
         let descent = FaceDescent::of(naming);
-        let place = |operand: Operand| usize::from(operand == Operand::B);
-        let root = |operand: Operand, f: FaceKey| (place(operand), descent.clone_face(operand, f));
-        // The operand faces a root is: itself, or, for a face of a sphere
-        // shell a re-chart turned, the faces of the input shell it was
-        // turned over (`BooleanNaming::recharted`), any of which its
-        // region may meet.
+        let root =
+            |operand: Operand, f: FaceKey| (operand.index(), descent.clone_source(operand, f).root);
+        // The input faces an operand face stands for: itself, or a turned
+        // face's input shell's ([`super::FaceSource::inputs`]).
         let input = |(p, r): MemberFace| -> Vec<MemberFace> {
-            naming.recharted[p]
-                .input_faces(super::Cell::Face(r))
-                .map_or_else(|| vec![(p, r)], |fs| fs.iter().map(|&f| (p, f)).collect())
+            let source = descent.clone_source(Operand::BOTH[p], r);
+            source.inputs.into_iter().map(|f| (p, f)).collect()
         };
         let merged = descent.merged();
         // Every face of the result before the merge, with the operand face
@@ -329,8 +326,10 @@ impl Holdings {
         let mut pieces: BTreeMap<MemberFace, usize> = BTreeMap::new();
         for (f, _) in body.faces() {
             for g in constituents(f) {
-                let (operand, r) = descent.result_face(g);
-                *pieces.entry((place(operand), r)).or_default() += 1;
+                let source = descent.source(g);
+                *pieces
+                    .entry((source.operand.index(), source.root))
+                    .or_default() += 1;
             }
         }
         // Kept operand face → the dropped operand faces some piece of it
@@ -365,8 +364,8 @@ impl Holdings {
                 // the face must meet `f`'s region.
                 let mut through: BTreeMap<MemberFace, bool> = BTreeMap::new();
                 for g in constituents(f) {
-                    let (operand, r) = descent.result_face(g);
-                    let kept = (place(operand), r);
+                    let source = descent.source(g);
+                    let kept = (source.operand.index(), source.root);
                     match input(kept)[..] {
                         [one] => {
                             set.insert(one);

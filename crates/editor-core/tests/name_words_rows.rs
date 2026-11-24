@@ -541,7 +541,10 @@ fn a_tables_words_say_no_two_of_its_names_alike() {
         }
         let tables = table(&names);
         let by = Speaker::TAG.within(&tables);
-        let said: Vec<String> = names.iter().map(|n| by.name(n).to_string()).collect();
+        let said: Vec<String> = names
+            .iter()
+            .map(|n| editor_core::test_support::text(by.name(n)))
+            .collect();
         assert!(
             alike(&said).is_empty(),
             "a table says two of its names alike: {:#?} — {}",
@@ -573,9 +576,12 @@ fn a_large_table_of_names_alike_at_no_citation_is_said_in_bounded_time() {
     let tables = table(&names);
     let by = Speaker::TAG.within(&tables);
     let start = Instant::now();
-    let first = by.name(&names[0]).to_string();
+    let first = editor_core::test_support::text(by.name(&names[0]));
     let first_took = start.elapsed();
-    let said: Vec<String> = names.iter().map(|n| by.name(n).to_string()).collect();
+    let said: Vec<String> = names
+        .iter()
+        .map(|n| editor_core::test_support::text(by.name(n)))
+        .collect();
     println!("{NAMES} names alike at no citation: the first saying {first_took:?} ({first})");
     assert!(
         alike(&said).is_empty(),
@@ -658,7 +664,7 @@ fn block_and_split(r: &mut Recorder) -> (RecipeNodeId, RecipeNodeId) {
 fn failure_of(r: &Recorder, node: RecipeNodeId) -> String {
     let ev = fixture::run(&r.doc, &EvalOptions::default());
     match ev.nodes.iter().find(|(id, _)| **id == node).map(|(_, r)| r) {
-        Some(NodeResult::Failed(e)) => e.spoken(&r.doc, &ev),
+        Some(NodeResult::Failed(e)) => e.spoken(&r.doc, &ev).to_string(),
         other => panic!("{node:?} fails: {other:?}"),
     }
 }
@@ -727,8 +733,8 @@ fn a_strand_row_names_the_node_the_delete_took() {
     let applied = apply(&doc, &DocEdit::DeleteNode { id: cut }, tol).expect("the delete applies");
     let rows: Vec<String> = applied.maintenance.iter().map(|m| m.to_string()).collect();
     let deleted = format!(
-        "this edit deleted {}, which minted the name",
-        doc.spoken(cut)
+        "this edit deleted Subtract {}, which minted the name",
+        test_utils::refusal::tag(cut.0.digest())
     );
     assert!(
         !rows.is_empty() && rows.iter().all(|row| row.contains(&deleted)),
@@ -833,7 +839,7 @@ fn a_strand_row_names_a_deleted_union() {
         &editor_core::Frame::translation([0.0, 0.0, 0.5]),
     );
     let union = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![block.into(), boss.into()]),
+        members: editor_core::Bodies::spelled(vec![block.into(), boss.into()]),
     });
     let doc = r.doc;
     let ev = fixture::run(&doc, &EvalOptions::default());
@@ -859,8 +865,8 @@ fn a_strand_row_names_a_deleted_union() {
     let applied = apply(&doc, &DocEdit::DeleteNode { id: union }, tol).expect("the delete applies");
     let rows: Vec<String> = applied.maintenance.iter().map(|m| m.to_string()).collect();
     let deleted = format!(
-        "this edit deleted {}, which minted the name",
-        doc.spoken(union)
+        "this edit deleted Union {}, which minted the name",
+        test_utils::refusal::tag(union.0.digest())
     );
     assert!(
         !rows.is_empty() && rows.iter().all(|row| row.contains(&deleted)),
