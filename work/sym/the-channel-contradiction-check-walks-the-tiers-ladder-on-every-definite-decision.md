@@ -2,12 +2,13 @@
 id: the-channel-contradiction-check-walks-the-tiers-ladder-on-every-definite-decision
 kind: issue
 title: The check that the two channels do not contradict walks the tier's first attempt on every definite decision, and on a curved body's ray decisions that is 75 to 150 ms each
-status: review
+status: closed
 opened: 2026-11-15
 priority: P1
 cost: H
 branch: boxfinish/decide-path-check
 pr: 7394
+closed: 2026-11-24
 ---
 
 
@@ -179,3 +180,26 @@ after it.
 pays, with the retry ladder, the day such a margin is indeterminate;
 and how many of the revolved circle's `curve_pair_span_end_chord`
 decisions are numeric.
+
+## Closed
+
+PR 7394 (2026-11-24), built by BOXFINISH as approved on `[ev]` PR 7337.
+A decision the numeric channel has settled asks the tier nothing; a
+proven zero, from any rung, a retry, the door or a deferred discharge,
+is checked against the enclosure the decision read
+(`discharge_checked`, a `debug_assert!`); the two-channel cross-check
+is a test instrument behind `sym-revalue-testing`
+(`geom_core::sym::contradiction`), asked last.
+
+Not closed by this, each with its own file:
+
+- The instrument reaches the slab's drives leaf by leaf and no other
+  drive, and no `Sym<f64>` lane:
+  `the-contradiction-instrument-asks-no-corpus-drive-and-no-point-lane`.
+- Its zero can still be satisfied by a frozen walk:
+  `far-placement-zero-dispute-cells-can-be-satisfied-by-freezes`.
+- An opaque minted before a session shares a name with the session's
+  first: `an-opaque-minted-before-a-session-shares-a-name-with-the-sessions-first`
+  (PR 7470's review took it up).
+- Six debug-only deciding sites outside the tier: CHARTTAIL's row, as
+  re-titled by the lane.
