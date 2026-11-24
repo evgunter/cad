@@ -4,6 +4,8 @@ kind: issue
 title: PatchImage::Iso(Point2, Vec2) still carries the diagonal-capable form of an iso line, read off the image's structure at one site
 status: open
 opened: 2026-11-23
+priority: P4
+cost: E
 ---
 
 

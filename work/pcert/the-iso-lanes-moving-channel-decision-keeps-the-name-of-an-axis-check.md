@@ -4,6 +4,8 @@ kind: issue
 title: The iso lane's moving-channel decision is still named pcurve_iso_axis_u/_v, the name of the held-axis check it no longer makes
 status: open
 opened: 2026-11-23
+priority: P4
+cost: C
 ---
 
 

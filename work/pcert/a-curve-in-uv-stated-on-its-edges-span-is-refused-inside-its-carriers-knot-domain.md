@@ -4,6 +4,8 @@ kind: issue
 title: A degree-1 curve in UV stated on its edge's span, inside its spline carrier's knot domain, is refused NoGeneralLane (Envelope) where the same line on the carrier's knots certifies
 status: open
 opened: 2026-11-23
+priority: P2
+cost: M
 ---
 
 

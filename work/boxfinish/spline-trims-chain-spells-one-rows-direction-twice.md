@@ -4,6 +4,8 @@ kind: issue
 title: spline_trim's chain reads one row's direction twice: LiftedRow::plus for its ends and walks_forward for its pieces
 status: open
 opened: 2026-11-23
+priority: P3
+cost: E
 ---
 
 
