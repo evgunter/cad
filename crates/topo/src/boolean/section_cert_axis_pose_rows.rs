@@ -234,6 +234,34 @@ fn parallel_rows_serve_a_side_on_the_floor() {
     }
 }
 
+/// **A wall standing a band or so off the apex refuses on the value's
+/// sweep.** The parallel rows' cone wall: radius `0.2` about an axis
+/// tilted by the rows' swing, `K + past` bands off the unit cone's axis,
+/// so its wall stands that far off the apex, read over a unit region about
+/// its foot. The retired cone arm read its axis pose and served it at
+/// `K + 0.9`; the section value reads no axis pose, and its ruling sweep
+/// meets the discriminant in the band there at either distance. A
+/// narrowing filed as
+/// `work/sectcone/a-cone-wall-a-band-off-the-apex-refuses-on-the-sweep.md`.
+/// A reading that answers here, or refuses on another row: red.
+#[test]
+fn a_wall_a_band_off_the_apex_refuses_on_the_sweep() {
+    let z = zero();
+    for past in [0.35, 0.9] {
+        let e = 0.2 + (k() + past) * z;
+        let wall = cylinder(p(e, 0.0, 0.0), tilted(0.45 * z), 0.2);
+        let s = classify(
+            &super::section_cert_rows::unit_cone(),
+            &wall,
+            &geom_brep::Reach::Ball(geom_brep::ExtentBall::fixture(p(e, 0.0, 0.0), 1.0)),
+            None,
+            Some(geom_brep::SsiLane::marched()),
+            band(),
+        );
+        assert_eq!(tangent(&s), "ruling_discriminant", "K + {past}");
+    }
+}
+
 /// **Wide walls tilted in the band read crossing over a region on the
 /// wall.** Two walls of radius `r` on one axis, `gap` bands apart in
 /// radius, the second tilted `0.45` bands per metre, read over a unit
@@ -349,10 +377,17 @@ fn the_turn_of_a_point_read_off_the_pivot_counts() {
             band(),
         );
         // Two cones are the section value's, which reads no axis pose: it
-        // classifies the pair over the reach either way.
-        assert!(
-            matches!(&s, Section::Components { .. }),
-            "cones, apex {rise} off the pivot: {s:?}"
-        );
+        // classifies the pair over the reach either way, each witness on
+        // both carriers.
+        let Section::Components { parts, .. } = &s else {
+            panic!("cones, apex {rise} off the pivot: {s:?}")
+        };
+        assert!(!parts.is_empty(), "cones, apex {rise} off the pivot: {s:?}");
+        for w in parts.iter().filter_map(|c| c.witness) {
+            for surf in [&first, &apexes] {
+                let r = geom_brep::implicit_residual(surf, w);
+                assert!(r.abs() < 1e-9, "the witness {w:?} is {r} off {surf:?}");
+            }
+        }
     }
 }

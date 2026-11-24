@@ -409,7 +409,6 @@ const CARRIERS: &[NameCarrier] = &[
     // The row structs whose fields are names, read at each literal.
     NameCarrier::Call("Parallelism"),
     NameCarrier::Call("ArcRows"),
-    NameCarrier::Call("ChartRows"),
     NameCarrier::Call("ParityRows"),
     NameCarrier::Call("RayRows"),
     NameCarrier::Call("RoleNames"),

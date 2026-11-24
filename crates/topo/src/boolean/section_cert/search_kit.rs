@@ -127,3 +127,17 @@ pub(super) fn near_cells(
     }
     out
 }
+
+/// **A refusal at the region's boundary**: the section value's sweep
+/// reading a meeting's side of the ball it reads over within the band of
+/// that ball's sphere, on a cut row (`ruling_cut`), the monotone test a
+/// cut leaf takes against the ball (`ruling_cut_monotone`) or a branch
+/// cell's side of it (`ruling_branch_cut`), each with its `_straddle`.
+/// The region is a fixture of the search or row that reads it, not of
+/// the pose, so no distance measured from the carriers' degeneracies
+/// bounds such a refusal.
+pub(super) fn region_cut(row: &str) -> bool {
+    const ROWS: [&str; 3] = ["ruling_cut", "ruling_cut_monotone", "ruling_branch_cut"];
+    ROWS.iter()
+        .any(|r| row == *r || row.strip_suffix("_straddle") == Some(*r))
+}

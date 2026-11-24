@@ -340,7 +340,7 @@ fn the_degenerate_cone_poses_read_as_the_value_decides_them() {
         assert!(
             matches!(&s, Section::Components { parts, .. }
                 if parts.len() == 1 && parts[0].unbounded)
-                || matches!(s, Section::Tangent(name) if name.starts_with("ruling_") && name.contains("cut")),
+                || matches!(s, Section::Tangent(name) if super::search_kit::region_cut(name)),
             "the doubled asymptote: one branch the region cuts, {s:?}"
         );
     }
@@ -463,4 +463,38 @@ fn a_far_rod_and_a_slender_cone_answer_at_every_eps() {
             "slender at {eps:e}"
         );
     }
+}
+
+/// **Coaxial cones whose apexes stand a hair apart refuse on the value's
+/// sweep**: the pose `cone_search` drew (seed `0xbe01201603b110c4`), the
+/// partner's apex `2.1·10⁻⁷` m up the first cone's axis, at about `80` m
+/// from the origin. The retired coaxial arm read the parallels in closed
+/// form there; the section value's sweep meets the discriminant in the
+/// band, the sheets passing all but through the near apex. A narrowing
+/// filed as
+/// `work/sectcone/coaxial-cones-a-hair-apart-refuse-on-the-sweep.md`. A
+/// reading that answers here, or refuses on another row: red.
+#[test]
+fn coaxial_cones_a_hair_apart_refuse_on_the_sweep() {
+    let apex = p(11.469147488760456, -61.43428644076939, -58.126021681816255);
+    let axis = v(-0.6257110708896446, -0.5303880180400604, 0.5719914388220076).normalize();
+    let first = cone_about(apex, axis, 0.9444403477437026);
+    let second = cone_about(
+        apex + axis * 2.120791546399104e-7,
+        axis,
+        0.32689233645338184,
+    );
+    let reach = geom_brep::Reach::Ball(geom_brep::ExtentBall::fixture(apex, 5.0 * 80.0));
+    let read = |f: &Surface<f64>, g: &Surface<f64>| {
+        super::classify(
+            f,
+            g,
+            &reach,
+            Some(geom_brep::ExtentBall::fixture(apex, 100.0)),
+            Some(geom_brep::SsiLane::marched()),
+            band(),
+        )
+    };
+    assert_eq!(tangent(&read(&first, &second)), "ruling_discriminant");
+    assert_eq!(tangent(&read(&second, &first)), "ruling_discriminant");
 }

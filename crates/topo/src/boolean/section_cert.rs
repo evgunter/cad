@@ -1117,10 +1117,6 @@ pub(super) fn torus_plane_loops<T: Decide>(
     }
 }
 
-/// The cone arms: `k` is a cone, `p` its partner. Components are listed
-/// on the DOUBLE cone: one on the other nappe from the face has a
-/// witness the face's trim places `Out`, so `classify` never needs the
-/// face's nappe.
 /// **A cone against a cylinder or a cone**, read on the section value
 /// ([`geom_brep::pair_section()`]) over the operation's `region`, or,
 /// where there is none (a sweep-only door's), over the face pair's overlap
@@ -1180,7 +1176,10 @@ fn ruled_second<T: Decide>(f: &geom::Surface<T>, g: &geom::Surface<T>) -> bool {
 
 /// **The cone arms the section value does not build**: `k` is a cone,
 /// `p` a plane, a sphere, or a cone the value reads elsewhere (through
-/// `k`'s apex, or of `k`'s aperture on a parallel axis).
+/// `k`'s apex, or of `k`'s aperture on a parallel axis). Components are
+/// listed on the DOUBLE cone: one on the other nappe from the face has a
+/// witness the face's trim places `Out`, so `classify` never needs the
+/// face's nappe.
 fn cone_pair<T: Decide>(
     k: &geom::Surface<T>,
     p: &geom::Surface<T>,
@@ -1258,8 +1257,8 @@ fn cone_pair<T: Decide>(
                     let other = Cone::new(apex2, d, half_angle2, u_ref2);
                     cone_cone(&cone, &other, true, reach, band)
                 }
-                // As against a cylinder, the ruling charts take an offset
-                // neither reading claims.
+                // The value read the pose elsewhere: only the common apex
+                // or one aperture is claimed here (`cone_cone`).
                 AxisPose::Undecided(_) | AxisPose::Other => {
                     let other = Cone::new(apex2, d, half_angle2, u_ref2);
                     cone_cone(&cone, &other, false, reach, band)

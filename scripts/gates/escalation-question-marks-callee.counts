@@ -84,8 +84,6 @@ crates/topo/src/boolean/reduce.rs 5
 # pieces can answer different kinds (QML T4; the site says so); reach's
 # four reads, every arc's: NOT A SEARCH.
 crates/topo/src/rim_wedge.rs 6
-# section_cert ruling: roots walks sorted roots to the first past the
-# window: NOT A SEARCH.
 # sectors: closed_reach (2), which face holds the reach: WHICH.
 # (crescent climbs its bound pairs, rays_within its sectors.)
 crates/topo/src/boolean/sectors.rs 2

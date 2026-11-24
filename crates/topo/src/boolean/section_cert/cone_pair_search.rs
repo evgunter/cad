@@ -68,7 +68,7 @@ test_utils::gated_to![
 ];
 
 use super::cone_search::{Class, Frame, Traced, random_cone, trace};
-use super::search_kit::{band, matched, offset, unit_vec};
+use super::search_kit::{band, matched, offset, region_cut, unit_vec};
 use super::*;
 use core::f64::consts::{FRAC_PI_2, TAU};
 use geom::Surface;
@@ -167,9 +167,14 @@ struct Slop {
     dir: f64,
 }
 
+/// The trace's own rounding of a chart line, in units of `ε` (the
+/// [`Slop`] docs' `64ε`): a bound on the oracle's arithmetic, unrelated
+/// to [`DECIDED_SLACK`] and [`WITNESS_ROUNDING`].
+const CHART_ROUNDING: f64 = 64.0;
+
 /// The [`Slop`] of the ruling chart on `carrier`.
 fn slop_of(carrier: &Surface<f64>) -> Slop {
-    let unit = 64.0 * f64::EPSILON;
+    let unit = CHART_ROUNDING * f64::EPSILON;
     match *carrier {
         Surface::Cone { .. } => Slop {
             base: 0.0,
@@ -939,22 +944,15 @@ fn off_asymptotic_planes(
 /// **How far a witness read on a pose decided on a `Zero` margin may
 /// stand off the carriers**, in units of that margin: the exact pose's
 /// section is the margin off the carriers' own, conditioned by the
-/// carriers' angle there.
-const DECIDED_SLACK: f64 = 64.0;
+/// carriers' angle there. Chosen, not derived: the hosted runs saw at
+/// most about `2.1` margins, and this is thirtyfold headroom. It shares
+/// only its value with [`CHART_ROUNDING`].
+pub(super) const DECIDED_SLACK: f64 = 64.0;
 
 /// A chart's precision floor: the representation, not the band, cannot
 /// resolve the pose, and any pose may refuse it.
 fn precision_floor(row: &str) -> bool {
     row.ends_with("_precision")
-}
-
-/// **A refusal at the region's boundary**: a branch crossing the sphere
-/// the value reads over within the band of it, at a cut end
-/// (`ruling_cut`, `ruling_cut_straddle`). The region is the search's
-/// fixture, not the pose's ([`region_of`]), so no distance this search
-/// measures from the carriers' degeneracies bounds it.
-fn region_cut(row: &str) -> bool {
-    row.starts_with("ruling_cut")
 }
 
 /// A partner's ruling chart, read off its carrier.
@@ -1126,13 +1124,26 @@ fn check(k: &Frame, pose: &Pose) -> (Outcome, Vec<String>) {
         }
         // A touch the value decided at one point (the apex on the
         // partner, its form definite there, or a tangency the section
-        // shrinks to): the point on both carriers within the margin.
+        // shrinks to): only near a degeneracy, and the point on both
+        // carriers, within the margin where the pose is decided `Zero`.
         Section::Touch(t) => {
             if !matches!(back, Section::Touch(_)) {
                 bad.push(format!("one order a touch, the other {back:?}"));
             }
-            let within = DECIDED_SLACK * m
-                + WITNESS_ROUNDING * f64::EPSILON * ((t.at - k.apex).norm() + k.scale);
+            if clear >= must_answer(k.scale) {
+                bad.push(format!(
+                    "{clear:.3e} m off every degeneracy ({:.1e} of the must-answer floor), a touch at {:?}",
+                    clear / must_answer(k.scale),
+                    t.at
+                ));
+            }
+            let decided = if m <= b.zero() {
+                DECIDED_SLACK * m
+            } else {
+                0.0
+            };
+            let within =
+                decided + WITNESS_ROUNDING * f64::EPSILON * ((t.at - k.apex).norm() + k.scale);
             for surf in [&cone, partner] {
                 let r = geom_brep::implicit_residual(surf, t.at);
                 if r.abs() > within {

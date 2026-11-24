@@ -468,18 +468,49 @@ fn check(k: &Frame, pose: &Pose) -> Vec<String> {
         b,
     );
     let m = pose.margin.map_or(f64::INFINITY, f64::abs);
+    let value_read = matches!(
+        pose.partner,
+        Surface::Cylinder { .. } | Surface::Cone { .. }
+    );
+    // A witness's distance from each carrier: the classification's own,
+    // and, where the section value decided the pose `Zero`, the exact
+    // pose's, up to the margin off the carriers.
+    let decided = if value_read && m <= b.zero() {
+        super::cone_pair_search::DECIDED_SLACK * m
+    } else {
+        0.0
+    };
+    let tolerance = 1e-9 * k.scale + decided;
     // In the band's Zero: R-tan is the answer, except at the plane's
     // aperture, where Zero is the parabola's class — one part, essential,
     // no witness, uncounted.
     if m <= 0.25 * b.zero() {
         // The section value decides a cylinder's or a cone's pose in the
-        // band itself (C5: the apex on the partner a node or a touch).
-        if matches!(
-            pose.partner,
-            Surface::Cylinder { .. } | Surface::Cone { .. }
-        ) {
-            return Vec::new();
+        // band itself (C5: the apex on the partner a node or a touch): a
+        // refusal stands, a touch is checked on both carriers, and a
+        // classification goes on to the witness and swapped-order checks
+        // below (the trace does not resolve the band).
+        if value_read {
+            match &sec {
+                Section::Components { .. } => {}
+                Section::Touch(t) => {
+                    let mut bad = Vec::new();
+                    if !matches!(back, Section::Touch(_)) {
+                        bad.push(format!("one order a touch, the other {back:?}"));
+                    }
+                    for surf in [&cone, &pose.partner] {
+                        let r = geom_brep::implicit_residual(surf, t.at);
+                        if r.abs() > tolerance {
+                            bad.push(format!("the touch {:?} is {r} off {surf:?}", t.at));
+                        }
+                    }
+                    return bad;
+                }
+                _ => return Vec::new(),
+            }
         }
+    }
+    if m <= 0.25 * b.zero() && !value_read {
         let parabola = matches!(pose.partner, Surface::Plane { .. })
             && matches!(&sec, Section::Components { parts, single: false }
                 if parts.len() == 1
@@ -499,12 +530,7 @@ fn check(k: &Frame, pose: &Pose) -> Vec<String> {
         Section::Tangent(_) if m < 4.0 * b.escalate() => return Vec::new(),
         // A cylinder or cone partner is the section value's, whose sweep
         // stands down within the general search's must-answer distance.
-        Section::Tangent(_)
-            if matches!(
-                pose.partner,
-                Surface::Cylinder { .. } | Surface::Cone { .. }
-            ) && m < super::cone_pair_search::must_answer(k.scale) =>
-        {
+        Section::Tangent(_) if value_read && m < super::cone_pair_search::must_answer(k.scale) => {
             return Vec::new();
         }
         Section::Touch(t) if t.name == "section_cone_coaxial_apexes" && m < 4.0 * b.escalate() => {
@@ -531,7 +557,7 @@ fn check(k: &Frame, pose: &Pose) -> Vec<String> {
         };
         for surf in [&cone, &pose.partner] {
             let r = geom_brep::implicit_residual(surf, w);
-            if r.abs() > 1e-9 * k.scale {
+            if r.abs() > tolerance {
                 bad.push(format!("the witness {w:?} is {r} off {surf:?}"));
             }
         }

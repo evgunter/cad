@@ -389,11 +389,14 @@ fn a_parallel_axis_cylinder_every_class() {
         let w = witnesses_on_both(&s, &cone, &wall);
         assert!(w[0].z * w[1].z < 0.0, "one witness on each nappe: {w:?}");
     }
-    let through = classify(&cone, &cylinder(p(0.5, 0.0, 0.0), Vec3::unit_z(), 0.5));
+    let wall = cylinder(p(0.5, 0.0, 0.0), Vec3::unit_z(), 0.5);
+    let through = classify(&cone, &wall);
     assert!(
-        matches!(through, Section::Components { .. }),
-        "the apex on the wall: {through:?}"
+        matches!(&through, Section::Components { parts, single: true }
+            if parts.len() == 1 && !parts[0].unbounded),
+        "the apex on the wall: one bounded node-joined set, {through:?}"
     );
+    witnesses_on_both(&through, &cone, &wall);
 }
 
 // -------------------------------------------------------------------
