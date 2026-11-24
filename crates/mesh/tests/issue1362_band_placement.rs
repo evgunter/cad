@@ -11,7 +11,8 @@
 //! against ε) while a placement-dependent read is a RATIO test (placement
 //! over body size). A SMALL body at a
 //! MODERATE distance clears one and trips the other — `r = 1e-6` at
-//! `d = 1e3` has `ulp(1e3) ≈ 1.1e-13` yet a ratio of ~1.7e9.
+//! `d = 999` (inside the 1 km session box) has `ulp(999) ≈ 1.1e-13` yet
+//! a ratio of ~1.7e9.
 //!
 //! Tolerance posture: the ASSERTIONS consult no kernel tolerance — the
 //! measured volume is compared to `4πr³/3` with a budget argued from
@@ -78,7 +79,8 @@ fn volume_or_typed(r: f64, d: f64, label: &str) -> Option<f64> {
     Some(signed_volume(&m))
 }
 
-/// **Issue 1362, end to end.** A 1 µm ball at a 1 km placement — a
+/// **Issue 1362, end to end.** A 1 µm ball at a 999 m placement, just
+/// inside the 1 km session box — a
 /// fixture the doors admit at the default band — must measure the same
 /// volume it measures at the origin, and must measure the sphere.
 ///
@@ -94,13 +96,19 @@ fn volume_or_typed(r: f64, d: f64, label: &str) -> Option<f64> {
 /// A meridian on the wrong `2πk` branch here leaves the mesh watertight
 /// and its volume off by orders, with no refusal anywhere.
 #[test]
-fn a_micron_ball_at_a_kilometre_meshes_the_same_body_it_does_at_the_origin() {
+fn a_micron_ball_just_inside_the_box_meshes_the_same_body_it_does_at_the_origin() {
     let r = 1.0e-6;
     let exact = 4.0 * core::f64::consts::PI * r * r * r / 3.0;
+    // A ball a band cannot resolve is the doors' to refuse (its radius
+    // under the band's escalation); one it resolves is read, at the origin
+    // and at 999 m alike, so the row cannot stand down vacuously there.
+    let resolved = r > 1e3 * Tol::witness().eps();
     let Some(v0) = volume_or_typed(r, 0.0, "origin") else {
+        assert!(!resolved, "a {r:e} m ball at the origin is read at this ε");
         return;
     };
-    let Some(v) = volume_or_typed(r, 1.0e3, "placed 1e3") else {
+    let Some(v) = volume_or_typed(r, 9.99e2, "placed 999 m") else {
+        assert!(!resolved, "a {r:e} m ball 999 m out is read at this ε");
         return;
     };
     println!("origin {v0:e}, placed {v:e}, exact {exact:e}");
@@ -122,25 +130,31 @@ fn a_micron_ball_at_a_kilometre_meshes_the_same_body_it_does_at_the_origin() {
     );
 }
 
-/// The same corner, swept: the ratio is what matters, not the distance.
+/// The same corner, swept: the ratio is what matters, not the distance,
+/// each ball at 999 m on every axis, inside the session box.
 /// Every row whose doors admit it must agree with its own origin build.
 /// Rows the band refuses print and skip, so each ε gates the fixtures
 /// its doors let through.
 #[test]
 fn the_band_survives_every_placement_ratio_the_doors_admit() {
     for (r, d) in [
-        (1.0e-2, 1.0e4),
-        (1.0e-3, 1.0e4),
-        (1.0e-4, 1.0e4),
-        (1.0e-5, 1.0e3),
-        (1.0e-6, 1.0e3),
+        (1.0e-2, 9.99e2),
+        (1.0e-3, 9.99e2),
+        (1.0e-4, 9.99e2),
+        (1.0e-5, 9.99e2),
+        (1.0e-6, 9.99e2),
     ] {
+        let resolved = r > 1e3 * Tol::witness().eps();
         let ratio = d * 3.0_f64.sqrt() / r;
         let label = format!("r {r:e} d {d:e} (ratio {ratio:e})");
         let (Some(v0), Some(v)) = (
             volume_or_typed(r, 0.0, &format!("{label} origin")),
             volume_or_typed(r, d, &label),
         ) else {
+            assert!(
+                !resolved,
+                "{label}: a ball this ε resolves is read at the origin and placed"
+            );
             continue;
         };
         let drift = ((v - v0) / v0).abs();

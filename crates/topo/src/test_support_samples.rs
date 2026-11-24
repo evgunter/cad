@@ -631,6 +631,32 @@ fn certify_errors() -> Vec<CertifyError> {
             refusal: geom_brep::RowRefusal::Singular,
         },
         CertifyError::WrapOnNonPeriodic,
+        CertifyError::OutsideSessionBox {
+            margin: geom_core::MarginDiag::value(-2.5e3),
+        },
+        CertifyError::SessionBoxUnshown {
+            margin: geom_core::MarginDiag::value(-75.0),
+        },
+        // An edge with no cover, one per cause class: a limit (an
+        // unbounded locus), a stored-data fault, and an end that is not
+        // a finite point.
+        CertifyError::SessionBoxUncovered {
+            why: geom_brep::session_box::UncoveredCause::Carrier {
+                kind: "line",
+                what: geom::cover::Unknown::Unbounded,
+                unbounded_only: true,
+            },
+        },
+        CertifyError::SessionBoxUncovered {
+            why: geom_brep::session_box::UncoveredCause::Carrier {
+                kind: "nurbs",
+                what: geom::cover::Unknown::PoisonedNet,
+                unbounded_only: false,
+            },
+        },
+        CertifyError::SessionBoxUncovered {
+            why: geom_brep::session_box::UncoveredCause::Ends,
+        },
         // Both zero-span stories: a length a smaller tolerance decides,
         // and a span of no length, which none does.
         CertifyError::IntervalNotForward {
@@ -1783,6 +1809,22 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         },
     ));
     s.push((
+        "SessionBoxUnshown".into(),
+        ValidationError::SessionBoxUnshown {
+            margin: geom_core::MarginDiag::value(-75.0),
+        },
+    ));
+    for (label, why, cause) in session_box_uncovered_causes() {
+        s.push((
+            format!("SessionBoxUncovered({label})"),
+            ValidationError::SessionBoxUncovered {
+                face: crate::entity::FaceKey::default(),
+                why,
+                cause,
+            },
+        ));
+    }
+    s.push((
         "Unmovable".into(),
         ValidationError::Unmovable {
             found: "a null scaffold",
@@ -2365,6 +2407,79 @@ fn touch_reasons() -> impl Iterator<Item = crate::link::TouchUnread> {
                 .filter(|&c| c != crate::link::CurvedUnread::default())
                 .map(crate::link::TouchUnread::Curved),
         )
+}
+
+/// One face-cover refusal per cause the session box names
+/// ([`ValidationError::SessionBoxUncovered`], [`crate::UncoveredCause`]),
+/// each with the cover refusal it is read from.
+fn session_box_uncovered_causes() -> Vec<(
+    &'static str,
+    crate::cover::FaceUncovered,
+    crate::UncoveredCause,
+)> {
+    use crate::UncoveredCause as C;
+    use crate::cover::{BoundaryUnknown, EdgeUncovered, FaceUncovered};
+    use geom::SurfaceKind as K;
+    use geom::cover::{Entity, Uncovered, Unknown};
+    let surface = |kind, what| Uncovered::new(Entity::Surface(kind), what);
+    let plane = || surface(K::Plane, Unknown::Unbounded);
+    let edge = crate::entity::EdgeKey::default();
+    let on_plane = |why: EdgeUncovered| {
+        FaceUncovered::with_boundary(plane(), vec![BoundaryUnknown::Edge(edge, why)])
+    };
+    let line = EdgeUncovered::Carrier(Uncovered::new(
+        Entity::Curve(geom::CurveKind::Line),
+        Unknown::Unbounded,
+    ));
+    let net = || FaceUncovered::of_carrier(surface(K::Nurbs, Unknown::PoisonedNet));
+    vec![
+        ("not described", net(), C::NotDescribed),
+        ("poisoned net", net(), C::PoisonedNet),
+        (
+            "infinite net",
+            FaceUncovered::of_carrier(surface(K::Nurbs, Unknown::NonFinite)),
+            C::InfiniteNet,
+        ),
+        (
+            "datum",
+            FaceUncovered::of_carrier(surface(K::Torus, Unknown::NonFinite)),
+            C::Datum(K::Torus, geom::SurfaceDatum::MinorRadius),
+        ),
+        (
+            "direction datum",
+            FaceUncovered::of_carrier(surface(K::Cylinder, Unknown::NonFinite)),
+            C::Datum(K::Cylinder, geom::SurfaceDatum::Axis),
+        ),
+        (
+            "unnamed",
+            FaceUncovered::of_carrier(surface(K::Sphere, Unknown::NonFinite)),
+            C::Unnamed(K::Sphere),
+        ),
+        (
+            "edge not built",
+            on_plane(EdgeUncovered::Scaffold),
+            C::Edge(EdgeUncovered::Scaffold),
+        ),
+        ("edge carrier", on_plane(line.clone()), C::Edge(line)),
+        (
+            "edge ends",
+            on_plane(EdgeUncovered::Ends),
+            C::Edge(EdgeUncovered::Ends),
+        ),
+        (
+            "lone vertex",
+            FaceUncovered::with_boundary(
+                plane(),
+                vec![BoundaryUnknown::Vertex(crate::entity::VertexKey::default())],
+            ),
+            C::LoneVertex,
+        ),
+        (
+            "no loop",
+            FaceUncovered::of_carrier(plane()),
+            C::NoLoop(K::Plane),
+        ),
+    ]
 }
 
 #[cfg(test)]

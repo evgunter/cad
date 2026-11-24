@@ -60,15 +60,21 @@ fn lcg(seed: &mut u64) -> f64 {
 }
 
 /// A pseudo-random rigid pose: a turn about a random axis through the
-/// origin, then a translation of up to `2s`.
+/// origin, then a translation of up to `2s` along each axis, held within
+/// the room the operands leave in the 1 km session box (they reach about
+/// `0.93·s` from the origin: the torus's `0.8·s`, and a support plate
+/// `0.1·s` thick and `0.15·s` across beyond it), so every pose stands
+/// inside it: at `s = 1e3` the pose is a turn and a translation of up to
+/// 20 m.
 fn pose(s: f64, seed: u64) -> Affine3<f64> {
     let mut st = seed;
     let ax = Vec3::new(lcg(&mut st) - 0.5, lcg(&mut st) - 0.5, lcg(&mut st) - 0.5).normalize();
     let ang = lcg(&mut st) * 2.0 * PI;
+    let room = (2.0 * s).min(950.0 - 0.93 * s);
     let t = Vec3::new(
-        (lcg(&mut st) - 0.5) * 4.0 * s,
-        (lcg(&mut st) - 0.5) * 4.0 * s,
-        (lcg(&mut st) - 0.5) * 4.0 * s,
+        (lcg(&mut st) - 0.5) * 2.0 * room,
+        (lcg(&mut st) - 0.5) * 2.0 * room,
+        (lcg(&mut st) - 0.5) * 2.0 * room,
     );
     Affine3::translation(t) * Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), ax, ang)
 }
@@ -253,6 +259,7 @@ fn plates_at_the_exact_support_of_a_frustum_and_a_torus_are_right_at_every_op_ro
         (Shape::Torus, 1.5 * PI, "torus 270°"),
     ] {
         for s in [1e-3, 1.0, 1e3] {
+            let (built_before, sampled_before) = (built, sampled);
             let curved = body(shape, s, sweep);
             let mut st = 0xC0FFEE ^ s.to_bits() ^ (sweep.to_bits() >> 3);
             for k in 0..6 {
@@ -363,6 +370,16 @@ fn plates_at_the_exact_support_of_a_frustum_and_a_torus_are_right_at_every_op_ro
                     }
                 }
             }
+            // The kilometre scale is read: its poses stand inside the
+            // session box, so a run whose every pose or boolean there is
+            // refused does not leave the smaller scales to carry the floor.
+            // (A millimetre torus builds nothing at a coarse band, the box
+            // apart.)
+            assert!(
+                s < 1e3 || (built > built_before && sampled > sampled_before),
+                "[ε {eps:e}] {name} s {s:e}: nothing built or sampled at this scale \
+                 (poses skipped {skipped})"
+            );
         }
     }
     println!("ε {eps:e}: runs {runs}, built {built}, sampled {sampled}, poses skipped {skipped}");

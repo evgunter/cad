@@ -7663,9 +7663,10 @@ impl Undecided {
             }
             // Neither this nor `Unclaimable` is gated by distance: a
             // face with no sound reach bound is refused at ANY
-            // separation, so moving the parts is no way through. A
-            // placeholder surface is also reported on its own, as the
-            // kernel defect it is (`UncertifiableSurface`).
+            // separation, so moving the parts is no way through. At
+            // rest a placeholder surface never reaches here: the session
+            // box refuses its face first (`SessionBoxUncovered`, "no
+            // surface described yet").
             Self::NoSoundReach => {
                 "one face has no extent the check can bound (a placeholder surface, or an \
                  edge whose curve has no bounds), so no distance clears it. There is no way \
@@ -10339,9 +10340,11 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
         // excluded from the backstop. What licenses the exclusion is a
         // named check, not an accident: the census's only production
         // caller is [`crate::validate::validate_pseudomanifold`], and
-        // it runs `census_and_certify` ONLY when `tier3_local_checks`
-        // came back empty, whose check 1 pushes `UncertifiableSurface`
-        // for every placeholder face. So no body reaching this arm
+        // it runs `census_and_certify` ONLY when the session box admitted
+        // the body, which it does for no placeholder face (its cover
+        // refuses: `SessionBoxUncovered`), and `tier3_local_checks` came
+        // back empty, whose check 1 pushes `UncertifiableSurface` for
+        // every placeholder face. So no body reaching this arm
         // through the public door carries one. The unsound direction is
         // a SECOND caller of `census_and_certify` that does not gate on
         // tier 3 — this skip would go quiet on faces the arm can say
@@ -13905,7 +13908,7 @@ mod tests {
     /// ([`sweep_cross_solid_backstop`] arm 2), so both directions refuse
     /// with *"a surface kind with no cheap sound box leaves the
     /// containing instance's extent unclaimable"*. The refusal is
-    /// therefore position-independent: moving one sheet a kilometre
+    /// therefore position-independent: moving one sheet 900 m
     /// away produces the identical pair of errors, because no extent
     /// comparison happens at all. Do not read these rows as the arm
     /// measuring the sheets.
@@ -13951,8 +13954,8 @@ mod tests {
     /// geometry — which reads, in a suite, exactly like the arm
     /// measuring two overlapping sheets.
     ///
-    /// The second half is what makes that unmistakable: a sheet a
-    /// KILOMETRE away produces the byte-identical refusal. If this row
+    /// The second half is what makes that unmistakable: a sheet 900 m
+    /// away, near the session box's edge, produces the byte-identical refusal. If this row
     /// ever fails there, an extent comparison has started happening and
     /// the `face_findings` allowance above needs re-reading.
     #[test]
@@ -14006,9 +14009,9 @@ mod tests {
         );
         assert_eq!(
             near,
-            refusals(1000.3, 1000.7),
+            refusals(900.3, 900.7),
             "the refusal is about an unclaimable extent, so moving a sheet a \
-             kilometre away must not change it"
+             900 m away must not change it"
         );
     }
 
@@ -14842,7 +14845,10 @@ mod tests {
     /// `K = 1.001` and `K = 1.2` every end lies at a corner, read as the
     /// band's own parting or, where the point's chord to the end falls in
     /// the band's hair-wide gap, as the end reading's escalation, and the
-    /// census reports no defect.
+    /// census reports no defect. The radius scales with ε, so the arc
+    /// stands inside the session box only at ε = 1e-12; at the coarser
+    /// rows the row pins the box's refusal of it (the lost witness is
+    /// `work/atrest/the-far-arc-end-reading-witness-stands-past-the-session-box.md`).
     ///
     /// At ε 1e-12 the point is read on the end's vertex, and at ε 1e-6 on
     /// the arc, at both `K`: decided readings, each sound (the point is
@@ -14854,7 +14860,8 @@ mod tests {
     /// raw, which moves the end the frame computes by a rounding. Mutant
     /// F1F (squaring at `f64` stores the stated vectors raw) reads main's
     /// answer and turns this pin red at both ε; mutants A and F1X do not.
-    /// At ε 1e-9 the read is as stated above.
+    /// At ε 1e-9 the read is as stated above. The 1e-6 and 1e-9 arms are
+    /// not reached while the arc stands past the box at those rows.
     #[test]
     fn a_far_arc_at_k_near_one_reads_its_end_where_certification_pinned_it() {
         use crate::test_support_fixtures::arc_cap;
@@ -14881,6 +14888,27 @@ mod tests {
             .map(|m| circle(98765.4 * (zero / 1e-9) * m))
             .find(|(.., parting)| parting.norm() > 0.001 * zero)
             .expect("a radius where the frame's end and eval's part past (K - 1)·zero");
+        // The radius scales with ε: at ε = 1e-12 the arc stands inside the
+        // session box; at coarser rows it reaches past it, and its rim's
+        // certification refuses it there, by the box, before any census.
+        let band = Band::linear(tol).unwrap();
+        let boxed = geom_brep::session_box::edge_in_box(
+            &carrier,
+            (0.0, t1),
+            (carrier.eval(0.0), end),
+            band,
+        );
+        if boxed.is_err() {
+            assert!(
+                matches!(boxed, Err(geom_brep::session_box::BoxRefusal::Point { .. })),
+                "the far arc is past the session box by a point of it: {boxed:?}"
+            );
+            test_utils::vacuity::stood_down(
+                "the far arc at K near one",
+                "its end reading: the arc stands past the session box at this ε",
+            );
+            return;
+        }
         let r = (end - center).norm();
         let away = parting / parting.norm();
         let parting = parting.norm();
@@ -15349,7 +15377,7 @@ mod tests {
     /// A described net carrying poison has no reach: the backstop
     /// refuses every cross-solid pair naming it, and arm 2 takes
     /// neither solid as the container, rather than either clearing on
-    /// the finite channels. The net's `z` lane sits at `2`, a kilometre
+    /// the finite channels. The net's `z` lane sits at `2`, 900 m
     /// below the other sheet, and would decide that gap on its own. Two
     /// nets: `x` poisoned at every point, and at one point only.
     #[test]
@@ -15371,7 +15399,7 @@ mod tests {
                 &mut body,
                 Some(cyl),
                 (1.0, 2.4),
-                (1000.3, 1000.7),
+                (900.3, 900.7),
                 false,
                 Tol::witness(),
             );

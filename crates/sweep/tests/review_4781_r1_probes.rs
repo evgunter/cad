@@ -459,9 +459,8 @@ fn review_4781_touch_pairs_every_op_row() {
 }
 
 /// **A touch pair's cylinder past the session box is refused by it**:
-/// the equal cylinders' first, scaled until it reaches 1001 m. At
-/// ε = 1e-12 limb 2's kernel limit on the cylinder reads first, and that
-/// is what the row asserts there.
+/// the equal cylinders' first, scaled until it reaches 1001 m, at every
+/// ε.
 #[test]
 fn a_touch_pairs_cylinder_past_the_session_box_is_refused_by_it() {
     let (_, a, _) = touch_pairs()
@@ -471,10 +470,9 @@ fn a_touch_pairs_cylinder_past_the_session_box_is_refused_by_it() {
     let Shape::Cyl { c, r, z } = a.scaled(1001.0 / a.reach()) else {
         unreachable!("the equal cylinders' first is a cylinder");
     };
-    crate::common::refused_by_the_box_or_limb_2(
+    crate::common::refused_by_the_session_box(
         "the cylinder reaching 1001 m",
         1001.0,
-        &[1e-12],
         extruded_cyl(c.0, c.1, r, z.0, z.1),
     );
 }

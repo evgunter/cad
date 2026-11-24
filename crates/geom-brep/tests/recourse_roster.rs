@@ -48,6 +48,9 @@ const CARRIERS: &[NameCarrier] = &[
     NameCarrier::Const("SQUARE_FOLD_HALF"),
     NameCarrier::Const("OVAL_SIDE"),
     NameCarrier::Const("OVAL_IN_BAND"),
+    // The session box's two decisions (`session_box.rs`).
+    NameCarrier::Const("SESSION_BOX_REACH"),
+    NameCarrier::Const("SESSION_BOX_POINT"),
     NameCarrier::Const("SQUARE_EDGE_OVER"),
     NameCarrier::Const("SPHERE_NEAR"),
     NameCarrier::Const("SPHERE_FAR"),
@@ -103,6 +106,7 @@ const CARRIERS: &[NameCarrier] = &[
     // The forwarders that hand on their callers' names, declared so
     // those names are read.
     NameCarrier::Call("apart_in_order_as"),
+    NameCarrier::Call("past_the_box_as"),
     NameCarrier::Call("stops"),
     NameCarrier::Call("probe_pick"),
     NameCarrier::Call("span_incidence_as"),

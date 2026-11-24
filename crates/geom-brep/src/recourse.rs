@@ -115,6 +115,12 @@ pub trait Ended: core::fmt::Display {
     fn ended(&self, at: ReadAt) -> String;
 }
 
+impl<E: Ended + ?Sized> Ended for &E {
+    fn ended(&self, at: ReadAt) -> String {
+        (**self).ended(at)
+    }
+}
+
 /// **A nested refusal as its holder writes it**: ended at `at`, or its
 /// payload alone where `at` is `None` (the holder's own `Display`).
 pub fn read_at<E: Ended + ?Sized>(refusal: &E, at: Option<ReadAt>) -> impl core::fmt::Display + '_ {

@@ -313,6 +313,7 @@ pub(crate) fn asked_after_isometry<T: geom_core::Decide>(
     let findings: Vec<ValidationError> = FindingFamily::ALL
         .into_iter()
         .filter_map(|family| geom_core::k_stats::checking(|| family.asked_again(image, band)).err())
+        .flatten()
         .collect();
     if findings.is_empty() {
         Ok(())
@@ -680,8 +681,11 @@ impl std::error::Error for NotFinished {}
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(any(test, feature = "test-support"), derive(strum::EnumIter))]
 pub enum FindingFamily {
-    /// The body reaches past the session box (D4 ¶4), so nothing
-    /// geometric is read on it.
+    /// The body reaches past the session box (D4 ¶4), or the kernel
+    /// cannot show it inside, so nothing geometric is read on it. Each
+    /// member ends in its own recourse: the box's (move the geometry)
+    /// where the body or its cover reaches past it, its cause's where a
+    /// face has no cover.
     SessionBox,
     /// The run's tolerance forms no band, so nothing geometric is read.
     Tolerance,
@@ -739,7 +743,9 @@ impl FindingFamily {
     /// where the family decides a fact of the shape up to isometry (a
     /// distance, an angle, a side or an incidence of the body with
     /// itself, or a fact of the run), so the image keeps the verdict; the
-    /// question where it does not. Only the session box is asked again.
+    /// question where it does not. Only the session box is asked again,
+    /// and an edge's certification refused by the box is the box's
+    /// finding ([`ValidationError::family`]).
     /// A new family states its answer here.
     const fn under_isometry(self) -> Option<AskedAgain> {
         match self {
@@ -772,13 +778,13 @@ impl FindingFamily {
     }
 
     /// **This family's question, asked of an isometry's image**
-    /// ([`Self::under_isometry`]): its finding where it finds one, and
+    /// ([`Self::under_isometry`]): its findings where it finds any, and
     /// nothing asked of a family up to isometry.
     pub(crate) fn asked_again<T: geom_core::Decide>(
         self,
         image: &Body<T>,
         band: geom_core::Band,
-    ) -> Result<(), ValidationError> {
+    ) -> Result<(), Vec<ValidationError>> {
         match self.under_isometry() {
             None => Ok(()),
             Some(AskedAgain::SessionBox) => crate::session_box::in_session_box(image, band),
@@ -827,7 +833,7 @@ impl FindingFamily {
     #[must_use]
     pub const fn text(self) -> &'static str {
         match self {
-            Self::SessionBox => "the body reaches past the session box",
+            Self::SessionBox => "the body is past the session box, or not shown inside it",
             Self::Tolerance => "the tolerance forms no band",
             Self::Structure => "the topology is broken",
             Self::Scaffolding => "construction scaffolding is left at rest",
@@ -848,16 +854,17 @@ impl FindingFamily {
 
     /// The family's one recourse, where it is one sentence whatever the
     /// finding; `None` where the family is one decision whose ending
-    /// reads the finding's verdict and margin.
+    /// reads the finding's verdict and margin, or (the session box) where
+    /// a member's recourse is its cause's.
     #[must_use]
     pub const fn recourse(self) -> Option<&'static str> {
         match self {
-            Self::SessionBox => Some(crate::validate::SESSION_BOX),
             Self::Tolerance => Some(crate::validate::TOLERANCE),
             Self::Structure | Self::Scaffolding | Self::Description => {
                 Some(geom_core::KERNEL_OR_FILE_DEFECT_ENDING)
             }
-            Self::Convention
+            Self::SessionBox
+            | Self::Convention
             | Self::Certificate
             | Self::Planar
             | Self::Dihedral
@@ -879,7 +886,19 @@ impl ValidationError {
     pub const fn family(&self) -> FindingFamily {
         use FindingFamily as F;
         match self {
-            Self::OutsideSessionBox { .. } => F::SessionBox,
+            // An edge's certification refused by the session box is the
+            // box's finding, read at its first door: whether the edge
+            // stands in the box is no fact of the shape up to isometry.
+            Self::OutsideSessionBox { .. }
+            | Self::SessionBoxUnshown { .. }
+            | Self::SessionBoxUncovered { .. }
+            | Self::EdgeCertification {
+                error:
+                    geom_brep::CertifyError::OutsideSessionBox { .. }
+                    | geom_brep::CertifyError::SessionBoxUnshown { .. }
+                    | geom_brep::CertifyError::SessionBoxUncovered { .. },
+                ..
+            } => F::SessionBox,
             Self::Band { .. } => F::Tolerance,
             Self::DanglingTopology { .. }
             | Self::DanglingGeometry { .. }
@@ -1016,6 +1035,39 @@ mod tests {
         let declared: Vec<FindingFamily> =
             <FindingFamily as strum::IntoEnumIterator>::iter().collect();
         assert_eq!(FindingFamily::ALL.to_vec(), declared);
+    }
+
+    /// **An edge's certification the session box refused is the box's
+    /// finding**: every sampled `EdgeCertification` whose error is one
+    /// of the box's three (past it, not shown inside, no cover) is in
+    /// family `SessionBox`, so a move asks it again, and every other is
+    /// in family `Certificate`, a fact of the shape up to isometry.
+    /// *Breaks if* a boxed certification falls back to `Certificate`, so
+    /// a body moved past the box keeps an edge's stale verdict.
+    #[test]
+    fn a_boxed_edge_certification_is_the_boxs_finding() {
+        use geom_brep::CertifyError as C;
+        let mut boxed = 0;
+        for (label, finding) in crate::test_support_samples::validation_error_samples() {
+            let crate::ValidationError::EdgeCertification { error, .. } = &finding else {
+                continue;
+            };
+            let is_boxed = matches!(
+                error,
+                C::OutsideSessionBox { .. }
+                    | C::SessionBoxUnshown { .. }
+                    | C::SessionBoxUncovered { .. }
+            );
+            boxed += usize::from(is_boxed);
+            let want = if is_boxed {
+                FindingFamily::SessionBox
+            } else {
+                FindingFamily::Certificate
+            };
+            assert_eq!(finding.family(), want, "{label}");
+            assert_eq!(finding.family().up_to_isometry(), !is_boxed, "{label}");
+        }
+        assert_eq!(boxed, 5, "the samples hold each box refusal and cause");
     }
 
     /// **Only the session box is asked again of a moved body**.

@@ -221,7 +221,7 @@ crates/topo/src/boolean/section_cert_rows.rs	test	3	oracle
 crates/topo/src/solid_contain.rs	prod	5	re-pose
 crates/topo/src/spline_region_rows.rs	test	1	oracle
 crates/topo/src/boolean/vtxfac.rs	test	1	oracle
-crates/topo/src/boxes.rs	test	9	oracle
+crates/topo/src/boxes.rs	test	10	oracle
 crates/topo/src/census.rs	prod	10	re-pose
 crates/topo/src/census/pierce_fuzz.rs	test	2	oracle
 crates/topo/src/census/segment_fuzz.rs	test	2	oracle

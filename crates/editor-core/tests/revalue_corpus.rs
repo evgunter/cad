@@ -565,11 +565,20 @@ fn holds_until_parting(
 /// Fewer of the margins moved and re-valued: at the default ε 1994 ->
 /// 1990 (floor 1993 -> 1989), and at 1e-6 the row reads 1952 (floor 1955
 /// -> 1951). The 1e-12 row still clears its floor.
+/// Each edge's certification then asks the session box of the edge
+/// first, one `session_box_reach` per certified edge, so 78 more
+/// decisions and as many checks come before the parting
+/// (`3204 → 3282`, `7228 → 7306`). Measured as the ask's own move, on
+/// and off in one binary (`3204 → 3282` compared, `7068 → 7146` checks):
+/// the row stops earlier on main, at its drift
+/// (`work/green/main-red-revalue-corpus-carrier-and-witness-on-surface-drift-since-7411.md`),
+/// so neither main's pin nor this one has been read green since; the
+/// lane that closes that row re-takes both numbers.
 #[test]
 fn revalue_plate_param_apart_to_its_parting() {
     holds_until_parting(
         "plate_param",
-        (3204, 7228),
+        (3282, 7306),
         PerRow {
             at_1e6: 1951,
             at_1e9: 1989,
@@ -592,11 +601,15 @@ fn revalue_plate_param_apart_to_its_parting() {
 /// (`profile::seg`'s `line_line`): its four corners, on both
 /// builds, ask 24 fewer decisions before the parting, at
 /// every ε row; the checks paired do not move.
+/// Each edge's certification then asks the session box of the edge
+/// first: 51 more decisions in step and 42 more checks before the
+/// parting (`2372 → 2423`, `3856 → 3898`), measured as `plate_param`'s
+/// is above and unread green for the same reason.
 #[test]
 fn revalue_boss_union_apart_to_its_parting() {
     holds_until_parting(
         "boss_union",
-        (2372, 3856),
+        (2423, 3898),
         PerRow {
             at_1e6: 1414,
             at_1e9: 1462,

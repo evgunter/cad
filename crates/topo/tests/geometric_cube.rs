@@ -127,7 +127,8 @@ fn tier_three_refuses_a_hand_flipped_face_sense() {
 fn without_the_top_cap_tier3_rejects_the_nurbs_seed() {
     // The seed face carrying the honest "no description yet" Nurbs
     // state at rest: tier 1/2 fine, tier 3 rejects it by name (put the
-    // state back through the public setter).
+    // state back through the public setter), by the session box, which
+    // cannot bound a face whose net bounds no region, before check 1.
     let t = geometric_cube::<f64>(Tol::witness());
     let mut body = t.body;
     let seed_face = t.seed.face;
@@ -142,10 +143,10 @@ fn without_the_top_cap_tier3_rejects_the_nurbs_seed() {
     assert_eq!(validate_closed(&body), Ok(()));
     let errs = validate_geometric(&body, Tol::witness()).unwrap_err();
     assert!(
-        errs.iter().any(|e| matches!(
-            e,
-            topo::ValidationError::UncertifiableSurface { face } if *face == seed_face
-        )),
+        matches!(
+            &errs[..],
+            [topo::ValidationError::SessionBoxUncovered { face, .. }] if *face == seed_face
+        ),
         "{errs:?}"
     );
 }
@@ -449,6 +450,8 @@ fn totality_no_panics_on_poison_inputs() {
     let mut spec =
         EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
     spec.carrier = geom::test_support::poisoned_nurbs_segment();
+    // The poisoned net bounds no region: the edge has no cover, and the
+    // session box refuses it first, by that cause.
     assert!(matches!(
         body.mev(
             MevSite::Lone {
@@ -459,7 +462,7 @@ fn totality_no_panics_on_poison_inputs() {
             Tol::witness(),
         ),
         Err(EulerOpError::DescriptionUncertified {
-            error: CertifyError::Unimplemented,
+            error: CertifyError::SessionBoxUncovered { .. },
             ..
         })
     ));

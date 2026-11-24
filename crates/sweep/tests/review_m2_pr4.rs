@@ -1029,8 +1029,8 @@ fn survives_digon_caps_apex_determined() {
 
 /// Far-from-origin profiles: the all-line L at 500 m builds and passes
 /// every tier (translate-to-origin Newell); the same L at 1e8 m is past
-/// the session box, and the extrude's finished-body gate refuses it by
-/// the box, alone.
+/// the session box, and the extrude refuses it by the box at its first
+/// edge's certification.
 #[test]
 fn survives_far_offset_profiles_honest() {
     let l_at = |off: f64| {
@@ -1052,16 +1052,21 @@ fn survives_far_offset_profiles_honest() {
     let near = l_at(5.0e2).unwrap().body;
     assert_all_tiers(&near);
     assert!(signed_volume(&near) > 0.0);
-    match l_at(1.0e8) {
-        Err(sweep::ExtrudeError::NotFinished { findings }) => assert!(
-            matches!(
-                findings.iter().collect::<Vec<_>>()[..],
-                [topo::ValidationError::OutsideSessionBox { .. }]
-            ),
-            "the 1e8 m L is refused by the session box, alone: {findings:?}"
+    // Refused at its first edge's certification, which asks the box
+    // before any residual is read at 1e8 m.
+    let far = l_at(1.0e8);
+    assert!(
+        matches!(
+            far,
+            Err(sweep::ExtrudeError::Op {
+                source: topo::EulerOpError::DescriptionUncertified {
+                    error: geom_brep::CertifyError::OutsideSessionBox { .. },
+                    ..
+                }
+            })
         ),
-        other => panic!("the 1e8 m L is past the session box: {other:?}"),
-    }
+        "the 1e8 m L is refused by the session box at its first edge: {far:?}"
+    );
 }
 
 // =====================================================================

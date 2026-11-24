@@ -175,6 +175,10 @@ fn a0_alone() -> SymRules {
 /// corners: plain 460/504 → 444/496, and shipped 468/496 → 444/496. A0's
 /// eight were comparisons at those corners, so it yields nothing here
 /// and the shipped tier decides what the plain one does.
+/// Then each edge's certification asks the session box of the edge first
+/// (`session_box_reach`, one numeric decision per certification of the
+/// slab's 12 edges, at its mint and its re-certification): plain and
+/// shipped 444/496 → 444/520.
 #[test]
 fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
     use crate::m10_3_driver_interval::slab;
@@ -205,12 +209,12 @@ fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
     };
     assert_eq!(
         line(&plain),
-        "decisions symbolic=444 numeric=496 frozen=0",
+        "decisions symbolic=444 numeric=520 frozen=0",
         "the plain tier on straight geometry"
     );
     assert_eq!(
         line(&shipped),
-        "decisions symbolic=444 numeric=496 frozen=0",
+        "decisions symbolic=444 numeric=520 frozen=0",
         "the shipped tier on straight geometry: no numeric refusal is a comparison of two \
          rational constants for A0 to decide"
     );

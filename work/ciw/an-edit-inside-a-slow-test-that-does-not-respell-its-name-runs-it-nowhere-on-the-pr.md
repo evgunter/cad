@@ -144,6 +144,13 @@ Signed (DOCTAIL first-turn lane).
 
 **2026-11-21 (ONEROUND orchestrator), another instance.** PR 7225 (`oneround/box-region`) edits the bodies of `tcost_k3_certificate`'s two slow rows and their helper and spells neither name on an added line. Run 44859392555, job `test (kernel)`, step "test (the slow-set tests this diff adds or edits)": "Starting 0 tests across 0 binaries (12 binaries skipped)". The step is green, and a reviewer found it only by reading the step's log; the same step in `test (app)` took one second with a re-baselined ledger in the diff.
 
+**Evidence (PR 7272, `oneround/box-certify-ask`, 2026-11-22).** That PR re-baselined slow-set goldens: decision counts, form ledgers and digests in editor-core and sweep. It edited only their pinned constants and doc comments, never a line spelling a test's name.
+- Hosted run 44897731642 on `34c966f6` was green, but its slow-set step ran 46 tests, all in the geom-brep lib binary, and none of the PR's rows.
+- Its review then found one of those goldens red at that head, deterministically at three ε: `editor-core::all m10_sym_profile_interval::the_forms_the_plates_walks_build_are_pinned`. The cause was a later merge of main, which reordered two short runs of the plate's form builds.
+- The PR listed every such row and ran them locally instead.
+
+This is the shape the row names, a golden changed with no name re-spelled, met on a re-baseline.
+
 ## Closed
 
 2026-11-22, CIW triage (stale). - Fixed by PR 7359 (`425990a7be`, 11-22). `is_edited` selects every slow

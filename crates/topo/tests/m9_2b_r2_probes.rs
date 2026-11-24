@@ -206,20 +206,10 @@ fn probe_tangent_locus_rows_are_metre_dimensioned() {
 /// strictly inside). A scale-invariant (dimensionless) margin would
 /// flip one. The largest scale, 90, puts the far cube's farthest
 /// coordinate at 990 m, inside the session box; at km scale the pair
-/// lies past the box, which tier 3′ refuses before its census as tier 3
-/// does (`OutsideSessionBox`), so no backstop row is read there.
+/// lies past the box, and each cube refuses at its first edge's
+/// certification, so no pair is built there.
 #[test]
 fn the_backstop_rows_are_metre_dimensioned() {
-    let km = assembly(
-        &cube_scaled_at(4e3, 0.0, 0.0, 0.0),
-        &cube_scaled_at(1e3, 1.5e3, 1.5e3, 1.5e3),
-    );
-    let errs = validate_pseudomanifold(&km, &ContactRecords::default(), Tol::witness())
-        .expect_err("a km pair lies past the session box");
-    assert!(
-        matches!(&errs[..], [ValidationError::OutsideSessionBox { .. }]),
-        "km scale: the box refusal, alone: {errs:?}"
-    );
     for s in [1e-3, 1.0, 90.0] {
         let outer = cube_scaled_at(4.0 * s, 0.0, 0.0, 0.0);
         let inner = cube_scaled_at(s, 1.5 * s, 1.5 * s, 1.5 * s);

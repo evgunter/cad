@@ -25,3 +25,22 @@ But certification runs at each edge's mint, before the finished-body gate. A lin
 **Likely fix.** Read the session box before the mint's certification (the box of an operation's inputs, or of the placed vertices, ahead of the first edge certificate), so a body past it refuses with the box's story whatever its residuals read. Other shapes may serve; this row records the defect, not a choice.
 
 The two probes accept the certification refusal at 1e8 since PR 6953, each with a comment pointing here.
+
+**The plate's walk ledger** (`editor-core` `m10_sym_profile_interval` `PLATE_LEDGER`), re-pinned by PR 7272 and measured on its head after its merge of main through the carrier frames.
+
+What moved, from main's pin:
+- Each edge's certification asks the session box of the edge first: one assertion call per certified edge on both assertion walks (`1047 → 1095`) and on `Door/Decision` (`550 → 574`).
+- With those calls come the forms of each edge's cover: `Plain/Assertion` `12236 → 15845`, `Early/Assertion` `12686 → 16094`, `Door/Decision` `12378 → 17689`.
+- `Plain/Decision` keeps its 979 calls over fewer forms (`33088 → 32611`), and `Early/Decision` keeps its 308 (`22928 → 22700`). The box's ask runs before the checks, so the reads that built a cover's forms before now find them in the walk's memo, charged to the assertion that built them first.
+- Frozen does not move (36), and every digest moves.
+
+**The digest moved between the PR's re-baseline (`77c3ed8d`) and its head `34c966f6` with no count moving.** Bisected:
+- green at `63df6e8c` (the base merged), red at `2455e2e5` (main merged, at `61403c47`);
+- each form's digest logged in build order on both sides. The 38,997 `Plain/Decision` forms are the same multiset (a sorted diff is empty), and two short runs of about 40 forms are built in a different order.
+
+No form changed, only the order in which those reads build theirs, so the new digest is a right answer.
+
+**Re-pinned again after merging the base's fix pass and main (`1329e397`).** The base re-pinned main's move (PR 7434) at `Plain/Assertion` 1051. Each edge's ask then adds its 48 assertions and 24 door decisions, with the forms of the covers:
+- `Plain/Assertion` `1051 → 1099` (forms `12382 → 15991`), `Early/Assertion` `1051 → 1099` (`12832 → 16240`), `Door/Decision` `554 → 578` (`12524 → 17835`);
+- `Plain/Decision` and `Early/Decision` keep their calls over fewer forms (`33088 → 32611`, `22928 → 22700`), the covers' forms built first and shared;
+- every digest moves.

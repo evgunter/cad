@@ -97,12 +97,13 @@ fn interval_cube_upgrades_to_intersections() {
     assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
 }
 
-/// Check 1's described-poison arm at the interval scalar. Poison is the
-/// scalar's own (`Real::from_f64(NaN)` is NaI here, as it is NaN at
-/// `f64`), so the state a net is in is preserved by the lift and the
-/// same face draws the same verdict.
+/// A described net carrying poison is refused at rest at the interval
+/// scalar, on its face. Poison is the scalar's own (`Real::from_f64(NaN)`
+/// is NaI here, as it is NaN at `f64`), so the state a net is in is
+/// preserved by the lift and the same face draws the same verdict: the
+/// session box's, whose cover of the face refuses.
 #[test]
-fn interval_described_net_carrying_poison_is_named_by_the_surface_check() {
+fn interval_described_net_carrying_poison_is_refused_on_its_face() {
     let t = common::geometric_cube::<Interval>(geom_core::Tol::witness());
     let mut body = t.body;
     common::describe_as_intersections(&mut body, geom_core::Tol::witness());
@@ -143,14 +144,19 @@ fn interval_described_net_carrying_poison_is_named_by_the_surface_check() {
 
     let errs = validate_geometric(&body, Tol::witness())
         .expect_err("corrupt described geometry is refused at the interval scalar too");
+    // The session box cannot bound a face whose net bounds no region,
+    // so it refuses the face, alone, before check 1 runs, naming the
+    // state as a described net; check 1's own verdict at this scalar is
+    // `tier3_tests::check_1_names_a_described_net_carrying_poison_at_interval`.
     assert!(
-        errs.contains(&ValidationError::PoisonedSurfaceDescription { face }),
-        "check 1 must name the corrupt described surface: {errs:?}",
-    );
-    assert!(
-        !errs
-            .iter()
-            .any(|e| matches!(e, ValidationError::UncertifiableSurface { .. })),
-        "the placeholder's verdict is a different state's answer: {errs:?}",
+        matches!(
+            &errs[..],
+            [ValidationError::SessionBoxUncovered {
+                face: f,
+                cause: topo::UncoveredCause::PoisonedNet,
+                ..
+            }] if *f == face
+        ),
+        "the box names the corrupt described surface, not as the placeholder: {errs:?}",
     );
 }

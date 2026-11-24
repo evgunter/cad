@@ -164,12 +164,11 @@ fn probe_c_needle_extent_ratio() {
 
 /// (d) Huge ambient coordinates (1e8 m offset on all axes), tiny face
 /// (1e-3): the body lies past the 1 km session box, so the extrude
-/// refuses it, typed, and no mesh is made (D4 ¶4): at the finished-body
-/// gate at ε = 1e-6, and at certification's residual first at 1e-9 and
-/// 1e-12 (the assertion below says why). No door builds a body at that offset any more, so the fold's
+/// refuses it, typed, at its first edge's certification, and no mesh is
+/// made (D4 ¶4). No door builds a body at that offset any more, so the fold's
 /// cancellation there is not reached through one: the huge-offset row of
 /// `issue303_signed_volume_recentring.rs` meets the same refusal and
-/// stands down typed.
+/// pins it.
 #[test]
 fn probe_d_huge_offset_tiny_face() {
     let plane = SketchPlane::from_frame(RigidMotion::axes_xy(Point3::new(1.0e8, 1.0e8, 1.0e8)));
@@ -185,24 +184,18 @@ fn probe_d_huge_offset_tiny_face() {
         },
         Tol::witness(),
     );
-    // Past the session box, the body refuses: at the box gate, or first at
-    // an edge certificate's residual. At 1e8 m one ulp (1.49e-8) is past the
-    // ε band at 1e-9 and 1e-12, so no two spellings of a point hold within
-    // ε there and certification's `MappedSource` residual (sample 4,
-    // 1.49e-8) refuses first; at 1e-6 the ulp is inside the band and the
-    // box gate refuses (`work/oneround/a-body-past-the-session-box-refuses-at-certifications-residual-first-by-its-spelling.md`).
-    let at_box = geom_core::Tol::witness().eps() == 1e-6;
+    // Past the session box, the body refuses with the box's story at the
+    // first edge it mints, at every ε: certification asks the box of an
+    // edge before any residual (`geom_brep::session_box::edge_in_box`), so
+    // no residual is read at 1e8 m, where one ulp (1.49e-8) is past the ε
+    // band at 1e-9 and 1e-12 and no two spellings of a point agree.
+    let said = format!("{got:?}");
     assert!(
-        matches!(&got, Err(e) if {
-            let e = format!("{e:?}");
-            if at_box {
-                e.contains("OutsideSessionBox")
-            } else {
-                e.contains("ResidualExceeded") && e.contains("MappedSource") && e.contains("sample: 4")
-            }
-        }),
-        "huge-offset: past the session box, the body refuses, at the box gate at 1e-6 and at \
-         certification's MappedSource residual at 1e-9 and 1e-12: {got:?}"
+        (said.starts_with("Err(Op { source: DescriptionUncertified {")
+            && said.contains("error: OutsideSessionBox {"))
+            && !said.contains("ResidualExceeded"),
+        "huge-offset: past the session box, the extrude refuses at its first edge's \
+         certification with the box's refusal, not a residual: {said}"
     );
 }
 

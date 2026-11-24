@@ -202,20 +202,28 @@
 //!   cover lengthens the margin and the transfer lever, so the pair
 //!   declines (`CarrierTilt`) or escalates more, never accepts a pair
 //!   whose carriers part on its region.
-//! - `session_box`'s reach (`body_reach`, each edge's [`edge_cover`]
-//!   read along the world axes, `Cover::box_in`, from below through
-//!   `geom_brep::edge_coordinate_reach_below`) reads NO looseness: on a
-//!   line the cover's box is its segment's, at its ends, and on a circle
-//!   arc its support along each axis is the arc's own extreme (the
-//!   window's, exact for a circle in an orthonormal frame), each hulled
-//!   only with the edge's own end vertices, so it is the edge's exact
-//!   largest `|coordinate|`; on any other carrier, and on an edge with no
-//!   cover, the bound from below is the edge's own sampled points. So the
-//!   box refuses (`OutsideSessionBox`) only on a true lower bound of the
-//!   body's largest `|coordinate|`
+//! - `session_box` reads a body two ways. From outside, each face's
+//!   region bounded by its carrier and boundary alone
+//!   (`face_cover_unproven`), and where that reaches past the box each
+//!   face's own [`face_cover`]: a looser cover refuses a body that lies
+//!   in the box, and only as a limit (`SessionBoxUnshown`). A cover that
+//!   held less than its face would admit a body past the box, since stage
+//!   2 admits on it alone: that is the soundness the torus window's open
+//!   row bears on (`work/boxes/torus-box-window-does-not-bound-a-clockwise-face.md`,
+//!   latent while no door mints a clockwise torus face at rest). From inside, points known to lie on the body: each
+//!   edge's [`edge_cover`] read along the world axes (`Cover::box_in`)
+//!   from below through `geom_brep::edge_coordinate_reach_below`, which
+//!   reads NO looseness (on a line the cover's box is its segment's, at
+//!   its ends, and on a circle arc its support along each axis is the
+//!   arc's own extreme, each hulled only with the edge's own end
+//!   vertices; on any other carrier, and on an edge with no cover, the
+//!   edge's own sampled points), and each face's extremes placed on it
+//!   (`face_extreme_points`). So the box refuses as past it
+//!   (`OutsideSessionBox`) only on a true lower bound of the body's
+//!   largest `|coordinate|`
 //!   (`line_and_arc_edges_in_the_box_read_their_exact_reach`, sweep). A
 //!   line or arc arm made looser than exact would be the unsound
-//!   direction: it could refuse a body that lies in the box.
+//!   direction: it could refuse a body that lies in the box as past it.
 //!
 //! So nothing here may say "loose is free" about a BOX. It is a claim
 //! about a door, and the door has to be named. The doors are not
@@ -1822,7 +1830,7 @@ pub(crate) mod tests {
     /// circle at `z = 1` holds the apex inside though none of its
     /// boundary reaches it, its rim winding a whole turn about the axis.
     /// Its box runs from the apex to the rim. Red where the apex rule
-    /// reads only an unread walk as winding (`cover::cone_may_hold_apex`).
+    /// reads only an unread walk as winding (`cover::cone_hull_may_miss_apex`).
     #[test]
     fn a_cone_caps_box_holds_its_apex() {
         let alpha = 0.5_f64;
@@ -4486,14 +4494,14 @@ pub(crate) mod sphere_rect_rows {
 
     /// **A zone whose axis nears a box row keeps its radial share**
     /// (the verifier's repro). The zone below the rim `h0 = −0.3` of a
-    /// sphere of radius `1e3`, down to `−0.9` on its seam, wraps the
+    /// sphere of radius `800`, down to `−0.9` on its seam, wraps the
     /// azimuth alone, so the reach reads its latitude zone. Its axis is
     /// `t` off `ẑ`, and its top along `z` is on the rim,
     /// `c_z + r·(sin v₀·cos t + cos v₀·sin t)`. The share `√(1 − a_z²)`
     /// of the axis's normal plane cancelled to exactly zero below
     /// `t ≈ 1e-8`, so the box dropped `r·t·cos v₀`: at `ε = 1e-9` it
-    /// sat ~1e-5 m inside the face, about 800 times the pad its readers
-    /// take. The box, padded as its readers pad it, must reach the rim
+    /// sat ~1e-5 m inside the face, hundreds of times the pad its readers
+    /// take. The sphere reaches 920 m, inside the session box. The box, padded as its readers pad it, must reach the rim
     /// at every tilt and every ε.
     #[test]
     fn a_zone_axis_near_a_box_row_keeps_its_radial_share() {
@@ -4506,7 +4514,7 @@ pub(crate) mod sphere_rect_rows {
             || {
                 let tol = Tol::witness();
                 let band = Band::linear(tol).unwrap();
-                let (r, h0) = (1e3, -0.3);
+                let (r, h0) = (8e2, -0.3);
                 let c = Point3::new(120.0, -40.0, 75.0);
                 for t in [1e-9f64, 1e-8, 1e-7, 1e-4, 1e-3] {
                     let axis = Vec3::new(t.sin(), 0.0, t.cos());
@@ -4542,7 +4550,8 @@ pub(crate) mod sphere_rect_rows {
     /// (`[simple.conditioned]`: no charge, and no step that cancels).
     /// Random zones on a seam (the zone arm), with axes within `10⁻¹⁰`
     /// to `10⁻¹` of a random box row, at scales `1e-3`, `1` and `1e3`
-    /// (those the run's ε resolves), read at pad 0 along every row,
+    /// (those the run's ε resolves, inside the session box), read at pad 0
+    /// along every row,
     /// against the exact support ([`zone_support`]): each reading falls
     /// short of it by no more than the 4 ulps of `|c_k| + r` measured.
     /// A share read as `√(1 − a²)` loses the share outright with the
@@ -4559,10 +4568,15 @@ pub(crate) mod sphere_rect_rows {
         );
         let rows = [Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()];
         let (mut faces, mut worst) = (0usize, 0.0f64);
+        let mut at_scale = [0usize; 3];
         let wanted = test_utils::fuzz::scaled(300).max(250);
+        let scales = [1e-3, 1.0, 1e3];
         while faces < wanted {
-            let s = [1e-3, 1.0, 1e3][rng.below(3)];
-            let r = s * rng.range(0.5, 2.0);
+            let i = rng.below(3);
+            let s = scales[i];
+            // At `1e3` the ball and its centre are drawn inside the box:
+            // a radius to 900 m and a centre within the room it leaves.
+            let r = s * rng.range(0.5, 2.0f64.min(900.0 / s));
             // A body the run's ε cannot resolve is not built: one under
             // `10⁴ ε`, or one whose coordinates' rounding (64 ulps of the
             // farthest point) reaches ε, which the pcurve envelopes then
@@ -4570,11 +4584,16 @@ pub(crate) mod sphere_rect_rows {
             if r < 1e4 * tol.eps() || (4.0 * s + r) * 64.0 * f64::EPSILON > tol.eps() {
                 continue;
             }
+            let half = (2.0 * s).min(950.0 - r);
             let c = Point3::new(
-                s * rng.range(-2.0, 2.0),
-                s * rng.range(-2.0, 2.0),
-                s * rng.range(-2.0, 2.0),
+                rng.range(-half, half),
+                rng.range(-half, half),
+                rng.range(-half, half),
             );
+            // Nor is one past the session box, which certification refuses.
+            if (c - Point3::origin()).norm_inf() + r >= geom_core::tolerance::SESSION_BOX_EXTENT {
+                continue;
+            }
             let row = rows[rng.below(3)];
             let (side, _, _) = frame_about(row);
             let side = {
@@ -4624,8 +4643,21 @@ pub(crate) mod sphere_rect_rows {
                 }
             }
             faces += 1;
+            at_scale[i] += 1;
         }
         eprintln!("{faces} faces: the support falls short by at most {worst:.2} ulps of |c| + r");
+        // Each scale the run's ε resolves is read, a tenth of the faces at
+        // least, so none is carried by the others.
+        for (i, s) in scales.into_iter().enumerate() {
+            let resolved = 0.5 * s >= 1e4 * tol.eps()
+                && (4.0 * s + 0.5 * s) * 64.0 * f64::EPSILON <= tol.eps();
+            assert!(
+                !resolved || at_scale[i] * 10 >= wanted,
+                "scale {s:e}: {} of {wanted} faces read; {}",
+                at_scale[i],
+                test_utils::fuzz::replay()
+            );
+        }
     }
 
     #[test]

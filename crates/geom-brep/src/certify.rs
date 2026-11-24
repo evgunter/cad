@@ -464,6 +464,36 @@ impl core::fmt::Display for CertCheck {
     strum_discriminants(name(CertifyErrorKind), derive(strum::EnumIter), doc(hidden))
 )]
 pub enum CertifyError {
+    /// **The edge reaches definitely past the session box**
+    /// (`session_box_point`, D4 ¶4): a point known to lie on it (an end,
+    /// or its carrier's own point over its span) has a coordinate larger
+    /// in magnitude than `geom_core::tolerance::SESSION_BOX_EXTENT`. Asked
+    /// before any other check ([`crate::session_box::edge_in_box`]), so
+    /// no residual is decided on an edge where no two spellings of a
+    /// point agree within ε.
+    OutsideSessionBox {
+        /// The box's extent less the points' reach, metres (negative).
+        margin: MarginDiag,
+    },
+    /// **The edge's cover reaches definitely past the session box**
+    /// (`session_box_reach`) and no point known to lie on it does: a
+    /// limit (`[failure.taxonomy]` row 2), not a finding that the edge
+    /// leaves the box.
+    SessionBoxUnshown {
+        /// The box's extent less the cover's reach, metres (negative).
+        margin: MarginDiag,
+    },
+    /// **The edge has no cover**, so the session box cannot bound its
+    /// region, and no finite point of it is past the box: refused at
+    /// check 0, before any check decides anything on it. Its standing is
+    /// its cause's ([`crate::session_box::UncoveredCause::refusal`]): a
+    /// carrier whose locus is unbounded is a limit, a control net that
+    /// bounds no region, a datum that is not finite or an end that is
+    /// not a finite point a defect.
+    SessionBoxUncovered {
+        /// Why the edge has no cover.
+        why: crate::session_box::UncoveredCause,
+    },
     /// The collapsed conventional description's **chart image could
     /// not be derived** for this (chart, carrier) pair (D4's mint
     /// door, `crate::chart_pcurve`).
@@ -881,6 +911,26 @@ pub fn arc_rim_check(check: crate::pcurve_cache::PcurveCheck) -> CertCheck {
 impl core::fmt::Display for CertifyError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
+            Self::OutsideSessionBox { margin } => write!(
+                f,
+                "the edge reaches {} m past the {:e} m session box, which no coordinate of a \
+                 model may exceed (D4 ¶4)",
+                margin.readable_below_zero(),
+                geom_core::tolerance::SESSION_BOX_EXTENT
+            ),
+            Self::SessionBoxUnshown { margin } => write!(
+                f,
+                "the kernel's bound on the edge reaches {} m past the {:e} m session box, and no \
+                 point it reads on the edge does: the edge may lie inside the box or past it, and \
+                 a tighter bound, or a point read on such an edge, is not built yet",
+                margin.readable_below_zero(),
+                geom_core::tolerance::SESSION_BOX_EXTENT
+            ),
+            Self::SessionBoxUncovered { why } => write!(
+                f,
+                "{why}, so the kernel cannot show the edge inside the {:e} m session box",
+                geom_core::tolerance::SESSION_BOX_EXTENT
+            ),
             Self::UnresolvedSurface { key } => {
                 write!(f, "surface key {key:?} does not resolve")
             }
@@ -1142,7 +1192,11 @@ impl CertifyError {
     }
 
     /// **The decision this refusal is a refused arm of**, one per arm
-    /// (D4 ¶1 (i)), or `None` for a refusal that is no decision's: the
+    /// (D4 ¶1 (i)), or `None` for a refusal that is no certification
+    /// check's: among them the session box's, whose decisions
+    /// (`session_box_reach`, `session_box_point`) are the session's, not
+    /// a [`CertCheck`], and end by the box's one recourse wherever they
+    /// are read ([`Self::own_ending`]), as the gate's box findings do; the
     /// exhaustive match a new arm names its decision in before it
     /// compiles, which [`Self::ending`] and [`Self::decision`] both read.
     pub(crate) fn decided(&self) -> Option<Decision<'_, CertCheck>> {
@@ -1183,7 +1237,10 @@ impl CertifyError {
             Self::PlaneNurbs(refusal) => return Some(refusal.decided()),
             Self::AnalyticRung3(refusal) => return Some(refusal.decided()),
             Self::Row { refusal, .. } => refusal.decision()?,
-            Self::UnresolvedSurface { .. }
+            Self::OutsideSessionBox { .. }
+            | Self::SessionBoxUnshown { .. }
+            | Self::SessionBoxUncovered { .. }
+            | Self::UnresolvedSurface { .. }
             | Self::Unimplemented
             | Self::IntersectionSameSurface { .. }
             | Self::WrapOnNonPeriodic
@@ -1213,12 +1270,31 @@ impl CertifyError {
     }
 
     /// The ending this door reads off the refusal itself rather than off
-    /// its decision, or `None`: a door's input interval by its span, and
-    /// a carrier's incidence by what was read, through the one map every
-    /// incidence ending goes through ([`crate::IncidenceRead::ending`]).
+    /// its decision, or `None`: a door's input interval by its span, the
+    /// session box's refusal and its limit by the box's one recourse
+    /// wherever they are read (one limit, one ending, at certification as
+    /// at the finished-body gate), an edge with no cover by its cause's
+    /// standing, and a carrier's incidence by what
+    /// was read, through the one map every incidence ending goes through
+    /// ([`crate::IncidenceRead::ending`]).
     pub(crate) fn own_ending(&self, at: ReadAt) -> Option<String> {
         match self {
             Self::StatedInterval { refused } => Some(refused.ending(at)),
+            Self::OutsideSessionBox { .. } | Self::SessionBoxUnshown { .. } => {
+                Some(crate::session_box::SESSION_BOX_RECOURSE.to_owned())
+            }
+            // A stored-data fault reads the door's defect culprit, a
+            // build's the kernel (D4 ¶1 (iv)), even for a non-finite end:
+            // a build door cannot tell a point its caller passed from one
+            // an operation constructed and handed it, so the two are one
+            // case here (`a_non_finite_end_is_the_doors_defect_wherever_it_came_from`).
+            Self::SessionBoxUncovered { why } => Some(
+                match why.refusal() {
+                    Ok(geom_core::ladder::Refusal::Limit) => geom_core::NOT_YET_ENDING,
+                    _ => crate::recourse::defect_ending(at),
+                }
+                .to_owned(),
+            ),
             _ => self.incidence_read().map(|read| read.ending(at)),
         }
     }
@@ -2428,6 +2504,17 @@ impl<T: geom_core::Certifies + geom_core::CertifiedBounds> EdgeCurve<T> {
     /// The check sequence (fixed order, D9; every check's margin is
     /// meters against `band`):
     ///
+    /// 0. The session box, of the carrier over the stated span with
+    ///    `start` and `end` ([`crate::session_box::edge_in_box`]):
+    ///    [`CertifyError::OutsideSessionBox`], or a limit
+    ///    ([`CertifyError::SessionBoxUnshown`]), or an edge with no
+    ///    cover, by its cause ([`CertifyError::SessionBoxUncovered`]),
+    ///    save that an edge with no cover whose stated span is decided
+    ///    reversed, or is exactly empty, is refused by its span (check 2),
+    ///    the caller's input: a chord between coincident points has no
+    ///    cover for that reason alone. A span the band only reads as zero
+    ///    is not empty, so there the box's refusal stands. Nothing else is decided on an edge the box has not shown
+    ///    inside.
     /// 1. Implementedness: described surfaces resolve and are not
     ///    `Nurbs`, except the described NURBS wall of an `Intersection`
     ///    with a plane, sphere, cylinder or torus, the two charts of a
@@ -5212,6 +5299,27 @@ impl<T: Real> ReadSpec<T> {
     }
 }
 
+/// **Check 0**: the session box of `spec`'s carrier over its stated span
+/// with its two ends ([`crate::session_box::edge_in_box`]).
+fn in_the_box<T: Decide>(
+    spec: &EdgeCurveSpec<T>,
+    ends: (Point3<T>, Point3<T>),
+    band: Band,
+) -> Result<(), CertifyError> {
+    use crate::session_box::BoxRefusal;
+    crate::session_box::edge_in_box(
+        &spec.carrier,
+        (spec.param_start, spec.param_end),
+        ends,
+        band,
+    )
+    .map_err(|refusal| match refusal {
+        BoxRefusal::Point { margin } => CertifyError::OutsideSessionBox { margin },
+        BoxRefusal::Unshown { margin } => CertifyError::SessionBoxUnshown { margin },
+        BoxRefusal::Uncovered(why) => CertifyError::SessionBoxUncovered { why: why.cause() },
+    })
+}
+
 /// The certification engine (check sequence documented on
 /// [`EdgeCurve::certify`]): the mint's steps, with the endpoint pins
 /// between check 2 and the canonical description, then the sampled
@@ -5228,6 +5336,32 @@ fn run_checks<T: geom_core::Certifies + geom_core::CertifiedBounds>(
     band: Band,
     kept: &[&LocusCertificate<T>],
 ) -> Result<Checked<T>, CertifyError> {
+    // ---- Check 0: the session box, of the edge's region with its ends.
+    match in_the_box(spec, (start, end), band) {
+        Ok(()) => {}
+        // An edge with no cover may owe it to its caller's own span: a
+        // chord between coincident points divides its direction by their
+        // zero distance. The span is the door's input, so where it is
+        // decided reversed, or is exactly empty (an exact zero is
+        // structure, not a tolerance read), that is the refusal the caller
+        // is owed (the door's, `StatedInterval`). A span the band only
+        // reads as zero has a length, and tightening the tolerance would
+        // uncover the carrier's fault; it, a forward span and a reading
+        // that meets the same poison are the box's, by its cause.
+        Err(uncovered @ CertifyError::SessionBoxUncovered { .. }) => {
+            let empty = geom_core::is_exact_zero(spec.param_end - spec.param_start);
+            return Err(match decide_turn(spec, band) {
+                Err(
+                    reversed @ CertifyError::IntervalNotForward {
+                        verdict: Refused::Negative { .. },
+                    },
+                ) => reversed,
+                Err(none @ CertifyError::IntervalNotForward { .. }) if empty => none,
+                _ => uncovered,
+            });
+        }
+        Err(refused) => return Err(refused),
+    }
     let stored = &spec.carrier;
     let read = ReadSpec::of(spec, band)?;
     let (spec, reading) = (read.spec(spec), read.reading());
@@ -6841,6 +6975,187 @@ mod tests {
         EdgeCurveSpec::line_between(p0, p1)
     }
 
+    /// **Coincident points spelled by their zero distance are refused by
+    /// their span**: [`EdgeCurveSpec::line_between`] of one point twice
+    /// divides its direction by zero, so the edge has no cover, and the
+    /// box asks first; but the reason is the caller's own span, which runs
+    /// no length, so the door's refusal of its input is what the caller
+    /// gets ([`CertifyError::StatedInterval`], the span's lever), not the
+    /// box's defect. The same uncovered carrier over a forward span is the
+    /// box's, by its cause. *Breaks if* an uncovered edge is left to the
+    /// checks (the forward row), or the box's defect hides the caller's
+    /// empty span.
+    #[test]
+    fn coincident_points_spelled_by_their_zero_distance_are_refused_by_their_span() {
+        let p = Point3::new(1.0, 2.0, 3.0);
+        let certify = |spec: EdgeCurveSpec<f64>| {
+            EdgeCurve::certify(
+                spec,
+                p,
+                p,
+                |_| None,
+                geom_core::test_support::fixture_lever(1.0),
+                band(),
+                NurbsLane::certified(),
+            )
+            .unwrap_err()
+        };
+        let empty = certify(EdgeCurveSpec::line_between(p, p));
+        assert!(
+            matches!(empty, CertifyError::StatedInterval { .. }),
+            "{empty:?}"
+        );
+        let forward = certify(EdgeCurveSpec {
+            param_end: 1.0,
+            ..EdgeCurveSpec::line_between(p, p)
+        });
+        assert!(
+            matches!(
+                forward,
+                CertifyError::SessionBoxUncovered {
+                    why: crate::session_box::UncoveredCause::Carrier {
+                        kind: "line",
+                        what: geom::cover::Unknown::NonFinite,
+                        ..
+                    }
+                }
+            ),
+            "{forward:?}"
+        );
+        assert_eq!(
+            forward.render(crate::recourse::Reading::Build),
+            format!(
+                "the edge's line carrier has no cover over its span: a datum of it is not a \
+                 finite number, so the kernel cannot show the edge inside the 1e3 m session box. \
+                 {}",
+                crate::recourse::defect_ending(crate::recourse::Reading::Build)
+            )
+        );
+    }
+
+    /// **The box is asked before the span, whatever the span**: an edge
+    /// the box shows past it is refused as past it however its span
+    /// stands. A line 2 km out over a reversed span, and the chord of a
+    /// point 2 km out with itself (a span of no length, a carrier with no
+    /// cover, read from inside by its ends), are each
+    /// [`CertifyError::OutsideSessionBox`], never the span's refusal.
+    /// *Breaks if* the span is read first.
+    #[test]
+    fn an_edge_past_the_box_is_refused_as_past_it_whatever_its_span() {
+        let q = Point3::new(2e3, 0.0, 0.0);
+        let certify = |spec: EdgeCurveSpec<f64>, a, b| {
+            EdgeCurve::certify(
+                spec,
+                a,
+                b,
+                |_| None,
+                geom_core::test_support::fixture_lever(1.0),
+                band(),
+                NurbsLane::certified(),
+            )
+            .unwrap_err()
+        };
+        let reversed = EdgeCurveSpec {
+            carrier: Curve3::line(q, geom_core::UnitVec3::exact_x()),
+            param_start: 1.0,
+            param_end: 0.0,
+            ..EdgeCurveSpec::line_between(q, q + Vec3::unit_x())
+        };
+        let got = certify(reversed, q + Vec3::unit_x(), q);
+        assert!(
+            matches!(got, CertifyError::OutsideSessionBox { .. }),
+            "reversed: {got:?}"
+        );
+        let got = certify(EdgeCurveSpec::line_between(q, q), q, q);
+        assert!(
+            matches!(got, CertifyError::OutsideSessionBox { .. }),
+            "coincident: {got:?}"
+        );
+    }
+
+    /// **Only a span decided reversed, or exactly empty, takes the place
+    /// of the box's refusal of an edge with no cover**: a line whose
+    /// direction is not a finite number over a 5e-10 m span (a length the
+    /// band reads as zero, which a smaller tolerance would decide forward
+    /// and so only uncover the carrier's fault) is the box's refusal, by
+    /// its cause; over the reversed span it is the span's. *Breaks if*
+    /// every span the band reads as not forward replaces the box's
+    /// refusal, so the caller is told to tighten a tolerance that cannot
+    /// help.
+    #[test]
+    fn a_span_the_band_reads_as_zero_leaves_the_boxs_refusal_standing() {
+        let p = Point3::new(1.0, 2.0, 3.0);
+        let certify = |(t0, t1): (f64, f64)| {
+            EdgeCurve::certify(
+                EdgeCurveSpec {
+                    param_start: t0,
+                    param_end: t1,
+                    ..EdgeCurveSpec::line_between(p, p)
+                },
+                p,
+                p,
+                |_| None,
+                geom_core::test_support::fixture_lever(1.0),
+                band(),
+                NurbsLane::certified(),
+            )
+            .unwrap_err()
+        };
+        let short = certify((0.0, 5e-10));
+        assert!(
+            matches!(short, CertifyError::SessionBoxUncovered { .. }),
+            "{short:?}"
+        );
+        assert!(
+            !short
+                .render(crate::recourse::Reading::Build)
+                .contains("tighten"),
+            "{short:?}"
+        );
+        let reversed = certify((1.0, 0.0));
+        assert!(
+            matches!(reversed, CertifyError::StatedInterval { .. }),
+            "{reversed:?}"
+        );
+    }
+
+    /// **A non-finite end is the door's defect wherever it came from**: a
+    /// good line over a forward span whose start is stated as NaN has no
+    /// cover, by its ends, and ends in the door's defect culprit, the
+    /// kernel at a build (D4 ¶1 (iv)), the kernel or the file at rest. A
+    /// build door cannot tell a point its caller passed from one an
+    /// operation constructed and handed it, so the ending names the
+    /// door's culprit, not the caller. *Breaks if* the ending is changed
+    /// to blame the caller at one door and not at the gate.
+    #[test]
+    fn a_non_finite_end_is_the_doors_defect_wherever_it_came_from() {
+        let (o, x) = (Point3::origin(), Point3::new(1.0, 0.0, 0.0));
+        let nan = Point3::new(f64::NAN, 0.0, 0.0);
+        let got = EdgeCurve::certify(
+            EdgeCurveSpec::line_between(o, x),
+            nan,
+            x,
+            |_| None,
+            geom_core::test_support::fixture_lever(1.0),
+            band(),
+            NurbsLane::certified(),
+        )
+        .unwrap_err();
+        assert_eq!(
+            got,
+            CertifyError::SessionBoxUncovered {
+                why: crate::session_box::UncoveredCause::Ends
+            }
+        );
+        for at in [Reading::Build, Reading::AtRest] {
+            assert_eq!(
+                got.ending(at),
+                Some(crate::recourse::defect_ending(at).to_owned()),
+                "{at:?}"
+            );
+        }
+    }
+
     // ------------------------------------------------------------------
     // **D2's bit-diff row**: the collapse's effect on
     // `Certificate.max_residual`, MEASURED per fixture rather than
@@ -8135,38 +8450,55 @@ mod tests {
     }
 
     #[test]
-    fn a_nurbs_carrier_on_a_line_spec_refuses_and_poisoned_endpoints_escalate() {
+    fn a_nurbs_carrier_on_a_line_spec_refuses_and_poison_is_the_boxs_to_refuse() {
         let p0 = Point3::origin();
         let p1 = Point3::new(1.0, 0.0, 0.0);
-        let mut spec = line_spec(p0, p1);
-        spec.carrier = geom::test_support::nurbs_segment(p0, p1);
-        assert_eq!(
+        let certify = |spec: EdgeCurveSpec<f64>, a, b| {
             EdgeCurve::certify(
-                spec.clone(),
-                p0,
-                p1,
+                spec,
+                a,
+                b,
                 |_| None,
                 geom_core::test_support::fixture_lever(1.0),
                 band(),
-                NurbsLane::certified()
+                NurbsLane::certified(),
             )
-            .unwrap_err(),
-            CertifyError::Unimplemented
+            .unwrap_err()
+        };
+        // A spline carrier outside an `Intersection` is not implemented.
+        let mut spec = line_spec(p0, p1);
+        spec.carrier = geom::test_support::nurbs_segment(p0, p1);
+        assert_eq!(certify(spec, p0, p1), CertifyError::Unimplemented);
+        // A net that carries poison bounds no region: the session box has
+        // no cover of the edge, refused first and by its cause, a defect.
+        let mut spec = line_spec(p0, p1);
+        spec.carrier = geom::test_support::poisoned_nurbs_segment();
+        let err = certify(spec, p0, p1);
+        assert!(
+            matches!(
+                err,
+                CertifyError::SessionBoxUncovered {
+                    why: crate::session_box::UncoveredCause::Carrier {
+                        what: geom::cover::Unknown::PoisonedNet,
+                        ..
+                    }
+                }
+            ),
+            "{err:?}"
         );
-        // Poisoned endpoints: typed escalation, no panic (totality).
-        let spec = line_spec(p0, p1);
+        assert_eq!(
+            err.ending(crate::recourse::Reading::Build),
+            Some(crate::recourse::defect_ending(crate::recourse::Reading::Build).to_owned())
+        );
+        // Poisoned endpoints: typed, no panic (totality). The end that is
+        // not a finite point leaves the edge no cover, refused first.
         let nan = Point3::new(f64::NAN, 0.0, 0.0);
-        let err = EdgeCurve::certify(
-            spec.clone(),
-            nan,
-            p1,
-            |_| None,
-            geom_core::test_support::fixture_lever(1.0),
-            band(),
-            NurbsLane::certified(),
-        )
-        .unwrap_err();
-        assert!(matches!(err, CertifyError::Escalated { .. }));
+        assert_eq!(
+            certify(line_spec(p0, p1), nan, p1),
+            CertifyError::SessionBoxUncovered {
+                why: crate::session_box::UncoveredCause::Ends
+            }
+        );
     }
 
     /// A full-period circle carrier (the scaffolding self-loop case):

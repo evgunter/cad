@@ -62,30 +62,41 @@ impl<T: Real> Surface<T> {
     }
 
     /// **The region a face of this carrier occupies, given its boundary's
-    /// region `boundary`**, for a reader that has the face's boundary and
-    /// no built face yet (an import before its body exists). A bound,
-    /// never narrower than the face: a plane's or a cylinder's face lies in
-    /// its boundary's convex hull (a plane's region is that hull; a
-    /// cylinder's face is swept by rulings between boundary points); a
-    /// cone's is swept by rulings through its apex, and a face that reaches
-    /// the apex (a cap stated by its rim alone) has no boundary there, so
-    /// the apex joins the hull whatever the face; any other carrier's face
-    /// can bulge past its boundary and is held with the carrier's whole
-    /// region ([`Surface::cover`]). A built face's tighter region is
-    /// `topo`'s to read (its sphere and torus face regions, from the face's
-    /// own chart walk); this is the region before there is one.
+    /// region `boundary`**, for a reader that has the face's boundary
+    /// (an import before its body exists, and `topo`'s face cover before
+    /// it meets in what it proves). A bound, never narrower than the
+    /// face: a plane's or a cylinder's face lies in its boundary's convex
+    /// hull (a plane's region is that hull; a cylinder's face is swept by
+    /// rulings between boundary points); a cone's is swept by rulings
+    /// through its apex, and a face that reaches the apex (a cap stated by
+    /// its rim alone) has no boundary there, so the apex joins the hull
+    /// unless the reader has shown it need not ([`Apex::Off`]); any other
+    /// carrier's face can bulge past its boundary and is held with the
+    /// carrier's whole region ([`Surface::cover`]). This is the one
+    /// statement of the ruled rule. A built face's tighter region is
+    /// `topo`'s to meet in (its sphere and torus face regions, from the
+    /// face's own chart walk).
     ///
     /// # Errors
     ///
     /// As [`Surface::cover`] for a carrier whose whole region bounds its
     /// faces, and [`Unknown::NonFinite`] for a cone apex that is not a
-    /// finite point.
-    pub fn face_region(&self, boundary: Cover<T>) -> Covered<T> {
+    /// finite point or a cylinder axis that is no direction.
+    pub fn face_region(&self, boundary: Cover<T>, apex: Apex) -> Covered<T> {
+        let non_finite = || Uncovered::new(Entity::Surface(self.kind()), Unknown::NonFinite);
         match self {
+            // Rulings sweep a cylinder's face only along a direction: an
+            // axis that is none bounds no face.
+            Surface::Cylinder { frame, .. } if !is_direction(frame.axis()) => Err(non_finite()),
             Surface::Plane { .. } | Surface::Cylinder { .. } => Ok(boundary.convex()),
-            Surface::Cone { frame, .. } => Cover::points(vec![frame.origin()])
-                .map(|tip| boundary.hull(tip).convex())
-                .ok_or_else(|| Uncovered::new(Entity::Surface(self.kind()), Unknown::NonFinite)),
+            Surface::Cone { frame, .. } => {
+                let tip = Cover::points(vec![frame.origin()]).ok_or_else(non_finite)?;
+                Ok(match apex {
+                    Apex::MayHold => boundary.hull(tip),
+                    Apex::Off => boundary,
+                }
+                .convex())
+            }
             Surface::Sphere { .. }
             | Surface::Torus { .. }
             | Surface::Spindle { .. }
@@ -93,6 +104,17 @@ impl<T: Real> Surface<T> {
             | Surface::Approx(_) => Ok(boundary.hull(self.cover()?).convex()),
         }
     }
+}
+
+/// **Whether a cone face may hold its apex past its boundary's hull**
+/// ([`Surface::face_region`]); every other kind reads nothing of it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Apex {
+    /// The apex joins the hull: nothing shows the face clear of it.
+    MayHold,
+    /// The face is shown to hold its apex nowhere past its boundary's
+    /// hull, so the hull alone bounds it.
+    Off,
 }
 
 impl<T: SpanLocate> Curve3<T> {
@@ -312,4 +334,15 @@ fn net<T: Real>(entity: Entity, control: &[Point3<T>]) -> Covered<T> {
         return Err(Uncovered::new(entity, Unknown::PoisonedNet));
     }
     Cover::net(control.to_vec()).ok_or_else(|| Uncovered::new(entity, Unknown::NonFinite))
+}
+
+/// **Whether `v` is a direction**: finite, and not the zero vector at
+/// its own rounding. A carrier whose axis is none names no ruling.
+pub fn is_direction<T: Real>(v: geom_core::Vec3<T>) -> bool {
+    use geom_core::is_finite_length as finite;
+    let len = v.norm();
+    finite(v.x)
+        && finite(v.y)
+        && finite(v.z)
+        && !(finite(len) && geom_core::is_zero_length(len, v.norm_witness()))
 }

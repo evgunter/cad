@@ -218,6 +218,9 @@ fn without_surface_verdicts(errs: &[ValidationError]) -> Vec<ValidationError> {
         .collect()
 }
 
+/// The pillow with `surface` on its split face, and tier 3's verdict on
+/// it: the gate's, or, where the session box refuses the face first for
+/// having no cover, the checks' own, so check 1's verdict is the row's.
 fn pillow_on(surface: Surface<f64>, tol: Tol) -> (Vec<ValidationError>, crate::entity::FaceKey) {
     let (mut body, split) = coplanar_pillow(tol);
     assert_pillow_rests(&body, tol);
@@ -231,10 +234,17 @@ fn pillow_on(surface: Surface<f64>, tol: Tol) -> (Vec<ValidationError>, crate::e
     )
     .unwrap();
     assert_eq!(validate(&body), Ok(()), "structurally still coherent");
-    (
-        validate_geometric(&body, tol).expect_err("the swapped chart is refused at rest"),
-        split.face,
-    )
+    let errors = validate_geometric(&body, tol).expect_err("the swapped chart is refused at rest");
+    // A face with no cover (a net that bounds no region, a datum that is
+    // not a finite number) is refused by the session box at the gate,
+    // alone, before check 1 runs; its verdict is read off the checks.
+    match &errors[..] {
+        [ValidationError::SessionBoxUncovered { face, .. }] if *face == split.face => (
+            crate::validate::tier3_local_checks(&body, tol, None).0,
+            split.face,
+        ),
+        _ => (errors, split.face),
+    }
 }
 
 /// A face carrying a described net that is poisoned in one channel is
@@ -4145,4 +4155,119 @@ fn tier_three_and_tier_two_record_every_decision_as_a_check() {
             .collect();
         assert!(choices.is_empty(), "{what} recorded choices: {choices:?}");
     }
+}
+
+/// **Check 1 names a described net carrying poison at the interval
+/// scalar, and not as the placeholder**, read off the checks: at the gate
+/// the session box refuses the face first, its net bounding no region
+/// (`topo`'s `interval_body` row pins that refusal, its cause the
+/// poisoned description), so check 1's own verdict at `Interval` is
+/// asked of the checks directly. Poison is the scalar's own
+/// (`Real::from_f64(NaN)` is NaI there), so the lift keeps the state.
+/// *Breaks if* check 1 reads the lifted net as the placeholder, or names
+/// nothing of it at `Interval`.
+#[test]
+fn check_1_names_a_described_net_carrying_poison_at_interval() {
+    use geom_core::spline::Knots;
+    use geom_core::{Interval, Real};
+    let tol = Tol::witness();
+    let t = crate::test_support_fixtures::geometric_cube::<Interval>(tol);
+    let mut body = t.body;
+    crate::test_support_fixtures::describe_as_intersections(&mut body, tol);
+    let face = t.mefs[0].face;
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let control: Vec<Point3<Interval>> = (0..4)
+        .map(|i| {
+            Point3::new(
+                Interval::from_f64(f64::NAN),
+                Interval::from_f64(f64::from(i)),
+                Interval::from_f64(2.0),
+            )
+        })
+        .collect();
+    let net = NurbsSurface::new(
+        Knots::from(kv.clone()).lift(Real::from_f64),
+        Knots::from(kv).lift(Real::from_f64),
+        control,
+        vec![Real::one(); 4],
+    )
+    .unwrap();
+    assert_eq!(
+        net.net_state(),
+        NetState::Poisoned,
+        "described, not the placeholder"
+    );
+    // Lifts RechartStrandsDescriptions: the poisoned described net is the surface check's subject.
+    body.set_face_surface_unvouched_for_tests(
+        face,
+        FaceSurface::New {
+            surface: Surface::Nurbs(std::sync::Arc::new(net)),
+            sense: true,
+        },
+    )
+    .unwrap();
+    let errs = crate::validate::tier3_local_checks(&body, tol, None).0;
+    assert!(
+        errs.contains(&ValidationError::PoisonedSurfaceDescription { face }),
+        "check 1 names the corrupt described surface: {errs:?}"
+    );
+    assert!(
+        !errs
+            .iter()
+            .any(|e| matches!(e, ValidationError::UncertifiableSurface { .. })),
+        "the placeholder's verdict is a different state's answer: {errs:?}"
+    );
+}
+
+/// **Check 1 and the description check name a placeholder wall and its
+/// four stranded edges**, read off the checks: a brick with one face
+/// relabelled to the placeholder NURBS net draws one
+/// `UncertifiableSurface` on that face and one `DescriptionNotAdjacent`
+/// for each of its four boundary edges, whose lines lie on no surface the
+/// net describes, and nothing else. At the gate the session box refuses
+/// the face first and alone (`review_m3_pr4`'s
+/// `a_placeholder_nurbs_wall_is_refused_at_rest` pins that), so these are
+/// what a person reads once the face has a surface. *Breaks if* either
+/// check stops naming its part, or names more.
+#[test]
+fn a_placeholder_wall_draws_its_surface_and_its_four_edges() {
+    let tol = Tol::witness();
+    let mut body =
+        crate::test_support_fixtures::brick::<f64>((0.5, 1.5), (0.0, 1.0), (0.0, 1.0), tol);
+    let face = body.faces().next().unwrap().0;
+    // Lifts RechartStrandsDescriptions: the NURBS wall is the checks' input; its edges are the row.
+    body.set_face_surface_unvouched_for_tests(
+        face,
+        FaceSurface::New {
+            surface: Surface::Nurbs(std::sync::Arc::new(NurbsSurface::placeholder())),
+            sense: true,
+        },
+    )
+    .unwrap();
+    let mut edges: Vec<_> = body
+        .proven_face(face)
+        .boundary()
+        .filter_map(|m| match m {
+            crate::live::BoundaryMember::Edge { edge, .. } => Some(edge.key()),
+            crate::live::BoundaryMember::Isolated { .. } => None,
+        })
+        .collect();
+    edges.sort();
+    assert_eq!(edges.len(), 4);
+    let errs = crate::validate::tier3_local_checks(&body, tol, None).0;
+    let mut stranded: Vec<_> = errs
+        .iter()
+        .filter_map(|e| match e {
+            ValidationError::DescriptionNotAdjacent { edge } => Some(*edge),
+            _ => None,
+        })
+        .collect();
+    stranded.sort();
+    assert_eq!(errs.len(), 5, "one surface and four edges: {errs:?}");
+    assert_eq!(
+        errs[0],
+        ValidationError::UncertifiableSurface { face },
+        "the placeholder net is named on its face: {errs:?}"
+    );
+    assert_eq!(stranded, edges, "{errs:?}");
 }

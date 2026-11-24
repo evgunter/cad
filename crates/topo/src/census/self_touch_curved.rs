@@ -4,7 +4,7 @@
 //! half-disc post of its own solid (`crate::tier3_tests::half_disc`, a
 //! cylinder wall, its chord's plane, and planar caps bounded by arcs),
 //! held at the post's corner, inside its bottom arc, or inside its wall,
-//! near the origin and a kilometre off it. The corner's edges point off
+//! near the origin and 900 m off it, inside the session box. The corner's edges point off
 //! the post (a rest), into it or across it (a crossing), along the
 //! wall's ruling (a line the wall keeps), along an arc's tangent (a
 //! tangency the bends part one order down, [`crate::link::FaceSector::tangent`]'s
@@ -165,7 +165,7 @@ fn swept(mut body: Body<f64>, corner: VertexKey, other: VertexKey) -> Vec<Valida
 }
 
 /// The rows at `at`: where the corner's edges point and what the
-/// reading must make of it, near the origin and a kilometre off it.
+/// reading must make of it, near the origin and 900 m off it.
 /// Red where the planar reading reads a curved face or edge, or a row
 /// reads otherwise.
 fn rows_hold(at: Seat) {
@@ -233,7 +233,7 @@ fn rows_hold(at: Seat) {
         ],
     };
     let mut bad = Vec::new();
-    for far in [0.0, 1e3] {
+    for far in [0.0, 4.5e2] {
         let c = Point3::new(0.3 + far, 0.2 - 2.0 * far, 0.5 * far);
         for &(what, edges, reads) in &rows {
             let (body, corner, ties) = seat(c, at, edges);
@@ -713,7 +713,7 @@ fn thorn_and_corner(c: Point3<f64>, edges: [Vec3<f64>; 3]) -> (Body<f64>, Vertex
 /// The census finds exactly one more crossing, and it is expected: the
 /// box's far corner, `e₀ + e₁ + e₂` from the tip, lands on the thorn's
 /// line edge inside the thorn, where the two solids' boundaries cross
-/// too. Near the origin and a kilometre off it. Red where a horn reads as
+/// too. Near the origin and 900 m off it. Red where a horn reads as
 /// the whole turn, a thorn's side reads the other way, the cone round it
 /// is not read, or the thorn inside the corner's material passes.
 #[test]
@@ -728,7 +728,7 @@ fn a_thorn_of_its_own_reads_its_horns_one_order_down() {
         Vec3::new(0.3, -0.1, 0.3),
         Vec3::new(0.3, -0.2, -0.2),
     ];
-    for far in [0.0, 1e3] {
+    for far in [0.0, 4.5e2] {
         let c = Point3::new(0.3 + far, 0.2 - 2.0 * far, 0.5 * far);
         let (body, corner, ties) = thorn_and_corner(c, away);
         let (planar, verdict) = read(&body, corner, &ties);

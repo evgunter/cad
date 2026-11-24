@@ -281,16 +281,18 @@ fn one_axis_tilt_two_levers_two_answers() {
 }
 
 /// INVARIANT (the lever's pivot): the peg of
-/// [`one_axis_tilt_two_levers_two_answers`], both sheets moved a
-/// kilometre along `x̂`, still certifies through the tilt. The tilt is
-/// pinned at the descriptions' own origins, so its lever is the pair's
-/// reach from there, about 1.4 mm wherever the pair stands; read from
-/// the world origin it would be a kilometre, and the gate would refuse.
+/// [`one_axis_tilt_two_levers_two_answers`], both sheets moved 990 m
+/// along `x̂`, still certifies through the tilt. The tilt is pinned at
+/// the descriptions' own origins, so its lever is the pair's reach from
+/// there, about 1.4 mm wherever the pair stands; read from the world
+/// origin it would be most of a kilometre, and the gate would refuse.
+/// The pair stands inside the session box: moved a full kilometre, its
+/// walls' edges reach a millimetre past it and refuse at certification.
 #[test]
 fn a_far_peg_levers_its_tilt_from_its_own_origins() {
     let eps = Tol::witness().eps();
     let tilt = 40.0 * Tol::witness().k() * eps;
-    let far = Vec3::new(1e3, 0.0, 0.0);
+    let far = Vec3::new(990.0, 0.0, 0.0);
     let moved = |frame: CylFrame| CylFrame {
         origin: frame.origin + far,
         ..frame
@@ -305,7 +307,7 @@ fn a_far_peg_levers_its_tilt_from_its_own_origins() {
     assert_eq!(
         got.unwrap(),
         ChartOverlap::PositiveArea,
-        "a peg a kilometre out absorbs the tilt as it does at the origin",
+        "a peg 990 m out absorbs the tilt as it does at the origin",
     );
 }
 

@@ -1118,12 +1118,45 @@ pub enum ContactMark {
 )]
 pub enum ValidationError {
     /// The body reaches definitely past the session box
-    /// (`session_box_reach`, D4 ¶4): no coordinate of a model is larger
-    /// in magnitude than `geom_core::tolerance::SESSION_BOX_EXTENT`.
-    /// Reported alone, before any check reads a margin on the geometry.
+    /// (`session_box_point`, D4 ¶4): a point known to lie on it has a
+    /// coordinate larger in magnitude than
+    /// `geom_core::tolerance::SESSION_BOX_EXTENT`, which no coordinate of
+    /// a model may exceed. Reported alone, before any of tier 3's checks
+    /// runs; the box's own reads (each face's cover and its placed
+    /// extremes) decide on the geometry first (`crate::session_box`).
     OutsideSessionBox {
-        /// The box's extent less the body's reach, metres (negative).
+        /// The box's extent less the points' reach, metres (negative).
         margin: geom_core::MarginDiag,
+    },
+    /// The body's cover reaches definitely past the session box
+    /// (`session_box_reach`) and no point known to lie on it does: the
+    /// kernel's bound on its faces' regions is too loose to show the body
+    /// in the box. A limit (`[failure.taxonomy]` row 2: a tighter bound
+    /// is not built), not a finding that the body leaves the box. A body
+    /// with a spindle or spline face can be past the box and refused so:
+    /// the kernel reads no point on such a face
+    /// (`cover::face_extreme_points`), so only its vertices and edges can
+    /// show it past.
+    /// Reported alone, as [`Self::OutsideSessionBox`] is.
+    SessionBoxUnshown {
+        /// The box's extent less the cover's reach, metres (negative).
+        margin: geom_core::MarginDiag,
+    },
+    /// A face of the body has no cover, so the session box cannot bound
+    /// its region, and no point known to lie on the body is past the box.
+    /// One finding per such face, reported before any of tier 3's checks
+    /// runs, the box's findings alone, as [`Self::OutsideSessionBox`]
+    /// is. Its sentence and recourse are its cause's, read off the body
+    /// ([`UncoveredCause`]): a surface not described yet, a description
+    /// or a datum that describes no shape, a boundary edge or lone vertex
+    /// with no cover, or no loop that bounds the face.
+    SessionBoxUncovered {
+        /// The face with no cover.
+        face: FaceKey,
+        /// The cover's own refusal ([`crate::cover::face_cover`]).
+        why: crate::cover::FaceUncovered,
+        /// Which of the body's data the refusal is, read off the face.
+        cause: UncoveredCause,
     },
     /// Tier 3: the run's tolerance could not produce a valid
     /// classification band (absurd ε — see `Band::linear`). Reported
@@ -3256,10 +3289,174 @@ const DEFECT: &str = geom_core::KERNEL_OR_FILE_DEFECT_ENDING;
 /// ([`geom_brep::recourse::BAND_TOLERANCE_RECOURSE`]).
 pub(crate) const TOLERANCE: &str = geom_brep::recourse::BAND_TOLERANCE_RECOURSE;
 
-/// [`crate::FindingFamily::SessionBox`]'s one recourse: the box bounds
-/// the model, not the tolerance, so the geometry moves.
-pub(crate) const SESSION_BOX: &str =
-    "Recourse: place the geometry nearer the origin, or model it at a smaller size";
+/// The recourse of the session box's refusals where the body or its
+/// cover reaches past the box ([`ValidationError::OutsideSessionBox`],
+/// [`ValidationError::SessionBoxUnshown`]): the box bounds the model,
+/// not the tolerance, so the geometry moves. The one recourse is
+/// geom-brep's, which certification's box refusals end in too.
+pub(crate) const SESSION_BOX: &str = geom_brep::session_box::SESSION_BOX_RECOURSE;
+
+/// **Why a face has no cover, read off the body**
+/// ([`ValidationError::SessionBoxUncovered`]): the cover's own refusal
+/// says the cause's class ([`crate::cover::FaceUncovered`]), and the
+/// face's surface and boundary say which of the body's data it is, so
+/// the refusal's sentence is true of the face it names.
+///
+/// **NOT carried to the façade's curated list, and that is a decision
+/// rather than an omission** (`scripts/payload-rung-sweep.py` names this
+/// rung; the disposition table cites this paragraph as its home). A Rust
+/// caller can already name and match it, since `pncad` re-exports `topo`
+/// whole. A prelude entry would add the CUR3 property row
+/// `carried_refusal_payloads_are_matchable_through_the_prelude` for a new
+/// payload and a Python word for each cause; both are the façade crate's
+/// to write. Today a Python caller gets the finding's variant
+/// (`session_box_uncovered`) and its sentence, which names the cause in
+/// words.
+///
+/// **The falsifier is a Python caller who must tell a face with no
+/// surface yet from a corrupt one** without reading the sentence. When
+/// the façade carries the cause, delete this paragraph and the
+/// disposition row with it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum UncoveredCause {
+    /// The face's spline surface is the placeholder a construction starts
+    /// from: no surface is described yet.
+    NotDescribed,
+    /// The face's spline surface is described, and its control net holds
+    /// a value that is not a number.
+    PoisonedNet,
+    /// The face's spline surface stores a control point that is not a
+    /// finite number (an infinity: a net carrying poison is
+    /// [`Self::PoisonedNet`]).
+    InfiniteNet,
+    /// The face's surface stores this datum, which is not a finite
+    /// number (the first such, in the kind's datum order).
+    Datum(geom::SurfaceKind, geom::SurfaceDatum),
+    /// The face's surface has a datum or a computed point that is not a
+    /// finite number, and no stored datum of it is one (a quantity its
+    /// data compute overflows).
+    Unnamed(geom::SurfaceKind),
+    /// An edge of the face's boundary, on its unbounded surface, has no
+    /// cover, for this reason.
+    Edge(crate::cover::EdgeUncovered),
+    /// A lone vertex of the face's boundary, on its unbounded surface,
+    /// is not a finite point.
+    LoneVertex,
+    /// No loop of the face bounds it on its unbounded surface.
+    NoLoop(geom::SurfaceKind),
+}
+
+impl UncoveredCause {
+    /// **The cause of `face`'s having no cover**, `why`, read off `body`:
+    /// the carrier's refusal first (a net's state, then a datum), else
+    /// the boundary entity that left an unbounded carrier unread.
+    #[must_use]
+    pub(crate) fn of<T: Real>(
+        body: &Body<T>,
+        face: FaceKey,
+        why: &crate::cover::FaceUncovered,
+    ) -> Self {
+        use crate::cover::BoundaryUnknown;
+        use geom::cover::Unknown;
+        let surface = body.proven_face(face).surface();
+        let kind = surface.kind();
+        let carrier = why.carrier().unknowns();
+        if carrier.iter().any(|(_, u)| *u == Unknown::PoisonedNet) {
+            let net = match surface {
+                Surface::Nurbs(patch) => Some(patch.net_state()),
+                Surface::Approx(approx) => Some(approx.fit().net_state()),
+                _ => None,
+            };
+            return match net {
+                Some(geom::NetState::Placeholder) => Self::NotDescribed,
+                _ => Self::PoisonedNet,
+            };
+        }
+        if carrier.iter().any(|(_, u)| *u == Unknown::NonFinite) {
+            if matches!(surface, Surface::Nurbs(_) | Surface::Approx(_)) {
+                return Self::InfiniteNet;
+            }
+            return poisoned_datums(surface)
+                .first()
+                .map_or(Self::Unnamed(kind), |&datum| Self::Datum(kind, datum));
+        }
+        match why.boundary().first() {
+            Some(BoundaryUnknown::Edge(_, edge)) => Self::Edge(edge.clone()),
+            Some(BoundaryUnknown::Vertex(_)) => Self::LoneVertex,
+            None => Self::NoLoop(kind),
+        }
+    }
+
+    /// **What the cause says, and its recourse**: a placeholder net, the
+    /// placeholder's recourse (describe the surface); a described net or a
+    /// datum that describes no shape, a lone vertex that is no point and a
+    /// face no loop bounds, the defect ending; a boundary edge, its own
+    /// standing ([`crate::cover::EdgeUncovered::refusal`]), a reading not
+    /// built yet or a defect.
+    fn words(&self) -> (String, &'static str) {
+        match self {
+            Self::NotDescribed => (
+                "a face has no surface described yet, only the placeholder a construction starts \
+                 from"
+                    .to_owned(),
+                geom_brep::recourse::PLACEHOLDER_RECOURSE,
+            ),
+            Self::PoisonedNet => (
+                "a face's surface description holds invalid numbers, so it describes no shape"
+                    .to_owned(),
+                DEFECT,
+            ),
+            Self::InfiniteNet => (
+                "a face's surface description stores a control point that is not a finite \
+                 number, so it describes no shape"
+                    .to_owned(),
+                DEFECT,
+            ),
+            Self::Datum(kind, datum) => (
+                format!(
+                    "{} face's surface stores {} that is {}, so it describes no shape",
+                    with_article(kind.adjective()),
+                    with_article(&datum_words(datum.name())),
+                    poison_words(matches!(
+                        datum,
+                        geom::SurfaceDatum::Normal
+                            | geom::SurfaceDatum::Axis
+                            | geom::SurfaceDatum::URef
+                    )),
+                ),
+                DEFECT,
+            ),
+            Self::Unnamed(kind) => (
+                format!(
+                    "{} face's surface computes a point that is not a finite number, so it \
+                     describes no shape",
+                    with_article(kind.adjective())
+                ),
+                DEFECT,
+            ),
+            Self::Edge(edge) => (
+                format!("{edge}, on the boundary of a face, so the face's region is not bounded"),
+                match edge.refusal() {
+                    Ok(geom_core::ladder::Refusal::Limit) => geom_core::NOT_YET_ENDING,
+                    _ => DEFECT,
+                },
+            ),
+            Self::LoneVertex => (
+                "a lone vertex on the boundary of a face is not a finite point, so the face's \
+                 region is not bounded"
+                    .to_owned(),
+                DEFECT,
+            ),
+            Self::NoLoop(kind) => (
+                format!(
+                    "{} face has no loop that bounds it on its unbounded surface",
+                    with_article(kind.adjective())
+                ),
+                DEFECT,
+            ),
+        }
+    }
+}
 
 /// The ending of a margin the band could not decide, where a coincidence
 /// between two things has an object to declare: the shared menu
@@ -3458,6 +3655,13 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             }))
             .0
         }
+        CertifyError::OutsideSessionBox { .. } => "it reaches past the session box",
+        CertifyError::SessionBoxUnshown { .. } => {
+            "the kernel cannot bound it inside the session box"
+        }
+        CertifyError::SessionBoxUncovered { .. } => {
+            "it has no cover, so the kernel cannot show it inside the session box"
+        }
         CertifyError::StatedImageMissed { .. } => {
             "the chart image it states does not follow its carrier"
         }
@@ -3654,7 +3858,10 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             }
             | CertifyError::TangentCertificateUnsupported => NOT_YET_ENDING,
             CertifyError::Band(_) => TOLERANCE,
-            CertifyError::ChartImageUnavailable { .. }
+            CertifyError::OutsideSessionBox { .. }
+            | CertifyError::SessionBoxUnshown { .. }
+            | CertifyError::SessionBoxUncovered { .. }
+            | CertifyError::ChartImageUnavailable { .. }
             | CertifyError::StatedImageMissed { .. }
             | CertifyError::StatedImageUnsettled
             | CertifyError::NoGeneralLane { .. }
@@ -4601,9 +4808,25 @@ impl ValidationError {
             Self::OutsideSessionBox { margin } => write!(
                 f,
                 "the body reaches {} m past the {SESSION_BOX_EXTENT:e} m session box, which no \
-                 coordinate of a model may exceed (D4 ¶4)",
+                 coordinate of a model may exceed (D4 ¶4). {SESSION_BOX}",
                 margin.readable_below_zero()
             ),
+            Self::SessionBoxUnshown { margin } => write!(
+                f,
+                "the kernel's bound on the body's faces reaches {} m past the \
+                 {SESSION_BOX_EXTENT:e} m session box, and no point it reads on the body does: \
+                 the body may lie inside the box or past it, and a tighter bound, or a point read \
+                 on such a face, is not built yet. {SESSION_BOX}",
+                margin.readable_below_zero()
+            ),
+            Self::SessionBoxUncovered { cause, .. } => {
+                let (cause, recourse) = cause.words();
+                write!(
+                    f,
+                    "{cause}, so the kernel cannot show the body inside the \
+                     {SESSION_BOX_EXTENT:e} m session box. {recourse}"
+                )
+            }
             Self::Band { error } => write!(
                 f,
                 "the tolerance the body was checked at is not usable: {}",
@@ -6515,7 +6738,7 @@ fn structural_via<'b, T: geom_core::Decide + geom_core::Bounds + crate::props::A
     // Coarse gate: structural tiers first, verbatim.
     validate_closed(body)?;
     let band = Band::linear(tol).map_err(|error| vec![ValidationError::Band { error }])?;
-    crate::session_box::in_session_box(body, band).map_err(|e| vec![e])?;
+    crate::session_box::in_session_box(body, band)?;
     let mut marks = slotmap::SecondaryMap::new();
     let (errors, certificate) = tier3_local_checks_marked(
         body,
@@ -7368,11 +7591,7 @@ fn is_finite_point<T: Real>(p: &geom_core::Point3<T>) -> bool {
 /// frame's convention, read by the representability question at check 1
 /// ([`geom::Surface::representability_margins`]), not poison.
 pub(crate) fn is_direction<T: Real>(v: &geom_core::Vec3<T>) -> bool {
-    use geom_core::is_finite_length as finite;
-    let components = finite(v.x) && finite(v.y) && finite(v.z);
-    let len = v.norm();
-    let zero = finite(len) && geom_core::is_zero_length(len, v.norm_witness());
-    components && !zero
+    geom::cover::is_direction(*v)
 }
 
 /// **Check 1's poison read of an analytic surface**: every stored datum
@@ -10874,7 +11093,7 @@ fn pseudomanifold_certificate_via<
     // predicate ([`structural_via`]), so a body past it refuses here as
     // there, and a tier-3′ pass records the one decision a finish then a
     // census over a kept verdict records.
-    crate::session_box::in_session_box(body, band).map_err(|e| vec![e])?;
+    crate::session_box::in_session_box(body, band)?;
     let (errors, certificate) = tier3_local_checks(body, tol, quad_lane);
     if !errors.is_empty() {
         return Err(errors);

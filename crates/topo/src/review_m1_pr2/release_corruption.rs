@@ -151,7 +151,8 @@ fn torn_cycle_panics_naming_the_walk() {
 
 /// A LARGE torn structure: 3000 struts then a tear -- the bounded walks
 /// must terminate quickly (no O(inf) hang). Mirrors PR 1's torn-link
-/// attack through the operator path.
+/// attack through the operator path. The struts stand a quarter metre
+/// apart, so the farthest is 752 m out, inside the session box.
 ///
 /// Promotion note: this loop calls `mev` DIRECTLY, so every call is
 /// its own door and sweeps the whole body (`topo::surgery`) — which
@@ -184,7 +185,7 @@ fn large_torn_body_terminates_quickly() {
                     he1: seg.he_plus,
                     he2: seg.he_plus,
                 },
-                p(2.0 + f64::from(i)),
+                p(2.0 + 0.25 * f64::from(i)),
                 tol,
             )
             .unwrap();

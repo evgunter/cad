@@ -6393,6 +6393,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "scaffolding_strut_vertex",
             "seam_region_cover_unresolved",
             "seam_region_overcovered",
+            "session_box_uncovered",
+            "session_box_unshown",
             "sheet_apex_reached",
             "shell_disconnected",
             "shell_role_undecided",

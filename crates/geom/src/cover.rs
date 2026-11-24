@@ -41,7 +41,7 @@ use crate::curves::boxes::ArcWindow;
 use crate::{Conic, CurveKind, Ellipse, Frame, Line, SurfaceKind};
 
 mod readings;
-pub use readings::SPLINE_PIECES;
+pub use readings::{Apex, SPLINE_PIECES, is_direction};
 #[cfg(test)]
 mod tests;
 

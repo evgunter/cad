@@ -3238,6 +3238,8 @@ pub fn shell_classify_error_tag(err: &ShellClassifyError) -> &'static str {
 pub fn validation_error_tag(err: &ValidationError) -> &'static str {
     match err {
         ValidationError::OutsideSessionBox { .. } => "outside_session_box",
+        ValidationError::SessionBoxUnshown { .. } => "session_box_unshown",
+        ValidationError::SessionBoxUncovered { .. } => "session_box_uncovered",
         ValidationError::Band { .. } => "band",
         ValidationError::DanglingDescription { .. } => "dangling_description",
         ValidationError::UncertifiableSurface { .. } => "uncertifiable_surface",

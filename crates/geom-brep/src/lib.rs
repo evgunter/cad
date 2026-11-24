@@ -133,6 +133,7 @@ pub mod roots;
 pub mod row_contact;
 pub mod rows;
 pub mod sector_shape;
+pub mod session_box;
 pub(crate) mod shape_operator;
 pub mod ssi;
 pub mod tangent;
@@ -198,7 +199,7 @@ pub use enters::{
     tied_germ_turn,
 };
 pub use extent::{
-    ExtentBall, Forgets, LeverBounds, Reach, anchored_at, cover_diameter,
+    ExtentBall, Forgets, LeverBounds, Reach, anchored_at, box_reach, cover_diameter,
     edge_coordinate_reach_below, edge_extent_inf, edge_extent_sup, edge_reach_bounds,
     edges_extent_inf, points_diameter, points_lever_from, surface_anchored_at,
 };

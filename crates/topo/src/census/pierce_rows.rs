@@ -290,10 +290,11 @@ fn refused_by_the_span(got: Found, rows: &[&str]) -> bool {
 /// arc and from its chord, by a millimetre span whose ends both read
 /// `In`, so the arc's clearance from the span's middle passes its
 /// half-length and its reach. The cap stands about its centre `(0, 0)`
-/// and at `(1000, 0)`, its plane's stored origin 42 m from it each time.
+/// and at `(990, 0)`, its far side 9 m inside the session box, its
+/// plane's stored origin 42 m from it each time.
 #[test]
 fn a_crossing_far_from_a_curved_edge_is_a_pierce() {
-    for (cx, ox) in [(0.0, 30.0), (1000.0, 1030.0)] {
+    for (cx, ox) in [(0.0, 30.0), (990.0, 1020.0)] {
         let x = (cx - 0.25, cx + 0.25);
         for (scalar, (got, rows)) in [
             (
@@ -391,9 +392,9 @@ fn a_curved_edge_meeting_one_half_of_the_span_is_not_read_clear() {
 }
 
 /// **A curved edge clears the span only past its reach**: a half-disc
-/// of radius 0.5 about `(1000, 0)`, its plane's stored origin 42 m off,
+/// of radius 0.5 about `(990, 0)`, its plane's stored origin 42 m off,
 /// crossed by a millimetre span whose middle stands `L/2 + Kε + reach/2`
-/// under the arc's top, at ε = 1e-12 (K = 10). A kilometre from the
+/// under the arc's top, at ε = 1e-12 (K = 10). Near a kilometre from the
 /// origin the span's rounding charge `c` passes ε, so the reach is a few
 /// ε (near the origin it is about 1.2ε), and the arc's bound from the
 /// middle passes `L/2` by more than `Kε` but
@@ -409,8 +410,8 @@ fn a_curved_edge_meeting_one_half_of_the_span_is_not_read_clear() {
 #[test]
 fn a_curved_edge_clears_the_span_only_past_its_reach() {
     let band = Band::new(1e-12, 1e-11).unwrap();
-    let (centre, radius, origin) = ((1000.0, 0.0), 0.5, (1030.0, 30.0));
-    let x = (999.75, 1000.25);
+    let (centre, radius, origin) = ((990.0, 0.0), 0.5, (1020.0, 30.0));
+    let x = (989.75, 990.25);
     let at = |y: f64| {
         let ((lo, hi), PierceSpan { t, lever }, e) = span_over((x, y), origin);
         let reach = span_reach(&e, t, lever, band);

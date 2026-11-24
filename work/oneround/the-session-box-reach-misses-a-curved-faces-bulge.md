@@ -66,3 +66,29 @@ So, two units:
 2. **`oneround/box-certify-ask`** (`a-body-past-the-session-box-refuses-at-certifications-residual-first-by-its-spelling`; M): certification asks the predicate of an edge with its ends before its residual. Stacked on the first once its predicate is pushed. It reports whether any construction certifies helper or cutter edges past 1 km on purpose.
 
 Tighter covers (a spline's net clipped to its face, the spindle, the clockwise torus) are precision, not soundness: a loose cover refuses as a limit where a tight one would admit. The first unit measures how often; a row follows if it is ever.
+
+### `PLATE_LEDGER` re-pinned by `oneround/box-region` (PR 7225, 2026-11-22)
+
+`editor-core`'s `m10_sym_profile_interval::the_forms_the_plates_walks_build_are_pinned` moves, at all three ε. From main's pin to this branch merged with main on 2026-11-22, in three walks only:
+- `Plain/Assertion` 12224 → 12236;
+- `Early/Assertion` 12674 → 12686;
+- `Door/Decision` 12366 → 12378.
+
+Each walk gains 12 forms, with its digest; no call, frozen count or decision moves.
+
+The cause is the box's region read. Each of the plate's two placements asks the session box where its hole stands (`topo::session_box_at`). The box now reads each placed face's region by its carrier and boundary (`cover::face_cover_unproven`), as well as each vertex and edge. That builds the forms of each placed face's cover and asks no decision. Stage 1 admits both holes, so no stage-2 cover or stage-3 point is read.
+
+**Verdict: owed.** The region read is the unit's design (the README's predicate over the region a body occupies). Re-pinned at this branch's reading.
+
+### `PLATE_LEDGER` re-pinned again, at main's move (PR 7225's fix pass, 2026-11-23)
+
+Merging main `2130aa45` brought PR 7434's move of the same row: +4 calls and +146 forms on `Plain/Assertion`, `Early/Assertion` and `Door/Decision`, and a new `Plain/Decision` digest. Bisected and filed on DOCTAIL's slate: `work/doctail/main-red-the-plates-ledger-reads-four-more-calls-since-the-least-turn-reads-no-exactness.md`. Main is red on the row without this branch.
+
+The row is re-pinned at this branch's reading of the merged tree, the same at ε = 1e-9, 1e-6 and 1e-12:
+- `Plain/Decision` calls 979, forms 33088, digest `31fb2516…`;
+- `Plain/Assertion` 1051 / 12382;
+- `Early/Decision` unmoved;
+- `Early/Assertion` 1051 / 12832;
+- `Door/Decision` 554 / 12524.
+
+That is main's move plus this unit's +12 forms on the three lines named above. This fix pass's own changes move nothing: the row reads the earlier pin on the pre-merge commit `56a16cc2`.

@@ -1681,6 +1681,8 @@ pub(crate) fn finding_solids<T: Decide>(
         // geometry, never a pair of solids. Listed rather than a
         // wildcard, so a finding topo adds is placed here by hand.
         E::OutsideSessionBox { .. }
+        | E::SessionBoxUnshown { .. }
+        | E::SessionBoxUncovered { .. }
         | E::Band { .. }
         | E::DanglingDescription { .. }
         | E::UncertifiableSurface { .. }

@@ -6681,7 +6681,8 @@ mod tests {
 
     /// **A one-sided face is levered from the rulings' hinge station
     /// either way.** A wall of radius `r` whose face is the lone ruling
-    /// `(r, 0, 0)` to `(r, 0, e)`, `e` = 1 mm, cut by the plane through the
+    /// `(r, 0, 0)` to `(r, 0, e)`, `e` = 1 mm (less at a fine band, where
+    /// the wall would stand past the session box), cut by the plane through the
     /// vertex tilted to `sin β = c`. The rulings this lane mints stand on
     /// the hinge through the foot's projection, `r·c` up the axis: with
     /// `r·c = e/2` the face reaches `e/2` from that station either way, so
@@ -6692,7 +6693,10 @@ mod tests {
     #[test]
     fn a_one_sided_face_is_levered_from_the_hinge_station_either_way() {
         let band = geom_core::Band::linear(Tol::witness()).expect("a linear band");
-        let e = 1e-3;
+        // The wall's radius is `e² / (2.4·Kε)`; `e` is shortened where a
+        // millimetre would put the wall past the session box (at 1e-12,
+        // 42 km), so the wall stands within 800 m.
+        let e = 1e-3_f64.min((800.0 * 2.4 * band.escalate()).sqrt());
         let c: f64 = 1.2 * band.escalate() / e;
         let r = e / (2.0 * c);
         let base = Point3::new(r, 0.0, 0.0);
@@ -7832,7 +7836,7 @@ mod cone_window_rows {
     /// (`boxes::tests::cone_wall`), read from a corner: the window is
     /// `[z0, z1]` to rounding at every span, past three quarters of a turn
     /// too, since the patch's loop closes in the chart and so leaves the
-    /// apex out (`cover::cone_may_hold_apex`). A window that
+    /// apex out (`cover::cone_hull_may_miss_apex`). A window that
     /// misses any of the face lets the arm serve a line pair over points
     /// nearer the apex than it reads.
     #[test]

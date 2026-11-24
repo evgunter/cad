@@ -107,7 +107,12 @@ impl Reach {
                 }
             }
             let region = boundary
-                .and_then(|b| solid.surface_of(face).face_region(b).ok())
+                .and_then(|b| {
+                    solid
+                        .surface_of(face)
+                        .face_region(b, geom::cover::Apex::MayHold)
+                        .ok()
+                })
                 .ok_or(NoRegion::Face(face.id))?;
             all = Some(match all {
                 Some(c) => c.hull(region),

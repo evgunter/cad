@@ -221,6 +221,122 @@ pub fn cone_cap(alpha: f64, z: f64, tol: Tol) -> (Body<f64>, FaceKey) {
     (body, face)
 }
 
+/// The full rim at height `z` of the cone about `z` whose apex stands at
+/// `(0, 0, apex)` and whose radius grows `k` per unit of height, as the
+/// intersection of `cone` and the rim plane there (normal `normal`), and
+/// that plane.
+fn cone_rim(
+    body: &mut Body<f64>,
+    cone: crate::geometry::SurfaceKey,
+    (apex, k): (f64, f64),
+    z: f64,
+    normal: Vec3<f64>,
+) -> (EdgeCurveSpec<f64>, crate::geometry::SurfaceKey) {
+    let r = k * (z - apex);
+    let rim_plane = body.add_surface(Surface::Plane {
+        frame: geom::Frame::new(Point3::new(0.0, 0.0, z), normal, Vec3::unit_x()),
+    });
+    let spec = EdgeCurveSpec {
+        description: EdgeDescriptionSpec::Intersection {
+            pair: SurfacePair::new(cone, rim_plane),
+            selector: geom_brep::CurveSelector::Witness(Point3::new(-r, 0.0, z)),
+        },
+        carrier: Curve3::circle(Point3::new(0.0, 0.0, z), -normal, r, Vec3::unit_x()),
+        param_start: 0.0,
+        param_end: core::f64::consts::TAU,
+    };
+    (spec, rim_plane)
+}
+
+/// **A seamless frustum band** of the unit cone about `z` (apex at the
+/// origin, half-angle π/4) over `z ∈ [z0, z1]`:
+/// one face bounded by its two full rims and no generator edge, so it
+/// does not describe. Built as the cylinder's seamless band is: each
+/// rim splits off a cap, a strut joins them, and the strut's kill
+/// leaves the band two loops.
+///
+/// # Panics
+///
+/// Where the fixture's own construction refuses (a kernel bug).
+pub fn seamless_cone_band(z0: f64, z1: f64, tol: Tol) -> (Body<f64>, FaceKey) {
+    seamless_cone_band_on((0.0, 1.0), z0, z1, tol)
+}
+
+/// [`seamless_cone_band`] on the cone about `z` whose apex stands at
+/// `(0, 0, apex)` and whose radius grows `k` per unit of height.
+///
+/// # Panics
+///
+/// Where the fixture's own construction refuses (a kernel bug).
+pub fn seamless_cone_band_on(
+    (apex, k): (f64, f64),
+    z0: f64,
+    z1: f64,
+    tol: Tol,
+) -> (Body<f64>, FaceKey) {
+    let mut body = Body::<f64>::new();
+    let seed = body
+        .mvfs(Point3::new(k * (z0 - apex), 0.0, z0), true)
+        .unwrap();
+    let cone = body
+        .set_face_surface(
+            seed.face,
+            FaceSurface::New {
+                surface: Surface::Cone {
+                    frame: geom::Frame::new(
+                        Point3::new(0.0, 0.0, apex),
+                        Vec3::unit_z(),
+                        Vec3::unit_x(),
+                    ),
+                    half_angle: k.atan(),
+                },
+                sense: true,
+            },
+        )
+        .unwrap();
+    let (bottom, bottom_plane) =
+        cone_rim(&mut body, cone, (apex, k), z0, Vec3::new(0.0, 0.0, -1.0));
+    let cap_b = body
+        .mef(
+            MefSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            bottom,
+            FaceSurface::Shared {
+                key: bottom_plane,
+                sense: true,
+            },
+            tol,
+        )
+        .unwrap();
+    let strut = body
+        .mev_line(
+            MevSite::Fan {
+                he1: cap_b.he_plus,
+                he2: cap_b.he_plus,
+            },
+            Point3::new(k * (z1 - apex), 0.0, z1),
+            tol,
+        )
+        .unwrap();
+    let (top, top_plane) = cone_rim(&mut body, cone, (apex, k), z1, Vec3::unit_z());
+    body.mef(
+        MefSite::Chords {
+            he1: strut.he_minus,
+            he2: strut.he_minus,
+        },
+        top,
+        FaceSurface::Shared {
+            key: top_plane,
+            sense: true,
+        },
+        tol,
+    )
+    .unwrap();
+    body.kemr(strut.he_plus, strut.he_minus).unwrap();
+    (body, seed.face)
+}
+
 /// **A sphere cap**: the face on the unit sphere about the origin
 /// (axis `+z`) bounded by its one circle at height `z`, two half-circle
 /// edges with no seam, built as [`cone_cap`] builds its cap: the rim

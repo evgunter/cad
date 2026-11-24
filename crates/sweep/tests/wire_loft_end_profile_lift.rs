@@ -152,6 +152,7 @@ mod interval {
         let s = Tol::witness().eps() * 1e9;
         let mut tried = Vec::new();
         let mut past_box = Vec::new();
+        let mut refused = Vec::new();
         for h in [0.5, 5.0, 50.0, 500.0, 5000.0] {
             for b in [1e2, 1e3, 1e4, 1e5, 1e6] {
                 let (sections, places) = wide_arc_pair(h * s, b);
@@ -165,7 +166,7 @@ mod interval {
                         Err(e) if format!("{e:?}").contains("OutsideSessionBox") => {
                             past_box.push(format!("({h}*s, {b})"));
                         }
-                        Err(_) => {}
+                        Err(e) => refused.push(format!("({h}*s, {b}): {e:?}")),
                     }
                 }
                 tried.push(format!("({h}*s, {b})"));
@@ -176,13 +177,30 @@ mod interval {
         // width, a few ulps of the box, is far below the band, so no
         // in-box pair separates the two arithmetics, and every one that
         // does is refused by the box (D4 ¶4). That stands the row down,
-        // loudly; any other miss is the finding the ladder exists for.
+        // loudly, at ε = 1e-6 and 1e-9 only
+        // (`work/oneround/the-interval-revalidation-escalation-row-is-reached-only-past-the-box-at-1e-9.md`):
+        // at 1e-12 an in-box pair separates, so a stand-down there is red,
+        // as is a separating pair the loft refuses for any other reason.
+        assert!(
+            refused.is_empty(),
+            "a separating pair the loft refuses other than by the session box: {}",
+            refused.join("; ")
+        );
         if !past_box.is_empty() {
-            eprintln!(
-                "stands down at eps = {}: the pairs that separate the two arithmetics, {}, \
-                 are all past the session box",
-                Tol::witness().eps(),
+            let eps = Tol::witness().eps();
+            assert!(
+                eps > 1e-12,
+                "at eps = {eps} an in-box pair separates, yet every separating pair met is past \
+                 the session box: {}",
                 past_box.join(", ")
+            );
+            test_utils::vacuity::stood_down(
+                "wire loft's separating pair",
+                &format!(
+                    "at eps = {eps} the pairs that separate the two arithmetics, {}, are all past \
+                     the session box",
+                    past_box.join(", ")
+                ),
             );
             return None;
         }

@@ -789,18 +789,34 @@ fn sampled_reach<T: SpanLocate>(
         .fold(T::zero(), |far, x| far.max(measure(x)))
 }
 
-/// **Whether the region an edge's cover holds is the edge's own**, so a
-/// far distance or a coordinate range read off it is exact: on a line
-/// and on a circle arc, on no other kind. The one home of that split,
-/// which [`edge_reach_bounds`] and [`edge_coordinate_reach_below`] both
-/// read.
-fn cover_is_exact<T: Real>(carrier: &Curve3<T>) -> bool {
-    match carrier {
+/// **What an edge's cover reads exactly**: its far distance from a
+/// pivot, or only its coordinate range along the world axes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CoverRead {
+    /// The far distance from a pivot ([`edge_reach_bounds`]).
+    Distance,
+    /// The range along each world axis ([`edge_coordinate_reach_below`]).
+    Coordinates,
+}
+
+/// **Whether a read off an edge's cover is exact for the edge**: the one
+/// home of that split, which [`edge_reach_bounds`] and
+/// [`edge_coordinate_reach_below`] both read. On a line and on a circle
+/// arc the region the cover holds is the edge's own, so both reads are
+/// exact. On an ellipse arc the cover is bounded by the arc's exact
+/// support along each direction (the sinusoid's extent over the span),
+/// so its world-axis box is the arc's own coordinate range, while a
+/// distance read off it is not exact. On no other kind is either.
+fn cover_is_exact<T: Real>(carrier: &Curve3<T>, read: CoverRead) -> bool {
+    let own_region = match carrier {
         Curve3::Line(_) | Curve3::Circle(..) => true,
         Curve3::Ellipse(..) | Curve3::Spiric { .. } | Curve3::Nurbs(_) | Curve3::Periodic(_) => {
             false
         }
-    }
+    };
+    // A conic's cover is its exact support along each direction, so its
+    // world-axis box is the arc's own range: the ellipse's case.
+    own_region || (read == CoverRead::Coordinates && carrier.conic().is_some())
 }
 
 /// **An edge's largest `|coordinate|`, bounded from below**: the session
@@ -808,9 +824,10 @@ fn cover_is_exact<T: Real>(carrier: &Curve3<T>) -> bool {
 /// in magnitude than the box). `world_box` is the box the region the edge
 /// occupies spans along the world axes, which the caller reads off that
 /// region (topo reads its edge's cover, `Cover::box_in` at
-/// `BoxAxes::World`). Where the cover is the edge's own
-/// ([`cover_is_exact`]) the box's largest `|coordinate|` is exact;
-/// otherwise, and where there is no box, the samples' largest, each a
+/// `BoxAxes::World`). Where the cover's box is the edge's own coordinate
+/// range (on a line and on a conic arc, a circle's or an ellipse's, whose
+/// cover's support along each axis is its exact extent over the span) the
+/// box's largest `|coordinate|` is exact; otherwise, and where there is no box, the samples' largest, each a
 /// point of the edge. So a missing cover reads the edge's own points,
 /// never poison.
 pub fn edge_coordinate_reach_below<T: SpanLocate>(
@@ -819,10 +836,19 @@ pub fn edge_coordinate_reach_below<T: SpanLocate>(
     world_box: Option<(Point3<T>, Point3<T>)>,
 ) -> T {
     let origin = Point3::origin();
-    match world_box.filter(|_| cover_is_exact(carrier)) {
-        Some((lo, hi)) => (lo - origin).norm_inf().max((hi - origin).norm_inf()),
+    match world_box.filter(|_| cover_is_exact(carrier, CoverRead::Coordinates)) {
+        Some(world_box) => box_reach(world_box),
         None => sampled_reach(carrier, span, |x| (x - origin).norm_inf()),
     }
+}
+
+/// **The largest `|coordinate|` of a box** `(lo, hi)` along the world
+/// axes: the one spelling of it, which the session box's reading of a
+/// cover (`crate::session_box::cover_reach`) and an exact edge's reach
+/// ([`edge_coordinate_reach_below`]) both read.
+pub fn box_reach<T: Real>((lo, hi): (Point3<T>, Point3<T>)) -> T {
+    let origin = Point3::origin();
+    (lo - origin).norm_inf().max((hi - origin).norm_inf())
 }
 
 /// **A lever known exactly, or only between two bounds.** A reading
@@ -898,7 +924,7 @@ pub fn edge_reach_bounds<T: SpanLocate>(
     pivot: Point3<T>,
     above: Lever<T>,
 ) -> LeverBounds<T> {
-    if cover_is_exact(carrier) {
+    if cover_is_exact(carrier, CoverRead::Distance) {
         LeverBounds::Exact(above)
     } else {
         LeverBounds::Between {
