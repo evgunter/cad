@@ -186,9 +186,9 @@ pub struct WedgeWalk<'a, T: Real> {
     /// The curve the stations lie on, and the span they are read over.
     carrier: &'a geom::Curve3<T>,
     span: (T, T),
-    /// Whether the stations go all the way round a closed carrier, with
-    /// no end, rather than across an edge's span.
-    around: Option<core::num::NonZeroU32>,
+    /// A closed rim's phase step, where the stations go all the way
+    /// round, with no end; `None` across an edge's span.
+    around: Option<T>,
     first: (u32, Station<T>),
     rest: Vec<(u32, Station<T>)>,
 }
@@ -237,16 +237,17 @@ impl<'a, T: Decide> WedgeWalk<'a, T> {
         circle: &'a geom::Curve3<T>,
         n: core::num::NonZeroU32,
     ) -> Self {
-        let phase = |i: u32| {
+        let at = |i: u32| {
             let phase = core::f64::consts::TAU * (f64::from(i) / f64::from(n.get()));
-            Station::on(circle, T::from_f64(phase))
+            T::from_f64(phase)
         };
+        let phase = |i: u32| Station::on(circle, at(i));
         Self {
             plus,
             minus,
             carrier: circle,
             span: (T::from_f64(0.0), T::from_f64(core::f64::consts::TAU)),
-            around: Some(n),
+            around: Some(at(1)),
             first: (0, phase(0)),
             rest: (1..n.get()).map(|i| (i, phase(i))).collect(),
         }
@@ -264,13 +265,7 @@ impl<'a, T: Decide> WedgeWalk<'a, T> {
         let (s1, s2) = (self.plus.surface, self.minus.surface);
         match self.around {
             None => WalkSpan::along(s1, s2, self.carrier, self.span.0, self.span.1),
-            // One turn read at `n` uniform phases: the phases' own step.
-            Some(n) => WalkSpan::around(
-                s1,
-                s2,
-                self.carrier,
-                (self.span.1 - self.span.0) / T::from_computed(f64::from(n.get())),
-            ),
+            Some(step) => WalkSpan::around(s1, s2, self.carrier, step),
         }
     }
 
