@@ -1045,10 +1045,12 @@ fn coaxial_with_cone<T: Decide>(
 /// **The root of `surface` along `carrier` nearest `seed`**, at `f64`:
 /// the plane's root along a spline carrier through the spline lane
 /// ([`SectionLane::f64`]), and [`analytic_root`] along any other
-/// carrier. `region` is the edge the root is sought on, a carrier over
-/// its span, whose reach levers the graze: from each point the analytic
-/// arm reads its sine at, and over the whole span for the spline lane,
-/// which isolates its roots over it.
+/// carrier. `region` is the edge the root is sought on, as the carrier
+/// its sine is read on over its span: the analytic arm levers the graze
+/// at its reach from each point the sine is read at, and the spline lane
+/// at its extent over the whole span, over which it isolates its roots.
+/// The caller hands the topology a view of that geometry, never a lever
+/// it made of it.
 ///
 /// # Errors
 ///
@@ -1132,13 +1134,17 @@ fn plane_plane<T: Decide>(
 /// decided-zero angle grazes, and a Newton that does not land on the
 /// surface has no root there.
 ///
-/// The graze's sine is read at a point (the root, or an iterate on the
-/// way to it), so it is levered at `region`'s reach from that point
-/// ([`geom_brep::span_reach_bounds`]), the edge the root is sought on
-/// as a carrier over its span: what the sine moves that edge by. Both
-/// signs are acted on (a definite one takes the root as transversal, a
-/// Zero is served as a graze), so it is read at both bounds and decides
-/// only where they agree ([`crate::validate::decide_levered`]).
+/// The graze's sine is read at a point, the root or an iterate on the way
+/// to it, and is levered at `edge`'s reach from that point, `edge` being
+/// the edge the root is sought on as a carrier over its span: what the
+/// sine moves that edge by. The reading acted on as a claim is the
+/// definite sign, which takes the point as transversal (and, at an
+/// iterate, lets the step divide by `g·d`), so the reach is read from
+/// below ([`geom_brep::span_reach_bounds`]). Along the Newton every other
+/// reading, Zero or in band, is served as a graze, at every iterate and
+/// at the root alike; the line × plane closed form serves only a Zero as
+/// one and escalates in band. An edge whose reach cannot be read (no
+/// cover over its span) is no reading: it escalates, never a graze.
 pub(crate) fn analytic_root<T: Decide>(
     surface: &Surface<T>,
     carrier: &Curve3<T>,
@@ -1146,16 +1152,21 @@ pub(crate) fn analytic_root<T: Decide>(
     (edge, span): (&Curve3<T>, (T, T)),
     band: Band,
 ) -> Result<Result<T, CornerVerdict<T>>, Indeterminate> {
-    let graze_at = |sine: T, at: Point3<T>| {
-        crate::validate::decide_levered(
-            ("offset_corner_graze", "offset_corner_graze_straddle"),
-            sine,
-            geom_brep::span_reach_bounds(edge, span, at),
-            band,
+    let read = |sine: T, at: Point3<T>| {
+        let arm = geom_brep::span_reach_bounds(edge, span, at).below();
+        (
+            decide("offset_corner_graze", Margin::levered(sine, arm), band),
+            geom_core::is_finite_length(arm.length()),
         )
     };
-    let graze = |sine: T, at: Point3<T>| -> Result<bool, Indeterminate> {
-        Ok(matches!(graze_at(sine, at)?, Sign::Zero))
+    // Whether the Newton's point reads transversal; a reading short of
+    // Positive is a graze, unless the reach itself was no number.
+    let transversal = |sine: T, at: Point3<T>| -> Result<bool, Indeterminate> {
+        match read(sine, at) {
+            (Ok(sign), _) => Ok(sign == Sign::Positive),
+            (Err(diag), false) => Err(diag),
+            (Err(_), true) => Ok(false),
+        }
     };
     if let (
         Surface::Plane {
@@ -1174,7 +1185,7 @@ pub(crate) fn analytic_root<T: Decide>(
         } else {
             seed
         });
-        if graze(sine.abs(), at)? {
+        if read(sine.abs(), at).0? == Sign::Zero {
             return Ok(Err(CornerVerdict::Graze { sine }));
         }
         return Ok(Ok(t));
@@ -1196,7 +1207,7 @@ pub(crate) fn analytic_root<T: Decide>(
     for _ in 0..NEWTON_STEPS {
         let (p, d) = carrier.ders1(t);
         let sine = sine_at(p, d);
-        if !matches!(graze_at(sine.abs(), p), Ok(Sign::Positive)) {
+        if !transversal(sine.abs(), p)? {
             return Ok(Err(CornerVerdict::Graze { sine }));
         }
         let f = geom_brep::implicit_residual(surface, p);
@@ -1210,7 +1221,7 @@ pub(crate) fn analytic_root<T: Decide>(
         return Ok(Err(CornerVerdict::NoRoot));
     }
     let sine = g.dot(d) / (g.norm() * d.norm());
-    if graze(sine.abs(), p)? {
+    if !transversal(sine.abs(), p)? {
         return Ok(Err(CornerVerdict::Graze { sine }));
     }
     Ok(Ok(t))
@@ -2085,23 +2096,18 @@ mod graze_reach {
         );
     }
 
-    /// **Where the reach is known only between two bounds the graze
-    /// takes a root only where both read it transversal.** An ellipse of
-    /// semi-axes 2 and 1 in a plane tilted `10⁻⁶` rad about `x̂` meets
-    /// `z = 0` at `(2, 0, 0)`, inside its edge over `[−3, 3.2]`, at the
-    /// sine `sin 10⁻⁶`. The point farthest from the root, `(−2, 0, 0)`,
-    /// falls between the edge's samples, so its reach is known between
-    /// two bounds. The band is drawn from them: the graze reads in band
-    /// at the bound from below and definite at the one from above, so
-    /// the Newton refuses the root as a graze, where the bound from above
-    /// alone would take it as transversal.
-    ///
-    /// The bound from below alone is not separated from both: every
-    /// reading short of definite at a Newton iterate is a graze
-    /// (`analytic_root`), and the root is read at its own seed, so a
-    /// lever read in band or Zero there answers alike.
+    /// **Where the reach is known only between two bounds the graze is
+    /// read at the bound from below.** An ellipse of semi-axes 2 and 1 in
+    /// a plane tilted `10⁻⁶` rad about `x̂` meets `z = 0` at `(2, 0, 0)`,
+    /// inside its edge over `[−3, 3.2]`, at the sine `sin 10⁻⁶`. The point
+    /// farthest from the root, `(−2, 0, 0)`, falls between the edge's
+    /// samples, so its reach is known between two bounds. The band is
+    /// drawn from them: the graze reads in band at the bound from below
+    /// and definite at the one from above, so the Newton serves the root
+    /// as a graze, where the bound from above would take it as
+    /// transversal.
     #[test]
-    fn an_ellipses_root_takes_a_transversal_reading_only_at_both_bounds() {
+    fn an_ellipses_root_is_read_transversal_at_its_reach_from_below() {
         let psi = 1e-6_f64;
         let frame = geom::Frame::new(
             Point3::origin(),
@@ -2127,6 +2133,58 @@ mod graze_reach {
         assert!(
             matches!(got, Ok(Err(CornerVerdict::Graze { .. }))),
             "the bounds {below} and {above} straddle the band: got {got:?}"
+        );
+    }
+
+    fn tilted_circle(psi: f64) -> Curve3<f64> {
+        Curve3::Circle(geom::Circle::new(
+            geom::Frame::new(
+                Point3::origin(),
+                Vec3::new(0.0, -psi.sin(), psi.cos()),
+                Vec3::unit_x(),
+            ),
+            1.0,
+        ))
+    }
+
+    /// **The graze is read from each Newton iterate, not from the seed.**
+    /// A unit circle tilted `ψ` about `x̂` meets `z = 0` at `θ = 0` at the
+    /// sine `sin ψ = 1.2·10⁻⁸`, inside its edge over `[−π/4, π/4]`, the
+    /// sine at `θ` being `sin ψ · cos θ`. Seeded at the edge's end `π/4`,
+    /// the seed reads `sin ψ · cos(π/4)` over its reach `√2`, Positive;
+    /// the iterates close on the root, whose reach `2 sin(π/8) ≈ 0.77`
+    /// reads it in band under `(10⁻⁹, 10⁻⁸)`: a graze. Read from the
+    /// seed throughout, every iterate would read Positive.
+    #[test]
+    fn a_circles_graze_is_read_from_the_iterate_not_the_seed() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let carrier = tilted_circle(1.2e-8_f64.asin());
+        let quarter = core::f64::consts::FRAC_PI_4;
+        let got = crate::root_along(
+            &plane(),
+            &carrier,
+            quarter,
+            (&carrier, (-quarter, quarter)),
+            band,
+        );
+        assert!(
+            matches!(got, Ok(Err(CornerVerdict::Graze { .. }))),
+            "the iterates near the root read the reach 0.77 in band: got {got:?}"
+        );
+    }
+
+    /// **A line's graze is read at its root, not at the seed's point.** The
+    /// line meets `z = 0` at the sine `0.8·10⁻⁹` at the middle of its edge
+    /// over `[−1, 1]`; seeded at the edge's end, the root's reach (1) reads
+    /// a graze where the seed's (2) reads in band.
+    #[test]
+    fn a_lines_graze_is_read_at_its_root_not_its_seed() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let carrier = line(0.8e-9);
+        let got = crate::root_along(&plane(), &carrier, 1.0, (&carrier, (-1.0, 1.0)), band);
+        assert!(
+            matches!(got, Ok(Err(CornerVerdict::Graze { .. }))),
+            "read at the root, a graze: got {got:?}"
         );
     }
 }

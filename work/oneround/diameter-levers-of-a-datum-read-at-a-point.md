@@ -95,9 +95,10 @@ The differential needs re-taking per caller, as PR 7294 did for the router.
 - (b) `sweep` `blend/battery.rs` `extent_of` is stored in `Link::arm_len` and was read by `chain_g1` at the shared vertex, where its Zero is acted on (the junction accepted G1). It was the bound from below where the one from above is owed, and a diameter where the reach from the vertex is owed.
   - `chain_turns` now reads each link's reach from the junction from above (`junction_arm`).
   - `cap_transverse`'s read of the stored field is left, as a record (`work/band/blend-battery-levers-a-chains-g1-from-below.md`).
+- `trace.rs` `ray_crossings` (the whole-run door editor-core's trace marks read, `crates/editor-core/src/trace.rs`) levered every crossing's sense at the caller's scene `reach`, unsourced. That is the run from the ray's start: a bound from above where a definite passage is owed one from below. It is the same class as `ray_crossings_to`; PR 7661 converts it.
 - (c) The "region read from a pivot" list. Each pivot is the read point, except `boolean/trace.rs` `ray_crossings_to`. Its crossing sense, read at each crossing, was levered from the ray's start over the whole run, so `circle_crossings_to` and `circle_crossings` (a pivot-free arc or circle ball radius) are the same shape. `props/curved.rs` is geom-brep's.
 
-**Converted by this unit:** `line_cone_read`; `chain_turns`' G1 arm (`junction_arm`); `analytic_root` and its consumers' `Incident.extent`, whose analytic arm now carries the span; `IsoPiece::reach`; the three `trace.rs` crossing readers.
+**Converted by this unit:** `line_cone_read`; `chain_turns`' G1 arm (`junction_arm`); `analytic_root` and its consumers' `Incident.extent`, whose analytic arm now carries the span; `IsoPiece::reach`; the `trace.rs` crossing readers (`ray_crossings`, `ray_crossings_to`, `circle_crossings_to`; the test-only `circle_crossings` is gone).
 
 **Left, in class:**
 
@@ -108,4 +109,4 @@ The differential needs re-taking per caller, as PR 7294 did for the router.
   - `PairSection.lever` on the spline arms (`spline_pair.rs` `section`, `spline_implicit.rs` `section_listing`): a net's ball radius, stored and read by topo `boolean/join.rs` `bool_join_foot_heading` at a site's foot. A record.
   - `pair_section/gap.rs` `Sweep.core_lever`: the whole core circle's radius, for a sine read at a sample of it. Sound from below (a whole circle reaches `2R` from each of its points), loose by up to 2.
   - Not settled: `chord_join.rs` `SectionCurve::lever` (the whole conic's ball radius, for the departure cosine at `p1`). It is sound if the claim is over the whole conic and not if it is over the chord's arc. Also `spline_implicit/sweep.rs`'s regular-cell slope: read over a cell, not at a point, but at a bound from above.
-- `Reach::lever_from(pivot)` reads no pivot for a `Reach::Measured` or a `Reach::Face`. A caller handing either a pivot gets a pivot-free length.
+- `Reach::lever_from(pivot)` reads no pivot for a `Reach::Measured` or a `Reach::Face`: filed as `work/oneround/reach-lever-from-reads-no-pivot-for-a-measured-or-face-reach.md`.
