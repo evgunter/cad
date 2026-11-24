@@ -2,12 +2,12 @@
 id: tier-3-at-every-box-replay-leaf-multiplies-the-decisions
 kind: issue
 title: Tier 3 at every sweep leaf in a box-scalar replay multiplies the decisions about 4.4× and makes docm9 rows take minutes
-status: open
+status: dispatched
 opened: 2026-11-02
 priority: P1
 cost: H
 refs: [6371]
-design: true
+branch: boxfinish/probe-switch-off
 ---
 
 Split from `the-sweep-doors-finish-refuses-what-the-box-studies-read`
