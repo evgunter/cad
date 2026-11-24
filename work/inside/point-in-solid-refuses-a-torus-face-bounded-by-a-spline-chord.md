@@ -50,3 +50,17 @@ obliquely leaves the torus face trimmed by a marched (spline) edge:
   fixture's three ops build to their closed-form volumes, and
   `point_in_solid` on each result refuses `PartialTorusFace` at every
   witness, pinned as an outcome.
+
+Further sites pinned by PR 7617, each skipping the piece sort's
+`PartialTorusFace` for ops past ∪ under a floor that one such op builds
+and is held to its truth:
+
+- `crates/sweep/tests/germ_interior_oval.rs` `the_corner_bar_builds_its_lenses`;
+- `crates/sweep/tests/germ_plane_torus_frame.rs`
+  `the_donuts_corner_bar_builds_at_its_end_squares` and
+  `a_general_pose_builds_to_its_volume`;
+- `crates/sweep/tests/germ_torus_doors.rs`
+  `subtract_and_intersect_reach_the_doors_union_does` (the near bar's
+  `B ∖ A`);
+- `crates/sweep/tests/germ_torus_rods.rs` (the fuzz reads `p` nowhere on
+  such a body and holds it by its volume identities).
