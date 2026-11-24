@@ -4,6 +4,8 @@ kind: issue
 title: A chart angle is read off a radius-scaled vector at every arm but the cylinder ruling's, so a carrier built along the reference direction reads atan2(0, r) once its radius is stored signed
 status: open
 opened: 2026-11-15
+priority: P2
+cost: M
 ---
 
 Found by the audit of `a-radial-distance-and-a-rulings-azimuth-recover-the-radius-through-a-root`

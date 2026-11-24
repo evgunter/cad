@@ -4,6 +4,8 @@ kind: issue
 title: A torus reader takes a point's distance from the axis less the major radius inside its root, which the rationalized gap alone does not make a polynomial
 status: open
 opened: 2026-11-15
+priority: P2
+cost: M
 ---
 
 Found by the audit of `a-radial-distance-and-a-rulings-azimuth-recover-the-radius-through-a-root`

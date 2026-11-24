@@ -4,6 +4,8 @@ kind: issue
 title: A measured norm less a stored radius is read raw by identity readers outside the pcurve cache's distance, so a point built on a cylinder or sphere misses it by √(r²) − r over a box
 status: open
 opened: 2026-11-15
+priority: P2
+cost: M
 ---
 
 Found by the audit of `a-radial-distance-and-a-rulings-azimuth-recover-the-radius-through-a-root`
