@@ -1,6 +1,6 @@
 # The crates told-quantity-fields.sh does not cover yet: one per line.
 # Converting a crate's refusals onto geom_core::Told deletes its line
-# (work/scalar/patherror-display-renders-float-noise.md, unit 3 onward).
+# (work/told/patherror-display-renders-float-noise.md, unit 3 onward).
 bvh
 editor-core
 geom
