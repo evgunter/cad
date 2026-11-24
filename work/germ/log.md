@@ -1997,3 +1997,10 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
 - 2026-11-24 00:20 — **Fable usage limit hit** (it resets 2026-11-29 14:00 UTC). It stopped PR 7658's review, whose drawn arm was Fable. Under rule 12 I asked the user whether to proceed on Opus or pause, and dispatch nothing in a Fable agent's place until answered. Work already running on Opus continues.
 - 2026-11-24 00:20 — **PR 7645 ([sizes]) merged** (`bafc8f3c97`) on Ev's approval. Ev's one change was the name: `quantity::Length` exists, so the type is `Size`. Fork log row 307 is complete. The build (`no-sign-decision-gives-a-conic-a-finite-size`) is next to spec. Its dispatch waits on the user's answer about the Fable outage, because draws are paused (rule 12).
 - 2026-11-24 00:50 — **PR 7553 merged** (`80a3bf53fe`). The harmonic-amplitude row is closed. The reflex-corner bar row, measured at 2.67 s on main against 2.70 s on head, went to the slow set. I merged main into the branch myself, a `nextest.toml` comment conflict where I kept both sides, then merged over queued CI under the low-risk rule. Every red on the prior head was main's. CONIC's dropped-touch row was raised to P1.
+- 2026-11-24 02:40 — **U4a fix pass delivered**, PR 7577, frozen at `59fc7e246`.
+  - MAJOR-A (seam) is fixed by one turn-aware `on_span`. MAJOR-B (apex) is fixed by the line × cone read deciding `Lies` first.
+  - All the minors are taken. 11 of 13 fix-pass mutants red; the 2 survivors are argued equivalent.
+  - The safety fuzzes are back on partial arcs, judged against the arc's truth.
+  - Every remaining red is main's.
+  - **Confirmation:** R2 (Opus) is dispatched now. R1 (Fable) waits on the user's answer about the Fable outage (rule 12).
+  - A main seed was added to SPLICE's ellipse_torus row.
