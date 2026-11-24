@@ -520,7 +520,9 @@ fn a_generator_meets_no_conic_on_the_mirror_nappe() {
     let mirror = rim(1, -ALPHA.cos(), ALPHA.sin(), (0.0, TAU), true);
     let own = cone_rim(2, 2.0, (0.0, TAU), true);
     let region = cone(vec![mirror.clone(), own.clone()], 2.0);
-    let leg = region.ruling(foot(&region, on_cone(0.0, 1.0)), true, true);
+    let leg = region
+        .ruling(foot(&region, on_cone(0.0, 1.0)), true, true)
+        .expect("the leg builds");
     assert!(
         crate::region::landings(&region, &mirror, &leg, b())
             .ok()
@@ -636,7 +638,9 @@ fn a_generator_toward_the_apex_lands_nowhere_at_it() {
     let clear = segment(2, on_cone(2.0, 0.5), on_cone(2.0, 2.0));
     let below = cone_rim(3, 0.5, (0.0, TAU), true);
     let region = cone(vec![through.clone(), clear.clone(), below.clone()], 2.0);
-    let leg = region.ruling(foot(&region, on_cone(0.0, 1.0)), true, false);
+    let leg = region
+        .ruling(foot(&region, on_cone(0.0, 1.0)), true, false)
+        .expect("the leg builds");
     assert!(
         leg.end.is_some_and(|end| end.open),
         "the leg ends at the apex"
@@ -918,3 +922,24 @@ fn cone_edge_queries(us: (f64, f64), offsets: &[f64]) -> Vec<(String, Point3<f64
 
 /// [`a_cones_circle_legs_read_no_chart_frame_at_the_escalation`]'s count.
 const KEPT_CONE: usize = 25;
+
+/// **A parallel from the cone's apex is set aside, not a panic**: the
+/// apex's parallel is a point ([`geom_brep::curve_pair::on_surface::FamilyRefusal::PointCircle`]),
+/// so the path that would run it gives no ray (`Unread`) and the walk
+/// reads another; a parallel off the apex builds. Red against the leg's
+/// curve read as built whatever its family answered (the old
+/// `unreachable!`).
+#[test]
+fn a_parallel_from_the_cones_apex_is_set_aside() {
+    let region = cone(vec![cone_rim(1, 2.0, (0.0, TAU), true)], 2.0);
+    let apex = foot(&region, on_cone(0.0, 0.0));
+    assert!(matches!(
+        region.single(apex, true, true, b()),
+        Err(RayFault::Unread)
+    ));
+    assert!(
+        region
+            .single(foot(&region, on_cone(0.0, 1.0)), true, true, b())
+            .is_ok()
+    );
+}

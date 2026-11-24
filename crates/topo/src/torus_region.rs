@@ -257,18 +257,18 @@ impl<T: Decide> TorusFaceRegion<T> {
     /// increasing) or back: the tube's circle at `p`'s tube angle, on
     /// the tube side `p` lies on
     /// ([`Section::TubeSide`](geom_brep::curve_pair::on_surface::Section::TubeSide)).
-    fn parallel(&self, p: QueryFoot<T>, forward: bool) -> Leg<T> {
+    fn parallel(&self, p: QueryFoot<T>, forward: bool) -> Result<Leg<T>, Fault> {
         let curve =
             SurfaceCurve::parallel(&self.charted, p.uv(), forward).map(|c| c.starting_at(p.at()));
-        Leg::whole(Round::on(region::built(curve)))
+        Ok(Leg::whole(Round::on(region::built(curve)?)))
     }
 
     /// The meridian through `p`, run `forward` (the minor angle
     /// increasing) or back: the tube's circle at `p`'s azimuth.
-    fn meridian(&self, p: QueryFoot<T>, forward: bool) -> Leg<T> {
+    fn meridian(&self, p: QueryFoot<T>, forward: bool) -> Result<Leg<T>, Fault> {
         let curve =
             SurfaceCurve::meridian(&self.charted, p.uv(), forward).map(|c| c.starting_at(p.at()));
-        Leg::whole(Round::on(region::built(curve)))
+        Ok(Leg::whole(Round::on(region::built(curve)?)))
     }
 
     /// The unit chart normal at `y`.
@@ -347,11 +347,11 @@ impl<T: Decide> Paths<T> for TorusFaceRegion<T> {
         forward: bool,
         _: Band,
     ) -> Result<Leg<T>, Fault> {
-        Ok(if parallel {
+        if parallel {
             self.parallel(p, forward)
         } else {
             self.meridian(p, forward)
-        })
+        }
     }
 
     /// A first leg from `p` to the corner at `target`'s major angle
@@ -365,18 +365,18 @@ impl<T: Decide> Paths<T> for TorusFaceRegion<T> {
         first_forward: bool,
         then_forward: bool,
         band: Band,
-    ) -> Result<(Round<T>, End<T>, impl FnOnce() -> Leg<T>), Fault> {
+    ) -> Result<(Round<T>, End<T>, impl FnOnce() -> Result<Leg<T>, Fault>), Fault> {
         let surface = self.charted.surface();
         let target = QueryFoot::read(surface, target, band);
         let ((up, vp), (ut, vt)) = ((p.uv().x, p.uv().y), (target.uv().x, target.uv().y));
         let (first, corner) = if parallel_first {
             (
-                self.parallel(p, first_forward),
+                self.parallel(p, first_forward)?,
                 QueryFoot::of_chart(surface, geom_core::Point2::new(ut, vp)),
             )
         } else {
             (
-                self.meridian(p, first_forward),
+                self.meridian(p, first_forward)?,
                 QueryFoot::of_chart(surface, geom_core::Point2::new(up, vt)),
             )
         };
@@ -826,7 +826,9 @@ mod tests {
         let top = parallel(FRAC_PI_2, true, 1);
         let region = holding(top.clone());
         for u in [0.3, 2.0, 4.4] {
-            let leg = region.meridian(foot(&region, at(u, 2.0)), true);
+            let leg = region
+                .meridian(foot(&region, at(u, 2.0)), true)
+                .expect("the leg builds");
             let got = region::landings(&region, &top, &leg, b).unwrap();
             assert_eq!(got.len(), 1, "u {u}: {got:?}");
             assert!(
@@ -850,7 +852,9 @@ mod tests {
             let edge = parallel(v, true, 1);
             let region = holding(edge.clone());
             for (u, from) in [(0.3, 2.0), (2.0, 0.4), (4.4, -2.5)] {
-                let leg = region.meridian(foot(&region, at(u, from)), true);
+                let leg = region
+                    .meridian(foot(&region, at(u, from)), true)
+                    .expect("the leg builds");
                 let got = region::landings(&region, &edge, &leg, b);
                 let Ok(got) = got else {
                     panic!("v {v}, u {u}: the meridian reads the parallel: {got:?}")
@@ -878,7 +882,9 @@ mod tests {
         let side = meridian_arc(1.0, (-1.2, 1.2));
         let region = holding(side.clone());
         for v in [-0.9, 0.3, 1.0] {
-            let leg = region.parallel(foot(&region, at(0.2, v)), true);
+            let leg = region
+                .parallel(foot(&region, at(0.2, v)), true)
+                .expect("the leg builds");
             let got = region::landings(&region, &side, &leg, b).unwrap();
             assert_eq!(got.len(), 1, "v {v}: {got:?}");
             assert!((got[0].0 - at(1.0, v)).norm() < 1e-12, "v {v}: {got:?}");
@@ -900,7 +906,9 @@ mod tests {
         let region = holding(side.clone());
         for d in [1e-4, 1e-5, 1e-6, 1e-7] {
             let v = core::f64::consts::FRAC_PI_2 - d;
-            let leg = region.parallel(foot(&region, at(0.2, v)), true);
+            let leg = region
+                .parallel(foot(&region, at(0.2, v)), true)
+                .expect("the leg builds");
             let got = region::landings(&region, &side, &leg, b);
             let Ok(got) = got else {
                 panic!("d {d:e}: the parallel reads the meridian: {got:?}")
@@ -922,7 +930,9 @@ mod tests {
         let side = meridian_arc(1.0, (-1.2, 1.2));
         let region = holding(side.clone());
         let v = 0.3;
-        let mut leg = region.parallel(foot(&region, at(0.2, v)), true);
+        let mut leg = region
+            .parallel(foot(&region, at(0.2, v)), true)
+            .expect("the leg builds");
         let rho = R + MINOR * f64::cos(v);
         leg.end = Some(region::End {
             place: rho * 0.8 - 5e-9,
@@ -949,7 +959,9 @@ mod tests {
         let g = 0.5 * (b.zero() + b.escalate());
         let edge = parallel((1.0 - g / MINOR).asin(), true, 9);
         let region = holding(edge.clone());
-        let leg = region.parallel(foot(&region, at(0.3, core::f64::consts::FRAC_PI_2)), true);
+        let leg = region
+            .parallel(foot(&region, at(0.3, core::f64::consts::FRAC_PI_2)), true)
+            .expect("the leg builds");
         let got = region::landings(&region, &edge, &leg, b);
         assert!(
             matches!(
@@ -990,7 +1002,9 @@ mod tests {
         };
         let region = holding(oval.clone());
         for p in [at(0.2, 0.0), at(2.0, 0.4), at(3.5, -0.3)] {
-            let leg = region.parallel(foot(&region, p), true);
+            let leg = region
+                .parallel(foot(&region, p), true)
+                .expect("the leg builds");
             let got = region::landings(&region, &oval, &leg, b).unwrap();
             assert_eq!(got.len(), 1, "{p:?}: {got:?}");
             assert!(
@@ -1015,11 +1029,15 @@ mod tests {
             (0.0, 1.0),
         );
         let region = holding(rim.clone());
-        let leg = region.meridian(foot(&region, at(0.0, 1.4)), false);
+        let leg = region
+            .meridian(foot(&region, at(0.0, 1.4)), false)
+            .expect("the leg builds");
         let got = region::landings(&region, &rim, &leg, b).unwrap();
         assert_eq!(got.len(), 1, "{got:?}");
         assert!(got[0].2, "the arc's end is sideless: {got:?}");
-        let inner = region.meridian(foot(&region, at(0.5, 1.4)), false);
+        let inner = region
+            .meridian(foot(&region, at(0.5, 1.4)), false)
+            .expect("the leg builds");
         let got = region::landings(&region, &rim, &inner, b).unwrap();
         assert!(
             got.len() == 1 && !got[0].2,

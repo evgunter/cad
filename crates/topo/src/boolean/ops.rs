@@ -7285,7 +7285,18 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
             true,
         ) {
             Ok(meridian) => meridian,
-            Err(_) => unreachable!("a sphere has meridians"),
+            // A sphere has meridians; one whose seam the band leaves open
+            // (a radius in band of zero, at the interval scalar) escalates,
+            // and one decided a point refuses, typed.
+            Err(geom_brep::curve_pair::on_surface::FamilyRefusal::Escalated { diag, .. }) => {
+                return Err(esc(diag));
+            }
+            Err(geom_brep::curve_pair::on_surface::FamilyRefusal::PointCircle { .. }) => {
+                return Err(refuse_at(cut.face, "the sphere's meridian is a point"));
+            }
+            Err(geom_brep::curve_pair::on_surface::FamilyRefusal::NoSuchFamily(refused)) => {
+                unreachable!("a sphere has meridians: {refused:?}")
+            }
         };
         // A point of the half-meridian by its coordinates across and
         // along the axis, `r·(cos φ, sin φ)`.

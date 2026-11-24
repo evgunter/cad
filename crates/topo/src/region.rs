@@ -26,7 +26,7 @@
 //! off the surface.
 
 use geom_brep::curve_pair::on_surface::{
-    Charted, MeetRefusal, Met, NoSuchFamily, OnSurface, Read, Shape, SurfaceCurve,
+    Charted, FamilyRefusal, MeetRefusal, Met, OnSurface, Read, Shape, SurfaceCurve,
 };
 use geom_core::{Band, Decide, Indeterminate, Margin, Point2, Point3, Sign, Vec3};
 
@@ -404,11 +404,18 @@ fn on_section(section: Sign) -> Result<bool, Fault> {
 
 /// **A leg's curve on the door's surface**: the arm builds it from the
 /// surface record and a foot's chart coordinates, and a door asks only
-/// for the families its surface has.
-pub(crate) fn built<T: Decide>(curve: Result<SurfaceCurve<T>, NoSuchFamily>) -> SurfaceCurve<T> {
+/// for the families its surface has. A circle family's member through a
+/// point on its own axis (a cone's apex, a sphere's pole) is a point, so
+/// that path gives no ray (`Unread`); one the band leaves open is in band
+/// about this path alone.
+pub(crate) fn built<T: Decide>(
+    curve: Result<SurfaceCurve<T>, FamilyRefusal>,
+) -> Result<SurfaceCurve<T>, Fault> {
     match curve {
-        Ok(curve) => curve,
-        Err(refused) => {
+        Ok(curve) => Ok(curve),
+        Err(FamilyRefusal::PointCircle { .. }) => Err(RayFault::Unread),
+        Err(FamilyRefusal::Escalated { diag, .. }) => Err(in_band(diag)),
+        Err(FamilyRefusal::NoSuchFamily(refused)) => {
             unreachable!("a region door builds only its surface's families: {refused:?}")
         }
     }
@@ -811,7 +818,14 @@ pub(crate) trait Paths<T: Decide>: Legs<T> {
         first_forward: bool,
         then_forward: bool,
         band: Band,
-    ) -> Result<(Self::Course, End<T>, impl FnOnce() -> Leg<T, Self::Course>), Fault>;
+    ) -> Result<
+        (
+            Self::Course,
+            End<T>,
+            impl FnOnce() -> Result<Leg<T, Self::Course>, Fault>,
+        ),
+        Fault,
+    >;
 }
 
 /// **The path walk** ([`ray_walk::walk`]): `p`'s parallel forward and
@@ -878,7 +892,7 @@ pub(crate) fn read_path<T: Decide, D: Paths<T>>(
             // nothing, and its crossings are ordered among themselves by
             // their places along it.
             if !offer(door, &first, &mut crossings, band)? {
-                offer(door, &then(), &mut crossings, band)?;
+                offer(door, &then()?, &mut crossings, band)?;
             }
             side(door, crossings, band)
         }
@@ -1203,12 +1217,15 @@ mod tests {
             ),
             radius: 1.0,
         };
-        Line::on(built(SurfaceCurve::ruling(
-            &Charted::record(Default::default(), &cylinder),
-            Point2::new(0.0, 0.0),
-            true,
-            true,
-        )))
+        Line::on(
+            built(SurfaceCurve::ruling(
+                &Charted::record(Default::default(), &cylinder),
+                Point2::new(0.0, 0.0),
+                true,
+                true,
+            ))
+            .expect("a cylinder's ruling"),
+        )
     }
 
     /// The segment `[x0, x1]` of the `x` axis.
@@ -1228,11 +1245,14 @@ mod tests {
             ),
             radius: 1.0,
         };
-        Round::on(built(SurfaceCurve::parallel(
-            &Charted::record(Default::default(), &cylinder),
-            Point2::new(0.0, 0.0),
-            true,
-        )))
+        Round::on(
+            built(SurfaceCurve::parallel(
+                &Charted::record(Default::default(), &cylinder),
+                Point2::new(0.0, 0.0),
+                true,
+            ))
+            .expect("a cylinder's parallel"),
+        )
     }
 
     /// The arc of [`unit_round`]'s circle over `[t0, t1]`.
