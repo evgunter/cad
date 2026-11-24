@@ -200,6 +200,17 @@ pub(crate) enum Axis {
     V,
 }
 
+/// The chart's own axis ([`geom_brep::ChartAxis`]) as this module's: the
+/// one place the two spellings of "u or v" are mapped.
+impl From<geom_brep::ChartAxis> for Axis {
+    fn from(axis: geom_brep::ChartAxis) -> Self {
+        match axis {
+            geom_brep::ChartAxis::U => Self::U,
+            geom_brep::ChartAxis::V => Self::V,
+        }
+    }
+}
+
 impl Axis {
     /// This axis's range of a rectangle `(u, v)`.
     fn of<R: Copy>(self, (u, v): (R, R)) -> R {

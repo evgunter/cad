@@ -2,13 +2,14 @@
 id: an-iso-line-states-its-ends-twice-as-its-map-and-as-stored-ends
 kind: issue
 title: An IsoLine states where its ends are twice, as its map and as stored ends, kept in step by hand and certified by different checks
-status: review
+status: closed
 opened: 2026-11-14
 priority: P1
 cost: M
 refs: [6959]
 branch: boxfinish/iso-image
 pr: 7393
+closed: 2026-11-24
 ---
 
 
@@ -151,3 +152,27 @@ PR 6982 named to move onto `Lift::joint_point`
 (`chart_region::pcurve_entry`, `spline_trim::image_pieces`,
 `boolean::spline_known`, `replace_face::iso_image_row`), then the arc
 image (`an-iso-arc-rims-end-reads-through-its-map-at-interval`).
+
+## Closed
+
+PR 7393 (2026-11-24). A chart image along a row or column stores the
+line it holds (`ChartLine`, inside `HeldLine` with its rate) and one map
+along it, and no ends: `Pcurve::IsoLine`'s `ends`, `span_ends` and
+`StoredSpan` are gone, and a diagonal is unwritable (a caller states a
+general curve on the carrier's knots; the migration is pinned). A corner
+is the lift's, the meet of two held lines (`Lift::corner`), read by
+`chart_region::pcurve_entry`, `spline_trim::image_pieces`,
+`boolean::spline_known` and `replace_face` (`iso_row_span`). A closed
+chart's period is its domain's two ends (`Period::of_domain`), and
+`Period::moved` re-anchors a value on the other end with no exactness
+read at any scalar. "Exactly a domain's end" has one home,
+`geom_core::period::domain_end`.
+
+What it left, each with its own row: the arc image
+(`an-iso-arc-rims-end-reads-through-its-map-at-interval`, un-parked with
+this); `patch-image-iso-still-carries-a-point-and-a-slope`;
+`spline-trims-chain-spells-one-rows-direction-twice`; on PCERT, a curve
+stated on its edge's span is refused inside its carrier's knot domain,
+and the iso lane's moving-channel decision keeps an axis check's name;
+on DECIDE, `domain_end` reads a value's exactness and is to ask the
+expression (PR 7488's question).

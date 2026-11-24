@@ -12,7 +12,10 @@
 //!   one curve, each on its own wall. The reading admits only a row on a side of each chart
 //!   ([`geom_brep::ssi::PairRow`]).
 //! - **A shared corner** is a vertex of `F` at a corner of its wall's
-//!   rectangle and one of `G` at a corner of its own, their gap not
+//!   rectangle (a joint of its loop's lift whose chart point is exactly
+//!   two domain ends: where a row held at one meets a column held at
+//!   another, [`crate::pcurves::Lift::joint_point`]) and one of `G` at a
+//!   corner of its own, their gap not
 //!   decided past the band (`spline_pair_shared_corner`). The reading of a corner holds whether or not the
 //!   corner is a point of the section, so the pairing only chooses which
 //!   corners are read.
@@ -42,7 +45,7 @@ pub(crate) fn shared<T: Decide + AtRestPolicy>(
     let (Some(na), Some(nb)) = (sf.spline_chart(), sg.spline_chart()) else {
         return known;
     };
-    let (rows_f, rows_g) = (images(a, f, band), images(b, g, band));
+    let rows_f = images(a, f, band);
 
     for (ha, ia) in &rows_f {
         let Ok((carrier, t0, t1)) = crate::pcurves::half_edge_carrier(a, *ha) else {
@@ -59,7 +62,7 @@ pub(crate) fn shared<T: Decide + AtRestPolicy>(
             });
         }
     }
-    let (corners_f, corners_g) = (corners(&rows_f, na, a), corners(&rows_g, nb, b));
+    let (corners_f, corners_g) = (corners(a, f, na), corners(b, g, nb));
     for &(cf, pf) in &corners_f {
         for &(cg, pg) in &corners_g {
             // One point, as two vertices of one body meet (`vertices_meet`,
@@ -105,36 +108,54 @@ fn images<T: Decide + AtRestPolicy>(
         .collect()
 }
 
-/// The corners of `net`'s rectangle an end of one of `rows` stands at
-/// exactly, each with the wall's point there.
+/// The corners of `net`'s rectangle a joint of `face`'s boundary stands
+/// at exactly, each with the wall's point there: each end of each iso
+/// image of each loop, as the loop's lift reads it
+/// ([`crate::pcurves::Lift::joint_point`], [`crate::pcurves::Lift::exit_point`]).
+/// Where a row meets a column that point is the meet of their held
+/// values, so a corner is found wherever both lines are held at domain
+/// ends, however the images' maps read their own ends; an end between
+/// two images on one line is the image's value there, a corner only
+/// where it is one exactly.
+///
+/// **A loop with no lift to read hands in no corner**
+/// ([`crate::pcurves::Lift::read`] refuses: a member stores no image, or
+/// no element on the joint into it). A finished body has none: tier 3
+/// refuses a curved face that stores no rows (`PcurveMintError::Unminted`),
+/// and the boolean takes finished bodies. Such a loop is a face a caller
+/// reads mid-operation or off an unfinished body, and its corners are
+/// left out, not derived: a corner handed in only widens what the pair's
+/// reading may read, so leaving one out can refuse a section through it
+/// (the boundary pass's `ssi_pair_boundary`, as
+/// `sweep`'s `a_sheath_grafted_on_its_blade` shows with every corner left
+/// out) and can accept nothing. The rows above are read from derived
+/// images and do not need the lift.
 fn corners<T: Decide + AtRestPolicy>(
-    rows: &[(HalfEdgeKey, geom_brep::ChartImage<T>)],
-    net: &geom::NurbsSurface<T>,
     body: &Body<T>,
+    face: FaceKey,
+    net: &geom::NurbsSurface<T>,
 ) -> Vec<(geom_brep::ssi::ChartCorner, geom_core::Point3<T>)> {
-    use geom_brep::ssi::{ChartCorner, ChartEnd};
+    use geom_brep::ssi::ChartCorner;
+    use geom_core::period::domain_end as end;
     let (du, dv) = (net.knot_values_u().domain(), net.knot_values_v().domain());
-    let end = |x: T, (lo, hi): (T, T)| {
-        if geom_core::is_exact_zero(x - lo) {
-            Some(ChartEnd::Low)
-        } else if geom_core::is_exact_zero(x - hi) {
-            Some(ChartEnd::High)
-        } else {
-            None
-        }
-    };
     let mut out: Vec<(ChartCorner, geom_core::Point3<T>)> = Vec::new();
-    for (he, image) in rows {
-        let Ok(curve) = crate::pcurves::half_edge_curve(body, *he) else {
+    for (r#loop, _) in body.proven_face(face).cycles() {
+        // No lift to read: no corner from this loop (the doc above).
+        let Ok(lift) = crate::pcurves::Lift::read(body, r#loop) else {
             continue;
         };
-        for p in image.pcurve().span_ends(curve.edge_span()) {
-            let (Some(u), Some(v)) = (end(p.x, du), end(p.y, dv)) else {
+        for (i, row) in lift.rows().iter().enumerate() {
+            if row.held_line().is_none() {
                 continue;
-            };
-            let corner = ChartCorner { u, v };
-            if out.iter().all(|(c, _)| *c != corner) {
-                out.push((corner, net.eval(p.x, p.y)));
+            }
+            for p in [lift.joint_point(i), lift.exit_point(i)] {
+                let (Some(u), Some(v)) = (end(p.x, du), end(p.y, dv)) else {
+                    continue;
+                };
+                let corner = ChartCorner { u, v };
+                if out.iter().all(|(c, _)| *c != corner) {
+                    out.push((corner, net.eval(p.x, p.y)));
+                }
             }
         }
     }
