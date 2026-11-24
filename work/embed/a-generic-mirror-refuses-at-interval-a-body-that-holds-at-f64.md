@@ -132,7 +132,8 @@ On `embed/wave3-land-next` (the landing branch with main `17e78d9c90`),
   turn, enclosed to a rounding past it, is read as meeting its own
   copy; a ring a milliradian short of a turn refusing for a `2e-14`
   enclosure is the defect, and it is `sheets`' to state, not this
-  row's.
+  row's: filed as
+  `work/embed/an-extent-short-of-a-turn-enclosed-a-rounding-past-it-meets-its-own-copy.md`.
 - **Negative beside it**:
   `self_intersection_proves_injectivity::a_flap_through_the_mirrored_rings_wall_never_holds`
   (a triangle through the inner wall and one through the outer, in the
