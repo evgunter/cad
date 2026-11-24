@@ -288,3 +288,59 @@ fn review_r2_f64_verbs_differential() {
         writeln!(f, "{name}\t{short}").unwrap();
     }
 }
+
+/// Claim 6: a table's written radial stretched by a part of ε, at
+/// `Interval` (the exact witness), where the frame mint keeps the bits
+/// unless the bracket stands off rigid, which poisons. Prints what the
+/// extrude does and the stored `u_ref`s. Head only (the table door's
+/// directed arm is this branch's).
+#[test]
+#[ignore = "a reviewer probe: prints what it measured"]
+fn review_r2_a_stretched_table_radial_at_interval() {
+    use geom_core::{Bounds, Interval, Real, Vec2};
+    let l = <Interval as Real>::from_f64;
+    for part in [0.1, 0.4, 1e-6] {
+        let stretch = part * Tol::witness().eps();
+        let half = Arc2 {
+            centre: Point2::new(l(0.0), l(0.0)),
+            radius: l(1.0),
+            sweep: l(core::f64::consts::PI),
+        };
+        let lp: ProfileLoop<Interval> = RawLoop::new_directed([
+            (
+                Point2::new(l(1.0), l(0.0)),
+                Segment::Arc(half),
+                Some(profile::SegmentDirections::Arc {
+                    start: Vec2::new(l(1.0 + stretch), l(0.0)),
+                    end: Vec2::new(l(-1.0), l(0.0)),
+                }),
+            ),
+            (Point2::new(l(-1.0), l(0.0)), Segment::Arc(half), None),
+        ]);
+        let v = Profile::new(SketchPlane::xy(), vec![lp]).validate(tol());
+        let Ok(v) = v else {
+            println!("stretch {stretch:e}: validate {:?}", v.err());
+            continue;
+        };
+        match extrude(
+            &v,
+            Extrusion::Distance {
+                depth: l(1.0),
+                side: ExtrudeSide::Along,
+            },
+            tol(),
+        ) {
+            Err(e) => println!("stretch {stretch:e}: extrude refuses {e:?}"),
+            Ok(x) => {
+                let mut refs = Vec::new();
+                for (face, _) in x.body.faces() {
+                    if let Some(geom::Surface::Cylinder { frame, .. }) = x.body.face_surface(face) {
+                        let u = frame.u_ref();
+                        refs.push(format!("[{:e},{:e}]", u.x.lo(), u.x.hi()));
+                    }
+                }
+                println!("stretch {stretch:e}: builds; wall u_ref.x {refs:?}");
+            }
+        }
+    }
+}
