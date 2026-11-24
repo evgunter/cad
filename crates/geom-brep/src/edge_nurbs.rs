@@ -1296,6 +1296,10 @@ pub fn arc_rim_candidates<T: SpanLocate>(
 /// and decides that the edge's span lies in the arc. Empty for a carrier
 /// that is not a circle.
 #[must_use]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub fn arc_rim_measured<T: Decide>(
     carrier: &Curve3<T>,
     chart: &NurbsSurface<T>,

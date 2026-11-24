@@ -657,6 +657,10 @@ impl<T: Decide> Curve3<T> {
     /// nowhere here: at rest `topo`'s tier-3 check 1 refuses a zero
     /// direction, and a section's line is minted along a stored axis or a
     /// cone's ruling, neither of them zero.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     pub fn clearance(&self, q: Point3<T>) -> Option<T> {
         Some(match *self {
             Self::Line(line) => line.distance(q),
@@ -718,12 +722,16 @@ impl<T: Decide> Curve3<T> {
     /// of every point of a box, and no comparison is taken.
     ///
     /// [`select_le_zero`]: geom_core::Real::select_le_zero
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     pub fn distance_within(&self, q: Point3<T>, (t0, t1): (T, T)) -> Option<T> {
         let (lo, hi) = (t0.min(t1), t0.max(t1));
         Some(match self.closed_form()? {
             ClosedForm::Line(line) => line.distance_within(q, (lo, hi)),
             ClosedForm::Circle(c) => {
-                let (o, axis) = (c.frame().origin(), c.frame().axis());
+                let (o, axis) = (c.frame().origin(), c.axis());
                 let w = q - o;
                 let v = w - axis * w.dot(axis);
                 let m = self.eval(crate::mid_param(lo, hi)) - o;

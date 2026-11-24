@@ -78,6 +78,7 @@
 //! prose calls it the profile vocabulary. This crate has no type of
 //! that name, so a bare `Verb` anywhere is the sketch program's.
 
+#![cfg_attr(not(test), deny(clippy::disallowed_methods))]
 pub mod flow;
 mod run;
 mod verb;

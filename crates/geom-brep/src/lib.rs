@@ -54,6 +54,7 @@
 //! deterministic by fixed schedule (D9). Instantiates at `f64`,
 //! `Dual<f64>`, `Interval`, and `Dual<Interval>`.
 
+#![cfg_attr(not(test), deny(clippy::disallowed_methods))]
 pub mod carrier_eq;
 mod carrier_net;
 pub mod carrier_pose;
