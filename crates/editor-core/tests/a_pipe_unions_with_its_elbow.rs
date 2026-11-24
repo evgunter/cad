@@ -644,7 +644,8 @@ fn a_long_pipe_whose_ruling_meets_the_bends_carrier_again_passes_the_crossing_la
 /// not an undecided seam**: the wedge is a decided π at every station,
 /// and only the bend's sagitta lands in the band at one, so the rim
 /// routes a seam, glues a junction, and the seam is described where it
-/// rests. Off the seam ruling by `δ` (`neutral_off_the_seam`), the
+/// rests. Off the seam ruling by `δ` = 10ε, 30ε and 100ε
+/// (`neutral_off_the_seam`), the
 /// neutral point sits at a rim vertex the routing reads: the junction
 /// glues, and the union reaches the crossing layer, where the edge ending
 /// there stops on its end's order or window
@@ -654,7 +655,10 @@ fn a_long_pipe_whose_ruling_meets_the_bends_carrier_again_passes_the_crossing_la
 /// bend decides, refuses typed on the bend.
 #[test]
 fn an_elbow_whose_neutral_point_sits_in_band_of_a_station_glues_a_junction() {
-    for delta in [1e-8, 3e-8, 1e-7] {
+    // 1e-8, 3e-8 and 1e-7 at ε = 1e-9, where the station's margin `≈ δ/6`
+    // lands in band for the first two; the same multiples of ε at every ε.
+    let eps = Tol::witness().eps();
+    for delta in [10.0 * eps, 30.0 * eps, 100.0 * eps] {
         let off = neutral_off_the_seam(delta);
         let what = format!("δ {delta:e} off the seam");
         let j = join(true, CapEnd::End, off);
