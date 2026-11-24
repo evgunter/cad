@@ -227,8 +227,8 @@ gates! {
     RayAdvance => "ray_advance", Sized(COINCIDENCE_RECOURSE), "whether a crossing lies ahead on a containment ray";
     /// Which side of a containment ray a point falls on.
     RaySide => "ray_side", Sized(COINCIDENCE_RECOURSE), "which side of a containment ray a point lies on";
-    /// The sign of one component of a chord or rim a direction is minted from, read exactly and outside the log (audit row F43): a PROVEN zero, with the other definite, mints the axis; every other answer is dropped and the quotient minted.
-    SegmentDirectionAxis => "segment_direction_axis", Lever(COINCIDENCE_RECOURSE), "whether a direction minted from two points lies along an axis";
+    /// The sign of the component a minted direction's axis points along, read at the least band and outside the log (audit row F43) where the other component's expression is proved zero: a sign signs the axis, Zero leaves the quotient, and an escalation is the refusal of the verb or validation that minted it.
+    SegmentDirectionAxis => "segment_direction_axis", Lever(COINCIDENCE_RECOURSE), "which way a direction along an axis points";
     /// The sign of a bulge, which signs its lowering's radials, read exactly and outside the log (audit row F43).
     SegmentDirectionSign => "segment_direction_sign", Lever(COINCIDENCE_RECOURSE), "whether the quantity that signs a direction is positive or negative";
     /// How far a table segment's recorded direction, walked its own length from the segment's start (a line) or its centre (an arc's radial), lands from the vertex it points at. The one reading of a table's direction, and what "unit" means: the miss bounds (|d| − 1)·ℓ by the triangle inequality, so the direction is a unit to within ε at arm ℓ; no at-rest check reads a stored direction's length, so a director stored as a plane's normal is a unit only at its chord's lever.
