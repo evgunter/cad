@@ -1115,7 +1115,7 @@ fn a_float_the_old_multiply_made_is_spelled_exactly() {
 
 /// The text door and the float door read a decimal of sixteen figures
 /// apart: the float the literal already is has lost what the text kept
-/// (`work/scalar/a-float-door-loses-what-the-text-door-keeps.md`).
+/// (`work/told/a-float-door-loses-what-the-text-door-keeps.md`).
 #[test]
 fn a_sixteen_figure_decimal_reads_apart_at_the_two_doors() {
     let text = IN.def().canonical(&decimal("9683.884588090202"));

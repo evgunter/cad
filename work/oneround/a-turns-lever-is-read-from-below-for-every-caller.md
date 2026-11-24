@@ -1,11 +1,13 @@
 ---
 id: a-turns-lever-is-read-from-below-for-every-caller
-kind: issue
+kind: unit
 title: A turn's lever (pcurves::decision::edge_reach, wedge_reach) is read from below for every caller, whatever the caller acts on
-status: open
+status: dispatched
 opened: 2026-11-21
 priority: P1
 cost: H
+pr: 7262
+branch: oneround/turn-lever
 ---
 
 `crates/topo/src/pcurves/decision.rs`'s `edge_reach` (and `stored_reach` over it) and `crates/topo/src/wedge_reach.rs`'s `wedge_reach`, `edge_wedge_reach`, `WedgeReach::{reach, edge}` read a turn's lever as the farthest of the carrier's two ends and the two faces' boundary VERTICES from the span's middle (`geom_brep::points_lever_from`). Every point is on the faces, so this is a bound from below on the faces' extent, and every caller takes it.
@@ -70,3 +72,9 @@ The shape these doors need exists once already: `offset_axial::ScopeRegion`, pri
 
 The classification was made by a reading pass, spot-checked at `stands_on` and `split_edge_onto`. Check each against the code when converting it.
 
+
+## Ev's answer (2026-11-24, PR 7619)
+
+"nice, this sounds like a real improvement!" (a comment by `evgunter` on the PR, 00:09Z). Approved as proposed: (A) a lever read off a consumed extent is known from both sides, a definite sign served at the bound from below and a Zero at the bound from above, a disagreement refused in band; (B) a definite sign of a datum that turns about a known line is levered from that line, a dihedral along a line edge from the edge's line; (C) curved edges and the joint turn are named as open. The text is on `oneround/ev-lever-two-sided` and merges with the code that makes it true; the fork is row 307 of `docs/DESIGN-FORK-LOG.md`.
+
+**The build, in order.** Step 1 is this row's unit, `oneround/turn-lever` (PR 7262), re-scoped: every levered reading the turn-lever doors feed is decided against both bounds through one door, with a typed missing bound from above entered from what each of four mid-construction doors knows, covers read lazily, and no README change; no verdict moves at finite bounds at today's site. Step 2, on the `[ev]` PR's branch: the line site with the curve read (they land together), and the text. Step 3: curved edges and the joint turn, once their exact levers exist.
