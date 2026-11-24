@@ -25,7 +25,7 @@ use geom::Curve3;
 use geom::{NurbsCurve3, NurbsSurface, Surface};
 use geom_brep::{EnvelopeStatement, Pcurve, PcurveCache, PcurveCertifyError};
 use geom_core::spline::KnotVector;
-use geom_core::{Bounds, Decide, Point2, Point3, Real, Vec2};
+use geom_core::{Bounds, Decide, Point3, Real};
 use std::sync::Arc;
 
 /// A degree-2 × degree-1 polynomial chart, `u` knots at thirds, bowed
@@ -110,9 +110,9 @@ fn certify_column<T: Decide>(
     let f = T::from_f64;
     PcurveCache::certify(
         Pcurve::IsoLine {
-            p0: Point2::new(f(u_star), f(v0)),
-            pl: Vec2::new(T::zero(), f(v1 - v0)),
-            ends: None,
+            line: geom_brep::ChartLine::column(f(u_star)),
+            at0: f(v0),
+            rate: f(v1 - v0),
         },
         T::zero(),
         T::one(),
