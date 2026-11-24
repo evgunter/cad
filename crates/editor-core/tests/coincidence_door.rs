@@ -3332,8 +3332,8 @@ fn the_balls_interval_union_encloses_its_closed_form_under_a_bounded_pad() {
 /// pair's residual and the last flush pair's pass the term budget, and
 /// the door names the budget. With the union's members named in the
 /// other order the same rows are proven, and the abutting pair's
-/// residual fits the budget: the plane offset holds its second
-/// operand's normal twice in one product
+/// residual, the margin the union recorded in that order, fits the
+/// budget
 /// (`work/boxfinish/an-unproven-plane-pairs-recourse-follows-operand-order-under-the-term-budget.md`).
 /// The world's `⊔`
 /// records the union's base, which the union mints from the two, on the
