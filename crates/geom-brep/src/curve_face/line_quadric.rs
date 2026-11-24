@@ -499,6 +499,14 @@ impl<T: Decide> Centred<T> {
         let [a, b, c] = self.coeffs;
         let roots = quadratic_roots(a, b, c, disc);
         let slack = self.slack_at(roots[0].abs().max(roots[1].abs()), disc);
+        // PROBE (M12): a root or its slack that is unbounded.
+        if geom_core::k_stats::probe_tally::m11() {
+            let w = |x: &dyn core::fmt::Debug| geom_core::k_stats::probe_tally::strip_nodes(&format!("{x:?}"));
+            let text = format!("roots=[{}, {}] slack={}", w(&roots[0]), w(&roots[1]), w(&slack));
+            if text.contains("inf") {
+                eprintln!("[m12-roots] {text} a={} b={} c={} disc={} sqrt_disc={} shift={}", w(&a), w(&b), w(&c), w(&disc), w(&disc.sqrt()), w(&self.shift));
+            }
+        }
         (roots.map(|r| r + self.shift), slack)
     }
 

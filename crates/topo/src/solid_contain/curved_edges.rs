@@ -225,6 +225,22 @@ pub(super) fn read<T: Decide>(
             }
             let mut found: Vec<(T, Result<Gap, Indeterminate>)> = Vec::new();
             let (mut decided, mut clear) = (true, true);
+            // PROBE (M12): a crossing parameter that is unbounded.
+            if geom_core::k_stats::probe_tally::m11() {
+                let w = |x: &dyn core::fmt::Debug| geom_core::k_stats::probe_tally::strip_nodes(&format!("{x:?}"));
+                for (which, list) in [(face, &ca), (other, &cb)] {
+                    for &(_, t) in list.iter() {
+                        let text = w(&t);
+                        if text.contains("inf") {
+                            eprintln!(
+                                "[m12-t] edge {e:?} crossing of face {which:?} kind={} t={text} n_crossings={}",
+                                body.face_surface(which).map_or("?".to_owned(), |s| format!("{s:?}").chars().take(12).collect()),
+                                list.len(),
+                            );
+                        }
+                    }
+                }
+            }
             for &(_, t) in ca.iter().chain(&cb) {
                 match passes(&span, ray, q + d.get() * t, band) {
                     Passes::Inside(s, gap) => found.push((s, gap)),
