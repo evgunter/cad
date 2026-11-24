@@ -788,3 +788,79 @@ fn p4b_a_tied_bulge_with_no_junction_ahead_of_it() {
         dump(&format!("TIE-FIXTURE Interval [{lo:e}, {hi:e}]: {fixture}"));
     }
 }
+
+/// Claim 15, the detail: the f64 documents whose stage moved between
+/// the merge base and the head, with each stage's refusal in full.
+#[test]
+fn p15b_the_f64_documents_that_moved_in_full() {
+    let pose = |k: usize| match k {
+        0 => HOME,
+        1 => Pose {
+            s: 1.0,
+            ox: 1.0e3,
+            oy: -7.0e2,
+        },
+        2 => Pose {
+            s: 1.0,
+            ox: 1.0e6,
+            oy: 3.0e5,
+        },
+        5 => Pose {
+            s: 1.0e3,
+            ox: 0.0,
+            oy: 0.0,
+        },
+        6 => Pose {
+            s: 1.0e6,
+            ox: 5.0e6,
+            oy: 5.0e6,
+        },
+        _ => panic!("no such pose"),
+    };
+    for (verb, k, q) in [
+        ("bulge", 0, -1.306_923_626_133_198e-8),
+        ("bulge cw", 0, -1.363_230_105_576_11e-8),
+        ("via", 0, 3.999_999_896_912_03e0),
+        ("via cw", 0, 3.999_999_987_985_185_5e0),
+        ("bulge cw", 6, -1.233_330_482_735_325_2e-3),
+        ("bulge", 5, -3.706_648_103_120_864_3e-6),
+        ("via", 5, 4.000_000_069_730_961_5e3),
+        ("split circle", 6, 1.708_677_920_526_177_4e1),
+        ("split circle", 6, 8.565_958_696_678_71e7),
+        ("bulge", 1, -1.065_754_758_032_666e-7),
+        ("bulge cw", 1, 9.190_941_974_346_471e-8),
+        ("tangent", 6, 5.031_441_873_472_028e6),
+        ("tangent cw", 2, 3.000_000_000_000_569e5),
+        ("tangent cw", 5, 2.627_944_907_625_093_6e-2),
+        ("via cw", 6, 1.631_507_862_826_352_4e7),
+    ] {
+        let p = pose(k);
+        let got = match verb_loop::<f64>(verb, q, p, tol()) {
+            Err(e) => format!("path: {}", e.chars().take(700).collect::<String>()),
+            Ok(lp) => {
+                let arcs: Vec<String> = lp
+                    .segments()
+                    .iter()
+                    .filter_map(|s| match s {
+                        Segment::Arc(a) => Some(format!("r={:e} sweep={:e}", a.radius, a.sweep)),
+                        Segment::Line => None,
+                    })
+                    .collect();
+                match Profile::new(SketchPlane::xy(), vec![lp]).validate(tol()) {
+                    Err(e) => format!("{arcs:?}; validation: {}", short(&e)),
+                    Ok(profile) => {
+                        let side = ExtrudeSide::Along;
+                        match catch_unwind(AssertUnwindSafe(|| {
+                            extrude(&profile, Extrusion::Distance { depth: p.s, side }, tol())
+                        })) {
+                            Err(_) => format!("{arcs:?}; door: PANIC"),
+                            Ok(Err(e)) => format!("{arcs:?}; door: {}", short(&e)),
+                            Ok(Ok(_)) => format!("{arcs:?}; built"),
+                        }
+                    }
+                }
+            }
+        };
+        dump(&format!("MOVED {verb} pose{k} q={q:e}: {got}"));
+    }
+}
