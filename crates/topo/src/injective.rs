@@ -12301,8 +12301,7 @@ mod presentation_rows {
                 plus,
                 image: None,
                 iso: None,
-                wall: None,
-                harmonic: None,
+                curve: None,
             }],
         }
     }
@@ -12399,8 +12398,7 @@ mod presentation_rows {
                     at: iv0(held.of(a)),
                     full: false,
                 }),
-                wall: None,
-                harmonic: None,
+                curve: None,
             }],
         }
     }
@@ -12711,8 +12709,7 @@ mod presentation_rows {
                     at: iv0(1.0),
                     full: false,
                 }),
-                wall: None,
-                harmonic: None,
+                curve: None,
             }],
         };
         Boundary {
