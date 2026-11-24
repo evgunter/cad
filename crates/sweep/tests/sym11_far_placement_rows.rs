@@ -16,8 +16,10 @@
 //! not, which no cell of the original table showed.
 //!
 //! Driven at `Sym<f64>`, `Sym<Probe>` and `Sym<Interval>` inside a
-//! session so the receipt counts what the lane did, and at bare `f64`
-//! so the same doors are exercised where a shipped run exercises them.
+//! session, with the contradiction instrument (`geom_core::sym::contradiction`)
+//! reading the session's definite decisions after the build, and at bare
+//! `f64` so the same doors are exercised where a shipped run exercises
+//! them.
 //!
 //! **The table is [`TABLE`] and lives there once.** Every claim this
 //! file makes about which (ε, `d`) point refuses what is read out of
@@ -31,10 +33,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::linalg::RigidMotion;
+use geom_core::sym::contradiction::{self, Report};
+use geom_core::sym::revalue::record;
 use geom_core::sym::with_session_rules;
-use geom_core::{
-    Decide, ParamSymbol, Point2, Point3, Real, Sym, SymBudget, SymCounts, SymRules, Tol, Vec2,
-};
+use geom_core::{Decide, ParamSymbol, Point2, Point3, Real, Sym, SymBudget, SymRules, Tol, Vec2};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::{Extrusion, Revolution, RevolveAxis};
@@ -137,8 +139,10 @@ const BODIES: [&str; 3] = ["stadium", "washer", "triangle"];
 /// [`outcome`] names it.
 struct Lane {
     bodies: [&'static str; 3],
-    /// `SymCounts::theorems_disputed` for the session that built all
-    /// three. Not read for the bare lift, which has no session.
+    /// The contradictions the instrument reports over the session that
+    /// built all three, every event counted (`Rounded` at the point
+    /// lanes, `Enclosure` or `Registration` at either). Not read for
+    /// the bare lift, which has no session.
     disputes: u64,
 }
 
@@ -178,8 +182,9 @@ const PLACEMENTS: [f64; 4] = [0.0, 1.0e6, 3.7e7, 1.0e9];
 ///
 /// - **The dispute set is exactly four cells** — `(1e-9, 1e9)` and all
 ///   three non-origin placements at `1e-12` — and in every one of them
-///   the count is `3`. It is the session's count of disputed theorems,
-///   not a tally by body: each body driven alone disputes one there.
+///   the count is `3`. It is the instrument's count over the session of
+///   theorems a rounded sign contradicts, not a tally by body: each body
+///   driven alone contradicts one there.
 /// - **At `(1e-9, 3.7e7)` the symbolic lanes BEAT the bare lift**: the
 ///   bare `f64` run refuses all three bodies, and `Sym<f64>` builds the
 ///   stadium and the washer with zero disputes. The tier discharged
@@ -306,7 +311,21 @@ where
 
 struct Built {
     outcomes: [Result<usize, String>; 3],
-    counts: SymCounts,
+    report: Report,
+}
+
+impl Built {
+    /// Every contradiction the instrument reports over the session, after
+    /// asserting that it asked: definite decisions it could read, none on
+    /// a node the session does not hold.
+    fn disputes(&self, name: &str, d: f64) -> u64 {
+        assert!(
+            self.report.checked > 0 && self.report.absent == 0,
+            "[{name}] d={d:e}: the instrument must have asked something it could read: {:?}",
+            self.report
+        );
+        self.report.contradictions.len() as u64
+    }
 }
 
 /// One placement's three bodies at one `Sym` lane, ON ITS OWN THREAD.
@@ -321,11 +340,17 @@ where
     Sym<T>: topo::AtRestPolicy,
 {
     test_utils::own_thread::caught(move || {
-        let (outcomes, counts) = with_session_rules(budget(), SymRules::shipped(), || {
-            let (dd, rr) = lift(d);
-            build_all(dd, rr)
-        });
-        Built { outcomes, counts }
+        let ((outcomes, report), counts) =
+            with_session_rules(budget(), SymRules::shipped(), || {
+                let (outcomes, decisions) = record(|| {
+                    let (dd, rr) = lift(d);
+                    build_all(dd, rr)
+                });
+                let report = contradiction::check(&decisions).expect("inside the session");
+                (outcomes, report)
+            });
+        println!("   d={d:e}: {counts:?} | {report:?}");
+        Built { outcomes, report }
     })
 }
 
@@ -361,8 +386,8 @@ fn assert_lane(name: &str, d: f64, want: &Lane, got: &[Result<usize, String>; 3]
     assert_eq!(
         disputes, want.disputes,
         "[{name}] eps={eps:e} d={d:e}: {disputes} theorem(s) disputed where TABLE says {}. \
-         The dispute count is the point channel's rounding exceeding the band on a form the \
-         tier proved zero, so a count that moved means the rounding, the band or the fold \
+         The count is the point channel's rounding exceeding the band on a form the \
+         tier proves zero, so a count that moved means the rounding, the band or the fold \
          did",
         want.disputes
     );
@@ -387,10 +412,10 @@ fn sym11_the_bare_lifts_answer_typed_at_every_placement() {
 /// `Sym<f64>` — the inexact witness in a session. Where [`TABLE`]
 /// expects no dispute the documents BUILD (or refuse for a reason of
 /// their own), and where it expects one the numeric answer is what
-/// comes back: before SYM-11 the four disputing cells aborted here and
-/// this row had to be `#[ignore]`d.
+/// comes back and the instrument reports the theorem the rounded sign
+/// contradicts.
 #[test]
-fn sym11_the_far_placement_is_a_counted_dispute_at_sym_f64() {
+fn sym11_the_far_placement_is_a_rounded_contradiction_at_sym_f64() {
     for d in PLACEMENTS {
         let built = drive_on_a_thread::<f64>(d, |d| {
             (
@@ -398,19 +423,13 @@ fn sym11_the_far_placement_is_a_counted_dispute_at_sym_f64() {
                 Sym::param(ParamSymbol::new(test_utils::symbol_id("r")), 1.0),
             )
         })
-        .unwrap_or_else(|m| {
-            panic!(
-                "[Sym<f64>] d={d:e}: an INEXACT witness panicked on a theorem-vs-numeric \
-                 contradiction — the point channel is not a proof and the charge at this \
-                 scalar is a count, not an assertion: {m}"
-            )
-        });
+        .unwrap_or_else(|m| panic!("[Sym<f64>] d={d:e}: the build panicked: {m}"));
         assert_lane(
             "Sym<f64>",
             d,
             &cell(d).inexact,
             &built.outcomes,
-            built.counts.theorems_disputed,
+            built.disputes("Sym<f64>", d),
         );
     }
 }
@@ -420,7 +439,7 @@ fn sym11_the_far_placement_is_a_counted_dispute_at_sym_f64() {
 /// inexact column is its column too.
 #[cfg(feature = "probe")]
 #[test]
-fn sym11_the_far_placement_is_a_counted_dispute_at_sym_probe() {
+fn sym11_the_far_placement_is_a_rounded_contradiction_at_sym_probe() {
     use geom_core::Probe;
     for d in PLACEMENTS {
         let built = drive_on_a_thread::<Probe>(d, |d| {
@@ -435,29 +454,21 @@ fn sym11_the_far_placement_is_a_counted_dispute_at_sym_probe() {
                 ),
             )
         })
-        .unwrap_or_else(|m| {
-            panic!(
-                "[Sym<Probe>] d={d:e}: an INEXACT witness panicked on a theorem-vs-numeric \
-                 contradiction: {m}"
-            )
-        });
+        .unwrap_or_else(|m| panic!("[Sym<Probe>] d={d:e}: the build panicked: {m}"));
         assert_lane(
             "Sym<Probe>",
             d,
             &cell(d).inexact,
             &built.outcomes,
-            built.counts.theorems_disputed,
+            built.disputes("Sym<Probe>", d),
         );
     }
 }
 
 /// `Sym<Interval>` — the EXACT witness, and the lane the driver
-/// replays in: a definite non-zero sign here is a certified proof, so
-/// the contradiction is a soundness question and the assertion is
-/// right. What this row PINS is the charge's arm at this scalar — the
-/// count is zero in every cell because `Interval::WITNESS` is `Exact`,
-/// which routes a contradiction to the `debug_assert!` and never to
-/// the column, so a count here is that const having moved.
+/// replays in: a definite non-zero sign here is a certified proof, so a
+/// theorem it contradicts is a soundness defect in one of the two
+/// channels, and the instrument finds none in any cell.
 #[test]
 fn sym11_the_far_placement_never_contradicts_at_sym_interval() {
     use geom_core::Interval;
@@ -477,10 +488,8 @@ fn sym11_the_far_placement_never_contradicts_at_sym_interval() {
         })
         .unwrap_or_else(|m| {
             panic!(
-                "d={d:e}: the EXACT witness contradicted its own form — a certified bracket \
-                 that excludes zero and a form that is the zero polynomial cannot both be \
-                 right, so one of the two channels does not contain its real. That is a \
-                 soundness defect in a channel and a DIFFERENT unit: {m}"
+                "d={d:e}: the build panicked at the EXACT witness — a symbolic zero whose \
+                 certified enclosure excludes 0 is a soundness defect in a channel: {m}"
             )
         });
         assert_lane(
@@ -488,7 +497,7 @@ fn sym11_the_far_placement_never_contradicts_at_sym_interval() {
             d,
             &cell(d).exact,
             &built.outcomes,
-            built.counts.theorems_disputed,
+            built.disputes("Sym<Interval>", d),
         );
     }
 }

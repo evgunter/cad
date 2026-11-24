@@ -324,9 +324,10 @@ pub use editor_core::DocParamField;
 // `CarriedChain`, `CarriedLevel` and `CarriedIn` ride with it: they are
 // `NodeErrorKind::carried_chain`'s answer, the one reading of which
 // refusal a failure carries and which document its node is in.
-// `Mispaired` rides with `Evaluation` by the same rule: it is
-// `Evaluation::prior_refused`'s payload, so a consumer cannot read why
-// a memo was refused without naming it. The name is not the memo's —
+// `PriorRefusal` and `Mispaired` ride with `Evaluation` by the same
+// rule: the first is `Evaluation::prior_refused`'s payload and the
+// second its `Document` arm's, so a consumer cannot read why a memo
+// was refused without naming them. `Mispaired` is not the memo's name —
 // it is the one payload every pairing door carries (DI3; which doors
 // those are is `editor-core`'s `ASSEMBLY.md` A2a), which is why it is
 // spelled for the QUESTION rather than for any one door.
@@ -350,7 +351,8 @@ pub use editor_core::{
     BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, ComputingTwist,
     DEFAULT_MEMBER_BUDGET, DirectionRefusal, EvalCounters, EvalOptions, EvalOutcome, Evaluation,
     Framed, Held, Mispaired, NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult,
-    NodeStanding, NodeValue, PoseValue, SplitSide, Stop, Stopped, ValuePayload, evaluate,
+    NodeStanding, NodeValue, PoseValue, PriorRefusal, SplitSide, Stop, Stopped, ValuePayload,
+    evaluate,
 };
 // A dual evaluates bound to its build of record (DUAL-DESIGN DL3):
 // `evaluate_recorded` takes the base-scalar evaluation and refuses every
