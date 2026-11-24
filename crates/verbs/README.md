@@ -80,7 +80,8 @@ layer whose types it serves (`topo/src/query.rs`):
   `edge_carrier_matches`, `face_surface_matches`, `edge_adjacent_matches`
   and the kind reads under them. They read a carrier's enum TAG, go
   through no funnel and carry no margin, and answer an honest NO on a
-  missing carrier or a dangling key. The kinds they read, `CurveKind`
+  null carrier or a stale key (a torn link of a resolved record
+  panics, D2 row 4). The kinds they read, `CurveKind`
   and `SurfaceKind`, are the workspace's one fieldless mirror of
   `Curve3` and of `Surface`, defined in `geom` beside the enum each
   mirrors (`Curve3::kind`, `Surface::kind`). This seat owns the

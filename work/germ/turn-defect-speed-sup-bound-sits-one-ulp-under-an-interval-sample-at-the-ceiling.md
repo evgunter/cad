@@ -2,9 +2,10 @@
 id: turn-defect-speed-sup-bound-sits-one-ulp-under-an-interval-sample-at-the-ceiling
 kind: issue
 title: turn_defect_speed_hi's sup bound sits below an Interval sample of the speed at the ceiling, by 1 ulp at 1e-6 and about 11 ulps at 1e-12: an enclosure that does not enclose, found by r2_turn_probes' varying-seed fuzz
-status: open
+status: closed
+closed: 2026-11-23
 opened: 2026-10-29
-priority: P2
+priority: P1
 cost: M
 ---
 
@@ -53,7 +54,9 @@ with the same command.
 
 Moved from TINT to GERMCERT. The defect is in the bound,
 `geom::carrier_speed::turn_defect_speed_hi`
-(`crates/geom/src/carrier_speed.rs`), not in the test. The second seed's
+(`crates/geom/src/carrier_speed.rs`), not in the test. *[Refuted,
+2026-11-23: the bound was sound and the test's comparison was the
+defect; see `## Fixed`.]* The second seed's
 11-ulp miss rules out a test-side slack as the fix, and no program
 claims the file; GERMCERT's charter (certificate margins read at their
 whole width) is the nearest. Banded P2, as interval and error
@@ -103,3 +106,42 @@ gap 1.33e-3). The excess is about 7 ulps. This reproduces on
 `origin/main` `818092d44a`
 (`CAD_TOLERANCE_EPS=1e-6 cargo nextest run -p geom -E 'test(/turn_defect_speeds_bound_the_speed_on_the_true_defect/)'`),
 so the PR did not cause it.
+
+- 2026-11-23 (GERM orchestrator) — another seed: `CAD_FUZZ_SEED=0x33ed5f8575435ac4` reds `r2_turn_probes::turn_defect_speeds_bound_the_speed_on_the_true_defect_at_f64_and_interval` on PR 7553's gate (run 45271446252): sup 137.656887657693 (f64 and Interval) is under the sample 137.65688765769306, at 40/64. Since this varying-seed row reds other PRs, it is priced as a gate hazard.
+
+## Fixed
+
+The bound was sound; the sample's far end was the one past the speed.
+At 60 digits (`mpmath`) on each case's stored data (`x = TAU − gap`
+rounded as the row forms it, the true defect `x − 2π`, the true speed
+at the failing sample `t0 + (i/64)·(x − 2π)`), every sup sits 0.03 to
+8.1 ulps above the true speed **at that sample**, and the inf 4.6 ulps
+below it, while the `speed_enclosure` sample's far end reaches 7.4 to
+12.3 ulps past it. Over the **continuous** defect, 7 of the 8 pinned
+sups equal the true sup exactly, and the inf the true inf: the defect
+holds the point where the speed meets the semi-axis the bound reads
+(the eighth, `0x60f5`, stops short of it). Neither bound nor sample
+fails to enclose: the row compared the bound against the sample's far
+end, which is the formula's rounding, and a bound that reads a
+semi-axis exactly cannot clear that.
+
+`|C′|² = a²·sin²t + b²·cos²t` weighs `a²` and `b²` by weights that sum
+to one, so the speed lies between the semi-axes at every `t`, and
+`speed_enclosure` is now held to them (the intersection of two
+enclosures, no slack); `review_turn_follow_ups_probes` reads the same
+helper. `turn_defect_speed_hi` and `turn_defect_speed_lo` are
+unchanged.
+
+Nine cases are pinned in
+`r2_turn_probes::turn_defect_speeds_bound_the_speed_where_it_meets_a_semi_axis`,
+each commented with its seed. The row records data for six of them
+(`0xcc21`, `0x8519`, `0x6aef`, `0x4c4e` in part, `0x60f5`, `0x4d07`);
+`0x19ee` is a seed only here, and `0x33ed` came from PR 7553's gate.
+The `0x4c4e` and `0x19ee` cases, and a second `0x8519` case, are those
+seeds' draws on main `e3fdefa369`. All nine are red with the enclosure
+unheld.
+
+**NOTE.** The varying-seed fuzz alone passes under a ceiling clamp moved
+1 or 16 ε under the semi-axis and a floor clamp moved 16 ε over it
+(review of PR 7646): the clamp's edge is guarded by the pinned row, not
+by the fuzz.

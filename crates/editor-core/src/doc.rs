@@ -5,6 +5,7 @@
 //! latency data). All mutation goes through the pure
 //! [`crate::edit::apply`]; undo/redo is keeping prior values.
 
+use crate::sentence;
 use std::collections::{BTreeMap, BTreeSet};
 
 use geom_core::predicate::Decide;
@@ -1207,13 +1208,27 @@ impl<P> Doc<P> {
             .collect()
     }
 
-    /// **The placements** (D10), in document order: every `Place` and
-    /// every instance, the nodes whose copies the product is made of
-    /// wherever their space reaches the world.
+    /// **The placements** (D10 `[placement.datums]`: a placement's
+    /// source is a body or nothing), in document order: every node that
+    /// holds a bundle ([`Node::bundle`]) — each `Place`, each instance
+    /// and each datum. [`Self::copies`] is the subset that copies, and
+    /// the read index's [`Self::placements_of`] asks among those.
     pub fn placements(&self) -> Vec<RecipeNodeId> {
         self.nodes
             .iter()
-            .filter(|(_, node)| matches!(node, Node::Place { .. } | Node::InstantiatePart { .. }))
+            .filter(|(_, node)| node.bundle().is_some())
+            .map(|(&id, _)| id)
+            .collect()
+    }
+
+    /// **The placements that make a copy** ([`Node::makes_a_copy`]), in
+    /// document order: every `Place` and every instance, the nodes whose
+    /// copies the product is made of wherever their space reaches the
+    /// world. A datum places a bare frame and is none of them.
+    pub fn copies(&self) -> Vec<RecipeNodeId> {
+        self.nodes
+            .iter()
+            .filter(|(_, node)| node.makes_a_copy())
             .map(|(&id, _)| id)
             .collect()
     }
@@ -1478,7 +1493,7 @@ impl<P> Doc<P> {
             Some(VarDef::Defined(expr)) => expr.var_reads(&mut reads),
             Some(VarDef::Index(index)) => {
                 index.count.var_reads(&mut reads);
-                reads.extend(index.within.map(|within| (within, Dimension::Count)));
+                reads.extend(index.after().map(|before| (before, Dimension::Count)));
             }
             Some(VarDef::Select(select)) => {
                 return core::iter::once(select.body.read)
@@ -2736,10 +2751,13 @@ impl<P> Doc<P> {
     }
 
     /// **The placements copying a body of `node`**, in document order,
-    /// for one question: each whose [`Self::copied_node`] is `node` —
-    /// what [`ReadIndex::placements_of`] answers for every node at once.
+    /// for one question: each of [`Self::copies`] whose
+    /// [`Self::copied_node`] is `node` — what [`ReadIndex::placements_of`]
+    /// answers for every node at once. Every `placements_of` question
+    /// asks among the copies: a datum is a placement ([`Self::placements`])
+    /// that copies nothing, so it is the placement of no body.
     pub fn placements_of(&self, node: RecipeNodeId) -> Vec<RecipeNodeId> {
-        self.placements()
+        self.copies()
             .into_iter()
             .filter(|&placement| self.copied_node(placement) == Some(node))
             .collect()
@@ -2763,7 +2781,7 @@ impl<P> Doc<P> {
     /// of a placement (a pick) is no copy of it. The takeover's
     /// narrower question is [`Self::plain_copies_of`].
     pub fn placements_of_var(&self, var: VarId) -> Vec<RecipeNodeId> {
-        self.placements()
+        self.copies()
             .into_iter()
             .filter(|&placement| {
                 self.copied_read(placement)
@@ -2779,7 +2797,7 @@ impl<P> Doc<P> {
     /// the walk stops at one.
     pub fn plain_copies_of(&self, source: VarId) -> Vec<RecipeNodeId> {
         let plain = crate::take_over::sources_reading(self, source);
-        self.placements()
+        self.copies()
             .into_iter()
             .filter(|&placement| {
                 self.copied_read(placement)
@@ -2808,8 +2826,9 @@ impl<P> Doc<P> {
     /// each door's own question, asked before. The world defines no
     /// variable, so no read reaches it (D10).
     ///
-    /// A `Body` that reaches an index is a family of bodies (D10
-    /// `[repetition]`), so a seat admitting `Bodies` admits it.
+    /// A `Body` a binder yields is a family of bodies to every reader
+    /// (D10 `[repetition]`): a seat admitting `Bodies` admits it, and a
+    /// seat admitting one `Body` refuses it by kind, found `Bodies`.
     pub(crate) fn read_fault(
         &self,
         var: VarId,
@@ -2824,10 +2843,25 @@ impl<P> Doc<P> {
         // reaches an index; a source whose body is gone is its readers'
         // strand (VR7), which refuses at evaluation and is asked no kind at
         // rest: a delete leaves it, and the load keeps what the delete left.
+        let yielded = || {
+            let read = self.through_sources(var);
+            !read.is_indexed() && self.yielding(read.read).is_some()
+        };
+        // A mate side's selection reads a pattern whole, its names
+        // saying which member (`selection_body_kind`).
+        if held.kind() == crate::VarKind::Body
+            && expected != crate::SlotKind::Placeable
+            && expected.admits(held)
+            && yielded()
+        {
+            return Some(ReadFault::Kind {
+                found: crate::VarKind::Bodies,
+            });
+        }
         let family = || {
             held.kind() == crate::VarKind::Body
                 && expected == crate::SlotKind::Is(crate::VarKind::Bodies)
-                && (!self.var_reach(var).is_none()
+                && (yielded()
                     || (held.def().source().is_some() && self.unresolved_read(var).is_some()))
         };
         (!expected.admits(held) && !family()).then_some(ReadFault::Kind { found: held.kind() })
@@ -2846,7 +2880,9 @@ impl<P> Doc<P> {
         if found == 0 || self.unresolved_read(read).is_some() {
             return None;
         }
-        let rank = self.var_reach(read).chain().map_or(0, <[VarId]>::len);
+        let rank = self
+            .yielding(self.through_sources(read).read)
+            .map_or(0, |binder| self.binder_indices(binder).len());
         (found != rank).then_some(rank)
     }
 
@@ -3103,23 +3139,25 @@ impl<P> Doc<P> {
     /// an operation's output as the value of its operation, and an
     /// unnamed definition as the value its one reader reads (VR7: it is
     /// spoken by its reader).
-    pub fn spoken_value(&self, id: VarId) -> String
+    pub fn spoken_value(&self, id: VarId) -> crate::Sentence
     where
         P: crate::ProfilePayload,
     {
-        if let Some(name) = self.var_names.get(&id) {
-            return name.to_string();
-        }
-        if let Some(node) = self.operation_of(id) {
-            return format!("the value of {}", self.spoken(node));
+        let by = crate::Speaker::of(self);
+        if let Some(node) = self.operation_of(id)
+            && !self.var_names.contains_key(&id)
+        {
+            return sentence!("the value of ", by.node(node));
         }
         match self
             .nodes
             .iter()
             .find(|(_, node)| node.exprs().contains(&&id))
         {
-            Some((&reader, _)) => format!("the value {} reads", self.spoken(reader)),
-            None => self.spoken_var(id).to_string(),
+            Some((&reader, _)) if !self.var_names.contains_key(&id) => {
+                sentence!("the value ", by.node(reader), " reads")
+            }
+            _ => sentence!(by.var(&self.spoken_var(id))),
         }
     }
 
@@ -4114,7 +4152,8 @@ impl<'d, P: crate::program::SlotPayload<VarId>> SpaceWalk<'d, P> {
         // than recursing.
         self.memo.insert(id, None);
         let space = match self.doc.nodes.get(&id)? {
-            Node::Place { target, .. } | Node::InstantiatePart { target, .. } => Some(*target),
+            // A copy, or a datum's frame, is in its placement's target.
+            node if let Some(&target) = node.placement_target() => Some(target),
             // A `new_space()` defines a space and builds no body.
             Node::Space => None,
             Node::Union { members } | Node::Intersect { members } | Node::Assemble { members } => {
@@ -4200,17 +4239,8 @@ impl<'d, P: crate::program::SlotPayload<VarId>> SpaceWalk<'d, P> {
             [a, b, ..] => Some((*a, *b)),
             _ => None,
         };
-        match node {
-            Node::Place {
-                target,
-                constraints,
-                source: _,
-            } => self.targets_fault(*target, constraints),
-            Node::InstantiatePart {
-                target,
-                constraints,
-                ..
-            } => self.targets_fault(*target, constraints),
+        match (node.placement_target(), node.bundle()) {
+            (Some(&target), Some(constraints)) => self.targets_fault(target, constraints),
             _ => {
                 let reads = self.reached_all(node.operand_rows().into_iter().map(|(_, var)| var));
                 two(&reads)

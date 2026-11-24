@@ -11,9 +11,7 @@
 //! closed record channel. The wire format is pinned by a byte-identical
 //! round trip over a document carrying both sweeps, and each
 //! sweep-carrying corpus document's evaluation is pinned to a committed
-//! digest that says WHICH document moved. `m10_p_fence` digests every
-//! body point's bits corpus-wide and `lib_g16_corpus_name_digests`
-//! digests every name table; neither says which document moved.
+//! digest that says WHICH document moved.
 //!
 //! # 2. The profile's radius, at the walls and in the key
 //!
@@ -200,20 +198,22 @@ fn both_sweeps_evaluate_in_one_document() {
 /// `boss_union` carry the two carrier loop forms (`circle` and
 /// `circle_split`), and `kitchen_sink` is the registry's revolve.
 ///
-/// The digest feeds every node id, each body's `Debug` (its carriers'
-/// stored fields and edge descriptions included) and each name table
-/// (`fixture::digest`'s module docs), so a re-minted id, a renamed field
-/// or a moved bit moves it. They are goldens in the ordinary sense —
-/// when one moves the question is whether the new behaviour is right,
-/// never how to restore the old number.
+/// The digest feeds each body's key-free reading (its faces' senses,
+/// carriers and loops, its edges' curves and descriptions, its points'
+/// bits) and each name table, name by name with the cell it denotes
+/// (`fixture::digest`'s module docs), so a renamed field or a moved bit
+/// moves it. They are goldens in the ordinary sense — when one moves
+/// the question is whether the new behaviour is right, never how to
+/// restore the old number.
 ///
 /// `cut_cylinder`'s and `kitchen_sink`'s numbers are the ones
 /// `seat8_split_lowering` pins: one feed, one number per document.
 ///
-/// A row that moves is re-cut when the move is explained and right, and
-/// the PR that re-cuts it says what moved and why; the feed takes ids,
-/// names, arena keys and every carrier's `Debug`, so most moves are a
-/// spelling. A row whose body moved with no one judging the new body is
+/// The feed takes no arena key and no mint id (`fixture::digest`'s
+/// module docs), so a row moves only when a body, a value or the cell a
+/// name denotes does. A row that moves is re-cut when the move is
+/// explained and right, and the PR that re-cuts it says what moved and
+/// why. A row whose body moved with no one judging the new body is
 /// PINNED at what main reads and named below with the row that owes the
 /// judgment: the pin holds it still so the next move reds, and says
 /// nothing about the body being right.
@@ -223,17 +223,21 @@ fn both_sweeps_evaluate_in_one_document() {
 /// `corner_table`, on
 /// `work/cleavetail/corner-tables-body-moved-at-5848-and-is-pinned-unjudged.md`,
 /// and `boss_union`, on
-/// `work/onecopy/boss-unions-body-moved-at-6710-and-is-pinned-unjudged.md`.
+/// `work/onecopy/boss-unions-body-moved-at-6710-and-is-pinned-unjudged.md`
+/// and, for PR 7354's later move,
+/// `work/green/main-red-eleven-editor-core-and-sweep-rows-moved-on-main-after-c390e1f9.md`.
 /// `die`, `cut_cylinder` and `kitchen_sink` are judged.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0x0319_7db7_bec3_d32f),
-        ("corner_table", 0x7da6_d69a_c91e_7f29),
+        ("die", 0xb452_9986_25d0_1cab),
+        ("corner_table", 0x79a8_e5ee_1be4_a914),
         // Re-cut: PR 7299 places the x = -0.5 seam's split vertex at cross's root, z one ulp up onto the rounded crossing.
-        ("cut_cylinder", 0xed03_1d8e_bcfb_2ed4),
-        ("boss_union", 0x9242_6dc9_578f_e111),
-        ("kitchen_sink", 0x4080_aff5_e382_f53d),
+        ("cut_cylinder", 0x578d_6718_4b8b_6b9f),
+        // Holds PR 7354's move unjudged; SECTCONE owes the judgement
+        // (`work/green/main-red-eleven-editor-core-and-sweep-rows-moved-on-main-after-c390e1f9.md`).
+        ("boss_union", 0x8d66_5160_109c_0ae9),
+        ("kitchen_sink", 0x0027_ff77_60b2_466b),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {
@@ -777,7 +781,7 @@ fn one_declared_radius_decides_equal_radii_at_the_germ_as_its_kernel_twin_does()
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
     );
     let ev = eval::<f64>(&doc);

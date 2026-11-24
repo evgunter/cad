@@ -46,10 +46,6 @@ fn cylinder(phi: f64) -> AtRestBody<f64> {
 ///   (`PropsCheck::Inventory`): "no way through yet";
 /// - check 7, the wall's quadrature budget spent: loosening as the last
 ///   resort;
-/// - check 1, a frame whose rounding the arm lifts past ε
-///   (`UnrepresentableCurveDatum` on the ellipse's `u_ref`), which still
-///   ends as a defect
-///   (`work/restfront/tier-3s-frame-check-reads-a-section-ellipses-rounding-amplified-by-its-semi-axis.md`);
 /// - check 9's pinch corner: the side ends with maximal faces, so its
 ///   two half-walls merge across the seam and the wall's loop passes
 ///   `v` twice, between the rim and the ellipse leaving it at a turn of
@@ -73,12 +69,7 @@ pub(crate) fn carrier_resolution(e: &ValidationError) -> bool {
                 },
             ..
         } => msg.contains(geom_core::NOT_YET_ENDING),
-        ValidationError::UnrepresentableCurveDatum {
-            kind: geom::CurveKind::Ellipse,
-            datum: geom::CurveDatum::URef,
-            ..
-        }
-        | ValidationError::PinchCornerEscalated { .. }
+        ValidationError::PinchCornerEscalated { .. }
         | ValidationError::PinchCornerCrossed { .. } => true,
         _ => false,
     };

@@ -60,7 +60,7 @@ fn union_cross_bar_names_totally() {
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
     );
     let ev = run(&doc);
@@ -82,7 +82,7 @@ fn union_cross_bar_swapped_names_totally() {
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
     );
     let ev = run(&doc);
@@ -308,6 +308,7 @@ fn a_family_of_a_split_port_is_the_family_of_its_half() {
             editor_core::SplitHalf::Above.port(),
         )),
     );
+    let doc = crate::fixture::yielded(doc, by_port);
     let ev = run(&doc);
     let copies = ev
         .table_at(by_port)

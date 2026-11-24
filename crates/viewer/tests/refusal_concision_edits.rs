@@ -661,8 +661,8 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             },
         ),
         (
-            "IndicesUnrelated",
-            EditError::IndicesUnrelated {
+            "TwoBinders",
+            EditError::TwoBinders {
                 node: s(5, "Place"),
                 a: Box::new(spoken_var()),
                 b: Box::new(pncad::document::SpokenVar::new(
@@ -1015,7 +1015,7 @@ const OVER_BUDGET: &[(&str, usize)] = &[
     // work/profile/a-valued-anchor-fit-recourse-puts-two-corner-sentences-over-budget.md
     (
         "Edit/ProfileProgramRefused(Geometry/NoCornerOfPair(two))",
-        84,
+        83,
     ),
 ];
 
@@ -1026,6 +1026,27 @@ const OVER_BUDGET: &[(&str, usize)] = &[
 /// `Debug` struct, no arena key, one recourse. Every admission must
 /// admit something a row renders, so one its owner's fix made stale goes
 /// red.
+/// **No edit refusal spells a mention into its words** (DESIGN.md
+/// Band 1, "Node labels"): every node an edit refusal names, the
+/// forwarded payloads' included, stays a mention of its sentence, so
+/// the status line can link it.
+/// [`editor_core::test_support::spelled_mention`] finds one flattened
+/// into a words run.
+#[test]
+fn no_edit_refusal_spells_a_mention_into_its_words() {
+    let problems: Vec<String> = edit_refusals()
+        .into_iter()
+        .map(|(arm, e)| (arm.to_owned(), e))
+        .chain(forwarded_edit_refusals())
+        .filter_map(|(arm, e)| {
+            let said = editor_core::Said(&e, editor_core::Speaker::TAG).sentence();
+            editor_core::test_support::spelled_mention(&said)
+                .map(|words| format!("Edit/{arm}: a mention spelled as words: {words:?}"))
+        })
+        .collect();
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
+
 #[test]
 fn every_edit_refusal_renders_within_the_budget() {
     let mut problems = Vec::new();

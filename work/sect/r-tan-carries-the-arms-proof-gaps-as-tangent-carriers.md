@@ -50,3 +50,12 @@ says the arm could not read the pose), and carry the predicate name in
 the payload so the raising row is visible without instrumenting.
 
 Moved from SECTRUNG to SECT on 2026-11-02, by `git mv`, when SECTRUNG merged back into SECT: the track budget now counts only the P0, P1 and unbanded rows a sitting dispatches (Ev, in chat, 2026-11-02), so SECT and the three tracks cut from it (SECTTAIL, SECTRUNG, SECTSITE) came in under one budget.
+
+## 2026-11-23 — a decided touch inside both faces is told the same way (ORBIT)
+
+ORBIT's torus-touch designers found a third shape under this sentence:
+a tangency the certificate DECIDES (a touch whose contact lies inside
+both faces, e.g. a ball seated in a donut's hole) refuses with R-tan's
+"component count is not certified", though the count is certified and
+what is missing is building the contact. Read, not measured; see
+`work/orbit/a-torus-touch-is-read-by-its-near-band.md`. (ORBIT orchestrator)

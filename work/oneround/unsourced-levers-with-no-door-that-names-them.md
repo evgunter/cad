@@ -2,10 +2,12 @@
 id: unsourced-levers-with-no-door-that-names-them
 kind: issue
 title: Ten unsourced references are no lever and have no door that names them: a sine against the band's ratio, a count, a scaled stand-off, a rounding against a share of the band
-status: open
+status: closed
 opened: 2026-11-22
 priority: P1
 cost: H
+closed: 2026-11-23
+pr: 7442
 ---
 
 
@@ -40,3 +42,7 @@ The designers weighed this row and Ev answered on PR 7410 ("this is definitely a
 - `join::off_conic_slack`: the swing of the existing `k_stats::decide_across`. `travel` deciding the reading and the slack one at a time for a tie is a defect that conversion fixes.
 - `intersect`'s two apex reaches enter `Margin::of` through one function; `pair_bound`'s three are plain arithmetic.
 - `validate::resolved_as`: read in the band one K-step finer, until its re-posing row.
+
+## Closed (2026-11-23, PR 7442)
+
+Ev decided on PR 7410 what each of the ten is, and `the-ten-readings-that-are-not-levers-are-decided-by-what-they-are` converted them; none is left on `Lever::unsourced`.

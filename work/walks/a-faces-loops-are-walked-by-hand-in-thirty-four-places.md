@@ -2,11 +2,13 @@
 id: a-faces-loops-are-walked-by-hand-in-thirty-four-places
 kind: issue
 title: a face loop that is not a Cycle is re-decided by each per-loop reader; the outer walk itself is one door since PR 6460
-status: open
+status: closed
+pr: 7474
+branch: walks/face-region
 opened: 2026-09-14
 priority: P1
 cost: M
-design: true
+closed: 2026-11-23
 ---
 
 Filed by PR 2531's fix pass, on its reviewers' Q1 finding: the unit
@@ -120,3 +122,30 @@ question. Not swept by PR 3669, whose fence is `movefac`'s two proofs.
 ## Staleness audit (2026-11-22, WALKS, origin/main 7709b0ea)
 
 The headline is fixed: `once(face.outer).chain(face.rings)` has no site left in topo/src (PR 6460) or outside it (PR 6552); every face-loop walk reads `FaceView::loops`/`outer`/`boundary`/`boundary_by_loop`/`cycles` or `Body::unchecked_face_boundary` (live.rs), pinned by `live::tests::a_faces_loops_are_walked_in_one_place`. "Does a face list this loop" is answered by `Face::holds_loop` (entity.rs). Re-titled to the surviving half: what a loop that is not a `Cycle` means is still decided per site — silently skipped (validate `tier3_local_checks_marked`, test generators), answered by name (boolean/records.rs `incident`, solid_contain `point_in_face`, validate `shell_component`), asserted (shell.rs), or decided inside a per-`LoopKey` helper (census `carrier_loop`, props `loop_edges`/`chart_image_edges`, validate/section_cones `loop_corners`, pcurves/tier3 `read_loop`, contain `loop_cycle_points`). Only half-edge readers have one stated answer (`BoundaryMember::half_edge`). The discard register holds 60 entries, 32 unaudited. Being weighed as fork F7 this sitting; ONECOPY's dispatched `loop-doors-resolve-a-records-loop-key-through-proven-or-typed` works the same shape in shell.rs. Duplicate `loop-walk-is-respelled-across-topo` closed.
+
+## Decided
+
+A loop that is not a cycle means one thing per question, stated once in
+`crates/topo/src/live.rs`'s module docs: a torn loop is a broken link
+(FaceView panics; the unchecked readers report it); a lone-vertex ring
+is a boundary point that bounds no area; a lone-vertex outer loop is a
+face with no outline, refused once as `NoOutline` with
+`LONE_LOOP_REFUSAL`'s standing. The region a face bounds is
+`FaceView::area_loops` (outer cycle, ring cycles, lone rings as
+points); a question asked of one loop's half-edges is
+`FaceView::cycle_loops`; a per-loop reader takes a `CycleLoop`, which
+only live.rs builds (those two facets, and `Body::cycle_loop` for a key
+a caller passed). `props::{loop_edges, chart_image_edges}`,
+`contain::{loop_cycle_points, loop_circle}`,
+`splitting::containment::{carrier_loop, certify_plane, loop_points,
+point_in_vertex_polygon, point_in_loop_projected}`,
+`loop_points::{loop_corners, loop_pinches}`, the tier-3 winding's
+`read_loop` and the section outline's `loop_edges` take one. The
+discard register keeps its shape (a source pin of the files matching
+`LoopBoundary` would list over a hundred); its entries for the sites
+routed through the facet are gone, and the Euler operators' entries are
+audited as the preconditions they are.
+
+## Closed
+
+2026-11-23: PR 7474 merged — a non-Cycle loop's meaning stated once in live.rs (torn / lone ring / lone outer), `FaceView::area_loops`, a `CycleLoop` built only by `prove_cycle`. The binding clause for crates/topo/README.md is `[ev]` PR 7547.

@@ -59,7 +59,13 @@ fn ders1_meter() {
     let axis = Vec3::new(2.0 / 3.0, 2.0 / 3.0, 1.0 / 3.0);
     let u_ref = Vec3::new(1.0 / 3.0, -2.0 / 3.0, 2.0 / 3.0);
     let arms = [
-        ("line", Curve3::line(center, Vec3::new(0.3, -0.4, 1.2))),
+        (
+            "line",
+            Curve3::line(
+                center,
+                geom::stated_direction(Vec3::new(3.0 / 13.0, -4.0 / 13.0, 12.0 / 13.0)),
+            ),
+        ),
         ("circle", Curve3::circle(center, axis, 2.5, u_ref)),
         (
             "ellipse",

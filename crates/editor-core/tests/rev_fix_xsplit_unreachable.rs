@@ -53,7 +53,7 @@ fn rested_names(
         )),
         _ => None,
     };
-    Some((face(mate.on)?, face(mate.to)?))
+    Some((face(mate.on.read)?, face(mate.to.read)?))
 }
 
 /// What one exhaustive sweep saw, so a row can refuse a VACUOUS pass.
@@ -181,7 +181,8 @@ fn three_shapes() -> (ProfileDoc, EvalOptions) {
     let (doc, c, c_body) = pinned_block(doc, "rev-xs-c");
     let (doc, i, pc) = fixture::linear(doc, c, [1.0, 0.0, 0.0], 3.0, 2);
     let (doc, j) = fixture::index_of(doc, "j", Formula::count(2), Some(i));
-    let (doc, npc) = fixture::family_of(doc, pc, fixture::slides_along(j, [0.0, 1.0, 0.0], 7.0));
+    let (doc, npc) =
+        fixture::family_of_members(doc, pc, fixture::slides_along(j, [0.0, 1.0, 0.0], 7.0));
     // A plain instance seated on a family head: an EDGE, welds a's
     // family—b, and `b`'s placement.
     let (doc, _) = seat(

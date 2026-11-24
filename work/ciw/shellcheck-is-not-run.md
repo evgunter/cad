@@ -2,10 +2,11 @@
 id: shellcheck-is-not-run
 kind: issue
 title: no shell linter runs anywhere: 20+ `# shellcheck` markers are unverifiable claims
-status: open
+status: closed
 opened: 2026-09-10
 priority: P4
 cost: E
+closed: 2026-11-22
 ---
 
 Disclosed by the `pipestatus-after-assignment-in-ci-yml` sweep, which had
@@ -89,3 +90,7 @@ Moved from MIRROR when it left the tracker (`docs/doc-ledger/mirror-and-blind-le
 ## 2026-10-16 — partly covered
 
 #5222 added a `workflow lint (actionlint, shellcheck)` step to ci.yml's lint job, on every tier. It covers every workflow's `run:` blocks and the `.sh` files under `.github/`. The `.sh` scripts outside `.github/` (`scripts/`, `local-scripts/`, `demos/`) are still linted by nothing. That is what is left of this row. (CIW orchestrator)
+
+## Closed
+
+2026-11-22, CIW triage (not worth its latency). The workflow half is already covered: #5222 added `workflow lint (actionlint, shellcheck)` (`ci.yml:276-283`) for `.github/`. The residue is shellcheck over `scripts/` and `local-scripts/`. Doing it means 496 findings to dispose of first, and more seconds sequential with the lint job, which is already the long pole. The row names no incident a shellcheck run would have caught: SC2319/SC2320 are measured at zero, and the PIPESTATUS bug shellcheck misses.

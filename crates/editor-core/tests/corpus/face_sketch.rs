@@ -80,8 +80,8 @@ pub fn document() -> CorpusDoc {
     r.constrain(
         placed,
         Mate {
-            on,
-            to: plane(cap(cube, CapEnd::End)),
+            on: on.into(),
+            to: plane(cap(cube, CapEnd::End)).into(),
             orient: editor_core::Orientation::IDENTITY,
         },
         vec![
@@ -97,7 +97,7 @@ pub fn document() -> CorpusDoc {
         ],
     );
     let whole = r.insert(Node::Union {
-        members: editor_core::Bodies::Spelled(vec![cube.into(), placed.into()]),
+        members: editor_core::Bodies::spelled(vec![cube.into(), placed.into()]),
     });
 
     r.place_part(whole);

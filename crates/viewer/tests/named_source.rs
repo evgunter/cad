@@ -710,9 +710,12 @@ fn a_feature_on_an_unpressed_fillet_offers_bracket() {
         [viewer::frame::PlacementOffer {
             said: format!(
                 "bracket (2 copies) copies {}, which this body is built on",
-                by.read(b)
+                pncad::document::sentence!(by.read(b))
             ),
-            label: format!("Re-point bracket onto {}", by.node(g)),
+            label: format!(
+                "Re-point bracket onto {}",
+                pncad::document::sentence!(by.node(g))
+            ),
             op: SessionOp::RepointPlacements {
                 source: bracket,
                 onto: g.into(),
@@ -768,7 +771,7 @@ fn a_cut_offers_the_source_of_its_tool_as_well() {
         SessionOp::AddBoolean {
             spec: viewer::session::BooleanSpec::Subtract {
                 from: body.into(),
-                tool: tool.into(),
+                tool: vec![tool.into()],
             },
         },
     );
@@ -806,8 +809,8 @@ fn a_cut_offers_the_source_of_its_tool_as_well() {
         tool_row.said,
         format!(
             "the copy {} copies {}, which this body is built on",
-            by.node(tool_copy),
-            by.read(t)
+            pncad::document::sentence!(by.node(tool_copy)),
+            pncad::document::sentence!(by.read(t))
         ),
         "the tool's row names its copy and the body it copies"
     );
@@ -991,8 +994,6 @@ fn square_drawn_on(session: &mut DocSession, body: RecipeNodeId, on: RecipeNodeI
             })
             .expect("a wall")
     };
-    let point =
-        |x: f64, y: f64| pncad::document::ProgramTarget::Point([common::len(x), common::len(y)]);
     landed(
         session,
         SessionOp::DrawOnFace {
@@ -1005,13 +1006,7 @@ fn square_drawn_on(session: &mut DocSession, body: RecipeNodeId, on: RecipeNodeI
                 node: on,
                 body: 0,
             }],
-            chains: vec![
-                pncad::trace::Chain::at(common::len(-0.002), common::len(-0.002))
-                    .line_to(point(0.002, -0.002))
-                    .line_to(point(0.002, 0.002))
-                    .line_to(point(-0.002, 0.002))
-                    .line_to(pncad::document::ProgramTarget::Start),
-            ],
+            chains: vec![common::rectangle_chain([-0.002, -0.002], 0.004, 0.004)],
         },
     )
 }
@@ -1285,12 +1280,20 @@ fn a_source_links_its_variable_and_body_and_the_body_lists_its_placements() {
         .iter()
         .find(|row| row.seat == Seat::Operand(OperandSlot::Source))
         .expect("the placement's source seat is a row");
-    let selects: Vec<_> = row.entries.iter().map(|e| e.selects.clone()).collect();
+    let selects: Vec<_> = row.entries.iter().map(|e| e.selects()).collect();
     assert_eq!(
         selects,
         [Some(Selection::Node(body))],
         "the body behind the source: {row:?}"
     );
+    // The entry is a mention of the body in this document, and its
+    // selection is read off that mention (#7375's fold of `Related`).
+    let mentions: Vec<_> = row.entries[0]
+        .said()
+        .mentions()
+        .map(|m| (m.node().map(pncad::document::SpokenNode::id), m.document()))
+        .collect();
+    assert_eq!(mentions, [(Some(body), Some(doc.id()))], "{row:?}");
     let space = reads
         .iter()
         .find(|row| row.seat == Seat::Operand(OperandSlot::Space))
@@ -1299,20 +1302,24 @@ fn a_source_links_its_variable_and_body_and_the_body_lists_its_placements() {
         space
             .entries
             .iter()
-            .map(|e| e.selects.clone())
+            .map(|e| e.selects())
             .collect::<Vec<_>>(),
         [Some(Selection::Node(body))],
         "placed where it stands, into the body's own space, whose definer it links: {space:?}"
     );
     let through = row.through.as_ref().expect("read through the named source");
-    assert_eq!(through.selects, Some(Selection::Variable(source)));
-    assert_eq!(through.said, "bracket", "the variable by its name");
+    assert_eq!(through.selects(), Some(Selection::Variable(source)));
+    assert_eq!(
+        through.said().to_string(),
+        "bracket",
+        "the variable by its name"
+    );
 
     let read_by = relations(doc, &index, body, files).read_by;
     let placements: Vec<_> = read_by
         .iter()
         .filter(|row| row.seat == Seat::Operand(OperandSlot::Source))
-        .flat_map(|row| row.entries.iter().map(|e| e.selects.clone()))
+        .flat_map(|row| row.entries.iter().map(|e| e.selects()))
         .collect();
     assert_eq!(
         placements,
@@ -1356,6 +1363,6 @@ fn a_read_of_a_deleted_node_says_so_in_words() {
         .find(|row| row.seat == Seat::Operand(OperandSlot::Profile))
         .expect("the profile seat is a row");
     assert_eq!(row.entries.len(), 1, "{row:?}");
-    assert_eq!(row.entries[0].said, DELETED, "{row:?}");
-    assert_eq!(row.entries[0].selects, None, "{row:?}");
+    assert_eq!(row.entries[0].said().to_string(), DELETED, "{row:?}");
+    assert_eq!(row.entries[0].selects(), None, "{row:?}");
 }
