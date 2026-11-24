@@ -122,7 +122,9 @@
 //!
 //! # Closing a cut
 //!
-//! A cut the kernel makes for its own reasons is no edge of the result.
+//! A cut the kernel makes for its own reasons is no edge of the result:
+//! a wall keeps the cuts its author wrote, and the kernel adds none
+//! (`docs/DESIGN.md`, `[edges]`).
 //! The sphere cut-ins (`ops::apply_cut_ins`) cut a face along its chart's
 //! meridian through a section circle no edge reaches, so that the
 //! re-entered op's crossing layer meets the circle, and the re-entered op

@@ -2,8 +2,9 @@
 id: a-retrys-zero-has-no-cross-check-against-the-numeric-channel
 kind: issue
 title: a retry attempt's zero is never cross-checked against a definite numeric sign in any profile: the contradiction assertion runs the first attempt only
-status: open
+status: closed
 opened: 2026-09-24
+closed: 2026-11-24
 ---
 
 
@@ -56,3 +57,7 @@ has, instead of on the refusals the decision path has (at the nominal:
 unit), no unit takes it yet.
 
 - 2026-11-02 — moved from RULES to SYM by `git mv` when RULES merged into SYM, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and RULES had fallen far under it).
+
+## Closed
+
+PR 7394 (2026-11-24): see `the-channel-contradiction-check-walks-the-tiers-ladder-on-every-definite-decision`.

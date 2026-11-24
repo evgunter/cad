@@ -68,6 +68,8 @@ mod a_body_on_a_rods_cap_glues_as_its_rim_reads;
 mod a_carried_record_no_reading_covers;
 #[path = "a_circle_of_one_radius_elsewhere_is_no_rim.rs"]
 mod a_circle_of_one_radius_elsewhere_is_no_rim;
+#[path = "a_closed_cut_leaves_each_ball_one_face.rs"]
+mod a_closed_cut_leaves_each_ball_one_face;
 #[path = "a_closed_rider_lying_in_a_face_refuses_its_slit_form.rs"]
 mod a_closed_rider_lying_in_a_face_refuses_its_slit_form;
 #[path = "a_cone_on_a_torus_meridian_in_every_order.rs"]
