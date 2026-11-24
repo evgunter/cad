@@ -37,3 +37,7 @@ Neither of the first two was bisected, and neither are these.
 - `Euler(DescriptionUncertified { edge: Keyed(EdgeKey(15v1)), … })` on `da61db71a`.
 
 Opt-level 0 and 2 agree. So a merge in `ccabcfb..da61db71a` changed which door refuses there. It was not bisected.
+
+## 2026-11-23 — the first bullet's two names resolve on main; the row is red on other causes (GREEN U17, PR 7670)
+
+The probe run 45310731023 (`origin/main` `82273ca89b` plus a comment line in the coverage file so the row runs) no longer reports `ct_critical_gap_straddle` or `pc_parallel_gap`. CIW's lane declared their carriers in geom-brep's roster on the branch of PR 7496: `NameCarrier::Call("GapRows")` (`be8f73fde2`) reads `rows.rs`'s `CT_GAP.straddle`, and `NameCarrier::Const("PC_PARALLEL_GAP")` (`65b8387238`, and `c0db369c8b` via PR 7408) reads the `pc_parallel_gap` pair. The row's name is unchanged on main. So **the first bullet is fixed on main**, and PR 7670 carries no change for it. The row is still red on two new causes, filed as `main-red-predicate-name-coverage-meets-quantitys-decide-and-geom-cores-test-local-row-names`: `quantity`'s `Exact::decide` runs no roster, and four `row`/`row_floor` literals sit in geom-core's `k_stats_doors.rs`. The other bullets are another lane's.

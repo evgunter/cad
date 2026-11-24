@@ -41,6 +41,8 @@ This is the same shape as three rows already here:
 `a-fast-set-germ-row-sits-on-the-one-second-bar-and-reds-a-docs-only-commit`,
 `the-snowman-pole-cut-row-sits-on-the-one-second-bar`.
 
+One more, 2026-11-22 (EMBED's `embed/remeter`, PR 7329, run 44978615839 on `e0ad466e3`): `editor-core::all r2_m10_6_probes_interval::the_mc_stream_is_re_derived_bit_for_bit` at 1.013 s against its 1.0 s bar, in `test (app)`. The PR touches `topo::injective` and nothing the test reads. It passed on the next two pushes.
+
 ## What it costs
 
 Each red is a CI round trip (10 to 25 minutes on a kernel-seeded diff)

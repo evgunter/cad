@@ -145,6 +145,8 @@ mod cert3r1_dump;
 mod clearance_refusals_say_what_they_found;
 #[path = "coincidence_door.rs"]
 mod coincidence_door;
+#[path = "contradiction_corpus.rs"]
+mod contradiction_corpus;
 #[path = "corpus_finish_count.rs"]
 mod corpus_finish_count;
 #[path = "display_contract.rs"]
@@ -944,6 +946,10 @@ mod intent_value_chart_orientation;
 mod intent_vars_2_table;
 #[path = "intent_vars_3_readers.rs"]
 mod intent_vars_3_readers;
+#[path = "member_read_key.rs"]
+mod member_read_key;
+#[path = "member_read_shapes.rs"]
+mod member_read_shapes;
 #[path = "review_binders_a.rs"]
 mod review_binders_a;
 #[path = "review_datum_b.rs"]

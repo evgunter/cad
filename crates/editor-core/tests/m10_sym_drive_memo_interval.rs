@@ -401,35 +401,27 @@ struct Racing {
     /// reads every face's boundary, so the slab's refused leaves all
     /// need one amount whichever door refused them, and a certified
     /// leaf needs the whole frozen set: two values on a drive that
-    /// certifies, one on the 8-leaf race, which certifies nothing at
-    /// any budget measured (4/2 through 128/24, at ε 1e-6, 1e-9 and
-    /// 1e-12). The guard is carried by the other two arms.
+    /// certifies, which each of these does.
     min_distinct: usize,
 }
 
 /// Three of them, because one document's leaf partition is one shape:
-/// the unit's own race, which certifies nothing, so the `certified()`
-/// comparison below is about an EMPTY list there; the second
-/// reviewer's, whose twelve leaves certify one; and a wider drive that
-/// certifies four.
+/// the unit's own race, whose eight leaves certify one; the second
+/// reviewer's, whose twelve certify two; and a wider drive that
+/// certifies eight. No arm compares an empty `certified()` list.
 ///
-/// The last two ran at a budget of 8 terms and degree 5 (they were
-/// 16/6 and 512/32): under INTENT stage 3 D's placement solve
-/// nothing on the slab freezes above 8/5 (measured: 10/4, 12/5, 12/6, 16/5, 16/6 and 512/32 freeze
-/// nothing), and a drive that freezes nothing has no column to race.
-/// At 8/5 they certified the same one and four leaves. They run at 8/3
-/// since the sweeps stopped fitting planes to their corners: the slab
-/// freezes nothing at 8/5, and at 8/4 (and 6/4, 10/4, 16/4) every leaf
-/// needs the same 36; at 8/3 they certify the same one and four leaves
-/// and the certified leaves need 95 where the refused need 79.
+/// All three run at 8 terms and degree 3, the budget at which the
+/// decision path's own walks freeze on the slab (204 nodes, the certified
+/// leaves needing 108 and the refused 60): a drive that freezes nothing
+/// has no column to race, and at 8/4 the slab freezes nothing.
 const RACING: [Racing; 3] = [
     Racing {
         label: "race",
         leaves: 8,
         terms: 8,
-        degree: 4,
-        certifies: false,
-        min_distinct: 1,
+        degree: 3,
+        certifies: true,
+        min_distinct: 2,
     },
     Racing {
         label: "race (the second reviewer's)",

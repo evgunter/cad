@@ -17,3 +17,23 @@ Owed by Ev's answer on PR 7523 (2026-11-23) and filed when CONIC opened. The thr
 
 The readers that compare two conics today each form the comparison from both centres: in `curve_pair/pose.rs` `conic_conic` (whose parallel constant certified `Apart` for a circle crossing an arc-held ellipse), `coplanar_circles`, `coplanar_ellipses` and `one_curve_gap`; in topo `injective.rs` `one_conic` and `one_stated_conic`, and `ring_path.rs` `coplanar_apart`. `oneround/conic-pair-readers` re-poses the curve-pair ones as plain readings from the stored point; this row is the doors themselves and the callers that unit does not reach. Build on the polynomial along a conic (`the-certified-lanes-harmonics-of-a-conic-are-formed-about-its-centre`) where the level needs it.
 
+## 2026-11-23: `one_stated_conic` reads no centre for two ellipses (`embed/conic-symmetry`)
+
+Evidence for this row, from the EMBED lane. Since PR 7491
+`one_stated_conic` compares two stored ellipses by `same_content` and
+the stored `v`, never by a derived centre; `embed/conic-symmetry` widens
+that to the other's exact restatements (`Ellipse::restatements`: the
+seam a half turn on, run back, both), which is "the same locus, in
+either sense: exactly" for the pairs an exact negation of stored numbers
+reaches and for no other. Two circles are still compared by their whole
+stored frames (`one_stated_plane`), and `one_conic`'s lifted arm still
+reads the lifted centres as one value. What that leaves this row on the
+EMBED side: a quarter turn
+(`a-sections-two-arcs-seamed-a-quarter-turn-apart-are-two-statements-a-rounding-apart`),
+read as two by both of the certificate's readings, and an ellipse held
+at its centre against the same one held on its arc, which the stated
+reading says are two and the lifts say are one exactly where every
+lifted component is a point, the derived centre among them (corrected
+on 24 Nov from "both read as two today", after the review of PR 7640
+showed the second through `one_conic`).
+
