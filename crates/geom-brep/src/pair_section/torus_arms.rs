@@ -575,7 +575,7 @@ pub(super) fn parallel_torus_arm<T: Decide>(
     // axes, a tangency, and the row's pinch stands.
     let node_off = (e - (big_r + big_r2)).max((big_r - big_r2).abs() - e);
     let clears = |d: T, shape: T| {
-        let delta = d.abs() + slack + T::from_f64(band.escalate());
+        let delta = d.abs() + slack + band.escalate_width().at::<T>();
         let neck = (T::from_f64(2.0) * shape * delta).sqrt();
         matches!(
             signs_across(
@@ -647,7 +647,7 @@ pub(super) fn parallel_torus_arm<T: Decide>(
     let y_lo = if own_bottom { -r } else { h - r2 };
     let run = y_hi - y_lo;
     // The station at the start of a loop's `n`th strand.
-    let runs = |n: usize| run * T::from_f64(n as f64);
+    let runs = |n: usize| run * T::count(n);
     // The loops of `W`, each its strands in order: a strand's sheet on
     // the tube owning the end it runs into turns there.
     let loops: Vec<Vec<Strand>> = match (own_top, own_bottom) {

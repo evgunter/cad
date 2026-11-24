@@ -703,7 +703,7 @@ pub(crate) fn critical_gap<T: Decide>(
     let two = T::from_f64(2.0);
     let piece = T::tau() / T::from_f64(GAP_START as f64);
     let cells = (0..GAP_START).map(|k| {
-        let lo = piece * T::from_f64(k as f64);
+        let lo = piece * T::count(k);
         (lo, lo + piece)
     });
     let mut spent = 0;

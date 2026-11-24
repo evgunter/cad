@@ -915,8 +915,7 @@ fn iso_arc_g<T: SpanLocate>(t: T, t0: T, angle: T, breaks: &KnotVector, ends: &[
     if spans == 0 || !(ends.is_empty() || ends.len() == spans + 1) {
         return T::from_f64(f64::NAN);
     }
-    #[allow(clippy::cast_precision_loss)]
-    let m = T::from_f64(spans as f64);
+    let m = T::count(spans);
     let h = angle / m;
     // tan(h/4) through sin/cos — no transcendental beyond the scalar's
     // own `sin_cos` (the same door every harmonic pcurve uses).
@@ -932,8 +931,7 @@ fn iso_arc_g<T: SpanLocate>(t: T, t0: T, angle: T, breaks: &KnotVector, ends: &[
     let mut acc: Option<T> = None;
     for span in set.first.index()..=set.last.index() {
         let k = span.saturating_sub(degree);
-        #[allow(clippy::cast_precision_loss)]
-        let kf = T::from_f64(span.saturating_sub(degree) as f64);
+        let kf = T::count(span.saturating_sub(degree));
         let phi = (t - t0) - (kf + T::from_f64(0.5)) * h;
         let (s_h, c_h) = (phi * T::from_f64(0.5)).sin_cos();
         let s = T::from_f64(0.5) + (s_h / c_h) / (T::from_f64(2.0) * tan_q);
@@ -9255,8 +9253,7 @@ fn arc_rim_weight<T: SpanLocate>(
     angle: T,
     spans: usize,
 ) -> ArcRimWeight<T> {
-    #[allow(clippy::cast_precision_loss)]
-    let h = angle / T::from_f64(spans as f64);
+    let h = angle / T::count(spans);
     let (sin_half, cos_half) = (h * T::from_f64(0.5)).sin_cos();
     let margin = match arc_rim_ratio(column) {
         Some(w) => w - cos_half,
@@ -9340,8 +9337,7 @@ pub(crate) fn arc_rim_turn<T: Decide>(
         Ok(Sign::Positive) => {}
         Ok(Sign::Zero | Sign::Negative) | Err(_) => return None,
     }
-    #[allow(clippy::cast_precision_loss)]
-    let m = T::from_f64(spans as f64);
+    let m = T::count(spans);
     Some(T::from_f64(2.0) * w.acos() * m)
 }
 
@@ -9549,11 +9545,10 @@ fn run_iso_arc_checks<T: Decide>(
     let kn = b.knot_values().values();
     #[allow(clippy::cast_precision_loss)]
     let expected: Vec<T> = {
-        let m = T::from_f64(spans as f64);
+        let m = T::count(spans);
         let mut v = vec![cu0, cu0, cu0];
         for k in 1..spans {
-            #[allow(clippy::cast_precision_loss)]
-            let t = cu0 + (cu1 - cu0) * T::from_f64(k as f64) / m;
+            let t = cu0 + (cu1 - cu0) * T::count(k) / m;
             v.push(t);
             v.push(t);
         }
@@ -9709,8 +9704,7 @@ fn run_iso_arc_checks<T: Decide>(
     let mut chat: Vec<Point3<T>> = Vec::with_capacity(2 * spans + 1);
     chat.push(on(T::zero()));
     for k in 0..spans {
-        #[allow(clippy::cast_precision_loss)]
-        let base = h * T::from_f64(k as f64);
+        let base = h * T::count(k);
         chat.push(tangent(base + h * T::from_f64(0.5)));
         chat.push(on(base + h));
     }
@@ -10129,8 +10123,7 @@ fn seam_envelope<T: Decide>(
             // The Greville abscissa of the held knots, summed in
             // order from the first (`f64`'s sum from `-0.0` is that).
             let window = &kn[i + 1..=i + p];
-            #[allow(clippy::cast_precision_loss)]
-            let xi = window[1..].iter().fold(window[0], |a, k| a + *k) / T::from_f64(p as f64);
+            let xi = window[1..].iter().fold(window[0], |a, k| a + *k) / T::count(p);
             let t_at = (xi - v0) / rate;
             hull = hull.max((*cp - (origin + dir.get() * t_at)).norm());
         }
@@ -11008,8 +11001,7 @@ fn farthest_at<T: Real>(
 /// [`INCIDENCE_SAMPLES`] + 1 evenly spaced parameters of `[t0, t1]`, its
 /// ends included.
 fn sample_schedule<T: Real>((t0, t1): (T, T)) -> impl Iterator<Item = T> {
-    let n = f64::from(INCIDENCE_SAMPLES);
-    (0..=INCIDENCE_SAMPLES).map(move |i| t0 + (t1 - t0) * T::from_f64(f64::from(i) / n))
+    (0..=INCIDENCE_SAMPLES).map(move |i| t0 + (t1 - t0) * T::count_ratio(i, INCIDENCE_SAMPLES))
 }
 
 /// **The mint's incidence read alone** (D3), for a door that meters an
@@ -13491,7 +13483,7 @@ fn incidence_at<T: Decide>(
         geom_core::Witness::Inexact if farthest.is_poison() => farthest,
         geom_core::Witness::Inexact => {
             let c = slack + rounding_charge(T::from_f64(2.0) * reach);
-            let zero = T::from_f64(band.zero());
+            let zero = band.zero_width().at::<T>();
             (farthest * (T::one() - T::from_f64(2.0) * c / (farthest + zero))).max(T::zero())
         }
     };

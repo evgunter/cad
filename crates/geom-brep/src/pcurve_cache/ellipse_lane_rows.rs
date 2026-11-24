@@ -864,7 +864,7 @@ fn oracle_row(
                 "cone {} {} {half_angle:e} {:e}",
                 p(apex),
                 v(axis),
-                projected::nappe_sign(nappe)
+                f64::from(projected::nappe_sign(nappe))
             )
         }
         Surface::Torus {

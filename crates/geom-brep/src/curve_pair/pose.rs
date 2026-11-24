@@ -1287,7 +1287,7 @@ impl<T: Decide> Polish<'_, T> {
             return Ok(None);
         }
         let two = T::from_f64(2.0);
-        let e = T::from_f64(band.escalate());
+        let e = band.escalate_width().at::<T>();
         let region = (self.reach + e) * two;
         let hold = |span: &Span<'_, T>| span.ended().then(|| span.params());
         // The start on the turn about each span's middle, so a hold
@@ -1449,7 +1449,7 @@ fn route<T: Decide>(
     band: Band,
 ) -> Result<Route, MeetFault> {
     let length = at.extent().max(T::zero());
-    let e = T::from_f64(band.escalate());
+    let e = band.escalate_width().at::<T>();
     let half = length * T::from_f64(0.5) + e;
     let parallel = Margin::of(offset - rate * half);
     if decide(row::PARALLEL, parallel, band) == Ok(Sign::Positive) {
@@ -1605,7 +1605,7 @@ fn line_conic<T: Decide>(
     let geom::Line { origin: o, dir: d } = line;
     let u = UnitVec3::squared(d.get());
     let unit = geom::Line { origin: o, dir: u };
-    let e = T::from_f64(band.escalate());
+    let e = band.escalate_width().at::<T>();
     let n = k.axis();
     let den = u.get().dot(n);
     // Where they can meet (module docs): the line's span and the conic's
@@ -1687,7 +1687,7 @@ fn line_conic<T: Decide>(
         at: range.at_hi,
         swing,
         e,
-        zero: T::from_f64(band.zero()),
+        zero: band.zero_width().at::<T>(),
     };
     // A slanted pair at a band too tight for the slant argument is not
     // read (module docs, "One meeting to a part"): flat where `H`'s
@@ -2550,7 +2550,7 @@ impl<T: Decide> Range<T> {
 /// escalation. Read from the harmonic's own `c₀` and swing, as the caller
 /// formed them.
 fn band_arc<T: Decide>((c0, swing, at_hi): (T, T, T), theta: T, band: Band) -> T {
-    let e = T::from_f64(band.escalate());
+    let e = band.escalate_width().at::<T>();
     let unit_cos = |x: T| x.max(T::zero() - T::one()).min(T::one());
     let phi = geom::separation(theta, at_hi);
     let inner = unit_cos((e - c0) / swing).acos();

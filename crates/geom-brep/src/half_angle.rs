@@ -125,7 +125,7 @@ impl<T: geom_core::Real> TrigPoly<T> {
     /// The harmonics `1..=N` read, `N` the degree capped at four, each
     /// with its `k` as a scalar.
     fn harmonics(&self) -> impl Iterator<Item = (usize, T)> {
-        (1..=self.degree.min(4)).map(|k| (usize::from(k), T::from_f64(f64::from(k))))
+        (1..=self.degree.min(4)).map(|k| (usize::from(k), T::count(k)))
     }
 
     /// **A bound on the true `F`'s `|F⁗|`** where the harmonics are
@@ -169,7 +169,7 @@ impl<T: geom_core::Real> TrigPoly<T> {
             acc + self.cos[k] * sc[k].1 + self.sin[k] * sc[k].0
         });
         let top = self.degree.min(4);
-        let deg = T::from_f64(f64::from(top));
+        let deg = T::count(top);
         let charged = |value: T, order: i32| Rounded {
             value,
             error: deg.powi(order) * noise,
@@ -473,9 +473,9 @@ fn ladder_roots<T: Decide>(
     // none off it is well conditioned. Thirty-two steps are what make
     // the list complete: some candidate always passes the conditioning
     // floor unless `F` is identically zero (module docs).
-    let step = T::tau() / T::from_f64(f64::from(POLE_CANDIDATES));
+    let step = T::tau() / T::count(POLE_CANDIDATES);
     let shifts = (0..=POLE_CANDIDATES / 2).flat_map(|k| {
-        let k = T::from_f64(f64::from(k));
+        let k = T::count(k);
         [step * k, T::zero() - step * k]
     });
     // `k = 0` yields the zero shift twice; the second copy is dropped.
@@ -583,16 +583,16 @@ const SUBDIVISION_START: u32 = 16;
 ///   `0.88` of its piece: `k` levels down, a piece is at most `0.88ᵏ` of
 ///   a sixteenth of the turn, and the width row is reached in a number
 ///   of levels logarithmic in the band.
-pub(crate) const SPLITS: [f64; 9] = [
-    0.472_135_954_999_579_4,
-    0.3,
-    0.618,
-    0.2,
-    0.8,
-    0.4,
-    0.55,
-    0.12,
-    0.88,
+pub(crate) const SPLITS: [geom_core::Lit; 9] = [
+    geom_core::lit!(0.472_135_954_999_579_4),
+    geom_core::lit!(0.3),
+    geom_core::lit!(0.618),
+    geom_core::lit!(0.2),
+    geom_core::lit!(0.8),
+    geom_core::lit!(0.4),
+    geom_core::lit!(0.55),
+    geom_core::lit!(0.12),
+    geom_core::lit!(0.88),
 ];
 
 /// The row a metered root's own slope is read under
@@ -811,13 +811,13 @@ fn subdivision<T: Decide>(
     // `θ` is an angle by construction: one turn of it, cut and closed.
     let turn = Period::<T>::angle();
     let n = SUBDIVISION_START;
-    let piece = turn.length() / T::from_f64(f64::from(n));
+    let piece = turn.length() / T::count(n);
     let base = (t0 + t1) / two - turn.half();
     let mut ends: Vec<(T, Sign)> = (0..n)
         .filter_map(|k| {
-            let from = base + piece * T::from_f64(f64::from(k));
+            let from = base + piece * T::count(k);
             SPLITS.iter().find_map(|&share| {
-                let t = from + piece * T::from_f64(share);
+                let t = from + piece * T::lit(share);
                 side(t).map(|s| (t, s))
             })
         })
@@ -981,7 +981,7 @@ fn subdivision<T: Decide>(
         }
         first_in_gap.set(None);
         let Some((c, sc)) = SPLITS.iter().find_map(|&share| {
-            let c = l + (r - l) * T::from_f64(share);
+            let c = l + (r - l) * T::lit(share);
             side(c).map(|s| (c, s))
         }) else {
             return Step::Stop(uncut());
@@ -1142,8 +1142,8 @@ mod subdivision_guard_rows {
     fn a_fourth_harmonic_graze_is_not_read_clear() {
         let piece = core::f64::consts::TAU / f64::from(SUBDIVISION_START);
         let (l, r) = (
-            (-PI + piece * 7.0) + piece * SPLITS[0],
-            (-PI + piece * 8.0) + piece * SPLITS[0],
+            (-PI + piece * 7.0) + piece * SPLITS[0].get(),
+            (-PI + piece * 8.0) + piece * SPLITS[0].get(),
         );
         let at = l + (r - l) / 2.0;
         let (s3, c3) = (3.0 * at).sin_cos();
@@ -1642,7 +1642,7 @@ mod review_5993_recut_rows {
                 let from = base + piece * f64::from(k);
                 !SPLITS.iter().any(|&s| {
                     matches!(
-                        decide(ROWS.side(), Margin::of(value(from + piece * s)), band),
+                        decide(ROWS.side(), Margin::of(value(from + piece * s.get())), band),
                         Ok(Sign::Positive | Sign::Negative)
                     )
                 })
@@ -1746,7 +1746,7 @@ mod review_5993_recut_rows {
         println!("double: dropped {} -> {got:?}", dropped(&f, eps));
         assert!(got.is_err(), "a double root certified: {got:?}");
         let piece = core::f64::consts::TAU / f64::from(SUBDIVISION_START);
-        let at = -PI + piece * 9.0 + piece * SPLITS[0];
+        let at = -PI + piece * 9.0 + piece * SPLITS[0].get();
         // sin(t − at) · 1e-3: roots at `at` and `at + π`.
         let (s, c) = at.sin_cos();
         let f = DegreeTwo::new(0.0, -1e-3 * s, 1e-3 * c, 0.0, 0.0).poly();

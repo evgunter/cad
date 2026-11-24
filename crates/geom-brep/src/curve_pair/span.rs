@@ -508,7 +508,7 @@ impl<'a, T: Decide> Span<'a, T> {
         };
         let (near, far) = cover.range_along(dir.get());
         let base = (*origin - Point3::origin()).dot(dir.get());
-        let reach = T::from_f64(band.escalate()) * dir.get().norm();
+        let reach = band.escalate_width().at::<T>() * dir.get().norm();
         let per = dir.get().norm_squared();
         let within = |t: T| t.max(lo).min(hi);
         (
@@ -529,7 +529,7 @@ impl<'a, T: Decide> Span<'a, T> {
     /// its budget.
     fn pieces_near(&self, cover: &Cover<T>, (lo, hi): (T, T), band: Band) -> (T, T) {
         let (centre, radius) = cover.ball();
-        let reach = radius + T::from_f64(band.escalate());
+        let reach = radius + band.escalate_width().at::<T>();
         let positive = |row, m: T| matches!(k_stats::prove(row, Margin::of(m)), Ok(Sign::Positive));
         if !geom_core::is_finite_length(self.hi.get())
             || !positive("curve_pair_window_speed", self.hi.get())

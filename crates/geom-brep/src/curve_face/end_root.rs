@@ -346,7 +346,7 @@ pub fn end_window<T: Decide>(
     // The order: the least `j ≥ 1` decided nonzero. A Zero is charged at
     // the zero band's width at its power, the most its verdict admits;
     // a coefficient in band stops the walk.
-    let zero = T::from_f64(band.zero());
+    let zero = band.zero_width().at::<T>();
     let mut charge: Vec<T> = vec![
         n.first()
             .copied()

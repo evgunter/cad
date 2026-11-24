@@ -232,7 +232,7 @@ pub fn tangent_span_bounds<T: Real>(
     if !tangent_certificate_lane(carrier, s1, s2) {
         return None;
     }
-    let step = (t1 - t0) / T::from_f64(f64::from(crate::certify::CERT_SAMPLES - 1));
+    let step = (t1 - t0) / T::count(crate::certify::CERT_SAMPLES - 1);
     if let Curve3::Circle(circle) = carrier {
         let f = circle.frame();
         return circle_span_bounds(

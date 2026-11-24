@@ -754,11 +754,11 @@ fn sampled_near<T: Decide>(e: &LoopEdge<T>, x: Point3<T>, band: Band) -> Near<T>
     let Some(speed) = speed_bound(&e.carrier) else {
         return Near::Unsettled;
     };
-    let n = T::from_f64(f64::from(SAMPLED_SPANS));
+    let n = T::count(SAMPLED_SPANS);
     // Each sample with whether it is interior to the edge (its ends are
     // vertices, read before).
     let at = |i: u32| {
-        let t = t0 + (t1 - t0) * T::from_f64(f64::from(i)) / n;
+        let t = t0 + (t1 - t0) * T::count(i) / n;
         (t, e.carrier.eval(t), i != 0 && i != SAMPLED_SPANS)
     };
     type Sample<T> = (T, Point3<T>, bool);
@@ -775,7 +775,7 @@ fn sampled_near<T: Decide>(e: &LoopEdge<T>, x: Point3<T>, band: Band) -> Near<T>
     let mut budget = SAMPLED_BUDGET;
     let mut unclear = false;
     let mut over_budget = false;
-    let resolved = T::from_f64(band.zero() * 0.5);
+    let resolved = band.zero_width().times(geom_core::lit!(0.5)).at::<T>();
     // Past its halvings the walk degrades rather than refusing: each
     // piece it would halve is settled unread, and `over_budget` says so.
     let mut reads = Budget::implied_by_halvings(SAMPLED_SPANS as usize, SAMPLED_BUDGET);
@@ -1078,9 +1078,9 @@ pub fn walk_loop<T: Decide>(
         } else {
             (e.t1, e.t0)
         };
-        let n = T::from_f64(f64::from(WALK_SAMPLES));
+        let n = T::count(WALK_SAMPLES);
         for i in 0..=WALK_SAMPLES {
-            let t = a + (b - a) * T::from_f64(f64::from(i)) / n;
+            let t = a + (b - a) * T::count(i) / n;
             samples.push(read(k, t, 0, i == WALK_SAMPLES)?);
         }
     }
@@ -1098,7 +1098,7 @@ pub fn walk_loop<T: Decide>(
             })
         })
         .collect();
-    let shape = Shape::of(chart, on_loop, T::from_f64(band.escalate()))?;
+    let shape = Shape::of(chart, on_loop, band.escalate_width().at::<T>())?;
     // Certify every step's turn, bisecting where it is not.
     loop {
         let mut wide = Vec::new();
@@ -1126,7 +1126,7 @@ pub fn walk_loop<T: Decide>(
             break;
         }
         let total = reading.error;
-        let share = total / T::from_f64(2.0 * samples.len() as f64);
+        let share = total / T::count(2 * samples.len());
         let heavy: Vec<usize> = reading
             .errors
             .iter()
@@ -1461,19 +1461,19 @@ fn sum_walk<T: Decide>(
     }
     // Whole turns by construction: read at the half turns, exactly.
     let pi = T::pi();
-    let past = |c: f64| {
+    let past = |c: i32| {
         decide(
             "chart_singularity_winding",
-            Margin::sign_of(total - pi * T::from_f64(c)),
+            Margin::sign_of(total - pi * T::count(c)),
             Band::enclosure_sign(),
         )
     };
-    let winding = match (past(1.0).ok()?, past(-1.0).ok()?) {
-        (Sign::Positive, _) => match past(3.0).ok()? {
+    let winding = match (past(1).ok()?, past(-1).ok()?) {
+        (Sign::Positive, _) => match past(3).ok()? {
             Sign::Negative => 1,
             _ => return None,
         },
-        (_, Sign::Negative) => match past(-3.0).ok()? {
+        (_, Sign::Negative) => match past(-3).ok()? {
             Sign::Positive => -1,
             _ => return None,
         },

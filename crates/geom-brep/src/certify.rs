@@ -3827,7 +3827,7 @@ pub fn schedule_param<T: Real>(t0: T, t1: T, i: u32, samples: u32) -> T {
         0.0 => t0,
         0.5 => geom::mid_param(t0, t1),
         1.0 => t1,
-        f => t0 + (t1 - t0) * T::from_f64(f),
+        _ => t0 + (t1 - t0) * T::count_ratio(i, samples - 1),
     }
 }
 
@@ -4075,7 +4075,7 @@ fn mapped_source<T: Decide>(
     let Some(mc) = declared else {
         return Ok(());
     };
-    let frac = T::from_f64(schedule_fraction(i, CERT_SAMPLES));
+    let frac = T::count_ratio(i, CERT_SAMPLES - 1);
     check_residual(
         "carrier_matches_mapped_source",
         CertCheck::MappedSource,
@@ -5481,7 +5481,7 @@ fn run_checks<T: geom_core::Certifies + geom_core::CertifiedBounds>(
             // keeps it legal.
             Resolved::Scaffold(mc) => {
                 let p = spec.carrier.eval(t);
-                let s = T::from_f64(schedule_fraction(i, CERT_SAMPLES));
+                let s = T::count_ratio(i, CERT_SAMPLES - 1);
                 check_residual(
                     "carrier_matches_mapped_source",
                     CertCheck::MappedSource,

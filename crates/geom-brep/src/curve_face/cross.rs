@@ -370,7 +370,7 @@ pub(super) fn place<T: Decide>(span: &Span<'_, T>, roots: &[T], band: Band) -> P
     let (t0, t1) = span.params();
     let mid = geom::mid_param(t0, t1);
     let periodic = carrier.conic().is_some();
-    let reach = T::from_f64(band.escalate()) / span.speeds().0.get();
+    let reach = band.escalate_width().at::<T>() / span.speeds().0.get();
     let mut inside: Vec<(T, OnSpan<T>, Point3<T>)> = Vec::new();
     let mut refused = Vec::new();
     for &root in roots {

@@ -383,7 +383,7 @@ fn window<T: Decide>(
         Margin::metered_sup(u - p.mid(), r.hi()).value().abs() + p.reach(r.hi())
     };
     let span = run(ra, pa, s).max(run(rb, pb, t));
-    let e = T::from_f64(band.escalate());
+    let e = band.escalate_width().at::<T>();
     let curvature =
         ra.curvature_near(s, span, Arcs::Around) + rb.curvature_near(t, span, Arcs::Around);
     let two = super::polish::bound(
@@ -621,7 +621,10 @@ fn witnesses<T: Decide>(
 /// The tangency floor of `a` against `b` in metres: not finite where a
 /// carrier bounds no finite curvature.
 fn floor<T: Decide>(a: &Read<'_, '_, T>, b: &Read<'_, '_, T>, band: Band) -> T {
-    geom_core::bisect::tangency_floor(T::one() / (a.curvature + b.curvature), band.escalate())
+    geom_core::bisect::tangency_floor(
+        T::one() / (a.curvature + b.curvature),
+        band.escalate_width(),
+    )
 }
 
 /// **The meetings of `a` and `b` by the walk** (module docs).
