@@ -2612,9 +2612,10 @@ impl<P> Node<P> {
         P: crate::ProfilePayload,
     {
         // An indexed read carries its family's rank of indices, and a
-        // family argument none.
+        // family argument none: at every list seat alike.
         if let Node::Union { members, .. }
         | Node::Intersect { members, .. }
+        | Node::Assemble { members, .. }
         | Node::Subtract { tool: members, .. } = self
             && let crate::Bodies::Family(read) = members
             && read.is_member()
@@ -3184,6 +3185,24 @@ impl<P, S: Slot> Node<P, S> {
     pub fn seat_kind(&self, seat: crate::OperandSlot) -> crate::SlotKind {
         if let Some(role) = self.seat_role(seat) {
             return crate::SlotKind::Is(role.of());
+        }
+        // A splice, `…xs`, reads a family whole (D10 `[repetition]`): in
+        // a boolean's members or a subtract's tools alike.
+        let spliced = match (self, seat) {
+            (
+                Node::Union { members, .. }
+                | Node::Intersect { members, .. }
+                | Node::Assemble { members, .. },
+                crate::OperandSlot::Member(i),
+            )
+            | (Node::Subtract { tool: members, .. }, crate::OperandSlot::Cut(i)) => {
+                matches!(members, crate::Bodies::Spelled(entries)
+                    if entries.get(i).is_some_and(crate::Spell::is_splice))
+            }
+            _ => false,
+        };
+        if spliced {
+            return crate::SlotKind::Is(crate::VarKind::Bodies);
         }
         self.body_read(seat)
             .map_or_else(|| seat.kind(), |read| read.kind(seat))

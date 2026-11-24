@@ -275,7 +275,9 @@ fn near_misses_answer_by_the_closed_form_distance() {
 /// is [`ROD_SCAN_STOPS`] ε or more (×250 at ε = 1e-12), the rod refuses
 /// every op `FallbackExtentUnsupported`
 /// (`work/orbit/a-rod-touching-a-big-donut-off-its-face-stops-at-the-extent-scan-at-1e-12.md`),
-/// which the row pins.
+/// which the row pins. At ε 1e-12 the rod at a [`ROD_FRAME_COST`] scale
+/// refuses ahead of that, at its own finish, so the extent scan's stop
+/// goes unread at the only ε that reaches it today.
 #[test]
 fn the_off_face_touches_build_at_every_scale() {
     let eps = Tol::witness().eps();
@@ -288,6 +290,21 @@ fn the_off_face_touches_build_at_every_scale() {
             ("rod", top_rod(false, 0.0, l)),
         ] {
             let label = format!("donut ×{l:e}, {label}");
+            if crate::common::frame_cost::at_the_least_band()
+                && ROD_FRAME_COST.contains(&l)
+                && label.ends_with("rod")
+            {
+                crate::common::frame_cost::assert_rod_refuses_its_finish(
+                    &label,
+                    &topo::finish(topo::Built::of(b.clone()), Tol::witness()).map(|_| ()),
+                    (1.65e-12, 1.8e-12),
+                );
+                test_utils::vacuity::stood_down(
+                    &format!("{label} at ε {eps:e}"),
+                    "the rod refuses its own finish, pinned (the frame cost)",
+                );
+                continue;
+            }
             if rod_stops && label.ends_with("rod") {
                 assert_every_op_refuses(&label, &d, &b, |e| {
                     format!("{e:?}").contains("FallbackExtentUnsupported")
@@ -309,6 +326,16 @@ fn the_off_face_touches_build_at_every_scale() {
 /// and at ×250 at 1e-9 (`2.5e11` ε). A fix that moves the band reads as
 /// this row's pin going red, at the scale it moved.
 const ROD_SCAN_STOPS: f64 = 1.0e14;
+
+/// The scales at which [`the_off_face_touches_build_at_every_scale`]'s
+/// rod refuses its own finish at ε 1e-12
+/// (`crate::common::frame_cost::at_the_least_band`), ahead of the
+/// extent scan: its wall's volume escalates
+/// `props_cylinder_circle_off_axis`, margin in `(1.65e-12, 1.8e-12]`
+/// (measured 1.738e-12). Cause: polar, the rod's stored frame read as
+/// its polar enclosure, levered by the scale; mutant A (PR 7131's body)
+/// finishes it, and turns this pin red; mutant F1X does not.
+const ROD_FRAME_COST: [f64; 1] = [250.0];
 
 /// **A donut past the session box is refused by it**: at ×401 its outer
 /// equator reaches 1002.5 m.

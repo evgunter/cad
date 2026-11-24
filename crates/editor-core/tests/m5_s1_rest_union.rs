@@ -29,7 +29,7 @@ fn rest_doc() -> (ProfileDoc, RecipeNodeId) {
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
     );
     (doc, u)

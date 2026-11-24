@@ -55,10 +55,10 @@ use topo::BooleanOp;
 fn pair_node(op: BooleanOp, a: RecipeNodeId, b: RecipeNodeId) -> editor_core::AuthoredNode {
     match op {
         BooleanOp::Union => Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
         BooleanOp::Intersect => Node::Intersect {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
         BooleanOp::Subtract => Node::Subtract {
             from: a.into(),

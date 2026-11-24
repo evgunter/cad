@@ -34,7 +34,7 @@ fn split_of(
     let read = fixture::body_read(&doc, a.into());
     let (doc, a) = insert(doc, fixture::stood(BodyRead::plain(read)));
     let (doc, b) = block_on(doc, a, (1.0, 2.0), (1.0, 2.0), 0.0, 1.0);
-    let members = Bodies::Spelled(vec![a.into(), b.into()]);
+    let members = Bodies::spelled(vec![a.into(), b.into()]);
     let (doc, union) = insert(
         doc,
         if assembled {
@@ -71,7 +71,7 @@ fn sides(origin: [f64; 3], normal: [f64; 3], assembled: bool) -> (usize, [usize;
         insert(
             doc,
             Node::Union {
-                members: Bodies::Spelled(vec![BodyRead::plain(Operand::Output {
+                members: Bodies::spelled(vec![BodyRead::plain(Operand::Output {
                     node: split,
                     port,
                 })]),
@@ -193,7 +193,7 @@ fn a_record_the_cut_parts_retires() {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(members.iter().map(|&m| m.into()).collect()),
+            members: Bodies::spelled(members.iter().map(|&m| m.into()).collect()),
         },
     );
     let tool = plane_on(&doc, union, [1.5, 1.0, 0.5], [0.0, 1.0, 0.0]);
@@ -208,7 +208,7 @@ fn a_record_the_cut_parts_retires() {
         insert(
             doc,
             Node::Union {
-                members: Bodies::Spelled(vec![BodyRead::plain(Operand::Output {
+                members: Bodies::spelled(vec![BodyRead::plain(Operand::Output {
                     node: split,
                     port,
                 })]),
@@ -239,7 +239,7 @@ fn a_sides_records_cite_the_operands_across_a_retired_one() {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: Bodies::Spelled(members.iter().map(|&m| m.into()).collect()),
+            members: Bodies::spelled(members.iter().map(|&m| m.into()).collect()),
         },
     );
     let tool = plane_on(&doc, union, [1.5, 1.0, 0.5], [0.0, 1.0, 0.0]);

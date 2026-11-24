@@ -993,6 +993,8 @@ fn pcurve_mint_errors() -> Vec<PcurveMintError> {
         [
             crate::pcurves::SingularMiss::EdgesCoincide,
             crate::pcurves::SingularMiss::TwoNappes,
+            crate::pcurves::SingularMiss::CuspCrossed,
+            crate::pcurves::SingularMiss::CuspUnsided,
             crate::pcurves::SingularMiss::NoLever,
         ]
         .into_iter()

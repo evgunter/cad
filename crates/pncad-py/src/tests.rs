@@ -2074,10 +2074,10 @@ fn node_error_tags_are_the_published_words() {
         NotFinished => "not_finished",
         UnfinishedLeaf => "unfinished_leaf",
         EmptyHalf => "empty_half",
-        HalfOfAFamily => "half_of_a_family",
         MemberOutOfRange => "member_out_of_range",
         MemberRefused => "member_refused",
-        IndicesUnrelated => "indices_unrelated",
+        TwoBinders => "two_binders",
+        YieldsNothing => "yields_nothing",
         IndexCount => "index_count",
         IndexCountOutOfRange => "index_count_out_of_range",
         DegenerateDirection => "degenerate_direction",
@@ -2383,12 +2383,12 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(
         &E::Index {
             var: spv(),
-            fault: pncad::document::IndexFault::WithinNoIndex,
+            fault: pncad::document::IndexFault::AfterNoIndex,
         },
         &["param"],
     );
     carries(
-        &E::IndicesUnrelated {
+        &E::TwoBinders {
             node: sp(1),
             a: Box::new(spv()),
             b: Box::new(spv()),
@@ -4526,6 +4526,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "join_pairs_tied",
             "join_partners_tied",
             "join_undecided",
+            "junction_end_unread",
             "line_material_unread",
             "line_wedges",
             "lineage_row",
@@ -4797,7 +4798,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "fresh_unread",
             "index",
             "indexed_read",
-            "indices_unrelated",
             "invalid_distribution",
             "invalid_tolerance",
             "label_unchanged",
@@ -4852,6 +4852,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "take_over_not_a_source",
             "take_over_repeats_copy",
             "take_over_shared_source",
+            "two_binders",
             "unknown_constraint",
             "unknown_node",
             "unknown_slot",
@@ -4869,20 +4870,28 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "witness_on_non_sketch",
             "world_is_undeletable",
             "would_cycle",
+            "yields",
         ],
         delegates: &[],
     },
     TagEntry {
         function: "edit_inner_variant_tag",
         values: &[
+            "after_no_index",
+            "after_taken",
             "count_not_count",
             "fresh",
             "index_not_count",
             "index_rank",
             "kind",
+            "no_yields",
+            "not_a_binder",
             "unresolved",
-            "within_no_index",
             "written_in_place",
+            "yield_elsewhere",
+            "yield_is_index",
+            "yield_outside",
+            "yield_twice",
         ],
         // `mate_fault_tag` once: the per-mate admission forwards the
         // solve's fault whole.
@@ -5164,6 +5173,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "stranded_selection",
             "stranded_space",
             "value_dropped",
+            "yield_removed",
         ],
         delegates: &[],
     },
@@ -5284,10 +5294,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "extrude",
             "fillet",
             "fold_step",
-            "half_of_a_family",
             "index_count",
             "index_count_out_of_range",
-            "indices_unrelated",
             "loft",
             "mate_backwards",
             "mate_kinds_differ",
@@ -5345,12 +5353,14 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "trace",
             "transform",
             "tube",
+            "two_binders",
             "underflowed_direction",
             "unfinished_leaf",
             "unresolved_read",
             "unschedulable_cycle",
             "witness_bifurcation",
             "wrong_operand",
+            "yields_nothing",
         ],
         delegates: &[
             "resolve_fault_tag",
@@ -5538,6 +5548,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "distribution",
             "header_id",
             "id_mismatch",
+            "index_before_binders",
             "non_finite",
             "parse",
             "profile_program",
@@ -5601,6 +5612,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "kind",
             "member_at_product",
+            "per_member_at_product",
             "pick_path",
             "space",
             "unresolved",
@@ -6002,6 +6014,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "definition_too_large",
             "definition_var_kind",
             "epsilon_invalid",
+            "index_seat",
             "input_list",
             "label_on_missing_node",
             "loft_shape",
@@ -6567,9 +6580,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // One fact (VR4) at a node's member read and a source's: a member
     // read at other than its family's rank of indices (`member_rank_fault`).
     ("index_rank", 2),
-    // One fact (D10 `[repetition]`) at the edit and evaluate doors: two
-    // indices one reader reads, neither within the other.
-    ("indices_unrelated", 2),
     ("io", 2),
     // Three: the join every finisher ends with refused, at a door that
     // tags it by its stage (the boolean's, the split's, the import's).
@@ -6711,6 +6721,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // the program's own check alike.
     ("trace", 2),
     ("transition", 2),
+    // One fact (D10 `[repetition]`) at the edit and evaluate doors: one
+    // reader reads the indices of two binders.
+    ("two_binders", 2),
     // A coincidence: a crossing side the band left undecided, and a
     // rigidity margin the decided door left undecided.
     ("undecided", 3),

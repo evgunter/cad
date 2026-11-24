@@ -791,7 +791,7 @@ test_utils::f6_variants! {
         Expr, Profile, ProfileReplay, ProfileLaneReplay, Trace, Extrude, Revolve, Tube, Split, ContactCarry, Blend,
         Boolean, Transform, Mirror, Motion, Skin, Loft, CurvedSolidFrontier, MissingInput, UnresolvedRead, SelectResolve,
         ToleranceConflict, ParamBox, Seed, RecordRefused, RecordMispaired, WrongOperand, EmptyOperand, EmptyMember,
-        NotFinished, UnfinishedLeaf, EmptyHalf, HalfOfAFamily, MemberOutOfRange, MemberRefused, IndicesUnrelated,
+        NotFinished, UnfinishedLeaf, EmptyHalf, MemberOutOfRange, MemberRefused, TwoBinders, YieldsNothing,
         IndexCount, IndexCountOutOfRange, NoSuchPiece, PieceShape,
         DegenerateDirection, NonFiniteDirection, UnderflowedDirection, Band, MissingSlot,
         Escalated, MeasureEscalated, PlacementAxisEscalated, PoseDirectionEscalated,
@@ -1263,10 +1263,10 @@ fn forward(kind: &NodeErrorKind) -> Forward {
         | NodeErrorKind::EmptyOperand { .. }
         | NodeErrorKind::EmptyMember { .. }
         | NodeErrorKind::EmptyHalf { .. }
-        | NodeErrorKind::HalfOfAFamily { .. }
         | NodeErrorKind::ContactCarry { .. }
         | NodeErrorKind::MemberOutOfRange { .. }
-        | NodeErrorKind::IndicesUnrelated { .. }
+        | NodeErrorKind::TwoBinders { .. }
+        | NodeErrorKind::YieldsNothing { .. }
         | NodeErrorKind::NoSuchPiece { .. }
         | NodeErrorKind::PieceShape { .. }
         | NodeErrorKind::DegenerateDirection { .. }
@@ -1827,14 +1827,6 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         row(
-            "HalfOfAFamily",
-            NodeErrorKind::HalfOfAFamily {
-                read: editor_core::VarId::new(0, tagged(2)),
-                input: RecipeNodeId::new(0, tagged(3)),
-                half: editor_core::SplitHalf::Below,
-            },
-        ),
-        row(
             "ContactCarry",
             NodeErrorKind::ContactCarry {
                 refusal: topo::CarryRefusal::Stale { record: 0 },
@@ -1848,10 +1840,16 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         row(
-            "IndicesUnrelated",
-            NodeErrorKind::IndicesUnrelated {
+            "TwoBinders",
+            NodeErrorKind::TwoBinders {
                 a: editor_core::VarId::new(0, tagged(2)),
                 b: editor_core::VarId::new(0, tagged(4)),
+            },
+        ),
+        row(
+            "YieldsNothing",
+            NodeErrorKind::YieldsNothing {
+                binder: editor_core::VarId::new(0, tagged(2)),
             },
         ),
         row(

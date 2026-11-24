@@ -1493,7 +1493,7 @@ impl<P> Doc<P> {
             Some(VarDef::Defined(expr)) => expr.var_reads(&mut reads),
             Some(VarDef::Index(index)) => {
                 index.count.var_reads(&mut reads);
-                reads.extend(index.within.map(|within| (within, Dimension::Count)));
+                reads.extend(index.after().map(|before| (before, Dimension::Count)));
             }
             Some(VarDef::Select(select)) => {
                 return core::iter::once(select.body.read)
@@ -2826,8 +2826,9 @@ impl<P> Doc<P> {
     /// each door's own question, asked before. The world defines no
     /// variable, so no read reaches it (D10).
     ///
-    /// A `Body` that reaches an index is a family of bodies (D10
-    /// `[repetition]`), so a seat admitting `Bodies` admits it.
+    /// A `Body` a binder yields is a family of bodies to every reader
+    /// (D10 `[repetition]`): a seat admitting `Bodies` admits it, and a
+    /// seat admitting one `Body` refuses it by kind, found `Bodies`.
     pub(crate) fn read_fault(
         &self,
         var: VarId,
@@ -2842,10 +2843,25 @@ impl<P> Doc<P> {
         // reaches an index; a source whose body is gone is its readers'
         // strand (VR7), which refuses at evaluation and is asked no kind at
         // rest: a delete leaves it, and the load keeps what the delete left.
+        let yielded = || {
+            let read = self.through_sources(var);
+            !read.is_indexed() && self.yielding(read.read).is_some()
+        };
+        // A mate side's selection reads a pattern whole, its names
+        // saying which member (`selection_body_kind`).
+        if held.kind() == crate::VarKind::Body
+            && expected != crate::SlotKind::Placeable
+            && expected.admits(held)
+            && yielded()
+        {
+            return Some(ReadFault::Kind {
+                found: crate::VarKind::Bodies,
+            });
+        }
         let family = || {
             held.kind() == crate::VarKind::Body
                 && expected == crate::SlotKind::Is(crate::VarKind::Bodies)
-                && (!self.var_reach(var).is_none()
+                && (yielded()
                     || (held.def().source().is_some() && self.unresolved_read(var).is_some()))
         };
         (!expected.admits(held) && !family()).then_some(ReadFault::Kind { found: held.kind() })
@@ -2864,7 +2880,9 @@ impl<P> Doc<P> {
         if found == 0 || self.unresolved_read(read).is_some() {
             return None;
         }
-        let rank = self.var_reach(read).chain().map_or(0, <[VarId]>::len);
+        let rank = self
+            .yielding(self.through_sources(read).read)
+            .map_or(0, |binder| self.binder_indices(binder).len());
         (found != rank).then_some(rank)
     }
 

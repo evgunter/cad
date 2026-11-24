@@ -136,12 +136,13 @@ pub use editor_core::{Answered, Moved, TakeOverOutcome, Taken, TakenOver, take_o
 // the indices an expression reaches (`Doc::expr_reach`) and each member's
 // environment (`Doc::member_envs`) are what a reader of one evaluates in.
 pub use editor_core::{
-    Axis3, Bodies, BodyRead, ConstraintId, InputFault, ListFault, LoftSection, MintId, Node,
-    Operand, OperandSlot, OutputPort, PortKind, RecipeNodeId, SlotId, SlotKind, StationMove,
-    TubeWindow, VectorSlot,
+    Axis3, Binders, Bodies, BodyRead, ConstraintId, InputFault, ListFault, LoftSection, MintId,
+    Node, Operand, OperandSlot, OutputPort, PortKind, RecipeNodeId, SlotId, SlotKind, Spell,
+    StationMove, TubeWindow, VectorSlot,
 };
 pub use editor_core::{
-    Index, IndexFault, MemberAt, MemberCountFault, MemberEnv, Reached, SourceFault,
+    Index, IndexFault, IndexSeat, MemberAt, MemberCountFault, MemberEnv, Reached, SourceFault,
+    YieldsFault,
 };
 
 // How a sentence names a node: a sentence of words and mentions, the
@@ -149,9 +150,9 @@ pub use editor_core::{
 // said by, the nodes a door kept beside a refusal it carries whole, and
 // the full-width id a machine channel prints.
 pub use editor_core::{
-    FullId, HeldNodes, Mention, Mentioned, NameTables, Put, Run, Said, SaidName, SaidNode, SaidVar,
-    Say, Sentence, Speaker, SpokenName, SpokenNode, SpokenSpace, SpokenVar, display_said, held_by,
-    node_kind_noun, node_text, say, sentence, spoken_by, spoken_within, var_text,
+    FullId, HeldNodes, Lines, Mention, Mentioned, NameTables, Put, Run, Said, SaidName, SaidNode,
+    SaidVar, Say, Sentence, Speaker, SpokenName, SpokenNode, SpokenSpace, SpokenVar, display_said,
+    held_by, node_kind_noun, node_text, say, sentence, spoken_by, spoken_within, var_text,
 };
 
 // A node's label (DESIGN.md Band 1, "Node labels"): document data the
@@ -379,7 +380,7 @@ pub use editor_core::{
 // ([`Staged::sentence`]); the recourse label, and what an API door
 // given no part resolver says to do.
 pub use editor_core::{
-    Labelled, Labels, PASS_A_RESOLVER, RAISE_THE_MEMBER_BUDGET, Recourse, Staged,
+    Labelled, LabelledBy, Labels, PASS_A_RESOLVER, RAISE_THE_MEMBER_BUDGET, Recourse, Staged,
 };
 
 // Document identity and content pins.

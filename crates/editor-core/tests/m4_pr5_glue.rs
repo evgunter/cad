@@ -80,7 +80,7 @@ fn kiss_base(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, Recipe
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
     );
     (doc, a, b, u)
@@ -96,7 +96,7 @@ fn a_reused_kiss_carries_its_record_into_the_next_union() {
     let (doc, u2) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![base.into(), mover.into()]),
+            members: editor_core::Bodies::spelled(vec![base.into(), mover.into()]),
         },
     );
     let ev = run(&doc);
@@ -126,7 +126,7 @@ fn flush_plane_pair_glues() {
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
     );
     let ev = run(&doc);
@@ -166,7 +166,7 @@ fn flush_plane_pair_glues() {
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
     );
     let ev = run(&doc);
@@ -307,7 +307,7 @@ fn l_corner_caps_merge_at_the_recipe_door_tier3_green() {
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
     );
     let ev = run(&doc);

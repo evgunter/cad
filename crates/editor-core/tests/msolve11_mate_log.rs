@@ -659,7 +659,7 @@ fn a_box_run_over_an_overconstrained_bundle_refuses_at_its_witness() {
         panic!("expected WitnessDoesNotBuild, got {refusal:?}");
     };
     assert!(
-        cause.contains("no part resolver"),
+        cause.to_string().contains("no part resolver"),
         "the driver's evaluation has no resolver, so no instance resolves: {cause}"
     );
 }

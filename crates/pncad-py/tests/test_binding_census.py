@@ -1410,8 +1410,15 @@ BOUND_AS = {
     "Index": "VarDecl.index",
     "MemberAt": "Value.members",
     # Why an index is refused as declared crosses at the carrier's
-    # second word (`count_not_count`, `within_no_index`).
+    # second word (`count_not_count`, `after_no_index`, `after_taken`).
     "IndexFault": "EditError.inner_variant",
+    # Why a binder's yields are refused crosses at the carrier's second
+    # word (`not_a_binder`, `yield_is_index`, `yield_twice`,
+    # `yield_elsewhere`).
+    "YieldsFault": "EditError.inner_variant",
+    # Where an index stands in its binder: the binder's first index, or
+    # the index it follows (`VarDecl.index`'s `within`).
+    "IndexSeat": "VarDecl.index",
     # Why a source is refused as declared crosses at the carrier's second
     # word (`unresolved`, `written_in_place`, `kind`, `index_not_count`,
     # `fresh`).
@@ -2340,6 +2347,11 @@ NOT_BOUND = {
     # a sequence of operands or as one family read (`Node.union`'s
     # `members`), and the kernel's two arms are those two shapes.
     "Bodies": SHAPE,
+    # One entry of a spelled list: a read, or a splice `…xs` of a
+    # yield. Python spells a list's entries as operands and a family
+    # whole as `Node.union(xs)`; a splice beside an individual has no
+    # Python spelling.
+    "Spell": SHAPE,
     # A read at a body seat: Python writes a plain one as a `NodeId` or
     # a `Var` and an indexed one as `op[i]` (`IndexedRead`).
     "BodyRead": SHAPE,
@@ -2440,6 +2452,8 @@ NOT_BOUND = {
     "SaidNode": SHAPE,
     "SaidVar": SHAPE,
     "Sentence": SHAPE,
+    # A report as lines of sentences: Python takes its text.
+    "Lines": SHAPE,
     "say": SHAPE,
     "sentence": SHAPE,
     "display_said": SHAPE,
@@ -2628,6 +2642,7 @@ NOT_BOUND = {
     # `str()`, and the stripped sentence is what a Rust carrier renders
     # inside its own. The phrase is read in that text.
     "Labelled": SHAPE,
+    "LabelledBy": SHAPE,
     "Labels": SHAPE,
     "PASS_A_RESOLVER": SHAPE,
     # The one recourse of a run out of its member budget: read in the
@@ -2787,10 +2802,14 @@ NOT_BOUND = {
     # itself makes. Python evaluates through `evaluate`, which makes both
     # reads inside: the members they list cross as `Value.members` (each
     # member's index values beside its value), two unrelated indices as
-    # the `indices_unrelated` tag, and a member's `env` is a `VarEnv`,
+    # the `two_binders` tag, and a member's `env` is a `VarEnv`,
     # itself behind a door.
     "Reached": INTERIOR,
     "MemberEnv": INTERIOR,
+    # A document's binders read once (D10 `[repetition]`), the memo a
+    # pass that spells many list entries reads (`Binders::spell`): no
+    # value a Python caller holds.
+    "Binders": INTERIOR,
     "Chamfered": INTERIOR,
     "ContactRecords": INTERIOR,
     # What a contact record cites (D1 (ii)): its `ContactRecords`
@@ -3743,6 +3762,7 @@ MEMBERS_BOUND_AS = {
     # A re-target of the copy the product slot reads makes one appear.
     "Maintenance::ProductOutsideWorld": "Maintenance.variant",
     "Maintenance::AnonymousVarRemoved": "Maintenance.variant",
+    "Maintenance::YieldRemoved": "Maintenance.variant",
     "Maintenance::ValueDropped": "Maintenance.variant",
     "DistributionFault::NonFinite": "DistributionFault.variant",
     "DistributionFault::SigmaNotPositive": "DistributionFault.variant",
@@ -3764,6 +3784,7 @@ MEMBERS_BOUND_AS = {
     "EditError::SelectionNameKind": "EditError.variant",
     "EditError::PoseShape": "EditError.variant",
     "EditError::IndexedRead": "EditError.variant",
+    "EditError::Yields": "EditError.variant",
     "EditError::SetMembersOnNonList": "EditError.variant",
     "EditError::SetLoftSectionsOnNonLoft": "EditError.variant",
     "EditError::LoftShape": "EditError.variant",
@@ -3840,7 +3861,7 @@ MEMBERS_BOUND_AS = {
     "EditError::MetaNonFinite": "EditError.variant",
     "EditError::MetaNotSet": "EditError.variant",
     "EditError::RebindMetadataCollision": "EditError.variant",
-    "EditError::IndicesUnrelated": "EditError.variant",
+    "EditError::TwoBinders": "EditError.variant",
     "EditError::PlacementAxis": "EditError.variant",
     "EditError::MateRefused": "EditError.variant",
     "EditError::UpdateOnNonInstance": "EditError.variant",
@@ -3973,6 +3994,7 @@ MEMBERS_BOUND_AS = {
     "PersistError::Parse": "PersistError.variant",
     "PersistError::Unreadable": "PersistError.variant",
     "PersistError::Dimension": "PersistError.variant",
+    "PersistError::IndexBeforeBinders": "PersistError.variant",
     "PersistError::ToleranceConflict": "PersistError.variant",
     "PersistError::ToleranceInvalid": "PersistError.variant",
     "ProductError::EvaluationOfAnotherDocument": "ProductError.variant",

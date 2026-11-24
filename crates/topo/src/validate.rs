@@ -8358,6 +8358,8 @@ pub(crate) fn tier3_local_checks_marked<
         };
         for (point, _) in singular_points(surface) {
             match point {
+                // A horn's cusp is both apexes, one per copy of `v`, and
+                // each copy is unshown: two findings at one point.
                 Singularity::SheetApexUp | Singularity::SheetApexDown => {
                     errors.push(ValidationError::SheetApexReached { face, point });
                 }
@@ -9694,6 +9696,10 @@ fn edge_trim<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: 
 /// the report names the shape it can — and an escalation with no
 /// meeting found is [`RingOuterVerdict::Escalated`], never
 /// `Disjoint`.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn ring_outer_meeting<T: Decide>(
     body: &Body<T>,
     outer: LoopKey,
@@ -9853,6 +9859,10 @@ enum MeetSegment<T: Real> {
 /// The edge under `he` as a [`MeetSegment`], or `None` for a carrier
 /// arm 5 has no meeting point for (`Ellipse`, `Spiric`, `Nurbs`) or an
 /// edge it cannot resolve.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn meet_segment<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<(EdgeKey, MeetSegment<T>)> {
     let edge = body.half_edges.get(he)?.edge;
     let geom = certified_carrier(body, edge)?;
@@ -9862,11 +9872,7 @@ fn meet_segment<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<(EdgeKey, Me
             MeetSegment::Line { a, b }
         }
         geom::Curve3::Circle(circle) => {
-            let (center, axis, u_ref) = (
-                circle.frame().origin(),
-                circle.frame().axis(),
-                circle.frame().u_ref(),
-            );
+            let (center, axis, u_ref) = (circle.frame().origin(), circle.axis(), circle.u_ref());
             let radius = circle.radius();
             let (t0, t1) = geom.params();
             MeetSegment::Arc {
@@ -10401,13 +10407,17 @@ fn certified_carrier<T: Real>(body: &Body<T>, edge: EdgeKey) -> Option<&geom_bre
 /// form and without a single comparison. `None` for a kind this
 /// inversion does not implement — check 9's recorded residue,
 /// `Ellipse` and `Nurbs`.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn locus_gap<T: Real>(carrier: &geom::Curve3<T>, p: geom_core::Point3<T>) -> Option<T> {
     match carrier {
         geom::Curve3::Line(line) => Some(line.distance(p)),
         // The distance from a point to a full circle: the in-plane
         // radial defect and the out-of-plane offset, in quadrature.
         geom::Curve3::Circle(circle) => {
-            let (center, axis) = (circle.frame().origin(), circle.frame().axis_unit());
+            let (center, axis) = (circle.frame().origin(), circle.axis_unit());
             let radius = circle.radius();
             let (along, rho) = geom::Line {
                 origin: center,

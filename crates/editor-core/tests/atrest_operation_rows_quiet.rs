@@ -1585,13 +1585,16 @@ fn pinched_by_a_repeated_tool(id: &str) -> (ProfileDoc, RecipeNodeId) {
         read: slid,
         role: tool.role,
     };
-    insert(
+    let (doc, split) = insert(
         doc,
         Node::Split {
             target: prism.into(),
             tool,
         },
-    )
+    );
+    // The split stands in the binder its tool reads, which yields it
+    // (D10 `[repetition]`).
+    (crate::fixture::yielded(doc, split), split)
 }
 
 /// **A split whose tool repeats carries the assertion over the
