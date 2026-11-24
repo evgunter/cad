@@ -23,13 +23,10 @@ first census (2026-10-03):
 - `boolean/mod.rs:1238` (`unglued_coincidence`, INTENT stage 4 E);
 - `chart_region.rs`'s `definite_diag` callers;
 - `boolean/join.rs:2969` (`pt_germ_frame`,
-  `bool_join_torus_section_touching_under_a_germ`, the plane×torus
-  germ frame): the section table, levered, routes a pose to its general
-  rung while the section certificate, unlevered, reads it touching or
-  empty. Neither reading hands back the margin it decided on, so the
-  `straddle` door has no bounds to take, and the escalation goes
-  through `invalid_margin::invalid`. It landed while unit 4 (PR 4613)
-  retired that helper's census caller, so the helper stays.
+  `bool_join_torus_section_touching_under_a_germ`), since retired by
+  `orbit/plane-torus-one-lever` with `invalid_margin::invalid` itself,
+  its last production caller; the gate's count of those calls starts
+  at zero.
 
 ## Shape
 

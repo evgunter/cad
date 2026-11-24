@@ -84,3 +84,16 @@ Another seed, from CI's slow set on lane `orbit-tilt`'s PR 7617
 `R 0.0239, r 0.0201`, tilt 4.7e-12, `top` 1.57e-9. The PR leaves the
 square-wall arm untouched. The seed reproduces both mismatches on
 main `341d62e9a6` (a local replay).
+
+Another draw, from CI's slow set on lane `orbit-onelever`'s PR 7713
+(`CAD_FUZZ_SEED=0x3c2bb516555b426d`, `CAD_FUZZ_EFFORT=1`, CI run
+45398921416, 2026-11-24): `a strip crossing at a tube circle's top`,
+`R ≈ 31.15`, `r ≈ 11.50`, tilt 0, read
+`Tangent("section_torus_square_wall_fold_half")` at `top ≈ 8.8·10⁻⁹`.
+It reproduces on main `68af2aa3e` (a local replay).
+The next run of that PR drew `CAD_FUZZ_SEED=0xb09da3f2f11b9405` (CI run
+45405107980): three more strips crossing at a tube circle's top, each
+read `Tangent("section_torus_square_wall_fold_half")` at `top` between
+`1.4·10⁻⁹` and `7.2·10⁻⁹`. Two consecutive random draws failing says
+the class is dense at `CAD_FUZZ_EFFORT=1`, so any PR that edits
+`section_cert.rs` meets it.

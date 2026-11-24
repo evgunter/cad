@@ -2,11 +2,12 @@
 id: the-section-certificate-reads-a-plane-and-a-torus-on-its-own-rows
 kind: issue
 title: Three readers of a plane against a torus read its closed-form pose at three levers, so one pose can read closed to one reader and tilted to another
-status: open
+status: closed
 opened: 2026-11-23
 priority: P1
 cost: M
 refs: [a-torus-near-a-tilted-cut-stops-at-the-extent-scan]
+closed: 2026-11-24
 ---
 
 
@@ -51,3 +52,23 @@ Settles when the three readers read the closed-form question at one
 lever (the value's, held by the section table and handed to the frame
 and the gate), or a row straddles each pair of levers and pins the
 refusal.
+
+## Closed (2026-11-24, PR 7713)
+
+Settled the first way: one lever. The question was asked at five
+levers on main, not three: the row's three readers, plus the two chord
+lanes at each face's reach. `plane_torus_closed_form` is now the only
+spelling of the closed-form question, at the section value's lever (the
+torus's ball). `PlaneTorusPose` holds its answer, the section table
+holds closed plane×torus poses (`geom_brep::pair_section_held`, one
+decide site), and the frame and the chord lanes read that answer.
+`GermSectionSpiric`, `FrameExtent::Reach`, `SectionReach::Torus`,
+`PT_TOUCHING_UNDER_A_GERM` and `invalid_margin` retire with the
+disagreement they served. On main, torus(R2,r1) ∩ a brick holding the
+axis at tilts 3e-11 to 1.5e-10 refused `RoutesToGeneralRung`; it now
+builds at half the torus's volume, and a sweep row pins it (red under a
+lever mutant at 30×). Single full review: APPROVE-WITH-FIXES, 0 MAJOR;
+its lever probe over reach ×1.2–×300 and ε 1e-6 to 1e-12 found no wrong
+body. Left open: `section_cert::torus_plane` still reads the square
+half Structural at the ball lever, which errs toward escalation (ORBIT
+log, 2026-11-24).

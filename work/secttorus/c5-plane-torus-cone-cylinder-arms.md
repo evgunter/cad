@@ -231,3 +231,26 @@ section the lily needs (the ℝ³ implicit pair, whose torus halves exist,
 `cone-torus-rung-three-arm-waits-on-the-cone`'s "What already exists")
 and U-H1. Priced at two hard rows, 16 points; split it when the first
 is dispatched.
+
+## The general poses no longer refuse at the frame (ORBIT, 2026-11-24)
+
+`orbit/plane-torus-one-lever` (PR 7713) retired `GermSectionSpiric`,
+together with `FrameError::Spiric` and `SpiricLoops`. U-T1's "every other
+transverse plane refuses as `GermSectionSpiric { loops }`" no longer
+holds:
+
+- The pose is decided once, by the section value
+  (`geom_brep::PlaneTorusPose`, over the torus's ball).
+- A tilted plane is the value's. The operation's section table holds its
+  section, and its germs ride the carried components (the march,
+  `ssi::plane_torus_ssi`).
+- The frame is reached only by the closed form's poses. A tilted pose
+  that reaches it is a `JoinDesync`, not a refusal.
+
+The `GermSectionSpiric` refusals quoted above (lily wall 8's payload and
+the donut corner bar's end square) are therefore records of main before
+that PR. Lily wall 8 itself has stopped earlier since PR 6862, at its
+torus × NURBS germ section (`GermSectionUnbuilt { a_kind: Torus,
+b_kind: Nurbs, why: Refused(Unaccounted { … cell budget }) }`), and
+`demos/tour/src/lily.rs` pins that stop. Past it, its tilted cap pair is
+read on the value's carried section rather than refused at the frame.
