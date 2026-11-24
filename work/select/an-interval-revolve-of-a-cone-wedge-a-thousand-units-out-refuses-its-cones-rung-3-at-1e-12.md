@@ -53,3 +53,12 @@ escalating its pcurve envelope at 1e-12 on PCERT; not on main yet.)
 skips those two poses' builds loudly at 1e-12 on a certification
 refusal only; any other refusal fails the row, and every other pose is read at
 1e-12.
+
+- 2026-11-23 — **by `−θ`, a third kind of refusal at the same limit**
+  (EMBED, lane pole, PR 7115): the wedge a hundred times the size
+  revolved by `−4.7224` or `−5.5`, at `Interval` and ε 1e-12, refuses
+  the cone's rung 3 with limb 2 undecided
+  (`AnalyticRung3Refusal::Stalled`: enclosure `[0, 1.06e-12]` against
+  the band `(1e-12, 1e-11)`), where by `+θ` the same pose refuses its
+  pcurve's `FidelityV` envelope term. `at_the_build_limit` in
+  `crates/sweep/tests/self_intersection_proves_injectivity.rs` names it.

@@ -20,6 +20,11 @@
 //! so the gap between two of them does not depend on how the pair is
 //! turned.
 //!
+//! The one reading of two faces behind a box overlap,
+//! `census::faces_apart`, starts with [`apart`] and reads on past it
+//! with [`apart_by`]; it lives beside the census's depth and in-plane
+//! readers, which it also reads, so this module reads no census.
+//!
 //! **Soundness.** Every cover holds its item's locus, so a gap decided
 //! positive after both items' pads proves the loci disjoint: the same
 //! certificate a non-overlap of the two padded world boxes gives, read

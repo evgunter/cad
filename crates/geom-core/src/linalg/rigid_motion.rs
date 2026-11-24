@@ -5002,7 +5002,11 @@ mod least_turn_spelling_probe {
         let sym = f.map_scalar(crate::sym::Sym::<f64>::from_f64).rounding();
         let dual = f.map_scalar(crate::dual::Dual::<f64>::from_f64).rounding();
         let bits = |p: (f64, f64)| (p.0.to_bits(), p.1.to_bits());
-        assert_eq!(bits((sym.0.value, sym.1.value)), bits(at_f64), "Sym<f64>");
+        assert_eq!(
+            bits((sym.0.value(), sym.1.value())),
+            bits(at_f64),
+            "Sym<f64>"
+        );
         assert_eq!(
             bits((dual.0.value, dual.1.value)),
             bits(at_f64),

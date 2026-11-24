@@ -56,3 +56,31 @@ registry), an earlier node that reads another variable can move that
 state, and a split of that variable could change what the deciding node
 says. Not observed: no retry runs in the drives measured, and the
 corpus differential compares content keys, which do not see the session.
+
+**Evidence from the node-key unit** (its sweep and its audit of what a
+node reads against what its key hashes; by reading unless said):
+
+- **The parameter brackets are an input no key hashes.**
+  `Sym::param_over` records each axis's `[lo, hi]` in the session
+  (`Session::params`), and the decision read (`sym::signed`) reads them
+  for every parameter a form mentions. A node's key hashes each fed
+  value's number and expression; the expression names the parameter
+  and not its bracket, and the number is the whole expression's
+  enclosure, which two boxes can share (`a·0 + 5`). So two replays can
+  hold a node under one key and two brackets.
+- **A mint scope's count is kept by the session** while the scope is
+  closed (`Session::mints`, `sym::mint`), so that a scope opened twice
+  in one session mints no name twice. In a replay each node's scope
+  opens once, so nothing reads it; it is per-replay state all the same.
+- **The session's root mint scope** counts from zero per session: a
+  value minted under no node's scope (a read after the evaluation, the
+  clearance query's) is named by the replay's order. Measured: 53,065
+  such mints inside a session over `editor-core`'s suite and 216 over
+  the tour's. No built result holds a value with no expression
+  (45,430 results over `editor-core`'s suite, read at the top of each
+  value), and over the tour's tests none holds an expression that
+  reaches one (24,628 results, each value's expression walked).
+- **The deferred list's entry numbers** (`sym::deferred`'s `NEXT`) are
+  a process-wide count: unique, and not the same in two runs.
+- **`SymOp::Free`** has one name for every mint (`INDET_FREE`), by
+  design: the identity over it holds for every value.

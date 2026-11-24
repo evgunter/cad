@@ -91,14 +91,12 @@ const KERNEL_KEYED: &[&str] = &[
     "Naming/SeamVertexPartners",
     "Naming/SharedRim",
     "Naming/ChordOffRim",
-    "Naming/ConventionalVertex",
     "Naming/ClosedCarrierUnread",
     "Naming/CarrierUnplaced",
     "Naming/PartnerUnread",
     "Naming/UnsupportedCrossingSenses",
     "Naming/UnsupportedSeamSides",
     "Naming/UnsupportedJoin",
-    "Naming/UnsupportedTurnedCell",
     "Naming/WayInZeroBand",
     "Naming/JoinedPieceOffRoot",
     "Naming/BandVerdictsDisagree",
@@ -5193,13 +5191,6 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "UnsupportedTurnedCell",
-            NamingError::UnsupportedTurnedCell {
-                read: editor_core::VarId::new(0, tagged(38)),
-                cell: topo::Cell::Vertex(topo::VertexKey::default()),
-            },
-        ),
-        (
             "WayInZeroBand",
             NamingError::WayInZeroBand {
                 edge: topo::EdgeKey::default(),
@@ -5248,13 +5239,6 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
                 edge: topo::EdgeKey::default(),
                 node: RecipeNodeId::new(0, tagged(3)),
                 face: topo::FaceKey::default(),
-            },
-        ),
-        (
-            "ConventionalVertex",
-            NamingError::ConventionalVertex {
-                vertex: topo::VertexKey::default(),
-                body: 0,
             },
         ),
         (

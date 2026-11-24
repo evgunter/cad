@@ -65,3 +65,13 @@ on PR 5952:
 The question for `drive.rs`'s owner (SCALAR, by `work.py territory`) is
 whether an escalation a screen read past, on a node that built, should
 refuse a leaf at all.
+
+**Met by BOXFINISH's expression-question unit (2026-11-22):** an L-shaped
+step, `(0,0) (1,0) (1,h) (2,h) (2,1) (0,1)` with `h` a parameter, extruded,
+certifies over no box of `h` at any width (`h = 0.25 ± 1e-9`, `± 1e-7`,
+and `h = 40ε ± 2ε` alike), on that unit's merge base and on its head: the
+profile node builds and logs two or three `segment_gap` escalations whose
+enclosure is a few times the box (`[-6.0e-9, 6.0e-9]` at `± 1e-9`), the
+riser `[0, h]` against the far side `[0, 1]` among them, which share an
+end. The unit's driver row uses a quadrilateral with no parallel sides
+instead (`editor-core/tests/m10_3_driver_interval.rs`, `riser`).

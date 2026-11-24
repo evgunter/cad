@@ -7500,6 +7500,25 @@ pub(crate) fn face_reach_in<T: Decide>(
         .map(|cover| cover.box_in(frame))
 }
 
+/// **How far a face reaches along `aim`**: bounds on `x·â` over the
+/// face, its cover read along the aim, with a sphere face's pole-side
+/// cut ([`crate::cover::face_cover_toward`]). `None` for a face with no
+/// cover.
+///
+/// # Panics
+///
+/// As [`face_reach_in`].
+pub(crate) fn face_reach_toward<T: Decide>(
+    body: &Body<T>,
+    f: crate::entity::FaceKey,
+    band: Band,
+    aim: geom_core::UnitVec3<T>,
+) -> Option<(T, T)> {
+    crate::cover::face_cover_toward(body, f, band, aim)
+        .ok()
+        .map(|cover| cover.range_along(aim.get()))
+}
+
 /// The touch lane's recourse for a designed contact it cannot read yet.
 macro_rules! designed_contact {
     () => {
@@ -7936,6 +7955,8 @@ enum Recorded {
 mod curved;
 pub(crate) use curved::{EdgeSpan, edge_span};
 pub(crate) mod depth_gap;
+mod face_pair;
+pub(crate) use face_pair::faces_apart;
 #[cfg(test)]
 mod depth_gap_fuzz;
 mod in_plane;
@@ -9976,47 +9997,6 @@ pub(crate) fn gate_role<T: Decide + crate::props::AtRestPolicy>(
     crate::props::shell_role(body, shell, band, tol, T::quad_lane()).ok()
 }
 
-/// Whether arm 1 of [`sweep_cross_solid_backstop`] may clear the face
-/// pair `a`, `b` along a direction that turns with the pair: the axis
-/// between the two faces' anchors, either face's own normal where it
-/// is planar, the offset from an axis or centre either face proposes
-/// to the other's nearest boundary segment point ([`depth_gap::toward`]),
-/// either face's arc chords' normals, and the line between the two
-/// carriers' axes or centres ([`depth_gap::across`]). Each face comes
-/// with its world reach, the lever its normal is read over; `proposed`
-/// is the directions [`depth_gap::toward`] and [`depth_gap::across`]
-/// read off the two faces.
-///
-/// The test is the boolean's narrow phase
-/// ([`crate::separating::apart_by`]): both faces' covers are
-/// read along the direction, a sphere face's with its pole-side cut
-/// along it ([`crate::cover::face_cover_toward`]), and the pair
-/// clears only on a gap, less both faces' [`sweep_pad`], decided
-/// definitely positive at this lane's scalar. Each cover holds its
-/// face's locus, so the gap proves the loci disjoint, as a world-axis
-/// gap does.
-fn backstop_apart<T: Decide>(
-    body: &Body<T>,
-    (fa, fb): (FaceKey, FaceKey),
-    proposed: Vec<geom_core::UnitVec3<T>>,
-    band: Band,
-) -> bool {
-    use crate::separating::{Item, apart_by, planar_axis};
-    let mut axes: Vec<_> = [fa, fb]
-        .into_iter()
-        .filter_map(|f| planar_axis(body, f, band))
-        .collect();
-    axes.extend(proposed);
-    apart_by(
-        (body, Item::Face(fa)),
-        (body, Item::Face(fb)),
-        &axes,
-        sweep_pad(band),
-        band,
-        &|body, f, aim| crate::cover::face_cover_toward(body, f, band, aim).ok(),
-    )
-}
-
 /// What the material test of one ordering read: every vertex of
 /// `inner` against `outer`'s material ([`probe_vertices`]).
 #[derive(Debug, PartialEq, Eq)]
@@ -10183,7 +10163,7 @@ pub(crate) fn answered_in_band(
 ///
 /// Arm 1 clears a pair ONLY on a definitely-positive separation margin
 /// (`census_backstop_gap` — metre coordinate differences — then the
-/// turned directions of [`backstop_apart`], then a gap in depth about
+/// turned directions of [`faces_apart`], then a gap in depth about
 /// an axis, a centre or a circle, `census_backstop_depth_gap`, for the
 /// nested walls no direction separates: [`depth_gap`], then two planar
 /// faces apart where each meets the other's plane, edge gaps and
@@ -10524,44 +10504,23 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
                 // Definite separation along ANY direction clears the
                 // pair: the margin is the gap between the sound reaches
                 // along it — a metre coordinate difference (audit row).
-                // The world axes are read first; then the directions
-                // that turn with the pair ([`backstop_apart`]).
-                let mut cleared = false;
-                for (alo, ahi, blo, bhi) in [
+                // The world axes are read first; then the face pair's
+                // own reading ([`faces_apart`]).
+                let world = [
                     (alo.x, ahi.x, blo.x, bhi.x),
                     (alo.y, ahi.y, blo.y, bhi.y),
                     (alo.z, ahi.z, blo.z, bhi.z),
-                ] {
+                ]
+                .into_iter()
+                .any(|(alo, ahi, blo, bhi)| {
                     let gap = (blo - ahi).max(alo - bhi);
-                    if matches!(
+                    matches!(
                         decide("census_backstop_gap", Margin::of(gap), band),
                         Ok(Sign::Positive)
-                    ) {
-                        cleared = true;
-                        break;
-                    }
-                }
-                // Both faces are read once for their depths, which aim
-                // the offset directions and bound the depth gap.
-                let reads = if cleared {
-                    None
-                } else {
-                    depth_gap::face_read(body, a.face, band)
-                        .zip(depth_gap::face_read(body, b.face, band))
-                };
-                let proposed = reads.as_ref().map_or_else(Vec::new, |(ra, rb)| {
-                    let mut dirs = depth_gap::toward(ra, rb, band);
-                    dirs.extend(depth_gap::across(ra, rb, band));
-                    dirs
+                    )
                 });
-                if !cleared
-                    && !backstop_apart(body, (a.face, b.face), proposed.clone(), band)
-                    && !reads.as_ref().is_some_and(|(ra, rb)| {
-                        depth_gap::apart_in_depth(body, (a.face, ra), (b.face, rb), band)
-                    })
-                    && !(a.planar
-                        && b.planar
-                        && in_plane::apart_in_plane(body, a.face, b.face, &proposed, band))
+                if !world
+                    && !faces_apart((body, a.face), (body, b.face), &[], sweep_pad(band), band)
                 {
                     // The lone loop is the cause only where it is what
                     // keeps each face out of the exact sweeps.

@@ -1,10 +1,10 @@
-//! **The n-ary door reads a face of a re-charted sphere shell through
-//! that shell's input faces**: two pip balls a step crosses along their
-//! poles' normal plane are turned about their centres before the step
-//! runs (`topo::BooleanNaming::recharted`), so the accumulation's turned
-//! faces carry keys the re-chart minted. The fold's member lineage reads
-//! each such face as every face of the input shell it was turned over
-//! (`topo::FaceSource::inputs`), as the step's holdings do.
+//! **The n-ary door reads a piece of a cut-in sphere face through the
+//! face it was cut from**: two pip balls a step crosses off every edge
+//! have their sphere faces cut along a meridian before the step re-enters,
+//! so the step's faces are pieces of the cut faces under keys the cut
+//! minted until the output stage closes the cut ([`closes_a_cut`]). The fold's member
+//! lineage reads each piece as the face it divides (`topo::FaceSource::root`),
+//! as the step's holdings do.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -53,11 +53,11 @@ fn nary(op: topo::NaryOp, bodies: &[AtRestBody<f64>]) -> topo::NaryRun<f64> {
 }
 
 /// A row: its name, the op, its members, the step whose operand A (the
-/// accumulation) the re-chart turns, and the closed-form volume.
+/// accumulation) is cut in, and the closed-form volume.
 type Row = (&'static str, topo::NaryOp, Vec<AtRestBody<f64>>, usize, f64);
 
 #[test]
-fn a_fold_over_balls_a_step_re_charts_builds_at_its_closed_form() {
+fn a_fold_over_balls_a_step_cuts_in_builds_at_its_closed_form() {
     let (b, lens) = (ball_volume(), lens_volume());
     let pair = || vec![ball(0.5, 0.5), ball(0.5, 0.5 + D)];
     let rows: [Row; 3] = [
@@ -88,7 +88,7 @@ fn a_fold_over_balls_a_step_re_charts_builds_at_its_closed_form() {
             4.0 * b - lens,
         ),
     ];
-    for (what, op, bodies, turned, want) in rows {
+    for (what, op, bodies, cut, want) in rows {
         let run = nary(op, &bodies);
         assert!(
             matches!(run.end, topo::NaryEnd::Built),
@@ -96,11 +96,18 @@ fn a_fold_over_balls_a_step_re_charts_builds_at_its_closed_form() {
             run.end
         );
         assert!(
-            !run.steps[turned].body.naming.recharted[0].is_empty(),
-            "{what}: the step joining member {} turns the accumulation's shell",
-            turned + 1
+            closes_a_cut(&run.steps[cut].body, 0),
+            "{what}: the step joining member {} cuts the accumulation's ball in",
+            cut + 1
         );
         let last = &run.steps.last().unwrap().body.body;
+        let faces = |b: &topo::Body<f64>| b.faces().count();
+        let brought: usize = bodies.iter().map(|b| faces(b)).sum();
+        assert!(
+            faces(last) <= brought,
+            "{what}: the closed cut leaves no face the members did not bring: {} against {brought}",
+            faces(last)
+        );
         let got = topo::test_support::pinned_volume(what, last, tol()).volume;
         assert!(
             (got - want).abs() <= 1e-6 * want,
@@ -109,18 +116,18 @@ fn a_fold_over_balls_a_step_re_charts_builds_at_its_closed_form() {
     }
 }
 
-/// **A turned face of the joining member enters the lineage as its input
-/// shell's faces**: a ball, then a member of two balls one of which
-/// crosses it, so the step joining that member turns the member's
-/// crossing ball (operand B) under a key the graft mints, then a ball
-/// coincident with that crossing ball. The pairwise judgement's verdict
-/// on the coincident pair is routed to the last step through the member
-/// faces the accumulation's faces descend from; read through the turned
-/// key alone it reaches no face, the last step meets the coincident
-/// sphere ungiven and refuses another way. The coincident shell is a
-/// typed refusal of its own.
+/// **A cut piece of the joining member enters the lineage as the face it
+/// divides**: a ball, then a member of two balls one of which crosses it,
+/// so the step joining that member cuts the member's crossing ball
+/// (operand B) in under a key the cut mints, then a ball coincident with
+/// that crossing ball. The pairwise judgement's verdict on the coincident
+/// pair is routed to the last step through the member faces the
+/// accumulation's faces descend from; read through the piece's key alone
+/// it reaches no face, the last step meets the coincident sphere ungiven
+/// and refuses another way. The coincident shell is a typed refusal of
+/// its own.
 #[test]
-fn a_verdict_on_a_turned_member_face_reaches_the_next_step() {
+fn a_verdict_on_a_cut_member_face_reaches_the_next_step() {
     let pair = nary(topo::NaryOp::Union, &[ball(0.9, 0.9), ball(0.5, 0.5 + D)]);
     assert!(
         matches!(pair.end, topo::NaryEnd::Built),
@@ -137,8 +144,8 @@ fn a_verdict_on_a_turned_member_face_reaches_the_next_step() {
         &[ball(0.5, 0.5), two_shells, ball(0.5, 0.5 + D)],
     );
     assert!(
-        !run.steps[0].body.naming.recharted[1].is_empty(),
-        "the step joining the two-shell member turns its crossing ball"
+        closes_a_cut(&run.steps[0].body, 1),
+        "the step joining the two-shell member cuts its crossing ball in"
     );
     assert!(
         matches!(
@@ -150,4 +157,24 @@ fn a_verdict_on_a_turned_member_face_reaches_the_next_step() {
          judgement's verdict: {:?}",
         run.end
     );
+}
+
+/// Whether the op closed a chart cut on a sphere face of operand `side`
+/// (0 for A, 1 for B): the output stage deletes a cut's piece between
+/// two pieces of the face it divided with one of them, a substitution
+/// row from that piece onto the face that keeps it.
+fn closes_a_cut(out: &topo::BooleanBody<f64>, side: usize) -> bool {
+    let grafted: Vec<topo::FaceKey> = out.naming.graft_faces.iter().map(|&(_, r)| r).collect();
+    out.naming.substitutions.rows().iter().any(|&(dead, kept)| {
+        let (topo::Cell::Face(_), topo::Cell::Face(kept)) = (dead, kept) else {
+            return false;
+        };
+        let on_sphere = out.body.get_face(kept).is_some_and(|f| {
+            matches!(
+                out.body.get_surface(f.surface),
+                Some(geom::Surface::Sphere { .. })
+            )
+        });
+        on_sphere && grafted.contains(&kept) == (side == 1)
+    })
 }

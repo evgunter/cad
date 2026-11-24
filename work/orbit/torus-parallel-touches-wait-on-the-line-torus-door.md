@@ -6,7 +6,7 @@ status: parked
 opened: 2026-11-23
 priority: P1
 cost: M
-blocked_on: [the-line-torus-door-misses-silently-within-the-band, a-torus-touch-is-read-by-its-near-band]
+blocked_on: [the-line-torus-door-misses-silently-within-the-band]
 ---
 
 

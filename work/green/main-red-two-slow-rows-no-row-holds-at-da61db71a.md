@@ -2,10 +2,12 @@
 id: main-red-two-slow-rows-no-row-holds-at-da61db71a
 kind: issue
 title: Main red, held by no row: predicate_name_coverage, the cones-apex rows at 1e-6, and the ring path's re-forked planar sense flip
-status: open
+status: closed
 opened: 2026-11-23
 priority: P0
 cost: M
+closed: 2026-11-23
+pr: 7678
 ---
 
 
@@ -37,3 +39,62 @@ Neither of the first two was bisected, and neither are these.
 - `Euler(DescriptionUncertified { edge: Keyed(EdgeKey(15v1)), … })` on `da61db71a`.
 
 Opt-level 0 and 2 agree. So a merge in `ccabcfb..da61db71a` changed which door refuses there. It was not bisected.
+
+## 2026-11-23 — the first bullet's two names resolve on main; the row is red on other causes (GREEN U17, PR 7670)
+
+The probe run 45310731023 (`origin/main` `82273ca89b` plus a comment line in the coverage file so the row runs) no longer reports `ct_critical_gap_straddle` or `pc_parallel_gap`. CIW's lane declared their carriers in geom-brep's roster on the branch of PR 7496: `NameCarrier::Call("GapRows")` (`be8f73fde2`) reads `rows.rs`'s `CT_GAP.straddle`, and `NameCarrier::Const("PC_PARALLEL_GAP")` (`65b8387238`, and `c0db369c8b` via PR 7408) reads the `pc_parallel_gap` pair. The row's name is unchanged on main. So **the first bullet is fixed on main**, and PR 7670 carries no change for it. The row is still red on two new causes, filed as `main-red-predicate-name-coverage-meets-quantitys-decide-and-geom-cores-test-local-row-names`: `quantity`'s `Exact::decide` runs no roster, and four `row`/`row_floor` literals sit in geom-core's `k_stats_doors.rs`. The other bullets are another lane's.
+
+## 2026-11-23: GREEN U19 on every bullet but the first (PR 7678)
+
+The first bullet, `predicate_name_coverage`, is lane U17's (the section
+above). Every run below is a hosted throwaway probe; probe run
+45308109008 read each row on main `a433ff83d6`.
+
+- **Cones-apex rows at 1e-6: re-pinned.** Bisected to PR 7299
+  (`germ/crossing-consumers`, `54e6a5c5b8`), green on `f7dd37696d`
+  (probe runs 45312428995 and 45314894647). Classify now reads every edge
+  through `curve_face::cross`. The 30° and 45° seam poses, either normal,
+  refuse at the plane crossing (`CrossingEscalated { Method {
+  PlaneCrossing, Unsettled(Tangency) } }`) before rule (b) would refuse
+  `ConsecutiveOnSectors`. Off the seam both still land, and 60° is
+  unchanged. All of this was measured per cell (probe run 45317834459).
+  The sliver is inside the band at 1e-6, and the file pins the
+  near-tangent family as "lands or refuses typed as measured per ε", so
+  `near_tangent` now names `CrossingEscalated` at θ = 0. That refusal
+  carries no margin. **Mutant:** the pinned file on `f7dd37696d` is red
+  on both rows (probe run 45328989418). SPLITDOOR's rule-(b) row
+  (`a-plane-a-milliradian-off-a-cones-seam-through-its-apex-refuses-consecutive-ons-at-1e-6`)
+  is noted.
+- **The planar sense flip in `ring_path.rs`: fixed on main, inherited.**
+  It was a false positive of the source scan. `ring_path.rs` holds
+  `from_chart` in `Quadric::outward` and `Surface::Plane {` in
+  `plane_roots`, two different functions. PR 7494 (`ciw/census-text-pins`,
+  `9eb483e0c7`) narrowed the scan from the file to each function. It is
+  green on main (probe run 45308109008).
+- **`check-slow-set-names` on viewer's `app::` entry: fixed on main by PR
+  7599**, whose name check takes viewer as `--elsewhere` (ci.yml, "the
+  slow set names only tests that exist").
+- **`corpus_finish_count`, 398 against 390: re-pinned at 398.** Bisected
+  to PR 7362 (`offer/a-check-carries-the-assertion-that-quiets-it`,
+  `0ffe8560a2`), green on `04e545d4d7` (probe run 45314894647). All eight
+  extra finishes are heat_sink's, 29 → 37 (probe run 45317834459).
+  `checks::at_rest::written_pair` now offers an interference's quieting
+  assertion only where the rule takes it at every member of the family,
+  and that per-member reading is where they come from. Skipping the
+  members' reading puts back exactly 390, which is the mutant (probe run
+  45330776592). Restoring `covered`'s short-circuit ahead of the pair does
+  not change it (398, probe run 45328989418).
+- **`m10_p_lift::at_sym_a_fixed_box_is_the_build`: PR 7411, left red.**
+  It is the same `Sym` drift as the ten `revalue_corpus` rows: green on
+  `1883da3`, red on `3547fe5`. It is filed on SYM
+  (`a-sym-posed-reading-carries-a-value-its-node-does-not-compute`).
+- **`germ_tilted_rod` (the "also seen" note):** GREEN already holds it. It
+  was not bisected here.
+
+## Closed (2026-11-23, PR 7678)
+
+Every bullet has a disposition. The first is fixed on main (U17, PR
+7670), and its new causes are their own row. The cones-apex rows and
+`corpus_finish_count` are re-pinned with their causes. The planar sense
+flip and the slow-set name check are fixed on main. `m10_p_lift` is
+SYM's row.
