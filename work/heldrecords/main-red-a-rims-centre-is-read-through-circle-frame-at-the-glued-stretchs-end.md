@@ -2,9 +2,10 @@
 id: main-red-a-rims-centre-is-read-through-circle-frame-at-the-glued-stretchs-end
 kind: issue
 title: Main red: a rim's centre is read through Circle::frame at the glued stretch's end, which the conic-centre census pins at 0
-status: open
+status: dispatched
 opened: 2026-11-23
 priority: P0
+branch: heldrecords/conic-centre-red
 ---
 
 

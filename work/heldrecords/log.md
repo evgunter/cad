@@ -248,3 +248,8 @@
     - Tier 3's refusal of `End { UnderDetermined }` (MATE-7's jet-determinacy) was backed out, because it refused the horn torus's revolved lune, a valid body main certifies. End legality stays read at the stations, and the gap is filed on SELECT (P2), blocked on the drift P1 that would make "certified along the edge" askable.
     - The untested junction sector arms refuse typed.
   - **The row** `a-pipe-does-not-union-with-an-elbow-revolved-off-its-own-cap` is closed, with its residue listed there. (HELDRECORDS orchestrator)
+- 2026-11-24 — **Dispatched after the P0 closed (22:40Z):**
+  - **A new P0 that is ours:** main's lint is red on the conic-centre census. Our elbow-ends `end_root.rs` reads `circle.frame().origin()`, which ONEROUND made a disallowed door; the two crossed in merges. It goes back to the elbow-ends lane (`session_018u3gVGQfuVyGosb9cXJUqw`) on `heldrecords/conic-centre-red`: read the rim through `conic.rs`'s readings, not by raising the pin.
+  - **`heldrecords/belt`** (`session_018u3gVFSncpAXKEENjhxvjQ`), the neutral-point belt (P1), design first, dual review.
+  - **Two Opus designers** on `a-read-record-is-consumed-by-any-removed-remainder-so-a-lineage-gap-drops-it-silently` (P1, design). It changes the D1 carry clause, so it is `[ev]`-bound. Statement: `~/.local/share/cad-work/heldrecords/fork-removed-remainder.md`.
+  - **Still waiting on PR 7124 (EMBED):** PR 7421, PR 7481, `a-cut-of-a-nested-assemble-piece-reads-its-own-records-not-its-census`, and the gate flip `the-splits-at-rest-gate-reads-tier-3-where-a-finished-body-owes-tier-3-prime`. (HELDRECORDS orchestrator)
