@@ -65,3 +65,12 @@ Round-2 replies (all three in by 12:11 UTC; raw on `boxfinish/briefs` `probe/bri
 ## Round 3 (dispatched 12:13 UTC)
 
 All three shown the other two's round-2 reports and `round-3.md` (the table of where they stand; the reference; checks; a parting; whether they now agree).
+
+Round-3 replies (all three in by 12:14 UTC; raw on `boxfinish/briefs` `probe/briefs/fork-parted-path/<label>-round-3.md` at `8814e87e01b`): **the positions crossed.**
+- **A moved to C's round-2 lead** (the same-lane reference, the whole record, a parting bisected), amended: the reference is tied to the `f64` witness by its LOG (decided, the same choices, no turn, no parting), since a tie by cells would pass the lanes' contradiction at one point.
+- **B moved to C's round-2 lead** likewise, amended: the tie also refuses a choice turned between reference and witness (a parting between lanes tolerated); no `f64` fallback reference.
+- **C moved to A's and B's round-2 gate** (the `f64` witness, choices and standings, a terminal named `Parted`), withdrawing its reference on two objections (the tie is blind to what a choice decides; an undecided reference) and withdrawing the comparison of checks (a side reader's ray decision is a check whose other sign is not the part's shape).
+
+## Round 4 (dispatched 12:17 UTC)
+
+All three shown the other two's round-3 reports and `round-4.md`: the table, the arguments each side must answer, and a request to state each recommendation as a function of a measurement now running (M13b: the reference on every driven document; the 2,505 decided leaves re-sorted against it by the whole record and by choices; the six lane pairs labelled; turned checks), so that the numbers decide it.
