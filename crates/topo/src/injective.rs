@@ -11656,8 +11656,11 @@ mod presentation_rows {
             assert_eq!(a, b, "either face first, at {delta:e}");
             a
         };
-        assert!(!certified(2.8e-9), "below the threshold");
-        assert!(certified(3.6e-9), "above it");
+        // The threshold is a sine at the band: 0.32 of its escalation
+        // width at these rims (3.2e-9 at the default ε).
+        let escalate = band().escalate();
+        assert!(!certified(0.28 * escalate), "below the threshold");
+        assert!(certified(0.36 * escalate), "above it");
     }
 
     /// **A spike or a slit is not cut.** At a spike (the two edges an
@@ -11715,10 +11718,27 @@ mod presentation_rows {
                     Read::Local,
                     "half a band, rim {reach}, {sign}: off the shared cell a split may part it"
                 );
-                assert!(
-                    matches!(short(reach, sign * 5.0, &[vertex(1)]), Read::Pair(..)),
-                    "five bands, rim {reach}, {sign}: cut"
-                );
+                // Five bands: the guard passes. Whether the corner is
+                // then cut is the placement's: at the default band and
+                // wider the spike (from 1e-5 rad at these rims) is wide
+                // enough for the ray's direction to be enclosed; at a
+                // tighter band five bands of angle is too thin and the
+                // placement refuses, `Local`, never the guard's
+                // `Structural`.
+                let cut = short(reach, sign * 5.0, &[vertex(1)]);
+                if band().zero() >= 1e-9 {
+                    assert!(
+                        matches!(cut, Read::Pair(..)),
+                        "five bands, rim {reach}, {sign}: cut, not {cut:?}"
+                    );
+                } else {
+                    assert_eq!(
+                        cut,
+                        Read::Local,
+                        "five bands, rim {reach}, {sign}, at ε {:e}: the placement refuses",
+                        band().zero()
+                    );
+                }
             }
         }
         for (d2, what) in [
@@ -11765,6 +11785,26 @@ mod presentation_rows {
                 "{what}: a partner whose edge runs down the face"
             );
         }
+    }
+
+    /// **No piece is no reading** ([`every_piece`]): a presentation with
+    /// no piece (a vacuous one, re-presented against a vertex alone)
+    /// certifies nothing through the every-piece rule, alone or against
+    /// pieces. Red if the rule is `all` over an empty list.
+    #[test]
+    fn no_piece_is_not_every_piece() {
+        let f = sector_at_vertex_1(PZ, PX, MX, (1, 2));
+        let local = both_rims_and_vertex_1();
+        let about = (-0.5, 0.5);
+        let presented = present_plane(&cell_of(&f, &local, about, about), &[], &[], band())
+            .expect("two pieces");
+        let some = presented.pieces();
+        assert_eq!(some.len(), 2);
+        assert!(every_piece(&some, |_| true));
+        assert!(!every_piece(&[], |_| true));
+        assert!(every_piece_pair(&some, &some, |_, _| true));
+        assert!(!every_piece_pair(&some, &[], |_, _| true));
+        assert!(!every_piece_pair(&[], &some, |_, _| true));
     }
 
     /// **Faces that share an edge of the corner.**
