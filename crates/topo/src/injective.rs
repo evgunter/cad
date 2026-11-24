@@ -11128,6 +11128,217 @@ mod presentation_rows {
         );
     }
 
+    // ---- REVIEW PROBES (corner-pieces-review-a7050e) ----
+    fn rv_dir(deg: f64) -> [f64; 3] {
+        let r = deg.to_radians();
+        [r.cos(), r.sin(), 0.0]
+    }
+    /// A plane through the z axis whose sector from +z, counter-clockwise
+    /// about its normal, passes the heading `deg` in z = 0, to -z.
+    fn rv_flap(deg: f64) -> (Surface<Interval>, Boundary) {
+        let r = deg.to_radians();
+        let n = [-r.sin(), r.cos(), 0.0];
+        sector_at_vertex_1(n, PZ, MZ, (40, 41))
+    }
+    #[test]
+    fn rv_flaps_through_a_corner_at_its_vertex_are_never_parted() {
+        // (face end angle in degrees, flap headings that cross the face)
+        for (end, headings) in [
+            (180.0, vec![90.0, 30.0, 150.0, 1.0, 179.0]),
+            (179.9999, vec![89.99995, 30.0, 150.0]),
+            (120.0, vec![60.0, 10.0, 110.0]),
+            (300.0, vec![150.0, 60.0, 250.0, 10.0, 290.0, 180.0]),
+            (350.0, vec![175.0, 5.0, 345.0, 270.0]),
+            (200.0, vec![100.0, 20.0, 190.0]),
+        ] {
+            let f = sector_at_vertex_1(PZ, PX, rv_dir(end), (1, 2));
+            for h in headings {
+                let g = rv_flap(h);
+                assert!(
+                    !parted_at_vertex_1(&f, &g, &[]),
+                    "face to {end} deg, a flap crossing at {h} deg was parted"
+                );
+            }
+        }
+    }
+    #[test]
+    fn rv_a_partner_overlapping_one_piece_is_never_parted() {
+        for (end, lo, hi) in [
+            (180.0, 20.0, 60.0),
+            (180.0, 120.0, 160.0),
+            (300.0, 20.0, 60.0),
+            (300.0, 200.0, 260.0),
+            (90.0, 10.0, 30.0),
+        ] {
+            let f = sector_at_vertex_1(PZ, PX, rv_dir(end), (1, 2));
+            for normal in [PZ, MZ] {
+                let (a, b) = if normal == PZ { (lo, hi) } else { (hi, lo) };
+                let g = sector_at_vertex_1(normal, rv_dir(a), rv_dir(b), (50, 51));
+                assert!(
+                    !parted_at_vertex_1(&f, &g, &[]),
+                    "face to {end}, coplanar partner {lo}..{hi} normal {normal:?} parted"
+                );
+            }
+        }
+    }
+    #[test]
+    fn rv_a_fold_along_one_edge_is_never_parted() {
+        for end in [90.0, 180.0, 179.9999, 200.0, 300.0, 350.0] {
+            let f = sector_at_vertex_1(PZ, PX, rv_dir(end), (1, 2));
+            // Folded flat onto f across f's +x edge (key 1): the sector from
+            // +x to `w` inside f, run the other way.
+            for w in [10.0, 45.0, end / 2.0, end - 5.0] {
+                let g = sector_at_vertex_1(MZ, rv_dir(w), PX, (60, 1));
+                assert!(
+                    !parted_at_vertex_1(&f, &g, &[(1, 0)]),
+                    "face to {end}, folded onto it to {w}: parted"
+                );
+                // nearly folded: tilted a hair out of the plane, into the face's normal side.
+                let t = 1e-6;
+                let d = rv_dir(w);
+                let g2 = sector_at_vertex_1(
+                    {
+                        // normal of plane spanned by +x and (d + t z), oriented toward -z
+                        let v = [d[0], d[1], t];
+                        let n = [0.0 * t - 0.0 * d[1], 0.0 * d[0] - 1.0 * t, 1.0 * d[1] - 0.0 * d[0]];
+                        let _ = v;
+                        let l = (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).sqrt();
+                        [-n[0] / l, -n[1] / l, -n[2] / l]
+                    },
+                    {
+                        let l = (d[0] * d[0] + d[1] * d[1] + t * t).sqrt();
+                        [d[0] / l, d[1] / l, t / l]
+                    },
+                    PX,
+                    (61, 1),
+                );
+                let _ = g2;
+            }
+        }
+    }
+    #[test]
+    fn rv_valid_partners_report() {
+        // Not assertions of refusal: what each valid configuration reads.
+        let mut out = Vec::new();
+        for end in [90.0, 180.0, 179.9999, 180.0001, 200.0, 300.0, 350.0, 359.9] {
+            let f = sector_at_vertex_1(PZ, PX, rv_dir(end), (1, 2));
+            // a wall standing on the +x edge, above the face (normal side +z), sharing that edge
+            let wall = sector_at_vertex_1(PY, PZ, PX, (70, 1));
+            // a partner below sharing the vertex only: the half z<=0 of x=0? use flap below
+            let below = sector_at_vertex_1(MY, MZ, PX, (71, 72));
+            out.push(format!(
+                "{end}: wall-on-edge {} below-vertex {}",
+                parted_at_vertex_1(&f, &wall, &[(1, 0)]),
+                parted_at_vertex_1(&f, &below, &[])
+            ));
+        }
+        eprintln!("RV {}", out.join("\nRV "));
+    }
+
+    /// A spike of `angle` rad whose edges are `len` long, read in a cell
+    /// `cell` across about the vertex.
+    fn rv_spike_read(angle: f64, len: f64, cell: f64) -> Read {
+        let v3 = |[x, y, z]: [f64; 3]| Vec3::new(iv0(x), iv0(y), iv0(z));
+        let d1 = PX;
+        let d2 = [angle.cos(), angle.sin(), 0.0];
+        let rim = |key: u64, d: [f64; 3], plus: bool| Rim {
+            stated: None,
+            key: edge(key),
+            arc: Some(chord_segment(origin(), origin() + v3(d) * iv0(len))),
+            ends: [vertex(1), vertex(key + 100)],
+            uses: vec![Use { plus, image: None, iso: None, wall: None, harmonic: None }],
+        };
+        let s = (
+            Surface::Plane { frame: geom::Frame::new(origin(), v3(PZ), v3(d1)) },
+            Boundary {
+                sense: true,
+                edges: vec![rim(2, d2, false), rim(1, d1, true)],
+                vertices: BTreeMap::from([
+                    (vertex(1), origin()),
+                    (vertex(101), origin() + v3(d1) * iv0(len)),
+                    (vertex(102), origin() + v3(d2) * iv0(len)),
+                ]),
+                extent: None,
+                outer: None,
+            },
+        );
+        let local = both_rims_and_vertex_1();
+        read(present_plane(&cell_of(&s, &local, (-cell, cell), (-cell, cell)), &[], &[vertex(1)], band()))
+    }
+    #[test]
+    fn rv_spike_table() {
+        let mut out = vec![format!("band zero {:e}", band().zero())];
+        for len in [4.0, 1e-2, 1e-3, 1e-4] {
+            for angle in [1e-10, 1e-9, 3e-9, 1e-8, 1e-7, 1e-6, 1e-5] {
+                let cell = 0.1 * angle * len;
+                out.push(format!("len {len:e} angle {angle:e} cell {cell:e}: {:?} | slit {:?}", rv_spike_read(angle, len, cell), rv_spike_read(-angle, len, cell)));
+            }
+        }
+        eprintln!("RVSPIKE {}", out.join("\nRVSPIKE "));
+    }
+    #[test]
+    fn rv_a_partner_on_one_edge_crossing_the_other_piece_is_never_parted() {
+        for end in [180.0, 180.0001, 200.0, 300.0, 350.0] {
+            let f = sector_at_vertex_1(PZ, PX, rv_dir(end), (1, 2));
+            let above = sector_at_vertex_1(MY, PX, MX, (1, 80));
+            let below = sector_at_vertex_1(PY, PX, MX, (1, 81));
+            for (what, g) in [("above", above), ("below", below)] {
+                assert!(
+                    !parted_at_vertex_1(&f, &g, &[(1, 1)]),
+                    "face to {end}: a half-plane {what} on its +x edge, through -x, parted"
+                );
+            }
+        }
+    }
+    #[test]
+    fn rv_inset_patch_corner_report() {
+        // p3's ring corner: the top face reflex at 270 deg, the coplanar
+        // patch its complementary quadrant, sharing both edges.
+        let top = sector_at_vertex_1(PZ, PX, MY, (1, 2));
+        let patch = sector_at_vertex_1(PZ, MY, PX, (2, 1));
+        eprintln!(
+            "RVP3 both edges + vertex: {} ; vertex alone near: {}",
+            parted_at_vertex_1(&top, &patch, &[(1, 0), (0, 1)]),
+            parted_near(&top, &patch, &[(1, 0), (0, 1)], &[])
+        );
+    }
+    #[test]
+    fn rv_a_sliver_piece_across_the_ray_report() {
+        let f = sector_at_vertex_1(PZ, PX, MX, (1, 2));
+        let wall = sector_at_vertex_1(PY, MX, PZ, (2, 90));
+        let local = both_rims_and_vertex_1();
+        let near = |edges: Vec<(usize, usize)>| Near { edges, vertices: vec![vertex(1)] };
+        let none = FacePoses::default();
+        let mut out = Vec::new();
+        for over in [1e-15, 1e-12, 1e-9, 1e-6, 0.0, -1e-15] {
+            let x = cell_of(&f, &local, (-0.5, over), (-0.5, 0.5));
+            let y = cell_of(&wall, &local, (-0.5, 0.5), (-0.5, 0.5));
+            let pres = read(present_plane(&x, &[0], &[vertex(1)], band()));
+            let o = departure(&x, &y, &near(vec![(0, 1)]), band(), true, (&none, &none));
+            out.push(format!("over {over:e}: {pres:?} -> {o:?}"));
+        }
+        eprintln!("RVSLIVER {}", out.join("\nRVSLIVER "));
+    }
+    #[test]
+    fn rv_inset_patch_outcome_report() {
+        let top = sector_at_vertex_1(PZ, PX, MY, (1, 2));
+        let patch = sector_at_vertex_1(PZ, MY, PX, (2, 1));
+        let local = both_rims_and_vertex_1();
+        let none = FacePoses::default();
+        let mut out = Vec::new();
+        for (cu, cv) in [((-0.5, 0.5), (-0.5, 0.5)), ((-0.01, 0.01), (-0.01, 0.01)), ((-1e-6, 1e-6), (-1e-6, 1e-6))] {
+            let x = cell_of(&top, &local, cu, cv);
+            let y = cell_of(&patch, &local, cu, cv);
+            let n = Near { edges: vec![(1, 0), (0, 1)], vertices: vec![vertex(1)] };
+            let px = read(present_plane(&x, &[1, 0], &[vertex(1)], band()));
+            let py = read(present_plane(&y, &[0, 1], &[vertex(1)], band()));
+            let o = departure(&x, &y, &n, band(), true, (&none, &none));
+            out.push(format!("cell {cu:?}: top {px:?} patch {py:?} -> {o:?}"));
+        }
+        eprintln!("RVP3O {}", out.join("\nRVP3O "));
+    }
+    // ---- END REVIEW PROBES ----
+
     /// A side of a plane face: its key, its chart ends in its run, and
     /// its start and end vertices.
     type Seg = (u64, (f64, f64), (f64, f64), [u64; 2]);
