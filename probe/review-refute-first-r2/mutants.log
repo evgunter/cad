@@ -1,0 +1,25 @@
+== M9:      Summary [   0.447s] 106 tests run: 105 passed, 1 failed, 707 skipped
+           FAIL [   0.103s] ( 51/106) geom-core sym::point::tests::a_reading_with_a_lost_domain_declines
+error: test run failed
+== M10:      Summary [   0.434s] 106 tests run: 105 passed, 1 failed, 707 skipped
+           FAIL [   0.094s] ( 51/106) geom-core sym::point::tests::the_reading_is_the_same_in_any_order_and_on_any_thread
+error: test run failed
+== M10b:      Summary [   0.417s] 106 tests run: 106 passed, 707 skipped
+== M2:      Summary [   0.509s] 106 tests run: 105 passed, 1 failed, 707 skipped
+           FAIL [   0.089s] ( 51/106) geom-core sym::point::tests::a_select_takes_the_arm_its_decision_reads_at_the_point
+error: test run failed
+== M3:      Summary [   0.450s] 106 tests run: 105 passed, 1 failed, 707 skipped
+           FAIL [   0.085s] ( 50/106) geom-core sym::point::tests::a_select_takes_the_arm_its_decision_reads_at_the_point
+error: test run failed
+== MQ:      Summary [   0.370s] 106 tests run: 106 passed, 707 skipped
+== MR:      Summary [   0.540s] 106 tests run: 106 passed, 707 skipped
+== MR:      Summary [   0.444s] 107 tests run: 107 passed, 707 skipped
+== MC:      Summary [ 176.702s] 107 tests run: 103 passed, 4 failed, 707 skipped
+           FAIL [   0.108s] ( 21/107) geom-core sym::point::tests::the_point_is_off_the_centre_and_the_faces_and_differs_per_symbol
+           FAIL [ 156.850s] (105/107) geom-core sym::point::tests::an_identity_still_proves_zero_and_its_parent_box_is_refuted
+           FAIL [ 160.580s] (106/107) geom-core sym::point::tests::a_select_takes_the_arm_its_decision_reads_at_the_point
+           FAIL [ 176.667s] (107/107) geom-core sym::point::tests::a_select_that_straddles_at_the_point_reads_both_arms
+error: test run failed
+== MNOMEMO:      Summary [   0.467s] 107 tests run: 107 passed, 707 skipped
+== MEQ:      Summary [   0.419s] 107 tests run: 107 passed, 707 skipped
+== MDUAL:      Summary [   0.466s] 107 tests run: 107 passed, 707 skipped

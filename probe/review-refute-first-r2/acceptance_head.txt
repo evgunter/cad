@@ -1,0 +1,8 @@
+
+-- the two-hole plate (M10/E10: a tolerance study, certified and advisory) --
+   the real study: web nominal 0.6000 mm, asserted >= 0.5000 mm, over ±0.05 mm of spacing and σ = 0.01 mm on each radius
+     drive over 3 axis/axes: 211 certified, 301 refused (511 splits; receipt holds)
+       301 leaf/leaves refused budget
+       1832193 of 4374109 decisions were proven zero by the symbolic tier (41.9%); 634 form(s) frozen
+     priced: every varying parameter carries a stated distribution, so these masses are integrals of a stated measure
+       certified   94.9069%
