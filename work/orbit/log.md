@@ -135,3 +135,23 @@ this container has 4 vCPUs):
   - Lily wall 8 now stops at torus × NURBS `GermSectionUnbuilt` (the ssi exhaustiveness budget, 200 000 cells), not at plane × torus.
   - CI run 45441615769 is red only on the inherited square_search fuzz, at a new seed. I merged main myself; the gates and lint pass by their own exits.
   - Closes `the-section-certificate-reads-a-plane-and-a-torus-on-its-own-rows`. (ORBIT orchestrator)
+- 2026-11-24 — **Sitting ends; ORBIT handed back `ready`.** Merged this sitting:
+  - 7588 (pair doors read apart);
+  - 7589 (separation, with containment);
+  - 7593 (cut-in carry);
+  - 7602 (one sphere escape, the re-chart retired);
+  - 7611 (torus touch at extremes);
+  - 7617 (torus at a tilted rim);
+  - 7648 and 7681 (main reds);
+  - 7664 (the transient chart cut);
+  - 7694 (the conventional vertex named for its edge);
+  - 7713 (plane×torus at one lever).
+
+  Both design forks were weighed by two Opus designers and ruled by Ev: 7587 (the touch read by its near band) and 7639 (the transient cut). The tour's die with two pips run together builds, names and meshes at its union in all eight edits. Past the union, its fillets refuse at their own doors: six with N5 `Vanished`, two at the clearance.
+
+  No P0 is left, and no dispatchable P1. The two P1 torus-touch rows (saddle, parallel) are parked on GERM's `the-line-torus-door-misses-silently-within-the-band`. The P2/P3 tail is the successor's.
+
+  Notes for a successor:
+  - The kernel's inherited reds are the square_search fuzz (GERM's tube-top fold_half row, dense at EFFORT=1, met by any PR editing `section_cert.rs`) and the prism-corner 1e-12 row.
+  - The snowman and `spheres_crossing` RingUnread pins flip when LATHE's ring reader lands.
+  - All lanes ran on Opus (Fable outage): no draws and no model-compare rows. (ORBIT orchestrator)
