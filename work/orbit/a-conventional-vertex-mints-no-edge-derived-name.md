@@ -2,10 +2,11 @@
 id: a-conventional-vertex-mints-no-edge-derived-name
 kind: issue
 title: Naming a conventional vertex refuses typed: its edge-derived name, the ranking skip and the modulo-position order rows are unbuilt
-status: open
+status: closed
 priority: P0
 cost: H
 opened: 2026-10-07
+closed: 2026-11-24
 ---
 
 
