@@ -152,13 +152,16 @@ fn a_product_of_sweeps_is_finished_whole_while_their_leaves_are_not_finished() {
     let ev: Evaluation<Interval> =
         evaluate(&doc, None, &CancelToken::new(), &over_the_box(&doc), tol);
     let body = held(&ev, gather);
+    // The switch's state, read off its own type: whether a box scalar's
+    // taker finishes its leaf.
+    let tier_2 = <Interval as topo::AtRestPolicy>::TAKE_FINISHES;
     assert_eq!(
         matches!(body, Held::Leaf(_)),
-        !topo::LEAVES_ARE_FINISHED,
+        tier_2,
         "Interval: a gather of sweeps is a leaf exactly while the box scalars' leaf is tier 2"
     );
     #[cfg(debug_assertions)]
-    if !topo::LEAVES_ARE_FINISHED {
+    if tier_2 {
         let before = topo::finishes_on_this_thread();
         let ev: Evaluation<f64> = evaluate(
             &doc,
