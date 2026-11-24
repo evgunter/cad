@@ -642,7 +642,7 @@ pub enum Unsettled {
         /// Which failure, without its payload.
         class: crate::NodeErrorClass,
         /// The failure as the document speaks it.
-        cause: String,
+        cause: crate::Sentence,
     },
 }
 
@@ -1003,10 +1003,15 @@ impl ParamBoxVerdict {
     /// band-only box produces exactly the same masses as one over a
     /// uniform box, and only the box knows that none of them is a
     /// probability ([`crate::report::MassBasis`]). Each variable a line
-    /// names is spoken from `doc`, the document the drive ran over.
-    pub fn render<P>(&self, doc: &crate::doc::Doc<P>, analyzed: &AnalyzedBox) -> String {
-        use core::fmt::Write as _;
-        let mut s = String::new();
+    /// names is spoken from `doc`, the document the drive ran over, and
+    /// mentioned in it: one sentence per line.
+    pub fn render<P: crate::ProfilePayload>(
+        &self,
+        doc: &crate::doc::Doc<P>,
+        analyzed: &AnalyzedBox,
+    ) -> crate::Lines {
+        let by = crate::Speaker::of(doc);
+        let mut s = crate::Sentence::new();
         let r = self.receipt;
         let _ = writeln!(
             s,
@@ -1036,17 +1041,21 @@ impl ParamBoxVerdict {
                 })
                 .collect();
             for (node, unsettled) in named {
-                let said = crate::spoken::node_text(&doc.spoken(node));
+                let said = by.mention(&doc.spoken(node));
                 let _ = match unsettled {
-                    Unsettled::Undecided => writeln!(
-                        s,
-                        "    {said} is undecided and reads no variable of the box: \
-                         no split changes it"
+                    Unsettled::Undecided => say!(
+                        &mut s,
+                        "    ",
+                        said,
+                        " is undecided and reads no variable of the box: no split changes it\n"
                     ),
-                    Unsettled::Failed { cause, .. } => writeln!(
-                        s,
-                        "    {said} fails and reads no variable of the box: \
-                         no split changes it ({cause})"
+                    Unsettled::Failed { cause, .. } => say!(
+                        &mut s,
+                        "    ",
+                        said,
+                        " fails and reads no variable of the box: no split changes it (",
+                        cause,
+                        ")\n"
                     ),
                 };
             }
@@ -1098,12 +1107,11 @@ impl ParamBoxVerdict {
             }
             let _ = writeln!(s, "; {} form(s) frozen", d.frozen);
         }
-        let _ = write!(
-            s,
-            "{}",
+        let _ = say!(
+            &mut s,
             crate::report::MassBudget::of(&self.accounting, analyzed).render(doc)
         );
-        s
+        s.lines()
     }
 
     /// The verdict's content key: the identity of everything
@@ -1231,8 +1239,8 @@ pub enum DriveRefusal {
         /// The first node, in evaluation order, that did not build,
         /// spoken from the driven document.
         node: SpokenNode,
-        /// The node error's rendering.
-        cause: String,
+        /// The node error, said from the driven document.
+        cause: crate::Sentence,
     },
     /// The box has no varying axis: nothing is declared to vary, so
     /// there is no parameter box to subdivide. The nominal build
@@ -1253,10 +1261,10 @@ impl crate::Say for DriveRefusal {
                 f,
                 "the witness build refuses at ",
                 by.mention(node),
-                format_args!(
-                    ": {cause} — there is no branch to certify \
-                 leaves against until the nominal document builds"
-                )
+                ": ",
+                cause,
+                " — there is no branch to certify leaves against until the nominal document \
+                 builds"
             ),
             Self::NothingVaries => f.write_str(
                 "no parameter of this document declares a distribution, so the analyzed box has \
@@ -1327,15 +1335,25 @@ pub(crate) fn does_not_build(
     doc: &Doc<ProfileProgram>,
     built: &Evaluation<f64>,
 ) -> Option<DriveRefusal> {
+    first_unusable(doc, built)
+        .map(|(node, cause)| DriveRefusal::WitnessDoesNotBuild { node, cause })
+}
+
+/// **The first node of a finished `f64` build that is not usable**, in
+/// evaluation order, spoken from `doc`, and why: its own error, or the
+/// standing, said from `doc` with each node it names a mention there.
+/// `None` when every node is usable. The drive's witness and the
+/// Monte-Carlo nominal refuse on it alike.
+pub(crate) fn first_unusable(
+    doc: &Doc<ProfileProgram>,
+    built: &Evaluation<f64>,
+) -> Option<(SpokenNode, crate::Sentence)> {
     let standing = built.order.iter().find_map(|&id| built.usable(id).err())?;
     let node = standing.node();
     let cause = built
         .node_error(node)
-        .map_or_else(|| standing.to_string(), |e| e.kind_spoken(doc).to_string());
-    Some(DriveRefusal::WitnessDoesNotBuild {
-        node: doc.spoken(node),
-        cause,
-    })
+        .map_or_else(|| standing.spoken(doc), |e| e.kind_spoken(doc));
+    Some((doc.spoken(node), cause))
 }
 
 /// The plain-form memo one drive's leaves share
@@ -1835,7 +1853,7 @@ fn classify_replay<T: topo::AtRestPolicy + geom_core::Decide>(
                     deciding: node,
                     unsettled: Unsettled::Failed {
                         class: err.kind.class(),
-                        cause: err.kind_spoken(doc).to_string(),
+                        cause: err.kind_spoken(doc),
                     },
                 };
             }
@@ -2425,6 +2443,166 @@ mod tests {
                 Some(Undecided::Sliver("tangent_second_order"))
             ),
             "the in-band second-order refusal is a sliver: {log:?}"
+        );
+    }
+
+    /// The slab's witness build at `f64` with its extrude failed for an
+    /// empty operand naming its profile: a failure whose cause names
+    /// another node.
+    fn slab_failing_naming_its_profile() -> (
+        crate::test_support::MeasuredSlab,
+        AnalyzedBox,
+        Evaluation<f64>,
+    ) {
+        let slab = crate::test_support::measured_slab("drive-cause-mentions", 1.0, Tol::witness());
+        let analyzed =
+            crate::analysis::analyzed_box(&slab.doc, &crate::analysis::AnalysisPolicy::default());
+        let opts = witness_options(&analyzed, &crate::Stop::default());
+        let mut built: Evaluation<f64> = evaluate(
+            &slab.doc,
+            None,
+            &crate::CancelToken::new(),
+            &opts,
+            Tol::witness(),
+        );
+        built.nodes.insert(
+            slab.block,
+            NodeResult::Failed(crate::eval::NodeError {
+                node: slab.block,
+                kind: NodeErrorKind::EmptyOperand {
+                    input: slab.profile,
+                },
+                escalations: Arc::new(Vec::new()),
+            }),
+        );
+        (slab, analyzed, built)
+    }
+
+    /// Whether `said` mentions `node` in the document `doc`.
+    fn mentions(said: &crate::Sentence, node: RecipeNodeId, doc: crate::DocumentId) -> bool {
+        said.mentions()
+            .any(|m| m.node().map(SpokenNode::id) == Some(node) && m.document() == Some(doc))
+    }
+
+    /// **A witness that does not build keeps the nodes its cause names
+    /// as mentions**: the extrude's empty operand names the profile, and
+    /// the cause, and the refusal said from the document, mention it in
+    /// the driven document. The Monte-Carlo nominal refuses on the same
+    /// first failure ([`first_unusable`]).
+    #[test]
+    fn a_witness_refusals_cause_mentions_the_node_it_names() {
+        let (slab, _, built) = slab_failing_naming_its_profile();
+        let id = slab.doc.id();
+        let refusal = does_not_build(&slab.doc, &built).expect("the failed extrude refuses");
+        let DriveRefusal::WitnessDoesNotBuild { node, cause } = &refusal else {
+            panic!("the failed extrude refuses the witness");
+        };
+        assert_eq!(node.id(), slab.block, "the first node that did not build");
+        assert!(
+            mentions(cause, slab.profile, id),
+            "the cause mentions the profile in the document: {cause:?}"
+        );
+        let said = crate::Said(&refusal, crate::Speaker::of(&slab.doc)).sentence();
+        assert!(
+            mentions(&said, slab.profile, id) && mentions(&said, slab.block, id),
+            "the refusal keeps the cause's mention beside its node's: {said:?}"
+        );
+        assert_eq!(
+            first_unusable(&slab.doc, &built).map(|(node, cause)| (node.id(), cause)),
+            Some((slab.block, cause.clone())),
+            "the Monte-Carlo nominal's refusal reads the same"
+        );
+    }
+
+    /// **A leaf whose deciding node fails keeps the nodes its cause
+    /// names as mentions**: [`Unsettled::Failed`]'s cause mentions the
+    /// profile the extrude's empty operand names, in the document.
+    #[test]
+    fn a_failed_leafs_cause_mentions_the_node_it_names() {
+        let (slab, analyzed, leaf) = slab_failing_naming_its_profile();
+        let id = slab.doc.id();
+        let witness = witness_build(
+            &slab.doc,
+            &analyzed,
+            None,
+            &crate::Stop::default(),
+            Tol::witness(),
+        )
+        .expect("the slab builds");
+        let vector = certifying_vector(&slab.doc, &witness);
+        let verdict = classify_replay(
+            &slab.doc,
+            &ParamBox::of(&analyzed),
+            &leaf,
+            &witness,
+            &vector,
+            vector.key(),
+            SymCounts::default(),
+        );
+        let LeafVerdict::Bisect {
+            deciding,
+            unsettled: Unsettled::Failed { cause, .. },
+        } = &verdict
+        else {
+            panic!("the failed extrude does not settle the leaf");
+        };
+        assert_eq!(*deciding, slab.block);
+        assert!(
+            mentions(cause, slab.profile, id),
+            "the leaf's cause mentions the profile in the document: {cause:?}"
+        );
+    }
+
+    /// **The human form, word for word**: the slab driven over its
+    /// depth on a budget of four leaves, the symbolic tier off so no
+    /// decision count rides it. Four leaves certify none, so each
+    /// refuses on the budget and the mass budget follows, priced and
+    /// conservative. Pins the
+    /// report's text ([`ParamBoxVerdict::render`] and the
+    /// [`crate::report::MassBudget::render`] under it), so a break or a
+    /// word moved is red here.
+    #[test]
+    fn the_drive_report_reads_word_for_word() {
+        let slab = crate::test_support::measured_slab("drive-report-golden", 1.0, Tol::witness());
+        let analyzed =
+            crate::analysis::analyzed_box(&slab.doc, &crate::analysis::AnalysisPolicy::default());
+        let config = DriveConfig {
+            symbolic: SymbolicDials::off(),
+            max_leaves: 4,
+            ..DriveConfig::default()
+        };
+        let verdict = drive(
+            &slab.doc,
+            &analyzed,
+            &config,
+            &crate::Stop::default(),
+            Tol::witness(),
+        )
+        .expect("the slab drives");
+        let lines = verdict.render(&slab.doc, &analyzed);
+        let budget_text = "priced: every varying parameter carries a stated distribution, so these masses are \
+         integrals of a stated measure\n  certified   0.0000%\n  refused (budget) 100.0000%\n  \
+         tail        0.0000%\n  UNRESOLVED  100.0000% (conservative: the witness chamber may \
+         reach past the analyzed box)\n";
+        assert_eq!(
+            lines.to_string(),
+            format!(
+                "drive over 1 axis/axes: 0 certified, 4 refused (3 splits; receipt holds)\n  4 \
+                 leaf/leaves refused budget\n{budget_text}"
+            ),
+            "the drive's report"
+        );
+        let budget =
+            crate::report::MassBudget::of(verdict.accounting(), &analyzed).render(&slab.doc);
+        assert_eq!(budget.to_string(), budget_text, "the mass budget");
+        assert_eq!(budget.len(), 5, "one sentence per line");
+        assert_eq!(
+            lines
+                .iter()
+                .filter(|line| line.mentions().next().is_some())
+                .count(),
+            0,
+            "a certified drive over a named depth names no node"
         );
     }
 }

@@ -285,6 +285,10 @@ impl<T: Real> std::error::Error for SectionError<T> {}
 /// join's own, on the clone it carved, so a record on their walk that
 /// does not resolve is no refusal (`section_walk`, and the nesting's
 /// reads of the same loops).
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub fn plane_section<F: crate::FinishedBody>(
     operand: &F,
     plane: &SplitPlane<F::Scalar>,

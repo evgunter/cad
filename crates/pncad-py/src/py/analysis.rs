@@ -802,7 +802,7 @@ fn mc_err(py: Python<'_>, refusal: &a::McRefusal) -> PyErr {
                 Ok(id) => id.into_any().unbind(),
                 Err(failed) => return failed,
             },
-            text(cause),
+            text(&cause.to_string()),
         ),
         a::McRefusal::BandHasNoMeasure(_) | a::McRefusal::NoSamples | a::McRefusal::Stopped(_) => {
             (py.None(), py.None())
@@ -1179,7 +1179,7 @@ impl McReport {
     ///
     /// Its nodes are spoken from the document the run was drawn from.
     fn render(&self) -> String {
-        self.report.render(&self.doc)
+        self.report.render(&self.doc).to_string()
     }
 
     fn __repr__(&self) -> String {

@@ -366,9 +366,9 @@ fn a_value_edit_keeps_the_slots_rendering_unit() {
 /// **Changing how it is written moves no bits.**
 ///
 /// The half-turn row is the case that makes the point: 90° and 0.5π are
-/// the same canonical value to within the last ulp, so the ONLY thing
-/// that distinguishes them is the stored notation — which is why
-/// rewriting the notation must not touch the value.
+/// the same canonical value, so the ONLY thing that distinguishes them
+/// is the stored notation — which is why rewriting the notation must
+/// not touch the value.
 #[test]
 fn changing_the_display_unit_leaves_the_value_bit_identical() {
     let tol = Tol::witness();
@@ -1361,13 +1361,19 @@ fn plate_reading_an_index(count: i64) -> (DocSession, RecipeNodeId) {
             name: VarName::new("k").expect("a name"),
             def: pncad::document::VarDecl::Index {
                 count: Formula::count(count),
-                within: None,
+                after: None,
             },
         },
         tol,
     )
     .expect("an index declares")
     .doc;
+    // The plate is the product, which a body reading `k` cannot be
+    // unless a binder yields it (D10 `[repetition]`); the row is the
+    // panel's, so the product is cleared first.
+    let doc = pncad::document::apply(&doc, &DocEdit::SetProduct { product: None }, tol)
+        .expect("the product clears")
+        .doc;
     let mut session = DocSession::inline(doc, tol);
     let outcome = session.perform(SessionOp::SetSlotExpression {
         node: extrude,

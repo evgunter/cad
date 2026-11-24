@@ -88,6 +88,7 @@
 //!   traits are not tracked: a method call's receiver type is not
 //!   inferred, and a path through a type (`T::f`) is not followed.
 
+#![cfg_attr(not(test), deny(clippy::disallowed_methods))]
 use std::collections::HashMap;
 
 use proc_macro2::Span;
