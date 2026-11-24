@@ -2345,3 +2345,200 @@ mod tests {
         let _ = super::Ellipse::new(f, 0.9, 0.4).seamed_near(f64::NAN);
     }
 }
+
+/// Reviewer differential (PR 7640 delta, item H): the new
+/// `seamed_toward` and `restatements` against `f92105bd31`'s bodies, bit
+/// for bit. Not for landing.
+#[cfg(test)]
+mod review_delta {
+    use super::{Conic, Ellipse, Held};
+    use crate::Frame;
+    use geom_core::interval::Interval;
+    use geom_core::{Point3, Real, Vec3};
+
+    fn old_seamed_toward<T: Real>(this: &Ellipse<T>, cos: T, sin: T) -> Ellipse<T> {
+        let turn = sin.abs() - cos.abs();
+        let back = T::zero() - turn.select_le_zero(cos, sin);
+        let e = this.quarter_turned_where(turn);
+        let f = Conic::frame(&e);
+        Ellipse {
+            at: e.stood(Frame::select_le_zero(back, f, f.half_turned())),
+            held: e.held.with_phase(|(c0, s0)| {
+                (back.select_le_zero(c0, -c0), back.select_le_zero(s0, -s0))
+            }),
+            ..e
+        }
+    }
+    fn old_half<T: Real>(this: &Ellipse<T>) -> Ellipse<T> {
+        Ellipse {
+            at: this.at.half_turned(),
+            held: this.held.with_phase(|(c0, s0)| (-c0, -s0)),
+            ..*this
+        }
+    }
+    struct Rng(u64);
+    impl Rng {
+        fn next(&mut self) -> f64 {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            (self.0 >> 11) as f64 / (1u64 << 53) as f64
+        }
+        fn sym(&mut self) -> f64 {
+            2.0 * self.next() - 1.0
+        }
+        fn vec(&mut self) -> Vec3<f64> {
+            Vec3::new(self.sym(), self.sym(), self.sym())
+        }
+    }
+    /// The stored numbers as bits: origin, u, v, w, phase, semi-axes.
+    fn stored(e: &Ellipse<f64>) -> Vec<u64> {
+        let m = e.at.motion();
+        let (o, u, v, w) = (e.at.origin(), m.u().get(), m.v().get(), m.w().get());
+        let ph = match e.held {
+            Held::Centre => (9.0, 9.0),
+            Held::Arc { phase } => phase,
+        };
+        [o.x, o.y, o.z, u.x, u.y, u.z, v.x, v.y, v.z, w.x, w.y, w.z, ph.0, ph.1, e.semi_u, e.semi_v]
+            .iter()
+            .map(|x| x.to_bits())
+            .collect()
+    }
+    const NAMES: [&str; 16] = ["o.x", "o.y", "o.z", "u.x", "u.y", "u.z", "v.x", "v.y", "v.z", "w.x", "w.y", "w.z", "c0", "s0", "semi_u", "semi_v"];
+
+    fn ellipses(rng: &mut Rng, n: usize, zeros: bool) -> Vec<Ellipse<f64>> {
+        let mut out = Vec::new();
+        for i in 0..n {
+            let (axis, u) = if i % 5 == 0 {
+                (Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0))
+            } else if i % 5 == 1 {
+                (Vec3::new(-0.0, 1.0, 0.0), Vec3::new(0.0, -0.0, -1.0))
+            } else {
+                (rng.vec(), rng.vec())
+            };
+            let z = |x: f64, k: usize| match (zeros, (i + k) % 4) {
+                (true, 0) => -0.0,
+                (true, 1) => 0.0,
+                _ => x,
+            };
+            let o = Point3::new(z(3.0 * rng.sym(), 0), z(3.0 * rng.sym(), 1), z(3.0 * rng.sym(), 2));
+            let (a, b) = if i % 7 == 0 { (0.6, 0.6) } else { (0.1 + 2.0 * rng.next(), 0.1 + 2.0 * rng.next()) };
+            out.push(Ellipse::new(Frame::new(o, axis, u), a, b));
+            let anchored = Ellipse::anchored(o, axis, u, a, b);
+            out.push(anchored);
+            // every door phase, by the doors
+            for th in [1.5707963267948966, 3.141592653589793, -1.5707963267948966] {
+                out.push(old_seamed_toward(&anchored, th.cos(), th.sin()));
+            }
+        }
+        out
+    }
+    fn directions(rng: &mut Rng) -> Vec<(f64, f64)> {
+        let mut d = vec![
+            (1.0, 0.0), (0.0, 1.0), (-1.0, 0.0), (0.0, -1.0), (0.0, 0.0), (-0.0, 0.0), (0.0, -0.0), (-0.0, -0.0),
+            (1.0, -0.0), (-1.0, -0.0), (-0.0, 1.0), (-0.0, -1.0), (0.5, 0.5), (0.5, -0.5), (-0.5, 0.5), (-0.5, -0.5),
+            (6.123233995736766e-17, 1.0), (-1.0, 1.2246467991473532e-16),
+        ];
+        for _ in 0..60 {
+            let t = 7.0 * rng.sym();
+            d.push((t.cos(), t.sin()));
+        }
+        d
+    }
+
+    #[test]
+    fn rd1_seamed_toward_against_the_old_body() {
+        for zeros in [false, true] {
+            let mut rng = Rng(0xDEAD_BEEF_1234_5678);
+            let es = ellipses(&mut rng, 400, zeros);
+            let dirs = directions(&mut rng);
+            let (mut n, mut differ, mut value_differ) = (0usize, 0usize, 0usize);
+            let mut which = std::collections::BTreeMap::<&str, usize>::new();
+            let mut first = String::new();
+            let (mut half_differ, mut half_value) = (0usize, 0usize);
+            for e in &es {
+                let (a, b) = (stored(&e.restatements()[1]), stored(&old_half(e)));
+                if a != b {
+                    half_differ += 1;
+                    if a.iter().zip(&b).any(|(x, y)| f64::from_bits(*x) != f64::from_bits(*y)) {
+                        half_value += 1;
+                    }
+                }
+                for &(c, s) in &dirs {
+                    n += 1;
+                    let (new, old) = (e.seamed_toward(c, s), old_seamed_toward(e, c, s));
+                    let (a, b) = (stored(&new), stored(&old));
+                    if a != b {
+                        differ += 1;
+                        let mut value = false;
+                        for k in 0..16 {
+                            if a[k] != b[k] {
+                                *which.entry(NAMES[k]).or_default() += 1;
+                                value |= f64::from_bits(a[k]) != f64::from_bits(b[k]);
+                            }
+                        }
+                        if value {
+                            value_differ += 1;
+                        }
+                        if first.is_empty() {
+                            first = format!("dir ({c:?}, {s:?})\n   new {new:?}\n   old {old:?}");
+                        }
+                    }
+                }
+            }
+            println!(
+                "RD1 signed-zero anchors {zeros}: ellipses {} × directions {} = {n}; seamed_toward differs in a bit {differ}, in a value {value_differ}, fields {which:?}; restatements()[1] differs in a bit {half_differ} of {}, in a value {half_value}\n first: {first}",
+                es.len(), dirs.len(), es.len()
+            );
+            assert_eq!(value_differ + half_value, 0);
+        }
+    }
+
+    #[test]
+    fn rd2_seamed_toward_at_interval() {
+        let mut rng = Rng(42);
+        let es = ellipses(&mut rng, 60, true);
+        let dirs = directions(&mut rng);
+        let iv = Interval::from_f64;
+        let (mut n, mut differ) = (0usize, 0usize);
+        let mut first = String::new();
+        for e in &es {
+            let l = e.map_scalar(|f| f.map_scalar(iv), iv);
+            for &(c, s) in &dirs {
+                for (c, s) in [(iv(c), iv(s)), (Interval::from_bounds(c - 1e-3, c + 1e-3), Interval::from_bounds(s - 1e-3, s + 1e-3))] {
+                    n += 1;
+                    let (new, old) = (format!("{:?}", l.seamed_toward(c, s)), format!("{:?}", old_seamed_toward(&l, c, s)));
+                    if new.replace("-0.0,", "0.0,") != old.replace("-0.0,", "0.0,") {
+                        differ += 1;
+                        if first.is_empty() {
+                            let (a, b) = (new.replace("-0.0,", "0.0,"), old.replace("-0.0,", "0.0,"));
+                            let i = a.bytes().zip(b.bytes()).position(|(x, y)| x != y).unwrap_or(0);
+                            let lo = i.saturating_sub(160);
+                            first = format!("dir {c:?} {s:?}\n new …{}\n old …{}", &a[lo..(i + 120).min(a.len())], &b[lo..(i + 120).min(b.len())]);
+                        }
+                    }
+                }
+            }
+        }
+        println!("RD2 Interval: {n} asks, Debug text differs in {differ}\n first: {first}");
+    }
+
+    /// What a signed zero in the anchor reaches: the evaluated point.
+    #[test]
+    fn rd3_what_the_zero_sign_reaches() {
+        let e = Ellipse::anchored(Point3::new(2.0, -0.0, -0.0), Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0), 2.0, 1.0);
+        let (new, old) = (e.seamed_toward(1.0, 0.0), old_seamed_toward(&e, 1.0, 0.0));
+        println!("RD3 new origin {:?} old origin {:?}", new.at.origin(), old.at.origin());
+        let mut n = 0;
+        for k in 0..2000 {
+            let th = 0.01 * f64::from(k) - 10.0;
+            let (p, q) = (Conic::point_at(&new, th), Conic::point_at(&old, th));
+            assert!(p.equals_exactly(q));
+            if [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()] != [q.x.to_bits(), q.y.to_bits(), q.z.to_bits()] {
+                n += 1;
+            }
+        }
+        let p = Point3::new(0.0, -0.0, 0.0);
+        println!("RD3 points differing in a zero's sign: {n} of 2000; azimuth of (0,-0,0): new {:?} old {:?}", Conic::azimuth(&new, p), Conic::azimuth(&old, p));
+    }
+}
