@@ -4110,11 +4110,24 @@ fn present_plane<'a>(
             });
         }
         let ray = unit(ray);
+        // The cell stays short of each edge's far end, measured along
+        // the edge: past it the face is bounded by what follows the edge,
+        // which this arm does not read, so nothing is presented there and
+        // nothing is vacuous. Asked of both edges before either piece is
+        // placed.
+        let short_of_the_far_end = |e: [Interval; 2]| {
+            let l = length(e);
+            let along = ((cell_u - o.x) * e[0] + (cell_v - o.y) * e[1]) / l;
+            positive(l - along, SELF_INTERSECTION_SPAN)
+        };
+        if !(short_of_the_far_end(a) && short_of_the_far_end(bv)) {
+            return Err(Unpresented::Local);
+        }
         // One piece: the cone of an edge's vector `e` and the ray, as the
         // image of `[0, x] × [0, y]`; `None` where the cell lies wholly
-        // off it. Its reach along its edge is asked before that: a cell
-        // past the edge's far end is not this arm's, on or off the cone,
-        // so the face is vacuous only inside both edges' spans.
+        // off it. Its side along its edge, `x` measured parallel to the
+        // ray, is asked short of the edge's far end before that too: the
+        // side is the edge's own points.
         let cone = |e: [Interval; 2],
                     zero: &dyn Fn(Interval) -> Zero|
          -> Result<Option<Presented<'a>>, Unpresented> {
@@ -9334,8 +9347,8 @@ mod presentation_rows {
     enum Read {
         Vacuous,
         Of((f64, f64), (f64, f64)),
-        /// Two pieces.
-        Pair,
+        /// Two pieces, each one's `x` and `y`.
+        Pair([((f64, f64), (f64, f64)); 2]),
         Local,
         Structural,
         Collapsed,
@@ -9345,7 +9358,7 @@ mod presentation_rows {
         match p {
             Ok(Presentation::Vacuous) => Read::Vacuous,
             Ok(Presentation::Of(q)) => Read::Of(q.x, q.y),
-            Ok(Presentation::Pair(..)) => Read::Pair,
+            Ok(Presentation::Pair(p, q)) => Read::Pair([(p.x, p.y), (q.x, q.y)]),
             Err(Unpresented::Local) => Read::Local,
             Err(Unpresented::Structural) => Read::Structural,
             Err(Unpresented::Collapsed(_)) => Read::Collapsed,
@@ -11342,9 +11355,9 @@ mod presentation_rows {
     /// vertex or the other piece's edge (whose end the vertex is), else
     /// none. A cell on one edge's side, clear of the other piece's part,
     /// is that edge's piece alone; a cell across the edges holds none of
-    /// the face. Red if a piece is dropped that the other does not cover,
-    /// kept where it is a sliver the other covers, or given a zero off
-    /// the shared cell.
+    /// the face; a cell reaching past an edge's far end is refused. Red
+    /// if a piece is dropped where the cell holds some of it, placed off
+    /// its cone, or given a zero off the shared cell.
     #[test]
     fn a_two_line_corner_is_two_pieces_that_cover_its_sector() {
         let f = sector_at_vertex_1(PZ, PX, MX, (1, 2));
@@ -11399,15 +11412,266 @@ mod presentation_rows {
             ["refused"],
             "a cell past rim 1's far end"
         );
+        // Where the pieces lie: each is its edge's quarter of the cell,
+        // an eighth of the rim's 4 along it and along the ray.
+        let Read::Pair(rects) = read(present_plane(
+            &cell_of(&f, &local, about, about),
+            &[],
+            &v1,
+            band(),
+        )) else {
+            panic!("two pieces");
+        };
+        for (x, y) in rects {
+            assert!(
+                x.0 == 0.0
+                    && y.0 == 0.0
+                    && (x.1 - 0.125).abs() < 1e-12
+                    && (y.1 - 0.125).abs() < 1e-12,
+                "a piece's rectangle: {x:?} × {y:?}"
+            );
+        }
     }
 
-    /// **The ray is decided strictly inside the sector, or the corner is
-    /// refused.** A spike (the two edges a nanoradian apart, the face
-    /// between them) and a slit (the face everything but that) have no
-    /// ray inside with both pieces under a half turn. A corner kinked off
-    /// straight by less than the band, either way, or inside it, is cut
-    /// as any other: its side of straight is never asked. Red if the ray
-    /// is not decided at the band, or a lean is.
+    /// The heading `deg` degrees round from `+x` in `z = 0`.
+    fn heading(deg: f64) -> [f64; 3] {
+        let r = deg.to_radians();
+        [r.cos(), r.sin(), 0.0]
+    }
+
+    /// **The two pieces cover the face's part of a cell and nothing off
+    /// the sector**, at corners from convex through straight to nearly a
+    /// whole turn, in a cell about the vertex and in one off-centre.
+    /// Sampled: every point of the cell inside the sector lies in some
+    /// piece's rectangle, and every point of a piece's rectangle lies in
+    /// the sector. Red if the pieces leave a gap along the ray, a piece is
+    /// dropped where the cell holds it, or a piece reaches across an edge.
+    #[test]
+    fn the_two_pieces_hold_the_sector_in_the_cell_and_no_more() {
+        let local = both_rims_and_vertex_1();
+        let mid = |x: Interval| 0.5 * (x.lo() + x.hi());
+        // Degrees round from `+x`, in `[0, 360)`.
+        let bearing = |(u, v): (f64, f64)| v.atan2(u).to_degrees().rem_euclid(360.0);
+        for end in [60.0, 90.0, 179.9999, 180.0, 180.0001, 200.0, 270.0, 350.0] {
+            let f = sector_at_vertex_1(PZ, PX, heading(end), (1, 2));
+            // Small cells: a piece's reach along its edge is measured
+            // parallel to the ray, so near a slit a coarse cell is refused.
+            for (cu, cv) in [
+                ((-0.05, 0.05), (-0.05, 0.05)),
+                ((0.01, 0.06), (-0.03, 0.04)),
+            ] {
+                let presented = present_plane(&cell_of(&f, &local, cu, cv), &[], &[], band())
+                    .unwrap_or_else(|e| panic!("to {end}: presented, not {e:?}"));
+                let frames: Vec<_> = presented
+                    .pieces()
+                    .iter()
+                    .map(|q| {
+                        let Map::Affine { o, a, b } = q.map else {
+                            panic!("a plane's piece is affine");
+                        };
+                        (
+                            (mid(o[0]), mid(o[1])),
+                            (mid(a[0]), mid(a[1])),
+                            (mid(b[0]), mid(b[1])),
+                            q.x,
+                            q.y,
+                        )
+                    })
+                    .collect();
+                assert!(!frames.is_empty(), "to {end}, {cu:?} × {cv:?}: some piece");
+                for i in 0..20 {
+                    for j in 0..20 {
+                        let p = (
+                            cu.0 + (f64::from(i) + 0.5) / 20.0 * (cu.1 - cu.0),
+                            cv.0 + (f64::from(j) + 0.5) / 20.0 * (cv.1 - cv.0),
+                        );
+                        let at = bearing(p);
+                        // Clear of the two edges by a degree: the sample
+                        // is of the cover, not of the edges' rounding.
+                        if !(1.0 < at && at < end - 1.0) {
+                            continue;
+                        }
+                        let held = frames.iter().any(|&(o, a, b, x, y)| {
+                            let d = (p.0 - o.0, p.1 - o.1);
+                            let det = a.0 * b.1 - a.1 * b.0;
+                            let (s, t) =
+                                ((d.0 * b.1 - d.1 * b.0) / det, (a.0 * d.1 - a.1 * d.0) / det);
+                            x.0 - 1e-9 <= s && s <= x.1 + 1e-9 && y.0 - 1e-9 <= t && t <= y.1 + 1e-9
+                        });
+                        assert!(
+                            held,
+                            "to {end}, {cu:?} × {cv:?}: {p:?} at {at} is in no piece"
+                        );
+                    }
+                }
+                for &(o, a, b, x, y) in &frames {
+                    for i in 0..=8 {
+                        for j in 0..=8 {
+                            let (s, t) = (
+                                x.0 + f64::from(i) / 8.0 * (x.1 - x.0),
+                                y.0 + f64::from(j) / 8.0 * (y.1 - y.0),
+                            );
+                            let p = (o.0 + s * a.0 + t * b.0, o.1 + s * a.1 + t * b.1);
+                            if p.0.hypot(p.1) < 1e-6 {
+                                continue;
+                            }
+                            let at = bearing(p);
+                            assert!(
+                                at <= end + 1e-6 || at >= 360.0 - 1e-6,
+                                "to {end}: a piece's point {p:?} at {at} is off the sector"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// **Vacuity comes after the far ends.** A cell that lists both rims
+    /// and no vertex (a superset `Local` may), placed by hand where a
+    /// real cell's ball would have to disagree with itself by rounding.
+    /// Past an edge's far end, measured along the edge, the face is
+    /// bounded by what follows the edge, so the arm refuses on either
+    /// side of the edge's line and never reads the cell as holding none
+    /// of the face; inside both edges, wholly off the sector, it is
+    /// vacuous. Red if the off-cone return comes before the far ends are
+    /// asked.
+    #[test]
+    fn a_cell_past_an_edges_far_end_is_refused_before_it_is_vacuous() {
+        let local = Local {
+            edges: vec![0, 1],
+            vertices: vec![],
+        };
+        let convex = sector_at_vertex_1(PZ, PX, PY, (1, 2));
+        // The three quadrants from `+x` round to `-y`.
+        let reflex = sector_at_vertex_1(PZ, PX, MY, (1, 2));
+        let read_in = |f: &(Surface<Interval>, Boundary), u, v| {
+            read(present_plane(&cell_of(f, &local, u, v), &[], &[], band()))
+        };
+        for (what, u, v) in [
+            (
+                "past rim 1's far end, off its face side",
+                (4.5, 5.0),
+                (-0.3, -0.1),
+            ),
+            (
+                "past rim 1's far end, on its face side",
+                (4.5, 5.0),
+                (0.1, 0.3),
+            ),
+            ("past both far ends", (4.5, 5.0), (4.5, 5.0)),
+        ] {
+            assert_eq!(read_in(&convex, u, v), Read::Local, "convex, {what}");
+        }
+        assert_eq!(
+            read_in(&convex, (1.5, 2.0), (-0.3, -0.1)),
+            Read::Vacuous,
+            "convex, inside rim 1 and off its face side"
+        );
+        for (what, u, v) in [
+            (
+                "past rim 1's far end, in the missing quadrant",
+                (4.5, 5.0),
+                (-0.3, -0.1),
+            ),
+            (
+                "past rim 0's far end, in the missing quadrant",
+                (0.1, 0.3),
+                (-5.0, -4.5),
+            ),
+            ("past rim 1's far end, in the face", (4.5, 5.0), (0.1, 0.3)),
+        ] {
+            assert_eq!(read_in(&reflex, u, v), Read::Local, "reflex, {what}");
+        }
+        assert_eq!(
+            read_in(&reflex, (0.5, 1.0), (-1.0, -0.5)),
+            Read::Vacuous,
+            "reflex, in the missing quadrant inside both rims"
+        );
+    }
+
+    /// **A partner on one edge that crosses the other piece is never
+    /// parted.** The face from `+x` round to `end`, and a half-plane
+    /// standing on its `+x` edge that runs on through the face's `-x`
+    /// direction, which lies in the face's other piece: the two meet
+    /// along that line. The off-edge piece's zero is the vertex and
+    /// never the shared edge as a side: a piece given the other's edge
+    /// as its side would read a plane through that edge as zero along a
+    /// side it does not have, and sign the crossing away. Red if the
+    /// off-edge piece takes a side whenever either corner edge is shared.
+    #[test]
+    fn a_partner_on_one_edge_crossing_the_other_piece_is_never_parted() {
+        for end in [180.0, 180.0001, 200.0, 300.0, 350.0] {
+            let f = sector_at_vertex_1(PZ, PX, heading(end), (1, 2));
+            let above = sector_at_vertex_1(MY, PX, MX, (1, 80));
+            let below = sector_at_vertex_1(PY, PX, MX, (1, 81));
+            for (what, g) in [("above", above), ("below", below)] {
+                assert!(
+                    !parted_at_vertex_1(&f, &g, &[(1, 1)]),
+                    "face to {end}: a half-plane {what} on its +x edge, through -x, parted"
+                );
+            }
+        }
+    }
+
+    /// **The least dihedral certified across a shared edge of a convex
+    /// corner, pinned as measured.** A quadrant of `z = 0` and a quadrant
+    /// tilted up from it by `δ` about their common `+x` edge: a wedge
+    /// `δ` thin. The piece on the shared edge departs the partner's plane
+    /// along the ray, so the sine it is read at is `sin δ · sin(θ/2)`
+    /// where the one quadrant this replaces read `sin δ · sin θ` along
+    /// the other edge: at a right corner the least certified `δ` is 3.2e-9
+    /// here, 1.41 times the quadrant's. The head refuses more, never
+    /// less
+    /// (`work/embed/a-convex-corner-across-a-shared-edge-is-read-at-the-rays-sine-and-in-smaller-cells.md`).
+    /// Red if the threshold moves either way.
+    #[test]
+    fn a_thin_wedge_on_a_convex_corners_edge_is_certified_from_the_rays_sine() {
+        let local = both_rims_and_vertex_1();
+        let about = (-0.5, 0.5);
+        let none = FacePoses::default();
+        let certified = |delta: f64| {
+            let n = [0.0, -delta.sin(), delta.cos()];
+            let f = sector_at_vertex_1(PZ, PX, PY, (2, 3));
+            let h = sector_at_vertex_1(n, PX, [0.0, delta.cos(), delta.sin()], (2, 21));
+            let (x, y) = (
+                cell_keyed(1, &f, &local, about, about),
+                cell_keyed(2, &h, &local, about, about),
+            );
+            let near = Near {
+                edges: vec![(1, 1)],
+                vertices: vec![vertex(1)],
+            };
+            let asked = |x, y| {
+                matches!(
+                    departure(x, y, &near, band(), true, (&none, &none)),
+                    Outcome::Certified { .. }
+                )
+            };
+            let (a, b) = (asked(&x, &y), asked(&y, &x));
+            assert_eq!(a, b, "either face first, at {delta:e}");
+            a
+        };
+        assert!(!certified(2.8e-9), "below the threshold");
+        assert!(certified(3.6e-9), "above it");
+    }
+
+    /// **A spike or a slit is not cut.** At a spike (the two edges an
+    /// angle `θ` apart, the face between them) and at a slit (the face
+    /// everything but that) the two normals are opposed and the ray has
+    /// no direction: the corner is refused where the ray stands off an
+    /// edge's line by no more than the band over that edge's length,
+    /// `l·sin(θ/2)`. On the shared cell that refusal is `Structural`: it
+    /// is the corner's, the same in every cell. A corner kinked off
+    /// straight by less than the band, either way, is cut as any other:
+    /// its side of straight is never asked.
+    ///
+    /// The pin is on short rims. Over a rim 4 long a spike in the band is
+    /// also too thin for the ray's direction to be enclosed, so the
+    /// pieces' placement refuses it first and the guard is not what is
+    /// read; over a rim of 1e-2 the placement is certified from about
+    /// 1e-6 rad and only the guard refuses there. Red if the ray's
+    /// decision is not asked (both legs, at any ε), or a lean is.
     #[test]
     fn a_spike_or_a_slit_within_the_band_is_not_cut() {
         let local = both_rims_and_vertex_1();
@@ -11421,42 +11685,45 @@ mod presentation_rows {
                 band(),
             ))
         };
-        for angle in [1e-10, 1e-9, 3e-9] {
-            assert_eq!(
-                read_of([1.0, angle, 0.0]),
-                Read::Local,
-                "a spike of {angle} rad"
-            );
-            assert_eq!(
-                read_of([1.0, -angle, 0.0]),
-                Read::Local,
-                "a slit of {angle} rad"
-            );
-        }
-        // A spike 1.5 band-zeros of angle, in a cell one band-zero across:
-        // small enough that each piece's rectangle fits inside its edge,
-        // so only the ray's own decision refuses it (its sine over the
-        // edge's length is 3 band-zeros: in the band).
-        let zero = band().zero();
-        let spike = sector_at_vertex_1(PZ, PX, [1.0, 1.5 * zero, 0.0], (1, 2));
-        let tiny = (-zero, zero);
-        assert_eq!(
+        // A rim `reach` long, the corner's angle `k` escalation bands of
+        // `l·sin(θ/2)`, read in a cell a tenth of the spike's width.
+        let escalate = band().escalate();
+        let short = |reach: f64, k: f64, near: &[VertexKey]| {
+            let angle = 2.0 * k * escalate / reach;
+            let cell = 0.1 * angle.abs() * reach;
+            let f = sector_of_reach(PZ, PX, [angle.cos(), angle.sin(), 0.0], (1, 2), reach);
             read(present_plane(
-                &cell_of(&spike, &local, tiny, tiny),
+                &cell_of(&f, &local, (-cell, cell), (-cell, cell)),
                 &[],
-                &[vertex(1)],
-                band()
-            )),
-            Read::Local,
-            "a spike in the band, in a cell that holds it"
-        );
+                near,
+                band(),
+            ))
+        };
+        for reach in [1e-2, 4e-3] {
+            for sign in [1.0, -1.0] {
+                assert_eq!(
+                    short(reach, sign * 0.5, &[vertex(1)]),
+                    Read::Structural,
+                    "half a band, rim {reach}, {sign}: refused on the shared cell"
+                );
+                assert_eq!(
+                    short(reach, sign * 0.5, &[]),
+                    Read::Local,
+                    "half a band, rim {reach}, {sign}: off the shared cell a split may part it"
+                );
+                assert!(
+                    matches!(short(reach, sign * 5.0, &[vertex(1)]), Read::Pair(..)),
+                    "five bands, rim {reach}, {sign}: cut"
+                );
+            }
+        }
         for (d2, what) in [
             ([-1.0, -0.225e-9, 0.0], "convex by 0.9 ε at the far end"),
             ([-1.0, 0.225e-9, 0.0], "reflex by 0.9 ε"),
             ([-1.0, -0.75e-9, 0.0], "convex by 3 ε"),
             ([-1.0, 0.75e-9, 0.0], "reflex by 3 ε"),
         ] {
-            assert_eq!(read_of(d2), Read::Pair, "{what}");
+            assert!(matches!(read_of(d2), Read::Pair(..)), "{what}");
         }
     }
 
@@ -13567,7 +13834,7 @@ mod presentation_rows {
             );
             // A corner of two lines is two pieces.
             assert!(
-                matches!(r, Read::Pair),
+                matches!(r, Read::Pair(..)),
                 "two sound lines, {near:?} shared: {r:?}"
             );
             let r = ask(
