@@ -34,7 +34,7 @@
 //! - of the three bodies the shell's cavity gate asks, the corpus pot
 //!   and the cone frustum's cavity hold at both scalars, and the klein
 //!   elbow's cavity refuses typed at a spiric cap edge;
-//! - a lens loft's cap refuses typed at the depth budget against a wall
+//! - a lens-walled body's cap refuses typed at the depth budget against a wall
 //!   at the lens tip, while a twisted loft's seams and the half-turn
 //!   helix's caps hold against their walls.
 //!
@@ -1023,14 +1023,19 @@ fn decided_at_both(
     report
 }
 
-/// A 0.1 square lofted along [`arc_spine_places`] at 17 stations,
-/// `v`-degree 3.
+/// A 0.1 square lofted at `f64` along [`arc_spine_places`] at 17
+/// stations, `v`-degree 3, its carriers held at `T` as points
+/// ([`sweep::test_support::f64_body_held_as_points_construction`]).
 fn arc_spine<T: Scalar>(curl: f64) -> sweep::Lofted<T, Body<T>> {
     let square = quad([(-0.05, -0.05), (0.05, -0.05), (0.05, 0.05), (-0.05, 0.05)]);
-    let sections: Vec<_> = (0..17).map(|_| lifted(&square)).collect();
-    let places: Vec<_> = arc_spine_places(curl, 17).iter().map(plane_at).collect();
-    sweep::test_support::loft_body_construction::<T>(&sections, &places, 3, tol())
-        .expect("the arc spine lofts")
+    let sections: Vec<_> = (0..17).map(|_| square.clone()).collect();
+    sweep::test_support::f64_body_held_as_points_construction::<T>(
+        &sections,
+        &arc_spine_places(curl, 17),
+        3,
+        tol(),
+    )
+    .expect("the arc spine body builds")
 }
 
 /// The station-angle of a point on the arc spine, folded into one turn.
@@ -2586,25 +2591,29 @@ fn adjacent<T: Real>(body: &Body<T>, caps: bool) -> Vec<(FaceKey, FaceKey)> {
         .collect()
 }
 
-/// Two unit lens sections, two arcs on one chord, stacked one apart three
-/// times: `lily_leaf_a`'s section, lofted straight.
-fn lens_loft<T: Scalar>() -> Body<T> {
+/// A body with rational lens walls: two unit lens sections, two arcs on
+/// one chord, stacked one apart three times (`lily_leaf_a`'s section),
+/// lofted straight at `f64` and its carriers held at `T` as points
+/// ([`sweep::test_support::f64_body_held_as_points_construction`]).
+fn lens_walled<T: Scalar>() -> Body<T> {
     let lens = vec![profile::test_support::bulge_loop(vec![
         (Point2::new(0.5, 0.0), -0.3),
         (Point2::new(-0.5, 0.0), -0.3),
     ])];
-    let sections = sweep::test_support::lift_sections::<T>(&[lens.clone(), lens.clone(), lens]);
-    let places = sweep::test_support::lift_places::<T>(
+    sweep::test_support::f64_body_held_as_points_construction::<T>(
+        &[lens.clone(), lens.clone(), lens],
         &sweep::test_support::stacked_at(&[0.0, 1.0, 2.0]),
+        2,
         tol(),
-    );
-    sweep::test_support::loft_body_construction::<T>(&sections, &places, 2, tol())
-        .expect("the lens loft lofts")
-        .body
+    )
+    .expect("the lens-walled body builds")
+    .body
 }
 
-/// **A lens loft's rational walls hold against themselves, at both
-/// scalars and moved off the origin**: each wall alone at the default
+/// **Rational lens walls hold against themselves, at both scalars and
+/// moved off the origin** ([`lens_walled`]: at `Interval` the `f64`
+/// body's carriers held as points, not the loft built there, which
+/// refuses at the carrier's door until it holds an enclosure weight): each wall alone at the default
 /// budget, at the origin and moved by `(10, 10, 10)`, certifying a
 /// cell-pair count within 1% of its unmoved twin's. The lens arcs are
 /// rational, so the monotone arm reads each wall through a rational
@@ -2613,9 +2622,9 @@ fn lens_loft<T: Scalar>() -> Body<T> {
 /// The `Interval` twin of the tour's `lily_leaf_a` wall rows, which
 /// build at `f64` only.
 #[test]
-fn a_lens_lofts_walls_hold_against_themselves_moved_off_the_origin_at_both_scalars() {
+fn lens_walls_hold_against_themselves_moved_off_the_origin_at_both_scalars() {
     fn row<T: Scalar>(what: &str) {
-        let home = lens_loft::<T>();
+        let home = lens_walled::<T>();
         let by = geom_core::Vec3::new(10.0, 10.0, 10.0).map(T::from_f64);
         let motion = geom_core::RigidMotion::translation(by).expect("a translation");
         let away = topo::transform_rigid(&home, &motion).expect("the loft moves");
@@ -2651,12 +2660,12 @@ fn a_lens_lofts_walls_hold_against_themselves_moved_off_the_origin_at_both_scala
             assert!(close, "{what}: {wall:?} certifies {y} moved against {x}");
         }
     }
-    row::<f64>("the lens loft");
-    row::<Interval>("the lens loft at Interval");
+    row::<f64>("the lens-walled body");
+    row::<Interval>("the lens-walled body at Interval");
 }
 
-/// **A lens loft's caps hold against its walls at the lens tip, at both
-/// scalars.** Two unit lens sections, two arcs on one chord, one above
+/// **A lens-walled body's caps hold against its walls at the lens tip,
+/// at both scalars** ([`lens_walled`]). Two unit lens sections, two arcs on one chord, one above
 /// the other: each cap is a plane bounded by two circles meeting at the
 /// two tips. A cap cell holding a tip holds both arcs, and no
 /// presentation reads a corner of two curved edges on a plane; the
@@ -2665,7 +2674,7 @@ fn a_lens_lofts_walls_hold_against_themselves_moved_off_the_origin_at_both_scala
 /// in the cap's plane. This is the tour's `lily_leaf_a` cap corner
 /// (`demos/tour/tests/lily.rs`), built here at both scalars.
 #[test]
-fn a_lens_loft_cap_holds_against_its_walls_at_its_tip_at_both_scalars() {
+fn a_lens_walled_cap_holds_against_its_walls_at_its_tip_at_both_scalars() {
     fn receipts<T: Scalar>(what: &str, body: &Body<T>) -> Vec<(usize, u32)> {
         adjacent(body, true)
             .into_iter()
@@ -2681,7 +2690,7 @@ fn a_lens_loft_cap_holds_against_its_walls_at_its_tip_at_both_scalars() {
             })
             .collect()
     }
-    let (float, interval) = (lens_loft::<f64>(), lens_loft::<Interval>());
+    let (float, interval) = (lens_walled::<f64>(), lens_walled::<Interval>());
     let pairs = adjacent(&float, true);
     assert_eq!(pairs.len(), 4, "two caps against two walls: {pairs:?}");
     assert_eq!(
@@ -2691,12 +2700,12 @@ fn a_lens_loft_cap_holds_against_its_walls_at_its_tip_at_both_scalars() {
     );
     let pinned = [(0, 0), (0, 0), (0, 0), (0, 0)];
     assert_eq!(
-        receipts("the lens loft", &float),
+        receipts("the lens-walled body", &float),
         pinned,
         "each cap-wall pair's (splits, deepest cell)"
     );
     assert_eq!(
-        receipts("the lens loft at Interval", &interval),
+        receipts("the lens-walled body at Interval", &interval),
         pinned,
         "each cap-wall pair's (splits, deepest cell) at Interval"
     );
@@ -2819,8 +2828,12 @@ fn the_half_turn_helixs_caps_hold_against_its_walls_at_both_scalars() {
 // ----------------------------------- two walls apart along a direction
 
 /// **A thin curved slab**: the section `(-0.4, 0.4) × (-g/2, g/2)`
-/// lofted at five stations along a unit-radius arc turning `curl` in
-/// the `xz` plane, the whole turned `phi` about the world `y` axis.
+/// lofted at `f64` at five stations along a unit-radius arc turning
+/// `curl` in the `xz` plane, the whole turned `phi` about the world `y`
+/// axis, its carriers held at `T` as points
+/// ([`sweep::test_support::f64_body_held_as_points_construction`]: the
+/// walls' interior v knot is a chord-length parameter, which the loft
+/// built at `Interval` holds as an enclosure no carrier takes yet).
 /// Its two wide walls are near-parallel sheets `g` apart with a radius
 /// of about 1, sharing no vertex; they are returned with the body.
 fn slab_wall_pair<T: Scalar>(
@@ -2836,7 +2849,7 @@ fn slab_wall_pair<T: Scalar>(
         (-0.4, g / 2.0),
     ]);
     let turn = Mat3::rotation_about(Vec3::new(0.0, 1.0, 0.0), phi);
-    let places: Vec<SketchPlane<T>> = (0..5)
+    let places: Vec<SketchPlane<f64>> = (0..5)
         .map(|i| {
             let theta = curl * f64::from(i) / 4.0;
             let (s, c) = theta.sin_cos();
@@ -2846,12 +2859,17 @@ fn slab_wall_pair<T: Scalar>(
                 Vec3::new(c, 0.0, s),
             );
             let at = Affine3::from_parts(turn * linear, turn * Vec3::new(s, 0.0, 1.0 - c));
-            plane_at(&crate::common::plane_of(&at))
+            crate::common::plane_of(&at)
         })
         .collect();
-    let sections: Vec<_> = (0..5).map(|_| lifted(&section)).collect();
-    let lofted = sweep::test_support::loft_body_construction::<T>(&sections, &places, 3, tol())
-        .expect("the slab lofts");
+    let sections: Vec<_> = (0..5).map(|_| section.clone()).collect();
+    let lofted = sweep::test_support::f64_body_held_as_points_construction::<T>(
+        &sections,
+        &places,
+        3,
+        tol(),
+    )
+    .expect("the slab builds");
     let walls = [
         lofted.side_faces[0][0][0].unwrap(),
         lofted.side_faces[0][2][0].unwrap(),
@@ -3412,6 +3430,9 @@ fn void_touching_plate<T: Scalar>() -> topo::AtRestBody<T> {
 /// [`void_touching_plate`] built `o` off the origin, mirrored in `x`
 /// where `mirror` (built so, not moved), its void's base listed from
 /// its vertex `from`.
+///
+/// `topo`'s `held::tests::wall_at` copies a wall of this void (its
+/// base's last two corners and its apex); a move here is owed there.
 fn void_touching_plate_at<T: Scalar>(
     o: [f64; 3],
     mirror: bool,
@@ -3555,17 +3576,13 @@ fn a_body_that_does_not_pass_is_told_one_finding_or_another_and_never_that_it_ho
             [900.0, -900.0, 900.0],
             [0.1, 0.0, 0.0],
         ] {
-            // Measured at ε = 1e-12: `f64` asks every placement. At
-            // `Interval` the body 100 off the origin panics in the region
-            // door, a station of a face's own chart reading indeterminate
-            // against its carrier, and the body 900 off does not build
-            // (`newell_plane` escalates in the fixture). At ε = 1e-9 and
-            // 1e-6 both scalars ask every placement.
-            // (`work/charttail/a-station-far-from-the-origin-reads-indeterminate-on-its-own-carrier-and-panics.md`)
-            let unread_at_interval = o == [100.0; 3] || o == [900.0, -900.0, 900.0];
-            if T::NAME == Interval::NAME && tol().eps() < 1e-9 && unread_at_interval {
+            // At `Interval` below ε = 1e-9 the body 900 off does not
+            // build: `newell_plane` escalates in the fixture
+            // (`work/oneround/a-planar-body-two-hundred-off-the-origin-does-not-finish-at-interval-at-1e-12.md`).
+            let unbuilt_at_interval = o == [900.0, -900.0, 900.0];
+            if T::NAME == Interval::NAME && tol().eps() < 1e-9 && unbuilt_at_interval {
                 println!(
-                    "SKIPPED at Interval, eps {}: the placement {o:?} off the origin is not asked",
+                    "SKIPPED at Interval, eps {}: the placement {o:?} off the origin does not build",
                     tol().eps()
                 );
                 continue;
@@ -3604,6 +3621,32 @@ fn a_body_that_does_not_pass_is_told_one_finding_or_another_and_never_that_it_ho
     let both = BTreeSet::from(["crosses", "refused"]);
     assert_eq!(at::<f64>(), both, "f64");
     assert_eq!(at::<Interval>(), both, "Interval");
+}
+
+/// **The plate built 100 off the origin is told the refusal it meets
+/// first at `Interval`, at every ε, as at the origin**
+/// ([`a_plate_whose_void_touches_its_top_reads_the_refusal_it_meets_first`]).
+/// Its void's walls are Newell planes whose frames are enclosures about
+/// 1.8e-12 wide there, so a station of a wall's own chart reads its
+/// residual undecided at ε = 1e-12, centred on zero. Red, in a debug
+/// build (the region door's held check runs there only), where that check
+/// asks a constructed point's enclosure to read `Zero`.
+#[test]
+fn the_plate_built_far_off_the_origin_is_told_a_finding_at_interval() {
+    use topo::clearance::Embedding;
+    let body = void_touching_plate_at::<Interval>([100.0; 3], false, 0).into_body();
+    let report = door(&body, DEFAULT_MAX_CELL_DEPTH, BUDGET);
+    assert!(
+        matches!(
+            report.verdict,
+            Embedding::Refused(EngineRefusal::Budget {
+                stop: CellBudget::Depth { .. },
+                ..
+            })
+        ),
+        "the plate 100 off refuses out of depth: {:?}",
+        report.verdict
+    );
 }
 
 /// **A refusal for a budget names the two faces it was made on, and
