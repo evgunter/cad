@@ -11556,6 +11556,87 @@ mod presentation_rows {
     /// of the face; inside both edges, wholly off the sector, it is
     /// vacuous. Red if the off-cone return comes before the far ends are
     /// asked.
+    // ---- REVIEW PROBES, delta (corner-pieces-review-a7050e) ----
+    #[test]
+    fn rv2_structural_is_keyed_by_the_shared_cell_not_the_vertex() {
+        let reach = 1e-2;
+        let angle = 2.0 * 0.5 * band().escalate() / reach;
+        let f = sector_of_reach(PZ, PX, [angle.cos(), angle.sin(), 0.0], (1, 2), reach);
+        let both = Local { edges: vec![0, 1], vertices: vec![] };
+        let rim1 = Local { edges: vec![1], vertices: vec![] };
+        let x0 = 0.5 * reach;
+        let gap = angle * x0;
+        let far = cell_of(&f, &both, (x0, x0 + 1e-10), (-gap, 2.0 * gap));
+        let sub = cell_of(&f, &rim1, (x0, x0 + 1e-10), (-0.4 * gap, 0.4 * gap));
+        let at_v = both_rims_and_vertex_1();
+        let about = (-1e-10, 1e-10);
+        eprintln!(
+            "RV2S rim 1 shared, cell off the vertex holding both rims: {:?}; a sub-cell holding rim 1 alone: {:?}; nothing shared, cell holding the vertex: {:?}; vertex shared, cell holding it: {:?}",
+            read(present_plane(&far, &[1], &[], band())),
+            read(present_plane(&sub, &[1], &[], band())),
+            read(present_plane(&cell_of(&f, &at_v, about, about), &[], &[], band())),
+            read(present_plane(&cell_of(&f, &at_v, about, about), &[], &[vertex(1)], band())),
+        );
+    }
+    #[test]
+    fn rv2_two_stuck_faces_report() {
+        let reach = 1e-2;
+        let angle = 2.0 * 0.5 * band().escalate() / reach;
+        let f = sector_of_reach(PZ, PX, [angle.cos(), angle.sin(), 0.0], (1, 2), reach);
+        let g = sector_of_reach(MY, PZ, [-angle.sin(), 0.0, angle.cos()], (5, 6), reach);
+        let local = both_rims_and_vertex_1();
+        let c = 0.1 * angle * reach;
+        let (x, y) = (
+            cell_keyed(1, &f, &local, (-c, c), (-c, c)),
+            cell_keyed(2, &g, &local, (-c, c), (-c, c)),
+        );
+        let none = FacePoses::default();
+        let near = Near { edges: vec![], vertices: vec![vertex(1)] };
+        eprintln!(
+            "RV2STUCK f {:?} g {:?} -> {:?}",
+            read(present_plane(&x, &[], &[vertex(1)], band())),
+            read(present_plane(&y, &[], &[vertex(1)], band())),
+            departure(&x, &y, &near, band(), true, (&none, &none))
+        );
+    }
+    #[test]
+    fn rv2_a_reflex_cell_near_a_far_end_reaches_the_piece_span() {
+        let f = sector_at_vertex_1(PZ, PX, MY, (1, 2));
+        let local = Local { edges: vec![0, 1], vertices: vec![] };
+        let mut out = Vec::new();
+        for (u, v) in [((3.85, 3.9), (0.1, 0.2)), ((3.5, 3.6), (0.3, 0.5)), ((3.0, 3.1), (0.1, 0.2))] {
+            out.push(format!("{u:?}x{v:?}: {:?}", read(present_plane(&cell_of(&f, &local, u, v), &[1], &[], band()))));
+        }
+        eprintln!("RV2P8 {}", out.join(" | "));
+    }
+    #[test]
+    fn rv2_either_face_first_off_a_right_corner() {
+        let local = both_rims_and_vertex_1();
+        let about = (-0.5, 0.5);
+        let none = FacePoses::default();
+        let escalate = band().escalate();
+        let mut out = Vec::new();
+        for theta in [30.0_f64, 60.0, 90.0, 120.0, 150.0, 170.0] {
+            let (mut mism, mut first) = (0, None);
+            for i in 0..150 {
+                let delta = (0.02 + 0.01 * f64::from(i)) * escalate;
+                let t = theta.to_radians();
+                let n = [0.0, -delta.sin(), delta.cos()];
+                let f = sector_at_vertex_1(PZ, PX, heading(theta), (2, 3));
+                let h = sector_at_vertex_1(n, PX, [t.cos(), t.sin() * delta.cos(), t.sin() * delta.sin()], (2, 21));
+                let (x, y) = (cell_keyed(1, &f, &local, about, about), cell_keyed(2, &h, &local, about, about));
+                let near = Near { edges: vec![(1, 1)], vertices: vec![vertex(1)] };
+                let asked = |x, y| matches!(departure(x, y, &near, band(), true, (&none, &none)), Outcome::Certified { .. });
+                let (a, b) = (asked(&x, &y), asked(&y, &x));
+                if a != b { mism += 1; }
+                if a && first.is_none() { first = Some(delta / escalate); }
+            }
+            out.push(format!("{theta}: mismatches {mism}, first certified at {first:?} escalations"));
+        }
+        eprintln!("RV2EITHER {}", out.join(" | "));
+    }
+    // ---- END REVIEW PROBES, delta ----
+
     #[test]
     fn a_cell_past_an_edges_far_end_is_refused_before_it_is_vacuous() {
         let local = Local {
