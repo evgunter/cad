@@ -5617,6 +5617,14 @@ where
     let (step, record) = node_mints(op_env.mints, id, at).node(part.as_deref(), || {
         eval_node_in(doc, env, id, results, prior, op_env, at, tol)
     });
+    // A step served an earlier run's value keeps that run's record
+    // (`recorded`). The scope this one closed inside (a family's, where
+    // this is a member) holds the member as that run left it, so that a
+    // reader of the family whole reads a served member's identities as
+    // it reads a rebuilt one's.
+    if let (true, NodeResult::Ok(held)) = (step.reused, &step.result) {
+        geom_core::sym::carry(&held.sym, &record);
+    }
     let record = match &part {
         Some(part) => geom_core::sym::NodeRecord::gather([&**part, &record]),
         None => record,

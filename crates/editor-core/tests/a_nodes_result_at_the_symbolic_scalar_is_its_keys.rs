@@ -444,10 +444,12 @@ fn a_parts_run_is_the_parts_and_its_identities_reach_its_instance() {
 /// documents, in leaves of two drives, the part's record is the same,
 /// whatever the instancing document is.
 ///
-/// No mutant is planted for the claim itself: a scope is opened over
-/// the records it is handed and nothing else, so no line hands a
-/// part's run the instancing document's registry. The floor fails if
-/// the part's run is in no scope of its own.
+/// **A floor, not a pin of the claim.** A part runs before any node of
+/// the instancing document, so there is nothing of that document for
+/// its run to inherit, and no mutant is planted for the claim itself:
+/// a scope is opened over the records it is handed and nothing else,
+/// so no line hands a part's run the instancing document's registry.
+/// The floor fails if the part's run is in no scope of its own.
 #[test]
 fn a_parts_run_is_the_same_in_two_instancing_documents() {
     let tol = Tol::witness();
@@ -688,4 +690,108 @@ fn two_instances_of_one_part_read_one_run() {
         "both read the one run"
     );
     assert_eq!(session, carried(&ev).0, "the part is counted once");
+}
+
+/// **A family that takes one member from an earlier leaf carries the
+/// same record as one that builds every member** (a reviewer's row). A
+/// row of three copies of the plate's first hole slid `scalar(k)·pitch`,
+/// `pitch` toleranced: copy 0 slides `0·pitch`, the same number over
+/// every box of `pitch`, and the others' move with the box. The half
+/// box is evaluated from the root leaf as its prior, on one table, and
+/// from nothing.
+///
+/// Mutant: a family's record that holds only the members that ran is
+/// short by the served member's decisions (`eval_node` not carrying a
+/// reused step's held record).
+#[test]
+fn a_family_with_a_member_taken_from_an_earlier_leaf_carries_that_members_record() {
+    use editor_core::{Dimension, Distribution, DocEdit, Formula, FreeVar, UnitSym, VarName};
+    let tol = Tol::witness();
+    let p = crate::m10_7_plate::plate_with_holes(5.0e-5, 1.0e-5, tol);
+    let doc = crate::fixture::step(
+        p.doc,
+        DocEdit::DeclareVar {
+            name: VarName::from_static("pitch"),
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
+                dim: Dimension::Length,
+                value: 5.0e-3,
+                display_unit: UnitSym::canonical_for(Dimension::Length),
+                distribution: Some(Distribution::Uniform {
+                    lo: -5.0e-5,
+                    hi: 5.0e-5,
+                }),
+            }),
+        },
+    )
+    .0;
+    let pitch = doc.var_named("pitch").expect("pitch is declared");
+    let (doc, k) = crate::fixture::index(doc, "k", 3);
+    let slide = Formula::mul(
+        crate::fixture::scalar_of(k),
+        Formula::named(VarName::from_static("pitch"), Dimension::Length),
+    )
+    .expect("a length");
+    let (doc, row) = crate::fixture::family_of(
+        doc,
+        p.holes[0],
+        vec![(editor_core::Coord::slide(editor_core::TargetAxis::Y), slide)],
+    );
+    let root = ParamBox::of(&analyzed_box(&doc, &AnalysisPolicy::default()));
+    let (lo, hi) = root
+        .varying()
+        .find(|(var, _, _)| *var == pitch)
+        .map(|(_, lo, hi)| (lo, hi))
+        .expect("pitch varies");
+    let mut axes = root.axes().clone();
+    axes.insert(
+        pitch,
+        BoxAxis::Varying {
+            lo,
+            hi: 0.5 * (lo + hi),
+        },
+    );
+    let half = ParamBox::from_axes(axes);
+    let over = |box_: &ParamBox, prior: Option<&Evaluation<Sym<Interval>>>, table| {
+        let opts = EvalOptions {
+            param_box: Some(Arc::new(box_.clone())),
+            ..EvalOptions::default()
+        };
+        with_session_memo_retry(
+            budget(),
+            SymRules::shipped(),
+            SymRetry::kept_atom(),
+            table,
+            || evaluate::<Sym<Interval>>(&doc, prior, &CancelToken::new(), &opts, tol),
+        )
+        .0
+    };
+    let shared = table();
+    let parent = over(&root, None, &shared);
+    let served = over(&half, Some(&parent), &shared);
+    let fresh = over(&half, None, &table());
+    let members = |ev: &Evaluation<Sym<Interval>>| {
+        ev.value(row)
+            .and_then(|v| v.members.clone())
+            .expect("the row is a family")
+    };
+    let taken: Vec<bool> = members(&served)
+        .members
+        .iter()
+        .zip(&members(&parent).members)
+        .map(|((_, now), (_, then))| Arc::ptr_eq(&now.sym, &then.sym))
+        .collect();
+    assert!(
+        taken.iter().any(|t| *t) && !taken.iter().all(|t| *t),
+        "some members are taken and some rebuilt: {taken:?}"
+    );
+    let record = |ev: &Evaluation<Sym<Interval>>| {
+        let v = ev.value(row).expect("the row built");
+        (v.sym.counts(), v.sym.registrations(), v.sym.read())
+    };
+    assert!(record(&fresh).0.decisions() > 0, "the family decided");
+    assert_eq!(
+        record(&served),
+        record(&fresh),
+        "the family's record is the same served or built"
+    );
 }

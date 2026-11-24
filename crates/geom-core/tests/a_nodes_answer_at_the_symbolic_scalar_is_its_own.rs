@@ -7,6 +7,8 @@
 //! document node.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use std::sync::Arc;
+
 use geom_core::predicate::{Band, Margin};
 use geom_core::sym::{MintScope, NodeRecord, with_session_retry};
 use geom_core::{ParamSymbol, Real, Sym, SymBudget, SymCounts, SymRetry, SymRules, Tol};
@@ -122,4 +124,98 @@ fn the_retry_guard_counts_a_nodes_own_forms() {
     );
     assert_eq!(alone, [1, 0, 1], "alone, the retry closes it");
     assert_eq!(after, alone, "after a node whose retry passed the guard");
+}
+
+/// `work` as the node `name`, reading `read` in the order given, as
+/// the evaluation service hands a node the records of what it reads.
+fn reading(name: u64, read: &[&Arc<NodeRecord>], work: impl FnOnce()) -> Arc<NodeRecord> {
+    let (_, record) = MintScope::current().child(&[name]).node([], || {
+        geom_core::sym::reads(read.iter().copied());
+        work();
+    });
+    Arc::new(record)
+}
+
+/// **The order two records are read in decides an answer, and it is
+/// the order given** (a reviewer's row). Node `A` states `u ≡ sin(v)`,
+/// node `B` states `v ≡ atan2(u, c)`; each is true at the values, and
+/// either closes a cycle through the other, so a reader keeps the one
+/// it reads first. A node that reads `A` then `B` proves `u − sin(v)`
+/// through the door; one that reads `B` then `A` holds
+/// `v ≡ atan2(u, c)` alone and does not. The dependence itself is
+/// `work/sym/a-pair-of-registrations-that-closes-a-cycle-is-proved-in-one-read-order-and-not-the-other`.
+///
+/// Mutant: `sym::reads` taking its records last first swaps the two
+/// answers.
+#[test]
+fn the_order_two_records_are_read_in_decides_an_answer() {
+    let p =
+        |name: &str, v: f64| Sym::<f64>::param(ParamSymbol::new(test_utils::symbol_id(name)), v);
+    let v0 = 0.5_f64;
+    let (u, v, c) = (
+        move || p("u", v0.sin()),
+        move || p("v", v0),
+        move || p("c", v0.cos()),
+    );
+    let ((a_then_b, b_then_a), _) =
+        with_session_retry(budget(), SymRules::shipped(), SymRetry::none(), || {
+            let a = reading(1, &[], || {
+                let _ = u().register_equal(v().sin_cos().0, Tol::witness());
+            });
+            let b = reading(2, &[], || {
+                let _ = v().register_equal(u().atan2(c()), Tol::witness());
+            });
+            assert_eq!(
+                (a.registrations(), b.registrations()),
+                (1, 1),
+                "each states its identity"
+            );
+            let ask = || decide(u() - v().sin_cos().0);
+            (
+                columns(&reading(3, &[&a, &b], ask)),
+                columns(&reading(4, &[&b, &a], ask)),
+            )
+        });
+    assert_eq!(a_then_b, [1, 0, 0], "read A first: the door proves it");
+    assert_eq!(
+        b_then_a,
+        [0, 1, 0],
+        "read B first: A's identity is the one the cycle drops"
+    );
+}
+
+/// **A record's text and its equality are bounded along a chain of
+/// readers.** Forty nodes, each reading the one before and registering
+/// an identity of its own: the last record is built over thirty-nine,
+/// each of which was built over the ones before it.
+///
+/// Mutant: a `Debug` or an `==` that follows each record's own `over`
+/// doubles with every node (8.4 MB at node 16 as the reviewer measured
+/// it) and does not finish at forty.
+#[test]
+fn a_records_text_and_equality_are_bounded_along_a_chain_of_readers() {
+    let p =
+        |name: &str, v: f64| Sym::<f64>::param(ParamSymbol::new(test_utils::symbol_id(name)), v);
+    let (last, _) = with_session_retry(budget(), SymRules::shipped(), SymRetry::none(), || {
+        let mut last: Option<Arc<NodeRecord>> = None;
+        for k in 1..=40_u64 {
+            let read: Vec<&Arc<NodeRecord>> = last.iter().collect();
+            let record = reading(100 + k, &read, || {
+                let x = p(&format!("chain{k}"), 0.25);
+                let _ = (x + x).register_equal(p(&format!("twice{k}"), 0.5), Tol::witness());
+            });
+            last = Some(record);
+        }
+        last.expect("forty nodes ran")
+    });
+    assert_eq!(last.read(), 39, "built over every node before it");
+    let text = format!("{last:?}");
+    assert!(
+        text.len() < 4096,
+        "the text is the record's own content and a count: {} bytes",
+        text.len()
+    );
+    // A copy at another address, built over the same records.
+    let copy = (*last).clone();
+    assert_eq!(*last, copy);
 }

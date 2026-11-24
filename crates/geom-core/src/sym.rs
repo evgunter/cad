@@ -2521,9 +2521,10 @@ struct NodeState {
     /// **The registered identities this node reads**
     /// ([`Sym::register_equal`]): `node -> the node it was registered
     /// equal to`, resolved transitively by [`Session::alias`] and
-    /// consulted by the door walk alone. The identities the scope was
-    /// opened with (its upstream nodes' and its enclosing scope's) and
-    /// the ones it has registered since.
+    /// consulted by the door walk alone. The identities of the records
+    /// the scope has read ([`reads`], and the records it was opened
+    /// over) and the ones it has registered since; nothing of the scope
+    /// it was opened inside.
     registry: IdMap<SymId>,
     /// The registrations made inside this scope, in the order made, as
     /// the registry recorded them: what [`NodeRecord`] carries.
@@ -2552,15 +2553,42 @@ struct NodeState {
     plain_roots: IdSet,
     /// The records this scope has read ([`reads`]): what
     /// [`NodeRecord`] carries as `over`.
-    over: Vec<Arc<NodeRecord>>,
-    /// `over`'s records by address, so that a record reached through
-    /// two reads enters once.
-    over_held: std::collections::HashSet<*const NodeRecord>,
-    /// The records the scopes opened inside this one read, each once,
-    /// in the order read. They are in this scope's record (`over`) and
-    /// not in its registry: a family's value is built over what its
-    /// members read.
-    over_inside: Vec<Arc<NodeRecord>>,
+    over: EachOnce,
+    /// The records the scopes opened inside this one read. They are in
+    /// this scope's record (`over`) and not in its registry: a family's
+    /// value is built over what its members read.
+    over_inside: EachOnce,
+    /// **What the records carried into this scope came to** ([`carry`]):
+    /// the counts of units inside it that were served and did not run.
+    /// On the scope's record, and not in the session's receipt, which
+    /// counts what ran.
+    carried: SymCounts,
+    /// What ran on behalf of a unit whose held record is carried
+    /// instead ([`carry`]): in the session's receipt, and taken off the
+    /// scope's record, where the held record already holds it.
+    unrecorded: SymCounts,
+    /// The roots of the records carried into this scope.
+    carried_roots: Vec<SymId>,
+}
+
+/// **Records, each once**, in the order first put: one record reached
+/// two ways is one address. Two equal records at two addresses are two.
+#[derive(Default)]
+struct EachOnce {
+    list: Vec<Arc<NodeRecord>>,
+    /// `list`'s addresses, compared and never dereferenced.
+    held: std::collections::HashSet<*const NodeRecord>,
+}
+
+impl EachOnce {
+    /// Puts `record` unless it is held; whether it was put.
+    fn put(&mut self, record: &Arc<NodeRecord>) -> bool {
+        let new = self.held.insert(Arc::as_ptr(record));
+        if new {
+            self.list.push(Arc::clone(record));
+        }
+        new
+    }
 }
 
 impl NodeState {
@@ -2571,6 +2599,10 @@ impl NodeState {
         for id in inner.plain_roots.keys() {
             self.plain_roots.insert(*id, ());
         }
+        self.carried.absorb(inner.carried);
+        self.unrecorded.absorb(inner.unrecorded);
+        self.carried_roots
+            .extend(inner.carried_roots.iter().copied());
     }
 }
 
@@ -2586,7 +2618,7 @@ impl NodeState {
 /// hold equal records under one key only where their boxes agree on
 /// those parameters; whatever serves a node across boxes owes that
 /// check.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Default)]
 pub struct NodeRecord {
     /// The brackets [`Sym::param_over`] recorded inside the scope, by
     /// the parameter's indeterminate, in the order recorded: a replay
@@ -2606,7 +2638,59 @@ pub struct NodeRecord {
     over: Vec<Arc<NodeRecord>>,
 }
 
+/// The record's own content and how many records it was built over. A
+/// record's `over` is closed, so printing each entry's own `over` in
+/// turn would print every record once per path that reaches it.
+impl core::fmt::Debug for NodeRecord {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("NodeRecord")
+            .field("brackets", &self.brackets)
+            .field("identities", &self.identities)
+            .field("counts", &self.counts)
+            .field("roots", &self.roots)
+            .field("over", &self.over.len())
+            .field(
+                "identities_over",
+                &self
+                    .over
+                    .iter()
+                    .map(|record| record.identities.len())
+                    .sum::<usize>(),
+            )
+            .finish()
+    }
+}
+
+/// Equal content, and built over records of equal content in the same
+/// order. `over` is closed, so each of its entries is compared by its
+/// own content and not by its own `over`, which this record's `over`
+/// already lists: the comparison is linear in what the record holds.
+impl PartialEq for NodeRecord {
+    fn eq(&self, other: &Self) -> bool {
+        self.own() == other.own()
+            && self.over.len() == other.over.len()
+            && self
+                .over
+                .iter()
+                .zip(&other.over)
+                .all(|(a, b)| Arc::ptr_eq(a, b) || a.own() == b.own())
+    }
+}
+
 impl NodeRecord {
+    /// The record's own content, apart from what it was built over.
+    #[allow(clippy::type_complexity)] // four fields, named where they are declared
+    fn own(
+        &self,
+    ) -> (
+        &[(u128, (f64, f64))],
+        &[(SymId, SymId)],
+        SymCounts,
+        &[SymId],
+    ) {
+        (&self.brackets, &self.identities, self.counts, &self.roots)
+    }
+
     /// What the node's decisions came to, the scopes opened inside it
     /// included. `frozen` is zero: that column is a set, read off a
     /// leaf's roots when the leaf is done ([`SymCounts::frozen`]).
@@ -2624,18 +2708,17 @@ impl NodeRecord {
     #[must_use]
     pub fn gather<'a>(records: impl IntoIterator<Item = &'a NodeRecord>) -> Self {
         let mut all = Self::default();
-        let mut held = std::collections::HashSet::new();
+        let mut over = EachOnce::default();
         for record in records {
             all.brackets.extend(record.brackets.iter().copied());
             all.identities.extend(record.identities.iter().copied());
             all.counts.absorb(record.counts);
             all.roots.extend(record.roots.iter().copied());
-            for over in &record.over {
-                if held.insert(Arc::as_ptr(over)) {
-                    all.over.push(Arc::clone(over));
-                }
+            for read in &record.over {
+                over.put(read);
             }
         }
+        all.over = over.list;
         all.roots.sort_unstable_by_key(|id| id.bits());
         all.roots.dedup();
         all
@@ -2660,7 +2743,9 @@ impl NodeRecord {
     }
 
     /// How many identities the node read: the registrations of every
-    /// record it was opened over, each record once.
+    /// record it was opened over, each record once by address, so two
+    /// equal records at two addresses count twice. Read by rows; no
+    /// decision reads it.
     #[must_use]
     pub fn read(&self) -> usize {
         self.over.iter().map(|record| record.identities.len()).sum()
@@ -2727,7 +2812,9 @@ impl NodeGuard {
             let sess = slot.as_mut()?;
             // Scopes close innermost first; another depth is a guard
             // closed out of turn, which would hand a node the wrong
-            // state.
+            // state. A build without the assertion closes nothing here:
+            // the scope's work gets an empty record and the state
+            // stays as the scopes still open left it.
             debug_assert_eq!(
                 sess.outer.len(),
                 self.depth,
@@ -2742,10 +2829,8 @@ impl NodeGuard {
             profile::retry_memos(&inner.retries.iter().map(RetryMemo::len).collect::<Vec<_>>());
             // What the scope read, and what the scopes inside it read.
             let mut over = core::mem::take(&mut inner.over);
-            for read in core::mem::take(&mut inner.over_inside) {
-                if inner.over_held.insert(Arc::as_ptr(&read)) {
-                    over.push(read);
-                }
+            for read in &core::mem::take(&mut inner.over_inside).list {
+                over.put(read);
             }
             sess.node.absorb(&inner);
             // What a scope opened inside a node's scope registered is
@@ -2757,28 +2842,35 @@ impl NodeGuard {
                     .identities
                     .extend(inner.identities.iter().copied());
                 sess.node.brackets.extend(inner.brackets.iter().copied());
-                for read in &over {
-                    if !sess
-                        .node
-                        .over_inside
-                        .iter()
-                        .any(|held| Arc::ptr_eq(held, read))
-                    {
-                        sess.node.over_inside.push(Arc::clone(read));
-                    }
+                for read in &over.list {
+                    sess.node.over_inside.put(read);
                 }
             }
-            let mut roots: Vec<SymId> = inner.plain_roots.keys().copied().collect();
+            let mut roots: Vec<SymId> = inner
+                .plain_roots
+                .keys()
+                .copied()
+                .chain(inner.carried_roots.iter().copied())
+                .collect();
             roots.sort_unstable_by_key(|id| id.bits());
+            roots.dedup();
+            // What ran, less what ran for a unit whose held record is
+            // carried, plus what the carried records hold.
+            let ran = inner.counts;
+            let (held, twice) = (inner.carried, inner.unrecorded);
             Some(NodeRecord {
                 brackets: inner.brackets,
                 identities: inner.identities,
                 counts: SymCounts {
                     frozen: 0,
-                    ..inner.counts
+                    symbolic: (ran.symbolic + held.symbolic).saturating_sub(twice.symbolic),
+                    numeric: (ran.numeric + held.numeric).saturating_sub(twice.numeric),
+                    retried: (ran.retried + held.retried).saturating_sub(twice.retried),
+                    registrations_refused: (ran.registrations_refused + held.registrations_refused)
+                        .saturating_sub(twice.registrations_refused),
                 },
                 roots,
-                over,
+                over: over.list,
             })
         })
     }
@@ -2801,14 +2893,49 @@ pub fn reads<'a>(records: impl IntoIterator<Item = &'a Arc<NodeRecord>>) {
         let Some(sess) = slot.as_mut() else { return };
         for record in records {
             for read in record.over.iter().chain([record]) {
-                if read.identities.is_empty() || !sess.node.over_held.insert(Arc::as_ptr(read)) {
+                if read.identities.is_empty() || !sess.node.over.put(read) {
                     continue;
                 }
                 for &(a, b) in &read.identities {
                     let _ = sess.record_identity(a, b);
                 }
-                sess.node.over.push(Arc::clone(read));
             }
+        }
+    });
+}
+
+/// **The open scope's record carries `held` in place of `ran`**: a unit
+/// inside the scope (a member of a family) was served the result of an
+/// earlier run, whose record is `held`, and its own scope has just
+/// closed here having run only `ran` (what it did before it was
+/// served). The scope's record holds the unit as a run of it would have
+/// left it: `held`'s identities and brackets at the unit's place in the
+/// order, its counts and roots, and the records it was built over.
+///
+/// The session's receipt is not moved: it counts what ran, and `ran`
+/// ran. Nothing where no node scope is open (the root scope leaves no
+/// record), or outside a session.
+pub fn carry(held: &Arc<NodeRecord>, ran: &NodeRecord) {
+    SESSION.with(|s| {
+        let mut slot = s.borrow_mut();
+        let Some(sess) = slot.as_mut() else { return };
+        if sess.outer.is_empty() {
+            return;
+        }
+        let node = &mut sess.node;
+        // `ran`'s scope closed inside this one and left its identities
+        // and brackets last.
+        let kept = node.identities.len().saturating_sub(ran.identities.len());
+        node.identities.truncate(kept);
+        node.identities.extend(held.identities.iter().copied());
+        let kept = node.brackets.len().saturating_sub(ran.brackets.len());
+        node.brackets.truncate(kept);
+        node.brackets.extend(held.brackets.iter().copied());
+        node.carried.absorb(held.counts);
+        node.unrecorded.absorb(ran.counts);
+        node.carried_roots.extend(held.roots.iter().copied());
+        for read in &held.over {
+            node.over_inside.put(read);
         }
     });
 }
@@ -2824,13 +2951,19 @@ impl Drop for NodeGuard {
 /// decides and counts apart from every node, and the record it leaves
 /// goes where the unit's result goes, so that every decision of a
 /// replay is on a record some reader of its result receives.
+///
+/// The product's gather reads no registration this way, though the
+/// instances it gathers feed it: its doors hold pieces and no node
+/// value
+/// (`work/boxfinish/a-documents-registrations-do-not-reach-its-products-gather`).
 pub fn apart<R>(work: impl FnOnce() -> R) -> (R, NodeRecord) {
     node_scope([], work)
 }
 
 /// [`MintScope::node`]'s session half: `work` in a node scope of its
-/// own, opened over the enclosing scope's registry and `upstream`'s
-/// registrations in the order given, and the record it leaves. Outside
+/// own, opened over `upstream`'s registrations in the order given and
+/// over nothing of the scope it is opened inside, and the record it
+/// leaves. Outside
 /// a session there is no state to scope and the record is empty.
 pub(crate) fn node_scope<'a, R>(
     upstream: impl IntoIterator<Item = &'a NodeRecord>,

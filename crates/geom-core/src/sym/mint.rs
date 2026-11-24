@@ -121,9 +121,11 @@ impl MintScope {
     /// **Runs `work` as the node this scope names**: the scope open
     /// for its mints, and in the installed session a node state of its
     /// own (the registry, the counts, the retry memos and their guard),
-    /// opened over the enclosing scope's registry and the identities
-    /// `upstream` registered, in the order given. Answers `work`'s
-    /// value and the record the node leaves ([`NodeRecord`]).
+    /// opened over the identities `upstream` registered, in the order
+    /// given, and over nothing of the scope it is opened inside; the
+    /// records of what the node reads are handed to it as its work
+    /// learns them ([`super::reads`]). Answers `work`'s value and the
+    /// record the node leaves ([`NodeRecord`]).
     ///
     /// `upstream` is the records of the nodes that feed this one. What
     /// any other node registered, spent of the retry guard or counted
