@@ -1,12 +1,12 @@
 ---
 id: a-chains-link-refuses-at-an-edges-stored-curve-with-the-box-arm-off
 kind: issue
-title: The tour's one-link chain refuses at Interval with the box arm off: an edge's stored curve does not certify against its faces
-status: open
+title: The tour's one-link chain refuses at plain Interval with the box arm off: the gather re-certifies its turned members' edges from values
+status: parked
 opened: 2026-11-24
 priority: P1
 cost: M
-design: true
+blocked_on: [the-gathers-finish-re-derives-certificates-its-moved-members-carry]
 ---
 
 
@@ -46,3 +46,24 @@ only escalate. Designers weigh it before anything is built.
 
 It holds the switch's deletion: the tour does not run to its end
 without it. (BOXFINISH orchestrator)
+
+## Weighed (2026-11-24)
+
+Two designers, independently; they agreed at first report, and both
+corrected this row's premise, which M12's trace then confirmed: **the
+body that refuses is not a link, it is the product's gather** (the bar
+and three pins: 18 faces, 30 edges, 20 vertices), finished after each
+member's own finish had passed. So this is not a question about the
+charter or about what plain `Interval` is: it is the gather
+re-deriving, on moved geometry, facts each member's finish had decided
+and its rigid move had carried. The sentence above ("over any box that
+moves a body, an at-rest identity read at plain `Interval` can only
+escalate") holds only because the gather re-reads it; a move alone
+asks nothing.
+
+The unit is
+`the-gathers-finish-re-derives-certificates-its-moved-members-carry`;
+this row is parked on it and closes when the tour's chain certifies at
+plain `Interval` with the box arm off. Not put to Ev: no ratified text
+changes (DESIGN `[one-way.places]` already states the carry) and the
+designers agree.

@@ -6,7 +6,7 @@ status: parked
 opened: 2026-11-02
 priority: P1
 cost: M
-blocked_on: [a-door-reading-the-minted-axis-loses-identities-with-quotient-minted-partners, a-verb-stores-a-radius-as-a-magnitude-and-the-symbolic-tier-cannot-use-the-sign-its-gate-decided, tier-3-at-every-box-replay-leaf-multiplies-the-decisions, a-boxed-rectangles-certification-runs-out-of-memory-with-the-box-arm-off, the-aimed-faces-advance-is-zero-only-through-its-first-edges-incidence, a-walls-aim-hangs-from-its-moving-edge-so-its-ray-reads-a-box-a-tenth-as-wide, a-moving-face-whose-normal-has-no-zero-component-reads-its-side-only-over-a-narrow-box, a-chains-link-refuses-at-an-edges-stored-curve-with-the-box-arm-off, the-two-parameter-plates-volume-refuses-on-a-junction-margin-that-is-not-a-number]
+blocked_on: [a-door-reading-the-minted-axis-loses-identities-with-quotient-minted-partners, a-verb-stores-a-radius-as-a-magnitude-and-the-symbolic-tier-cannot-use-the-sign-its-gate-decided, tier-3-at-every-box-replay-leaf-multiplies-the-decisions, a-boxed-rectangles-certification-runs-out-of-memory-with-the-box-arm-off, the-aimed-faces-advance-is-zero-only-through-its-first-edges-incidence, a-walls-aim-hangs-from-its-moving-edge-so-its-ray-reads-a-box-a-tenth-as-wide, a-moving-face-whose-normal-has-no-zero-component-reads-its-side-only-over-a-narrow-box, the-gathers-finish-re-derives-certificates-its-moved-members-carry, the-two-parameter-plates-volume-refuses-on-a-junction-margin-that-is-not-a-number]
 refs: [f64-tier-3-reads-volume-uncomputable-in-band-on-hairline-revolves, 6371]
 ---
 
@@ -39,8 +39,12 @@ this final state, but … keep it disabled/selectively disabled for now".
   and since the n-ary fold and the at-rest intersection take placed
   operands (fork 288 stage 1: each member finished in its own frame,
   then moved by the door) 390;
-- the `⊔` graft's `T::leaf` end, which becomes `T::finish`
-  (`crates/editor-core/src/eval/wire.rs`); the twist and the mirror move
+- the `⊔` graft's `T::leaf` end, which becomes a finish that reads
+  what its finished, moved members carry and derives only what the
+  merge adds (`crates/editor-core/src/eval/wire.rs`;
+  `the-gathers-finish-re-derives-certificates-its-moved-members-carry`:
+  a plain `T::finish` there re-certifies every member from values and
+  refuses the tour's chain at plain `Interval`); the twist and the mirror move
   what a value holds (`Held::moved`) and end in no gate;
 - `NodeErrorKind::UnfinishedLeaf`: with no leaf, every held body is
   finished and a moved one stays finished, so nothing refuses where an
