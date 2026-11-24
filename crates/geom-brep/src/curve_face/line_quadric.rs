@@ -1735,3 +1735,123 @@ mod door_rows {
         );
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod nearest_rows {
+    //! **The quadratic about a line's closest approach**: its middle
+    //! coefficient is zero by construction where the approach is inside
+    //! the run, at every scalar, and is what it is where the run holds
+    //! the approach back.
+
+    use super::*;
+    use geom_core::sym::{ParamSymbol, with_session};
+    use geom_core::{Bounds, Interval, Real, Sym, SymBudget};
+
+    /// A wall of radius 1.2 mm about the `z` axis, and a ray tilted 10°
+    /// off it whose start moves with one box parameter `u ∈ [−1, 1]`,
+    /// 0.5 mm by 1.2 mm across the box: the shape of a hole's aimed ray
+    /// over a parameter box.
+    fn boxed<T: Real>(u: T) -> (geom::Line<T>, (geom::Line<T>, T)) {
+        let lift = |x: f64| T::from_f64(x);
+        let (tilt, turn) = (10f64.to_radians(), 200f64.to_radians());
+        let d = Vec3::new(tilt.sin() * turn.cos(), tilt.sin() * turn.sin(), tilt.cos());
+        let q = Point3::new(
+            lift(-2.26e-4) + lift(2.5e-4) * u,
+            lift(-5.83e-4) + lift(6.0e-4) * u,
+            lift(0.0),
+        );
+        let ray = geom::Line {
+            origin: q,
+            dir: geom_core::UnitVec3::squared(d.map(lift)),
+        };
+        let wall = geom::Line {
+            origin: Point3::new(0.0, 0.0, 0.0).map(lift),
+            dir: geom_core::UnitVec3::exact_z(),
+        };
+        (ray, (wall, lift(1.2e-3)))
+    }
+
+    /// **About its closest approach inside the run, the wall's `b` is
+    /// zero over the box**, at `Interval` and at `Sym<Interval>` as at
+    /// `f64`: the box enters the moved offset twice (directly and through
+    /// the shift), and the two cancel exactly in `b` at every point.
+    #[test]
+    fn the_nearest_points_b_is_zero_over_the_box() {
+        let span = 0.1;
+        let point = wall_quadratic(boxed(0.0).0, boxed(0.0).1, span, About::Nearest);
+        let over = |u: Interval| {
+            let (ray, wall) = boxed(u);
+            wall_quadratic(ray, wall, Interval::from_f64(span), About::Nearest).coeffs[1]
+        };
+        let interval = over(Interval::from_bounds(-1.0, 1.0));
+        let budget = SymBudget {
+            max_terms: 64,
+            max_degree: 8,
+        };
+        let (sym, _) = with_session(budget, || {
+            let u = Sym::param_over(
+                ParamSymbol::new(0xb0),
+                Interval::from_bounds(-1.0, 1.0),
+                -1.0,
+                1.0,
+            );
+            let (ray, wall) = boxed(u);
+            wall_quadratic(ray, wall, Sym::from_f64(span), About::Nearest).coeffs[1].value()
+        });
+        let mut off = Vec::new();
+        if point.coeffs[1].abs() > 1e-19 {
+            off.push(format!("f64: b = {:e}", point.coeffs[1]));
+        }
+        for (scalar, b) in [("Interval", interval), ("Sym<Interval>", sym)] {
+            if !(b.lo() == 0.0 && b.hi() == 0.0) {
+                off.push(format!("{scalar}: b = [{:e}, {:e}]", b.lo(), b.hi()));
+            }
+        }
+        assert!(off.is_empty(), "the nearest point's b: {off:?}");
+    }
+
+    /// **Where the run holds the approach back, `b` is the residual's
+    /// slope at the run's end**, `(w₀⊥ + d⊥·shift)·d⊥` with the shift at
+    /// that end, at `f64` and inside the box's enclosure at every point
+    /// sampled.
+    #[test]
+    fn a_held_back_approachs_b_is_the_slope_at_the_runs_end() {
+        let span = 1e-4;
+        let enclosure = {
+            let (ray, wall) = boxed(Interval::from_bounds(-1.0, 1.0));
+            wall_quadratic(ray, wall, Interval::from_f64(span), About::Nearest)
+        };
+        let mut off = Vec::new();
+        for i in 0..=8 {
+            let u = -1.0 + f64::from(i) / 4.0;
+            let (ray, (wall, radius)) = boxed(u);
+            let got = wall_quadratic(ray, (wall, radius), span, About::Nearest);
+            let w0p = wall.offset(ray.origin);
+            let axis = wall.dir.get();
+            let dp = ray.dir.get() - axis * ray.dir.get().dot(axis);
+            let free = -w0p.dot(dp) / dp.norm_squared();
+            let held = free.clamp(-span, span);
+            let want = (w0p + dp * held).dot(dp);
+            if free.abs() <= span {
+                off.push(format!("u = {u}: the approach {free:e} is inside the run"));
+            }
+            if (got.shift - held).abs() > 0.0 || (got.coeffs[1] - want).abs() > 1e-18 {
+                off.push(format!(
+                    "u = {u}: shift {:e}, b {:e} against {held:e}, {want:e}",
+                    got.shift, got.coeffs[1]
+                ));
+            }
+            let b = enclosure.coeffs[1];
+            if !(b.lo() <= got.coeffs[1] && got.coeffs[1] <= b.hi()) {
+                off.push(format!(
+                    "u = {u}: b {:e} outside [{:e}, {:e}]",
+                    got.coeffs[1],
+                    b.lo(),
+                    b.hi()
+                ));
+            }
+        }
+        assert!(off.is_empty(), "the held-back approach's b: {off:#?}");
+    }
+}

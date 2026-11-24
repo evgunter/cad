@@ -486,3 +486,75 @@ mod cbrt_rows {
         }
     }
 }
+
+#[cfg(test)]
+mod quadratic_rows {
+    //! [`super::quadratic_roots`] over an enclosure whose `b` straddles
+    //! zero by more than `√disc`: a lead decided nonzero and a
+    //! discriminant decided positive bound both roots, at every scalar.
+
+    use super::quadratic_roots;
+    use geom_core::{Bounds, Interval, Real};
+
+    /// **A wall's crossing over a box whose `b` straddles zero wider than
+    /// `√disc` is bounded, and holds every point's roots.** The traced
+    /// case of a ray on a hole's cylinder wall over a parameter box
+    /// (`a = 0.0301537`, `b = [-9.48e-5, 1.10e-4]`,
+    /// `c = [-1.638e-6, -1.47e-7]`): `√disc − b` and `−b − √disc` both
+    /// contain zero there, so `c` over either is the whole line.
+    #[test]
+    fn a_straddling_b_wider_than_the_root_reads_bounded_roots() {
+        let a = Interval::from_f64(0.030_153_7);
+        let b = Interval::from_bounds(-9.48e-5, 1.10e-4);
+        let c = Interval::from_bounds(-1.638e-6, -1.47e-7);
+        let [r0, r1] = quadratic_roots(a, b, c, b.powi(2) - a * c);
+        let mut off = Vec::new();
+        for (i, r) in [r0, r1].into_iter().enumerate() {
+            if !(r.lo().is_finite() && r.hi().is_finite()) {
+                off.push(format!("root {i} is unbounded: [{}, {}]", r.lo(), r.hi()));
+            }
+        }
+        // Every point of the box has its two roots inside the reading,
+        // and the reading is no wider than a few times their spread.
+        let (mut lo, mut hi) = ([f64::INFINITY; 2], [f64::NEG_INFINITY; 2]);
+        for i in 0..=16 {
+            for j in 0..=16 {
+                let bp = b.lo() + (b.hi() - b.lo()) * f64::from(i) / 16.0;
+                let cp = c.lo() + (c.hi() - c.lo()) * f64::from(j) / 16.0;
+                let ap = a.lo();
+                let root = (bp * bp - ap * cp).sqrt();
+                let want = [(-bp - root) / ap, (-bp + root) / ap];
+                for k in 0..2 {
+                    lo[k] = lo[k].min(want[k]);
+                    hi[k] = hi[k].max(want[k]);
+                }
+                let got = quadratic_roots(ap, bp, cp, bp * bp - ap * cp);
+                for (k, (r, w)) in [r0, r1].iter().zip(want).enumerate() {
+                    if !(r.lo() <= w && w <= r.hi()) {
+                        off.push(format!("root {k} misses {w:e} at b = {bp:e}, c = {cp:e}"));
+                    }
+                    if (got[k] - w).abs() > 1e-12 * w.abs().max(1e-3) {
+                        off.push(format!(
+                            "f64 root {k} at b = {bp:e}: {} against {w:e}",
+                            got[k]
+                        ));
+                    }
+                }
+            }
+        }
+        for (k, r) in [r0, r1].iter().enumerate() {
+            let (width, spread) = (r.hi() - r.lo(), hi[k] - lo[k]);
+            println!(
+                "root {k}: [{:e}, {:e}], the points' spread {spread:e}",
+                r.lo(),
+                r.hi()
+            );
+            if !(width <= 4.0 * spread) {
+                off.push(format!(
+                    "root {k} reads {width:e} wide over a spread of {spread:e}"
+                ));
+            }
+        }
+        assert!(off.is_empty(), "the straddling quadratic's roots: {off:#?}");
+    }
+}
