@@ -174,8 +174,8 @@ fn a_box_past_the_end_is_dropped_on_its_middle_before_it_is_compared() {
 
 /// A bicubic patch over the square of side `size`, waved by a twentieth
 /// of it.
+#[allow(clippy::cast_precision_loss)]
 fn waved(size: f64) -> NurbsSurface<f64> {
-    #[allow(clippy::cast_precision_loss)]
     graph(3, size, |i, j| {
         size * 0.05 * (((i * 7 + j * 3) % 5) as f64 - 2.0) / 2.0
     })
