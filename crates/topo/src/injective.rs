@@ -11741,6 +11741,18 @@ mod presentation_rows {
         .seamed_near(core::f64::consts::FRAC_PI_2)
     }
 
+    /// `x` with its seam a half turn on, written out apart from the door
+    /// that states it ([`geom::Ellipse::restatements`]'s and a re-seam's
+    /// shared half turn), for an ellipse whose phase has a zero cosine:
+    /// run back, which negates the axis and the phase's sine, then the
+    /// frame run back again and half-turned with the phase kept, which
+    /// leaves the axis as it was, `u_ref` negated and the sine negated.
+    /// No public door states the half turn of a phase with a cosine
+    /// otherwise; `geom`'s own rows pin it there.
+    fn half_turn_written_out(x: geom::Ellipse<f64>) -> geom::Ellipse<f64> {
+        x.reversed().mapped(|f| f.reversed().half_turned())
+    }
+
     /// **An ellipse held on its arc is one with each exact restatement
     /// of itself, and with nothing one pairing short of one**
     /// ([`one_stated_conic`], [`geom::Ellipse::restatements`]). Its seam
@@ -11767,7 +11779,11 @@ mod presentation_rows {
             ("off its seam", generic_arc_held()),
             ("at its seam", generic_arc_held().seamed_near(-PI / 2.0)),
         ] {
-            let half = e.seamed_near(PI);
+            let half = if what == "off its seam" {
+                half_turn_written_out(e)
+            } else {
+                e.seamed_near(PI)
+            };
             assert!(one(e, half), "{what}: its seam a half turn on");
             assert!(one(e, e.reversed()), "{what}: run back");
             assert!(one(e, half.reversed()), "{what}: both");
@@ -11820,8 +11836,12 @@ mod presentation_rows {
         let apart = (e.frame().origin() - mirrored.frame().origin()).norm();
         assert!(apart > 0.5, "the centres lie apart: {apart}");
         assert!(!one(e, mirrored), "mirrored across the tangent");
-        let [_, half, back, both] = e.restatements();
-        for (what, r) in [("a half turn on", half), ("run back", back), ("both", both)] {
+        let half = half_turn_written_out(e);
+        for (what, r) in [
+            ("a half turn on", half),
+            ("run back", e.reversed()),
+            ("both", half.reversed()),
+        ] {
             assert!(one(e, r), "{what}");
         }
     }
@@ -11959,7 +11979,7 @@ mod presentation_rows {
         use core::f64::consts::PI;
         let e = generic_arc_held();
         let first = ellipse_rim(e, (0.0, 1.0), [1, 2]);
-        let half = e.seamed_near(PI);
+        let half = half_turn_written_out(e);
         for (what, on, back) in [
             (
                 "a half turn on",

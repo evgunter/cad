@@ -4327,11 +4327,11 @@ fn section_arcs(body: &Body<f64>) -> Vec<geom::Ellipse<f64>> {
 /// whose middles lie in adjacent quadrants: stated a quarter turn apart
 /// with the semi-axes exchanged, through a turn that rounds, so no
 /// restatement of one is the other. Where the middles fall decides it,
-/// not whether the cut meets a cap: of two-arc cuts through a cap, a
-/// reviewer's scan found 26 stating a quarter and 40 a half, and every
-/// one of 864 cuts through the wall alone a half
-/// (`review_scan_which_restatement_a_split_states`, on
-/// `embed/conic-symmetry-review-4b5e7c`). The row pins what these three
+/// not whether the cut meets a cap: of two-arc cuts through a cap 26
+/// state a quarter and 40 a half, and every one of 864 cuts through the
+/// wall alone a half
+/// (`a_splits_two_section_arcs_are_stated_a_half_turn_apart_through_the_wall_and_either_way_through_a_cap`).
+/// The row pins what these three
 /// splits state, read through the same restatements the certificate
 /// reads (`injective`'s `one_stated_conic`), so it goes red when the
 /// split's statements move and not when that reading does. Asked of
@@ -4523,4 +4523,72 @@ fn a_ball_through_a_split_cylinders_two_arc_corner_crosses() {
             );
         }
     }
+}
+
+/// **Which restatement a split states its section's two arcs by is
+/// decided by where the arcs' middles fall, counted over 1,152 splits.**
+/// A frustum and a rod, each cut at six heights, three tilts and sixteen
+/// azimuths, either side kept. Of the splits that state two section
+/// arcs: every cut through the wall alone states one arc as the other's
+/// half-turned restatement ([`geom::Ellipse::restatements`]); a cut out
+/// through a cap states a half turn or a quarter turn with the semi-axes
+/// exchanged, by its arcs' middles and not by its meeting the cap; none
+/// states its arcs run back or both. The counts are pinned as measured,
+/// so the row goes red when the split's seaming moves, whichever way.
+#[test]
+fn a_splits_two_section_arcs_are_stated_a_half_turn_apart_through_the_wall_and_either_way_through_a_cap()
+ {
+    let (mut wall, mut cap, mut rest) = ([0usize; 2], [0usize; 3], 0usize);
+    for shape in [(0.7, 0.31, 0.9), (0.7, 0.7, 1.9)] {
+        for qi in 0..6 {
+            let q = 0.2 + 0.13 * f64::from(qi);
+            for phi in [0.12f64, 0.3, 0.55] {
+                for k in 0..16 {
+                    let psi = 0.05 + TAU * f64::from(k) / 16.0;
+                    for above in [true, false] {
+                        let cut: SplitCone = (shape, (q, phi, psi), above);
+                        // A split that refuses, or one that states another
+                        // count of section arcs (a side with none, a cut
+                        // through both caps), is not this row's.
+                        let arcs = std::panic::catch_unwind(|| {
+                            section_arcs(&split_cone::<f64>(cut, SplitPose::AsBuilt))
+                        });
+                        let Ok([a, b]) = arcs.as_deref() else {
+                            rest += 1;
+                            continue;
+                        };
+                        let restated = a.restatements().map(|r| {
+                            geom::Curve3::Ellipse(r).same_content(&geom::Curve3::Ellipse(*b))
+                        });
+                        let exchanged = a.semi_axes() == (b.semi_v(), b.semi_u());
+                        // The plane meets the wall alone where the section's
+                        // height on the wall lies inside the wall's at every
+                        // azimuth.
+                        let (r0, r1, h) = shape;
+                        let n = (phi.sin() * psi.cos(), phi.cos(), phi.sin() * psi.sin());
+                        let wall_alone = (0..720).all(|i| {
+                            let th = TAU * f64::from(i) / 720.0;
+                            let (c, slope) = (n.0 * th.cos() + n.2 * th.sin(), (r1 - r0) / h);
+                            let y = (n.1 * q - c * r0) / (n.1 + c * slope);
+                            y > 0.0 && y < h
+                        });
+                        let half = restated == [false, true, false, false];
+                        let quarter = restated == [false; 4] && exchanged;
+                        match (wall_alone, half, quarter) {
+                            (true, true, _) => wall[0] += 1,
+                            (true, false, _) => wall[1] += 1,
+                            (false, true, _) => cap[0] += 1,
+                            (false, false, true) => cap[1] += 1,
+                            (false, false, false) => cap[2] += 1,
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert_eq!(
+        (wall, cap, rest),
+        ([864, 0], [40, 26, 0], 222),
+        "through the wall alone [half, other]; through a cap [half, quarter, other]; the rest"
+    );
 }

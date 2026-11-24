@@ -2256,7 +2256,14 @@ mod tests {
                 assert_eq!(bits(anchor - o), bits(at - o));
                 let want = [(1.0, 0.0), (0.0, -1.0), (-1.0, 0.0), (0.0, 1.0)][k];
                 assert_eq!(phase, want, "({a}, {b}) seamed near {seam}");
-                assert!((r.center() - e.center()).norm() <= slack, "the centre");
+                // Across a half turn, which negates stored numbers and
+                // rounds nothing, the derived centre does not move; across
+                // a quarter it moves by the turned seam's rounding.
+                if k % 2 == 0 {
+                    assert_eq!(bits(r.center() - o), bits(e.center() - o), "the centre");
+                } else {
+                    assert!((r.center() - e.center()).norm() <= slack, "the centre");
+                }
                 let turn = FRAC_PI_2 * f64::from(u32::try_from(k).unwrap());
                 for t in [-3.0, -1.2, -2e-3, 0.0, 1e-7, 0.4, 1.55, 2.9] {
                     let gap = (r.point_at(t - turn) - e.point_at(t)).norm();
