@@ -9,22 +9,32 @@ cost: M
 ---
 
 
-Filed by the cone × sphere / cone × cone door lane (PR 7457).
+Filed by the cone × sphere / cone × cone door lane (PR 7457); updated in
+its fix pass.
 
 The section value now classifies and carries a cone against a sphere off
 its axis and against another cone in general pose (`ssi::march_cone_ruled`,
-`pair_section/cones.rs`), `serves` takes the pairs and `join::rides_carried`
-carries them. The boolean still refuses both pairs, early (about 1.6 s
-into each run on CI), with `BooleanError::CurvedBooleanUnsupported
-{ operand: A, face: FaceKey(1v1), kind: Cone }`, the cone's face, on
-`crates/sweep/tests/a_cone_with_a_ball_or_a_cone_in_every_order.rs`'s two
-fixtures. The site was not located: that refusal is raised at
-`boolean/recl.rs` (a carrier-identity check that admits planes only),
-`boolean/sectors.rs` (`SectorError::Unsupported` / `Unplaced`, the
-tangent-locus lane) and `boolean/reduce.rs` (`spline_face`,
-`spline_interior`). The witness runs every op in both orders and holds
-the volumes closed where an order builds, and refuses a desync or a broken
-invariant; it flips to building when this row is fixed.
+`pair_section/cones.rs`); `serves` takes the pairs and `join::rides_carried`
+carries them. The boolean still refuses both fixtures of
+`crates/sweep/tests/a_cone_with_a_ball_or_a_cone_in_every_order.rs`, every
+op in both orders, with `BooleanError::CurvedBooleanUnsupported` naming the
+cone's face: `{ operand: A, face: FaceKey(1v1), kind: Cone }` with the cone
+first and `{ operand: B, .. }` with it second (the row pins each run).
 
-Likely shared with U3 (`the-join-reads-the-cone-pairs-on-the-value.md`):
-the join's reading of the cone pairs past their germs.
+**What is ruled out.** Review r1 of PR 7457 read the first ball fixture
+(`ball_poled_y`) as having its south pole on `K`'s face, a vertex-on-curved-
+face contact (`topo/src/boolean/vtxfac.rs`). The fix pass turned the ball
+(`ball_poled_z`, poles at `(0.9, 0.6, ±0.4)`, off `K`), and the refusal
+did not move. So it is not that vertex.
+
+**Where it likely is (not located).** Each fixture has an edge of the
+partner crossing `K`'s face: the ball's seam meridian runs through the
+section loop's interior, and the second cone's seam generators run from
+its apex, inside `K`, out through `K`'s side. Review r2 named the lanes an
+edge piercing a curved face reaches ahead of the section pass:
+`topo/src/boolean/reduce.rs` `spline_interior`'s `unbuilt`, and
+`vtxfac.rs` `unglued_flat_sector`. The first discriminator is a fixture
+with no partner edge crossing the cone: a ball turned so its seam
+meridian stays clear of `K`.
+
+Likely shared with U3 (`the-join-reads-the-cone-pairs-on-the-value.md`).

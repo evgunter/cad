@@ -496,15 +496,21 @@ fn the_bite_rides_the_carried_cone_cylinder_section() {
     };
     for (what, b) in [("P1", bite()), ("P2", bite_and_pin)] {
         for (op, got) in every_op(&c, &b) {
+            // The operands' order is the op's: `B ∖ A` asks the bite first.
+            let kinds = if op == "B ∖ A" {
+                [geom::SurfaceKind::Plane, geom::SurfaceKind::Cone]
+            } else {
+                [geom::SurfaceKind::Cone, geom::SurfaceKind::Plane]
+            };
             assert!(
                 matches!(
                     &got,
                     Err(BooleanError::GermSectionOpenConic {
-                        a_kind: geom::SurfaceKind::Cone,
-                        b_kind: geom::SurfaceKind::Plane,
+                        a_kind,
+                        b_kind,
                         conic: geom_brep::OpenConic::Hyperbola,
                         ..
-                    })
+                    }) if [*a_kind, *b_kind] == kinds
                 ),
                 "{what}, {op}: {:?}",
                 got.map(|r| r.body().map(|b| b.kind))

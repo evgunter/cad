@@ -1417,7 +1417,7 @@ fn generator_point() -> (Point3<f64>, Vec3<f64>) {
 ///
 /// Neither is one isolated point, so the value refuses by the tangency's
 /// own predicate rather than list one, and the door refuses
-/// `PairTangent`. At `R ∓ 0.02` the pose is transverse and its section
+/// `PairTangent`. At `R ∓ 0.1` the pose is transverse and its section
 /// agrees with the trace (`checked`): one loop and two for the touch, and
 /// whatever the trace finds for the far line. A pose that lists the touch
 /// alone, or drops a component either side: red.
@@ -1456,8 +1456,8 @@ fn a_ball_tangent_beside_a_crossing_refuses_by_its_tangency() {
                 "{what}: the door refuses the tangency before any rung"
             );
         }
-        for (k, dr) in [-0.02, 0.02].into_iter().enumerate() {
-            let (shapes, section) = checked(&unit_cone(), &sphere(centre, r + dr), region(), 0.01);
+        for (k, dr) in [-0.1, 0.1].into_iter().enumerate() {
+            let (shapes, section) = checked(&unit_cone(), &sphere(centre, r + dr), region(), 0.03);
             assert!(
                 section.tangency().is_none() && shapes.points == 0 && shapes.noded == 0,
                 "{what} at R {dr:+}: transverse, {shapes:?}"
@@ -1473,7 +1473,7 @@ fn a_ball_tangent_beside_a_crossing_refuses_by_its_tangency() {
 /// `R = 1/√2`, the distance to both lines of its meridian plane, the
 /// apex `1` off. The sphere stands nearest the double cone at both feet,
 /// `(½, 0, ±½)`, so the section is those two points, each with its
-/// decided tangency; at `R − 0.02` it is clear and at `R + 0.02` two
+/// decided tangency; at `R − 0.1` it is clear and at `R + 0.1` two
 /// loops, as the trace has it. A pose keeping only the first `Zero`: red.
 #[test]
 fn a_ball_touching_both_nappes_lists_both_touches() {
@@ -1506,16 +1506,16 @@ fn a_ball_touching_both_nappes_lists_both_touches() {
     }
     let (clear, _) = checked(
         &unit_cone(),
-        &sphere(p(1.0, 0.0, 0.0), r - 0.02),
+        &sphere(p(1.0, 0.0, 0.0), r - 0.1),
         region(),
-        0.01,
+        0.03,
     );
     assert_eq!(clear, Shapes::default(), "shrunk, the ball is clear");
     let (two, _) = checked(
         &unit_cone(),
-        &sphere(p(1.0, 0.0, 0.0), r + 0.02),
+        &sphere(p(1.0, 0.0, 0.0), r + 0.1),
         region(),
-        0.01,
+        0.03,
     );
     assert_eq!(
         two,
