@@ -22961,3 +22961,7 @@ mod margin_reach_rows {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "run_probe_embed.rs"]
+mod run_probe_embed;
