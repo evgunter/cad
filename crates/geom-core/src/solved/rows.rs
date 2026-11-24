@@ -1,8 +1,10 @@
 //! The door's own rows: what it admits and refuses at the scalars that
 //! certify, on a residual written out by hand.
 
+#![allow(clippy::expect_used)]
+
 use super::{Unadmitted, admit};
-use crate::{Band, Bounds, Interval, Margin, Real, Tol};
+use crate::{Band, Bounds, Interval, Margin, Tol};
 
 fn band() -> Band {
     Band::linear(Tol::witness()).expect("the witness band")
