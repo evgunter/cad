@@ -323,13 +323,15 @@ drive(doc, box) -> ParamBoxVerdict {
 **Leaf protocol**: replay the recipe at `T = Interval` over the leaf
 box (parameters = intervals; witness data verbatim per E8).
 
-- Every predicate definite AND the verdict vector matching the
-  witness branch's → leaf **certified**; lineage-scoped key identity
-  (Q1 PR 8) means the leaf shares the nominal build's topology;
-  Measure enclosures are containment-true over the whole leaf.
+- Every predicate definite AND the leaf building the witness's build
+  (per node: its standing, and its bodies' cells and their incidence
+  under their names; assertions excluded) → leaf **certified**;
+  Measure enclosures are containment-true over the whole leaf. The
+  verdict vector explains a leaf; it does not gate it.
 - **No-flips v1 (adopted round 3; Ev's proposal)**: a leaf
-  definite on a *different* verdict vector is **refused mass**
-  (`FlipCrossing`, flipped predicates named) — no branch
+  definite and building another build is **refused mass**
+  (`FlipCrossing`, naming the first node that builds otherwise and
+  the decision that turned there, where one did) — no branch
   enumeration, no analysis of the far side. Topology change under
   tolerance is usually the reported defect itself; near a flip,
   subdivision only localizes the boundary to shrink refused mass.
