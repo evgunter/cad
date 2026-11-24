@@ -1590,6 +1590,10 @@ fn line_line<T: Decide>(
 }
 
 /// A line `a` and a conic `b` (module docs).
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn line_conic<T: Decide>(
     a: &Span<'_, T>,
     b: &Span<'_, T>,
@@ -1602,7 +1606,7 @@ fn line_conic<T: Decide>(
     let u = UnitVec3::squared(d.get());
     let unit = geom::Line { origin: o, dir: u };
     let e = T::from_f64(band.escalate());
-    let n = k.frame().axis();
+    let n = k.axis();
     let den = u.get().dot(n);
     // Where they can meet (module docs): the line's span and the conic's
     // extent, both projected on the line.
@@ -1657,7 +1661,7 @@ fn line_conic<T: Decide>(
     // In the plane: the conic's signed distance from the line, along the
     // line's normal in the plane, a first harmonic in the conic's angle.
     let m = n.cross(u.get()).normalize();
-    let c0 = (k.frame().origin() - o).dot(m);
+    let c0 = geom::plane_offset(o, m, k.frame().origin());
     let (cp, sp) = k.along(m);
     let swing = (cp.powi(2) + sp.powi(2)).sqrt();
     if !definite_as(row::SWING, Margin::of(swing), band)? {
@@ -1668,6 +1672,7 @@ fn line_conic<T: Decide>(
     let range = Range::first_harmonic(
         c0,
         swing,
+        k.belly_along(o, m),
         Azimuth::of(sp, cp).principal_as(row::BRANCH, Band::least()),
     );
     // The pair's distance is `√(R² + H²)`, `R` the residual above and `H`
@@ -1896,12 +1901,20 @@ enum Coplanar {
 /// `n`: its first harmonic's constant, cosine and sine parts, in metres.
 /// The plane door's sinusoid is this one
 /// ([`crate::curve_face::plane_crossing`]).
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(crate) fn height<T: Decide>(k: &dyn Conic<T>, on: Point3<T>, n: Vec3<T>) -> (T, T, T) {
     let (cp, sp) = k.along(n);
     (geom::plane_offset(on, n, k.frame().origin()), cp, sp)
 }
 
 /// Two conics, `a` the one parametrized in one plane (module docs).
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn conic_conic<T: Decide>(
     a: &Span<'_, T>,
     b: &Span<'_, T>,
@@ -1912,15 +1925,16 @@ fn conic_conic<T: Decide>(
     let (ka, kb) = (conic_of(a.carrier())?, conic_of(b.carrier())?);
     let ball = |c: &Curve3<T>| crate::ExtentBall::of_covered(c.cover().as_ref().ok());
     let arm = ball(a.carrier()).lever().max(ball(b.carrier()).lever());
-    let ha = height(&ka, kb.frame().origin(), kb.frame().axis());
-    let hb = height(&kb, ka.frame().origin(), ka.frame().axis());
+    let ha = height(&ka, kb.frame().origin(), kb.axis());
+    let hb = height(&kb, ka.frame().origin(), ka.axis());
     let swing = |(_, cp, sp): (T, T, T)| (cp.powi(2) + sp.powi(2)).sqrt();
     let (swing_a, swing_b) = (swing(ha), swing(hb));
+    let (belly_a, belly_b) = (ka.belly_across(kb), kb.belly_across(ka));
     let sides = [(swing_a, ha), (swing_b, hb)];
     // The one reading of a conic's height against the other's plane:
     // clear of it all round is apart, whatever the swing reads.
-    for (swing, (c0, _, _)) in sides {
-        if matches!(constant_as(row::PARALLEL, c0, swing, band), Ok(true)) {
+    for (swing, belly, (c0, _, _)) in [(swing_a, belly_a, ha), (swing_b, belly_b, hb)] {
+        if clear_all_round(c0, swing, belly, band) {
             return Ok(Pose::Apart);
         }
     }
@@ -1962,12 +1976,19 @@ fn conic_conic<T: Decide>(
         };
         if across_b {
             let flipped: Vec<_> = known.iter().copied().map(flip).collect();
-            let read = transverse((b, &kb, &ka, a), hb, swing_b, arm, &flipped, band);
+            let read = transverse(
+                (b, &kb, &ka, a),
+                hb,
+                (swing_b, belly_b),
+                arm,
+                &flipped,
+                band,
+            );
             return Ok(swapped(read?));
         }
-        return transverse((a, &ka, &kb, b), ha, swing_a, arm, known, band);
+        return transverse((a, &ka, &kb, b), ha, (swing_a, belly_a), arm, known, band);
     };
-    let oriented = |k: &dyn Conic<T>| k.frame().axis() * (k.semi_axes().0 * k.semi_axes().1);
+    let oriented = |k: &dyn Conic<T>| k.axis() * (k.semi_axes().0 * k.semi_axes().1);
     if one_curve(&ka, &kb, band)? {
         let (foot_a, foot_b) = (|q| foot(a, q), |q| foot(b, q));
         return Ok(Pose::Coincident {
@@ -2036,6 +2057,10 @@ pub(super) fn one_curve<T: Decide>(
 /// [`geom_core::rounding_charge`]`(m_e + m_f + g)`. A degenerate side (a zero
 /// semi-axis, or `a·b·a′·b′` underflowing) has no way up, and its gap
 /// is NaN: the reading escalates.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(super) fn one_curve_gap<T: Decide>(e: &dyn Conic<T>, f: &dyn Conic<T>) -> T {
     let reach = |k: &dyn Conic<T>| k.speed_hi();
     let gap =
@@ -2077,7 +2102,7 @@ fn frame_gap<T: Decide>(e: &dyn Conic<T>, f: &dyn Conic<T>) -> T {
 fn transverse<T: Decide>(
     (a, ka, kb, b): (&Span<'_, T>, &dyn Conic<T>, &dyn Conic<T>, &Span<'_, T>),
     (c0, cp, sp): (T, T, T),
-    swing: T,
+    (swing, belly): (T, T),
     lever: Lever<T>,
     known: &[Candidate<T>],
     band: Band,
@@ -2085,6 +2110,7 @@ fn transverse<T: Decide>(
     let range = Range::first_harmonic(
         c0,
         swing,
+        belly,
         Azimuth::of(sp, cp).principal_as(row::BRANCH, Band::least()),
     );
     let window = window::Window {
@@ -2102,7 +2128,7 @@ fn transverse<T: Decide>(
         })
         .collect();
     let near = |theta: T| {
-        let arc = range.band_arc(theta, band);
+        let arc = band_arc((c0, swing, range.at_hi), theta, band);
         if window.holds_only((theta - arc, theta + arc), &joints, band) {
             return Ok(None);
         }
@@ -2175,6 +2201,10 @@ fn constant_as<T: Decide>(
 
 /// Two circles in one plane (module docs): `slant` how far they lie from
 /// one plane.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn coplanar_circles<T: Decide>(
     ka: &dyn Conic<T>,
     kb: &dyn Conic<T>,
@@ -2185,7 +2215,7 @@ fn coplanar_circles<T: Decide>(
 ) -> Result<Pose<T>, MeetFault> {
     let (ra, rb) = (ka.speed_hi(), kb.speed_hi());
     let w = ka.frame().origin() - kb.frame().origin();
-    let w = w - ka.frame().axis() * w.dot(ka.frame().axis());
+    let w = w - ka.axis() * w.dot(ka.axis());
     let d = w.norm();
     if !definite_as(row::CENTRES, Margin::norm3(w), band)? {
         // The one-curve gap is at most `d + |r₁ − r₂|` plus the slant, so
@@ -2205,8 +2235,8 @@ fn coplanar_circles<T: Decide>(
     let (near, far) = ((ra - d).abs(), ra + d);
     let (lo, hi) = (near - rb, far - rb);
     let swing = T::from_f64(4.0) * ra * d;
-    let toward = Azimuth::of(w.dot(ka.frame().v_ref()), w.dot(ka.frame().u_ref()))
-        .principal_as(row::BRANCH, Band::least());
+    let toward =
+        Azimuth::of(w.dot(ka.v_ref()), w.dot(ka.u_ref())).principal_as(row::BRANCH, Band::least());
     let range = Range {
         lo,
         hi,
@@ -2282,6 +2312,10 @@ fn subdivided<T: Decide>(
 /// `|F|·s/(√2 + √3) > |F|·s/4`; past it, increasing in `|F|`, at least
 /// `s/(√2 + √3) > s/4`. So the bound is at least `min(s/4, |F|/(4/s))`
 /// everywhere: the ceiling `4/s`, reaching to `s/4`.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn coplanar_ellipses<T: Decide>(
     e: &Span<'_, T>,
     ka: &dyn Conic<T>,
@@ -2290,7 +2324,7 @@ fn coplanar_ellipses<T: Decide>(
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
     let (big_a, big_b) = kb.semi_axes();
-    let (ub, vb) = (kb.frame().u_ref(), kb.frame().v_ref());
+    let (ub, vb) = (kb.u_ref(), kb.v_ref());
     let level = level_on(ka, kb);
     let small = big_a.abs().min(big_b.abs());
     let large = big_a.abs().max(big_b.abs());
@@ -2353,6 +2387,10 @@ pub(super) struct Level<'k, T: geom_core::Real> {
 impl<T: Decide> Level<'_, T> {
     /// `F` and its first three derivatives at `θ`. On a conic
     /// `P″ = −(P − c)` and `P‴ = −P′`, `c` its centre.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     pub(super) fn jet_at(&self, theta: T) -> [T; 4] {
         let (p, dp) = self.a.jet_at(theta);
         let ddp = self.a.frame().origin() - p;
@@ -2410,13 +2448,14 @@ pub(super) fn up<const N: u32, T: Decide>(x: T) -> T {
 }
 
 /// [`Level`] of `kb` along `ka`.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(super) fn level_on<'k, T: Decide>(ka: &'k dyn Conic<T>, kb: &dyn Conic<T>) -> Level<'k, T> {
     let (big_a, big_b) = kb.semi_axes();
-    let (ub, vb) = (kb.frame().u_ref(), kb.frame().v_ref());
-    let (ua, va) = (
-        ka.frame().u_ref() * ka.semi_axes().0,
-        ka.frame().v_ref() * ka.semi_axes().1,
-    );
+    let (ub, vb) = (kb.u_ref(), kb.v_ref());
+    let (ua, va) = (ka.u_ref() * ka.semi_axes().0, ka.v_ref() * ka.semi_axes().1);
     let w = ka.frame().origin() - kb.frame().origin();
     let squares = (big_a.powi(2), big_b.powi(2));
     let (two, eight) = (T::from_f64(2.0), T::from_f64(8.0));
@@ -2441,6 +2480,26 @@ pub(super) fn level_ceiling<T: Decide>(small: T) -> (T, T) {
     (four / small, small / four)
 }
 
+/// **Whether a conic's height over the other's plane is clear of it all
+/// round** (`curve_pair_pose_parallel`): its extremes ([`extremes`])
+/// definitely one-signed, the one nearer zero read as the belly.
+fn clear_all_round<T: Decide>(c0: T, swing: T, belly: T, band: Band) -> bool {
+    let (lo, hi) = extremes(c0, swing, belly);
+    let read = |x: T| geom_core::k_stats::decide_reported(row::PARALLEL, Margin::of(x), band);
+    let clear = read(lo).and_then(|below| Ok((below, read(hi)?)));
+    matches!(clear, Ok((below, above)) if below.sign == Sign::Positive || above.sign == Sign::Negative)
+}
+
+/// **The extremes `(lo, hi)` of `c₀ + A·cos ψ`**, `A ≥ 0` the swing and
+/// `belly` its [`Conic::belly_along`] `A − |c₀|`: the one nearer zero is the belly
+/// (negated below), the other the sum, which cancels nothing.
+fn extremes<T: Decide>(c0: T, swing: T, belly: T) -> (T, T) {
+    (
+        c0.select_le_zero(c0 - swing, T::zero() - belly),
+        c0.select_le_zero(belly, c0 + swing),
+    )
+}
+
 /// A first harmonic's range along a conic, in metres, and where its roots
 /// are read from (module docs): `lo` and `hi` are its extremes, `at_hi`
 /// the angle of `hi` (`lo` is half a turn on), `cross_lo` and `cross_hi`
@@ -2455,9 +2514,11 @@ struct Range<T> {
 }
 
 impl<T: Decide> Range<T> {
-    /// `c₀ + A·cos(θ − at_hi)`, `A ≥ 0`, solved in itself.
-    fn first_harmonic(c0: T, swing: T, at_hi: T) -> Self {
-        let (lo, hi) = (c0 - swing, c0 + swing);
+    /// `c₀ + A·cos(θ − at_hi)`, `A ≥ 0`, solved in itself, its extreme
+    /// nearer zero read as `belly` ([`Conic::belly_along`]: `A − |c₀|`), the other as
+    /// the sum, which cancels nothing.
+    fn first_harmonic(c0: T, swing: T, belly: T, at_hi: T) -> Self {
+        let (lo, hi) = extremes(c0, swing, belly);
         let two = swing + swing;
         Self {
             lo,
@@ -2481,20 +2542,20 @@ impl<T: Decide> Range<T> {
         let read = |x: T| decide(row::EXTREME, Margin::of(x), band);
         (read(self.lo), read(self.hi))
     }
+}
 
-    /// `ℓ` in radians (module docs, "Across planes"): how far from `theta`
-    /// the arc about it runs on which the harmonic, a metre residual,
-    /// stays within the band's escalation.
-    fn band_arc(&self, theta: T, band: Band) -> T {
-        let two = T::from_f64(2.0);
-        let (c0, swing) = ((self.lo + self.hi) / two, (self.hi - self.lo) / two);
-        let e = T::from_f64(band.escalate());
-        let unit_cos = |x: T| x.max(T::zero() - T::one()).min(T::one());
-        let phi = geom::separation(theta, self.at_hi);
-        let inner = unit_cos((e - c0) / swing).acos();
-        let outer = unit_cos((T::zero() - e - c0) / swing).acos();
-        (phi - inner).abs().max((outer - phi).abs())
-    }
+/// `ℓ` in radians (module docs, "Across planes"): how far from `theta`
+/// the arc about it runs on which the first harmonic
+/// `c₀ + swing·cos(θ − at_hi)`, a metre residual, stays within the band's
+/// escalation. Read from the harmonic's own `c₀` and swing, as the caller
+/// formed them.
+fn band_arc<T: Decide>((c0, swing, at_hi): (T, T, T), theta: T, band: Band) -> T {
+    let e = T::from_f64(band.escalate());
+    let unit_cos = |x: T| x.max(T::zero() - T::one()).min(T::one());
+    let phi = geom::separation(theta, at_hi);
+    let inner = unit_cos((e - c0) / swing).acos();
+    let outer = unit_cos((T::zero() - e - c0) / swing).acos();
+    (phi - inner).abs().max((outer - phi).abs())
 }
 
 /// **Whether a coplanar touch's reported point is one point to its
@@ -2677,6 +2738,9 @@ fn harmonic_roots<T: Decide>(
     decide(row::ROOT_GAP, gap, band)?;
     Ok(Harmonic::Cross(roots.to_vec()))
 }
+
+#[cfg(test)]
+mod far_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]

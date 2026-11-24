@@ -39,9 +39,10 @@ fn stacked(zs: &[f64]) -> Vec<SketchPlane<f64>> {
 
 /// **The band edges at the certified scalar.** Below ε the interior
 /// slab is the loft's sliver; in the band it escalates carrying slab
-/// 1; above `K·ε` it builds. Each row is checked against `decide` on
-/// the step itself rather than against a written-out verdict, so the
-/// row tracks whatever ε the run commits.
+/// 1; above `K·ε` it passes the door (and the loft then refuses at the
+/// carrier's door, which holds no enclosure knot yet). Each row is
+/// checked against `decide` on the step itself rather than against a
+/// written-out verdict, so the row tracks whatever ε the run commits.
 #[test]
 fn an_interior_slab_at_the_band_edges_decides_the_same_at_interval() {
     let tol = Tol::witness();
@@ -59,7 +60,17 @@ fn an_interior_slab_at_the_band_edges_decides_the_same_at_interval() {
         .map(|_| ());
         let want = geom_core::k_stats::decide("loft_stacking", Margin::of(step), band);
         match (want, &got) {
-            (Ok(Sign::Positive), Ok(())) => {}
+            // The door passes it. The skin's interior knot is then a
+            // chord-length parameter, an enclosure at `Interval` that no
+            // carrier holds yet
+            // (`work/inlane/an-enclosure-carrier-holds-point-weights-and-knots.md`);
+            // pinned, so the row goes red when that lands and this arm
+            // goes back to `Ok(())`.
+            (Ok(Sign::Positive), Err(LoftError::Skin(sweep::SkinError::Structure(e))))
+                if matches!(
+                    e.refusal(),
+                    geom_core::spline::SplineError::CarrierKnotNotAPoint { .. }
+                ) => {}
             (Ok(Sign::Zero), Err(LoftError::DegenerateStacking { slab: 1 })) => {}
             (Ok(Sign::Negative), Err(LoftError::ReversedStacking { slab: 1 })) => {}
             (Err(_), Err(LoftError::CornerEscalated { slab: 1, .. })) => {}

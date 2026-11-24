@@ -2,14 +2,14 @@
 id: a-solved-value-the-body-stores-is-admitted-by-its-check
 kind: unit
 title: A solved value the body stores is admitted by its check, through one door that is from_computed's only caller
-status: open
+status: dispatched
 opened: 2026-11-20
 priority: P1
 cost: H
 parent: from-computed-claims-a-zero-tangent-at-a-dual
 ---
 
-The rule is `crates/geom-core/README.md`, DL5.2's two paragraphs after the table (Ev, PR 7176). Not specified yet: it follows `certification-interiors-are-closed-to-a-dual-by-a-marker-bound` (the door is bounded `Certifies`) and `a-place-is-an-f64-argument-answered-on-the-value-channel` (which takes the evaluate-only solved values off `from_computed` first).
+The rule is `crates/geom-core/README.md`, DL5.2's two paragraphs after the table (Ev, PR 7176). Dispatched 2026-11-23 (letter H, dual review: one door every stored solved value passes, and a gate that makes it `from_computed`'s only caller; later code is written against both). Both units it follows have merged (PR 7190, PR 7250). It follows `certification-interiors-are-closed-to-a-dual-by-a-marker-bound` (the door is bounded `Certifies`) and `a-place-is-an-f64-argument-answered-on-the-value-channel` (which takes the evaluate-only solved values off `from_computed` first).
 
 ## Scope, as the designers read it (re-measure)
 

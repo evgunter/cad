@@ -4,6 +4,8 @@ kind: issue
 title: Two bounds keep a T because their Sym proof needs a shape no allowance door spells, a constant factor and a hull of two bounds
 status: open
 opened: 2026-11-20
+priority: P2
+cost: M
 ---
 
 Found building `a-bound-to-decide-against-never-becomes-a-t` (DL5.2, `crates/geom-core/README.md`). Restated after that unit's fix pass. DL5.2's letter answers both sites ("never becomes a `T`"). What is open is a door that reproduces their proof.

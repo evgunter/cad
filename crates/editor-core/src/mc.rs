@@ -116,8 +116,8 @@ pub enum McRefusal {
     NominalDoesNotBuild {
         /// The refusing node, spoken from the run's document.
         node: SpokenNode,
-        /// Its error, rendered.
-        cause: String,
+        /// Its error, said from the run's document.
+        cause: crate::Sentence,
     },
     /// An evaluation the run made stopped short: its caller canceled,
     /// or it ran out of its member budget ([`crate::Stop`]).
@@ -141,10 +141,8 @@ impl crate::Say for McRefusal {
                 f,
                 "the document does not build at its nominal (",
                 by.mention(node),
-                format_args!(
-                    "), so there is nothing \
-                 to replay: {cause}"
-                )
+                "), so there is nothing to replay: ",
+                cause
             ),
             Self::Stopped(stopped) => write!(f, "the Monte-Carlo run stopped: {stopped}"),
         }
@@ -321,7 +319,8 @@ impl McReport {
 
     /// **The human form**, with the advisory label and the dials on
     /// every line that carries an estimate, each node spoken from `doc`,
-    /// the document the run was drawn from.
+    /// the document the run was drawn from, and mentioned in it: one
+    /// sentence per line.
     ///
     /// Repeating "advisory (N samples, seed …)" on each line is
     /// deliberate: a reader who copies one line out of a report takes
@@ -330,7 +329,7 @@ impl McReport {
     /// # Panics
     ///
     /// When `doc` is not the document the run was drawn from.
-    pub fn render<P: crate::ProfilePayload>(&self, doc: &Doc<P>) -> String {
+    pub fn render<P: crate::ProfilePayload>(&self, doc: &Doc<P>) -> crate::Lines {
         crate::spoken::assert_taken_of("this Monte-Carlo report", self.document, doc);
         let by = crate::Speaker::of(doc);
         let tag = format!(
@@ -439,7 +438,7 @@ impl McReport {
              accounting's tail   [{tag}]",
             self.outside_box * 100.0
         );
-        s.to_string()
+        s.lines()
     }
 }
 
@@ -472,19 +471,8 @@ pub fn monte_carlo(
     if let Some(stopped) = crate::Stopped::of(nominal.outcome) {
         return Err(McRefusal::Stopped(stopped));
     }
-    if let Some(standing) = nominal
-        .order
-        .iter()
-        .find_map(|&id| nominal.usable(id).err())
-    {
-        let node = standing.node();
-        let cause = nominal
-            .node_error(node)
-            .map_or_else(|| standing.to_string(), |e| e.kind_spoken(doc).to_string());
-        return Err(McRefusal::NominalDoesNotBuild {
-            node: doc.spoken(node),
-            cause,
-        });
+    if let Some((node, cause)) = crate::drive::first_unusable(doc, &nominal) {
+        return Err(McRefusal::NominalDoesNotBuild { node, cause });
     }
 
     // Every varying parameter must be sampleable BEFORE any sampling

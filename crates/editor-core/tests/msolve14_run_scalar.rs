@@ -799,10 +799,15 @@ fn run_at<T: editor_core::test_support::AnyEvaluate>(
 /// pin, so every id the digest feeds moves with the row. The rows are
 /// the three the hosted matrix runs; any other ε has no measurement and
 /// the row fails rather than pass on nothing.
+///
+/// RE-PINNED for binders (D10 `[repetition]`): the corpus's pattern
+/// documents carry `SetYields`, so the ids this digest feeds move; every
+/// solved pose, placement, fault and refusal kind is unchanged (the
+/// id-free rows beside it hold).
 const PINNED_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x01dd_3a8d_8b3c_2c48),
-    (1e-6, 0xe8e2_aa6e_988c_072b),
-    (1e-12, 0xfff6_a398_3383_fec2),
+    (1e-9, 0xb86d_0600_d939_c347),
+    (1e-6, 0xbf0b_441e_c788_25df),
+    (1e-12, 0xa9b0_d925_b676_bf4a),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the
@@ -886,6 +891,12 @@ fn each_seat_stands_on_what_it_is_seated_on() {
 /// blends' squared frames (a chamfer plane's normal renormalized, a
 /// fillet's `u_ref` zero signed `+0`), measured by dumping every corpus
 /// body on both trees.
+///
+/// RE-PINNED when repetition became written (D10 `[repetition]`'s
+/// binders): the corpus's patterns write `SetYields`, which moves the
+/// documents the digest feeds; every solved pose, placement, fault and
+/// node refusal kind is main's bits at 1e-9, dumped corpus-wide on both
+/// trees and diffed line by line.
 ///
 /// RE-PINNED when the least turn's Rodrigues arm became
 /// `v + k × v + k × (k × v)/(1 + c)` (no read of whether the pair is one
@@ -2331,7 +2342,7 @@ fn r1_clearance_answers_alike_in_either_order() {
 /// builds through it and so does every replay. Over the bolts' spacing
 /// the search proves ground; without the resolver the witness does not
 /// build, as a drive's does not
-/// (`work/scalar/the-box-driver-carries-no-part-resolver`).
+/// (`work/certread/the-box-driver-carries-no-part-resolver`).
 ///
 /// *Breaks if* the search's witness or its replays lose the resolver.
 #[test]

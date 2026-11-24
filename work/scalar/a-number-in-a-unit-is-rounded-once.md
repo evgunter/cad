@@ -2,10 +2,13 @@
 id: a-number-in-a-unit-is-rounded-once
 kind: unit
 title: A number in a unit is rounded once over the unit's exact factor; the fallback, the float unit arithmetic and Display on a told number retire
-status: spec
+status: closed
 opened: 2026-11-20
 priority: P1
 cost: H
+branch: scalar/a-number-in-a-unit-is-rounded-once
+refs: [7291]
+closed: 2026-11-23
 ---
 
 
@@ -39,3 +42,15 @@ PR 7229's `Tell`, `Sentence` and the notation's home survive all four changes, s
 ## Ratified
 
 Ev, PR 7261, 2026-11-21: all four changes. On equality Ev asked why a display-rounding equality existed at all; the answer is that it should not, and equality is a plain `#[derive(PartialEq)]` with no hand-written logic (not `cfg(test)`-only). On the teller Ev confirmed the rule stays "the reader's working unit", not the unit a number was written in.
+
+## Dispatch (2026-11-21)
+
+This unit builds changes 1 and 3 (the once-rounded door at every door, the fallback and float unit arithmetic retired, equality a plain derive with `Debug` the held reading) and the "also found" items that fall in the same code. Change 2 (the teller) and change 4 (the editable field) are their own units, stacked on this one, because both build on a told spelling that every unit can say.
+
+## Review
+
+Letter H, tier dual: the meaning of a number in a unit at every door (text, Rust, Python), with typed literals moving by a float; an error here is in every model built from typed numbers.
+
+## Closed (2026-11-23)
+
+PR 7291 built changes 1 and 3. Change 2 (the teller; no `Display` on a told number) is `display-on-a-told-sentence-silently-means-canonical` (P2: formatting, held by a gate today). Change 4 (the editable field) is the viewer's.

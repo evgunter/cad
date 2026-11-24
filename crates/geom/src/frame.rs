@@ -14,8 +14,9 @@
 //! squared with no decision ([`Frame::new`], [`RigidMotion::squared`]).
 //! [`Frame::moved`] is its image under a motion. At another scalar it
 //! is carried within one witness kind and re-minted across kinds
-//! ([`Frame::map_scalar`]). An improper map has no reading here: its
-//! image is a per-kind rule (a conic's axis, a plane's outward normal),
+//! ([`Frame::map_scalar`]). Under an improper map its image is
+//! [`Frame::reflected`], one axis reversed to keep it right-handed; which
+//! one is a per-kind rule (a conic's axis, a plane's outward normal),
 //! stated where the map is applied.
 
 use geom_core::{Point3, Real, RigidMotion, UnitVec3, Vec3};
@@ -228,6 +229,15 @@ impl<T: Real> Frame<T> {
     #[must_use]
     pub fn translated(&self, by: Vec3<T>) -> Self {
         self.with_origin(self.origin() + by)
+    }
+
+    /// **The image under an improper isometry `map`**, kept right-handed
+    /// by reversing its `negated` axis ([`RigidMotion::reflected_by`]):
+    /// which one is the carrier kind's rule for its image (module docs),
+    /// stated where the map is applied.
+    #[must_use]
+    pub fn reflected(&self, map: &geom_core::Affine3<T>, negated: geom_core::Negated) -> Self {
+        Self::of_motion(&self.motion.reflected_by(map, negated))
     }
 
     /// **The image under a rigid motion**: the origin moved, every axis
