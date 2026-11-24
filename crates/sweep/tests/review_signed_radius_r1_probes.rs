@@ -300,6 +300,22 @@ fn p10_stage_reached_by_each_verb_over_a_ladder_of_boxes() {
             dump(&format!("STAGE {verb} half={half:e}: {key}"));
         }
     }
+    // The bulge-beside-a-line row's own box (bulge 0.5 ± 0.02), and its
+    // siblings at that relative width.
+    for (verb, c, half) in [
+        ("bulge", 0.5, 0.02),
+        ("bulge cw", -0.5, 0.02),
+        ("via", 5.0, 0.02),
+        ("tangent", 1.0, 0.02),
+        ("sweep", 1.0, 0.02),
+        ("circle", 0.05, 0.005),
+        ("split circle", 0.4, 0.02),
+        ("fillet", 0.25, 0.02),
+    ] {
+        let got = stage(verb, c, half);
+        let key: String = got.chars().take(120).collect();
+        dump(&format!("STAGE {verb} c={c} half={half:e}: {key}"));
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -368,7 +384,12 @@ fn f64_line(verb: &str, q: f64, pose: Pose) -> (String, Vec<f64>) {
     let stored = h;
     let profile = match Profile::new(SketchPlane::xy(), vec![lp]).validate(tol()) {
         Ok(p) => p,
-        Err(e) => return (format!("stored:{stored:016x} validation:{}", variant(&e)), bad),
+        Err(e) => {
+            return (
+                format!("stored:{stored:016x} validation:{}", variant(&e)),
+                bad,
+            );
+        }
     };
     for seg in profile.loops()[0].segments() {
         if let SegmentKind::Arc { arc, radials, .. } = seg.kind {
@@ -600,7 +621,11 @@ fn p3_a_table_arc_with_a_radius_that_is_not_positive() {
                 sweep: core::f64::consts::PI,
             };
             // A vertex exactly on the mirror circle, or a rounding off it.
-            let x = if on_exactly { 1.0 } else { 1.0 + 2.0 * f64::EPSILON };
+            let x = if on_exactly {
+                1.0
+            } else {
+                1.0 + 2.0 * f64::EPSILON
+            };
             let lp: ProfileLoop<f64> = RawLoop::new([
                 (Point2::new(x, 0.0), Segment::Arc(half)),
                 (Point2::new(-x, 0.0), Segment::Arc(half)),
@@ -617,5 +642,149 @@ fn p3_a_table_arc_with_a_radius_that_is_not_positive() {
                 "a table arc of radius {radius:e} validated"
             );
         }
+    }
+}
+
+/// Claim 6: a table's written radial that is no unit, at the enclosure
+/// scalars, where the frame mint keeps its bits or poisons: what the
+/// extrude door does with it (a typed refusal, a body, or a panic).
+#[test]
+fn p6_a_tables_stretched_radial_at_the_enclosure_scalars() {
+    use profile::RawLoop;
+    fn run<T: geom_core::Decide + topo::AtRestPolicy>(lane: &str, stretch: f64) {
+        let l = T::from_f64;
+        let half = geom_core::Arc2 {
+            centre: Point2::new(l(0.0), l(0.0)),
+            radius: l(1.0),
+            sweep: l(core::f64::consts::PI),
+        };
+        let got = catch_unwind(AssertUnwindSafe(|| {
+            let lp: ProfileLoop<T> = RawLoop::new_directed([
+                (
+                    Point2::new(l(1.0), l(0.0)),
+                    Segment::Arc(half),
+                    Some(SegmentDirections::Arc {
+                        start: geom_core::Vec2::new(l(1.0 + stretch), l(0.0)),
+                        end: geom_core::Vec2::new(l(-1.0), l(0.0)),
+                    }),
+                ),
+                (Point2::new(l(-1.0), l(0.0)), Segment::Arc(half), None),
+            ]);
+            let profile = match Profile::new(SketchPlane::xy(), vec![lp]).validate(tol()) {
+                Ok(p) => p,
+                Err(e) => return format!("validation: {}", short(&e)),
+            };
+            let side = ExtrudeSide::Along;
+            match extrude(
+                &profile,
+                Extrusion::Distance {
+                    depth: l(1.0),
+                    side,
+                },
+                tol(),
+            ) {
+                Err(e) => format!("door: {}", short(&e)),
+                Ok(_) => "builds".to_owned(),
+            }
+        }))
+        .unwrap_or_else(|p| {
+            let msg = p
+                .downcast_ref::<String>()
+                .cloned()
+                .or_else(|| p.downcast_ref::<&str>().map(|s| (*s).to_owned()))
+                .unwrap_or_default();
+            format!("PANIC: {}", msg.chars().take(240).collect::<String>())
+        });
+        dump(&format!("STRETCH {lane} {stretch:e}: {got}"));
+    }
+    for part in [0.0, 1e-7, 0.1, 0.4] {
+        let stretch = part * tol().eps();
+        run::<f64>("f64", stretch);
+        run::<Interval>("Interval", stretch);
+        in_session(|| run::<S>("Sym<Interval>", stretch));
+    }
+}
+
+/// Claim 4, the arm itself: a bulge leg that is the path's FIRST leg (no
+/// junction ahead of it to escalate first), and the fixture door's
+/// lowering, each with the bulge boxed across zero.
+#[test]
+fn p4b_a_tied_bulge_with_no_junction_ahead_of_it() {
+    for (lo, hi) in [(-0.1, 0.3), (-1e-12, 1e-12), (0.1, 0.3)] {
+        let got = catch_unwind(AssertUnwindSafe(|| {
+            let l = Interval::from_f64;
+            let p = |x: f64, y: f64| Point2::new(l(x), l(y));
+            let e = |e: profile::PathError<Interval>| short(&e);
+            let lp = profile::Open
+                .at(p(4.0, 0.0))
+                .arc_to(
+                    profile::Bulge {
+                        p: p(4.0, 4.0),
+                        b: Interval::from_bounds(lo, hi),
+                    },
+                    tol(),
+                )
+                .map_err(e)?
+                .line_to(p(0.0, 4.0), tol())
+                .map_err(e)?
+                .line_to(p(0.0, 0.0), tol())
+                .map_err(e)?
+                .line_to(profile::Start, tol())
+                .map_err(e)?
+                .loop_
+                .into_loop();
+            let arc = lp.segments().iter().find_map(|s| match s {
+                Segment::Arc(a) => Some(*a),
+                Segment::Line => None,
+            });
+            let recorded = lp
+                .directions()
+                .iter()
+                .any(|d| matches!(d, Some(SegmentDirections::Arc { .. })));
+            let stored = arc.map_or("a line".to_owned(), |a| {
+                format!(
+                    "radius [{:e}, {:e}] radials recorded: {recorded}",
+                    geom_core::Bounds::lo(a.radius),
+                    geom_core::Bounds::hi(a.radius)
+                )
+            });
+            Ok::<_, String>(
+                match Profile::new(SketchPlane::xy(), vec![lp]).validate(tol()) {
+                    Ok(_) => format!("{stored}; VALIDATES"),
+                    Err(e) => format!("{stored}; validation: {}", short(&e)),
+                },
+            )
+        }))
+        .map_or_else(
+            |_| "PANIC".to_owned(),
+            |r| r.unwrap_or_else(|e| format!("path: {e}")),
+        );
+        dump(&format!("TIE-FIRST Interval [{lo:e}, {hi:e}]: {got}"));
+        let fixture = catch_unwind(AssertUnwindSafe(|| {
+            let l = Interval::from_f64;
+            let lp = profile::test_support::bulge_loop(vec![
+                (Point2::new(l(0.0), l(0.0)), l(0.0)),
+                (Point2::new(l(4.0), l(0.0)), Interval::from_bounds(lo, hi)),
+                (Point2::new(l(4.0), l(4.0)), l(0.0)),
+                (Point2::new(l(0.0), l(4.0)), l(0.0)),
+            ]);
+            let arc = lp.segments().iter().find_map(|s| match s {
+                Segment::Arc(a) => Some(*a),
+                Segment::Line => None,
+            });
+            let stored = arc.map_or("a line".to_owned(), |a| {
+                format!(
+                    "radius [{:e}, {:e}]",
+                    geom_core::Bounds::lo(a.radius),
+                    geom_core::Bounds::hi(a.radius)
+                )
+            });
+            match Profile::new(SketchPlane::xy(), vec![lp]).validate(tol()) {
+                Ok(_) => format!("{stored}; VALIDATES"),
+                Err(e) => format!("{stored}; validation: {}", short(&e)),
+            }
+        }))
+        .unwrap_or_else(|_| "PANIC".to_owned());
+        dump(&format!("TIE-FIXTURE Interval [{lo:e}, {hi:e}]: {fixture}"));
     }
 }

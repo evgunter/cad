@@ -52,6 +52,8 @@ mod snowman;
 mod teapot;
 #[path = "teapot_document.rs"]
 mod teapot_document;
+#[path = "review_signed_radius_r1.rs"]
+mod review_signed_radius_r1;
 #[path = "tolerance.rs"]
 mod tolerance;
 #[path = "torusvessel.rs"]
