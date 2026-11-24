@@ -1002,30 +1002,43 @@ fn departing(sine: Interval) -> Option<Departs> {
 }
 
 /// **Whether a pair parts by more than the band**: the two faces' sines
-/// off the separator, summed, times `lipschitz`, levered at `extent`,
-/// decided positive at the departure's site.
+/// off the separator `psi`, summed, times what `psi` is worth in metres
+/// ([`Psi::lipschitz`]), levered at `extent`, decided positive at the
+/// departure's site. The separator is taken whole, so no caller can
+/// hand the sum a worth that is not its own.
 ///
 /// `rates` are the sines of the faces that leave the separator across a
 /// zero side ([`Departs::At`]); a face on the separator itself (the
-/// carrier arm's own face) brings none. Had the least sine in the cell
-/// held across the narrower face, the two would stand `Σ sine · extent`
-/// apart in `ψ` at its far side, and `ψ` turns into metres at
-/// `inf|∇ψ| / sup|∇ψ|` ([`Psi::lipschitz`]): one for a plane and for a
-/// carrier, whose `ψ` is a distance.
+/// carrier arm's own face) brings none.
 ///
-/// The sum lies between the wedge's sine (one face's carrier as the
-/// separator) and twice the sine of half of it (the bisecting plane),
-/// which differ by the wedge's square over eight: the reading is the
-/// separator's only to that order.
+/// **What the product is for.** The faces are known to ε, so each may
+/// be turned about what the pair shares by a move of up to ε at its far
+/// side: an angle of ε over its run. Two faces whose opening, levered
+/// at the narrower one's run, is past the band cannot be turned through
+/// one another by such a move; that is the claim, and not that the
+/// faces stand any distance apart at a point. The opening is read as
+/// the sum of the two sines off the separator.
+///
+/// **The sum at every angle.** For a wedge `θ` between the faces the
+/// carrier arm (one face's carrier as the separator) bands `sin θ` and
+/// a plane through the edge at `φ` from one face bands
+/// `sin φ + sin(θ − φ)`, at most `2·sin(θ/2)` at the bisector: the
+/// chord between the two faces' far sides over the run. The two agree
+/// to `θ³/8` for a small wedge and part company as it opens: at a right
+/// angle the carrier arm reads `1` and the bisector `√2`, and past it
+/// the carrier's `sin θ` falls to zero at a half turn while the chord
+/// rises to `2`. So a pair can be undecided under the carrier arm and
+/// certified under a plane, by a factor of up to `2·sin(θ/2) / sin θ`
+/// (`a_wide_wedge_reads_its_chord_under_the_plane_arm`).
 ///
 /// No extent, or no worth of `ψ` in metres, decides nothing.
 fn parts(
     rates: impl IntoIterator<Item = Interval>,
-    lipschitz: Option<Interval>,
+    psi: &Psi,
     extent: Option<Lever<Interval>>,
     band: Band,
 ) -> bool {
-    let (Some(extent), Some(lipschitz)) = (extent, lipschitz) else {
+    let (Some(extent), Some(lipschitz)) = (extent, psi.lipschitz()) else {
         return false;
     };
     let sum = rates.into_iter().fold(at(0.0), |a, b| a + b);
@@ -1232,14 +1245,15 @@ enum Zero {
 
 impl Zero {
     /// Whether this zero set lies along `edge`: a side, a corner's side
-    /// or a curve on it, and not one that meets it at a vertex alone.
+    /// or a curve on it (read on past the shared cell or not), and not
+    /// one that meets it at a vertex alone.
     fn along(&self, edge: EdgeKey) -> bool {
         let on = |a: &Along| a.vertex.is_none() && a.edges.contains(&edge);
         match self {
             Self::None | Self::Point(..) | Self::Past(..) => false,
             Self::Side(_, a) => on(a),
             Self::Corner((_, a), (_, b)) => on(a) || on(b),
-            Self::Curve(_, c) => c.past.is_none() && on(&c.along),
+            Self::Curve(_, c) => on(&c.along),
         }
     }
 }
@@ -8033,7 +8047,7 @@ fn departure(
             };
             let holds = match read {
                 Departs::Clear(_) => true,
-                Departs::At(_, rate) => parts([rate], psi.lipschitz(), extent, band),
+                Departs::At(_, rate) => parts([rate], &psi, extent, band),
             };
             if !holds {
                 continue;
@@ -8042,16 +8056,33 @@ fn departure(
             // proved is the edge's turn, which tier 3 holds. A cell that
             // meets the edge at a vertex alone, or not at all, stands on
             // whichever side the face has turned to by there.
-            if let [(edge, Some(crate::EdgeClass::Crease(turn)))] = classes.as_slice()
-                && p.zero.along(*edge)
-                && let Some(read_turn) = turn_read(&psi, sep, read.side())
-                && read_turn != *turn
-            {
-                return Outcome::Refuse(EngineRefusal::TurnContradicted {
-                    a: x.face,
-                    b: y.face,
-                    edge: *edge,
-                });
+            // Every crease the cell lies along is held to it, and a turn
+            // that does not read certifies nothing.
+            for (edge, class) in &classes {
+                let Some(crate::EdgeClass::Crease(turn)) = class else {
+                    continue;
+                };
+                if !p.zero.along(*edge) {
+                    continue;
+                }
+                match turn_read(&psi, sep, read.side()) {
+                    Some(read_turn) if read_turn == *turn => {}
+                    Some(_) => {
+                        return Outcome::Refuse(EngineRefusal::TurnContradicted {
+                            a: x.face,
+                            b: y.face,
+                            edge: *edge,
+                        });
+                    }
+                    None => {
+                        return Outcome::Refuse(EngineRefusal::Uncertified {
+                            a: x.face,
+                            b: y.face,
+                            shared,
+                            arm: CertificateArm::Departure,
+                        });
+                    }
+                }
             }
             return Outcome::Certified { corner: p.corner };
         }
@@ -8077,9 +8108,7 @@ fn departure(
             // One face is more than the band off the separator and the
             // other on its far side.
             (Departs::Clear(_), _) | (_, Departs::Clear(_)) => true,
-            (Departs::At(_, ra), Departs::At(_, rb)) => {
-                parts([ra, rb], psi.lipschitz(), extent, band)
-            }
+            (Departs::At(_, ra), Departs::At(_, rb)) => parts([ra, rb], &psi, extent, band),
         },
         _ => false,
     };
@@ -8882,7 +8911,7 @@ fn signed(
 ) -> Option<Sign> {
     match sign_on(psi, on, p, against, band)? {
         Departs::Clear(s) => Some(s),
-        Departs::At(s, rate) => parts([rate], psi.lipschitz(), extent, band).then_some(s),
+        Departs::At(s, rate) => parts([rate], psi, extent, band).then_some(s),
     }
 }
 
@@ -22122,7 +22151,7 @@ mod margin_reach_rows {
     /// `class` on both faces, near it alone: the pair's outcome. Both
     /// faces run at least 1 from the edge, so the extent is 1.
     fn fold_classed(phi: f64, class: Option<crate::EdgeClass>) -> Outcome {
-        fold_read(phi, class, true)
+        fold_read(phi, class, true, false)
     }
 
     /// [`fold_classed`], the folded face's cell holding the shared edge
@@ -22130,14 +22159,39 @@ mod margin_reach_rows {
     /// is presented with no zero side, so no plane through the edge
     /// signs it, and only the floor's part, read against the folded
     /// face's carrier, can.
-    fn fold_read(phi: f64, class: Option<crate::EdgeClass>, folded_near: bool) -> Outcome {
+    ///
+    /// With `second`, each face has a second edge the pair is near, from
+    /// the first's end: a convex crease the cells do not lie along.
+    fn fold_read(
+        phi: f64,
+        class: Option<crate::EdgeClass>,
+        folded_near: bool,
+        second: bool,
+    ) -> Outcome {
         let o = [0.0; 3];
-        let classed = |b: Boundary| match class {
-            Some(class) => b.with_class(key(1), class),
-            None => b,
+        let classed = |b: Boundary| {
+            let b = match class {
+                Some(class) => b.with_class(key(1), class),
+                None => b,
+            };
+            if second {
+                b.with_class(
+                    key(2),
+                    crate::EdgeClass::Crease(geom_brep::Convexity::Convex),
+                )
+            } else {
+                b
+            }
+        };
+        let rims = |to: [f64; 3]| {
+            let mut rims = vec![line(1, [1, 2], o, [1.0, 0.0, 0.0])];
+            if second {
+                rims.push(line(2, [2, 9], [1.0, 0.0, 0.0], to));
+            }
+            rims
         };
         let x = classed(boundary(
-            vec![line(1, [1, 2], o, [1.0, 0.0, 0.0])],
+            rims([1.0, 1.0, 0.0]),
             &[
                 (1, o),
                 (2, [1.0, 0.0, 0.0]),
@@ -22146,7 +22200,7 @@ mod margin_reach_rows {
             ],
         ));
         let y = classed(boundary(
-            vec![line(1, [1, 2], o, [1.0, 0.0, 0.0])],
+            rims([0.5, phi.cos(), phi.sin()]),
             &[
                 (1, o),
                 (2, [1.0, 0.0, 0.0]),
@@ -22159,7 +22213,11 @@ mod margin_reach_rows {
             vertices: Vec::new(),
         };
         let near = Near {
-            edges: vec![(0, 0)],
+            edges: if second {
+                vec![(0, 0), (1, 1)]
+            } else {
+                vec![(0, 0)]
+            },
             vertices: Vec::new(),
         };
         let cell = ((0.4, 0.6), (0.0, 0.1));
@@ -22183,15 +22241,21 @@ mod margin_reach_rows {
         use crate::EdgeClass as C;
         for class in [None, Some(C::Crease(geom_brep::Convexity::Convex))] {
             assert!(
-                matches!(fold_read(0.5, class, false), Outcome::Certified { .. }),
+                matches!(
+                    fold_read(0.5, class, false, false),
+                    Outcome::Certified { .. }
+                ),
                 "{class:?}: {:?}",
-                fold_read(0.5, class, false)
+                fold_read(0.5, class, false, false)
             );
         }
         assert!(
-            matches!(fold_read(0.5, Some(C::Seam), false), Outcome::Split { .. }),
+            matches!(
+                fold_read(0.5, Some(C::Seam), false, false),
+                Outcome::Split { .. }
+            ),
             "a seam: {:?}",
-            fold_read(0.5, Some(C::Seam), false)
+            fold_read(0.5, Some(C::Seam), false, false)
         );
     }
 
@@ -22223,8 +22287,8 @@ mod margin_reach_rows {
         );
         let unit = Some(fixture_lever(iv0(1.0)));
         let sine = iv0(1.2 * band().escalate());
-        assert!(parts([sine], plane.lipschitz(), unit, band()), "a plane");
-        assert!(!parts([sine], Some(worth), unit, band()), "the graph");
+        assert!(parts([sine], &plane, unit, band()), "a plane");
+        assert!(!parts([sine], &graph, unit, band()), "the graph");
     }
 
     /// **The class tier 3 kept decides which arguments run.** One fold,
@@ -22233,7 +22297,8 @@ mod margin_reach_rows {
     ///   (the folded face stands on the floor's outward side: concave):
     ///   certified;
     /// - a crease of the other turn: the sign proved contradicts the
-    ///   verdict, refused naming the edge;
+    ///   verdict, refused naming the edge, alone or with a second crease
+    ///   in the pair's reach;
     /// - an end: no first-order separator runs, refused naming the
     ///   second-order arm, at once;
     /// - a seam: the other face's carrier is barred, and the plane
@@ -22258,6 +22323,21 @@ mod margin_reach_rows {
             ),
             "the other turn: {:?}",
             fold_classed(0.5, Some(C::Crease(Convexity::Convex)))
+        );
+        assert!(
+            matches!(
+                fold_read(0.5, Some(C::Crease(Convexity::Convex)), true, true),
+                Outcome::Refuse(EngineRefusal::TurnContradicted { edge, .. }) if edge == key(1)
+            ),
+            "the other turn, near a second crease too: {:?}",
+            fold_read(0.5, Some(C::Crease(Convexity::Convex)), true, true)
+        );
+        assert!(
+            matches!(
+                fold_read(0.5, Some(C::Crease(Convexity::Concave)), true, true),
+                Outcome::Certified { .. }
+            ),
+            "the turn read, near a second crease the cells do not lie along"
         );
         for end in [WedgeEnd::Cusp, WedgeEnd::Slit] {
             assert!(
@@ -22322,11 +22402,15 @@ mod margin_reach_rows {
     #[test]
     fn the_pairs_sines_are_summed_and_each_side_is_its_enclosures_sign() {
         let unit = Some(fixture_lever(iv0(1.0)));
+        let plane = Psi::Linear {
+            n: va([0.0, 0.0, 1.0]),
+            q: pa([0.0; 3]),
+        };
         let band_edge = band().escalate();
         let parts_at = |a: f64, b: f64| {
             parts(
                 [iv0(a * band_edge), iv0(b * band_edge)],
-                Some(iv0(1.0)),
+                &plane,
                 unit,
                 band(),
             )
@@ -22335,7 +22419,7 @@ mod margin_reach_rows {
         assert!(!parts_at(0.4, 0.4), "two small sines, their sum in band");
         assert!(parts_at(0.7, 0.7), "two sines, their sum past the band");
         assert!(
-            !parts([iv0(5.0 * band_edge)], Some(iv0(1.0)), None, band()),
+            !parts([iv0(5.0 * band_edge)], &plane, None, band()),
             "no extent"
         );
         assert!(
@@ -22472,7 +22556,10 @@ mod margin_reach_rows {
         assert!(
             parts(
                 [iv0(sine)],
-                Some(iv0(1.0)),
+                &Psi::Linear {
+                    n: va([0.0, 0.0, 1.0]),
+                    q: pa([0.0; 3]),
+                },
                 Some(fixture_lever(iv0(1.0))),
                 band()
             ),
