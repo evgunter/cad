@@ -2,10 +2,12 @@
 id: an-opaque-minted-before-a-session-shares-a-name-with-the-sessions-first
 kind: issue
 title: A value with no expression minted before a session shares a name with the session's first: their difference is a proven Zero
-status: open
+status: closed
 opened: 2026-11-23
 priority: P1
 cost: M
+closed: 2026-11-24
+pr: 7470
 ---
 
 
@@ -94,3 +96,10 @@ and decide inside the session they open and hand out numbers.
 The row PR 7470 first filed beside this one
 (`a-value-with-no-expression-minted-outside-a-session-is-named-per-thread`)
 is not landed: what it described is closed, and what is kept is here.
+
+## Closed
+
+PR 7470 (2026-11-24): the section above. What was a hazard is closed by
+rows red on that PR's reviewed head; what is kept (two sessions' names
+agree) is the replay determinism the mint is for, and is stated in
+`geom_core::sym::mint`'s module doc. (BOXFINISH orchestrator)
