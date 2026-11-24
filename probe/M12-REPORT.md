@@ -12,7 +12,7 @@ because the wall quadratic's `b`, which is identically 0 at the nearest point, r
 | the link's body (18 faces, 20 vertices) finished at | `f64` (ok), `Interval` (REFUSED, 7.5 ms), `Sym<Interval>` (REFUSED) | `f64` only, three times, ok; no finish at `Interval` anywhere in the tour |
 | chain, 1 link, `Interval` row | "refuses 0.07 s, 1 refused, node 111e1e667832" | "CERTIFIES 0.02 s" |
 | command | panics at `src/chaintol.rs:297`, 762 s | runs to its end (109 s at M11) |
-- **Which edge:** all 24 of them (`EdgeKey 1v1 .. 24v1`: 18 lines, 12 circles in the body), not one.
+- **Which edge:** not one: 24 of the body's 30 (`EdgeKey 1v1 .. 24v1`; the body holds 18 lines and 12 circles).
 - **Which rung:** the edge certificate's `EndpointStart` (check 2), predicate `carrier_endpoint_start`, sample 0, on every
   one: `EdgeCertification { edge: 1v1, error: Escalated { check: EndpointStart, sample: 0, cause: Indeterminate { margin:
   Enclosure { lo: 0.0, hi: 8.9988e-5 }, band (1e-9, 1e-8), predicate: "carrier_endpoint_start" } } }`. The 24 upper ends
