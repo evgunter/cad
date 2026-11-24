@@ -2,11 +2,14 @@
 id: a-sphere-cut-in-divides-a-face-the-carry-reads-by-its-pre-cut-key
 kind: issue
 title: A sphere cut-in divides a face outside the carry's division rows, so a carried record still names the pre-cut key
-status: open
+status: closed
 opened: 2026-10-11
 priority: P1
 cost: M
 refs: [4650]
+closed: 2026-11-24
+pr: 7593
+branch: orbit/cut-in-carry
 ---
 
 
@@ -58,3 +61,7 @@ That covers naming only. The re-entered op's own
 still holds the join's rows alone. Passing the cut-in rows into the
 re-entered op, so both read one list, would close this row's gap and
 make the after-the-fact prepend unnecessary (read, not measured).
+
+## Closed (2026-11-24, PR 7593)
+
+The cut-ins' divisions seed the re-entered op's own division list (`Descendants`: `cut_fragments` beside the join's `fragments`, and `arcs` for the rim arcs). So the carry, `lowered_faces` and naming read one list. Carried records read cut-in rows and join rows; found rows read the join's alone (`Keys`). The edge sibling (a vertex-on-edge record on a cut-in arc) is fixed in the same PR. Review: one full review, APPROVE-WITH-FIXES, then a verify, APPROVE. The silent drop the review found in `records::landings` is HELDRECORDS' `a-read-record-is-consumed-by-any-removed-remainder-so-a-lineage-gap-drops-it-silently`.

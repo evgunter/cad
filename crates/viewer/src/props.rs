@@ -476,7 +476,7 @@ pub fn written_text(canonical: f64, unit: UnitDef) -> String {
 /// decimal is the text, as it is for every text of at most fifteen
 /// significant figures; from sixteen the field's float may have lost a
 /// digit the expression field keeps
-/// (`work/scalar/a-float-door-loses-what-the-text-door-keeps.md`).
+/// (`work/told/a-float-door-loses-what-the-text-door-keeps.md`).
 pub fn from_written(written: f64, unit: UnitDef) -> f64 {
     unit.canonical_of_float(written)
 }

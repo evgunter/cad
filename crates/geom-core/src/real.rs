@@ -1699,7 +1699,7 @@ pub mod bounds_allowlist {
     //! that does rests on its callee's entry (the delegation rule,
     //! below) and says so; an entry that does neither is OWED its
     //! argument, not discharged, and
-    //! `work/scalar/ledger-entries-still-argued-as-the-weakest-bound-that-works.md`
+    //! `work/certread/ledger-entries-still-argued-as-the-weakest-bound-that-works.md`
     //! lists the ones found.
     //! `scripts/gates/bounds-allowlist.sh` holds the file list and points here
     //! for the reasons rather than restating them.
