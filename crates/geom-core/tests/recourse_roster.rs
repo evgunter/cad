@@ -32,6 +32,7 @@ const CARRIERS: &[NameCarrier] = &[
     // The forwarders a `FORWARDS` line names, declared so their callers'
     // names are read (`roster_violations` holds each line to one).
     NameCarrier::Call("divisor"),
+    NameCarrier::Call("dehomogenized"),
     NameCarrier::Call("forward"),
     NameCarrier::Call("registered"),
     NameCarrier::Call("render_as"),
@@ -155,6 +156,11 @@ const INDIRECT: &[(&str, &str)] = &[
     ("period.rs: read: rows.straddle", ROW_FIELD),
     ("period.rs: read: rows.turn", ROW_FIELD),
     ("period.rs: registered: turn", FORWARDS),
+    ("running.rs: dehomogenized: name", FORWARDS),
+    (
+        "running.rs: dehomogenized: h.map(|c| c.shadow)",
+        CARRIER_CALL,
+    ),
     ("running.rs: divisor: name", FORWARDS),
     (
         "sym.rs: register_equal: return SymRegistration::Witnessed;",

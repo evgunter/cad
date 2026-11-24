@@ -70,8 +70,8 @@ crates/geom-brep/src/pcurve_cache/harmonic_sup_rows.rs	test	2	oracle
 crates/geom-brep/src/pcurve_cache/line_incidence_rows.rs	test	1	oracle
 crates/geom-brep/src/pcurve_cache/projected.rs	prod	1	re-pose
 crates/geom-brep/src/pcurve_cache/radial_pair_rows.rs	test	1	oracle
-crates/geom-brep/src/pcurve_cache/spline_incidence.rs	prod	5	re-pose
-crates/geom-brep/src/pcurve_cache/spline_incidence/rows.rs	test	1	oracle
+crates/geom-brep/src/pcurve_cache/spline_incidence.rs	prod	8	re-pose
+crates/geom-brep/src/pcurve_cache/spline_incidence/rows.rs	test	9	oracle
 crates/geom-brep/src/piece.rs	test	3	oracle
 crates/geom-brep/src/props/curved.rs	prod	4	re-pose
 crates/geom-brep/src/props/curved.rs	test	1	oracle
@@ -219,7 +219,7 @@ crates/topo/src/boolean/section_cert/ruling.rs	prod	25	re-pose
 crates/topo/src/boolean/section_cert/square_search.rs	test	2	oracle
 crates/topo/src/boolean/section_cert_rows.rs	test	3	oracle
 crates/topo/src/solid_contain.rs	prod	5	re-pose
-crates/topo/src/spline_region_rows.rs	test	1	oracle
+crates/topo/src/spline_region_rows.rs	test	37	oracle
 crates/topo/src/boolean/vtxfac.rs	test	1	oracle
 crates/topo/src/boxes.rs	test	9	oracle
 crates/topo/src/census.rs	prod	10	re-pose
@@ -238,7 +238,7 @@ crates/topo/src/ring_path.rs	test	2	oracle
 crates/topo/src/ring_path/graze_rows.rs	test	4	oracle
 crates/topo/src/separating.rs	test	1	oracle
 crates/topo/src/separation.rs	prod	1	re-pose
-crates/topo/src/spline_trim.rs	prod	8	re-pose
+crates/topo/src/spline_trim.rs	prod	35	re-pose
 crates/topo/src/test_support_samples.rs	test	1	oracle
 crates/topo/src/transform.rs	test	1	oracle
 crates/topo/src/vertex_section.rs	prod	6	re-pose

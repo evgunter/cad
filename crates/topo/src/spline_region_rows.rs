@@ -10,8 +10,9 @@ use crate::entity::FaceKey;
 use crate::euler::{FaceSurface, MefSite, MevSite};
 use geom::{NurbsSurface, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, Pcurve};
+use geom_core::running::{Tracked, UNIT_ROUNDOFF, dehomogenized};
 use geom_core::spline::KnotVector;
-use geom_core::{Band, Point2, Point3, Tol, Vec2, Vec3};
+use geom_core::{Band, Point2, Point3, Rounded, Tol, Vec2, Vec3};
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
@@ -462,8 +463,8 @@ fn r1_a_hole_lifted_a_period_from_its_outer_loop_is_still_a_hole() {
         (0..4)
             .map(|k| {
                 super::Piece::segment(
-                    super::Piece::vertex(p[k], [0.0; 2]),
-                    super::Piece::vertex(p[(k + 1) % 4], [0.0; 2]),
+                    super::Piece::vertex(p[k]),
+                    super::Piece::vertex(p[(k + 1) % 4]),
                 )
             })
             .collect::<Vec<_>>()
@@ -775,8 +776,8 @@ fn a_way_out_of_the_window_within_the_band_keeps_a_query_near() {
     let square = (0..4)
         .map(|k| {
             super::Piece::segment(
-                super::Piece::vertex(p[k], [0.0; 2]),
-                super::Piece::vertex(p[(k + 1) % 4], [0.0; 2]),
+                super::Piece::vertex(p[k]),
+                super::Piece::vertex(p[(k + 1) % 4]),
             )
         })
         .collect();
@@ -806,7 +807,7 @@ fn a_piece_exactly_the_querys_size_that_meets_it_keeps_it_near() {
     let b = band();
     let chart = ruled(&[(0.0, 0.0), (1.0, 0.0)]);
     let cells = bezier_cells(&chart).unwrap();
-    let vertex = |p: [f64; 2]| super::Piece::vertex(p, [0.0; 2]);
+    let vertex = |p: [f64; 2]| super::Piece::vertex(p);
     let arc = super::Piece {
         net: vec![
             vertex([0.875, 0.625]),
@@ -1303,7 +1304,7 @@ fn dd_split(
     net: &[[Dd; 4]],
     (pu, pv): (usize, usize),
     along_u: bool,
-    s: f64,
+    t: Dd,
     left: bool,
 ) -> Vec<[Dd; 4]> {
     let (n, m) = if along_u { (pu, pv) } else { (pv, pu) };
@@ -1314,7 +1315,6 @@ fn dd_split(
             k * (pv + 1) + i
         }
     };
-    let t = Dd::of(s);
     let mut out = net.to_vec();
     for k in 0..=m {
         let mut row: Vec<[Dd; 4]> = (0..=n).map(|i| net[at(i, k)]).collect();
@@ -1335,15 +1335,36 @@ fn dd_split(
     out
 }
 
+/// A cell point's bound out of homogeneous form, per coordinate
+/// ([`Tracked::dehomogenized`]): infinite where its weight's bound
+/// reaches the weight.
+fn patch_bound(control: &crate::spline_trim::Control<f64, 4>) -> [f64; 3] {
+    Tracked::dehomogenized(*control, crate::spline_trim::SPLINE_TRIM_WEIGHT)
+        .map_or([f64::INFINITY; 3], |p| [0, 1, 2].map(|k| p[k].rounding()))
+}
+
+/// A piece point's bound out of homogeneous form, per coordinate
+/// ([`dehomogenized`]): infinite where its weight's bound reaches the
+/// weight.
+fn piece_bound(node: &crate::spline_trim::Node) -> [f64; 2] {
+    dehomogenized(*node, crate::spline_trim::SPLINE_TRIM_WEIGHT)
+        .map_or([f64::INFINITY; 2], |p| [p[0].error, p[1].error])
+}
+
+/// A homogeneous channel's value.
+fn value(h: &crate::spline_trim::Control<f64, 4>, c: usize) -> f64 {
+    h[c].value()
+}
+
 /// The worst, over the cell's points and coordinates, of each point's
 /// drift from its double-double reference over its rounding bound
-/// ([`super::point_rounding`]).
+/// ([`patch_bound`]).
 fn drift_over_bound(cell: &super::Patch<f64>, reference: &[[Dd; 4]]) -> f64 {
     let mut worst = 0.0f64;
     for (control, exact) in cell.net.iter().zip(reference) {
-        let bound = super::point_rounding(control);
+        let bound = patch_bound(control);
         for c in 0..3 {
-            let drift = Dd::of(control.0[c] / control.0[3])
+            let drift = Dd::of(value(control, c) / value(control, 3))
                 .sub(exact[c].div(exact[3]))
                 .0
                 .abs();
@@ -1356,9 +1377,11 @@ fn drift_over_bound(cell: &super::Patch<f64>, reference: &[[Dd; 4]]) -> f64 {
 /// **The cut's rounding bound holds the cut's drift**: single-span
 /// rational patches of degree one to four, `1` to `1e6` across, placed
 /// up to `1e6` away, weights up to eight decades apart, each cut along a
-/// random path of six quarterings and one split at a random fraction
-/// (as [`super::Patch::restricted`] cuts), against the same cut in
-/// double-double. No point drifts past its bound. The insertion's bound
+/// random path of six quarterings and one restriction at a random place
+/// `w` of the cell's range `[r0, r1]` (as [`super::Patch::restricted`]
+/// cuts, at the ratio `(w − r0)/(r1 − r0)` with its rounding), against the
+/// same cut in double-double at the true ratio. No point drifts past its
+/// bound. The insertion's bound
 /// is `geom_brep`'s spline incidence's, measured there against a
 /// knotted cut (`the_cut_rounding_bound_holds_a_knotted_cuts_drift`).
 #[test]
@@ -1394,14 +1417,23 @@ fn the_cut_rounding_bound_holds_the_cut_drift() {
         let mut exact = dd_net(&chart, cell.centre);
         worst = worst.max(drift_over_bound(&cell, &exact));
         for step in 0..7 {
-            let (along_u, s, left) = if step == 3 {
-                (rng.below(2) == 0, rng.range(0.05, 0.95), rng.below(2) == 0)
+            let (along_u, left) = if step == 3 {
+                (rng.below(2) == 0, rng.below(2) == 0)
             } else {
-                (step % 2 == 0, 0.5, rng.below(2) == 0)
+                (step % 2 == 0, rng.below(2) == 0)
+            };
+            let (s, t) = if step == 3 {
+                let (r0, r1) = if along_u { cell.rect.u } else { cell.rect.v };
+                let w = r0 + (r1 - r0) * rng.range(0.05, 0.95);
+                let ratio = (w - r0) / (r1 - r0);
+                let truth = Dd::of(w).sub(Dd::of(r0)).div(Dd::of(r1).sub(Dd::of(r0)));
+                (Rounded::ratio(ratio), truth)
+            } else {
+                (Rounded::exact(0.5), Dd::of(0.5))
             };
             let (l, r) = cell.split(along_u, s);
             cell = if left { l } else { r };
-            exact = dd_split(&exact, (pu, pv), along_u, s, left);
+            exact = dd_split(&exact, (pu, pv), along_u, t, left);
             worst = worst.max(drift_over_bound(&cell, &exact));
         }
     }
@@ -1413,11 +1445,86 @@ fn the_cut_rounding_bound_holds_the_cut_drift() {
     );
 }
 
+/// **A restriction whose ratio rounds to the half holds its drift**
+/// ([`super::Patch::restricted`]): `(w0 − r0)/(r1 − r0)` for the knots
+/// below rounds to exactly `0.5` while the true ratio is about `0.99u`
+/// off it, so a split that took the half as exact would drop the ratio's
+/// own rounding. The cut point, judged in exact arithmetic against the
+/// restriction at the true ratio, lies within the worst bound its channel
+/// carries over the cell.
+#[test]
+fn a_restriction_at_a_ratio_rounded_to_the_half_holds_its_drift() {
+    use geom_core::exact::Expansion;
+    fn times(a: &Expansion, b: &Expansion) -> Expansion {
+        let mut out = Expansion::default();
+        for &c in a.components() {
+            out.add_expansion(&b.scaled(c));
+        }
+        out
+    }
+    fn diff(a: f64, b: f64) -> Expansion {
+        let mut e = Expansion::product(a, 1.0);
+        e.add(-b);
+        e
+    }
+    fn sum(e: &Expansion) -> f64 {
+        e.components().iter().sum()
+    }
+    let (r0, w0, r1) = (
+        -0.028_895_572_897_523_092,
+        1.990_979_372_367_584,
+        4.010_854_317_632_69,
+    );
+    assert_eq!((w0 - r0) / (r1 - r0), 0.5, "the ratio rounds to the half");
+    let (xa, xb) = (-0.723_449_517_348_052, -0.638_406_370_805_139_3);
+    let (wa, wb) = (0.012_119_248_256_316_217, 0.011_717_390_114_376_844);
+    let ku = KnotVector::clamped(vec![r0, r0, r1, r1], 1).unwrap();
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    // Row-major in `u`: index i·2 + j.
+    let control = vec![
+        Point3::new(xa, 0.0, 0.0),
+        Point3::new(xa, 1.0, 0.0),
+        Point3::new(xb, 0.0, 0.0),
+        Point3::new(xb, 1.0, 0.0),
+    ];
+    let chart = NurbsSurface::new(ku, kv, control, vec![wa, wa, wb, wb]).unwrap();
+    let cell = bezier_cells(&chart).unwrap().remove(0);
+    let c = cell.centre.x;
+    let cut = cell.restricted(super::Rect {
+        u: (w0, r1),
+        v: (0.0, 1.0),
+    });
+    let worst = cut
+        .net
+        .iter()
+        .map(|h| patch_bound(h)[0])
+        .fold(0.0f64, f64::max);
+    // The exact cut point at the true ratio, times `r1 − r0`.
+    let (d1, d2) = (diff(r1, r0), diff(w0, r0));
+    let ha = diff(xa, c).scaled(wa);
+    let hb = diff(xb, c).scaled(wb);
+    let mut hd = hb.clone();
+    hd.add_expansion(&ha.negated());
+    let mut h = times(&ha, &d1);
+    h.add_expansion(&times(&hd, &d2));
+    let mut w = d1.scaled(wa);
+    w.add_expansion(&d2.scaled(wb));
+    w.add_expansion(&d2.scaled(-wa));
+    let p = value(&cut.net[0], 0) / value(&cut.net[0], 3);
+    let mut gap = w.scaled(p);
+    gap.add_expansion(&h.negated());
+    let drift = sum(&gap).abs() / sum(&w).abs();
+    assert!(
+        drift <= worst,
+        "the cut point drifts {drift:e}, {} times the channel's worst bound {worst:e}",
+        drift / worst
+    );
+}
+
 /// **The cut's rounding bound is not loose by half**: one bilinear
 /// rational patch whose net, moved about its centre into homogeneous
-/// form and back, drifts more than half its bound in `x`. Halved
-/// (`SPLINE_TRIM_MUTANT=spline-trim-bound-halved`), the bound
-/// no longer holds it.
+/// form and back, drifts more than half its bound in `x`. Halved at its
+/// home ([`Tracked::dehomogenized`]), the bound no longer holds it.
 #[test]
 fn the_cut_rounding_bound_comes_within_half_of_a_points_drift() {
     let k = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
@@ -1485,7 +1592,7 @@ fn a_query_on_a_far_trim_curve_is_given_no_side() {
         v: (c - 1.0, c + 1.0),
     };
     let trim = |mut run: Vec<Piece>| {
-        let v = |u: f64, v: f64| Piece::vertex([u, v], [0.0; 2]);
+        let v = |u: f64, v: f64| Piece::vertex([u, v]);
         run.push(Piece::segment(run.last().unwrap().last(), v(0.8, c + 0.5)));
         run.push(Piece::segment(v(0.8, c + 0.5), v(0.2, c + 0.5)));
         run.push(Piece::segment(v(0.2, c + 0.5), run[0].first()));
@@ -1513,7 +1620,7 @@ mod knotted {
     use super::Dd;
     use geom::NurbsSurface;
     use geom_core::spline::KnotVector;
-    use geom_core::{Point2, Point3, Vec3};
+    use geom_core::{Point2, Point3, Rounded, Vec3};
 
     fn knots(rng: &mut test_utils::fuzz::Rng, p: usize) -> KnotVector {
         let mut interior: Vec<f64> = (0..rng.below(5)).map(|_| rng.range(0.05, 0.95)).collect();
@@ -1653,14 +1760,17 @@ mod knotted {
                             },
                             rng.below(2) == 0,
                         );
-                        let (l, r) = cell.split(along_u, s);
+                        let (l, r) = cell.split(along_u, Rounded::exact(s));
                         cell = if left { l } else { r };
-                        exact = super::dd_split(&exact, (pu, pv), along_u, s, left);
+                        exact = super::dd_split(&exact, (pu, pv), along_u, super::Dd::of(s), left);
                     }
                     for (got, ex) in cell.net.iter().zip(&exact) {
-                        let bound = super::super::point_rounding(got);
+                        let bound = super::patch_bound(got);
                         for k in 0..3 {
-                            let d = drift(got.0[k] / got.0[3], ex[k].div(ex[3]));
+                            let d = drift(
+                                super::value(got, k) / super::value(got, 3),
+                                ex[k].div(ex[3]),
+                            );
                             worst = worst.max(d / bound[k]);
                             assert!(
                                 d <= bound[k],
@@ -1739,9 +1849,9 @@ mod knotted {
             assert_eq!(firsts.len(), pieces.len(), "case {case}");
             let check = |piece: &Piece, ex: &[[Dd; 3]], worst: &mut f64| {
                 for (got, e) in piece.net.iter().zip(ex) {
-                    let bound = super::super::point_rounding(got);
+                    let bound = super::piece_bound(got);
                     for k in 0..2 {
-                        let d = drift(got.0[k] / got.0[2], e[k].div(e[2]));
+                        let d = drift(got[k].value / got[2].value, e[k].div(e[2]));
                         *worst = worst.max(d / bound[k]);
                         assert!(
                             d <= bound[k],
@@ -1827,7 +1937,7 @@ fn a_query_on_a_wide_interval_trim_image_is_given_no_side() {
         v: (c - 1.0, c + 1.0),
     };
     let mut run = bezier_pieces(&image, 0.0, 1.0).unwrap();
-    let v = |u: f64, v: f64| Piece::vertex([u, v], [0.0; 2]);
+    let v = |u: f64, v: f64| Piece::vertex([u, v]);
     run.push(Piece::segment(run.last().unwrap().last(), v(0.8, c + 0.5)));
     run.push(Piece::segment(v(0.8, c + 0.5), v(0.2, c + 0.5)));
     run.push(Piece::segment(v(0.2, c + 0.5), run[0].first()));
@@ -1847,6 +1957,33 @@ fn a_query_on_a_wide_interval_trim_image_is_given_no_side() {
     );
 }
 
+/// **A piece with a weight not positive has no box**
+/// ([`super::Piece::bbox`]): the control box holds a rational piece only
+/// where every weight is positive, and the point out of homogeneous form
+/// reads a point for a negative weight clear of its bound, so the box
+/// asks the sign itself. A segment whose second weight is `−1`, exact,
+/// and one whose second weight is `0`, have no box; the same segment at
+/// weight `1` has one.
+#[test]
+fn a_piece_with_a_weight_not_positive_has_no_box() {
+    use super::Piece;
+    let at = |w: f64| Piece {
+        net: vec![
+            [
+                Rounded::exact(0.0),
+                Rounded::exact(0.0),
+                Rounded::exact(1.0),
+            ],
+            [Rounded::exact(w), Rounded::exact(w), Rounded::exact(w)],
+        ],
+    };
+    for w in [-1.0, 0.0] {
+        let b = at(w).bbox();
+        assert!(b.is_none(), "a weight {w} gives the box {b:?}");
+    }
+    assert!(at(1.0).bbox().is_some(), "a positive weight has a box");
+}
+
 /// **A piece whose rounding bound is NaN has no box**
 /// ([`super::Piece::bbox`]): a NaN bound refuses, and is not dropped by
 /// the per-channel fold to leave the box unwidened.
@@ -1855,8 +1992,16 @@ fn a_piece_with_a_nan_bound_has_no_box() {
     use super::Piece;
     let piece = Piece {
         net: vec![
-            ([0.0, 0.0, 1.0], [0.0, f64::NAN, 0.0]),
-            ([1.0, 1.0, 1.0], [0.0; 3]),
+            [
+                Rounded::exact(0.0),
+                Rounded::exact(0.0).with_charge(f64::NAN),
+                Rounded::exact(1.0),
+            ],
+            [
+                Rounded::exact(1.0),
+                Rounded::exact(1.0),
+                Rounded::exact(1.0),
+            ],
         ],
     };
     let b = piece.bbox();
@@ -1868,12 +2013,14 @@ fn a_piece_with_a_nan_bound_has_no_box() {
 /// dropped by the per-channel fold to leave the floor at the box gap.
 #[test]
 fn a_cell_with_a_nan_bound_has_no_floor() {
-    let net = vec![
-        ([0.0, 0.0, 0.0, 1.0], [f64::NAN, 0.0, 0.0, 0.0]),
-        ([1.0, 0.0, 0.0, 1.0], [0.0; 4]),
-        ([0.0, 1.0, 0.0, 1.0], [0.0; 4]),
-        ([1.0, 1.0, 0.0, 1.0], [0.0; 4]),
-    ];
+    let net = [
+        [carrying(f64::NAN), carrying(0.0), carrying(0.0)],
+        [Tracked::exact(1.0), carrying(0.0), carrying(0.0)],
+        [carrying(0.0), Tracked::exact(1.0), carrying(0.0)],
+        [Tracked::exact(1.0), Tracked::exact(1.0), carrying(0.0)],
+    ]
+    .map(|[x, y, z]| [x, y, z, Tracked::exact(1.0)])
+    .to_vec();
     let cell = super::Patch {
         rect: super::Rect {
             u: (0.0, 1.0),
@@ -1888,11 +2035,66 @@ fn a_cell_with_a_nan_bound_has_no_floor() {
     assert!(floor.is_nan(), "a NaN bound leaves the floor {floor}");
 }
 
+/// `1` carrying the rounding bound `e`, by the arithmetic: `a·1 − (a − 1)`
+/// for `a = e/u` an integer at most `2⁵³`, whose product rounds by
+/// `u·|a| = e` and whose difference is exact.
+fn one_carrying(e: f64) -> Tracked<f64> {
+    let a = Tracked::exact(e / UNIT_ROUNDOFF);
+    a * Tracked::exact(1.0) - Tracked::exact(e / UNIT_ROUNDOFF - 1.0)
+}
+
+/// **A cell whose weight's rounding reaches the weight has no floor**
+/// ([`super::Patch::floor`]): a unit square whose corner's weight is
+/// `0.25` carrying `1` may hold a zero weight, so its point out of
+/// homogeneous form has no bound and the cell no floor (a room read
+/// unclamped, `0.25 − 1`, would charge a negative bound and floor it);
+/// the same corner's weight `1` carrying `0.5` floors.
+#[test]
+fn a_cell_whose_weights_rounding_reaches_it_has_no_floor() {
+    let cell = |w: Tracked<f64>| {
+        let mut cell = square_cell(Vec3::new(0.0, 0.0, 0.0), 0.0);
+        cell.net[3][3] = w;
+        cell
+    };
+    let w = one_carrying(1.0) - Tracked::exact(0.75);
+    assert!(
+        w.value() == 0.25 && w.rounding() >= 1.0,
+        "the fixture's weight is 0.25 carrying 1: {w:?}"
+    );
+    let floor = cell(w).floor(Point3::new(0.5, 0.5, -1.0)).at_f64();
+    assert!(
+        floor.is_nan(),
+        "a weight within its rounding of zero floors at {floor}"
+    );
+    let floor = cell(one_carrying(0.5))
+        .floor(Point3::new(0.5, 0.5, -1.0))
+        .at_f64();
+    assert!(
+        floor.is_finite() && floor < 1.0,
+        "a weight clear of its rounding floors at {floor}, below the gap by the point's bound"
+    );
+}
+
+/// `0` carrying the rounding bound `e`, by the arithmetic: `a·1 − a` for
+/// `a = e/u`, whose product rounds by `u·|a| = e` and whose difference
+/// lands on an exact zero.
+fn carrying(e: f64) -> Tracked<f64> {
+    let a = Tracked::exact(e / UNIT_ROUNDOFF);
+    a * Tracked::exact(1.0) - a
+}
+
 /// A unit square cell at `z = 0`, held about `centre`, each point
 /// carrying the rounding bound `e` on its `z` channel.
 fn square_cell(centre: Vec3<f64>, e: f64) -> super::Patch<f64> {
     let net = [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0), (1.0, 1.0)]
-        .map(|(x, y)| ([x, y, 0.0, 1.0], [0.0, 0.0, e, 0.0]))
+        .map(|(x, y)| {
+            [
+                Tracked::exact(x),
+                Tracked::exact(y),
+                carrying(e),
+                Tracked::exact(1.0),
+            ]
+        })
         .to_vec();
     super::Patch {
         rect: super::Rect {
@@ -1990,7 +2192,7 @@ fn a_query_on_a_far_trim_curve_along_v_is_given_no_side() {
         v: (0.0, 1.0),
     };
     let mut run = bezier_pieces(&image, 0.0, 1.0).unwrap();
-    let v = |u: f64, v: f64| Piece::vertex([u, v], [0.0; 2]);
+    let v = |u: f64, v: f64| Piece::vertex([u, v]);
     run.push(Piece::segment(run.last().unwrap().last(), v(c - 0.5, 0.8)));
     run.push(Piece::segment(v(c - 0.5, 0.8), v(c - 0.5, 0.2)));
     run.push(Piece::segment(v(c - 0.5, 0.2), run[0].first()));
@@ -2020,15 +2222,16 @@ fn a_shifted_pieces_rounding_bound_holds_its_drift() {
         let w = 10f64.powf(rng.range(-4.0, 4.0));
         let p = [rng.range(-1e4, 1e4), rng.range(-1e4, 1e4)];
         let h = [p[0] * w, p[1] * w, w];
+        let node = h.map(Rounded::exact);
         let piece = super::Piece {
-            net: vec![(h, [0.0; 3]), (h, [0.0; 3])],
+            net: vec![node, node],
         };
         let d = [rng.range(-1e4, 1e4), rng.range(-1e4, 1e4)];
         let moved = piece.shifted(d[0], d[1]).net[0];
-        let bound = super::point_rounding(&moved);
+        let bound = piece_bound(&moved);
         for c in 0..2 {
             let exact = Dd::of(h[c]).add(Dd::of(d[c]).mul(Dd::of(w))).div(Dd::of(w));
-            let drift = Dd::of(moved.0[c] / moved.0[2]).sub(exact).0.abs();
+            let drift = Dd::of(moved[c].value / moved[2].value).sub(exact).0.abs();
             worst = worst.max(drift / bound[c]);
         }
     }
@@ -2059,10 +2262,10 @@ fn an_iso_images_ends_hold_their_evaluations_rounding() {
         let run =
             super::image_pieces(&line, geom_brep::StoredSpan::for_tests(t0, t1), scale).unwrap();
         for (end, t) in [(run[0].first(), t0), (run[0].last(), t1)] {
-            let bound = super::point_rounding(&end);
+            let bound = piece_bound(&end);
             for (c, (a, b)) in [(p0.x, pl.x), (p0.y, pl.y)].into_iter().enumerate() {
                 let exact = Dd::of(a).add(Dd::of(b).mul(Dd::of(t)));
-                let drift = Dd::of(end.0[c] / end.0[2]).sub(exact).0.abs();
+                let drift = Dd::of(end[c].value / end[2].value).sub(exact).0.abs();
                 worst = worst.max(drift / bound[c]);
             }
         }

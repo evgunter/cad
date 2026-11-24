@@ -40,10 +40,11 @@
 //! de Casteljau), and the trim is read in `f64` at every scalar. A box
 //! of rounded points can exclude a point the exact box holds, so every
 //! box that decides is widened by a first-order bound on its points'
-//! rounding: each homogeneous point carries one per channel, set where
-//! it is made and carried through every blend ([`blend`]), and is off by
-//! at most `(e_c + |P_c|·e_w)/(w − e_w) + u·|P_c|` out of homogeneous
-//! form ([`point_rounding`]). The net is held about the middle of the
+//! rounding: each channel of a homogeneous point carries one
+//! ([`geom_core::running::Tracked`] in a cell, a [`Rounded`] in a piece),
+//! set where it is made and carried through every blend ([`blend`]), and
+//! out of homogeneous form a point is off by its quotient's bound
+//! ([`Tracked::dehomogenized`], [`dehomogenized`]). The net is held about the middle of the
 //! chart's control box, so the cut is in the patch's own size. A cell's
 //! floor is less the root sum of its worst per channel and
 //! [`geom_core::rounding_charge`] of twice the reach of its points, the
@@ -72,9 +73,10 @@
 
 use geom::{NurbsCurve2, NurbsSurface, Surface};
 use geom_brep::Pcurve;
+use geom_core::running::{Tracked, dehomogenized};
 use geom_core::spline::Knots;
 use geom_core::{
-    Allowance, Band, Decide, Indeterminate, InfSpeed, Margin, Point3, Sign, UNIT_ROUNDOFF, Vec3,
+    Allowance, Band, Decide, Indeterminate, InfSpeed, Margin, Point3, Rounded, Sign, Vec3,
     rounding_charge,
 };
 use std::num::NonZeroUsize;
@@ -93,6 +95,9 @@ use crate::validate::decide;
 pub(crate) const SPLINE_TRIM_ARM: &str = "spline_trim_arm";
 /// A query's clearance from the face's trim along the chart.
 pub(crate) const SPLINE_TRIM_CLEAR: &str = "spline_trim_clear";
+/// A control point's weight against its own rounding: whether the point
+/// out of homogeneous form has a bound.
+pub(crate) const SPLINE_TRIM_WEIGHT: &str = "spline_trim_weight";
 
 // The trim's work bounds are the ring rule's, at the crate root
 // (`crate::pcurves`): one home for both readers of a point against a
@@ -192,7 +197,8 @@ impl<T: Decide<Value = T>> Patch<T> {
     fn points(&self) -> impl Iterator<Item = Point3<T>> + '_ {
         self.net
             .iter()
-            .map(|(h, _)| Point3::new(h[0] / h[3], h[1] / h[3], h[2] / h[3]))
+            .map(|h| h.map(|c| c.value()))
+            .map(|h| Point3::new(h[0] / h[3], h[1] / h[3], h[2] / h[3]))
     }
 
     /// **A lower bound on the distance from `q` to the cell**: its
@@ -203,7 +209,7 @@ impl<T: Decide<Value = T>> Patch<T> {
     pub(crate) fn floor(&self, q: Point3<T>) -> Floor<T> {
         let poison = Floor::Uncharged(Margin::of(T::from_f64(f64::NAN)));
         // A weight not shown positive leaves the hull unproven.
-        if !self.net.iter().all(|(h, _)| h[3].structure_positive()) {
+        if !self.net.iter().all(|h| h[3].value().structure_positive()) {
             return poison;
         }
         let moved = q - self.centre;
@@ -231,10 +237,13 @@ impl<T: Decide<Value = T>> Patch<T> {
         // The worst per channel, folded so a NaN bound stays NaN.
         let mut worst = [0.0f64; 3];
         for control in &self.net {
-            let e = point_rounding(control);
+            let Some(point) = Tracked::dehomogenized(*control, SPLINE_TRIM_WEIGHT) else {
+                return poison;
+            };
             for c in 0..3 {
-                if e[c].is_nan() || e[c] > worst[c] {
-                    worst[c] = e[c];
+                let e = point[c].rounding();
+                if e.is_nan() || e > worst[c] {
+                    worst[c] = e;
                 }
             }
         }
@@ -280,8 +289,10 @@ impl<T: Decide<Value = T>> Patch<T> {
     }
 
     /// The cell split at the fraction `s` of its `u` range (`along_u`)
-    /// or its `v` range, by de Casteljau on each row.
-    pub(crate) fn split(&self, along_u: bool, s: f64) -> (Self, Self) {
+    /// or its `v` range, by de Casteljau on each row. The caller hands the
+    /// fraction with what it owes: a halving's exact `½`, or a ratio of the
+    /// window's differences with its rounding ([`Patch::restricted`]).
+    pub(crate) fn split(&self, along_u: bool, s: Rounded<f64>) -> (Self, Self) {
         let (n, m) = if along_u {
             (self.pu, self.pv)
         } else {
@@ -291,11 +302,7 @@ impl<T: Decide<Value = T>> Patch<T> {
         let mut right = self.clone();
         // The split point is a place: the step to the scalar is this
         // evaluator's own.
-        let st = T::from_computed(s);
-        // The exact half is a halving's: its product rounds nothing.
-        #[allow(clippy::float_cmp)]
-        let ratio = s != 0.5;
-        let track = tracks::<T>();
+        let st = Tracked::computed(s);
         for k in 0..=m {
             let mut row: Vec<Control<T, 4>> = (0..=n)
                 .map(|i| {
@@ -312,7 +319,7 @@ impl<T: Decide<Value = T>> Patch<T> {
                 lo.push(row[0]);
                 hi.push(row[n - level]);
                 for i in 0..n - level {
-                    row[i] = blend(row[i], row[i + 1], st, ratio, track);
+                    row[i] = blend(row[i], row[i + 1], st);
                 }
             }
             hi.reverse();
@@ -327,7 +334,7 @@ impl<T: Decide<Value = T>> Patch<T> {
             }
         }
         let (r0, r1) = if along_u { self.rect.u } else { self.rect.v };
-        let cut = r0 + (r1 - r0) * s;
+        let cut = r0 + (r1 - r0) * s.value;
         if along_u {
             left.rect.u = (r0, cut);
             right.rect.u = (cut, r1);
@@ -340,8 +347,9 @@ impl<T: Decide<Value = T>> Patch<T> {
 
     /// The four quarters, `((u-lo v-lo, u-lo v-hi), (u-hi v-lo, u-hi v-hi))`.
     pub(crate) fn quartered(&self) -> ((Self, Self), (Self, Self)) {
-        let (a, b) = self.split(true, 0.5);
-        (a.split(false, 0.5), b.split(false, 0.5))
+        let half = Rounded::exact(0.5);
+        let (a, b) = self.split(true, half);
+        (a.split(false, half), b.split(false, half))
     }
 
     /// The cell restricted to `rect`, a rectangle inside its own.
@@ -354,11 +362,11 @@ impl<T: Decide<Value = T>> Patch<T> {
                 (cell.rect.v, rect.v)
             };
             if w0 > r0 {
-                cell = cell.split(along_u, (w0 - r0) / (r1 - r0)).1;
+                cell = cell.split(along_u, Rounded::ratio((w0 - r0) / (r1 - r0))).1;
             }
             let (r0, r1) = if along_u { cell.rect.u } else { cell.rect.v };
             if w1 < r1 {
-                cell = cell.split(along_u, (w1 - r0) / (r1 - r0)).0;
+                cell = cell.split(along_u, Rounded::ratio((w1 - r0) / (r1 - r0))).0;
             }
         }
         cell
@@ -380,17 +388,16 @@ impl<T: Decide<Value = T>> Patch<T> {
             knots(self.rect.u, self.pu)?,
             knots(self.rect.v, self.pv)?,
             self.points().collect(),
-            self.net.iter().map(|(h, _)| h[3]).collect(),
+            self.net.iter().map(|h| h[3].value()).collect(),
         )
         .ok()?;
         Some(Surface::Nurbs(Arc::new(surface)))
     }
 }
 
-/// A homogeneous control point and, at `f64`, a first-order bound on
-/// each channel's accumulated rounding (*Rounding*, module docs); the
-/// weight is the last channel.
-pub(crate) type Control<T, const N: usize> = ([T; N], [f64; N]);
+/// A homogeneous control point, each channel with its rounding
+/// (*Rounding*, module docs); the weight is the last channel.
+pub(crate) type Control<T, const N: usize> = [Tracked<T>; N];
 
 /// Whether the scalar's arithmetic rounds uncharged, so a cut carries
 /// rounding bounds: `f64`, not an enclosure.
@@ -398,63 +405,14 @@ fn tracks<T: Decide>() -> bool {
     T::WITNESS == geom_core::Witness::Inexact
 }
 
-/// **One blend `x + (y − x)·t`** of two homogeneous control points, each
-/// channel by [`geom_core::spline::SpanLocate::homogeneous_step`], with its rounding bound
-/// when `track`ed: the inputs' bounds blended as the values are, plus
-/// `u·|y − x|·t` for the difference, `u·|result|` for the sum, and, at a
-/// ratio that is not the exact half (`ratio`), `u·|y − x|·t` more for the
-/// product and `|y − x|·δt` for `t`'s own rounding (three units of it).
+/// **One blend `x + (y − x)·t`** of two homogeneous control points,
+/// each channel by [`Tracked::step`].
 fn blend<T: Decide, const N: usize>(
     x: Control<T, N>,
     y: Control<T, N>,
-    t: T,
-    ratio: bool,
-    track: bool,
+    t: Tracked<T>,
 ) -> Control<T, N> {
-    let h: [T; N] = core::array::from_fn(|c| T::homogeneous_step(x.0[c], y.0[c], t));
-    if !track {
-        return (h, [0.0; N]);
-    }
-    let tf = middle(t);
-    let (dt, roundings) = if ratio && !mutant("spline-trim-ratio-uncharged") {
-        (3.0 * UNIT_ROUNDOFF * tf.abs(), 2.0)
-    } else {
-        (0.0, 1.0)
-    };
-    let e = core::array::from_fn(|c| {
-        let span = (middle(y.0[c]) - middle(x.0[c])).abs();
-        (1.0 - tf) * x.1[c]
-            + tf * y.1[c]
-            + UNIT_ROUNDOFF * (roundings * span * tf.abs() + middle(h[c]).abs())
-            + span * dt
-    });
-    (h, e)
-}
-
-/// One control point's rounding out of homogeneous form, per coordinate:
-/// `(e_c + |P_c|·e_w)/(w − e_w) + u·|P_c|`, infinite where the weight's
-/// bound reaches the weight; the weight's own channel reads zero. A
-/// first-order bound: measured against double-double cuts, the worst
-/// drift is within 5% of it (`spline_region_rows`). At an enclosure scalar
-/// the bounds carried are zero, and no floor reads this.
-pub(crate) fn point_rounding<T: Decide, const N: usize>((h, e): &Control<T, N>) -> [f64; N] {
-    let w = middle(h[N - 1]);
-    let lead = w - e[N - 1];
-    if lead.partial_cmp(&0.0) != Some(core::cmp::Ordering::Greater) {
-        return [f64::INFINITY; N];
-    }
-    let scale = if mutant("spline-trim-bound-halved") {
-        0.5
-    } else {
-        1.0
-    };
-    core::array::from_fn(|c| {
-        if c == N - 1 {
-            return 0.0;
-        }
-        let p = (middle(h[c]) / w).abs();
-        scale * ((e[c] + p * e[N - 1]) / lead + UNIT_ROUNDOFF * p)
-    })
+    core::array::from_fn(|c| x[c].step(y[c], t))
 }
 
 /// The middle of a value's bracket, the value an `f64` rounding bound is
@@ -478,7 +436,6 @@ fn refined<T: Decide<Value = T>, const N: usize>(
     if add.is_empty() {
         return Some(row);
     }
-    let track = tracks::<T>();
     let runs: Vec<(T, usize)> = knots.runs().collect();
     // Every knot an insertion meets is a held break or one of `add`.
     let held = |v: f64| {
@@ -489,23 +446,23 @@ fn refined<T: Decide<Value = T>, const N: usize>(
     let unit = geom_core::spline::Weights::new(vec![T::one(); row.len()]).ok()?;
     let plans = geom_core::spline::plan_inputs::refine_plan(knots, &unit, add).ok()?;
     let mut values: Vec<T> = knots.values().to_vec();
-    let poison: Control<T, N> = ([T::from_f64(f64::NAN); N], [f64::NAN; N]);
+    let poison: Control<T, N> = [Tracked::exact(T::from_f64(f64::NAN)); N];
     let mut row = row;
     for plan in &plans {
-        let pairs: Vec<(Control<T, N>, T)> = row.iter().map(|c| (*c, c.0[N - 1])).collect();
+        let pairs: Vec<(Control<T, N>, T)> = row.iter().map(|c| (*c, c[N - 1].value())).collect();
         row = plan
             .apply_homogeneous(
                 &values,
                 &pairs,
-                ((poison, poison.0[N - 1]), &held),
-                |x, y, t| blend(x, y, t, true, track),
+                ((poison, poison[N - 1].value()), &held),
+                |x, y, t| blend(x, y, Tracked::ratio(t)),
             )
             .into_iter()
             .map(|(c, _)| c)
             .collect();
         values = plan.knots().knots().iter().map(|&v| held(v)).collect();
     }
-    (row.iter().all(|(h, _)| !h[N - 1].is_poison())).then_some(row)
+    (row.iter().all(|h| !h[N - 1].value().is_poison())).then_some(row)
 }
 
 /// **The chart's Bézier cells**, ascending in `u` then `v`; `None` where
@@ -525,7 +482,6 @@ pub(crate) fn bezier_cells<T: Decide<Value = T>>(chart: &NurbsSurface<T>) -> Opt
     if pu == 0 || pv == 0 || nu == 0 || nv == 0 {
         return None;
     }
-    let track = tracks::<T>();
     let (control, weights) = (chart.control(), chart.weights());
     let (mut lo, mut hi) = ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]);
     for p in control {
@@ -539,19 +495,11 @@ pub(crate) fn bezier_cells<T: Decide<Value = T>>(chart: &NurbsSurface<T>) -> Opt
         T::from_computed(geom::bracket_mid((lo[1], hi[1]))),
         T::from_computed(geom::bracket_mid((lo[2], hi[2]))),
     );
-    // Moved and out to homogeneous form: the difference and the product
-    // round each coordinate by `u` of it.
+    // Moved and out to homogeneous form.
     let homogeneous = |k: usize| -> Control<T, 4> {
-        let (p, w) = (control[k] - centre, weights[k]);
-        let h = [p.x * w, p.y * w, p.z * w, w];
-        let e = core::array::from_fn(|c| {
-            if track && c < 3 {
-                2.0 * UNIT_ROUNDOFF * middle(h[c]).abs()
-            } else {
-                0.0
-            }
-        });
-        (h, e)
+        let (p, w) = (control[k], Tracked::exact(weights[k]));
+        let at = |x: T, c: T| (Tracked::exact(x) - Tracked::exact(c)) * w;
+        [at(p.x, centre.x), at(p.y, centre.y), at(p.z, centre.z), w]
     };
     let rows: Vec<Vec<Control<T, 4>>> = (0..nu)
         .map(|i| {
@@ -573,7 +521,7 @@ pub(crate) fn bezier_cells<T: Decide<Value = T>>(chart: &NurbsSurface<T>) -> Opt
     if !columns
         .iter()
         .flatten()
-        .all(|(h, _)| h[3].structure_positive())
+        .all(|h| h[3].value().structure_positive())
     {
         return None;
     }
@@ -626,15 +574,12 @@ fn mutant(site: &str) -> bool {
 
 /// Every site [`mutant`] answers for.
 #[cfg(test)]
-const MUTANTS: [&str; 10] = [
+const MUTANTS: [&str; 7] = [
     "spline-trim-charge-dropped",
     "spline-trim-cut-dropped",
     "spline-trim-read-dropped",
-    "spline-trim-ratio-uncharged",
-    "spline-trim-bound-halved",
     "spline-trim-trim-uncharged",
     "spline-trim-u-unwidened",
-    "spline-trim-halfwidth-dropped",
     "spline-trim-shift-untracked",
     "spline-trim-iso-end-uncharged",
 ];
@@ -661,28 +606,37 @@ fn bezier_insertions<T: Decide>(knots: &Knots<T>) -> Option<Vec<f64>> {
 /// bound (*Rounding*, module docs).
 #[derive(Clone, Debug)]
 pub(crate) struct Piece {
-    pub(crate) net: Vec<Control<f64, 3>>,
+    pub(crate) net: Vec<Node>,
 }
 
+/// A piece's control point in homogeneous form, `[w·u, w·v, w]`, each
+/// channel in `f64` with its bound (*Rounding*, module docs).
+pub(crate) type Node = [Rounded<f64>; 3];
+
 impl Piece {
-    pub(crate) fn segment(a: Control<f64, 3>, b: Control<f64, 3>) -> Self {
+    pub(crate) fn segment(a: Node, b: Node) -> Self {
         Self { net: vec![a, b] }
     }
 
-    /// The chart point `p`, each coordinate off by at most `e`.
-    pub(crate) fn vertex(p: [f64; 2], e: [f64; 2]) -> Control<f64, 3> {
-        ([p[0], p[1], 1.0], [e[0], e[1], 0.0])
+    /// The chart point `p`, exact.
+    #[cfg(test)]
+    pub(crate) fn vertex(p: [f64; 2]) -> Node {
+        [
+            Rounded::exact(p[0]),
+            Rounded::exact(p[1]),
+            Rounded::exact(1.0),
+        ]
     }
 
-    fn point((h, _): Control<f64, 3>) -> [f64; 2] {
-        [h[0] / h[2], h[1] / h[2]]
+    fn point(h: Node) -> [f64; 2] {
+        [h[0].value / h[2].value, h[1].value / h[2].value]
     }
 
-    pub(crate) fn first(&self) -> Control<f64, 3> {
+    pub(crate) fn first(&self) -> Node {
         self.net[0]
     }
 
-    pub(crate) fn last(&self) -> Control<f64, 3> {
+    pub(crate) fn last(&self) -> Node {
         self.net[self.net.len() - 1]
     }
 
@@ -705,7 +659,12 @@ impl Piece {
             }
             r.u = (r.u.0.min(x), r.u.1.max(x));
             r.v = (r.v.0.min(y), r.v.1.max(y));
-            let e = point_rounding(control);
+            // The box holds the piece only where every weight is positive.
+            if control[2].value.partial_cmp(&0.0) != Some(core::cmp::Ordering::Greater) {
+                return None;
+            }
+            let point = dehomogenized(*control, SPLINE_TRIM_WEIGHT)?;
+            let e = [point[0].error, point[1].error];
             if !e.iter().all(|x| x.is_finite()) {
                 return None;
             }
@@ -717,9 +676,16 @@ impl Piece {
         if mutant("spline-trim-u-unwidened") {
             worst[0] = 0.0;
         }
+        // Each side moved out by its bound, rounded outward.
+        let side = |(lo, hi): (f64, f64), e: f64| {
+            (
+                Rounded::exact(lo).with_charge(e).outward_ends().0,
+                Rounded::exact(hi).with_charge(e).outward_ends().1,
+            )
+        };
         Some(Rect {
-            u: (r.u.0 - worst[0], r.u.1 + worst[0]),
-            v: (r.v.0 - worst[1], r.v.1 + worst[1]),
+            u: side(r.u, worst[0]),
+            v: side(r.v, worst[1]),
         })
     }
 
@@ -732,7 +698,8 @@ impl Piece {
             lo.push(row[0]);
             hi.push(row[n - level]);
             for i in 0..n - level {
-                row[i] = blend(row[i], row[i + 1], 0.5, false, true);
+                let half = Rounded::exact(0.5);
+                row[i] = core::array::from_fn(|c| row[i][c].step(row[i + 1][c], half));
             }
         }
         hi.reverse();
@@ -744,27 +711,20 @@ impl Piece {
         self
     }
 
-    /// The piece moved by `(du, dv)`: `h_c + d_c·w`, a product and a sum.
+    /// The piece moved by `(du, dv)`: `h_c + d_c·w`.
     pub(crate) fn shifted(&self, du: f64, dv: f64) -> Self {
-        let step = |x: f64, ex: f64, d: f64, w: f64, ew: f64| {
-            let r = x + d * w;
+        let step = |x: Rounded<f64>, d: f64, w: Rounded<f64>| {
+            let r = x + Rounded::exact(d) * w;
             if mutant("spline-trim-shift-untracked") {
-                return (r, ex);
+                return Rounded::exact(r.value).with_charge(x.error);
             }
-            (
-                r,
-                ex + d.abs() * ew + UNIT_ROUNDOFF * ((d * w).abs() + r.abs()),
-            )
+            r
         };
         Self {
             net: self
                 .net
                 .iter()
-                .map(|&(h, e)| {
-                    let (x, ex) = step(h[0], e[0], du, h[2], e[2]);
-                    let (y, ey) = step(h[1], e[1], dv, h[2], e[2]);
-                    ([x, y, h[2]], [ex, ey, e[2]])
-                })
+                .map(|&[x, y, w]| [step(x, du, w), step(y, dv, w), w])
                 .collect(),
         }
     }
@@ -1263,11 +1223,11 @@ impl<T: Decide> ChainPiece<T> for Piece {
 /// that end is not `to` itself in homogeneous form, so the computed chain
 /// is continuous (a query clear of every widened box reads the parity of
 /// the exact chain, *Rounding*).
-fn close_gap(chain: &mut Vec<Piece>, to: Control<f64, 3>) {
+fn close_gap(chain: &mut Vec<Piece>, to: Node) {
     if let Some(last) = chain.last() {
         let from = last.last();
         #[allow(clippy::float_cmp)] // one control point, read twice
-        if from.0 != to.0 {
+        if from.map(|c| c.value) != to.map(|c| c.value) {
             chain.push(Piece::segment(from, to));
         }
     }
@@ -1294,15 +1254,15 @@ pub(crate) fn image_pieces<T: Decide>(
 ) -> Option<Vec<Piece>> {
     let (t0, t1) = span.ends();
     let end = |p: geom_core::Point2<T>| {
-        let [(x, ex), (y, ey)] = [p.x, p.y].map(|c| {
-            let m = middle(c);
-            let mut e = half_width(c);
+        let [x, y] = [p.x, p.y].map(|c| {
+            let r = Tracked::exact(c).at_middle();
             if tracks::<T>() && !mutant("spline-trim-iso-end-uncharged") {
-                e += rounding_charge(m.abs() + scale);
+                r.with_charge(rounding_charge(r.value.abs() + scale))
+            } else {
+                r
             }
-            (m, e)
         });
-        Piece::vertex([x, y], [ex, ey])
+        [x, y, Rounded::exact(1.0)]
     };
     match pcurve {
         Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. } => {
@@ -1316,10 +1276,16 @@ pub(crate) fn image_pieces<T: Decide>(
                 // The span's ends are brackets, cut at their value: each
                 // end of the run is also off by the image's reach over its
                 // bracket, its enclosure's middle and half-width.
-                let reach = |(h, e): &mut Control<f64, 3>, at: geom_core::Point2<T>| {
+                let reach = |h: &mut Node, at: geom_core::Point2<T>| {
                     for (c, x) in [at.x, at.y].into_iter().enumerate() {
-                        let off = (middle(x) - h[c] / h[2]).abs() + half_width(x);
-                        e[c] += h[2].abs() * off;
+                        // The end's distance from the run's end point, both
+                        // read in `f64` with their roundings, scaled back
+                        // into homogeneous form.
+                        let x = Tracked::exact(x).at_middle();
+                        let q = Rounded::exact(h[c].value).div_exact(h[2].value);
+                        let off = Rounded::exact((x - q).magnitude());
+                        let w = Rounded::exact(h[2].value.abs());
+                        h[c] = h[c].with_charge((off * w).magnitude());
                     }
                 };
                 reach(run.first_mut()?.net.first_mut()?, image.eval(t0));
@@ -1329,16 +1295,6 @@ pub(crate) fn image_pieces<T: Decide>(
         }
         _ => None,
     }
-}
-
-/// Half the width of a value's bracket: how far its middle can lie from
-/// the value it stands for; NaN for the poison.
-fn half_width<T: Decide>(x: T) -> f64 {
-    if mutant("spline-trim-halfwidth-dropped") {
-        return 0.0;
-    }
-    x.structure_bracket()
-        .map_or(f64::NAN, |(lo, hi)| (hi - lo) * 0.5)
 }
 
 /// The Bézier pieces of `image` over `[a, b]`, ascending.
@@ -1378,35 +1334,21 @@ pub(crate) fn bezier_pieces<T: Decide<Value = T>>(
     let mut bk: Vec<f64> = runs.iter().map(|&(v, _)| v).chain([a, b]).collect();
     bk.sort_by(f64::total_cmp);
     bk.dedup();
-    let track = tracks::<T>();
     let row = image
         .control()
         .iter()
         .zip(image.weights())
         .map(|(c, &w)| {
-            let h = [c.x * w, c.y * w, w];
-            let e = core::array::from_fn(|k| {
-                if track && k < 2 {
-                    UNIT_ROUNDOFF * middle(h[k]).abs()
-                } else {
-                    0.0
-                }
-            });
-            (h, e)
+            let w = Tracked::exact(w);
+            [Tracked::exact(c.x) * w, Tracked::exact(c.y) * w, w]
         })
         .collect();
     let control = refined(image.knot_values(), row, &add)?;
     if control.len() != (bk.len() - 1) * p + 1 {
         return None;
     }
-    // Out of the scalar: each channel's bracket middle, off by its
-    // half-width as well.
-    let out_of_scalar = |(h, e): Control<T, 3>| -> Control<f64, 3> {
-        (
-            h.map(middle),
-            core::array::from_fn(|k| e[k] + half_width(h[k])),
-        )
-    };
+    // Out of the scalar: each channel's bracket middle.
+    let out_of_scalar = |h: Control<T, 3>| -> Node { h.map(|c| c.at_middle()) };
     let mut out = Vec::new();
     for k in 0..bk.len() - 1 {
         if bk[k] < a || bk[k + 1] > b {

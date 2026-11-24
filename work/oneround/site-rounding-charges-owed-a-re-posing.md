@@ -165,8 +165,9 @@ re-posing that empties a file lowers or drops its row in the same change.
   `Rounded` difference is now `geom::frame::plane_offset_rounded`.
   **New on main since the gate was seeded**, each a `re-pose` row, owed
   the same re-posing as the squared and cancelling forms above:
-  `topo::spline_trim` (`floor`, `blend`, `point_rounding`,
-  `bezier_cells`: a spline enclosure's per-control rounding),
+  `topo::spline_trim` (`floor`, `blend`, `bezier_cells`, `Piece`: a
+  spline enclosure's per-control rounding, carried by
+  `geom_core::running::Tracked` and its doors),
   `geom_brep::pcurve_cache::spline_incidence`, `pcurve_cache` itself and
   `pcurve_cache::projected`, and one more site each in
   `curve_pair::pose`, `implicit` and `pair_section::spline_implicit`.
