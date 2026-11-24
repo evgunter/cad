@@ -2,10 +2,11 @@
 id: step-import-freecad-job-is-named-for-the-wrong-door
 kind: issue
 title: The 'step import (freecad)' job is named for the import door and gates on the export fixtures
-status: open
+status: closed
 opened: 2026-09-15
 priority: P4
 cost: E
+closed: 2026-11-22
 ---
 
 ## From PORT's `python-cannot-set-options-structs` review (PR #2678)
@@ -34,3 +35,7 @@ CIW's ground: the run's job roster is what a lane reads a green from.
 `work/ciw/` — `.github/workflows/ci.yml` is CIW's. Filed by a PORT lane
 under `work/README.md`'s rule that a finding goes on the slate of the
 program whose ground it lands on.
+
+## Closed
+
+The job now renders as `step export fixtures (freecad)` in both `ci.yml` and `nightly.yml`; the job id `step-import` (read by `gate-ok`'s and the nightly gate's `needs`) is unchanged. `scripts/ci-filter.py`'s signal doc and `install-nextest`'s comment name the new title.

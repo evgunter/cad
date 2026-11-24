@@ -365,12 +365,16 @@ impl SlackTerms {
             Point3::from_array(sc),
             r,
         );
-        let (lo_n, hi_n) = (h.lo_error + h.frame_error, h.hi_error + h.frame_error);
-        let (swing, slope) = (h.hi - h.lo, (-h.lo * h.hi).max(0.0).sqrt());
-        let (near, far) = if h.lo.abs() <= h.hi.abs() {
-            (h.hi * lo_n, -h.lo * hi_n)
+        let (lo, hi) = (
+            h.lo.with_charge(h.frame_error),
+            h.hi.with_charge(h.frame_error),
+        );
+        let (lo_n, hi_n) = (lo.error, hi.error);
+        let (swing, slope) = (hi.value - lo.value, (-lo.value * hi.value).max(0.0).sqrt());
+        let (near, far) = if lo.value.abs() <= hi.value.abs() {
+            (hi.value * lo_n, -lo.value * hi_n)
         } else {
-            (-h.lo * hi_n, h.hi * lo_n)
+            (-lo.value * hi_n, hi.value * lo_n)
         };
         Self {
             near: rho * near / swing / slope,
@@ -378,8 +382,8 @@ impl SlackTerms {
             phase: rho * h.phase_error / h.e_u.hypot(h.e_v),
             angle: rho * geom_core::rounding_charge(core::f64::consts::TAU),
             noise: lo_n.max(hi_n),
-            lo: h.lo,
-            hi: h.hi,
+            lo: lo.value,
+            hi: hi.value,
         }
     }
 
@@ -531,19 +535,27 @@ fn the_interval_lane_encloses_the_oracle_roots() {
     }
 }
 
-/// The line sibling, through the same door the ray lane uses — with
-/// a unit and a NON-unit direction, whose roots are in the
-/// direction's own parameter.
+/// The line sibling, through the same door the ray lane uses, its
+/// roots in metres along the unit direction. (A non-unit direction, whose
+/// roots were in its own parameter, is no line's since a line's
+/// direction became a `UnitVec3`.)
 #[test]
 fn a_line_through_a_sphere_has_two_roots_on_it_and_a_clear_one_misses() {
     use crate::curve_face::line_quadric::{About, WallRoots, line_sphere_roots};
     let (c, r) = (Point3::new(0.0, 0.0, -0.5), 0.3);
     let q = Point3::new(0.06, 0.0, -0.92);
-    for d in [Vec3::new(0.0, 0.0, 1.0), Vec3::new(0.0, 0.0, 2.5)] {
-        let WallRoots::Two(ts, _) =
-            line_sphere_roots(geom::Line { origin: q, dir: d }, c, r, band(), About::Start)
-                .unwrap()
-        else {
+    for d in [Vec3::new(0.0, 0.0, 1.0)] {
+        let WallRoots::Two(ts, _) = line_sphere_roots(
+            geom::Line {
+                origin: q,
+                dir: geom::stated_direction(d),
+            },
+            c,
+            r,
+            band(),
+            About::Start,
+        )
+        .unwrap() else {
             panic!("the line along {d:?} crosses the sphere");
         };
         for t in ts {
@@ -556,7 +568,7 @@ fn a_line_through_a_sphere_has_two_roots_on_it_and_a_clear_one_misses() {
             line_sphere_roots(
                 geom::Line {
                     origin: Point3::new(0.5, 0.0, 0.0),
-                    dir: d
+                    dir: geom::stated_direction(d)
                 },
                 c,
                 r,
@@ -570,7 +582,7 @@ fn a_line_through_a_sphere_has_two_roots_on_it_and_a_clear_one_misses() {
             line_sphere_roots(
                 geom::Line {
                     origin: Point3::new(0.3, 0.0, 0.0),
-                    dir: d
+                    dir: geom::stated_direction(d)
                 },
                 c,
                 r,

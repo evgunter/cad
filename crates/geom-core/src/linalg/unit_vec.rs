@@ -31,10 +31,37 @@
 //!   or axis): its length is decided levered by an arm, a positive
 //!   length the caller names, with its own refusals
 //!   ([`LeveredUnitError`]).
-//! - `-u` — negation is exact at every scalar.
+//! - [`UnitVec3::squared`] — a direction squared with no decision, poison
+//!   where its length is zero; [`UnitVec3::chord`] is the chord's
+//!   spelling of it, `v / |v|` beside `|v|`.
+//! - **The construction doors**, each naming the construction that makes
+//!   its value unit over the reals: [`UnitVec3::through_isometry`] (an
+//!   isometry's image), [`RigidMotion::swing`](super::RigidMotion::swing)
+//!   (a swing in one frame's plane) and [`UnitVec3::half_turned`] (a half
+//!   turn about a unit axis). Each MEASURES what it made at a point
+//!   scalar: within the rounding [`UnitVec3::stated`] charges the bits
+//!   are kept, past it the value is squared (so a chain of rounded
+//!   images does not drift off unit, and the door reports the length it
+//!   divided by for a parameter that runs along the direction), and past
+//!   any rounding, or not finite, it is poison. The check runs in a
+//!   release build as in a debug one. **At an enclosure kind the doors
+//!   rely on the caller's construction**: its argument, that every value
+//!   the inputs enclose makes a unit vector, is what makes the result an
+//!   enclosure of one. The doors refute only a box whose bracket of
+//!   `v·v − 1` excludes zero; a point box of a rounded unit vector, which
+//!   encloses none, usually passes that test, so a caller lifting an
+//!   `f64` direction lifts it as a direction ([`UnitVec3::map_scalar`]),
+//!   never entry by entry.
+//! - [`UnitVec3::checked`] — that measurement for a vector whose
+//!   construction has no door of its own (a frame squared into bare
+//!   vectors, a fixture's literal).
+//! - [`UnitVec3::stated`] — a stated `f64` direction adopted as its bits
+//!   where it is unit to rounding, `None` past it.
+//! - `-u`, [`UnitVec3::reversed`] and [`UnitVec3::turned_toward`] —
+//!   negation and a sign chosen are exact at every scalar.
 //! - The exact basis axes ([`UnitVec3::exact_x`], [`UnitVec3::exact_y`],
 //!   [`UnitVec3::exact_z`]), exact by construction rather than by
-//!   decision.
+//!   decision, and [`UnitVec3::signed_permutation`] of a witness.
 //! - The cross product of an orthonormal pair, and a vector a rigid
 //!   motion produced, both private to [`linalg`](super) and both exact
 //!   in the reals by construction — they exist so
@@ -59,28 +86,27 @@
 //!
 //! The deciding doors in [`frame`](super::frame) mint through the
 //! constructor under their own funnel names and map its refusals onto
-//! theirs; nothing else in this crate can produce the type, because the
-//! field is private to this module and no other door here writes it.
+//! theirs; the field is private to this module, so no door but those
+//! listed writes it.
 //!
-//! There is deliberately **no** "check that it is already unit"
-//! constructor: a caller holding a bare vector it believes is unit has
-//! either a decision to record — then the normalizing mint is exactly
-//! that decision, at the cost of one divide that changes no bit of an
-//! already-unit input the format holds exactly — or no decision, in
-//! which case the type has nothing to witness.
+//! **No door adopts a point value on trust.** A caller holding a bare
+//! vector it believes is unit has a construction to name, whose door
+//! measures it at a point scalar, or a decision to record, and then the
+//! normalizing mint is exactly that decision. At an enclosure kind the
+//! construction doors rely on the caller's construction (above), and
+//! each call site states its enclosure argument.
 //!
 //! # What is NOT this type
 //!
-//! A line's `dir` (`geom::Line`) stays a bare `Vec3`: a line is also an
-//! affine chord whose parameter is scaled by `|dir|`. The carriers'
-//! frames are [`RigidMotion`](super::RigidMotion)s, whose axes are this
-//! type. The 2-D analogue, `profile::path::Dir<T>`, is that crate's own
-//! and is left where it is.
+//! The carriers' frames are [`RigidMotion`](super::RigidMotion)s, whose
+//! axes are this type, and a line's `dir` (`geom::Line`) is this type,
+//! its parameter arc length. The 2-D analogue, `profile::path::Dir<T>`,
+//! is that crate's own and is left where it is.
 
 use core::ops::Neg;
 
 use crate::k_stats::decide;
-use crate::linalg::{LengthOutOfFormat, Vec3};
+use crate::linalg::{LengthOutOfFormat, Mat3, Vec3};
 use crate::predicate::{Band, Decide, Indeterminate, Lever, Margin, Sign};
 use crate::real::{Real, is_finite_length};
 use crate::spline::SpanLocate;
@@ -343,23 +369,23 @@ fn decide_direction_by<T: Decide, A: crate::predicate::MarginTerms>(
     }
 }
 
-impl<T: Real> UnitVec3<T> {
+impl UnitVec3<f64> {
     /// **Whether this is `other` exactly**: every component's difference
-    /// an exact zero of either sign in every channel the scalar carries
-    /// ([`Real::is_exact_zero_in_every_channel`]), so `+0` and `−0` agree,
-    /// and at the dual scalar a pair whose values agree while their
-    /// derivatives differ is not one direction. Structure read as
-    /// structure, not a tolerance decision: the least turn's identity
-    /// (`RigidMotion::least_turn`), the value chart's, and the path
-    /// sweep's still step all ask it.
+    /// zero, of either sign, so `+0` and `−0` agree. Structure read as
+    /// structure, not a tolerance decision, and only at `f64`, where the
+    /// number is all the scalar stands for: a scalar that stands for more
+    /// (an enclosure, a tangent, a form in symbols) has no exact read off
+    /// one value. The path sweep's still step asks it.
     #[must_use]
     pub fn is_exactly(self, other: Self) -> bool {
         let (a, b) = (self.0, other.0);
         [a.x - b.x, a.y - b.y, a.z - b.z]
             .into_iter()
-            .all(Real::is_exact_zero_in_every_channel)
+            .all(|d| d == 0.0)
     }
+}
 
+impl<T: Real> UnitVec3<T> {
     /// The direction itself, unit.
     #[must_use]
     pub fn get(self) -> Vec3<T> {
@@ -605,6 +631,226 @@ impl<T: Decide> UnitVec3<T> {
         decide_direction_by(v, site, band, |v| Margin::levered(v.norm(), arm))
             .map(Self)
             .map_err(LeveredUnitError::Direction)
+    }
+}
+
+/// How far past its rounding an `f64` image of a unit vector may stand
+/// and still be squared rather than refused: `√ε`, about `1.5e-8`. One
+/// isometry's image of a unit vector stands within a few
+/// [`crate::rounding_charge`]s of unit, and a chain of them is squared
+/// back each time it passes the charge, so no chain of rounding reaches
+/// this; a value past it is no image of a unit vector, and the door
+/// answers it poisoned.
+pub(in crate::linalg) const SQUARING_REACH: f64 = 1.490_116_119_384_765_6e-8;
+
+/// What a door made of a vector its construction says is unit
+/// ([`UnitVec3::kept_or_squared`]).
+enum Measured {
+    /// Unit within its rounding, or an enclosure that holds a unit
+    /// vector: its bits kept.
+    Kept,
+    /// Past its rounding at a point scalar, within `√ε`:
+    /// squared.
+    Squared,
+    /// Refuted: not finite, an enclosure that holds no unit vector, or
+    /// a point past [`SQUARING_REACH`].
+    Refuted,
+}
+
+impl<T: Real> UnitVec3<T> {
+    /// **A vector its construction says is unit, measured**: the
+    /// release-time check every construction door below runs.
+    ///
+    /// - At an enclosure kind ([`Witness::Exact`](crate::Witness::Exact))
+    ///   the construction's argument stands over every value its inputs
+    ///   enclose, so the bits are kept, unless the bracket of `v·v − 1`
+    ///   excludes zero or is unreadable, which refutes it.
+    /// - At a point kind ([`Witness::Inexact`](crate::Witness::Inexact))
+    ///   the defect `|v·v − 1|` is measured against
+    ///   [`UnitVec3::stated`]'s charge, `rounding_charge(v·v + 1)`. Within
+    ///   it the bits are kept; past it, within `√ε`, the
+    ///   value is squared, so a chain of rounded constructions does not
+    ///   drift off unit; beyond, or not finite, it is refuted.
+    ///
+    /// A refuted vector is answered poisoned, never adopted, in a release
+    /// build as in a debug one.
+    fn measured(v: Vec3<T>) -> Measured {
+        let n = v.dot(v);
+        let (Some((lo, hi)), Some((_, top))) = (
+            (n - T::one()).told_reading().ends(),
+            n.told_reading().ends(),
+        ) else {
+            return Measured::Refuted;
+        };
+        if !(lo.is_finite() && hi.is_finite() && top.is_finite()) {
+            return Measured::Refuted;
+        }
+        match T::WITNESS {
+            crate::Witness::Exact => {
+                if lo <= 0.0 && 0.0 <= hi {
+                    Measured::Kept
+                } else {
+                    Measured::Refuted
+                }
+            }
+            crate::Witness::Inexact => {
+                let defect = lo.abs().max(hi.abs());
+                if defect <= crate::rounding_charge(top.abs() + 1.0) {
+                    Measured::Kept
+                } else if defect <= SQUARING_REACH {
+                    Measured::Squared
+                } else {
+                    Measured::Refuted
+                }
+            }
+        }
+    }
+
+    /// [`Self::measured`]'s verdict carried out: the direction, and the
+    /// length its value was divided by (`one` where its bits are kept),
+    /// which a caller whose parameter runs along the direction scales
+    /// that parameter by.
+    pub(in crate::linalg) fn kept_or_squared(v: Vec3<T>) -> (Self, T) {
+        match Self::measured(v) {
+            Measured::Kept => (Self(v), T::one()),
+            Measured::Squared => {
+                let (d, len) = v.direction_and_length();
+                (Self(d), len)
+            }
+            Measured::Refuted => (Self::poisoned(), crate::poison()),
+        }
+    }
+
+    /// The direction every component of which is poison: a refused
+    /// construction's answer.
+    fn poisoned() -> Self {
+        Self(Vec3::new(crate::poison(), crate::poison(), crate::poison()))
+    }
+
+    /// **This direction's image under an isometry's linear part**: a
+    /// rigid motion's rotation, or a reflection's Householder matrix.
+    /// Unit over the reals for every orthogonal `linear`, so at an
+    /// enclosure kind the image keeps its bits; at a point scalar the
+    /// rounding of the product is measured, and an image a chain of maps
+    /// has carried past its rounding is squared (the module docs'
+    /// measurement). The second value is the length the image was divided
+    /// by, `one` where its bits are kept: a line carried by the map scales
+    /// its parameter by it.
+    ///
+    /// **It accepts any [`Mat3`]**, and only its callers' types keep a
+    /// non-isometry out: a `RigidMotion`'s linear part, a `Reflection`'s.
+    /// A `linear` off orthogonal by more than any rounding (past `√ε`) is
+    /// refuted, the image answered poisoned; one off by less is read as a
+    /// stretch, so `(1 + 1e-9)·I` returns its image squared and a stretch
+    /// of `1 + 1e-9`, not a refusal.
+    #[must_use]
+    pub fn through_isometry(self, linear: Mat3<T>) -> (Self, T) {
+        Self::kept_or_squared(linear * self.0)
+    }
+
+    /// **This direction turned a half turn about the unit `axis`**:
+    /// `2(u·â)â − u`, the rotation by `π` with no trigonometry to round,
+    /// unit over the reals; its rounding is measured as
+    /// [`Self::through_isometry`]'s is, and squared past it.
+    #[must_use]
+    pub fn half_turned(self, axis: Self) -> Self {
+        let (u, a) = (self.0, axis.0);
+        Self::kept_or_squared(a * (T::from_f64(2.0) * u.dot(a)) - u).0
+    }
+
+    /// **The unit chord along `v`, and its length**: `v / |v|` and `|v|`
+    /// ([`Vec3::direction_and_length`], read through its one prescale),
+    /// unit over the reals wherever `v` is not zero. Nothing is decided
+    /// and nothing measured, so no band and no refusal, in a release build
+    /// as in a debug one. A zero chord has no direction: its quotient is
+    /// `0/0`, poison, beside its true length, zero, which a span reader
+    /// refuses typed. A chord with an entry that is not finite, or whose
+    /// length overflows the format, has neither: the direction and the
+    /// length are both poison, never one component of them. An
+    /// overflowing chord of finite entries has a direction the prescale
+    /// reads, but it is poisoned with its length all the same: a chord
+    /// is the span `(0, |v|)` a segment stands on, and a chord longer
+    /// than the format is no segment the kernel holds: its ends stand
+    /// far past any session box. A finite direction beside a poisoned
+    /// length would only move the refusal to the span's reader.
+    #[must_use]
+    pub fn chord(v: Vec3<T>) -> (Self, T) {
+        let (d, len) = v.direction_and_length();
+        let finite = |x: T| {
+            x.told_reading()
+                .ends()
+                .is_some_and(|(lo, hi)| lo.is_finite() && hi.is_finite())
+        };
+        if finite(len) && finite(v.x) && finite(v.y) && finite(v.z) {
+            (Self(d), len)
+        } else {
+            (Self::poisoned(), crate::poison())
+        }
+    }
+
+    /// **This direction reversed, its zeros positive**: `0 − u`, exact at
+    /// every scalar as negation is, except that a zero component is
+    /// `+0` rather than [`Neg`]'s `−0`.
+    #[must_use]
+    pub fn reversed(self) -> Self {
+        Self(Vec3::zero() - self.0)
+    }
+
+    /// **This direction or its reverse, whichever agrees with `like`**:
+    /// [`Vec3::turned_toward`], a scaling by an exact `±1`, so the result
+    /// is unit exactly as this one is. An enclosure that does not decide
+    /// the sign turns by the hull `[−1, 1]`, whose image holds both
+    /// directions.
+    #[must_use]
+    pub fn turned_toward(self, like: Vec3<T>) -> Self {
+        Self(self.0.turned_toward(like))
+    }
+
+    /// **A direction unit to rounding, checked**: the construction doors'
+    /// measurement of `v` (module docs), its bits kept within its rounding,
+    /// squared past it within `√ε`, and poisoned beyond or where it is not
+    /// finite, in a release build as in a debug one. The door for a
+    /// vector whose unit length is a premise none of the typed doors
+    /// names (a frame squared into bare vectors, a fixture's literal); a
+    /// caller that can name its construction calls that construction's
+    /// door, and one with a vector it merely holds has a decision to make
+    /// ([`UnitVec3::new`]).
+    ///
+    /// **At an enclosure kind it relies on the caller's construction**:
+    /// it keeps any box whose bracket of `v·v − 1` holds zero, which a
+    /// point box of a rounded unit vector, enclosing no unit vector,
+    /// usually does. Each caller at an enclosure scalar states why its
+    /// box encloses a unit vector: a normalization or a Gram–Schmidt
+    /// step run in interval arithmetic, an orthonormal frame's axes
+    /// weighted by a sine and cosine, a witness's sign turned.
+    #[must_use]
+    pub fn checked(v: Vec3<T>) -> Self {
+        Self::kept_or_squared(v).0
+    }
+}
+
+impl UnitVec3<f64> {
+    /// **A stated `f64` direction adopted as its bits**: `v` itself where
+    /// it is unit within its own rounding, and `None` where it is not.
+    /// Within its rounding is the frame door's column test
+    /// ([`RigidMotion::check_rigid`](super::RigidMotion::check_rigid)):
+    /// the defect `|v·v − 1|`, measured, at most
+    /// [`crate::rounding_charge`] of its terms `v·v + 1`, which is
+    /// [`crate::SHORT_CHAIN_ULPS`] half-ulps of 2. A non-finite
+    /// component, or a defect beyond the charge, is no unit direction.
+    ///
+    /// It decides nothing and squares nothing: a direction that is unit
+    /// to rounding keeps every bit, so a reading pinned to the stated
+    /// bits reads them, where [`UnitVec3::squared`] would move the last
+    /// place. A direction the type then carries to another scalar goes
+    /// through [`UnitVec3::map_scalar`]: the polar unit enclosure at
+    /// `Interval`, poison into a lane.
+    #[must_use]
+    pub fn stated(v: Vec3<f64>) -> Option<Self> {
+        let finite = v.x.is_finite() && v.y.is_finite() && v.z.is_finite();
+        let n = v.dot(v);
+        let charge = crate::rounding_charge(n + 1.0);
+        (finite && charge.is_finite() && (n - 1.0).abs() <= charge).then_some(Self(v))
     }
 }
 
@@ -1215,5 +1461,215 @@ mod new_scaled_rows {
         }
         rows::<f64>("f64", band);
         rows::<Interval>("interval", band);
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod stated_rows {
+    use super::{Mat3, UnitVec3, Vec3};
+    use crate::dual::Dual64;
+    use crate::interval::Interval;
+    use crate::real::{Bounds, Real};
+
+    fn bits(v: Vec3<f64>) -> [u64; 3] {
+        [v.x.to_bits(), v.y.to_bits(), v.z.to_bits()]
+    }
+
+    /// `x̂` stretched so that `v·v − 1` is `k` units of roundoff.
+    fn off_unit(k: f64) -> Vec3<f64> {
+        Vec3::new((1.0 + k * f64::EPSILON).sqrt(), 0.0, 0.0)
+    }
+
+    /// **The stated door's tolerance, from both sides**: a direction whose
+    /// `v·v − 1` is within the charge of its terms (`rounding_charge` of
+    /// `v·v + 1`, `16ε` about a unit vector) is adopted bit for bit, and
+    /// one past it is refused, as is a direction that is not a finite
+    /// number or names no direction. Red with the charge halved (the
+    /// `14ε` direction refused) or doubled (the `18ε` one adopted).
+    #[test]
+    fn a_stated_direction_is_adopted_within_its_rounding_and_refused_past_it() {
+        let within = off_unit(14.0);
+        assert!((within.dot(within) - 1.0).abs() > 12.0 * f64::EPSILON);
+        let adopted = UnitVec3::stated(within).expect("14ε: within the 16ε charge");
+        assert_eq!(bits(adopted.get()), bits(within), "adopted bit for bit");
+        let past = off_unit(18.0);
+        assert!((past.dot(past) - 1.0).abs() < 20.0 * f64::EPSILON);
+        assert!(UnitVec3::stated(past).is_none(), "18ε: past the 16ε charge");
+        for (what, v) in [
+            ("the zero vector", Vec3::new(0.0, 0.0, 0.0)),
+            ("a chord", Vec3::new(3.0, 0.0, 4.0)),
+            ("a NaN", Vec3::new(f64::NAN, 0.0, 1.0)),
+            ("an infinity", Vec3::new(f64::INFINITY, 0.0, 0.0)),
+        ] {
+            assert!(UnitVec3::stated(v).is_none(), "{what}: no stated direction");
+        }
+    }
+
+    /// **The stated door keeps a direction's bits where squaring it moves
+    /// them**: the first of a fixed run of normalized directions whose
+    /// square is not itself bit for bit (the corpus stores a few hundred
+    /// line directions a last place off unit) is adopted as stated. Red
+    /// with the door squaring ([`UnitVec3::squared`]) what it adopts.
+    #[test]
+    fn squaring_a_stated_direction_moves_its_bits_and_the_stated_door_does_not() {
+        let mut state: u64 = 0x9e37_79b9_7f4a_7c15;
+        let mut next = || {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            (state >> 11) as f64 / (1u64 << 53) as f64 * 2.0 - 1.0
+        };
+        let moved = (0..10_000)
+            .map(|_| Vec3::new(next(), next(), next()).normalize())
+            .find(|v| bits(UnitVec3::squared(*v).get()) != bits(*v))
+            .expect("some normalized direction squares to other bits");
+        let adopted = UnitVec3::stated(moved).expect("a normalized direction is unit to rounding");
+        assert_eq!(bits(adopted.get()), bits(moved), "the stated bits, kept");
+    }
+
+    /// **A checked direction keeps its bits at every scalar**: a
+    /// construction unit over the reals passes the door as it was made,
+    /// at `f64`, at `Interval` (an enclosure of a unit vector, the polar
+    /// lift of a stated one) and at `Dual`, its tangent channel included,
+    /// and the length it reports is exactly one. Red under the door
+    /// squaring what it keeps.
+    #[test]
+    fn a_checked_direction_keeps_its_bits_at_every_scalar() {
+        let (s, c) = 0.3_f64.sin_cos();
+        let v = Vec3::new(s, 0.0, c);
+        assert_eq!(bits(UnitVec3::checked(v).get()), bits(v), "f64");
+        // At `Interval` from a genuine enclosure: the polar lift of the
+        // stated direction, which a point box of its entries is not.
+        let iv = UnitVec3::stated(v)
+            .unwrap()
+            .map_scalar(Interval::from_f64)
+            .get();
+        let got = UnitVec3::checked(iv).get();
+        assert!(
+            [got.x, got.y, got.z]
+                .iter()
+                .zip([iv.x, iv.y, iv.z])
+                .all(|(a, b)| a.lo() == b.lo() && a.hi() == b.hi()),
+            "Interval: {got:?}"
+        );
+        let t = Dual64::variable(0.3);
+        let (ds, dc) = t.sin_cos();
+        let dv = Vec3::new(ds, Dual64::constant(0.0), dc);
+        let got = UnitVec3::checked(dv).get();
+        assert!(
+            got.x.value == s && got.x.deriv == c && got.z.deriv == -s,
+            "Dual: {got:?}"
+        );
+        let (_, one) = UnitVec3::checked(v).through_isometry(Mat3::identity());
+        assert_eq!(one.to_bits(), 1.0_f64.to_bits(), "kept, so no stretch");
+    }
+
+    /// **A refuted direction is poison in every build**: a chord of
+    /// length 5, a NaN entry, and an enclosure that holds no unit vector
+    /// each come out of the door poisoned, never a direction carried on,
+    /// with no debug assertion between; a chord whose length overflowed or
+    /// with an infinite entry is poison whole, its length too, and a zero
+    /// chord's direction is poison beside its length, zero. Red under the
+    /// door adopting a value its measurement refutes, and under the chord
+    /// keeping a half-poisoned direction.
+    #[test]
+    fn a_refuted_direction_is_poison_in_every_build() {
+        let poisoned = |u: UnitVec3<f64>| {
+            let u = u.get();
+            u.x.is_nan() && u.y.is_nan() && u.z.is_nan()
+        };
+        assert!(
+            poisoned(UnitVec3::checked(Vec3::new(3.0, 0.0, 4.0))),
+            "a chord"
+        );
+        assert!(
+            poisoned(UnitVec3::checked(Vec3::new(f64::NAN, 0.0, 1.0))),
+            "NaN"
+        );
+        for (v, what) in [
+            (
+                Vec3::new(1.7e308, 1.7e308, 0.0),
+                "a chord whose length overflows",
+            ),
+            (Vec3::new(f64::INFINITY, 1.0, 0.0), "an infinite entry"),
+        ] {
+            let (d, len) = UnitVec3::chord(v);
+            assert!(poisoned(d) && len.is_nan(), "{what}: {d:?}, {len}");
+        }
+        let (d, len) = UnitVec3::chord(Vec3::new(0.0, 0.0, 0.0));
+        assert!(poisoned(d) && len == 0.0, "a zero chord: {d:?}, {len}");
+        let far = Vec3::new(1.0, 0.0, 0.0).map(|x| Interval::from_bounds(x + 0.5, x + 0.6));
+        let got = UnitVec3::checked(far).get();
+        assert!(
+            [got.x, got.y, got.z]
+                .iter()
+                .all(|e| e.told_reading().ends().is_none()),
+            "an enclosure off the sphere: {got:?}"
+        );
+    }
+
+    /// **An image past its rounding is squared, and says by how much**: a
+    /// direction `1 + 40ε` long, past the door's `16ε` charge and far
+    /// inside its reach, comes out squared, unit to rounding, with the
+    /// length it was divided by; one within the charge keeps its bits
+    /// and reports exactly one. Red under the door keeping what it should
+    /// square, and under it squaring what it should keep.
+    #[test]
+    fn an_image_past_its_rounding_is_squared_and_says_by_how_much() {
+        let long = Vec3::new(0.6, 0.8, 0.0) * (1.0 + 40.0 * f64::EPSILON);
+        let (u, len) = UnitVec3::checked(Vec3::new(0.6, 0.8, 0.0)).through_isometry(
+            Mat3::<f64>::identity().map(|x: f64| x * (1.0 + 40.0 * f64::EPSILON)),
+        );
+        assert!(
+            UnitVec3::stated(u.get()).is_some(),
+            "squared to unit: {u:?}"
+        );
+        assert!((len - long.norm()).abs() <= 2.0 * f64::EPSILON, "{len}");
+        assert!(len > 1.0 + 30.0 * f64::EPSILON, "a stretch reported: {len}");
+        let near = Vec3::new(0.6, 0.8, 0.0) * (1.0 + 2.0 * f64::EPSILON);
+        let (kept, one) = UnitVec3::checked(Vec3::new(0.6, 0.8, 0.0))
+            .through_isometry(Mat3::<f64>::identity().map(|x: f64| x * (1.0 + 2.0 * f64::EPSILON)));
+        assert_eq!(bits(kept.get()), bits(near), "kept within the charge");
+        assert_eq!(one.to_bits(), 1.0_f64.to_bits());
+    }
+
+    /// **The lift of a stated direction, per target** (D2's read): to
+    /// `Interval` the polar enclosure of the unit vector nearest the
+    /// stored one, which holds the stored bits; carried as it is between
+    /// two scalars of one kind.
+    #[test]
+    fn a_stated_direction_lifts_to_its_enclosure_and_within_its_kind() {
+        let v = UnitVec3::stated(Vec3::new(0.6, 0.8, 0.0)).unwrap();
+        let at = v.map_scalar(Interval::from_f64).get();
+        for (e, x) in [(at.x, 0.6), (at.y, 0.8), (at.z, 0.0)] {
+            assert!(e.lo() <= x && x <= e.hi(), "the enclosure holds {x}: {e:?}");
+        }
+        let kept = v.map_scalar(|x: f64| x).get();
+        assert_eq!(bits(kept), bits(v.get()), "f64 to f64, as it is");
+        let lane = UnitVec3::checked(Vec3::new(
+            Dual64::constant(0.6),
+            Dual64::constant(0.8),
+            Dual64::constant(0.0),
+        ));
+        let same = lane.map_scalar(|x: Dual64| x).get();
+        assert!(
+            same.x.value == 0.6 && same.y.value == 0.8,
+            "Dual to Dual, as it is"
+        );
+    }
+
+    /// **No read carries a stated direction into another kind's lane**:
+    /// `f64` to a `Dual` over `Interval` fails a debug assertion (a release
+    /// build answers poison). Into `f64`'s own lane, `Dual<f64>`, it is
+    /// carried as it is, a constant.
+    #[test]
+    #[cfg(debug_assertions)]
+    #[should_panic(expected = "no read carries a direction into a lane")]
+    fn a_stated_direction_does_not_lift_into_another_kinds_lane() {
+        let v = UnitVec3::stated(Vec3::new(0.6, 0.8, 0.0)).unwrap();
+        let constant = v.map_scalar(Dual64::constant).get();
+        assert!(constant.x.value == 0.6 && constant.x.deriv == 0.0);
+        let _ = v.map_scalar(|x| crate::dual::Dual::<Interval>::constant(Interval::from_f64(x)));
     }
 }

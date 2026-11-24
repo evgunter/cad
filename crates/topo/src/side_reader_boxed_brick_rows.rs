@@ -434,7 +434,11 @@ fn lined_brick(top: Boxed, tol: Tol) -> Body<Boxed> {
                     .expect("a point")
             });
             let mut spec = geom_brep::EdgeCurveSpec::line_between(ends[0], ends[1]);
-            spec.carrier = geom::Curve3::line(ends[0], dir.map(Boxed::from_f64));
+            spec.carrier = geom::Curve3::line(
+                ends[0],
+                // An axis direction of the unit brick: unit, exactly.
+                geom_core::UnitVec3::checked(dir.map(Boxed::from_f64)),
+            );
             spec.param_end = if dir.z == 0.0 {
                 Boxed::from_f64(1.0)
             } else {

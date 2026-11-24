@@ -374,7 +374,8 @@ fn a_member_source_redefined_onto_a_family_of_another_rank() {
 }
 
 /// A pattern of a plain copy of a body source, the source redefined onto a
-/// family: the pattern would repeat a family.
+/// family a binder yields: the copy's placement takes one body (D10
+/// `[repetition]`), so the redefinition is refused by kind at it.
 #[test]
 fn a_pattern_of_a_copy_whose_source_becomes_a_family() {
     let doc = ProfileDoc::empty_derived("rc-pattern-of-copy", Tol::witness());
@@ -385,35 +386,48 @@ fn a_pattern_of_a_copy_whose_source_becomes_a_family() {
     let (doc, _, _) = crate::fixture::row(doc, c, ("m", 2), editor_core::TargetAxis::Y, 2.0);
     let got = define(&doc, "S", VarDecl::source(Operand::Node(row)));
     assert!(
-        matches!(got, Err(EditError::IndicesUnrelated { .. })),
+        matches!(
+            got,
+            Err(EditError::SlotVarKind {
+                found: editor_core::VarKind::Bodies,
+                ..
+            })
+        ),
         "{:?}",
         got.map(|_| ())
     );
 }
 
-/// **A member placement's `on` side selecting its family source**
-/// (`matetool::on_read` writes `Var(source)` for members too):
-/// `m = place(S[2])` into the world, its mate `on` side a plane of
-/// `S.bottom` (the family source whole, as the placement editor writes
-/// it), onto the floor: admitted, and it evaluates.
+/// **A member placement's `on` side selecting its member source**: `u =
+/// row[2]` (VARIABLES VR4), `m = place(u)` into the world, its mate `on`
+/// side a plane of `u.bottom`, onto the floor: admitted, and it
+/// evaluates. A family reads whole (D10 `[repetition]`), so the side
+/// reads the member through its own source.
 #[test]
-fn a_member_placements_on_side_in_its_family_source() {
+fn a_member_placements_on_side_in_its_member_source() {
     use crate::fixture::{flip, floor, fname, mate, plane, squared};
     let doc = ProfileDoc::empty_derived("rc-member-on", Tol::witness());
     let (doc, b) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, _, row) = crate::fixture::row(doc, b, ("k", 3), editor_core::TargetAxis::X, 2.0);
     let (doc, ground, _) = floor(doc, Vec::new());
+    let doc = declared(
+        doc,
+        "u",
+        VarDecl::source(BodyRead::indexed(
+            Operand::Node(row),
+            vec![Formula::count(2)],
+        )),
+    );
     let (doc, copy) = insert(
         doc,
         Node::place(
-            BodyRead::indexed(row, vec![Formula::count(2)]),
+            BodyRead::plain(name("u")),
             Operand::Var(VarId::WORLD),
             editor_core::stand().bundle(),
         ),
     );
-    let source = doc.copied_read(copy).expect("a source");
     let bottom = fname(b, RoleSeg::Cap(CapEnd::Start));
-    let on = Operand::select(Operand::Var(source), vec![bottom]);
+    let on = Operand::select(name("u"), vec![bottom]);
     let placed_by = squared(&doc, mate(plane(on), flip(ground)), &[]);
     let written = doc
         .apply(

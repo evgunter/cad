@@ -5373,6 +5373,27 @@ impl<T: Real> Real for Sym<T> {
         self.unary(self.value.sqrt(), SymOp::Sqrt, 0)
     }
 
+    /// The plain formula's form, carrying `T`'s value
+    /// ([`Real::difference_dot`]): the same real, read to its digits.
+    fn difference_dot(q: [Self; 3], o: [Self; 3], n: [Self; 3]) -> Self {
+        let plain = crate::real::plain_difference_dot(q, o, n);
+        Sym {
+            value: T::difference_dot(q.map(|x| x.value), o.map(|x| x.value), n.map(|x| x.value)),
+            node: plain.node,
+        }
+    }
+
+    /// The plain formula's form, carrying `T`'s value
+    /// ([`Real::harmonic_belly`]): the same real, read to its digits.
+    fn harmonic_belly(curve: crate::StoredHarmonic<Self>, o: [Self; 3], n: [Self; 3]) -> Self {
+        let plain = crate::real::plain_harmonic_belly(curve, o, n);
+        let value = |p: [Self; 3]| p.map(|x| x.value);
+        Self {
+            value: T::harmonic_belly(curve.map(|x| x.value), value(o), value(n)),
+            node: plain.node,
+        }
+    }
+
     fn abs(self) -> Self {
         self.unary(self.value.abs(), SymOp::Abs, 0)
     }
@@ -5383,14 +5404,6 @@ impl<T: Real> Real for Sym<T> {
 
     fn is_bounded(self) -> bool {
         self.value.is_bounded()
-    }
-
-    /// Its numeric channel's every channel: at `Sym<Dual<_>>` the dual's
-    /// derivative too. The symbolic scalar's own exact zero
-    /// ([`crate::real::is_exact_zero`]) reads its poison off that channel
-    /// alone, so the channel's answer already holds it.
-    fn is_exact_zero_in_every_channel(self) -> bool {
-        self.value.is_exact_zero_in_every_channel()
     }
 
     /// **The one scalar that RECORDS** rather than only witnessing —

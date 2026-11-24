@@ -18,8 +18,10 @@
 //!   lanes do not land there: the NURBS lane spends its
 //!   `nurbs_cert::LATTICE_SHARE` of δ on its lattice (its sliver lands
 //!   at δ, its lattice cells at an eighth of it), and the trimmed
-//!   cylinder and trimmed sphere, which have no theorem, size at
-//!   `trimmed::UNPROVED_HEADROOM` of δ.
+//!   lane's analytic arms, which have no theorem, size at
+//!   `trimmed::UNPROVED_HEADROOM` of δ — but for a cylinder or cone face
+//!   it walks (`crate::ruled_walk`), which lands at δ by the theorems at
+//!   [`sagitta_step`] and [`cone_grid_step`].
 //! - a **step** — an increment in a *parameter* (a curve parameter, a
 //!   chart angle, a UV coordinate), always `f64`. Steps come from a
 //!   closed-form deviation bound: [`sagitta_step`] and [`ellipse_step`]
@@ -80,9 +82,11 @@
 //! of δ is a typed choice nothing has measured as the coarsest
 //! (`work/tesslane/the-nurbs-lattice-share-is-not-chosen-by-measurement.md`).
 //! The lanes without a theorem say so at their call sites: the trimmed
-//! cylinder and sphere size at `trimmed::UNPROVED_HEADROOM` of δ, and so
-//! does a cylinder or cone face whose straight side holds a point, which
-//! is the trimmed lane's (`walk::splits_a_straight_side`).
+//! lane's analytic arms size at `trimmed::UNPROVED_HEADROOM` of δ. A
+//! cylinder or cone face whose straight side holds a point is the
+//! trimmed lane's (`walk::splits_a_straight_side`), which walks it
+//! (`crate::ruled_walk`) at δ, by the theorems at [`sagitta_step`] and
+//! [`cone_grid_step`].
 //!
 //! **One sizing question has a separate ratified answer**:
 //! `docs/TESS-BUDGET.md`'s *split schedule's aspect policy*
@@ -423,6 +427,20 @@ pub(crate) fn cap_angular(step: f64) -> f64 {
 /// chord of its extreme azimuths. So the cylinder's worst triangle is
 /// a rim chord's, and a rim chorded at `sagitta_step(δ, r)` lands it
 /// at δ (`cylinder_rim_triangle_lands_at_delta`).
+///
+/// **The chart lane's walk** (`crate::ruled_walk`). A cylinder face
+/// whose straight side holds a point has no CDT: its triangles join its
+/// two rim rows in order of azimuth, and each spans at most one chord of
+/// one row in azimuth (`ruled_walk`'s module docs; held by
+/// `ruled_walk::tests::the_walk_covers_the_face_once_within_one_chord`).
+/// A triangle whose corners lie on rulings within an azimuth range `Δu`
+/// lies in the hull of the cylinder between the range's two end rulings,
+/// whose projection is the circular segment of that chord, so it
+/// certifies at most `r·(1 − cos(Δu/2))`, as above. A point on a side
+/// lies on that side's ruling, a segment of the triangle it divides, so
+/// the triangles it fans lie in that triangle's plane. Rims chorded at
+/// this step (`chords::tighten` at the walked face's δ) land the worst
+/// walked triangle, a rim chord's, at δ.
 pub(crate) fn sagitta_step(target: f64, rho: f64) -> f64 {
     if target < rho {
         cap_angular(2.0 * (1.0 - target / rho).acos())
@@ -495,6 +513,23 @@ pub(crate) fn spiric_step(target: f64, major: f64, minor: f64, offset: f64) -> f
 /// `cos α · ρ_max · (1 − cos(h/2))`; this step solves that for δ,
 /// which is [`sagitta_step`] on the effective radius `ρ_max·cos α`
 /// (`cone_grid_step_lands_the_worst_triangle_at_delta`).
+///
+/// **The chart lane's walk** (`crate::ruled_walk`) holds a cone face
+/// whose straight side holds a point to the same step. Each walked
+/// triangle spans at most one chord of one row in azimuth, the apex
+/// counted as a row of one point (`ruled_walk`'s module docs), so all
+/// three of its corners lie on rulings within one column `h`; each of its
+/// sides is then a chord between radii across at most `h`, sagging at
+/// most `cos α · ρ_max · (1 − cos(h/2))` (`cert::cone_chord_sag`), which
+/// is what [`crate::cert::cert_cone`] reads. The hull view gives the same
+/// bound: a point `Σ λₖ tₖ d(θₖ)` of the triangle, `tₖ` the corners'
+/// slants (the apex's `0`) and `d(θ)` the unit ruling, is `T · Σ μₖ d(θₖ)`
+/// with `T = Σ λₖ tₖ ≤ t_max` and `μ` convex weights, a point of the hull of
+/// the slant-1 circle's arc over the range scaled toward the apex. A
+/// triangle fanned from a side's point, or joining two sides' points on a
+/// one-chord face to the apex (`ruled_walk::Rows::zip_sides`), lies in the
+/// walked triangle it divides, in its plane. The worst walked triangle is a chord of the largest rim against
+/// the next row, certifying at δ where that rim's chords span `h`.
 pub(crate) fn cone_grid_step(target: f64, half_angle: f64, rho_max: f64) -> f64 {
     sagitta_step(target, rho_max * half_angle.cos())
 }
@@ -521,7 +556,12 @@ pub(crate) fn cone_grid_step(target: f64, half_angle: f64, rho_max: f64) -> f64 
 ///
 /// The grid's triangles are cell-halves, and the off-lattice ones
 /// beside a rim or meridian chord point stay within one cell **while
-/// the lattice's UV aspect `h_u/h_v` is under `2√2`**: a triangle on
+/// the lattice's aspect `h_u/h_v`, in the plane the CDT runs in, is
+/// under `2√2`** (the curved lane's plane is its lattice's metric,
+/// `curved::cdt_metric`, where the aspect is within `√2` of one). The
+/// argument is Delaunay's, so it is read in that plane; what it
+/// concludes, a triangle inside one cell, is the same in every plane,
+/// since the scale between them is axis-aligned and affine: a triangle on
 /// two vertically adjacent lattice points and a boundary point a
 /// distance `x` along the row from their column has a circumcircle
 /// that holds the next column's point exactly when
@@ -561,9 +601,18 @@ pub(crate) fn sphere_grid_steps(target: f64, r: f64, widest: f64) -> (f64, f64) 
 }
 
 /// The largest UV aspect `h_u/h_v` [`sphere_grid_steps`] chooses: half
-/// of the `2√2` past which the off-lattice lemma fails, the other half
-/// spent on the `ceil` that can halve `h_v`. **Structural**: it keeps
-/// the lattice in the shape its theorem is stated for.
+/// of the `2√2` past which the off-lattice lemma fails in raw UV, the
+/// other half spent on the `ceil` that can halve `h_v`. **Structural**:
+/// it keeps the lattice in the shape its theorem is stated for. Past
+/// 45° of latitude it sets the steps themselves (the AM–GM optimum
+/// asks a wider `h_u`). The trimmed lane's sphere arm reads it only
+/// through those steps: its CDT runs in the chart's metric at mid
+/// latitude (`chart_table::AnalyticRow::trimmed_metric`), which is not
+/// the lemma's plane, and what holds its triangles is the certificate
+/// (`work/tesslane/the-trimmed-sphere-arm-triangulates-a-raw-uv-lattice-in-the-chart-metric.md`).
+/// On the curved lane, whose CDT runs in its lattice's metric, the
+/// lemma's premise holds at any raw aspect
+/// (`work/tesslane/the-sphere-cell-aspect-cap-was-chosen-for-a-raw-uv-cdt.md`).
 pub(crate) const SPHERE_CELL_ASPECT: f64 = core::f64::consts::SQRT_2;
 
 /// The cosine of a sphere face's latitude nearest the equator: 1 when
@@ -583,6 +632,10 @@ pub(crate) const SPHERE_CELL_ASPECT: f64 = core::f64::consts::SQRT_2;
 /// projected image is a conservative one. The chord pass, the curved lane
 /// and the trimmed lane read it from this one place, through the face's
 /// chart row (`crate::chart_table::ChartRow::of`).
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(crate) fn sphere_face_widest_cos(
     body: &topo::Body<f64>,
     fk: topo::FaceKey,
@@ -680,11 +733,7 @@ fn outer_loop_curves(
     crate::walk::loop_half_edges(body, face.outer, fk)?
         .into_iter()
         .map(|(hek, ek, _)| {
-            let curve = body
-                .get_edge(ek)
-                .and_then(|e| body.get_curve_geom(e.curve))
-                .and_then(|g| g.certified())
-                .ok_or(TessellateError::MissingEntity { what: "edge curve" })?;
+            let curve = crate::walk::edge_curve(body, ek)?;
             Ok((hek, ek, curve))
         })
         .collect()
@@ -1256,6 +1305,133 @@ pub(crate) mod tests {
             worst <= 1.0 + 1e-12,
             "a strip triangle spans {worst} row spacings in azimuth"
         );
+    }
+
+    /// **A walked face's worst triangle lands at δ**
+    /// (`crate::ruled_walk`, the theorem at [`sagitta_step`] and
+    /// [`cone_grid_step`]). Faces in the chart, each walked by
+    /// `ruled_walk::Rows::walk` with three points on each straight side: a
+    /// cylinder face of radius `r` whose rims are chorded at
+    /// `sagitta_step(δ, r)`; a frustum face whose larger rim is chorded at
+    /// `cone_grid_step(δ, α, ρ_max)` and whose smaller rim takes two more
+    /// chords (each within the step, as the chord pass leaves them, and
+    /// not where the larger rim's fall); and a face to the apex. Every
+    /// triangle, read in 3-D at dense barycentric samples of its true
+    /// distance from the surface, lies within δ, and the worst lands at δ
+    /// to a part in a hundred: the step is no finer than the theorem needs.
+    ///
+    /// **What it does not exercise.** The zip of a one-chord face to the
+    /// apex with both sides split (`ruled_walk::Rows::zip_sides`) and a
+    /// side the walk cuts (`trimmed::walk_face`) are not walked here. Both
+    /// keep every triangle between two rulings one chord apart on each
+    /// row, which is what the theorem reads; their triangles are certified
+    /// per triangle on bodies by `split_rulings`'
+    /// `a_one_chord_face_through_the_apex_with_both_sides_split_meshes` and
+    /// `a_walked_face_whose_neighbour_holds_both_rims_shares_no_edge`.
+    #[test]
+    fn a_walked_triangle_lands_at_delta() {
+        use std::collections::HashSet;
+        // A ruled face's walked triangles, each as three 3-D corners.
+        let walk = |rows: [Vec<f64>; 2], v: [f64; 2], span: f64, apex: bool| {
+            let mut p: Vec<(f64, f64, u32)> = Vec::new();
+            let mut line = Vec::new();
+            let mut push = |u: f64, v: f64, is_line: bool, p: &mut Vec<(f64, f64, u32)>| {
+                #[allow(clippy::cast_possible_truncation)]
+                p.push((u, v, p.len() as u32));
+                line.push(is_line);
+            };
+            let n = rows[0].len();
+            for (k, &u) in rows[0].iter().enumerate() {
+                push(u, v[1], k + 1 == n, &mut p);
+            }
+            for t in [0.75, 0.5, 0.25] {
+                push(span, v[0] + (v[1] - v[0]) * t, true, &mut p);
+            }
+            if apex {
+                push(span, 0.0, true, &mut p);
+            } else {
+                let m = rows[1].len();
+                for (k, &u) in rows[1].iter().rev().enumerate() {
+                    push(u, v[0], k + 1 == m, &mut p);
+                }
+            }
+            for t in [0.25, 0.5, 0.75] {
+                push(0.0, v[0] + (v[1] - v[0]) * t, true, &mut p);
+            }
+            let singular: HashSet<u32> = if apex {
+                p.iter().filter(|q| q.1 == 0.0).map(|q| q.2).collect()
+            } else {
+                HashSet::new()
+            };
+            let rows = crate::ruled_walk::Rows::of(&p, &line, &singular).expect("two rows");
+            rows.walk(&p)
+                .into_iter()
+                .map(|t| t.map(|k| (p[k].0, p[k].1)))
+                .collect::<Vec<_>>()
+        };
+        let uniform = |n: usize, span: f64| -> Vec<f64> {
+            #[allow(clippy::cast_precision_loss)]
+            (0..=n).map(|i| span * i as f64 / n as f64).collect()
+        };
+        let sampled = |corners: [[f64; 3]; 3], dist: &dyn Fn([f64; 3]) -> f64| {
+            let mut worst = 0.0_f64;
+            for i in 0..=32 {
+                for j in 0..=(32 - i) {
+                    let (l0, l1) = (f64::from(i) / 32.0, f64::from(j) / 32.0);
+                    let l2 = 1.0 - l0 - l1;
+                    let q: [f64; 3] = core::array::from_fn(|k| {
+                        l0 * corners[0][k] + l1 * corners[1][k] + l2 * corners[2][k]
+                    });
+                    worst = worst.max(dist(q));
+                }
+            }
+            worst
+        };
+        let span = 1.3;
+        for delta in [1e-2, 1e-3, 1e-4] {
+            // The cylinder of radius 2, its rims at heights 0 and 1.
+            let r = 2.0;
+            let h = sagitta_step(delta, r);
+            let n = ceil_count(span, h).unwrap();
+            let at = |(u, z): (f64, f64)| [r * u.cos(), r * u.sin(), z];
+            let worst = walk(
+                [uniform(n, span), uniform(n, span)],
+                [0.0, 1.0],
+                span,
+                false,
+            )
+            .into_iter()
+            .map(|t| sampled(t.map(at), &|q| r - q[0].hypot(q[1])))
+            .fold(0.0_f64, f64::max);
+            assert!(
+                worst <= delta * (1.0 + 1e-9)
+                    && worst >= 0.99 * delta * (span / n as f64 / h).powi(2),
+                "cylinder, δ {delta}: the worst walked triangle lies {worst} off"
+            );
+            for (name, half_angle, apex) in
+                [("frustum", 0.6_f64, false), ("to the apex", 0.3, true)]
+            {
+                let (sa, ca) = half_angle.sin_cos();
+                let (v1, v0) = (2.0 / sa, if apex { 0.0 } else { 1.0 / sa });
+                let h = cone_grid_step(delta, half_angle, v1 * sa);
+                let n = ceil_count(span, h).unwrap();
+                let at = |(u, v): (f64, f64)| [v * sa * u.cos(), v * sa * u.sin(), v * ca];
+                let worst = walk(
+                    [uniform(n, span), uniform(n + 2, span)],
+                    [v0, v1],
+                    span,
+                    apex,
+                )
+                .into_iter()
+                .map(|t| sampled(t.map(at), &|q| (ca * q[0].hypot(q[1]) - sa * q[2]).abs()))
+                .fold(0.0_f64, f64::max);
+                assert!(
+                    worst <= delta * (1.0 + 1e-9)
+                        && worst >= 0.99 * delta * (span / n as f64 / h).powi(2),
+                    "cone {name}, δ {delta}: the worst walked triangle lies {worst} off"
+                );
+            }
+        }
     }
 
     /// **The cone's worst triangle lands at δ** at [`cone_grid_step`]: a

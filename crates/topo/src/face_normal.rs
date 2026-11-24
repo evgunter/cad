@@ -59,8 +59,8 @@
 //! from outside this crate, or hands the bit to a `geom_brep` door
 //! that mints one from gradients of its own. What holds that in place
 //! mechanically is two rows in this file's tests, each naming what it
-//! cannot see: `the_planar_sense_flip_lives_in_one_place` (no other
-//! `topo/src` file re-forks the planar fold) and
+//! cannot see: `the_planar_sense_flip_lives_in_one_place` (no function
+//! in another `topo/src` file re-forks the planar fold) and
 //! `no_source_file_folds_the_bit_by_hand` (no `crates/*/src` file
 //! negates a value under the bit by hand, the sanctioned scalar
 //! negations named).
@@ -243,7 +243,7 @@ fn carrier_desc_on<T: Decide>(
         }),
         geom::Surface::Cylinder { frame, radius, .. } => Some(CarrierDesc::Cylinder {
             origin: frame.origin(),
-            axis: frame.axis(),
+            axis: frame.axis_unit(),
             radius: *radius,
             outward,
         }),
@@ -253,7 +253,7 @@ fn carrier_desc_on<T: Decide>(
             minor_radius,
             ..
         } => {
-            let (center, axis) = (frame.origin(), frame.axis());
+            let (center, axis) = (frame.origin(), frame.axis_unit());
             Some(CarrierDesc::Torus {
                 center,
                 axis,
@@ -265,7 +265,7 @@ fn carrier_desc_on<T: Decide>(
         geom::Surface::Cone {
             frame, half_angle, ..
         } => {
-            let (apex, axis) = (frame.origin(), frame.axis());
+            let (apex, axis) = (frame.origin(), frame.axis_unit());
             Some(CarrierDesc::Cone {
                 apex,
                 axis,
@@ -628,7 +628,7 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
         geom::Surface::Cone {
             frame, half_angle, ..
         } => {
-            let (apex, axis) = (frame.origin(), frame.axis());
+            let (apex, axis) = (frame.origin(), frame.axis_unit());
             let nappe = face_nappe_or_double(body, face, band);
             let elevation = geom_brep::cone_elevation(
                 geom::Line {
@@ -715,7 +715,7 @@ pub(crate) fn face_outward_normal_at_foot<T: Decide>(
             return Ok(Some(plane_outward_normal(f.record(), normal)));
         }
         geom::Surface::Cylinder { frame, .. } => {
-            let (origin, axis) = (frame.origin(), frame.axis());
+            let (origin, axis) = (frame.origin(), frame.axis_unit());
             clear(Margin::norm3(geom::Line { origin, dir: axis }.offset(p)))?;
         }
         geom::Surface::Sphere { frame, .. } => {
@@ -723,7 +723,7 @@ pub(crate) fn face_outward_normal_at_foot<T: Decide>(
             clear(Margin::norm3(p - center))?
         }
         geom::Surface::Cone { frame, .. } => {
-            let (apex, axis) = (frame.origin(), frame.axis());
+            let (apex, axis) = (frame.origin(), frame.axis_unit());
             cone_axis_clearance(
                 geom::Line {
                     origin: apex,
@@ -733,14 +733,14 @@ pub(crate) fn face_outward_normal_at_foot<T: Decide>(
                 band,
             )
             .map_err(|_| FootNormalError::NoFoot { band })?;
-            clear(Margin::of((p - apex).dot(axis)))?;
+            clear(Margin::of((p - apex).dot(axis.get())))?;
         }
         geom::Surface::Torus {
             frame,
             major_radius,
             ..
         } => {
-            let (center, axis) = (frame.origin(), frame.axis());
+            let (center, axis) = (frame.origin(), frame.axis_unit());
             let radial = geom::Line {
                 origin: center,
                 dir: axis,
@@ -1379,10 +1379,13 @@ mod tests {
 
     /// **The anti-re-fork row for the planar sense flip.** The plane
     /// arm of this walk goes through [`crate::face_normal`], the one
-    /// door, and no file under `topo/src` other than that one may both
+    /// door, and no function under `topo/src` outside that file may both
     /// destructure a plane surface pattern for its normal and mint an
     /// [`OutwardNormal`] from a chart — which is what a second flip
-    /// looks like textually. The row reads each file's CODE view
+    /// looks like textually. The unit is the function, not the file: a
+    /// file that folds a general gradient through the door in one
+    /// function and matches a plane in another holds one flip, not two.
+    /// The row reads each file's CODE view
     /// (comments and literals blanked), so it sees mints and not
     /// mentions: a doc comment may name the constructor, which is what
     /// the door's design asks of its callers. (The pattern is spelled
@@ -1408,6 +1411,10 @@ mod tests {
     /// 5. **A mint inside a `macro_rules!` body or assembled from a
     ///    string literal.** The code view blanks literals and does not
     ///    expand macros.
+    /// 6. **A plane matched in one function and minted in a helper it
+    ///    calls.** Neither function holds both halves.
+    /// 7. **A plane match and mint outside any `fn`** — a `static` or
+    ///    `const` initializer, which no `fn` item holds.
     #[test]
     fn the_planar_sense_flip_lives_in_one_place() {
         let home = crate::source_walk::src_root().join("face_normal.rs");
@@ -1422,13 +1429,18 @@ mod tests {
             }
             let text = std::fs::read_to_string(path).expect("a readable source file");
             let code = test_utils::source::code_only(&text);
-            assert!(
-                !(code.contains("Surface::Plane {") && code.contains("from_chart")),
-                "{} mints an OutwardNormal from a plane's chart normal — the planar \
-                 sense flip has been re-forked out of face_normal.rs, which must hold \
-                 the only one. Call `face_outward_normal` instead.",
-                path.display()
-            );
+            let fns = test_utils::source::fn_items(&code)
+                .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+            for (name, body) in fns {
+                let body = &code[body];
+                assert!(
+                    !(body.contains("Surface::Plane {") && body.contains("from_chart")),
+                    "{} `fn {name}` mints an OutwardNormal from a plane's chart normal — \
+                     the planar sense flip has been re-forked out of face_normal.rs, which \
+                     must hold the only one. Call `face_outward_normal` instead.",
+                    path.display()
+                );
+            }
         }
         let here = test_utils::source::code_only(
             &std::fs::read_to_string(&home).expect("the home module is readable"),
@@ -1497,12 +1509,16 @@ mod tests {
     /// signed scalar, which is textually the same shape — each named
     /// with what it negates, so a new hit is either a vector fold that
     /// belongs at a door or a scalar that is added here in the open
-    /// with its reason. The vector class's expected count is zero.
+    /// with its reason. Each entry admits one fold of its key, so a
+    /// second fold of a sanctioned name reds; an entry whose fold has
+    /// gone is not a red: the claim is that no fold stands unnamed.
     ///
     /// Exempt: the constructor's own home (`geom-brep/src/enters.rs`),
-    /// and this file's test module, whose rows spell the expected flip by
-    /// hand on purpose. This file's doors are read like any other file's,
-    /// so a fold in one of them is a hit.
+    /// and every `#[cfg(test)]` or `#[cfg(any(test, …))]` item (a
+    /// `test-support` feature beside `test`), whose rows and helpers spell a flip
+    /// by hand on purpose and reach no material verdict a user sees.
+    /// This file's doors are read like any other file's, so a fold in
+    /// one of them is a hit.
     ///
     /// **What it cannot match**: a bit renamed at a boundary before it
     /// is folded (`side`, `inside`, `reversed` — the blend arms' `sided`
@@ -1511,7 +1527,9 @@ mod tests {
     /// arm whose expression contains a `;` or a brace; a side compared
     /// with `interior_is_left` and not folded under an `if`; a fold in
     /// `crates/*/tests`, `demos/`, `tools/` or `benches/`, which the
-    /// walk does not enter; a macro body. The walk is over the source
+    /// walk does not enter; a fold in a test module mounted from its own
+    /// file (`#[cfg(test)] mod rows;`), which is read as production; a
+    /// macro body. The walk is over the source
     /// tree at test time, so a crate outside `crates/` is not seen.
     #[test]
     fn no_source_file_folds_the_bit_by_hand() {
@@ -1523,7 +1541,7 @@ mod tests {
         // sphere's radial flux term `R·Area` and a closed surface's
         // whole flux, a witness's implicit residual read as its height
         // above the face, an offset distance into the material.
-        let mut sanctioned: Vec<(String, String)> = [
+        let sanctioned: Vec<(String, String)> = [
             ("crates/geom-brep/src/dihedral.rs", "kappa_rel"),
             // A closed surface's whole flux, three times the volume it
             // encloses, for a face whose chart image is empty.
@@ -1539,7 +1557,6 @@ mod tests {
         .into_iter()
         .map(|(f, a)| (f.to_string(), a.to_string()))
         .collect();
-        sanctioned.sort();
         let mut hits = Vec::new();
         let mut walked = 0usize;
         for entry in std::fs::read_dir(root.join("crates")).expect("crates/ is readable") {
@@ -1559,11 +1576,11 @@ mod tests {
                 walked += 1;
                 let text = std::fs::read_to_string(&path).expect("a readable source file");
                 let mut code = test_utils::source::code_only(&text);
-                if rel == "crates/topo/src/face_normal.rs" {
-                    let tests = code
-                        .find("mod tests {")
-                        .expect("face_normal.rs has its test module");
-                    code.truncate(tests);
+                // Blanked in place: the extents nest, so their offsets
+                // must survive one another.
+                for extent in test_utils::source::cfg_test_extents(&code) {
+                    let blank = " ".repeat(extent.len());
+                    code.replace_range(extent, &blank);
                 }
                 for negated in hand_folds_of_sense(&code) {
                     hits.push((rel.clone(), negated));
@@ -1574,12 +1591,26 @@ mod tests {
             walked > 100,
             "the walk saw {walked} files — it is not reading crates/*/src"
         );
-        hits.sort();
-        assert_eq!(
-            hits, sanctioned,
-            "the hand folds under a face's sense bit are not the sanctioned scalars. \
-             A NORMAL folds through `OutwardNormal::from_chart` or a `face_normal` door, \
-             and a genuinely signed scalar joins the list with what it negates."
+        // Each entry is a ceiling on its key's count: a second fold of a
+        // sanctioned scalar in the same file is a new fold, and reds.
+        let tally = |rows: &[(String, String)]| {
+            let mut out = std::collections::BTreeMap::new();
+            for row in rows {
+                *out.entry(row.clone()).or_insert(0usize) += 1;
+            }
+            out
+        };
+        let admitted = tally(&sanctioned);
+        let unnamed: Vec<_> = tally(&hits)
+            .into_iter()
+            .filter(|(key, n)| *n > admitted.get(key).copied().unwrap_or(0))
+            .collect();
+        assert!(
+            unnamed.is_empty(),
+            "hand folds under a face's sense bit that are not sanctioned scalars: \
+             {unnamed:#?}\nA NORMAL folds through `OutwardNormal::from_chart` or a \
+             `face_normal` door, and a genuinely signed scalar joins the list with what \
+             it negates."
         );
     }
 

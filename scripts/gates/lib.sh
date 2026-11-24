@@ -18,6 +18,9 @@
 # Repo root, derived from this file's location (scripts/gates/lib.sh).
 GATE_REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 GATE_ROOT=$GATE_REPO_ROOT
+# Where the Python gates import their shared lexer (`rust_strip.py`) from,
+# whichever root they scan.
+export GATE_LIB_DIR=$GATE_REPO_ROOT/scripts/gates
 GATE_SELFTEST=false
 GATE_SCAN_FILES=0
 # Filled in by gate_require_crate_sources, so a gate reads the same file
@@ -46,6 +49,9 @@ GATE_ROW_CITATION_ERE='work/[a-z0-9-]+/[A-Za-z0-9_.-]*[A-Za-z0-9]'
 # `gate_base_file`'s copy of a file at the merge base, named and removed
 # the same way.
 GATE_BASE_FILE=${TMPDIR:-/tmp}/gate-base.$$
+# Where a gate keeps a view too large to hold in a shell variable
+# (`$GATE_VIEW_FILE.<name>`), named and removed the same way.
+GATE_VIEW_FILE=${TMPDIR:-/tmp}/gate-view.$$
 
 gate_parse_args() {
   while [ $# -gt 0 ]; do
@@ -247,7 +253,7 @@ gate_grep() {
 # otherwise delete its own evidence on the way out.
 gate_matcher_marker_cleanup() {
   if [ "${BASHPID:-$$}" = "$$" ]; then
-    rm -f "$GATE_MATCHER_FAILED" "$GATE_BASE_FILE"
+    rm -f "$GATE_MATCHER_FAILED" "$GATE_BASE_FILE" "$GATE_VIEW_FILE".*
   fi
   return 0
 }
@@ -481,6 +487,7 @@ gate_rust_code() {
     esac
   done
   [ $# -gt 0 ] || return 0
+  gate_view_cache_serve "c${skip_cfg_test}l${keep_literals}-$mode$window" "$@" && return 0
   GATE_CFG_TEST_RE="$GATE_CFG_TEST_RE" GATE_CFG_TEST_NOT_RE="$GATE_CFG_TEST_NOT_RE" \
   awk -v SKIPTEST="$skip_cfg_test" -v MODE="$mode" -v WIN="$window" \
       -v KEEPLIT="$keep_literals" '
@@ -719,6 +726,209 @@ gate_rust_code() {
   [ "$status" -eq 0 ] && return 0
   gate_reader_died_refusal "the shared Rust reader" "$status" \
     "The code view is short of the files the caller handed it."
+}
+
+# --- THE VIEW CACHE: ONE READ OF THE TREE PER RUN ----------------------
+#
+# `scripts/run-gates.sh` runs every gate in this directory, and most of
+# them read the same files through the same few views. Each view is a
+# pure function of one file's bytes and the reader's flags — every
+# lexer, skip and statement state resets at a file's first line and is
+# flushed when the next file starts — so the view of a file list is the
+# concatenation of each file's own view, in the order asked. The cache
+# holds exactly that: the reader above, run once per view over every
+# `.rs` file in the tree, and its output cut at the file boundaries.
+# `gate_rust_code` serves a call from it when, and only when, every file
+# the call names is in it and unchanged; any other call reads the tree
+# as it always did. The test-only mount set (`gate_test_only_mounts`) is
+# held the same way, keyed by the exact file list it was asked about.
+#
+# `GATE_VIEW_CACHE` NAMES THE CACHE, and `run-gates.sh` sets it for a
+# plain run only. Unset, nothing here runs. SET, IT IS A CLAIM, and a
+# claim that does not hold is a refusal and never a quiet fallback: a
+# directory that is gone or that its builder did not finish, or an entry
+# missing from it, stops the gate through the marker, because a view
+# served from it would be short by what is missing.
+#
+# WHAT DECIDES A HIT. The cache's root is the directory the gate is in
+# (`--root` elsewhere — every self-test fixture — reads the tree
+# directly). Each file's path is the string the caller passed, matched
+# exactly, so `./crates/x.rs` beside an indexed `crates/x.rs` is a miss,
+# not a guess. Each file's `stat` (device, inode, size, mtime and ctime
+# to the nanosecond) is the one taken when its view was cut, so a file
+# written after the build is a miss. A path carrying a `:`, a tab or a
+# newline is not indexed, so the cut at the first `:` of a record is
+# where its file column ends. The same file named twice in a row is a
+# miss too: the reader carries a statement or window across that seam,
+# and the concatenation would not.
+#
+# `view-cache-agrees.sh` is the evidence: plain, every cached view of
+# the tree against the reader's own; under `--selftest`, the same over a
+# fixture built to break the cut, and each refusal above.
+GATE_VIEW_CACHE_VIEWS=(
+  ''
+  '--skip-cfg-test'
+  '--statements'
+  '--skip-cfg-test --statements'
+)
+GATE_VIEW_CACHE_STAT='%d:%i:%s:%.9Y:%.9Z\n'
+
+# The key `gate_rust_code` files a view under, from the same flags.
+gate_view_cache_key() {
+  local skip=0 keep=0 mode=lines window=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --skip-cfg-test) skip=1; shift ;;
+      --keep-literals) keep=1; shift ;;
+      --statements) mode=statements; shift ;;
+      --window) mode=window; window=$2; shift 2 ;;
+      *) return 2 ;;
+    esac
+  done
+  printf 'c%sl%s-%s%s\n' "$skip" "$keep" "$mode" "$window"
+}
+
+gate_view_cache_refusal() {
+  gate_error "$(gate_name): GATE_VIEW_CACHE=$GATE_VIEW_CACHE $1, so the views it would serve are unknown — that is not a scan. Unset GATE_VIEW_CACHE to read the tree directly."
+  : >> "$GATE_MATCHER_FAILED"
+  exit 1
+}
+
+# Status 0 when the cache serves the gate's working directory, 1 when no
+# cache is named or it was built for another root; a cache named but not
+# complete is the refusal.
+gate_view_cache_applies() {
+  [ -n "${GATE_VIEW_CACHE:-}" ] || return 1
+  if [ ! -f "$GATE_VIEW_CACHE/complete" ] || [ ! -f "$GATE_VIEW_CACHE/root" ]; then
+    gate_view_cache_refusal "names no complete view cache (the directory is gone or its builder did not finish)"
+  fi
+  [ . -ef "$(cat "$GATE_VIEW_CACHE/root")" ]
+}
+
+# gate_view_cache_entries KEY FILE... — the cache entries holding each
+# FILE's view under KEY, one per line in the order given; status 1, and
+# nothing printed, when any FILE is not a hit.
+gate_view_cache_entries() {
+  local key=$1 sigs; shift
+  case "$*" in *$'\n'*) return 1 ;; esac
+  sigs=$(stat -L --printf "$GATE_VIEW_CACHE_STAT" -- "$@" 2>/dev/null) || return 1
+  paste -d '\t' <(printf '%s\n' "$sigs") <(printf '%s\n' "$@") \
+    | awk -F '\t' -v D="$GATE_VIEW_CACHE/$key" '
+        FILENAME == ARGV[1] { id[$3] = $1; sig[$3] = $2; next }
+        NF != 2 || !($2 in id) || sig[$2] != $1 || $2 == prev { bad = 1; exit }
+        { out[++n] = D "/" id[$2]; prev = $2 }
+        END {
+          if (bad) exit 1
+          for (i = 1; i <= n; i++) print out[i]
+        }' "$GATE_VIEW_CACHE/index" -
+}
+
+# gate_view_cache_serve KEY FILE... — `gate_rust_code`'s view of FILE...
+# from the cache, status 0; status 1, and nothing written, when the call
+# is not one the cache answers.
+gate_view_cache_serve() {
+  local key=$1 entries status=0; shift
+  gate_view_cache_applies || return 1
+  case " $(cat "$GATE_VIEW_CACHE/complete") " in *" $key "*) ;; *) return 1 ;; esac
+  entries=$(gate_view_cache_entries "$key" "$@") || return 1
+  local -a list
+  mapfile -t list <<<"$entries"
+  cat -- "${list[@]}" || status=$?
+  [ "$status" -eq 0 ] && return 0
+  gate_view_cache_refusal "is missing an entry its index names (cat exited $status)"
+}
+
+# gate_view_cache_build DIR — run from the root the cache is for; fills
+# DIR, which exists and is empty, and writes `complete` last.
+# Every view is cut at once, beside the mount set.
+gate_view_cache_build() {
+  local dir=$1 flags key status=0
+  local -a paths=() pids=() keys=()
+  unset GATE_VIEW_CACHE
+  mapfile -t paths < <(find . \( -name '.?*' -o -name target \) -prune -o -type f -name '*.rs' \
+      ! -path '*:*' ! -path "*"$'\t'"*" ! -path "*"$'\n'"*" -print | sed 's#^\./##' | LC_ALL=C sort)
+  pwd -P > "$dir/root"
+  if [ "${#paths[@]}" -gt 0 ]; then
+    paste -d '\t' <(seq "${#paths[@]}") \
+      <(stat -L --printf "$GATE_VIEW_CACHE_STAT" -- "${paths[@]}") \
+      <(printf '%s\n' "${paths[@]}") > "$dir/index" || return 1
+  else
+    : > "$dir/index"
+  fi
+  for flags in "${GATE_VIEW_CACHE_VIEWS[@]}"; do
+    # shellcheck disable=SC2086
+    key=$(gate_view_cache_key $flags)
+    # shellcheck disable=SC2086
+    ( mkdir "$dir/$key" && gate_view_cache_cut "$dir" "$key" $flags ) &
+    pids+=("$!"); keys+=("$key")
+  done
+  ( gate_view_cache_mounts "$dir" ) &
+  pids+=("$!"); keys+=(mounts)
+  local i
+  for i in "${!pids[@]}"; do
+    if ! wait "${pids[$i]}"; then
+      printf 'view cache: building %s failed\n' "${keys[$i]}" >&2
+      status=1
+    fi
+  done
+  [ "$status" -eq 0 ] || return 1
+  printf '%s\n' "${keys[*]}" > "$dir/complete"
+}
+
+# One view over every indexed file, cut into one entry per file: the
+# entry is named by the file's index number and holds that file's
+# records, empty for a file with none.
+gate_view_cache_cut() {
+  local dir=$1 key=$2; shift 2
+  local -a paths
+  mapfile -t paths < <(cut -f3- "$dir/index")
+  [ "${#paths[@]}" -gt 0 ] || return 0
+  local GATE_MATCHER_FAILED=$dir/$key.reader-failed
+  gate_rust_code "$@" "${paths[@]}" \
+    | awk -F '\t' -v D="$dir/$key" '
+        FILENAME == ARGV[1] { n++; path[n] = $3; next }
+        {
+          f = substr($0, 1, index($0, ":") - 1)
+          while (k < n && path[k] != f) {
+            if (k > 0) close(D "/" k)
+            k++
+            printf "" > (D "/" k)
+          }
+          if (path[k] != f) { bad = 1; exit }
+          print > (D "/" k)
+        }
+        END {
+          if (bad) { print "view cache: a record names no indexed file at or after " path[k] > "/dev/stderr"; exit 1 }
+          while (k < n) { if (k > 0) close(D "/" k); k++; printf "" > (D "/" k) }
+        }' "$dir/index" - || return 1
+  [ ! -e "$GATE_MATCHER_FAILED" ]
+}
+
+# The test-only mount set of `crates/*/src`, the list
+# `gate_require_crate_sources` reads, keyed by that list and its stats.
+# The resolver runs in a subshell of its own, so a refusal inside it
+# (which exits) ends that subshell and not the build: the set is then
+# not cached, the resolver's own diagnosis goes to the run log, and each
+# gate that asks resolves the set itself and refuses with its own name.
+gate_view_cache_mounts() {
+  local dir=$1
+  local GATE_MATCHER_FAILED=$dir/mounts.resolver-failed
+  local -a src=()
+  [ -d crates ] || return 0
+  mapfile -t src < <(find crates/*/src -type f -name '*.rs' 2>/dev/null | sort)
+  [ "${#src[@]}" -gt 0 ] || return 0
+  if ! (gate_test_only_mounts "${src[@]}") > "$dir/mounts.out" 2> "$dir/mounts.err" \
+      || [ -e "$GATE_MATCHER_FAILED" ]; then
+    rm -f "$dir/mounts.out" "$GATE_MATCHER_FAILED"
+    printf 'view cache: the test-only mount set is not cached, so each gate resolves it itself; the resolver said:\n' >&2
+    cat "$dir/mounts.err" >&2
+    return 0
+  fi
+  gate_view_cache_mounts_key "${src[@]}" > "$dir/mounts.key"
+}
+
+gate_view_cache_mounts_key() {
+  paste -d '\t' <(stat -L --printf "$GATE_VIEW_CACHE_STAT" -- "$@") <(printf '%s\n' "$@")
 }
 
 # --- AN EXACT-TEXT SKIP, ANCHORED AT ITS HOME -------------------------
@@ -1344,61 +1554,78 @@ gate_norm_path() {
 #     are named here, so the raw read is one line long and cannot pick up
 #     a mount the code view does not have.
 #
-# Prints `KIND|CHAIN|PATH_LINE|PATH_INDEX|PATH_COUNT` — `|` and not a
-# tab, because a tab is IFS whitespace and `read` folds a run of it, so
-# an empty CHAIN would shift every field after it by one.
+# `gate_declaration_shapes FILE LINE:NAME...` answers every declaration
+# FILE carries in ONE pass, one query per `LINE:NAME` (the declaration's
+# statement line and module name). The module chain and the brace depth
+# are a property of the file, the same whichever declaration is asked
+# about; what is per declaration is when it is reached and the `#[path]`
+# it carries, so each query keeps those and is answered at the first
+# delimiter after its own name, exactly where a pass for it alone would
+# stop.
+#
+# Prints `LINE:NAME|KIND|CHAIN|PATH_LINE|PATH_INDEX|PATH_COUNT` for each
+# query placed — `|` and not a tab, because a tab is IFS whitespace and
+# `read` folds a run of it, so an empty CHAIN would shift every field
+# after it by one.
 # KIND is `attr` (a `#[path]` mount), `default` (rustc's positional
 # rule), `inline` (no file) or `refuse` (an enclosing brace that is not a
 # module, where rustc mounts a non-inline module only through `#[path]`).
-# CHAIN is the enclosing module names, `/`-joined. NO OUTPUT means the
-# code view does not place the declaration the statement view reported —
-# also a refusal, and the caller says so.
-gate_declaration_shape() {
-  gate_rust_code "$1" \
-    | gate_record_awk -v start="$2" -v name="$3" '
+# CHAIN is the enclosing module names, `/`-joined. NO LINE for a query
+# means the code view does not place the declaration the statement view
+# reported — also a refusal, and the caller says so.
+gate_declaration_shapes() {
+  local file=$1; shift
+  gate_rust_code "$file" \
+    | gate_record_awk -v queries="$*" '
     # THE ANSWER IS HELD TO `END`, NOT PRINTED AND EXITED ON. This `awk`
-    # reads a pipe, and exiting at the declaration closes it while the
-    # shared reader upstream is still writing: that write fails, the
+    # reads a pipe, and exiting at the last declaration closes it while
+    # the shared reader upstream is still writing: that write fails, the
     # reader dies of it, and `pipefail` reports a pipeline that did its
     # job as a pipeline that broke. Whether it lands is a race between
     # two processes, which is the worst way for a gate to be wrong —
     # green on one machine and red on the next over the same tree.
-    function emit(kind,   i, c) {
-      if (done) return
-      done = 1
+    BEGIN {
+      nq = split(queries, qs, " ")
+      for (q = 1; q <= nq; q++) {
+        split(qs[q], qf, ":"); start[q] = qf[1] + 0; name[q] = qf[2]
+      }
+      live = nq
+    }
+    function emit(q, kind,   i, c) {
+      done[q] = 1; live--
       c = ""
       for (i = 1; i <= depth; i++) {
-        if (chain[i] == "") { out = "refuse||0|0|0"; return }
+        if (chain[i] == "") { out[q] = "refuse||0|0|0"; return }
         c = (c == "") ? chain[i] : c "/" chain[i]
       }
-      out = sprintf("%s|%s|%d|%d|%d", kind, c, pline, pidx, pcount)
+      out[q] = sprintf("%s|%s|%d|%d|%d", kind, c, pline[q], pidx[q], pcount[q])
     }
-    done { next }
+    live == 0 { next }
     {
       if (!gate_record_split($0)) next
       s = GR_TEXT
       ln = GR_LINE + 0
-      if (ln >= start && pline == 0) {
-        k = 0; t = s
-        while (match(t, /#\[[ \t]*path[ \t]*=/)) { k++; t = substr(t, RSTART + RLENGTH) }
-        if (k > 0) { pline = ln; pidx = 1; pcount = k }
-      }
+      k = 0; t = s
+      while (match(t, /#\[[ \t]*path[ \t]*=/)) { k++; t = substr(t, RSTART + RLENGTH) }
+      if (k > 0)
+        for (q = 1; q <= nq; q++)
+          if (!done[q] && ln >= start[q] && pline[q] == 0) { pline[q] = ln; pidx[q] = 1; pcount[q] = k }
       i = 1; L = length(s)
       while (i <= L) {
         c = substr(s, i, 1)
         if (c == "{") {
-          if (want) { emit("inline"); next }
+          for (q = 1; q <= nq; q++) if (!done[q] && want[q]) emit(q, "inline")
           depth++; chain[depth] = pending; pending = ""; i++; continue
         }
         if (c == ";") {
-          if (want) { emit(pline > 0 ? "attr" : "default"); next }
+          for (q = 1; q <= nq; q++) if (!done[q] && want[q]) emit(q, pline[q] > 0 ? "attr" : "default")
           pending = ""; i++; continue
         }
         if (c == "}") {
           # The declaration was found and neither delimiter followed it —
           # a shape this reader cannot place, so it says nothing and the
           # caller refuses.
-          if (want) { done = 1; out = ""; next }
+          for (q = 1; q <= nq; q++) if (!done[q] && want[q]) { done[q] = 1; live--; out[q] = "" }
           if (depth > 0) { chain[depth] = ""; depth-- }
           pending = ""; i++; continue
         }
@@ -1408,13 +1635,13 @@ gate_declaration_shape() {
           w = substr(r, RSTART, RLENGTH); sub(/^mod[ \t]+/, "", w)
           i += RLENGTH
           pending = w
-          if (ln >= start && w == name) want = 1
+          for (q = 1; q <= nq; q++) if (!done[q] && ln >= start[q] && w == name[q]) want[q] = 1
           continue
         }
         i++
       }
     }
-    END { if (out != "") print out }'
+    END { for (q = 1; q <= nq; q++) if (out[q] != "") print qs[q] "|" out[q] }'
 }
 
 # THE MOUNT'S PAYLOAD, from the one raw line the code view named. This
@@ -1459,6 +1686,12 @@ gate_test_only_mounts() {
   local file line name shape kind chain pline pidx pcount
   local base payload target narrowed=() cands=()
   [ $# -gt 0 ] || return 0
+  if gate_view_cache_applies && [ -f "$GATE_VIEW_CACHE/mounts.key" ] \
+      && [ "$(gate_view_cache_mounts_key "$@" 2>/dev/null)" = "$(cat "$GATE_VIEW_CACHE/mounts.key")" ]; then
+    cat "$GATE_VIEW_CACHE/mounts.out" \
+      || gate_refuse_declaration "GATE_VIEW_CACHE=$GATE_VIEW_CACHE keys a mount set it does not hold"
+    return 0
+  fi
   # TWO STAGES, because reading every source twice costs more than any
   # gate here is worth: raw `grep` narrows to the handful of files that
   # carry both a test-only attribute and a `mod` declaration, and only
@@ -1487,14 +1720,52 @@ gate_test_only_mounts() {
   # — to the final name and no reading is needed to recover it. The two
   # fields before it are a line number and a `mod` name, neither of
   # which can hold a colon by the shapes that produced them.
-  while IFS=: read -r line name file; do
+  local -a decls=()
+  local -A queries=() shapes=()
+  local decl answer answers
+  # THE NARROWING IS THE DECLARATION'S TAIL AND NOTHING ELSE. It used to
+  # be `-oE "$GATE_RECORD_PREFIX_RE.*[[:space:]]mod …$"`, which is the
+  # record prefix asked to say where the FILE column ends: a record from
+  # a colon-carrying path matched nowhere, `-oE` emitted nothing, the
+  # declaration was never registered and every gate that narrows read
+  # the subtree it mounts as production. What the anchor added over the
+  # tail was a shape every record of every view already has, so the
+  # filter loses nothing by dropping it and the columns come from the
+  # one reading after it.
+  mapfile -t decls < <(gate_rust_code --statements "${cands[@]}" \
+    | gate_grep -E "$GATE_CFG_TEST_RE" \
+    | gate_grep -vE "$GATE_CFG_TEST_NOT_RE" \
+    | gate_grep -E "[[:space:]]mod [a-z_][a-z0-9_]*\$" \
+    | gate_record_awk '
+        gate_record_split($0) {
+          name = GR_TEXT
+          sub(/^.*[[:space:]]mod[[:space:]]+/, "", name)
+          print GR_LINE ":" name ":" GR_FILE
+        }')
+  for decl in ${decls[@]+"${decls[@]}"}; do
+    IFS=: read -r line name file <<<"$decl"
     [ -n "$file" ] || continue
-    # A READER THAT DIED IS NOT AN ANSWER either, and captured in a
-    # command substitution it would otherwise die under errexit with
-    # its status thrown away and no diagnosis at all.
-    if ! shape=$(gate_declaration_shape "$file" "$line" "$name"); then
-      gate_refuse_declaration "reading $file to place its \`mod $name;\` failed, so where that module lives was not decided"
+    queries[$file]+=" $line:$name"
+  done
+  for decl in ${decls[@]+"${decls[@]}"}; do
+    IFS=: read -r line name file <<<"$decl"
+    [ -n "$file" ] || continue
+    # ONE READ PER DECLARING FILE, answering all its declarations, taken
+    # when the first of them is reached.
+    if [ -n "${queries[$file]}" ]; then
+      # A READER THAT DIED IS NOT AN ANSWER either, and captured in a
+      # command substitution it would otherwise die under errexit with
+      # its status thrown away and no diagnosis at all.
+      # shellcheck disable=SC2086
+      if ! answers=$(gate_declaration_shapes "$file" ${queries[$file]}); then
+        gate_refuse_declaration "reading $file to place its \`mod $name;\` failed, so where that module lives was not decided"
+      fi
+      queries[$file]=
+      while IFS= read -r answer; do
+        [ -n "$answer" ] && shapes[$file$'\n'${answer%%|*}]=${answer#*|}
+      done <<<"$answers"
     fi
+    shape=${shapes[$file$'\n'$line:$name]:-}
     IFS='|' read -r kind chain pline pidx pcount <<<"$shape"
     case "$kind" in
       inline) continue ;;
@@ -1530,25 +1801,7 @@ gate_test_only_mounts() {
     # is a different file and a real resolution of that declaration.
     [ "$target" = "$file" ] || printf '%s\n' "$target"
     printf '%s\n' "${target%.rs}/"
-  # THE NARROWING IS THE DECLARATION'S TAIL AND NOTHING ELSE. It used to
-  # be `-oE "$GATE_RECORD_PREFIX_RE.*[[:space:]]mod …$"`, which is the
-  # record prefix asked to say where the FILE column ends: a record from
-  # a colon-carrying path matched nowhere, `-oE` emitted nothing, the
-  # declaration was never registered and every gate that narrows read
-  # the subtree it mounts as production. What the anchor added over the
-  # tail was a shape every record of every view already has, so the
-  # filter loses nothing by dropping it and the columns come from the
-  # one reading below.
-  done < <(gate_rust_code --statements "${cands[@]}" \
-    | gate_grep -E "$GATE_CFG_TEST_RE" \
-    | gate_grep -vE "$GATE_CFG_TEST_NOT_RE" \
-    | gate_grep -E "[[:space:]]mod [a-z_][a-z0-9_]*\$" \
-    | gate_record_awk '
-        gate_record_split($0) {
-          name = GR_TEXT
-          sub(/^.*[[:space:]]mod[[:space:]]+/, "", name)
-          print GR_LINE ":" name ":" GR_FILE
-        }')
+  done
 }
 
 # gate_filter_test_only_paths PATH... — the paths `GATE_TEST_ONLY_MOUNTS`
@@ -1569,15 +1822,29 @@ gate_test_only_mounts() {
 # what its trailing `/` says. Nothing here can fail to run, so nothing
 # here needs the marker.
 gate_filter_test_only_paths() {
-  local f e skip keep=()
+  # A DIRECTORY ENTRY can only be a prefix of a path that ENDS AT ONE OF
+  # THE PATH'S OWN `/`s, so each path asks after those few prefixes and
+  # its whole self, rather than comparing against every entry: the
+  # answer is the same, and the cost is the path's depth, not the size
+  # of the mount set. It stays in the shell, so it has no reader to lose.
+  local f e p rest skip empty=false keep=()
+  local -A file=() dir=()
+  for e in ${GATE_TEST_ONLY_MOUNTS[@]+"${GATE_TEST_ONLY_MOUNTS[@]}"}; do
+    if [ -z "$e" ]; then empty=true
+    elif [ "${e%/}" != "$e" ]; then dir["$e"]=1
+    else file["$e"]=1
+    fi
+  done
   for f in "$@"; do
-    skip=false
-    for e in ${GATE_TEST_ONLY_MOUNTS[@]+"${GATE_TEST_ONLY_MOUNTS[@]}"}; do
-      if [ "${e%/}" != "$e" ]; then
-        if [ "${f#"$e"}" != "$f" ]; then skip=true; break; fi
-      elif [ "$f" = "$e" ]; then
-        skip=true; break
-      fi
+    if [ -z "$f" ]; then
+      [ "$empty" = true ] || keep+=("$f")
+      continue
+    fi
+    [ -z "${file["$f"]+set}" ] || continue
+    skip=false p= rest=$f
+    while [[ $rest == */* ]]; do
+      p+=${rest%%/*}/; rest=${rest#*/}
+      if [ -n "${dir["$p"]+set}" ]; then skip=true; break; fi
     done
     [ "$skip" = true ] || keep+=("$f")
   done

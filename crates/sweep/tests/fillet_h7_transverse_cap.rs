@@ -223,7 +223,7 @@ fn carve_and_check(source: &Body<f64>, what: &str) -> Blended<f64> {
                 panic!("{what}: a trimline is a line");
             };
             assert!(
-                dir.cross(axis).norm() < 1e-15,
+                dir.get().cross(axis).norm() < 1e-15,
                 "{what}: the trimline runs along the ruling"
             );
             let EdgeDescription::TangentIntersection { pair, .. } = c.description() else {
@@ -660,7 +660,7 @@ fn a_cut_off_arc_at_the_wrong_radius_or_centre_is_refused_at_the_attachment_gate
         );
         let refused = attached.expect_err(&format!("{label}: the attachment gate refuses"));
         assert!(
-            matches!(refused, topo::EulerOpError::Certification { .. }),
+            matches!(refused, topo::EulerOpError::DescriptionUncertified { .. }),
             "{label}: the refusal is the certification's, got {refused:?}"
         );
         validate_geometric(&body, tol())

@@ -103,12 +103,19 @@ fn tilted<T: Decide + crate::props::AtRestPolicy>(
                 };
                 let d = lift(p1) - lift(p0);
                 let len = d.norm();
-                spec.carrier = geom::Curve3::line(ends[0], (d / len).map(iv));
+                spec.carrier = geom::Curve3::line(
+                    ends[0],
+                    // A chord over its length, each an `f64` constant of the row.
+                    geom_core::UnitVec3::checked((d / len).map(iv)),
+                );
                 spec.param_end = iv(len);
             } else {
                 // Upright: up `z`, as long as its top end stands.
                 let (base, sgn) = if p0.z == 0.0 { (p0, 1.0) } else { (p1, -1.0) };
-                spec.carrier = geom::Curve3::line(ends[0], Vec3::new(0.0, 0.0, sgn).map(iv));
+                spec.carrier = geom::Curve3::line(
+                    ends[0],
+                    geom_core::UnitVec3::checked(Vec3::new(0.0, 0.0, sgn).map(iv)),
+                );
                 spec.param_end = top + iv(s * base.x + r * base.y);
             }
             // Where the stated line does not certify over the box, the

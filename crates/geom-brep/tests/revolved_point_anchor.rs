@@ -41,7 +41,7 @@ fn rim(half: f64) -> MappedCurve<Interval> {
         place: Affine3::translation(Vec3::new(iv(0.0), iv(0.0), iv(3.0))),
         axis: geom::Line {
             origin: Point3::new(w(1.0), w(2.0), w(3.0)),
-            dir: Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+            dir: geom_core::UnitVec3::exact_z(),
         },
         angle: iv(TAU),
     })
@@ -62,7 +62,7 @@ fn rim_at(at: [f64; 3]) -> MappedCurve<Interval> {
         place: Affine3::translation(Vec3::new(iv(x), iv(y), iv(z))),
         axis: geom::Line {
             origin: Point3::new(iv(1.0 + x), iv(2.0 + y), iv(z)),
-            dir: Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+            dir: geom_core::UnitVec3::exact_z(),
         },
         angle: iv(TAU),
     })
@@ -140,7 +140,7 @@ fn an_uncertain_axis_reaches_the_start_sample_at_most_twice_over() {
 /// The bound itself is at most `(1 + √3)·w`.
 #[test]
 fn an_uncertain_axis_reaches_a_turned_sample_within_its_row_bound() {
-    let (angle, n) = (2.1, Vec3::new(0.3, -0.2, 1.0));
+    let (angle, n) = (2.1, Vec3::new(0.3, -0.2, 1.0).normalize());
     let rim = |half: f64| {
         let w = |c: f64| Interval::from_bounds(c - half, c + half);
         MappedCurve::whole(MappedSource::RevolvedPoint {
@@ -148,7 +148,7 @@ fn an_uncertain_axis_reaches_a_turned_sample_within_its_row_bound() {
             place: Affine3::translation(Vec3::new(iv(0.0), iv(0.0), iv(3.0))),
             axis: geom::Line {
                 origin: Point3::new(w(1.0), w(2.0), w(3.0)),
-                dir: Vec3::new(iv(n.x), iv(n.y), iv(n.z)),
+                dir: geom_core::UnitVec3::checked(n).map_scalar(iv),
             },
             angle: iv(angle),
         })
@@ -534,13 +534,16 @@ fn on_an_origin_axis_a_whole_range_is_the_composite_maps_point_bit_for_bit() {
     let mut mismatches = Vec::new();
     for angle in [TAU, -1.0, 1e-8, core::f64::consts::PI] {
         for at in [[0.0, 0.0, 0.0], [1000.0, -700.0, 300.0], [-3.0, 0.5, 2.0]] {
-            let n = Vec3::new(0.3, -0.2, 1.0);
+            let n = Vec3::new(0.3, -0.2, 1.0).normalize();
+            // The axis lifted as a direction, its polar enclosure, which
+            // both spellings read.
+            let n_i = geom_core::UnitVec3::checked(n).map_scalar(iv);
             let c = MappedCurve::whole(MappedSource::RevolvedPoint {
                 point: Point2::new(iv(2.0), iv(-1.5)),
                 place: Affine3::translation(Vec3::new(iv(at[0]), iv(at[1]), iv(at[2]))),
                 axis: geom::Line {
                     origin: Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-                    dir: Vec3::new(iv(n.x), iv(n.y), iv(n.z)),
+                    dir: n_i,
                 },
                 angle: iv(angle),
             });
@@ -551,7 +554,7 @@ fn on_an_origin_axis_a_whole_range_is_the_composite_maps_point_bit_for_bit() {
                 let got = c.eval(s);
                 let want = Affine3::rotation_about_axis(
                     Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-                    Vec3::new(iv(n.x), iv(n.y), iv(n.z)),
+                    n_i.get(),
                     s * iv(angle),
                 )
                 .transform_point(p);
@@ -646,7 +649,7 @@ fn a_restriction_is_the_sub_range_of_the_same_trajectory() {
         place: Affine3::translation(Vec3::new(iv(0.0), iv(0.0), iv(3.0))),
         axis: geom::Line {
             origin: Point3::new(iv(1.0), iv(2.0), iv(3.0)),
-            dir: Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+            dir: geom_core::UnitVec3::exact_z(),
         },
         angle: Interval::tau(),
     });
@@ -690,7 +693,7 @@ fn a_restriction_is_the_sub_range_of_the_same_trajectory() {
         place: Affine3::translation(Vec3::new(0.0, 0.0, 3.0)),
         axis: geom::Line {
             origin: Point3::new(1.0, 2.0, 3.0),
-            dir: Vec3::new(0.0, 0.0, 1.0),
+            dir: geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
         },
         angle: TAU,
     });

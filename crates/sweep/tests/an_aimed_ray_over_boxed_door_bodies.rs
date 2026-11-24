@@ -672,9 +672,13 @@ fn a_ray_given_further_along_its_line_reads_a_curved_body_the_same() {
             );
             let d = v.normalize();
             let start = through - d * 8.0;
-            let from_start = counts(&geom::Ray::new(start, d));
+            let from_start = counts(&geom::Ray::new(start, geom::stated_direction(d)));
             for k in [3.0, 8.0, 8.0 + rng.range(-1.0, 1.0), 16.0] {
-                let given = counts(&geom::Ray::starting(start + d * k, d, -k));
+                let given = counts(&geom::Ray::starting(
+                    start + d * k,
+                    geom::stated_direction(d),
+                    -k,
+                ));
                 match (&from_start, &given) {
                     (Ok(a), Ok(b)) => {
                         read += 1;

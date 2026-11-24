@@ -261,7 +261,7 @@ fn a_bottom_caps_chart_is_the_identity_least_turn_and_a_boss_stands_outward() {
     let (doc, whole) = fixture::insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![body.into(), boss.into()]),
+            members: editor_core::Bodies::spelled(vec![body.into(), boss.into()]),
         },
     );
     let ev = eval(&doc);
@@ -479,11 +479,13 @@ fn placed_twin(
             fixture::flip(own(CapEnd::Start))
         } else {
             own(CapEnd::End)
-        },
+        }
+        .into(),
         to: fixture::plane(Operand::select(
             BodyRead::plain(Operand::from(copy)),
             vec![face],
-        )),
+        ))
+        .into(),
         orient,
     };
     let [a, b] = face_chart_slides(orient);

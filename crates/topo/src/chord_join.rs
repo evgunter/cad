@@ -144,7 +144,8 @@ use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, LoopK
 use crate::euler::{EulerOpError, FaceSurface, MefSite, NewCurve};
 use crate::euler_ring::MekrSite;
 use crate::geometry::SurfaceKey;
-use crate::live::{Proven, linked, proven};
+use crate::live::Proven;
+use crate::loop_side;
 use crate::null::CurveGeom;
 use crate::ring_path::{Carrier, LoopArc, LoopSplit, Path, Quadric, SplineArc, path_parity};
 use crate::splitting::containment::{LoopContainment, PointInLoopError, point_in_loop};
@@ -231,7 +232,7 @@ pub enum SectionPinMiss {
         check: geom_brep::CertCheck,
         /// The pin's diagnostics.
         diag: Indeterminate,
-        /// The carrier's resolution `K` times over, as the band read it.
+        /// The carrier's resolution, as the band one K-step finer read it.
         resolution: geom_core::MarginDiag,
     },
     /// An end pin read past the band, by a miss the carrier's
@@ -1545,7 +1546,7 @@ impl<T: Real> SectionCurve<T> {
     /// conic's seam direction (a principal one), an oval's torus axis.
     fn in_plane(&self) -> Vec3<T> {
         match self {
-            Self::Conic(c) => c.conic().frame().u_ref(),
+            Self::Conic(c) => c.conic().u_ref(),
             Self::Oval(o) => match o.carrier {
                 geom::Curve3::Spiric { frame, .. } => frame.axis(),
                 _ => unreachable!(
@@ -2242,8 +2243,8 @@ impl<T: Real> SectionChord<T> {
 }
 
 /// K name: a section chord's carrier's own resolution over its span
-/// ([`geom_brep::carrier_resolution::resolution`]), `K` times over,
-/// against the zero band (metres), where the gate refuses one of its
+/// ([`geom_brep::carrier_resolution::resolution`]) against the `ε/K`
+/// share of the band (metres), where the gate refuses one of its
 /// attachment pins: Zero reads an in-band pin as the input's
 /// ([`crate::validate::resolved_as`]).
 pub(crate) const SECTION_PIN_RESOLUTION: &str = "section_pin_resolution";
@@ -2299,7 +2300,7 @@ fn section_pin_refusal<T: Decide>(
     band: Band,
 ) -> JoinError {
     use geom_brep::CertCheck as C;
-    let EulerOpError::Certification { error } = &refusal else {
+    let EulerOpError::DescriptionUncertified { error, .. } = &refusal else {
         return refusal.into();
     };
     let Some(rho) =
@@ -2489,7 +2490,7 @@ fn chord_spec<T: Decide>(
             let (t1, t2) = (ruling.param(p1), ruling.param(p2));
             // The ruling's speed: it meters a parameter span in metres
             // and makes the plane's `u_ref` unit.
-            let (ruling_hat, len) = ruling.dir.direction_and_length();
+            let (ruling_hat, len) = ruling.dir.get().direction_and_length();
             // The spec must run u1 → u2 (the mef `he_plus` direction):
             // whether that is the classified direction or its reverse
             // is a named trilean (metered in metres), never a raw
@@ -2775,7 +2776,7 @@ pub(crate) fn apex_section_ruling<T: Decide>(
         let Some(geom::Line { dir, .. }) = line.as_line() else {
             unreachable!("{face:?}: a cone's section ruling through its apex is a line")
         };
-        let z = apex.onto_nappe_of(dir, to);
+        let z = apex.onto_nappe_of(dir.get(), to);
         let into = apex.turn(from, z).min(apex.turn(z, to));
         match decide("germ_apex", Margin::levered(into, arm), band)
             .map_err(ApexRulingFault::Escalated)?
@@ -3586,14 +3587,8 @@ fn between_edge_is_section<T: Decide>(
     band: Band,
 ) -> Result<Option<bool>, JoinError> {
     let he_data = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?;
-    let edge = linked(
-        &body.edges,
-        he_data.edge,
-        EntityId::Edge,
-        EntityId::HalfEdge(he),
-        "edge",
-    );
-    let CurveGeom::Certified(curve) = body.edge_curve_linked(he_data.edge, edge) else {
+    let edge = body.linked_edge(he_data.edge, EntityId::HalfEdge(he), "edge");
+    let CurveGeom::Certified(curve) = edge.curve() else {
         return Ok(Some(true)); // null scaffolding: zero-length, ON
     };
     match curve.carrier() {
@@ -4026,8 +4021,8 @@ fn run_loop_arcs<T: Decide>(
     let mut arcs = Vec::with_capacity(run.len());
     for &he in run {
         let edge = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.edge;
-        let data = body.get_edge(edge).ok_or_else(|| corrupt_edge(edge))?;
-        let Some(curve) = body.edge_curve_linked(edge, data).certified() else {
+        let data = body.linked_edge(edge, EntityId::HalfEdge(he), "edge");
+        let Some(curve) = data.certified() else {
             continue;
         };
         let arc = match (carrier, curve.carrier()) {
@@ -4095,8 +4090,8 @@ fn edge_midpoints<T: Decide>(
 ) -> Result<Vec<Point3<T>>, JoinError> {
     let mut points = Vec::with_capacity(edges.len());
     for &edge in edges {
-        let data = body.get_edge(edge).ok_or_else(|| corrupt_edge(edge))?;
-        if let Some(curve) = body.edge_curve_linked(edge, data).certified() {
+        let data = body.proven_edge(edge);
+        if let Some(curve) = data.certified() {
             let (t0, t1) = curve.params();
             points.push(curve.carrier().mid_point(t0, t1));
         }
@@ -4107,7 +4102,9 @@ fn edge_midpoints<T: Decide>(
 /// The points of a loop's vertices, in cycle order (an empty loop's
 /// lone vertex).
 fn loop_points<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<Point3<T>>, JoinError> {
-    Ok(ring_vertices(body, l)?
+    Ok(body
+        .loop_vertices(l)
+        .ok_or_else(|| corrupt_loop(l))?
         .into_iter()
         .map(|v| body.resolve_vertex_point(v, Proven))
         .collect())
@@ -4338,13 +4335,12 @@ impl<T: Decide> IslandReading<T> {
             ));
         };
         let h = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?;
-        let edge = body.get_edge(h.edge).ok_or_else(|| corrupt_edge(h.edge))?;
-        let curve = body
-            .edge_curve_linked(h.edge, edge)
+        let edge = body.linked_edge(h.edge, EntityId::HalfEdge(he), "edge");
+        let curve = edge
             .certified()
             .ok_or(invariant("a closed loop's edge carries no certified curve"))?;
         let (t0, t1) = curve.params();
-        let forward = if he == edge.he_plus {
+        let forward = if he == edge.record().he_plus {
             T::one()
         } else {
             -T::one()
@@ -4620,11 +4616,11 @@ fn along_edge_spec<T: Decide>(
             })
     };
     let (p1, p2) = (point(u1)?, point(u2)?);
-    let e = body.get_edge(edge).ok_or(JoinError::SectionInvariant {
+    let e = body.edge(edge).ok_or(JoinError::SectionInvariant {
         face,
         what: "the segment's edge no longer resolves",
     })?;
-    let CurveGeom::Certified(curve) = body.edge_curve_linked(edge, e) else {
+    let CurveGeom::Certified(curve) = e.curve() else {
         return Err(JoinError::SectionInvariant {
             face,
             what: "the segment's edge carries no certified curve",
@@ -4691,9 +4687,9 @@ fn closed_edge_spec<T: Decide>(
 ) -> Result<Option<EdgeCurveSpec<T>>, JoinError> {
     let invariant = |what| JoinError::SectionInvariant { face, what };
     let e = body
-        .get_edge(edge)
+        .edge(edge)
         .ok_or(invariant("the segment's edge no longer resolves"))?;
-    let CurveGeom::Certified(curve) = body.edge_curve_linked(edge, e) else {
+    let CurveGeom::Certified(curve) = e.curve() else {
         return Err(invariant("the segment's edge carries no certified curve"));
     };
     if !copies_closed_edge(curve.carrier()) {
@@ -4791,8 +4787,8 @@ fn closed_chord_runs_forward<T: Decide>(
         };
         let null = edge_of(next)?;
         let is_null = body
-            .get_edge(null)
-            .is_some_and(|n| body.edge_curve_linked(null, n).null_scaffold().is_some());
+            .edge(null)
+            .is_some_and(|n| n.curve().null_scaffold().is_some());
         Ok(d.parent_loop == split && is_null && edge_of(prev)? == null)
     };
     let own = match (between_nulls(e.he_plus)?, between_nulls(e.he_minus)?) {
@@ -4846,8 +4842,8 @@ pub(crate) fn null_site<T: Decide>(
         let v = site[i];
         body.get_vertex(v).ok_or(StaleSite)?;
         for k in body.edges_of_vertex_linked(v) {
-            let e = proven(&body.edges, k, EntityId::Edge);
-            let Some(attr) = body.edge_curve_linked(k, e).null_scaffold() else {
+            let e = body.proven_edge(k);
+            let Some(attr) = e.curve().null_scaffold() else {
                 continue;
             };
             for w in [attr.below_end, attr.above_end] {
@@ -5193,14 +5189,15 @@ fn lone_ring<T: Real>(
 /// by its planar winding, any other face's by the island paths on the
 /// carrier [`Carrier::of`] reads; `None` for a face neither reads.
 enum LoopSide<T: Real> {
-    Planar,
+    /// A plane, its carrier's frame.
+    Planar(geom::Frame<T>),
     Paths(Carrier<T>),
 }
 
 impl<T: Decide> LoopSide<T> {
     fn of(surface: &geom::Surface<T>) -> Option<Self> {
         match surface {
-            geom::Surface::Plane { .. } => Some(Self::Planar),
+            geom::Surface::Plane { frame } => Some(Self::Planar(*frame)),
             _ => Carrier::of(surface).map(Self::Paths),
         }
     }
@@ -5256,7 +5253,7 @@ pub(crate) fn loop_holds_outer<T: Decide + crate::props::AtRestPolicy>(
     let escalated = |diag| JoinError::Escalated { face: oldf, diag };
     let surface = body.face(oldf).ok_or_else(|| corrupt_face(oldf))?.surface();
     match LoopSide::of(surface).ok_or_else(|| ring_island_unread(oldf, surface))? {
-        LoopSide::Planar => {
+        LoopSide::Planar(plane) => {
             let face_data = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
             let winding =
                 |l: LoopKey, normal: Vec3<T>| match body.planar_loop_winding(l, normal, band) {
@@ -5266,7 +5263,7 @@ pub(crate) fn loop_holds_outer<T: Decide + crate::props::AtRestPolicy>(
                         "a one-site loop's walled-off conic does not wind definitely on its plane",
                     )),
                 };
-            let normal = face_plane_normal(body, oldf)?;
+            let normal = plane.axis();
             return Ok(winding(face_data.outer, normal)? != winding(outer, normal)?);
         }
         LoopSide::Paths(_) => {}
@@ -5722,11 +5719,11 @@ impl ChordJoiner {
         // How a ring's side is read: off the plane, or by a path on a
         // cylinder, a sphere, a cone, a torus or a spline wall.
         enum Homing<T: geom_core::Real> {
-            Plane(Vec3<T>),
+            Plane(geom::Frame<T>),
             Path(Carrier<T>),
         }
         let homing = match &surface {
-            geom::Surface::Plane { .. } => Homing::Plane(face_plane_normal(body, oldf)?),
+            geom::Surface::Plane { frame } => Homing::Plane(*frame),
             other => {
                 Homing::Path(Carrier::of(other).ok_or_else(|| ring_island_unread(newf, other))?)
             }
@@ -5736,7 +5733,7 @@ impl ChordJoiner {
                 continue;
             }
             let side = match &homing {
-                Homing::Plane(normal) => ring_side(body, ring, run, *normal, self.band)?,
+                Homing::Plane(plane) => ring_side(body, ring, run, *plane, self.band)?,
                 Homing::Path(carrier) => {
                     path_ring_side(body, (&surface, carrier), (oldf, newf), ring, self.band)?
                 }
@@ -5810,46 +5807,6 @@ impl ChordJoiner {
     }
 }
 
-/// The face's **chart** plane normal (F5-gated: always a `Plane`),
-/// deliberately without the face's sense folded in.
-///
-/// Its one consumer is [`point_in_loop`], which reads the normal only
-/// to recover the loop's PLANE, and whose verdict is exactly invariant
-/// under `n̂ ↦ −n̂` over lines and conics alike. **That derivation lives
-/// at [`point_in_loop`]**, under the function whose property it is
-/// rather than under the five-line producer that relies on it; the
-/// consequence here is that ring re-homing cannot move a ring on the
-/// sense bit. `tests/review_m3_pr3_pil.rs` pins it for the straight
-/// rows and `validate.rs`'s
-/// `point_in_loop_is_blind_to_the_normals_sign_on_an_arc_bearing_loop`
-/// for the conic rows.
-///
-/// [`crate::face_normal::face_plane`] promises an OUTWARD normal, some
-/// of its consumers reading a material side off the sign. This promises
-/// a chart normal and is named for it, so it is not a site of
-/// [`crate::face_normal`]'s hand-multiply inventory.
-fn face_plane_normal<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-) -> Result<geom_core::Vec3<T>, JoinError> {
-    // Corruption and an unwired arm are different refusals.
-    match body
-        .face(face)
-        .map(|f| f.surface())
-        .ok_or_else(|| corrupt_face(face))?
-    {
-        geom::Surface::Plane { frame, .. } => {
-            let normal = frame.axis();
-            Ok(normal)
-        }
-        _ => Err(JoinError::SectionInvariant {
-            face,
-            what: "ring re-homing read a plane off a face whose carrier is not a plane (re-homing \
-                   sends every other kind to its own reading)",
-        }),
-    }
-}
-
 /// Whether every edge of `ring` is a null edge: a pierce ring no join
 /// has reached yet, whose vertices are all copies of its pierce point.
 /// Only the boolean's vertex-on-face insertion mints one; the split's
@@ -5866,65 +5823,63 @@ fn is_pierce_ring<T: Decide>(body: &Body<T>, ring: LoopKey) -> Result<bool, Join
     };
     for he in body.loop_cycle(first).ok_or_else(|| corrupt_he(first))? {
         let edge = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.edge;
-        let curve = body.get_edge(edge).ok_or_else(|| corrupt_edge(edge))?.curve;
-        if body
-            .get_curve_geom(curve)
-            .and_then(CurveGeom::null_scaffold)
-            .is_none()
-        {
+        let edge = body.edge(edge).ok_or_else(|| corrupt_edge(edge))?;
+        if edge.curve().null_scaffold().is_none() {
             return Ok(false);
         }
     }
     Ok(true)
 }
 
-/// Which side of `run` a bystander ring lies on, read at its first
-/// vertex off `run`'s boundary: a ring disjoint from the run cannot
-/// cross it, but it may touch it at a vertex — a pinch, where two
-/// sections meet at one point — so its anchor alone can land `OnBoundary`
-/// on a ring that is plainly on one side. [`RingSide::OnRun`] only when
-/// every vertex does: each such verdict is decided, so the ring is on
-/// the run. A vertex whose reading refuses says nothing either, kept by
-/// its standing ([`PointInLoopError::refusal`]), and the next is asked;
-/// a kept refusal refuses only where no vertex decides ([`climb`]). The
-/// vertices agree because the ring does not cross the run, and a touch
-/// switches no side ([`paths_rung`]'s premise).
+/// Which side of `run` a bystander ring lies on
+/// ([`loop_side::side_of_a_loop_the_division_does_not_cross`]: the run
+/// is the division, and the ring is one it does not cross). It may touch
+/// the run at a vertex, a pinch where two sections meet at one point, so
+/// its anchor alone can land `OnBoundary` on a ring that is plainly on
+/// one side. [`RingSide::OnRun`] only when every vertex does: each such
+/// verdict is decided, so the ring is on the run. A kept refusal refuses
+/// only where no vertex decides; the premise's residual is
+/// [`paths_rung`]'s.
 fn ring_side<T: Decide>(
     body: &Body<T>,
     ring: LoopKey,
     run: LoopKey,
-    normal: Vec3<T>,
+    plane: geom::Frame<T>,
     band: Band,
 ) -> Result<RingSide, JoinError> {
     let read = |v: VertexKey| {
-        vertex_side(point_in_loop(
+        side_rung(point_in_loop(
             body,
             run,
-            normal,
+            plane,
             body.resolve_vertex_point(v, Proven),
             band,
         ))
     };
-    match climb(Answering::Any, ring_vertices(body, ring)?, read) {
-        Climb::Answered { answer, .. } => answer.map_err(JoinError::from),
+    let vertices = body.loop_vertices(ring).ok_or_else(|| corrupt_loop(ring))?;
+    match loop_side::side_of_a_loop_the_division_does_not_cross(vertices, read) {
+        Climb::Answered { answer, .. } => Ok(if answer? { RingSide::In } else { RingSide::Out }),
         Climb::Passed => Ok(RingSide::OnRun),
         Climb::Undecided(e) => Err(JoinError::RingHoming(e)),
     }
 }
 
-/// One ring vertex's containment as [`ring_side`]'s rung
-/// ([`Rung::answers`]): a decided side answers, a vertex on the run
-/// passes, and a refusal stands by its own standing
-/// ([`PointInLoopError::refusal`]).
-fn vertex_side(
+/// One ring vertex's reading against the run as [`ring_side`]'s rung
+/// ([`loop_side::of_reading`], [`loop_side::sided`]): a decided side
+/// answers, a vertex on the run passes, and a refusal stands by its own
+/// standing ([`PointInLoopError::refusal`]).
+fn side_rung(
     reading: Result<LoopContainment, PointInLoopError>,
-) -> Rung<Result<RingSide, PointInLoopError>, PointInLoopError> {
-    let side = |at| match at {
-        LoopContainment::In => Some(RingSide::In),
-        LoopContainment::Out => Some(RingSide::Out),
-        LoopContainment::OnBoundary => None,
+) -> Rung<Result<bool, PointInLoopError>, PointInLoopError> {
+    let placed = |at| match at {
+        LoopContainment::In => loop_side::VertexPlaced::Inside,
+        LoopContainment::Out => loop_side::VertexPlaced::Outside,
+        LoopContainment::OnBoundary => loop_side::VertexPlaced::On(()),
     };
-    Rung::answers(reading.map(side), PointInLoopError::refusal)
+    loop_side::sided(loop_side::of_reading(
+        reading.map(placed),
+        PointInLoopError::refusal,
+    ))
 }
 
 /// Where ring re-homing puts a bystander ring.
@@ -5939,23 +5894,6 @@ enum RingSide {
     /// No vertex was decided: on a curved face, a vertex on the run
     /// says nothing ([`path_ring_side`]).
     Undecided,
-}
-
-/// The vertices of `ring`, in cycle order (an empty ring's lone one).
-fn ring_vertices<T: Decide>(body: &Body<T>, ring: LoopKey) -> Result<Vec<VertexKey>, JoinError> {
-    match body
-        .get_loop(ring)
-        .ok_or_else(|| corrupt_loop(ring))?
-        .boundary
-    {
-        LoopBoundary::Cycle { first } => body
-            .loop_cycle(first)
-            .ok_or_else(|| corrupt_he(first))?
-            .into_iter()
-            .map(|he| Ok(body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.start))
-            .collect(),
-        LoopBoundary::Empty { vertex } => Ok(vec![vertex]),
-    }
 }
 
 /// A representative point of a loop (its anchor vertex).
@@ -7298,7 +7236,8 @@ mod pending_ring_tests {
 
     /// The vertices of `face`'s outer loop.
     fn face_corners(body: &Body<f64>, face: FaceKey) -> Vec<VertexKey> {
-        ring_vertices(body, body.get_face(face).unwrap().outer).unwrap()
+        body.loop_vertices(body.get_face(face).unwrap().outer)
+            .unwrap()
     }
 
     /// Joins `h1` to `h2` as a planar boolean match does: places a
@@ -7948,7 +7887,10 @@ mod segment_curve_tests {
         let he = |n: u64| HalfEdgeKey::from(KeyData::from_ffi(n));
         let face = FaceKey::from(KeyData::from_ffi(3));
         let surface = SurfaceKey::default();
-        let line = geom::Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let line = geom::Curve3::line(
+            Point3::new(0.0, 0.0, 0.0),
+            geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
+        );
         let spec = |description| EdgeCurveSpec {
             description,
             carrier: line.clone(),

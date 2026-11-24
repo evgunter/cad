@@ -11,7 +11,7 @@ use geom_core::{Band, Decide, Indeterminate, Lever, Real, Vec3};
 use crate::body::Body;
 use crate::bound_side::{BoundSupport, ConicArc, FaceBend};
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
-use crate::live::{Proven, linked, proven};
+use crate::live::{Proven, proven};
 use crate::sector_face::{ConeApex, SectorCarrier, SectorFaceError, VertexFace};
 use crate::sector_shape::{
     SlitTips, apex_corner_shape, apex_extrema_inside, apex_over_half_turn, tangent_extrema_inside,
@@ -400,7 +400,7 @@ impl<T: Decide> Star<T> {
             (StarFace::Apex(apex), Datum::Plane(_) | Datum::Cone(_)) => {
                 let across = match datum {
                     Datum::Plane(n) => *n,
-                    Datum::Cone(other) => other.axis,
+                    Datum::Cone(other) => other.axis().get(),
                 };
                 let window = apex.azimuth_from(start, end);
                 Ok(
@@ -431,17 +431,8 @@ pub(crate) fn departure<T: Decide>(
     let p_base = body.resolve_vertex_point(vertex, Proven);
     let p_far = body.resolve_vertex_point(far, Proven);
     let he_data = proven(&body.half_edges, he, EntityId::HalfEdge);
-    let edge = linked(
-        &body.edges,
-        he_data.edge,
-        EntityId::Edge,
-        EntityId::HalfEdge(he),
-        "edge",
-    );
-    let curve = body
-        .edge_curve_linked(he_data.edge, edge)
-        .certified()
-        .ok_or(StarFault::NullEdge(he_data.edge))?;
+    let edge = body.linked_edge(he_data.edge, EntityId::HalfEdge(he), "edge");
+    let curve = edge.certified().ok_or(StarFault::NullEdge(he_data.edge))?;
     Ok(match curve.carrier() {
         geom::Curve3::Line(_) => (
             p_far - p_base,
@@ -455,7 +446,7 @@ pub(crate) fn departure<T: Decide>(
         | geom::Curve3::Spiric { .. }
         | geom::Curve3::Nurbs(_)
         | geom::Curve3::Periodic(_) => {
-            let he_plus = he == edge.he_plus;
+            let he_plus = he == edge.record().he_plus;
             let geom_brep::ConicDeparture { dir, extent, bend } =
                 geom_brep::ConicDeparture::of(curve, he_plus);
             let arc = ConicArc::of(curve, he_plus);
@@ -588,12 +579,14 @@ mod tests {
             })
             .unwrap();
         let tilted = |x: f64, y: f64, z: f64| Vec3::new(x, y, z).normalize();
-        let partner = |axis: Vec3<f64>| ConeApex {
-            apex: Point3::origin(),
-            axis,
-            half_angle: 0.3,
-            u_ref: axis.cross(Vec3::unit_x()).normalize(),
-            sense: true,
+        let partner = |axis: Vec3<f64>| {
+            ConeApex::stated(
+                Point3::origin(),
+                geom_core::UnitVec3::checked(axis),
+                0.3,
+                axis.cross(Vec3::unit_x()).normalize(),
+                true,
+            )
         };
         let rows = [
             (&fan, fan_apex, vec![]),
@@ -650,7 +643,7 @@ mod tests {
                 for datum in datums {
                     let across = match datum {
                         Datum::Plane(n) => *n,
-                        Datum::Cone(c) => c.axis,
+                        Datum::Cone(c) => c.axis().get(),
                     };
                     let side: Vec<f64> = along.iter().map(|d| d.dot(across)).collect();
                     let steps: Vec<f64> = side.windows(2).map(|w| w[1] - w[0]).collect();

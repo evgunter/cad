@@ -166,3 +166,16 @@ difference 7299 makes there is the narrowing above: the two seam
 vertices of `cut_cylinder`, in nodes 46, 61 and 69. The row is left
 unpinned, as SECTCONE's. Whoever re-takes it re-takes both moves, and
 GERM's is judged here.
+
+**Seen again, 2026-11-22 (PR 7219's delta review):** the two `sweep`
+rows are red on `3900eb46` and on that PR's head `c65b9292` alike, with
+no seed and no ε set, on a binary carrying only a decision logger
+(`analysis/oneround/lever-sites-brep/delta-review-report.md` on
+`oneround/lever-sites-brep-review`, finding D5). That PR does not move
+them: its head merged with main at `5d5cb7d8` gives the two payloads
+above. (Carried here from the PR's branch by ONEROUND's orchestrator,
+whose copy of this row trailed main's.)
+
+## CIW, 2026-11-23
+
+PR 7501 (`ciw/census-digest-goldens`) re-cuts seat7's `boss_union` on a key-free feed and pins it at its tree's reading, with a comment citing this row: "holds PR 7354's move unjudged; SECTCONE owes the judgement". It also replaces `m10_p_fence`'s Interval golden with in-process claims, and adds `the_interval_corpus_holds_sectcones_move_unjudged`, an id-masked Interval pin citing this row for the same move. Neither pin judges the move. Each goes when SECTCONE has judged it.

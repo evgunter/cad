@@ -72,6 +72,22 @@ on PR 7115's topo diff. The other 21 rows are assigned by bucket,
 unchecked. Valid bodies, so P0 at the gate's landing. Cheapest:
 `sweep::all reach_cone_split::a_tilted_cone_cut_is_never_misread_by_containment` (0.21 s).
 
+## Three plane/cone instances (lane `embed/apex-separator`, 2026-11-21)
+
+Three census tests the apex row (`a-cone-cell-presented-by-its-apex-side-is-signed-by-no-separator`)
+held unchecked, traced on main `0c1eb97ad` with the gate (`CV_TRACE`):
+their last cell pair is a cone part `Structural` at a shared conic edge
+with no shared vertex near, the same before and after the apex lane's
+change. Plane/cone, f64:
+- `mesh::all reach_probes::ringed_curved_faces_that_still_refuse_answer_by_cause`:
+  cone `1v1` `Structural` at `u ∈ (1.66897, 1.71806)`,
+  `v ∈ (−0.03516, −0.03281)`, against plane `10v1` read by its curve
+  (`Zero::Curve(XLo)`), shared edge `9v1`;
+- `sweep::all a_ring_on_a_cone_face::a_box_edge_through_a_cone_wall_crosses_it_at_the_rings_corners`:
+  cone `1v1` `Structural`, the plane `Local`, edge `8v1`;
+- `mesh::all split_rulings::a_run_on_a_cone_face_cut_by_an_oblique_plane_meshes`:
+  the plane by its side, cone `2v1` `Structural`, edge `19v3`.
+
 ## 2026-11-23 — the first unit cut from this row: a cone chart reads a plane section's image (EMBED orchestrator)
 
 **Unit `embed/cone-image`. Letter H. Tier: dual** (a new certified enclosure, a trigonometric polynomial of degree two on a cone chart and degree four under a quadric separator, whose soundness is not to be believed by reading it). Stacked on the second landing branch (`embed/wave3-land`), which holds PR 7113's sphere reading and PR 7315's apex arm.

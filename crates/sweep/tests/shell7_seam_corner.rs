@@ -318,7 +318,8 @@ fn the_line_arm_carries_a_hand_split_drum_seam_to_its_foot_at_the_direct_door() 
         panic!("a cylinder seam is a line, got {c:?}");
     };
     assert!(
-        (axial(origin).0 - (r - T)).abs() <= 1e-15 && dir.dot(Vec3::unit_y()).abs() >= 1.0 - 1e-15,
+        (axial(origin).0 - (r - T)).abs() <= 1e-15
+            && dir.get().dot(Vec3::unit_y()).abs() >= 1.0 - 1e-15,
         "the joined seam is a generator on the moved wall, got {c:?}"
     );
     // The azimuth is carried: the moved generator stands in the split
@@ -793,7 +794,7 @@ fn a_line_profile_beside_one_meridian_cap_refuses_at_the_direct_door() {
 ///
 /// The old doors, verbatim: check 7's `VolumeUncomputable` at a
 /// spiric-bounded cap (`Unimplemented`); before it `Face { error: Op {
-/// edge: None, error: RechartFalsifies { edge: EdgeKey(1v1), error:
+/// edge: None, error: DescriptionUncertified { edge: Keyed(EdgeKey(1v1)), error:
 /// IntervalNotForward { margin: −1.413716694115407 } } } }` — the rim
 /// window read backwards by `π·r′` on `atan2`'s branch cut; before it
 /// the seams' re-author (`offset_axial_reauthor_plane`), and before

@@ -2,10 +2,11 @@
 id: the-boolean-joins-shell-processing-order-is-unasserted
 kind: issue
 title: Reversing the order the boolean join walks an operand solid's shells reds nothing
-status: open
+status: closed
 opened: 2026-09-20
 priority: P3
 cost: D
+closed: 2026-11-22
 ---
 
 ## Finding
@@ -43,3 +44,10 @@ row records that at this caller, today, none does; that is a fact
 about the suite, not about the door.
 
 Moved from TINT to CIW on 2026-11-20, by `git mv`, when TINT merged into CIW: TINT held no P0 or P1 row, so no sitting would dispatch it on its own (`work/README.md`, Track size), and its charter is one CIW carries.
+
+## Closed
+
+2026-11-22, CIW triage (not worth its latency). Asks nothing but records that no consumer depends on the shell order
+(`topo/src/boolean/finish.rs:187` `for shell in shells`). A row pinning an order no caller
+relies on would only add re-baseline churn when the order legitimately changes; no defect,
+no incident.

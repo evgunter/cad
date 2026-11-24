@@ -51,9 +51,9 @@
 //! the axis ([`Reach::range_along`] of each boundary span) and how far
 //! it reaches at all. The plane×cylinder row reads them at the RULINGS'
 //! HINGE, the point a face lever is read from: the axial reach from the
-//! hinge's station ([`Reach::hinge_lever`]), and the reach across the
+//! hinge's station (`hinge_lever`), and the reach across the
 //! wall from the hinge, `at`'s own offset from it included
-//! ([`Reach::turn_lever`]). The classifier adds no length of its own.
+//! (`turn_lever`). The classifier adds no length of its own.
 //! A plane×cone caller hands the same measures against the cone's axis,
 //! read at the apex: the face's farthest distance from `at` is its
 //! lever, and its window along the axis ([`Reach::range_along`]) bounds
@@ -65,8 +65,9 @@
 //! Everything is comparison-free: `max` and `min` are the [`Real`]
 //! lattice operations.
 
-use geom::cover::{Cover, ParamWindow, Site, Uncovered};
+use geom::cover::{BoxAxes, Cover, ParamWindow, Site, Uncovered};
 use geom::{Conic, Curve3, Line};
+use geom_core::UnitVec3;
 use geom_core::spline::SpanLocate;
 use geom_core::{Lever, Point3, Real, Vec3, is_finite_length, poison};
 
@@ -90,6 +91,16 @@ pub fn points_diameter<T: Real>(points: &[Point3<T>]) -> Lever<T> {
     Lever::of_consumed_extent(farthest_pair(points))
 }
 
+/// **The farthest two points of the region `cover` holds stand apart,
+/// from above**: the diagonal of the cover's box along the world axes
+/// ([`Cover::box_in`]), which holds the region. The lever of a tilt
+/// between two directions over the whole region, from any pivot in it.
+#[must_use]
+pub fn cover_diameter<T: Real>(cover: &Cover<T>) -> Lever<T> {
+    let (lo, hi) = cover.box_in(&BoxAxes::World);
+    Lever::of_consumed_extent((hi - lo).norm())
+}
+
 /// **What a stored datum's kind forgets**: the orbit its symmetry lets
 /// the datum slide along without moving the carrier ([`anchored_at`]).
 #[derive(Clone, Copy, Debug)]
@@ -97,7 +108,7 @@ pub enum Forgets<T: Real> {
     /// A point of a plane, anywhere in the plane of this normal.
     Plane(Vec3<T>),
     /// A point of an axis, anywhere along this direction.
-    Axis(Vec3<T>),
+    Axis(UnitVec3<T>),
 }
 
 /// **A datum re-anchored within an extent**: `datum` slid along the
@@ -133,8 +144,11 @@ pub fn surface_anchored_at<T: Real>(surface: &geom::Surface<T>, at: Point3<T>) -
             ));
         }
         geom::Surface::Cylinder { frame, .. } => {
-            *frame =
-                frame.with_origin(anchored_at(frame.origin(), Forgets::Axis(frame.axis()), at));
+            *frame = frame.with_origin(anchored_at(
+                frame.origin(),
+                Forgets::Axis(frame.axis_unit()),
+                at,
+            ));
         }
         _ => {}
     }
@@ -227,13 +241,22 @@ impl<T: Real> ExtentBall<T> {
         (pivot - self.center).norm() + self.radius
     }
 
-    /// **The farthest the ball reaches from any point within `apart` of
-    /// `pivot`**: its lever from `pivot` plus `apart`. A reading whose
-    /// pivot is known only to stand within `apart` of `pivot` (a second
-    /// carrier's apex, the other axis's offset) levers here.
+    /// **The farthest the ball reaches from either of two pivots**: the
+    /// larger of its reaches from `p` and from `q`. A reading whose
+    /// position datum is the two pivots' separation (two cones' apexes;
+    /// a point of one axis and its foot on the other) and whose tilt
+    /// turns either carrier about its own pivot levers here: a consumed
+    /// point of either carrier stands no farther from that carrier's
+    /// pivot.
+    ///
+    /// The LARGER, where [`Reach::lever_between`] takes the lesser of two
+    /// feet's levers: here the reading bounds how far a point of EACH
+    /// carrier is displaced, each about its own pivot, so the arm must
+    /// reach from both; there one tilt between two lines is bounded
+    /// twice over, once about each foot, and either bound alone holds.
     #[must_use]
-    pub(crate) fn lever_from_within(self, pivot: Point3<T>, apart: T) -> Lever<T> {
-        Lever::of_consumed_extent(self.reach_from(pivot) + apart)
+    pub(crate) fn lever_from_either(self, p: Point3<T>, q: Point3<T>) -> Lever<T> {
+        Lever::of_consumed_extent(self.reach_from(p).max(self.reach_from(q)))
     }
 
     /// **The farthest the ball reaches from `pivot` and from the plane
@@ -356,27 +379,65 @@ impl<T: Real> ExtentBall<T> {
         Self::new(center, radius)
     }
 
-    /// **The ball holding two cylinders' crossing**, radii `[r₁, r₂]`,
-    /// axes crossing at sine `sin` with the common perpendicular from
-    /// `foot` along unit `normal`, `gap` long: a point within `r₁` of
-    /// the first axis and `r₂` of the second stands within
-    /// `(r₁ + r₂)/sin` of the perpendicular's midpoint across it, and
-    /// within `min r + |gap|/2` along it.
+    /// **The ball holding two cylinders' crossing, with the common
+    /// perpendicular it is read off**: the meet of two walls about the
+    /// axes `l1` and `l2` (each direction unit), decided to cross, with
+    /// radii `r₁` and `r₂`. With the axes' sine `sin` and their common
+    /// perpendicular `gap` long from `foot` along the unit `normal`
+    /// ([`Reach::common_perpendicular`], read at `reach`'s pivots), a
+    /// point within `r₁` of the first axis and `r₂` of the second stands
+    /// within `(r₁ + r₂)/sin` of the perpendicular's midpoint across it,
+    /// and within `min r + |gap|/2` along it.
     #[must_use]
     pub(crate) fn of_crossing_cylinders(
-        (foot, normal): (Point3<T>, Vec3<T>),
-        sin: T,
-        gap: T,
+        [l1, l2]: [Line<T>; 2],
         [r1, r2]: [T; 2],
-    ) -> Self {
+        reach: &Reach<T>,
+    ) -> (CommonPerpendicular<T>, Self) {
+        let perpendicular = reach.common_perpendicular(l1, l2);
+        let CommonPerpendicular {
+            foot,
+            normal,
+            sin,
+            gap,
+        } = perpendicular;
         let half = T::from_f64(0.5);
         let across = (r1 + r2) / sin;
         let along = r1.min(r2) + gap.abs() * half;
-        Self::new(
+        let ball = Self::new(
             foot + normal * (gap * half),
             (across.powi(2) + along.powi(2)).sqrt(),
-        )
+        );
+        (perpendicular, ball)
     }
+}
+
+/// **A cone's reach along its generators**
+/// ([`Reach::generator_lever`]).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct GeneratorReach<T: Real> {
+    /// The reach's window along the cone's axis from its apex.
+    pub(crate) window: (T, T),
+    /// The half-angle's sine and cosine.
+    pub(crate) sin_cos: (T, T),
+    /// The farthest a consumed point stands from the apex along a
+    /// generator.
+    pub(crate) lever: Lever<T>,
+}
+
+/// **Two crossing lines' common perpendicular**
+/// ([`Reach::common_perpendicular`]).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct CommonPerpendicular<T: Real> {
+    /// The perpendicular's foot on the first line.
+    pub(crate) foot: Point3<T>,
+    /// Its unit direction, `a₁ × a₂` normalized.
+    pub(crate) normal: Vec3<T>,
+    /// The lines' sine, `|a₁ × a₂|`.
+    pub(crate) sin: T,
+    /// Its signed length along `normal`, from the first line to the
+    /// second.
+    pub(crate) gap: T,
 }
 
 impl ExtentBall<f64> {
@@ -443,7 +504,7 @@ fn schedule<T: SpanLocate>(carrier: &Curve3<T>, (t0, t1): (T, T), n: u32) -> Vec
 /// rounding.
 fn speed_sup<T: SpanLocate>(carrier: &Curve3<T>) -> T {
     match carrier {
-        Curve3::Line(geom::Line { dir, .. }) => dir.norm(),
+        Curve3::Line(geom::Line { dir, .. }) => dir.get().norm(),
         Curve3::Circle(_) | Curve3::Ellipse(_) => match carrier.conic() {
             Some(k) => k.speed_hi(),
             None => unreachable!("a circle or an ellipse is a conic"),
@@ -521,6 +582,72 @@ fn speed_sup<T: SpanLocate>(carrier: &Curve3<T>) -> T {
 /// Total and comparison-free (`max` is the [`Real`] lattice operation).
 pub fn edge_extent_inf<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T) -> Lever<T> {
     Lever::of_consumed_extent(extent_inf(carrier, t0, t1, chord(carrier, t0, t1)))
+}
+
+/// The unit directions [`edges_extent_inf`] reads a point set's width
+/// along: the three axes, the six face diagonals and the four body
+/// diagonals of the world box. Some one of them stands within 27.6° of
+/// any direction, so the widest of the thirteen widths is at least 0.886
+/// of the set's diameter, at a cost linear in the points where the
+/// farthest pair ([`farthest_pair`]) is quadratic.
+fn width_directions<T: Real>() -> impl Iterator<Item = Vec3<T>> {
+    let (o, l) = (T::zero(), T::one());
+    let m = o - l;
+    [
+        [l, o, o],
+        [o, l, o],
+        [o, o, l],
+        [l, l, o],
+        [l, m, o],
+        [l, o, l],
+        [l, o, m],
+        [o, l, l],
+        [o, l, m],
+        [l, l, l],
+        [l, l, m],
+        [l, m, l],
+        [l, m, m],
+    ]
+    .into_iter()
+    .map(|[x, y, z]| Vec3::new(x, y, z).normalize())
+}
+
+/// **The extent of several edges' point set, bounded from below**: no
+/// more than the farthest two points of the edges stand apart. The lever
+/// of a reading consumed over every edge at once (the boundaries of an
+/// edge's two faces) whose definite sign is acted on and whose Zero only
+/// refuses, as [`edge_extent_inf`] is one edge's. The measure never
+/// over-states the edges' reach, the unsafe direction for such a lever.
+///
+/// It is the largest of each edge's own extent from below
+/// ([`edge_extent_inf`]) and the set's width along each of thirteen
+/// fixed directions, read off the edges' sampled points
+/// (`t₀ + k·(t₁ − t₀)/16`): the two samples a width is read between are
+/// points of the edges that far apart along it, so no farther apart than
+/// the diameter. Zero for no edge.
+///
+/// Total and comparison-free (`min`/`max` are the [`Real`] lattice
+/// operations).
+pub fn edges_extent_inf<'a, T: SpanLocate + 'a>(
+    edges: impl IntoIterator<Item = (&'a Curve3<T>, (T, T))>,
+) -> Lever<T> {
+    let mut own = T::zero();
+    let mut samples = Vec::new();
+    for (carrier, (t0, t1)) in edges {
+        own = own.max(extent_inf(carrier, t0, t1, chord(carrier, t0, t1)));
+        samples.extend(schedule(carrier, (t0, t1), EXTENT_PIECES));
+    }
+    let Some(first) = samples.first().copied() else {
+        return Lever::of_consumed_extent(own);
+    };
+    let width = width_directions::<T>().fold(T::zero(), |widest, dir| {
+        let along = |p: &Point3<T>| (*p - first).dot(dir);
+        let (lo, hi) = samples.iter().fold((T::zero(), T::zero()), |(lo, hi), p| {
+            (lo.min(along(p)), hi.max(along(p)))
+        });
+        widest.max(hi - lo)
+    });
+    Lever::of_consumed_extent(own.max(width))
 }
 
 /// The chord between the carrier's points at the span's two ends.
@@ -810,7 +937,7 @@ pub enum Reach<T: Real> {
     /// cone: how far it reaches either way along that surface's axis
     /// from `at`, and its farthest distance from `at`. The plane×cylinder
     /// callers hand it, read at the foot of `at`
-    /// ([`Self::hinge_lever`], [`Self::turn_lever`]); the plane×cone
+    /// (`hinge_lever`, `turn_lever`); the plane×cone
     /// callers hand it, read at the apex ([`Self::lever_from`],
     /// [`Self::range_along`]). Built only by [`Self::of_face`].
     #[non_exhaustive]
@@ -900,7 +1027,7 @@ impl<T: Real> Reach<T> {
     ///   ([`Self::lever_between`]).
     /// - [`Self::Face`]: its farthest distance from `at`: the plane×cone
     ///   arm levers its trileans at it. The plane×cylinder row reads a
-    ///   face from its hinge instead ([`Self::hinge_lever`]).
+    ///   face from its hinge instead (`hinge_lever`).
     /// - [`Self::Region`]: the cover's far distance from `pivot`
     ///   ([`Cover::distance_range`]): exact on a segment and a circle arc.
     #[must_use]
@@ -961,7 +1088,7 @@ impl<T: Real> Reach<T> {
     /// `max(|above − shift|, |below + shift|)`; every other reach adds
     /// `|shift|` to its lever from the foot.
     #[must_use]
-    pub(crate) fn hinge_lever(&self, pivot: Point3<T>, shift: T) -> Lever<T> {
+    fn hinge_lever(&self, pivot: Point3<T>, shift: T) -> Lever<T> {
         Lever::of_consumed_extent(match self {
             Self::Face { below, above, .. } => (*above - shift).abs().max((*below + shift).abs()),
             Self::Ball(_) | Self::Measured { .. } | Self::Region(_) => {
@@ -982,10 +1109,10 @@ impl<T: Real> Reach<T> {
     /// where `cos` read from `c` is not). Returned as a lever,
     /// `(1 − cos)/|c| = |c|/(1 + cos)`, so nothing divides by `c`.
     #[must_use]
-    pub(crate) fn turn_lever(
+    fn turn_lever(
         &self,
         hinge: Point3<T>,
-        (n, a): (Vec3<T>, Vec3<T>),
+        (n, a): (Vec3<T>, UnitVec3<T>),
         c: T,
         cos: T,
     ) -> Lever<T> {
@@ -997,7 +1124,7 @@ impl<T: Real> Reach<T> {
                 }
                 .offset(*at);
                 let off_axis = off_perp.norm();
-                let m = n - a * n.dot(a);
+                let m = n - a.get() * n.dot(a.get());
                 let len = m.norm().max(T::from_f64(f64::MIN_POSITIVE));
                 let along_normal =
                     (off_perp.dot(m).abs() + off_axis * T::from_f64(8.0 * f64::EPSILON)) / len;
@@ -1007,31 +1134,77 @@ impl<T: Real> Reach<T> {
         })
     }
 
-    /// **The plane×cylinder row's whole lever**: its lever from the
-    /// rulings' hinge ([`Self::hinge_lever`]) plus the tilt's turn across
-    /// the wall ([`Self::turn_lever`]), each read as there.
+    /// **The plane×cylinder row's frame** for the pair `pc`: the reach's
+    /// pivot on the cylinder's axis ([`Self::foot_on`]), the axis's
+    /// normal component `c`, the pivot's signed height over the plane,
+    /// and the row's whole lever from there, its lever from the rulings'
+    /// hinge (`hinge_lever`) plus the tilt's turn across the wall
+    /// (`turn_lever`). The hinge stands on the plane under the pivot,
+    /// `−gap·c` along the axis from it. The gap and the lever are read
+    /// at the one pivot because they are read here together.
     #[must_use]
-    pub(crate) fn ruled_lever(
+    pub(crate) fn ruled_pivot_lever(
         &self,
-        (foot, shift): (Point3<T>, T),
-        hinge: Point3<T>,
-        (n, a): (Vec3<T>, Vec3<T>),
-        (c, cos): (T, T),
-    ) -> Lever<T> {
-        Lever::of_consumed_extent(
-            self.hinge_lever(foot, shift).length()
+        pc: &crate::intersect::PlaneCylinder<T>,
+    ) -> crate::intersect::RuledFrame<T> {
+        let &crate::intersect::PlaneCylinder { q, n, o, a, .. } = pc;
+        let o = self.foot_on(Line { origin: o, dir: a });
+        let c = a.get().dot(n);
+        let gap_signed = (o - q).dot(n);
+        let hinge = o - n * gap_signed;
+        let cos = (T::one() - c.powi(2)).max(T::zero()).sqrt();
+        let lever = Lever::of_consumed_extent(
+            self.hinge_lever(o, -(gap_signed * c)).length()
                 + self.turn_lever(hinge, (n, a), c, cos).length(),
-        )
+        );
+        crate::intersect::RuledFrame {
+            o,
+            c,
+            gap_signed,
+            lever,
+        }
     }
 
-    /// **The farthest a consumed point of a cone stands from its apex
-    /// along a generator**: the reach's window along the unit axis `a`
-    /// from `apex` ([`Self::range_along`]), its larger end over the
-    /// half-angle's cosine `cos_a`.
+    /// **A cone's reach along its generators**, for the cone about
+    /// `axis` (its origin the apex, its direction unit) of half-angle
+    /// `half_angle`: the reach's window along the axis from the apex
+    /// ([`Self::range_along`]), the half-angle's sine and cosine, and the
+    /// farthest a consumed point of the cone stands from the apex along
+    /// a generator, the window's larger end over the cosine. One read of
+    /// each, for a lane that needs the window and the cosine beside the
+    /// lever.
     #[must_use]
-    pub(crate) fn generator_lever(&self, apex: Point3<T>, a: Vec3<T>, cos_a: T) -> Lever<T> {
-        let (lo, hi) = self.range_along(apex, a);
-        Lever::of_consumed_extent(lo.abs().max(hi.abs()) / cos_a)
+    pub(crate) fn generator_lever(&self, axis: Line<T>, half_angle: T) -> GeneratorReach<T> {
+        let window = self.range_along(axis.origin, axis.dir.get());
+        let sin_cos = half_angle.sin_cos();
+        let (lo, hi) = window;
+        GeneratorReach {
+            window,
+            sin_cos,
+            lever: Lever::of_consumed_extent(lo.abs().max(hi.abs()) / sin_cos.1),
+        }
+    }
+
+    /// **The common perpendicular of two crossing lines**, read at the
+    /// reach's pivots on them ([`Self::foot_on`]): its unit direction
+    /// `a₁ × a₂`, the lines' sine, its signed length, and its foot on
+    /// `l1`, stepped along `l1` from the pivot there. For lines decided
+    /// to cross: it divides by the sine's square.
+    #[must_use]
+    pub(crate) fn common_perpendicular(&self, l1: Line<T>, l2: Line<T>) -> CommonPerpendicular<T> {
+        let (a1, a2) = (l1.dir.get(), l2.dir.get());
+        let cross = a1.cross(a2);
+        let (normal, sin) = cross.direction_and_length();
+        let f1 = self.foot_on(l1);
+        let w = self.foot_on(l2) - f1;
+        let gap = w.dot(normal);
+        let foot = f1 + a1 * (w.cross(a2).dot(cross) / sin.powi(2));
+        CommonPerpendicular {
+            foot,
+            normal,
+            sin,
+            gap,
+        }
     }
 
     /// **The pivot on the line `axis` the reach is read at**: the origin
@@ -1054,8 +1227,8 @@ impl<T: Real> Reach<T> {
             Self::Face { at, .. } => axis.foot(*at),
             Self::Ball(ball) => ball.foot_on(axis),
             Self::Measured { .. } | Self::Region(_) => {
-                let (lo, hi) = self.range_along(axis.origin, axis.dir);
-                axis.at((lo + hi) * T::from_f64(0.5) / axis.dir.norm_squared())
+                let (lo, hi) = self.range_along(axis.origin, axis.dir.get());
+                axis.at((lo + hi) * T::from_f64(0.5) / axis.dir.get().norm_squared())
             }
         }
     }
@@ -1079,7 +1252,9 @@ impl<T: Real> Reach<T> {
     /// the lesser of the two feet's levers. Holding either line and
     /// turning the other about its own foot bounds the same displacement
     /// across the reach, so the lesser bound holds as well, and it does
-    /// not depend on which line is named first.
+    /// not depend on which line is named first. (Two carriers each
+    /// displaced about its own pivot are a different question, whose arm
+    /// is the larger of the two reaches: [`ExtentBall::lever_from_either`].)
     ///
     /// **Why a foot's lever, and not a ball's radius alone.** Axial
     /// travel along parallel lines does not move their gap, which
@@ -1153,7 +1328,7 @@ mod tests {
         assert!(reach < geom_core::tolerance::SESSION_BOX_EXTENT);
         let line = Curve3::Line(geom::Line {
             origin: Point3::new(0.0, 0.0, 0.0),
-            dir: Vec3::new(1.0, 1.0, 0.0).normalize(),
+            dir: geom_core::UnitVec3::squared(Vec3::new(1.0, 1.0, 0.0)),
         });
         let reach = edge_coordinate_reach_below(&line, (0.0, 1200.0), None);
         assert!(
@@ -1522,7 +1697,12 @@ mod tests {
             let beta = c.atan2(cos);
             let n = Vec3::new(cos, 0.0, c);
             let lever = face
-                .turn_lever(Point3::new(0.0, 0.0, 0.0), (n, a), c, cos)
+                .turn_lever(
+                    Point3::new(0.0, 0.0, 0.0),
+                    (n, geom::stated_direction(a)),
+                    c,
+                    cos,
+                )
                 .length();
             let want = c / (1.0 + cos);
             assert!(
@@ -1545,7 +1725,12 @@ mod tests {
             ExtentBall::point(Point3::origin()).lever(),
         );
         let lever = leaning
-            .turn_lever(Point3::origin(), (tilted, tilted), c, cos)
+            .turn_lever(
+                Point3::origin(),
+                (tilted, geom::stated_direction(tilted)),
+                c,
+                cos,
+            )
             .length();
         let want = c / (1.0 + cos);
         assert!(
@@ -1556,7 +1741,12 @@ mod tests {
         let n = Vec3::new(0.0, 0.0, 1.0);
         assert_eq!(
             measured
-                .turn_lever(Point3::new(0.0, 0.0, 0.0), (n, a), 1.0, 0.0)
+                .turn_lever(
+                    Point3::new(0.0, 0.0, 0.0),
+                    (n, geom::stated_direction(a)),
+                    1.0,
+                    0.0
+                )
                 .length(),
             0.0
         );
@@ -1651,14 +1841,14 @@ mod tests {
                 "across its plane through its middle",
                 Line {
                     origin: Point3::new(r, 0.5, 0.0),
-                    dir: Vec3::new(0.0, 0.0, 1.0),
+                    dir: geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
                 },
             ),
             (
                 "in its plane through the circle's centre",
                 Line {
                     origin: Point3::origin(),
-                    dir: Vec3::new(1.0, 0.0, 0.0),
+                    dir: geom::stated_direction(Vec3::new(1.0, 0.0, 0.0)),
                 },
             ),
         ] {
@@ -1699,7 +1889,7 @@ mod tests {
         let reach = Reach::of_span(&spline, (0.0, 0.1)).expect("the span is covered");
         let axis = Line {
             origin: Point3::new(0.0, 0.0, -3.0),
-            dir: Vec3::new(0.0, 0.0, 1.0),
+            dir: geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
         };
         let (foot, lever) = pivot_and_lever(&reach, axis);
         assert!((foot.z - 0.5).abs() < 1e-12, "the pivot stands at {foot:?}");
@@ -1733,7 +1923,7 @@ mod tests {
         let reach = Reach::of_span(&polyline, (0.0, 1.0)).expect("the span is covered");
         let axis = Line {
             origin: Point3::new(0.0, 0.0, 5.0),
-            dir: Vec3::new(0.0, 0.0, 1.0),
+            dir: geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
         };
         let (foot, lever) = pivot_and_lever(&reach, axis);
         let want = (1.8_f64.powi(2) + 1.0).sqrt();
@@ -1778,7 +1968,7 @@ mod tests {
         };
         let axis = Line {
             origin: Point3::new(-0.5, 0.2, 0.0),
-            dir: Vec3::new(0.1, 0.3, 1.0).normalize(),
+            dir: geom_core::UnitVec3::squared(Vec3::new(0.1, 0.3, 1.0)),
         };
         let here = Reach::of_span(&spline(control.to_vec()), (0.2, 0.9)).expect("covered");
         let there =
@@ -1786,7 +1976,7 @@ mod tests {
         let (foot, lever) = pivot_and_lever(&here, axis);
         let turned_axis = Line {
             origin: turn(axis.origin),
-            dir: turn_v(axis.dir),
+            dir: geom::stated_direction(turn_v(axis.dir.get())),
         };
         let (turned_foot, turned_lever) = pivot_and_lever(&there, turned_axis);
         assert!(
@@ -1808,22 +1998,24 @@ mod tests {
     /// read 3.61.
     #[test]
     fn a_parallel_pairs_gap_is_read_at_one_station() {
-        let segment = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(3.0, 0.0, 4.5));
-        let reach = Reach::of_span(&segment, (0.0, 1.0)).expect("the span is covered");
+        let (chord, len) = Line::chord(Point3::new(0.0, 0.0, 0.0), Point3::new(3.0, 0.0, 4.5));
+        let segment = Curve3::Line(chord);
+        let reach = Reach::of_span(&segment, (0.0, len)).expect("the span is covered");
         let z = Vec3::new(0.0, 0.0, 1.0);
         let l1 = Line {
             origin: Point3::new(0.0, 0.0, -7.0),
-            dir: z,
+            dir: geom::stated_direction(z),
         };
         let l2 = Line {
             origin: Point3::new(3.0, 0.0, 11.0),
-            dir: z,
+            dir: geom::stated_direction(z),
         };
         for (what, (a, b)) in [("in order", (l1, l2)), ("swapped", (l2, l1))] {
             let axes = crate::intersect::parallel_axes_at(&reach, a, b);
             assert!((axes.d - 3.0).abs() < 1e-12, "{what}: d = {}", axes.d);
             assert!(
-                (axes.d_vec.norm() - 3.0).abs() < 1e-12 && axes.d_vec.dot(a.dir).abs() < 1e-12,
+                (axes.d_vec.norm() - 3.0).abs() < 1e-12
+                    && axes.d_vec.dot(a.dir.get()).abs() < 1e-12,
                 "{what}: d_vec = {:?}",
                 axes.d_vec
             );
@@ -1849,11 +2041,11 @@ mod tests {
         let reach = Reach::of_span(&arc, (0.0, 1.0)).expect("the span is covered");
         let l1 = Line {
             origin: Point3::new(0.0, 0.0, 0.0),
-            dir: Vec3::new(0.0, 0.0, 1.0),
+            dir: geom::stated_direction(Vec3::new(0.0, 0.0, 1.0)),
         };
         let l2 = Line {
             origin: Point3::new(3.0, 0.0, 0.0),
-            dir: Vec3::new(0.02_f64.sin(), 0.0, 0.02_f64.cos()),
+            dir: geom::stated_direction(Vec3::new(0.02_f64.sin(), 0.0, 0.02_f64.cos())),
         };
         let (f1, f2) = (reach.foot_on(l1), reach.foot_on(l2));
         let want = l2.distance(f1).max(l1.distance(f2));
@@ -1950,5 +2142,224 @@ mod tests {
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod geometry_door_rows {
+    use super::*;
+
+    const X: Vec3<f64> = Vec3::new(1.0, 0.0, 0.0);
+    const Y: Vec3<f64> = Vec3::new(0.0, 1.0, 0.0);
+    const Z: Vec3<f64> = Vec3::new(0.0, 0.0, 1.0);
+
+    fn segment(a: Point3<f64>, b: Point3<f64>) -> Reach<f64> {
+        Reach::Region(Cover::segment(a, b).expect("a segment's cover"))
+    }
+
+    /// **A ball's lever from two pivots is its reach from the farther**,
+    /// whichever is named first: the unit ball about the origin stands 4
+    /// from `(3, 0, 0)` and 6 from `(0, 5, 0)`. Red against the reach from
+    /// the first pivot alone (4), against the lesser of the two (4), and
+    /// against the first pivot's reach widened by the pivots' distance
+    /// (`4 + √34`).
+    #[test]
+    fn a_ball_levered_from_two_pivots_reaches_from_the_farther() {
+        let ball = ExtentBall::new(Point3::origin(), 1.0);
+        let (p, q) = (Point3::new(3.0, 0.0, 0.0), Point3::new(0.0, 5.0, 0.0));
+        assert_eq!(ball.lever_from_either(p, q).length(), 6.0);
+        assert_eq!(ball.lever_from_either(q, p).length(), 6.0);
+        assert_eq!(
+            ball.lever_from_either(p, p).length(),
+            ball.lever_from(p).length(),
+            "one pivot named twice is that pivot's lever"
+        );
+    }
+
+    /// **The plane×cylinder row's pivot is the reach's own on the axis,
+    /// and its lever is read from there.** The plane `z = 0`, a cylinder
+    /// whose axis runs along `(cos β, 0, sin β)` through a stored origin
+    /// 100 m back along it, and an edge `[4, 6]` along the axis: the
+    /// pivot is the edge's middle, wherever the stored origin sits, and
+    /// the lever is the edge's half-length plus the hinge's shift
+    /// `|gap·c|` (`gap` the pivot's height, `c = sin β`). Red against a
+    /// pivot at the stored origin (a lever of about 106), and against the
+    /// shift dropped.
+    #[test]
+    fn the_ruled_rows_lever_is_read_at_the_reachs_pivot_on_the_axis() {
+        let beta = 0.3_f64;
+        let a = Vec3::new(beta.cos(), 0.0, beta.sin());
+        let on_axis = |s: f64| Point3::new(1.0, 2.0, 0.5) + a * s;
+        let pc = crate::intersect::PlaneCylinder {
+            q: Point3::origin(),
+            n: Z,
+            o: on_axis(-100.0),
+            a: geom::stated_direction(a),
+            r: 1.0,
+        };
+        let reach = segment(on_axis(4.0), on_axis(6.0));
+        let frame = reach.ruled_pivot_lever(&pc);
+        let (pivot, lever) = (frame.o, frame.lever);
+        let middle = on_axis(5.0);
+        assert!((pivot - middle).norm() < 1e-12, "{pivot:?}");
+        let gap = middle.z;
+        assert!((frame.gap_signed - gap).abs() < 1e-12 && (frame.c - beta.sin()).abs() < 1e-15);
+        let want = 1.0 + (gap * beta.sin()).abs();
+        assert!(
+            (lever.length() - want).abs() < 1e-12,
+            "lever {}, the half-length and the hinge's shift {want}",
+            lever.length()
+        );
+    }
+
+    /// **A face's ruled lever is read from the rulings' hinge, turn
+    /// included.** The plane `z = 0` and an axis leaning `β` out of it;
+    /// a face measured from a point 0.7 off the axis along `y`, at the
+    /// station 5: 1.5 back and 2.5 on along the axis, 3 at its farthest.
+    /// The pivot is the point's foot on the axis, `gap` above the plane;
+    /// the hinge stands `−gap·sin β` along the axis from it, so the face
+    /// reaches `2.5 + gap·sin β` from the hinge's station; and the point
+    /// stands `gap·cos β` across the wall from the hinge, so the turn
+    /// adds `(3 + gap·cos β)·sin β/(1 + cos β)`. Red against the turn
+    /// dropped, the shift's sign, and the hinge left at the foot.
+    #[test]
+    fn a_faces_ruled_lever_is_read_from_the_hinge_with_its_turn() {
+        let beta = 0.3_f64;
+        let (sin, cos) = beta.sin_cos();
+        let a = Vec3::new(cos, 0.0, sin);
+        let on_axis = |s: f64| Point3::new(1.0, 2.0, 0.5) + a * s;
+        let pc = crate::intersect::PlaneCylinder {
+            q: Point3::origin(),
+            n: Z,
+            o: on_axis(-100.0),
+            a: geom::stated_direction(a),
+            r: 1.0,
+        };
+        let face = Reach::of_face(
+            on_axis(5.0) + Y * 0.7,
+            (1.5, 2.5),
+            ExtentBall::new(Point3::origin(), 3.0).lever(),
+        );
+        let frame = face.ruled_pivot_lever(&pc);
+        assert!((frame.o - on_axis(5.0)).norm() < 1e-12, "{:?}", frame.o);
+        let gap = on_axis(5.0).z;
+        let want = 2.5 + gap * sin + (3.0 + gap * cos) * sin / (1.0 + cos);
+        assert!(
+            (frame.lever.length() - want).abs() < 1e-12,
+            "lever {}, from the hinge with its turn {want}",
+            frame.lever.length()
+        );
+    }
+
+    /// **A cone's generator lever is read from its apex along its own
+    /// axis**: a cone with its apex at `(0, 0, 10)` opening along `−z` at
+    /// half-angle 0.4, and a reach over the heights `z ∈ [1, 3]`, whose
+    /// consumed points stand 7 to 9 along the axis from the apex, so no
+    /// farther than `9/cos 0.4` along a generator. Red against a window
+    /// read from the world origin (`3/cos`), against the window's near
+    /// end (`7/cos`), and against the cosine dropped.
+    #[test]
+    fn a_cones_generator_lever_is_read_from_its_apex() {
+        let axis = Line {
+            origin: Point3::new(0.0, 0.0, 10.0),
+            dir: geom::stated_direction(-Z),
+        };
+        let reach = segment(Point3::new(0.5, 0.0, 1.0), Point3::new(0.5, 0.0, 3.0));
+        let read = reach.generator_lever(axis, 0.4);
+        let want = 9.0 / 0.4_f64.cos();
+        let lever = read.lever.length();
+        assert!((lever - want).abs() < 1e-12, "{lever} against {want}");
+        let (lo, hi) = read.window;
+        assert!(
+            (lo - 7.0).abs() < 1e-12 && (hi - 9.0).abs() < 1e-12,
+            "{lo}, {hi}"
+        );
+        assert_eq!(read.sin_cos, 0.4_f64.sin_cos());
+    }
+
+    /// **Two crossing cylinders' ball is the pair's, whatever reach it is
+    /// read across.** Radius 1 along `x` through the origin and radius 2
+    /// along `y` through `(0, 0, 3)`: the common perpendicular runs 3 up
+    /// `z` from the origin, so the ball is centred at `(0, 0, 1.5)` out
+    /// to `√(3² + 2.5²)`. Read across an edge near the crossing and one
+    /// 40 m along the first axis, it is the same ball. Red against the
+    /// perpendicular's foot left at the reach's pivot (a centre 40 m
+    /// off), and against the radii's larger for their lesser along the
+    /// perpendicular.
+    #[test]
+    fn two_crossing_cylinders_ball_does_not_move_with_the_reach() {
+        let axes = [
+            Line {
+                origin: Point3::new(-7.0, 0.0, 0.0),
+                dir: geom::stated_direction(X),
+            },
+            Line {
+                origin: Point3::new(0.0, 9.0, 3.0),
+                dir: geom::stated_direction(Y),
+            },
+        ];
+        let want_r = (3.0_f64.powi(2) + 2.5_f64.powi(2)).sqrt();
+        for reach in [
+            segment(Point3::new(-1.0, 0.0, 1.0), Point3::new(1.0, 1.0, 2.0)),
+            segment(Point3::new(40.0, 0.0, 1.0), Point3::new(41.0, 1.0, 1.0)),
+        ] {
+            let (perp, ball) = ExtentBall::of_crossing_cylinders(axes, [1.0, 2.0], &reach);
+            assert!(
+                (ball.center() - Point3::new(0.0, 0.0, 1.5)).norm() < 1e-12,
+                "{:?}",
+                ball.center()
+            );
+            assert!((ball.radius() - want_r).abs() < 1e-12, "{}", ball.radius());
+            assert!((perp.foot - Point3::origin()).norm() < 1e-12);
+            assert!((perp.gap - 3.0).abs() < 1e-12 && (perp.sin - 1.0).abs() < 1e-12);
+        }
+    }
+
+    /// **Several edges' extent is read from below.** Three short posts,
+    /// one standing 2 m out along each axis: no two of their points are
+    /// farther apart than the far corners of two posts, about `2√2`,
+    /// where the box about them is `2√3` corner to corner. The reading
+    /// is never past the farthest pair and is most of it. Red against
+    /// the box's diagonal (a bound from above), against the edges' own
+    /// extents alone (0.1), and against one width in place of the
+    /// widest. No edge reads zero.
+    #[test]
+    fn several_edges_extent_never_passes_their_farthest_pair() {
+        let post = |foot: Point3<f64>, up: Vec3<f64>| {
+            Curve3::Line(Line {
+                origin: foot,
+                dir: geom::stated_direction(up),
+            })
+        };
+        let posts = [
+            post(Point3::new(2.0, 0.0, 0.0), Y),
+            post(Point3::new(0.0, 2.0, 0.0), Z),
+            post(Point3::new(0.0, 0.0, 2.0), X),
+        ];
+        let ends: Vec<Point3<f64>> = posts
+            .iter()
+            .flat_map(|c| [c.eval(0.0), c.eval(0.1)])
+            .collect();
+        let farthest = farthest_pair(&ends);
+        let read = edges_extent_inf(posts.iter().map(|c| (c, (0.0, 0.1)))).length();
+        assert!(read <= farthest * (1.0 + 1e-12), "{read} past {farthest}");
+        assert!(read >= 0.95 * farthest, "{read} well short of {farthest}");
+        assert_eq!(edges_extent_inf::<f64>([]).length(), 0.0);
+    }
+
+    /// **A cover's diameter is read from above**: a segment's box
+    /// diagonal is its length, and a unit sphere's, `2√3`, is no shorter
+    /// than the 2 its farthest two points stand apart. Red against the
+    /// cover's ball's radius (1) and against one box side (2 on the
+    /// segment `(0,0,0)–(1,2,2)`, whose length is 3).
+    #[test]
+    fn a_covers_diameter_is_its_boxs_diagonal() {
+        let seg = Cover::segment(Point3::origin(), Point3::new(1.0, 2.0, 2.0)).unwrap();
+        assert!((cover_diameter(&seg).length() - 3.0).abs() < 1e-12);
+        let sphere =
+            Cover::sphere(&geom::Frame::new(Point3::new(5.0, 5.0, 5.0), Z, X), 1.0).unwrap();
+        let d = cover_diameter(&sphere).length();
+        assert!((d - 2.0 * 3.0_f64.sqrt()).abs() < 1e-9, "{d}");
     }
 }

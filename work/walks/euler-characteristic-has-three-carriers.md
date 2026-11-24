@@ -2,11 +2,14 @@
 id: euler-characteristic-has-three-carriers
 kind: issue
 title: The Euler characteristic has three carriers: readback::EulerCounts, validate's ComponentCounts and review_m1_pr4's ShellComponent
-status: open
+status: closed
+branch: walks/euler-theorem
+pr: 7430
 opened: 2026-09-12
 refs: [no-public-census-or-genus-query, 2131]
 priority: P1
 cost: M
+closed: 2026-11-23
 ---
 
 ## Finding
@@ -62,3 +65,9 @@ Two designers, two reconciliation rounds. Agreed: pass 11's per-component Euler�
 ## Decided (Ev, 2026-11-22, PR 7424)
 
 "sounds good! just renaming to `h()` and adding no code sounds very simple and good presuming that it is, y'know, correct." So: the agreed part as proposed (pass 11's Euler arm, `ComponentCounts`, `satisfies_euler_poincare` and the public `ComponentEulerViolation` go; pass 11 is gated on 1–7 and 10 and counts components; the validator keeps its own walk; `[topology.tiers]` states the identity as a theorem of the checklist), and the census door's `genus()` is renamed `h()` with no component count added; its doc says h is the operator coordinate s − χ/2 and equals the genus at tier 2. "Presuming it is correct" binds the unit: the theorem's test pin (per-component counts with s = 1 asserting `h() ≥ 0` on every seqgen step and over the movefac fixtures) must run red-first against a planted violation before the arm is deleted.
+
+The pass-11 gate is passes 1–7, not "1–7 and 10" as the PR 7424 text put it (review of PR 7430): the pass-10 gate only stopped the Euler arm's echo, the arm is gone, and gating the component count on pass 10 would drop tier 2's `ShellDisconnected` for a shell left in pieces beside a cross-shell edge.
+
+## Closed
+
+2026-11-23: PR 7430 merged (the theorem pinned red-first, the arm and `ComponentCounts` deleted, `genus()` renamed `h()`, pass 11 gated on 1–7). The shell-glue half closed with PR 7438.

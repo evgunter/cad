@@ -664,7 +664,7 @@ fn analysis_keeps_its_ids_across_a_rename() {
     );
     assert_eq!(after.params().keys().copied().collect::<Vec<_>>(), vec![w]);
     assert_eq!(before, after, "a rename moves no analysis");
-    assert_eq!(after.spoken(w).to_string(), "v");
+    assert_eq!(editor_core::test_support::var_text(&after.spoken(w)), "v");
 
     let deleted = step(&renamed, DocEdit::DeleteVar { var: w.into() }).doc;
     match seed_env::<geom_core::Dual64, _>(&deleted, deleted.var_env(), w) {
@@ -1072,8 +1072,14 @@ fn a_definition_reading_a_deleted_variable_says_it_is_gone() {
     assert_eq!(staying.name(), None, "a deleted variable has no name");
     let said = refusal.to_string();
     for words in [
-        format!("to {staying}, which this document no longer holds"),
-        format!("redefine k without {staying} (DefineVar)"),
+        format!(
+            "to {staying}, which this document no longer holds",
+            staying = editor_core::test_support::var_text(staying)
+        ),
+        format!(
+            "redefine k without {staying} (DefineVar)",
+            staying = editor_core::test_support::var_text(staying)
+        ),
     ] {
         assert!(said.contains(&words), "{words:?} not in {said:?}");
     }

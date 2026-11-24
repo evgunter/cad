@@ -278,12 +278,12 @@ fn read_name(doc: &ProfileDoc, pose: VarId) -> StableName {
 
 /// The pose a stored constraint's target reads.
 fn target_of(c: &editor_core::Constraint) -> VarId {
-    c.mate().expect("a mate").to
+    c.mate().expect("a mate").to.read
 }
 
 /// The pose a stored constraint's own side reads.
 fn on_of(c: &editor_core::Constraint) -> VarId {
-    c.mate().expect("a mate").on
+    c.mate().expect("a mate").on.read
 }
 
 /// The one mate `placement`'s bundle holds, beside the values on it.
@@ -1145,7 +1145,7 @@ fn r1_every_shape_split_admits_round_trips_exactly() {
         let (doc, group) = insert(
             doc,
             Node::Assemble {
-                members: editor_core::Bodies::Spelled(vec![c.into(), a.into()]),
+                members: editor_core::Bodies::spelled(vec![c.into(), a.into()]),
             },
         );
         let (doc, _) = step(doc, product(editor_core::Operand::Node(group)));
@@ -1289,7 +1289,7 @@ fn a_cut_assemble_of_the_cut_copies_is_the_parts_product() {
     let (doc, group) = insert(
         doc,
         Node::Assemble {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
     );
     let (doc, _) = step(doc, product(editor_core::Operand::Node(group)));
@@ -1645,13 +1645,13 @@ fn a_pick_of_a_pick_at_the_product_reads_the_inner_piece() {
     let (doc, inner) = insert(
         doc,
         Node::Assemble {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
     );
     let (doc, outer) = insert(
         doc,
         Node::Assemble {
-            members: editor_core::Bodies::Spelled(vec![inner.into(), c.into()]),
+            members: editor_core::Bodies::spelled(vec![inner.into(), c.into()]),
         },
     );
     let (doc, placed) = insert(
@@ -1707,7 +1707,7 @@ fn a_product_reading_a_cut_assemble_no_copy_carries_is_severed() {
     let (doc, group) = insert(
         doc,
         Node::Assemble {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+            members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
         },
     );
     let (slot, _) = step(doc.clone(), product(editor_core::Operand::Node(group)));
@@ -1720,7 +1720,7 @@ fn a_product_reading_a_cut_assemble_no_copy_carries_is_severed() {
     let (seat, _) = insert(
         doc,
         Node::Assemble {
-            members: editor_core::Bodies::Spelled(vec![group.into()]),
+            members: editor_core::Bodies::spelled(vec![group.into()]),
         },
     );
     let refused = split(&seat, &[c, a, b, group], "product-severed-seat", &p.opts())
@@ -1791,14 +1791,14 @@ fn a_cut_assemble_beside_a_product_of_one_copy_round_trips() {
         let (doc, group) = insert(
             doc,
             Node::Assemble {
-                members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+                members: editor_core::Bodies::spelled(vec![a.into(), b.into()]),
             },
         );
         let doc = if read_by_kept {
             insert(
                 doc,
                 Node::Assemble {
-                    members: editor_core::Bodies::Spelled(vec![c.into(), group.into()]),
+                    members: editor_core::Bodies::spelled(vec![c.into(), group.into()]),
                 },
             )
             .0
@@ -1874,7 +1874,7 @@ fn a_read_through_a_source_of_a_pick_keeps_its_piece_across_a_split() {
             let (doc, kept) = insert(
                 doc,
                 Node::Assemble {
-                    members: editor_core::Bodies::Spelled(vec![editor_core::BodyRead::plain(read)]),
+                    members: editor_core::Bodies::spelled(vec![editor_core::BodyRead::plain(read)]),
                 },
             );
             step(doc, product(editor_core::Operand::Node(kept))).0
@@ -1936,7 +1936,7 @@ fn a_named_source_of_a_named_pick_over_the_cut_refuses_typed() {
             let (doc, kept) = insert(
                 doc,
                 Node::Assemble {
-                    members: editor_core::Bodies::Spelled(vec![editor_core::BodyRead::plain(
+                    members: editor_core::Bodies::spelled(vec![editor_core::BodyRead::plain(
                         editor_core::Operand::Var(s),
                     )]),
                 },
@@ -2093,7 +2093,7 @@ fn a_pick_of_a_pick_crosses_as_its_composed_path() {
         let (doc, g1) = insert(
             doc,
             Node::Assemble {
-                members: editor_core::Bodies::Spelled(vec![
+                members: editor_core::Bodies::spelled(vec![
                     editor_core::BodyRead::plain(editor_core::Operand::Var(ac)),
                     editor_core::BodyRead::plain(editor_core::Operand::Var(cc)),
                 ]),
@@ -2103,7 +2103,7 @@ fn a_pick_of_a_pick_crosses_as_its_composed_path() {
         let (doc, g2) = insert(
             doc,
             Node::Assemble {
-                members: editor_core::Bodies::Spelled(vec![
+                members: editor_core::Bodies::spelled(vec![
                     editor_core::BodyRead::plain(editor_core::Operand::Var(g1o)),
                     editor_core::BodyRead::plain(editor_core::Operand::Var(bc)),
                 ]),
@@ -2246,7 +2246,7 @@ fn nested_copy(p: &Parts, label: &str) -> (ProfileDoc, [RecipeNodeId; 6], VarId,
     let (doc, g1) = insert(
         doc,
         Node::Assemble {
-            members: editor_core::Bodies::Spelled(vec![
+            members: editor_core::Bodies::spelled(vec![
                 editor_core::BodyRead::plain(editor_core::Operand::Var(ac)),
                 editor_core::BodyRead::plain(editor_core::Operand::Var(cc)),
             ]),
@@ -2256,7 +2256,7 @@ fn nested_copy(p: &Parts, label: &str) -> (ProfileDoc, [RecipeNodeId; 6], VarId,
     let (doc, g2) = insert(
         doc,
         Node::Assemble {
-            members: editor_core::Bodies::Spelled(vec![
+            members: editor_core::Bodies::spelled(vec![
                 editor_core::BodyRead::plain(editor_core::Operand::Var(g1o)),
                 editor_core::BodyRead::plain(editor_core::Operand::Var(bc)),
             ]),
@@ -2449,7 +2449,7 @@ fn a_pick_of_a_pick_at_a_seat_evaluates_and_splits() {
             let (doc, kept) = insert(
                 doc,
                 Node::Assemble {
-                    members: editor_core::Bodies::Spelled(vec![editor_core::BodyRead::plain(read)]),
+                    members: editor_core::Bodies::spelled(vec![editor_core::BodyRead::plain(read)]),
                 },
             );
             step(doc, product(editor_core::Operand::Node(kept))).0

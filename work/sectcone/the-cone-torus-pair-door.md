@@ -2,13 +2,19 @@
 id: the-cone-torus-pair-door
 kind: unit
 title: Cone × torus in general pose has its rung-3 door: a pose on the section value with its tangency and apex margins, the ssi door, route flipped, the join carried
-status: dispatched
+status: closed
 opened: 2026-11-22
 priority: P0
 cost: H
 parent: cone-torus-rung-three-arm-waits-on-the-cone
 branch: sectcone/cone-torus-door
+closed: 2026-11-23
+pr: 7395
 ---
+
+## Closed (2026-11-23, PR 7395)
+
+Cone × torus in general pose marches. `ConeTorusPose` (`pair_section/cone_torus.rs`) decides, in order: the ring, the aperture, the axis pose over the torus's ball (a coaxial pose stays `cone_torus_section`), the apex on the torus (node, touch or ruling, each refused by name and never read as R-tan), and the critical gap through `Spine::Cone`. `ssi::cone_torus_ssi` refuses a tangent pose before any rung, `route(Cone, Torus)` is implemented, and the join carries `P::ConeTorus`. Lily wall 2 builds. The cone winds about its axis in `winds::channels`. Dual Opus review, both APPROVE-WITH-FIXES with no MAJOR. Five follow-up rows were filed by the fix pass.
 
 
 **Review tier: dual** (two Opus reviewers; Ev 2026-11-21). The pose's tangency decision and the apex margin are certified logic on a quartic pair. Difficulty letter: H.
