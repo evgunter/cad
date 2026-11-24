@@ -158,8 +158,8 @@ macro_rules! document_vocabulary {
         /// and no gate will report drift there. The trade was taken
         /// deliberately — the macro closes a SILENT failure class and
         /// formatting drift is visible to any reader — but it is a real
-        /// cost and it is not detected. Filed:
-        /// `work/ciw/rustfmt-does-not-reach-a-macro-wrapped-declaration-block.md`.
+        /// cost and it is not detected. A gate for it was weighed and declined
+        /// (`work/ciw/rustfmt-does-not-reach-a-macro-wrapped-declaration-block.md`, closed).
         #[doc(hidden)]
         pub const DOCUMENT_VOCABULARIES: &[(&str, &[&str])] =
             &[$((stringify!($name), <$name>::ALL_NAMES)),*];
@@ -946,7 +946,15 @@ impl core::fmt::Display for ProgramRefusal {
                 step,
                 rendered,
                 ..
-            } => write!(f, "loop {loop_} step {step}: {rendered}"),
+            } => {
+                // A refusal about an earlier step than the one raising
+                // it opens on the step it names, so it is not named twice.
+                if rendered.starts_with(&format!("step {step}'s ")) {
+                    write!(f, "loop {loop_}: {rendered}")
+                } else {
+                    write!(f, "loop {loop_} step {step}: {rendered}")
+                }
+            }
             Self::Validate(e) => write!(f, "the replayed loops failed profile validation: {e}"),
             Self::Unminted => f.write_str(
                 "the program carries no step ids, so its pieces have no names; a document's \
@@ -2649,21 +2657,24 @@ impl ProfileProgram {
         let mut loops = Vec::with_capacity(resolved.len());
         let mut records = Vec::with_capacity(resolved.len());
         for (li, steps) in resolved.iter().enumerate() {
-            let (lp, record) = profile::replay_recording(steps, tol).map_err(|e| match e.kind {
-                profile::ReplayErrorKind::Transition { state, verb } => {
-                    ProgramRefusal::Transition {
-                        loop_: program_index(li),
-                        step: program_index(e.step),
-                        state,
-                        verb,
+            let (lp, record) = profile::replay_recording(steps, tol).map_err(|e| {
+                let step = program_index(e.step());
+                match e.kind {
+                    profile::ReplayErrorKind::Transition { state, verb } => {
+                        ProgramRefusal::Transition {
+                            loop_: program_index(li),
+                            step,
+                            state,
+                            verb,
+                        }
                     }
+                    profile::ReplayErrorKind::Path(ref source) => ProgramRefusal::Geometry {
+                        loop_: program_index(li),
+                        step,
+                        kind: source.kind(),
+                        rendered: source.to_string(),
+                    },
                 }
-                profile::ReplayErrorKind::Path(ref source) => ProgramRefusal::Geometry {
-                    loop_: program_index(li),
-                    step: program_index(e.step),
-                    kind: source.kind(),
-                    rendered: source.to_string(),
-                },
             })?;
             loops.push(lp);
             records.push(record);

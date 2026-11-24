@@ -128,8 +128,9 @@ mod certified {
                  ({UNION_MAPPED_ENCLOSURE_HI:e}) is a regression, not a tightening: \
                  {source:?}"
             );
-            let topo::EulerOpError::Certification {
+            let topo::EulerOpError::DescriptionUncertified {
                 error: geom_brep::CertifyError::Escalated { check, cause, .. },
+                ..
             } = source
             else {
                 panic!("the refusal must be a certification escalation, got {source:?}");

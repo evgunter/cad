@@ -121,7 +121,7 @@ pub(super) fn fan_within_signs<T: Decide>(
     // A direction on the cone leaves the apex `cos α` along its nappe's
     // axis, well clear of zero: the nappe it lies on is read at the
     // sector's arm.
-    let along = dir.normalize().dot(apex.nappe_axis(s.start));
+    let along = dir.normalize().dot(apex.nappe_axis(s.start).get());
     if decide("bool_fan_nappe", Margin::levered(along, s.arm), band).map_err(escalate)?
         != Sign::Positive
     {
@@ -319,14 +319,14 @@ pub(super) fn fan_meeting<T: Decide>(
                 face: a.face,
                 kind: geom::SurfaceKind::Cone,
             };
-            let apart = match one_cone((pa, axa), (pb, axb), arm, band)? {
+            let apart = match one_cone((pa, axa.get()), (pb, axb.get()), arm, band)? {
                 Coaxial::OneCone => return Ok(Meeting::Coincident(Coincident::Frontier(a_op))),
                 Coaxial::Other => return Ok(Meeting::Rays(Vec::new())),
                 Coaxial::Apart(s) => s,
             };
             let m = geom_brep::cone_cone_apex_meeting(
-                (axa, pa.half_angle.cos()),
-                (axb, pb.half_angle.cos()),
+                (axa.get(), pa.half_angle.cos()),
+                (axb.get(), pb.half_angle.cos()),
             );
             // `disc` levered by the arm reads the two rulings' half-angle
             // apart, `√disc`, against `√(ε/arm)`: rulings closer than that
@@ -512,7 +512,7 @@ fn plane_fan<T: Decide>(
         let geom::Curve3::Line(geom::Line { dir, .. }) = line else {
             unreachable!("a cone's section ruling through its apex is a line")
         };
-        rays.push(apex.onto_nappe_of(dir, fan.start));
+        rays.push(apex.onto_nappe_of(dir.get(), fan.start));
     }
     Ok(Meeting::Rays(rays))
 }
@@ -624,7 +624,7 @@ pub(super) fn nappe_classes<T: Decide>(
         let arm = first.arm.min(s.arm);
         let axes = (apex.nappe_axis(first.start), other.nappe_axis(s.start));
         let one = matches!(
-            one_cone((apex, axes.0), (other, axes.1), arm, band)?,
+            one_cone((apex, axes.0.get()), (other, axes.1.get()), arm, band)?,
             Coaxial::OneCone
         ) && other.material_inside() == apex.material_inside();
         if !one {
@@ -672,13 +672,12 @@ mod rows {
         for sense in [true, false] {
             let apex = ConeApex {
                 apex: o,
-                axis: Vec3::new(0.0, 1.0, 0.0),
+                axis: geom_core::UnitVec3::exact_y(),
                 half_angle: h,
                 u_ref: Vec3::new(1.0, 0.0, 0.0),
                 sense,
             };
-            // Unsourced lever: a fixture's unit arm, with no edge to read it off.
-            let unit = Lever::unsourced(1.0);
+            let unit = geom_core::test_support::fixture_lever(1.0);
             let sector = BoolSector {
                 he: HalfEdgeKey::from(key(1)),
                 start,
@@ -730,13 +729,12 @@ mod rows {
         let start = down * half.cos() + side * half.sin();
         let apex = ConeApex {
             apex: Point3::new(0.0, 1.0, 0.0),
-            axis: down * -1.0,
+            axis: geom_core::UnitVec3::checked(down * -1.0),
             half_angle: half,
             u_ref: side,
             sense: true,
         };
-        // Unsourced lever: the grid's given arm, with no edge to read it off.
-        let arm = Lever::unsourced(arm);
+        let arm = geom_core::test_support::fixture_lever(arm);
         BoolSector {
             he: HalfEdgeKey::from(key(face)),
             start,

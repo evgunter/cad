@@ -2,12 +2,13 @@
 id: the-axis-mint-asks-for-proof-only-where-the-value-reads-zero
 kind: issue
 title: The axis mint asks the tier nothing where the value reads a definite sign, nor on an escalation in a deferring session, so one identity takes two branches at two valuations
-status: dispatched
+status: review
 opened: 2026-11-15
 priority: P1
 cost: M
 refs: [6963, 6990]
 branch: boxfinish/expression-question
+pr: 7488
 ---
 
 

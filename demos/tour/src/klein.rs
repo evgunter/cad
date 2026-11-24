@@ -538,11 +538,11 @@ fn annulus<S: Scalar>(m: &Meridian, cx: f64, tol: Tol) -> Vec<ConstructedLoop<S>
 /// `section` swept along `spine` by `sweep_body` at `stations`
 /// stations and v-degree `v_degree`, from the world frame at the
 /// spine's start turned onto its start tangent ([`frame_across`]). The
-/// section is built in `f64`, so it
-/// enters `S` as the computed values it is; the body comes out at `S`.
+/// spine is built in `f64`, so its start point and tangent enter `S` as
+/// the computed values they are; the section is drawn at `S`.
 pub fn swept_loop<S: Scalar>(
     spine: &NurbsCurve3<f64>,
-    section: &[ConstructedLoop<f64>],
+    section: &[ConstructedLoop<S>],
     stations: usize,
     v_degree: usize,
     tol: Tol,
@@ -554,9 +554,8 @@ pub fn swept_loop<S: Scalar>(
         tangent.map(S::from_computed),
         tol,
     );
-    let section: Vec<ConstructedLoop<S>> = section.iter().map(|lp| lp.lift_computed()).collect();
     sweep_body::<S>(
-        &section,
+        section,
         SketchPlane::from_frame(place),
         spine,
         stations,
@@ -577,14 +576,8 @@ pub struct Bottle<S: Scalar> {
 pub fn bottle<S: Scalar>(tol: Tol) -> Bottle<S> {
     let m = meridian();
     let spine = exact_spine(&m);
-    let top = swept_loop::<S>(
-        &spine,
-        &annulus::<f64>(&m, 0.0, tol),
-        STATIONS,
-        V_DEGREE,
-        tol,
-    )
-    .expect("the annulus sweeps along the loop's whole spine");
+    let top = swept_loop::<S>(&spine, &annulus::<S>(&m, 0.0, tol), STATIONS, V_DEGREE, tol)
+        .expect("the annulus sweeps along the loop's whole spine");
     Bottle {
         bulb: finished(
             "the bulb",
@@ -792,14 +785,7 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
     // side — a hollow tube, so one handle.
     let census = euler_counts(&top);
     assert_eq!(
-        (
-            census.v,
-            census.e,
-            census.f,
-            census.r,
-            census.s,
-            census.genus()
-        ),
+        (census.v, census.e, census.f, census.r, census.s, census.h()),
         (8, 12, 6, 2, 1, Ok(1)),
         "the loop is one genus-1 shell of 6 faces; got {census:?}"
     );

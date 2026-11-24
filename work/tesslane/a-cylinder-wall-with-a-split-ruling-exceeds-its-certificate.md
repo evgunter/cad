@@ -33,7 +33,7 @@ those triangles span more than one column and exceed the sagitta bound.
 By `a-cone-face-met-on-its-axis-meshes-a-triangle-wound-against-it`:
 a cylinder or cone face whose straight side holds a point goes to the
 trimmed lane (`walk::splits_a_straight_side`, read in
-`tessellate::lane_of`). Every cell above meshes there and passes
-`check_mesh` (`curved::tests::a_ruled_face_with_a_split_ruling_meshes`),
+`tessellate::route_of`). Every cell above meshes there and passes
+`check_mesh` (`split_rulings::a_split_side_adds_one_triangle_per_point`),
 at the trimmed lane's `UNPROVED_HEADROOM`; that density is the debt of
 `a-cone-face-with-a-split-side-has-no-worst-triangle-theorem`.

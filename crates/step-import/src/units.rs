@@ -43,52 +43,98 @@
 //! is an angle, so the file's ANGLE scale does; a degree-context cone
 //! whose half-angle were read as radians would be a different cone.
 
+use quantity::Decimal;
+
 use crate::error::StepImportError;
 
-/// The ISO 10303-41 `si_prefix` enumeration and its decimal factor —
-/// the whole closed table, so a prefix is data, never a special case.
-/// Factors are written as exact decimal literals (each is the
-/// correctly-rounded f64 of its power of ten).
-pub(crate) const PREFIX_FACTORS: [(&str, f64); 16] = [
-    ("EXA", 1e18),
-    ("PETA", 1e15),
-    ("TERA", 1e12),
-    ("GIGA", 1e9),
-    ("MEGA", 1e6),
-    ("KILO", 1e3),
-    ("HECTO", 1e2),
-    ("DECA", 1e1),
-    ("DECI", 1e-1),
-    ("CENTI", 1e-2),
-    ("MILLI", 1e-3),
-    ("MICRO", 1e-6),
-    ("NANO", 1e-9),
-    ("PICO", 1e-12),
-    ("FEMTO", 1e-15),
-    ("ATTO", 1e-18),
+/// The ISO 10303-41 `si_prefix` enumeration and the power of ten each
+/// names — the whole closed table, so a prefix is data, never a special
+/// case.
+pub(crate) const PREFIX_FACTORS: [(&str, i64); 16] = [
+    ("EXA", 18),
+    ("PETA", 15),
+    ("TERA", 12),
+    ("GIGA", 9),
+    ("MEGA", 6),
+    ("KILO", 3),
+    ("HECTO", 2),
+    ("DECA", 1),
+    ("DECI", -1),
+    ("CENTI", -2),
+    ("MILLI", -3),
+    ("MICRO", -6),
+    ("NANO", -9),
+    ("PICO", -12),
+    ("FEMTO", -15),
+    ("ATTO", -18),
 ];
 
 /// The factor for an `si_prefix` enumeration name, or `None` when the
 /// name is not one of the sixteen.
-pub(crate) fn prefix_factor(name: &str) -> Option<f64> {
+pub(crate) fn prefix_factor(name: &str) -> Option<Scale> {
     PREFIX_FACTORS
         .iter()
         .find(|(n, _)| *n == name)
-        .map(|(_, f)| *f)
+        .map(|&(_, k)| Scale::power_of_ten(k))
+}
+
+/// **A factor into kernel units, held exactly**: the decimal the
+/// file's own numbers and the prefix table's powers of ten make, so a
+/// number the file states in its unit is read through the unit door's
+/// arithmetic, its decimal times the exact factor rounded once
+/// ([`Scale::apply`]), not a float multiply that rounds twice.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct Scale(Decimal);
+
+impl Scale {
+    /// The identity: the kernel's own units.
+    pub(crate) fn one() -> Self {
+        Self::power_of_ten(0)
+    }
+
+    /// `10^k`.
+    pub(crate) fn power_of_ten(k: i64) -> Self {
+        let Some(power) = Decimal::parse(&format!("1e{k}")) else {
+            unreachable!("1e{k} is a decimal")
+        };
+        Self(power)
+    }
+
+    /// The number a file states, read as its shortest decimal (the
+    /// file's own digits, for any it wrote of at most fifteen
+    /// figures); `None` where it is not finite.
+    pub(crate) fn of_file(value: f64) -> Option<Self> {
+        Decimal::of_float(value).map(Self)
+    }
+
+    /// This factor times `other`, exactly.
+    pub(crate) fn times(&self, other: &Self) -> Self {
+        Self(self.0.times(&other.0))
+    }
+
+    /// `raw`, a number the file states in this unit, in kernel units:
+    /// its decimal times this factor, rounded once. The identity moves
+    /// no bits, and a value that is not finite is itself.
+    pub(crate) fn apply(&self, raw: f64) -> f64 {
+        if *self == Self::one() {
+            return raw;
+        }
+        Decimal::of_float(raw).map_or(raw, |number| number.times_to_f64(&self.0))
+    }
 }
 
 /// What one resolved unit record measures, with the factor that
 /// carries it into the kernel's own (meters, radians, steradians).
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) enum UnitKind {
     /// A length, carrying the factor into meters (1.0 unprefixed,
     /// 1e-3 for `.MILLI.`, the file's own 0.0254 for a declared inch).
-    Length(f64),
+    Length(Scale),
     /// A plane angle, carrying the factor into radians (1.0 for an
     /// unprefixed `.RADIAN.`; for a `CONVERSION_BASED_UNIT('DEGREE',…)`
     /// the file's OWN declared π/180, read off its conversion
     /// expression — M7-4 Leg B).
-    Angle(f64),
+    Angle(Scale),
     /// A solid angle in steradians (unprefixed).
     SolidAngle,
 }
@@ -96,7 +142,7 @@ pub(crate) enum UnitKind {
 impl UnitKind {
     /// The name of the quantity this unit measures — for refusal text
     /// that says which slot a mismatched conversion factor landed in.
-    pub(crate) fn quantity(self) -> &'static str {
+    pub(crate) fn quantity(&self) -> &'static str {
         match self {
             Self::Length(_) => "a length",
             Self::Angle(_) => "a plane angle",
@@ -143,9 +189,12 @@ pub(crate) fn conversion_kind(
             base.quantity()
         ),
     };
+    let Some(stated) = Scale::of_file(value) else {
+        unreachable!("a finite conversion factor is a decimal")
+    };
     match (declared, base) {
-        ("LENGTH_UNIT", UnitKind::Length(f)) => Ok(UnitKind::Length(value * f)),
-        ("PLANE_ANGLE_UNIT", UnitKind::Angle(f)) => Ok(UnitKind::Angle(value * f)),
+        ("LENGTH_UNIT", UnitKind::Length(f)) => Ok(UnitKind::Length(stated.times(&f))),
+        ("PLANE_ANGLE_UNIT", UnitKind::Angle(f)) => Ok(UnitKind::Angle(stated.times(&f))),
         // A solid-angle conversion carries no factor anywhere in this
         // importer (nothing reads a solid angle), so only the identity
         // resolves; a scaled steradian refuses rather than resolving
@@ -165,11 +214,11 @@ pub(crate) fn si_unit_kind(
     found: impl FnOnce() -> String,
 ) -> Result<UnitKind, StepImportError> {
     match (name, prefix) {
-        ("METRE", None) => Ok(UnitKind::Length(1.0)),
+        ("METRE", None) => Ok(UnitKind::Length(Scale::one())),
         ("METRE", Some(p)) => prefix_factor(p)
             .map(UnitKind::Length)
             .ok_or(StepImportError::UnsupportedUnit { id, found: found() }),
-        ("RADIAN", None) => Ok(UnitKind::Angle(1.0)),
+        ("RADIAN", None) => Ok(UnitKind::Angle(Scale::one())),
         ("STERADIAN", None) => Ok(UnitKind::SolidAngle),
         _ => Err(StepImportError::UnsupportedUnit { id, found: found() }),
     }
@@ -178,14 +227,18 @@ pub(crate) fn si_unit_kind(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
-    use super::{PREFIX_FACTORS, UnitKind, conversion_kind, prefix_factor, si_unit_kind};
+    use super::{PREFIX_FACTORS, Scale, UnitKind, conversion_kind, prefix_factor, si_unit_kind};
+
+    fn scale(text: &str) -> Scale {
+        Scale(quantity::Decimal::parse(text).unwrap())
+    }
 
     #[test]
     fn the_prefix_table_is_the_whole_enumeration_and_reads_as_data() {
         assert_eq!(PREFIX_FACTORS.len(), 16);
-        assert_eq!(prefix_factor("MILLI"), Some(1e-3));
-        assert_eq!(prefix_factor("KILO"), Some(1e3));
-        assert_eq!(prefix_factor("ATTO"), Some(1e-18));
+        assert_eq!(prefix_factor("MILLI"), Some(scale("0.001")));
+        assert_eq!(prefix_factor("KILO"), Some(scale("1000")));
+        assert_eq!(prefix_factor("ATTO"), Some(scale("1e-18")));
         assert_eq!(prefix_factor("MYRIA"), None, "not an si_prefix member");
     }
 
@@ -194,15 +247,15 @@ mod tests {
         let found = || "probe".to_owned();
         assert_eq!(
             si_unit_kind(1, Some("MILLI"), "METRE", found).unwrap(),
-            UnitKind::Length(1e-3)
+            UnitKind::Length(scale("1e-3"))
         );
         assert_eq!(
             si_unit_kind(1, None, "METRE", found).unwrap(),
-            UnitKind::Length(1.0)
+            UnitKind::Length(Scale::one())
         );
         assert_eq!(
             si_unit_kind(1, None, "RADIAN", found).unwrap(),
-            UnitKind::Angle(1.0)
+            UnitKind::Angle(Scale::one())
         );
         assert!(si_unit_kind(1, Some("MILLI"), "RADIAN", found).is_err());
         assert!(si_unit_kind(1, None, "INCH", found).is_err());
@@ -217,25 +270,32 @@ mod tests {
     fn a_conversion_factor_multiplies_through_the_base_it_names() {
         let found = || "complex(CONVERSION_BASED_UNIT LENGTH_UNIT NAMED_UNIT)".to_owned();
         assert_eq!(
-            conversion_kind(1, "LENGTH_UNIT", 25.4, UnitKind::Length(1e-3), found).unwrap(),
-            UnitKind::Length(25.4 * 1e-3)
+            conversion_kind(
+                1,
+                "LENGTH_UNIT",
+                25.4,
+                UnitKind::Length(scale("1e-3")),
+                found
+            )
+            .unwrap(),
+            UnitKind::Length(scale("0.0254"))
         );
         assert_eq!(
             conversion_kind(
                 1,
                 "PLANE_ANGLE_UNIT",
                 0.0174532925,
-                UnitKind::Angle(1.0),
+                UnitKind::Angle(Scale::one()),
                 found
             )
             .unwrap(),
-            UnitKind::Angle(0.0174532925)
+            UnitKind::Angle(scale("0.0174532925"))
         );
         // The identity conversion an Onshape-lineage writer emits for
         // plain metres resolves to plain metres.
         assert_eq!(
-            conversion_kind(1, "LENGTH_UNIT", 1.0, UnitKind::Length(1.0), found).unwrap(),
-            UnitKind::Length(1.0)
+            conversion_kind(1, "LENGTH_UNIT", 1.0, UnitKind::Length(Scale::one()), found).unwrap(),
+            UnitKind::Length(Scale::one())
         );
     }
 
@@ -245,14 +305,21 @@ mod tests {
     #[test]
     fn a_mismatched_or_unusable_conversion_refuses_typed() {
         let found = || "complex(CONVERSION_BASED_UNIT LENGTH_UNIT NAMED_UNIT)".to_owned();
-        let mismatch = conversion_kind(7, "LENGTH_UNIT", 1.0, UnitKind::Angle(1.0), found)
+        let mismatch = conversion_kind(7, "LENGTH_UNIT", 1.0, UnitKind::Angle(Scale::one()), found)
             .unwrap_err()
             .render();
         assert!(mismatch.contains("declared as LENGTH_UNIT"), "{mismatch}");
         assert!(mismatch.contains("a plane angle"), "{mismatch}");
         for bad in [0.0, -25.4, f64::NAN, f64::INFINITY] {
             assert!(
-                conversion_kind(7, "LENGTH_UNIT", bad, UnitKind::Length(1e-3), found).is_err(),
+                conversion_kind(
+                    7,
+                    "LENGTH_UNIT",
+                    bad,
+                    UnitKind::Length(scale("1e-3")),
+                    found
+                )
+                .is_err(),
                 "factor {bad} is not a usable scale"
             );
         }
@@ -260,7 +327,7 @@ mod tests {
         // consumer to apply its factor: refused, not silently dropped.
         assert!(conversion_kind(7, "SOLID_ANGLE_UNIT", 2.0, UnitKind::SolidAngle, found).is_err());
         assert!(
-            conversion_kind(7, "MASS_UNIT", 1.0, UnitKind::Length(1.0), found).is_err(),
+            conversion_kind(7, "MASS_UNIT", 1.0, UnitKind::Length(Scale::one()), found).is_err(),
             "a mass conversion is not a quantity this importer measures"
         );
     }

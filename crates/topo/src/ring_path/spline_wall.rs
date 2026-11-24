@@ -31,10 +31,12 @@ pub(crate) struct SplineWall<T: Real> {
     /// The chart with its parameters swapped, whose rows are the chart's
     /// curves of constant `v`.
     swapped: Arc<geom::NurbsSurface<T>>,
-    /// The chart's value channel, which a foot is sought on: a foot's
-    /// parameters are structure, and the distance that admits them is
-    /// read at `T` ([`Self::paths`]).
-    values: Arc<geom::NurbsSurface<f64>>,
+    /// The chart at `f64` (`SpanLocate::value_channel`), which a foot is
+    /// sought on: the search is structure found at `f64`, and the
+    /// distance that admits a foot is read on the chart without its
+    /// tangent ([`Self::paths`]). At `f64` it is a second copy of the
+    /// chart; elsewhere it is the one `f64` copy a search needs.
+    shadow: Arc<geom::NurbsSurface<f64>>,
 }
 
 /// Which of the chart's parameters a piece holds fixed.
@@ -60,7 +62,7 @@ impl<T: Decide> SplineWall<T> {
         let wall = Self {
             chart: chart.clone(),
             swapped: Arc::new(chart.transposed()),
-            values: Arc::new(chart.map_scalar(T::value_channel)),
+            shadow: Arc::new(chart.map_scalar(T::value_channel)),
         };
         let (u, v) = (
             chart.knot_values_u().domain().0,
@@ -87,7 +89,7 @@ impl<T: Decide> SplineWall<T> {
             p.y.value_channel(),
             p.z.value_channel(),
         );
-        self.values.project(p).ok().map(|foot| (foot.u, foot.v))
+        self.shadow.project(p).ok().map(|foot| (foot.u, foot.v))
     }
 
     /// The outward normal of a face of sense `sense` at the foot the
@@ -111,10 +113,11 @@ impl<T: Decide> SplineWall<T> {
     ///   along that `u` iso, arriving along it.
     ///
     /// A path is asked only where the piece it arrives along is decided
-    /// of some length (**`split_ring_path_wall_arrival`**: its chord,
-    /// charged the [`resolution`] of the ends and the wall's net), so
-    /// its arrival is a direction it travels; its first piece may have
-    /// none. The pieces meet at the corner, each iso curve's own point
+    /// of some length (**`split_ring_path_wall_arrival`**: its extent from
+    /// below, how far apart two of its points stand at least, charged the
+    /// [`resolution`] of the ends and the wall's net), so its arrival is a
+    /// direction it travels; its first piece may have none. A piece whose
+    /// ends meet round a closed wall has a length all the same. The pieces meet at the corner, each iso curve's own point
     /// at the other's held parameter. Each path states the arm its
     /// arrival's lean is levered at ([`IsoPiece::reach`]).
     pub(crate) fn paths(
@@ -125,8 +128,9 @@ impl<T: Decide> SplineWall<T> {
         let (Some(a), Some(b)) = (self.foot(from), self.foot(to)) else {
             return Ok(Vec::new());
         };
+        let on_chart = self.chart.value_view();
         let on_wall = |p: Point3<T>, (u, v): (f64, f64)| {
-            let off = self.chart.eval(T::from_computed(u), T::from_computed(v)) - p;
+            let off = on_chart.eval_at(u, v) - p.map(Real::without_tangent);
             decide("split_ring_path_wall_foot", Margin::of(off.norm()), band)
                 .map(|sign| sign == Sign::Zero)
         };
@@ -152,11 +156,11 @@ impl<T: Decide> SplineWall<T> {
             let (Some(lead), Some(arriving)) = (lead, arriving) else {
                 return Ok(None);
             };
-            let (chord, arrival) = arriving.travel();
+            let (extent, arrival) = arriving.travel();
             let reach = arriving.reach();
             let arrives = decide(
                 "split_ring_path_wall_arrival",
-                Margin::of(charge(chord.length(), slack)),
+                Margin::of(charge(extent.length(), slack)),
                 band,
             )?;
             Ok((arrives != Sign::Zero).then(|| Path {
@@ -207,23 +211,24 @@ impl<T: Decide> IsoPiece<T> {
         if self.forward { (lo, hi) } else { (hi, lo) }
     }
 
-    /// The piece's chord, the arm its readings are levered at (no longer
-    /// than the piece), and its direction of travel where it stops.
+    /// The piece's extent from below ([`geom_brep::edge_extent_inf`], no
+    /// longer than the piece), which the wall's arrival reads as its
+    /// length and [`Self::reach`] bounds the lean's arm by, and its
+    /// direction of travel where it stops.
     pub(super) fn travel(&self) -> (Lever<T>, Vec3<T>) {
-        let (start, stop) = self.ends();
-        let chord = geom_brep::ExtentBall::point(start).lever_from(stop);
         let carrier = self.carrier();
+        let extent = geom_brep::edge_extent_inf(&carrier, self.span.0, self.span.1);
         let along = if self.forward {
             carrier.deriv(self.span.1)
         } else {
             -carrier.deriv(self.span.0)
         };
-        (chord, along)
+        (extent, along)
     }
 
     /// **The arm the lean of an arrival along this piece is levered
-    /// at**: the piece's chord, no longer than the piece's radius of
-    /// curvature where it stops.
+    /// at**: the piece's extent from below ([`Self::travel`]), no longer
+    /// than the piece's radius of curvature where it stops.
     ///
     /// The lean is the cosine between the piece's direction where it
     /// stops and the closing chord's left normal, and it says which side
@@ -231,7 +236,7 @@ impl<T: Decide> IsoPiece<T> {
     /// `δ` along the piece turns that direction by `δ·κ`, so a cosine is
     /// decided against a displacement only at an arm of `1/κ` or less;
     /// and the piece runs on the side its stop's direction names only
-    /// over its own length, which its chord does not exceed. The lesser
+    /// over its own length, which its extent from below does not exceed. The lesser
     /// of the two is an arm no reading of the stop within the band
     /// overturns: shorter than either, it only stands a lean down.
     pub(super) fn reach(&self) -> Lever<T> {

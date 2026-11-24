@@ -138,14 +138,22 @@ fn every_form() -> Vec<(ArcMode, Option<TargetKind>)> {
 
 /// Whether the replay refused `steps`' last step as a lattice
 /// violation of that verb.
+/// The tip state a lattice refusal names.
+fn transition_state(e: &ReplayError<f64>) -> TipState {
+    match e.kind {
+        ReplayErrorKind::Transition { state, .. } => state,
+        ReplayErrorKind::Path(_) => unreachable!("a lattice refusal: {e}"),
+    }
+}
+
 fn lattice_refuses(steps: &[Step<f64>]) -> bool {
     let at = steps.len() - 1;
     matches!(
         replay(steps, Tol::witness()),
-        Err(ReplayError {
-            step,
+        Err(e @ ReplayError {
             kind: ReplayErrorKind::Transition { verb: Some(_), .. },
-        }) if step == at
+            ..
+        }) if e.step() == at
     )
 }
 
@@ -154,10 +162,12 @@ fn lattice_refuses(steps: &[Step<f64>]) -> bool {
 fn reached(steps: &[Step<f64>], what: &str) -> TipState {
     match replay(steps, Tol::witness()) {
         Ok(_) => TipState::Closed,
-        Err(ReplayError {
-            step,
-            kind: ReplayErrorKind::Transition { state, verb: None },
-        }) if step == steps.len() => state,
+        Err(
+            e @ ReplayError {
+                kind: ReplayErrorKind::Transition { verb: None, .. },
+                ..
+            },
+        ) if e.step() == steps.len() => transition_state(&e),
         other => panic!("{what} did not replay to a tip: {other:?}"),
     }
 }
@@ -321,17 +331,19 @@ fn chain_shape_lands_where_the_replay_lands() {
         }) = shape
         {
             assert!(
-                matches!(&replayed, Err(ReplayError { step: s, .. }) if *s == step),
+                matches!(&replayed, Err(e) if e.step() == step),
                 "{steps:?}: the shape refuses {fault:?} at {step}, the replay {replayed:?}",
             );
             continue;
         }
         let replayed = match replayed {
             Ok(_) => TipState::Closed,
-            Err(ReplayError {
-                step,
-                kind: ReplayErrorKind::Transition { state, verb: None },
-            }) if step == steps.len() => state,
+            Err(
+                e @ ReplayError {
+                    kind: ReplayErrorKind::Transition { verb: None, .. },
+                    ..
+                },
+            ) if e.step() == steps.len() => transition_state(&e),
             _ => continue,
         };
         let shaped = match shape {

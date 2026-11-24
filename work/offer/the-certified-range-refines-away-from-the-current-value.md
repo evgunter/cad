@@ -2,10 +2,13 @@
 id: the-certified-range-refines-away-from-the-current-value
 kind: unit
 title: the certified range halves its whole seed level by level, so it spends its budget away from the value it answers about, and stop discards it
-status: open
+status: closed
 opened: 2026-11-22
 priority: P1
 cost: H
+pr: 7369
+branch: offer/the-certified-range-refines-toward-the-current-value
+closed: 2026-11-23
 ---
 
 The kernel half of the decided certify design (Ev, #7340). The spec is the `## Design` section of `work/offer/certify-affordance-on-the-bounds-panel.md`, kernel part, together with its `## Decided` section.
@@ -19,7 +22,7 @@ The kernel half of the decided certify design (Ev, #7340). The spec is the `## D
   - Replay the far half too, so the search looks past undecided ground and can find a proven difference beyond it. A grow-outward-only schedule would make that arm dead, because a certified leaf and a flip leaf are never neighbours (`walk`'s docs).
 - **Determinism.** The answer after n steps is a pure function of the inputs and n. No clock is read.
 - **Pricing.** Ground the search has not reached is priced as budget (E6).
-- **Resolver.** The search takes the session's part resolver. `drive` takes none today: `work/scalar/the-box-driver-carries-no-part-resolver`.
+- **Resolver.** The search takes the session's part resolver. `drive` takes none today: `work/certread/the-box-driver-carries-no-part-resolver`.
 
 **The answer type.**
 - A proven interval, possibly empty, derived from the two sides.

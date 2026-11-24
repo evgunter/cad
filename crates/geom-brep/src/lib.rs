@@ -54,6 +54,7 @@
 //! deterministic by fixed schedule (D9). Instantiates at `f64`,
 //! `Dual<f64>`, `Interval`, and `Dual<Interval>`.
 
+#![cfg_attr(not(test), deny(clippy::disallowed_methods))]
 pub mod carrier_eq;
 mod carrier_net;
 pub mod carrier_pose;
@@ -123,6 +124,7 @@ pub mod patch_bound;
 pub mod patch_carrier;
 pub mod pcurve;
 pub mod pcurve_cache;
+pub(crate) mod piece;
 pub mod plane_eq;
 pub mod props;
 pub mod quartic;
@@ -155,8 +157,8 @@ pub use certify::{
 };
 pub use conic_bend::{BendBounds, ConicBend, ConicDeparture, conic_bend_side, curvature_vector};
 pub use curvature_arm::{
-    circle_curvature_arm, curvature_lever_arm, parallel_curvature_arm, uniform_curvature_arm,
-    within_carrier_bend,
+    chart_curvature_arm, circle_curvature_arm, curvature_lever_arm, parallel_curvature_arm,
+    uniform_curvature_arm, within_carrier_bend,
 };
 pub use description::{
     ChartCurve, CurveSelector, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, SharedRow,
@@ -196,9 +198,9 @@ pub use enters::{
     tied_germ_turn,
 };
 pub use extent::{
-    ExtentBall, Forgets, LeverBounds, Reach, anchored_at, edge_coordinate_reach_below,
-    edge_extent_inf, edge_extent_sup, edge_reach_bounds, points_diameter, points_lever_from,
-    surface_anchored_at,
+    ExtentBall, Forgets, LeverBounds, Reach, anchored_at, cover_diameter,
+    edge_coordinate_reach_below, edge_extent_inf, edge_extent_sup, edge_reach_bounds,
+    edges_extent_inf, points_diameter, points_lever_from, surface_anchored_at,
 };
 pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane, FittedLaneOf};
 /// The ring-torus convention's one home is `geom` (below this crate, so
@@ -249,18 +251,19 @@ pub use offset_fit::{
 pub use offset_fit_lane::{OFFSET_FIT_DOOR_HOLDERS, OffsetFitLane, OffsetFitLaneOf, ScalarList};
 pub use offset_meters::ChartArmRefusal;
 pub use pair_section::{
-    ArcPlace, AxisPose, CarriedComponent, CarriedSection, CarryError, CarryRefusal, CcDecision,
-    CcNode, CcStance, ChartReach, ClassCarrier, Coincident, ComponentEnds, ComponentShape,
-    Components, CsDecision, CsStance, CtStance, CylinderCylinderPose, CylinderSpherePose,
-    CylinderTorusPose, FittedCarrier, Gap, KnownPair, KnownRow, LoopTubeRefusal, NoCarrier,
-    NodeEnd, NodeEnds, NodeLine, NodeSet, PadBox, PairPose, PairSection, PairSide, PoseRefusal,
-    RaySense, Reached, RegionPlacement, Ring, SectionComponent, SectionDecision, SectionNode,
-    SectionPick, SectionRead, SiteFoot, SiteReading, SiteRefusal, SpanEnd, SphereTorusPose,
-    SplineImplicitPose, SplinePairPose, SquareWall, SsiLane, SsiLaneOf, StStance, TT_COINCIDENT,
-    TT_COINCIDENT_FLOOR, TorusCoincidence, TorusData, TorusDatum, TorusDisplacement, TorusGap,
-    TorusPoseRefusal, TorusQuestion, TorusTorusPose, TtStance, Turn, Winding, WindsRefusal,
-    ZeroKind, ZeroVerdict, axis_pose, coaxial_tangent_circle, line_tilt, pair_section,
-    spline_pair_section, square_part, tori_coincide,
+    ApexContact, ArcPlace, AxisPose, CarriedComponent, CarriedSection, CarryError, CarryRefusal,
+    CcDecision, CcNode, CcStance, ChartReach, ClassCarrier, Coincident, ComponentEnds,
+    ComponentShape, Components, ConeTorusPose, ConeTorusRefusal, CsDecision, CsStance, CtStance,
+    CylinderCylinderPose, CylinderSpherePose, CylinderTorusPose, FittedCarrier, Gap, KnownPair,
+    KnownRow, KtQuestion, KtStance, LoopTubeRefusal, NoCarrier, NodeEnd, NodeEnds, NodeLine,
+    NodeSet, PadBox, PairPose, PairSection, PairSide, PoseRefusal, RaySense, Reached,
+    RegionPlacement, Ring, SectionComponent, SectionDecision, SectionNode, SectionPick,
+    SectionRead, SiteFoot, SiteReading, SiteRefusal, SpanEnd, SphereTorusPose, SplineImplicitPose,
+    SplinePairPose, SquareWall, SsiLane, SsiLaneOf, StStance, TT_COINCIDENT, TT_COINCIDENT_FLOOR,
+    TorusCoincidence, TorusData, TorusDatum, TorusDisplacement, TorusGap, TorusPoseRefusal,
+    TorusQuestion, TorusTorusPose, TtStance, Turn, Winding, WindsRefusal, ZeroKind, ZeroVerdict,
+    axis_pose, coaxial_tangent_circle, line_tilt, pair_section, spline_pair_section, square_part,
+    tori_coincide,
 };
 /// [`CarryError`]'s and [`CarryRefusal`]'s compiler-derived kinds, for a
 /// roster that samples every arm.
@@ -297,9 +300,10 @@ pub use ssi::{
     SSI_FIT_DEGREE, SSI_FLOOR, SSI_MAX_STEPS, Section, SectionReading, SectionRoot,
     SettlingRefusal, SsiBoundaryContact, SsiBranch, SsiCertificate, SsiDecision, SsiDomain,
     SsiError, SsiLimb, SsiOperand, SsiOutcome, SsiTube, StepFault, StepperMode, TangentPair,
-    TorusPair, TraceDecision, TubeDegeneracy, boundary_section, certify_rung3, cylinder_sphere_ssi,
-    cylinder_torus_ssi, idealized_trace_r3, march_cylinder_torus, march_torus_torus,
-    plane_nurbs_ssi, sphere_torus_ssi, torus_torus_ssi, trace_plane_nurbs_uncertified,
+    TorusPair, TraceDecision, TubeDegeneracy, boundary_section, certify_rung3, cone_torus_ssi,
+    cylinder_sphere_ssi, cylinder_torus_ssi, idealized_trace_r3, march_cone_torus,
+    march_cylinder_torus, march_torus_torus, plane_nurbs_ssi, sphere_torus_ssi, torus_torus_ssi,
+    trace_plane_nurbs_uncertified,
 };
 #[cfg(any(test, feature = "test-support"))]
 #[doc(hidden)]

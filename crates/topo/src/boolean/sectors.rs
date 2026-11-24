@@ -85,7 +85,7 @@ use super::{
 use crate::body::Body;
 use crate::chord_join::StaleSite;
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
-use crate::live::{Proven, linked, proven};
+use crate::live::{Proven, proven};
 use crate::sector_face::{ConeApex, SectorFaceError};
 use crate::sector_shape::SlitTips;
 use crate::star::{Datum, Star, StarFace, StarFault};
@@ -308,8 +308,8 @@ pub(super) fn pair_sectors<T: Decide>(
     sites: [(&Body<T>, VertexKey, &SlitTips); 2],
     band: Band,
 ) -> Result<[Vec<BoolSector<T>>; 2], BooleanError> {
-    let [a, b] = [Operand::A, Operand::B].map(|operand| {
-        let (body, vertex, tips) = sites[operand as usize];
+    let [a, b] = Operand::BOTH.map(|operand| {
+        let (body, vertex, tips) = sites[operand.index()];
         Star::walk(body, vertex, tips, band)
             .map_err(|fault| star_fault(fault, operand, vertex, band))
     });
@@ -966,6 +966,146 @@ pub(super) fn tangent_lump<T: Decide>(
     }
 }
 
+/// **A declared-`Junction` sector's lump**: which side of the other
+/// operand's material the sector's face lies on, at a site on the rim the
+/// junction was certified over (`super::Junction`).
+///
+/// **Out, by the certificate, at every site on the rim.** The door glued
+/// the pair a junction only where its two faces both end on the rim, the
+/// outward normals aligned at every station round it (the routing's π
+/// wedge), the faces leaving it on opposite sides wherever they meet,
+/// abutting points included (`rim_wedge::departures`), and each
+/// operand's own edges on the rim convex creases all along them
+/// (`rim_wedge::rim_edges_convex`). So in the plane normal to the rim at
+/// the site, the sector's face leaves along the reverse of the other
+/// face's direction, and the other operand's material there lies in the
+/// wedge between the other face and its neighbour across the convex
+/// edge, below π: the reverse direction is outside it, and so is every
+/// direction of the sector's interior, which lies on the face's side of
+/// the shared tangent plane's rim line. Nothing of the carriers' bend is
+/// read: a junction claims no touch along the rim, so no second-order
+/// descent applies (`tangent_lump` reads one only along a line).
+///
+/// **The certificate covers a rim edge's interior and a vertex where the
+/// other operand's rim face and its neighbour across the rim are all
+/// that meet** (R2's vertex case). At a vertex of the other operand on
+/// the rim where a third face of its meets (a partial revolve's cut
+/// plane, a corner), its material there is a cone, not the dihedral
+/// wedge the convex rim edges close below π, and nothing the junction
+/// read bounds that cone away from the sector's face. Such a site is
+/// refused typed ([`BooleanError::CurvedBooleanUnsupported`] on the
+/// sector's face), as is a site the reader cannot place on the rim (one
+/// off it, or a junction whose record carries no circle): each is outside
+/// what the certificate states. A placement in band, of the site on the
+/// rim or of the other operand's vertex at it, is the rim's coincidence.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn junction_lump<T: Decide>(
+    rim: Option<crate::rim_wedge::Rim<T>>,
+    p: geom_core::Point3<T>,
+    (other, other_face): (&Body<T>, FaceKey),
+    on_side: Operand,
+    sector_face: FaceKey,
+    sector_kind: geom::SurfaceKind,
+    read: DeclarationRead,
+    band: Band,
+) -> Result<SideCode, BooleanError> {
+    let unplaced = || BooleanError::CurvedBooleanUnsupported {
+        operand: on_side,
+        face: sector_face,
+        kind: sector_kind,
+    };
+    let in_band = |diag| BooleanError::coincidence(Coincide::Rim, read, diag);
+    let rim = rim.ok_or_else(unplaced)?;
+    if !crate::rim_wedge::on_rim(rim, p, band).map_err(in_band)? {
+        return Err(unplaced());
+    }
+    // The other operand's vertex at the site, if it has one: the faces
+    // meeting there must be its rim face and the one across the rim.
+    for (vertex, _) in other.vertices() {
+        let mut faces = other.faces_of_vertex_linked(vertex);
+        if !faces.contains(&other_face) {
+            continue;
+        }
+        let at = other.resolve_vertex_point(vertex, crate::live::Proven);
+        let off =
+            crate::validate::decide("junction_site_vertex", Margin::of((at - p).norm()), band)
+                .map_err(in_band)?;
+        if off != Sign::Zero {
+            continue;
+        }
+        faces.sort_unstable();
+        faces.dedup();
+        if faces.len() > 2 {
+            return Err(unplaced());
+        }
+    }
+    Ok(SideCode::Out)
+}
+
+/// **A declared-`Junction` sector bound's side** at a v-v site on the
+/// rim, on the certificate [`junction_lump`] states: `On` for a bound
+/// that IS the glued rim's edge (its edge a circle the rim's identity
+/// ladder decides the rim, [`crate::rim_wedge::circle_is_rim`]), the edge
+/// both sectors share; `Out` for every bound that leaves the rim, every
+/// direction of the sector off the rim lying on the face's side of it,
+/// outside the other operand's material. A bound that is NOT the rim's
+/// edge yet whose direction is decided along the rim's tangent (a face
+/// edge leaving the vertex tangent to the rim and curving off it, R1's
+/// case) is neither: its first-order direction rides the rim while its
+/// edge does not, so which side it leaves to is a second-order question
+/// the junction never read. It is refused typed
+/// ([`BooleanError::CurvedBooleanUnsupported`] on the sector's face). The
+/// bound's sine against the rim's tangent is decided at the bound's own
+/// reach, the first-order code's lever, under `junction_bound_rides_rim`;
+/// in band it, or the edge's identity, is the rim's coincidence.
+///
+/// # Errors
+///
+/// As [`junction_lump`]; the tangent bound that is not the rim's edge;
+/// either reading in band.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn junction_bound_side<T: Decide>(
+    rim: Option<crate::rim_wedge::Rim<T>>,
+    p: geom_core::Point3<T>,
+    (d, support): (Vec3<T>, crate::bound_side::BoundSupport<T>),
+    other: (&Body<T>, FaceKey),
+    on_side: Operand,
+    sector_face: FaceKey,
+    sector_kind: geom::SurfaceKind,
+    read: DeclarationRead,
+    band: Band,
+) -> Result<SideCode, BooleanError> {
+    let out = junction_lump(rim, p, other, on_side, sector_face, sector_kind, read, band)?;
+    // Placed on the rim, so the rim is there.
+    let Some(rim) = rim else {
+        return Err(BooleanError::ClassificationInvariant {
+            what: "a junction site placed on no rim",
+        });
+    };
+    let in_band = |diag| BooleanError::coincidence(Coincide::Rim, read, diag);
+    if let Some(circle) = support.circle()
+        && crate::rim_wedge::circle_is_rim(circle, rim, band).map_err(in_band)?
+    {
+        return Ok(SideCode::On);
+    }
+    let tangent = rim.axis.get().cross(p - rim.center).normalize();
+    let sine = d.normalize().cross(tangent).norm();
+    match crate::validate::decide(
+        "junction_bound_rides_rim",
+        Margin::levered(sine, support.lever()),
+        band,
+    )
+    .map_err(in_band)?
+    {
+        Sign::Zero => Err(BooleanError::CurvedBooleanUnsupported {
+            operand: on_side,
+            face: sector_face,
+            kind: sector_kind,
+        }),
+        Sign::Positive | Sign::Negative => Ok(out),
+    }
+}
+
 /// **The per-direction second-order side** of a declared-`Tangent`
 /// sector pair: which side of the OTHER face's material does the
 /// sector's carrier lie on along direction `d` from the tie point —
@@ -1175,7 +1315,7 @@ pub(super) fn exact_lever<T: geom_core::Real>(bound: Lever<T>, own: Option<Lever
 
 pub(super) use crate::star::Leaned;
 
-pub(super) use crate::star::leaned_lever;
+pub(super) use crate::star::leaned;
 
 /// The star's order refusals ([`crate::star::OrderFault`]) as the
 /// Boolean's: germs coincident to the tolerance are the sectors'
@@ -1222,8 +1362,8 @@ fn within_signs<T: Decide>(
 /// `(+line, −line)`, each `true` where [`within`] holds it in all.
 ///
 /// The line is read scaled by its lean ([`Leaned::line`]): two faces'
-/// line is read un-normalized, `m = n_a × n_b`, the bounds' reaches its
-/// lever as [`leaned_lever`] would give them. Read against a bound `e`
+/// line is read un-normalized, `m = n_a × n_b`, so its lean scales the
+/// reading as [`leaned`] scales one. Read against a bound `e`
 /// of `a`'s sector at `e`'s reach `L`, it measures
 /// `L·(m × e)·n_a = L·((n_a·e) cos φ − n_b·e)`: the bound's own
 /// departure from `a`'s plane, foreshortened by `cos φ`, less its far
@@ -1507,7 +1647,7 @@ fn germ_curve<T: Decide>(
     body: &Body<T>,
     edge: crate::entity::EdgeKey,
 ) -> Result<&geom_brep::EdgeCurve<T>, BooleanError> {
-    body.edge_curve_linked(edge, proven(&body.edges, edge, EntityId::Edge))
+    body.proven_edge(edge)
         .certified()
         .ok_or(BooleanError::ClassificationInvariant {
             what: "a germ edge is null scaffolding",
@@ -1961,14 +2101,8 @@ pub(super) fn faces_at<T: Decide>(
     for v in crate::chord_join::null_site(body, &[vertex])? {
         for he in body.vertex_orbit_linked(v) {
             let edge = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
-            let data = linked(
-                &body.edges,
-                edge,
-                EntityId::Edge,
-                EntityId::HalfEdge(he),
-                "edge",
-            );
-            if body.edge_curve_linked(edge, data).null_scaffold().is_some() {
+            let data = body.linked_edge(edge, EntityId::HalfEdge(he), "edge");
+            if data.curve().null_scaffold().is_some() {
                 continue;
             }
             let f = body.face_of_linked(he);
@@ -3012,7 +3146,7 @@ mod tests {
         let h = core::f64::consts::FRAC_PI_4;
         let apex = ConeApex {
             apex: o,
-            axis: Vec3::new(0.0, 1.0, 0.0),
+            axis: geom_core::UnitVec3::exact_y(),
             half_angle: h,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
             sense: true,
@@ -3042,7 +3176,7 @@ mod tests {
                 "turn {turn}: |{m:?}| is not 1"
             );
             assert!(
-                (m.dot(apex.axis) + h.cos()).abs() < 1e-12,
+                (m.dot(apex.axis.get()) + h.cos()).abs() < 1e-12,
                 "turn {turn}: {m:?} is off the cone's lower nappe"
             );
             assert!(

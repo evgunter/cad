@@ -287,7 +287,9 @@ fn line<T: Real>() -> Curve3<T> {
     let f = T::from_f64;
     Curve3::line(
         Point3::new(f(1.0), f(-2.0), f(0.5)),
-        Vec3::new(f(0.3), f(-0.4), f(1.2)),
+        // `(3, −4, 12)/13`, unit over the reals: the probe's direction at
+        // every scalar, the Dual's derivative channel zero.
+        geom_core::UnitVec3::checked(Vec3::new(3.0 / 13.0, -4.0 / 13.0, 12.0 / 13.0)).map_scalar(f),
     )
 }
 

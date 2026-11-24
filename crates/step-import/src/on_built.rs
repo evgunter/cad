@@ -90,6 +90,10 @@ use crate::recognize_curve::circle_locus_within;
 /// over the printed trim** (module docs). `None` only where no arm
 /// serves the pair; an arm that runs and certifies no bound answers a
 /// non-finite one, which reads as no agreement.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub(crate) fn printed_on(spec: &EdgeSpec, built: &Curve3<f64>) -> Option<f64> {
     let trim = (spec.t0, spec.t1);
     let line = match built {
@@ -102,7 +106,7 @@ pub(crate) fn printed_on(spec: &EdgeSpec, built: &Curve3<f64>) -> Option<f64> {
     let bound = match (&spec.carrier, built) {
         (Curve3::Nurbs(printed), Curve3::Circle(circle)) => circle_locus_within(
             printed,
-            (circle.frame.origin(), circle.frame.axis(), circle.radius()),
+            (circle.frame().origin(), circle.axis(), circle.radius()),
             trim,
         ),
         (Curve3::Nurbs(printed), Curve3::Nurbs(built)) => {
@@ -157,13 +161,15 @@ fn trim_cover(spec: &EdgeSpec) -> Option<geom::cover::Cover<Interval>> {
     carrier.cover_over(window).ok()
 }
 
-/// A line at the certification scalar, exact.
-fn exact_line(origin: Point3<f64>, dir: Vec3<f64>) -> geom::Line<Interval> {
+/// A built line at the certification scalar: its origin exact, and its
+/// direction the polar enclosure of the `f64` direction's normalization
+/// ([`geom_core::UnitVec3::map_scalar`]), the same point set, since a
+/// line's distance reads its direction only up to length.
+fn exact_line(origin: Point3<f64>, dir: geom_core::UnitVec3<f64>) -> geom::Line<Interval> {
     let [ox, oy, oz] = pt(origin);
-    let [dx, dy, dz] = vc(dir);
     geom::Line {
         origin: Point3::new(ox, oy, oz),
-        dir: Vec3::new(dx, dy, dz),
+        dir: dir.map_scalar(Interval::point),
     }
 }
 
@@ -186,7 +192,14 @@ pub(crate) fn printed_on_segment(spec: &EdgeSpec, (a, b): (Point3<f64>, Point3<f
     let Some(cover) = trim_cover(spec) else {
         return f64::NAN;
     };
-    let site = geom::cover::Site::Line(exact_line(a, b - a));
+    // The segment's line at the certification scalar: the chord of its
+    // two exact ends, whose Interval normalization encloses `b − a`'s
+    // direction.
+    let at = |p: Point3<f64>| {
+        let [x, y, z] = pt(p);
+        Point3::new(x, y, z)
+    };
+    let site = geom::cover::Site::Line(geom::Line::chord(at(a), at(b)).0);
     let across = cover.distance_range(&site).1;
     let [dx, dy, dz] = sub(pt(b), pt(a));
     segment_reach(across, cover.range_along(Vec3::new(dx, dy, dz)), (a, b))
@@ -257,6 +270,10 @@ fn sub(a: [Interval; 3], b: [Interval; 3]) -> [Interval; 3] {
 /// at most `hypot(max |h|, max(r₂ − ρ_min, ρ_max − r₂))`, with
 /// `ρ_min² ≥ S_min − max h²` and `ρ_max² ≤ S_max`. The circles' frames
 /// and their `f64` closed forms are read as exact; every sum is outward.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 fn arc_on_circle(
     printed: &geom::Circle<f64>,
     (t0, t1): (f64, f64),
@@ -264,14 +281,14 @@ fn arc_on_circle(
 ) -> f64 {
     let iv = Interval::point;
     let (c1, u, n1, r1) = (
-        printed.frame.origin(),
-        printed.frame.u_ref(),
-        printed.frame.axis(),
+        printed.frame().origin(),
+        printed.u_ref(),
+        printed.axis(),
         printed.radius(),
     );
     let v = n1.cross(u);
     let v_dir = v;
-    let (c2, n, r2) = (built.frame.origin(), built.frame.axis(), built.radius());
+    let (c2, n, r2) = (built.frame().origin(), built.axis(), built.radius());
     let off = sub(pt(c1), pt(c2));
     let (u, v, n) = (vc(u), vc(v), vc(n));
     let dot = geom_core::interval::dot;
@@ -288,7 +305,7 @@ fn arc_on_circle(
     // Whether the printed point along `(cos, sin)` lies within `slack` of
     // the trim, its angle read through the circle's own azimuth.
     let inside = |(cs, sn): (f64, f64), slack: f64| {
-        let q = c1 + printed.frame.u_ref() * cs + v_dir * sn;
+        let q = c1 + printed.u_ref() * cs + v_dir * sn;
         let theta = geom::Conic::azimuth(printed, q).near(0.0);
         t1 - t0 >= period - slack || printed.period().above(theta, t0 - slack) <= t1 + slack
     };
@@ -365,12 +382,16 @@ struct Conic {
 impl Conic {
     /// The circle's or ellipse's form on its own parameter; `None` for
     /// any other curve.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+    )]
     fn of(curve: &Curve3<f64>) -> Option<Self> {
         match curve {
             Curve3::Circle(c) => {
-                let (u, n, r) = (c.frame.u_ref(), c.frame.axis(), c.radius());
+                let (u, n, r) = (c.u_ref(), c.axis(), c.radius());
                 Some(Self {
-                    center: c.frame.origin(),
+                    center: c.frame().origin(),
                     a: u * r,
                     b: n.cross(u) * r,
                     normal: n,
@@ -378,9 +399,9 @@ impl Conic {
                 })
             }
             Curve3::Ellipse(e) => {
-                let (u, n) = (e.frame.u_ref(), e.frame.axis());
+                let (u, n) = (e.u_ref(), e.axis());
                 Some(Self {
-                    center: e.frame.origin(),
+                    center: e.frame().origin(),
                     a: u * e.semi_u(),
                     b: n.cross(u) * e.semi_v(),
                     normal: n,
@@ -502,7 +523,7 @@ mod tests {
 
     #[test]
     fn a_spline_on_a_line_is_bounded_over_its_trim_alone() {
-        let line = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
+        let line = Curve3::line(Point3::new(0.0, 0.0, 0.0), geom_core::UnitVec3::exact_y());
         let truth = |p: Point3<f64>| p.x.hypot(p.z);
         let printed = bulging_line(1e-3);
         let straight = spec(printed.clone(), (0.0, 1.0));
@@ -551,8 +572,11 @@ mod tests {
 
     #[test]
     fn a_line_on_a_line_reads_its_trim_ends() {
-        let built = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
-        let tilted = Curve3::line(Point3::new(0.0, 1e-6, 0.0), Vec3::new(1.0, 1e-6, 0.0));
+        let built = Curve3::line(Point3::new(0.0, 0.0, 0.0), geom_core::UnitVec3::exact_x());
+        let tilted = Curve3::line(
+            Point3::new(0.0, 1e-6, 0.0),
+            geom_core::UnitVec3::squared(Vec3::new(1.0, 1e-6, 0.0)),
+        );
         let printed = spec(tilted, (0.0, 3.0));
         let bound = printed_on(&printed, &built).unwrap();
         let true_sup = dense(&printed, |p| p.y.hypot(p.z));
@@ -675,7 +699,7 @@ mod tests {
                 "{trim:?}: read: {bound:e}"
             );
         }
-        let line = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
+        let line = Curve3::line(Point3::new(0.0, 0.0, 0.0), geom_core::UnitVec3::exact_y());
         let straight = bulging_line(1e-3);
         let inner = printed_on(&spec(straight.clone(), (0.2, 0.8)), &line).unwrap();
         assert!(inner <= 1e-15, "a trim inside the straight span: {inner:e}");
@@ -780,7 +804,7 @@ mod tests {
         let true_sup = dense(&s, |p| (p.x - 1.0).max(-p.x).max(0.0).hypot(p.y));
         assert!(true_sup > 0.5, "the overshoot is there: {true_sup}");
         assert!(bound >= true_sup, "sound: {bound} < {true_sup}");
-        let on_line = printed_on(&s, &Curve3::line(a, Vec3::new(1.0, 0.0, 0.0))).unwrap();
+        let on_line = printed_on(&s, &Curve3::line(a, geom_core::UnitVec3::exact_x())).unwrap();
         assert!(on_line <= 1e-15, "it is on the infinite line: {on_line:e}");
     }
 }

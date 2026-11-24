@@ -62,12 +62,16 @@ mod a_ball_and_rod_boolean_reads_what_its_doors_keep;
 mod a_blend_leaves_a_smooth_edge_as_it_is;
 #[path = "a_blend_reads_the_wedge_through_the_one_fold.rs"]
 mod a_blend_reads_the_wedge_through_the_one_fold;
+#[path = "a_body_on_a_rods_cap_glues_as_its_rim_reads.rs"]
+mod a_body_on_a_rods_cap_glues_as_its_rim_reads;
 #[path = "a_carried_record_no_reading_covers.rs"]
 mod a_carried_record_no_reading_covers;
 #[path = "a_circle_of_one_radius_elsewhere_is_no_rim.rs"]
 mod a_circle_of_one_radius_elsewhere_is_no_rim;
 #[path = "a_closed_rider_lying_in_a_face_refuses_its_slit_form.rs"]
 mod a_closed_rider_lying_in_a_face_refuses_its_slit_form;
+#[path = "a_cone_on_a_torus_meridian_in_every_order.rs"]
+mod a_cone_on_a_torus_meridian_in_every_order;
 #[path = "a_conical_ended_football_revolves.rs"]
 mod a_conical_ended_football_revolves;
 #[path = "a_corner_cut_on_a_far_wall_reads_its_sections_width.rs"]
@@ -136,10 +140,14 @@ mod a_plane_through_a_pole_cuts_a_cap;
 mod a_point_past_a_spline_solids_reach;
 #[path = "a_pole_and_an_apex_join_nothing.rs"]
 mod a_pole_and_an_apex_join_nothing;
+#[path = "a_profile_touching_its_axis_twice_revolves.rs"]
+mod a_profile_touching_its_axis_twice_revolves;
 #[path = "a_ray_beside_a_shallow_spiric_edge_is_read_by_the_span_walk.rs"]
 mod a_ray_beside_a_shallow_spiric_edge_is_read_by_the_span_walk;
 #[path = "a_ray_meets_a_curved_edge_once_for_both_faces.rs"]
 mod a_ray_meets_a_curved_edge_once_for_both_faces;
+#[path = "a_revolve_takes_a_profile_on_either_side_of_its_axis.rs"]
+mod a_revolve_takes_a_profile_on_either_side_of_its_axis;
 #[path = "a_rigid_turn_keeps_a_slivers_volume.rs"]
 mod a_rigid_turn_keeps_a_slivers_volume;
 #[path = "a_rim_arc_on_a_cylinder_beside_a_spline_wall.rs"]
@@ -152,6 +160,8 @@ mod a_rim_in_a_face_beside_a_resting_ridge;
 mod a_ring_on_a_cone_face;
 #[path = "a_ring_on_a_sphere_face.rs"]
 mod a_ring_on_a_sphere_face;
+#[path = "a_rod_unions_with_what_ends_on_its_rim.rs"]
+mod a_rod_unions_with_what_ends_on_its_rim;
 #[path = "a_ruling_lying_on_a_wall.rs"]
 mod a_ruling_lying_on_a_wall;
 #[path = "a_ruling_through_a_box_corner_edge.rs"]
@@ -352,6 +362,8 @@ mod pcurve_p1b_r2_probes;
 mod pieces_oblique_bore;
 #[path = "pinned_corners_at_the_loft_door.rs"]
 mod pinned_corners_at_the_loft_door;
+#[path = "pinned_corners_build.rs"]
+mod pinned_corners_build;
 #[path = "pins_of_todays_blend_refusals.rs"]
 mod pins_of_todays_blend_refusals;
 #[path = "pipeline_null_edge_rows.rs"]
@@ -442,6 +454,8 @@ mod spiric_faces_fuzz;
 mod sym11_far_placement_rows;
 #[path = "the_door_reads_seam_regions_as_tier_3_does.rs"]
 mod the_door_reads_seam_regions_as_tier_3_does;
+#[path = "the_nary_door_reads_a_re_charted_accumulation_through_its_shell.rs"]
+mod the_nary_door_reads_a_re_charted_accumulation_through_its_shell;
 #[path = "tilted_sphere_pair.rs"]
 mod tilted_sphere_pair;
 #[path = "tilted_sphere_pair_k_rows.rs"]
@@ -1430,6 +1444,10 @@ mod review_4737_span_probes;
 mod side_reader_aims_ask_nothing;
 #[path = "sphere_aims_reader_ties.rs"]
 mod sphere_aims_reader_ties;
+#[path = "volume_premises_door_bodies.rs"]
+mod volume_premises_door_bodies;
+#[path = "volume_premises_over_a_box.rs"]
+mod volume_premises_over_a_box;
 
 #[path = "fallback_rows_review.rs"]
 mod fallback_rows_review;
@@ -1475,5 +1493,9 @@ mod a_loops_lift_runs_through_its_poles;
 mod a_partner_across_a_lofted_wall_is_joined_on_its_section_value;
 #[path = "a_peg_in_a_two_segment_bore_moves_only_its_wall.rs"]
 mod a_peg_in_a_two_segment_bore_moves_only_its_wall;
+#[path = "a_rest_on_a_cut_in_piece_lands_on_it.rs"]
+mod a_rest_on_a_cut_in_piece_lands_on_it;
 #[path = "a_station_frame_is_minted_to_its_floor.rs"]
 mod a_station_frame_is_minted_to_its_floor;
+#[path = "check_1_reads_no_frame_on_a_turned_disc.rs"]
+mod check_1_reads_no_frame_on_a_turned_disc;

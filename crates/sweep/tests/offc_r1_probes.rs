@@ -134,7 +134,7 @@ fn assert_honest_reattach_refusal(r: &ReattachRefusal, d: f64) {
         Tol::witness().eps(),
         r.error.render(geom_brep::recourse::Reading::Build)
     );
-    let topo::EulerOpError::Certification { error } = &r.error else {
+    let topo::EulerOpError::DescriptionUncertified { error, .. } = &r.error else {
         panic!(
             "the re-attach must refuse through certification, got {:?}",
             r.error

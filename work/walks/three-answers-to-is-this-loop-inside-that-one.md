@@ -2,10 +2,12 @@
 id: three-answers-to-is-this-loop-inside-that-one
 kind: issue
 title: three answers to "is this loop inside that one" with three boundary postures (shell::encloses, chord_join::rehome_rings, validate::ring_nesting), plus a fourth hand read of Surface::Plane's chart normal
-status: open
+status: closed
 opened: 2026-09-14
 priority: P1
-cost: D
+cost: M
+branch: walks/loop-in-loop
+closed: 2026-11-23
 ---
 
 Filed by `tier3-accepts-a-ring-outside-its-outer-loop`'s fix pass, from
@@ -106,3 +108,48 @@ reading of every `point_in_loop` caller. It cannot match a containment
 claim made through a helper that already returns a normal, one stated
 only in prose naming none of those symbols, or any site outside
 `crates/topo/src`.
+
+## Staleness audit (2026-11-22, WALKS, origin/main 7709b0ea)
+
+Premise moved; renames: `point_in_carrier_loop` → `splitting::containment::point_in_loop`; `SplitJoinError::RingHomingAmbiguous` → chord_join `JoinError`; `nesting_normal` → `validate::plane_chart_normal`; `Surface::Plane` carries a `frame`, so the row's grep matches nothing. `rehome_rings` no longer reads one point: `ring_side` reads every vertex with `Answering::Any`. `loop_side.rs`'s header now states the posture split (validators read every vertex; construction sites the first, on the operation's premise). Residual drift: on a ring on the boundary at every vertex, `rehome_rings` refuses or defers while `ring_nesting` accepts. Unlisted siblings: section_loops `nest`'s `encloses` closure (one representative point; OnBoundary and Err read as not enclosed), finish `nest_slit`, fate `rehome`, one_region. Chart-normal reads: chord_join `face_plane_normal`, validate `plane_chart_normal`, solid_contain `chart_normal` (via `implicit_gradient`). `ring_nesting`'s stale "first definite verdict" doc is fixed by WALKS's E-bundle. Being weighed as fork F6.
+
+## Decided
+
+- `crates/topo/src/loop_side.rs` is the one home of "is this loop
+  inside that one" read vertex by vertex. Two readings, each named for
+  who vouches that the loop does not cross the boundary:
+  `inside_at_every_vertex` (the validator: every vertex, a crossing is a
+  finding) and `side_of_a_loop_the_division_does_not_cross` (a
+  construction site: the first vertex that places, the operation's own
+  division the premise). `of_loop` is the one map from `point_in_loop`'s
+  reading to the per-vertex rung; `chord_join::vertex_side` is gone and
+  check 9 reads through it. `boolean::fate::rehome` reads a curved
+  face's placement, not a `LoopContainment`, so it keeps its own rung
+  and climbs the construction reading.
+- `EveryVertex` tells `OnBoundary { at }` (every vertex on the
+  boundary) from `NoAnswer` (the instrument's silence).
+- Check 9: a lone-vertex ring is read by contact arms 1 and 2 as the
+  point it stands at, and a ring on its outer loop at every vertex is
+  `RingMeetsOuter { VertexOnEdge }` at the edge the walk's boundary pass
+  placed it on (`contain::loop_placement`, the face door's boundary pass on one loop). No new public
+  variant. `one_region::read_cycle` keeps exempting a cycle on the cut,
+  with the pinch reason written there.
+- `Body::loop_vertices` is the one walk of a loop's vertices, a lone
+  vertex's included (chord_join, fate, check 9's two arms).
+  `one_region::read_cycle` walks a surface cycle of half-edges, not a
+  loop, so it does not take it.
+- `shell::encloses` is `is_inner_of_concentric_pair`, out of the
+  containment family; instrument unchanged.
+- `point_in_loop` takes the loop's plane as a `geom::Frame`.
+  `nest_slit` hands the split plane's frame with no per-side flip;
+  `section_loops::nest`'s callers hand `section_frame(plane, side)`,
+  which keeps the side's outward sign for the contact arms they also
+  run. `chord_join::face_plane_normal` is deleted (both callers already
+  matched the `Plane`); `validate::plane_chart_normal` is
+  `validate::plane_gate`, returning the frame.
+- `section_loops::nest`'s one-point read says why one point is enough;
+  `nest_slit`'s doc already did.
+
+## Closed
+
+2026-11-23: PR 7475 merged — `loop_side.rs` is the one home (the validator reading and the construction reading named for its premise); check 9 reports a ring on its outer loop at every vertex as meeting it; `point_in_loop` takes the plane's `Frame`; `shell::encloses` renamed to the concentric-pair order it decides.

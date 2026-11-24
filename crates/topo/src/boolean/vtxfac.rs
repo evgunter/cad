@@ -135,7 +135,7 @@ pub(super) fn pierced_and_paired<T: Decide>(
         (Operand::A, &contacts.a_on_b),
         (Operand::B, &contacts.b_on_a),
     ] {
-        let theirs = usize::from(operand == Operand::A);
+        let theirs = operand.other().index();
         let declared = |x: FaceKey, y: FaceKey| {
             records[theirs].ff.iter().any(|r| {
                 ([r.contact.a, r.contact.b] == [x, y] || [r.contact.a, r.contact.b] == [y, x])
@@ -867,13 +867,14 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 .ok_or(BooleanError::ClassificationInvariant {
                     what: "a pierce has no sector",
                 })?;
-            let arm = T::spline_chart_arm(chart, p, reach.length()).map_err(|cause| {
-                BooleanError::PierceLeverUnread {
+            let arm = T::nurbs_lane()
+                .ok_or(geom_brep::ChartArmRefusal::NoLane)
+                .and_then(|lane| geom_brep::NurbsLaneOf::chart_arm(lane, chart, p, reach.length()))
+                .map_err(|cause| BooleanError::PierceLeverUnread {
                     operand: pierced_op,
                     face: contact.face,
                     cause,
-                }
-            })?;
+                })?;
             PierceLever::Within(T::from_computed(arm))
         }
     };
@@ -1028,7 +1029,32 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         // A glued pair is read through its record: a tangency lumps by
         // its curving, a one-carrier pair by the relation the glue door
         // recorded, and neither reads the sector's tilt again.
-        if declared.glues_tangent(piercing, s.face, pierced_op, contact.face) {
+        let class = declared.class_of(piercing, s.face, pierced_op, contact.face);
+        // A junction touches the face only at the rim, as a tangency
+        // touches it only along its locus: it takes the tangent sector's
+        // place, lumped on its certificate
+        // ([`super::sectors::junction_lump`]).
+        if class == Some(crate::contact::GlueClass::Junction) {
+            let read = declared.read(
+                &[(piercing, s.face, pierced_op, contact.face)],
+                Coincide::TangentSide,
+                &[],
+            );
+            let lump = super::sectors::junction_lump(
+                declared.junction_at(piercing, s.face, pierced_op, contact.face),
+                p,
+                (pierced_body, contact.face),
+                piercing,
+                s.face,
+                orbit_body.proven_face(s.face).surface().kind(),
+                read,
+                band,
+            )?;
+            tangent_lumps.push((k, lump));
+            tangent[k] = true;
+            continue;
+        }
+        if class == Some(crate::contact::GlueClass::Tangent) {
             let s_sector = orbit_body.proven_face(s.face).surface().clone();
             let s_pierced = pierced_body.proven_face(contact.face).surface().clone();
             let read = declared.read(
@@ -1312,7 +1338,6 @@ pub(super) fn read_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             {
                 let in_plane = match &section.components()[k].carrier {
                     geom::Curve3::Ellipse(e) => e
-                        .frame
                         .axis()
                         .normalize()
                         .cross(datum.vec().normalize())
@@ -1669,21 +1694,22 @@ pub(super) fn ring_groups<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`BooleanError::ClassificationInvariant`] where the face's outer loop
-/// is no cycle; [`Body::ring_vertex`]'s refusals.
+/// [`BooleanError::ClassificationInvariant`] where the face has no
+/// outline ([`crate::NoOutline`]); [`Body::ring_vertex`]'s refusals.
 pub(super) fn ring_vertex_in<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     face: crate::entity::FaceKey,
     p: geom_core::Point3<T>,
     tol: Tol,
 ) -> Result<(VertexKey, crate::entity::LoopKey), BooleanError> {
-    let crate::entity::LoopBoundary::Cycle { first: anchor } =
-        body.proven_face(face).outer().1.boundary
-    else {
-        return Err(BooleanError::ClassificationInvariant {
-            what: "a face a ring vertex is minted in has no outer cycle",
-        });
-    };
+    let anchor = body
+        .proven_face(face)
+        .area_loops()
+        .map_err(|_| BooleanError::ClassificationInvariant {
+            what: "a face a ring vertex is minted in has no outline",
+        })?
+        .outer()
+        .first();
     Ok(body.ring_vertex(anchor, p, tol)?)
 }
 

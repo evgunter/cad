@@ -34,9 +34,8 @@
 //! subdivision consumer's looseness has to run.
 //!
 //! Both doors read a body at any certifying scalar `T`. The station is
-//! evaluated at `T`, its chart point entering as
-//! [`Real::from_computed`](geom_core::Real::from_computed), and the
-//! point-in-face doors place it at `T`. The ball is interval
+//! evaluated at `T`, its chart point a place handed over as an `f64`, and
+//! the point-in-face doors place it at `T`. The ball is interval
 //! arithmetic: the carrier, the station and every boundary feature are
 //! lifted through [`Interval::from_certified`], which keeps every bound
 //! at `T = Interval`.
@@ -137,10 +136,7 @@ pub(crate) fn cell_region_lifted<T: Decide + CertifiedBounds>(
 ) -> CellRegion {
     let span = |(lo, hi): (f64, f64)| Interval::from_bounds(lo, hi);
     let (mu, mv) = centre(u, v);
-    let station = surface.eval(
-        <Interval as geom_core::Real>::from_computed(mu),
-        <Interval as geom_core::Real>::from_computed(mv),
-    );
+    let station = surface.eval_at(mu, mv);
     let reach = (surface.eval(span(u), span(v)) - station).norm();
     let clear_as = |row: &'static str, distance: Interval| {
         matches!(
@@ -153,7 +149,7 @@ pub(crate) fn cell_region_lifted<T: Decide + CertifiedBounds>(
     {
         return CellRegion::Undecided;
     }
-    let at = stored.eval(T::from_computed(mu), T::from_computed(mv));
+    let at = stored.eval_at(mu, mv);
     match place(body, face, stored, at, band) {
         Some(FaceContainment::In) => CellRegion::Inside,
         Some(FaceContainment::Out) => CellRegion::Outside,
@@ -185,7 +181,7 @@ pub fn station_region<T: Decide + CertifiedBounds>(
     band: Band,
 ) -> Option<FaceContainment> {
     let surface = body.face(face)?.surface();
-    let station = surface.eval(T::from_computed(u), T::from_computed(v));
+    let station = surface.eval_at(u, v);
     place(body, face, surface, station, band)
 }
 
@@ -287,30 +283,47 @@ impl Ball {
     }
 }
 
-/// Is the carrier's singular set decided clear of the ball: a cone's
-/// apex, and a torus's or spindle sheet's axis, which holds a sheet's
-/// apexes (a ring torus never comes near it). The other carriers have
-/// none.
+/// Is the carrier's singular set decided clear of the ball: the
+/// singular points of its one home but a sphere's poles, and a torus's
+/// or spindle sheet's axis.
+///
+/// A sphere's poles are not read. The carrier is a smooth sphere there,
+/// so a patch through a pole is connected in the carrier minus the
+/// boundary exactly when it is connected away from it, which is all step
+/// 2 of the module's reading needs; reading them would keep every cell
+/// of a polar row undecided, and a sphere zone's cavity then exhausts its
+/// pair budget (`sweep` `sf2b_interval_probe`).
 fn clear_of_singular(
     surface: &Surface<Interval>,
     station: Point3<Interval>,
     clear_as: &dyn Fn(&'static str, Interval) -> bool,
 ) -> bool {
-    match *surface {
-        Surface::Cone { frame, .. } => {
-            let apex = frame.origin();
-            clear_as(CELL_REGION_SINGULAR, (station - apex).norm())
-        }
+    // The singular points from their one home but a sphere's poles: a
+    // cone's apex, a sheet's apexes, a spline net's collapsed sides.
+    let points_clear = geom_brep::chart_singularity::singular_points(surface)
+        .into_iter()
+        .filter(|(which, _)| {
+            !matches!(
+                which,
+                geom_brep::chart_singularity::Singularity::North
+                    | geom_brep::chart_singularity::Singularity::South
+            )
+        })
+        .all(|(_, x)| clear_as(CELL_REGION_SINGULAR, (station - x).norm()));
+    // A torus's or spindle sheet's axis, where its azimuth's lever
+    // collapses: no singular point of a ring torus, which never comes
+    // near it, and a sheet's apexes lie on it.
+    let axis_clear = match *surface {
         Surface::Torus { frame, .. } | Surface::Spindle { frame, .. } => {
-            let (center, axis) = (frame.origin(), frame.axis());
             let axis_line = geom::Line {
-                origin: center,
-                dir: axis,
+                origin: frame.origin(),
+                dir: frame.axis_unit(),
             };
             clear_as(CELL_REGION_SINGULAR, axis_line.distance(station))
         }
         _ => true,
-    }
+    };
+    points_clear && axis_clear
 }
 
 /// One stop of a face's boundary walk, lifted to the interval scalar:
@@ -345,15 +358,15 @@ pub(crate) fn lift_boundary<T: Decide + CertifiedBounds>(
         stops.push(BoundaryStop::Vertex(
             body.member_point(&member).map(Interval::from_certified),
         ));
-        let BoundaryMember::Edge { ek, edge: e, .. } = member else {
+        let BoundaryMember::Edge { edge: e, .. } = member else {
             continue;
         };
-        if on_face(e.he_plus) && on_face(e.he_minus) {
+        if on_face(e.record().he_plus) && on_face(e.record().he_minus) {
             continue;
         }
         // Null scaffolding has no carrier: its locus is its vertex, read
         // above.
-        let Some(curve) = body.edge_curve_linked(ek, e).certified() else {
+        let Some(curve) = e.certified() else {
             continue;
         };
         let (t0, t1) = curve.params();

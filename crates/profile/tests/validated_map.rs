@@ -110,7 +110,7 @@ type Channel<T> = (&'static str, fn(T) -> f64);
 /// The kind and turn of a segment, as one character: `L`, `+`, `-`.
 fn shape<T: Real>(kind: SegmentKind<T>) -> char {
     match kind {
-        SegmentKind::Line => 'L',
+        SegmentKind::Line { .. } => 'L',
         SegmentKind::Arc {
             turn: Sign::Positive,
             ..
@@ -291,7 +291,7 @@ fn the_carried_decisions_are_the_f64_ones() {
             if lu
                 .segments()
                 .iter()
-                .all(|s| matches!(s.kind, SegmentKind::Line))
+                .all(|s| matches!(s.kind, SegmentKind::Line { .. }))
             {
                 let twice_area = shoelace(lu.vertices());
                 match lu.role() {

@@ -75,10 +75,17 @@ fn refuses(steps: &[Step<f64>], at: usize, kind: PathErrorKind, what: &str) -> S
         r: Result<ConstructedLoop<T>, ReplayError<T>>,
     ) -> (usize, PathErrorKind, String) {
         match r {
-            Err(ReplayError {
-                step,
-                kind: ReplayErrorKind::Path(e),
-            }) => (step, e.kind(), e.to_string()),
+            Err(
+                error @ ReplayError {
+                    kind: ReplayErrorKind::Path(_),
+                    ..
+                },
+            ) => {
+                let ReplayErrorKind::Path(e) = &error.kind else {
+                    unreachable!("matched above")
+                };
+                (error.step(), e.kind(), e.to_string())
+            }
             Err(e) => panic!("not a geometry refusal: {e}"),
             Ok(_) => panic!("closed; a refusal was expected"),
         }
@@ -96,10 +103,10 @@ fn ill_typed(steps: &[Step<f64>], state: TipState, what: &str) {
     for r in [
         try_replay_at::<f64>(steps)
             .err()
-            .map(|e| (e.step, format!("{:?}", e.kind))),
+            .map(|e| (e.step(), format!("{:?}", e.kind))),
         try_replay_at::<Interval>(steps)
             .err()
-            .map(|e| (e.step, format!("{:?}", e.kind))),
+            .map(|e| (e.step(), format!("{:?}", e.kind))),
     ] {
         assert_eq!(
             r,

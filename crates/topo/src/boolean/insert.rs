@@ -97,7 +97,7 @@
 use geom_core::ladder::{Answering, Climb, Rung, climb};
 use geom_core::{Band, Decide, Margin, Sign, Vec3};
 
-use super::sectors::{BoolSector, Leaned, PairRecord, leaned_lever};
+use super::sectors::{BoolSector, Leaned, PairRecord, leaned};
 use super::{
     BoolNullEdgeRecord, BooleanError, BooleanOp, NullEdgePairRecord, Operand, PairSite, SideCode,
     VvContact,
@@ -974,7 +974,7 @@ pub(super) fn mint_plans<T: Decide>(
         })
         .collect();
     let mut edges: [Vec<Option<EdgeKey>>; 2] = [vec![None; runs.len()], vec![None; runs.len()]];
-    for (slot, operand) in [Operand::A, Operand::B].into_iter().enumerate() {
+    for (slot, operand) in Operand::BOTH.into_iter().enumerate() {
         let vertex = |i: usize| {
             let c = plans[i].contact;
             if slot == 0 { c.a } else { c.b }
@@ -1501,7 +1501,7 @@ fn shared_at<'s, T: geom_core::Real>(
         .filter(|&j| ends(plans[j].contact, slot).0 == vertex)
         .collect();
     (!plans[i].runs.is_empty() && !others.is_empty()).then(|| SharedAt {
-        operand: [Operand::A, Operand::B][slot],
+        operand: Operand::BOTH[slot],
         vertex,
         partner,
         others,
@@ -1901,9 +1901,10 @@ fn flankers_of<T: Decide>(
 /// its end bound toward its start: the sign of `(x × y)·n`, `Negative`
 /// where `y` lies after `x`, `Zero` where the two lie along one
 /// direction. The rotation from start to end is positive about the
-/// sector's normal, the convention `sectors::within` reads. It is
-/// levered at the sector's arm and the two directions' leans
-/// (`sectors::leaned_lever`). An in-band reading refuses as the
+/// sector's normal, the convention `sectors::within` reads. The reading
+/// is foreshortened by the two directions' smaller lean
+/// (`sectors::leaned`) and levered at the sector's arm, the metering
+/// arm the sector carries. An in-band reading refuses as the
 /// coincidence it is, as the strut order's does.
 fn walks_after<T: Decide>(
     s: &BoolSector<T>,
@@ -1931,8 +1932,8 @@ fn walks_after<T: Decide>(
     }
 }
 
-/// **A fan's turn from `x`'s ruling to `y`'s**, levered as the sector's
-/// sides are ([`leaned_lever`]): the one margin [`walks_after`] and
+/// **A fan's turn from `x`'s ruling to `y`'s**, read as the sector's
+/// sides are ([`leaned`]): the one margin [`walks_after`] and
 /// [`walk_faces_first`] read a fan's order by
 /// ([`crate::sector_face::ConeApex::turn`]).
 fn fan_turn<T: Decide>(
@@ -1941,10 +1942,7 @@ fn fan_turn<T: Decide>(
     x: Leaned<T>,
     y: Leaned<T>,
 ) -> Margin<T> {
-    Margin::levered(
-        apex.turn(x.dir, y.dir),
-        leaned_lever(s.arm, (x.lean, y.lean)),
-    )
+    Margin::levered(leaned(apex.turn(x.dir, y.dir), (x.lean, y.lean)), s.arm)
 }
 
 /// A germ in one solid.
@@ -2632,7 +2630,18 @@ fn record_germ_dir<T: crate::props::AtRestPolicy>(
         Coincide::TangentLocus,
         &[],
     );
-    if read != DeclarationRead::Spent(GlueClass::Tangent) {
+    // A junction's locus is its rim, a BOUND of both sectors, not a line
+    // through their interiors: its codes (the rim bound `On`, every other
+    // `Out`, `sectors::junction_bound_side`) name the germ's ray as any
+    // crossing record's do, so it is read as one. Only a tangency's line
+    // lies inside both faces, where the codes name no ray.
+    let tangent = match read {
+        DeclarationRead::Spent(GlueClass::Tangent) => true,
+        DeclarationRead::Spent(GlueClass::Junction | GlueClass::Rest | GlueClass::Continuation)
+        | DeclarationRead::Settles(_)
+        | DeclarationRead::Moot => false,
+    };
+    if !tangent {
         if let Some(fan) = super::fan::Fan::of(sa, sb) {
             return fan_germ_dir(
                 (a_body, a_vertex, sa),
@@ -2651,7 +2660,7 @@ fn record_germ_dir<T: crate::props::AtRestPolicy>(
         Ok(geom_brep::TangentLocus::Line {
             line: geom::Line { dir, .. },
             ..
-        }) => dir.normalize(),
+        }) => dir.get().normalize(),
         Err(geom_brep::TangentLocusError::Escalated(diag)) => {
             return Err(BooleanError::coincidence(
                 Coincide::TangentLocus,

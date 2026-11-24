@@ -207,7 +207,7 @@ fn a_chord_that_fails_certification_on_a_spline_wall_names_the_certification() {
         )
         .unwrap_err();
     assert!(
-        matches!(refused, EulerOpError::Certification { .. }),
+        matches!(refused, EulerOpError::DescriptionUncertified { .. }),
         "{refused:?}"
     );
     assert_eq!(format!("{body:?}"), before);
@@ -555,7 +555,7 @@ fn a_re_parameterized_certified_edge_leaves_its_spline_wall_as_found() {
         let Curve3::Line(geom::Line { origin, dir }) = spec.carrier else {
             unreachable!("line_between builds a line")
         };
-        spec.carrier = Curve3::line(origin - dir, dir);
+        spec.carrier = Curve3::line(origin - dir.get(), dir);
         spec.param_start += 1.0;
         spec.param_end += 1.0;
         let before = wall_images(&body);

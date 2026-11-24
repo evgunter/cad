@@ -104,7 +104,7 @@ fn replay_refusal(
     match ev.nodes.iter().find(|(n, _)| **n == id).map(|(_, r)| r) {
         Some(NodeResult::Failed(e)) => match &e.kind {
             NodeErrorKind::ProfileReplay { loop_, error } => match &error.kind {
-                ReplayErrorKind::Path(path) => Some((*loop_, error.step, path.kind())),
+                ReplayErrorKind::Path(path) => Some((*loop_, error.step(), path.kind())),
                 ReplayErrorKind::Transition { .. } => None,
             },
             _ => None,
@@ -238,7 +238,7 @@ fn a_zero_radius_refuses_at_replay_naming_the_loop_and_step() {
     // The LOOP: hole 0 is loop 1 (the outline is loop 0).
     assert_eq!(*loop_, 1, "the first hole is loop 1");
     // The STEP: a circle program is exactly one step.
-    assert_eq!(error.step, 0, "a Circle program's only step");
+    assert_eq!(error.step(), 0, "a Circle program's only step");
     // And the refusal is the named one.
     assert!(
         matches!(

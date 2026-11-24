@@ -34,7 +34,7 @@
 //! - of the three bodies the shell's cavity gate asks, the corpus pot
 //!   and the cone frustum's cavity hold at both scalars, and the klein
 //!   elbow's cavity refuses typed at a spiric cap edge;
-//! - a lens loft's cap refuses typed at the depth budget against a wall
+//! - a lens-walled body's cap refuses typed at the depth budget against a wall
 //!   at the lens tip, while a twisted loft's seams and the half-turn
 //!   helix's caps hold against their walls.
 //!
@@ -58,9 +58,9 @@ use std::collections::BTreeSet;
 use sweep::test_support::revolved_about_y_at;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve, sweep_body};
 use topo::clearance::{
-    BoundReport, BoundVerdict, Budgets, CLEARANCE_MARGIN, Candidate, CellReceipt, CertificateArm,
-    ClearanceBound, DEFAULT_MAX_CELL_DEPTH, EngineRefusal, SharedCell, Side, Sweep, Which,
-    min_separation,
+    BoundReport, BoundVerdict, Budgets, CLEARANCE_MARGIN, Candidate, CellBudget, CellReceipt,
+    CertificateArm, ClearanceBound, DEFAULT_MAX_CELL_DEPTH, EngineRefusal, SharedCell, Side, Sweep,
+    Which, min_separation,
 };
 use topo::{Body, FaceKey, LoopBoundary, VertexKey};
 
@@ -408,6 +408,7 @@ fn top_wall<T: Scalar>(lofted: &sweep::Lofted<T, Body<T>>) -> FaceKey {
     lofted.side_faces[0]
         .iter()
         .flatten()
+        .flatten()
         .copied()
         .max_by(|&a, &b| centre(a).total_cmp(&centre(b)))
         .unwrap()
@@ -513,6 +514,7 @@ fn the_carvetail_fold_reads_violated_at_its_middle_station() {
         };
         let walls: Vec<FaceKey> = lofted.side_faces[0]
             .iter()
+            .flatten()
             .flatten()
             .copied()
             .filter(|&f| on_seam(f))
@@ -690,6 +692,11 @@ fn a_declared_wedge_0_kiss_refuses_naming_the_second_order_arm() {
         &injective(&kiss::<Interval>(), None, BUDGET),
     );
     println!("[selfx] kiss: {:?} {:?}", report.verdict, report.receipt);
+    assert_eq!(
+        report.receipt.refused, 1,
+        "the ask ends at the kiss: {:?}",
+        report.receipt
+    );
     match report.verdict {
         BoundVerdict::Refused(EngineRefusal::Uncertified {
             shared: SharedCell::Edge(e),
@@ -988,7 +995,7 @@ fn role<T: topo::AtRestPolicy<Finished = topo::AtRestBody<T>> + Real>(
     }
     lofted.side_faces[0]
         .iter()
-        .position(|seg| seg.contains(&f))
+        .position(|seg| seg.contains(&Some(f)))
         .map_or_else(|| format!("{f:?}"), |j| format!("wall {j}"))
 }
 
@@ -1016,14 +1023,19 @@ fn decided_at_both(
     report
 }
 
-/// A 0.1 square lofted along [`arc_spine_places`] at 17 stations,
-/// `v`-degree 3.
+/// A 0.1 square lofted at `f64` along [`arc_spine_places`] at 17
+/// stations, `v`-degree 3, its carriers held at `T` as points
+/// ([`sweep::test_support::f64_body_held_as_points_construction`]).
 fn arc_spine<T: Scalar>(curl: f64) -> sweep::Lofted<T, Body<T>> {
     let square = quad([(-0.05, -0.05), (0.05, -0.05), (0.05, 0.05), (-0.05, 0.05)]);
-    let sections: Vec<_> = (0..17).map(|_| lifted(&square)).collect();
-    let places: Vec<_> = arc_spine_places(curl, 17).iter().map(plane_at).collect();
-    sweep::test_support::loft_body_construction::<T>(&sections, &places, 3, tol())
-        .expect("the arc spine lofts")
+    let sections: Vec<_> = (0..17).map(|_| square.clone()).collect();
+    sweep::test_support::f64_body_held_as_points_construction::<T>(
+        &sections,
+        &arc_spine_places(curl, 17),
+        3,
+        tol(),
+    )
+    .expect("the arc spine body builds")
 }
 
 /// The station-angle of a point on the arc spine, folded into one turn.
@@ -1202,6 +1214,7 @@ fn arc_spine_walls_with_knots_ulps_off_their_splits_hold_against_themselves() {
             .iter()
             .flatten()
             .flatten()
+            .flatten()
             .copied()
             .collect();
         let what = format!("the {curl} rad arc spine");
@@ -1213,6 +1226,7 @@ fn arc_spine_walls_with_knots_ulps_off_their_splits_hold_against_themselves() {
         let walls: Vec<FaceKey> = twin
             .side_faces
             .iter()
+            .flatten()
             .flatten()
             .flatten()
             .copied()
@@ -1257,6 +1271,7 @@ fn the_s_duct_walls_hold_against_themselves() {
         .iter()
         .flatten()
         .flatten()
+        .flatten()
         .copied()
         .collect();
     walls_hold_against_themselves("the S duct", &float.body, &walls);
@@ -1264,6 +1279,7 @@ fn the_s_duct_walls_hold_against_themselves() {
     let walls: Vec<FaceKey> = twin
         .side_faces
         .iter()
+        .flatten()
         .flatten()
         .flatten()
         .copied()
@@ -1287,17 +1303,61 @@ fn a_big_thin_walled_cylinder_shell_certifies_within_the_default_budget() {
     holds_at_both("the thin shell", shell::<f64>(), shell::<Interval>());
 }
 
+/// **Two nested tori a thin gap apart hold at their roots.** The hollow
+/// torus `R = 2`, tube radius `0.45`, wall `0.025`, as a shelled torus's
+/// cavity is: four faces, each of the inner torus's two sharing nothing
+/// with each of the outer's. Each of those four pairs is read apart
+/// off the outer torus's whole carrier, so what is split is the two
+/// pairs of halves that touch. Red where a pair that shares nothing is
+/// separated by the cells' boxes and supports alone: the four spend the
+/// default budget between them, and the body refuses for pairs.
+#[test]
+fn two_nested_tori_a_thin_gap_apart_hold_at_their_roots() {
+    fn hollow<T: Scalar>() -> Body<T> {
+        let at = T::from_f64;
+        sweep::tube_along_arc_hollow(
+            sweep::test_support::tube_frame(
+                Point3::new(at(0.0), at(0.0), at(0.0)),
+                geom_core::Vec3::new(at(0.0), at(1.0), at(0.0)),
+                geom_core::Vec3::new(at(1.0), at(0.0), at(0.0)),
+                tol(),
+            ),
+            at(2.0),
+            sweep::TubeWindow::Full,
+            at(0.45),
+            at(0.025),
+            tol(),
+        )
+        .expect("the hollow torus builds")
+        .body
+        .into_body()
+    }
+    let float = hollow::<f64>();
+    assert_eq!(float.faces().count(), 4, "two tori, each in two halves");
+    for report in holds_at_both("the nested tori", float, hollow::<Interval>()) {
+        assert!(
+            report.receipt.splits < BUDGET / 16,
+            "the nested tori split under a sixteenth of the default budget: {:?}",
+            report.receipt
+        );
+    }
+}
+
 /// **A conical wall and a toroidal wall `0.05` thick**, each revolved a
 /// full turn: the meridian band between two lines `30°` off the axis
 /// and `0.05` apart, capped by two annuli, as the klein bulb's flare;
 /// and the band between two arcs about a centre off the axis, radii
 /// `0.8 ∓ 0.025`, closed by two radial lines, as its rim. Each wall's
-/// two faces share nothing, so only the distance test decides them.
-/// Both hold at both scalars, each splitting under a quarter of the
-/// default budget (about 3,100 and 6,600 splits). Red where the support
-/// test reads an analytic cell by its box: two slanted patches' boxes
+/// two faces share nothing. Both hold at both scalars, each splitting
+/// under a quarter of the default budget. The conical wall's faces
+/// have no depth that parts them, so the supports along a direction
+/// decide them, in about 3,100 splits: red where the support test reads
+/// an analytic cell by its box, since two slanted patches' boxes
 /// overlap until the cells are about as small as the gap, which costs
-/// about 39,000 and 32,000 splits.
+/// about 39,000. The toroidal wall's faces are apart in their core's
+/// depth and discharge at their root; it splits about 200 times, on
+/// the pairs that touch, and under 512: red where that root is split
+/// (6,647 splits).
 #[test]
 fn a_conical_and_a_toroidal_wall_hold_within_the_default_budget() {
     fn conical<T: Scalar>() -> Body<T> {
@@ -1340,13 +1400,15 @@ fn a_conical_and_a_toroidal_wall_hold_within_the_default_budget() {
             tol(),
         )
     }
-    for (what, reports) in [
+    for (what, ceiling, reports) in [
         (
             "the conical wall",
+            BUDGET / 4,
             holds_at_both("the conical wall", conical::<f64>(), conical::<Interval>()),
         ),
         (
             "the toroidal wall",
+            512,
             holds_at_both(
                 "the toroidal wall",
                 toroidal::<f64>(),
@@ -1356,8 +1418,8 @@ fn a_conical_and_a_toroidal_wall_hold_within_the_default_budget() {
     ] {
         for report in &reports {
             assert!(
-                report.receipt.splits < BUDGET / 4,
-                "{what} splits under a quarter of the default budget: {:?}",
+                report.receipt.splits < ceiling,
+                "{what} splits under {ceiling}: {:?}",
                 report.receipt
             );
         }
@@ -1542,7 +1604,7 @@ fn a_filleted_drum_certifies_across_its_fillet() {
             .filter(|(_, e)| {
                 matches!(
                     drum.get_curve_geom(e.curve).unwrap().certified().map(|g| g.carrier().clone()),
-                    Some(geom::Curve3::Circle(geom::Circle { frame, .. })) if (mid(frame.origin().z) - 2.0).abs() < 1e-9
+                    Some(geom::Curve3::Circle(the_circle @ geom::Circle { .. })) if (mid(the_circle.frame().origin().z) - 2.0).abs() < 1e-9
                 )
             })
             .map(|(k, _)| k)
@@ -1610,7 +1672,9 @@ fn is_ellipse<T: Real>(body: &Body<T>, e: topo::EdgeKey) -> bool {
 /// `b` moved rigidly by `m`, at rest.
 fn moved<T: Scalar>(b: &topo::AtRestBody<T>, m: &geom_core::Affine3<f64>) -> topo::AtRestBody<T> {
     use sweep::test_support::finished;
-    let rigid = geom_core::test_support::rigid(&m.map(T::from_f64), tol());
+    // The motion stated at `f64` and lifted as the type lifts a stated
+    // frame (its polar enclosure at `Interval`).
+    let rigid = geom_core::test_support::rigid(m, tol()).map_scalar(T::from_f64);
     finished("moved", topo::transform_rigid(b, &rigid).unwrap(), tol())
 }
 
@@ -1796,26 +1860,33 @@ fn a_drum_cavitys_cap_disc_on_two_half_circles_holds() {
 /// **The drum the cavity above is cut from refuses, out of depth**: its
 /// half-annulus cells a rounding off the disc's half-circle are read by no
 /// presentation (`work/embed/a-cell-whose-side-lies-a-rounding-off-a-curved-edge-reads-local-at-every-depth.md`).
-/// Red when the drum holds, and that row's reading has landed. The
-/// refused cells are 210: the drum's stored frames read at `Interval` by
-/// their polar enclosure summed exactly, about an ulp of each entry
-/// (282 with the enclosure's sums in interval arithmetic, and 282 read as
-/// points, as at the base).
+/// Red when the drum holds, and that row's reading has landed. The ask
+/// ends at that first refusal, on two of the cap's coplanar faces, so
+/// one cell pair is refused and the frontier it held is abandoned.
 #[test]
 fn the_collinear_cap_drum_itself_runs_out_of_depth_off_its_half_circle() {
     use crate::common::latitude_seam::collinear_cap_drum;
     let drum = collinear_cap_drum();
     let report = injective(&drum, None, BUDGET);
-    assert!(
-        matches!(
-            report.verdict,
-            BoundVerdict::Refused(EngineRefusal::Budget(_))
-        ),
-        "the drum runs out of depth: {:?} {:?}",
-        report.verdict,
-        report.receipt
+    let BoundVerdict::Refused(EngineRefusal::Budget {
+        stop: CellBudget::Depth { .. },
+        a,
+        b,
+    }) = report.verdict
+    else {
+        panic!(
+            "the drum runs out of depth: {:?} {:?}",
+            report.verdict, report.receipt
+        )
+    };
+    assert_ne!(a, b, "two faces");
+    assert_eq!(
+        [kind(&drum, a), kind(&drum, b)],
+        ["plane", "plane"],
+        "the refusal names the cap's two faces it was made on"
     );
-    assert_eq!(report.receipt.refused, 210, "{:?}", report.receipt);
+    assert_eq!(report.receipt.refused, 1, "{:?}", report.receipt);
+    assert!(report.receipt.abandoned > 0, "{:?}", report.receipt);
 }
 
 /// **A drum whose splits fall a rounding off its half-circle runs out of
@@ -1838,7 +1909,7 @@ fn a_drum_of_radius_0_7_runs_out_of_depth_off_its_half_circle() {
     assert!(
         matches!(
             report.verdict,
-            BoundVerdict::Refused(EngineRefusal::Budget(_))
+            BoundVerdict::Refused(EngineRefusal::Budget { .. })
         ),
         "the drum runs out of depth: {:?} {:?}",
         report.verdict,
@@ -2339,8 +2410,9 @@ fn one_face_torus_cut<T: Scalar>() -> topo::AtRestBody<T> {
 /// by the plain wall presentation, none through a corner. The body
 /// refuses `Departure` across the meridian the two torus faces share,
 /// pinned typed at both scalars
-/// (`one-face-torus-cut-refuses-across-its-meridian`). Red if the plain
-/// wall presentation is withdrawn.
+/// (`one-face-torus-cut-refuses-across-its-meridian`), and its ask ends
+/// there, so each cap is asked against its torus face alone. Red if the
+/// plain wall presentation is withdrawn.
 #[test]
 fn a_one_face_torus_cut_certifies_its_caps_by_the_wall_alone() {
     fn at<T: Scalar>() -> BoundReport<Witness> {
@@ -2370,14 +2442,22 @@ fn a_one_face_torus_cut_certifies_its_caps_by_the_wall_alone() {
             Some(geom::CurveKind::Circle),
             "across the meridian"
         );
+        assert_eq!(
+            (report.receipt.refused, report.receipt.abandoned > 0),
+            (1, true),
+            "the ask ends at the meridian: {:?}",
+            report.receipt
+        );
         assert_eq!(cut.len(), 2, "two caps, each on one whole oval");
         for p in &cut {
+            let alone = pair_report(&body, p.0, p.1, BUDGET);
+            assert_eq!(alone.verdict, BoundVerdict::Holds, "{p:?} asked alone");
+            assert_eq!(alone.cornered, 0, "{p:?}: no corner is read");
             assert!(
-                report.across.get(p).is_some_and(|&n| n > 0),
+                alone.across.get(p).is_some_and(|&n| n > 0),
                 "a cap and its torus face certified across their oval: {p:?}"
             );
         }
-        assert_eq!(report.cornered, 0, "no corner is read");
         report
     }
     same_class("the one-face torus cut", &at::<f64>(), &at::<Interval>());
@@ -2511,25 +2591,29 @@ fn adjacent<T: Real>(body: &Body<T>, caps: bool) -> Vec<(FaceKey, FaceKey)> {
         .collect()
 }
 
-/// Two unit lens sections, two arcs on one chord, stacked one apart three
-/// times: `lily_leaf_a`'s section, lofted straight.
-fn lens_loft<T: Scalar>() -> Body<T> {
+/// A body with rational lens walls: two unit lens sections, two arcs on
+/// one chord, stacked one apart three times (`lily_leaf_a`'s section),
+/// lofted straight at `f64` and its carriers held at `T` as points
+/// ([`sweep::test_support::f64_body_held_as_points_construction`]).
+fn lens_walled<T: Scalar>() -> Body<T> {
     let lens = vec![profile::test_support::bulge_loop(vec![
         (Point2::new(0.5, 0.0), -0.3),
         (Point2::new(-0.5, 0.0), -0.3),
     ])];
-    let sections = sweep::test_support::lift_sections::<T>(&[lens.clone(), lens.clone(), lens]);
-    let places = sweep::test_support::lift_places::<T>(
+    sweep::test_support::f64_body_held_as_points_construction::<T>(
+        &[lens.clone(), lens.clone(), lens],
         &sweep::test_support::stacked_at(&[0.0, 1.0, 2.0]),
+        2,
         tol(),
-    );
-    sweep::test_support::loft_body_construction::<T>(&sections, &places, 2, tol())
-        .expect("the lens loft lofts")
-        .body
+    )
+    .expect("the lens-walled body builds")
+    .body
 }
 
-/// **A lens loft's rational walls hold against themselves, at both
-/// scalars and moved off the origin**: each wall alone at the default
+/// **Rational lens walls hold against themselves, at both scalars and
+/// moved off the origin** ([`lens_walled`]: at `Interval` the `f64`
+/// body's carriers held as points, not the loft built there, which
+/// refuses at the carrier's door until it holds an enclosure weight): each wall alone at the default
 /// budget, at the origin and moved by `(10, 10, 10)`, certifying a
 /// cell-pair count within 1% of its unmoved twin's. The lens arcs are
 /// rational, so the monotone arm reads each wall through a rational
@@ -2538,9 +2622,9 @@ fn lens_loft<T: Scalar>() -> Body<T> {
 /// The `Interval` twin of the tour's `lily_leaf_a` wall rows, which
 /// build at `f64` only.
 #[test]
-fn a_lens_lofts_walls_hold_against_themselves_moved_off_the_origin_at_both_scalars() {
+fn lens_walls_hold_against_themselves_moved_off_the_origin_at_both_scalars() {
     fn row<T: Scalar>(what: &str) {
-        let home = lens_loft::<T>();
+        let home = lens_walled::<T>();
         let by = geom_core::Vec3::new(10.0, 10.0, 10.0).map(T::from_f64);
         let motion = geom_core::RigidMotion::translation(by).expect("a translation");
         let away = topo::transform_rigid(&home, &motion).expect("the loft moves");
@@ -2576,12 +2660,12 @@ fn a_lens_lofts_walls_hold_against_themselves_moved_off_the_origin_at_both_scala
             assert!(close, "{what}: {wall:?} certifies {y} moved against {x}");
         }
     }
-    row::<f64>("the lens loft");
-    row::<Interval>("the lens loft at Interval");
+    row::<f64>("the lens-walled body");
+    row::<Interval>("the lens-walled body at Interval");
 }
 
-/// **A lens loft's caps hold against its walls at the lens tip, at both
-/// scalars.** Two unit lens sections, two arcs on one chord, one above
+/// **A lens-walled body's caps hold against its walls at the lens tip,
+/// at both scalars** ([`lens_walled`]). Two unit lens sections, two arcs on one chord, one above
 /// the other: each cap is a plane bounded by two circles meeting at the
 /// two tips. A cap cell holding a tip holds both arcs, and no
 /// presentation reads a corner of two curved edges on a plane; the
@@ -2590,7 +2674,7 @@ fn a_lens_lofts_walls_hold_against_themselves_moved_off_the_origin_at_both_scala
 /// in the cap's plane. This is the tour's `lily_leaf_a` cap corner
 /// (`demos/tour/tests/lily.rs`), built here at both scalars.
 #[test]
-fn a_lens_loft_cap_holds_against_its_walls_at_its_tip_at_both_scalars() {
+fn a_lens_walled_cap_holds_against_its_walls_at_its_tip_at_both_scalars() {
     fn receipts<T: Scalar>(what: &str, body: &Body<T>) -> Vec<(usize, u32)> {
         adjacent(body, true)
             .into_iter()
@@ -2606,7 +2690,7 @@ fn a_lens_loft_cap_holds_against_its_walls_at_its_tip_at_both_scalars() {
             })
             .collect()
     }
-    let (float, interval) = (lens_loft::<f64>(), lens_loft::<Interval>());
+    let (float, interval) = (lens_walled::<f64>(), lens_walled::<Interval>());
     let pairs = adjacent(&float, true);
     assert_eq!(pairs.len(), 4, "two caps against two walls: {pairs:?}");
     assert_eq!(
@@ -2616,12 +2700,12 @@ fn a_lens_loft_cap_holds_against_its_walls_at_its_tip_at_both_scalars() {
     );
     let pinned = [(0, 0), (0, 0), (0, 0), (0, 0)];
     assert_eq!(
-        receipts("the lens loft", &float),
+        receipts("the lens-walled body", &float),
         pinned,
         "each cap-wall pair's (splits, deepest cell)"
     );
     assert_eq!(
-        receipts("the lens loft at Interval", &interval),
+        receipts("the lens-walled body at Interval", &interval),
         pinned,
         "each cap-wall pair's (splits, deepest cell) at Interval"
     );
@@ -2744,8 +2828,12 @@ fn the_half_turn_helixs_caps_hold_against_its_walls_at_both_scalars() {
 // ----------------------------------- two walls apart along a direction
 
 /// **A thin curved slab**: the section `(-0.4, 0.4) × (-g/2, g/2)`
-/// lofted at five stations along a unit-radius arc turning `curl` in
-/// the `xz` plane, the whole turned `phi` about the world `y` axis.
+/// lofted at `f64` at five stations along a unit-radius arc turning
+/// `curl` in the `xz` plane, the whole turned `phi` about the world `y`
+/// axis, its carriers held at `T` as points
+/// ([`sweep::test_support::f64_body_held_as_points_construction`]: the
+/// walls' interior v knot is a chord-length parameter, which the loft
+/// built at `Interval` holds as an enclosure no carrier takes yet).
 /// Its two wide walls are near-parallel sheets `g` apart with a radius
 /// of about 1, sharing no vertex; they are returned with the body.
 fn slab_wall_pair<T: Scalar>(
@@ -2761,7 +2849,7 @@ fn slab_wall_pair<T: Scalar>(
         (-0.4, g / 2.0),
     ]);
     let turn = Mat3::rotation_about(Vec3::new(0.0, 1.0, 0.0), phi);
-    let places: Vec<SketchPlane<T>> = (0..5)
+    let places: Vec<SketchPlane<f64>> = (0..5)
         .map(|i| {
             let theta = curl * f64::from(i) / 4.0;
             let (s, c) = theta.sin_cos();
@@ -2771,13 +2859,21 @@ fn slab_wall_pair<T: Scalar>(
                 Vec3::new(c, 0.0, s),
             );
             let at = Affine3::from_parts(turn * linear, turn * Vec3::new(s, 0.0, 1.0 - c));
-            plane_at(&crate::common::plane_of(&at))
+            crate::common::plane_of(&at)
         })
         .collect();
-    let sections: Vec<_> = (0..5).map(|_| lifted(&section)).collect();
-    let lofted = sweep::test_support::loft_body_construction::<T>(&sections, &places, 3, tol())
-        .expect("the slab lofts");
-    let walls = [lofted.side_faces[0][0][0], lofted.side_faces[0][2][0]];
+    let sections: Vec<_> = (0..5).map(|_| section.clone()).collect();
+    let lofted = sweep::test_support::f64_body_held_as_points_construction::<T>(
+        &sections,
+        &places,
+        3,
+        tol(),
+    )
+    .expect("the slab builds");
+    let walls = [
+        lofted.side_faces[0][0][0].unwrap(),
+        lofted.side_faces[0][2][0].unwrap(),
+    ];
     (lofted, walls)
 }
 
@@ -3103,9 +3199,12 @@ fn the_walk_reads_its_charts_and_edges_through_their_memos() {
 /// `f64` the plane built from either does. At `Interval` the small
 /// ball's centre is a bracket (its profile arc's centre rounds), and
 /// two meridians stored in one bracket need not lie in one plane for
-/// every member, so its plane lists its own meridian alone and its pole
-/// refuses `Departure` there. Red at `f64` if the meridians are stored
-/// in two planes, or if the corner is read as zero off the list.
+/// every member, so its plane lists its own meridian alone; the pole is
+/// read by the plane through it alone, each half-band presented against
+/// the pole, which vanishes there for every member, and holds. Red at
+/// `f64` if the meridians are stored in two planes, or if the corner is
+/// read as zero off the list; red at `Interval` while the departure arm
+/// reads no plane but those through the shared meridian.
 #[test]
 fn a_two_ball_union_holds_with_its_poles_read() {
     fn snowman<T: Scalar>() -> Body<T> {
@@ -3139,26 +3238,969 @@ fn a_two_ball_union_holds_with_its_poles_read() {
         report.receipt
     );
     let twin = snowman::<Interval>();
-    let verdict = injective(&twin, None, BUDGET).verdict;
-    let BoundVerdict::Refused(EngineRefusal::Uncertified {
-        shared: SharedCell::Edge(edge),
-        arm: CertificateArm::Departure,
-        ..
-    }) = verdict
-    else {
-        panic!("the snowman at Interval refuses Departure on a meridian: {verdict:?}");
-    };
-    let curve = twin.get_edge(edge).expect("a live edge").curve;
-    let carrier = twin
-        .get_curve_geom(curve)
-        .and_then(|g| g.certified())
-        .map(|c| c.carrier().clone());
-    let Some(geom::Curve3::Circle(conic_k @ geom::Circle { frame, .. })) = carrier else {
-        panic!("the refusing edge is a meridian circle: {carrier:?}");
-    };
-    let radius = conic_k.radius();
-    assert!(
-        (mid(radius) - 0.8).abs() < 1e-9 && frame.origin().y.lo() < frame.origin().y.hi(),
-        "on the small ball, whose centre is a bracket: {radius:?} {frame:?}"
+    let at_interval = injective(&twin, None, BUDGET);
+    assert_holds("the snowman at Interval", &at_interval, &twin);
+    println!(
+        "[snowman] f64 {:?} | Interval {:?}",
+        report.receipt, at_interval.receipt
     );
+}
+
+/// The frames an apex row is read in: the plain one, a rigid turn about
+/// a generic axis, and the plain one moved a hundred units off the
+/// origin.
+fn apex_frames() -> [(&'static str, SketchPlane<f64>); 3] {
+    use geom_core::{Affine3, Mat3, Vec3};
+    let a = Vec3::new(1.0, 2.0, 3.0) * (1.0 / 14f64.sqrt());
+    let (c, s) = (0.7f64.cos(), 0.7f64.sin());
+    let col = |e: Vec3<f64>| e * c + a.cross(e) * s + a * (a.dot(e) * (1.0 - c));
+    let turn = Mat3::from_cols(
+        col(Vec3::new(1.0, 0.0, 0.0)),
+        col(Vec3::new(0.0, 1.0, 0.0)),
+        col(Vec3::new(0.0, 0.0, 1.0)),
+    );
+    let frame = |m: Mat3<f64>, d: Vec3<f64>| {
+        SketchPlane::from_frame(geom_core::test_support::rigid(
+            &Affine3::from_parts(m, d),
+            tol(),
+        ))
+    };
+    [
+        ("plain", SketchPlane::xy()),
+        ("turned", frame(turn, Vec3::new(0.0, 0.0, 0.0))),
+        (
+            "moved",
+            frame(Mat3::identity(), Vec3::new(64.0, -57.0, 52.0)),
+        ),
+    ]
+}
+
+/// Whether a revolve refused at the certification limit a wedge reaches
+/// at ε = 1e-12 with coordinates of a hundred and more: the analytic
+/// rung 3's kernel limit on its cone, the mapped source's check
+/// escalating, or a pcurve's envelope term escalating
+/// (`work/select/an-interval-revolve-of-a-cone-wedge-a-thousand-units-out-refuses-its-cones-rung-3-at-1e-12.md`).
+/// Any other refusal is not.
+fn at_the_build_limit(e: &sweep::RevolveError) -> bool {
+    use geom_brep::{
+        AnalyticRung3Refusal, CertCheck, CertifyError, PcurveCertifyError, PcurveCheck,
+    };
+    match e {
+        sweep::RevolveError::Op {
+            source: topo::EulerOpError::DescriptionUncertified { error, .. },
+        } => matches!(
+            error,
+            CertifyError::AnalyticRung3(AnalyticRung3Refusal::KernelLimit { .. })
+                | CertifyError::Escalated {
+                    check: CertCheck::MappedSource,
+                    ..
+                }
+        ),
+        sweep::RevolveError::Pcurve(topo::PcurveMintError::Certify { error, .. }) => matches!(
+            error,
+            PcurveCertifyError::Escalated {
+                check: PcurveCheck::EnvelopeTerm(_),
+                ..
+            }
+        ),
+        _ => false,
+    }
+}
+
+/// **A cone wedge past a half turn is embedded at its apex**: a
+/// triangle with a leg on the axis, revolved by `θ` about `y`. Each
+/// wedge plane holds the axis, so its carrier holds a second ruling of
+/// the cone through the apex, half a turn from the one it shares, and
+/// past a half turn that ruling is on the cone face: no plane through
+/// the shared ruling parts the cone's cells about it from the wedge
+/// plane's at the apex. A plane through the apex does, each face read
+/// against the apex alone. `Embedded` at both scalars: the unit
+/// triangle in each of [`apex_frames`] and a thousand units off the
+/// origin, and a triangle a hundred times the size, a needle and a flat
+/// one in the plain frame; and revolved by `−θ`, the unit triangle in
+/// the plain frame. Red while the departure arm reads no plane but those
+/// through the shared ruling. Revolved by `−θ` in the other poses the
+/// wedge refuses, at one scalar or both
+/// (`work/embed/a-mirrored-cone-wedge-refuses-departure-at-its-apex-off-the-plain-frame.md`).
+#[test]
+fn a_cone_wedge_past_a_half_turn_is_embedded_at_its_apex() {
+    use geom_core::{Affine3, Mat3, Vec3};
+    use topo::clearance::Embedding;
+    fn wedge<T: Scalar>(
+        place: &SketchPlane<f64>,
+        legs: (f64, f64),
+        theta: f64,
+    ) -> Result<Body<T>, sweep::RevolveError> {
+        let (r, h) = legs;
+        let profile = Profile::new(
+            plane_at::<T>(place),
+            lifted(&[ProfileLoop::polygon(
+                [(0.0, 0.0), (r, 0.0), (0.0, h)].map(|(x, y)| Point2::new(x, y)),
+            )]),
+        )
+        .validate(tol())
+        .unwrap();
+        revolve(
+            &profile,
+            axis_y(),
+            Revolution::Partial(T::from_f64(theta)),
+            tol(),
+        )
+        .map(|b| b.body.into_body())
+    }
+    let far = SketchPlane::from_frame(geom_core::test_support::rigid(
+        &Affine3::from_parts(Mat3::identity(), Vec3::new(640.0, -570.0, 520.0)),
+        tol(),
+    ));
+    let mut poses: Vec<(&str, SketchPlane<f64>, (f64, f64))> = apex_frames()
+        .into_iter()
+        .map(|(name, place)| (name, place, (1.0, 1.0)))
+        .collect();
+    poses.extend([
+        ("moved a thousand", far, (1.0, 1.0)),
+        ("a hundred times", SketchPlane::xy(), (100.0, 100.0)),
+        ("a needle", SketchPlane::xy(), (0.05, 1.0)),
+        ("flat", SketchPlane::xy(), (1.0, 0.05)),
+    ]);
+    let plain = poses[..1].to_vec();
+    for theta in [1.5 * core::f64::consts::PI + 0.01, 5.5] {
+        for (turn, poses) in [(theta, &poses), (-theta, &plain)] {
+            for (name, place, legs) in poses {
+                let what = format!("the {turn} wedge, {name}");
+                // At ε = 1e-12 the two poses at coordinates of a hundred and
+                // more refuse their certification at the build:
+                // work/select/an-interval-revolve-of-a-cone-wedge-a-thousand-units-out-refuses-its-cones-rung-3-at-1e-12.md.
+                let built = |r: Result<topo::clearance::EmbeddingReport, sweep::RevolveError>,
+                             scalar: &str| match r {
+                    Ok(report) => Some(report),
+                    Err(e)
+                        if matches!(*name, "moved a thousand" | "a hundred times")
+                            && tol().eps() < 1e-11
+                            && at_the_build_limit(&e) =>
+                    {
+                        println!(
+                            "SKIPPED (ε = {:e}): {what} at {scalar} does not build: {e}",
+                            tol().eps()
+                        );
+                        None
+                    }
+                    Err(e) => panic!("{what} builds at {scalar}: {e}"),
+                };
+                let float = built(
+                    wedge::<f64>(place, *legs, turn)
+                        .map(|b| door(&b, DEFAULT_MAX_CELL_DEPTH, BUDGET)),
+                    "f64",
+                );
+                let twin = built(
+                    wedge::<Interval>(place, *legs, turn)
+                        .map(|b| door(&b, DEFAULT_MAX_CELL_DEPTH, BUDGET)),
+                    "Interval",
+                );
+                println!(
+                    "[apex wedge] {what}: f64 {:?} | Interval {:?}",
+                    float.as_ref().map(|t| (&t.verdict, t.receipt)),
+                    twin.as_ref().map(|t| (&t.verdict, t.receipt))
+                );
+                for (scalar, report) in [("f64", float.as_ref()), ("Interval", twin.as_ref())]
+                    .into_iter()
+                    .filter_map(|(scalar, r)| r.map(|r| (scalar, r)))
+                {
+                    assert_eq!(
+                        report.verdict,
+                        Embedding::Embedded,
+                        "{what} at {scalar} is embedded"
+                    );
+                }
+            }
+        }
+    }
+}
+
+// ------------------------------- the ask ends at its first finding
+
+/// **A plate whose void touches its top**: the box `(0, 3) × (0, 2) ×
+/// (0, 1)` less a pyramid hanging from `(1.5, 1, 1)`, a point of the
+/// top's interior. The void's apex and the top are one point of space
+/// and two of the boundary, so the body is not embedded; its faces are
+/// all planes.
+fn void_touching_plate<T: Scalar>() -> topo::AtRestBody<T> {
+    void_touching_plate_at([0.0; 3], false, 0)
+}
+
+/// [`void_touching_plate`] built `o` off the origin, mirrored in `x`
+/// where `mirror` (built so, not moved), its void's base listed from
+/// its vertex `from`.
+///
+/// `topo`'s `held::tests::wall_at` copies a wall of this void (its
+/// base's last two corners and its apex); a move here is owed there.
+fn void_touching_plate_at<T: Scalar>(
+    o: [f64; 3],
+    mirror: bool,
+    from: usize,
+) -> topo::AtRestBody<T> {
+    use sweep::test_support::{brick, finished};
+    use topo::test_support::meeting::{Pose, posed_pyramid_at};
+    let plate = finished(
+        "the plate",
+        brick::<T>(
+            (o[0], 3.0 + o[0]),
+            (o[1], 2.0 + o[1]),
+            (o[2], 1.0 + o[2]),
+            tol(),
+        ),
+        tol(),
+    );
+    let x = |x: f64| if mirror { 3.0 - x } else { x };
+    let mut base: Vec<[f64; 3]> = [[1.2, 0.8, 0.5], [1.9, 0.9, 0.5], [1.4, 1.3, 0.5]]
+        .iter()
+        .map(|p| [x(p[0]) + o[0], p[1] + o[1], p[2] + o[2]])
+        .collect();
+    if mirror {
+        base.reverse();
+    }
+    base.rotate_left(from);
+    let void = posed_pyramid_at::<T>(
+        &base,
+        [x(1.5) + o[0], 1.0 + o[1], 1.0 + o[2]],
+        &Pose::rest(),
+        tol(),
+    );
+    built(topo::subtract(&plate, &void, tol()))
+}
+
+/// The verdict door over every face of `body`.
+fn door<T: Scalar + geom_core::Certifies>(
+    body: &Body<T>,
+    max_cell_depth: u32,
+    max_cell_pairs: usize,
+) -> topo::clearance::EmbeddingReport {
+    let side = Side {
+        body,
+        faces: body.faces().map(|(k, _)| k).collect(),
+    };
+    let report = topo::clearance::embedded(
+        &side,
+        band(),
+        Budgets {
+            max_cell_depth,
+            max_cell_pairs,
+        },
+    );
+    assert!(
+        report.receipt.holds(),
+        "the receipt adds up: {:?}",
+        report.receipt
+    );
+    report
+}
+
+/// **The embedding ask ends at its first finding, and a refusal is
+/// one.** The plate's top and a wall of its void run out of depth at
+/// the apex, on cells a rounding off it, before the cell that holds the
+/// apex is offered as a crossing on the same level: the ask ends there,
+/// refused on those two faces, which share no vertex, with one cell
+/// pair refused and the frontier it held abandoned. Red, `Crosses`,
+/// where a refusal is kept and the walk reads on.
+///
+/// The same finding at both scalars and on a second ask. In another
+/// pose or order of its faces the plate is told its crossing instead
+/// ([`a_body_that_does_not_pass_is_told_one_finding_or_another_and_never_that_it_holds`]).
+#[test]
+fn a_plate_whose_void_touches_its_top_reads_the_refusal_it_meets_first() {
+    use topo::clearance::Embedding;
+    fn at<T: Scalar + geom_core::Certifies>() -> Embedding {
+        let rest = void_touching_plate::<T>().into_body();
+        let report = door(&rest, DEFAULT_MAX_CELL_DEPTH, BUDGET);
+        let Embedding::Refused(EngineRefusal::Budget {
+            stop: CellBudget::Depth { .. },
+            a,
+            b,
+        }) = report.verdict
+        else {
+            panic!("the plate refuses out of depth: {:?}", report.verdict)
+        };
+        assert!(
+            a != b && !touching_pairs(&rest).contains(&(a.min(b), a.max(b))),
+            "the refusal names two faces that share no vertex: {a:?} {b:?}"
+        );
+        assert_eq!(report.receipt.refused, 1, "{:?}", report.receipt);
+        assert!(report.receipt.abandoned > 0, "{:?}", report.receipt);
+        assert_eq!(
+            door(&rest, DEFAULT_MAX_CELL_DEPTH, BUDGET),
+            report,
+            "asked again"
+        );
+        report.verdict
+    }
+    assert_eq!(at::<Interval>(), at::<f64>(), "one finding at both scalars");
+}
+
+/// **Whether a body passes is the shape's; which finding a body that
+/// does not pass is told is the walk's.** The plate whose void touches
+/// its top, placed many ways: set off the origin, mirrored, its void's
+/// base listed from each vertex, its faces asked in their order and
+/// reversed, and turned about four axes. No placement reads `Embedded`.
+/// Some are told the crossing and some the refusal met before it, at
+/// each scalar: the level a pair is refused at moves with the pose, and
+/// the candidates' order with the faces'. Red where a placement holds,
+/// and where one class is all there is, which would be a claim the
+/// engine does not make.
+#[test]
+fn a_body_that_does_not_pass_is_told_one_finding_or_another_and_never_that_it_holds() {
+    use geom_core::{Affine3, Vec3};
+    use topo::clearance::Embedding;
+    fn class<T: Scalar + geom_core::Certifies>(body: &Body<T>, reversed: bool) -> &'static str {
+        let mut faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
+        if reversed {
+            faces.reverse();
+        }
+        let report = topo::clearance::embedded(
+            &Side { body, faces },
+            band(),
+            Budgets {
+                max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+                max_cell_pairs: BUDGET,
+            },
+        );
+        match report.verdict {
+            Embedding::Embedded => "embedded",
+            Embedding::Crosses(_) => "crosses",
+            Embedding::Refused(_) => "refused",
+        }
+    }
+    fn at<T: Scalar + geom_core::Certifies>() -> BTreeSet<&'static str> {
+        let mut seen = BTreeSet::new();
+        for o in [
+            [0.0; 3],
+            [100.0, 100.0, 100.0],
+            [900.0, -900.0, 900.0],
+            [0.1, 0.0, 0.0],
+        ] {
+            // At `Interval` below ε = 1e-9 the body 900 off does not
+            // build: `newell_plane` escalates in the fixture
+            // (`work/oneround/a-planar-body-two-hundred-off-the-origin-does-not-finish-at-interval-at-1e-12.md`).
+            let unbuilt_at_interval = o == [900.0, -900.0, 900.0];
+            if T::NAME == Interval::NAME && tol().eps() < 1e-9 && unbuilt_at_interval {
+                println!(
+                    "SKIPPED at Interval, eps {}: the placement {o:?} off the origin does not build",
+                    tol().eps()
+                );
+                continue;
+            }
+            for mirror in [false, true] {
+                for from in 0..3 {
+                    let body = void_touching_plate_at::<T>(o, mirror, from).into_body();
+                    for reversed in [false, true] {
+                        let c = class(&body, reversed);
+                        assert_ne!(
+                            c, "embedded",
+                            "off {o:?}, mirrored {mirror}, base from {from}, reversed {reversed}"
+                        );
+                        seen.insert(c);
+                    }
+                }
+            }
+        }
+        let rest = void_touching_plate::<T>();
+        for axis in [
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.3, -0.5, 0.8),
+            Vec3::new(1.0, 1.0, 1.0),
+        ] {
+            for k in 1..12 {
+                let angle = f64::from(k) * core::f64::consts::PI / 12.0;
+                let turn = Affine3::rotation_about_axis(Point3::origin(), axis.normalize(), angle);
+                let c = class(&moved(&rest, &turn).into_body(), false);
+                assert_ne!(c, "embedded", "turned {k}π/12 about {axis:?}");
+                seen.insert(c);
+            }
+        }
+        seen
+    }
+    let both = BTreeSet::from(["crosses", "refused"]);
+    assert_eq!(at::<f64>(), both, "f64");
+    assert_eq!(at::<Interval>(), both, "Interval");
+}
+
+/// **The plate built 100 off the origin is told the refusal it meets
+/// first at `Interval`, at every ε, as at the origin**
+/// ([`a_plate_whose_void_touches_its_top_reads_the_refusal_it_meets_first`]).
+/// Its void's walls are Newell planes whose frames are enclosures about
+/// 1.8e-12 wide there, so a station of a wall's own chart reads its
+/// residual undecided at ε = 1e-12, centred on zero. Red, in a debug
+/// build (the region door's held check runs there only), where that check
+/// asks a constructed point's enclosure to read `Zero`.
+#[test]
+fn the_plate_built_far_off_the_origin_is_told_a_finding_at_interval() {
+    use topo::clearance::Embedding;
+    let body = void_touching_plate_at::<Interval>([100.0; 3], false, 0).into_body();
+    let report = door(&body, DEFAULT_MAX_CELL_DEPTH, BUDGET);
+    assert!(
+        matches!(
+            report.verdict,
+            Embedding::Refused(EngineRefusal::Budget {
+                stop: CellBudget::Depth { .. },
+                ..
+            })
+        ),
+        "the plate 100 off refuses out of depth: {:?}",
+        report.verdict
+    );
+}
+
+/// **A refusal for a budget names the two faces it was made on, and
+/// ends the ask**, on the plate above at three dials, each read alike
+/// at both scalars:
+///
+/// - no depth: the first touching pair that would split refuses
+///   `Uncertified` across the edge its two faces share;
+/// - five cell pairs: the first level does not fit, and the refusal
+///   names its first pair, the first face's, with the whole level
+///   abandoned and no pair counted refused, since none was examined;
+/// - two hundred cell pairs: a split is refused at admission.
+///
+/// The first and third refuse one cell pair and abandon the rest. Red
+/// where a site keeps its refusal and reads on: the receipt then
+/// refuses more, or abandons nothing.
+#[test]
+fn a_budget_refusal_names_its_two_faces_and_ends_the_ask() {
+    use topo::clearance::{Embedding, EmbeddingReport};
+    fn at<T: Scalar + geom_core::Certifies>() -> [EmbeddingReport; 3] {
+        let plate = void_touching_plate::<T>().into_body();
+        let first = plate.faces().next().unwrap().0;
+        let by_kind = plate.faces().count();
+
+        let no_depth = door(&plate, 0, BUDGET);
+        let Embedding::Refused(EngineRefusal::Uncertified {
+            a,
+            b,
+            shared: SharedCell::Edge(_),
+            ..
+        }) = no_depth.verdict
+        else {
+            panic!("no depth refuses a touching pair: {:?}", no_depth.verdict)
+        };
+        assert!(
+            touching_pairs(&plate).contains(&(a.min(b), a.max(b))),
+            "{a:?} and {b:?} touch"
+        );
+
+        let no_level = door(&plate, DEFAULT_MAX_CELL_DEPTH, 5);
+        let Embedding::Refused(EngineRefusal::Budget {
+            stop: CellBudget::Pairs { max_cell_pairs: 5 },
+            a,
+            b,
+        }) = no_level.verdict
+        else {
+            panic!("the first level does not fit: {:?}", no_level.verdict)
+        };
+        assert!(
+            a == first && a != b,
+            "the first pair of the level: {a:?} {b:?}"
+        );
+
+        for (what, r, refused) in [("no depth", &no_depth, 1), ("no level", &no_level, 0)] {
+            let r = r.receipt;
+            assert_eq!(
+                (r.discharged, r.by_kind, r.refused, r.splits),
+                (by_kind, by_kind, refused, 0),
+                "{what}: every face by its kind, then the refusal: {r:?}"
+            );
+            assert_eq!(
+                r.abandoned,
+                r.candidates - by_kind - refused,
+                "{what}: the rest of the level abandoned: {r:?}"
+            );
+        }
+
+        let admission = door(&plate, DEFAULT_MAX_CELL_DEPTH, 200);
+        let Embedding::Refused(EngineRefusal::Budget {
+            stop: CellBudget::Pairs {
+                max_cell_pairs: 200,
+            },
+            a,
+            b,
+        }) = admission.verdict
+        else {
+            panic!("a split is refused at admission: {:?}", admission.verdict)
+        };
+        assert_ne!(a, b, "two faces");
+        let r = admission.receipt;
+        assert!(r.splits > 0 && r.refused == 1 && r.abandoned > 0, "{r:?}");
+        [no_depth, no_level, admission]
+    }
+    assert_eq!(at::<Interval>(), at::<f64>(), "one report at both scalars");
+}
+
+/// **A metric bound still reads a violation past a refusal.** The
+/// plate's top against the four faces of its void, asked `≥ 0.2` at a
+/// depth floor of 10: a cell pair runs out of depth before the pair at
+/// the apex is confirmed closer than the bound, and the verdict is the
+/// violation. The walk ends at the verified violation, which is why
+/// pairs are left abandoned, so a pair counted refused was refused
+/// before it. Red,
+/// refused for the depth, where the metric question ends at its first
+/// refusal as the embedding question does.
+#[test]
+fn a_metric_bound_reads_a_violation_past_a_refusal() {
+    fn at<T: Scalar>() -> String {
+        let plate = void_touching_plate::<T>().into_body();
+        // The box's six faces come first, its top the first of them;
+        // the void's four follow.
+        let faces: Vec<FaceKey> = plate.faces().map(|(k, _)| k).collect();
+        let (top, void) = (faces[0], faces[6..].to_vec());
+        let window = |faces: Vec<FaceKey>, which| {
+            Side {
+                body: &plate,
+                faces,
+            }
+            .windows(which)
+            .expect("every face has a window")
+        };
+        let bound = ClearanceBound::at_least(0.2);
+        let sweep = Sweep {
+            bound,
+            band: band(),
+            budgets: Budgets {
+                max_cell_depth: 10,
+                max_cell_pairs: BUDGET,
+            },
+        };
+        let report = sweep.run(
+            &window(vec![top], Which::First),
+            &window(void, Which::Second),
+            true,
+            verify(&plate, bound),
+        );
+        assert!(report.receipt.holds(), "{:?}", report.receipt);
+        assert!(
+            report.receipt.refused > 0 && report.receipt.abandoned > 0,
+            "a refusal is met, and the walk ends after it: {:?}",
+            report.receipt
+        );
+        let BoundVerdict::Violated(w) = &report.verdict else {
+            panic!("the violation outranks it: {:?}", report.verdict)
+        };
+        assert!(w.d < 0.2, "closer than the bound: {w:?}");
+        class(&report.verdict)
+    }
+    assert_eq!(at::<Interval>(), at::<f64>());
+}
+
+/// **Two bricks of one body a distance inside the band apart refuse as
+/// a sliver, on the two facing faces, and the ask ends there.** Bricks
+/// 30ε across, grafted 3ε apart: the facing cells' separation comes to
+/// lie wholly inside the band, where no refinement decides it. Red
+/// where the sliver is kept and the walk reads on: more is refused, or
+/// nothing abandoned.
+#[test]
+fn two_bricks_a_band_apart_refuse_as_a_sliver_and_end_the_ask() {
+    use sweep::test_support::{brick, finished};
+    use topo::clearance::{Embedding, SELF_INTERSECTION_GAP};
+    let e = tol().eps();
+    let s = 30.0 * e;
+    let tiny = |x0: f64, y0: f64| {
+        finished(
+            "a brick 30ε across",
+            brick::<f64>((x0, x0 + s), (y0, y0 + s), (0.5, 0.5 + s), tol()),
+            tol(),
+        )
+        .into_body()
+    };
+    let mut body = tiny(0.5, 0.5);
+    let first: BTreeSet<FaceKey> = body.faces().map(|(k, _)| k).collect();
+    topo::instance::graft_disjoint(&mut body, &tiny(0.5 + s + 3.0 * e, 0.5 + 0.3 * s))
+        .expect("the bricks are disjoint");
+    let report = door(&body, DEFAULT_MAX_CELL_DEPTH, BUDGET);
+    let Embedding::Refused(EngineRefusal::Sliver { predicate, a, b }) = report.verdict else {
+        panic!("the gap refuses as a sliver: {:?}", report.verdict)
+    };
+    assert_eq!(predicate, SELF_INTERSECTION_GAP);
+    assert_ne!(
+        first.contains(&a),
+        first.contains(&b),
+        "one face of each brick: {a:?} {b:?}"
+    );
+    let r = report.receipt;
+    assert!(r.refused == 1 && r.abandoned > 0, "{r:?}");
+}
+
+// ------------------------------------------------- a reflex corner
+
+/// **A rod notched across its rim**: the rod of radius `r` round the
+/// `z` axis over `z ∈ [0, r]` less the brick
+/// `[−0.3r, 0.3r] × [0.4r, 2r] × [0.5r, 2r]`, or its mirror image in
+/// `y = 0` (built so, not moved). The rod's wall keeps two reflex corners
+/// at the notch's floor, where a ruling (shared with a notch wall
+/// `x = ±0.3r`) meets an arc (shared with the floor `z = 0.5r`), and the
+/// wall has 270° about each.
+fn notched_rod_of<T: Scalar>(r: f64, mirrored: bool) -> topo::AtRestBody<T> {
+    use sweep::test_support::{brick, finished, prism_at};
+    let at = T::from_f64;
+    let rod = finished(
+        "the rod",
+        prism_at(
+            vec![
+                (Point2::new(at(-r), T::zero()), T::one()),
+                (Point2::new(at(r), T::zero()), T::one()),
+            ],
+            T::zero(),
+            at(r),
+            tol(),
+        ),
+        tol(),
+    );
+    let y = if mirrored {
+        (-2.0 * r, -0.4 * r)
+    } else {
+        (0.4 * r, 2.0 * r)
+    };
+    let notch = finished(
+        "the notch",
+        brick::<T>((-0.3 * r, 0.3 * r), y, (0.5 * r, 2.0 * r), tol()),
+        tol(),
+    );
+    built(topo::subtract(&rod, &notch, tol()))
+}
+
+/// The unit notched rod.
+fn notched_rod<T: Scalar>() -> topo::AtRestBody<T> {
+    notched_rod_of(1.0, false)
+}
+
+/// The verdict door's answer over every face of `body`.
+fn embedding_of<T: Scalar + geom_core::Certifies>(body: &Body<T>) -> topo::clearance::Embedding {
+    let side = Side {
+        body,
+        faces: body.faces().map(|(k, _)| k).collect(),
+    };
+    let budgets = Budgets {
+        max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+        max_cell_pairs: BUDGET,
+    };
+    topo::clearance::embedded(&side, band(), budgets).verdict
+}
+
+/// `body` moved by each of `poses` in turn and finished, or `None` where
+/// a move leaves a body the finish refuses only for one of two named
+/// reads of a thousand-metre placement at the tightest band, which it
+/// then says, loudly: the wall's volume at `props_cylinder_circle_off_axis`
+/// (`work/nearpoint/a-cylinder-wall-near-the-session-boxs-corner-does-not-finish-at-the-tightest-eps.md`),
+/// and, turned there too, its edges' and pcurves' incidence at
+/// `pcurve_line_chart_incident` and `pcurve_cylinder_chart_incident`
+/// (`work/onehome/a-body-moved-by-a-boxed-turn-refuses-its-edges-and-pcurves-at-first-order-in-the-box.md`).
+/// Any other refusal fails the row.
+fn posed<T: Scalar>(
+    mut body: topo::AtRestBody<T>,
+    poses: &[geom_core::Affine3<f64>],
+    what: &str,
+) -> Option<topo::AtRestBody<T>> {
+    for pose in poses {
+        let rigid = geom_core::test_support::rigid(&pose.map(T::from_f64), tol());
+        let moved = topo::transform_rigid(&body, &rigid).expect("the rod moves");
+        body = match <T as topo::AtRestPolicy>::finish(moved, tol()) {
+            Ok(b) => b,
+            Err(e)
+                if e.as_slice().iter().all(|f| {
+                    let kind = matches!(
+                        f,
+                        topo::ValidationError::VolumeUncomputable { .. }
+                            | topo::ValidationError::EdgeCertification { .. }
+                            | topo::ValidationError::Pcurve { .. }
+                    );
+                    let read = format!("{f:?}");
+                    let named: Vec<&str> = read
+                        .split("predicate: Some(\"")
+                        .skip(1)
+                        .filter_map(|r| r.split('"').next())
+                        .collect();
+                    kind && !named.is_empty()
+                        && named.iter().all(|p| {
+                            [
+                                "props_cylinder_circle_off_axis",
+                                "pcurve_line_chart_incident",
+                                "pcurve_cylinder_chart_incident",
+                            ]
+                            .contains(p)
+                        })
+                }) =>
+            {
+                println!(
+                    "SKIPPED at ε {:e}: the notched rod {what} does not finish: {e:?}",
+                    tol().eps()
+                );
+                return None;
+            }
+            Err(e) => panic!("the notched rod {what} does not finish: {e:?}"),
+        };
+    }
+    Some(body)
+}
+
+/// **A notched rod holds across its reflex corners in every pose and
+/// size**, at both scalars and through the verdict door: radius 1 as
+/// built, turned about a generic axis, a hundred units up and across its
+/// axis, a quarter turn about `x`, at the corner `(998, −998, 998)` of the
+/// session box and turned there; its mirror image as built and turned
+/// 2.3 rad about another axis; and radii 0.02 and 30. Each wall cell at a
+/// corner is read by the wall's own carrier against the notch's presented
+/// face, and that carrier's rate along a ruling is zero at every point:
+/// red if it is read from the box's enclosure of the radial unit, whose
+/// axial part grows with the cell's width over the radius and with its
+/// tilt (the pair refuses `Uncertified { Departure }` at a ruling at every
+/// depth), or if the radial term is not a unit (at a radius below 1 the
+/// rate is then too narrow, above 1 too wide).
+#[test]
+fn a_notched_rod_holds_across_its_reflex_corners_in_every_pose() {
+    use geom_core::{Affine3, Vec3};
+    use topo::clearance::Embedding;
+
+    let turn = || {
+        Affine3::rotation_about_axis(
+            Point3::new(0.3, -0.2, 0.1),
+            Vec3::new(2.0 / 7.0, 3.0 / 7.0, 6.0 / 7.0),
+            0.7,
+        )
+    };
+    let corner = Vec3::new(998.0, -998.0, 998.0);
+    let cases: Vec<(&str, f64, bool, Vec<Affine3<f64>>)> = vec![
+        ("as built", 1.0, false, vec![]),
+        ("turned", 1.0, false, vec![turn()]),
+        (
+            "a hundred units up its axis",
+            1.0,
+            false,
+            vec![Affine3::translation(Vec3::new(0.0, 0.0, 100.0))],
+        ),
+        (
+            "a hundred units across its axis",
+            1.0,
+            false,
+            vec![Affine3::translation(Vec3::new(100.0, -100.0, 0.0))],
+        ),
+        (
+            "a quarter turn about x",
+            1.0,
+            false,
+            vec![Affine3::rotation_about_axis(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+                core::f64::consts::FRAC_PI_2,
+            )],
+        ),
+        (
+            "at the session box's corner",
+            1.0,
+            false,
+            vec![Affine3::translation(corner)],
+        ),
+        (
+            "turned, at the session box's corner",
+            1.0,
+            false,
+            vec![
+                turn(),
+                Affine3::translation(-corner + Vec3::new(1.0, -1.0, 1.0)),
+            ],
+        ),
+        ("mirrored", 1.0, true, vec![]),
+        (
+            "mirrored and turned",
+            1.0,
+            true,
+            vec![Affine3::rotation_about_axis(
+                Point3::new(-0.4, 0.7, 0.2),
+                Vec3::new(6.0 / 7.0, -2.0 / 7.0, 3.0 / 7.0),
+                2.3,
+            )],
+        ),
+        ("of radius 0.02", 0.02, false, vec![]),
+        ("of radius 30", 30.0, false, vec![]),
+    ];
+    for (what, r, mirrored, poses) in cases {
+        let (Some(body), Some(twin)) = (
+            posed(notched_rod_of::<f64>(r, mirrored), &poses, what),
+            posed(notched_rod_of::<Interval>(r, mirrored), &poses, what),
+        ) else {
+            continue;
+        };
+        let (body, twin) = (body.into_body(), twin.into_body());
+        assert_eq!(
+            embedding_of(&body),
+            Embedding::Embedded,
+            "{what}: the verdict door"
+        );
+        assert_eq!(
+            embedding_of(&twin),
+            Embedding::Embedded,
+            "{what}: the verdict door at Interval"
+        );
+        holds_at_both(&format!("the notched rod {what}"), body, twin);
+    }
+}
+
+/// **A ball through the notched rod's wall beside a reflex corner reads
+/// `Violated`**: a ball of radius 0.05 grafted into the notched rod, its
+/// centre on the wall's carrier just below the corner at `x = 0.3`, so it
+/// crosses the wall where the ruling's line runs on past the corner
+/// through the wall's interior. The ball shares no cell with the wall, so
+/// this pins the distance arm's reading of a crossing near the corner,
+/// not the carrier arm's (its negative is
+/// `injective::rate_rows::a_plane_cell_crossing_a_cylinders_carrier_along_a_ruling_is_not_signed`):
+/// red if a crossing beside a reflex corner reads embedded.
+#[test]
+fn a_ball_through_the_wall_beside_a_reflex_corner_reads_violated() {
+    let mut body = notched_rod::<f64>().into_body();
+    let rho = 0.05;
+    let p = |y: f64, bulge: f64| (Point2::new(0.0, y), bulge);
+    let (x, z) = (0.3_f64, 0.45);
+    let ball = topo::transform_rigid(
+        &revolved_about_y_at::<f64>(vec![p(-rho, 1.0), p(rho, 0.0)], Revolution::Full, tol()),
+        &geom_core::RigidMotion::translation(geom_core::Vec3::new(x, (1.0 - x * x).sqrt(), z))
+            .expect("a translation"),
+    )
+    .expect("the ball moves");
+    topo::graft_disjoint_all_keyed(&mut body, &ball).expect("the ball grafts");
+    let report = injective(&body, None, BUDGET);
+    assert!(
+        matches!(report.verdict, BoundVerdict::Violated(_)),
+        "{:?}",
+        report.verdict
+    );
+}
+
+// ------------------------------------------ two wedges at a vertex alone
+
+/// **A triangular prism standing on its corner**: its cap the triangle
+/// the origin and the edges `e1`, `e2` span, extruded `1` along
+/// `e1 × e2`, at `T`.
+fn corner_prism<T: Scalar>(e1: [f64; 3], e2: [f64; 3]) -> topo::AtRestBody<T> {
+    use geom_core::{RigidMotion, Vec3};
+    let (a, b) = (
+        Vec3::new(e1[0], e1[1], e1[2]),
+        Vec3::new(e2[0], e2[1], e2[2]),
+    );
+    let n = a.cross(b);
+    let n = n * (1.0 / n.dot(n).sqrt());
+    let u = a * (1.0 / a.dot(a).sqrt());
+    let v = n.cross(u);
+    let plane = SketchPlane::from_frame(RigidMotion::squared(Point3::origin(), n, u));
+    let at = |x: f64, y: f64| (Point2::new(T::from_f64(x), T::from_f64(y)), T::zero());
+    sweep::test_support::finished(
+        "the corner prism",
+        sweep::test_support::prism_on(
+            plane_at::<T>(&plane),
+            vec![at(0.0, 0.0), at(a.dot(u), 0.0), at(b.dot(u), b.dot(v))],
+            T::one(),
+            tol(),
+        ),
+        tol(),
+    )
+}
+
+/// The block `(0, 4)² × (−1, 0)`, its top face's corner at the origin.
+fn floor_block<T: Scalar>() -> topo::AtRestBody<T> {
+    use sweep::test_support::{brick, finished};
+    finished(
+        "the block",
+        brick::<T>((0.0, 4.0), (0.0, 4.0), (-1.0, 0.0), tol()),
+        tol(),
+    )
+}
+
+/// **The deep keel** (`a_keel_tree_in_the_plane.rs`'s): the block
+/// `0..4 × 0..4 × 0..2` less a V-groove of half-width `0.3` from outside
+/// the face `x = 0` to `x = 2`, then a wider one, `0.5`, on to `x = 3`,
+/// both their floors on the line `y = 1`, `z = 1`; then moved by `m`.
+/// Where the floors meet at `(2, 1, 1)` each narrow flank shares that
+/// vertex alone with each wide one, every face there a convex quadrant.
+fn deep_keel<T: Scalar>(m: &geom_core::Affine3<f64>) -> Body<T> {
+    use crate::common::keel_tree::{deep, grooved};
+    let keel = sweep::test_support::finished("the keel", grooved(deep::<T>(tol()), tol()), tol());
+    moved(&keel, m).into_body()
+}
+
+/// **Two plane faces at a vertex they share alone hold where a plane
+/// parts their wedges** ([`deep_keel`]): at the keel's joint each narrow
+/// flank and each wide one are convex quadrants there, and the plane
+/// across the presentations' middles leaves them split to the depth
+/// floor, `Departure` at the vertex; the plane leaning furthest from
+/// all four edges parts them. Embedded at `f64` and at `Interval`, at
+/// the origin, turned `0.7` about `(1, 2, 3)` through `(0.3, −0.2, 0.1)`,
+/// and moved `(100, −100, 100)`. Red where the vertex-alone separator is
+/// taken from the rectangles' middles alone.
+#[test]
+fn a_deep_keels_joint_is_embedded_in_every_pose() {
+    use geom_core::{Affine3, Vec3};
+    let poses = [
+        ("at the origin", Affine3::identity()),
+        (
+            "turned",
+            Affine3::rotation_about_axis(
+                Point3::new(0.3, -0.2, 0.1),
+                Vec3::new(1.0, 2.0, 3.0),
+                0.7,
+            ),
+        ),
+        (
+            "a hundred out",
+            Affine3::translation(Vec3::new(100.0, -100.0, 100.0)),
+        ),
+    ];
+    for (what, m) in poses {
+        for (scalar, verdict) in [
+            (
+                "f64",
+                door(&deep_keel::<f64>(&m), DEFAULT_MAX_CELL_DEPTH, BUDGET).verdict,
+            ),
+            (
+                "Interval",
+                door(&deep_keel::<Interval>(&m), DEFAULT_MAX_CELL_DEPTH, BUDGET).verdict,
+            ),
+        ] {
+            assert!(
+                matches!(verdict, topo::clearance::Embedding::Embedded),
+                "the deep keel, {what}, at {scalar}: {verdict:?}"
+            );
+        }
+    }
+}
+
+/// **A roof folded down across the block's corner crosses it**: the
+/// [`corner_prism`] on `(1, 1, 1)` and `(1, 1, −1)`, whose cap holds the
+/// ray `(1, 1, 0)` of the block's top face, grafted beside
+/// [`floor_block`] as a solid of its own, so the cap runs through the
+/// top face along the diagonal from the corner. `Crosses` at `f64` and
+/// at `Interval`, never `Embedded`. The two solids share nothing in M,
+/// so the pair is decided by distance and the vertex-alone plane is not
+/// asked: the kernel builds no body whose faces cross while sharing a
+/// vertex, and that reading's crossing wedges are `injective`'s
+/// `two_plane_wedges_at_a_vertex_alone_certify_only_where_a_plane_parts_them`.
+/// So no change to the vertex-alone separator can redden this row: it
+/// goes red if two coincident vertices of two solids were read as one
+/// shared cell, or the crossing were certified apart by distance.
+#[test]
+fn a_roof_folded_across_a_blocks_corner_crosses_it() {
+    fn folded<T: Scalar>() -> Body<T> {
+        let mut body = floor_block::<T>().into_body();
+        let roof = corner_prism::<T>([1.0, 1.0, 1.0], [1.0, 1.0, -1.0]);
+        topo::graft_disjoint(&mut body, &roof).expect("the roof grafts");
+        body
+    }
+    for (scalar, verdict) in [
+        (
+            "f64",
+            door(&folded::<f64>(), DEFAULT_MAX_CELL_DEPTH, BUDGET).verdict,
+        ),
+        (
+            "Interval",
+            door(&folded::<Interval>(), DEFAULT_MAX_CELL_DEPTH, BUDGET).verdict,
+        ),
+    ] {
+        assert!(
+            matches!(verdict, topo::clearance::Embedding::Crosses(_)),
+            "the folded roof at {scalar}: {verdict:?}"
+        );
+    }
 }

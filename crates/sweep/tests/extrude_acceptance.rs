@@ -717,7 +717,7 @@ fn certification_failures_surface_the_report() {
     );
     assert!(ok.is_ok());
     drop(ok);
-    // Shape check: the error type embeds EulerOpError::Certification.
+    // Shape check: the error type embeds EulerOpError::DescriptionUncertified.
     fn _static_shape(e: EulerOpError) -> ExtrudeError {
         ExtrudeError::from(e)
     }

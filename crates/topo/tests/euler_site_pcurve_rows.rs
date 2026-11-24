@@ -718,9 +718,10 @@ fn kef_merging_a_complete_face_into_an_unminted_one_leaves_it_half_minted() {
                 .and_then(topo::CurveGeom::certified)
                 .unwrap();
             let (t0, t1) = c.params();
-            let geom::Curve3::Circle(geom::Circle { frame, .. }) = *c.carrier() else {
+            let geom::Curve3::Circle(the_circle @ geom::Circle { .. }) = *c.carrier() else {
                 return None;
             };
+            let frame = the_circle.frame();
             let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
             let d = want_at - center;
             let angle = d.dot(axis.cross(u_ref)).atan2(d.dot(u_ref));

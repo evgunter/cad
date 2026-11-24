@@ -155,7 +155,7 @@ fn lanes(
     let site = |i: usize| {
         let (p, ahead) = at(conic, ts[i], sense);
         let side = if i.is_multiple_of(2) { off } else { -off };
-        let across = frame(conic).dir.cross(ahead).normalize();
+        let across = frame(conic).dir.get().cross(ahead).normalize();
         (p + across * (side * band().zero()), ahead)
     };
 

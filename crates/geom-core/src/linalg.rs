@@ -133,6 +133,7 @@ mod angle;
 pub mod frame;
 pub mod lsq;
 mod mat;
+pub mod min_norm;
 mod point;
 mod rigid_motion;
 pub mod svd;

@@ -690,8 +690,8 @@ fn a_mate_states_its_own_seat_and_no_other_row() {
     // Unflipped, the bottom cap faces the top's normal: the copy stands
     // upended, its `z` along `−z`.
     let plain = |on: PartName, to: PartName| editor_core::Mate {
-        on: fixture::plane(fixture::head(on)),
-        to: fixture::plane(fixture::head(to)),
+        on: fixture::plane(fixture::head(on)).into(),
+        to: fixture::plane(fixture::head(to)).into(),
         orient: editor_core::Orientation::new(
             editor_core::SignedAxis::PlusX,
             editor_core::SignedAxis::MinusZ,
@@ -702,12 +702,13 @@ fn a_mate_states_its_own_seat_and_no_other_row() {
         use editor_core::pose::{PoseDef, PoseRole, RoleRead};
         let up = || fixture::flip(fixture::plane(fixture::head(to.clone())));
         editor_core::Mate {
-            on: fixture::plane(fixture::head(on)),
+            on: fixture::plane(fixture::head(on)).into(),
             to: editor_core::Operand::Pose(Box::new(PoseDef::Slide {
                 pose: RoleRead::plain(up()),
                 along: RoleRead::through(up(), PoseRole::Normal),
                 by: len(0.0),
-            })),
+            }))
+            .into(),
             orient: editor_core::Orientation::IDENTITY,
         }
     };
@@ -849,7 +850,7 @@ impl editor_core::PartResolver for Versions {
             .cloned()
             .ok_or_else(|| editor_core::ResolveFailure {
                 fault: editor_core::ResolveFault::Unresolved,
-                message: "no such version".to_string(),
+                message: "no such version".into(),
             })
     }
 }
@@ -998,8 +999,8 @@ fn a_mates_wall_states_the_rim_on_it_and_a_standoff_states_nothing() {
                     fixture::rest(fixture::head(on), fixture::head(to))
                 } else {
                     editor_core::Mate {
-                        on: fixture::plane(fixture::head(on)),
-                        to: standoff(to),
+                        on: fixture::plane(fixture::head(on)).into(),
+                        to: standoff(to).into(),
                         orient: editor_core::Orientation::IDENTITY,
                     }
                 }

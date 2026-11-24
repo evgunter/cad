@@ -236,13 +236,7 @@ fn the_waist_meridian_reads_definitely_negative_on_the_sampled_enclosure() {
     let mut meridians = 0;
     for (_, e) in a.edges() {
         let c = a.get_curve_geom(e.curve).unwrap().certified().unwrap();
-        let geom::Curve3::Circle(
-            conic_k @ geom::Circle {
-                frame: carrier_frame_8,
-                ..
-            },
-        ) = *c.carrier()
-        else {
+        let geom::Curve3::Circle(conic_k) = *c.carrier() else {
             continue;
         };
         let radius = conic_k.radius();
@@ -254,11 +248,11 @@ fn the_waist_meridian_reads_definitely_negative_on_the_sampled_enclosure() {
         for fb in faces_where(&b, is_torus) {
             let s = surface(&b, fb);
             let (lo, hi) =
-                geom_brep::circle_residual_extremes(s, &geom::Circle::new(carrier_frame_8, radius))
+                geom_brep::circle_residual_extremes(s, &geom::Circle::new(conic_k.frame(), radius))
                     .unwrap();
             let (arc_lo, arc_hi) = geom_brep::circle_arc_residual_range(
                 s,
-                &geom::Circle::new(carrier_frame_8, radius),
+                &geom::Circle::new(conic_k.frame(), radius),
                 t0,
                 t1,
             )

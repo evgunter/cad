@@ -116,7 +116,7 @@ fn deep_document(levels: usize) -> (Recorder, RecipeNodeId, RecipeNodeId) {
             count: (1..levels).fold(Formula::var(n, editor_core::Dimension::Count), |e, _| {
                 Formula::add(e, Formula::count(1)).unwrap()
             }),
-            within: None,
+            after: None,
         },
     });
     (r, extrude, measure)
@@ -182,8 +182,8 @@ fn pose_chain_document(levels: usize, slides: usize) -> Recorder {
     let placed = editor_core::Placed::of(
         &r.doc,
         vec![Mate {
-            on: cap(editor_core::CapEnd::Start),
-            to: fixture::flip(to),
+            on: cap(editor_core::CapEnd::Start).into(),
+            to: fixture::flip(to).into(),
             orient: editor_core::Orientation::IDENTITY,
         }],
         Vec::new(),

@@ -606,9 +606,7 @@ fn stale_keys_refuse_as_stale_arguments() {
 // fixtures, try EVERY (ring, face) ring_move, every (f1, f2) kfmrh,
 // every mfkrh(loop), to depth 2 for ring_move. Every accepted mutation
 // must leave the body tier-1 valid (the demotion claim, falsified
-// otherwise), and validate_closed must never report a
-// ComponentEulerViolation (tier-2 additions are connectivity/
-// scaffolding only).
+// otherwise).
 // ----------------------------------------------------------------------
 
 fn assert_tier1_after_all_public_mutations(label: &str, body: &Body<f64>, depth: usize) {

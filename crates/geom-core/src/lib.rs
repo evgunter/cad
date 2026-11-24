@@ -15,6 +15,7 @@
 //! `docs/DESIGN.md` (decisions D4, D9, and open question Q1) for the
 //! design contract this crate implements.
 
+#![cfg_attr(not(test), deny(clippy::disallowed_methods))]
 pub mod arc;
 pub mod bisect;
 pub mod bit_identity;
@@ -40,6 +41,7 @@ pub mod sym;
 pub mod test_support;
 pub mod told;
 pub mod tolerance;
+pub mod value_view;
 
 /// **The golden angle**, `2π·(1 − 1/φ)` radians: as far from every
 /// low-order rational multiple of a turn as an angle gets, so a direction
@@ -86,9 +88,9 @@ pub use predicate::{
 pub use quantity::{self, Notation};
 pub use readable::Readable;
 pub use real::{
-    Bounds, CertifiedBounds, CertifiedEnclosure, Certifies, NoLane, Real, TangentTransport,
-    Uncertified, Witness, fold_signed_zero, is_exact_zero, is_finite_length, is_underflowed_length,
-    is_zero_length, poison, pow2, width,
+    Bounds, CertifiedBounds, CertifiedEnclosure, Certifies, NoLane, Real, StoredHarmonic,
+    TangentTransport, Uncertified, Witness, fold_signed_zero, is_exact_zero, is_finite_length,
+    is_underflowed_length, is_zero_length, poison, pow2, width,
 };
 pub use running::{Rounded, SHORT_CHAIN_ULPS, UNIT_ROUNDOFF, rounding_charge};
 pub use spline::{KnotVector, SpanLocate, SpanSet, SplineError};
@@ -101,3 +103,4 @@ pub use tolerance::{
     EpsilonSource, Tol, Tolerance, ToleranceEnvError, ToleranceEnvErrorKind, ToleranceError,
     ToleranceReport,
 };
+pub use value_view::{OverScalar, ValueView};

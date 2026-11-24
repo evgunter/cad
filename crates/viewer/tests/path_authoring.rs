@@ -20,7 +20,7 @@
 use crate::common;
 
 use common::{len, session_insert, shape};
-use pncad::document::{Doc, ValuePayload};
+use pncad::document::{Doc, NodeResult, ValuePayload};
 use pncad::document::{LoopProgram, ProgramArcData, ProgramStep, ProgramTarget};
 use pncad::geom_core::Point2;
 use pncad::geom_core::Tol;
@@ -264,9 +264,8 @@ fn an_unclosed_chain_draws_its_authored_legs_and_still_refuses_at_the_door() {
     )
     .expect("an unfinished chain still draws what it has");
     assert_eq!(drawn.loops.len(), 1);
-    assert_eq!(
-        drawn.loops[0].end,
-        LoopEnd::Unfinished(None),
+    assert!(
+        matches!(drawn.loops[0].end, LoopEnd::Unfinished(None)),
         "the chain has no closing verb, and the preview says so",
     );
     assert!(drawn.has_unfinished_chain());
@@ -579,6 +578,71 @@ fn continue_to_and_the_declared_arrival_author_through_the_door() {
     );
 }
 
+/// **A fillet refused steps after it is pointed at by its own step.**
+/// The fillet at step 2 is built, and its arc, half ε long, is refused
+/// where the close at step 8 re-reads its stored form: the preview and
+/// the document's evaluation both name step 2, whose radius the recourse edits, and say
+/// that step 8 raised it.
+#[test]
+fn a_fillet_refused_at_the_close_names_its_own_step_at_the_preview_and_the_door() {
+    let tol = Tol::witness();
+    let theta = 1e-3;
+    let steps = vec![
+        Step::At(Point2::new(0.0, 0.0)),
+        Step::Angle(0.0),
+        Step::Fillet {
+            radius: 0.5 * tol.eps() / theta,
+        },
+        Step::At(Point2::new(4.0 + 3.0 * theta.cos(), 3.0 * theta.sin())),
+        Step::Angle(theta),
+        Step::Line(1.0),
+        Step::LineTo(Target::Point(Point2::new(8.0, 2.0))),
+        Step::LineTo(Target::Point(Point2::new(4.0, 3.0))),
+        Step::LineTo(Target::Start),
+    ];
+    // Every prefix that would draw holds the fillet, so none draws.
+    let refusal = preview(SketchPlane::xy(), std::slice::from_ref(&steps), tol, CHORD)
+        .expect_err("the flattened fillet is refused");
+    assert!(
+        matches!(
+            &refusal,
+            PreviewError::Geometry { loop_: 0, step: 2, kind: PathErrorKind::FilletArcFlattenedInStorage, rendered }
+                if rendered.to_string().starts_with(
+                    "step 2's fillet, not stored at the close: "
+                )
+        ),
+        "{refusal}",
+    );
+    // The sentence opens on the step it names, so the preview's own
+    // prefix does not name it again.
+    assert!(
+        refusal
+            .to_string()
+            .starts_with("loop 0: step 2's fillet, not stored at the close: "),
+        "{refusal}"
+    );
+
+    // The document lands the profile and its evaluation refuses it,
+    // as the feature tree draws it.
+    let mut session = session(tol);
+    let node = session_insert(
+        &mut session,
+        SessionOp::AddProfile {
+            loops: vec![shape(&steps)],
+        },
+    );
+    session.pump();
+    let evaluation = session.evaluation().expect("a result landed");
+    let Some(NodeResult::Failed(error)) = evaluation.result(node) else {
+        panic!("the evaluation reports the profile as failed");
+    };
+    let said = error.to_string();
+    assert!(
+        said.contains("profile loop 0 refused at step 2's fillet, not stored at the close: "),
+        "the document files it at the fillet too: {said}",
+    );
+}
+
 /// **The lattice, not the form, decides where a verb is offered** —
 /// and the kernel's complete-loop verbs are offered only where a loop
 /// can begin.
@@ -631,7 +695,8 @@ fn an_arc_spec_verb_starts_in_a_form_its_row_takes() {
             let mut chain = prefix.clone();
             chain.push(sketch::fresh_step_at(verb, state));
             let refused = pncad::profile::replay(&chain, tol).err().filter(|e| {
-                e.step == at && matches!(e.kind, ReplayErrorKind::Transition { verb: Some(_), .. })
+                e.step() == at
+                    && matches!(e.kind, ReplayErrorKind::Transition { verb: Some(_), .. })
             });
             assert!(refused.is_none(), "{verb} at {want:?}: {refused:?}");
         }
@@ -668,7 +733,7 @@ fn a_non_finite_field_refuses_at_the_lowering() {
 /// drawn at coordinates that are not numbers.**
 ///
 /// A bulge of `1e-320` is a finite literal — `Formula::literal` accepts
-/// it, and `widgets::named_scalar` is an ordinary field a person types
+/// it, and `widgets::named_field` is an ordinary field a person types
 /// it into — so nothing upstream of the flattener has a reason to
 /// refuse. What it makes is `theta = 4e-320`, `sin(theta/2)` of the
 /// same order, and a radius of `inf`; every point along such an arc is
@@ -1035,4 +1100,75 @@ fn a_far_millimetre_arc_refuses_at_the_door() {
         ) && refusal.to_string().contains("nearer the origin"),
         "{refusal}",
     );
+}
+
+/// **Recording the dimensionless row on a scalar argument changes
+/// nothing a document holds**: a path whose bulge `sketch::path_program` now records `""` on lowers to the
+/// program the old recording (lengths and angles only) lowered to,
+/// saves to the same bytes, loads back equal, and its scalar fields are
+/// written alike before and after the round trip.
+#[cfg(feature = "app")]
+#[test]
+fn a_scalar_arguments_recorded_row_leaves_the_lowering_the_save_and_the_field_alone() {
+    use pncad::document::{Dimension, RecordedNotation};
+    use viewer::app::FieldWriting;
+    let tol = Tol::witness();
+    let mm = Notation {
+        length: pncad::quantity::MM,
+        angle: pncad::quantity::DEG,
+    };
+    let path = vec![
+        Step::At(Point2::new(0.0, 0.0)),
+        Step::LineTo(Target::Point(Point2::new(0.01, 0.0))),
+        Step::ArcTo(ArcData::Bulge {
+            target: Target::Point(Point2::new(0.01, 0.01)),
+            b: 0.3,
+        }),
+        Step::LineTo(Target::Start),
+    ];
+    let now = sketch::path_program(&path, mm, &|_, _| None).expect("finite literals");
+    let lifted = LoopProgram::from_recorded(&path).expect("a program");
+    let mut old = RecordedNotation::new();
+    for (step, arg) in lifted.step_args() {
+        match arg.dimension() {
+            Dimension::Length => old.set(step, arg, mm.length.def()),
+            Dimension::Angle => old.set(step, arg, mm.angle.def()),
+            Dimension::Scalar | Dimension::Count => Ok(()),
+        }
+        .expect("a unit of the role's own quantity");
+    }
+    let was = LoopProgram::from_recorded_with_notation(&path, &old).expect("lowers");
+    assert_eq!(now, was, "the lowering is the old one");
+
+    let saved = |program: LoopProgram<pncad::document::Formula>| {
+        let mut session = session(tol);
+        session_insert(
+            &mut session,
+            SessionOp::AddProfile {
+                loops: vec![program],
+            },
+        );
+        let doc = session.committed_doc().clone();
+        (pncad::document::save(&doc, tol).expect("saves"), doc)
+    };
+    let (now_text, now_doc) = saved(now.clone());
+    let (was_text, _) = saved(was);
+    assert_eq!(now_text, was_text, "the saved bytes are the old ones");
+    let loaded = pncad::document::load(&now_text, tol).expect("loads");
+    assert!(loaded == now_doc, "and load back as written");
+
+    // The field a scalar argument is drawn in: from the editor's draft
+    // (no unit noted) and from the committed literal (its own unit),
+    // before and after the round trip.
+    let LoopProgram::Chain(steps) = &now else {
+        panic!("a chain")
+    };
+    let ProgramStep::ArcTo(ProgramArcData::Bulge { b: dx, .. }) = &steps[2] else {
+        panic!("a bulge step: {steps:?}")
+    };
+    let drafted = FieldWriting::of(Dimension::Scalar, None, mm);
+    let committed = FieldWriting::of(Dimension::Scalar, dx.display_unit(), mm);
+    assert_eq!(drafted, committed, "draft and literal are written alike");
+    assert_eq!(drafted.unit.map(|unit| unit.symbol()), Some(""));
+    assert_eq!(drafted.tick, 0.01, "a scalar's tick, unscaled");
 }

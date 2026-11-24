@@ -18,7 +18,7 @@ fn band() -> Band {
 fn line(from: Point3<f64>, to: Point3<f64>, ids: (u32, u32)) -> LoopEdge<f64> {
     let dir = to - from;
     LoopEdge::hand_built(
-        Curve3::line(from, dir.normalize()),
+        Curve3::line(from, geom_core::UnitVec3::squared(dir)),
         0.0,
         dir.norm(),
         true,
@@ -87,10 +87,17 @@ fn a_loop_through_the_apex_reads_alike_from_every_start() {
             .chain(&edges[..start])
             .cloned()
             .collect();
-        let w = cone_loop_winding(&cone, apex, axis, &turned, AtApex::AlongGenerator, band())
-            .unwrap_or_else(|e| panic!("start {start}: {e:?}"));
+        let w = cone_loop_winding(
+            &cone,
+            apex,
+            geom::stated_direction(axis),
+            &turned,
+            AtApex::AlongGenerator,
+            band(),
+        )
+        .unwrap_or_else(|e| panic!("start {start}: {e:?}"));
         assert_eq!(
-            require_cone_loop_vertices_distinct(apex, axis, &w, band()),
+            require_cone_loop_vertices_distinct(apex, geom::stated_direction(axis), &w, band()),
             Ok(()),
             "start {start}"
         );

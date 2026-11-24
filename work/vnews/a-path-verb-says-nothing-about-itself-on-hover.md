@@ -32,7 +32,7 @@ What a fix needs:
 - A row that holds every verb in the vocabulary to having both lines,
   so a new verb without them goes red.
 
-Neighbour: `work/profile/tangent-arc-to-needs-an-explicit-tangent-where-line-takes-the-directed-point`
+Neighbour: `work/smooth/tangent-arc-to-needs-an-explicit-tangent-where-line-takes-the-directed-point`
 is one place where the incoming states are currently surprising, and
 this hover line would have made it visible.
 

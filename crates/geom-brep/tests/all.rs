@@ -92,6 +92,8 @@ mod chart_singularity_locate;
 mod chart_singularity_sweep;
 #[path = "closed_form_limb2.rs"]
 mod closed_form_limb2;
+#[path = "cone_torus_pose.rs"]
+mod cone_torus_pose;
 
 #[path = "axis_rows_read_as_one_sum.rs"]
 mod axis_rows_read_as_one_sum;
@@ -99,6 +101,8 @@ mod axis_rows_read_as_one_sum;
 mod certify_turn_rule;
 #[path = "computed_values_enter_as_unknowns.rs"]
 mod computed_values_enter_as_unknowns;
+#[path = "cone_pair_section.rs"]
+mod cone_pair_section;
 #[path = "coplanar_ellipses_one_locus.rs"]
 mod coplanar_ellipses_one_locus;
 #[path = "curved_torus_arc_residual.rs"]

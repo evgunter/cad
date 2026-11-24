@@ -1296,6 +1296,10 @@ pub fn arc_rim_candidates<T: SpanLocate>(
 /// and decides that the edge's span lies in the arc. Empty for a carrier
 /// that is not a circle.
 #[must_use]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a circle's centre frame, which a circle stores: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub fn arc_rim_measured<T: Decide>(
     carrier: &Curve3<T>,
     chart: &NurbsSurface<T>,
@@ -1306,7 +1310,7 @@ pub fn arc_rim_measured<T: Decide>(
     let (Curve3::Circle(circle), Some(turn)) = (carrier, carrier.period()) else {
         return Vec::new();
     };
-    let frame = circle.frame;
+    let frame = circle.frame();
     let (center, axis, u_ref) = (frame.origin(), frame.axis(), frame.u_ref());
     let vref = axis.cross(u_ref);
     let spans = arc_rim_spans(chart);
@@ -2488,7 +2492,7 @@ fn line_plane_ends<T: geom_core::CertifiedBounds>(
             },
         ) => {
             let (origin, normal) = (plane_frame.origin(), plane_frame.axis());
-            let (q, d) = (vec(*q - geom_core::Point3::origin()), vec(*dir));
+            let (q, d) = (vec(*q - geom_core::Point3::origin()), vec(dir.get()));
             let (o, n) = (vec(origin - geom_core::Point3::origin()), vec(normal));
             let lever = n.norm();
             Some([params.0, params.1].map(|t| ((q + d * lift(t) - o).dot(n), lever)))
@@ -3027,14 +3031,18 @@ impl core::fmt::Display for AnalyticRung3Refusal {
 /// holds them. A spline's domain is its own knot domain
 /// (`Schedule::new(&eval, net.domain(), net.knot_values().domain())`);
 /// a closed-form carrier's is the one its caller states.
+///
+/// Bounded `CertifiedEnclosure`: its consumers are the chart image's
+/// certification doors, and a station is a place handed to the
+/// carrier's evaluator at a scalar that carries no tangent.
 #[derive(Clone, Copy)]
-pub(crate) struct Schedule<'a, T: geom_core::Real> {
+pub(crate) struct Schedule<'a, T: geom_core::CertifiedEnclosure> {
     eval: &'a dyn Fn(T) -> geom_core::Point3<T>,
     domain: (f64, f64),
     ends: (T, T),
 }
 
-impl<'a, T: geom_core::Real> Schedule<'a, T> {
+impl<'a, T: geom_core::CertifiedEnclosure> Schedule<'a, T> {
     /// The schedule of `eval` over `domain`, held at `ends`.
     pub(crate) fn new(
         eval: &'a dyn Fn(T) -> geom_core::Point3<T>,
@@ -3050,7 +3058,13 @@ impl<'a, T: geom_core::Real> Schedule<'a, T> {
     }
 
     /// The carrier's parameter at schedule fraction `at`: its held ends
-    /// at `0` and `1`.
+    /// at `0` and `1`, and inside them the point at the `f64` station,
+    /// as [`crate::certify::held_station`]'s interior station is a point
+    /// (a read at a chosen point has no use for the station's own
+    /// width). `at` is a schedule fraction, a bisection iterate or a
+    /// midpoint of two (`general_chart_image`), so the station is a
+    /// place, its own unknown at `Sym`; `held_station`'s fractions are
+    /// the fixed schedule's alone, constants.
     fn station(&self, at: f64) -> T {
         let (t0, t1) = self.domain;
         if at <= 0.0 {
@@ -3276,8 +3290,7 @@ where
     // An image's gap at a fraction: its chart point mapped through the
     // wall, less the carrier's point there.
     let gap = |at: f64, p: Point2<f64>| {
-        let gap = wall.eval(T::from_computed(p.x), T::from_computed(p.y))
-            - (schedule.eval)(schedule.station(at));
+        let gap = wall.eval_at(p.x, p.y) - (schedule.eval)(schedule.station(at));
         Vec3::new(mid(gap.x), mid(gap.y), mid(gap.z))
     };
     // The miss midway between two nodes, net of the standoff they carry:
@@ -4377,8 +4390,11 @@ mod tests {
         }
         .map_scalar(lift);
         let edge = |d: f64| {
-            let line =
-                Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, d, 0.0)).map_scalar(lift);
+            let line = Curve3::line(
+                Point3::new(0.0, 0.0, 0.0),
+                geom::stated_direction(Vec3::new(1.0, d, 0.0)),
+            )
+            .map_scalar(lift);
             analytic_edge_limbs(&line, (lift(0.0), lift(1.0)), &floor, &wall, band)
         };
         assert_eq!(edge(0.0), Ok(()));
@@ -4428,10 +4444,12 @@ mod tests {
             ),
         }
         .map_scalar(lift);
-        // Off the wall by 1e-6 at t = 0 and by 3e-6 at t = 1.
-        let line =
-            Curve3::line(Point3::new(0.0, 1e-6, 0.0), Vec3::new(1.0, 2e-6, 0.0)).map_scalar(lift);
-        let ends = line_plane_ends(&line, (lift(0.0), lift(1.0)), &wall).unwrap();
+        // Off the wall by 1e-6 at its start and by 3e-6 at its end: the
+        // chord between them, its span in metres.
+        let (chord, len) =
+            geom::Line::chord(Point3::new(0.0, 1e-6, 0.0), Point3::new(1.0, 3e-6, 0.0));
+        let line = Curve3::Line(chord).map_scalar(lift);
+        let ends = line_plane_ends(&line, (lift(0.0), lift(len)), &wall).unwrap();
         let reach = |got: Option<Result<(), AnalyticRung3Refusal>>| match got {
             Some(Err(AnalyticRung3Refusal::Limb { margin, .. })) => margin.readable().to_string(),
             other => panic!("both ends decided off answer a miss: {other:?}"),
@@ -4489,12 +4507,14 @@ mod tests {
                 Vec3::new(1.0, 0.0, 0.0),
             ),
         };
+        // The segment `(−8, 6, 0)` long from the stated start: on its
+        // unit direction, `10` m.
         let line = Curve3::line(
             Point3::new(-402.5061327433079, -173.4329004425178, 0.0),
-            Vec3::new(-8.0, 6.0, 0.0),
+            geom::stated_direction(Vec3::new(-0.8, 0.6, 0.0)),
         );
         // The f64 reading the old rule took sits inside the band.
-        for t in [0.0, 1.0] {
+        for t in [0.0, 10.0] {
             let p = line.eval(t);
             let Surface::Plane { frame, .. } = tilted else {
                 unreachable!()
@@ -4506,12 +4526,12 @@ mod tests {
                 "the f64 reading at t = {t} is {read:e}"
             );
         }
-        let at_f64 = analytic_edge_limbs(&line, (0.0, 1.0), &tilted, &floor, band);
+        let at_f64 = analytic_edge_limbs(&line, (0.0, 10.0), &tilted, &floor, band);
         assert!(at_f64.is_err(), "f64: {at_f64:?}");
         let lift = geom_core::Interval::from_f64;
         let at_iv = analytic_edge_limbs(
             &line.map_scalar(lift),
-            (lift(0.0), lift(1.0)),
+            (lift(0.0), lift(10.0)),
             &tilted.map_scalar(lift),
             &floor.map_scalar(lift),
             band,
@@ -4553,7 +4573,10 @@ mod tests {
                 Vec3::new(1.0, 0.0, 0.0),
             ),
         };
-        let line = Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, y0, 0.0));
+        let line = Curve3::line(
+            Point3::new(0.0, 0.0, 0.0),
+            geom::stated_direction(Vec3::new(1.0, y0, 0.0)),
+        );
         let escalates = |got: &Result<(), AnalyticRung3Refusal>| {
             matches!(
                 got,
@@ -4610,7 +4633,7 @@ mod tests {
         .map_scalar(lift);
         let line = Curve3::line(
             Point3::new(lift(0.0), Interval::from_bounds(-2e-9, 2e-9), lift(0.0)),
-            Vec3::new(lift(1.0), lift(0.0), lift(0.0)),
+            geom_core::UnitVec3::exact_x(),
         );
         let got = analytic_edge_limbs(&line, (lift(0.0), lift(1.0)), &wall, &floor, band);
         assert!(
@@ -4708,7 +4731,10 @@ mod tests {
                     direction(1.0, 0.0, 0.0),
                 ),
             };
-            let line = geom::Curve3::line(point(0.0, 0.0, a), direction(1.0, 0.0, 0.0));
+            let line = geom::Curve3::line(
+                point(0.0, 0.0, a),
+                geom_core::UnitVec3::checked(direction(1.0, 0.0, 0.0)),
+            );
             analytic_edge_limbs(&line, (lit(0.0), lit(1.0)), &floor, &wall(), band)
         });
         assert_eq!(result, Ok(()));
@@ -4785,7 +4811,10 @@ mod tests {
                     direction(1.0, 0.0, 0.0),
                 ),
             };
-            let line = geom::Curve3::line(point(0.0, 0.0, a), direction(1.0, 0.0, 0.0));
+            let line = geom::Curve3::line(
+                point(0.0, 0.0, a),
+                geom_core::UnitVec3::checked(direction(1.0, 0.0, 0.0)),
+            );
             analytic_edge_limbs(&line, (lit(0.0), lit(1.0)), &floor, &wall(), band)
         });
         let Err(AnalyticRung3Refusal::Stalled {

@@ -87,17 +87,27 @@ let refused = Open
     .expect("north again")
     .to(p2(1.0, 2.0), tol);         // ...so the two carriers never meet
 
-let Err(
-    refusal @ PathError::NoCornerForFillet {
-        reason: PathNoCornerReason::TurnWithinTolerance { .. },
-        ..
-    },
-) = refused
+let Err(refused) = refused else {
+    panic!("two rays that never meet have no corner");
+};
+// The fillet is step 3; the `.to` at step 5 fixed its arrival.
+assert_eq!(refused.step(), Some(3));
+let refusal @ PathError::NoCornerForFillet {
+    reason: PathNoCornerReason::TurnWithinTolerance { .. },
+    ..
+} = refused.refusal()
 else {
     panic!("two rays that never meet have no corner");
 };
 assert!(refusal.to_string().contains("sin φ = 0 (cos φ = 1)"));
+assert!(refused.to_string().starts_with("step 3's fillet, not resolved at step 5: "));
 ```
+
+A fillet is resolved by the step that fixes its arrival, so its
+refusal comes back from that call, filed against the fillet's own step
+(`PathError::Deferred`): `step()` is the step whose radius you edit,
+`refusal()` is what the fit refused, and the sentence names the step
+that raised it.
 
 The reason tells the turn's sine and the length it was levered by,
 because the refusal is a product: a turn of zero at tolerance is either

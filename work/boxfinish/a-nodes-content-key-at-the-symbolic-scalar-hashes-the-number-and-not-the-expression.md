@@ -2,12 +2,13 @@
 id: a-nodes-content-key-at-the-symbolic-scalar-hashes-the-number-and-not-the-expression
 kind: unit
 title: A node's content key at the symbolic scalar hashes the number and not the expression, and a value with no expression is named by a per-replay counter
-status: dispatched
+status: review
 opened: 2026-11-22
 priority: P1
 cost: M
 parent: a-drive-finishes-a-body-again-in-every-leaf-whose-box-does-not-move-it
 branch: boxfinish/node-key
+pr: 7470
 ---
 
 

@@ -244,13 +244,11 @@ fn mate_fault(ev: &Evaluation<f64>, placement: RecipeNodeId) -> editor_core::Mat
 ///
 /// - Each placement's chart is on its own log: its unit-norm checks
 ///   (`pose_unit_norm`), which the chart decides where it mints its mated
-///   and across directions (`Chart::sides`, `Chart::charted`). Each
-///   copy's mated direction is its target's exactly, so each least turn
-///   is the identity, which owes no pole verdict
-///   (`RigidMotion::least_turn`), and none is on either log. The witness
-///   proves what `mate_chart_pole` proved before: a decision the fold's
-///   chart made lands on the row of the placement that folded, since only
-///   that placement's evaluation logs to it.
+///   and across directions (`Chart::sides`, `Chart::charted`), and its
+///   least turn's pole verdict (`mate_chart_pole`), which every turn
+///   decides, the identity included (`RigidMotion::least_turn`): a
+///   decision the fold's chart made lands on the row of the placement
+///   that folded, since only that placement's evaluation logs to it.
 /// - Neither placement's slides decide anything: each moves along its
 ///   chart's own axis (`value::settle`), so no line between two slides
 ///   is minted (`mate_axes_parallel`) on either log.
@@ -269,8 +267,8 @@ fn each_decision_is_on_the_log_of_the_node_that_made_it() {
     let on = |got: &[&str], p: &str| got.contains(&p);
     for (what, got) in [("cap", &cap_log), ("other block", &other_log)] {
         assert!(
-            on(got, "pose_unit_norm") && !on(got, "mate_chart_pole"),
-            "the {what} charts its values on its own log, its identity turn owing no pole verdict: {got:?}"
+            on(got, "pose_unit_norm") && on(got, "mate_chart_pole"),
+            "the {what} charts its values on its own log, its turn's pole verdict with them: {got:?}"
         );
     }
     assert!(
@@ -345,8 +343,8 @@ fn on_the_world(s: &mut Scene, h: f64) -> Mate<Formula> {
     );
     s.doc = doc;
     Mate {
-        on: fixture::plane(s.bottom(s.other)),
-        to: fixture::flip(top),
+        on: fixture::plane(s.bottom(s.other)).into(),
+        to: fixture::flip(top).into(),
         orient: editor_core::Orientation::IDENTITY,
     }
 }
@@ -661,7 +659,7 @@ fn a_box_run_over_an_overconstrained_bundle_refuses_at_its_witness() {
         panic!("expected WitnessDoesNotBuild, got {refusal:?}");
     };
     assert!(
-        cause.contains("no part resolver"),
+        cause.to_string().contains("no part resolver"),
         "the driver's evaluation has no resolver, so no instance resolves: {cause}"
     );
 }

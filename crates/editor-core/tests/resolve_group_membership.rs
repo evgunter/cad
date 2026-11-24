@@ -157,7 +157,7 @@ pub(crate) fn moved_to_frame(
     // and one off it the face slid along its normal, whose slide is moved
     // too. Either way the placement must already read it so: values
     // alone cannot add a slide or take one away.
-    let slide = match again.mates.first().map(|mate| &mate.to) {
+    let slide = match again.mates.first().map(|mate| &mate.to.read) {
         Some(Operand::Pose(def)) => {
             let PoseDef::Slide { by: slide, .. } = &**def else {
                 panic!("the target face slid along its normal: {def:?}")
@@ -168,7 +168,7 @@ pub(crate) fn moved_to_frame(
     };
     let bundle = crate::fixture::bundle(&doc, placement);
     let slide_var = bundle.iter().find_map(|c| c.mate()).and_then(|m| {
-        match doc.var(m.to).map(|v| v.def().clone()) {
+        match doc.var(m.to.read).map(|v| v.def().clone()) {
             Some(VarDef::Pose(PoseDef::Slide { by, .. })) => Some(by),
             _ => None,
         }
@@ -567,7 +567,7 @@ fn a_unions_group_resized_at_any_fold_step_reads_two_to_one() {
         let (doc, u) = insert(
             doc,
             Node::Union {
-                members: editor_core::Bodies::Spelled(order.iter().map(|&i| m[i].into()).collect()),
+                members: editor_core::Bodies::spelled(order.iter().map(|&i| m[i].into()).collect()),
             },
         );
         // Member `member`'s wall `segment` (of the block `of`), as the
@@ -718,7 +718,7 @@ fn a_union_group_a_later_step_partly_swallows_names_what_is_published() {
         let (doc, u) = insert(
             doc,
             Node::Union {
-                members: editor_core::Bodies::Spelled(vec![
+                members: editor_core::Bodies::spelled(vec![
                     plate.into(),
                     tr.placement.into(),
                     cblock.into(),
@@ -774,7 +774,7 @@ fn a_tie_carried_through_a_later_fold_step_counts_one_parent() {
         let (doc, u) = insert(
             doc,
             Node::Union {
-                members: editor_core::Bodies::Spelled(order.iter().map(|&i| m[i].into()).collect()),
+                members: editor_core::Bodies::spelled(order.iter().map(|&i| m[i].into()).collect()),
             },
         );
         let ev1 = run(&doc, None);
@@ -827,7 +827,7 @@ fn a_unions_seam_of_a_tied_parent_counts_its_pieces() {
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![
+            members: editor_core::Bodies::spelled(vec![
                 sub.into(),
                 d.into(),
                 post.placement.into(),
@@ -906,7 +906,7 @@ fn tied_groups_that_resize_unequally_decline_in_every_member_order() {
         let (doc, u) = insert(
             doc,
             Node::Union {
-                members: editor_core::Bodies::Spelled(members),
+                members: editor_core::Bodies::spelled(members),
             },
         );
         let ev1 = run(&doc, None);
@@ -992,7 +992,7 @@ fn a_unions_corner_held_twice_then_once_reads_two_to_one_in_every_member_order()
         let (doc, un) = insert(
             doc,
             Node::Union {
-                members: editor_core::Bodies::Spelled(
+                members: editor_core::Bodies::spelled(
                     order.iter().map(|&i| members[i].into()).collect(),
                 ),
             },
@@ -1061,7 +1061,7 @@ fn plate_and_bar() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, Placed, RecipeNod
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![plate.into(), tr.placement.into()]),
+            members: editor_core::Bodies::spelled(vec![plate.into(), tr.placement.into()]),
         },
     );
     (doc, plate, bar, tr, u)
@@ -1219,7 +1219,7 @@ fn a_cutter_a_fold_step_requalified_is_the_same_cutter() {
         let (doc, u) = insert(
             doc,
             Node::Union {
-                members: editor_core::Bodies::Spelled(vec![
+                members: editor_core::Bodies::spelled(vec![
                     m[order[0]].into(),
                     m[order[1]].into(),
                     plate.into(),

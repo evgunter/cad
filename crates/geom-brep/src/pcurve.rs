@@ -123,28 +123,22 @@ pub const PCURVE_FIT_SAMPLES: u32 = 129;
 ///
 /// [`PcurveError`] — wrong kinds, a degenerate span, or (unreachable
 /// for valid spans) a structure refusal.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a conic's centre frame, derived where an ellipse is held on its arc: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
+)]
 pub fn ellipse_pcurve_on_plane(
     carrier: &Curve3<f64>,
     plane: &Surface<f64>,
     t0: f64,
     t1: f64,
 ) -> Result<NurbsCurve2<f64>, PcurveError> {
-    let &Curve3::Ellipse(
-        conic_k @ geom::Ellipse {
-            frame: carrier_frame_12,
-            ..
-        },
-    ) = carrier
-    else {
+    let &Curve3::Ellipse(conic_k) = carrier else {
         return Err(PcurveError::WrongLane {
             expected: "an Ellipse carrier into a Plane chart",
         });
     };
-    let (center, axis, u_ref) = (
-        carrier_frame_12.origin(),
-        carrier_frame_12.axis(),
-        carrier_frame_12.u_ref(),
-    );
+    let (center, axis, u_ref) = (conic_k.frame().origin(), conic_k.axis(), conic_k.u_ref());
     let (semi_u, semi_v) = (conic_k.semi_u(), conic_k.semi_v());
     let &Surface::Plane {
         frame: carrier_frame,

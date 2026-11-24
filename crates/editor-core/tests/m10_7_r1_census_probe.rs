@@ -137,11 +137,12 @@ fn r1_collinear_walls_are_unauthorable_so_cosurface_stays_a_non_identity() {
         Some(editor_core::NodeErrorKind::ProfileReplay {
             loop_: 0,
             error:
-                profile::ReplayError {
-                    step: 2,
+                error @ profile::ReplayError {
                     kind: profile::ReplayErrorKind::Path(e),
+                    ..
                 },
-        }) if e.kind() == profile::PathErrorKind::JunctionTurnWithinTolerance => {}
+        }) if error.step() == 2
+            && e.kind() == profile::PathErrorKind::JunctionTurnWithinTolerance => {}
         other => panic!(
             "the collinear junction refuses as tangent at step 2; got {other:?}: \
              if the walls now build, re-measure the census"

@@ -51,3 +51,7 @@ SYM: rule D's arm. The apex spelling is PATHS's, and it is deliberate
 `sin`/`cos`, which cost `r1_annulus` its ceiling).
 
 - 2026-11-02 — moved from RULES to SYM by `git mv` when RULES merged into SYM, id and body unchanged (the track budget now counts only P0, P1 and unbanded rows, and RULES had fallen far under it).
+
+## Witness pin (CIW, 2026-11-23)
+
+PR 7501 (`ciw/census-digest-goldens`) removes the plate's ledger golden. This row's defect, a reader that mints `tan(q·atan X)`, which rule D does not fold, keeps a witness: `m10_sym_profile_interval::the_plates_largest_form_is_under_the_growth_guard` asserts that the plate's `Early/Assertion` and `Door/Decision` lines freeze nothing. The pin cites this row, and goes when it closes.
