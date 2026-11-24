@@ -514,6 +514,62 @@ fn an_iso_pieces_arm_reaches_across_the_turn_its_chord_does_not() {
     }
 }
 
+/// **An iso piece's lean is levered at its reach from where it stops**,
+/// not at its extent or its chord. Three quarters of the unit circle as
+/// a rational quadratic, from `(0, −1)` through `(1, 0)` and `(0, 1)` to
+/// `(−1, 0)`, then straight on to `(0.3, 0, 0)`, where it stops: every
+/// point of the turn stands at most `1.3` from the stop, while the turn's
+/// diameter is 2, its reach from its start 2, and its chord `√1.09`. The
+/// stop is on the straight run, whose bend leaves the reach the arm.
+///
+/// This pins the arm, on a piece built by hand, not the lean it levers.
+/// No row reaches `chord_join`'s `split_ring_path_lean` with this arm
+/// deciding: the lean is the cosine of the arriving piece against the
+/// closing chord's left normal, and a door body reads it between its
+/// arm's thresholds only where an island's boundary arrives at the wall
+/// path within about `ε / arm` of tangent, which no suite builds; the
+/// slow set's six spline-wall booleans read it definite. No suite builds
+/// a spline-wall ring at `Interval`, so that lane is unreached.
+#[test]
+fn an_iso_pieces_lean_is_levered_at_its_reach_from_its_stop() {
+    let s = std::f64::consts::FRAC_1_SQRT_2;
+    let net = [
+        (0.0, -1.0),
+        (1.0, -1.0),
+        (1.0, 0.0),
+        (1.0, 1.0),
+        (0.0, 1.0),
+        (-1.0, 1.0),
+        (-1.0, 0.0),
+        (-0.35, 0.0),
+        (0.3, 0.0),
+    ];
+    let hook = geom::NurbsCurve3::new(
+        kv(
+            vec![0.0, 0.0, 0.0, 0.2, 0.2, 0.4, 0.4, 0.6, 0.6, 1.0, 1.0, 1.0],
+            2,
+        ),
+        net.iter().map(|&(x, y)| Point3::new(x, y, 0.0)).collect(),
+        vec![1.0, s, 1.0, s, 1.0, s, 1.0, 1.0, 1.0],
+    )
+    .unwrap();
+    let piece = super::spline_wall::IsoPiece {
+        curve: Arc::new(hook),
+        span: (0.0, 1.0),
+        forward: true,
+    };
+    let (start, stop) = piece.ends();
+    assert!(
+        stop.distance(Point3::new(0.3, 0.0, 0.0)) < 1e-15 && start.distance(stop) < 1.05,
+        "the piece runs {start:?} → {stop:?}"
+    );
+    let arm = piece.reach().length();
+    assert!(
+        (1.25..=1.3 + 1e-12).contains(&arm),
+        "the lean's arm is the reach from the stop, at most 1.3 and sampled near it: got {arm}"
+    );
+}
+
 /// **At a dual a wall's paths are the `f64` ones**: a wall and ends
 /// whose every coordinate carries a tangent decide a foot on the wall on
 /// the chart without its tangent, so they are offered the paths the same

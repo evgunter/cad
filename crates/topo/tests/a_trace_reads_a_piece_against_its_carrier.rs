@@ -8,7 +8,20 @@
 
 use geom::Surface;
 use geom_core::{Band, Point3, Tol, Vec3};
-use topo::boolean::trace::{Passage, TraceFault, circle_crossings, plane_misses, ray_crossings};
+use topo::boolean::trace::{
+    Crossing, Passage, TraceFault, circle_crossings_to, plane_misses, ray_crossings,
+    ray_crossings_to,
+};
+
+/// The whole turn's crossings: a piece that takes none of them.
+fn circle_crossings(
+    surface: &Surface<f64>,
+    sense: bool,
+    circle: (Point3<f64>, Vec3<f64>, f64, Vec3<f64>),
+    band: Band,
+) -> Result<Vec<Crossing<f64>>, TraceFault> {
+    circle_crossings_to(surface, sense, circle, band, |_| None)
+}
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
@@ -329,5 +342,70 @@ fn a_graze_past_the_taken_crossing_reads_the_entry() {
     assert!(
         taken.iter().all(|c| c.along < 4.0),
         "nothing past the entry and its gap is read: {taken:?}"
+    );
+}
+
+/// A ray tilted `c = 7.5·10⁻⁹` off the floor, crossing it at the middle
+/// of a run of 2: the curve × face pose reads its drift over the run,
+/// `c·2`, definite, and roots it there, while the crossing's sense over
+/// the run's reach from the crossing, 1, is `7.5·10⁻⁹`, in band under
+/// `(10⁻⁹, 10⁻⁸)`. The whole run stands within `7.5·10⁻⁹` of the floor.
+fn mid_run_ray() -> geom::Ray<f64> {
+    let c = 7.5e-9_f64;
+    let dir = Vec3::new((1.0 - c * c).sqrt(), 0.0, c);
+    geom::Ray::new(
+        Point3::origin() + dir * -1.0,
+        geom_core::UnitVec3::squared(dir),
+    )
+}
+
+/// **A ray's crossing is levered at the run's reach from the crossing,
+/// not at the run.** The mid-run ray above refuses its sense in band, at
+/// both doors: the run (2), or the reach from the ray's start, would
+/// claim a passage on a run that stands within the band of the floor.
+#[test]
+fn a_rays_crossing_mid_run_is_levered_at_its_reach_from_the_crossing() {
+    let band = Band::new(1e-9, 1e-8).unwrap();
+    let any = |cs: &[Crossing<f64>]| (!cs.is_empty()).then_some(0);
+    let to = ray_crossings_to(&floor(), true, &mid_run_ray(), 2.0, band, any);
+    assert!(
+        matches!(to, Err(TraceFault::Escalated(_))),
+        "ray_crossings_to: the sense at the reach 1 is in band: {to:?}"
+    );
+    let whole = ray_crossings(&floor(), true, &mid_run_ray(), 2.0, band);
+    assert!(
+        matches!(whole, Err(TraceFault::Escalated(_))),
+        "ray_crossings: the sense at the reach 1 is in band: {whole:?}"
+    );
+}
+
+/// **An arc's crossing is levered at the read arc's reach from the
+/// crossing.** A circle of radius 10 about the origin, its plane tilted
+/// `c = 1.2·10⁻⁹` about `x̂`, so it swings `1.2·10⁻⁸` off the floor and
+/// crosses it at `θ = 0` and `θ = π`, at the sine `c`. It starts at
+/// `θ = −0.02`. The piece takes its first crossing, at `0.02` along it,
+/// and is read again to halfway to the next, about a quarter turn: that
+/// arc reaches `√2·10` from the crossing, so the sense reads
+/// `1.7·10⁻⁸`, a definite passage under `(10⁻⁹, 10⁻⁸)`. The arc's ball,
+/// about half that radius, would read it in band and refuse.
+#[test]
+fn an_arcs_crossing_is_levered_at_its_reach_from_the_crossing() {
+    let band = Band::new(1e-9, 1e-8).unwrap();
+    let (r, c) = (10.0_f64, 1.2e-9_f64);
+    let axis = Vec3::new(0.0, -c.sin(), c.cos());
+    let (u0, v0) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, c.cos(), c.sin()));
+    let start = -0.02_f64;
+    let u = u0 * start.cos() + v0 * start.sin();
+    let first = |cs: &[Crossing<f64>]| (!cs.is_empty()).then_some(0);
+    let got = circle_crossings_to(&floor(), true, (Point3::origin(), axis, r, u), band, first);
+    let along: Vec<f64> = got
+        .as_ref()
+        .unwrap_or_else(|e| panic!("the quarter arc reads its crossing definite: {e:?}"))
+        .iter()
+        .map(|x| x.along)
+        .collect();
+    assert!(
+        along.len() == 1 && (along[0] - 0.02).abs() < 1e-9,
+        "the one crossing taken, 0.02 along: {along:?}"
     );
 }

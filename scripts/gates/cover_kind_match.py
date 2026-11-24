@@ -125,6 +125,14 @@ NOT_DOORS = {
     # point of the region, not a bound on it.
     'edge_end_point',
 }
+# Region doors outside topo's homes whose readers are registered as
+# topo's are, each with its home, which is not a reader.
+EXTRA_DOORS = {
+    # An edge's reach from a point over a carrier's span, geom-brep's
+    # reading of the carrier's cover there (topo's own is
+    # `piece_reach_bounds`).
+    'span_reach_bounds': 'crates/geom-brep/src/extent.rs',
+}
 VARIANTS_FROM = {
     'Surface': 'crates/geom/src/surfaces.rs',
     'Curve3': 'crates/geom/src/curves.rs',
@@ -681,7 +689,7 @@ def door_names(files):
             last = m.start()
             if depth == 0:
                 names.add(m.group(1))
-    return sorted(names - NOT_DOORS)
+    return sorted((names - NOT_DOORS) | set(EXTRA_DOORS))
 
 
 def sites(path, lines, variants, doors):

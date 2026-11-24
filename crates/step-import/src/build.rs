@@ -1361,6 +1361,32 @@ fn param_at(c: &Curve3<f64>, p: Point3<f64>) -> Option<f64> {
     }
 }
 
+/// **The printed edge, `printed` over `(t0, t1)`, as a span of
+/// `carrier`**: between the feet of its two ends on `carrier`, and where `carrier` repeats, the one of the
+/// two arcs between them that holds the foot of the edge's middle (the
+/// whole period where the ends' feet are one). `None` where a foot does
+/// not resolve.
+fn span_on(
+    carrier: &Curve3<f64>,
+    (printed, (t0, t1)): (&Curve3<f64>, (f64, f64)),
+) -> Option<(f64, f64)> {
+    let foot = |t: f64| param_at(carrier, printed.eval(t));
+    let (a, b) = (foot(t0)?, foot(t1)?);
+    let middle = foot(geom::mid_param(t0, t1))?;
+    let (lo, hi) = (a.min(b), a.max(b));
+    Some(match carrier.period() {
+        None => (lo, hi),
+        Some(period) => {
+            let period = period.length();
+            if lo + (middle - lo).rem_euclid(period) <= hi {
+                (lo, hi)
+            } else {
+                (hi, lo + period)
+            }
+        }
+    })
+}
+
 /// `p`'s distance from `c`, at its foot.
 fn gap_to(c: &Curve3<f64>, p: Point3<f64>) -> f64 {
     match c {
@@ -2423,13 +2449,17 @@ fn rooted(
         let (plus, minus) = sides[&e];
         let held = [solid.faces[plus].record, solid.faces[minus].record];
         let spec = &solid.edges[&e];
-        let extent = geom_brep::edge_extent_inf(&spec.carrier, spec.t0, spec.t1);
         for &f in faces {
             if held.contains(&solid.faces[f].record) {
                 continue;
             }
             let surface = solid.surface(f);
-            match root_on(surface, carrier, printed, extent, band) {
+            // The edge as the carrier the root's sine is read on holds it;
+            // where its ends' feet on that carrier do not resolve, the
+            // printed edge it stands in for.
+            let printed_edge = (&spec.carrier, (spec.t0, spec.t1));
+            let edge = span_on(carrier, printed_edge).map_or(printed_edge, |span| (carrier, span));
+            match root_on(surface, carrier, printed, edge, band) {
                 Ok(Ok(point)) => return Ok(Rooted::At(point)),
                 Ok(Err(topo::CornerVerdict::Unsupported { what })) => {
                     unsupported.get_or_insert_with(|| {
@@ -2471,12 +2501,15 @@ fn rooted(
 /// **The root of `surface` along `carrier` from `printed`, settled**
 /// ([`settled`]): Newton seeded at its own root again, so building the
 /// vertex from its own point gives it back. `None` where no root lies
-/// along the carrier there.
+/// along the carrier there. `edge` is the edge as a span of `carrier`
+/// ([`span_on`]; the printed edge where its feet do not resolve), whose
+/// reach from each point a graze is read at levers it
+/// ([`topo::root_along`]).
 fn root_on(
     surface: &Surface<f64>,
     carrier: &Curve3<f64>,
     printed: Point3<f64>,
-    extent: geom_core::Lever<f64>,
+    edge: (&Curve3<f64>, (f64, f64)),
     band: geom_core::Band,
 ) -> Result<Result<Point3<f64>, topo::CornerVerdict<f64>>, geom_core::Indeterminate> {
     let mut verdict = None;
@@ -2485,7 +2518,7 @@ fn root_on(
             return Ok(None);
         };
         Ok(
-            match topo::root_along(surface, carrier, seed, extent, band)? {
+            match topo::root_along(surface, carrier, seed, edge, band)? {
                 Ok(t) => Some(carrier.eval(t)),
                 Err(v) => {
                     verdict.get_or_insert(v);
@@ -3634,5 +3667,55 @@ mod tests {
             .fold(0.0, f64::max);
         assert!(true_sup > 0.3 * bow, "the bow shows: {true_sup:e}");
         assert!(gap >= true_sup, "sound: {gap:e} < {true_sup:e}");
+    }
+
+    /// **A vertex's root is levered at the reach of the carrier its sine
+    /// is read on, not the printed edge's.** The chosen carrier is a line
+    /// meeting `z = 0` at the sine `0.8·10⁻⁹` at its origin; the printed
+    /// edge is a quadratic spline between the line's points at `±1` that
+    /// bulges `1.5` off it. The edge read on the line is `[−1, 1]`
+    /// ([`span_on`]), whose reach from the root is 1: the graze reads Zero
+    /// under `(10⁻⁹, 10⁻⁸)` and is served. The printed spline reaches
+    /// about `1.8` from the root, where the same sine reads in band.
+    #[test]
+    fn a_vertex_root_is_levered_on_the_carrier_its_sine_is_read_on() {
+        let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
+        let s = 0.8e-9_f64;
+        let line = Curve3::Line(geom::Line {
+            origin: Point3::origin(),
+            dir: geom_core::UnitVec3::squared(Vec3::new((1.0 - s * s).sqrt(), 0.0, s)),
+        });
+        let printed = Curve3::Nurbs(std::sync::Arc::new(
+            geom::NurbsCurve3::new(
+                KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+                vec![line.eval(-1.0), Point3::new(0.0, 3.0, 0.0), line.eval(1.0)],
+                vec![1.0; 3],
+            )
+            .unwrap(),
+        ));
+        let span = span_on(&line, (&printed, (0.0, 1.0))).unwrap();
+        assert!(
+            (span.0 + 1.0).abs() < 1e-9 && (span.1 - 1.0).abs() < 1e-9,
+            "the edge read on the line: {span:?}"
+        );
+        let floor = Surface::Plane {
+            frame: geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+        };
+        let on_line = root_on(&floor, &line, Point3::origin(), (&line, span), band);
+        assert!(
+            matches!(on_line, Ok(Err(topo::CornerVerdict::Graze { .. }))),
+            "levered on the line, a graze: {on_line:?}"
+        );
+        let on_printed = root_on(
+            &floor,
+            &line,
+            Point3::origin(),
+            (&printed, (0.0, 1.0)),
+            band,
+        );
+        assert!(
+            on_printed.is_err(),
+            "levered on the printed spline, in band: {on_printed:?}"
+        );
     }
 }

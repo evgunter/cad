@@ -37,3 +37,18 @@ farthest pair falls between samples. The fix is to lever `chain_g1`
 the sampled pairs where a reading acts on a definite nonzero sign, and
 correct the doc. Found by OFFSET's sweep for the class (the "shorter is
 safe" claim on a lever whose Zero is acted on).
+
+## Read again, and the G1 converted, by `oneround/reach-from-the-read-point` (PR 7661)
+
+- **`chain_g1`'s arm is converted.** On `main` at `093205aa3`, `chain_turns` read `a.arm_len.min(b.arm_len)`, the sampled diameter from below, for a datum read at the shared vertex whose Zero is acted on.
+  - It now reads `junction_arm`: the nearer of the two links' reaches from the junction's point, each from above (`geom_brep::span_reach_bounds(..).above()`, the cover's far distance). This is sound, and as tight as the cover.
+  - The closed single link reads the same from its start vertex.
+  - Row: `blend::battery::junction_arm_rows`, a hook-shaped spline link whose farthest point from the junction falls between samples. It is red on the sampled diameter, on the samples' reach from below, and on the farther link.
+- **Left: `Link::arm_len` itself.** It still holds `extent_of`'s sampled diameter.
+  - `cap_transverse` reads it at a vertex and acts on both signs, so each sign is owed its own bound of the link's reach from that vertex:
+    - **Zero** (`EndSection::Circle`, the cap cut as the ball's circle) is a claim that the tilt moves nothing over the link by more than the band, so it is owed the bound from above;
+    - **a definite sign** (`EndSection::Ellipse`, built through `Curve3::ellipse` over `radius/cos θ`) claims the tilt is real over the link, so it is owed the bound from below.
+
+    Read at both and acting only where they agree (as `topo::validate::decide_levered` does) is the spelling. Today both signs read `extent_of`'s sampled diameter: from below, and a diameter where the reach from the vertex is owed.
+  - The ruled pair's co-ruling reads the same `extent`, and its direction was not read here.
+  - The tight answer is for `Link` to hold its region, or a reach from each end, which changes what the record stores.

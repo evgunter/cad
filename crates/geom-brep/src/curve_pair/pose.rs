@@ -973,15 +973,7 @@ fn span_reaches<T: Decide>(
     b: &Span<'_, T>,
     at: Point3<T>,
 ) -> (Lever<T>, Lever<T>) {
-    let read = |s: &Span<'_, T>| {
-        let (t0, t1) = s.params();
-        let cover = s
-            .carrier()
-            .cover_over(geom::cover::ParamWindow::new(t0, t1))
-            .ok();
-        let above = crate::ExtentBall::of_cover_from(cover.as_ref(), at).lever();
-        crate::edge_reach_bounds(s.carrier(), (t0, t1), at, above)
-    };
+    let read = |s: &Span<'_, T>| crate::span_reach_bounds(s.carrier(), s.params(), at);
     let (ra, rb) = (read(a), read(b));
     (ra.below().max(rb.below()), ra.above().min(rb.above()))
 }

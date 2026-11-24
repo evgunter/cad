@@ -1755,10 +1755,13 @@ fn planned_charts<T: Decide + crate::props::AtRestPolicy>(
         .collect()
 }
 
-/// **The lever each derived section hands its corners' roots** for
-/// moving one non-cone `face` by `d`: every boundary edge the move
-/// derives, once, with its planned carrier and the arm
-/// [`incident_edges`] gives the lane ([`corner_arm`]).
+/// **The lever each derived spline section hands its corners' roots**
+/// for moving one non-cone `face` by `d`: every boundary edge the move
+/// derives, once, with its planned carrier and the arm the spline lane
+/// reads off the span [`incident_edges`] gives it ([`corner_arm`]). An
+/// analytic carrier's root reads no such arm: it is levered at the
+/// span's reach from each point its sine is read at
+/// ([`crate::offset_derive::analytic_root`]).
 ///
 /// # Panics
 ///
@@ -1830,7 +1833,8 @@ pub fn offset_corner_arms_for_tests<T: Decide + crate::props::AtRestPolicy>(
             .unwrap_or_else(|e| panic!("the corner's edges read: {e}"));
         for inc in incident.into_iter().filter(|i| i.derived) {
             if !out.iter().any(|(e, ..)| *e == inc.edge) {
-                out.push((inc.edge, inc.carrier, inc.extent.length()));
+                let arm = corner_arm(&inc.carrier, inc.span.0, inc.span.1).length();
+                out.push((inc.edge, inc.carrier, arm));
             }
         }
     }
@@ -4179,16 +4183,19 @@ struct Incident<T: Real> {
     /// A section the move derived ([`derive_edge`]), not a carrier it
     /// transported or left.
     derived: bool,
-    /// The lever a root along it decides its transversality at
-    /// ([`corner_arm`]).
-    extent: geom_core::Lever<T>,
+    /// The span of `carrier` the edge runs over: the region a root along
+    /// it is levered by ([`corner_arm`] on the spline lane, its reach
+    /// from the root on the analytic one).
+    span: (T, T),
 }
 
-/// **The lever a root along `carrier` over `[t0, t1]` is decided at**:
-/// the span's extent. On a derived spline section the span is the
-/// section's own domain ([`derive_edge`]), the whole curve its root is
-/// isolated over.
-fn corner_arm<T: Decide>(carrier: &Curve3<T>, t0: T, t1: T) -> geom_core::Lever<T> {
+/// **The lever a root along a spline `carrier` over `[t0, t1]` is
+/// decided at**: the span's extent, the spline lane isolating its roots
+/// over the whole span. On a derived spline section the span is the
+/// section's own domain ([`derive_edge`]). An analytic carrier's root is
+/// levered at the span's reach from the root
+/// ([`crate::offset_derive::analytic_root`]).
+pub(crate) fn corner_arm<T: Decide>(carrier: &Curve3<T>, t0: T, t1: T) -> geom_core::Lever<T> {
     geom_brep::edge_extent_inf(carrier, t0, t1)
 }
 
@@ -4588,7 +4595,13 @@ fn solve_corners<T: Decide>(
                                         scalar: T::NAME,
                                     })?;
                                 match spline_corner_root(
-                                    lane.root(surface, spline, seed, inc.extent, band),
+                                    lane.root(
+                                        surface,
+                                        spline,
+                                        seed,
+                                        corner_arm(&inc.carrier, inc.span.0, inc.span.1),
+                                        band,
+                                    ),
                                     spline,
                                     (vertex, edge, inc.derived),
                                     d,
@@ -4603,7 +4616,11 @@ fn solve_corners<T: Decide>(
                                 }
                             }
                             carrier => match crate::offset_derive::analytic_root(
-                                surface, carrier, seed, inc.extent, band,
+                                surface,
+                                carrier,
+                                seed,
+                                (carrier, inc.span),
+                                band,
                             )
                             .map_err(esc)?
                             {
@@ -4783,7 +4800,7 @@ fn incident_edges<T: Decide>(
             };
             out.push(Incident {
                 edge,
-                extent: corner_arm(&carrier, t0, t1),
+                span: (t0, t1),
                 carrier,
                 sides: plan.sides,
                 ends,
@@ -4805,7 +4822,7 @@ fn incident_edges<T: Decide>(
                 ends: ends_at((t0, t1)),
                 boundary: false,
                 derived: false,
-                extent: corner_arm(curve.carrier(), t0, t1),
+                span: (t0, t1),
             });
         }
     }

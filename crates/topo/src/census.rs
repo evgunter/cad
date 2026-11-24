@@ -391,7 +391,8 @@ struct Span<T: Real> {
 }
 
 impl<T: Real> Span<T> {
-    /// The span's extent, read off its line over `at`.
+    /// The span's length, read off its line over `at`: exact, a line's
+    /// extent being its chord.
     fn extent(&self) -> geom_core::Lever<T>
     where
         T: geom_core::spline::SpanLocate,
@@ -5488,7 +5489,20 @@ fn settle_in_band<T: Decide>(
 /// Whether two straight spans are parallel: `Some(true)` parallel,
 /// `Some(false)` not, `None` escalated (pushed). The margin is
 /// sin(angle of the unit dirs) × the shorter span's own length: the
-/// displacement the angular deviation induces over it.
+/// displacement the angular deviation induces over it. The sine has no
+/// point of its own: its Zero claims the two within the band over their
+/// overlap, which the shorter span's length bounds from above. Its
+/// definite sign is acted on too: it hands the pair to the crossing
+/// reading, never to the overlap's, and that reading's question is over
+/// both whole spans, so it is levered at the shorter span's length, from
+/// below ([`settle_in_band`]'s argument), not at the overlap: two spans
+/// that cross square have projections that overlap over a point, and the
+/// overlap would read them parallel. A span's length is exact (a line's
+/// extent is its chord, both bounds one value). On a short partial
+/// overlap of two near-collinear spans, the definite sign sends to the
+/// crossing reading a pair that stands within the band over that
+/// overlap; that reading then meets them at a point
+/// (`parallel_reading_rows`).
 fn parallel_reading<T: Decide>(
     a: &impl Spans<T>,
     b: &impl Spans<T>,
@@ -23450,5 +23464,88 @@ mod edge_view_review_probes {
             let msg = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(f));
             assert!(msg.contains("curve names"), "{what}: {msg}");
         }
+    }
+}
+
+/// **The parallel screen's Zero is read over the shorter span's length**
+/// ([`parallel_reading`]): its claim is the pair within the band over
+/// their overlap, which that length bounds from above.
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod parallel_reading_rows {
+    use super::{Span, parallel_reading};
+    use geom_core::{Band, Point3, UnitVec3, Vec3};
+
+    fn span(p0: Point3<f64>, dir: Vec3<f64>, len: f64) -> Span<f64> {
+        let dir = UnitVec3::squared(dir);
+        Span {
+            p0,
+            dir,
+            at: (0.0, len),
+            ends: [p0, p0 + dir.get() * len],
+            points: [None; 2],
+            produced: 0.0,
+            stored: true,
+        }
+    }
+
+    /// A span 10 long on `x̂`, and one a metre long from `(9.5, 0, 0)`
+    /// tilted off it at the sine `s`: the two overlap over half a metre,
+    /// the shorter is 1, the longer 10. Under `(10⁻⁹, 10⁻⁸)`, at
+    /// `s = 0.8·10⁻⁹` the screen reads them parallel (the shorter's
+    /// `0.8·10⁻⁹`), where the longer would read in band; at
+    /// `s = 1.6·10⁻⁹` it reads in band (the shorter's `1.6·10⁻⁹`), where
+    /// the overlap's half metre would read Zero: the lever is the
+    /// shorter span, which bounds the overlap from above, not the
+    /// overlap itself.
+    #[test]
+    fn the_parallel_screen_reads_the_shorter_spans_length() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let long = span(Point3::origin(), Vec3::new(1.0, 0.0, 0.0), 10.0);
+        let read = |s: f64| {
+            let short = span(
+                Point3::new(9.5, 0.0, 0.0),
+                Vec3::new((1.0 - s * s).sqrt(), s, 0.0),
+                1.0,
+            );
+            parallel_reading(&long, &short, band, &mut Vec::new())
+        };
+        assert_eq!(
+            read(0.8e-9),
+            Some(true),
+            "Zero at the shorter span's length"
+        );
+        assert_eq!(read(1.6e-9), None, "in band at the shorter span's length");
+    }
+
+    /// **The definite sign is levered at the shorter span too**, the
+    /// crossing reading's question being over both spans. A metre-long span
+    /// overlapping the 10-long one over its last `0.05` at the sine
+    /// `2·10⁻⁸` reads definite (`2·10⁻⁸` over the metre), and goes to the
+    /// crossing reading, though the two stand within `10⁻⁹` over the
+    /// overlap. And a span crossing the long one square, whose projection
+    /// on it is a point, reads definite: an arm the length of the overlap
+    /// would read every square crossing parallel.
+    #[test]
+    fn the_parallel_screens_definite_sign_reads_the_shorter_span() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let long = span(Point3::origin(), Vec3::new(1.0, 0.0, 0.0), 10.0);
+        let s = 2e-8_f64;
+        let tail = span(
+            Point3::new(9.95, 0.0, 0.0),
+            Vec3::new((1.0 - s * s).sqrt(), s, 0.0),
+            1.0,
+        );
+        assert_eq!(
+            parallel_reading(&long, &tail, band, &mut Vec::new()),
+            Some(false),
+            "a short partial overlap reads definite over the shorter span"
+        );
+        let square = span(Point3::new(5.0, -0.5, 0.0), Vec3::new(0.0, 1.0, 0.0), 1.0);
+        assert_eq!(
+            parallel_reading(&long, &square, band, &mut Vec::new()),
+            Some(false),
+            "a square crossing reads definite"
+        );
     }
 }

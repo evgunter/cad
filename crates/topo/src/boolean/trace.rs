@@ -230,9 +230,9 @@ fn sign_as(
 
 /// **The crossings of `ray` with `surface`**, nearest first, each ahead of
 /// its start. Its `dir` is unit; `reach` is a length the size of the
-/// scene the piece runs through, the run the crossing reading reads and
-/// the lever its senses are read over. `sense` is the face's orientation
-/// sense.
+/// scene the piece runs through, the run the crossing reading reads, and
+/// each crossing's sense is levered at that run's reach from it.
+/// `sense` is the face's orientation sense.
 ///
 /// # Errors
 ///
@@ -244,15 +244,17 @@ pub fn ray_crossings<T: Decide>(
     reach: T,
     band: Band,
 ) -> Result<Vec<Crossing<T>>, TraceFault> {
-    let dir = ray.line().dir;
-    // Unsourced lever: the ray's length, a scene size the caller hands
-    // rather than geometry the extent home reads.
-    let arm = geom_core::Lever::unsourced(reach);
+    let dir = ray.line().dir.get();
     let carrier = Curve3::Line(ray.line());
-    let span = Span::new(&carrier, (ray.start(), ray.from_start(reach)));
+    let params = (ray.start(), ray.from_start(reach));
+    let ends = (ray.start_point(), ray.start_point() + dir * reach);
+    let span = Span::new(&carrier, params);
     meetings(&span, surface, &[SpanEnd::Start], band)?
         .into_iter()
-        .map(|(t, point)| crossing(surface, sense, t, point, dir.get(), arm, band))
+        .map(|(t, point)| {
+            let arm = crate::cover::piece_reach_bounds(&carrier, params, ends, point).below();
+            crossing(surface, sense, t, point, dir, arm, band)
+        })
         .collect()
 }
 
@@ -332,7 +334,7 @@ fn taken_over<T: Decide>(
 
 /// **[`ray_crossings`] up to the crossing the piece takes**
 /// ([`taken_over`]): `reach` the run it reads for where its crossings
-/// are, and each read levered over its own run.
+/// are, and each crossing levered at its read run's reach from it.
 ///
 /// # Errors
 ///
@@ -348,14 +350,10 @@ pub fn ray_crossings_to<T: Decide>(
     let dir = ray.line().dir.get();
     let carrier = Curve3::Line(ray.line());
     let read = |run: T, whole: bool| {
-        // The run read as the segment it covers, levered from the ray's
-        // start: the run itself, the extent the crossings are decided
-        // over.
-        let arm = geom_brep::ExtentBall::of_covered(
-            geom::cover::Cover::segment(ray.start_point(), ray.start_point() + dir * run).as_ref(),
-        )
-        .lever_from(ray.start_point());
-        let span = Span::new(&carrier, (ray.start(), ray.from_start(run)));
+        let params = (ray.start(), ray.from_start(run));
+        let ends = (ray.start_point(), ray.start_point() + dir * run);
+        let arm = |point| crate::cover::piece_reach_bounds(&carrier, params, ends, point).below();
+        let span = Span::new(&carrier, params);
         let skip: &[SpanEnd] = if whole {
             &[SpanEnd::Start]
         } else {
@@ -363,23 +361,24 @@ pub fn ray_crossings_to<T: Decide>(
         };
         meetings(&span, surface, skip, band)?
             .into_iter()
-            .map(|(t, point)| crossing(surface, sense, t, point, dir, arm, band))
+            .map(|(t, point)| crossing(surface, sense, t, point, dir, arm(point), band))
             .collect()
     };
     taken_over(reach, read, taken)
 }
 
-/// **[`circle_crossings`] up to the crossing the piece takes**
-/// ([`taken_over`]): the whole turn read for where its crossings are,
-/// and each read levered over the arc it runs.
+/// **The crossings of the circle about `center` in the plane normal to
+/// `axis`, of `radius`, starting at `center + radius·u_ref` and turning
+/// right-handed about `axis`, with `surface`, up to the crossing the
+/// piece takes** ([`taken_over`]): each strictly past the start and short
+/// of a whole turn on, nearest first, the whole turn read for where they
+/// are, and each crossing levered at its read arc's reach from it.
+/// `axis` and `u_ref` are unit and orthogonal; a `taken` that takes none
+/// reads the whole turn's crossings.
 ///
 /// # Errors
 ///
 /// [`TraceFault`], past no crossing the piece takes.
-#[expect(
-    clippy::disallowed_methods,
-    reason = "a conic restated on a frame the caller holds, or a point read about a centre an arc-held ellipse derives: owed a reading through the conic (work/oneround/one-stored-form-waits-on-the-readers-of-a-conics-centre.md)"
-)]
 pub fn circle_crossings_to<T: Decide>(
     surface: &Surface<T>,
     sense: bool,
@@ -392,21 +391,16 @@ pub fn circle_crossings_to<T: Decide>(
     let tau = geom::conic_period::<T>().length();
     let carrier = Curve3::Circle(geom::Circle::new(frame, radius));
     let read = |run: T, _whole: bool| {
-        let reach = geom_brep::ExtentBall::of_covered(
-            geom::cover::Cover::arc(
-                &frame,
-                (radius, radius),
-                geom::cover::ParamWindow::new(T::zero(), run),
-            )
-            .as_ref(),
-        )
-        .lever();
+        let ends = (carrier.eval(T::zero()), carrier.eval(run));
         let span = Span::new(&carrier, (T::zero(), run));
         meetings(&span, surface, &[SpanEnd::Start, SpanEnd::Stop], band)?
             .into_iter()
             .map(|(theta, point)| {
                 let (s, c) = theta.sin_cos();
                 let velocity = v_ref * c - u_ref * s;
+                let reach =
+                    crate::cover::piece_reach_bounds(&carrier, (T::zero(), run), ends, point)
+                        .below();
                 crossing(surface, sense, theta, point, velocity, reach, band)
             })
             .collect()
@@ -414,54 +408,13 @@ pub fn circle_crossings_to<T: Decide>(
     taken_over(tau, read, taken)
 }
 
-/// **The crossings of the circle about `center` in the plane normal to
-/// `axis`, of `radius`, starting at `center + radius·u_ref` and turning
-/// right-handed about `axis`, with `surface`**: each strictly past the
-/// start and short of a whole turn on, nearest first. `axis` and `u_ref`
-/// are unit and orthogonal.
-///
-/// # Errors
-///
-/// [`TraceFault`].
-pub fn circle_crossings<T: Decide>(
-    surface: &Surface<T>,
-    sense: bool,
-    (center, axis, radius, u_ref): (Point3<T>, Vec3<T>, T, Vec3<T>),
-    band: Band,
-) -> Result<Vec<Crossing<T>>, TraceFault> {
-    // The circle on the frame its stated directions square to; the
-    // crossings' velocity reads that same frame, so it is the carrier's.
-    let frame = geom::Frame::new(center, axis, u_ref);
-    let (axis, u_ref, v_ref) = (frame.axis_unit(), frame.u_ref(), frame.v_ref());
-    // The circle's period: its parameter is its angle.
-    let tau = geom::conic_period::<T>().length();
-    let carrier = Curve3::Circle(geom::Circle::new(frame, radius));
-    let reach = geom_brep::ExtentBall::of_covered(
-        geom::cover::Cover::circle(geom::cover::Core {
-            axis: geom::Line {
-                origin: center,
-                dir: axis,
-            },
-            radius,
-        })
-        .as_ref(),
-    )
-    .lever();
-    let span = Span::new(&carrier, (T::zero(), tau));
-    meetings(&span, surface, &[SpanEnd::Start, SpanEnd::Stop], band)?
-        .into_iter()
-        .map(|(theta, point)| {
-            let (s, c) = theta.sin_cos();
-            let velocity = v_ref * c - u_ref * s;
-            crossing(surface, sense, theta, point, velocity, reach, band)
-        })
-        .collect()
-}
-
 /// One crossing at `point`, `along` the piece, its sense read off the
 /// piece's unit `velocity` against the outward normal: the cosine
 /// between them, the outward gradient's component along the velocity
-/// over its length.
+/// over its length. The cosine is read at `point`, and its definite
+/// sign is the passage (a Zero refuses as a graze), so `lever` is the
+/// piece's reach from `point`, from below
+/// ([`crate::cover::piece_reach_bounds`]).
 fn crossing<T: Decide>(
     surface: &Surface<T>,
     sense: bool,
