@@ -1,0 +1,38 @@
+## For Ev
+
+**1. Recommendation now (likely): unchanged in its rule, moved in one respect.** The reader casts one fixed ray for the whole family, at every scalar and for every caller. What moved: I now hold the one-member reading as a legitimate *second layer at check 7 only*, to be built if and only if the measurement shows bodies whose embedding certifies over a box that no fixed ray can read. Two things in the other report moved me. First, a member can be produced at `Sym<Interval>` (a re-valuation of each stored value's expression at the box's midpoint exists, as a test instrument), so "the gate holds no member" is not true in principle there. Second, its reading of `[scalars]` ("a discrete selection, checked at the lane scalar to stay the same over the box") is a fair one: the side is the selection, the embedding certificate the check.
+
+Terms as before. *Member*: the body at one value in the box. *Fixed ray*: one line, the same numbers for every member. *Embedding certificate*: the finish's proof, over the whole box, that no member's boundary meets itself.
+
+**2. The reasons given against the fixed ray.**
+- *Its reach is bounded by how far a face moves past a fixed aim (a wall to about ± 0.19).* Stands, and is correct behaviour, not a loss: past that width the ray truly meets different faces at different members. What matters is the body's reach, which is its best ray's: the slab's bottom cap does not move and reads at any width; a moving cap reads until a member's caps nearly meet.
+- *The turn on a tilted cap may still carry the box twice.* Answered in the design, not by measurement: the turn is read along the ray, about the ray's own exact point, so each vertex's enclosure enters once and no crossing point is formed. The other report's ± 0.1 estimate is for the turn left as it is today (about the crossing point, across the normal); I agree with that estimate for that reading. Unmeasured either way.
+- *Two faces that move together and stand closer than they move stay undecided.* Stands. They are owed bisection (a real width that narrows) or, if such a body is measured, the second layer.
+
+**3. Rivals or layers: layers, and the fixed ray is the rule.** The two are the same idea applied to different things. The one-member reading collapses the *body* to a point and reads it with today's reader; the fixed ray collapses the *ray* and reads the family. Collapsing the ray is sound member by member with no further premise, works at plain `Interval`, and serves every caller. Collapsing the body needs three things the ray does not: expressions to re-value (so `Sym` only), a continuity premise about a leaf that nothing in the code states, and a certificate that runs after check 7 and that the reader's other callers never get. And the one-member answer as written keeps today's riding-ray reader for plain `Interval`, so the defect both reports name survives as code. In the layered state there is one reader, the fixed-ray one. If the second layer is ever built, it is that same reader run on a re-valued body, inside the finish, for check 7 alone. At a point box the two coincide. Adopting the fixed ray does not make the member reading wrong; it makes it unnecessary unless the measurement below says otherwise. Adopting the member reading alone does not make the fixed ray unnecessary: the other callers and plain `Interval` still need a reader that reads.
+
+One fact binds both answers: the finish cannot pass beyond the width at which the embedding question certifies, whatever check 7 does. So the member reading buys reach only between "some fixed ray reads" and "embedding certifies".
+
+**4. What the numbers would have to show.**
+- *Embedding does not certify the slab at ± 0.25 or the tilted brick at the widths asked.* Then the member reading has no reach to offer there, and the blocker is the embedding question's own row. Fixed ray alone; recommendation firmer.
+- *Embedding certifies, and with the ray collapsed by hand some ray of each body reads at those widths.* Fixed ray alone. The second layer is not built.
+- *Embedding certifies, and the tilted brick reads by no collapsed ray.* Not yet decisive: the hand collapse does not read the turn along the ray. Take that one further measurement. If the brick still reads by no ray at a width its embedding certifies, I change: build the second layer for check 7 at `Sym`, the fixed ray staying the reader everywhere else.
+- *A collapsed ray reads a side no member has, anywhere.* Then my soundness claim is wrong and I withdraw to the one-member reading. I do not expect it.
+- *Walls reading only to about ± 0.19.* Expected by both reports; changes nothing.
+
+**5. What each caller is owed under the recommendation.** The same reader and the same guarantee, with no certificate needed: every reading it returns is a member-by-member reading of one line.
+- *Check 7 in the finish* (a solid's orientation): the fixed ray; the volume's sign where no ray reads, as today.
+- *Check 10 and the gate's shell roles* (outer or cavity): the same call on a shell's faces.
+- *Role reads during construction* (the pieces sort, the census's role gate, shell classification, the cavity read): the same. These read bodies no gate has passed; the fixed ray asks nothing of a gate. Under the one-member answer they would take a side "as a choice the result's finish later certifies", which its own report marks unsure.
+- *Point containment's side for a ray that crosses nothing*: the selection's side at infinity, the same reader. The query point's own motion is real width and stays box arithmetic in both answers.
+- *The standalone tier-3 doors at a box scalar*: check 7 stays a complete statement over the box. Under the one-member answer those doors would state only one member's side unless they also asked the embedding question.
+
+**Confidence.** Layers with the fixed ray as the rule: likely. The member reading's mathematics: sure, given its continuity premise, which I have not seen stated in code. The turn along the ray removing the tilted cap's double count: likely, unmeasured. Proposed design-doc text: none unless the second layer is built; then the other report's one sentence for `[topology.tiers]`, scoped to check 7.
+
+## For the orchestrator
+
+- The measurement as described ("aim and direction collapsed to the middle of their enclosures by hand before the walk") tests items 1 and 2 of my final state, not item 3 (turn along the ray) or item 4 (a crossing definitely behind the first stops nothing). Read its tilted-brick and exit-face results as a lower bound on the fixed ray's reach. If a collapsed ray is set aside, the report should say on which reading (`side_at_infinity_winding` on which face, and whether that face's crossing could be first), since that tells items 3 and 4 apart.
+- Worth recording per body and width, so the numbers decide: (a) does the embedding question certify; (b) does at least one collapsed ray read; (c) the widest width at which (a) holds and (b) does not. Only a nonempty (c) argues for the second layer.
+- The other report's "measure first" point is right and applies to both answers: if embedding widens on adjacent faces sharing the moving height, that row blocks the deletion and neither design lifts it.
+- If the second layer is built: the re-valued body is a member only where every stored value has an expression; a value with none keeps its box enclosure, so the "member" is then a narrower family, still read by the fixed-ray reader without special handling. That is another reason to build the fixed ray first.
+- I have not checked the other report's premise 1 (a leaf's stored values are continuous in the parameters) or opened `sym::revalue`; I take both as that report states them.
