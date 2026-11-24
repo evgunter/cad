@@ -1882,6 +1882,24 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "a positional `{:?}` over an expression this census does not type",
     ),
     (
+        "crates/topo/src/boolean/mod.rs",
+        "BooleanError",
+        "curve",
+        1,
+        "the binding is introduced by a pattern NESTED inside the field pattern \
+         this census reads — `gap: JunctionEndGap::NoLane { curve, surface }` — \
+         so no declared type reaches it",
+    ),
+    (
+        "crates/topo/src/boolean/mod.rs",
+        "BooleanError",
+        "surface",
+        1,
+        "the binding is introduced by a pattern NESTED inside the field pattern \
+         this census reads — `gap: JunctionEndGap::NoLane { curve, surface }` — \
+         so no declared type reaches it",
+    ),
+    (
         "crates/topo/src/cover.rs",
         "FaceUncovered",
         "ek",
