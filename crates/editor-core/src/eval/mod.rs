@@ -4621,6 +4621,13 @@ where
         Some(refused) => (None, Some(refused)),
         None => (prior, None),
     };
+    // The scope this document's nodes mint inside: the caller's, and
+    // for an instantiated document its pin under that, because two
+    // documents' node ids are minted apart and can coincide.
+    let mints = geom_core::sym::MintScope::current();
+    let mints = reached
+        .as_ref()
+        .map_or(mints, |(_, pin)| mints.child(&pin.words()));
     let sched = schedule::schedule(doc);
     // D4 door (M4 PR 6): the recorded ε must BE the committed process
     // ε — otherwise every predicate below would silently decide at
@@ -4831,6 +4838,7 @@ where
             witness: witness.as_ref(),
             pass_two,
         },
+        mints,
     };
     let mut nodes: BTreeMap<RecipeNodeId, NodeResult<T>> = BTreeMap::new();
     let mut recomputed = 0usize;
@@ -5358,6 +5366,10 @@ where
     // prior value is reused only where this run reads the very part row
     // the prior carried: a row rebuilt here may be other content under
     // the same pin ([`parts::Reached::carried_from`]).
+    // The node's scope, open over everything done on its behalf: a
+    // family's listing and its value as well as each member's step,
+    // which opens the member's own inside it.
+    let _mints = node_mints(op_env.mints, id, &[]).enter();
     let prior = prior
         .filter(|p| {
             parts::instantiated(doc, id)
@@ -5452,6 +5464,31 @@ fn bookkeep<T: topo::AtRestPolicy + Decide>(
     }
 }
 
+/// **The mint scope of one node's evaluation**
+/// ([`geom_core::sym::mint`]): inside the evaluation's scope, the node's
+/// id and the member it is evaluated as. One node is one scope in every
+/// replay of its document, so the k-th value it mints with no
+/// expression in a session has one name in all of them; two members of
+/// a family are two scopes, because a member can be served from a prior
+/// while its siblings run, and their names must not depend on which.
+///
+/// The name is the node's ID, which content keys leave out
+/// ([`NamingKey`]): a key that feeds such a value, a measured value
+/// read into a later node's slot, hashes the id of the node that minted
+/// it. Whole-value reuse already asks the naming key, which embeds
+/// every upstream id, so no hit is lost that it would not refuse.
+fn node_mints(
+    inside: geom_core::sym::MintScope,
+    id: RecipeNodeId,
+    at: &[(crate::VarId, i64)],
+) -> geom_core::sym::MintScope {
+    let words: Vec<u64> = [u64::from(id.0.ordinal()), id.0.digest()]
+        .into_iter()
+        .chain(members::at_words(at))
+        .collect();
+    inside.child(&words)
+}
+
 /// Evaluates one node against the results so far: poison propagation,
 /// slot evaluation with (node, slot) context, content key, memo
 /// lookup, and the op wiring.
@@ -5483,6 +5520,10 @@ where
     // nodes open and close their own frames ABOVE this one, so theirs
     // land on their own nodes and this frame receives only this node's.
     let bracket = geom_core::k_stats::Bracket::open();
+    // A value with no expression minted on this node's behalf, in its
+    // slots or its op, is named by the node, the member and its place
+    // in their walk.
+    let _mints = node_mints(op_env.mints, id, at).enter();
     // A failure carries what the frame recorded on the way to it,
     // whether or not the op ran.
     let fail = |bracket: geom_core::k_stats::Bracket, kind: NodeErrorKind| NodeStep {
@@ -7488,10 +7529,8 @@ fn feed_lane_step<T: ContentBits>(h: &mut KeyHasher, step: &profile::Step<T>) {
 fn feed_doc_ref(h: &mut KeyHasher, doc_ref: &crate::ident::DocRef) {
     h.write_u64((doc_ref.id.0 >> 64) as u64);
     h.write_u64(doc_ref.id.0 as u64);
-    for chunk in doc_ref.pin.0.chunks(8) {
-        let mut byte8 = [0u8; 8];
-        byte8[..chunk.len()].copy_from_slice(chunk);
-        h.write_u64(u64::from_be_bytes(byte8));
+    for word in doc_ref.pin.words() {
+        h.write_u64(word);
     }
 }
 

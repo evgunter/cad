@@ -2,10 +2,11 @@
 id: a-cut-by-a-sphere-bearing-tool-on-a-planar-seat-aborts-on-its-re-chart
 kind: issue
 title: A cut whose fused tool the cut re-charts on a sphere shell refuses JoinDesync, a kernel-bug class, with no row and no pin
-status: open
+status: closed
 opened: 2026-11-12
 priority: P2
 cost: M
+closed: 2026-11-23
 ---
 
 
@@ -23,3 +24,7 @@ No test pins the arm and no row covers it. The reviewer judged it likely reachab
 - or the arm refuses a typed limit that names the face, not an `Aborts` class.
 
 Either way, a fixture reaches it and pins it, and a mutant restoring `JoinDesync` dies.
+
+## Closed
+
+Closed 2026-11-23 by ORBIT's PR 7602 (`orbit/one-sphere-escape-cut`), which retires the rotation re-chart. `Through::restate`'s `recharted[1]` arm is deleted with `BooleanNaming::recharted`: no cut re-charts a shell of its tool any more. A tool's closed ball is cut in on the material along its own meridian instead. `Through::restate` reads the cut's `chart_cuts[1]` and division rows back to the tool, where a key the material did not mint passes through as the cut's own. Pinned by `crates/sweep/tests/a_cut_by_a_seated_tool_cuts_its_ball_in.rs`. The slab is cut by one body of two seated bricks (one planar record) and a ball poking through the slab's top. The test checks that the cut builds at its closed form, tier-3 valid, with the ball cut in on the material, and that every operand-B face its holdings and rows name is a face of the tool. A brick that crosses the slab puts that op on the crossings path, where the ball meets the interior-loop guard (`work/germ/interior-loop-cut-in.md`), not this row's arm.
