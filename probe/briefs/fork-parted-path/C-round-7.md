@@ -1,0 +1,15 @@
+## For Ev
+
+**I hold "refused at once" (likely), and I have not moved.** The agreed list is right as you wrote it.
+
+A parted leaf is one whose record differs from the nominal's with no question answered the other way: not proven the same part, not proven another. The case for bisecting it rests on one sentence: with the two arithmetics held alike by a test, a parting that remains can only come from box width or geometry, which a narrower box may cure. That sentence describes the tested documents, and on the tested documents there are no partings to bisect: none of 2,307 decided leaves parts once the plates' check is unlogged. The leaves this phrase will actually govern are the ones the test does not cover: a user's document that reaches a place where the two arithmetics log differently. There the parting is present already at zero width, no split can help, and bisecting spends the whole leaf budget (65,536 leaves by default) to arrive at the same sentence a single replay gives. So the choice is between a cost that is certain on every case seen and a benefit on a case nobody has seen. It is also what E6 says today: a leaf definite on a different record is refused, and only an undecided one is split. "Refuse outright only what splitting is proven not to help" is a principle the reports read into E6, mine first; it is a fair principle, and a parting that exists at zero width satisfies it. If a parting that width causes is ever measured, bisecting that kind alone is one arm, added then with its evidence.
+
+**Who should rule it: the orchestrator, as a detail of the unit.** Three reasons. The two phrases give the same verdict on every measured leaf, so there is nothing for you to weigh but a prediction. Either is reversed by one arm, so a wrong ruling is cheap. And "refused at once" changes nothing in E6's ratified text beyond the clause all three already propose, where "bisects" adds a second case to E6's rule for when a leaf splits. If it is put to you anyway, the two sentences are: *a parted leaf is refused at once, named; a parting that a narrower box cures gets its own arm when one is found* against *a parted leaf is split like an undecided one and named at the floor; a document whose arithmetics log differently spends its budget to say so.*
+
+**Confidence.** The phrase: likely. That nothing measured separates the two: sure.
+
+## For the orchestrator
+
+- Nothing new read beyond the two round-6 replies; nothing run.
+- I take both additions the others made in round 6 without change: a failed node whose log holds a decision turned against the witness is a named `FlipCrossing`, refused at once; and the certified bullet's "topology" is replaced (I prefer "takes the nominal build's decisions", which claims only what the comparison shows).
+- One caution for the unit's review, whichever phrase is ruled: a row that plants a parting at zero width and pins what the drive spends on it (one replay, or the budget), so the cost of the ruling is a number on main and not an argument.
