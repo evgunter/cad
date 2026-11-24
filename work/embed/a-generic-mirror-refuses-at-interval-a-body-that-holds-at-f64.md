@@ -92,7 +92,51 @@ an axis plane, at both scalars.
 ## Evidence
 
 Pinned as it reads:
-`self_intersection_proves_injectivity::the_ring_and_the_interval_block_refuse_mirrored_across_a_generic_plane`
+`self_intersection_proves_injectivity::a_generic_mirror_refuses_the_ring_at_f64_and_the_block_at_interval`
 (the block's `Interval` refusal by class; the ring's by class at both
 scalars).
+
+## 2026-11-24: the ring's half is closed by main; the block's stands
+
+On `embed/wave3-land-next` (the landing branch with main `17e78d9c90`),
+`Interval`:
+
+- **The mirrored ring holds**: `Holds`, 21 candidate pairs, 249 cells
+  discharged, 228 splits, 82 certified, none refused. The pair that
+  refused (the inner wall `3v1` against its cap `4v1`, across the rim
+  `6v1`) is certified at its root cell with no split, by the carrier
+  arm: the wall is presented with its side on the rim, and it departs
+  the cap's plane.
+- **Why it was not presented before.** `sheets` reads the wall's extent
+  in the angle off the stored lift and counts the copies of it, a whole
+  turn apart, that the cell meets by more than `chart_slack`
+  (`8 ε · 2π = 1.1e-14`). The extent's enclosure ends past a whole turn
+  by its own rounding, so the copy a turn back reaches into the root
+  cell by that much:
+
+  | tree | extent in the angle | the copy a turn back overlaps the cell by | copies met | `sheets` |
+  |---|---|---|---|---|
+  | `0a1e9944db` | `(0.0009999999999799, 6.283185307179604)` | `1.78e-14` | 2 | `Local`, at every cell holding the wall's start |
+  | with main | `(0.0009999999999920, 6.283185307179596)` | `9.8e-15` | 1 | the wall is presented |
+
+  The face has no points in that overlap: its extent is a milliradian
+  short of a turn, and the overshoot is the enclosure's width. So the
+  copy is rightly missed, and the hold is the right verdict.
+- **Which of main's changes**: main through `4ab816bbfb` already reads
+  so (the scratch tree `0a1e9944db` + `018b163504`), so it is not
+  conic-symmetry (PR 7640). Not narrowed further: the extent's enclosure
+  is `1.8×` tighter, which is what a unit direction stored exactly
+  (PR 7349) would do, but that is a guess from the numbers.
+- **It is a margin of `1.4e-15`**: an enclosure `15%` wider puts the
+  ring back at `Local`. What decides is whether an extent short of a
+  turn, enclosed to a rounding past it, is read as meeting its own
+  copy; a ring a milliradian short of a turn refusing for a `2e-14`
+  enclosure is the defect, and it is `sheets`' to state, not this
+  row's.
+- **Negative beside it**:
+  `self_intersection_proves_injectivity::a_flap_through_the_mirrored_rings_wall_never_holds`
+  (a triangle through the inner wall and one through the outer, in the
+  mirrored pose: `Violated`, pair and whole body, both scalars).
+- **The block at `Interval` stands**: `Budget { Depth 40, 3v3, 4v1 }`,
+  on the grid and off it. The title's ring half no longer holds.
 

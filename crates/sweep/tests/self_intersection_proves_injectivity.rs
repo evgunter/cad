@@ -2693,26 +2693,35 @@ fn a_wall_holds_against_a_face_at_a_vertex_mid_ruling() {
 }
 
 /// **Mirrored across a plane that is no axis plane, the ring refuses at
-/// both scalars and the block holds at `f64` only.** Two causes.
+/// `f64` and holds at `Interval`, and the block holds at `f64` and
+/// refuses at `Interval`.** Each scalar's refusal has its own cause.
 ///
-/// - **At `f64`, the ring**: the mirror re-mints each rim circle's chart
+/// - **The ring at `f64`**: the mirror re-mints each rim circle's chart
 ///   row with a rounding in its axial channel, so it reads as a harmonic
-///   image and not as a coordinate line, and a cell holding that circle
-///   beside a ruling's vertex is handed to the curve presentations and
-///   read at no depth
+///   image and not as a coordinate line
 ///   (`work/pcert/a-cylinder-rim-on-a-turned-frame-stores-a-rounding-in-its-axial-channel-at-f64.md`,
 ///   its third sighting). `Uncertified { Departure }` across an edge of
-///   a plane end face and a cylinder wall. This half goes red the day
-///   that row is fixed.
-/// - **At `Interval`, the ring and the block**: the ring refuses on
-///   another pair, and the block, embedded at `f64` on the grid and off
-///   it with its wall holding against both faces at the vertex, refuses
-///   whole; cause not isolated
+///   a plane face and a cylinder wall. This half goes red the day that
+///   row is fixed.
+/// - **The ring at `Interval`** holds. Its wall's extent in the angle,
+///   read off the stored lift, ends a rounding past a whole turn, and
+///   the copy a turn back reaches into the root cell by that rounding:
+///   `9.8e-15`, inside the slack `sheets` reads an extent with
+///   (`1.1e-14`), so the cell meets one copy and the wall is presented.
+///   Before main's unit directions the enclosure ended `1.8e-14` past,
+///   outside the slack: two copies, and no presentation at any depth.
+///   The face has no points in that overlap (its extent is short of a
+///   turn), so the copy is rightly missed.
+///   [`a_flap_through_the_mirrored_rings_wall_never_holds`] is the
+///   negative beside it.
+/// - **The block at `Interval`** refuses whole (it is embedded at `f64`,
+///   on the grid and off it, its wall holding against both faces at the
+///   vertex); cause not isolated
 ///   (`work/embed/a-generic-mirror-refuses-at-interval-a-body-that-holds-at-f64.md`).
 ///
 /// Mirrored across an axis plane both hold.
 #[test]
-fn the_ring_and_the_interval_block_refuse_mirrored_across_a_generic_plane() {
+fn a_generic_mirror_refuses_the_ring_at_f64_and_the_block_at_interval() {
     use topo::clearance::Embedding;
 
     type Build<T> = fn() -> topo::AtRestBody<T>;
@@ -2750,11 +2759,12 @@ fn the_ring_and_the_interval_block_refuse_mirrored_across_a_generic_plane() {
     let ring = mirrored_generically(&near_full_ring::<f64>().into_body());
     let twin = mirrored_generically(&near_full_ring::<Interval>().into_body());
     let report = injective(&ring, None, BUDGET);
-    same_class(
-        "the mirrored ring",
-        &report,
-        &injective(&twin, None, BUDGET),
+    let at_interval = injective(&twin, None, BUDGET);
+    println!(
+        "[clip-vertex] the mirrored ring at Interval: {:?} {:?}",
+        at_interval.verdict, at_interval.receipt
     );
+    assert_holds("the mirrored ring at Interval", &at_interval, &twin);
     let BoundVerdict::Refused(EngineRefusal::Uncertified {
         a,
         b,
@@ -2784,6 +2794,131 @@ fn the_ring_and_the_interval_block_refuse_mirrored_across_a_generic_plane() {
             Embedding::Embedded,
             "{what}, mirrored across an axis plane"
         );
+    }
+}
+
+/// **A flap through a wall of the mirrored ring never holds**, at
+/// either scalar, through the inner wall and through the outer one. From
+/// a vertex of [`near_full_ring`] on a wall's upper rim, where the wall
+/// starts, hangs a triangle whose far edge crosses that wall: from
+/// `(0.5, 1, 0)` to `(0.7, 0.5, 0.3)` and `(0.2, 0.5, 0.3)`, through the
+/// inner wall at `(0.4, 0.5, 0.3)`; from `(1, 1, 0)` to
+/// `(1.3, 0.5, 0.4)` and `(0.7, 0.5, 0.4)`, through the outer wall at
+/// `(0.917, 0.5, 0.4)`. The body is then mirrored across the generic
+/// plane. The negative beside the mirrored ring's hold at `Interval`
+/// ([`a_generic_mirror_refuses_the_ring_at_f64_and_the_block_at_interval`]),
+/// whose inner wall against its upper cap is the pair that was not
+/// presented before: red if a wall, presented where its extent's copy a
+/// turn back is missed, is certified against a face that passes through
+/// it.
+#[test]
+fn a_flap_through_the_mirrored_rings_wall_never_holds() {
+    type P = (f64, f64, f64);
+    fn flapped<T: Scalar>(r: f64, from: P, to: [P; 2]) -> (Body<T>, FaceKey, FaceKey) {
+        use geom_brep::EdgeCurveSpec;
+        use topo::construction::{Construct, FaceSurface, MefSite, MevSite};
+        use topo::test_support::plane;
+
+        let mut body = near_full_ring::<T>().into_body();
+        let at =
+            |x: f64, y: f64, z: f64| Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z));
+        let v_at = at(from.0, from.1, from.2);
+        let v = body
+            .vertices()
+            .find(|(_, x)| (*body.get_point(x.point).unwrap() - v_at).norm().hi() < 1e-12)
+            .unwrap()
+            .0;
+        let wall = body
+            .faces()
+            .map(|(k, _)| k)
+            .find(|&f| match surface(&body, f) {
+                Surface::Cylinder { radius, .. } => (mid(radius) - r).abs() < 1e-9,
+                _ => false,
+            })
+            .unwrap();
+        let face_of = |body: &Body<T>, he| {
+            body.get_loop(body.get_half_edge(he).unwrap().parent_loop)
+                .unwrap()
+                .face
+        };
+        // The struts hang in the ring's upper cap, so the wall keeps its
+        // edges at the vertex.
+        let cap = |body: &Body<T>, f: FaceKey| match surface(body, f) {
+            Surface::Plane { frame } => mid(frame.axis().y).abs() > 0.5,
+            _ => false,
+        };
+        let h = body
+            .edges()
+            .flat_map(|(_, e)| [e.he_plus, e.he_minus])
+            .find(|&he| {
+                body.get_half_edge(he).unwrap().start == v && cap(&body, face_of(&body, he))
+            })
+            .unwrap();
+        let [a0, a1] = to.map(|(x, y, z)| at(x, y, z));
+        let fan = MevSite::Fan { he1: h, he2: h };
+        let strut0 = body.mev_line(fan, a0, tol()).unwrap();
+        let strut1 = body.mev_line(fan, a1, tol()).unwrap();
+        let flap = body
+            .mef(
+                MefSite::Chords {
+                    he1: strut0.he_minus,
+                    he2: strut1.he_minus,
+                },
+                EdgeCurveSpec::line_between(a0, a1),
+                FaceSurface::New {
+                    surface: plane(&[a0, v_at, a1], tol()),
+                    sense: true,
+                },
+                tol(),
+            )
+            .unwrap()
+            .face;
+        topo::mint_pcurves(&mut body, tol()).unwrap();
+        (mirrored_generically(&body), wall, flap)
+    }
+    let grafts: [(&str, f64, P, [P; 2]); 2] = [
+        (
+            "the inner wall",
+            0.5,
+            (0.5, 1.0, 0.0),
+            [(0.7, 0.5, 0.3), (0.2, 0.5, 0.3)],
+        ),
+        (
+            "the outer wall",
+            1.0,
+            (1.0, 1.0, 0.0),
+            [(1.3, 0.5, 0.4), (0.7, 0.5, 0.4)],
+        ),
+    ];
+    for (which, r, from, to) in grafts {
+        let (body, wall, flap) = flapped::<f64>(r, from, to);
+        let (twin, tw, tf) = flapped::<Interval>(r, from, to);
+        for (scalar, pair, whole) in [
+            (
+                "f64",
+                injective(&body, Some(vec![wall, flap]), BUDGET),
+                injective(&body, None, BUDGET),
+            ),
+            (
+                "Interval",
+                injective(&twin, Some(vec![tw, tf]), BUDGET),
+                injective(&twin, None, BUDGET),
+            ),
+        ] {
+            println!(
+                "[clip-vertex] the mirrored ring, {which} {wall:?} and the flap through it, {scalar}: pair {} | whole {}",
+                class(&pair.verdict),
+                class(&whole.verdict)
+            );
+            for (what, report) in [("the pair", &pair), ("the whole body", &whole)] {
+                assert!(
+                    !matches!(report.verdict, BoundVerdict::Holds),
+                    "{which}, {scalar}, {what}: the flap passes through the wall: {:?} {:?}",
+                    report.verdict,
+                    report.receipt
+                );
+            }
+        }
     }
 }
 
