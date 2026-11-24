@@ -431,8 +431,10 @@ mod tests {
         assert_eq!(forms, 0, "the hull excludes 0: refuted");
     }
 
-    /// **Values with no expression decline**: a `free_identity` margin
-    /// (its number is a measured bound, not its expression's value), an
+    /// **Values with no expression decline**: a `free_identity` margin,
+    /// read by the `SymOp::Free` it mints (its number is a measured bound,
+    /// not its expression's value; the variable is minted here as the
+    /// door mints it, the door's one caller being limb 2), an
     /// opaque value, a hull and a parameter with no bracket each read
     /// nothing, and the tier is asked as before. Each red under the
     /// mutant that reads the value as 0.
@@ -441,8 +443,7 @@ mod tests {
         type Row = (&'static str, fn() -> S);
         let rows: [Row; 4] = [
             ("free identity", || {
-                use crate::Decide;
-                param("x", -1.0, 1.0).free_identity(|free| free(lit(0.0)) + lit(0.5))
+                S::nullary(Interval::from_bounds(-1.0, 1.0), SymOp::Free, 0) + lit(0.5)
             }),
             ("opaque", || {
                 S::opaque(Interval::from_bounds(-1.0, 1.0)) + lit(0.5)
