@@ -368,7 +368,7 @@ fn f64_line(verb: &str, q: f64, pose: Pose) -> (String, Vec<f64>) {
             for x in [arc.centre.x, arc.centre.y, arc.radius, arc.sweep] {
                 fnv(&mut h, x.to_bits());
             }
-            if !(arc.radius > 0.0) {
+            if arc.radius <= 0.0 || arc.radius.is_nan() {
                 bad.push(arc.radius);
             }
             // The stored sweep's sign and a radius's sign are one
@@ -405,7 +405,7 @@ fn f64_line(verb: &str, q: f64, pose: Pose) -> (String, Vec<f64>) {
             ] {
                 fnv(&mut h, x.to_bits());
             }
-            if !(arc.radius > 0.0) {
+            if arc.radius <= 0.0 || arc.radius.is_nan() {
                 bad.push(arc.radius);
             }
         }
