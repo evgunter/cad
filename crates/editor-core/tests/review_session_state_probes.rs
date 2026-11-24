@@ -429,3 +429,49 @@ fn the_table_against_the_leaf_count() {
     }
 }
 
+
+/// **A leaf served from an earlier leaf of a drive whose table serves
+/// nothing** (`DriveConfig::plain_memo` off): the prior is under the
+/// same table token, so it is read; its values' nodes are in no table
+/// this leaf reads.
+#[test]
+fn a_leaf_served_under_a_table_that_serves_nothing() {
+    use editor_core::analysis::BoxAxis;
+    let tol = Tol::witness();
+    let doc = crate::m10_7_plate::plate(5.0e-5, 1.0e-5, tol).0;
+    let root = ParamBox::of(&analyzed_box(&doc, &AnalysisPolicy::default()));
+    let counting = Arc::new(DriveMemo::counting_only(budget(), SymRules::shipped()));
+    let (parent, _, _) = run(&doc, Some(&root), None, None, &counting, false, tol);
+    let mut moved = 0;
+    for (var, lo, hi) in root.varying() {
+        let mut axes = root.axes().clone();
+        axes.insert(var, BoxAxis::Varying { lo, hi: 0.5 * (lo + hi) });
+        let half = ParamBox::from_axes(axes);
+        let (served, served_session, _) =
+            run(&doc, Some(&half), None, Some(&parent), &counting, false, tol);
+        let (_, fresh_session, _) = run(
+            &doc,
+            Some(&half),
+            None,
+            None,
+            &Arc::new(DriveMemo::counting_only(budget(), SymRules::shipped())),
+            false,
+            tol,
+        );
+        let mut with_served = served_session;
+        for id in &served.order {
+            if let (Some(NodeResult::Ok(now)), Some(NodeResult::Ok(then))) =
+                (served.result(*id), parent.result(*id))
+                && Arc::ptr_eq(&now.sym, &then.sym)
+            {
+                with_served.absorb(now.sym.counts());
+            }
+        }
+        println!(
+            "axis {var:?}: refused {:?} reused {}; served+reused {with_served:?}; fresh {fresh_session:?}",
+            served.prior_refused, served.reused
+        );
+        moved += usize::from(with_served != fresh_session);
+    }
+    println!("axes on which the served leaf decides otherwise than the fresh one: {moved}");
+}

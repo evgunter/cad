@@ -91,3 +91,36 @@ fn two_equal_records_at_two_addresses_are_both_counted() {
     });
     assert_eq!(counts, (1, 2), "one address is read once; an equal record elsewhere is read again");
 }
+
+/// **What a record's `Debug` text and its `==` cost along a chain of
+/// readers.** Node `k` reads node `k − 1` and registers one identity
+/// of its own, so its record is built over `k − 1` records, each of
+/// which prints the records it was built over in turn.
+#[test]
+fn a_records_text_along_a_chain_of_readers() {
+    let (sizes, _) = with_session_retry(budget(), SymRules::shipped(), SymRetry::none(), || {
+        let mut sizes = Vec::new();
+        let mut last: Option<Arc<NodeRecord>> = None;
+        for k in 1..=16_u64 {
+            let read: Vec<&Arc<NodeRecord>> = last.iter().collect();
+            let record = as_node(100 + k, &read, || {
+                let name = format!("chain{k}");
+                let x = p(&name, 0.25);
+                let _ = (x + x).register_equal(p(&format!("twice{k}"), 0.5), Tol::witness());
+            });
+            let t0 = std::time::Instant::now();
+            let text = format!("{record:?}").len();
+            let printed = t0.elapsed();
+            let t0 = std::time::Instant::now();
+            let equal = *record == (*record).clone();
+            sizes.push((k, record.read(), text, printed, equal, t0.elapsed()));
+            last = Some(record);
+        }
+        sizes
+    });
+    for (k, read, text, printed, equal, compared) in &sizes {
+        println!("node {k}: reads {read} identities; Debug {text} bytes in {printed:?}; == {equal} in {compared:?}");
+    }
+    let (first, last) = (sizes[3].2, sizes[15].2);
+    println!("Debug text grows {}x from node 4 to node 16", last / first);
+}
