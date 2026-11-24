@@ -310,6 +310,7 @@ pub(crate) fn name_union<T: geom_core::Decide>(
     }
     pieces.mint(&mut t, &mut tie)?;
     tie.flush(&mut t)?;
+    let t = super::emit::name_conventional_vertices(t, body, 0)?;
     check_total(&t, body, 0)?;
     Ok((Arc::new(t), groups))
 }
@@ -3015,6 +3016,10 @@ fn orient<'s>(
                 face: done.need(face)?.clone(),
                 sense: collapsed_sense(sense, done)?,
             }],
+            // A closed edge's conventional vertex: its edge collapsed.
+            RoleSeg::ConventionalVertex(edge) => {
+                vec![RoleSeg::ConventionalVertex(done.need(edge)?.clone())]
+            }
             RoleSeg::EdgeCrossing(run) => vec![RoleSeg::EdgeCrossing(
                 run.iter()
                     .map(|l| {
@@ -3115,6 +3120,7 @@ fn orient<'s>(
             | RoleSeg::Crossing { .. }
             | RoleSeg::EdgeCrossing { .. }
             | RoleSeg::Merged(_)
+            | RoleSeg::ConventionalVertex(_)
             | never_in_a_boolean_table!() => foreign(seg, "a head segment in its tail"),
         });
     }

@@ -1312,7 +1312,9 @@ pub(crate) fn name_family<T: geom_core::Real>(
     }
     for (i, body) in bodies.iter().enumerate() {
         if let Some(body) = body {
-            check_total(&t, body, narrow(i, Numbered::OutputBody)?)?;
+            let ix = narrow(i, Numbered::OutputBody)?;
+            t = name_conventional_vertices(t, body, ix)?;
+            check_total(&t, body, ix)?;
         }
     }
     Ok(Arc::new(t))
@@ -1350,7 +1352,9 @@ pub(crate) fn name_copy<T: geom_core::Real>(
         }
     }
     for (ix, body) in placed.iter().enumerate() {
-        check_total(&t, body, narrow(ix, Numbered::OutputBody)?)?;
+        let ix = narrow(ix, Numbered::OutputBody)?;
+        t = name_conventional_vertices(t, body, ix)?;
+        check_total(&t, body, ix)?;
     }
     Ok(Arc::new(t))
 }
@@ -1430,6 +1434,7 @@ pub(crate) fn name_assemble<T: geom_core::Real>(
             _ => t.insert_tied(keyed, moved)?,
         }
     }
+    let t = name_conventional_vertices(t, fused, 0)?;
     check_total(&t, fused, 0)?;
     Ok(Arc::new(t))
 }
@@ -1676,6 +1681,105 @@ pub(crate) fn edge_ends<T: geom_core::Real>(body: &Body<T>, e: EdgeKey) -> (Vert
     })
 }
 
+/// `v`'s closed edge, where `v` is a conventional vertex
+/// (`topo::is_conventional_vertex`) and not a construction's own rim
+/// self-loop vertex under `name`, the name `v` holds now.
+pub(crate) fn conventional_edge<T: geom_core::Real>(
+    body: &Body<T>,
+    v: VertexKey,
+    name: Option<&StableName>,
+) -> Option<EdgeKey> {
+    if !topo::is_conventional_vertex(body, v) || name.is_some_and(own_rim_vertex) {
+        return None;
+    }
+    let first = body.get_vertex(v)?.emanating?;
+    Some(body.get_half_edge(first)?.edge)
+}
+
+/// Whether `name` is a construction's own rim self-loop vertex
+/// (`RoleSeg::MeridianVertex` at the seam), which keeps its name.
+fn own_rim_vertex(name: &StableName) -> bool {
+    matches!(
+        super::words::role_leaf(name).path.as_slice(),
+        [super::role::RoleSeg::MeridianVertex(
+            super::role::MeridianEnd::Seam,
+            _
+        )]
+    )
+}
+
+/// The name of the conventional vertex of closed edge `edge`: that
+/// edge's name, and nothing else (`names/README.md`, "A conventional
+/// vertex").
+pub(crate) fn conventional_vertex_name(edge: &super::role::NameRef) -> StableName {
+    StableName {
+        kind: EntityKind::Vertex,
+        node: edge.node,
+        path: vec![super::role::RoleSeg::ConventionalVertex(edge.clone())],
+    }
+}
+
+/// **Names every conventional vertex of `body` (output body `ix`) for
+/// its closed edge**, replacing whatever row the emission gave it: the
+/// vertex has no identity of its own, so no member, position or fold
+/// step it was met at stands in its name ([`conventional_vertex_name`]).
+/// Vertices whose edges share one tied name tie.
+///
+/// Every emitter runs this once its edges are named, before
+/// [`check_total`], and no edge name it reads cites the vertex: a
+/// piece's `Ends` skip it (`emit_topo::name_edge_pieces`).
+///
+/// # Errors
+///
+/// [`NamingError::Emission`] where a tied row holds a conventional
+/// vertex, or its edge is unnamed; [`SeatingRefusal`]s as the insert
+/// doors'.
+pub(crate) fn name_conventional_vertices<T: geom_core::Real>(
+    table: NameTable,
+    body: &Body<T>,
+    ix: u32,
+) -> Result<NameTable, NamingError> {
+    let mut renamed: BTreeMap<EntityRef, StableName> = BTreeMap::new();
+    for (v, _) in body.vertices() {
+        let at = ent(ix, EntityKey::Vertex(v));
+        let Some(edge) = conventional_edge(body, v, table.name_of(&at)) else {
+            continue;
+        };
+        let Some(edge) = table.name_ref_of(&ent(ix, EntityKey::Edge(edge))) else {
+            return Err(NamingError::Emission {
+                what: "a conventional vertex's closed edge is unnamed when its vertex is named",
+            });
+        };
+        renamed.insert(at, conventional_vertex_name(edge));
+    }
+    if renamed.is_empty() {
+        return Ok(table);
+    }
+    let mut out = NameTable::new();
+    let mut by_name: BTreeMap<StableName, Vec<EntityRef>> = BTreeMap::new();
+    for (name, row) in table.rows() {
+        let pairs: Vec<_> = row.pairs().collect();
+        match pairs.as_slice() {
+            [(_, e)] if renamed.contains_key(e) => {
+                by_name
+                    .entry(renamed[e].clone())
+                    .or_default()
+                    .push(*e);
+            }
+            _ if pairs.iter().any(|(_, e)| renamed.contains_key(e)) => {
+                return Err(NamingError::Emission {
+                    what: "a tied row holds a conventional vertex, which is named for its edge",
+                });
+            }
+            _ => super::defer::narrow_into(&mut out, name.clone(), pairs)?,
+        }
+    }
+    for (name, ents) in by_name {
+        super::defer::mint_into(&mut out, super::role::NameRef::new(name), ents)?;
+    }
+    Ok(out)
+}
+
 /// TOTALITY (spec D4): every live face/edge/vertex of `body` (output
 /// body index `ix`) is covered by the table, plus the body row
 /// itself. Debug builds check the converse too: every row at `ix`
@@ -1720,21 +1824,16 @@ pub(crate) fn check_total<T: geom_core::Real>(
         let Some(name) = table.name_of(&ent(ix, EntityKey::Vertex(v))) else {
             return Err(miss(EntityKind::Vertex));
         };
-        // A conventional vertex has no identity of its own: no rule may
-        // name it for a member or a position. A construction's own rim
-        // self-loop vertex is that construction's, and keeps its name.
-        let own_rim = matches!(
-            super::words::role_leaf(name).path.as_slice(),
-            [super::role::RoleSeg::MeridianVertex(
-                super::role::MeridianEnd::Seam,
-                _
-            )]
-        );
-        if topo::is_conventional_vertex(body, v) && !own_rim {
-            return Err(NamingError::ConventionalVertex {
-                vertex: v,
-                body: ix,
-            });
+        // A conventional vertex has no identity of its own: it is named
+        // for its closed edge alone ([`name_conventional_vertices`]). A
+        // construction's own rim self-loop vertex keeps its name.
+        if let Some(edge) = conventional_edge(body, v, Some(name)) {
+            let edge = table.name_ref_of(&ent(ix, EntityKey::Edge(edge)));
+            if edge.is_none_or(|e| *name != conventional_vertex_name(e)) {
+                return Err(NamingError::Emission {
+                    what: "a conventional vertex is named other than for its closed edge",
+                });
+            }
         }
     }
     Ok(())

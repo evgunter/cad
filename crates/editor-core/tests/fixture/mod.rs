@@ -3975,7 +3975,8 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::BandCut(x)
         | RoleSeg::Inner(x)
         | RoleSeg::Rim(x)
-        | RoleSeg::HoleRim { of: x, .. } => vec![x.as_ref()],
+        | RoleSeg::HoleRim { of: x, .. }
+        | RoleSeg::ConventionalVertex(x) => vec![x.as_ref()],
         RoleSeg::Seam { a: x, b: y }
         | RoleSeg::TrimEdge {
             edge: x,

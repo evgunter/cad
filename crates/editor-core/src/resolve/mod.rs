@@ -2880,6 +2880,8 @@ fn embedded<'a>(name: &'a StableName, partners: Partners, f: &mut Vec<(&'a Stabl
             | RoleSeg::SplitFragment { parent: n }
             | RoleSeg::OnToolVertex { of: n }
             | RoleSeg::Member { of: n, at: _ }
+            // A conventional vertex is its closed edge's.
+            | RoleSeg::ConventionalVertex(n)
             // The fillet vocabulary (M6-5): every argument is the
             // SOURCE entity the blend was born for — derivation, not
             // discrimination.

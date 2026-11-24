@@ -327,6 +327,7 @@ pub(crate) fn name_shell<T: geom_core::Real>(
     }
     named_pieces.mint(&mut t, &mut tie)?;
     tie.flush(&mut t)?;
+    let t = super::emit::name_conventional_vertices(t, body, 0)?;
     check_total(&t, body, 0)?;
     Ok(Arc::new(t))
 }

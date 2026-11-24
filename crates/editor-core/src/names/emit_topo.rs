@@ -342,7 +342,9 @@ pub(crate) fn name_split<T: Decide>(
     }
 
     for s in &sides {
-        super::emit::check_total(&halves[s.slot()].t, s.body, 0)?;
+        let h = &mut halves[s.slot()];
+        h.t = super::emit::name_conventional_vertices(std::mem::take(&mut h.t), s.body, 0)?;
+        super::emit::check_total(&h.t, s.body, 0)?;
     }
     let [above, below] = halves;
     Ok([above, below].map(|h| Emitted::new(h.t, h.rec)))
@@ -1882,6 +1884,7 @@ pub(crate) fn name_boolean<T: Decide>(
     pieces.mint(&mut t, &mut tie)?;
     tie.flush(&mut t)?;
 
+    let t = super::emit::name_conventional_vertices(t, body, 0)?;
     super::emit::check_total(&t, body, 0)?;
     Ok(Emitted::new(t, rec))
 }
@@ -4963,7 +4966,13 @@ pub(super) fn name_edge_pieces<T: geom_core::Real>(
         let (v0, v1) = edge_ends(body, e);
         let mut ends = Vec::with_capacity(2);
         for v in [v0, v1] {
-            let Some(end) = t.name_of(&ent(ix, EntityKey::Vertex(v))) else {
+            let end = t.name_of(&ent(ix, EntityKey::Vertex(v)));
+            // A closed edge's conventional vertex is named for the edge,
+            // so the edge's name cites none of it.
+            if super::emit::conventional_edge(body, v, end).is_some() {
+                continue;
+            }
+            let Some(end) = end else {
                 unreachable!(
                     "edge piece {e:?} under {base:?} ends at vertex {v:?}, which the table does \
                      not name: every caller (split, boolean, shell, union) names each vertex of \

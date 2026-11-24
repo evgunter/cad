@@ -388,6 +388,7 @@ pub(super) fn name_blend<T: geom_core::Real>(
     // ONE stage, so one flush — and it must precede the totality
     // check, which reads the table this drains into.
     tie.flush(&mut t)?;
+    let t = super::emit::name_conventional_vertices(t, body, 0)?;
     check_total(&t, body, 0)?;
     Ok(Arc::new(t))
 }
