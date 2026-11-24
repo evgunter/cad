@@ -64,9 +64,18 @@ One representative build each; margins at `Interval` on the nominal as in M13's 
 
 Payload `Skin(Structure(Built(CarrierWeightNotAPoint { index: 1 })))`, at `Interval` and at `Sym<Interval>` alike, 0 escalations. Raised by `weight_channel` (`crates/geom/src/net.rs:229-244`) when a weight has no point value. *Inferred*: the arc's weight `cos(Δ/2)` is computed at the run's scalar, an interval cosine of a point rounds outward, and the test is a structure test, not a funnel decision, so nothing is logged.
 
+## 7. The 27,667 `Extrude` leaves, and two corrections to M13
+
+- **Variant: all 27,667 are `ExtrudeError::DegenerateExtrusion`** (the failed node's payload printed per leaf; 13,908 end `Budget`, 13,759 split). It is the decided `Sign::Zero` arm of `swept::decide_reported("extrusion_normal_component", Margin::of(depth), band)` (`crates/sweep/src/extrude.rs:800-805`, read). The variant carries no margin (`extrude.rs:356`), so the enclosure is the leaf's depth: a representative that ends `Budget` has offsets [-3.086e-8, -3.066e-8] on a nominal depth of 3e-8, i.e. depth in [-8.6e-10, -6.6e-10], wholly inside the zero band (1e-9). Every such leaf is at most 7.8e-10 wide. That the nominal is 3e-8 for that drive is read off its witness's end cap; for the other drives *inferred*.
+- **It is not `ExtrusionEscalated`, and no log is dropped**: 0 escalations on any node of these leaves, and none is expected from a decided Zero.
+- **No such box has certified mass below it: 0 of 27,667.** **Correction to M13 section 4:** the 13 boxes that split on a failed node and hold certified mass below (2.02) are 9 `ProfileLaneReplay { loop_: 0, step: 2, structure: None }` (1.52; `m10_3`'s undecided-axis row) and 4 `Extrude(Op { DescriptionUncertified { .. AnalyticRung3(CarrierEnclosure..) } })` (0.50; the `notch` drives). So the degenerate extrusion is a definite refusal the drive bisects to the budget (the filed row), and the failures that a narrower box removes are those two.
+- **Re-correction to M13's addendum A2 (`extrusion_normal_component`, 122 flip leaves).** The representative leaf's depth is NEGATIVE: offsets [-1e-7, -5e-8] on a nominal 3e-8, depth in [-7e-8, -2e-8]. `wire_extrude` answers the sweep's `NegativeDepth` by sweeping |d| and placing the start cap d along the profile's z (`crates/editor-core/src/eval/wire.rs:1728-1760`, read). The body's own-coordinate vertices show an end cap at z in [2e-8, 7e-8]; the placement is in the body's frame, which neither the record nor my geometry dump holds. So a consumer holding the leaf's body sees the witness's cells on the OTHER side of the sketch plane; my addendum's "it does not change side; it is thicker" read another node's vertices and was wrong. *Inferred* from the read code that the frame carries the offset; the frame itself not dumped.
+- So by class: `segment_gap` (300) and `carrier_line_circle` (18) move coordinates only; `path_junction_turn` (220) turns one crease's convexity (and `dihedral_sign` as a check); `extrusion_normal_component` (122) moves the body across its sketch plane through a frame the record does not hold.
+
 ## Not measured
 
 - The two `pcurve_chart_placement` margins and every `f64` margin: the logs keep none.
 - `germ_side` at `Sym<Interval>`.
+- A body's frame: in neither the record nor the dump.
 - The escalation table at `Sym<Interval>` beyond one build per predicate.
 - Two rows are red in this pass with the probe on (`docm9_range`'s plate row, `m10_9_what_the_registry_buys`), both red with it off too; one tour nightly row (`the_cut_plates_first_subtract_...`) is red under the probe.
