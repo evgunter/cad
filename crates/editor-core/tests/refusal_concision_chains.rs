@@ -91,7 +91,6 @@ const KERNEL_KEYED: &[&str] = &[
     "Naming/SeamVertexPartners",
     "Naming/SharedRim",
     "Naming/ChordOffRim",
-    "Naming/ConventionalVertex",
     "Naming/ClosedCarrierUnread",
     "Naming/CarrierUnplaced",
     "Naming/PartnerUnread",
@@ -5240,13 +5239,6 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
                 edge: topo::EdgeKey::default(),
                 node: RecipeNodeId::new(0, tagged(3)),
                 face: topo::FaceKey::default(),
-            },
-        ),
-        (
-            "ConventionalVertex",
-            NamingError::ConventionalVertex {
-                vertex: topo::VertexKey::default(),
-                body: 0,
             },
         ),
         (

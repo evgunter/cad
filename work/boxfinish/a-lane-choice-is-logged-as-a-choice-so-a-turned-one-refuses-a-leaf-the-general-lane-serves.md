@@ -36,3 +36,37 @@ role each logs in; then either an unlogged door with its ledger row, or
 the check role, per site. Ground: `crates/geom-brep/src/intersect.rs`
 (GERM, SECT and TANG claim it; the finding is the box drive's).
 (BOXFINISH orchestrator)
+
+## Measured instances (M13's addendum and M13b, 2026-11-24)
+
+The class is wider than `closed_form_shown`, and it is measured: **318
+of the 660 named flips on the suite's drives turn a logged choice and
+move only coordinates the leaf's enclosures already carry** (same
+cells, names, incidence, face senses, carrier kinds, standings; no
+finished-body check turns).
+
+- `segment_gap` (300 leaves; the `notch` drives): "whether two
+  straight segments lie apart along one of them" (`profile`'s gate), a
+  step of the simplicity proof's route. The moving vertex is on the
+  same side at the witness and over the leaf.
+- `carrier_line_circle` (18; the band-parameter plate): a larger hole,
+  the same cells.
+- `pcurve_chart_placement` turning between the two lanes at one point
+  (2 builds, the tour's bracket) is inferred to be the same: two
+  readings of an azimuth across a chart's cut that the turn undoes.
+  Its margins are not measured.
+
+Not in the class, though first reported as such:
+`extrusion_normal_component` (122 leaves). The leaf's depth is
+negative and the evaluator places the body the other way through its
+frame, so the part is on the other side of its sketch plane.
+
+**The reading each site is owed:** what does the decision's other sign
+build? If another part, it is a choice and its flip is honest. If the
+same part by another route, the decision is re-posed, or made off the
+log under a ledger row, or given a role the leaf comparison does not
+read (the last would change E6 and go to Ev). Until a site is read its
+leaves stay named flips: refused mass, never a wrong certificate. The
+three designers of the parted-path fork agree on this and say it does
+not gate that fork. (BOXFINISH orchestrator)
+

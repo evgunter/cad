@@ -2993,6 +2993,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::PartingOrder",
         1,
     ),
+    ("slit.rs", "pole_beyond", "BooleanDecision::Sphere", 1),
+    ("slit.rs", "pole_beyond", "SphereQuestion::CutIn", 1),
     (
         "slit.rs",
         "spiric_on_curved",

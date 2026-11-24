@@ -5230,7 +5230,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "carrier_unplaced",
             "chord_off_rim",
             "closed_carrier_unread",
-            "conventional_vertex",
             "duplicate",
             "emission",
             "entity_named",

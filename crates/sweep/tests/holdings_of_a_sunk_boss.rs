@@ -199,8 +199,8 @@ fn overlap_reads_wall_pieces_of_one_cylinder_by_their_spans() {
 
 /// **Every op of a slab and two balls it cuts in reads every holding**:
 /// each ball pokes through the slab's top with no edge crossing, so its
-/// sphere face is cut along a meridian before the op re-enters
-/// (`topo::BooleanNaming::chart_cuts`), and each finished face and each
+/// sphere face is cut along a meridian before the op re-enters, and
+/// closed again by the output stage ([`closes_a_cut`]), and each finished face and each
 /// lost region of a cut piece reads back to the ball's face.
 #[test]
 fn every_op_over_cut_in_balls_reads_every_holding() {
@@ -235,7 +235,7 @@ fn every_op_over_cut_in_balls_reads_every_holding() {
         ) else {
             panic!("{op:?}: the op builds");
         };
-        cut += usize::from(!out.naming.chart_cuts[1].is_empty());
+        cut += usize::from(closes_a_cut(&out, 1));
         let rows = out
             .holdings
             .faces()
@@ -250,4 +250,24 @@ fn every_op_over_cut_in_balls_reads_every_holding() {
         }
     }
     assert_eq!(cut, 3, "every op cuts the balls' faces in");
+}
+
+/// Whether the op closed a chart cut on a sphere face of operand `side`
+/// (0 for A, 1 for B): the output stage deletes a cut's piece between
+/// two pieces of the face it divided with one of them, a substitution
+/// row from that piece onto the face that keeps it.
+fn closes_a_cut(out: &topo::BooleanBody<f64>, side: usize) -> bool {
+    let grafted: Vec<topo::FaceKey> = out.naming.graft_faces.iter().map(|&(_, r)| r).collect();
+    out.naming.substitutions.rows().iter().any(|&(dead, kept)| {
+        let (topo::Cell::Face(_), topo::Cell::Face(kept)) = (dead, kept) else {
+            return false;
+        };
+        let on_sphere = out.body.get_face(kept).is_some_and(|f| {
+            matches!(
+                out.body.get_surface(f.surface),
+                Some(geom::Surface::Sphere { .. })
+            )
+        });
+        on_sphere && grafted.contains(&kept) == (side == 1)
+    })
 }

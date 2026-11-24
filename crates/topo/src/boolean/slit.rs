@@ -2,7 +2,8 @@
 //! line** (`crates/topo/README.md`, tier 3: where more than two sheets
 //! meet on a line, the material decides the edges, and no face passes
 //! through an edge's material wedge). Three operations on the result
-//! build what it decides:
+//! build what it decides, and the closing also deletes the chart cuts
+//! the kernel made for its own reasons (*Closing a cut*, below):
 //!
 //! - **Parting** ([`part_riders`]) makes two edges of one, where an edge
 //!   lies in a face whose material crosses its wedge.
@@ -118,6 +119,24 @@
 //! [`part_mid_slit`]). F's region is unchanged by each step. A strut
 //! the zip kept between two walls is a reflex edge of the result, and
 //! stays.
+//!
+//! # Closing a cut
+//!
+//! A cut the kernel makes for its own reasons is no edge of the result:
+//! a wall keeps the cuts its author wrote, and the kernel adds none
+//! (`docs/DESIGN.md`, `[edges]`).
+//! The sphere cut-ins (`ops::apply_cut_ins`) cut a face along its chart's
+//! meridian through a section circle no edge reaches, so that the
+//! re-entered op's crossing layer meets the circle, and the re-entered op
+//! is handed each cut (`ops::Pass::CutIn`). The output stage reads
+//! every edge of the result split off one ([`CutRoots`]) and
+//! [`close_cuts`] deletes each, after the struts and before the
+//! coplanar merge: `kef` where it lies between two faces, `kev` where an
+//! end dangles, and `kemr` where one face lies on both sides and neither
+//! end is free, which leaves the section circle a ring of the face
+//! ([`part_cut`]). Each step leaves the face's region as it was, so the
+//! face is the cut face again, its own seam or wrap edge kept, and the
+//! edge join then removes the circle's crossings.
 
 use geom_brep::variety::{Piece, Variety};
 use std::collections::{BTreeMap, BTreeSet};
@@ -719,28 +738,74 @@ pub(super) fn merge_slivers<T: Decide + crate::props::AtRestPolicy>(
     }
 }
 
-/// One edge the output stage closed its face across ([`close_struts`]):
-/// a strut, deleted with its free end, or a slit's stretch, deleted by
-/// parting its loop ([`part_mid_slit`]).
+/// One edge the output stage closed its face across ([`close_struts`],
+/// [`close_cuts`]), by how it went.
 #[derive(Clone, Debug)]
-pub(super) struct ClosedStrut {
-    /// The face on both sides of the edge.
-    pub(super) face: FaceKey,
-    /// The edge.
-    pub(super) edge: EdgeKey,
-    /// The vertices deleted with it: a strut's free end, then, where both
-    /// its ends were free, the other; none for a slit's stretch, whose
-    /// delete parts its loop ([`part_mid_slit`]).
-    pub(super) vertices: Vec<VertexKey>,
+pub(super) enum ClosedStrut {
+    /// A strut, deleted with its free end and, where both its ends were
+    /// free, the other ([`crate::strut`]).
+    Pruned {
+        /// The face the strut lay in.
+        face: FaceKey,
+        /// The edge.
+        edge: EdgeKey,
+        /// The vertices deleted with it, the free end first.
+        vertices: Vec<VertexKey>,
+    },
+    /// A slit's stretch or a cut's piece with one face on both sides and
+    /// no free end, deleted by parting the face's loop ([`part_mid_slit`],
+    /// [`part_cut`]).
+    Parted {
+        /// The face on both sides of the edge.
+        face: FaceKey,
+        /// The edge.
+        edge: EdgeKey,
+    },
+    /// A cut's piece between two pieces of one face, deleted with one of
+    /// them, whose rings move to the other first (`kef`).
+    Merged {
+        /// The piece that survives.
+        face: FaceKey,
+        /// The edge.
+        edge: EdgeKey,
+        /// The piece deleted with the edge.
+        absorbed: FaceKey,
+    },
 }
 
 impl ClosedStrut {
-    /// The lineage rows of the closing, `(dead, holder)`: the edge and
-    /// its deleted vertices lie in the face.
-    pub(super) fn substitutions(&self) -> impl Iterator<Item = (Cell, Cell)> + '_ {
-        core::iter::once(Cell::Edge(self.edge))
-            .chain(self.vertices.iter().map(|&v| Cell::Vertex(v)))
-            .map(|dead| (dead, Cell::Face(self.face)))
+    /// The deleted edge.
+    pub(super) fn edge(&self) -> EdgeKey {
+        match *self {
+            Self::Pruned { edge, .. } | Self::Parted { edge, .. } | Self::Merged { edge, .. } => {
+                edge
+            }
+        }
+    }
+
+    /// The lineage rows of the closing, `(dead, holder)`: the edge, the
+    /// vertices deleted with it and the piece deleted with it lie in the
+    /// face that holds their place.
+    pub(super) fn substitutions(&self) -> Vec<(Cell, Cell)> {
+        let (face, dead): (FaceKey, Vec<Cell>) = match self {
+            Self::Pruned {
+                face,
+                edge,
+                vertices,
+            } => (
+                *face,
+                core::iter::once(Cell::Edge(*edge))
+                    .chain(vertices.iter().map(|&v| Cell::Vertex(v)))
+                    .collect(),
+            ),
+            Self::Parted { face, edge } => (*face, vec![Cell::Edge(*edge)]),
+            Self::Merged {
+                face,
+                edge,
+                absorbed,
+            } => (*face, vec![Cell::Edge(*edge), Cell::Face(*absorbed)]),
+        };
+        dead.into_iter().map(|d| (d, Cell::Face(face))).collect()
     }
 }
 
@@ -783,11 +848,7 @@ pub(super) fn close_struts<T: Decide + crate::props::AtRestPolicy>(
                 return Ok(closed);
             };
             part_mid_slit(body, face, edge, tol)?;
-            closed.push(ClosedStrut {
-                face,
-                edge,
-                vertices: Vec::new(),
-            });
+            closed.push(ClosedStrut::Parted { face, edge });
             continue;
         };
         let plan = body
@@ -801,12 +862,340 @@ pub(super) fn close_struts<T: Decide + crate::props::AtRestPolicy>(
                 },
             })?;
         let vertices = body.prune_strut(&plan, tol)?;
-        closed.push(ClosedStrut {
+        closed.push(ClosedStrut::Pruned {
             face,
             edge,
             vertices,
         });
     }
+}
+
+/// **The chart cuts a door made for its own reasons**, in the result's
+/// keys, which the output stage closes ([`close_cuts`]).
+#[derive(Clone, Debug, Default)]
+pub(super) struct CutRoots {
+    /// Each cut's edge and every edge split off one before the graft:
+    /// every edge split off one of these is a piece of the cut.
+    pub(super) edges: BTreeSet<EdgeKey>,
+    /// The operands' own edges and every edge split off one before the
+    /// graft: an author's, which the closing leaves.
+    pub(super) authored: BTreeSet<EdgeKey>,
+    /// The faces the cuts divided that the operands held before them.
+    pub(super) held: BTreeSet<FaceKey>,
+    /// The surfaces of the faces the cuts divided.
+    pub(super) surfaces: BTreeSet<crate::geometry::SurfaceKey>,
+}
+
+/// **Whether `edge`'s split chain reaches `set`**: `edge` itself, or the
+/// edge `parents` (child → parent) records it split from, and so on.
+///
+/// # Panics
+///
+/// Where the records cycle: each names an edge split before it.
+pub(super) fn split_reaches(
+    parents: &BTreeMap<EdgeKey, EdgeKey>,
+    edge: EdgeKey,
+    set: &BTreeSet<EdgeKey>,
+) -> bool {
+    let mut at = edge;
+    for _ in 0..=parents.len() {
+        if set.contains(&at) {
+            return true;
+        }
+        match parents.get(&at) {
+            Some(&parent) => at = parent,
+            None => return false,
+        }
+    }
+    unreachable!("the split records of {edge:?} cycle: each names an edge split earlier")
+}
+
+/// `seeds`, with every edge `parents` (child → parent) records whose split
+/// chain reaches one ([`split_reaches`]).
+pub(super) fn split_descent(
+    parents: &BTreeMap<EdgeKey, EdgeKey>,
+    seeds: &[EdgeKey],
+) -> BTreeSet<EdgeKey> {
+    let seeds: BTreeSet<EdgeKey> = seeds.iter().copied().collect();
+    parents
+        .keys()
+        .copied()
+        .filter(|&e| split_reaches(parents, e, &seeds))
+        .chain(seeds.iter().copied())
+        .collect()
+}
+
+impl CutRoots {
+    /// Every live edge of `body` that is a cut's piece, through
+    /// `split_from` (child → parent), in arena order.
+    pub(super) fn pieces<T: geom_core::Real>(
+        &self,
+        body: &Body<T>,
+        split_from: &BTreeMap<EdgeKey, EdgeKey>,
+    ) -> Vec<EdgeKey> {
+        if self.edges.is_empty() {
+            return Vec::new();
+        }
+        body.edges()
+            .map(|(e, _)| e)
+            .filter(|&e| split_reaches(split_from, e, &self.edges))
+            .collect()
+    }
+
+    /// **The edges a surviving cut would leave** (module docs, *Closing
+    /// a cut*), read without the cuts' own keys: each live edge of `body`
+    /// both of whose sides lie on the surface of a face a cut divided
+    /// (one face, or two pieces of it), that is no seam the op minted
+    /// between its operands (`section`) and no author's edge
+    /// ([`Self::authored`], through `split_from`). A cut piece the chase
+    /// into the result's keys missed is all three; a seam, a wrap edge and
+    /// an operand's own edge between two of its faces are none.
+    pub(super) fn left_standing<T: geom_core::Real>(
+        &self,
+        body: &Body<T>,
+        split_from: &BTreeMap<EdgeKey, EdgeKey>,
+        section: &BTreeSet<EdgeKey>,
+    ) -> Vec<EdgeKey> {
+        if self.surfaces.is_empty() {
+            return Vec::new();
+        }
+        let surface = |h: HalfEdgeKey| {
+            let face = proven(&body.loops, half(body, h).parent_loop, EntityId::Loop).face;
+            proven(&body.faces, face, EntityId::Face).surface
+        };
+        body.edges()
+            .filter(|&(e, d)| {
+                let s = surface(d.he_plus);
+                s == surface(d.he_minus)
+                    && self.surfaces.contains(&s)
+                    && !section.contains(&e)
+                    && !split_reaches(split_from, e, &self.authored)
+            })
+            .map(|(e, _)| e)
+            .collect()
+    }
+}
+
+/// **Deletes every piece of a chart cut the result holds** (module docs,
+/// *Closing a cut*): `pieces` are the edges the op split off the cuts a
+/// door made for its own reasons (`ops::finish_output`), `held` the
+/// faces the operands held before those cuts, `section` the edges the op
+/// minted between its operands. Each step deletes one live piece, the
+/// first in this order of preference, and the reading starts again:
+///
+/// - a piece between two faces goes with one of them (`kef`). The face
+///   that survives is the one in `held`, a key the operand had before the
+///   cut, where exactly one side is; where neither or both are, the face
+///   on the piece's plus half. The dying face's rings move to the
+///   survivor first (`ring_move`), as the coplanar merge drains an
+///   absorbed face, since `kef` takes a face without rings. Either way
+///   the closing's substitution row reads the dying key onto the
+///   survivor ([`ClosedStrut::Merged`]), so a record on either piece
+///   lands on the one face;
+/// - a piece one of whose ends dangles goes with that end (`kev`,
+///   [`crate::strut`]), on a plane. Two meridians of one sphere meet only
+///   at its poles, which keep their own seam or wrap edge, so no measured
+///   sphere cut leaves one; a piece that dangled on a curved face would
+///   refuse as a strut there does;
+/// - a piece with one face on both sides and no free end parts that
+///   face's loop (`kemr`, [`part_cut`]).
+///
+/// The face is the cut face again, its region unchanged by each step:
+/// one face across every piece, and each section circle that crossed
+/// the cut a ring of it, whose crossings the edge join then removes.
+///
+/// # Errors
+///
+/// [`BooleanError::JoinDesync`] where a piece lies between faces on two
+/// surfaces, or as [`part_cut`]; [`BooleanError::JoinDesync`] where a
+/// piece with both ends free is its face's outline, and
+/// [`BooleanError::CurvedFaceClosesAcrossSlit`] where a piece with a free
+/// end lies in a curved face ([`crate::strut::StrutRefusal`]); the Euler operators'
+/// refusals.
+pub(super) fn close_cuts<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    pieces: &[EdgeKey],
+    held: &BTreeSet<FaceKey>,
+    section: &BTreeSet<EdgeKey>,
+    band: Band,
+    tol: Tol,
+) -> Result<Vec<ClosedStrut>, BooleanError> {
+    let mut closed = Vec::new();
+    loop {
+        let live: Vec<EdgeKey> = pieces
+            .iter()
+            .copied()
+            .filter(|&e| body.get_edge(e).is_some())
+            .collect();
+        let Some(&first) = live.first() else {
+            return Ok(closed);
+        };
+        let face_of = |body: &Body<T>, h: HalfEdgeKey| {
+            proven(&body.loops, half(body, h).parent_loop, EntityId::Loop).face
+        };
+        let between = live.iter().find_map(|&edge| {
+            let e = proven(&body.edges, edge, EntityId::Edge);
+            let (p, m) = (e.he_plus, e.he_minus);
+            let (fp, fm) = (face_of(body, p), face_of(body, m));
+            (fp != fm).then_some((edge, [(p, fp), (m, fm)]))
+        });
+        if let Some((edge, sides)) = between {
+            let surface = |f| proven(&body.faces, f, EntityId::Face).surface;
+            if surface(sides[0].1) != surface(sides[1].1) {
+                return Err(BooleanError::JoinDesync {
+                    what: "a chart cut's piece lies between faces on two surfaces",
+                });
+            }
+            let [(_, kept), (he, dying)] =
+                if held.contains(&sides[1].1) && !held.contains(&sides[0].1) {
+                    [sides[1], sides[0]]
+                } else {
+                    [sides[0], sides[1]]
+                };
+            // No measured pose reaches this move yet: in every cut-in row
+            // the dying piece holds no ring (PR 7664's review replaced it
+            // with a no-op and every row stayed green). The pose that does
+            // is `work/orbit/a-chart-cut-kef-onto-a-ringed-piece-has-no-row.md`.
+            let rings = proven(&body.faces, dying, EntityId::Face).rings.clone();
+            for ring in rings {
+                body.ring_move_minting(ring, kept, tol)?;
+            }
+            let done = body.kef_minting(he, tol)?;
+            if done.killed_face != dying || done.killed_edge != edge {
+                return Err(BooleanError::JoinDesync {
+                    what: "a chart cut's kef killed another face or edge",
+                });
+            }
+            closed.push(ClosedStrut::Merged {
+                face: kept,
+                edge,
+                absorbed: dying,
+            });
+            continue;
+        }
+        let one_face = |edge: EdgeKey| {
+            let e = proven(&body.edges, edge, EntityId::Edge);
+            face_of(body, e.he_plus)
+        };
+        if let Some((edge, toward_free)) = live
+            .iter()
+            .find_map(|&edge| body.toward_free_end(edge).map(|t| (edge, t)))
+        {
+            let face = one_face(edge);
+            let plan =
+                body.plan_strut_prune(face, toward_free)
+                    .map_err(|refusal| match refusal {
+                        crate::strut::StrutRefusal::Curved => {
+                            BooleanError::CurvedFaceClosesAcrossSlit { face, edge }
+                        }
+                        crate::strut::StrutRefusal::LoneOutline => BooleanError::JoinDesync {
+                            what: "a chart cut's piece with both ends free is its face's outline",
+                        },
+                    })?;
+            let vertices = body.prune_strut(&plan, tol)?;
+            closed.push(ClosedStrut::Pruned {
+                face,
+                edge,
+                vertices,
+            });
+            continue;
+        }
+        let face = one_face(first);
+        part_cut(body, first, (section, pieces), band, tol)?;
+        closed.push(ClosedStrut::Parted { face, edge: first });
+    }
+}
+
+/// The half-edge `h` resolves to, which every caller read off a live edge
+/// or loop.
+fn half<T: geom_core::Real>(body: &Body<T>, h: HalfEdgeKey) -> &crate::entity::HalfEdge {
+    proven(&body.half_edges, h, EntityId::HalfEdge)
+}
+
+/// **Deletes a cut's piece between section circles and the rest of its
+/// face**: `edge`, both of whose halves bound one face in one loop and
+/// neither of whose ends is free, deleted with `kemr`. The loop parts in
+/// two, and `kemr` makes one part a new ring of the face: the part every
+/// edge of which is in `section` or is another of the cut's `pieces`,
+/// the circles a cut ran through and the pieces between them, where only
+/// one part is. Where both are, the face holds no edge of its own
+/// boundary there, so its chart's seam and poles lie outside it, beyond
+/// one loop: the part with the chart's pole beyond one of its circles
+/// keeps the outline ([`pole_beyond`]). Where the loop is a ring, both
+/// parts are rings whichever is new. No edge is minted, so the
+/// face's surface does not matter.
+///
+/// # Errors
+///
+/// [`BooleanError::Escalated`] where the pole's side of a circle is in
+/// band ([`pole_beyond`]); [`BooleanError::JoinDesync`] where the halves
+/// lie in two loops, where of the outline neither part is circles, or
+/// where both are and not one has the pole beyond it: a cut runs
+/// through the circles that crossed it to the face's boundary, so a
+/// piece left with one face on both sides joins circles to the rest;
+/// `kemr`'s refusals.
+fn part_cut<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    edge: EdgeKey,
+    (section, pieces): (&BTreeSet<EdgeKey>, &[EdgeKey]),
+    band: Band,
+    tol: Tol,
+) -> Result<(), BooleanError> {
+    let e = proven(&body.edges, edge, EntityId::Edge);
+    let (plus, minus) = (e.he_plus, e.he_minus);
+    let lp = half(body, plus).parent_loop;
+    if half(body, minus).parent_loop != lp {
+        return Err(BooleanError::JoinDesync {
+            what: "a chart cut's piece with one face on both sides lies in two of its loops",
+        });
+    }
+    let face = proven(&body.loops, lp, EntityId::Loop).face;
+    let outline = proven(&body.faces, face, EntityId::Face).outer;
+    let cycle = body.loop_cycle(plus).ok_or(BooleanError::JoinDesync {
+        what: "a chart cut's piece's loop does not walk",
+    })?;
+    let at = cycle
+        .iter()
+        .position(|&h| h == minus)
+        .ok_or(BooleanError::JoinDesync {
+            what: "a chart cut's piece's two halves in one loop do not walk to each other",
+        })?;
+    // Each side: the halves strictly between one half and the other, in
+    // `next` order.
+    let (after_plus, after_minus) = (&cycle[1..at], &cycle[at + 1..]);
+    let circle = |hs: &[HalfEdgeKey]| {
+        !hs.is_empty()
+            && hs.iter().all(|&h| {
+                let e = half(body, h).edge;
+                section.contains(&e) || pieces.contains(&e)
+            })
+    };
+    let (he1, he2) = match (circle(after_plus), circle(after_minus)) {
+        (true, false) => (plus, minus),
+        (false, true) => (minus, plus),
+        _ if lp != outline => (plus, minus),
+        (true, true) => match (
+            pole_beyond(body, face, (after_plus, after_minus), section, band)?,
+            pole_beyond(body, face, (after_minus, after_plus), section, band)?,
+        ) {
+            (false, true) => (plus, minus),
+            (true, false) => (minus, plus),
+            _ => {
+                return Err(BooleanError::JoinDesync {
+                    what: "of a chart cut's two circle-bounded parts, not one keeps the face's \
+                           chart pole beyond it",
+                });
+            }
+        },
+        _ => {
+            return Err(BooleanError::JoinDesync {
+                what: "a chart cut's piece with one face on both sides joins no section \
+                       circles to the rest of the face's outline",
+            });
+        }
+    };
+    body.kemr_minting(he1, he2, tol)?;
+    Ok(())
 }
 
 /// **Deletes a slit's stretch closed across**: `edge`, both of whose
@@ -868,6 +1257,84 @@ fn part_mid_slit<T: Decide + crate::props::AtRestPolicy>(
     };
     body.kemr_minting(he1, he2, tol)?;
     Ok(())
+}
+
+/// **Whether the chart's pole of `face`'s sphere lies beyond `part`**:
+/// beyond one of its circles (each edge of `part` in `section` on a
+/// circle), on the far side of the circle's plane from `other`, the
+/// rest of the face's loop. The face lies on `other`'s side of each of
+/// `part`'s circles, which it does not cross, so a pole beyond one lies
+/// in the region that circle cuts off the face.
+///
+/// # Errors
+///
+/// [`BooleanError::Escalated`] where the pole or `other`'s first
+/// vertex lies in band of a circle's plane, and no other circle has the
+/// pole beyond it.
+fn pole_beyond<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    (part, other): (&[HalfEdgeKey], &[HalfEdgeKey]),
+    section: &BTreeSet<EdgeKey>,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    let &geom::Surface::Sphere { frame, radius, .. } = body.proven_face(face).surface() else {
+        return Err(BooleanError::JoinDesync {
+            what: "a chart cut's face is not on a sphere",
+        });
+    };
+    // Either pole serves: the face holds no edge of its own boundary
+    // here, so its chart's seam, which joins the two poles, lies outside
+    // it, both poles beyond one loop.
+    let pole = frame.origin() + frame.axis() * radius;
+    let Some(&first) = other.first() else {
+        return Err(BooleanError::JoinDesync {
+            what: "a chart cut's piece parts its loop with nothing on one side",
+        });
+    };
+    let inside = body.resolve_vertex_point(half(body, first).start, crate::live::Proven);
+    let side = |p: Point3<T>, at: Point3<T>, normal: geom_core::Vec3<T>| {
+        crate::validate::decide(
+            "bool_cut_close_pole_side",
+            Margin::of(normal.dot(p - at)),
+            band,
+        )
+        .map_err(|diag| BooleanError::Escalated {
+            decision: BooleanDecision::Sphere(super::SphereQuestion::CutIn),
+            diag,
+        })
+    };
+    // A circle read in band may not be the one the pole lies beyond, so
+    // its reading is kept until every other circle has been read.
+    let mut in_band = None;
+    for &h in part {
+        let e = half(body, h).edge;
+        if !section.contains(&e) {
+            continue;
+        }
+        let Some(geom::Curve3::Circle(circle)) = body
+            .get_edge(e)
+            .and_then(|d| body.curves.get(d.curve))
+            .and_then(crate::null::CurveGeom::certified)
+            .map(|c| c.carrier().clone())
+        else {
+            continue;
+        };
+        let (at, normal) = (
+            body.resolve_vertex_point(half(body, h).start, crate::live::Proven),
+            circle.axis(),
+        );
+        match (side(inside, at, normal), side(pole, at, normal)) {
+            (Ok(Sign::Positive), Ok(Sign::Negative)) | (Ok(Sign::Negative), Ok(Sign::Positive)) => {
+                return Ok(true);
+            }
+            (Err(e), _) | (_, Err(e)) => {
+                in_band.get_or_insert(e);
+            }
+            _ => {}
+        }
+    }
+    in_band.map_or(Ok(false), Err)
 }
 
 /// A face an edge lies in ([`riders`]).

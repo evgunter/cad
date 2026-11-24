@@ -154,7 +154,10 @@ pub(crate) fn origin(seg: &RoleSeg) -> SegOrigin<'_> {
         // face became.
         | RoleSeg::Inner(_)
         | RoleSeg::Rim(_)
-        | RoleSeg::HoleRim { .. } => SegOrigin::Minted,
+        | RoleSeg::HoleRim { .. }
+        // A closed edge's conventional vertex cites that edge, an
+        // entity of this node's own body, and is none of it.
+        | RoleSeg::ConventionalVertex(_) => SegOrigin::Minted,
 
         // A merged face has SEVERAL parents and is identical to none
         // of them, so there is no single operand entity to descend

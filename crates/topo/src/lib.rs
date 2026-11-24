@@ -189,6 +189,21 @@ pub mod solid_contain;
 #[cfg(test)]
 pub(crate) mod source_walk;
 
+#[cfg(any(test, feature = "test-support"))]
+thread_local! {
+    /// The cuts each of this thread's sphere cut-ins made, A's then B's,
+    /// one entry per cut-in in call order
+    /// ([`test_support::take_cut_ins`]): the witness a test reads to
+    /// count the cuts, which no result holds.
+    static CUT_INS: core::cell::RefCell<Vec<[usize; 2]>> = const { core::cell::RefCell::new(Vec::new()) };
+}
+
+/// Records one cut-in's cuts ([`CUT_INS`]).
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn note_cut_ins(made: [usize; 2]) {
+    CUT_INS.with(|c| c.borrow_mut().push(made));
+}
+
 #[cfg(test)]
 pub(crate) mod cert_m3r1_probes;
 pub(crate) mod held;
@@ -925,6 +940,14 @@ pub mod test_support {
         Recertify,
         /// Carried the source's certificates, handles rewritten.
         RemapKeys,
+    }
+
+    /// The cuts every sphere cut-in this thread ran since the last call
+    /// made, A's then B's, one entry per cut-in in call order, draining
+    /// the record. The output stage closes every cut, so a result holds
+    /// none to count.
+    pub fn take_cut_ins() -> Vec<[usize; 2]> {
+        crate::CUT_INS.with(|c| core::mem::take(&mut *c.borrow_mut()))
     }
 
     /// The bridge of every graft this thread ran since the last call,
