@@ -94,6 +94,16 @@ pub const DEFAULT_EPS: f64 = 1e-9;
 /// larger in magnitude than this.
 pub const SESSION_BOX_EXTENT: f64 = 1e3;
 
+/// **The farthest the session box stands from a point `distance` from
+/// the world's origin, from above**: the cube's far corner stands
+/// `√3·E` from the origin, and the point no farther than `distance`
+/// from it. The box read as a region about a point, for a reader with
+/// no geometry nearer in hand.
+#[must_use]
+pub fn session_box_reach_from(distance: f64) -> f64 {
+    3f64.sqrt() * SESSION_BOX_EXTENT + distance
+}
+
 /// **The admission floor**: the rounding of a short, division-free
 /// chain of operations on in-box coordinates, [`SHORT_CHAIN_ULPS`] unit
 /// roundoffs of the [session box](SESSION_BOX_EXTENT) (≈ 1.8e-12 m).
@@ -1015,6 +1025,23 @@ mod tests {
     }
 
     use super::*;
+
+    /// **The session box's reach from a point holds the corner opposite
+    /// it**: a point 10 m out along `(1, 1, 1)/√3` stands `√3·E + 10`
+    /// from the corner `(−E, −E, −E)`, and the reach is that. Red against
+    /// the half-width read as the cube's (`√3·E/2`), and against the
+    /// point's own distance left out.
+    #[test]
+    fn the_session_boxs_reach_from_a_point_holds_the_far_corner() {
+        let e = SESSION_BOX_EXTENT;
+        let along = 10.0 / 3f64.sqrt();
+        let corner = ((e + along).powi(2) * 3.0).sqrt();
+        let reach = session_box_reach_from(10.0);
+        assert!(
+            (reach - corner).abs() <= 1e-9,
+            "{reach} against the corner's {corner}"
+        );
+    }
     use crate::tolerance::Tol;
 
     // Process-global state discipline: tests share one process, so

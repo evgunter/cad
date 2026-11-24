@@ -453,3 +453,31 @@ fn a_lone_vertex_bounds_the_cleared_disc() {
     }
     assert!(!sectors.is_empty(), "the face gives a sector");
 }
+
+/// **A cleared fan's rim stands at the face's far side, and no
+/// farther**: on the half-disc cap, inside it at `(0.1, 0.3)` and inside
+/// its chord at `(0.2, 0)`, every point of the fan stands at the face's
+/// farthest boundary point from the point over `cos(π/8)`, with its
+/// hundredth to spare. Red against the face's reach read twice too long.
+#[test]
+fn a_cleared_fans_rim_stands_at_the_faces_far_side() {
+    let c = cap(Point3::origin(), v(0.0, 0.0, 1.0), v(1.0, 0.0, 0.0));
+    let walk = boundary();
+    for (at, holds) in [
+        (p(0.1, 0.3, 0.0), vec![Hold::Inside]),
+        (p(0.2, 0.0, 0.0), vec![c.chord()]),
+    ] {
+        let far = walk.iter().map(|&q| (q - at).norm()).fold(0.0, f64::max);
+        let rim = far * 1.01 / core::f64::consts::FRAC_PI_8.cos();
+        let sectors = c.cleared(at, &holds).expect("the cleared disc");
+        for s in &sectors {
+            for q in fan(&s.sector) {
+                let d = (q - at).norm();
+                assert!(
+                    (d - rim).abs() <= 1e-5 * rim,
+                    "at {at:?}: a fan point {d} off, not the rim's {rim}"
+                );
+            }
+        }
+    }
+}

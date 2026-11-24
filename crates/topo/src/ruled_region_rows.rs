@@ -82,6 +82,7 @@ fn cylinder(edges: Vec<Edge<f64>>) -> RuledFaceRegion<f64> {
         sense: true,
         outer: LoopKey::default(),
         scale: 1.0,
+        apex_ball: None,
         edges,
     }
 }
@@ -255,6 +256,7 @@ fn cone(edges: Vec<Edge<f64>>, scale: f64) -> RuledFaceRegion<f64> {
         sense: true,
         outer: LoopKey::default(),
         scale,
+        apex_ball: None,
         edges,
     }
 }
@@ -750,6 +752,7 @@ fn cone_window(
         sense: true,
         outer: LoopKey::default(),
         scale: 2.0,
+        apex_ball: None,
         edges: vec![
             cone_rim(1, vs.0, us, true),
             segment(2, on_cone(us.1, vs.0), on_cone(us.1, vs.1)),
@@ -794,6 +797,7 @@ fn a_ruled_faces_answer_about_the_bands_zero_depends_on_no_chart_frame() {
                 sense: true,
                 outer: LoopKey::default(),
                 scale: 1.0,
+                apex_ball: None,
                 edges: window(1, us, zs, false),
             }
         })

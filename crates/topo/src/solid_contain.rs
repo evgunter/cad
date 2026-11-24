@@ -871,29 +871,27 @@ pub(crate) enum FaceGeo<T: geom_core::Real> {
     /// that region could matter: `q` on the double cone within the
     /// face's apex ball, or a ray that may meet the cone ahead within it
     /// — the sweep then tries the next ray, and the query refuses
-    /// `PartialConeFace` only when every ray does ([`partial_reach`]).
+    /// `PartialConeFace` only when every ray does ([`partial_ball`]).
     PartialCone {
         /// The axis line from the apex, its direction unit.
         axis: geom::Line<T>,
         /// The half-angle.
         half_angle: T,
-        /// A radius about the apex the face lies within: the ball whose
-        /// run of the ray's line the cone door reads ([`cone_door`]).
-        reach: Lever<T>,
+        /// A ball about the apex the face lies within, whose run of the
+        /// ray's line the cone door reads ([`cone_door`]).
+        ball: geom_brep::ExtentBall<T>,
     },
     /// A cylinder wall face whose region this door cannot read, as
     /// [`FaceGeo::PartialCone`] is on a cone: a query refuses
     /// `WallOutlineUnsupported` only where a point on the wall within the
-    /// ball `(anchor, reach)` holding the face could decide it.
+    /// ball holding the face could decide it.
     PartialWall {
         /// The wall's axis line.
         axis: geom::Line<T>,
         radius: T,
-        /// The centre of a ball holding the face: a point of its
-        /// boundary.
-        anchor: Point3<T>,
-        /// The ball's radius ([`partial_reach`]).
-        reach: T,
+        /// A ball holding the face, about a point of its boundary
+        /// ([`partial_ball`]).
+        ball: geom_brep::ExtentBall<T>,
     },
 }
 
@@ -971,15 +969,7 @@ fn face_geo_arms<T: Decide>(
                     region,
                     sense: f.sense(),
                 }),
-                None => {
-                    let anchor = boundary_point(body, face)?;
-                    Ok(FaceGeo::PartialWall {
-                        axis: geom::Line { origin, dir: axis },
-                        radius,
-                        anchor,
-                        reach: partial_reach(body, face, anchor, band)?.length(),
-                    })
-                }
+                None => partial_wall(body, face, (geom::Line { origin, dir: axis }, radius), band),
             }
         }
         &Surface::Cone {
@@ -996,14 +986,18 @@ fn face_geo_arms<T: Decide>(
                     region,
                     sense: f.sense(),
                 }),
-                None => Ok(FaceGeo::PartialCone {
-                    axis: geom::Line {
-                        origin: apex,
-                        dir: axis,
-                    },
-                    half_angle,
-                    reach: partial_reach(body, face, apex, band)?,
-                }),
+                None => partial_cone(
+                    body,
+                    face,
+                    (
+                        geom::Line {
+                            origin: apex,
+                            dir: axis,
+                        },
+                        half_angle,
+                    ),
+                    band,
+                ),
             }
         }
         &Surface::Sphere { frame, radius, .. } => {
@@ -1145,11 +1139,52 @@ pub(crate) fn uncrossable<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Po
     (!ray_crosses(kind)).then_some(PointInSolidError::KindUnsupported { face, kind })
 }
 
-/// **A radius about `anchor` that a cylinder or cone face lies within**
-/// — the reach [`FaceGeo::PartialWall`] and [`FaceGeo::PartialCone`]
+/// **A wall face whose region the ruled reader cannot read**, on the
+/// wall `(axis, radius)`: held as the ball about a point of its boundary
+/// that holds it ([`FaceGeo::PartialWall`]).
+///
+/// # Errors
+///
+/// As [`boundary_point`] and [`partial_ball`].
+fn partial_wall<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    (axis, radius): (geom::Line<T>, T),
+    band: Band,
+) -> Result<FaceGeo<T>, PointInSolidError> {
+    let anchor = boundary_point(body, face)?;
+    Ok(FaceGeo::PartialWall {
+        axis,
+        radius,
+        ball: partial_ball(body, face, anchor, band)?,
+    })
+}
+
+/// **A cone face whose region the ruled reader cannot read**, on the
+/// cone `(axis, half_angle)` (the axis's origin its apex): held as the
+/// ball about the apex that holds it ([`FaceGeo::PartialCone`]).
+///
+/// # Errors
+///
+/// As [`partial_ball`].
+fn partial_cone<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    (axis, half_angle): (geom::Line<T>, T),
+    band: Band,
+) -> Result<FaceGeo<T>, PointInSolidError> {
+    Ok(FaceGeo::PartialCone {
+        axis,
+        half_angle,
+        ball: partial_ball(body, face, axis.origin, band)?,
+    })
+}
+
+/// **A ball about `anchor` that a cylinder or cone face lies within**
+/// — the ball [`FaceGeo::PartialWall`] and [`FaceGeo::PartialCone`]
 /// refuse inside, about a point of the wall face's boundary or the
-/// cone's apex: the face's cover's far distance from it
-/// ([`crate::cover::face_reach_from`]).
+/// cone's apex: out to the face's cover's far distance from it
+/// ([`crate::cover::face_ball_about`]).
 ///
 /// # Errors
 ///
@@ -1158,13 +1193,13 @@ pub(crate) fn uncrossable<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Po
 /// # Panics
 ///
 /// Where `face`, a face of the selection, does not resolve.
-fn partial_reach<T: Decide>(
+fn partial_ball<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     anchor: Point3<T>,
     band: Band,
-) -> Result<Lever<T>, PointInSolidError> {
-    crate::cover::face_reach_from(body, face, anchor, band)
+) -> Result<geom_brep::ExtentBall<T>, PointInSolidError> {
+    crate::cover::face_ball_about(body, face, anchor, band)
         .map_err(|_| PointInSolidError::CorruptFace { face })
 }
 
@@ -2194,16 +2229,16 @@ fn face_holds<T: Decide + crate::props::AtRestPolicy>(
         // On the carrier, `q` may be on the face or off it, and which
         // is the region this face has none of.
         FaceGeo::PartialCone {
-            axis: cone @ geom::Line { origin: apex, .. },
+            axis: cone,
             half_angle,
-            reach,
+            ball,
         } => {
             let elev = geom_brep::cone_elevation(cone, half_angle, None, q);
             if decide("bool_point_in_solid_plane", Margin::of(elev), band).map_err(escalate)?
                 == Sign::Zero
                 && decide(
                     "bool_cone_partial_reach",
-                    Margin::of((q - apex).norm() - reach.length()),
+                    Margin::of(ball.stand_off(q)),
                     band,
                 )
                 .map_err(escalate)?
@@ -2215,8 +2250,7 @@ fn face_holds<T: Decide + crate::props::AtRestPolicy>(
         FaceGeo::PartialWall {
             axis: wall,
             radius,
-            anchor,
-            reach,
+            ball,
         } => {
             if decide(
                 "bool_point_in_solid_plane",
@@ -2227,7 +2261,7 @@ fn face_holds<T: Decide + crate::props::AtRestPolicy>(
                 == Sign::Zero
                 && decide(
                     "bool_wall_outline_reach",
-                    Margin::of((q - anchor).norm() - reach),
+                    Margin::of(ball.stand_off(q)),
                     band,
                 )
                 .map_err(escalate)?
@@ -3359,10 +3393,8 @@ fn worse<E>(
 }
 
 /// **A ray against a cone face's carrier**: the line × cone door
-/// ([`line_cone_roots`]) read over the run of the ray's line inside the
-/// ball of radius `reach` about the apex, which holds the face. No point
-/// of the line outside that run is on the face, so the run is centred on
-/// the line's closest approach to the apex and `reach` long either side.
+/// ([`line_cone_roots`]) read over `run`, a window of the ray's line's
+/// parameter off which no point of the line is on the face.
 /// `None` is a definite miss; `Some` the two roots, each with its slack.
 ///
 /// # Errors
@@ -3375,12 +3407,10 @@ fn worse<E>(
 fn cone_door<T: Decide>(
     ray: &geom::Ray<T>,
     (cone, face): ((geom::Line<T>, T), FaceKey),
-    reach: T,
+    run: (T, T),
     band: Band,
 ) -> Result<Option<[(T, T); 2]>, RayFault<PointInSolidError>> {
-    let line = ray.line();
-    let (centre, half) = (line.param(cone.0.origin), reach / line.dir.get().norm());
-    match line_cone_roots(line, cone, (centre - half, centre + half), band)
+    match line_cone_roots(ray.line(), cone, run, band)
         .map_err(|diag| RayFault::InBand(PointInSolidError::Escalated { face, diag }))?
     {
         Ok(ConeRoots::Two(ts)) => Ok(Some(ts)),
@@ -3470,9 +3500,14 @@ fn carrier_roots<T: Decide>(
                     ref region,
                     ..
                 } => {
-                    // The face lies within its reach of the apex, never
-                    // under it (`RuledFaceRegion::reach`).
-                    match cone_door(ray, ((cone, half_angle), face), region.reach(), band)? {
+                    // No point of the ray's line off the run that can
+                    // reach the face's ball about the apex is on the face.
+                    let Some(ball) = region.apex_ball() else {
+                        unreachable!("a cone face's region holds its ball about the apex")
+                    };
+                    let line = ray.line();
+                    let run = ball.range_along(line.origin, line.dir.get());
+                    match cone_door(ray, ((cone, half_angle), face), run, band)? {
                         // Unordered: `A` may be negative, and the count
                         // orders by advance anyway.
                         Some(ts) => {
@@ -4161,16 +4196,21 @@ pub(crate) fn ray_crossings<T: Decide>(
             // meets it only behind its start, takes no crossing from it. The
             // quadratic and its margins are the cone arm's above.
             FaceGeo::PartialCone {
-                axis: cone @ geom::Line { origin: apex, .. },
+                axis: cone,
                 half_angle,
-                reach,
+                ball,
             } => {
                 // Only a root definitely ahead and definitely within the
                 // ball holding the face blocks the ray; an answer the door
                 // leaves undecided, or a `Zero` on a row below, grazes, as
                 // on the trimmable arm, since a tighter tolerance could
                 // decide it either way.
-                let Some(ts) = cone_door(ray, ((cone, half_angle), face), reach.length(), band)?
+                let Some(ts) = cone_door(
+                    ray,
+                    ((cone, half_angle), face),
+                    ball.range_along(ray.line().origin, ray.line().dir.get()),
+                    band,
+                )?
                 else {
                     continue;
                 };
@@ -4183,7 +4223,7 @@ pub(crate) fn ray_crossings<T: Decide>(
                     let p = q + d.get() * t;
                     match decide(
                         "bool_cone_partial_reach",
-                        Margin::of((p - apex).norm() - reach.length()),
+                        Margin::of(ball.stand_off(p)),
                         band,
                     )
                     .map_err(escalate)?
@@ -4203,8 +4243,7 @@ pub(crate) fn ray_crossings<T: Decide>(
             FaceGeo::PartialWall {
                 axis: wall,
                 radius,
-                anchor,
-                reach: ball,
+                ball,
             } => {
                 let ts =
                     match line_wall_roots(ray.line(), wall, radius, reach, band, About::Nearest)
@@ -4229,7 +4268,7 @@ pub(crate) fn ray_crossings<T: Decide>(
                     }
                     match decide(
                         "bool_wall_outline_reach",
-                        Margin::of((q + d.get() * t - anchor).norm() - ball),
+                        Margin::of(ball.stand_off(q + d.get() * t)),
                         band,
                     )
                     .map_err(escalate)?
@@ -4952,6 +4991,9 @@ mod r1_generic_poses;
 #[cfg(test)]
 #[path = "torus_predicate_rows.rs"]
 mod torus_predicate_rows;
+
+#[cfg(test)]
+mod partial_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

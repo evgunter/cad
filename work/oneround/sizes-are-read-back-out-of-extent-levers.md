@@ -24,3 +24,19 @@ pr: 7628
 - `topo::offset_derive::plane_wall_section` — a sum ending `+ extent.length()` that sizes an `SsiDomain`.
 
 **Wanted:** each reads its size from the geometry the lever was read from (the cover, the carrier, the stored points), and the lever is kept for the margin.
+
+**Left by the converting unit (PR 7628), one line each:**
+
+- `ConicDeparture::of`: `dir` is the unit tangent times the extent lever, a vector read both as a lever and as geometry, the records question: `sector-bounds-pack-a-direction-and-its-lever-into-one-vector`.
+- `BoundSupport::point`: places a point at the bound's lever along its direction, the same packing: `sector-bounds-pack-a-direction-and-its-lever-into-one-vector`.
+- `Bound::ray`: scales the bound's direction by its lever for readers of both, the same packing: `sector-bounds-pack-a-direction-and-its-lever-into-one-vector`.
+- `cone_cylinder_section` (`coc_station_reach`): the honest read is the consumed region's window along the cone's axis, which needs the function to take a `&Reach`, on PR 7442's ground: `apex-reaches-read-a-lever-as-a-window-along-the-axis` (sect).
+- `vtxfac::held_reads`: `PlannedRun.order` holds a lever and no region, the records question again: `sector-bounds-pack-a-direction-and-its-lever-into-one-vector`, and `pierce-and-rim-balls-are-built-from-an-arm` (heldrecords).
+
+**Corrections to this row, checked against `9863cf938` by the converting unit (PR 7628):**
+
+- The ten sites stand as listed. The unit converted five of them (`solid_contain`'s two among them) and left five.
+- `BoundSupport::point` is not an independent site: `star::walk::departure` hands it `ConicDeparture.dir`, the scaled vector, whose scale it normalizes away and re-applies from the lever.
+- `cone_cylinder_section` takes `impl Into<LeverBounds>`, and its station check reads `below`.
+- `vtxfac::held_reads` labels itself "Unsourced lever".
+- Siblings the row did not name, which the unit converted: `FaceGeo::PartialWall`, `offset_derive::pair_section`'s slab, `session_box::box_decided`, the plane mate's reach (`editor-core` `mate/value.rs`), `solid_contain`'s trimmable cone arm (`RuledFaceRegion::scale` read as a radius), and the face's far side read back out of a lever by `link`'s cleared fan and `census`'s edge fan.

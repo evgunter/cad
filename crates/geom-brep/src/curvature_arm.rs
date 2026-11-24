@@ -8,6 +8,12 @@
 //! [`chart_curvature_arm`] reads a spline chart's certified arm at the
 //! point, over a reach, through the scalar's lane.
 //!
+//! The radii those arms are minted from are read here too, as lengths,
+//! for a reader that wants the radius itself rather than an arm
+//! ([`principal_radius`], [`parallel_radius`]): a radius of curvature
+//! charged as a sagitta's (`crate::min_radius_of_curvature_toward`) is
+//! geometry, and one table holds it.
+//!
 //! `geom_core::Lever`'s bare curvature doors are this file's to call.
 //! `scripts/gates/lever-doors.sh` pins the references that still stand
 //! elsewhere, each a site with a number where a carrier belongs.
@@ -40,9 +46,17 @@ use geom_core::{Lever, Point3, Real, poison};
 /// (their margins shrink toward Zero), while a smaller radius of
 /// curvature tightens a sagitta charge.
 pub fn curvature_lever_arm<T: Real>(s: &Surface<T>, p: Point3<T>) -> Lever<T> {
+    Lever::curvature_radius(principal_radius(s, p))
+}
+
+/// **The principal radius [`curvature_lever_arm`] levers at, as a
+/// length**: a cone's parallel radius at `p` ([`parallel_radius`]), any
+/// other surface's uniform radius ([`uniform_radius`]).
+#[must_use]
+pub(crate) fn principal_radius<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
     match s {
-        Surface::Cone { .. } => parallel_curvature_arm(s, p),
-        _ => uniform_curvature_arm(s),
+        Surface::Cone { .. } => parallel_radius(s, p),
+        _ => uniform_radius(s),
     }
 }
 
@@ -69,14 +83,20 @@ pub fn within_carrier_bend<T: SpanLocate>(arm: Lever<T>, carrier: &Curve3<T>, t:
 /// through the point read, and for a spline.
 #[must_use]
 pub fn uniform_curvature_arm<T: Real>(s: &Surface<T>) -> Lever<T> {
-    Lever::curvature_radius(match *s {
+    Lever::curvature_radius(uniform_radius(s))
+}
+
+/// **The radius [`uniform_curvature_arm`] levers at, as a length.**
+#[must_use]
+fn uniform_radius<T: Real>(s: &Surface<T>) -> T {
+    match *s {
         Surface::Plane { .. } => T::from_f64(f64::MAX),
         Surface::Sphere { radius, .. } | Surface::Cylinder { radius, .. } => radius,
         Surface::Torus { minor_radius, .. } | Surface::Spindle { minor_radius, .. } => minor_radius,
         // A spline has no implicit form, and its stand-in no closed arm
         // to lend.
         Surface::Cone { .. } | Surface::Nurbs(_) | Surface::Approx(_) => poison(),
-    })
+    }
 }
 
 /// **The radius of `s`'s parallel through `p`**: `p`'s distance from the
@@ -86,7 +106,16 @@ pub fn uniform_curvature_arm<T: Real>(s: &Surface<T>) -> Lever<T> {
 /// tube radius does not bound. Poison for a surface with no axis.
 #[must_use]
 pub fn parallel_curvature_arm<T: Real>(s: &Surface<T>, p: Point3<T>) -> Lever<T> {
-    Lever::curvature_radius(s.axis_line().map_or_else(poison, |axis| axis.distance(p)))
+    Lever::curvature_radius(parallel_radius(s, p))
+}
+
+/// **The radius of `s`'s parallel through `p`, as a length**: the size
+/// [`parallel_curvature_arm`] levers at, for a reader that wants the
+/// radius itself (a cone's radius of curvature toward its inside,
+/// [`principal_radius`]).
+#[must_use]
+pub(crate) fn parallel_radius<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
+    s.axis_line().map_or_else(poison, |axis| axis.distance(p))
 }
 
 /// **A spline chart's curvature arm at `p` over `reach`, from below**:

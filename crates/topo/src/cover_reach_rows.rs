@@ -41,6 +41,37 @@ fn a_sphere_cap_past_a_hemisphere_reaches_its_rims_antipode() {
     );
 }
 
+/// **The ball holding a face is read about the point asked, out to the
+/// face's far side**: the cap of [`a_sphere_cap_past_a_hemisphere_reaches_its_rims_antipode`]
+/// read from its rim point holds the antipode, 2 away, on its surface to
+/// rounding, and leaves a point 2.5 out beyond the antipode outside. Red
+/// against the ball the cover names about its own centre (centred off
+/// the rim point), and against a radius read from the boundary alone
+/// (about 1.73, which leaves the antipode out).
+#[test]
+fn the_ball_holding_a_face_is_read_about_the_point_asked() {
+    let z = -0.5_f64;
+    let (body, face) = crate::test_support_fixtures::sphere_cap(z, Tol::witness());
+    let rim = Point3::new((1.0 - z.powi(2)).sqrt(), 0.0, z);
+    let ball = super::face_ball_about(&body, face, rim, band()).unwrap();
+    assert!(
+        ball.center().equals_exactly(rim),
+        "the ball is read about the point asked"
+    );
+    let antipode = Point3::origin() - (rim - Point3::origin());
+    assert!(
+        ball.stand_off(antipode) <= 1e-12,
+        "the antipode stands {} off the ball",
+        ball.stand_off(antipode)
+    );
+    let beyond = rim + (antipode - rim) * 1.25;
+    assert!(
+        ball.stand_off(beyond) > 0.4,
+        "a point 2.5 from the rim stands {} off the ball",
+        ball.stand_off(beyond)
+    );
+}
+
 /// **A sphere cap's axial range reaches its pole**: the cap above
 /// `z = −0.5` reaches the north pole, 1.5 up the axis from its rim,
 /// where its boundary reaches nothing. (How far below the rim the cover

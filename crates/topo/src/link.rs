@@ -2575,10 +2575,15 @@ impl<T: Decide> Link<T> {
                 geom_brep::ExtentBall::point(p).lever(),
                 geom_core::Lever::max,
             );
-        let ball = wedges()
+        // No wedge fills no ball; a cleared sector's poison stays poison.
+        let near = wedges()
             .map(|&(a, b)| to_segment(p, (a, b)))
-            .chain(sectors.iter().filter_map(|s| s.face.clear))
-            .fold(reach.length(), |r, l| r.min(l));
+            .reduce(T::min)
+            .unwrap_or_else(T::zero);
+        let ball = sectors
+            .iter()
+            .filter_map(|s| s.face.clear)
+            .fold(near, T::min);
         let (sectors, faces) = sectors.into_iter().map(|s| (s.sector, s.face)).unzip();
         Ok(Self {
             cone: Cone::of(p, sectors)?,
@@ -2887,9 +2892,9 @@ impl<T: Decide> FaceSector<T> {
             }
         }
         let radius = radius.ok_or(TouchUnread::Corrupt)?;
-        let far = crate::cover::face_reach_from(body, f, p, band)
+        let far = crate::cover::face_ball_about(body, f, p, band)
             .map_err(|_| TouchUnread::Corrupt)?
-            .length();
+            .radius();
         for length in [radius, far] {
             if !geom_core::is_finite_length(length) || geom_core::is_zero_length(length, length) {
                 return Err(TouchUnread::ChordScale);
@@ -6007,6 +6012,24 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// **The link's ball reaches its nearest wedge's far side, and no
+    /// farther**: one face up `z` whose wedges run `(3, 0, 0)–(0, 4, 0)`,
+    /// 2.4 from the origin, and `(0, 4, 0)–(−5, 0, 0)`, `20/√41` from it,
+    /// fills the ball of radius 2.4 and no larger. Red against a ball
+    /// read from the wedges' farthest end (5), or any radius past the
+    /// nearer segment.
+    #[test]
+    fn the_links_ball_reaches_its_nearest_wedge() {
+        let link = of_fans(
+            O,
+            &[(
+                v(0.0, 0.0, 1.0),
+                vec![p(3.0, 0.0, 0.0), p(0.0, 4.0, 0.0), p(-5.0, 0.0, 0.0)],
+            )],
+        );
+        close(link.ball, 2.4, "the ball's radius");
     }
 
     /// `link` with its faces in reverse order.
