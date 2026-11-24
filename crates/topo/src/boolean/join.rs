@@ -2988,8 +2988,9 @@ pub(super) enum FrameExtent<T: geom_core::Real> {
     /// A plane×cone pair's cone face, against the cone's axis
     /// ([`cone_face_reach`](crate::cover::cone_face_reach)).
     Cone(geom_brep::Reach<T>),
-    /// Two cone faces: the ball of both faces' covers, the region the
-    /// value's two-cone pose is read over.
+    /// The ball of both faces' covers: the region a pose the value reads
+    /// elsewhere is read over (two cones of one aperture on parallel
+    /// axes).
     Region(geom_brep::ExtentBall<T>),
 }
 
@@ -3018,17 +3019,20 @@ pub(super) fn frame_extent<T: Decide>(
         (cone @ geom::Surface::Cone { .. }, geom::Surface::Plane { .. }) => {
             cone_reach((body_a, face_a), (body_b, face_b), at, cone, band)
         }
-        (geom::Surface::Cone { .. }, geom::Surface::Cone { .. }) => {
+        // Every other pair: the ball of both faces' covers, where both
+        // have one, the region a pose the value reads elsewhere is read
+        // over ([`conic_section_frame_at`]); else its radii.
+        _ => {
             let ball = |body, face| {
                 crate::cover::face_cover(body, face, band)
+                    .ok()
                     .map(|cover| geom_brep::ExtentBall::of_cover(&cover))
-                    .map_err(|_| "a germ face pair's cone face has no cover")
             };
-            geom_brep::ExtentBall::enclosing(&[ball(body_a, face_a)?, ball(body_b, face_b)?])
-                .map(FrameExtent::Region)
-                .ok_or("two cone faces' covers have no enclosing ball")
+            Ok(ball(body_a, face_a)
+                .zip(ball(body_b, face_b))
+                .and_then(|(x, y)| geom_brep::ExtentBall::enclosing(&[x, y]))
+                .map_or(FrameExtent::Radii, FrameExtent::Region))
         }
-        _ => Ok(FrameExtent::Radii),
     }
 }
 
