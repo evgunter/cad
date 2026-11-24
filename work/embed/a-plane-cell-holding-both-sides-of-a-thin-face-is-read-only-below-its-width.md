@@ -1,13 +1,14 @@
 ---
 id: a-plane-cell-holding-both-sides-of-a-thin-face-is-read-only-below-its-width
 kind: issue
-title: present_plane reads one line or one corner, so a cell of a thin plane face, holding both its long sides or a short side with both its neighbours, is read only once split below the face's width: a thin slab refuses at the depth floor, a long needle spends the pair budget
-status: dispatched
+title: present_plane read one line or one corner, so a cell holding a thin plane face's whole end (its short side with both neighbours) was read only once split below the face's width - it now reads the end, the end's cap decided before any Vacuous
+status: closed
 opened: 2026-11-21
 priority: P0
 cost: M
 pr: 7334
 branch: embed/strip
+closed: 2026-11-24
 ---
 
 
@@ -46,7 +47,8 @@ The departure margin is never reached: no sign is read on a face that
 is not presented. So this is not the sliver concession's margin
 (`the-sliver-concession-reads-inside-the-band-against-the-finished-body-clause`,
 PR 7095), though a fix will meet that margin once the strip is
-presented. Whether the presented pair then passes is unchecked.
+presented. What the presented pair reads is in "Measured and landed,
+2026-11-22" below.
 
 ## Trace
 
@@ -112,9 +114,158 @@ floor first. Not checked by a flip.
 ## What a fix needs
 
 A planar presentation of a strip: the cell clipped to the face between
-two parallel line edges, or at a short edge between its two
-neighbours. The face there is an intersection of half-planes, convex,
+two line edges across it from each other (parallel or not), or at a
+short edge between its two neighbours. The face there is an intersection of half-planes, convex,
 so the same affine reading serves, with the shared side on `y = 0` and
 the far lines as the rectangle's bounds. `present_chart`'s clip sides
 already read several lines on one axis (`run_on`,
 `sides_are_the_faces`). The plane's own arm is the one that does not.
+
+## Measured and landed, 2026-11-22
+
+`embed/strip`, PR 7334. `present_plane` reads one thing: the face's
+part of the cell where the face is convex there, the intersection of
+the half-planes of the line edges the cell holds. It is read inside a
+parallelogram two of whose sides lie on one edge or on a convex
+corner's two edges. The cases:
+- one edge;
+- a corner;
+- **a strip's end**: an edge with a neighbour at each end, read at
+  either corner whose other neighbour (the cap) is not shared. The cap
+  bounds the far side at the highest its line stands over the cell's
+  reach.
+
+Convexity is decided by the leans alone. Each corner in the cell is
+convex, and the cap and the edge it caps stand on each other's face
+side over the reach, at `SELF_INTERSECTION_CORNER`, read linearly in
+the base's own frame. **Each reading decides that convexity before it
+may answer `Vacuous`.** A frame's "the cell is off my face side" is
+true only where nothing else in the cell bounds the face. The review
+of PR 7334 found it read first: a coplanar fold past a slot's far side
+certified (`a_face_laid_over_a_slots_far_side_is_not_certified`).
+
+**The strip arm was built, measured at zero, and removed.** PR 7334
+first also read two line edges with no common end (a strip's middle),
+and a wedge whose tip was clear of the cell, as a strip capped at the
+far side. It held the review's first two probes of the `Vacuous` hole.
+Measured through the gate on the 42 census tests that hold:
+
+| mutant | what is off | the 42 | body rows (slab, needle) |
+|---|---|---|---|
+| M11 | the strip arm (two lines with no common end, the wedge fallback) | 42 pass | green |
+| M11b | the end arm (three lines) | 4 pass, 38 fail | red |
+
+The four that pass under M11b pass under M11 too: the end arm alone
+carries them. So no measured test needs the strip arm. Two facts make
+that structural:
+- a thin rectangle's first split leaves two halves that each hold a
+  whole end;
+- of two plane faces along an edge, only one needs presenting, because
+  the other's carrier separates them; a thin face whose partner reads
+  at its own end is never asked across its middle.
+
+A chamfered hexagon prism, built to need it, did not (its side
+rectangles read at their ends). **What would bring the strip arm back:**
+a body with two thin plane faces along one edge, neither with a
+single-edge end within reach of the cells along that edge, which
+refuses with the strip arm off. Rebuild it only with that body as its
+pin. `a_strip_middle_is_not_read` pins its absence.
+
+**The census tests of this cause** (61 of the census of `c2a0c41f40`,
+picked by the families above from the 116 departure/edge/plane-plane
+and 124 `Budget(Pairs)` rows, run through the gate on
+`embed/strip-measure`). Before: 0 pass, 37 `Uncertified { Departure }`
+at an edge and 24 `Budget(Pairs)`. After: 39 pass and 22 fail. What the
+22 read now, per `STRIP_TRACE` (every unpresented plane exit and every
+departure margin the band does not decide):
+
+- **In band by construction (6)**, the pair presented and its own
+  width below Kε:
+  - `sliver_shell_role`'s needle and wedge (2, `Budget(Pairs)`): the
+    wedge's far end is 8.4e-8 wide, so cells near its tip read the
+    strip's width in band. One presented pair's margin is −9.70e-9:
+    rate −2.12 times extent 4.57e-9, the strip's own reach across.
+  - `sliver_shell_role::a_thin_wall_refuses_on_a_pair_below_k_eps_and_builds_above_it` (1).
+  - `missed_ray_side` (3): slabs 10ε (= Kε) thick, whose cap leans at
+    the end read the width at the band.
+- **contact9's dipping chords (4)**: the strip arm is reached, and
+  its leans or the departure read widths of 1e-16 to 1e-15. One
+  margin is −4.5e-15: rate −9.33 times extent 4.8e-16. These are
+  near-coincident faces by construction. One of them,
+  `a_sector_parallel_at_a_short_arm_is_coplanar_only_if_its_bounds_read_on`,
+  moved from `Budget(Pairs)` to `Crosses` at a station pair 4.8e-10
+  apart, below ε. That is a distance verdict, not a reading.
+- **Elsewhere (10)**:
+  - `a_long_bound_beside_a_short_arm` (3, depth and vertex) and
+    contact9's `a_near_coincident_pair_at_a_corner_refuses_typed`:
+    their undecided margins have rate 0 (coplanar faces, a
+    separator that does not depart). Their unpresented exits are
+    mostly the corner's lean.
+  - `review_fillet_h6_r1_probes` (corner lean).
+  - `fillet_h6_cap_rim`, `germ_torus_doors::subtract_and_intersect…`
+    and `band_closed_mixed_chain_shapes`: the undecided margins
+    are on curved faces.
+  - `review_arm_vs_reach_probes::review_tilted` and
+    `shell_role_reader::a_needle_channel…` (depth, four-edge plane
+    cells).
+- **Not the gate (2)**:
+  `a_corner_reads_only_its_own_sectors::an_unglued_pair_parallel_at_the_arm_refuses_on_the_arms_tilt`
+  and `m10_sym_drive_memo_interval::every_leaf_reports_one_column_under_every_schedule_and_both_dials`
+  fail with the gate off, and the first fails on main as well.
+
+So 6 of the 22 stop at a width in the band, the re-metering's ground,
+and none of the 39 that then held needed the margin changed. (These
+figures are the first head's; the fix pass's are below.)
+
+**Not checked here**: the ten thin curved shoulder and strut rows
+(`wedge_end_doors` and the rest). They are not in the 61.
+
+**After the review's fix pass** (the merged head, on
+`embed/strip-measure`), 42 of the 61 pass:
+- `missed_ray_side`'s three slabs (10ε = Kε thick) now hold. The cap's
+  lean over the base no longer picks up the reach's slack per chart
+  coordinate.
+- The ∩ of `contact9_side_codes::a_sector_parallel_at_a_short_arm_is_coplanar_only_if_its_bounds_read_on`,
+  a wedge whose two faces share a 1 mm edge and part at 5e-8 rad (so
+  stay within ε of each other for about 20 mm), reads `Embedded`. The
+  verdict door read `Crosses` at the 4.78e-10 station pair; before this
+  unit the gate refused it on the pair budget. The departure that
+  certifies it multiplies the faces' 5e-8 rad parting by the cell's
+  reach, the margin PR 7095 re-meters.
+- The test still fails, on its − (`Departure` at an edge).
+
+**Last pass (re-review of `a54717c96`, approve with fixes).**
+- The end's cap reads one lean: the base's points on the cap's face
+  side over a reach from the corner. Two checks went as implied, each
+  after its mutant survived:
+  - the cap's rise: its height is 1 at the corner, and the lean keeps
+    its line off the base;
+  - the run check: an undecided height bounds nothing, and the far side
+    is then the cell's reach.
+- A structural refusal from either corner stands.
+- Rows pin the cap's band, the reach starting at the corner, and a
+  structural end.
+- The reviewer's fuzz of three-edge chains is a counterexample search
+  in `injective`'s rows (`a_presented_end_holds_the_faces_part_at_random`).
+  At effort 15 with seed `0x1234` it finds failures for three mutants:
+  the cap's lean dropped, a reach from the cell instead of the corner,
+  and `Vacuous` read before the cap. It does not catch a looser cap,
+  which is still sound. 56,545 cells at 1e-9 in the reviewer's run
+  read 578 three-edge cells `Vacuous` where main read every
+  three-edge cell `Local`, and all 578 are sound.
+
+
+**Landing pass (merged with `embed/wave3-land` `8d34076a9e`).**
+- The 61 census tests of this cause were run through the gate on this
+  unit's final `present_plane` (`embed/strip-measure` `25095ebaff`):
+  42 pass and 19 fail, each test's verdict identical to the reviewed
+  fix pass's. This replaces the argued claim that the last pass's
+  removals cannot move them.
+- `contact9_side_codes`' sector-sliver meet read `Budget(Pairs)` with
+  its millimetre faces unread. This unit presents the wall's end, so it
+  now reads `Embedded`, an in-band pair certified by the reach lever.
+  That is not the ratified reading (`[topology.tiers]` levers at the
+  narrower face's run). It is re-pinned at what it reads, as
+  `the_sector_slivers_meet_is_certified_by_the_reach_lever_once_its_faces_are_read`,
+  and `the-embedding-question-reads-tier-3s-class-and-the-pairs-extent-from-the-verdict`
+  owes the flip to the refusal.

@@ -68,14 +68,10 @@ use super::{ChartAxis, SsiError, TraceDecision};
 const STRIP_PIECES_LOG2: u32 = 6;
 use crate::nurbs_iso::{boundary_iso_u, boundary_iso_v};
 
-/// Which end of a parameter's domain.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum ChartEnd {
-    /// The domain's low end.
-    Low,
-    /// The domain's high end.
-    High,
-}
+/// Which end of a parameter's domain: [`geom_core::period::DomainEnd`],
+/// the type [`geom_core::period::domain_end`] answers with, under the
+/// name a chart's sides and corners use.
+pub use geom_core::period::DomainEnd as ChartEnd;
 
 /// A side of a NURBS wall's knot rectangle: the iso-line where `fixed`
 /// sits at its `end`.
