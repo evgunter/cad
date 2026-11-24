@@ -470,9 +470,10 @@ fn a_far_rod_and_a_slender_cone_answer_at_every_eps() {
 /// partner's apex `2.1·10⁻⁷` m up the first cone's axis, at about `80` m
 /// from the origin. The retired coaxial arm read the parallels in closed
 /// form there; the section value's sweep meets the discriminant in the
-/// band, the sheets passing all but through the near apex (at `1e-12`
-/// the apexes' gap reads in the band, and the closed forms read a touch
-/// at the apex). A narrowing
+/// band, the sheets passing all but through the near apex. That is the
+/// default band's reading; a finer band reads the gap either in it (the
+/// closed forms' touch at an apex) or past it (the sweep answers the
+/// parallels). A narrowing
 /// filed as
 /// `work/sectcone/coaxial-cones-a-hair-apart-refuse-on-the-sweep.md`. A
 /// reading that answers here, or refuses on another row: red.
@@ -497,13 +498,22 @@ fn coaxial_cones_a_hair_apart_refuse_on_the_sweep() {
             band(),
         )
     };
-    // At a finer ε the apexes' gap reads in the band, and the pair is the
-    // closed forms' touch at one apex.
+    // The default band refuses. A finer one reads the apexes' gap either
+    // in it (the closed forms' touch at one apex) or past it, where the
+    // sweep answers the parallels, each witness on both cones.
     for s in [read(&first, &second), read(&second, &first)] {
-        assert!(
-            matches!(s, Section::Tangent("ruling_discriminant"))
-                || matches!(s, Section::Touch(t) if t.name == "section_cone_coaxial_apexes"),
-            "{s:?}"
-        );
+        match &s {
+            Section::Tangent("ruling_discriminant") => {}
+            Section::Touch(t) if t.name == "section_cone_coaxial_apexes" => {}
+            Section::Components { parts, .. } if !parts.is_empty() => {
+                for w in parts.iter().filter_map(|c| c.witness) {
+                    for surf in [&first, &second] {
+                        let r = geom_brep::implicit_residual(surf, w);
+                        assert!(r.abs() < 1e-7, "the witness {w:?} is {r} off {surf:?}");
+                    }
+                }
+            }
+            other => panic!("{other:?}"),
+        }
     }
 }

@@ -331,9 +331,10 @@ fn turn_reach(at: Point3<f64>) -> (Reach<f64>, f64) {
 /// from the torus at either height. (The pose's own in-band tilt and
 /// offset rows are geom-brep's
 /// `cone_torus_pose::a_tilt_and_an_offset_in_the_band_read_the_axis_pose`.)
-/// A second cone against a cone, whose apex stands `0.5` m off the pivot
-/// along its axis or at it, is the section value's too, which reads no
-/// turn: it is classified either way.
+/// A second cone, whose apex stands `0.5` m off the pivot along its axis
+/// or at it, against a cone across its axis is the section value's too,
+/// which reads no turn: it is classified either way, over a ball of `2`
+/// m about the pivot that the section crosses.
 #[test]
 fn the_turn_of_a_point_read_off_the_pivot_counts() {
     let at = p(0.0, 0.0, 0.0);
@@ -359,35 +360,32 @@ fn the_turn_of_a_point_read_off_the_pivot_counts() {
         );
         // A second cone whose apex stands `0.5` m along its own axis from
         // the pivot, against a cone whose apex is a metre down the first
-        // axis.
+        // axis and whose axis is `x`: on `y = 0` they meet near
+        // `(±1/2, 0, −1/2)` (apex at the pivot) or `(±3/4, 0, −1/4)` (apex
+        // `0.5` m up), inside the ball.
         let apexes = Surface::Cone {
             frame: geom::Frame::new(at + d * rise, d, Vec3::unit_y()),
             half_angle: core::f64::consts::FRAC_PI_4,
         };
         let first = Surface::Cone {
-            frame: geom::Frame::new(p(0.0, 0.0, -1.0), Vec3::unit_z(), Vec3::unit_x()),
+            frame: geom::Frame::new(p(0.0, 0.0, -1.0), Vec3::unit_x(), Vec3::unit_y()),
             half_angle: core::f64::consts::FRAC_PI_4,
         };
         let s = classify(
             &first,
             &apexes,
-            &reach,
+            &geom_brep::Reach::Ball(geom_brep::ExtentBall::fixture(at, 2.0)),
             None,
             Some(geom_brep::SsiLane::marched()),
             band(),
         );
         // Two cones are the section value's, which reads no axis pose: it
-        // classifies the pair over the reach either way, each witness on
-        // both carriers; with the apex at the pivot the parallels cross the
-        // reach, and with it `0.5` m off they stand outside it.
+        // classifies the pair over the ball either way, a non-empty
+        // section with each witness on both carriers.
         let Section::Components { parts, .. } = &s else {
             panic!("cones, apex {rise} off the pivot: {s:?}")
         };
-        assert_eq!(
-            parts.is_empty(),
-            rise > 0.0,
-            "cones, apex {rise} off the pivot: {s:?}"
-        );
+        assert!(!parts.is_empty(), "cones, apex {rise} off the pivot: {s:?}");
         for w in parts.iter().filter_map(|c| c.witness) {
             for surf in [&first, &apexes] {
                 let r = geom_brep::implicit_residual(surf, w);
