@@ -895,7 +895,7 @@ struct LiesIn {
 /// vertex of them on the edge. A closed edge is asked as an open one is:
 /// its ends are one vertex, so the faces both its ends lie on are the
 /// faces that vertex lies on.
-fn riders<T: Decide>(
+fn riders<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     contacts: &ContactRecords,
     band: Band,
@@ -1053,7 +1053,7 @@ struct Names {
 /// where an unread carrier's edge has both its faces going into `f`'s
 /// material. [`walls_inside`]'s refusals but `Crossed`, where it
 /// reads the faces.
-fn holding<T: Decide>(
+fn holding<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     named: &[&Contact],
     e: EdgeKey,
@@ -1307,11 +1307,16 @@ pub(super) enum Placed {
 /// it lies, off otherwise. A spline can lie on a surface along
 /// part of its length only, so no point of it read off says it lies there
 /// along no piece: it reads off only where it is certified off over its
-/// whole length ([`clears_plane`], a plane's). A spiric lies along no
+/// whole length, against a plane by its net's hull ([`clears_plane`]),
+/// and against a curved analytic surface where the curve × face table's
+/// composite door crosses it at isolated points only
+/// ([`spline_crosses`]). A spiric lies along no
 /// piece of a sphere, a cylinder or a cone by degree, and on a ring torus
 /// lies along a piece only where along all of it; either way it reads off
 /// where a point of its span reads off ([`spiric_on_curved`]). A spline
-/// not certified off, and any carrier against a torus not decided a ring,
+/// neither certified off nor crossed at isolated points (on its own
+/// surface, or touching it), and any carrier against a torus not decided
+/// a ring,
 /// is unread ([`EdgeInFaceGap::CarrierUnread`]); nothing reads a spiric
 /// on. Every point read off is read through the one certificate
 /// ([`geom_brep::variety`]), which holds the carrier kinds it is sound for;
@@ -1344,7 +1349,7 @@ pub(super) enum Placed {
 ///
 /// [`BooleanError::Escalated`] where no point is definitely off and an
 /// offset, or the torus's bound between them, is in band.
-pub(super) fn carrier_on_surface<T: Decide>(
+pub(super) fn carrier_on_surface<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     carrier: &geom::Curve3<T>,
     (t0, t1): (T, T),
@@ -1356,7 +1361,7 @@ pub(super) fn carrier_on_surface<T: Decide>(
 }
 
 /// [`carrier_on_surface`] on `surface` itself.
-fn conic_or_line_on<T: Decide>(
+fn conic_or_line_on<T: crate::props::AtRestPolicy>(
     carrier: &geom::Curve3<T>,
     (t0, t1): (T, T),
     surface: &geom::Surface<T>,
@@ -1464,11 +1469,15 @@ fn conic_or_line_on<T: Decide>(
         (geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_), _)
             if surface.spline_chart().is_none() =>
         {
-            return Ok(if clears_plane(carrier, surface, band) {
-                Placed::Off
-            } else {
-                Placed::Unread(EdgeInFaceGap::CarrierUnread)
-            });
+            return Ok(
+                if clears_plane(carrier, surface, band)
+                    || spline_crosses(carrier, (t0, t1), surface, band)
+                {
+                    Placed::Off
+                } else {
+                    Placed::Unread(EdgeInFaceGap::CarrierUnread)
+                },
+            );
         }
         _ => return Ok(Placed::Unread(EdgeInFaceGap::SplineFace)),
     };
@@ -1539,6 +1548,34 @@ fn clears_plane<T: Decide>(
         }
         _ => false,
     }
+}
+
+/// **Whether a spline carrier meets a curved analytic surface at
+/// isolated points only over `(t0, t1)`**: the curve × face table's composite door
+/// ([`geom_brep::curve_face::cross()`]) read every piece of the span
+/// clear of the surface or monotone across it, so no piece lies on it. A
+/// touch, or a piece within the band of the surface, refuses there, and
+/// is no reading that the carrier is on.
+fn spline_crosses<T: crate::props::AtRestPolicy>(
+    carrier: &geom::Curve3<T>,
+    (t0, t1): (T, T),
+    surface: &geom::Surface<T>,
+    band: Band,
+) -> bool {
+    let geom::Curve3::Nurbs(net) = carrier else {
+        return false;
+    };
+    // A plane is read on the hull alone ([`clears_plane`]).
+    if matches!(surface, geom::Surface::Plane { .. }) {
+        return false;
+    }
+    let composite = geom_brep::curve_face::route(carrier.kind(), surface.kind()).door
+        == geom_brep::curve_face::Door::SplineComposite;
+    composite
+        && matches!(
+            T::spline_face_crossings(net, (t0.min(t1), t0.max(t1)), surface, band),
+            Some(Ok(_))
+        )
 }
 
 /// The rows [`spiric_on_curved`] reads a spiric's regime under
@@ -3039,6 +3076,60 @@ mod unread_piece {
         assert!(
             matches!(crossed, Ok(None)),
             "a crossing-only pair: the face is not asked, got {crossed:?}"
+        );
+    }
+}
+
+/// **A marched edge reads off a surface only where it crosses it**: a
+/// plane tilted against the ring torus `(2, 0.5)` cuts two loops round the
+/// tube, each marched to a periodic cubic. Half of one, on its clamped
+/// view, is crossed at isolated points by the cylinder of radius 2 about
+/// the torus's axis, so the composite door reads it off that surface;
+/// against its own torus it lies within the band along every piece, so
+/// it stays unread, never off.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod marched_rider {
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    #[test]
+    fn a_marched_edge_reads_off_a_crossed_surface_and_never_off_its_own() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        let torus = geom::Surface::Torus {
+            frame: geom::Frame::new(Point3::origin(), z, Vec3::unit_x()),
+            major_radius: 2.0,
+            minor_radius: 0.5,
+        };
+        let n = Vec3::new(0.5, 0.0, 0.75_f64.sqrt());
+        let plane = geom::Surface::Plane {
+            frame: geom::Frame::new(Point3::origin(), n, Vec3::unit_y()),
+        };
+        let geom_brep::SectionRead::Built(section) =
+            geom_brep::pair_section(&plane, &torus, None, None::<geom_core::NoLane>, band).unwrap()
+        else {
+            panic!("a tilted plane is the section value's");
+        };
+        let carried = section
+            .carry(Some(geom_brep::SsiLane::marched()), band)
+            .unwrap();
+        let geom::Curve3::Periodic(loop_) = &carried.components()[0].carrier else {
+            panic!("a marched loop is a periodic cubic");
+        };
+        let (a, b) = loop_.base_span();
+        let span = (a, a + 0.5 * (b - a));
+        let half = geom::Curve3::Nurbs(std::sync::Arc::new(loop_.clamped_view(span).unwrap()));
+        let wall = geom::Surface::Cylinder {
+            frame: geom::Frame::new(Point3::new(0.0, 0.0, -3.0), z, Vec3::unit_x()),
+            radius: 2.0,
+        };
+        assert!(
+            super::spline_crosses(&half, span, &wall, band),
+            "the crossed wall reads it off"
+        );
+        assert!(
+            !super::spline_crosses(&half, span, &torus, band),
+            "its own torus never reads it off"
         );
     }
 }

@@ -259,22 +259,25 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
                    crossing pose is marched as the IMPLICIT pair in ℝ³ over the pair's \
                    ball cut by the region",
         },
-        // ---- Rung 2, axis-aligned poses only: the containing and
+        // ---- Rung 2 on the axis-aligned poses: the containing and
         // normal planes cut closed-form Circles, the parallel one off
-        // the axis the exact Spiric; every tilted configuration keeps
-        // its general-rung routing, named at the arm's own refusal. ----
+        // the axis the exact Spiric; every tilted configuration is the
+        // general rung's, marched by the section value. ----
         (Plane, Torus) | (Torus, Plane) => PairRoute {
             rung: Rung::Conic,
             implemented: true,
-            note: "axis-aligned cases only: an axis-containing plane cuts the two \
-                   meridian Circles, an axis-parallel plane off the axis the two \
+            note: "axis-aligned cases in closed form: an axis-containing plane cuts the \
+                   two meridian Circles, an axis-parallel plane off the axis the two \
                    Spiric ovals (short of the inner equator), an axis-normal plane \
                    the two concentric Circles (or the tangency circle — \
                    classification data, not a carrier; no production consumer takes \
-                   it yet) (plane_torus_section); everything tilted — the bitangent \
-                   Villarceau pair included — routes to the general rung with the \
-                   ℝ³ IMPLICIT-PAIR trace shape, whose tilted plane×torus arm has \
-                   not retired (arms retire one at a time, each with its proof)",
+                   it yet) (plane_torus_section); every other pose — the bitangent \
+                   Villarceau pair and an axis-parallel plane past the inner equator \
+                   included — is the section value's (geom_brep::pair_section), its \
+                   loops counted by the pose's closed-form tube rows and marched in \
+                   ℝ³ on the IMPLICIT PAIR and fitted, with the full three-limb \
+                   certificate and in-op exhaustiveness (geom_brep::ssi::plane_torus_ssi), \
+                   a tangent pose classification data",
         },
         // ---- Rung 1, the COAXIAL configuration only: two closed-form
         // Circles, one per nappe. Every other pose keeps its
@@ -467,9 +470,9 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
 /// THAT arm serves THESE two surfaces as they stand.
 ///
 /// [`route`] answers per kind pair, and an implemented arm is
-/// configuration-scoped: coaxial cone×cylinder, axis-containing or
-/// axis-normal plane×torus, apex-through or axis-normal plane×cone,
-/// equal-radius crossing or parallel cylinder×cylinder. A consumer that
+/// configuration-scoped: coaxial cone×cylinder, apex-through or
+/// axis-normal plane×cone, equal-radius crossing or parallel
+/// cylinder×cylinder. A consumer that
 /// gates on the kind pair admits every other pose of those pairs as
 /// though a closed form were wired for it. This asks the arm itself —
 /// the pair's own section function, which runs its configuration
@@ -503,7 +506,8 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
 /// with every Approx pairing over its fits). Cylinder×torus and
 /// torus×torus read the section value ([`crate::pair_section()`]),
 /// which serves every pose its pose decision classifies, a general one
-/// through its march. Every unimplemented pair answers
+/// through its march; plane×torus reads its closed-form arm, and a pose
+/// that arm routes to the general rung the section value. Every unimplemented pair answers
 /// [`route`] unchanged. The match is
 /// exhaustive with no wildcard, as [`route`]'s is, so a kind added to
 /// the table is a compile-time visit here too.
@@ -567,8 +571,16 @@ pub fn route_pose<T: Decide>(
     let verdict = match (ka, kb) {
         (Plane, Cone) => plane_cone_section(a, b, reach, band).map(drop),
         (Cone, Plane) => plane_cone_section(b, a, reach, band).map(drop),
-        (Plane, Torus) => plane_torus_section(a, b, extent(), band).map(drop),
-        (Torus, Plane) => plane_torus_section(b, a, extent(), band).map(drop),
+        // A tilted plane is the section value's, which marches it.
+        (Plane, Torus) | (Torus, Plane) => {
+            let (plane, torus) = if ka == Plane { (a, b) } else { (b, a) };
+            match plane_torus_section(plane, torus, extent(), band) {
+                Err(SectionError::RoutesToGeneralRung { .. }) => {
+                    crate::pair_section(a, b, None, None::<geom_core::NoLane>, band).map(drop)
+                }
+                read => read.map(drop),
+            }
+        }
         (Cone, Cylinder) => cone_cylinder_section(a, b, extent(), band).map(drop),
         (Sphere, Torus) | (Torus, Sphere) => torus_pose(crate::SphereTorusPose::decide(a, b, band)),
         (Cylinder, Torus) | (Torus, Cylinder) | (Torus, Torus) | (Cone, Torus) | (Torus, Cone) => {
@@ -2810,9 +2822,8 @@ fn pair_bound<T: geom_core::spline::SpanLocate>(
 /// configurations' closed forms (the trileans run before any rung, C5;
 /// **no fitted chord anywhere in this arm** — every constructible locus
 /// is an exact `Circle` or `Spiric`). Everything tilted refuses typed
-/// as routed to the general rung; the bitangent (Villarceau) two-circle
-/// configuration is deliberately unclassified — a classification no
-/// consumer configuration reaches.
+/// as routed to the general rung, which the section value builds
+/// ([`crate::PlaneTorusPose`]).
 #[derive(Clone, Debug)]
 pub enum PlaneTorusSection<T: Real> {
     /// Axis-containing plane: the TWO meridian circles — radius `r`,
@@ -2916,10 +2927,10 @@ const PT_SPIRIC_REGIME: geom::SpiricRegimeSites = geom::SpiricReader::PlaneTorus
 ///    Positive ⇒ [`PlaneTorusSection::ConcentricCircles`], Zero ⇒
 ///    [`PlaneTorusSection::TangentCircle`] (classification data),
 ///    Negative ⇒ [`PlaneTorusSection::Empty`].
-/// 4. Everything else ⇒ [`SectionError::RoutesToGeneralRung`], with
-///    the bitangent (Villarceau) two-circle case NAMED as deliberately
-///    unclassified — exactly as the cylinder×cylinder arm names skew
-///    and the plane×cone arm names the parabola and the hyperbola.
+/// 4. Everything else ⇒ [`SectionError::RoutesToGeneralRung`]: the
+///    general rung's pose ([`crate::PlaneTorusPose`]), whose loops the
+///    section value counts and marches, the bitangent (Villarceau)
+///    two-circle case among them.
 ///
 /// Steps 2 and 3 are lane choices though a tilt can change the loop
 /// count: the count is read by rows each lane carries (`pt_cap_gap` and
@@ -3088,9 +3099,8 @@ fn plane_torus_read<T: Decide>(
                                 pair: "plane×torus",
                                 why: "an axis-parallel plane at or past the torus's inner \
                                       equator cuts a node, one folded loop or nothing — not \
-                                      the two ovals the spiric carries — and the pair's \
-                                      general-rung arm has not retired (arms retire one at \
-                                      a time, each with its proof)",
+                                      the two ovals the spiric carries — which is the general \
+                                      rung's pose (crate::PlaneTorusPose)",
                             });
                         }
                         // Unreachable: `pt_axis_plane_gap_floor` read `|d|`, less the
@@ -3121,11 +3131,8 @@ fn plane_torus_read<T: Decide>(
         false => axis_normal(&parts, band, class)?.ok_or(SectionError::RoutesToGeneralRung {
             pair: "plane×torus",
             why: "generic tilt cuts a spiric quartic — the bitangent \
-                  (Villarceau) two-circle configuration is deliberately \
-                  unclassified, a third classification no consumer \
-                  configuration reaches — and the pair's general-rung arm \
-                  has not retired (arms retire one at a time, each with its \
-                  proof)",
+                  (Villarceau) two-circle configuration included — which is \
+                  the general rung's pose (crate::PlaneTorusPose)",
         }),
     }
 }

@@ -2,11 +2,13 @@
 id: a-boxed-rectangles-certification-runs-out-of-memory-with-the-box-arm-off
 kind: issue
 title: The symbolic tier's shape report renders a blocking form without bound: a boxed rectangle's replay runs out of memory with the switch's box arm off (0.18 s with it on)
-status: dispatched
+status: closed
 opened: 2026-11-24
 priority: P1
 cost: E
 branch: boxfinish/report-bound
+closed: 2026-11-24
+pr: 7704
 ---
 
 
@@ -50,3 +52,26 @@ box arm off to see what it reaches.
 
 It holds the switch's deletion: a row that cannot run cannot be
 re-baselined. (BOXFINISH orchestrator)
+
+## Closed
+
+PR 7704 (2026-11-24). One decision's three texts take at most
+`RENDER_BUDGET` (768 KiB, a third each) in `geom-core`'s
+`sym/report.rs`: a form past its share is written at the deepest
+nesting that fits with each unspelled atom named by head, atom id and
+argument size, and a text that is cut counts what it leaves. Rows in
+`crates/geom-core/tests/shape_report_render_budget.rs`, each red under
+a named mutant.
+
+**The acceptance:** on the probe tree (the box arm off) with the head's
+renderer, under a 5 GB limit,
+`a_boxed_rectangle_certifies_over_its_box::a_pen_drawn_and_a_cornered_rectangle_certify_over_a_boxed_width`
+is green in 10 s at 291 MB peak, where it was killed at 85 to 90 s.
+
+**Left, each in its own file on SYM's slate:** a replay's report is
+bounded per decision and not as a whole
+(`work/sym/a-replays-shape-report-is-bounded-per-decision-and-not-as-a-whole.md`);
+two depth-limited atom walks of the ladder have the same shape and
+cost time, not memory
+(`work/sym/two-depth-limited-atom-walks-have-no-memo-and-cost-the-product-of-the-fan-out.md`).
+The experiment row is `docs/model-compare-log/rows/PR-7704.md`.
