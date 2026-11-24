@@ -197,9 +197,6 @@ crates/topo/src/side_reader.rs	1	constant	across	the aimed ray's fixed incidence
 crates/topo/src/side_reader.rs	1	constant	along	the aimed ray's fixed incidence (AIM_INCIDENCE, 60° to the face): it only steers a ray whose start lies beyond every face
 crates/topo/src/side_reader.rs	1	constant	turn_cos	the aimed ray's fixed golden-angle turn off the face's tangent frame (aim_turn, the golden angle): it only steers the ray
 crates/topo/src/side_reader.rs	1	constant	turn_sin	the aimed ray's fixed golden-angle turn off the face's tangent frame (aim_turn, the golden angle): it only steers the ray
-crates/topo/src/side_reader_tilted_cap_rows.rs	1	constant	<fn>	a test fixture's exact unit direction, an f64 constant of the row, mapped componentwise into the scalar
-crates/topo/src/side_reader_tilted_cap_rows.rs	1	constant	tilt.0 * x + tilt.1 * 0.41	a test point's height above the cap's corner: the row's own tilt and station, constants of the row
-crates/topo/src/side_reader_tilted_cap_rows.rs	1	constant	x	a test point's station, one of the row's listed constants
 crates/topo/src/solid_contain.rs	1	constant	<block> if plus	a fixed fraction of a circle arc's span, as the half-edge walks it: a sample point of the arc whose turn is read
 crates/topo/src/solid_contain.rs	1	constant	<fn>	a fixed ray direction of the schedule
 crates/topo/src/solid_contain.rs	1	constant	crate::boxes::sweep_pad(band)	the band's sweep pad, a tolerance
