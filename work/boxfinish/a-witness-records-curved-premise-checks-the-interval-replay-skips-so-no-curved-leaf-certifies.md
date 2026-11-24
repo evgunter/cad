@@ -2,11 +2,12 @@
 id: a-witness-records-curved-premise-checks-the-interval-replay-skips-so-no-curved-leaf-certifies
 kind: issue
 title: the f64 witness records a curved face's props premise checks that the interval leaf replay skips, so the drive refuses every curved leaf as a FlipCrossing with empty evidence
-status: dispatched
+status: closed
 opened: 2026-11-23
 priority: P0
 cost: M
 branch: boxfinish/witness-premises
+closed: 2026-11-24
 ---
 
 
@@ -49,3 +50,22 @@ the review carries the correctness claims). The implementer is PR
 7344's arm continued, as a later escape's repair is; no fresh draw.
 Branch `boxfinish/witness-premises`; measure first, with an interim
 note before the build. (BOXFINISH orchestrator)
+
+## Closed
+
+PR PRNUM (2026-11-24). The rounding lane's interval re-read of a curved
+closed-form face (`lifted_closed_form`, `crates/topo/src/props.rs`)
+runs under `k_stats::unlogged` on ledger row F48, so the `f64` witness
+states the decisions the leaf's replay states and no others; a refusal
+inside it still refuses the face by its payload. The plate's
+`hole_r` leaves certify: `docm9_range`'s
+`the_plates_narrow_hole_radius_leaves_certify_against_their_witness`
+and `the_directed_search_proves_ground_on_the_plate_the_level_drive_cannot`,
+both red on the base tree; the two `props::lifted_pass_rows` rows in
+`topo` are each red under a named mutant. No `f64` pin moved.
+
+A parted path with no turn is still reported as an empty
+`FlipCrossing`:
+`a-parted-path-with-no-turn-is-reported-as-an-empty-flip-crossing`
+holds it. The sweep's one hit is
+`limb-2-logs-other-decisions-at-an-enclosure-scalar-than-at-the-witness`.
